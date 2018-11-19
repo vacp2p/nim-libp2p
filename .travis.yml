@@ -1,6 +1,6 @@
 language: c # or other C/C++ variants
 
-dist: trusty
+dist: xenial
 sudo: false
 
 # https://docs.travis-ci.com/user/caching/
