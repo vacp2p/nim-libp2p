@@ -10,6 +10,6 @@ skipDirs      = @["tests", "Nim"]
 requires "nim > 0.18.0",
          "https://github.com/status-im/nim-asyncdispatch2"
 
-task tests, "Runs the test suite":
+task test, "Runs the test suite":
   exec "nim c -r tests/testpbvarint"
   exec "nim c -r tests/testdaemon"
