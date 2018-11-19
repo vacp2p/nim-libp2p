@@ -40,7 +40,7 @@ install:
         rm -rf csources ;
         cd ../.. ;
       }"
-  - export PATH=$PWD/nim/$NIMVER/bin:$HOME/go/bin:$PATH
+  - export PATH=$PWD/nim/$NIMVER/bin:$GOPATH/bin:$PATH
   - go get -v github.com/libp2p/go-libp2p-daemon
   - cd $GOPATH/src/github.com/libp2p/go-libp2p-daemon
   - make
