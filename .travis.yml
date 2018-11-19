@@ -40,8 +40,10 @@ install:
       }"
   - "export PATH=$PWD/nim/$NIMVER/bin:$PATH"
   - go get -v github.com/libp2p/go-libp2p-daemon
-  - cd $HOME/go/src/github.com/libp2p/go-libp2p-daemon
   - cd $HOME
+  - ls -la
+  # - cd $HOME/go/src/github.com/libp2p/go-libp2p-daemon
+  # - cd $HOME
 
 script:
   - nimble install -y
