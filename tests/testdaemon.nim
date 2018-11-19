@@ -11,4 +11,5 @@ proc identitySpawnTest(): Future[bool] {.async.} =
 when isMainModule:
   suite "libp2p-daemon test suite":
     test "Simple spawn and get identity test":
-      waitFor identitySpawnTest() == true
+      check:
+        waitFor(identitySpawnTest()) == true
