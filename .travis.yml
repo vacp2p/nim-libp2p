@@ -39,8 +39,9 @@ install:
         cd ../.. ;
       }"
   - "export PATH=$PWD/nim/$NIMVER/bin:$PATH"
+  - ls -la
   - go get -v github.com/libp2p/go-libp2p-daemon
-  - cd $HOME
+  - cd $HOME/go
   - ls -la
   # - cd $HOME/go/src/github.com/libp2p/go-libp2p-daemon
   # - cd $HOME
