@@ -42,10 +42,8 @@ install:
   - echo $PWD
   - go get -v github.com/libp2p/go-libp2p-daemon
   - cd $HOME/go/src/github.com/libp2p/go-libp2p-daemon
-  - ls -la
-  # - cd $HOME/go/src/github.com/libp2p/go-libp2p-daemon
-  # - cd $HOME
-  - cd $HOME/build/status-im/libp2p
+  - make
+  - cd $HOME/build/status-im/nim-libp2p
 
 script:
   - nimble install -y
