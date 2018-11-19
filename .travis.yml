@@ -38,6 +38,7 @@ install:
   #       cd ../.. ;
   #     }"
   # - "export PATH=$PWD/nim/$NIMVER/bin:$PATH"
+  - go version
   - go get -v github.com/libp2p/go-libp2p-daemon
   - cd $GOPATH/src/github.com/libp2p/go-libp2p-daemon
   - make
