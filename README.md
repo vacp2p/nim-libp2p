@@ -1,4 +1,7 @@
 # nim-libp2p
+
+[![Build Status](https://travis-ci.org/status-im/nim-libp2p.svg?branch=master)](https://travis-ci.org/status-im/nim-libp2p)
+
 libp2p implementation in Nim
 
 ## License
