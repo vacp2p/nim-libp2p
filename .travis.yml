@@ -47,4 +47,4 @@ install:
 
 script:
   - nimble install -y
-  # - nimble test
+  - nimble test
