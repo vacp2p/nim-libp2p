@@ -96,7 +96,7 @@ type
 
   PeerInfo* = object
     peer*: PeerID
-    addresses: seq[MultiAddress]
+    addresses*: seq[MultiAddress]
 
   P2PStreamCallback* = proc(api: DaemonAPI,
                             stream: P2PStream): Future[void] {.gcsafe.}
