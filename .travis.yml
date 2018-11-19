@@ -11,13 +11,11 @@ sudo: false
 cache:
   directories:
     - nim
-    - $GOPATH/src/gx
+    - $HOME/go/src/gx
 
 os:
   - linux
   - osx
-    before_install:
-      - export GOPATH=$HOME/go
 
 go:
   - "1.11.x"
@@ -42,7 +40,7 @@ install:
       }"
   - "export PATH=$PWD/nim/$NIMVER/bin:$PATH"
   - go get -v github.com/libp2p/go-libp2p-daemon
-  - cd $GOPATH/src/github.com/libp2p/go-libp2p-daemon
+  - cd $HOME/go/src/github.com/libp2p/go-libp2p-daemon
   - cd $HOME
 
 script:
