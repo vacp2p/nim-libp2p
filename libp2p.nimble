@@ -9,4 +9,5 @@ skipDirs      = @["tests", "Nim"]
 
 requires "nim > 0.18.0"
 
-# task tests, "Runs the test suite":
+task tests, "Runs the test suite":
+  exec "nim c -r tests/testpbvarint"
