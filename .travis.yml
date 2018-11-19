@@ -1,5 +1,6 @@
 language: c # or other C/C++ variants
 
+# xenial is required for GO 1.11.x
 dist: xenial
 sudo: false
 
@@ -25,19 +26,19 @@ install:
   # flexibility to apply patches
   #
   # check version of remote branch
-  # - "export NIMVER=$(git ls-remote https://github.com/status-im/nim.git HEAD | cut -f 1)"
+  - "export NIMVER=$(git ls-remote https://github.com/status-im/nim.git HEAD | cut -f 1)"
 
   # after building nim, wipe csources to save on cache space
-  # - "{ [ -f nim/$NIMVER/bin/nim ] && [ -f nim/$NIMVER/bin/nimble ] ; } ||
-  #     { rm -rf nim ;
-  #       mkdir -p nim ;
-  #       git clone --depth=1 https://github.com/status-im/nim.git nim/$NIMVER ;
-  #       cd nim/$NIMVER ;
-  #       sh build_all.sh ;
-  #       rm -rf csources ;
-  #       cd ../.. ;
-  #     }"
-  # - "export PATH=$PWD/nim/$NIMVER/bin:$PATH"
+  - "{ [ -f nim/$NIMVER/bin/nim ] && [ -f nim/$NIMVER/bin/nimble ] ; } ||
+      { rm -rf nim ;
+        mkdir -p nim ;
+        git clone --depth=1 https://github.com/status-im/nim.git nim/$NIMVER ;
+        cd nim/$NIMVER ;
+        sh build_all.sh ;
+        rm -rf csources ;
+        cd ../.. ;
+      }"
+  - "export PATH=$PWD/nim/$NIMVER/bin:$PATH"
   - echo $TRAVIS_GO_VERSION
   - go get -v github.com/libp2p/go-libp2p-daemon
   - cd $GOPATH/src/github.com/libp2p/go-libp2p-daemon
