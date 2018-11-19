@@ -7,7 +7,8 @@ description   = "LibP2P implementation"
 license       = "MIT"
 skipDirs      = @["tests", "Nim"]
 
-requires "nim > 0.18.0"
+requires "nim > 0.18.0",
+         "https://github.com/status-im/nim-asyncdispatch2"
 
 task tests, "Runs the test suite":
   exec "nim c -r tests/testpbvarint"
