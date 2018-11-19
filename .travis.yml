@@ -16,7 +16,7 @@ os:
   - osx
 
 go:
-  - 1.10.x
+  - 1.10.3
 
 install:
   # build nim from our own branch - this to avoid the day-to-day churn and
