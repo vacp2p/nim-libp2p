@@ -13,10 +13,12 @@ cache:
     - nim
     - $HOME/go/src/gx
 
-os:
-  - linux
-  - osx
-
+matrix:
+  include:
+    - os: linux
+    - os: osx
+      before_install:
+        - export GOPATH=$HOME/go
 go:
   - "1.11.x"
 
@@ -39,9 +41,8 @@ install:
         cd ../.. ;
       }"
   - export PATH=$PWD/nim/$NIMVER/bin:$HOME/go/bin:$PATH
-  - echo $GOPATH
   - go get -v github.com/libp2p/go-libp2p-daemon
-  - cd $HOME/go/src/github.com/libp2p/go-libp2p-daemon
+  - cd $GOPATH/src/github.com/libp2p/go-libp2p-daemon
   - make
   - cd $HOME/build/status-im/nim-libp2p
 
