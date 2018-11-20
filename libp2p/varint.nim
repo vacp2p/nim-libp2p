@@ -7,7 +7,12 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-## This module implements Google ProtoBuf's variable integer `VARINT`.
+## This module implements Variable Integer `VARINT`.
+## This module supports two variants of variable integer
+## - Google ProtoBuf varint, which is able to encode full uint64 number and
+##   maximum size of encoded value is 10 octets (bytes).
+## - LibP2P varint, which is able to encode only 63bits of uint64 number and
+##   maximum size of encoded value is 9 octets (bytes).
 import bitops
 
 type
@@ -18,20 +23,31 @@ type
     Incomplete,
     Overrun
 
-  SomeUVarint* = uint | uint64 | uint32
-  SomeSVarint* = int | int64 | int32
-  SomeVarint* = SomeUVarint | SomeSVarint
+  PB* = object
+    ## Use this type to specify Google ProtoBuf's varint encoding
+  LP* = object
+    ## Use this type to specify LibP2P varint encoding
+
+  PBSomeUVarint* = uint | uint64 | uint32
+  PBSomeSVarint* = int | int64 | int32
+  PBSomeVarint* = PBSomeUVarint | PBSomeSVarint
+  LPSomeUVarint* = uint | uint64 | uint32 | uint16 | uint8
+  LPSomeVarint* = LPSomeUVarint
+  SomeVarint* = PBSomeVarint | LPSomeVarint
+  SomeUVarint* = PBSomeUVarint | LPSomeUVarint
   VarintError* = object of Exception
 
-proc vsizeof*(x: SomeUVarint|SomeSVarint): int {.inline.} =
+proc vsizeof*(x: SomeVarint): int {.inline.} =
   ## Returns number of bytes required to encode integer ``x`` as varint.
   if x == cast[type(x)](0):
     result = 1
   else:
     result = (fastLog2(x) + 1 + 7 - 1) div 7
 
-proc getUVarint*(pbytes: openarray[byte], outlen: var int,
-                 outval: var SomeUVarint): VarintStatus =
+proc getUVarint*[T: PB|LP](vtype: typedesc[T],
+                           pbytes: openarray[byte],
+                           outlen: var int,
+                           outval: var SomeUVarint): VarintStatus =
   ## Decode `unsigned varint` from buffer ``pbytes`` and store it to ``outval``.
   ## On success ``outlen`` will be set to number of bytes processed while
   ## decoding `unsigned varint`.
@@ -44,11 +60,23 @@ proc getUVarint*(pbytes: openarray[byte], outlen: var int,
   ## If encoded value can produce integer overflow, ``Overflow`` error will be
   ## returned.
   ##
-  ## Note, when decoding 10th byte of 64bit integer only 1 bit from byte will be
-  ## decoded, all other bits will be ignored. When decoding 5th byte of 32bit
-  ## integer only 4 bits from byte will be decoded, all other bits will be
-  ## ignored.
-  const MaxBits = byte(sizeof(outval) * 8)
+  ## Google ProtoBuf
+  ## When decoding 10th byte of Google Protobuf's 64bit integer only 1 bit from
+  ## byte will be decoded, all other bits will be ignored. When decoding 5th
+  ## byte of 32bit integer only 4 bits from byte will be decoded, all other bits
+  ## will be ignored.
+  ## 
+  ## LibP2P
+  ## When decoding 5th byte of 32bit integer only 4 bits from byte will be
+  ## decoded, all other bits will be ignored.
+  when vtype is PB:
+    const MaxBits = byte(sizeof(outval) * 8)
+  else:
+    when sizeof(outval) == 8:
+      const MaxBits = 63'u8
+    else:
+      const MaxBits = byte(sizeof(outval) * 8)
+
   var shift = 0'u8
   result = VarintStatus.Incomplete
   outlen = 0
@@ -67,13 +95,14 @@ proc getUVarint*(pbytes: openarray[byte], outlen: var int,
     if (b and 0x80'u8) == 0'u8:
       result = VarintStatus.Success
       break
-
   if result == VarintStatus.Incomplete:
     outlen = 0
     outval = cast[type(outval)](0)
 
-proc putUVarint*(pbytes: var openarray[byte], outlen: var int,
-                 outval: SomeUVarint): VarintStatus =
+proc putUVarint*[T: PB|LP](vtype: typedesc[T],
+                           pbytes: var openarray[byte],
+                           outlen: var int,
+                           outval: SomeUVarint): VarintStatus =
   ## Encode `unsigned varint` ``outval`` and store it to array ``pbytes``.
   ##
   ## On success ``outlen`` will hold number of bytes (octets) used to encode
@@ -83,11 +112,22 @@ proc putUVarint*(pbytes: var openarray[byte], outlen: var int,
   ## error will be returned and ``outlen`` will be set to number of bytes
   ## required.
   ##
+  ## Google ProtoBuf
   ## Maximum encoded length of 64bit integer is 10 octets.
+  ## Maximum encoded length of 32bit integer is 5 octets.
+  ## 
+  ## LibP2P
+  ## Maximum encoded length of 63bit integer is 9 octets.
   ## Maximum encoded length of 32bit integer is 5 octets.
   var buffer: array[10, byte]
   var value = outval
   var k = 0
+
+  when vtype is LP:
+    if sizeof(outval) == 8:
+      if (cast[uint64](outval) and 0x8000_0000_0000_0000'u64) != 0'u64:
+        result = Overflow
+        return
 
   if value <= cast[type(outval)](0x7F):
     buffer[0] = cast[byte](outval and 0xFF)
@@ -107,10 +147,10 @@ proc putUVarint*(pbytes: var openarray[byte], outlen: var int,
     result = VarintStatus.Overrun
 
 proc getSVarint*(pbytes: openarray[byte], outsize: var int,
-                 outval: var SomeSVarint): VarintStatus {.inline.} =
-  ## Decode `signed varint` from buffer ``pbytes`` and store it to ``outval``.
-  ## On success ``outlen`` will be set to number of bytes processed while
-  ## decoding `signed varint`.
+                 outval: var PBSomeSVarint): VarintStatus {.inline.} =
+  ## Decode Google ProtoBuf's `signed varint` from buffer ``pbytes`` and store
+  ## it to ``outval``. On success ``outlen`` will be set to number of bytes
+  ## processed while decoding `signed varint`.
   ##
   ## If array ``pbytes`` is empty, ``Incomplete`` error will be returned.
   ##
@@ -129,7 +169,7 @@ proc getSVarint*(pbytes: openarray[byte], outsize: var int,
   else:
     var value: uint32
 
-  result = getUVarint(pbytes, outsize, value)
+  result = PB.getUVarint(pbytes, outsize, value)
   if result == VarintStatus.Success:
     if (value and cast[type(value)](1)) != cast[type(value)](0):
       outval = cast[type(outval)](not(value shr 1))
@@ -137,8 +177,9 @@ proc getSVarint*(pbytes: openarray[byte], outsize: var int,
       outval = cast[type(outval)](value shr 1)
 
 proc putSVarint*(pbytes: var openarray[byte], outsize: var int,
-                 outval: SomeSVarint): VarintStatus {.inline.} =
-  ## Encode `signed varint` ``outval`` and store it to array ``pbytes``.
+                 outval: PBSomeSVarint): VarintStatus {.inline.} =
+  ## Encode Google ProtoBuf's `signed varint` ``outval`` and store it to array
+  ## ``pbytes``.
   ##
   ## On success ``outlen`` will hold number of bytes (octets) used to encode
   ## unsigned integer ``v``.
@@ -161,11 +202,12 @@ proc putSVarint*(pbytes: var openarray[byte], outsize: var int,
         not(cast[uint32](outval) shl 1)
       else:
         cast[uint32](outval) shl 1
-  result = putUVarint(pbytes, outsize, value)
+  result = PB.putUVarint(pbytes, outsize, value)
 
-proc encodeVarint*(value: SomeUVarint|SomeSVarint): seq[byte] {.inline.} =
-  ## Encode integer to `signed/unsigned varint` and returns sequence of bytes
-  ## as result.
+proc encodeVarint*(vtype: typedesc[PB],
+                   value: PBSomeVarint): seq[byte] {.inline.} =
+  ## Encode integer to Google ProtoBuf's `signed/unsigned varint` and returns
+  ## sequence of bytes as result.
   var outsize = 0
   result = newSeqOfCap[byte](10)
   when sizeof(value) == 4:
@@ -181,6 +223,26 @@ proc encodeVarint*(value: SomeUVarint|SomeSVarint): seq[byte] {.inline.} =
   else:
     raise newException(VarintError, "Error '" & $res & "'")
 
+proc encodeVarint*(vtype: typedesc[LP],
+                   value: LPSomeVarint): seq[byte] {.inline.} =
+  ## Encode integer to LibP2P `unsigned varint` and returns sequence of bytes
+  ## as result.
+  var outsize = 0
+  result = newSeqOfCap[byte](9)
+  when sizeof(value) == 1:
+    result.setLen(2)
+  elif sizeof(value) == 2:
+    result.setLen(3)
+  elif sizeof(value) == 4:
+    result.setLen(5)
+  else:
+    result.setLen(9)
+  let res = LP.putUVarint(result, outsize, value)
+  if res == VarintStatus.Success:
+    result.setLen(outsize)
+  else:
+    raise newException(VarintError, "Error '" & $res & "'")
+
 proc decodeSVarint*(data: openarray[byte]): int {.inline.} =
   ## Decode signed integer from array ``data`` and return it as result.
   var outsize = 0
@@ -188,91 +250,10 @@ proc decodeSVarint*(data: openarray[byte]): int {.inline.} =
   if res != VarintStatus.Success:
     raise newException(VarintError, "Error '" & $res & "'")
 
-proc decodeUVarint*(data: openarray[byte]): uint {.inline.} =
+proc decodeUVarint*[T: PB|LP](vtype: typedesc[T],
+                              data: openarray[byte]): uint {.inline.} =
   ## Decode unsigned integer from array ``data`` and return it as result.
   var outsize = 0
-  let res = getUVarint(data, outsize, result)
+  let res = vtype.getUVarint(data, outsize, result)
   if res != VarintStatus.Success:
     raise newException(VarintError, "Error '" & $res & "'")
-
-when isMainModule:
-  import unittest
-
-  const edgeValues = [
-    0'u64, (1'u64 shl 7) - 1'u64,
-    (1'u64 shl 7), (1'u64 shl 14) - 1'u64,
-    (1'u64 shl 14), (1'u64 shl 21) - 1'u64,
-    (1'u64 shl 21), (1'u64 shl 28) - 1'u64,
-    (1'u64 shl 28), (1'u64 shl 35) - 1'u64,
-    (1'u64 shl 35), (1'u64 shl 42) - 1'u64,
-    (1'u64 shl 42), (1'u64 shl 49) - 1'u64,
-    (1'u64 shl 49), (1'u64 shl 56) - 1'u64,
-    (1'u64 shl 56), (1'u64 shl 63) - 1'u64,
-    (1'u64 shl 63), 0xFFFF_FFFF_FFFF_FFFF'u64
-  ]
-  const edgeSizes = [
-    1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 9, 9, 10, 10
-  ]
-
-  suite "Variable integer test suite":
-
-    test "vsizeof() edge cases test":
-      for i in 0..<len(edgeValues):
-        check vsizeof(edgeValues[i]) == edgeSizes[i]
-
-    test "Success edge cases test":
-      var buffer = newSeq[byte]()
-      var length = 0
-      var value = 0'u64
-      for i in 0..<len(edgeValues):
-        buffer.setLen(edgeSizes[i])
-        check:
-          putUVarint(buffer, length, edgeValues[i]) == VarintStatus.Success
-          getUVarint(buffer, length, value) == VarintStatus.Success
-          value == edgeValues[i]
-
-    test "Buffer Overrun edge cases test":
-      var buffer = newSeq[byte]()
-      var length = 0
-      for i in 0..<len(edgeValues):
-        buffer.setLen(edgeSizes[i] - 1)
-        let res = putUVarint(buffer, length, edgeValues[i])
-        check:
-          res == VarintStatus.Overrun
-          length == edgeSizes[i]
-
-    test "Buffer Incomplete edge cases test":
-      var buffer = newSeq[byte]()
-      var length = 0
-      var value = 0'u64
-      for i in 0..<len(edgeValues):
-        buffer.setLen(edgeSizes[i])
-        check putUVarint(buffer, length, edgeValues[i]) == VarintStatus.Success
-        buffer.setLen(len(buffer) - 1)
-        check:
-          getUVarint(buffer, length, value) == VarintStatus.Incomplete
-
-    test "Integer Overflow 32bit test":
-      var buffer = newSeq[byte]()
-      var length = 0
-      for i in 0..<len(edgeValues):
-        if edgeSizes[i] > 5:
-          var value = 0'u32
-          buffer.setLen(edgeSizes[i])
-          check:
-            putUVarint(buffer, length, edgeValues[i]) == VarintStatus.Success
-            getUVarint(buffer, length, value) == VarintStatus.Overflow
-
-    test "Integer Overflow 64bit test":
-      var buffer = newSeq[byte]()
-      var length = 0
-      for i in 0..<len(edgeValues):
-        if edgeSizes[i] > 9:
-          var value = 0'u64
-          buffer.setLen(edgeSizes[i] + 1)
-          check:
-            putUVarint(buffer, length, edgeValues[i]) == VarintStatus.Success
-          buffer[9] = buffer[9] or 0x80'u8
-          buffer[10] = 0x01'u8
-          check:
-            getUVarint(buffer, length, value) == VarintStatus.Overflow

@@ -11,5 +11,5 @@ requires "nim > 0.18.0",
          "https://github.com/status-im/nim-asyncdispatch2"
 
 task test, "Runs the test suite":
-  exec "nim c -r tests/testpbvarint"
+  exec "nim c -r tests/testvarint"
   exec "nim c -r tests/testdaemon"

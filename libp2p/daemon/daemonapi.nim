@@ -10,7 +10,7 @@
 ## This module implementes API for `go-libp2p-daemon`.
 import os, osproc, strutils, tables, streams
 import asyncdispatch2
-import ../protobuf/varint, ../protobuf/minprotobuf, transpool
+import ../varint, ../protobuf/minprotobuf, transpool
 
 when not defined(windows):
   import posix
@@ -367,7 +367,7 @@ proc recvMessage(conn: StreamTransport): Future[seq[byte]] {.async.} =
   var buffer = newSeq[byte](10)
   for i in 0..<len(buffer):
     await conn.readExactly(addr buffer[i], 1)
-    res = getUVarint(buffer.toOpenArray(0, i), length, size)
+    res = PB.getUVarint(buffer.toOpenArray(0, i), length, size)
     if res == VarintStatus.Success:
       break
   if res != VarintStatus.Success or size > MaxMessageSize:
@@ -852,15 +852,3 @@ proc dhtSearchValue*(api: DaemonAPI, key: string,
       result = list
   finally:
     api.pool.release(transp)
-
-when isMainModule:
-  proc test() {.async.} =
-    var api1 = await newDaemonApi(sockpath = "/tmp/p2pd-1.sock")
-    var api2 = await newDaemonApi(sockpath = "/tmp/p2pd-2.sock")
-    echo await api1.identity()
-    echo await api2.identity()
-    await sleepAsync(1000)
-    await api1.close()
-    await api2.close()
-
-  waitFor test()
