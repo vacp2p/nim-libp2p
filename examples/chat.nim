@@ -62,8 +62,8 @@ proc main() {.async.} =
   thread.createThread(threadMain, 0)
 
   echo "= Starting P2P node"
-  data.api = await newDaemonApi({DHTFull})
-  await sleepAsync(1000)
+  data.api = await newDaemonApi({DHTFull, Bootstrap})
+  await sleepAsync(3000)
   var id = await data.api.identity()
 
   proc streamHandler(api: DaemonAPI, stream: P2PStream) {.async.} =
