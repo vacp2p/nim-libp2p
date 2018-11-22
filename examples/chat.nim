@@ -25,6 +25,14 @@ proc serveThread(server: StreamServer,
   ## This procedure perform readin on local unix domain socket and
   ## sends data to remote clients.
   var udata = getUserData[CustomData](server)
+
+  proc remoteReader(transp: StreamTransport) {.async.} =
+    while true:
+      var line = await transp.readLine()
+      if len(line) == 0:
+        break
+      echo ">> ", line
+
   while true:
     try:
       var line = await transp.readLine()
@@ -34,15 +42,19 @@ proc serveThread(server: StreamServer,
           var address = fromHex(parts[1])
           echo "= Searching for peer ", toHex(address)
           var id = await udata.api.dhtFindPeer(address)
+          echo "==="
+          echo repr id
+          echo "==="
           echo "= Connecting to peer ", toHex(address)
           await udata.api.connect(id.peer, id.addresses)
           echo "= Opening stream to peer chat ", toHex(address)
           var stream = await udata.api.openStream(id.peer, ServerProtocols)
-          udata.remotes.add(transp)
+          udata.remotes.add(stream.transp)
           echo "= Connected to peer chat ", toHex(address)
+          asyncCheck remoteReader(stream.transp)
       else:
         var msg = line & "\r\n"
-        echo "<< ", msg
+        echo "<< ", line
         var pending = newSeq[Future[int]]()
         for item in udata.remotes:
           pending.add(item.write(msg))
@@ -68,8 +80,11 @@ proc main() {.async.} =
 
   proc streamHandler(api: DaemonAPI, stream: P2PStream) {.async.} =
     echo "= Peer ", toHex(stream.peer), " joined chat"
+    data.remotes.add(stream.transp)
     while true:
       var line = await stream.transp.readLine()
+      if len(line) == 0:
+        break
       echo ">> ", line
 
   await data.api.addHandler(ServerProtocols, streamHandler)

@@ -35,6 +35,15 @@ proc connectStreamTest(): Future[bool] {.async.} =
   await api2.close()
   result = true
 
+proc provideBadCidTest(): Future[bool] {.async.} =
+  var cid = newSeq[byte](10)
+  var api = await newDaemonApi({DHTFull})
+  try:
+    await api.dhtProvide(cid)
+    result = false
+  except DaemonRemoteError:
+    result = true
+
 when isMainModule:
   suite "libp2p-daemon test suite":
     test "Simple spawn and get identity test":
@@ -43,3 +52,6 @@ when isMainModule:
     test "Connect/Accept peer/stream test":
       check:
         waitFor(connectStreamTest()) == true
+    test "DHT provide bad CID test":
+      check:
+        waitFor(provideTestBadCid()) == true
