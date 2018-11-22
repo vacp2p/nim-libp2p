@@ -167,9 +167,10 @@ proc write*(pb: var ProtoBuffer, field: ProtoField) =
     assert(res == VarintStatus.Success)
     pb.offset += length
     assert(pb.isEnough(len(field.vbuffer)))
-    copyMem(addr pb.buffer[pb.offset], unsafeAddr field.vbuffer[0],
-            len(field.vbuffer))
-    pb.offset += len(field.vbuffer)
+    if len(field.vbuffer) > 0:
+      copyMem(addr pb.buffer[pb.offset], unsafeAddr field.vbuffer[0],
+              len(field.vbuffer))
+      pb.offset += len(field.vbuffer)
   else:
     discard
 
