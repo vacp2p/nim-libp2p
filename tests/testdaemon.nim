@@ -54,4 +54,4 @@ when isMainModule:
         waitFor(connectStreamTest()) == true
     test "DHT provide bad CID test":
       check:
-        waitFor(provideTestBadCid()) == true
+        waitFor(provideBadCidTest()) == true
