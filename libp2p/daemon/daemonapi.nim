@@ -112,7 +112,8 @@ proc requestIdentity(): ProtoBuffer =
   result.finish()
 
 proc requestConnect(peerid: PeerID,
-                    addresses: openarray[MultiAddress]): ProtoBuffer =
+                    addresses: openarray[MultiAddress],
+                    timeout = 0): ProtoBuffer =
   ## https://github.com/libp2p/go-libp2p-daemon/blob/master/conn.go
   ## Processing function `doConnect(req *pb.Request)`.
   result = initProtoBuffer({WithVarintLength})
@@ -120,6 +121,8 @@ proc requestConnect(peerid: PeerID,
   msg.write(initProtoField(1, peerid))
   for item in addresses:
     msg.write(initProtoField(2, item))
+  if timeout > 0:
+    msg.write(initProtoField(3, timeout))
   result.write(initProtoField(1, cast[uint](RequestType.CONNECT)))
   result.write(initProtoField(2, msg))
   result.finish()
@@ -135,7 +138,8 @@ proc requestDisconnect(peerid: PeerID): ProtoBuffer =
   result.finish()
 
 proc requestStreamOpen(peerid: PeerID,
-                       protocols: openarray[string]): ProtoBuffer =
+                       protocols: openarray[string],
+                       timeout = 0): ProtoBuffer =
   ## https://github.com/libp2p/go-libp2p-daemon/blob/master/conn.go
   ## Processing function `doStreamOpen(req *pb.Request)`.
   result = initProtoBuffer({WithVarintLength})
@@ -143,6 +147,8 @@ proc requestStreamOpen(peerid: PeerID,
   msg.write(initProtoField(1, peerid))
   for item in protocols:
     msg.write(initProtoField(2, item))
+  if timeout > 0:
+    msg.write(initProtoField(3, timeout))
   result.write(initProtoField(1, cast[uint](RequestType.STREAM_OPEN)))
   result.write(initProtoField(3, msg))
   result.finish()
