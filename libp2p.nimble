@@ -13,3 +13,4 @@ requires "nim > 0.18.0",
 task test, "Runs the test suite":
   exec "nim c -r tests/testvarint"
   exec "nim c -r tests/testdaemon"
+  exec "nim c -r tests/testbase58"
