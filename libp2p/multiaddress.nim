@@ -375,6 +375,11 @@ proc trimRight(s: string, ch: char): string =
       break
   result = s[0..(len(s) - 1 - m)]
 
+proc shcopy*(m1: var MultiAddress, m2: MultiAddress) =
+  shallowCopy(m1.data.buffer, m2.data.buffer)
+  m1.data.offset = m2.data.offset
+  m1.data.length = m2.data.length
+
 proc protoCode*(mtype: typedesc[MultiAddress], protocol: string): int =
   ## Returns protocol code from protocol name ``protocol``.
   let proto = NameAddresses.getOrDefault(protocol)
@@ -391,15 +396,56 @@ proc protoName*(mtype: typedesc[MultiAddress], protocol: int): string =
 
 proc protoCode*(ma: MultiAddress): int =
   ## Returns MultiAddress ``ma`` protocol code.
-  discard
+  var header: uint64
+  var vb: MultiAddress
+  shcopy(vb, ma)
+  if vb.data.readVarint(header) == -1:
+    raise newException(MultiAddressError, "Malformed binary address!")
+  let proto = CodeAddresses.getOrDefault(int(header))
+  if proto.kind == None:
+    raise newException(MultiAddressError,
+                       "Unsupported protocol '" & $header & "'")
+  result = proto.code
 
 proc protoName*(ma: MultiAddress): string =
   ## Returns MultiAddress ``ma`` protocol name.
-  discard
+  var header: uint64
+  var vb: MultiAddress
+  shcopy(vb, ma)
+  if vb.data.readVarint(header) == -1:
+    raise newException(MultiAddressError, "Malformed binary address!")
+  let proto = CodeAddresses.getOrDefault(int(header))
+  if proto.kind == None:
+    raise newException(MultiAddressError,
+                       "Unsupported protocol '" & $header & "'")
+  result = proto.name
 
-proc protoValue*(ma: MultiAddress, value: var openarray[byte]): int =
-  ## Returns MultiAddress ``ma`` protocol address value.
-  discard
+proc protoArgument*(ma: MultiAddress, value: var openarray[byte]): int =
+  ## Returns MultiAddress ``ma`` protocol argument value.
+  ## 
+  ## If current MultiAddress do not have argument value, then result will be
+  ## ``0``.
+  var header: uint64
+  var vb: MultiAddress
+  var buffer: seq[byte]
+  shcopy(vb, ma)
+  if vb.data.readVarint(header) == -1:
+    raise newException(MultiAddressError, "Malformed binary address!")
+  let proto = CodeAddresses.getOrDefault(int(header))
+  if proto.kind == None:
+    raise newException(MultiAddressError,
+                       "Unsupported protocol '" & $header & "'")
+  if proto.kind == Fixed:
+    result = proto.size
+    if len(value) >= result:
+      if vb.data.readArray(value) != proto.size:
+        raise newException(MultiAddressError, "Decoding protocol error")
+  elif proto.kind in {Length, Path}:
+    if vb.data.readSeq(buffer) == -1:
+      raise newException(MultiAddressError, "Decoding protocol error")
+    result = len(vb.data.buffer)
+    if len(value) >= result:
+      copyMem(addr value[0], addr vb.data.buffer[0], result)
 
 proc getPart(ma: MultiAddress, index: int): MultiAddress =
   var header: uint64
@@ -502,14 +548,11 @@ proc hex*(value: MultiAddress): string =
   ## Return hexadecimal string representation of MultiAddress ``value``.
   result = $(value.data)
 
-proc buffer*(value: MultiAddress): seq[byte] =
-  ## Returns shallow copy of internal buffer
-  shallowCopy(result, value.data.buffer)
-
 proc validate*(ma: MultiAddress): bool =
   ## Returns ``true`` if MultiAddress ``ma`` is valid.
   var header: uint64
-  var vb = ma
+  var vb: MultiAddress
+  shcopy(vb, ma)
   while true:
     if vb.data.isEmpty():
       break

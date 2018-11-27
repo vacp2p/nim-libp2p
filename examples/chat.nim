@@ -44,7 +44,7 @@ proc serveThread(server: StreamServer,
           address &= MultiAddress.init(P_P2P, peerId)
           echo "= Searching for peer ", parts[1]
           var id = await udata.api.dhtFindPeer(peerId)
-          echo "Peer " & parts[1] & " found at addresses:"
+          echo "= Peer " & parts[1] & " found at addresses:"
           for item in id.addresses:
             echo $item
           echo "= Connecting to peer ", $address
@@ -60,7 +60,7 @@ proc serveThread(server: StreamServer,
           var peerId = Base58.decode(parts[1])
           echo "= Searching for peer ", parts[1]
           var id = await udata.api.dhtFindPeer(peerId)
-          echo "Peer " & parts[1] & " found at addresses:"
+          echo "= Peer " & parts[1] & " found at addresses:"
           for item in id.addresses:
             echo $item
       elif line.startsWith("/consearch"):
@@ -69,9 +69,20 @@ proc serveThread(server: StreamServer,
           var peerId = Base58.decode(parts[1])
           echo "= Searching for peers connected to peer ", parts[1]
           var peers = await udata.api.dhtFindPeersConnectedToPeer(peerId)
-          echo "Found ", len(peers), " connected to peer ", parts[1]
+          echo "= Found ", len(peers), " connected to peer ", parts[1]
           for item in peers:
-            echo Base58.encode(item.peer)
+            var peer = Base58.encode(item.peer)
+            var addresses = newSeq[string]()
+            var relay = false
+            for a in item.addresses:
+              addresses.add($a)
+              if a.protoName() == "/p2p-circuit":
+                relay = true
+                break
+            if relay:
+              echo peer, " * ",  " [", addresses.join(", "), "]"
+            else:
+              echo peer, " [", addresses.join(", "), "]"
       elif line.startsWith("/exit"):
         quit(0)
       else:
