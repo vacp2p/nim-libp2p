@@ -518,11 +518,13 @@ proc identity*(api: DaemonAPI): Future[PeerInfo] {.async.} =
     api.pool.release(transp)
 
 proc connect*(api: DaemonAPI, peer: PeerID,
-              addresses: seq[MultiAddress]) {.async.} =
+              addresses: seq[MultiAddress],
+              timeout = 0) {.async.} =
   ## Connect to remote peer with id ``peer`` and addresses ``addresses``.
   var transp = await api.pool.acquire()
   try:
-    var pb = await transp.transactMessage(requestConnect(peer, addresses))
+    var pb = await transp.transactMessage(requestConnect(peer, addresses,
+                                                         timeout))
     pb.withMessage() do:
       discard
   finally:
@@ -539,13 +541,15 @@ proc disconnect*(api: DaemonAPI, peer: PeerID) {.async.} =
     api.pool.release(transp)
 
 proc openStream*(api: DaemonAPI, peer: PeerID,
-                 protocols: seq[string]): Future[P2PStream] {.async.} =
+                 protocols: seq[string],
+                 timeout = 0): Future[P2PStream] {.async.} =
   ## Open new stream to peer ``peer`` using one of the protocols in
   ## ``protocols``. Returns ``StreamTransport`` for the stream.
   var transp = await connect(api.address)
   var stream = new P2PStream
   try:
-    var pb = await transp.transactMessage(requestStreamOpen(peer, protocols))
+    var pb = await transp.transactMessage(requestStreamOpen(peer, protocols,
+                                                            timeout))
     pb.withMessage() do:
       var res = pb.enterSubmessage()
       if res == cast[int](ResponseType.STREAMINFO):

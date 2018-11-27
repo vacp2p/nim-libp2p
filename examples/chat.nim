@@ -54,6 +54,24 @@ proc serveThread(server: StreamServer,
           udata.remotes.add(stream.transp)
           echo "= Connected to peer chat ", parts[1]
           asyncCheck remoteReader(stream.transp)
+      elif line.startsWith("/search"):
+        var parts = line.split(" ")
+        if len(parts) == 2:
+          var peerId = Base58.decode(parts[1])
+          echo "= Searching for peer ", parts[1]
+          var id = await udata.api.dhtFindPeer(peerId)
+          echo "Peer " & parts[1] & " found at addresses:"
+          for item in id.addresses:
+            echo $item
+      elif line.startsWith("/consearch"):
+        var parts = line.split(" ")
+        if len(parts) == 2:
+          var peerId = Base58.decode(parts[1])
+          echo "= Searching for peers connected to peer ", parts[1]
+          var peers = await udata.api.dhtFindPeersConnectedToPeer(peerId)
+          echo "Found ", len(peers), " connected to peer ", parts[1]
+          for item in peers:
+            echo Base58.encode(item.peer)
       elif line.startsWith("/exit"):
         quit(0)
       else:
