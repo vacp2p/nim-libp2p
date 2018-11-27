@@ -101,7 +101,7 @@ proc main() {.async.} =
   var id = await data.api.identity()
 
   proc streamHandler(api: DaemonAPI, stream: P2PStream) {.async.} =
-    echo "= Peer ", toHex(stream.peer), " joined chat"
+    echo "= Peer ", Base58.encode(stream.peer), " joined chat"
     data.remotes.add(stream.transp)
     while true:
       var line = await stream.transp.readLine()
