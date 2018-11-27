@@ -10,7 +10,7 @@
 ## This module implementes API for `go-libp2p-daemon`.
 import os, osproc, strutils, tables, streams
 import asyncdispatch2
-import ../varint, ../protobuf/minprotobuf, transpool
+import ../varint, ../multiaddress, ../protobuf/minprotobuf, transpool
 
 when not defined(windows):
   import posix
@@ -65,7 +65,7 @@ type
 
   PeerID* = seq[byte]
   MultiProtocol* = string
-  MultiAddress* = seq[byte]
+  # MultiAddress* = seq[byte]
   CID* = seq[byte]
   LibP2PPublicKey* = seq[byte]
   DHTValue* = seq[byte]
@@ -120,7 +120,7 @@ proc requestConnect(peerid: PeerID,
   var msg = initProtoBuffer()
   msg.write(initProtoField(1, peerid))
   for item in addresses:
-    msg.write(initProtoField(2, item))
+    msg.write(initProtoField(2, item.data.buffer))
   if timeout > 0:
     msg.write(initProtoField(3, timeout))
   result.write(initProtoField(1, cast[uint](RequestType.CONNECT)))
@@ -501,7 +501,8 @@ proc getPeerInfo(pb: var ProtoBuffer): PeerInfo =
   var address = newSeq[byte]()
   while pb.getBytes(2, address) != -1:
     if len(address) != 0:
-      result.addresses.add(address)
+      var copyaddr = address
+      result.addresses.add(MultiAddress.init(copyaddr))
       address.setLen(0)
 
 proc identity*(api: DaemonAPI): Future[PeerInfo] {.async.} =
@@ -549,12 +550,13 @@ proc openStream*(api: DaemonAPI, peer: PeerID,
       var res = pb.enterSubmessage()
       if res == cast[int](ResponseType.STREAMINFO):
         stream.peer = newSeq[byte]()
-        stream.raddress = newSeq[byte]()
+        var raddress = newSeq[byte]()
         stream.protocol = ""
         if pb.getLengthValue(1, stream.peer) == -1:
           raise newException(DaemonLocalError, "Missing `peer` field!")
-        if pb.getLengthValue(2, stream.raddress) == -1:
+        if pb.getLengthValue(2, raddress) == -1:
           raise newException(DaemonLocalError, "Missing `address` field!")
+        stream.raddress = MultiAddress.init(raddress)
         if pb.getLengthValue(3, stream.protocol) == -1:
           raise newException(DaemonLocalError, "Missing `proto` field!")
         stream.flags.incl(Outbound)
@@ -571,12 +573,13 @@ proc streamHandler(server: StreamServer, transp: StreamTransport) {.async.} =
   var pb = initProtoBuffer(message)
   var stream = new P2PStream
   stream.peer = newSeq[byte]()
-  stream.raddress = newSeq[byte]()
+  var raddress = newSeq[byte]()
   stream.protocol = ""
   if pb.getLengthValue(1, stream.peer) == -1:
     raise newException(DaemonLocalError, "Missing `peer` field!")
-  if pb.getLengthValue(2, stream.raddress) == -1:
+  if pb.getLengthValue(2, raddress) == -1:
     raise newException(DaemonLocalError, "Missing `address` field!")
+  stream.raddress = MultiAddress.init(raddress)
   if pb.getLengthValue(3, stream.protocol) == -1:
     raise newException(DaemonLocalError, "Missing `proto` field!")
   stream.flags.incl(Inbound)

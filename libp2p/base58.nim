@@ -111,6 +111,8 @@ proc encode*(btype: typedesc[Base58C],
   if btype.encode(inbytes, result.toOpenArray(0, size - 1),
                   size) == Base58Status.Success:
     result.setLen(size)
+  else:
+    result = ""
 
 proc decode*(btype: typedesc[Base58C], instr: string,
              outbytes: var openarray[byte], outlen: var int): Base58Status =

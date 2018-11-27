@@ -1,5 +1,5 @@
 import asyncdispatch2, nimcrypto, strutils
-import ../libp2p/daemon/daemonapi
+import ../libp2p/daemon/daemonapi, ../libp2p/[base58, multiaddress]
 
 const
   ConsoleAddress = "/tmp/console-chat.sock"
@@ -39,19 +39,23 @@ proc serveThread(server: StreamServer,
       if line.startsWith("/connect"):
         var parts = line.split(" ")
         if len(parts) == 2:
-          var address = fromHex(parts[1])
-          echo "= Searching for peer ", toHex(address)
-          var id = await udata.api.dhtFindPeer(address)
-          echo "==="
-          echo repr id
-          echo "==="
-          echo "= Connecting to peer ", toHex(address)
-          await udata.api.connect(id.peer, id.addresses)
-          echo "= Opening stream to peer chat ", toHex(address)
-          var stream = await udata.api.openStream(id.peer, ServerProtocols)
+          var peerId = Base58.decode(parts[1])
+          var address = MultiAddress.init(P_P2PCIRCUIT)
+          address &= MultiAddress.init(P_P2P, peerId)
+          echo "= Searching for peer ", parts[1]
+          var id = await udata.api.dhtFindPeer(peerId)
+          echo "Peer " & parts[1] & " found at addresses:"
+          for item in id.addresses:
+            echo $item
+          echo "= Connecting to peer ", $address
+          await udata.api.connect(peerId, @[address], 30)
+          echo "= Opening stream to peer chat ", parts[1]
+          var stream = await udata.api.openStream(peerId, ServerProtocols)
           udata.remotes.add(stream.transp)
-          echo "= Connected to peer chat ", toHex(address)
+          echo "= Connected to peer chat ", parts[1]
           asyncCheck remoteReader(stream.transp)
+      elif line.startsWith("/exit"):
+        quit(0)
       else:
         var msg = line & "\r\n"
         echo "<< ", line
@@ -88,7 +92,7 @@ proc main() {.async.} =
       echo ">> ", line
 
   await data.api.addHandler(ServerProtocols, streamHandler)
-  echo "= Your PeerID is ", toHex(id.peer)
+  echo "= Your PeerID is ", Base58.encode(id.peer)
   
 when isMainModule:
   waitFor(main())
