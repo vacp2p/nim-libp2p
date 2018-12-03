@@ -148,6 +148,25 @@ suite "BASE32 encoding test suite":
       o7 == 0
       o8 == 0
 
+  test "Zero test":
+    var s = newString(256)
+    for i in 0..255:
+      s[i] = 'A'
+    var buffer: array[256, byte]
+    for i in 0..255:
+      var a = Base32.encode(buffer.toOpenArray(0, i))
+      var b = Base32.decode(a)
+      check b == buffer[0..i]
+
+  test "Leading zero test":
+    var buffer: array[256, byte]
+    for i in 0..255:
+      buffer[255] = byte(i)
+      var a = Base32.encode(buffer)
+      var b = Base32.decode(a)
+      check:
+        equalMem(addr buffer[0], addr b[0], 256) == true
+
   test "BASE32 uppercase padding test vectors":
     for item in TVBaseUpperPadding:
       let plain = cast[seq[byte]](item[0])
@@ -347,3 +366,42 @@ suite "BASE32 encoding test suite":
       check:
         d1 == plain
         d2 == plain
+
+  test "Buffer Overrun test":
+    var encres = ""
+    var encsize = 0
+    var decres: seq[byte] = @[]
+    var decsize = 0
+    check:
+      Base32.encode([0'u8], encres, encsize) == Base32Status.Overrun
+      encsize == Base32.encodedLength(1)
+      Base32.decode("AA", decres, decsize) == Base32Status.Overrun
+      decsize == Base32.decodedLength(2)
+
+  test "Incorrect test":
+    var decres = newSeq[byte](10)
+    var decsize = 0
+    check:
+      Base32.decode("A", decres, decsize) == Base32Status.Incorrect
+      decsize == 0
+      Base32.decode("AAA", decres, decsize) == Base32Status.Incorrect
+      decsize == 0
+      Base32.decode("AAAAAA", decres, decsize) == Base32Status.Incorrect
+      decsize == 0
+      Base32Upper.decode("aa", decres, decsize) == Base32Status.Incorrect
+      decsize == 0
+      Base32Upper.decode("11", decres, decsize) == Base32Status.Incorrect
+      decsize == 0
+      Base32Lower.decode("AA", decres, decsize) == Base32Status.Incorrect
+      decsize == 0
+      Base32Lower.decode("11", decres, decsize) == Base32Status.Incorrect
+      decsize == 0
+      HexBase32Upper.decode("aa", decres, decsize) == Base32Status.Incorrect
+      decsize == 0
+      HexBase32Upper.decode("WW", decres, decsize) == Base32Status.Incorrect
+      decsize == 0
+      HexBase32Lower.decode("AA", decres, decsize) == Base32Status.Incorrect
+      decsize == 0
+      HexBase32Lower.decode("ww", decres, decsize) == Base32Status.Incorrect
+      decsize == 0
+

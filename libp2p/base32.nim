@@ -83,44 +83,54 @@ proc decodedLength*(btype: typedesc[Base32Types], length: int): int =
   result = (length div 8) * 5 + ((reminder * 5) div 8)
 
 proc convert5to8(inbytes: openarray[byte], outbytes: var openarray[char],
-                 length: int) {.inline.} =
+                 length: int): int {.inline.} =
   if length >= 1:
     outbytes[0] = chr(inbytes[0] shr 3)
     outbytes[1] = chr((inbytes[0] and 7'u8) shl 2)
+    result = 2
   if length >= 2:
     outbytes[1] = chr(cast[byte](outbytes[1]) or cast[byte](inbytes[1] shr 6))
     outbytes[2] = chr((inbytes[1] shr 1) and 31'u8)
     outbytes[3] = chr((inbytes[1] and 1'u8) shl 4)
+    result = 4
   if length >= 3:
     outbytes[3] = chr(cast[byte](outbytes[3]) or (inbytes[2] shr 4))
     outbytes[4] = chr((inbytes[2] and 15'u8) shl 1)
+    result = 5
   if length >= 4:
     outbytes[4] = chr(cast[byte](outbytes[4]) or (inbytes[3] shr 7))
     outbytes[5] = chr((inbytes[3] shr 2) and 31'u8)
     outbytes[6] = chr((inbytes[3] and 3'u8) shl 3)
+    result = 7
   if length >= 5:
     outbytes[6] = chr(cast[byte](outbytes[6]) or (inbytes[4] shr 5))
     outbytes[7] = chr(inbytes[4] and 31'u8)
+    result = 8
 
 proc convert8to5(inbytes: openarray[byte], outbytes: var openarray[byte],
-                 length: int) {.inline.} =
+                 length: int): int {.inline.} =
   if length >= 2:
     outbytes[0] = inbytes[0] shl 3
     outbytes[0] = outbytes[0] or (inbytes[1] shr 2)
+    result = 1
   if length >= 4:
     outbytes[1] = (inbytes[1] and 3'u8) shl 6
     outbytes[1] = outbytes[1] or (inbytes[2] shl 1)
     outbytes[1] = outbytes[1] or (inbytes[3] shr 4)
+    result = 2
   if length >= 5:
     outbytes[2] = (inbytes[3] and 15'u8) shl 4
     outbytes[2] = outbytes[2] or (inbytes[4] shr 1)
+    result = 3
   if length >= 7:
     outbytes[3] = (inbytes[4] and 1'u8) shl 7
     outbytes[3] = outbytes[3] or (inbytes[5] shl 2)
     outbytes[3] = outbytes[3] or (inbytes[6] shr 3)
+    result = 4
   if length >= 8:
     outbytes[4] = (inbytes[6] and 7'u8) shl 5
     outbytes[4] = outbytes[4] or (inbytes[7] and 31'u8)
+    result = 5
 
 proc encode*(btype: typedesc[Base32Types], inbytes: openarray[byte],
              outstr: var openarray[char], outlen: var int): Base32Status =
@@ -152,29 +162,24 @@ proc encode*(btype: typedesc[Base32Types], inbytes: openarray[byte],
   let limit = len(inbytes) - reminder
   var i, k: int
   while i < limit:
-    convert5to8(inbytes.toOpenArray(i, i + 4),
-                outstr.toOpenArray(k, k + 7), 5)
+    discard convert5to8(inbytes.toOpenArray(i, i + 4),
+                        outstr.toOpenArray(k, k + 7), 5)
     for j in 0..7:
       outstr[k + j] = chr(alphabet.encode[ord(outstr[k + j])])
     k += 8
     i += 5
 
   if reminder != 0:
-    convert5to8(inbytes.toOpenArray(i, i + reminder - 1),
-                outstr.toOpenArray(k, length - 1), reminder)
-    outstr[k] = chr(alphabet.encode[ord(outstr[k])])
-    inc(k)
-    while k < len(outstr):
-      if ord(outstr[k]) != 0:
-        outstr[k] = chr(alphabet.encode[ord(outstr[k])])
+    let left = convert5to8(inbytes.toOpenArray(i, i + reminder - 1),
+                           outstr.toOpenArray(k, length - 1), reminder)
+    for j in 0..(left - 1):
+      outstr[k] = chr(alphabet.encode[ord(outstr[k])])
+      inc(k)
+    when (btype is Base32UpperPad) or (btype is Base32LowerPad) or
+         (btype is HexBase32UpperPad) or (btype is HexBase32LowerPad):
+      while k < len(outstr):
+        outstr[k] = '='
         inc(k)
-      else:
-        when (btype is Base32UpperPad) or (btype is Base32LowerPad) or
-             (btype is HexBase32UpperPad) or (btype is HexBase32LowerPad):
-          outstr[k] = '='
-          inc(k)
-        else:
-          discard
   outlen = k
   result = Base32Status.Success
 
@@ -242,24 +247,16 @@ proc decode*[T: byte|char](btype: typedesc[Base32Types], instr: openarray[T],
         zeroMem(addr outbytes[0], i + 8)
         return Base32Status.Incorrect
       buffer[j] = cast[byte](ch)
-    convert8to5(buffer, outbytes.toOpenArray(k, k + 4), 8)
+    discard convert8to5(buffer, outbytes.toOpenArray(k, k + 4), 8)
     k += 5
     i += 8
 
-  var incsize = 0
+  var left = 0
   if reminder != 0:
     if reminder == 1 or reminder == 3 or reminder == 6:
       outlen = 0
       zeroMem(addr outbytes[0], i + 8)
       return Base32Status.Incorrect
-    elif reminder == 2:
-      incsize = 1
-    elif reminder == 4:
-      incsize = 2
-    elif reminder == 5:
-      incsize = 3
-    elif reminder == 7:
-      incsize = 4
     for j in 0..<reminder:
       if (cast[byte](instr[i + j]) and 0x80'u8) != 0:
         outlen = 0
@@ -273,9 +270,9 @@ proc decode*[T: byte|char](btype: typedesc[Base32Types], instr: openarray[T],
         result = Base32Status.Incorrect
         return
       buffer[j] = cast[byte](ch)
-    convert8to5(buffer.toOpenArray(0, reminder - 1),
-                outbytes.toOpenArray(k, length - 1), reminder)
-  outlen = k + incsize
+    left = convert8to5(buffer.toOpenArray(0, reminder - 1),
+                          outbytes.toOpenArray(k, length - 1), reminder)
+  outlen = k + left
   result = Base32Status.Success
 
 proc decode*[T: byte|char](btype: typedesc[Base32Types],
