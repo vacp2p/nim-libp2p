@@ -29,6 +29,7 @@ type
     LIST_PEERS = 5,
     CONNMANAGER = 6,
     DISCONNECT = 7
+    PUBSUB = 8
 
   DHTRequestType* {.pure.} = enum
     FIND_PEER = 0,
@@ -57,11 +58,18 @@ type
     IDENTITY = 4,
     DHT = 5,
     PEERINFO = 6
+    PUBSUB = 7
 
   DHTResponseType* {.pure.} = enum
     BEGIN = 0,
     VALUE = 1,
     END = 2
+
+  PSResponseType* {.pure.} = enum
+    GET_TOPIC = 0,
+    LIST_PEERS = 1,
+    PUBLISH = 2,
+    SUBSCRIBE = 3
 
   PeerID* = seq[byte]
   MultiProtocol* = string
