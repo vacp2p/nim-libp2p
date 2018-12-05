@@ -22,7 +22,7 @@
 ## 3. MURMUR
 import tables
 import nimcrypto/[sha2, keccak, blake2, hash, utils]
-import varint, vbuffer, base58
+import varint, vbuffer, base58, multicodec
 
 const
   MaxHashSize* = 128
@@ -31,14 +31,13 @@ type
   MHashCoderProc* = proc(data: openarray[byte],
                          output: var openarray[byte]) {.nimcall, gcsafe.}
   MHash* = object
-    name*: string
-    code*: int
+    mcodec*: MultiCodec
     size*: int
     coder*: MHashCoderProc
 
   MultiHash* = object
     data*: VBuffer
-    code*: int
+    mcodec*: MultiCodec
     size*: int
     dpos*: int
 
@@ -162,175 +161,154 @@ proc shake_256hash(data: openarray[byte], output: var openarray[byte]) =
 
 const
   HashesList = [
-    MHash(name: "identity", code: 0x00, size: 0, coder: identhash),
-    MHash(name: "dbl-sha2-256", code: 0x56, size: sha256.sizeDigest,
+    MHash(mcodec: multiCodec("identity"), size: 0,
+          coder: identhash),
+    MHash(mcodec: multiCodec("dbl-sha2-256"), size: sha256.sizeDigest,
           coder: dblsha2_256hash
     ),
-    MHash(name: "sha2-256", code: 0x12, size: sha256.sizeDigest,
+    MHash(mcodec: multiCodec("sha2-256"), size: sha256.sizeDigest,
           coder: sha2_256hash
     ),
-    MHash(name: "sha2-512", code: 0x13, size: sha512.sizeDigest,
+    MHash(mcodec: multiCodec("sha2-512"), size: sha512.sizeDigest,
           coder: sha2_512hash
     ),
-    MHash(name: "sha3-224", code: 0x17, size: sha3_224.sizeDigest,
+    MHash(mcodec: multiCodec("sha3-224"), size: sha3_224.sizeDigest,
           coder: sha3_224hash
     ),
-    MHash(name: "sha3-256", code: 0x16, size: sha3_256.sizeDigest,
+    MHash(mcodec: multiCodec("sha3-256"), size: sha3_256.sizeDigest,
           coder: sha3_256hash
     ),
-    MHash(name: "sha3-384", code: 0x15, size: sha3_384.sizeDigest,
+    MHash(mcodec: multiCodec("sha3-384"), size: sha3_384.sizeDigest,
           coder: sha3_384hash
     ),
-    MHash(name: "sha3-512", code: 0x14, size: sha3_512.sizeDigest,
+    MHash(mcodec: multiCodec("sha3-512"), size: sha3_512.sizeDigest,
           coder: sha3_512hash
     ),
-    MHash(name: "shake-128", code: 0x18, size: 32, coder: shake_128hash),
-    MHash(name: "shake-256", code: 0x19, size: 64, coder: shake_256hash),
-    MHash(name: "keccak-224", code: 0x1A, size: keccak_224.sizeDigest,
+    MHash(mcodec: multiCodec("shake-128"), size: 32, coder: shake_128hash),
+    MHash(mcodec: multiCodec("shake-256"), size: 64, coder: shake_256hash),
+    MHash(mcodec: multiCodec("keccak-224"), size: keccak_224.sizeDigest,
           coder: keccak_224hash
     ),
-    MHash(name: "keccak-256", code: 0x1B, size: keccak_256.sizeDigest,
+    MHash(mcodec: multiCodec("keccak-256"), size: keccak_256.sizeDigest,
           coder: keccak_256hash
     ),
-    MHash(name: "keccak-384", code: 0x1C, size: keccak_384.sizeDigest,
+    MHash(mcodec: multiCodec("keccak-384"), size: keccak_384.sizeDigest,
           coder: keccak_384hash
     ),
-    MHash(name: "keccak-512", code: 0x1D, size: keccak_512.sizeDigest,
+    MHash(mcodec: multiCodec("keccak-512"), size: keccak_512.sizeDigest,
           coder: keccak_512hash
     ),
-    MHash(name: "blake2b-8", code: 0xB201, size: 1, coder: blake2Bhash),
-    MHash(name: "blake2b-16", code: 0xB202, size: 2, coder: blake2Bhash),
-    MHash(name: "blake2b-24", code: 0xB203, size: 3, coder: blake2Bhash),
-    MHash(name: "blake2b-32", code: 0xB204, size: 4, coder: blake2Bhash),
-    MHash(name: "blake2b-40", code: 0xB205, size: 5, coder: blake2Bhash),
-    MHash(name: "blake2b-48", code: 0xB206, size: 6, coder: blake2Bhash),
-    MHash(name: "blake2b-56", code: 0xB207, size: 7, coder: blake2Bhash),
-    MHash(name: "blake2b-64", code: 0xB208, size: 8, coder: blake2Bhash),
-    MHash(name: "blake2b-72", code: 0xB209, size: 9, coder: blake2Bhash),
-    MHash(name: "blake2b-80", code: 0xB20A, size: 10, coder: blake2Bhash),
-    MHash(name: "blake2b-88", code: 0xB20B, size: 11, coder: blake2Bhash),
-    MHash(name: "blake2b-96", code: 0xB20C, size: 12, coder: blake2Bhash),
-    MHash(name: "blake2b-104", code: 0xB20D, size: 13, coder: blake2Bhash),
-    MHash(name: "blake2b-112", code: 0xB20E, size: 14, coder: blake2Bhash),
-    MHash(name: "blake2b-120", code: 0xB20F, size: 15, coder: blake2Bhash),
-    MHash(name: "blake2b-128", code: 0xB210, size: 16, coder: blake2Bhash),
-    MHash(name: "blake2b-136", code: 0xB211, size: 17, coder: blake2Bhash),
-    MHash(name: "blake2b-144", code: 0xB212, size: 18, coder: blake2Bhash),
-    MHash(name: "blake2b-152", code: 0xB213, size: 19, coder: blake2Bhash),
-    MHash(name: "blake2b-160", code: 0xB214, size: 20, coder: blake2Bhash),
-    MHash(name: "blake2b-168", code: 0xB215, size: 21, coder: blake2Bhash),
-    MHash(name: "blake2b-176", code: 0xB216, size: 22, coder: blake2Bhash),
-    MHash(name: "blake2b-184", code: 0xB217, size: 23, coder: blake2Bhash),
-    MHash(name: "blake2b-192", code: 0xB218, size: 24, coder: blake2Bhash),
-    MHash(name: "blake2b-200", code: 0xB219, size: 25, coder: blake2Bhash),
-    MHash(name: "blake2b-208", code: 0xB21A, size: 26, coder: blake2Bhash),
-    MHash(name: "blake2b-216", code: 0xB21B, size: 27, coder: blake2Bhash),
-    MHash(name: "blake2b-224", code: 0xB21C, size: 28, coder: blake2Bhash),
-    MHash(name: "blake2b-232", code: 0xB21D, size: 29, coder: blake2Bhash),
-    MHash(name: "blake2b-240", code: 0xB21E, size: 30, coder: blake2Bhash),
-    MHash(name: "blake2b-248", code: 0xB21F, size: 31, coder: blake2Bhash),
-    MHash(name: "blake2b-256", code: 0xB220, size: 32, coder: blake2Bhash),
-    MHash(name: "blake2b-264", code: 0xB221, size: 33, coder: blake2Bhash),
-    MHash(name: "blake2b-272", code: 0xB222, size: 34, coder: blake2Bhash),
-    MHash(name: "blake2b-280", code: 0xB223, size: 35, coder: blake2Bhash),
-    MHash(name: "blake2b-288", code: 0xB224, size: 36, coder: blake2Bhash),
-    MHash(name: "blake2b-296", code: 0xB225, size: 37, coder: blake2Bhash),
-    MHash(name: "blake2b-304", code: 0xB226, size: 38, coder: blake2Bhash),
-    MHash(name: "blake2b-312", code: 0xB227, size: 39, coder: blake2Bhash),
-    MHash(name: "blake2b-320", code: 0xB228, size: 40, coder: blake2Bhash),
-    MHash(name: "blake2b-328", code: 0xB229, size: 41, coder: blake2Bhash),
-    MHash(name: "blake2b-336", code: 0xB22A, size: 42, coder: blake2Bhash),
-    MHash(name: "blake2b-344", code: 0xB22B, size: 43, coder: blake2Bhash),
-    MHash(name: "blake2b-352", code: 0xB22C, size: 44, coder: blake2Bhash),
-    MHash(name: "blake2b-360", code: 0xB22D, size: 45, coder: blake2Bhash),
-    MHash(name: "blake2b-368", code: 0xB22E, size: 46, coder: blake2Bhash),
-    MHash(name: "blake2b-376", code: 0xB22F, size: 47, coder: blake2Bhash),
-    MHash(name: "blake2b-384", code: 0xB230, size: 48, coder: blake2Bhash),
-    MHash(name: "blake2b-392", code: 0xB231, size: 49, coder: blake2Bhash),
-    MHash(name: "blake2b-400", code: 0xB232, size: 50, coder: blake2Bhash),
-    MHash(name: "blake2b-408", code: 0xB233, size: 51, coder: blake2Bhash),
-    MHash(name: "blake2b-416", code: 0xB234, size: 52, coder: blake2Bhash),
-    MHash(name: "blake2b-424", code: 0xB235, size: 53, coder: blake2Bhash),
-    MHash(name: "blake2b-432", code: 0xB236, size: 54, coder: blake2Bhash),
-    MHash(name: "blake2b-440", code: 0xB237, size: 55, coder: blake2Bhash),
-    MHash(name: "blake2b-448", code: 0xB238, size: 56, coder: blake2Bhash),
-    MHash(name: "blake2b-456", code: 0xB239, size: 57, coder: blake2Bhash),
-    MHash(name: "blake2b-464", code: 0xB23A, size: 58, coder: blake2Bhash),
-    MHash(name: "blake2b-472", code: 0xB23B, size: 59, coder: blake2Bhash),
-    MHash(name: "blake2b-480", code: 0xB23C, size: 60, coder: blake2Bhash),
-    MHash(name: "blake2b-488", code: 0xB23D, size: 61, coder: blake2Bhash),
-    MHash(name: "blake2b-496", code: 0xB23E, size: 62, coder: blake2Bhash),
-    MHash(name: "blake2b-504", code: 0xB23F, size: 63, coder: blake2Bhash),
-    MHash(name: "blake2b-512", code: 0xB240, size: 64, coder: blake2Bhash),
-    MHash(name: "blake2s-8", code: 0xB241, size: 1, coder: blake2Shash),
-    MHash(name: "blake2s-16", code: 0xB242, size: 2, coder: blake2Shash),
-    MHash(name: "blake2s-24", code: 0xB243, size: 3, coder: blake2Shash),
-    MHash(name: "blake2s-32", code: 0xB244, size: 4, coder: blake2Shash),
-    MHash(name: "blake2s-40", code: 0xB245, size: 5, coder: blake2Shash),
-    MHash(name: "blake2s-48", code: 0xB246, size: 6, coder: blake2Shash),
-    MHash(name: "blake2s-56", code: 0xB247, size: 7, coder: blake2Shash),
-    MHash(name: "blake2s-64", code: 0xB248, size: 8, coder: blake2Shash),
-    MHash(name: "blake2s-72", code: 0xB249, size: 9, coder: blake2Shash),
-    MHash(name: "blake2s-80", code: 0xB24A, size: 10, coder: blake2Shash),
-    MHash(name: "blake2s-88", code: 0xB24B, size: 11, coder: blake2Shash),
-    MHash(name: "blake2s-96", code: 0xB24C, size: 12, coder: blake2Shash),
-    MHash(name: "blake2s-104", code: 0xB24D, size: 13, coder: blake2Shash),
-    MHash(name: "blake2s-112", code: 0xB24E, size: 14, coder: blake2Shash),
-    MHash(name: "blake2s-120", code: 0xB24F, size: 15, coder: blake2Shash),
-    MHash(name: "blake2s-128", code: 0xB250, size: 16, coder: blake2Shash),
-    MHash(name: "blake2s-136", code: 0xB251, size: 17, coder: blake2Shash),
-    MHash(name: "blake2s-144", code: 0xB252, size: 18, coder: blake2Shash),
-    MHash(name: "blake2s-152", code: 0xB253, size: 19, coder: blake2Shash),
-    MHash(name: "blake2s-160", code: 0xB254, size: 20, coder: blake2Shash),
-    MHash(name: "blake2s-168", code: 0xB255, size: 21, coder: blake2Shash),
-    MHash(name: "blake2s-176", code: 0xB256, size: 22, coder: blake2Shash),
-    MHash(name: "blake2s-184", code: 0xB257, size: 23, coder: blake2Shash),
-    MHash(name: "blake2s-192", code: 0xB258, size: 24, coder: blake2Shash),
-    MHash(name: "blake2s-200", code: 0xB259, size: 25, coder: blake2Shash),
-    MHash(name: "blake2s-208", code: 0xB25A, size: 26, coder: blake2Shash),
-    MHash(name: "blake2s-216", code: 0xB25B, size: 27, coder: blake2Shash),
-    MHash(name: "blake2s-224", code: 0xB25C, size: 28, coder: blake2Shash),
-    MHash(name: "blake2s-232", code: 0xB25D, size: 29, coder: blake2Shash),
-    MHash(name: "blake2s-240", code: 0xB25E, size: 30, coder: blake2Shash),
-    MHash(name: "blake2s-248", code: 0xB25F, size: 31, coder: blake2Shash),
-    MHash(name: "blake2s-256", code: 0xB260, size: 32, coder: blake2Shash)
+    MHash(mcodec: multiCodec("blake2b-8"), size: 1, coder: blake2Bhash),
+    MHash(mcodec: multiCodec("blake2b-16"), size: 2, coder: blake2Bhash),
+    MHash(mcodec: multiCodec("blake2b-24"), size: 3, coder: blake2Bhash),
+    MHash(mcodec: multiCodec("blake2b-32"), size: 4, coder: blake2Bhash),
+    MHash(mcodec: multiCodec("blake2b-40"), size: 5, coder: blake2Bhash),
+    MHash(mcodec: multiCodec("blake2b-48"), size: 6, coder: blake2Bhash),
+    MHash(mcodec: multiCodec("blake2b-56"), size: 7, coder: blake2Bhash),
+    MHash(mcodec: multiCodec("blake2b-64"), size: 8, coder: blake2Bhash),
+    MHash(mcodec: multiCodec("blake2b-72"), size: 9, coder: blake2Bhash),
+    MHash(mcodec: multiCodec("blake2b-80"), size: 10, coder: blake2Bhash),
+    MHash(mcodec: multiCodec("blake2b-88"), size: 11, coder: blake2Bhash),
+    MHash(mcodec: multiCodec("blake2b-96"), size: 12, coder: blake2Bhash),
+    MHash(mcodec: multiCodec("blake2b-104"), size: 13, coder: blake2Bhash),
+    MHash(mcodec: multiCodec("blake2b-112"), size: 14, coder: blake2Bhash),
+    MHash(mcodec: multiCodec("blake2b-120"), size: 15, coder: blake2Bhash),
+    MHash(mcodec: multiCodec("blake2b-128"), size: 16, coder: blake2Bhash),
+    MHash(mcodec: multiCodec("blake2b-136"), size: 17, coder: blake2Bhash),
+    MHash(mcodec: multiCodec("blake2b-144"), size: 18, coder: blake2Bhash),
+    MHash(mcodec: multiCodec("blake2b-152"), size: 19, coder: blake2Bhash),
+    MHash(mcodec: multiCodec("blake2b-160"), size: 20, coder: blake2Bhash),
+    MHash(mcodec: multiCodec("blake2b-168"), size: 21, coder: blake2Bhash),
+    MHash(mcodec: multiCodec("blake2b-176"), size: 22, coder: blake2Bhash),
+    MHash(mcodec: multiCodec("blake2b-184"), size: 23, coder: blake2Bhash),
+    MHash(mcodec: multiCodec("blake2b-192"), size: 24, coder: blake2Bhash),
+    MHash(mcodec: multiCodec("blake2b-200"), size: 25, coder: blake2Bhash),
+    MHash(mcodec: multiCodec("blake2b-208"), size: 26, coder: blake2Bhash),
+    MHash(mcodec: multiCodec("blake2b-216"), size: 27, coder: blake2Bhash),
+    MHash(mcodec: multiCodec("blake2b-224"), size: 28, coder: blake2Bhash),
+    MHash(mcodec: multiCodec("blake2b-232"), size: 29, coder: blake2Bhash),
+    MHash(mcodec: multiCodec("blake2b-240"), size: 30, coder: blake2Bhash),
+    MHash(mcodec: multiCodec("blake2b-248"), size: 31, coder: blake2Bhash),
+    MHash(mcodec: multiCodec("blake2b-256"), size: 32, coder: blake2Bhash),
+    MHash(mcodec: multiCodec("blake2b-264"), size: 33, coder: blake2Bhash),
+    MHash(mcodec: multiCodec("blake2b-272"), size: 34, coder: blake2Bhash),
+    MHash(mcodec: multiCodec("blake2b-280"), size: 35, coder: blake2Bhash),
+    MHash(mcodec: multiCodec("blake2b-288"), size: 36, coder: blake2Bhash),
+    MHash(mcodec: multiCodec("blake2b-296"), size: 37, coder: blake2Bhash),
+    MHash(mcodec: multiCodec("blake2b-304"), size: 38, coder: blake2Bhash),
+    MHash(mcodec: multiCodec("blake2b-312"), size: 39, coder: blake2Bhash),
+    MHash(mcodec: multiCodec("blake2b-320"), size: 40, coder: blake2Bhash),
+    MHash(mcodec: multiCodec("blake2b-328"), size: 41, coder: blake2Bhash),
+    MHash(mcodec: multiCodec("blake2b-336"), size: 42, coder: blake2Bhash),
+    MHash(mcodec: multiCodec("blake2b-344"), size: 43, coder: blake2Bhash),
+    MHash(mcodec: multiCodec("blake2b-352"), size: 44, coder: blake2Bhash),
+    MHash(mcodec: multiCodec("blake2b-360"), size: 45, coder: blake2Bhash),
+    MHash(mcodec: multiCodec("blake2b-368"), size: 46, coder: blake2Bhash),
+    MHash(mcodec: multiCodec("blake2b-376"), size: 47, coder: blake2Bhash),
+    MHash(mcodec: multiCodec("blake2b-384"), size: 48, coder: blake2Bhash),
+    MHash(mcodec: multiCodec("blake2b-392"), size: 49, coder: blake2Bhash),
+    MHash(mcodec: multiCodec("blake2b-400"), size: 50, coder: blake2Bhash),
+    MHash(mcodec: multiCodec("blake2b-408"), size: 51, coder: blake2Bhash),
+    MHash(mcodec: multiCodec("blake2b-416"), size: 52, coder: blake2Bhash),
+    MHash(mcodec: multiCodec("blake2b-424"), size: 53, coder: blake2Bhash),
+    MHash(mcodec: multiCodec("blake2b-432"), size: 54, coder: blake2Bhash),
+    MHash(mcodec: multiCodec("blake2b-440"), size: 55, coder: blake2Bhash),
+    MHash(mcodec: multiCodec("blake2b-448"), size: 56, coder: blake2Bhash),
+    MHash(mcodec: multiCodec("blake2b-456"), size: 57, coder: blake2Bhash),
+    MHash(mcodec: multiCodec("blake2b-464"), size: 58, coder: blake2Bhash),
+    MHash(mcodec: multiCodec("blake2b-472"), size: 59, coder: blake2Bhash),
+    MHash(mcodec: multiCodec("blake2b-480"), size: 60, coder: blake2Bhash),
+    MHash(mcodec: multiCodec("blake2b-488"), size: 61, coder: blake2Bhash),
+    MHash(mcodec: multiCodec("blake2b-496"), size: 62, coder: blake2Bhash),
+    MHash(mcodec: multiCodec("blake2b-504"), size: 63, coder: blake2Bhash),
+    MHash(mcodec: multiCodec("blake2b-512"), size: 64, coder: blake2Bhash),
+    MHash(mcodec: multiCodec("blake2s-8"), size: 1, coder: blake2Shash),
+    MHash(mcodec: multiCodec("blake2s-16"), size: 2, coder: blake2Shash),
+    MHash(mcodec: multiCodec("blake2s-24"), size: 3, coder: blake2Shash),
+    MHash(mcodec: multiCodec("blake2s-32"), size: 4, coder: blake2Shash),
+    MHash(mcodec: multiCodec("blake2s-40"), size: 5, coder: blake2Shash),
+    MHash(mcodec: multiCodec("blake2s-48"), size: 6, coder: blake2Shash),
+    MHash(mcodec: multiCodec("blake2s-56"), size: 7, coder: blake2Shash),
+    MHash(mcodec: multiCodec("blake2s-64"), size: 8, coder: blake2Shash),
+    MHash(mcodec: multiCodec("blake2s-72"), size: 9, coder: blake2Shash),
+    MHash(mcodec: multiCodec("blake2s-80"), size: 10, coder: blake2Shash),
+    MHash(mcodec: multiCodec("blake2s-88"), size: 11, coder: blake2Shash),
+    MHash(mcodec: multiCodec("blake2s-96"), size: 12, coder: blake2Shash),
+    MHash(mcodec: multiCodec("blake2s-104"), size: 13, coder: blake2Shash),
+    MHash(mcodec: multiCodec("blake2s-112"), size: 14, coder: blake2Shash),
+    MHash(mcodec: multiCodec("blake2s-120"), size: 15, coder: blake2Shash),
+    MHash(mcodec: multiCodec("blake2s-128"), size: 16, coder: blake2Shash),
+    MHash(mcodec: multiCodec("blake2s-136"), size: 17, coder: blake2Shash),
+    MHash(mcodec: multiCodec("blake2s-144"), size: 18, coder: blake2Shash),
+    MHash(mcodec: multiCodec("blake2s-152"), size: 19, coder: blake2Shash),
+    MHash(mcodec: multiCodec("blake2s-160"), size: 20, coder: blake2Shash),
+    MHash(mcodec: multiCodec("blake2s-168"), size: 21, coder: blake2Shash),
+    MHash(mcodec: multiCodec("blake2s-176"), size: 22, coder: blake2Shash),
+    MHash(mcodec: multiCodec("blake2s-184"), size: 23, coder: blake2Shash),
+    MHash(mcodec: multiCodec("blake2s-192"), size: 24, coder: blake2Shash),
+    MHash(mcodec: multiCodec("blake2s-200"), size: 25, coder: blake2Shash),
+    MHash(mcodec: multiCodec("blake2s-208"), size: 26, coder: blake2Shash),
+    MHash(mcodec: multiCodec("blake2s-216"), size: 27, coder: blake2Shash),
+    MHash(mcodec: multiCodec("blake2s-224"), size: 28, coder: blake2Shash),
+    MHash(mcodec: multiCodec("blake2s-232"), size: 29, coder: blake2Shash),
+    MHash(mcodec: multiCodec("blake2s-240"), size: 30, coder: blake2Shash),
+    MHash(mcodec: multiCodec("blake2s-248"), size: 31, coder: blake2Shash),
+    MHash(mcodec: multiCodec("blake2s-256"), size: 32, coder: blake2Shash)
   ]
 
-proc initMultiHashNameTable(): Table[string, MHash] {.compileTime.} =
-  result = initTable[string, MHash]()
+proc initMultiHashCodeTable(): Table[MultiCodec, MHash] {.compileTime.} =
+  result = initTable[MultiCodec, MHash]()
   for item in HashesList:
-    result[item.name] = item
-
-proc initMultiHashCodeTable(): Table[int, MHash] {.compileTime.} =
-  result = initTable[int, MHash]()
-  for item in HashesList:
-    result[item.code] = item
+    result[item.mcodec] = item
 
 const
   CodeHashes = initMultiHashCodeTable()
-  NameHashes = initMultiHashNameTable()
-
-proc multihashName*(code: int): string =
-  ## Returns MultiHash digest name from its code.
-  let hash = CodeHashes.getOrDefault(code)
-  if isNil(hash.coder):
-    raise newException(MultiHashError, "Hash not supported")
-  else:
-    result = hash.name
-
-proc multihashCode*(name: string): int =
-  ## Returns MultiHash digest code from its name.
-  let hash = NameHashes.getOrDefault(name)
-  if isNil(hash.coder):
-    raise newException(MultiHashError, "Hash not supported")
-  else:
-    result = hash.code
 
 proc digestImplWithHash(hash: MHash, data: openarray[byte]): MultiHash =
   var buffer: array[MaxHashSize, byte]
   result.data = initVBuffer()
-  result.code = hash.code
-  result.data.writeVarint(uint(hash.code))
+  result.mcodec = hash.mcodec
+  result.data.writeCodec(hash.mcodec)
   if hash.size == 0:
     result.data.writeVarint(uint(len(data)))
     result.dpos = len(result.data.buffer)
@@ -345,9 +323,9 @@ proc digestImplWithHash(hash: MHash, data: openarray[byte]): MultiHash =
 
 proc digestImplWithoutHash(hash: MHash, data: openarray[byte]): MultiHash =
   result.data = initVBuffer()
-  result.code = hash.code
+  result.mcodec = hash.mcodec
   result.size = len(data)
-  result.data.writeVarint(uint(hash.code))
+  result.data.writeCodec(hash.mcodec)
   result.data.writeVarint(uint(len(data)))
   result.dpos = len(result.data.buffer)
   result.data.writeArray(data)
@@ -356,7 +334,10 @@ proc digest*(mhtype: typedesc[MultiHash], hashname: string,
              data: openarray[byte]): MultiHash {.inline.} =
   ## Perform digest calculation using hash algorithm with name ``hashname`` on
   ## data array ``data``.
-  let hash = NameHashes.getOrDefault(hashname)
+  let mc = MultiCodec.codec(hashname)
+  if mc == InvalidMultiCodec:
+    raise newException(MultihashError, "Incorrect hash name")
+  let hash = CodeHashes.getOrDefault(mc)
   if isNil(hash.coder):
     raise newException(MultihashError, "Hash not supported")
   result = digestImplWithHash(hash, data)
@@ -374,14 +355,17 @@ proc init*[T](mhtype: typedesc[MultiHash], hashname: string,
                 mdigest: MDigest[T]): MultiHash {.inline.} =
   ## Create MultiHash from nimcrypto's `MDigest` object and hash algorithm name
   ## ``hashname``.
-  let hash = NameHashes.getOrDefault(hashname)
+  let mc = MultiCodec.codec(hashname)
+  if mc == InvalidMultiCodec:
+    raise newException(MultihashError, "Incorrect hash name")
+  let hash = CodeHashes.getOrDefault(mc)
   if isNil(hash.coder):
     raise newException(MultihashError, "Hash not supported")
   if hash.size != len(mdigest.data):
     raise newException(MultiHashError, "Incorrect MDigest[T] size")
   result = digestImplWithoutHash(hash, mdigest.data)
 
-proc init*[T](mhtype: typedesc[MultiHash], hashcode: int,
+proc init*[T](mhtype: typedesc[MultiHash], hashcode: MultiCodec,
               mdigest: MDigest[T]): MultiHash {.inline.} =
   ## Create MultiHash from nimcrypto's `MDigest` and hash algorithm code
   ## ``hashcode``.
@@ -396,14 +380,17 @@ proc init*(mhtype: typedesc[MultiHash], hashname: string,
            bdigest: openarray[byte]): MultiHash {.inline.} =
   ## Create MultiHash from array of bytes ``bdigest`` and hash algorithm code
   ## ``hashcode``.
-  let hash = NameHashes.getOrDefault(hashname)
+  let mc = MultiCodec.codec(hashname)
+  if mc == InvalidMultiCodec:
+    raise newException(MultihashError, "Incorrect hash name")
+  let hash = CodeHashes.getOrDefault(mc)
   if isNil(hash.coder):
     raise newException(MultihashError, "Hash not supported")
   if (hash.size != 0) and (hash.size != len(bdigest)):
     raise newException(MultiHashError, "Incorrect bdigest size")
   result = digestImplWithoutHash(hash, bdigest)
 
-proc init*(mhtype: typedesc[MultiHash], hashcode: int,
+proc init*(mhtype: typedesc[MultiHash], hashcode: MultiCodec,
            bdigest: openarray[byte]): MultiHash {.inline.} =
   ## Create MultiHash from array of bytes ``bdigest`` and hash algorithm code
   ## ``hashcode``.
@@ -439,14 +426,14 @@ proc decode*(mhtype: typedesc[MultiHash], data: openarray[byte],
   dpos += res
   if size > 0x7FFF_FFFF'u64:
     return -1
-  let hash = CodeHashes.getOrDefault(int(code))
+  let hash = CodeHashes.getOrDefault(MultiCodec(code))
   if isNil(hash.coder):
     return -1
   if (hash.size != 0) and (hash.size != int(size)):
     return -1
   if not vb.isEnough(int(size)):
     return -1
-  mhash = MultiHash.init(int(code),
+  mhash = MultiHash.init(MultiCodec(code),
                          vb.buffer.toOpenArray(vb.offset,
                                                vb.offset + int(size) - 1))
   result = vb.offset + int(size)
@@ -494,12 +481,12 @@ proc `==`*[T](mdigest: MDigest[T], mh: MultiHash): bool {.inline.} =
   ## hashes are equal, ``false`` otherwise.
   result = `==`(mh, mdigest)
 
-proc `==`*(a, b: MultiHash): bool =
+proc `==`*(a: MultiHash, b: MultiHash): bool =
   ## Compares MultiHashes ``a`` and ``b``, returns ``true`` if
   ## hashes are equal, ``false`` otherwise.
   if a.dpos == 0 and b.dpos == 0:
     return true
-  if a.code != b.code:
+  if a.mcodec != b.mcodec:
     return false
   if a.size != b.size:
     return false
@@ -514,8 +501,8 @@ proc base58*(value: MultiHash): string =
   ## Return Base58 encoded string representation of MultiHash ``value``.
   result = Base58.encode(value.data.buffer)
 
-proc `$`*(value: MultiHash): string =
+proc `$`*(mh: MultiHash): string =
   ## Return string representation of MultiHash ``value``.
-  let digest = toHex(value.data.buffer.toOpenArray(value.dpos,
-                                                   value.dpos + value.size - 1))
-  result = multihashName(value.code) & "/" & digest
+  let digest = toHex(mh.data.buffer.toOpenArray(mh.dpos,
+                                                mh.dpos + mh.size - 1))
+  result = $(mh.mcodec) & "/" & digest

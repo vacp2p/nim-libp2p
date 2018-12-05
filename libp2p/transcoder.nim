@@ -12,6 +12,8 @@ import vbuffer
 
 type
   Transcoder* = object
-    stringToBuffer*: proc(s: string, vb: var VBuffer): bool {.nimcall.}
-    bufferToString*: proc(vb: var VBuffer, s: var string): bool {.nimcall.}
-    validateBuffer*: proc(vb: var VBuffer): bool {.nimcall.}
+    stringToBuffer*: proc(s: string,
+                          vb: var VBuffer): bool {.nimcall, gcsafe.}
+    bufferToString*: proc(vb: var VBuffer,
+                          s: var string): bool {.nimcall, gcsafe.}
+    validateBuffer*: proc(vb: var VBuffer): bool {.nimcall, gcsafe.}
