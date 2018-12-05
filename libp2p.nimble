@@ -17,3 +17,4 @@ task test, "Runs the test suite":
   exec "nim c -r tests/testbase58"
   exec "nim c -r tests/testbase32"
   exec "nim c -r tests/testmultiaddress"
+  exec "nim c -r tests/testmultihash"

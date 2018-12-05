@@ -491,7 +491,7 @@ proc `==`*[T](mh: MultiHash, mdigest: MDigest[T]): bool =
 
 proc `==`*[T](mdigest: MDigest[T], mh: MultiHash): bool {.inline.} =
   ## Compares MultiHash with nimcrypto's MDigest[T], returns ``true`` if
-  ## hashes are equal, ``false`` otherwise.  
+  ## hashes are equal, ``false`` otherwise.
   result = `==`(mh, mdigest)
 
 proc `==`*(a, b: MultiHash): bool =
@@ -519,6 +519,3 @@ proc `$`*(value: MultiHash): string =
   let digest = toHex(value.data.buffer.toOpenArray(value.dpos,
                                                    value.dpos + value.size - 1))
   result = multihashName(value.code) & "/" & digest
-
-when isMainModule:
-  echo MultiHash.init58("QmPGqitiRv1TPuCNtcwsMNRPEhx9SZP5qANPNcQBA53BgM")
