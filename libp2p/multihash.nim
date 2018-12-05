@@ -462,6 +462,12 @@ proc init*(mhtype: typedesc[MultiHash], data: string): MultiHash {.inline.} =
   if MultiHash.decode(fromHex(data), result) == -1:
     raise newException(MultihashError, "Incorrect MultiHash binary format")
 
+proc init58*(mhtype: typedesc[MultiHash],
+             data: string): MultiHash {.inline.} =
+  ## Create MultiHash from BASE58 encoded string representation ``data``.
+  if MultiHash.decode(Base58.decode(data), result) == -1:
+    raise newException(MultihashError, "Incorrect MultiHash binary format")
+
 proc cmp(a: openarray[byte], b: openarray[byte]): bool {.inline.} =
   if len(a) != len(b):
     return false
@@ -513,3 +519,6 @@ proc `$`*(value: MultiHash): string =
   let digest = toHex(value.data.buffer.toOpenArray(value.dpos,
                                                    value.dpos + value.size - 1))
   result = multihashName(value.code) & "/" & digest
+
+when isMainModule:
+  echo MultiHash.init58("QmPGqitiRv1TPuCNtcwsMNRPEhx9SZP5qANPNcQBA53BgM")

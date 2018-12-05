@@ -8,6 +8,7 @@ license       = "MIT"
 skipDirs      = @["tests", "examples", "Nim"]
 
 requires "nim > 0.18.0",
+         "nimcrypto",
          "https://github.com/status-im/nim-asyncdispatch2"
 
 task test, "Runs the test suite":

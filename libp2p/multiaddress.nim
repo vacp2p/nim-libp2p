@@ -9,7 +9,7 @@
 
 ## This module implements MultiAddress.
 import tables, strutils, net
-import transcoder, base58, vbuffer
+import multihash, transcoder, base58, base32, vbuffer
 
 {.deadCodeElim:on.}
 
@@ -124,7 +124,7 @@ proc portStB(s: string, vb: var VBuffer): bool =
   var port: array[2, byte]
   try:
     var nport = parseInt(s)
-    if nport < 65536:
+    if (nport >= 0) and (nport < 65536):
       port[0] = cast[byte]((nport shr 8) and 0xFF)
       port[1] = cast[byte](nport and 0xFF)
       vb.writeArray(port)
@@ -150,8 +150,10 @@ proc p2pStB(s: string, vb: var VBuffer): bool =
   ## P2P address stringToBuffer() implementation.
   try:
     var data = Base58.decode(s)
-    vb.writeSeq(data)
-    result = true
+    var mh: MultiHash
+    if MultiHash.decode(data, mh) >= 0:
+      vb.writeSeq(data)
+      result = true
   except:
     discard
 
@@ -159,27 +161,52 @@ proc p2pBtS(vb: var VBuffer, s: var string): bool =
   ## P2P address bufferToString() implementation.
   var address = newSeq[byte]()
   if vb.readSeq(address) > 0:
-    s = Base58.encode(address)
-    result = true
+    var mh: MultiHash
+    if MultiHash.decode(address, mh) >= 0:
+      s = Base58.encode(address)
+      result = true
 
 proc p2pVB(vb: var VBuffer): bool =
   ## P2P address validateBuffer() implementation.
-  ## TODO (multihash required)
   var address = newSeq[byte]()
   if vb.readSeq(address) > 0:
-    result = true
+    var mh: MultiHash
+    if MultiHash.decode(address, mh) >= 0:
+      result = true
 
 proc onionStB(s: string, vb: var VBuffer): bool =
-  # TODO (base32, multihash required)
-  discard
+  try:
+    var parts = s.split(':')
+    if len(parts) != 2:
+      return false
+    if len(parts[0]) != 16:
+      return false
+    var address = Base32Lower.decode(parts[0].toLowerAscii())
+    var nport = parseInt(parts[1])
+    if (nport > 0 and nport < 65536) and len(address) == 10:
+      address.setLen(12)
+      address[10] = cast[byte]((nport shr 8) and 0xFF)
+      address[11] = cast[byte](nport and 0xFF)
+      vb.writeArray(address)
+      result = true
+  except:
+    discard
 
 proc onionBtS(vb: var VBuffer, s: var string): bool =
-  # TODO (base32, multihash required)
-  discard
+  ## ONION address bufferToString() implementation.
+  var buf: array[12, byte]
+  if vb.readArray(buf) == 12:
+    var nport = (cast[uint16](buf[10]) shl 8) or cast[uint16](buf[11])
+    s = Base32Lower.encode(buf.toOpenArray(0, 9))
+    s.add(":")
+    s.add($nport)
+    result = true
 
 proc onionVB(vb: var VBuffer): bool =
-  # TODO (base32, multihash required)
-  discard
+  ## ONION address validateBuffer() implementation.
+  var buf: array[12, byte]
+  if vb.readArray(buf) == 12:
+    result = true
 
 proc unixStB(s: string, vb: var VBuffer): bool =
   ## Unix socket name stringToBuffer() implementation.

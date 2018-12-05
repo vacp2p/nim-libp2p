@@ -12,8 +12,8 @@ const
     "/ip6zone/x%y/ip6/fe80::1",
     "/ip6zone/x%y/ip6/::",
     "/ip6zone/x/ip6/fe80::1/udp/1234/quic",
-    # "/onion/timaq4ygg2iegci7:1234",
-    # "/onion/timaq4ygg2iegci7:80/http",
+    "/onion/timaq4ygg2iegci7:1234",
+    "/onion/timaq4ygg2iegci7:80/http",
     "/udp/0",
     "/tcp/0",
     "/sctp/0",
@@ -61,12 +61,12 @@ const
     "/udp/65536",
     "/tcp/65536",
     "/quic/65536",
-    # "/onion/9imaq4ygg2iegci7:80",  # TODO: Requires ONION validate
-    # "/onion/aaimaq4ygg2iegci7:80",
-    # "/onion/timaq4ygg2iegci7:0",
-    # "/onion/timaq4ygg2iegci7:-1",
-    # "/onion/timaq4ygg2iegci7",
-    # "/onion/timaq4ygg2iegci@:666",
+    "/onion/9imaq4ygg2iegci7:80",
+    "/onion/aaimaq4ygg2iegci7:80",
+    "/onion/timaq4ygg2iegci7:0",
+    "/onion/timaq4ygg2iegci7:-1",
+    "/onion/timaq4ygg2iegci7",
+    "/onion/timaq4ygg2iegci@:666",
     "/udp/1234/sctp",
     "/udp/1234/udt/1234",
     "/udp/1234/utp/1234",
@@ -76,9 +76,9 @@ const
     "/ip4/127.0.0.1/tcp",
     "/ip4/127.0.0.1/quic/1234",
     "/ip4/127.0.0.1/ipfs",
-    # "/ip4/127.0.0.1/ipfs/tcp", # TODO: Requires P2P/IPFS validate
+    "/ip4/127.0.0.1/ipfs/tcp",
     "/ip4/127.0.0.1/p2p",
-    # "/ip4/127.0.0.1/p2p/tcp",  # TODO: Requires P2P/IPFS validate
+    "/ip4/127.0.0.1/p2p/tcp",
     "/unix"
   ]
 
@@ -152,12 +152,12 @@ const
     "/sctp",
     "/udp/65536",
     "/tcp/65536",
-    # "/onion/9imaq4ygg2iegci7:80", # TODO: Requires ONION validate
-    # "/onion/aaimaq4ygg2iegci7:80",
-    # "/onion/timaq4ygg2iegci7:0",
-    # "/onion/timaq4ygg2iegci7:-1",
-    # "/onion/timaq4ygg2iegci7",
-    # "/onion/timaq4ygg2iegci@:666",
+    "/onion/9imaq4ygg2iegci7:80",
+    "/onion/aaimaq4ygg2iegci7:80",
+    "/onion/timaq4ygg2iegci7:0",
+    "/onion/timaq4ygg2iegci7:-1",
+    "/onion/timaq4ygg2iegci7",
+    "/onion/timaq4ygg2iegci@:666",
     "/udp/1234/sctp",
     "/udp/1234/udt/1234",
     "/udp/1234/utp/1234",
@@ -166,7 +166,7 @@ const
     "/ip4/127.0.0.1/tcp/jfodsajfidosajfoidsa",
     "/ip4/127.0.0.1/tcp",
     "/ip4/127.0.0.1/ipfs",
-    # "/ip4/127.0.0.1/ipfs/tcp", # TODO: Requires P2P/IPFS validate
+    "/ip4/127.0.0.1/ipfs/tcp",
     "/p2p-circuit/50"
   ]
 
