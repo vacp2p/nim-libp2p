@@ -43,6 +43,75 @@ proc provideBadCidTest(): Future[bool] {.async.} =
     result = false
   except DaemonRemoteError:
     result = true
+  finally:
+    await api.close()
+
+proc pubsubTest(f: set[P2PDaemonFlags]): Future[bool] {.async.} =
+  var pubsubData = "TEST MESSAGE"
+  var msgData = cast[seq[byte]](pubsubData)
+  var api1 = await newDaemonApi(f)
+  var api2 = await newDaemonApi(f)
+
+  var id1 = await api1.identity()
+  var id2 = await api2.identity()
+
+  var resultsCount = 0
+
+  var topics10 = await api1.pubsubGetTopics()
+  var peers10 = await api1.pubsubListPeers("test-topic")
+  var topics20 = await api1.pubsubGetTopics()
+  var peers20 = await api1.pubsubListPeers("test-topic")
+
+  proc pubsubHandler1(api: DaemonAPI,
+                     ticket: PubsubTicket,
+                     message: PubSubMessage): Future[bool] {.async.} =
+    let smsg = cast[string](message.data)
+    if smsg == pubsubData:
+      inc(resultsCount)
+    # Callback must return `false` to close subscription channel.
+
+  proc pubsubHandler2(api: DaemonAPI,
+                     ticket: PubsubTicket,
+                     message: PubSubMessage): Future[bool] {.async.} =
+    let smsg = cast[string](message.data)
+    if smsg == pubsubData:
+      inc(resultsCount)
+    # Callback must return `false` to close subscription channel.
+    result = false
+
+  if len(topics10) == 0 and len(peers10) == 0 and
+     len(topics20) == 0 and len(peers20) == 0:
+    # Not subscribed to any topics everything must be 0.
+
+    var ticket1 = await api1.pubsubSubscribe("test-topic", pubsubHandler1)
+    var ticket2 = await api2.pubsubSubscribe("test-topic", pubsubHandler2)
+
+    var topics11 = await api1.pubsubGetTopics()
+    var peers11 = await api1.pubsubListPeers("test-topic")
+    var topics21 = await api2.pubsubGetTopics()
+    var peers21 = await api2.pubsubListPeers("test-topic")
+
+    if len(topics11) == 1 and len(peers11) == 0 and
+       len(topics21) == 1 and len(peers21) == 0:
+      # Subscribed but not yet connected to each other
+      await sleepAsync(5000)
+      await api1.connect(id2.peer, id2.addresses)
+      await sleepAsync(5000)
+
+      var topics12 = await api1.pubsubGetTopics()
+      var peers12 = await api1.pubsubListPeers("test-topic")
+      var topics22 = await api2.pubsubGetTopics()
+      var peers22 = await api2.pubsubListPeers("test-topic")
+
+      if len(topics12) == 1 and len(peers12) == 1 and
+         len(topics22) == 1 and len(peers22) == 1:
+        # Publish test data via api1.
+        await api1.pubsubPublish("test-topic", msgData)
+        await sleepAsync(5000)
+  await api1.close()
+  await api2.close()
+  if resultsCount == 2:
+    result = true
 
 when isMainModule:
   suite "libp2p-daemon test suite":
@@ -55,3 +124,10 @@ when isMainModule:
     test "DHT provide bad CID test":
       check:
         waitFor(provideBadCidTest()) == true
+    test "GossipSub test":
+      check:
+        waitFor(pubsubTest({PSGossipSub})) == true
+    test "FloodSub test":
+      check:
+        waitFor(pubsubTest({PSFloodSub})) == true
+
