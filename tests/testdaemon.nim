@@ -31,6 +31,7 @@ proc connectStreamTest(): Future[bool] {.async.} =
   doAssert(sent == len(test) + 2)
   var check = await wait(testFuture, 10000)
   doAssert(check == test)
+  await stream.close()
   await api1.close()
   await api2.close()
   result = true
