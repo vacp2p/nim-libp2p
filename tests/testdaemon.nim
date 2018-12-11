@@ -1,6 +1,6 @@
 import unittest
 import asyncdispatch2
-import ../libp2p/daemon/daemonapi
+import ../libp2p/daemon/daemonapi, ../libp2p/multiaddress, ../libp2p/multicodec
 
 proc identitySpawnTest(): Future[bool] {.async.} =
   var api = await newDaemonApi()
@@ -48,21 +48,27 @@ proc provideBadCidTest(): Future[bool] {.async.} =
   finally:
     await api.close()
 
+proc getOnlyIPv4Addresses(addresses: seq[MultiAddress]): seq[MultiAddress] =
+  if len(addresses) > 0:
+    result = newSeqOfCap[MultiAddress](len(addresses))
+    let ip4 = multiCodec("ip4")
+    for item in addresses:
+      if item.protoCode() == ip4:
+        result.add(item)
+
 proc pubsubTest(f: set[P2PDaemonFlags]): Future[bool] {.async.} =
   var pubsubData = "TEST MESSAGE"
   var msgData = cast[seq[byte]](pubsubData)
   var api1, api2: DaemonAPI
-  if PSGossipSub in f:
-    api1 = await newDaemonApi(f, gossipsubHeartbeatInterval = 100,
-                              gossipsubHeartbeatDelay = 100)
-    api2 = await newDaemonApi(f, gossipsubHeartbeatInterval = 100,
-                              gossipsubHeartbeatDelay = 100)
-  else:
-    api1 = await newDaemonApi(f)
-    api2 = await newDaemonApi(f)
+
+  api1 = await newDaemonApi(f)
+  api2 = await newDaemonApi(f)
 
   var id1 = await api1.identity()
   var id2 = await api2.identity()
+
+  echo $id1
+  echo $id2
 
   var resultsCount = 0
 
@@ -77,7 +83,6 @@ proc pubsubTest(f: set[P2PDaemonFlags]): Future[bool] {.async.} =
   proc pubsubHandler1(api: DaemonAPI,
                      ticket: PubsubTicket,
                      message: PubSubMessage): Future[bool] {.async.} =
-    echo "handler1"
     let smsg = cast[string](message.data)
     if smsg == pubsubData:
       inc(resultsCount)
@@ -88,7 +93,6 @@ proc pubsubTest(f: set[P2PDaemonFlags]): Future[bool] {.async.} =
   proc pubsubHandler2(api: DaemonAPI,
                      ticket: PubsubTicket,
                      message: PubSubMessage): Future[bool] {.async.} =
-    echo "handler2"
     let smsg = cast[string](message.data)
     if smsg == pubsubData:
       inc(resultsCount)
@@ -100,13 +104,8 @@ proc pubsubTest(f: set[P2PDaemonFlags]): Future[bool] {.async.} =
      len(topics20) == 0 and len(peers20) == 0:
     # Not subscribed to any topics everything must be 0.
 
-    await api1.connect(id2.peer, id2.addresses)
-    await api2.connect(id1.peer, id1.addresses)
-
-    var gpeers1 = await api1.listPeers()
-    var gpeers2 = await api2.listPeers()
-    echo "globalPeers1 = ", gpeers1
-    echo "globalPeers2 = ", gpeers2
+    await api1.connect(id2.peer, getOnlyIPv4Addresses(id2.addresses))
+    await api2.connect(id1.peer, getOnlyIPv4Addresses(id1.addresses))
 
     var ticket1 = await api1.pubsubSubscribe("test-topic", pubsubHandler1)
     var ticket2 = await api2.pubsubSubscribe("test-topic", pubsubHandler2)
@@ -115,31 +114,15 @@ proc pubsubTest(f: set[P2PDaemonFlags]): Future[bool] {.async.} =
     var topics2 = await api2.pubsubGetTopics()
 
     if len(topics1) == 1 and len(topics2) == 1:
-      echo "connecting"
-
-      while true:
-        var peers1 = await api1.pubsubListPeers("test-topic")
-        var peers2 = await api2.pubsubListPeers("test-topic")
-        if len(peers1) == 1 and len(peers2) == 1:
-          break
-        echo "pubsubPeers1 = ", peers1
-        echo "pubsubPeers2 = ", peers2
-        # var gpeers1 = await api1.listPeers()
-        # var gpeers2 = await api2.listPeers()
-        # echo "globalPeers1 = ", gpeers1
-        # echo "globalPeers2 = ", gpeers2
+      var peers1 = await api1.pubsubListPeers("test-topic")
+      var peers2 = await api2.pubsubListPeers("test-topic")
+      if len(peers1) == 1 and len(peers2) == 1:
+        # Publish test data via api1.
         await sleepAsync(500)
-      
+        await api1.pubsubPublish("test-topic", msgData)
+        var andfut = handlerFuture1 and handlerFuture2
+        await andfut or sleepAsync(10000)
 
-      # if len(topics12) == 1 and len(peers12) == 1 and
-      #    len(topics22) == 1 and len(peers22) == 1:
-      echo "Publishing"
-      # Publish test data via api1.
-      await sleepAsync(500)
-      await api1.pubsubPublish("test-topic", msgData)
-      var andfut = handlerFuture1 and handlerFuture2
-      await andfut or sleepAsync(10000)
-        
   await api1.close()
   await api2.close()
   if resultsCount == 2:
@@ -162,4 +145,3 @@ when isMainModule:
     test "FloodSub test":
       check:
         waitFor(pubsubTest({PSFloodSub})) == true
-

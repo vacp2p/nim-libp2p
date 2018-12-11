@@ -10,7 +10,7 @@
 ## This module implementes API for `go-libp2p-daemon`.
 import os, osproc, strutils, tables, streams
 import asyncdispatch2
-import ../varint, ../multiaddress, ../protobuf/minprotobuf
+import ../varint, ../multiaddress, ../protobuf/minprotobuf, ../base58
 
 when not defined(windows):
   import posix
@@ -471,11 +471,11 @@ proc recvMessage(conn: StreamTransport): Future[seq[byte]] {.async.} =
   result = buffer
 
 proc newConnection*(api: DaemonAPI): Future[StreamTransport] =
-  echo "Establish new connection to daemon [", $api.address, "]"
+  # echo "Establish new connection to daemon [", $api.address, "]"
   result = connect(api.address)
 
 proc closeConnection*(api: DaemonAPI, transp: StreamTransport) {.async.} =
-  echo "Close connection with daemon [", $api.address, "]"
+  # echo "Close connection with daemon [", $api.address, "]"
   transp.close()
   await transp.join()
 
@@ -566,7 +566,7 @@ proc newDaemonApi*(flags: set[P2PDaemonFlags] = {},
       if api.sockname != sockpath:
         raise newException(DaemonLocalError, "Socket is already bound!")
   # Starting daemon process
-  echo "Spawn [", cmd, " ", args.join(" "), "]"
+  # echo "Spawn [", cmd, " ", args.join(" "), "]"
   api.process = startProcess(cmd, "", args, options = {poStdErrToStdOut})
   # Waiting until daemon will not be bound to control socket.
   while true:
@@ -1019,8 +1019,6 @@ proc dhtSearchValue*(api: DaemonAPI, key: string,
 
 proc pubsubGetTopics*(api: DaemonAPI): Future[seq[string]] {.async.} =
   ## Get list of topics this node is subscribed to.
-  # var transp = await api.pool.acquire()
-  echo "pubsubGetTopics()"
   var transp = await api.newConnection()
   try:
     var pb = await transp.transactMessage(requestPSGetTopics())
@@ -1034,14 +1032,11 @@ proc pubsubGetTopics*(api: DaemonAPI): Future[seq[string]] {.async.} =
       result = topics
   finally:
     await api.closeConnection(transp)
-    # api.pool.release(transp)
 
 proc pubsubListPeers*(api: DaemonAPI,
                       topic: string): Future[seq[PeerID]] {.async.} =
   ## Get list of peers we are connected to and which also subscribed to topic
   ## ``topic``.
-  # var transp = await api.pool.acquire()
-  echo "pubsubListPeers()"
   var transp = await api.newConnection()
   try:
     var pb = await transp.transactMessage(requestPSListPeers(topic))
@@ -1055,13 +1050,10 @@ proc pubsubListPeers*(api: DaemonAPI,
       result = peers
   finally:
     await api.closeConnection(transp)
-    # api.pool.release(transp)
 
 proc pubsubPublish*(api: DaemonAPI, topic: string,
                     value: seq[byte]) {.async.} =
   ## Get list of peer identifiers which are subscribed to topic ``topic``.
-  # var transp = await api.pool.acquire()
-  echo "pubsubPublish()"
   var transp = await api.newConnection()
   try:
     var pb = await transp.transactMessage(requestPSPublish(topic, value))
@@ -1069,7 +1061,6 @@ proc pubsubPublish*(api: DaemonAPI, topic: string,
       discard
   finally:
     await api.closeConnection(transp)
-    # api.pool.release(transp)
 
 proc getPubsubMessage*(pb: var ProtoBuffer): PubSubMessage =
   var item = newSeq[byte]()
@@ -1112,7 +1103,6 @@ proc pubsubLoop(api: DaemonAPI, ticket: PubsubTicket) {.async.} =
 proc pubsubSubscribe*(api: DaemonAPI, topic: string,
                    handler: P2PPubSubCallback): Future[PubsubTicket] {.async.} =
   ## Subscribe to topic ``topic``.
-  echo "pubsubSubscribe()"
   var transp = await api.newConnection()
   try:
     var pb = await transp.transactMessage(requestPSSubscribe(topic))
@@ -1124,6 +1114,22 @@ proc pubsubSubscribe*(api: DaemonAPI, topic: string,
       asyncCheck pubsubLoop(api, ticket)
       result = ticket
   except:
-    transp.close()
-    await transp.join()
+    await api.closeConnection(transp)
     raise getCurrentException()
+
+proc `$`*(pinfo: PeerInfo): string =
+  ## Get string representation of ``PeerInfo`` object.
+  result = newStringOfCap(128)
+  result.add("{PeerID: '")
+  result.add(Base58.encode(pinfo.peer))
+  result.add("' Addresses: [")
+  let length = len(pinfo.addresses)
+  for i in 0..<length:
+    result.add("'")
+    result.add($pinfo.addresses[i])
+    result.add("'")
+    if i < length - 1:
+      result.add(", ")
+  result.add("]}")
+  if len(pinfo.addresses) > 0:
+    result = result
