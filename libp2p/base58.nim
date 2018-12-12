@@ -48,6 +48,16 @@ const
   FlickrAlphabet* = newAlphabet58("123456789abcdefghijkmnopqrstu" &
                                   "vwxyzABCDEFGHJKLMNPQRSTUVWXYZ")
 
+proc encodedLength*(btype: typedesc[Base58C], length: int): int =
+  ## Return estimated length of BASE58 encoded value for plain length
+  ## ``length``.
+  result = (length * 138) div 100 + 1
+
+proc decodedLength*(btype: typedesc[Base58C], length: int): int =
+  ## Return estimated length of decoded value of BASE58 encoded value of length
+  ## ``length``.
+  result = length + 4
+
 proc encode*(btype: typedesc[Base58C], inbytes: openarray[byte],
              outstr: var openarray[char], outlen: var int): Base58Status =
   ## Encode array of bytes ``inbytes`` using BASE58 encoding and store
@@ -114,7 +124,7 @@ proc encode*(btype: typedesc[Base58C],
   else:
     result = ""
 
-proc decode*(btype: typedesc[Base58C], instr: string,
+proc decode*[T: byte|char](btype: typedesc[Base58C], instr: openarray[T],
              outbytes: var openarray[byte], outlen: var int): Base58Status =
   ## Decode BASE58 string and store array of bytes to ``outbytes``. On success
   ## ``Base58Status.Success`` will be returned and ``outlen`` will be set

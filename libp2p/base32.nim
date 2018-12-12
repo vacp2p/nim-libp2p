@@ -67,7 +67,8 @@ const
   HEXLowerCaseAlphabet* = newAlphabet32("0123456789abcdefghijklmnopqrstuv")
 
 proc encodedLength*(btype: typedesc[Base32Types], length: int): int =
-  ## Return length of BASE32 encoded value for plain length ``length``.
+  ## Return estimated length of BASE32 encoded value for plain length
+  ## ``length``.
   let reminder = length mod 5
   when btype is Base32NoPadTypes:
     result = ((length div 5) * 8) + (((reminder * 8) + 4) div 5)
@@ -77,7 +78,7 @@ proc encodedLength*(btype: typedesc[Base32Types], length: int): int =
       result += 8
 
 proc decodedLength*(btype: typedesc[Base32Types], length: int): int =
-  ## Return length of decoded value of BASE32 encoded value of length
+  ## Return estimated length of decoded value of BASE32 encoded value of length
   ## ``length``.
   let reminder = length mod 8
   result = (length div 8) * 5 + ((reminder * 5) div 8)
