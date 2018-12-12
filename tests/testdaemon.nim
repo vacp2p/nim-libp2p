@@ -61,8 +61,8 @@ proc pubsubTest(f: set[P2PDaemonFlags]): Future[bool] {.async.} =
   var msgData = cast[seq[byte]](pubsubData)
   var api1, api2: DaemonAPI
 
-  api1 = await newDaemonApi(f)
-  api2 = await newDaemonApi(f)
+  api1 = await newDaemonApi(f + {Verbose, Logging})
+  api2 = await newDaemonApi(f + {Verbose, Logging})
 
   var id1 = await api1.identity()
   var id2 = await api2.identity()
@@ -123,6 +123,11 @@ proc pubsubTest(f: set[P2PDaemonFlags]): Future[bool] {.async.} =
   await api2.close()
   if resultsCount == 2:
     result = true
+  else:
+    echo " -- CLIENT1 -- "
+    echo api1.log
+    echo " -- CLIENT2 -- "
+    echo api2.log
 
 when isMainModule:
   suite "libp2p-daemon test suite":
