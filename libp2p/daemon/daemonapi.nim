@@ -8,7 +8,7 @@
 ## those terms.
 
 ## This module implementes API for `go-libp2p-daemon`.
-import os, osproc, strutils, tables, streams
+import os, osproc, strutils, tables, streams, strtabs
 import asyncdispatch2
 import ../varint, ../multiaddress, ../protobuf/minprotobuf, ../base58
 
@@ -83,6 +83,7 @@ type
 
   P2PDaemonFlags* {.pure.} = enum
     DHTClient, DHTFull, Bootstrap,
+    Logging, Verbose,
     PSFloodSub, PSGossipSub, PSSign, PSStrictSign
 
   P2PStream* = ref object
@@ -106,6 +107,8 @@ type
     process*: Process
     handlers*: Table[string, P2PStreamCallback]
     servers*: seq[P2PServer]
+    log*: string
+    loggerFut*: Future[void]
 
   PeerInfo* = object
     peer*: PeerID
@@ -483,6 +486,25 @@ proc socketExists(filename: string): bool =
   var res: Stat
   result = stat(filename, res) >= 0'i32
 
+proc loggingHandler(api: DaemonAPI): Future[void] =
+  var retFuture = newFuture[void]("logging.handler")
+  var loop = getGlobalDispatcher()
+  let fd = wrapAsyncSocket(SocketHandle(api.process.outputHandle))
+  proc readOutputLoop(udata: pointer) {.gcsafe.} =
+    var buffer: array[2048, char]
+    let res = posix.read(cint(fd), addr buffer[0], 2000)
+    if res == -1 or res == 0:
+      removeReader(fd)
+      retFuture.complete()
+    else:
+      var cstr = cast[cstring](addr buffer[0])
+      api.log.add(cstr)
+      # let offset = len(api.log)
+      # api.log.setLen(offset + res)
+      # copyMem(addr api.log[offset], addr buffer[0], res)
+  addReader(fd, readOutputLoop, nil)
+  result = retFuture
+
 proc newDaemonApi*(flags: set[P2PDaemonFlags] = {},
                    bootstrapNodes: seq[string] = @[],
                    id: string = "",
@@ -495,6 +517,8 @@ proc newDaemonApi*(flags: set[P2PDaemonFlags] = {},
   ## Initialize connections to `go-libp2p-daemon` control socket.
   var api = new DaemonAPI
   var args = newSeq[string]()
+  var env: StringTableRef
+
   api.flags = flags
   api.servers = newSeq[P2PServer]()
   api.pattern = pattern
@@ -529,6 +553,8 @@ proc newDaemonApi*(flags: set[P2PDaemonFlags] = {},
       args.add("-dhtClient")
     if P2PDaemonFlags.Bootstrap in api.flags:
       args.add("-b")
+    if P2PDaemonFlags.Verbose in api.flags:
+      env = newStringTable("IPFS_LOGGING", "debug", modeCaseSensitive)
     if P2PDaemonFlags.PSGossipSub in api.flags:
       args.add("-pubsub")
       args.add("-pubsubRouter=gossipsub")
@@ -567,7 +593,7 @@ proc newDaemonApi*(flags: set[P2PDaemonFlags] = {},
         raise newException(DaemonLocalError, "Socket is already bound!")
   # Starting daemon process
   # echo "Spawn [", cmd, " ", args.join(" "), "]"
-  api.process = startProcess(cmd, "", args, options = {poStdErrToStdOut})
+  api.process = startProcess(cmd, "", args, env, {poStdErrToStdOut})
   # Waiting until daemon will not be bound to control socket.
   while true:
     if not api.process.running():
@@ -578,6 +604,8 @@ proc newDaemonApi*(flags: set[P2PDaemonFlags] = {},
       break
     await sleepAsync(100)
   # api.pool = await newPool(api.address, poolsize = poolSize)
+  if P2PDaemonFlags.Logging in api.flags:
+    api.loggerFut = loggingHandler(api)
   result = api
 
 proc close*(stream: P2PStream) {.async.} =
@@ -607,6 +635,9 @@ proc close*(api: DaemonAPI) {.async.} =
   # Closing daemon's process.
   api.process.kill()
   discard api.process.waitForExit()
+  # Waiting for logger loop to exit
+  if not isNil(api.loggerFut):
+    await api.loggerFut
   # Attempt to delete control socket endpoint.
   if socketExists(api.sockname):
     discard tryRemoveFile(api.sockname)

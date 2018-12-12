@@ -304,4 +304,3 @@ suite "MultiBase test suite":
     check:
       r1 == true
       r2 == true
-    
