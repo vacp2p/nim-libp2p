@@ -489,7 +489,13 @@ proc socketExists(filename: string): bool =
 proc loggingHandler(api: DaemonAPI): Future[void] =
   var retFuture = newFuture[void]("logging.handler")
   var loop = getGlobalDispatcher()
-  let fd = wrapAsyncSocket(SocketHandle(api.process.outputHandle))
+  let pfd = SocketHandle(api.process.outputHandle)
+  var fd = AsyncFD(pfd)
+  if not setSocketBlocking(pfd, false):
+    discard close(cint(pfd))
+    raiseOsError(osLastError())
+  register(AsyncFD(pfd))
+
   proc readOutputLoop(udata: pointer) {.gcsafe.} =
     var buffer: array[2048, char]
     let res = posix.read(cint(fd), addr buffer[0], 2000)
