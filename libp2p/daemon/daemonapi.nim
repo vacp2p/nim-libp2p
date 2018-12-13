@@ -482,34 +482,38 @@ proc closeConnection*(api: DaemonAPI, transp: StreamTransport) {.async.} =
   transp.close()
   await transp.join()
 
-proc socketExists(filename: string): bool =
-  var res: Stat
-  result = stat(filename, res) >= 0'i32
+when not defined(windows):
+  proc socketExists(filename: string): bool =
+    var res: Stat
+    result = stat(filename, res) >= 0'i32
 
-proc loggingHandler(api: DaemonAPI): Future[void] =
-  var retFuture = newFuture[void]("logging.handler")
-  var loop = getGlobalDispatcher()
-  let pfd = SocketHandle(api.process.outputHandle)
-  var fd = AsyncFD(pfd)
-  if not setSocketBlocking(pfd, false):
-    discard close(cint(pfd))
-    raiseOsError(osLastError())
-  register(AsyncFD(pfd))
+  proc loggingHandler(api: DaemonAPI): Future[void] =
+    var retFuture = newFuture[void]("logging.handler")
+    var loop = getGlobalDispatcher()
+    let pfd = SocketHandle(api.process.outputHandle)
+    var fd = AsyncFD(pfd)
+    if not setSocketBlocking(pfd, false):
+      discard close(cint(pfd))
+      retFuture.fail(newException(OSError, osErrorMsg(osLastError())))
 
-  proc readOutputLoop(udata: pointer) {.gcsafe.} =
-    var buffer: array[2048, char]
-    let res = posix.read(cint(fd), addr buffer[0], 2000)
-    if res == -1 or res == 0:
-      removeReader(fd)
-      retFuture.complete()
-    else:
-      var cstr = cast[cstring](addr buffer[0])
-      api.log.add(cstr)
-      # let offset = len(api.log)
-      # api.log.setLen(offset + res)
-      # copyMem(addr api.log[offset], addr buffer[0], res)
-  addReader(fd, readOutputLoop, nil)
-  result = retFuture
+    proc readOutputLoop(udata: pointer) {.gcsafe.} =
+      var buffer: array[2048, char]
+      let res = posix.read(cint(fd), addr buffer[0], 2000)
+      if res == -1 or res == 0:
+        removeReader(fd)
+        retFuture.complete()
+      else:
+        var cstr = cast[cstring](addr buffer[0])
+        api.log.add(cstr)
+    register(AsyncFD(pfd))
+    addReader(fd, readOutputLoop, nil)
+    result = retFuture
+else:
+  proc socketExists(filename: string): bool = false
+
+  proc loggingHandler(api: DaemonAPI): Future[void] =
+    # Not ready yet.
+    discard
 
 proc newDaemonApi*(flags: set[P2PDaemonFlags] = {},
                    bootstrapNodes: seq[string] = @[],

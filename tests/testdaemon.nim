@@ -48,13 +48,16 @@ proc provideBadCidTest(): Future[bool] {.async.} =
   finally:
     await api.close()
 
-# proc getOnlyIPv4Addresses(addresses: seq[MultiAddress]): seq[MultiAddress] =
-#   if len(addresses) > 0:
-#     result = newSeqOfCap[MultiAddress](len(addresses))
-#     let ip4 = multiCodec("ip4")
-#     for item in addresses:
-#       if item.protoCode() == ip4:
-#         result.add(item)
+proc getOnlyOneIPv4Address(addresses: seq[MultiAddress]): seq[MultiAddress] =
+  ## We doing this becuase of bug in `go-pubsub`
+  ## https://github.com/libp2p/go-libp2p-pubsub/issues/130
+  if len(addresses) > 0:
+    result = newSeqOfCap[MultiAddress](len(addresses))
+    let ip4 = multiCodec("ip4")
+    for item in addresses:
+      if item.protoCode() == ip4:
+        result.add(item)
+        break
 
 proc pubsubTest(f: set[P2PDaemonFlags]): Future[bool] {.async.} =
   var pubsubData = "TEST MESSAGE"
@@ -68,11 +71,6 @@ proc pubsubTest(f: set[P2PDaemonFlags]): Future[bool] {.async.} =
   var id2 = await api2.identity()
 
   var resultsCount = 0
-
-  # var topics10 = await api1.pubsubGetTopics()
-  # var peers10 = await api1.pubsubListPeers("test-topic")
-  # var topics20 = await api2.pubsubGetTopics()
-  # var peers20 = await api2.pubsubListPeers("test-topic")
 
   var handlerFuture1 = newFuture[void]()
   var handlerFuture2 = newFuture[void]()
@@ -98,8 +96,9 @@ proc pubsubTest(f: set[P2PDaemonFlags]): Future[bool] {.async.} =
     result = false
 
   # Not subscribed to any topics everything must be 0.
-  await api1.connect(id2.peer, id2.addresses)
-  await api2.connect(id1.peer, id1.addresses)
+  # We are making only one connection, because of bug
+  # https://github.com/libp2p/go-libp2p-pubsub/issues/130
+  await api1.connect(id2.peer, getOnlyOneIPv4Address(id2.addresses))
 
   var ticket1 = await api1.pubsubSubscribe("test-topic", pubsubHandler1)
   var ticket2 = await api2.pubsubSubscribe("test-topic", pubsubHandler2)
@@ -143,6 +142,6 @@ when isMainModule:
     test "GossipSub test":
       check:
         waitFor(pubsubTest({PSGossipSub})) == true
-    # test "FloodSub test":
-    #   check:
-    #     waitFor(pubsubTest({PSFloodSub})) == true
+    test "FloodSub test":
+      check:
+        waitFor(pubsubTest({PSFloodSub})) == true
