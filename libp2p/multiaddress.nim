@@ -607,7 +607,7 @@ proc init*(mtype: typedesc[MultiAddress], value: string): MultiAddress =
                            "Missing protocol '" & part & "' argument")
 
     if proto.kind in {Fixed, Length}:
-      result.data.writeCodec(proto.mcodec)
+      result.data.write(proto.mcodec)
       let res = proto.coder.stringToBuffer(parts[offset + 1], result.data)
       if not res:
         raise newException(MultiAddressError,
@@ -615,13 +615,13 @@ proc init*(mtype: typedesc[MultiAddress], value: string): MultiAddress =
       offset += 2
     elif proto.kind == Path:
       var path = "/" & (parts[(offset + 1)..^1].join("/"))
-      result.data.writeCodec(proto.mcodec)
+      result.data.write(proto.mcodec)
       if not proto.coder.stringToBuffer(path, result.data):
         raise newException(MultiAddressError,
                            "Error encoding `$1/$2`" % [part, path])
       break
     elif proto.kind == Marker:
-      result.data.writeCodec(proto.mcodec)
+      result.data.write(proto.mcodec)
       offset += 1
   result.data.finish()
 
