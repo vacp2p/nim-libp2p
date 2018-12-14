@@ -308,7 +308,7 @@ proc digestImplWithHash(hash: MHash, data: openarray[byte]): MultiHash =
   var buffer: array[MaxHashSize, byte]
   result.data = initVBuffer()
   result.mcodec = hash.mcodec
-  result.data.writeCodec(hash.mcodec)
+  result.data.write(hash.mcodec)
   if hash.size == 0:
     result.data.writeVarint(uint(len(data)))
     result.dpos = len(result.data.buffer)
@@ -320,15 +320,17 @@ proc digestImplWithHash(hash: MHash, data: openarray[byte]): MultiHash =
     hash.coder(data, buffer.toOpenArray(0, hash.size - 1))
     result.data.writeArray(buffer.toOpenArray(0, hash.size - 1))
     result.size = hash.size
+  result.data.finish()
 
 proc digestImplWithoutHash(hash: MHash, data: openarray[byte]): MultiHash =
   result.data = initVBuffer()
   result.mcodec = hash.mcodec
   result.size = len(data)
-  result.data.writeCodec(hash.mcodec)
+  result.data.write(hash.mcodec)
   result.data.writeVarint(uint(len(data)))
   result.dpos = len(result.data.buffer)
   result.data.writeArray(data)
+  result.data.finish()
 
 proc digest*(mhtype: typedesc[MultiHash], hashname: string,
              data: openarray[byte]): MultiHash {.inline.} =
@@ -438,6 +440,36 @@ proc decode*(mhtype: typedesc[MultiHash], data: openarray[byte],
                                                vb.offset + int(size) - 1))
   result = vb.offset + int(size)
 
+proc validate*(mhtype: typedesc[MultiHash], data: openarray[byte]): bool =
+  ## Returns ``true`` if array of bytes ``data`` has correct MultiHash inside.
+  var code, size: uint64
+  var res: VarintStatus
+  if len(data) < 2:
+    return false
+  let last = len(data) - 1
+  var offset = 0
+  var length = 0
+  res = LP.getUVarint(data.toOpenArray(offset, last), length, code)
+  if res != VarintStatus.Success:
+    return false
+  offset += length
+  if offset >= len(data):
+    return false
+  res = LP.getUVarint(data.toOpenArray(offset, last), length, size)
+  if res != VarintStatus.Success:
+    return false
+  offset += length
+  if size > 0x7FFF_FFFF'u64:
+    return false
+  let hash = CodeHashes.getOrDefault(MultiCodec(code))
+  if isNil(hash.coder):
+    return false
+  if (hash.size != 0) and (hash.size != int(size)):
+    return false
+  if offset + length + int(size) > len(data):
+    return false
+  result = true
+
 proc init*(mhtype: typedesc[MultiHash],
            data: openarray[byte]): MultiHash {.inline.} =
   ## Create MultiHash from bytes array ``data``.
@@ -506,3 +538,7 @@ proc `$`*(mh: MultiHash): string =
   let digest = toHex(mh.data.buffer.toOpenArray(mh.dpos,
                                                 mh.dpos + mh.size - 1))
   result = $(mh.mcodec) & "/" & digest
+
+proc write*(vb: var VBuffer, mh: MultiHash) {.inline.} =
+  ## Write MultiHash value ``mh`` to buffer ``vb``.
+  vb.writeArray(mh.data.buffer)

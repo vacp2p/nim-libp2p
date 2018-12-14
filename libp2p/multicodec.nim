@@ -311,6 +311,6 @@ proc codec*(mt: typedesc[MultiCodec], code: int): MultiCodec {.inline.} =
   else:
     result = MultiCodec(code)
 
-proc writeCodec*(vb: var VBuffer, mc: MultiCodec) {.inline.} =
+proc write*(vb: var VBuffer, mc: MultiCodec) {.inline.} =
   ## Write MultiCodec to buffer ``vb``.
   vb.writeVarint(cast[uint](mc))
