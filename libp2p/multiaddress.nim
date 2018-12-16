@@ -9,7 +9,7 @@
 
 ## This module implements MultiAddress.
 import tables, strutils, net
-import multicodec, multihash, transcoder, base58, base32, vbuffer
+import multicodec, multihash, multibase, transcoder, base58, base32, vbuffer
 
 {.deadCodeElim:on.}
 
@@ -460,6 +460,7 @@ proc getPart(ma: MultiAddress, index: int): MultiAddress =
     inc(offset)
 
 proc `[]`*(ma: MultiAddress, i: int): MultiAddress {.inline.} =
+  ## Returns part with index ``i`` of MultiAddress ``ma``.
   result = ma.getPart(i)
 
 iterator items*(ma: MultiAddress): MultiAddress =
@@ -525,6 +526,16 @@ proc `$`*(value: MultiAddress): string =
 proc hex*(value: MultiAddress): string =
   ## Return hexadecimal string representation of MultiAddress ``value``.
   result = $(value.data)
+
+proc write*(vb: var VBuffer, ma: MultiAddress) {.inline.} =
+  ## Write MultiAddress value ``ma`` to buffer ``vb``.
+  vb.writeArray(ma.data.buffer)
+
+proc encode*(mbtype: typedesc[MultiBase], encoding: string,
+             ma: MultiAddress): string {.inline.} =
+  ## Get MultiBase encoded representation of ``ma`` using encoding
+  ## ``encoding``.
+  result = MultiBase.encode(encoding, ma.data.buffer)
 
 proc validate*(ma: MultiAddress): bool =
   ## Returns ``true`` if MultiAddress ``ma`` is valid.

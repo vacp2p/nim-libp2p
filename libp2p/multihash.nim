@@ -22,7 +22,7 @@
 ## 3. MURMUR
 import tables
 import nimcrypto/[sha2, keccak, blake2, hash, utils]
-import varint, vbuffer, base58, multicodec
+import varint, vbuffer, base58, multicodec, multibase
 
 const
   MaxHashSize* = 128
@@ -461,12 +461,12 @@ proc validate*(mhtype: typedesc[MultiHash], data: openarray[byte]): bool =
   offset += length
   if size > 0x7FFF_FFFF'u64:
     return false
-  let hash = CodeHashes.getOrDefault(MultiCodec(code))
+  let hash = CodeHashes.getOrDefault(cast[MultiCodec](code))
   if isNil(hash.coder):
     return false
   if (hash.size != 0) and (hash.size != int(size)):
     return false
-  if offset + length + int(size) > len(data):
+  if offset + int(size) > len(data):
     return false
   result = true
 
@@ -514,8 +514,8 @@ proc `==`*[T](mdigest: MDigest[T], mh: MultiHash): bool {.inline.} =
   result = `==`(mh, mdigest)
 
 proc `==`*(a: MultiHash, b: MultiHash): bool =
-  ## Compares MultiHashes ``a`` and ``b``, returns ``true`` if
-  ## hashes are equal, ``false`` otherwise.
+  ## Compares MultiHashes ``a`` and ``b``, returns ``true`` if hashes are equal,
+  ## ``false`` otherwise.
   if a.dpos == 0 and b.dpos == 0:
     return true
   if a.mcodec != b.mcodec:
@@ -542,3 +542,9 @@ proc `$`*(mh: MultiHash): string =
 proc write*(vb: var VBuffer, mh: MultiHash) {.inline.} =
   ## Write MultiHash value ``mh`` to buffer ``vb``.
   vb.writeArray(mh.data.buffer)
+
+proc encode*(mbtype: typedesc[MultiBase], encoding: string,
+             mh: MultiHash): string {.inline.} =
+  ## Get MultiBase encoded representation of ``mh`` using encoding
+  ## ``encoding``.
+  result = MultiBase.encode(encoding, mh.data.buffer)
