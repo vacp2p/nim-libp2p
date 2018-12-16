@@ -207,9 +207,8 @@ proc init*(ctype: typedesc[Cid], version: CidVersion, content: MultiCodec,
       raise newException(CidError, "Incorrect content type")
     result.mcodec = mcodec
     result.data = initVBuffer()
-    result.data.writeVarint(cast[uint64](version))
-    result.data.write(hash.mcodec)
-    result.data.writeVarint(cast[uint64](content))
+    result.data.writeVarint(cast[uint64](1))
+    result.data.write(mcodec)
     result.hpos = len(result.data.buffer)
     result.data.write(hash)
     result.data.finish()

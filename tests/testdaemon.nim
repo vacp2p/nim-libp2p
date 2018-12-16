@@ -1,6 +1,7 @@
 import unittest
 import asyncdispatch2
-import ../libp2p/daemon/daemonapi, ../libp2p/multiaddress, ../libp2p/multicodec
+import ../libp2p/daemon/daemonapi, ../libp2p/multiaddress, ../libp2p/multicodec,
+       ../libp2p/cid, ../libp2p/multihash
 
 proc identitySpawnTest(): Future[bool] {.async.} =
   var api = await newDaemonApi()
@@ -37,16 +38,32 @@ proc connectStreamTest(): Future[bool] {.async.} =
   await api2.close()
   result = true
 
-proc provideBadCidTest(): Future[bool] {.async.} =
-  var cid = newSeq[byte](10)
-  var api = await newDaemonApi({DHTFull})
-  try:
-    await api.dhtProvide(cid)
-    result = false
-  except DaemonRemoteError:
-    result = true
-  finally:
-    await api.close()
+proc provideCidTest(): Future[bool] {.async.} =
+  var api1 = await newDaemonApi({DHTFull})
+  var api2 = await newDaemonApi({DHTFull})
+  var msg = "ethereum2-beacon-chain"
+  var bmsg = cast[seq[byte]](msg)
+  var mh = MultiHash.digest("sha2-256", bmsg)
+  var cid = Cid.init(CIDv1, multiCodec("dag-pb"), mh)
+
+  var id1 = await api1.identity()
+  var id2 = await api2.identity()
+
+  await api1.connect(id2.peer, id2.addresses)
+  while true:
+    var peers = await api1.listPeers()
+    if len(peers) != 0:
+      break
+
+  await api1.dhtProvide(cid)
+  var peers = await api2.dhtFindProviders(cid, 10)
+
+  if len(peers) == 1:
+    if peers[0].peer == id1.peer:
+      result = true
+
+  await api1.close()
+  await api2.close()
 
 # proc getOnlyOneIPv4Address(addresses: seq[MultiAddress]): seq[MultiAddress] =
 #   ## We doing this becuase of bug in `go-pubsub`
@@ -134,9 +151,9 @@ when isMainModule:
     test "Connect/Accept peer/stream test":
       check:
         waitFor(connectStreamTest()) == true
-    test "DHT provide bad CID test":
+    test "Provide CID test":
       check:
-        waitFor(provideBadCidTest()) == true
+        waitFor(provideCidTest()) == true
     test "GossipSub test":
       check:
         waitFor(pubsubTest({PSGossipSub})) == true
