@@ -16,7 +16,7 @@
 import bitops
 
 type
-  VarintStatus* = enum
+  VarintStatus* {.pure.} = enum
     Error,
     Success,
     Overflow,

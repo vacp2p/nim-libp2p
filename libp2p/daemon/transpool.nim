@@ -52,11 +52,11 @@ proc newPool*(address: TransportAddress, poolsize: int = DefaultPoolSize,
              ): Future[TransportPool] {.async.} =
   ## Establish pool of connections to address ``address`` with size
   ## ``poolsize``.
-  result = new TransportPool
-  result.bufferSize = bufferSize
-  result.transports = newSeq[PoolItem](poolsize)
+  var pool = new TransportPool
+  pool.bufferSize = bufferSize
+  pool.transports = newSeq[PoolItem](poolsize)
   var conns = newSeq[Future[StreamTransport]](poolsize)
-  result.state = Connecting
+  pool.state = Connecting
   for i in 0..<poolsize:
     conns[i] = connect(address, bufferSize)
   # Waiting for all connections to be established.
@@ -68,10 +68,11 @@ proc newPool*(address: TransportAddress, poolsize: int = DefaultPoolSize,
     else:
       let transp = conns[i].read()
       let item = PoolItem(transp: transp)
-      result.transports[i] = item
+      pool.transports[i] = item
   # Setup available connections event
-  result.event = newAsyncEvent()
-  result.state = Connected
+  pool.event = newAsyncEvent()
+  pool.state = Connected
+  result = pool
 
 proc acquire*(pool: TransportPool): Future[StreamTransport] {.async.} =
   ## Acquire non-busy connection from pool ``pool``.

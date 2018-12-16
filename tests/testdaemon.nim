@@ -1,16 +1,17 @@
 import unittest
 import asyncdispatch2
-import ../libp2p/daemon/daemonapi
+import ../libp2p/daemon/daemonapi, ../libp2p/multiaddress, ../libp2p/multicodec,
+       ../libp2p/cid, ../libp2p/multihash
 
 proc identitySpawnTest(): Future[bool] {.async.} =
-  var api = await newDaemonApi(sockpath = "/tmp/p2pd-1.sock")
+  var api = await newDaemonApi()
   var data = await api.identity()
   await api.close()
   result = true
 
 proc connectStreamTest(): Future[bool] {.async.} =
-  var api1 = await newDaemonApi(sockpath = "/tmp/p2pd-1.sock")
-  var api2 = await newDaemonApi(sockpath = "/tmp/p2pd-2.sock")
+  var api1 = await newDaemonApi()
+  var api2 = await newDaemonApi()
 
   var id1 = await api1.identity()
   var id2 = await api2.identity()
@@ -26,14 +27,121 @@ proc connectStreamTest(): Future[bool] {.async.} =
 
   await api2.addHandler(protos, streamHandler)
   await api1.connect(id2.peer, id2.addresses)
+  # echo await api1.listPeers()
   var stream = await api1.openStream(id2.peer, protos)
   let sent = await stream.transp.write(test & "\r\n")
   doAssert(sent == len(test) + 2)
   var check = await wait(testFuture, 10000)
   doAssert(check == test)
+  await stream.close()
   await api1.close()
   await api2.close()
   result = true
+
+proc provideCidTest(): Future[bool] {.async.} =
+  var api1 = await newDaemonApi({DHTFull})
+  var api2 = await newDaemonApi({DHTFull})
+  var msg = "ethereum2-beacon-chain"
+  var bmsg = cast[seq[byte]](msg)
+  var mh = MultiHash.digest("sha2-256", bmsg)
+  var cid = Cid.init(CIDv1, multiCodec("dag-pb"), mh)
+
+  var id1 = await api1.identity()
+  var id2 = await api2.identity()
+
+  await api1.connect(id2.peer, id2.addresses)
+  while true:
+    var peers = await api1.listPeers()
+    if len(peers) != 0:
+      break
+
+  await api1.dhtProvide(cid)
+  var peers = await api2.dhtFindProviders(cid, 10)
+
+  if len(peers) == 1:
+    if peers[0].peer == id1.peer:
+      result = true
+
+  await api1.close()
+  await api2.close()
+
+# proc getOnlyOneIPv4Address(addresses: seq[MultiAddress]): seq[MultiAddress] =
+#   ## We doing this becuase of bug in `go-pubsub`
+#   ## https://github.com/libp2p/go-libp2p-pubsub/issues/130
+#   if len(addresses) > 0:
+#     result = newSeqOfCap[MultiAddress](len(addresses))
+#     let ip4 = multiCodec("ip4")
+#     for item in addresses:
+#       if item.protoCode() == ip4:
+#         result.add(item)
+#         break
+
+proc pubsubTest(f: set[P2PDaemonFlags]): Future[bool] {.async.} =
+  var pubsubData = "TEST MESSAGE"
+  var msgData = cast[seq[byte]](pubsubData)
+  var api1, api2: DaemonAPI
+
+  api1 = await newDaemonApi(f + {Verbose, Logging})
+  api2 = await newDaemonApi(f + {Verbose, Logging})
+
+  var id1 = await api1.identity()
+  var id2 = await api2.identity()
+
+  var resultsCount = 0
+
+  var handlerFuture1 = newFuture[void]()
+  var handlerFuture2 = newFuture[void]()
+
+  proc pubsubHandler1(api: DaemonAPI,
+                     ticket: PubsubTicket,
+                     message: PubSubMessage): Future[bool] {.async.} =
+    let smsg = cast[string](message.data)
+    if smsg == pubsubData:
+      inc(resultsCount)
+    handlerFuture1.complete()
+    # Callback must return `false` to close subscription channel.
+    result = false
+
+  proc pubsubHandler2(api: DaemonAPI,
+                     ticket: PubsubTicket,
+                     message: PubSubMessage): Future[bool] {.async.} =
+    let smsg = cast[string](message.data)
+    if smsg == pubsubData:
+      inc(resultsCount)
+    handlerFuture2.complete()
+    # Callback must return `false` to close subscription channel.
+    result = false
+
+  await api1.connect(id2.peer, id2.addresses)
+  await api2.connect(id1.peer, id1.addresses)
+
+  var ticket1 = await api1.pubsubSubscribe("test-topic", pubsubHandler1)
+  var ticket2 = await api2.pubsubSubscribe("test-topic", pubsubHandler2)
+
+  await sleepAsync(2000)
+
+  var topics1 = await api1.pubsubGetTopics()
+  var topics2 = await api2.pubsubGetTopics()
+
+  if len(topics1) == 1 and len(topics2) == 1:
+    var peers1 = await api1.pubsubListPeers("test-topic")
+    var peers2 = await api2.pubsubListPeers("test-topic")
+    if len(peers1) == 1 and len(peers2) == 1:
+      # Publish test data via api1.
+      await sleepAsync(500)
+      await api1.pubsubPublish("test-topic", msgData)
+      var andfut = handlerFuture1 and handlerFuture2
+      await andfut or sleepAsync(10000)
+
+  await api1.close()
+  await api2.close()
+  if resultsCount == 2:
+    result = true
+  else:
+    echo " -- CLIENT1 -- "
+    echo api1.log
+    echo " -- CLIENT2 -- "
+    echo api2.log
 
 when isMainModule:
   suite "libp2p-daemon test suite":
@@ -43,3 +151,12 @@ when isMainModule:
     test "Connect/Accept peer/stream test":
       check:
         waitFor(connectStreamTest()) == true
+    test "Provide CID test":
+      check:
+        waitFor(provideCidTest()) == true
+    test "GossipSub test":
+      check:
+        waitFor(pubsubTest({PSGossipSub})) == true
+    test "FloodSub test":
+      check:
+        waitFor(pubsubTest({PSFloodSub})) == true
