@@ -92,7 +92,8 @@ type
     PSFloodSub,    ## Enable `FloodSub` protocol in daemon
     PSGossipSub,   ## Enable `GossipSub` protocol in daemon
     PSNoSign,      ## Disable pubsub message signing (default true)
-    PSStrictSign   ## Force strict checking pubsub message signature
+    PSStrictSign,  ## Force strict checking pubsub message signature
+    NATPortMap     ## Force daemon to use NAT-PMP.
 
   P2PStream* = ref object
     flags*: set[P2PStreamFlags]
@@ -593,6 +594,8 @@ proc newDaemonApi*(flags: set[P2PDaemonFlags] = {},
         args.add("-pubsubSign=false")
       if PSStrictSign in api.flags:
         args.add("-pubsubSignStrict=true")
+    if NATPortMap in api.flags:
+      args.add("-natPortMap=true")
     if len(bootstrapNodes) > 0:
       args.add("-bootstrapPeers=" & bootstrapNodes.join(","))
     if len(id) != 0:
