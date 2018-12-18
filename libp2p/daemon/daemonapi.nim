@@ -633,7 +633,6 @@ proc newDaemonApi*(flags: set[P2PDaemonFlags] = {},
   if WaitBootstrap in api.flags:
     while true:
       var peers = await listPeers(api)
-      echo len(peers)
       if len(peers) >= peersRequired:
         break
       await sleepAsync(1000)
