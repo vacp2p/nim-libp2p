@@ -517,12 +517,35 @@ when not defined(windows):
     register(AsyncFD(pfd))
     addReader(fd, readOutputLoop, nil)
     result = retFuture
+
+  proc getProcessId(): int =
+    result = posix.getpid()
 else:
-  proc socketExists(filename: string): bool = false
+  proc socketExists(filename: string): bool =
+    # Not ready yet
+    false
 
   proc loggingHandler(api: DaemonAPI): Future[void] =
     # Not ready yet.
     discard
+
+  proc getProcessId(): int =
+    # Not ready yet
+    discard
+
+proc getSocketName(pattern: string): string =
+  var sockname = ""
+  var pid = $getProcessId()
+  while true:
+    inc(daemonsCount)
+    sockname = pattern % [pid, $daemonsCount]
+    if socketExists(sockname):
+      if tryRemoveFile(sockname):
+        result = sockname
+        break
+    else:
+      result = sockname
+      break
 
 # This is forward declaration needed for newDaemonApi()
 proc listPeers*(api: DaemonAPI): Future[seq[PeerInfo]] {.async.}
@@ -532,7 +555,8 @@ proc newDaemonApi*(flags: set[P2PDaemonFlags] = {},
                    id: string = "",
                    daemon = DefaultDaemonFile,
                    sockpath = DefaultSocketPath,
-                   pattern = "/tmp/nim-p2pd-$1.sock",
+                   patternSock = "/tmp/nim-p2pd-$1-$2.sock",
+                   patternHandler = "/tmp/nim-p2pd-handle-$1-$2.sock",
                    poolSize = 10,
                    gossipsubHeartbeatInterval = 0,
                    gossipsubHeartbeatDelay = 0,
@@ -544,77 +568,65 @@ proc newDaemonApi*(flags: set[P2PDaemonFlags] = {},
 
   api.flags = flags
   api.servers = newSeq[P2PServer]()
-  api.pattern = pattern
+  api.pattern = patternHandler
   api.ucounter = 1
   api.handlers = initTable[string, P2PStreamCallback]()
   api.sockname = sockpath
 
   if api.sockname == DefaultSocketPath:
-    # If client not specify `sockpath` but tries to spawn many daemons, we will
-    # replace sockname.
-    if daemonsCount != 0:
-      api.sockname = DefaultSocketPattern % [$daemonsCount]
+    api.sockname = getSocketName(patternSock)
+  else:
+    if not socketExists(api.sockname):
+      raise newException(DaemonLocalError, "Unix socket is not found!")
 
   api.address = initTAddress(api.sockname)
   inc(daemonsCount)
 
-  # We will start daemon process only when control socket path is not default or
-  # options are specified.
-  if flags == {} and api.sockname == DefaultSocketPath:
-    discard
-  else:
-    # DHTFull and DHTClient could not be present at the same time
-    if DHTFull in flags and DHTClient in flags:
-      api.flags.excl(DHTClient)
-    # PSGossipSub and PSFloodSub could not be present at the same time
-    if PSGossipSub in flags and PSFloodSub in flags:
-      api.flags.excl(PSFloodSub)
-    if DHTFull in api.flags:
-      args.add("-dht")
-    if DHTClient in api.flags:
-      args.add("-dhtClient")
-    if {Bootstrap, WaitBootstrap} * api.flags != {}:
-      args.add("-b")
-    if Verbose in api.flags:
-      env = newStringTable("IPFS_LOGGING", "debug", modeCaseSensitive)
-    if PSGossipSub in api.flags:
-      args.add("-pubsub")
-      args.add("-pubsubRouter=gossipsub")
-      if gossipsubHeartbeatInterval != 0:
-        let param = $gossipsubHeartbeatInterval & "ms"
-        args.add("-gossipsubHeartbeatInterval=" & param)
-      if gossipsubHeartbeatDelay != 0:
-        let param = $gossipsubHeartbeatDelay & "ms"
-        args.add("-gossipsubHeartbeatInitialDelay=" & param)
-    if PSFloodSub in api.flags:
-      args.add("-pubsub")
-      args.add("-pubsubRouter=floodsub")
-    if api.flags * {PSFloodSub, PSGossipSub} != {}:
-      if PSNoSign in api.flags:
-        args.add("-pubsubSign=false")
-      if PSStrictSign in api.flags:
-        args.add("-pubsubSignStrict=true")
-    if NATPortMap in api.flags:
-      args.add("-natPortMap=true")
-    if len(bootstrapNodes) > 0:
-      args.add("-bootstrapPeers=" & bootstrapNodes.join(","))
-    if len(id) != 0:
-      args.add("-id=" & id)
-    if api.sockname != DefaultSocketPath:
-      args.add("-sock=" & api.sockname)
+  # DHTFull and DHTClient could not be present at the same time
+  if DHTFull in flags and DHTClient in flags:
+    api.flags.excl(DHTClient)
+  # PSGossipSub and PSFloodSub could not be present at the same time
+  if PSGossipSub in flags and PSFloodSub in flags:
+    api.flags.excl(PSFloodSub)
+  if DHTFull in api.flags:
+    args.add("-dht")
+  if DHTClient in api.flags:
+    args.add("-dhtClient")
+  if {Bootstrap, WaitBootstrap} * api.flags != {}:
+    args.add("-b")
+  if Verbose in api.flags:
+    env = newStringTable("IPFS_LOGGING", "debug", modeCaseSensitive)
+  if PSGossipSub in api.flags:
+    args.add("-pubsub")
+    args.add("-pubsubRouter=gossipsub")
+    if gossipsubHeartbeatInterval != 0:
+      let param = $gossipsubHeartbeatInterval & "ms"
+      args.add("-gossipsubHeartbeatInterval=" & param)
+    if gossipsubHeartbeatDelay != 0:
+      let param = $gossipsubHeartbeatDelay & "ms"
+      args.add("-gossipsubHeartbeatInitialDelay=" & param)
+  if PSFloodSub in api.flags:
+    args.add("-pubsub")
+    args.add("-pubsubRouter=floodsub")
+  if api.flags * {PSFloodSub, PSGossipSub} != {}:
+    if PSNoSign in api.flags:
+      args.add("-pubsubSign=false")
+    if PSStrictSign in api.flags:
+      args.add("-pubsubSignStrict=true")
+  if NATPortMap in api.flags:
+    args.add("-natPortMap=true")
+  if len(bootstrapNodes) > 0:
+    args.add("-bootstrapPeers=" & bootstrapNodes.join(","))
+  if len(id) != 0:
+    args.add("-id=" & id)
+  if api.sockname != DefaultSocketPath:
+    args.add("-sock=" & api.sockname)
 
   # We are trying to get absolute daemon path.
   let cmd = findExe(daemon)
   if len(cmd) == 0:
     raise newException(DaemonLocalError, "Could not find daemon executable!")
-  # We will try to remove control socket file, because daemon will fail
-  # if its not able to create new socket control file.
-  # We can't use `existsFile()` because it do not support unix-domain socket
-  # endpoints.
-  if socketExists(api.sockname):
-    if not tryRemoveFile(api.sockname):
-      if api.sockname != sockpath:
-        raise newException(DaemonLocalError, "Socket is already bound!")
+  
   # Starting daemon process
   api.process = startProcess(cmd, "", args, env, {poStdErrToStdOut})
   # Waiting until daemon will not be bound to control socket.
@@ -797,7 +809,7 @@ proc addHandler*(api: DaemonAPI, protocols: seq[string],
                  handler: P2PStreamCallback) {.async.} =
   ## Add stream handler ``handler`` for set of protocols ``protocols``.
   var transp = await api.newConnection()
-  var sockname = api.pattern % [$api.ucounter]
+  var sockname = api.pattern % [$getProcessId(), $api.ucounter]
   var localaddr = initTAddress(sockname)
   inc(api.ucounter)
   var server = createStreamServer(localaddr, streamHandler, udata = api)
