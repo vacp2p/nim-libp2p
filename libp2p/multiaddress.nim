@@ -400,7 +400,7 @@ proc protoName*(ma: MultiAddress): string =
 
 proc protoArgument*(ma: MultiAddress, value: var openarray[byte]): int =
   ## Returns MultiAddress ``ma`` protocol argument value.
-  ## 
+  ##
   ## If current MultiAddress do not have argument value, then result will be
   ## ``0``.
   var header: uint64
@@ -672,3 +672,36 @@ proc `&=`*(m1: var MultiAddress, m2: MultiAddress) =
   m1.data.buffer &= m2.data.buffer
   if not m1.validate():
     raise newException(MultiAddressError, "Incorrect MultiAddress!")
+
+proc isWire*(ma: MultiAddress): bool =
+  ## Returns ``true`` if MultiAddress ``ma`` is one of:
+  ## - {IP4}/{TCP, UDP}
+  ## - {IP6}/{TCP, UDP}
+  ## - {UNIX}/{PATH}
+  var state = 0
+  try:
+    for part in ma.items():
+      if state == 0:
+        let code = part.protoCode()
+        if code == multiCodec("ip4") or code == multiCodec("ip6"):
+          inc(state)
+          continue
+        elif code == multiCodec("unix"):
+          result = true
+          break
+        else:
+          result = false
+          break
+      elif state == 1:
+        if part.protoCode == multiCodec("tcp") or
+           part.protoCode == multiCodec("udp"):
+          inc(state)
+          result = true
+        else:
+          result = false
+          break
+      else:
+        result = false
+        break
+  except:
+    result = false
