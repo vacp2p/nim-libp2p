@@ -421,9 +421,9 @@ proc protoArgument*(ma: MultiAddress, value: var openarray[byte]): int =
   elif proto.kind in {Length, Path}:
     if vb.data.readSeq(buffer) == -1:
       raise newException(MultiAddressError, "Decoding protocol error")
-    result = len(vb.data.buffer)
+    result = len(buffer)
     if len(value) >= result:
-      copyMem(addr value[0], addr vb.data.buffer[0], result)
+      copyMem(addr value[0], addr buffer[0], result)
 
 proc getPart(ma: MultiAddress, index: int): MultiAddress =
   var header: uint64
@@ -517,7 +517,10 @@ proc `$`*(value: MultiAddress): string =
       if not proto.coder.bufferToString(vb.data, part):
         raise newException(MultiAddressError, "Decoding protocol error")
       parts.add($(proto.mcodec))
-      parts.add(part)
+      if proto.kind == Path and part[0] == '/':
+        parts.add(part[1..^1])
+      else:
+        parts.add(part)
     elif proto.kind == Marker:
       parts.add($(proto.mcodec))
   if len(parts) > 0:

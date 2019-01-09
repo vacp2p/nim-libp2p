@@ -170,6 +170,16 @@ const
     "/p2p-circuit/50"
   ]
 
+  PathVectors = [
+    "/unix/tmp/p2pd.sock",
+    "/unix/a/b/c/d/e/f/g/h/i.sock"
+  ]
+
+  PathExpects = [
+    "90030E2F746D702F703270642E736F636B",
+    "9003172F612F622F632F642F652F662F672F682F692E736F636B"
+  ]
+
   UtilitySuccessVectors = [
     "/ip4/127.0.0.1/tcp/1024",
     "/ip4/127.0.0.1/udp/1024",
@@ -247,3 +257,10 @@ suite "MultiAddress test suite":
     for item in UtilityFailVectors:
       var a = MultiAddress.init(item)
       check a.isWire() == false
+
+  test "Path addresses serialization/deserialization":
+    for i in 0..<len(PathVectors):
+      var a = MultiAddress.init(PathVectors[i])
+      check:
+        hex(a) == PathExpects[i]
+        $a == PathVectors[i]
