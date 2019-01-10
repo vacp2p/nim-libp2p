@@ -16,12 +16,13 @@ cache:
 matrix:
   include:
     - os: linux
+      go:
+        - 1.11.x
     - os: osx
       before_install:
         - export GOPATH=$HOME/go
-go:
-  - "1.11.x"
-
+      go:
+        - 1.11.x
 install:
   # build nim from our own branch - this to avoid the day-to-day churn and
   # regressions of the fast-paced Nim development while maintaining the
