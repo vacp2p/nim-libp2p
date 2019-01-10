@@ -18,10 +18,10 @@ matrix:
     - os: linux
       dist: trusty
       go: 1.11.x
-    - os: osx
-      go: 1.11.x
-      before_install:
-        - export GOPATH=$HOME/go
+    # - os: osx
+    #   go: 1.11.x
+    #   before_install:
+    #     - export GOPATH=$HOME/go
 install:
   # build nim from our own branch - this to avoid the day-to-day churn and
   # regressions of the fast-paced Nim development while maintaining the
