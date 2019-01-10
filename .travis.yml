@@ -23,6 +23,7 @@ matrix:
         homebrew:
           packages:
             - go
+          update: true
       before_install:
         - export GOPATH=$HOME/go
 install:
