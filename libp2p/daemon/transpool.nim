@@ -8,7 +8,7 @@
 ## those terms.
 
 ## This module implements Pool of StreamTransport.
-import asyncdispatch2
+import chronos
 
 const
   DefaultPoolSize* = 8

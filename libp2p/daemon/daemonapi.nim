@@ -9,7 +9,7 @@
 
 ## This module implementes API for `go-libp2p-daemon`.
 import os, osproc, strutils, tables, streams, strtabs
-import asyncdispatch2
+import chronos
 import ../varint, ../multiaddress, ../multicodec, ../base58, ../cid
 import ../wire, ../protobuf/minprotobuf
 
