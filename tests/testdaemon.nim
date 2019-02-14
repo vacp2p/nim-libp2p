@@ -1,5 +1,5 @@
 import unittest
-import asyncdispatch2
+import chronos
 import ../libp2p/daemon/daemonapi, ../libp2p/multiaddress, ../libp2p/multicodec,
        ../libp2p/cid, ../libp2p/multihash
 
