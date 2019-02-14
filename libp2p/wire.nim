@@ -8,7 +8,7 @@
 ## those terms.
 
 ## This module implements wire network connection procedures.
-import asyncdispatch2
+import chronos
 import multiaddress, multicodec
 
 proc initTAddress*(ma: MultiAddress): TransportAddress =
