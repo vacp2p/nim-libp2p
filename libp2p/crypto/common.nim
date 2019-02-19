@@ -1,5 +1,4 @@
 import strutils
-import hexdump
 from os import DirSep
 
 when defined(vcc):
@@ -7,7 +6,7 @@ when defined(vcc):
 
 const
   bearPath = currentSourcePath.rsplit(DirSep, 1)[0] & DirSep &
-             ".." & DirSep & "BearSSL" & DirSep
+             "BearSSL" & DirSep
   bearSrcPath = bearPath & "src"
   bearIncPath = bearPath & "inc"
   bearIntPath = bearSrcPath & DirSep & "int" & DirSep
