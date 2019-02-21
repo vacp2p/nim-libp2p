@@ -8,6 +8,7 @@
 ## those terms.
 import common
 import nimcrypto/utils
+import minasn1
 
 const
   PubKey256Length* = 65
@@ -119,24 +120,6 @@ proc getOffset(seckey: EcPrivateKey): int {.inline.} =
     result = -1
   else:
     result = cast[int](o)
-
-proc copyKey(dest: var openarray[byte], seckey: EcPrivateKey): bool {.inline.} =
-  let length = seckey.key.xlen
-  if length > 0:
-    if len(dest) >= length:
-      let offset = getOffset(seckey)
-      if offset >= 0:
-        copyMem(addr dest[0], unsafeAddr seckey.buffer[offset], length - offset)
-        result = true
-
-proc copyKey(dest: var openarray[byte], pubkey: EcPublicKey): bool {.inline.} =
-  let length = pubkey.key.qlen
-  if length > 0:
-    if len(dest) >= length:
-      let offset = getOffset(pubkey)
-      if offset >= 0:
-        copyMem(addr dest[0], unsafeAddr pubkey.buffer[offset], length - offset)
-        result = true
 
 template getSignatureLength*(curve: EcCurveKind): int =
   case curve
@@ -313,57 +296,92 @@ proc `$`*(sig: EcSignature): string =
     else:
       result = toHex(sig.buffer)
 
-proc toBytes*(seckey: EcPrivateKey, data: var openarray[byte]): bool =
-  ## Serialize EC private key ``seckey`` to raw binary form and store it to
-  ## ``data``.
+proc toBytes*(seckey: EcPrivateKey, data: var openarray[byte]): int =
+  ## Serialize EC private key ``seckey`` to ASN.1 DER binary form and store it
+  ## to ``data``.
   ##
-  ## If ``seckey`` curve is ``Secp256r1`` length of ``data`` array must be at
-  ## least ``SecKey256Length``.
-  ##
-  ## If ``seckey`` curve is ``Secp384r1`` length of ``data`` array must be at
-  ## least ``SecKey384Length``.
-  ##
-  ## If ``seckey`` curve is ``Secp521r1`` length of ``data`` array must be at
-  ## least ``SecKey521Length``.
-  ##
-  ## Procedure returns ``true`` if serialization successfull, ``false``
-  ## otherwise.
+  ## Procedure returns number of bytes (octets) needed to store EC private key,
+  ## or `0` if private key is not in supported curve.
   if seckey.key.curve in EcSupportedCurvesCint:
-    if copyKey(data, seckey):
-      result = true
+    var offset, length: int
+    var pubkey = seckey.getKey()
+    var b = Asn1Buffer.init()
+    var p = Asn1Composite.init(Asn1Tag.Sequence)
+    var c0 = Asn1Composite.init(0)
+    var c1 = Asn1Composite.init(1)
+    if seckey.key.curve == BR_EC_SECP256R1:
+      c0.write(Asn1Tag.Oid, Asn1OidSecp256r1)
+    elif seckey.key.curve == BR_EC_SECP384R1:
+      c0.write(Asn1Tag.Oid, Asn1OidSecp384r1)
+    elif seckey.key.curve == BR_EC_SECP521R1:
+      c0.write(Asn1Tag.Oid, Asn1OidSecp521r1)
+    c0.finish()
+    offset = pubkey.getOffset()
+    length = pubkey.key.qlen
+    c1.write(Asn1Tag.BitString,
+             pubkey.buffer.toOpenArray(offset, offset + length - 1))
+    c1.finish()
+    offset = seckey.getOffset()
+    length = seckey.key.xlen
+    p.write(1'u64)
+    p.write(Asn1Tag.OctetString,
+            seckey.buffer.toOpenArray(offset, offset + length - 1))
+    p.write(c0)
+    p.write(c1)
+    p.finish()
+    b.write(p)
+    b.finish()
+    result = len(b)
+    if len(data) >= len(b):
+      copyMem(addr data[0], addr b.buffer[0], len(b))
 
-proc toBytes*(pubkey: EcPublicKey, data: var openarray[byte]): bool =
-  ## Serialize EC public key ``pubkey`` to raw binary form and store it to
-  ## ``data``.
+proc toBytes*(pubkey: EcPublicKey, data: var openarray[byte]): int =
+  ## Serialize EC public key ``pubkey`` to ASN.1 DER binary form and store it
+  ## to ``data``.
   ##
-  ## If ``pubkey`` curve is ``Secp256r1`` length of ``data`` array must be at
-  ## least ``PubKey256Length``.
-  ##
-  ## If ``pubkey`` curve is ``Secp384r1`` length of ``data`` array must be at
-  ## least ``PubKey384Length``.
-  ##
-  ## If ``pubkey`` curve is ``Secp521r1`` length of ``data`` array must be at
-  ## least ``PubKey521Length``.
-  ##
-  ## Procedure returns ``true`` if serialization successfull, ``false``
-  ## otherwise.
+  ## Procedure returns number of bytes (octets) needed to store EC public key,
+  ## or `0` if public key is not in supported curve.
   if pubkey.key.curve in EcSupportedCurvesCint:
-    if copyKey(data, pubkey):
-      result = true
+    var b = Asn1Buffer.init()
+    var p = Asn1Composite.init(Asn1Tag.Sequence)
+    var c = Asn1Composite.init(Asn1Tag.Sequence)
+    c.write(Asn1Tag.Oid, Asn1OidEcPublicKey)
+    if pubkey.key.curve == BR_EC_SECP256R1:
+      c.write(Asn1Tag.Oid, Asn1OidSecp256r1)
+    elif pubkey.key.curve == BR_EC_SECP384R1:
+      c.write(Asn1Tag.Oid, Asn1OidSecp384r1)
+    elif pubkey.key.curve == BR_EC_SECP521R1:
+      c.write(Asn1Tag.Oid, Asn1OidSecp521r1)
+    c.finish()
+    p.write(c)
+    let offset = getOffset(pubkey)
+    let length = pubkey.key.qlen
+    p.write(Asn1Tag.BitString,
+            pubkey.buffer.toOpenArray(offset, offset + length - 1))
+    p.finish()
+    b.write(p)
+    b.finish()
+    result = len(b)
+    if len(data) >= len(b):
+      copyMem(addr data[0], addr b.buffer[0], len(b))
 
 proc getBytes*(seckey: EcPrivateKey): seq[byte] =
-  ## Serialize EC private key ``seckey`` to raw binary form and return it.
+  ## Serialize EC private key ``seckey`` to ASN.1 DER binary form and return it.
   if seckey.key.curve in EcSupportedCurvesCint:
-    result = newSeq[byte](seckey.key.xlen)
-    discard toBytes(seckey, result)
+    result = newSeq[byte]()
+    let length = seckey.toBytes(result)
+    result.setLen(length)
+    discard seckey.toBytes(result)
   else:
     raise newException(EcKeyIncorrectError, "Incorrect private key")
 
 proc getBytes*(pubkey: EcPublicKey): seq[byte] =
-  ## Serialize EC public key ``pubkey`` to raw binary form and return it.
+  ## Serialize EC public key ``pubkey`` to ASN.1 DER binary form and return it.
   if pubkey.key.curve in EcSupportedCurvesCint:
-    result = newSeq[byte](pubkey.key.qlen)
-    discard toBytes(pubkey, result)
+    result = newSeq[byte]()
+    let length = pubkey.toBytes(result)
+    result.setLen(length)
+    discard pubkey.toBytes(result)
   else:
     raise newException(EcKeyIncorrectError, "Incorrect public key")
 
@@ -399,67 +417,127 @@ proc `==`*(sig1, sig2: EcSignature): bool =
     return false
   result = (sig1.buffer == sig2.buffer)
 
-proc init*(key: var EcPrivateKey, data: openarray[byte]): bool =
-  ## Initialize EC `private key` or `scalar` ``key`` from raw binary
+proc init*(key: var EcPrivateKey, data: openarray[byte]): Asn1Status =
+  ## Initialize EC `private key` or `scalar` ``key`` from ASN.1 DER binary
   ## representation ``data``.
   ##
-  ## Length of ``data`` array must be ``SecKey256Length``, ``SecKey384Length``
-  ## or ``SecKey521Length``.
-  ##
-  ## Procedure returns ``true`` on success, ``false`` otherwise.
+  ## Procedure returns ``Asn1Status``.
+  var raw, oid, field: Asn1Field
   var curve: cint
-  if len(data) == SecKey256Length:
-    curve = cast[cint](Secp256r1)
-    result = true
-  elif len(data) == SecKey384Length:
-    curve = cast[cint](Secp384r1)
-    result = true
-  elif len(data) == SecKey521Length:
-    curve = cast[cint](Secp521r1)
-    result = true
-  if result:
-    result = false
-    if checkScalar(data, curve) == 1'u32:
-      let length = len(data)
-      key = new EcPrivateKey
-      key.buffer = newSeq[byte](length)
-      copyMem(addr key.buffer[0], unsafeAddr data[0], length)
-      key.key.x = cast[ptr cuchar](addr key.buffer[0])
-      key.key.xlen = length
-      key.key.curve = curve
-      result = true
 
-proc init*(pubkey: var EcPublicKey, data: openarray[byte]): bool =
-  ## Initialize EC public key ``pubkey`` from raw binary representation
+  var ab = Asn1Buffer.init(data)
+
+  result = ab.read(field)
+  if result != Asn1Status.Success:
+    return
+  if field.kind != Asn1Tag.Sequence:
+    return Asn1Status.Incorrect
+
+  var ib = field.getBuffer()
+
+  result = ib.read(field)
+  if result != Asn1Status.Success:
+    return
+  if field.kind != Asn1Tag.Integer:
+    return Asn1Status.Incorrect
+  if field.vint != 1'u64:
+    return Asn1Status.Incorrect
+
+  result = ib.read(raw)
+  if result != Asn1Status.Success:
+    return
+  if raw.kind != Asn1Tag.OctetString:
+    return Asn1Status.Incorrect
+
+  result = ib.read(oid)
+  if result != Asn1Status.Success:
+    return
+  if oid.kind != Asn1Tag.Oid:
+    return Asn1Status.Incorrect
+
+  if oid == Asn1OidSecp256r1:
+    curve = cast[cint](Secp256r1)
+  elif oid == Asn1OidSecp384r1:
+    curve = cast[cint](Secp384r1)
+  elif oid == Asn1OidSecp521r1:
+    curve = cast[cint](Secp521r1)
+  else:
+    return Asn1Status.Incorrect
+
+  if checkScalar(raw.toOpenArray(), curve) == 1'u32:
+    key = new EcPrivateKey
+    key.buffer = newSeq[byte](raw.length)
+    copyMem(addr key.buffer[0], addr raw.buffer[raw.offset], raw.length)
+    key.key.x = cast[ptr cuchar](addr key.buffer[0])
+    key.key.xlen = raw.length
+    key.key.curve = curve
+    result = Asn1Status.Success
+  else:
+    result = Asn1Status.Incorrect
+
+proc init*(pubkey: var EcPublicKey, data: openarray[byte]): Asn1Status =
+  ## Initialize EC public key ``pubkey`` from ASN.1 DER binary representation
   ## ``data``.
   ##
-  ## Length of ``data`` array must be ``PubKey256Length``, ``PubKey384Length``
-  ## or ``PubKey521Length``.
-  ##
-  ## Procedure returns ``true`` on success, ``false`` otherwise.
+  ## Procedure returns ``Asn1Status``.
+  var raw, oid, field: Asn1Field
   var curve: cint
-  if len(data) > 0:
-    if data[0] == 0x04'u8:
-      if len(data) == PubKey256Length:
-        curve = cast[cint](Secp256r1)
-        result = true
-      elif len(data) == PubKey384Length:
-        curve = cast[cint](Secp384r1)
-        result = true
-      elif len(data) == PubKey521Length:
-        curve = cast[cint](Secp521r1)
-        result = true
-  if result:
-    result = false
-    if checkPublic(data, curve) != 0:
-      let length = len(data)
-      pubkey = new EcPublicKey
-      pubkey.buffer = newSeq[byte](length)
-      copyMem(addr pubkey.buffer[0], unsafeAddr data[0], length)
-      pubkey.key.q = cast[ptr cuchar](addr pubkey.buffer[0])
-      pubkey.key.qlen = length
-      pubkey.key.curve = curve
-      result = true
+
+  var ab = Asn1Buffer.init(data)
+  result = ab.read(field)
+  if result != Asn1Status.Success:
+    return
+  if field.kind != Asn1Tag.Sequence:
+    return Asn1Status.Incorrect
+
+  var ib = field.getBuffer()
+  result = ib.read(field)
+  if result != Asn1Status.Success:
+    return
+  if field.kind != Asn1Tag.Sequence:
+    return Asn1Status.Incorrect
+
+  var ob = field.getBuffer()
+  result = ob.read(oid)
+  if result != Asn1Status.Success:
+    return
+  if oid.kind != Asn1Tag.Oid:
+    return Asn1Status.Incorrect
+
+  if oid != Asn1OidEcPublicKey:
+    return Asn1Status.Incorrect
+
+  result = ob.read(oid)
+  if result != Asn1Status.Success:
+    return
+  if oid.kind != Asn1Tag.Oid:
+    return Asn1Status.Incorrect
+
+  if oid == Asn1OidSecp256r1:
+    curve = cast[cint](Secp256r1)
+  elif oid == Asn1OidSecp384r1:
+    curve = cast[cint](Secp384r1)
+  elif oid == Asn1OidSecp521r1:
+    curve = cast[cint](Secp521r1)
+  else:
+    return Asn1Status.Incorrect
+
+  result = ib.read(raw)
+  if result != Asn1Status.Success:
+    return
+  if raw.kind != Asn1Tag.BitString:
+    return Asn1Status.Incorrect
+
+  if checkPublic(raw.toOpenArray(), curve) != 0:
+    pubkey = new EcPublicKey
+    pubkey.buffer = newSeq[byte](raw.length)
+    copyMem(addr pubkey.buffer[0], addr raw.buffer[raw.offset], raw.length)
+    pubkey.key.q = cast[ptr cuchar](addr pubkey.buffer[0])
+    pubkey.key.qlen = raw.length
+    pubkey.key.curve = curve
+    result = Asn1Status.Success
+  else:
+    result = Asn1Status.Incorrect
 
 proc init*(sig: var EcSignature, data: openarray[byte]): bool =
   ## Initialize EC signature ``sig`` from raw binary representation ``data``.
@@ -493,16 +571,20 @@ proc init*[T: EcPKI](sospk: var T, data: string): bool {.inline.} =
   result = sospk.init(fromHex(data))
 
 proc init*(t: typedesc[EcPrivateKey], data: openarray[byte]): EcPrivateKey =
-  ## Initialize EC private key from raw binary representation ``data`` and
+  ## Initialize EC private key from ASN.1 DER binary representation ``data`` and
   ## return constructed object.
-  if not result.init(data):
-    raise newException(EcKeyIncorrectError, "Incorrect private key")
+  let res = result.init(data)
+  if res != Asn1Status.Success:
+    raise newException(EcKeyIncorrectError,
+                       "Incorrect private key (" & $res & ")")
 
 proc init*(t: typedesc[EcPublicKey], data: openarray[byte]): EcPublicKey =
-  ## Initialize EC public key from raw binary representation ``data`` and
+  ## Initialize EC public key from ASN.1 DER binary representation ``data`` and
   ## return constructed object.
-  if not result.init(data):
-    raise newException(EcKeyIncorrectError, "Incorrect public key")
+  let res = result.init(data)
+  if res != Asn1Status.Success:
+    raise newException(EcKeyIncorrectError,
+                       "Incorrect public key (" & $res & ")")
 
 proc init*(t: typedesc[EcSignature], data: openarray[byte]): EcSignature =
   ## Initialize EC signature from raw binary representation ``data`` and
@@ -585,3 +667,20 @@ proc verify*[T: byte|char](sig: EcSignature, message: openarray[T],
       # Clear context with initial value
       kv.init(addr hc.vtable)
       result = (res == 1)
+
+when isMainModule:
+  var buffer = newSeq[byte]()
+  var kp = EcKeyPair.random(Secp256r1)
+  var length: int
+
+  var serializedSK = kp.seckey.getBytes()
+  var serializedPK = kp.pubkey.getBytes()
+  echo toHex(serializedPK)
+  echo toHex(serializedSK)
+
+  var kp2 = EcPrivateKey.init(serializedSK)
+  echo toHex(kp2.getBytes())
+
+  var pk2 = EcPublicKey.init(serializedPK)
+  echo repr pk2
+  echo toHex(pk2.getBytes())
