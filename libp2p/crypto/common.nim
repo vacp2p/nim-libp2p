@@ -1,8 +1,15 @@
+## Nim-Libp2p
+## Copyright (c) 2018 Status Research & Development GmbH
+## Licensed under either of
+##  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+##  * MIT license ([LICENSE-MIT](LICENSE-MIT))
+## at your option.
+## This file may not be copied, modified, or distributed except according to
+## those terms.
+
+## This module implements interface with BearSSL library sources.
 import strutils
 from os import DirSep
-
-when defined(vcc):
-  {.passC: "/Zi /FS".}
 
 const
   bearPath = currentSourcePath.rsplit(DirSep, 1)[0] & DirSep &
@@ -624,6 +631,16 @@ proc brEcdsaVerifyRaw*(impl: ptr BrEcImplementation, hash: pointer,
                        hashlen: int, pk: ptr BrEcPublicKey, sig: pointer,
                        siglen: int): uint32 {.
      cdecl, importc: "br_ecdsa_i31_vrfy_raw", header: "bearssl_ec.h".}
+
+proc brEcdsaSignAsn1*(impl: ptr BrEcImplementation, hf: ptr BrHashClass,
+                     value: pointer, sk: ptr BrEcPrivateKey,
+                     sig: pointer): int {.
+     cdecl, importc: "br_ecdsa_i31_sign_asn1", header: "bearssl_ec.h".}
+
+proc brEcdsaVerifyAsn1*(impl: ptr BrEcImplementation, hash: pointer,
+                        hashlen: int, pk: ptr BrEcPublicKey, sig: pointer,
+                        siglen: int): uint32 {.
+     cdecl, importc: "br_ecdsa_i31_vrfy_asn1", header: "bearssl_ec.h".}
 
 proc brAsn1UintPrepare*(xdata: pointer, xlen: int): BrAsn1Uint {.
      cdecl, importc: "br_asn1_uint_prepare", header: "inner.h".}

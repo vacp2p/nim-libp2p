@@ -6,9 +6,13 @@
 ## at your option.
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
+
+## This module implements ECDSA and ECDHE for NIST elliptic curves
+## secp256r1, secp384r1 and secp521r1.
 import common
 import nimcrypto/utils
 import minasn1
+export minasn1.Asn1Status
 
 const
   PubKey256Length* = 65
@@ -36,7 +40,6 @@ type
 
   EcSignature* = ref object
     buffer*: seq[byte]
-    curve*: cint
 
   EcCurveKind* = enum
     Secp256r1 = BR_EC_SECP256R1,
@@ -121,15 +124,6 @@ proc getOffset(seckey: EcPrivateKey): int {.inline.} =
   else:
     result = cast[int](o)
 
-template getSignatureLength*(curve: EcCurveKind): int =
-  case curve
-  of Secp256r1:
-    Sig256Length
-  of Secp384r1:
-    Sig384Length
-  of Secp521r1:
-    Sig521Length
-
 template getPublicKeyLength*(curve: EcCurveKind): int =
   case curve
   of Secp256r1:
@@ -138,15 +132,6 @@ template getPublicKeyLength*(curve: EcCurveKind): int =
     PubKey384Length
   of Secp521r1:
     PubKey521Length
-
-template getPrivateKeyLength*(curve: EcCurveKind): int =
-  case curve
-  of Secp256r1:
-    SecKey256Length
-  of Secp384r1:
-    SecKey384Length
-  of Secp521r1:
-    SecKey521Length
 
 proc copy*[T: EcPKI](dst: var T, src: T): bool =
   ## Copy EC private key, public key or scalar ``src`` to ``dst``.
@@ -288,13 +273,7 @@ proc `$`*(pubkey: EcPublicKey): string =
 
 proc `$`*(sig: EcSignature): string =
   ## Return hexadecimal string representation of EC signature.
-  if sig.curve == 0 or len(sig.buffer) == 0:
-    result = "Empty signature"
-  else:
-    if sig.curve notin EcSupportedCurvesCint:
-      result = "Unknown signature"
-    else:
-      result = toHex(sig.buffer)
+  result = toHex(sig.buffer)
 
 proc toBytes*(seckey: EcPrivateKey, data: var openarray[byte]): int =
   ## Serialize EC private key ``seckey`` to ASN.1 DER binary form and store it
@@ -332,8 +311,8 @@ proc toBytes*(seckey: EcPrivateKey, data: var openarray[byte]): int =
     b.write(p)
     b.finish()
     result = len(b)
-    if len(data) >= len(b):
-      copyMem(addr data[0], addr b.buffer[0], len(b))
+    if len(data) >= result:
+      copyMem(addr data[0], addr b.buffer[0], result)
 
 proc toBytes*(pubkey: EcPublicKey, data: var openarray[byte]): int =
   ## Serialize EC public key ``pubkey`` to ASN.1 DER binary form and store it
@@ -362,8 +341,18 @@ proc toBytes*(pubkey: EcPublicKey, data: var openarray[byte]): int =
     b.write(p)
     b.finish()
     result = len(b)
-    if len(data) >= len(b):
-      copyMem(addr data[0], addr b.buffer[0], len(b))
+    if len(data) >= result:
+      copyMem(addr data[0], addr b.buffer[0], result)
+
+proc toBytes*(sig: EcSignature, data: var openarray[byte]): int =
+  ## Serialize EC signature ``sig`` to ASN.1 DER binary form and store it
+  ## to ``data``.
+  ##
+  ## Procedure returns number of bytes (octets) needed to store EC signature,
+  ## or `0` if signature is not in supported curve.
+  result = len(sig.buffer)
+  if len(data) >= result:
+    copyMem(addr data[0], unsafeAddr sig.buffer[0], result)
 
 proc getBytes*(seckey: EcPrivateKey): seq[byte] =
   ## Serialize EC private key ``seckey`` to ASN.1 DER binary form and return it.
@@ -384,6 +373,13 @@ proc getBytes*(pubkey: EcPublicKey): seq[byte] =
     discard pubkey.toBytes(result)
   else:
     raise newException(EcKeyIncorrectError, "Incorrect public key")
+
+proc getBytes*(sig: EcSignature): seq[byte] =
+  ## Serialize EC signature ``sig`` to ASN.1 DER binary form and return it.
+  result = newSeq[byte]()
+  let length = sig.toBytes(result)
+  result.setLen(length)
+  discard sig.toBytes(result)
 
 proc `==`*(pubkey1, pubkey2: EcPublicKey): bool =
   ## Returns ``true`` if both keys ``pubkey1`` and ``pubkey2`` are equal.
@@ -413,8 +409,6 @@ proc `==`*(seckey1, seckey2: EcPrivateKey): bool =
 
 proc `==`*(sig1, sig2: EcSignature): bool =
   ## Return ``true`` if both signatures ``sig1`` and ``sig2`` are equal.
-  if sig1.curve != sig2.curve:
-    return false
   result = (sig1.buffer == sig2.buffer)
 
 proc init*(key: var EcPrivateKey, data: openarray[byte]): Asn1Status =
@@ -539,35 +533,21 @@ proc init*(pubkey: var EcPublicKey, data: openarray[byte]): Asn1Status =
   else:
     result = Asn1Status.Incorrect
 
-proc init*(sig: var EcSignature, data: openarray[byte]): bool =
+proc init*(sig: var EcSignature, data: openarray[byte]): Asn1Status =
   ## Initialize EC signature ``sig`` from raw binary representation ``data``.
   ##
-  ## Length of ``data`` array must be ``Sig256Length``, ``Sig384Length``
-  ## or ``Sig521Length``.
-  ##
-  ## Procedure returns ``true`` on success, ``false`` otherwise.
-  var curve: cint
+  ## Procedure returns ``Asn1Status``.
+  result = Asn1Status.Incorrect
   if len(data) > 0:
-    if len(data) == Sig256Length:
-      curve = cast[cint](Secp256r1)
-      result = true
-    elif len(data) == Sig384Length:
-      curve = cast[cint](Secp384r1)
-      result = true
-    elif len(data) == Sig521Length:
-      curve = cast[cint](Secp521r1)
-      result = true
-  if result:
     sig = new EcSignature
-    sig.curve = curve
     sig.buffer = @data
-    result = true
+    result = Asn1Status.Success
 
-proc init*[T: EcPKI](sospk: var T, data: string): bool {.inline.} =
+proc init*[T: EcPKI](sospk: var T, data: string): Asn1Status {.inline.} =
   ## Initialize EC `private key`, `public key` or `scalar` ``sospk`` from
   ## hexadecimal string representation ``data``.
   ##
-  ## Procedure returns ``true`` on success, ``false`` otherwise.
+  ## Procedure returns ``Asn1Status``.
   result = sospk.init(fromHex(data))
 
 proc init*(t: typedesc[EcPrivateKey], data: openarray[byte]): EcPrivateKey =
@@ -589,8 +569,10 @@ proc init*(t: typedesc[EcPublicKey], data: openarray[byte]): EcPublicKey =
 proc init*(t: typedesc[EcSignature], data: openarray[byte]): EcSignature =
   ## Initialize EC signature from raw binary representation ``data`` and
   ## return constructed object.
-  if not result.init(data):
-    raise newException(EcKeyIncorrectError, "Incorrect signature")
+  let res = result.init(data)
+  if res != Asn1Status.Success:
+    raise newException(EcKeyIncorrectError,
+                       "Incorrect signature (" & $res & ")")
 
 proc init*[T: EcPKI](t: typedesc[T], data: string): T {.inline.} =
   ## Initialize EC `private key`, `public key` or `scalar` from hexadecimal
@@ -620,30 +602,30 @@ proc scalarMul*(pub: EcPublicKey, sec: EcPrivateKey): EcPublicKey =
 
 proc sign*[T: byte|char](seckey: EcPrivateKey,
                          message: openarray[T]): EcSignature =
-  ## Get ECDSA signature of data ``message`` using private key ``seckey``.
+  ## Get ECDSA signature of data ``message`` using private key ``seckey`` and.
   var hc: BrHashCompatContext
   var hash: array[32, byte]
   var impl = brEcGetDefault()
-  if len(message) > 0:
-    if seckey.key.curve in EcSupportedCurvesCint:
-      let length = getSignatureLength(cast[EcCurveKind](seckey.key.curve))
-      result = new EcSignature
-      result.curve = seckey.key.curve
-      result.buffer = newSeq[byte](length)
-      var kv = addr sha256Vtable
-      kv.init(addr hc.vtable)
+  if seckey.key.curve in EcSupportedCurvesCint:
+    result = new EcSignature
+    result.buffer = newSeq[byte](256)
+    var kv = addr sha256Vtable
+    kv.init(addr hc.vtable)
+    if len(message) > 0:
       kv.update(addr hc.vtable, unsafeAddr message[0], len(message))
-      kv.output(addr hc.vtable, addr hash[0])
-      let res = brEcdsaSignRaw(impl, kv, addr hash[0], addr seckey.key,
-                               addr result.buffer[0])
-      if res != getSignatureLength(cast[EcCurveKind](result.curve)):
-        raise newException(EcSignatureError, "Could not make signature")
-      # Clear context with initial value
-      kv.init(addr hc.vtable)
     else:
-      raise newException(EcKeyIncorrectError, "Incorrect private key")
+      kv.update(addr hc.vtable, nil, 0)
+    kv.output(addr hc.vtable, addr hash[0])
+    let res = brEcdsaSignAsn1(impl, kv, addr hash[0], addr seckey.key,
+                              addr result.buffer[0])
+    # Clear context with initial value
+    kv.init(addr hc.vtable)
+    if res != 0:
+      result.buffer.setLen(res)
+    else:
+      raise newException(EcSignatureError, "Could not make signature")
   else:
-    raise newException(EcSignatureError, "Empty message")
+    raise newException(EcKeyIncorrectError, "Incorrect private key")
 
 proc verify*[T: byte|char](sig: EcSignature, message: openarray[T],
                            pubkey: EcPublicKey): bool {.inline.} =
@@ -655,32 +637,17 @@ proc verify*[T: byte|char](sig: EcSignature, message: openarray[T],
   var hc: BrHashCompatContext
   var hash: array[32, byte]
   var impl = brEcGetDefault()
-  if len(message) > 0:
-    if pubkey.key.curve in EcSupportedCurvesCint and
-       pubkey.key.curve == sig.curve:
-      var kv = addr sha256Vtable
-      kv.init(addr hc.vtable)
+  if pubkey.key.curve in EcSupportedCurvesCint:
+    var kv = addr sha256Vtable
+    kv.init(addr hc.vtable)
+    if len(message) > 0:
       kv.update(addr hc.vtable, unsafeAddr message[0], len(message))
-      kv.output(addr hc.vtable, addr hash[0])
-      let res = brEcdsaVerifyRaw(impl, addr hash[0], 32, unsafeAddr pubkey.key,
-                                 addr sig.buffer[0], len(sig.buffer))
-      # Clear context with initial value
-      kv.init(addr hc.vtable)
-      result = (res == 1)
-
-when isMainModule:
-  var buffer = newSeq[byte]()
-  var kp = EcKeyPair.random(Secp256r1)
-  var length: int
-
-  var serializedSK = kp.seckey.getBytes()
-  var serializedPK = kp.pubkey.getBytes()
-  echo toHex(serializedPK)
-  echo toHex(serializedSK)
-
-  var kp2 = EcPrivateKey.init(serializedSK)
-  echo toHex(kp2.getBytes())
-
-  var pk2 = EcPublicKey.init(serializedPK)
-  echo repr pk2
-  echo toHex(pk2.getBytes())
+    else:
+      kv.update(addr hc.vtable, nil, 0)
+    kv.output(addr hc.vtable, addr hash[0])
+    let res = brEcdsaVerifyAsn1(impl, addr hash[0], len(hash),
+                                unsafeAddr pubkey.key,
+                                addr sig.buffer[0], len(sig.buffer))
+    # Clear context with initial value
+    kv.init(addr hc.vtable)
+    result = (res == 1)
