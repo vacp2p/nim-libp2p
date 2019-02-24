@@ -117,6 +117,12 @@ template isEnough*(ab: Asn1Buffer, length: int): bool =
 proc len*[T: Asn1Buffer|Asn1Composite](abc: T): int {.inline.} =
   len(abc.buffer) - abc.offset
 
+proc len*(field: Asn1Field): int {.inline.} =
+  result = field.length
+
+template getPtr*(field: untyped): pointer =
+  cast[pointer](unsafeAddr field.buffer[field.offset])
+
 proc extend*[T: Asn1Buffer|Asn1Composite](abc: var T, length: int) {.inline.} =
   ## Extend buffer or composite's internal buffer by ``length`` octets.
   abc.buffer.setLen(len(abc.buffer) + length)
@@ -521,6 +527,9 @@ proc read*(ab: var Asn1Buffer, field: var Asn1Field): Asn1Status =
         if not ab.isEnough(cast[int](length)):
           result = Asn1Status.Incomplete
           break
+        if ab.buffer[ab.offset] == 0x00'u8:
+          length -= 1
+          ab.offset += 1
         field = Asn1Field(kind: Asn1Tag.Integer, klass: klass,
                           index: ttag, offset: cast[int](ab.offset),
                           length: cast[int](length))

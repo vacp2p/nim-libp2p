@@ -9,7 +9,8 @@ skipDirs      = @["tests", "examples", "Nim"]
 
 requires "nim > 0.18.0",
          "nimcrypto",
-         "chronos"
+         "chronos",
+         "secp256k1"
 
 task test, "Runs the test suite":
   exec "nim c -r tests/testvarint"
@@ -20,4 +21,5 @@ task test, "Runs the test suite":
   exec "nim c -r tests/testmultibase"
   exec "nim c -r tests/testcid"
   exec "nim c -r tests/testecnist"
+  exec "nim c -r tests/testrsa"
   exec "nim c -r tests/testdaemon"

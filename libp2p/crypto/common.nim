@@ -120,6 +120,8 @@ when sizeof(int) == 8:
   {.compile: bearRsaPath & "rsa_default_modulus.c".}
   {.compile: bearRsaPath & "rsa_default_privexp.c".}
   {.compile: bearRsaPath & "rsa_default_pubexp.c".}
+  {.compile: bearRsaPath & "rsa_default_pkcs1_sign.c".}
+  {.compile: bearRsaPath & "rsa_default_pkcs1_vrfy.c".}
 
   ## Elliptic Curve sources
   {.compile: bearEcPath & "ec_all_m31.c".}
@@ -214,6 +216,8 @@ elif sizeof(int) == 4:
   {.compile: bearRsaPath & "rsa_default_modulus.c".}
   {.compile: bearRsaPath & "rsa_default_privexp.c".}
   {.compile: bearRsaPath & "rsa_default_pubexp.c".}
+  {.compile: bearRsaPath & "rsa_default_pkcs1_sign.c".}
+  {.compile: bearRsaPath & "rsa_default_pkcs1_vrfy.c".}
 
   ## Elliptic Curve sources
   {.compile: bearEcPath & "ec_all_m31.c".}
@@ -236,60 +240,7 @@ elif sizeof(int) == 4:
 else:
   error("Sorry, your target architecture is not supported!")
 
-## X509 sources
-{.compile: bearX509Path & "asn1enc.c".}
-{.compile: bearX509Path & "encode_rsa_pk8der.c".}
-{.compile: bearX509Path & "encode_rsa_rawder.c".}
-{.compile: bearX509Path & "skey_decoder.c".}
-
 const
-  X509_BUFSIZE_KEY* = 520
-  X509_BUFSIZE_SIG* = 512
-
-  ERR_X509_OK* = 32
-  ERR_X509_INVALID_VALUE* = 33
-  ERR_X509_TRUNCATED* = 34
-  ERR_X509_EMPTY_CHAIN* = 35
-  ERR_X509_INNER_TRUNC* = 36
-  ERR_X509_BAD_TAG_CLASS* = 37
-  ERR_X509_BAD_TAG_VALUE* = 38
-  ERR_X509_INDEFINITE_LENGTH* = 39
-  ERR_X509_EXTRA_ELEMENT* = 40
-  ERR_X509_UNEXPECTED* = 41
-  ERR_X509_NOT_CONSTRUCTED* = 42
-  ERR_X509_NOT_PRIMITIVE* = 43
-  ERR_X509_PARTIAL_BYTE* = 44
-  ERR_X509_BAD_BOOLEAN* = 45
-  ERR_X509_OVERFLOW* = 46
-  ERR_X509_BAD_DN* = 47
-  ERR_X509_BAD_TIME* = 48
-  ERR_X509_UNSUPPORTED* = 49
-  ERR_X509_LIMIT_EXCEEDED* = 50
-  ERR_X509_WRONG_KEY_TYPE* = 51
-  ERR_X509_BAD_SIGNATURE* = 52
-  ERR_X509_TIME_UNKNOWN* = 53
-  ERR_X509_EXPIRED* = 54
-  ERR_X509_DN_MISMATCH* = 55
-  ERR_X509_BAD_SERVER_NAME* = 56
-  ERR_X509_CRITICAL_EXTENSION* = 57
-  ERR_X509_NOT_CA* = 58
-  ERR_X509_FORBIDDEN_KEY_USAGE* = 59
-  ERR_X509_WEAK_PUBLIC_KEY* = 60
-  ERR_X509_NOT_TRUSTED* = 62
-
-  BR_PEM_LINE64* = 1
-  BR_PEM_CRLF* = 2
-
-  BR_X509_TA_CA* = 0x00000001
-  BR_KEYTYPE_RSA* = 1
-  BR_KEYTYPE_EC* = 2
-  BR_KEYTYPE_KEYX* = 0x00000010
-  BR_KEYTYPE_SIGN* = 0x00000020
-
-  BR_PEM_BEGIN_OBJ* = 1
-  BR_PEM_END_OBJ* = 2
-  BR_PEM_ERROR* = 3
-
   BR_EC_SECP256R1* = 23
   BR_EC_SECP384R1* = 24
   BR_EC_SECP521R1* = 25
@@ -298,43 +249,6 @@ const
   BR_EC_KBUF_PUB_MAX_SIZE* = 145
 
 type
-  MarshalKind* = enum
-    RAW, PKCS8
-
-  X509Status* {.pure.} = enum
-    OK = ERR_X509_OK,
-    INVALID_VALUE = ERR_X509_INVALID_VALUE,
-    TRUNCATED = ERR_X509_TRUNCATED,
-    EMPTY_CHAIN = ERR_X509_EMPTY_CHAIN,
-    INNER_TRUNC = ERR_X509_INNER_TRUNC,
-    BAD_TAG_CLASS = ERR_X509_BAD_TAG_CLASS,
-    BAD_TAG_VALUE = ERR_X509_BAD_TAG_VALUE,
-    INDEFINITE_LENGTH = ERR_X509_INDEFINITE_LENGTH,
-    EXTRA_ELEMENT = ERR_X509_EXTRA_ELEMENT,
-    UNEXPECTED = ERR_X509_UNEXPECTED,
-    NOT_CONSTRUCTED = ERR_X509_NOT_CONSTRUCTED,
-    NOT_PRIMITIVE = ERR_X509_NOT_PRIMITIVE,
-    PARTIAL_BYTE = ERR_X509_PARTIAL_BYTE,
-    BAD_BOOLEAN = ERR_X509_BAD_BOOLEAN,
-    OVERFLOW = ERR_X509_OVERFLOW,
-    BAD_DN = ERR_X509_BAD_DN,
-    BAD_TIME = ERR_X509_BAD_TIME,
-    UNSUPPORTED = ERR_X509_UNSUPPORTED,
-    LIMIT_EXCEEDED = ERR_X509_LIMIT_EXCEEDED,
-    WRONG_KEY_TYPE = ERR_X509_WRONG_KEY_TYPE,
-    BAD_SIGNATURE = ERR_X509_BAD_SIGNATURE,
-    TIME_UNKNOWN = ERR_X509_TIME_UNKNOWN,
-    EXPIRED = ERR_X509_EXPIRED,
-    DN_MISMATCH = ERR_X509_DN_MISMATCH,
-    BAD_SERVER_NAME = ERR_X509_BAD_SERVER_NAME,
-    CRITICAL_EXTENSION = ERR_X509_CRITICAL_EXTENSION,
-    NOT_CA = ERR_X509_NOT_CA,
-    FORBIDDEN_KEY_USAGE = ERR_X509_FORBIDDEN_KEY_USAGE,
-    WEAK_PUBLIC_KEY = ERR_X509_WEAK_PUBLIC_KEY,
-    NOT_TRUSTED = ERR_X509_NOT_TRUSTED,
-    INCORRECT_VALUE = 100
-    MISSING_KEY = 101
-
   BrHashClass* {.importc: "br_hash_class",
                  header: "bearssl_hash.h", bycopy.} = object
     contextSize* {.importc: "context_size".}: int
@@ -450,91 +364,6 @@ type
     x* {.importc: "x".}: ptr cuchar
     xlen* {.importc: "xlen".}: int
 
-  BrPublicKeyUnion* {.importc: "no_name", header: "bearssl_x509.h",
-                      bycopy.} = object {.union.}
-    rsa* {.importc: "rsa".}: BrRsaPublicKey
-    ec* {.importc: "ec".}: BrEcPublicKey
-
-  BrPrivateKeyUnion* {.importc: "no_name", header: "bearssl_x509.h",
-                       bycopy.} = object {.union.}
-    rsa* {.importc: "rsa".}: BrRsaPrivateKey
-    ec* {.importc: "ec".}: BrEcPrivateKey
-
-  X509Pkey* {.importc: "br_x509_pkey", header: "bearssl_x509.h",
-              bycopy.} = object
-    keyType* {.importc: "key_type".}: cuchar
-    key* {.importc: "key".}: BrPublicKeyUnion
-
-  BrX509CpuStruct* {.importc: "no_name", header: "bearssl_x509.h",
-                     bycopy.} = object
-    dp* {.importc: "dp".}: ptr uint32
-    rp* {.importc: "rp".}: ptr uint32
-    ip* {.importc: "ip".}: ptr cuchar
-
-  BrX509DecoderContext* {.importc: "br_x509_decoder_context",
-                          header: "bearssl_x509.h", bycopy.} = object
-    pkey* {.importc: "pkey".}: X509Pkey
-    cpu* {.importc: "cpu".}: BrX509CpuStruct
-    dpStack* {.importc: "dp_stack".}: array[32, uint32]
-    rpStack* {.importc: "rp_stack".}: array[32, uint32]
-    err* {.importc: "err".}: cint
-    pad* {.importc: "pad".}: array[256, cuchar]
-    decoded* {.importc: "decoded".}: bool
-    notbeforeDays* {.importc: "notbefore_days".}: uint32
-    notbeforeSeconds* {.importc: "notbefore_seconds".}: uint32
-    notafterDays* {.importc: "notafter_days".}: uint32
-    notafterSeconds* {.importc: "notafter_seconds".}: uint32
-    isCA* {.importc: "isCA".}: bool
-    copyDn* {.importc: "copy_dn".}: cuchar
-    appendDnCtx* {.importc: "append_dn_ctx".}: pointer
-    appendDn* {.importc: "append_dn".}: proc (ctx: pointer, buf: pointer,
-                                              length: int) {.cdecl.}
-    hbuf* {.importc: "hbuf".}: ptr cuchar
-    hlen* {.importc: "hlen".}: int
-    pkeyData* {.importc: "pkey_data".}: array[X509_BUFSIZE_KEY, cuchar]
-    signerKeyType* {.importc: "signer_key_type".}: cuchar
-    signerHashId* {.importc: "signer_hash_id".}: cuchar
-
-  BrSkeyDecoderContext* {.importc: "br_skey_decoder_context",
-                          header: "bearssl_x509.h", bycopy.} = object
-    pkey* {.importc: "key".}: BrPrivateKeyUnion
-    cpu* {.importc: "cpu".}: BrX509CpuStruct
-    dpStack* {.importc: "dp_stack".}: array[32, uint32]
-    rpStack* {.importc: "rp_stack".}: array[32, uint32]
-    err* {.importc: "err".}: cint
-    hbuf* {.importc: "hbuf".}: ptr cuchar
-    hlen* {.importc: "hlen".}: int
-    pad* {.importc: "pad".}: array[256, cuchar]
-    keyType* {.importc: "key_type".}: cuchar
-    keyData* {.importc: "key_data".}: array[3 * X509_BUFSIZE_SIG, cuchar]
-
-  BrPemCpuStruct* {.importc: "no_name", header: "bearssl_pem.h",
-                    bycopy.} = object
-    dp* {.importc: "dp".}: ptr uint32
-    rp* {.importc: "rp".}: ptr uint32
-    ip* {.importc: "ip".}: ptr cuchar
-
-  BrPemDecoderContext* {.importc: "br_pem_decoder_context",
-                         header: "bearssl_pem.h", bycopy.} = object
-    cpu* {.importc: "cpu".}: BrPemCpuStruct
-    dpStack* {.importc: "dp_stack".}: array[32, uint32]
-    rpStack* {.importc: "rp_stack".}: array[32, uint32]
-    err* {.importc: "err".}: cint
-    hbuf* {.importc: "hbuf".}: ptr cuchar
-    hlen* {.importc: "hlen".}: int
-    dest* {.importc: "dest".}: proc (destCtx: pointer; src: pointer,
-                                     length: int) {.cdecl.}
-    destCtx* {.importc: "dest_ctx".}: pointer
-    event* {.importc: "event".}: cuchar
-    name* {.importc: "name".}: array[128, char]
-    buf* {.importc: "buf".}: array[255, cuchar]
-    pptr* {.importc: "ptr".}: int
-
-  BrAsn1Uint* {.importc: "br_asn1_uint", header: "inner.h", bycopy.} = object
-    data* {.importc: "data".}: ptr cuchar
-    length* {.importc: "len".}: int
-    asn1len* {.importc: "asn1len".}: int
-
   BrEcImplementation* {.importc: "br_ec_impl", header: "bearssl_ec.h",
                         bycopy.} = object
     supportedCurves* {.importc: "supported_curves".}: uint32
@@ -572,21 +401,9 @@ type
                             hash_out: ptr cuchar): uint32 {.cdecl.}
   BrPemDecoderProc* = proc (destctx: pointer, src: pointer,
                             length: int) {.cdecl.}
-
-type
-  PemObject* = object
-    name*: string
-    data*: seq[byte]
-
-  PemList* = seq[PemObject]
-
-proc brRsaPkcs1SigPad*(hashoid: ptr cuchar, hash: ptr cuchar, hashlen: int,
-                       nbitlen: uint32, x: ptr cchar): uint32 {.cdecl,
-     importc: "br_rsa_pkcs1_sig_pad", header: "inner.h".}
-
-proc brRsaPkcs1SigUnpad*(sig: ptr cuchar, siglen: int, hashoid: ptr cuchar,
-                         hashlen: int, hashout: ptr cuchar): uint32 {.cdecl,
-     importc: "br_rsa_pkcs1_sig_unpad", header: "inner.h".}
+  BrRsaPkcs1Sign* = proc (hash_oid: ptr cuchar, hash: ptr cuchar, hash_len: int,
+                          pk: ptr BrRsaPrivateKey,
+                          x: ptr cuchar): uint32 {.cdecl.}
 
 proc brPrngSeederSystem*(name: cstringArray): BrPrngSeeder {.cdecl,
      importc: "br_prng_seeder_system", header: "bearssl_rand.h".}
@@ -597,6 +414,12 @@ proc brHmacDrbgInit*(ctx: ptr BrHmacDrbgContext, digestClass: ptr BrHashClass,
 
 proc brRsaKeygenGetDefault*(): BrRsaKeygen {.
      cdecl, importc: "br_rsa_keygen_get_default", header: "bearssl_rsa.h".}
+
+proc BrRsaPkcs1SignGetDefault*(): BrRsaPkcs1Sign {.
+     cdecl, importc: "br_rsa_pkcs1_sign_get_default", header: "bearssl_rsa.h".}
+
+proc BrRsaPkcs1VrfyGetDefault*(): BrRsaPkcs1Verify {.
+     cdecl, importc: "br_rsa_pkcs1_vrfy_get_default", header: "bearssl_rsa.h".}
 
 proc brRsaComputeModulusGetDefault*(): BrRsaComputeModulus {.
      cdecl, importc: "br_rsa_compute_modulus_get_default",
@@ -642,65 +465,6 @@ proc brEcdsaVerifyAsn1*(impl: ptr BrEcImplementation, hash: pointer,
                         siglen: int): uint32 {.
      cdecl, importc: "br_ecdsa_i31_vrfy_asn1", header: "bearssl_ec.h".}
 
-proc brAsn1UintPrepare*(xdata: pointer, xlen: int): BrAsn1Uint {.
-     cdecl, importc: "br_asn1_uint_prepare", header: "inner.h".}
-
-proc brAsn1EncodeLength*(dest: pointer, length: int): int {.
-     cdecl, importc: "br_asn1_encode_length", header: "inner.h".}
-
-proc brAsn1EncodeUint*(dest: pointer, pp: BrAsn1Uint): int {.
-     cdecl, importc: "br_asn1_encode_uint", header: "inner.h".}
-
-proc brEncodeRsaRawDer*(dest: ptr byte, sk: ptr BrRsaPrivateKey,
-                        pk: ptr BrRsaPublicKey, d: ptr byte,
-                        dlength: int): int {.
-     cdecl, importc: "br_encode_rsa_raw_der", header: "bearssl_x509.h".}
-
-proc brEncodeRsaPkcs8Der*(dest: ptr byte, sk: ptr BrRsaPrivateKey,
-                          pk: ptr BrRsaPublicKey, d: ptr byte,
-                          dlength: int): int {.
-     cdecl, importc: "br_encode_rsa_pkcs8_der", header: "bearssl_x509.h".}
-
-proc brPemEncode*(dest: ptr byte, data: ptr byte, length: int, banner: cstring,
-                  flags: cuint): int {.
-     cdecl, importc: "br_pem_encode", header: "bearssl_pem.h".}
-
-proc brPemDecoderInit*(ctx: ptr BrPemDecoderContext) {.
-     cdecl, importc: "br_pem_decoder_init", header: "bearssl_pem.h".}
-
-proc brPemDecoderPush*(ctx: ptr BrPemDecoderContext,
-                       data: pointer, length: int): int {.
-     cdecl, importc: "br_pem_decoder_push", header: "bearssl_pem.h".}
-
-proc brPemDecoderSetdest*(ctx: ptr BrPemDecoderContext, dest: BrPemDecoderProc,
-                          destctx: pointer) {.inline.} =
-  ctx.dest = dest
-  ctx.destCtx = destctx
-
-proc brPemDecoderEvent*(ctx: ptr BrPemDecoderContext): cint {.
-     cdecl, importc: "br_pem_decoder_event", header: "bearssl_pem.h".}
-
-proc brPemDecoderName*(ctx: ptr BrPemDecoderContext): cstring =
-  result = addr ctx.name[0]
-
-proc brSkeyDecoderInit*(ctx: ptr BrSkeyDecoderContext) {.cdecl,
-     importc: "br_skey_decoder_init", header: "bearssl_x509.h".}
-
-proc brSkeyDecoderPush*(ctx: ptr BrSkeyDecoderContext,
-                        data: pointer, length: int) {.cdecl,
-     importc: "br_skey_decoder_push", header: "bearssl_x509.h".}
-
-proc brSkeyDecoderLastError*(ctx: ptr BrSkeyDecoderContext): int {.inline.} =
-  if ctx.err != 0:
-    result = ctx.err
-  else:
-    if ctx.keyType == '\0':
-      result = ERR_X509_TRUNCATED
-
-proc brSkeyDecoderKeyType*(ctx: ptr BrSkeyDecoderContext): int {.inline.} =
-  if ctx.err == 0:
-    result = cast[int](ctx.keyType)
-
 var sha256Vtable* {.importc: "br_sha256_vtable",
                     header: "bearssl_hash.h".}: BrHashClass
 var sha384Vtable* {.importc: "br_sha384_vtable",
@@ -715,56 +479,3 @@ template brRsaPrivateKeyBufferSize*(size: int): int =
 template brRsaPublicKeyBufferSize*(size: int): int =
   # BR_RSA_KBUF_PUB_SIZE(size)
   (4 + ((size + 7) shr 3))
-
-proc blobAppend(pseq: pointer, data: pointer, length: int) {.cdecl.} =
-  var cseq = cast[ptr seq[byte]](pseq)
-  let offset = len(cseq[])
-  cseq[].setLen(offset + length)
-  copyMem(addr cseq[][offset], data, length)
-
-proc unmarshalPem*(data: string): PemList =
-  ## Decode PEM encoded string.
-  var ctx: BrPemDecoderContext
-  result = newSeq[PemObject]()
-  if len(data) > 0:
-    var nlstring = "\n"
-    var extranl = true
-
-    brPemDecoderInit(addr ctx)
-    var pbuf = cast[pointer](unsafeAddr data[0])
-    var plen = len(data)
-    var item = newSeq[byte]()
-
-    GC_ref(item)
-    var inobj: bool
-    while plen > 0:
-      var tlen = brPemDecoderPush(addr ctx, pbuf, plen)
-      pbuf = cast[pointer](cast[uint](pbuf) + cast[uint](tlen))
-      plen = plen - tlen
-      let event = brPemDecoderEvent(addr ctx)
-      if event == BR_PEM_BEGIN_OBJ:
-        item.setLen(0)
-        brPemDecoderSetdest(addr ctx, blobAppend, cast[pointer](addr item))
-        inobj = true
-      elif event == BR_PEM_END_OBJ:
-        if inobj:
-          result.add(PemObject(name: $brPemDecoderName(addr ctx), data: item))
-          inobj = false
-        else:
-          break
-      elif event == BR_PEM_ERROR:
-        result.setLen(0)
-        break
-      if plen == 0 and extranl:
-        # We add an extra newline at the end, in order to
-        # support PEM files that lack the newline on their last
-        # line (this is somwehat invalid, but PEM format is not
-        # standardised and such files do exist in the wild, so
-        # we'd better accept them).
-        extranl = false
-        pbuf = cast[pointer](addr nlstring[0])
-        plen = 1
-    if inobj:
-      # PEM object was not properly finished
-      result.setLen(0)
-    GC_unref(item)

@@ -162,7 +162,6 @@ proc copy*[T: EcPKI](dst: var T, src: T): bool =
     let length = len(src.buffer)
     if length > 0:
       dst.buffer = src.buffer
-      dst.curve = src.curve
       result = true
 
 proc copy*[T: EcPKI](src: T): T {.inline.} =
@@ -187,7 +186,6 @@ proc clear*[T: EcPKI|EcKeyPair](pki: var T) =
   elif T is EcSignature:
     burnMem(pki.buffer)
     pki.buffer.setLen(0)
-    pki.curve = 0
   else:
     burnMem(pki.seckey.buffer)
     burnMem(pki.pubkey.buffer)
