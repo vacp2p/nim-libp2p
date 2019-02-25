@@ -422,7 +422,8 @@ suite "RSA 512/1024/2048/4096 test suite":
       var pubkey = RsaPublicKey.init(serpk)
       var csig = RsaSignature.init(sersig)
       check csig.verify(message, pubkey) == true
-      csig.buffer[len(csig.buffer) - 1] = 0x80'u8
+      let error = len(csig.buffer) - 1
+      csig.buffer[error] = not(csig.buffer[error])
       check csig.verify(message, pubkey) == false
 
   test "[rsa1024] Generate/Sign/Serialize/Deserialize/Verify test":
@@ -437,7 +438,8 @@ suite "RSA 512/1024/2048/4096 test suite":
       var pubkey = RsaPublicKey.init(serpk)
       var csig = RsaSignature.init(sersig)
       check csig.verify(message, pubkey) == true
-      csig.buffer[len(csig.buffer) - 1] = 0x80'u8
+      let error = len(csig.buffer) - 1
+      csig.buffer[error] = not(csig.buffer[error])
       check csig.verify(message, pubkey) == false
 
   test "[rsa2048] Generate/Sign/Serialize/Deserialize/Verify test":
@@ -451,7 +453,8 @@ suite "RSA 512/1024/2048/4096 test suite":
     var pubkey = RsaPublicKey.init(serpk)
     var csig = RsaSignature.init(sersig)
     check csig.verify(message, pubkey) == true
-    csig.buffer[len(csig.buffer) - 1] = 0x80'u8
+    let error = len(csig.buffer) - 1
+    csig.buffer[error] = not(csig.buffer[error])
     check csig.verify(message, pubkey) == false
 
   test "[rsa4096] Generate/Sign/Serialize/Deserialize/Verify test":
@@ -466,7 +469,8 @@ suite "RSA 512/1024/2048/4096 test suite":
       var pubkey = RsaPublicKey.init(serpk)
       var csig = RsaSignature.init(sersig)
       check csig.verify(message, pubkey) == true
-      csig.buffer[len(csig.buffer) - 1] = 0x80'u8
+      let error = len(csig.buffer) - 1
+      csig.buffer[error] = not(csig.buffer[error])
       check csig.verify(message, pubkey) == false
 
   test "[rsa512] Test vectors":

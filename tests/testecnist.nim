@@ -290,7 +290,8 @@ suite "EC NIST-P256/384/521 test suite":
       check:
         checksig == expectsig
         checksig.verify(SignatureMessages[i], checkpk) == true
-      checksig.buffer[len(checksig.buffer) - 1] = 0x80'u8
+      let error = len(checksig.buffer) - 1
+      checksig.buffer[error] = not(checksig.buffer[error])
       check checksig.verify(SignatureMessages[i], checkpk) == false
 
   test "[secp256r1] ECDSA non-deterministic test vectors":
@@ -302,7 +303,8 @@ suite "EC NIST-P256/384/521 test suite":
       var message = NDMessages[i]
       var checksig = EcSignature.init(stripSpaces(NDSignatures[i]))
       check checksig.verify(message, pk) == true
-      checksig.buffer[len(checksig.buffer) - 1] = 0x80'u8
+      let error = len(checksig.buffer) - 1
+      checksig.buffer[error] = not(checksig.buffer[error])
       check checksig.verify(message, pk) == false
 
   test "[secp256r1] Generate/Sign/Serialize/Deserialize/Verify test":
@@ -317,7 +319,8 @@ suite "EC NIST-P256/384/521 test suite":
       var pubkey = EcPublicKey.init(serpk)
       var csig = EcSignature.init(sersig)
       check csig.verify(message, pubkey) == true
-      csig.buffer[len(csig.buffer) - 1] = 0x80'u8
+      let error = len(csig.buffer) - 1
+      csig.buffer[error] = not(csig.buffer[error])
       check csig.verify(message, pubkey) == false
 
   test "[secp384r1] Private key serialize/deserialize test":
@@ -379,7 +382,8 @@ suite "EC NIST-P256/384/521 test suite":
       check:
         checksig == expectsig
         checksig.verify(SignatureMessages[i], checkpk) == true
-      checksig.buffer[len(checksig.buffer) - 1] = 0x80'u8
+      let error = len(checksig.buffer) - 1
+      checksig.buffer[error] = not(checksig.buffer[error])
       check checksig.verify(SignatureMessages[i], checkpk) == false
 
   test "[secp384r1] ECDSA non-deterministic test vectors":
@@ -391,7 +395,8 @@ suite "EC NIST-P256/384/521 test suite":
       var message = NDMessages[i]
       var checksig = EcSignature.init(stripSpaces(NDSignatures[i]))
       check checksig.verify(message, pk) == true
-      checksig.buffer[len(checksig.buffer) - 1] = 0x80'u8
+      let error = len(checksig.buffer) - 1
+      checksig.buffer[error] = not(checksig.buffer[error])
       check checksig.verify(message, pk) == false
 
   test "[secp384r1] Generate/Sign/Serialize/Deserialize/Verify test":
@@ -406,7 +411,8 @@ suite "EC NIST-P256/384/521 test suite":
       var pubkey = EcPublicKey.init(serpk)
       var csig = EcSignature.init(sersig)
       check csig.verify(message, pubkey) == true
-      csig.buffer[len(csig.buffer) - 1] = 0x80'u8
+      let error = len(csig.buffer) - 1
+      csig.buffer[error] = not(csig.buffer[error])
       check csig.verify(message, pubkey) == false
 
   test "[secp521r1] Private key serialize/deserialize test":
@@ -468,7 +474,8 @@ suite "EC NIST-P256/384/521 test suite":
       check:
         checksig == expectsig
         checksig.verify(SignatureMessages[i], checkpk) == true
-      checksig.buffer[len(checksig.buffer) - 1] = 0x80'u8
+      let error = len(checksig.buffer) - 1
+      checksig.buffer[error] = not(checksig.buffer[error])
       check checksig.verify(SignatureMessages[i], checkpk) == false
 
   test "[secp521r1] ECDSA non-deterministic test vectors":
@@ -480,7 +487,8 @@ suite "EC NIST-P256/384/521 test suite":
       var message = NDMessages[i]
       var checksig = EcSignature.init(stripSpaces(NDSignatures[i]))
       check checksig.verify(message, pk) == true
-      checksig.buffer[len(checksig.buffer) - 1] = 0x80'u8
+      let error = len(checksig.buffer) - 1
+      checksig.buffer[error] = not(checksig.buffer[error])
       check checksig.verify(message, pk) == false
 
   test "[secp521r1] Generate/Sign/Serialize/Deserialize/Verify test":
@@ -495,5 +503,6 @@ suite "EC NIST-P256/384/521 test suite":
       var pubkey = EcPublicKey.init(serpk)
       var csig = EcSignature.init(sersig)
       check csig.verify(message, pubkey) == true
-      csig.buffer[len(csig.buffer) - 1] = 0x80'u8
+      let error = len(csig.buffer) - 1
+      csig.buffer[error] = not(csig.buffer[error])
       check csig.verify(message, pubkey) == false
