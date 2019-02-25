@@ -134,7 +134,7 @@ template getPublicKeyLength*(curve: EcCurveKind): int =
     PubKey521Length
 
 proc copy*[T: EcPKI](dst: var T, src: T): bool =
-  ## Copy EC private key, public key or scalar ``src`` to ``dst``.
+  ## Copy EC `private key`, `public key` or `signature` ``src`` to ``dst``.
   ##
   ## Returns ``true`` on success, ``false`` otherwise.
   dst = new T
@@ -165,12 +165,13 @@ proc copy*[T: EcPKI](dst: var T, src: T): bool =
       result = true
 
 proc copy*[T: EcPKI](src: T): T {.inline.} =
-  ## Returns copy of EC private key, public key or scalar ``src``.
+  ## Returns copy of EC `private key`, `public key` or `signature`
+  ## object ``src``.
   if not copy(result, src):
     raise newException(EcKeyIncorrectError, "Incorrect key or signature")
 
 proc clear*[T: EcPKI|EcKeyPair](pki: var T) =
-  ## Wipe and clear EC private key, public key or scalar object.
+  ## Wipe and clear EC `private key`, `public key` or `signature` object.
   when T is EcPrivateKey:
     burnMem(pki.buffer)
     pki.buffer.setLen(0)
@@ -410,7 +411,7 @@ proc `==`*(sig1, sig2: EcSignature): bool =
   result = (sig1.buffer == sig2.buffer)
 
 proc init*(key: var EcPrivateKey, data: openarray[byte]): Asn1Status =
-  ## Initialize EC `private key` or `scalar` ``key`` from ASN.1 DER binary
+  ## Initialize EC `private key` or `signature` ``key`` from ASN.1 DER binary
   ## representation ``data``.
   ##
   ## Procedure returns ``Asn1Status``.
@@ -542,7 +543,7 @@ proc init*(sig: var EcSignature, data: openarray[byte]): Asn1Status =
     result = Asn1Status.Success
 
 proc init*[T: EcPKI](sospk: var T, data: string): Asn1Status {.inline.} =
-  ## Initialize EC `private key`, `public key` or `scalar` ``sospk`` from
+  ## Initialize EC `private key`, `public key` or `signature` ``sospk`` from
   ## hexadecimal string representation ``data``.
   ##
   ## Procedure returns ``Asn1Status``.
@@ -573,7 +574,7 @@ proc init*(t: typedesc[EcSignature], data: openarray[byte]): EcSignature =
                        "Incorrect signature (" & $res & ")")
 
 proc init*[T: EcPKI](t: typedesc[T], data: string): T {.inline.} =
-  ## Initialize EC `private key`, `public key` or `scalar` from hexadecimal
+  ## Initialize EC `private key`, `public key` or `signature` from hexadecimal
   ## string representation ``data`` and return constructed object.
   result = t.init(fromHex(data))
 
@@ -600,7 +601,7 @@ proc scalarMul*(pub: EcPublicKey, sec: EcPrivateKey): EcPublicKey =
 
 proc sign*[T: byte|char](seckey: EcPrivateKey,
                          message: openarray[T]): EcSignature =
-  ## Get ECDSA signature of data ``message`` using private key ``seckey`` and.
+  ## Get ECDSA signature of data ``message`` using private key ``seckey``.
   var hc: BrHashCompatContext
   var hash: array[32, byte]
   var impl = brEcGetDefault()
