@@ -14,7 +14,7 @@ import constants
 import nimcrypto/[hash, sha2, sysrand, utils]
 
 # This workaround needed because of some bugs in Nim Static[T].
-export hash, sha2
+export sha2
 
 proc `-`(x: uint32): uint32 {.inline.} =
   result = (0xFFFF_FFFF'u32 - x) + 1'u32
@@ -1900,6 +1900,3 @@ proc verify*[T: byte|char](sig: EdSignature, message: openarray[T],
   geToBytes(rcheck, r)
 
   result = (verify32(sig.data.toOpenArray(0, 31), rcheck) == 0)
-
-when isMainModule:
-  echo toHex(CurveOrder)
