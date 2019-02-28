@@ -203,9 +203,10 @@ proc getVarintValue*(data: var ProtoBuffer, field: int,
           let res = getSVarint(data.toOpenArray(), length, value)
         else:
           let res = PB.getUVarint(data.toOpenArray(), length, value)
-        data.offset += length
-        result = length
-        return
+        if res == VarintStatus.Success:
+          data.offset += length
+          result = length
+          return
   # Restore offset on error
   data.offset = soffset
 
