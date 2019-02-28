@@ -7,7 +7,12 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-## This module implements RSA PKCS#1.5 DSA.
+## This module implements constant-time RSA PKCS#1.5 DSA.
+##
+## This module uses unmodified parts of code from
+## BearSSL library <https://bearssl.org/>
+## Copyright(C) 2018 Thomas Pornin <pornin@bolet.org>.
+
 import nimcrypto/utils
 import common, minasn1
 export Asn1Status

@@ -50,9 +50,10 @@ proc provideCidTest(): Future[bool] {.async.} =
   var id2 = await api2.identity()
 
   await api1.connect(id2.peer, id2.addresses)
+
   while true:
     var peers = await api1.listPeers()
-    if len(peers) != 0:
+    if len(peers) > 0:
       break
 
   await api1.dhtProvide(cid)

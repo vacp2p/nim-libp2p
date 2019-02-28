@@ -7,8 +7,13 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-## This module implements ECDSA and ECDHE for NIST elliptic curves
-## secp256r1, secp384r1 and secp521r1.
+## This module implements constant-time ECDSA and ECDHE for NIST elliptic
+## curves secp256r1, secp384r1 and secp521r1.
+##
+## This module uses unmodified parts of code from
+## BearSSL library <https://bearssl.org/>
+## Copyright(C) 2018 Thomas Pornin <pornin@bolet.org>.
+
 import common
 import nimcrypto/utils
 import minasn1
@@ -95,7 +100,7 @@ proc checkScalar(scalar: openarray[byte], curve: cint): uint32 =
     z = z or u
   if len(scalar) == orderlen:
     for i in 0..<len(scalar):
-      c = c or -(cast[int32](EQ0(c)) and CMP(scalar[i], order[i]))
+      c = c or (-(cast[int32](EQ0(c))) and CMP(scalar[i], order[i]))
   else:
     c = -1
   result = NEQ(z, 0'u32) and LT0(c)
