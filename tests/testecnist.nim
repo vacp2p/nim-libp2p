@@ -229,6 +229,68 @@ const
        C05CB9C3A2DA"""
   ]
 
+  # ECDHE test vectors was made using Go's elliptic/curve
+
+  ECDHEPrivateKeys = [
+    "978edaa0671f5a37ec5372b62689e9328af71b6fb4ac3be24d195ca082b0f2fa",
+    "a849c80cb4f507ab24569473c2b94a84608088e7cb448816ba60d91ade3c8470",
+    "a23bf3eb7c515aab57974845d6b8c05c108bc7c5c68b2aa18bc9a05c4668993e",
+    "1b35c3c3efea9ad4e78f47063cf17bc14ddb89bd9a8980b744a19b92076ae88d",
+    "24c97a005fc6ce93c96f072d37bf8aeab0b97f2135845655c16df24e09cceafa",
+    "fa52527eb5cd88d751807d05332164a66c9ae5bc4a4c37e7f21f1f64daad19d9",
+    """fab46775d806e9135f5db2ee65bc32b530b2db7a3a85f25d69ffe4f39a7f3c01
+       98d863ae1ed71ed3e5b9bbf882020c25""",
+    """8494fb7f48c31617414fb444d3e0f28225a4ee04aee8e518cb6fece1c5603141
+       525bc96ef570a8361ed1abe74b467daa""",
+    """760a6543f29654b9b4e7a67a328d6f61895f29df53c031dd457342ba103fe452
+       776791b52a4fd156e5cd0ec005a59ad0""",
+    """15c44a82d4ab43cef6d8a33c01d41bfeaab21ee1aba6ecb7eff8db31c681337b
+       3b11e785df0c7cf2f838be395591810b""",
+    """16a646076ec966b59655343875980adb7aa25dbf8480b1fad73c0a4699f9262c
+       bab67a8768754064afd68e1a12e405e6""",
+    """bfe6d3a1e67f2e75d6204aff913b62163d6bc1ca2a281c0c6a95fbc989adddf8
+       836ada035aa400ba8b47480bcc7b95c3""",
+    """01920b49ce0ecf2a672ca2843d300140dde242af772ec89e4ad57dadf1610bb0
+       912f613a3e29193a04691a5b4e8ae6130d8b610642c88f99cdd2b5b9e9269c26
+       1fa5""",
+    """015a7286a1ecc521e49ffed6b9740b2e7ebdb3762cb6be5f4c173c26686105c5
+       73a06d59814c89b67c642e2fc85de46e4242565e64ec82d8ada5ac3e1ab1be4e
+       091f""",
+    """011a8d01ac83d3f7b1ac8ef06afb75ec7c1b176cf01405686cb2ead34f8bc278
+       0972d2e348d49bdc0cb3fbf6414f7815aa4ea83eeed71a6a2fde7070bc074735
+       86c3""",
+    """014c09dcf8cc8d7fe59c5b2d9edf5c6a0a42700f540f1670e46be35e7edc8ed4
+       01d32513cc9167a386623abd458cef9bd9facd0aa9b1d671b02c19bd71938b00
+       d957""",
+    """0172a4ee2f85ba7ea47e0fee1410344211df58415fbac933c793d138d75c4dd1
+       664cfaf58e13c040f11191438dbf7394e36d7c3b2025d31af19fc6485b979a77
+       2f39""",
+    """011b3b6ac868ae156c66b140d92092167193e88f04909be61b3592c7006296e3
+       cc1dab37955fea9e5ab24047c2ef717e402a88bd616ef27c68cf6976e68b6c69
+       b326"""
+  ]
+
+  ECDHESecrets = [
+    "0e6c0eb060c5e33b7125ab72fa70b21b472b64e137ac11238da14838dfb1603c",
+    "1b42c4831dca82787ff4f411b3774165e788ead225bd34291d6582f714849984",
+    "568ff01d85d325e31ee0eafb1be4ce7695aa996c5d8d8a804052f819b4c6baae",
+    """595e63e5b14747b2c87f7042122327fbf9409ccecad2d794f706e84150ea8d0d
+       67d0b2cdf3a7b2491db83188f64bc5c2""",
+    """ad60579d3d6ab4d512d3e493d8d432fd0c5f91de61cf9375141c7521db792273
+       88482177eb2c96e789830ff51ffe1955""",
+    """6a04cfb7cb3514b8326bac52ff09d24e320d2662b9a7964a58c1fe32c25167e5
+       d96dc59193b0d9a7463652a3e7096daf""",
+    """0037b9b156c934a594ce991ec904c28b257de50930076b9702186c0f0c4affae
+       02d3c5ff1c896339dbcb9f9d11a86a4c27d705a22e4a5297cb389cbb1bf55e47
+       c07c""",
+    """00f7916c1119c46d4c499f5c73cae3279466b104f87ef4c5092f38148b2dad84
+       c18ecf7ce439ec59799c086557453484b454722d23135291d9d4ffe6e1719f16
+       3d25""",
+    """018c54bd7cb4aab23b07760c48e563a1828ff521442e5388eb62f916c33a8db2
+       ec8bc6a5c8c41b3ebb09f0cf66bbae602d355161c97597b088060bb8456a4458
+       35ab"""
+  ]
+
 suite "EC NIST-P256/384/521 test suite":
 
   test "[secp256r1] Private key serialize/deserialize test":
@@ -278,6 +340,21 @@ suite "EC NIST-P256/384/521 test suite":
         isNil(shared1) == false
         isNil(shared2) == false
         shared1 == shared2
+
+  test "[secp256r1] ECDHE test vectors":
+    for i in 0..<3:
+      var key1 = fromHex(stripSpaces(ECDHEPrivateKeys[i * 2]))
+      var key2 = fromHex(stripSpaces(ECDHEPrivateKeys[i * 2 + 1]))
+      var seckey1 = EcPrivateKey.initRaw(key1)
+      var seckey2 = EcPrivateKey.initRaw(key2)
+      var pubkey1 = seckey1.getKey()
+      var pubkey2 = seckey2.getKey()
+      var secret1 = getSecret(pubkey2, seckey1)
+      var secret2 = getSecret(pubkey1, seckey2)
+      var expsecret = fromHex(stripSpaces(ECDHESecrets[i]))
+      check:
+        secret1 == expsecret
+        secret2 == expsecret
 
   test "[secp256r1] ECDSA test vectors":
     for i in 0..<2:
@@ -371,6 +448,21 @@ suite "EC NIST-P256/384/521 test suite":
         isNil(shared2) == false
         shared1 == shared2
 
+  test "[secp384r1] ECDHE test vectors":
+    for i in 3..<6:
+      var key1 = fromHex(stripSpaces(ECDHEPrivateKeys[i * 2]))
+      var key2 = fromHex(stripSpaces(ECDHEPrivateKeys[i * 2 + 1]))
+      var seckey1 = EcPrivateKey.initRaw(key1)
+      var seckey2 = EcPrivateKey.initRaw(key2)
+      var pubkey1 = seckey1.getKey()
+      var pubkey2 = seckey2.getKey()
+      var secret1 = getSecret(pubkey2, seckey1)
+      var secret2 = getSecret(pubkey1, seckey2)
+      var expsecret = fromHex(stripSpaces(ECDHESecrets[i]))
+      check:
+        secret1 == expsecret
+        secret2 == expsecret
+
   test "[secp384r1] ECDSA test vectors":
     for i in 2..<4:
       var sk = EcPrivateKey.init(stripSpaces(SignatureSecKeys[i]))
@@ -462,6 +554,21 @@ suite "EC NIST-P256/384/521 test suite":
         isNil(shared1) == false
         isNil(shared2) == false
         shared1 == shared2
+
+  test "[secp384r1] ECDHE test vectors":
+    for i in 6..<9:
+      var key1 = fromHex(stripSpaces(ECDHEPrivateKeys[i * 2]))
+      var key2 = fromHex(stripSpaces(ECDHEPrivateKeys[i * 2 + 1]))
+      var seckey1 = EcPrivateKey.initRaw(key1)
+      var seckey2 = EcPrivateKey.initRaw(key2)
+      var pubkey1 = seckey1.getKey()
+      var pubkey2 = seckey2.getKey()
+      var secret1 = getSecret(pubkey2, seckey1)
+      var secret2 = getSecret(pubkey1, seckey2)
+      var expsecret = fromHex(stripSpaces(ECDHESecrets[i]))
+      check:
+        secret1 == expsecret
+        secret2 == expsecret
 
   test "[secp521r1] ECDSA test vectors":
     for i in 4..<6:

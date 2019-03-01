@@ -549,7 +549,7 @@ proc init*(sig: var EcSignature, data: openarray[byte]): Asn1Status =
 
 proc init*[T: EcPKI](sospk: var T, data: string): Asn1Status {.inline.} =
   ## Initialize EC `private key`, `public key` or `signature` ``sospk`` from
-  ## hexadecimal string representation ``data``.
+  ## ASN.1 DER hexadecimal string representation ``data``.
   ##
   ## Procedure returns ``Asn1Status``.
   result = sospk.init(fromHex(data))
@@ -583,6 +583,114 @@ proc init*[T: EcPKI](t: typedesc[T], data: string): T {.inline.} =
   ## string representation ``data`` and return constructed object.
   result = t.init(fromHex(data))
 
+proc initRaw*(key: var EcPrivateKey, data: openarray[byte]): bool =
+  ## Initialize EC `private key` or `scalar` ``key`` from raw binary
+  ## representation ``data``.
+  ##
+  ## Length of ``data`` array must be ``SecKey256Length``, ``SecKey384Length``
+  ## or ``SecKey521Length``.
+  ##
+  ## Procedure returns ``true`` on success, ``false`` otherwise.
+  var curve: cint
+  if len(data) == SecKey256Length:
+    curve = cast[cint](Secp256r1)
+    result = true
+  elif len(data) == SecKey384Length:
+    curve = cast[cint](Secp384r1)
+    result = true
+  elif len(data) == SecKey521Length:
+    curve = cast[cint](Secp521r1)
+    result = true
+  if result:
+    result = false
+    if checkScalar(data, curve) == 1'u32:
+      let length = len(data)
+      key = new EcPrivateKey
+      key.buffer = newSeq[byte](length)
+      copyMem(addr key.buffer[0], unsafeAddr data[0], length)
+      key.key.x = cast[ptr cuchar](addr key.buffer[0])
+      key.key.xlen = length
+      key.key.curve = curve
+      result = true
+
+proc initRaw*(pubkey: var EcPublicKey, data: openarray[byte]): bool =
+  ## Initialize EC public key ``pubkey`` from raw binary representation
+  ## ``data``.
+  ##
+  ## Length of ``data`` array must be ``PubKey256Length``, ``PubKey384Length``
+  ## or ``PubKey521Length``.
+  ##
+  ## Procedure returns ``true`` on success, ``false`` otherwise.
+  var curve: cint
+  if len(data) > 0:
+    if data[0] == 0x04'u8:
+      if len(data) == PubKey256Length:
+        curve = cast[cint](Secp256r1)
+        result = true
+      elif len(data) == PubKey384Length:
+        curve = cast[cint](Secp384r1)
+        result = true
+      elif len(data) == PubKey521Length:
+        curve = cast[cint](Secp521r1)
+        result = true
+  if result:
+    result = false
+    if checkPublic(data, curve) != 0:
+      let length = len(data)
+      pubkey = new EcPublicKey
+      pubkey.buffer = newSeq[byte](length)
+      copyMem(addr pubkey.buffer[0], unsafeAddr data[0], length)
+      pubkey.key.q = cast[ptr cuchar](addr pubkey.buffer[0])
+      pubkey.key.qlen = length
+      pubkey.key.curve = curve
+      result = true
+
+proc initRaw*(sig: var EcSignature, data: openarray[byte]): bool =
+  ## Initialize EC signature ``sig`` from raw binary representation ``data``.
+  ##
+  ## Length of ``data`` array must be ``Sig256Length``, ``Sig384Length``
+  ## or ``Sig521Length``.
+  ##
+  ## Procedure returns ``true`` on success, ``false`` otherwise.
+  var curve: cint
+  let length = len(data)
+  if (length == Sig256Length) or (length == Sig384Length) or
+     (length == Sig521Length):
+    result = true
+  if result:
+    sig = new EcSignature
+    sig.buffer = @data
+
+proc initRaw*[T: EcPKI](sospk: var T, data: string): bool {.inline.} =
+  ## Initialize EC `private key`, `public key` or `signature` ``sospk`` from
+  ## raw hexadecimal string representation ``data``.
+  ##
+  ## Procedure returns ``true`` on success, ``false`` otherwise.
+  result = sospk.initRaw(fromHex(data))
+
+proc initRaw*(t: typedesc[EcPrivateKey], data: openarray[byte]): EcPrivateKey =
+  ## Initialize EC private key from raw binary representation ``data`` and
+  ## return constructed object.
+  if not result.initRaw(data):
+    raise newException(EcKeyIncorrectError, "Incorrect private key")
+
+proc initRaw*(t: typedesc[EcPublicKey], data: openarray[byte]): EcPublicKey =
+  ## Initialize EC public key from raw binary representation ``data`` and
+  ## return constructed object.
+  if not result.initRaw(data):
+    raise newException(EcKeyIncorrectError, "Incorrect public key")
+
+proc initRaw*(t: typedesc[EcSignature], data: openarray[byte]): EcSignature =
+  ## Initialize EC signature from raw binary representation ``data`` and
+  ## return constructed object.
+  if not result.initRaw(data):
+    raise newException(EcKeyIncorrectError, "Incorrect signature")
+
+proc initRaw*[T: EcPKI](t: typedesc[T], data: string): T {.inline.} =
+  ## Initialize EC `private key`, `public key` or `signature` from raw
+  ## hexadecimal string representation ``data`` and return constructed object.
+  result = t.initRaw(fromHex(data))
+
 proc scalarMul*(pub: EcPublicKey, sec: EcPrivateKey): EcPublicKey =
   ## Return scalar multiplication of ``pub`` and ``sec``.
   ##
@@ -603,6 +711,42 @@ proc scalarMul*(pub: EcPublicKey, sec: EcPrivateKey): EcPublicKey =
                              key.key.curve)
           if res != 0:
             result = key
+
+proc toSecret*(pubkey: EcPublicKey, seckey: EcPrivateKey,
+               data: var openarray[byte]): int =
+  ## Calculate ECDHE shared secret using Go's elliptic/curve approach, using
+  ## remote public key ``pubkey`` and local private key ``seckey`` and store
+  ## shared secret to ``data``.
+  ##
+  ## Returns number of bytes (octets) needed to store shared secret, or ``0``
+  ## on error.
+  ##
+  ## ``data`` array length must be at least 32 bytes for `secp256r1`, 48 bytes
+  ## for `secp384r1` and 66 bytes for `secp521r1`.
+  var mult = scalarMul(pubkey, seckey)
+  var length = 0
+  if not isNil(mult):
+    if seckey.key.curve == BR_EC_SECP256R1:
+      result = 32
+    elif seckey.key.curve == BR_EC_SECP384R1:
+      result = 48
+    elif seckey.key.curve == BR_EC_SECP521R1:
+      result = 66
+    if len(data) >= result:
+      var qplus1 = cast[pointer](cast[uint](mult.key.q) + 1'u)
+      copyMem(addr data[0], qplus1, result)
+
+proc getSecret*(pubkey: EcPublicKey, seckey: EcPrivateKey): seq[byte] =
+  ## Calculate ECDHE shared secret using Go's elliptic curve approach, using
+  ## remote public key ``pubkey`` and local private key ``seckey`` and return
+  ## shared secret.
+  ##
+  ## If error happens length of result array will be ``0``.
+  var data: array[66, byte]
+  let res = toSecret(pubkey, seckey, data)
+  if res > 0:
+    result = newSeq[byte](res)
+    copyMem(addr result[0], addr data[0], res)
 
 proc sign*[T: byte|char](seckey: EcPrivateKey,
                          message: openarray[T]): EcSignature =
