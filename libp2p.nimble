@@ -8,7 +8,7 @@ license       = "MIT"
 skipDirs      = @["tests", "examples", "Nim"]
 
 requires "nim > 0.18.0",
-         "nimcrypto",
+         "nimcrypto >= 0.3.9",
          "chronos"
 
 task test, "Runs the test suite":
