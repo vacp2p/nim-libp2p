@@ -29,6 +29,9 @@ const
   Sig256Length* = 64
   Sig384Length* = 96
   Sig521Length* = 132
+  Secret256Length* = SecKey256Length
+  Secret384Length* = SecKey384Length
+  Secret521Length* = SecKey521Length
 
 type
   EcPrivateKey* = ref object
@@ -727,11 +730,11 @@ proc toSecret*(pubkey: EcPublicKey, seckey: EcPrivateKey,
   var length = 0
   if not isNil(mult):
     if seckey.key.curve == BR_EC_SECP256R1:
-      result = 32
+      result = Secret256Length
     elif seckey.key.curve == BR_EC_SECP384R1:
-      result = 48
+      result = Secret384Length
     elif seckey.key.curve == BR_EC_SECP521R1:
-      result = 66
+      result = Secret521Length
     if len(data) >= result:
       var qplus1 = cast[pointer](cast[uint](mult.key.q) + 1'u)
       copyMem(addr data[0], qplus1, result)
@@ -742,7 +745,7 @@ proc getSecret*(pubkey: EcPublicKey, seckey: EcPrivateKey): seq[byte] =
   ## shared secret.
   ##
   ## If error happens length of result array will be ``0``.
-  var data: array[66, byte]
+  var data: array[Secret521Length, byte]
   let res = toSecret(pubkey, seckey, data)
   if res > 0:
     result = newSeq[byte](res)
