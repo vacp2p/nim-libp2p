@@ -1,6 +1,5 @@
 import chronos, nimcrypto, strutils
 import ../libp2p/daemon/daemonapi
-import ../libp2p/[base58, multicodec, multiaddress, peer]
 import hexdump
 
 const
@@ -11,6 +10,18 @@ proc dumpSubscribedPeers(api: DaemonAPI) {.async.} =
   echo "= List of connected and subscribed peers:"
   for item in peers:
     echo item.pretty()
+
+proc dumpAllPeers(api: DaemonAPI) {.async.} =
+  var peers = await api.listPeers()
+  echo "Current connected peers count = ", len(peers)
+  for item in peers:
+    echo item.peer.pretty()
+
+proc monitor(api: DaemonAPI) {.async.} =
+  while true:
+    echo "Dumping all peers"
+    await dumpAllPeers(api)
+    await sleepAsync(5000)
 
 proc main() {.async.} =
   echo "= Starting P2P bootnode"
@@ -23,6 +34,8 @@ proc main() {.async.} =
   for item in id.addresses:
     if item.protoCode() == mcip4 or item.protoCode() == mcip6:
       echo $item & "/ipfs/" & id.peer.pretty()
+
+  asyncCheck monitor(api)
 
   proc pubsubLogger(api: DaemonAPI,
                     ticket: PubsubTicket,

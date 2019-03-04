@@ -13,6 +13,8 @@ import chronos
 import ../varint, ../multiaddress, ../multicodec, ../base58, ../cid, ../peer
 import ../wire, ../protobuf/minprotobuf
 
+export peer, multiaddress, multicodec, multihash, cid
+
 when not defined(windows):
   import posix
 
@@ -146,7 +148,6 @@ type
 
   DaemonRemoteError* = object of Exception
   DaemonLocalError* = object of Exception
-
 
 var daemonsCount {.threadvar.}: int
 
@@ -661,7 +662,7 @@ proc newDaemonApi*(flags: set[P2PDaemonFlags] = {},
     raise newException(DaemonLocalError, "Could not find daemon executable!")
 
   # Starting daemon process
-  # echo "Starting ", cmd, " ", args.join(" ")
+  echo "Starting ", cmd, " ", args.join(" ")
   api.process = startProcess(cmd, "", args, env, {poStdErrToStdOut})
   # Waiting until daemon will not be bound to control socket.
   while true:
