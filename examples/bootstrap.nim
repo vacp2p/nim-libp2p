@@ -1,4 +1,4 @@
-import asyncdispatch2, nimcrypto, strutils
+import chronos, nimcrypto, strutils
 import ../libp2p/daemon/daemonapi, ../libp2p/[base58, multicodec, multiaddress]
 import hexdump
 

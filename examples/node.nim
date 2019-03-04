@@ -1,4 +1,4 @@
-import asyncdispatch2, nimcrypto, strutils, os
+import chronos, nimcrypto, strutils, os
 import ../libp2p/daemon/daemonapi, ../libp2p/[base58, multiaddress]
 
 proc main(bn: string) {.async.} =
