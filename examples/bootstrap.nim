@@ -1,5 +1,6 @@
 import chronos, nimcrypto, strutils
-import ../libp2p/daemon/daemonapi, ../libp2p/[base58, multicodec, multiaddress]
+import ../libp2p/daemon/daemonapi
+import ../libp2p/[base58, multicodec, multiaddress, peer]
 import hexdump
 
 const
@@ -9,28 +10,26 @@ proc dumpSubscribedPeers(api: DaemonAPI) {.async.} =
   var peers = await api.pubsubListPeers(PubSubTopic)
   echo "= List of connected and subscribed peers:"
   for item in peers:
-    echo Base58.encode(item)
+    echo item.pretty()
 
 proc main() {.async.} =
   echo "= Starting P2P bootnode"
   var api = await newDaemonApi({DHTFull, PSGossipSub})
   var id = await api.identity()
-  let tpeerid = Base58.encode(id.peer)
-  echo "= P2P bootnode ", tpeerid, " started."
+  echo "= P2P bootnode ", id.peer.pretty(), " started."
   let mcip4 = multiCodec("ip4")
   let mcip6 = multiCodec("ip6")
   echo "= You can use one of this addresses to bootstrap your nodes:"
   for item in id.addresses:
     if item.protoCode() == mcip4 or item.protoCode() == mcip6:
-      echo $item & "/ipfs/" & tpeerid
+      echo $item & "/ipfs/" & id.peer.pretty()
 
   proc pubsubLogger(api: DaemonAPI,
                     ticket: PubsubTicket,
                     message: PubSubMessage): Future[bool] {.async.} =
-    let bpeer = Base58.encode(message.peer)
     let msglen = len(message.data)
     echo "= Recieved pubsub message wit length ", msglen,
-         " bytes from peer ", bpeer
+         " bytes from peer ", message.peer.pretty()
     echo dumpHex(message.data)
     await api.dumpSubscribedPeers()
     result = true
