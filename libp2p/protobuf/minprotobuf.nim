@@ -176,12 +176,12 @@ proc write*(pb: var ProtoBuffer, field: ProtoField) =
 
 proc finish*(pb: var ProtoBuffer) =
   ## Prepare protobuf's buffer ``pb`` for writing to stream.
-  var length = 0
   assert(len(pb.buffer) > 0)
   if WithVarintLength in pb.options:
     let size = uint(len(pb.buffer) - 10)
-    let pos = 10 - vsizeof(length)
-    let res = PB.putUVarint(pb.buffer.toOpenArray(pos, 9), length, size)
+    let pos = 10 - vsizeof(size)
+    var usedBytes = 0
+    let res = PB.putUVarint(pb.buffer.toOpenArray(pos, 9), usedBytes, size)
     assert(res == VarintStatus.Success)
     pb.offset = pos
   else:
