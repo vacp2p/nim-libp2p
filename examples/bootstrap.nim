@@ -28,7 +28,7 @@ proc main() {.async.} =
                     ticket: PubsubTicket,
                     message: PubSubMessage): Future[bool] {.async.} =
     let msglen = len(message.data)
-    echo "= Recieved pubsub message wit length ", msglen,
+    echo "= Recieved pubsub message with length ", msglen,
          " bytes from peer ", message.peer.pretty()
     echo dumpHex(message.data)
     await api.dumpSubscribedPeers()

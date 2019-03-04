@@ -16,8 +16,10 @@ proc main(bn: string) {.async.} =
                     ticket: PubsubTicket,
                     message: PubSubMessage): Future[bool] {.async.} =
     let msglen = len(message.data)
-    echo "= Recieved pubsub message wit length ", msglen,
-         " bytes from peer ", message.peer.pretty()
+    echo "= Recieved pubsub message with length ", msglen,
+         " bytes from peer ", message.peer.pretty(), ": "
+    var strdata = cast[string](message.data)
+    echo strdata
     result = true
 
   var ticket = await api.pubsubSubscribe("test-net", pubsubLogger)
