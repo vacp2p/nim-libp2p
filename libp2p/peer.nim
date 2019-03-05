@@ -19,6 +19,8 @@ const
 type
   PeerID* = distinct seq[byte]
 
+  PeerIDError* = object of Exception
+
 proc pretty*(peerid: PeerID): string {.inline.} =
   ## Return base58 encoded ``peerid`` representation.
   Base58.encode(cast[seq[byte]](peerid))
@@ -37,22 +39,7 @@ proc getBytes*(peerid: PeerID): seq[byte] {.inline.} =
   var p = cast[seq[byte]](peerid)
   result = @p
 
-proc fromKey*(pubkey: PublicKey): PeerID =
-  ## Returns the PeerID corresponding to public key ``pubkey``.
-  var pubraw = pubkey.getBytes()
-  var mh: MultiHash
-  var codec: MultiCodec
-  if len(pubraw) <= maxInlineKeyLength:
-    mh = MultiHash.digest("identity", pubraw)
-  else:
-    mh = MultiHash.digest("sha2-256", pubraw)
-  result = cast[PeerID](mh.data.buffer)
-
-proc fromKey*(seckey: PrivateKey): PeerID {.inline.} =
-  ## Returns the PeerID corresponding to private key ``seckey``.
-  result = fromKey(seckey.getKey())
-
-proc hex*(peerid: PeerID): string =
+proc hex*(peerid: PeerID): string {.inline.} =
   ## Returns hexadecimal string representation of ``peerid``.
   var p = cast[seq[byte]](peerid)
   if len(p) > 0:
@@ -124,14 +111,6 @@ proc extractPublicKey*(peerid: PeerID, pubkey: var PublicKey): bool =
         let length = len(mh.data.buffer)
         result = pubkey.init(mh.data.buffer.toOpenArray(mh.dpos, length - 1))
 
-proc match*(peerid: PeerID, pubkey: PublicKey): bool {.inline.} =
-  ## Returns ``true`` if ``peerid`` matches public key ``pubkey``.
-  result = (peerid == pubkey.fromKey())
-
-proc match*(peerid: PeerID, seckey: PrivateKey): bool {.inline.} =
-  ## Returns ``true`` if ``peerid`` matches private key ``seckey``.
-  result = (peerid == seckey.fromKey())
-
 proc `$`*(peerid: PeerID): string =
   ## Returns compact string representation of ``peerid``.
   var pid = peerid.pretty()
@@ -143,6 +122,61 @@ proc `$`*(peerid: PeerID): string =
     result.add("*")
     for i in (len(pid) - 6)..(len(pid) - 1):
       result.add(pid[i])
+
+proc init*(pid: var PeerID, data: openarray[byte]): bool =
+  ## Initialize peer id from raw binary representation ``data``.
+  ##
+  ## Returns ``true`` if peer was successfully initialiazed.
+  var p = cast[PeerID](@data)
+  if p.validate():
+    pid = p
+
+proc init*(pid: var PeerID, data: string): bool =
+  ## Initialize peer id from base58 encoded string representation.
+  ##
+  ## Returns ``true`` if peer was successfully initialiazed.
+  var p = newSeq[byte](len(data) + 4)
+  var length = 0
+  if Base58.decode(data, p, length) == Base58Status.Success:
+    p.setLen(length)
+    var opid = cast[PeerID](p)
+    if opid.validate():
+      pid = opid
+
+proc init*(t: typedesc[PeerID], data: openarray[byte]): PeerID {.inline.} =
+  ## Create new peer id from raw binary representation ``data``.
+  if not init(result, data):
+    raise newException(PeerIDError, "Incorrect PeerID binary form")
+
+proc init*(t: typedesc[PeerID], data: string): PeerID {.inline.} =
+  ## Create new peer id from base58 encoded string representation ``data``.
+  if not init(result, data):
+    raise newException(PeerIDError, "Incorrect PeerID string")
+
+proc init*(t: typedesc[PeerID], pubkey: PublicKey): PeerID =
+  ## Create new peer id from public key ``pubkey``.
+  var pubraw = pubkey.getBytes()
+  var mh: MultiHash
+  var codec: MultiCodec
+  if len(pubraw) <= maxInlineKeyLength:
+    mh = MultiHash.digest("identity", pubraw)
+  else:
+    mh = MultiHash.digest("sha2-256", pubraw)
+  result = cast[PeerID](mh.data.buffer)
+
+proc init*(t: typedesc[PeerID], seckey: PrivateKey): PeerID {.inline.} =
+  ## Create new peer id from private key ``seckey``.
+  result = PeerID.init(seckey.getKey())
+
+proc match*(peerid: PeerID, pubkey: PublicKey): bool {.inline.} =
+  ## Returns ``true`` if ``peerid`` matches public key ``pubkey``.
+  result = (peerid == PeerID.init(pubkey))
+
+proc match*(peerid: PeerID, seckey: PrivateKey): bool {.inline.} =
+  ## Returns ``true`` if ``peerid`` matches private key ``seckey``.
+  result = (peerid == PeerID.init(seckey))
+
+## Serialization/Deserialization helpers
 
 proc write*(vb: var VBuffer, peerid: PeerID) {.inline.} =
   ## Write PeerID value ``peerid`` to buffer ``vb``.

@@ -1,5 +1,5 @@
-import asyncdispatch2, nimcrypto, strutils
-import ../libp2p/daemon/daemonapi, ../libp2p/[base58, multiaddress]
+import chronos, nimcrypto, strutils
+import ../libp2p/daemon/daemonapi
 
 const
   ConsoleAddress = "/tmp/console-chat.sock"
@@ -39,10 +39,10 @@ proc serveThread(server: StreamServer,
       if line.startsWith("/connect"):
         var parts = line.split(" ")
         if len(parts) == 2:
-          var peerId = Base58.decode(parts[1])
-          var address = MultiAddress.init(P_P2PCIRCUIT)
-          address &= MultiAddress.init(P_P2P, peerId)
-          echo "= Searching for peer ", parts[1]
+          var peerId = PeerID.init(parts[1])
+          var address = MultiAddress.init(multiCodec("p2p-circuit"))
+          address &= MultiAddress.init(multiCodec("p2p"), peerId)
+          echo "= Searching for peer ", peerId.pretty()
           var id = await udata.api.dhtFindPeer(peerId)
           echo "= Peer " & parts[1] & " found at addresses:"
           for item in id.addresses:
@@ -57,8 +57,8 @@ proc serveThread(server: StreamServer,
       elif line.startsWith("/search"):
         var parts = line.split(" ")
         if len(parts) == 2:
-          var peerId = Base58.decode(parts[1])
-          echo "= Searching for peer ", parts[1]
+          var peerId = PeerID.init(parts[1])
+          echo "= Searching for peer ", peerId.pretty()
           var id = await udata.api.dhtFindPeer(peerId)
           echo "= Peer " & parts[1] & " found at addresses:"
           for item in id.addresses:
@@ -66,12 +66,12 @@ proc serveThread(server: StreamServer,
       elif line.startsWith("/consearch"):
         var parts = line.split(" ")
         if len(parts) == 2:
-          var peerId = Base58.decode(parts[1])
+          var peerId = PeerID.init(parts[1])
           echo "= Searching for peers connected to peer ", parts[1]
           var peers = await udata.api.dhtFindPeersConnectedToPeer(peerId)
           echo "= Found ", len(peers), " connected to peer ", parts[1]
           for item in peers:
-            var peer = Base58.encode(item.peer)
+            var peer = item.peer
             var addresses = newSeq[string]()
             var relay = false
             for a in item.addresses:
@@ -80,9 +80,9 @@ proc serveThread(server: StreamServer,
                 relay = true
                 break
             if relay:
-              echo peer, " * ",  " [", addresses.join(", "), "]"
+              echo peer.pretty(), " * ",  " [", addresses.join(", "), "]"
             else:
-              echo peer, " [", addresses.join(", "), "]"
+              echo peer.pretty(), " [", addresses.join(", "), "]"
       elif line.startsWith("/exit"):
         quit(0)
       else:
@@ -112,7 +112,7 @@ proc main() {.async.} =
   var id = await data.api.identity()
 
   proc streamHandler(api: DaemonAPI, stream: P2PStream) {.async.} =
-    echo "= Peer ", Base58.encode(stream.peer), " joined chat"
+    echo "= Peer ", stream.peer.pretty(), " joined chat"
     data.remotes.add(stream.transp)
     while true:
       var line = await stream.transp.readLine()
@@ -121,8 +121,8 @@ proc main() {.async.} =
       echo ">> ", line
 
   await data.api.addHandler(ServerProtocols, streamHandler)
-  echo "= Your PeerID is ", Base58.encode(id.peer)
-  
+  echo "= Your PeerID is ", id.peer.pretty()
+
 when isMainModule:
   waitFor(main())
   while true:
