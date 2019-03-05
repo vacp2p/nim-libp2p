@@ -15,13 +15,13 @@
 ## 4. SHA3/KECCAK
 ## 5. SHAKE-128/SHAKE-256
 ## 6. BLAKE2s/BLAKE2s
+## 7. SHA1
 ##
 ## Hashes which are not yet supported
-## 1. SHA1
-## 2. SKEIN
-## 3. MURMUR
+## 1. SKEIN
+## 2. MURMUR
 import tables
-import nimcrypto/[sha2, keccak, blake2, hash, utils]
+import nimcrypto/[sha, sha2, keccak, blake2, hash, utils]
 import varint, vbuffer, base58, multicodec, multibase
 
 const
@@ -48,6 +48,13 @@ proc identhash(data: openarray[byte], output: var openarray[byte]) =
     var length = if len(data) > len(output): len(output)
                  else: len(data)
     copyMem(addr output[0], unsafeAddr data[0], length)
+
+proc sha1hash(data: openarray[byte], output: var openarray[byte]) =
+  if len(output) > 0:
+    var digest = sha1.digest(data)
+    var length = if sha1.sizeDigest > len(output): len(output)
+                 else: sha1.sizeDigest
+    copyMem(addr output[0], addr digest.data[0], length)
 
 proc dblsha2_256hash(data: openarray[byte], output: var openarray[byte]) =
   if len(output) > 0:
@@ -163,6 +170,8 @@ const
   HashesList = [
     MHash(mcodec: multiCodec("identity"), size: 0,
           coder: identhash),
+    MHash(mcodec: multiCodec("sha1"), size: sha1.sizeDigest,
+          coder: sha1hash),
     MHash(mcodec: multiCodec("dbl-sha2-256"), size: sha256.sizeDigest,
           coder: dblsha2_256hash
     ),
