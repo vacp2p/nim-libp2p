@@ -11,7 +11,7 @@
 import os, osproc, strutils, tables, streams, strtabs
 import chronos
 import ../varint, ../multiaddress, ../multicodec, ../base58, ../cid, ../peer
-import ../wire, ../protobuf/minprotobuf
+import ../wire, ../multihash, ../protobuf/minprotobuf
 
 export peer, multiaddress, multicodec, multihash, cid
 
