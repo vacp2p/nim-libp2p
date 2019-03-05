@@ -17,35 +17,35 @@ const
   maxInlineKeyLength* = 42
 
 type
-  PeerID* = distinct seq[byte]
+  PeerID* = object
+    data*: seq[byte]
 
   PeerIDError* = object of Exception
 
-proc pretty*(peerid: PeerID): string {.inline.} =
-  ## Return base58 encoded ``peerid`` representation.
-  Base58.encode(cast[seq[byte]](peerid))
+proc pretty*(pid: PeerID): string {.inline.} =
+  ## Return base58 encoded ``pid`` representation.
+  result = Base58.encode(pid.data)
 
-proc toBytes*(peerid: PeerID, data: var openarray[byte]): int =
-  ## Store PeerID ``peerid`` to array of bytes ``data``.
+proc toBytes*(pid: PeerID, data: var openarray[byte]): int =
+  ## Store PeerID ``pid`` to array of bytes ``data``.
   ##
-  ## Returns number of bytes needed to store ``peerid``.
-  var p = cast[seq[byte]](peerid)
-  result = len(p)
+  ## Returns number of bytes needed to store ``pid``.
+  result = len(pid.data)
   if len(data) >= result and result > 0:
-    copyMem(addr data[0], addr p[0], result)
+    copyMem(addr data[0], unsafeAddr pid.data[0], result)
 
-proc getBytes*(peerid: PeerID): seq[byte] {.inline.} =
-  ## Return PeerID as array of bytes.
-  var p = cast[seq[byte]](peerid)
-  result = @p
+proc getBytes*(pid: PeerID): seq[byte] {.inline.} =
+  ## Return PeerID ``pid`` as array of bytes.
+  result = pid.data
 
-proc hex*(peerid: PeerID): string {.inline.} =
-  ## Returns hexadecimal string representation of ``peerid``.
-  var p = cast[seq[byte]](peerid)
-  if len(p) > 0:
-    result = toHex(p)
+proc hex*(pid: PeerID): string {.inline.} =
+  ## Returns hexadecimal string representation of ``pid``.
+  if len(pid.data) > 0:
+    result = toHex(pid.data)
 
-proc len*(a: PeerID): int {.borrow.}
+proc len*(pid: PeerID): int {.inline.} =
+  ## Returns length of ``pid`` binary representation.
+  result = len(pid.data)
 
 proc cmp*(a, b: PeerID): int =
   ## Compares two peer ids ``a`` and ``b``.
@@ -54,15 +54,13 @@ proc cmp*(a, b: PeerID): int =
   ## | 0 iff a == b
   ## | < 0 iff a < b
   ## | > 0 iff a > b
-  var ab = cast[seq[byte]](a)
-  var bb = cast[seq[byte]](b)
   var i = 0
-  var m = min(len(ab), len(bb))
+  var m = min(len(a.data), len(b.data))
   while i < m:
-    result = ord(ab[i]) - ord(bb[i])
+    result = ord(a.data[i]) - ord(b.data[i])
     if result != 0: return
     inc(i)
-  result = len(ab) - len(bb)
+  result = len(a.data) - len(b.data)
 
 proc `<=`*(a, b: PeerID): bool {.inline.} =
   (cmp(a, b) <= 0)
@@ -79,57 +77,55 @@ proc `>`*(a, b: PeerID): bool {.inline.} =
 proc `==`*(a, b: PeerID): bool {.inline.} =
   (cmp(a, b) == 0)
 
-proc hash*(peerid: PeerID): Hash {.inline.} =
-  var p = cast[seq[byte]](peerid)
-  result = hash(p)
+proc hash*(pid: PeerID): Hash {.inline.} =
+  result = hash(pid.data)
 
-proc validate*(peerid: PeerID): bool =
-  ## Validate check if ``peerid`` is empty or not.
-  var p = cast[seq[byte]](peerid)
-  if len(p) > 0:
-    result = MultiHash.validate(p)
+proc validate*(pid: PeerID): bool =
+  ## Validate check if ``pid`` is empty or not.
+  if len(pid.data) > 0:
+    result = MultiHash.validate(pid.data)
 
-proc hasPublicKey*(peerid: PeerID): bool =
-  ## Returns ``true`` if ``peerid`` is small enough to hold public key inside.
-  var mh: MultiHash
-  var p = cast[seq[byte]](peerid)
-  if len(p) > 0:
-    if MultiHash.decode(p, mh) > 0:
+proc hasPublicKey*(pid: PeerID): bool =
+  ## Returns ``true`` if ``pid`` is small enough to hold public key inside.
+  if len(pid.data) > 0:
+    var mh: MultiHash
+    if MultiHash.decode(pid.data, mh) > 0:
       if mh.mcodec == multiCodec("identity"):
         result = true
 
-proc extractPublicKey*(peerid: PeerID, pubkey: var PublicKey): bool =
-  ## Returns ``true`` if public key was successfully decoded and stored
-  ## in ``pubkey``.
+proc extractPublicKey*(pid: PeerID, pubkey: var PublicKey): bool =
+  ## Returns ``true`` if public key was successfully decoded from PeerID
+  ## ``pid``and stored to ``pubkey``.
   ##
-  ## Returns ``false`` otherwise
+  ## Returns ``false`` otherwise.
   var mh: MultiHash
-  var p = cast[seq[byte]](peerid)
-  if len(p) > 0:
-    if MultiHash.decode(p, mh) > 0:
+  if len(pid.data) > 0:
+    if MultiHash.decode(pid.data, mh) > 0:
       if mh.mcodec == multiCodec("identity"):
         let length = len(mh.data.buffer)
         result = pubkey.init(mh.data.buffer.toOpenArray(mh.dpos, length - 1))
 
-proc `$`*(peerid: PeerID): string =
-  ## Returns compact string representation of ``peerid``.
-  var pid = peerid.pretty()
-  if len(pid) <= 10:
-    result = pid
+proc `$`*(pid: PeerID): string =
+  ## Returns compact string representation of ``pid``.
+  var spid = pid.pretty()
+  if len(spid) <= 10:
+    result = spid
   else:
+    result = newStringOfCap(10)
     for i in 0..<2:
-      result.add(pid[i])
+      result.add(spid[i])
     result.add("*")
-    for i in (len(pid) - 6)..(len(pid) - 1):
-      result.add(pid[i])
+    for i in (len(spid) - 6)..(len(spid) - 1):
+      result.add(spid[i])
 
 proc init*(pid: var PeerID, data: openarray[byte]): bool =
   ## Initialize peer id from raw binary representation ``data``.
   ##
   ## Returns ``true`` if peer was successfully initialiazed.
-  var p = cast[PeerID](@data)
+  var p = PeerID(data: @data)
   if p.validate():
     pid = p
+    result = true
 
 proc init*(pid: var PeerID, data: string): bool =
   ## Initialize peer id from base58 encoded string representation.
@@ -139,9 +135,11 @@ proc init*(pid: var PeerID, data: string): bool =
   var length = 0
   if Base58.decode(data, p, length) == Base58Status.Success:
     p.setLen(length)
-    var opid = cast[PeerID](p)
+    var opid: PeerID
+    shallowCopy(opid.data, p)
     if opid.validate():
       pid = opid
+      result = true
 
 proc init*(t: typedesc[PeerID], data: openarray[byte]): PeerID {.inline.} =
   ## Create new peer id from raw binary representation ``data``.
@@ -162,37 +160,36 @@ proc init*(t: typedesc[PeerID], pubkey: PublicKey): PeerID =
     mh = MultiHash.digest("identity", pubraw)
   else:
     mh = MultiHash.digest("sha2-256", pubraw)
-  result = cast[PeerID](mh.data.buffer)
+  result.data = mh.data.buffer
 
 proc init*(t: typedesc[PeerID], seckey: PrivateKey): PeerID {.inline.} =
   ## Create new peer id from private key ``seckey``.
   result = PeerID.init(seckey.getKey())
 
-proc match*(peerid: PeerID, pubkey: PublicKey): bool {.inline.} =
-  ## Returns ``true`` if ``peerid`` matches public key ``pubkey``.
-  result = (peerid == PeerID.init(pubkey))
+proc match*(pid: PeerID, pubkey: PublicKey): bool {.inline.} =
+  ## Returns ``true`` if ``pid`` matches public key ``pubkey``.
+  result = (pid == PeerID.init(pubkey))
 
-proc match*(peerid: PeerID, seckey: PrivateKey): bool {.inline.} =
-  ## Returns ``true`` if ``peerid`` matches private key ``seckey``.
-  result = (peerid == PeerID.init(seckey))
+proc match*(pid: PeerID, seckey: PrivateKey): bool {.inline.} =
+  ## Returns ``true`` if ``pid`` matches private key ``seckey``.
+  result = (pid == PeerID.init(seckey))
 
 ## Serialization/Deserialization helpers
 
-proc write*(vb: var VBuffer, peerid: PeerID) {.inline.} =
+proc write*(vb: var VBuffer, pid: PeerID) {.inline.} =
   ## Write PeerID value ``peerid`` to buffer ``vb``.
-  var p = cast[seq[byte]](peerid)
-  vb.writeSeq(p)
+  vb.writeSeq(pid.data)
 
-proc initProtoField*(index: int, peerid: PeerID): ProtoField =
+proc initProtoField*(index: int, pid: PeerID): ProtoField =
   ## Initialize ProtoField with PeerID ``value``.
-  var p = cast[seq[byte]](peerid)
-  result = initProtoField(index, p)
+  result = initProtoField(index, pid.data)
 
 proc getValue*(data: var ProtoBuffer, field: int, value: var PeerID): int =
   ## Read ``PeerID`` from ProtoBuf's message and validate it.
-  var buffer: seq[byte]
-  result = getLengthValue(data, field, buffer)
+  var pid: PeerID
+  result = getLengthValue(data, field, pid.data)
   if result > 0:
-    value = cast[PeerID](buffer)
-    if not value.validate():
+    if not pid.validate():
       result = -1
+    else:
+      value = pid

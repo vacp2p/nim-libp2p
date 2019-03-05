@@ -1,6 +1,9 @@
 import chronos, nimcrypto, strutils
 import ../libp2p/daemon/daemonapi
 
+when not(compileOption("threads")):
+  {.fatal: "Please, compile this program with the --threads:on option!".}
+
 const
   ConsoleAddress = "/tmp/console-chat.sock"
   ServerAddress = "/tmp/remote-chat.sock"
@@ -94,7 +97,7 @@ proc serveThread(server: StreamServer,
         if len(pending) > 0:
           var results = await all(pending)
     except:
-      break
+      echo getCurrentException().msg
 
 proc main() {.async.} =
   var data = new CustomData

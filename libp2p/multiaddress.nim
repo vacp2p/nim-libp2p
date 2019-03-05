@@ -571,7 +571,7 @@ proc init*(mtype: typedesc[MultiAddress], protocol: MultiCodec,
   if proto.kind == None:
     raise newException(MultiAddressError, "Protocol not found")
   result.data = initVBuffer()
-  result.data.writeVarint(cast[uint64](proto.code))
+  result.data.writeVarint(cast[uint64](proto.mcodec))
   if proto.kind in {Fixed, Length, Path}:
     if len(value) == 0:
       raise newException(MultiAddressError, "Value must not be empty array")
