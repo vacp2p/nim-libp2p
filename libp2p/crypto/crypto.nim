@@ -8,10 +8,12 @@
 ## those terms.
 
 ## This module implements Public Key and Private Key interface for libp2p.
-import rsa, ecnist
-import ed25519/ed25519
-import ../protobuf/minprotobuf
+import rsa, ecnist, ed25519/ed25519
+import ../protobuf/minprotobuf, ../vbuffer
 import nimcrypto/[rijndael, blowfish, sha, sha2, hash, hmac, utils]
+
+# This is workaround for Nim's `import` bug
+export rijndael, blowfish, sha, sha2, hash, hmac, utils
 
 type
   PKScheme* = enum
@@ -69,7 +71,11 @@ type
     macsize*: int
     data*: seq[byte]
 
+  Signature* = object
+    data*: seq[byte]
+
   P2pKeyError* = object of Exception
+  P2pSigError* = object of Exception
 
 const
   SupportedSchemes* = {RSA, Ed25519, ECDSA}
@@ -192,6 +198,14 @@ proc toBytes*(key: PublicKey, data: var openarray[byte]): int =
   if len(data) >= result:
     copyMem(addr data[0], addr msg.buffer[0], len(msg.buffer))
 
+proc toBytes*(sig: Signature, data: var openarray[byte]): int =
+  ## Serialize signature ``sig`` and store it to ``data``.
+  ##
+  ## Returns number of bytes (octets) needed to store signature ``sig``.
+  result = len(sig.data)
+  if len(data) >= result:
+    copyMem(addr data[0], unsafeAddr sig.data[0], len(sig.data))
+
 proc getBytes*(key: PrivateKey): seq[byte] =
   ## Return private key ``key`` in binary form (using libp2p's protobuf
   ## serialization).
@@ -209,6 +223,10 @@ proc getBytes*(key: PublicKey): seq[byte] =
   msg.write(initProtoField(2, key.getRawBytes()))
   msg.finish()
   result = msg.buffer
+
+proc getBytes*(sig: Signature): seq[byte] =
+  ## Return signature ``sig`` in binary form.
+  result = sig.data
 
 proc init*(key: var PrivateKey, data: openarray[byte]): bool =
   ## Initialize private key ``key`` from libp2p's protobuf serialized raw
@@ -264,6 +282,14 @@ proc init*(key: var PublicKey, data: openarray[byte]): bool =
               key = nkey
               result = true
 
+proc init*(sig: var Signature, data: openarray[byte]): bool =
+  ## Initialize signature ``sig`` from raw binary form.
+  ##
+  ## Returns ``true`` on success.
+  if len(data) > 0:
+    sig.data = @data
+    result = true
+
 proc init*(key: var PrivateKey, data: string): bool =
   ## Initialize private key ``key`` from libp2p's protobuf serialized
   ## hexadecimal string representation.
@@ -278,6 +304,13 @@ proc init*(key: var PublicKey, data: string): bool =
   ## Returns ``true`` on success.
   result = key.init(fromHex(data))
 
+proc init*(sig: var Signature, data: string): bool =
+  ## Initialize signature ``sig`` from serialized hexadecimal string
+  ## representation.
+  ##
+  ## Returns ``true`` on success.
+  result = sig.init(fromHex(data))
+
 proc init*(t: typedesc[PrivateKey], data: openarray[byte]): PrivateKey =
   ## Create new private key from libp2p's protobuf serialized binary form.
   if not result.init(data):
@@ -288,6 +321,11 @@ proc init*(t: typedesc[PublicKey], data: openarray[byte]): PublicKey =
   if not result.init(data):
     raise newException(P2pKeyError, "Incorrect binary form")
 
+proc init*(t: typedesc[Signature], data: openarray[byte]): Signature =
+  ## Create new public key from libp2p's protobuf serialized binary form.
+  if not result.init(data):
+    raise newException(P2pSigError, "Incorrect binary form")
+
 proc init*(t: typedesc[PrivateKey], data: string): PrivateKey =
   ## Create new private key from libp2p's protobuf serialized hexadecimal string
   ## form.
@@ -296,6 +334,10 @@ proc init*(t: typedesc[PrivateKey], data: string): PrivateKey =
 proc init*(t: typedesc[PublicKey], data: string): PublicKey =
   ## Create new public key from libp2p's protobuf serialized hexadecimal string
   ## form.
+  result = t.init(fromHex(data))
+
+proc init*(t: typedesc[Signature], data: string): Signature =
+  ## Create new signature from serialized hexadecimal string form.
   result = t.init(fromHex(data))
 
 proc `==`*(key1, key2: PublicKey): bool =
@@ -346,34 +388,38 @@ proc `$`*(key: PublicKey): string =
     result.add($(key.eckey))
     result.add(")")
 
-proc sign*(key: PrivateKey, data: openarray[byte]): seq[byte] =
+proc `$`*(sig: Signature): string =
+  ## Get string representation of signature ``sig``.
+  result = toHex(sig.data)
+
+proc sign*(key: PrivateKey, data: openarray[byte]): Signature =
   ## Sign message ``data`` using private key ``key`` and return generated
   ## signature in raw binary form.
   if key.scheme == RSA:
     var sig = key.rsakey.sign(data)
-    result = sig.getBytes()
+    result.data = sig.getBytes()
   elif key.scheme == Ed25519:
     var sig = key.edkey.sign(data)
-    result = sig.getBytes()
+    result.data = sig.getBytes()
   elif key.scheme == ECDSA:
     var sig = key.eckey.sign(data)
-    result = sig.getBytes()
+    result.data = sig.getBytes()
 
-proc verify*(sig: openarray[byte], message: openarray[byte],
+proc verify*(sig: Signature, message: openarray[byte],
              key: PublicKey): bool =
   ## Verify signature ``sig`` using message ``message`` and public key ``key``.
   ## Return ``true`` if message signature is valid.
   if key.scheme == RSA:
     var signature: RsaSignature
-    if signature.init(sig) == Asn1Status.Success:
+    if signature.init(sig.data) == Asn1Status.Success:
       result = signature.verify(message, key.rsakey)
   elif key.scheme == Ed25519:
     var signature: EdSignature
-    if signature.init(sig):
+    if signature.init(sig.data):
       result = signature.verify(message, key.edkey)
   elif key.scheme == ECDSA:
     var signature: EcSignature
-    if signature.init(sig) == Asn1Status.Success:
+    if signature.init(sig.data) == Asn1Status.Success:
       result = signature.verify(message, key.eckey)
 
 template makeSecret(buffer, hmactype, secret, seed) =
@@ -485,3 +531,62 @@ proc makeSecret*(remoteEPublic: PublicKey, localEPrivate: PrivateKey,
   if remoteEPublic.scheme == ECDSA:
     if localEPrivate.scheme == remoteEPublic.scheme:
       result = toSecret(remoteEPublic.eckey, localEPrivate.eckey, data)
+
+## Serialization/Deserialization helpers
+
+proc write*(vb: var VBuffer, pubkey: PublicKey) {.inline.} =
+  ## Write PublicKey value ``pubkey`` to buffer ``vb``.
+  vb.writeSeq(pubkey.getBytes())
+
+proc write*(vb: var VBuffer, seckey: PrivateKey) {.inline.} =
+  ## Write PrivateKey value ``seckey`` to buffer ``vb``.
+  vb.writeSeq(seckey.getBytes())
+
+proc write*(vb: var VBuffer, sig: PrivateKey) {.inline.} =
+  ## Write Signature value ``sig`` to buffer ``vb``.
+  vb.writeSeq(sig.getBytes())
+
+proc initProtoField*(index: int, pubkey: PublicKey): ProtoField =
+  ## Initialize ProtoField with PublicKey ``pubkey``.
+  result = initProtoField(index, pubkey.getBytes())
+
+proc initProtoField*(index: int, seckey: PrivateKey): ProtoField =
+  ## Initialize ProtoField with PrivateKey ``seckey``.
+  result = initProtoField(index, seckey.getBytes())
+
+proc initProtoField*(index: int, sig: Signature): ProtoField =
+  ## Initialize ProtoField with Signature ``sig``.
+  result = initProtoField(index, sig.getBytes())
+
+proc getValue*(data: var ProtoBuffer, field: int, value: var PublicKey): int =
+  ## Read ``PublicKey`` from ProtoBuf's message and validate it.
+  var buf: seq[byte]
+  var key: PublicKey
+  result = getLengthValue(data, field, buf)
+  if result > 0:
+    if not key.init(buf):
+      result = -1
+    else:
+      value = key
+
+proc getValue*(data: var ProtoBuffer, field: int, value: var PrivateKey): int =
+  ## Read ``PrivateKey`` from ProtoBuf's message and validate it.
+  var buf: seq[byte]
+  var key: PrivateKey
+  result = getLengthValue(data, field, buf)
+  if result > 0:
+    if not key.init(buf):
+      result = -1
+    else:
+      value = key
+
+proc getValue*(data: var ProtoBuffer, field: int, value: var Signature): int =
+  ## Read ``Signature`` from ProtoBuf's message and validate it.
+  var buf: seq[byte]
+  var sig: Signature
+  result = getLengthValue(data, field, buf)
+  if result > 0:
+    if not sig.init(buf):
+      result = -1
+    else:
+      value = sig

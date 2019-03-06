@@ -342,9 +342,6 @@ const
     "FA5CB0689A1DFDBAE8618BC079D70E318377B0DA"
   ]
 
-
-
-
 proc cmp(a, b: openarray[byte]): bool =
   result = (@a == @b)
 
@@ -389,6 +386,70 @@ suite "Key interface test suite":
       check:
         toHex(checkseckey) == stripSpaces(PrivateKeys[i])
         toHex(checkpubkey) == stripSpaces(PublicKeys[i])
+
+  test "Generate/Sign/Serialize/Deserialize/Verify test":
+    var msg = "message to sign"
+    var bmsg = cast[seq[byte]](msg)
+
+    for i in 0..<5:
+      var seckey = PrivateKey.random(ECDSA)
+      var pubkey = seckey.getKey()
+      var pair = KeyPair.random(ECDSA)
+      var sig1 = pair.seckey.sign(bmsg)
+      var sig2 = seckey.sign(bmsg)
+      var sersig1 = sig1.getBytes()
+      var sersig2 = sig2.getBytes()
+      var serpub1 = pair.pubkey.getBytes()
+      var serpub2 = pubkey.getBytes()
+      var recsig1 = Signature.init(sersig1)
+      var recsig2 = Signature.init(sersig2)
+      var recpub1 = PublicKey.init(serpub1)
+      var recpub2 = PublicKey.init(serpub2)
+      check:
+        sig1.verify(bmsg, pair.pubkey) == true
+        recsig1.verify(bmsg, recpub1) == true
+        sig2.verify(bmsg, pubkey) == true
+        recsig2.verify(bmsg, recpub2) == true
+
+    for i in 0..<5:
+      var seckey = PrivateKey.random(Ed25519)
+      var pubkey = seckey.getKey()
+      var pair = KeyPair.random(Ed25519)
+      var sig1 = pair.seckey.sign(bmsg)
+      var sig2 = seckey.sign(bmsg)
+      var sersig1 = sig1.getBytes()
+      var sersig2 = sig2.getBytes()
+      var serpub1 = pair.pubkey.getBytes()
+      var serpub2 = pubkey.getBytes()
+      var recsig1 = Signature.init(sersig1)
+      var recsig2 = Signature.init(sersig2)
+      var recpub1 = PublicKey.init(serpub1)
+      var recpub2 = PublicKey.init(serpub2)
+      check:
+        sig1.verify(bmsg, pair.pubkey) == true
+        recsig1.verify(bmsg, recpub1) == true
+        sig2.verify(bmsg, pubkey) == true
+        recsig2.verify(bmsg, recpub2) == true
+
+    for i in 0..<5:
+      var seckey = PrivateKey.random(RSA, 512)
+      var pubkey = seckey.getKey()
+      var pair = KeyPair.random(RSA, 512)
+      var sig1 = pair.seckey.sign(bmsg)
+      var sig2 = seckey.sign(bmsg)
+      var sersig1 = sig1.getBytes()
+      var sersig2 = sig2.getBytes()
+      var serpub1 = pair.pubkey.getBytes()
+      var serpub2 = pubkey.getBytes()
+      var recsig1 = Signature.init(sersig1)
+      var recsig2 = Signature.init(sersig2)
+      var recpub1 = PublicKey.init(serpub1)
+      var recpub2 = PublicKey.init(serpub2)
+      check:
+        sig1.verify(bmsg, pair.pubkey) == true
+        recsig1.verify(bmsg, recpub1) == true
+        sig2.verify(bmsg, pubkey) == true
+        recsig2.verify(bmsg, recpub2) == true
 
   test "Go key stretch function AES128-SHA256 test vectors":
     check testStretcher(0, 4, Aes128, Sha256) == true
