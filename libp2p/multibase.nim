@@ -10,10 +10,9 @@
 ## This module implements MultiBase.
 ##
 ## TODO:
-## 1. base64
-## 2. base32z
+## 1. base32z
 import tables, strutils
-import base32, base58
+import base32, base58, base64
 
 type
   MultibaseStatus* {.pure.} = enum
@@ -28,7 +27,7 @@ type
                    outbytes: var openarray[char],
                    outlen: var int): MultibaseStatus {.nimcall.}
   MBCodeSize = proc(length: int): int {.nimcall.}
-  
+
   MBCodec = object
     code: char
     name: string
@@ -106,6 +105,15 @@ proc b58ce(r: Base58Status): MultibaseStatus {.inline.} =
   elif r == Base58Status.Overrun:
     result = MultibaseStatus.Overrun
   elif r == Base58Status.Success:
+    result = MultibaseStatus.Success
+
+proc b64ce(r: Base64Status): MultibaseStatus {.inline.} =
+  result = MultiBaseStatus.Error
+  if r == Base64Status.Incorrect:
+    result = MultibaseStatus.Incorrect
+  elif r == Base64Status.Overrun:
+    result = MultiBaseStatus.Overrun
+  elif r == Base64Status.Success:
     result = MultibaseStatus.Success
 
 proc b32hd(inbytes: openarray[char],
@@ -216,6 +224,51 @@ proc b58be(inbytes: openarray[byte],
 proc b58el(length: int): int = Base58.encodedLength(length)
 proc b58dl(length: int): int = Base58.decodedLength(length)
 
+proc b64el(length: int): int = Base64.encodedLength(length)
+proc b64dl(length: int): int = Base64.decodedLength(length)
+proc b64pel(length: int): int = Base64Pad.encodedLength(length)
+proc b64pdl(length: int): int = Base64Pad.decodedLength(length)
+
+proc b64e(inbytes: openarray[byte],
+          outbytes: var openarray[char],
+          outlen: var int): MultibaseStatus =
+  result = b64ce(Base64.encode(inbytes, outbytes, outlen))
+
+proc b64d(inbytes: openarray[char],
+          outbytes: var openarray[byte],
+          outlen: var int): MultibaseStatus =
+  result = b64ce(Base64.decode(inbytes, outbytes, outlen))
+
+proc b64pe(inbytes: openarray[byte],
+           outbytes: var openarray[char],
+           outlen: var int): MultibaseStatus =
+  result = b64ce(Base64Pad.encode(inbytes, outbytes, outlen))
+
+proc b64pd(inbytes: openarray[char],
+           outbytes: var openarray[byte],
+           outlen: var int): MultibaseStatus =
+  result = b64ce(Base64Pad.decode(inbytes, outbytes, outlen))
+
+proc b64ue(inbytes: openarray[byte],
+           outbytes: var openarray[char],
+           outlen: var int): MultibaseStatus =
+  result = b64ce(Base64Url.encode(inbytes, outbytes, outlen))
+
+proc b64ud(inbytes: openarray[char],
+           outbytes: var openarray[byte],
+           outlen: var int): MultibaseStatus =
+  result = b64ce(Base64Url.decode(inbytes, outbytes, outlen))
+
+proc b64upe(inbytes: openarray[byte],
+          outbytes: var openarray[char],
+          outlen: var int): MultibaseStatus =
+  result = b64ce(Base64UrlPad.encode(inbytes, outbytes, outlen))
+
+proc b64upd(inbytes: openarray[char],
+            outbytes: var openarray[byte],
+            outlen: var int): MultibaseStatus =
+  result = b64ce(Base64UrlPad.decode(inbytes, outbytes, outlen))
+
 const
   MultibaseCodecs = [
     MBCodec(name: "identity", code: chr(0x00),
@@ -262,10 +315,18 @@ const
     MBCodec(name: "base58btc", code: 'z',
       decr: b58bd, encr: b58be, decl: b58dl, encl: b58el
     ),
-    MBCodec(name: "base64", code: 'm'),
-    MBCodec(name: "base64pad", code: 'M'),
-    MBCodec(name: "base64url", code: 'u'),
-    MBCodec(name: "base64urlpad", code: 'U')
+    MBCodec(name: "base64", code: 'm',
+      decr: b64d, encr: b64e, decl: b64dl, encl: b64el
+    ),
+    MBCodec(name: "base64pad", code: 'M',
+      decr: b64pd, encr: b64pe, decl: b64pdl, encl: b64pel
+    ),
+    MBCodec(name: "base64url", code: 'u',
+      decr: b64ud, encr: b64ue, decl: b64dl, encl: b64el
+    ),
+    MBCodec(name: "base64urlpad", code: 'U',
+      decr: b64upd, encr: b64upe, decl: b64pdl, encl: b64pel
+    )
   ]
 
 proc initMultiBaseCodeTable(): Table[char, MBCodec] {.compileTime.} =

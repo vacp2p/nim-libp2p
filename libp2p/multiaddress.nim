@@ -10,6 +10,7 @@
 ## This module implements MultiAddress.
 import tables, strutils, net
 import multicodec, multihash, multibase, transcoder, base58, base32, vbuffer
+import peer
 
 {.deadCodeElim:on.}
 
@@ -562,7 +563,7 @@ proc validate*(ma: MultiAddress): bool =
       discard
   result = true
 
-proc init*(mtype: typedesc[MultiAddress], protocol: int,
+proc init*(mtype: typedesc[MultiAddress], protocol: MultiCodec,
            value: openarray[byte]): MultiAddress =
   ## Initialize MultiAddress object from protocol id ``protocol`` and array
   ## of bytes ``value``.
@@ -570,7 +571,7 @@ proc init*(mtype: typedesc[MultiAddress], protocol: int,
   if proto.kind == None:
     raise newException(MultiAddressError, "Protocol not found")
   result.data = initVBuffer()
-  result.data.writeVarint(cast[uint64](proto.code))
+  result.data.writeVarint(cast[uint64](proto.mcodec))
   if proto.kind in {Fixed, Length, Path}:
     if len(value) == 0:
       raise newException(MultiAddressError, "Value must not be empty array")
@@ -582,7 +583,13 @@ proc init*(mtype: typedesc[MultiAddress], protocol: int,
       result.data.writeSeq(data)
     result.data.finish()
 
-proc init*(mtype: typedesc[MultiAddress], protocol: int): MultiAddress =
+proc init*(mtype: typedesc[MultiAddress], protocol: MultiCodec,
+           value: PeerID): MultiAddress {.inline.} =
+  ## Initialize MultiAddress object from protocol id ``protocol`` and peer id
+  ## ``value``.
+  init(mtype, protocol, cast[seq[byte]](value))
+
+proc init*(mtype: typedesc[MultiAddress], protocol: MultiCodec): MultiAddress =
   ## Initialize MultiAddress object from protocol id ``protocol``.
   let proto = CodeAddresses.getOrDefault(protocol)
   if proto.kind == None:
@@ -590,7 +597,7 @@ proc init*(mtype: typedesc[MultiAddress], protocol: int): MultiAddress =
   result.data = initVBuffer()
   if proto.kind != Marker:
     raise newException(MultiAddressError, "Protocol missing value")
-  result.data.writeVarint(cast[uint64](proto.code))
+  result.data.writeVarint(cast[uint64](proto.mcodec))
   result.data.finish()
 
 proc getProtocol(name: string): MAProtocol {.inline.} =

@@ -10,8 +10,10 @@
 ## This module implementes API for `go-libp2p-daemon`.
 import os, osproc, strutils, tables, streams, strtabs
 import chronos
-import ../varint, ../multiaddress, ../multicodec, ../base58, ../cid
-import ../wire, ../protobuf/minprotobuf
+import ../varint, ../multiaddress, ../multicodec, ../base58, ../cid, ../peer
+import ../wire, ../multihash, ../protobuf/minprotobuf
+
+export peer, multiaddress, multicodec, multihash, cid
 
 when not defined(windows):
   import posix
@@ -76,7 +78,7 @@ type
     VALUE = 1,
     END = 2
 
-  PeerID* = seq[byte]
+  # PeerID* = seq[byte]
   MultiProtocol* = string
   LibP2PPublicKey* = seq[byte]
   DHTValue* = seq[byte]
@@ -146,7 +148,6 @@ type
 
   DaemonRemoteError* = object of Exception
   DaemonLocalError* = object of Exception
-
 
 var daemonsCount {.threadvar.}: int
 
@@ -661,7 +662,7 @@ proc newDaemonApi*(flags: set[P2PDaemonFlags] = {},
     raise newException(DaemonLocalError, "Could not find daemon executable!")
 
   # Starting daemon process
-  # echo "Starting ", cmd, " ", args.join(" ")
+  echo "Starting ", cmd, " ", args.join(" ")
   api.process = startProcess(cmd, "", args, env, {poStdErrToStdOut})
   # Waiting until daemon will not be bound to control socket.
   while true:
@@ -745,8 +746,7 @@ proc transactMessage(transp: StreamTransport,
 proc getPeerInfo(pb: var ProtoBuffer): PeerInfo =
   ## Get PeerInfo object from ``pb``.
   result.addresses = newSeq[MultiAddress]()
-  result.peer = newSeq[byte]()
-  if pb.getBytes(1, result.peer) == -1:
+  if pb.getValue(1, result.peer) == -1:
     raise newException(DaemonLocalError, "Missing required field `peer`!")
   var address = newSeq[byte]()
   while pb.getBytes(2, address) != -1:
@@ -803,10 +803,10 @@ proc openStream*(api: DaemonAPI, peer: PeerID,
     pb.withMessage() do:
       var res = pb.enterSubmessage()
       if res == cast[int](ResponseType.STREAMINFO):
-        stream.peer = newSeq[byte]()
+        # stream.peer = newSeq[byte]()
         var raddress = newSeq[byte]()
         stream.protocol = ""
-        if pb.getLengthValue(1, stream.peer) == -1:
+        if pb.getValue(1, stream.peer) == -1:
           raise newException(DaemonLocalError, "Missing `peer` field!")
         if pb.getLengthValue(2, raddress) == -1:
           raise newException(DaemonLocalError, "Missing `address` field!")
@@ -825,10 +825,9 @@ proc streamHandler(server: StreamServer, transp: StreamTransport) {.async.} =
   var message = await transp.recvMessage()
   var pb = initProtoBuffer(message)
   var stream = new P2PStream
-  stream.peer = newSeq[byte]()
   var raddress = newSeq[byte]()
   stream.protocol = ""
-  if pb.getLengthValue(1, stream.peer) == -1:
+  if pb.getValue(1, stream.peer) == -1:
     raise newException(DaemonLocalError, "Missing `peer` field!")
   if pb.getLengthValue(2, raddress) == -1:
     raise newException(DaemonLocalError, "Missing `address` field!")
@@ -927,6 +926,10 @@ proc dhtGetSinglePeerInfo(pb: var ProtoBuffer): PeerInfo =
 proc dhtGetSingleValue(pb: var ProtoBuffer): seq[byte] =
   result = newSeq[byte]()
   if pb.getLengthValue(3, result) == -1:
+    raise newException(DaemonLocalError, "Missing field `value`!")
+
+proc dhtGetSinglePeerID(pb: var ProtoBuffer): PeerID =
+  if pb.getValue(3, result) == -1:
     raise newException(DaemonLocalError, "Missing field `value`!")
 
 proc enterDhtMessage(pb: var ProtoBuffer, rt: DHTResponseType) {.inline.} =
@@ -1074,7 +1077,7 @@ proc dhtGetClosestPeers*(api: DaemonAPI, key: string,
         var cpb = initProtoBuffer(message)
         if cpb.getDhtMessageType() == DHTResponseType.END:
           break
-        list.add(cpb.dhtGetSingleValue())
+        list.add(cpb.dhtGetSinglePeerID())
       result = list
   finally:
     await api.closeConnection(transp)
@@ -1152,12 +1155,11 @@ proc pubsubListPeers*(api: DaemonAPI,
   try:
     var pb = await transp.transactMessage(requestPSListPeers(topic))
     withMessage(pb) do:
+      var peer: PeerID
       pb.enterPsMessage()
       var peers = newSeq[PeerID]()
-      var peer = newSeq[byte]()
-      while pb.getBytes(2, peer) != -1:
+      while pb.getValue(2, peer) != -1:
         peers.add(peer)
-        peer.setLen(0)
       result = peers
   finally:
     await api.closeConnection(transp)
@@ -1174,28 +1176,25 @@ proc pubsubPublish*(api: DaemonAPI, topic: string,
     await api.closeConnection(transp)
 
 proc getPubsubMessage*(pb: var ProtoBuffer): PubSubMessage =
+  result.data = newSeq[byte]()
+  result.seqno = newSeq[byte]()
+  result.signature = newSeq[byte]()
+  result.key = newSeq[byte]()
+  discard pb.getValue(1, result.peer)
+  discard pb.getBytes(2, result.data)
+  discard pb.getBytes(3, result.seqno)
   var item = newSeq[byte]()
-  for field in 1..6:
-    while true:
-      if pb.getBytes(field, item) == -1:
-        break
-      if field == 1:
-        result.peer = item
-      elif field == 2:
-        result.data = item
-      elif field == 3:
-        result.seqno = item
-      elif field == 4:
-        var copyitem = item
-        var stritem = cast[string](copyitem)
-        if len(result.topics) == 0:
-          result.topics = newSeq[string]()
-        result.topics.add(stritem)
-      elif field == 5:
-        result.signature = item
-      elif field == 6:
-        result.key = item
-      item.setLen(0)
+  while true:
+    if pb.getBytes(4, item) == -1:
+      break
+    var copyitem = item
+    var stritem = cast[string](copyitem)
+    if len(result.topics) == 0:
+      result.topics = newSeq[string]()
+    result.topics.add(stritem)
+    item.setLen(0)
+  discard pb.getBytes(5, result.signature)
+  discard pb.getBytes(6, result.key)
 
 proc pubsubLoop(api: DaemonAPI, ticket: PubsubTicket) {.async.} =
   while true:
@@ -1232,7 +1231,7 @@ proc `$`*(pinfo: PeerInfo): string =
   ## Get string representation of ``PeerInfo`` object.
   result = newStringOfCap(128)
   result.add("{PeerID: '")
-  result.add(Base58.encode(pinfo.peer))
+  result.add($pinfo.peer.pretty())
   result.add("' Addresses: [")
   let length = len(pinfo.addresses)
   for i in 0..<length:

@@ -22,23 +22,23 @@ type
     encode*: array[32, uint8]
 
   Base32Upper* = object
-    ## Type to use RFC4868 alphabet in uppercase without padding
+    ## Type to use RFC4648 alphabet in uppercase without padding
   Base32Lower* = object
-    ## Type to use RFC4868 alphabet in lowercase without padding
+    ## Type to use RFC4648 alphabet in lowercase without padding
   Base32UpperPad* = object
-    ## Type to use RFC4868 alphabet in uppercase with padding
+    ## Type to use RFC4648 alphabet in uppercase with padding
   Base32LowerPad* = object
-    ## Type to use RFC4868 alphabet in lowercase with padding
+    ## Type to use RFC4648 alphabet in lowercase with padding
   HexBase32Upper* = object
-    ## Type to use RFC4868-HEX alphabet in uppercase without padding
+    ## Type to use RFC4648-HEX alphabet in uppercase without padding
   HexBase32Lower* = object
-    ## Type to use RFC4868-HEX alphabet in lowercase without padding
+    ## Type to use RFC4648-HEX alphabet in lowercase without padding
   HexBase32UpperPad* = object
-    ## Type to use RFC4868-HEX alphabet in uppercase with padding
+    ## Type to use RFC4648-HEX alphabet in uppercase with padding
   HexBase32LowerPad* = object
-    ## Type to use RFC4868-HEX alphabet in lowercase with padding
+    ## Type to use RFC4648-HEX alphabet in lowercase with padding
   Base32* = Base32Upper
-    ## By default we are using RFC4868 alphabet in uppercase without padding
+    ## By default we are using RFC4648 alphabet in uppercase without padding
   Base32PadTypes* = Base32UpperPad | Base32LowerPad |
                     HexBase32UpperPad | HexBase32LowerPad
     ## All types with padding support
@@ -240,12 +240,10 @@ proc decode*[T: byte|char](btype: typedesc[Base32Types], instr: openarray[T],
     for j in 0..<8:
       if (cast[byte](instr[i + j]) and 0x80'u8) != 0:
         outlen = 0
-        zeroMem(addr outbytes[0], i + 8)
         return Base32Status.Incorrect
-      let ch = alphabet.decode[int8(instr[i + j])]
+      let ch = alphabet.decode[cast[int8](instr[i + j])]
       if ch == -1:
         outlen = 0
-        zeroMem(addr outbytes[0], i + 8)
         return Base32Status.Incorrect
       buffer[j] = cast[byte](ch)
     discard convert8to5(buffer, outbytes.toOpenArray(k, k + 4), 8)
@@ -256,18 +254,15 @@ proc decode*[T: byte|char](btype: typedesc[Base32Types], instr: openarray[T],
   if reminder != 0:
     if reminder == 1 or reminder == 3 or reminder == 6:
       outlen = 0
-      zeroMem(addr outbytes[0], i + 8)
       return Base32Status.Incorrect
     for j in 0..<reminder:
       if (cast[byte](instr[i + j]) and 0x80'u8) != 0:
         outlen = 0
-        zeroMem(addr outbytes[0], i + 8)
         result = Base32Status.Incorrect
         return
-      let ch = alphabet.decode[int8(instr[i + j])]
+      let ch = alphabet.decode[cast[int8](instr[i + j])]
       if ch == -1:
         outlen = 0
-        zeroMem(addr outbytes[0], i + 8)
         result = Base32Status.Incorrect
         return
       buffer[j] = cast[byte](ch)
@@ -287,4 +282,4 @@ proc decode*[T: byte|char](btype: typedesc[Base32Types],
     if btype.decode(instr, result, length) == Base32Status.Success:
       result.setLen(length)
     else:
-      raise newException(Base32Error, "Incorrect base58 string")
+      raise newException(Base32Error, "Incorrect base32 string")

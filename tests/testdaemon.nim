@@ -1,7 +1,7 @@
 import unittest
 import chronos
 import ../libp2p/daemon/daemonapi, ../libp2p/multiaddress, ../libp2p/multicodec,
-       ../libp2p/cid, ../libp2p/multihash
+       ../libp2p/cid, ../libp2p/multihash, ../libp2p/peer
 
 proc identitySpawnTest(): Future[bool] {.async.} =
   var api = await newDaemonApi()

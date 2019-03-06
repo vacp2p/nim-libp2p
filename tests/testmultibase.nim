@@ -62,26 +62,26 @@ const GoTestVectors = [
     "z36UQrhJq9fNDS7DiAHM9YXqDHMPfr4EMArvt",
     "Decentralize everything!!!"
   ],
-  # [
-  #   "base64",
-  #   "mRGVjZW50cmFsaXplIGV2ZXJ5dGhpbmchISE",
-  #   "Decentralize everything!!!"
-  # ],
-  # [
-  #   "base64url",
-  #   "uRGVjZW50cmFsaXplIGV2ZXJ5dGhpbmchISE",
-  #   "Decentralize everything!!!"
-  # ],
-  # [
-  #   "base64pad",
-  #   "MRGVjZW50cmFsaXplIGV2ZXJ5dGhpbmchISE=",
-  #   "Decentralize everything!!!"
-  # ],
-  # [
-  #   "base64urlpad",
-  #   "URGVjZW50cmFsaXplIGV2ZXJ5dGhpbmchISE=",
-  #   "Decentralize everything!!!"
-  # ],
+  [
+    "base64",
+    "mRGVjZW50cmFsaXplIGV2ZXJ5dGhpbmchISE",
+    "Decentralize everything!!!"
+  ],
+  [
+    "base64url",
+    "uRGVjZW50cmFsaXplIGV2ZXJ5dGhpbmchISE",
+    "Decentralize everything!!!"
+  ],
+  [
+    "base64pad",
+    "MRGVjZW50cmFsaXplIGV2ZXJ5dGhpbmchISE=",
+    "Decentralize everything!!!"
+  ],
+  [
+    "base64urlpad",
+    "URGVjZW50cmFsaXplIGV2ZXJ5dGhpbmchISE=",
+    "Decentralize everything!!!"
+  ],
 ]
 
 suite "MultiBase test suite":
@@ -112,10 +112,10 @@ suite "MultiBase test suite":
       MultiBase.encode("base32padupper", plain) == "C"
       MultiBase.encode("base58btc", plain) == "z"
       MultiBase.encode("base58flickr", plain) == "Z"
-      # MultiBase.encode("base64", plain) == "m"
-      # MultiBase.encode("base64pad", plain) == "M"
-      # MultiBase.encode("base64url", plain) == "u"
-      # MultiBase.encode("base64urlpad", plain) == "U"
+      MultiBase.encode("base64", plain) == "m"
+      MultiBase.encode("base64pad", plain) == "M"
+      MultiBase.encode("base64url", plain) == "u"
+      MultiBase.encode("base64urlpad", plain) == "U"
     check:
       len(MultiBase.decode("\x00")) == 0
       # len(MultiBase.decode("1")) == 0
@@ -134,10 +134,10 @@ suite "MultiBase test suite":
       len(MultiBase.decode("C")) == 0
       len(MultiBase.decode("z")) == 0
       len(MultiBase.decode("Z")) == 0
-      # len(MultiBase.decode("m")) == 0
-      # len(MultiBase.decode("M")) == 0
-      # len(MultiBase.decode("u")) == 0
-      # len(MultiBase.decode("U")) == 0
+      len(MultiBase.decode("m")) == 0
+      len(MultiBase.decode("M")) == 0
+      len(MultiBase.decode("u")) == 0
+      len(MultiBase.decode("U")) == 0
     check:
       MultiBase.encode("identity", plain, enc,
                        olens[0]) == MultiBaseStatus.Success
@@ -243,14 +243,14 @@ suite "MultiBase test suite":
       olens[15] == 0
       MultiBase.decode("Z", dec, olens[16]) == MultiBaseStatus.Success
       olens[16] == 0
-      # MultiBase.decode("m", dec, olens[16]) == MultiBaseStatus.Success
-      # olens[16] == 0
-      # MultiBase.decode("M", dec, olens[16]) == MultiBaseStatus.Success
-      # olens[16] == 0
-      # MultiBase.decode("u", dec, olens[16]) == MultiBaseStatus.Success
-      # olens[16] == 0
-      # MultiBase.decode("U", dec, olens[16]) == MultiBaseStatus.Success
-      # olens[16] == 0
+      MultiBase.decode("m", dec, olens[16]) == MultiBaseStatus.Success
+      olens[16] == 0
+      MultiBase.decode("M", dec, olens[16]) == MultiBaseStatus.Success
+      olens[16] == 0
+      MultiBase.decode("u", dec, olens[16]) == MultiBaseStatus.Success
+      olens[16] == 0
+      MultiBase.decode("U", dec, olens[16]) == MultiBaseStatus.Success
+      olens[16] == 0
   test "go-multibase test vectors":
     for item in GoTestVectors:
       let encoding = item[0]
