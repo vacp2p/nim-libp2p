@@ -24,4 +24,5 @@ task test, "Runs the test suite":
   exec "nim c -r tests/testrsa"
   exec "nim c -r tests/tested25519"
   exec "nim c -r tests/testcrypto"
+  exec "nim c -r tests/testpeer"
   exec "nim c -r tests/testdaemon"
