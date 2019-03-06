@@ -46,9 +46,10 @@ install:
       }"
   - export PATH=$PWD/nim/$NIMVER/bin:$GOPATH/bin:$PATH
   - go version
-  - go get -v github.com/libp2p/go-libp2p-daemon
-  - cd $GOPATH/src/github.com/libp2p/go-libp2p-daemon
-  - make
+  - git clone https://github.com/libp2p/go-libp2p-daemon
+  - cd go-libp2p-daemon
+  - git checkout v0.0.1
+  - go install ./...
   - cd $HOME/build/status-im/nim-libp2p
 
 script:

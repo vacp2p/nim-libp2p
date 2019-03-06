@@ -12,8 +12,9 @@ import os, osproc, strutils, tables, streams, strtabs
 import chronos
 import ../varint, ../multiaddress, ../multicodec, ../base58, ../cid, ../peer
 import ../wire, ../multihash, ../protobuf/minprotobuf
+import ../crypto/crypto
 
-export peer, multiaddress, multicodec, multihash, cid
+export peer, multiaddress, multicodec, multihash, cid, crypto
 
 when not defined(windows):
   import posix
@@ -78,9 +79,7 @@ type
     VALUE = 1,
     END = 2
 
-  # PeerID* = seq[byte]
   MultiProtocol* = string
-  LibP2PPublicKey* = seq[byte]
   DHTValue* = seq[byte]
 
   P2PStreamFlags* {.pure.} = enum
@@ -137,8 +136,8 @@ type
     data*: seq[byte]
     seqno*: seq[byte]
     topics*: seq[string]
-    signature*: seq[byte]
-    key*: seq[byte]
+    signature*: Signature
+    key*: PublicKey
 
   P2PStreamCallback* = proc(api: DaemonAPI,
                             stream: P2PStream): Future[void] {.gcsafe.}
@@ -662,7 +661,7 @@ proc newDaemonApi*(flags: set[P2PDaemonFlags] = {},
     raise newException(DaemonLocalError, "Could not find daemon executable!")
 
   # Starting daemon process
-  echo "Starting ", cmd, " ", args.join(" ")
+  # echo "Starting ", cmd, " ", args.join(" ")
   api.process = startProcess(cmd, "", args, env, {poStdErrToStdOut})
   # Waiting until daemon will not be bound to control socket.
   while true:
@@ -928,6 +927,10 @@ proc dhtGetSingleValue(pb: var ProtoBuffer): seq[byte] =
   if pb.getLengthValue(3, result) == -1:
     raise newException(DaemonLocalError, "Missing field `value`!")
 
+proc dhtGetSinglePublicKey(pb: var ProtoBuffer): PublicKey =
+  if pb.getValue(3, result) == -1:
+    raise newException(DaemonLocalError, "Missing field `value`!")
+
 proc dhtGetSinglePeerID(pb: var ProtoBuffer): PeerID =
   if pb.getValue(3, result) == -1:
     raise newException(DaemonLocalError, "Missing field `value`!")
@@ -975,7 +978,7 @@ proc dhtFindPeer*(api: DaemonAPI, peer: PeerID,
     await api.closeConnection(transp)
 
 proc dhtGetPublicKey*(api: DaemonAPI, peer: PeerID,
-                      timeout = 0): Future[LibP2PPublicKey] {.async.} =
+                      timeout = 0): Future[PublicKey] {.async.} =
   ## Get peer's public key from peer with id ``peer``.
   ##
   ## You can specify timeout for DHT request with ``timeout`` value. ``0`` value
@@ -985,7 +988,7 @@ proc dhtGetPublicKey*(api: DaemonAPI, peer: PeerID,
     var pb = await transp.transactMessage(requestDHTGetPublicKey(peer, timeout))
     withMessage(pb) do:
       pb.enterDhtMessage(DHTResponseType.VALUE)
-      result = pb.dhtGetSingleValue()
+      result = pb.dhtGetSinglePublicKey()
   finally:
     await api.closeConnection(transp)
 
@@ -1178,8 +1181,6 @@ proc pubsubPublish*(api: DaemonAPI, topic: string,
 proc getPubsubMessage*(pb: var ProtoBuffer): PubSubMessage =
   result.data = newSeq[byte]()
   result.seqno = newSeq[byte]()
-  result.signature = newSeq[byte]()
-  result.key = newSeq[byte]()
   discard pb.getValue(1, result.peer)
   discard pb.getBytes(2, result.data)
   discard pb.getBytes(3, result.seqno)
@@ -1193,8 +1194,8 @@ proc getPubsubMessage*(pb: var ProtoBuffer): PubSubMessage =
       result.topics = newSeq[string]()
     result.topics.add(stritem)
     item.setLen(0)
-  discard pb.getBytes(5, result.signature)
-  discard pb.getBytes(6, result.key)
+  discard pb.getValue(5, result.signature)
+  discard pb.getValue(6, result.key)
 
 proc pubsubLoop(api: DaemonAPI, ticket: PubsubTicket) {.async.} =
   while true:

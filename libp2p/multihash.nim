@@ -24,6 +24,9 @@ import tables
 import nimcrypto/[sha, sha2, keccak, blake2, hash, utils]
 import varint, vbuffer, base58, multicodec, multibase
 
+# This is workaround for Nim `import` bug.
+export sha, sha2, keccak, blake2, hash, utils
+
 const
   MaxHashSize* = 128
 

@@ -14,7 +14,33 @@ import constants
 import nimcrypto/[hash, sha2, sysrand, utils]
 
 # This workaround needed because of some bugs in Nim Static[T].
-export sha2
+export hash, sha2
+
+const
+  EdPrivateKeySize* = 64
+    ## Size in octets (bytes) of serialized ED25519 private key.
+  EdPublicKeySize* = 32
+    ## Size in octets (bytes) of serialized ED25519 public key.
+  EdSignatureSize* = 64
+    ## Size in octets (bytes) of serialized ED25519 signature.
+
+type
+  EdPrivateKey* = object
+    data*: array[EdPrivateKeySize, byte]
+
+  EdPublicKey* = object
+    data*: array[EdPublicKeySize, byte]
+
+  EdSignature* = object
+    data*: array[EdSignatureSize, byte]
+
+  EdKeyPair* = object
+    seckey*: EdPrivateKey
+    pubkey*: EdPublicKey
+
+  EdError* = object of Exception
+  EdRngError* = object of EdError
+  EdIncorrectError* = object of EdError
 
 proc `-`(x: uint32): uint32 {.inline.} =
   result = (0xFFFF_FFFF'u32 - x) + 1'u32
@@ -1612,32 +1638,6 @@ proc checkScalar*(scalar: openarray[byte]): uint32 =
     c = -1
   result = NEQ(z, 0'u32) and LT0(c)
 
-const
-  EdPrivateKeySize* = 64
-    ## Size in octets (bytes) of serialized ED25519 private key.
-  EdPublicKeySize* = 32
-    ## Size in octets (bytes) of serialized ED25519 public key.
-  EdSignatureSize* = 64
-    ## Size in octets (bytes) of serialized ED25519 signature.
-
-type
-  EdPrivateKey* = object
-    data*: array[EdPrivateKeySize, byte]
-
-  EdPublicKey* = object
-    data*: array[EdPublicKeySize, byte]
-
-  EdSignature* = object
-    data*: array[EdSignatureSize, byte]
-
-  EdKeyPair* = object
-    seckey*: EdPrivateKey
-    pubkey*: EdPublicKey
-
-  EdError* = object of Exception
-  EdRngError* = object of EdError
-  EdIncorrectError* = object of EdError
-
 proc random*(t: typedesc[EdPrivateKey]): EdPrivateKey =
   ## Generate new random ED25519 private key using OS specific CSPRNG.
   var
@@ -1645,11 +1645,11 @@ proc random*(t: typedesc[EdPrivateKey]): EdPrivateKey =
     pk: array[EdPublicKeySize, byte]
   if randomBytes(result.data.toOpenArray(0, 31)) != 32:
     raise newException(EdRngError, "Could not generate random data")
-  var hash = sha512.digest(result.data.toOpenArray(0, 31))
-  hash.data[0] = hash.data[0] and 0xF8'u8
-  hash.data[31] = hash.data[31] and 0x3F'u8
-  hash.data[31] = hash.data[31] or 0x40'u8
-  geScalarMultBase(point, hash.data)
+  var hh = sha512.digest(result.data.toOpenArray(0, 31))
+  hh.data[0] = hh.data[0] and 0xF8'u8
+  hh.data[31] = hh.data[31] and 0x3F'u8
+  hh.data[31] = hh.data[31] or 0x40'u8
+  geScalarMultBase(point, hh.data)
   geP3ToBytes(pk, point)
   copyMem(addr result.data[32], addr pk[0], 32)
 
@@ -1659,11 +1659,11 @@ proc random*(t: typedesc[EdKeyPair]): EdKeyPair =
   var point: GeP3
   if randomBytes(result.seckey.data.toOpenArray(0, 31)) != 32:
     raise newException(EdRngError, "Could not generate random data")
-  var hash = sha512.digest(result.seckey.data.toOpenArray(0, 31))
-  hash.data[0] = hash.data[0] and 0xF8'u8
-  hash.data[31] = hash.data[31] and 0x3F'u8
-  hash.data[31] = hash.data[31] or 0x40'u8
-  geScalarMultBase(point, hash.data)
+  var hh = sha512.digest(result.seckey.data.toOpenArray(0, 31))
+  hh.data[0] = hh.data[0] and 0xF8'u8
+  hh.data[31] = hh.data[31] and 0x3F'u8
+  hh.data[31] = hh.data[31] or 0x40'u8
+  geScalarMultBase(point, hh.data)
   geP3ToBytes(result.pubkey.data, point)
   copyMem(addr result.seckey.data[32], addr result.pubkey.data[0], 32)
 
