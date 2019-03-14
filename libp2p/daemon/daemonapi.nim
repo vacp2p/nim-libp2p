@@ -121,6 +121,7 @@ type
     servers*: seq[P2PServer]
     log*: string
     loggerFut*: Future[void]
+    userData*: RootRef
 
   PeerInfo* = object
     peer*: PeerID
