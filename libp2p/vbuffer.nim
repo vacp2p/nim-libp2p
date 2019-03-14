@@ -64,7 +64,7 @@ proc writeVarint*(vb: var VBuffer, value: LPSomeUVarint) =
   vb.buffer.setLen(len(vb.buffer) + vsizeof(v))
   let res = LP.putUVarint(toOpenArray(vb.buffer, vb.offset, len(vb.buffer) - 1),
                           length, v)
-  assert(res == VarintStatus.Success)
+  doAssert(res == VarintStatus.Success)
   vb.offset += length
 
 proc writeSeq*[T: byte|char](vb: var VBuffer, value: openarray[T]) =
@@ -74,7 +74,7 @@ proc writeSeq*[T: byte|char](vb: var VBuffer, value: openarray[T]) =
   vb.buffer.setLen(len(vb.buffer) + vsizeof(len(value)) + len(value))
   let res = LP.putUVarint(toOpenArray(vb.buffer, vb.offset, len(vb.buffer) - 1),
                           length, uint(len(value)))
-  assert(res == VarintStatus.Success)
+  doAssert(res == VarintStatus.Success)
   vb.offset += length
   if len(value) > 0:
     copyMem(addr vb.buffer[vb.offset], unsafeAddr value[0], len(value))

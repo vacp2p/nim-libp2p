@@ -135,15 +135,15 @@ proc write*(pb: var ProtoBuffer, field: ProtoField) =
   var res: VarintStatus
   pb.buffer.setLen(len(pb.buffer) + vsizeof(field))
   res = PB.putUVarint(pb.toOpenArray(), length, protoHeader(field))
-  assert(res == VarintStatus.Success)
+  doAssert(res == VarintStatus.Success)
   pb.offset += length
   case field.kind
   of ProtoFieldKind.Varint:
     res = PB.putUVarint(pb.toOpenArray(), length, field.vint)
-    assert(res == VarintStatus.Success)
+    doAssert(res == VarintStatus.Success)
     pb.offset += length
   of ProtoFieldKind.Fixed64:
-    assert(pb.isEnough(8))
+    doAssert(pb.isEnough(8))
     var value = cast[uint64](field.vfloat64)
     pb.buffer[pb.offset] = byte(value and 0xFF'u32)
     pb.buffer[pb.offset + 1] = byte((value shr 8) and 0xFF'u32)
@@ -155,7 +155,7 @@ proc write*(pb: var ProtoBuffer, field: ProtoField) =
     pb.buffer[pb.offset + 7] = byte((value shr 56) and 0xFF'u32)
     pb.offset += 8
   of ProtoFieldKind.Fixed32:
-    assert(pb.isEnough(4))
+    doAssert(pb.isEnough(4))
     var value = cast[uint32](field.vfloat32)
     pb.buffer[pb.offset] = byte(value and 0xFF'u32)
     pb.buffer[pb.offset + 1] = byte((value shr 8) and 0xFF'u32)
@@ -164,9 +164,9 @@ proc write*(pb: var ProtoBuffer, field: ProtoField) =
     pb.offset += 4
   of ProtoFieldKind.Length:
     res = PB.putUVarint(pb.toOpenArray(), length, uint(len(field.vbuffer)))
-    assert(res == VarintStatus.Success)
+    doAssert(res == VarintStatus.Success)
     pb.offset += length
-    assert(pb.isEnough(len(field.vbuffer)))
+    doAssert(pb.isEnough(len(field.vbuffer)))
     if len(field.vbuffer) > 0:
       copyMem(addr pb.buffer[pb.offset], unsafeAddr field.vbuffer[0],
               len(field.vbuffer))
@@ -176,13 +176,13 @@ proc write*(pb: var ProtoBuffer, field: ProtoField) =
 
 proc finish*(pb: var ProtoBuffer) =
   ## Prepare protobuf's buffer ``pb`` for writing to stream.
-  assert(len(pb.buffer) > 0)
+  doAssert(len(pb.buffer) > 0)
   if WithVarintLength in pb.options:
     let size = uint(len(pb.buffer) - 10)
     let pos = 10 - vsizeof(size)
     var usedBytes = 0
     let res = PB.putUVarint(pb.buffer.toOpenArray(pos, 9), usedBytes, size)
-    assert(res == VarintStatus.Success)
+    doAssert(res == VarintStatus.Success)
     pb.offset = pos
   else:
     pb.offset = 0
@@ -273,6 +273,6 @@ proc enterSubmessage*(pb: var ProtoBuffer): int =
 proc skipSubmessage*(pb: var ProtoBuffer) =
   ## Skip current protobuf's sub-message and adjust internal offset to the
   ## end of sub-message.
-  assert(pb.length != 0)
+  doAssert(pb.length != 0)
   pb.offset += pb.length
   pb.length = 0

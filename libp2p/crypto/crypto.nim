@@ -87,7 +87,7 @@ proc random*(t: typedesc[PrivateKey], scheme: PKScheme,
   ##
   ## ``bits`` is number of bits for RSA key, ``bits`` value must be in
   ## [512, 4096], default value is 2048 bits.
-  assert(scheme in SupportedSchemes)
+  doAssert(scheme in SupportedSchemes)
   result = PrivateKey(scheme: scheme)
   if scheme == RSA:
     result.rsakey = RsaPrivateKey.random(bits)
@@ -102,7 +102,7 @@ proc random*(t: typedesc[KeyPair], scheme: PKScheme,
   ##
   ## ``bits`` is number of bits for RSA key, ``bits`` value must be in
   ## [512, 4096], default value is 2048 bits.
-  assert(scheme in SupportedSchemes)
+  doAssert(scheme in SupportedSchemes)
   result.seckey = PrivateKey(scheme: scheme)
   result.pubkey = PublicKey(scheme: scheme)
   if scheme == RSA:

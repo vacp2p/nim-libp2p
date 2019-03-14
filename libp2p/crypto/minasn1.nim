@@ -336,9 +336,9 @@ proc asn1EncodeOid*(dest: var openarray[byte], value: openarray[int]): int =
   ## but number of bytes (octets) required will be returned.
   var buffer: array[16, byte]
   result = 1
-  assert(len(value) >= 2)
-  assert(value[0] >= 1 and value[0] < 2)
-  assert(value[1] >= 1 and value[1] <= 39)
+  doAssert(len(value) >= 2)
+  doAssert(value[0] >= 1 and value[0] < 2)
+  doAssert(value[1] >= 1 and value[1] <= 39)
   var oidlen = 1
   for i in 2..<len(value):
     oidlen += asn1EncodeTag(buffer, cast[uint64](value[i]))
@@ -693,7 +693,7 @@ proc write*[T: Asn1Buffer|Asn1Composite](abc: var T, tag: Asn1Tag) =
   ##
   ## This procedure must be used to write `NULL`, `0` or empty `BIT STRING`,
   ## `OCTET STRING` types.
-  assert(tag in {Asn1Tag.Null, Asn1Tag.Integer, Asn1Tag.BitString,
+  doAssert(tag in {Asn1Tag.Null, Asn1Tag.Integer, Asn1Tag.BitString,
                  Asn1Tag.OctetString})
   var length: int
   if tag == Asn1Tag.Null:
@@ -739,7 +739,7 @@ proc write*[T: Asn1Buffer|Asn1Composite](abc: var T, tag: Asn1Tag,
   ##
   ## For `BIT STRING` you can use ``bits`` argument to specify number of used
   ## bits.
-  assert(tag in {Asn1Tag.Integer, Asn1Tag.OctetString, Asn1Tag.BitString,
+  doAssert(tag in {Asn1Tag.Integer, Asn1Tag.OctetString, Asn1Tag.BitString,
                  Asn1Tag.Oid})
   var length: int
   if tag == Asn1Tag.Integer:
@@ -761,7 +761,7 @@ proc write*[T: Asn1Buffer|Asn1Composite](abc: var T, tag: Asn1Tag,
   abc.offset += length
 
 proc write*[T: Asn1Buffer|Asn1Composite](abc: var T, value: Asn1Composite) =
-  assert(len(value) > 0, "Composite value not finished")
+  doAssert(len(value) > 0, "Composite value not finished")
   var length: int
   if value.tag == Asn1Tag.Sequence:
     length = asn1EncodeSequence(abc.toOpenArray(), value.buffer)
