@@ -223,7 +223,9 @@ elif sizeof(int) == 4:
   {.compile: bearEcPath & "ec_all_m31.c".}
   {.compile: bearEcPath & "ec_default.c".}
   {.compile: bearEcPath & "ec_keygen.c".}
+  {.compile: bearEcPath & "ec_c25519_m31.c".}
   {.compile: bearEcPath & "ec_p256_m31.c".}
+  {.compile: bearEcPath & "ec_curve25519.c".}
   {.compile: bearEcPath & "ec_prime_i31.c".}
   {.compile: bearEcPath & "ec_pubkey.c".}
   {.compile: bearEcPath & "ec_secp256r1.c".}
