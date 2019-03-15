@@ -11,11 +11,9 @@ requires "nim > 0.18.0",
          "nimcrypto >= 0.3.9",
          "chronos"
 
-import ospaths, strutils
+import ospaths, strutils, distros
 
 task test, "Runs the test suite":
-  for filename in listFiles("tests"):
-    if filename.startsWith("tests" / "test") and filename.endsWith(".nim"):
-      exec "nim c -r " & filename
-      rmFile filename[0..^5]
-
+  exec "nim c -r " & ("tests" / "testnative.nim")
+  if not detectOs(Windows):
+    exec "nim c -r " & ("tests" / "testdaemon.nim")
