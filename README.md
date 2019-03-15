@@ -1,6 +1,7 @@
 # nim-libp2p
 
 [![Build Status](https://travis-ci.org/status-im/nim-libp2p.svg?branch=master)](https://travis-ci.org/status-im/nim-libp2p)
+[![Build status](https://ci.appveyor.com/api/projects/status/pqgif5bcie6cp3wi?svg=true)](https://ci.appveyor.com/project/nimbus/nim-libp2p)
 
 libp2p implementation in Nim
 
