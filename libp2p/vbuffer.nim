@@ -56,11 +56,8 @@ proc initVBuffer*(): VBuffer =
 proc writeVarint*(vb: var VBuffer, value: LPSomeUVarint) =
   ## Write ``value`` as variable unsigned integer.
   var length = 0
-  when sizeof(value) == 8:
-    # LibP2P varint supports only 63 bits.
-    var v = value and cast[type(value)](0x7FFF_FFFF_FFFF_FFFF)
-  else:
-    var v = uint64(v)
+  # LibP2P varint supports only 63 bits.
+  var v = value and cast[type(value)](0x7FFF_FFFF_FFFF_FFFF)
   vb.buffer.setLen(len(vb.buffer) + vsizeof(v))
   let res = LP.putUVarint(toOpenArray(vb.buffer, vb.offset, len(vb.buffer) - 1),
                           length, v)
