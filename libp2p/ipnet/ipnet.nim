@@ -1,5 +1,15 @@
+## Nim-LibP2P
+## Copyright (c) 2018 Status Research & Development GmbH
+## Licensed under either of
+##  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+##  * MIT license ([LICENSE-MIT](LICENSE-MIT))
+## at your option.
+## This file may not be copied, modified, or distributed except according to
+## those terms.
+
 import endians, strutils
 import chronos
+export chronos
 
 type
   IpMask* = object
@@ -44,6 +54,15 @@ proc toHostOrder(mask: IpMask): IpMask {.inline.} =
       swapEndian64(cast[pointer](addr result.mask6[1]),
                    cast[pointer](unsafeAddr mask.mask6[1]))
 
+proc `==`*(m1, m2: IpMask): bool {.inline.} =
+  ## Returns ``true`` if masks ``m1`` and ``m2`` are equal in IP family and
+  ## by value.
+  if m1.family == m2.family:
+    if m1.family == AddressFamily.IPv4:
+      result = (m1.mask4 == m2.mask4)
+    elif m1.family == AddressFamily.IPv6:
+      result = ((m1.mask6[0] == m2.mask6[0]) and (m1.mask6[1] == m2.mask6[1]))
+
 proc init*(t: typedesc[IpMask], family: AddressFamily, prefix: int): IpMask =
   ## Initialize mask of IP family ``family`` from prefix length ``prefix``.
   ##
@@ -85,7 +104,7 @@ proc init*(t: typedesc[IpMask], netmask: TransportAddress): IpMask =
     result.mask6[0] = cast[ptr uint64](unsafeAddr netmask.address_v6[0])[]
     result.mask6[1] = cast[ptr uint64](unsafeAddr netmask.address_v6[8])[]
 
-proc init*(t: typedesc[IpMask], netmask: string): IpMask =
+proc initIp*(t: typedesc[IpMask], netmask: string): IpMask =
   ## Initialize network mask using IPv4 or IPv6 address in text representation
   ## ``netmask``.
   ##
@@ -97,6 +116,58 @@ proc init*(t: typedesc[IpMask], netmask: string): IpMask =
     result = t.init(tip)
   except ValueError:
     discard
+
+proc init*(t: typedesc[IpMask], netmask: string): IpMask =
+  ## Initialize network mask using hexadecimal string representation
+  ## ``netmask``.
+  ##
+  ## If ``netmask`` mask is invalid, result IpMask.family will be set to
+  ## ``AddressFamily.None``.
+  const
+    hexNumbers = {'0'..'9'}
+    hexCapitals = {'A'..'F'}
+    hexLowers = {'a'..'f'}
+  let length = len(netmask)
+  if length == 8 or length == (2 + 8):
+    ## IPv4 mask
+    var offset = 0
+    if length == 2 + 8:
+      offset = 2
+    var res = IpMask(family: AddressFamily.IPv4)
+    var r, v: uint32
+    for i in 0..<8:
+      if netmask[offset + i] in hexNumbers:
+        v = cast[uint32](ord(netmask[offset + i]) - ord('0'))
+      elif netmask[offset + i] in hexCapitals:
+        v = cast[uint32](ord(netmask[offset + i]) - ord('A') + 10)
+      elif netmask[offset + i] in hexLowers:
+        v = cast[uint32](ord(netmask[offset + i]) - ord('a') + 10)
+      else:
+        return
+      r = (r shl 4) or v
+    bigEndian32(addr res.mask4, addr r)
+    result = res
+  elif length == 32 or length == (2 + 32):
+    ## IPv6 mask
+    var offset = 0
+    if length == 2 + 32:
+      offset = 2
+    var res = IpMask(family: AddressFamily.IPv6)
+    for i in 0..1:
+      var r, v: uint64
+      for i in 0..<16:
+        if netmask[offset + i] in hexNumbers:
+          v = cast[uint64](ord(netmask[offset + i]) - ord('0'))
+        elif netmask[offset + i] in hexCapitals:
+          v = cast[uint64](ord(netmask[offset + i]) - ord('A') + 10)
+        elif netmask[offset + i] in hexLowers:
+          v = cast[uint64](ord(netmask[offset + i]) - ord('a') + 10)
+        else:
+          return
+        r = (r shl 4) or v
+      offset += 16
+      bigEndian64(addr res.mask6[i], addr r)
+    result = res
 
 proc toIPv6*(address: TransportAddress): TransportAddress =
   ## Map IPv4 ``address`` to IPv6 address.
@@ -188,10 +259,16 @@ proc mask*(a: TransportAddress, m: IpMask): TransportAddress =
 
 proc prefix*(mask: IpMask): int =
   ## Returns number of bits set `1` in IP mask ``mask``.
+  ##
+  ## Procedure returns ``-1`` if mask is not canonical, e.g. has holes with
+  ## ``0`` bits between ``1`` bits.
   var hmask = mask.toHostOrder()
   if hmask.family == AddressFamily.IPv4:
     var n = hmask.mask4
     while n != 0:
+      if (n and 0x8000_0000'u32) == 0'u32:
+        result = -1
+        return
       n = n shl 1
       inc(result)
   elif hmask.family == AddressFamily.IPv6:
@@ -202,13 +279,21 @@ proc prefix*(mask: IpMask): int =
       else:
         var n = hmask.mask6[1]
         while n != 0:
+          if (n and 0x8000_0000_0000_0000'u64) == 0'u64:
+            result = -1
+            return
           n = n shl 1
           inc(result)
     else:
       var n = hmask.mask6[0]
       while n != 0:
+        if (n and 0x8000_0000_0000_0000'u64) == 0'u64:
+          result = -1
+          return
         n = n shl 1
         inc(result)
+      if hmask.mask6[1] != 0x00'u64:
+        result = -1
 
 proc subnetMask*(mask: IpMask): TransportAddress =
   ## Returns TransportAddress representation of IP mask ``mask``.
@@ -219,12 +304,12 @@ proc subnetMask*(mask: IpMask): TransportAddress =
     cast[ptr uint64](addr result.address_v6[0])[] = mask.mask6[0]
     cast[ptr uint64](addr result.address_v6[8])[] = mask.mask6[1]
 
-proc `$`*(mask: IpMask): string =
+proc `$`*(mask: IpMask, include0x = false): string =
   ## Returns hexadecimal string representation of IP mask ``mask``.
   var host = mask.toHostOrder()
   result = ""
   if host.family == AddressFamily.IPv4:
-    result = "0x"
+    result = if include0x: "0x" else: ""
     var n = 32
     var m = host.mask4
     while n > 0:
@@ -235,7 +320,7 @@ proc `$`*(mask: IpMask): string =
       else:
         result.add(chr(ord('A') + (c - 10)))
   elif host.family == AddressFamily.IPv6:
-    result = "0x"
+    result = if include0x: "0x" else: ""
     for i in 0..1:
       var n = 64
       var m = host.mask6[i]
@@ -246,13 +331,28 @@ proc `$`*(mask: IpMask): string =
           result.add(chr(ord('0') + c))
         else:
           result.add(chr(ord('A') + (c - 10)))
+  else:
+    raise newException(ValueError, "Invalid mask")
+
+proc ip*(mask: IpMask): string =
+  ## Returns IP address text representation of IP mask ``mask``.
+  if mask.family == AddressFamily.IPv4:
+    var ip = IpAddress(family: IpAddressFamily.IPv4)
+    copyMem(addr ip.address_v4[0], unsafeAddr mask.mask4, sizeof(uint32))
+    result = $ip
+  elif mask.family == AddressFamily.IPv6:
+    var ip = IpAddress(family: IpAddressFamily.IPv6)
+    copyMem(addr ip.address_v6[0], unsafeAddr mask.mask6[0], 16)
+    result = $ip
+  else:
+    raise newException(ValueError, "Invalid mask")
 
 proc init*(t: typedesc[IpNet], host: TransportAddress,
            prefix: int): IpNet {.inline.} =
   ## Initialize IP Network using host address ``host`` and prefix length
   ## ``prefix``.
   result.mask = IpMask.init(host.family, prefix)
-  result.host = mask(host, result.mask)
+  result.host = host
 
 proc init*(t: typedesc[IpNet], host, mask: TransportAddress): IpNet {.inline.} =
   ## Initialize IP Network using host address ``host`` and network mask
@@ -261,25 +361,22 @@ proc init*(t: typedesc[IpNet], host, mask: TransportAddress): IpNet {.inline.} =
   ## Note that ``host`` and ``mask`` must be from the same IP family.
   if host.family == mask.family:
     result.mask = IpMask.init(mask)
-    result.host = mask(host, result.mask)
+    result.host = host
 
 proc init*(t: typedesc[IpNet], host: TransportAddress,
            mask: IpMask): IpNet {.inline.} =
   ## Initialize IP Network using host address ``host`` and network mask
   ## ``mask``.
   result.mask = mask
-  result.host = result.mask(host)
+  result.host = host
 
 proc init*(t: typedesc[IpNet], network: string): IpNet =
   ## Initialize IP Network from string representation in format
-  ## <address>/<prefix length>.
-  ##
-  ## Not if <prefix length> is not present or its value is bigger then maximum
-  ## value (32 for IPv4 and 128 for IPv6), then `/32` and `/128` will be used
-  ## as prefix length.
+  ## <address>/<prefix length> or <address>/<netmask address>.
   var parts = network.rsplit("/", maxsplit = 1)
-  var host: TransportAddress
+  var host, mhost: TransportAddress
   var ipaddr: IpAddress
+  var mask: IpMask
   var prefix: int
   try:
     ipaddr = parseIpAddress(parts[0])
@@ -292,49 +389,86 @@ proc init*(t: typedesc[IpNet], network: string): IpNet =
       host.address_v6 = ipaddr.address_v6
       prefix = 128
     if len(parts) > 1:
-      prefix = parseInt(parts[1])
-      if ipaddr.family == IpAddressFamily.IPv4 and
-         (prefix < 0 or prefix > 32):
-        prefix = 32
-      elif ipaddr.family == IpAddressFamily.IPv6 and
-           (prefix < 0 or prefix > 128):
-        prefix = 128
-    result = t.init(host, prefix)
+      try:
+        prefix = parseInt(parts[1])
+      except:
+        prefix = -1
+      if prefix == -1:
+        ipaddr = parseIpAddress(parts[1])
+        if ipaddr.family == IpAddressFamily.IPv4:
+          mhost = TransportAddress(family: AddressFamily.IPv4)
+          mhost.address_v4 = ipaddr.address_v4
+        elif ipaddr.family == IpAddressFamily.IPv6:
+          mhost = TransportAddress(family: AddressFamily.IPv6)
+          mhost.address_v6 = ipaddr.address_v6
+        mask = IpMask.init(mhost)
+        if mask.family != host.family:
+          raise newException(TransportAddressError,
+                             "Incorrect network address!")
+      else:
+        if (ipaddr.family == IpAddressFamily.IPv4 and
+           (prefix <= 0 or prefix > 32)) or
+           (ipaddr.family == IpAddressFamily.IPv6 and
+           (prefix <= 0 or prefix > 128)):
+          raise newException(TransportAddressError,
+                             "Incorrect network address!")
+    if prefix == -1:
+      result = t.init(host, mask)
+    else:
+      result = t.init(host, prefix)
   except:
-    raise newException(TransportAddressError, "Incorrect address family!")
+    raise newException(TransportAddressError, "Incorrect network address!")
+
+proc `==`*(n1, n2: IpNet): bool {.inline.} =
+  ## Returns ``true`` if networks ``n1`` and ``n2`` are equal in IP family and
+  ## by value.
+  if n1.host.family == n2.host.family:
+    if n1.host.family == AddressFamily.IPv4:
+      result = (n1.host.address_v4 == n2.host.address_v4) and
+               (n1.mask == n2.mask)
+    elif n1.host.family == AddressFamily.IPv6:
+      result = (n1.host.address_v6 == n2.host.address_v6) and
+               (n1.mask == n2.mask)
 
 proc contains*(net: IpNet, address: TransportAddress): bool =
   ## Returns ``true`` if ``address`` belongs to IP Network ``net``
   if net.host.family == address.family:
-    var host = mask(address, net.mask)
-    result = (net.host == host)
+    var host1 = mask(address, net.mask)
+    var host2 = mask(net.host, net.mask)
+    host2.port = host1.port
+    result = (host1 == host2)
 
 proc broadcast*(net: IpNet): TransportAddress =
   ## Returns broadcast address for IP Network ``net``.
   result = TransportAddress(family: net.host.family)
   if result.family == AddressFamily.IPv4:
-    var address = cast[ptr uint32](unsafeAddr net.host.address_v4[0])[]
-    var mask = cast[ptr uint32](unsafeAddr net.mask.mask4)[]
+    let address = cast[ptr uint32](unsafeAddr net.host.address_v4[0])[]
+    let mask = cast[ptr uint32](unsafeAddr net.mask.mask4)[]
     cast[ptr uint32](addr result.address_v4[0])[] = address or (not(mask))
   elif result.family == AddressFamily.IPv6:
-    var address0 = cast[ptr uint64](unsafeAddr net.host.address_v6[0])[]
-    var address1 = cast[ptr uint64](unsafeAddr net.host.address_v6[8])[]
-    var data0 = cast[ptr uint64](unsafeAddr net.mask.mask6[0])[]
-    var data1 = cast[ptr uint64](unsafeAddr net.mask.mask6[1])[]
+    let address0 = cast[ptr uint64](unsafeAddr net.host.address_v6[0])[]
+    let address1 = cast[ptr uint64](unsafeAddr net.host.address_v6[8])[]
+    let data0 = cast[ptr uint64](unsafeAddr net.mask.mask6[0])[]
+    let data1 = cast[ptr uint64](unsafeAddr net.mask.mask6[1])[]
     cast[ptr uint64](addr result.address_v6[0])[] = address0 or (not(data0))
     cast[ptr uint64](addr result.address_v6[8])[] = address1 or (not(data1))
 
 proc subnetMask*(net: IpNet): TransportAddress =
-  ## Returns netmask address for IP Network ``net``
+  ## Returns netmask address for IP Network ``net``.
   result = TransportAddress(family: net.host.family)
   if result.family == AddressFamily.IPv4:
-    var address = cast[ptr uint32](unsafeAddr net.mask.mask4)[]
+    let address = cast[ptr uint32](unsafeAddr net.mask.mask4)[]
     cast[ptr uint32](addr result.address_v4[0])[] = address
   elif result.family == AddressFamily.IPv6:
-    var address0 = cast[ptr uint64](unsafeAddr net.mask.mask6[0])[]
-    var address1 = cast[ptr uint64](unsafeAddr net.mask.mask6[1])[]
+    let address0 = cast[ptr uint64](unsafeAddr net.mask.mask6[0])[]
+    let address1 = cast[ptr uint64](unsafeAddr net.mask.mask6[1])[]
     cast[ptr uint64](addr result.address_v6[0])[] = address0
     cast[ptr uint64](addr result.address_v6[8])[] = address1
+
+proc network*(net: IpNet): TransportAddress {.inline.} =
+  ## Returns network address (host address masked with network mask) for
+  ## IP Network ``net``.
+  result = mask(net.host, net.mask)
 
 proc `and`*(address1, address2: TransportAddress): TransportAddress =
   ## Bitwise ``and`` operation for ``address1 and address2``.
@@ -430,13 +564,21 @@ proc `$`*(net: IpNet): string =
                       address_v4: net.host.address_v4)
     result = $a
     result.add("/")
-    result.add($net.mask.prefix())
+    let prefix = net.mask.prefix()
+    if prefix == -1:
+      result.add(net.mask.ip())
+    else:
+      result.add($prefix)
   elif net.host.family == AddressFamily.IPv6:
     var a = IpAddress(family: IpAddressFamily.IPv6,
                       address_v6: net.host.address_v6)
     result = $a
     result.add("/")
-    result.add($net.mask.prefix())
+    let prefix = net.mask.prefix()
+    if prefix == -1:
+      result.add(net.mask.ip())
+    else:
+      result.add($prefix)
 
 proc isUnspecified*(address: TransportAddress): bool {.inline.} =
   ## Returns ``true`` if ``address`` is not specified yet, e.g. its ``family``
@@ -555,34 +697,3 @@ proc isGlobalMulticast*(address: TransportAddress): bool =
   elif address.family == AddressFamily.IPv6:
     result = (address.address_v6[0] == 0xFF'u8) and
              ((address.address_v6[1] and 0x0F'u8) == 0x0E'u8)
-
-when isMainModule:
-  var MaskVectors = [
-    ["192.168.1.127:1024", "255.255.255.128", "192.168.1.0:1024"],
-    ["192.168.1.127:1024", "255.255.255.192", "192.168.1.64:1024"],
-    ["192.168.1.127:1024", "255.255.255.224", "192.168.1.96:1024"],
-    ["192.168.1.127:1024", "ffff:ffff:ffff:ffff:ffff:ffff:ffff:ff80",
-     "192.168.1.0:1024"],
-    ["192.168.1.127:1024", "ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffc0",
-     "192.168.1.64:1024"],
-    ["192.168.1.127:1024", "ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffe0",
-     "192.168.1.96:1024"],
-    ["192.168.1.127:1024", "255.0.255.0", "192.0.1.0:1024"],
-    ["[2001:db8::1]:1024", "ffff:ff80::", "[2001:d80::]:1024"],
-    ["[2001:db8::1]:1024", "f0f0:0f0f::", "[2000:d08::]:1024"]
-  ]
-  for item in MaskVectors:
-    var a = initTAddress(item[0])
-    var m = IpMask.init(item[1])
-    var r = a.mask(m)
-    echo r
-  # var temp = [0'u8, 0, 255, 255, 255, 255, 255, 0]
-  # echo toHex(cast[ptr uint64](addr temp[0])[])
-  # # {IPv4(192, 168, 1, 127), IPMask(ParseIP("255.255.255.192")), IPv4(192, 168, 1, 64)},
-  # echo initTAddress("255.255.255.128", 0).toIPv6()
-  # var a = initTAddress("255.255.255.0", 0).toIPv6()
-  # echo a
-  # var m = IpMask.init(a)
-  # var b = initTAddress("192.168.1.127", 0)
-  # echo b.mask(m)
-  # # echo a.mask(m)

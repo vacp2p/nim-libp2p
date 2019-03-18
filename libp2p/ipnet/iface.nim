@@ -1,6 +1,14 @@
-import chronos
+## Nim-LibP2P
+## Copyright (c) 2018 Status Research & Development GmbH
+## Licensed under either of
+##  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+##  * MIT license ([LICENSE-MIT](LICENSE-MIT))
+## at your option.
+## This file may not be copied, modified, or distributed except according to
+## those terms.
 import algorithm
 from strutils import toHex
+import ipnet
 
 const
   MaxAdapterAddressLength* = 8
@@ -221,8 +229,8 @@ type
     StatusLowerLayerDown
 
   InterfaceAddress* = object
-    ifaddr*: TransportAddress
-    prefix*: int
+    host*: TransportAddress
+    net*: IpNet
 
   NetworkInterface* = object
     ifIndex*: int
@@ -236,114 +244,31 @@ type
     maclen*: int
     addresses*: seq[InterfaceAddress]
 
-proc host*(ifa: InterfaceAddress): TransportAddress =
-  ## Return host address for ``ifa``.
-  result = ifa.ifaddr
-
-template setBroadcast(b, nby, nbi) =
-  if nbi == 0:
-    for i in nby..<len(b):
-      b[i] = 0xFF'u8
-  else:
-    let bcast = not cast[byte](0xFF'u8 shl (8 - nbi))
-    b[nby] = b[nby] or bcast
-    for i in (nby + 1)..<len(b):
-      b[i] = 0xFF'u8
-
-template setNetwork(b, nby, nbi) =
-  if nbi == 0:
-    for i in nby..<len(b):
-      b[i] = 0x00'u8
-  else:
-    let mask = cast[byte](0xFF'u8 shl (8 - nbi))
-    b[nby] = b[nby] and mask
-    for i in (nby + 1)..<len(b):
-      b[i] = 0x00'u8
-
-template setNetmask(b, nby, nbi) =
-  var mask: byte
-  for i in 0..<nby:
-    b[i] = 0xFF'u8
-  if nbi > 0:
-    mask = cast[byte](0xFF'u8 shl (8 - nbi))
-  if nby < len(b):
-    b[nby] = b[nby] or mask
-  for i in (nby + 1)..<len(b):
-    b[i] = 0x00'u8
-
-proc broadcast*(ifa: InterfaceAddress): TransportAddress =
+proc broadcast*(ifa: InterfaceAddress): TransportAddress {.inline.} =
   ## Return broadcast address for ``ifa``.
-  let nbytes = ifa.prefix div 8
-  let nbits = ifa.prefix mod 8
-  result = ifa.ifaddr
-  if result.family == AddressFamily.IPv4:
-    setBroadcast(result.address_v4, nbytes, nbits)
-  elif result.family == AddressFamily.IPv6:
-    setBroadcast(result.address_v6, nbytes, nbits)
+  result = ifa.net.broadcast()
 
-proc network*(ifa: InterfaceAddress): TransportAddress =
+proc network*(ifa: InterfaceAddress): TransportAddress {.inline.} =
   ## Return network address for ``ifa``.
-  let nbytes = ifa.prefix div 8
-  let nbits = ifa.prefix mod 8
-  result = ifa.ifaddr
-  if result.family == AddressFamily.IPv4:
-    setNetwork(result.address_v4, nbytes, nbits)
-  elif result.family == AddressFamily.IPv6:
-    setNetwork(result.address_v6, nbytes, nbits)
+  result = ifa.net.network()
 
-proc netmask*(ifa: InterfaceAddress): TransportAddress =
+proc netmask*(ifa: InterfaceAddress): TransportAddress {.inline.} =
   ## Return network mask for ``ifa``.
-  let nbytes = ifa.prefix div 8
-  let nbits = ifa.prefix mod 8
-  result = TransportAddress(family: ifa.ifaddr.family)
-  if result.family == AddressFamily.IPv4:
-    setNetmask(result.address_v4, nbytes, nbits)
-  elif result.family == AddressFamily.IPv6:
-    setNetmask(result.address_v6, nbytes, nbits)
-
-proc hostMin*(ifa: InterfaceAddress): TransportAddress =
-  ## Return minimum allowed host address for ``ifa``
-  result = ifa.network()
-  if result.family == AddressFamily.IPv4:
-    let last = len(result.address_v4) - 1
-    result.address_v4[last] = result.address_v4[last] + 1
-  elif result.family == AddressFamily.IPv6:
-    let last = len(result.address_v6) - 1
-    result.address_v6[last] = result.address_v6[last] + 1
-
-proc hostMax*(ifa: InterfaceAddress): TransportAddress =
-  ## Return maximum allowed host address for ``ifa``.
-  result = ifa.broadcast()
-  if result.family == AddressFamily.IPv4:
-    let last = len(result.address_v4) - 1
-    result.address_v4[last] = result.address_v4[last] - 1
-  elif result.family == AddressFamily.IPv6:
-    let last = len(result.address_v6) - 1
-    result.address_v6[last] = result.address_v6[last] - 1
+  result = ifa.net.subnetMask()
 
 proc init*(ift: typedesc[InterfaceAddress], address: TransportAddress,
            prefix: int): InterfaceAddress =
   ## Initialize ``InterfaceAddress`` using ``address`` and prefix length
   ## ``prefix``.
-  result.ifaddr = address
-  result.prefix = prefix
+  result.host = address
+  result.net = IpNet.init(address, prefix)
 
-proc `$`*(ifa: InterfaceAddress): string =
+proc `$`*(ifa: InterfaceAddress): string {.inline.} =
   ## Return string representation of ``ifa``.
-  if ifa.ifaddr.family == AddressFamily.IPv4:
-    var a = IpAddress(
-      family: IpAddressFamily.IPv4,
-      address_v4: ifa.ifaddr.address_v4
-    )
-    result = $a
-    result.add("/")
-    result.add($int(ifa.prefix))
-  elif ifa.ifaddr.family == AddressFamily.IPv6:
-    var a = IpAddress(family: IpAddressFamily.IPv6,
-                      address_v6: ifa.ifaddr.address_v6)
-    result = $a
-    result.add("/")
-    result.add($int(ifa.prefix))
+  if ifa.host.family == AddressFamily.IPv4:
+    result = $ifa.net
+  elif ifa.host.family == AddressFamily.IPv6:
+    result = $ifa.net
 
 proc `$`*(iface: NetworkInterface): string =
   ## Return string representation of network interface ``iface``.
@@ -373,9 +298,9 @@ proc `$`*(iface: NetworkInterface): string =
         result.add(":")
   for item in iface.addresses:
     result.add("\n    ")
-    if item.ifaddr.family == AddressFamily.IPv4:
+    if item.host.family == AddressFamily.IPv4:
       result.add("inet ")
-    elif item.ifaddr.family == AddressFamily.IPv6:
+    elif item.host.family == AddressFamily.IPv6:
       result.add("inet6 ")
     result.add($item)
     result.add(" netmask ")
@@ -745,8 +670,8 @@ when defined(linux):
     if len(result.addresses) == 0:
       result.addresses = newSeq[InterfaceAddress]()
     let prefixLength = cast[int](iaddr.ifa_prefixlen)
-    result.addresses.add(InterfaceAddress(ifaddr: address,
-                                          prefix: prefixLength))
+    let ifaddr = InterfaceAddress.init(address, prefixLength)
+    result.addresses.add(ifaddr)
 
   proc getLinks(netfd: SocketHandle, pid: Pid): seq[NetworkInterface] =
     if not sendNetlinkMessage(netfd, pid, 1, RTM_GETLINK,
@@ -904,26 +829,6 @@ elif defined(macosx) or defined(bsd):
     else:
       result = StatusDown
 
-  proc netmaskToPrefix(address: TransportAddress): int =
-    var lastbyte: byte
-    if address.family == AddressFamily.IPv4:
-      for i in 0..<len(address.address_v4):
-        if address.address_v4[i] == 0xFF'u8:
-          result += 8
-        else:
-          lastbyte = address.address_v4[i]
-          break
-    elif address.family == AddressFamily.IPv6:
-      for i in 0..<len(address.address_v6):
-        if address.address_v6[i] == 0xFF'u8:
-          result += 8
-        else:
-          lastbyte = address.address_v6[i]
-          break
-    while lastbyte > 0'u8:
-      lastbyte = lastbyte shl 1
-      result += 1
-
   proc getInterfaces*(): seq[NetworkInterface] =
     ## Return list of available interfaces.
     var ifap: ptr IfAddrs
@@ -960,10 +865,10 @@ elif defined(macosx) or defined(bsd):
             result[i].mtu = cast[int](data.ifi_mtu)
           elif family == posix.AF_INET:
             fromSAddr(cast[ptr Sockaddr_storage](ifap.ifa_addr),
-                      Socklen(sizeof(SockAddr_in)), ifaddress.ifaddr)
+                      Socklen(sizeof(SockAddr_in)), ifaddress.host)
           elif family == posix.AF_INET6:
             fromSAddr(cast[ptr Sockaddr_storage](ifap.ifa_addr),
-                      Socklen(sizeof(SockAddr_in6)), ifaddress.ifaddr)
+                      Socklen(sizeof(SockAddr_in6)), ifaddress.host)
         if not isNil(ifap.ifa_netmask):
           var na: TransportAddress
           var slen: Socklen
@@ -974,9 +879,9 @@ elif defined(macosx) or defined(bsd):
           elif family == posix.AF_INET6:
             fromSAddr(cast[ptr Sockaddr_storage](ifap.ifa_netmask),
                       Socklen(sizeof(SockAddr_in6)), na)
-          ifaddress.prefix = netmaskToPrefix(na)
+          ifaddress.net = IpNet.init(ifaddress.host, na)
 
-        if ifaddress.ifaddr.family != AddressFamily.None:
+        if ifaddress.host.family != AddressFamily.None:
           if len(result[i].addresses) == 0:
             result[i].addresses = newSeq[InterfaceAddress]()
           result[i].addresses.add(ifaddress)
@@ -1182,7 +1087,7 @@ elif defined(windows):
                       vista: bool): InterfaceAddress =
     var netfamily = ifunic.address.lpSockaddr.sa_family
     fromSAddr(cast[ptr Sockaddr_storage](ifunic.address.lpSockaddr),
-              SockLen(ifunic.address.iSockaddrLength), result.ifaddr)
+              SockLen(ifunic.address.iSockaddrLength), result.host)
     if not vista:
       var prefix = ifitem.firstPrefix
       var prefixLength = -1
@@ -1192,15 +1097,15 @@ elif defined(windows):
         fromSAddr(cast[ptr Sockaddr_storage](prefix.address.lpSockaddr),
                   SockLen(prefix.address.iSockaddrLength), pa)
         if netfamily == prefamily:
-          if ipMatchPrefix(result.ifaddr, pa, cast[int](prefix.prefixLength)):
+          if ipMatchPrefix(result.host, pa, cast[int](prefix.prefixLength)):
             prefixLength = max(prefixLength, cast[int](prefix.prefixLength))
         prefix = prefix.next
       if prefixLength >= 0:
-        result.prefix = prefixLength
+        result.net = IpNet.init(result.host, prefixLength)
     else:
       let prefixLength = cast[int](ifunic.onLinkPrefixLength)
       if prefixLength >= 0:
-        result.prefix = prefixLength
+        result.net = IpNet.init(result.host, prefixLength)
 
   proc getInterfaces*(): seq[NetworkInterface] =
     ## Return list of network interfaces.
@@ -1254,8 +1159,3 @@ elif defined(windows):
 
 else:
   {.fatal: "Sorry, your OS is currently not supported!".}
-
-when isMainModule:
-  var a = getInterfaces()
-  for item in a:
-    echo $item
