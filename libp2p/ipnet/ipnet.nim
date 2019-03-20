@@ -7,6 +7,7 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
+## This module implements various IP network utility procedures.
 import endians, strutils
 import chronos
 export chronos

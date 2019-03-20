@@ -10,7 +10,7 @@
 ## This module implements MultiAddress.
 import tables, strutils, net
 import multicodec, multihash, multibase, transcoder, base58, base32, vbuffer
-import peer
+from peer import PeerID
 
 {.deadCodeElim:on.}
 
@@ -26,6 +26,18 @@ type
 
   MultiAddress* = object
     data*: VBuffer
+
+  MaPatternOp* = enum
+    Eq, Or, And
+
+  MaPattern* = object
+    operator*: MaPatternOp
+    args*: seq[MaPattern]
+    value*: MultiCodec
+
+  MaPatResult* = object
+    flag*: bool
+    rem*: seq[MultiCodec]
 
   MultiAddressError* = object of Exception
 
@@ -219,6 +231,21 @@ proc dnsVB(vb: var VBuffer): bool =
     if s.find('/') == -1:
       result = true
 
+proc pEq(codec: string): MaPattern =
+  ## ``Equal`` operator for pattern
+  result.operator = Eq
+  result.value = multiCodec(codec)
+
+proc pOr(args: varargs[MaPattern]): MaPattern =
+  ## ``Or`` operator for pattern
+  result.operator = Or
+  result.args = @args
+
+proc pAnd(args: varargs[MaPattern]): MaPattern =
+  ## ``And`` operator for pattern
+  result.operator = And
+  result.args = @args
+
 const
   TranscoderIP4* = Transcoder(
     stringToBuffer: ip4StB,
@@ -348,6 +375,40 @@ const
       mcodec: multiCodec("p2p-webrtc-direct"), kind: Marker, size: 0
     )
   ]
+
+  DNS4* = pEq("dns4")
+  DNS6* = pEq("dns6")
+  IP4* = pEq("ip4")
+  IP6* = pEq("ip6")
+  DNS* = pOr(pEq("dnsaddr"), DNS4, DNS6)
+  IP* = pOr(IP4, IP6)
+  TCP* = pOr(pAnd(DNS, pEq("tcp")), pAnd(IP, pEq("tcp")))
+  UDP* = pOr(pAnd(DNS, pEq("udp")), pAnd(IP, pEq("udp")))
+  UTP* = pAnd(UDP, pEq("utp"))
+  QUIC* = pAnd(UDP, pEq("quic"))
+
+  Unreliable* = pOr(UDP)
+
+  Reliable* = pOr(TCP, UTP, QUIC)
+
+  IPFS* = pAnd(Reliable, pEq("p2p"))
+
+  HTTP* = pOr(
+    pAnd(TCP, pEq("http")),
+    pAnd(IP, pEq("http")),
+    pAnd(DNS, pEq("http"))
+  )
+
+  HTTPS* = pOr(
+    pAnd(TCP, pEq("https")),
+    pAnd(IP, pEq("https")),
+    pAnd(DNS, pEq("https"))
+  )
+
+  WebRTCDirect* = pOr(
+    pAnd(HTTP, pEq("p2p-webrtc-direct")),
+    pAnd(HTTPS, pEq("p2p-webrtc-direct"))
+  )
 
 proc initMultiAddressCodeTable(): Table[MultiCodec,
                                         MAProtocol] {.compileTime.} =
@@ -526,6 +587,12 @@ proc `$`*(value: MultiAddress): string =
       parts.add($(proto.mcodec))
   if len(parts) > 0:
     result = "/" & parts.join("/")
+
+proc protocols*(value: MultiAddress): seq[MultiCodec] =
+  ## Returns list of protocol codecs inside of MultiAddress ``value``.
+  result = newSeq[MultiCodec]()
+  for item in value.items():
+    result.add(item.protoCode())
 
 proc hex*(value: MultiAddress): string =
   ## Return hexadecimal string representation of MultiAddress ``value``.
@@ -715,3 +782,54 @@ proc isWire*(ma: MultiAddress): bool =
         break
   except:
     result = false
+
+proc matchPart(pat: MaPattern, protos: seq[MultiCodec]): MaPatResult =
+  var empty: seq[MultiCodec]
+  var pcs = protos
+  if pat.operator == Or:
+    for a in pat.args:
+      let res = a.matchPart(pcs)
+      if res.flag:
+        return MaPatResult(flag: true, rem: res.rem)
+    result = MaPatResult(flag: false, rem: empty)
+  elif pat.operator == And:
+    if len(pcs) < len(pat.args):
+      return MaPatResult(flag: false, rem: empty)
+    for i in 0..<len(pat.args):
+      let res = pat.args[i].matchPart(pcs)
+      if not res.flag:
+        return MaPatResult(flag: false, rem: res.rem)
+      pcs = res.rem
+    result = MaPatResult(flag: true, rem: pcs)
+  elif pat.operator == Eq:
+    if len(pcs) == 0:
+      return MaPatResult(flag: false, rem: empty)
+    if pcs[0] == pat.value:
+      return MaPatResult(flag: true, rem: pcs[1..^1])
+    result = MaPatResult(flag: false, rem: empty)
+
+proc match*(pat: MaPattern, address: MultiAddress): bool =
+  ## Match full ``address`` using pattern ``pat`` and return ``true`` if
+  ## ``address`` satisfies pattern.
+  var protos = address.protocols()
+  let res = matchPart(pat, protos)
+  result = res.flag and (len(res.rem) == 0)
+
+proc matchPartial*(pat: MaPattern, address: MultiAddress): bool =
+  ## Match prefix part of ``address`` using pattern ``pat`` and return
+  ## ``true`` if ``address`` starts with pattern.
+  var protos = address.protocols()
+  let res = matchPart(pat, protos)
+  result = res.flag
+
+proc `$`*(pat: MaPattern): string =
+  ## Return pattern ``pat`` as string.
+  var sub = newSeq[string]()
+  for a in pat.args:
+    sub.add($a)
+  if pat.operator == And:
+    result = sub.join("/")
+  elif pat.operator == Or:
+    result = "(" & sub.join("|") & ")"
+  elif pat.operator == Eq:
+    result = $pat.value

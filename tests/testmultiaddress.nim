@@ -1,6 +1,12 @@
 import unittest
 import ../libp2p/multiaddress
 
+type
+  PatternVector = object
+    pattern: MaPattern
+    good: seq[string]
+    bad: seq[string]
+
 const
   SuccessVectors = [
     "/ip4/1.2.3.4",
@@ -203,6 +209,88 @@ const
     "/ip4/127.0.0.1/udp/1234/quic"
   ]
 
+  PatternVectors = [
+    PatternVector(pattern: IP,
+      good: @["/ip4/0.0.0.0", "/ip6/fc00::"],
+      bad: @["/ip4/0.0.0.0/tcp/555", "/udp/789/ip6/fc00::"]
+    ),
+    PatternVector(pattern: TCP,
+      good: @["/ip4/0.0.7.6/tcp/1234", "/ip6/::/tcp/0"],
+      bad: @["/tcp/12345", "/ip6/fc00::/udp/5523/tcp/9543"]
+    ),
+    PatternVector(pattern: UDP,
+      good: @["/ip4/0.0.7.6/udp/1234", "/ip6/::/udp/0"],
+      bad: @["/udp/12345", "/ip6/fc00::/tcp/5523/udp/9543"],
+    ),
+    PatternVector(pattern: UTP,
+      good: @["/ip4/1.2.3.4/udp/3456/utp", "/ip6/::/udp/0/utp"],
+      bad: @[
+        "/ip4/0.0.0.0/tcp/12345/utp",
+        "/ip6/fc00::/ip4/0.0.0.0/udp/1234/utp",
+        "/utp"
+      ]
+    ),
+    PatternVector(pattern: QUIC,
+      good: @["/ip4/1.2.3.4/udp/1234/quic", "/ip6/::/udp/1234/quic"],
+      bad: @[
+        "/ip4/0.0.0.0/tcp/12345/quic",
+        "/ip6/fc00::/ip4/0.0.0.0/udp/1234/quic",
+        "/quic"
+      ]
+    ),
+    PatternVector(pattern: IPFS,
+      good: @[
+        "/ip4/1.2.3.4/tcp/1234/ipfs/QmaCpDMGvV2BGHeYERUEnRQAwe3N8SzbUtfsmvsqQLuvuJ",
+        "/ip6/::/tcp/1234/ipfs/QmaCpDMGvV2BGHeYERUEnRQAwe3N8SzbUtfsmvsqQLuvuJ",
+        "/ip6/::/udp/1234/utp/ipfs/QmaCpDMGvV2BGHeYERUEnRQAwe3N8SzbUtfsmvsqQLuvuJ",
+        "/ip4/0.0.0.0/udp/1234/utp/ipfs/QmaCpDMGvV2BGHeYERUEnRQAwe3N8SzbUtfsmvsqQLuvuJ",
+      ],
+      bad: @[
+        "/ip4/1.2.3.4/ipfs/QmaCpDMGvV2BGHeYERUEnRQAwe3N8SzbUtfsmvsqQLuvuJ",
+        "/ip6/::/ipfs/QmaCpDMGvV2BGHeYERUEnRQAwe3N8SzbUtfsmvsqQLuvuJ",
+        "/tcp/123/ipfs/QmaCpDMGvV2BGHeYERUEnRQAwe3N8SzbUtfsmvsqQLuvuJ",
+        "/ip6/::/udp/1234/ipfs/QmaCpDMGvV2BGHeYERUEnRQAwe3N8SzbUtfsmvsqQLuvuJ",
+        "/ip6/::/utp/ipfs/QmaCpDMGvV2BGHeYERUEnRQAwe3N8SzbUtfsmvsqQLuvuJ",
+        "/ipfs/QmaCpDMGvV2BGHeYERUEnRQAwe3N8SzbUtfsmvsqQLuvuJ",
+      ]
+    ),
+    PatternVector(pattern: DNS,
+      good: @["/dnsaddr/example.io", "/dns4/example.io", "/dns6/example.io"],
+      bad: @["/ip4/127.0.0.1"],
+    ),
+    PatternVector(pattern: WebRTCDirect,
+      good: @[
+        "/ip4/1.2.3.4/tcp/3456/http/p2p-webrtc-direct",
+        "/ip6/::/tcp/0/http/p2p-webrtc-direct"
+      ],
+      bad: @[
+        "/ip4/0.0.0.0", "/ip6/fc00::", "/udp/12345",
+        "/ip6/fc00::/tcp/5523/udp/9543"
+      ]
+    ),
+    PatternVector(pattern: HTTP,
+      good: @[
+        "/ip4/1.2.3.4/http", "/dns4/example.io/http",
+        "/dns6/::/tcp/7011/http", "/dnsaddr/example.io/http",
+        "/ip6/fc00::/http"
+      ],
+      bad: @[
+        "/ip4/1.2.3.4/https", "/ip4/0.0.0.0/tcp/12345/quic",
+        "/ip6/fc00::/tcp/5523"
+      ]
+    ),
+    PatternVector(pattern: HTTPS,
+      good: @[
+        "/ip4/1.2.3.4/https", "/dns4/example.io/https",
+        "/dns6/::/tcp/7011/https", "/ip6/fc00::/https"
+      ],
+      bad: @[
+        "/ip4/1.2.3.4/http", "/ip4/0.0.0.0/tcp/12345/quic",
+        "/ip6/fc00::/tcp/5523"
+      ]
+    )
+  ]
+
 suite "MultiAddress test suite":
 
   test "go-multiaddr success test vectors":
@@ -264,3 +352,12 @@ suite "MultiAddress test suite":
       check:
         hex(a) == PathExpects[i]
         $a == PathVectors[i]
+
+  test "MultiAddress pattern matching test vectors":
+    for item in PatternVectors:
+      for gitem in item.good:
+        var a = MultiAddress.init(gitem)
+        check item.pattern.match(a) == true
+      for bitem in item.bad:
+        var a = MultiAddress.init(bitem)
+        check item.pattern.match(a) == false

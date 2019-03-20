@@ -6,6 +6,9 @@
 ## at your option.
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
+
+## This module implements cross-platform network interfaces list.
+## Currently supported OSes are Windows, Linux, MacOS, BSD(not tested).
 import algorithm
 from strutils import toHex
 import ipnet
