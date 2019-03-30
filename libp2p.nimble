@@ -11,9 +11,12 @@ requires "nim > 0.18.0",
          "nimcrypto >= 0.3.9",
          "chronos"
 
-import ospaths, strutils, distros
+proc runTest(filename: string) =
+  exec "nim c -r tests/" & filename
+  rmFile "tests/" & filename
 
 task test, "Runs the test suite":
-  exec "nim c -r " & ("tests" / "testnative.nim")
-  if not detectOs(Windows):
-    exec "nim c -r " & ("tests" / "testdaemon.nim")
+  runTest "testnative"
+  when not defined(windows):
+    runTest "testdaemon"
+
