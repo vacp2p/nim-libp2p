@@ -31,7 +31,7 @@ proc connectStreamTest(): Future[bool] {.async.} =
   var stream = await api1.openStream(id2.peer, protos)
   let sent = await stream.transp.write(test & "\r\n")
   doAssert(sent == len(test) + 2)
-  var check = await wait(testFuture, 10000)
+  var check = await wait(testFuture, 10.seconds)
   doAssert(check == test)
   await stream.close()
   await api1.close()
@@ -119,7 +119,7 @@ proc pubsubTest(f: set[P2PDaemonFlags]): Future[bool] {.async.} =
   var ticket1 = await api1.pubsubSubscribe("test-topic", pubsubHandler1)
   var ticket2 = await api2.pubsubSubscribe("test-topic", pubsubHandler2)
 
-  await sleepAsync(2000)
+  await sleepAsync(2.seconds)
 
   var topics1 = await api1.pubsubGetTopics()
   var topics2 = await api2.pubsubGetTopics()
@@ -129,10 +129,10 @@ proc pubsubTest(f: set[P2PDaemonFlags]): Future[bool] {.async.} =
     var peers2 = await api2.pubsubListPeers("test-topic")
     if len(peers1) == 1 and len(peers2) == 1:
       # Publish test data via api1.
-      await sleepAsync(500)
+      await sleepAsync(500.milliseconds)
       await api1.pubsubPublish("test-topic", msgData)
       var andfut = handlerFuture1 and handlerFuture2
-      await andfut or sleepAsync(10000)
+      await andfut or sleepAsync(10.seconds)
 
   await api1.close()
   await api2.close()

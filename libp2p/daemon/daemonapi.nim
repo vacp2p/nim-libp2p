@@ -673,7 +673,7 @@ proc newDaemonApi*(flags: set[P2PDaemonFlags] = {},
     let res = await socketExists(api.address)
     if res:
       break
-    await sleepAsync(500)
+    await sleepAsync(500.milliseconds)
 
   if Logging in api.flags:
     api.loggerFut = loggingHandler(api)
@@ -683,7 +683,7 @@ proc newDaemonApi*(flags: set[P2PDaemonFlags] = {},
       var peers = await listPeers(api)
       if len(peers) >= peersRequired:
         break
-      await sleepAsync(1000)
+      await sleepAsync(1.seconds)
 
   result = api
 
