@@ -205,7 +205,7 @@ proc putSVarint*(pbytes: var openarray[byte], outsize: var int,
   result = PB.putUVarint(pbytes, outsize, value)
 
 proc encodeVarint*(vtype: typedesc[PB],
-                   value: PBSomeVarint): seq[byte] {.inline.} =
+                   value: SomeVarint): seq[byte] {.inline.} =
   ## Encode integer to Google ProtoBuf's `signed/unsigned varint` and returns
   ## sequence of bytes as result.
   var outsize = 0
@@ -214,7 +214,7 @@ proc encodeVarint*(vtype: typedesc[PB],
     result.setLen(5)
   else:
     result.setLen(10)
-  when type(value) is SomeSVarint:
+  when type(value) is PBSomeSVarint:
     let res = putSVarint(result, outsize, value)
   else:
     let res = putUVarint(result, outsize, value)
