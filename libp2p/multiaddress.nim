@@ -39,7 +39,7 @@ type
     flag*: bool
     rem*: seq[MultiCodec]
 
-  MultiAddressError* = object of Exception
+  MultiAddressError* = object of CatchableError
 
 proc ip4StB(s: string, vb: var VBuffer): bool =
   ## IPv4 stringToBuffer() implementation.

@@ -38,7 +38,7 @@ type
     seckey*: EdPrivateKey
     pubkey*: EdPublicKey
 
-  EdError* = object of Exception
+  EdError* = object of CatchableError
   EdRngError* = object of EdError
   EdIncorrectError* = object of EdError
 

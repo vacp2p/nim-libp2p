@@ -30,7 +30,7 @@ type
   Base58C* = BTCBase58 | FLCBase58
     ## Supported types
 
-  Base58Error* = object of Exception
+  Base58Error* = object of CatchableError
     ## Base58 specific exception type
 
 proc newAlphabet58*(s: string): Base58Alphabet =

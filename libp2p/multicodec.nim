@@ -230,7 +230,7 @@ const MultiCodecList = [
 
 type
   MultiCodec* = distinct int
-  MultiCodecError* = object of Exception
+  MultiCodecError* = object of CatchableError
 
 const
   InvalidMultiCodec* = MultiCodec(-1)

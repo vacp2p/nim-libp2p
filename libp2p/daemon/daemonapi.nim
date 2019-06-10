@@ -146,8 +146,8 @@ type
                             ticket: PubsubTicket,
                             message: PubSubMessage): Future[bool] {.gcsafe.}
 
-  DaemonRemoteError* = object of Exception
-  DaemonLocalError* = object of Exception
+  DaemonRemoteError* = object of CatchableError
+  DaemonLocalError* = object of CatchableError
 
 var daemonsCount {.threadvar.}: int
 

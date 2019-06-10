@@ -20,7 +20,7 @@ type
   PeerID* = object
     data*: seq[byte]
 
-  PeerIDError* = object of Exception
+  PeerIDError* = object of CatchableError
 
 proc pretty*(pid: PeerID): string {.inline.} =
   ## Return base58 encoded ``pid`` representation.

@@ -74,8 +74,8 @@ type
   Signature* = object
     data*: seq[byte]
 
-  P2pKeyError* = object of Exception
-  P2pSigError* = object of Exception
+  P2pKeyError* = object of CatchableError
+  P2pSigError* = object of CatchableError
 
 const
   SupportedSchemes* = {RSA, Ed25519, ECDSA}

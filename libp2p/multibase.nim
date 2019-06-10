@@ -38,7 +38,7 @@ type
     encl: MBCodeSize
     decl: MBCodeSize
 
-  MultiBaseError* = object of Exception
+  MultiBaseError* = object of CatchableError
 
 proc idd(inbytes: openarray[char], outbytes: var openarray[byte],
          outlen: var int): MultibaseStatus =
