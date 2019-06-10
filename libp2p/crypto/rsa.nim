@@ -70,11 +70,11 @@ type
   RsaPKI* = RsaPrivateKey | RsaPublicKey | RsaSignature
   RsaKP* = RsaPrivateKey | RsaKeyPair
 
-  RsaError = object of Exception
-  RsaRngError = object of RsaError
-  RsaGenError = object of RsaError
-  RsaKeyIncorrectError = object of RsaError
-  RsaSignatureError = object of RsaError
+  RsaError* = object of CatchableError
+  RsaRngError* = object of RsaError
+  RsaGenError* = object of RsaError
+  RsaKeyIncorrectError* = object of RsaError
+  RsaSignatureError* = object of RsaError
 
 template getStart(bs, os, ls: untyped): untyped =
   let p = cast[uint](os)

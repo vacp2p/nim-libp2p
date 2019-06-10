@@ -48,7 +48,7 @@ type
   Base32Types* = Base32NoPadTypes | Base32PadTypes
     ## Supported types
 
-  Base32Error* = object of Exception
+  Base32Error* = object of CatchableError
     ## Base32 specific exception type
 
 proc newAlphabet32*(s: string): Base32Alphabet =

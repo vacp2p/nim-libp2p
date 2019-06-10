@@ -44,7 +44,7 @@ type
     size*: int
     dpos*: int
 
-  MultiHashError* = object of Exception
+  MultiHashError* = object of CatchableError
 
 proc identhash(data: openarray[byte], output: var openarray[byte]) =
   if len(output) > 0:

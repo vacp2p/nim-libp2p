@@ -35,7 +35,7 @@ type
   LPSomeVarint* = LPSomeUVarint
   SomeVarint* = PBSomeVarint | LPSomeVarint
   SomeUVarint* = PBSomeUVarint | LPSomeUVarint
-  VarintError* = object of Exception
+  VarintError* = object of CatchableError
 
 proc vsizeof*(x: SomeVarint): int {.inline.} =
   ## Returns number of bytes required to encode integer ``x`` as varint.

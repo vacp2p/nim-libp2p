@@ -24,7 +24,7 @@ type
     hpos*: int
     data*: VBuffer
 
-  CidError* = object of Exception
+  CidError* = object of CatchableError
 
 const
   ContentIdsList = [

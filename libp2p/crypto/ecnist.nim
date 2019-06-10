@@ -56,11 +56,11 @@ type
 
   EcPKI* = EcPrivateKey | EcPublicKey | EcSignature
 
-  EcError* = object of Exception
+  EcError* = object of CatchableError
   EcKeyIncorrectError* = object of EcError
   EcRngError* = object of EcError
   EcPublicKeyError* = object of EcError
-  EcSignatureError = object of EcError
+  EcSignatureError* = object of EcError
 
 const
   EcSupportedCurvesCint* = {cint(Secp256r1), cint(Secp384r1), cint(Secp521r1)}

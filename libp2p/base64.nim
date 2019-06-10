@@ -36,7 +36,7 @@ type
   Base64Types* = Base64 | Base64Pad | Base64Url | Base64UrlPad
     ## All types
 
-  Base64Error* = object of Exception
+  Base64Error* = object of CatchableError
     ## Base64 specific exception type
 
 proc newAlphabet64*(s: string): Base64Alphabet =
