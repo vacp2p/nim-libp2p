@@ -727,6 +727,10 @@ proc init*(mtype: typedesc[MultiAddress]): MultiAddress =
   ## Initialize empty MultiAddress.
   result.data = initVBuffer()
 
+proc tcpEndPoint*(address: IpAddress, port: Port): MultiAddress =
+  # TODO: this can be more efficient
+  MultiAddress.init("/ip4/" & $address & "/tcp/" & $port)
+
 proc isEmpty*(ma: MultiAddress): bool =
   ## Returns ``true``, if MultiAddress ``ma`` is empty or non initialized.
   result = len(ma.data) == 0
