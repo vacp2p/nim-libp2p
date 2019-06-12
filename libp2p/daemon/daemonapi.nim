@@ -556,6 +556,8 @@ proc listPeers*(api: DaemonAPI): Future[seq[PeerInfo]] {.async.}
 proc newDaemonApi*(flags: set[P2PDaemonFlags] = {},
                    bootstrapNodes: seq[string] = @[],
                    id: string = "",
+                   hostAddresses: seq[MultiAddress] = @[],
+                   announcedAddresses: seq[MultiAddress] = @[],
                    daemon = DefaultDaemonFile,
                    sockpath = "",
                    patternSock = DefaultUnixSocketPattern,
@@ -574,6 +576,13 @@ proc newDaemonApi*(flags: set[P2PDaemonFlags] = {},
   ##
   ## ``id`` - path to file with identification information (default: "" which
   ## means - generate new random identity).
+  ##
+  ## ``hostAddresses`` - list of multiaddrs the host should listen on.
+  ## (default: @[], the daemon will pick a listening port at random).
+  ##
+  ## ``announcedAddresses`` - list of multiaddrs the host should announce to
+  ##  the network (default: @[], the daemon will announce its own listening
+  ##  address).
   ##
   ## ``daemon`` - name of ``go-libp2p-daemon`` executable (default: "p2pd").
   ##
@@ -654,6 +663,18 @@ proc newDaemonApi*(flags: set[P2PDaemonFlags] = {},
     args.add("-bootstrapPeers=" & bootstrapNodes.join(","))
   if len(id) != 0:
     args.add("-id=" & id)
+  if len(hostAddresses) > 0:
+    var opt = "-hostAddrs="
+    for i, address in hostAddresses:
+      if i > 0: opt.add ","
+      opt.add $address
+    args.add(opt)
+  if len(announcedAddresses) > 0:
+    var opt = "-announceAddrs="
+    for i, address in announcedAddresses:
+      if i > 0: opt.add ","
+      opt.add $address
+    args.add(opt)
   args.add("-listen=" & $api.address)
 
   # We are trying to get absolute daemon path.
