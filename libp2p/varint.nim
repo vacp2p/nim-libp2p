@@ -65,7 +65,7 @@ proc getUVarint*[T: PB|LP](vtype: typedesc[T],
   ## byte will be decoded, all other bits will be ignored. When decoding 5th
   ## byte of 32bit integer only 4 bits from byte will be decoded, all other bits
   ## will be ignored.
-  ## 
+  ##
   ## LibP2P
   ## When decoding 5th byte of 32bit integer only 4 bits from byte will be
   ## decoded, all other bits will be ignored.
@@ -115,7 +115,7 @@ proc putUVarint*[T: PB|LP](vtype: typedesc[T],
   ## Google ProtoBuf
   ## Maximum encoded length of 64bit integer is 10 octets.
   ## Maximum encoded length of 32bit integer is 5 octets.
-  ## 
+  ##
   ## LibP2P
   ## Maximum encoded length of 63bit integer is 9 octets.
   ## Maximum encoded length of 32bit integer is 5 octets.
@@ -214,10 +214,10 @@ proc encodeVarint*(vtype: typedesc[PB],
     result.setLen(5)
   else:
     result.setLen(10)
-  when type(value) is SomeSVarint:
+  when type(value) is PBSomeSVarint:
     let res = putSVarint(result, outsize, value)
   else:
-    let res = putUVarint(result, outsize, value)
+    let res = PB.putUVarint(result, outsize, value)
   if res == VarintStatus.Success:
     result.setLen(outsize)
   else:
