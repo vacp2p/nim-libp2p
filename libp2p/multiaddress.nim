@@ -727,9 +727,15 @@ proc init*(mtype: typedesc[MultiAddress]): MultiAddress =
   ## Initialize empty MultiAddress.
   result.data = initVBuffer()
 
-proc tcpEndPoint*(address: IpAddress, port: Port): MultiAddress =
+proc init*(mtype: typedesc[MultiAddress],
+           address: IpAddress, protocol: Protocol, port: Port): MultiAddress =
   # TODO: this can be more efficient
-  MultiAddress.init("/ip4/" & $address & "/tcp/" & $port)
+  let protocol = case protocol
+                 of IPPROTO_TCP: "/tcp/"
+                 of IPPROTO_UDP: "/udp/"
+                 else: raise newException(AssertionError,
+                                          "protocol should be either TCP or UDP")
+  MultiAddress.init("/ip4/" & $address & protocol & $port)
 
 proc isEmpty*(ma: MultiAddress): bool =
   ## Returns ``true``, if MultiAddress ``ma`` is empty or non initialized.
