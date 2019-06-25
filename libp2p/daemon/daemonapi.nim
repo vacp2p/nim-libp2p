@@ -18,6 +18,9 @@ export peer, multiaddress, multicodec, multihash, cid, crypto
 
 when not defined(windows):
   import posix
+else:
+  import std_shims/os_shims
+  export getCurrentProcessId
 
 const
   DefaultSocketPath* = "/unix/tmp/p2pd.sock"
@@ -527,9 +530,6 @@ when not defined(windows):
   proc getProcessId(): int =
     result = posix.getpid()
 else:
-  proc getCurrentProcessId*(): uint32 {.stdcall, dynlib: "kernel32",
-                                        importc: "GetCurrentProcessId".}
-
   proc loggingHandler(api: DaemonAPI): Future[void] =
     # Not ready yet.
     discard

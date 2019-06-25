@@ -9,7 +9,8 @@ skipDirs      = @["tests", "examples", "Nim"]
 
 requires "nim > 0.18.0",
          "nimcrypto >= 0.3.9",
-         "chronos"
+         "chronos",
+         "std_shims"
 
 proc runTest(filename: string) =
   exec "nim c -r tests/" & filename
@@ -19,4 +20,3 @@ task test, "Runs the test suite":
   runTest "testnative"
   when not defined(windows):
     runTest "testdaemon"
-
