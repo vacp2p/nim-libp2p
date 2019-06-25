@@ -527,8 +527,8 @@ when not defined(windows):
   proc getProcessId(): int =
     result = posix.getpid()
 else:
-  proc getCurrentProcessId*(): uint32 {.stdcall, dynlib: "kernel32",
-                                        importc: "GetCurrentProcessId".}
+  proc getCurrentProcessId(): uint32 {.stdcall, dynlib: "kernel32",
+                                       importc: "GetCurrentProcessId".}
 
   proc loggingHandler(api: DaemonAPI): Future[void] =
     # Not ready yet.
