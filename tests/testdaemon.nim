@@ -131,8 +131,8 @@ proc pubsubTest(f: set[P2PDaemonFlags]): Future[bool] {.async.} =
       # Publish test data via api1.
       await sleepAsync(500.milliseconds)
       await api1.pubsubPublish("test-topic", msgData)
-      var andfut = handlerFuture1 and handlerFuture2
-      await andfut or sleepAsync(10.seconds)
+      var res = await one(allFutures(handlerFuture1, handlerFuture2),
+                          sleepAsync(10.seconds))
 
   await api1.close()
   await api2.close()

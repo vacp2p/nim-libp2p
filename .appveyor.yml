@@ -23,6 +23,21 @@ install:
   - IF "%PLATFORM%" == "x86" SET PATH=C:\mingw-w64\i686-6.3.0-posix-dwarf-rt_v5-rev1\mingw32\bin;%PATH%
   - IF "%PLATFORM%" == "x64" SET PATH=C:\mingw-w64\x86_64-8.1.0-posix-seh-rt_v6-rev0\mingw64\bin;%PATH%
 
+  # set path for produced Go binaries
+  - MKDIR goblin
+  - CD goblin
+  - SET GOPATH=%CD%
+  - SET PATH=%GOPATH%\bin;%PATH%
+  - CD ..
+
+  # install and build go-libp2p-daemon
+  - go version
+  - git clone https://github.com/libp2p/go-libp2p-daemon
+  - CD go-libp2p-daemon
+  # - git checkout v0.0.1
+  - go install ./...
+  - CD ..
+
   # build nim from our own branch - this to avoid the day-to-day churn and
   # regressions of the fast-paced Nim development while maintaining the
   # flexibility to apply patches

@@ -495,8 +495,7 @@ proc closeConnection*(api: DaemonAPI, transp: StreamTransport) {.async.} =
 proc socketExists(address: MultiAddress): Future[bool] {.async.} =
   try:
     var transp = await connect(address)
-    transp.close()
-    await transp.join()
+    await transp.closeWait()
     result = true
   except:
     result = false
@@ -538,20 +537,43 @@ else:
     # Not ready yet
     result = cast[int](getCurrentProcessId())
 
-proc getSocket(pattern: string): Future[MultiAddress] {.async.} =
+proc getSocket(pattern: string,
+               count: ptr int): Future[MultiAddress] {.async.} =
   var sockname = ""
   var pid = $getProcessId()
-  while true:
-    inc(daemonsCount)
-    sockname = pattern % [pid, $daemonsCount]
+  sockname = pattern % [pid, $(count[])]
+  let tmpma = MultiAddress.init(sockname)
+
+  if UNIX.match(tmpma):
+    while true:
+      count[] = count[] + 1
+      sockname = pattern % [pid, $(count[])]
+      var ma = MultiAddress.init(sockname)
+      let res = await socketExists(ma)
+      if not res:
+        result = ma
+        break
+  elif TCP.match(tmpma):
+    sockname = pattern % [pid, "0"]
     var ma = MultiAddress.init(sockname)
-    let res = await socketExists(ma)
-    if not res:
-      result = ma
-      break
+    var sock = createAsyncSocket(ma)
+    if sock.bindAsyncSocket(ma):
+      # Socket was successfully bound, then its free to use
+      count[] = count[] + 1
+      var ta = sock.getLocalAddress()
+      sockname = pattern % [pid, $ta.port]
+      result = MultiAddress.init(sockname)
+    closeSocket(sock)
 
 # This is forward declaration needed for newDaemonApi()
 proc listPeers*(api: DaemonAPI): Future[seq[PeerInfo]] {.async.}
+
+when not defined(windows):
+  proc copyEnv(): StringTableRef =
+    ## This procedure copy all environment variables into StringTable.
+    result = newStringTable(modeStyleInsensitive)
+    for key, val in envPairs():
+      result[key] = val
 
 proc newDaemonApi*(flags: set[P2PDaemonFlags] = {},
                    bootstrapNodes: seq[string] = @[],
@@ -560,8 +582,8 @@ proc newDaemonApi*(flags: set[P2PDaemonFlags] = {},
                    announcedAddresses: seq[MultiAddress] = @[],
                    daemon = DefaultDaemonFile,
                    sockpath = "",
-                   patternSock = DefaultUnixSocketPattern,
-                   patternHandler = DefaultUnixChildPattern,
+                   patternSock = "",
+                   patternHandler = "",
                    poolSize = 10,
                    gossipsubHeartbeatInterval = 0,
                    gossipsubHeartbeatDelay = 0,
@@ -590,10 +612,12 @@ proc newDaemonApi*(flags: set[P2PDaemonFlags] = {},
   ## (default: "/unix/tmp/p2pd.sock").
   ##
   ## ``patternSock`` - MultiAddress pattern string, used to start multiple
-  ## daemons (default: "/unix/tmp/nim-p2pd-$1-$2.sock").
+  ## daemons (default on Unix: "/unix/tmp/nim-p2pd-$1-$2.sock", on Windows:
+  ## "/ip4/127.0.0.1/tcp/$2").
   ##
   ## ``patternHandler`` - MultiAddress pattern string, used to establish
-  ## incoming channels (default: "/unix/tmp/nim-p2pd-handle-$1-$2.sock").
+  ## incoming channels (default on Unix: "/unix/tmp/nim-p2pd-handle-$1-$2.sock",
+  ## on Windows: "/ip4/127.0.0.1/tcp/$2").
   ##
   ## ``poolSize`` - size of connections pool (default: 10).
   ##
@@ -610,21 +634,38 @@ proc newDaemonApi*(flags: set[P2PDaemonFlags] = {},
   var args = newSeq[string]()
   var env: StringTableRef
 
+  when defined(windows):
+    var patternForSocket = if len(patternSock) > 0:
+      patternSock
+    else:
+      DefaultIpSocketPattern
+    var patternForChild = if len(patternHandler) > 0:
+      patternHandler
+    else:
+      DefaultIpChildPattern
+  else:
+    var patternForSocket = if len(patternSock) > 0:
+      patternSock
+    else:
+      DefaultUnixSocketPattern
+    var patternForChild = if len(patternHandler) > 0:
+      patternHandler
+    else:
+      DefaultUnixChildPattern
+
   api.flags = flags
   api.servers = newSeq[P2PServer]()
-  api.pattern = patternHandler
+  api.pattern = patternForChild
   api.ucounter = 1
   api.handlers = initTable[string, P2PStreamCallback]()
 
   if len(sockpath) == 0:
-    api.address = await getSocket(patternSock)
+    api.address = await getSocket(patternForSocket, addr daemonsCount)
   else:
     api.address = MultiAddress.init(sockpath)
     let res = await socketExists(api.address)
     if not res:
       raise newException(DaemonLocalError, "Could not connect to remote daemon")
-
-  inc(daemonsCount)
 
   # DHTFull and DHTClient could not be present at the same time
   if DHTFull in flags and DHTClient in flags:
@@ -639,7 +680,15 @@ proc newDaemonApi*(flags: set[P2PDaemonFlags] = {},
   if {Bootstrap, WaitBootstrap} * api.flags != {}:
     args.add("-b")
   if Verbose in api.flags:
-    env = newStringTable("IPFS_LOGGING", "debug", modeCaseSensitive)
+    when defined(windows):
+      # Currently enabling logging output is not a good idea, because we can't
+      # properly read process' stdout/stderr it can stuck on Windows.
+      env = nil
+    else:
+      env = copyEnv()
+      env["IPFS_LOGGING"] = "debug"
+  else:
+    env = nil
   if PSGossipSub in api.flags:
     args.add("-pubsub")
     args.add("-pubsubRouter=gossipsub")
@@ -728,7 +777,7 @@ proc close*(api: DaemonAPI) {.async.} =
       server.server.stop()
       server.server.close()
       pending.add(server.server.join())
-    await all(pending)
+    await allFutures(pending)
     for server in api.servers:
       let address = initTAddress(server.address)
       discard tryRemoveFile($address)
@@ -866,9 +915,7 @@ proc addHandler*(api: DaemonAPI, protocols: seq[string],
                  handler: P2PStreamCallback) {.async.} =
   ## Add stream handler ``handler`` for set of protocols ``protocols``.
   var transp = await api.newConnection()
-  let addrname = api.pattern % [$getProcessId(), $api.ucounter]
-  let maddress = MultiAddress.init(addrname)
-  inc(api.ucounter)
+  let maddress = await getSocket(api.pattern, addr api.ucounter)
   var server = createStreamServer(maddress, streamHandler, udata = api)
   try:
     for item in protocols:

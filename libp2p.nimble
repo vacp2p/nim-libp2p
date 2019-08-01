@@ -17,6 +17,5 @@ proc runTest(filename: string) =
 
 task test, "Runs the test suite":
   runTest "testnative"
-  when not defined(windows):
-    runTest "testdaemon"
+  runTest "testdaemon"
 

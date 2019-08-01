@@ -386,6 +386,7 @@ const
   UDP* = pOr(pAnd(DNS, pEq("udp")), pAnd(IP, pEq("udp")))
   UTP* = pAnd(UDP, pEq("utp"))
   QUIC* = pAnd(UDP, pEq("quic"))
+  UNIX* = pEq("unix")
 
   Unreliable* = pOr(UDP)
 
@@ -729,13 +730,24 @@ proc init*(mtype: typedesc[MultiAddress]): MultiAddress =
 
 proc init*(mtype: typedesc[MultiAddress],
            address: IpAddress, protocol: Protocol, port: Port): MultiAddress =
-  # TODO: this can be more efficient
-  let protocol = case protocol
-                 of IPPROTO_TCP: "/tcp/"
-                 of IPPROTO_UDP: "/udp/"
-                 else: raise newException(AssertionError,
-                                          "protocol should be either TCP or UDP")
-  MultiAddress.init("/ip4/" & $address & protocol & $port)
+  ## Initialize MultiAddress using stdlib's net.IpAddress (IPv4/IPv6) and
+  ## net.Protocol (UDP/TCP) information.
+  result.data = initVBuffer()
+  let familyProto = case address.family
+                    of IpAddressFamily.IPv4: getProtocol("ip4")
+                    of IpAddressFamily.IPv6: getProtocol("ip6")
+  let protoProto = case protocol
+                   of IPPROTO_TCP: getProtocol("tcp")
+                   of IPPROTO_UDP: getProtocol("udp")
+                   else: raise newException(AssertionError,
+                                         "protocol should be either TCP or UDP")
+  result.data.write(familyProto.mcodec)
+  if not familyProto.coder.stringToBuffer($address, result.data):
+    raise newException(MultiAddressError, "Error encoding IPv4/IPv6 address")
+  result.data.write(protoProto.mcodec)
+  if not protoProto.coder.stringToBuffer($port, result.data):
+    raise newException(MultiAddressError, "Error encoding port number")
+  result.data.finish()
 
 proc isEmpty*(ma: MultiAddress): bool =
   ## Returns ``true``, if MultiAddress ``ma`` is empty or non initialized.
