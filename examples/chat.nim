@@ -5,29 +5,27 @@ when not(compileOption("threads")):
   {.fatal: "Please, compile this program with the --threads:on option!".}
 
 const
-  ConsoleAddress = "/tmp/console-chat.sock"
-  ServerAddress = "/tmp/remote-chat.sock"
   ServerProtocols = @["/test-chat-stream"]
 
 type
   CustomData = ref object
     api: DaemonAPI
     remotes: seq[StreamTransport]
+    consoleFd: AsyncFD
+    serveFut: Future[void]
 
-proc threadMain(a: int) {.thread.} =
+proc threadMain(wfd: AsyncFD) {.thread.} =
   ## This procedure performs reading from `stdin` and sends data over
-  ## unix domain socket to main thread.
-  var transp = waitFor connect(initTAddress(ConsoleAddress))
-
+  ## pipe to main thread.
+  var transp = fromPipe(wfd)
+ 
   while true:
     var line = stdin.readLine()
     let res = waitFor transp.write(line & "\r\n")
 
-proc serveThread(server: StreamServer,
-                 transp: StreamTransport) {.async.} =
-  ## This procedure perform readin on local unix domain socket and
-  ## sends data to remote clients.
-  var udata = getUserData[CustomData](server)
+proc serveThread(udata: CustomData) {.async.} =
+  ## This procedure perform reading on pipe and sends data to remote clients.
+  var transp = fromPipe(udata.consoleFd)
 
   proc remoteReader(transp: StreamTransport) {.async.} =
     while true:
@@ -87,7 +85,7 @@ proc serveThread(server: StreamServer,
             else:
               echo peer.pretty(), " [", addresses.join(", "), "]"
       elif line.startsWith("/exit"):
-        quit(0)
+        break
       else:
         var msg = line & "\r\n"
         echo "<< ", line
@@ -103,11 +101,15 @@ proc main() {.async.} =
   var data = new CustomData
   data.remotes = newSeq[StreamTransport]()
 
-  var lserver = createStreamServer(initTAddress(ConsoleAddress),
-                                   serveThread, udata = data)
-  lserver.start()
-  var thread: Thread[int]
-  thread.createThread(threadMain, 0)
+  var (rfd, wfd) = createAsyncPipe()
+  if rfd == asyncInvalidPipe or wfd == asyncInvalidPipe:
+    raise newException(ValueError, "Could not initialize pipe!")
+
+  data.consoleFd = rfd
+
+  data.serveFut = serveThread(data)
+  var thread: Thread[AsyncFD]
+  thread.createThread(threadMain, wfd)
 
   echo "= Starting P2P node"
   data.api = await newDaemonApi({DHTFull, Bootstrap})
@@ -125,8 +127,7 @@ proc main() {.async.} =
 
   await data.api.addHandler(ServerProtocols, streamHandler)
   echo "= Your PeerID is ", id.peer.pretty()
+  await data.serveFut
 
 when isMainModule:
   waitFor(main())
-  while true:
-    poll()
