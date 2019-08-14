@@ -12,6 +12,7 @@ Note that you need Go 1.12+ for the below instructions to work!
 Install dependencies and run tests with:
 
 ```bash
+git clone https://github.com/status-im/nim-libp2p && cd nim-libp2p
 nimble install
 nimble test
 git submodule update --init --recursive
