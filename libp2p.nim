@@ -7,5 +7,6 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 import libp2p/daemon/[daemonapi, transpool]
-import libp2p/protobuf/[minprotobuf, varint]
+import libp2p/protobuf/minprotobuf
+import libp2p/varint
 export daemonapi, minprotobuf, varint, transpool
