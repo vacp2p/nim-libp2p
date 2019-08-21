@@ -11,8 +11,8 @@ suite "TCP transport suite":
         result = conn.write(cstring("Hello!"), 6)
         await conn.close()
 
-      let transport: TcpTransport = newTransport(TcpTransport, ma, connHandler)
-      await transport.listen()
+      let transport: TcpTransport = newTransport(TcpTransport)
+      await transport.listen(ma, connHandler)
       let streamTransport: StreamTransport = await connect(ma)
       let msg = await streamTransport.read(6)
       await transport.close()
@@ -30,8 +30,8 @@ suite "TCP transport suite":
         let msg = await conn.read(6)
         check cast[string](msg) == "Hello!"
 
-      let transport: TcpTransport = newTransport(TcpTransport, ma, connHandler)
-      await transport.listen()
+      let transport: TcpTransport = newTransport(TcpTransport)
+      await transport.listen(ma, connHandler)
       let streamTransport: StreamTransport = await connect(ma)
       let sent = await streamTransport.write("Hello!", 6)
       result = sent == 6
@@ -55,7 +55,7 @@ suite "TCP transport suite":
       server.start()
 
       let ma: MultiAddress = Multiaddress.init("/ip4/127.0.0.1/tcp/53337")
-      let transport: TcpTransport = newTransport(TcpTransport, ma)
+      let transport: TcpTransport = newTransport(TcpTransport)
       let conn = await transport.dial(ma)
       let msg = await conn.read(6)
       result = cast[string](msg) == "Hello!"
@@ -65,29 +65,68 @@ suite "TCP transport suite":
       await server.join()
     check waitFor(testDialer(initTAddress("127.0.0.1:53337"))) == true
 
-test "test dialer: handle write":
-    proc testDialer(address: TransportAddress): Future[bool] {.async.} =
-      proc serveClient(server: StreamServer,
-                       transp: StreamTransport) {.async.} =
-        var rstream = newAsyncStreamReader(transp)
-        let msg = await rstream.read(6)
-        check cast[string](msg) == "Hello!"
+  test "test dialer: handle write":
+      proc testDialer(address: TransportAddress): Future[bool] {.async.} =
+        proc serveClient(server: StreamServer,
+                        transp: StreamTransport) {.async.} =
+          var rstream = newAsyncStreamReader(transp)
+          let msg = await rstream.read(6)
+          check cast[string](msg) == "Hello!"
 
-        await rstream.closeWait()
-        await transp.closeWait()
+          await rstream.closeWait()
+          await transp.closeWait()
+          server.stop()
+          server.close()
+
+        var server = createStreamServer(address, serveClient, {ReuseAddr})
+        server.start()
+
+        let ma: MultiAddress = Multiaddress.init("/ip4/127.0.0.1/tcp/53337")
+        let transport: TcpTransport = newTransport(TcpTransport)
+        let conn = await transport.dial(ma)
+        await conn.write(cstring("Hello!"), 6)
+        result = true
+
         server.stop()
         server.close()
+        await server.join()
+      check waitFor(testDialer(initTAddress("127.0.0.1:53337"))) == true
 
-      var server = createStreamServer(address, serveClient, {ReuseAddr})
-      server.start()
+  test "test listener - dialer: handle write":
+    proc testListenerDialer(): Future[bool] {.async.} =
+      let ma: MultiAddress = Multiaddress.init("/ip4/127.0.0.1/tcp/53339")
+      proc connHandler(conn: Connection): Future[void] {.async ,gcsafe.} =
+        result = conn.write(cstring("Hello!"), 6)
+        await conn.close()
 
-      let ma: MultiAddress = Multiaddress.init("/ip4/127.0.0.1/tcp/53337")
-      let transport: TcpTransport = newTransport(TcpTransport, ma)
-      let conn = await transport.dial(ma)
+      let transport1: TcpTransport = newTransport(TcpTransport)
+      await transport1.listen(ma, connHandler)
+
+      let transport2: TcpTransport = newTransport(TcpTransport)
+      let conn = await transport2.dial(ma)
+      let msg = await conn.read(6)
+      await transport1.close()
+
+      result = cast[string](msg) == "Hello!"
+
+    check:
+       waitFor(testListenerDialer()) == true
+
+  test "test listener - dialer: handle read":
+    proc testListenerDialer(): Future[bool] {.async.} =
+      let ma: MultiAddress = Multiaddress.init("/ip4/127.0.0.1/tcp/53340")
+      proc connHandler(conn: Connection): Future[void] {.async ,gcsafe.} =
+        let msg = await conn.read(6)
+        check cast[string](msg) == "Hello!"
+
+      let transport1: TcpTransport = newTransport(TcpTransport)
+      await transport1.listen(ma, connHandler)
+
+      let transport2: TcpTransport = newTransport(TcpTransport)
+      let conn = await transport2.dial(ma)
       await conn.write(cstring("Hello!"), 6)
+      await transport1.close()
       result = true
 
-      server.stop()
-      server.close()
-      await server.join()
-    check waitFor(testDialer(initTAddress("127.0.0.1:53337"))) == true
+    check:
+       waitFor(testListenerDialer()) == true
