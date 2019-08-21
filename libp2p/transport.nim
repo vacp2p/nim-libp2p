@@ -27,7 +27,7 @@ method init*(t: Transport) {.base.} =
   ## perform protocol initialization
   discard
 
-proc new*(t: typedesc[Transport], 
+proc newTransport*(t: typedesc[Transport], 
           ma: MultiAddress, 
           handler: ConnHandler): t = 
   new result

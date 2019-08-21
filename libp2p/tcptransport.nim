@@ -39,21 +39,22 @@ method listen*(t: TcpTransport): Future[void] {.async.} =
   let listenFuture: Future[void] = newFuture[void]()
   result = listenFuture
 
-  ## listen on the transport
-  discard createStreamServer(t.ma,
-                             connCb,
-                             {},
-                             t,
-                             asyncInvalidSocket,
-                             100,
-                             DefaultStreamBufferSize,
-                             nil,
-                             proc (server: StreamServer,
-                                   fd: AsyncFD): StreamTransport {.gcsafe.} =
+  proc initTransport(server: StreamServer, fd: AsyncFD): StreamTransport {.gcsafe.} =
     t.server = server
     t.fd = fd
     listenFuture.complete()
-  )
+
+  ## listen on the transport
+  let server = createStreamServer(t.ma,
+                                  connCb,
+                                  {},
+                                  t,
+                                  asyncInvalidSocket,
+                                  100,
+                                  DefaultStreamBufferSize,
+                                  nil,
+                                  initTransport)
+  server.start()
 
 method dial*(t: TcpTransport,
              address: MultiAddress): Future[Connection] {.async.} =
