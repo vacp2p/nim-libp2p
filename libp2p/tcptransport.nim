@@ -13,25 +13,20 @@ import transport, wire, connection, multiaddress, connection, multicodec
 type TcpTransport* = ref object of Transport
   server*: StreamServer
 
-proc connHandler(server: StreamServer,
-                 client: StreamTransport): Future[Connection] {.gcsafe, async.} =
-  let t: TcpTransport = cast[TcpTransport](server.udata)
-  let conn: Connection = newConnection(server, client)
-  let connHolder: ConnHolder = ConnHolder(connection: conn,
-                                          connFuture: t.handler(conn))
-  t.connections.add(connHolder)
-  result = conn
-
 proc connCb(server: StreamServer,
             client: StreamTransport) {.gcsafe, async.} =
-  discard connHandler(server, client)
+  let t: Transport = cast[Transport](server.udata)
+  discard t.connHandler(server, client)
 
 method init*(t: TcpTransport) =
   t.multicodec = multiCodec("tcp")
 
 method close*(t: TcpTransport): Future[void] {.async.} =
   ## start the transport
-  result = t.server.closeWait()
+  await procCall Transport(t).close() # call base close
+
+  t.server.stop()
+  await t.server.closeWait()
 
 method listen*(t: TcpTransport): Future[void] {.async.} =
   let listenFuture: Future[void] = newFuture[void]()
@@ -42,8 +37,7 @@ method listen*(t: TcpTransport): Future[void] {.async.} =
   t.server = server
   server.start()
 
-method dial*(t: TcpTransport,
-             address: MultiAddress): Future[Connection] {.async.} =
+method dial*(t: TcpTransport, address: MultiAddress): Future[Connection] {.async.} =
   ## dial a peer
   let client: StreamTransport = await connect(address)
-  result = await connHandler(t.server, client)
+  result = await t.connHandler(t.server, client)
