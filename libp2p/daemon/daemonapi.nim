@@ -14,7 +14,7 @@ import ../varint, ../multiaddress, ../multicodec, ../base58, ../cid, ../peer
 import ../wire, ../multihash, ../protobuf/minprotobuf
 import ../crypto/crypto
 
-export peer, multiaddress, multicodec, multihash, cid, crypto
+export peer, multiaddress, multicodec, multihash, cid, crypto, wire
 
 when not defined(windows):
   import posix
@@ -28,6 +28,9 @@ const
   DefaultDaemonFile* = "p2pd"
 
 type
+  IpfsLogLevel* {.pure.} = enum
+    Critical, Error, Warning, Notice, Info, Debug, Trace
+
   RequestType* {.pure.} = enum
     IDENTITY = 0,
     CONNECT = 1,
@@ -91,13 +94,12 @@ type
     Bootstrap,     ## Start daemon with bootstrap
     WaitBootstrap, ## Start daemon with bootstrap and wait until daemon
                    ## establish connection to at least 2 peers
-    Logging,       ## Enable capture daemon `stderr`
-    Verbose,       ## Set daemon logging to DEBUG level
     PSFloodSub,    ## Enable `FloodSub` protocol in daemon
     PSGossipSub,   ## Enable `GossipSub` protocol in daemon
     PSNoSign,      ## Disable pubsub message signing (default true)
     PSStrictSign,  ## Force strict checking pubsub message signature
-    NATPortMap     ## Force daemon to use NAT-PMP.
+    NATPortMap,    ## Force daemon to use NAT-PMP.
+    NoProcessCtrl  ## Process was not spawned.
 
   P2PStream* = ref object
     flags*: set[P2PStreamFlags]
@@ -119,8 +121,6 @@ type
     process*: Process
     handlers*: Table[string, P2PStreamCallback]
     servers*: seq[P2PServer]
-    log*: string
-    loggerFut*: Future[void]
     userData*: RootRef
 
   PeerInfo* = object
@@ -131,6 +131,7 @@ type
     topic*: string
     handler*: P2PPubSubCallback
     transp*: StreamTransport
+    loopFut*: Future[void]
 
   PubSubMessage* = object
     peer*: PeerID
@@ -500,42 +501,14 @@ proc socketExists(address: MultiAddress): Future[bool] {.async.} =
   except:
     result = false
 
-when not defined(windows):
-  proc loggingHandler(api: DaemonAPI): Future[void] =
-    var retFuture = newFuture[void]("logging.handler")
-    var loop = getGlobalDispatcher()
-    let pfd = SocketHandle(api.process.outputHandle)
-    var fd = AsyncFD(pfd)
-    if not setSocketBlocking(pfd, false):
-      discard close(cint(pfd))
-      retFuture.fail(newException(OSError, osErrorMsg(osLastError())))
-
-    proc readOutputLoop(udata: pointer) {.gcsafe.} =
-      var buffer: array[2048, char]
-      let res = posix.read(cint(fd), addr buffer[0], 2000)
-      if res == -1 or res == 0:
-        removeReader(fd)
-        retFuture.complete()
-      else:
-        var cstr = cast[cstring](addr buffer[0])
-        api.log.add(cstr)
-    register(AsyncFD(pfd))
-    addReader(fd, readOutputLoop, nil)
-    result = retFuture
-
-  proc getProcessId(): int =
-    result = posix.getpid()
-else:
+when defined(windows):
   proc getCurrentProcessId(): uint32 {.stdcall, dynlib: "kernel32",
                                        importc: "GetCurrentProcessId".}
-
-  proc loggingHandler(api: DaemonAPI): Future[void] =
-    # Not ready yet.
-    discard
-
   proc getProcessId(): int =
-    # Not ready yet
     result = cast[int](getCurrentProcessId())
+else:
+  proc getProcessId(): int =
+    result = cast[int](posix.getpid())
 
 proc getSocket(pattern: string,
                count: ptr int): Future[MultiAddress] {.async.} =
@@ -568,12 +541,11 @@ proc getSocket(pattern: string,
 # This is forward declaration needed for newDaemonApi()
 proc listPeers*(api: DaemonAPI): Future[seq[PeerInfo]] {.async.}
 
-when not defined(windows):
-  proc copyEnv(): StringTableRef =
-    ## This procedure copy all environment variables into StringTable.
-    result = newStringTable(modeStyleInsensitive)
-    for key, val in envPairs():
-      result[key] = val
+proc copyEnv(): StringTableRef =
+  ## This procedure copy all environment variables into StringTable.
+  result = newStringTable(modeStyleInsensitive)
+  for key, val in envPairs():
+    result[key] = val
 
 proc newDaemonApi*(flags: set[P2PDaemonFlags] = {},
                    bootstrapNodes: seq[string] = @[],
@@ -587,7 +559,9 @@ proc newDaemonApi*(flags: set[P2PDaemonFlags] = {},
                    poolSize = 10,
                    gossipsubHeartbeatInterval = 0,
                    gossipsubHeartbeatDelay = 0,
-                   peersRequired = 2): Future[DaemonAPI] {.async.} =
+                   peersRequired = 2,
+                   logFile = "",
+                   logLevel = IpfsLogLevel.Debug): Future[DaemonAPI] {.async.} =
   ## Initialize connection to `go-libp2p-daemon` control socket.
   ##
   ## ``flags`` - set of P2PDaemonFlags.
@@ -630,6 +604,12 @@ proc newDaemonApi*(flags: set[P2PDaemonFlags] = {},
   ## ``peersRequired`` - Wait until `go-libp2p-daemon` will connect to at least
   ## ``peersRequired`` peers before return from `newDaemonApi()` procedure
   ## (default: 2).
+  ##
+  ## ``logFile`` - Enable ``go-libp2p-daemon`` logging and store it to file
+  ## ``logFile`` (default: "", no logging)
+  ##
+  ## ``logLevel`` - Set ``go-libp2p-daemon`` logging verbosity level to
+  ## ``logLevel`` (default: Trace)
   var api = new DaemonAPI
   var args = newSeq[string]()
   var env: StringTableRef
@@ -660,12 +640,16 @@ proc newDaemonApi*(flags: set[P2PDaemonFlags] = {},
   api.handlers = initTable[string, P2PStreamCallback]()
 
   if len(sockpath) == 0:
+    api.flags.excl(NoProcessCtrl)
     api.address = await getSocket(patternForSocket, addr daemonsCount)
   else:
     api.address = MultiAddress.init(sockpath)
+    api.flags.incl(NoProcessCtrl)
     let res = await socketExists(api.address)
     if not res:
       raise newException(DaemonLocalError, "Could not connect to remote daemon")
+    result = api
+    return
 
   # DHTFull and DHTClient could not be present at the same time
   if DHTFull in flags and DHTClient in flags:
@@ -679,16 +663,27 @@ proc newDaemonApi*(flags: set[P2PDaemonFlags] = {},
     args.add("-dhtClient")
   if {Bootstrap, WaitBootstrap} * api.flags != {}:
     args.add("-b")
-  if Verbose in api.flags:
-    when defined(windows):
-      # Currently enabling logging output is not a good idea, because we can't
-      # properly read process' stdout/stderr it can stuck on Windows.
-      env = nil
-    else:
-      env = copyEnv()
-      env["IPFS_LOGGING"] = "debug"
-  else:
-    env = nil
+  if len(logFile) != 0:
+    env = copyEnv()
+    env["IPFS_LOGGING_FMT"] = "nocolor"
+    env["GOLOG_FILE"] = logFile
+    case logLevel
+    of IpfsLogLevel.Critical:
+      env["IPFS_LOGGING"] = "CRITICAL"
+    of IpfsLogLevel.Error:
+      env["IPFS_LOGGING"] = "ERROR"
+    of IpfsLogLevel.Warning:
+      env["IPFS_LOGGING"] = "WARNING"
+    of IpfsLogLevel.Notice:
+      env["IPFS_LOGGING"] = "NOTICE"
+    of IpfsLogLevel.Info:
+      env["IPFS_LOGGING"] = "INFO"
+    of IpfsLogLevel.Debug:
+      env["IPFS_LOGGING"] = "DEBUG"
+    of IpfsLogLevel.Trace:
+      env["IPFS_LOGGING"] = "DEBUG"
+      env["GOLOG_TRACING_FILE"] = logFile
+
   if PSGossipSub in api.flags:
     args.add("-pubsub")
     args.add("-pubsubRouter=gossipsub")
@@ -745,9 +740,6 @@ proc newDaemonApi*(flags: set[P2PDaemonFlags] = {},
       break
     await sleepAsync(500.milliseconds)
 
-  if Logging in api.flags:
-    api.loggerFut = loggingHandler(api)
-
   if WaitBootstrap in api.flags:
     while true:
       var peers = await listPeers(api)
@@ -783,11 +775,9 @@ proc close*(api: DaemonAPI) {.async.} =
       discard tryRemoveFile($address)
     api.servers.setLen(0)
   # Closing daemon's process.
-  api.process.kill()
-  discard api.process.waitForExit()
-  # Waiting for logger loop to exit
-  if not isNil(api.loggerFut):
-    await api.loggerFut
+  if NoProcessCtrl in api.flags:
+    api.process.terminate()
+    discard api.process.waitForExit()
   # Attempt to delete unix socket endpoint.
   let address = initTAddress(api.address)
   if address.family == AddressFamily.Unix:
@@ -1291,7 +1281,7 @@ proc pubsubSubscribe*(api: DaemonAPI, topic: string,
       ticket.topic = topic
       ticket.handler = handler
       ticket.transp = transp
-      asyncCheck pubsubLoop(api, ticket)
+      ticket.loopFut = pubsubLoop(api, ticket)
       result = ticket
   except:
     await api.closeConnection(transp)

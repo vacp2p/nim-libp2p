@@ -66,24 +66,13 @@ proc provideCidTest(): Future[bool] {.async.} =
   await api1.close()
   await api2.close()
 
-# proc getOnlyOneIPv4Address(addresses: seq[MultiAddress]): seq[MultiAddress] =
-#   ## We doing this becuase of bug in `go-pubsub`
-#   ## https://github.com/libp2p/go-libp2p-pubsub/issues/130
-#   if len(addresses) > 0:
-#     result = newSeqOfCap[MultiAddress](len(addresses))
-#     let ip4 = multiCodec("ip4")
-#     for item in addresses:
-#       if item.protoCode() == ip4:
-#         result.add(item)
-#         break
-
 proc pubsubTest(f: set[P2PDaemonFlags]): Future[bool] {.async.} =
   var pubsubData = "TEST MESSAGE"
   var msgData = cast[seq[byte]](pubsubData)
   var api1, api2: DaemonAPI
 
-  api1 = await newDaemonApi(f + {Verbose, Logging})
-  api2 = await newDaemonApi(f + {Verbose, Logging})
+  api1 = await newDaemonApi(f)
+  api2 = await newDaemonApi(f)
 
   var id1 = await api1.identity()
   var id2 = await api2.identity()
@@ -138,11 +127,6 @@ proc pubsubTest(f: set[P2PDaemonFlags]): Future[bool] {.async.} =
   await api2.close()
   if resultsCount == 2:
     result = true
-  else:
-    echo " -- CLIENT1 -- "
-    echo api1.log
-    echo " -- CLIENT2 -- "
-    echo api2.log
 
 when isMainModule:
   suite "libp2p-daemon test suite":

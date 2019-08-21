@@ -555,7 +555,7 @@ suite "EC NIST-P256/384/521 test suite":
         isNil(shared2) == false
         shared1 == shared2
 
-  test "[secp384r1] ECDHE test vectors":
+  test "[secp521r1] ECDHE test vectors":
     for i in 6..<9:
       var key1 = fromHex(stripSpaces(ECDHEPrivateKeys[i * 2]))
       var key2 = fromHex(stripSpaces(ECDHEPrivateKeys[i * 2 + 1]))
