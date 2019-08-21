@@ -23,19 +23,22 @@ method init*(t: TcpTransport) =
 
 method close*(t: TcpTransport): Future[void] {.async.} =
   ## start the transport
-  await procCall Transport(t).close() # call base close
+  await procCall Transport(t).close() # call base
 
   t.server.stop()
   await t.server.closeWait()
 
-method listen*(t: TcpTransport): Future[void] {.async.} =
+method listen*(t: TcpTransport, ma: MultiAddress, handler: ConnHandler): Future[void] {.async.} =
+  await procCall Transport(t).listen(ma, handler) # call base
+
+  ## listen on the transport
   let listenFuture: Future[void] = newFuture[void]()
   result = listenFuture
 
-  ## listen on the transport
   let server = createStreamServer(t.ma, connCb, {}, t)
   t.server = server
   server.start()
+  listenFuture.complete()
 
 method dial*(t: TcpTransport, address: MultiAddress): Future[Connection] {.async.} =
   ## dial a peer
