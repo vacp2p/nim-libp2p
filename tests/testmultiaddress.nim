@@ -361,3 +361,7 @@ suite "MultiAddress test suite":
       for bitem in item.bad:
         var a = MultiAddress.init(bitem)
         check item.pattern.match(a) == false
+
+  test "MultiAddress port":
+    var maStr = "/ip4/127.0.0.1/tcp/55555"
+    var ma = MultiAddress.init(maStr)

@@ -22,7 +22,7 @@ proc newConnection*(reader: AsyncStreamReader, writter: AsyncStreamWriter): Conn
   result.reader = reader
   result.writter = writter
 
-method read* (c: Connection, size: int = DefaultReadSize): Future[seq[byte]] {.base, async.} = 
+method read* (c: Connection, size: int = DefaultReadSize): Future[seq[byte]] {.base, async, gcsafe.} = 
   ## read DefaultReadSize (1024) bytes or `size` bytes if specified
   result = await c.reader.read(size)
 
