@@ -23,24 +23,37 @@ type
     handler*: ConnHandler
     multicodec*: MultiCodec
 
+method connHandler*(t: Transport,
+                  server: StreamServer,
+                  client: StreamTransport): Future[Connection] {.base, gcsafe, async.} =
+  let conn: Connection = newConnection(server, client)
+  let handlerFut = if t.handler == nil: nil else: t.handler(conn)
+  let connHolder: ConnHolder = ConnHolder(connection: conn,
+                                          connFuture: handlerFut)
+  t.connections.add(connHolder)
+  result = conn
+
 method init*(t: Transport) {.base.} = 
   ## perform protocol initialization
   discard
 
 proc newTransport*(t: typedesc[Transport], 
           ma: MultiAddress, 
-          handler: ConnHandler): t = 
+          handler: ConnHandler = nil): t = 
   new result
   result.ma = ma
   result.handler = handler
   result.init()
 
 method close*(t: Transport) {.base, async.} =
-  ## start the transport
-  discard
+  ## stop and cleanup the transport
+  ## including all outstanding connections
+  for c in t.connections:
+    if c.connection.isOpen:
+      await c.connection.close()
 
 method listen*(t: Transport) {.base, async.} =
-  ## stop the transport
+  ## listen for incoming connections
   discard
 
 method dial*(t: Transport, address: MultiAddress): Future[Connection] {.base, async.} = 
