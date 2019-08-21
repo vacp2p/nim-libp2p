@@ -24,8 +24,8 @@ type
     multicodec*: MultiCodec
 
 method connHandler*(t: Transport,
-                  server: StreamServer,
-                  client: StreamTransport): Future[Connection] {.base, gcsafe, async.} =
+                    server: StreamServer,
+                    client: StreamTransport): Future[Connection] {.base, gcsafe, async.} =
   let conn: Connection = newConnection(server, client)
   let handlerFut = if t.handler == nil: nil else: t.handler(conn)
   let connHolder: ConnHolder = ConnHolder(connection: conn,
@@ -37,12 +37,8 @@ method init*(t: Transport) {.base.} =
   ## perform protocol initialization
   discard
 
-proc newTransport*(t: typedesc[Transport], 
-          ma: MultiAddress, 
-          handler: ConnHandler = nil): t = 
+proc newTransport*(t: typedesc[Transport]): t = 
   new result
-  result.ma = ma
-  result.handler = handler
   result.init()
 
 method close*(t: Transport) {.base, async.} =
@@ -52,9 +48,10 @@ method close*(t: Transport) {.base, async.} =
     if c.connection.isOpen:
       await c.connection.close()
 
-method listen*(t: Transport) {.base, async.} =
+method listen*(t: Transport, ma: MultiAddress, handler: ConnHandler) {.base, async.} =
   ## listen for incoming connections
-  discard
+  t.ma = ma
+  t.handler = handler
 
 method dial*(t: Transport, address: MultiAddress): Future[Connection] {.base, async.} = 
   ## dial a peer
