@@ -15,12 +15,18 @@ type
   Connection* = ref object of RootObj
     reader: AsyncStreamReader
     writter: AsyncStreamWriter
+    server: StreamServer
+    client: StreamTransport
 
-proc newConnection*(reader: AsyncStreamReader, writter: AsyncStreamWriter): Connection = 
+proc newConnection*(server: StreamServer,
+                    client: StreamTransport): Connection = 
   ## create a new Connection for the specified async stream reader/writter
   new result
-  result.reader = reader
-  result.writter = writter
+  result.server = server
+  result.client = client
+
+  result.reader = newAsyncStreamReader(client)
+  result.writter = newAsyncStreamWriter(client)
 
 method read* (c: Connection, size: int = DefaultReadSize): Future[seq[byte]] {.base, async, gcsafe.} = 
   ## read DefaultReadSize (1024) bytes or `size` bytes if specified
@@ -28,7 +34,7 @@ method read* (c: Connection, size: int = DefaultReadSize): Future[seq[byte]] {.b
 
 method write* (c: Connection, data: pointer, size: int): Future[void] {.base, async.} = 
   ## write bytes pointed to by `data` up to `size` size
-  result = c.writter.write(data, size)
+  discard c.writter.write(data, size)
 
 method close* (c: Connection): Future[void] {.base, async.} = 
   ## close connection
