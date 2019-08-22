@@ -8,7 +8,7 @@
 ## those terms.
 
 import chronos
-import peerinfo, connection, multiaddress, multicodec
+import peerinfo, connection, multiaddress, multicodec, readerwriter
 
 type
   ConnHandler* = proc (conn: Connection): Future[void] {.gcsafe.}
@@ -23,16 +23,6 @@ type
     handler*: ConnHandler
     multicodec*: MultiCodec
 
-method connHandler*(t: Transport,
-                    server: StreamServer,
-                    client: StreamTransport): Future[Connection] {.base, gcsafe, async.} =
-  let conn: Connection = newConnection(server, client)
-  let handlerFut = if t.handler == nil: nil else: t.handler(conn)
-  let connHolder: ConnHolder = ConnHolder(connection: conn,
-                                          connFuture: handlerFut)
-  t.connections.add(connHolder)
-  result = conn
-
 method init*(t: Transport) {.base, error: "not implemented".} = 
   ## perform protocol initialization
   discard
@@ -45,8 +35,7 @@ method close*(t: Transport) {.base, async.} =
   ## stop and cleanup the transport
   ## including all outstanding connections
   for c in t.connections:
-    if c.connection.isOpen:
-      await c.connection.close()
+    await c.connection.close()
 
 method listen*(t: Transport, ma: MultiAddress, handler: ConnHandler) {.base, async.} =
   ## listen for incoming connections
