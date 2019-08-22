@@ -776,7 +776,10 @@ proc close*(api: DaemonAPI) {.async.} =
     api.servers.setLen(0)
   # Closing daemon's process.
   if NoProcessCtrl in api.flags:
-    api.process.terminate()
+    when defined(windows):
+      api.process.kill()
+    else:
+      api.process.terminate()
     discard api.process.waitForExit()
   # Attempt to delete unix socket endpoint.
   let address = initTAddress(api.address)
