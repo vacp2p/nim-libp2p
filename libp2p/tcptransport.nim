@@ -44,3 +44,5 @@ method dial*(t: TcpTransport, address: MultiAddress): Future[Connection] {.async
   ## dial a peer
   let client: StreamTransport = await connect(address)
   result = await t.connHandler(t.server, client)
+
+method supports(t: Transport, address: MultiAddress): bool = true
