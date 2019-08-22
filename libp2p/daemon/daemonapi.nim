@@ -742,7 +742,6 @@ proc newDaemonApi*(flags: set[P2PDaemonFlags] = {},
       var peers = await listPeers(api)
       if len(peers) >= peersRequired:
         break
-      echo peers
       await sleepAsync(1.seconds)
 
   result = api
