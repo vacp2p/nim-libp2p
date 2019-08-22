@@ -607,7 +607,7 @@ proc newDaemonApi*(flags: set[P2PDaemonFlags] = {},
   ## ``logFile`` (default: "", no logging)
   ##
   ## ``logLevel`` - Set ``go-libp2p-daemon`` logging verbosity level to
-  ## ``logLevel`` (default: Trace)
+  ## ``logLevel`` (default: Debug)
   var api = new DaemonAPI
   var args = newSeq[string]()
   var env: StringTableRef
