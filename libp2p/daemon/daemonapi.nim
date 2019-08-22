@@ -131,7 +131,6 @@ type
     topic*: string
     handler*: P2PPubSubCallback
     transp*: StreamTransport
-    loopFut*: Future[void]
 
   PubSubMessage* = object
     peer*: PeerID
@@ -1283,7 +1282,7 @@ proc pubsubSubscribe*(api: DaemonAPI, topic: string,
       ticket.topic = topic
       ticket.handler = handler
       ticket.transp = transp
-      ticket.loopFut = pubsubLoop(api, ticket)
+      asyncCheck pubsubLoop(api, ticket)
       result = ticket
   except:
     await api.closeConnection(transp)
