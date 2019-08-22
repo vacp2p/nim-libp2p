@@ -145,3 +145,4 @@ when isMainModule:
     test "FloodSub test":
       check:
         waitFor(pubsubTest({PSFloodSub})) == true
+  echo "Exiting daemon test"
