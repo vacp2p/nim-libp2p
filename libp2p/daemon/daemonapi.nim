@@ -726,7 +726,7 @@ proc newDaemonApi*(flags: set[P2PDaemonFlags] = {},
 
   # Starting daemon process
   # echo "Starting ", cmd, " ", args.join(" ")
-  api.process = startProcess(cmd, "", args, env, {poStdErrToStdOut})
+  api.process = startProcess(cmd, "", args, env, {})
   # Waiting until daemon will not be bound to control socket.
   while true:
     if not api.process.running():
@@ -743,6 +743,7 @@ proc newDaemonApi*(flags: set[P2PDaemonFlags] = {},
       var peers = await listPeers(api)
       if len(peers) >= peersRequired:
         break
+      echo peers
       await sleepAsync(1.seconds)
 
   result = api
