@@ -7,47 +7,47 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import chronos, peerinfo, multiaddress
+import chronos
+import peerinfo, multiaddress, readerwriter, peerinfo
 
 const DefaultReadSize = 1024
 
 type
-  Connection* = ref object of RootObj
-    reader: AsyncStreamReader
-    writer: AsyncStreamWriter
-    server: StreamServer
-    client: StreamTransport
-    isOpen*: bool
+  Connection* = ref object of ReadWrite
+    peerInfo*: PeerInfo
+    stream: ReadWrite
 
-proc newConnection*(server: StreamServer,
-                    client: StreamTransport): Connection = 
-  ## create a new Connection for the specified async stream reader/writer
+proc newConnection*(stream: ReadWrite): Connection = 
+  ## create a new Connection for the specified async reader/writer
   new result
-  result.isOpen = false
-  result.server = server
-  result.client = client
+  result.stream = stream
 
-  result.reader = newAsyncStreamReader(client)
-  result.writer = newAsyncStreamWriter(client)
+method read*(s: Connection, n = -1): Future[seq[byte]] {.async.} = 
+  result = await s.stream.read(n)
 
-method read* (c: Connection, size: int = DefaultReadSize): Future[seq[byte]] {.base, async, gcsafe.} = 
-  ## read DefaultReadSize (1024) bytes or `size` bytes if specified
-  result = await c.reader.read(size)
+method readExactly*(s: Connection, pbytes: pointer, nbytes: int): Future[void] {.async.} =
+  result = s.stream.readExactly(pbytes, nbytes)
 
-method write* (c: Connection, data: pointer, size: int): Future[void] {.base, async.} = 
-  ## write bytes pointed to by `data` up to `size` size
-  discard c.writer.write(data, size)
+method readLine*(s: Connection, limit = 0, sep = "\r\n"): Future[string] {.async.} =
+  result = await s.stream.readLine(limit, sep)
 
-method close* (c: Connection): Future[void] {.base, async.} = 
-  ## close connection
-  await c.reader.closeWait()
+method readOnce*(s: Connection, pbytes: pointer, nbytes: int): Future[int] {.async.} =
+  result = await s.stream.readOnce(pbytes, nbytes)
 
-  await c.writer.finish()
-  await c.writer.closeWait()
+method readUntil*(s: Connection, pbytes: pointer, nbytes: int, sep: seq[byte]): Future[int] {.async.} =
+  result = await s.stream.readUntil(pbytes, nbytes, sep)
 
-  await c.client.closeWait()
-  c.server.stop()
-  c.server.close()
+method write*(s: Connection, pbytes: pointer, nbytes: int) {.async.} =
+  result = s.stream.write(pbytes, nbytes)
+
+method write*(s: Connection, msg: string, msglen = -1) {.async.} =
+  result = s.stream.write(msg, msglen)
+
+method write*[T](s: Connection, msg: seq[T], msglen = -1) {.async.} =
+  result = s.stream.write(msg, msglen)
+
+method close*(s: Connection) {.async.} =
+  result = s.stream.close()
 
 method getPeerInfo* (c: Connection): Future[PeerInfo] {.base, async.} = 
   ## get up to date peer info
