@@ -683,7 +683,6 @@ proc newDaemonApi*(flags: set[P2PDaemonFlags] = {},
     of IpfsLogLevel.Trace:
       env["IPFS_LOGGING"] = "DEBUG"
       env["GOLOG_TRACING_FILE"] = logFile
-
   if PSGossipSub in api.flags:
     args.add("-pubsub")
     args.add("-pubsubRouter=gossipsub")

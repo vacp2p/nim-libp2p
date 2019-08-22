@@ -34,7 +34,6 @@ install:
   - go version
   - git clone https://github.com/libp2p/go-libp2p-daemon
   - CD go-libp2p-daemon
-  # - git checkout v0.0.1
   - go install ./...
   - CD ..
 
