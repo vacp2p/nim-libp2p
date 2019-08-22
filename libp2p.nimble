@@ -13,9 +13,8 @@ requires "nim > 0.18.0",
 
 proc runTest(filename: string) =
   exec "nim c -r tests/" & filename
-  rmFile "tests/" & filename
+  # rmFile "tests/" & filename
 
 task test, "Runs the test suite":
   runTest "testnative"
   runTest "testdaemon"
-
