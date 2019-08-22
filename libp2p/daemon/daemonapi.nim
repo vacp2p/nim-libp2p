@@ -488,9 +488,8 @@ proc recvMessage(conn: StreamTransport): Future[seq[byte]] {.async.} =
 proc newConnection*(api: DaemonAPI): Future[StreamTransport] =
   result = connect(api.address)
 
-proc closeConnection*(api: DaemonAPI, transp: StreamTransport) {.async.} =
-  transp.close()
-  await transp.join()
+proc closeConnection*(api: DaemonAPI, transp: StreamTransport): Future[void] =
+  result = transp.closeWait()
 
 proc socketExists(address: MultiAddress): Future[bool] {.async.} =
   try:
@@ -751,8 +750,7 @@ proc newDaemonApi*(flags: set[P2PDaemonFlags] = {},
 proc close*(stream: P2PStream) {.async.} =
   ## Close ``stream``.
   if P2PStreamFlags.Closed notin stream.flags:
-    stream.transp.close()
-    await stream.transp.join()
+    await stream.transp.closeWait()
     stream.transp = nil
     stream.flags.incl(P2PStreamFlags.Closed)
   else:
@@ -774,7 +772,7 @@ proc close*(api: DaemonAPI) {.async.} =
       discard tryRemoveFile($address)
     api.servers.setLen(0)
   # Closing daemon's process.
-  if NoProcessCtrl in api.flags:
+  if NoProcessCtrl notin api.flags:
     when defined(windows):
       api.process.kill()
     else:
