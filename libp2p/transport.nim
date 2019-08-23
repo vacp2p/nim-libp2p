@@ -42,11 +42,11 @@ method listen*(t: Transport, ma: MultiAddress, handler: ConnHandler) {.base, asy
   t.ma = ma
   t.handler = handler
 
-method dial*(t: Transport, address: MultiAddress): Future[Connection] {.base, async, error: "not implemented".} = 
+method dial*(t: Transport, address: MultiAddress): Future[Connection] {.base, async.} = 
   ## dial a peer
   discard
 
-method supports(t: Transport, address: MultiAddress): bool {.base, error: "not implemented".} = 
+method supports(t: Transport, address: MultiAddress): bool {.base.} = 
   ## check if transport supportes the multiaddress
   # TODO: this should implement generic logic that would use the multicodec 
   # declared in the multicodec field and set by each individual transport
