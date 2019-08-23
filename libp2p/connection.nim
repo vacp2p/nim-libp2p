@@ -8,9 +8,9 @@
 ## those terms.
 
 import chronos
-import peerinfo, multiaddress, readerwriter, peerinfo
+import peerinfo, multiaddress, readerwriter, peerinfo, varint, vbuffer
 
-const DefaultReadSize = 1024
+const DefaultReadSize: uint = 64*1024
 
 type
   Connection* = ref object of ReadWrite
@@ -48,6 +48,35 @@ method write*(s: Connection, msg: seq[byte], msglen = -1) {.async.} =
 
 method close*(s: Connection) {.async.} =
   result = s.stream.close()
+
+proc readLp*(s: Connection): Future[seq[byte]] {.async.} = 
+  ## read lenght prefixed msg
+  var
+    size: uint
+    length: int
+    res: VarintStatus
+  var buffer = newSeq[byte](10)
+  try:
+    for i in 0..<len(buffer):
+      await s.readExactly(addr buffer[i], 1)
+      res = LP.getUVarint(buffer.toOpenArray(0, i), length, size)
+      if res == VarintStatus.Success:
+        break
+    if res != VarintStatus.Success or size > DefaultReadSize:
+      buffer.setLen(0)
+    buffer.setLen(size)
+    await s.readExactly(addr buffer[0], int(size))
+  except TransportIncompleteError:
+    buffer.setLen(0)
+
+  result = buffer
+
+proc writeLp*(s: Connection, msg: string | seq[byte]) {.async.} =
+  ## write lenght prefixed
+  var buf = initVBuffer()
+  buf.writeSeq(msg)
+  buf.finish()
+  result = s.write(buf.buffer)
 
 method getPeerInfo* (c: Connection): Future[PeerInfo] {.base, async.} = 
   ## get up to date peer info
