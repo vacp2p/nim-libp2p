@@ -43,7 +43,7 @@ method write*(s: Connection, pbytes: pointer, nbytes: int) {.async.} =
 method write*(s: Connection, msg: string, msglen = -1) {.async.} =
   result = s.stream.write(msg, msglen)
 
-method write*[T](s: Connection, msg: seq[T], msglen = -1) {.async.} =
+method write*(s: Connection, msg: seq[byte], msglen = -1) {.async.} =
   result = s.stream.write(msg, msglen)
 
 method close*(s: Connection) {.async.} =
