@@ -13,9 +13,9 @@ import connection, varint, vbuffer
 
 const MsgSize* = 64*1024
 const Codec* = "/multistream/1.0.0"
-const MultiCodec* = Codec & "\n"
-const Na = "na\n"
-const Ls = "ls\n"
+const MultiCodec* = "\x19" & Codec & "\n"
+const Na = "\x3na\n"
+const Ls = "\x3ls\n"
 
 type 
   MultisteamSelectException = object of CatchableError
@@ -30,56 +30,59 @@ type
 
   MultisteamSelect* = ref object of RootObj
     handlers*: seq[HandlerHolder]
-    codec*: seq[byte]
-    na*: seq[byte]
-    ls*: seq[byte]
-
-proc lp*(data: string, s: var seq[byte]): int =
-  var buf = initVBuffer(s)
-  buf.writeSeq(data)
-  buf.finish()
-  s = buf.buffer
+    codec*: string
+    na*: string
+    ls*: string
 
 proc newMultistream*(): MultisteamSelect =
   new result
-  result.codec = newSeq[byte]()
-  discard lp(MultiCodec, result.codec)
+  result.codec = MultiCodec
+  result.ls = Ls
+  result.na = Na
 
-  result.na = newSeq[byte]()
-  discard lp(Na, result.na)
-
-  result.ls = newSeq[byte]()
-  discard lp(Ls, result.ls)
-
-proc select*(m: MultisteamSelect, conn: Connection, proto: string): Future[bool] {.async.} = 
+proc select*(m: MultisteamSelect, conn: Connection, proto: string = ""): Future[bool] {.async.} = 
   ## select a remote protocol
+  ## TODO: select should support a list of protos to be selected
+
   await conn.write(m.codec) # write handshake
   await conn.writeLp(proto) # select proto
   var ms = cast[string](await conn.readLp())
-  echo MultiCodec
-  if ms != MultiCodec:
+  ms.removeSuffix("\n")
+  if ms != Codec:
     raise newException(MultisteamSelectException, 
                        "Error: invalid multistream codec " & "\"" & ms & "\"")
 
-  var msProto = cast[string](await conn.readLp())
-  msProto.removeSuffix("\n")
-  result = msProto == proto
+  if proto.len() <= 0:
+    return true
 
-proc ls*(m: MultisteamSelect): Future[seq[string]] {.async.} = 
-  ## list all remote protocol strings
-  discard
+  ms = cast[string](await conn.readLp())
+  ms.removeSuffix("\n")
+  result = ms == proto
 
-# proc handle*(m: MultisteamSelect, conn: Connection) {.async.} =
-#   ## handle requests on connection
-#   await conn.write(m.codec)
-
-#   let ms = await conn.readLine(0, "\n")
-#   if ms != MultiCodec:
-#     raise newException(MultisteamSelectException, 
-#                        "Error: invalid multistream codec " & "\"" & $ms & "\"")
+proc handle*(m: MultisteamSelect, conn: Connection) {.async.} =
+  ## handle requests on connection
+  if not (await m.select(conn)):
+    return
   
-#   let ms = await conn.readLine(0, "\n")
+  block handleLoop:
+    var ms = cast[string](await conn.readLp())
+    ms.removeSuffix("\n")
+    if ms.len() <= 0:
+      await conn.writeLp(Na)
 
+    case ms:
+      of "ls": 
+        for h in m.handlers:
+          await conn.writeLp(h.proto)
+          break handleLoop
+      else: 
+        for h in m.handlers:
+          if (not isNil(h.match) and h.match(ms)) or ms == h.proto:
+            await h.handler(conn, ms)
+            break
+          else:
+            await conn.write(Na)
+            break handleLoop
 
 proc addHandler*(m: MultisteamSelect, 
                  proto: string, 
