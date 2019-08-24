@@ -10,6 +10,7 @@
 import chronos
 
 type ReadWrite* = ref object of RootObj
+  closed*: bool
 
 method read*(s: ReadWrite, n = -1): Future[seq[byte]] 
   {.base, async.} =
