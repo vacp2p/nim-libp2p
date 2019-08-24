@@ -23,12 +23,13 @@ proc newChronosStream*(server: StreamServer,
   result.client = client
   result.reader = newAsyncStreamReader(client)
   result.writer = newAsyncStreamWriter(client)
+  result.closed = false
 
 method read*(s: ChronosStream, n = -1): Future[seq[byte]] {.async.} = 
   result = await s.reader.read(n)
 
 method readExactly*(s: ChronosStream, pbytes: pointer, nbytes: int): Future[void] {.async.} =
-  result = s.readExactly(pbytes, nbytes)
+  await s.readExactly(pbytes, nbytes)
 
 method readLine*(s: ChronosStream, limit = 0, sep = "\r\n"): Future[string] {.async.} =
   result = await s.reader.readLine(limit, sep)
@@ -40,13 +41,13 @@ method readUntil*(s: ChronosStream, pbytes: pointer, nbytes: int, sep: seq[byte]
   result = await s.reader.readUntil(pbytes, nbytes, sep)
 
 method write*(s: ChronosStream, pbytes: pointer, nbytes: int) {.async.} =
-  result = s.writer.write(pbytes, nbytes)
+  await s.writer.write(pbytes, nbytes)
 
 method write*(s: ChronosStream, msg: string, msglen = -1) {.async.} =
-  result = s.writer.write(msg, msglen)
+  await s.writer.write(msg, msglen)
 
 method write*(s: ChronosStream, msg: seq[byte], msglen = -1) {.async.} =
-  result = s.writer.write(msg, msglen)
+  await s.writer.write(msg, msglen)
 
 method close*(s: ChronosStream) {.async.} =
   await s.reader.closeWait()
@@ -57,3 +58,4 @@ method close*(s: ChronosStream) {.async.} =
   await s.client.closeWait()
   s.server.stop()
   s.server.close()
+  s.closed = true

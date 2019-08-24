@@ -26,7 +26,7 @@ method read*(s: Connection, n = -1): Future[seq[byte]] {.async.} =
   result = await s.stream.read(n)
 
 method readExactly*(s: Connection, pbytes: pointer, nbytes: int): Future[void] {.async.} =
-  result = s.stream.readExactly(pbytes, nbytes)
+  await s.stream.readExactly(pbytes, nbytes)
 
 method readLine*(s: Connection, limit = 0, sep = "\r\n"): Future[string] {.async.} =
   result = await s.stream.readLine(limit, sep)
@@ -38,16 +38,17 @@ method readUntil*(s: Connection, pbytes: pointer, nbytes: int, sep: seq[byte]): 
   result = await s.stream.readUntil(pbytes, nbytes, sep)
 
 method write*(s: Connection, pbytes: pointer, nbytes: int) {.async.} =
-  result = s.stream.write(pbytes, nbytes)
+  await s.stream.write(pbytes, nbytes)
 
 method write*(s: Connection, msg: string, msglen = -1) {.async.} =
-  result = s.stream.write(msg, msglen)
+  await s.stream.write(msg, msglen)
 
 method write*(s: Connection, msg: seq[byte], msglen = -1) {.async.} =
-  result = s.stream.write(msg, msglen)
+  await s.stream.write(msg, msglen)
 
 method close*(s: Connection) {.async.} =
-  result = s.stream.close()
+  await s.stream.close()
+  s.closed = true
 
 proc readLp*(s: Connection): Future[seq[byte]] {.async.} = 
   ## read lenght prefixed msg
