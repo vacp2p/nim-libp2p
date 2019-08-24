@@ -9,7 +9,6 @@ suite "TCP transport suite":
       let ma: MultiAddress = Multiaddress.init("/ip4/127.0.0.1/tcp/53335")
       proc connHandler(conn: Connection): Future[void] {.async ,gcsafe.} =
         result = conn.write(cstring("Hello!"), 6)
-        await conn.close()
 
       let transport: TcpTransport = newTransport(TcpTransport)
       await transport.listen(ma, connHandler)
@@ -97,7 +96,6 @@ suite "TCP transport suite":
       let ma: MultiAddress = Multiaddress.init("/ip4/127.0.0.1/tcp/53339")
       proc connHandler(conn: Connection): Future[void] {.async ,gcsafe.} =
         result = conn.write(cstring("Hello!"), 6)
-        await conn.close()
 
       let transport1: TcpTransport = newTransport(TcpTransport)
       await transport1.listen(ma, connHandler)
