@@ -65,13 +65,13 @@ proc newTestHandlesStream(): TestHandlesStream =
   new result
   result.step = 1
 
-## Mock stream for handles test
+## Mock stream for handles `ls` test
 type
   LsHandler = proc(procs: seq[byte]): Future[void]
 
   TestLsStream = ref object of ReadWrite
     step*: int
-    ls*: proc(procs: seq[byte]): Future[void]
+    ls*: LsHandler
 
 method readExactly*(s: TestLsStream, pbytes: pointer, nbytes: int): Future[void] {.async.} =
   case s.step:
@@ -102,6 +102,45 @@ method write*(s: TestLsStream, msg: seq[byte], msglen = -1) {.async.} =
 proc newTestLsStream(ls: LsHandler): TestLsStream =
   new result
   result.ls = ls
+  result.step = 1
+
+## Mock stream for handles `na` test
+type
+  NaHandler = proc(procs: string): Future[void]
+
+  TestNaStream = ref object of ReadWrite
+    step*: int
+    na*: NaHandler
+
+method readExactly*(s: TestNaStream, pbytes: pointer, nbytes: int): Future[void] {.async.} =
+  case s.step:
+    of 1:
+      var buf = newSeq[byte](1)
+      buf[0] = 19
+      copyMem(cast[pointer](cast[uint](pbytes)), addr buf[0], buf.len())
+      s.step = 2
+    of 2:
+      var buf = "/multistream/1.0.0\n"
+      copyMem(cast[pointer](cast[uint](pbytes)), addr buf[0], buf.len())
+      s.step = 3
+    of 3:
+      var buf = newSeq[byte](1)
+      buf[0] = 18
+      copyMem(cast[pointer](cast[uint](pbytes)), addr buf[0], buf.len())
+      s.step = 4
+    of 4:
+      var buf = "/test/proto/1.0.0\n"
+      copyMem(cast[pointer](cast[uint](pbytes)), addr buf[0], buf.len())
+    else: 
+      copyMem(cast[pointer](cast[uint](pbytes)), cstring("\0x3na\n"), "\0x3na\n".len())
+
+method write*(s: TestNaStream, msg: string, msglen = -1) {.async.} =
+  if s.step == 4:
+    await s.na(msg)
+
+proc newTestNaStream(na: NaHandler): TestNaStream =
+  new result
+  result.na = na
   result.step = 1
 
 suite "Multistream select":
@@ -150,3 +189,23 @@ suite "Multistream select":
 
     check:
       waitFor(testLs()) == true
+
+  test "test handle `na`":
+    proc testNa(): Future[bool] {.async.} =
+      let ms = newMultistream()
+
+      proc testNa(msg: string): Future[void] {.async.}
+      let conn = newConnection(newTestNaStream(testNa))
+
+      proc testNa(msg: string): Future[void] {.async.} =
+        check cast[string](msg) == "\x3na\n"
+        await conn.close()
+
+      proc testHandler(conn: Connection, proto: string): Future[void] {.async.} = discard
+      ms.addHandler("/unabvailable/proto/1.0.0", testHandler)
+
+      await ms.handle(conn)
+      result = true
+
+    check:
+      waitFor(testNa()) == true
