@@ -32,18 +32,18 @@ method readUntil*(s: ReadWrite, pbytes: pointer, nbytes: int, sep: seq[byte]): F
   {.base, async.} = 
   discard
 
-method write*(w: ReadWrite, pbytes: pointer, nbytes: int)
+method write*(s: ReadWrite, pbytes: pointer, nbytes: int)
   {.base, async.} = 
   discard
 
-method write*(w: ReadWrite, msg: string, msglen = -1)
+method write*(s: ReadWrite, msg: string, msglen = -1)
   {.base, async.} = 
   discard
 
-method write*(w: ReadWrite, msg: seq[byte], msglen = -1)
+method write*(s: ReadWrite, msg: seq[byte], msglen = -1)
   {.base, async.} = 
   discard
 
-method close*(w: ReadWrite) 
+method close*(s: ReadWrite) 
   {.base, async.} = 
   discard
