@@ -64,7 +64,7 @@ proc handle*(m: MultisteamSelect, conn: Connection) {.async.} =
   if not (await m.select(conn)):
     return
   
-  block handleLoop:
+  while not conn.closed:
     var ms = cast[string](await conn.readLp())
     ms.removeSuffix("\n")
     if ms.len() <= 0:
@@ -73,16 +73,14 @@ proc handle*(m: MultisteamSelect, conn: Connection) {.async.} =
     case ms:
       of "ls": 
         for h in m.handlers:
-          await conn.writeLp(h.proto)
-          break handleLoop
+          await conn.writeLp(h.proto & "\n")
       else: 
         for h in m.handlers:
           if (not isNil(h.match) and h.match(ms)) or ms == h.proto:
             await h.handler(conn, ms)
-            break
+            return
           else:
             await conn.write(Na)
-            break handleLoop
 
 proc addHandler*(m: MultisteamSelect, 
                  proto: string, 
