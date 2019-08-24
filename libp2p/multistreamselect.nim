@@ -45,12 +45,13 @@ proc select*(m: MultisteamSelect, conn: Connection, proto: string = ""): Future[
   ## TODO: select should support a list of protos to be selected
 
   await conn.write(m.codec) # write handshake
-  await conn.writeLp(proto) # select proto
+  if proto.len() > 0: 
+    await conn.writeLp(proto) # select proto
+
   var ms = cast[string](await conn.readLp())
   ms.removeSuffix("\n")
   if ms != Codec:
-    raise newException(MultisteamSelectException, 
-                       "Error: invalid multistream codec " & "\"" & ms & "\"")
+    return false
 
   if proto.len() <= 0:
     return true
@@ -59,16 +60,32 @@ proc select*(m: MultisteamSelect, conn: Connection, proto: string = ""): Future[
   ms.removeSuffix("\n")
   result = ms == proto
 
+proc list*(m: MultisteamSelect, conn: Connection): Future[seq[string]] {.async.} =
+  ## list remote protos requests on connection
+  if not (await m.select(conn)):
+    return
+
+  var list = newSeq[string]()
+  let ms = cast[string](await conn.readLp())
+  for s in ms.split("\n"):
+    list.add(s)
+
+  result = list
+
 proc handle*(m: MultisteamSelect, conn: Connection) {.async.} =
   ## handle requests on connection
   if not (await m.select(conn)):
     return
-  
+
   while not conn.closed:
     var ms = cast[string](await conn.readLp())
     ms.removeSuffix("\n")
     if ms.len() <= 0:
-      await conn.writeLp(Na)
+      await conn.write(m.na)
+
+    if m.handlers.len() == 0:
+      await conn.write(m.na)
+      continue
 
     case ms:
       of "ls": 
@@ -80,7 +97,7 @@ proc handle*(m: MultisteamSelect, conn: Connection) {.async.} =
             await h.handler(conn, ms)
             return
           else:
-            await conn.write(Na)
+            await conn.write(m.na)
 
 proc addHandler*(m: MultisteamSelect, 
                  proto: string, 
