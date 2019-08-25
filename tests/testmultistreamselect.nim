@@ -1,7 +1,8 @@
 import unittest, strutils, sequtils, sugar
 import chronos
 import ../libp2p/connection, ../libp2p/multistreamselect, 
-  ../libp2p/readerwriter, ../libp2p/connection
+  ../libp2p/readerwriter, ../libp2p/connection, ../libp2p/multiaddress,
+  ../libp2p/transport, ../libp2p/tcptransport
 
 ## Mock stream for select test
 type
@@ -175,10 +176,9 @@ suite "Multistream select":
       proc testLs(proto: seq[byte]): Future[void] {.async.}
       let conn = newConnection(newTestLsStream(testLs))
 
-      let protos: seq[string] = @["\x13/test/proto1/1.0.0\n", "\x13/test/proto2/1.0.0\n"]
       proc testLs(proto: seq[byte]): Future[void] {.async.} =
         var strProto: string = cast[string](proto)
-        check strProto in protos
+        check strProto == "\x26/test/proto1/1.0.0\n/test/proto2/1.0.0\n"
         await conn.close()
 
       proc testHandler(conn: Connection, proto: string): Future[void] {.async.} = discard
@@ -209,3 +209,61 @@ suite "Multistream select":
 
     check:
       waitFor(testNa()) == true
+
+  test "end to end":
+    proc endToEnd(): Future[bool] {.async.} =
+      let ma: MultiAddress = Multiaddress.init("/ip4/127.0.0.1/tcp/53340")
+      proc testHandler(conn: Connection, proto: string): Future[void] {.async.} =
+        check proto == "/test/proto/1.0.0"
+        await conn.writeLp("Hello!")
+        await conn.close()
+
+      let msListen = newMultistream()
+      msListen.addHandler("/test/proto/1.0.0", testHandler)
+
+      proc connHandler(conn: Connection): Future[void] {.async ,gcsafe.} =
+        await msListen.handle(conn)
+
+      let transport1: TcpTransport = newTransport(TcpTransport)
+      await transport1.listen(ma, connHandler)
+
+      let msDial = newMultistream()
+      let transport2: TcpTransport = newTransport(TcpTransport)
+      let conn = await transport2.dial(ma)
+      
+      let res = await msDial.select(conn, "/test/proto/1.0.0")
+      check res == true
+
+      let hello = cast[string](await conn.readLp())
+      result = hello == "Hello!"
+      await conn.close()
+
+    check:
+      waitFor(endToEnd()) == true
+
+  test "end to end - ls":
+    proc endToEnd(): Future[bool] {.async.} =
+      let ma: MultiAddress = Multiaddress.init("/ip4/127.0.0.1/tcp/53341")
+
+      let msListen = newMultistream()
+      proc testHandler(conn: Connection, proto: string): Future[void] {.async.} = discard
+      msListen.addHandler("/test/proto1/1.0.0", testHandler)
+      msListen.addHandler("/test/proto2/1.0.0", testHandler)
+
+      let transport1: TcpTransport = newTransport(TcpTransport)
+      proc connHandler(conn: Connection): Future[void] {.async ,gcsafe.} = 
+        await msListen.handle(conn)
+
+      await transport1.listen(ma, connHandler)
+
+      let msDial = newMultistream()
+      let transport2: TcpTransport = newTransport(TcpTransport)
+      let conn = await transport2.dial(ma)
+      
+      let ls = await msDial.list(conn)
+      let protos: seq[string] = @["/test/proto1/1.0.0", "/test/proto2/1.0.0"]
+      await conn.close()
+      result = ls == protos
+
+    check:
+      waitFor(endToEnd()) == true
