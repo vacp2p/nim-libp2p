@@ -478,6 +478,8 @@ proc recvMessage(conn: StreamTransport): Future[seq[byte]] {.async.} =
         break
     if res != VarintStatus.Success or size > MaxMessageSize:
       buffer.setLen(0)
+      result = buffer
+      return
     buffer.setLen(size)
     await conn.readExactly(addr buffer[0], int(size))
   except TransportIncompleteError:
