@@ -56,6 +56,4 @@ method close*(s: ChronosStream) {.async.} =
   await s.writer.closeWait()
 
   await s.client.closeWait()
-  s.server.stop()
-  s.server.close()
   s.closed = true
