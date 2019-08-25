@@ -210,7 +210,7 @@ suite "Multistream select":
     check:
       waitFor(testNa()) == true
 
-  test "end to end":
+  test "end to end - handle":
     proc endToEnd(): Future[bool] {.async.} =
       let ma: MultiAddress = Multiaddress.init("/ip4/127.0.0.1/tcp/53340")
       proc testHandler(conn: Connection, proto: string): Future[void] {.async.} =
