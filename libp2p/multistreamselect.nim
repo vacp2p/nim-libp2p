@@ -13,9 +13,9 @@ import connection, varint, vbuffer
 
 const MsgSize* = 64*1024
 const Codec* = "/multistream/1.0.0"
-const MultiCodec* = "\x19" & Codec & "\n"
-const Na = "\x3na\n"
-const Ls = "\x3ls\n"
+const MultiCodec* = "\x13" & Codec & "\n"
+const Na = "\x03na\n"
+const Ls = "\x03ls\n"
 
 type 
   MultisteamSelectException = object of CatchableError
@@ -65,10 +65,13 @@ proc list*(m: MultisteamSelect, conn: Connection): Future[seq[string]] {.async.}
   if not (await m.select(conn)):
     return
 
+  await conn.write(m.ls) # send ls
+
   var list = newSeq[string]()
   let ms = cast[string](await conn.readLp())
   for s in ms.split("\n"):
-    list.add(s)
+    if s.len() > 0:
+      list.add(s)
 
   result = list
 
@@ -88,16 +91,18 @@ proc handle*(m: MultisteamSelect, conn: Connection) {.async.} =
       continue
 
     case ms:
-      of "ls": 
+      of "ls":
+        var protos = ""
         for h in m.handlers:
-          await conn.writeLp(h.proto & "\n")
+          protos &= (h.proto & "\n")
+        await conn.writeLp(cast[seq[byte]](toSeq(protos.items)))
       else: 
         for h in m.handlers:
           if (not isNil(h.match) and h.match(ms)) or ms == h.proto:
+            await conn.writeLp(h.proto & "\n")
             await h.handler(conn, ms)
             return
-          else:
-            await conn.write(m.na)
+        await conn.write(m.na)
 
 proc addHandler*(m: MultisteamSelect, 
                  proto: string, 
