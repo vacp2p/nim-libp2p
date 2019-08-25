@@ -29,7 +29,7 @@ method read*(s: ChronosStream, n = -1): Future[seq[byte]] {.async.} =
   result = await s.reader.read(n)
 
 method readExactly*(s: ChronosStream, pbytes: pointer, nbytes: int): Future[void] {.async.} =
-  await s.readExactly(pbytes, nbytes)
+  await s.reader.readExactly(pbytes, nbytes)
 
 method readLine*(s: ChronosStream, limit = 0, sep = "\r\n"): Future[string] {.async.} =
   result = await s.reader.readLine(limit, sep)
