@@ -17,24 +17,33 @@ type
     peerInfo*: PeerInfo
     stream: ReadWrite
 
-proc newConnection*(stream: ReadWrite): Connection = 
+proc newConnection*(stream: ReadWrite): Connection =
   ## create a new Connection for the specified async reader/writer
   new result
   result.stream = stream
 
-method read*(s: Connection, n = -1): Future[seq[byte]] {.async.} = 
+method read*(s: Connection, n = -1): Future[seq[byte]] {.async.} =
   result = await s.stream.read(n)
 
-method readExactly*(s: Connection, pbytes: pointer, nbytes: int): Future[void] {.async.} =
+method readExactly*(s: Connection,
+                    pbytes: pointer,
+                    nbytes: int): Future[void] {.async.} =
   await s.stream.readExactly(pbytes, nbytes)
 
-method readLine*(s: Connection, limit = 0, sep = "\r\n"): Future[string] {.async.} =
+method readLine*(s: Connection,
+                 limit = 0,
+                 sep = "\r\n"): Future[string] {.async.} =
   result = await s.stream.readLine(limit, sep)
 
-method readOnce*(s: Connection, pbytes: pointer, nbytes: int): Future[int] {.async.} =
+method readOnce*(s: Connection,
+                 pbytes: pointer,
+                 nbytes: int): Future[int] {.async.} =
   result = await s.stream.readOnce(pbytes, nbytes)
 
-method readUntil*(s: Connection, pbytes: pointer, nbytes: int, sep: seq[byte]): Future[int] {.async.} =
+method readUntil*(s: Connection,
+                  pbytes: pointer,
+                  nbytes: int,
+                  sep: seq[byte]): Future[int] {.async.} =
   result = await s.stream.readUntil(pbytes, nbytes, sep)
 
 method write*(s: Connection, pbytes: pointer, nbytes: int) {.async.} =
@@ -50,7 +59,7 @@ method close*(s: Connection) {.async.} =
   await s.stream.close()
   s.closed = true
 
-proc readLp*(s: Connection): Future[seq[byte]] {.async.} = 
+proc readLp*(s: Connection): Future[seq[byte]] {.async.} =
   ## read lenght prefixed msg
   var
     size: uint
@@ -79,11 +88,12 @@ proc writeLp*(s: Connection, msg: string | seq[byte]) {.async.} =
   buf.finish()
   result = s.write(buf.buffer)
 
-method getPeerInfo* (c: Connection): Future[PeerInfo] {.base, async.} = 
+method getPeerInfo* (c: Connection): Future[PeerInfo] {.base, async.} =
   ## get up to date peer info
   ## TODO: implement PeerInfo refresh over identify
   discard
 
-method getObservedAddrs(c: Connection): Future[seq[MultiAddress]] {.base, async.} =
+method getObservedAddrs(c: Connection): Future[seq[MultiAddress]] {.base,
+  async.} =
   ## get resolved multiaddresses for the connection
   discard

@@ -12,38 +12,40 @@ import chronos
 type ReadWrite* = ref object of RootObj
   closed*: bool
 
-method read*(s: ReadWrite, n = -1): Future[seq[byte]] 
+method read*(s: ReadWrite, n = -1): Future[seq[byte]]
   {.base, async.} =
   discard
 
-method readExactly*(s: ReadWrite, pbytes: pointer, nbytes: int): Future[void] 
+method readExactly*(s: ReadWrite, pbytes: pointer, nbytes: int): Future[void]
   {.base, async.} =
   discard
 
-method readLine*(s: ReadWrite, limit = 0, sep = "\r\n"): Future[string] 
-  {.base, async.} = 
+method readLine*(s: ReadWrite, limit = 0, sep = "\r\n"): Future[string]
+  {.base, async.} =
   discard
 
-method readOnce*(s: ReadWrite, pbytes: pointer, nbytes: int): Future[int] 
-  {.base, async.} = 
+method readOnce*(s: ReadWrite, pbytes: pointer, nbytes: int): Future[int]
+  {.base, async.} =
   discard
 
-method readUntil*(s: ReadWrite, pbytes: pointer, nbytes: int, sep: seq[byte]): Future[int] 
-  {.base, async.} = 
+method readUntil*(s: ReadWrite,
+                  pbytes: pointer, nbytes: int,
+                  sep: seq[byte]): Future[int]
+  {.base, async.} =
   discard
 
 method write*(s: ReadWrite, pbytes: pointer, nbytes: int)
-  {.base, async.} = 
+  {.base, async.} =
   discard
 
 method write*(s: ReadWrite, msg: string, msglen = -1)
-  {.base, async.} = 
+  {.base, async.} =
   discard
 
 method write*(s: ReadWrite, msg: seq[byte], msglen = -1)
-  {.base, async.} = 
+  {.base, async.} =
   discard
 
-method close*(s: ReadWrite) 
-  {.base, async.} = 
+method close*(s: ReadWrite)
+  {.base, async.} =
   discard

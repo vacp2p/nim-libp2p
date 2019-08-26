@@ -1,6 +1,6 @@
 import unittest, strutils, sequtils, sugar
 import chronos
-import ../libp2p/connection, ../libp2p/multistreamselect, 
+import ../libp2p/connection, ../libp2p/multistreamselect,
   ../libp2p/readerwriter, ../libp2p/connection, ../libp2p/multiaddress,
   ../libp2p/transport, ../libp2p/tcptransport
 
@@ -9,7 +9,9 @@ type
   TestSelectStream = ref object of ReadWrite
     step*: int
 
-method readExactly*(s: TestSelectStream, pbytes: pointer, nbytes: int): Future[void] {.async.} =
+method readExactly*(s: TestSelectStream,
+                    pbytes: pointer,
+                    nbytes: int): Future[void] {.async.} =
   case s.step:
     of 1:
       var buf = newSeq[byte](1)
@@ -28,8 +30,10 @@ method readExactly*(s: TestSelectStream, pbytes: pointer, nbytes: int): Future[v
     of 4:
       var buf = "/test/proto/1.0.0\n"
       copyMem(cast[pointer](cast[uint](pbytes)), addr buf[0], buf.len())
-    else: 
-      copyMem(cast[pointer](cast[uint](pbytes)), cstring("\0x3na\n"), "\0x3na\n".len())
+    else:
+      copyMem(cast[pointer](cast[uint](pbytes)),
+              cstring("\0x3na\n"),
+              "\0x3na\n".len())
 
 proc newTestSelectStream(): TestSelectStream =
   new result
@@ -40,7 +44,9 @@ type
   TestHandlesStream = ref object of ReadWrite
     step*: int
 
-method readExactly*(s: TestHandlesStream, pbytes: pointer, nbytes: int): Future[void] {.async.} =
+method readExactly*(s: TestHandlesStream,
+                    pbytes: pointer,
+                    nbytes: int): Future[void] {.async.} =
   case s.step:
     of 1:
       var buf = newSeq[byte](1)
@@ -59,8 +65,10 @@ method readExactly*(s: TestHandlesStream, pbytes: pointer, nbytes: int): Future[
     of 4:
       var buf = "/test/proto/1.0.0\n"
       copyMem(cast[pointer](cast[uint](pbytes)), addr buf[0], buf.len())
-    else: 
-      copyMem(cast[pointer](cast[uint](pbytes)), cstring("\0x3na\n"), "\0x3na\n".len())
+    else:
+      copyMem(cast[pointer](cast[uint](pbytes)),
+              cstring("\0x3na\n"),
+              "\0x3na\n".len())
 
 proc newTestHandlesStream(): TestHandlesStream =
   new result
@@ -74,7 +82,9 @@ type
     step*: int
     ls*: LsHandler
 
-method readExactly*(s: TestLsStream, pbytes: pointer, nbytes: int): Future[void] {.async.} =
+method readExactly*(s: TestLsStream,
+                    pbytes: pointer,
+                    nbytes: int): Future[void] {.async.} =
   case s.step:
     of 1:
       var buf = newSeq[byte](1)
@@ -93,8 +103,10 @@ method readExactly*(s: TestLsStream, pbytes: pointer, nbytes: int): Future[void]
     of 4:
       var buf = "ls\n"
       copyMem(cast[pointer](cast[uint](pbytes)), addr buf[0], buf.len())
-    else: 
-      copyMem(cast[pointer](cast[uint](pbytes)), cstring("\0x3na\n"), "\0x3na\n".len())
+    else:
+      copyMem(cast[pointer](cast[uint](pbytes)),
+              cstring("\0x3na\n"),
+              "\0x3na\n".len())
 
 method write*(s: TestLsStream, msg: seq[byte], msglen = -1) {.async.} =
   if s.step == 4:
@@ -113,7 +125,9 @@ type
     step*: int
     na*: NaHandler
 
-method readExactly*(s: TestNaStream, pbytes: pointer, nbytes: int): Future[void] {.async.} =
+method readExactly*(s: TestNaStream,
+                    pbytes: pointer,
+                    nbytes: int): Future[void] {.async.} =
   case s.step:
     of 1:
       var buf = newSeq[byte](1)
@@ -132,8 +146,10 @@ method readExactly*(s: TestNaStream, pbytes: pointer, nbytes: int): Future[void]
     of 4:
       var buf = "/test/proto/1.0.0\n"
       copyMem(cast[pointer](cast[uint](pbytes)), addr buf[0], buf.len())
-    else: 
-      copyMem(cast[pointer](cast[uint](pbytes)), cstring("\0x3na\n"), "\0x3na\n".len())
+    else:
+      copyMem(cast[pointer](cast[uint](pbytes)),
+              cstring("\0x3na\n"),
+              "\0x3na\n".len())
 
 method write*(s: TestNaStream, msg: string, msglen = -1) {.async.} =
   if s.step == 4:
@@ -159,7 +175,8 @@ suite "Multistream select":
       let ms = newMultistream()
       let conn = newConnection(newTestHandlesStream())
 
-      proc testHandler(conn: Connection, proto: string): Future[void] {.async.} =
+      proc testHandler(conn: Connection,
+                       proto: string): Future[void] {.async.} =
         check proto == "/test/proto/1.0.0"
 
       ms.addHandler("/test/proto/1.0.0", testHandler)
@@ -168,7 +185,7 @@ suite "Multistream select":
 
     check:
       waitFor(testHandle()) == true
-  
+
   test "test handle `ls`":
     proc testLs(): Future[bool] {.async.} =
       let ms = newMultistream()
@@ -181,7 +198,8 @@ suite "Multistream select":
         check strProto == "\x26/test/proto1/1.0.0\n/test/proto2/1.0.0\n"
         await conn.close()
 
-      proc testHandler(conn: Connection, proto: string): Future[void] {.async.} = discard
+      proc testHandler(conn: Connection,
+                       proto: string): Future[void] {.async.} = discard
       ms.addHandler("/test/proto1/1.0.0", testHandler)
       ms.addHandler("/test/proto2/1.0.0", testHandler)
       await ms.handle(conn)
@@ -201,7 +219,8 @@ suite "Multistream select":
         check cast[string](msg) == "\x3na\n"
         await conn.close()
 
-      proc testHandler(conn: Connection, proto: string): Future[void] {.async.} = discard
+      proc testHandler(conn: Connection,
+                       proto: string): Future[void] {.async.} = discard
       ms.addHandler("/unabvailable/proto/1.0.0", testHandler)
 
       await ms.handle(conn)
@@ -210,10 +229,11 @@ suite "Multistream select":
     check:
       waitFor(testNa()) == true
 
-  test "end to end - handle":
+  test "e2e - handle":
     proc endToEnd(): Future[bool] {.async.} =
       let ma: MultiAddress = Multiaddress.init("/ip4/127.0.0.1/tcp/53340")
-      proc testHandler(conn: Connection, proto: string): Future[void] {.async.} =
+      proc testHandler(conn: Connection,
+                       proto: string): Future[void] {.async.} =
         check proto == "/test/proto/1.0.0"
         await conn.writeLp("Hello!")
         await conn.close()
@@ -221,7 +241,7 @@ suite "Multistream select":
       let msListen = newMultistream()
       msListen.addHandler("/test/proto/1.0.0", testHandler)
 
-      proc connHandler(conn: Connection): Future[void] {.async ,gcsafe.} =
+      proc connHandler(conn: Connection): Future[void] {.async, gcsafe.} =
         await msListen.handle(conn)
 
       let transport1: TcpTransport = newTransport(TcpTransport)
@@ -230,7 +250,7 @@ suite "Multistream select":
       let msDial = newMultistream()
       let transport2: TcpTransport = newTransport(TcpTransport)
       let conn = await transport2.dial(ma)
-      
+
       let res = await msDial.select(conn, "/test/proto/1.0.0")
       check res == true
 
@@ -241,17 +261,18 @@ suite "Multistream select":
     check:
       waitFor(endToEnd()) == true
 
-  test "end to end - ls":
+  test "e2e - ls":
     proc endToEnd(): Future[bool] {.async.} =
       let ma: MultiAddress = Multiaddress.init("/ip4/127.0.0.1/tcp/53341")
 
       let msListen = newMultistream()
-      proc testHandler(conn: Connection, proto: string): Future[void] {.async.} = discard
+      proc testHandler(conn: Connection,
+                       proto: string): Future[void] {.async.} = discard
       msListen.addHandler("/test/proto1/1.0.0", testHandler)
       msListen.addHandler("/test/proto2/1.0.0", testHandler)
 
       let transport1: TcpTransport = newTransport(TcpTransport)
-      proc connHandler(conn: Connection): Future[void] {.async ,gcsafe.} = 
+      proc connHandler(conn: Connection): Future[void] {.async, gcsafe.} =
         await msListen.handle(conn)
 
       await transport1.listen(ma, connHandler)
@@ -259,7 +280,7 @@ suite "Multistream select":
       let msDial = newMultistream()
       let transport2: TcpTransport = newTransport(TcpTransport)
       let conn = await transport2.dial(ma)
-      
+
       let ls = await msDial.list(conn)
       let protos: seq[string] = @["/test/proto1/1.0.0", "/test/proto2/1.0.0"]
       await conn.close()

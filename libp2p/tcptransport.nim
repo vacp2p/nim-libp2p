@@ -8,14 +8,17 @@
 ## those terms.
 
 import chronos
-import transport, wire, connection, multiaddress, connection, multicodec, chronosstream
+import transport, wire, connection,
+        multiaddress, connection,
+        multicodec, chronosstream
 
 type TcpTransport* = ref object of Transport
   server*: StreamServer
 
 method connHandler*(t: Transport,
                     server: StreamServer,
-                    client: StreamTransport): Future[Connection] {.base, gcsafe, async.} =
+                    client: StreamTransport): Future[Connection]
+                    {.base, gcsafe, async.} =
   let conn: Connection = newConnection(newChronosStream(server, client))
   let handlerFut = if t.handler == nil: nil else: t.handler(conn)
   let connHolder: ConnHolder = ConnHolder(connection: conn,
@@ -38,7 +41,9 @@ method close*(t: TcpTransport): Future[void] {.async.} =
   t.server.stop()
   await t.server.closeWait()
 
-method listen*(t: TcpTransport, ma: MultiAddress, handler: ConnHandler): Future[void] {.async.} =
+method listen*(t: TcpTransport,
+               ma: MultiAddress,
+               handler: ConnHandler): Future[void] {.async.} =
   await procCall Transport(t).listen(ma, handler) # call base
 
   ## listen on the transport
@@ -50,7 +55,8 @@ method listen*(t: TcpTransport, ma: MultiAddress, handler: ConnHandler): Future[
   server.start()
   listenFuture.complete()
 
-method dial*(t: TcpTransport, address: MultiAddress): Future[Connection] {.async.} =
+method dial*(t: TcpTransport,
+             address: MultiAddress): Future[Connection] {.async.} =
   ## dial a peer
   let client: StreamTransport = await connect(address)
   result = await t.connHandler(t.server, client)
