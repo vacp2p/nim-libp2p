@@ -17,7 +17,7 @@ const MultiCodec* = "\x13" & Codec & "\n"
 const Na = "\x03na\n"
 const Ls = "\x03ls\n"
 
-type 
+type
   MultisteamSelectException = object of CatchableError
 
   Handler* = proc (conn: Connection, proto: string): Future[void]
@@ -40,12 +40,14 @@ proc newMultistream*(): MultisteamSelect =
   result.ls = Ls
   result.na = Na
 
-proc select*(m: MultisteamSelect, conn: Connection, proto: string = ""): Future[bool] {.async.} = 
+proc select*(m: MultisteamSelect,
+             conn: Connection,
+             proto: string = ""): Future[bool] {.async.} =
   ## select a remote protocol
   ## TODO: select should support a list of protos to be selected
 
-  await conn.write(m.codec) # write handshake
-  if proto.len() > 0: 
+  await conn.write(m.codec)   # write handshake
+  if proto.len() > 0:
     await conn.writeLp(proto) # select proto
 
   var ms = cast[string](await conn.readLp())
@@ -60,12 +62,13 @@ proc select*(m: MultisteamSelect, conn: Connection, proto: string = ""): Future[
   ms.removeSuffix("\n")
   result = ms == proto
 
-proc list*(m: MultisteamSelect, conn: Connection): Future[seq[string]] {.async.} =
+proc list*(m: MultisteamSelect,
+           conn: Connection): Future[seq[string]] {.async.} =
   ## list remote protos requests on connection
   if not (await m.select(conn)):
     return
 
-  await conn.write(m.ls) # send ls
+  await conn.write(m.ls)      # send ls
 
   var list = newSeq[string]()
   let ms = cast[string](await conn.readLp())
@@ -96,7 +99,7 @@ proc handle*(m: MultisteamSelect, conn: Connection) {.async.} =
         for h in m.handlers:
           protos &= (h.proto & "\n")
         await conn.writeLp(cast[seq[byte]](toSeq(protos.items)))
-      else: 
+      else:
         for h in m.handlers:
           if (not isNil(h.match) and h.match(ms)) or ms == h.proto:
             await conn.writeLp(h.proto & "\n")
@@ -104,11 +107,11 @@ proc handle*(m: MultisteamSelect, conn: Connection) {.async.} =
             return
         await conn.write(m.na)
 
-proc addHandler*(m: MultisteamSelect, 
-                 proto: string, 
-                 handler: Handler, 
-                 matcher: Matcher = nil) = 
+proc addHandler*(m: MultisteamSelect,
+                 proto: string,
+                 handler: Handler,
+                 matcher: Matcher = nil) =
   ## register a handler for the protocol
-  m.handlers.add(HandlerHolder(proto: proto, 
-                               handler: handler, 
+  m.handlers.add(HandlerHolder(proto: proto,
+                               handler: handler,
                                match: matcher))
