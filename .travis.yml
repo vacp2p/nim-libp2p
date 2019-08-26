@@ -4,6 +4,7 @@ language: go
 cache:
   directories:
     - NimBinaries
+    - p2pdCache
 
 git:
   # when multiple CI builds are queued, the tested commit needs to be in the last X commits cloned with "--depth X"
@@ -28,11 +29,9 @@ install:
   - env MAKE="make -j2" bash build_nim.sh Nim csources dist/nimble NimBinaries
   - export PATH="$PWD/Nim/bin:$GOPATH/bin:$PATH"
 
-  - git clone https://github.com/libp2p/go-libp2p-daemon
-  - cd go-libp2p-daemon
-  # - git checkout v0.0.1
-  - go install ./...
-  - cd $HOME/build/status-im/nim-libp2p
+  # install and build go-libp2p-daemon
+  - curl -O -L -s -S https://raw.githubusercontent.com/status-im/nimbus-build-system/master/scripts/build_p2pd.sh
+  - bash build_p2pd.sh p2pdCache HEAD
 
 script:
   - nimble install -y --depsOnly

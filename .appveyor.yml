@@ -3,7 +3,8 @@ version: '{build}'
 image: Visual Studio 2015
 
 cache:
-- NimBinaries
+  - NimBinaries
+  - p2pdCache
 
 matrix:
   # We always want 32 and 64-bit compilation
@@ -23,6 +24,13 @@ install:
   - IF "%PLATFORM%" == "x86" SET PATH=C:\mingw-w64\i686-6.3.0-posix-dwarf-rt_v5-rev1\mingw32\bin;%PATH%
   - IF "%PLATFORM%" == "x64" SET PATH=C:\mingw-w64\x86_64-8.1.0-posix-seh-rt_v6-rev0\mingw64\bin;%PATH%
 
+  # build nim from our own branch - this to avoid the day-to-day churn and
+  # regressions of the fast-paced Nim development while maintaining the
+  # flexibility to apply patches
+  - curl -O -L -s -S https://raw.githubusercontent.com/status-im/nimbus-build-system/master/scripts/build_nim.sh
+  - env MAKE="mingw32-make -j2" ARCH_OVERRIDE=%PLATFORM% bash build_nim.sh Nim csources dist/nimble NimBinaries
+  - SET PATH=%CD%\Nim\bin;%PATH%
+
   # set path for produced Go binaries
   - MKDIR goblin
   - CD goblin
@@ -31,22 +39,11 @@ install:
   - CD ..
 
   # install and build go-libp2p-daemon
-  - go version
-  - git clone https://github.com/libp2p/go-libp2p-daemon
-  - CD go-libp2p-daemon
-  - go install ./...
-  - CD ..
-
-  # build nim from our own branch - this to avoid the day-to-day churn and
-  # regressions of the fast-paced Nim development while maintaining the
-  # flexibility to apply patches
-  - curl -O -L -s -S https://raw.githubusercontent.com/status-im/nimbus-build-system/master/scripts/build_nim.sh
-  - env MAKE="mingw32-make -j2" ARCH_OVERRIDE=%PLATFORM% bash build_nim.sh Nim csources dist/nimble NimBinaries
-  - SET PATH=%CD%\Nim\bin;%PATH%
+  - curl -O -L -s -S https://raw.githubusercontent.com/status-im/nimbus-build-system/master/scripts/build_p2pd.sh
+  - bash build_p2pd.sh p2pdCache HEAD
 
 build_script:
-  - cd C:\projects\%APPVEYOR_PROJECT_SLUG%
-  - nimble install -y
+  - nimble install -y --depsOnly
 
 test_script:
   - nimble test
