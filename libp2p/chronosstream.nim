@@ -8,9 +8,9 @@
 ## those terms.
 
 import chronos
-import readerwriter
+import stream
 
-type ChronosStream* = ref object of ReadWrite
+type ChronosStream* = ref object of LPStream
     reader: AsyncStreamReader
     writer: AsyncStreamWriter
     server: StreamServer
