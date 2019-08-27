@@ -8,16 +8,16 @@
 ## those terms.
 
 import chronos
-import peerinfo, multiaddress, readerwriter, peerinfo, varint, vbuffer
+import peerinfo, multiaddress, stream, peerinfo, varint, vbuffer
 
 const DefaultReadSize: uint = 64*1024
 
 type
-  Connection* = ref object of ReadWrite
+  Connection* = ref object of LPStream
     peerInfo*: PeerInfo
-    stream: ReadWrite
+    stream: LPStream
 
-proc newConnection*(stream: ReadWrite): Connection =
+proc newConnection*(stream: LPStream): Connection =
   ## create a new Connection for the specified async reader/writer
   new result
   result.stream = stream

@@ -1,12 +1,12 @@
 import unittest, strutils, sequtils, sugar
 import chronos
 import ../libp2p/connection, ../libp2p/multistreamselect,
-  ../libp2p/readerwriter, ../libp2p/connection, ../libp2p/multiaddress,
+  ../libp2p/stream, ../libp2p/connection, ../libp2p/multiaddress,
   ../libp2p/transport, ../libp2p/tcptransport
 
 ## Mock stream for select test
 type
-  TestSelectStream = ref object of ReadWrite
+  TestSelectStream = ref object of LPStream
     step*: int
 
 method readExactly*(s: TestSelectStream,
@@ -41,7 +41,7 @@ proc newTestSelectStream(): TestSelectStream =
 
 ## Mock stream for handles test
 type
-  TestHandlesStream = ref object of ReadWrite
+  TestHandlesStream = ref object of LPStream
     step*: int
 
 method readExactly*(s: TestHandlesStream,
@@ -78,7 +78,7 @@ proc newTestHandlesStream(): TestHandlesStream =
 type
   LsHandler = proc(procs: seq[byte]): Future[void]
 
-  TestLsStream = ref object of ReadWrite
+  TestLsStream = ref object of LPStream
     step*: int
     ls*: LsHandler
 
@@ -121,7 +121,7 @@ proc newTestLsStream(ls: LsHandler): TestLsStream =
 type
   NaHandler = proc(procs: string): Future[void]
 
-  TestNaStream = ref object of ReadWrite
+  TestNaStream = ref object of LPStream
     step*: int
     na*: NaHandler
 

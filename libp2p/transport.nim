@@ -8,7 +8,7 @@
 ## those terms.
 
 import chronos
-import peerinfo, connection, multiaddress, multicodec, readerwriter
+import peerinfo, connection, multiaddress, multicodec
 
 type
   ConnHandler* = proc (conn: Connection): Future[void] {.gcsafe.}
