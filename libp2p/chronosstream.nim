@@ -28,7 +28,9 @@ proc newChronosStream*(server: StreamServer,
 method read*(s: ChronosStream, n = -1): Future[seq[byte]] {.async.} = 
   result = await s.reader.read(n)
 
-method readExactly*(s: ChronosStream, pbytes: pointer, nbytes: int): Future[void] {.async.} =
+method readExactly*(s: ChronosStream, 
+                    pbytes: pointer, 
+                    nbytes: int): Future[void] {.async.} =
   await s.reader.readExactly(pbytes, nbytes)
 
 method readLine*(s: ChronosStream, limit = 0, sep = "\r\n"): Future[string] {.async.} =
@@ -37,7 +39,10 @@ method readLine*(s: ChronosStream, limit = 0, sep = "\r\n"): Future[string] {.as
 method readOnce*(s: ChronosStream, pbytes: pointer, nbytes: int): Future[int] {.async.} =
   result = await s.reader.readOnce(pbytes, nbytes)
 
-method readUntil*(s: ChronosStream, pbytes: pointer, nbytes: int, sep: seq[byte]): Future[int] {.async.} =
+method readUntil*(s: ChronosStream, 
+                  pbytes: pointer, 
+                  nbytes: int, 
+                  sep: seq[byte]): Future[int] {.async.} =
   result = await s.reader.readUntil(pbytes, nbytes, sep)
 
 method write*(s: ChronosStream, pbytes: pointer, nbytes: int) {.async.} =
