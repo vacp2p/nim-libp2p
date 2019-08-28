@@ -231,7 +231,7 @@ suite "Multistream select":
 
   test "e2e - handle":
     proc endToEnd(): Future[bool] {.async.} =
-      let ma: MultiAddress = Multiaddress.init("/ip4/127.0.0.1/tcp/53340")
+      let ma: MultiAddress = Multiaddress.init("/ip4/127.0.0.1/tcp/53350")
       proc testHandler(conn: Connection,
                        proto: string): Future[void] {.async.} =
         check proto == "/test/proto/1.0.0"
@@ -263,7 +263,7 @@ suite "Multistream select":
 
   test "e2e - ls":
     proc endToEnd(): Future[bool] {.async.} =
-      let ma: MultiAddress = Multiaddress.init("/ip4/127.0.0.1/tcp/53341")
+      let ma: MultiAddress = Multiaddress.init("/ip4/127.0.0.1/tcp/53351")
 
       let msListen = newMultistream()
       proc testHandler(conn: Connection,
