@@ -99,6 +99,12 @@ type
     PSNoSign,      ## Disable pubsub message signing (default true)
     PSStrictSign,  ## Force strict checking pubsub message signature
     NATPortMap,    ## Force daemon to use NAT-PMP.
+    AutoNAT,       ## Force daemon to use AutoNAT.
+    AutoRelay,     ## Enables autorelay mode.
+    RelayActive,   ## Enables active mode for relay.
+    RelayDiscovery,## Enables passive discovery for relay.
+    RelayHop,      ## Enables hop for relay.
+    NoInlinePeerID,## Disable inlining of peer ID (not yet in #master).
     NoProcessCtrl  ## Process was not spawned.
 
   P2PStream* = ref object
@@ -702,6 +708,18 @@ proc newDaemonApi*(flags: set[P2PDaemonFlags] = {},
       args.add("-pubsubSignStrict=true")
   if NATPortMap in api.flags:
     args.add("-natPortMap=true")
+  if AutoNAT in api.flags:
+    args.add("-autonat=true")
+  if AutoRelay in api.flags:
+    args.add("-autoRelay=true")
+  if RelayActive in api.flags:
+    args.add("-relayActive=true")
+  if RelayDiscovery in api.flags:
+    args.add("-relayDiscovery=true")
+  if RelayHop in api.flags:
+    args.add("-relayHop=true")
+  if NoInlinePeerID in api.flags:
+    args.add("-noInlinePeerID=true")
   if len(bootstrapNodes) > 0:
     args.add("-bootstrapPeers=" & bootstrapNodes.join(","))
   if len(id) != 0:
