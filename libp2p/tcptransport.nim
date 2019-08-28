@@ -61,4 +61,4 @@ method dial*(t: TcpTransport,
   let client: StreamTransport = await connect(address)
   result = await t.connHandler(t.server, client)
 
-method supports(t: Transport, address: MultiAddress): bool = true
+method handles*(t: Transport, address: MultiAddress): bool = true
