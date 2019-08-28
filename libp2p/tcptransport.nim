@@ -9,16 +9,16 @@
 
 import chronos
 import transport, wire, connection,
-        multiaddress, connection,
-        multicodec, chronosstream
+       multiaddress, connection,
+       multicodec, chronosstream
 
 type TcpTransport* = ref object of Transport
   server*: StreamServer
 
-method connHandler*(t: Transport,
-                    server: StreamServer,
-                    client: StreamTransport): Future[Connection]
-                    {.base, gcsafe, async.} =
+proc connHandler*(t: Transport,
+                  server: StreamServer,
+                  client: StreamTransport): Future[Connection]
+                  {.gcsafe, async.} =
   let conn: Connection = newConnection(newChronosStream(server, client))
   let handlerFut = if t.handler == nil: nil else: t.handler(conn)
   let connHolder: ConnHolder = ConnHolder(connection: conn,

@@ -12,7 +12,7 @@ import connection, transport, stream,
        peerinfo, multiaddress, multistreamselect,
        switchtypes
 
-proc newProtocol*(p: typedesc[Protocol],
+proc newProtocol*(p: typedesc[switchtypes.Protocol],
                   peerInfo: PeerInfo,
                   switch: Switch): p =
   new result
@@ -20,10 +20,7 @@ proc newProtocol*(p: typedesc[Protocol],
   result.switch = switch
   result.init()
 
-method init*(p: Protocol) {.base.} = discard
+method init*(p: switchtypes.Protocol) {.base.} = discard
 
-method dial*(p: Protocol, peerInfo: PeerInfo): Future[Connection]
-  {.base, async, error: "not implemented!".} = discard
-
-method handle*(p: Protocol, peerInfo: PeerInfo, handler: ProtoHandler)
+method handle*(p: switchtypes.Protocol, peerInfo: PeerInfo, handler: ProtoHandler)
   {.base, async, error: "not implemented!".} = discard
