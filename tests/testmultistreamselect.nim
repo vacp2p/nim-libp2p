@@ -39,41 +39,6 @@ proc newTestSelectStream(): TestSelectStream =
   new result
   result.step = 1
 
-## Mock stream for handles test
-type
-  TestHandlesStream = ref object of LPStream
-    step*: int
-
-method readExactly*(s: TestHandlesStream,
-                    pbytes: pointer,
-                    nbytes: int): Future[void] {.async.} =
-  case s.step:
-    of 1:
-      var buf = newSeq[byte](1)
-      buf[0] = 19
-      copyMem(cast[pointer](cast[uint](pbytes)), addr buf[0], buf.len())
-      s.step = 2
-    of 2:
-      var buf = "/multistream/1.0.0\n"
-      copyMem(cast[pointer](cast[uint](pbytes)), addr buf[0], buf.len())
-      s.step = 3
-    of 3:
-      var buf = newSeq[byte](1)
-      buf[0] = 18
-      copyMem(cast[pointer](cast[uint](pbytes)), addr buf[0], buf.len())
-      s.step = 4
-    of 4:
-      var buf = "/test/proto/1.0.0\n"
-      copyMem(cast[pointer](cast[uint](pbytes)), addr buf[0], buf.len())
-    else:
-      copyMem(cast[pointer](cast[uint](pbytes)),
-              cstring("\0x3na\n"),
-              "\0x3na\n".len())
-
-proc newTestHandlesStream(): TestHandlesStream =
-  new result
-  result.step = 1
-
 ## Mock stream for handles `ls` test
 type
   LsHandler = proc(procs: seq[byte]): Future[void]
@@ -173,10 +138,10 @@ suite "Multistream select":
   test "test handle custom proto":
     proc testHandle(): Future[bool] {.async.} =
       let ms = newMultistream()
-      let conn = newConnection(newTestHandlesStream())
+      let conn = newConnection(newTestSelectStream())
 
       proc testHandler(conn: Connection,
-                       proto: string): Future[void] {.async.} =
+                       proto: string): Future[void] {.async, gcsafe.} =
         check proto == "/test/proto/1.0.0"
 
       ms.addHandler("/test/proto/1.0.0", testHandler)
@@ -199,7 +164,7 @@ suite "Multistream select":
         await conn.close()
 
       proc testHandler(conn: Connection,
-                       proto: string): Future[void] {.async.} = discard
+                       proto: string): Future[void] {.async, gcsafe.} = discard
       ms.addHandler("/test/proto1/1.0.0", testHandler)
       ms.addHandler("/test/proto2/1.0.0", testHandler)
       await ms.handle(conn)
@@ -220,7 +185,7 @@ suite "Multistream select":
         await conn.close()
 
       proc testHandler(conn: Connection,
-                       proto: string): Future[void] {.async.} = discard
+                       proto: string): Future[void] {.async, gcsafe.} = discard
       ms.addHandler("/unabvailable/proto/1.0.0", testHandler)
 
       await ms.handle(conn)
@@ -233,7 +198,7 @@ suite "Multistream select":
     proc endToEnd(): Future[bool] {.async.} =
       let ma: MultiAddress = Multiaddress.init("/ip4/127.0.0.1/tcp/53350")
       proc testHandler(conn: Connection,
-                       proto: string): Future[void] {.async.} =
+                       proto: string): Future[void] {.async, gcsafe.} =
         check proto == "/test/proto/1.0.0"
         await conn.writeLp("Hello!")
         await conn.close()
