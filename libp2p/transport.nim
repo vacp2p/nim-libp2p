@@ -23,7 +23,7 @@ type
     handler*: ConnHandler
     multicodec*: MultiCodec
 
-method init*(t: Transport) {.base, error: "not implemented".} =
+method init*(t: Transport) {.base.} =
   ## perform protocol initialization
   discard
 
@@ -49,7 +49,7 @@ method dial*(t: Transport,
   ## dial a peer
   discard
 
-method supports(t: Transport, address: MultiAddress): bool {.base.} =
+method handles*(t: Transport, address: MultiAddress): bool {.base.} =
   ## check if transport supportes the multiaddress
   # TODO: this should implement generic logic that would use the multicodec 
   # declared in the multicodec field and set by each individual transport
