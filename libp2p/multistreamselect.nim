@@ -31,8 +31,8 @@ type
   MultisteamSelect* = ref object of RootObj
     handlers*: seq[HandlerHolder]
     codec*: string
-    na*: string
-    ls*: string
+    na: string
+    ls: string
 
 proc newMultistream*(): MultisteamSelect =
   new result
