@@ -7,25 +7,35 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
+import tables
 import chronos
 import connection, transport, stream, 
-       peerinfo, multiaddress, multistreamselect,
-       switchtypes
+       peerinfo, multiaddress, multistreamselect, 
+       protocol
+
+type
+    Switch* = ref object of RootObj
+    peerInfo*: PeerInfo
+    connections*: TableRef[string, Connection]
+    transports*: seq[Transport]
+    protocols*: seq[Protocol]
+    ms*: MultisteamSelect
 
 proc newSwitch*(peerInfo: PeerInfo, transports: seq[Transport]): Switch =
   new result
   result.peerInfo = peerInfo
   result.ms = newMultistream()
   result.transports = transports
-  result.protocols = newSeq[Protocol]()
-  result.connections = newSeq[Connection]()
+  result.protocols = newSeq[switchtypes.Protocol]()
+  result.connections = newTable[string, Connection]()
 
 proc dial*(s: Switch, peer: PeerInfo, proto: string = ""): Future[Connection] {.async.} = discard
 
-proc mount*(s: Switch, protocol: switchtypes.Protocol) = discard
+proc mount*(s: Switch, protocol: protocol.Protocol) = discard
 
 proc start*(s: Switch) {.async.} = 
-  proc handle(conn: Connection): Future[void] = 
+  # TODO: how bad is it that this is a closure?
+  proc handle(conn: Connection): Future[void] {.closure, gcsafe.} = 
     discard
 
   for t in s.transports: # for each transport
@@ -35,4 +45,5 @@ proc start*(s: Switch) {.async.} =
         break
 
 proc stop*(s: Switch) {.async.} = 
-  discard
+  for c in s.connections.values:
+    await c.close()

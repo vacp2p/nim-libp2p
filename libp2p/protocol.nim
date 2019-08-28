@@ -9,18 +9,21 @@
 
 import chronos
 import connection, transport, stream, 
-       peerinfo, multiaddress, multistreamselect,
-       switchtypes
+       peerinfo, multiaddress, multistreamselect
 
-proc newProtocol*(p: typedesc[switchtypes.Protocol],
-                  peerInfo: PeerInfo,
-                  switch: Switch): p =
+type
+  ProtoHandler* = proc (conn: Connection, proto: string): Future[void] {.gcsafe.}
+  Protocol* = ref object of RootObj
+    peerInfo*: PeerInfo
+    codec*: string
+
+proc newProtocol*(p: typedesc[Protocol],
+                  peerInfo: PeerInfo): p =
   new result
   result.peerInfo = peerInfo
-  result.switch = switch
   result.init()
 
-method init*(p: switchtypes.Protocol) {.base.} = discard
+method init*(p: Protocol) {.base.} = discard
 
-method handle*(p: switchtypes.Protocol, peerInfo: PeerInfo, handler: ProtoHandler)
+method handle*(p: Protocol, peerInfo: PeerInfo, handler: ProtoHandler)
   {.base, async, error: "not implemented!".} = discard
