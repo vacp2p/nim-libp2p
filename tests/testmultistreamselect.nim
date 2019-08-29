@@ -2,7 +2,7 @@ import unittest, strutils, sequtils, sugar
 import chronos
 import ../libp2p/connection, ../libp2p/multistreamselect,
   ../libp2p/stream, ../libp2p/connection, ../libp2p/multiaddress,
-  ../libp2p/transport, ../libp2p/tcptransport
+  ../libp2p/transport, ../libp2p/tcptransport, ../libp2p/protocol
 
 ## Mock stream for select test
 type
@@ -140,11 +140,13 @@ suite "Multistream select":
       let ms = newMultistream()
       let conn = newConnection(newTestSelectStream())
 
-      proc testHandler(conn: Connection,
+      var protocol: LPProtocol
+      proc testHandler(protocol: LPProtocol, 
+                       conn: Connection,
                        proto: string): Future[void] {.async, gcsafe.} =
         check proto == "/test/proto/1.0.0"
 
-      ms.addHandler("/test/proto/1.0.0", testHandler)
+      ms.addHandler("/test/proto/1.0.0", protocol, testHandler)
       await ms.handle(conn)
       result = true
 
@@ -163,10 +165,12 @@ suite "Multistream select":
         check strProto == "\x26/test/proto1/1.0.0\n/test/proto2/1.0.0\n"
         await conn.close()
 
-      proc testHandler(conn: Connection,
+      var protocol: LPProtocol
+      proc testHandler(protocol: LPProtocol,
+                       conn: Connection,
                        proto: string): Future[void] {.async, gcsafe.} = discard
-      ms.addHandler("/test/proto1/1.0.0", testHandler)
-      ms.addHandler("/test/proto2/1.0.0", testHandler)
+      ms.addHandler("/test/proto1/1.0.0", protocol, testHandler)
+      ms.addHandler("/test/proto2/1.0.0", protocol, testHandler)
       await ms.handle(conn)
       result = true
 
@@ -184,9 +188,11 @@ suite "Multistream select":
         check cast[string](msg) == "\x3na\n"
         await conn.close()
 
-      proc testHandler(conn: Connection,
+      var protocol: LPProtocol
+      proc testHandler(protocol: LPProtocol,
+                       conn: Connection,
                        proto: string): Future[void] {.async, gcsafe.} = discard
-      ms.addHandler("/unabvailable/proto/1.0.0", testHandler)
+      ms.addHandler("/unabvailable/proto/1.0.0", protocol, testHandler)
 
       await ms.handle(conn)
       result = true
@@ -197,14 +203,16 @@ suite "Multistream select":
   test "e2e - handle":
     proc endToEnd(): Future[bool] {.async.} =
       let ma: MultiAddress = Multiaddress.init("/ip4/127.0.0.1/tcp/53350")
-      proc testHandler(conn: Connection,
+      var protocol: LPProtocol
+      proc testHandler(protocol: LPProtocol,
+                       conn: Connection,
                        proto: string): Future[void] {.async, gcsafe.} =
         check proto == "/test/proto/1.0.0"
         await conn.writeLp("Hello!")
         await conn.close()
 
       let msListen = newMultistream()
-      msListen.addHandler("/test/proto/1.0.0", testHandler)
+      msListen.addHandler("/test/proto/1.0.0", protocol, testHandler)
 
       proc connHandler(conn: Connection): Future[void] {.async, gcsafe.} =
         await msListen.handle(conn)
@@ -231,10 +239,12 @@ suite "Multistream select":
       let ma: MultiAddress = Multiaddress.init("/ip4/127.0.0.1/tcp/53351")
 
       let msListen = newMultistream()
-      proc testHandler(conn: Connection,
+      var protocol: LPProtocol
+      proc testHandler(protocol: LPProtocol, 
+                       conn: Connection,
                        proto: string): Future[void] {.async.} = discard
-      msListen.addHandler("/test/proto1/1.0.0", testHandler)
-      msListen.addHandler("/test/proto2/1.0.0", testHandler)
+      msListen.addHandler("/test/proto1/1.0.0", protocol, testHandler)
+      msListen.addHandler("/test/proto2/1.0.0", protocol, testHandler)
 
       let transport1: TcpTransport = newTransport(TcpTransport)
       proc connHandler(conn: Connection): Future[void] {.async, gcsafe.} =

@@ -9,7 +9,7 @@
 
 import sequtils, strutils
 import chronos
-import connection, varint, vbuffer
+import connection, varint, vbuffer, protocol
 
 const MsgSize* = 64*1024
 const Codec* = "/multistream/1.0.0"
@@ -19,13 +19,12 @@ const Ls = "\x03ls\n"
 
 type
   MultisteamSelectException = object of CatchableError
-
-  Handler* = proc (conn: Connection, proto: string): Future[void] {.gcsafe.}
   Matcher* = proc (proto: string): bool
 
   HandlerHolder* = object
     proto: string
-    handler: Handler
+    protocol: LPProtocol
+    handler: LPProtoHandler
     match: Matcher
 
   MultisteamSelect* = ref object of RootObj
@@ -78,7 +77,7 @@ proc list*(m: MultisteamSelect,
 
   result = list
 
-proc handle*(m: MultisteamSelect, conn: Connection) {.async.} =
+proc handle*(m: MultisteamSelect, conn: Connection) {.async, gcsafe.} =
   ## handle requests on connection
   if not (await m.select(conn)):
     return
@@ -103,15 +102,17 @@ proc handle*(m: MultisteamSelect, conn: Connection) {.async.} =
         for h in m.handlers:
           if (not isNil(h.match) and h.match(ms)) or ms == h.proto:
             await conn.writeLp(h.proto & "\n")
-            await h.handler(conn, ms)
+            await h.handler(h.protocol, conn, ms)
             return
         await conn.write(m.na)
 
-proc addHandler*(m: MultisteamSelect,
-                 proto: string,
-                 handler: Handler,
-                 matcher: Matcher = nil) =
+proc addHandler*[T: LPProtocol](m: MultisteamSelect,
+                                proto: string,
+                                protocol: T,
+                                handler: LPProtoHandler,
+                                matcher: Matcher = nil) =
   ## register a handler for the protocol
   m.handlers.add(HandlerHolder(proto: proto,
                                handler: handler,
+                               protocol: protocol,
                                match: matcher))
