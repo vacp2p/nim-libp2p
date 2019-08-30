@@ -22,38 +22,38 @@ proc newConnection*(stream: LPStream): Connection =
   new result
   result.stream = stream
 
-method read*(s: Connection, n = -1): Future[seq[byte]] {.async, gcsafe.} =
-  result = await s.stream.read(n)
+method read*(s: Connection, n = -1): Future[seq[byte]] {.gcsafe.} =
+  result = s.stream.read(n)
 
 method readExactly*(s: Connection,
                     pbytes: pointer,
-                    nbytes: int): Future[void] {.async, gcsafe.} =
-  await s.stream.readExactly(pbytes, nbytes)
+                    nbytes: int): Future[void] {.gcsafe.} =
+  result = s.stream.readExactly(pbytes, nbytes)
 
 method readLine*(s: Connection,
                  limit = 0,
-                 sep = "\r\n"): Future[string] {.async, gcsafe.} =
-  result = await s.stream.readLine(limit, sep)
+                 sep = "\r\n"): Future[string] {.gcsafe.} =
+  result = s.stream.readLine(limit, sep)
 
 method readOnce*(s: Connection,
                  pbytes: pointer,
-                 nbytes: int): Future[int] {.async, gcsafe.} =
-  result = await s.stream.readOnce(pbytes, nbytes)
+                 nbytes: int): Future[int] {.gcsafe.} =
+  result = s.stream.readOnce(pbytes, nbytes)
 
 method readUntil*(s: Connection,
                   pbytes: pointer,
                   nbytes: int,
-                  sep: seq[byte]): Future[int] {.async, gcsafe.} =
-  result = await s.stream.readUntil(pbytes, nbytes, sep)
+                  sep: seq[byte]): Future[int] {.gcsafe.} =
+  result = s.stream.readUntil(pbytes, nbytes, sep)
 
-method write*(s: Connection, pbytes: pointer, nbytes: int) {.async, gcsafe.} =
-  await s.stream.write(pbytes, nbytes)
+method write*(s: Connection, pbytes: pointer, nbytes: int): Future[void] {.gcsafe.} =
+  result = s.stream.write(pbytes, nbytes)
 
-method write*(s: Connection, msg: string, msglen = -1) {.async, gcsafe.} =
-  await s.stream.write(msg, msglen)
+method write*(s: Connection, msg: string, msglen = -1): Future[void] {.gcsafe.} =
+  result = s.stream.write(msg, msglen)
 
-method write*(s: Connection, msg: seq[byte], msglen = -1) {.async, gcsafe.} =
-  await s.stream.write(msg, msglen)
+method write*(s: Connection, msg: seq[byte], msglen = -1): Future[void] {.gcsafe.} =
+  result = s.stream.write(msg, msglen)
 
 method close*(s: Connection) {.async, gcsafe.} =
   await s.stream.close()
