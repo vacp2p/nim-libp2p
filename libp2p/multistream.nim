@@ -19,7 +19,7 @@ const Ls = "\x03ls\n"
 
 type
   MultisteamSelectException = object of CatchableError
-  Matcher* = proc (proto: string): bool
+  Matcher* = proc (proto: string): bool {.gcsafe.}
 
   HandlerHolder* = object
     proto: string
