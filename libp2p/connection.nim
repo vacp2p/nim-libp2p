@@ -15,7 +15,7 @@ const DefaultReadSize: uint = 64*1024
 type
   Connection* = ref object of LPStream
     peerInfo*: PeerInfo
-    stream: LPStream
+    stream*: LPStream
 
 proc newConnection*(stream: LPStream): Connection =
   ## create a new Connection for the specified async reader/writer
@@ -88,12 +88,11 @@ proc writeLp*(s: Connection, msg: string | seq[byte]) {.async.} =
   buf.finish()
   result = s.write(buf.buffer)
 
-method getPeerInfo* (c: Connection): Future[PeerInfo] {.base, async.} =
+method getPeerInfo*(c: Connection): Future[PeerInfo] {.base, async.} =
   ## get up to date peer info
   ## TODO: implement PeerInfo refresh over identify
   discard
 
-method getObservedAddrs(c: Connection): Future[seq[MultiAddress]] {.base,
-  async.} =
+method getObservedAddrs*(c: Connection): Future[MultiAddress] {.base, async.} =
   ## get resolved multiaddresses for the connection
   discard
