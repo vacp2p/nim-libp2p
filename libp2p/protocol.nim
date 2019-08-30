@@ -26,5 +26,3 @@ proc newProtocol*(p: typedesc[LPProtocol],
   result.init()
 
 method init*(p: LPProtocol) {.base.} = discard
-method handle*(protocol: LPProtocol, conn: Connection, proto: string): Future[void]
-  {.base, async.} = discard
