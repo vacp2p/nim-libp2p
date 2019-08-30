@@ -5,7 +5,7 @@ import ../libp2p/connection, ../libp2p/transport, ../libp2p/tcptransport,
 
 suite "TCP transport suite":
   test "test listener: handle write":
-    proc testListener(): Future[bool] {.async.} =
+    proc testListener(): Future[bool] {.async, gcsafe.} =
       let ma: MultiAddress = Multiaddress.init("/ip4/127.0.0.1/tcp/53335")
       proc connHandler(conn: Connection): Future[void] {.async, gcsafe.} =
         result = conn.write(cstring("Hello!"), 6)
@@ -41,7 +41,7 @@ suite "TCP transport suite":
   test "test dialer: handle write":
     proc testDialer(address: TransportAddress): Future[bool] {.async.} =
       proc serveClient(server: StreamServer,
-                       transp: StreamTransport) {.async.} =
+                       transp: StreamTransport) {.async, gcsafe.} =
         var wstream = newAsyncStreamWriter(transp)
         await wstream.write("Hello!")
         await wstream.finish()
@@ -65,9 +65,9 @@ suite "TCP transport suite":
     check waitFor(testDialer(initTAddress("127.0.0.1:53337"))) == true
 
   test "test dialer: handle write":
-    proc testDialer(address: TransportAddress): Future[bool] {.async.} =
+    proc testDialer(address: TransportAddress): Future[bool] {.async, gcsafe.} =
       proc serveClient(server: StreamServer,
-                        transp: StreamTransport) {.async.} =
+                        transp: StreamTransport) {.async, gcsafe.} =
         var rstream = newAsyncStreamReader(transp)
         let msg = await rstream.read(6)
         check cast[string](msg) == "Hello!"

@@ -25,36 +25,36 @@ proc newChronosStream*(server: StreamServer,
   result.writer = newAsyncStreamWriter(client)
   result.closed = false
 
-method read*(s: ChronosStream, n = -1): Future[seq[byte]] {.async.} = 
+method read*(s: ChronosStream, n = -1): Future[seq[byte]] {.async, gcsafe.} = 
   result = await s.reader.read(n)
 
 method readExactly*(s: ChronosStream, 
                     pbytes: pointer, 
-                    nbytes: int): Future[void] {.async.} =
+                    nbytes: int): Future[void] {.async, gcsafe.} =
   await s.reader.readExactly(pbytes, nbytes)
 
-method readLine*(s: ChronosStream, limit = 0, sep = "\r\n"): Future[string] {.async.} =
+method readLine*(s: ChronosStream, limit = 0, sep = "\r\n"): Future[string] {.async, gcsafe.} =
   result = await s.reader.readLine(limit, sep)
 
-method readOnce*(s: ChronosStream, pbytes: pointer, nbytes: int): Future[int] {.async.} =
+method readOnce*(s: ChronosStream, pbytes: pointer, nbytes: int): Future[int] {.async, gcsafe.} =
   result = await s.reader.readOnce(pbytes, nbytes)
 
 method readUntil*(s: ChronosStream, 
                   pbytes: pointer, 
                   nbytes: int, 
-                  sep: seq[byte]): Future[int] {.async.} =
+                  sep: seq[byte]): Future[int] {.async, gcsafe.} =
   result = await s.reader.readUntil(pbytes, nbytes, sep)
 
-method write*(s: ChronosStream, pbytes: pointer, nbytes: int) {.async.} =
+method write*(s: ChronosStream, pbytes: pointer, nbytes: int) {.async, gcsafe.} =
   await s.writer.write(pbytes, nbytes)
 
-method write*(s: ChronosStream, msg: string, msglen = -1) {.async.} =
+method write*(s: ChronosStream, msg: string, msglen = -1) {.async, gcsafe.} =
   await s.writer.write(msg, msglen)
 
-method write*(s: ChronosStream, msg: seq[byte], msglen = -1) {.async.} =
+method write*(s: ChronosStream, msg: seq[byte], msglen = -1) {.async, gcsafe.} =
   await s.writer.write(msg, msglen)
 
-method close*(s: ChronosStream) {.async.} =
+method close*(s: ChronosStream) {.async, gcsafe.} =
   await s.reader.closeWait()
 
   await s.writer.finish()
