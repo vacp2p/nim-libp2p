@@ -17,8 +17,8 @@ type TcpTransport* = ref object of Transport
 
 proc connHandler*(t: Transport,
                   server: StreamServer,
-                  client: StreamTransport): Future[Connection]
-                  {.async, gcsafe.} =
+                  client: StreamTransport): 
+                  Future[Connection] {.async, gcsafe.} =
   let conn: Connection = newConnection(newChronosStream(server, client))
   let handlerFut = if t.handler == nil: nil else: t.handler(conn)
   let connHolder: ConnHolder = ConnHolder(connection: conn,
@@ -43,7 +43,8 @@ method close*(t: TcpTransport): Future[void] {.async, gcsafe.} =
 
 method listen*(t: TcpTransport,
                ma: MultiAddress,
-               handler: ConnHandler): Future[void] {.async, gcsafe.} =
+               handler: ConnHandler): 
+               Future[void] {.async, gcsafe.} =
   await procCall Transport(t).listen(ma, handler) # call base
 
   ## listen on the transport
@@ -56,7 +57,8 @@ method listen*(t: TcpTransport,
   listenFuture.complete()
 
 method dial*(t: TcpTransport,
-             address: MultiAddress): Future[Connection] {.async, gcsafe.} =
+             address: MultiAddress): 
+             Future[Connection] {.async, gcsafe.} =
   ## dial a peer
   let client: StreamTransport = await connect(address)
   result = await t.connHandler(t.server, client)
