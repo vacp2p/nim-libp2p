@@ -86,6 +86,13 @@ proc decodeMsg*(buf: seq[byte]): IdentifyInfo =
   discard pb.getString(6, agentVersion)
   result.agentVersion = agentVersion
 
+method init*(p: Identify) = 
+  proc handle(conn: Connection, proto: string) {.async, gcsafe.} =
+    var pb = encodeMsg(p.peerInfo, await conn.getObservedAddrs())
+    await conn.writeLp(pb.buffer)
+
+  p.handler = handle
+
 proc identify*(p: Identify, conn: Connection): Future[IdentifyInfo] {.async.} = 
   var message = await conn.readLp()
   if len(message) == 0:
@@ -96,8 +103,4 @@ proc push*(p: Identify, conn: Connection) {.async.} =
   await conn.write(IdentifyPushCodec)
   var pb = encodeMsg(p.peerInfo, await conn.getObservedAddrs())
   let length = pb.getLen()
-  await conn.writeLp(pb.buffer)
-
-proc handle*(p: Identify, conn: Connection, proto: string) {.async, gcsafe.} =
-  var pb = encodeMsg(p.peerInfo, await conn.getObservedAddrs())
   await conn.writeLp(pb.buffer)

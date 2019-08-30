@@ -24,7 +24,6 @@ type
   HandlerHolder* = object
     proto: string
     protocol: LPProtocol
-    handler: LPProtoHandler
     match: Matcher
 
   MultisteamSelect* = ref object of RootObj
@@ -102,17 +101,15 @@ proc handle*(m: MultisteamSelect, conn: Connection) {.async, gcsafe.} =
         for h in m.handlers:
           if (not isNil(h.match) and h.match(ms)) or ms == h.proto:
             await conn.writeLp(h.proto & "\n")
-            await h.handler(h.protocol, conn, ms)
+            await h.protocol.handler(conn, ms)
             return
         await conn.write(m.na)
 
 proc addHandler*[T: LPProtocol](m: MultisteamSelect,
                                 proto: string,
                                 protocol: T,
-                                handler: LPProtoHandler,
                                 matcher: Matcher = nil) =
   ## register a handler for the protocol
   m.handlers.add(HandlerHolder(proto: proto,
-                               handler: handler,
                                protocol: protocol,
                                match: matcher))
