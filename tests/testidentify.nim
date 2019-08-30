@@ -8,10 +8,9 @@ import ../libp2p/identify, ../libp2p/multiaddress,
        ../libp2p/crypto/crypto
 
 suite "Identify":
-  test "handle identify message6":
+  test "handle identify message":
     proc testHandle(): Future[bool] {.async.} =
-      let ma: MultiAddress = Multiaddress.init("/ip4/127.0.0.1/tcp/53350")
-
+      let ma: MultiAddress = Multiaddress.init("/ip4/127.0.0.1/tcp/53360")
 
       let remoteSeckey = PrivateKey.random(RSA)
       proc receiver() {.async.} =
@@ -19,14 +18,10 @@ suite "Identify":
         peerInfo.peerId = PeerID.init(remoteSeckey)
         peerInfo.addrs.add(ma)
 
-        let identify = newProtocol(Identify, peerInfo)
+        let identifyProto = newProtocol(Identify, peerInfo)
         let msListen = newMultistream()
 
-        proc handle(p: LPProtocol, conn: Connection, proto: string) {.async, gcsafe.} =
-          await identify.handle(conn, proto)
-
-        msListen.addHandler(IdentifyCodec, identify, handle)
-
+        msListen.addHandler(IdentifyCodec, identifyProto)
         proc connHandler(conn: Connection): Future[void] {.async, gcsafe.} =
           await msListen.handle(conn)
 
@@ -43,10 +38,10 @@ suite "Identify":
         peerInfo.peerId = PeerID.init(seckey)
         peerInfo.addrs.add(ma)
 
-        let identify = newProtocol(Identify, peerInfo)
+        let identifyProto = newProtocol(Identify, peerInfo)
         let res = await msDial.select(conn, IdentifyCodec)
 
-        let id = await identify.identify(conn)
+        let id = await identifyProto.identify(conn)
         await conn.close()
 
         check id.pubKey == remoteSeckey.getKey()
