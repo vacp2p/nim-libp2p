@@ -13,39 +13,39 @@ type LPStream* = ref object of RootObj
   closed*: bool
 
 method read*(s: LPStream, n = -1): Future[seq[byte]]
-  {.base, async.} =
+  {.base, async, gcsafe.} =
   discard
 
 method readExactly*(s: LPStream, pbytes: pointer, nbytes: int): Future[void]
-  {.base, async.} =
+  {.base, async, gcsafe.} =
   discard
 
 method readLine*(s: LPStream, limit = 0, sep = "\r\n"): Future[string]
-  {.base, async.} =
+  {.base, async, gcsafe.} =
   discard
 
 method readOnce*(s: LPStream, pbytes: pointer, nbytes: int): Future[int]
-  {.base, async.} =
+  {.base, async, gcsafe.} =
   discard
 
 method readUntil*(s: LPStream,
                   pbytes: pointer, nbytes: int,
                   sep: seq[byte]): Future[int]
-  {.base, async.} =
+  {.base, async, gcsafe.} =
   discard
 
 method write*(s: LPStream, pbytes: pointer, nbytes: int)
-  {.base, async.} =
+  {.base, async, gcsafe.} =
   discard
 
 method write*(s: LPStream, msg: string, msglen = -1)
-  {.base, async.} =
+  {.base, async, gcsafe.} =
   discard
 
 method write*(s: LPStream, msg: seq[byte], msglen = -1)
-  {.base, async.} =
+  {.base, async, gcsafe.} =
   discard
 
 method close*(s: LPStream)
-  {.base, async.} =
+  {.base, async, gcsafe.} =
   discard

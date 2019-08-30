@@ -17,6 +17,8 @@ const IdentifyPushCodec* = "/ipfs/id/push/1.0.0"
 const ProtoVersion* = "ipfs/0.1.0"
 const AgentVersion* = "nim-libp2p/0.0.1"
 
+#TODO: implment push identify, leaving out for now as it is not essential
+
 type
   # TODO: we're doing protobuf manualy, this is only temporary
   ProtoField[T] = object

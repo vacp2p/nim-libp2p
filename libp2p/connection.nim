@@ -22,44 +22,44 @@ proc newConnection*(stream: LPStream): Connection =
   new result
   result.stream = stream
 
-method read*(s: Connection, n = -1): Future[seq[byte]] {.async.} =
+method read*(s: Connection, n = -1): Future[seq[byte]] {.async, gcsafe.} =
   result = await s.stream.read(n)
 
 method readExactly*(s: Connection,
                     pbytes: pointer,
-                    nbytes: int): Future[void] {.async.} =
+                    nbytes: int): Future[void] {.async, gcsafe.} =
   await s.stream.readExactly(pbytes, nbytes)
 
 method readLine*(s: Connection,
                  limit = 0,
-                 sep = "\r\n"): Future[string] {.async.} =
+                 sep = "\r\n"): Future[string] {.async, gcsafe.} =
   result = await s.stream.readLine(limit, sep)
 
 method readOnce*(s: Connection,
                  pbytes: pointer,
-                 nbytes: int): Future[int] {.async.} =
+                 nbytes: int): Future[int] {.async, gcsafe.} =
   result = await s.stream.readOnce(pbytes, nbytes)
 
 method readUntil*(s: Connection,
                   pbytes: pointer,
                   nbytes: int,
-                  sep: seq[byte]): Future[int] {.async.} =
+                  sep: seq[byte]): Future[int] {.async, gcsafe.} =
   result = await s.stream.readUntil(pbytes, nbytes, sep)
 
-method write*(s: Connection, pbytes: pointer, nbytes: int) {.async.} =
+method write*(s: Connection, pbytes: pointer, nbytes: int) {.async, gcsafe.} =
   await s.stream.write(pbytes, nbytes)
 
-method write*(s: Connection, msg: string, msglen = -1) {.async.} =
+method write*(s: Connection, msg: string, msglen = -1) {.async, gcsafe.} =
   await s.stream.write(msg, msglen)
 
-method write*(s: Connection, msg: seq[byte], msglen = -1) {.async.} =
+method write*(s: Connection, msg: seq[byte], msglen = -1) {.async, gcsafe.} =
   await s.stream.write(msg, msglen)
 
-method close*(s: Connection) {.async.} =
+method close*(s: Connection) {.async, gcsafe.} =
   await s.stream.close()
   s.closed = true
 
-proc readLp*(s: Connection): Future[seq[byte]] {.async.} =
+proc readLp*(s: Connection): Future[seq[byte]] {.async, gcsafe.} =
   ## read lenght prefixed msg
   var
     size: uint
@@ -81,18 +81,18 @@ proc readLp*(s: Connection): Future[seq[byte]] {.async.} =
 
   result = buffer
 
-proc writeLp*(s: Connection, msg: string | seq[byte]) {.async.} =
+proc writeLp*(s: Connection, msg: string | seq[byte]) {.async, gcsafe.} =
   ## write lenght prefixed
   var buf = initVBuffer()
   buf.writeSeq(msg)
   buf.finish()
   result = s.write(buf.buffer)
 
-method getPeerInfo*(c: Connection): Future[PeerInfo] {.base, async.} =
+method getPeerInfo*(c: Connection): Future[PeerInfo] {.base, async, gcsafe.} =
   ## get up to date peer info
   ## TODO: implement PeerInfo refresh over identify
   discard
 
-method getObservedAddrs*(c: Connection): Future[MultiAddress] {.base, async.} =
+method getObservedAddrs*(c: Connection): Future[MultiAddress] {.base, async, gcsafe.} =
   ## get resolved multiaddresses for the connection
   discard
