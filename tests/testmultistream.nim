@@ -1,8 +1,11 @@
 import unittest, strutils, sequtils, sugar
 import chronos
 import ../libp2p/connection, ../libp2p/multistream,
-  ../libp2p/stream, ../libp2p/connection, ../libp2p/multiaddress,
-  ../libp2p/transport, ../libp2p/tcptransport, ../libp2p/protocol
+       ../libp2p/stream, ../libp2p/connection, 
+       ../libp2p/multiaddress, ../libp2p/transport, 
+       ../libp2p/tcptransport, ../libp2p/protocol,
+       ../libp2p/crypto/crypto, ../libp2p/peerinfo,
+       ../libp2p/peer
 
 ## Mock stream for select test
 type
@@ -140,13 +143,17 @@ suite "Multistream select":
       let ms = newMultistream()
       let conn = newConnection(newTestSelectStream())
 
-      var protocol: LPProtocol
-      proc testHandler(protocol: LPProtocol, 
-                       conn: Connection,
-                       proto: string): Future[void] {.async, gcsafe.} =
+      let seckey = PrivateKey.random(RSA)
+      var peerInfo: PeerInfo
+      peerInfo.peerId = PeerID.init(seckey)
+      var protocol: LPProtocol = newProtocol(LPProtocol, peerInfo)
+      proc testHandler(conn: Connection,
+                       proto: string): 
+                       Future[void] {.async, gcsafe.} =
         check proto == "/test/proto/1.0.0"
 
-      ms.addHandler("/test/proto/1.0.0", protocol, testHandler)
+      protocol.handler = testHandler
+      ms.addHandler("/test/proto/1.0.0", protocol)
       await ms.handle(conn)
       result = true
 
@@ -165,12 +172,16 @@ suite "Multistream select":
         check strProto == "\x26/test/proto1/1.0.0\n/test/proto2/1.0.0\n"
         await conn.close()
 
-      var protocol: LPProtocol
-      proc testHandler(protocol: LPProtocol,
-                       conn: Connection,
+      let seckey = PrivateKey.random(RSA)
+      var peerInfo: PeerInfo
+      peerInfo.peerId = PeerID.init(seckey)
+      var protocol: LPProtocol = newProtocol(LPProtocol, peerInfo)
+      proc testHandler(conn: Connection,
                        proto: string): Future[void] {.async, gcsafe.} = discard
-      ms.addHandler("/test/proto1/1.0.0", protocol, testHandler)
-      ms.addHandler("/test/proto2/1.0.0", protocol, testHandler)
+      
+      protocol.handler = testHandler
+      ms.addHandler("/test/proto1/1.0.0", protocol)
+      ms.addHandler("/test/proto2/1.0.0", protocol)
       await ms.handle(conn)
       result = true
 
@@ -188,11 +199,14 @@ suite "Multistream select":
         check cast[string](msg) == "\x3na\n"
         await conn.close()
 
-      var protocol: LPProtocol
-      proc testHandler(protocol: LPProtocol,
-                       conn: Connection,
+      let seckey = PrivateKey.random(RSA)
+      var peerInfo: PeerInfo
+      peerInfo.peerId = PeerID.init(seckey)
+      var protocol: LPProtocol = newProtocol(LPProtocol, peerInfo)
+      proc testHandler(conn: Connection,
                        proto: string): Future[void] {.async, gcsafe.} = discard
-      ms.addHandler("/unabvailable/proto/1.0.0", protocol, testHandler)
+      protocol.handler = testHandler
+      ms.addHandler("/unabvailable/proto/1.0.0", protocol)
 
       await ms.handle(conn)
       result = true
@@ -203,16 +217,20 @@ suite "Multistream select":
   test "e2e - handle":
     proc endToEnd(): Future[bool] {.async.} =
       let ma: MultiAddress = Multiaddress.init("/ip4/127.0.0.1/tcp/53350")
-      var protocol: LPProtocol
-      proc testHandler(protocol: LPProtocol,
-                       conn: Connection,
+
+      let seckey = PrivateKey.random(RSA)
+      var peerInfo: PeerInfo
+      peerInfo.peerId = PeerID.init(seckey)
+      var protocol: LPProtocol = newProtocol(LPProtocol, peerInfo)
+      proc testHandler(conn: Connection,
                        proto: string): Future[void] {.async, gcsafe.} =
         check proto == "/test/proto/1.0.0"
         await conn.writeLp("Hello!")
         await conn.close()
 
+      protocol.handler = testHandler
       let msListen = newMultistream()
-      msListen.addHandler("/test/proto/1.0.0", protocol, testHandler)
+      msListen.addHandler("/test/proto/1.0.0", protocol)
 
       proc connHandler(conn: Connection): Future[void] {.async, gcsafe.} =
         await msListen.handle(conn)
@@ -239,12 +257,15 @@ suite "Multistream select":
       let ma: MultiAddress = Multiaddress.init("/ip4/127.0.0.1/tcp/53351")
 
       let msListen = newMultistream()
-      var protocol: LPProtocol
-      proc testHandler(protocol: LPProtocol, 
-                       conn: Connection,
+      let seckey = PrivateKey.random(RSA)
+      var peerInfo: PeerInfo
+      peerInfo.peerId = PeerID.init(seckey)
+      var protocol: LPProtocol = newProtocol(LPProtocol, peerInfo)
+      proc testHandler(conn: Connection,
                        proto: string): Future[void] {.async.} = discard
-      msListen.addHandler("/test/proto1/1.0.0", protocol, testHandler)
-      msListen.addHandler("/test/proto2/1.0.0", protocol, testHandler)
+      protocol.handler = testHandler
+      msListen.addHandler("/test/proto1/1.0.0", protocol)
+      msListen.addHandler("/test/proto2/1.0.0", protocol)
 
       let transport1: TcpTransport = newTransport(TcpTransport)
       proc connHandler(conn: Connection): Future[void] {.async, gcsafe.} =

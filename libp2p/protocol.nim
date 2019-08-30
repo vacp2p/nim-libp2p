@@ -12,12 +12,14 @@ import connection, transport, stream,
        peerinfo, multiaddress
 
 type
-  LPProtoHandler* = proc (protocol: LPProtocol, 
-                          conn: Connection, 
-                          proto: string): Future[void] {.gcsafe.}
+  LPProtoHandler* = proc (conn: Connection, 
+                          proto: string): 
+                          Future[void] {.gcsafe.}
+
   LPProtocol* = ref object of RootObj
     peerInfo*: PeerInfo
     codec*: string
+    handler*: LPProtoHandler
 
 proc newProtocol*(p: typedesc[LPProtocol],
                   peerInfo: PeerInfo): p =
