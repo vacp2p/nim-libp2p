@@ -16,11 +16,21 @@ import protobuf/minprotobuf
 const
   maxInlineKeyLength* = 42
 
+# TODO: add proper on disc serialization 
+# using peer-id protobuf format
 type
   PeerID* = object
     data*: seq[byte]
+    privateKey: PrivateKey
+    publicKey: PublicKey
 
   PeerIDError* = object of CatchableError
+
+proc publicKey*(pid: PeerID): PublicKey {.inline.} =
+  if len(pid.publicKey.getBytes()) > 0:
+    result = pid.publicKey
+  elif len(pid.privateKey.getBytes()) > 0:
+    result = pid.privateKey.getKey()
 
 proc pretty*(pid: PeerID): string {.inline.} =
   ## Return base58 encoded ``pid`` representation.
@@ -161,10 +171,12 @@ proc init*(t: typedesc[PeerID], pubkey: PublicKey): PeerID =
   else:
     mh = MultiHash.digest("sha2-256", pubraw)
   result.data = mh.data.buffer
+  result.publicKey = pubkey
 
 proc init*(t: typedesc[PeerID], seckey: PrivateKey): PeerID {.inline.} =
   ## Create new peer id from private key ``seckey``.
   result = PeerID.init(seckey.getKey())
+  result.privateKey = seckey
 
 proc match*(pid: PeerID, pubkey: PublicKey): bool {.inline.} =
   ## Returns ``true`` if ``pid`` matches public key ``pubkey``.
