@@ -50,6 +50,11 @@ method dial*(t: Transport,
   ## dial a peer
   discard
 
+method upgrade*(t: Transport) {.base, async, gcsafe.} = 
+  ## base upgrade method that the transport uses to perform
+  ## transport specific upgrades
+  discard
+
 method handles*(t: Transport, address: MultiAddress): bool {.base, gcsafe.} =
   ## check if transport supportes the multiaddress
   # TODO: this should implement generic logic that would use the multicodec 
