@@ -9,13 +9,13 @@
 
 import chronos
 import protobuf/minprotobuf, peerinfo, 
-       switchtypes, protocol, connection,
+       protocol as proto, connection,
        peer, crypto/crypto, multiaddress
 
-const IdentifyCodec = "/ipfs/id/1.0.0"
-const IdentifyPushCodec = "/ipfs/id/push/1.0.0"
-const ProtoVersion = "ipfs/0.1.0"
-const AgentVersion = "nim-libp2p/0.0.1"
+const IdentifyCodec* = "/ipfs/id/1.0.0"
+const IdentifyPushCodec* = "/ipfs/id/push/1.0.0"
+const ProtoVersion* = "ipfs/0.1.0"
+const AgentVersion* = "nim-libp2p/0.0.1"
 
 type
   # TODO: we're doing protobuf manualy, this is only temporary
@@ -23,25 +23,23 @@ type
     index: int
     field: T
 
-  IdentifyInfo = object
-    peerInfo: PeerInfo
-    observedAddr: MultiAddress
-    protoVersion: string
-    agentVersion: string
+  IdentifyInfo* = object
+    pubKey*: PublicKey
+    addrs*: seq[MultiAddress]
+    observedAddr*: MultiAddress
+    protoVersion*: string
+    agentVersion*: string
 
-  Identify = ref object of switchtypes.Protocol
+  Identify* = ref object of LPProtocol
 
-proc encodeIdentifyMsg(p: Identify, observedAddrs: Multiaddress): ProtoBuffer = 
-  result = initProtoBuffer({WithVarintLength})
-  var pubKey: PublicKey
-  if p.peerInfo.peerId.extractPublicKey(pubkey) != true:
-    raise newException(CatchableError, "unable to extract public key")
+proc encodeMsg*(peerInfo: PeerInfo, observedAddrs: Multiaddress): ProtoBuffer = 
+  result = initProtoBuffer()
 
-  result.write(initProtoField(1, pubKey))
-  for ma in p.peerInfo.addrs:
+  result.write(initProtoField(1, peerInfo.peerId.publicKey.getBytes()))
+  for ma in peerInfo.addrs:
     result.write(initProtoField(2, ma.data.buffer))
 
-  for item in p.peerInfo.protocols:
+  for item in peerInfo.protocols:
     result.write(initProtoField(3, item))
 
   result.write(initProtoField(4, observedAddrs.data.buffer))
@@ -51,14 +49,16 @@ proc encodeIdentifyMsg(p: Identify, observedAddrs: Multiaddress): ProtoBuffer =
 
   let agentVersion = AgentVersion
   result.write(initProtoField(6, agentVersion))
-
   result.finish()
 
-proc getPeerInfo(pb: var ProtoBuffer): PeerInfo =
-  ## Get PeerInfo object from ``pb``.
+proc decodeMsg*(buf: seq[byte]): IdentifyInfo = 
+  var pb = initProtoBuffer(buf)
+
+  var pubKey: PublicKey
+  if pb.getValue(1, pubKey) > -1:
+    result.pubKey = pubKey
+
   result.addrs = newSeq[MultiAddress]()
-  if pb.getValue(1, result.peerId) == -1:
-    raise newException(CatchableError, "Missing required field `publicKey`!")
   var address = newSeq[byte]()
   while pb.getBytes(2, address) != -1:
     if len(address) != 0:
@@ -66,38 +66,36 @@ proc getPeerInfo(pb: var ProtoBuffer): PeerInfo =
       result.addrs.add(MultiAddress.init(copyaddr))
       address.setLen(0)
 
-proc decodeIdentifyMsg(p: Identify, buf: seq[byte]): IdentifyInfo = 
-  var pb = initProtoBuffer(buf)
-  result.peerInfo = pb.getPeerInfo()
-
   var proto = ""
   var protos: seq[string] = newSeq[string]()
   while pb.getString(3, proto) > 0:
     protos.add(proto)
     proto = "" # TODO: do i need to clear it up?
-
+  
   var observableAddr = newSeq[byte]()
   if pb.getBytes(4, observableAddr) > 0: # attempt to read the observed addr
     result.observedAddr = MultiAddress.init(observableAddr)
 
-  result.protoVersion = ""
-  if pb.getString(5, result.protoVersion) <= 0:
-    raise newException(CatchableError, "Unable to read protocol version")
+  var protoVersion = ""
+  discard pb.getString(5, protoVersion)
+  result.protoVersion = protoVersion
 
   var agentVersion = ""
-  if pb.getString(5, agentVersion) <= 0:
-    raise newException(CatchableError, "Unable to read agent version")
+  discard pb.getString(6, agentVersion)
+  result.agentVersion = agentVersion
 
-proc identify*(p: Identify, 
-               conn: Connection, 
-               observedAddres: MultiAddress): Future[IdentifyInfo] {.async.} = 
-  var pb = p.encodeIdentifyMsg(observedAddres)
-  let length = pb.getLen()
-  await conn.write(pb.getPtr(), length)
+proc identify*(p: Identify, conn: Connection): Future[IdentifyInfo] {.async.} = 
   var message = await conn.readLp()
   if len(message) == 0:
     raise newException(CatchableError, "Incorrect or empty message received!")
-  result = p.decodeIdentifyMsg(message)
+  result = decodeMsg(message)
 
+proc push*(p: Identify, conn: Connection) {.async.} =
+  await conn.write(IdentifyPushCodec)
+  var pb = encodeMsg(p.peerInfo, await conn.getObservedAddrs())
+  let length = pb.getLen()
+  await conn.writeLp(pb.buffer)
 
-method handle*(p: Identify, peerInfo: PeerInfo, handler: ProtoHandler) {.async.} = discard
+proc handle*(p: Identify, conn: Connection, proto: string) {.async, gcsafe.} =
+  var pb = encodeMsg(p.peerInfo, await conn.getObservedAddrs())
+  await conn.writeLp(pb.buffer)
