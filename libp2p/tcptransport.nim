@@ -63,4 +63,4 @@ method dial*(t: TcpTransport,
   let client: StreamTransport = await connect(address)
   result = await t.connHandler(t.server, client)
 
-method handles*(t: Transport, address: MultiAddress): bool {.gcsafe.} = true
+method handles*(t: TcpTransport, address: MultiAddress): bool {.gcsafe.} = true
