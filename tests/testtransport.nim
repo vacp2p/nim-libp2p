@@ -3,7 +3,7 @@ import chronos
 import ../libp2p/connection, ../libp2p/transport, ../libp2p/tcptransport,
     ../libp2p/multiaddress, ../libp2p/wire
 
-suite "TCP transport suite":
+suite "TCP transport":
   test "test listener: handle write":
     proc testListener(): Future[bool] {.async, gcsafe.} =
       let ma: MultiAddress = Multiaddress.init("/ip4/127.0.0.1/tcp/53335")
