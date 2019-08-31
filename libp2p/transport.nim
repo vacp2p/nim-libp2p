@@ -7,6 +7,7 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
+import sequtils
 import chronos
 import peerinfo, connection, multiaddress, multicodec
 
@@ -34,8 +35,7 @@ proc newTransport*(t: typedesc[Transport]): t {.gcsafe.} =
 method close*(t: Transport) {.base, async, gcsafe.} =
   ## stop and cleanup the transport
   ## including all outstanding connections
-  for c in t.connections:
-    await c.connection.close()
+  await allFutures(t.connections.mapIt(it.connection.close()))
 
 method listen*(t: Transport,
                ma: MultiAddress,
