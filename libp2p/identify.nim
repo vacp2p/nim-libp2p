@@ -77,13 +77,9 @@ proc decodeMsg*(buf: seq[byte]): IdentifyInfo =
   if pb.getBytes(4, observableAddr) > 0: # attempt to read the observed addr
     result.observedAddr = MultiAddress.init(observableAddr)
 
-  var protoVersion = ""
-  discard pb.getString(5, protoVersion)
-  result.protoVersion = protoVersion
+  discard pb.getString(5, result.protoVersion)
 
-  var agentVersion = ""
-  discard pb.getString(6, agentVersion)
-  result.agentVersion = agentVersion
+  discard pb.getString(6, result.agentVersion)
 
 method init*(p: Identify) = 
   proc handle(conn: Connection, proto: string) {.async, gcsafe.} =
