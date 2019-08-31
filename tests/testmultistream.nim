@@ -177,7 +177,8 @@ suite "Multistream select":
       peerInfo.peerId = PeerID.init(seckey)
       var protocol: LPProtocol = newProtocol(LPProtocol, peerInfo)
       proc testHandler(conn: Connection,
-                       proto: string): Future[void] {.async, gcsafe.} = discard
+                       proto: string): 
+                       Future[void] {.async, gcsafe.} = discard
       
       protocol.handler = testHandler
       ms.addHandler("/test/proto1/1.0.0", protocol)
@@ -204,7 +205,8 @@ suite "Multistream select":
       peerInfo.peerId = PeerID.init(seckey)
       var protocol: LPProtocol = newProtocol(LPProtocol, peerInfo)
       proc testHandler(conn: Connection,
-                       proto: string): Future[void] {.async, gcsafe.} = discard
+                       proto: string): 
+                       Future[void] {.async, gcsafe.} = discard
       protocol.handler = testHandler
       ms.addHandler("/unabvailable/proto/1.0.0", protocol)
 
@@ -223,7 +225,8 @@ suite "Multistream select":
       peerInfo.peerId = PeerID.init(seckey)
       var protocol: LPProtocol = newProtocol(LPProtocol, peerInfo)
       proc testHandler(conn: Connection,
-                       proto: string): Future[void] {.async, gcsafe.} =
+                       proto: string): 
+                       Future[void] {.async, gcsafe.} =
         check proto == "/test/proto/1.0.0"
         await conn.writeLp("Hello!")
         await conn.close()
@@ -262,7 +265,8 @@ suite "Multistream select":
       peerInfo.peerId = PeerID.init(seckey)
       var protocol: LPProtocol = newProtocol(LPProtocol, peerInfo)
       proc testHandler(conn: Connection,
-                       proto: string): Future[void] {.async.} = discard
+                       proto: string): 
+                       Future[void] {.async.} = discard
       protocol.handler = testHandler
       msListen.addHandler("/test/proto1/1.0.0", protocol)
       msListen.addHandler("/test/proto2/1.0.0", protocol)

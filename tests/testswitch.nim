@@ -18,6 +18,7 @@ method init(p: TestProto) {.gcsafe.} =
     check "Hello!" == msg
     await conn.writeLp("Hello!")
 
+  p.codec = TestCodec
   p.handler = handle
 
 suite "Switch":
@@ -42,7 +43,6 @@ suite "Switch":
       await switch1.start()
 
       (switch2, peerInfo2) = createSwitch(ma2)
-      await switch2.start()
       let conn = await switch2.dial(peerInfo1, TestCodec)
       await conn.writeLp("Hello!")
       let msg = cast[string](await conn.readLp())
