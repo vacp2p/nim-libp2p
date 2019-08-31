@@ -68,7 +68,6 @@ proc decodeMsg*(buf: seq[byte]): IdentifyInfo =
       address.setLen(0)
 
   var proto = ""
-  # var protos: seq[string] = newSeq[string]()
   while pb.getString(3, proto) > 0:
     result.protos.add(proto)
     proto = "" # TODO: do i need to clear it up?
@@ -78,7 +77,6 @@ proc decodeMsg*(buf: seq[byte]): IdentifyInfo =
     result.observedAddr = MultiAddress.init(observableAddr)
 
   discard pb.getString(5, result.protoVersion)
-
   discard pb.getString(6, result.agentVersion)
 
 method init*(p: Identify) = 
