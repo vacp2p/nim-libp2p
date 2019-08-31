@@ -27,4 +27,4 @@ proc newProtocol*(p: typedesc[LPProtocol],
   result.peerInfo = peerInfo
   result.init()
 
-method init*(p: LPProtocol) {.base.} = discard
+method init*(p: LPProtocol) {.base, gcsafe.} = discard

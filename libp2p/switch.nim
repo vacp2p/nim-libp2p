@@ -7,10 +7,10 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import tables
+import tables, sequtils
 import chronos
 import connection, transport, stream, 
-       multistreamselect, protocol,
+       multistream, protocol,
        peerinfo, multiaddress
 
 type
@@ -26,24 +26,43 @@ proc newSwitch*(peerInfo: PeerInfo, transports: seq[Transport]): Switch =
   result.peerInfo = peerInfo
   result.ms = newMultistream()
   result.transports = transports
-  result.protocols = newSeq[LPProtocol]()
   result.connections = newTable[string, Connection]()
+  result.protocols = newSeq[LPProtocol]()
 
-proc dial*(s: Switch, peer: PeerInfo, proto: string = ""): Future[Connection] {.async.} = discard
+proc secure(s: Switch, conn: Connection) {.async, gcsafe.} = 
+  ## secure the incoming connection
+  discard
 
-proc mount*(s: Switch, protocol: LPProtocol) = discard
+proc processConn(s: Switch, conn: Connection, proto: string = "") {.async, gcsafe.} =
+  defer: await s.ms.handle(conn) # fire up the handler 
+  await s.secure(conn) # secure the connection
+  if proto.len > 0:
+    echo "SELECTING"
+    if not await s.ms.select(conn, proto):
+      raise newException(CatchableError, "Unable to select protocol: " & proto)
+
+proc dial*(s: Switch, peer: PeerInfo, proto: string = ""): Future[Connection] {.async.} = 
+  for t in s.transports: # for each transport
+    for a in peer.addrs: # for each address
+      if t.handles(a): # check if it can dial it
+        result = await t.dial(a)
+        await s.processConn(result, proto)
+
+proc mount*[T: LPProtocol](s: Switch, proto: T) = 
+  if isNil(proto.handler):
+    raise newException(CatchableError, 
+    "Protocol has to define a handle method or proc")
+
+  s.ms.addHandler(proto.codec, proto)
 
 proc start*(s: Switch) {.async.} = 
-  # TODO: how bad is it that this is a closure?
   proc handle(conn: Connection): Future[void] {.closure, gcsafe.} = 
-    s.ms.handle(conn)
+    s.processConn(conn)
 
   for t in s.transports: # for each transport
     for a in s.peerInfo.addrs:
       if t.handles(a): # check if it handles the multiaddr
         await t.listen(a, handle) # listen for incoming connections
-        break
 
 proc stop*(s: Switch) {.async.} = 
-  for c in s.connections.values:
-    await c.close()
+  await allFutures(s.transports.mapIt(it.close()))
