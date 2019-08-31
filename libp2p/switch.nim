@@ -33,31 +33,31 @@ proc secure(s: Switch, conn: Connection) {.async, gcsafe.} =
   ## secure the incoming connection
   discard
 
-proc processConn(s: Switch, conn: Connection, proto: string = "") {.async, gcsafe.} =
-  defer: await s.ms.handle(conn) # fire up the handler 
-  await s.secure(conn) # secure the connection
-  if proto.len > 0:
-    echo "SELECTING"
-    if not await s.ms.select(conn, proto):
-      raise newException(CatchableError, "Unable to select protocol: " & proto)
-
 proc dial*(s: Switch, peer: PeerInfo, proto: string = ""): Future[Connection] {.async.} = 
   for t in s.transports: # for each transport
     for a in peer.addrs: # for each address
       if t.handles(a): # check if it can dial it
         result = await t.dial(a)
-        await s.processConn(result, proto)
+        await s.secure(result)
+        if not await s.ms.select(result, proto):
+          raise newException(CatchableError, 
+          "Unable to select protocol: " & proto)
 
 proc mount*[T: LPProtocol](s: Switch, proto: T) = 
   if isNil(proto.handler):
     raise newException(CatchableError, 
     "Protocol has to define a handle method or proc")
 
+  if len(proto.codec) <= 0:
+    raise newException(CatchableError, 
+    "Protocol has to define a codec string")
+
   s.ms.addHandler(proto.codec, proto)
 
 proc start*(s: Switch) {.async.} = 
-  proc handle(conn: Connection): Future[void] {.closure, gcsafe.} = 
-    s.processConn(conn)
+  proc handle(conn: Connection): Future[void] {.async, closure, gcsafe.} =
+    await s.secure(conn) # secure the connection
+    await s.ms.handle(conn) # fire up the ms handler
 
   for t in s.transports: # for each transport
     for a in s.peerInfo.addrs:
