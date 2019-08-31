@@ -31,6 +31,7 @@ type
     observedAddr*: MultiAddress
     protoVersion*: string
     agentVersion*: string
+    protos*: seq[string]
 
   Identify* = ref object of LPProtocol
 
@@ -41,8 +42,8 @@ proc encodeMsg*(peerInfo: PeerInfo, observedAddrs: Multiaddress): ProtoBuffer =
   for ma in peerInfo.addrs:
     result.write(initProtoField(2, ma.data.buffer))
 
-  for item in peerInfo.protocols:
-    result.write(initProtoField(3, item))
+  for proto in peerInfo.protocols:
+    result.write(initProtoField(3, proto))
 
   result.write(initProtoField(4, observedAddrs.data.buffer))
 
@@ -56,9 +57,7 @@ proc encodeMsg*(peerInfo: PeerInfo, observedAddrs: Multiaddress): ProtoBuffer =
 proc decodeMsg*(buf: seq[byte]): IdentifyInfo = 
   var pb = initProtoBuffer(buf)
 
-  var pubKey: PublicKey
-  if pb.getValue(1, pubKey) > -1:
-    result.pubKey = pubKey
+  discard pb.getValue(1, result.pubKey)
 
   result.addrs = newSeq[MultiAddress]()
   var address = newSeq[byte]()
@@ -69,9 +68,9 @@ proc decodeMsg*(buf: seq[byte]): IdentifyInfo =
       address.setLen(0)
 
   var proto = ""
-  var protos: seq[string] = newSeq[string]()
+  # var protos: seq[string] = newSeq[string]()
   while pb.getString(3, proto) > 0:
-    protos.add(proto)
+    result.protos.add(proto)
     proto = "" # TODO: do i need to clear it up?
   
   var observableAddr = newSeq[byte]()
