@@ -19,22 +19,22 @@ method readExactly*(s: TestSelectStream,
     of 1:
       var buf = newSeq[byte](1)
       buf[0] = 19
-      copyMem(cast[pointer](cast[uint](pbytes)), addr buf[0], buf.len())
+      copyMem(pbytes, addr buf[0], buf.len())
       s.step = 2
     of 2:
       var buf = "/multistream/1.0.0\n"
-      copyMem(cast[pointer](cast[uint](pbytes)), addr buf[0], buf.len())
+      copyMem(pbytes, addr buf[0], buf.len())
       s.step = 3
     of 3:
       var buf = newSeq[byte](1)
       buf[0] = 18
-      copyMem(cast[pointer](cast[uint](pbytes)), addr buf[0], buf.len())
+      copyMem(pbytes, addr buf[0], buf.len())
       s.step = 4
     of 4:
       var buf = "/test/proto/1.0.0\n"
-      copyMem(cast[pointer](cast[uint](pbytes)), addr buf[0], buf.len())
+      copyMem(pbytes, addr buf[0], buf.len())
     else:
-      copyMem(cast[pointer](cast[uint](pbytes)),
+      copyMem(pbytes,
               cstring("\0x3na\n"),
               "\0x3na\n".len())
 
@@ -57,22 +57,22 @@ method readExactly*(s: TestLsStream,
     of 1:
       var buf = newSeq[byte](1)
       buf[0] = 19
-      copyMem(cast[pointer](cast[uint](pbytes)), addr buf[0], buf.len())
+      copyMem(pbytes, addr buf[0], buf.len())
       s.step = 2
     of 2:
       var buf = "/multistream/1.0.0\n"
-      copyMem(cast[pointer](cast[uint](pbytes)), addr buf[0], buf.len())
+      copyMem(pbytes, addr buf[0], buf.len())
       s.step = 3
     of 3:
       var buf = newSeq[byte](1)
       buf[0] = 3
-      copyMem(cast[pointer](cast[uint](pbytes)), addr buf[0], buf.len())
+      copyMem(pbytes, addr buf[0], buf.len())
       s.step = 4
     of 4:
       var buf = "ls\n"
-      copyMem(cast[pointer](cast[uint](pbytes)), addr buf[0], buf.len())
+      copyMem(pbytes, addr buf[0], buf.len())
     else:
-      copyMem(cast[pointer](cast[uint](pbytes)),
+      copyMem(pbytes,
               cstring("\0x3na\n"),
               "\0x3na\n".len())
 
@@ -100,22 +100,22 @@ method readExactly*(s: TestNaStream,
     of 1:
       var buf = newSeq[byte](1)
       buf[0] = 19
-      copyMem(cast[pointer](cast[uint](pbytes)), addr buf[0], buf.len())
+      copyMem(pbytes, addr buf[0], buf.len())
       s.step = 2
     of 2:
       var buf = "/multistream/1.0.0\n"
-      copyMem(cast[pointer](cast[uint](pbytes)), addr buf[0], buf.len())
+      copyMem(pbytes, addr buf[0], buf.len())
       s.step = 3
     of 3:
       var buf = newSeq[byte](1)
       buf[0] = 18
-      copyMem(cast[pointer](cast[uint](pbytes)), addr buf[0], buf.len())
+      copyMem(pbytes, addr buf[0], buf.len())
       s.step = 4
     of 4:
       var buf = "/test/proto/1.0.0\n"
-      copyMem(cast[pointer](cast[uint](pbytes)), addr buf[0], buf.len())
+      copyMem(pbytes, addr buf[0], buf.len())
     else:
-      copyMem(cast[pointer](cast[uint](pbytes)),
+      copyMem(pbytes,
               cstring("\0x3na\n"),
               "\0x3na\n".len())
 
