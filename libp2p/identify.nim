@@ -70,7 +70,7 @@ proc decodeMsg*(buf: seq[byte]): IdentifyInfo =
   var proto = ""
   while pb.getString(3, proto) > 0:
     result.protos.add(proto)
-    proto = "" # TODO: do i need to clear it up?
+    proto = ""
   
   var observableAddr = newSeq[byte]()
   if pb.getBytes(4, observableAddr) > 0: # attempt to read the observed addr
