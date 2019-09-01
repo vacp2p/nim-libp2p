@@ -22,8 +22,8 @@ type
   LPStreamWriteError* = object of LPStreamError
     par*: ref Exception
 
-proc newAsyncStreamReadError*(p: ref Exception): ref Exception {.inline.} =
-  var w = newException(AsyncStreamReadError, "Read stream failed")
+proc newLPStreamReadError*(p: ref Exception): ref Exception {.inline.} =
+  var w = newException(LPStreamReadError, "Read stream failed")
   w.msg = w.msg & ", originated from [" & $p.name & "] " & p.msg
   w.par = p
   result = w
