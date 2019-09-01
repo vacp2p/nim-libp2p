@@ -10,7 +10,7 @@
 import chronos
 import transport, wire, connection,
        multiaddress, connection,
-       multicodec, chronosstream
+       multicodec, stream/chronosstream
 
 type TcpTransport* = ref object of Transport
   server*: StreamServer

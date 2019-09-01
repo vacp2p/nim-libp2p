@@ -1,7 +1,7 @@
 import unittest, strutils, sequtils, sugar
 import chronos
 import ../libp2p/connection, ../libp2p/multistream,
-       ../libp2p/stream, ../libp2p/connection, 
+       ../libp2p/stream/lpstream, ../libp2p/connection, 
        ../libp2p/multiaddress, ../libp2p/transport, 
        ../libp2p/tcptransport, ../libp2p/protocol,
        ../libp2p/crypto/crypto, ../libp2p/peerinfo,
@@ -14,7 +14,7 @@ type
 
 method readExactly*(s: TestSelectStream,
                     pbytes: pointer,
-                    nbytes: int): Future[void] {.async.} =
+                    nbytes: int): Future[void] {.async, gcsafe.} =
   case s.step:
     of 1:
       var buf = newSeq[byte](1)
@@ -38,6 +38,9 @@ method readExactly*(s: TestSelectStream,
               cstring("\0x3na\n"),
               "\0x3na\n".len())
 
+method write*(s: TestSelectStream, msg: string, msglen = -1) 
+  {.async, gcsafe.} = discard
+
 proc newTestSelectStream(): TestSelectStream =
   new result
   result.step = 1
@@ -52,7 +55,7 @@ type
 
 method readExactly*(s: TestLsStream,
                     pbytes: pointer,
-                    nbytes: int): Future[void] {.async.} =
+                    nbytes: int): Future[void] {.async, gcsafe.} =
   case s.step:
     of 1:
       var buf = newSeq[byte](1)
@@ -72,13 +75,16 @@ method readExactly*(s: TestLsStream,
       var buf = "ls\n"
       copyMem(pbytes, addr buf[0], buf.len())
     else:
-      copyMem(pbytes,
-              cstring("\0x3na\n"),
-              "\0x3na\n".len())
+      copyMem(pbytes, cstring("\0x3na\n"), "\0x3na\n".len())
 
-method write*(s: TestLsStream, msg: seq[byte], msglen = -1) {.async.} =
+method write*(s: TestLsStream, msg: seq[byte], msglen = -1) {.async, gcsafe.} =
   if s.step == 4:
     await s.ls(msg)
+
+method write*(s: TestLsStream, msg: string, msglen = -1)
+  {.async, gcsafe.} = discard
+
+method close*(s: TestLsStream) {.async, gcsafe.} = discard
 
 proc newTestLsStream(ls: LsHandler): TestLsStream =
   new result
@@ -95,7 +101,7 @@ type
 
 method readExactly*(s: TestNaStream,
                     pbytes: pointer,
-                    nbytes: int): Future[void] {.async.} =
+                    nbytes: int): Future[void] {.async, gcsafe.} =
   case s.step:
     of 1:
       var buf = newSeq[byte](1)
@@ -119,9 +125,11 @@ method readExactly*(s: TestNaStream,
               cstring("\0x3na\n"),
               "\0x3na\n".len())
 
-method write*(s: TestNaStream, msg: string, msglen = -1) {.async.} =
+method write*(s: TestNaStream, msg: string, msglen = -1) {.async, gcsafe.} =
   if s.step == 4:
     await s.na(msg)
+
+method close*(s: TestNaStream) {.async, gcsafe.} = discard
 
 proc newTestNaStream(na: NaHandler): TestNaStream =
   new result

@@ -8,7 +8,7 @@
 ## those terms.
 
 import chronos
-import peerinfo, multiaddress, stream, peerinfo, varint, vbuffer
+import peerinfo, multiaddress, stream/lpstream, peerinfo, varint, vbuffer
 
 const DefaultReadSize: uint = 64*1024
 

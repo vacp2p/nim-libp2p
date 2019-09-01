@@ -9,7 +9,8 @@
 
 import tables, sequtils
 import chronos
-import connection, transport, stream, 
+import connection, transport, 
+       stream/lpstream, 
        multistream, protocol,
        peerinfo, multiaddress
 
