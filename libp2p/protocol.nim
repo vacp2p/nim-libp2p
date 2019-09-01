@@ -8,7 +8,7 @@
 ## those terms.
 
 import chronos
-import connection, transport, stream, 
+import connection, transport,
        peerinfo, multiaddress
 
 type

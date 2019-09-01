@@ -8,7 +8,7 @@
 ## those terms.
 
 import chronos
-import stream
+import lpstream
 
 type ChronosStream* = ref object of LPStream
     reader: AsyncStreamReader
