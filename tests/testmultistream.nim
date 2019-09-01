@@ -55,7 +55,8 @@ type
 
 method readExactly*(s: TestLsStream,
                     pbytes: pointer,
-                    nbytes: int): Future[void] {.async, gcsafe.} =
+                    nbytes: int): 
+                    Future[void] {.async, gcsafe.} =
   case s.step:
     of 1:
       var buf = newSeq[byte](1)
@@ -101,7 +102,8 @@ type
 
 method readExactly*(s: TestNaStream,
                     pbytes: pointer,
-                    nbytes: int): Future[void] {.async, gcsafe.} =
+                    nbytes: int): 
+                    Future[void] {.async, gcsafe.} =
   case s.step:
     of 1:
       var buf = newSeq[byte](1)
