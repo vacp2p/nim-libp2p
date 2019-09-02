@@ -14,12 +14,12 @@ import connection, transport,
 type
   LPProtoHandler* = proc (conn: Connection, 
                           proto: string): 
-                          Future[void] {.gcsafe.}
+                          Future[void] {.gcsafe, closure.}
 
   LPProtocol* = ref object of RootObj
     peerInfo*: PeerInfo
     codec*: string
-    handler*: LPProtoHandler
+    handler*: LPProtoHandler ## this handler gets invoked by the protocol negotiator
 
 proc newProtocol*(p: typedesc[LPProtocol],
                   peerInfo: PeerInfo): p =

@@ -80,7 +80,7 @@ proc decodeMsg*(buf: seq[byte]): IdentifyInfo =
   discard pb.getString(6, result.agentVersion)
 
 method init*(p: Identify) = 
-  proc handle(conn: Connection, proto: string) {.async, gcsafe.} =
+  proc handle(conn: Connection, proto: string) {.async, gcsafe, closure.} =
     var pb = encodeMsg(p.peerInfo, await conn.getObservedAddrs())
     await conn.writeLp(pb.buffer)
 
