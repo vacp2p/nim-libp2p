@@ -8,7 +8,7 @@
 ## those terms.
 
 ## This module implements Public Key and Private Key interface for libp2p.
-import rsa, ecnist, ed25519/ed25519
+import rsa, ecnist, ed25519/ed25519, secp
 import ../protobuf/minprotobuf, ../vbuffer
 import nimcrypto/[rijndael, blowfish, sha, sha2, hash, hmac, utils]
 
@@ -42,7 +42,7 @@ type
     of Ed25519:
       edkey*: EdPublicKey
     of Secp256k1:
-      discard
+      skkey*: SkPublicKey
     of ECDSA:
       eckey*: EcPublicKey
     of NoSupport:
@@ -55,7 +55,7 @@ type
     of Ed25519:
       edkey*: EdPrivateKey
     of Secp256k1:
-      discard
+      skkey*: SkPrivateKey
     of ECDSA:
       eckey*: EcPrivateKey
     of NoSupport:
@@ -78,8 +78,9 @@ type
   P2pSigError* = object of CatchableError
 
 const
-  SupportedSchemes* = {RSA, Ed25519, ECDSA}
-  SupportedSchemesInt* = {int8(RSA), int8(Ed25519), int8(ECDSA)}
+  SupportedSchemes* = {RSA, Ed25519, Secp256k1, ECDSA}
+  SupportedSchemesInt* = {int8(RSA), int8(Ed25519), int8(Secp256k1),
+                          int8(ECDSA)}
 
 proc random*(t: typedesc[PrivateKey], scheme: PKScheme,
              bits = DefaultKeySize): PrivateKey =
@@ -95,6 +96,8 @@ proc random*(t: typedesc[PrivateKey], scheme: PKScheme,
     result.edkey = EdPrivateKey.random()
   elif scheme == ECDSA:
     result.eckey = EcPrivateKey.random(Secp256r1)
+  elif scheme == Secp256k1:
+    result.skkey = SkPrivateKey.random()
 
 proc random*(t: typedesc[KeyPair], scheme: PKScheme,
              bits = DefaultKeySize): KeyPair =
@@ -117,6 +120,10 @@ proc random*(t: typedesc[KeyPair], scheme: PKScheme,
     var pair = EcKeyPair.random(Secp256r1)
     result.seckey.eckey = pair.seckey
     result.pubkey.eckey = pair.pubkey
+  elif scheme == Secp256k1:
+    var pair = SkKeyPair.random()
+    result.seckey.skkey = pair.seckey
+    result.pubkey.skkey = pair.pubkey
 
 proc getKey*(key: PrivateKey): PublicKey =
   ## Get public key from corresponding private key ``key``.
@@ -127,6 +134,8 @@ proc getKey*(key: PrivateKey): PublicKey =
     result.edkey = key.edkey.getKey()
   elif key.scheme == ECDSA:
     result.eckey = key.eckey.getKey()
+  elif key.scheme == Secp256k1:
+    result.skkey = key.skkey.getKey()
 
 proc toRawBytes*(key: PrivateKey, data: var openarray[byte]): int =
   ## Serialize private key ``key`` (using scheme's own serialization) and store
@@ -139,6 +148,8 @@ proc toRawBytes*(key: PrivateKey, data: var openarray[byte]): int =
     result = key.edkey.toBytes(data)
   elif key.scheme == ECDSA:
     result = key.eckey.toBytes(data)
+  elif key.scheme == Secp256k1:
+    result = key.skkey.toBytes(data)
 
 proc toRawBytes*(key: PublicKey, data: var openarray[byte]): int =
   ## Serialize public key ``key`` (using scheme's own serialization) and store
@@ -151,6 +162,8 @@ proc toRawBytes*(key: PublicKey, data: var openarray[byte]): int =
     result = key.edkey.toBytes(data)
   elif key.scheme == ECDSA:
     result = key.eckey.toBytes(data)
+  elif key.scheme == Secp256k1:
+    result = key.skkey.toBytes(data)
 
 proc getRawBytes*(key: PrivateKey): seq[byte] =
   ## Return private key ``key`` in binary form (using scheme's own
@@ -161,6 +174,8 @@ proc getRawBytes*(key: PrivateKey): seq[byte] =
     result = key.edkey.getBytes()
   elif key.scheme == ECDSA:
     result = key.eckey.getBytes()
+  elif key.scheme == Secp256k1:
+    result = key.skkey.getBytes()
 
 proc getRawBytes*(key: PublicKey): seq[byte] =
   ## Return public key ``key`` in binary form (using scheme's own
@@ -171,6 +186,8 @@ proc getRawBytes*(key: PublicKey): seq[byte] =
     result = key.edkey.getBytes()
   elif key.scheme == ECDSA:
     result = key.eckey.getBytes()
+  elif key.scheme == Secp256k1:
+    result = key.skkey.getBytes()
 
 proc toBytes*(key: PrivateKey, data: var openarray[byte]): int =
   ## Serialize private key ``key`` (using libp2p protobuf scheme) and store
@@ -254,6 +271,10 @@ proc init*(key: var PrivateKey, data: openarray[byte]): bool =
             if init(nkey.eckey, buffer) == Asn1Status.Success:
               key = nkey
               result = true
+          elif scheme == Secp256k1:
+            if init(nkey.skkey, buffer):
+              key = nkey
+              result = true
 
 proc init*(key: var PublicKey, data: openarray[byte]): bool =
   ## Initialize public key ``key`` from libp2p's protobuf serialized raw
@@ -279,6 +300,10 @@ proc init*(key: var PublicKey, data: openarray[byte]): bool =
               result = true
           elif scheme == ECDSA:
             if init(nkey.eckey, buffer) == Asn1Status.Success:
+              key = nkey
+              result = true
+          elif scheme == Secp256k1:
+            if init(nkey.skkey, buffer):
               key = nkey
               result = true
 
@@ -374,6 +399,10 @@ proc `$`*(key: PrivateKey): string =
     result = "Secp256r1 key ("
     result.add($(key.eckey))
     result.add(")")
+  elif key.scheme == Secp256k1:
+    result = "Secp256k1 key ("
+    result.add($(key.skkey))
+    result.add(")")
 
 proc `$`*(key: PublicKey): string =
   ## Get string representation of public key ``key``.
@@ -386,6 +415,10 @@ proc `$`*(key: PublicKey): string =
   elif key.scheme == ECDSA:
     result = "Secp256r1 key ("
     result.add($(key.eckey))
+    result.add(")")
+  elif key.scheme == Secp256k1:
+    result = "Secp256k1 key ("
+    result.add($(key.skkey))
     result.add(")")
 
 proc `$`*(sig: Signature): string =
@@ -404,6 +437,9 @@ proc sign*(key: PrivateKey, data: openarray[byte]): Signature =
   elif key.scheme == ECDSA:
     var sig = key.eckey.sign(data)
     result.data = sig.getBytes()
+  elif key.scheme == Secp256k1:
+    var sig = key.skkey.sign(data)
+    result.data = sig.getBytes()
 
 proc verify*(sig: Signature, message: openarray[byte],
              key: PublicKey): bool =
@@ -421,6 +457,10 @@ proc verify*(sig: Signature, message: openarray[byte],
     var signature: EcSignature
     if signature.init(sig.data) == Asn1Status.Success:
       result = signature.verify(message, key.eckey)
+  elif key.scheme == Secp256k1:
+    var signature: SkSignature
+    if signature.init(sig.data):
+      result = signature.verify(message, key.skkey)
 
 template makeSecret(buffer, hmactype, secret, seed) =
   var ctx: hmactype
