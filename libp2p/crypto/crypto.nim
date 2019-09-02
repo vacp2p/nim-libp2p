@@ -122,8 +122,8 @@ proc random*(t: typedesc[KeyPair], scheme: PKScheme,
     result.pubkey.eckey = pair.pubkey
   elif scheme == Secp256k1:
     var pair = SkKeyPair.random()
-    result.seckey.eckey = pair.seckey
-    result.pubkey.eckey = pair.pubkey
+    result.seckey.skkey = pair.seckey
+    result.pubkey.skkey = pair.pubkey
 
 proc getKey*(key: PrivateKey): PublicKey =
   ## Get public key from corresponding private key ``key``.
