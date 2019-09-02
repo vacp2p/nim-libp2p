@@ -10,7 +10,7 @@
 import chronos
 import peerinfo, multiaddress, stream/lpstream, peerinfo, varint, vbuffer
 
-const DefaultReadSize: uint = 64*1024
+const DefaultReadSize: uint = 64 * 1024
 
 type
   Connection* = ref object of LPStream
@@ -27,32 +27,45 @@ method read*(s: Connection, n = -1): Future[seq[byte]] {.gcsafe.} =
 
 method readExactly*(s: Connection,
                     pbytes: pointer,
-                    nbytes: int): Future[void] {.gcsafe.} =
+                    nbytes: int): 
+                    Future[void] {.gcsafe.} =
   result = s.stream.readExactly(pbytes, nbytes)
 
 method readLine*(s: Connection,
                  limit = 0,
-                 sep = "\r\n"): Future[string] {.gcsafe.} =
+                 sep = "\r\n"): 
+                 Future[string] {.gcsafe.} =
   result = s.stream.readLine(limit, sep)
 
 method readOnce*(s: Connection,
                  pbytes: pointer,
-                 nbytes: int): Future[int] {.gcsafe.} =
+                 nbytes: int): 
+                 Future[int] {.gcsafe.} =
   result = s.stream.readOnce(pbytes, nbytes)
 
 method readUntil*(s: Connection,
                   pbytes: pointer,
                   nbytes: int,
-                  sep: seq[byte]): Future[int] {.gcsafe.} =
+                  sep: seq[byte]): 
+                  Future[int] {.gcsafe.} =
   result = s.stream.readUntil(pbytes, nbytes, sep)
 
-method write*(s: Connection, pbytes: pointer, nbytes: int): Future[void] {.gcsafe.} =
+method write*(s: Connection, 
+              pbytes: pointer, 
+              nbytes: int): 
+              Future[void] {.gcsafe.} =
   result = s.stream.write(pbytes, nbytes)
 
-method write*(s: Connection, msg: string, msglen = -1): Future[void] {.gcsafe.} =
+method write*(s: Connection, 
+              msg: string, 
+              msglen = -1): 
+              Future[void] {.gcsafe.} =
   result = s.stream.write(msg, msglen)
 
-method write*(s: Connection, msg: seq[byte], msglen = -1): Future[void] {.gcsafe.} =
+method write*(s: Connection, 
+              msg: seq[byte], 
+              msglen = -1): 
+              Future[void] {.gcsafe.} =
   result = s.stream.write(msg, msglen)
 
 method close*(s: Connection) {.async, gcsafe.} =
@@ -74,6 +87,8 @@ proc readLp*(s: Connection): Future[seq[byte]] {.async, gcsafe.} =
         break
     if res != VarintStatus.Success or size > DefaultReadSize:
       buffer.setLen(0)
+      result = buffer
+      return
     buffer.setLen(size)
     await s.readExactly(addr buffer[0], int(size))
   except TransportIncompleteError:
