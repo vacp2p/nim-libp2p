@@ -110,7 +110,7 @@ proc init*(key: var SkPrivateKey, data: string): bool {.inline.} =
   ## Procedure returns ``true`` on success.
   var buffer: seq[byte]
   try:
-    buffer = fromHex(stripSpaces(data))
+    buffer = utils.fromHex(stripSpaces(data))
   except:
     return false
   result = init(key, buffer)
@@ -141,7 +141,7 @@ proc init*(key: var SkPublicKey, data: string): bool =
   ## Procedure returns ``true`` on success.
   var buffer: seq[byte]
   try:
-    buffer = fromHex(stripSpaces(data))
+    buffer = utils.fromHex(stripSpaces(data))
   except:
     return false
   result = init(key, buffer)
@@ -166,7 +166,7 @@ proc init*(sig: var SkSignature, data: string): bool =
   ## Procedure returns ``true`` on success.
   var buffer: seq[byte]
   try:
-    buffer = fromHex(stripSpaces(data))
+    buffer = utils.fromHex(stripSpaces(data))
   except:
     return false
   result = init(sig, buffer)
