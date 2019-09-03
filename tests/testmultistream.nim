@@ -156,7 +156,7 @@ suite "Multistream select":
       let seckey = PrivateKey.random(RSA)
       var peerInfo: PeerInfo
       peerInfo.peerId = PeerID.init(seckey)
-      var protocol: LPProtocol = newProtocol(LPProtocol, peerInfo)
+      var protocol: LPProtocol = new LPProtocol
       proc testHandler(conn: Connection,
                        proto: string): 
                        Future[void] {.async, gcsafe.} =
@@ -185,7 +185,7 @@ suite "Multistream select":
       let seckey = PrivateKey.random(RSA)
       var peerInfo: PeerInfo
       peerInfo.peerId = PeerID.init(seckey)
-      var protocol: LPProtocol = newProtocol(LPProtocol, peerInfo)
+      var protocol: LPProtocol = new LPProtocol
       proc testHandler(conn: Connection,
                        proto: string): 
                        Future[void] {.async, gcsafe.} = discard
@@ -213,7 +213,7 @@ suite "Multistream select":
       let seckey = PrivateKey.random(RSA)
       var peerInfo: PeerInfo
       peerInfo.peerId = PeerID.init(seckey)
-      var protocol: LPProtocol = newProtocol(LPProtocol, peerInfo)
+      var protocol: LPProtocol = new LPProtocol
       proc testHandler(conn: Connection,
                        proto: string): 
                        Future[void] {.async, gcsafe.} = discard
@@ -233,7 +233,7 @@ suite "Multistream select":
       let seckey = PrivateKey.random(RSA)
       var peerInfo: PeerInfo
       peerInfo.peerId = PeerID.init(seckey)
-      var protocol: LPProtocol = newProtocol(LPProtocol, peerInfo)
+      var protocol: LPProtocol = new LPProtocol
       proc testHandler(conn: Connection,
                        proto: string): 
                        Future[void] {.async, gcsafe.} =
@@ -273,7 +273,7 @@ suite "Multistream select":
       let seckey = PrivateKey.random(RSA)
       var peerInfo: PeerInfo
       peerInfo.peerId = PeerID.init(seckey)
-      var protocol: LPProtocol = newProtocol(LPProtocol, peerInfo)
+      var protocol: LPProtocol = new LPProtocol
       proc testHandler(conn: Connection,
                        proto: string): 
                        Future[void] {.async.} = discard
