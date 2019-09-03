@@ -106,10 +106,10 @@ proc handle*(m: MultisteamSelect, conn: Connection) {.async, gcsafe.} =
         await conn.write(m.na)
 
 proc addHandler*[T: LPProtocol](m: MultisteamSelect,
-                                proto: string,
+                                codec: string,
                                 protocol: T,
                                 matcher: Matcher = nil) =
   ## register a handler for the protocol
-  m.handlers.add(HandlerHolder(proto: proto,
+  m.handlers.add(HandlerHolder(proto: codec,
                                protocol: protocol,
                                match: matcher))
