@@ -17,14 +17,7 @@ type
                           Future[void] {.gcsafe, closure.}
 
   LPProtocol* = ref object of RootObj
-    peerInfo*: PeerInfo
     codec*: string
     handler*: LPProtoHandler ## this handler gets invoked by the protocol negotiator
-
-proc newProtocol*(p: typedesc[LPProtocol],
-                  peerInfo: PeerInfo): p =
-  new result
-  result.peerInfo = peerInfo
-  result.init()
 
 method init*(p: LPProtocol) {.base, gcsafe.} = discard
