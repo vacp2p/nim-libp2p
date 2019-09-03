@@ -34,6 +34,7 @@ type
     protos*: seq[string]
 
   Identify* = ref object of LPProtocol
+    peerInfo*: PeerInfo
 
 proc encodeMsg*(peerInfo: PeerInfo, observedAddrs: Multiaddress): ProtoBuffer = 
   result = initProtoBuffer()
@@ -78,6 +79,11 @@ proc decodeMsg*(buf: seq[byte]): IdentifyInfo =
 
   discard pb.getString(5, result.protoVersion)
   discard pb.getString(6, result.agentVersion)
+
+proc newIdentify*(peerInfo: PeerInfo): Identify =
+  new result
+  result.peerInfo = peerInfo
+  result.init()
 
 method init*(p: Identify) = 
   proc handle(conn: Connection, proto: string) {.async, gcsafe, closure.} =
