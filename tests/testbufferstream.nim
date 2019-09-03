@@ -5,7 +5,7 @@ import ../libp2p/stream/bufferstream
 suite "BufferStream":
   test "push data to buffer":
     proc testPushTo(): Future[bool] {.async.} =
-      proc writeHandler(data: seq[byte]) = discard
+      proc writeHandler(data: seq[byte]) {.async, gcsafe.} = discard
       let buff = newBufferStream(writeHandler, 16)
       check buff.len == 0
       var data: seq[char]
@@ -19,7 +19,7 @@ suite "BufferStream":
 
   test "push and wait":
     proc testPushTo(): Future[bool] {.async.} =
-      proc writeHandler(data: seq[byte]) = discard
+      proc writeHandler(data: seq[byte]) {.async, gcsafe.} = discard
       let buff = newBufferStream(writeHandler, 4)
       check buff.len == 0
 
@@ -36,7 +36,7 @@ suite "BufferStream":
 
   test "read":
     proc testRead(): Future[bool] {.async.} =
-      proc writeHandler(data: seq[byte]) = discard
+      proc writeHandler(data: seq[byte]) {.async, gcsafe.} = discard
       let buff = newBufferStream(writeHandler, 10)
       check buff.len == 0
 
@@ -50,7 +50,7 @@ suite "BufferStream":
 
   test "read with size":
     proc testRead(): Future[bool] {.async.} =
-      proc writeHandler(data: seq[byte]) = discard
+      proc writeHandler(data: seq[byte]) {.async, gcsafe.} = discard
       let buff = newBufferStream(writeHandler, 10)
       check buff.len == 0
 
@@ -65,7 +65,7 @@ suite "BufferStream":
 
   test "read and wait":
     proc testRead(): Future[bool] {.async.} =
-      proc writeHandler(data: seq[byte]) = discard
+      proc writeHandler(data: seq[byte]) {.async, gcsafe.} = discard
       let buff = newBufferStream(writeHandler, 10)
       check buff.len == 0
 
@@ -84,7 +84,7 @@ suite "BufferStream":
 
   test "readExactly":
     proc testReadExactly(): Future[bool] {.async.} =
-      proc writeHandler(data: seq[byte]) = discard
+      proc writeHandler(data: seq[byte]) {.async, gcsafe.} = discard
       let buff = newBufferStream(writeHandler, 10)
       check buff.len == 0
 
@@ -100,7 +100,7 @@ suite "BufferStream":
 
   test "readLine":
     proc testReadLine(): Future[bool] {.async.} =
-      proc writeHandler(data: seq[byte]) = discard
+      proc writeHandler(data: seq[byte]) {.async, gcsafe.} = discard
       let buff = newBufferStream(writeHandler, 16)
       check buff.len == 0
 
@@ -114,7 +114,7 @@ suite "BufferStream":
 
   test "readOnce":
     proc testReadOnce(): Future[bool] {.async.} =
-      proc writeHandler(data: seq[byte]) = discard
+      proc writeHandler(data: seq[byte]) {.async, gcsafe.} = discard
       let buff = newBufferStream(writeHandler, 10)
       check buff.len == 0
 
@@ -132,7 +132,7 @@ suite "BufferStream":
 
   test "readUntil":
     proc testReadUntil(): Future[bool] {.async.} =
-      proc writeHandler(data: seq[byte]) = discard
+      proc writeHandler(data: seq[byte]) {.async, gcsafe.} = discard
       let buff = newBufferStream(writeHandler, 10)
       check buff.len == 0
 
@@ -150,7 +150,7 @@ suite "BufferStream":
 
   test "write ptr":
     proc testWritePtr(): Future[bool] {.async.} =
-      proc writeHandler(data: seq[byte]) = 
+      proc writeHandler(data: seq[byte]) {.async, gcsafe.} = 
         check cast[string](data) == "Hello!"
 
       let buff = newBufferStream(writeHandler, 10)
@@ -165,7 +165,7 @@ suite "BufferStream":
 
   test "write string":
     proc testWritePtr(): Future[bool] {.async.} =
-      proc writeHandler(data: seq[byte]) = 
+      proc writeHandler(data: seq[byte]) {.async, gcsafe.} = 
         check cast[string](data) == "Hello!"
 
       let buff = newBufferStream(writeHandler, 10)
@@ -179,7 +179,7 @@ suite "BufferStream":
 
   test "write bytes":
     proc testWritePtr(): Future[bool] {.async.} =
-      proc writeHandler(data: seq[byte]) = 
+      proc writeHandler(data: seq[byte]) {.async, gcsafe.} = 
         check cast[string](data) == "Hello!"
 
       let buff = newBufferStream(writeHandler, 10)
