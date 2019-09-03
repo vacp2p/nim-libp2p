@@ -18,7 +18,7 @@ suite "Identify":
         peerInfo.peerId = PeerID.init(remoteSeckey)
         peerInfo.addrs.add(ma)
 
-        let identifyProto = newProtocol(Identify, peerInfo)
+        let identifyProto = newIdentify(peerInfo)
         let msListen = newMultistream()
 
         msListen.addHandler(IdentifyCodec, identifyProto)
@@ -38,7 +38,7 @@ suite "Identify":
         peerInfo.peerId = PeerID.init(seckey)
         peerInfo.addrs.add(ma)
 
-        let identifyProto = newProtocol(Identify, peerInfo)
+        let identifyProto = newIdentify(peerInfo)
         let res = await msDial.select(conn, IdentifyCodec)
 
         let id = await identifyProto.identify(conn)
