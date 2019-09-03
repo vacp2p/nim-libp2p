@@ -8,7 +8,9 @@
 ## those terms.
 
 import chronos
-import peerinfo, multiaddress, stream/lpstream, peerinfo, varint, vbuffer
+import peerinfo, multiaddress, 
+       stream/lpstream, peerinfo, 
+       varint, vbuffer
 
 const DefaultReadSize: uint = 64 * 1024
 
@@ -102,11 +104,6 @@ proc writeLp*(s: Connection, msg: string | seq[byte]) {.async, gcsafe.} =
   buf.writeSeq(msg)
   buf.finish()
   result = s.write(buf.buffer)
-
-method getPeerInfo*(c: Connection): Future[PeerInfo] {.base, async, gcsafe.} =
-  ## get up to date peer info
-  ## TODO: implement PeerInfo refresh over identify
-  discard
 
 method getObservedAddrs*(c: Connection): Future[MultiAddress] {.base, async, gcsafe.} =
   ## get resolved multiaddresses for the connection
