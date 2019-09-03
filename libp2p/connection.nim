@@ -12,7 +12,7 @@ import peerinfo, multiaddress,
        stream/lpstream, peerinfo, 
        varint, vbuffer
 
-const DefaultReadSize: uint = 64 * 1024
+const DefaultReadSize*: uint = 64 * 1024
 
 type
   Connection* = ref object of LPStream
