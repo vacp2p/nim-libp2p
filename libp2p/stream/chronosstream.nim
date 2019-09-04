@@ -55,10 +55,14 @@ method write*(s: ChronosStream, msg: seq[byte], msglen = -1) {.async, gcsafe.} =
   await s.writer.write(msg, msglen)
 
 method close*(s: ChronosStream) {.async, gcsafe.} =
-  await s.reader.closeWait()
+  if not s.closed:
+    if not s.reader.closed:
+      await s.reader.closeWait()
 
-  await s.writer.finish()
-  await s.writer.closeWait()
+    await s.writer.finish()
 
-  await s.client.closeWait()
-  s.closed = true
+    if not s.writer.closed:
+      await s.writer.closeWait()
+
+    await s.client.closeWait()
+    s.closed = true
