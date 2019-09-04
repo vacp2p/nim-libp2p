@@ -68,12 +68,12 @@ proc reset*(s: Channel) {.async.} =
   await allFutures(s.resetMessage(), s.remoteReset())
 
 proc isReadEof(s: Channel): bool = 
-  bool((s.closedRemote or s.closedLocal) and s.len() <= 0)
+  bool((s.closedRemote or s.closedLocal) and s.len() < 1)
 
-method pushTo*(s: Channel, data: seq[byte]): Future[void] {.gcsafe.} =
+proc pushTo*(s: Channel, data: seq[byte]): Future[void] {.gcsafe.} =
   if s.closedRemote:
     raise newLPStreamClosedError()
-  result = procCall pushTo(BufferStream(s), data)  
+  result = procCall pushTo(BufferStream(s), data)
 
 method read*(s: Channel, n = -1): Future[seq[byte]] {.gcsafe.} =
   if s.isReadEof():
