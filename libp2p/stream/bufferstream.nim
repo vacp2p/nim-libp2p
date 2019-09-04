@@ -50,13 +50,16 @@ proc requestReadBytes(s: BufferStream): Future[int] =
   result = newFuture[int]()
   s.readReqs.addLast(result)
 
+proc initBufferStream*(s: BufferStream, handler: WriteHandler, size: int = 1024) = 
+  s.maxSize = if isPowerOfTwo(size): size else: nextPowerOfTwo(size)
+  s.readBuf = initDeque[byte](s.maxSize)
+  s.readReqs = initDeque[Future[int]]()
+  s.dataReadEvent = newAsyncEvent()
+  s.writeHandler = handler
+
 proc newBufferStream*(handler: WriteHandler, size: int = 1024): BufferStream =
   new result
-  result.maxSize = if isPowerOfTwo(size): size else: nextPowerOfTwo(size)
-  result.readBuf = initDeque[byte](result.maxSize)
-  result.readReqs = initDeque[Future[int]]()
-  result.dataReadEvent = newAsyncEvent()
-  result.writeHandler = handler
+  result.initBufferStream(handler, size)
 
 proc popFirst*(s: BufferStream): byte = 
   result = s.readBuf.popFirst()
@@ -117,12 +120,13 @@ method readExactly*(s: BufferStream,
   ## Read exactly ``nbytes`` bytes from read-only stream ``rstream`` and store
   ## it to ``pbytes``.
   ##
-  ## If EOF is received and ``nbytes`` is not yet readed, the procedure
+  ## If EOF is received and ``nbytes`` is not yet read, the procedure
   ## will raise ``LPStreamIncompleteError``.
-  if nbytes > s.readBuf.len():
+  let buff = await s.read(nbytes)
+
+  if nbytes > buff.len():
     raise newLPStreamIncompleteError()
 
-  let buff = await s.read(nbytes)
   copyMem(pbytes, unsafeAddr buff[0], nbytes)
 
 method readLine*(s: BufferStream, 
