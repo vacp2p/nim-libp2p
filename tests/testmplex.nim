@@ -37,31 +37,31 @@ proc newTestDecodeStream(): TestDecodeStream =
   result.msg = fromHex("8801023137")
 
 suite "Mplex":
-  # test "encode header":
-  #   proc testEncodeHeader(): Future[bool] {.async.} =
-  #     proc encHandler(msg: seq[byte]) =
-  #       check msg == fromHex("880102")
+  test "encode header":
+    proc testEncodeHeader(): Future[bool] {.async.} =
+      proc encHandler(msg: seq[byte]) =
+        check msg == fromHex("880102")
       
-  #     let conn = newConnection(newTestEncodeStream(encHandler))
-  #     await conn.writeHeader(17, MessageType.New, 2)
-  #     result = true
+      let conn = newConnection(newTestEncodeStream(encHandler))
+      await conn.writeHeader(17, MessageType.New, 2)
+      result = true
 
-  #   check:
-  #     waitFor(testEncodeHeader()) == true
+    check:
+      waitFor(testEncodeHeader()) == true
 
-  # test "decode header":
-  #   proc testDecodeHeader(): Future[bool] {.async.} =
-  #     let conn = newConnection(newTestDecodeStream())
-  #     let (id, msgType) = await conn.readHeader()
+  test "decode header":
+    proc testDecodeHeader(): Future[bool] {.async.} =
+      let conn = newConnection(newTestDecodeStream())
+      let (id, msgType) = await conn.readHeader()
 
-  #     check id == 17
-  #     check msgType == MessageType.New
-  #     let data = await conn.readLp()
-  #     check cast[string](data) == "17"
-  #     result = true
+      check id == 17
+      check msgType == MessageType.New
+      let data = await conn.readLp()
+      check cast[string](data) == "17"
+      result = true
 
-  #   check:
-  #     waitFor(testDecodeHeader()) == true
+    check:
+      waitFor(testDecodeHeader()) == true
     
     test "e2e - read/write initiator":
       proc testNewStream(): Future[bool] {.async.} =
