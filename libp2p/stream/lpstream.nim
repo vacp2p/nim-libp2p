@@ -21,6 +21,7 @@ type
     par*: ref Exception
   LPStreamWriteError* = object of LPStreamError
     par*: ref Exception
+  LPStreamClosedError* = object of LPStreamError
 
 proc newLPStreamReadError*(p: ref Exception): ref Exception {.inline.} =
   var w = newException(LPStreamReadError, "Read stream failed")
@@ -42,6 +43,9 @@ proc newLPStreamLimitError*(): ref Exception {.inline.} =
 
 proc newLPStreamIncorrectError*(m: string): ref Exception {.inline.} =
   result = newException(LPStreamIncorrectError, m)
+
+proc newLPStreamClosedError*(): ref Exception {.inline.} =
+  result = newException(LPStreamClosedError, "Stream closed!")
 
 method read*(s: LPStream, n = -1): Future[seq[byte]]
   {.base, async, gcsafe.} =
