@@ -25,5 +25,3 @@ type
     CloseOut,
     ResetIn,
     ResetOut
-
-  StreamHandler* = proc(conn: Connection): Future[void] {.gcsafe.}
