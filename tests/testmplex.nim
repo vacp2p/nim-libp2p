@@ -178,3 +178,12 @@ suite "Mplex":
 
     expect LPStreamClosedError:
       waitFor(testResetWrite())
+
+  test "should not allow pushing data to channel when remote end closed":
+    proc testResetWrite(): Future[void] {.async.} =
+      let chann = newChannel(1, newConnection(new LPStream), true)
+      await chann.closeRemote()
+      await chann.pushTo(@[byte(1)])
+
+    expect LPStreamClosedError:
+      waitFor(testResetWrite())
