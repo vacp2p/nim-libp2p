@@ -9,3 +9,4 @@ build/
 *.la
 *.exe
 *.dll
+.vscode/

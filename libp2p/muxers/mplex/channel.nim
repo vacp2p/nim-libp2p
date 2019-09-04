@@ -50,7 +50,7 @@ proc closeMessage(s: Channel) {.async, gcsafe.} =
 proc closed*(s: Channel): bool = 
   s.closedLocal
 
-proc closeRemote*(s: Channel) {.async.} = 
+proc closedByRemote*(s: Channel) {.async.} = 
   s.closedRemote = true
 
 method close*(s: Channel) {.async, gcsafe.} =
@@ -58,14 +58,14 @@ method close*(s: Channel) {.async, gcsafe.} =
   await s.closeMessage()
 
 proc resetMessage(s: Channel) {.async, gcsafe.} =
-  await s.conn.writeHeader(s.id, s.resetCode, 0) # write header
+  await s.conn.writeHeader(s.id, s.resetCode, 0)
 
-proc remoteReset*(s: Channel) {.async, gcsafe.} =
-  await allFutures(s.close(), s.closeRemote())
+proc resetByRemote*(s: Channel) {.async, gcsafe.} =
+  await allFutures(s.close(), s.closedByRemote())
   s.isReset = true
 
 proc reset*(s: Channel) {.async.} =
-  await allFutures(s.resetMessage(), s.remoteReset())
+  await allFutures(s.resetMessage(), s.resetByRemote())
 
 proc isReadEof(s: Channel): bool = 
   bool((s.closedRemote or s.closedLocal) and s.len() < 1)
