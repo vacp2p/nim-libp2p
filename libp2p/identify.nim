@@ -7,10 +7,12 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
+import options
 import chronos
 import protobuf/minprotobuf, peerinfo, 
        protocol as proto, connection,
-       peer, crypto/crypto, multiaddress
+       peer, crypto/crypto, multiaddress,
+       crypto/crypto
 
 const IdentifyCodec* = "/ipfs/id/1.0.0"
 const IdentifyPushCodec* = "/ipfs/id/push/1.0.0"
@@ -20,10 +22,7 @@ const AgentVersion* = "nim-libp2p/0.0.1"
 #TODO: implment push identify, leaving out for now as it is not essential
 
 type
-  # TODO: we're doing protobuf manualy, this is only temporary
-  ProtoField[T] = object
-    index: int
-    field: T
+  IdentityNoMatchError* = object of CatchableError
 
   IdentifyInfo* = object
     pubKey*: PublicKey
@@ -92,11 +91,18 @@ method init*(p: Identify) =
 
   p.handler = handle
 
-proc identify*(p: Identify, conn: Connection): Future[IdentifyInfo] {.async.} = 
+proc identify*(p: Identify, 
+               conn: Connection, 
+               remotePeerInfo: Option[PeerInfo] = none(PeerInfo)): 
+               Future[IdentifyInfo] {.async.} = 
   var message = await conn.readLp()
   if len(message) == 0:
     raise newException(CatchableError, "Incorrect or empty message received!")
   result = decodeMsg(message)
+  if remotePeerInfo.isSome and 
+      remotePeerInfo.get().peerId.publicKey != result.pubKey:
+    raise newException(IdentityNoMatchError, 
+      "Peer's remote public key doesn't match")
 
 proc push*(p: Identify, conn: Connection) {.async.} =
   await conn.write(IdentifyPushCodec)
