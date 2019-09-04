@@ -26,7 +26,7 @@
 ## and are suspended when not enough data available. This
 ## allows preserving backpressure while maintaining full 
 ## asynchrony. Both writting to the internal buffer  with 
-## ``pushTo`` as well as reading with ``read`` and ``readOnce``, 
+## ``pushTo`` as well as reading with ``read*` methods, 
 ## will suspend until either the amount of elements in the 
 ## buffer goes below ``maxSize`` or more data becomes available.
 
@@ -165,9 +165,9 @@ method readLine*(s: BufferStream,
         break
     inc(index)
 
-method readOnce*(s: BufferStream, 
-                 pbytes: pointer, 
-                 nbytes: int): 
+method readOnce*(s: BufferStream,
+                 pbytes: pointer,
+                 nbytes: int):
                  Future[int] {.async, gcsafe.} =
   ## Perform one read operation on read-only stream ``rstream``.
   ##
