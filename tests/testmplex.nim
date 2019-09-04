@@ -1,8 +1,14 @@
 import unittest, sequtils, sugar
 import chronos, nimcrypto/utils
-import ../libp2p/muxers/mplex, ../libp2p/connection,
-       ../libp2p/stream/lpstream, ../libp2p/tcptransport,
-       ../libp2p/transport, ../libp2p/multiaddress
+import ../libp2p/connection, 
+       ../libp2p/stream/lpstream, 
+       ../libp2p/tcptransport, 
+       ../libp2p/transport, 
+       ../libp2p/multiaddress,
+       ../libp2p/muxers/mplex/mplex, 
+       ../libp2p/muxers/mplex/coder, 
+       ../libp2p/muxers/mplex/types,
+       ../libp2p/muxers/mplex/channel
 
 type
   TestEncodeStream = ref object of LPStream
