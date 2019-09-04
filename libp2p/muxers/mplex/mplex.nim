@@ -9,27 +9,13 @@
 
 import tables, sequtils
 import chronos
-import ../varint, ../connection, 
-       ../vbuffer, ../protocol,
-       ../stream/bufferstream, ../stream/lpstream, 
-       muxer
+import ../../varint, ../../connection, 
+       ../../vbuffer, ../../protocol,
+       ../../stream/bufferstream, 
+       ../../stream/lpstream, ../muxer,
+       coder, types, channel
 
-const MaxMsgSize* = 1 shl 20 # 1mb
-const MaxChannels* = 1000
-const MplexCodec* = "/mplex/6.7.0"
-
-type 
-  MplexUnknownMsgError* = object of CatchableError
-  MessageType* {.pure.} = enum
-    New,
-    MsgIn,
-    MsgOut,
-    CloseIn,
-    CloseOut,
-    ResetIn,
-    ResetOut
-
-  StreamHandler = proc(conn: Connection): Future[void] {.gcsafe.}
+type
   Mplex* = ref object of Muxer
     remote*: Table[int, Channel]
     local*: Table[int, Channel]
@@ -37,70 +23,8 @@ type
     maxChannels*: uint
     streamHandler*: StreamHandler
 
-  Channel* = ref object of BufferStream
-    id*: int
-    initiator*: bool
-    isReset*: bool
-    closedLocal*: bool
-    closedRemote*: bool
-    mplex*: Mplex
-    handlerFuture*: Future[void]
-
-proc newMplexUnknownMsgError*(): ref MplexUnknownMsgError =
+proc newMplexUnknownMsgError(): ref MplexUnknownMsgError =
   result = newException(MplexUnknownMsgError, "Unknown mplex message type")
-
-##########################################
-##           Read/Write Helpers
-##########################################
-
-proc readHeader*(conn: Connection): Future[(uint, MessageType)] {.async, gcsafe.} = 
-  var
-    header: uint
-    length: int
-    res: VarintStatus
-  var buffer = newSeq[byte](10)
-  try:
-    for i in 0..<len(buffer):
-      await conn.readExactly(addr buffer[i], 1)
-      res = LP.getUVarint(buffer.toOpenArray(0, i), length, header)
-      if res == VarintStatus.Success:
-        return (header shr 3, MessageType(header and 0x7))
-    if res != VarintStatus.Success:
-      buffer.setLen(0)
-      return
-  except LPStreamIncompleteError:
-    buffer.setLen(0)
-
-proc writeHeader*(conn: Connection,
-                  id: int,
-                  msgType: MessageType, 
-                  size: int) {.async, gcsafe.} =
-  ## write lenght prefixed
-  var buf = initVBuffer()
-  buf.writeVarint(LPSomeUVarint(id.uint shl 3 or msgType.uint))
-  if size > 0:
-    buf.writeVarint(LPSomeUVarint(size.uint))
-  buf.finish()
-  result = conn.write(buf.buffer)
-
-##########################################
-##               Channel
-##########################################
-
-proc newChannel*(mplex: Mplex,
-                 id: int,
-                 initiator: bool,
-                 handler: WriteHandler,
-                 size: int = MaxMsgSize): Channel = 
-  new result
-  result.id = id
-  result.mplex = mplex
-  result.initiator = initiator
-  result.initBufferStream(handler, size)
-
-proc closed*(s: Channel): bool = s.closedLocal and s.closedRemote
-proc close*(s: Channel) {.async.} = discard
-proc reset*(s: Channel) {.async.} = discard
 
 ##########################################
 ##               Mplex
@@ -123,7 +47,7 @@ proc newStreamInternal*(m: Mplex,
     await m.connection.writeHeader(id, msgType, data.len) # write header
     await m.connection.write(data) # write data
 
-  result = newChannel(m, id, initiator, writeHandler)
+  result = newChannel(id, initiator, writeHandler)
   m.getChannelList(initiator)[id] = result
 
 proc newStreamInternal*(m: Mplex): Future[Channel] {.gcsafe.} = 
