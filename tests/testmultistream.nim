@@ -143,7 +143,7 @@ suite "Multistream select":
     proc testSelect(): Future[bool] {.async.} =
       let ms = newMultistream()
       let conn = newConnection(newTestSelectStream())
-      result = await ms.select(conn, @["/test/proto/1.0.0"])
+      result = (await ms.select(conn, @["/test/proto/1.0.0"])) == "/test/proto/1.0.0"
 
     check:
       waitFor(testSelect()) == true
@@ -255,8 +255,7 @@ suite "Multistream select":
       let transport2: TcpTransport = newTransport(TcpTransport)
       let conn = await transport2.dial(ma)
 
-      let res = await msDial.select(conn, @["/test/proto/1.0.0"])
-      check res == true
+      check (await msDial.select(conn, @["/test/proto/1.0.0"])) == "/test/proto/1.0.0"
 
       let hello = cast[string](await conn.readLp())
       result = hello == "Hello!"
@@ -328,8 +327,8 @@ suite "Multistream select":
       let transport2: TcpTransport = newTransport(TcpTransport)
       let conn = await transport2.dial(ma)
 
-      let res = await msDial.select(conn, @["/test/proto/1.0.0", "/test/no/proto/1.0.0"])
-      check res == true
+      check (await msDial.select(conn, 
+        @["/test/proto/1.0.0", "/test/no/proto/1.0.0"])) == "/test/proto/1.0.0"
 
       let hello = cast[string](await conn.readLp())
       result = hello == "Hello!"
@@ -367,11 +366,9 @@ suite "Multistream select":
       let transport2: TcpTransport = newTransport(TcpTransport)
       let conn = await transport2.dial(ma)
 
-      let res = await msDial.select(conn, @["/test/proto2/1.0.0", "/test/proto1/1.0.0"])
-      check res == true
+      check (await msDial.select(conn, @["/test/proto2/1.0.0", "/test/proto1/1.0.0"])) == "/test/proto2/1.0.0"
 
-      let hello = cast[string](await conn.readLp())
-      result = hello == "Hello from /test/proto2/1.0.0!"
+      result = cast[string](await conn.readLp()) == "Hello from /test/proto2/1.0.0!"
       await conn.close()
 
     check:

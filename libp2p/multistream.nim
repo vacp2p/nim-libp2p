@@ -40,7 +40,8 @@ proc newMultistream*(): MultisteamSelect =
 
 proc select*(m: MultisteamSelect,
              conn: Connection,
-             proto: seq[string]): Future[bool] {.async.} =
+             proto: seq[string]): 
+             Future[string] {.async.} =
   ## select a remote protocol
   await conn.write(m.codec)   # write handshake
   if proto.len() > 0:
@@ -49,36 +50,41 @@ proc select*(m: MultisteamSelect,
   var ms = cast[string](await conn.readLp()) # read ms header
   ms.removeSuffix("\n")
   if ms != Codec:
-    return false
+    return ""
 
   if proto.len() == 0: # no protocols, must be a handshake call
-    return true
+    return ""
 
   ms = cast[string](await conn.readLp()) # read the first proto
   ms.removeSuffix("\n")
-  result = ms == proto[0]
+  if ms == proto[0]:
+    result = ms
 
-  if not result:
+  if not result.len > 0:
     for p in proto[1..<proto.len()]:
       await conn.writeLp(p) # select proto
       ms = cast[string](await conn.readLp()) # read the first proto
       ms.removeSuffix("\n")
-      result = ms == p
-      if result: 
+      if ms == p:
+        result = p
         break
 
 proc select*(m: MultisteamSelect,
              conn: Connection,
-             proto: string = ""): Future[bool] = 
-  result =  if proto.len > 0: m.select(conn, @[proto]) else: m.select(conn, @[])
+             proto: string): Future[string] = 
+  result = if proto.len > 0: m.select(conn, @[proto]) else: m.select(conn, @[])
+
+proc select*(m: MultisteamSelect,
+             conn: Connection): Future[string] = 
+  result = m.select(conn, @[])
 
 proc list*(m: MultisteamSelect,
            conn: Connection): Future[seq[string]] {.async.} =
   ## list remote protos requests on connection
-  if not (await m.select(conn)):
+  if not (await m.select(conn)).len > 0:
     return
 
-  await conn.write(m.ls)      # send ls
+  await conn.write(m.ls) # send ls
 
   var list = newSeq[string]()
   let ms = cast[string](await conn.readLp())
@@ -90,7 +96,7 @@ proc list*(m: MultisteamSelect,
 
 proc handle*(m: MultisteamSelect, conn: Connection) {.async, gcsafe.} =
   ## handle requests on connection
-  if not (await m.select(conn)):
+  if not (await m.select(conn)).len > 0:
     return
 
   while not conn.closed:
