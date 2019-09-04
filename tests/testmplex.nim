@@ -43,7 +43,7 @@ suite "Mplex":
   #       check msg == fromHex("880102")
       
   #     let conn = newConnection(newTestEncodeStream(encHandler))
-  #     await conn.writeHeader(uint(17), MessageType.New, 2)
+  #     await conn.writeHeader(17, MessageType.New, 2)
   #     result = true
 
   #   check:
@@ -63,15 +63,16 @@ suite "Mplex":
   #   check:
   #     waitFor(testDecodeHeader()) == true
     
-    test "e2e - new stream":
+    test "e2e - read/write initiator":
       proc testNewStream(): Future[bool] {.async.} =
-        let ma: MultiAddress = Multiaddress.init("/ip4/127.0.0.1/tcp/53351")
+        let ma: MultiAddress = Multiaddress.init("/ip4/127.0.0.1/tcp/53380")
 
         proc connHandler(conn: Connection) {.async, gcsafe.} =
-          proc handleListen(stream: Connection) {.async, gcsafe.} =
+          proc handleMplexListen(stream: Connection) {.async, gcsafe.} = 
             await stream.writeLp("Hello from stream!")
+            await stream.close()
 
-          let mplexListen = newMplex(conn, handleListen)
+          let mplexListen = newMplex(conn, handleMplexListen)
           await mplexListen.handle()
 
         let transport1: TcpTransport = newTransport(TcpTransport)
@@ -79,11 +80,45 @@ suite "Mplex":
 
         let transport2: TcpTransport = newTransport(TcpTransport)
         let conn = await transport2.dial(ma)
-        proc handleDial(stream: Connection) {.async, gcsafe.} =
-          let msg = await stream.readLp()
 
+        proc handleDial(stream: Connection) {.async, gcsafe.} = discard
         let mplexDial = newMplex(conn, handleDial)
-        let handleFut = mplexDial.handle()
+        let dialFut = mplexDial.handle()
+        let stream  = await mplexDial.newStream()
+        check cast[string](await stream.readLp()) == "Hello from stream!"
+
+        await conn.close()
+        await dialFut
+        result = true
+
+      check:
+        waitFor(testNewStream()) == true
+
+    test "e2e - read/write receiver":
+      proc testNewStream(): Future[bool] {.async.} =
+        let ma: MultiAddress = Multiaddress.init("/ip4/127.0.0.1/tcp/53381")
+
+        proc connHandler(conn: Connection) {.async, gcsafe.} =
+          proc handleMplexListen(stream: Connection) {.async, gcsafe.} = 
+            let msg = await stream.readLp()
+            check cast[string](msg) == "Hello from stream!"
+            await stream.close()
+
+          let mplexListen = newMplex(conn, handleMplexListen)
+          await mplexListen.handle()
+
+        let transport1: TcpTransport = newTransport(TcpTransport)
+        await transport1.listen(ma, connHandler)
+
+        let transport2: TcpTransport = newTransport(TcpTransport)
+        let conn = await transport2.dial(ma)
+
+        proc handleDial(stream: Connection) {.async, gcsafe.} = discard
+        let mplexDial = newMplex(conn, handleDial)
+        let dialFut = mplexDial.handle()
+        let stream  = await mplexDial.newStream()
+        await stream.writeLp("Hello from stream!")
+        await dialFut
         result = true
 
       check:
