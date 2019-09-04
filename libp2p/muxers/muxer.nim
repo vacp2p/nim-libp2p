@@ -32,3 +32,4 @@ method init(c: MuxerProvider) =
 
 method newStream*(m: Muxer): Future[Connection] {.base, async, gcsafe.} = discard
 method close*(m: Muxer) {.base, async, gcsafe.} = discard
+method handle*(m: Muxer): Future[void] {.base, async, gcsafe.} = discard

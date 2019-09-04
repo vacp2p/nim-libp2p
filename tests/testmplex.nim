@@ -47,10 +47,10 @@ suite "Mplex":
   test "encode header":
     proc testEncodeHeader(): Future[bool] {.async.} =
       proc encHandler(msg: seq[byte]) =
-        check msg == fromHex("880102")
+        check msg == fromHex("886f04")
       
       let conn = newConnection(newTestEncodeStream(encHandler))
-      await conn.writeHeader(17, MessageType.New, 2)
+      await conn.writeHeader(1777, MessageType.New, 4)
       result = true
 
     check:
@@ -143,7 +143,7 @@ suite "Mplex":
   test "half closed - channel should close for read":
     proc testClosedForRead(): Future[void] {.async.} =
       let chann = newChannel(1, newConnection(new LPStream), true)
-      await chann.closeRemote()
+      await chann.closedByRemote()
       asyncDiscard chann.read()
 
     expect LPStreamClosedError:
@@ -182,7 +182,7 @@ suite "Mplex":
   test "should not allow pushing data to channel when remote end closed":
     proc testResetWrite(): Future[void] {.async.} =
       let chann = newChannel(1, newConnection(new LPStream), true)
-      await chann.closeRemote()
+      await chann.closedByRemote()
       await chann.pushTo(@[byte(1)])
 
     expect LPStreamClosedError:
