@@ -9,7 +9,7 @@
 
 import chronos
 import ../../connection, ../../varint, 
-       ../../vbuffer, mplex, types,
+       ../../vbuffer, types,
        ../../stream/lpstream
 
 proc readHeader*(conn: Connection): Future[(uint, MessageType)] {.async, gcsafe.} = 

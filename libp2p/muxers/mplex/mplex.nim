@@ -26,10 +26,6 @@ type
 proc newMplexUnknownMsgError(): ref MplexUnknownMsgError =
   result = newException(MplexUnknownMsgError, "Unknown mplex message type")
 
-##########################################
-##               Mplex
-##########################################
-
 proc getChannelList(m: Mplex, initiator: bool): var Table[int, Channel] =
   if initiator:
     result = m.remote
@@ -42,12 +38,7 @@ proc newStreamInternal*(m: Mplex,
                         Future[Channel] {.async, gcsafe.} = 
   ## create new channel/stream
   let id = if initiator: m.currentId.inc(); m.currentId else: chanId
-  proc writeHandler(data: seq[byte]): Future[void] {.async, gcsafe.} = 
-    let msgType = if initiator: MessageType.MsgOut else: MessageType.MsgIn
-    await m.connection.writeHeader(id, msgType, data.len) # write header
-    await m.connection.write(data) # write data
-
-  result = newChannel(id, initiator, writeHandler)
+  result = newChannel(id, m.connection, initiator)
   m.getChannelList(initiator)[id] = result
 
 proc newStreamInternal*(m: Mplex): Future[Channel] {.gcsafe.} = 
@@ -68,7 +59,7 @@ proc handle*(m: Mplex): Future[void] {.async, gcsafe.} =
           await channel.pushTo(msg)
         of MessageType.CloseIn, MessageType.CloseOut:
           let channel = m.getChannelList(initiator)[id.int]
-          await channel.close()
+          await channel.closeRemote()
         of MessageType.ResetIn, MessageType.ResetOut:
           let channel = m.getChannelList(initiator)[id.int]
           await channel.reset()
