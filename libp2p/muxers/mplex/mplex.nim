@@ -7,12 +7,14 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-## TODO: I have to be carefull to clean up channels correctly
+## TODO: I have to be carefull to clean up channels correctly,
 ## both by removing them from the internal tables as well as
-## cleaning up when the channel is completelly finished, this
-## is complicated because half closed makes it non-deterministic.
-## This still needs to be implemented properly - I'm leaving it here
-## to not forget that this needs to be fixed ASAP.
+## cleaning up when the channel is completelly finished. This
+## is complicated because half-closed streams makes closing 
+## channels non non-deterministic. 
+## 
+## This still needs to be implemented properly - I'm leaving it 
+## here to not forget that this needs to be fixed ASAP.
 
 import tables, sequtils
 import chronos
@@ -28,7 +30,6 @@ type
     local*: Table[int, Channel]
     currentId*: int
     maxChannels*: uint
-    streamHandler*: StreamHandler
 
 proc newMplexUnknownMsgError(): ref MplexUnknownMsgError =
   result = newException(MplexUnknownMsgError, "Unknown mplex message type")
@@ -59,7 +60,8 @@ method handle*(m: Mplex): Future[void] {.async, gcsafe.} =
       case msgType:
         of MessageType.New:
           let channel = await m.newStreamInternal(false, id.int)
-          channel.handlerFuture = m.streamHandler(newConnection(channel))
+          if not isNil(m.streamHandler):
+            channel.handlerFuture = m.streamHandler(newConnection(channel))
         of MessageType.MsgIn, MessageType.MsgOut:
           let channel = m.getChannelList(initiator)[id.int]
           let msg = await m.connection.readLp()
@@ -79,12 +81,10 @@ method handle*(m: Mplex): Future[void] {.async, gcsafe.} =
     await m.connection.close()
 
 proc newMplex*(conn: Connection, 
-               streamHandler: StreamHandler, 
                maxChanns: uint = MaxChannels): Mplex =
   new result
   result.connection = conn
   result.maxChannels = maxChanns
-  result.streamHandler = streamHandler
   result.remote = initTable[int, Channel]()
   result.local = initTable[int, Channel]()
 

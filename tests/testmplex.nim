@@ -79,7 +79,8 @@ suite "Mplex":
           await stream.writeLp("Hello from stream!")
           await stream.close()
 
-        let mplexListen = newMplex(conn, handleMplexListen)
+        let mplexListen = newMplex(conn)
+        mplexListen.streamHandler = handleMplexListen
         await mplexListen.handle()
 
       let transport1: TcpTransport = newTransport(TcpTransport)
@@ -88,8 +89,7 @@ suite "Mplex":
       let transport2: TcpTransport = newTransport(TcpTransport)
       let conn = await transport2.dial(ma)
 
-      proc handleDial(stream: Connection) {.async, gcsafe.} = discard
-      let mplexDial = newMplex(conn, handleDial)
+      let mplexDial = newMplex(conn)
       let dialFut = mplexDial.handle()
       let stream  = await mplexDial.newStream()
       check cast[string](await stream.readLp()) == "Hello from stream!"
@@ -110,7 +110,8 @@ suite "Mplex":
           check cast[string](msg) == "Hello from stream!"
           await stream.close()
 
-        let mplexListen = newMplex(conn, handleMplexListen)
+        let mplexListen = newMplex(conn)
+        mplexListen.streamHandler = handleMplexListen
         await mplexListen.handle()
 
       let transport1: TcpTransport = newTransport(TcpTransport)
@@ -119,8 +120,7 @@ suite "Mplex":
       let transport2: TcpTransport = newTransport(TcpTransport)
       let conn = await transport2.dial(ma)
 
-      proc handleDial(stream: Connection) {.async, gcsafe.} = discard
-      let mplexDial = newMplex(conn, handleDial)
+      let mplexDial = newMplex(conn)
       let dialFut = mplexDial.handle()
       let stream  = await mplexDial.newStream()
       await stream.writeLp("Hello from stream!")

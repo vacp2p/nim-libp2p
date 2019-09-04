@@ -11,7 +11,10 @@ import chronos
 import ../protocol, ../connection
 
 type
+  StreamHandler* = proc(conn: Connection): Future[void] {.gcsafe.}
+
   Muxer* = ref object of RootObj
+    streamHandler*: StreamHandler
     connection*: Connection
 
   MuxerCreator* = proc(conn: Connection): Muxer {.gcsafe, closure.}
@@ -33,3 +36,6 @@ method init(c: MuxerProvider) =
 method newStream*(m: Muxer): Future[Connection] {.base, async, gcsafe.} = discard
 method close*(m: Muxer) {.base, async, gcsafe.} = discard
 method handle*(m: Muxer): Future[void] {.base, async, gcsafe.} = discard
+
+method `=streamHandler`*(m: Muxer, handler: StreamHandler) {.base, gcsafe.} = 
+  m.streamHandler = handler
