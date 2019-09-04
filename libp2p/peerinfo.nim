@@ -9,7 +9,7 @@
 
 import peer, multiaddress
 
-type PeerInfo* = object of RootRef
+type PeerInfo* = object of RootObj
   peerId*: PeerID
   addrs*: seq[MultiAddress]
   protocols*: seq[string]
