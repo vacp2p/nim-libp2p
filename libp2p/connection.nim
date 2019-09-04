@@ -7,7 +7,7 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import chronos
+import chronos, options
 import peerinfo, multiaddress, 
        stream/lpstream, peerinfo, 
        varint, vbuffer
@@ -16,13 +16,17 @@ const DefaultReadSize*: uint = 64 * 1024
 
 type
   Connection* = ref object of LPStream
-    peerInfo*: PeerInfo
+    peerInfo*: Option[PeerInfo]
     stream*: LPStream
 
 proc newConnection*(stream: LPStream): Connection =
   ## create a new Connection for the specified async reader/writer
   new result
   result.stream = stream
+  result.peerInfo = none(PeerInfo)
+
+proc `=peerInfo`*(s: Connection, peerInfo: PeerInfo) = 
+  s.peerInfo = some(peerInfo)
 
 method read*(s: Connection, n = -1): Future[seq[byte]] {.gcsafe.} =
   result = s.stream.read(n)
