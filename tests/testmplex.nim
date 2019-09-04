@@ -118,6 +118,7 @@ suite "Mplex":
         let dialFut = mplexDial.handle()
         let stream  = await mplexDial.newStream()
         await stream.writeLp("Hello from stream!")
+        await conn.close()
         await dialFut
         result = true
 
