@@ -40,25 +40,37 @@ proc newMultistream*(): MultisteamSelect =
 
 proc select*(m: MultisteamSelect,
              conn: Connection,
-             proto: string = ""): Future[bool] {.async.} =
+             proto: seq[string]): Future[bool] {.async.} =
   ## select a remote protocol
-  ## TODO: select should support a list of protos to be selected
-
   await conn.write(m.codec)   # write handshake
   if proto.len() > 0:
-    await conn.writeLp(proto) # select proto
+    await conn.writeLp(proto[0]) # select proto
 
-  var ms = cast[string](await conn.readLp())
+  var ms = cast[string](await conn.readLp()) # read ms header
   ms.removeSuffix("\n")
   if ms != Codec:
     return false
 
-  if proto.len() <= 0:
+  if proto.len() == 0: # no protocols, must be a handshake call
     return true
 
-  ms = cast[string](await conn.readLp())
+  ms = cast[string](await conn.readLp()) # read the first proto
   ms.removeSuffix("\n")
-  result = ms == proto
+  result = ms == proto[0]
+
+  if not result:
+    for p in proto[1..<proto.len()]:
+      await conn.writeLp(p) # select proto
+      ms = cast[string](await conn.readLp()) # read the first proto
+      ms.removeSuffix("\n")
+      result = ms == p
+      if result: 
+        break
+
+proc select*(m: MultisteamSelect,
+             conn: Connection,
+             proto: string = ""): Future[bool] = 
+  result =  if proto.len > 0: m.select(conn, @[proto]) else: m.select(conn, @[])
 
 proc list*(m: MultisteamSelect,
            conn: Connection): Future[seq[string]] {.async.} =
