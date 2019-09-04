@@ -44,6 +44,7 @@ type
     closedLocal*: bool
     closedRemote*: bool
     mplex*: Mplex
+    handlerFuture*: Future[void]
 
 proc newMplexUnknownMsgError*(): ref MplexUnknownMsgError =
   result = newException(MplexUnknownMsgError, "Unknown mplex message type")
@@ -136,7 +137,7 @@ proc handle*(m: Mplex): Future[void] {.async, gcsafe.} =
       case msgType:
         of MessageType.New:
           let channel = await m.newStreamInternal(false, id.int)
-          await m.streamHandler(newConnection(channel))
+          channel.handlerFuture = m.streamHandler(newConnection(channel))
         of MessageType.MsgIn, MessageType.MsgOut:
           let channel = m.getChannelList(initiator)[id.int]
           let msg = await m.connection.readLp()
