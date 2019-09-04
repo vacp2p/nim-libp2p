@@ -7,6 +7,13 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
+## TODO: I have to be carefull to clean up channels correctly
+## both by removing them from the internal tables as well as
+## cleaning up when the channel is completelly finished, this
+## is complicated because half closed makes it non-deterministic.
+## This still needs to be implemented properly - I'm leaving it here
+## to not forget that this needs to be fixed ASAP.
+
 import tables, sequtils
 import chronos
 import ../../varint, ../../connection, 
@@ -44,7 +51,7 @@ proc newStreamInternal*(m: Mplex,
 proc newStreamInternal*(m: Mplex): Future[Channel] {.gcsafe.} = 
   result = m.newStreamInternal(true, 0)
 
-proc handle*(m: Mplex): Future[void] {.async, gcsafe.} = 
+method handle*(m: Mplex): Future[void] {.async, gcsafe.} = 
   try:
     while not m.connection.closed:
       let (id, msgType) = await m.connection.readHeader()
@@ -59,10 +66,11 @@ proc handle*(m: Mplex): Future[void] {.async, gcsafe.} =
           await channel.pushTo(msg)
         of MessageType.CloseIn, MessageType.CloseOut:
           let channel = m.getChannelList(initiator)[id.int]
-          await channel.closeRemote()
+          await channel.closedByRemote()
+          m.getChannelList(initiator).del(id.int)
         of MessageType.ResetIn, MessageType.ResetOut:
           let channel = m.getChannelList(initiator)[id.int]
-          await channel.reset()
+          await channel.resetByRemote()
         else: raise newMplexUnknownMsgError()
   except Exception as exc:
     #TODO: add proper loging
@@ -88,4 +96,4 @@ method newStream*(m: Mplex): Future[Connection] {.async, gcsafe.} =
 method close*(m: Mplex) {.async, gcsafe.} = 
     await allFutures(@[allFutures(toSeq(m.remote.values).mapIt(it.close())),
                        allFutures(toSeq(m.local.values).mapIt(it.close()))])
-    await m.connection.close()
+    m.connection.reset()
