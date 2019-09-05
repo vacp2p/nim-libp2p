@@ -35,25 +35,26 @@ import chronos
 import ../stream/lpstream
 
 type
-  WriteHandler* = proc (data: seq[byte]): Future[void] {.gcsafe.} # TODO: figure out how to make this generic to avoid casts
+  # TODO: figure out how to make this generic to avoid casts
+  WriteHandler* = proc (data: seq[byte]): Future[void] {.gcsafe.}
 
   BufferStream* = ref object of LPStream
     maxSize*: int # buffer's max size in bytes
     readBuf: Deque[byte] # a deque is based on a ring buffer
-    readReqs: Deque[Future[int]] # use dequeue to fire reads in order
+    readReqs: Deque[Future[void]] # use dequeue to fire reads in order
     dataReadEvent: AsyncEvent
     writeHandler*: WriteHandler
 
-proc requestReadBytes(s: BufferStream): Future[int] = 
+proc requestReadBytes(s: BufferStream): Future[void] = 
   ## create a future that will complete when more 
   ## data becomes available in the read buffer
-  result = newFuture[int]()
+  result = newFuture[void]()
   s.readReqs.addLast(result)
 
 proc initBufferStream*(s: BufferStream, handler: WriteHandler, size: int = 1024) = 
   s.maxSize = if isPowerOfTwo(size): size else: nextPowerOfTwo(size)
   s.readBuf = initDeque[byte](s.maxSize)
-  s.readReqs = initDeque[Future[int]]()
+  s.readReqs = initDeque[Future[void]]()
   s.dataReadEvent = newAsyncEvent()
   s.writeHandler = handler
 
@@ -90,7 +91,7 @@ proc pushTo*(s: BufferStream, data: seq[byte]) {.async, gcsafe.} =
 
     # resolve the next queued read request
     if s.readReqs.len > 0:
-      s.readReqs.popFirst().complete(index + 1)
+      s.readReqs.popFirst().complete()
     
     if index >= data.len:
       break
@@ -111,7 +112,7 @@ method read*(s: BufferStream, n = -1): Future[seq[byte]] {.async, gcsafe.} =
       inc(index)
 
     if index < size:
-      discard await s.requestReadBytes()
+      await s.requestReadBytes()
 
 method readExactly*(s: BufferStream, 
                     pbytes: pointer, 
@@ -174,7 +175,7 @@ method readOnce*(s: BufferStream,
   ## If internal buffer is not empty, ``nbytes`` bytes will be transferred from
   ## internal buffer, otherwise it will wait until some bytes will be received.
   if s.readBuf.len == 0:
-    discard await s.requestReadBytes()
+    await s.requestReadBytes()
   
   var len = if nbytes > s.readBuf.len: s.readBuf.len else: nbytes
   await s.readExactly(pbytes, len)
