@@ -43,19 +43,20 @@ suite "Switch":
 
     proc testSwitch(): Future[bool] {.async, gcsafe.} =
       let ma1: MultiAddress = Multiaddress.init("/ip4/127.0.0.1/tcp/53370")
-      let ma2: MultiAddress = Multiaddress.init("/ip4/127.0.0.1/tcp/53371")
+      let ma2: MultiAddress = Multiaddress.init("/ip4/127.0.0.1/tcp/53381")
 
       var peerInfo1, peerInfo2: PeerInfo
       var switch1, switch2: Switch
       (switch1, peerInfo1) = createSwitch(ma1)
+
       let testProto = new TestProto
-      testProto.handler = proc(conn: Connection, proto: string) 
-        {.async, gcsafe.} = discard
+      testProto.init()
       testProto.codec = TestCodec
       switch1.mount(testProto)
       await switch1.start()
 
       (switch2, peerInfo2) = createSwitch(ma2)
+      await switch2.start()
       let conn = await switch2.dial(peerInfo1, TestCodec)
       await conn.writeLp("Hello!")
       let msg = cast[string](await conn.readLp())
