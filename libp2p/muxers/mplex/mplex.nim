@@ -7,11 +7,11 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-## TODO: I have to be carefull to clean up channels correctly,
-## both by removing them from the internal tables as well as
-## cleaning up when the channel is completelly finished. This
-## is complicated because half-closed streams makes closing 
-## channels non non-deterministic. 
+## TODO: I have to be carefull to clean channels up correctly,
+## both by removing from the internal tables as well as
+## releasing resource when the channel is completelly 
+## finished. This is complicated because half-closed 
+## streams makes closing channels non-deterministic. 
 ## 
 ## This still needs to be implemented properly - I'm leaving it 
 ## here to not forget that this needs to be fixed ASAP.
