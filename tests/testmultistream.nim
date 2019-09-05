@@ -189,7 +189,6 @@ suite "Multistream select":
       proc testHandler(conn: Connection,
                        proto: string): 
                        Future[void] {.async, gcsafe.} = discard
-      
       protocol.handler = testHandler
       ms.addHandler("/test/proto1/1.0.0", protocol)
       ms.addHandler("/test/proto2/1.0.0", protocol)
@@ -255,7 +254,7 @@ suite "Multistream select":
       let transport2: TcpTransport = newTransport(TcpTransport)
       let conn = await transport2.dial(ma)
 
-      check (await msDial.select(conn, @["/test/proto/1.0.0"])) == "/test/proto/1.0.0"
+      check (await msDial.select(conn, "/test/proto/1.0.0")) == "/test/proto/1.0.0"
 
       let hello = cast[string](await conn.readLp())
       result = hello == "Hello!"
@@ -273,6 +272,8 @@ suite "Multistream select":
       var peerInfo: PeerInfo
       peerInfo.peerId = PeerID.init(seckey)
       var protocol: LPProtocol = new LPProtocol
+      protocol.handler = proc(conn: Connection, proto: string) {.async, gcsafe.} =
+        await conn.close()
       proc testHandler(conn: Connection,
                        proto: string): 
                        Future[void] {.async.} = discard
@@ -283,7 +284,6 @@ suite "Multistream select":
       let transport1: TcpTransport = newTransport(TcpTransport)
       proc connHandler(conn: Connection): Future[void] {.async, gcsafe.} =
         await msListen.handle(conn)
-
       await transport1.listen(ma, connHandler)
 
       let msDial = newMultistream()
@@ -298,7 +298,7 @@ suite "Multistream select":
     check:
       waitFor(endToEnd()) == true
 
-  test "e2e - select one of one invalid":
+  test "e2e - select one from a list with unsupported protos":
     proc endToEnd(): Future[bool] {.async.} =
       let ma: MultiAddress = Multiaddress.init("/ip4/127.0.0.1/tcp/53352")
 
