@@ -1,4 +1,4 @@
-import unittest, sequtils, sugar
+import unittest, sequtils, sugar, strformat
 import chronos, nimcrypto/utils
 import ../libp2p/connection, 
        ../libp2p/stream/lpstream, 
@@ -126,6 +126,49 @@ suite "Mplex":
       await stream.writeLp("Hello from stream!")
       await conn.close()
       await dialFut
+      result = true
+
+    check:
+      waitFor(testNewStream()) == true
+
+  test "e2e - multiple streams":
+    proc testNewStream(): Future[bool] {.async.} =
+      let ma: MultiAddress = Multiaddress.init("/ip4/127.0.0.1/tcp/53382")
+
+      var count = 0
+      var completionFut: Future[void] = newFuture[void]()
+      proc connHandler(conn: Connection) {.async, gcsafe.} =
+        proc handleMplexListen(stream: Connection) {.async, gcsafe.} = 
+          let msg = await stream.readLp()
+          check cast[string](msg) == &"Hello from stream {count}!"
+          count.inc
+          await stream.close()
+          if count == 11:
+            completionFut.complete()
+
+        let mplexListen = newMplex(conn)
+        mplexListen.streamHandler = handleMplexListen
+        asyncCheck mplexListen.handle()
+
+      let transport1: TcpTransport = newTransport(TcpTransport)
+      await transport1.listen(ma, connHandler)
+
+      let transport2: TcpTransport = newTransport(TcpTransport)
+      let conn = await transport2.dial(ma)
+
+      let mplexDial = newMplex(conn)
+      asyncCheck mplexDial.handle()
+
+      for i in 0..10:
+        let stream  = await mplexDial.newStream()
+        await stream.writeLp(&"Hello from stream {i}!")
+
+      await completionFut
+      # closing the connection doesn't transfer all the data
+      # this seems to be a bug in chronos
+      # await conn.close()
+      check count == 11
+
       result = true
 
     check:
