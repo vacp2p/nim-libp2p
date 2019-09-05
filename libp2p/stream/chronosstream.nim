@@ -60,9 +60,10 @@ method close*(s: ChronosStream) {.async, gcsafe.} =
       await s.reader.closeWait()
 
     await s.writer.finish()
-
     if not s.writer.closed:
       await s.writer.closeWait()
 
-    await s.client.closeWait()
+    if not s.client.closed:
+      await s.client.closeWait()
+    
     s.closed = true
