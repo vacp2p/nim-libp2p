@@ -43,9 +43,9 @@ proc select*(m: MultisteamSelect,
              proto: seq[string]): 
              Future[string] {.async.} =
   ## select a remote protocol
-  await conn.write(m.codec)   # write handshake
+  await conn.write(m.codec) # write handshake
   if proto.len() > 0:
-    await conn.writeLp(proto[0]) # select proto
+    await conn.writeLp((proto[0] & "\n")) # select proto
 
   var ms = cast[string](await conn.readLp()) # read ms header
   ms.removeSuffix("\n")
@@ -53,7 +53,7 @@ proc select*(m: MultisteamSelect,
     return ""
 
   if proto.len() == 0: # no protocols, must be a handshake call
-    return ""
+    return ms
 
   ms = cast[string](await conn.readLp()) # read the first proto
   ms.removeSuffix("\n")
@@ -62,7 +62,7 @@ proc select*(m: MultisteamSelect,
 
   if not result.len > 0:
     for p in proto[1..<proto.len()]:
-      await conn.writeLp(p) # select proto
+      await conn.writeLp((p & "\n")) # select proto
       ms = cast[string](await conn.readLp()) # read the first proto
       ms.removeSuffix("\n")
       if ms == p:
@@ -81,7 +81,7 @@ proc select*(m: MultisteamSelect,
 proc list*(m: MultisteamSelect,
            conn: Connection): Future[seq[string]] {.async.} =
   ## list remote protos requests on connection
-  if not (await m.select(conn)).len > 0:
+  if (await m.select(conn)).len == 0:
     return
 
   await conn.write(m.ls) # send ls
@@ -96,7 +96,7 @@ proc list*(m: MultisteamSelect,
 
 proc handle*(m: MultisteamSelect, conn: Connection) {.async, gcsafe.} =
   ## handle requests on connection
-  if not (await m.select(conn)).len > 0:
+  if (await m.select(conn)).len == 0:
     return
 
   while not conn.closed:
@@ -118,7 +118,7 @@ proc handle*(m: MultisteamSelect, conn: Connection) {.async, gcsafe.} =
       else:
         for h in m.handlers:
           if (not isNil(h.match) and h.match(ms)) or ms == h.proto:
-            await conn.writeLp(h.proto & "\n")
+            await conn.writeLp((h.proto & "\n"))
             await h.protocol.handler(conn, ms)
             return
         await conn.write(m.na)
