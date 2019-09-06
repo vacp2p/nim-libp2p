@@ -15,6 +15,9 @@ import types,
        ../../stream/lpstream,
        nimcrypto/utils
 
+type
+  Phase = enum Header, Size
+
 proc readHeader*(conn: Connection): Future[(uint, MessageType)] {.async, gcsafe.} = 
   var
     header: uint
@@ -26,13 +29,14 @@ proc readHeader*(conn: Connection): Future[(uint, MessageType)] {.async, gcsafe.
       await conn.readExactly(addr buffer[i], 1)
       res = LP.getUVarint(buffer.toOpenArray(0, i), length, header)
       if res == VarintStatus.Success:
+        let (id, msg) = (header shr 3, MessageType(header and 0x7))
         return (header shr 3, MessageType(header and 0x7))
     if res != VarintStatus.Success:
       buffer.setLen(0)
       return
-  except LPStreamIncompleteError:
+  except TransportIncompleteError:
     buffer.setLen(0)
-    raise newException(CatchableError, "Could not decode header!")
+    raise newLPStreamIncompleteError()
 
 proc writeHeader*(conn: Connection,
                   id: int,
@@ -40,8 +44,7 @@ proc writeHeader*(conn: Connection,
                   size: int = 0) {.async, gcsafe.} =
   ## write lenght prefixed
   var buf = initVBuffer()
-  buf.writeVarint(LPSomeUVarint(id.uint shl 3 or msgType.uint))
-  if size > 0:
-    buf.writeVarint(LPSomeUVarint(size.uint))
+  buf.writeVarint((id.uint shl 3) or msgType.uint)
+  buf.writeVarint(size.uint) # size should be always sent
   buf.finish()
-  result = conn.write(buf.buffer)
+  await conn.write(buf.buffer)
