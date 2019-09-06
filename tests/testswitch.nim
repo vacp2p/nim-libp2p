@@ -1,11 +1,16 @@
 import unittest, tables
 import chronos
-import ../libp2p/switch, ../libp2p/multistream,
-       ../libp2p/identify, ../libp2p/connection,
-       ../libp2p/transport, ../libp2p/tcptransport,
-       ../libp2p/multiaddress, ../libp2p/peerinfo,
-       ../libp2p/crypto/crypto, ../libp2p/peer,
-       ../libp2p/protocol, ../libp2p/muxers/muxer,
+import ../libp2p/switch, 
+       ../libp2p/multistream,
+       ../libp2p/protocols/identify, 
+       ../libp2p/connection,
+       ../libp2p/transports/[transport, tcptransport],
+       ../libp2p/multiaddress, 
+       ../libp2p/peerinfo,
+       ../libp2p/crypto/crypto, 
+       ../libp2p/peer,
+       ../libp2p/protocols/protocol, 
+       ../libp2p/muxers/muxer,
        ../libp2p/muxers/mplex/mplex, 
        ../libp2p/muxers/mplex/types
 
@@ -17,6 +22,7 @@ type
 method init(p: TestProto) {.gcsafe.} =
   proc handle(conn: Connection, proto: string) {.async, gcsafe.} = 
     let msg = cast[string](await conn.readLp())
+    echo msg
     check "Hello!" == msg
     await conn.writeLp("Hello!")
 
@@ -43,7 +49,7 @@ suite "Switch":
 
     proc testSwitch(): Future[bool] {.async, gcsafe.} =
       let ma1: MultiAddress = Multiaddress.init("/ip4/127.0.0.1/tcp/53370")
-      let ma2: MultiAddress = Multiaddress.init("/ip4/127.0.0.1/tcp/53381")
+      let ma2: MultiAddress = Multiaddress.init("/ip4/127.0.0.1/tcp/53371")
 
       var peerInfo1, peerInfo2: PeerInfo
       var switch1, switch2: Switch
@@ -58,11 +64,17 @@ suite "Switch":
       (switch2, peerInfo2) = createSwitch(ma2)
       await switch2.start()
       let conn = await switch2.dial(peerInfo1, TestCodec)
+      echo "DIALED???"
+      echo conn.repr
       await conn.writeLp("Hello!")
+      echo "WROTE FROM TEST"
+      echo conn.repr
       let msg = cast[string](await conn.readLp())
+      echo msg
       check "Hello!" == msg
 
       result = true
+      await allFutures(switch1.stop(), switch2.stop())
 
     check:
       waitFor(testSwitch()) == true
