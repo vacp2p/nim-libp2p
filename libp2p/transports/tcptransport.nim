@@ -8,9 +8,9 @@
 ## those terms.
 
 import chronos
-import transport, wire, connection,
-       multiaddress, connection,
-       multicodec, stream/chronosstream
+import transport, ../wire, ../connection,
+       ../multiaddress, ../connection,
+       ../multicodec, ../stream/chronosstream
 
 type TcpTransport* = ref object of Transport
   server*: StreamServer

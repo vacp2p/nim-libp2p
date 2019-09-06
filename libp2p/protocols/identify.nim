@@ -9,10 +9,10 @@
 
 import options
 import chronos
-import protobuf/minprotobuf, peerinfo, 
-       protocol as proto, connection,
-       peer, crypto/crypto, multiaddress,
-       crypto/crypto
+import ../protobuf/minprotobuf, ../peerinfo, 
+       protocol as proto, ../connection,
+       ../peer, ../crypto/crypto, 
+       ../multiaddress
 
 const IdentifyCodec* = "/ipfs/id/1.0.0"
 const IdentifyPushCodec* = "/ipfs/id/push/1.0.0"
@@ -23,6 +23,7 @@ const AgentVersion* = "nim-libp2p/0.0.1"
 
 type
   IdentityNoMatchError* = object of CatchableError
+  IdentityInvalidMsgError* = object of CatchableError
 
   IdentifyInfo* = object
     pubKey*: PublicKey
@@ -90,6 +91,7 @@ method init*(p: Identify) =
     await conn.writeLp(pb.buffer)
 
   p.handler = handle
+  p.codec = IdentifyCodec
 
 proc identify*(p: Identify, 
                conn: Connection, 
@@ -97,7 +99,9 @@ proc identify*(p: Identify,
                Future[IdentifyInfo] {.async.} = 
   var message = await conn.readLp()
   if len(message) == 0:
-    raise newException(CatchableError, "Incorrect or empty message received!")
+    raise newException(IdentityInvalidMsgError, 
+      "Invalid or empty message received!")
+
   result = decodeMsg(message)
   if remotePeerInfo.isSome and 
       remotePeerInfo.get().peerId.publicKey != result.pubKey:
