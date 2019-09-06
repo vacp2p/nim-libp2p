@@ -1,10 +1,14 @@
 import unittest, options
 import chronos, strutils, sequtils
-import ../libp2p/identify, ../libp2p/multiaddress, 
-       ../libp2p/peerinfo, ../libp2p/peer, 
-       ../libp2p/connection, ../libp2p/identify, 
-       ../libp2p/multistream, ../libp2p/transport,
-       ../libp2p/tcptransport, ../libp2p/protocol, 
+import ../libp2p/protocols/identify, 
+       ../libp2p/multiaddress, 
+       ../libp2p/peerinfo, 
+       ../libp2p/peer, 
+       ../libp2p/connection, 
+       ../libp2p/multistream, 
+       ../libp2p/transports/transport,
+       ../libp2p/transports/tcptransport, 
+       ../libp2p/protocols/protocol, 
        ../libp2p/crypto/crypto
 
 suite "Identify":

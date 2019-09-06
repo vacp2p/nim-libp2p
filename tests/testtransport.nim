@@ -1,7 +1,10 @@
 import unittest
 import chronos
-import ../libp2p/connection, ../libp2p/transport, ../libp2p/tcptransport,
-    ../libp2p/multiaddress, ../libp2p/wire
+import ../libp2p/connection, 
+       ../libp2p/transports/transport, 
+       ../libp2p/transports/tcptransport,
+       ../libp2p/multiaddress, 
+       ../libp2p/wire
 
 suite "TCP transport":
   test "test listener: handle write":
