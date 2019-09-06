@@ -8,9 +8,12 @@
 ## those terms.
 
 import chronos, options
-import peerinfo, multiaddress, 
-       stream/lpstream, peerinfo, 
-       varint, vbuffer
+import peerinfo,
+       multiaddress,
+       stream/lpstream,
+       peerinfo,
+       varint,
+       vbuffer
 
 const DefaultReadSize*: uint = 64 * 1024
 
@@ -96,9 +99,11 @@ proc readLp*(s: Connection): Future[seq[byte]] {.async, gcsafe.} =
       result = buffer
       return
     buffer.setLen(size)
-    await s.readExactly(addr buffer[0], int(size))
+    if size > 0.uint:
+      await s.readExactly(addr buffer[0], int(size))
   except TransportIncompleteError:
     buffer.setLen(0)
+    raise newLPStreamIncompleteError()
 
   result = buffer
 
