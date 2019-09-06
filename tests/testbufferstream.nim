@@ -1,4 +1,4 @@
-import unittest, deques, sequtils
+import unittest, deques, sequtils, strformat
 import chronos
 import ../libp2p/stream/bufferstream
 
@@ -186,6 +186,59 @@ suite "BufferStream":
       check buff.len == 0
 
       await buff.write(cast[seq[byte]](toSeq("Hello!".items)), 6)
+      result = true
+
+    check:
+      waitFor(testWritePtr()) == true
+
+  test "write should happen in order":
+    proc testWritePtr(): Future[bool] {.async.} =
+      var count = 1
+      proc writeHandler(data: seq[byte]) {.async, gcsafe.} = 
+        check cast[string](data) == &"Msg {$count}"
+        count.inc
+
+      let buff = newBufferStream(writeHandler, 10)
+      check buff.len == 0
+
+      await buff.write("Msg 1")
+      await buff.write("Msg 2")
+      await buff.write("Msg 3")
+      await buff.write("Msg 4")
+      await buff.write("Msg 5")
+      await buff.write("Msg 6")
+      await buff.write("Msg 7")
+      await buff.write("Msg 8")
+      await buff.write("Msg 9")
+      await buff.write("Msg 10")
+      result = true
+
+    check:
+      waitFor(testWritePtr()) == true
+
+  test "reads should happen in order":
+    proc testWritePtr(): Future[bool] {.async.} =
+      var count = 1
+      proc writeHandler(data: seq[byte]) {.async, gcsafe.} = discard
+      let buff = newBufferStream(writeHandler, 10)
+      check buff.len == 0
+
+      await buff.pushTo(cast[seq[byte]](toSeq("Msg 1".items)))
+      await buff.pushTo(cast[seq[byte]](toSeq("Msg 2".items)))
+      await buff.pushTo(cast[seq[byte]](toSeq("Msg 3".items)))
+
+      check cast[string](await buff.read(5)) == "Msg 1"
+      check cast[string](await buff.read(5)) == "Msg 2"
+      check cast[string](await buff.read(5)) == "Msg 3"
+
+      await buff.pushTo(cast[seq[byte]](toSeq("Msg 4".items)))
+      await buff.pushTo(cast[seq[byte]](toSeq("Msg 5".items)))
+      await buff.pushTo(cast[seq[byte]](toSeq("Msg 6".items)))
+
+      check cast[string](await buff.read(5)) == "Msg 4"
+      check cast[string](await buff.read(5)) == "Msg 5"
+      check cast[string](await buff.read(5)) == "Msg 6"
+
       result = true
 
     check:
