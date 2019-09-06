@@ -9,7 +9,8 @@
 
 import sequtils
 import chronos
-import peerinfo, connection, multiaddress, multicodec
+import ../peerinfo, ../connection, 
+       ../multiaddress, ../multicodec
 
 type
   ConnHandler* = proc (conn: Connection): Future[void] {.gcsafe.}
