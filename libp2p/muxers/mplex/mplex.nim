@@ -16,13 +16,16 @@
 ## This still needs to be implemented properly - I'm leaving it 
 ## here to not forget that this needs to be fixed ASAP.
 
-import tables, sequtils
+import tables, sequtils, strformat
 import chronos
-import ../../varint, ../../connection, 
-       ../../vbuffer, ../../protocol,
+import coder, types, channel,
+       ../../varint, 
+       ../../connection, 
+       ../../vbuffer, 
+       ../../protocols/protocol,
        ../../stream/bufferstream, 
-       ../../stream/lpstream, ../muxer,
-       coder, types, channel
+       ../../stream/lpstream, 
+       ../muxer
 
 type
   Mplex* = ref object of Muxer
@@ -90,7 +93,7 @@ proc newMplex*(conn: Connection,
 
 method newStream*(m: Mplex): Future[Connection] {.async, gcsafe.} =
   let channel = await m.newStreamInternal()
-  await m.connection.writeHeader(channel.id, MessageType.New, 0)
+  await m.connection.writeHeader(channel.id, MessageType.New)
   result = newConnection(channel)
 
 method close*(m: Mplex) {.async, gcsafe.} = 

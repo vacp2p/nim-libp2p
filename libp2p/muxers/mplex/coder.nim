@@ -8,9 +8,12 @@
 ## those terms.
 
 import chronos
-import ../../connection, ../../varint, 
-       ../../vbuffer, types,
-       ../../stream/lpstream
+import types,  
+       ../../connection, 
+       ../../varint, 
+       ../../vbuffer, 
+       ../../stream/lpstream,
+       nimcrypto/utils
 
 proc readHeader*(conn: Connection): Future[(uint, MessageType)] {.async, gcsafe.} = 
   var
@@ -29,11 +32,12 @@ proc readHeader*(conn: Connection): Future[(uint, MessageType)] {.async, gcsafe.
       return
   except LPStreamIncompleteError:
     buffer.setLen(0)
+    raise newException(CatchableError, "Could not decode header!")
 
 proc writeHeader*(conn: Connection,
                   id: int,
                   msgType: MessageType, 
-                  size: int) {.async, gcsafe.} =
+                  size: int = 0) {.async, gcsafe.} =
   ## write lenght prefixed
   var buf = initVBuffer()
   buf.writeVarint(LPSomeUVarint(id.uint shl 3 or msgType.uint))
