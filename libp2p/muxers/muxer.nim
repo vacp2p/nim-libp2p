@@ -24,7 +24,7 @@ type
     newMuxer*: MuxerCreator
     streamHandler*: StreamHandler
 
-method newStream*(m: Muxer): Future[Connection] {.base, async, gcsafe.} = discard
+method newStream*(m: Muxer, name: string = ""): Future[Connection] {.base, async, gcsafe.} = discard
 method close*(m: Muxer) {.base, async, gcsafe.} = discard
 method handle*(m: Muxer): Future[void] {.base, async, gcsafe.} = discard
 method `=streamHandler`*(m: Muxer, handler: StreamHandler) {.base, gcsafe.} = 

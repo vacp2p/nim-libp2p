@@ -17,6 +17,8 @@ const MaxReadWriteTime* = 5.seconds
 
 type
   MplexUnknownMsgError* = object of CatchableError
+  MplexNoSuchChannel* = object of CatchableError
+
   MessageType* {.pure.} = enum
     New,
     MsgIn,
