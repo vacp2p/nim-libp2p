@@ -7,10 +7,12 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import chronos
+import chronos, strformat
 import ../../stream/bufferstream, 
        ../../stream/lpstream, 
-      types, coder, ../../connection
+       ../../connection,
+       nimcrypto/utils,
+       types, coder
 
 type
   Channel* = ref object of BufferStream
@@ -45,7 +47,7 @@ proc newChannel*(id: int,
   result.initBufferStream(writeHandler, size)
 
 proc closeMessage(s: Channel) {.async, gcsafe.} =
-  await s.conn.writeHeader(s.id, s.closeCode, 0) # write header
+  await s.conn.writeHeader(s.id, s.closeCode) # write header
 
 proc closed*(s: Channel): bool = 
   s.closedLocal
@@ -58,7 +60,7 @@ method close*(s: Channel) {.async, gcsafe.} =
   await s.closeMessage()
 
 proc resetMessage(s: Channel) {.async, gcsafe.} =
-  await s.conn.writeHeader(s.id, s.resetCode, 0)
+  await s.conn.writeHeader(s.id, s.resetCode)
 
 proc resetByRemote*(s: Channel) {.async, gcsafe.} =
   await allFutures(s.close(), s.closedByRemote())
