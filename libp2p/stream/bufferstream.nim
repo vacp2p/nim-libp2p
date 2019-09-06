@@ -232,8 +232,8 @@ method readUntil*(s: BufferStream,
 
 method write*(s: BufferStream, 
               pbytes: pointer, 
-              nbytes: int) 
-              {.async, gcsafe.} =
+              nbytes: int): Future[void] 
+              {.gcsafe.} =
   ## Consume (discard) all bytes (n <= 0) or ``n`` bytes from read-only stream
   ## ``rstream``.
   ##
@@ -244,8 +244,8 @@ method write*(s: BufferStream,
 
 method write*(s: BufferStream, 
               msg: string, 
-              msglen = -1) 
-              {.async, gcsafe.} =
+              msglen = -1): Future[void] 
+              {.gcsafe.} =
   ## Write string ``sbytes`` of length ``msglen`` to writer stream ``wstream``.
   ##
   ## String ``sbytes`` must not be zero-length.
@@ -259,8 +259,8 @@ method write*(s: BufferStream,
 
 method write*(s: BufferStream, 
               msg: seq[byte], 
-              msglen = -1) 
-              {.async, gcsafe.} =
+              msglen = -1): Future[void]
+              {.gcsafe.} =
   ## Write sequence of bytes ``sbytes`` of length ``msglen`` to writer
   ## stream ``wstream``.
   ##
