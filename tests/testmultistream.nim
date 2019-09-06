@@ -1,10 +1,15 @@
 import unittest, strutils, sequtils, sugar, strformat
 import chronos
-import ../libp2p/connection, ../libp2p/multistream,
-       ../libp2p/stream/lpstream, ../libp2p/connection, 
-       ../libp2p/multiaddress, ../libp2p/transport, 
-       ../libp2p/tcptransport, ../libp2p/protocol,
-       ../libp2p/crypto/crypto, ../libp2p/peerinfo,
+import ../libp2p/connection, 
+       ../libp2p/multistream,
+       ../libp2p/stream/lpstream, 
+       ../libp2p/connection, 
+       ../libp2p/multiaddress, 
+       ../libp2p/transports/transport, 
+       ../libp2p/transports/tcptransport, 
+       ../libp2p/protocols/protocol,
+       ../libp2p/crypto/crypto, 
+       ../libp2p/peerinfo,
        ../libp2p/peer
 
 ## Mock stream for select test
@@ -40,6 +45,8 @@ method readExactly*(s: TestSelectStream,
 
 method write*(s: TestSelectStream, msg: string, msglen = -1) 
   {.async, gcsafe.} = discard
+
+method close(s: TestSelectStream) {.async, gcsafe.} = s.closed = true
 
 proc newTestSelectStream(): TestSelectStream =
   new result
@@ -85,7 +92,7 @@ method write*(s: TestLsStream, msg: seq[byte], msglen = -1) {.async, gcsafe.} =
 method write*(s: TestLsStream, msg: string, msglen = -1)
   {.async, gcsafe.} = discard
 
-method close*(s: TestLsStream) {.async, gcsafe.} = discard
+method close(s: TestLsStream) {.async, gcsafe.} = s.closed = true
 
 proc newTestLsStream(ls: LsHandler): TestLsStream =
   new result
@@ -131,7 +138,7 @@ method write*(s: TestNaStream, msg: string, msglen = -1) {.async, gcsafe.} =
   if s.step == 4:
     await s.na(msg)
 
-method close*(s: TestNaStream) {.async, gcsafe.} = discard
+method close(s: TestNaStream) {.async, gcsafe.} = s.closed = true
 
 proc newTestNaStream(na: NaHandler): TestNaStream =
   new result
@@ -161,6 +168,7 @@ suite "Multistream select":
                        proto: string): 
                        Future[void] {.async, gcsafe.} =
         check proto == "/test/proto/1.0.0"
+        await conn.close()
 
       protocol.handler = testHandler
       ms.addHandler("/test/proto/1.0.0", protocol)
@@ -254,7 +262,7 @@ suite "Multistream select":
       let transport2: TcpTransport = newTransport(TcpTransport)
       let conn = await transport2.dial(ma)
 
-      check (await msDial.select(conn, "/test/proto/1.0.0")) == "/test/proto/1.0.0"
+      check (await msDial.select(conn, "/test/proto/1.0.0")) == true
 
       let hello = cast[string](await conn.readLp())
       result = hello == "Hello!"

@@ -101,7 +101,6 @@ proc handle*(m: MultisteamSelect, conn: Connection) {.async, gcsafe.} =
   while not conn.closed:
     block main:
       var ms = cast[string](await conn.readLp())
-      echo ms
       ms.removeSuffix("\n")
       if ms.len() <= 0:
         await conn.write(m.na)
@@ -121,13 +120,12 @@ proc handle*(m: MultisteamSelect, conn: Connection) {.async, gcsafe.} =
         else:
           for h in m.handlers:
             if (not isNil(h.match) and h.match(ms)) or ms == h.proto:
-              echo h.proto
               await conn.writeLp((h.proto & "\n"))
               try:
                 await h.protocol.handler(conn, ms)
                 break main
               except Exception as exc:
-                echo exc.msg
+                echo exc.msg # TODO: Logging
           await conn.write(m.na)
 
 proc addHandler*[T: LPProtocol](m: MultisteamSelect,
