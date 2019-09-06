@@ -9,7 +9,10 @@
 
 import sequtils, strutils
 import chronos
-import connection, varint, vbuffer, protocol
+import connection, 
+       varint, 
+       vbuffer, 
+       protocols/protocol
 
 const MsgSize* = 64*1024
 const Codec* = "/multistream/1.0.0"
@@ -22,9 +25,9 @@ type
   Matcher* = proc (proto: string): bool {.gcsafe.}
 
   HandlerHolder* = object
-    proto: string
-    protocol: LPProtocol
-    match: Matcher
+    proto*: string
+    protocol*: LPProtocol
+    match*: Matcher
 
   MultisteamSelect* = ref object of RootObj
     handlers*: seq[HandlerHolder]
@@ -47,26 +50,25 @@ proc select*(m: MultisteamSelect,
   if proto.len() > 0:
     await conn.writeLp((proto[0] & "\n")) # select proto
 
-  var ms = cast[string](await conn.readLp()) # read ms header
-  ms.removeSuffix("\n")
-  if ms != Codec:
+  result = cast[string](await conn.readLp()) # read ms header
+  result.removeSuffix("\n")
+  if result != Codec:
     return ""
 
   if proto.len() == 0: # no protocols, must be a handshake call
-    return ms
+    return
 
-  ms = cast[string](await conn.readLp()) # read the first proto
-  ms.removeSuffix("\n")
-  if ms == proto[0]:
-    result = ms
+  result = cast[string](await conn.readLp()) # read the first proto
+  result.removeSuffix("\n")
+  if result == proto[0]:
+    return
 
   if not result.len > 0:
     for p in proto[1..<proto.len()]:
       await conn.writeLp((p & "\n")) # select proto
-      ms = cast[string](await conn.readLp()) # read the first proto
-      ms.removeSuffix("\n")
-      if ms == p:
-        result = p
+      result = cast[string](await conn.readLp()) # read the first proto
+      result.removeSuffix("\n")
+      if result == p:
         break
 
 proc select*(m: MultisteamSelect,
