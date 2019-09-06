@@ -7,7 +7,7 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import sequtils, strutils
+import sequtils, strutils, strformat
 import chronos
 import connection, 
        varint, 
@@ -73,17 +73,18 @@ proc select*(m: MultisteamSelect,
 
 proc select*(m: MultisteamSelect,
              conn: Connection,
-             proto: string): Future[string] = 
-  result = if proto.len > 0: m.select(conn, @[proto]) else: m.select(conn, @[])
+             proto: string): Future[bool] {.async.} = 
+  result = if proto.len > 0: 
+            (await m.select(conn, @[proto])) == proto 
+           else: 
+            (await m.select(conn, @[])) == Codec
 
-proc select*(m: MultisteamSelect,
-             conn: Connection): Future[string] = 
-  result = m.select(conn, @[])
+proc select*(m: MultisteamSelect, conn: Connection): Future[bool] = m.select(conn, "")
 
 proc list*(m: MultisteamSelect,
            conn: Connection): Future[seq[string]] {.async.} =
   ## list remote protos requests on connection
-  if (await m.select(conn)).len == 0:
+  if not await m.select(conn):
     return
 
   await conn.write(m.ls) # send ls
@@ -97,33 +98,37 @@ proc list*(m: MultisteamSelect,
   result = list
 
 proc handle*(m: MultisteamSelect, conn: Connection) {.async, gcsafe.} =
-  ## handle requests on connection
-  if (await m.select(conn)).len == 0:
-    return
-
   while not conn.closed:
-    var ms = cast[string](await conn.readLp())
-    ms.removeSuffix("\n")
-    if ms.len() <= 0:
-      await conn.write(m.na)
-
-    if m.handlers.len() == 0:
-      await conn.write(m.na)
-      continue
-
-    case ms:
-      of "ls":
-        var protos = ""
-        for h in m.handlers:
-          protos &= (h.proto & "\n")
-        await conn.writeLp(cast[seq[byte]](toSeq(protos.items)))
-      else:
-        for h in m.handlers:
-          if (not isNil(h.match) and h.match(ms)) or ms == h.proto:
-            await conn.writeLp((h.proto & "\n"))
-            await h.protocol.handler(conn, ms)
-            return
+    block main:
+      var ms = cast[string](await conn.readLp())
+      echo ms
+      ms.removeSuffix("\n")
+      if ms.len() <= 0:
         await conn.write(m.na)
+
+      if m.handlers.len() == 0:
+        await conn.write(m.na)
+        continue
+
+      case ms:
+        of "ls":
+          var protos = ""
+          for h in m.handlers:
+            protos &= (h.proto & "\n")
+          await conn.writeLp(protos)
+        of Codec:
+          await conn.write(m.codec)
+        else:
+          for h in m.handlers:
+            if (not isNil(h.match) and h.match(ms)) or ms == h.proto:
+              echo h.proto
+              await conn.writeLp((h.proto & "\n"))
+              try:
+                await h.protocol.handler(conn, ms)
+                break main
+              except Exception as exc:
+                echo exc.msg
+          await conn.write(m.na)
 
 proc addHandler*[T: LPProtocol](m: MultisteamSelect,
                                 codec: string,
