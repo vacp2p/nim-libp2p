@@ -34,6 +34,8 @@ import deques, tables, sequtils, math
 import chronos
 import ../stream/lpstream
 
+const DefaultBufferSize* = 1024
+
 type
   # TODO: figure out how to make this generic to avoid casts
   WriteHandler* = proc (data: seq[byte]): Future[void] {.gcsafe.}
@@ -51,14 +53,14 @@ proc requestReadBytes(s: BufferStream): Future[void] =
   result = newFuture[void]()
   s.readReqs.addLast(result)
 
-proc initBufferStream*(s: BufferStream, handler: WriteHandler, size: int = 1024) = 
+proc initBufferStream*(s: BufferStream, handler: WriteHandler, size: int = DefaultBufferSize) = 
   s.maxSize = if isPowerOfTwo(size): size else: nextPowerOfTwo(size)
   s.readBuf = initDeque[byte](s.maxSize)
   s.readReqs = initDeque[Future[void]]()
   s.dataReadEvent = newAsyncEvent()
   s.writeHandler = handler
 
-proc newBufferStream*(handler: WriteHandler, size: int = 1024): BufferStream =
+proc newBufferStream*(handler: WriteHandler, size: int = DefaultBufferSize): BufferStream =
   new result
   result.initBufferStream(handler, size)
 
@@ -124,7 +126,6 @@ method readExactly*(s: BufferStream,
   ## If EOF is received and ``nbytes`` is not yet read, the procedure
   ## will raise ``LPStreamIncompleteError``.
   let buff = await s.read(nbytes)
-
   if nbytes > buff.len():
     raise newLPStreamIncompleteError()
 
