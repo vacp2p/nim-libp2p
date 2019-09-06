@@ -16,7 +16,7 @@ import connection,
 
 const MsgSize* = 64*1024
 const Codec* = "/multistream/1.0.0"
-const MultiCodec* = "\x13" & Codec & "\n"
+const MSCodec* = "\x13" & Codec & "\n"
 const Na = "\x03na\n"
 const Ls = "\x03ls\n"
 
@@ -37,7 +37,7 @@ type
 
 proc newMultistream*(): MultisteamSelect =
   new result
-  result.codec = MultiCodec
+  result.codec = MSCodec
   result.ls = Ls
   result.na = Na
 
