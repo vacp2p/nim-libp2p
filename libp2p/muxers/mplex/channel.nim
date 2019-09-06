@@ -14,9 +14,12 @@ import ../../stream/bufferstream,
        nimcrypto/utils,
        types, coder
 
+const DefaultChannelSize* = DefaultBufferSize * 64 # 64kb
+
 type
   Channel* = ref object of BufferStream
     id*: int
+    name*: string
     conn*: Connection
     initiator*: bool
     isReset*: bool
@@ -30,9 +33,11 @@ type
 proc newChannel*(id: int,
                  conn: Connection,
                  initiator: bool,
-                 size: int = MaxMsgSize): Channel = 
+                 name: string = "",
+                 size: int = DefaultChannelSize): Channel = 
   new result
   result.id = id
+  result.name = name
   result.conn = conn
   result.initiator = initiator
   result.msgCode = if initiator: MessageType.MsgOut else: MessageType.MsgIn
@@ -41,7 +46,7 @@ proc newChannel*(id: int,
 
   let chan = result
   proc writeHandler(data: seq[byte]): Future[void] {.async, gcsafe.} = 
-    await conn.writeHeader(id, chan.msgCode, data.len) # write header
+    await conn.writeHeader(chan.id, chan.msgCode, data.len) # write header
     await conn.write(data)
 
   result.initBufferStream(writeHandler, size)

@@ -16,7 +16,7 @@
 ## This still needs to be implemented properly - I'm leaving it 
 ## here to not forget that this needs to be fixed ASAP.
 
-import tables, sequtils, strformat
+import tables, sequtils, strformat, options
 import chronos
 import coder, types, channel,
        ../../varint, 
@@ -34,6 +34,9 @@ type
     currentId*: int
     maxChannels*: uint
 
+proc newMplexNoSuchChannel(id: int, msgType: MessageType): ref MplexNoSuchChannel =
+  result = newException(MplexNoSuchChannel, &"No such channel id {$id} and message {$msgType}")
+
 proc newMplexUnknownMsgError(): ref MplexUnknownMsgError =
   result = newException(MplexUnknownMsgError, "Unknown mplex message type")
 
@@ -45,11 +48,12 @@ proc getChannelList(m: Mplex, initiator: bool): var Table[int, Channel] =
 
 proc newStreamInternal*(m: Mplex,
                         initiator: bool = true,
-                        chanId: int):
+                        chanId: int,
+                        name: string = ""):
                         Future[Channel] {.async, gcsafe.} = 
   ## create new channel/stream
   let id = if initiator: m.currentId.inc(); m.currentId else: chanId
-  result = newChannel(id, m.connection, initiator)
+  result = newChannel(id, m.connection, initiator, name)
   m.getChannelList(initiator)[id] = result
 
 proc newStreamInternal*(m: Mplex): Future[Channel] {.gcsafe.} = 
@@ -60,26 +64,36 @@ method handle*(m: Mplex): Future[void] {.async, gcsafe.} =
     while not m.connection.closed:
       let (id, msgType) = await m.connection.readHeader()
       let initiator = bool(ord(msgType) and 1)
+      var channel: Channel
+      if MessageType(msgType) != MessageType.New:
+        let channels = m.getChannelList(initiator)
+        if not channels.contains(id.int):
+          raise newMplexNoSuchChannel(id.int, msgType)
+        channel = channels[id.int]
+
       case msgType:
         of MessageType.New:
-          let channel = await m.newStreamInternal(false, id.int)
+          var name: seq[byte]
+          try:
+            name = await m.connection.readLp()
+          except LPStreamIncompleteError as exc:
+            echo exc.msg
+          except Exception as exc:
+            echo exc.msg
+            raise
+
+          let channel = await m.newStreamInternal(false, id.int, cast[string](name))
           if not isNil(m.streamHandler):
             channel.handlerFuture = m.streamHandler(newConnection(channel))
         of MessageType.MsgIn, MessageType.MsgOut:
-          let channel = m.getChannelList(initiator)[id.int]
           let msg = await m.connection.readLp()
           await channel.pushTo(msg)
         of MessageType.CloseIn, MessageType.CloseOut:
-          let channel = m.getChannelList(initiator)[id.int]
           await channel.closedByRemote()
           m.getChannelList(initiator).del(id.int)
         of MessageType.ResetIn, MessageType.ResetOut:
-          let channel = m.getChannelList(initiator)[id.int]
           await channel.resetByRemote()
         else: raise newMplexUnknownMsgError()
-  except Exception as exc:
-    #TODO: add proper loging
-    discard
   finally:
     await m.connection.close()
 
@@ -91,9 +105,11 @@ proc newMplex*(conn: Connection,
   result.remote = initTable[int, Channel]()
   result.local = initTable[int, Channel]()
 
-method newStream*(m: Mplex): Future[Connection] {.async, gcsafe.} =
+method newStream*(m: Mplex, name: string = ""): Future[Connection] {.async, gcsafe.} =
   let channel = await m.newStreamInternal()
-  await m.connection.writeHeader(channel.id, MessageType.New)
+  await m.connection.writeHeader(channel.id, MessageType.New, len(name))
+  if name.len > 0:
+    await m.connection.write(name)
   result = newConnection(channel)
 
 method close*(m: Mplex) {.async, gcsafe.} = 
