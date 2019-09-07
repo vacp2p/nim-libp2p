@@ -18,7 +18,7 @@ const DefaultChannelSize* = DefaultBufferSize * 64 # 64kb
 
 type
   Channel* = ref object of BufferStream
-    id*: int
+    id*: uint
     name*: string
     conn*: Connection
     initiator*: bool
@@ -30,7 +30,7 @@ type
     closeCode*: MessageType
     resetCode*: MessageType
 
-proc newChannel*(id: int,
+proc newChannel*(id: uint,
                  conn: Connection,
                  initiator: bool,
                  name: string = "",
@@ -46,13 +46,12 @@ proc newChannel*(id: int,
 
   let chan = result
   proc writeHandler(data: seq[byte]): Future[void] {.async, gcsafe.} = 
-    await conn.writeHeader(chan.id, chan.msgCode, data.len) # write header
-    await conn.write(data)
+    await conn.writeMsg(chan.id, chan.msgCode, data) # write header
 
   result.initBufferStream(writeHandler, size)
 
 proc closeMessage(s: Channel) {.async, gcsafe.} =
-  await s.conn.writeHeader(s.id, s.closeCode) # write header
+  await s.conn.writeMsg(s.id, s.closeCode) # write header
 
 proc closed*(s: Channel): bool = 
   s.closedLocal
@@ -65,7 +64,7 @@ method close*(s: Channel) {.async, gcsafe.} =
   await s.closeMessage()
 
 proc resetMessage(s: Channel) {.async, gcsafe.} =
-  await s.conn.writeHeader(s.id, s.resetCode)
+  await s.conn.writeMsg(s.id, s.resetCode)
 
 proc resetByRemote*(s: Channel) {.async, gcsafe.} =
   await allFutures(s.close(), s.closedByRemote())

@@ -12,65 +12,109 @@ import ../libp2p/connection,
        ../libp2p/muxers/mplex/types,
        ../libp2p/muxers/mplex/channel
 
-type
-  TestEncodeStream = ref object of LPStream
-    handler*: proc(data: seq[byte])
-
-method write*(s: TestEncodeStream, 
-              msg: seq[byte], 
-              msglen = -1): 
-              Future[void] {.gcsafe.} =
-  s.handler(msg)
-
-proc newTestEncodeStream(handler: proc(data: seq[byte])): TestEncodeStream =
-  new result
-  result.handler = handler
-
-type
-  TestDecodeStream = ref object of LPStream
-      handler*: proc(data: seq[byte])
-      step*: int
-      msg*: seq[byte]
-
-method readExactly*(s: TestDecodeStream,
-                    pbytes: pointer,
-                    nbytes: int): Future[void] {.async, gcsafe.} =
-  let buff: seq[byte] = s.msg
-  copyMem(pbytes, unsafeAddr buff[s.step], nbytes)
-  s.step += nbytes
-
-proc newTestDecodeStream(): TestDecodeStream =
-  new result
-  result.step = 0
-  result.msg = fromHex("8801023137")
-
 suite "Mplex":
-  test "encode header":
+  test "encode header with channel id 0":
     proc testEncodeHeader(): Future[bool] {.async.} =
-      proc encHandler(msg: seq[byte]) =
-        check msg == fromHex("886f04")
+      proc encHandler(msg: seq[byte]) {.async.} =
+        check msg == fromHex("000873747265616d2031")
       
-      let conn = newConnection(newTestEncodeStream(encHandler))
-      await conn.writeHeader(1777, MessageType.New, 4)
+      let stream = newBufferStream(encHandler)
+      let conn = newConnection(stream)
+      await conn.writeMsg(0, MessageType.New, cast[seq[byte]](toSeq("stream 1".items)))
       result = true
 
     check:
       waitFor(testEncodeHeader()) == true
 
-  test "decode header":
-    proc testDecodeHeader(): Future[bool] {.async.} =
-      let conn = newConnection(newTestDecodeStream())
-      let (id, msgType) = await conn.readHeader()
+  test "encode header with channel id other than 0":
+    proc testEncodeHeader(): Future[bool] {.async.} =
+      proc encHandler(msg: seq[byte]) {.async.} =
+        check msg == fromHex("88010873747265616d2031")
+      
+      let stream = newBufferStream(encHandler)
+      let conn = newConnection(stream)
+      await conn.writeMsg(17, MessageType.New, cast[seq[byte]](toSeq("stream 1".items)))
+      result = true
 
-      check id == 17
+    check:
+      waitFor(testEncodeHeader()) == true
+
+  test "encode header and body with channel id 0":
+    proc testEncodeHeaderBody(): Future[bool] {.async.} =
+      var step = 0
+      proc encHandler(msg: seq[byte]) {.async.} =
+        check msg == fromHex("020873747265616d2031")
+      
+      let stream = newBufferStream(encHandler)
+      let conn = newConnection(stream)
+      await conn.writeMsg(0, MessageType.MsgOut, cast[seq[byte]](toSeq("stream 1".items)))
+      result = true
+
+    check:
+      waitFor(testEncodeHeaderBody()) == true
+
+  test "encode header and body with channel id other than 0":
+    proc testEncodeHeaderBody(): Future[bool] {.async.} =
+      var step = 0
+      proc encHandler(msg: seq[byte]) {.async.} =
+        check msg == fromHex("8a010873747265616d2031")
+
+      let stream = newBufferStream(encHandler)
+      let conn = newConnection(stream)
+      await conn.writeMsg(17, MessageType.MsgOut, cast[seq[byte]](toSeq("stream 1".items)))
+      await conn.close()
+      result = true
+
+    check:
+      waitFor(testEncodeHeaderBody()) == true
+
+  test "decode header with channel id 0":
+    proc testDecodeHeader(): Future[bool] {.async.} =
+      proc encHandler(msg: seq[byte]) {.async.} = discard 
+      let stream = newBufferStream(encHandler)
+      let conn = newConnection(stream)
+      await stream.pushTo(fromHex("000873747265616d2031"))
+      let (id, msgType, data) = await conn.readMsg()
+
+      check id == 0
       check msgType == MessageType.New
-      let data = await conn.readLp()
-      check cast[string](data) == "17"
       result = true
 
     check:
       waitFor(testDecodeHeader()) == true
-    
+
+  test "decode header and body with channel id 0":
+    proc testDecodeHeader(): Future[bool] {.async.} =
+      proc encHandler(msg: seq[byte]) {.async.} = discard 
+      let stream = newBufferStream(encHandler)
+      let conn = newConnection(stream)
+      await stream.pushTo(fromHex("021668656C6C6F2066726F6D206368616E6E656C20302121"))
+      let (id, msgType, data) = await conn.readMsg()
+
+      check id == 0
+      check msgType == MessageType.MsgOut
+      check cast[string](data) == "hello from channel 0!!"
+      result = true
+
+    check:
+      waitFor(testDecodeHeader()) == true
+
+  test "decode header and body with channel id other than 0":
+    proc testDecodeHeader(): Future[bool] {.async.} =
+      proc encHandler(msg: seq[byte]) {.async.} = discard 
+      let stream = newBufferStream(encHandler)
+      let conn = newConnection(stream)
+      await stream.pushTo(fromHex("8a011668656C6C6F2066726F6D206368616E6E656C20302121"))
+      let (id, msgType, data) = await conn.readMsg()
+
+      check id == 17
+      check msgType == MessageType.MsgOut
+      check cast[string](data) == "hello from channel 0!!"
+      result = true
+
+    check:
+      waitFor(testDecodeHeader()) == true
+
   test "e2e - read/write initiator":
     proc testNewStream(): Future[bool] {.async.} =
       let ma: MultiAddress = Multiaddress.init("/ip4/127.0.0.1/tcp/53380")
@@ -92,10 +136,11 @@ suite "Mplex":
 
       let mplexDial = newMplex(conn)
       let dialFut = mplexDial.handle()
-      let stream  = await mplexDial.newStream()
-      check cast[string](await stream.readLp()) == "Hello from stream!"
+      let stream  = await mplexDial.newStream("DIALER")
+      let msg = cast[string](await stream.readLp())
+      check msg == "Hello from stream!"
       await conn.close()
-      await dialFut
+      # await dialFut
       result = true
 
     check:
@@ -122,11 +167,9 @@ suite "Mplex":
       let conn = await transport2.dial(ma)
 
       let mplexDial = newMplex(conn)
-      let dialFut = mplexDial.handle()
       let stream  = await mplexDial.newStream()
       await stream.writeLp("Hello from stream!")
       await conn.close()
-      await dialFut
       result = true
 
     check:
@@ -136,16 +179,13 @@ suite "Mplex":
     proc testNewStream(): Future[bool] {.async.} =
       let ma: MultiAddress = Multiaddress.init("/ip4/127.0.0.1/tcp/53382")
 
-      var count = 0
-      var completionFut: Future[void] = newFuture[void]()
+      var count = 1
       proc connHandler(conn: Connection) {.async, gcsafe.} =
         proc handleMplexListen(stream: Connection) {.async, gcsafe.} = 
           let msg = await stream.readLp()
-          check cast[string](msg) == &"Hello from stream {count}!"
+          check cast[string](msg) == &"stream {count}!"
           count.inc
           await stream.close()
-          if count == 11:
-            completionFut.complete()
 
         let mplexListen = newMplex(conn)
         mplexListen.streamHandler = handleMplexListen
@@ -158,18 +198,12 @@ suite "Mplex":
       let conn = await transport2.dial(ma)
 
       let mplexDial = newMplex(conn)
-      asyncCheck mplexDial.handle()
-
-      for i in 0..10:
+      for i in 1..<10:
         let stream  = await mplexDial.newStream()
-        await stream.writeLp(&"Hello from stream {i}!")
+        await stream.writeLp(&"stream {i}!")
+        await stream.close()
 
-      await completionFut
-      # closing the connection doesn't transfer all the data
-      # this seems to be a bug in chronos
-      # await conn.close()
-      check count == 11
-
+      await conn.close()
       result = true
 
     check:
@@ -177,7 +211,8 @@ suite "Mplex":
 
   test "half closed - channel should close for write":
     proc testClosedForWrite(): Future[void] {.async.} =
-      let chann = newChannel(1, newConnection(new LPStream), true)
+      proc writeHandler(data: seq[byte]) {.async, gcsafe.} = discard
+      let chann = newChannel(1, newConnection(newBufferStream(writeHandler)), true)
       await chann.close()
       await chann.write("Hello")
 
@@ -186,7 +221,8 @@ suite "Mplex":
 
   test "half closed - channel should close for read":
     proc testClosedForRead(): Future[void] {.async.} =
-      let chann = newChannel(1, newConnection(new LPStream), true)
+      proc writeHandler(data: seq[byte]) {.async, gcsafe.} = discard
+      let chann = newChannel(1, newConnection(newBufferStream(writeHandler)), true)
       await chann.closedByRemote()
       asyncDiscard chann.read()
 
@@ -195,7 +231,8 @@ suite "Mplex":
 
   test "half closed - channel should close for read after eof":
     proc testClosedForRead(): Future[void] {.async.} =
-      let chann = newChannel(1, newConnection(new LPStream), true)
+      proc writeHandler(data: seq[byte]) {.async, gcsafe.} = discard
+      let chann = newChannel(1, newConnection(newBufferStream(writeHandler)), true)
 
       await chann.pushTo(cast[seq[byte]](toSeq("Hello!".items)))
       await chann.close()
@@ -207,7 +244,8 @@ suite "Mplex":
 
   test "reset - channel should fail reading":
     proc testResetRead(): Future[void] {.async.} =
-      let chann = newChannel(1, newConnection(new LPStream), true)
+      proc writeHandler(data: seq[byte]) {.async, gcsafe.} = discard
+      let chann = newChannel(1, newConnection(newBufferStream(writeHandler)), true)
       await chann.reset()
       asyncDiscard chann.read()
 
@@ -216,7 +254,8 @@ suite "Mplex":
 
   test "reset - channel should fail writing":
     proc testResetWrite(): Future[void] {.async.} =
-      let chann = newChannel(1, newConnection(new LPStream), true)
+      proc writeHandler(data: seq[byte]) {.async, gcsafe.} = discard
+      let chann = newChannel(1, newConnection(newBufferStream(writeHandler)), true)
       await chann.reset()
       asyncDiscard chann.read()
 
@@ -225,7 +264,8 @@ suite "Mplex":
 
   test "should not allow pushing data to channel when remote end closed":
     proc testResetWrite(): Future[void] {.async.} =
-      let chann = newChannel(1, newConnection(new LPStream), true)
+      proc writeHandler(data: seq[byte]) {.async, gcsafe.} = discard
+      let chann = newChannel(1, newConnection(newBufferStream(writeHandler)), true)
       await chann.closedByRemote()
       await chann.pushTo(@[byte(1)])
 
