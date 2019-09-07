@@ -29,18 +29,18 @@ import coder, types, channel,
 
 type
   Mplex* = ref object of Muxer
-    remote*: Table[int, Channel]
-    local*: Table[int, Channel]
-    currentId*: int
+    remote*: Table[uint, Channel]
+    local*: Table[uint, Channel]
+    currentId*: uint
     maxChannels*: uint
 
-proc newMplexNoSuchChannel(id: int, msgType: MessageType): ref MplexNoSuchChannel =
+proc newMplexNoSuchChannel(id: uint, msgType: MessageType): ref MplexNoSuchChannel =
   result = newException(MplexNoSuchChannel, &"No such channel id {$id} and message {$msgType}")
 
 proc newMplexUnknownMsgError(): ref MplexUnknownMsgError =
   result = newException(MplexUnknownMsgError, "Unknown mplex message type")
 
-proc getChannelList(m: Mplex, initiator: bool): var Table[int, Channel] =
+proc getChannelList(m: Mplex, initiator: bool): var Table[uint, Channel] =
   if initiator:
     result = m.remote
   else:
@@ -48,7 +48,7 @@ proc getChannelList(m: Mplex, initiator: bool): var Table[int, Channel] =
 
 proc newStreamInternal*(m: Mplex,
                         initiator: bool = true,
-                        chanId: int,
+                        chanId: uint = 0,
                         name: string = ""):
                         Future[Channel] {.async, gcsafe.} = 
   ## create new channel/stream
@@ -56,60 +56,45 @@ proc newStreamInternal*(m: Mplex,
   result = newChannel(id, m.connection, initiator, name)
   m.getChannelList(initiator)[id] = result
 
-proc newStreamInternal*(m: Mplex): Future[Channel] {.gcsafe.} = 
-  result = m.newStreamInternal(true, 0)
-
 method handle*(m: Mplex): Future[void] {.async, gcsafe.} = 
-  try:
     while not m.connection.closed:
-      let (id, msgType) = await m.connection.readHeader()
-      let initiator = bool(ord(msgType) and 1)
-      var channel: Channel
-      if MessageType(msgType) != MessageType.New:
-        let channels = m.getChannelList(initiator)
-        if not channels.contains(id.int):
-          raise newMplexNoSuchChannel(id.int, msgType)
-        channel = channels[id.int]
+      try:
+        let (id, msgType, data) = await m.connection.readMsg()
+        let initiator = bool(ord(msgType) and 1)
+        var channel: Channel
+        if MessageType(msgType) != MessageType.New:
+          let channels = m.getChannelList(initiator)
+          if not channels.contains(id):
+            raise newMplexNoSuchChannel(id, msgType)
+          channel = channels[id]
 
-      case msgType:
-        of MessageType.New:
-          var name: seq[byte]
-          try:
-            name = await m.connection.readLp()
-          except LPStreamIncompleteError as exc:
-            echo exc.msg
-          except Exception as exc:
-            echo exc.msg
-            raise
-
-          let channel = await m.newStreamInternal(false, id.int, cast[string](name))
-          if not isNil(m.streamHandler):
-            channel.handlerFuture = m.streamHandler(newConnection(channel))
-        of MessageType.MsgIn, MessageType.MsgOut:
-          let msg = await m.connection.readLp()
-          await channel.pushTo(msg)
-        of MessageType.CloseIn, MessageType.CloseOut:
-          await channel.closedByRemote()
-          m.getChannelList(initiator).del(id.int)
-        of MessageType.ResetIn, MessageType.ResetOut:
-          await channel.resetByRemote()
-        else: raise newMplexUnknownMsgError()
-  finally:
-    await m.connection.close()
+        case msgType:
+          of MessageType.New:
+            channel = await m.newStreamInternal(false, id, cast[string](data))
+            if not isNil(m.streamHandler):
+              await m.streamHandler(newConnection(channel))
+          of MessageType.MsgIn, MessageType.MsgOut:
+              await channel.pushTo(data)
+          of MessageType.CloseIn, MessageType.CloseOut:
+            await channel.closedByRemote()
+            m.getChannelList(initiator).del(id)
+          of MessageType.ResetIn, MessageType.ResetOut:
+            await channel.resetByRemote()
+          else: raise newMplexUnknownMsgError()
+      finally:
+        await m.connection.close()
 
 proc newMplex*(conn: Connection, 
                maxChanns: uint = MaxChannels): Mplex =
   new result
   result.connection = conn
   result.maxChannels = maxChanns
-  result.remote = initTable[int, Channel]()
-  result.local = initTable[int, Channel]()
+  result.remote = initTable[uint, Channel]()
+  result.local = initTable[uint, Channel]()
 
 method newStream*(m: Mplex, name: string = ""): Future[Connection] {.async, gcsafe.} =
   let channel = await m.newStreamInternal()
-  await m.connection.writeHeader(channel.id, MessageType.New, len(name))
-  if name.len > 0:
-    await m.connection.write(name)
+  await m.connection.writeMsg(channel.id, MessageType.New, cast[seq[byte]](toSeq(name.items)))
   result = newConnection(channel)
 
 method close*(m: Mplex) {.async, gcsafe.} = 
