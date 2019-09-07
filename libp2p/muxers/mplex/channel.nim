@@ -29,6 +29,7 @@ type
     msgCode*: MessageType
     closeCode*: MessageType
     resetCode*: MessageType
+    asyncLock: AsyncLock
 
 proc newChannel*(id: uint,
                  conn: Connection,
@@ -43,10 +44,14 @@ proc newChannel*(id: uint,
   result.msgCode = if initiator: MessageType.MsgOut else: MessageType.MsgIn
   result.closeCode = if initiator: MessageType.CloseOut else: MessageType.CloseIn
   result.resetCode = if initiator: MessageType.ResetOut else: MessageType.ResetIn
+  result.asyncLock = newAsyncLock()
 
   let chan = result
   proc writeHandler(data: seq[byte]): Future[void] {.async, gcsafe.} = 
+    # writes should happen in sequence
+    await chan.asyncLock.acquire()
     await conn.writeMsg(chan.id, chan.msgCode, data) # write header
+    chan.asyncLock.release()
 
   result.initBufferStream(writeHandler, size)
 
@@ -54,10 +59,13 @@ proc closeMessage(s: Channel) {.async, gcsafe.} =
   await s.conn.writeMsg(s.id, s.closeCode) # write header
 
 proc closed*(s: Channel): bool = 
-  s.closedLocal
+  s.closedLocal and s.closedLocal
 
 proc closedByRemote*(s: Channel) {.async.} = 
   s.closedRemote = true
+
+proc cleanUp*(s: Channel): Future[void] =
+  result = procCall close(BufferStream(s))
 
 method close*(s: Channel) {.async, gcsafe.} =
   s.closedLocal = true
