@@ -12,7 +12,8 @@ import chronos
 import connection, 
        varint, 
        vbuffer, 
-       protocols/protocol
+       protocols/protocol,
+       helpers/debug
 
 const MsgSize* = 64*1024
 const Codec* = "/multistream/1.0.0"
@@ -125,7 +126,7 @@ proc handle*(m: MultisteamSelect, conn: Connection) {.async, gcsafe.} =
                 await h.protocol.handler(conn, ms)
                 break main
               except Exception as exc:
-                echo exc.msg # TODO: Logging
+                debug exc.msg # TODO: Logging
           await conn.write(m.na)
 
 proc addHandler*[T: LPProtocol](m: MultisteamSelect,
