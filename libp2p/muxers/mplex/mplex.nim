@@ -25,7 +25,8 @@ import coder, types, channel,
        ../../protocols/protocol,
        ../../stream/bufferstream, 
        ../../stream/lpstream, 
-       ../muxer
+       ../muxer,
+       ../../helpers/debug
 
 type
   Mplex* = ref object of Muxer
@@ -70,31 +71,39 @@ method handle*(m: Mplex) {.async, gcsafe.} =
       if MessageType(msgType) != MessageType.New:
         let channels = m.getChannelList(initiator)
         if not channels.contains(id):
-          raise newMplexNoSuchChannel(id, msgType)
+          debug &"handle: Channel with id {id} message type {msgType} not found"
+          continue
         channel = channels[id]
 
       case msgType:
         of MessageType.New:
-          channel = await m.newStreamInternal(false, id, cast[string](data))
+          let name = cast[string](data)
+          channel = await m.newStreamInternal(false, id, name)
+          debug &"handle: created channel with id {$id} and name {name}"
           if not isNil(m.streamHandler):
             let handlerFut = m.streamHandler(newConnection(channel))
+
+            # TODO: don't use a closure?
+            # channel cleanup routine
             proc cleanUpChan(udata: pointer) {.gcsafe.} = 
               if handlerFut.finished:
                 channel.close().addCallback(
                   proc(udata: pointer) = 
                     # TODO: is waitFor() OK here?
                     channel.cleanUp()
-                    .addCallback(proc(udata: pointer) = 
-                      echo &"cleaned up channel {$id}")
-                )
+                    .addCallback(proc(udata: pointer) 
+                      = debug &"handle: cleaned up channel {$id}"))
             handlerFut.addCallback(cleanUpChan)
             continue
         of MessageType.MsgIn, MessageType.MsgOut:
+            debug &"handle: pushing data to channel {$id} type {msgType}"
             await channel.pushTo(data)
         of MessageType.CloseIn, MessageType.CloseOut:
+          debug &"handle: closing channel {$id} type {msgType}"
           await channel.closedByRemote()
           m.getChannelList(initiator).del(id)
         of MessageType.ResetIn, MessageType.ResetOut:
+          debug &"handle: resetting channel {$id} type {msgType}"
           await channel.resetByRemote()
           break
         else: raise newMplexUnknownMsgError()

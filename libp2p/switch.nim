@@ -19,7 +19,8 @@ import connection,
        multiaddress,
        protocols/identify, 
        muxers/muxer,
-       peer
+       peer,
+       helpers/debug
 
 type
     Switch* = ref object of RootObj
@@ -61,9 +62,9 @@ proc identify(s: Switch, conn: Connection) {.async, gcsafe.} =
         peerInfo.addrs = info.addrs
         peerInfo.protocols = info.protos
   except IdentityInvalidMsgError as exc:
-    echo exc.msg # TODO: Loging
+    debug exc.msg
   except IdentityNoMatchError as exc:
-    echo exc.msg # TODO: Loging
+    debug exc.msg
 
 proc mux(s: Switch, conn: Connection): Future[Connection] {.async, gcsafe.} =
   ## mux incoming connection
@@ -79,8 +80,9 @@ proc mux(s: Switch, conn: Connection): Future[Connection] {.async, gcsafe.} =
   # do identify first, so that we have a 
   # PeerInfo in case we didn't before
   result = await muxer.newStream()
-  # await s.identify(result)
-
+  asyncCheck muxer.handle()
+  await s.identify(result)
+  
   # store it in muxed connections if we have a peer for it
   # TODO: We should make sure that this are cleaned up properly
   # on exit even if there is no peer for it. This shouldn't 
@@ -126,9 +128,10 @@ proc dial*(s: Switch,
         result = await s.handleConn(result)
         if s.muxed.contains(peer.peerId.pretty):
           result = await s.muxed[peer.peerId.pretty].newStream()
-        if (await s.ms.select(result, proto)):
+        if not (await s.ms.select(result, proto)):
           raise newException(CatchableError, 
           &"Unable to select protocol: {proto}")
+        await s.muxed[peer.peerId.pretty].handle()
 
 proc mount*[T: LPProtocol](s: Switch, proto: T) {.gcsafe.} = 
   if isNil(proto.handler):

@@ -12,7 +12,9 @@ import ../../stream/bufferstream,
        ../../stream/lpstream, 
        ../../connection,
        nimcrypto/utils,
-       types, coder
+       types, 
+       coder,
+       ../../helpers/debug
 
 const DefaultChannelSize* = DefaultBufferSize * 64 # 64kb
 
@@ -50,6 +52,7 @@ proc newChannel*(id: uint,
   proc writeHandler(data: seq[byte]): Future[void] {.async, gcsafe.} = 
     # writes should happen in sequence
     await chan.asyncLock.acquire()
+    debug &"writeHandler: sending data {data} from {chan.id}"
     await conn.writeMsg(chan.id, chan.msgCode, data) # write header
     chan.asyncLock.release()
 
