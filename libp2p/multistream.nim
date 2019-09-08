@@ -46,41 +46,49 @@ proc select*(m: MultisteamSelect,
              conn: Connection,
              proto: seq[string]): 
              Future[string] {.async.} =
+  debug &"select: initiating handshake"
   ## select a remote protocol
   await conn.write(m.codec) # write handshake
   if proto.len() > 0:
+    debug &"select: selecting proto {proto}"
     await conn.writeLp((proto[0] & "\n")) # select proto
 
   result = cast[string](await conn.readLp()) # read ms header
   result.removeSuffix("\n")
   if result != Codec:
+    debug &"select: handshake failed"
     return ""
 
   if proto.len() == 0: # no protocols, must be a handshake call
     return
 
   result = cast[string](await conn.readLp()) # read the first proto
+  debug &"select: reading first requested proto"
   result.removeSuffix("\n")
   if result == proto[0]:
+    debug &"select: succesfully selected {proto}"
     return
 
   if not result.len > 0:
+    debug &"select: selecting one of several protos"
     for p in proto[1..<proto.len()]:
       await conn.writeLp((p & "\n")) # select proto
       result = cast[string](await conn.readLp()) # read the first proto
       result.removeSuffix("\n")
       if result == p:
+        debug &"select: selected {result}"
         break
 
 proc select*(m: MultisteamSelect,
              conn: Connection,
              proto: string): Future[bool] {.async.} = 
-  result = if proto.len > 0: 
-            (await m.select(conn, @[proto])) == proto 
-           else: 
-            (await m.select(conn, @[])) == Codec
+  if proto.len > 0: 
+    result = (await m.select(conn, @[proto])) == proto 
+  else: 
+    result = (await m.select(conn, @[])) == Codec
 
-proc select*(m: MultisteamSelect, conn: Connection): Future[bool] = m.select(conn, "")
+proc select*(m: MultisteamSelect, conn: Connection): Future[bool] = 
+  m.select(conn, "")
 
 proc list*(m: MultisteamSelect,
            conn: Connection): Future[seq[string]] {.async.} =
@@ -99,19 +107,25 @@ proc list*(m: MultisteamSelect,
   result = list
 
 proc handle*(m: MultisteamSelect, conn: Connection) {.async, gcsafe.} =
+  debug &"select: starting multistream handling"
   while not conn.closed:
     block main:
       var ms = cast[string](await conn.readLp())
       ms.removeSuffix("\n")
+      
+      debug &"select: got request for {ms}"
       if ms.len() <= 0:
+        debug &"select: invalid proto"
         await conn.write(m.na)
 
       if m.handlers.len() == 0:
+        debug &"select: {ms} is na"
         await conn.write(m.na)
         continue
 
       case ms:
         of "ls":
+          debug &"select: listing protos"
           var protos = ""
           for h in m.handlers:
             protos &= (h.proto & "\n")
@@ -121,12 +135,14 @@ proc handle*(m: MultisteamSelect, conn: Connection) {.async, gcsafe.} =
         else:
           for h in m.handlers:
             if (not isNil(h.match) and h.match(ms)) or ms == h.proto:
+              debug &"select: found handler for {ms}"
               await conn.writeLp((h.proto & "\n"))
               try:
                 await h.protocol.handler(conn, ms)
                 break main
               except Exception as exc:
                 debug exc.msg # TODO: Logging
+          debug &"select: no handlers for {ms}"
           await conn.write(m.na)
 
 proc addHandler*[T: LPProtocol](m: MultisteamSelect,

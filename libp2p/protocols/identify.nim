@@ -7,12 +7,16 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import options
+import options, strformat
 import chronos
-import ../protobuf/minprotobuf, ../peerinfo, 
-       protocol as proto, ../connection,
-       ../peer, ../crypto/crypto, 
-       ../multiaddress
+import ../protobuf/minprotobuf, 
+       ../peerinfo,
+       ../connection,
+       ../peer, 
+       ../crypto/crypto, 
+       ../multiaddress,
+       ../protocols/protocol,
+       ../helpers/debug
 
 const IdentifyCodec* = "/ipfs/id/1.0.0"
 const IdentifyPushCodec* = "/ipfs/id/push/1.0.0"
@@ -99,12 +103,15 @@ proc identify*(p: Identify,
                Future[IdentifyInfo] {.async.} = 
   var message = await conn.readLp()
   if len(message) == 0:
+    debug "identify: Invalid or empty message received!"
     raise newException(IdentityInvalidMsgError, 
       "Invalid or empty message received!")
 
   result = decodeMsg(message)
+  debug &"identify: Identify for remote peer succeded"
   if remotePeerInfo.isSome and 
       remotePeerInfo.get().peerId.publicKey != result.pubKey:
+    debug "identify: Peer's remote public key doesn't match"
     raise newException(IdentityNoMatchError, 
       "Peer's remote public key doesn't match")
 

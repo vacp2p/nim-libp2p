@@ -103,11 +103,12 @@ proc readLp*(s: Connection): Future[seq[byte]] {.async, gcsafe.} =
       await s.readExactly(addr buffer[0], int(size))
   except TransportIncompleteError:
     buffer.setLen(0)
-    raise newLPStreamIncompleteError()
-
+  except AsyncStreamIncompleteError:
+    buffer.setLen(0)
+  
   result = buffer
 
-proc writeLp*(s: Connection, msg: string | seq[byte]) {.async, gcsafe.} =
+proc writeLp*(s: Connection, msg: string | seq[byte]): Future[void] {.gcsafe.} =
   ## write lenght prefixed
   var buf = initVBuffer()
   buf.writeSeq(msg)
