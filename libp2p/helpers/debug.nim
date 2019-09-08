@@ -39,21 +39,21 @@ when defined(debugout) and not defined(release):
     system.addQuitProc(resetAttributes)
     enableTrueColors()
 
-  var matches {.threadvar.} : OrderedTableRef[string, Match]
+  var context {.threadvar.} : OrderedTableRef[string, Match]
   proc initDebugCtx() = 
-    matches = newOrderedTable[string, Match]()
+    context = newOrderedTable[string, Match]()
     var patrns = @[".*"]
     if debugout != "true":
       patrns = debugout.split(re"[,\s]").filterIt(it.len > 0)
 
     randomize()
     for p in patrns:
-      matches[p] = Match(pattern: re(p), color: $rand(0..272)) # 256 ansi colors
+      context[p] = Match(pattern: re(p), color: $rand(0..272)) # 256 ansi colors
 
   proc doDebug(data: string): void {.gcsafe.} = 
-    if isNil(matches):
+    if isNil(context):
       initDebugCtx()
-    for m in matches.values:
+    for m in context.values:
       if data.match(m.pattern).isSome:
         stderr.writeLine("\u001b[38;5;" & m.color & "m " & alignLeft(data, 4) & "\e[0m")
         return

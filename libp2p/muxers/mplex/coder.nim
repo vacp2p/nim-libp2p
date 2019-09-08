@@ -7,13 +7,14 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import chronos, options, sequtils
+import chronos, options, sequtils, strformat
 import types,  
        ../../connection, 
        ../../varint, 
        ../../vbuffer, 
        ../../stream/lpstream,
-       nimcrypto/utils
+       nimcrypto/utils,
+       ../../helpers/debug
 
 type
   Msg* = tuple 
@@ -44,10 +45,13 @@ proc readMsg*(conn: Connection): Future[Option[Msg]] {.async, gcsafe.} =
   let headerVarint = await conn.readMplexVarint()
   if headerVarint.isNone:
     return
+  
+  debug &"readMsg: read header varint {$headerVarint}"
 
   let dataLenVarint = await conn.readMplexVarint()
   var data: seq[byte]
   if dataLenVarint.isSome and dataLenVarint.get() > 0.uint:
+    debug &"readMsg: read size varint {$dataLenVarint}"
     data = await conn.read(dataLenVarint.get().int)
 
   let header = headerVarint.get()
