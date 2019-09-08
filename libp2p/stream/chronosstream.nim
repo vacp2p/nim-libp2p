@@ -26,33 +26,69 @@ proc newChronosStream*(server: StreamServer,
   result.closed = false
 
 method read*(s: ChronosStream, n = -1): Future[seq[byte]] {.async, gcsafe.} = 
-  result = await s.reader.read(n)
+  try:
+    result = await s.reader.read(n)
+  except AsyncStreamReadError as exc:
+    raise newLPStreamReadError(exc.par)
 
 method readExactly*(s: ChronosStream, 
                     pbytes: pointer, 
                     nbytes: int): Future[void] {.async, gcsafe.} =
-  await s.reader.readExactly(pbytes, nbytes)
+  try:
+    await s.reader.readExactly(pbytes, nbytes)
+  except TransportIncompleteError, AsyncStreamIncompleteError:
+    raise newLPStreamIncompleteError()
+  except AsyncStreamReadError as exc:
+    raise newLPStreamReadError(exc.par)
 
 method readLine*(s: ChronosStream, limit = 0, sep = "\r\n"): Future[string] {.async, gcsafe.} =
-  result = await s.reader.readLine(limit, sep)
+    try:
+      result = await s.reader.readLine(limit, sep)
+    except AsyncStreamReadError as exc:
+      raise newLPStreamReadError(exc.par)
 
 method readOnce*(s: ChronosStream, pbytes: pointer, nbytes: int): Future[int] {.async, gcsafe.} =
-  result = await s.reader.readOnce(pbytes, nbytes)
+    try:
+      result = await s.reader.readOnce(pbytes, nbytes)
+    except AsyncStreamReadError as exc:
+      raise newLPStreamReadError(exc.par)
 
 method readUntil*(s: ChronosStream, 
                   pbytes: pointer, 
                   nbytes: int, 
                   sep: seq[byte]): Future[int] {.async, gcsafe.} =
-  result = await s.reader.readUntil(pbytes, nbytes, sep)
+  try:
+    result = await s.reader.readUntil(pbytes, nbytes, sep)
+  except TransportIncompleteError, AsyncStreamIncompleteError:
+    raise newLPStreamIncompleteError()
+  except TransportLimitError, AsyncStreamLimitError:
+    raise newLPStreamLimitError()
+  except LPStreamReadError as exc:
+    raise newLPStreamReadError(exc.par)
 
 method write*(s: ChronosStream, pbytes: pointer, nbytes: int) {.async, gcsafe.} =
-  await s.writer.write(pbytes, nbytes)
+  try:
+    await s.writer.write(pbytes, nbytes)
+  except AsyncStreamWriteError as exc:
+    raise newLPStreamWriteError(exc.par)
+  except AsyncStreamIncompleteError:
+    raise newLPStreamIncompleteError()
 
 method write*(s: ChronosStream, msg: string, msglen = -1) {.async, gcsafe.} =
-  await s.writer.write(msg, msglen)
+  try:
+    await s.writer.write(msg, msglen)
+  except AsyncStreamWriteError as exc:
+    raise newLPStreamWriteError(exc.par)
+  except AsyncStreamIncompleteError:
+    raise newLPStreamIncompleteError()
 
 method write*(s: ChronosStream, msg: seq[byte], msglen = -1) {.async, gcsafe.} =
-  await s.writer.write(msg, msglen)
+  try:
+    await s.writer.write(msg, msglen)
+  except AsyncStreamWriteError as exc:
+    raise newLPStreamWriteError(exc.par)
+  except AsyncStreamIncompleteError:
+    raise newLPStreamIncompleteError()
 
 method close*(s: ChronosStream) {.async, gcsafe.} =
   if not s.closed:
