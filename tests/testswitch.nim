@@ -12,7 +12,8 @@ import ../libp2p/switch,
        ../libp2p/protocols/protocol, 
        ../libp2p/muxers/muxer,
        ../libp2p/muxers/mplex/mplex, 
-       ../libp2p/muxers/mplex/types
+       ../libp2p/muxers/mplex/types,
+       ../libp2p/helpers/debug
 
 const TestCodec = "/test/proto/1.0.0"
 
@@ -22,9 +23,9 @@ type
 method init(p: TestProto) {.gcsafe.} =
   proc handle(conn: Connection, proto: string) {.async, gcsafe.} = 
     let msg = cast[string](await conn.readLp())
-    echo msg
     check "Hello!" == msg
     await conn.writeLp("Hello!")
+    await conn.close()
 
   p.codec = TestCodec
   p.handler = handle
@@ -64,13 +65,9 @@ suite "Switch":
       (switch2, peerInfo2) = createSwitch(ma2)
       await switch2.start()
       let conn = await switch2.dial(peerInfo1, TestCodec)
-      echo "DIALED???"
-      echo conn.repr
+      debug "TEST SWITCH: dial succesful"
       await conn.writeLp("Hello!")
-      echo "WROTE FROM TEST"
-      echo conn.repr
       let msg = cast[string](await conn.readLp())
-      echo msg
       check "Hello!" == msg
 
       result = true

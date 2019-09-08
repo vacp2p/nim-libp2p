@@ -61,12 +61,13 @@ proc identify(s: Switch, conn: Connection) {.async, gcsafe.} =
         peerInfo.peerId = PeerID.init(info.pubKey) # we might not have a peerId at all
         peerInfo.addrs = info.addrs
         peerInfo.protocols = info.protos
+        debug &"identify: identified remote peer {peerInfo.peerId.pretty}"
   except IdentityInvalidMsgError as exc:
     debug exc.msg
   except IdentityNoMatchError as exc:
     debug exc.msg
 
-proc mux(s: Switch, conn: Connection): Future[Connection] {.async, gcsafe.} =
+proc mux(s: Switch, conn: Connection): Future[void] {.async, gcsafe.} =
   ## mux incoming connection
   let muxers = toSeq(s.muxers.keys)
   let muxerName = await s.ms.select(conn, muxers)
@@ -79,9 +80,17 @@ proc mux(s: Switch, conn: Connection): Future[Connection] {.async, gcsafe.} =
 
   # do identify first, so that we have a 
   # PeerInfo in case we didn't before
-  result = await muxer.newStream()
-  asyncCheck muxer.handle()
-  await s.identify(result)
+  let stream = await muxer.newStream()
+  let handlerFut = muxer.handle()
+
+  # add muxer handler cleanup proc
+  handlerFut.addCallback(
+      proc(udata: pointer = nil) {.gcsafe.} = 
+        if handlerFut.finished:
+          debug &"Muxer handler completed for peer {conn.peerInfo.get().peerId.pretty}"
+    )
+  await s.identify(stream)
+  await stream.close() # close idenity stream
   
   # store it in muxed connections if we have a peer for it
   # TODO: We should make sure that this are cleaned up properly
@@ -105,7 +114,7 @@ proc handleConn(s: Switch, conn: Connection): Future[Connection] {.async, gcsafe
     s.connections[id] = result
 
   result = await s.secure(conn) # secure the connection
-  result = await s.mux(result) # mux it if possible
+  await s.mux(result) # mux it if possible
 
 proc cleanupConn(s: Switch, conn: Connection) {.async, gcsafe.} =
   let id = if conn.peerInfo.isSome: conn.peerInfo.get().peerId.pretty else: ""
@@ -126,12 +135,17 @@ proc dial*(s: Switch,
         result = await t.dial(a)
         result.peerInfo = some(peer)
         result = await s.handleConn(result)
+
+        # if there is a muxer for the connection
+        # use it instead to create a muxed stream
         if s.muxed.contains(peer.peerId.pretty):
           result = await s.muxed[peer.peerId.pretty].newStream()
+
+        debug &"dial: attempting to select remote proto {proto}"
         if not (await s.ms.select(result, proto)):
+          debug &"dial: Unable to select protocol: {proto}"
           raise newException(CatchableError, 
           &"Unable to select protocol: {proto}")
-        await s.muxed[peer.peerId.pretty].handle()
 
 proc mount*[T: LPProtocol](s: Switch, proto: T) {.gcsafe.} = 
   if isNil(proto.handler):
