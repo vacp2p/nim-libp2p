@@ -8,12 +8,12 @@
 ## those terms.
 
 import chronos, strformat
-import ../../stream/bufferstream, 
+import types, 
+       coder,
+       nimcrypto/utils,
+       ../../stream/bufferstream, 
        ../../stream/lpstream, 
        ../../connection,
-       nimcrypto/utils,
-       types, 
-       coder,
        ../../helpers/debug
 
 const DefaultChannelSize* = DefaultBufferSize * 64 # 64kb
