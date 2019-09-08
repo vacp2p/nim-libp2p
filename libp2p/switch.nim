@@ -117,8 +117,8 @@ proc handleConn(s: Switch, conn: Connection): Future[Connection] {.async, gcsafe
   await s.mux(result) # mux it if possible
 
 proc cleanupConn(s: Switch, conn: Connection) {.async, gcsafe.} =
-  let id = if conn.peerInfo.isSome: conn.peerInfo.get().peerId.pretty else: ""
   if conn.peerInfo.isSome:
+    let id = conn.peerInfo.get().peerId.pretty
     if s.muxed.contains(id):
       await s.muxed[id].close
     

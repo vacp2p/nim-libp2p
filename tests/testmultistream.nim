@@ -43,6 +43,9 @@ method readExactly*(s: TestSelectStream,
               cstring("\0x3na\n"),
               "\0x3na\n".len())
 
+method write*(s: TestSelectStream, msg: seq[byte], msglen = -1) 
+  {.async, gcsafe.} = discard
+
 method write*(s: TestSelectStream, msg: string, msglen = -1) 
   {.async, gcsafe.} = discard
 
