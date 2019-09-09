@@ -8,8 +8,8 @@
 ## those terms.
 
 import chronos
-import protocol
-import ../connection
+import ../protocol
+import ../../connection
 
 const PlainTextCodec* = "/plaintext/1.0.0"
 
@@ -19,11 +19,15 @@ type
   PlainText* = ref object of Secure
 
 method init(p: PlainText) {.gcsafe.} =
-  proc handle(conn: Connection, proto: string) {.async, gcsafe.} = discard
+  proc handle(conn: Connection, proto: string) 
+    {.async, gcsafe.} = discard
     ## plain text doesn't do anything
 
   p.codec = PlainTextCodec
   p.handler = handle
+
+method secure(p: Secure, conn: Connection): Future[Connection] 
+  {.base, async, gcsafe.} = discard
 
 proc newPlainText*(): PlainText =
   new result
