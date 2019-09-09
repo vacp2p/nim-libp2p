@@ -75,7 +75,7 @@ method handle*(m: Mplex) {.async, gcsafe.} =
         of MessageType.New:
           let name = cast[string](data)
           channel = await m.newStreamInternal(false, id, name)
-          # debug "handle: created channel ", id = id, name = name
+          debug "handle: created channel ", id = id, name = name
           if not isNil(m.streamHandler):
             let handlerFut = m.streamHandler(newConnection(channel))
 
