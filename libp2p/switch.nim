@@ -15,7 +15,6 @@ import connection,
        multistream, 
        protocols/protocol,
        protocols/secure/secure, # for plain text
-       protocols/secure/secio,
        peerinfo, 
        multiaddress,
        protocols/identify, 
@@ -39,9 +38,14 @@ proc secure(s: Switch, conn: Connection): Future[Connection] {.async, gcsafe.} =
   ## secure the incoming connection
 
   # plaintext for now, doesn't do anything
+  let managers = s.secureManagers.mapIt(it.codec).deduplicate()
+  if managers.len == 0:
+    raise newException(CatchableError, "No secure managers registered!")
+
   if (await s.ms.select(conn, s.secureManagers.mapIt(it.codec))).len == 0:
     raise newException(CatchableError, "Unable to negotiate a secure channel!")
-  
+
+  var n = await s.secureManagers[0].secure(conn)
   result = conn
 
 proc identify(s: Switch, conn: Connection) {.async, gcsafe.} =
@@ -201,9 +205,14 @@ proc newSwitch*(peerInfo: PeerInfo,
     result.mount(val)
 
   for s in secureManagers:
+    debug "adding secure manager ", codec = s.codec
     result.secureManagers.add(s)
     result.mount(s)
 
   if result.secureManagers.len == 0:
     # use plain text if no secure managers are provided
-    result.mount(Secure(newPlainText()))
+    let manager = Secure(newPlainText())
+    result.mount(manager)
+    result.secureManagers.add(manager)
+
+  result.secureManagers = result.secureManagers.deduplicate()
