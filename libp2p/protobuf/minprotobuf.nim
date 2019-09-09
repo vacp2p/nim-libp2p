@@ -20,7 +20,7 @@ type
 
   ProtoFlags* = enum
     ## Protobuf's encoding types
-    WithVarintLength
+    WithVarintLength, WithUint32BeLength, WithUint32LeLength
 
   ProtoBuffer* = object
     ## Protobuf's message representation object
@@ -128,6 +128,11 @@ proc initProtoBuffer*(options: set[ProtoFlags] = {}): ProtoBuffer =
     # in [0, 9].
     result.buffer.setLen(10)
     result.offset = 10
+  elif {WithUint32LeLength, WithUint32BeLength} * options != {}:
+    # Our buffer will start from position 4, so we can store length of buffer
+    # in [0, 9].
+    result.buffer.setLen(4)
+    result.offset = 4
 
 proc write*(pb: var ProtoBuffer, field: ProtoField) =
   ## Encode protobuf's field ``field`` and store it to protobuf's buffer ``pb``.
@@ -184,6 +189,20 @@ proc finish*(pb: var ProtoBuffer) =
     let res = PB.putUVarint(pb.buffer.toOpenArray(pos, 9), usedBytes, size)
     doAssert(res == VarintStatus.Success)
     pb.offset = pos
+  elif WithUint32BeLength in pb.options:
+    let size = uint(len(pb.buffer) - 4)
+    pb.buffer[0] = byte(size shr 24)
+    pb.buffer[1] = byte(size shr 16)
+    pb.buffer[2] = byte(size shr 8)
+    pb.buffer[3] = byte(size)
+    pb.offset = 4
+  elif WithUint32LeLength in pb.options:
+    let size = uint(len(pb.buffer) - 4)
+    pb.buffer[0] = byte(size)
+    pb.buffer[1] = byte(size shr 8)
+    pb.buffer[2] = byte(size shr 16)
+    pb.buffer[3] = byte(size shr 24)
+    pb.offset = 4
   else:
     pb.offset = 0
 

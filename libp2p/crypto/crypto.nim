@@ -8,6 +8,7 @@
 ## those terms.
 
 ## This module implements Public Key and Private Key interface for libp2p.
+import strutils
 import rsa, ecnist, ed25519/ed25519, secp
 import ../protobuf/minprotobuf, ../vbuffer
 import nimcrypto/[rijndael, blowfish, sha, sha2, hash, hmac, utils]
@@ -571,6 +572,63 @@ proc makeSecret*(remoteEPublic: PublicKey, localEPrivate: PrivateKey,
   if remoteEPublic.scheme == ECDSA:
     if localEPrivate.scheme == remoteEPublic.scheme:
       result = toSecret(remoteEPublic.eckey, localEPrivate.eckey, data)
+
+proc getOrder*(remotePubkey, localNonce: openarray[byte],
+               localPubkey, remoteNonce: openarray[byte]): int =
+  ## Compare values and calculate `order` parameter.
+  var ctx: sha256
+  ctx.init()
+  ctx.update(remotePubkey)
+  ctx.update(localNonce)
+  var digest1 = ctx.finish()
+  ctx.init()
+  ctx.update(localPubkey)
+  ctx.update(remoteNonce)
+  var digest2 = ctx.finish()
+  var diff = 0
+  for i in 0 ..< len(digest1.data):
+    diff = int(digest1.data[i]) - int(digest2.data[i])
+    result = (result and -not(diff)) or diff
+
+proc selectBest*(order: int, p1, p2: string): string =
+  ## Determines which algorithm to use from list `p1` and `p2`.
+  ##
+  ## Returns empty string if there no algorithms in common.
+  var f, s: seq[string]
+  if order < 0:
+    f = strutils.split(p2, ",")
+    s = strutils.split(p1, ",")
+  elif order > 0:
+    f = strutils.split(p1, ",")
+    s = strutils.split(p2, ",")
+  else:
+    var p = strutils.split(p1, ",")
+    result = p[0]
+    return
+
+  for felement in f:
+    for selement in s:
+      if felement == selement:
+        result = felement
+        break
+
+proc createProposal*(nonce, pubkey: openarray[byte],
+                     exchanges, ciphers, hashes: string): seq[byte] =
+  var msg = initProtoBuffer({WithUint32BeLength})
+  msg.write(initProtoField(1, nonce))
+  msg.write(initProtoField(2, pubkey))
+  msg.write(initProtoField(3, exchanges))
+  msg.write(initProtoField(4, ciphers))
+  msg.write(initProtoField(5, hashes))
+  msg.finish()
+  shallowCopy(result, msg.buffer)
+
+proc createExchange*(epubkey, signature: openarray[byte]): seq[byte] =
+  var msg = initProtoBuffer({WithUint32BeLength})
+  msg.write(initProtoField(1, epubkey))
+  msg.write(initProtoField(2, signature))
+  msg.finish()
+  shallowCopy(result, msg.buffer)
 
 ## Serialization/Deserialization helpers
 
