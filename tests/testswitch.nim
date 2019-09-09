@@ -1,5 +1,5 @@
 import unittest, tables
-import chronos
+import chronos, chronicles
 import ../libp2p/switch, 
        ../libp2p/multistream,
        ../libp2p/protocols/identify, 
@@ -12,8 +12,7 @@ import ../libp2p/switch,
        ../libp2p/protocols/protocol, 
        ../libp2p/muxers/muxer,
        ../libp2p/muxers/mplex/mplex, 
-       ../libp2p/muxers/mplex/types,
-       ../libp2p/helpers/debug
+       ../libp2p/muxers/mplex/types
 
 const TestCodec = "/test/proto/1.0.0"
 
