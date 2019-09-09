@@ -36,7 +36,7 @@ method readExactly*(s: ChronosStream,
                     nbytes: int): Future[void] {.async, gcsafe.} =
   try:
     await s.reader.readExactly(pbytes, nbytes)
-  except TransportIncompleteError, AsyncStreamIncompleteError:
+  except AsyncStreamIncompleteError:
     raise newLPStreamIncompleteError()
   except AsyncStreamReadError as exc:
     raise newLPStreamReadError(exc.par)
