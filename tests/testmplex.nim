@@ -250,8 +250,6 @@ suite "Mplex":
         await stream.close()
 
       await conn.close()
-      listenFut.complete()
-      dialFut.complete()
       result = true
 
     check:

@@ -64,7 +64,6 @@ suite "Switch":
       (switch2, peerInfo2) = createSwitch(ma2)
       await switch2.start()
       let conn = await switch2.dial(peerInfo1, TestCodec)
-      debug "TEST SWITCH: dial succesful"
       await conn.writeLp("Hello!")
       let msg = cast[string](await conn.readLp())
       check "Hello!" == msg
