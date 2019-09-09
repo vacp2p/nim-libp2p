@@ -7,7 +7,7 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import chronos, options
+import chronos, options, chronicles
 import peerinfo,
        multiaddress,
        stream/lpstream,
@@ -101,9 +101,8 @@ proc readLp*(s: Connection): Future[seq[byte]] {.async, gcsafe.} =
     buffer.setLen(size)
     if size > 0.uint:
       await s.readExactly(addr buffer[0], int(size))
-  except TransportIncompleteError:
-    buffer.setLen(0)
-  except AsyncStreamIncompleteError:
+  except LPStreamIncompleteError, LPStreamReadError:
+    debug "readLp: could not read from remote", exception = getCurrentExceptionMsg()
     buffer.setLen(0)
   
   result = buffer
@@ -118,3 +117,7 @@ proc writeLp*(s: Connection, msg: string | seq[byte]): Future[void] {.gcsafe.} =
 method getObservedAddrs*(c: Connection): Future[MultiAddress] {.base, async, gcsafe.} =
   ## get resolved multiaddresses for the connection
   discard
+
+proc `$`*(conn: Connection): string =
+  if conn.peerInfo.isSome:
+    result = $(conn.peerInfo.get().peerId)
