@@ -8,15 +8,14 @@
 ## those terms.
 
 import options, strformat
-import chronos
+import chronos, chronicles
 import ../protobuf/minprotobuf, 
        ../peerinfo,
        ../connection,
        ../peer, 
        ../crypto/crypto, 
        ../multiaddress,
-       ../protocols/protocol,
-       ../helpers/debug
+       ../protocols/protocol
 
 const IdentifyCodec* = "/ipfs/id/1.0.0"
 const IdentifyPushCodec* = "/ipfs/id/push/1.0.0"
@@ -108,7 +107,7 @@ proc identify*(p: Identify,
       "Invalid or empty message received!")
 
   result = decodeMsg(message)
-  debug &"identify: Identify for remote peer succeded"
+  debug "identify: Identify for remote peer succeded"
   if remotePeerInfo.isSome and 
       remotePeerInfo.get().peerId.publicKey != result.pubKey:
     debug "identify: Peer's remote public key doesn't match"

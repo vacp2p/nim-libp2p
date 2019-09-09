@@ -17,16 +17,15 @@
 ## here to not forget that this needs to be fixed ASAP.
 
 import tables, sequtils, options, strformat
-import chronos
+import chronos, chronicles
 import coder, types, channel,
+       ../muxer,
        ../../varint, 
        ../../connection, 
        ../../vbuffer, 
        ../../protocols/protocol,
        ../../stream/bufferstream, 
-       ../../stream/lpstream, 
-       ../muxer,
-       ../../helpers/debug
+       ../../stream/lpstream
 
 type
   Mplex* = ref object of Muxer
@@ -34,9 +33,6 @@ type
     local*: Table[uint, Channel]
     currentId*: uint
     maxChannels*: uint
-
-proc newMplexNoSuchChannel(id: uint, msgType: MessageType): ref MplexNoSuchChannel =
-  result = newException(MplexNoSuchChannel, &"No such channel id {$id} and message {$msgType}")
 
 proc newMplexUnknownMsgError(): ref MplexUnknownMsgError =
   result = newException(MplexUnknownMsgError, "Unknown mplex message type")
@@ -71,7 +67,7 @@ method handle*(m: Mplex) {.async, gcsafe.} =
       if MessageType(msgType) != MessageType.New:
         let channels = m.getChannelList(initiator)
         if not channels.contains(id):
-          debug &"handle: Channel with id {id} message type {msgType} not found"
+          # debug "handle: Channel with id and msg type ", id = id, msg = msgType
           continue
         channel = channels[id]
 
@@ -79,7 +75,7 @@ method handle*(m: Mplex) {.async, gcsafe.} =
         of MessageType.New:
           let name = cast[string](data)
           channel = await m.newStreamInternal(false, id, name)
-          debug &"handle: created channel with id {$id} and name {name}"
+          # debug "handle: created channel ", id = id, name = name
           if not isNil(m.streamHandler):
             let handlerFut = m.streamHandler(newConnection(channel))
 
@@ -91,19 +87,19 @@ method handle*(m: Mplex) {.async, gcsafe.} =
                   proc(udata: pointer) = 
                     # TODO: is waitFor() OK here?
                     channel.cleanUp()
-                    .addCallback(proc(udata: pointer) 
-                      = debug &"handle: cleaned up channel {$id}"))
-            handlerFut.addCallback(cleanUpChan)
+                    .addCallback(proc(udata: pointer) = 
+                      debug "handle: cleaned up channel ", id = id))
+              handlerFut.addCallback(cleanUpChan)
             continue
         of MessageType.MsgIn, MessageType.MsgOut:
-            debug &"handle: pushing data to channel {$id} type {msgType}"
+            debug "handle: pushing data to channel ", id = id, msgType = msgType
             await channel.pushTo(data)
         of MessageType.CloseIn, MessageType.CloseOut:
-          debug &"handle: closing channel {$id} type {msgType}"
+          debug "handle: closing channel ", id = id, msgType = msgType
           await channel.closedByRemote()
           m.getChannelList(initiator).del(id)
         of MessageType.ResetIn, MessageType.ResetOut:
-          debug &"handle: resetting channel {$id} type {msgType}"
+          debug "handle: resetting channel ", id = id
           await channel.resetByRemote()
           break
         else: raise newMplexUnknownMsgError()

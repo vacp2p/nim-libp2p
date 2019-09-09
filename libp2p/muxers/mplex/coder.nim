@@ -8,13 +8,12 @@
 ## those terms.
 
 import chronos, options, sequtils, strformat
-import types,  
+import nimcrypto/utils, chronicles
+import types,
        ../../connection, 
        ../../varint, 
        ../../vbuffer, 
-       ../../stream/lpstream,
-       nimcrypto/utils,
-       ../../helpers/debug
+       ../../stream/lpstream
 
 type
   Msg* = tuple 
@@ -38,7 +37,7 @@ proc readMplexVarint(conn: Connection): Future[Option[uint]] {.async, gcsafe.} =
     if res != VarintStatus.Success:
       buffer.setLen(0)
       return
-  except TransportIncompleteError, AsyncStreamIncompleteError:
+  except LPStreamIncompleteError:
     buffer.setLen(0)
 
 proc readMsg*(conn: Connection): Future[Option[Msg]] {.async, gcsafe.} = 
@@ -46,12 +45,12 @@ proc readMsg*(conn: Connection): Future[Option[Msg]] {.async, gcsafe.} =
   if headerVarint.isNone:
     return
   
-  debug &"readMsg: read header varint {$headerVarint}"
+  debug "readMsg: read header varint ", varint = headerVarint
 
   let dataLenVarint = await conn.readMplexVarint()
   var data: seq[byte]
   if dataLenVarint.isSome and dataLenVarint.get() > 0.uint:
-    debug &"readMsg: read size varint {$dataLenVarint}"
+    debug "readMsg: read size varint ", varint = dataLenVarint
     data = await conn.read(dataLenVarint.get().int)
 
   let header = headerVarint.get()

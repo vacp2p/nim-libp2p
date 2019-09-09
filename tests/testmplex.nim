@@ -1,5 +1,5 @@
-import unittest, sequtils, sugar, strformat, options
-import chronos, nimcrypto/utils
+import unittest, sequtils, sugar, strformat, options, strformat
+import chronos, nimcrypto/utils, chronicles
 import ../libp2p/connection, 
        ../libp2p/stream/lpstream, 
        ../libp2p/stream/bufferstream, 
@@ -10,8 +10,7 @@ import ../libp2p/connection,
        ../libp2p/muxers/mplex/mplex, 
        ../libp2p/muxers/mplex/coder, 
        ../libp2p/muxers/mplex/types,
-       ../libp2p/muxers/mplex/channel,
-       ../libp2p/helpers/debug
+       ../libp2p/muxers/mplex/channel
 
 suite "Mplex":
   test "encode header with channel id 0":

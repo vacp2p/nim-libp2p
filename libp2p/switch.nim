@@ -8,19 +8,19 @@
 ## those terms.
 
 import tables, sequtils, options, strformat
-import chronos
+import chronos, chronicles
 import connection, 
        transports/transport, 
        stream/lpstream, 
        multistream, 
        protocols/protocol,
-       protocols/secure,
+       protocols/secure/secure, # for plain text
+       protocols/secure/secio,
        peerinfo, 
        multiaddress,
        protocols/identify, 
        muxers/muxer,
-       peer,
-       helpers/debug
+       peer
 
 type
     Switch* = ref object of RootObj
@@ -33,13 +33,13 @@ type
       ms*: MultisteamSelect
       identity*: Identify
       streamHandler*: StreamHandler
-      secureManager*: Secure
+      secureManagers*: seq[Secure]
 
 proc secure(s: Switch, conn: Connection): Future[Connection] {.async, gcsafe.} = 
   ## secure the incoming connection
 
   # plaintext for now, doesn't do anything
-  if not (await s.ms.select(conn, s.secureManager.codec)):
+  if (await s.ms.select(conn, s.secureManagers.mapIt(it.codec))).len == 0:
     raise newException(CatchableError, "Unable to negotiate a secure channel!")
   
   result = conn
@@ -61,11 +61,11 @@ proc identify(s: Switch, conn: Connection) {.async, gcsafe.} =
         peerInfo.peerId = PeerID.init(info.pubKey) # we might not have a peerId at all
         peerInfo.addrs = info.addrs
         peerInfo.protocols = info.protos
-        debug &"identify: identified remote peer {peerInfo.peerId.pretty}"
+        debug "identify: identified remote peer ", peer = peerInfo.peerId.pretty
   except IdentityInvalidMsgError as exc:
-    debug exc.msg
+    debug "identify: invalid message", msg = exc.msg
   except IdentityNoMatchError as exc:
-    debug exc.msg
+    debug "identify: peer's public keys don't match ", msg = exc.msg
 
 proc mux(s: Switch, conn: Connection): Future[void] {.async, gcsafe.} =
   ## mux incoming connection
@@ -87,7 +87,7 @@ proc mux(s: Switch, conn: Connection): Future[void] {.async, gcsafe.} =
   handlerFut.addCallback(
       proc(udata: pointer = nil) {.gcsafe.} = 
         if handlerFut.finished:
-          debug &"Muxer handler completed for peer {conn.peerInfo.get().peerId.pretty}"
+          debug "mux: Muxer handler completed for peer ", peer = conn.peerInfo.get().peerId.pretty
     )
   await s.identify(stream)
   await stream.close() # close idenity stream
@@ -141,9 +141,9 @@ proc dial*(s: Switch,
         if s.muxed.contains(peer.peerId.pretty):
           result = await s.muxed[peer.peerId.pretty].newStream()
 
-        debug &"dial: attempting to select remote proto {proto}"
+        debug "dial: attempting to select remote ", proto = proto
         if not (await s.ms.select(result, proto)):
-          debug &"dial: Unable to select protocol: {proto}"
+          debug "dial: Unable to select protocol: ", proto = proto
           raise newException(CatchableError, 
           &"Unable to select protocol: {proto}")
 
@@ -177,7 +177,8 @@ proc stop*(s: Switch) {.async.} =
 proc newSwitch*(peerInfo: PeerInfo,
                 transports: seq[Transport],
                 identity: Identify,
-                muxers: Table[string, MuxerProvider]): Switch =
+                muxers: Table[string, MuxerProvider],
+                secureManagers: seq[Secure] = @[]): Switch =
   new result
   result.peerInfo = peerInfo
   result.ms = newMultistream()
@@ -199,5 +200,10 @@ proc newSwitch*(peerInfo: PeerInfo,
     val.streamHandler = result.streamHandler
     result.mount(val)
 
-  result.secureManager = Secure(newPlainText())
-  result.mount(result.secureManager)
+  for s in secureManagers:
+    result.secureManagers.add(s)
+    result.mount(s)
+
+  if result.secureManagers.len == 0:
+    # use plain text if no secure managers are provided
+    result.mount(Secure(newPlainText()))
