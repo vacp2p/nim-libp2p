@@ -183,6 +183,7 @@ suite "Mplex":
       let ma: MultiAddress = Multiaddress.init("/ip4/127.0.0.1/tcp/53382")
 
       var count = 1
+      var listenConn: Connection
       proc connHandler(conn: Connection) {.async, gcsafe.} =
         proc handleMplexListen(stream: Connection) {.async, gcsafe.} = 
           let msg = await stream.readLp()
@@ -190,9 +191,12 @@ suite "Mplex":
           count.inc
           await stream.close()
 
+        listenConn = conn
         let mplexListen = newMplex(conn)
         mplexListen.streamHandler = handleMplexListen
-        asyncCheck mplexListen.handle()
+        mplexListen.handle()
+          .addCallback(proc(udata: pointer) = 
+            debug "handle completed")
 
       let transport1: TcpTransport = newTransport(TcpTransport)
       await transport1.listen(ma, connHandler)
@@ -207,6 +211,7 @@ suite "Mplex":
         await stream.close()
 
       await conn.close()
+      await listenConn.close()
       result = true
 
     check:
@@ -218,7 +223,9 @@ suite "Mplex":
 
       var count = 1
       var listenFut: Future[void]
+      var listenConn: Connection
       proc connHandler(conn: Connection) {.async, gcsafe.} =
+        listenConn = conn
         proc handleMplexListen(stream: Connection) {.async, gcsafe.} = 
           let msg = await stream.readLp()
           check cast[string](msg) == &"stream {count} from dialer!"
@@ -250,6 +257,8 @@ suite "Mplex":
         await stream.close()
 
       await conn.close()
+      await listenConn.close()
+      await allFutures(dialFut, listenFut)
       result = true
 
     check:
