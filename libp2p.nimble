@@ -12,6 +12,7 @@ requires "nim > 0.18.0",
          "nimcrypto >= 0.3.9",
          "chronos",
          "bearssl"
+         "chronicles"
 
 proc runTest(filename: string) =
   exec "nim c -r tests/" & filename
