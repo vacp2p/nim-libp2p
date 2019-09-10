@@ -16,6 +16,9 @@ import types,
        ../../stream/lpstream, 
        ../../connection
 
+logScope:
+  topic = "mplex-channel"
+
 const DefaultChannelSize* = DefaultBufferSize * 64 # 64kb
 
 type

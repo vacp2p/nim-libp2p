@@ -17,6 +17,9 @@ import ../protobuf/minprotobuf,
        ../multiaddress,
        ../protocols/protocol
 
+logScope:
+  topic = "identify"
+
 const IdentifyCodec* = "/ipfs/id/1.0.0"
 const IdentifyPushCodec* = "/ipfs/id/push/1.0.0"
 const ProtoVersion* = "ipfs/0.1.0"
