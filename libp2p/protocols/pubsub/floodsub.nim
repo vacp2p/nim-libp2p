@@ -7,47 +7,129 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
+import sequtils, tables, options, sets
 import chronos, chronicles
-import ../protocol,
-       ../../connection
+import pubsub,
+       pubsubpeer,
+       rpcmsg,
+       ../../connection,
+       ../../peerinfo,
+       ../../peer
 
 logScope:
-  topic = "floodsub"
+  topic = "FloodSub"
 
 const FloodSubCodec* = "/floodsub/1.0.0"
 
 type
-  TopicHandler* = proc(topic:string, data: seq[byte]): Future[void] {.gcsafe.}
-  Topic* = object
-    name*: string
-    handler*: TopicHandler
+  FloodSub = ref object of PubSub
 
-  Peer* = object
-    conn: Connection
-    topics: string
+proc sendSubs(f: FloodSub,
+              peer: PubSubPeer,
+              topics: seq[string],
+              subscribe: bool)
+              {.async, gcsafe.} =
+  ## send subscriptions to remote peer
+  var msg: RPCMsg
+  for t in topics:
+    msg.subscriptions.add(SubOpts(topic: t, subscribe: subscribe))
 
-  FloodSub* = ref object of LPProtocol
-    topics: seq[Topic]
-    peers: seq[Peer]
+  await peer.send(@[msg])
 
-proc encodeRpcMsg() = discard
-proc decodeRpcMsg() = discard
+proc rpcHandler(f: FloodSub,
+                peer: PubSubPeer,
+                rpcMsgs: seq[RPCMsg])
+                {.async, gcsafe.} =
+  ## method called by a PubSubPeer every 
+  ## time it receives an RPC message
+  ##
+  ## The RPC message might contain subscriptions 
+  ## or messages forwarded to this peer
+  ##
 
-method init*(f: FloodSub) = 
+  for m in rpcMsgs:                                # for all RPC messages
+    if m.subscriptions.len > 0:                    # if there are any subscriptions
+      for s in m.subscriptions:                    # subscribe/unsubscribe the peer for each topic
+        let id = peer.conn.peerInfo.get().peerId.pretty
+        if s.subscribe:
+          # subscribe the peer to the topic
+          f.peerTopics[s.topic].incl(id)
+        else:
+          # unsubscribe the peer to the topic
+          f.peerTopics[s.topic].excl(id)
+
+      # send subscriptions to every peer
+      for p in f.peers.values:
+        await p.send(@[RPCMsg(subscriptions: m.subscriptions)])
+
+    if m.messages.len > 0:                         # if there are any messages
+      var toSendPeers: HashSet[string]
+      for msg in m.messages:                       # for every message
+        for t in msg.topicIDs:                     # for every topic in the message
+          toSendPeers.incl(f.peerTopics[t])        # get all the peers interested in this topic
+          if f.topics.contains(t):                 # check that we're subscribed to it
+            await f.topics[t].handler(t, msg.data) # trigger user provided handler
+
+        for p in toSendPeers:
+          await f.peers[p].send(@[RPCMsg(messages: m.messages)])
+
+proc handleConn(f: FloodSub, conn: Connection) {.async, gcsafe.} = 
+  ## handle incoming/outgoing connections
+  ##
+  ## this proc will:
+  ## 1) register a new PubSubPeer for the connection
+  ## 2) register a handler with the peer;
+  ##    this handler gets called on every rpc message 
+  ##    that the peer receives
+  ## 3) ask the peer to subscribe us to every topic 
+  ##    that we're interested in
+  ## 
+
+  proc handleRpc(peer: PubSubPeer, msgs: seq[RPCMsg]) {.async, gcsafe.} =
+    await f.rpcHandler(peer, msgs)
+
+  var peer = newPubSubPeer(conn, handleRpc)
+  f.peers[peer.conn.peerInfo.get().peerId.pretty()] = peer
+  let topics = toSeq(f.topics.keys)
+  await f.sendSubs(peer, topics, true)
+  asyncCheck peer.handle()
+
+method init(f: FloodSub) = 
   proc handler(conn: Connection, proto: string) {.async, gcsafe.} = 
-    discard
+    ## main protocol handler that gets triggered on every 
+    ## connection for a protocol string
+    ## e.g. ``/floodsub/1.0.0``, etc...
+    ##
 
-  f.codec = FloodSubCodec
+    await f.handleConn(conn)
+
   f.handler = handler
+  f.codec = FloodSubCodec
+
+method subscribePeer*(f: FloodSub, conn: Connection) {.async, gcsafe.} =
+  await f.handleConn(conn)
+
+method publish*(f: FloodSub,
+                topic: string,
+                data: seq[byte])
+                {.async, gcsafe.} = 
+  for p in f.peerTopics[topic]:
+    f.peers[p].send(Message(fromPeer: f.peerInfo.peerId.data, 
+                            data: data))
 
 method subscribe*(f: FloodSub, 
                   topic: string, 
-                  handler: TopicHandler) 
-                  {.base, async, gcsafe.} = 
-  discard
+                  handler: TopicHandler)
+                  {.async, gcsafe.} = 
+  await procCall PubSub(f).subscribe(topic, handler)
+  for p in f.peers.values:
+    await f.sendSubs(p, @[topic], true)
 
-method publish*(f: FloodSub, topic: string) {.base, async, gcsafe.} = 
-  discard
+method unsubscribe*(f: FloodSub, topics: seq[string]) {.async, gcsafe.} = 
+  await procCall PubSub(f).unsubscribe(topics)
+  for p in f.peers.values:
+    await f.sendSubs(p, topics, false)
 
-proc newFloodSub*(): FloodSub = 
+proc newFloodSub*(peerInfo: PeerInfo): FloodSub = 
   new result
+  result.peerInfo = peerInfo
