@@ -68,7 +68,7 @@ proc decodeMsg*(buf: seq[byte]): IdentifyInfo =
 
   result.addrs = newSeq[MultiAddress]()
   var address = newSeq[byte]()
-  while pb.getBytes(2, address) != -1:
+  while pb.getBytes(2, address) > 0:
     if len(address) != 0:
       var copyaddr = address
       result.addrs.add(MultiAddress.init(copyaddr))

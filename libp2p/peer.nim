@@ -21,7 +21,7 @@ const
 type
   PeerID* = object
     data*: seq[byte]
-    privateKey: PrivateKey
+    privateKey*: PrivateKey
     publicKey: PublicKey
 
   PeerIDError* = object of CatchableError
