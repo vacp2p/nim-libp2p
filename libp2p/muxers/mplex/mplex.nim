@@ -27,6 +27,9 @@ import coder, types, channel,
        ../../stream/bufferstream, 
        ../../stream/lpstream
 
+logScope:
+  topic = "mplex"
+
 type
   Mplex* = ref object of Muxer
     remote*: Table[uint, Channel]

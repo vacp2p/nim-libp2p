@@ -15,6 +15,9 @@ import types,
        ../../vbuffer, 
        ../../stream/lpstream
 
+logScope:
+  topic = "mplex-coder"
+
 type
   Msg* = tuple 
     id: uint 
