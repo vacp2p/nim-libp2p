@@ -15,7 +15,6 @@ const PlainTextCodec* = "/plaintext/1.0.0"
 
 type
   Secure* = ref object of LPProtocol # base type for secure managers
-
   PlainText* = ref object of Secure
 
 method init(p: PlainText) {.gcsafe.} =
@@ -26,7 +25,7 @@ method init(p: PlainText) {.gcsafe.} =
   p.codec = PlainTextCodec
   p.handler = handle
 
-method secure(p: Secure, conn: Connection): Future[Connection] 
+method secure*(p: Secure, conn: Connection): Future[Connection]
   {.base, async, gcsafe.} = discard
 
 proc newPlainText*(): PlainText =
