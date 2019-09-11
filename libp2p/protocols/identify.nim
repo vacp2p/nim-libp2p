@@ -32,11 +32,11 @@ type
   IdentityInvalidMsgError* = object of CatchableError
 
   IdentifyInfo* = object
-    pubKey*: PublicKey
+    pubKey*: Option[PublicKey]
     addrs*: seq[MultiAddress]
-    observedAddr*: MultiAddress
-    protoVersion*: string
-    agentVersion*: string
+    observedAddr*: Option[MultiAddress]
+    protoVersion*: Option[string]
+    agentVersion*: Option[string]
     protos*: seq[string]
 
   Identify* = ref object of LPProtocol
@@ -45,7 +45,9 @@ type
 proc encodeMsg*(peerInfo: PeerInfo, observedAddrs: Multiaddress): ProtoBuffer = 
   result = initProtoBuffer()
 
-  result.write(initProtoField(1, peerInfo.peerId.publicKey.getBytes()))
+  if peerInfo.peerId.isSome:
+    result.write(initProtoField(1, peerInfo.peerId.get().publicKey.getBytes()))
+
   for ma in peerInfo.addrs:
     result.write(initProtoField(2, ma.data.buffer))
 
@@ -64,7 +66,10 @@ proc encodeMsg*(peerInfo: PeerInfo, observedAddrs: Multiaddress): ProtoBuffer =
 proc decodeMsg*(buf: seq[byte]): IdentifyInfo = 
   var pb = initProtoBuffer(buf)
 
-  discard pb.getValue(1, result.pubKey)
+  result.pubKey = none(PublicKey)
+  var pubKey: PublicKey
+  if pb.getValue(1, pubKey) > 0:
+    result.pubKey = some(pubKey)
 
   result.addrs = newSeq[MultiAddress]()
   var address = newSeq[byte]()
@@ -81,10 +86,15 @@ proc decodeMsg*(buf: seq[byte]): IdentifyInfo =
   
   var observableAddr = newSeq[byte]()
   if pb.getBytes(4, observableAddr) > 0: # attempt to read the observed addr
-    result.observedAddr = MultiAddress.init(observableAddr)
+    result.observedAddr = some(MultiAddress.init(observableAddr))
 
-  discard pb.getString(5, result.protoVersion)
-  discard pb.getString(6, result.agentVersion)
+  var protoVersion = ""
+  if pb.getString(5, protoVersion) > 0:
+    result.protoVersion = some(protoVersion)
+
+  var agentVersion = ""
+  if pb.getString(6, agentVersion) > 0:
+    result.agentVersion = some(protoVersion)
 
 proc newIdentify*(peerInfo: PeerInfo): Identify =
   new result
@@ -101,7 +111,7 @@ method init*(p: Identify) =
 
 proc identify*(p: Identify, 
                conn: Connection, 
-               remotePeerInfo: Option[PeerInfo] = none(PeerInfo)): 
+               remotePeerInfo: PeerInfo): 
                Future[IdentifyInfo] {.async.} = 
   var message = await conn.readLp()
   if len(message) == 0:
@@ -111,8 +121,10 @@ proc identify*(p: Identify,
 
   result = decodeMsg(message)
   debug "identify: Identify for remote peer succeded"
-  if remotePeerInfo.isSome and 
-      remotePeerInfo.get().peerId.publicKey != result.pubKey:
+
+  if remotePeerInfo.peerId.isSome and 
+     result.pubKey.isSome and
+     result.pubKey.get() != remotePeerInfo.peerId.get().publicKey:
     debug "identify: Peer's remote public key doesn't match"
     raise newException(IdentityNoMatchError, 
       "Peer's remote public key doesn't match")
