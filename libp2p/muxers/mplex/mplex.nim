@@ -70,7 +70,7 @@ method handle*(m: Mplex) {.async, gcsafe.} =
       if MessageType(msgType) != MessageType.New:
         let channels = m.getChannelList(initiator)
         if not channels.contains(id):
-          # debug "handle: Channel with id and msg type ", id = id, msg = msgType
+          debug "handle: Channel with id and msg type ", id = id, msg = msgType
           continue
         channel = channels[id]
 
@@ -82,15 +82,13 @@ method handle*(m: Mplex) {.async, gcsafe.} =
           if not isNil(m.streamHandler):
             let stream = newConnection(channel)
             stream.peerInfo = m.connection.peerInfo
-            let handlerFut = m.streamHandler(newConnection(stream))
+            let handlerFut = m.streamHandler(stream)
 
-            # TODO: don't use a closure?
             # channel cleanup routine
             proc cleanUpChan(udata: pointer) {.gcsafe.} = 
               if handlerFut.finished:
                 channel.close().addCallback(
                   proc(udata: pointer) = 
-                    # TODO: is waitFor() OK here?
                     channel.cleanUp()
                     .addCallback(proc(udata: pointer) = 
                       debug "handle: cleaned up channel ", id = id))
