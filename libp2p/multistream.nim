@@ -14,6 +14,9 @@ import connection,
        vbuffer, 
        protocols/protocol
 
+logScope:
+  topic = "Multistream"
+
 const MsgSize* = 64*1024
 const Codec* = "/multistream/1.0.0"
 const MSCodec* = "\x13" & Codec & "\n"
@@ -140,7 +143,7 @@ proc handle*(m: MultisteamSelect, conn: Connection) {.async, gcsafe.} =
                 await h.protocol.handler(conn, ms)
                 break main
               except Exception as exc:
-                debug "handle: exception while handling ", msg = exc.msg # TODO: Logging
+                debug "handle: exception while handling ", msg = exc.msg
           debug "handle: no handlers for ", protocol = ms
           await conn.write(m.na)
 
