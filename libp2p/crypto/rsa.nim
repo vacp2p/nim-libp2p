@@ -12,7 +12,6 @@
 ## This module uses unmodified parts of code from
 ## BearSSL library <https://bearssl.org/>
 ## Copyright(C) 2018 Thomas Pornin <pornin@bolet.org>.
-
 import nimcrypto/utils
 import common, minasn1
 export Asn1Status
@@ -160,6 +159,7 @@ proc random*[T: RsaKP](t: typedesc[T], bits = DefaultKeySize,
 
 proc copy*[T: RsaPKI](key: T): T =
   ## Create copy of RSA private key, public key or signature.
+  doAssert(not isNil(key))
   when T is RsaPrivateKey:
     if len(key.buffer) > 0:
       let length = key.seck.plen + key.seck.qlen + key.seck.dplen +
@@ -220,6 +220,7 @@ proc copy*[T: RsaPKI](key: T): T =
 
 proc getKey*(key: RsaPrivateKey): RsaPublicKey =
   ## Get RSA public key from RSA private key.
+  doAssert(not isNil(key))
   let length = key.pubk.nlen + key.pubk.elen
   result = new RsaPublicKey
   result.buffer = newSeq[byte](length)
@@ -241,6 +242,7 @@ proc pubkey*(pair: RsaKeyPair): RsaPublicKey {.inline.} =
 
 proc clear*[T: RsaPKI|RsaKeyPair](pki: var T) =
   ## Wipe and clear EC private key, public key or scalar object.
+  doAssert(not isNil(pki))
   when T is RsaPrivateKey:
     burnMem(pki.buffer)
     pki.buffer.setLen(0)
@@ -276,6 +278,7 @@ proc toBytes*(key: RsaPrivateKey, data: var openarray[byte]): int =
   ##
   ## Procedure returns number of bytes (octets) needed to store RSA private key,
   ## or `0` if private key is is incorrect.
+  doAssert(not isNil(key))
   if len(key.buffer) > 0:
     var b = Asn1Buffer.init()
     var p = Asn1Composite.init(Asn1Tag.Sequence)
@@ -308,6 +311,7 @@ proc toBytes*(key: RsaPublicKey, data: var openarray[byte]): int =
   ##
   ## Procedure returns number of bytes (octets) needed to store RSA public key,
   ## or `0` if public key is incorrect.
+  doAssert(not isNil(key))
   if len(key.buffer) > 0:
     var b = Asn1Buffer.init()
     var p = Asn1Composite.init(Asn1Tag.Sequence)
@@ -337,6 +341,7 @@ proc toBytes*(sig: RsaSignature, data: var openarray[byte]): int =
   ##
   ## Procedure returns number of bytes (octets) needed to store RSA public key,
   ## or `0` if public key is incorrect.
+  doAssert(not isNil(sig))
   result = len(sig.buffer)
   if len(data) >= result:
     copyMem(addr data[0], addr sig.buffer[0], result)
@@ -344,6 +349,7 @@ proc toBytes*(sig: RsaSignature, data: var openarray[byte]): int =
 proc getBytes*(key: RsaPrivateKey): seq[byte] =
   ## Serialize RSA private key ``key`` to ASN.1 DER binary form and
   ## return it.
+  doAssert(not isNil(key))
   result = newSeq[byte](4096)
   let length = key.toBytes(result)
   if length > 0:
@@ -354,6 +360,7 @@ proc getBytes*(key: RsaPrivateKey): seq[byte] =
 proc getBytes*(key: RsaPublicKey): seq[byte] =
   ## Serialize RSA public key ``key`` to ASN.1 DER binary form and
   ## return it.
+  doAssert(not isNil(key))
   result = newSeq[byte](4096)
   let length = key.toBytes(result)
   if length > 0:
@@ -363,6 +370,7 @@ proc getBytes*(key: RsaPublicKey): seq[byte] =
 
 proc getBytes*(sig: RsaSignature): seq[byte] =
   ## Serialize RSA signature ``sig`` to raw binary form and return it.
+  doAssert(not isNil(sig))
   result = newSeq[byte](4096)
   let length = sig.toBytes(result)
   if length > 0:
@@ -592,8 +600,8 @@ proc init*[T: RsaPKI](t: typedesc[T], data: string): T {.inline.} =
 
 proc `$`*(key: RsaPrivateKey): string =
   ## Return string representation of RSA private key.
-  if len(key.buffer) == 0:
-    result = "Empty RSA key"
+  if isNil(key) or len(key.buffer) == 0:
+    result = "Empty or uninitialized RSA key"
   else:
     result = "RSA key ("
     result.add($key.seck.nBitlen)
@@ -618,8 +626,8 @@ proc `$`*(key: RsaPrivateKey): string =
 
 proc `$`*(key: RsaPublicKey): string =
   ## Return string representation of RSA public key.
-  if len(key.buffer) == 0:
-    result = "Empty RSA key"
+  if isNil(key) or len(key.buffer) == 0:
+    result = "Empty or uninitialized RSA key"
   else:
     let nbitlen = key.key.nlen shl 3
     result = "RSA key ("
@@ -632,8 +640,8 @@ proc `$`*(key: RsaPublicKey): string =
 
 proc `$`*(sig: RsaSignature): string =
   ## Return string representation of RSA signature.
-  if len(sig.buffer) == 0:
-    result = "Empty RSA signature"
+  if isNil(sig) or len(sig.buffer) == 0:
+    result = "Empty or uninitialized RSA signature"
   else:
     result = "RSA signature ("
     result.add(toHex(sig.buffer))
@@ -656,44 +664,69 @@ proc cmp(a: openarray[byte], b: openarray[byte]): bool =
 
 proc `==`*(a, b: RsaPrivateKey): bool =
   ## Compare two RSA private keys for equality.
-  if a.seck.nBitlen == b.seck.nBitlen:
-    if cast[int](a.seck.nBitlen) > 0:
-      let r1 = cmp(getArray(a.buffer, a.seck.p, a.seck.plen),
-                   getArray(b.buffer, b.seck.p, b.seck.plen))
-      let r2 = cmp(getArray(a.buffer, a.seck.q, a.seck.qlen),
-                   getArray(b.buffer, b.seck.q, b.seck.qlen))
-      let r3 = cmp(getArray(a.buffer, a.seck.dp, a.seck.dplen),
-                   getArray(b.buffer, b.seck.dp, b.seck.dplen))
-      let r4 = cmp(getArray(a.buffer, a.seck.dq, a.seck.dqlen),
-                   getArray(b.buffer, b.seck.dq, b.seck.dqlen))
-      let r5 = cmp(getArray(a.buffer, a.seck.iq, a.seck.iqlen),
-                   getArray(b.buffer, b.seck.iq, b.seck.iqlen))
-      let r6 = cmp(getArray(a.buffer, a.pexp, a.pexplen),
-                   getArray(b.buffer, b.pexp, b.pexplen))
-      let r7 = cmp(getArray(a.buffer, a.pubk.n, a.pubk.nlen),
-                   getArray(b.buffer, b.pubk.n, b.pubk.nlen))
-      let r8 = cmp(getArray(a.buffer, a.pubk.e, a.pubk.elen),
-                   getArray(b.buffer, b.pubk.e, b.pubk.elen))
-      result = r1 and r2 and r3 and r4 and r5 and r6 and r7 and r8
-    else:
-      result = true
+  ##
+  ## Result is true if ``a`` and ``b`` are both ``nil`` or ``a`` and ``b`` are
+  ## equal by value.
+  if isNil(a) and isNil(b):
+    result = true
+  elif isNil(a) and (not isNil(b)):
+    result = false
+  elif isNil(b) and (not isNil(a)):
+    result = false
+  else:
+    if a.seck.nBitlen == b.seck.nBitlen:
+      if cast[int](a.seck.nBitlen) > 0:
+        let r1 = cmp(getArray(a.buffer, a.seck.p, a.seck.plen),
+                     getArray(b.buffer, b.seck.p, b.seck.plen))
+        let r2 = cmp(getArray(a.buffer, a.seck.q, a.seck.qlen),
+                     getArray(b.buffer, b.seck.q, b.seck.qlen))
+        let r3 = cmp(getArray(a.buffer, a.seck.dp, a.seck.dplen),
+                     getArray(b.buffer, b.seck.dp, b.seck.dplen))
+        let r4 = cmp(getArray(a.buffer, a.seck.dq, a.seck.dqlen),
+                     getArray(b.buffer, b.seck.dq, b.seck.dqlen))
+        let r5 = cmp(getArray(a.buffer, a.seck.iq, a.seck.iqlen),
+                     getArray(b.buffer, b.seck.iq, b.seck.iqlen))
+        let r6 = cmp(getArray(a.buffer, a.pexp, a.pexplen),
+                     getArray(b.buffer, b.pexp, b.pexplen))
+        let r7 = cmp(getArray(a.buffer, a.pubk.n, a.pubk.nlen),
+                     getArray(b.buffer, b.pubk.n, b.pubk.nlen))
+        let r8 = cmp(getArray(a.buffer, a.pubk.e, a.pubk.elen),
+                     getArray(b.buffer, b.pubk.e, b.pubk.elen))
+        result = r1 and r2 and r3 and r4 and r5 and r6 and r7 and r8
+      else:
+        result = true
 
 proc `==`*(a, b: RsaSignature): bool =
   ## Compare two RSA signatures for equality.
-  result = (a.buffer == b.buffer)
+  if isNil(a) and isNil(b):
+    result = true
+  elif isNil(a) and (not isNil(b)):
+    result = false
+  elif isNil(b) and (not isNil(a)):
+    result = false
+  else:
+    result = (a.buffer == b.buffer)
 
 proc `==`*(a, b: RsaPublicKey): bool =
   ## Compare two RSA public keys for equality.
-  let r1 = cmp(getArray(a.buffer, a.key.n, a.key.nlen),
-               getArray(b.buffer, b.key.n, b.key.nlen))
-  let r2 = cmp(getArray(a.buffer, a.key.e, a.key.elen),
-               getArray(b.buffer, b.key.e, b.key.elen))
-  result = r1 and r2
+  if isNil(a) and isNil(b):
+    result = true
+  elif isNil(a) and (not isNil(b)):
+    result = false
+  elif isNil(b) and (not isNil(a)):
+    result = false
+  else:
+    let r1 = cmp(getArray(a.buffer, a.key.n, a.key.nlen),
+                 getArray(b.buffer, b.key.n, b.key.nlen))
+    let r2 = cmp(getArray(a.buffer, a.key.e, a.key.elen),
+                 getArray(b.buffer, b.key.e, b.key.elen))
+    result = r1 and r2
 
 proc sign*[T: byte|char](key: RsaPrivateKey,
                          message: openarray[T]): RsaSignature =
   ## Get RSA PKCS1.5 signature of data ``message`` using SHA256 and private
   ## key ``key``.
+  doAssert(not isNil(key))
   var hc: BrHashCompatContext
   var hash: array[32, byte]
   var impl = BrRsaPkcs1SignGetDefault()
@@ -720,6 +753,7 @@ proc verify*[T: byte|char](sig: RsaSignature, message: openarray[T],
   ##
   ## Return ``true`` if message verification succeeded, ``false`` if
   ## verification failed.
+  doAssert((not isNil(sig)) and (not isNil(pubkey)))
   if len(sig.buffer) > 0:
     var hc: BrHashCompatContext
     var hash: array[32, byte]

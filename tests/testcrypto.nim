@@ -345,7 +345,7 @@ const
 proc cmp(a, b: openarray[byte]): bool =
   result = (@a == @b)
 
-proc testStretcher(s, e: int, cs: CipherScheme, ds: DigestSheme): bool =
+proc testStretcher(s, e: int, cs: string, ds: string): bool =
   for i in s..<e:
     var sharedsecret = fromHex(stripSpaces(Secrets[i]))
     var secret = stretchKeys(cs, ds, sharedsecret)
@@ -452,8 +452,8 @@ suite "Key interface test suite":
         recsig2.verify(bmsg, recpub2) == true
 
   test "Go key stretch function AES128-SHA256 test vectors":
-    check testStretcher(0, 4, Aes128, Sha256) == true
+    check testStretcher(0, 4, "AES-128", "SHA256") == true
   test "Go key stretch function AES256-SHA512 test vectors":
-    check testStretcher(4, 8, Aes256, Sha512) == true
+    check testStretcher(4, 8, "AES-256", "SHA512") == true
   test "Go key stretch function AES256-SHA1 test vectors":
-    check testStretcher(8, 12, Aes256, Sha1) == true
+    check testStretcher(8, 12, "AES-256", "SHA1") == true

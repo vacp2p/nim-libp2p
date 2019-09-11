@@ -141,36 +141,48 @@ template getPublicKeyLength*(curve: EcCurveKind): int =
   of Secp521r1:
     PubKey521Length
 
+template getPrivateKeyLength*(curve: EcCurveKind): int =
+  case curve
+  of Secp256r1:
+    SecKey256Length
+  of Secp384r1:
+    SecKey384Length
+  of Secp521r1:
+    SecKey521Length
+
 proc copy*[T: EcPKI](dst: var T, src: T): bool =
   ## Copy EC `private key`, `public key` or `signature` ``src`` to ``dst``.
   ##
   ## Returns ``true`` on success, ``false`` otherwise.
-  dst = new T
-  when T is EcPrivateKey:
-    let length = src.key.xlen
-    if length > 0 and len(src.buffer) > 0:
-      let offset = getOffset(src)
-      if offset >= 0:
-        dst.buffer = src.buffer
-        dst.key.curve = src.key.curve
-        dst.key.xlen = length
-        dst.key.x = cast[ptr cuchar](addr dst.buffer[offset])
-        result = true
-  elif T is EcPublicKey:
-    let length = src.key.qlen
-    if length > 0 and len(src.buffer) > 0:
-      let offset = getOffset(src)
-      if offset >= 0:
-        dst.buffer = src.buffer
-        dst.key.curve = src.key.curve
-        dst.key.qlen = length
-        dst.key.q = cast[ptr cuchar](addr dst.buffer[offset])
-        result = true
+  if isNil(src):
+    result = false
   else:
-    let length = len(src.buffer)
-    if length > 0:
-      dst.buffer = src.buffer
-      result = true
+    dst = new T
+    when T is EcPrivateKey:
+      let length = src.key.xlen
+      if length > 0 and len(src.buffer) > 0:
+        let offset = getOffset(src)
+        if offset >= 0:
+          dst.buffer = src.buffer
+          dst.key.curve = src.key.curve
+          dst.key.xlen = length
+          dst.key.x = cast[ptr cuchar](addr dst.buffer[offset])
+          result = true
+    elif T is EcPublicKey:
+      let length = src.key.qlen
+      if length > 0 and len(src.buffer) > 0:
+        let offset = getOffset(src)
+        if offset >= 0:
+          dst.buffer = src.buffer
+          dst.key.curve = src.key.curve
+          dst.key.qlen = length
+          dst.key.q = cast[ptr cuchar](addr dst.buffer[offset])
+          result = true
+    else:
+      let length = len(src.buffer)
+      if length > 0:
+        dst.buffer = src.buffer
+        result = true
 
 proc copy*[T: EcPKI](src: T): T {.inline.} =
   ## Returns copy of EC `private key`, `public key` or `signature`
@@ -180,6 +192,7 @@ proc copy*[T: EcPKI](src: T): T {.inline.} =
 
 proc clear*[T: EcPKI|EcKeyPair](pki: var T) =
   ## Wipe and clear EC `private key`, `public key` or `signature` object.
+  doAssert(not isNil(pki))
   when T is EcPrivateKey:
     burnMem(pki.buffer)
     pki.buffer.setLen(0)
@@ -228,6 +241,7 @@ proc random*(t: typedesc[EcPrivateKey], kind: EcCurveKind): EcPrivateKey =
 
 proc getKey*(seckey: EcPrivateKey): EcPublicKey =
   ## Calculate and return EC public key from private key ``seckey``.
+  doAssert(not isNil(seckey))
   var ecimp = brEcGetDefault()
   if seckey.key.curve in EcSupportedCurvesCint:
     var length = getPublicKeyLength(cast[EcCurveKind](seckey.key.curve))
@@ -250,8 +264,9 @@ proc random*(t: typedesc[EcKeyPair], kind: EcCurveKind): EcKeyPair {.inline.} =
 
 proc `$`*(seckey: EcPrivateKey): string =
   ## Return string representation of EC private key.
-  if seckey.key.curve == 0 or seckey.key.xlen == 0 or len(seckey.buffer) == 0:
-    result = "Empty key"
+  if isNil(seckey) or seckey.key.curve == 0 or seckey.key.xlen == 0 or
+     len(seckey.buffer) == 0:
+    result = "Empty or uninitialized ECNIST key"
   else:
     if seckey.key.curve notin EcSupportedCurvesCint:
       result = "Unknown key"
@@ -265,8 +280,9 @@ proc `$`*(seckey: EcPrivateKey): string =
 
 proc `$`*(pubkey: EcPublicKey): string =
   ## Return string representation of EC public key.
-  if pubkey.key.curve == 0 or pubkey.key.qlen == 0 or len(pubkey.buffer) == 0:
-    result = "Empty key"
+  if isNil(pubkey) or pubkey.key.curve == 0 or pubkey.key.qlen == 0 or
+     len(pubkey.buffer) == 0:
+    result = "Empty or uninitialized ECNIST key"
   else:
     if pubkey.key.curve notin EcSupportedCurvesCint:
       result = "Unknown key"
@@ -280,7 +296,45 @@ proc `$`*(pubkey: EcPublicKey): string =
 
 proc `$`*(sig: EcSignature): string =
   ## Return hexadecimal string representation of EC signature.
-  result = toHex(sig.buffer)
+  if isNil(sig) or len(sig.buffer) == 0:
+    result = "Empty or uninitialized ECNIST signature"
+  else:
+    result = toHex(sig.buffer)
+
+proc toRawBytes*(seckey: EcPrivateKey, data: var openarray[byte]): int =
+  ## Serialize EC private key ``seckey`` to raw binary form and store it
+  ## to ``data``.
+  ##
+  ## Returns number of bytes (octets) needed to store EC private key, or `0`
+  ## if private key is not in supported curve.
+  doAssert(not isNil(seckey))
+  if seckey.key.curve in EcSupportedCurvesCint:
+    result = getPrivateKeyLength(cast[EcCurveKind](seckey.key.curve))
+    if len(data) >= result:
+      copyMem(addr data[0], unsafeAddr seckey.buffer[0], result)
+
+proc toRawBytes*(pubkey: EcPublicKey, data: var openarray[byte]): int =
+  ## Serialize EC public key ``pubkey`` to uncompressed form specified in
+  ## section 4.3.6 of ANSI X9.62.
+  ##
+  ## Returns number of bytes (octets) needed to store EC public key, or `0`
+  ## if public key is not in supported curve.
+  doAssert(not isNil(pubkey))
+  if pubkey.key.curve in EcSupportedCurvesCint:
+    result = getPublicKeyLength(cast[EcCurveKind](pubkey.key.curve))
+    if len(data) >= result:
+      copyMem(addr data[0], unsafeAddr pubkey.buffer[0], result)
+
+proc toRawBytes*(sig: EcSignature, data: var openarray[byte]): int =
+  ## Serialize EC signature ``sig`` to raw binary form and store it to ``data``.
+  ##
+  ## Returns number of bytes (octets) needed to store EC signature, or `0`
+  ## if signature is not in supported curve.
+  doAssert(not isNil(sig))
+  result = len(sig.buffer)
+  if len(data) >= len(sig.buffer):
+    if len(sig.buffer) > 0:
+      copyMem(addr data[0], unsafeAddr sig.buffer[0], len(sig.buffer))
 
 proc toBytes*(seckey: EcPrivateKey, data: var openarray[byte]): int =
   ## Serialize EC private key ``seckey`` to ASN.1 DER binary form and store it
@@ -288,6 +342,7 @@ proc toBytes*(seckey: EcPrivateKey, data: var openarray[byte]): int =
   ##
   ## Procedure returns number of bytes (octets) needed to store EC private key,
   ## or `0` if private key is not in supported curve.
+  doAssert(not isNil(seckey))
   if seckey.key.curve in EcSupportedCurvesCint:
     var offset, length: int
     var pubkey = seckey.getKey()
@@ -327,6 +382,7 @@ proc toBytes*(pubkey: EcPublicKey, data: var openarray[byte]): int =
   ##
   ## Procedure returns number of bytes (octets) needed to store EC public key,
   ## or `0` if public key is not in supported curve.
+  doAssert(not isNil(pubkey))
   if pubkey.key.curve in EcSupportedCurvesCint:
     var b = Asn1Buffer.init()
     var p = Asn1Composite.init(Asn1Tag.Sequence)
@@ -357,12 +413,14 @@ proc toBytes*(sig: EcSignature, data: var openarray[byte]): int =
   ##
   ## Procedure returns number of bytes (octets) needed to store EC signature,
   ## or `0` if signature is not in supported curve.
+  doAssert(not isNil(sig))
   result = len(sig.buffer)
   if len(data) >= result:
     copyMem(addr data[0], unsafeAddr sig.buffer[0], result)
 
 proc getBytes*(seckey: EcPrivateKey): seq[byte] =
   ## Serialize EC private key ``seckey`` to ASN.1 DER binary form and return it.
+  doAssert(not isNil(seckey))
   if seckey.key.curve in EcSupportedCurvesCint:
     result = newSeq[byte]()
     let length = seckey.toBytes(result)
@@ -373,6 +431,7 @@ proc getBytes*(seckey: EcPrivateKey): seq[byte] =
 
 proc getBytes*(pubkey: EcPublicKey): seq[byte] =
   ## Serialize EC public key ``pubkey`` to ASN.1 DER binary form and return it.
+  doAssert(not isNil(pubkey))
   if pubkey.key.curve in EcSupportedCurvesCint:
     result = newSeq[byte]()
     let length = pubkey.toBytes(result)
@@ -383,6 +442,37 @@ proc getBytes*(pubkey: EcPublicKey): seq[byte] =
 
 proc getBytes*(sig: EcSignature): seq[byte] =
   ## Serialize EC signature ``sig`` to ASN.1 DER binary form and return it.
+  doAssert(not isNil(sig))
+  result = newSeq[byte]()
+  let length = sig.toBytes(result)
+  result.setLen(length)
+  discard sig.toBytes(result)
+
+proc getRawBytes*(seckey: EcPrivateKey): seq[byte] =
+  ## Serialize EC private key ``seckey`` to raw binary form and return it.
+  doAssert(not isNil(seckey))
+  if seckey.key.curve in EcSupportedCurvesCint:
+    result = newSeq[byte]()
+    let length = seckey.toRawBytes(result)
+    result.setLen(length)
+    discard seckey.toRawBytes(result)
+  else:
+    raise newException(EcKeyIncorrectError, "Incorrect private key")
+
+proc getRawBytes*(pubkey: EcPublicKey): seq[byte] =
+  ## Serialize EC public key ``pubkey`` to raw binary form and return it.
+  doAssert(not isNil(pubkey))
+  if pubkey.key.curve in EcSupportedCurvesCint:
+    result = newSeq[byte]()
+    let length = pubkey.toRawBytes(result)
+    result.setLen(length)
+    discard pubkey.toRawBytes(result)
+  else:
+    raise newException(EcKeyIncorrectError, "Incorrect public key")
+
+proc getRawBytes*(sig: EcSignature): seq[byte] =
+  ## Serialize EC signature ``sig`` to raw binary form and return it.
+  doAssert(not isNil(sig))
   result = newSeq[byte]()
   let length = sig.toBytes(result)
   result.setLen(length)
@@ -390,33 +480,54 @@ proc getBytes*(sig: EcSignature): seq[byte] =
 
 proc `==`*(pubkey1, pubkey2: EcPublicKey): bool =
   ## Returns ``true`` if both keys ``pubkey1`` and ``pubkey2`` are equal.
-  if pubkey1.key.curve != pubkey2.key.curve:
-    return false
-  if pubkey1.key.qlen != pubkey2.key.qlen:
-    return false
-  let op1 = pubkey1.getOffset()
-  let op2 = pubkey2.getOffset()
-  if op1 == -1 or op2 == -1:
-    return false
-  result = equalMem(unsafeAddr pubkey1.buffer[op1],
-                    unsafeAddr pubkey2.buffer[op2], pubkey1.key.qlen)
+  if isNil(pubkey1) and isNil(pubkey2):
+    result = true
+  elif isNil(pubkey1) and (not isNil(pubkey2)):
+    result = false
+  elif isNil(pubkey2) and (not isNil(pubkey1)):
+    result = false
+  else:
+    if pubkey1.key.curve != pubkey2.key.curve:
+      return false
+    if pubkey1.key.qlen != pubkey2.key.qlen:
+      return false
+    let op1 = pubkey1.getOffset()
+    let op2 = pubkey2.getOffset()
+    if op1 == -1 or op2 == -1:
+      return false
+    result = equalMem(unsafeAddr pubkey1.buffer[op1],
+                      unsafeAddr pubkey2.buffer[op2], pubkey1.key.qlen)
 
 proc `==`*(seckey1, seckey2: EcPrivateKey): bool =
   ## Returns ``true`` if both keys ``seckey1`` and ``seckey2`` are equal.
-  if seckey1.key.curve != seckey2.key.curve:
-    return false
-  if seckey1.key.xlen != seckey2.key.xlen:
-    return false
-  let op1 = seckey1.getOffset()
-  let op2 = seckey2.getOffset()
-  if op1 == -1 or op2 == -1:
-    return false
-  result = equalMem(unsafeAddr seckey1.buffer[op1],
-                    unsafeAddr seckey2.buffer[op2], seckey1.key.xlen)
+  if isNil(seckey1) and isNil(seckey2):
+    result = true
+  elif isNil(seckey1) and (not isNil(seckey2)):
+    result = false
+  elif isNil(seckey2) and (not isNil(seckey1)):
+    result = false
+  else:
+    if seckey1.key.curve != seckey2.key.curve:
+      return false
+    if seckey1.key.xlen != seckey2.key.xlen:
+      return false
+    let op1 = seckey1.getOffset()
+    let op2 = seckey2.getOffset()
+    if op1 == -1 or op2 == -1:
+      return false
+    result = equalMem(unsafeAddr seckey1.buffer[op1],
+                      unsafeAddr seckey2.buffer[op2], seckey1.key.xlen)
 
 proc `==`*(sig1, sig2: EcSignature): bool =
   ## Return ``true`` if both signatures ``sig1`` and ``sig2`` are equal.
-  result = (sig1.buffer == sig2.buffer)
+  if isNil(sig1) and isNil(sig2):
+    result = true
+  elif isNil(sig1) and (not isNil(sig2)):
+    result = false
+  elif isNil(sig2) and (not isNil(sig1)):
+    result = false
+  else:
+    result = (sig1.buffer == sig2.buffer)
 
 proc init*(key: var EcPrivateKey, data: openarray[byte]): Asn1Status =
   ## Initialize EC `private key` or `signature` ``key`` from ASN.1 DER binary
@@ -698,6 +809,7 @@ proc scalarMul*(pub: EcPublicKey, sec: EcPrivateKey): EcPublicKey =
   ## Return scalar multiplication of ``pub`` and ``sec``.
   ##
   ## Returns point in curve as ``pub * sec`` or ``nil`` otherwise.
+  doAssert((not isNil(pub)) and (not isNil(sec)))
   var impl = brEcGetDefault()
   if sec.key.curve in EcSupportedCurvesCint:
     if pub.key.curve == sec.key.curve:
@@ -726,6 +838,7 @@ proc toSecret*(pubkey: EcPublicKey, seckey: EcPrivateKey,
   ##
   ## ``data`` array length must be at least 32 bytes for `secp256r1`, 48 bytes
   ## for `secp384r1` and 66 bytes for `secp521r1`.
+  doAssert((not isNil(pubkey)) and (not isNil(seckey)))
   var mult = scalarMul(pubkey, seckey)
   var length = 0
   if not isNil(mult):
@@ -745,6 +858,7 @@ proc getSecret*(pubkey: EcPublicKey, seckey: EcPrivateKey): seq[byte] =
   ## shared secret.
   ##
   ## If error happens length of result array will be ``0``.
+  doAssert((not isNil(pubkey)) and (not isNil(seckey)))
   var data: array[Secret521Length, byte]
   let res = toSecret(pubkey, seckey, data)
   if res > 0:
@@ -754,6 +868,7 @@ proc getSecret*(pubkey: EcPublicKey, seckey: EcPrivateKey): seq[byte] =
 proc sign*[T: byte|char](seckey: EcPrivateKey,
                          message: openarray[T]): EcSignature =
   ## Get ECDSA signature of data ``message`` using private key ``seckey``.
+  doAssert(not isNil(seckey))
   var hc: BrHashCompatContext
   var hash: array[32, byte]
   var impl = brEcGetDefault()
@@ -785,6 +900,7 @@ proc verify*[T: byte|char](sig: EcSignature, message: openarray[T],
   ##
   ## Return ``true`` if message verification succeeded, ``false`` if
   ## verification failed.
+  doAssert((not isNil(sig)) and (not isNil(pubkey)))
   var hc: BrHashCompatContext
   var hash: array[32, byte]
   var impl = brEcGetDefault()

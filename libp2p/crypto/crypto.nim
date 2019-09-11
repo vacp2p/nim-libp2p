@@ -8,13 +8,14 @@
 ## those terms.
 
 ## This module implements Public Key and Private Key interface for libp2p.
-import strutils
 import rsa, ecnist, ed25519/ed25519, secp
-import ../protobuf/minprotobuf, ../vbuffer
+import ../protobuf/minprotobuf, ../vbuffer, ../multihash, ../multicodec
 import nimcrypto/[rijndael, blowfish, sha, sha2, hash, hmac, utils]
 
 # This is workaround for Nim's `import` bug
 export rijndael, blowfish, sha, sha2, hash, hmac, utils
+
+from strutils import split
 
 type
   PKScheme* = enum
@@ -463,7 +464,7 @@ proc verify*(sig: Signature, message: openarray[byte],
     if signature.init(sig.data):
       result = signature.verify(message, key.skkey)
 
-template makeSecret(buffer, hmactype, secret, seed) =
+template makeSecret(buffer, hmactype, secret, seed: untyped) {.dirty.}=
   var ctx: hmactype
   var j = 0
   # We need to strip leading zeros, because Go bigint serialization do it.
@@ -489,16 +490,16 @@ template makeSecret(buffer, hmactype, secret, seed) =
     ctx.update(a.data)
     a = ctx.finish()
 
-proc stretchKeys*(cipherScheme: CipherScheme, hashScheme: DigestSheme,
-                  secret: openarray[byte]): Secret =
+proc stretchKeys*(cipherType: string, hashType: string,
+                  sharedSecret: seq[byte]): Secret =
   ## Expand shared secret to cryptographic keys.
-  if cipherScheme == Aes128:
+  if cipherType == "AES-128":
     result.ivsize = aes128.sizeBlock
     result.keysize = aes128.sizeKey
-  elif cipherScheme == Aes256:
+  elif cipherType == "AES-256":
     result.ivsize = aes256.sizeBlock
     result.keysize = aes256.sizeKey
-  elif cipherScheme == Blowfish:
+  elif cipherType == "BLOWFISH":
     result.ivsize = 8
     result.keysize = 32
 
@@ -507,12 +508,12 @@ proc stretchKeys*(cipherScheme: CipherScheme, hashScheme: DigestSheme,
   let length = result.ivsize + result.keysize + result.macsize
   result.data = newSeq[byte](2 * length)
 
-  if hashScheme == Sha256:
-    makeSecret(result.data, HMAC[sha256], secret, seed)
-  elif hashScheme == Sha512:
-    makeSecret(result.data, HMAC[sha512], secret, seed)
-  elif hashScheme == Sha1:
-    makeSecret(result.data, HMAC[sha1], secret, seed)
+  if hashType == "SHA256":
+    makeSecret(result.data, HMAC[sha256], sharedSecret, seed)
+  elif hashType == "SHA512":
+    makeSecret(result.data, HMAC[sha512], sharedSecret, seed)
+  elif hashType == "SHA1":
+    makeSecret(result.data, HMAC[sha1], sharedSecret, seed)
 
 template goffset*(secret, id, o: untyped): untyped =
   id * (len(secret.data) shr 1) + o
@@ -561,17 +562,46 @@ proc ephemeral*(scheme: ECDHEScheme): KeyPair =
   result.seckey.eckey = keypair.seckey
   result.pubkey.eckey = keypair.pubkey
 
+proc ephemeral*(scheme: string): KeyPair {.inline.} =
+  ## Generate ephemeral keys used to perform ECDHE using string encoding.
+  ##
+  ## Currently supported encoding strings are P-256, P-384, P-521, if encoding
+  ## string is not supported P-521 key will be generated.
+  if scheme == "P-256":
+    result = ephemeral(Secp256r1)
+  elif scheme == "P-384":
+    result = ephemeral(Secp384r1)
+  elif scheme == "P-521":
+    result = ephemeral(Secp521r1)
+  else:
+    result = ephemeral(Secp521r1)
+
 proc makeSecret*(remoteEPublic: PublicKey, localEPrivate: PrivateKey,
                  data: var openarray[byte]): int =
   ## Calculate shared secret using remote ephemeral public key
   ## ``remoteEPublic`` and local ephemeral private key ``localEPrivate`` and
-  ## store shared secret to ``data``
+  ## store shared secret to ``data``.
+  ##
+  ## Note this procedure supports only ECDSA keys.
   ##
   ## Returns number of bytes (octets) used to store shared secret data, or
   ## ``0`` on error.
   if remoteEPublic.scheme == ECDSA:
     if localEPrivate.scheme == remoteEPublic.scheme:
       result = toSecret(remoteEPublic.eckey, localEPrivate.eckey, data)
+
+proc getSecret*(remoteEPublic: PublicKey,
+                localEPrivate: PrivateKey): seq[byte] =
+  ## Calculate shared secret using remote ephemeral public key
+  ## ``remoteEPublic`` and local ephemeral private key ``localEPrivate`` and
+  ## store shared secret to ``data``.
+  ##
+  ## Note this procedure supports only ECDSA keys.
+  ##
+  ## Returns shared secret on success.
+  if remoteEPublic.scheme == ECDSA:
+    if localEPrivate.scheme == remoteEPublic.scheme:
+      result = getSecret(remoteEPublic.eckey, localEPrivate.eckey)
 
 proc getOrder*(remotePubkey, localNonce: openarray[byte],
                localPubkey, remoteNonce: openarray[byte]): int =
@@ -585,10 +615,16 @@ proc getOrder*(remotePubkey, localNonce: openarray[byte],
   ctx.update(localPubkey)
   ctx.update(remoteNonce)
   var digest2 = ctx.finish()
-  var diff = 0
-  for i in 0 ..< len(digest1.data):
-    diff = int(digest1.data[i]) - int(digest2.data[i])
-    result = (result and -not(diff)) or diff
+  var mh1 = MultiHash.init(multiCodec("sha2-256"), digest1)
+  var mh2 = MultiHash.init(multiCodec("sha2-256"), digest2)
+  for i in 0 ..< len(mh1.data.buffer):
+    result = int(mh1.data.buffer[i]) - int(mh2.data.buffer[i])
+    if result != 0:
+      if result > 0:
+        result = -1
+      elif result > 0:
+        result = 1
+      break
 
 proc selectBest*(order: int, p1, p2: string): string =
   ## Determines which algorithm to use from list `p1` and `p2`.
@@ -610,10 +646,14 @@ proc selectBest*(order: int, p1, p2: string): string =
     for selement in s:
       if felement == selement:
         result = felement
-        break
+        return
 
 proc createProposal*(nonce, pubkey: openarray[byte],
                      exchanges, ciphers, hashes: string): seq[byte] =
+  ## Create SecIO proposal message using random ``nonce``, local public key
+  ## ``pubkey``, comma-delimieted list of supported exchange schemes
+  ## ``exchanges``, comma-delimeted list of supported ciphers ``ciphers`` and
+  ## comma-delimeted list of supported hashes ``hashes``.
   var msg = initProtoBuffer({WithUint32BeLength})
   msg.write(initProtoField(1, nonce))
   msg.write(initProtoField(2, pubkey))
@@ -623,12 +663,41 @@ proc createProposal*(nonce, pubkey: openarray[byte],
   msg.finish()
   shallowCopy(result, msg.buffer)
 
+proc decodeProposal*(message: seq[byte], nonce, pubkey: var seq[byte],
+                     exchanges, ciphers, hashes: var string): bool =
+  ## Parse incoming proposal message and decode remote random nonce ``nonce``,
+  ## remote public key ``pubkey``, comma-delimieted list of supported exchange
+  ## schemes ``exchanges``, comma-delimeted list of supported ciphers
+  ## ``ciphers`` and comma-delimeted list of supported hashes ``hashes``.
+  ##
+  ## Procedure returns ``true`` on success and ``false`` on error.
+  var pb = initProtoBuffer(message)
+  if pb.getLengthValue(1, nonce) != -1 and
+     pb.getLengthValue(2, pubkey) != -1 and
+     pb.getLengthValue(3, exchanges) != -1 and
+     pb.getLengthValue(4, ciphers) != -1 and
+     pb.getLengthValue(5, hashes) != -1:
+    result = true
+
 proc createExchange*(epubkey, signature: openarray[byte]): seq[byte] =
+  ## Create SecIO exchange message using ephemeral public key ``epubkey`` and
+  ## signature of proposal blocks ``signature``.
   var msg = initProtoBuffer({WithUint32BeLength})
   msg.write(initProtoField(1, epubkey))
   msg.write(initProtoField(2, signature))
   msg.finish()
   shallowCopy(result, msg.buffer)
+
+proc decodeExchange*(message: seq[byte],
+                     pubkey, signature: var seq[byte]): bool =
+  ## Parse incoming exchange message and decode remote ephemeral public key
+  ## ``pubkey`` and signature ``signature``.
+  ##
+  ## Procedure returns ``true`` on success and ``false`` on error.
+  var pb = initProtoBuffer(message)
+  if pb.getLengthValue(1, pubkey) != -1 and
+     pb.getLengthValue(2, signature) != -1:
+    result = true
 
 ## Serialization/Deserialization helpers
 
