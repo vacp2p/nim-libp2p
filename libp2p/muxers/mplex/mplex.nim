@@ -80,7 +80,9 @@ method handle*(m: Mplex) {.async, gcsafe.} =
           channel = await m.newStreamInternal(false, id, name)
           debug "handle: created channel ", id = id, name = name
           if not isNil(m.streamHandler):
-            let handlerFut = m.streamHandler(newConnection(channel))
+            let stream = newConnection(channel)
+            stream.peerInfo = m.connection.peerInfo
+            let handlerFut = m.streamHandler(newConnection(stream))
 
             # TODO: don't use a closure?
             # channel cleanup routine
@@ -121,6 +123,7 @@ method newStream*(m: Mplex, name: string = ""): Future[Connection] {.async, gcsa
   let channel = await m.newStreamInternal()
   await m.connection.writeMsg(channel.id, MessageType.New, name)
   result = newConnection(channel)
+  result.peerInfo = m.connection.peerInfo
 
 method close*(m: Mplex) {.async, gcsafe.} = 
     await allFutures(@[allFutures(toSeq(m.remote.values).mapIt(it.close())),
