@@ -90,6 +90,11 @@ proc initProtoField*(index: int, value: SomeVarint): ProtoField =
   else:
     result.vint = cast[uint64](value)
 
+proc initProtoField*(index: int, value: bool): ProtoField =
+  ## Initialize ProtoField with integer value.
+  result = ProtoField(kind: Varint, index: index)
+  result.vint = byte(value)
+
 proc initProtoField*(index: int, value: openarray[byte]): ProtoField =
   ## Initialize ProtoField with bytes array.
   result = ProtoField(kind: Length, index: index)
