@@ -19,17 +19,16 @@ const DefaultReadSize*: uint = 64 * 1024
 
 type
   Connection* = ref object of LPStream
-    peerInfo*: Option[PeerInfo]
+    peerInfo*: PeerInfo
     stream*: LPStream
 
 proc newConnection*(stream: LPStream): Connection =
   ## create a new Connection for the specified async reader/writer
   new result
   result.stream = stream
-  result.peerInfo = none(PeerInfo)
 
 proc `=peerInfo`*(s: Connection, peerInfo: PeerInfo) = 
-  s.peerInfo = some(peerInfo)
+  s.peerInfo = peerInfo
 
 method read*(s: Connection, n = -1): Future[seq[byte]] {.gcsafe.} =
   result = s.stream.read(n)
@@ -119,5 +118,5 @@ method getObservedAddrs*(c: Connection): Future[MultiAddress] {.base, async, gcs
   discard
 
 proc `$`*(conn: Connection): string =
-  if conn.peerInfo.isSome:
-    result = $(conn.peerInfo.get().peerId)
+  if conn.peerInfo.peerId.isSome:
+    result = $(conn.peerInfo.peerId.get())
