@@ -620,7 +620,7 @@ proc getOrder*(remotePubkey, localNonce: openarray[byte],
   for i in 0 ..< len(mh1.data.buffer):
     result = int(mh1.data.buffer[i]) - int(mh2.data.buffer[i])
     if result != 0:
-      if result > 0:
+      if result < 0:
         result = -1
       elif result > 0:
         result = 1
