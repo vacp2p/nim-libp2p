@@ -7,7 +7,7 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import sequtils, tables, options, sets, sequtils, strutils
+import sequtils, tables, options, sets, sequtils, strutils, sets
 import chronos, chronicles
 import pubsub,
        pubsubpeer,
@@ -51,13 +51,14 @@ proc rpcHandler(f: FloodSub,
 
   debug "processing RPC message", peer = peer.id, msg = rpcMsgs
   for m in rpcMsgs:                                # for all RPC messages
+    debug "processing message", msg = rpcMsgs
     if m.subscriptions.len > 0:                    # if there are any subscriptions
-      if peer.peerInfo.peerId.isSome:
-        debug "no valid PeerId for peer"
-        return
-
       for s in m.subscriptions:                    # subscribe/unsubscribe the peer for each topic
         let id = peer.id
+
+        if not f.peerTopics.contains(s.topic):
+          f.peerTopics[s.topic] = initSet[string]()
+
         if s.subscribe:
           debug "subscribing to topic", peer = id, subscriptions = m.subscriptions, topic = s.topic
           # subscribe the peer to the topic
@@ -72,7 +73,7 @@ proc rpcHandler(f: FloodSub,
         await p.send(@[RPCMsg(subscriptions: m.subscriptions)])
 
     if m.messages.len > 0:                         # if there are any messages
-      var toSendPeers: HashSet[string]
+      var toSendPeers: HashSet[string] = initSet[string]()
       for msg in m.messages:                       # for every message
         for t in msg.topicIDs:                     # for every topic in the message
           toSendPeers.incl(f.peerTopics[t])        # get all the peers interested in this topic
