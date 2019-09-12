@@ -7,7 +7,8 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import sequtils, tables, options, sets, sequtils, strutils, sets
+import sequtils, tables, options, 
+       sets, sequtils, strutils, sets
 import chronos, chronicles
 import pubsub,
        pubsubpeer,
@@ -65,15 +66,15 @@ proc rpcHandler(f: FloodSub,
           f.peerTopics[s.topic].incl(id)
         else:
           debug "unsubscribing to topic", peer = id, subscriptions = m.subscriptions, topic = s.topic
-          # unsubscribe the peer to the topic
+          # unsubscribe the peer from the topic
           f.peerTopics[s.topic].excl(id)
 
       # send subscriptions to every peer
       for p in f.peers.values:
         await p.send(@[RPCMsg(subscriptions: m.subscriptions)])
 
+    var toSendPeers: HashSet[string] = initSet[string]()
     if m.messages.len > 0:                         # if there are any messages
-      var toSendPeers: HashSet[string] = initSet[string]()
       for msg in m.messages:                       # for every message
         for t in msg.topicIDs:                     # for every topic in the message
           toSendPeers.incl(f.peerTopics[t])        # get all the peers interested in this topic
@@ -84,7 +85,9 @@ proc rpcHandler(f: FloodSub,
         for p in toSendPeers:
           await f.peers[p].send(@[RPCMsg(messages: m.messages)])
 
-proc handleConn(f: FloodSub, conn: Connection) {.async, gcsafe.} = 
+proc handleConn(f: FloodSub,
+                conn: Connection)
+                {.async, gcsafe.} =
   ## handle incoming/outgoing connections
   ##
   ## this proc will:
@@ -110,8 +113,8 @@ proc handleConn(f: FloodSub, conn: Connection) {.async, gcsafe.} =
   asyncCheck peer.handle()
 
 method init(f: FloodSub) = 
-  proc handler(conn: Connection, proto: string) {.async, gcsafe.} = 
-    ## main protocol handler that gets triggered on every 
+  proc handler(conn: Connection, proto: string) {.async, gcsafe.} =
+    ## main protocol handler that gets triggered on every
     ## connection for a protocol string
     ## e.g. ``/floodsub/1.0.0``, etc...
     ##
@@ -127,7 +130,7 @@ method subscribeToPeer*(f: FloodSub, conn: Connection) {.async, gcsafe.} =
 method publish*(f: FloodSub,
                 topic: string,
                 data: seq[byte])
-                {.async, gcsafe.} = 
+                {.async, gcsafe.} =
   debug "about to publish message on topic", topic = topic, data = data
   let msg = makeMessage(f.peerInfo.peerId.get(), data, topic)
   if topic in f.peerTopics:
@@ -135,10 +138,10 @@ method publish*(f: FloodSub,
       debug "pubslishing message", topic = topic, peer = p, data = data
       await f.peers[p].send(@[RPCMsg(messages: @[msg])])
 
-method subscribe*(f: FloodSub, 
-                  topic: string, 
+method subscribe*(f: FloodSub,
+                  topic: string,
                   handler: TopicHandler)
-                  {.async, gcsafe.} = 
+                  {.async, gcsafe.} =
   await procCall PubSub(f).subscribe(topic, handler)
   for p in f.peers.values:
     await f.sendSubs(p, @[topic], true)

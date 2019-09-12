@@ -44,8 +44,11 @@ proc encodeMessage(msg: Message, buff: var ProtoBuffer) {.gcsafe.} =
   for t in msg.topicIDs:
     buff.write(initProtoField(4, t))
 
-  buff.write(initProtoField(5, msg.signature))
-  buff.write(initProtoField(6, msg.key))
+  if msg.signature.len > 0:
+    buff.write(initProtoField(5, msg.signature))
+  
+  if msg.key.len > 0:
+    buff.write(initProtoField(6, msg.key))
 
   buff.finish()
 
@@ -134,7 +137,7 @@ proc decodeRpcMsg*(msg: seq[byte]): RPCMsg {.gcsafe.} =
 
         result.messages.add(msg)
     else: 
-      raise newException(CatchableError, "message type not recognizedd")
+      raise newException(CatchableError, "message type not recognized")
 
 var prefix {.threadvar.}: seq[byte]
 proc getPreix(): var seq[byte] = 
