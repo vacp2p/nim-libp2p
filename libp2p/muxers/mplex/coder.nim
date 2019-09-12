@@ -10,9 +10,9 @@
 import chronos, options, sequtils, strformat
 import nimcrypto/utils, chronicles
 import types,
-       ../../connection, 
-       ../../varint, 
-       ../../vbuffer, 
+       ../../connection,
+       ../../varint,
+       ../../vbuffer,
        ../../stream/lpstream
 
 logScope:

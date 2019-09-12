@@ -21,14 +21,12 @@ type
   Connection* = ref object of LPStream
     peerInfo*: PeerInfo
     stream*: LPStream
+    observedAddrs*: Multiaddress
 
 proc newConnection*(stream: LPStream): Connection =
   ## create a new Connection for the specified async reader/writer
   new result
   result.stream = stream
-
-proc `=peerInfo`*(s: Connection, peerInfo: PeerInfo) = 
-  s.peerInfo = peerInfo
 
 method read*(s: Connection, n = -1): Future[seq[byte]] {.gcsafe.} =
   result = s.stream.read(n)
@@ -115,7 +113,7 @@ proc writeLp*(s: Connection, msg: string | seq[byte]): Future[void] {.gcsafe.} =
 
 method getObservedAddrs*(c: Connection): Future[MultiAddress] {.base, async, gcsafe.} =
   ## get resolved multiaddresses for the connection
-  discard
+  result = c.observedAddrs
 
 proc `$`*(conn: Connection): string =
   if conn.peerInfo.peerId.isSome:
