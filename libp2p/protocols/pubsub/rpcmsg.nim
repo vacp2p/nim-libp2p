@@ -79,47 +79,62 @@ proc decodeRpcMsg*(msg: seq[byte]): RPCMsg {.gcsafe.} =
   var pb = initProtoBuffer(msg)
 
   result.subscriptions = newSeq[SubOpts]()
-  var subscr = newSeq[byte](1)
-
-  # decode SubOpts array
-  if pb.enterSubMessage() > 0:
-    while true:
-      var subOpt: SubOpts
-      if pb.getBytes(1, subscr) < 0:
-        break
-      subOpt.subscribe = cast[bool](subscr)
-      
-      if pb.getString(2, subOpt.topic) < 0:
-        break
-      result.subscriptions.add(subOpt)
-
-  result.messages = newSeq[Message]()
-  # TODO: which of this fields are really optional?
-  # Decode Messages array
-  if pb.enterSubMessage() > 0:
-    while true:
-      var msg: Message
-      if pb.getBytes(1, msg.fromPeer) < 0:
-        break
-
-      if pb.getBytes(2, msg.data) < 0:
-        break
-      
-      if pb.getBytes(3, msg.seqno) < 0:
-        break
-
-      var topic: string
+  while true:
+    # decode SubOpts array
+    var field = pb.enterSubMessage()
+    debug "processing submessage", field = field
+    case field:
+    of 0: 
+      break
+    of 1:
       while true:
-        if pb.getString(4, topic) < 0:
-          break
-        topic.add(topic)
-        topic = ""
-      
-      if pb.getBytes(5, msg.signature) < 0:
-        break
+        var subOpt: SubOpts
+        var subscr: int
+        discard pb.getVarintValue(1, subscr)
+        subOpt.subscribe = cast[bool](subscr)
+        debug "read subscribe field", subscribe = subOpt.subscribe
 
-      if pb.getBytes(6, msg.key) < 0:
-        break
+        if pb.getString(2, subOpt.topic) < 0:
+          break
+        debug "read subscribe field", topicName = subOpt.topic
+
+        result.subscriptions.add(subOpt)
+      debug "got subscriptions", subscriptions = result.subscriptions
+
+    of 2:
+      result.messages = newSeq[Message]()
+      # TODO: which of this fields are really optional?
+      while true:
+        var msg: Message
+        if pb.getBytes(1, msg.fromPeer) < 0:
+          break
+        debug "read message field", fromPeer = msg.fromPeer
+
+        if pb.getBytes(2, msg.data) < 0:
+          break
+        debug "read message field", data = msg.data
+
+        if pb.getBytes(3, msg.seqno) < 0:
+          break
+        debug "read message field", seqno = msg.seqno
+
+        var topic: string
+        while true:
+          if pb.getString(4, topic) < 0:
+            break
+          msg.topicIDs.add(topic)
+          debug "read message field", topicName = topic
+          topic = ""
+        
+        discard pb.getBytes(5, msg.signature)
+        debug "read message field", signature = msg.signature
+
+        discard pb.getBytes(6, msg.key)
+        debug "read message field", key = msg.key
+
+        result.messages.add(msg)
+    else: 
+      raise newException(CatchableError, "message type not recognizedd")
 
 var prefix {.threadvar.}: seq[byte]
 proc getPreix(): var seq[byte] = 

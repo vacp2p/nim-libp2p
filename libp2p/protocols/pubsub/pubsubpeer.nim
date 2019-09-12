@@ -13,6 +13,7 @@ import ../../connection,
        ../../protobuf/minprotobuf,
        ../../peerinfo,
        ../../peer,
+       ../../crypto/crypto,
        rpcmsg
 
 logScope:
@@ -29,11 +30,11 @@ type
     RPCHandler* = proc(peer: PubSubPeer, msg: seq[RPCMsg]): Future[void] {.gcsafe.}
 
 proc handle*(p: PubSubPeer) {.async, gcsafe.} =
-  debug "pubsub rpc", peer = p.id
+  debug "handling pubsub rpc", peer = p.id
   try:
     while not p.conn.closed:
       let data = await p.conn.readLp()
-      debug "Read data from peer", peer = p.peerInfo, data = data
+      debug "Read data from peer", peer = p.peerInfo, data = data.toHex()
       let msg = decodeRpcMsg(data)
       debug "Decoded msg from peer", peer = p.peerInfo, msg = msg
       await p.handler(p, @[msg])
