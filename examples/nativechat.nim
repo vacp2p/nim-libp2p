@@ -1,5 +1,9 @@
+
+when not(compileOption("threads")):
+  {.fatal: "Please, compile this program with the --threads:on option!".}
+
 import tables, options, sequtils, algorithm, strformat, os, strutils
-import chronos, chronicles
+import chronos
 import ../libp2p/switch,
        ../libp2p/multistream,
        ../libp2p/crypto/crypto,
@@ -18,10 +22,16 @@ import ../libp2p/switch,
        ../libp2p/muxers/mplex/mplex,
        ../libp2p/muxers/mplex/types
 
-when not(compileOption("threads")):
-  {.fatal: "Please, compile this program with the --threads:on option!".}
-
 const ChatCodec = "/nim-libp2p/chat/1.0.0"
+
+const Help = """
+  Commands: /[?|hep|connect|disconnect|exit]
+  help: Prints this help
+  connect: dials a remote peer
+  disconnect: ends current session
+  exit: closes the chat
+"""
+
 type
   CustomData = ref object
     consoleFd: AsyncFD
@@ -31,10 +41,10 @@ type
     customData*: CustomData
     switch: Switch
     transp: StreamTransport
-    isConnected: AsyncEvent
     conn: Connection
     client: bool
     connected: bool
+    started: bool
 
 # forward declaration
 proc readWriteLoop(p: ChatProto) {.async, gcsafe.}
@@ -42,7 +52,7 @@ proc readAndPrint(p: ChatProto) {.async, gcsafe.} =
   while true:
     while p.connected:
       echo cast[string](await p.conn.readLp())
-    await sleepAsync(100)
+    await sleepAsync(100.millis)
 
 proc dialPeer(p: ChatProto, address: string) {.async, gcsafe.} =
   var parts = address.split("/")
@@ -63,16 +73,50 @@ proc writeAndPrint(p: ChatProto) {.async, gcsafe.} =
       echo "type your message:"
     else:
       echo "type an address or wait for a connection:"
+      echo "type /[help|?] for help"
 
     var line = await p.transp.readLine()
-    if p.connected:
-      await p.conn.writeLp(line)
+    if line.startsWith("/help") or line.startsWith("/?") or not p.started:
+      echo Help
+      continue
+  
+    if line.startsWith("/disconnect"):
+      echo "Ending current session"
+      await p.conn.close()
+      p.connected = false
+    elif line.startsWith("/connect"):
+      if p.connected:
+        echo "a session is already in progress, do you want end it [y/N]?"
+        let yesno = await p.transp.readLine()
+        if yesno.cmpIgnoreCase("y") == 0:
+          await p.conn.close()
+          p.connected = false
+        elif yesno.cmpIgnoreCase("n") == 0: 
+          continue
+        else:
+          echo "unrecognized response"
+          continue
+
+      echo "enter address of remote peer"
+      let address = await p.transp.readLine()
+      if address.len > 0:
+        await p.dialPeer(address)
+
+    elif line.startsWith("/exit"):
+      await p.conn.close()
+      p.connected = false
+      # await p.switch.stop() # TODO: remote
+      quit(0)
     else:
-      try:
-        await p.dialPeer(line)
-      except:
-        echo &"unable to dial {line}"
-        echo getCurrentExceptionMsg()
+      if p.connected:
+        await p.conn.writeLp(line)
+      else:
+        try:
+          if line.startsWith("/") and "ipfs" in line:
+            await p.dialPeer(line)
+        except:
+          echo &"unable to dial {line}"
+          # echo getCurrentExceptionMsg()
 
 proc readWriteLoop(p: ChatProto) {.async, gcsafe.} =
     asyncCheck p.writeAndPrint()
@@ -80,6 +124,10 @@ proc readWriteLoop(p: ChatProto) {.async, gcsafe.} =
 
 method init(p: ChatProto) {.gcsafe.} =
   proc handle(stream: Connection, proto: string) {.async, gcsafe.} = 
+    if p.connected and not p.conn.closed:
+      echo "a chat session is already in progress - disconnecting!"
+      await stream.close()
+
     p.conn = stream
     p.connected = true
 
@@ -99,7 +147,6 @@ proc threadMain(wfd: AsyncFD) {.thread.} =
  
   while true:
     var line = stdin.readLine()
-    echo line
     let res = waitFor transp.write(line & "\r\n")
 
 proc serveThread(customData: CustomData) {.async.} =
@@ -125,13 +172,16 @@ proc serveThread(customData: CustomData) {.async.} =
   # var secureManagers = @[Secure(newSecIo(seckey.getKey()))]
   var switch = newSwitch(peerInfo, transports, identify, muxers)
 
-  var libp2pFuts = await switch.start()
   var chatProto = newChatProto(switch, transp)
   switch.mount(chatProto)
-  echo "PeerID: " & peerInfo.peerId.get().pretty
+  var libp2pFuts = await switch.start()
+  chatProto.started = true
+
+  let id = peerInfo.peerId.get().pretty
+  echo "PeerID: " & id
   echo "listening on: "
-  for a in switch.peerInfo.addrs:
-    echo a
+  for a in peerInfo.addrs:
+    echo &"{a}/ipfs/{id}"
 
   await chatProto.readWriteLoop()
   await allFutures(libp2pFuts)
