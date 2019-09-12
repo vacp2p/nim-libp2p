@@ -90,6 +90,7 @@ proc identify*(s: Switch, conn: Connection) {.async, gcsafe.} =
     debug "identify: peer's public keys don't match ", msg = exc.msg
 
 proc mux(s: Switch, conn: Connection): Future[void] {.async, gcsafe.} =
+  debug "muxing connection"
   ## mux incoming connection
   let muxers = toSeq(s.muxers.keys)
   let muxerName = await s.ms.select(conn, muxers)
@@ -122,7 +123,8 @@ proc mux(s: Switch, conn: Connection): Future[void] {.async, gcsafe.} =
   if conn.peerInfo.peerId.isSome:
     s.muxed[conn.peerInfo.peerId.get().pretty] = muxer
 
-proc handleConn(s: Switch, conn: Connection): Future[Connection] {.async, gcsafe.} =
+proc upgradeOutgoing(s: Switch, conn: Connection): Future[Connection] {.async, gcsafe.} =
+  debug "handling connection", conn = conn
   result = conn
   ## perform upgrade flow
   if result.peerInfo.peerId.isSome:
@@ -165,7 +167,7 @@ proc dial*(s: Switch,
         result = await t.dial(a)
         # make sure to assign the peer to the connection
         result.peerInfo = peer
-        result = await s.handleConn(result)
+        result = await s.upgradeOutgoing(result)
 
         let stream = await s.getMuxedStream(peer)
         if stream.isSome:
@@ -188,11 +190,23 @@ proc mount*[T: LPProtocol](s: Switch, proto: T) {.gcsafe.} =
 
   s.ms.addHandler(proto.codec, proto)
 
-proc start*(s: Switch): Future[seq[Future[void]]] {.async.} = 
+proc upgradeIncoming(s: Switch, conn: Connection) {.async, gcsafe.} = 
+  let ms = newMultistream()
+  if (await ms.select(conn)): # just handshake
+    for secure in s.secureManagers:
+      ms.addHandler(secure.codec, secure)
+    
+    await ms.handle(conn)
+
+    for muxer in s.muxers.values:
+      ms.addHandler(muxer.codec, muxer)
+    
+    await ms.handle(conn)
+
+proc start*(s: Switch): Future[seq[Future[void]]] {.async, gcsafe.} = 
   proc handle(conn: Connection): Future[void] {.async, closure, gcsafe.} =
     try:
-      if (await s.ms.select(conn)): # just handshake
-        await s.ms.handle(conn) # handle incoming connection
+        await s.upgradeIncoming(conn) # perform upgrade on incoming connection
     except:
       await s.cleanupConn(conn)
 
@@ -262,17 +276,13 @@ proc newSwitch*(peerInfo: PeerInfo,
       let stream = await muxer.newStream()
       await s.identify(stream)
 
-    result.mount(val)
-
   for s in secureManagers.deduplicate():
     debug "adding secure manager ", codec = s.codec
     result.secureManagers.add(s)
-    result.mount(s)
 
   if result.secureManagers.len == 0:
     # use plain text if no secure managers are provided
     let manager = Secure(newPlainText())
-    result.mount(manager)
     result.secureManagers.add(manager)
 
   result.secureManagers = result.secureManagers.deduplicate()

@@ -132,7 +132,7 @@ suite "Mplex":
         await mplexListen.handle()
 
       let transport1: TcpTransport = newTransport(TcpTransport)
-      await transport1.listen(ma, connHandler)
+      asyncCheck transport1.listen(ma, connHandler)
 
       let transport2: TcpTransport = newTransport(TcpTransport)
       let conn = await transport2.dial(ma)
@@ -164,7 +164,7 @@ suite "Mplex":
         await mplexListen.handle()
 
       let transport1: TcpTransport = newTransport(TcpTransport)
-      await transport1.listen(ma, connHandler)
+      asyncCheck transport1.listen(ma, connHandler)
 
       let transport2: TcpTransport = newTransport(TcpTransport)
       let conn = await transport2.dial(ma)
@@ -199,7 +199,7 @@ suite "Mplex":
             debug "handle completed")
 
       let transport1: TcpTransport = newTransport(TcpTransport)
-      await transport1.listen(ma, connHandler)
+      asyncCheck transport1.listen(ma, connHandler)
 
       let transport2: TcpTransport = newTransport(TcpTransport)
       let conn = await transport2.dial(ma)
@@ -240,7 +240,7 @@ suite "Mplex":
                                 = debug "completed listener")
 
       let transport1: TcpTransport = newTransport(TcpTransport)
-      await transport1.listen(ma, connHandler)
+      asyncCheck transport1.listen(ma, connHandler)
 
       let transport2: TcpTransport = newTransport(TcpTransport)
       let conn = await transport2.dial(ma)

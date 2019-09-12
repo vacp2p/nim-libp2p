@@ -57,11 +57,11 @@ proc newStreamInternal*(m: Mplex,
   m.getChannelList(initiator)[id] = result
 
 method handle*(m: Mplex) {.async, gcsafe.} = 
+  debug "starting mplex main loop"
   try:
     while not m.connection.closed:
       let msgRes = await m.connection.readMsg()
       if msgRes.isNone:
-        await sleepAsync(100.millis)
         continue
 
       let (id, msgType, data) = msgRes.get()
