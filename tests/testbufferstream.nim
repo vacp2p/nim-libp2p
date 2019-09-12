@@ -185,7 +185,7 @@ suite "BufferStream":
       let buff = newBufferStream(writeHandler, 10)
       check buff.len == 0
 
-      await buff.write(cast[seq[byte]](toSeq("Hello!".items)), 6)
+      await buff.write(cast[seq[byte]]("Hello!"), 6)
       result = true
 
     check:
@@ -223,17 +223,17 @@ suite "BufferStream":
       let buff = newBufferStream(writeHandler, 10)
       check buff.len == 0
 
-      await buff.pushTo(cast[seq[byte]](toSeq("Msg 1".items)))
-      await buff.pushTo(cast[seq[byte]](toSeq("Msg 2".items)))
-      await buff.pushTo(cast[seq[byte]](toSeq("Msg 3".items)))
+      await buff.pushTo(cast[seq[byte]]("Msg 1"))
+      await buff.pushTo(cast[seq[byte]]("Msg 2"))
+      await buff.pushTo(cast[seq[byte]]("Msg 3"))
 
       check cast[string](await buff.read(5)) == "Msg 1"
       check cast[string](await buff.read(5)) == "Msg 2"
       check cast[string](await buff.read(5)) == "Msg 3"
 
-      await buff.pushTo(cast[seq[byte]](toSeq("Msg 4".items)))
-      await buff.pushTo(cast[seq[byte]](toSeq("Msg 5".items)))
-      await buff.pushTo(cast[seq[byte]](toSeq("Msg 6".items)))
+      await buff.pushTo(cast[seq[byte]]("Msg 4"))
+      await buff.pushTo(cast[seq[byte]]("Msg 5"))
+      await buff.pushTo(cast[seq[byte]]("Msg 6"))
 
       check cast[string](await buff.read(5)) == "Msg 4"
       check cast[string](await buff.read(5)) == "Msg 5"

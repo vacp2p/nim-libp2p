@@ -75,4 +75,4 @@ proc writeMsg*(conn: Connection,
                id: uint,
                msgType: MessageType, 
                data: string) {.async, gcsafe.} =
-  result = conn.writeMsg(id, msgType, cast[seq[byte]](toSeq(data.items)))
+  result = conn.writeMsg(id, msgType, cast[seq[byte]](data))

@@ -47,7 +47,7 @@ type
       skkey*: SkPublicKey
     of ECDSA:
       eckey*: EcPublicKey
-    of NoSupport:
+    else:
       discard
 
   PrivateKey* = object
@@ -60,7 +60,7 @@ type
       skkey*: SkPrivateKey
     of ECDSA:
       eckey*: EcPrivateKey
-    of NoSupport:
+    else:
       discard
 
   KeyPair* = object

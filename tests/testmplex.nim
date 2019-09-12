@@ -20,7 +20,7 @@ suite "Mplex":
       
       let stream = newBufferStream(encHandler)
       let conn = newConnection(stream)
-      await conn.writeMsg(0, MessageType.New, cast[seq[byte]](toSeq("stream 1".items)))
+      await conn.writeMsg(0, MessageType.New, cast[seq[byte]]("stream 1"))
       result = true
 
     check:
@@ -33,7 +33,7 @@ suite "Mplex":
       
       let stream = newBufferStream(encHandler)
       let conn = newConnection(stream)
-      await conn.writeMsg(17, MessageType.New, cast[seq[byte]](toSeq("stream 1".items)))
+      await conn.writeMsg(17, MessageType.New, cast[seq[byte]]("stream 1"))
       result = true
 
     check:
@@ -47,7 +47,7 @@ suite "Mplex":
       
       let stream = newBufferStream(encHandler)
       let conn = newConnection(stream)
-      await conn.writeMsg(0, MessageType.MsgOut, cast[seq[byte]](toSeq("stream 1".items)))
+      await conn.writeMsg(0, MessageType.MsgOut, cast[seq[byte]]("stream 1"))
       result = true
 
     check:
@@ -61,7 +61,7 @@ suite "Mplex":
 
       let stream = newBufferStream(encHandler)
       let conn = newConnection(stream)
-      await conn.writeMsg(17, MessageType.MsgOut, cast[seq[byte]](toSeq("stream 1".items)))
+      await conn.writeMsg(17, MessageType.MsgOut, cast[seq[byte]]("stream 1"))
       await conn.close()
       result = true
 
@@ -289,7 +289,7 @@ suite "Mplex":
       proc writeHandler(data: seq[byte]) {.async, gcsafe.} = discard
       let chann = newChannel(1, newConnection(newBufferStream(writeHandler)), true)
 
-      await chann.pushTo(cast[seq[byte]](toSeq("Hello!".items)))
+      await chann.pushTo(cast[seq[byte]]("Hello!"))
       await chann.close()
       let msg = await chann.read()
       asyncDiscard chann.read()

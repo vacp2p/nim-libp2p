@@ -8,7 +8,7 @@
 ## those terms.
 
 import tables, sets
-import chronos
+import chronos, chronicles
 import pubsubpeer,
        ../protocol,
        ../../connection,
@@ -16,8 +16,13 @@ import pubsubpeer,
 
 export PubSubPeer
 
+logScope:
+  topic = "PubSub"
+
 type
-  TopicHandler* = proc(topic:string, data: seq[byte]): Future[void] {.gcsafe.}
+  TopicHandler* = proc (topic: string, 
+                        data: seq[byte]): Future[void] {.closure, gcsafe.}
+
   Topic* = object
     name*: string
     handler*: TopicHandler
@@ -28,7 +33,7 @@ type
     peers*: Table[string, PubSubPeer] # peerid to peer map
     peerTopics*: Table[string, HashSet[string]] # topic to remote peer map
 
-method subscribePeer*(p: PubSub, conn: Connection) {.base, async, gcsafe.} =
+method subscribeToPeer*(p: PubSub, conn: Connection) {.base, async, gcsafe.} =
   ## subscribe to a peer to send/receive pubsub messages
   discard
 

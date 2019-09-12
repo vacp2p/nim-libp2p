@@ -22,6 +22,9 @@ import connection,
        muxers/muxer,
        peer
 
+logScope:
+  topic = "Switch"
+
 type
     NoPubSubException = object of CatchableError
 
@@ -55,7 +58,7 @@ proc secure(s: Switch, conn: Connection): Future[Connection] {.async, gcsafe.} =
   var n = await s.secureManagers[0].secure(conn)
   result = conn
 
-proc identify(s: Switch, conn: Connection) {.async, gcsafe.} =
+proc identify*(s: Switch, conn: Connection) {.async, gcsafe.} =
   ## identify the connection
   # s.peerInfo.protocols = await s.ms.list(conn) # update protos before engagin in identify
   try:
@@ -105,7 +108,8 @@ proc mux(s: Switch, conn: Connection): Future[void] {.async, gcsafe.} =
   # add muxer handler cleanup proc
   handlerFut.addCallback(
       proc(udata: pointer = nil) {.gcsafe.} = 
-        debug "mux: Muxer handler completed for peer ", peer = conn.peerInfo.peerId.get().pretty
+        debug "mux: Muxer handler completed for peer ", 
+          peer = conn.peerInfo.peerId.get().pretty
     )
   await s.identify(stream)
   await stream.close() # close idenity stream
@@ -204,23 +208,27 @@ proc stop*(s: Switch) {.async.} =
   await allFutures(s.transports.mapIt(it.close()))
 
 proc subscribeToPeer*(s: Switch, peerInfo: PeerInfo) {.async, gcsafe.} =
+  ## Subscribe to pub sub peer
   if s.pubSub.isSome:
     let conn = await s.dial(peerInfo, s.pubSub.get().codec)
     await s.pubSub.get().subscribeToPeer(conn)
 
 proc subscribe*(s: Switch, topic: string, handler: TopicHandler): Future[void] {.gcsafe.} = 
+  ## subscribe to a pubsub topic
   if s.pubSub.isNone:
     raise newNoPubSubException()
   
   result = s.pubSub.get().subscribe(topic, handler)
 
 proc unsubscribe*(s: Switch, topics: seq[string]): Future[void] {.gcsafe.} = 
+  ## unsubscribe from topics
   if s.pubSub.isNone:
     raise newNoPubSubException()
   
   result = s.pubSub.get().unsubscribe(topics)
 
 proc publish*(s: Switch, topic: string, data: seq[byte]): Future[void] {.gcsafe.} = 
+  # pubslish to pubsub topic
   if s.pubSub.isNone:
     raise newNoPubSubException()
 
@@ -243,17 +251,20 @@ proc newSwitch*(peerInfo: PeerInfo,
 
   let s = result # can't capture result
   result.streamHandler = proc(stream: Connection) {.async, gcsafe.} = 
-    # TODO: figure out proper way of handling this.
-    # Perhaps it's ok to discard this Future and handle 
-    # errors elsewere?
+    debug "handling connection for", peerInfo = stream.peerInfo
     await s.ms.handle(stream) # handle incoming connection
 
   result.mount(identity)
   for key, val in muxers:
     val.streamHandler = result.streamHandler
+    val.muxerHandler = proc(muxer: Muxer) {.async, gcsafe.} =
+      debug "got new muxer"
+      let stream = await muxer.newStream()
+      await s.identify(stream)
+
     result.mount(val)
 
-  for s in secureManagers:
+  for s in secureManagers.deduplicate():
     debug "adding secure manager ", codec = s.codec
     result.secureManagers.add(s)
     result.mount(s)

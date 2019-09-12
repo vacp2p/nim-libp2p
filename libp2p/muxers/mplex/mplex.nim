@@ -28,7 +28,7 @@ import coder, types, channel,
        ../../stream/lpstream
 
 logScope:
-  topic = "mplex"
+  topic = "Mplex"
 
 type
   Mplex* = ref object of Muxer
@@ -106,6 +106,8 @@ method handle*(m: Mplex) {.async, gcsafe.} =
           await channel.resetByRemote()
           break
         else: raise newMplexUnknownMsgError()
+  except:
+    debug "exception occurred", exception = getCurrentExceptionMsg()
   finally:
     await m.connection.close()
 
