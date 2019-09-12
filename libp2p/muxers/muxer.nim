@@ -62,8 +62,7 @@ method init(c: MuxerProvider) =
   proc handler(conn: Connection, proto: string) {.async, gcsafe, closure.} =
     let muxer = c.newMuxer(conn)
     if not isNil(c.muxerHandler):
-      debug "CALLING MUXER HANDLER"
-      await c.muxerHandler(muxer)
+      asyncCheck c.muxerHandler(muxer)
 
     if not isNil(c.streamHandler):
       muxer.streamHandler = c.streamHandler

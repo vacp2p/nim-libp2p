@@ -1,4 +1,4 @@
-import unittest, strutils, sequtils, sugar, strformat
+import unittest, strutils, sequtils, sugar, strformat, options
 import chronos
 import ../libp2p/connection, 
        ../libp2p/multistream,
@@ -165,7 +165,7 @@ suite "Multistream select":
 
       let seckey = PrivateKey.random(RSA)
       var peerInfo: PeerInfo
-      peerInfo.peerId = PeerID.init(seckey)
+      peerInfo.peerId = some(PeerID.init(seckey))
       var protocol: LPProtocol = new LPProtocol
       proc testHandler(conn: Connection,
                        proto: string): 
@@ -195,7 +195,7 @@ suite "Multistream select":
 
       let seckey = PrivateKey.random(RSA)
       var peerInfo: PeerInfo
-      peerInfo.peerId = PeerID.init(seckey)
+      peerInfo.peerId = some(PeerID.init(seckey))
       var protocol: LPProtocol = new LPProtocol
       proc testHandler(conn: Connection,
                        proto: string): 
@@ -222,7 +222,7 @@ suite "Multistream select":
 
       let seckey = PrivateKey.random(RSA)
       var peerInfo: PeerInfo
-      peerInfo.peerId = PeerID.init(seckey)
+      peerInfo.peerId = some(PeerID.init(seckey))
       var protocol: LPProtocol = new LPProtocol
       proc testHandler(conn: Connection,
                        proto: string): 
@@ -242,7 +242,7 @@ suite "Multistream select":
 
       let seckey = PrivateKey.random(RSA)
       var peerInfo: PeerInfo
-      peerInfo.peerId = PeerID.init(seckey)
+      peerInfo.peerId = some(PeerID.init(seckey))
       var protocol: LPProtocol = new LPProtocol
       proc testHandler(conn: Connection,
                        proto: string): 
@@ -259,7 +259,7 @@ suite "Multistream select":
         await msListen.handle(conn)
 
       let transport1: TcpTransport = newTransport(TcpTransport)
-      await transport1.listen(ma, connHandler)
+      asyncCheck transport1.listen(ma, connHandler)
 
       let msDial = newMultistream()
       let transport2: TcpTransport = newTransport(TcpTransport)
@@ -281,7 +281,7 @@ suite "Multistream select":
       let msListen = newMultistream()
       let seckey = PrivateKey.random(RSA)
       var peerInfo: PeerInfo
-      peerInfo.peerId = PeerID.init(seckey)
+      peerInfo.peerId = some(PeerID.init(seckey))
       var protocol: LPProtocol = new LPProtocol
       protocol.handler = proc(conn: Connection, proto: string) {.async, gcsafe.} =
         await conn.close()
@@ -295,7 +295,7 @@ suite "Multistream select":
       let transport1: TcpTransport = newTransport(TcpTransport)
       proc connHandler(conn: Connection): Future[void] {.async, gcsafe.} =
         await msListen.handle(conn)
-      await transport1.listen(ma, connHandler)
+      asyncCheck transport1.listen(ma, connHandler)
 
       let msDial = newMultistream()
       let transport2: TcpTransport = newTransport(TcpTransport)
@@ -315,7 +315,7 @@ suite "Multistream select":
 
       let seckey = PrivateKey.random(RSA)
       var peerInfo: PeerInfo
-      peerInfo.peerId = PeerID.init(seckey)
+      peerInfo.peerId = some(PeerID.init(seckey))
       var protocol: LPProtocol = new LPProtocol
       proc testHandler(conn: Connection,
                        proto: string): 
@@ -332,7 +332,7 @@ suite "Multistream select":
         await msListen.handle(conn)
 
       let transport1: TcpTransport = newTransport(TcpTransport)
-      await transport1.listen(ma, connHandler)
+      asyncCheck transport1.listen(ma, connHandler)
 
       let msDial = newMultistream()
       let transport2: TcpTransport = newTransport(TcpTransport)
@@ -354,7 +354,7 @@ suite "Multistream select":
 
       let seckey = PrivateKey.random(RSA)
       var peerInfo: PeerInfo
-      peerInfo.peerId = PeerID.init(seckey)
+      peerInfo.peerId = some(PeerID.init(seckey))
       var protocol: LPProtocol = new LPProtocol
       proc testHandler(conn: Connection,
                        proto: string): 
@@ -371,7 +371,7 @@ suite "Multistream select":
         await msListen.handle(conn)
 
       let transport1: TcpTransport = newTransport(TcpTransport)
-      await transport1.listen(ma, connHandler)
+      asyncCheck transport1.listen(ma, connHandler)
 
       let msDial = newMultistream()
       let transport2: TcpTransport = newTransport(TcpTransport)

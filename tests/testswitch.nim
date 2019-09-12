@@ -1,4 +1,4 @@
-import unittest, tables
+import unittest, tables, options
 import chronos, chronicles
 import ../libp2p/switch, 
        ../libp2p/multistream,
@@ -34,7 +34,7 @@ suite "Switch":
     proc createSwitch(ma: MultiAddress): (Switch, PeerInfo) =
       let seckey = PrivateKey.random(RSA)
       var peerInfo: PeerInfo
-      peerInfo.peerId = PeerID.init(seckey)
+      peerInfo.peerId = some(PeerID.init(seckey))
       peerInfo.addrs.add(ma)
       let identify = newIdentify(peerInfo)
 
@@ -59,17 +59,17 @@ suite "Switch":
       testProto.init()
       testProto.codec = TestCodec
       switch1.mount(testProto)
-      await switch1.start()
+      asyncCheck switch1.start()
 
       (switch2, peerInfo2) = createSwitch(ma2)
-      await switch2.start()
+      asyncCheck switch2.start()
       let conn = await switch2.dial(peerInfo1, TestCodec)
       await conn.writeLp("Hello!")
       let msg = cast[string](await conn.readLp())
       check "Hello!" == msg
 
+      # await allFutures(switch1.stop(), switch2.stop())
       result = true
-      await allFutures(switch1.stop(), switch2.stop())
 
     check:
       waitFor(testSwitch()) == true

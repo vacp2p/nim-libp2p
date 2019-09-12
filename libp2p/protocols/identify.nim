@@ -103,6 +103,7 @@ proc newIdentify*(peerInfo: PeerInfo): Identify =
 
 method init*(p: Identify) = 
   proc handle(conn: Connection, proto: string) {.async, gcsafe, closure.} =
+    debug "handling identify request"
     var pb = encodeMsg(p.peerInfo, await conn.getObservedAddrs())
     await conn.writeLp(pb.buffer)
 
