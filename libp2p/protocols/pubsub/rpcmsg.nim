@@ -8,11 +8,14 @@
 ## those terms.
 
 import sequtils
-import chronos, nimcrypto/sysrand
+import chronos, nimcrypto/sysrand, chronicles
 import ../../peerinfo, 
        ../../peer,
        ../../crypto/crypto,
        ../../protobuf/minprotobuf
+
+logScope:
+  topic = "RpcMsg"
 
 const SignPrefix = "libp2p-pubsub:"
 
@@ -47,31 +50,34 @@ proc encodeMessage(msg: Message, buff: var ProtoBuffer) {.gcsafe.} =
   buff.finish()
 
 proc encodeSubs(subs: SubOpts, buff: var ProtoBuffer) {.gcsafe.} = 
-  buff.write(initProtoField(1, ord(subs.subscribe)))
+  buff.write(initProtoField(1, subs.subscribe))
   buff.write(initProtoField(2, subs.topic))
 
 proc encodeRpcMsg*(msg: RPCMsg): ProtoBuffer {.gcsafe.} = 
-  result = initProtoBuffer({WithVarintLength})
+  result = initProtoBuffer({WithVarintLength})  
+  debug "encoding msg: ", msg = msg
 
-  var subs = initProtoBuffer()
-  for s in msg.subscriptions:
-    encodeSubs(s, subs)
+  if msg.subscriptions.len > 0:
+    var subs = initProtoBuffer()
+    for s in msg.subscriptions:
+      encodeSubs(s, subs)
 
-  subs.finish()
-  result.write(initProtoField(1, subs))
+    subs.finish()
+    result.write(initProtoField(1, subs))
 
-  var messages = initProtoBuffer()
-  for m in msg.messages:
-    encodeMessage(m, messages)
+  if msg.messages.len > 0:
+    var messages = initProtoBuffer()
+    for m in msg.messages:
+      encodeMessage(m, messages)
 
-  messages.finish()
-  result.write(initProtoField(2, messages))
+    messages.finish()
+    result.write(initProtoField(2, messages))
 
   result.finish()
 
 proc decodeRpcMsg*(msg: seq[byte]): RPCMsg {.gcsafe.} = 
   var pb = initProtoBuffer(msg)
-  
+
   result.subscriptions = newSeq[SubOpts]()
   var subscr = newSeq[byte](1)
 
@@ -115,18 +121,26 @@ proc decodeRpcMsg*(msg: seq[byte]): RPCMsg {.gcsafe.} =
       if pb.getBytes(6, msg.key) < 0:
         break
 
+var prefix {.threadvar.}: seq[byte]
+proc getPreix(): var seq[byte] = 
+  if prefix.len == 0:
+    prefix = cast[seq[byte]](SignPrefix)
+  result = prefix
+
 proc sign*(peerId: PeerID, msg: Message): Message = 
   var buff = initProtoBuffer()
-  var prefix = cast[seq[byte]](toSeq(SignPrefix.items)) # TODO: can we cache this?
   encodeMessage(msg, buff)
   if buff.buffer.len > 0:
     result = msg
     result.signature = peerId.
                        privateKey.
-                       sign(prefix & buff.buffer).
+                       sign(getPreix() & buff.buffer).
                        getBytes()
 
-proc makeMessage*(peerId: PeerID, data: seq[byte], name: string): Message = 
+proc makeMessage*(peerId: PeerID, 
+                  data: seq[byte], 
+                  name: string): 
+                  Message {.gcsafe.} = 
   var seqno: seq[byte] = newSeq[byte](20)
   if randomBytes(addr seqno[0], 20) > 0:
     result = Message(fromPeer: peerId.getBytes(), 

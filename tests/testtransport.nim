@@ -14,7 +14,7 @@ suite "TCP transport":
         result = conn.write(cstring("Hello!"), 6)
 
       let transport: TcpTransport = newTransport(TcpTransport)
-      await transport.listen(ma, connHandler)
+      asyncCheck await transport.listen(ma, connHandler)
       let streamTransport: StreamTransport = await connect(ma)
       let msg = await streamTransport.read(6)
       await transport.close()
@@ -33,7 +33,7 @@ suite "TCP transport":
         check cast[string](msg) == "Hello!"
 
       let transport: TcpTransport = newTransport(TcpTransport)
-      await transport.listen(ma, connHandler)
+      asyncCheck await transport.listen(ma, connHandler)
       let streamTransport: StreamTransport = await connect(ma)
       let sent = await streamTransport.write("Hello!", 6)
       result = sent == 6
@@ -101,7 +101,7 @@ suite "TCP transport":
         result = conn.write(cstring("Hello!"), 6)
 
       let transport1: TcpTransport = newTransport(TcpTransport)
-      await transport1.listen(ma, connHandler)
+      asyncCheck await transport1.listen(ma, connHandler)
 
       let transport2: TcpTransport = newTransport(TcpTransport)
       let conn = await transport2.dial(ma)
@@ -121,7 +121,7 @@ suite "TCP transport":
         check cast[string](msg) == "Hello!"
 
       let transport1: TcpTransport = newTransport(TcpTransport)
-      await transport1.listen(ma, connHandler)
+      asyncCheck await transport1.listen(ma, connHandler)
 
       let transport2: TcpTransport = newTransport(TcpTransport)
       let conn = await transport2.dial(ma)

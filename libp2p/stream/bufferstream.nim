@@ -256,7 +256,7 @@ method write*(s: BufferStream,
   ## stream.
   var buf = ""
   shallowCopy(buf, if msglen > 0: msg[0..<msglen] else: msg)
-  result = s.writeHandler(cast[seq[byte]](toSeq(buf.items)))
+  result = s.writeHandler(cast[seq[byte]](buf))
 
 method write*(s: BufferStream, 
               msg: seq[byte], 

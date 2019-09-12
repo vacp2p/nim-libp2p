@@ -7,8 +7,11 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import chronos
+import chronos, chronicles
 import lpstream
+
+logScope:
+  topic = "ChronosStream"
 
 type ChronosStream* = ref object of LPStream
     reader: AsyncStreamReader
@@ -92,6 +95,7 @@ method write*(s: ChronosStream, msg: seq[byte], msglen = -1) {.async, gcsafe.} =
 
 method close*(s: ChronosStream) {.async, gcsafe.} =
   if not s.closed:
+    debug "closing connection for", address = $s.client.remoteAddress()
     if not s.reader.closed:
       await s.reader.closeWait()
 
