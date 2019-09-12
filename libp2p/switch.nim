@@ -184,18 +184,21 @@ proc mount*[T: LPProtocol](s: Switch, proto: T) {.gcsafe.} =
 
   s.ms.addHandler(proto.codec, proto)
 
-proc start*(s: Switch) {.async.} = 
+proc start*(s: Switch): Future[seq[Future[void]]] {.async.} = 
   proc handle(conn: Connection): Future[void] {.async, closure, gcsafe.} =
     try:
-      if (await s.ms.select(conn)):
+      if (await s.ms.select(conn)): # just handshake
         await s.ms.handle(conn) # handle incoming connection
     except:
       await s.cleanupConn(conn)
 
+  var startFuts: seq[Future[void]]
   for t in s.transports: # for each transport
     for a in s.peerInfo.addrs:
       if t.handles(a): # check if it handles the multiaddr
-        await t.listen(a, handle) # listen for incoming connections
+        var server = await t.listen(a, handle)
+        startFuts.add(server)
+  result = startFuts # listen for incoming connections
 
 proc stop*(s: Switch) {.async.} = 
   await allFutures(s.transports.mapIt(it.close()))

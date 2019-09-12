@@ -7,10 +7,13 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import chronos
+import chronos, chronicles
 import transport, ../wire, ../connection,
        ../multiaddress, ../connection,
        ../multicodec, ../stream/chronosstream
+
+logScope:
+  topic = "TcpTransport"
 
 type TcpTransport* = ref object of Transport
   server*: StreamServer
@@ -20,6 +23,7 @@ proc connHandler*(t: Transport,
                   client: StreamTransport, 
                   initiator: bool = false): 
                   Future[Connection] {.async, gcsafe.} =
+  debug "handling connection for", address = $client.remoteAddress
   let conn: Connection = newConnection(newChronosStream(server, client))
   if not initiator:
     let handlerFut = if t.handler == nil: nil else: t.handler(conn)
@@ -30,6 +34,7 @@ proc connHandler*(t: Transport,
 
 proc connCb(server: StreamServer,
             client: StreamTransport) {.async, gcsafe.} =
+  debug "incomming connection for", address = $client.remoteAddress
   let t: Transport = cast[Transport](server.udata)
   discard t.connHandler(server, client)
 
@@ -38,6 +43,7 @@ method init*(t: TcpTransport) =
 
 method close*(t: TcpTransport): Future[void] {.async, gcsafe.} =
   ## start the transport
+  debug "stopping transport"
   await procCall Transport(t).close() # call base
 
   t.server.stop()
@@ -46,21 +52,18 @@ method close*(t: TcpTransport): Future[void] {.async, gcsafe.} =
 method listen*(t: TcpTransport,
                ma: MultiAddress,
                handler: ConnHandler): 
-               Future[void] {.async, gcsafe.} =
-  await procCall Transport(t).listen(ma, handler) # call base
+               Future[Future[void]] {.async, gcsafe.} =
+  discard await procCall Transport(t).listen(ma, handler) # call base
 
   ## listen on the transport
-  let listenFuture: Future[void] = newFuture[void]()
-  result = listenFuture
-
-  let server = createStreamServer(t.ma, connCb, {}, t)
-  t.server = server
-  server.start()
-  listenFuture.complete()
+  t.server = createStreamServer(t.ma, connCb, {}, t)
+  t.server.start()
+  result = t.server.join()
 
 method dial*(t: TcpTransport,
              address: MultiAddress): 
              Future[Connection] {.async, gcsafe.} =
+  debug "dialing remote peer", address = $address
   ## dial a peer
   let client: StreamTransport = await connect(address)
   result = await t.connHandler(t.server, client, true)

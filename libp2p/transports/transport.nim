@@ -40,7 +40,8 @@ method close*(t: Transport) {.base, async, gcsafe.} =
 
 method listen*(t: Transport,
                ma: MultiAddress,
-               handler: ConnHandler) {.base, async, gcsafe.} =
+               handler: ConnHandler): 
+               Future[Future[void]] {.base, async, gcsafe.} =
   ## listen for incoming connections
   t.ma = ma
   t.handler = handler
