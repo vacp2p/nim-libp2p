@@ -62,3 +62,7 @@ method handles*(t: Transport, address: MultiAddress): bool {.base, gcsafe.} =
   # TODO: this should implement generic logic that would use the multicodec 
   # declared in the multicodec field and set by each individual transport
   discard
+
+method localAddress*(t: Transport): MultiAddress {.base, gcsafe.} =
+  ## get the local address of the transport in case started with 0.0.0.0:0
+  discard

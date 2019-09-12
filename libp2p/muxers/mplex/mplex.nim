@@ -18,7 +18,7 @@
 
 import tables, sequtils, options, strformat
 import chronos, chronicles
-import coder, types, channel,
+import coder, types, lpchannel,
        ../muxer,
        ../../varint, 
        ../../connection, 
@@ -32,15 +32,15 @@ logScope:
 
 type
   Mplex* = ref object of Muxer
-    remote*: Table[uint, Channel]
-    local*: Table[uint, Channel]
+    remote*: Table[uint, LPChannel]
+    local*: Table[uint, LPChannel]
     currentId*: uint
     maxChannels*: uint
 
 proc newMplexUnknownMsgError(): ref MplexUnknownMsgError =
   result = newException(MplexUnknownMsgError, "Unknown mplex message type")
 
-proc getChannelList(m: Mplex, initiator: bool): var Table[uint, Channel] =
+proc getChannelList(m: Mplex, initiator: bool): var Table[uint, LPChannel] =
   if initiator:
     result = m.remote
   else:
@@ -50,7 +50,7 @@ proc newStreamInternal*(m: Mplex,
                         initiator: bool = true,
                         chanId: uint = 0,
                         name: string = ""):
-                        Future[Channel] {.async, gcsafe.} = 
+                        Future[LPChannel] {.async, gcsafe.} = 
   ## create new channel/stream
   let id = if initiator: m.currentId.inc(); m.currentId else: chanId
   result = newChannel(id, m.connection, initiator, name)
@@ -66,7 +66,7 @@ method handle*(m: Mplex) {.async, gcsafe.} =
 
       let (id, msgType, data) = msgRes.get()
       let initiator = bool(ord(msgType) and 1)
-      var channel: Channel
+      var channel: LPChannel
       if MessageType(msgType) != MessageType.New:
         let channels = m.getChannelList(initiator)
         if not channels.contains(id):
@@ -116,8 +116,8 @@ proc newMplex*(conn: Connection,
   new result
   result.connection = conn
   result.maxChannels = maxChanns
-  result.remote = initTable[uint, Channel]()
-  result.local = initTable[uint, Channel]()
+  result.remote = initTable[uint, LPChannel]()
+  result.local = initTable[uint, LPChannel]()
 
 method newStream*(m: Mplex, name: string = ""): Future[Connection] {.async, gcsafe.} =
   let channel = await m.newStreamInternal()

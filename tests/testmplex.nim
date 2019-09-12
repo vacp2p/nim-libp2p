@@ -10,7 +10,7 @@ import ../libp2p/connection,
        ../libp2p/muxers/mplex/mplex, 
        ../libp2p/muxers/mplex/coder, 
        ../libp2p/muxers/mplex/types,
-       ../libp2p/muxers/mplex/channel
+       ../libp2p/muxers/mplex/lpchannel
 
 suite "Mplex":
   test "encode header with channel id 0":
@@ -118,6 +118,35 @@ suite "Mplex":
     check:
       waitFor(testDecodeHeader()) == true
 
+  test "e2e - read/write receiver":
+    proc testNewStream(): Future[bool] {.async.} =
+      let ma: MultiAddress = Multiaddress.init("/ip4/127.0.0.1/tcp/53381")
+
+      proc connHandler(conn: Connection) {.async, gcsafe.} =
+        proc handleMplexListen(stream: Connection) {.async, gcsafe.} = 
+          let msg = await stream.readLp()
+          check cast[string](msg) == "Hello from stream!"
+          await stream.close()
+
+        let mplexListen = newMplex(conn)
+        mplexListen.streamHandler = handleMplexListen
+        asyncCheck mplexListen.handle()
+
+      let transport1: TcpTransport = newTransport(TcpTransport)
+      discard await transport1.listen(ma, connHandler)
+
+      let transport2: TcpTransport = newTransport(TcpTransport)
+      let conn = await transport2.dial(ma)
+
+      let mplexDial = newMplex(conn)
+      let stream  = await mplexDial.newStream()
+      await stream.writeLp("Hello from stream!")
+      await conn.close()
+      result = true
+
+    check:
+      waitFor(testNewStream()) == true
+
   test "e2e - read/write initiator":
     proc testNewStream(): Future[bool] {.async.} =
       let ma: MultiAddress = Multiaddress.init("/ip4/127.0.0.1/tcp/53380")
@@ -132,7 +161,7 @@ suite "Mplex":
         await mplexListen.handle()
 
       let transport1: TcpTransport = newTransport(TcpTransport)
-      asyncCheck transport1.listen(ma, connHandler)
+      discard await transport1.listen(ma, connHandler)
 
       let transport2: TcpTransport = newTransport(TcpTransport)
       let conn = await transport2.dial(ma)
@@ -144,35 +173,6 @@ suite "Mplex":
       check msg == "Hello from stream!"
       await conn.close()
       # await dialFut
-      result = true
-
-    check:
-      waitFor(testNewStream()) == true
-
-  test "e2e - read/write receiver":
-    proc testNewStream(): Future[bool] {.async.} =
-      let ma: MultiAddress = Multiaddress.init("/ip4/127.0.0.1/tcp/53381")
-
-      proc connHandler(conn: Connection) {.async, gcsafe.} =
-        proc handleMplexListen(stream: Connection) {.async, gcsafe.} = 
-          let msg = await stream.readLp()
-          check cast[string](msg) == "Hello from stream!"
-          await stream.close()
-
-        let mplexListen = newMplex(conn)
-        mplexListen.streamHandler = handleMplexListen
-        await mplexListen.handle()
-
-      let transport1: TcpTransport = newTransport(TcpTransport)
-      asyncCheck transport1.listen(ma, connHandler)
-
-      let transport2: TcpTransport = newTransport(TcpTransport)
-      let conn = await transport2.dial(ma)
-
-      let mplexDial = newMplex(conn)
-      let stream  = await mplexDial.newStream()
-      await stream.writeLp("Hello from stream!")
-      await conn.close()
       result = true
 
     check:
@@ -194,12 +194,10 @@ suite "Mplex":
         listenConn = conn
         let mplexListen = newMplex(conn)
         mplexListen.streamHandler = handleMplexListen
-        mplexListen.handle()
-          .addCallback(proc(udata: pointer) = 
-            debug "handle completed")
+        await mplexListen.handle()
 
       let transport1: TcpTransport = newTransport(TcpTransport)
-      asyncCheck transport1.listen(ma, connHandler)
+      discard await transport1.listen(ma, connHandler)
 
       let transport2: TcpTransport = newTransport(TcpTransport)
       let conn = await transport2.dial(ma)

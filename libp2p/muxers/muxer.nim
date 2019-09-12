@@ -8,7 +8,7 @@
 ## those terms.
 
 import chronos, chronicles
-import ../protocols/protocol, 
+import ../protocols/protocol,
        ../connection
 
 logScope:
@@ -32,7 +32,7 @@ type
 method newStream*(m: Muxer, name: string = ""): Future[Connection] {.base, async, gcsafe.} = discard
 method close*(m: Muxer) {.base, async, gcsafe.} = discard
 method handle*(m: Muxer): Future[void] {.base, async, gcsafe.} = discard
-method `=streamHandler`*(m: Muxer, handler: StreamHandler) {.base, gcsafe.} = 
+method `streamHandler=`*(m: Muxer, handler: StreamHandler) {.base, gcsafe.} = 
   m.streamHandler = handler
 
 proc newMuxerProvider*(creator: MuxerCreator, codec: string): MuxerProvider {.gcsafe.} = 
@@ -41,7 +41,7 @@ proc newMuxerProvider*(creator: MuxerCreator, codec: string): MuxerProvider {.gc
   result.codec = codec
   result.init()
 
-method `=streamHandler`*(m: MuxerProvider, handler: StreamHandler) {.base, gcsafe.} = 
+method `streamHandler=`*(m: MuxerProvider, handler: StreamHandler) {.base, gcsafe.} = 
   ## new stream (channels) handler
   ##
   ## triggered every time there is a new 
@@ -50,7 +50,7 @@ method `=streamHandler`*(m: MuxerProvider, handler: StreamHandler) {.base, gcsaf
   ##
   m.streamHandler = handler
 
-method `=muxerHandler`*(m: MuxerProvider, handler: MuxerHandler) {.base, gcsafe.} = 
+method `muxerHandler=`*(m: MuxerProvider, handler: MuxerHandler) {.base, gcsafe.} = 
   ## new muxer (muxed connections) handler
   ##
   ## triggered every time there is a new muxed 
