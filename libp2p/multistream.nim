@@ -111,7 +111,6 @@ proc list*(m: MultisteamSelect,
 proc handle*(m: MultisteamSelect, conn: Connection) {.async, gcsafe.} =
   debug "handle: starting multistream handling"
   while not conn.closed:
-    block main:
       var ms = cast[string](await conn.readLp())
       ms.removeSuffix("\n")
       
@@ -141,7 +140,7 @@ proc handle*(m: MultisteamSelect, conn: Connection) {.async, gcsafe.} =
               await conn.writeLp((h.proto & "\n"))
               try:
                 await h.protocol.handler(conn, ms)
-                break main
+                return
               except Exception as exc:
                 debug "handle: exception while handling ", msg = exc.msg
           debug "handle: no handlers for ", protocol = ms
