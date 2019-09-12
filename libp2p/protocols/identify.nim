@@ -70,6 +70,7 @@ proc decodeMsg*(buf: seq[byte]): IdentifyInfo =
   var pubKey: PublicKey
   if pb.getValue(1, pubKey) > 0:
     result.pubKey = some(pubKey)
+    debug "PUBKEY", pubKey = pubKey
 
   result.addrs = newSeq[MultiAddress]()
   var address = newSeq[byte]()
@@ -123,12 +124,14 @@ proc identify*(p: Identify,
   result = decodeMsg(message)
   debug "identify: Identify for remote peer succeded"
 
-  if remotePeerInfo.peerId.isSome and 
-     result.pubKey.isSome and
-     result.pubKey.get() != remotePeerInfo.peerId.get().publicKey:
-    debug "identify: Peer's remote public key doesn't match"
-    raise newException(IdentityNoMatchError, 
-      "Peer's remote public key doesn't match")
+  # TODO: To enable the blow code, the private and public 
+  # keys in PeerID need to be wrapped with Option[T]
+  # if remotePeerInfo.peerId.isSome and 
+  #    result.pubKey.isSome and
+  #    result.pubKey.get() != remotePeerInfo.peerId.get().publicKey:
+  #   debug "identify: Peer's remote public key doesn't match"
+  #   raise newException(IdentityNoMatchError, 
+  #     "Peer's remote public key doesn't match")
 
 proc push*(p: Identify, conn: Connection) {.async.} =
   await conn.write(IdentifyPushCodec)
