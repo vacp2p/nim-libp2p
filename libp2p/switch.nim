@@ -30,15 +30,15 @@ type
 
     Switch* = ref object of RootObj
       peerInfo*: PeerInfo
-      connections*: TableRef[string, Connection]
-      muxed*: TableRef[string, Muxer]
+      connections*: Table[string, Connection]
+      muxed*: Table[string, Muxer]
       transports*: seq[Transport]
       protocols*: seq[LPProtocol]
       muxers*: Table[string, MuxerProvider]
       ms*: MultisteamSelect
       identity*: Identify
       streamHandler*: StreamHandler
-      secureManagers*: seq[Secure]
+      secureManagers*: Table[string, Secure]
       pubSub*: Option[PubSub]
 
 proc newNoPubSubException(): ref Exception {.inline.} = 
@@ -48,15 +48,15 @@ proc secure(s: Switch, conn: Connection): Future[Connection] {.async, gcsafe.} =
   ## secure the incoming connection
 
   # plaintext for now, doesn't do anything
-  let managers = s.secureManagers.mapIt(it.codec).deduplicate()
+  let managers = toSeq(s.secureManagers.keys)
   if managers.len == 0:
     raise newException(CatchableError, "No secure managers registered!")
 
-  if (await s.ms.select(conn, s.secureManagers.mapIt(it.codec))).len == 0:
+  let manager = await s.ms.select(conn, toSeq(s.secureManagers.values).mapIt(it.codec))
+  if manager.len == 0:
     raise newException(CatchableError, "Unable to negotiate a secure channel!")
 
-  var n = await s.secureManagers[0].secure(conn)
-  result = conn
+  result = await s.secureManagers[manager].secure(conn)
 
 proc identify*(s: Switch, conn: Connection) {.async, gcsafe.} =
   ## identify the connection
@@ -193,7 +193,7 @@ proc mount*[T: LPProtocol](s: Switch, proto: T) {.gcsafe.} =
 proc upgradeIncoming(s: Switch, conn: Connection) {.async, gcsafe.} = 
   let ms = newMultistream()
   if (await ms.select(conn)): # just handshake
-    for secure in s.secureManagers:
+    for secure in s.secureManagers.values:
       ms.addHandler(secure.codec, secure)
     
     await ms.handle(conn)
@@ -252,16 +252,17 @@ proc newSwitch*(peerInfo: PeerInfo,
                 transports: seq[Transport],
                 identity: Identify,
                 muxers: Table[string, MuxerProvider],
-                secureManagers: seq[Secure] = @[],
+                secureManagers: Table[string, Secure],
                 pubSub: Option[PubSub] = none(PubSub)): Switch =
   new result
   result.peerInfo = peerInfo
   result.ms = newMultistream()
   result.transports = transports
-  result.connections = newTable[string, Connection]()
-  result.muxed = newTable[string, Muxer]()
+  result.connections = initTable[string, Connection]()
+  result.muxed = initTable[string, Muxer]()
   result.identity = identity
   result.muxers = muxers
+  result.secureManagers = initTable[string, Secure]()
 
   let s = result # can't capture result
   result.streamHandler = proc(stream: Connection) {.async, gcsafe.} = 
@@ -276,16 +277,13 @@ proc newSwitch*(peerInfo: PeerInfo,
       let stream = await muxer.newStream()
       await s.identify(stream)
 
-  for s in secureManagers.deduplicate():
-    debug "adding secure manager ", codec = s.codec
-    result.secureManagers.add(s)
+  for k in secureManagers.keys:
+    debug "adding secure manager ", codec = secureManagers[k].codec
+    result.secureManagers[k] = secureManagers[k]
 
   if result.secureManagers.len == 0:
     # use plain text if no secure managers are provided
-    let manager = Secure(newPlainText())
-    result.secureManagers.add(manager)
-
-  result.secureManagers = result.secureManagers.deduplicate()
+    result.secureManagers[PlainTextCodec] = Secure(newPlainText())
 
   if pubSub.isSome:
     result.pubSub = pubSub
