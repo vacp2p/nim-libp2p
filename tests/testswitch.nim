@@ -12,7 +12,9 @@ import ../libp2p/switch,
        ../libp2p/protocols/protocol, 
        ../libp2p/muxers/muxer,
        ../libp2p/muxers/mplex/mplex, 
-       ../libp2p/muxers/mplex/types
+       ../libp2p/muxers/mplex/types,
+       ../libp2p/protocols/secure/secio,
+       ../libp2p/protocols/secure/secure
 
 const TestCodec = "/test/proto/1.0.0"
 
@@ -44,6 +46,7 @@ suite "Switch":
       let mplexProvider = newMuxerProvider(createMplex, MplexCodec)
       let transports = @[Transport(newTransport(TcpTransport))]
       let muxers = [(MplexCodec, mplexProvider)].toTable()
+      # let secureManagers = [(SecioCodec, Secure(newSecio(seckey)))].toTable()
       let switch = newSwitch(peerInfo, transports, identify, muxers)
       result = (switch, peerInfo)
 
