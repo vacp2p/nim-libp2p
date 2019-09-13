@@ -47,11 +47,14 @@ method close*(t: TcpTransport): Future[void] {.async, gcsafe.} =
   await procCall Transport(t).close() # call base
 
   t.server.stop()
-  await t.server.closeWait()
+  t.server.close()
+  debug "transport stopped"
 
 method listen*(t: TcpTransport,
                ma: MultiAddress,
                handler: ConnHandler): 
+               # TODO: need to check how this futures 
+               # are being returned, it doesn't seem to be right
                Future[Future[void]] {.async, gcsafe.} =
   discard await procCall Transport(t).listen(ma, handler) # call base
 
