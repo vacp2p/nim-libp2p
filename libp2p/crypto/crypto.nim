@@ -10,10 +10,10 @@
 ## This module implements Public Key and Private Key interface for libp2p.
 import rsa, ecnist, ed25519/ed25519, secp
 import ../protobuf/minprotobuf, ../vbuffer, ../multihash, ../multicodec
-import nimcrypto/[rijndael, blowfish, sha, sha2, hash, hmac, utils]
+import nimcrypto/[rijndael, blowfish, twofish, sha, sha2, hash, hmac, utils]
 
 # This is workaround for Nim's `import` bug
-export rijndael, blowfish, sha, sha2, hash, hmac, utils
+export rijndael, blowfish, twofish, sha, sha2, hash, hmac, utils
 
 from strutils import split
 
@@ -499,6 +499,9 @@ proc stretchKeys*(cipherType: string, hashType: string,
   elif cipherType == "AES-256":
     result.ivsize = aes256.sizeBlock
     result.keysize = aes256.sizeKey
+  elif cipherType == "TwofishCTR":
+    result.ivsize = twofish256.sizeBlock
+    result.keysize = twofish256.sizeKey
   elif cipherType == "BLOWFISH":
     result.ivsize = 8
     result.keysize = 32
