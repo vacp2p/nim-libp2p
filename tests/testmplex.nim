@@ -118,7 +118,6 @@ suite "Mplex":
     check:
       waitFor(testDecodeHeader()) == true
 
-#TODO: Commented tests need reworking after refactor
   # test "e2e - read/write receiver":
   #   proc testNewStream(): Future[bool] {.async.} =
   #     let ma: MultiAddress = Multiaddress.init("/ip4/127.0.0.1/tcp/53381")
@@ -131,7 +130,7 @@ suite "Mplex":
 
   #       let mplexListen = newMplex(conn)
   #       mplexListen.streamHandler = handleMplexListen
-  #       asyncCheck mplexListen.handle()
+  #       discard mplexListen.handle()
 
   #     let transport1: TcpTransport = newTransport(TcpTransport)
   #     discard await transport1.listen(ma, connHandler)
