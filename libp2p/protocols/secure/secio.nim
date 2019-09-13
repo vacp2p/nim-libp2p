@@ -1,3 +1,4 @@
+
 ## Nim-LibP2P
 ## Copyright (c) 2018 Status Research & Development GmbH
 ## Licensed under either of
@@ -13,8 +14,8 @@ import secure,
        ../../crypto/crypto, 
        ../../crypto/ecnist,
        ../../protobuf/minprotobuf, 
-       ../../peer
-
+       ../../peer, 
+       ../../stream/bufferstream
 export hmac, sha2, sha, hash, rijndael, bcmode
 
 logScope:
@@ -59,7 +60,8 @@ type
     of SecureMacType.Sha1:
       ctxsha1: HMAC[sha1]
 
-  SecureConnection* = ref object of BufferStream
+  SecureConnection* = ref object of Connection
+    conn*: Connection
     writerMac: SecureMac
     readerMac: SecureMac
     writerCoder: SecureCipher
@@ -212,7 +214,7 @@ proc writeMessage*(sconn: SecureConnection, message: seq[byte]) {.async.} =
   msg[3] = byte(length and 0xFF)
   trace "Writing message", message = toHex(msg)
   try:
-    await sconn.pushTo(msg)
+    await sconn.conn.write(msg)
   except AsyncStreamWriteError:
     debug "Could not write to connection"
 
@@ -265,7 +267,7 @@ proc transactMessage(conn: Connection,
   except AsyncStreamWriteError:
     trace "Could not write to connection", conn = conn
 
-proc handshake*(p: Secio, conn: Connection) {.async.} =
+proc handshake*(s: Secio, conn: Connection): Future[SecureConnection] {.async.} =
   var
     localNonce: array[SecioNonceSize, byte]
     remoteNonce: seq[byte]
@@ -281,7 +283,7 @@ proc handshake*(p: Secio, conn: Connection) {.async.} =
     remotePeerId: PeerID
     localPeerId: PeerID
     ekey: PrivateKey
-    localBytesPubkey = p.localPublicKey.getBytes()
+    localBytesPubkey = s.localPublicKey.getBytes()
 
   if randomBytes(localNonce) != SecioNonceSize:
     raise newException(CatchableError, "Could not generate random data")
@@ -289,7 +291,7 @@ proc handshake*(p: Secio, conn: Connection) {.async.} =
   var request = createProposal(localNonce, localBytesPubkey, SecioExchanges,
                                SecioCiphers, SecioHashes)
 
-  localPeerId = PeerID.init(p.localPublicKey)
+  localPeerId = PeerID.init(s.localPublicKey)
 
   debug "Local proposal", schemes = SecioExchanges, ciphers = SecioCiphers,
                           hashes = SecioHashes,
@@ -336,7 +338,7 @@ proc handshake*(p: Secio, conn: Connection) {.async.} =
   # We need EC public key in raw binary form
   var epubkey = ekeypair.pubkey.eckey.getRawBytes()
   var localCorpus = request[4..^1] & answer & epubkey
-  var signature = p.localPrivateKey.sign(localCorpus)
+  var signature = s.localPrivateKey.sign(localCorpus)
 
   var localExchange = createExchange(epubkey, signature.getBytes())
 
@@ -387,25 +389,37 @@ proc handshake*(p: Secio, conn: Connection) {.async.} =
 
   # Perform Nonce exchange over encrypted channel.
 
-  var sconn = newSecureConnection(conn, hash, cipher, keys, order)
-  await sconn.writeMessage(remoteNonce)
-  var res = await sconn.readMessage()
+  result = newSecureConnection(conn, hash, cipher, keys, order)
+  await result.writeMessage(remoteNonce)
+  var res = await result.readMessage()
 
   if res != @localNonce:
     debug "Nonce verification failed", receivedNonce = toHex(res),
                                        localNonce = toHex(localNonce)
+    raise newException(CatchableError, "Nonce verification failed")
   else:
     debug "Secure handshake succeeded"
 
-method init(p: Secio) {.gcsafe.} =
+proc handleConn(s: Secio, conn: Connection): Future[Connection] {.async.} =
+  var sconn = await s.handshake(conn)
+  proc writeHandler(data: seq[byte]) {.async, gcsafe.} =
+    await sconn.writeMessage(data)
+  
+  var stream = newBufferStream(writeHandler)
+  result = newConnection(stream)
+  while not conn.closed:
+    let msg = await sconn.readMessage()
+    await stream.pushTo(msg)
+
+method init(s: Secio) {.gcsafe.} =
   proc handle(conn: Connection, proto: string) {.async, gcsafe.} =
-    echo "HERE"
+    asyncCheck s.handleConn(conn)
 
-  p.codec = SecioCodec
-  p.handler = handle
+  s.codec = SecioCodec
+  s.handler = handle
 
-method secure*(p: Secio, conn: Connection): Future[Connection] {.async, gcsafe.} =
-  await p.handshake(conn)
+method secure*(s: Secio, conn: Connection): Future[Connection] {.gcsafe.} =
+  result = s.handleConn(conn)
 
 proc newSecio*(localPrivateKey: PrivateKey): Secio =
   new result
