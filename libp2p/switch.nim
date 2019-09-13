@@ -93,6 +93,9 @@ proc mux(s: Switch, conn: Connection): Future[void] {.async, gcsafe.} =
   debug "muxing connection"
   ## mux incoming connection
   let muxers = toSeq(s.muxers.keys)
+  if muxers.len == 0:
+    return
+
   let muxerName = await s.ms.select(conn, muxers)
   if muxerName.len == 0 or muxerName == "na":
     return
@@ -252,7 +255,7 @@ proc newSwitch*(peerInfo: PeerInfo,
                 transports: seq[Transport],
                 identity: Identify,
                 muxers: Table[string, MuxerProvider],
-                secureManagers: Table[string, Secure],
+                secureManagers: Table[string, Secure] = initTable[string, Secure](),
                 pubSub: Option[PubSub] = none(PubSub)): Switch =
   new result
   result.peerInfo = peerInfo
@@ -283,6 +286,7 @@ proc newSwitch*(peerInfo: PeerInfo,
 
   if result.secureManagers.len == 0:
     # use plain text if no secure managers are provided
+    debug "no secure managers, falling back to palin text", codec = PlainTextCodec
     result.secureManagers[PlainTextCodec] = Secure(newPlainText())
 
   if pubSub.isSome:
