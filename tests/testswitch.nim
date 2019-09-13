@@ -59,16 +59,16 @@ suite "Switch":
       testProto.init()
       testProto.codec = TestCodec
       switch1.mount(testProto)
-      asyncCheck switch1.start()
+      var switch1Fut = await switch1.start()
 
       (switch2, peerInfo2) = createSwitch(ma2)
-      asyncCheck switch2.start()
+      var switch2Fut = await switch2.start()
       let conn = await switch2.dial(peerInfo1, TestCodec)
       await conn.writeLp("Hello!")
       let msg = cast[string](await conn.readLp())
       check "Hello!" == msg
 
-      # await allFutures(switch1.stop(), switch2.stop())
+      discard allFutures(switch1.stop(), switch2.stop())
       result = true
 
     check:
