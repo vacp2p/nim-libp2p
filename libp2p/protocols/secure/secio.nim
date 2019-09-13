@@ -189,7 +189,7 @@ proc readMessage*(sconn: SecureConnection): Future[seq[byte]] {.async.} =
       if sconn.macCheckAndDecode(buf):
         result = buf
       else:
-        debug "Message MAC verification failed"
+        debug "Message MAC verification failed", buf = toHex(buf)
     else:
       debug "Received message header size is more then allowed",
             length = length, allowed_length = SecioMaxMessageSize
