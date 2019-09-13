@@ -23,6 +23,8 @@ import ../libp2p/switch,
        ../libp2p/muxers/mplex/types
 
 const ChatCodec = "/nim-libp2p/chat/1.0.0"
+const DefaultAddr = "/ip4/127.0.0.1/tcp/55505"
+
 
 const Help = """
   Commands: /[?|hep|connect|disconnect|exit]
@@ -46,11 +48,17 @@ type
     connected: bool
     started: bool
 
+proc id (p: ChatProto): string =
+  result = "unknown"
+  if p.conn.peerInfo.peerId.isSome:
+    result = $p.conn.peerInfo.peerId.get()
+
 # forward declaration
 proc readWriteLoop(p: ChatProto) {.async, gcsafe.}
 proc readAndPrint(p: ChatProto) {.async, gcsafe.} =
   while true:
     while p.connected:
+      # echo &"{p.id} -> "
       echo cast[string](await p.conn.readLp())
     await sleepAsync(100.millis)
 
@@ -69,9 +77,9 @@ proc dialPeer(p: ChatProto, address: string) {.async, gcsafe.} =
 
 proc writeAndPrint(p: ChatProto) {.async, gcsafe.} = 
   while true:
-    if p.connected:
-      echo "type your message:"
-    else:
+    if not p.connected:
+      # echo &"{p.id} ->"
+    # else:
       echo "type an address or wait for a connection:"
       echo "type /[help|?] for help"
 
@@ -82,7 +90,8 @@ proc writeAndPrint(p: ChatProto) {.async, gcsafe.} =
   
     if line.startsWith("/disconnect"):
       echo "Ending current session"
-      await p.conn.close()
+      if p.connected and p.conn.closed.not:
+        await p.conn.close()
       p.connected = false
     elif line.startsWith("/connect"):
       if p.connected:
@@ -103,9 +112,12 @@ proc writeAndPrint(p: ChatProto) {.async, gcsafe.} =
         await p.dialPeer(address)
 
     elif line.startsWith("/exit"):
-      await p.conn.close()
-      p.connected = false
-      # await p.switch.stop() # TODO: remote
+      if p.connected and p.conn.closed.not:
+        await p.conn.close()
+        p.connected = false
+
+      await p.switch.stop()
+      echo "quitting..."
       quit(0)
     else:
       if p.connected:
@@ -155,13 +167,22 @@ proc serveThread(customData: CustomData) {.async.} =
   let seckey = PrivateKey.random(RSA)
   var peerInfo: PeerInfo
   peerInfo.peerId = some(PeerID.init(seckey))
-  var localAddress = "/ip4/127.0.0.1/tcp/55505"
-  echo "Type an address to bind to or Enter use the default /ip4/127.0.0.1/tcp/55505"
-  let a = await transp.readLine()
-  if a.len > 0:
-    localAddress = a
- 
-  peerInfo.addrs.add(Multiaddress.init(localAddress))
+  var localAddress = DefaultAddr
+  while true:
+    echo &"Type an address to bind to or Enter to use the default {DefaultAddr}"
+    let a = await transp.readLine()
+    try:
+      if a.len > 0:
+        peerInfo.addrs.add(Multiaddress.init(a))
+        break
+
+      peerInfo.addrs.add(Multiaddress.init(localAddress))
+      break
+    except:
+      echo "invalid address"
+      localAddress = DefaultAddr
+      continue
+
   proc createMplex(conn: Connection): Muxer =
     result = newMplex(conn)
 
