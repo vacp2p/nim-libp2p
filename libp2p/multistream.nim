@@ -52,7 +52,7 @@ proc select*(m: MultisteamSelect,
   ## select a remote protocol
   await conn.write(m.codec) # write handshake
   if proto.len() > 0:
-    info "selecting proto", proto = proto
+    trace "selecting proto", proto = proto
     await conn.writeLp((proto[0] & "\n")) # select proto
 
   result = cast[string](await conn.readLp()) # read ms header
@@ -65,14 +65,14 @@ proc select*(m: MultisteamSelect,
     return
 
   result = cast[string](await conn.readLp()) # read the first proto
-  info "reading first requested proto"
+  trace "reading first requested proto"
   result.removeSuffix("\n")
   if result == proto[0]:
     debug "succesfully selected ", proto = proto
     return
 
   if not result.len > 0:
-    info "selecting one of several protos"
+    trace "selecting one of several protos"
     for p in proto[1..<proto.len()]:
       await conn.writeLp((p & "\n")) # select proto
       result = cast[string](await conn.readLp()) # read the first proto
@@ -109,24 +109,24 @@ proc list*(m: MultisteamSelect,
   result = list
 
 proc handle*(m: MultisteamSelect, conn: Connection) {.async, gcsafe.} =
-  info "handle: starting multistream handling"
+  trace "handle: starting multistream handling"
   while not conn.closed:
       var ms = cast[string](await conn.readLp())
       ms.removeSuffix("\n")
       
-      info "handle: got request for ", ms
+      trace "handle: got request for ", ms
       if ms.len() <= 0:
-        info "handle: invalid proto"
+        trace "handle: invalid proto"
         await conn.write(m.na)
 
       if m.handlers.len() == 0:
-        info "handle: sending `na` for protocol ", protocol = ms
+        trace "handle: sending `na` for protocol ", protocol = ms
         await conn.write(m.na)
         continue
 
       case ms:
         of "ls":
-          info "handle: listing protos"
+          trace "handle: listing protos"
           var protos = ""
           for h in m.handlers:
             protos &= (h.proto & "\n")
@@ -136,7 +136,7 @@ proc handle*(m: MultisteamSelect, conn: Connection) {.async, gcsafe.} =
         else:
           for h in m.handlers:
             if (not isNil(h.match) and h.match(ms)) or ms == h.proto:
-              info "found handler for",  protocol = ms
+              trace "found handler for",  protocol = ms
               await conn.writeLp((h.proto & "\n"))
               try:
                 await h.protocol.handler(conn, ms)
@@ -156,7 +156,7 @@ proc addHandler*[T: LPProtocol](m: MultisteamSelect,
   # Which is almost the same as the 
   # one on the next override of addHandler
   #
-  # info "registering protocol", codec = codec
+  # trace "registering protocol", codec = codec
   m.handlers.add(HandlerHolder(proto: codec,
                                protocol: protocol,
                                match: matcher))
@@ -167,7 +167,7 @@ proc addHandler*[T: LPProtoHandler](m: MultisteamSelect,
                                     matcher: Matcher = nil) =
   ## helper to allow registering pure handlers
 
-  info "registering proto handler", codec = codec
+  trace "registering proto handler", codec = codec
   let protocol = new LPProtocol
   protocol.codec = codec
   protocol.handler = handler

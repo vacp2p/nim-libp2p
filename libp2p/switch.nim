@@ -95,19 +95,19 @@ proc mux(s: Switch, conn: Connection): Future[void] {.async, gcsafe.} =
   ## mux incoming connection
   let muxers = toSeq(s.muxers.keys)
   if muxers.len == 0:
-    debug "no muxers registered"
+    trace "no muxers registered, skipping upgrade flow"
     return
 
   let muxerName = await s.ms.select(conn, muxers)
   if muxerName.len == 0 or muxerName == "na":
     return
 
+  # create new muxer for connection
   let muxer = s.muxers[muxerName].newMuxer(conn)
   # install stream handler
   muxer.streamHandler = s.streamHandler
 
-  # do identify first, so that we have a 
-  # PeerInfo in case we didn't before
+  # new stream for identify
   let stream = await muxer.newStream()
   let handlerFut = muxer.handle()
 
@@ -117,15 +117,25 @@ proc mux(s: Switch, conn: Connection): Future[void] {.async, gcsafe.} =
         debug "mux: Muxer handler completed for peer ", 
           peer = conn.peerInfo.peerId.get().pretty
     )
+
+  # do identify first, so that we have a 
+  # PeerInfo in case we didn't before
   await s.identify(stream)
+
+  # update main connection with refreshed info
+  if stream.peerInfo.peerId.isSome:
+    conn.peerInfo = stream.peerInfo
   await stream.close() # close idenity stream
   
+  trace "connection's peerInfo", peerInfo = conn.peerInfo.peerId
+
   # store it in muxed connections if we have a peer for it
   # TODO: We should make sure that this are cleaned up properly
   # on exit even if there is no peer for it. This shouldn't 
   # happen once secio is in place, but still something to keep
   # in mind
   if conn.peerInfo.peerId.isSome:
+    trace "adding muxer for peer", peer = conn.peerInfo.peerId.get().pretty
     s.muxed[conn.peerInfo.peerId.get().pretty] = muxer
 
 proc upgradeOutgoing(s: Switch, conn: Connection): Future[Connection] {.async, gcsafe.} =
@@ -158,6 +168,7 @@ proc getMuxedStream(s: Switch, peerInfo: PeerInfo): Future[Option[Connection]] {
   # if there is a muxer for the connection
   # use it instead to create a muxed stream
   if s.muxed.contains(peerInfo.peerId.get().pretty):
+    trace "connection is muxed, retriving muxer and setting up a stream"
     let muxer = s.muxed[peerInfo.peerId.get().pretty]
     let conn = await muxer.newStream()
     result = some(conn)
@@ -166,6 +177,7 @@ proc dial*(s: Switch,
            peer: PeerInfo, 
            proto: string = ""): 
            Future[Connection] {.async.} = 
+  trace "dialing peer", peer = peer.peerId.get().pretty
   for t in s.transports: # for each transport
     for a in peer.addrs: # for each address
       if t.handles(a): # check if it can dial it
@@ -176,6 +188,7 @@ proc dial*(s: Switch,
 
         let stream = await s.getMuxedStream(peer)
         if stream.isSome:
+          trace "connection is muxed, return muxed stream"
           result = stream.get()
 
         debug "dial: attempting to select remote ", proto = proto
