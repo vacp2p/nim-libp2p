@@ -46,39 +46,39 @@ proc newMultistream*(): MultisteamSelect =
 
 proc select*(m: MultisteamSelect,
              conn: Connection,
-             proto: seq[string]): 
+             proto: seq[string]):
              Future[string] {.async.} =
-  debug "select: initiating handshake", codec = m.codec
+  debug "initiating handshake", codec = m.codec
   ## select a remote protocol
   await conn.write(m.codec) # write handshake
   if proto.len() > 0:
-    debug "select: selecting proto", proto = proto
+    info "selecting proto", proto = proto
     await conn.writeLp((proto[0] & "\n")) # select proto
 
   result = cast[string](await conn.readLp()) # read ms header
   result.removeSuffix("\n")
   if result != Codec:
-    debug "select: handshake failed", codec = result
+    debug "handshake failed", codec = result
     return ""
 
   if proto.len() == 0: # no protocols, must be a handshake call
     return
 
   result = cast[string](await conn.readLp()) # read the first proto
-  debug "select: reading first requested proto"
+  info "reading first requested proto"
   result.removeSuffix("\n")
   if result == proto[0]:
-    debug "select: succesfully selected ", proto = proto
+    debug "succesfully selected ", proto = proto
     return
 
   if not result.len > 0:
-    debug "select: selecting one of several protos"
+    info "selecting one of several protos"
     for p in proto[1..<proto.len()]:
       await conn.writeLp((p & "\n")) # select proto
       result = cast[string](await conn.readLp()) # read the first proto
       result.removeSuffix("\n")
       if result == p:
-        debug "select: selected protocol", protocol = result
+        debug "selected protocol", protocol = result
         break
 
 proc select*(m: MultisteamSelect,
@@ -109,24 +109,24 @@ proc list*(m: MultisteamSelect,
   result = list
 
 proc handle*(m: MultisteamSelect, conn: Connection) {.async, gcsafe.} =
-  debug "handle: starting multistream handling"
+  info "handle: starting multistream handling"
   while not conn.closed:
       var ms = cast[string](await conn.readLp())
       ms.removeSuffix("\n")
       
-      debug "handle: got request for ", ms
+      info "handle: got request for ", ms
       if ms.len() <= 0:
-        debug "handle: invalid proto"
+        info "handle: invalid proto"
         await conn.write(m.na)
 
       if m.handlers.len() == 0:
-        debug "handle: sending `na` for protocol ", protocol = ms
+        info "handle: sending `na` for protocol ", protocol = ms
         await conn.write(m.na)
         continue
 
       case ms:
         of "ls":
-          debug "handle: listing protos"
+          info "handle: listing protos"
           var protos = ""
           for h in m.handlers:
             protos &= (h.proto & "\n")
@@ -136,21 +136,42 @@ proc handle*(m: MultisteamSelect, conn: Connection) {.async, gcsafe.} =
         else:
           for h in m.handlers:
             if (not isNil(h.match) and h.match(ms)) or ms == h.proto:
-              debug "handle: found handler for",  protocol = ms
+              info "found handler for",  protocol = ms
               await conn.writeLp((h.proto & "\n"))
               try:
                 await h.protocol.handler(conn, ms)
                 return
               except Exception as exc:
-                debug "handle: exception while handling ", msg = exc.msg
-          debug "handle: no handlers for ", protocol = ms
+                warn "exception while handling ", msg = exc.msg
+          warn "no handlers for ", protocol = ms
           await conn.write(m.na)
 
 proc addHandler*[T: LPProtocol](m: MultisteamSelect,
                                 codec: string,
                                 protocol: T,
                                 matcher: Matcher = nil) =
-  ## register a handler for the protocol
+  ## register a protocol
+  # TODO: This is a bug in chronicles, 
+  # it break if I uncoment this line.
+  # Which is almost the same as the 
+  # one on the next override of addHandler
+  #
+  # info "registering protocol", codec = codec
+  m.handlers.add(HandlerHolder(proto: codec,
+                               protocol: protocol,
+                               match: matcher))
+
+proc addHandler*[T: LPProtoHandler](m: MultisteamSelect,
+                                    codec: string,
+                                    handler: T,
+                                    matcher: Matcher = nil) =
+  ## helper to allow registering pure handlers
+
+  info "registering proto handler", codec = codec
+  let protocol = new LPProtocol
+  protocol.codec = codec
+  protocol.handler = handler
+
   m.handlers.add(HandlerHolder(proto: codec,
                                protocol: protocol,
                                match: matcher))

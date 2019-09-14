@@ -14,7 +14,8 @@ import connection,
        stream/lpstream,
        multistream,
        protocols/protocol,
-       protocols/secure/secure, # for plain text
+       protocols/secure/secure,
+       protocols/secure/plaintext, # for plain text
        peerinfo,
        multiaddress,
        protocols/identify,
@@ -94,6 +95,7 @@ proc mux(s: Switch, conn: Connection): Future[void] {.async, gcsafe.} =
   ## mux incoming connection
   let muxers = toSeq(s.muxers.keys)
   if muxers.len == 0:
+    debug "no muxers registered"
     return
 
   let muxerName = await s.ms.select(conn, muxers)
@@ -194,17 +196,31 @@ proc mount*[T: LPProtocol](s: Switch, proto: T) {.gcsafe.} =
   s.ms.addHandler(proto.codec, proto)
 
 proc upgradeIncoming(s: Switch, conn: Connection) {.async, gcsafe.} = 
+  debug "upgrading incoming connection"
   let ms = newMultistream()
-  if (await ms.select(conn)): # just handshake
-    for secure in s.secureManagers.values:
-      ms.addHandler(secure.codec, secure)
-    
-    await ms.handle(conn)
 
-    for muxer in s.muxers.values:
-      ms.addHandler(muxer.codec, muxer)
+  # secure incoming connections
+  proc securedHandler (conn: Connection, 
+                       proto: string) 
+                       {.async, gcsafe, closure.} =
+    debug "Securing connection"
+    let secure = s.secureManagers[proto]
+    let sconn = await secure.secure(conn)
+    if not isNil(sconn):
+      # add the muxer
+      for muxer in s.muxers.values:
+        ms.addHandler(muxer.codec, muxer)
     
-    await ms.handle(conn)
+    # handle subsequent requests
+    await ms.handle(sconn)
+
+  if (await ms.select(conn)): # just handshake
+    # add the secure handlers
+    for k in s.secureManagers.keys:
+      ms.addHandler(k, securedHandler)
+
+  # handle secured connections
+  await ms.handle(conn)
 
 proc start*(s: Switch): Future[seq[Future[void]]] {.async, gcsafe.} = 
   proc handle(conn: Connection): Future[void] {.async, closure, gcsafe.} =

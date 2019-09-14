@@ -8,12 +8,22 @@
 ## those terms.
 
 import chronos
-import ../protocol,
+import secure,
        ../../connection
 
-type
-  Secure* = ref object of LPProtocol # base type for secure managers
+const PlainTextCodec* = "/plaintext/1.0.0"
 
-method secure*(p: Secure, conn: Connection): Future[Connection]
-  {.base, async, gcsafe.} = 
-  result = conn
+type
+  PlainText* = ref object of Secure
+
+method init(p: PlainText) {.gcsafe.} =
+  proc handle(conn: Connection, proto: string) 
+    {.async, gcsafe.} = discard
+    ## plain text doesn't do anything
+
+  p.codec = PlainTextCodec
+  p.handler = handle
+
+proc newPlainText*(): PlainText =
+  new result
+  result.init()

@@ -400,20 +400,26 @@ proc handshake*(s: Secio, conn: Connection): Future[SecureConnection] {.async.} 
   else:
     debug "Secure handshake succeeded"
 
-proc handleConn(s: Secio, conn: Connection): Future[Connection] {.async.} =
-  var sconn = await s.handshake(conn)
-  proc writeHandler(data: seq[byte]) {.async, gcsafe.} =
-    await sconn.writeMessage(data)
-  
-  var stream = newBufferStream(writeHandler)
-  result = newConnection(stream)
-  while not conn.closed:
+proc readLoop(sconn: SecureConnection, stream: BufferStream) {.async.} =
+  while not sconn.conn.closed:
     let msg = await sconn.readMessage()
     await stream.pushTo(msg)
 
+proc handleConn(s: Secio, conn: Connection): Future[Connection] {.async.} =
+  var sconn = await s.handshake(conn)
+  proc writeHandler(data: seq[byte]) {.async, gcsafe.} =
+    debug "sending encrypted bytes", bytes = data.toHex()
+    await sconn.writeMessage(data)
+  
+  var stream = newBufferStream(writeHandler)
+  asyncCheck readLoop(sconn, stream)
+  result = newConnection(stream)
+
 method init(s: Secio) {.gcsafe.} =
   proc handle(conn: Connection, proto: string) {.async, gcsafe.} =
-    asyncCheck s.handleConn(conn)
+    debug "handling connection"
+    discard await s.handleConn(conn)
+    debug "connection secured"
 
   s.codec = SecioCodec
   s.handler = handle
