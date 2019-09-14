@@ -81,7 +81,7 @@ proc rpcHandler(f: FloodSub,
           if f.topics.contains(t):                 # check that we're subscribed to it
             await f.topics[t].handler(t, msg.data) # trigger user provided handler
 
-        # forward the message to all peers interested it
+        # forward the message to all peers interested in it
         for p in toSendPeers:
           await f.peers[p].send(@[RPCMsg(messages: m.messages)])
 
