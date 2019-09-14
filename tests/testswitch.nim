@@ -55,7 +55,7 @@ suite "Switch":
     proc testSwitch(): Future[bool] {.async, gcsafe.} =
       let ma1: MultiAddress = Multiaddress.init("/ip4/127.0.0.1/tcp/53370")
       let ma2: MultiAddress = Multiaddress.init("/ip4/127.0.0.1/tcp/53371")
-
+      
       var peerInfo1, peerInfo2: PeerInfo
       var switch1, switch2: Switch
       (switch1, peerInfo1) = createSwitch(ma1)

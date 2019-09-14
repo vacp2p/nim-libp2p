@@ -413,7 +413,9 @@ proc handleConn(s: Secio, conn: Connection): Future[Connection] {.async.} =
   
   var stream = newBufferStream(writeHandler)
   asyncCheck readLoop(sconn, stream)
-  result = newConnection(stream)
+  var secured = newConnection(stream)
+  secured.peerInfo = sconn.conn.peerInfo
+  result = secured
 
 method init(s: Secio) {.gcsafe.} =
   proc handle(conn: Connection, proto: string) {.async, gcsafe.} =

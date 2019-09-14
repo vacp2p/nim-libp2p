@@ -122,7 +122,7 @@ proc identify*(p: Identify,
       "Invalid or empty message received!")
 
   result = decodeMsg(message)
-  debug "identify: Identify for remote peer succeded"
+  debug "Identify for remote peer succeded"
 
   # TODO: To enable the blow code, the private and public 
   # keys in PeerID need to be wrapped with Option[T]
