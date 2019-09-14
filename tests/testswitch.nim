@@ -24,6 +24,8 @@ type
 method init(p: TestProto) {.gcsafe.} =
   proc handle(conn: Connection, proto: string) {.async, gcsafe.} = 
     let msg = cast[string](await conn.readLp())
+    echo "GOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOTTTTTTTTTTTTTTT"
+    echo "msg"
     check "Hello!" == msg
     await conn.writeLp("Hello!")
     await conn.close()
@@ -46,8 +48,8 @@ suite "Switch":
       let mplexProvider = newMuxerProvider(createMplex, MplexCodec)
       let transports = @[Transport(newTransport(TcpTransport))]
       let muxers = [(MplexCodec, mplexProvider)].toTable()
-      # let secureManagers = [(SecioCodec, Secure(newSecio(seckey)))].toTable()
-      let switch = newSwitch(peerInfo, transports, identify, muxers)
+      let secureManagers = [(SecioCodec, Secure(newSecio(seckey)))].toTable()
+      let switch = newSwitch(peerInfo, transports, identify, muxers, secureManagers)
       result = (switch, peerInfo)
 
     proc testSwitch(): Future[bool] {.async, gcsafe.} =

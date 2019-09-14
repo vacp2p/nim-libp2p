@@ -55,7 +55,7 @@ proc newChannel*(id: uint,
   proc writeHandler(data: seq[byte]): Future[void] {.async, gcsafe.} = 
     # writes should happen in sequence
     await chan.asyncLock.acquire()
-    debug "writeHandler: sending data ", data, id = chan.id
+    info "writeHandler: sending data ", data = data.toHex(), id = chan.id
     await conn.writeMsg(chan.id, chan.msgCode, data) # write header
     chan.asyncLock.release()
 
