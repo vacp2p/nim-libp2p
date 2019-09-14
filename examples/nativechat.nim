@@ -1,4 +1,3 @@
-
 when not(compileOption("threads")):
   {.fatal: "Please, compile this program with the --threads:on option!".}
 
@@ -95,8 +94,9 @@ proc writeAndPrint(p: ChatProto) {.async, gcsafe.} =
       p.connected = false
     elif line.startsWith("/connect"):
       if p.connected:
+        var yesno = "N"
         echo "a session is already in progress, do you want end it [y/N]?"
-        let yesno = await p.transp.readLine()
+        yesno = await p.transp.readLine()
         if yesno.cmpIgnoreCase("y") == 0:
           await p.conn.close()
           p.connected = false
@@ -190,8 +190,8 @@ proc serveThread(customData: CustomData) {.async.} =
   var transports = @[Transport(newTransport(TcpTransport))]
   var muxers = [(MplexCodec, mplexProvider)].toTable()
   var identify = newIdentify(peerInfo)
-  # var secureManagers = @[Secure(newSecIo(seckey.getKey()))]
-  var switch = newSwitch(peerInfo, transports, identify, muxers)
+  var secureManagers = [(SecioCodec, Secure(newSecio(seckey)))].toTable()
+  var switch = newSwitch(peerInfo, transports, identify, muxers, secureManagers = secureManagers)
 
   var chatProto = newChatProto(switch, transp)
   switch.mount(chatProto)
