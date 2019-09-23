@@ -65,7 +65,7 @@ suite "Identify":
 
     check:
       waitFor(testHandle()) == true
-  
+
   test "handle failed identify":
     proc testHandleError() {.async.} =
       let ma: MultiAddress = Multiaddress.init("/ip4/127.0.0.1/tcp/53361")
@@ -106,4 +106,3 @@ suite "Identify":
 
     expect IdentityNoMatchError:
       waitFor(testHandleError())
-  
