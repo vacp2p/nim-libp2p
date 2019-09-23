@@ -57,7 +57,7 @@ proc encodeSubs(subs: SubOpts, buff: var ProtoBuffer) {.gcsafe.} =
   buff.write(initProtoField(2, subs.topic))
 
 proc encodeRpcMsg*(msg: RPCMsg): ProtoBuffer {.gcsafe.} = 
-  result = initProtoBuffer({WithVarintLength})  
+  result = initProtoBuffer({WithVarintLength})
   trace "encoding msg: ", msg = msg
 
   if msg.subscriptions.len > 0:

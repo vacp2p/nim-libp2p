@@ -9,8 +9,10 @@
 
 import sequtils
 import chronos
-import ../peerinfo, ../connection, 
-       ../multiaddress, ../multicodec
+import ../peerinfo,
+       ../connection,
+       ../multiaddress,
+       ../multicodec
 
 type
   ConnHandler* = proc (conn: Connection): Future[void] {.gcsafe.}
@@ -40,19 +42,19 @@ method close*(t: Transport) {.base, async, gcsafe.} =
 
 method listen*(t: Transport,
                ma: MultiAddress,
-               handler: ConnHandler): 
+               handler: ConnHandler):
                Future[Future[void]] {.base, async, gcsafe.} =
   ## listen for incoming connections
   t.ma = ma
   t.handler = handler
 
 method dial*(t: Transport,
-             address: MultiAddress): 
+             address: MultiAddress):
              Future[Connection] {.base, async, gcsafe.} =
   ## dial a peer
   discard
 
-method upgrade*(t: Transport) {.base, async, gcsafe.} = 
+method upgrade*(t: Transport) {.base, async, gcsafe.} =
   ## base upgrade method that the transport uses to perform
   ## transport specific upgrades
   discard
