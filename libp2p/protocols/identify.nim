@@ -46,7 +46,7 @@ proc encodeMsg*(peerInfo: PeerInfo, observedAddrs: Multiaddress): ProtoBuffer =
   result = initProtoBuffer()
 
   if peerInfo.peerId.isSome:
-    result.write(initProtoField(1, peerInfo.peerId.get().publicKey.getBytes()))
+    result.write(initProtoField(1, peerInfo.peerId.get().publicKey.get().getBytes()))
 
   for ma in peerInfo.addrs:
     result.write(initProtoField(2, ma.data.buffer))
@@ -123,14 +123,12 @@ proc identify*(p: Identify,
   result = decodeMsg(message)
   trace "Identify for remote peer succeded"
 
-  # TODO: To enable the blow code, the private and public 
-  # keys in PeerID need to be wrapped with Option[T]
-  # if remotePeerInfo.peerId.isSome and 
-  #    result.pubKey.isSome and
-  #    result.pubKey.get() != remotePeerInfo.peerId.get().publicKey:
-  #   trace "identify: Peer's remote public key doesn't match"
-  #   raise newException(IdentityNoMatchError, 
-  #     "Peer's remote public key doesn't match")
+  if remotePeerInfo.peerId.isSome and 
+     result.pubKey.isSome and
+     result.pubKey != remotePeerInfo.peerId.get().publicKey:
+    trace "identify: Peer's remote public key doesn't match"
+    raise newException(IdentityNoMatchError,
+      "Peer's remote public key doesn't match")
 
 proc push*(p: Identify, conn: Connection) {.async.} =
   await conn.write(IdentifyPushCodec)

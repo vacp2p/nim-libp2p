@@ -8,7 +8,7 @@
 ## those terms.
 
 ## This module implementes API for libp2p peer.
-import hashes
+import hashes, options
 import nimcrypto/utils
 import crypto/crypto, multicodec, multihash, base58, vbuffer
 import protobuf/minprotobuf
@@ -21,16 +21,16 @@ const
 type
   PeerID* = object
     data*: seq[byte]
-    privateKey*: PrivateKey
-    publicKey: PublicKey
+    privateKey*: Option[PrivateKey]
+    publicKey: Option[PublicKey]
 
   PeerIDError* = object of CatchableError
 
-proc publicKey*(pid: PeerID): PublicKey {.inline.} =
-  if len(pid.publicKey.getBytes()) > 0:
+proc publicKey*(pid: PeerID): Option[PublicKey] {.inline.} =
+  if pid.publicKey.isSome and len(pid.publicKey.get().getBytes()) > 0:
     result = pid.publicKey
-  elif len(pid.privateKey.getBytes()) > 0:
-    result = pid.privateKey.getKey()
+  elif pid.privateKey.isSome and len(pid.privateKey.get().getBytes()) > 0:
+    result = some(pid.privateKey.get().getKey())
 
 proc pretty*(pid: PeerID): string {.inline.} =
   ## Return base58 encoded ``pid`` representation.
@@ -171,12 +171,12 @@ proc init*(t: typedesc[PeerID], pubkey: PublicKey): PeerID =
   else:
     mh = MultiHash.digest("sha2-256", pubraw)
   result.data = mh.data.buffer
-  result.publicKey = pubkey
+  result.publicKey = some(pubkey)
 
 proc init*(t: typedesc[PeerID], seckey: PrivateKey): PeerID {.inline.} =
   ## Create new peer id from private key ``seckey``.
   result = PeerID.init(seckey.getKey())
-  result.privateKey = seckey
+  result.privateKey = some(seckey)
 
 proc match*(pid: PeerID, pubkey: PublicKey): bool {.inline.} =
   ## Returns ``true`` if ``pid`` matches public key ``pubkey``.

@@ -7,7 +7,7 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import sequtils
+import sequtils, options
 import chronos, nimcrypto/sysrand, chronicles
 import ../../peerinfo, 
        ../../peer,
@@ -150,20 +150,27 @@ proc sign*(peerId: PeerID, msg: Message): Message =
   encodeMessage(msg, buff)
   if buff.buffer.len > 0:
     result = msg
-    result.signature = peerId.
-                       privateKey.
-                       sign(getPreix() & buff.buffer).
-                       getBytes()
+    if peerId.privateKey.isSome:
+      result.signature = peerId.
+                        privateKey.
+                        get().
+                        sign(getPreix() & buff.buffer).
+                        getBytes()
 
 proc makeMessage*(peerId: PeerID, 
                   data: seq[byte], 
                   name: string): Message {.gcsafe.} = 
   var seqno: seq[byte] = newSeq[byte](20)
   if randomBytes(addr seqno[0], 20) > 0:
+    var key: seq[byte] = @[]
+
+    if peerId.publicKey.isSome:
+      key = peerId.publicKey.get().getRawBytes()
+
     result = Message(fromPeer: peerId.getBytes(), 
                      data: data, 
                      seqno: seqno, 
                      topicIDs: @[name], 
                      signature: @[],
-                     key: peerId.publicKey.getRawBytes())
+                     key: key)
     result = sign(peerId, result)
