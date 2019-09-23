@@ -24,8 +24,6 @@ type
 method init(p: TestProto) {.gcsafe.} =
   proc handle(conn: Connection, proto: string) {.async, gcsafe.} = 
     let msg = cast[string](await conn.readLp())
-    echo "GOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOTTTTTTTTTTTTTTT"
-    echo "msg"
     check "Hello!" == msg
     await conn.writeLp("Hello!")
     await conn.close()
