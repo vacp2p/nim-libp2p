@@ -48,7 +48,7 @@ proc select*(m: MultisteamSelect,
              conn: Connection,
              proto: seq[string]):
              Future[string] {.async.} =
-  debug "initiating handshake", codec = m.codec
+  trace "initiating handshake", codec = m.codec
   ## select a remote protocol
   await conn.write(m.codec) # write handshake
   if proto.len() > 0:
@@ -58,7 +58,7 @@ proc select*(m: MultisteamSelect,
   result = cast[string](await conn.readLp()) # read ms header
   result.removeSuffix("\n")
   if result != Codec:
-    debug "handshake failed", codec = result
+    trace "handshake failed", codec = result
     return ""
 
   if proto.len() == 0: # no protocols, must be a handshake call
@@ -68,7 +68,7 @@ proc select*(m: MultisteamSelect,
   trace "reading first requested proto"
   result.removeSuffix("\n")
   if result == proto[0]:
-    debug "succesfully selected ", proto = proto
+    trace "succesfully selected ", proto = proto
     return
 
   if not result.len > 0:
@@ -78,7 +78,7 @@ proc select*(m: MultisteamSelect,
       result = cast[string](await conn.readLp()) # read the first proto
       result.removeSuffix("\n")
       if result == p:
-        debug "selected protocol", protocol = result
+        trace "selected protocol", protocol = result
         break
 
 proc select*(m: MultisteamSelect,

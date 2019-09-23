@@ -16,4 +16,5 @@ type
 
 method secure*(p: Secure, conn: Connection): Future[Connection]
   {.base, async, gcsafe.} = 
+  ## default implementation matches plaintext
   result = conn

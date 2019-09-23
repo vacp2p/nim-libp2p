@@ -57,7 +57,7 @@ proc newStreamInternal*(m: Mplex,
   m.getChannelList(initiator)[id] = result
 
 method handle*(m: Mplex) {.async, gcsafe.} = 
-  debug "starting mplex main loop"
+  trace "starting mplex main loop"
   try:
     while not m.connection.closed:
       let msgRes = await m.connection.readMsg()
@@ -70,7 +70,7 @@ method handle*(m: Mplex) {.async, gcsafe.} =
       if MessageType(msgType) != MessageType.New:
         let channels = m.getChannelList(initiator)
         if not channels.contains(id):
-          debug "handle: Channel with id and msg type ", id = id, msg = msgType
+          trace "handle: Channel with id and msg type ", id = id, msg = msgType
           continue
         channel = channels[id]
 
@@ -78,7 +78,7 @@ method handle*(m: Mplex) {.async, gcsafe.} =
         of MessageType.New:
           let name = cast[string](data)
           channel = await m.newStreamInternal(false, id, name)
-          debug "handle: created channel ", id = id, name = name
+          trace "handle: created channel ", id = id, name = name
           if not isNil(m.streamHandler):
             let stream = newConnection(channel)
             stream.peerInfo = m.connection.peerInfo
@@ -91,23 +91,23 @@ method handle*(m: Mplex) {.async, gcsafe.} =
                   proc(udata: pointer) = 
                     channel.cleanUp()
                     .addCallback(proc(udata: pointer) = 
-                      debug "handle: cleaned up channel ", id = id))
+                      trace "handle: cleaned up channel ", id = id))
               handlerFut.addCallback(cleanUpChan)
             continue
         of MessageType.MsgIn, MessageType.MsgOut:
-            debug "handle: pushing data to channel ", id = id, msgType = msgType
+            trace "handle: pushing data to channel ", id = id, msgType = msgType
             await channel.pushTo(data)
         of MessageType.CloseIn, MessageType.CloseOut:
-          debug "handle: closing channel ", id = id, msgType = msgType
+          trace "handle: closing channel ", id = id, msgType = msgType
           await channel.closedByRemote()
           m.getChannelList(initiator).del(id)
         of MessageType.ResetIn, MessageType.ResetOut:
-          debug "handle: resetting channel ", id = id
+          trace "handle: resetting channel ", id = id
           await channel.resetByRemote()
           break
         else: raise newMplexUnknownMsgError()
   except:
-    debug "exception occurred", exception = getCurrentExceptionMsg()
+    error "exception occurred", exception = getCurrentExceptionMsg()
   finally:
     await m.connection.close()
 

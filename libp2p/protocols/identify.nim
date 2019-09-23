@@ -70,7 +70,6 @@ proc decodeMsg*(buf: seq[byte]): IdentifyInfo =
   var pubKey: PublicKey
   if pb.getValue(1, pubKey) > 0:
     result.pubKey = some(pubKey)
-    debug "PUBKEY", pubKey = pubKey
 
   result.addrs = newSeq[MultiAddress]()
   var address = newSeq[byte]()
@@ -104,7 +103,7 @@ proc newIdentify*(peerInfo: PeerInfo): Identify =
 
 method init*(p: Identify) = 
   proc handle(conn: Connection, proto: string) {.async, gcsafe, closure.} =
-    debug "handling identify request"
+    trace "handling identify request"
     var pb = encodeMsg(p.peerInfo, await conn.getObservedAddrs())
     await conn.writeLp(pb.buffer)
 
@@ -117,19 +116,19 @@ proc identify*(p: Identify,
                Future[IdentifyInfo] {.async.} = 
   var message = await conn.readLp()
   if len(message) == 0:
-    debug "identify: Invalid or empty message received!"
+    trace "identify: Invalid or empty message received!"
     raise newException(IdentityInvalidMsgError, 
       "Invalid or empty message received!")
 
   result = decodeMsg(message)
-  debug "Identify for remote peer succeded"
+  trace "Identify for remote peer succeded"
 
   # TODO: To enable the blow code, the private and public 
   # keys in PeerID need to be wrapped with Option[T]
   # if remotePeerInfo.peerId.isSome and 
   #    result.pubKey.isSome and
   #    result.pubKey.get() != remotePeerInfo.peerId.get().publicKey:
-  #   debug "identify: Peer's remote public key doesn't match"
+  #   trace "identify: Peer's remote public key doesn't match"
   #   raise newException(IdentityNoMatchError, 
   #     "Peer's remote public key doesn't match")
 

@@ -58,7 +58,7 @@ proc encodeSubs(subs: SubOpts, buff: var ProtoBuffer) {.gcsafe.} =
 
 proc encodeRpcMsg*(msg: RPCMsg): ProtoBuffer {.gcsafe.} = 
   result = initProtoBuffer({WithVarintLength})  
-  debug "encoding msg: ", msg = msg
+  trace "encoding msg: ", msg = msg
 
   if msg.subscriptions.len > 0:
     var subs = initProtoBuffer()
@@ -85,7 +85,7 @@ proc decodeRpcMsg*(msg: seq[byte]): RPCMsg {.gcsafe.} =
   while true:
     # decode SubOpts array
     var field = pb.enterSubMessage()
-    debug "processing submessage", field = field
+    trace "processing submessage", field = field
     case field:
     of 0: 
       break
@@ -95,14 +95,14 @@ proc decodeRpcMsg*(msg: seq[byte]): RPCMsg {.gcsafe.} =
         var subscr: int
         discard pb.getVarintValue(1, subscr)
         subOpt.subscribe = cast[bool](subscr)
-        debug "read subscribe field", subscribe = subOpt.subscribe
+        trace "read subscribe field", subscribe = subOpt.subscribe
 
         if pb.getString(2, subOpt.topic) < 0:
           break
-        debug "read subscribe field", topicName = subOpt.topic
+        trace "read subscribe field", topicName = subOpt.topic
 
         result.subscriptions.add(subOpt)
-      debug "got subscriptions", subscriptions = result.subscriptions
+      trace "got subscriptions", subscriptions = result.subscriptions
 
     of 2:
       result.messages = newSeq[Message]()
@@ -111,29 +111,29 @@ proc decodeRpcMsg*(msg: seq[byte]): RPCMsg {.gcsafe.} =
         var msg: Message
         if pb.getBytes(1, msg.fromPeer) < 0:
           break
-        debug "read message field", fromPeer = msg.fromPeer
+        trace "read message field", fromPeer = msg.fromPeer
 
         if pb.getBytes(2, msg.data) < 0:
           break
-        debug "read message field", data = msg.data
+        trace "read message field", data = msg.data
 
         if pb.getBytes(3, msg.seqno) < 0:
           break
-        debug "read message field", seqno = msg.seqno
+        trace "read message field", seqno = msg.seqno
 
         var topic: string
         while true:
           if pb.getString(4, topic) < 0:
             break
           msg.topicIDs.add(topic)
-          debug "read message field", topicName = topic
+          trace "read message field", topicName = topic
           topic = ""
         
         discard pb.getBytes(5, msg.signature)
-        debug "read message field", signature = msg.signature
+        trace "read message field", signature = msg.signature
 
         discard pb.getBytes(6, msg.key)
-        debug "read message field", key = msg.key
+        trace "read message field", key = msg.key
 
         result.messages.add(msg)
     else: 
@@ -157,8 +157,7 @@ proc sign*(peerId: PeerID, msg: Message): Message =
 
 proc makeMessage*(peerId: PeerID, 
                   data: seq[byte], 
-                  name: string): 
-                  Message {.gcsafe.} = 
+                  name: string): Message {.gcsafe.} = 
   var seqno: seq[byte] = newSeq[byte](20)
   if randomBytes(addr seqno[0], 20) > 0:
     result = Message(fromPeer: peerId.getBytes(), 

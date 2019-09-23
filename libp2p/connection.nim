@@ -99,7 +99,7 @@ proc readLp*(s: Connection): Future[seq[byte]] {.async, gcsafe.} =
     if size > 0.uint:
       await s.readExactly(addr buffer[0], int(size))
   except LPStreamIncompleteError, LPStreamReadError:
-    debug "readLp: could not read from remote", exception = getCurrentExceptionMsg()
+    error "readLp: could not read from remote", exception = getCurrentExceptionMsg()
     buffer.setLen(0)
   
   result = buffer
