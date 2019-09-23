@@ -7,14 +7,9 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-## TODO: I have to be carefull to clean channels up correctly,
-## both by removing from the internal tables as well as
-## releasing resource when the channel is completelly 
-## finished. This is complicated because half-closed 
-## streams makes closing channels non-deterministic. 
-## 
-## This still needs to be implemented properly - I'm leaving it 
-## here to not forget that this needs to be fixed ASAP.
+## TODO:
+## Timeouts and message limits are still missing
+## they need to be added ASAP
 
 import tables, sequtils, options, strformat
 import chronos, chronicles
