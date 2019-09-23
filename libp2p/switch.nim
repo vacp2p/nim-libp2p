@@ -84,18 +84,18 @@ proc identify*(s: Switch, conn: Connection) {.async, gcsafe.} =
         if info.protos.len > 0:
           peerInfo.protocols = info.protos
 
-        debug "identify: identified remote peer ", peer = peerInfo.peerId.get().pretty
+        trace "identify: identified remote peer ", peer = peerInfo.peerId.get().pretty
   except IdentityInvalidMsgError as exc:
-    debug "identify: invalid message", msg = exc.msg
+    error "identify: invalid message", msg = exc.msg
   except IdentityNoMatchError as exc:
-    debug "identify: peer's public keys don't match ", msg = exc.msg
+    error "identify: peer's public keys don't match ", msg = exc.msg
 
 proc mux(s: Switch, conn: Connection): Future[void] {.async, gcsafe.} =
-  debug "muxing connection"
+  trace "muxing connection"
   ## mux incoming connection
   let muxers = toSeq(s.muxers.keys)
   if muxers.len == 0:
-    trace "no muxers registered, skipping upgrade flow"
+    warn "no muxers registered, skipping upgrade flow"
     return
 
   let muxerName = await s.ms.select(conn, muxers)
@@ -114,7 +114,7 @@ proc mux(s: Switch, conn: Connection): Future[void] {.async, gcsafe.} =
   # add muxer handler cleanup proc
   handlerFut.addCallback(
       proc(udata: pointer = nil) {.gcsafe.} = 
-        debug "mux: Muxer handler completed for peer ", 
+        trace "mux: Muxer handler completed for peer ", 
           peer = conn.peerInfo.peerId.get().pretty
     )
 
@@ -139,7 +139,7 @@ proc mux(s: Switch, conn: Connection): Future[void] {.async, gcsafe.} =
     s.muxed[conn.peerInfo.peerId.get().pretty] = muxer
 
 proc upgradeOutgoing(s: Switch, conn: Connection): Future[Connection] {.async, gcsafe.} =
-  debug "handling connection", conn = conn
+  trace "handling connection", conn = conn
   result = conn
   ## perform upgrade flow
   if result.peerInfo.peerId.isSome:
@@ -191,9 +191,9 @@ proc dial*(s: Switch,
           trace "connection is muxed, return muxed stream"
           result = stream.get()
 
-        debug "dial: attempting to select remote ", proto = proto
+        trace "dial: attempting to select remote ", proto = proto
         if not (await s.ms.select(result, proto)):
-          debug "dial: Unable to select protocol: ", proto = proto
+          error "dial: Unable to select protocol: ", proto = proto
           raise newException(CatchableError, 
           &"Unable to select protocol: {proto}")
 
@@ -209,14 +209,14 @@ proc mount*[T: LPProtocol](s: Switch, proto: T) {.gcsafe.} =
   s.ms.addHandler(proto.codec, proto)
 
 proc upgradeIncoming(s: Switch, conn: Connection) {.async, gcsafe.} = 
-  debug "upgrading incoming connection"
+  trace "upgrading incoming connection"
   let ms = newMultistream()
 
   # secure incoming connections
   proc securedHandler (conn: Connection, 
                        proto: string) 
                        {.async, gcsafe, closure.} =
-    debug "Securing connection"
+    trace "Securing connection"
     let secure = s.secureManagers[proto]
     let sconn = await secure.secure(conn)
     if not isNil(sconn):
@@ -305,17 +305,17 @@ proc newSwitch*(peerInfo: PeerInfo,
   for key, val in muxers:
     val.streamHandler = result.streamHandler
     val.muxerHandler = proc(muxer: Muxer) {.async, gcsafe.} =
-      debug "got new muxer"
+      trace "got new muxer"
       let stream = await muxer.newStream()
       await s.identify(stream)
 
   for k in secureManagers.keys:
-    debug "adding secure manager ", codec = secureManagers[k].codec
+    trace "adding secure manager ", codec = secureManagers[k].codec
     result.secureManagers[k] = secureManagers[k]
 
   if result.secureManagers.len == 0:
     # use plain text if no secure managers are provided
-    debug "no secure managers, falling back to palin text", codec = PlainTextCodec
+    warn "no secure managers, falling back to palin text", codec = PlainTextCodec
     result.secureManagers[PlainTextCodec] = Secure(newPlainText())
 
   if pubSub.isSome:

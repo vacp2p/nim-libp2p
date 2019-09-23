@@ -28,21 +28,19 @@ type
 proc sendSubs(f: FloodSub,
               peer: PubSubPeer,
               topics: seq[string],
-              subscribe: bool)
-              {.async, gcsafe.} =
+              subscribe: bool) {.async, gcsafe.} =
   ## send subscriptions to remote peer
-  debug "sending subscriptions", peer = peer.id, subscribe = subscribe
+  trace "sending subscriptions", peer = peer.id, subscribe = subscribe
   var msg: RPCMsg
   for t in topics:
-    debug "sending topic", peer = peer.id, subscribe = subscribe, topicName = t
+    trace "sending topic", peer = peer.id, subscribe = subscribe, topicName = t
     msg.subscriptions.add(SubOpts(topic: t, subscribe: subscribe))
 
   await peer.send(@[msg])
 
 proc rpcHandler(f: FloodSub,
                 peer: PubSubPeer,
-                rpcMsgs: seq[RPCMsg])
-                {.async, gcsafe.} =
+                rpcMsgs: seq[RPCMsg]) {.async, gcsafe.} =
   ## method called by a PubSubPeer every 
   ## time it receives an RPC message
   ##
@@ -50,9 +48,9 @@ proc rpcHandler(f: FloodSub,
   ## or messages forwarded to this peer
   ##
 
-  debug "processing RPC message", peer = peer.id, msg = rpcMsgs
+  trace "processing RPC message", peer = peer.id, msg = rpcMsgs
   for m in rpcMsgs:                                # for all RPC messages
-    debug "processing message", msg = rpcMsgs
+    trace "processing message", msg = rpcMsgs
     if m.subscriptions.len > 0:                    # if there are any subscriptions
       for s in m.subscriptions:                    # subscribe/unsubscribe the peer for each topic
         let id = peer.id
@@ -61,11 +59,11 @@ proc rpcHandler(f: FloodSub,
           f.peerTopics[s.topic] = initSet[string]()
 
         if s.subscribe:
-          debug "subscribing to topic", peer = id, subscriptions = m.subscriptions, topic = s.topic
+          trace "subscribing to topic", peer = id, subscriptions = m.subscriptions, topic = s.topic
           # subscribe the peer to the topic
           f.peerTopics[s.topic].incl(id)
         else:
-          debug "unsubscribing to topic", peer = id, subscriptions = m.subscriptions, topic = s.topic
+          trace "unsubscribing to topic", peer = id, subscriptions = m.subscriptions, topic = s.topic
           # unsubscribe the peer from the topic
           f.peerTopics[s.topic].excl(id)
 
@@ -86,8 +84,7 @@ proc rpcHandler(f: FloodSub,
           await f.peers[p].send(@[RPCMsg(messages: m.messages)])
 
 proc handleConn(f: FloodSub,
-                conn: Connection)
-                {.async, gcsafe.} =
+                conn: Connection) {.async, gcsafe.} =
   ## handle incoming/outgoing connections
   ##
   ## this proc will:
@@ -129,19 +126,17 @@ method subscribeToPeer*(f: FloodSub, conn: Connection) {.async, gcsafe.} =
 
 method publish*(f: FloodSub,
                 topic: string,
-                data: seq[byte])
-                {.async, gcsafe.} =
-  debug "about to publish message on topic", topic = topic, data = data
+                data: seq[byte]) {.async, gcsafe.} =
+  trace "about to publish message on topic", topic = topic, data = data
   let msg = makeMessage(f.peerInfo.peerId.get(), data, topic)
   if topic in f.peerTopics:
     for p in f.peerTopics[topic]:
-      debug "pubslishing message", topic = topic, peer = p, data = data
+      trace "pubslishing message", topic = topic, peer = p, data = data
       await f.peers[p].send(@[RPCMsg(messages: @[msg])])
 
 method subscribe*(f: FloodSub,
                   topic: string,
-                  handler: TopicHandler)
-                  {.async, gcsafe.} =
+                  handler: TopicHandler) {.async, gcsafe.} =
   await procCall PubSub(f).subscribe(topic, handler)
   for p in f.peers.values:
     await f.sendSubs(p, @[topic], true)

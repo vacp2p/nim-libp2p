@@ -23,7 +23,7 @@ proc connHandler*(t: Transport,
                   client: StreamTransport, 
                   initiator: bool = false): 
                   Future[Connection] {.async, gcsafe.} =
-  debug "handling connection for", address = $client.remoteAddress
+  trace "handling connection for", address = $client.remoteAddress
   let conn: Connection = newConnection(newChronosStream(server, client))
   if not initiator:
     let handlerFut = if t.handler == nil: nil else: t.handler(conn)
@@ -34,7 +34,7 @@ proc connHandler*(t: Transport,
 
 proc connCb(server: StreamServer,
             client: StreamTransport) {.async, gcsafe.} =
-  debug "incomming connection for", address = $client.remoteAddress
+  trace "incomming connection for", address = $client.remoteAddress
   let t: Transport = cast[Transport](server.udata)
   discard t.connHandler(server, client)
 
@@ -43,12 +43,12 @@ method init*(t: TcpTransport) =
 
 method close*(t: TcpTransport): Future[void] {.async, gcsafe.} =
   ## start the transport
-  debug "stopping transport"
+  trace "stopping transport"
   await procCall Transport(t).close() # call base
 
   t.server.stop()
   t.server.close()
-  debug "transport stopped"
+  trace "transport stopped"
 
 method listen*(t: TcpTransport,
                ma: MultiAddress,
@@ -66,7 +66,7 @@ method listen*(t: TcpTransport,
 method dial*(t: TcpTransport,
              address: MultiAddress): 
              Future[Connection] {.async, gcsafe.} =
-  debug "dialing remote peer", address = $address
+  trace "dialing remote peer", address = $address
   ## dial a peer
   let client: StreamTransport = await connect(address)
   result = await t.connHandler(t.server, client, true)
