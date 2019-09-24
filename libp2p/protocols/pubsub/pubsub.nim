@@ -21,11 +21,14 @@ logScope:
 
 type
   TopicHandler* = proc (topic: string, 
-                        data: seq[byte]): Future[void] {.closure, gcsafe.}
+                        data: seq[byte]): 
+                        Future[void] {.closure, gcsafe.}
+
+  TopicPair* = tuple[topic: string, handler: TopicHandler]
 
   Topic* = object
     name*: string
-    handler*: TopicHandler
+    handler*: seq[TopicHandler]
 
   PubSub* = ref object of LPProtocol
     peerInfo*: PeerInfo
@@ -37,12 +40,22 @@ method subscribeToPeer*(p: PubSub, conn: Connection) {.base, async, gcsafe.} =
   ## subscribe to a peer to send/receive pubsub messages
   discard
 
-method unsubscribe*(p: PubSub, topics: seq[string]) {.base, async, gcsafe.} = 
+method unsubscribe*(p: PubSub,
+                    topics: seq[TopicPair]) {.base, async, gcsafe.} = 
   ## unsubscribe from a list of ``topic`` strings
-  discard
+  for t in topics:
+    for i, h in p.topics[t.topic].handler:
+      if h == t.handler:
+        p.topics[t.topic].handler.del(i)
 
-method subscribe*(p: PubSub, 
-                  topic: string, 
+method unsubscribe*(p: PubSub, 
+                    topic: string, 
+                    handler: TopicHandler): Future[void] {.base, gcsafe.} =
+  ## unsubscribe from a ``topic`` string
+  result = p.unsubscribe(@[(topic, handler)])
+
+method subscribe*(p: PubSub,
+                  topic: string,
                   handler: TopicHandler)
                   {.base, async, gcsafe.} = 
   ## subscribe to a topic
@@ -53,7 +66,10 @@ method subscribe*(p: PubSub,
   ##               that will be triggered 
   ##               on every received message
   ##
-  p.topics[topic] = Topic(name: topic, handler: handler)
+  if not p.topics.contains(topic):
+    p.topics[topic] = Topic(name: topic)
+  
+  p.topics[topic].handler.add(handler)
 
 method publish*(p: PubSub, topic: string, data: seq[byte]) {.base, async, gcsafe.} = 
   ## publish to a ``topic``

@@ -7,8 +7,7 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import sequtils, tables, options, 
-       sets, sequtils, strutils, sets
+import sequtils, tables, options, sets, strutils
 import chronos, chronicles
 import pubsub,
        pubsubpeer,
@@ -41,10 +40,10 @@ proc sendSubs(f: FloodSub,
 proc rpcHandler(f: FloodSub,
                 peer: PubSubPeer,
                 rpcMsgs: seq[RPCMsg]) {.async, gcsafe.} =
-  ## method called by a PubSubPeer every 
+  ## method called by a PubSubPeer every
   ## time it receives an RPC message
   ##
-  ## The RPC message might contain subscriptions 
+  ## The RPC message might contain subscriptions
   ## or messages forwarded to this peer
   ##
 
@@ -77,7 +76,8 @@ proc rpcHandler(f: FloodSub,
         for t in msg.topicIDs:                     # for every topic in the message
           toSendPeers.incl(f.peerTopics[t])        # get all the peers interested in this topic
           if f.topics.contains(t):                 # check that we're subscribed to it
-            await f.topics[t].handler(t, msg.data) # trigger user provided handler
+            for h in f.topics[t].handler:
+              await h(t, msg.data) # trigger user provided handler
 
         # forward the message to all peers interested in it
         for p in toSendPeers:
@@ -141,10 +141,11 @@ method subscribe*(f: FloodSub,
   for p in f.peers.values:
     await f.sendSubs(p, @[topic], true)
 
-method unsubscribe*(f: FloodSub, topics: seq[string]) {.async, gcsafe.} = 
+method unsubscribe*(f: FloodSub, 
+                    topics: seq[TopicPair]) {.async, gcsafe.} = 
   await procCall PubSub(f).unsubscribe(topics)
   for p in f.peers.values:
-    await f.sendSubs(p, topics, false)
+    await f.sendSubs(p, topics.mapIt(it.topic).deduplicate(), false)
 
 proc newFloodSub*(peerInfo: PeerInfo): FloodSub = 
   new result

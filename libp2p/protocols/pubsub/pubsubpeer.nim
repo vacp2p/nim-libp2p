@@ -9,12 +9,12 @@
 
 import options
 import chronos, chronicles
-import ../../connection,
-       ../../protobuf/minprotobuf,
-       ../../peerinfo,
+import rpcmsg,
        ../../peer,
+       ../../peerinfo,
+       ../../connection,
        ../../crypto/crypto,
-       rpcmsg
+       ../../protobuf/minprotobuf
 
 logScope:
   topic = "PubSubPeer"
@@ -40,7 +40,6 @@ proc handle*(p: PubSubPeer) {.async, gcsafe.} =
       await p.handler(p, @[msg])
   except:
     error "An exception occured while processing pubsub rpc requests", exc = getCurrentExceptionMsg()
-    return
   finally:
     trace "closing connection to pubsub peer", peer = p.id
     await p.conn.close()
