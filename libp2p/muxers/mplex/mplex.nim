@@ -15,11 +15,11 @@ import tables, sequtils, options, strformat
 import chronos, chronicles
 import coder, types, lpchannel,
        ../muxer,
-       ../../varint, 
-       ../../connection, 
-       ../../vbuffer, 
+       ../../varint,
+       ../../connection,
+       ../../vbuffer,
        ../../protocols/protocol,
-       ../../stream/bufferstream, 
+       ../../stream/bufferstream,
        ../../stream/lpstream
 
 logScope:

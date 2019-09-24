@@ -15,6 +15,6 @@ type
   Secure* = ref object of LPProtocol # base type for secure managers
 
 method secure*(p: Secure, conn: Connection): Future[Connection]
-  {.base, async, gcsafe.} = 
+  {.base, async, gcsafe.} =
   ## default implementation matches plaintext
   result = conn

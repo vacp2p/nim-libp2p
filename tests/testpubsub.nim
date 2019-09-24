@@ -11,6 +11,4 @@ import unittest
 import chronos
 
 suite "PubSub":
-  test "PubSub subscribe": discard
-  test "PubSub unsubscribe": discard
-
+  test "basic FloodSub": discard

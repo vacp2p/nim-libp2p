@@ -8,9 +8,12 @@
 ## those terms.
 
 import chronos, chronicles
-import transport, ../wire, ../connection,
-       ../multiaddress, ../connection,
-       ../multicodec, ../stream/chronosstream
+import transport,
+       ../wire,
+       ../connection,
+       ../multiaddress,
+       ../multicodec,
+       ../stream/chronosstream
 
 logScope:
   topic = "TcpTransport"
@@ -20,8 +23,8 @@ type TcpTransport* = ref object of Transport
 
 proc connHandler*(t: Transport,
                   server: StreamServer,
-                  client: StreamTransport, 
-                  initiator: bool = false): 
+                  client: StreamTransport,
+                  initiator: bool = false):
                   Future[Connection] {.async, gcsafe.} =
   trace "handling connection for", address = $client.remoteAddress
   let conn: Connection = newConnection(newChronosStream(server, client))
@@ -53,7 +56,7 @@ method close*(t: TcpTransport): Future[void] {.async, gcsafe.} =
 method listen*(t: TcpTransport,
                ma: MultiAddress,
                handler: ConnHandler): 
-               # TODO: need to check how this futures 
+               # TODO: need to check how this futures
                # are being returned, it doesn't seem to be right
                Future[Future[void]] {.async, gcsafe.} =
   discard await procCall Transport(t).listen(ma, handler) # call base
@@ -64,11 +67,13 @@ method listen*(t: TcpTransport,
   result = t.server.join()
 
 method dial*(t: TcpTransport,
-             address: MultiAddress): 
+             address: MultiAddress):
              Future[Connection] {.async, gcsafe.} =
   trace "dialing remote peer", address = $address
   ## dial a peer
   let client: StreamTransport = await connect(address)
   result = await t.connHandler(t.server, client, true)
 
-method handles*(t: TcpTransport, address: MultiAddress): bool {.gcsafe.} = true
+method handles*(t: TcpTransport, address: MultiAddress): bool {.gcsafe.} = 
+  ## TODO: implement logic to properly discriminat TCP multiaddrs
+  true

@@ -17,8 +17,6 @@ import ../../peerinfo,
 logScope:
   topic = "RpcMsg"
 
-const SignPrefix = "libp2p-pubsub:"
-
 type
     SubOpts* = object
       subscribe*: bool
@@ -87,7 +85,7 @@ proc decodeRpcMsg*(msg: seq[byte]): RPCMsg {.gcsafe.} =
     var field = pb.enterSubMessage()
     trace "processing submessage", field = field
     case field:
-    of 0: 
+    of 0:
       break
     of 1:
       while true:
@@ -139,27 +137,38 @@ proc decodeRpcMsg*(msg: seq[byte]): RPCMsg {.gcsafe.} =
     else: 
       raise newException(CatchableError, "message type not recognized")
 
-var prefix {.threadvar.}: seq[byte]
-proc getPreix(): var seq[byte] = 
-  if prefix.len == 0:
-    prefix = cast[seq[byte]](SignPrefix)
-  result = prefix
-
 proc sign*(peerId: PeerID, msg: Message): Message = 
   var buff = initProtoBuffer()
   encodeMessage(msg, buff)
+  # NOTE: leave as is, moving out would imply making this .threadsafe., etc...
+  let prefix = cast[seq[byte]]("libp2p-pubsub:")
   if buff.buffer.len > 0:
     result = msg
     if peerId.privateKey.isSome:
       result.signature = peerId.
-                        privateKey.
-                        get().
-                        sign(getPreix() & buff.buffer).
-                        getBytes()
+                         privateKey.
+                         get().
+                         sign(prefix & buff.buffer).
+                         getBytes()
 
-proc makeMessage*(peerId: PeerID, 
-                  data: seq[byte], 
-                  name: string): Message {.gcsafe.} = 
+proc verify*(peerId: PeerID, m: Message): bool =
+  if m.signature.len > 0 and m.key.len > 0:
+    var msg = m
+    msg.signature = @[]
+    msg.key = @[]
+
+    var buff = initProtoBuffer()
+    encodeMessage(msg, buff)
+
+    var remote: Signature
+    var key: PublicKey
+    if remote.init(m.signature) and key.init(m.key):
+      result = remote.verify(buff.buffer, key)
+
+proc makeMessage*(peerId: PeerID,
+                  data: seq[byte],
+                  name: string,
+                  sign: bool = true): Message {.gcsafe.} = 
   var seqno: seq[byte] = newSeq[byte](20)
   if randomBytes(addr seqno[0], 20) > 0:
     var key: seq[byte] = @[]
@@ -168,9 +177,10 @@ proc makeMessage*(peerId: PeerID,
       key = peerId.publicKey.get().getRawBytes()
 
     result = Message(fromPeer: peerId.getBytes(), 
-                     data: data, 
-                     seqno: seqno, 
-                     topicIDs: @[name], 
-                     signature: @[],
-                     key: key)
-    result = sign(peerId, result)
+                     data: data,
+                     seqno: seqno,
+                     topicIDs: @[name])
+    if sign:
+      result = sign(peerId, result)
+
+    result.key = key

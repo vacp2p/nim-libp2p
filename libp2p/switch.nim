@@ -266,7 +266,7 @@ proc subscribe*(s: Switch, topic: string, handler: TopicHandler): Future[void] {
   
   result = s.pubSub.get().subscribe(topic, handler)
 
-proc unsubscribe*(s: Switch, topics: seq[string]): Future[void] {.gcsafe.} = 
+proc unsubscribe*(s: Switch, topics: seq[TopicPair]): Future[void] {.gcsafe.} = 
   ## unsubscribe from topics
   if s.pubSub.isNone:
     raise newNoPubSubException()
