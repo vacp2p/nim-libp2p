@@ -159,7 +159,7 @@ proc threadMain(wfd: AsyncFD) {.thread.} =
  
   while true:
     var line = stdin.readLine()
-    let res = waitFor transp.write(line & "\r\n")
+    discard waitFor transp.write(line & "\r\n")
 
 proc serveThread(customData: CustomData) {.async.} =
   var transp = fromPipe(customData.consoleFd)
