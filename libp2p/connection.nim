@@ -84,23 +84,20 @@ proc readLp*(s: Connection): Future[seq[byte]] {.async, gcsafe.} =
     size: uint
     length: int
     res: VarintStatus
-  var buffer = newSeq[byte](10)
+  result = newSeq[byte](10)
   try:
-    for i in 0..<len(buffer):
-      await s.readExactly(addr buffer[i], 1)
-      res = LP.getUVarint(buffer.toOpenArray(0, i), length, size)
+    for i in 0..<len(result):
+      await s.readExactly(addr result[i], 1)
+      res = LP.getUVarint(result.toOpenArray(0, i), length, size)
       if res == VarintStatus.Success:
         break
     if res != VarintStatus.Success or size > DefaultReadSize:
-      result = buffer
       return
-    buffer.setLen(size)
+    result.setLen(size)
     if size > 0.uint:
-      await s.readExactly(addr buffer[0], int(size))
+      await s.readExactly(addr result[0], int(size))
   except LPStreamIncompleteError, LPStreamReadError:
     error "readLp: could not read from remote", exception = getCurrentExceptionMsg()
-  
-  result = buffer
 
 proc writeLp*(s: Connection, msg: string | seq[byte]): Future[void] {.gcsafe.} =
   ## write lenght prefixed
