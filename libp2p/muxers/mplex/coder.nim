@@ -41,7 +41,7 @@ proc readMplexVarint(conn: Connection): Future[Option[uint]] {.async, gcsafe.} =
       buffer.setLen(0)
       return
   except LPStreamIncompleteError:
-    buffer.setLen(0)
+    debug "unable to read varing", exc = getCurrentExceptionMsg()
 
 proc readMsg*(conn: Connection): Future[Option[Msg]] {.async, gcsafe.} = 
   let headerVarint = await conn.readMplexVarint()
