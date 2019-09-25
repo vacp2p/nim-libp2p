@@ -63,7 +63,7 @@ proc readAndPrint(p: ChatProto) {.async, gcsafe.} =
 
 proc dialPeer(p: ChatProto, address: string) {.async, gcsafe.} =
   var parts = address.split("/")
-  if parts.len == 11 and parts[^2] != "ipfs" and parts[^2] != "p2p":
+  if parts.len == 11 and parts[^2] notin ["ipfs", "p2p"]:
     quit("invalid or incompelete peerId")
 
   var remotePeer: PeerInfo

@@ -142,7 +142,7 @@ proc getLocalAddress*(sock: AsyncFD): TransportAddress =
     fromSAddr(addr saddr, slen, result)
 
 proc toMultiAddr*(address: TransportAddress): MultiAddress = 
-  ## Returns string representation of ``address``.
+  ## Returns a multiaddr of ``address``.
   case address.family
   of AddressFamily.IPv4:
     var a = IpAddress(
