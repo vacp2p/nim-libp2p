@@ -21,22 +21,6 @@ logScope:
 type TcpTransport* = ref object of Transport
   server*: StreamServer
 
-proc toMultiAddr*(address: TransportAddress): MultiAddress = 
-  ## Returns string representation of ``address``.
-  case address.family
-  of AddressFamily.IPv4:
-    var a = IpAddress(
-      family: IpAddressFamily.IPv4,
-      address_v4: address.address_v4
-    )
-    result = MultiAddress.init(a, Protocol.IPPROTO_TCP, address.port)
-  of AddressFamily.IPv6:
-    var a = IpAddress(family: IpAddressFamily.IPv6,
-                      address_v6: address.address_v6)
-    result = MultiAddress.init(a, Protocol.IPPROTO_TCP, address.port)
-  else:
-    raise newException(TransportAddressError, "Invalid address for transport!")
-
 proc connHandler*(t: Transport,
                   server: StreamServer,
                   client: StreamTransport,
