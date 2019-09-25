@@ -23,6 +23,11 @@ type
     stream*: LPStream
     observedAddrs*: Multiaddress
 
+  InvalidVarintException = object of LPStreamError
+
+proc newInvalidVarintException*(): ref InvalidVarintException =
+  result = newException(InvalidVarintException, "unable to prase varint")
+
 proc newConnection*(stream: LPStream): Connection =
   ## create a new Connection for the specified async reader/writer
   new result
@@ -92,7 +97,7 @@ proc readLp*(s: Connection): Future[seq[byte]] {.async, gcsafe.} =
       if res == VarintStatus.Success:
         break
     if res != VarintStatus.Success or size > DefaultReadSize:
-      return
+      raise newInvalidVarintException()
     result.setLen(size)
     if size > 0.uint:
       await s.readExactly(addr result[0], int(size))
