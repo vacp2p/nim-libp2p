@@ -45,16 +45,16 @@ method readExactly*(s: ChronosStream,
     raise newLPStreamReadError(exc.par)
 
 method readLine*(s: ChronosStream, limit = 0, sep = "\r\n"): Future[string] {.async, gcsafe.} =
-    try:
-      result = await s.reader.readLine(limit, sep)
-    except AsyncStreamReadError as exc:
-      raise newLPStreamReadError(exc.par)
+  try:
+    result = await s.reader.readLine(limit, sep)
+  except AsyncStreamReadError as exc:
+    raise newLPStreamReadError(exc.par)
 
 method readOnce*(s: ChronosStream, pbytes: pointer, nbytes: int): Future[int] {.async, gcsafe.} =
-    try:
-      result = await s.reader.readOnce(pbytes, nbytes)
-    except AsyncStreamReadError as exc:
-      raise newLPStreamReadError(exc.par)
+  try:
+    result = await s.reader.readOnce(pbytes, nbytes)
+  except AsyncStreamReadError as exc:
+    raise newLPStreamReadError(exc.par)
 
 method readUntil*(s: ChronosStream, 
                   pbytes: pointer, 
@@ -62,9 +62,9 @@ method readUntil*(s: ChronosStream,
                   sep: seq[byte]): Future[int] {.async, gcsafe.} =
   try:
     result = await s.reader.readUntil(pbytes, nbytes, sep)
-  except TransportIncompleteError, AsyncStreamIncompleteError:
+  except AsyncStreamIncompleteError:
     raise newLPStreamIncompleteError()
-  except TransportLimitError, AsyncStreamLimitError:
+  except AsyncStreamLimitError:
     raise newLPStreamLimitError()
   except LPStreamReadError as exc:
     raise newLPStreamReadError(exc.par)
