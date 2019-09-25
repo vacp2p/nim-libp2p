@@ -92,7 +92,6 @@ proc readLp*(s: Connection): Future[seq[byte]] {.async, gcsafe.} =
       if res == VarintStatus.Success:
         break
     if res != VarintStatus.Success or size > DefaultReadSize:
-      buffer.setLen(0)
       result = buffer
       return
     buffer.setLen(size)
