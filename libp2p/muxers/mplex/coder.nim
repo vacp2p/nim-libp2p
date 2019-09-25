@@ -38,7 +38,6 @@ proc readMplexVarint(conn: Connection): Future[Option[uint]] {.async, gcsafe.} =
       if res == VarintStatus.Success:
         return some(varint)
     if res != VarintStatus.Success:
-      buffer.setLen(0)
       return
   except LPStreamIncompleteError:
     debug "unable to read varing", exc = getCurrentExceptionMsg()
