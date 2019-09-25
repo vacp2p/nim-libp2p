@@ -58,7 +58,7 @@ method handle*(m: Mplex) {.async, gcsafe.} =
       let msgRes = await m.connection.readMsg()
       if msgRes.isNone:
         # TODO: this should ideally be poll(timeout = 100)
-        # but chronos poll() doesnt take a timeout, so it 
+        # but chronos poll() doesnt take a timeout, so it
         # might and does hang
         await sleepAsync(100.millis) # yield to async loop
         continue
