@@ -9,13 +9,13 @@ import ../libp2p/connection,
 suite "TCP transport":
   test "test listener: handle write":
     proc testListener(): Future[bool] {.async, gcsafe.} =
-      let ma: MultiAddress = Multiaddress.init("/ip4/127.0.0.1/tcp/53335")
+      let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
       proc connHandler(conn: Connection): Future[void] {.async, gcsafe.} =
         result = conn.write(cstring("Hello!"), 6)
 
       let transport: TcpTransport = newTransport(TcpTransport)
       asyncCheck await transport.listen(ma, connHandler)
-      let streamTransport: StreamTransport = await connect(ma)
+      let streamTransport: StreamTransport = await connect(transport.ma)
       let msg = await streamTransport.read(6)
       await transport.close()
       await streamTransport.closeWait()
@@ -27,14 +27,14 @@ suite "TCP transport":
 
   test "test listener: handle read":
     proc testListener(): Future[bool] {.async.} =
-      let ma: MultiAddress = Multiaddress.init("/ip4/127.0.0.1/tcp/53336")
+      let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
       proc connHandler(conn: Connection): Future[void] {.async, gcsafe.} =
         let msg = await conn.read(6)
         check cast[string](msg) == "Hello!"
 
       let transport: TcpTransport = newTransport(TcpTransport)
       asyncCheck await transport.listen(ma, connHandler)
-      let streamTransport: StreamTransport = await connect(ma)
+      let streamTransport: StreamTransport = await connect(transport.ma)
       let sent = await streamTransport.write("Hello!", 6)
       result = sent == 6
 
@@ -56,7 +56,7 @@ suite "TCP transport":
       var server = createStreamServer(address, serveClient, {ReuseAddr})
       server.start()
 
-      let ma: MultiAddress = Multiaddress.init("/ip4/127.0.0.1/tcp/53337")
+      let ma: MultiAddress = server.sock.getLocalAddress().toMultiAddr()
       let transport: TcpTransport = newTransport(TcpTransport)
       let conn = await transport.dial(ma)
       let msg = await conn.read(6)
@@ -65,7 +65,7 @@ suite "TCP transport":
       server.stop()
       server.close()
       await server.join()
-    check waitFor(testDialer(initTAddress("127.0.0.1:53337"))) == true
+    check waitFor(testDialer(initTAddress("0.0.0.0:0"))) == true
 
   test "test dialer: handle write":
     proc testDialer(address: TransportAddress): Future[bool] {.async, gcsafe.} =
@@ -83,7 +83,7 @@ suite "TCP transport":
       var server = createStreamServer(address, serveClient, {ReuseAddr})
       server.start()
 
-      let ma: MultiAddress = Multiaddress.init("/ip4/127.0.0.1/tcp/53337")
+      let ma: MultiAddress = server.sock.getLocalAddress().toMultiAddr()
       let transport: TcpTransport = newTransport(TcpTransport)
       let conn = await transport.dial(ma)
       await conn.write(cstring("Hello!"), 6)
@@ -92,11 +92,11 @@ suite "TCP transport":
       server.stop()
       server.close()
       await server.join()
-    check waitFor(testDialer(initTAddress("127.0.0.1:53337"))) == true
+    check waitFor(testDialer(initTAddress("0.0.0.0:0"))) == true
 
   test "e2e: handle write":
     proc testListenerDialer(): Future[bool] {.async.} =
-      let ma: MultiAddress = Multiaddress.init("/ip4/127.0.0.1/tcp/53339")
+      let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
       proc connHandler(conn: Connection): Future[void] {.async, gcsafe.} =
         result = conn.write(cstring("Hello!"), 6)
 
@@ -104,7 +104,7 @@ suite "TCP transport":
       asyncCheck await transport1.listen(ma, connHandler)
 
       let transport2: TcpTransport = newTransport(TcpTransport)
-      let conn = await transport2.dial(ma)
+      let conn = await transport2.dial(transport1.ma)
       let msg = await conn.read(6)
       await transport1.close()
 
@@ -115,7 +115,7 @@ suite "TCP transport":
 
   test "e2e: handle read":
     proc testListenerDialer(): Future[bool] {.async.} =
-      let ma: MultiAddress = Multiaddress.init("/ip4/127.0.0.1/tcp/53340")
+      let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
       proc connHandler(conn: Connection): Future[void] {.async, gcsafe.} =
         let msg = await conn.read(6)
         check cast[string](msg) == "Hello!"
@@ -124,7 +124,7 @@ suite "TCP transport":
       asyncCheck await transport1.listen(ma, connHandler)
 
       let transport2: TcpTransport = newTransport(TcpTransport)
-      let conn = await transport2.dial(ma)
+      let conn = await transport2.dial(transport1.ma)
       await conn.write(cstring("Hello!"), 6)
       await transport1.close()
       result = true

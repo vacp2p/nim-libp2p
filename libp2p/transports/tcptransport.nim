@@ -21,6 +21,22 @@ logScope:
 type TcpTransport* = ref object of Transport
   server*: StreamServer
 
+proc toMultiAddr*(address: TransportAddress): MultiAddress = 
+  ## Returns string representation of ``address``.
+  case address.family
+  of AddressFamily.IPv4:
+    var a = IpAddress(
+      family: IpAddressFamily.IPv4,
+      address_v4: address.address_v4
+    )
+    result = MultiAddress.init(a, Protocol.IPPROTO_TCP, address.port)
+  of AddressFamily.IPv6:
+    var a = IpAddress(family: IpAddressFamily.IPv6,
+                      address_v6: address.address_v6)
+    result = MultiAddress.init(a, Protocol.IPPROTO_TCP, address.port)
+  else:
+    raise newException(TransportAddressError, "Invalid address for transport!")
+
 proc connHandler*(t: Transport,
                   server: StreamServer,
                   client: StreamTransport,
@@ -28,6 +44,7 @@ proc connHandler*(t: Transport,
                   Future[Connection] {.async, gcsafe.} =
   trace "handling connection for", address = $client.remoteAddress
   let conn: Connection = newConnection(newChronosStream(server, client))
+  conn.observedAddrs = client.remoteAddress.toMultiAddr()
   if not initiator:
     let handlerFut = if t.handler == nil: nil else: t.handler(conn)
     let connHolder: ConnHolder = ConnHolder(connection: conn,
@@ -55,15 +72,16 @@ method close*(t: TcpTransport): Future[void] {.async, gcsafe.} =
 
 method listen*(t: TcpTransport,
                ma: MultiAddress,
-               handler: ConnHandler): 
-               # TODO: need to check how this futures
-               # are being returned, it doesn't seem to be right
+               handler: ConnHandler):
                Future[Future[void]] {.async, gcsafe.} =
   discard await procCall Transport(t).listen(ma, handler) # call base
 
   ## listen on the transport
   t.server = createStreamServer(t.ma, connCb, {}, t)
   t.server.start()
+
+  # always get the resolved address in case we're bound to 0.0.0.0:0
+  t.ma = t.server.sock.getLocalAddress().toMultiAddr()
   result = t.server.join()
 
 method dial*(t: TcpTransport,
