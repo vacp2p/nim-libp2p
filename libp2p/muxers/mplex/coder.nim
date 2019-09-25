@@ -19,8 +19,8 @@ logScope:
   topic = "mplex-coder"
 
 type
-  Msg* = tuple 
-    id: uint 
+  Msg* = tuple
+    id: uint
     msgType: MessageType
     data: seq[byte]
 
@@ -38,7 +38,7 @@ proc readMplexVarint(conn: Connection): Future[Option[uint]] {.async, gcsafe.} =
       if res == VarintStatus.Success:
         return some(varint)
     if res != VarintStatus.Success:
-      return
+      raise newInvalidVarintException()
   except LPStreamIncompleteError:
     trace "unable to read varint", exc = getCurrentExceptionMsg()
 
