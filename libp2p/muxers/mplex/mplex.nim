@@ -55,15 +55,7 @@ method handle*(m: Mplex) {.async, gcsafe.} =
   trace "starting mplex main loop"
   try:
     while not m.connection.closed:
-      let msgRes = await m.connection.readMsg()
-      if msgRes.isNone:
-        # TODO: this should ideally be poll(timeout = 100)
-        # but chronos poll() doesnt take a timeout, so it
-        # might and does hang
-        await sleepAsync(100.millis) # yield to async loop
-        continue
-
-      let (id, msgType, data) = msgRes.get()
+      let (id, msgType, data) = (await m.connection.readMsg()).get()
       let initiator = bool(ord(msgType) and 1)
       var channel: LPChannel
       if MessageType(msgType) != MessageType.New:
