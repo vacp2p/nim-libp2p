@@ -239,7 +239,7 @@ proc start*(s: Switch): Future[seq[Future[void]]] {.async, gcsafe.} =
   proc handle(conn: Connection): Future[void] {.async, closure, gcsafe.} =
     try:
         await s.upgradeIncoming(conn) # perform upgrade on incoming connection
-    except:
+    finally:
       await s.cleanupConn(conn)
 
   var startFuts: seq[Future[void]]
