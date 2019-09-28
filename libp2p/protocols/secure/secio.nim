@@ -402,15 +402,21 @@ proc handshake*(s: Secio, conn: Connection): Future[SecureConnection] {.async.} 
 
 proc readLoop(sconn: SecureConnection, stream: BufferStream) {.async.} =
   while not sconn.conn.closed:
-    let msg = await sconn.readMessage()
-    await stream.pushTo(msg)
+    try:
+      let msg = await sconn.readMessage()
+      await stream.pushTo(msg)
+    except:
+      trace "exception in secio", exc = getCurrentExceptionMsg()
+      return
+    finally:
+      trace "ending secio readLoop"
 
 proc handleConn(s: Secio, conn: Connection): Future[Connection] {.async.} =
   var sconn = await s.handshake(conn)
   proc writeHandler(data: seq[byte]) {.async, gcsafe.} =
     debug "sending encrypted bytes", bytes = data.toHex()
     await sconn.writeMessage(data)
-  
+
   var stream = newBufferStream(writeHandler)
   asyncCheck readLoop(sconn, stream)
   var secured = newConnection(stream)
@@ -419,9 +425,9 @@ proc handleConn(s: Secio, conn: Connection): Future[Connection] {.async.} =
 
 method init(s: Secio) {.gcsafe.} =
   proc handle(conn: Connection, proto: string) {.async, gcsafe.} =
-    debug "handling connection"
+    trace "handling connection"
     discard await s.handleConn(conn)
-    debug "connection secured"
+    trace "connection secured"
 
   s.codec = SecioCodec
   s.handler = handle
