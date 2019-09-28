@@ -95,15 +95,10 @@ method write*(s: ChronosStream, msg: seq[byte], msglen = -1) {.async, gcsafe.} =
 
 method close*(s: ChronosStream) {.async, gcsafe.} =
   if not s.closed:
-    trace "closing connection for", address = $s.client.remoteAddress()
-    if not s.reader.closed:
-      await s.reader.closeWait()
-
+    trace "shutting down server", address = $s.client.remoteAddress()
     await s.writer.finish()
-    if not s.writer.closed:
-      await s.writer.closeWait()
+    await s.writer.closeWait()
+    await s.reader.closeWait()
+    await s.client.closeWait()
 
-    if not s.client.closed:
-      await s.client.closeWait()
-    
     s.closed = true

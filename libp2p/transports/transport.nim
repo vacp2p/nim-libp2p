@@ -8,7 +8,7 @@
 ## those terms.
 
 import sequtils
-import chronos
+import chronos, chronicles
 import ../peerinfo,
        ../connection,
        ../multiaddress,
@@ -47,6 +47,7 @@ method listen*(t: Transport,
   ## listen for incoming connections
   t.ma = ma
   t.handler = handler
+  debug "starting node", address = $ma
 
 method dial*(t: Transport,
              address: MultiAddress):
