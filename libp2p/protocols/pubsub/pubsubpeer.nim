@@ -7,7 +7,7 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import options
+import options, sets, hashes, strutils
 import chronos, chronicles
 import rpcmsg,
        ../../peer,
@@ -26,6 +26,7 @@ type
       handler*: RPCHandler
       topics*: seq[string]
       id*: string # base58 peer id string
+      seen: HashSet[string] # list of messages forwarded to peers
 
     RPCHandler* = proc(peer: PubSubPeer, msg: seq[RPCMsg]): Future[void] {.gcsafe.}
 
@@ -48,8 +49,18 @@ proc send*(p: PubSubPeer, msgs: seq[RPCMsg]) {.async, gcsafe.} =
   for m in msgs:
     trace "sending msgs to peer", peer = p.id, msgs = msgs
     let encoded = encodeRpcMsg(m)
-    if encoded.buffer.len > 0:
-      await p.conn.writeLp(encoded.buffer)
+    if encoded.buffer.len <= 0:
+      trace "empty message, skipping", peer = p.id
+      return
+
+    let encodedHex = encoded.buffer.toHex()
+    trace "sending encoded msgs to peer", peer = p.id, encoded = encodedHex
+    if p.seen.contains(encodedHex):
+      trace "message already sent to peer, skipping", peer = p.id
+      continue
+    
+    await p.conn.writeLp(encoded.buffer)
+    p.seen.incl(encodedHex)
 
 proc newPubSubPeer*(conn: Connection, handler: RPCHandler): PubSubPeer =
   new result
@@ -57,3 +68,4 @@ proc newPubSubPeer*(conn: Connection, handler: RPCHandler): PubSubPeer =
   result.conn = conn
   result.peerInfo = conn.peerInfo
   result.id = conn.peerInfo.peerId.get().pretty()
+  result.seen = initSet[string]()

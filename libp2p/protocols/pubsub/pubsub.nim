@@ -67,8 +67,9 @@ method subscribe*(p: PubSub,
   ##               on every received message
   ##
   if not p.topics.contains(topic):
+    trace "subscribing to topic", name = topic
     p.topics[topic] = Topic(name: topic)
-  
+
   p.topics[topic].handler.add(handler)
 
 method publish*(p: PubSub, topic: string, data: seq[byte]) {.base, async, gcsafe.} = 

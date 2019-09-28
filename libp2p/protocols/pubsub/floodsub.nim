@@ -12,6 +12,7 @@ import chronos, chronicles
 import pubsub,
        pubsubpeer,
        rpcmsg,
+       ../../crypto/crypto,
        ../../connection,
        ../../peerinfo,
        ../../peer
@@ -58,11 +59,11 @@ proc rpcHandler(f: FloodSub,
           f.peerTopics[s.topic] = initSet[string]()
 
         if s.subscribe:
-          trace "subscribing to topic", peer = id, subscriptions = m.subscriptions, topic = s.topic
+          trace "adding subscription for topic", peer = id, subscriptions = m.subscriptions, topic = s.topic
           # subscribe the peer to the topic
           f.peerTopics[s.topic].incl(id)
         else:
-          trace "unsubscribing to topic", peer = id, subscriptions = m.subscriptions, topic = s.topic
+          trace "removing subscription for topic", peer = id, subscriptions = m.subscriptions, topic = s.topic
           # unsubscribe the peer from the topic
           f.peerTopics[s.topic].excl(id)
 
@@ -127,12 +128,14 @@ method subscribeToPeer*(f: FloodSub, conn: Connection) {.async, gcsafe.} =
 method publish*(f: FloodSub,
                 topic: string,
                 data: seq[byte]) {.async, gcsafe.} =
-  trace "about to publish message on topic", topic = topic, data = data
-  let msg = makeMessage(f.peerInfo.peerId.get(), data, topic)
-  if topic in f.peerTopics:
-    for p in f.peerTopics[topic]:
-      trace "pubslishing message", topic = topic, peer = p, data = data
-      await f.peers[p].send(@[RPCMsg(messages: @[msg])])
+  trace "about to publish message on topic", name = topic, data = data.toHex()
+  if data.len > 0 and topic.len > 0:
+    let msg = makeMessage(f.peerInfo.peerId.get(), data, topic)
+    if topic in f.peerTopics:
+      trace "processing topic", name = topic
+      for p in f.peerTopics[topic]:
+        trace "pubslishing message", topic = topic, peer = p, data = data
+        await f.peers[p].send(@[RPCMsg(messages: @[msg])])
 
 method subscribe*(f: FloodSub,
                   topic: string,
