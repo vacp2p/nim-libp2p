@@ -136,13 +136,14 @@ proc handle*(m: MultisteamSelect, conn: Connection) {.async, gcsafe.} =
         else:
           for h in m.handlers:
             if (not isNil(h.match) and h.match(ms)) or ms == h.proto:
-              trace "found handler for",  protocol = ms
+              trace "found handler for", protocol = ms
               await conn.writeLp((h.proto & "\n"))
               try:
                 await h.protocol.handler(conn, ms)
                 return
               except Exception as exc:
                 warn "exception while handling ", msg = exc.msg
+                return
           warn "no handlers for ", protocol = ms
           await conn.write(m.na)
 
