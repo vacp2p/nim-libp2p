@@ -17,7 +17,7 @@ import types,
        ../../connection
 
 logScope:
-  topic = "mplex-channel"
+  topic = "MplexChannel"
 
 const DefaultChannelSize* = DefaultBufferSize * 64 # 64kb
 
