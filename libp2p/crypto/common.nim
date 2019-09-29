@@ -370,21 +370,21 @@ type
                         bycopy.} = object
     supportedCurves* {.importc: "supported_curves".}: uint32
     generator* {.importc: "generator".}: proc (curve: cint,
-                                          length: ptr int): ptr cuchar {.cdecl.}
+                                          length: ptr int): ptr cuchar {.cdecl, gcsafe.}
     order* {.importc: "order".}: proc (curve: cint,
-                                       length: ptr int): ptr cuchar {.cdecl.}
+                                       length: ptr int): ptr cuchar {.cdecl, gcsafe.}
     xoff* {.importc: "xoff".}: proc (curve: cint,
-                                     length: ptr int): int {.cdecl.}
+                                     length: ptr int): int {.cdecl, gcsafe.}
     mul* {.importc: "mul".}: proc (g: ptr cuchar, glen: int,
                                    x: ptr cuchar, xlen: int,
-                                   curve: cint): uint32 {.cdecl.}
+                                   curve: cint): uint32 {.cdecl, gcsafe.}
     mulgen* {.importc: "mulgen".}: proc (r: ptr cuchar,
                                          x: ptr cuchar, xlen: int,
-                                         curve: cint): int {.cdecl.}
+                                         curve: cint): int {.cdecl, gcsafe.}
     muladd* {.importc: "muladd".}: proc (a: ptr cuchar, b: ptr cuchar,
                                          length: int, x: ptr cuchar, xlen: int,
                                          y: ptr cuchar, ylen: int,
-                                         curve: cint): uint32 {.cdecl.}
+                                         curve: cint): uint32 {.cdecl, gcsafe.}
 
   BrPrngSeeder* = proc (ctx: ptr ptr BrPrngClass): cint {.cdecl.}
   BrRsaKeygen* = proc (ctx: ptr ptr BrPrngClass,
