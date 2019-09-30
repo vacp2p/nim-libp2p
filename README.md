@@ -8,11 +8,53 @@
 
 ## Introduction
 
-### Experimental native implementation
+### Running against the Go daemon
 
-The native Nim libp2p implementation has finally arrived. Currently, it's support is experimental and shouldn't be relied on for production use. It is however under under active development and we hope to achieve a reasonable level of stability in the upcoming months as we will be integrating it across our own set of products, such as the Nim Beacon Chain.
+An implementation of [libp2p](https://libp2p.io/) in Nim, as a wrapper of the [Libp2p Go daemon](https://github.com/libp2p/go-libp2p).
 
-#### What to expect?
+Note that you need Go 1.12+ for the below instructions to work!
+
+Install dependencies and run tests with:
+
+```bash
+git clone https://github.com/status-im/nim-libp2p && cd nim-libp2p
+nimble install
+nimble test
+git submodule update --init --recursive
+go version
+git clone https://github.com/libp2p/go-libp2p-daemon
+cd go-libp2p-daemon
+git checkout v0.0.1
+go install ./...
+cd ..
+```
+
+Try out the chat example:
+
+```bash
+nim c -r --threads:on examples\chat.nim
+```
+
+This will output a peer ID such as `QmbmHfVvouKammmQDJck4hz33WvVktNEe7pasxz2HgseRu` which you can use in another instance to connect to it.
+
+```bash
+./example/chat
+/connect QmbmHfVvouKammmQDJck4hz33WvVktNEe7pasxz2HgseRu
+```
+
+You can now chat between the instances!
+
+![Chat example](https://imgur.com/caYRu8K.gif)
+
+## API
+
+Coming soon...
+
+## Experimental native implementation
+
+The native Nim libp2p implementation has finally arrived. Currently, it's support is experimental and shouldn't be relied on for production use. It is however under active development and we hope to achieve a reasonable level of stability in the upcoming months, as we will be integrating it across our own set of products, such as the Nim Beacon Chain.
+
+### What to expect?
 
 The current implementation implements a bare minimum set of components in order to provide a functional and interoperable libp2p implementation. These are:
 
@@ -21,11 +63,13 @@ The current implementation implements a bare minimum set of components in order 
 - Secio
 - Mplex
 - Identify
-- FloodSub
+- FloodSub (with gossipsub being added in the near future)
 
-#### How to try it out?
+This stack reflects the minimal requirements for the upcoming Eth2 implementation.
 
-To run this add nim-libp2p to your project's nimble file and spawn a node as follows:
+### How to try it out?
+
+To run it, add nim-libp2p to your project's nimble file and spawn a node as follows:
 
 ```nim
 import tables, options
@@ -122,48 +166,6 @@ waitFor(main())
 ```
 
 For a more complete example, checkout the [directchat.nim](examples/directchat.nim) example in the `examples` directory.
-
-### Running against the Go daemon
-
-An implementation of [libp2p](https://libp2p.io/) in Nim, as a wrapper of the [Libp2p Go daemon](https://github.com/libp2p/go-libp2p).
-
-Note that you need Go 1.12+ for the below instructions to work!
-
-Install dependencies and run tests with:
-
-```bash
-git clone https://github.com/status-im/nim-libp2p && cd nim-libp2p
-nimble install
-nimble test
-git submodule update --init --recursive
-go version
-git clone https://github.com/libp2p/go-libp2p-daemon
-cd go-libp2p-daemon
-git checkout v0.0.1
-go install ./...
-cd ..
-```
-
-Try out the chat example:
-
-```bash
-nim c -r --threads:on examples\chat.nim
-```
-
-This will output a peer ID such as `QmbmHfVvouKammmQDJck4hz33WvVktNEe7pasxz2HgseRu` which you can use in another instance to connect to it.
-
-```bash
-./example/chat
-/connect QmbmHfVvouKammmQDJck4hz33WvVktNEe7pasxz2HgseRu
-```
-
-You can now chat between the instances!
-
-![Chat example](https://imgur.com/caYRu8K.gif)
-
-## API
-
-Coming soon...
 
 ## License
 
