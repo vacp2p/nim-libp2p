@@ -1,20 +1,21 @@
 import unittest, tables, options
 import chronos, chronicles
-import ../libp2p/switch, 
-       ../libp2p/multistream,
-       ../libp2p/protocols/identify, 
-       ../libp2p/connection,
-       ../libp2p/transports/[transport, tcptransport],
-       ../libp2p/multiaddress, 
-       ../libp2p/peerinfo,
-       ../libp2p/crypto/crypto, 
-       ../libp2p/peer,
-       ../libp2p/protocols/protocol, 
-       ../libp2p/muxers/muxer,
-       ../libp2p/muxers/mplex/mplex, 
-       ../libp2p/muxers/mplex/types,
-       ../libp2p/protocols/secure/secio,
-       ../libp2p/protocols/secure/secure
+import ../libp2p/[switch, 
+                  multistream,
+                  protocols/identify, 
+                  connection,
+                  transports/transport,
+                  transports/tcptransport,
+                  multiaddress, 
+                  peerinfo,
+                  crypto/crypto, 
+                  peer,
+                  protocols/protocol, 
+                  muxers/muxer,
+                  muxers/mplex/mplex, 
+                  muxers/mplex/types,
+                  protocols/secure/secio,
+                  protocols/secure/secure]
 
 const TestCodec = "/test/proto/1.0.0"
 
@@ -51,8 +52,8 @@ suite "Switch":
       result = (switch, peerInfo)
 
     proc testSwitch(): Future[bool] {.async, gcsafe.} =
-      let ma1: MultiAddress = Multiaddress.init("/ip4/127.0.0.1/tcp/53370")
-      let ma2: MultiAddress = Multiaddress.init("/ip4/127.0.0.1/tcp/53371")
+      let ma1: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
+      let ma2: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
       
       var peerInfo1, peerInfo2: PeerInfo
       var switch1, switch2: Switch
@@ -66,7 +67,7 @@ suite "Switch":
 
       (switch2, peerInfo2) = createSwitch(ma2)
       var switch2Fut = await switch2.start()
-      let conn = await switch2.dial(peerInfo1, TestCodec)
+      let conn = await switch2.dial(switch1.peerInfo, TestCodec)
       await conn.writeLp("Hello!")
       let msg = cast[string](await conn.readLp())
       check "Hello!" == msg
