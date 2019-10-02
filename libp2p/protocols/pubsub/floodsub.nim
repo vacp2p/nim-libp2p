@@ -69,6 +69,7 @@ proc rpcHandler(f: FloodSub,
 
       # send subscriptions to every peer
       for p in f.peers.values:
+        # if p.id != peer.id:
         await p.send(@[RPCMsg(subscriptions: m.subscriptions)])
 
     var toSendPeers: HashSet[string] = initSet[string]()
@@ -82,7 +83,8 @@ proc rpcHandler(f: FloodSub,
 
         # forward the message to all peers interested in it
         for p in toSendPeers:
-          await f.peers[p].send(@[RPCMsg(messages: m.messages)])
+          if f.peers[p].id != peer.id:
+            await f.peers[p].send(@[RPCMsg(messages: m.messages)])
 
 proc handleConn(f: FloodSub,
                 conn: Connection) {.async, gcsafe.} =
