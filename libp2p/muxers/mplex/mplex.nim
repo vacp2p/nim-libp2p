@@ -57,6 +57,7 @@ method handle*(m: Mplex) {.async, gcsafe.} =
     while not m.connection.closed:
       let msg = await m.connection.readMsg()
       if msg.isNone:
+        # TODO: allow poll with timeout to avoid using `sleepAsync`
         await sleepAsync(10.millis)
         continue
 
