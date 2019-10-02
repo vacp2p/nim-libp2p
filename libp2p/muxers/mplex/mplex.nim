@@ -55,7 +55,12 @@ method handle*(m: Mplex) {.async, gcsafe.} =
   trace "starting mplex main loop"
   try:
     while not m.connection.closed:
-      let (id, msgType, data) = (await m.connection.readMsg()).get()
+      let msg = await m.connection.readMsg()
+      if msg.isNone:
+        await sleepAsync(10.millis)
+        continue
+
+      let (id, msgType, data) = msg.get()
       let initiator = bool(ord(msgType) and 1)
       var channel: LPChannel
       if MessageType(msgType) != MessageType.New:
