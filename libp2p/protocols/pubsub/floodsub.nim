@@ -23,7 +23,7 @@ logScope:
 const FloodSubCodec* = "/floodsub/1.0.0"
 
 type
-  FloodSub = ref object of PubSub
+  FloodSub* = ref object of PubSub
     peers*: Table[string, PubSubPeer] # peerid to peer map
     peerTopics*: Table[string, HashSet[string]] # topic to remote peer map
 
@@ -145,6 +145,8 @@ method subscribeToPeer*(f: FloodSub, conn: Connection) {.async, gcsafe.} =
 method publish*(f: FloodSub,
                 topic: string,
                 data: seq[byte]) {.async, gcsafe.} =
+  await procCall PubSub(f).publish(topic, data)
+
   trace "about to publish message on topic", name = topic, data = data.toHex()
   if data.len > 0 and topic.len > 0:
     let msg = makeMessage(f.peerInfo.peerId.get(), data, topic)
@@ -169,10 +171,8 @@ method unsubscribe*(f: FloodSub,
   for p in f.peers.values:
     await f.sendSubs(p, topics.mapIt(it.topic).deduplicate(), false)
 
-proc newFloodSub*(peerInfo: PeerInfo): FloodSub = 
-  new result
-  result.peerInfo = peerInfo
-  result.peers = initTable[string, PubSubPeer]()
-  result.topics = initTable[string, Topic]()
-  result.peerTopics = initTable[string, HashSet[string]]()
-  result.init()
+method initPubSub*(f: FloodSub) = 
+  f.peers = initTable[string, PubSubPeer]()
+  f.topics = initTable[string, Topic]()
+  f.peerTopics = initTable[string, HashSet[string]]()
+  f.init()

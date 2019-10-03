@@ -33,6 +33,7 @@ type
   PubSub* = ref object of LPProtocol
     peerInfo*: PeerInfo
     topics*: Table[string, Topic] # local topics
+    triggerSelf*: bool # flag indicating if the local handler should be triggered on publish
 
 method subscribeToPeer*(p: PubSub, conn: Connection) {.base, async, gcsafe.} =
   ## subscribe to a peer to send/receive pubsub messages
@@ -72,4 +73,15 @@ method subscribe*(p: PubSub,
 
 method publish*(p: PubSub, topic: string, data: seq[byte]) {.base, async, gcsafe.} = 
   ## publish to a ``topic``
+  if p.triggerSelf and topic in p.topics:
+    for h in p.topics[topic].handler:
+      await h(topic, data)
+
+method initPubSub*(p: PubSub) {.base.} = 
   discard
+
+proc newPubSub*(p: typedesc[PubSub], peerInfo: PeerInfo, triggerSelf: bool = false): p =
+  new result
+  result.peerInfo = peerInfo
+  result.triggerSelf = triggerSelf
+  result.initPubSub()
