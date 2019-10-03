@@ -88,7 +88,7 @@ proc rpcHandler(f: FloodSub,
 
         # forward the message to all peers interested in it
         for p in toSendPeers:
-          if f.peers[p].id != peer.id:
+          if p in f.peers and f.peers[p].id != peer.id:
             await f.peers[p].send(@[RPCMsg(messages: m.messages)])
 
 proc handleConn(f: FloodSub,
