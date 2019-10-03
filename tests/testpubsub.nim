@@ -114,14 +114,14 @@ suite "PubSub":
     check:
       waitFor(testBasicPubSub()) == true
 
-  test "basic FloodSub": 
+  test "FloodSub multiple peers": 
     proc testBasicFloodSub(): Future[bool] {.async.} =
       var passed: int
       proc handler(topic: string, data: seq[byte]) {.async, gcsafe.} = 
         check topic == "foobar"
         passed.inc()
 
-      var nodes: seq[Switch] = generateNodes(20)
+      var nodes: seq[Switch] = generateNodes(10)
       var awaitters: seq[Future[void]]
       for node in nodes:
         awaitters.add(await node.start())
@@ -138,7 +138,7 @@ suite "PubSub":
       await allFutures(nodes.mapIt(it.stop()))
       await allFutures(awaitters)
 
-      result = passed == 20
+      result = passed == 10
 
     check:
       waitFor(testBasicFloodSub()) == true
