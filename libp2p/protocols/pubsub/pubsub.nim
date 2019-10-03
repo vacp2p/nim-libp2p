@@ -33,8 +33,6 @@ type
   PubSub* = ref object of LPProtocol
     peerInfo*: PeerInfo
     topics*: Table[string, Topic] # local topics
-    peers*: Table[string, PubSubPeer] # peerid to peer map
-    peerTopics*: Table[string, HashSet[string]] # topic to remote peer map
 
 method subscribeToPeer*(p: PubSub, conn: Connection) {.base, async, gcsafe.} =
   ## subscribe to a peer to send/receive pubsub messages

@@ -9,23 +9,24 @@
 
 import unittest, options, tables, sugar, sequtils
 import chronos, chronicles
-import ../libp2p/switch,
-       ../libp2p/multistream,
-       ../libp2p/protocols/identify,
-       ../libp2p/connection,
-       ../libp2p/transports/[transport, tcptransport],
-       ../libp2p/multiaddress,
-       ../libp2p/peerinfo,
-       ../libp2p/crypto/crypto,
-       ../libp2p/peer,
-       ../libp2p/protocols/protocol,
-       ../libp2p/muxers/muxer,
-       ../libp2p/muxers/mplex/mplex,
-       ../libp2p/muxers/mplex/types,
-       ../libp2p/protocols/secure/secure,
-       ../libp2p/protocols/secure/secio,
-        ../libp2p/protocols/pubsub/pubsub,
-       ../libp2p/protocols/pubsub/floodsub
+import ../libp2p/[switch,
+                  multistream,
+                  protocols/identify,
+                  connection,
+                  transports/transport,
+                  transports/tcptransport,
+                  multiaddress,
+                  peerinfo,
+                  crypto/crypto,
+                  peer,
+                  protocols/protocol,
+                  muxers/muxer,
+                  muxers/mplex/mplex,
+                  muxers/mplex/types,
+                  protocols/secure/secure,
+                  protocols/secure/secio,
+                  protocols/pubsub/pubsub,
+                  protocols/pubsub/floodsub]
 
 proc createMplex(conn: Connection): Muxer =
   result = newMplex(conn)
@@ -101,10 +102,10 @@ suite "PubSub":
       await nodes[0].subscribeToPeer(nodes[1].peerInfo)
 
       await nodes[0].subscribe("foobar", handler)
-      await sleepAsync(100.millis)
+      await sleepAsync(10.millis)
 
       await nodes[1].publish("foobar", cast[seq[byte]]("Hello!"))
-      await sleepAsync(100.millis)
+      await sleepAsync(10.millis)
 
       await nodes[1].stop()
       await allFutures(wait)
@@ -115,20 +116,20 @@ suite "PubSub":
 
   test "basic FloodSub": 
     proc testBasicFloodSub(): Future[bool] {.async.} =
-      var passed: bool
+      var passed: int
       proc handler(topic: string, data: seq[byte]) {.async, gcsafe.} = 
         check topic == "foobar"
-        passed = true
+        passed.inc()
 
-      var nodes: seq[Switch] = generateNodes(4)
+      var nodes: seq[Switch] = generateNodes(20)
       var awaitters: seq[Future[void]]
       for node in nodes:
         awaitters.add(await node.start())
         await node.subscribe("foobar", handler)
-        await sleepAsync(100.millis)
+        await sleepAsync(10.millis)
 
       await subscribeNodes(nodes)
-      await sleepAsync(500.millis)
+      await sleepAsync(50.millis)
 
       for node in nodes:
         await node.publish("foobar", cast[seq[byte]]("Hello!"))
@@ -137,7 +138,7 @@ suite "PubSub":
       await allFutures(nodes.mapIt(it.stop()))
       await allFutures(awaitters)
 
-      result = passed
+      result = passed == 20
 
     check:
       waitFor(testBasicFloodSub()) == true
