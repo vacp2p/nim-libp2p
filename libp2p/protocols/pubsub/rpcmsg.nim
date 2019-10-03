@@ -9,7 +9,7 @@
 
 import sequtils, options
 import chronos, nimcrypto/sysrand, chronicles
-import ../../peerinfo, 
+import ../../peerinfo,
        ../../peer,
        ../../crypto/crypto,
        ../../protobuf/minprotobuf
