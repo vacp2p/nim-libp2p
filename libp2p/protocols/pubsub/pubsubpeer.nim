@@ -35,9 +35,13 @@ proc handle*(p: PubSubPeer) {.async, gcsafe.} =
   try:
     while not p.conn.closed:
       let data = await p.conn.readLp()
-      trace "Read data from peer", peer = p.peerInfo, data = data.toHex()
+      trace "Read data from peer", peer = p.id, data = data.toHex()
+      if data.toHex() in p.seen:
+        trace "Message already received, skipping", peer = p.id
+        continue
+
       let msg = decodeRpcMsg(data)
-      trace "Decoded msg from peer", peer = p.peerInfo, msg = msg
+      trace "Decoded msg from peer", peer = p.id, msg = msg
       await p.handler(p, @[msg])
   except:
     error "An exception occured while processing pubsub rpc requests", exc = getCurrentExceptionMsg()
@@ -54,11 +58,11 @@ proc send*(p: PubSubPeer, msgs: seq[RPCMsg]) {.async, gcsafe.} =
       return
 
     let encodedHex = encoded.buffer.toHex()
-    trace "sending encoded msgs to peer", peer = p.id, encoded = encodedHex
-    if p.seen.contains(encodedHex):
+    if encodedHex in p.seen:
       trace "message already sent to peer, skipping", peer = p.id
       continue
-    
+
+    trace "sending encoded msgs to peer", peer = p.id, encoded = encodedHex
     await p.conn.writeLp(encoded.buffer)
     p.seen.incl(encodedHex)
 

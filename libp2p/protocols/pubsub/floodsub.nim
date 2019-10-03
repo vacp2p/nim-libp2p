@@ -24,6 +24,8 @@ const FloodSubCodec* = "/floodsub/1.0.0"
 
 type
   FloodSub = ref object of PubSub
+    peers*: Table[string, PubSubPeer] # peerid to peer map
+    peerTopics*: Table[string, HashSet[string]] # topic to remote peer map
 
 proc sendSubs(f: FloodSub,
               peer: PubSubPeer,
@@ -37,6 +39,19 @@ proc sendSubs(f: FloodSub,
     msg.subscriptions.add(SubOpts(topic: t, subscribe: subscribe))
 
   await peer.send(@[msg])
+
+proc subscribeTopic(f: FloodSub, topic: string, subscribe: bool, peerId: string) {.gcsafe.} =
+    if not f.peerTopics.contains(topic):
+      f.peerTopics[topic] = initSet[string]()
+
+    if subscribe:
+      trace "adding subscription for topic", peer = peerId, name = topic
+      # subscribe the peer to the topic
+      f.peerTopics[topic].incl(peerId)
+    else:
+      trace "removing subscription for topic", peer = peerId, name = topic
+      # unsubscribe the peer from the topic
+      f.peerTopics[topic].excl(peerId)
 
 proc rpcHandler(f: FloodSub,
                 peer: PubSubPeer,
@@ -55,22 +70,12 @@ proc rpcHandler(f: FloodSub,
       for s in m.subscriptions:                    # subscribe/unsubscribe the peer for each topic
         let id = peer.id
 
-        if not f.peerTopics.contains(s.topic):
-          f.peerTopics[s.topic] = initSet[string]()
-
-        if s.subscribe:
-          trace "adding subscription for topic", peer = id, subscriptions = m.subscriptions, topic = s.topic
-          # subscribe the peer to the topic
-          f.peerTopics[s.topic].incl(id)
-        else:
-          trace "removing subscription for topic", peer = id, subscriptions = m.subscriptions, topic = s.topic
-          # unsubscribe the peer from the topic
-          f.peerTopics[s.topic].excl(id)
+        f.subscribeTopic(s.topic, s.subscribe, id)
 
       # send subscriptions to every peer
       for p in f.peers.values:
-        # if p.id != peer.id:
-        await p.send(@[RPCMsg(subscriptions: m.subscriptions)])
+        if p.id != peer.id:
+          await p.send(@[RPCMsg(subscriptions: m.subscriptions)])
 
     var toSendPeers: HashSet[string] = initSet[string]()
     if m.messages.len > 0:                         # if there are any messages
@@ -95,22 +100,32 @@ proc handleConn(f: FloodSub,
   ## 2) register a handler with the peer;
   ##    this handler gets called on every rpc message 
   ##    that the peer receives
-  ## 3) ask the peer to subscribe us to every topic 
+  ## 3) ask the peer to subscribe us to every topic
   ##    that we're interested in
   ## 
 
-  proc handleRpc(peer: PubSubPeer, msgs: seq[RPCMsg]) {.async, gcsafe.} =
-    await f.rpcHandler(peer, msgs)
-
-  var peer = newPubSubPeer(conn, handleRpc)
-  if peer.peerInfo.peerId.isNone:
-    debug "no valid PeerInfo for peer"
+  if conn.peerInfo.peerId.isNone:
+    debug "no valid PeerId for peer"
     return
+
+  # create new pubsub peer
+  var peer = newPubSubPeer(conn, proc (peer: PubSubPeer, 
+                                       msgs: seq[RPCMsg]) {.async, gcsafe.} =
+                                          # call floodsub rpc handler
+                                          await f.rpcHandler(peer, msgs))
+
+  trace "created new pubsub peer", id = peer.id
 
   f.peers[peer.id] = peer
   let topics = toSeq(f.topics.keys)
   await f.sendSubs(peer, topics, true)
-  asyncCheck peer.handle()
+  let handlerFut = peer.handle() # spawn peer read loop
+  handlerFut.addCallback(
+    proc(udata: pointer = nil) {.gcsafe.} = 
+      trace "pubsub peer handler ended, cleaning up",
+        peer = conn.peerInfo.peerId.get().pretty
+      f.peers.del(peer.id)
+  )
 
 method init(f: FloodSub) = 
   proc handler(conn: Connection, proto: string) {.async, gcsafe.} =
@@ -134,15 +149,17 @@ method publish*(f: FloodSub,
   if data.len > 0 and topic.len > 0:
     let msg = makeMessage(f.peerInfo.peerId.get(), data, topic)
     if topic in f.peerTopics:
-      trace "processing topic", name = topic
+      trace "publishing on topic", name = topic
       for p in f.peerTopics[topic]:
-        trace "pubslishing message", topic = topic, peer = p, data = data
+        trace "publishing message", name = topic, peer = p, data = data
         await f.peers[p].send(@[RPCMsg(messages: @[msg])])
 
 method subscribe*(f: FloodSub,
                   topic: string,
                   handler: TopicHandler) {.async, gcsafe.} =
   await procCall PubSub(f).subscribe(topic, handler)
+
+  f.subscribeTopic(topic, true, f.peerInfo.peerId.get().pretty)
   for p in f.peers.values:
     await f.sendSubs(p, @[topic], true)
 
