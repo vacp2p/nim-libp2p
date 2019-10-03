@@ -13,7 +13,7 @@ import chronos, chronicles
 logScope:
   topic = "TimedCache"
 
-const Timeout* = 5 * 1000 # default timeout in ms
+const Timeout* = 10 * 1000 # default timeout in ms
 
 type
   ExpireHandler*[V] = proc(val: V) {.gcsafe.}
