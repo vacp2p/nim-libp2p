@@ -1,16 +1,16 @@
 import unittest, sequtils, sugar, strformat, options, strformat
 import chronos, nimcrypto/utils, chronicles
-import ../libp2p/connection, 
-       ../libp2p/stream/lpstream, 
-       ../libp2p/stream/bufferstream, 
-       ../libp2p/transports/tcptransport, 
-       ../libp2p/transports/transport, 
-       ../libp2p/protocols/identify, 
-       ../libp2p/multiaddress,
-       ../libp2p/muxers/mplex/mplex, 
-       ../libp2p/muxers/mplex/coder, 
-       ../libp2p/muxers/mplex/types,
-       ../libp2p/muxers/mplex/lpchannel
+import ../libp2p/[connection, 
+                  stream/lpstream, 
+                  stream/bufferstream, 
+                  transports/tcptransport, 
+                  transports/transport, 
+                  protocols/identify, 
+                  multiaddress,
+                  muxers/mplex/mplex, 
+                  muxers/mplex/coder, 
+                  muxers/mplex/types,
+                  muxers/mplex/lpchannel]
 
 suite "Mplex":
   test "encode header with channel id 0":

@@ -1,15 +1,15 @@
 import unittest, options
 import chronos, strutils, sequtils
-import ../libp2p/protocols/identify, 
-       ../libp2p/multiaddress, 
-       ../libp2p/peerinfo, 
-       ../libp2p/peer, 
-       ../libp2p/connection, 
-       ../libp2p/multistream, 
-       ../libp2p/transports/transport,
-       ../libp2p/transports/tcptransport, 
-       ../libp2p/protocols/protocol, 
-       ../libp2p/crypto/crypto
+import ../libp2p/[protocols/identify, 
+                  multiaddress, 
+                  peerinfo, 
+                  peer, 
+                  connection, 
+                  multistream, 
+                  transports/transport,
+                  transports/tcptransport, 
+                  protocols/protocol, 
+                  crypto/crypto]
 
 suite "Identify":
   test "handle identify message":
