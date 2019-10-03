@@ -9,7 +9,8 @@
 
 import options, sets, hashes, strutils
 import chronos, chronicles
-import rpcmsg,
+import rpcmsg, 
+       timedcache,
        ../../peer,
        ../../peerinfo,
        ../../connection,
@@ -21,12 +22,12 @@ logScope:
 
 type
     PubSubPeer* = ref object of RootObj
+      id*: string # base58 peer id string
       peerInfo*: PeerInfo
       conn*: Connection
       handler*: RPCHandler
       topics*: seq[string]
-      id*: string # base58 peer id string
-      seen: HashSet[string] # list of messages forwarded to peers
+      seen: TimedCache[string] # list of messages forwarded to peers
 
     RPCHandler* = proc(peer: PubSubPeer, msg: seq[RPCMsg]): Future[void] {.gcsafe.}
 
@@ -64,7 +65,7 @@ proc send*(p: PubSubPeer, msgs: seq[RPCMsg]) {.async, gcsafe.} =
 
     trace "sending encoded msgs to peer", peer = p.id, encoded = encodedHex
     await p.conn.writeLp(encoded.buffer)
-    p.seen.incl(encodedHex)
+    p.seen.put(encodedHex)
 
 proc newPubSubPeer*(conn: Connection, handler: RPCHandler): PubSubPeer =
   new result
@@ -72,4 +73,4 @@ proc newPubSubPeer*(conn: Connection, handler: RPCHandler): PubSubPeer =
   result.conn = conn
   result.peerInfo = conn.peerInfo
   result.id = conn.peerInfo.peerId.get().pretty()
-  result.seen = initSet[string]()
+  result.seen = newTimedCache[string]()
