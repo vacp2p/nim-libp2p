@@ -20,10 +20,11 @@ import ../protobuf/minprotobuf,
 logScope:
   topic = "identify"
 
-const IdentifyCodec* = "/ipfs/id/1.0.0"
-const IdentifyPushCodec* = "/ipfs/id/push/1.0.0"
-const ProtoVersion* = "ipfs/0.1.0"
-const AgentVersion* = "nim-libp2p/0.0.1"
+const
+  IdentifyCodec* = "/ipfs/id/1.0.0"
+  IdentifyPushCodec* = "/ipfs/id/push/1.0.0"
+  ProtoVersion* = "ipfs/0.1.0"
+  AgentVersion* = "nim-libp2p/0.0.1"
 
 #TODO: implment push identify, leaving out for now as it is not essential
 
