@@ -9,19 +9,21 @@
 
 import sequtils, strutils, strformat
 import chronos, chronicles
-import connection, 
-       varint, 
-       vbuffer, 
+import connection,
+       varint,
+       vbuffer,
        protocols/protocol
 
 logScope:
   topic = "Multistream"
 
-const MsgSize* = 64*1024
-const Codec* = "/multistream/1.0.0"
-const MSCodec* = "\x13" & Codec & "\n"
-const Na = "\x03na\n"
-const Ls = "\x03ls\n"
+const 
+  MsgSize* = 64*1024
+  Codec* = "/multistream/1.0.0"
+
+  MSCodec* = "\x13" & Codec & "\n"
+  Na = "\x03na\n"
+  Ls = "\x03ls\n"
 
 type
   MultisteamSelectException = object of CatchableError
