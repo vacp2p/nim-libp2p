@@ -32,9 +32,6 @@ type
     currentId*: uint
     maxChannels*: uint
 
-proc newMplexUnknownMsgError(): ref MplexUnknownMsgError =
-  result = newException(MplexUnknownMsgError, "Unknown mplex message type")
-
 proc getChannelList(m: Mplex, initiator: bool): var Table[uint, LPChannel] =
   if initiator:
     result = m.remote
@@ -102,7 +99,6 @@ method handle*(m: Mplex) {.async, gcsafe.} =
           trace "handle: resetting channel ", id = id
           await channel.resetByRemote()
           break
-        else: raise newMplexUnknownMsgError()
   except:
     error "exception occurred", exception = getCurrentExceptionMsg()
   finally:
