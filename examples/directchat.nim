@@ -3,23 +3,24 @@ when not(compileOption("threads")):
 
 import tables, options, sequtils, algorithm, strformat, os, strutils
 import chronos
-import ../libp2p/switch,
-       ../libp2p/multistream,
-       ../libp2p/crypto/crypto,
-       ../libp2p/protocols/identify,
-       ../libp2p/connection,
-       ../libp2p/transports/[transport, tcptransport],
-       ../libp2p/multiaddress,
-       ../libp2p/peerinfo,
-       ../libp2p/peer,
-       ../libp2p/protocols/protocol,
-       ../libp2p/protocols/secure/secure,
-       ../libp2p/protocols/secure/secio,
-       ../libp2p/protocols/pubsub/pubsub,
-       ../libp2p/protocols/pubsub/floodsub,
-       ../libp2p/muxers/muxer,
-       ../libp2p/muxers/mplex/mplex,
-       ../libp2p/muxers/mplex/types
+import ../libp2p/[switch,
+                  multistream,
+                  crypto/crypto,
+                  protocols/identify,
+                  connection,
+                  transports/transport,
+                  transports/tcptransport,
+                  multiaddress,
+                  peerinfo,
+                  peer,
+                  protocols/protocol,
+                  protocols/secure/secure,
+                  protocols/secure/secio,
+                  protocols/pubsub/pubsub,
+                  protocols/pubsub/floodsub,
+                  muxers/muxer,
+                  muxers/mplex/mplex,
+                  muxers/mplex/types]
 
 const ChatCodec = "/nim-libp2p/chat/1.0.0"
 const DefaultAddr = "/ip4/127.0.0.1/tcp/55505"
@@ -127,7 +128,7 @@ proc writeAndPrint(p: ChatProto) {.async, gcsafe.} =
           if line.startsWith("/") and "ipfs" in line:
             await p.dialPeer(line)
         except:
-          echo &"unable to dial {line}"
+          echo &"unable to dial remote peer {line}"
           # echo getCurrentExceptionMsg()
 
 proc readWriteLoop(p: ChatProto) {.async, gcsafe.} =
@@ -191,7 +192,11 @@ proc serveThread(customData: CustomData) {.async.} =
   var muxers = [(MplexCodec, mplexProvider)].toTable()
   var identify = newIdentify(peerInfo)
   var secureManagers = [(SecioCodec, Secure(newSecio(seckey)))].toTable()
-  var switch = newSwitch(peerInfo, transports, identify, muxers, secureManagers = secureManagers)
+  var switch = newSwitch(peerInfo,
+                         transports,
+                         identify,
+                         muxers,
+                         secureManagers = secureManagers)
 
   var chatProto = newChatProto(switch, transp)
   switch.mount(chatProto)
