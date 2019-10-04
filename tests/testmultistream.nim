@@ -57,7 +57,7 @@ proc newTestSelectStream(): TestSelectStream =
 
 ## Mock stream for handles `ls` test
 type
-  LsHandler = proc(procs: seq[byte]): Future[void]
+  LsHandler = proc(procs: seq[byte]): Future[void] {.gcsafe.}
 
   TestLsStream = ref object of LPStream
     step*: int
@@ -66,7 +66,7 @@ type
 method readExactly*(s: TestLsStream,
                     pbytes: pointer,
                     nbytes: int): 
-                    Future[void] {.async, gcsafe.} =
+                    Future[void] {.async.} =
   case s.step:
     of 1:
       var buf = newSeq[byte](1)
@@ -86,7 +86,7 @@ method readExactly*(s: TestLsStream,
       var buf = "ls\n"
       copyMem(pbytes, addr buf[0], buf.len())
     else:
-      copyMem(pbytes, cstring("\0x3na\n"), "\0x3na\n".len())
+      copyMem(pbytes, cstring(Na), Na.len())
 
 method write*(s: TestLsStream, msg: seq[byte], msglen = -1) {.async, gcsafe.} =
   if s.step == 4:
@@ -97,14 +97,14 @@ method write*(s: TestLsStream, msg: string, msglen = -1)
 
 method close(s: TestLsStream) {.async, gcsafe.} = s.closed = true
 
-proc newTestLsStream(ls: LsHandler): TestLsStream =
+proc newTestLsStream(ls: LsHandler): TestLsStream {.gcsafe.} =
   new result
   result.ls = ls
   result.step = 1
 
 ## Mock stream for handles `na` test
 type
-  NaHandler = proc(procs: string): Future[void]
+  NaHandler = proc(procs: string): Future[void] {.gcsafe.}
 
   TestNaStream = ref object of LPStream
     step*: int
@@ -185,10 +185,9 @@ suite "Multistream select":
     proc testLs(): Future[bool] {.async.} =
       let ms = newMultistream()
 
-      proc testLs(proto: seq[byte]): Future[void] {.async.}
-      let conn = newConnection(newTestLsStream(testLs))
-
-      proc testLs(proto: seq[byte]): Future[void] {.async.} =
+      proc testLsHandler(proto: seq[byte]) {.async, gcsafe.} # forward declaration
+      let conn = newConnection(newTestLsStream(testLsHandler))
+      proc testLsHandler(proto: seq[byte]) {.async, gcsafe.} =
         var strProto: string = cast[string](proto)
         check strProto == "\x26/test/proto1/1.0.0\n/test/proto2/1.0.0\n"
         await conn.close()
@@ -198,8 +197,8 @@ suite "Multistream select":
       peerInfo.peerId = some(PeerID.init(seckey))
       var protocol: LPProtocol = new LPProtocol
       proc testHandler(conn: Connection,
-                       proto: string): 
-                       Future[void] {.async, gcsafe.} = discard
+                              proto: string): 
+                              Future[void] {.async, gcsafe.} = discard
       protocol.handler = testHandler
       ms.addHandler("/test/proto1/1.0.0", protocol)
       ms.addHandler("/test/proto2/1.0.0", protocol)
@@ -213,11 +212,11 @@ suite "Multistream select":
     proc testNa(): Future[bool] {.async.} =
       let ms = newMultistream()
 
-      proc testNa(msg: string): Future[void] {.async.}
-      let conn = newConnection(newTestNaStream(testNa))
+      proc testNaHandler(msg: string): Future[void] {.async, gcsafe.}
+      let conn = newConnection(newTestNaStream(testNaHandler))
 
-      proc testNa(msg: string): Future[void] {.async.} =
-        check cast[string](msg) == "\x3na\n"
+      proc testNaHandler(msg: string): Future[void] {.async, gcsafe.} =
+        check cast[string](msg) == Na
         await conn.close()
 
       let seckey = PrivateKey.random(RSA)
@@ -238,7 +237,7 @@ suite "Multistream select":
 
   test "e2e - handle":
     proc endToEnd(): Future[bool] {.async.} =
-      let ma: MultiAddress = Multiaddress.init("/ip4/127.0.0.1/tcp/53350")
+      let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
 
       let seckey = PrivateKey.random(RSA)
       var peerInfo: PeerInfo
@@ -263,7 +262,7 @@ suite "Multistream select":
 
       let msDial = newMultistream()
       let transport2: TcpTransport = newTransport(TcpTransport)
-      let conn = await transport2.dial(ma)
+      let conn = await transport2.dial(transport1.ma)
 
       check (await msDial.select(conn, "/test/proto/1.0.0")) == true
 
@@ -276,7 +275,7 @@ suite "Multistream select":
 
   test "e2e - ls":
     proc endToEnd(): Future[bool] {.async.} =
-      let ma: MultiAddress = Multiaddress.init("/ip4/127.0.0.1/tcp/53351")
+      let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
 
       let msListen = newMultistream()
       let seckey = PrivateKey.random(RSA)
@@ -299,7 +298,7 @@ suite "Multistream select":
 
       let msDial = newMultistream()
       let transport2: TcpTransport = newTransport(TcpTransport)
-      let conn = await transport2.dial(ma)
+      let conn = await transport2.dial(transport1.ma)
 
       let ls = await msDial.list(conn)
       let protos: seq[string] = @["/test/proto1/1.0.0", "/test/proto2/1.0.0"]
@@ -311,7 +310,7 @@ suite "Multistream select":
 
   test "e2e - select one from a list with unsupported protos":
     proc endToEnd(): Future[bool] {.async.} =
-      let ma: MultiAddress = Multiaddress.init("/ip4/127.0.0.1/tcp/53352")
+      let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
 
       let seckey = PrivateKey.random(RSA)
       var peerInfo: PeerInfo
@@ -336,7 +335,7 @@ suite "Multistream select":
 
       let msDial = newMultistream()
       let transport2: TcpTransport = newTransport(TcpTransport)
-      let conn = await transport2.dial(ma)
+      let conn = await transport2.dial(transport1.ma)
 
       check (await msDial.select(conn, 
         @["/test/proto/1.0.0", "/test/no/proto/1.0.0"])) == "/test/proto/1.0.0"
@@ -350,7 +349,7 @@ suite "Multistream select":
 
   test "e2e - select one with both valid":
     proc endToEnd(): Future[bool] {.async.} =
-      let ma: MultiAddress = Multiaddress.init("/ip4/127.0.0.1/tcp/53353")
+      let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
 
       let seckey = PrivateKey.random(RSA)
       var peerInfo: PeerInfo
@@ -375,7 +374,7 @@ suite "Multistream select":
 
       let msDial = newMultistream()
       let transport2: TcpTransport = newTransport(TcpTransport)
-      let conn = await transport2.dial(ma)
+      let conn = await transport2.dial(transport1.ma)
 
       check (await msDial.select(conn, @["/test/proto2/1.0.0", "/test/proto1/1.0.0"])) == "/test/proto2/1.0.0"
 

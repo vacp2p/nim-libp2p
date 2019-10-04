@@ -22,11 +22,10 @@ const
   Codec* = "/multistream/1.0.0"
 
   MSCodec* = "\x13" & Codec & "\n"
-  Na = "\x03na\n"
-  Ls = "\x03ls\n"
+  Na* = "\x03na\n"
+  Ls* = "\x03ls\n"
 
 type
-  MultisteamSelectException = object of CatchableError
   Matcher* = proc (proto: string): bool {.gcsafe.}
 
   HandlerHolder* = object

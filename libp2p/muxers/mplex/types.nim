@@ -16,7 +16,6 @@ const MplexCodec* = "/mplex/6.7.0"
 const MaxReadWriteTime* = 5.seconds
 
 type
-  MplexUnknownMsgError* = object of CatchableError
   MplexNoSuchChannel* = object of CatchableError
 
   MessageType* {.pure.} = enum
