@@ -70,6 +70,7 @@ proc decodeMsg*(buf: seq[byte]): IdentifyInfo =
   result.pubKey = none(PublicKey)
   var pubKey: PublicKey
   if pb.getValue(1, pubKey) > 0:
+    trace "read public key from message", pubKey = pubKey
     result.pubKey = some(pubKey)
 
   result.addrs = newSeq[MultiAddress]()
@@ -77,24 +78,31 @@ proc decodeMsg*(buf: seq[byte]): IdentifyInfo =
   while pb.getBytes(2, address) > 0:
     if len(address) != 0:
       var copyaddr = address
-      result.addrs.add(MultiAddress.init(copyaddr))
+      var ma = MultiAddress.init(copyaddr)
+      result.addrs.add(ma)
+      trace "read address bytes from message", address = ma
       address.setLen(0)
 
   var proto = ""
   while pb.getString(3, proto) > 0:
+    trace "read proto from message", proto = proto
     result.protos.add(proto)
     proto = ""
   
   var observableAddr = newSeq[byte]()
   if pb.getBytes(4, observableAddr) > 0: # attempt to read the observed addr
-    result.observedAddr = some(MultiAddress.init(observableAddr))
+    var ma = MultiAddress.init(observableAddr)
+    trace "read observedAddr from message", address = ma
+    result.observedAddr = some(ma)
 
   var protoVersion = ""
   if pb.getString(5, protoVersion) > 0:
+    trace "read protoVersion from message", protoVersion = protoVersion
     result.protoVersion = some(protoVersion)
 
   var agentVersion = ""
   if pb.getString(6, agentVersion) > 0:
+    trace "read agentVersion from message", agentVersion = agentVersion
     result.agentVersion = some(protoVersion)
 
 proc newIdentify*(peerInfo: PeerInfo): Identify =
@@ -118,18 +126,25 @@ proc identify*(p: Identify,
   var message = await conn.readLp()
   if len(message) == 0:
     trace "identify: Invalid or empty message received!"
-    raise newException(IdentityInvalidMsgError, 
+    raise newException(IdentityInvalidMsgError,
       "Invalid or empty message received!")
 
   result = decodeMsg(message)
-  trace "Identify for remote peer succeded"
 
-  if remotePeerInfo.peerId.isSome and 
-     result.pubKey.isSome and
-     result.pubKey != remotePeerInfo.peerId.get().publicKey:
-    trace "identify: Peer's remote public key doesn't match"
-    raise newException(IdentityNoMatchError,
-      "Peer's remote public key doesn't match")
+  if remotePeerInfo.peerId.isSome and result.pubKey.isSome:
+    let peer = PeerID.init(result.pubKey.get())
+
+    # do a string comaprison of the ids,
+    # because that is the only thing we have in most cases
+    if peer.pretty() != remotePeerInfo.peerId.get().pretty():
+      trace "Peer ids don't match",
+            remote = peer.pretty(),
+            local = remotePeerInfo.peerId.get().pretty()
+
+      raise newException(IdentityNoMatchError,
+        "Peer ids don't match")
+
+  trace "Identify for remote peer succeded"
 
 proc push*(p: Identify, conn: Connection) {.async.} =
   await conn.write(IdentifyPushCodec)
