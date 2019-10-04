@@ -102,7 +102,7 @@ proc readLp*(s: Connection): Future[seq[byte]] {.async, gcsafe.} =
     if size > 0.uint:
       await s.readExactly(addr result[0], int(size))
   except LPStreamIncompleteError, LPStreamReadError:
-    error "readLp: could not read from remote", exception = getCurrentExceptionMsg()
+    warn "readLp: could not read from remote, this is usually ok", exception = getCurrentExceptionMsg()
 
 proc writeLp*(s: Connection, msg: string | seq[byte]): Future[void] {.gcsafe.} =
   ## write lenght prefixed
