@@ -142,7 +142,7 @@ suite "PubSub":
       await allFutures(nodes.mapIt(it.stop()))
       await allFutures(awaitters)
 
-      result = passed == 10
+      result = passed >= 10 # non deterministic, so at least 10 times
 
     check:
       waitFor(testBasicFloodSub()) == true
@@ -174,7 +174,7 @@ suite "PubSub":
       await allFutures(nodes.mapIt(it.stop()))
       await allFutures(awaitters)
 
-      result = passed == 20
+      result = passed >= 20 # non deterministic, so at least 20 times
 
     check:
       waitFor(testBasicFloodSub()) == true
