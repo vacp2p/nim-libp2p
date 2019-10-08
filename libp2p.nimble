@@ -11,7 +11,7 @@ requires "nim > 0.18.0",
          "secp256k1",
          "nimcrypto >= 0.4.1",
          "chronos",
-         "bearssl"
+         "bearssl",
          "chronicles"
 
 proc runTest(filename: string) =
