@@ -14,7 +14,7 @@
 ## BearSSL library <https://bearssl.org/>
 ## Copyright(C) 2018 Thomas Pornin <pornin@bolet.org>.
 
-import common
+import bearssl
 import nimcrypto/utils
 import minasn1
 export minasn1.Asn1Status
