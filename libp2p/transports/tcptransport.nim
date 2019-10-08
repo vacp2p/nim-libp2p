@@ -28,7 +28,7 @@ proc connHandler*(t: Transport,
                   Future[Connection] {.async, gcsafe.} =
   trace "handling connection for", address = $client.remoteAddress
   let conn: Connection = newConnection(newChronosStream(server, client))
-  conn.observedAddrs = client.remoteAddress.toMultiAddr()
+  conn.observedAddrs = MultiAddress.init(client.remoteAddress)
   if not initiator:
     let handlerFut = if t.handler == nil: nil else: t.handler(conn)
     let connHolder: ConnHolder = ConnHolder(connection: conn,
@@ -65,7 +65,7 @@ method listen*(t: TcpTransport,
   t.server.start()
 
   # always get the resolved address in case we're bound to 0.0.0.0:0
-  t.ma = t.server.sock.getLocalAddress().toMultiAddr()
+  t.ma = MultiAddress.init(t.server.sock.getLocalAddress())
   result = t.server.join()
   debug "started node on", address = t.ma
 

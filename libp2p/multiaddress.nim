@@ -9,6 +9,7 @@
 
 ## This module implements MultiAddress.
 import tables, strutils, net
+import chronos
 import multicodec, multihash, multibase, transcoder, base58, base32, vbuffer
 from peer import PeerID
 
@@ -630,6 +631,23 @@ proc validate*(ma: MultiAddress): bool =
     else:
       discard
   result = true
+
+proc init*(mtype: typedesc[MultiAddress], address: TransportAddress): MultiAddress =
+  ## Returns a multiaddr of ``address``.
+  case address.family
+  of AddressFamily.IPv4:
+    var a = IpAddress(
+      family: IpAddressFamily.IPv4,
+      address_v4: address.address_v4
+    )
+    result = MultiAddress.init(a, Protocol.IPPROTO_TCP, address.port)
+  of AddressFamily.IPv6:
+    var a = IpAddress(family: IpAddressFamily.IPv6,
+                      address_v6: address.address_v6)
+    result = MultiAddress.init(a, Protocol.IPPROTO_TCP, address.port)
+  else:
+    raise newException(TransportAddressError,
+        "Invalid address for transport!")
 
 proc init*(mtype: typedesc[MultiAddress], protocol: MultiCodec,
            value: openarray[byte]): MultiAddress =
