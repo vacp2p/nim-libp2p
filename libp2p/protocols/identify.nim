@@ -136,7 +136,7 @@ proc identify*(p: Identify,
 
     # do a string comaprison of the ids,
     # because that is the only thing we have in most cases
-    if peer.pretty() != remotePeerInfo.peerId.get().pretty():
+    if peer != remotePeerInfo.peerId.get():
       trace "Peer ids don't match",
             remote = peer.pretty(),
             local = remotePeerInfo.peerId.get().pretty()
