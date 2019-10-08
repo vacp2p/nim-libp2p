@@ -56,7 +56,7 @@ suite "TCP transport":
       var server = createStreamServer(address, serveClient, {ReuseAddr})
       server.start()
 
-      let ma: MultiAddress = server.sock.getLocalAddress().toMultiAddr()
+      let ma: MultiAddress = MultiAddress.init(server.sock.getLocalAddress())
       let transport: TcpTransport = newTransport(TcpTransport)
       let conn = await transport.dial(ma)
       let msg = await conn.read(6)
@@ -83,7 +83,7 @@ suite "TCP transport":
       var server = createStreamServer(address, serveClient, {ReuseAddr})
       server.start()
 
-      let ma: MultiAddress = server.sock.getLocalAddress().toMultiAddr()
+      let ma: MultiAddress = MultiAddress.init(server.sock.getLocalAddress())
       let transport: TcpTransport = newTransport(TcpTransport)
       let conn = await transport.dial(ma)
       await conn.write(cstring("Hello!"), 6)
