@@ -8,6 +8,7 @@
 ## those terms.
 
 ## This module implements MultiAddress.
+import nativesockets
 import tables, strutils, net
 import chronos
 import multicodec, multihash, multibase, transcoder, base58, base32, vbuffer
