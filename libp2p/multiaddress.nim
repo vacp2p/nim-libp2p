@@ -768,6 +768,31 @@ proc init*(mtype: typedesc[MultiAddress],
     raise newException(MultiAddressError, "Error encoding port number")
   result.data.finish()
 
+proc init*(mtype: typedesc[MultiAddress], address: TransportAddress,
+           protocol: Protocol = IPPROTO_TCP): MultiAddress =
+  ## Initialize MultiAddress using chronos.TransportAddress (IPv4/IPv6/Unix)
+  ## and protocol information (UDP/TCP).
+  result.data = initVBuffer()
+  let protoProto = case protocol
+                   of IPPROTO_TCP: getProtocol("tcp")
+                   of IPPROTO_UDP: getProtocol("udp")
+                   else: raise newException(AssertionError,
+                                         "protocol should be either TCP or UDP")
+  if address.family == AddressFamily.IPv4:
+    result.data.write(getProtocol("ip4").mcodec)
+    result.data.writeArray(address.address_v4)
+    result.data.write(protoProto.mcodec)
+    discard protoProto.coder.stringToBuffer($address.port, result.data)
+  elif address.family == AddressFamily.IPv6:
+    result.data.write(getProtocol("ip6").mcodec)
+    result.data.writeArray(address.address_v6)
+    result.data.write(protoProto.mcodec)
+    discard protoProto.coder.stringToBuffer($address.port, result.data)
+  elif address.family == AddressFamily.Unix:
+    result.data.write(getProtocol("unix").mcodec)
+    result.data.writeSeq(address.address_un)
+  result.data.finish()
+
 proc isEmpty*(ma: MultiAddress): bool =
   ## Returns ``true``, if MultiAddress ``ma`` is empty or non initialized.
   result = len(ma.data) == 0
