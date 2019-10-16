@@ -7,20 +7,49 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import tables
-import rpcmsg, timedcache
+import tables, options, deques, math
+import rpc/[messages, message], timedcache
 
 type
   CacheEntry* = object
     mid*: string
-    topics*: seq[string]
+    msg*: Message
 
   MCache* = ref object of RootObj
-    msgs*: Table[string, RPCMsg]
-    history*: seq[seq[CacheEntry]]
-    gossip*: int
+    msgs*: Table[string, Message]
+    history*: Deque[seq[CacheEntry]]
+    historySize*: Natural
+    window*: Natural
 
-proc put*(c: MCache, msg: RPCMsg) = discard
-proc get*(c: MCache): RPCMsg = discard
-proc window*(c: MCache): seq[RPCMsg] = discard
-proc shift*(c: MCache) = discard
+proc put*(c: MCache, msg: Message) = 
+  c.msgs[msg.msgId] = msg
+  c.history[0].add(CacheEntry(mid: msg.msgId, msg: msg))
+
+proc get*(c: MCache, mid: string): Option[Message] =
+  result = none(Message)
+  if mid in c.msgs:
+    result = some(c.msgs[mid])
+
+proc window*(c: MCache, topic: string): seq[Message] = 
+  for i, msgs in c.history:
+    if i == c.window:
+      break
+
+    for m in msgs:
+      for t in m.msg.topicIDs:
+        if t == topic:
+          result.add(m.msg)
+          break
+
+proc shift*(c: MCache) = 
+  for entry in c.history.popLast():
+    c.msgs.del(entry.mid)
+
+  c.history.addFirst(newSeq[CacheEntry]())
+
+proc newMCache*(window: Natural, history: Natural): MCache =
+  new result
+  result.historySize = history
+  result.window = window
+  result.history = initDeque[seq[CacheEntry]](nextPowerOfTwo(history))
+  result.msgs = initTable[string, Message]()

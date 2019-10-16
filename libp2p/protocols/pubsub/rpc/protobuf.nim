@@ -8,7 +8,7 @@
 ## those terms.
 
 import chronicles
-import types, 
+import messages, 
        ../../../protobuf/minprotobuf
 
 proc encodeMessage*(msg: Message, buff: var ProtoBuffer) {.gcsafe.} = 

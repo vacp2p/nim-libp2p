@@ -7,9 +7,9 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import options, sets, hashes, strutils
+import options, sets, hashes, strutils, sequtils
 import chronos, chronicles
-import rpc/[types, protobuf], 
+import rpc/[messages, message, protobuf], 
        timedcache,
        ../../peer,
        ../../peerinfo,
@@ -29,7 +29,7 @@ type
       conn*: Connection
       handler*: RPCHandler
       topics*: seq[string]
-      seen: TimedCache[string] # list of messages forwarded to peers
+      rpcCache: TimedCache[string] # a cache of already sent messages
 
     RPCHandler* = proc(peer: PubSubPeer, msg: seq[RPCMsg]): Future[void] {.gcsafe.}
 
@@ -39,7 +39,7 @@ proc handle*(p: PubSubPeer) {.async, gcsafe.} =
     while not p.conn.closed:
       let data = await p.conn.readLp()
       trace "Read data from peer", peer = p.id, data = data.toHex()
-      if data.toHex() in p.seen:
+      if data.toHex() in p.rpcCache:
         trace "Message already received, skipping", peer = p.id
         continue
 
@@ -61,13 +61,27 @@ proc send*(p: PubSubPeer, msgs: seq[RPCMsg]) {.async, gcsafe.} =
       return
 
     let encodedHex = encoded.buffer.toHex()
-    if encodedHex in p.seen:
+    if encodedHex in p.rpcCache:
       trace "message already sent to peer, skipping", peer = p.id
       continue
 
     trace "sending encoded msgs to peer", peer = p.id, encoded = encodedHex
     await p.conn.writeLp(encoded.buffer)
-    p.seen.put(encodedHex)
+    p.rpcCache.put(encodedHex)
+
+proc sendMsg*(p: PubSubPeer,
+              peerId: PeerID,
+              topic: string,
+              data: seq[byte]) {.async, gcsafe.} =
+  await p.send(@[RPCMsg(messages: @[newMessage(p.peerInfo.peerId.get(), data, topic)])])
+
+proc sendGraft*(p: PubSubPeer, topics: seq[string]) {.async, gcsafe.} =
+  for topic in topics:
+    await p.send(@[RPCMsg(control: ControlMessage(graft: @[ControlGraft(topicID: topic)]))])
+
+proc sendPrune*(p: PubSubPeer, topics: seq[string]) {.async, gcsafe.} = 
+  for topic in topics:
+    await p.send(@[RPCMsg(control: ControlMessage(prune: @[ControlPrune(topicID: topic)]))])
 
 proc newPubSubPeer*(conn: Connection, handler: RPCHandler, proto: string): PubSubPeer =
   new result
@@ -76,4 +90,4 @@ proc newPubSubPeer*(conn: Connection, handler: RPCHandler, proto: string): PubSu
   result.conn = conn
   result.peerInfo = conn.peerInfo
   result.id = conn.peerInfo.peerId.get().pretty()
-  result.seen = newTimedCache[string]()
+  result.rpcCache = newTimedCache[string]()

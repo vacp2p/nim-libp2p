@@ -44,10 +44,11 @@ proc put*[V](t: TimedCache[V],
     timeout,
     proc (arg: pointer = nil) {.gcsafe.} =
       trace "deleting expired entry from timed cache", key = key, val = val
-      var entry = t.cache[key]
-      t.cache.del(key)
-      if not isNil(entry.handler):
-        entry.handler(key, entry.val)
+      if key in t.cache:
+        var entry = t.cache[key]
+        t.cache.del(key)
+        if not isNil(entry.handler):
+          entry.handler(key, entry.val)
   )
 
 proc contains*[V](t: TimedCache[V], key: string): bool = 

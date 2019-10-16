@@ -8,15 +8,19 @@
 ## those terms.
 
 import options
+import chronicles
 import nimcrypto/sysrand
-import types, protobuf,
+import messages, protobuf,
        ../../../peerinfo,
        ../../../peer,
        ../../../crypto/crypto,
        ../../../protobuf/minprotobuf
 
+logScope:
+  topic = "PubSubMessage"
+
 proc msgId*(m: Message): string =
-  PeerID.init(m.fromPeer).pretty & m.seqno.toHex()
+  m.seqno.toHex() & PeerID.init(m.fromPeer).pretty
 
 proc sign*(peerId: PeerID, msg: Message): Message = 
   var buff = initProtoBuffer()
