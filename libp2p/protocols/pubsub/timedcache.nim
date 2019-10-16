@@ -13,6 +13,8 @@ import chronos, chronicles
 logScope:
   topic = "TimedCache"
 
+# TODO: this should use `Duration`, but the corresponding 
+# `addTimer` is missing from chronos
 const Timeout* = 10 * 1000 # default timeout in ms
 
 type

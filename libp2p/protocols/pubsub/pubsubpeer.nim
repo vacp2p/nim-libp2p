@@ -9,7 +9,7 @@
 
 import options, sets, hashes, strutils
 import chronos, chronicles
-import rpcmsg, 
+import rpc/[types, protobuf], 
        timedcache,
        ../../peer,
        ../../peerinfo,

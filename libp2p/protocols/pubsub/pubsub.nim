@@ -10,7 +10,7 @@
 import tables, sets
 import chronos, chronicles
 import pubsubpeer,
-       rpcmsg,
+       rpc/types,
        ../protocol,
        ../../connection,
        ../../peerinfo

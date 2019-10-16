@@ -9,14 +9,42 @@
 
 import options
 import nimcrypto/sysrand
-import types,
-       sign,
+import types, protobuf,
        ../../../peerinfo,
        ../../../peer,
-       ../../../crypto/crypto
+       ../../../crypto/crypto,
+       ../../../protobuf/minprotobuf
 
 proc msgId*(m: Message): string =
   PeerID.init(m.fromPeer).pretty & m.seqno.toHex()
+
+proc sign*(peerId: PeerID, msg: Message): Message = 
+  var buff = initProtoBuffer()
+  encodeMessage(msg, buff)
+  # NOTE: leave as is, moving out would imply making this .threadsafe., etc...
+  let prefix = cast[seq[byte]]("libp2p-pubsub:")
+  if buff.buffer.len > 0:
+    result = msg
+    if peerId.privateKey.isSome:
+      result.signature = peerId.
+                         privateKey.
+                         get().
+                         sign(prefix & buff.buffer).
+                         getBytes()
+
+proc verify*(peerId: PeerID, m: Message): bool =
+  if m.signature.len > 0 and m.key.len > 0:
+    var msg = m
+    msg.signature = @[]
+    msg.key = @[]
+
+    var buff = initProtoBuffer()
+    encodeMessage(msg, buff)
+
+    var remote: Signature
+    var key: PublicKey
+    if remote.init(m.signature) and key.init(m.key):
+      result = remote.verify(buff.buffer, key)
 
 proc newMessage*(peerId: PeerID,
                  data: seq[byte],

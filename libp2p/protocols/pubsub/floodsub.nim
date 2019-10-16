@@ -11,7 +11,7 @@ import sequtils, tables, options, sets, strutils
 import chronos, chronicles
 import pubsub,
        pubsubpeer,
-       rpcmsg,
+       rpc/[types, message],
        ../../crypto/crypto,
        ../../connection,
        ../../peerinfo,

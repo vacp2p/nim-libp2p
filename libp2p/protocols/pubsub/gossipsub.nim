@@ -36,5 +36,3 @@ type
     lastPubSub*: Table[string, Duration] # last publish time for fanout topics
     gossip*: Table[string, seq[ControlIHave]]
     control*: Table[string, ControlMessage]
-
-
