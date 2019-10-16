@@ -10,6 +10,7 @@
 import tables, sets
 import chronos, chronicles
 import pubsubpeer,
+       rpcmsg,
        ../protocol,
        ../../connection,
        ../../peerinfo
@@ -33,7 +34,13 @@ type
   PubSub* = ref object of LPProtocol
     peerInfo*: PeerInfo
     topics*: Table[string, Topic] # local topics
-    triggerSelf*: bool # flag indicating if the local handler should be triggered on publish
+    triggerSelf*: bool # trigger own local handler on publish
+
+method rpcHandler*(f: PubSub,
+                   peer: PubSubPeer,
+                   rpcMsgs: seq[RPCMsg]) {.async, base, gcsafe.} =
+  ## handle rpc messages
+  discard
 
 method subscribeToPeer*(p: PubSub, conn: Connection) {.base, async, gcsafe.} =
   ## subscribe to a peer to send/receive pubsub messages
@@ -78,6 +85,7 @@ method publish*(p: PubSub, topic: string, data: seq[byte]) {.base, async, gcsafe
       await h(topic, data)
 
 method initPubSub*(p: PubSub) {.base.} = 
+  ## perform pubsub initializaion 
   discard
 
 proc newPubSub*(p: typedesc[PubSub], peerInfo: PeerInfo, triggerSelf: bool = false): p =

@@ -53,9 +53,9 @@ proc subscribeTopic(f: FloodSub, topic: string, subscribe: bool, peerId: string)
       # unsubscribe the peer from the topic
       f.peerTopics[topic].excl(peerId)
 
-proc rpcHandler(f: FloodSub,
-                peer: PubSubPeer,
-                rpcMsgs: seq[RPCMsg]) {.async, gcsafe.} =
+method rpcHandler*(f: FloodSub,
+                   peer: PubSubPeer,
+                   rpcMsgs: seq[RPCMsg]) {.async, gcsafe.} =
   ## method called by a PubSubPeer every
   ## time it receives an RPC message
   ##
@@ -92,7 +92,8 @@ proc rpcHandler(f: FloodSub,
             await f.peers[p].send(@[RPCMsg(messages: m.messages)])
 
 proc handleConn(f: FloodSub,
-                conn: Connection) {.async, gcsafe.} =
+                conn: Connection, 
+                proto: string) {.async, gcsafe.} =
   ## handle incoming/outgoing connections
   ##
   ## this proc will:
@@ -108,11 +109,12 @@ proc handleConn(f: FloodSub,
     trace "no valid PeerId for peer"
     return
 
+  proc handler(peer: PubSubPeer, msgs: seq[RPCMsg]) {.async, gcsafe.} =
+      # call floodsub rpc handler
+      await f.rpcHandler(peer, msgs)
+
   # create new pubsub peer
-  var peer = newPubSubPeer(conn, proc (peer: PubSubPeer, 
-                                       msgs: seq[RPCMsg]) {.async, gcsafe.} =
-                                          # call floodsub rpc handler
-                                          await f.rpcHandler(peer, msgs))
+  var peer = newPubSubPeer(conn, handler, proto)
 
   trace "created new pubsub peer", id = peer.id
 
@@ -134,13 +136,13 @@ method init(f: FloodSub) =
     ## e.g. ``/floodsub/1.0.0``, etc...
     ##
 
-    await f.handleConn(conn)
+    await f.handleConn(conn, proto)
 
   f.handler = handler
   f.codec = FloodSubCodec
 
 method subscribeToPeer*(f: FloodSub, conn: Connection) {.async, gcsafe.} =
-  await f.handleConn(conn)
+  await f.handleConn(conn, FloodSubCodec)
 
 method publish*(f: FloodSub,
                 topic: string,
@@ -149,7 +151,7 @@ method publish*(f: FloodSub,
 
   trace "about to publish message on topic", name = topic, data = data.toHex()
   if data.len > 0 and topic.len > 0:
-    let msg = makeMessage(f.peerInfo.peerId.get(), data, topic)
+    let msg = newMessage(f.peerInfo.peerId.get(), data, topic)
     if topic in f.peerTopics:
       trace "publishing on topic", name = topic
       for p in f.peerTopics[topic]:

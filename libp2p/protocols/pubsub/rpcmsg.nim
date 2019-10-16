@@ -30,9 +30,29 @@ type
       signature*: seq[byte]
       key*: seq[byte]
 
+    ControlMessage* = object
+      ihave*: seq[ControlIHave]
+      iwant*: seq[ControlIWant]
+      graft*: seq[ControlGraft]
+      prune*: seq[ControlPrune]
+
+    ControlIHave* = object
+      topicId*: string
+      messageIDs*: seq[string]
+    
+    ControlIWant* = object
+      messageIDs*: seq[string]
+    
+    ControlGraft* = object
+      topicID*: string
+    
+    ControlPrune* = object
+      topicID*: string
+
     RPCMsg* = object
       subscriptions*: seq[SubOpts]
       messages*: seq[Message]
+      control*: ControlMessage
 
 proc encodeMessage(msg: Message, buff: var ProtoBuffer) {.gcsafe.} = 
   buff.write(initProtoField(1, msg.fromPeer))
@@ -168,10 +188,13 @@ proc verify*(peerId: PeerID, m: Message): bool =
     if remote.init(m.signature) and key.init(m.key):
       result = remote.verify(buff.buffer, key)
 
-proc makeMessage*(peerId: PeerID,
-                  data: seq[byte],
-                  name: string,
-                  sign: bool = true): Message {.gcsafe.} = 
+proc msgId*(m: Message): string =
+  PeerID.init(m.fromPeer).pretty & m.seqno.toHex()
+
+proc newMessage*(peerId: PeerID,
+                 data: seq[byte],
+                 name: string,
+                 sign: bool = true): Message {.gcsafe.} = 
   var seqno: seq[byte] = newSeq[byte](20)
   if randomBytes(addr seqno[0], 20) > 0:
     var key: seq[byte] = @[]

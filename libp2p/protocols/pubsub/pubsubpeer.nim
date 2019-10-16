@@ -24,6 +24,7 @@ logScope:
 type
     PubSubPeer* = ref object of RootObj
       id*: string # base58 peer id string
+      proto: string # the protocol that this peer joined from
       peerInfo*: PeerInfo
       conn*: Connection
       handler*: RPCHandler
@@ -68,9 +69,10 @@ proc send*(p: PubSubPeer, msgs: seq[RPCMsg]) {.async, gcsafe.} =
     await p.conn.writeLp(encoded.buffer)
     p.seen.put(encodedHex)
 
-proc newPubSubPeer*(conn: Connection, handler: RPCHandler): PubSubPeer =
+proc newPubSubPeer*(conn: Connection, handler: RPCHandler, proto: string): PubSubPeer =
   new result
   result.handler = handler
+  result.proto = proto
   result.conn = conn
   result.peerInfo = conn.peerInfo
   result.id = conn.peerInfo.peerId.get().pretty()

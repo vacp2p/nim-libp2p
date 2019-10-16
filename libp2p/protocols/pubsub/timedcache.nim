@@ -16,7 +16,7 @@ logScope:
 const Timeout* = 10 * 1000 # default timeout in ms
 
 type
-  ExpireHandler*[V] = proc(val: V) {.gcsafe.}
+  ExpireHandler*[V] = proc(key: string, val: V) {.gcsafe.}
   TimedEntry*[V] = object of RootObj
     val: V
     handler: ExpireHandler[V]
@@ -45,7 +45,7 @@ proc put*[V](t: TimedCache[V],
       var entry = t.cache[key]
       t.cache.del(key)
       if not isNil(entry.handler):
-        entry.handler(entry.val)
+        entry.handler(key, entry.val)
   )
 
 proc contains*[V](t: TimedCache[V], key: string): bool = 
