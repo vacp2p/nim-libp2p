@@ -7,54 +7,11 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import sequtils, options
-import chronos, nimcrypto/sysrand, chronicles
-import ../../peerinfo,
-       ../../peer,
-       ../../crypto/crypto,
-       ../../protobuf/minprotobuf
+import chronicles
+import types, 
+       ../../../protobuf/minprotobuf
 
-logScope:
-  topic = "RpcMsg"
-
-type
-    SubOpts* = object
-      subscribe*: bool
-      topic*: string
-
-    Message* = object
-      fromPeer*: seq[byte]
-      data*: seq[byte]
-      seqno*: seq[byte]
-      topicIDs*: seq[string]
-      signature*: seq[byte]
-      key*: seq[byte]
-
-    ControlMessage* = object
-      ihave*: seq[ControlIHave]
-      iwant*: seq[ControlIWant]
-      graft*: seq[ControlGraft]
-      prune*: seq[ControlPrune]
-
-    ControlIHave* = object
-      topicId*: string
-      messageIDs*: seq[string]
-    
-    ControlIWant* = object
-      messageIDs*: seq[string]
-    
-    ControlGraft* = object
-      topicID*: string
-    
-    ControlPrune* = object
-      topicID*: string
-
-    RPCMsg* = object
-      subscriptions*: seq[SubOpts]
-      messages*: seq[Message]
-      control*: ControlMessage
-
-proc encodeMessage(msg: Message, buff: var ProtoBuffer) {.gcsafe.} = 
+proc encodeMessage*(msg: Message, buff: var ProtoBuffer) {.gcsafe.} = 
   buff.write(initProtoField(1, msg.fromPeer))
   buff.write(initProtoField(2, msg.data))
   buff.write(initProtoField(3, msg.seqno))
@@ -70,7 +27,7 @@ proc encodeMessage(msg: Message, buff: var ProtoBuffer) {.gcsafe.} =
 
   buff.finish()
 
-proc encodeSubs(subs: SubOpts, buff: var ProtoBuffer) {.gcsafe.} = 
+proc encodeSubs*(subs: SubOpts, buff: var ProtoBuffer) {.gcsafe.} = 
   buff.write(initProtoField(1, subs.subscribe))
   buff.write(initProtoField(2, subs.topic))
 
@@ -159,54 +116,3 @@ proc decodeRpcMsg*(msg: seq[byte]): RPCMsg {.gcsafe.} =
         result.messages.add(msg)
     else: 
       raise newException(CatchableError, "message type not recognized")
-
-proc sign*(peerId: PeerID, msg: Message): Message = 
-  var buff = initProtoBuffer()
-  encodeMessage(msg, buff)
-  # NOTE: leave as is, moving out would imply making this .threadsafe., etc...
-  let prefix = cast[seq[byte]]("libp2p-pubsub:")
-  if buff.buffer.len > 0:
-    result = msg
-    if peerId.privateKey.isSome:
-      result.signature = peerId.
-                         privateKey.
-                         get().
-                         sign(prefix & buff.buffer).
-                         getBytes()
-
-proc verify*(peerId: PeerID, m: Message): bool =
-  if m.signature.len > 0 and m.key.len > 0:
-    var msg = m
-    msg.signature = @[]
-    msg.key = @[]
-
-    var buff = initProtoBuffer()
-    encodeMessage(msg, buff)
-
-    var remote: Signature
-    var key: PublicKey
-    if remote.init(m.signature) and key.init(m.key):
-      result = remote.verify(buff.buffer, key)
-
-proc msgId*(m: Message): string =
-  PeerID.init(m.fromPeer).pretty & m.seqno.toHex()
-
-proc newMessage*(peerId: PeerID,
-                 data: seq[byte],
-                 name: string,
-                 sign: bool = true): Message {.gcsafe.} = 
-  var seqno: seq[byte] = newSeq[byte](20)
-  if randomBytes(addr seqno[0], 20) > 0:
-    var key: seq[byte] = @[]
-
-    if peerId.publicKey.isSome:
-      key = peerId.publicKey.get().getRawBytes()
-
-    result = Message(fromPeer: peerId.getBytes(), 
-                     data: data,
-                     seqno: seqno,
-                     topicIDs: @[name])
-    if sign:
-      result = sign(peerId, result)
-
-    result.key = key
