@@ -7,12 +7,12 @@ description   = "LibP2P implementation"
 license       = "MIT"
 skipDirs      = @["tests", "examples", "Nim"]
 
-requires "nim > 0.18.0",
+requires "nim > 0.19.4",
          "secp256k1",
          "nimcrypto >= 0.4.1",
-         "chronos",
+         "chronos >= 2.3.1",
          "bearssl",
-         "chronicles"
+         "chronicles >= 0.7.0"
 
 proc runTest(filename: string) =
   exec "nim c -r tests/" & filename
