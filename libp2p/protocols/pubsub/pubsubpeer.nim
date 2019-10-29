@@ -7,7 +7,7 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import options, sets, hashes, strutils, sequtils
+import options, hashes, strutils
 import chronos, chronicles
 import rpc/[messages, message, protobuf], 
        timedcache,

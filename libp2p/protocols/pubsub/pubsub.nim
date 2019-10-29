@@ -7,14 +7,14 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import tables, sets, options, sequtils
+import tables, options, sequtils
 import chronos, chronicles
 import pubsubpeer,
        rpc/messages,
+       ../../peer,
        ../protocol,
        ../../connection,
-       ../../peerinfo,
-       ../../peer
+       ../../peerinfo
 
 export PubSubPeer
 
@@ -42,8 +42,9 @@ proc sendSubs*(p: PubSub,
                topics: seq[string],
                subscribe: bool) {.async, gcsafe.} =
   ## send subscriptions to remote peer
-  trace "sending subscriptions", peer = peer.id, 
-                                 subscribe = subscribe
+  trace "sending subscriptions", peer = peer.id,
+                                 subscribe = subscribe,
+                                 topicIDs = topics
 
   var msg: RPCMsg
   for t in topics:
@@ -88,7 +89,10 @@ method handleConn*(p: PubSub,
   trace "created new pubsub peer", id = peer.id
 
   p.peers[peer.id] = peer
-  await p.sendSubs(peer, toSeq(p.topics.keys), true)
+  let topics = toSeq(p.topics.keys)
+  if topics.len > 0:
+    await p.sendSubs(peer, topics, true)
+
   let handlerFut = peer.handle() # spawn peer read loop
   handlerFut.addCallback(
     proc(udata: pointer = nil) {.gcsafe.} = 

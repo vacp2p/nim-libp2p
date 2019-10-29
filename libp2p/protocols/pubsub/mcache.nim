@@ -8,7 +8,7 @@
 ## those terms.
 
 import tables, options, deques, math
-import rpc/[messages, message], timedcache
+import rpc/[messages, message]
 
 type
   CacheEntry* = object

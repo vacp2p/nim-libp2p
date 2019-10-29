@@ -33,7 +33,7 @@ proc subscribeTopic*(f: FloodSub,
                      subscribe: bool,
                      peerId: string) {.gcsafe.} =
     if topic notin f.floodsub:
-      f.floodsub[topic] = initSet[string]()
+      f.floodsub[topic] = initHashSet[string]()
 
     if subscribe:
       trace "adding subscription for topic", peer = peerId, name = topic
@@ -55,7 +55,7 @@ method rpcHandler*(f: FloodSub,
         f.subscribeTopic(s.topic, s.subscribe, peer.id)
 
     if m.messages.len > 0:                         # if there are any messages
-      var toSendPeers: HashSet[string] = initSet[string]()
+      var toSendPeers: HashSet[string] = initHashSet[string]()
       for msg in m.messages:                       # for every message
         f.seen.put(msg.msgId, msg)                 # add the message to the seen cache
         for t in msg.topicIDs:                     # for every topic in the message
@@ -93,7 +93,6 @@ method publish*(f: FloodSub,
 
   trace "about to publish message on topic", name = topic, data = data.toHex()
   if data.len > 0 and topic.len > 0:
-    let msg = newMessage(f.peerInfo.peerId.get(), data, topic)
     if topic in f.floodsub:
       trace "publishing on topic", name = topic
       for p in f.floodsub[topic]:
