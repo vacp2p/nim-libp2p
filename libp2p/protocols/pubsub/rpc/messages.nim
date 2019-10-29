@@ -7,11 +7,7 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import sequtils, options
-import chronos, chronicles
-import ../../../peerinfo,
-       ../../../peer,
-       ../../../crypto/crypto
+import options
 
 type
     SubOpts* = object
@@ -48,4 +44,4 @@ type
     RPCMsg* = object
       subscriptions*: seq[SubOpts]
       messages*: seq[Message]
-      control*: ControlMessage
+      control*: Option[ControlMessage]

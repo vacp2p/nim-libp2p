@@ -11,7 +11,6 @@ import options
 import chronicles
 import nimcrypto/sysrand
 import messages, protobuf,
-       ../../../peerinfo,
        ../../../peer,
        ../../../crypto/crypto,
        ../../../protobuf/minprotobuf
@@ -22,7 +21,7 @@ logScope:
 proc msgId*(m: Message): string =
   m.seqno.toHex() & PeerID.init(m.fromPeer).pretty
 
-proc sign*(peerId: PeerID, msg: Message): Message = 
+proc sign*(peerId: PeerID, msg: Message): Message {.gcsafe.} = 
   var buff = initProtoBuffer()
   encodeMessage(msg, buff)
   # NOTE: leave as is, moving out would imply making this .threadsafe., etc...
