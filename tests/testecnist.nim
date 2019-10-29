@@ -10,6 +10,8 @@ import unittest
 import nimcrypto/utils
 import ../libp2p/crypto/ecnist
 
+when defined(nimHasUsed): {.used.}
+
 const
   TestsCount = 10 # number of random tests
 
@@ -392,7 +394,7 @@ suite "EC NIST-P256/384/521 test suite":
       var sersk = kp.seckey.getBytes()
       var serpk = kp.pubkey.getBytes()
       var sersig = sig.getBytes()
-      var seckey = EcPrivateKey.init(sersk)
+      discard EcPrivateKey.init(sersk)
       var pubkey = EcPublicKey.init(serpk)
       var csig = EcSignature.init(sersig)
       check csig.verify(message, pubkey) == true
@@ -499,7 +501,7 @@ suite "EC NIST-P256/384/521 test suite":
       var sersk = kp.seckey.getBytes()
       var serpk = kp.pubkey.getBytes()
       var sersig = sig.getBytes()
-      var seckey = EcPrivateKey.init(sersk)
+      discard EcPrivateKey.init(sersk)
       var pubkey = EcPublicKey.init(serpk)
       var csig = EcSignature.init(sersig)
       check csig.verify(message, pubkey) == true
@@ -606,7 +608,7 @@ suite "EC NIST-P256/384/521 test suite":
       var sersk = kp.seckey.getBytes()
       var serpk = kp.pubkey.getBytes()
       var sersig = sig.getBytes()
-      var seckey = EcPrivateKey.init(sersk)
+      discard EcPrivateKey.init(sersk)
       var pubkey = EcPublicKey.init(serpk)
       var csig = EcSignature.init(sersig)
       check csig.verify(message, pubkey) == true

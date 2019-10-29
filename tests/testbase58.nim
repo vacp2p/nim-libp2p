@@ -1,6 +1,8 @@
 import unittest
 import ../libp2p/base58
 
+when defined(nimHasUsed): {.used.}
+
 proc hexToBytes*(a: string, result: var openarray[byte]) =
   doAssert(len(a) == 2 * len(result))
   var i = 0

@@ -156,13 +156,13 @@ proc write*(pb: var ProtoBuffer, field: ProtoField) =
     doAssert(pb.isEnough(8))
     var value = cast[uint64](field.vfloat64)
     pb.buffer[pb.offset] = byte(value and 0xFF'u32)
-    pb.buffer[pb.offset + 1] = byte((value shr 8) and 0xFF'u32)
-    pb.buffer[pb.offset + 2] = byte((value shr 16) and 0xFF'u32)
-    pb.buffer[pb.offset + 3] = byte((value shr 24) and 0xFF'u32)
-    pb.buffer[pb.offset + 4] = byte((value shr 32) and 0xFF'u32)
-    pb.buffer[pb.offset + 5] = byte((value shr 40) and 0xFF'u32)
-    pb.buffer[pb.offset + 6] = byte((value shr 48) and 0xFF'u32)
-    pb.buffer[pb.offset + 7] = byte((value shr 56) and 0xFF'u32)
+    pb.buffer[pb.offset + 1] = byte((value shr 8) and 0xFF'u64)
+    pb.buffer[pb.offset + 2] = byte((value shr 16) and 0xFF'u64)
+    pb.buffer[pb.offset + 3] = byte((value shr 24) and 0xFF'u64)
+    pb.buffer[pb.offset + 4] = byte((value shr 32) and 0xFF'u64)
+    pb.buffer[pb.offset + 5] = byte((value shr 40) and 0xFF'u64)
+    pb.buffer[pb.offset + 6] = byte((value shr 48) and 0xFF'u64)
+    pb.buffer[pb.offset + 7] = byte((value shr 56) and 0xFF'u64)
     pb.offset += 8
   of ProtoFieldKind.Fixed32:
     doAssert(pb.isEnough(4))
@@ -196,17 +196,17 @@ proc finish*(pb: var ProtoBuffer) =
     pb.offset = pos
   elif WithUint32BeLength in pb.options:
     let size = uint(len(pb.buffer) - 4)
-    pb.buffer[0] = byte((size shr 24) and 0xFF)
-    pb.buffer[1] = byte((size shr 16) and 0xFF)
-    pb.buffer[2] = byte((size shr 8) and 0xFF)
-    pb.buffer[3] = byte(size and 0xFF)
+    pb.buffer[0] = byte((size shr 24) and 0xFF'u)
+    pb.buffer[1] = byte((size shr 16) and 0xFF'u)
+    pb.buffer[2] = byte((size shr 8) and 0xFF'u)
+    pb.buffer[3] = byte(size and 0xFF'u)
     pb.offset = 4
   elif WithUint32LeLength in pb.options:
     let size = uint(len(pb.buffer) - 4)
-    pb.buffer[0] = byte(size and 0xFF)
-    pb.buffer[1] = byte((size shr 8) and 0xFF)
-    pb.buffer[2] = byte((size shr 16) and 0xFF)
-    pb.buffer[3] = byte((size shr 24) and 0xFF)
+    pb.buffer[0] = byte(size and 0xFF'u)
+    pb.buffer[1] = byte((size shr 8) and 0xFF'u)
+    pb.buffer[2] = byte((size shr 16) and 0xFF'u)
+    pb.buffer[3] = byte((size shr 24) and 0xFF'u)
     pb.offset = 4
   else:
     pb.offset = 0

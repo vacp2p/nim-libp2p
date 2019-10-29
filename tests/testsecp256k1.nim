@@ -10,6 +10,8 @@ import unittest
 import ../libp2p/crypto/secp
 import nimcrypto/utils
 
+when defined(nimHasUsed): {.used.}
+
 suite "Secp256k1 testing suite":
   const TestsCount = 20
   test "Private key serialize/deserialize test":
@@ -62,7 +64,7 @@ suite "Secp256k1 testing suite":
       var sersk = kp.seckey.getBytes()
       var serpk = kp.pubkey.getBytes()
       var sersig = sig.getBytes()
-      var seckey = SkPrivateKey.init(sersk)
+      discard SkPrivateKey.init(sersk)
       var pubkey = SkPublicKey.init(serpk)
       var csig = SkSignature.init(sersig)
       check csig.verify(message, pubkey) == true

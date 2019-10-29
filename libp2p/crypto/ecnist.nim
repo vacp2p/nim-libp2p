@@ -114,7 +114,7 @@ proc checkPublic(key: openarray[byte], curve: cint): uint32 =
   var x = [0x00'u8, 0x01'u8]
   var impl = brEcGetDefault()
   var orderlen = 0
-  var order = impl.order(curve, addr orderlen)
+  discard impl.order(curve, addr orderlen)
   result = impl.mul(cast[ptr cuchar](unsafeAddr ckey[0]), len(ckey),
                     cast[ptr cuchar](addr x[0]), len(x), curve)
 
@@ -766,7 +766,6 @@ proc initRaw*(sig: var EcSignature, data: openarray[byte]): bool =
   ## or ``Sig521Length``.
   ##
   ## Procedure returns ``true`` on success, ``false`` otherwise.
-  var curve: cint
   let length = len(data)
   if (length == Sig256Length) or (length == Sig384Length) or
      (length == Sig521Length):
@@ -815,7 +814,6 @@ proc scalarMul*(pub: EcPublicKey, sec: EcPrivateKey): EcPublicKey =
     if pub.key.curve == sec.key.curve:
       var key = new EcPublicKey
       if key.copy(pub):
-        var slength = cint(0)
         let poffset = key.getOffset()
         let soffset = sec.getOffset()
         if poffset >= 0 and soffset >= 0:
@@ -840,7 +838,6 @@ proc toSecret*(pubkey: EcPublicKey, seckey: EcPrivateKey,
   ## for `secp384r1` and 66 bytes for `secp521r1`.
   doAssert((not isNil(pubkey)) and (not isNil(seckey)))
   var mult = scalarMul(pubkey, seckey)
-  var length = 0
   if not isNil(mult):
     if seckey.key.curve == BR_EC_SECP256R1:
       result = Secret256Length

@@ -1,6 +1,8 @@
 import unittest
 import ../libp2p/multiaddress
 
+when defined(nimHasUsed): {.used.}
+
 type
   PatternVector = object
     pattern: MaPattern
@@ -303,7 +305,7 @@ suite "MultiAddress test suite":
     for item in FailureVectors:
       var r = false
       try:
-        var a = MultiAddress.init(item)
+        discard MultiAddress.init(item)
       except:
         r = true
       check r == true
@@ -319,7 +321,7 @@ suite "MultiAddress test suite":
     for item in RustFailureVectors:
       var r = false
       try:
-        var a = MultiAddress.init(item)
+        discard MultiAddress.init(item)
       except:
         r = true
       check r == true

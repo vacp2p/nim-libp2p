@@ -1,15 +1,17 @@
 import unittest, options
 import chronos, strutils, sequtils
-import ../libp2p/[protocols/identify, 
-                  multiaddress, 
-                  peerinfo, 
-                  peer, 
-                  connection, 
-                  multistream, 
+import ../libp2p/[protocols/identify,
+                  multiaddress,
+                  peerinfo,
+                  peer,
+                  connection,
+                  multistream,
                   transports/transport,
-                  transports/tcptransport, 
-                  protocols/protocol, 
+                  transports/tcptransport,
+                  protocols/protocol,
                   crypto/crypto]
+
+when defined(nimHasUsed): {.used.}
 
 suite "Identify":
   test "handle identify message":

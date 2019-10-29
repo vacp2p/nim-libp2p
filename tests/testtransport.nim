@@ -1,10 +1,12 @@
 import unittest
 import chronos
-import ../libp2p/[connection, 
-                  transports/transport, 
+import ../libp2p/[connection,
+                  transports/transport,
                   transports/tcptransport,
-                  multiaddress, 
+                  multiaddress,
                   wire]
+
+when defined(nimHasUsed): {.used.}
 
 suite "TCP transport":
   test "test listener: handle write":

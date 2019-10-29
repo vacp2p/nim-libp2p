@@ -1,6 +1,8 @@
 import unittest
 import ../libp2p/varint
 
+when defined(nimHasUsed): {.used.}
+
 const PBedgeValues = [
   0'u64, (1'u64 shl 7) - 1'u64,
   (1'u64 shl 7), (1'u64 shl 14) - 1'u64,

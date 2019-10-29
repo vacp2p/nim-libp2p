@@ -9,12 +9,12 @@
 ## those terms.
 import chronos, chronicles
 import nimcrypto/[sysrand, hmac, sha2, sha, hash, rijndael, twofish, bcmode]
-import secure, 
-       ../../connection, 
-       ../../crypto/crypto, 
+import secure,
+       ../../connection,
+       ../../crypto/crypto,
        ../../crypto/ecnist,
-       ../../protobuf/minprotobuf, 
-       ../../peer, 
+       ../../protobuf/minprotobuf,
+       ../../peer,
        ../../stream/bufferstream
 export hmac, sha2, sha, hash, rijndael, bcmode
 
@@ -208,9 +208,9 @@ proc writeMessage*(sconn: SecureConnection, message: seq[byte]) {.async.} =
   sconn.writerMac.finish(msg.toOpenArray(mo, mo + macsize - 1))
   sconn.writerMac.reset()
   let length = len(message) + macsize
-  msg[0] = byte(length shr 24)
-  msg[1] = byte(length shr 16)
-  msg[2] = byte(length shr 8)
+  msg[0] = byte((length shr 24) and 0xFF)
+  msg[1] = byte((length shr 16) and 0xFF)
+  msg[2] = byte((length shr 8) and 0xFF)
   msg[3] = byte(length and 0xFF)
   trace "Writing message", message = toHex(msg)
   try:

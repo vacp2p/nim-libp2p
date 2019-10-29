@@ -1,6 +1,8 @@
 import unittest
 import ../libp2p/base64
 
+when defined(nimHasUsed): {.used.}
+
 const TVBasePadding = [
   ["f", "Zg=="],
   ["fo", "Zm8="],

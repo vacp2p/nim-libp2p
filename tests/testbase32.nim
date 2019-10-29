@@ -1,6 +1,8 @@
 import unittest
 import ../libp2p/base32
 
+when defined(nimHasUsed): {.used.}
+
 const TVBaseUpperPadding = [
   ["f", "MY======"],
   ["fo", "MZXQ===="],

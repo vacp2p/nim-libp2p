@@ -1,6 +1,8 @@
 import unittest
 import ../libp2p/multibase
 
+when defined(nimHasUsed): {.used.}
+
 const GoTestVectors = [
   [
     "identity",
@@ -292,12 +294,12 @@ suite "MultiBase test suite":
     var r1 = false
     var r2 = false
     try:
-      var enc = MultiBase.encode("unknwon", data)
+      discard MultiBase.encode("unknwon", data)
     except MultiBaseError:
       r1 = true
 
     try:
-      var dec = MultiBase.decode("\x01\x00")
+      discard MultiBase.decode("\x01\x00")
     except MultiBaseError:
       r2 = true
 

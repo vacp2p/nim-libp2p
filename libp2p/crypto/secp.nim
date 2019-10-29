@@ -6,7 +6,6 @@
 ## at your option.
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
-import strutils
 import secp256k1, nimcrypto/sysrand, nimcrypto/utils, nimcrypto/hash,
        nimcrypto/sha2
 export sha2
@@ -268,10 +267,10 @@ proc toBytes*(key: SkPublicKey, data: var openarray[byte]): int =
   var length = csize(len(data))
   result = SkRawPublicKeySize
   if len(data) >= SkRawPublicKeySize:
-    let res = secp256k1_ec_pubkey_serialize(ctx.context,
-                                            cast[ptr cuchar](addr data[0]),
-                                            addr length, unsafeAddr key,
-                                            SECP256K1_EC_COMPRESSED)
+    discard secp256k1_ec_pubkey_serialize(ctx.context,
+                                          cast[ptr cuchar](addr data[0]),
+                                          addr length, unsafeAddr key,
+                                          SECP256K1_EC_COMPRESSED)
 
 proc toBytes*(sig: SkSignature, data: var openarray[byte]): int =
   ## Serialize Secp256k1 `signature` ``sig`` to raw binary form and store it

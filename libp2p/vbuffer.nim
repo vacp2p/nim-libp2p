@@ -80,7 +80,6 @@ proc writeSeq*[T: byte|char](vb: var VBuffer, value: openarray[T]) =
 proc writeArray*[T: byte|char](vb: var VBuffer, value: openarray[T]) =
   ## Write array ``value`` to buffer ``vb``, value will NOT be prefixed with
   ## varint length of the array.
-  var length = 0
   if len(value) > 0:
     vb.buffer.setLen(len(vb.buffer) + len(value))
     copyMem(addr vb.buffer[vb.offset], unsafeAddr value[0], len(value))

@@ -386,7 +386,6 @@ proc init*(key: var RsaPrivateKey, data: openarray[byte]): Asn1Status =
   ## Procedure returns ``Asn1Status``.
   var
     field, rawn, rawpube, rawprie, rawp, rawq, rawdp, rawdq, rawiq: Asn1Field
-    version: uint64
 
   var ab = Asn1Buffer.init(data)
   result = ab.read(field)
@@ -484,7 +483,7 @@ proc init*(key: var RsaPublicKey, data: openarray[byte]): Asn1Status =
   ## ``data``.
   ##
   ## Procedure returns ``Asn1Status``.
-  var field, rawn, rawe, oid: Asn1Field
+  var field, rawn, rawe: Asn1Field
   var ab = Asn1Buffer.init(data)
 
   result = ab.read(field)

@@ -572,7 +572,6 @@ proc `$`*(value: MultiAddress): string =
   ## Return string representation of MultiAddress ``value``.
   var header: uint64
   var vb = value
-  var data = newSeq[byte]()
   var parts = newSeq[string]()
   var part: string
   while true:

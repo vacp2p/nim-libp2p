@@ -11,7 +11,7 @@
 ##
 ## TODO:
 ## 1. base32z
-import tables, strutils
+import tables
 import base32, base58, base64
 
 type
@@ -20,18 +20,14 @@ type
 
   MultiBase* = object
 
-  MBDecoder = proc(inbytes: openarray[char],
-                   outbytes: var openarray[byte],
-                   outlen: var int): MultibaseStatus {.nimcall.}
-  MBEncoder = proc(inbytes: openarray[byte],
-                   outbytes: var openarray[char],
-                   outlen: var int): MultibaseStatus {.nimcall.}
   MBCodeSize = proc(length: int): int {.nimcall.}
 
   MBCodec = object
     code: char
     name: string
-    encr: MBEncoder
+    encr: proc(inbytes: openarray[byte],
+               outbytes: var openarray[char],
+               outlen: var int): MultibaseStatus {.nimcall.}
     decr: proc(inbytes: openarray[char],
                outbytes: var openarray[byte],
                outlen: var int): MultibaseStatus {.nimcall.}

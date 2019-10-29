@@ -2,6 +2,8 @@ import unittest, deques, sequtils, strformat
 import chronos
 import ../libp2p/stream/bufferstream
 
+when defined(nimHasUsed): {.used.}
+
 suite "BufferStream":
   test "push data to buffer":
     proc testPushTo(): Future[bool] {.async.} =
@@ -150,7 +152,7 @@ suite "BufferStream":
 
   test "write ptr":
     proc testWritePtr(): Future[bool] {.async.} =
-      proc writeHandler(data: seq[byte]) {.async, gcsafe.} = 
+      proc writeHandler(data: seq[byte]) {.async, gcsafe.} =
         check cast[string](data) == "Hello!"
 
       let buff = newBufferStream(writeHandler, 10)
@@ -165,7 +167,7 @@ suite "BufferStream":
 
   test "write string":
     proc testWritePtr(): Future[bool] {.async.} =
-      proc writeHandler(data: seq[byte]) {.async, gcsafe.} = 
+      proc writeHandler(data: seq[byte]) {.async, gcsafe.} =
         check cast[string](data) == "Hello!"
 
       let buff = newBufferStream(writeHandler, 10)
@@ -179,7 +181,7 @@ suite "BufferStream":
 
   test "write bytes":
     proc testWritePtr(): Future[bool] {.async.} =
-      proc writeHandler(data: seq[byte]) {.async, gcsafe.} = 
+      proc writeHandler(data: seq[byte]) {.async, gcsafe.} =
         check cast[string](data) == "Hello!"
 
       let buff = newBufferStream(writeHandler, 10)
@@ -194,7 +196,7 @@ suite "BufferStream":
   test "write should happen in order":
     proc testWritePtr(): Future[bool] {.async.} =
       var count = 1
-      proc writeHandler(data: seq[byte]) {.async, gcsafe.} = 
+      proc writeHandler(data: seq[byte]) {.async, gcsafe.} =
         check cast[string](data) == &"Msg {$count}"
         count.inc
 

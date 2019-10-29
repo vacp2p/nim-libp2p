@@ -1,21 +1,23 @@
 import unittest, tables, options
 import chronos, chronicles
-import ../libp2p/[switch, 
+import ../libp2p/[switch,
                   multistream,
-                  protocols/identify, 
+                  protocols/identify,
                   connection,
                   transports/transport,
                   transports/tcptransport,
-                  multiaddress, 
+                  multiaddress,
                   peerinfo,
-                  crypto/crypto, 
+                  crypto/crypto,
                   peer,
-                  protocols/protocol, 
+                  protocols/protocol,
                   muxers/muxer,
-                  muxers/mplex/mplex, 
+                  muxers/mplex/mplex,
                   muxers/mplex/types,
                   protocols/secure/secio,
                   protocols/secure/secure]
+
+when defined(nimHasUsed): {.used.}
 
 const TestCodec = "/test/proto/1.0.0"
 
@@ -23,7 +25,7 @@ type
   TestProto = ref object of LPProtocol
 
 method init(p: TestProto) {.gcsafe.} =
-  proc handle(conn: Connection, proto: string) {.async, gcsafe.} = 
+  proc handle(conn: Connection, proto: string) {.async, gcsafe.} =
     let msg = cast[string](await conn.readLp())
     check "Hello!" == msg
     await conn.writeLp("Hello!")
@@ -33,7 +35,7 @@ method init(p: TestProto) {.gcsafe.} =
   p.handler = handle
 
 suite "Switch":
-  test "e2e use switch": 
+  test "e2e use switch":
     proc createSwitch(ma: MultiAddress): (Switch, PeerInfo) =
       let seckey = PrivateKey.random(RSA)
       var peerInfo: PeerInfo
@@ -54,7 +56,7 @@ suite "Switch":
     proc testSwitch(): Future[bool] {.async, gcsafe.} =
       let ma1: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
       let ma2: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
-      
+
       var peerInfo1, peerInfo2: PeerInfo
       var switch1, switch2: Switch
       (switch1, peerInfo1) = createSwitch(ma1)

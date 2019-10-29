@@ -2,6 +2,8 @@ import unittest
 import nimcrypto/utils
 import ../libp2p/multihash
 
+when defined(nimHasUsed): {.used.}
+
 const
   RustTestVectors = [
     [

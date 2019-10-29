@@ -472,7 +472,6 @@ proc read*(ab: var Asn1Buffer, field: var Asn1Field): Asn1Status =
     tag, ttag, offset: int
     length, tlength: uint64
     klass: Asn1Class
-    res: Asn1Status
     inclass: bool
 
   inclass = false

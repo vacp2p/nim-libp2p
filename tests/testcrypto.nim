@@ -13,6 +13,8 @@ import unittest
 import nimcrypto/utils
 import ../libp2p/crypto/crypto
 
+when defined(nimHasUsed): {.used.}
+
 const
   PrivateKeys = [
     """080012BE023082013A020100024100AD8A7D5B0EB7C852C1464E4567651F412C

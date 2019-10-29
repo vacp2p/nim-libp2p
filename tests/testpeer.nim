@@ -13,6 +13,8 @@ import unittest
 import nimcrypto/utils
 import ../libp2p/crypto/crypto, ../libp2p/peer, ../libp2p/base58
 
+when defined(nimHasUsed): {.used.}
+
 const
   # Test vectors are generated using
   # https://github.com/libp2p/go-libp2p-crypto/blob/master/key.go

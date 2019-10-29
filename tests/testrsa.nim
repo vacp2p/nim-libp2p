@@ -10,6 +10,8 @@ import unittest
 import nimcrypto/utils
 import ../libp2p/crypto/rsa
 
+when defined(nimHasUsed): {.used.}
+
 const
   TestsCount = 20 # number of random tests
 
@@ -418,7 +420,7 @@ suite "RSA 512/1024/2048/4096 test suite":
       var sersk = kp.seckey.getBytes()
       var serpk = kp.pubkey.getBytes()
       var sersig = sig.getBytes()
-      var seckey = RsaPrivateKey.init(sersk)
+      discard RsaPrivateKey.init(sersk)
       var pubkey = RsaPublicKey.init(serpk)
       var csig = RsaSignature.init(sersig)
       check csig.verify(message, pubkey) == true
@@ -434,7 +436,7 @@ suite "RSA 512/1024/2048/4096 test suite":
       var sersk = kp.seckey.getBytes()
       var serpk = kp.pubkey.getBytes()
       var sersig = sig.getBytes()
-      var seckey = RsaPrivateKey.init(sersk)
+      discard RsaPrivateKey.init(sersk)
       var pubkey = RsaPublicKey.init(serpk)
       var csig = RsaSignature.init(sersig)
       check csig.verify(message, pubkey) == true
@@ -449,7 +451,7 @@ suite "RSA 512/1024/2048/4096 test suite":
     var sersk = kp.seckey.getBytes()
     var serpk = kp.pubkey.getBytes()
     var sersig = sig.getBytes()
-    var seckey = RsaPrivateKey.init(sersk)
+    discard RsaPrivateKey.init(sersk)
     var pubkey = RsaPublicKey.init(serpk)
     var csig = RsaSignature.init(sersig)
     check csig.verify(message, pubkey) == true
@@ -465,7 +467,7 @@ suite "RSA 512/1024/2048/4096 test suite":
       var sersk = kp.seckey.getBytes()
       var serpk = kp.pubkey.getBytes()
       var sersig = sig.getBytes()
-      var seckey = RsaPrivateKey.init(sersk)
+      discard RsaPrivateKey.init(sersk)
       var pubkey = RsaPublicKey.init(serpk)
       var csig = RsaSignature.init(sersig)
       check csig.verify(message, pubkey) == true

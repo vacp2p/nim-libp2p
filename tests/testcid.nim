@@ -1,6 +1,8 @@
 import unittest
 import ../libp2p/[cid, multihash, multicodec]
 
+when defined(nimHasUsed): {.used.}
+
 suite "Content identifier CID test suite":
 
   test "CIDv0 test vector":
@@ -13,7 +15,7 @@ suite "Content identifier CID test suite":
       cid0.mhash().mcodec == multiCodec("sha2-256")
     var res = 0
     try:
-      var cidb0 = Cid.init("QmdfTbBqBPQ7VNxZEYEj14VmRuZBkqFbiwReogJgS1zIII")
+      discard Cid.init("QmdfTbBqBPQ7VNxZEYEj14VmRuZBkqFbiwReogJgS1zIII")
     except CidError:
       res = 1
     check res == 1
@@ -29,7 +31,7 @@ suite "Content identifier CID test suite":
       cid1.contentType() == multiCodec("raw")
       cid1.mhash().mcodec == multiCodec("sha2-256")
       hex(cid1) == chex
-    
+
   test "Comparison test":
     var msg = "Hello World!"
     var mmsg = "Hello World!Hello World!"

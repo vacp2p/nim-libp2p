@@ -12,6 +12,8 @@ import unittest
 import nimcrypto/utils
 import ../libp2p/crypto/ed25519/ed25519
 
+when defined(nimHasUsed): {.used.}
+
 const TestsCount = 20
 
 const SecretKeys = [
@@ -174,7 +176,7 @@ suite "Ed25519 test suite":
       var sersk = kp.seckey.getBytes()
       var serpk = kp.pubkey.getBytes()
       var sersig = sig.getBytes()
-      var seckey = EdPrivateKey.init(sersk)
+      discard EdPrivateKey.init(sersk)
       var pubkey = EdPublicKey.init(serpk)
       var csig = EdSignature.init(sersig)
       check csig.verify(message, pubkey) == true

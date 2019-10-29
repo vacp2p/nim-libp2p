@@ -6,7 +6,6 @@
 ## at your option.
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
-
 import unittest, options, tables, sugar, sequtils
 import chronos, chronicles
 import ../libp2p/[switch,
@@ -28,12 +27,14 @@ import ../libp2p/[switch,
                   protocols/pubsub/pubsub,
                   protocols/pubsub/floodsub]
 
+when defined(nimHasUsed): {.used.}
+
 proc createMplex(conn: Connection): Muxer =
   result = newMplex(conn)
 
-proc createNode(privKey: Option[PrivateKey] = none(PrivateKey), 
-                address: string = "/ip4/127.0.0.1/tcp/0", 
-                triggerSelf: bool = false): Switch = 
+proc createNode(privKey: Option[PrivateKey] = none(PrivateKey),
+                address: string = "/ip4/127.0.0.1/tcp/0",
+                triggerSelf: bool = false): Switch =
   var peerInfo: PeerInfo
   var seckey = privKey
   if privKey.isNone:
@@ -59,7 +60,7 @@ proc generateNodes*(num: Natural): seq[Switch] =
   for i in 0..<num:
     result.add(createNode())
 
-proc subscribeNodes*(nodes: seq[Switch]) {.async.} = 
+proc subscribeNodes*(nodes: seq[Switch]) {.async.} =
   var pending: seq[Future[void]]
   for dialer in nodes:
     for node in nodes:
@@ -67,10 +68,10 @@ proc subscribeNodes*(nodes: seq[Switch]) {.async.} =
   await allFutures(pending)
 
 suite "PubSub":
-  test "FloodSub basic publish/subscribe A -> B": 
+  test "FloodSub basic publish/subscribe A -> B":
     proc testBasicPubSub(): Future[bool] {.async.} =
       var passed: bool
-      proc handler(topic: string, data: seq[byte]) {.async, gcsafe.} = 
+      proc handler(topic: string, data: seq[byte]) {.async, gcsafe.} =
         check topic == "foobar"
         passed = true
 
@@ -94,7 +95,7 @@ suite "PubSub":
 
   test "FloodSub basic publish/subscribe B -> A":
     proc testBasicPubSub(): Future[bool] {.async.} =
-      proc handler(topic: string, data: seq[byte]) {.async, gcsafe.} = 
+      proc handler(topic: string, data: seq[byte]) {.async, gcsafe.} =
         check topic == "foobar"
 
       var nodes = generateNodes(2)
@@ -115,10 +116,10 @@ suite "PubSub":
     check:
       waitFor(testBasicPubSub()) == true
 
-  test "FloodSub multiple peers, no self trigger": 
+  test "FloodSub multiple peers, no self trigger":
     proc testBasicFloodSub(): Future[bool] {.async.} =
       var passed: int
-      proc handler(topic: string, data: seq[byte]) {.async, gcsafe.} = 
+      proc handler(topic: string, data: seq[byte]) {.async, gcsafe.} =
         check topic == "foobar"
         passed.inc()
 
@@ -147,10 +148,10 @@ suite "PubSub":
     check:
       waitFor(testBasicFloodSub()) == true
 
-  test "FloodSub multiple peers, with self trigger": 
+  test "FloodSub multiple peers, with self trigger":
     proc testBasicFloodSub(): Future[bool] {.async.} =
       var passed: int
-      proc handler(topic: string, data: seq[byte]) {.async, gcsafe.} = 
+      proc handler(topic: string, data: seq[byte]) {.async, gcsafe.} =
         check topic == "foobar"
         passed.inc()
 

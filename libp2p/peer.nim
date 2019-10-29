@@ -16,7 +16,7 @@ import protobuf/minprotobuf
 const
   maxInlineKeyLength* = 42
 
-# TODO: add proper on disc serialization 
+# TODO: add proper on disc serialization
 # using peer-id protobuf format
 type
   PeerID* = object
@@ -165,7 +165,6 @@ proc init*(t: typedesc[PeerID], pubkey: PublicKey): PeerID =
   ## Create new peer id from public key ``pubkey``.
   var pubraw = pubkey.getBytes()
   var mh: MultiHash
-  var codec: MultiCodec
   if len(pubraw) <= maxInlineKeyLength:
     mh = MultiHash.digest("identity", pubraw)
   else:

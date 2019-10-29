@@ -3,6 +3,8 @@ import chronos
 import ../libp2p/daemon/daemonapi, ../libp2p/multiaddress, ../libp2p/multicodec,
        ../libp2p/cid, ../libp2p/multihash, ../libp2p/peer
 
+when defined(nimHasUsed): {.used.}
+
 proc identitySpawnTest(): Future[bool] {.async.} =
   var api = await newDaemonApi()
   var data = await api.identity()
