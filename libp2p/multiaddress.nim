@@ -490,6 +490,15 @@ proc protoArgument*(ma: MultiAddress, value: var openarray[byte]): int =
     if len(value) >= result:
       copyMem(addr value[0], addr buffer[0], result)
 
+proc protoAddress*(ma: MultiAddress): seq[byte] =
+  ## Returns MultiAddress ``ma`` protocol address binary blob.
+  ##
+  ## If current MultiAddress do not have argument value, then result array will
+  ## be empty.
+  result = newSeq[byte](len(ma.data.buffer))
+  let res = protoArgument(ma, result)
+  result.setLen(res)
+
 proc getPart(ma: MultiAddress, index: int): MultiAddress =
   var header: uint64
   var data = newSeq[byte]()
