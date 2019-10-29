@@ -196,17 +196,17 @@ proc finish*(pb: var ProtoBuffer) =
     pb.offset = pos
   elif WithUint32BeLength in pb.options:
     let size = uint(len(pb.buffer) - 4)
-    pb.buffer[0] = byte(size shr 24)
-    pb.buffer[1] = byte(size shr 16)
-    pb.buffer[2] = byte(size shr 8)
+    pb.buffer[0] = byte((size shr 24) and 0xFF)
+    pb.buffer[1] = byte((size shr 16) and 0xFF)
+    pb.buffer[2] = byte((size shr 8) and 0xFF)
     pb.buffer[3] = byte(size and 0xFF)
     pb.offset = 4
   elif WithUint32LeLength in pb.options:
     let size = uint(len(pb.buffer) - 4)
     pb.buffer[0] = byte(size and 0xFF)
-    pb.buffer[1] = byte(size shr 8)
-    pb.buffer[2] = byte(size shr 16)
-    pb.buffer[3] = byte(size shr 24)
+    pb.buffer[1] = byte((size shr 8) and 0xFF)
+    pb.buffer[2] = byte((size shr 16) and 0xFF)
+    pb.buffer[3] = byte((size shr 24) and 0xFF)
     pb.offset = 4
   else:
     pb.offset = 0
