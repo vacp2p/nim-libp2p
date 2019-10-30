@@ -52,4 +52,7 @@ proc newMCache*(window: Natural, history: Natural): MCache =
   result.historySize = history
   result.window = window
   result.history = initDeque[seq[CacheEntry]](nextPowerOfTwo(history))
+  for i in 0..history:
+    result.history.addFirst(@[])
+
   result.msgs = initTable[string, Message]()

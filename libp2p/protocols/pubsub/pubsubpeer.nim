@@ -77,11 +77,11 @@ proc sendMsg*(p: PubSubPeer,
 
 proc sendGraft*(p: PubSubPeer, topics: seq[string]) {.async, gcsafe.} =
   for topic in topics:
-    await p.send(@[RPCMsg(control: ControlMessage(graft: @[ControlGraft(topicID: topic)]))])
+    await p.send(@[RPCMsg(control: some(ControlMessage(graft: @[ControlGraft(topicID: topic)])))])
 
 proc sendPrune*(p: PubSubPeer, topics: seq[string]) {.async, gcsafe.} = 
   for topic in topics:
-    await p.send(@[RPCMsg(control: ControlMessage(prune: @[ControlPrune(topicID: topic)]))])
+    await p.send(@[RPCMsg(control: some(ControlMessage(prune: @[ControlPrune(topicID: topic)])))])
 
 proc newPubSubPeer*(conn: Connection, handler: RPCHandler, proto: string): PubSubPeer =
   new result

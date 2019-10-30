@@ -6,10 +6,10 @@
 ## at your option.
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
-import unittest, options, tables, sugar, sequtils
-import chronos, chronicles
+
+import unittest, options, tables, sequtils
+import chronos
 import ../libp2p/[switch,
-                  multistream,
                   protocols/identify,
                   connection,
                   transports/transport,
@@ -18,13 +18,13 @@ import ../libp2p/[switch,
                   peerinfo,
                   crypto/crypto,
                   peer,
-                  protocols/protocol,
                   muxers/muxer,
                   muxers/mplex/mplex,
                   muxers/mplex/types,
                   protocols/secure/secure,
                   protocols/secure/secio,
                   protocols/pubsub/pubsub,
+                  protocols/pubsub/gossipsub,
                   protocols/pubsub/floodsub]
 
 when defined(nimHasUsed): {.used.}
@@ -32,9 +32,10 @@ when defined(nimHasUsed): {.used.}
 proc createMplex(conn: Connection): Muxer =
   result = newMplex(conn)
 
-proc createNode(privKey: Option[PrivateKey] = none(PrivateKey),
+proc createNode(privKey: Option[PrivateKey] = none(PrivateKey), 
                 address: string = "/ip4/127.0.0.1/tcp/0",
-                triggerSelf: bool = false): Switch =
+                triggerSelf: bool = false,
+                gossip: bool = false): Switch = 
   var peerInfo: PeerInfo
   var seckey = privKey
   if privKey.isNone:
@@ -48,7 +49,13 @@ proc createNode(privKey: Option[PrivateKey] = none(PrivateKey),
   let muxers = [(MplexCodec, mplexProvider)].toTable()
   let identify = newIdentify(peerInfo)
   let secureManagers = [(SecioCodec, Secure(newSecio(seckey.get())))].toTable()
-  let pubSub = some(PubSub(newPubSub(FloodSub, peerInfo, triggerSelf)))
+  
+  var pubSub: Option[PubSub]
+  if gossip:
+    pubSub = some(PubSub(newPubSub(GossipSub, peerInfo, triggerSelf)))
+  else:
+    pubSub = some(PubSub(newPubSub(FloodSub, peerInfo, triggerSelf)))
+
   result = newSwitch(peerInfo,
                      transports,
                      identify,
@@ -56,9 +63,9 @@ proc createNode(privKey: Option[PrivateKey] = none(PrivateKey),
                      secureManagers = secureManagers,
                      pubSub = pubSub)
 
-proc generateNodes*(num: Natural): seq[Switch] =
+proc generateNodes*(num: Natural, gossip: bool = false): seq[Switch] =
   for i in 0..<num:
-    result.add(createNode())
+    result.add(createNode(gossip = gossip))
 
 proc subscribeNodes*(nodes: seq[Switch]) {.async.} =
   var pending: seq[Future[void]]
@@ -179,3 +186,56 @@ suite "PubSub":
 
     check:
       waitFor(testBasicFloodSub()) == true
+
+  test "GossipSub send over fanout A -> B":
+    proc testBasicPubSub(): Future[bool] {.async.} =
+      var passed: bool
+      proc handler(topic: string, data: seq[byte]) {.async, gcsafe.} = 
+        check topic == "foobar"
+        passed = true
+
+      var nodes = generateNodes(2, true)
+      var wait = await nodes[1].start()
+
+      await subscribeNodes(nodes)
+
+      await nodes[1].subscribe("foobar", handler)
+      await sleepAsync(100.millis)
+
+      await nodes[0].publish("foobar", cast[seq[byte]]("Hello!"))
+      await sleepAsync(100.millis)
+
+      await nodes[1].stop()
+      await allFutures(wait)
+      result = passed
+
+    check:
+      waitFor(testBasicPubSub()) == true
+
+  test "GossipSub send over mesh A -> B": 
+    proc testBasicPubSub(): Future[bool] {.async.} =
+      var passed: bool
+      proc handler(topic: string, data: seq[byte]) {.async, gcsafe.} = 
+        check topic == "foobar"
+        passed = true
+
+      var nodes = generateNodes(2, true)
+      var wait = await nodes[1].start()
+
+      await subscribeNodes(nodes)
+
+      await nodes[0].subscribe("foobar", handler)
+      await sleepAsync(100.millis)
+
+      await nodes[1].subscribe("foobar", handler)
+      await sleepAsync(100.millis)
+
+      await nodes[0].publish("foobar", cast[seq[byte]]("Hello!"))
+      await sleepAsync(1000.millis)
+
+      await nodes[1].stop()
+      await allFutures(wait)
+      result = passed
+
+    check:
+      waitFor(testBasicPubSub()) == true
