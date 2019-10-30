@@ -62,6 +62,12 @@ method init(g: GossipSub) =
   g.handler = handler
   g.codec = GossipSubCodec
 
+method handleDisconnect(g: GossipSub, peer: PubSubPeer) {.async, gcsafe.} = 
+  ## handle peer disconnects
+  await procCall FloodSub(g).handleDisconnect(peer)
+  for t in g.gossipsub.keys:
+    g.gossipsub[t].excl(peer.id)
+
 proc subscribeTopic*(g: GossipSub,
                      topic: string,
                      subscribe: bool,

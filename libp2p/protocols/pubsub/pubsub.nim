@@ -61,6 +61,10 @@ method rpcHandler*(p: PubSub,
   ## handle rpc messages
   discard
 
+method handleDisconnect*(p: PubSub, peer: PubSubPeer) {.async, base, gcsafe.} = 
+  ## handle peer disconnects
+  p.peers.del(peer.id)
+
 method handleConn*(p: PubSub,
                    conn: Connection,
                    proto: string) {.base, async, gcsafe.} =
@@ -98,7 +102,9 @@ method handleConn*(p: PubSub,
     proc(udata: pointer = nil) {.gcsafe.} = 
       trace "pubsub peer handler ended, cleaning up",
         peer = conn.peerInfo.peerId.get().pretty
-      p.peers.del(peer.id)
+
+      # TODO: figureout how to handle properly without dicarding
+      discard p.handleDisconnect(peer)
   )
 
 method subscribeToPeer*(p: PubSub,

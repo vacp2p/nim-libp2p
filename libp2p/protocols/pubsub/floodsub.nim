@@ -44,6 +44,11 @@ proc subscribeTopic*(f: FloodSub,
       # unsubscribe the peer from the topic
       f.floodsub[topic].excl(peerId)
 
+method handleDisconnect*(f: FloodSub, peer: PubSubPeer) {.async, gcsafe.} = 
+  ## handle peer disconnects
+  for t in f.floodsub.keys:
+    f.floodsub[t].excl(peer.id)
+
 method rpcHandler*(f: FloodSub,
                    peer: PubSubPeer,
                    rpcMsgs: seq[RPCMsg]) {.async, gcsafe.} =
