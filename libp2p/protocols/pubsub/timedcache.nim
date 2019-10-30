@@ -7,7 +7,7 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import tables, hashes
+import tables
 import chronos, chronicles
 
 logScope:

@@ -11,7 +11,6 @@ import tables, options, sequtils
 import chronos, chronicles
 import pubsubpeer,
        rpc/messages,
-       ../../peer,
        ../protocol,
        ../../connection,
        ../../peerinfo

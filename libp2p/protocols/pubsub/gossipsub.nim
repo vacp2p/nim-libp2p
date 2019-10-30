@@ -7,7 +7,7 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import tables, sets, options, sequtils
+import tables, sets, options
 import chronos, chronicles
 import pubsub,
        floodsub,
@@ -17,9 +17,7 @@ import pubsub,
        rpc/[messages, message],
        ../protocol,
        ../../peerinfo,
-       ../../peer,
-       ../../connection,
-       ../../crypto/crypto
+       ../../connection
 
 logScope:
   topic = "GossipSub"

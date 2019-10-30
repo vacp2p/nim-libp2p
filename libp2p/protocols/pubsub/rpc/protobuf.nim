@@ -10,7 +10,6 @@
 import options
 import chronicles
 import messages,
-       ../../../crypto/crypto,
        ../../../protobuf/minprotobuf
 
 proc encodeGraft*(graft: ControlGraft, pb: var ProtoBuffer) {.gcsafe.} = 

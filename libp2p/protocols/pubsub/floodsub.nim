@@ -13,7 +13,6 @@ import pubsub,
        pubsubpeer,
        timedcache,
        rpc/[messages, message],
-       ../../crypto/crypto,
        ../../connection,
        ../../peerinfo,
        ../../peer
