@@ -9,42 +9,84 @@
 
 import options
 import chronicles
-import messages, 
+import messages,
+       ../../../crypto/crypto,
        ../../../protobuf/minprotobuf
 
 proc encodeGraft*(graft: ControlGraft, pb: var ProtoBuffer) {.gcsafe.} = 
   pb.write(initProtoField(1, graft.topicID))
 
 proc decodeGraft*(pb: var ProtoBuffer): seq[ControlGraft] {.gcsafe.} = 
-  discard
+  trace "decoding graft msg", buffer = pb.buffer.toHex()
+  while true:
+    var topic: string
+    if pb.getString(1, topic) < 0:
+      trace "unable to read topic field from graft msg, breaking"
+      break
+
+    trace "read topic field from graft msg", topicID = topic
+    result.add(ControlGraft(topicID: topic))
 
 proc encodePrune*(prune: ControlPrune, pb: var ProtoBuffer) {.gcsafe.} = 
   pb.write(initProtoField(1, prune.topicID))
 
 proc decodePrune*(pb: var ProtoBuffer): seq[ControlPrune] {.gcsafe.} = 
-  discard
+  trace "decoding prune msg"
+  while true:
+    var topic: string
+    if pb.getString(1, topic) < 0:
+      break
+    trace "read topic field", topicID = topic
+
+    result.add(ControlPrune(topicID: topic))
 
 proc encodeIHave*(ihave: ControlIHave, pb: var ProtoBuffer) {.gcsafe.} = 
-  pb.write(initProtoField(1, ihave.topicId))
+  pb.write(initProtoField(1, ihave.topicID))
   for mid in ihave.messageIDs:
     pb.write(initProtoField(2, mid))
 
 proc decodeIHave*(pb: var ProtoBuffer): seq[ControlIHave] {.gcsafe.} = 
-  discard
+  trace "decoding ihave msg"
+
+  while true:
+    var control: ControlIHave
+    if pb.enterSubMessage() > 0:
+      if pb.getString(1, control.topicID) < 0:
+        error "topic field missing from ihave msg"
+        continue
+
+      trace "read topic field", topicID = control.topicID
+
+      while true:
+        var mid: string
+        if pb.getString(2, mid) < 0:
+          break
+        trace "read messageID field", mid = mid
+        control.messageIDs.add(mid)
+
+    result.add(control)
 
 proc encodeIWant*(iwant: ControlIWant, pb: var ProtoBuffer) {.gcsafe.} = 
   for mid in iwant.messageIDs:
     pb.write(initProtoField(1, mid))
 
 proc decodeIWant*(pb: var ProtoBuffer): seq[ControlIWant] {.gcsafe.} = 
-  discard
+  trace "decoding ihave msg"
+
+  while pb.enterSubMessage() > 0:
+    var mid: string
+    var iWant: ControlIWant
+    while pb.getString(1, mid) > 0:
+      trace "read messageID field", mid = mid
+      iWant.messageIDs.add(mid)
+      result.add(iWant)
 
 proc encodeControl*(control: ControlMessage, pb: var ProtoBuffer) {.gcsafe.} = 
   if control.ihave.len > 0:
     var ihave = initProtoBuffer()
     for h in control.ihave:
       h.encodeIHave(ihave)
-    
+
     # write messages to protobuf
     ihave.finish()
     pb.write(initProtoField(1, ihave))
@@ -77,7 +119,28 @@ proc encodeControl*(control: ControlMessage, pb: var ProtoBuffer) {.gcsafe.} =
     pb.write(initProtoField(4, prune))
 
 proc decodeControl*(pb: var ProtoBuffer): Option[ControlMessage] {.gcsafe.} = 
-  discard
+  trace "decoding control submessage"
+  var control: ControlMessage
+  while true:
+    var field = pb.enterSubMessage()
+    trace "processing submessage", field = field
+    case field:
+    of 0:
+      trace "no submessage found in Control msg"
+      break
+    of 1:
+      control.ihave = pb.decodeIHave()
+    of 2:
+      control.iwant = pb.decodeIWant()
+    of 3:
+      control.graft = pb.decodeGraft()
+    of 4:
+      control.prune = pb.decodePrune()
+    else: 
+      raise newException(CatchableError, "message type not recognized")
+  
+    if result.isNone:
+      result = some(control)
 
 proc encodeSubs*(subs: SubOpts, pb: var ProtoBuffer) {.gcsafe.} = 
   pb.write(initProtoField(1, subs.subscribe))
@@ -190,6 +253,7 @@ proc decodeRpcMsg*(msg: seq[byte]): RPCMsg {.gcsafe.} =
     trace "processing submessage", field = field
     case field:
     of 0:
+      trace "no submessage found in RPC msg"
       break
     of 1:
       result.subscriptions = pb.decodeSubs()

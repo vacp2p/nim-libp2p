@@ -29,7 +29,7 @@ type
       prune*: seq[ControlPrune]
 
     ControlIHave* = object
-      topicId*: string
+      topicID*: string
       messageIDs*: seq[string]
 
     ControlIWant* = object
