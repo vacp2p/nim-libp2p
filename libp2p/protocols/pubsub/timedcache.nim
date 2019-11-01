@@ -13,9 +13,7 @@ import chronos, chronicles
 logScope:
   topic = "TimedCache"
 
-# TODO: this should use `Duration`, but the corresponding 
-# `addTimer` is missing from chronos
-const Timeout* = 10 * 1000 # default timeout in ms
+const Timeout* = 10.seconds # default timeout in ms
 
 type
   ExpireHandler*[V] = proc(key: string, val: V) {.gcsafe.}
@@ -34,7 +32,7 @@ proc newTimedCache*[V](): TimedCache[V] =
 proc put*[V](t: TimedCache[V],
              key: string,
              val: V = "",
-             timeout: uint64 = Timeout,
+             timeout: Duration = Timeout,
              handler: ExpireHandler[V] = nil) = 
   trace "adding entry to timed cache", key = key, val = val
   t.cache[key] = TimedEntry[V](val: val, handler: handler)

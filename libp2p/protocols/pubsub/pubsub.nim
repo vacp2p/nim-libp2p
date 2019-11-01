@@ -13,7 +13,8 @@ import pubsubpeer,
        rpc/messages,
        ../protocol,
        ../../connection,
-       ../../peerinfo
+       ../../peerinfo,
+       ../../peer
 
 export PubSubPeer
 
@@ -103,7 +104,7 @@ method handleConn*(p: PubSub,
         peer = conn.peerInfo.peerId.get().pretty
 
       # TODO: figureout how to handle properly without dicarding
-      discard p.handleDisconnect(peer)
+      asyncDiscard p.handleDisconnect(peer)
   )
 
 method subscribeToPeer*(p: PubSub,
@@ -125,6 +126,12 @@ method unsubscribe*(p: PubSub,
   ## unsubscribe from a ``topic`` string
   result = p.unsubscribe(@[(topic, handler)])
 
+method subscribeTopic*(p: PubSub,
+                       topic: string,
+                       subscribe: bool,
+                       peerId: string) {.base, gcsafe.} = 
+  discard
+
 method subscribe*(p: PubSub,
                   topic: string,
                   handler: TopicHandler) {.base, async, gcsafe.} = 
@@ -141,6 +148,10 @@ method subscribe*(p: PubSub,
     p.topics[topic] = Topic(name: topic)
 
   p.topics[topic].handler.add(handler)
+
+  # p.subscribeTopic(topic, true, p.peerInfo.peerId.get().pretty)
+  for peer in p.peers.values:
+    await p.sendSubs(peer, @[topic], true)
 
 method publish*(p: PubSub,
                 topic: string,

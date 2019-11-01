@@ -13,6 +13,7 @@ import pubsub,
        pubsubpeer,
        timedcache,
        rpc/[messages, message],
+       ../../crypto/crypto,
        ../../connection,
        ../../peerinfo,
        ../../peer
@@ -27,10 +28,12 @@ type
     floodsub*: Table[string, HashSet[string]] # topic to remote peer map
     seen*: TimedCache[Message] # list of messages forwarded to peers
 
-proc subscribeTopic*(f: FloodSub,
-                     topic: string,
-                     subscribe: bool,
-                     peerId: string) {.gcsafe.} =
+method subscribeTopic*(f: FloodSub,
+                       topic: string,
+                       subscribe: bool,
+                       peerId: string) {.gcsafe.} =
+    procCall PubSub(f).subscribeTopic(topic, subscribe, peerId)
+
     if topic notin f.floodsub:
       f.floodsub[topic] = initHashSet[string]()
 
@@ -105,12 +108,9 @@ method publish*(f: FloodSub,
 
 method subscribe*(f: FloodSub,
                   topic: string,
-                  handler: TopicHandler) {.async, gcsafe.} =
-  await procCall PubSub(f).subscribe(topic, handler)
-
+                  handler: TopicHandler) {.async, gcsafe.} = 
   f.subscribeTopic(topic, true, f.peerInfo.peerId.get().pretty)
-  for p in f.peers.values:
-    await f.sendSubs(p, @[topic], true)
+  await procCall PubSub(f).subscribe(topic, handler)
 
 method unsubscribe*(f: FloodSub, 
                     topics: seq[TopicPair]) {.async, gcsafe.} = 
