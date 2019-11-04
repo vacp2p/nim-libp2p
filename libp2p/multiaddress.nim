@@ -665,7 +665,7 @@ proc init*(mtype: typedesc[MultiAddress], protocol: MultiCodec,
            value: PeerID): MultiAddress {.inline.} =
   ## Initialize MultiAddress object from protocol id ``protocol`` and peer id
   ## ``value``.
-  init(mtype, protocol, cast[seq[byte]](value))
+  init(mtype, protocol, value.data)
 
 proc init*(mtype: typedesc[MultiAddress], protocol: MultiCodec): MultiAddress =
   ## Initialize MultiAddress object from protocol id ``protocol``.
