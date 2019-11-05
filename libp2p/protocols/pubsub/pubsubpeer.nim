@@ -7,7 +7,7 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import options, hashes, strutils
+import options, hashes, strutils, sequtils, tables
 import chronos, chronicles
 import rpc/[messages, message, protobuf], 
        timedcache,
@@ -29,7 +29,8 @@ type
       conn*: Connection
       handler*: RPCHandler
       topics*: seq[string]
-      rpcCache: TimedCache[string] # a cache of already sent messages
+      sentRpcCache: TimedCache[string] # a cache of already sent messages
+      recvdRpcCache: TimedCache[string] # a cache of already sent messages
 
     RPCHandler* = proc(peer: PubSubPeer, msg: seq[RPCMsg]): Future[void] {.gcsafe.}
 
@@ -38,36 +39,37 @@ proc handle*(p: PubSubPeer) {.async, gcsafe.} =
   try:
     while not p.conn.closed:
       let data = await p.conn.readLp()
-      trace "Read data from peer", peer = p.id, data = data.toHex()
-      if data.toHex() in p.rpcCache:
-        trace "Message already received, skipping", peer = p.id
+      trace "read data from peer", peer = p.id, data = data.toHex()
+      if data.toHex() in p.recvdRpcCache:
+        trace "message already received, skipping", peer = p.id
         continue
 
       let msg = decodeRpcMsg(data)
-      trace "Decoded msg from peer", peer = p.id, msg = msg
+      trace "decoded msg from peer", peer = p.id, msg = msg
       await p.handler(p, @[msg])
+      p.recvdRpcCache.put(data.toHex())
   except:
-    trace "An exception occured while processing pubsub rpc requests", exc = getCurrentExceptionMsg()
+    error "an exception occured while processing pubsub rpc requests", exc = getCurrentExceptionMsg()
   finally:
     trace "closing connection to pubsub peer", peer = p.id
     await p.conn.close()
 
 proc send*(p: PubSubPeer, msgs: seq[RPCMsg]) {.async, gcsafe.} =
   for m in msgs:
-    trace "sending msgs to peer", peer = p.id, msgs = msgs
+    trace "sending msgs to peer", toPeer = p.id, msgs = msgs
     let encoded = encodeRpcMsg(m)
     if encoded.buffer.len <= 0:
       trace "empty message, skipping", peer = p.id
       return
 
     let encodedHex = encoded.buffer.toHex()
-    if encodedHex in p.rpcCache:
+    if encodedHex in p.sentRpcCache:
       trace "message already sent to peer, skipping", peer = p.id
       continue
 
     trace "sending encoded msgs to peer", peer = p.id, encoded = encodedHex
     await p.conn.writeLp(encoded.buffer)
-    p.rpcCache.put(encodedHex)
+    p.sentRpcCache.put(encodedHex)
 
 proc sendMsg*(p: PubSubPeer,
               peerId: PeerID,
@@ -92,4 +94,5 @@ proc newPubSubPeer*(conn: Connection, handler: RPCHandler, proto: string): PubSu
   result.conn = conn
   result.peerInfo = conn.peerInfo
   result.id = conn.peerInfo.peerId.get().pretty()
-  result.rpcCache = newTimedCache[string]()
+  result.sentRpcCache = newTimedCache[string]()
+  result.recvdRpcCache = newTimedCache[string]()

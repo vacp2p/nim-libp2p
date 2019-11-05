@@ -106,12 +106,6 @@ method publish*(f: FloodSub,
         trace "publishing message", name = topic, peer = p, data = data
         await f.peers[p].sendMsg(f.peerInfo.peerId.get(), topic, data)
 
-method subscribe*(f: FloodSub,
-                  topic: string,
-                  handler: TopicHandler) {.async, gcsafe.} = 
-  f.subscribeTopic(topic, true, f.peerInfo.peerId.get().pretty)
-  await procCall PubSub(f).subscribe(topic, handler)
-
 method unsubscribe*(f: FloodSub, 
                     topics: seq[TopicPair]) {.async, gcsafe.} = 
   await procCall PubSub(f).unsubscribe(topics)

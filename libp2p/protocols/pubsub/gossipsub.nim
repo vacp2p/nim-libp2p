@@ -81,6 +81,8 @@ method subscribeTopic*(g: GossipSub,
                        topic: string,
                        subscribe: bool,
                        peerId: string) {.gcsafe.} =
+    procCall PubSub(g).subscribeTopic(topic, subscribe, peerId)
+
     if topic notin g.gossipsub:
       g.gossipsub[topic] = initHashSet[string]()
 
@@ -96,8 +98,9 @@ method subscribeTopic*(g: GossipSub,
 method rpcHandler(g: GossipSub,
                   peer: PubSubPeer,
                   rpcMsgs: seq[RPCMsg]) {.async, gcsafe.} = 
-  await procCall FloodSub(g).rpcHandler(peer, rpcMsgs)
+  await procCall PubSub(g).rpcHandler(peer, rpcMsgs)
 
+  trace "processing RPC message", peer = peer.id, msg = rpcMsgs
   for m in rpcMsgs:                                # for all RPC messages
     trace "processing message", msg = rpcMsgs
     if m.subscriptions.len > 0:                    # if there are any subscriptions
@@ -172,39 +175,31 @@ proc rebalanceMesh(g: GossipSub, topic: string) {.async, gcsafe.} =
   if topic notin g.mesh:
     g.mesh[topic] = initHashSet[string]()
 
-  var peers = 0
   if g.mesh[topic].len < GossipSubDlo:
-    peers = GossipSubD - g.mesh[topic].len
+    # replenish the mesh if we're bellow GossipSubDlo
+    while g.mesh[topic].len < GossipSubD:
+      trace "gattering peers", peers = g.mesh[topic].len
+      var id: string
+      if topic in g.fanout and g.fanout[topic].len > 0:
+        id = g.fanout[topic].pop()
+        trace "got fanout peer", peer = id
+      elif topic in g.gossipsub and g.gossipsub[topic].len > 0:
+        id = g.gossipsub[topic].pop()
+        trace "got gossipsub peer", peer = id
+      else:
+        trace "no more peers"
+        break
 
-  # replenish the mesh if we're bellow GossipSubDlo
-  while peers > 0:
-    var id: string
-    if topic in g.fanout and g.fanout[topic].len > 0:
-      id = g.fanout[topic].pop()
-      trace "got fanout peer", peer = id
-    elif topic in g.gossipsub and g.gossipsub[topic].len > 0:
-      id = g.gossipsub[topic].pop()
-      trace "got gossipsub peer", peer = id
-    else:
-      trace "no more peers"
-      break
-
-    g.mesh[topic].incl(id)
-    if id in g.peers:
-      let p = g.peers[id]
-      # send a graft message to the peer
-      await p.sendGraft(@[topic])
-    dec(peers)
-  
-  if g.mesh[topic].len > GossipSubDhi:
-    peers = g.mesh[topic].len - GossipSubD
+      g.mesh[topic].incl(id)
+      if id in g.peers:
+        let p = g.peers[id]
+        # send a graft message to the peer
+        await p.sendGraft(@[topic])
 
   # prune peers if we've gone over
-  while peers > 0:
-    if not g.mesh[topic].len > GossipSubDhi:
-      break
-
+  if g.mesh[topic].len > GossipSubDhi:
     while g.mesh[topic].len > GossipSubD:
+      trace "pruning peers", peers = g.mesh[topic].len
       for id in g.mesh[topic]:
         g.mesh[topic].excl(id)
 
@@ -212,7 +207,6 @@ proc rebalanceMesh(g: GossipSub, topic: string) {.async, gcsafe.} =
           let p = g.peers[id]
           # send a graft message to the peer
           await p.sendPrune(@[topic])
-    dec(peers)
 
 proc heatbeat(g: GossipSub) {.async, gcsafe.} = 
   trace "running heartbeat"

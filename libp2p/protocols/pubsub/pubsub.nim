@@ -41,6 +41,7 @@ proc sendSubs*(p: PubSub,
                peer: PubSubPeer,
                topics: seq[string],
                subscribe: bool) {.async, gcsafe.} =
+  writeStackTrace()
   ## send subscriptions to remote peer
   trace "sending subscriptions", peer = peer.id,
                                  subscribe = subscribe,
@@ -87,25 +88,26 @@ method handleConn*(p: PubSub,
       # call floodsub rpc handler
       await p.rpcHandler(peer, msgs)
 
-  # create new pubsub peer
-  var peer = newPubSubPeer(conn, handler, proto)
+  if conn.peerInfo.peerId.get().pretty notin p.peers:
+    # create new pubsub peer
+    var peer = newPubSubPeer(conn, handler, proto)
 
-  trace "created new pubsub peer", id = peer.id
+    trace "created new pubsub peer", id = peer.id
 
-  p.peers[peer.id] = peer
-  let topics = toSeq(p.topics.keys)
-  if topics.len > 0:
-    await p.sendSubs(peer, topics, true)
+    p.peers[peer.id] = peer
+    let topics = toSeq(p.topics.keys)
+    if topics.len > 0:
+      await p.sendSubs(peer, topics, true)
 
-  let handlerFut = peer.handle() # spawn peer read loop
-  handlerFut.addCallback(
-    proc(udata: pointer = nil) {.gcsafe.} = 
-      trace "pubsub peer handler ended, cleaning up",
-        peer = conn.peerInfo.peerId.get().pretty
+    let handlerFut = peer.handle() # spawn peer read loop
+    handlerFut.addCallback(
+      proc(udata: pointer = nil) {.gcsafe.} = 
+        trace "pubsub peer handler ended, cleaning up",
+          peer = conn.peerInfo.peerId.get().pretty
 
-      # TODO: figureout how to handle properly without dicarding
-      asyncDiscard p.handleDisconnect(peer)
-  )
+        # TODO: figureout how to handle properly without dicarding
+        asyncDiscard p.handleDisconnect(peer)
+    )
 
 method subscribeToPeer*(p: PubSub,
                         conn: Connection) {.base, async, gcsafe.} =
@@ -149,7 +151,6 @@ method subscribe*(p: PubSub,
 
   p.topics[topic].handler.add(handler)
 
-  # p.subscribeTopic(topic, true, p.peerInfo.peerId.get().pretty)
   for peer in p.peers.values:
     await p.sendSubs(peer, @[topic], true)
 

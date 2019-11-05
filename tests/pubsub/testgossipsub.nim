@@ -7,13 +7,15 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import unittest
+import unittest, sequtils, options
 import chronos
-import utils, ../../libp2p/switch
+import utils, 
+       ../../libp2p/[switch, 
+                     crypto/crypto]
 
 suite "GossipSub":
   test "GossipSub send over fanout A -> B":
-    proc testBasicPubSub(): Future[bool] {.async.} =
+    proc testRun(): Future[bool] {.async.} =
       var passed: bool
       proc handler(topic: string, data: seq[byte]) {.async, gcsafe.} = 
         check topic == "foobar"
@@ -35,10 +37,10 @@ suite "GossipSub":
       result = passed
 
     check:
-      waitFor(testBasicPubSub()) == true
+      waitFor(testRun()) == true
 
   test "GossipSub send over mesh A -> B": 
-    proc testBasicPubSub(): Future[bool] {.async.} =
+    proc testRun(): Future[bool] {.async.} =
       var passed: bool
       proc handler(topic: string, data: seq[byte]) {.async, gcsafe.} = 
         check topic == "foobar"
@@ -63,4 +65,37 @@ suite "GossipSub":
       result = passed
 
     check:
-      waitFor(testBasicPubSub()) == true
+      waitFor(testRun()) == true
+
+  test "GossipSub with multiple peers":
+    proc testRun(): Future[bool] {.async.} =
+      var passed: int
+      proc handler(topic: string, data: seq[byte]) {.async, gcsafe.} =
+        writeStackTrace()
+        check topic == "foobar"
+        passed.inc()
+
+      var nodes: seq[Switch] = newSeq[Switch]()
+      for i in 0..<20:
+        nodes.add(createNode(none(PrivateKey), "/ip4/127.0.0.1/tcp/0", true, true))
+
+      var awaitters: seq[Future[void]]
+      for node in nodes:
+        awaitters.add(await node.start())
+        await node.subscribe("foobar", handler)
+        await sleepAsync(10.millis)
+
+      await subscribeNodes(nodes)
+      await sleepAsync(10.millis)
+
+      for node in nodes:
+        await node.publish("foobar", cast[seq[byte]]("Hello!"))
+        await sleepAsync(10.millis)
+
+      await allFutures(nodes.mapIt(it.stop()))
+      await allFutures(awaitters)
+
+      result = passed == 20
+
+    check:
+      waitFor(testRun()) == true
