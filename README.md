@@ -56,7 +56,7 @@ The native Nim libp2p implementation has finally arrived. Currently, it's suppor
 
 ### What to expect?
 
-The current implementation implements a bare minimum set of components in order to provide a functional and interoperable libp2p implementation. These are:
+This implementation has a bare minimum set of components in order to provide a functional and interoperable libp2p stack. These are:
 
 - A TCP transport
 - multistream-select
