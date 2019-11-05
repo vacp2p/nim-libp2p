@@ -7,7 +7,7 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import tables, sets, options, sequtils
+import tables, sets, options, sequtils, random
 import chronos, chronicles
 import pubsub,
        floodsub,
@@ -24,23 +24,23 @@ import pubsub,
 logScope:
   topic = "GossipSub"
 
-const GossipSubCodec = "/meshsub/1.0.0"
+const GossipSubCodec* = "/meshsub/1.0.0"
 
 # overlay parameters
-const GossipSubD   = 6
-const GossipSubDlo = 4
-const GossipSubDhi = 12
+const GossipSubD*   = 6
+const GossipSubDlo* = 4
+const GossipSubDhi* = 12
 
 # gossip parameters
-const GossipSubHistoryLength = 5
-const GossipSubHistoryGossip = 3
+const GossipSubHistoryLength* = 5
+const GossipSubHistoryGossip* = 3
 
 # heartbeat interval
-const GossipSubHeartbeatInitialDelay = 100.millis
-const GossipSubHeartbeatInterval     = 1.seconds
+const GossipSubHeartbeatInitialDelay* = 100.millis
+const GossipSubHeartbeatInterval *    = 1.seconds
 
 # fanout ttl
-const GossipSubFanoutTTL = 60.seconds
+const GossipSubFanoutTTL* = 60.seconds
 
 type
   GossipSub* = ref object of FloodSub
@@ -52,6 +52,23 @@ type
     control*: Table[string, ControlMessage] # pending control messages
     mcache*: MCache # messages cache
     heartbeatCancel*: Future[void] # cancelation future for heartbeat interval
+
+# TODO: This belong in chronos, temporary left here until chronos is updated
+proc addInterval*(every: Duration, cb: CallbackFunc, udata: pointer = nil): Future[void] =
+  ## Arrange the callback ``cb`` to be called on every ``Duration`` window
+
+  var retFuture = newFuture[void]("chronos.addInterval(Duration)")
+  proc interval(arg: pointer = nil) {.gcsafe.}
+  proc scheduleNext() =
+    if not retFuture.finished():
+      addTimer(Moment.fromNow(every), interval)
+
+  proc interval(arg: pointer = nil) {.gcsafe.} =
+    cb(udata)
+    scheduleNext()
+
+  scheduleNext()
+  return retFuture
 
 method init(g: GossipSub) = 
   proc handler(conn: Connection, proto: string) {.async, gcsafe.} =
@@ -169,13 +186,14 @@ proc replenishFanout(g: GossipSub, topic: string) {.async, gcsafe.} =
         if g.fanout[topic].len == GossipSubD:
           return
 
-proc rebalanceMesh(g: GossipSub, topic: string) {.async, gcsafe.} = 
+proc rebalanceMesh*(g: GossipSub, topic: string) {.async, gcsafe.} = 
   trace "rebalancing mesh"
   # create a mesh topic that we're subscribing to
   if topic notin g.mesh:
     g.mesh[topic] = initHashSet[string]()
 
   if g.mesh[topic].len < GossipSubDlo:
+    trace "replenishing mesh"
     # replenish the mesh if we're bellow GossipSubDlo
     while g.mesh[topic].len < GossipSubD:
       trace "gattering peers", peers = g.mesh[topic].len
@@ -198,15 +216,17 @@ proc rebalanceMesh(g: GossipSub, topic: string) {.async, gcsafe.} =
 
   # prune peers if we've gone over
   if g.mesh[topic].len > GossipSubDhi:
+    trace "pruning mesh"
     while g.mesh[topic].len > GossipSubD:
       trace "pruning peers", peers = g.mesh[topic].len
-      for id in g.mesh[topic]:
-        g.mesh[topic].excl(id)
+      let id = toSeq(g.mesh[topic])[rand(0..<g.mesh[topic].len)]
+      g.mesh[topic].excl(id)
 
-        if id in g.peers:
-          let p = g.peers[id]
-          # send a graft message to the peer
-          await p.sendPrune(@[topic])
+      let p = g.peers[id]
+      # send a graft message to the peer
+      await p.sendPrune(@[topic])
+
+  trace "mesh balanced"
 
 proc heatbeat(g: GossipSub) {.async, gcsafe.} = 
   trace "running heartbeat"

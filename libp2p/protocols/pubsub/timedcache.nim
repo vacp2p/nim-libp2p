@@ -29,6 +29,12 @@ proc newTimedCache*[V](): TimedCache[V] =
   new result
   result.cache = initTable[string, TimedEntry[V]]()
 
+# TODO: This belong in chronos, temporary left here until chronos is updated
+proc addTimer*(at: Duration, cb: CallbackFunc, udata: pointer = nil) =
+  ## Arrange for the callback ``cb`` to be called at the given absolute
+  ## timestamp ``at``. You can also pass ``udata`` to callback.
+  addTimer(Moment.fromNow(at), cb, udata)
+
 proc put*[V](t: TimedCache[V],
              key: string,
              val: V = "",
