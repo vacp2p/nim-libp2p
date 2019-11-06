@@ -105,7 +105,7 @@ proc handleConn(f: FloodSub,
   ## 
 
   if conn.peerInfo.peerId.isNone:
-    debug "no valid PeerId for peer"
+    trace "no valid PeerId for peer"
     return
 
   # create new pubsub peer

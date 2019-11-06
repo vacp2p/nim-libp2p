@@ -67,7 +67,7 @@ method listen*(t: TcpTransport,
   # always get the resolved address in case we're bound to 0.0.0.0:0
   t.ma = MultiAddress.init(t.server.sock.getLocalAddress())
   result = t.server.join()
-  debug "started node on", address = t.ma
+  trace "started node on", address = t.ma
 
 method dial*(t: TcpTransport,
              address: MultiAddress):

@@ -288,7 +288,7 @@ proc newSwitch*(peerInfo: PeerInfo,
 
   let s = result # can't capture result
   result.streamHandler = proc(stream: Connection) {.async, gcsafe.} = 
-    debug "handling connection for", peerInfo = stream.peerInfo
+    trace "handling connection for", peerInfo = stream.peerInfo
     await s.ms.handle(stream) # handle incoming connection
 
   result.mount(identity)

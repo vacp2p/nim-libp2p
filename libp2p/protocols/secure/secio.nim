@@ -188,14 +188,14 @@ proc readMessage*(sconn: SecureConnection): Future[seq[byte]] {.async.} =
       if sconn.macCheckAndDecode(buf):
         result = buf
       else:
-        debug "Message MAC verification failed", buf = toHex(buf)
+        trace "Message MAC verification failed", buf = toHex(buf)
     else:
-      debug "Received message header size is more then allowed",
+      trace "Received message header size is more then allowed",
             length = length, allowed_length = SecioMaxMessageSize
   except AsyncStreamIncompleteError:
-    debug "Connection dropped while reading"
+    trace "Connection dropped while reading"
   except AsyncStreamReadError:
-    debug "Error reading from connection"
+    trace "Error reading from connection"
 
 proc writeMessage*(sconn: SecureConnection, message: seq[byte]) {.async.} =
   ## Write message ``message`` to secure connection ``sconn``.
@@ -215,7 +215,7 @@ proc writeMessage*(sconn: SecureConnection, message: seq[byte]) {.async.} =
   try:
     await sconn.conn.write(msg)
   except AsyncStreamWriteError:
-    debug "Could not write to connection"
+    trace "Could not write to connection"
 
 proc newSecureConnection*(conn: Connection, hash: string, cipher: string,
                           secrets: Secret,
@@ -292,7 +292,7 @@ proc handshake*(s: Secio, conn: Connection): Future[SecureConnection] {.async.} 
 
   localPeerId = PeerID.init(s.localPublicKey)
 
-  debug "Local proposal", schemes = SecioExchanges, ciphers = SecioCiphers,
+  trace "Local proposal", schemes = SecioExchanges, ciphers = SecioCiphers,
                           hashes = SecioHashes,
                           pubkey = toHex(localBytesPubkey),
                           peer = localPeerId
@@ -318,7 +318,7 @@ proc handshake*(s: Secio, conn: Connection): Future[SecureConnection] {.async.} 
 
   let order = getOrder(remoteBytesPubkey, localNonce, localBytesPubkey,
                        remoteNonce)
-  debug "Remote proposal", schemes = remoteExchanges, ciphers = remoteCiphers,
+  trace "Remote proposal", schemes = remoteExchanges, ciphers = remoteCiphers,
                            hashes = remoteHashes,
                            pubkey = toHex(remoteBytesPubkey), order = order,
                            peer = remotePeerId
@@ -327,10 +327,10 @@ proc handshake*(s: Secio, conn: Connection): Future[SecureConnection] {.async.} 
   let cipher = selectBest(order, SecioCiphers, remoteCiphers)
   let hash = selectBest(order, SecioHashes, remoteHashes)
   if len(scheme) == 0 or len(cipher) == 0 or len(hash) == 0:
-    debug "No algorithms in common", peer = remotePeerId
+    trace "No algorithms in common", peer = remotePeerId
     return
 
-  debug "Encryption scheme selected", scheme = scheme, cipher = cipher,
+  trace "Encryption scheme selected", scheme = scheme, cipher = cipher,
                                       hash = hash
 
   var ekeypair = ephemeral(scheme)
@@ -357,15 +357,15 @@ proc handshake*(s: Secio, conn: Connection): Future[SecureConnection] {.async.} 
 
   var remoteCorpus = answer & request[4..^1] & remoteEBytesPubkey
   if not remoteESignature.verify(remoteCorpus, remotePubkey):
-    debug "Signature verification failed", scheme = remotePubkey.scheme,
+    trace "Signature verification failed", scheme = remotePubkey.scheme,
           signature = remoteESignature, pubkey = remotePubkey,
           corpus = remoteCorpus
     return
 
-  debug "Signature verified", scheme = remotePubkey.scheme
+  trace "Signature verified", scheme = remotePubkey.scheme
 
   if not remoteEPubkey.eckey.initRaw(remoteEBytesPubkey):
-    debug "Remote ephemeral public key incorrect or corrupted",
+    trace "Remote ephemeral public key incorrect or corrupted",
           pubkey = toHex(remoteEBytesPubkey)
     return
 
@@ -393,11 +393,11 @@ proc handshake*(s: Secio, conn: Connection): Future[SecureConnection] {.async.} 
   var res = await result.readMessage()
 
   if res != @localNonce:
-    debug "Nonce verification failed", receivedNonce = toHex(res),
+    trace "Nonce verification failed", receivedNonce = toHex(res),
                                        localNonce = toHex(localNonce)
     raise newException(CatchableError, "Nonce verification failed")
   else:
-    debug "Secure handshake succeeded"
+    trace "Secure handshake succeeded"
 
 proc readLoop(sconn: SecureConnection, stream: BufferStream) {.async.} =
   while not sconn.conn.closed:
@@ -413,7 +413,7 @@ proc readLoop(sconn: SecureConnection, stream: BufferStream) {.async.} =
 proc handleConn(s: Secio, conn: Connection): Future[Connection] {.async.} =
   var sconn = await s.handshake(conn)
   proc writeHandler(data: seq[byte]) {.async, gcsafe.} =
-    debug "sending encrypted bytes", bytes = data.toHex()
+    trace "sending encrypted bytes", bytes = data.toHex()
     await sconn.writeMessage(data)
 
   var stream = newBufferStream(writeHandler)
