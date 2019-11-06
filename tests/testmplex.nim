@@ -237,7 +237,7 @@ suite "Mplex":
         mplexListen.streamHandler = handleMplexListen
         listenFut = mplexListen.handle()
         listenFut.addCallback(proc(udata: pointer) {.gcsafe.}
-                                = debug "completed listener")
+                                = trace "completed listener")
 
       let transport1: TcpTransport = newTransport(TcpTransport)
       asyncCheck transport1.listen(ma, connHandler)
@@ -248,7 +248,7 @@ suite "Mplex":
       let mplexDial = newMplex(conn)
       let dialFut = mplexDial.handle()
       dialFut.addCallback(proc(udata: pointer = nil) {.gcsafe.}
-                            = debug "completed dialer")
+                            = trace "completed dialer")
       for i in 1..10:
         let stream  = await mplexDial.newStream("dialer stream")
         await stream.writeLp(&"stream {i} from dialer!")

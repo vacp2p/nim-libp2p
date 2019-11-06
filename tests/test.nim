@@ -76,13 +76,13 @@ proc main() {.async.} =
   await switch.subscribeToPeer(remotePeer)
 
   proc handler(topic: string, data: seq[byte]): Future[void] {.closure, gcsafe.} =
-    debug "IN HANDLER"
+    trace "IN HANDLER"
 
   let topic = Base58.encode(cast[seq[byte]]("chat"))
   await switch.subscribe(topic, handler)
   let msg = cast[seq[byte]]("hello from nim")
   await switch.publish(topic, msg)
-  # debug "published message from test"
+  # trace "published message from test"
   # TODO: for some reason the connection closes unless I do a forever loop
   await allFutures(libp2pFuts)
 
