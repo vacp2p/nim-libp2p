@@ -328,9 +328,9 @@ method initPubSub(g: GossipSub) =
   g.control = initTable[string, ControlMessage]() # pending control messages
 
   # setup the heartbeat interval
-  g.heartbeatCancel = addInterval(GossipSubHeartbeatInterval,
-                                  proc (arg: pointer = nil) {.gcsafe, locks: 0.} =
-                                    asyncCheck g.heartbeat)
+  # g.heartbeatCancel = addInterval(GossipSubHeartbeatInterval,
+  #                                 proc (arg: pointer = nil) {.gcsafe, locks: 0.} =
+  #                                   asyncCheck g.heartbeat)
 
 when isMainModule and not defined(release):
   ## Test internal (private) methods for gossip, 
