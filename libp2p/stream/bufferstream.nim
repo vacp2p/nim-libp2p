@@ -31,8 +31,8 @@
 ## buffer goes below ``maxSize`` or more data becomes available.
 
 import deques, math
-import chronos
-import ../stream/lpstream
+import chronos, chronicles
+import ../stream/lpstream, ../crypto/crypto
 
 const DefaultBufferSize* = 1024
 
