@@ -120,7 +120,7 @@ proc createSwitch(ma: MultiAddress): (Switch, PeerInfo) =
   proc createMplex(conn: Connection): Muxer =
     # helper proc to create multiplexers, 
     # use this to perform any custom setup up,
-    # su as adjusting timeout or anything else 
+    # such as adjusting timeout or anything else 
     # that the muxer requires
     result = newMplex(conn)
 
@@ -156,7 +156,7 @@ proc main() {.async, gcsafe.} =
   let conn = await switch2.dial(switch1.peerInfo, TestCodec) # dial the first node
 
   await conn.writeLp("Hello!") # writeLp send a lenght prefixed buffer over the wire
-  let msg = cast[string](await conn.readLp()) # readLp reads a lenght prefixed bytes and returns a buffer without the prefix
+  let msg = cast[string](await conn.readLp()) # readLp reads lenght prefixed bytes and returns a buffer without the prefix
   echo "Remote responded with - ", cast[string](msg)
 
   await allFutures(switch1.stop(), switch2.stop()) # close connections and shutdown all transports
