@@ -7,7 +7,7 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import tables, options, deques, math
+import tables, options, sets
 import rpc/[messages, message]
 
 type
@@ -17,9 +17,9 @@ type
 
   MCache* = ref object of RootObj
     msgs*: Table[string, Message]
-    history*: Deque[seq[CacheEntry]]
+    history*: seq[seq[CacheEntry]]
     historySize*: Natural
-    window*: Natural
+    windowSize*: Natural
 
 proc put*(c: MCache, msg: Message) = 
   c.msgs[msg.msgId] = msg
@@ -30,29 +30,34 @@ proc get*(c: MCache, mid: string): Option[Message] =
   if mid in c.msgs:
     result = some(c.msgs[mid])
 
-proc window*(c: MCache, topic: string): seq[Message] = 
-  for i, msgs in c.history:
-    if i == c.window:
-      break
+proc window*(c: MCache, topic: string): HashSet[string] = 
+  result = initHashSet[string]()
 
-    for m in msgs:
-      for t in m.msg.topicIDs:
-        if t == topic:
-          result.add(m.msg)
-          break
+  let len = 
+    if c.windowSize > c.history.len: 
+      c.history.len 
+    else: 
+      c.windowSize
 
-proc shift*(c: MCache) = 
-  for entry in c.history.popLast():
-    c.msgs.del(entry.mid)
+  if c.history.len > 0:
+    for slot in c.history[0..<len]:
+      for entry in slot:
+        for t in entry.msg.topicIDs:
+          if t == topic:
+            result.incl(entry.msg.msgId)
+            break
 
-  c.history.addFirst(newSeq[CacheEntry]())
+proc shift*(c: MCache) =
+  while c.history.len > c.historySize:
+    for entry in c.history.pop():
+      c.msgs.del(entry.mid)
+
+  c.history.insert(@[])
 
 proc newMCache*(window: Natural, history: Natural): MCache =
   new result
   result.historySize = history
-  result.window = window
-  result.history = initDeque[seq[CacheEntry]](nextPowerOfTwo(history))
-  for i in 0..history:
-    result.history.addFirst(@[])
-
+  result.windowSize = window
+  result.history = newSeq[seq[CacheEntry]]()
+  result.history.add(@[])
   result.msgs = initTable[string, Message]()
