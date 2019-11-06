@@ -24,58 +24,58 @@ import utils,
                      protocols/pubsub/rpc/messages]
 
 suite "GossipSub":
-  test "GossipSub send over fanout A -> B":
-    proc testRun(): Future[bool] {.async.} =
-      var passed: bool
-      proc handler(topic: string, data: seq[byte]) {.async, gcsafe.} = 
-        check topic == "foobar"
-        passed = true
+  # test "GossipSub send over fanout A -> B":
+  #   proc testRun(): Future[bool] {.async.} =
+  #     var passed: bool
+  #     proc handler(topic: string, data: seq[byte]) {.async, gcsafe.} = 
+  #       check topic == "foobar"
+  #       passed = true
 
-      var nodes = generateNodes(2, true)
-      var wait = await nodes[1].start()
+  #     var nodes = generateNodes(2, true)
+  #     var wait = await nodes[1].start()
 
-      await subscribeNodes(nodes)
+  #     await subscribeNodes(nodes)
 
-      await nodes[1].subscribe("foobar", handler)
-      await sleepAsync(100.millis)
+  #     await nodes[1].subscribe("foobar", handler)
+  #     await sleepAsync(100.millis)
 
-      await nodes[0].publish("foobar", cast[seq[byte]]("Hello!"))
-      await sleepAsync(100.millis)
+  #     await nodes[0].publish("foobar", cast[seq[byte]]("Hello!"))
+  #     await sleepAsync(100.millis)
 
-      await nodes[1].stop()
-      await allFutures(wait)
-      result = passed
+  #     await nodes[1].stop()
+  #     await allFutures(wait)
+  #     result = passed
 
-    check:
-      waitFor(testRun()) == true
+  #   check:
+  #     waitFor(testRun()) == true
 
-  test "GossipSub send over mesh A -> B": 
-    proc testRun(): Future[bool] {.async.} =
-      var passed: bool
-      proc handler(topic: string, data: seq[byte]) {.async, gcsafe.} = 
-        check topic == "foobar"
-        passed = true
+  # test "GossipSub send over mesh A -> B": 
+  #   proc testRun(): Future[bool] {.async.} =
+  #     var passed: bool
+  #     proc handler(topic: string, data: seq[byte]) {.async, gcsafe.} = 
+  #       check topic == "foobar"
+  #       passed = true
 
-      var nodes = generateNodes(2, true)
-      var wait = await nodes[1].start()
+  #     var nodes = generateNodes(2, true)
+  #     var wait = await nodes[1].start()
 
-      await subscribeNodes(nodes)
+  #     await subscribeNodes(nodes)
 
-      await nodes[0].subscribe("foobar", handler)
-      await sleepAsync(100.millis)
+  #     await nodes[0].subscribe("foobar", handler)
+  #     await sleepAsync(100.millis)
 
-      await nodes[1].subscribe("foobar", handler)
-      await sleepAsync(100.millis)
+  #     await nodes[1].subscribe("foobar", handler)
+  #     await sleepAsync(100.millis)
 
-      await nodes[0].publish("foobar", cast[seq[byte]]("Hello!"))
-      await sleepAsync(1000.millis)
+  #     await nodes[0].publish("foobar", cast[seq[byte]]("Hello!"))
+  #     await sleepAsync(1000.millis)
 
-      await nodes[1].stop()
-      await allFutures(wait)
-      result = passed
+  #     await nodes[1].stop()
+  #     await allFutures(wait)
+  #     result = passed
 
-    check:
-      waitFor(testRun()) == true
+  #   check:
+  #     waitFor(testRun()) == true
 
   test "GossipSub with multiple peers":
     proc testRun(): Future[bool] {.async.} =
