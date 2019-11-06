@@ -41,7 +41,6 @@ proc sendSubs*(p: PubSub,
                peer: PubSubPeer,
                topics: seq[string],
                subscribe: bool) {.async, gcsafe.} =
-  writeStackTrace()
   ## send subscriptions to remote peer
   trace "sending subscriptions", peer = peer.id,
                                  subscribe = subscribe,

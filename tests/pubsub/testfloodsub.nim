@@ -9,9 +9,7 @@
 
 import unittest, sequtils, options
 import chronos
-import utils,
-       ../libp2p/[switch,
-                  crypto/crypto]
+import utils, ../libp2p/[switch, crypto/crypto]
 
 suite "FloodSub":
   test "FloodSub basic publish/subscribe A -> B":

@@ -89,7 +89,7 @@ method init(f: FloodSub) =
   f.handler = handler
   f.codec = FloodSubCodec
 
-method subscribeToPeer*(f: FloodSub, 
+method subscribeToPeer*(f: FloodSub,
                         conn: Connection) {.async, gcsafe.} =
   await f.handleConn(conn, FloodSubCodec)
 
@@ -113,7 +113,7 @@ method unsubscribe*(f: FloodSub,
   for p in f.peers.values:
     await f.sendSubs(p, topics.mapIt(it.topic).deduplicate(), false)
 
-method initPubSub*(f: FloodSub) = 
+method initPubSub*(f: FloodSub) =
   f.peers = initTable[string, PubSubPeer]()
   f.topics = initTable[string, Topic]()
   f.floodsub = initTable[string, HashSet[string]]()

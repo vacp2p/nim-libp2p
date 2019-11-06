@@ -37,7 +37,7 @@ const GossipSubHistoryGossip* = 3
 
 # heartbeat interval
 const GossipSubHeartbeatInitialDelay* = 100.millis
-const GossipSubHeartbeatInterval *    = 1.seconds
+const GossipSubHeartbeatInterval*    = 1.seconds
 
 # fanout ttl
 const GossipSubFanoutTTL* = 60.seconds
@@ -47,14 +47,14 @@ type
     mesh*: Table[string, HashSet[string]] # meshes - topic to peer
     fanout*: Table[string, HashSet[string]] # fanout - topic to peer
     gossipsub*: Table[string, HashSet[string]] # topic to peer map of all gossipsub peers
-    lastFanoutPubSub*: Table[string, Duration] # last publish time for fanout topics
+    lastFanoutPubSub*: Table[string, Moment] # last publish time for fanout topics
     gossip*: Table[string, seq[ControlIHave]] # pending gossip
     control*: Table[string, ControlMessage] # pending control messages
     mcache*: MCache # messages cache
     heartbeatCancel*: Future[void] # cancelation future for heartbeat interval
 
 # TODO: This belong in chronos, temporary left here until chronos is updated
-proc addInterval*(every: Duration, cb: CallbackFunc, udata: pointer = nil): Future[void] =
+proc addInterval(every: Duration, cb: CallbackFunc, udata: pointer = nil): Future[void] =
   ## Arrange the callback ``cb`` to be called on every ``Duration`` window
 
   var retFuture = newFuture[void]("chronos.addInterval(Duration)")
@@ -180,13 +180,13 @@ proc replenishFanout(g: GossipSub, topic: string) {.async, gcsafe.} =
   if topic notin g.fanout:
     g.fanout[topic] = initHashSet[string]()
 
-  if g.fanout[topic].len < GossipSubD:
+  if g.fanout[topic].len < GossipSubDLo:
     for p in g.gossipsub[topic]:
       if not g.fanout[topic].containsOrIncl(p):
         if g.fanout[topic].len == GossipSubD:
           return
 
-proc rebalanceMesh*(g: GossipSub, topic: string) {.async, gcsafe.} = 
+proc rebalanceMesh(g: GossipSub, topic: string) {.async, gcsafe.} = 
   trace "rebalancing mesh"
   # create a mesh topic that we're subscribing to
   if topic notin g.mesh:
@@ -228,11 +228,46 @@ proc rebalanceMesh*(g: GossipSub, topic: string) {.async, gcsafe.} =
 
   trace "mesh balanced"
 
-proc heatbeat(g: GossipSub) {.async, gcsafe.} = 
+proc dropFanoutPeers(g: GossipSub) {.async, gcsafe.} = 
+  # drop peers that we haven't published to in 
+  # GossipSubFanoutTTL seconds
+  for topic in g.lastFanoutPubSub.keys:
+    if Moment.now > g.lastFanoutPubSub[topic]:
+      g.lastFanoutPubSub.del(topic)
+      g.fanout.del(topic)
+
+proc gossipToPeers(g: GossipSub) {.async, gcsafe.} =
+  ## gossip iHave messages to peers
+  var peers: Table[string, ControlMessage]
+  let topics = toHashSet(toSeq(g.mesh.keys)) + toHashSet(toSeq(g.fanout.keys))
+
+  for topic in topics:
+    let gossipPeers: HashSet[string] = g.mesh[topic] + g.fanout[topic]
+    let mids = g.mcache.window(topic)
+    let ihave = ControlIHave(topicID: topic,
+                             messageIDs: toSeq(mids))
+
+    while peers.len < GossipSubD:
+      var id = toSeq(g.gossipsub[topic])[rand(0..<g.gossipsub[topic].len)]
+      if id notin gossipPeers:
+        if id notin peers:
+          peers[id] = ControlMessage()
+
+        peers[id].ihave.add(ihave)
+
+  for peer in peers.keys:
+    await g.peers[peer].send(@[RPCMsg(control: some(peers[peer]))])
+
+proc heartbeat(g: GossipSub) {.async, gcsafe.} = 
   trace "running heartbeat"
   await sleepAsync(GossipSubHeartbeatInitialDelay)
+
   for t in g.mesh.keys:
     await g.rebalanceMesh(t)
+
+  await g.dropFanoutPeers()
+  await g.gossipToPeers()
+  g.mcache.shift()
 
 method subscribe*(g: GossipSub,
                   topic: string,
@@ -268,6 +303,8 @@ method publish*(g: GossipSub,
       await g.replenishFanout(topic)
       if topic in g.fanout:
         peers = g.fanout[topic]
+        # set the fanout expiery time
+        g.lastFanoutPubSub[topic] = Moment.fromNow(GossipSubFanoutTTL)
 
     for p in peers:
       trace "publishing on topic", name = topic
@@ -286,11 +323,202 @@ method initPubSub(g: GossipSub) =
   g.mesh = initTable[string, HashSet[string]]() # meshes - topic to peer
   g.fanout = initTable[string, HashSet[string]]() # fanout - topic to peer
   g.gossipsub = initTable[string, HashSet[string]]() # topic to peer map of all gossipsub peers
-  g.lastFanoutPubSub = initTable[string, Duration]() # last publish time for fanout topics
+  g.lastFanoutPubSub = initTable[string, Moment]() # last publish time for fanout topics
   g.gossip = initTable[string, seq[ControlIHave]]() # pending gossip
   g.control = initTable[string, ControlMessage]() # pending control messages
 
   # setup the heartbeat interval
   g.heartbeatCancel = addInterval(GossipSubHeartbeatInterval,
                                   proc (arg: pointer = nil) {.gcsafe, locks: 0.} =
-                                    asyncCheck g.heatbeat)
+                                    asyncCheck g.heartbeat)
+
+when isMainModule and not defined(release):
+  ## Test internal (private) methods for gossip, 
+  ## mesh and fanout maintenance. 
+  ## Usually I wouldn't test private behaviour, 
+  ## but the maintenance methods are quite involved, 
+  ## hence these tests are here.
+  ##
+
+  import unittest
+  import ../../stream/bufferstream
+
+  type
+    TestGossipSub = ref object of GossipSub
+
+  method initPubSub*(g: TestGossipSub) =
+    ## Override here to prevent interval 
+    ## from running
+    procCall FloodSub(g).initPubSub()
+
+    g.mcache = newMCache(GossipSubHistoryGossip, GossipSubHistoryLength)
+    g.mesh = initTable[string, HashSet[string]]() # meshes - topic to peer
+    g.fanout = initTable[string, HashSet[string]]() # fanout - topic to peer
+    g.gossipsub = initTable[string, HashSet[string]]() # topic to peer map of all gossipsub peers
+    g.lastFanoutPubSub = initTable[string, Moment]() # last publish time for fanout topics
+    g.gossip = initTable[string, seq[ControlIHave]]() # pending gossip
+    g.control = initTable[string, ControlMessage]() # pending control messages
+
+  suite "GossipSub":
+    test "`rebalanceMesh` Degree Lo":
+      proc testRun(): Future[bool] {.async.} =
+        var peerInfo: PeerInfo
+        var seckey = some(PrivateKey.random(RSA))
+
+        peerInfo.peerId = some(PeerID.init(seckey.get()))
+        let gossipSub = newPubSub(TestGossipSub, peerInfo)
+
+        proc handler(peer: PubSubPeer, msg: seq[RPCMsg]) {.async, gcsafe.} = 
+          discard
+
+        let topic = "foobar"
+        gossipSub.mesh[topic] = initHashSet[string]()
+        proc writeHandler(data: seq[byte]) {.async, gcsafe.} = discard
+        for i in 0..<15:
+          let conn = newConnection(newBufferStream(writeHandler))
+          let peerId = PeerID.init(PrivateKey.random(RSA))
+          conn.peerInfo.peerId = some(peerId)
+          gossipSub.peers[peerId.pretty] = newPubSubPeer(conn, handler, GossipSubCodec)
+          gossipSub.mesh[topic].incl(peerId.pretty)
+
+        check gossipSub.peers.len == 15
+        await gossipSub.rebalanceMesh(topic)
+        check gossipSub.mesh[topic].len == 6
+        
+        result = true
+
+      check:
+        waitFor(testRun()) == true
+
+    test "`rebalanceMesh` Degree Hi":
+      proc testRun(): Future[bool] {.async.} =
+        var peerInfo: PeerInfo
+        var seckey = some(PrivateKey.random(RSA))
+        
+        peerInfo.peerId = some(PeerID.init(seckey.get()))
+        let gossipSub = newPubSub(TestGossipSub, peerInfo)
+
+        proc handler(peer: PubSubPeer, msg: seq[RPCMsg]) {.async, gcsafe.} = 
+          discard
+
+        let topic = "foobar"
+        gossipSub.gossipsub[topic] = initHashSet[string]()
+        proc writeHandler(data: seq[byte]) {.async, gcsafe.} = discard
+        for i in 0..<15:
+          let conn = newConnection(newBufferStream(writeHandler))
+          let peerId = PeerID.init(PrivateKey.random(RSA))
+          conn.peerInfo.peerId = some(peerId)
+          gossipSub.peers[peerId.pretty] = newPubSubPeer(conn, handler, GossipSubCodec)
+          gossipSub.gossipsub[topic].incl(peerId.pretty)
+
+        check gossipSub.gossipsub[topic].len == 15
+        await gossipSub.rebalanceMesh(topic)
+        check gossipSub.mesh[topic].len == 6
+        
+        result = true
+
+      check:
+        waitFor(testRun()) == true
+
+    test "`replenishFanout` Degree Lo":
+      proc testRun(): Future[bool] {.async.} =
+        var peerInfo: PeerInfo
+        var seckey = some(PrivateKey.random(RSA))
+
+        peerInfo.peerId = some(PeerID.init(seckey.get()))
+        let gossipSub = newPubSub(TestGossipSub, peerInfo)
+
+        proc handler(peer: PubSubPeer, msg: seq[RPCMsg]) {.async, gcsafe.} = 
+          discard
+
+        let topic = "foobar"
+        gossipSub.gossipsub[topic] = initHashSet[string]()
+        proc writeHandler(data: seq[byte]) {.async, gcsafe.} = discard
+        for i in 0..<15:
+          let conn = newConnection(newBufferStream(writeHandler))
+          let peerId = PeerID.init(PrivateKey.random(RSA))
+          conn.peerInfo.peerId = some(peerId)
+          gossipSub.peers[peerId.pretty] = newPubSubPeer(conn, handler, GossipSubCodec)
+          gossipSub.gossipsub[topic].incl(peerId.pretty)
+
+        check gossipSub.gossipsub[topic].len == 15
+        await gossipSub.replenishFanout(topic)
+        check gossipSub.fanout[topic].len == 6
+
+        result = true
+
+      check:
+        waitFor(testRun()) == true
+
+    test "`dropFanoutPeers` drop expired fanout topics":
+      proc testRun(): Future[bool] {.async.} =
+        var peerInfo: PeerInfo
+        var seckey = some(PrivateKey.random(RSA))
+
+        peerInfo.peerId = some(PeerID.init(seckey.get()))
+        let gossipSub = newPubSub(TestGossipSub, peerInfo)
+
+        proc handler(peer: PubSubPeer, msg: seq[RPCMsg]) {.async, gcsafe.} = 
+          discard
+
+        let topic = "foobar"
+        gossipSub.fanout[topic] = initHashSet[string]()
+        gossipSub.lastFanoutPubSub[topic] = Moment.fromNow(100.millis)
+        proc writeHandler(data: seq[byte]) {.async, gcsafe.} = discard
+        for i in 0..<6:
+          let conn = newConnection(newBufferStream(writeHandler))
+          let peerId = PeerID.init(PrivateKey.random(RSA))
+          conn.peerInfo.peerId = some(peerId)
+          gossipSub.peers[peerId.pretty] = newPubSubPeer(conn, handler, GossipSubCodec)
+          gossipSub.fanout[topic].incl(peerId.pretty)
+
+        check gossipSub.fanout[topic].len == 6
+
+        await sleepAsync(101.millis)
+        await gossipSub.dropFanoutPeers()
+        check topic notin gossipSub.fanout
+
+        result = true
+
+      check:
+        waitFor(testRun()) == true
+
+    test "`dropFanoutPeers` leave unexpired fanout topics":
+      proc testRun(): Future[bool] {.async.} =
+        var peerInfo: PeerInfo
+        var seckey = some(PrivateKey.random(RSA))
+
+        peerInfo.peerId = some(PeerID.init(seckey.get()))
+        let gossipSub = newPubSub(TestGossipSub, peerInfo)
+
+        proc handler(peer: PubSubPeer, msg: seq[RPCMsg]) {.async, gcsafe.} = 
+          discard
+
+        let topic1 = "foobar1"
+        let topic2 = "foobar2"
+        gossipSub.fanout[topic1] = initHashSet[string]()
+        gossipSub.fanout[topic2] = initHashSet[string]()
+        gossipSub.lastFanoutPubSub[topic1] = Moment.fromNow(100.millis)
+        gossipSub.lastFanoutPubSub[topic1] = Moment.fromNow(500.millis)
+
+        proc writeHandler(data: seq[byte]) {.async, gcsafe.} = discard
+        for i in 0..<6:
+          let conn = newConnection(newBufferStream(writeHandler))
+          let peerId = PeerID.init(PrivateKey.random(RSA))
+          conn.peerInfo.peerId = some(peerId)
+          gossipSub.peers[peerId.pretty] = newPubSubPeer(conn, handler, GossipSubCodec)
+          gossipSub.fanout[topic1].incl(peerId.pretty)
+          gossipSub.fanout[topic2].incl(peerId.pretty)
+
+        check gossipSub.fanout[topic1].len == 6
+        check gossipSub.fanout[topic2].len == 6
+
+        await sleepAsync(101.millis)
+        await gossipSub.dropFanoutPeers()
+        check topic1 notin gossipSub.fanout
+        check topic2 in gossipSub.fanout
+
+        result = true
+
+      check:
+        waitFor(testRun()) == true
