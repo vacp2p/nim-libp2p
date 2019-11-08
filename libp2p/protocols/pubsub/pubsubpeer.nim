@@ -94,5 +94,5 @@ proc newPubSubPeer*(conn: Connection, handler: RPCHandler, proto: string): PubSu
   result.conn = conn
   result.peerInfo = conn.peerInfo
   result.id = conn.peerInfo.peerId.get().pretty()
-  result.sentRpcCache = newTimedCache[string]()
-  result.recvdRpcCache = newTimedCache[string]()
+  result.sentRpcCache = newTimedCache[string](2.minutes)
+  result.recvdRpcCache = newTimedCache[string](2.minutes)

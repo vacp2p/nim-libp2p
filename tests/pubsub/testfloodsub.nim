@@ -60,37 +60,36 @@ suite "FloodSub":
     check:
       waitFor(testBasicPubSub()) == true
 
-  # test "FloodSub multiple peers, no self trigger":
-  #   proc testBasicFloodSub(): Future[bool] {.async.} =
-  #     var passed: int
-  #     proc handler(topic: string, data: seq[byte]) {.async, gcsafe.} =
-  #       check topic == "foobar"
-  #       passed.inc()
+  test "FloodSub multiple peers, no self trigger":
+    proc testBasicFloodSub(): Future[bool] {.async.} =
+      var passed: int
+      proc handler(topic: string, data: seq[byte]) {.async, gcsafe.} =
+        check topic == "foobar"
+        passed.inc()
 
-  #     var nodes: seq[Switch] = newSeq[Switch]()
-  #     for i in 0..<2:
-  #       nodes.add(createNode())
+      var nodes: seq[Switch] = newSeq[Switch]()
+      for i in 0..<2:
+        nodes.add(createNode(gossip = true))
 
-  #     var awaitters: seq[Future[void]]
-  #     for node in nodes:
-  #       awaitters.add(await node.start())
-  #       await node.subscribe("foobar", handler)
-  #       await sleepAsync(100.millis)
+      var awaitters: seq[Future[void]]
+      for node in nodes:
+        awaitters.add(await node.start())
+        await node.subscribe("foobar", handler)
+        await sleepAsync(100.millis)
 
-  #     await subscribeNodes(nodes)
-  #     await sleepAsync(100.millis)
+      await subscribeNodes(nodes)
 
-  #     for node in nodes:
-  #       await node.publish("foobar", cast[seq[byte]]("Hello!"))
-  #       await sleepAsync(100.millis)
+      for node in nodes:
+        await node.publish("foobar", cast[seq[byte]]("Hello!"))
+        await sleepAsync(100.millis)
 
-  #     await allFutures(nodes.mapIt(it.stop()))
-  #     await allFutures(awaitters)
+      await allFutures(nodes.mapIt(it.stop()))
+      await allFutures(awaitters)
 
-  #     result = passed >= 10 # non deterministic, so at least 10 times
+      result = passed >= 2 # non deterministic, so at least 2 times
 
-  #   check:
-  #     waitFor(testBasicFloodSub()) == true
+    check:
+      waitFor(testBasicFloodSub()) == true
 
   test "FloodSub multiple peers, with self trigger":
     proc testBasicFloodSub(): Future[bool] {.async.} =
@@ -100,7 +99,7 @@ suite "FloodSub":
         passed.inc()
 
       var nodes: seq[Switch] = newSeq[Switch]()
-      for i in 0..<10:
+      for i in 0..<20:
         nodes.add(createNode(none(PrivateKey), "/ip4/127.0.0.1/tcp/0", true))
 
       var awaitters: seq[Future[void]]
@@ -119,7 +118,7 @@ suite "FloodSub":
       await allFutures(nodes.mapIt(it.stop()))
       await allFutures(awaitters)
 
-      result = passed >= 10 # non deterministic, so at least 20 times
+      result = passed >= 20 # non deterministic, so at least 20 times
 
     check:
       waitFor(testBasicFloodSub()) == true

@@ -7,8 +7,9 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import tables, options, sets
-import rpc/[messages, message]
+import chronos, chronicles
+import tables, options, sets, sequtils
+import rpc/[messages, message], timedcache
 
 type
   CacheEntry* = object
@@ -16,13 +17,20 @@ type
     msg*: Message
 
   MCache* = ref object of RootObj
-    msgs*: Table[string, Message]
+    msgs*: TimedCache[Message]
     history*: seq[seq[CacheEntry]]
     historySize*: Natural
     windowSize*: Natural
 
 proc put*(c: MCache, msg: Message) = 
-  c.msgs[msg.msgId] = msg
+  proc handler(key: string, val: Message) {.gcsafe.} =
+    ## make sure we remove the message from history
+    ## to keep things consisten
+    c.history.applyIt(
+      it.filterIt(it.mid != msg.msgId)
+    )
+
+  c.msgs.put(msg.msgId, msg, 2.minutes, handler)
   c.history[0].add(CacheEntry(mid: msg.msgId, msg: msg))
 
 proc get*(c: MCache, mid: string): Option[Message] =
@@ -59,5 +67,5 @@ proc newMCache*(window: Natural, history: Natural): MCache =
   result.historySize = history
   result.windowSize = window
   result.history = newSeq[seq[CacheEntry]]()
-  result.history.add(@[])
-  result.msgs = initTable[string, Message]()
+  result.history.add(@[]) # initialize with empty slot
+  result.msgs = newTimedCache[Message]()

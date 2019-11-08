@@ -440,3 +440,31 @@ suite "BufferStream":
 
     check:
       waitFor(pipeTest()) == true
+
+  test "pipe deadlock":
+    proc pipeTest(): Future[bool] {.async.} =
+
+      var buf1 = newBufferStream()
+      var buf2 = newBufferStream()
+
+      buf1 = buf1 | buf2 | buf1
+
+      for i in 0..20:
+        var res1: seq[byte] = newSeq[byte](7)
+        var readFut1 = buf1.readExactly(addr res1[0], 7)
+
+        var res2: seq[byte] = newSeq[byte](7)
+        var readFut2 = buf2.readExactly(addr res2[0], 7)
+
+        await buf1.write(cast[seq[byte]]("Hello1!"))
+        await buf2.write(cast[seq[byte]]("Hello2!"))
+        await allFutures(readFut1, readFut2)
+
+        check:
+          res1 == cast[seq[byte]]("Hello2!")
+          res2 == cast[seq[byte]]("Hello1!")
+
+      result = true
+
+    check:
+      waitFor(pipeTest()) == true

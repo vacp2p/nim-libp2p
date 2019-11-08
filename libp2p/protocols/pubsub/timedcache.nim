@@ -24,10 +24,7 @@ type
   TimedCache*[V] = ref object of RootObj
     cache*: Table[string, TimedEntry[V]]
     onExpire*: ExpireHandler[V]
-
-proc newTimedCache*[V](): TimedCache[V] =
-  new result
-  result.cache = initTable[string, TimedEntry[V]]()
+    timeout*: Duration
 
 # TODO: This belong in chronos, temporary left here until chronos is updated
 proc addTimer*(at: Duration, cb: CallbackFunc, udata: pointer = nil) =
@@ -38,16 +35,16 @@ proc addTimer*(at: Duration, cb: CallbackFunc, udata: pointer = nil) =
 proc put*[V](t: TimedCache[V],
              key: string,
              val: V = "",
-             timeout: Duration = Timeout,
+             timeout: Duration = t.timeout,
              handler: ExpireHandler[V] = nil) = 
-  trace "adding entry to timed cache", key = key, val = val
+  trace "adding entry to timed cache", key = key
   t.cache[key] = TimedEntry[V](val: val, handler: handler)
 
   # TODO: addTimer with param Duration is missing from chronos, needs to be added
   addTimer(
     timeout,
     proc (arg: pointer = nil) {.gcsafe.} =
-      trace "deleting expired entry from timed cache", key = key, val = val
+      trace "deleting expired entry from timed cache", key = key
       if key in t.cache:
         var entry = t.cache[key]
         t.cache.del(key)
@@ -61,3 +58,17 @@ proc contains*[V](t: TimedCache[V], key: string): bool =
 proc del*[V](t: TimedCache[V], key: string) =
   trace "deleting entry from timed cache", key = key
   t.cache.del(key)
+
+proc get*[V](t: TimedCache[V], key: string): V =
+  t.cache[key].val
+
+proc `[]`*[V](t: TimedCache[V], key: string): V =
+  t.get(key)
+
+proc `[]=`*[V](t: TimedCache[V], key: string, val: V): V =
+  t.put(key, val)
+
+proc newTimedCache*[V](timeout: Duration = Timeout): TimedCache[V] =
+  new result
+  result.cache = initTable[string, TimedEntry[V]]()
+  result.timeout = timeout

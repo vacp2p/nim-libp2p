@@ -63,7 +63,8 @@ method rpcHandler*(p: PubSub,
 
 method handleDisconnect*(p: PubSub, peer: PubSubPeer) {.async, base, gcsafe.} = 
   ## handle peer disconnects
-  p.peers.del(peer.id)
+  if peer.id in p.peers:
+    p.peers.del(peer.id)
 
 method handleConn*(p: PubSub,
                    conn: Connection,
@@ -163,6 +164,16 @@ method publish*(p: PubSub,
 
 method initPubSub*(p: PubSub) {.base.} =
   ## perform pubsub initializaion 
+  discard
+
+method start*(p: PubSub) {.async, base.} =
+  ## start pubsub
+  ## start long running/repeating procedures
+  discard
+
+method stop*(p: PubSub) {.async, base.} =
+  ## stopt pubsub
+  ## stop long running/repeating procedures
   discard
 
 proc newPubSub*(p: typedesc[PubSub],

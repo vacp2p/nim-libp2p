@@ -256,6 +256,9 @@ proc start*(s: Switch): Future[seq[Future[void]]] {.async, gcsafe.} =
         var server = await t.listen(a, handle)
         s.peerInfo.addrs[i] = t.ma # update peer's address
         startFuts.add(server)
+  
+  if s.pubSub.isSome:
+    await s.pubSub.get().start()
 
   result = startFuts # listen for incoming connections
 

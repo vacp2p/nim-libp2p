@@ -52,6 +52,7 @@ type
     control*: Table[string, ControlMessage] # pending control messages
     mcache*: MCache # messages cache
     heartbeatCancel*: Future[void] # cancelation future for heartbeat interval
+    heartbeatLock: AsyncLock
 
 # TODO: This belong in chronos, temporary left here until chronos is updated
 proc addInterval(every: Duration, cb: CallbackFunc, udata: pointer = nil): Future[void] =
@@ -87,7 +88,7 @@ method handleDisconnect(g: GossipSub, peer: PubSubPeer) {.async, gcsafe.} =
   await procCall FloodSub(g).handleDisconnect(peer)
   for t in g.gossipsub.keys:
     g.gossipsub[t].excl(peer.id)
-  
+
   for t in g.mesh.keys:
     g.mesh[t].excl(peer.id)
 
@@ -126,15 +127,25 @@ method rpcHandler(g: GossipSub,
 
     if m.messages.len > 0:                         # if there are any messages
       var toSendPeers: HashSet[string] = initHashSet[string]()
-      for msg in m.messages:                       # for every message
-        for t in msg.topicIDs:                     # for every topic in the message
-          if t in g.topics:
-            toSendPeers.incl(g.mesh[t])            # get all the peers interested in this topic
+      for msg in m.messages:                         # for every message
+        if msg.msgId notin g.seen:
+          g.seen.put(msg.msgId)                      # add the message to the seen cache
+          for t in msg.topicIDs:                     # for every topic in the message
 
-        # forward the message to all peers interested in it
-        for p in toSendPeers:
-          if p in g.peers and g.peers[p].id != peer.id:
-            await g.peers[p].send(@[RPCMsg(messages: m.messages)])
+            if t in g.floodsub:
+              toSendPeers.incl(g.floodsub[t])        # get all floodsub peers for topic
+
+            if t in g.mesh:
+              toSendPeers.incl(g.mesh[t])            # get all mesh peers for topic
+
+            if t in g.topics:                        # if we're subscribed to the topic
+              for h in g.topics[t].handler:
+                await h(t, msg.data)                 # trigger user provided handler
+
+          # forward the message to all peers interested in it
+          for p in toSendPeers:
+            if p in g.peers and g.peers[p].id != peer.id:
+              await g.peers[p].send(@[RPCMsg(messages: m.messages)])
 
     var respControl: ControlMessage
     if m.control.isSome:
@@ -176,18 +187,23 @@ method rpcHandler(g: GossipSub,
         await peer.send(@[RPCMsg(control: some(respControl), messages: messages)])
 
 proc replenishFanout(g: GossipSub, topic: string) {.async, gcsafe.} = 
-  ## get peers for topic
+  ## get fanout peers for a topic
+  trace "about to replenish fanout"
   if topic notin g.fanout:
     g.fanout[topic] = initHashSet[string]()
 
   if g.fanout[topic].len < GossipSubDLo:
-    for p in g.gossipsub[topic]:
-      if not g.fanout[topic].containsOrIncl(p):
-        if g.fanout[topic].len == GossipSubD:
-          return
+    trace "replenishing fanout", peers = g.fanout[topic].len
+    if topic in g.gossipsub:
+      for p in g.gossipsub[topic]:
+        if not g.fanout[topic].containsOrIncl(p):
+          if g.fanout[topic].len == GossipSubD:
+            break
+
+  trace "fanout replenished with peers", peers = g.fanout[topic].len
 
 proc rebalanceMesh(g: GossipSub, topic: string) {.async, gcsafe.} = 
-  trace "rebalancing mesh"
+  trace "about to rebalance mesh"
   # create a mesh topic that we're subscribing to
   if topic notin g.mesh:
     g.mesh[topic] = initHashSet[string]()
@@ -226,7 +242,7 @@ proc rebalanceMesh(g: GossipSub, topic: string) {.async, gcsafe.} =
       # send a graft message to the peer
       await p.sendPrune(@[topic])
 
-  trace "mesh balanced"
+  trace "mesh balanced, got peers", peers = g.mesh[topic].len
 
 proc dropFanoutPeers(g: GossipSub) {.async, gcsafe.} = 
   # drop peers that we haven't published to in 
@@ -252,24 +268,32 @@ proc getGossipPeers(g: GossipSub): Table[string, ControlMessage] {.gcsafe.} =
         g.fanout[topic] 
       else: 
         initHashSet[string]()
-    
+
     let gossipPeers = mesh + fanout
     let mids = g.mcache.window(topic)
     let ihave = ControlIHave(topicID: topic,
                              messageIDs: toSeq(mids))
 
     if topic notin g.gossipsub:
+      trace "topic not in gossip array, skipping", topicID = topic
       continue
 
     while result.len < GossipSubD:
-        var id = toSeq(g.gossipsub[topic])[rand(0..<g.gossipsub[topic].len)]
-        if id notin gossipPeers:
-          if id notin result:
-            result[id] = ControlMessage()
-          result[id].ihave.add(ihave)
+      if not (g.gossipsub[topic].len > 0):
+        trace "no peers for topic, skipping", topicID = topic
+        break
+
+      var id = toSeq(g.gossipsub[topic]).sample()
+      g.gossipsub[topic].excl(id)
+      if id notin gossipPeers:
+        if id notin result:
+          result[id] = ControlMessage()
+        result[id].ihave.add(ihave)
 
 proc heartbeat(g: GossipSub) {.async, gcsafe.} = 
   trace "running heartbeat"
+
+  await g.heartbeatLock.acquire()
   await sleepAsync(GossipSubHeartbeatInitialDelay)
 
   for t in g.mesh.keys:
@@ -281,6 +305,7 @@ proc heartbeat(g: GossipSub) {.async, gcsafe.} =
     await g.peers[peer].send(@[RPCMsg(control: some(peers[peer]))])
 
   g.mcache.shift() # shift the cache
+  g.heartbeatLock.release()
 
 method subscribe*(g: GossipSub,
                   topic: string,
@@ -329,6 +354,22 @@ method subscribeToPeer*(f: GossipSub,
                         conn: Connection) {.async, gcsafe.} =
   await f.handleConn(conn, GossipSubCodec)
 
+method start*(g: GossipSub) {.async.} =
+  ## start pubsub
+  ## start long running/repeating procedures
+
+  # setup the heartbeat interval
+  g.heartbeatCancel = addInterval(GossipSubHeartbeatInterval,
+                                  proc (arg: pointer = nil) {.gcsafe, locks: 0.} =
+                                    asyncCheck g.heartbeat)
+
+method stop*(g: GossipSub) {.async.} =
+  ## stopt pubsub
+  ## stop long running/repeating procedures
+
+  # stop heartbeat interval
+  g.heartbeatCancel.complete()
+
 method initPubSub(g: GossipSub) =
   procCall FloodSub(g).initPubSub()
 
@@ -339,18 +380,16 @@ method initPubSub(g: GossipSub) =
   g.lastFanoutPubSub = initTable[string, Moment]() # last publish time for fanout topics
   g.gossip = initTable[string, seq[ControlIHave]]() # pending gossip
   g.control = initTable[string, ControlMessage]() # pending control messages
+  g.heartbeatLock = newAsyncLock()
 
-  # setup the heartbeat interval
-  g.heartbeatCancel = addInterval(GossipSubHeartbeatInterval,
-                                  proc (arg: pointer = nil) {.gcsafe, locks: 0.} =
-                                    asyncCheck g.heartbeat)
-
+## Unit tests
 when isMainModule and not defined(release):
   ## Test internal (private) methods for gossip, 
   ## mesh and fanout maintenance. 
   ## Usually I wouldn't test private behaviour, 
   ## but the maintenance methods are quite involved, 
-  ## hence these tests are here.
+  ## hence these tests are here and crussial to get
+  ## working correctly.
   ##
 
   import unittest
@@ -399,7 +438,7 @@ when isMainModule and not defined(release):
         check gossipSub.peers.len == 15
         await gossipSub.rebalanceMesh(topic)
         check gossipSub.mesh[topic].len == GossipSubD
-        
+
         result = true
 
       check:
@@ -409,7 +448,7 @@ when isMainModule and not defined(release):
       proc testRun(): Future[bool] {.async.} =
         var peerInfo: PeerInfo
         var seckey = some(PrivateKey.random(RSA))
-        
+
         peerInfo.peerId = some(PeerID.init(seckey.get()))
         let gossipSub = newPubSub(TestGossipSub, peerInfo)
 
@@ -431,7 +470,7 @@ when isMainModule and not defined(release):
         check gossipSub.gossipsub[topic].len == 15
         await gossipSub.rebalanceMesh(topic)
         check gossipSub.mesh[topic].len == GossipSubD
-        
+
         result = true
 
       check:

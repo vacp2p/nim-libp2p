@@ -1,22 +1,23 @@
 import options, tables
 import chronos
-import ../libp2p/[switch,
-                  peer,
-                  connection,
-                  multiaddress,
-                  peerinfo,
-                  muxers/muxer,
-                  crypto/crypto,
-                  muxers/mplex/mplex,
-                  muxers/mplex/types,
-                  protocols/identify,
-                  transports/transport,
-                  transports/tcptransport,
-                  protocols/secure/secure,
-                  protocols/secure/secio,
-                  protocols/pubsub/pubsub,
-                  protocols/pubsub/gossipsub,
-                  protocols/pubsub/floodsub]
+import ../../libp2p/[switch,
+                     peer,
+                     connection,
+                     multiaddress,
+                     peerinfo,
+                     muxers/muxer,
+                     crypto/crypto,
+                     stream/bufferstream,
+                     muxers/mplex/mplex,
+                     muxers/mplex/types,
+                     protocols/identify,
+                     transports/transport,
+                     transports/tcptransport,
+                     protocols/secure/secure,
+                     protocols/secure/secio,
+                     protocols/pubsub/pubsub,
+                     protocols/pubsub/gossipsub,
+                     protocols/pubsub/floodsub]
 
 proc createMplex(conn: Connection): Muxer =
   result = newMplex(conn)
@@ -60,5 +61,8 @@ proc subscribeNodes*(nodes: seq[Switch]) {.async.} =
   var pending: seq[Future[void]]
   for dialer in nodes:
     for node in nodes:
-      pending.add(dialer.subscribeToPeer(node.peerInfo))
+      if dialer.peerInfo.peerId != node.peerInfo.peerId:
+        pending.add(dialer.subscribeToPeer(node.peerInfo))
+        await sleepAsync(100.millis)
+
   await allFutures(pending)

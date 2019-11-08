@@ -61,16 +61,17 @@ method rpcHandler*(f: FloodSub,
       for s in m.subscriptions:                    # subscribe/unsubscribe the peer for each topic
         f.subscribeTopic(s.topic, s.subscribe, peer.id)
 
-    if m.messages.len > 0:                         # if there are any messages
+    if m.messages.len > 0:                           # if there are any messages
       var toSendPeers: HashSet[string] = initHashSet[string]()
-      for msg in m.messages:                       # for every message
-        f.seen.put(msg.msgId, msg)                 # add the message to the seen cache
-        for t in msg.topicIDs:                     # for every topic in the message
-          if t in f.floodsub:
-            toSendPeers.incl(f.floodsub[t])        # get all the peers interested in this topic
-          if t in f.topics:                        # check that we're subscribed to it
-            for h in f.topics[t].handler:
-              await h(t, msg.data)                 # trigger user provided handler
+      for msg in m.messages:                         # for every message
+        if msg.msgId notin f.seen:
+          f.seen.put(msg.msgId, msg)                 # add the message to the seen cache
+          for t in msg.topicIDs:                     # for every topic in the message
+            if t in f.floodsub:
+              toSendPeers.incl(f.floodsub[t])        # get all the peers interested in this topic
+            if t in f.topics:                        # check that we're subscribed to it
+              for h in f.topics[t].handler:
+                await h(t, msg.data)                 # trigger user provided handler
 
         # forward the message to all peers interested in it
         for p in toSendPeers:
@@ -117,5 +118,5 @@ method initPubSub*(f: FloodSub) =
   f.peers = initTable[string, PubSubPeer]()
   f.topics = initTable[string, Topic]()
   f.floodsub = initTable[string, HashSet[string]]()
-  f.seen = newTimedCache[Message]()
+  f.seen = newTimedCache[Message](2.minutes)
   f.init()

@@ -53,8 +53,8 @@ proc decodeIHave*(pb: var ProtoBuffer): seq[ControlIHave] {.gcsafe.} =
     var control: ControlIHave
     if pb.enterSubMessage() > 0:
       if pb.getString(1, control.topicID) < 0:
-        error "topic field missing from ihave msg"
-        continue
+        trace "topic field missing from ihave msg"
+        break
 
       trace "read topic field", topicID = control.topicID
 
