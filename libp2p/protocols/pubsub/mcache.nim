@@ -30,7 +30,7 @@ proc put*(c: MCache, msg: Message) =
       it.filterIt(it.mid != msg.msgId)
     )
 
-  c.msgs.put(msg.msgId, msg, 2.minutes, handler)
+  c.msgs.put(msg.msgId, msg)
   c.history[0].add(CacheEntry(mid: msg.msgId, msg: msg))
 
 proc get*(c: MCache, mid: string): Option[Message] =
@@ -68,4 +68,4 @@ proc newMCache*(window: Natural, history: Natural): MCache =
   result.windowSize = window
   result.history = newSeq[seq[CacheEntry]]()
   result.history.add(@[]) # initialize with empty slot
-  result.msgs = newTimedCache[Message]()
+  result.msgs = newTimedCache[Message](2.minutes)
