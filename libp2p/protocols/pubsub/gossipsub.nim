@@ -120,7 +120,7 @@ method rpcHandler(g: GossipSub,
 
   trace "processing RPC message", peer = peer.id, msg = rpcMsgs
   for m in rpcMsgs:                                # for all RPC messages
-    trace "processing message", msg = rpcMsgs
+    trace "processing messages", msg = rpcMsgs
     if m.subscriptions.len > 0:                    # if there are any subscriptions
       for s in m.subscriptions:                    # subscribe/unsubscribe the peer for each topic
         g.subscribeTopic(s.topic, s.subscribe, peer.id)
@@ -128,24 +128,40 @@ method rpcHandler(g: GossipSub,
     if m.messages.len > 0:                         # if there are any messages
       var toSendPeers: HashSet[string] = initHashSet[string]()
       for msg in m.messages:                         # for every message
-        if msg.msgId notin g.seen:
-          g.seen.put(msg.msgId)                      # add the message to the seen cache
-          for t in msg.topicIDs:                     # for every topic in the message
+        trace "processing message with id", msg = msg.msgId
+        if msg.msgId in g.seen:
+          trace "message already processed, skipping", msg = msg.msgId
+          continue
+        
+        # this shouldn't happen
+        if g.peerInfo.peerId.get() == msg.fromPeerId():
+          trace "skipping messages from outself", msg = msg.msgId
+          continue
 
-            if t in g.floodsub:
-              toSendPeers.incl(g.floodsub[t])        # get all floodsub peers for topic
+        g.seen.put(msg.msgId)                      # add the message to the seen cache
+        for t in msg.topicIDs:                     # for every topic in the message
 
-            if t in g.mesh:
-              toSendPeers.incl(g.mesh[t])            # get all mesh peers for topic
+          if t in g.floodsub:
+            toSendPeers.incl(g.floodsub[t])        # get all floodsub peers for topic
 
-            if t in g.topics:                        # if we're subscribed to the topic
-              for h in g.topics[t].handler:
-                await h(t, msg.data)                 # trigger user provided handler
+          if t in g.mesh:
+            toSendPeers.incl(g.mesh[t])            # get all mesh peers for topic
 
-          # forward the message to all peers interested in it
-          for p in toSendPeers:
-            if p in g.peers and g.peers[p].id != peer.id:
-              await g.peers[p].send(@[RPCMsg(messages: m.messages)])
+          if t in g.topics:                        # if we're subscribed to the topic
+            for i, h in g.topics[t].handler:
+              await h(t, msg.data)                 # trigger user provided handler
+
+      # forward the message to all peers interested in it
+      for p in toSendPeers:
+        if p in g.peers and
+          g.peers[p].peerInfo.peerId != peer.peerInfo.peerId:
+            let id = g.peers[p].peerInfo.peerId.get()
+            var msgs = m.messages.filterIt(
+                # don't forward to message originator
+                id != it.fromPeerId()
+            )
+            if msgs.len > 0:
+              await g.peers[p].send(@[RPCMsg(messages: msgs)])
 
     var respControl: ControlMessage
     if m.control.isSome:

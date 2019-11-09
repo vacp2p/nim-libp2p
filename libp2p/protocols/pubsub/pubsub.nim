@@ -88,7 +88,8 @@ method handleConn*(p: PubSub,
       # call floodsub rpc handler
       await p.rpcHandler(peer, msgs)
 
-  if conn.peerInfo.peerId.get().pretty notin p.peers:
+  let id = conn.peerInfo.peerId.get().pretty
+  if id notin p.peers and id != p.peerInfo.peerId.get().pretty:
     # create new pubsub peer
     var peer = newPubSubPeer(conn, handler, proto)
 
