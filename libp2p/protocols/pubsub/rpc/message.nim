@@ -21,6 +21,9 @@ logScope:
 proc msgId*(m: Message): string =
   m.seqno.toHex() & PeerID.init(m.fromPeer).pretty
 
+proc fromPeerId*(m: Message): PeerId =
+  PeerID.init(m.fromPeer)
+
 proc sign*(peerId: PeerID, msg: Message): Message {.gcsafe.} = 
   var buff = initProtoBuffer()
   encodeMessage(msg, buff)
