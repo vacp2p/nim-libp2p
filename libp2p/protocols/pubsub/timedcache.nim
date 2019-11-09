@@ -35,7 +35,7 @@ proc addTimer*(at: Duration, cb: CallbackFunc, udata: pointer = nil) =
 proc put*[V](t: TimedCache[V],
              key: string,
              val: V = "",
-             timeout: Duration = t.timeout,
+             timeout: Duration,
              handler: ExpireHandler[V] = nil) = 
   trace "adding entry to timed cache", key = key
   t.cache[key] = TimedEntry[V](val: val, handler: handler)
@@ -51,6 +51,12 @@ proc put*[V](t: TimedCache[V],
         if not isNil(entry.handler):
           entry.handler(key, entry.val)
   )
+
+proc put*[V](t: TimedCache[V],
+             key: string,
+             val: V = "",
+             handler: ExpireHandler[V] = nil) =
+  t.put(key, val, t.timeout, handler)
 
 proc contains*[V](t: TimedCache[V], key: string): bool = 
   t.cache.contains(key)
