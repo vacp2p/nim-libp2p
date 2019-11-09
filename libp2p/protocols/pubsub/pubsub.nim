@@ -23,7 +23,7 @@ logScope:
 
 type
   TopicHandler* = proc (topic: string,
-                        data: seq[byte]): Future[void] {.closure, gcsafe.}
+                        data: seq[byte]): Future[void] {.gcsafe.}
 
   TopicPair* = tuple[topic: string, handler: TopicHandler]
 
