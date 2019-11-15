@@ -122,7 +122,7 @@ proc readLp*(s: Connection): Future[seq[byte]] {.async, gcsafe.} =
         break
     if res != VarintStatus.Success or size > DefaultReadSize:
       raise newInvalidVarintException()
-    result = newSeq[byte](size)
+    result.setLen(size)
     if size > 0.uint:
       trace "reading exact bytes from stream", size = size
       await s.readExactly(addr result[0], int(size))
