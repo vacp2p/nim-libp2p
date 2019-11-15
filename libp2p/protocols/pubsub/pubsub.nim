@@ -91,7 +91,7 @@ method handleConn*(p: PubSub,
   let id = conn.peerInfo.peerId.get().pretty
   if id notin p.peers and id != p.peerInfo.peerId.get().pretty:
     # create new pubsub peer
-    var peer = newPubSubPeer(conn, handler, proto)
+    let peer = newPubSubPeer(conn, handler, proto)
 
     trace "created new pubsub peer", id = peer.id
 

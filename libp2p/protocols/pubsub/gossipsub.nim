@@ -53,6 +53,7 @@ type
     mcache*: MCache # messages cache
     heartbeatCancel*: Future[void] # cancelation future for heartbeat interval
     heartbeatLock: AsyncLock
+    rpcLock: AsyncLock
 
 # TODO: This belong in chronos, temporary left here until chronos is updated
 proc addInterval(every: Duration, cb: CallbackFunc, udata: pointer = nil): Future[void] =
@@ -116,6 +117,7 @@ method subscribeTopic*(g: GossipSub,
 method rpcHandler(g: GossipSub,
                   peer: PubSubPeer,
                   rpcMsgs: seq[RPCMsg]) {.async, gcsafe.} = 
+  await g.rpcLock.acquire()
   await procCall PubSub(g).rpcHandler(peer, rpcMsgs)
 
   trace "processing RPC message", peer = peer.id, msg = rpcMsgs
@@ -125,20 +127,21 @@ method rpcHandler(g: GossipSub,
       for s in m.subscriptions:                    # subscribe/unsubscribe the peer for each topic
         g.subscribeTopic(s.topic, s.subscribe, peer.id)
 
-    if m.messages.len > 0:                         # if there are any messages
+    if m.messages.len > 0:                           # if there are any messages
       var toSendPeers: HashSet[string] = initHashSet[string]()
       for msg in m.messages:                         # for every message
         trace "processing message with id", msg = msg.msgId
         if msg.msgId in g.seen:
           trace "message already processed, skipping", msg = msg.msgId
           continue
-        
+
+        g.seen.put(msg.msgId)                        # add the message to the seen cache
+
         # this shouldn't happen
         if g.peerInfo.peerId.get() == msg.fromPeerId():
-          trace "skipping messages from outself", msg = msg.msgId
+          trace "skipping messages from self", msg = msg.msgId
           continue
 
-        g.seen.put(msg.msgId)                      # add the message to the seen cache
         for t in msg.topicIDs:                     # for every topic in the message
 
           if t in g.floodsub:
@@ -148,7 +151,11 @@ method rpcHandler(g: GossipSub,
             toSendPeers.incl(g.mesh[t])            # get all mesh peers for topic
 
           if t in g.topics:                        # if we're subscribed to the topic
-            for i, h in g.topics[t].handler:
+            for h in g.topics[t].handler:
+              trace "calling handler for message", msg = msg.msgId,
+                                                   topicId = t,
+                                                   localPeer = g.peerInfo.peerId.get().pretty,
+                                                   fromPeer = msg.fromPeerId().pretty
               await h(t, msg.data)                 # trigger user provided handler
 
       # forward the message to all peers interested in it
@@ -156,7 +163,7 @@ method rpcHandler(g: GossipSub,
         if p in g.peers and
           g.peers[p].peerInfo.peerId != peer.peerInfo.peerId:
             let id = g.peers[p].peerInfo.peerId.get()
-            var msgs = m.messages.filterIt(
+            let msgs = m.messages.filterIt(
                 # don't forward to message originator
                 id != it.fromPeerId()
             )
@@ -201,6 +208,7 @@ method rpcHandler(g: GossipSub,
       if respControl.graft.len > 0 or respControl.prune.len > 0 or
          respControl.ihave.len > 0 or respControl.iwant.len > 0:
         await peer.send(@[RPCMsg(control: some(respControl), messages: messages)])
+  g.rpcLock.release()
 
 proc replenishFanout(g: GossipSub, topic: string) {.async, gcsafe.} = 
   ## get fanout peers for a topic
@@ -299,7 +307,7 @@ proc getGossipPeers(g: GossipSub): Table[string, ControlMessage] {.gcsafe.} =
         trace "no peers for topic, skipping", topicID = topic
         break
 
-      var id = toSeq(g.gossipsub[topic]).sample()
+      let id = toSeq(g.gossipsub[topic]).sample()
       g.gossipsub[topic].excl(id)
       if id notin gossipPeers:
         if id notin result:
@@ -360,9 +368,12 @@ method publish*(g: GossipSub,
         # set the fanout expiery time
         g.lastFanoutPubSub[topic] = Moment.fromNow(GossipSubFanoutTTL)
 
+    let msg = newMessage(g.peerInfo.peerId.get(), data, topic)
     for p in peers:
+      if p == g.peerInfo.peerId.get().pretty:
+        continue
+
       trace "publishing on topic", name = topic
-      let msg = newMessage(g.peerInfo.peerId.get(), data, topic)
       g.mcache.put(msg)
       await g.peers[p].send(@[RPCMsg(messages: @[msg])])
 
@@ -381,10 +392,15 @@ method start*(g: GossipSub) {.async.} =
 
 method stop*(g: GossipSub) {.async.} =
   ## stopt pubsub
-  ## stop long running/repeating procedures
+  ## stop long running tasks
+
+  await g.heartbeatLock.acquire()
 
   # stop heartbeat interval
-  g.heartbeatCancel.complete()
+  if not g.heartbeatCancel.finished:
+    g.heartbeatCancel.complete()
+
+  g.heartbeatLock.release()
 
 method initPubSub(g: GossipSub) =
   procCall FloodSub(g).initPubSub()
@@ -397,6 +413,7 @@ method initPubSub(g: GossipSub) =
   g.gossip = initTable[string, seq[ControlIHave]]() # pending gossip
   g.control = initTable[string, ControlMessage]() # pending control messages
   g.heartbeatLock = newAsyncLock()
+  g.rpcLock = newAsyncLock()
 
 ## Unit tests
 when isMainModule and not defined(release):
@@ -404,8 +421,7 @@ when isMainModule and not defined(release):
   ## mesh and fanout maintenance. 
   ## Usually I wouldn't test private behaviour, 
   ## but the maintenance methods are quite involved, 
-  ## hence these tests are here and crussial to get
-  ## working correctly.
+  ## hence these tests are here.
   ##
 
   import unittest
