@@ -46,7 +46,7 @@ proc put*[V](t: TimedCache[V],
     proc (arg: pointer = nil) {.gcsafe.} =
       trace "deleting expired entry from timed cache", key = key
       if key in t.cache:
-        var entry = t.cache[key]
+        let entry = t.cache[key]
         t.cache.del(key)
         if not isNil(entry.handler):
           entry.handler(key, entry.val)
