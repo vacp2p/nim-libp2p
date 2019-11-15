@@ -30,7 +30,7 @@ proc put*(c: MCache, msg: Message) =
       it.filterIt(it.mid != msg.msgId)
     )
 
-  c.msgs.put(msg.msgId, msg)
+  c.msgs.put(msg.msgId, msg, handler = handler)
   c.history[0].add(CacheEntry(mid: msg.msgId, msg: msg))
 
 proc get*(c: MCache, mid: string): Option[Message] =
