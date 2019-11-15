@@ -7,7 +7,7 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import options, hashes, strutils, sequtils, tables
+import options, hashes, strutils, tables, hashes
 import chronos, chronicles
 import rpc/[messages, message, protobuf], 
        timedcache,
@@ -41,14 +41,14 @@ proc handle*(p: PubSubPeer) {.async, gcsafe.} =
       let data = await p.conn.readLp()
       let hexData = data.toHex()
       trace "read data from peer", peer = p.id, data = hexData
-      if hexData in p.recvdRpcCache:
+      if $hexData.hash in p.recvdRpcCache:
         trace "message already received, skipping", peer = p.id
         continue
 
       let msg = decodeRpcMsg(data)
       trace "decoded msg from peer", peer = p.id, msg = msg
       await p.handler(p, @[msg])
-      p.recvdRpcCache.put(hexData)
+      p.recvdRpcCache.put($hexData.hash)
   except:
     error "an exception occured while processing pubsub rpc requests", exc = getCurrentExceptionMsg()
   finally:
@@ -57,20 +57,20 @@ proc handle*(p: PubSubPeer) {.async, gcsafe.} =
 
 proc send*(p: PubSubPeer, msgs: seq[RPCMsg]) {.async, gcsafe.} =
   for m in msgs:
-    trace "sending msgs to peer", toPeer = p.id, msgs = msgs
+    trace "sending msgs to peer", toPeer = p.id
     let encoded = encodeRpcMsg(m)
     let encodedHex = encoded.buffer.toHex()
     if encoded.buffer.len <= 0:
       trace "empty message, skipping", peer = p.id
       return
 
-    if encodedHex in p.sentRpcCache:
+    if $encodedHex.hash in p.sentRpcCache:
       trace "message already sent to peer, skipping", peer = p.id
       continue
 
     trace "sending encoded msgs to peer", peer = p.id, encoded = encodedHex
     await p.conn.writeLp(encoded.buffer)
-    p.sentRpcCache.put(encodedHex)
+    p.sentRpcCache.put($encodedHex.hash)
 
 proc sendMsg*(p: PubSubPeer,
               peerId: PeerID,
