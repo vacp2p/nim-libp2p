@@ -31,8 +31,8 @@
 ## buffer goes below ``maxSize`` or more data becomes available.
 
 import deques, math
-import chronos, chronicles
-import ../stream/lpstream, ../crypto/crypto
+import chronos
+import ../stream/lpstream
 
 const DefaultBufferSize* = 1024
 
@@ -325,6 +325,10 @@ proc pipe*(s: BufferStream,
   proc handler(data: seq[byte]) {.async, closure.} =
     if not isNil(oldHandler):
       await oldHandler(data)
+  
+    if s == target:
+      for b in data:
+        s.readBuf.addLast(b)
 
     # if we're piping to self, 
     # then add the data to the 
