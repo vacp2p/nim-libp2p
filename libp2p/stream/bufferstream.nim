@@ -325,7 +325,11 @@ proc pipe*(s: BufferStream,
   proc handler(data: seq[byte]) {.async, closure.} =
     if not isNil(oldHandler):
       await oldHandler(data)
-  
+
+    # if we're piping to self, 
+    # then add the data to the 
+    # buffer directly and fire
+    # the read event
     if s == target:
       for b in data:
         s.readBuf.addLast(b)
