@@ -86,7 +86,7 @@ suite "FloodSub":
       await allFutures(nodes.mapIt(it.stop()))
       await allFutures(awaitters)
 
-      result = passed >= 2 # non deterministic, so at least 2 times
+      result = passed >= 20 # non deterministic, so at least 2 times
 
     check:
       waitFor(testBasicFloodSub()) == true
