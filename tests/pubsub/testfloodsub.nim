@@ -68,20 +68,20 @@ suite "FloodSub":
         passed.inc()
 
       var nodes: seq[Switch] = newSeq[Switch]()
-      for i in 0..<2:
-        nodes.add(createNode(gossip = true))
+      for i in 0..<20:
+        nodes.add(createNode())
 
       var awaitters: seq[Future[void]]
       for node in nodes:
         awaitters.add(await node.start())
         await node.subscribe("foobar", handler)
-        await sleepAsync(100.millis)
+        await sleepAsync(10.millis)
 
       await subscribeNodes(nodes)
 
       for node in nodes:
         await node.publish("foobar", cast[seq[byte]]("Hello!"))
-        await sleepAsync(100.millis)
+        await sleepAsync(10.millis)
 
       await allFutures(nodes.mapIt(it.stop()))
       await allFutures(awaitters)

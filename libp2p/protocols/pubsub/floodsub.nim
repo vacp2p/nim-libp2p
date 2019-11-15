@@ -26,7 +26,7 @@ const FloodSubCodec* = "/floodsub/1.0.0"
 type
   FloodSub* = ref object of PubSub
     floodsub*: Table[string, HashSet[string]] # topic to remote peer map
-    seen*: TimedCache[Message] # list of messages forwarded to peers
+    seen*: TimedCache[string] # list of messages forwarded to peers
 
 method subscribeTopic*(f: FloodSub,
                        topic: string,
@@ -65,7 +65,7 @@ method rpcHandler*(f: FloodSub,
       var toSendPeers: HashSet[string] = initHashSet[string]()
       for msg in m.messages:                         # for every message
         if msg.msgId notin f.seen:
-          f.seen.put(msg.msgId, msg)                 # add the message to the seen cache
+          f.seen.put(msg.msgId)                      # add the message to the seen cache
           for t in msg.topicIDs:                     # for every topic in the message
             if t in f.floodsub:
               toSendPeers.incl(f.floodsub[t])        # get all the peers interested in this topic
@@ -103,9 +103,10 @@ method publish*(f: FloodSub,
   if data.len > 0 and topic.len > 0:
     if topic in f.floodsub:
       trace "publishing on topic", name = topic
+      let msg = newMessage(f.peerInfo.peerId.get(), data, topic)
       for p in f.floodsub[topic]:
         trace "publishing message", name = topic, peer = p, data = data
-        await f.peers[p].sendMsg(f.peerInfo.peerId.get(), topic, data)
+        await f.peers[p].send(@[RPCMsg(messages: @[msg])])
 
 method unsubscribe*(f: FloodSub, 
                     topics: seq[TopicPair]) {.async, gcsafe.} = 
@@ -118,5 +119,5 @@ method initPubSub*(f: FloodSub) =
   f.peers = initTable[string, PubSubPeer]()
   f.topics = initTable[string, Topic]()
   f.floodsub = initTable[string, HashSet[string]]()
-  f.seen = newTimedCache[Message](2.minutes)
+  f.seen = newTimedCache[string](2.minutes)
   f.init()
