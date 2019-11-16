@@ -23,12 +23,13 @@ suite "FloodSub":
       var wait = await nodes[1].start()
 
       await nodes[0].subscribeToPeer(nodes[1].peerInfo)
+      await sleepAsync(10.millis)
 
       await nodes[1].subscribe("foobar", handler)
-      await sleepAsync(100.millis)
+      await sleepAsync(10.millis)
 
       await nodes[0].publish("foobar", cast[seq[byte]]("Hello!"))
-      await sleepAsync(100.millis)
+      await sleepAsync(10.millis)
 
       await nodes[1].stop()
       await allFutures(wait)
@@ -46,6 +47,7 @@ suite "FloodSub":
       var wait = await nodes[1].start()
 
       await nodes[0].subscribeToPeer(nodes[1].peerInfo)
+      await sleepAsync(10.millis)
 
       await nodes[0].subscribe("foobar", handler)
       await sleepAsync(10.millis)
