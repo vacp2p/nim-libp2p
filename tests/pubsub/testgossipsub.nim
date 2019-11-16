@@ -316,7 +316,7 @@ suite "GossipSub":
   test "with multiple peers": 
     proc testRun(): Future[bool] {.async.} =
       var nodes: seq[GossipSub]
-      for i in 0..<20:
+      for i in 0..<10:
         nodes.add(createGossipSub())
 
       var pending: seq[Future[void]]
@@ -362,7 +362,7 @@ suite "GossipSub":
       await allFutures(nodes.mapIt(it.stop()))
       await allFutures(awaitters)
 
-      check: seen.len == 19
+      check: seen.len == 9
       for k, v in seen.pairs:
         check: v == 1
 
@@ -376,7 +376,7 @@ suite "GossipSub":
       var nodes: seq[Switch] = newSeq[Switch]()
       var awaitters: seq[Future[void]]
 
-      for i in 0..<20:
+      for i in 0..<10:
         nodes.add(createNode(none(PrivateKey), "/ip4/127.0.0.1/tcp/0", true, true))
         awaitters.add((await nodes[i].start()))
 
@@ -405,7 +405,7 @@ suite "GossipSub":
       await allFutures(nodes.mapIt(it.stop()))
       await allFutures(awaitters)
 
-      check: seen.len == 20
+      check: seen.len == 10
       for k, v in seen.pairs:
         check: v == 1
 

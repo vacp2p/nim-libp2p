@@ -68,7 +68,7 @@ suite "FloodSub":
         passed.inc()
 
       var nodes: seq[Switch] = newSeq[Switch]()
-      for i in 0..<20:
+      for i in 0..<10:
         nodes.add(createNode())
 
       var awaitters: seq[Future[void]]
@@ -86,7 +86,7 @@ suite "FloodSub":
       await allFutures(nodes.mapIt(it.stop()))
       await allFutures(awaitters)
 
-      result = passed >= 20 # non deterministic, so at least 2 times
+      result = passed >= 10 # non deterministic, so at least 2 times
 
     check:
       waitFor(testBasicFloodSub()) == true
@@ -99,7 +99,7 @@ suite "FloodSub":
         passed.inc()
 
       var nodes: seq[Switch] = newSeq[Switch]()
-      for i in 0..<20:
+      for i in 0..<10:
         nodes.add(createNode(none(PrivateKey), "/ip4/127.0.0.1/tcp/0", true))
 
       var awaitters: seq[Future[void]]
@@ -113,12 +113,12 @@ suite "FloodSub":
 
       for node in nodes:
         await node.publish("foobar", cast[seq[byte]]("Hello!"))
-        await sleepAsync(100.millis)
+        await sleepAsync(10.millis)
 
       await allFutures(nodes.mapIt(it.stop()))
       await allFutures(awaitters)
 
-      result = passed >= 20 # non deterministic, so at least 20 times
+      result = passed >= 10 # non deterministic, so at least 20 times
 
     check:
       waitFor(testBasicFloodSub()) == true
