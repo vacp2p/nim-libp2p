@@ -53,7 +53,6 @@ type
     mcache*: MCache # messages cache
     heartbeatCancel*: Future[void] # cancelation future for heartbeat interval
     heartbeatLock: AsyncLock
-    rpcLock: AsyncLock
 
 # TODO: This belong in chronos, temporary left here until chronos is updated
 proc addInterval(every: Duration, cb: CallbackFunc, udata: pointer = nil): Future[void] =
@@ -114,10 +113,43 @@ method subscribeTopic*(g: GossipSub,
       # unsubscribe the peer from the topic
       g.gossipsub[topic].excl(peerId)
 
+proc handleGraft(g: GossipSub, 
+                 peer: PubSubPeer,
+                 grafts: seq[ControlGraft],
+                 respControl: var ControlMessage) =
+  for graft in grafts:
+    trace "processing graft message", peer = peer.id, topicID = graft.topicID
+    if graft.topicID in g.topics:
+      if g.mesh.len < GossipSubD:
+        g.mesh[graft.topicID].incl(peer.id)
+      else:
+        g.gossipsub[graft.topicID].incl(peer.id)
+    else:
+      respControl.prune.add(ControlPrune(topicID: graft.topicID))
+
+proc handlePrune(g: GossipSub, peer: PubSubPeer, prunes: seq[ControlPrune]) =
+  for prune in prunes:
+    trace "processing prune message", peer = peer.id, topicID = prune.topicID
+    if prune.topicID in g.mesh:
+      g.mesh[prune.topicID].excl(peer.id)
+
+proc handleIHave(g: GossipSub, ihaves: seq[ControlIHave]): ControlIWant =
+  for ihave in ihaves:
+    if ihave.topicID in g.mesh:
+      for m in ihave.messageIDs:
+        if m notin g.seen:
+          result.messageIDs.add(m)
+
+proc handleIWant(g: GossipSub, iwants: seq[ControlIWant]): seq[Message] =
+  for iwant in iwants:
+    for mid in iwant.messageIDs:
+      let msg = g.mcache.get(mid)
+      if msg.isSome:
+        result.add(msg.get())
+
 method rpcHandler(g: GossipSub,
                   peer: PubSubPeer,
                   rpcMsgs: seq[RPCMsg]) {.async, gcsafe.} = 
-  await g.rpcLock.acquire()
   await procCall PubSub(g).rpcHandler(peer, rpcMsgs)
 
   trace "processing RPC message", peer = peer.id, msg = rpcMsgs
@@ -173,42 +205,17 @@ method rpcHandler(g: GossipSub,
     var respControl: ControlMessage
     if m.control.isSome:
       var control: ControlMessage = m.control.get()
-      for graft in control.graft:
-        trace "processing graft message", peer = peer.id, topicID = graft.topicID
-        if graft.topicID in g.topics:
-          if g.mesh.len < GossipSubD:
-            g.mesh[graft.topicID].incl(peer.id)
-          else:
-            g.gossipsub[graft.topicID].incl(peer.id)
-        else:
-          respControl.prune.add(ControlPrune(topicID: graft.topicID))
-
-      for prune in control.prune:
-        trace "processing prune message", peer = peer.id, topicID = prune.topicID
-        if prune.topicID in g.mesh:
-          g.mesh[prune.topicID].excl(peer.id)
-
-      var iWant: ControlIWant
-      for ihave in control.ihave:
-        if ihave.topicID in g.mesh:
-          for m in ihave.messageIDs:
-            if m notin g.seen:
-              iWant.messageIDs.add(m)
-
+      let iWant: ControlIWant = g.handleIHave(control.ihave)
       if iWant.messageIDs.len > 0:
         respControl.iwant.add(iWant)
+      let messages: seq[Message] = g.handleIWant(control.iwant)
 
-      var messages: seq[Message]
-      for iwant in control.iwant:
-        for mid in iwant.messageIDs:
-          let msg = g.mcache.get(mid)
-          if msg.isSome:
-            messages.add(msg.get())
+      g.handleGraft(peer, control.graft, respControl)
+      g.handlePrune(peer, control.prune)
 
       if respControl.graft.len > 0 or respControl.prune.len > 0 or
          respControl.ihave.len > 0 or respControl.iwant.len > 0:
         await peer.send(@[RPCMsg(control: some(respControl), messages: messages)])
-  g.rpcLock.release()
 
 proc replenishFanout(g: GossipSub, topic: string) {.async, gcsafe.} = 
   ## get fanout peers for a topic
@@ -413,7 +420,6 @@ method initPubSub(g: GossipSub) =
   g.gossip = initTable[string, seq[ControlIHave]]() # pending gossip
   g.control = initTable[string, ControlMessage]() # pending control messages
   g.heartbeatLock = newAsyncLock()
-  g.rpcLock = newAsyncLock()
 
 ## Unit tests
 when isMainModule and not defined(release):
