@@ -118,7 +118,9 @@ proc handleGraft(g: GossipSub,
                  grafts: seq[ControlGraft],
                  respControl: var ControlMessage) =
   for graft in grafts:
-    trace "processing graft message", peer = peer.id, topicID = graft.topicID
+    trace "processing graft message", peer = peer.id, 
+                                      topicID = graft.topicID
+
     if graft.topicID in g.topics:
       if g.mesh.len < GossipSubD:
         g.mesh[graft.topicID].incl(peer.id)
@@ -129,20 +131,27 @@ proc handleGraft(g: GossipSub,
 
 proc handlePrune(g: GossipSub, peer: PubSubPeer, prunes: seq[ControlPrune]) =
   for prune in prunes:
-    trace "processing prune message", peer = peer.id, topicID = prune.topicID
+    trace "processing prune message", peer = peer.id, 
+                                      topicID = prune.topicID
+
     if prune.topicID in g.mesh:
       g.mesh[prune.topicID].excl(peer.id)
 
-proc handleIHave(g: GossipSub, ihaves: seq[ControlIHave]): ControlIWant =
+proc handleIHave(g: GossipSub, peer: PubSubPeer, ihaves: seq[ControlIHave]): ControlIWant =
   for ihave in ihaves:
+    trace "processing ihave message", peer = peer.id,
+                                      topicID = ihave.topicID
+
     if ihave.topicID in g.mesh:
       for m in ihave.messageIDs:
         if m notin g.seen:
           result.messageIDs.add(m)
 
-proc handleIWant(g: GossipSub, iwants: seq[ControlIWant]): seq[Message] =
+proc handleIWant(g: GossipSub, peer: PubSubPeer, iwants: seq[ControlIWant]): seq[Message] =
   for iwant in iwants:
     for mid in iwant.messageIDs:
+      trace "processing iwant message", peer = peer.id,
+                                        messageID = mid
       let msg = g.mcache.get(mid)
       if msg.isSome:
         result.add(msg.get())
@@ -205,10 +214,10 @@ method rpcHandler(g: GossipSub,
     var respControl: ControlMessage
     if m.control.isSome:
       var control: ControlMessage = m.control.get()
-      let iWant: ControlIWant = g.handleIHave(control.ihave)
+      let iWant: ControlIWant = g.handleIHave(peer, control.ihave)
       if iWant.messageIDs.len > 0:
         respControl.iwant.add(iWant)
-      let messages: seq[Message] = g.handleIWant(control.iwant)
+      let messages: seq[Message] = g.handleIWant(peer, control.iwant)
 
       g.handleGraft(peer, control.graft, respControl)
       g.handlePrune(peer, control.prune)
@@ -288,16 +297,16 @@ proc getGossipPeers(g: GossipSub): Table[string, ControlMessage] {.gcsafe.} =
   let topics = toHashSet(toSeq(g.mesh.keys)) + toHashSet(toSeq(g.fanout.keys))
 
   for topic in topics:
-    let mesh: HashSet[string] = 
-      if topic in g.mesh: 
-        g.mesh[topic] 
-      else: 
+    let mesh: HashSet[string] =
+      if topic in g.mesh:
+        g.mesh[topic]
+      else:
         initHashSet[string]()
 
     let fanout: HashSet[string] =
-      if topic in g.fanout: 
-        g.fanout[topic] 
-      else: 
+      if topic in g.fanout:
+        g.fanout[topic]
+      else:
         initHashSet[string]()
 
     let gossipPeers = mesh + fanout
@@ -435,19 +444,6 @@ when isMainModule and not defined(release):
 
   type
     TestGossipSub = ref object of GossipSub
-
-  method initPubSub*(g: TestGossipSub) =
-    ## Override here to prevent interval 
-    ## from running
-    procCall FloodSub(g).initPubSub()
-
-    g.mcache = newMCache(GossipSubHistoryGossip, GossipSubHistoryLength)
-    g.mesh = initTable[string, HashSet[string]]() # meshes - topic to peer
-    g.fanout = initTable[string, HashSet[string]]() # fanout - topic to peer
-    g.gossipsub = initTable[string, HashSet[string]]() # topic to peer map of all gossipsub peers
-    g.lastFanoutPubSub = initTable[string, Moment]() # last publish time for fanout topics
-    g.gossip = initTable[string, seq[ControlIHave]]() # pending gossip
-    g.control = initTable[string, ControlMessage]() # pending control messages
 
   suite "GossipSub":
     test "`rebalanceMesh` Degree Lo":
