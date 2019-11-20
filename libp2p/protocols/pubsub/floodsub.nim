@@ -99,14 +99,19 @@ method publish*(f: FloodSub,
                 data: seq[byte]) {.async, gcsafe.} =
   await procCall PubSub(f).publish(topic, data)
 
-  trace "about to publish message on topic", name = topic, data = data.toHex()
-  if data.len > 0 and topic.len > 0:
-    if topic in f.floodsub:
-      trace "publishing on topic", name = topic
-      let msg = newMessage(f.peerInfo.peerId.get(), data, topic)
-      for p in f.floodsub[topic]:
-        trace "publishing message", name = topic, peer = p, data = data
-        await f.peers[p].send(@[RPCMsg(messages: @[msg])])
+  if data.len <= 0 or topic.len <= 0:
+    trace "topic or data missing, skipping publish"
+    return
+
+  if topic notin f.floodsub:
+    trace "missing peers for topic, skipping publish"
+    return
+
+  trace "publishing on topic", name = topic
+  let msg = newMessage(f.peerInfo.peerId.get(), data, topic)
+  for p in f.floodsub[topic]:
+    trace "publishing message", name = topic, peer = p, data = data
+    await f.peers[p].send(@[RPCMsg(messages: @[msg])])
 
 method unsubscribe*(f: FloodSub, 
                     topics: seq[TopicPair]) {.async, gcsafe.} = 
