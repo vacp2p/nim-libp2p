@@ -1,17 +1,19 @@
 import options, tables
 import unittest
-import chronos
+import chronos, chronicles
 import ../libp2p/[daemon/daemonapi,
                   protobuf/minprotobuf,
                   vbuffer,
                   multiaddress,
                   multicodec,
                   cid,
+                  varint,
                   multihash,
                   peer,
                   peerinfo,
                   switch,
                   connection,
+                  stream/lpstream,
                   muxers/muxer,
                   crypto/crypto,
                   muxers/mplex/mplex,
@@ -38,6 +40,27 @@ proc writeLp*(s: StreamTransport, msg: string | seq[byte]): Future[int] {.gcsafe
   buf.writeSeq(msg)
   buf.finish()
   result = s.write(buf.buffer)
+
+proc readLp*(s: StreamTransport): Future[seq[byte]] {.async, gcsafe.} =
+  ## read lenght prefixed msg
+  var
+    size: uint
+    length: int
+    res: VarintStatus
+  result = newSeq[byte](10)
+  try:
+    for i in 0..<len(result):
+      await s.readExactly(addr result[i], 1)
+      res = LP.getUVarint(result.toOpenArray(0, i), length, size)
+      if res == VarintStatus.Success:
+        break
+    if res != VarintStatus.Success or size > DefaultReadSize:
+      raise newInvalidVarintException()
+    result.setLen(size)
+    if size > 0.uint:
+      await s.readExactly(addr result[0], int(size))
+  except LPStreamIncompleteError, LPStreamReadError:
+      trace "remote connection ended unexpectedly", exc = getCurrentExceptionMsg()
 
 proc createNode*(privKey: Option[PrivateKey] = none(PrivateKey), 
                  address: string = "/ip4/127.0.0.1/tcp/0",
@@ -132,16 +155,21 @@ suite "Interop":
     check:
       waitFor(runTests()) == true
 
-  test "PubSub - gossip":
+  test "read write multiple":
     proc runTests(): Future[bool] {.async.} =
       var protos = @["/test-stream"]
       var test = "TEST STRING"
 
-      var testFuture = newFuture[string]("test.future")
+      var count = 0
+      var testFuture = newFuture[int]("test.future")
       proc nativeHandler(conn: Connection, proto: string) {.async.} =
-        var line = cast[string](await conn.readLp())
-        check line == test
-        testFuture.complete(line)
+        while count < 10:
+          var line = cast[string](await conn.readLp())
+          check line == test
+          await conn.writeLp(cast[seq[byte]](test))
+          count.inc()
+
+        testFuture.complete(count)
         await conn.close()
 
       # custom proto
@@ -158,9 +186,13 @@ suite "Interop":
       let daemonNode = await newDaemonApi()
       await daemonNode.connect(nativePeer.peerId.get(), nativePeer.addrs)
       var stream = await daemonNode.openStream(nativePeer.peerId.get(), protos)
-      discard await stream.transp.writeLp(test)
 
-      result = test == (await wait(testFuture, 10.secs))
+      while count < 10:
+        discard await stream.transp.writeLp(test)
+        let line = await stream.transp.readLp()
+        check test == cast[string](line)
+
+      result = 10 == (await wait(testFuture, 10.secs))
       await nativeNode.stop()
       await allFutures(awaiters)
 
