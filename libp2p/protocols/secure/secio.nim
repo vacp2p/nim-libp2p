@@ -1,4 +1,3 @@
-
 ## Nim-LibP2P
 ## Copyright (c) 2019 Status Research & Development GmbH
 ## Licensed under either of
@@ -405,8 +404,8 @@ proc readLoop(sconn: SecureConnection, stream: BufferStream) {.async.} =
     try:
       let msg = await sconn.readMessage()
       await stream.pushTo(msg)
-    except:
-      trace "exception in secio", exc = getCurrentExceptionMsg()
+    except CatchableError as exc:
+      trace "exception in secio", exc = exc
       return
     finally:
       trace "ending secio readLoop"
