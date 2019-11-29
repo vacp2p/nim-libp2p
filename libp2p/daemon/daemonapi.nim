@@ -894,8 +894,9 @@ proc openStream*(api: DaemonAPI, peer: PeerID,
         stream.flags.incl(Outbound)
         stream.transp = transp
         result = stream
-  finally:
+  except Exception as exc:
     await api.closeConnection(transp)
+    raise exc
 
 proc streamHandler(server: StreamServer, transp: StreamTransport) {.async.} =
   var api = getUserData[DaemonAPI](server)
@@ -932,12 +933,14 @@ proc addHandler*(api: DaemonAPI, protocols: seq[string],
                                                                protocols))
     pb.withMessage() do:
       api.servers.add(P2PServer(server: server, address: maddress))
-  finally:
+  except Exception as exc:
     for item in protocols:
       api.handlers.del(item)
     server.stop()
     server.close()
     await server.join()
+    raise exc
+  finally:
     await api.closeConnection(transp)
 
 proc listPeers*(api: DaemonAPI): Future[seq[PeerInfo]] {.async.} =
@@ -1298,8 +1301,9 @@ proc pubsubSubscribe*(api: DaemonAPI, topic: string,
       ticket.transp = transp
       asyncCheck pubsubLoop(api, ticket)
       result = ticket
-  finally:
+  except Exception as exc:
     await api.closeConnection(transp)
+    raise exc
 
 proc `$`*(pinfo: PeerInfo): string =
   ## Get string representation of ``PeerInfo`` object.
