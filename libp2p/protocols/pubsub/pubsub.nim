@@ -89,31 +89,39 @@ method handleConn*(p: PubSub,
       await p.rpcHandler(peer, msgs)
 
   let id = conn.peerInfo.peerId.get().pretty
-  if id notin p.peers and id != p.peerInfo.peerId.get().pretty:
-    # create new pubsub peer
-    let peer = newPubSubPeer(conn, handler, proto)
+  if id in p.peers or id == p.peerInfo.peerId.get().pretty:
+    trace "already connected to peer, closing", peerId = id
+    await conn.close()
+    return
 
-    trace "created new pubsub peer", id = peer.id
+  # create new pubsub peer
+  let peer = newPubSubPeer(conn, handler, proto)
+  trace "created new pubsub peer", peerId = peer.id
 
-    p.peers[peer.id] = peer
-    let topics = toSeq(p.topics.keys)
-    if topics.len > 0:
-      await p.sendSubs(peer, topics, true)
+  p.peers[peer.id] = peer
+  let topics = toSeq(p.topics.keys)
+  if topics.len > 0:
+    await p.sendSubs(peer, topics, true)
 
-    let handlerFut = peer.handle() # spawn peer read loop
-    handlerFut.addCallback(
-      proc(udata: pointer = nil) {.gcsafe.} = 
-        trace "pubsub peer handler ended, cleaning up",
-          peer = conn.peerInfo.peerId.get().pretty
+  result = peer.handle() # spawn peer read loop
+  result.addCallback(
+    proc(udata: pointer = nil) {.gcsafe.} = 
+      trace "pubsub peer handler ended, cleaning up",
+        peer = conn.peerInfo.peerId.get().pretty
 
-        # TODO: figureout how to handle properly without dicarding
-        asyncDiscard p.handleDisconnect(peer)
-    )
+      # TODO: figureout how to handle properly without dicarding
+      asyncDiscard p.handleDisconnect(peer)
+  )
 
 method subscribeToPeer*(p: PubSub,
                         conn: Connection) {.base, async, gcsafe.} =
+  let id = conn.peerInfo.peerId.get().pretty
+  if id in p.peers or id == p.peerInfo.peerId.get().pretty:
+    trace "already connected to peer, ignoring", peerId = id
+    return
+
   ## subscribe to a peer to send/receive pubsub messages
-  discard
+  await p.handleConn(conn, p.codec)
 
 method unsubscribe*(p: PubSub,
                     topics: seq[TopicPair]) {.base, async, gcsafe.} = 

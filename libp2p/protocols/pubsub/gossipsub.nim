@@ -393,10 +393,6 @@ method publish*(g: GossipSub,
       g.mcache.put(msg)
       await g.peers[p].send(@[RPCMsg(messages: @[msg])])
 
-method subscribeToPeer*(f: GossipSub, 
-                        conn: Connection) {.async, gcsafe.} =
-  await f.handleConn(conn, GossipSubCodec)
-
 method start*(g: GossipSub) {.async.} =
   ## start pubsub
   ## start long running/repeating procedures

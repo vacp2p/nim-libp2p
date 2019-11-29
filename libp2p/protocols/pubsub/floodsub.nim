@@ -90,10 +90,6 @@ method init(f: FloodSub) =
   f.handler = handler
   f.codec = FloodSubCodec
 
-method subscribeToPeer*(f: FloodSub,
-                        conn: Connection) {.async, gcsafe.} =
-  await f.handleConn(conn, FloodSubCodec)
-
 method publish*(f: FloodSub,
                 topic: string,
                 data: seq[byte]) {.async, gcsafe.} =
