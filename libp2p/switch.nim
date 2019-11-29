@@ -71,7 +71,6 @@ proc identify(s: Switch, conn: Connection): Future[PeerInfo] {.async, gcsafe.} =
       let info = await s.identity.identify(conn, conn.peerInfo)
 
       if info.pubKey.isSome:
-        trace "identify: identified remote peer ", peer = result.peerId.get().pretty
         result.peerId = some(PeerID.init(info.pubKey.get())) # we might not have a peerId at all
         trace "identify: identified remote peer", peer = result.id
 
