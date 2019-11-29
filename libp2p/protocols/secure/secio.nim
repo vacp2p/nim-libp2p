@@ -405,7 +405,7 @@ proc readLoop(sconn: SecureConnection, stream: BufferStream) {.async.} =
       let msg = await sconn.readMessage()
       await stream.pushTo(msg)
     except CatchableError as exc:
-      trace "exception in secio", exc = exc
+      trace "exception in secio", exc = exc.msg
       return
     finally:
       trace "ending secio readLoop"
