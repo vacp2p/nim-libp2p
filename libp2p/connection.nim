@@ -7,7 +7,7 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import chronos, options, chronicles
+import chronos, chronicles
 import peerinfo,
        multiaddress,
        stream/lpstream,
@@ -32,9 +32,21 @@ proc newConnection*(stream: LPStream): Connection =
   ## create a new Connection for the specified async reader/writer
   new result
   result.stream = stream
+  result.closeEvent = newAsyncEvent()
+
+  # bind stream's close event to connection's close
+  # to ensure correct close propagation
+  let conn = result
+  if not isNil(result.stream.closeEvent):
+    result.stream.closeEvent.wait().
+      addCallback(
+        proc (udata: pointer) =
+          if not conn.closed:
+            asyncCheck conn.close()
+      )
 
 method read*(s: Connection, n = -1): Future[seq[byte]] {.gcsafe.} =
-  result = s.stream.read(n)
+  s.stream.read(n)
 
 method readExactly*(s: Connection,
                     pbytes: pointer,
@@ -44,13 +56,13 @@ method readExactly*(s: Connection,
 
 method readLine*(s: Connection,
                  limit = 0,
-                 sep = "\r\n"): 
+                 sep = "\r\n"):
                  Future[string] {.gcsafe.} =
   s.stream.readLine(limit, sep)
 
 method readOnce*(s: Connection,
                  pbytes: pointer,
-                 nbytes: int): 
+                 nbytes: int):
                  Future[int] {.gcsafe.} =
   s.stream.readOnce(pbytes, nbytes)
 
@@ -61,15 +73,15 @@ method readUntil*(s: Connection,
                   Future[int] {.gcsafe.} =
   s.stream.readUntil(pbytes, nbytes, sep)
 
-method write*(s: Connection, 
-              pbytes: pointer, 
-              nbytes: int): 
+method write*(s: Connection,
+              pbytes: pointer,
+              nbytes: int):
               Future[void] {.gcsafe.} =
   s.stream.write(pbytes, nbytes)
 
-method write*(s: Connection, 
-              msg: string, 
-              msglen = -1): 
+method write*(s: Connection,
+              msg: string,
+              msglen = -1):
               Future[void] {.gcsafe.} =
   s.stream.write(msg, msglen)
 
@@ -80,8 +92,13 @@ method write*(s: Connection,
   s.stream.write(msg, msglen)
 
 method close*(s: Connection) {.async, gcsafe.} =
-  await s.stream.close()
-  s.closed = true
+  trace "closing connection"
+  if not s.closed:
+    if not isNil(s.stream) and not s.stream.closed:
+      await s.stream.close()
+    s.closeEvent.fire()
+    s.closed = true
+  trace "connection closed", closed = s.closed
 
 proc readLp*(s: Connection): Future[seq[byte]] {.async, gcsafe.} =
   ## read lenght prefixed msg
@@ -109,12 +126,11 @@ proc writeLp*(s: Connection, msg: string | seq[byte]): Future[void] {.gcsafe.} =
   var buf = initVBuffer()
   buf.writeSeq(msg)
   buf.finish()
-  result = s.write(buf.buffer)
+  s.write(buf.buffer)
 
 method getObservedAddrs*(c: Connection): Future[MultiAddress] {.base, async, gcsafe.} =
   ## get resolved multiaddresses for the connection
   result = c.observedAddrs
 
 proc `$`*(conn: Connection): string =
-  if conn.peerInfo.peerId.isSome:
-    result = $(conn.peerInfo.peerId.get())
+  result = $(conn.peerInfo)
