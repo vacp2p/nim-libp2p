@@ -8,9 +8,7 @@
 ## those terms.
 
 import chronos
-import ../connection,
-       ../peerinfo, 
-       ../multiaddress
+import ../connection
 
 type
   LPProtoHandler* = proc (conn: Connection, 

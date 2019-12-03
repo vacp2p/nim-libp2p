@@ -7,7 +7,7 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import options, strformat
+import options
 import chronos, chronicles
 import ../protobuf/minprotobuf, 
        ../peerinfo,
@@ -115,14 +115,14 @@ method init*(p: Identify) =
     trace "handling identify request"
     var pb = encodeMsg(p.peerInfo, await conn.getObservedAddrs())
     await conn.writeLp(pb.buffer)
+    # await conn.close() #TODO: investigate why this breaks
 
   p.handler = handle
   p.codec = IdentifyCodec
 
 proc identify*(p: Identify, 
                conn: Connection, 
-               remotePeerInfo: PeerInfo): 
-               Future[IdentifyInfo] {.async.} = 
+               remotePeerInfo: PeerInfo): Future[IdentifyInfo] {.async, gcsafe.} = 
   var message = await conn.readLp()
   if len(message) == 0:
     trace "identify: Invalid or empty message received!"
@@ -139,7 +139,7 @@ proc identify*(p: Identify,
     if peer != remotePeerInfo.peerId.get():
       trace "Peer ids don't match",
             remote = peer.pretty(),
-            local = remotePeerInfo.peerId.get().pretty()
+            local = remotePeerInfo.id
 
       raise newException(IdentityNoMatchError,
         "Peer ids don't match")
@@ -149,5 +149,4 @@ proc identify*(p: Identify,
 proc push*(p: Identify, conn: Connection) {.async.} =
   await conn.write(IdentifyPushCodec)
   var pb = encodeMsg(p.peerInfo, await conn.getObservedAddrs())
-  let length = pb.getLen()
   await conn.writeLp(pb.buffer)

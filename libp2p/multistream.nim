@@ -7,12 +7,12 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import sequtils, strutils, strformat
+import strutils
 import chronos, chronicles
 import connection,
-       varint,
        vbuffer,
-       protocols/protocol
+       protocols/protocol,
+       stream/lpstream
 
 logScope:
   topic = "Multistream"
@@ -56,16 +56,16 @@ proc select*(m: MultisteamSelect,
     trace "selecting proto", proto = proto
     await conn.writeLp((proto[0] & "\n")) # select proto
 
-  result = cast[string](await conn.readLp()) # read ms header
+  result = cast[string]((await conn.readLp())) # read ms header
   result.removeSuffix("\n")
   if result != Codec:
-    trace "handshake failed", codec = result
+    trace "handshake failed", codec = result.toHex()
     return ""
 
   if proto.len() == 0: # no protocols, must be a handshake call
     return
 
-  result = cast[string](await conn.readLp()) # read the first proto
+  result = cast[string]((await conn.readLp())) # read the first proto
   trace "reading first requested proto"
   result.removeSuffix("\n")
   if result == proto[0]:
@@ -76,7 +76,7 @@ proc select*(m: MultisteamSelect,
     trace "selecting one of several protos"
     for p in proto[1..<proto.len()]:
       await conn.writeLp((p & "\n")) # select proto
-      result = cast[string](await conn.readLp()) # read the first proto
+      result = cast[string]((await conn.readLp())) # read the first proto
       result.removeSuffix("\n")
       if result == p:
         trace "selected protocol", protocol = result
@@ -102,7 +102,7 @@ proc list*(m: MultisteamSelect,
   await conn.write(m.ls) # send ls
 
   var list = newSeq[string]()
-  let ms = cast[string](await conn.readLp())
+  let ms = cast[string]((await conn.readLp()))
   for s in ms.split("\n"):
     if s.len() > 0:
       list.add(s)
@@ -112,7 +112,7 @@ proc list*(m: MultisteamSelect,
 proc handle*(m: MultisteamSelect, conn: Connection) {.async, gcsafe.} =
   trace "handle: starting multistream handling"
   while not conn.closed:
-      var ms = cast[string](await conn.readLp())
+      var ms = cast[string]((await conn.readLp()))
       ms.removeSuffix("\n")
       
       trace "handle: got request for ", ms
@@ -143,7 +143,7 @@ proc handle*(m: MultisteamSelect, conn: Connection) {.async, gcsafe.} =
                 await h.protocol.handler(conn, ms)
                 return
               except Exception as exc:
-                warn "exception while handling ", msg = exc.msg
+                warn "exception while handling", msg = exc.msg
                 return
           warn "no handlers for ", protocol = ms
           await conn.write(m.na)
