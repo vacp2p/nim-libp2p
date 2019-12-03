@@ -265,6 +265,9 @@ proc start*(s: Switch): Future[seq[Future[void]]] {.async, gcsafe.} =
 proc stop*(s: Switch) {.async.} = 
   trace "stopping switch"
 
+  if s.pubSub.isSome:
+    await s.pubSub.get().stop()
+
   await allFutures(toSeq(s.connections.values).mapIt(s.cleanupConn(it)))
   await allFutures(s.transports.mapIt(it.close()))
 

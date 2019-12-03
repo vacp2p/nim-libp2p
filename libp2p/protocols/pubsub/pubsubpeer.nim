@@ -49,28 +49,32 @@ proc handle*(p: PubSubPeer) {.async, gcsafe.} =
       trace "decoded msg from peer", peer = p.id, msg = msg
       await p.handler(p, @[msg])
       p.recvdRpcCache.put($hexData.hash)
-  except:
-    error "an exception occured while processing pubsub rpc requests", exc = getCurrentExceptionMsg()
+  except CatchableError as exc:
+    error "an exception occured while processing pubsub rpc requests", exc = exc.msg
   finally:
     trace "closing connection to pubsub peer", peer = p.id
-    await p.conn.close()
+    if not p.conn.closed:
+      await p.conn.close()
 
 proc send*(p: PubSubPeer, msgs: seq[RPCMsg]) {.async, gcsafe.} =
-  for m in msgs:
-    trace "sending msgs to peer", toPeer = p.id
-    let encoded = encodeRpcMsg(m)
-    let encodedHex = encoded.buffer.toHex()
-    if encoded.buffer.len <= 0:
-      trace "empty message, skipping", peer = p.id
-      return
+  try:
+    for m in msgs:
+      trace "sending msgs to peer", toPeer = p.id
+      let encoded = encodeRpcMsg(m)
+      let encodedHex = encoded.buffer.toHex()
+      if encoded.buffer.len <= 0:
+        trace "empty message, skipping", peer = p.id
+        return
 
-    if $encodedHex.hash in p.sentRpcCache:
-      trace "message already sent to peer, skipping", peer = p.id
-      continue
+      if $encodedHex.hash in p.sentRpcCache:
+        trace "message already sent to peer, skipping", peer = p.id
+        continue
 
-    trace "sending encoded msgs to peer", peer = p.id, encoded = encodedHex
-    await p.conn.writeLp(encoded.buffer)
-    p.sentRpcCache.put($encodedHex.hash)
+      trace "sending encoded msgs to peer", peer = p.id, encoded = encodedHex
+      await p.conn.writeLp(encoded.buffer)
+      p.sentRpcCache.put($encodedHex.hash)
+  except CatchableError as exc:
+    trace "exception occured", exc = exc.msg
 
 proc sendMsg*(p: PubSubPeer,
               peerId: PeerID,
@@ -94,6 +98,6 @@ proc newPubSubPeer*(conn: Connection, handler: RPCHandler, proto: string): PubSu
   result.proto = proto
   result.conn = conn
   result.peerInfo = conn.peerInfo
-  result.id = conn.peerInfo.peerId.get().pretty()
+  result.id = conn.peerInfo.id
   result.sentRpcCache = newTimedCache[string](2.minutes)
   result.recvdRpcCache = newTimedCache[string](2.minutes)

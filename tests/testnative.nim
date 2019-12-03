@@ -7,5 +7,7 @@ import testtransport,
        testbufferstream, 
        testidentify, 
        testswitch,
-       testpubsub,
+       pubsub/testpubsub,
+       # TODO: placing this before pubsub tests, 
+       # breaks some flood and gossip tests - no idea why
        testmplex

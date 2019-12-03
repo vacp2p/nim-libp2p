@@ -334,14 +334,6 @@ proc pipe*(s: BufferStream,
       for b in data:
         s.readBuf.addLast(b)
 
-    # if we're piping to self, 
-    # then add the data to the 
-    # buffer directly and fire
-    # the read event
-    if s == target:
-      for b in data:
-        s.readBuf.addLast(b)
-
       # notify main loop of available 
       # data
       s.dataReadEvent.fire()

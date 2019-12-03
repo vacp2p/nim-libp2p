@@ -9,7 +9,8 @@
 
 import unittest, sequtils, options
 import chronos
-import utils, ../../libp2p/[switch, crypto/crypto]
+import utils, 
+       ../../libp2p/[switch, crypto/crypto]
 
 suite "FloodSub":
   test "FloodSub basic publish/subscribe A -> B":
@@ -80,6 +81,7 @@ suite "FloodSub":
         await sleepAsync(10.millis)
 
       await subscribeNodes(nodes)
+      await sleepAsync(10.millis)
 
       for node in nodes:
         await node.publish("foobar", cast[seq[byte]]("Hello!"))
@@ -106,16 +108,18 @@ suite "FloodSub":
 
       var awaitters: seq[Future[void]]
       for node in nodes:
-        awaitters.add(await node.start())
+        awaitters.add((await node.start()))
         await node.subscribe("foobar", handler)
         await sleepAsync(10.millis)
 
       await subscribeNodes(nodes)
-      await sleepAsync(50.millis)
+      await sleepAsync(500.millis)
 
       for node in nodes:
         await node.publish("foobar", cast[seq[byte]]("Hello!"))
         await sleepAsync(10.millis)
+      
+      await sleepAsync(100.millis)
 
       await allFutures(nodes.mapIt(it.stop()))
       await allFutures(awaitters)

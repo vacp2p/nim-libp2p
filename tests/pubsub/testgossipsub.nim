@@ -60,7 +60,7 @@ suite "GossipSub":
       waitFor(testRun()) == true
 
   test "e2e - should add remote peer topic subscriptions":
-    proc testBasicFloodSub(): Future[bool] {.async.} =
+    proc testBasicGossipSub(): Future[bool] {.async.} =
       proc handler(topic: string, data: seq[byte]) {.async, gcsafe.} =
         discard
 
@@ -91,7 +91,7 @@ suite "GossipSub":
       result = true
 
     check:
-      waitFor(testBasicFloodSub()) == true
+      waitFor(testBasicGossipSub()) == true
 
   test "should add remote peer topic subscriptions if both peers are subscribed":
     proc testRun(): Future[bool] {.async.} =
@@ -134,7 +134,7 @@ suite "GossipSub":
       waitFor(testRun()) == true
 
   test "e2e - should add remote peer topic subscriptions if both peers are subscribed":
-    proc testBasicFloodSub(): Future[bool] {.async.} =
+    proc testBasicGossipSub(): Future[bool] {.async.} =
       proc handler(topic: string, data: seq[byte]) {.async, gcsafe.} =
         discard
 
@@ -173,7 +173,7 @@ suite "GossipSub":
       result = true
 
     check:
-      waitFor(testBasicFloodSub()) == true
+      waitFor(testBasicGossipSub()) == true
 
   test "send over fanout A -> B":
     proc testRun(): Future[bool] {.async.} =
@@ -294,7 +294,7 @@ suite "GossipSub":
       var nodes = generateNodes(2, true)
       var wait = await nodes[1].start()
 
-      await subscribeNodes(nodes)
+      await nodes[0].subscribeToPeer(nodes[1].peerInfo)
       await sleepAsync(100.millis)
 
       await nodes[0].subscribe("foobar", handler)

@@ -36,6 +36,7 @@ type
     topics*: Table[string, Topic] # local topics
     peers*: Table[string, PubSubPeer] # peerid to peer map
     triggerSelf*: bool # trigger own local handler on publish
+    cleanupLock: AsyncLock
 
 proc sendSubs*(p: PubSub,
                peer: PubSubPeer,
@@ -66,6 +67,11 @@ method handleDisconnect*(p: PubSub, peer: PubSubPeer) {.async, base, gcsafe.} =
   if peer.id in p.peers:
     p.peers.del(peer.id)
 
+proc cleanUpHelper(p: PubSub, peer: PubSubPeer) {.async.} =
+  await p.cleanupLock.acquire()
+  await p.handleDisconnect(peer)
+  p.cleanupLock.release()
+
 method handleConn*(p: PubSub,
                    conn: Connection,
                    proto: string) {.base, async, gcsafe.} =
@@ -82,16 +88,17 @@ method handleConn*(p: PubSub,
 
   if conn.peerInfo.peerId.isNone:
     trace "no valid PeerId for peer"
+    await conn.close()
     return
 
   proc handler(peer: PubSubPeer, msgs: seq[RPCMsg]) {.async, gcsafe.} =
       # call floodsub rpc handler
       await p.rpcHandler(peer, msgs)
 
-  let id = conn.peerInfo.peerId.get().pretty
-  if id in p.peers or id == p.peerInfo.peerId.get().pretty:
+  let id = conn.peerInfo.id
+  if id in p.peers or id == p.peerInfo.id:
     trace "already connected to peer, closing", peerId = id
-    await conn.close()
+    # await conn.close()
     return
 
   # create new pubsub peer
@@ -99,24 +106,35 @@ method handleConn*(p: PubSub,
   trace "created new pubsub peer", peerId = peer.id
 
   p.peers[peer.id] = peer
-  let topics = toSeq(p.topics.keys)
-  if topics.len > 0:
-    await p.sendSubs(peer, topics, true)
+  # let topics = toSeq(p.topics.keys)
+  # if topics.len > 0:
+  #   await p.sendSubs(peer, topics, true)
+
+  # handle connection close
+  conn.closeEvent.wait()
+  .addCallback(
+    proc(udata: pointer = nil) {.gcsafe.} = 
+      trace "connection closed, cleaning up peer",
+        peer = conn.peerInfo.id
+
+      # TODO: figureout how to handle properly without dicarding
+      asyncCheck p.cleanUpHelper(peer)
+  )
 
   result = peer.handle() # spawn peer read loop
   result.addCallback(
     proc(udata: pointer = nil) {.gcsafe.} = 
       trace "pubsub peer handler ended, cleaning up",
-        peer = conn.peerInfo.peerId.get().pretty
+        peer = conn.peerInfo.id
 
       # TODO: figureout how to handle properly without dicarding
-      asyncDiscard p.handleDisconnect(peer)
+      asyncCheck p.cleanUpHelper(peer)
   )
 
 method subscribeToPeer*(p: PubSub,
                         conn: Connection) {.base, async, gcsafe.} =
-  let id = conn.peerInfo.peerId.get().pretty
-  if id in p.peers or id == p.peerInfo.peerId.get().pretty:
+  let id = conn.peerInfo.id
+  if id in p.peers or id == p.peerInfo.id:
     trace "already connected to peer, ignoring", peerId = id
     return
 
@@ -191,4 +209,5 @@ proc newPubSub*(p: typedesc[PubSub],
   new result
   result.peerInfo = peerInfo
   result.triggerSelf = triggerSelf
+  result.cleanupLock = newAsyncLock()
   result.initPubSub()
