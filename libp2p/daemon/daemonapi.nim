@@ -855,7 +855,7 @@ proc connect*(api: DaemonAPI, peer: PeerID,
                                                          timeout))
     pb.withMessage() do:
       discard
-  finally:
+  except:
     await api.closeConnection(transp)
 
 proc disconnect*(api: DaemonAPI, peer: PeerID) {.async.} =
