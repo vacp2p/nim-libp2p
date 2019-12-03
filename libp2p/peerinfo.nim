@@ -10,7 +10,27 @@
 import options
 import peer, multiaddress
 
-type PeerInfo* = object of RootObj
-  peerId*: Option[PeerID]
-  addrs*: seq[MultiAddress]
-  protocols*: seq[string]
+type 
+  PeerInfo* = object of RootObj
+    peerId*: Option[PeerID]
+    addrs*: seq[MultiAddress]
+    protocols*: seq[string]
+
+proc id*(p: PeerInfo): string = 
+  if p.peerId.isSome:
+    result = p.peerId.get().pretty
+
+proc `$`*(p: PeerInfo): string =
+  if p.peerId.isSome:
+    result.add("PeerID: ")
+    result.add(p.id & "\n")
+
+  if p.addrs.len > 0:
+    result.add("Peer Addrs: ")
+    for a in p.addrs:
+      result.add($a & "\n")
+
+  if p.protocols.len > 0:
+    result.add("Protocols: ")
+    for proto in p.protocols:
+      result.add(proto & "\n")
