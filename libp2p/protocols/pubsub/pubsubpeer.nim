@@ -14,6 +14,7 @@ import rpcmsg,
        ../../peer,
        ../../peerinfo,
        ../../connection,
+       ../../stream/lpstream,
        ../../crypto/crypto,
        ../../protobuf/minprotobuf
 
