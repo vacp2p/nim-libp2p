@@ -1,5 +1,5 @@
 import unittest, tables, options
-import chronos, chronicles
+import chronos
 import ../libp2p/[switch,
                   multistream,
                   protocols/identify,
@@ -36,7 +36,7 @@ method init(p: TestProto) {.gcsafe.} =
 
 suite "Switch":
   test "e2e use switch":
-    proc createSwitch(ma: MultiAddress): (Switch, PeerInfo) =
+    proc createSwitch(ma: MultiAddress): (Switch, PeerInfo) {.gcsafe.}=
       let seckey = PrivateKey.random(RSA)
       var peerInfo: PeerInfo
       peerInfo.peerId = some(PeerID.init(seckey))
@@ -50,7 +50,11 @@ suite "Switch":
       let transports = @[Transport(newTransport(TcpTransport))]
       let muxers = [(MplexCodec, mplexProvider)].toTable()
       let secureManagers = [(SecioCodec, Secure(newSecio(seckey)))].toTable()
-      let switch = newSwitch(peerInfo, transports, identify, muxers, secureManagers)
+      let switch = newSwitch(peerInfo,
+                             transports,
+                             identify,
+                             muxers,
+                             secureManagers)
       result = (switch, peerInfo)
 
     proc testSwitch(): Future[bool] {.async, gcsafe.} =
