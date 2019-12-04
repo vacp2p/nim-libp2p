@@ -1,4 +1,4 @@
-import unittest, strutils, sequtils, sugar, strformat, options
+import unittest, strutils, sequtils, strformat, options
 import chronos
 import ../libp2p/connection,
        ../libp2p/multistream,
@@ -51,7 +51,8 @@ method write*(s: TestSelectStream, msg: seq[byte], msglen = -1)
 method write*(s: TestSelectStream, msg: string, msglen = -1)
   {.async, gcsafe.} = discard
 
-method close(s: TestSelectStream) {.async, gcsafe.} = s.closed = true
+method close(s: TestSelectStream) {.async, gcsafe.} = 
+  s.isClosed = true
 
 proc newTestSelectStream(): TestSelectStream =
   new result
@@ -97,7 +98,8 @@ method write*(s: TestLsStream, msg: seq[byte], msglen = -1) {.async, gcsafe.} =
 method write*(s: TestLsStream, msg: string, msglen = -1)
   {.async, gcsafe.} = discard
 
-method close(s: TestLsStream) {.async, gcsafe.} = s.closed = true
+method close(s: TestLsStream) {.async, gcsafe.} = 
+  s.isClosed = true
 
 proc newTestLsStream(ls: LsHandler): TestLsStream {.gcsafe.} =
   new result
@@ -143,7 +145,8 @@ method write*(s: TestNaStream, msg: string, msglen = -1) {.async, gcsafe.} =
   if s.step == 4:
     await s.na(msg)
 
-method close(s: TestNaStream) {.async, gcsafe.} = s.closed = true
+method close(s: TestNaStream) {.async, gcsafe.} = 
+  s.isClosed = true
 
 proc newTestNaStream(na: NaHandler): TestNaStream =
   new result
