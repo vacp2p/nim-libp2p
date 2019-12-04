@@ -7,7 +7,7 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import chronos, chronicles
+import chronos, chronicles, sequtils
 import transport,
        ../wire,
        ../connection,
@@ -78,5 +78,5 @@ method dial*(t: TcpTransport,
   result = await t.connHandler(t.server, client, true)
 
 method handles*(t: TcpTransport, address: MultiAddress): bool {.gcsafe.} = 
-  ## TODO: implement logic to properly discriminat TCP multiaddrs
-  true
+  if procCall Transport(t).handles(address):
+    result = address.protocols.filterIt( it == multiCodec("tcp") ).len > 0
