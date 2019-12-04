@@ -106,9 +106,9 @@ method handleConn*(p: PubSub,
   trace "created new pubsub peer", peerId = peer.id
 
   p.peers[peer.id] = peer
-  # let topics = toSeq(p.topics.keys)
-  # if topics.len > 0:
-  #   await p.sendSubs(peer, topics, true)
+  let topics = toSeq(p.topics.keys)
+  if topics.len > 0:
+    await p.sendSubs(peer, topics, true)
 
   # handle connection close
   conn.closeEvent.wait()

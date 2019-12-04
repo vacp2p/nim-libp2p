@@ -11,7 +11,7 @@ import unittest, sequtils, options, tables, sets
 import chronos
 import utils, ../../libp2p/[switch,
                             peer,
-                            peerinfo, 
+                            peerinfo,
                             connection,
                             crypto/crypto,
                             stream/bufferstream,
