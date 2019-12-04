@@ -53,7 +53,17 @@ proc initVBuffer*(): VBuffer =
   ## Initialize empty VBuffer.
   result.buffer = newSeqOfCap[byte](128)
 
-proc writeVarint*(vb: var VBuffer, value: LPSomeUVarint) =
+proc writePBVarint*(vb: var VBuffer, value: PBSomeUVarint) =
+  ## Write ``value`` as variable unsigned integer.
+  var length = 0
+  var v = value and cast[type(value)](0xFFFF_FFFF_FFFF_FFFF)
+  vb.buffer.setLen(len(vb.buffer) + vsizeof(v))
+  let res = PB.putUVarint(toOpenArray(vb.buffer, vb.offset, len(vb.buffer) - 1),
+                          length, v)
+  doAssert(res == VarintStatus.Success)
+  vb.offset += length
+
+proc writeLPVarint*(vb: var VBuffer, value: LPSomeUVarint) =
   ## Write ``value`` as variable unsigned integer.
   var length = 0
   # LibP2P varint supports only 63 bits.
@@ -63,6 +73,9 @@ proc writeVarint*(vb: var VBuffer, value: LPSomeUVarint) =
                           length, v)
   doAssert(res == VarintStatus.Success)
   vb.offset += length
+
+proc writeVarint*(vb: var VBuffer, value: LPSomeUVarint) = 
+  writeLPVarint(vb, value)
 
 proc writeSeq*[T: byte|char](vb: var VBuffer, value: openarray[T]) =
   ## Write array ``value`` to buffer ``vb``, value will be prefixed with

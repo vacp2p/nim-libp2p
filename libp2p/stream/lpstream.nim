@@ -11,7 +11,8 @@ import chronos
 
 type 
   LPStream* = ref object of RootObj
-    closed*: bool
+    isClosed*: bool
+    closeEvent*: AsyncEvent
 
   LPStreamError* = object of CatchableError
   LPStreamIncompleteError* = object of LPStreamError
@@ -47,40 +48,43 @@ proc newLPStreamIncorrectError*(m: string): ref Exception {.inline.} =
 proc newLPStreamClosedError*(): ref Exception {.inline.} =
   result = newException(LPStreamClosedError, "Stream closed!")
 
+method closed*(s: LPStream): bool {.base, inline.} = 
+  s.isClosed
+
 method read*(s: LPStream, n = -1): Future[seq[byte]]
-  {.base, async, gcsafe.} =
+  {.base, async.} =
   doAssert(false, "not implemented!")
 
 method readExactly*(s: LPStream, pbytes: pointer, nbytes: int): Future[void]
-  {.base, async, gcsafe.} =
+  {.base, async.} =
   doAssert(false, "not implemented!")
 
 method readLine*(s: LPStream, limit = 0, sep = "\r\n"): Future[string]
-  {.base, async, gcsafe.} =
+  {.base, async.} =
   doAssert(false, "not implemented!")
 
 method readOnce*(s: LPStream, pbytes: pointer, nbytes: int): Future[int]
-  {.base, async, gcsafe.} =
+  {.base, async.} =
   doAssert(false, "not implemented!")
 
 method readUntil*(s: LPStream,
                   pbytes: pointer, nbytes: int,
                   sep: seq[byte]): Future[int]
-  {.base, async, gcsafe.} =
+  {.base, async.} =
   doAssert(false, "not implemented!")
 
 method write*(s: LPStream, pbytes: pointer, nbytes: int)
-  {.base, async, gcsafe.} =
+  {.base, async.} =
   doAssert(false, "not implemented!")
 
 method write*(s: LPStream, msg: string, msglen = -1)
-  {.base, async, gcsafe.} =
+  {.base, async.} =
   doAssert(false, "not implemented!")
 
 method write*(s: LPStream, msg: seq[byte], msglen = -1)
-  {.base, async, gcsafe.} =
+  {.base, async.} =
   doAssert(false, "not implemented!")
 
 method close*(s: LPStream)
-  {.base, async, gcsafe.} =
+  {.base, async.} =
   doAssert(false, "not implemented!")

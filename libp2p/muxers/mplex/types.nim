@@ -8,7 +8,6 @@
 ## those terms.
 
 import chronos
-import ../../connection
 
 const MaxMsgSize* = 1 shl 20 # 1mb
 const MaxChannels* = 1000

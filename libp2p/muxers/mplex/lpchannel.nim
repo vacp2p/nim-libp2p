@@ -7,7 +7,6 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import strformat
 import chronos, chronicles
 import types,
        coder,
@@ -52,99 +51,110 @@ proc newChannel*(id: uint,
   result.asyncLock = newAsyncLock()
 
   let chan = result
-  proc writeHandler(data: seq[byte]): Future[void] {.async, gcsafe.} = 
+  proc writeHandler(data: seq[byte]): Future[void] {.async.} = 
     # writes should happen in sequence
     await chan.asyncLock.acquire()
-    trace "writeHandler: sending data ", data = data.toHex(), id = chan.id
+    trace "sending data ", data = data.toHex(),
+                           id = chan.id,
+                           initiator = chan.initiator
+
     await conn.writeMsg(chan.id, chan.msgCode, data) # write header
     chan.asyncLock.release()
 
   result.initBufferStream(writeHandler, size)
 
-proc closeMessage(s: LPChannel) {.async, gcsafe.} =
+proc closeMessage(s: LPChannel) {.async.} =
   await s.conn.writeMsg(s.id, s.closeCode) # write header
-
-proc closed*(s: LPChannel): bool = 
-  s.closedLocal and s.closedLocal
 
 proc closedByRemote*(s: LPChannel) {.async.} = 
   s.closedRemote = true
 
 proc cleanUp*(s: LPChannel): Future[void] =
+  # method which calls the underlying buffer's `close` 
+  # method used instead of `close` since it's overloaded to
+  # simulate half-closed streams
   result = procCall close(BufferStream(s))
+
+proc open*(s: LPChannel): Future[void] =
+  s.conn.writeMsg(s.id, MessageType.New, s.name)
 
 method close*(s: LPChannel) {.async, gcsafe.} =
   s.closedLocal = true
   await s.closeMessage()
 
-proc resetMessage(s: LPChannel) {.async, gcsafe.} =
+proc resetMessage(s: LPChannel) {.async.} =
   await s.conn.writeMsg(s.id, s.resetCode)
 
-proc resetByRemote*(s: LPChannel) {.async, gcsafe.} =
+proc resetByRemote*(s: LPChannel) {.async.} =
   await allFutures(s.close(), s.closedByRemote())
   s.isReset = true
 
 proc reset*(s: LPChannel) {.async.} =
   await allFutures(s.resetMessage(), s.resetByRemote())
 
-proc isReadEof(s: LPChannel): bool = 
-  bool((s.closedRemote or s.closedLocal) and s.len() < 1)
+method closed*(s: LPChannel): bool =
+  result = s.closedRemote and s.len == 0
 
-proc pushTo*(s: LPChannel, data: seq[byte]): Future[void] {.gcsafe.} =
-  if s.closedRemote:
+proc pushTo*(s: LPChannel, data: seq[byte]): Future[void] =
+  if s.closedRemote or s.isReset:
     raise newLPStreamClosedError()
+  trace "pushing data to channel", data = data.toHex(), 
+                                   id = s.id, 
+                                   initiator = s.initiator
+
   result = procCall pushTo(BufferStream(s), data)
 
-method read*(s: LPChannel, n = -1): Future[seq[byte]] {.gcsafe.} =
-  if s.isReadEof():
+method read*(s: LPChannel, n = -1): Future[seq[byte]] =
+  if s.closed or s.isReset:
     raise newLPStreamClosedError()
+
   result = procCall read(BufferStream(s), n)
 
-method readExactly*(s: LPChannel, 
-                    pbytes: pointer, 
-                    nbytes: int): 
-                    Future[void] {.gcsafe.} =
-  if s.isReadEof():
+method readExactly*(s: LPChannel,
+                    pbytes: pointer,
+                    nbytes: int):
+                    Future[void] =
+  if s.closed or s.isReset:
     raise newLPStreamClosedError()
   result = procCall readExactly(BufferStream(s), pbytes, nbytes)
 
 method readLine*(s: LPChannel,
                  limit = 0,
                  sep = "\r\n"):
-                 Future[string] {.gcsafe.} =
-  if s.isReadEof():
+                 Future[string] =
+  if s.closed or s.isReset:
     raise newLPStreamClosedError()
   result = procCall readLine(BufferStream(s), limit, sep)
 
 method readOnce*(s: LPChannel, 
                  pbytes: pointer, 
                  nbytes: int): 
-                 Future[int] {.gcsafe.} =
-  if s.isReadEof():
+                 Future[int] =
+  if s.closed or s.isReset:
     raise newLPStreamClosedError()
   result = procCall readOnce(BufferStream(s), pbytes, nbytes)
 
 method readUntil*(s: LPChannel,
                   pbytes: pointer, nbytes: int,
                   sep: seq[byte]): 
-                  Future[int] {.gcsafe.} =
-  if s.isReadEof():
+                  Future[int] =
+  if s.closed or s.isReset:
     raise newLPStreamClosedError()
   result = procCall readOnce(BufferStream(s), pbytes, nbytes)
 
 method write*(s: LPChannel,
               pbytes: pointer, 
-              nbytes: int): Future[void] {.gcsafe.} =
-  if s.closedLocal:
+              nbytes: int): Future[void] =
+  if s.closedLocal or s.isReset:
     raise newLPStreamClosedError()
   result = procCall write(BufferStream(s), pbytes, nbytes)
 
-method write*(s: LPChannel, msg: string, msglen = -1) {.async, gcsafe.} =
-  if s.closedLocal:
+method write*(s: LPChannel, msg: string, msglen = -1) {.async.} =
+  if s.closedLocal or s.isReset:
     raise newLPStreamClosedError()
   result = procCall write(BufferStream(s), msg, msglen)
 
-method write*(s: LPChannel, msg: seq[byte], msglen = -1) {.async, gcsafe.} =
-  if s.closedLocal:
+method write*(s: LPChannel, msg: seq[byte], msglen = -1) {.async.} =
+  if s.closedLocal or s.isReset:
     raise newLPStreamClosedError()
   result = procCall write(BufferStream(s), msg, msglen)

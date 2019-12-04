@@ -1,4 +1,4 @@
-import unittest, deques, sequtils, strformat
+import unittest, strformat
 import chronos
 import ../libp2p/stream/bufferstream
 
@@ -220,7 +220,6 @@ suite "BufferStream":
 
   test "reads should happen in order":
     proc testWritePtr(): Future[bool] {.async.} =
-      var count = 1
       proc writeHandler(data: seq[byte]) {.async, gcsafe.} = discard
       let buff = newBufferStream(writeHandler, 10)
       check buff.len == 0
@@ -245,3 +244,199 @@ suite "BufferStream":
 
     check:
       waitFor(testWritePtr()) == true
+
+  test "pipe two streams without the `pipe` or `|` helpers":
+    proc pipeTest(): Future[bool] {.async.} =
+      proc writeHandler1(data: seq[byte]) {.async, gcsafe.}
+      proc writeHandler2(data: seq[byte]) {.async, gcsafe.}
+
+      var buf1 = newBufferStream(writeHandler1)
+      var buf2 = newBufferStream(writeHandler2)
+
+      proc writeHandler1(data: seq[byte]) {.async, gcsafe.} =
+        var msg = cast[string](data)
+        check  msg == "Hello!"
+        await buf2.pushTo(data)
+      
+      proc writeHandler2(data: seq[byte]) {.async, gcsafe.} =
+        var msg = cast[string](data)
+        check  msg == "Hello!"
+        await buf1.pushTo(data)
+
+      var res1: seq[byte] = newSeq[byte](7)
+      var readFut1 = buf1.readExactly(addr res1[0], 7)
+
+      var res2: seq[byte] = newSeq[byte](7)
+      var readFut2 = buf2.readExactly(addr res2[0], 7)
+
+      await buf1.pushTo(cast[seq[byte]]("Hello2!"))
+      await buf2.pushTo(cast[seq[byte]]("Hello1!"))
+
+      await allFutures(readFut1, readFut2)
+
+      check:
+        res1 == cast[seq[byte]]("Hello2!")
+        res2 == cast[seq[byte]]("Hello1!")
+
+      result = true
+
+    check:
+      waitFor(pipeTest()) == true
+
+  test "pipe A -> B":
+    proc pipeTest(): Future[bool] {.async.} =
+      var buf1 = newBufferStream()
+      var buf2 = buf1.pipe(newBufferStream())
+
+      var res1: seq[byte] = newSeq[byte](7)
+      var readFut = buf2.readExactly(addr res1[0], 7)
+      await buf1.write(cast[seq[byte]]("Hello1!"))
+      await readFut
+
+      check:
+        res1 == cast[seq[byte]]("Hello1!")
+
+      result = true
+
+    check:
+      waitFor(pipeTest()) == true
+
+  test "pipe A -> B and B -> A":
+    proc pipeTest(): Future[bool] {.async.} =
+      var buf1 = newBufferStream()
+      var buf2 = newBufferStream()
+
+      buf1 = buf1.pipe(buf2).pipe(buf1)
+
+      var res1: seq[byte] = newSeq[byte](7)
+      var readFut1 = buf1.readExactly(addr res1[0], 7)
+
+      var res2: seq[byte] = newSeq[byte](7)
+      var readFut2 = buf2.readExactly(addr res2[0], 7)
+
+      await buf1.write(cast[seq[byte]]("Hello1!"))
+      await buf2.write(cast[seq[byte]]("Hello2!"))
+      await allFutures(readFut1, readFut2)
+
+      check:
+        res1 == cast[seq[byte]]("Hello2!")
+        res2 == cast[seq[byte]]("Hello1!")
+
+      result = true
+
+    check:
+      waitFor(pipeTest()) == true
+
+  test "pipe A -> A (echo)":
+    proc pipeTest(): Future[bool] {.async.} =
+      var buf1 = newBufferStream()
+
+      buf1 = buf1.pipe(buf1)
+
+      proc reader(): Future[seq[byte]] = buf1.read(6)
+      proc writer(): Future[void] = buf1.write(cast[seq[byte]]("Hello!"))
+
+      var writerFut = writer()
+      var readerFut = reader()
+      
+      await writerFut
+      check:
+        (await readerFut) == cast[seq[byte]]("Hello!")
+
+      result = true
+
+    check:
+      waitFor(pipeTest()) == true
+
+  test "pipe with `|` operator - A -> B":
+    proc pipeTest(): Future[bool] {.async.} =
+      var buf1 = newBufferStream()
+      var buf2 = buf1 | newBufferStream()
+
+      var res1: seq[byte] = newSeq[byte](7)
+      var readFut = buf2.readExactly(addr res1[0], 7)
+      await buf1.write(cast[seq[byte]]("Hello1!"))
+      await readFut
+
+      check:
+        res1 == cast[seq[byte]]("Hello1!")
+
+      result = true
+
+    check:
+      waitFor(pipeTest()) == true
+
+  test "pipe with `|` operator - A -> B and B -> A":
+    proc pipeTest(): Future[bool] {.async.} =
+      var buf1 = newBufferStream()
+      var buf2 = newBufferStream()
+
+      buf1 = buf1 | buf2 | buf1
+
+      var res1: seq[byte] = newSeq[byte](7)
+      var readFut1 = buf1.readExactly(addr res1[0], 7)
+
+      var res2: seq[byte] = newSeq[byte](7)
+      var readFut2 = buf2.readExactly(addr res2[0], 7)
+
+      await buf1.write(cast[seq[byte]]("Hello1!"))
+      await buf2.write(cast[seq[byte]]("Hello2!"))
+      await allFutures(readFut1, readFut2)
+
+      check:
+        res1 == cast[seq[byte]]("Hello2!")
+        res2 == cast[seq[byte]]("Hello1!")
+
+      result = true
+
+    check:
+      waitFor(pipeTest()) == true
+
+  test "pipe with `|` operator - A -> A (echo)":
+    proc pipeTest(): Future[bool] {.async.} =
+      var buf1 = newBufferStream()
+
+      buf1 = buf1 | buf1
+
+      proc reader(): Future[seq[byte]] = buf1.read(6)
+      proc writer(): Future[void] = buf1.write(cast[seq[byte]]("Hello!"))
+
+      var writerFut = writer()
+      var readerFut = reader()
+
+      await writerFut
+      check:
+        (await readerFut) == cast[seq[byte]]("Hello!")
+
+      result = true
+
+    check:
+      waitFor(pipeTest()) == true
+
+  # TODO: Need to implement deadlock prevention when 
+  # piping to self
+  test "pipe deadlock":
+    proc pipeTest(): Future[bool] {.async.} =
+
+      var buf1 = newBufferStream(size = 5)
+
+      buf1 = buf1 | buf1
+      
+      var count = 30000
+      proc reader() {.async.} =
+        while count > 0:
+          discard await buf1.read(7)
+
+      proc writer() {.async.} = 
+        while count > 0:
+          await buf1.write(cast[seq[byte]]("Hello2!"))
+          count.dec
+
+      var writerFut = writer()
+      var readerFut = reader()
+
+      await allFutures(readerFut, writerFut)
+      result = true
+
+    check:
+      waitFor(pipeTest()) == true

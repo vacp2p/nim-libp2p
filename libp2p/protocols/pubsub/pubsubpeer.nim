@@ -14,6 +14,7 @@ import rpcmsg,
        ../../peer,
        ../../peerinfo,
        ../../connection,
+       ../../stream/lpstream,
        ../../crypto/crypto,
        ../../protobuf/minprotobuf
 
@@ -45,7 +46,7 @@ proc handle*(p: PubSubPeer) {.async, gcsafe.} =
       trace "Decoded msg from peer", peer = p.id, msg = msg
       await p.handler(p, @[msg])
   except:
-    error "An exception occured while processing pubsub rpc requests", exc = getCurrentExceptionMsg()
+    trace "An exception occured while processing pubsub rpc requests", exc = getCurrentExceptionMsg()
   finally:
     trace "closing connection to pubsub peer", peer = p.id
     await p.conn.close()

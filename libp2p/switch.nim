@@ -11,13 +11,11 @@ import tables, sequtils, options, strformat
 import chronos, chronicles
 import connection,
        transports/transport,
-       stream/lpstream,
        multistream,
        protocols/protocol,
        protocols/secure/secure,
        protocols/secure/plaintext, # for plain text
        peerinfo,
-       multiaddress,
        protocols/identify,
        protocols/pubsub/pubsub,
        muxers/muxer,
@@ -25,6 +23,12 @@ import connection,
 
 logScope:
   topic = "Switch"
+
+#TODO: General note - use a finite state machine to manage the different
+# steps of connections establishing and upgrading. This makes everything 
+# more robust and less prone to ordering attacks - i.e. muxing can come if 
+# and only if the channel has been secured (i.e. if a secure manager has been 
+# previously provided)
 
 type
     NoPubSubException = object of CatchableError
@@ -48,7 +52,6 @@ proc newNoPubSubException(): ref Exception {.inline.} =
 proc secure(s: Switch, conn: Connection): Future[Connection] {.async, gcsafe.} = 
   ## secure the incoming connection
 
-  # plaintext for now, doesn't do anything
   let managers = toSeq(s.secureManagers.keys)
   if managers.len == 0:
     raise newException(CatchableError, "No secure managers registered!")
@@ -62,20 +65,21 @@ proc secure(s: Switch, conn: Connection): Future[Connection] {.async, gcsafe.} =
 proc identify(s: Switch, conn: Connection): Future[PeerInfo] {.async, gcsafe.} =
   ## identify the connection
 
+  result = conn.peerInfo
   try:
     if (await s.ms.select(conn, s.identity.codec)):
       let info = await s.identity.identify(conn, conn.peerInfo)
 
       if info.pubKey.isSome:
         result.peerId = some(PeerID.init(info.pubKey.get())) # we might not have a peerId at all
-      
+        trace "identify: identified remote peer", peer = result.id
+
       if info.addrs.len > 0:
         result.addrs = info.addrs
-      
+
       if info.protos.len > 0:
         result.protocols = info.protos
 
-      trace "identify: identified remote peer ", peer = result.peerId.get().pretty
   except IdentityInvalidMsgError as exc:
     error "identify: invalid message", msg = exc.msg
   except IdentityNoMatchError as exc:
@@ -100,22 +104,23 @@ proc mux(s: Switch, conn: Connection): Future[void] {.async, gcsafe.} =
   muxer.streamHandler = s.streamHandler
 
   # new stream for identify
-  let stream = await muxer.newStream()
+  var stream = await muxer.newStream()
   let handlerFut = muxer.handle()
 
   # add muxer handler cleanup proc
   handlerFut.addCallback(
       proc(udata: pointer = nil) {.gcsafe.} = 
-        trace "mux: Muxer handler completed for peer ", 
-          peer = conn.peerInfo.peerId.get().pretty
+        trace "muxer handler completed for peer", 
+          peer = conn.peerInfo.id
     )
 
   # do identify first, so that we have a
   # PeerInfo in case we didn't before
   conn.peerInfo = await s.identify(stream)
-  await stream.close() # close idenity stream
-  
-  trace "connection's peerInfo", peerInfo = conn.peerInfo.peerId
+
+  await stream.close() # close identify stream
+
+  trace "connection's peerInfo", peerInfo = conn.peerInfo
 
   # store it in muxed connections if we have a peer for it
   # TODO: We should make sure that this are cleaned up properly
@@ -123,43 +128,42 @@ proc mux(s: Switch, conn: Connection): Future[void] {.async, gcsafe.} =
   # happen once secio is in place, but still something to keep
   # in mind
   if conn.peerInfo.peerId.isSome:
-    trace "adding muxer for peer", peer = conn.peerInfo.peerId.get().pretty
-    s.muxed[conn.peerInfo.peerId.get().pretty] = muxer
+    trace "adding muxer for peer", peer = conn.peerInfo.id
+    s.muxed[conn.peerInfo.id] = muxer
 
 proc cleanupConn(s: Switch, conn: Connection) {.async, gcsafe.} =
   if conn.peerInfo.peerId.isSome:
-    let id = conn.peerInfo.peerId.get().pretty
-    if s.muxed.contains(id):
-      await s.muxed[id].close
-    
-    if s.connections.contains(id):
+    let id = conn.peerInfo.id
+    trace "cleaning up connection for peer", peerId = id
+    if id in s.muxed:
+      await s.muxed[id].close()
+      s.muxed.del(id)
+
+    if id in s.connections:
       await s.connections[id].close()
+      s.connections.del(id)
 
 proc getMuxedStream(s: Switch, peerInfo: PeerInfo): Future[Option[Connection]] {.async, gcsafe.} = 
   # if there is a muxer for the connection
   # use it instead to create a muxed stream
-  if s.muxed.contains(peerInfo.peerId.get().pretty):
-    trace "connection is muxed, retriving muxer and setting up a stream"
-    let muxer = s.muxed[peerInfo.peerId.get().pretty]
+  if peerInfo.id in s.muxed:
+    trace "connection is muxed, setting up a stream"
+    let muxer = s.muxed[peerInfo.id]
     let conn = await muxer.newStream()
     result = some(conn)
 
 proc upgradeOutgoing(s: Switch, conn: Connection): Future[Connection] {.async, gcsafe.} =
   trace "handling connection", conn = conn
   result = conn
-  ## perform upgrade flow
-  if result.peerInfo.peerId.isSome:
-    let id = result.peerInfo.peerId.get().pretty
-    if s.connections.contains(id):
-      # if we already have a connection for this peer, 
-      # close the incoming connection and return the 
-      # existing one
-      await result.close()
-      return s.connections[id]
-    s.connections[id] = result
 
-  result = await s.secure(conn) # secure the connection
+  # don't mux/secure twise
+  if conn.peerInfo.peerId.isSome and 
+    conn.peerInfo.id in s.muxed:
+    return
+
+  result = await s.secure(result) # secure the connection
   await s.mux(result) # mux it if possible
+  s.connections[conn.peerInfo.id] = result
 
 proc upgradeIncoming(s: Switch, conn: Connection) {.async, gcsafe.} = 
   trace "upgrading incoming connection"
@@ -192,42 +196,57 @@ proc dial*(s: Switch,
            peer: PeerInfo, 
            proto: string = ""): 
            Future[Connection] {.async.} = 
-  trace "dialing peer", peer = peer.peerId.get().pretty
+  let id = peer.id
+  trace "dialing peer", peer = id
   for t in s.transports: # for each transport
     for a in peer.addrs: # for each address
       if t.handles(a): # check if it can dial it
-        result = await t.dial(a)
-        # make sure to assign the peer to the connection
-        result.peerInfo = peer
+        if id notin s.connections:
+          trace "dialing address", address = $a
+          result = await t.dial(a)
+          # make sure to assign the peer to the connection
+          result.peerInfo = peer
         result = await s.upgradeOutgoing(result)
+        result.closeEvent.wait().addCallback(
+          proc(udata: pointer) =
+            asyncCheck s.cleanupConn(result)
+          )
 
-        let stream = await s.getMuxedStream(peer)
-        if stream.isSome:
-          trace "connection is muxed, return muxed stream"
-          result = stream.get()
+        if proto.len > 0 and not result.closed:
+          let stream = await s.getMuxedStream(peer)
+          if stream.isSome:
+            trace "connection is muxed, return muxed stream"
+            result = stream.get()
+            trace "attempting to select remote", proto = proto
 
-        trace "dial: attempting to select remote ", proto = proto
-        if not (await s.ms.select(result, proto)):
-          error "dial: Unable to select protocol: ", proto = proto
-          raise newException(CatchableError, 
-          &"Unable to select protocol: {proto}")
+          if not (await s.ms.select(result, proto)):
+            error "unable to select protocol: ", proto = proto
+            raise newException(CatchableError, 
+            &"unable to select protocol: {proto}")
+
+        break # don't dial more than one addr on the same transport
 
 proc mount*[T: LPProtocol](s: Switch, proto: T) {.gcsafe.} = 
   if isNil(proto.handler):
-    raise newException(CatchableError, 
+    raise newException(CatchableError,
     "Protocol has to define a handle method or proc")
 
   if proto.codec.len == 0:
-    raise newException(CatchableError, 
+    raise newException(CatchableError,
     "Protocol has to define a codec string")
 
   s.ms.addHandler(proto.codec, proto)
 
 proc start*(s: Switch): Future[seq[Future[void]]] {.async, gcsafe.} = 
+  trace "starting switch"
+
   proc handle(conn: Connection): Future[void] {.async, closure, gcsafe.} =
     try:
         await s.upgradeIncoming(conn) # perform upgrade on incoming connection
+    except CatchableError as exc:
+      trace "exception occured", exc = exc.msg
     finally:
+      await conn.close()
       await s.cleanupConn(conn)
 
   var startFuts: seq[Future[void]]
@@ -237,10 +256,13 @@ proc start*(s: Switch): Future[seq[Future[void]]] {.async, gcsafe.} =
         var server = await t.listen(a, handle)
         s.peerInfo.addrs[i] = t.ma # update peer's address
         startFuts.add(server)
+
   result = startFuts # listen for incoming connections
 
 proc stop*(s: Switch) {.async.} = 
-  await allFutures(toSeq(s.connections.values).mapIt(it.close()))
+  trace "stopping switch"
+
+  await allFutures(toSeq(s.connections.values).mapIt(s.cleanupConn(it)))
   await allFutures(s.transports.mapIt(it.close()))
 
 proc subscribeToPeer*(s: Switch, peerInfo: PeerInfo) {.async, gcsafe.} =
@@ -253,14 +275,14 @@ proc subscribe*(s: Switch, topic: string, handler: TopicHandler): Future[void] {
   ## subscribe to a pubsub topic
   if s.pubSub.isNone:
     raise newNoPubSubException()
-  
+
   result = s.pubSub.get().subscribe(topic, handler)
 
 proc unsubscribe*(s: Switch, topics: seq[TopicPair]): Future[void] {.gcsafe.} = 
   ## unsubscribe from topics
   if s.pubSub.isNone:
     raise newNoPubSubException()
-  
+
   result = s.pubSub.get().unsubscribe(topics)
 
 proc publish*(s: Switch, topic: string, data: seq[byte]): Future[void] {.gcsafe.} = 

@@ -7,7 +7,7 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import chronos, options, sequtils, strformat
+import chronos, options
 import nimcrypto/utils, chronicles
 import types,
        ../../connection,
@@ -29,31 +29,33 @@ proc readMplexVarint(conn: Connection): Future[Option[uint]] {.async, gcsafe.} =
     varint: uint
     length: int
     res: VarintStatus
-  var buffer = newSeq[byte](10)
+    buffer = newSeq[byte](10)
+
   result = none(uint)
   try:
     for i in 0..<len(buffer):
-      await conn.readExactly(addr buffer[i], 1)
-      res = LP.getUVarint(buffer.toOpenArray(0, i), length, varint)
-      if res == VarintStatus.Success:
-        return some(varint)
+      if not conn.closed:
+        await conn.readExactly(addr buffer[i], 1)
+        res = PB.getUVarint(buffer.toOpenArray(0, i), length, varint)
+        if res == VarintStatus.Success:
+          return some(varint)
     if res != VarintStatus.Success:
       raise newInvalidVarintException()
-  except LPStreamIncompleteError:
-    trace "unable to read varint", exc = getCurrentExceptionMsg()
+  except LPStreamIncompleteError as exc:
+    trace "unable to read varint", exc = exc.msg
 
 proc readMsg*(conn: Connection): Future[Option[Msg]] {.async, gcsafe.} = 
   let headerVarint = await conn.readMplexVarint()
   if headerVarint.isNone:
     return
 
-  trace "readMsg: read header varint ", varint = headerVarint
+  trace "read header varint", varint = headerVarint
 
   let dataLenVarint = await conn.readMplexVarint()
   var data: seq[byte]
   if dataLenVarint.isSome and dataLenVarint.get() > 0.uint:
-    trace "readMsg: read size varint ", varint = dataLenVarint
     data = await conn.read(dataLenVarint.get().int)
+    trace "read size varint", varint = dataLenVarint
 
   let header = headerVarint.get()
   result = some((header shr 3, MessageType(header and 0x7), data))
@@ -64,11 +66,13 @@ proc writeMsg*(conn: Connection,
                data: seq[byte] = @[]) {.async, gcsafe.} =
   ## write lenght prefixed
   var buf = initVBuffer()
-  let header = (id shl 3 or ord(msgType).uint)
-  buf.writeVarint(id shl 3 or ord(msgType).uint)
-  buf.writeVarint(data.len().uint) # size should be always sent
+  buf.writePBVarint(id shl 3 or ord(msgType).uint)
+  buf.writePBVarint(data.len().uint) # size should be always sent
   buf.finish()
-  await conn.write(buf.buffer & data)
+  try:
+    await conn.write(buf.buffer & data)
+  except LPStreamIncompleteError as exc:
+    trace "unable to send message", exc = exc.msg
 
 proc writeMsg*(conn: Connection,
                id: uint,

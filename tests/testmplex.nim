@@ -274,25 +274,15 @@ suite "Mplex":
     expect LPStreamClosedError:
       waitFor(testClosedForWrite())
 
-  test "half closed - channel should close for read":
-    proc testClosedForRead(): Future[void] {.async.} =
-      proc writeHandler(data: seq[byte]) {.async, gcsafe.} = discard
-      let chann = newChannel(1, newConnection(newBufferStream(writeHandler)), true)
-      await chann.closedByRemote()
-      asyncDiscard chann.read()
-
-    expect LPStreamClosedError:
-      waitFor(testClosedForRead())
-
-  test "half closed - channel should close for read after eof":
+  test "half closed - channel should close for read by remote":
     proc testClosedForRead(): Future[void] {.async.} =
       proc writeHandler(data: seq[byte]) {.async, gcsafe.} = discard
       let chann = newChannel(1, newConnection(newBufferStream(writeHandler)), true)
 
       await chann.pushTo(cast[seq[byte]]("Hello!"))
-      await chann.close()
-      let msg = await chann.read()
-      asyncDiscard chann.read()
+      await chann.closedByRemote()
+      discard await chann.read() # this should work, since there is data in the buffer
+      discard await chann.read() # this should throw
 
     expect LPStreamClosedError:
       waitFor(testClosedForRead())
@@ -312,7 +302,7 @@ suite "Mplex":
       proc writeHandler(data: seq[byte]) {.async, gcsafe.} = discard
       let chann = newChannel(1, newConnection(newBufferStream(writeHandler)), true)
       await chann.reset()
-      asyncDiscard chann.read()
+      await chann.write(cast[seq[byte]]("Hello!"))
 
     expect LPStreamClosedError:
       waitFor(testResetWrite())
