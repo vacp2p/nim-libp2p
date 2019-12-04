@@ -62,6 +62,7 @@ method handle*(m: Mplex) {.async, gcsafe.} =
   trace "starting mplex main loop"
   try:
     while not m.connection.closed:
+      trace "waiting for data"
       let msg = await m.connection.readMsg()
       if msg.isNone:
         # TODO: allow poll with timeout to avoid using `sleepAsync`
@@ -120,7 +121,7 @@ method handle*(m: Mplex) {.async, gcsafe.} =
           m.getChannelList(initiator).del(id)
           break
   except CatchableError as exc:
-    error "exception occurred", exception = exc.msg
+    trace "exception occurred", exception = exc.msg
   finally:
     trace "stopping mplex main loop"
     await m.connection.close()

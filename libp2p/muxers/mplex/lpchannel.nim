@@ -51,7 +51,7 @@ proc newChannel*(id: uint,
   result.asyncLock = newAsyncLock()
 
   let chan = result
-  proc writeHandler(data: seq[byte]): Future[void] {.async, gcsafe.} = 
+  proc writeHandler(data: seq[byte]): Future[void] {.async.} = 
     # writes should happen in sequence
     await chan.asyncLock.acquire()
     trace "sending data ", data = data.toHex(),
@@ -63,7 +63,7 @@ proc newChannel*(id: uint,
 
   result.initBufferStream(writeHandler, size)
 
-proc closeMessage(s: LPChannel) {.async, gcsafe.} =
+proc closeMessage(s: LPChannel) {.async.} =
   await s.conn.writeMsg(s.id, s.closeCode) # write header
 
 proc closedByRemote*(s: LPChannel) {.async.} = 
@@ -82,10 +82,10 @@ method close*(s: LPChannel) {.async, gcsafe.} =
   s.closedLocal = true
   await s.closeMessage()
 
-proc resetMessage(s: LPChannel) {.async, gcsafe.} =
+proc resetMessage(s: LPChannel) {.async.} =
   await s.conn.writeMsg(s.id, s.resetCode)
 
-proc resetByRemote*(s: LPChannel) {.async, gcsafe.} =
+proc resetByRemote*(s: LPChannel) {.async.} =
   await allFutures(s.close(), s.closedByRemote())
   s.isReset = true
 
@@ -98,7 +98,6 @@ method closed*(s: LPChannel): bool =
 proc pushTo*(s: LPChannel, data: seq[byte]): Future[void] =
   if s.closedRemote or s.isReset:
     raise newLPStreamClosedError()
-
   trace "pushing data to channel", data = data.toHex(), 
                                    id = s.id, 
                                    initiator = s.initiator
