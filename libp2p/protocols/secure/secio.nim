@@ -290,7 +290,6 @@ proc handshake*(s: Secio, conn: Connection): Future[SecureConnection] {.async.} 
     remoteHashes: string
     remotePeerId: PeerID
     localPeerId: PeerID
-    ekey: PrivateKey
     localBytesPubkey = s.localPublicKey.getBytes()
 
   if randomBytes(localNonce) != SecioNonceSize:
@@ -413,11 +412,16 @@ proc readLoop(sconn: SecureConnection, stream: BufferStream) {.async.} =
   try:
     while not sconn.closed:
       let msg = await sconn.readMessage()
-      await stream.pushTo(msg)
+      if msg.len > 0:
+        await stream.pushTo(msg)
+      
+      # tight loop, give a chance for other 
+      # stuff to run as well
+      await sleepAsync(1.millis)
   except CatchableError as exc:
-    trace "exception in secio", exc = exc.msg
+    trace "exception occured", exc = exc.msg
   finally:
-    trace "ending secio readLoop"
+    trace "ending secio readLoop", isclosed = sconn.closed()
 
 proc handleConn(s: Secio, conn: Connection): Future[Connection] {.async, gcsafe.} =
   var sconn = await s.handshake(conn)

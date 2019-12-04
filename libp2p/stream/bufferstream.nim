@@ -354,4 +354,4 @@ method close*(s: BufferStream) {.async.} =
   s.dataReadEvent.fire()
   s.readBuf.clear()
   s.closeEvent.fire()
-  s.closed = true
+  s.isClosed = true

@@ -111,7 +111,9 @@ proc list*(m: MultisteamSelect,
 
 proc handle*(m: MultisteamSelect, conn: Connection) {.async, gcsafe.} =
   trace "handle: starting multistream handling"
-  while not conn.closed:
+  try:
+    while not conn.closed:
+      await sleepAsync(1.millis)
       var ms = cast[string]((await conn.readLp()))
       ms.removeSuffix("\n")
       
@@ -142,11 +144,15 @@ proc handle*(m: MultisteamSelect, conn: Connection) {.async, gcsafe.} =
               try:
                 await h.protocol.handler(conn, ms)
                 return
-              except Exception as exc:
+              except CatchableError as exc:
                 warn "exception while handling", msg = exc.msg
                 return
           warn "no handlers for ", protocol = ms
           await conn.write(m.na)
+  except CatchableError as exc:
+    trace "exception occured", exc = exc.msg
+  finally:
+    trace "leaving multistream loop"
 
 proc addHandler*[T: LPProtocol](m: MultisteamSelect,
                                 codec: string,

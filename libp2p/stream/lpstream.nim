@@ -51,9 +51,6 @@ proc newLPStreamClosedError*(): ref Exception {.inline.} =
 method closed*(s: LPStream): bool {.base, inline.} = 
   s.isClosed
 
-method `closed=`*(s: LPStream, closed: bool) {.base, inline.} = 
-  s.isClosed = closed
-
 method read*(s: LPStream, n = -1): Future[seq[byte]]
   {.base, async.} =
   doAssert(false, "not implemented!")
