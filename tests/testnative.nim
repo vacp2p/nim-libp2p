@@ -8,4 +8,5 @@ import testtransport,
        testbufferstream, 
        testidentify, 
        testswitch,
+       testpubsub,
        testmplex
