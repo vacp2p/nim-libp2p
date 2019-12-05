@@ -450,9 +450,6 @@ when isMainModule and not defined(release):
         peerInfo.peerId = some(PeerID.init(seckey.get()))
         let gossipSub = newPubSub(TestGossipSub, peerInfo)
 
-        proc handler(peer: PubSubPeer, msg: seq[RPCMsg]) {.async, gcsafe.} = 
-          discard
-
         let topic = "foobar"
         gossipSub.mesh[topic] = initHashSet[string]()
         proc writeHandler(data: seq[byte]) {.async, gcsafe.} = 
@@ -462,7 +459,8 @@ when isMainModule and not defined(release):
           let conn = newConnection(newBufferStream(writeHandler))
           let peerId = PeerID.init(PrivateKey.random(RSA))
           conn.peerInfo.peerId = some(peerId)
-          gossipSub.peers[peerId.pretty] = newPubSubPeer(conn, handler, GossipSubCodec)
+          gossipSub.peers[peerId.pretty] = newPubSubPeer(conn.peerInfo, GossipSubCodec)
+          gossipSub.peers[peerId.pretty].conn = conn
           gossipSub.mesh[topic].incl(peerId.pretty)
 
         check gossipSub.peers.len == 15
@@ -482,9 +480,6 @@ when isMainModule and not defined(release):
         peerInfo.peerId = some(PeerID.init(seckey.get()))
         let gossipSub = newPubSub(TestGossipSub, peerInfo)
 
-        proc handler(peer: PubSubPeer, msg: seq[RPCMsg]) {.async, gcsafe.} = 
-          discard
-
         let topic = "foobar"
         gossipSub.gossipsub[topic] = initHashSet[string]()
         proc writeHandler(data: seq[byte]) {.async, gcsafe.} = 
@@ -494,7 +489,8 @@ when isMainModule and not defined(release):
           let conn = newConnection(newBufferStream(writeHandler))
           let peerId = PeerID.init(PrivateKey.random(RSA))
           conn.peerInfo.peerId = some(peerId)
-          gossipSub.peers[peerId.pretty] = newPubSubPeer(conn, handler, GossipSubCodec)
+          gossipSub.peers[peerId.pretty] = newPubSubPeer(conn.peerInfo, GossipSubCodec)
+          gossipSub.peers[peerId.pretty].conn = conn
           gossipSub.gossipsub[topic].incl(peerId.pretty)
 
         check gossipSub.gossipsub[topic].len == 15
@@ -526,7 +522,8 @@ when isMainModule and not defined(release):
           let conn = newConnection(newBufferStream(writeHandler))
           let peerId = PeerID.init(PrivateKey.random(RSA))
           conn.peerInfo.peerId = some(peerId)
-          gossipSub.peers[peerId.pretty] = newPubSubPeer(conn, handler, GossipSubCodec)
+          gossipSub.peers[peerId.pretty] = newPubSubPeer(conn.peerInfo, GossipSubCodec)
+          gossipSub.peers[peerId.pretty].handler = handler
           gossipSub.gossipsub[topic].incl(peerId.pretty)
 
         check gossipSub.gossipsub[topic].len == 15
@@ -559,7 +556,8 @@ when isMainModule and not defined(release):
           let conn = newConnection(newBufferStream(writeHandler))
           let peerId = PeerID.init(PrivateKey.random(RSA))
           conn.peerInfo.peerId = some(peerId)
-          gossipSub.peers[peerId.pretty] = newPubSubPeer(conn, handler, GossipSubCodec)
+          gossipSub.peers[peerId.pretty] = newPubSubPeer(conn.peerInfo, GossipSubCodec)
+          gossipSub.peers[peerId.pretty].handler = handler
           gossipSub.fanout[topic].incl(peerId.pretty)
 
         check gossipSub.fanout[topic].len == GossipSubD
@@ -598,7 +596,8 @@ when isMainModule and not defined(release):
           let conn = newConnection(newBufferStream(writeHandler))
           let peerId = PeerID.init(PrivateKey.random(RSA))
           conn.peerInfo.peerId = some(peerId)
-          gossipSub.peers[peerId.pretty] = newPubSubPeer(conn, handler, GossipSubCodec)
+          gossipSub.peers[peerId.pretty] = newPubSubPeer(conn.peerInfo, GossipSubCodec)
+          gossipSub.peers[peerId.pretty].handler = handler
           gossipSub.fanout[topic1].incl(peerId.pretty)
           gossipSub.fanout[topic2].incl(peerId.pretty)
 
@@ -637,7 +636,8 @@ when isMainModule and not defined(release):
           let conn = newConnection(newBufferStream(writeHandler))
           let peerId = PeerID.init(PrivateKey.random(RSA))
           conn.peerInfo.peerId = some(peerId)
-          gossipSub.peers[peerId.pretty] = newPubSubPeer(conn, handler, GossipSubCodec)
+          gossipSub.peers[peerId.pretty] = newPubSubPeer(conn.peerInfo, GossipSubCodec)
+          gossipSub.peers[peerId.pretty].handler = handler
           if i mod 2 == 0:
             gossipSub.fanout[topic].incl(peerId.pretty)
           else:
@@ -647,7 +647,8 @@ when isMainModule and not defined(release):
           let conn = newConnection(newBufferStream(writeHandler))
           let peerId = PeerID.init(PrivateKey.random(RSA))
           conn.peerInfo.peerId = some(peerId)
-          gossipSub.peers[peerId.pretty] = newPubSubPeer(conn, handler, GossipSubCodec)
+          gossipSub.peers[peerId.pretty] = newPubSubPeer(conn.peerInfo, GossipSubCodec)
+          gossipSub.peers[peerId.pretty].handler = handler
           gossipSub.gossipsub[topic].incl(peerId.pretty)
 
         check gossipSub.fanout[topic].len == 15
@@ -686,7 +687,8 @@ when isMainModule and not defined(release):
           let conn = newConnection(newBufferStream(writeHandler))
           let peerId = PeerID.init(PrivateKey.random(RSA))
           conn.peerInfo.peerId = some(peerId)
-          gossipSub.peers[peerId.pretty] = newPubSubPeer(conn, handler, GossipSubCodec)
+          gossipSub.peers[peerId.pretty] = newPubSubPeer(conn.peerInfo, GossipSubCodec)
+          gossipSub.peers[peerId.pretty].handler = handler
           if i mod 2 == 0:
             gossipSub.fanout[topic].incl(peerId.pretty)
           else:
@@ -720,7 +722,8 @@ when isMainModule and not defined(release):
           let conn = newConnection(newBufferStream(writeHandler))
           let peerId = PeerID.init(PrivateKey.random(RSA))
           conn.peerInfo.peerId = some(peerId)
-          gossipSub.peers[peerId.pretty] = newPubSubPeer(conn, handler, GossipSubCodec)
+          gossipSub.peers[peerId.pretty] = newPubSubPeer(conn.peerInfo, GossipSubCodec)
+          gossipSub.peers[peerId.pretty].handler = handler
           if i mod 2 == 0:
             gossipSub.mesh[topic].incl(peerId.pretty)
           else:
@@ -754,7 +757,8 @@ when isMainModule and not defined(release):
           let conn = newConnection(newBufferStream(writeHandler))
           let peerId = PeerID.init(PrivateKey.random(RSA))
           conn.peerInfo.peerId = some(peerId)
-          gossipSub.peers[peerId.pretty] = newPubSubPeer(conn, handler, GossipSubCodec)
+          gossipSub.peers[peerId.pretty] = newPubSubPeer(conn.peerInfo, GossipSubCodec)
+          gossipSub.peers[peerId.pretty].handler = handler
           if i mod 2 == 0:
             gossipSub.mesh[topic].incl(peerId.pretty)
           else:

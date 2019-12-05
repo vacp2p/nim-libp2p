@@ -23,22 +23,34 @@ logScope:
 
 type
     PubSubPeer* = ref object of RootObj
-      id*: string # base58 peer id string
       proto: string # the protocol that this peer joined from
+      sendConn: Connection
       peerInfo*: PeerInfo
-      conn*: Connection
       handler*: RPCHandler
       topics*: seq[string]
       sentRpcCache: TimedCache[string] # a cache of already sent messages
       recvdRpcCache: TimedCache[string] # a cache of already sent messages
+      refs*: int # refcount of the connections this peer is handling
+      onConnect: AsyncEvent
 
     RPCHandler* = proc(peer: PubSubPeer, msg: seq[RPCMsg]): Future[void] {.gcsafe.}
 
-proc handle*(p: PubSubPeer) {.async, gcsafe.} =
-  trace "handling pubsub rpc", peer = p.id
+proc id*(p: PubSubPeer): string = p.peerInfo.id
+
+proc isConnected*(p: PubSubPeer): bool =
+  (not isNil(p.sendConn))
+
+proc `conn=`*(p: PubSubPeer, conn: Connection) =
+  trace "attaching send connection for peer", peer = p.id
+  p.sendConn = conn
+  p.onConnect.fire()
+
+proc handle*(p: PubSubPeer, conn: Connection) {.async, gcsafe.} =
+  trace "handling pubsub rpc", peer = p.id, closed = conn.closed
   try:
-    while not p.conn.closed:
-      let data = await p.conn.readLp()
+    while not conn.closed:
+      trace "waiting for data", peer = p.id, closed = conn.closed
+      let data = await conn.readLp()
       let hexData = data.toHex()
       trace "read data from peer", peer = p.id, data = hexData
       if $hexData.hash in p.recvdRpcCache:
@@ -52,9 +64,7 @@ proc handle*(p: PubSubPeer) {.async, gcsafe.} =
   except CatchableError as exc:
     error "an exception occured while processing pubsub rpc requests", exc = exc.msg
   finally:
-    trace "closing connection to pubsub peer", peer = p.id
-    if not p.conn.closed:
-      await p.conn.close()
+    trace "exiting pubsub peer read loop", peer = p.id
 
 proc send*(p: PubSubPeer, msgs: seq[RPCMsg]) {.async, gcsafe.} =
   try:
@@ -69,10 +79,25 @@ proc send*(p: PubSubPeer, msgs: seq[RPCMsg]) {.async, gcsafe.} =
       if $encodedHex.hash in p.sentRpcCache:
         trace "message already sent to peer, skipping", peer = p.id
         continue
+      
+      proc sendToRemote() {.async.} =
+        trace "sending encoded msgs to peer", peer = p.id, encoded = encodedHex
+        await p.sendConn.writeLp(encoded.buffer)
+        p.sentRpcCache.put($encodedHex.hash)
 
-      trace "sending encoded msgs to peer", peer = p.id, encoded = encodedHex
-      await p.conn.writeLp(encoded.buffer)
-      p.sentRpcCache.put($encodedHex.hash)
+      # if no connection has been set, 
+      # queue messages untill a connection 
+      # becomes available
+      if p.isConnected:
+        await sendToRemote()
+        return
+
+      p.onConnect.wait().addCallback(
+        proc(udata: pointer) =
+          asyncCheck sendToRemote()
+      )
+      trace "enqueued message to send at a later time"
+
   except CatchableError as exc:
     trace "exception occured", exc = exc.msg
 
@@ -92,12 +117,11 @@ proc sendPrune*(p: PubSubPeer, topics: seq[string]) {.async, gcsafe.} =
     trace "sending prune msg to peer", peer = p.id, topicID = topic
     await p.send(@[RPCMsg(control: some(ControlMessage(prune: @[ControlPrune(topicID: topic)])))])
 
-proc newPubSubPeer*(conn: Connection, handler: RPCHandler, proto: string): PubSubPeer =
+proc newPubSubPeer*(peerInfo: PeerInfo,
+                    proto: string): PubSubPeer =
   new result
-  result.handler = handler
   result.proto = proto
-  result.conn = conn
-  result.peerInfo = conn.peerInfo
-  result.id = conn.peerInfo.id
+  result.peerInfo = peerInfo
   result.sentRpcCache = newTimedCache[string](2.minutes)
   result.recvdRpcCache = newTimedCache[string](2.minutes)
+  result.onConnect = newAsyncEvent()
