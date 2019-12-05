@@ -72,8 +72,7 @@ suite "Mplex":
 
   test "decode header with channel id 0":
     proc testDecodeHeader(): Future[bool] {.async.} =
-      proc encHandler(msg: seq[byte]) {.async.} = discard
-      let stream = newBufferStream(encHandler)
+      let stream = newBufferStream()
       let conn = newConnection(stream)
       await stream.pushTo(fromHex("000873747265616d2031"))
       let msg = await conn.readMsg()
@@ -88,8 +87,7 @@ suite "Mplex":
 
   test "decode header and body with channel id 0":
     proc testDecodeHeader(): Future[bool] {.async.} =
-      proc encHandler(msg: seq[byte]) {.async.} = discard
-      let stream = newBufferStream(encHandler)
+      let stream = newBufferStream()
       let conn = newConnection(stream)
       await stream.pushTo(fromHex("021668656C6C6F2066726F6D206368616E6E656C20302121"))
       let msg = await conn.readMsg()
@@ -105,8 +103,7 @@ suite "Mplex":
 
   test "decode header and body with channel id other than 0":
     proc testDecodeHeader(): Future[bool] {.async.} =
-      proc encHandler(msg: seq[byte]) {.async.} = discard
-      let stream = newBufferStream(encHandler)
+      let stream = newBufferStream()
       let conn = newConnection(stream)
       await stream.pushTo(fromHex("8a011668656C6C6F2066726F6D206368616E6E656C20302121"))
       let msg = await conn.readMsg()

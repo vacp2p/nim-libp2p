@@ -110,20 +110,28 @@ proc testPubSubDaemonPublish(gossip: bool = false): Future[bool] {.async.} =
   let awaiters = nativeNode.start()
   let nativePeer = nativeNode.peerInfo
 
-  var handlerFuture = newFuture[void]()
+  var handlerFuture = newFuture[bool]()
   proc nativeHandler(topic: string, data: seq[byte]) {.async.} =
     let smsg = cast[string](data)
     check smsg == pubsubData
-    handlerFuture.complete()
+    handlerFuture.complete(true)
 
-  # await nativeNode.subscribeToPeer(NativePeerInfo(peerId: some(daemonPeer.peer),
-  #                                                 addrs: daemonPeer.addresses))
-  await nativeNode.subscribe(testTopic, nativeHandler)
+  await nativeNode.subscribeToPeer(NativePeerInfo(peerId: some(daemonPeer.peer),
+                                                  addrs: daemonPeer.addresses))
 
+  await sleepAsync(1.seconds)
   await daemonNode.connect(nativePeer.peerId.get(), nativePeer.addrs)
+  
+  proc pubsubHandler(api: DaemonAPI,
+                     ticket: PubsubTicket,
+                     message: PubSubMessage): Future[bool] {.async.} = 
+    result = true # don't cancel subscription
+
+  discard await daemonNode.pubsubSubscribe(testTopic, pubsubHandler)
+  await nativeNode.subscribe(testTopic, nativeHandler)
   await daemonNode.pubsubPublish(testTopic, msgData)
 
-  await handlerFuture
+  result = await handlerFuture
   await nativeNode.stop()
   await allFutures(awaiters)
   await daemonNode.close()
@@ -311,6 +319,6 @@ suite "Interop":
     check:
       waitFor(runTests()) == true
 
-  # test "floodsub: daemon publish":
-  #   check:
-  #     waitFor(testPubSubDaemonPublish()) == true
+  test "floodsub: daemon publish":
+    check:
+      waitFor(testPubSubDaemonPublish()) == true

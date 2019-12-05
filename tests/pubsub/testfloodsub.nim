@@ -15,50 +15,50 @@ import utils,
 suite "FloodSub":
   test "FloodSub basic publish/subscribe A -> B":
     proc testBasicPubSub(): Future[bool] {.async.} =
-      var passed: bool
+      var completionFut = newFuture[bool]()
       proc handler(topic: string, data: seq[byte]) {.async, gcsafe.} =
         check topic == "foobar"
-        passed = true
+        completionFut.complete(true)
 
       var nodes = generateNodes(2)
-      var wait = await nodes[1].start()
+      var awaiters: seq[Future[void]]
+      awaiters.add((await nodes[0].start()))
+      awaiters.add((await nodes[1].start()))
 
-      await nodes[0].subscribeToPeer(nodes[1].peerInfo)
-      await sleepAsync(10.millis)
-
+      await subscribeNodes(nodes)
       await nodes[1].subscribe("foobar", handler)
-      await sleepAsync(10.millis)
+      await sleepAsync(1000.millis)
 
       await nodes[0].publish("foobar", cast[seq[byte]]("Hello!"))
-      await sleepAsync(10.millis)
 
-      await nodes[1].stop()
-      await allFutures(wait)
-      result = passed
+      result = await completionFut
+      await allFutures(nodes[0].stop(), nodes[1].stop())
+      await allFutures(awaiters)
 
     check:
       waitFor(testBasicPubSub()) == true
 
   test "FloodSub basic publish/subscribe B -> A":
     proc testBasicPubSub(): Future[bool] {.async.} =
+      var completionFut = newFuture[bool]()
       proc handler(topic: string, data: seq[byte]) {.async, gcsafe.} =
         check topic == "foobar"
+        completionFut.complete(true)
 
       var nodes = generateNodes(2)
-      var wait = await nodes[1].start()
+      var awaiters: seq[Future[void]]
+      awaiters.add((await nodes[0].start()))
+      awaiters.add((await nodes[1].start()))
 
-      await nodes[0].subscribeToPeer(nodes[1].peerInfo)
-      await sleepAsync(10.millis)
-
+      await subscribeNodes(nodes)
       await nodes[0].subscribe("foobar", handler)
-      await sleepAsync(10.millis)
+      await sleepAsync(1000.millis)
 
       await nodes[1].publish("foobar", cast[seq[byte]]("Hello!"))
-      await sleepAsync(10.millis)
 
-      await nodes[1].stop()
-      await allFutures(wait)
-      result = true
+      result = await completionFut
+      await allFutures(nodes[0].stop(), nodes[1].stop())
+      await allFutures(awaiters)
 
     check:
       waitFor(testBasicPubSub()) == true
