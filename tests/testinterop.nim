@@ -136,12 +136,53 @@ proc testPubSubDaemonPublish(gossip: bool = false): Future[bool] {.async.} =
   await daemonNode.close()
 
 suite "Interop":
+  test "native -> daemon multiple reads and writes":
+    proc runTests(): Future[bool] {.async.} =
+      var protos = @["/test-stream"]
+
+      let nativeNode = createNode()
+      let awaiters = await nativeNode.start()
+      let daemonNode = await newDaemonApi()
+      let daemonPeer = await daemonNode.identity()
+
+      var testFuture = newFuture[void]("test.future")
+      proc daemonHandler(api: DaemonAPI, stream: P2PStream) {.async.} =
+        check cast[string](await stream.transp.readLp()) == "test 1"
+        asyncDiscard stream.transp.writeLp("test 2")
+        
+        await sleepAsync(10.millis)
+        check cast[string](await stream.transp.readLp()) == "test 3"
+        asyncDiscard stream.transp.writeLp("test 4")
+        testFuture.complete()
+
+      await daemonNode.addHandler(protos, daemonHandler)
+      let conn = await nativeNode.dial(NativePeerInfo(peerId: some(daemonPeer.peer), 
+                                                      addrs: daemonPeer.addresses), 
+                                                      protos[0])
+      await conn.writeLp("test 1")
+      check "test 2" == cast[string]((await conn.readLp()))
+      await sleepAsync(10.millis)
+
+      await conn.writeLp("test 3")
+      check "test 4" == cast[string]((await conn.readLp()))
+
+      await wait(testFuture, 10.secs)
+      await nativeNode.stop()
+      await allFutures(awaiters)
+      await daemonNode.close()
+      result = true
+
+    check:
+      waitFor(runTests()) == true
+
   test "native -> daemon connection":
     proc runTests(): Future[bool] {.async.} =
       var protos = @["/test-stream"]
       var test = "TEST STRING"
 
       let nativeNode = createNode()
+      let awaiters = await nativeNode.start()
+
       let daemonNode = await newDaemonApi()
       let daemonPeer = await daemonNode.identity()
 
@@ -157,39 +198,9 @@ suite "Interop":
                                                       protos[0])
       await conn.writeLp(test & "\r\n")
       result = test == (await wait(testFuture, 10.secs))
-
-    check:
-      waitFor(runTests()) == true
-
-  test "native -> daemon multiple reads and writes":
-    proc runTests(): Future[bool] {.async.} =
-      var protos = @["/test-stream"]
-
-      let nativeNode = createNode()
-      let daemonNode = await newDaemonApi()
-      let daemonPeer = await daemonNode.identity()
-
-      var testFuture = newFuture[void]("test.future")
-      proc daemonHandler(api: DaemonAPI, stream: P2PStream) {.async.} =
-        check cast[string](await stream.transp.readLp()) == "test 1"
-        asyncDiscard stream.transp.writeLp("test 2")
-
-        check cast[string](await stream.transp.readLp()) == "test 3"
-        asyncDiscard stream.transp.writeLp("test 4")
-        testFuture.complete()
-
-      await daemonNode.addHandler(protos, daemonHandler)
-      let conn = await nativeNode.dial(NativePeerInfo(peerId: some(daemonPeer.peer), 
-                                                      addrs: daemonPeer.addresses), 
-                                                      protos[0])
-      await conn.writeLp("test 1")
-      check "test 2" == cast[string]((await conn.readLp()))
-
-      await conn.writeLp("test 3")
-      check "test 4" == cast[string]((await conn.readLp()))
-
-      await wait(testFuture, 10.secs)
-      result = true
+      await nativeNode.stop()
+      await allFutures(awaiters)
+      await daemonNode.close()
 
     check:
       waitFor(runTests()) == true
@@ -225,6 +236,7 @@ suite "Interop":
       result = test == (await wait(testFuture, 10.secs))
       await nativeNode.stop()
       await allFutures(awaiters)
+      await daemonNode.close()
 
     check:
       waitFor(runTests()) == true
@@ -270,6 +282,7 @@ suite "Interop":
       result = true
       await nativeNode.stop()
       await allFutures(awaiters)
+      await daemonNode.close()
 
     check:
       waitFor(runTests()) == true
@@ -314,6 +327,7 @@ suite "Interop":
       result = 10 == (await wait(testFuture, 10.secs))
       await nativeNode.stop()
       await allFutures(awaiters)
+      await daemonNode.close()
 
     check:
       waitFor(runTests()) == true
