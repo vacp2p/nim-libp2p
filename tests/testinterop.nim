@@ -103,8 +103,7 @@ proc testPubSubDaemonPublish(gossip: bool = false): Future[bool] {.async.} =
   if gossip:
     flags = {PSGossipSub}
 
-  let daemonNode = await newDaemonApi(flags, 
-                                      logFile = "/tmp/daemon.log")
+  let daemonNode = await newDaemonApi(flags)
   let daemonPeer = await daemonNode.identity()
   let nativeNode = createNode(gossip = gossip)
   let awaiters = nativeNode.start()
