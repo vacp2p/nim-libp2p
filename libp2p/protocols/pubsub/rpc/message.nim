@@ -61,7 +61,7 @@ proc newMessage*(peerId: PeerID,
     var key: seq[byte] = @[]
 
     if peerId.publicKey.isSome:
-      key = peerId.publicKey.get().getRawBytes()
+      key = peerId.publicKey.get().getBytes()
 
     result = Message(fromPeer: peerId.getBytes(), 
                      data: data,
