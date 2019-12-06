@@ -25,7 +25,6 @@ import ../libp2p/[switch,
 const ChatCodec = "/nim-libp2p/chat/1.0.0"
 const DefaultAddr = "/ip4/127.0.0.1/tcp/55505"
 
-
 const Help = """
   Commands: /[?|hep|connect|disconnect|exit]
   help: Prints this help

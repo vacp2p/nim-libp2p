@@ -69,10 +69,10 @@ suite "Switch":
       testProto.init()
       testProto.codec = TestCodec
       switch1.mount(testProto)
-      var switch1Fut = await switch1.start()
+      asyncCheck switch1.start()
 
       (switch2, peerInfo2) = createSwitch(ma2)
-      var switch2Fut = await switch2.start()
+      asyncCheck switch2.start()
       let conn = await switch2.dial(switch1.peerInfo, TestCodec)
       await conn.writeLp("Hello!")
       let msg = cast[string](await conn.readLp())

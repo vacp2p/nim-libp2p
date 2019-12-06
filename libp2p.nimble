@@ -21,3 +21,4 @@ proc runTest(filename: string) =
 task test, "Runs the test suite":
   runTest "testnative"
   runTest "testdaemon"
+  runTest "testinterop"

@@ -256,11 +256,17 @@ proc start*(s: Switch): Future[seq[Future[void]]] {.async, gcsafe.} =
         var server = await t.listen(a, handle)
         s.peerInfo.addrs[i] = t.ma # update peer's address
         startFuts.add(server)
+  
+  if s.pubSub.isSome:
+    await s.pubSub.get().start()
 
   result = startFuts # listen for incoming connections
 
 proc stop*(s: Switch) {.async.} = 
   trace "stopping switch"
+
+  if s.pubSub.isSome:
+    await s.pubSub.get().stop()
 
   await allFutures(toSeq(s.connections.values).mapIt(s.cleanupConn(it)))
   await allFutures(s.transports.mapIt(it.close()))

@@ -11,8 +11,7 @@ import strutils
 import chronos, chronicles
 import connection,
        vbuffer,
-       protocols/protocol,
-       stream/lpstream
+       protocols/protocol
 
 logScope:
   topic = "Multistream"

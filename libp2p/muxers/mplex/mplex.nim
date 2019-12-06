@@ -111,7 +111,7 @@ method handle*(m: Mplex) {.async, gcsafe.} =
                                    msgType = msgType
 
           await channel.closedByRemote()
-          m.getChannelList(initiator).del(id)
+          # m.getChannelList(initiator).del(id)
         of MessageType.ResetIn, MessageType.ResetOut:
           trace "resetting channel", id = id, 
                                      initiator = initiator, 
@@ -137,6 +137,7 @@ proc newMplex*(conn: Connection,
   let m = result
   conn.closeEvent.wait().addCallback(
     proc(udata: pointer) =
+      trace "connection closed, cleaning up mplex"
       asyncCheck m.close()
   )
 

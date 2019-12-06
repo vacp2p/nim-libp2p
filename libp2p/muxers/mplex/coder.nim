@@ -34,11 +34,10 @@ proc readMplexVarint(conn: Connection): Future[Option[uint]] {.async, gcsafe.} =
   result = none(uint)
   try:
     for i in 0..<len(buffer):
-      if not conn.closed:
-        await conn.readExactly(addr buffer[i], 1)
-        res = PB.getUVarint(buffer.toOpenArray(0, i), length, varint)
-        if res == VarintStatus.Success:
-          return some(varint)
+      await conn.readExactly(addr buffer[i], 1)
+      res = PB.getUVarint(buffer.toOpenArray(0, i), length, varint)
+      if res == VarintStatus.Success:
+        return some(varint)
     if res != VarintStatus.Success:
       raise newInvalidVarintException()
   except LPStreamIncompleteError as exc:
