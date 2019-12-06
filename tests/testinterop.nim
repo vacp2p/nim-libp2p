@@ -126,9 +126,49 @@ proc testPubSubDaemonPublish(gossip: bool = false): Future[bool] {.async.} =
                      message: PubSubMessage): Future[bool] {.async.} = 
     result = true # don't cancel subscription
 
-  discard await daemonNode.pubsubSubscribe(testTopic, pubsubHandler)
+  asyncDiscard daemonNode.pubsubSubscribe(testTopic, pubsubHandler)
   await nativeNode.subscribe(testTopic, nativeHandler)
+  await sleepAsync(1.seconds)
   await daemonNode.pubsubPublish(testTopic, msgData)
+
+  result = await handlerFuture
+  await nativeNode.stop()
+  await allFutures(awaiters)
+  await daemonNode.close()
+
+proc testPubSubNodePublish(gossip: bool = false): Future[bool] {.async.} =
+  var pubsubData = "TEST MESSAGE"
+  var testTopic = "test-topic"
+  var msgData = cast[seq[byte]](pubsubData)
+
+  var flags = {PSFloodSub}
+  if gossip:
+    flags = {PSGossipSub}
+
+  let daemonNode = await newDaemonApi(flags)
+  let daemonPeer = await daemonNode.identity()
+  let nativeNode = createNode(gossip = gossip)
+  let awaiters = nativeNode.start()
+  let nativePeer = nativeNode.peerInfo
+
+  var handlerFuture = newFuture[bool]()
+  await nativeNode.subscribeToPeer(NativePeerInfo(peerId: some(daemonPeer.peer),
+                                                  addrs: daemonPeer.addresses))
+
+  await sleepAsync(1.seconds)
+  await daemonNode.connect(nativePeer.peerId.get(), nativePeer.addrs)
+  
+  proc pubsubHandler(api: DaemonAPI,
+                     ticket: PubsubTicket,
+                     message: PubSubMessage): Future[bool] {.async.} = 
+    let smsg = cast[string](message.data)
+    check smsg == pubsubData
+    handlerFuture.complete(true)
+    result = true # don't cancel subscription
+
+  asyncDiscard daemonNode.pubsubSubscribe(testTopic, pubsubHandler)
+  await sleepAsync(1.seconds)
+  await nativeNode.publish(testTopic, msgData)
 
   result = await handlerFuture
   await nativeNode.stop()
@@ -335,3 +375,15 @@ suite "Interop":
   test "floodsub: daemon publish":
     check:
       waitFor(testPubSubDaemonPublish()) == true
+
+  test "gossipsub: daemon publish":
+    check:
+      waitFor(testPubSubDaemonPublish(true)) == true
+
+  test "floodsub: node publish":
+    check:
+      waitFor(testPubSubNodePublish()) == true
+
+  test "gossipsub: node publish":
+    check:
+      waitFor(testPubSubNodePublish(true)) == true
