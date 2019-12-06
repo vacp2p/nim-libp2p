@@ -104,7 +104,7 @@ method publish*(f: FloodSub,
     return
 
   trace "publishing on topic", name = topic
-  let msg = newMessage(f.peerInfo.peerId.get(), data, topic)
+  let msg = newMessage(f.peerInfo, data, topic)
   for p in f.floodsub[topic]:
     trace "publishing message", name = topic, peer = p, data = data
     await f.peers[p].send(@[RPCMsg(messages: @[msg])])

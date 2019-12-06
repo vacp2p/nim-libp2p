@@ -66,14 +66,11 @@ proc createNode*(privKey: Option[PrivateKey] = none(PrivateKey),
                  address: string = "/ip4/127.0.0.1/tcp/0",
                  triggerSelf: bool = false,
                  gossip: bool = false): Switch =
-  var peerInfo: NativePeerInfo
   var seckey = privKey
   if privKey.isNone:
     seckey = some(PrivateKey.random(RSA))
 
-  peerInfo.peerId = some(PeerID.init(seckey.get()))
-  peerInfo.addrs.add(Multiaddress.init(address))
-
+  var peerInfo = NativePeerInfo.init(seckey.get(), @[Multiaddress.init(address)])
   proc createMplex(conn: Connection): Muxer = newMplex(conn)
   let mplexProvider = newMuxerProvider(createMplex, MplexCodec)
   let transports = @[Transport(newTransport(TcpTransport))]
@@ -115,11 +112,10 @@ proc testPubSubDaemonPublish(gossip: bool = false): Future[bool] {.async.} =
     check smsg == pubsubData
     handlerFuture.complete(true)
 
-  await nativeNode.subscribeToPeer(NativePeerInfo(peerId: some(daemonPeer.peer),
-                                                  addrs: daemonPeer.addresses))
-
+  await nativeNode.subscribeToPeer(NativePeerInfo.init(daemonPeer.peer,
+                                                       daemonPeer.addresses))
   await sleepAsync(1.seconds)
-  await daemonNode.connect(nativePeer.peerId.get(), nativePeer.addrs)
+  await daemonNode.connect(nativePeer.peerId, nativePeer.addrs)
   
   proc pubsubHandler(api: DaemonAPI,
                      ticket: PubsubTicket,
@@ -152,11 +148,11 @@ proc testPubSubNodePublish(gossip: bool = false): Future[bool] {.async.} =
   let nativePeer = nativeNode.peerInfo
 
   var handlerFuture = newFuture[bool]()
-  await nativeNode.subscribeToPeer(NativePeerInfo(peerId: some(daemonPeer.peer),
-                                                  addrs: daemonPeer.addresses))
+  await nativeNode.subscribeToPeer(NativePeerInfo.init(daemonPeer.peer,
+                                                       daemonPeer.addresses))
 
   await sleepAsync(1.seconds)
-  await daemonNode.connect(nativePeer.peerId.get(), nativePeer.addrs)
+  await daemonNode.connect(nativePeer.peerId, nativePeer.addrs)
   
   proc pubsubHandler(api: DaemonAPI,
                      ticket: PubsubTicket,
@@ -196,9 +192,9 @@ suite "Interop":
         testFuture.complete()
 
       await daemonNode.addHandler(protos, daemonHandler)
-      let conn = await nativeNode.dial(NativePeerInfo(peerId: some(daemonPeer.peer), 
-                                                      addrs: daemonPeer.addresses), 
-                                                      protos[0])
+      let conn = await nativeNode.dial(NativePeerInfo.init(daemonPeer.peer,
+                                                           daemonPeer.addresses),
+                                                           protos[0])
       await conn.writeLp("test 1")
       check "test 2" == cast[string]((await conn.readLp()))
       await sleepAsync(10.millis)
@@ -233,9 +229,9 @@ suite "Interop":
         testFuture.complete(line)
 
       await daemonNode.addHandler(protos, daemonHandler)
-      let conn = await nativeNode.dial(NativePeerInfo(peerId: some(daemonPeer.peer), 
-                                                      addrs: daemonPeer.addresses), 
-                                                      protos[0])
+      let conn = await nativeNode.dial(NativePeerInfo.init(daemonPeer.peer,
+                                                           daemonPeer.addresses),
+                                                           protos[0])
       await conn.writeLp(test & "\r\n")
       result = test == (await wait(testFuture, 10.secs))
       await nativeNode.stop()
@@ -269,8 +265,8 @@ suite "Interop":
       let nativePeer = nativeNode.peerInfo
 
       let daemonNode = await newDaemonApi()
-      await daemonNode.connect(nativePeer.peerId.get(), nativePeer.addrs)
-      var stream = await daemonNode.openStream(nativePeer.peerId.get(), protos)
+      await daemonNode.connect(nativePeer.peerId, nativePeer.addrs)
+      var stream = await daemonNode.openStream(nativePeer.peerId, protos)
       discard await stream.transp.writeLp(test)
 
       result = test == (await wait(testFuture, 10.secs))
@@ -308,8 +304,8 @@ suite "Interop":
       let nativePeer = nativeNode.peerInfo
 
       let daemonNode = await newDaemonApi()
-      await daemonNode.connect(nativePeer.peerId.get(), nativePeer.addrs)
-      var stream = await daemonNode.openStream(nativePeer.peerId.get(), protos)
+      await daemonNode.connect(nativePeer.peerId, nativePeer.addrs)
+      var stream = await daemonNode.openStream(nativePeer.peerId, protos)
 
       asyncDiscard stream.transp.writeLp("test 1")
       check "test 2" == cast[string](await stream.transp.readLp())
@@ -356,8 +352,8 @@ suite "Interop":
       let nativePeer = nativeNode.peerInfo
 
       let daemonNode = await newDaemonApi()
-      await daemonNode.connect(nativePeer.peerId.get(), nativePeer.addrs)
-      var stream = await daemonNode.openStream(nativePeer.peerId.get(), protos)
+      await daemonNode.connect(nativePeer.peerId, nativePeer.addrs)
+      var stream = await daemonNode.openStream(nativePeer.peerId, protos)
 
       while count < 10:
         discard await stream.transp.writeLp(test)

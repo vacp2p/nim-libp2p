@@ -11,6 +11,7 @@ import chronos, chronicles
 import nimcrypto/[sysrand, hmac, sha2, sha, hash, rijndael, twofish, bcmode]
 import secure,
        ../../connection,
+       ../../peerinfo,
        ../../stream/lpstream,
        ../../crypto/crypto,
        ../../crypto/ecnist,
@@ -223,7 +224,7 @@ proc newSecureConnection*(conn: Connection,
                           cipher: string,
                           secrets: Secret,
                           order: int,
-                          peerId: PeerID): SecureConnection =
+                          remotePubKey: PublicKey): SecureConnection =
   ## Create new secure connection, using specified hash algorithm ``hash``,
   ## cipher algorithm ``cipher``, stretched keys ``secrets`` and order
   ## ``order``.
@@ -248,7 +249,7 @@ proc newSecureConnection*(conn: Connection,
   result.readerCoder.init(cipher, secrets.keyOpenArray(i1),
                           secrets.ivOpenArray(i1))
 
-  result.peerInfo.peerId = some(peerId)
+  result.peerInfo = some(PeerInfo.init(remotePubKey))
 
 proc transactMessage(conn: Connection,
                      msg: seq[byte]): Future[seq[byte]] {.async.} =
@@ -396,7 +397,7 @@ proc handshake*(s: Secio, conn: Connection): Future[SecureConnection] {.async.} 
 
   # Perform Nonce exchange over encrypted channel.
 
-  result = newSecureConnection(conn, hash, cipher, keys, order, remotePeerId)
+  result = newSecureConnection(conn, hash, cipher, keys, order, remotePubkey)
 
   await result.writeMessage(remoteNonce)
   var res = await result.readMessage()
@@ -438,7 +439,7 @@ proc handleConn(s: Secio, conn: Connection): Future[Connection] {.async, gcsafe.
         if not sconn.closed:
           asyncCheck sconn.close()
       )
-  secured.peerInfo.peerId = sconn.peerInfo.peerId
+  secured.peerInfo = some(PeerInfo.init(sconn.peerInfo.get().publicKey))
   result = secured
 
 method init(s: Secio) {.gcsafe.} =

@@ -38,8 +38,7 @@ suite "Switch":
   test "e2e use switch":
     proc createSwitch(ma: MultiAddress): (Switch, PeerInfo) {.gcsafe.}=
       let seckey = PrivateKey.random(RSA)
-      var peerInfo: PeerInfo
-      peerInfo.peerId = some(PeerID.init(seckey))
+      var peerInfo: PeerInfo = PeerInfo.init(PrivateKey.random(RSA))
       peerInfo.addrs.add(ma)
       let identify = newIdentify(peerInfo)
 
@@ -49,7 +48,7 @@ suite "Switch":
       let mplexProvider = newMuxerProvider(createMplex, MplexCodec)
       let transports = @[Transport(newTransport(TcpTransport))]
       let muxers = [(MplexCodec, mplexProvider)].toTable()
-      let secureManagers = [(SecioCodec, Secure(newSecio(seckey)))].toTable()
+      let secureManagers = [(SecioCodec, Secure(newSecio(peerInfo.privateKey)))].toTable()
       let switch = newSwitch(peerInfo,
                              transports,
                              identify,

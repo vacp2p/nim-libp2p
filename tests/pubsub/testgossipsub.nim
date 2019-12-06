@@ -19,10 +19,7 @@ import utils, ../../libp2p/[switch,
                             protocols/pubsub/gossipsub]
 
 proc createGossipSub(): GossipSub =
-  var peerInfo: PeerInfo
-  var seckey = some(PrivateKey.random(RSA))
-
-  peerInfo.peerId = some(PeerID.init(seckey.get()))
+  var peerInfo = PeerInfo.init(PrivateKey.random(RSA))
   result = newPubSub(GossipSub, peerInfo)
 
 suite "GossipSub":
@@ -36,11 +33,11 @@ suite "GossipSub":
 
       var buf1 = newBufferStream()
       var conn1 = newConnection(buf1)
-      conn1.peerInfo = gossip1.peerInfo
+      conn1.peerInfo = some(gossip1.peerInfo)
 
       var buf2 = newBufferStream()
       var conn2 = newConnection(buf2)
-      conn2.peerInfo = gossip2.peerInfo
+      conn2.peerInfo = some(gossip2.peerInfo)
 
       buf1 = buf1 | buf2 | buf1
 
@@ -52,7 +49,7 @@ suite "GossipSub":
 
       check:
          "foobar" in gossip2.gossipsub
-         gossip1.peerInfo.peerId.get().pretty in gossip2.gossipsub["foobar"]
+         gossip1.peerInfo.id in gossip2.gossipsub["foobar"]
       
       result = true
 
@@ -83,7 +80,7 @@ suite "GossipSub":
       check:
         "foobar" in gossip2.topics
         "foobar" in gossip1.gossipsub
-        gossip2.peerInfo.peerId.get().pretty in gossip1.gossipsub["foobar"]
+        gossip2.peerInfo.id in gossip1.gossipsub["foobar"]
 
       await allFutures(nodes.mapIt(it.stop()))
       await allFutures(awaitters)
@@ -103,11 +100,11 @@ suite "GossipSub":
 
       var buf1 = newBufferStream()
       var conn1 = newConnection(buf1)
-      conn1.peerInfo = gossip1.peerInfo
+      conn1.peerInfo = some(gossip1.peerInfo)
 
       var buf2 = newBufferStream()
       var conn2 = newConnection(buf2)
-      conn2.peerInfo = gossip2.peerInfo
+      conn2.peerInfo = some(gossip2.peerInfo)
       
       buf1 = buf1 | buf2 | buf1
 
@@ -131,8 +128,8 @@ suite "GossipSub":
          # TODO: in a real setting, we would be checking for the peerId from
          # gossip1 in gossip2 and vice versa, but since we're doing some mockery
          # with connection piping and such, this is fine - do not change!
-         gossip1.peerInfo.peerId.get().pretty in gossip1.gossipsub["foobar"]
-         gossip2.peerInfo.peerId.get().pretty in gossip2.gossipsub["foobar"]
+         gossip1.peerInfo.id in gossip1.gossipsub["foobar"]
+         gossip2.peerInfo.id in gossip2.gossipsub["foobar"]
 
       result = true
 
@@ -170,8 +167,8 @@ suite "GossipSub":
         "foobar" in gossip1.gossipsub
         "foobar" in gossip2.gossipsub
 
-        gossip1.peerInfo.peerId.get().pretty in gossip2.gossipsub["foobar"]
-        gossip2.peerInfo.peerId.get().pretty in gossip1.gossipsub["foobar"]
+        gossip1.peerInfo.id in gossip2.gossipsub["foobar"]
+        gossip2.peerInfo.id in gossip1.gossipsub["foobar"]
 
       await allFutures(nodes.mapIt(it.stop()))
       await allFutures(awaitters)
@@ -396,9 +393,9 @@ suite "GossipSub":
         closureScope:
           var dialerNode = dialer
           handler = proc(topic: string, data: seq[byte]) {.async, gcsafe, closure.} =
-            if dialerNode.peerInfo.peerId.get().pretty notin seen:
-              seen[dialerNode.peerInfo.peerId.get().pretty] = 0
-            seen[dialerNode.peerInfo.peerId.get().pretty].inc
+            if dialerNode.peerInfo.id notin seen:
+              seen[dialerNode.peerInfo.id] = 0
+            seen[dialerNode.peerInfo.id].inc
             check topic == "foobar"
 
         await dialer.subscribe("foobar", handler)
@@ -409,7 +406,7 @@ suite "GossipSub":
 
       await nodes[0].publish("foobar", 
                         cast[seq[byte]]("from node " & 
-                        nodes[1].peerInfo.peerId.get().pretty))
+                        nodes[1].peerInfo.id))
 
       await sleepAsync(1000.millis)
       await allFutures(nodes.mapIt(it.stop()))
