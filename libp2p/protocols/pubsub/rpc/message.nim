@@ -19,6 +19,8 @@ import messages, protobuf,
 logScope:
   topic = "PubSubMessage"
 
+const PubSubPrefix = "libp2p-pubsub:"
+
 proc msgId*(m: Message): string =
   m.seqno.toHex() & PeerID.init(m.fromPeer).pretty
 
@@ -28,8 +30,7 @@ proc fromPeerId*(m: Message): PeerId =
 proc sign*(p: PeerInfo, msg: Message): Message {.gcsafe.} = 
   var buff = initProtoBuffer()
   encodeMessage(msg, buff)
-  # NOTE: leave as is, moving out would imply making this .threadsafe., etc...
-  let prefix = cast[seq[byte]]("libp2p-pubsub:")
+  let prefix = cast[seq[byte]](PubSubPrefix)
   if buff.buffer.len > 0:
     result = msg
     result.signature = p.privateKey.
