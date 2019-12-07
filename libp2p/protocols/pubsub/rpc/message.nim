@@ -12,11 +12,14 @@ import chronicles
 import nimcrypto/sysrand
 import messages, protobuf,
        ../../../peer,
+       ../../../peerinfo,
        ../../../crypto/crypto,
        ../../../protobuf/minprotobuf
 
 logScope:
   topic = "PubSubMessage"
+
+const PubSubPrefix = "libp2p-pubsub:"
 
 proc msgId*(m: Message): string =
   m.seqno.toHex() & PeerID.init(m.fromPeer).pretty
@@ -24,21 +27,17 @@ proc msgId*(m: Message): string =
 proc fromPeerId*(m: Message): PeerId =
   PeerID.init(m.fromPeer)
 
-proc sign*(peerId: PeerID, msg: Message): Message {.gcsafe.} = 
+proc sign*(p: PeerInfo, msg: Message): Message {.gcsafe.} = 
   var buff = initProtoBuffer()
   encodeMessage(msg, buff)
-  # NOTE: leave as is, moving out would imply making this .threadsafe., etc...
-  let prefix = cast[seq[byte]]("libp2p-pubsub:")
+  let prefix = cast[seq[byte]](PubSubPrefix)
   if buff.buffer.len > 0:
     result = msg
-    if peerId.privateKey.isSome:
-      result.signature = peerId.
-                         privateKey.
-                         get().
-                         sign(prefix & buff.buffer).
-                         getBytes()
+    result.signature = p.privateKey.
+                       sign(prefix & buff.buffer).
+                       getBytes()
 
-proc verify*(peerId: PeerID, m: Message): bool =
+proc verify*(p: PeerInfo, m: Message): bool =
   if m.signature.len > 0 and m.key.len > 0:
     var msg = m
     msg.signature = @[]
@@ -52,22 +51,19 @@ proc verify*(peerId: PeerID, m: Message): bool =
     if remote.init(m.signature) and key.init(m.key):
       result = remote.verify(buff.buffer, key)
 
-proc newMessage*(peerId: PeerID,
+proc newMessage*(p: PeerInfo,
                  data: seq[byte],
                  name: string,
                  sign: bool = true): Message {.gcsafe.} = 
   var seqno: seq[byte] = newSeq[byte](20)
-  if randomBytes(addr seqno[0], 20) > 0:
-    var key: seq[byte] = @[]
+  if p.publicKey.isSome and randomBytes(addr seqno[0], 20) > 0:
+    var key: seq[byte] = p.publicKey.get().getBytes()
 
-    if peerId.publicKey.isSome:
-      key = peerId.publicKey.get().getBytes()
-
-    result = Message(fromPeer: peerId.getBytes(), 
+    result = Message(fromPeer: p.peerId.getBytes(),
                      data: data,
                      seqno: seqno,
                      topicIDs: @[name])
     if sign:
-      result = sign(peerId, result)
+      result = p.sign(result)
 
     result.key = key

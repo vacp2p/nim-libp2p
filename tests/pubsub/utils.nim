@@ -25,14 +25,11 @@ proc createNode*(privKey: Option[PrivateKey] = none(PrivateKey),
                  address: string = "/ip4/127.0.0.1/tcp/0",
                  triggerSelf: bool = false,
                  gossip: bool = false): Switch = 
-  var peerInfo: PeerInfo
   var seckey = privKey
   if privKey.isNone:
     seckey = some(PrivateKey.random(RSA))
 
-  peerInfo.peerId = some(PeerID.init(seckey.get()))
-  peerInfo.addrs.add(Multiaddress.init(address))
-
+  var peerInfo = PeerInfo.init(seckey.get(), @[Multiaddress.init(address)])
   let mplexProvider = newMuxerProvider(createMplex, MplexCodec)
   let transports = @[Transport(newTransport(TcpTransport))]
   let muxers = [(MplexCodec, mplexProvider)].toTable()

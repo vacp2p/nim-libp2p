@@ -21,16 +21,8 @@ const
 type
   PeerID* = object
     data*: seq[byte]
-    privateKey*: Option[PrivateKey]
-    publicKey: Option[PublicKey]
 
   PeerIDError* = object of CatchableError
-
-proc publicKey*(pid: PeerID): Option[PublicKey] {.inline.} =
-  if pid.publicKey.isSome and len(pid.publicKey.get().getBytes()) > 0:
-    result = pid.publicKey
-  elif pid.privateKey.isSome and len(pid.privateKey.get().getBytes()) > 0:
-    result = some(pid.privateKey.get().getKey())
 
 proc pretty*(pid: PeerID): string {.inline.} =
   ## Return base58 encoded ``pid`` representation.
@@ -170,12 +162,10 @@ proc init*(t: typedesc[PeerID], pubkey: PublicKey): PeerID =
   else:
     mh = MultiHash.digest("sha2-256", pubraw)
   result.data = mh.data.buffer
-  result.publicKey = some(pubkey)
 
 proc init*(t: typedesc[PeerID], seckey: PrivateKey): PeerID {.inline.} =
   ## Create new peer id from private key ``seckey``.
   result = PeerID.init(seckey.getKey())
-  result.privateKey = some(seckey)
 
 proc match*(pid: PeerID, pubkey: PublicKey): bool {.inline.} =
   ## Returns ``true`` if ``pid`` matches public key ``pubkey``.

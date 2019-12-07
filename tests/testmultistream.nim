@@ -168,9 +168,6 @@ suite "Multistream select":
       let ms = newMultistream()
       let conn = newConnection(newTestSelectStream())
 
-      let seckey = PrivateKey.random(RSA)
-      var peerInfo: PeerInfo
-      peerInfo.peerId = some(PeerID.init(seckey))
       var protocol: LPProtocol = new LPProtocol
       proc testHandler(conn: Connection,
                        proto: string):
@@ -197,13 +194,9 @@ suite "Multistream select":
         check strProto == "\x26/test/proto1/1.0.0\n/test/proto2/1.0.0\n"
         await conn.close()
 
-      let seckey = PrivateKey.random(RSA)
-      var peerInfo: PeerInfo
-      peerInfo.peerId = some(PeerID.init(seckey))
+      proc testHandler(conn: Connection, proto: string): Future[void] 
+        {.async, gcsafe.} = discard
       var protocol: LPProtocol = new LPProtocol
-      proc testHandler(conn: Connection,
-                              proto: string):
-                              Future[void] {.async, gcsafe.} = discard
       protocol.handler = testHandler
       ms.addHandler("/test/proto1/1.0.0", protocol)
       ms.addHandler("/test/proto2/1.0.0", protocol)
@@ -224,9 +217,6 @@ suite "Multistream select":
         check cast[string](msg) == Na
         await conn.close()
 
-      let seckey = PrivateKey.random(RSA)
-      var peerInfo: PeerInfo
-      peerInfo.peerId = some(PeerID.init(seckey))
       var protocol: LPProtocol = new LPProtocol
       proc testHandler(conn: Connection,
                        proto: string):
@@ -244,9 +234,6 @@ suite "Multistream select":
     proc endToEnd(): Future[bool] {.async.} =
       let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
 
-      let seckey = PrivateKey.random(RSA)
-      var peerInfo: PeerInfo
-      peerInfo.peerId = some(PeerID.init(seckey))
       var protocol: LPProtocol = new LPProtocol
       proc testHandler(conn: Connection,
                        proto: string):
@@ -283,9 +270,6 @@ suite "Multistream select":
       let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
 
       let msListen = newMultistream()
-      let seckey = PrivateKey.random(RSA)
-      var peerInfo: PeerInfo
-      peerInfo.peerId = some(PeerID.init(seckey))
       var protocol: LPProtocol = new LPProtocol
       protocol.handler = proc(conn: Connection, proto: string) {.async, gcsafe.} =
         await conn.close()
@@ -317,9 +301,6 @@ suite "Multistream select":
     proc endToEnd(): Future[bool] {.async.} =
       let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
 
-      let seckey = PrivateKey.random(RSA)
-      var peerInfo: PeerInfo
-      peerInfo.peerId = some(PeerID.init(seckey))
       var protocol: LPProtocol = new LPProtocol
       proc testHandler(conn: Connection,
                        proto: string):
@@ -356,9 +337,6 @@ suite "Multistream select":
     proc endToEnd(): Future[bool] {.async.} =
       let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
 
-      let seckey = PrivateKey.random(RSA)
-      var peerInfo: PeerInfo
-      peerInfo.peerId = some(PeerID.init(seckey))
       var protocol: LPProtocol = new LPProtocol
       proc testHandler(conn: Connection,
                        proto: string):

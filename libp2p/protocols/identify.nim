@@ -46,8 +46,7 @@ type
 proc encodeMsg*(peerInfo: PeerInfo, observedAddrs: Multiaddress): ProtoBuffer = 
   result = initProtoBuffer()
 
-  if peerInfo.peerId.isSome:
-    result.write(initProtoField(1, peerInfo.peerId.get().publicKey.get().getBytes()))
+  result.write(initProtoField(1, peerInfo.publicKey.get().getBytes()))
 
   for ma in peerInfo.addrs:
     result.write(initProtoField(2, ma.data.buffer))
@@ -122,7 +121,7 @@ method init*(p: Identify) =
 
 proc identify*(p: Identify, 
                conn: Connection, 
-               remotePeerInfo: PeerInfo): Future[IdentifyInfo] {.async, gcsafe.} = 
+               remotePeerInfo: Option[PeerInfo]): Future[IdentifyInfo] {.async, gcsafe.} = 
   var message = await conn.readLp()
   if len(message) == 0:
     trace "identify: Invalid or empty message received!"
@@ -131,15 +130,16 @@ proc identify*(p: Identify,
 
   result = decodeMsg(message)
 
-  if remotePeerInfo.peerId.isSome and result.pubKey.isSome:
+  if remotePeerInfo.isSome and result.pubKey.isSome:
     let peer = PeerID.init(result.pubKey.get())
 
     # do a string comaprison of the ids,
-    # because that is the only thing we have in most cases
-    if peer != remotePeerInfo.peerId.get():
+    # because that is the only thing we 
+    # have in most cases
+    if peer != remotePeerInfo.get().peerId:
       trace "Peer ids don't match",
             remote = peer.pretty(),
-            local = remotePeerInfo.id
+            local = remotePeerInfo.get().id
 
       raise newException(IdentityNoMatchError,
         "Peer ids don't match")

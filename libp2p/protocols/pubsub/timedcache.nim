@@ -40,7 +40,6 @@ proc put*[V](t: TimedCache[V],
   trace "adding entry to timed cache", key = key
   t.cache[key] = TimedEntry[V](val: val, handler: handler)
 
-  # TODO: addTimer with param Duration is missing from chronos, needs to be added
   addTimer(
     timeout,
     proc (arg: pointer = nil) {.gcsafe.} =

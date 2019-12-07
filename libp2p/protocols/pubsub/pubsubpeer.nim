@@ -62,7 +62,7 @@ proc handle*(p: PubSubPeer, conn: Connection) {.async, gcsafe.} =
       await p.handler(p, @[msg])
       p.recvdRpcCache.put($hexData.hash)
   except CatchableError as exc:
-    error "an exception occured while processing pubsub rpc requests", exc = exc.msg
+    error "exception occured", exc = exc.msg
   finally:
     trace "exiting pubsub peer read loop", peer = p.id
 
@@ -105,7 +105,7 @@ proc sendMsg*(p: PubSubPeer,
               peerId: PeerID,
               topic: string,
               data: seq[byte]): Future[void] {.gcsafe.} =
-  p.send(@[RPCMsg(messages: @[newMessage(p.peerInfo.peerId.get(), data, topic)])])
+  p.send(@[RPCMsg(messages: @[newMessage(p.peerInfo, data, topic)])])
 
 proc sendGraft*(p: PubSubPeer, topics: seq[string]) {.async, gcsafe.} =
   for topic in topics:

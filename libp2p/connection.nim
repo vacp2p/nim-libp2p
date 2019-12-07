@@ -7,7 +7,7 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import chronos, chronicles
+import chronos, chronicles, options
 import peerinfo,
        multiaddress,
        stream/lpstream,
@@ -19,7 +19,7 @@ const DefaultReadSize*: uint = 64 * 1024
 
 type
   Connection* = ref object of LPStream
-    peerInfo*: PeerInfo
+    peerInfo*: Option[PeerInfo]
     stream*: LPStream
     observedAddrs*: Multiaddress
 

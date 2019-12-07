@@ -102,7 +102,7 @@ method handleConn*(p: PubSub,
   ##    that we're interested in
   ##
 
-  if conn.peerInfo.peerId.isNone:
+  if conn.peerInfo.isNone:
     trace "no valid PeerId for peer"
     await conn.close()
     return
@@ -111,7 +111,7 @@ method handleConn*(p: PubSub,
       # call floodsub rpc handler
       await p.rpcHandler(peer, msgs)
 
-  let peer = p.getPeer(conn.peerInfo, proto)
+  let peer = p.getPeer(conn.peerInfo.get(), proto)
   let topics = toSeq(p.topics.keys)
   if topics.len > 0:
     await p.sendSubs(peer, topics, true)
@@ -123,8 +123,8 @@ method handleConn*(p: PubSub,
 
 method subscribeToPeer*(p: PubSub,
                         conn: Connection) {.base, async, gcsafe.} =
-  var peer = p.getPeer(conn.peerInfo, p.codec)
-  trace "setting connection for peer", peerId = conn.peerInfo.id
+  var peer = p.getPeer(conn.peerInfo.get(), p.codec)
+  trace "setting connection for peer", peerId = conn.peerInfo.get().id
   if not peer.isConnected:
     peer.conn = conn
 
@@ -133,9 +133,8 @@ method subscribeToPeer*(p: PubSub,
   .addCallback(
     proc(udata: pointer = nil) {.gcsafe.} = 
       trace "connection closed, cleaning up peer",
-        peer = conn.peerInfo.id
+        peer = conn.peerInfo.get().id
 
-      # TODO: figureout how to handle properly without dicarding
       asyncCheck p.cleanUpHelper(peer)
   )
 
