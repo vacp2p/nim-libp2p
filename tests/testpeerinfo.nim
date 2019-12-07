@@ -37,3 +37,21 @@ suite "PeerInfo":
 
     expect NoPublicKeyException:
       throwsOnMissingPubKey()
+
+  test "Should allow assigning public key":
+    let key = PrivateKey.random(RSA)
+
+    let peerInfo = PeerInfo.init(PeerID.init(key))
+    peerInfo.publicKey = key.getKey()
+    check peerInfo.publicKey == key.getKey()
+
+  test "Should throw on invalid public key assignement":
+    proc throwsOnInvalidPubKey() =
+      let validKey = PrivateKey.random(RSA)
+      let invalidKey = PrivateKey.random(RSA)
+
+      let peerInfo = PeerInfo.init(PeerID.init(validKey))
+      peerInfo.publicKey = invalidKey.getKey()
+
+    expect InvalidPublicKeyException:
+      throwsOnInvalidPubKey()

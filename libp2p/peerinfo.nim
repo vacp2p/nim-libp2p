@@ -24,6 +24,7 @@ type
     HasPublic
 
   NoPublicKeyException* = object of Exception
+  InvalidPublicKeyException* = object of Exception
 
   PeerInfo* = ref object of RootObj
     peerId*: PeerID
@@ -33,11 +34,15 @@ type
     of HasPrivate:
       privateKey*: PrivateKey
     of HasPublic:
-      key: Option[PublicKey]
+      publicKey: Option[PublicKey]
 
 proc newNoPublicKeyException(): ref Exception =
   newException(NoPublicKeyException,
     "no public key provided and none found in id")
+
+proc newInvalidPublicKeyException(): ref Exception =
+  newException(InvalidPublicKeyException,
+    "attempting to assign an invalid public key")
 
 proc init*(p: typedesc[PeerInfo],
            key: PrivateKey,
@@ -67,7 +72,7 @@ proc init*(p: typedesc[PeerInfo],
 
   PeerInfo(keyType: HasPublic,
            peerId: PeerID.init(key),
-           key: some(key),
+           publicKey: some(key),
            addrs: addrs,
            protocols: protocols)
 
@@ -77,12 +82,18 @@ proc publicKey*(p: PeerInfo): PublicKey {.inline.} =
       var pubKey: PublicKey
       if p.peerId.extractPublicKey(pubKey):
         result = pubKey
-    elif p.key.isSome:
-      result = p.key.get()
+    elif p.publicKey.isSome:
+      result = p.publicKey.get()
     else:
       raise newNoPublicKeyException()
   else:
     result = p.privateKey.getKey()
+
+proc `publicKey=`*(p: PeerInfo, key: PublicKey) =
+  if not (PeerID.init(key) == p.peerId):
+    raise newInvalidPublicKeyException()
+
+  p.publicKey = some(key)
 
 proc id*(p: PeerInfo): string {.inline.} =
   p.peerId.pretty
