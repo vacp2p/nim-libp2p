@@ -63,7 +63,8 @@ This implementation has a bare minimum set of components in order to provide a f
 - Secio
 - Mplex
 - Identify
-- FloodSub (with gossipsub being added in the near future)
+- FloodSub
+- GossipSub
 
 This stack reflects the minimal requirements for the upcoming Eth2 implementation.
 
@@ -111,8 +112,7 @@ proc createSwitch(ma: MultiAddress): (Switch, PeerInfo) =
   ## Helper to create a swith
 
   let seckey = PrivateKey.random(RSA) # use a random key for peer id
-  var peerInfo: PeerInfo
-  peerInfo.peerId = some(PeerID.init(seckey)) # create a peer id and assign
+  var peerInfo = PeerInfo.init(seckey) # create a peer id and assign
   peerInfo.addrs.add(ma) # set this peer's multiaddresses (can be any number)
 
   let identify = newIdentify(peerInfo) # create the identify proto
