@@ -102,7 +102,6 @@ method handleConn*(p: PubSub,
   ##    that we're interested in
   ##
 
-  # TODO: should this be removed?
   if conn.peerInfo.isNone:
     trace "no valid PeerId for peer"
     await conn.close()
@@ -136,7 +135,6 @@ method subscribeToPeer*(p: PubSub,
       trace "connection closed, cleaning up peer",
         peer = conn.peerInfo.get().id
 
-      # TODO: figureout how to handle properly without dicarding
       asyncCheck p.cleanUpHelper(peer)
   )
 
