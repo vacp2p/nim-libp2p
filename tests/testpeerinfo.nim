@@ -1,5 +1,5 @@
 
-import unittest
+import unittest, options
 import ../libp2p/crypto/crypto,
        ../libp2p/peerinfo,
        ../libp2p/peer
@@ -12,7 +12,7 @@ suite "PeerInfo":
 
     check peerId == peerInfo.peerId
     check seckey == peerInfo.privateKey
-    check seckey.getKey == peerInfo.publicKey
+    check seckey.getKey == peerInfo.publicKey.get()
 
   test "Should init with public key":
     let seckey = PrivateKey.random(RSA)
@@ -20,7 +20,7 @@ suite "PeerInfo":
     var peerId = PeerID.init(seckey.getKey())
 
     check peerId == peerInfo.peerId
-    check seckey.getKey == peerInfo.publicKey
+    check seckey.getKey == peerInfo.publicKey.get()
 
   test "Should init from PeerId with public key":
     let seckey = PrivateKey.random(Ed25519)
@@ -28,22 +28,18 @@ suite "PeerInfo":
     var peerId = PeerID.init(seckey.getKey())
 
     check peerId == peerInfo.peerId
-    check seckey.getKey == peerInfo.publicKey
+    check seckey.getKey == peerInfo.publicKey.get()
 
-  test "Should throw on missing public key":
-    proc throwsOnMissingPubKey() =
-      let peerInfo = PeerInfo.init(PeerID.init(PrivateKey.random(RSA)))
-      discard peerInfo.publicKey
-
-    expect NoPublicKeyException:
-      throwsOnMissingPubKey()
+  test "Should return none on missing public key":
+    let peerInfo = PeerInfo.init(PeerID.init(PrivateKey.random(RSA)))
+    check peerInfo.publicKey.isNone
 
   test "Should allow assigning public key":
     let key = PrivateKey.random(RSA)
 
     let peerInfo = PeerInfo.init(PeerID.init(key))
     peerInfo.publicKey = key.getKey()
-    check peerInfo.publicKey == key.getKey()
+    check peerInfo.publicKey.get() == key.getKey()
 
   test "Should throw on invalid public key assignement":
     proc throwsOnInvalidPubKey() =

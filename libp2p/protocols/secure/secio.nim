@@ -439,7 +439,7 @@ proc handleConn(s: Secio, conn: Connection): Future[Connection] {.async, gcsafe.
         if not sconn.closed:
           asyncCheck sconn.close()
       )
-  secured.peerInfo = some(PeerInfo.init(sconn.peerInfo.get().publicKey))
+  secured.peerInfo = some(PeerInfo.init(sconn.peerInfo.get().publicKey.get()))
   result = secured
 
 method init(s: Secio) {.gcsafe.} =

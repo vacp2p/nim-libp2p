@@ -56,8 +56,8 @@ proc newMessage*(p: PeerInfo,
                  name: string,
                  sign: bool = true): Message {.gcsafe.} = 
   var seqno: seq[byte] = newSeq[byte](20)
-  if randomBytes(addr seqno[0], 20) > 0:
-    var key: seq[byte] = p.publicKey.getBytes()
+  if p.publicKey.isSome and randomBytes(addr seqno[0], 20) > 0:
+    var key: seq[byte] = p.publicKey.get().getBytes()
 
     result = Message(fromPeer: p.peerId.getBytes(),
                      data: data,

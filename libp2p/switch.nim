@@ -125,10 +125,6 @@ proc mux(s: Switch, conn: Connection): Future[void] {.async, gcsafe.} =
   trace "connection's peerInfo", peerInfo = conn.peerInfo
 
   # store it in muxed connections if we have a peer for it
-  # TODO: We should make sure that this are cleaned up properly
-  # on exit even if there is no peer for it. This shouldn't 
-  # happen once secio is in place, but still something to keep
-  # in mind
   if conn.peerInfo.isSome:
     trace "adding muxer for peer", peer = conn.peerInfo.get().id
     s.muxed[conn.peerInfo.get().id] = muxer
