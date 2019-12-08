@@ -1836,7 +1836,7 @@ proc clear*(pair: var EdKeyPair) =
   burnMem(pair.pubkey.data)
 
 proc sign*[T: byte|char](key: EdPrivateKey,
-                         message: openarray[T]): EdSignature {.noinit.} =
+                         message: openarray[T]): EdSignature {.gcsafe, noinit.} =
   ## Create ED25519 signature of data ``message`` using private key ``key``.
   var ctx: sha512
   var r: GeP3

@@ -9,7 +9,7 @@
 
 import unittest, sequtils, options
 import chronos
-import utils, 
+import utils,
        ../../libp2p/[switch, crypto/crypto]
 
 suite "FloodSub":
@@ -72,7 +72,7 @@ suite "FloodSub":
 
       var nodes: seq[Switch] = newSeq[Switch]()
       for i in 0..<10:
-        nodes.add(createNode())
+        nodes.add(newStandardSwitch())
 
       var awaitters: seq[Future[void]]
       for node in nodes:
@@ -104,7 +104,7 @@ suite "FloodSub":
 
       var nodes: seq[Switch] = newSeq[Switch]()
       for i in 0..<10:
-        nodes.add(createNode(none(PrivateKey), "/ip4/127.0.0.1/tcp/0", true))
+        nodes.add newStandardSwitch(triggerSelf = true)
 
       var awaitters: seq[Future[void]]
       for node in nodes:
@@ -118,7 +118,7 @@ suite "FloodSub":
       for node in nodes:
         await node.publish("foobar", cast[seq[byte]]("Hello!"))
         await sleepAsync(10.millis)
-      
+
       await sleepAsync(100.millis)
 
       await allFutures(nodes.mapIt(it.stop()))

@@ -63,7 +63,7 @@ suite "GossipSub":
 
       var nodes: seq[Switch] = newSeq[Switch]()
       for i in 0..<2:
-        nodes.add(createNode(gossip = true))
+        nodes.add newStandardSwitch(gossip = true)
 
       var awaitters: seq[Future[void]]
       for node in nodes:
@@ -143,7 +143,7 @@ suite "GossipSub":
 
       var nodes: seq[Switch] = newSeq[Switch]()
       for i in 0..<2:
-        nodes.add(createNode(gossip = true))
+        nodes.add newStandardSwitch(gossip = true)
 
       var awaitters: seq[Future[void]]
       for node in nodes:
@@ -384,7 +384,7 @@ suite "GossipSub":
       var awaitters: seq[Future[void]]
 
       for i in 0..<10:
-        nodes.add(createNode(none(PrivateKey), "/ip4/127.0.0.1/tcp/0", true, true))
+        nodes.add newStandardSwitch(triggerSelf = true, gossip = true)
         awaitters.add((await nodes[i].start()))
 
       var seen: Table[string, int]

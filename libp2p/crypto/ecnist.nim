@@ -863,7 +863,7 @@ proc getSecret*(pubkey: EcPublicKey, seckey: EcPrivateKey): seq[byte] =
     copyMem(addr result[0], addr data[0], res)
 
 proc sign*[T: byte|char](seckey: EcPrivateKey,
-                         message: openarray[T]): EcSignature =
+                         message: openarray[T]): EcSignature {.gcsafe.} =
   ## Get ECDSA signature of data ``message`` using private key ``seckey``.
   doAssert(not isNil(seckey))
   var hc: BrHashCompatContext

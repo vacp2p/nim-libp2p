@@ -427,7 +427,7 @@ proc `$`*(sig: Signature): string =
   ## Get string representation of signature ``sig``.
   result = toHex(sig.data)
 
-proc sign*(key: PrivateKey, data: openarray[byte]): Signature =
+proc sign*(key: PrivateKey, data: openarray[byte]): Signature {.gcsafe.} =
   ## Sign message ``data`` using private key ``key`` and return generated
   ## signature in raw binary form.
   if key.scheme == RSA:

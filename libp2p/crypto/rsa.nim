@@ -723,13 +723,13 @@ proc `==`*(a, b: RsaPublicKey): bool =
     result = r1 and r2
 
 proc sign*[T: byte|char](key: RsaPrivateKey,
-                         message: openarray[T]): RsaSignature =
+                         message: openarray[T]): RsaSignature {.gcsafe.} =
   ## Get RSA PKCS1.5 signature of data ``message`` using SHA256 and private
   ## key ``key``.
   doAssert(not isNil(key))
   var hc: BrHashCompatContext
   var hash: array[32, byte]
-  var impl = BrRsaPkcs1SignGetDefault()
+  let impl = BrRsaPkcs1SignGetDefault()
   result = new RsaSignature
   result.buffer = newSeq[byte]((key.seck.nBitlen + 7) shr 3)
   var kv = addr sha256Vtable

@@ -74,7 +74,7 @@ proc dialPeer(p: ChatProto, address: string) {.async, gcsafe.} =
   p.conn = await p.switch.dial(remotePeer, ChatCodec)
   p.connected = true
 
-proc writeAndPrint(p: ChatProto) {.async, gcsafe.} = 
+proc writeAndPrint(p: ChatProto) {.async, gcsafe.} =
   while true:
     if not p.connected:
       # echo &"{p.id} ->"
@@ -86,7 +86,7 @@ proc writeAndPrint(p: ChatProto) {.async, gcsafe.} =
     if line.startsWith("/help") or line.startsWith("/?") or not p.started:
       echo Help
       continue
-  
+
     if line.startsWith("/disconnect"):
       echo "Ending current session"
       if p.connected and p.conn.closed.not:
@@ -100,7 +100,7 @@ proc writeAndPrint(p: ChatProto) {.async, gcsafe.} =
         if yesno.cmpIgnoreCase("y") == 0:
           await p.conn.close()
           p.connected = false
-        elif yesno.cmpIgnoreCase("n") == 0: 
+        elif yesno.cmpIgnoreCase("n") == 0:
           continue
         else:
           echo "unrecognized response"
@@ -131,22 +131,22 @@ proc writeAndPrint(p: ChatProto) {.async, gcsafe.} =
           # echo getCurrentExceptionMsg()
 
 proc readWriteLoop(p: ChatProto) {.async, gcsafe.} =
-    asyncCheck p.writeAndPrint()
-    asyncCheck p.readAndPrint()
+  asyncCheck p.writeAndPrint()
+  asyncCheck p.readAndPrint()
 
 method init(p: ChatProto) {.gcsafe.} =
-  proc handle(stream: Connection, proto: string) {.async, gcsafe.} = 
+  proc handle(stream: Connection, proto: string) {.async, gcsafe.} =
     if p.connected and not p.conn.closed:
       echo "a chat session is already in progress - disconnecting!"
       await stream.close()
-
-    p.conn = stream
-    p.connected = true
+    else:
+      p.conn = stream
+      p.connected = true
 
   p.codec = ChatCodec
   p.handler = handle
 
-proc newChatProto(switch: Switch, transp: StreamTransport): ChatProto = 
+proc newChatProto(switch: Switch, transp: StreamTransport): ChatProto =
   new result
   result.switch = switch
   result.transp = transp
@@ -156,7 +156,7 @@ proc threadMain(wfd: AsyncFD) {.thread.} =
   ## This procedure performs reading from `stdin` and sends data over
   ## pipe to main thread.
   var transp = fromPipe(wfd)
- 
+
   while true:
     var line = stdin.readLine()
     discard waitFor transp.write(line & "\r\n")
@@ -217,7 +217,7 @@ proc main() {.async.} =
   var (rfd, wfd) = createAsyncPipe()
   if rfd == asyncInvalidPipe or wfd == asyncInvalidPipe:
     raise newException(ValueError, "Could not initialize pipe!")
-  
+
   data.consoleFd = rfd
   data.serveFut = serveThread(data)
   var thread: Thread[AsyncFD]

@@ -339,7 +339,7 @@ proc `$`*(sig: SkSignature): string =
   discard sig.toBytes(ssig)
   result = toHex(ssig)
 
-proc sign*[T: byte|char](key: SkPrivateKey, msg: openarray[T]): SkSignature =
+proc sign*[T: byte|char](key: SkPrivateKey, msg: openarray[T]): SkSignature {.gcsafe.} =
   ## Sign message `msg` using private key `key` and return signature object.
   let ctx = getContext()
   var hash = sha256.digest(msg)

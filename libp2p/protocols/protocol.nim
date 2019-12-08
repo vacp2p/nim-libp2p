@@ -11,8 +11,8 @@ import chronos
 import ../connection
 
 type
-  LPProtoHandler* = proc (conn: Connection, 
-                          proto: string): 
+  LPProtoHandler* = proc (conn: Connection,
+                          proto: string):
                           Future[void] {.gcsafe, closure.}
 
   LPProtocol* = ref object of RootObj

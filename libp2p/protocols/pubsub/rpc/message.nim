@@ -27,7 +27,7 @@ proc msgId*(m: Message): string =
 proc fromPeerId*(m: Message): PeerId =
   PeerID.init(m.fromPeer)
 
-proc sign*(p: PeerInfo, msg: Message): Message {.gcsafe.} = 
+proc sign*(p: PeerInfo, msg: Message): Message {.gcsafe.} =
   var buff = initProtoBuffer()
   encodeMessage(msg, buff)
   let prefix = cast[seq[byte]](PubSubPrefix)
@@ -54,7 +54,7 @@ proc verify*(p: PeerInfo, m: Message): bool =
 proc newMessage*(p: PeerInfo,
                  data: seq[byte],
                  name: string,
-                 sign: bool = true): Message {.gcsafe.} = 
+                 sign: bool = true): Message {.gcsafe.} =
   var seqno: seq[byte] = newSeq[byte](20)
   if p.publicKey.isSome and randomBytes(addr seqno[0], 20) > 0:
     var key: seq[byte] = p.publicKey.get().getBytes()
