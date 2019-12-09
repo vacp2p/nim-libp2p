@@ -199,7 +199,7 @@ proc dial*(s: Switch,
   let id = peer.id
   trace "Dialing peer", peer = id
   result = s.connections.getOrDefault(id)
-  if result == nil or result.closed:
+  if result.isNil or result.closed:
     for t in s.transports: # for each transport
       for a in peer.addrs: # for each address
         if t.handles(a): # check if it can dial it
@@ -210,7 +210,7 @@ proc dial*(s: Switch,
           result = await s.upgradeOutgoing(result)
           result.closeEvent.wait().addCallback do (udata: pointer):
             asyncCheck s.cleanupConn(result)
-        break
+          break
   else:
     trace "Reusing existing connection"
 
