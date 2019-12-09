@@ -24,6 +24,7 @@ type
     HasPublic
 
   InvalidPublicKeyException* = object of Exception
+  NoReplacePublicKeyException* = object of Exception
 
   PeerInfo* = ref object of RootObj
     peerId*: PeerID
@@ -38,6 +39,10 @@ type
 proc newInvalidPublicKeyException(): ref Exception =
   newException(InvalidPublicKeyException,
     "attempting to assign an invalid public key")
+
+proc newNoReplacePublicKeyException(): ref Exception =
+  newException(NoReplacePublicKeyException,
+    "attempting to replace an existing public key")
 
 proc init*(p: typedesc[PeerInfo],
            key: PrivateKey,
@@ -57,6 +62,16 @@ proc init*(p: typedesc[PeerInfo],
 
   PeerInfo(keyType: HasPublic,
            peerId: peerId,
+           addrs: addrs,
+           protocols: protocols)
+
+proc init*(p: typedesc[PeerInfo],
+           peerId: string,
+           addrs: seq[MultiAddress] = @[],
+           protocols: seq[string] = @[]): PeerInfo {.inline.} =
+
+  PeerInfo(keyType: HasPublic,
+           peerId: PeerID.init(peerId),
            addrs: addrs,
            protocols: protocols)
 
@@ -83,6 +98,9 @@ proc publicKey*(p: PeerInfo): Option[PublicKey] {.inline.} =
     result = some(p.privateKey.getKey())
 
 proc `publicKey=`*(p: PeerInfo, key: PublicKey) =
+  if p.publicKey.isSome:
+    raise newNoReplacePublicKeyException()
+
   if not (PeerID.init(key) == p.peerId):
     raise newInvalidPublicKeyException()
 

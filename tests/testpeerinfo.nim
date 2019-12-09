@@ -30,6 +30,20 @@ suite "PeerInfo":
     check peerId == peerInfo.peerId
     check seckey.getKey == peerInfo.publicKey.get()
 
+  test "Should init from CIDv0 string":
+    var peerInfo = PeerInfo.init("QmYyQSo1c1Ym7orWxLYvCrM2EmxFTANf8wXmmE7DWjhx5N")
+
+    check:
+      PeerID.init("QmYyQSo1c1Ym7orWxLYvCrM2EmxFTANf8wXmmE7DWjhx5N") == peerInfo.peerId
+
+  # TODO: CIDv1 is handling is missing from PeerID
+  # https://github.com/status-im/nim-libp2p/issues/53
+  # test "Should init from CIDv1 string":
+  #   var peerInfo = PeerInfo.init("bafzbeie5745rpv2m6tjyuugywy4d5ewrqgqqhfnf445he3omzpjbx5xqxe")
+
+  #   check:
+  #     PeerID.init("bafzbeie5745rpv2m6tjyuugywy4d5ewrqgqqhfnf445he3omzpjbx5xqxe") == peerInfo.peerId
+
   test "Should return none on missing public key":
     let peerInfo = PeerInfo.init(PeerID.init(PrivateKey.random(RSA)))
     check peerInfo.publicKey.isNone
@@ -51,3 +65,11 @@ suite "PeerInfo":
 
     expect InvalidPublicKeyException:
       throwsOnInvalidPubKey()
+
+  test "Should not allow replacing a public key":
+    proc throwsReplacePublicKey() =
+      let peerInfo = PeerInfo.init(PrivateKey.random(RSA))
+      peerInfo.publicKey = PrivateKey.random(RSA).getKey()
+
+    expect NoReplacePublicKeyException:
+      throwsReplacePublicKey()
