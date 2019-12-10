@@ -25,7 +25,7 @@ proc createGossipSub(): GossipSub =
 suite "GossipSub":
   test "should add remote peer topic subscriptions":
     proc testRun(): Future[bool] {.async.} =
-      proc handler(topic: string, data: seq[byte]) {.async, gcsafe.} = 
+      proc handler(topic: string, data: seq[byte]) {.async, gcsafe.} =
         discard
 
       let gossip1 = createGossipSub()
@@ -33,11 +33,11 @@ suite "GossipSub":
 
       var buf1 = newBufferStream()
       var conn1 = newConnection(buf1)
-      conn1.peerInfo = some(gossip1.peerInfo)
+      conn1.peerInfo = gossip1.peerInfo
 
       var buf2 = newBufferStream()
       var conn2 = newConnection(buf2)
-      conn2.peerInfo = some(gossip2.peerInfo)
+      conn2.peerInfo = gossip2.peerInfo
 
       buf1 = buf1 | buf2 | buf1
 
@@ -50,7 +50,7 @@ suite "GossipSub":
       check:
          "foobar" in gossip2.gossipsub
          gossip1.peerInfo.id in gossip2.gossipsub["foobar"]
-      
+
       result = true
 
     check:
@@ -92,7 +92,7 @@ suite "GossipSub":
 
   test "should add remote peer topic subscriptions if both peers are subscribed":
     proc testRun(): Future[bool] {.async.} =
-      proc handler(topic: string, data: seq[byte]) {.async, gcsafe.} = 
+      proc handler(topic: string, data: seq[byte]) {.async, gcsafe.} =
         discard
 
       let gossip1 = createGossipSub()
@@ -100,12 +100,12 @@ suite "GossipSub":
 
       var buf1 = newBufferStream()
       var conn1 = newConnection(buf1)
-      conn1.peerInfo = some(gossip1.peerInfo)
+      conn1.peerInfo = gossip1.peerInfo
 
       var buf2 = newBufferStream()
       var conn2 = newConnection(buf2)
-      conn2.peerInfo = some(gossip2.peerInfo)
-      
+      conn2.peerInfo = gossip2.peerInfo
+
       buf1 = buf1 | buf2 | buf1
 
       await gossip1.subscribeToPeer(conn2)
@@ -181,7 +181,7 @@ suite "GossipSub":
   # test "send over fanout A -> B":
   #   proc testRun(): Future[bool] {.async.} =
   #     var handlerFut = newFuture[bool]()
-  #     proc handler(topic: string, data: seq[byte]) {.async, gcsafe.} = 
+  #     proc handler(topic: string, data: seq[byte]) {.async, gcsafe.} =
   #       check:
   #         topic == "foobar"
   #         cast[string](data) == "Hello!"
@@ -221,7 +221,7 @@ suite "GossipSub":
   test "e2e - send over fanout A -> B":
     proc testRun(): Future[bool] {.async.} =
       var passed: bool
-      proc handler(topic: string, data: seq[byte]) {.async, gcsafe.} = 
+      proc handler(topic: string, data: seq[byte]) {.async, gcsafe.} =
         check topic == "foobar"
         passed = true
 
@@ -255,7 +255,7 @@ suite "GossipSub":
   # test "send over mesh A -> B":
   #   proc testRun(): Future[bool] {.async.} =
   #     var passed: bool
-  #     proc handler(topic: string, data: seq[byte]) {.async, gcsafe.} = 
+  #     proc handler(topic: string, data: seq[byte]) {.async, gcsafe.} =
   #       check:
   #         topic == "foobar"
   #         cast[string](data) == "Hello!"
@@ -294,7 +294,7 @@ suite "GossipSub":
   # test "e2e - send over mesh A -> B":
   #   proc testRun(): Future[bool] {.async.} =
   #     var passed: bool
-  #     proc handler(topic: string, data: seq[byte]) {.async, gcsafe.} = 
+  #     proc handler(topic: string, data: seq[byte]) {.async, gcsafe.} =
   #       check topic == "foobar"
   #       passed = true
 
@@ -320,7 +320,7 @@ suite "GossipSub":
   #   check:
   #     waitFor(testRun()) == true
 
-  # test "with multiple peers": 
+  # test "with multiple peers":
   #   proc testRun(): Future[bool] {.async.} =
   #     var nodes: seq[GossipSub]
   #     for i in 0..<10:
@@ -361,8 +361,8 @@ suite "GossipSub":
 
   #       awaitters.add(dialer.start())
 
-  #     await nodes[0].publish("foobar", 
-  #                       cast[seq[byte]]("from node " & 
+  #     await nodes[0].publish("foobar",
+  #                       cast[seq[byte]]("from node " &
   #                       nodes[1].peerInfo.peerId.get().pretty))
 
   #     await sleepAsync(1000.millis)
@@ -404,8 +404,8 @@ suite "GossipSub":
       await subscribeNodes(nodes)
       await sleepAsync(10.millis)
 
-      await nodes[0].publish("foobar", 
-                        cast[seq[byte]]("from node " & 
+      await nodes[0].publish("foobar",
+                        cast[seq[byte]]("from node " &
                         nodes[1].peerInfo.id))
 
       await sleepAsync(1000.millis)

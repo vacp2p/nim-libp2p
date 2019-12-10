@@ -65,8 +65,8 @@ proc secure(s: Switch, conn: Connection): Future[Connection] {.async, gcsafe.} =
 proc identify(s: Switch, conn: Connection): Future[PeerInfo] {.async, gcsafe.} =
   ## identify the connection
 
-  if conn.peerInfo.isSome:
-    result = conn.peerInfo.get()
+  if not isNil(conn.peerInfo):
+    result = conn.peerInfo
 
   try:
     if (await s.ms.select(conn, s.identity.codec)):
@@ -116,58 +116,58 @@ proc mux(s: Switch, conn: Connection): Future[void] {.async, gcsafe.} =
   # add muxer handler cleanup proc
   handlerFut.addCallback do (udata: pointer = nil):
     trace "muxer handler completed for peer",
-      peer = conn.peerInfo.get().id
+      peer = conn.peerInfo.id
 
   # do identify first, so that we have a
   # PeerInfo in case we didn't before
-  conn.peerInfo = some((await s.identify(stream)))
+  conn.peerInfo = await s.identify(stream)
 
   await stream.close() # close identify stream
 
   trace "connection's peerInfo", peerInfo = conn.peerInfo
 
   # store it in muxed connections if we have a peer for it
-  if conn.peerInfo.isSome:
-    trace "adding muxer for peer", peer = conn.peerInfo.get().id
-    s.muxed[conn.peerInfo.get().id] = muxer
+  if not isNil(conn.peerInfo):
+    trace "adding muxer for peer", peer = conn.peerInfo.id
+    s.muxed[conn.peerInfo.id] = muxer
 
 proc cleanupConn(s: Switch, conn: Connection) {.async, gcsafe.} =
-  # if conn.peerInfo.peerId.isSome:
-  let id = conn.peerInfo.get().id
-  trace "cleaning up connection for peer", peerId = id
-  if id in s.muxed:
-    await s.muxed[id].close()
-    s.muxed.del(id)
+  if not isNil(conn.peerInfo):
+    let id = conn.peerInfo.id
+    trace "cleaning up connection for peer", peerId = id
+    if id in s.muxed:
+      await s.muxed[id].close()
+      s.muxed.del(id)
 
-  if id in s.connections:
-    await s.connections[id].close()
-    s.connections.del(id)
+    if id in s.connections:
+      await s.connections[id].close()
+      s.connections.del(id)
 
 proc disconnect*(s: Switch, peer: PeerInfo) {.async, gcsafe.} =
   let conn = s.connections.getOrDefault(peer.id)
-  if conn != nil:
+  if not isNil(conn):
     await s.cleanupConn(conn)
 
-proc getMuxedStream(s: Switch, peerInfo: PeerInfo): Future[Option[Connection]] {.async, gcsafe.} =
+proc getMuxedStream(s: Switch, peerInfo: PeerInfo): Future[Connection] {.async, gcsafe.} =
   # if there is a muxer for the connection
   # use it instead to create a muxed stream
   if peerInfo.id in s.muxed:
     trace "connection is muxed, setting up a stream"
     let muxer = s.muxed[peerInfo.id]
     let conn = await muxer.newStream()
-    result = some(conn)
+    result = conn
 
 proc upgradeOutgoing(s: Switch, conn: Connection): Future[Connection] {.async, gcsafe.} =
   trace "handling connection", conn = conn
   result = conn
 
   # don't mux/secure twise
-  if conn.peerInfo.get().id in s.muxed:
+  if conn.peerInfo.id in s.muxed:
     return
 
   result = await s.secure(result) # secure the connection
   await s.mux(result) # mux it if possible
-  s.connections[conn.peerInfo.get().id] = result
+  s.connections[conn.peerInfo.id] = result
 
 proc upgradeIncoming(s: Switch, conn: Connection) {.async, gcsafe.} =
   trace "upgrading incoming connection"
@@ -210,7 +210,7 @@ proc dial*(s: Switch,
           trace "Dialing address", address = $a
           result = await t.dial(a)
           # make sure to assign the peer to the connection
-          result.peerInfo = some peer
+          result.peerInfo = peer
           result = await s.upgradeOutgoing(result)
           result.closeEvent.wait().addCallback do (udata: pointer):
             asyncCheck s.cleanupConn(result)
@@ -223,9 +223,9 @@ proc dial*(s: Switch,
 
   if proto.len > 0 and not result.closed:
     let stream = await s.getMuxedStream(peer)
-    if stream.isSome:
+    if not isNil(stream):
       trace "Connection is muxed, return muxed stream"
-      result = stream.get()
+      result = stream
       trace "Attempting to select remote", proto = proto
 
     if not await s.ms.select(result, proto):
@@ -331,7 +331,7 @@ proc newSwitch*(peerInfo: PeerInfo,
     val.muxerHandler = proc(muxer: Muxer) {.async, gcsafe.} =
       trace "got new muxer"
       let stream = await muxer.newStream()
-      muxer.connection.peerInfo = some((await s.identify(stream)))
+      muxer.connection.peerInfo = await s.identify(stream)
       await stream.close()
 
   for k in secureManagers.keys:

@@ -249,7 +249,7 @@ proc newSecureConnection*(conn: Connection,
   result.readerCoder.init(cipher, secrets.keyOpenArray(i1),
                           secrets.ivOpenArray(i1))
 
-  result.peerInfo = some(PeerInfo.init(remotePubKey))
+  result.peerInfo = PeerInfo.init(remotePubKey)
 
 proc transactMessage(conn: Connection,
                      msg: seq[byte]): Future[seq[byte]] {.async.} =
@@ -442,7 +442,7 @@ proc handleConn(s: Secio, conn: Connection): Future[Connection] {.async, gcsafe.
         if not isNil(sconn) and not sconn.closed:
           asyncCheck sconn.close()
 
-  secured.peerInfo = some(PeerInfo.init(sconn.peerInfo.get().publicKey.get()))
+  secured.peerInfo = PeerInfo.init(sconn.peerInfo.publicKey.get())
   result = secured
 
 method init(s: Secio) {.gcsafe.} =

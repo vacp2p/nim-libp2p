@@ -48,9 +48,9 @@ type
     started: bool
 
 proc id (p: ChatProto): string =
-  result = "unknown"
   if p.conn.peerInfo.isSome:
     result = $p.conn.peerInfo.get().peerId
+  else: "unknown"
 
 # forward declaration
 proc readWriteLoop(p: ChatProto) {.async, gcsafe.}

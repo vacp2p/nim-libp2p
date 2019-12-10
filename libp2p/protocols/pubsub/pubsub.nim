@@ -102,7 +102,7 @@ method handleConn*(p: PubSub,
   ##    that we're interested in
   ##
 
-  if conn.peerInfo.isNone:
+  if isNil(conn.peerInfo):
     trace "no valid PeerId for peer"
     await conn.close()
     return
@@ -111,7 +111,7 @@ method handleConn*(p: PubSub,
     # call floodsub rpc handler
     await p.rpcHandler(peer, msgs)
 
-  let peer = p.getPeer(conn.peerInfo.get(), proto)
+  let peer = p.getPeer(conn.peerInfo, proto)
   let topics = toSeq(p.topics.keys)
   if topics.len > 0:
     await p.sendSubs(peer, topics, true)
@@ -123,8 +123,8 @@ method handleConn*(p: PubSub,
 
 method subscribeToPeer*(p: PubSub,
                         conn: Connection) {.base, async, gcsafe.} =
-  var peer = p.getPeer(conn.peerInfo.get(), p.codec)
-  trace "setting connection for peer", peerId = conn.peerInfo.get().id
+  var peer = p.getPeer(conn.peerInfo, p.codec)
+  trace "setting connection for peer", peerId = conn.peerInfo.id
   if not peer.isConnected:
     peer.conn = conn
 
@@ -132,7 +132,7 @@ method subscribeToPeer*(p: PubSub,
   conn.closeEvent.wait()
   .addCallback do (udata: pointer = nil):
     trace "connection closed, cleaning up peer",
-      peer = conn.peerInfo.get().id
+      peer = conn.peerInfo.id
 
     asyncCheck p.cleanUpHelper(peer)
 
