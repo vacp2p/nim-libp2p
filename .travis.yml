@@ -31,7 +31,7 @@ install:
 
   # install and build go-libp2p-daemon
   - curl -O -L -s -S https://raw.githubusercontent.com/status-im/nimbus-build-system/master/scripts/build_p2pd.sh
-  - bash build_p2pd.sh p2pdCache v0.0.1
+  - bash build_p2pd.sh p2pdCache v0.2.1
 
 script:
   - nimble install -y --depsOnly
