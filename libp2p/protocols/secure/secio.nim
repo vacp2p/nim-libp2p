@@ -439,7 +439,7 @@ proc handleConn(s: Secio, conn: Connection): Future[Connection] {.async, gcsafe.
   secured.closeEvent.wait()
     .addCallback do (udata: pointer):
         trace "wrapped connection closed, closing upstream"
-        if not sconn.closed:
+        if not isNil(sconn) and not sconn.closed:
           asyncCheck sconn.close()
 
   secured.peerInfo = some(PeerInfo.init(sconn.peerInfo.get().publicKey.get()))

@@ -72,6 +72,10 @@ proc identify(s: Switch, conn: Connection): Future[PeerInfo] {.async, gcsafe.} =
     if (await s.ms.select(conn, s.identity.codec)):
       let info = await s.identity.identify(conn, conn.peerInfo)
 
+      if info.pubKey.isNone and isNil(result):
+        raise newException(CatchableError,
+          "no public key provided and no existing peer identity found")
+
       if info.pubKey.isSome:
         result = PeerInfo.init(info.pubKey.get())
         trace "identify: identified remote peer", peer = result.id
