@@ -44,32 +44,10 @@ suite "PeerInfo":
   #   check:
   #     PeerID.init("bafzbeie5745rpv2m6tjyuugywy4d5ewrqgqqhfnf445he3omzpjbx5xqxe") == peerInfo.peerId
 
-  test "Should return none on missing public key":
+  test "Should return none if pubkey is missing from id":
     let peerInfo = PeerInfo.init(PeerID.init(PrivateKey.random(RSA)))
     check peerInfo.publicKey.isNone
 
-  test "Should allow assigning public key":
-    let key = PrivateKey.random(RSA)
-
-    let peerInfo = PeerInfo.init(PeerID.init(key))
-    peerInfo.publicKey = key.getKey()
-    check peerInfo.publicKey.get() == key.getKey()
-
-  test "Should throw on invalid public key assignement":
-    proc throwsOnInvalidPubKey() =
-      let validKey = PrivateKey.random(RSA)
-      let invalidKey = PrivateKey.random(RSA)
-
-      let peerInfo = PeerInfo.init(PeerID.init(validKey))
-      peerInfo.publicKey = invalidKey.getKey()
-
-    expect InvalidPublicKeyException:
-      throwsOnInvalidPubKey()
-
-  test "Should not allow replacing a public key":
-    proc throwsReplacePublicKey() =
-      let peerInfo = PeerInfo.init(PrivateKey.random(RSA))
-      peerInfo.publicKey = PrivateKey.random(RSA).getKey()
-
-    expect NoReplacePublicKeyException:
-      throwsReplacePublicKey()
+  test "Should return some if pubkey is present in id":
+    let peerInfo = PeerInfo.init(PeerID.init(PrivateKey.random(Ed25519)))
+    check peerInfo.publicKey.isSome
