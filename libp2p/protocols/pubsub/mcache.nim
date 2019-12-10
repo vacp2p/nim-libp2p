@@ -22,7 +22,7 @@ type
     historySize*: Natural
     windowSize*: Natural
 
-proc put*(c: MCache, msg: Message) = 
+proc put*(c: MCache, msg: Message) =
   proc handler(key: string, val: Message) {.gcsafe.} =
     ## make sure we remove the message from history
     ## to keep things consisten
@@ -38,13 +38,13 @@ proc get*(c: MCache, mid: string): Option[Message] =
   if mid in c.msgs:
     result = some(c.msgs[mid])
 
-proc window*(c: MCache, topic: string): HashSet[string] = 
+proc window*(c: MCache, topic: string): HashSet[string] =
   result = initHashSet[string]()
 
-  let len = 
-    if c.windowSize > c.history.len: 
-      c.history.len 
-    else: 
+  let len =
+    if c.windowSize > c.history.len:
+      c.history.len
+    else:
       c.windowSize
 
   if c.history.len > 0:

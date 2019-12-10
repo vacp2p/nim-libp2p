@@ -32,10 +32,10 @@ type
     handler*: seq[TopicHandler]
 
   PubSub* = ref object of LPProtocol
-    peerInfo*: PeerInfo # this peer's info
-    topics*: Table[string, Topic] # local topics
+    peerInfo*: PeerInfo               # this peer's info
+    topics*: Table[string, Topic]     # local topics
     peers*: Table[string, PubSubPeer] # peerid to peer map
-    triggerSelf*: bool # trigger own local handler on publish
+    triggerSelf*: bool                # trigger own local handler on publish
     cleanupLock: AsyncLock
 
 proc sendSubs*(p: PubSub,
@@ -49,8 +49,8 @@ proc sendSubs*(p: PubSub,
 
   var msg: RPCMsg
   for t in topics:
-    trace "sending topic", peer = peer.id, 
-                           subscribe = subscribe, 
+    trace "sending topic", peer = peer.id,
+                           subscribe = subscribe,
                            topicName = t
     msg.subscriptions.add(SubOpts(topic: t, subscribe: subscribe))
 
@@ -62,7 +62,7 @@ method rpcHandler*(p: PubSub,
   ## handle rpc messages
   discard
 
-method handleDisconnect*(p: PubSub, peer: PubSubPeer) {.async, base, gcsafe.} = 
+method handleDisconnect*(p: PubSub, peer: PubSubPeer) {.async, base, gcsafe.} =
   ## handle peer disconnects
   if peer.id in p.peers:
     p.peers.del(peer.id)
@@ -71,7 +71,7 @@ proc cleanUpHelper(p: PubSub, peer: PubSubPeer) {.async.} =
   await p.cleanupLock.acquire()
   if peer.refs == 0:
     await p.handleDisconnect(peer)
-  
+
   peer.refs.dec() # decrement refcount
   p.cleanupLock.release()
 
@@ -102,20 +102,20 @@ method handleConn*(p: PubSub,
   ##    that we're interested in
   ##
 
-  if conn.peerInfo.isNone:
+  if isNil(conn.peerInfo):
     trace "no valid PeerId for peer"
     await conn.close()
     return
 
   proc handler(peer: PubSubPeer, msgs: seq[RPCMsg]) {.async, gcsafe.} =
-      # call floodsub rpc handler
-      await p.rpcHandler(peer, msgs)
+    # call floodsub rpc handler
+    await p.rpcHandler(peer, msgs)
 
-  let peer = p.getPeer(conn.peerInfo.get(), proto)
+  let peer = p.getPeer(conn.peerInfo, proto)
   let topics = toSeq(p.topics.keys)
   if topics.len > 0:
     await p.sendSubs(peer, topics, true)
-  
+
   peer.handler = handler
   await peer.handle(conn) # spawn peer read loop
   trace "pubsub peer handler ended, cleaning up"
@@ -123,23 +123,21 @@ method handleConn*(p: PubSub,
 
 method subscribeToPeer*(p: PubSub,
                         conn: Connection) {.base, async, gcsafe.} =
-  var peer = p.getPeer(conn.peerInfo.get(), p.codec)
-  trace "setting connection for peer", peerId = conn.peerInfo.get().id
+  var peer = p.getPeer(conn.peerInfo, p.codec)
+  trace "setting connection for peer", peerId = conn.peerInfo.id
   if not peer.isConnected:
     peer.conn = conn
 
   # handle connection close
   conn.closeEvent.wait()
-  .addCallback(
-    proc(udata: pointer = nil) {.gcsafe.} = 
-      trace "connection closed, cleaning up peer",
-        peer = conn.peerInfo.get().id
+  .addCallback do (udata: pointer = nil):
+    trace "connection closed, cleaning up peer",
+      peer = conn.peerInfo.id
 
-      asyncCheck p.cleanUpHelper(peer)
-  )
+    asyncCheck p.cleanUpHelper(peer)
 
 method unsubscribe*(p: PubSub,
-                    topics: seq[TopicPair]) {.base, async, gcsafe.} = 
+                    topics: seq[TopicPair]) {.base, async, gcsafe.} =
   ## unsubscribe from a list of ``topic`` strings
   for t in topics:
     for i, h in p.topics[t.topic].handler:
@@ -155,18 +153,18 @@ method unsubscribe*(p: PubSub,
 method subscribeTopic*(p: PubSub,
                        topic: string,
                        subscribe: bool,
-                       peerId: string) {.base, gcsafe.} = 
+                       peerId: string) {.base, gcsafe.} =
   discard
 
 method subscribe*(p: PubSub,
                   topic: string,
-                  handler: TopicHandler) {.base, async, gcsafe.} = 
+                  handler: TopicHandler) {.base, async, gcsafe.} =
   ## subscribe to a topic
   ##
   ## ``topic``   - a string topic to subscribe to
   ##
-  ## ``handler`` - is a user provided proc 
-  ##               that will be triggered 
+  ## ``handler`` - is a user provided proc
+  ##               that will be triggered
   ##               on every received message
   ##
   if topic notin p.topics:
@@ -180,14 +178,14 @@ method subscribe*(p: PubSub,
 
 method publish*(p: PubSub,
                 topic: string,
-                data: seq[byte]) {.base, async, gcsafe.} = 
+                data: seq[byte]) {.base, async, gcsafe.} =
   ## publish to a ``topic``
   if p.triggerSelf and topic in p.topics:
     for h in p.topics[topic].handler:
       await h(topic, data)
 
 method initPubSub*(p: PubSub) {.base.} =
-  ## perform pubsub initializaion 
+  ## perform pubsub initializaion
   discard
 
 method start*(p: PubSub) {.async, base.} =

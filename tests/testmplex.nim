@@ -268,7 +268,7 @@ suite "Mplex":
       await chann.close()
       await chann.write("Hello")
 
-    expect LPStreamClosedError:
+    expect LPStreamEOFError:
       waitFor(testClosedForWrite())
 
   test "half closed - channel should close for read by remote":
@@ -281,7 +281,7 @@ suite "Mplex":
       discard await chann.read() # this should work, since there is data in the buffer
       discard await chann.read() # this should throw
 
-    expect LPStreamClosedError:
+    expect LPStreamEOFError:
       waitFor(testClosedForRead())
 
   test "reset - channel should fail reading":
@@ -291,7 +291,7 @@ suite "Mplex":
       await chann.reset()
       asyncDiscard chann.read()
 
-    expect LPStreamClosedError:
+    expect LPStreamEOFError:
       waitFor(testResetRead())
 
   test "reset - channel should fail writing":
@@ -301,7 +301,7 @@ suite "Mplex":
       await chann.reset()
       await chann.write(cast[seq[byte]]("Hello!"))
 
-    expect LPStreamClosedError:
+    expect LPStreamEOFError:
       waitFor(testResetWrite())
 
   test "should not allow pushing data to channel when remote end closed":
@@ -311,5 +311,5 @@ suite "Mplex":
       await chann.closedByRemote()
       await chann.pushTo(@[byte(1)])
 
-    expect LPStreamClosedError:
+    expect LPStreamEOFError:
       waitFor(testResetWrite())

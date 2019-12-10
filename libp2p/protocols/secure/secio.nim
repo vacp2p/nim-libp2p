@@ -249,7 +249,7 @@ proc newSecureConnection*(conn: Connection,
   result.readerCoder.init(cipher, secrets.keyOpenArray(i1),
                           secrets.ivOpenArray(i1))
 
-  result.peerInfo = some(PeerInfo.init(remotePubKey))
+  result.peerInfo = PeerInfo.init(remotePubKey)
 
 proc transactMessage(conn: Connection,
                      msg: seq[byte]): Future[seq[byte]] {.async.} =
@@ -296,8 +296,11 @@ proc handshake*(s: Secio, conn: Connection): Future[SecureConnection] {.async.} 
   if randomBytes(localNonce) != SecioNonceSize:
     raise newException(CatchableError, "Could not generate random data")
 
-  var request = createProposal(localNonce, localBytesPubkey, SecioExchanges,
-                               SecioCiphers, SecioHashes)
+  var request = createProposal(localNonce,
+                               localBytesPubkey,
+                               SecioExchanges,
+                               SecioCiphers,
+                               SecioHashes)
 
   localPeerId = PeerID.init(s.localPublicKey)
 
@@ -415,8 +418,8 @@ proc readLoop(sconn: SecureConnection, stream: BufferStream) {.async.} =
       let msg = await sconn.readMessage()
       if msg.len > 0:
         await stream.pushTo(msg)
-      
-      # tight loop, give a chance for other 
+
+      # tight loop, give a chance for other
       # stuff to run as well
       await sleepAsync(1.millis)
   except CatchableError as exc:
@@ -434,12 +437,12 @@ proc handleConn(s: Secio, conn: Connection): Future[Connection] {.async, gcsafe.
   asyncCheck readLoop(sconn, stream)
   var secured = newConnection(stream)
   secured.closeEvent.wait()
-    .addCallback(proc(udata: pointer) = 
+    .addCallback do (udata: pointer):
         trace "wrapped connection closed, closing upstream"
-        if not sconn.closed:
+        if not isNil(sconn) and not sconn.closed:
           asyncCheck sconn.close()
-      )
-  secured.peerInfo = some(PeerInfo.init(sconn.peerInfo.get().publicKey.get()))
+
+  secured.peerInfo = PeerInfo.init(sconn.peerInfo.publicKey.get())
   result = secured
 
 method init(s: Secio) {.gcsafe.} =

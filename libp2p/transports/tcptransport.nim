@@ -30,7 +30,7 @@ proc connHandler*(t: Transport,
   let conn: Connection = newConnection(newChronosStream(server, client))
   conn.observedAddrs = MultiAddress.init(client.remoteAddress)
   if not initiator:
-    let handlerFut = if t.handler == nil: nil else: t.handler(conn)
+    let handlerFut = if isNil(t.handler): nil else: t.handler(conn)
     let connHolder: ConnHolder = ConnHolder(connection: conn,
                                             connFuture: handlerFut)
     t.connections.add(connHolder)
@@ -77,6 +77,6 @@ method dial*(t: TcpTransport,
   let client: StreamTransport = await connect(address)
   result = await t.connHandler(t.server, client, true)
 
-method handles*(t: TcpTransport, address: MultiAddress): bool {.gcsafe.} = 
+method handles*(t: TcpTransport, address: MultiAddress): bool {.gcsafe.} =
   if procCall Transport(t).handles(address):
     result = address.protocols.filterIt( it == multiCodec("tcp") ).len > 0

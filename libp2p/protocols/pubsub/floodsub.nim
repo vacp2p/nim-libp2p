@@ -26,27 +26,27 @@ const FloodSubCodec* = "/floodsub/1.0.0"
 type
   FloodSub* = ref object of PubSub
     floodsub*: Table[string, HashSet[string]] # topic to remote peer map
-    seen*: TimedCache[string] # list of messages forwarded to peers
+    seen*: TimedCache[string]                 # list of messages forwarded to peers
 
 method subscribeTopic*(f: FloodSub,
                        topic: string,
                        subscribe: bool,
                        peerId: string) {.gcsafe.} =
-    procCall PubSub(f).subscribeTopic(topic, subscribe, peerId)
+  procCall PubSub(f).subscribeTopic(topic, subscribe, peerId)
 
-    if topic notin f.floodsub:
-      f.floodsub[topic] = initHashSet[string]()
+  if topic notin f.floodsub:
+    f.floodsub[topic] = initHashSet[string]()
 
-    if subscribe:
-      trace "adding subscription for topic", peer = peerId, name = topic
-      # subscribe the peer to the topic
-      f.floodsub[topic].incl(peerId)
-    else:
-      trace "removing subscription for topic", peer = peerId, name = topic
-      # unsubscribe the peer from the topic
-      f.floodsub[topic].excl(peerId)
+  if subscribe:
+    trace "adding subscription for topic", peer = peerId, name = topic
+    # subscribe the peer to the topic
+    f.floodsub[topic].incl(peerId)
+  else:
+    trace "removing subscription for topic", peer = peerId, name = topic
+    # unsubscribe the peer from the topic
+    f.floodsub[topic].excl(peerId)
 
-method handleDisconnect*(f: FloodSub, peer: PubSubPeer) {.async, gcsafe.} = 
+method handleDisconnect*(f: FloodSub, peer: PubSubPeer) {.async, gcsafe.} =
   ## handle peer disconnects
   for t in f.floodsub.keys:
     f.floodsub[t].excl(peer.id)
@@ -78,7 +78,7 @@ method rpcHandler*(f: FloodSub,
           if p in f.peers and f.peers[p].id != peer.id:
             await f.peers[p].send(@[RPCMsg(messages: m.messages)])
 
-method init(f: FloodSub) = 
+method init(f: FloodSub) =
   proc handler(conn: Connection, proto: string) {.async, gcsafe.} =
     ## main protocol handler that gets triggered on every
     ## connection for a protocol string
@@ -109,8 +109,8 @@ method publish*(f: FloodSub,
     trace "publishing message", name = topic, peer = p, data = data
     await f.peers[p].send(@[RPCMsg(messages: @[msg])])
 
-method unsubscribe*(f: FloodSub, 
-                    topics: seq[TopicPair]) {.async, gcsafe.} = 
+method unsubscribe*(f: FloodSub,
+                    topics: seq[TopicPair]) {.async, gcsafe.} =
   await procCall PubSub(f).unsubscribe(topics)
 
   for p in f.peers.values:

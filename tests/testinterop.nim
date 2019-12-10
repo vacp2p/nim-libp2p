@@ -59,10 +59,12 @@ proc readLp*(s: StreamTransport): Future[seq[byte]] {.async, gcsafe.} =
     result.setLen(size)
     if size > 0.uint:
       await s.readExactly(addr result[0], int(size))
-  except LPStreamIncompleteError, LPStreamReadError:
-      trace "remote connection ended unexpectedly", exc = getCurrentExceptionMsg()
+  except LPStreamIncompleteError as exc:
+    trace "remote connection ended unexpectedly", exc = exc.msg
+  except LPStreamReadError as exc:
+    trace "unable to read from remote connection", exc = exc.msg
 
-proc createNode*(privKey: Option[PrivateKey] = none(PrivateKey), 
+proc createNode*(privKey: Option[PrivateKey] = none(PrivateKey),
                  address: string = "/ip4/127.0.0.1/tcp/0",
                  triggerSelf: bool = false,
                  gossip: bool = false): Switch =
@@ -77,7 +79,7 @@ proc createNode*(privKey: Option[PrivateKey] = none(PrivateKey),
   let muxers = [(MplexCodec, mplexProvider)].toTable()
   let identify = newIdentify(peerInfo)
   let secureManagers = [(SecioCodec, Secure(newSecio(seckey.get())))].toTable()
-  
+
   var pubSub: Option[PubSub]
   if gossip:
     pubSub = some(PubSub(newPubSub(GossipSub, peerInfo, triggerSelf)))
@@ -116,10 +118,10 @@ proc testPubSubDaemonPublish(gossip: bool = false): Future[bool] {.async.} =
                                                        daemonPeer.addresses))
   await sleepAsync(1.seconds)
   await daemonNode.connect(nativePeer.peerId, nativePeer.addrs)
-  
+
   proc pubsubHandler(api: DaemonAPI,
                      ticket: PubsubTicket,
-                     message: PubSubMessage): Future[bool] {.async.} = 
+                     message: PubSubMessage): Future[bool] {.async.} =
     result = true # don't cancel subscription
 
   asyncDiscard daemonNode.pubsubSubscribe(testTopic, pubsubHandler)
@@ -153,10 +155,10 @@ proc testPubSubNodePublish(gossip: bool = false): Future[bool] {.async.} =
 
   await sleepAsync(1.seconds)
   await daemonNode.connect(nativePeer.peerId, nativePeer.addrs)
-  
+
   proc pubsubHandler(api: DaemonAPI,
                      ticket: PubsubTicket,
-                     message: PubSubMessage): Future[bool] {.async.} = 
+                     message: PubSubMessage): Future[bool] {.async.} =
     let smsg = cast[string](message.data)
     check smsg == pubsubData
     handlerFuture.complete(true)
@@ -185,7 +187,7 @@ suite "Interop":
       proc daemonHandler(api: DaemonAPI, stream: P2PStream) {.async.} =
         check cast[string](await stream.transp.readLp()) == "test 1"
         asyncDiscard stream.transp.writeLp("test 2")
-        
+
         await sleepAsync(10.millis)
         check cast[string](await stream.transp.readLp()) == "test 3"
         asyncDiscard stream.transp.writeLp("test 4")

@@ -18,9 +18,9 @@ suite "Identify":
     proc testHandle(): Future[bool] {.async.} =
       let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
       let remoteSecKey = PrivateKey.random(RSA)
-      let remotePeerInfo = PeerInfo.init(remoteSecKey, 
-                                        @[ma], 
-                                        @["/test/proto1/1.0.0", 
+      let remotePeerInfo = PeerInfo.init(remoteSecKey,
+                                        @[ma],
+                                        @["/test/proto1/1.0.0",
                                         "/test/proto2/1.0.0"])
       var serverFut: Future[void]
       let identifyProto1 = newIdentify(remotePeerInfo)
@@ -40,7 +40,7 @@ suite "Identify":
       var peerInfo = PeerInfo.init(PrivateKey.random(RSA), @[ma])
       let identifyProto2 = newIdentify(peerInfo)
       discard await msDial.select(conn, IdentifyCodec)
-      let id = await identifyProto2.identify(conn, some(remotePeerInfo))
+      let id = await identifyProto2.identify(conn, remotePeerInfo)
 
       check id.pubKey.get() == remoteSecKey.getKey()
       check id.addrs[0] == ma
@@ -77,7 +77,7 @@ suite "Identify":
       var localPeerInfo = PeerInfo.init(PrivateKey.random(RSA), @[ma])
       let identifyProto2 = newIdentify(localPeerInfo)
       discard await msDial.select(conn, IdentifyCodec)
-      discard await identifyProto2.identify(conn, some(PeerInfo.init(PrivateKey.random(RSA))))
+      discard await identifyProto2.identify(conn, PeerInfo.init(PrivateKey.random(RSA)))
       await conn.close()
 
     expect IdentityNoMatchError:

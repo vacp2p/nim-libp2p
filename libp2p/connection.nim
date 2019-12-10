@@ -7,7 +7,7 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import chronos, chronicles, options
+import chronos, chronicles
 import peerinfo,
        multiaddress,
        stream/lpstream,
@@ -19,7 +19,7 @@ const DefaultReadSize*: uint = 64 * 1024
 
 type
   Connection* = ref object of LPStream
-    peerInfo*: Option[PeerInfo]
+    peerInfo*: PeerInfo
     stream*: LPStream
     observedAddrs*: Multiaddress
 
@@ -39,19 +39,17 @@ proc newConnection*(stream: LPStream): Connection =
   let this = result
   if not isNil(result.stream.closeEvent):
     result.stream.closeEvent.wait().
-      addCallback(
-        proc (udata: pointer) =
-          if not this.closed:
-            trace "closing this connection because wrapped stream closed"
-            asyncCheck this.close()
-      )
+      addCallback do (udata: pointer):
+        if not this.closed:
+          trace "closing this connection because wrapped stream closed"
+          asyncCheck this.close()
 
 method read*(s: Connection, n = -1): Future[seq[byte]] {.gcsafe.} =
   s.stream.read(n)
 
 method readExactly*(s: Connection,
                     pbytes: pointer,
-                    nbytes: int): 
+                    nbytes: int):
                     Future[void] {.gcsafe.} =
   s.stream.readExactly(pbytes, nbytes)
 
@@ -70,7 +68,7 @@ method readOnce*(s: Connection,
 method readUntil*(s: Connection,
                   pbytes: pointer,
                   nbytes: int,
-                  sep: seq[byte]): 
+                  sep: seq[byte]):
                   Future[int] {.gcsafe.} =
   s.stream.readUntil(pbytes, nbytes, sep)
 
@@ -86,13 +84,13 @@ method write*(s: Connection,
               Future[void] {.gcsafe.} =
   s.stream.write(msg, msglen)
 
-method write*(s: Connection, 
-              msg: seq[byte], 
-              msglen = -1): 
+method write*(s: Connection,
+              msg: seq[byte],
+              msglen = -1):
               Future[void] {.gcsafe.} =
   s.stream.write(msg, msglen)
 
-method closed*(s: Connection): bool = 
+method closed*(s: Connection): bool =
   if isNil(s.stream):
     return false
 

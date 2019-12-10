@@ -8,7 +8,7 @@
 ## those terms.
 
 ## This module implementes API for libp2p peer.
-import hashes, options
+import hashes
 import nimcrypto/utils
 import crypto/crypto, multicodec, multihash, base58, vbuffer
 import protobuf/minprotobuf
