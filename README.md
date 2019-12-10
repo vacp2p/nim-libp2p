@@ -73,21 +73,21 @@ This stack reflects the minimal requirements for the upcoming Eth2 implementatio
 To run it, add nim-libp2p to your project's nimble file and spawn a node as follows:
 
 ```nim
-import tables, options
-import chronos, chronicles
-import ../libp2p/[switch, 
+import tables
+import chronos
+import ../libp2p/[switch,
                   multistream,
-                  protocols/identify, 
+                  protocols/identify,
                   connection,
-                  transports/transport, 
+                  transports/transport,
                   transports/tcptransport,
-                  multiaddress, 
+                  multiaddress,
                   peerinfo,
-                  crypto/crypto, 
+                  crypto/crypto,
                   peer,
-                  protocols/protocol, 
+                  protocols/protocol,
                   muxers/muxer,
-                  muxers/mplex/mplex, 
+                  muxers/mplex/mplex,
                   muxers/mplex/types,
                   protocols/secure/secio,
                   protocols/secure/secure]
@@ -99,9 +99,8 @@ type
 
 method init(p: TestProto) {.gcsafe.} =
   # handle incoming connections in closure
-  proc handle(conn: Connection, proto: string) {.async, gcsafe.} = 
-    let msg = cast[string](await conn.readLp())
-    echo "Got from remote - ", cast[string](msg)
+  proc handle(conn: Connection, proto: string) {.async, gcsafe.} =
+    echo "Got from remote - ", cast[string](await conn.readLp())
     await conn.writeLp("Hello!")
     await conn.close()
 
@@ -118,9 +117,9 @@ proc createSwitch(ma: MultiAddress): (Switch, PeerInfo) =
   let identify = newIdentify(peerInfo) # create the identify proto
 
   proc createMplex(conn: Connection): Muxer =
-    # helper proc to create multiplexers, 
+    # helper proc to create multiplexers,
     # use this to perform any custom setup up,
-    # such as adjusting timeout or anything else 
+    # such as adjusting timeout or anything else
     # that the muxer requires
     result = newMplex(conn)
 
@@ -130,17 +129,17 @@ proc createSwitch(ma: MultiAddress): (Switch, PeerInfo) =
   let secureManagers = {SecioCodec: Secure(newSecio(seckey))}.toTable() # setup the secio and any other secure provider
 
   # create the switch
-  let switch = newSwitch(peerInfo, 
-                         transports, 
-                         identify, 
-                         muxers, 
+  let switch = newSwitch(peerInfo,
+                         transports,
+                         identify,
+                         muxers,
                          secureManagers)
   result = (switch, peerInfo)
 
 proc main() {.async, gcsafe.} =
   let ma1: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
   let ma2: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
-  
+
   var peerInfo1, peerInfo2: PeerInfo
   var switch1, switch2: Switch
   (switch1, peerInfo1) = createSwitch(ma1) # create node 1
@@ -155,9 +154,9 @@ proc main() {.async, gcsafe.} =
   var switch2Fut = await switch2.start() # start second node
   let conn = await switch2.dial(switch1.peerInfo, TestCodec) # dial the first node
 
-  await conn.writeLp("Hello!") # writeLp send a lenght prefixed buffer over the wire
-  let msg = cast[string](await conn.readLp()) # readLp reads lenght prefixed bytes and returns a buffer without the prefix
-  echo "Remote responded with - ", cast[string](msg)
+  await conn.writeLp("Hello!") # writeLp send a length prefixed buffer over the wire
+  # readLp reads length prefixed bytes and returns a buffer without the prefix
+  echo "Remote responded with - ", cast[string](await conn.readLp())
 
   await allFutures(switch1.stop(), switch2.stop()) # close connections and shutdown all transports
   await allFutures(switch1Fut & switch2Fut) # wait for all transports to shutdown
