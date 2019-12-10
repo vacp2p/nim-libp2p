@@ -214,6 +214,9 @@ proc dial*(s: Switch,
   else:
     trace "Reusing existing connection"
 
+  if isNil(result):
+    raise newException(CatchableError, "unable to establish outgoing link!")
+
   if proto.len > 0 and not result.closed:
     let stream = await s.getMuxedStream(peer)
     if stream.isSome:

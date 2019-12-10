@@ -14,10 +14,10 @@ import messages,
        ../../../crypto/crypto,
        ../../../peer
 
-proc encodeGraft*(graft: ControlGraft, pb: var ProtoBuffer) {.gcsafe.} = 
+proc encodeGraft*(graft: ControlGraft, pb: var ProtoBuffer) {.gcsafe.} =
   pb.write(initProtoField(1, graft.topicID))
 
-proc decodeGraft*(pb: var ProtoBuffer): seq[ControlGraft] {.gcsafe.} = 
+proc decodeGraft*(pb: var ProtoBuffer): seq[ControlGraft] {.gcsafe.} =
   trace "decoding graft msg", buffer = pb.buffer.toHex()
   while true:
     var topic: string
@@ -28,10 +28,10 @@ proc decodeGraft*(pb: var ProtoBuffer): seq[ControlGraft] {.gcsafe.} =
     trace "read topic field from graft msg", topicID = topic
     result.add(ControlGraft(topicID: topic))
 
-proc encodePrune*(prune: ControlPrune, pb: var ProtoBuffer) {.gcsafe.} = 
+proc encodePrune*(prune: ControlPrune, pb: var ProtoBuffer) {.gcsafe.} =
   pb.write(initProtoField(1, prune.topicID))
 
-proc decodePrune*(pb: var ProtoBuffer): seq[ControlPrune] {.gcsafe.} = 
+proc decodePrune*(pb: var ProtoBuffer): seq[ControlPrune] {.gcsafe.} =
   trace "decoding prune msg"
   while true:
     var topic: string
@@ -41,12 +41,12 @@ proc decodePrune*(pb: var ProtoBuffer): seq[ControlPrune] {.gcsafe.} =
 
     result.add(ControlPrune(topicID: topic))
 
-proc encodeIHave*(ihave: ControlIHave, pb: var ProtoBuffer) {.gcsafe.} = 
+proc encodeIHave*(ihave: ControlIHave, pb: var ProtoBuffer) {.gcsafe.} =
   pb.write(initProtoField(1, ihave.topicID))
   for mid in ihave.messageIDs:
     pb.write(initProtoField(2, mid))
 
-proc decodeIHave*(pb: var ProtoBuffer): seq[ControlIHave] {.gcsafe.} = 
+proc decodeIHave*(pb: var ProtoBuffer): seq[ControlIHave] {.gcsafe.} =
   trace "decoding ihave msg"
 
   while true:
@@ -67,11 +67,11 @@ proc decodeIHave*(pb: var ProtoBuffer): seq[ControlIHave] {.gcsafe.} =
 
     result.add(control)
 
-proc encodeIWant*(iwant: ControlIWant, pb: var ProtoBuffer) {.gcsafe.} = 
+proc encodeIWant*(iwant: ControlIWant, pb: var ProtoBuffer) {.gcsafe.} =
   for mid in iwant.messageIDs:
     pb.write(initProtoField(1, mid))
 
-proc decodeIWant*(pb: var ProtoBuffer): seq[ControlIWant] {.gcsafe.} = 
+proc decodeIWant*(pb: var ProtoBuffer): seq[ControlIWant] {.gcsafe.} =
   trace "decoding ihave msg"
 
   while pb.enterSubMessage() > 0:
@@ -82,7 +82,7 @@ proc decodeIWant*(pb: var ProtoBuffer): seq[ControlIWant] {.gcsafe.} =
       iWant.messageIDs.add(mid)
       result.add(iWant)
 
-proc encodeControl*(control: ControlMessage, pb: var ProtoBuffer) {.gcsafe.} = 
+proc encodeControl*(control: ControlMessage, pb: var ProtoBuffer) {.gcsafe.} =
   if control.ihave.len > 0:
     var ihave = initProtoBuffer()
     for h in control.ihave:
@@ -96,7 +96,7 @@ proc encodeControl*(control: ControlMessage, pb: var ProtoBuffer) {.gcsafe.} =
     var iwant = initProtoBuffer()
     for w in control.iwant:
       w.encodeIWant(iwant)
-    
+
     # write messages to protobuf
     iwant.finish()
     pb.write(initProtoField(2, iwant))
@@ -105,7 +105,7 @@ proc encodeControl*(control: ControlMessage, pb: var ProtoBuffer) {.gcsafe.} =
     var graft = initProtoBuffer()
     for g in control.graft:
       g.encodeGraft(graft)
-    
+
     # write messages to protobuf
     graft.finish()
     pb.write(initProtoField(3, graft))
@@ -114,12 +114,12 @@ proc encodeControl*(control: ControlMessage, pb: var ProtoBuffer) {.gcsafe.} =
     var prune = initProtoBuffer()
     for p in control.prune:
       p.encodePrune(prune)
-    
+
     # write messages to protobuf
     prune.finish()
     pb.write(initProtoField(4, prune))
 
-proc decodeControl*(pb: var ProtoBuffer): Option[ControlMessage] {.gcsafe.} = 
+proc decodeControl*(pb: var ProtoBuffer): Option[ControlMessage] {.gcsafe.} =
   trace "decoding control submessage"
   var control: ControlMessage
   while true:
@@ -137,17 +137,17 @@ proc decodeControl*(pb: var ProtoBuffer): Option[ControlMessage] {.gcsafe.} =
       control.graft = pb.decodeGraft()
     of 4:
       control.prune = pb.decodePrune()
-    else: 
+    else:
       raise newException(CatchableError, "message type not recognized")
-  
+
     if result.isNone:
       result = some(control)
 
-proc encodeSubs*(subs: SubOpts, pb: var ProtoBuffer) {.gcsafe.} = 
+proc encodeSubs*(subs: SubOpts, pb: var ProtoBuffer) {.gcsafe.} =
   pb.write(initProtoField(1, subs.subscribe))
   pb.write(initProtoField(2, subs.topic))
 
-proc decodeSubs*(pb: var ProtoBuffer): seq[SubOpts] {.gcsafe.} = 
+proc decodeSubs*(pb: var ProtoBuffer): seq[SubOpts] {.gcsafe.} =
   while true:
     var subOpt: SubOpts
     var subscr: int
@@ -163,7 +163,7 @@ proc decodeSubs*(pb: var ProtoBuffer): seq[SubOpts] {.gcsafe.} =
 
   trace "got subscriptions", subscriptions = result
 
-proc encodeMessage*(msg: Message, pb: var ProtoBuffer) {.gcsafe.} = 
+proc encodeMessage*(msg: Message, pb: var ProtoBuffer) {.gcsafe.} =
   pb.write(initProtoField(1, msg.fromPeer))
   pb.write(initProtoField(2, msg.data))
   pb.write(initProtoField(3, msg.seqno))
@@ -173,13 +173,13 @@ proc encodeMessage*(msg: Message, pb: var ProtoBuffer) {.gcsafe.} =
 
   if msg.signature.len > 0:
     pb.write(initProtoField(5, msg.signature))
-  
+
   if msg.key.len > 0:
     pb.write(initProtoField(6, msg.key))
 
   pb.finish()
 
-proc decodeMessages*(pb: var ProtoBuffer): seq[Message] {.gcsafe.} = 
+proc decodeMessages*(pb: var ProtoBuffer): seq[Message] {.gcsafe.} =
   # TODO: which of this fields are really optional?
   while true:
     var msg: Message
@@ -202,7 +202,7 @@ proc decodeMessages*(pb: var ProtoBuffer): seq[Message] {.gcsafe.} =
       msg.topicIDs.add(topic)
       trace "read message field", topicName = topic
       topic = ""
-    
+
     discard pb.getBytes(5, msg.signature)
     trace "read message field", signature = msg.signature
 
@@ -211,7 +211,7 @@ proc decodeMessages*(pb: var ProtoBuffer): seq[Message] {.gcsafe.} =
 
     result.add(msg)
 
-proc encodeRpcMsg*(msg: RPCMsg): ProtoBuffer {.gcsafe.} = 
+proc encodeRpcMsg*(msg: RPCMsg): ProtoBuffer {.gcsafe.} =
   result = initProtoBuffer()
   trace "encoding msg: ", msg = msg
 
@@ -244,7 +244,7 @@ proc encodeRpcMsg*(msg: RPCMsg): ProtoBuffer {.gcsafe.} =
   if result.buffer.len > 0:
     result.finish()
 
-proc decodeRpcMsg*(msg: seq[byte]): RPCMsg {.gcsafe.} = 
+proc decodeRpcMsg*(msg: seq[byte]): RPCMsg {.gcsafe.} =
   var pb = initProtoBuffer(msg)
 
   result.subscriptions = newSeq[SubOpts]()
@@ -262,5 +262,5 @@ proc decodeRpcMsg*(msg: seq[byte]): RPCMsg {.gcsafe.} =
       result.messages = pb.decodeMessages()
     of 3:
       result.control = pb.decodeControl()
-    else: 
+    else:
       raise newException(CatchableError, "message type not recognized")

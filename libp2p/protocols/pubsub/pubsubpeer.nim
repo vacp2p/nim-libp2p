@@ -9,7 +9,7 @@
 
 import options, hashes, strutils, tables, hashes
 import chronos, chronicles
-import rpc/[messages, message, protobuf], 
+import rpc/[messages, message, protobuf],
        timedcache,
        ../../peer,
        ../../peerinfo,
@@ -79,23 +79,21 @@ proc send*(p: PubSubPeer, msgs: seq[RPCMsg]) {.async, gcsafe.} =
       if $encodedHex.hash in p.sentRpcCache:
         trace "message already sent to peer, skipping", peer = p.id
         continue
-      
+
       proc sendToRemote() {.async.} =
         trace "sending encoded msgs to peer", peer = p.id, encoded = encodedHex
         await p.sendConn.writeLp(encoded.buffer)
         p.sentRpcCache.put($encodedHex.hash)
 
-      # if no connection has been set, 
-      # queue messages untill a connection 
+      # if no connection has been set,
+      # queue messages untill a connection
       # becomes available
       if p.isConnected:
         await sendToRemote()
         return
 
-      p.onConnect.wait().addCallback(
-        proc(udata: pointer) =
+      p.onConnect.wait().addCallback do (udata: pointer):
           asyncCheck sendToRemote()
-      )
       trace "enqueued message to send at a later time"
 
   except CatchableError as exc:
@@ -112,7 +110,7 @@ proc sendGraft*(p: PubSubPeer, topics: seq[string]) {.async, gcsafe.} =
     trace "sending graft msg to peer", peer = p.id, topicID = topic
     await p.send(@[RPCMsg(control: some(ControlMessage(graft: @[ControlGraft(topicID: topic)])))])
 
-proc sendPrune*(p: PubSubPeer, topics: seq[string]) {.async, gcsafe.} = 
+proc sendPrune*(p: PubSubPeer, topics: seq[string]) {.async, gcsafe.} =
   for topic in topics:
     trace "sending prune msg to peer", peer = p.id, topicID = topic
     await p.send(@[RPCMsg(control: some(ControlMessage(prune: @[ControlPrune(topicID: topic)])))])

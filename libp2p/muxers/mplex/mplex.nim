@@ -16,8 +16,8 @@ import chronos, chronicles
 import ../muxer,
        ../../connection,
        ../../stream/lpstream,
-       coder, 
-       types, 
+       coder,
+       types,
        lpchannel
 
 logScope:
@@ -42,7 +42,7 @@ proc newStreamInternal*(m: Mplex,
                         initiator: bool = true,
                         chanId: uint = 0,
                         name: string = ""):
-                        Future[LPChannel] {.async, gcsafe.} = 
+                        Future[LPChannel] {.async, gcsafe.} =
   ## create new channel/stream
   let id = if initiator: m.currentId.inc(); m.currentId else: chanId
   trace "creating new channel", channelId = id, initiator = initiator
@@ -50,7 +50,7 @@ proc newStreamInternal*(m: Mplex,
   m.getChannelList(initiator)[id] = result
 
 proc cleanupChann(m: Mplex, chann: LPChannel, initiator: bool) {.async, inline.} =
-  ## call the channel's `close` to signal the 
+  ## call the channel's `close` to signal the
   ## remote that the channel is closing
   if not isNil(chann) and not chann.closed:
     await chann.close()
@@ -58,7 +58,7 @@ proc cleanupChann(m: Mplex, chann: LPChannel, initiator: bool) {.async, inline.}
     m.getChannelList(initiator).del(chann.id)
     trace "cleaned up channel", id = chann.id
 
-method handle*(m: Mplex) {.async, gcsafe.} = 
+method handle*(m: Mplex) {.async, gcsafe.} =
   trace "starting mplex main loop"
   try:
     while not m.connection.closed:
@@ -100,21 +100,21 @@ method handle*(m: Mplex) {.async, gcsafe.} =
 
             continue
         of MessageType.MsgIn, MessageType.MsgOut:
-            trace "pushing data to channel", id = id, 
-                                             initiator = initiator, 
-                                             msgType = msgType
+          trace "pushing data to channel", id = id,
+                                           initiator = initiator,
+                                           msgType = msgType
 
-            await channel.pushTo(data)
+          await channel.pushTo(data)
         of MessageType.CloseIn, MessageType.CloseOut:
-          trace "closing channel", id = id, 
-                                   initiator = initiator, 
+          trace "closing channel", id = id,
+                                   initiator = initiator,
                                    msgType = msgType
 
           await channel.closedByRemote()
           # m.getChannelList(initiator).del(id)
         of MessageType.ResetIn, MessageType.ResetOut:
-          trace "resetting channel", id = id, 
-                                     initiator = initiator, 
+          trace "resetting channel", id = id,
+                                     initiator = initiator,
                                      msgType = msgType
 
           await channel.resetByRemote()
@@ -126,7 +126,7 @@ method handle*(m: Mplex) {.async, gcsafe.} =
     trace "stopping mplex main loop"
     await m.connection.close()
 
-proc newMplex*(conn: Connection, 
+proc newMplex*(conn: Connection,
                maxChanns: uint = MaxChannels): Mplex =
   new result
   result.connection = conn
@@ -135,11 +135,9 @@ proc newMplex*(conn: Connection,
   result.local = initTable[uint, LPChannel]()
 
   let m = result
-  conn.closeEvent.wait().addCallback(
-    proc(udata: pointer) =
-      trace "connection closed, cleaning up mplex"
-      asyncCheck m.close()
-  )
+  conn.closeEvent.wait().addCallback do (udata: pointer):
+    trace "connection closed, cleaning up mplex"
+    asyncCheck m.close()
 
 method newStream*(m: Mplex, name: string = ""): Future[Connection] {.async, gcsafe.} =
   let channel = await m.newStreamInternal()
@@ -148,7 +146,7 @@ method newStream*(m: Mplex, name: string = ""): Future[Connection] {.async, gcsa
   result = newConnection(channel)
   result.peerInfo = m.connection.peerInfo
 
-method close*(m: Mplex) {.async, gcsafe.} = 
+method close*(m: Mplex) {.async, gcsafe.} =
   trace "closing mplex muxer"
   await allFutures(@[allFutures(toSeq(m.remote.values).mapIt(it.reset())),
                       allFutures(toSeq(m.local.values).mapIt(it.reset()))])

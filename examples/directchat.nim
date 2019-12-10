@@ -49,8 +49,8 @@ type
 
 proc id (p: ChatProto): string =
   result = "unknown"
-  if p.conn.peerInfo.peerId.isSome:
-    result = $p.conn.peerInfo.peerId.get()
+  if p.conn.peerInfo.isSome:
+    result = $p.conn.peerInfo.get().peerId
 
 # forward declaration
 proc readWriteLoop(p: ChatProto) {.async, gcsafe.}
@@ -66,9 +66,8 @@ proc dialPeer(p: ChatProto, address: string) {.async, gcsafe.} =
   if parts.len == 11 and parts[^2] notin ["ipfs", "p2p"]:
     quit("invalid or incompelete peerId")
 
-  var remotePeer: PeerInfo
-  remotePeer.peerId = some(PeerID.init(parts[^1]))
-  remotePeer.addrs.add(MultiAddress.init(address))
+  var remotePeer = PeerInfo.init(parts[^1],
+                                 @[MultiAddress.init(address)])
 
   echo &"dialing peer: {address}"
   p.conn = await p.switch.dial(remotePeer, ChatCodec)
@@ -165,8 +164,7 @@ proc serveThread(customData: CustomData) {.async.} =
   var transp = fromPipe(customData.consoleFd)
 
   let seckey = PrivateKey.random(RSA)
-  var peerInfo: PeerInfo
-  peerInfo.peerId = some(PeerID.init(seckey))
+  var peerInfo = PeerInfo.init(seckey)
   var localAddress = DefaultAddr
   while true:
     echo &"Type an address to bind to or Enter to use the default {DefaultAddr}"
@@ -202,7 +200,7 @@ proc serveThread(customData: CustomData) {.async.} =
   var libp2pFuts = await switch.start()
   chatProto.started = true
 
-  let id = peerInfo.peerId.get().pretty
+  let id = peerInfo.peerId.pretty
   echo "PeerID: " & id
   echo "listening on: "
   for a in peerInfo.addrs:

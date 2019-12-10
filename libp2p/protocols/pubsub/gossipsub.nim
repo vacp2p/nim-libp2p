@@ -27,7 +27,7 @@ logScope:
 const GossipSubCodec* = "/meshsub/1.0.0"
 
 # overlay parameters
-const GossipSubD*   = 6
+const GossipSubD* = 6
 const GossipSubDlo* = 4
 const GossipSubDhi* = 12
 
@@ -37,25 +37,26 @@ const GossipSubHistoryGossip* = 3
 
 # heartbeat interval
 const GossipSubHeartbeatInitialDelay* = 100.millis
-const GossipSubHeartbeatInterval*    = 1.seconds
+const GossipSubHeartbeatInterval* = 1.seconds
 
 # fanout ttl
 const GossipSubFanoutTTL* = 60.seconds
 
 type
   GossipSub* = ref object of FloodSub
-    mesh*: Table[string, HashSet[string]] # meshes - topic to peer
-    fanout*: Table[string, HashSet[string]] # fanout - topic to peer
+    mesh*: Table[string, HashSet[string]]     # meshes - topic to peer
+    fanout*: Table[string, HashSet[string]]   # fanout - topic to peer
     gossipsub*: Table[string, HashSet[string]] # topic to peer map of all gossipsub peers
-    lastFanoutPubSub*: Table[string, Moment] # last publish time for fanout topics
+    lastFanoutPubSub*: Table[string, Moment]  # last publish time for fanout topics
     gossip*: Table[string, seq[ControlIHave]] # pending gossip
-    control*: Table[string, ControlMessage] # pending control messages
-    mcache*: MCache # messages cache
-    heartbeatCancel*: Future[void] # cancelation future for heartbeat interval
+    control*: Table[string, ControlMessage]   # pending control messages
+    mcache*: MCache                           # messages cache
+    heartbeatCancel*: Future[void]            # cancelation future for heartbeat interval
     heartbeatLock: AsyncLock
 
 # TODO: This belong in chronos, temporary left here until chronos is updated
-proc addInterval(every: Duration, cb: CallbackFunc, udata: pointer = nil): Future[void] =
+proc addInterval(every: Duration, cb: CallbackFunc,
+    udata: pointer = nil): Future[void] =
   ## Arrange the callback ``cb`` to be called on every ``Duration`` window
 
   var retFuture = newFuture[void]("chronos.addInterval(Duration)")
@@ -71,7 +72,7 @@ proc addInterval(every: Duration, cb: CallbackFunc, udata: pointer = nil): Futur
   scheduleNext()
   return retFuture
 
-method init(g: GossipSub) = 
+method init(g: GossipSub) =
   proc handler(conn: Connection, proto: string) {.async, gcsafe.} =
     ## main protocol handler that gets triggered on every
     ## connection for a protocol string
@@ -83,7 +84,7 @@ method init(g: GossipSub) =
   g.handler = handler
   g.codec = GossipSubCodec
 
-method handleDisconnect(g: GossipSub, peer: PubSubPeer) {.async, gcsafe.} = 
+method handleDisconnect(g: GossipSub, peer: PubSubPeer) {.async, gcsafe.} =
   ## handle peer disconnects
   await procCall FloodSub(g).handleDisconnect(peer)
   for t in g.gossipsub.keys:
@@ -99,26 +100,26 @@ method subscribeTopic*(g: GossipSub,
                        topic: string,
                        subscribe: bool,
                        peerId: string) {.gcsafe.} =
-    procCall PubSub(g).subscribeTopic(topic, subscribe, peerId)
+  procCall PubSub(g).subscribeTopic(topic, subscribe, peerId)
 
-    if topic notin g.gossipsub:
-      g.gossipsub[topic] = initHashSet[string]()
+  if topic notin g.gossipsub:
+    g.gossipsub[topic] = initHashSet[string]()
 
-    if subscribe:
-      trace "adding subscription for topic", peer = peerId, name = topic
-      # subscribe the peer to the topic
-      g.gossipsub[topic].incl(peerId)
-    else:
-      trace "removing subscription for topic", peer = peerId, name = topic
-      # unsubscribe the peer from the topic
-      g.gossipsub[topic].excl(peerId)
+  if subscribe:
+    trace "adding subscription for topic", peer = peerId, name = topic
+    # subscribe the peer to the topic
+    g.gossipsub[topic].incl(peerId)
+  else:
+    trace "removing subscription for topic", peer = peerId, name = topic
+    # unsubscribe the peer from the topic
+    g.gossipsub[topic].excl(peerId)
 
-proc handleGraft(g: GossipSub, 
+proc handleGraft(g: GossipSub,
                  peer: PubSubPeer,
                  grafts: seq[ControlGraft],
                  respControl: var ControlMessage) =
   for graft in grafts:
-    trace "processing graft message", peer = peer.id, 
+    trace "processing graft message", peer = peer.id,
                                       topicID = graft.topicID
 
     if graft.topicID in g.topics:
@@ -131,13 +132,14 @@ proc handleGraft(g: GossipSub,
 
 proc handlePrune(g: GossipSub, peer: PubSubPeer, prunes: seq[ControlPrune]) =
   for prune in prunes:
-    trace "processing prune message", peer = peer.id, 
+    trace "processing prune message", peer = peer.id,
                                       topicID = prune.topicID
 
     if prune.topicID in g.mesh:
       g.mesh[prune.topicID].excl(peer.id)
 
-proc handleIHave(g: GossipSub, peer: PubSubPeer, ihaves: seq[ControlIHave]): ControlIWant =
+proc handleIHave(g: GossipSub, peer: PubSubPeer, ihaves: seq[
+    ControlIHave]): ControlIWant =
   for ihave in ihaves:
     trace "processing ihave message", peer = peer.id,
                                       topicID = ihave.topicID
@@ -147,7 +149,8 @@ proc handleIHave(g: GossipSub, peer: PubSubPeer, ihaves: seq[ControlIHave]): Con
         if m notin g.seen:
           result.messageIDs.add(m)
 
-proc handleIWant(g: GossipSub, peer: PubSubPeer, iwants: seq[ControlIWant]): seq[Message] =
+proc handleIWant(g: GossipSub, peer: PubSubPeer, iwants: seq[
+    ControlIWant]): seq[Message] =
   for iwant in iwants:
     for mid in iwant.messageIDs:
       trace "processing iwant message", peer = peer.id,
@@ -158,7 +161,7 @@ proc handleIWant(g: GossipSub, peer: PubSubPeer, iwants: seq[ControlIWant]): seq
 
 method rpcHandler(g: GossipSub,
                   peer: PubSubPeer,
-                  rpcMsgs: seq[RPCMsg]) {.async, gcsafe.} = 
+                  rpcMsgs: seq[RPCMsg]) {.async, gcsafe.} =
   await procCall PubSub(g).rpcHandler(peer, rpcMsgs)
 
   trace "processing RPC message", peer = peer.id, msg = rpcMsgs
@@ -203,13 +206,13 @@ method rpcHandler(g: GossipSub,
       for p in toSendPeers:
         if p in g.peers and
           g.peers[p].peerInfo.peerId != peer.peerInfo.peerId:
-            let id = g.peers[p].peerInfo.peerId
-            let msgs = m.messages.filterIt(
-                # don't forward to message originator
-                id != it.fromPeerId()
-            )
-            if msgs.len > 0:
-              await g.peers[p].send(@[RPCMsg(messages: msgs)])
+          let id = g.peers[p].peerInfo.peerId
+          let msgs = m.messages.filterIt(
+              # don't forward to message originator
+            id != it.fromPeerId()
+          )
+          if msgs.len > 0:
+            await g.peers[p].send(@[RPCMsg(messages: msgs)])
 
     var respControl: ControlMessage
     if m.control.isSome:
@@ -224,9 +227,10 @@ method rpcHandler(g: GossipSub,
 
       if respControl.graft.len > 0 or respControl.prune.len > 0 or
          respControl.ihave.len > 0 or respControl.iwant.len > 0:
-        await peer.send(@[RPCMsg(control: some(respControl), messages: messages)])
+        await peer.send(@[RPCMsg(control: some(respControl),
+            messages: messages)])
 
-proc replenishFanout(g: GossipSub, topic: string) {.async, gcsafe.} = 
+proc replenishFanout(g: GossipSub, topic: string) {.async, gcsafe.} =
   ## get fanout peers for a topic
   trace "about to replenish fanout"
   if topic notin g.fanout:
@@ -242,7 +246,7 @@ proc replenishFanout(g: GossipSub, topic: string) {.async, gcsafe.} =
 
   trace "fanout replenished with peers", peers = g.fanout[topic].len
 
-proc rebalanceMesh(g: GossipSub, topic: string) {.async, gcsafe.} = 
+proc rebalanceMesh(g: GossipSub, topic: string) {.async, gcsafe.} =
   trace "about to rebalance mesh"
   # create a mesh topic that we're subscribing to
   if topic notin g.mesh:
@@ -284,8 +288,8 @@ proc rebalanceMesh(g: GossipSub, topic: string) {.async, gcsafe.} =
 
   trace "mesh balanced, got peers", peers = g.mesh[topic].len
 
-proc dropFanoutPeers(g: GossipSub) {.async, gcsafe.} = 
-  # drop peers that we haven't published to in 
+proc dropFanoutPeers(g: GossipSub) {.async, gcsafe.} =
+  # drop peers that we haven't published to in
   # GossipSubFanoutTTL seconds
   for topic in g.lastFanoutPubSub.keys:
     if Moment.now > g.lastFanoutPubSub[topic]:
@@ -330,7 +334,7 @@ proc getGossipPeers(g: GossipSub): Table[string, ControlMessage] {.gcsafe.} =
           result[id] = ControlMessage()
         result[id].ihave.add(ihave)
 
-proc heartbeat(g: GossipSub) {.async, gcsafe.} = 
+proc heartbeat(g: GossipSub) {.async, gcsafe.} =
   trace "running heartbeat"
 
   await g.heartbeatLock.acquire()
@@ -354,7 +358,7 @@ method subscribe*(g: GossipSub,
   asyncCheck g.rebalanceMesh(topic)
 
 method unsubscribe*(g: GossipSub,
-                    topics: seq[TopicPair]) {.async, gcsafe.} = 
+                    topics: seq[TopicPair]) {.async, gcsafe.} =
   await procCall PubSub(g).unsubscribe(topics)
 
   for pair in topics:
@@ -400,7 +404,7 @@ method start*(g: GossipSub) {.async.} =
   # setup the heartbeat interval
   g.heartbeatCancel = addInterval(GossipSubHeartbeatInterval,
                                   proc (arg: pointer = nil) {.gcsafe, locks: 0.} =
-                                    asyncCheck g.heartbeat)
+    asyncCheck g.heartbeat)
 
 method stop*(g: GossipSub) {.async.} =
   ## stopt pubsub
@@ -428,10 +432,10 @@ method initPubSub(g: GossipSub) =
 
 ## Unit tests
 when isMainModule and not defined(release):
-  ## Test internal (private) methods for gossip, 
-  ## mesh and fanout maintenance. 
-  ## Usually I wouldn't test private behaviour, 
-  ## but the maintenance methods are quite involved, 
+  ## Test internal (private) methods for gossip,
+  ## mesh and fanout maintenance.
+  ## Usually I wouldn't test private behaviour,
+  ## but the maintenance methods are quite involved,
   ## hence these tests are here.
   ##
 
@@ -444,12 +448,12 @@ when isMainModule and not defined(release):
   suite "GossipSub":
     test "`rebalanceMesh` Degree Lo":
       proc testRun(): Future[bool] {.async.} =
-        let gossipSub = newPubSub(TestGossipSub, 
+        let gossipSub = newPubSub(TestGossipSub,
                                   PeerInfo.init(PrivateKey.random(RSA)))
 
         let topic = "foobar"
         gossipSub.mesh[topic] = initHashSet[string]()
-        proc writeHandler(data: seq[byte]) {.async, gcsafe.} = 
+        proc writeHandler(data: seq[byte]) {.async, gcsafe.} =
           discard
 
         for i in 0..<15:
@@ -471,12 +475,12 @@ when isMainModule and not defined(release):
 
     test "`rebalanceMesh` Degree Hi":
       proc testRun(): Future[bool] {.async.} =
-        let gossipSub = newPubSub(TestGossipSub, 
+        let gossipSub = newPubSub(TestGossipSub,
                                   PeerInfo.init(PrivateKey.random(RSA)))
 
         let topic = "foobar"
         gossipSub.gossipsub[topic] = initHashSet[string]()
-        proc writeHandler(data: seq[byte]) {.async, gcsafe.} = 
+        proc writeHandler(data: seq[byte]) {.async, gcsafe.} =
           discard
 
         for i in 0..<15:
@@ -498,15 +502,15 @@ when isMainModule and not defined(release):
 
     test "`replenishFanout` Degree Lo":
       proc testRun(): Future[bool] {.async.} =
-        let gossipSub = newPubSub(TestGossipSub, 
+        let gossipSub = newPubSub(TestGossipSub,
                                   PeerInfo.init(PrivateKey.random(RSA)))
 
-        proc handler(peer: PubSubPeer, msg: seq[RPCMsg]) {.async, gcsafe.} = 
+        proc handler(peer: PubSubPeer, msg: seq[RPCMsg]) {.async, gcsafe.} =
           discard
 
         let topic = "foobar"
         gossipSub.gossipsub[topic] = initHashSet[string]()
-        proc writeHandler(data: seq[byte]) {.async, gcsafe.} = 
+        proc writeHandler(data: seq[byte]) {.async, gcsafe.} =
           discard
 
         for i in 0..<15:
@@ -528,16 +532,16 @@ when isMainModule and not defined(release):
 
     test "`dropFanoutPeers` drop expired fanout topics":
       proc testRun(): Future[bool] {.async.} =
-        let gossipSub = newPubSub(TestGossipSub, 
+        let gossipSub = newPubSub(TestGossipSub,
                                   PeerInfo.init(PrivateKey.random(RSA)))
 
-        proc handler(peer: PubSubPeer, msg: seq[RPCMsg]) {.async, gcsafe.} = 
+        proc handler(peer: PubSubPeer, msg: seq[RPCMsg]) {.async, gcsafe.} =
           discard
 
         let topic = "foobar"
         gossipSub.fanout[topic] = initHashSet[string]()
         gossipSub.lastFanoutPubSub[topic] = Moment.fromNow(100.millis)
-        proc writeHandler(data: seq[byte]) {.async, gcsafe.} = 
+        proc writeHandler(data: seq[byte]) {.async, gcsafe.} =
           discard
 
         for i in 0..<6:
@@ -561,10 +565,10 @@ when isMainModule and not defined(release):
 
     test "`dropFanoutPeers` leave unexpired fanout topics":
       proc testRun(): Future[bool] {.async.} =
-        let gossipSub = newPubSub(TestGossipSub, 
+        let gossipSub = newPubSub(TestGossipSub,
                                   PeerInfo.init(PrivateKey.random(RSA)))
 
-        proc handler(peer: PubSubPeer, msg: seq[RPCMsg]) {.async, gcsafe.} = 
+        proc handler(peer: PubSubPeer, msg: seq[RPCMsg]) {.async, gcsafe.} =
           discard
 
         let topic1 = "foobar1"
@@ -574,7 +578,7 @@ when isMainModule and not defined(release):
         gossipSub.lastFanoutPubSub[topic1] = Moment.fromNow(100.millis)
         gossipSub.lastFanoutPubSub[topic1] = Moment.fromNow(500.millis)
 
-        proc writeHandler(data: seq[byte]) {.async, gcsafe.} = 
+        proc writeHandler(data: seq[byte]) {.async, gcsafe.} =
           discard
 
         for i in 0..<6:
@@ -601,13 +605,13 @@ when isMainModule and not defined(release):
 
     test "`getGossipPeers` - should gather up to degree D non intersecting peers":
       proc testRun(): Future[bool] {.async.} =
-        let gossipSub = newPubSub(TestGossipSub, 
+        let gossipSub = newPubSub(TestGossipSub,
                                   PeerInfo.init(PrivateKey.random(RSA)))
 
-        proc handler(peer: PubSubPeer, msg: seq[RPCMsg]) {.async, gcsafe.} = 
+        proc handler(peer: PubSubPeer, msg: seq[RPCMsg]) {.async, gcsafe.} =
           discard
 
-        proc writeHandler(data: seq[byte]) {.async, gcsafe.} = 
+        proc writeHandler(data: seq[byte]) {.async, gcsafe.} =
           discard
 
         let topic = "foobar"
@@ -650,10 +654,10 @@ when isMainModule and not defined(release):
 
     test "`getGossipPeers` - should not crash on missing topics in mesh":
       proc testRun(): Future[bool] {.async.} =
-        let gossipSub = newPubSub(TestGossipSub, 
+        let gossipSub = newPubSub(TestGossipSub,
                                   PeerInfo.init(PrivateKey.random(RSA)))
- 
-        proc handler(peer: PubSubPeer, msg: seq[RPCMsg]) {.async, gcsafe.} = 
+
+        proc handler(peer: PubSubPeer, msg: seq[RPCMsg]) {.async, gcsafe.} =
           discard
 
         proc writeHandler(data: seq[byte]) {.async, gcsafe.} =
@@ -682,10 +686,10 @@ when isMainModule and not defined(release):
 
     test "`getGossipPeers` - should not crash on missing topics in gossip":
       proc testRun(): Future[bool] {.async.} =
-        let gossipSub = newPubSub(TestGossipSub, 
+        let gossipSub = newPubSub(TestGossipSub,
                                   PeerInfo.init(PrivateKey.random(RSA)))
 
-        proc handler(peer: PubSubPeer, msg: seq[RPCMsg]) {.async, gcsafe.} = 
+        proc handler(peer: PubSubPeer, msg: seq[RPCMsg]) {.async, gcsafe.} =
           discard
 
         proc writeHandler(data: seq[byte]) {.async, gcsafe.} =
@@ -714,10 +718,10 @@ when isMainModule and not defined(release):
 
     test "`getGossipPeers` - should not crash on missing topics in gossip":
       proc testRun(): Future[bool] {.async.} =
-        let gossipSub = newPubSub(TestGossipSub, 
+        let gossipSub = newPubSub(TestGossipSub,
                                   PeerInfo.init(PrivateKey.random(RSA)))
 
-        proc handler(peer: PubSubPeer, msg: seq[RPCMsg]) {.async, gcsafe.} = 
+        proc handler(peer: PubSubPeer, msg: seq[RPCMsg]) {.async, gcsafe.} =
           discard
 
         proc writeHandler(data: seq[byte]) {.async, gcsafe.} =

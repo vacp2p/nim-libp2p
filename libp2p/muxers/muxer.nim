@@ -36,7 +36,7 @@ method newStream*(m: Muxer, name: string = ""): Future[Connection] {.base, async
 method close*(m: Muxer) {.base, async, gcsafe.} = discard
 method handle*(m: Muxer): Future[void] {.base, async, gcsafe.} = discard
 
-proc newMuxerProvider*(creator: MuxerConstructor, codec: string): MuxerProvider {.gcsafe.} = 
+proc newMuxerProvider*(creator: MuxerConstructor, codec: string): MuxerProvider {.gcsafe.} =
   new result
   result.newMuxer = creator
   result.codec = codec
