@@ -356,4 +356,3 @@ proc newSwitch*(peerInfo: PeerInfo,
   if pubSub.isSome:
     result.pubSub = pubSub
     result.mount(pubSub.get())
-

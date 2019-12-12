@@ -315,16 +315,16 @@ proc handshake*(s: Secio, conn: Connection): Future[SecureConnection] {.async.} 
 
   if len(answer) == 0:
     trace "Proposal exchange failed", conn = conn
-    return
+    raise newException(SecioError, "Proposal exchange failed")
 
   if not decodeProposal(answer, remoteNonce, remoteBytesPubkey, remoteExchanges,
                         remoteCiphers, remoteHashes):
     trace "Remote proposal decoding failed", conn = conn
-    return
+    raise newException(SecioError, "Remote proposal decoding failed")
 
   if not remotePubkey.init(remoteBytesPubkey):
     trace "Remote public key incorrect or corrupted", pubkey = remoteBytesPubkey
-    return
+    raise newException(SecioError, "Remote public key incorrect or corrupted")
 
   remotePeerId = PeerID.init(remotePubkey)
 
@@ -357,7 +357,7 @@ proc handshake*(s: Secio, conn: Connection): Future[SecureConnection] {.async.} 
   var remoteExchange = await transactMessage(conn, localExchange)
   if len(remoteExchange) == 0:
     trace "Corpus exchange failed", conn = conn
-    return
+    raise newException(SecioError, "Corpus exchange failed")
 
   if not decodeExchange(remoteExchange, remoteEBytesPubkey, remoteEBytesSig):
     trace "Remote exchange decoding failed", conn = conn
