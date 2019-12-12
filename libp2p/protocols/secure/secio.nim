@@ -455,7 +455,6 @@ method init(s: Secio) {.gcsafe.} =
     except CatchableError as exc:
       trace "securing connection failed", msg = exc.msg
       await conn.close()
-      return
 
   s.codec = SecioCodec
   s.handler = handle
@@ -466,7 +465,6 @@ method secure*(s: Secio, conn: Connection): Future[Connection] {.async, gcsafe.}
   except CatchableError as exc:
       trace "securing connection failed", msg = exc.msg
       await conn.close()
-      return
 
 proc newSecio*(localPrivateKey: PrivateKey): Secio =
   new result
