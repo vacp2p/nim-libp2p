@@ -417,15 +417,16 @@ proc readLoop(sconn: SecureConnection, stream: BufferStream) {.async.} =
   try:
     while not sconn.closed:
       let msg = await sconn.readMessage()
-      if msg.len > 0:
-        await stream.pushTo(msg)
+      if msg.len == 0:
+        trace "stream EOF"
+        return
 
-      # tight loop, give a chance for other
-      # stuff to run as well
-      await sleepAsync(1.millis)
+      await stream.pushTo(msg)
   except CatchableError as exc:
     trace "exception occured", exc = exc.msg
   finally:
+    if not sconn.closed:
+      await sconn.close()
     trace "ending secio readLoop", isclosed = sconn.closed()
 
 proc handleConn(s: Secio, conn: Connection): Future[Connection] {.async, gcsafe.} =
@@ -437,14 +438,14 @@ proc handleConn(s: Secio, conn: Connection): Future[Connection] {.async, gcsafe.
   var stream = newBufferStream(writeHandler)
   asyncCheck readLoop(sconn, stream)
   var secured = newConnection(stream)
+  secured.peerInfo = PeerInfo.init(sconn.peerInfo.publicKey.get())
+  result = secured
+
   secured.closeEvent.wait()
     .addCallback do (udata: pointer):
         trace "wrapped connection closed, closing upstream"
         if not isNil(sconn) and not sconn.closed:
           asyncCheck sconn.close()
-
-  secured.peerInfo = PeerInfo.init(sconn.peerInfo.publicKey.get())
-  result = secured
 
 method init(s: Secio) {.gcsafe.} =
   proc handle(conn: Connection, proto: string) {.async, gcsafe.} =
