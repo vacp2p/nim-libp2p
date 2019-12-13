@@ -140,7 +140,8 @@ proc cleanupConn(s: Switch, conn: Connection) {.async, gcsafe.} =
       s.muxed.del(id)
 
     if id in s.connections:
-      await s.connections[id].close()
+      if not s.connections[id].closed:
+        await s.connections[id].close()
       s.connections.del(id)
 
 proc disconnect*(s: Switch, peer: PeerInfo) {.async, gcsafe.} =
@@ -166,6 +167,9 @@ proc upgradeOutgoing(s: Switch, conn: Connection): Future[Connection] {.async, g
     return
 
   result = await s.secure(result) # secure the connection
+  if isNil(result):
+    return
+
   await s.mux(result) # mux it if possible
   s.connections[conn.peerInfo.id] = result
 
@@ -212,8 +216,12 @@ proc dial*(s: Switch,
           # make sure to assign the peer to the connection
           result.peerInfo = peer
           result = await s.upgradeOutgoing(result)
-          result.closeEvent.wait().addCallback do (udata: pointer):
-            asyncCheck s.cleanupConn(result)
+          if isNil(result):
+            continue
+
+          result.closeEvent.wait()
+            .addCallback do (udata: pointer):
+              asyncCheck s.cleanupConn(result)
           break
   else:
     trace "Reusing existing connection"
@@ -252,7 +260,9 @@ proc start*(s: Switch): Future[seq[Future[void]]] {.async, gcsafe.} =
     except CatchableError as exc:
       trace "exception occured", exc = exc.msg
     finally:
-      await conn.close()
+      if not isNil(conn) and not conn.closed:
+        await conn.close()
+
       await s.cleanupConn(conn)
 
   var startFuts: seq[Future[void]]
@@ -346,4 +356,3 @@ proc newSwitch*(peerInfo: PeerInfo,
   if pubSub.isSome:
     result.pubSub = pubSub
     result.mount(pubSub.get())
-

@@ -65,6 +65,7 @@ method handle*(m: Mplex) {.async, gcsafe.} =
       trace "waiting for data"
       let msg = await m.connection.readMsg()
       if msg.isNone:
+        trace "connection EOF"
         # TODO: allow poll with timeout to avoid using `sleepAsync`
         await sleepAsync(1.millis)
         continue
