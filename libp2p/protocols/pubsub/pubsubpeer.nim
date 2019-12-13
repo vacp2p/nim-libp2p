@@ -45,7 +45,7 @@ proc `conn=`*(p: PubSubPeer, conn: Connection) =
   p.sendConn = conn
   p.onConnect.fire()
 
-proc handle*(p: PubSubPeer, conn: Connection) {.async, gcsafe.} =
+proc handle*(p: PubSubPeer, conn: Connection) {.async.} =
   trace "handling pubsub rpc", peer = p.id, closed = conn.closed
   try:
     while not conn.closed:
@@ -66,7 +66,7 @@ proc handle*(p: PubSubPeer, conn: Connection) {.async, gcsafe.} =
   finally:
     trace "exiting pubsub peer read loop", peer = p.id
 
-proc send*(p: PubSubPeer, msgs: seq[RPCMsg]) {.async, gcsafe.} =
+proc send*(p: PubSubPeer, msgs: seq[RPCMsg]) {.async.} =
   try:
     for m in msgs:
       trace "sending msgs to peer", toPeer = p.id
@@ -105,12 +105,12 @@ proc sendMsg*(p: PubSubPeer,
               data: seq[byte]): Future[void] {.gcsafe.} =
   p.send(@[RPCMsg(messages: @[newMessage(p.peerInfo, data, topic)])])
 
-proc sendGraft*(p: PubSubPeer, topics: seq[string]) {.async, gcsafe.} =
+proc sendGraft*(p: PubSubPeer, topics: seq[string]) {.async.} =
   for topic in topics:
     trace "sending graft msg to peer", peer = p.id, topicID = topic
     await p.send(@[RPCMsg(control: some(ControlMessage(graft: @[ControlGraft(topicID: topic)])))])
 
-proc sendPrune*(p: PubSubPeer, topics: seq[string]) {.async, gcsafe.} =
+proc sendPrune*(p: PubSubPeer, topics: seq[string]) {.async.} =
   for topic in topics:
     trace "sending prune msg to peer", peer = p.id, topicID = topic
     await p.send(@[RPCMsg(control: some(ControlMessage(prune: @[ControlPrune(topicID: topic)])))])

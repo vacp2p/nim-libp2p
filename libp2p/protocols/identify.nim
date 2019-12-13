@@ -139,7 +139,7 @@ proc identify*(p: Identify,
     if peer != remotePeerInfo.peerId:
       trace "Peer ids don't match",
             remote = peer.pretty(),
-            local = remotePeerInfo.get().id
+            local = remotePeerInfo.id
 
       raise newException(IdentityNoMatchError,
         "Peer ids don't match")

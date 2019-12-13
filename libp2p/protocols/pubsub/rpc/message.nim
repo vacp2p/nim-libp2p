@@ -27,17 +27,16 @@ proc msgId*(m: Message): string =
 proc fromPeerId*(m: Message): PeerId =
   PeerID.init(m.fromPeer)
 
-proc sign*(p: PeerInfo, msg: Message): Message {.gcsafe.} =
+proc sign*(msg: Message, p: PeerInfo): Message {.gcsafe.} =
   var buff = initProtoBuffer()
   encodeMessage(msg, buff)
-  let prefix = cast[seq[byte]](PubSubPrefix)
   if buff.buffer.len > 0:
     result = msg
     result.signature = p.privateKey.
-                       sign(prefix & buff.buffer).
+                       sign(cast[seq[byte]](PubSubPrefix) & buff.buffer).
                        getBytes()
 
-proc verify*(p: PeerInfo, m: Message): bool =
+proc verify*(m: Message, p: PeerInfo): bool =
   if m.signature.len > 0 and m.key.len > 0:
     var msg = m
     msg.signature = @[]
@@ -49,7 +48,8 @@ proc verify*(p: PeerInfo, m: Message): bool =
     var remote: Signature
     var key: PublicKey
     if remote.init(m.signature) and key.init(m.key):
-      result = remote.verify(buff.buffer, key)
+      trace "verifying signature", remoteSignature = remote
+      result = remote.verify(cast[seq[byte]](PubSubPrefix) & buff.buffer, key)
 
 proc newMessage*(p: PeerInfo,
                  data: seq[byte],
@@ -64,6 +64,6 @@ proc newMessage*(p: PeerInfo,
                      seqno: seqno,
                      topicIDs: @[name])
     if sign:
-      result = p.sign(result)
+      result = result.sign(p)
 
     result.key = key

@@ -141,4 +141,5 @@ method getObservedAddrs*(c: Connection): Future[MultiAddress] {.base, async, gcs
   result = c.observedAddrs
 
 proc `$`*(conn: Connection): string =
-  result = $(conn.peerInfo)
+  if not isNil(conn.peerInfo):
+    result = $(conn.peerInfo)

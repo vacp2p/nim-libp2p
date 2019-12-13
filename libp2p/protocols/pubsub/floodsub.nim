@@ -46,26 +46,31 @@ method subscribeTopic*(f: FloodSub,
     # unsubscribe the peer from the topic
     f.floodsub[topic].excl(peerId)
 
-method handleDisconnect*(f: FloodSub, peer: PubSubPeer) {.async, gcsafe.} =
+method handleDisconnect*(f: FloodSub, peer: PubSubPeer) {.async.} =
   ## handle peer disconnects
   for t in f.floodsub.keys:
     f.floodsub[t].excl(peer.id)
 
 method rpcHandler*(f: FloodSub,
                    peer: PubSubPeer,
-                   rpcMsgs: seq[RPCMsg]) {.async, gcsafe.} =
-  trace "processing RPC message", peer = peer.id, msg = rpcMsgs
-  for m in rpcMsgs:                                # for all RPC messages
-    trace "processing message", msg = rpcMsgs
-    if m.subscriptions.len > 0:                    # if there are any subscriptions
-      for s in m.subscriptions:                    # subscribe/unsubscribe the peer for each topic
-        f.subscribeTopic(s.topic, s.subscribe, peer.id)
+                   rpcMsgs: seq[RPCMsg]) {.async.} =
+  await procCall PubSub(f).rpcHandler(peer, rpcMsgs)
 
+  for m in rpcMsgs:                                # for all RPC messages
     if m.messages.len > 0:                           # if there are any messages
       var toSendPeers: HashSet[string] = initHashSet[string]()
       for msg in m.messages:                         # for every message
         if msg.msgId notin f.seen:
           f.seen.put(msg.msgId)                      # add the message to the seen cache
+
+          if not msg.verify(peer.peerInfo):
+            trace "dropping message due to failed signature verification"
+            continue
+
+          if not (await f.validate(msg)):
+            trace "dropping message due to failed validation"
+            continue
+
           for t in msg.topicIDs:                     # for every topic in the message
             if t in f.floodsub:
               toSendPeers.incl(f.floodsub[t])        # get all the peers interested in this topic
@@ -79,7 +84,7 @@ method rpcHandler*(f: FloodSub,
             await f.peers[p].send(@[RPCMsg(messages: m.messages)])
 
 method init(f: FloodSub) =
-  proc handler(conn: Connection, proto: string) {.async, gcsafe.} =
+  proc handler(conn: Connection, proto: string) {.async.} =
     ## main protocol handler that gets triggered on every
     ## connection for a protocol string
     ## e.g. ``/floodsub/1.0.0``, etc...
@@ -92,7 +97,7 @@ method init(f: FloodSub) =
 
 method publish*(f: FloodSub,
                 topic: string,
-                data: seq[byte]) {.async, gcsafe.} =
+                data: seq[byte]) {.async.} =
   await procCall PubSub(f).publish(topic, data)
 
   if data.len <= 0 or topic.len <= 0:
@@ -110,7 +115,7 @@ method publish*(f: FloodSub,
     await f.peers[p].send(@[RPCMsg(messages: @[msg])])
 
 method unsubscribe*(f: FloodSub,
-                    topics: seq[TopicPair]) {.async, gcsafe.} =
+                    topics: seq[TopicPair]) {.async.} =
   await procCall PubSub(f).unsubscribe(topics)
 
   for p in f.peers.values:
