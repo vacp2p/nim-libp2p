@@ -122,9 +122,6 @@ suite "FloodSub":
 
       nodes[1].addValidator("foobar", validator)
       await nodes[0].publish("foobar", cast[seq[byte]]("Hello!"))
-
-      await sleepAsync(100.millis)
-      discard await validatorFut
       await allFutures(nodes[0].stop(), nodes[1].stop())
       await allFutures(awaiters)
       result = true
