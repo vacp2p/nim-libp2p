@@ -10,8 +10,8 @@
 ## Test vectors was made using Go implementation
 ## https://github.com/libp2p/go-libp2p-peer
 import unittest
-import nimcrypto/utils
-import ../libp2p/crypto/crypto, ../libp2p/peer, ../libp2p/base58
+import nimcrypto/utils, stew/base58
+import ../libp2p/crypto/crypto, ../libp2p/peer
 
 when defined(nimHasUsed): {.used.}
 

@@ -9,7 +9,8 @@
 
 ## This module implementes CID (Content IDentifier).
 import tables
-import multibase, multicodec, multihash, vbuffer, varint, base58
+import multibase, multicodec, multihash, vbuffer, varint
+import stew/base58
 
 type
   CidStatus* {.pure.} = enum

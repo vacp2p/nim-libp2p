@@ -11,7 +11,8 @@
 import nativesockets
 import tables, strutils, net
 import chronos
-import multicodec, multihash, multibase, transcoder, base58, base32, vbuffer
+import multicodec, multihash, multibase, transcoder, vbuffer
+import stew/[base58, base32]
 from peer import PeerID
 
 {.deadCodeElim:on.}

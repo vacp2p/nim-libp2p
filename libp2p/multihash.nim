@@ -22,8 +22,8 @@
 ## 2. MURMUR
 import tables
 import nimcrypto/[sha, sha2, keccak, blake2, hash, utils]
-import varint, vbuffer, base58, multicodec, multibase
-
+import varint, vbuffer, multicodec, multibase
+import stew/base58
 # This is workaround for Nim `import` bug.
 export sha, sha2, keccak, blake2, hash, utils
 

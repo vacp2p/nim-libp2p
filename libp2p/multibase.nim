@@ -12,7 +12,7 @@
 ## TODO:
 ## 1. base32z
 import tables
-import base32, base58, base64
+import stew/[base32, base58, base64]
 
 type
   MultibaseStatus* {.pure.} = enum
