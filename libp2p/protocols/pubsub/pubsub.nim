@@ -229,7 +229,7 @@ method validate*(p: PubSub, message: Message): Future[bool] {.async, base.} =
     trace "looking for validators on topic", topicID = topic,
                                              registered = toSeq(p.validators.keys)
     if topic in p.validators:
-      trace "running validator hooks for topic", topicID = topic
+      trace "running validators for topic", topicID = topic
       # TODO: add timeout to validator
       pending = pending.concat(p.validators[topic].mapIt(it(topic, message)))
 

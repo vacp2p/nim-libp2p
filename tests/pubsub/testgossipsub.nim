@@ -48,7 +48,7 @@ suite "GossipSub":
         validatorFut.complete(true)
         result = true
 
-      nodes[1].pubSub.get().addValidator("foobar", validator)
+      nodes[1].addValidator("foobar", validator)
       await nodes[0].publish("foobar", cast[seq[byte]]("Hello!"))
 
       await allFutures(handlerFut, handlerFut)
@@ -79,7 +79,7 @@ suite "GossipSub":
         validatorFut.complete(true)
         result = false
 
-      nodes[1].pubSub.get().addValidator("foobar", validator)
+      nodes[1].addValidator("foobar", validator)
       await nodes[0].publish("foobar", cast[seq[byte]]("Hello!"))
 
       await sleepAsync(100.millis)
@@ -116,7 +116,7 @@ suite "GossipSub":
         else:
           result = false
 
-      nodes[1].pubSub.get().addValidator("foo", "bar", validator)
+      nodes[1].addValidator("foo", "bar", validator)
       await nodes[0].publish("foo", cast[seq[byte]]("Hello!"))
       await nodes[0].publish("bar", cast[seq[byte]]("Hello!"))
 

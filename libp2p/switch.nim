@@ -314,6 +314,24 @@ proc publish*(s: Switch, topic: string, data: seq[byte]): Future[void] {.gcsafe.
 
   result = s.pubSub.get().publish(topic, data)
 
+proc addValidator*(s: Switch,
+                   topics: varargs[string],
+                   hook: ValidatorHandler) =
+  # add validator
+  if s.pubSub.isNone:
+    raise newNoPubSubException()
+
+  s.pubSub.get().addValidator(topics, hook)
+
+proc removeValidator*(s: Switch,
+                      topics: varargs[string],
+                      hook: ValidatorHandler) =
+  # pubslish to pubsub topic
+  if s.pubSub.isNone:
+    raise newNoPubSubException()
+
+  s.pubSub.get().removeValidator(topics, hook)
+
 proc newSwitch*(peerInfo: PeerInfo,
                 transports: seq[Transport],
                 identity: Identify,
