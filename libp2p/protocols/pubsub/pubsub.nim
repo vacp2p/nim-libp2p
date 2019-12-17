@@ -231,10 +231,10 @@ method validate*(p: PubSub, message: Message): Future[bool] {.async, base.} =
     if topic in p.validators:
       trace "running validators for topic", topicID = topic
       # TODO: add timeout to validator
-      pending = pending.concat(p.validators[topic].mapIt(it(topic, message)))
+      pending.add(p.validators[topic].mapIt(it(topic, message)))
 
   await allFutures(pending) # await all futures
-  if pending.filterIt(it.read() == false).len == 0: # if there are failed
+  if pending.allIt(it.read()): # if there are failed
     result = true
 
 proc newPubSub*(p: typedesc[PubSub],
