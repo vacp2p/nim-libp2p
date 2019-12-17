@@ -7,7 +7,7 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import tables, options, sequtils
+import tables, sequtils, sets
 import chronos, chronicles
 import pubsubpeer,
        rpc/messages,
@@ -22,8 +22,11 @@ logScope:
   topic = "PubSub"
 
 type
-  TopicHandler* = proc (topic: string,
-                        data: seq[byte]): Future[void] {.gcsafe.}
+  TopicHandler* = proc(topic: string,
+                       data: seq[byte]): Future[void] {.gcsafe.}
+
+  ValidatorHandler* = proc(topic: string,
+                           message: Message): Future[bool] {.closure.}
 
   TopicPair* = tuple[topic: string, handler: TopicHandler]
 
@@ -37,11 +40,12 @@ type
     peers*: Table[string, PubSubPeer] # peerid to peer map
     triggerSelf*: bool                # trigger own local handler on publish
     cleanupLock: AsyncLock
+    validators*: Table[string, HashSet[ValidatorHandler]]
 
 proc sendSubs*(p: PubSub,
                peer: PubSubPeer,
                topics: seq[string],
-               subscribe: bool) {.async, gcsafe.} =
+               subscribe: bool) {.async.} =
   ## send subscriptions to remote peer
   trace "sending subscriptions", peer = peer.id,
                                  subscribe = subscribe,
@@ -56,13 +60,24 @@ proc sendSubs*(p: PubSub,
 
   await peer.send(@[msg])
 
-method rpcHandler*(p: PubSub,
-                   peer: PubSubPeer,
-                   rpcMsgs: seq[RPCMsg]) {.async, base, gcsafe.} =
-  ## handle rpc messages
+method subscribeTopic*(p: PubSub,
+                       topic: string,
+                       subscribe: bool,
+                       peerId: string) {.base.} =
   discard
 
-method handleDisconnect*(p: PubSub, peer: PubSubPeer) {.async, base, gcsafe.} =
+method rpcHandler*(p: PubSub,
+                   peer: PubSubPeer,
+                   rpcMsgs: seq[RPCMsg]) {.async, base.} =
+  ## handle rpc messages
+  trace "processing RPC message", peer = peer.id, msg = rpcMsgs
+  for m in rpcMsgs:                                # for all RPC messages
+    trace "processing messages", msg = rpcMsgs
+    if m.subscriptions.len > 0:                    # if there are any subscriptions
+      for s in m.subscriptions:                    # subscribe/unsubscribe the peer for each topic
+        p.subscribeTopic(s.topic, s.subscribe, peer.id)
+
+method handleDisconnect*(p: PubSub, peer: PubSubPeer) {.async, base.} =
   ## handle peer disconnects
   if peer.id in p.peers:
     p.peers.del(peer.id)
@@ -90,7 +105,7 @@ proc getPeer(p: PubSub, peerInfo: PeerInfo, proto: string): PubSubPeer =
 
 method handleConn*(p: PubSub,
                    conn: Connection,
-                   proto: string) {.base, async, gcsafe.} =
+                   proto: string) {.base, async.} =
   ## handle incoming connections
   ##
   ## this proc will:
@@ -107,7 +122,7 @@ method handleConn*(p: PubSub,
     await conn.close()
     return
 
-  proc handler(peer: PubSubPeer, msgs: seq[RPCMsg]) {.async, gcsafe.} =
+  proc handler(peer: PubSubPeer, msgs: seq[RPCMsg]) {.async.} =
     # call floodsub rpc handler
     await p.rpcHandler(peer, msgs)
 
@@ -122,7 +137,7 @@ method handleConn*(p: PubSub,
   await p.cleanUpHelper(peer)
 
 method subscribeToPeer*(p: PubSub,
-                        conn: Connection) {.base, async, gcsafe.} =
+                        conn: Connection) {.base, async.} =
   var peer = p.getPeer(conn.peerInfo, p.codec)
   trace "setting connection for peer", peerId = conn.peerInfo.id
   if not peer.isConnected:
@@ -137,7 +152,7 @@ method subscribeToPeer*(p: PubSub,
     asyncCheck p.cleanUpHelper(peer)
 
 method unsubscribe*(p: PubSub,
-                    topics: seq[TopicPair]) {.base, async, gcsafe.} =
+                    topics: seq[TopicPair]) {.base, async.} =
   ## unsubscribe from a list of ``topic`` strings
   for t in topics:
     for i, h in p.topics[t.topic].handler:
@@ -146,19 +161,13 @@ method unsubscribe*(p: PubSub,
 
 method unsubscribe*(p: PubSub,
                     topic: string,
-                    handler: TopicHandler): Future[void] {.base, gcsafe.} =
+                    handler: TopicHandler): Future[void] {.base.} =
   ## unsubscribe from a ``topic`` string
   result = p.unsubscribe(@[(topic, handler)])
 
-method subscribeTopic*(p: PubSub,
-                       topic: string,
-                       subscribe: bool,
-                       peerId: string) {.base, gcsafe.} =
-  discard
-
 method subscribe*(p: PubSub,
                   topic: string,
-                  handler: TopicHandler) {.base, async, gcsafe.} =
+                  handler: TopicHandler) {.base, async.} =
   ## subscribe to a topic
   ##
   ## ``topic``   - a string topic to subscribe to
@@ -178,7 +187,7 @@ method subscribe*(p: PubSub,
 
 method publish*(p: PubSub,
                 topic: string,
-                data: seq[byte]) {.base, async, gcsafe.} =
+                data: seq[byte]) {.base, async.} =
   ## publish to a ``topic``
   if p.triggerSelf and topic in p.topics:
     for h in p.topics[topic].handler:
@@ -190,13 +199,43 @@ method initPubSub*(p: PubSub) {.base.} =
 
 method start*(p: PubSub) {.async, base.} =
   ## start pubsub
-  ## start long running/repeating procedures
   discard
 
 method stop*(p: PubSub) {.async, base.} =
   ## stopt pubsub
-  ## stop long running/repeating procedures
   discard
+
+method addValidator*(p: PubSub,
+                     topic: varargs[string],
+                     hook: ValidatorHandler) {.base.} =
+  for t in topic:
+    if t notin p.validators:
+      p.validators[t] = initHashSet[ValidatorHandler]()
+
+    trace "adding validator for topic", topicId = t
+    p.validators[t].incl(hook)
+
+method removeValidator*(p: PubSub,
+                        topic: varargs[string],
+                        hook: ValidatorHandler) {.base.} =
+  for t in topic:
+    if t in p.validators:
+      p.validators[t].excl(hook)
+
+method validate*(p: PubSub, message: Message): Future[bool] {.async, base.} =
+  var pending: seq[Future[bool]]
+  trace "about to validate message"
+  for topic in message.topicIDs:
+    trace "looking for validators on topic", topicID = topic,
+                                             registered = toSeq(p.validators.keys)
+    if topic in p.validators:
+      trace "running validators for topic", topicID = topic
+      # TODO: add timeout to validator
+      pending.add(p.validators[topic].mapIt(it(topic, message)))
+
+  await allFutures(pending) # await all futures
+  if pending.allIt(it.read()): # if there are failed
+    result = true
 
 proc newPubSub*(p: typedesc[PubSub],
                 peerInfo: PeerInfo,

@@ -437,15 +437,14 @@ proc handleConn(s: Secio, conn: Connection): Future[Connection] {.async, gcsafe.
 
   var stream = newBufferStream(writeHandler)
   asyncCheck readLoop(sconn, stream)
-  var secured = newConnection(stream)
-  secured.peerInfo = PeerInfo.init(sconn.peerInfo.publicKey.get())
-  result = secured
-
-  secured.closeEvent.wait()
+  result = newConnection(stream)
+  result.closeEvent.wait()
     .addCallback do (udata: pointer):
         trace "wrapped connection closed, closing upstream"
         if not isNil(sconn) and not sconn.closed:
           asyncCheck sconn.close()
+
+  result.peerInfo = PeerInfo.init(sconn.peerInfo.publicKey.get())
 
 method init(s: Secio) {.gcsafe.} =
   proc handle(conn: Connection, proto: string) {.async, gcsafe.} =

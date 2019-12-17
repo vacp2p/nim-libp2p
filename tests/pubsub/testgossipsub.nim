@@ -9,22 +9,126 @@
 
 import unittest, sequtils, options, tables, sets
 import chronos
-import utils, ../../libp2p/[switch,
-                            peer,
+import utils, ../../libp2p/[peer,
                             peerinfo,
                             connection,
                             crypto/crypto,
                             stream/bufferstream,
                             protocols/pubsub/pubsub,
-                            protocols/pubsub/gossipsub]
+                            protocols/pubsub/gossipsub,
+                            protocols/pubsub/rpc/messages]
+
 
 proc createGossipSub(): GossipSub =
   var peerInfo = PeerInfo.init(PrivateKey.random(RSA))
   result = newPubSub(GossipSub, peerInfo)
 
 suite "GossipSub":
+  test "GossipSub validation should succeed":
+    proc runTests(): Future[bool] {.async.} =
+      var handlerFut = newFuture[bool]()
+      proc handler(topic: string, data: seq[byte]) {.async, gcsafe.} =
+        check topic == "foobar"
+        handlerFut.complete(true)
+
+      var nodes = generateNodes(2, true)
+      var awaiters: seq[Future[void]]
+      awaiters.add((await nodes[0].start()))
+      awaiters.add((await nodes[1].start()))
+
+      await subscribeNodes(nodes)
+      await nodes[1].subscribe("foobar", handler)
+      await sleepAsync(1000.millis)
+
+      var validatorFut = newFuture[bool]()
+      proc validator(topic: string,
+                     message: Message):
+                     Future[bool] {.async.} =
+        check topic == "foobar"
+        validatorFut.complete(true)
+        result = true
+
+      nodes[1].addValidator("foobar", validator)
+      await nodes[0].publish("foobar", cast[seq[byte]]("Hello!"))
+
+      await allFutures(handlerFut, handlerFut)
+      await allFutures(nodes[0].stop(), nodes[1].stop())
+      await allFutures(awaiters)
+      result = true
+    check:
+      waitFor(runTests()) == true
+
+  test "GossipSub validation should fail":
+    proc runTests(): Future[bool] {.async.} =
+      proc handler(topic: string, data: seq[byte]) {.async, gcsafe.} =
+        check false # if we get here, it should fail
+
+      var nodes = generateNodes(2, true)
+      var awaiters: seq[Future[void]]
+      awaiters.add((await nodes[0].start()))
+      awaiters.add((await nodes[1].start()))
+
+      await subscribeNodes(nodes)
+      await nodes[1].subscribe("foobar", handler)
+      await sleepAsync(100.millis)
+
+      var validatorFut = newFuture[bool]()
+      proc validator(topic: string,
+                     message: Message):
+                     Future[bool] {.async.} =
+        validatorFut.complete(true)
+        result = false
+
+      nodes[1].addValidator("foobar", validator)
+      await nodes[0].publish("foobar", cast[seq[byte]]("Hello!"))
+
+      await sleepAsync(100.millis)
+      discard await validatorFut
+      await allFutures(nodes[0].stop(), nodes[1].stop())
+      await allFutures(awaiters)
+      result = true
+
+    check:
+      waitFor(runTests()) == true
+
+  test "GossipSub validation one fails and one succeeds":
+    proc runTests(): Future[bool] {.async.} =
+      var handlerFut = newFuture[bool]()
+      proc handler(topic: string, data: seq[byte]) {.async, gcsafe.} =
+        check topic == "foo"
+        handlerFut.complete(true)
+
+      var nodes = generateNodes(2, true)
+      var awaiters: seq[Future[void]]
+      awaiters.add((await nodes[0].start()))
+      awaiters.add((await nodes[1].start()))
+
+      await subscribeNodes(nodes)
+      await nodes[1].subscribe("foo", handler)
+      await nodes[1].subscribe("bar", handler)
+      await sleepAsync(1000.millis)
+
+      proc validator(topic: string,
+                     message: Message):
+                     Future[bool] {.async.} =
+        if topic == "foo":
+          result = true
+        else:
+          result = false
+
+      nodes[1].addValidator("foo", "bar", validator)
+      await nodes[0].publish("foo", cast[seq[byte]]("Hello!"))
+      await nodes[0].publish("bar", cast[seq[byte]]("Hello!"))
+
+      await sleepAsync(100.millis)
+      await allFutures(nodes[0].stop(), nodes[1].stop())
+      await allFutures(awaiters)
+      result = true
+    check:
+      waitFor(runTests()) == true
+
   test "should add remote peer topic subscriptions":
-    proc testRun(): Future[bool] {.async.} =
+    proc runTests(): Future[bool] {.async.} =
       proc handler(topic: string, data: seq[byte]) {.async, gcsafe.} =
         discard
 
@@ -54,7 +158,7 @@ suite "GossipSub":
       result = true
 
     check:
-      waitFor(testRun()) == true
+      waitFor(runTests()) == true
 
   test "e2e - should add remote peer topic subscriptions":
     proc testBasicGossipSub(): Future[bool] {.async.} =
@@ -91,7 +195,7 @@ suite "GossipSub":
       waitFor(testBasicGossipSub()) == true
 
   test "should add remote peer topic subscriptions if both peers are subscribed":
-    proc testRun(): Future[bool] {.async.} =
+    proc runTests(): Future[bool] {.async.} =
       proc handler(topic: string, data: seq[byte]) {.async, gcsafe.} =
         discard
 
@@ -134,7 +238,7 @@ suite "GossipSub":
       result = true
 
     check:
-      waitFor(testRun()) == true
+      waitFor(runTests()) == true
 
   test "e2e - should add remote peer topic subscriptions if both peers are subscribed":
     proc testBasicGossipSub(): Future[bool] {.async.} =
@@ -179,7 +283,7 @@ suite "GossipSub":
       waitFor(testBasicGossipSub()) == true
 
   # test "send over fanout A -> B":
-  #   proc testRun(): Future[bool] {.async.} =
+  #   proc runTests(): Future[bool] {.async.} =
   #     var handlerFut = newFuture[bool]()
   #     proc handler(topic: string, data: seq[byte]) {.async, gcsafe.} =
   #       check:
@@ -216,10 +320,10 @@ suite "GossipSub":
   #     result = await handlerFut
 
   #   check:
-  #     waitFor(testRun()) == true
+  #     waitFor(runTests()) == true
 
   test "e2e - send over fanout A -> B":
-    proc testRun(): Future[bool] {.async.} =
+    proc runTests(): Future[bool] {.async.} =
       var passed: bool
       proc handler(topic: string, data: seq[byte]) {.async, gcsafe.} =
         check topic == "foobar"
@@ -250,10 +354,10 @@ suite "GossipSub":
       result = passed
 
     check:
-      waitFor(testRun()) == true
+      waitFor(runTests()) == true
 
   # test "send over mesh A -> B":
-  #   proc testRun(): Future[bool] {.async.} =
+  #   proc runTests(): Future[bool] {.async.} =
   #     var passed: bool
   #     proc handler(topic: string, data: seq[byte]) {.async, gcsafe.} =
   #       check:
@@ -289,10 +393,10 @@ suite "GossipSub":
   #     result = passed
 
   #   check:
-  #     waitFor(testRun()) == true
+  #     waitFor(runTests()) == true
 
   # test "e2e - send over mesh A -> B":
-  #   proc testRun(): Future[bool] {.async.} =
+  #   proc runTests(): Future[bool] {.async.} =
   #     var passed: bool
   #     proc handler(topic: string, data: seq[byte]) {.async, gcsafe.} =
   #       check topic == "foobar"
@@ -318,10 +422,10 @@ suite "GossipSub":
   #     result = passed
 
   #   check:
-  #     waitFor(testRun()) == true
+  #     waitFor(runTests()) == true
 
   # test "with multiple peers":
-  #   proc testRun(): Future[bool] {.async.} =
+  #   proc runTests(): Future[bool] {.async.} =
   #     var nodes: seq[GossipSub]
   #     for i in 0..<10:
   #       nodes.add(createGossipSub())
@@ -376,10 +480,10 @@ suite "GossipSub":
   #     result = true
 
   #   check:
-  #     waitFor(testRun()) == true
+  #     waitFor(runTests()) == true
 
   test "e2e - with multiple peers":
-    proc testRun(): Future[bool] {.async.} =
+    proc runTests(): Future[bool] {.async.} =
       var nodes: seq[Switch] = newSeq[Switch]()
       var awaitters: seq[Future[void]]
 
@@ -419,4 +523,4 @@ suite "GossipSub":
       result = true
 
     check:
-      waitFor(testRun()) == true
+      waitFor(runTests()) == true
