@@ -93,7 +93,8 @@ proc createNode*(privKey: Option[PrivateKey] = none(PrivateKey),
                      secureManagers = secureManagers,
                      pubSub = pubSub)
 
-proc testPubSubDaemonPublish(gossip: bool = false): Future[bool] {.async.} =
+proc testPubSubDaemonPublish(gossip: bool = false, count: int = 1): Future[
+    bool] {.async.} =
   var pubsubData = "TEST MESSAGE"
   var testTopic = "test-topic"
   var msgData = cast[seq[byte]](pubsubData)
@@ -109,10 +110,13 @@ proc testPubSubDaemonPublish(gossip: bool = false): Future[bool] {.async.} =
   let nativePeer = nativeNode.peerInfo
 
   var handlerFuture = newFuture[bool]()
+  var times = 0
   proc nativeHandler(topic: string, data: seq[byte]) {.async.} =
     let smsg = cast[string](data)
     check smsg == pubsubData
-    handlerFuture.complete(true)
+    times.inc()
+    if times >= count:
+      handlerFuture.complete(true)
 
   await nativeNode.subscribeToPeer(NativePeerInfo.init(daemonPeer.peer,
                                                        daemonPeer.addresses))
@@ -126,15 +130,18 @@ proc testPubSubDaemonPublish(gossip: bool = false): Future[bool] {.async.} =
 
   asyncDiscard daemonNode.pubsubSubscribe(testTopic, pubsubHandler)
   await nativeNode.subscribe(testTopic, nativeHandler)
-  await sleepAsync(1.seconds)
-  await daemonNode.pubsubPublish(testTopic, msgData)
+  while times < count:
+    await sleepAsync(1.seconds)
+    await daemonNode.pubsubPublish(testTopic, msgData)
+    await sleepAsync(100.millis)
 
   result = await handlerFuture
   await nativeNode.stop()
   await allFutures(awaiters)
   await daemonNode.close()
 
-proc testPubSubNodePublish(gossip: bool = false): Future[bool] {.async.} =
+proc testPubSubNodePublish(gossip: bool = false, count: int = 1): Future[
+    bool] {.async.} =
   var pubsubData = "TEST MESSAGE"
   var testTopic = "test-topic"
   var msgData = cast[seq[byte]](pubsubData)
@@ -156,17 +163,25 @@ proc testPubSubNodePublish(gossip: bool = false): Future[bool] {.async.} =
   await sleepAsync(1.seconds)
   await daemonNode.connect(nativePeer.peerId, nativePeer.addrs)
 
+  var times = 0
   proc pubsubHandler(api: DaemonAPI,
                      ticket: PubsubTicket,
                      message: PubSubMessage): Future[bool] {.async.} =
     let smsg = cast[string](message.data)
     check smsg == pubsubData
-    handlerFuture.complete(true)
+    times.inc()
+    if times >= count:
+      handlerFuture.complete(true)
     result = true # don't cancel subscription
 
-  asyncDiscard daemonNode.pubsubSubscribe(testTopic, pubsubHandler)
+  discard await daemonNode.pubsubSubscribe(testTopic, pubsubHandler)
+  proc nativeHandler(topic: string, data: seq[byte]) {.async.} = discard
+  await nativeNode.subscribe(testTopic, nativeHandler)
   await sleepAsync(1.seconds)
-  await nativeNode.publish(testTopic, msgData)
+  while times < count:
+    await sleepAsync(1.seconds)
+    await nativeNode.publish(testTopic, msgData)
+    await sleepAsync(100.millis)
 
   result = await handlerFuture
   await nativeNode.stop()
@@ -370,18 +385,34 @@ suite "Interop":
     check:
       waitFor(runTests()) == true
 
-  test "floodsub: daemon publish":
+  test "floodsub: daemon publish one":
     check:
       waitFor(testPubSubDaemonPublish()) == true
 
-  test "gossipsub: daemon publish":
+  test "floodsub: daemon publish many":
     check:
-      waitFor(testPubSubDaemonPublish(true)) == true
+      waitFor(testPubSubDaemonPublish(count = 10)) == true
 
-  test "floodsub: node publish":
+  test "gossipsub: daemon publish one":
+    check:
+      waitFor(testPubSubDaemonPublish(gossip = true)) == true
+
+  test "gossipsub: daemon publish many":
+    check:
+      waitFor(testPubSubDaemonPublish(gossip = true, count = 10)) == true
+
+  test "floodsub: node publish one":
     check:
       waitFor(testPubSubNodePublish()) == true
 
-  test "gossipsub: node publish":
+  test "floodsub: node publish many":
     check:
-      waitFor(testPubSubNodePublish(true)) == true
+      waitFor(testPubSubNodePublish(count = 10)) == true
+
+  test "gossipsub: node publish one":
+    check:
+      waitFor(testPubSubNodePublish(gossip = true)) == true
+
+  test "gossipsub: node publish many":
+    check:
+      waitFor(testPubSubNodePublish(gossip = true, count = 10)) == true

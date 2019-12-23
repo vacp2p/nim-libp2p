@@ -191,6 +191,7 @@ method publish*(p: PubSub,
   ## publish to a ``topic``
   if p.triggerSelf and topic in p.topics:
     for h in p.topics[topic].handler:
+      trace "triggering handler", topicID = topic
       await h(topic, data)
 
 method initPubSub*(p: PubSub) {.base.} =
