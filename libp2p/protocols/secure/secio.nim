@@ -62,7 +62,7 @@ type
     of SecureMacType.Sha1:
       ctxsha1: HMAC[sha1]
 
-  SecureConnection* = ref object of Connection
+  SecureConnection = ref object of Connection
     writerMac: SecureMac
     readerMac: SecureMac
     writerCoder: SecureCipher
@@ -176,7 +176,7 @@ proc macCheckAndDecode(sconn: SecureConnection, data: var seq[byte]): bool =
   data.setLen(mark)
   result = true
 
-proc readMessage*(sconn: SecureConnection): Future[seq[byte]] {.async.} =
+proc readMessage(sconn: SecureConnection): Future[seq[byte]] {.async.} =
   ## Read message from channel secure connection ``sconn``.
   try:
     var buf = newSeq[byte](4)
@@ -201,7 +201,7 @@ proc readMessage*(sconn: SecureConnection): Future[seq[byte]] {.async.} =
   except AsyncStreamReadError:
     trace "Error reading from connection"
 
-proc writeMessage*(sconn: SecureConnection, message: seq[byte]) {.async.} =
+proc writeMessage(sconn: SecureConnection, message: seq[byte]) {.async.} =
   ## Write message ``message`` to secure connection ``sconn``.
   let macsize = sconn.writerMac.sizeDigest()
   var msg = newSeq[byte](len(message) + 4 + macsize)
@@ -221,12 +221,12 @@ proc writeMessage*(sconn: SecureConnection, message: seq[byte]) {.async.} =
   except AsyncStreamWriteError:
     trace "Could not write to connection"
 
-proc newSecureConnection*(conn: Connection,
-                          hash: string,
-                          cipher: string,
-                          secrets: Secret,
-                          order: int,
-                          remotePubKey: PublicKey): SecureConnection =
+proc newSecureConnection(conn: Connection,
+                         hash: string,
+                         cipher: string,
+                         secrets: Secret,
+                         order: int,
+                         remotePubKey: PublicKey): SecureConnection =
   ## Create new secure connection, using specified hash algorithm ``hash``,
   ## cipher algorithm ``cipher``, stretched keys ``secrets`` and order
   ## ``order``.
@@ -280,7 +280,7 @@ proc transactMessage(conn: Connection,
   except AsyncStreamWriteError:
     trace "Could not write to connection", conn = conn
 
-proc handshake*(s: Secio, conn: Connection): Future[SecureConnection] {.async.} =
+proc handshake(s: Secio, conn: Connection): Future[SecureConnection] {.async.} =
   var
     localNonce: array[SecioNonceSize, byte]
     remoteNonce: seq[byte]
