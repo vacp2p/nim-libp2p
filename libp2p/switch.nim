@@ -206,30 +206,30 @@ proc dial*(s: Switch,
            Future[Connection] {.async.} =
   let id = peer.id
   trace "Dialing peer", peer = id
-  result = s.connections.getOrDefault(id)
-  if result.isNil or result.closed:
+  var conn = s.connections.getOrDefault(id)
+  if conn.isNil or conn.closed:
     for t in s.transports: # for each transport
       for a in peer.addrs: # for each address
-        if t.handles(a): # check if it can dial it
+        if t.handles(a):   # check if it can dial it
           trace "Dialing address", address = $a
-          result = await t.dial(a)
+          conn = await t.dial(a)
           # make sure to assign the peer to the connection
-          result.peerInfo = peer
-          result = await s.upgradeOutgoing(result)
-          if isNil(result):
+          conn.peerInfo = peer
+          conn = await s.upgradeOutgoing(conn)
+          if isNil(conn):
             continue
 
-          result.closeEvent.wait()
+          conn.closeEvent.wait()
             .addCallback do (udata: pointer):
-              asyncCheck s.cleanupConn(result)
+              asyncCheck s.cleanupConn(conn)
           break
   else:
     trace "Reusing existing connection"
 
-  if isNil(result):
-    raise newException(CatchableError, "unable to establish outgoing link!")
+  if isNil(conn):
+    raise newException(CatchableError, "Unable to establish outgoing link")
 
-  if proto.len > 0 and not result.closed:
+  if proto.len > 0 and not conn.closed:
     let stream = await s.getMuxedStream(peer)
     if not isNil(stream):
       trace "Connection is muxed, return muxed stream"
