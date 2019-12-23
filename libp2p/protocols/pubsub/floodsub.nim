@@ -76,6 +76,10 @@ method rpcHandler*(f: FloodSub,
               toSendPeers.incl(f.floodsub[t])        # get all the peers interested in this topic
             if t in f.topics:                        # check that we're subscribed to it
               for h in f.topics[t].handler:
+                trace "calling handler for message", msg = msg.msgId,
+                                                     topicId = t,
+                                                     localPeer = f.peerInfo.id,
+                                                     fromPeer = msg.fromPeerId().pretty
                 await h(t, msg.data)                 # trigger user provided handler
 
         # forward the message to all peers interested in it

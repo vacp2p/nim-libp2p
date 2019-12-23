@@ -182,7 +182,7 @@ proc readMessage*(sconn: SecureConnection): Future[seq[byte]] {.async.} =
     var buf = newSeq[byte](4)
     await sconn.readExactly(addr buf[0], 4)
     let length = (int(buf[0]) shl 24) or (int(buf[1]) shl 16) or
-                 (int(buf[2]) shl 8) or (int(buf[3]))
+                  (int(buf[2]) shl 8) or (int(buf[3]))
     trace "Recieved message header", header = toHex(buf), length = length
     if length <= SecioMaxMessageSize:
       buf.setLen(length)
@@ -261,12 +261,14 @@ proc transactMessage(conn: Connection,
     await conn.write(msg)
     await conn.readExactly(addr buf[0], 4)
     let length = (int(buf[0]) shl 24) or (int(buf[1]) shl 16) or
-                 (int(buf[2]) shl 8) or (int(buf[3]))
+                  (int(buf[2]) shl 8) or (int(buf[3]))
     trace "Recieved message header", header = toHex(buf), length = length
     if length <= SecioMaxMessageSize:
       buf.setLen(length)
       await conn.readExactly(addr buf[0], length)
-      trace "Received message body", conn = conn, length = length
+      trace "Received message body", conn = conn,
+                                     length = length,
+                                     buff = buf
       result = buf
     else:
       trace "Received size of message exceed limits", conn = conn,
@@ -364,15 +366,15 @@ proc handshake*(s: Secio, conn: Connection): Future[SecureConnection] {.async.} 
     raise newException(SecioError, "Remote exchange decoding failed")
 
   if not remoteESignature.init(remoteEBytesSig):
-    trace "Remote signature incorrect or corrupted",
-          signature = toHex(remoteEBytesSig)
+    trace "Remote signature incorrect or corrupted", signature = toHex(remoteEBytesSig)
     raise newException(SecioError, "Remote signature incorrect or corrupted")
 
   var remoteCorpus = answer & request[4..^1] & remoteEBytesPubkey
   if not remoteESignature.verify(remoteCorpus, remotePubkey):
     trace "Signature verification failed", scheme = remotePubkey.scheme,
-          signature = remoteESignature, pubkey = remotePubkey,
-          corpus = remoteCorpus
+                                           signature = remoteESignature,
+                                           pubkey = remotePubkey,
+                                           corpus = remoteCorpus
     raise newException(SecioError, "Signature verification failed")
 
   trace "Signature verified", scheme = remotePubkey.scheme
@@ -402,7 +404,6 @@ proc handshake*(s: Secio, conn: Connection): Future[SecureConnection] {.async.} 
   # Perform Nonce exchange over encrypted channel.
 
   result = newSecureConnection(conn, hash, cipher, keys, order, remotePubkey)
-
   await result.writeMessage(remoteNonce)
   var res = await result.readMessage()
 
@@ -440,9 +441,9 @@ proc handleConn(s: Secio, conn: Connection): Future[Connection] {.async, gcsafe.
   result = newConnection(stream)
   result.closeEvent.wait()
     .addCallback do (udata: pointer):
-        trace "wrapped connection closed, closing upstream"
-        if not isNil(sconn) and not sconn.closed:
-          asyncCheck sconn.close()
+      trace "wrapped connection closed, closing upstream"
+      if not isNil(sconn) and not sconn.closed:
+        asyncCheck sconn.close()
 
   result.peerInfo = PeerInfo.init(sconn.peerInfo.publicKey.get())
 
@@ -453,8 +454,9 @@ method init(s: Secio) {.gcsafe.} =
       discard await s.handleConn(conn)
       trace "connection secured"
     except CatchableError as exc:
-      trace "securing connection failed", msg = exc.msg
-      await conn.close()
+      if not conn.closed():
+        warn "securing connection failed", msg = exc.msg
+        await conn.close()
 
   s.codec = SecioCodec
   s.handler = handle
@@ -463,7 +465,8 @@ method secure*(s: Secio, conn: Connection): Future[Connection] {.async, gcsafe.}
   try:
     result = await s.handleConn(conn)
   except CatchableError as exc:
-      trace "securing connection failed", msg = exc.msg
+    warn "securing connection failed", msg = exc.msg
+    if not conn.closed():
       await conn.close()
 
 proc newSecio*(localPrivateKey: PrivateKey): Secio =

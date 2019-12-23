@@ -18,7 +18,6 @@ import utils, ../../libp2p/[peer,
                             protocols/pubsub/gossipsub,
                             protocols/pubsub/rpc/messages]
 
-
 proc createGossipSub(): GossipSub =
   var peerInfo = PeerInfo.init(PrivateKey.random(RSA))
   result = newPubSub(GossipSub, peerInfo)
