@@ -17,7 +17,7 @@ proc newStandardSwitch*(privKey = none(PrivateKey),
     result = newMplex(conn)
 
   let
-    seckey = privKey.get(otherwise = PrivateKey.random(RSA))
+    seckey = privKey.get(otherwise = PrivateKey.random(ECDSA))
     peerInfo = PeerInfo.init(seckey, @[address])
     mplexProvider = newMuxerProvider(createMplex, MplexCodec)
     transports = @[Transport(newTransport(TcpTransport))]
