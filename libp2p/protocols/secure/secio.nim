@@ -31,6 +31,7 @@ const
   SecioExchanges = "P-256,P-384,P-521"
   SecioCiphers = "TwofishCTR,AES-256,AES-128"
   SecioHashes = "SHA256,SHA512"
+  SecioRWTimeout = 2.minutes
 
 type
   Secio = ref object of Secure
@@ -233,6 +234,7 @@ proc newSecureConnection(conn: Connection,
   new result
 
   result.stream = conn
+  result.timeout = SecioRWTimeout
   result.closeEvent = newAsyncEvent()
 
   let i0 = if order < 0: 1 else: 0
@@ -331,7 +333,6 @@ proc handshake(s: Secio, conn: Connection): Future[SecureConnection] {.async.} =
   remotePeerId = PeerID.init(remotePubkey)
 
   # TODO: PeerID check against supplied PeerID
-
   let order = getOrder(remoteBytesPubkey, localNonce, localBytesPubkey,
                        remoteNonce)
   trace "Remote proposal", schemes = remoteExchanges, ciphers = remoteCiphers,
@@ -451,7 +452,7 @@ method init(s: Secio) {.gcsafe.} =
   proc handle(conn: Connection, proto: string) {.async, gcsafe.} =
     trace "handling connection"
     try:
-      discard await s.handleConn(conn)
+      asyncCheck s.handleConn(conn)
       trace "connection secured"
     except CatchableError as exc:
       if not conn.closed():

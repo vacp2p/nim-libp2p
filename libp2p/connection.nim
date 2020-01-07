@@ -16,23 +16,27 @@ import peerinfo,
        vbuffer
 
 const DefaultReadSize*: uint = 64 * 1024
+const DefaultRWTimeout*: Duration = 2.minutes
 
 type
   Connection* = ref object of LPStream
     peerInfo*: PeerInfo
     stream*: LPStream
     observedAddrs*: Multiaddress
+    timeout*: Duration
 
   InvalidVarintException = object of LPStreamError
 
 proc newInvalidVarintException*(): ref InvalidVarintException =
   newException(InvalidVarintException, "unable to prase varint")
 
-proc newConnection*(stream: LPStream): Connection =
+proc newConnection*(stream: LPStream,
+                    timeout: Duration = DefaultRWTimeout): Connection =
   ## create a new Connection for the specified async reader/writer
   new result
   result.stream = stream
   result.closeEvent = newAsyncEvent()
+  result.timeout = timeout
 
   # bind stream's close event to connection's close
   # to ensure correct close propagation
@@ -45,50 +49,50 @@ proc newConnection*(stream: LPStream): Connection =
           asyncCheck this.close()
 
 method read*(s: Connection, n = -1): Future[seq[byte]] {.gcsafe.} =
-  s.stream.read(n)
+  wait(s.stream.read(n), s.timeout)
 
 method readExactly*(s: Connection,
                     pbytes: pointer,
                     nbytes: int):
                     Future[void] {.gcsafe.} =
-  s.stream.readExactly(pbytes, nbytes)
+ wait(s.stream.readExactly(pbytes, nbytes), s.timeout)
 
 method readLine*(s: Connection,
                  limit = 0,
                  sep = "\r\n"):
                  Future[string] {.gcsafe.} =
-  s.stream.readLine(limit, sep)
+  wait(s.stream.readLine(limit, sep), s.timeout)
 
 method readOnce*(s: Connection,
                  pbytes: pointer,
                  nbytes: int):
                  Future[int] {.gcsafe.} =
-  s.stream.readOnce(pbytes, nbytes)
+  wait(s.stream.readOnce(pbytes, nbytes), s.timeout)
 
 method readUntil*(s: Connection,
                   pbytes: pointer,
                   nbytes: int,
                   sep: seq[byte]):
                   Future[int] {.gcsafe.} =
-  s.stream.readUntil(pbytes, nbytes, sep)
+  wait(s.stream.readUntil(pbytes, nbytes, sep), s.timeout)
 
 method write*(s: Connection,
               pbytes: pointer,
               nbytes: int):
               Future[void] {.gcsafe.} =
-  s.stream.write(pbytes, nbytes)
+  wait(s.stream.write(pbytes, nbytes), s.timeout)
 
 method write*(s: Connection,
               msg: string,
               msglen = -1):
               Future[void] {.gcsafe.} =
-  s.stream.write(msg, msglen)
+  wait(s.stream.write(msg, msglen), s.timeout)
 
 method write*(s: Connection,
               msg: seq[byte],
               msglen = -1):
               Future[void] {.gcsafe.} =
-  s.stream.write(msg, msglen)
+  wait(s.stream.write(msg, msglen), s.timeout)
 
 method closed*(s: Connection): bool =
   if isNil(s.stream):
