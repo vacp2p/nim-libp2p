@@ -16,7 +16,7 @@ import connection,
 logScope:
   topic = "Multistream"
 
-const 
+const
   MsgSize* = 64*1024
   Codec* = "/multistream/1.0.0"
 
@@ -83,13 +83,13 @@ proc select*(m: MultisteamSelect,
 
 proc select*(m: MultisteamSelect,
              conn: Connection,
-             proto: string): Future[bool] {.async.} = 
-  if proto.len > 0: 
-    result = (await m.select(conn, @[proto])) == proto 
-  else: 
+             proto: string): Future[bool] {.async.} =
+  if proto.len > 0:
+    result = (await m.select(conn, @[proto])) == proto
+  else:
     result = (await m.select(conn, @[])) == Codec
 
-proc select*(m: MultisteamSelect, conn: Connection): Future[bool] = 
+proc select*(m: MultisteamSelect, conn: Connection): Future[bool] =
   m.select(conn, "")
 
 proc list*(m: MultisteamSelect,
@@ -112,10 +112,9 @@ proc handle*(m: MultisteamSelect, conn: Connection) {.async, gcsafe.} =
   trace "handle: starting multistream handling"
   try:
     while not conn.closed:
-      await sleepAsync(1.millis)
       var ms = cast[string]((await conn.readLp()))
       ms.removeSuffix("\n")
-      
+
       trace "handle: got request for ", ms
       if ms.len() <= 0:
         trace "handle: invalid proto"
@@ -158,9 +157,9 @@ proc addHandler*[T: LPProtocol](m: MultisteamSelect,
                                 protocol: T,
                                 matcher: Matcher = nil) =
   ## register a protocol
-  # TODO: This is a bug in chronicles, 
+  # TODO: This is a bug in chronicles,
   # it break if I uncoment this line.
-  # Which is almost the same as the 
+  # Which is almost the same as the
   # one on the next override of addHandler
   #
   # trace "registering protocol", codec = codec

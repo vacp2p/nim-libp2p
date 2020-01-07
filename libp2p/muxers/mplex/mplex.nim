@@ -125,7 +125,8 @@ method handle*(m: Mplex) {.async, gcsafe.} =
     trace "exception occurred", exception = exc.msg
   finally:
     trace "stopping mplex main loop"
-    await m.connection.close()
+    if not m.connection.closed():
+      await m.connection.close()
 
 proc newMplex*(conn: Connection,
                maxChanns: uint = MaxChannels): Mplex =
@@ -136,7 +137,8 @@ proc newMplex*(conn: Connection,
   result.local = initTable[uint, LPChannel]()
 
   let m = result
-  conn.closeEvent.wait().addCallback do (udata: pointer):
+  conn.closeEvent.wait()
+  .addCallback do (udata: pointer):
     trace "connection closed, cleaning up mplex"
     asyncCheck m.close()
 
