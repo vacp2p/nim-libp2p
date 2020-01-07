@@ -1,4 +1,4 @@
-import unittest, tables, options
+import unittest, tables
 import chronos
 import ../libp2p/[switch,
                   multistream,
@@ -35,7 +35,6 @@ method init(p: TestProto) {.gcsafe.} =
   p.handler = handle
 
 proc createSwitch(ma: MultiAddress): (Switch, PeerInfo) =
-  let seckey = PrivateKey.random(RSA)
   var peerInfo: PeerInfo = PeerInfo.init(PrivateKey.random(RSA))
   peerInfo.addrs.add(ma)
   let identify = newIdentify(peerInfo)
@@ -68,16 +67,18 @@ suite "Switch":
       testProto.init()
       testProto.codec = TestCodec
       switch1.mount(testProto)
-      asyncCheck switch1.start()
+      var awaiters: seq[Future[void]]
+      awaiters.add(await switch1.start())
 
       (switch2, peerInfo2) = createSwitch(ma2)
-      asyncCheck switch2.start()
+      awaiters.add(await switch2.start())
       let conn = await switch2.dial(switch1.peerInfo, TestCodec)
       await conn.writeLp("Hello!")
       let msg = cast[string](await conn.readLp())
       check "Hello!" == msg
 
-      discard allFutures(switch1.stop(), switch2.stop())
+      await allFutures(switch1.stop(), switch2.stop())
+      await allFutures(awaiters)
       result = true
 
     check:
@@ -91,10 +92,11 @@ suite "Switch":
       var peerInfo1, peerInfo2: PeerInfo
       var switch1, switch2: Switch
       (switch1, peerInfo1) = createSwitch(ma1)
-      asyncCheck switch1.start()
+      var awaiters: seq[Future[void]]
+      awaiters.add(await switch1.start())
 
       (switch2, peerInfo2) = createSwitch(ma2)
-      asyncCheck switch2.start()
+      awaiters.add(await switch2.start())
       var conn = await switch2.dial(switch1.peerInfo)
 
       check isNil(conn)
