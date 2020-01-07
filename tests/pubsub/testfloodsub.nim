@@ -191,7 +191,7 @@ suite "FloodSub":
       await allFutures(nodes.mapIt(it.stop()))
       await allFutures(awaitters)
 
-      result = passed >= 10 # non deterministic, so at least 2 times
+      result = passed >= 10 # non deterministic, so at least 10 times
 
     check:
       waitFor(runTests()) == true
@@ -220,12 +220,10 @@ suite "FloodSub":
         await node.publish("foobar", cast[seq[byte]]("Hello!"))
         await sleepAsync(10.millis)
 
-      await sleepAsync(100.millis)
-
       await allFutures(nodes.mapIt(it.stop()))
       await allFutures(awaitters)
 
-      result = passed >= 10 # non deterministic, so at least 20 times
+      result = passed >= 10 # non deterministic, so at least 10 times
 
     check:
       waitFor(runTests()) == true
