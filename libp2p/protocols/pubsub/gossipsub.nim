@@ -40,19 +40,19 @@ const GossipSubHeartbeatInitialDelay* = 100.millis
 const GossipSubHeartbeatInterval* = 1.seconds
 
 # fanout ttl
-const GossipSubFanoutTTL* = 60.seconds
+const GossipSubFanoutTTL* = 1.minutes
 
 type
   GossipSub* = ref object of FloodSub
-    mesh*: Table[string, HashSet[string]]     # meshes - topic to peer
-    fanout*: Table[string, HashSet[string]]   # fanout - topic to peer
+    mesh*: Table[string, HashSet[string]]      # meshes - topic to peer
+    fanout*: Table[string, HashSet[string]]    # fanout - topic to peer
     gossipsub*: Table[string, HashSet[string]] # topic to peer map of all gossipsub peers
-    lastFanoutPubSub*: Table[string, Moment]  # last publish time for fanout topics
-    gossip*: Table[string, seq[ControlIHave]] # pending gossip
-    control*: Table[string, ControlMessage]   # pending control messages
-    mcache*: MCache                           # messages cache
-    heartbeatCancel*: Future[void]            # cancelation future for heartbeat interval
-    heartbeatLock: AsyncLock
+    lastFanoutPubSub*: Table[string, Moment]   # last publish time for fanout topics
+    gossip*: Table[string, seq[ControlIHave]]  # pending gossip
+    control*: Table[string, ControlMessage]    # pending control messages
+    mcache*: MCache                            # messages cache
+    heartbeatCancel*: Future[void]             # cancelation future for heartbeat interval
+    heartbeatLock: AsyncLock                   # hearbeat lock to prevent two concecutive concurent hearbeats
 
 # TODO: This belong in chronos, temporary left here until chronos is updated
 proc addInterval(every: Duration, cb: CallbackFunc,
@@ -206,15 +206,21 @@ method rpcHandler(g: GossipSub,
 
       # forward the message to all peers interested in it
       for p in toSendPeers:
-        if p in g.peers and
-          g.peers[p].peerInfo.peerId != peer.peerInfo.peerId:
+        if p in g.peers:
           let id = g.peers[p].peerInfo.peerId
-          let msgs = m.messages.filterIt(
+          trace "about to forward message to peer", peerId = id
+
+          if id != peer.peerInfo.peerId:
+            let msgs = m.messages.filterIt(
               # don't forward to message originator
-            id != it.fromPeerId()
-          )
-          if msgs.len > 0:
-            await g.peers[p].send(@[RPCMsg(messages: msgs)])
+              id != it.fromPeerId()
+            )
+
+            var sent: seq[Future[void]]
+            if msgs.len > 0:
+              trace "forwarding message to", peerId = id
+              sent.add(g.peers[p].send(@[RPCMsg(messages: msgs)]))
+            await allFutures(sent)
 
     var respControl: ControlMessage
     if m.control.isSome:
@@ -336,9 +342,9 @@ proc getGossipPeers(g: GossipSub): Table[string, ControlMessage] {.gcsafe.} =
         result[id].ihave.add(ihave)
 
 proc heartbeat(g: GossipSub) {.async.} =
+  await g.heartbeatLock.acquire()
   trace "running heartbeat"
 
-  await g.heartbeatLock.acquire()
   await sleepAsync(GossipSubHeartbeatInitialDelay)
 
   for t in g.mesh.keys:
@@ -391,13 +397,15 @@ method publish*(g: GossipSub,
         g.lastFanoutPubSub[topic] = Moment.fromNow(GossipSubFanoutTTL)
 
     let msg = newMessage(g.peerInfo, data, topic)
+    var sent: seq[Future[void]]
     for p in peers:
       if p == g.peerInfo.id:
         continue
 
       trace "publishing on topic", name = topic
       g.mcache.put(msg)
-      await g.peers[p].send(@[RPCMsg(messages: @[msg])])
+      sent.add(g.peers[p].send(@[RPCMsg(messages: @[msg])]))
+    await allFutures(sent)
 
 method start*(g: GossipSub) {.async.} =
   ## start pubsub

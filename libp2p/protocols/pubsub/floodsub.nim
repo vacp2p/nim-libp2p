@@ -56,7 +56,7 @@ method rpcHandler*(f: FloodSub,
                    rpcMsgs: seq[RPCMsg]) {.async.} =
   await procCall PubSub(f).rpcHandler(peer, rpcMsgs)
 
-  for m in rpcMsgs:                                # for all RPC messages
+  for m in rpcMsgs:                                  # for all RPC messages
     if m.messages.len > 0:                           # if there are any messages
       var toSendPeers: HashSet[string] = initHashSet[string]()
       for msg in m.messages:                         # for every message
@@ -83,9 +83,11 @@ method rpcHandler*(f: FloodSub,
                 await h(t, msg.data)                 # trigger user provided handler
 
         # forward the message to all peers interested in it
+        var sent: seq[Future[void]]
         for p in toSendPeers:
           if p in f.peers and f.peers[p].id != peer.id:
-            await f.peers[p].send(@[RPCMsg(messages: m.messages)])
+            sent.add(f.peers[p].send(@[RPCMsg(messages: m.messages)]))
+        await allFutures(sent)
 
 method init(f: FloodSub) =
   proc handler(conn: Connection, proto: string) {.async.} =
@@ -114,9 +116,11 @@ method publish*(f: FloodSub,
 
   trace "publishing on topic", name = topic
   let msg = newMessage(f.peerInfo, data, topic)
+  var sent: seq[Future[void]]
   for p in f.floodsub[topic]:
     trace "publishing message", name = topic, peer = p, data = data
-    await f.peers[p].send(@[RPCMsg(messages: @[msg])])
+    sent.add(f.peers[p].send(@[RPCMsg(messages: @[msg])]))
+  await allFutures(sent)
 
 method unsubscribe*(f: FloodSub,
                     topics: seq[TopicPair]) {.async.} =
