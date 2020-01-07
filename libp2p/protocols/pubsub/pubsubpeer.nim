@@ -28,8 +28,8 @@ type
       peerInfo*: PeerInfo
       handler*: RPCHandler
       topics*: seq[string]
-      sentRpcCache: TimedCache[string] # a cache of already sent messages
-      recvdRpcCache: TimedCache[string] # a cache of already sent messages
+      sentRpcCache: TimedCache[string] # cache for already sent messages
+      recvdRpcCache: TimedCache[string] # cache for already received messages
       refs*: int # refcount of the connections this peer is handling
       onConnect: AsyncEvent
 
@@ -65,6 +65,8 @@ proc handle*(p: PubSubPeer, conn: Connection) {.async.} =
     error "exception occured", exc = exc.msg
   finally:
     trace "exiting pubsub peer read loop", peer = p.id
+    if not conn.closed():
+      await conn.close()
 
 proc send*(p: PubSubPeer, msgs: seq[RPCMsg]) {.async.} =
   try:
@@ -94,7 +96,8 @@ proc send*(p: PubSubPeer, msgs: seq[RPCMsg]) {.async.} =
 
       p.onConnect.wait().addCallback do (udata: pointer):
           asyncCheck sendToRemote()
-      trace "enqueued message to send at a later time"
+      trace "enqueued message to send at a later time", peer = p.id,
+                                                        encoded = encodedHex
 
   except CatchableError as exc:
     trace "exception occured", exc = exc.msg

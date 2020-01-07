@@ -90,7 +90,9 @@ proc cleanUpHelper(p: PubSub, peer: PubSubPeer) {.async.} =
   peer.refs.dec() # decrement refcount
   p.cleanupLock.release()
 
-proc getPeer(p: PubSub, peerInfo: PeerInfo, proto: string): PubSubPeer =
+proc getPeer(p: PubSub,
+             peerInfo: PeerInfo,
+             proto: string): PubSubPeer =
   if peerInfo.id in p.peers:
     result = p.peers[peerInfo.id]
     return
@@ -234,8 +236,8 @@ method validate*(p: PubSub, message: Message): Future[bool] {.async, base.} =
       # TODO: add timeout to validator
       pending.add(p.validators[topic].mapIt(it(topic, message)))
 
-  await allFutures(pending) # await all futures
-  if pending.allIt(it.read()): # if there are failed
+  await allFutures(pending)
+  if pending.allIt(it.read()): # only if all passed
     result = true
 
 proc newPubSub*(p: typedesc[PubSub],
