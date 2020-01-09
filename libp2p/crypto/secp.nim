@@ -31,7 +31,7 @@ type
     seckey*: SkPrivateKey
     pubkey*: SkPublicKey
 
-  SkSignature* = secp256k1_ecdsa_recoverable_signature
+  SkSignature* = secp256k1_ecdsa_signature
     ## Representation of signature.
 
   SkContext* = ref object
@@ -152,10 +152,10 @@ proc init*(sig: var SkSignature, data: openarray[byte]): bool =
   ## Procedure returns ``true`` on success.
   let ctx = getContext()
   let length = len(data)
-  if length >= SkRawSignatureSize:
-    var recid = cint(data[SkRawPrivateKeySize * 2])
-    let res = secp256k1_ecdsa_recoverable_signature_parse_compact(ctx.context,
-                    addr sig, cast[ptr cuchar](unsafeAddr data[0]), recid)
+  if length >= 0:
+    let res = secp256k1_ecdsa_signature_parse_der(ctx.context, addr sig,
+                                           cast[ptr cuchar](unsafeAddr data[0]),
+                                                  csize(length))
     result = (res == 1) and (len(ctx.error) == 0)
 
 proc init*(sig: var SkSignature, data: string): bool =
@@ -279,14 +279,15 @@ proc toBytes*(sig: SkSignature, data: var openarray[byte]): int =
   ## Procedure returns number of bytes (octets) needed to store
   ## Secp256k1 signature.
   let ctx = getContext()
-  var recid = cint(0)
-  result = SkRawSignatureSize
-  if len(data) >= SkRawSignatureSize:
-    let res = secp256k1_ecdsa_recoverable_signature_serialize_compact(
-                              ctx.context, cast[ptr cuchar](unsafeAddr data[0]),
-                              addr recid, unsafeAddr sig)
-    if (res == 1) and (len(ctx.error) == 0):
-      data[64] = uint8(recid)
+  var buffer: array[72, byte]
+  let pdata = cast[ptr cuchar](addr buffer[0])
+  var plength = csize(len(buffer))
+  discard secp256k1_ecdsa_signature_serialize_der(ctx.context, pdata,
+                                                  addr plength,
+                                                  unsafeAddr sig)
+  result = plength
+  if len(data) >= plength:
+    copyMem(addr data[0], addr buffer[0], plength)
 
 proc getBytes*(key: SkPrivateKey): seq[byte] {.inline.} =
   ## Serialize Secp256k1 `private key` and return it.
@@ -299,8 +300,9 @@ proc getBytes*(key: SkPublicKey): seq[byte] {.inline.} =
 
 proc getBytes*(sig: SkSignature): seq[byte] {.inline.} =
   ## Serialize Secp256k1 `signature` and return it.
-  result = newSeq[byte](SkRawSignatureSize)
-  discard toBytes(sig, result)
+  result = newSeq[byte](72)
+  let length = toBytes(sig, result)
+  result.setLen(length)
 
 proc `==`*(ska, skb: SkPrivateKey): bool =
   ## Compare Secp256k1 `private key` objects for equality.
@@ -335,31 +337,28 @@ proc `$`*(key: SkPublicKey): string =
 
 proc `$`*(sig: SkSignature): string =
   ## Return string representation of Secp256k1 `signature`.s
-  var ssig: array[SkRawSignatureSize, byte]
-  discard sig.toBytes(ssig)
-  result = toHex(ssig)
+  result = toHex(sig.data)
 
-proc sign*[T: byte|char](key: SkPrivateKey, msg: openarray[T]): SkSignature {.gcsafe.} =
+proc sign*[T: byte|char](key: SkPrivateKey, msg: openarray[T]): SkSignature =
   ## Sign message `msg` using private key `key` and return signature object.
   let ctx = getContext()
   var hash = sha256.digest(msg)
-  let res = secp256k1_ecdsa_sign_recoverable(ctx.context, addr result,
-                                            cast[ptr cuchar](addr hash.data[0]),
-                                            cast[ptr cuchar](unsafeAddr key),
-                                            nil, nil)
+  let res = secp256k1_ecdsa_sign(ctx.context, addr result,
+                                 cast[ptr cuchar](addr hash.data[0]),
+                                 cast[ptr cuchar](unsafeAddr key),
+                                 nil, nil)
   if (res != 1) or (len(ctx.error) != 0):
     raiseSecp256k1Error()
 
 proc verify*[T: byte|char](sig: SkSignature, msg: openarray[T],
                            key: SkPublicKey): bool =
-  var pubkey: SkPublicKey
   let ctx = getContext()
   var hash = sha256.digest(msg)
-  let res = secp256k1_ecdsa_recover(ctx.context, addr pubkey, unsafeAddr sig,
-                                    cast[ptr cuchar](addr hash.data[0]))
+  let res = secp256k1_ecdsa_verify(ctx.context, unsafeAddr sig,
+                                   cast[ptr cuchar](addr hash.data[0]),
+                                   unsafeAddr key)
   if (res == 1) and (len(ctx.error) == 0):
-    if key == pubkey:
-      result = true
+    result = true
 
 proc clear*(key: var SkPrivateKey) {.inline.} =
   ## Wipe and clear memory of Secp256k1 `private key`.
