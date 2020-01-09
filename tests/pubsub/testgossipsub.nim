@@ -57,7 +57,6 @@ suite "GossipSub":
 
     check:
       waitFor(runTests()) == true
-    getGlobalDispatcher().timers.clear()
 
   test "GossipSub validation should fail":
     proc runTests(): Future[bool] {.async.} =
@@ -90,7 +89,6 @@ suite "GossipSub":
 
     check:
       waitFor(runTests()) == true
-    getGlobalDispatcher().timers.clear()
 
   test "GossipSub validation one fails and one succeeds":
     proc runTests(): Future[bool] {.async.} =
@@ -130,7 +128,6 @@ suite "GossipSub":
       result = true
     check:
       waitFor(runTests()) == true
-    getGlobalDispatcher().timers.clear()
 
   test "GossipSub should add remote peer topic subscriptions":
     proc runTests(): Future[bool] {.async.} =
@@ -164,7 +161,6 @@ suite "GossipSub":
 
     check:
       waitFor(runTests()) == true
-    getGlobalDispatcher().timers.clear()
 
   test "e2e - GossipSub should add remote peer topic subscriptions":
     proc testBasicGossipSub(): Future[bool] {.async.} =
@@ -198,7 +194,6 @@ suite "GossipSub":
 
     check:
       waitFor(testBasicGossipSub()) == true
-    getGlobalDispatcher().timers.clear()
 
   test "GossipSub should add remote peer topic subscriptions if both peers are subscribed":
     proc runTests(): Future[bool] {.async.} =
@@ -245,7 +240,6 @@ suite "GossipSub":
 
     check:
       waitFor(runTests()) == true
-    getGlobalDispatcher().timers.clear()
 
   test "e2e - GossipSub should add remote peer topic subscriptions if both peers are subscribed":
     proc testBasicGossipSub(): Future[bool] {.async.} =
@@ -285,7 +279,6 @@ suite "GossipSub":
 
     check:
       waitFor(testBasicGossipSub()) == true
-    getGlobalDispatcher().timers.clear()
 
   # test "send over fanout A -> B":
   #   proc runTests(): Future[bool] {.async.} =
@@ -358,7 +351,6 @@ suite "GossipSub":
 
     check:
       waitFor(runTests()) == true
-    getGlobalDispatcher().timers.clear()
 
   # test "send over mesh A -> B":
   #   proc runTests(): Future[bool] {.async.} =
@@ -529,4 +521,3 @@ suite "GossipSub":
 
     check:
       waitFor(runTests()) == true
-    getGlobalDispatcher().timers.clear()
