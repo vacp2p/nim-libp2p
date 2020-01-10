@@ -18,6 +18,8 @@ import pubsubpeer,
 
 export PubSubPeer
 
+const ValidationTimeout* = 1.minutes
+
 logScope:
   topic = "PubSub"
 
@@ -41,6 +43,7 @@ type
     triggerSelf*: bool                # trigger own local handler on publish
     cleanupLock: AsyncLock
     validators*: Table[string, HashSet[ValidatorHandler]]
+    validationTimeout: Duration
 
 proc sendSubs*(p: PubSub,
                peer: PubSubPeer,
@@ -228,23 +231,31 @@ method removeValidator*(p: PubSub,
 method validate*(p: PubSub, message: Message): Future[bool] {.async, base.} =
   var pending: seq[Future[bool]]
   trace "about to validate message"
-  for topic in message.topicIDs:
-    trace "looking for validators on topic", topicID = topic,
-                                             registered = toSeq(p.validators.keys)
-    if topic in p.validators:
-      trace "running validators for topic", topicID = topic
-      # TODO: add timeout to validator
-      pending.add(p.validators[topic].mapIt(it(topic, message)))
+  try:
+    for topic in message.topicIDs:
+      trace "looking for validators on topic", topicID = topic,
+                                               registered = toSeq(p.validators.keys)
+      if topic in p.validators:
+        trace "running validators for topic", topicID = topic
+        pending.add(p.validators[topic].mapIt(wait(it(topic, message), p.validationTimeout)))
 
-  await allFutures(pending)
-  if pending.allIt(it.read()): # only if all passed
-    result = true
+    await allFutures(pending)
+    if pending.allIt(it.read()): # only if all passed
+      result = true
+  except AsyncTimeoutError as e:
+    warn "validation timedout", exc = e.msg
+    for p in pending:
+      if not(p.finished()):
+        p.cancel()
+    result = false
 
 proc newPubSub*(p: typedesc[PubSub],
                 peerInfo: PeerInfo,
-                triggerSelf: bool = false): p =
+                triggerSelf: bool = false,
+                validationTimeout = ValidationTimeout): p =
   new result
   result.peerInfo = peerInfo
   result.triggerSelf = triggerSelf
   result.cleanupLock = newAsyncLock()
+  result.validationTimeout = validationTimeout
   result.initPubSub()

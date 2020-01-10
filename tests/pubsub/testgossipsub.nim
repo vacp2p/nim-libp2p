@@ -90,6 +90,37 @@ suite "GossipSub":
     check:
       waitFor(runTests()) == true
 
+  test "GossipSub validation should fail due to timeout":
+    proc runTests(): Future[bool] {.async.} =
+      proc handler(topic: string, data: seq[byte]) {.async, gcsafe.} =
+        check false # if we get here, it should fail
+
+      var nodes = generateNodes(2, true,
+                                validationTimeout = 1.seconds)
+      var awaiters: seq[Future[void]]
+      awaiters.add((await nodes[0].start()))
+      awaiters.add((await nodes[1].start()))
+
+      await subscribeNodes(nodes)
+      await nodes[1].subscribe("foobar", handler)
+      await sleepAsync(100.millis)
+
+      proc validator(topic: string,
+                     message: Message):
+                     Future[bool] {.async.} =
+        await sleepAsync(2.seconds)
+
+      nodes[1].addValidator("foobar", validator)
+      await nodes[0].publish("foobar", cast[seq[byte]]("Hello!"))
+
+      await sleepAsync(100.millis)
+      await allFutures(nodes[0].stop(), nodes[1].stop())
+      await allFutures(awaiters)
+      result = true
+
+    check:
+      waitFor(runTests()) == true
+
   test "GossipSub validation one fails and one succeeds":
     proc runTests(): Future[bool] {.async.} =
       var handlerFut = newFuture[bool]()
@@ -281,6 +312,7 @@ suite "GossipSub":
       waitFor(testBasicGossipSub()) == true
 
   # test "send over fanout A -> B":
+  #   skip()
   #   proc runTests(): Future[bool] {.async.} =
   #     var handlerFut = newFuture[bool]()
   #     proc handler(topic: string, data: seq[byte]) {.async, gcsafe.} =
@@ -353,6 +385,7 @@ suite "GossipSub":
       waitFor(runTests()) == true
 
   # test "send over mesh A -> B":
+  #   skip()
   #   proc runTests(): Future[bool] {.async.} =
   #     var passed: bool
   #     proc handler(topic: string, data: seq[byte]) {.async, gcsafe.} =
@@ -420,6 +453,7 @@ suite "GossipSub":
       waitFor(runTests()) == true
 
   # test "with multiple peers":
+  #   skip()
   #   proc runTests(): Future[bool] {.async.} =
   #     var nodes: seq[GossipSub]
   #     for i in 0..<10:
@@ -433,9 +467,9 @@ suite "GossipSub":
   #       closureScope:
   #         var dialerNode = dialer
   #         handler = proc(topic: string, data: seq[byte]) {.async, gcsafe, closure.} =
-  #           if dialerNode.peerInfo.peerId.get().pretty notin seen:
-  #             seen[dialerNode.peerInfo.peerId.get().pretty] = 0
-  #           seen[dialerNode.peerInfo.peerId.get().pretty].inc
+  #           if dialerNode.peerInfo.id notin seen:
+  #             seen[dialerNode.peerInfo.id] = 0
+  #           seen[dialerNode.peerInfo.id].inc
   #           check topic == "foobar"
 
   #       await dialer.subscribe("foobar", handler)
@@ -462,7 +496,7 @@ suite "GossipSub":
 
   #     await nodes[0].publish("foobar",
   #                       cast[seq[byte]]("from node " &
-  #                       nodes[1].peerInfo.peerId.get().pretty))
+  #                       nodes[1].peerInfo.id))
 
   #     await sleepAsync(1000.millis)
   #     await allFutures(nodes.mapIt(it.stop()))

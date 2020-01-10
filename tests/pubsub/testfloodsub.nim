@@ -129,6 +129,35 @@ suite "FloodSub":
     check:
       waitFor(runTests()) == true
 
+  test "FloodSub validation should fail due to timeout":
+    proc runTests(): Future[bool] {.async.} =
+      proc handler(topic: string, data: seq[byte]) {.async, gcsafe.} =
+        check false # if we get here, it should fail
+
+      var nodes = generateNodes(2, validationTimeout = 1.seconds)
+      var awaiters: seq[Future[void]]
+      awaiters.add((await nodes[0].start()))
+      awaiters.add((await nodes[1].start()))
+
+      await subscribeNodes(nodes)
+      await nodes[1].subscribe("foobar", handler)
+      await sleepAsync(100.millis)
+
+      proc validator(topic: string,
+                     message: Message): Future[bool] {.async.} =
+        await sleepAsync(2.seconds)
+
+      nodes[1].addValidator("foobar", validator)
+      await nodes[0].publish("foobar", cast[seq[byte]]("Hello!"))
+
+      await sleepAsync(100.millis)
+      await allFutures(nodes[0].stop(), nodes[1].stop())
+      await allFutures(awaiters)
+      result = true
+
+    check:
+      waitFor(runTests()) == true
+
   test "FloodSub validation one fails and one succeeds":
     proc runTests(): Future[bool] {.async.} =
       var handlerFut = newFuture[bool]()

@@ -1,11 +1,14 @@
-import options, tables
 import chronos
-import ../../libp2p/standard_setup
+import ../../libp2p/[standard_setup,
+                     protocols/pubsub/pubsub]
 export standard_setup
 
-proc generateNodes*(num: Natural, gossip: bool = false): seq[Switch] =
+proc generateNodes*(num: Natural,
+                    gossip: bool = false,
+                    validationTimeout = ValidationTimeout): seq[Switch] =
   for i in 0..<num:
-    result.add(newStandardSwitch(gossip = gossip))
+    result.add(newStandardSwitch(gossip = gossip,
+                                 validationTimeout = validationTimeout))
 
 proc subscribeNodes*(nodes: seq[Switch]) {.async.} =
   var dials: seq[Future[void]]
