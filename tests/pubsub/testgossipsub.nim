@@ -7,7 +7,7 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import unittest, sequtils, options, tables, sets, heapqueue
+import unittest, sequtils, options, tables, sets
 import chronos
 import utils, ../../libp2p/[peer,
                             peerinfo,
@@ -391,32 +391,33 @@ suite "GossipSub":
   #   check:
   #     waitFor(runTests()) == true
 
-  # test "e2e - GossipSub send over mesh A -> B":
-  #   proc runTests(): Future[bool] {.async.} =
-  #     var passed: Future[bool] = newFuture[bool]()
-  #     proc handler(topic: string, data: seq[byte]) {.async, gcsafe.} =
-  #       check topic == "foobar"
-  #       passed.complete(true)
+  test "e2e - GossipSub send over mesh A -> B":
+    proc runTests(): Future[bool] {.async.} =
+      var passed: Future[bool] = newFuture[bool]()
+      proc handler(topic: string, data: seq[byte]) {.async, gcsafe.} =
+        check topic == "foobar"
+        passed.complete(true)
 
-  #     var nodes = generateNodes(2, true)
-  #     var wait: seq[Future[void]]
-  #     wait.add(await nodes[0].start())
-  #     wait.add(await nodes[1].start())
+      var nodes = generateNodes(2, true)
+      var wait: seq[Future[void]]
+      wait.add(await nodes[0].start())
+      wait.add(await nodes[1].start())
 
-  #     await nodes[0].subscribe("foobar", handler)
-  #     await nodes[1].subscribe("foobar", handler)
+      await subscribeNodes(nodes)
+      await sleepAsync(100.millis)
 
-  #     await nodes[0].subscribeToPeer(nodes[1].peerInfo)
-  #     await sleepAsync(100.millis)
+      await nodes[1].subscribe("foobar", handler)
+      await sleepAsync(100.millis)
 
-  #     await nodes[0].publish("foobar", cast[seq[byte]]("Hello!"))
-  #     result = await passed
-  #     await nodes[1].stop()
-  #     await allFutures(wait)
+      await nodes[0].publish("foobar", cast[seq[byte]]("Hello!"))
+      result = await passed
 
-  #   check:
-  #     waitFor(runTests()) == true
-  #   getGlobalDispatcher().timers.clear()
+      await nodes[0].stop()
+      await nodes[1].stop()
+      await allFutures(wait)
+
+    check:
+      waitFor(runTests()) == true
 
   # test "with multiple peers":
   #   proc runTests(): Future[bool] {.async.} =
