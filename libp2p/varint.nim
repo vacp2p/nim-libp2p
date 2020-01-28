@@ -73,7 +73,6 @@ proc getUVarint*[T: PB|LP](vtype: typedesc[T],
   when vtype is PB:
     const MaxBits = byte(sizeof(outval) * 8)
   else:
-    var zcounter = 0
     when sizeof(outval) == 8:
       const MaxBits = 63'u8
     else:
@@ -91,13 +90,7 @@ proc getUVarint*[T: PB|LP](vtype: typedesc[T],
       outval = cast[type(outval)](0)
       break
     else:
-      let value = b and 0x7F'u8
-      outval = outval or (cast[type(outval)](value) shl shift)
-      when vtype is LP:
-        if value == 0x00'u8:
-          zcounter += 1
-        else:
-          zcounter = 0
+      outval = outval or (cast[type(outval)](b and 0x7F'u8) shl shift)
       shift += 7
     inc(outlen)
     if (b and 0x80'u8) == 0'u8:
@@ -109,16 +102,10 @@ proc getUVarint*[T: PB|LP](vtype: typedesc[T],
 
   when vtype is LP:
     if result == VarintStatus.Success:
-      if zcounter > 0:
-        if outval == cast[type(outval)](0):
-          if zcounter > 1:
-            outval = cast[type(outval)](0)
-            outlen = 0
-            result = VarintStatus.Overlong
-        else:
-          outval = cast[type(outval)](0)
-          outlen = 0
-          result = VarintStatus.Overlong
+      if outlen != vsizeof(outval):
+        outval = cast[type(outval)](0)
+        outlen = 0
+        result = VarintStatus.Overlong
 
 proc putUVarint*[T: PB|LP](vtype: typedesc[T],
                            pbytes: var openarray[byte],
