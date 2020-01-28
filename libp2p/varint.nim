@@ -21,6 +21,7 @@ type
     Success,
     Overflow,
     Incomplete,
+    Overlong,
     Overrun
 
   PB* = object
@@ -98,6 +99,13 @@ proc getUVarint*[T: PB|LP](vtype: typedesc[T],
   if result == VarintStatus.Incomplete:
     outlen = 0
     outval = cast[type(outval)](0)
+
+  when vtype is LP:
+    if result == VarintStatus.Success:
+      if outlen != vsizeof(outval):
+        outval = cast[type(outval)](0)
+        outlen = 0
+        result = VarintStatus.Overlong
 
 proc putUVarint*[T: PB|LP](vtype: typedesc[T],
                            pbytes: var openarray[byte],
@@ -241,19 +249,4 @@ proc encodeVarint*(vtype: typedesc[LP],
   if res == VarintStatus.Success:
     result.setLen(outsize)
   else:
-    raise newException(VarintError, "Error '" & $res & "'")
-
-proc decodeSVarint*(data: openarray[byte]): int {.inline.} =
-  ## Decode signed integer from array ``data`` and return it as result.
-  var outsize = 0
-  let res = getSVarint(data, outsize, result)
-  if res != VarintStatus.Success:
-    raise newException(VarintError, "Error '" & $res & "'")
-
-proc decodeUVarint*[T: PB|LP](vtype: typedesc[T],
-                              data: openarray[byte]): uint {.inline.} =
-  ## Decode unsigned integer from array ``data`` and return it as result.
-  var outsize = 0
-  let res = vtype.getUVarint(data, outsize, result)
-  if res != VarintStatus.Success:
     raise newException(VarintError, "Error '" & $res & "'")
