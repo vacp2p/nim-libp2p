@@ -130,8 +130,12 @@ proc readLp*(s: Connection): Future[seq[byte]] {.async, gcsafe.} =
       await s.readExactly(addr result[0], int(size))
   except LPStreamIncompleteError as exc:
     trace "remote connection ended unexpectedly", exc = exc.msg
+    result.setLen(0)
+    raise exc
   except LPStreamReadError as exc:
     trace "couldn't read from stream", exc = exc.msg
+    result.setLen(0)
+    raise exc
 
 proc writeLp*(s: Connection, msg: string | seq[byte]): Future[void] {.gcsafe.} =
   ## write lenght prefixed
