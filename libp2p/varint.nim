@@ -11,8 +11,10 @@
 ## This module supports two variants of variable integer
 ## - Google ProtoBuf varint, which is able to encode full uint64 number and
 ##   maximum size of encoded value is 10 octets (bytes).
+##   https://developers.google.com/protocol-buffers/docs/encoding#varints
 ## - LibP2P varint, which is able to encode only 63bits of uint64 number and
 ##   maximum size of encoded value is 9 octets (bytes).
+##   https://github.com/multiformats/unsigned-varint
 import bitops
 
 type
