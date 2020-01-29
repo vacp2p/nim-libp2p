@@ -115,26 +115,25 @@ proc readLp*(s: Connection): Future[seq[byte]] {.async, gcsafe.} =
     size: uint
     length: int
     res: VarintStatus
-  result = newSeq[byte](10)
+    buff = newSeq[byte](10)
   try:
-    for i in 0..<len(result):
-      await s.readExactly(addr result[i], 1)
-      res = LP.getUVarint(result.toOpenArray(0, i), length, size)
+    for i in 0..<len(buff):
+      await s.readExactly(addr buff[i], 1)
+      res = LP.getUVarint(buff.toOpenArray(0, i), length, size)
       if res == VarintStatus.Success:
         break
     if res != VarintStatus.Success or size > DefaultReadSize:
       raise newInvalidVarintException()
-    result.setLen(size)
+    buff.setLen(size)
     if size > 0.uint:
       trace "reading exact bytes from stream", size = size
-      await s.readExactly(addr result[0], int(size))
+      await s.readExactly(addr buff[0], int(size))
+    return buff
   except LPStreamIncompleteError as exc:
     trace "remote connection ended unexpectedly", exc = exc.msg
-    result.setLen(0)
     raise exc
   except LPStreamReadError as exc:
     trace "couldn't read from stream", exc = exc.msg
-    result.setLen(0)
     raise exc
 
 proc writeLp*(s: Connection, msg: string | seq[byte]): Future[void] {.gcsafe.} =
