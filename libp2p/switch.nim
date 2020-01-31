@@ -18,6 +18,7 @@ import connection,
        peerinfo,
        protocols/identify,
        protocols/pubsub/pubsub,
+       protocols/kademlia/kademlia,
        muxers/muxer,
        peer
 
@@ -45,6 +46,7 @@ type
       streamHandler*: StreamHandler
       secureManagers*: Table[string, Secure]
       pubSub*: Option[PubSub]
+      kadProto*: Option[KadProto]
 
 proc newNoPubSubException(): ref Exception {.inline.} =
   result = newException(NoPubSubException, "no pubsub provided!")
@@ -337,7 +339,8 @@ proc newSwitch*(peerInfo: PeerInfo,
                 identity: Identify,
                 muxers: Table[string, MuxerProvider],
                 secureManagers: Table[string, Secure] = initTable[string, Secure](),
-                pubSub: Option[PubSub] = none(PubSub)): Switch =
+                pubSub: Option[PubSub] = none(PubSub),
+                kadProto: Option[KadProto] = none(KadProto)): Switch =
   new result
   result.peerInfo = peerInfo
   result.ms = newMultistream()
@@ -374,3 +377,7 @@ proc newSwitch*(peerInfo: PeerInfo,
   if pubSub.isSome:
     result.pubSub = pubSub
     result.mount(pubSub.get())
+
+  if kadProto.isSome:
+    result.kadProto = kadProto
+    result.mount(kadProto.get())
