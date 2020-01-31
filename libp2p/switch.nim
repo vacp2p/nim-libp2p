@@ -316,6 +316,14 @@ proc publish*(s: Switch, topic: string, data: seq[byte]): Future[void] {.gcsafe.
 
   result = s.pubSub.get().publish(topic, data)
 
+proc ping*(s: Switch, peerInfo: PeerInfo, handler: PingHandler) {.async, gcsafe.} =
+  ## Ping a peer for Kademlia
+  if s.kadProto.isSome:
+    # XXX: Consider using connection instead of PeerInfo
+    #let conn = await s.dial(peerInfo, s.pubSub.get().codec)
+    #await s.pubSub.get().subscribeToPeer(conn)
+    result = s.kadProto.get().ping(peerInfo, handler)
+
 proc addValidator*(s: Switch,
                    topics: varargs[string],
                    hook: ValidatorHandler) =

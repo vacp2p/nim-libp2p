@@ -10,22 +10,18 @@ suite "Kademlia":
     check:
       1+1 == 2
 
-  test "Kademlia basic find node (XXX: bad test)":
+  test "Kademlia basic ping find node (XXX: bad test)":
     proc runTests(): Future[bool] {.async.} =
       var completionFut = newFuture[bool]()
       proc handler(data: seq[byte]) {.async, gcsafe.} =
-        # TODO: Return something, anything, here
+        # TODO: Return something, anything, here, like a pong
         # TODO: Then return closest known node here
         echo("***handler")
         completionFut.complete(true)
 
-      echo("***1")
       # TODO: Ensure these nodes have right characteristics
       var nodes = generateNodes(2)
-      echo("***2")
       var awaiters: seq[Future[void]]
-      echo("***3")
-      # TODO: Ensure start method
       awaiters.add((await nodes[0].start()))
       awaiters.add((await nodes[1].start()))
       echo("***4")
@@ -34,6 +30,9 @@ suite "Kademlia":
       # What does subscribeNodes(nodes) do?
       # Where does handler come in?
       # await nodes[1].subscribe("foobar", handler)
+
+      await nodes[0].ping(nodes[1].peerInfo, handler)
+
       # TODO: Use start handler here
       await sleepAsync(1000.millis)
 

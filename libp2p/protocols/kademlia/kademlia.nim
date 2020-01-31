@@ -27,6 +27,9 @@ const b = 271 # size of bits of keys used to identify nodes and data
 
 # Should parameterize by b, size of bits of keys (Peer ID dependent?)
 type
+  # XXX
+  PingHandler* = proc(data: seq[byte]): Future[void] {.gcsafe.}
+
   KadPeer = ref object of RootObj
     peerInfo: PeerInfo
   KBucket = seq[KadPeer] # should be k length
@@ -204,6 +207,24 @@ method addContact(p: KadProto, contact: PeerInfo) {.base, gcsafe.} =
   #generateNodes(n: Natural): seq[Switch]
 
 #waitFor(mainGen())
+
+# TODO: Methods for ping, store, find_node and find_value
+
+# XXX: subscribeToPeer takes connection, not peerId
+method ping*(p: KadProto,
+             peerInfo: PeerInfo,
+             handler: PingHandler) {.base, async.} =
+  # ping a peer to see if they are online
+  echo("*** NYI: ping ", peerInfo)
+
+  # Fake, not from dial
+  #echo "Got from remote - ", cast[string](await conn.readLp())
+  #handler(cast[byte]"xxx")
+
+  # TODO: We want to use handler here for whatever happens
+  #
+  #for peer in p.peers.values:
+  #  await p.sendSubs(peer, @[topic], true)
 
 # XXX: Might be overkill considering we only have one Kad type right now
 proc initKad(p: KadProto) =
