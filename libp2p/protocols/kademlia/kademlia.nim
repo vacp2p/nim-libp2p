@@ -1,7 +1,6 @@
-import options
-import strutils
-import tables
-import chronos
+import options, strutils, tables
+import chronos, chronicles
+import kadpeer
 import ../../../libp2p/[multistream,
                        protocols/identify,
                        connection,
@@ -28,16 +27,17 @@ const b = 271 # size of bits of keys used to identify nodes and data
 # Should parameterize by b, size of bits of keys (Peer ID dependent?)
 type
   # XXX
-  PingHandler* = proc(data: seq[byte]): Future[void] {.gcsafe.}
-
-  KadPeer = ref object of RootObj
-    peerInfo: PeerInfo
+  PingHandler* = proc(data: string): Future[void] {.gcsafe.}
   KBucket = seq[KadPeer] # should be k length
   #KBucket = array[k, KadPeer] # should be k length
   KBuckets = array[b, KBucket] # should be k length
   KadProto* = ref object of LPProtocol # declare a custom protocol
     peerInfo: PeerInfo # this peer's info, should be b length
     kbuckets: KBuckets # should be b length
+    peers*: Table[string, KadPeer] # peerid to peer map
+    # TODO: Unclear what kind of handlers we want here
+    pingHandler*: PingHandler
+    # TODO: More?
 
 proc `$`(k: KadPeer): string =
   return "<KadPeer>" & k.peerInfo.peerId.pretty
@@ -81,15 +81,70 @@ method which_kbucket(p: KadProto, contact: PeerInfo): int {.base.} =
   # Self, not really a bucket, better error type
   return -1
 
+# TODO: Need KadPeer here
+# TODO: Generally a bunch of stuff not implemented yet
+proc getPeer(p: KadProto,
+             peerInfo: PeerInfo,
+             proto: string): KadPeer =
+  if peerInfo.id in p.peers:
+    result = p.peers[peerInfo.id]
+    return
+
+  # create new Kad peer
+  let peer = newKadPeer(peerInfo, proto)
+  trace "created new kad peer", peerId = peer.id
+
+  p.peers[peer.id] = peer
+  peer.refs.inc # increment reference count
+  result = peer
+
+method rpcHandler*(p: KadProto,
+                   peer: KadPeer,
+                   rpcMsg: string) {.async, base.} =
+  echo("rpcHandler")
+  # XXX
+  # Assuming pingmsg
+  await p.pingHandler(rpcMsg)
+  # how do we go from here to pnig handler?
+
+method handleConn*(p: KadProto,
+                   conn: Connection,
+                   proto: string) {.base, async.} =
+  # handle incoming connections
+  # XXX: I would expect to see this upon dial...
+  # oh wait, cause we already read it?
+  #echo "Got from remote - ", cast[string](await conn.readLp())
+  echo "Got from remote"
+  # TODO: see pubsub/handleConn
+  #await conn.writeLp("Hello!")
+  #await conn.close()
+  if isNil(conn.peerInfo):
+    trace "no valid PeerId for peer"
+    await conn.close()
+    return
+
+  # XXX: Fake rpc
+  proc handler(peer: KadPeer, msg: string) {.async.} =
+    echo ("peer handler")
+    # call kad rpc handler
+    await p.rpcHandler(peer, msg)
+
+  let peer = p.getPeer(conn.peerInfo, proto)
+
+  peer.handler = handler
+
+  await peer.handle(conn) # spawn peer read loop
+  # TODO: Handle cleanup, etc
+
 method init(p: KadProto) =
   #{.base, gcsafe, async.} =
   # handle incoming connections in closure
+  # TODO: First hit this, then generalize a la pubsub/handleConn
+  # Whenever we get a connection this should be triggered
   proc handle(conn: Connection, proto: string) {.async, gcsafe.} =
     # main handler that gets triggered on connection for protocol string
-    echo "Got from remote - ", cast[string](await conn.readLp())
-    await conn.writeLp("Hello!")
-    await conn.close()
-    # await p.handleConn(conn, proto)
+    # triggered upon connection for protocol string
+    await p.handleConn(conn, proto)
 
   p.handler = handle # set proto handler
   p.codec = KadCodec # init proto with the correct string id
@@ -112,37 +167,6 @@ method addContact(p: KadProto, contact: PeerInfo) {.base, gcsafe.} =
   var kadPeer = KadPeer(peerInfo: contact)
   p.kbuckets[index].add(kadPeer)
 
-# XXX: If we want this, move elsewhere
-#proc createSwitch(ma: MultiAddress): (Switch, PeerInfo) =
-#  ## Helper to create a swith
-#
-#  let seckey = PrivateKey.random(RSA) # use a random key for peer id
-#  var peerInfo = PeerInfo.init(seckey) # create a peer id and assign
-#  peerInfo.addrs.add(ma) # set this peer's multiaddresses (can be any number)
-#
-#  let identify = newIdentify(peerInfo) # create the identify proto
-#
-#  proc createMplex(conn: Connection): Muxer =
-#    # helper proc to create multiplexers,
-#    # use this to perform any custom setup up,
-#    # such as adjusting timeout or anything else
-#    # that the muxer requires
-#    result = newMplex(conn)
-#
-#  let mplexProvider = newMuxerProvider(createMplex, MplexCodec) # create multiplexer
-#  let transports = @[Transport(newTransport(TcpTransport))] # add all transports (tcp only for now, but can be anything in the future)
-#  let muxers = {MplexCodec: mplexProvider}.toTable() # add all muxers
-#  let secureManagers = {SecioCodec: Secure(newSecio(seckey))}.toTable() # setup the secio and any other secure provider
-#
-#  # Add kadProto field to Switch type as optional? This is how pubsub works
-#  # let kadProto = KadProto newKad(peerInfo)
-#
-#  let switch = newSwitch(peerInfo,
-#                         transports,
-#                         identify,
-#                         muxers,
-#                         secureManagers)
-#  result = (switch, peerInfo)
 #
 #proc mainManual() {.async, gcsafe.} =
 #  let ma1: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
@@ -182,49 +206,45 @@ method addContact(p: KadProto, contact: PeerInfo) {.base, gcsafe.} =
 #
 # proc mainGen() {.async, gcsafe.} =
 
-#  var nodes = generateNodes(4)
-#  var awaiters: seq[Future[void]]
-#  awaiters.add((await nodes[0].start()))
-#  awaiters.add((await nodes[1].start()))
-#  awaiters.add((await nodes[2].start()))
-#  # XXX: start this later?
-#  awaiters.add((await nodes[3].start()))
-#
-  # I want nodes[0] to add other nodes as contacts
-  #await addContacts(nodes[0], nodes)
-  # await
-
-  # echo("NYI")
-  # TODO: Let's generate 10 nodes
-  # TODO: HERE ATM - FIND NODE
-  # TODO: Add many contacts
-  # TODO: Pluggable shorter id too
-  #
-  # If we generate N nodes there, what do we have?
-  # same multiaddress (essentially)
-  # what about peer info and peer id?
-  # Lets try this separately from above
-  #generateNodes(n: Natural): seq[Switch]
-
 #waitFor(mainGen())
 
 # TODO: Methods for ping, store, find_node and find_value
 
 # XXX: subscribeToPeer takes connection, not peerId
+# Also, only need string I think?
 method ping*(p: KadProto,
-             peerInfo: PeerInfo,
-             handler: PingHandler) {.base, async.} =
-  # ping a peer to see if they are online
-  echo("*** NYI: ping ", peerInfo)
+             peerInfo: PeerInfo) {.base, async.} =
+  var peer = p.peers[peerInfo.id]
+  await peer.send("ping")
 
-  # Fake, not from dial
-  #echo "Got from remote - ", cast[string](await conn.readLp())
-  #handler(cast[byte]"xxx")
-
-  # TODO: We want to use handler here for whatever happens
-  #
   #for peer in p.peers.values:
   #  await p.sendSubs(peer, @[topic], true)
+
+# XXX: Modelled after subscribe for now
+method listenForPing*(p: KadProto,
+                      handler: PingHandler) {.base, async.} =
+  ## listen to ping requests
+  ##
+  ## ``handler`` - user provided proc to be triggered on ping
+  # TODO
+  p.pingHandler = handler
+
+method listenToPeer*(p: KadProto,
+                        conn: Connection) {.base, async.} =
+  var peer = p.getPeer(conn.peerInfo, p.codec)
+  trace "setting connection for peer", peerId = conn.peerInfo.id
+  if not peer.isConnected:
+    peer.conn = conn
+
+  # handle connection close
+  conn.closeEvent.wait()
+  .addCallback do (udata: pointer = nil):
+    trace "connection closed, cleaning up peer",
+      peer = conn.peerInfo.id
+
+    # TODO: similar to pubsub, lock etc
+    #asyncCheck p.cleanUpHelper(peer)
+
 
 # XXX: Might be overkill considering we only have one Kad type right now
 proc initKad(p: KadProto) =

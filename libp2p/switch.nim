@@ -316,13 +316,26 @@ proc publish*(s: Switch, topic: string, data: seq[byte]): Future[void] {.gcsafe.
 
   result = s.pubSub.get().publish(topic, data)
 
-proc ping*(s: Switch, peerInfo: PeerInfo, handler: PingHandler) {.async, gcsafe.} =
+proc ping*(s: Switch, peerInfo: PeerInfo) {.async, gcsafe.} =
   ## Ping a peer for Kademlia
   if s.kadProto.isSome:
     # XXX: Consider using connection instead of PeerInfo
     #let conn = await s.dial(peerInfo, s.pubSub.get().codec)
     #await s.pubSub.get().subscribeToPeer(conn)
-    result = s.kadProto.get().ping(peerInfo, handler)
+    result = s.kadProto.get().ping(peerInfo)
+
+# XXX: Probably abstract this to have RPC as argument, not name
+proc listenForPing*(s: Switch, handler: PingHandler): Future[void] {.gcsafe.} =
+  # listen for pings
+  # TODO: exception handling
+  result = s.kadProto.get().listenForPing(handler)
+
+# XXX: Not sure if needed as separate proc
+proc listenToPeer*(s: Switch, peerInfo: PeerInfo) {.async, gcsafe.} =
+  ## Subscribe to Kad peer
+  if s.kadProto.isSome:
+    let conn = await s.dial(peerInfo, s.kadProto.get().codec)
+    await s.kadProto.get().listenToPeer(conn)
 
 proc addValidator*(s: Switch,
                    topics: varargs[string],

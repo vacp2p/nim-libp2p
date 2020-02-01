@@ -10,46 +10,33 @@ suite "Kademlia":
     check:
       1+1 == 2
 
-  test "Kademlia basic ping find node (XXX: bad test)":
+  test "Kademlia basic ping":
     proc runTests(): Future[bool] {.async.} =
       var completionFut = newFuture[bool]()
-      proc handler(data: seq[byte]) {.async, gcsafe.} =
-        # TODO: Return something, anything, here, like a pong
-        # TODO: Then return closest known node here
-        echo("***handler")
+      proc handler(data: string) {.async, gcsafe.} =
+        echo("Hit handler in kademlia ping ", data)
         completionFut.complete(true)
 
       # TODO: Ensure these nodes have right characteristics
       var nodes = generateNodes(2)
       var awaiters: seq[Future[void]]
-      awaiters.add((await nodes[0].start()))
-      awaiters.add((await nodes[1].start()))
-      echo("***4")
+      awaiters.add((await nodes[0].start())) # Alice
+      awaiters.add((await nodes[1].start())) # Bob
 
-      # We aren't subscribing to anything here, it is an RPC
-      # What does subscribeNodes(nodes) do?
-      # Where does handler come in?
-      # await nodes[1].subscribe("foobar", handler)
-
-      await nodes[0].ping(nodes[1].peerInfo, handler)
-
-      # TODO: Use start handler here
+      await listenAllNodes(nodes)
+      # XXX: Unclear if this is right abstraction, ping/find_node
+      # Equivalent 1-1 messages, vs pub/sub which are 1:N/N:1
+      await nodes[1].listenForPing(handler)
       await sleepAsync(1000.millis)
 
-      # Not publishing either, but sending to nodes[1]
-      # TODO: Look at publish interface and make (direct) send one
-      # TODO: This should be protobuf message
-      #await nodes[0].send("find_node(1)")
-
-      # XXX: should be in handler above
-      completionFut.complete(true)
+      # This can probably be peer ID only, then look up table etc
+      await nodes[0].ping(nodes[1].peerInfo)
 
       result = await completionFut
-      echo("***5")
-      # TODO: Ensure stop methods
       await allFutures(nodes[0].stop(), nodes[1].stop())
       await allFutures(awaiters)
-      echo("***6")
 
     check:
       waitFor(runTests()) == true
+
+# TODO: test "Kademlia basic find node":
