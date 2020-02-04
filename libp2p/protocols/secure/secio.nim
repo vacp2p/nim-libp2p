@@ -426,7 +426,7 @@ proc readLoop(sconn: SecureConnection, stream: BufferStream) {.async.} =
 
       await stream.pushTo(msg)
   except CatchableError as exc:
-    trace "exception occured", exc = exc.msg
+    trace "exception occurred SecureConnection.readLoop", exc = exc.msg
   finally:
     if not sconn.closed:
       await sconn.close()

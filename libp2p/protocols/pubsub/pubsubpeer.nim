@@ -62,7 +62,7 @@ proc handle*(p: PubSubPeer, conn: Connection) {.async.} =
       await p.handler(p, @[msg])
       p.recvdRpcCache.put($hexData.hash)
   except CatchableError as exc:
-    error "exception occured", exc = exc.msg
+    error "exception occurred in PubSubPeer.handle", exc = exc.msg
   finally:
     trace "exiting pubsub peer read loop", peer = p.id
     if not conn.closed():
@@ -100,7 +100,7 @@ proc send*(p: PubSubPeer, msgs: seq[RPCMsg]) {.async.} =
                                                         encoded = encodedHex
 
   except CatchableError as exc:
-    trace "exception occured", exc = exc.msg
+    trace "exception occurred in PubSubPeer.send", exc = exc.msg
 
 proc sendMsg*(p: PubSubPeer,
               peerId: PeerID,

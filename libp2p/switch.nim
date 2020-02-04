@@ -258,7 +258,7 @@ proc start*(s: Switch): Future[seq[Future[void]]] {.async, gcsafe.} =
     try:
         await s.upgradeIncoming(conn) # perform upgrade on incoming connection
     except CatchableError as exc:
-      trace "exception occured", exc = exc.msg
+      trace "exception occurred in Switch.start", exc = exc.msg
     finally:
       if not isNil(conn) and not conn.closed:
         await conn.close()

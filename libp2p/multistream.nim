@@ -148,7 +148,7 @@ proc handle*(m: MultisteamSelect, conn: Connection) {.async, gcsafe.} =
           warn "no handlers for ", protocol = ms
           await conn.write(m.na)
   except CatchableError as exc:
-    trace "exception occured", exc = exc.msg
+    trace "exception occurred in MultistreamSelect.handle", exc = exc.msg
   finally:
     trace "leaving multistream loop"
 
