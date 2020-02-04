@@ -337,6 +337,11 @@ proc listenToPeer*(s: Switch, peerInfo: PeerInfo) {.async, gcsafe.} =
     let conn = await s.dial(peerInfo, s.kadProto.get().codec)
     await s.kadProto.get().listenToPeer(conn)
 
+# XXX: Why do we need this stuff here?
+proc addContact*(s:Switch, peerInfo: PeerInfo) {.async, gcsafe.} =
+  if s.kadProto.isSome:
+    s.kadProto.get().addContact(peerInfo)
+
 proc addValidator*(s: Switch,
                    topics: varargs[string],
                    hook: ValidatorHandler) =

@@ -157,15 +157,16 @@ method stop*(p: KadProto) {.async, base.} =
   # stop kad
   discard
 
-# XXX: Property of Kad protocol...I think this is right
-# Not switch level concern, or is it?
-method addContact(p: KadProto, contact: PeerInfo) {.base, gcsafe.} =
-  echo("addContact ", contact)
+method addContact*(p: KadProto, contact: PeerInfo) {.base, gcsafe.} =
+  #echo("addContact ", contact)
   var index = p.which_kbucket(contact)
-  echo("which kbucket ", index)
-
+  #echo("which kbucket ", index)
   var kadPeer = KadPeer(peerInfo: contact)
   p.kbuckets[index].add(kadPeer)
+  echo("Printing kbuckets")
+  echo p.kbuckets
+
+##
 
 #
 #proc mainManual() {.async, gcsafe.} =
