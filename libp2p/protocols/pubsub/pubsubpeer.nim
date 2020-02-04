@@ -43,6 +43,8 @@ proc isConnected*(p: PubSubPeer): bool =
 proc `conn=`*(p: PubSubPeer, conn: Connection) =
   trace "attaching send connection for peer", peer = p.id
   p.sendConn = conn
+  p.sendConn.timeout = InfiniteDuration
+
   p.onConnect.fire()
 
 proc handle*(p: PubSubPeer, conn: Connection) {.async.} =
