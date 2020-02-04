@@ -213,7 +213,7 @@ proc decodeMessages*(pb: var ProtoBuffer): seq[Message] {.gcsafe.} =
 
 proc encodeRpcMsg*(msg: RPCMsg): ProtoBuffer {.gcsafe.} =
   result = initProtoBuffer()
-  trace "encoding msg: ", msg = msg
+  trace "encoding msg: ", msg = $msg
 
   if msg.subscriptions.len > 0:
     var subs = initProtoBuffer()

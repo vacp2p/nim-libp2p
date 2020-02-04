@@ -48,13 +48,13 @@ proc readMsg*(conn: Connection): Future[Option[Msg]] {.async, gcsafe.} =
   if headerVarint.isNone:
     return
 
-  trace "read header varint", varint = headerVarint
+  trace "read header varint", varint = $headerVarint
 
   let dataLenVarint = await conn.readMplexVarint()
   var data: seq[byte]
   if dataLenVarint.isSome and dataLenVarint.get() > 0.uint:
     data = await conn.read(dataLenVarint.get().int)
-    trace "read size varint", varint = dataLenVarint
+    trace "read size varint", varint = $dataLenVarint
 
   let header = headerVarint.get()
   result = some((header shr 3, MessageType(header and 0x7), data))

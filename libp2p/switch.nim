@@ -124,7 +124,7 @@ proc mux(s: Switch, conn: Connection): Future[void] {.async, gcsafe.} =
 
   await stream.close() # close identify stream
 
-  trace "connection's peerInfo", peerInfo = conn.peerInfo
+  trace "connection's peerInfo", peerInfo = $conn.peerInfo
 
   # store it in muxed connections if we have a peer for it
   if not isNil(conn.peerInfo):
@@ -159,7 +159,7 @@ proc getMuxedStream(s: Switch, peerInfo: PeerInfo): Future[Connection] {.async, 
     result = conn
 
 proc upgradeOutgoing(s: Switch, conn: Connection): Future[Connection] {.async, gcsafe.} =
-  trace "handling connection", conn = conn
+  trace "handling connection", conn = $conn
   result = conn
 
   # don't mux/secure twise
@@ -350,7 +350,7 @@ proc newSwitch*(peerInfo: PeerInfo,
 
   let s = result # can't capture result
   result.streamHandler = proc(stream: Connection) {.async, gcsafe.} =
-    trace "handling connection for", peerInfo = stream.peerInfo
+    trace "handling connection for", peerInfo = $stream.peerInfo
     await s.ms.handle(stream) # handle incoming connection
 
   result.mount(identity)

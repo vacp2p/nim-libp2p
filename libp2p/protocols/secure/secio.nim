@@ -268,19 +268,19 @@ proc transactMessage(conn: Connection,
     if length <= SecioMaxMessageSize:
       buf.setLen(length)
       await conn.readExactly(addr buf[0], length)
-      trace "Received message body", conn = conn,
+      trace "Received message body", conn = $conn,
                                      length = length,
                                      buff = buf
       result = buf
     else:
-      trace "Received size of message exceed limits", conn = conn,
+      trace "Received size of message exceed limits", conn = $conn,
                                                       length = length
   except AsyncStreamIncompleteError:
-    trace "Connection dropped while reading", conn = conn
+    trace "Connection dropped while reading", conn = $conn
   except AsyncStreamReadError:
-    trace "Error reading from connection", conn = conn
+    trace "Error reading from connection", conn = $conn
   except AsyncStreamWriteError:
-    trace "Could not write to connection", conn = conn
+    trace "Could not write to connection", conn = $conn
 
 proc handshake(s: Secio, conn: Connection): Future[SecureConnection] {.async.} =
   var
@@ -310,7 +310,8 @@ proc handshake(s: Secio, conn: Connection): Future[SecureConnection] {.async.} =
 
   localPeerId = PeerID.init(s.localPublicKey)
 
-  trace "Local proposal", schemes = SecioExchanges, ciphers = SecioCiphers,
+  trace "Local proposal", schemes = SecioExchanges,
+                          ciphers = SecioCiphers,
                           hashes = SecioHashes,
                           pubkey = toHex(localBytesPubkey),
                           peer = localPeerId
@@ -318,12 +319,12 @@ proc handshake(s: Secio, conn: Connection): Future[SecureConnection] {.async.} =
   var answer = await transactMessage(conn, request)
 
   if len(answer) == 0:
-    trace "Proposal exchange failed", conn = conn
+    trace "Proposal exchange failed", conn = $conn
     raise newException(SecioError, "Proposal exchange failed")
 
   if not decodeProposal(answer, remoteNonce, remoteBytesPubkey, remoteExchanges,
                         remoteCiphers, remoteHashes):
-    trace "Remote proposal decoding failed", conn = conn
+    trace "Remote proposal decoding failed", conn = $conn
     raise newException(SecioError, "Remote proposal decoding failed")
 
   if not remotePubkey.init(remoteBytesPubkey):
@@ -359,11 +360,11 @@ proc handshake(s: Secio, conn: Connection): Future[SecureConnection] {.async.} =
   var localExchange = createExchange(epubkey, signature.getBytes())
   var remoteExchange = await transactMessage(conn, localExchange)
   if len(remoteExchange) == 0:
-    trace "Corpus exchange failed", conn = conn
+    trace "Corpus exchange failed", conn = $conn
     raise newException(SecioError, "Corpus exchange failed")
 
   if not decodeExchange(remoteExchange, remoteEBytesPubkey, remoteEBytesSig):
-    trace "Remote exchange decoding failed", conn = conn
+    trace "Remote exchange decoding failed", conn = $conn
     raise newException(SecioError, "Remote exchange decoding failed")
 
   if not remoteESignature.init(remoteEBytesSig):
@@ -372,10 +373,10 @@ proc handshake(s: Secio, conn: Connection): Future[SecureConnection] {.async.} =
 
   var remoteCorpus = answer & request[4..^1] & remoteEBytesPubkey
   if not remoteESignature.verify(remoteCorpus, remotePubkey):
-    trace "Signature verification failed", scheme = remotePubkey.scheme,
-                                           signature = remoteESignature,
-                                           pubkey = remotePubkey,
-                                           corpus = remoteCorpus
+    trace "Signature verification failed", scheme = $remotePubkey.scheme,
+                                           signature = $remoteESignature,
+                                           pubkey = $remotePubkey,
+                                           corpus = $remoteCorpus
     raise newException(SecioError, "Signature verification failed")
 
   trace "Signature verified", scheme = remotePubkey.scheme

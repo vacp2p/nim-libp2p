@@ -36,7 +36,7 @@ proc put*[V](t: TimedCache[V],
              key: string,
              val: V = "",
              timeout: Duration,
-             handler: ExpireHandler[V] = nil) = 
+             handler: ExpireHandler[V] = nil) =
   trace "adding entry to timed cache", key = key
   t.cache[key] = TimedEntry[V](val: val, handler: handler)
 
@@ -57,7 +57,7 @@ proc put*[V](t: TimedCache[V],
              handler: ExpireHandler[V] = nil) =
   t.put(key, val, t.timeout, handler)
 
-proc contains*[V](t: TimedCache[V], key: string): bool = 
+proc contains*[V](t: TimedCache[V], key: string): bool =
   t.cache.contains(key)
 
 proc del*[V](t: TimedCache[V], key: string) =

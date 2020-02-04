@@ -58,7 +58,7 @@ proc handle*(p: PubSubPeer, conn: Connection) {.async.} =
         continue
 
       let msg = decodeRpcMsg(data)
-      trace "decoded msg from peer", peer = p.id, msg = msg
+      trace "decoded msg from peer", peer = p.id, msg = $msg
       await p.handler(p, @[msg])
       p.recvdRpcCache.put($hexData.hash)
   except CatchableError as exc:
