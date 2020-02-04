@@ -40,7 +40,7 @@ type
       transports*: seq[Transport]
       protocols*: seq[LPProtocol]
       muxers*: Table[string, MuxerProvider]
-      ms*: MultisteamSelect
+      ms*: MultistreamSelect
       identity*: Identify
       streamHandler*: StreamHandler
       secureManagers*: Table[string, Secure]
