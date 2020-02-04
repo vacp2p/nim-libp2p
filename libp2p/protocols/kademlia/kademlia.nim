@@ -60,6 +60,10 @@ proc `$`(k: KBuckets): string =
 # Returns XOR distance as PeerID
 # Assuming these are of equal length, b
 # Which result type do we want here?
+#
+# xor distance Qm*UsRaqA Qm*UsRaqA  : 11*111111
+# DATA: @[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+# Wonder why it pretty prints 1 instead of 0
 proc xor_distance(a, b: PeerID): PeerID =
   var data: seq[byte]
   for i in 0..<a.data.len:
@@ -163,14 +167,156 @@ method addContact*(p: KadProto, contact: PeerInfo) {.base, gcsafe.} =
   #echo("which kbucket ", index)
   var kadPeer = KadPeer(peerInfo: contact)
   p.kbuckets[index].add(kadPeer)
-  echo("Printing kbuckets")
-  echo p.kbuckets
+  #echo("Printing kbuckets")
+  #echo p.kbuckets
+  echo("Added contact ", kadPeer) #, " to bucket ", index)
+
+# XXX: Based on mockFindNode, copy pasting some stuff
+# Mocking RPC to node asking for FIND_NODE(id)
+# NOTE: Slightly misleading name, it really find closest nodes
+# MUST NOT return the originating node in its response
+# Returns up to k contacts
+# TODO: When being queried, this should also update that node's routing table
+method findNode*(p: KadProto, id: PeerId): Future[seq[KadPeer]] {.base, async.} =
+  echo("findNode NYI")
+  # XXX: HERE ATM
+#  var nameStr = "[" & $node.name & "] "
+#  echo(nameStr, "mockFindNode: looking for up to k=", k, " contacts closest to: ", targetid)
+#  # Simulating some RPC latency
+#  os.sleep(1000)
+#
+#  # Find up to k closest nodes to target
+#  #
+#  # NOTE: Bruteforcing my sorting all contacts, not efficient but least error-prone for now.
+#  # TODO: Make this more efficient, sketch (might be wrong, verify):
+#  # 0) If reach k contacts at any point, return
+#  # 1) Look in kb=which_kbucket(node, targetid)
+#  # 2) Then traverse backward from kb to key bucket 0
+#  # 3) If still not reached k, go upwards in kbucket from kb+1
+#  # 4) If still not k contacts, return anyway
+#  # Look at other implementations to see how this is done
+#  var contacts: seq[Contact]
+#  for kb in node.kbuckets:
+#    for contact in kb:
+#      contacts.add(contact)
+#
+#  proc distCmp(x, y: Contact): int =
+#    if distance(x.id, targetid) < distance(y.id, targetid): -1 else: 1
+#
+#  contacts.sort(distCmp)
+#  var res: seq[Contact]
+#  for c in contacts:
+#    if res.len == k:
+#      break
+#    res.add(c)
+#  echo(nameStr, "Found up to k contacts: ", res)
+#  return res
+#
 
 
-method iterativeFindNode*(p: KadProto, id: PeerID) {.base, gcsafe.} =
-  echo("iterativeFindNode ", id)
+# HEREATM - async?
+# XXX
+method iterativeFindNode*(p: KadProto, target: PeerID) {.base, gcsafe, async.} =
+  echo("iterativeFindNode ", target)
+  var self = p.peerInfo.peerId
+  echo("xor distance ", self, " ", target, "  : ", xor_distance(self, target))
 
-##
+  # Copy-paste from nim-kad-dht
+  var candidate: KadPeer
+  var shortlist: seq[KadPeer]
+  var contacted: seq[KadPeer]
+
+  # XXX: Picking first candidate right now
+  # TODO: Extend to pick alpha closest contacts
+  for i in 0..p.kbuckets.len - 1:
+    if p.kbuckets[i].len != 0:
+      candidate = p.kbuckets[i][0]
+      break
+  echo("Found initial candidate: ", candidate)
+
+  # We note the closest node we have
+  var closestNode = candidate
+  var movedCloser = true
+
+  # Keep track of number of probed and active contacts
+  # XXX: What counts as active? When should we reset this etc?
+  # For now hardcode
+  var activeContacts = 0
+  #
+  # ShortList of contacts to be contacted
+  shortlist.add(candidate)
+
+  # --------------------
+  # XXX: Code dup, fix in-place sort fn
+  # TODO: Move out? should be a HOF
+  proc distCmp(x, y: KadPeer): int =
+    var d1 = xor_distance(x.peerInfo.peerId, target)
+    var d2 = xor_distance(y.peerInfo.peerId, target)
+    if d1 < d2:
+      -1
+    else: 1
+    #if xor_distance(x.id, target) < xor_distance(y.id, target): -1 else: 1
+
+  # Take alpha candidates from shortlist, call them
+  # TODO: Extend to send parallel async FIND_NODE requests here
+  # TODO: Mark candidates in-flight?
+  # XXX: Putting upper limit
+  for i in 0..16:
+    if ((movedCloser == false) and (shortlist.len() == 0)):
+      # XXX: Not tested
+      echo("Didn't move closer to node and no nodes left to check in shortlist, breaking")
+      break
+    echo("Active contacts: ", activeContacts, " desired: ", k)
+    if (activeContacts >= k):
+      echo("Found desired number of active and probed contacts ", k, " breaking")
+      break
+    # Get contact from shortlist
+    # XXX: Error handling and do first here?
+    var c = shortlist[0]
+    shortlist.delete(0)
+    contacted.add(c)
+
+    # TODO: Replace with deal dial here
+    # XXX HEREATM
+    # Mock dial them them
+    echo("Mock dialing ", c)
+    # XXX: Assuming c.id it exists in networkTable
+    echo("WOULD MOCK FIND NODE ", c.id, " ", target)
+    var resp = await p.findNode(target)
+    #var resp = await mockFindNode(networkTable[c.id], targetid)
+    #echo("Response ", resp)
+
+    # Add new nodes as contacts, update activeContacts, shortlist and closestNode
+    # XXX: Does it matter which order we update closestNode and shortlist in?
+    # Only one, the one we probed - responses we don't know yet
+    # TODO Uncomment this
+#    activeContacts += 1
+#    for c in resp:
+#      AddContact(node, c)
+#    echo(namestr, "Adding new nodes as contacts")
+#    echo node
+#    shortlist = resp
+#    shortlist.sort(distCmp)
+#    echo("Update shortlist ", shortlist)
+#
+#    # TODO: Undefined fn names to fix
+#    # Update closest node
+#    var closestCandidate = findClosestNode(shortlist, targetid)
+#    var d1 = xor_distance(closestCandidate.id, targetid)
+#    var d2 = xor_distance(closestNode.id, targetid)
+#    if (d1 < d2):
+#      echo(namestr, "Found new closestNode ", closestCandidate)
+#      closestNode = closestcandidate
+#      movedCloser = true
+#    else:
+#      movedCloser = false
+#
+
+  # -----------------
+
+
+
+
 
 #
 #proc mainManual() {.async, gcsafe.} =
@@ -225,6 +371,7 @@ method ping*(p: KadProto,
   #for peer in p.peers.values:
   #  await p.sendSubs(peer, @[topic], true)
 
+            
 # XXX: Modelled after subscribe for now
 method listenForPing*(p: KadProto,
                       handler: PingHandler) {.base, async.} =
