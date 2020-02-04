@@ -166,6 +166,10 @@ method addContact*(p: KadProto, contact: PeerInfo) {.base, gcsafe.} =
   echo("Printing kbuckets")
   echo p.kbuckets
 
+
+method iterativeFindNode*(p: KadProto, id: PeerID) {.base, gcsafe.} =
+  echo("iterativeFindNode ", id)
+
 ##
 
 #

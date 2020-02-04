@@ -342,6 +342,10 @@ proc addContact*(s:Switch, peerInfo: PeerInfo) {.async, gcsafe.} =
   if s.kadProto.isSome:
     s.kadProto.get().addContact(peerInfo)
 
+proc iterativeFindNode*(s: Switch, id: PeerId) {.async, gcsafe.} =
+  if s.kadProto.isSome:
+    s.kadProto.get().iterativeFindNode(id)
+
 proc addValidator*(s: Switch,
                    topics: varargs[string],
                    hook: ValidatorHandler) =
