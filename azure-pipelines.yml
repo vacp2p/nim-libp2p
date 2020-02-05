@@ -123,7 +123,7 @@ steps:
       # regressions of the fast-paced Nim development while maintaining the
       # flexibility to apply patches
       curl -O -L -s -S https://raw.githubusercontent.com/status-im/nimbus-build-system/master/scripts/build_nim.sh
-      env MAKE="mingw32-make -j${ncpu}" ARCH_OVERRIDE=%PLATFORM% bash build_nim.sh Nim csources dist/nimble NimBinaries
+      env MAKE="mingw32-make -j${ncpu}" ARCH_OVERRIDE=$(PLATFORM) bash build_nim.sh Nim csources dist/nimble NimBinaries
 
       echo "##vso[task.prependpath]$PWD/Nim/bin"
     displayName: 'Building Nim (Windows)'
@@ -136,7 +136,7 @@ steps:
       # regressions of the fast-paced Nim development while maintaining the
       # flexibility to apply patches
       curl -O -L -s -S https://raw.githubusercontent.com/status-im/nimbus-build-system/master/scripts/build_nim.sh
-      env MAKE="make -j${ncpu}" ARCH_OVERRIDE=%PLATFORM% bash build_nim.sh Nim csources dist/nimble NimBinaries
+      env MAKE="make -j${ncpu}" ARCH_OVERRIDE=$(PLATFORM) bash build_nim.sh Nim csources dist/nimble NimBinaries
 
       echo "##vso[task.prependpath]$PWD/Nim/bin"
     displayName: 'Building Nim (POSIX)'
