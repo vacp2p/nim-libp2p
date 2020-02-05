@@ -155,13 +155,13 @@ steps:
       nimble refresh
       nimble install -y --depsOnly
     displayName: 'Building dependencies (Posix)'
-    condition: eq(variables['Agent.OS'], 'Windows_NT')
+    condition: ne(variables['Agent.OS'], 'Windows_NT')
   - powershell: |
       echo $Env:Path
       nimble refresh
       nimble install -y --depsOnly
     displayName: 'Building dependencies (Windows)'
-    condition: ne(variables['Agent.OS'], 'Windows_NT')
+    condition: eq(variables['Agent.OS'], 'Windows_NT')
 
   - bash: |
       echo "PATH=${PATH}"
