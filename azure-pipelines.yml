@@ -154,7 +154,14 @@ steps:
       echo "PATH=${PATH}"
       nimble refresh
       nimble install -y --depsOnly
-    displayName: 'Building the package dependencies'
+    displayName: 'Building dependencies (Posix)'
+    condition: eq(variables['Agent.OS'], 'Windows_NT')
+  - powershell: |
+      echo $Env:Path
+      nimble refresh
+      nimble install -y --depsOnly
+    displayName: 'Building the package dependencies (Windows)'
+    condition: ne(variables['Agent.OS'], 'Windows_NT')
 
   - bash: |
       echo "PATH=${PATH}"
