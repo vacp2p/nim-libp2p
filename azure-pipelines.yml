@@ -104,6 +104,8 @@ steps:
   - powershell: |
       # export custom mingw PATH to other tasks
       echo "##vso[task.prependpath]C:\custom\${MINGW_DIR}\bin"
+    displayName: 'Mingw PATH (Windows)'
+    condition: eq(variables['Agent.OS'], 'Windows_NT')
 
   - bash: |
       echo "PATH=${PATH}"
