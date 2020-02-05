@@ -132,6 +132,10 @@ steps:
       echo "##vso[task.prependpath]$PWD/Nim/bin"
     displayName: 'Building Nim (Windows)'
     condition: eq(variables['Agent.OS'], 'Windows_NT')
+  - powershell: |
+      echo "##vso[task.prependpath]$pwd\Nim\bin"
+    displayName: 'Set env variable (Windows)'
+    condition: eq(variables['Agent.OS'], 'Windows_NT')
 
   - bash: |
       echo "PATH=${PATH}"
@@ -141,11 +145,12 @@ steps:
       # flexibility to apply patches
       curl -O -L -s -S https://raw.githubusercontent.com/status-im/nimbus-build-system/master/scripts/build_nim.sh
       env MAKE="make -j${ncpu}" ARCH_OVERRIDE=$(PLATFORM) bash build_nim.sh Nim csources dist/nimble NimBinaries
-
-      echo "##vso[task.prependpath]$PWD/Nim/bin"
     displayName: 'Building Nim (POSIX)'
     condition: ne(variables['Agent.OS'], 'Windows_NT')
-
+  - bash: |
+      echo "##vso[task.prependpath]$PWD/Nim/bin"
+    displayName: 'Set env variable (Posix)'
+    condition: ne(variables['Agent.OS'], 'Windows_NT')
 
   - bash: |
       # install and build go-libp2p-daemon
