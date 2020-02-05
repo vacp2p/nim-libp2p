@@ -31,7 +31,6 @@ const
   SecioExchanges = "P-256,P-384,P-521"
   SecioCiphers = "TwofishCTR,AES-256,AES-128"
   SecioHashes = "SHA256,SHA512"
-  SecioRWTimeout = 2.minutes
 
 type
   Secio = ref object of Secure
@@ -234,7 +233,6 @@ proc newSecureConnection(conn: Connection,
   new result
 
   result.stream = conn
-  result.timeout = SecioRWTimeout
   result.closeEvent = newAsyncEvent()
 
   let i0 = if order < 0: 1 else: 0
