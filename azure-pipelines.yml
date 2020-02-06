@@ -40,14 +40,14 @@ strategy:
     # MacOS_64bit:
     #   VM: 'macOS-10.14'
     #   PLATFORM: x64
-    #   WEAVE_TEST_LANG: c
+    #   TEST_LANG: c
 
 pool:
   vmImage: $(VM)
 
 variables:
   GOPATH: '$(system.defaultWorkingDirectory)/go'
-  V: 1 # Scripts verbosity, 1 for debugging build scripts
+  V: 0 # Scripts verbosity, 1 for debugging build scripts
 
 steps:
   - task: CacheBeta@1
