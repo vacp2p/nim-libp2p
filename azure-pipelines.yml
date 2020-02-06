@@ -103,7 +103,7 @@ steps:
     condition: eq(variables['Agent.OS'], 'Windows_NT')
   - powershell: |
       # export custom mingw PATH to other tasks
-      echo "##vso[task.prependpath]C:\custom\${MINGW_DIR}\bin"
+      echo "##vso[task.prependpath]c:\custom\${MINGW_DIR}\bin"
     displayName: 'Mingw PATH (Windows)'
     condition: eq(variables['Agent.OS'], 'Windows_NT')
 
@@ -133,9 +133,8 @@ steps:
       # regressions of the fast-paced Nim development while maintaining the
       # flexibility to apply patches
       curl -O -L -s -S https://raw.githubusercontent.com/status-im/nimbus-build-system/master/scripts/build_nim.sh
-      env MAKE="mingw32-make -j${ncpu}" ARCH_OVERRIDE=$(PLATFORM) bash build_nim.sh Nim csources dist/nimble NimBinaries
+      env MAKE="mingw32-make -j${ncpu}" V=1 ARCH_OVERRIDE=$(PLATFORM) bash build_nim.sh Nim csources dist/nimble NimBinaries
 
-      echo "##vso[task.prependpath]$PWD/Nim/bin"
     displayName: 'Building Nim (Windows)'
     condition: eq(variables['Agent.OS'], 'Windows_NT')
   - powershell: |
