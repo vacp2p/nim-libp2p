@@ -26,7 +26,7 @@ type
   InvalidVarintException = object of LPStreamError
 
 proc newInvalidVarintException*(): ref InvalidVarintException =
-  newException(InvalidVarintException, "unable to prase varint")
+  newException(InvalidVarintException, "unable to parse varint")
 
 proc init*[T: Connection](self: var T, stream: LPStream) =
   ## create a new Connection for the specified async reader/writer
