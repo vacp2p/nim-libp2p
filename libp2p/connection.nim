@@ -28,7 +28,7 @@ type
   InvalidVarintException = object of LPStreamError
 
 proc newInvalidVarintException*(): ref InvalidVarintException =
-  newException(InvalidVarintException, "unable to prase varint")
+  newException(InvalidVarintException, "unable to parse varint")
 
 proc newConnection*(stream: LPStream,
                     timeout: Duration = DefaultRWTimeout): Connection =
