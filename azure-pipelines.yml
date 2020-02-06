@@ -45,6 +45,7 @@ pool:
 
 variables:
   GOPATH: '$(system.defaultWorkingDirectory)/go'
+  V: 1 # Scripts verbosity, 1 for debugging build scripts
 
 steps:
   - task: CacheBeta@1
@@ -133,7 +134,7 @@ steps:
       # regressions of the fast-paced Nim development while maintaining the
       # flexibility to apply patches
       curl -O -L -s -S https://raw.githubusercontent.com/status-im/nimbus-build-system/master/scripts/build_nim.sh
-      env MAKE="mingw32-make -j${ncpu}" V=1 ARCH_OVERRIDE=$(PLATFORM) bash build_nim.sh Nim csources dist/nimble NimBinaries
+      env MAKE="mingw32-make -j${ncpu}" ARCH_OVERRIDE=$(PLATFORM) bash build_nim.sh Nim csources dist/nimble NimBinaries
 
     displayName: 'Building Nim (Windows)'
     condition: eq(variables['Agent.OS'], 'Windows_NT')
