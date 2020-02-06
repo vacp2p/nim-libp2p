@@ -179,6 +179,36 @@ suite "Mplex":
     check:
       waitFor(testNewStream()) == true
 
+  test "e2e - write limits":
+    proc testNewStream(): Future[bool] {.async.} =
+      let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
+
+      proc connHandler(conn: Connection) {.async, gcsafe.} =
+        proc handleMplexListen(stream: Connection) {.async, gcsafe.} =
+          let msg = await stream.readLp()
+          check cast[string](msg) == "Hello from stream!"
+          await stream.close()
+
+        let mplexListen = newMplex(conn)
+        mplexListen.streamHandler = handleMplexListen
+        discard mplexListen.handle()
+
+      let transport1: TcpTransport = newTransport(TcpTransport)
+      discard await transport1.listen(ma, connHandler)
+
+      let transport2: TcpTransport = newTransport(TcpTransport)
+      let conn = await transport2.dial(transport1.ma)
+
+      let mplexDial = newMplex(conn)
+      let stream  = await mplexDial.newStream()
+      let bigseq = newSeq[uint8](MaxMsgSize + 1)
+      await stream.writeLp(bigseq)
+      await conn.close()
+      result = true
+
+    check:
+      waitFor(testNewStream()) == true
+
   test "e2e - read/write initiator":
     proc testNewStream(): Future[bool] {.async.} =
       let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
