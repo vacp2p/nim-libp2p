@@ -35,10 +35,12 @@ strategy:
     #   PLATFORM: x86
     #   TEST_LANG: c
 
-    MacOS_64bit:
-      VM: 'macOS-10.14'
-      PLATFORM: x64
-      WEAVE_TEST_LANG: c
+    # TODO: go version on Azure is problematic,
+    #       we have xerrors package issue
+    # MacOS_64bit:
+    #   VM: 'macOS-10.14'
+    #   PLATFORM: x64
+    #   WEAVE_TEST_LANG: c
 
 pool:
   vmImage: $(VM)
@@ -160,6 +162,8 @@ steps:
 
   - bash: |
       # install and build go-libp2p-daemon
+      go version
+
       echo "##vso[task.prependpath]$(GOPATH)/bin"
       curl -O -L -s -S https://raw.githubusercontent.com/status-im/nimbus-build-system/master/scripts/build_p2pd.sh
       bash build_p2pd.sh p2pdCache
