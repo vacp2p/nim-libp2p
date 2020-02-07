@@ -1,4 +1,4 @@
-import unittest, sequtils, sugar, strformat, options, strformat, random
+import unittest, sequtils, sugar, strformat, options, strformat
 import chronos, nimcrypto/utils, chronicles
 import ../libp2p/[connection,
                   stream/lpstream,
