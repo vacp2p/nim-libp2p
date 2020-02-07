@@ -107,8 +107,7 @@ method handle*(m: Mplex) {.async, gcsafe.} =
                                            size = data.len
 
           if data.len > MaxMsgSize:
-             raise newException(CatchableError,
-                                "Message size over the limit of 1MiB per message.")
+             raise newLPStreamLimitError();
           await channel.pushTo(data)
         of MessageType.CloseIn, MessageType.CloseOut:
           trace "closing channel", id = id,
