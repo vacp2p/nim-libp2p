@@ -146,6 +146,7 @@ suite "Mplex":
       await stream.writeLp("Hello from stream!")
       await lock or timeout
       check lock.finished
+      timeout.cancel()
       await conn.close()
       result = true
 
@@ -184,6 +185,7 @@ suite "Mplex":
       await stream.writeLp(bigseq)
       await lock or timeout
       check timeout.finished # this test has to timeout!
+      lock.cancel();
       await conn.close()
       result = true
 
