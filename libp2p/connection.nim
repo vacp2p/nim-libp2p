@@ -122,8 +122,10 @@ proc readLp*(s: Connection): Future[seq[byte]] {.async, gcsafe.} =
       res = LP.getUVarint(buff.toOpenArray(0, i), length, size)
       if res == VarintStatus.Success:
         break
-    if res != VarintStatus.Success or size > DefaultReadSize:
+    if res != VarintStatus.Success:
       raise newInvalidVarintException()
+    if size > DefaultReadSize:
+      raise newLPStreamLimitError()
     buff.setLen(size)
     if size > 0.uint:
       trace "reading exact bytes from stream", size = size
