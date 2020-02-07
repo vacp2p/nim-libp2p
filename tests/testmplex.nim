@@ -1,4 +1,4 @@
-import unittest, sequtils, sugar, strformat, options, strformat
+import unittest, sequtils, sugar, strformat, options, strformat, random
 import chronos, nimcrypto/utils, chronicles
 import ../libp2p/[connection,
                   stream/lpstream,
@@ -119,12 +119,16 @@ suite "Mplex":
   
   test "e2e - read/write receiver":
     proc testNewStream(): Future[bool] {.async.} =
-      let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
+      let
+        ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
+        lock = newFuture[void]()
+        timeout = sleepAsync(5_000)
 
       proc connHandler(conn: Connection) {.async, gcsafe.} =
         proc handleMplexListen(stream: Connection) {.async, gcsafe.} =
           let msg = await stream.readLp()
           check cast[string](msg) == "Hello from stream!"
+          lock.complete()
           await stream.close()
 
         let mplexListen = newMplex(conn)
@@ -172,6 +176,8 @@ suite "Mplex":
       let stream = await mplexDial.newStream("", true)
       let openState = cast[LPChannel](stream.stream).isOpen
       await stream.writeLp("Hello from stream!")
+      await lock or timeout
+      check lock.finished
       await conn.close()
       check not openState # assert lazy 
       result = true
@@ -181,11 +187,15 @@ suite "Mplex":
 
   test "e2e - write limits":
     proc testNewStream(): Future[bool] {.async.} =
-      let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
+      let
+        ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
+        lock = newFuture[void]()
+        timeout = sleepAsync(5_000)
 
       proc connHandler(conn: Connection) {.async, gcsafe.} =
         proc handleMplexListen(stream: Connection) {.async, gcsafe.} =
           let msg = await stream.readLp()
+          lock.complete()
           check cast[string](msg) == "Hello from stream!"
           await stream.close()
 
@@ -201,8 +211,12 @@ suite "Mplex":
 
       let mplexDial = newMplex(conn)
       let stream  = await mplexDial.newStream()
-      let bigseq = newSeq[uint8](MaxMsgSize + 1)
+      var bigseq = newSeqOfCap[uint8](MaxMsgSize + 1)
+      for _ in 0..<MaxMsgSize:
+        bigseq.add(uint8(rand(int('A')..int('z'))))
       await stream.writeLp(bigseq)
+      await lock or timeout
+      check timeout.finished # this test has to timeout!
       await conn.close()
       result = true
 
