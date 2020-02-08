@@ -48,8 +48,7 @@ proc handle*(p: KadPeer, conn: Connection) {.async.} =
       #trace "decoded msg from peer", peer = p.id, msg = msg
       #await p.handler(p, @[msg])
 
-      # This could also be taking input
-      await p.handler(p, "pong")
+      await p.handler(p, msg)
 
   except CatchableError as exc:
     error "exception occured", exc = exc.msg
