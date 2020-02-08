@@ -129,7 +129,11 @@ method rpcHandler*(p: KadProto,
 #    var raw_str_pid = rpcMsg.split("findNode ")[1]
     var pstr = "Qmdxy8GAu1pvi35xBAie9sMpMN4G9p6GK6WCNbSCDCDgyp"
     var pid = PeerID.init(pstr)
-    # TODO: Zero logic, this is just the test thing
+    # TODO: Fix this error, possibly with threadvar
+    #/home/oskarth/git/nim-libp2p/libp2p/protocols/kademlia/kademlia.nim(161, 18) Error: type mismatch: got <proc (peer: KadPeer, msg: string): Future[system.void]{.closure, locks: <unknown>.}> but expected 'RPCHandler = proc (peer: KadPeer, msg: string): Future[system.void]{.closure, gcsafe.}'
+    # XXX: Bad workaround --threadAnalysis:off
+    # See https://github.com/nim-lang/Nim/issues/6186
+    await p.findNode(pid)
     await p.findNodeHandler($pid)
 
 #  var testFut = newFuture[bool]()
@@ -270,8 +274,7 @@ method findNodeRPC*(p: KadProto,
   echo("findNodeRPC peer id ", peerInfo.id)
   var peer = p.peers[peerInfo.id]
   var req = "findNode " & $id
-  # XXX: ensure returns right
-  # TODO: Should this return here? How does identify work?
+  # Later we expect to get findNodeResp
   await peer.send(req)
 
 # XXX
