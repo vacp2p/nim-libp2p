@@ -1,3 +1,4 @@
+import algorithm
 import options, strutils, tables
 import chronos, chronicles
 import kadpeer
@@ -28,6 +29,7 @@ const b = 271 # size of bits of keys used to identify nodes and data
 type
   # XXX
   PingHandler* = proc(data: string): Future[void] {.gcsafe.}
+  FindNodeHandler* = proc(data: string): Future[void] {.gcsafe.}
   KBucket = seq[KadPeer] # should be k length
   #KBucket = array[k, KadPeer] # should be k length
   KBuckets = array[b, KBucket] # should be k length
@@ -37,7 +39,14 @@ type
     peers*: Table[string, KadPeer] # peerid to peer map
     # TODO: Unclear what kind of handlers we want here
     pingHandler*: PingHandler
+    # XXX: This feels... wrong
+    findNodeHandler*: FindNodeHandler
     # TODO: More?
+
+
+# Forward declarations
+#method findNode*(p: KadProto, id: PeerId): Future[seq[KadPeer]] {.base, async.}
+method findNode*(p: KadProto, id: PeerId) {.base, async.}
 
 proc `$`(k: KadPeer): string =
   return "<KadPeer>" & k.peerInfo.peerId.pretty
@@ -87,6 +96,7 @@ method which_kbucket(p: KadProto, contact: PeerInfo): int {.base.} =
 
 # TODO: Need KadPeer here
 # TODO: Generally a bunch of stuff not implemented yet
+# Why do we create peers in getPeer?
 proc getPeer(p: KadProto,
              peerInfo: PeerInfo,
              proto: string): KadPeer =
@@ -102,22 +112,33 @@ proc getPeer(p: KadProto,
   peer.refs.inc # increment reference count
   result = peer
 
+# TODO: HERE ATM, This compiles, need to fix interface with await etc
+# TODO: Do proper RPC parsing based on protobuf, e.g.
 method rpcHandler*(p: KadProto,
                    peer: KadPeer,
                    rpcMsg: string) {.async, base.} =
-  echo("rpcHandler")
-  # XXX
-  # Assuming pingmsg
-  await p.pingHandler(rpcMsg)
-  # how do we go from here to pnig handler?
+  echo("rpcHandler ", rpcMsg)
+
+  if rpcMsg.startsWith("ping"):
+    echo("rpcMsg ping")
+    await p.pingHandler(rpcMsg)
+# XXX: Why problem?
+  elif rpcMsg.startsWith("findNode"):
+    echo("rpcMsg findNode")
+#    # TODO: This is a short representation of id, not actual pid
+#    var raw_str_pid = rpcMsg.split("findNode ")[1]
+    var pstr = "Qmdxy8GAu1pvi35xBAie9sMpMN4G9p6GK6WCNbSCDCDgyp"
+    var pid = PeerID.init(pstr)
+    # TODO: Zero logic, this is just the test thing
+    await p.findNodeHandler($pid)
+
+#  var testFut = newFuture[bool]()
+#  testFut.complete(true)
+#  await allFutures(testFut)
 
 method handleConn*(p: KadProto,
                    conn: Connection,
                    proto: string) {.base, async.} =
-  # handle incoming connections
-  # XXX: I would expect to see this upon dial...
-  # oh wait, cause we already read it?
-  #echo "Got from remote - ", cast[string](await conn.readLp())
   echo "Got from remote"
   # TODO: see pubsub/handleConn
   #await conn.writeLp("Hello!")
@@ -127,14 +148,13 @@ method handleConn*(p: KadProto,
     await conn.close()
     return
 
-  # XXX: Fake rpc
+  # TODO: generalize to msgs seq[RPCMsg]
   proc handler(peer: KadPeer, msg: string) {.async.} =
-    echo ("peer handler")
-    # call kad rpc handler
-    await p.rpcHandler(peer, msg)
+    # XXX
+    echo("peer handler ", msg)
+    discard p.rpcHandler(peer, msg)
 
   let peer = p.getPeer(conn.peerInfo, proto)
-
   peer.handler = handler
 
   await peer.handle(conn) # spawn peer read loop
@@ -161,7 +181,13 @@ method stop*(p: KadProto) {.async, base.} =
   # stop kad
   discard
 
+# When we add contact we should also getPeer or set their peer info
+# XXX: Do we want to listen to them as well?
 method addContact*(p: KadProto, contact: PeerInfo) {.base, gcsafe.} =
+  # For that we need conn info... which comes from listenToPeer
+  # getPeer
+  #var peer = p.getPeer(conn.peerInfo, p.codec)
+  #
   #echo("addContact ", contact)
   var index = p.which_kbucket(contact)
   #echo("which kbucket ", index)
@@ -177,44 +203,77 @@ method addContact*(p: KadProto, contact: PeerInfo) {.base, gcsafe.} =
 # MUST NOT return the originating node in its response
 # Returns up to k contacts
 # TODO: When being queried, this should also update that node's routing table
-method findNode*(p: KadProto, id: PeerId): Future[seq[KadPeer]] {.base, async.} =
-  echo("findNode NYI")
-  # XXX: HERE ATM
-#  var nameStr = "[" & $node.name & "] "
-#  echo(nameStr, "mockFindNode: looking for up to k=", k, " contacts closest to: ", targetid)
-#  # Simulating some RPC latency
-#  os.sleep(1000)
+#method mockFindNode*(p: KadProto, id: PeerId): Future[seq[KadPeer]] {.base, async.} =
+# XXX: Sig?
 #
-#  # Find up to k closest nodes to target
-#  #
-#  # NOTE: Bruteforcing my sorting all contacts, not efficient but least error-prone for now.
-#  # TODO: Make this more efficient, sketch (might be wrong, verify):
-#  # 0) If reach k contacts at any point, return
-#  # 1) Look in kb=which_kbucket(node, targetid)
-#  # 2) Then traverse backward from kb to key bucket 0
-#  # 3) If still not reached k, go upwards in kbucket from kb+1
-#  # 4) If still not k contacts, return anyway
-#  # Look at other implementations to see how this is done
-#  var contacts: seq[Contact]
-#  for kb in node.kbuckets:
+# XXX: Removing future here
+  #id: PeerId): Future[seq[KadPeer]] {.async.} =
+method findNode*(p: KadProto,
+                 id: PeerId) {.async.} =
+  echo("findNode NYI - this hit?")
+  #echo("findNode looking for up to k=", k, " contacts closest to: ", id)
+
+  #asyncCheck p.findNodeHandler("XXX")
+  # Simulating some RPC latency
+  #os.sleep(1000)
+ 
+  #XXX
+  var testFut = newFuture[bool]()
+  testFut.complete(true)
+  await allFutures(testFut)
+   
+# Find up to k closest nodes to target
+#
+# NOTE: Bruteforcing my sorting all contacts, not efficient but least error-prone for now.
+# TODO: Make this more efficient, sketch (might be wrong, verify):
+# 0) If reach k contacts at any point, return
+# 1) Look in kb=which_kbucket(node, targetid)
+# 2) Then traverse backward from kb to key bucket 0
+# 3) If still not reached k, go upwards in kbucket from kb+1
+# 4) If still not k contacts, return anyway
+# Look at other implementations to see how this is done
+
+
+  # TODO: NYI
+#  var contacts: seq[KadPeer]
+#  for kb in p.kbuckets:
 #    for contact in kb:
 #      contacts.add(contact)
 #
-#  proc distCmp(x, y: Contact): int =
-#    if distance(x.id, targetid) < distance(y.id, targetid): -1 else: 1
+#  # XXX: Duplicate
+#  var target = id
+#  proc distCmp(x, y: KadPeer): int =
+#    var d1 = xor_distance(x.peerInfo.peerId, target)
+#    var d2 = xor_distance(y.peerInfo.peerId, target)
+#    if d1 < d2:
+#      -1
+#    else: 1
 #
 #  contacts.sort(distCmp)
-#  var res: seq[Contact]
+#  echo("contacts sorted: ", contacts)
+#
+#  var res: seq[KadPeer]
 #  for c in contacts:
 #    if res.len == k:
 #      break
 #    res.add(c)
-#  echo(nameStr, "Found up to k contacts: ", res)
+#  echo("Found up to k contacts: ", res)
 #  return res
 #
+# Find node RPC
+# TODO: Should be protobuf RPC 
+# TODO: This should return seq, also see logic from mock
+# This assumes the node we are asking, in kbucket, is in peerInfo
+method findNodeRPC*(p: KadProto,
+                 peerInfo: PeerInfo,
+                 id: PeerID): Future[seq[KadPeer]] {.base, async.} =
+  echo("findNodeRPC peer id ", peerInfo.id)
+  var peer = p.peers[peerInfo.id]
+  var req = "findNode " & $id
+  # XXX: ensure returns right
+  # TODO: Should this return here? How does identify work?
+  await peer.send(req)
 
-
-# HEREATM - async?
 # XXX
 method iterativeFindNode*(p: KadProto, target: PeerID) {.base, gcsafe, async.} =
   echo("iterativeFindNode ", target)
@@ -281,10 +340,12 @@ method iterativeFindNode*(p: KadProto, target: PeerID) {.base, gcsafe, async.} =
     # Mock dial them them
     echo("Mock dialing ", c)
     # XXX: Assuming c.id it exists in networkTable
-    echo("WOULD MOCK FIND NODE ", c.id, " ", target)
-    var resp = await p.findNode(target)
+    echo("iterativeFindNode: ", c.id, " ", target)
+    # TODO: This should be RPC to c.id - how? similar to ping
+    # Or req?
+    var resp = await p.findNodeRPC(c.peerInfo, target)
     #var resp = await mockFindNode(networkTable[c.id], targetid)
-    #echo("Response ", resp)
+    echo("iterativeFindNode Response from remote ", resp)
 
     # Add new nodes as contacts, update activeContacts, shortlist and closestNode
     # XXX: Does it matter which order we update closestNode and shortlist in?
@@ -371,7 +432,6 @@ method ping*(p: KadProto,
   #for peer in p.peers.values:
   #  await p.sendSubs(peer, @[topic], true)
 
-            
 # XXX: Modelled after subscribe for now
 method listenForPing*(p: KadProto,
                       handler: PingHandler) {.base, async.} =
@@ -381,8 +441,22 @@ method listenForPing*(p: KadProto,
   # TODO
   p.pingHandler = handler
 
+# XXX: This is a bit wrong, cause we put it in test, probably not what we want. Instead we want to 
+# XXX: Is this what we want?
+method listenForFindNode*(p: KadProto,
+                          handler: FindNodeHandler) {.base, async.} =
+  ## listen to find node requests
+  ##
+  ## ``handler`` - user provided proc to be triggered on find node
+  # TODO
+  echo("listenForFindNode")
+
+
+  # The passed handler will be called whenever findNodeHandle is
+  p.findNodeHandler = handler
+
 method listenToPeer*(p: KadProto,
-                        conn: Connection) {.base, async.} =
+                     conn: Connection) {.base, async.} =
   var peer = p.getPeer(conn.peerInfo, p.codec)
   trace "setting connection for peer", peerId = conn.peerInfo.id
   if not peer.isConnected:

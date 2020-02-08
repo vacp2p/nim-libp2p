@@ -17,12 +17,12 @@ type
       proto: string # the protocol that this peer joined from
       sendConn: Connection
       peerInfo*: PeerInfo
-      handler*: TestHandler
+      handler*: RPCHandler
       refs*: int # refcount of the connections this peer is handling
       onConnect: AsyncEvent
 
-    TestHandler* = proc(peer: KadPeer, msg: string): Future[void] {.gcsafe.}
-#    RPCHandler* = proc(peer: KadPeer, msg: seq[RPCMsg]): Future[void] {.gcsafe.}
+    # TODO: Generalize msg field to take seq[RPCMsg]
+    RPCHandler* = proc(peer: KadPeer, msg: string): Future[void] {.gcsafe.}
 
 proc id*(p: KadPeer): string = p.peerInfo.id
 

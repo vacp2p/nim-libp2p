@@ -330,6 +330,14 @@ proc listenForPing*(s: Switch, handler: PingHandler): Future[void] {.gcsafe.} =
   # TODO: exception handling
   result = s.kadProto.get().listenForPing(handler)
 
+# XXX: Probably abstract this to have RPC as argument, not name
+# Yikes
+proc listenForFindNode*(s: Switch, handler: FindNodeHandler): Future[void] {.gcsafe.} =
+  # listen for find node reqs
+  # TODO: exception handling
+  result = s.kadProto.get().listenForFindNode(handler)
+
+
 # XXX: Not sure if needed as separate proc
 proc listenToPeer*(s: Switch, peerInfo: PeerInfo) {.async, gcsafe.} =
   ## Subscribe to Kad peer
