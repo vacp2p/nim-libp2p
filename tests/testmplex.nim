@@ -119,16 +119,12 @@ suite "Mplex":
 
   test "e2e - read/write receiver":
     proc testNewStream(): Future[bool] {.async.} =
-      let
-        ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
-        lock = newFuture[void]()
-        timeout = sleepAsync(5_000)
+      let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
 
       proc connHandler(conn: Connection) {.async, gcsafe.} =
         proc handleMplexListen(stream: Connection) {.async, gcsafe.} =
           let msg = await stream.readLp()
           check cast[string](msg) == "Hello from stream!"
-          lock.complete()
           await stream.close()
 
         let mplexListen = newMplex(conn)
@@ -144,9 +140,6 @@ suite "Mplex":
       let mplexDial = newMplex(conn)
       let stream  = await mplexDial.newStream()
       await stream.writeLp("Hello from stream!")
-      await lock or timeout
-      check lock.finished
-      timeout.cancel()
       await conn.close()
       result = true
 
@@ -157,15 +150,14 @@ suite "Mplex":
     proc testNewStream(): Future[bool] {.async.} =
       let
         ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
-        lock = newFuture[void]()
-        timeout = sleepAsync(5_000)
+        listenJob = newFuture[void]()
 
       proc connHandler(conn: Connection) {.async, gcsafe.} =
         proc handleMplexListen(stream: Connection) {.async, gcsafe.} =
           let msg = await stream.readLp()
-          lock.complete()
           check cast[string](msg) == "Hello from stream!"
           await stream.close()
+          listenJob.complete()
 
         let mplexListen = newMplex(conn)
         mplexListen.streamHandler = handleMplexListen
@@ -181,12 +173,10 @@ suite "Mplex":
       let stream  = await mplexDial.newStream()
       var bigseq = newSeqOfCap[uint8](MaxMsgSize + 1)
       for _ in 0..<MaxMsgSize:
-        bigseq.add(uint8(rand(int('A')..int('z'))))
+        bigseq.add(uint8(rand(uint('A')..uint('z'))))
       await stream.writeLp(bigseq)
-      await lock or timeout
-      check timeout.finished # this test has to timeout!
-      lock.cancel();
       await conn.close()
+      await listenJob.wait(seconds(5))
       result = true
 
     check:
