@@ -26,6 +26,7 @@ type
     name*: string
     conn*: Connection
     initiator*: bool
+    isOpen*: bool
     isReset*: bool
     closedLocal*: bool
     closedRemote*: bool
@@ -76,6 +77,7 @@ proc cleanUp*(s: LPChannel): Future[void] =
   result = procCall close(BufferStream(s))
 
 proc open*(s: LPChannel): Future[void] =
+  s.isOpen = true
   s.conn.writeMsg(s.id, MessageType.New, s.name)
 
 method close*(s: LPChannel) {.async, gcsafe.} =

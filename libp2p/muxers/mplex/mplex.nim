@@ -30,6 +30,11 @@ type
     currentId*: uint
     maxChannels*: uint
 
+  LazyConnection* = ref object of Connection
+
+proc newLazyConnection*(stream: LPStream): LazyConnection =
+  result.init(stream)
+
 proc getChannelList(m: Mplex, initiator: bool): var Table[uint, LPChannel] =
   if initiator:
     trace "picking local channels", initiator = initiator
@@ -142,11 +147,18 @@ proc newMplex*(conn: Connection,
     trace "connection closed, cleaning up mplex"
     asyncCheck m.close()
 
-method newStream*(m: Mplex, name: string = ""): Future[Connection] {.async, gcsafe.} =
+method writeLp*(s: LazyConnection, msg: string | seq[byte]): Future[void] {.async, gcsafe.} =
+  let channel = cast[LPChannel](s.stream) # downcast but we are sure
+  if not channel.isOpen:
+    await channel.open()
+  await procCall writeLp(s.Connection, msg)
+    
+method newStream*(m: Mplex, name: string = ""): Future[LazyConnection] {.async, gcsafe.} =
   let channel = await m.newStreamInternal()
   # TODO: open the channel (this should be lazy)
   await channel.open()
-  result = newConnection(channel)
+  # downcasting... should be ok tho as it's just a wrapper
+  result = newLazyConnection(channel)
   result.peerInfo = m.connection.peerInfo
 
 method close*(m: Mplex) {.async, gcsafe.} =
