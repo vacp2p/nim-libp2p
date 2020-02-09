@@ -139,8 +139,10 @@ suite "Mplex":
 
       let mplexDial = newMplex(conn)
       let stream = await mplexDial.newStream()
+      let openState = cast[LPChannel](stream.stream).isOpen
       await stream.writeLp("Hello from stream!")
       await conn.close()
+      check openState # not lazy
       result = true
 
     check:
@@ -168,11 +170,10 @@ suite "Mplex":
 
       let mplexDial = newMplex(conn)
       let stream = await mplexDial.newStream("", true)
-      assert stream is ref
-      assert stream is LazyConnection
-      assert not cast[LPChannel](stream.stream).isOpen
+      let openState = cast[LPChannel](stream.stream).isOpen
       await stream.writeLp("Hello from stream!")
       await conn.close()
+      check not openState # assert lazy 
       result = true
 
     check:
