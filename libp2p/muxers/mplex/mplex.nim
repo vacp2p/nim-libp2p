@@ -153,9 +153,13 @@ method writeLp*(s: LazyConnection, msg: string | seq[byte]): Future[void] {.asyn
     await channel.open()
   await procCall writeLp(s.Connection, msg)
     
-method newStream*(m: Mplex, name: string = ""): Future[LazyConnection] {.async, gcsafe.} =
+method newStream*(m: Mplex, name: string = "", lazy: bool = false): Future[Connection] {.async, gcsafe.} =
   let channel = await m.newStreamInternal()
-  result = newLazyConnection(channel)
+  if lazy:
+    result = newLazyConnection(channel)
+  else:
+    await channel.open()
+    result = newConnection(channel)
   result.peerInfo = m.connection.peerInfo
 
 method close*(m: Mplex) {.async, gcsafe.} =
