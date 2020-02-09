@@ -155,9 +155,6 @@ method writeLp*(s: LazyConnection, msg: string | seq[byte]): Future[void] {.asyn
     
 method newStream*(m: Mplex, name: string = ""): Future[LazyConnection] {.async, gcsafe.} =
   let channel = await m.newStreamInternal()
-  # TODO: open the channel (this should be lazy)
-  await channel.open()
-  # downcasting... should be ok tho as it's just a wrapper
   result = newLazyConnection(channel)
   result.peerInfo = m.connection.peerInfo
 
