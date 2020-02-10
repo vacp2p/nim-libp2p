@@ -72,7 +72,7 @@ proc createNode*(privKey: Option[PrivateKey] = none(PrivateKey),
   if privKey.isNone:
     seckey = some(PrivateKey.random(RSA))
 
-  var peerInfo = NativePeerInfo.init(seckey.get(), @[Multiaddress.init(address)])
+  var peerInfo = NativePeerInfo.init(seckey.get(), [Multiaddress.init(address)])
   proc createMplex(conn: Connection): Muxer = newMplex(conn)
   let mplexProvider = newMuxerProvider(createMplex, MplexCodec)
   let transports = @[Transport(newTransport(TcpTransport))]

@@ -19,9 +19,9 @@ suite "Identify":
       let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
       let remoteSecKey = PrivateKey.random(RSA)
       let remotePeerInfo = PeerInfo.init(remoteSecKey,
-                                        @[ma],
-                                        @["/test/proto1/1.0.0",
-                                        "/test/proto2/1.0.0"])
+                                        [ma],
+                                        ["/test/proto1/1.0.0",
+                                         "/test/proto2/1.0.0"])
       var serverFut: Future[void]
       let identifyProto1 = newIdentify(remotePeerInfo)
       let msListen = newMultistream()
@@ -37,7 +37,7 @@ suite "Identify":
       let transport2: TcpTransport = newTransport(TcpTransport)
       let conn = await transport2.dial(transport1.ma)
 
-      var peerInfo = PeerInfo.init(PrivateKey.random(RSA), @[ma])
+      var peerInfo = PeerInfo.init(PrivateKey.random(RSA), [ma])
       let identifyProto2 = newIdentify(peerInfo)
       discard await msDial.select(conn, IdentifyCodec)
       let id = await identifyProto2.identify(conn, remotePeerInfo)
@@ -59,7 +59,7 @@ suite "Identify":
   test "handle failed identify":
     proc testHandleError() {.async.} =
       let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
-      var remotePeerInfo = PeerInfo.init(PrivateKey.random(RSA), @[ma])
+      var remotePeerInfo = PeerInfo.init(PrivateKey.random(RSA), [ma])
       let identifyProto1 = newIdentify(remotePeerInfo)
       let msListen = newMultistream()
 
@@ -74,7 +74,7 @@ suite "Identify":
       let transport2: TcpTransport = newTransport(TcpTransport)
       let conn = await transport2.dial(transport1.ma)
 
-      var localPeerInfo = PeerInfo.init(PrivateKey.random(RSA), @[ma])
+      var localPeerInfo = PeerInfo.init(PrivateKey.random(RSA), [ma])
       let identifyProto2 = newIdentify(localPeerInfo)
       discard await msDial.select(conn, IdentifyCodec)
       discard await identifyProto2.identify(conn, PeerInfo.init(PrivateKey.random(RSA)))

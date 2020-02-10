@@ -68,7 +68,7 @@ proc dialPeer(p: ChatProto, address: string) {.async, gcsafe.} =
     quit("invalid or incompelete peerId")
 
   var remotePeer = PeerInfo.init(parts[^1],
-                                 @[MultiAddress.init(address)])
+                                 [MultiAddress.init(address)])
 
   echo &"dialing peer: {address}"
   p.conn = await p.switch.dial(remotePeer, ChatCodec)

@@ -8,6 +8,7 @@
 ## those terms.
 
 import options
+import chronos
 import peer, multiaddress, crypto/crypto
 
 ## A peer can be constructed in one of tree ways:
@@ -27,53 +28,67 @@ type
     peerId*: PeerID
     addrs*: seq[MultiAddress]
     protocols*: seq[string]
+    lifefut: Future[void]
     case keyType*: KeyType:
     of HasPrivate:
       privateKey*: PrivateKey
     of HasPublic:
       key: Option[PublicKey]
 
-proc init*(p: typedesc[PeerInfo],
-           key: PrivateKey,
-           addrs: seq[MultiAddress] = @[],
-           protocols: seq[string] = @[]): PeerInfo {.inline.} =
+template postInit(peerinfo: PeerInfo,
+                  addrs: openarray[MultiAddress],
+                  protocols: openarray[string]) =
+  if len(addrs) > 0:
+    peerinfo.addrs = @addrs
+  if len(protocols) > 0:
+    peerinfo.protocols = @protocols
+  peerinfo.lifefut = newFuture[void]("libp2p.peerinfo.lifetime")
 
-  result = PeerInfo(keyType: HasPrivate,
-                    peerId: PeerID.init(key),
-                    privateKey: key,
-                    addrs: addrs,
-                    protocols: protocols)
+proc init*(p: typedesc[PeerInfo], key: PrivateKey,
+           addrs: openarray[MultiAddress] = [],
+           protocols: openarray[string] = []): PeerInfo {.inline.} =
+  result = PeerInfo(keyType: HasPrivate, peerId: PeerID.init(key),
+                    privateKey: key)
+  result.postInit(addrs, protocols)
 
-proc init*(p: typedesc[PeerInfo],
-           peerId: PeerID,
-           addrs: seq[MultiAddress] = @[],
-           protocols: seq[string] = @[]): PeerInfo {.inline.} =
+proc init*(p: typedesc[PeerInfo], peerId: PeerID,
+           addrs: openarray[MultiAddress] = [],
+           protocols: openarray[string] = []): PeerInfo {.inline.} =
+  result = PeerInfo(keyType: HasPublic, peerId: peerId)
+  result.postInit(addrs, protocols)
 
-  PeerInfo(keyType: HasPublic,
-           peerId: peerId,
-           addrs: addrs,
-           protocols: protocols)
+proc init*(p: typedesc[PeerInfo], peerId: string,
+           addrs: openarray[MultiAddress] = [],
+           protocols: openarray[string] = []): PeerInfo {.inline.} =
+  result = PeerInfo(keyType: HasPublic, peerId: PeerID.init(peerId))
+  result.postInit(addrs, protocols)
 
-proc init*(p: typedesc[PeerInfo],
-           peerId: string,
-           addrs: seq[MultiAddress] = @[],
-           protocols: seq[string] = @[]): PeerInfo {.inline.} =
+proc init*(p: typedesc[PeerInfo], key: PublicKey,
+           addrs: openarray[MultiAddress] = [],
+           protocols: openarray[string] = []): PeerInfo {.inline.} =
+  result = PeerInfo(keyType: HasPublic, peerId: PeerID.init(key),
+                    key: some(key))
+  result.postInit(addrs, protocols)
 
-  PeerInfo(keyType: HasPublic,
-           peerId: PeerID.init(peerId),
-           addrs: addrs,
-           protocols: protocols)
+proc close*(p: PeerInfo) {.inline.} =
+  p.lifefut.complete()
 
-proc init*(p: typedesc[PeerInfo],
-           key: PublicKey,
-           addrs: seq[MultiAddress] = @[],
-           protocols: seq[string] = @[]): PeerInfo {.inline.} =
+proc join*(p: PeerInfo): Future[void] {.inline.} =
+  var retFuture = newFuture[void]()
+  proc continuation(udata: pointer) {.gcsafe.} =
+    if not(retFuture.finished()):
+      retFuture.complete()
+  proc cancellation(udata: pointer) {.gcsafe.} =
+    p.lifefut.removeCallback(continuation)
+  if p.lifefut.finished:
+    retFuture.complete()
+  else:
+    p.lifefut.addCallback(continuation)
+    retFuture.cancelCallback = cancellation
+  return retFuture
 
-  PeerInfo(keyType: HasPublic,
-           peerId: PeerID.init(key),
-           key: some(key),
-           addrs: addrs,
-           protocols: protocols)
+proc isClosed*(p: PeerInfo): bool {.inline.} =
+  result = p.lifefut.finished()
 
 proc publicKey*(p: PeerInfo): Option[PublicKey] {.inline.} =
   if p.keyType == HasPublic:
@@ -87,7 +102,7 @@ proc publicKey*(p: PeerInfo): Option[PublicKey] {.inline.} =
     result = some(p.privateKey.getKey())
 
 proc id*(p: PeerInfo): string {.inline.} =
-  p.peerId.pretty
+  result = p.peerId.pretty()
 
 proc `$`*(p: PeerInfo): string =
   result.add("PeerID: ")
