@@ -18,6 +18,9 @@ import ../../../libp2p/[multistream,
                        protocols/secure/secio,
                        protocols/secure/secure]
 
+logScope:
+  topic = "Kademlia"
+
 const KadCodec = "/test/kademlia/1.0.0" # custom protocol string
 
 const k = 2 # maximum number of peers in bucket, test setting, should be 20
@@ -117,14 +120,12 @@ proc getPeer(p: KadProto,
 method rpcHandler*(p: KadProto,
                    peer: KadPeer,
                    rpcMsg: string) {.async, base.} =
-  echo("rpcHandler ", rpcMsg)
+  debug "rpcHandler", peer = peer.id, rpcMsg = rpcMsg
 
   if rpcMsg.startsWith("ping"):
-    echo("rpcMsg ping")
     await p.pingHandler(rpcMsg)
 # XXX: Why problem?
   elif rpcMsg.startsWith("findNode"):
-    echo("rpcMsg findNode")
 #    # TODO: This is a short representation of id, not actual pid
 #    var raw_str_pid = rpcMsg.split("findNode ")[1]
     var pstr = "Qmdxy8GAu1pvi35xBAie9sMpMN4G9p6GK6WCNbSCDCDgyp"
@@ -143,7 +144,8 @@ method rpcHandler*(p: KadProto,
 method handleConn*(p: KadProto,
                    conn: Connection,
                    proto: string) {.base, async.} =
-  echo "Got from remote"
+  debug "handleConn remote connection", proto = proto
+
   # TODO: see pubsub/handleConn
   #await conn.writeLp("Hello!")
   #await conn.close()
@@ -154,8 +156,6 @@ method handleConn*(p: KadProto,
 
   # TODO: generalize to msgs seq[RPCMsg]
   proc handler(peer: KadPeer, msg: string) {.async.} =
-    # XXX
-    echo("peer handler ", msg)
     discard p.rpcHandler(peer, msg)
 
   let peer = p.getPeer(conn.peerInfo, proto)
@@ -199,7 +199,7 @@ method addContact*(p: KadProto, contact: PeerInfo) {.base, gcsafe.} =
   p.kbuckets[index].add(kadPeer)
   #echo("Printing kbuckets")
   #echo p.kbuckets
-  echo("Added contact ", kadPeer) #, " to bucket ", index)
+  debug "adding contact", peer = contact.id
 
 # XXX: Based on mockFindNode, copy pasting some stuff
 # Mocking RPC to node asking for FIND_NODE(id)
@@ -214,8 +214,8 @@ method addContact*(p: KadProto, contact: PeerInfo) {.base, gcsafe.} =
   #id: PeerId): Future[seq[KadPeer]] {.async.} =
 method findNode*(p: KadProto,
                  id: PeerId) {.async.} =
-  echo("findNode NYI - this hit?")
-  echo("findNode looking for up to k=", k, " contacts closest to: ", id)
+  # Try debug
+  debug "findNode", peer = id, k = k
 
   # TODO: Before this, ensure receiving node has contacts already
   #
