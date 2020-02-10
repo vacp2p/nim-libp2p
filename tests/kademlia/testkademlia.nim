@@ -71,10 +71,11 @@ suite "Kademlia":
         completionFut.complete(true)
 
       # TODO: Ensure these nodes have right characteristics
-      var nodes = generateNodes(2)
+      var nodes = generateNodes(3)
       var awaiters: seq[Future[void]]
       awaiters.add((await nodes[0].start())) # Alice
       awaiters.add((await nodes[1].start())) # Bob
+      awaiters.add((await nodes[2].start())) # Charlie
 
       # XXX: Strictly speaking only A listens to B here
       # We need peer info from connection via switch here
@@ -84,6 +85,10 @@ suite "Kademlia":
       # TODO: Replace with better here
       # XXX: Only adding contact and printing, no actual assertion
       discard nodes[0].addContact(nodes[1].peerInfo)
+
+      # More add contacts
+      # Assume Bob is already connected to Charlie
+      discard nodes[1].addContact(nodes[2].peerInfo)
 
       await nodes[1].listenForFindNode(handler)
 
@@ -106,7 +111,7 @@ suite "Kademlia":
       #await nodes[0].ping(nodes[1].peerInfo)
 
       result = await completionFut
-      await allFutures(nodes[0].stop(), nodes[1].stop())
+      await allFutures(nodes[0].stop(), nodes[1].stop(), nodes[2].stop())
       await allFutures(awaiters)
 
     check:
