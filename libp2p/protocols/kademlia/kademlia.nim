@@ -123,6 +123,7 @@ method rpcHandler*(p: KadProto,
   debug "rpcHandler", peer = peer.id, rpcMsg = rpcMsg
 
   if rpcMsg.startsWith("ping"):
+    # Here we are just using the test handler
     await p.pingHandler(rpcMsg)
 # XXX: Why problem?
   elif rpcMsg.startsWith("findNode"):
@@ -134,6 +135,7 @@ method rpcHandler*(p: KadProto,
     #/home/oskarth/git/nim-libp2p/libp2p/protocols/kademlia/kademlia.nim(161, 18) Error: type mismatch: got <proc (peer: KadPeer, msg: string): Future[system.void]{.closure, locks: <unknown>.}> but expected 'RPCHandler = proc (peer: KadPeer, msg: string): Future[system.void]{.closure, gcsafe.}'
     # XXX: Bad workaround --threadAnalysis:off
     # See https://github.com/nim-lang/Nim/issues/6186
+    # Recipient in this case is the handler, no?
     await p.findNode(pid)
     await p.findNodeHandler($pid)
 
@@ -201,24 +203,15 @@ method addContact*(p: KadProto, contact: PeerInfo) {.base, gcsafe.} =
   #echo p.kbuckets
   debug "adding contact", peer = contact.id
 
-# XXX: Based on mockFindNode, copy pasting some stuff
 # Mocking RPC to node asking for FIND_NODE(id)
 # NOTE: Slightly misleading name, it really find closest nodes
+# XXX: Consider renaming to findClosestPeers
 # MUST NOT return the originating node in its response
 # Returns up to k contacts
 # TODO: When being queried, this should also update that node's routing table
-#method mockFindNode*(p: KadProto, id: PeerId): Future[seq[KadPeer]] {.base, async.} =
-# XXX: Sig?
-#
-# XXX: Removing future here
-  #id: PeerId): Future[seq[KadPeer]] {.async.} =
-method findNode*(p: KadProto,
-                 id: PeerId) {.async.} =
-  # Try debug
+method findNode*(p: KadProto, id: PeerId) {.async.} =
   debug "findNode", peer = id, k = k
 
-  # TODO: Before this, ensure receiving node has contacts already
-  #
   # Find up to k closest nodes to target
   #
   # NOTE: Bruteforcing my sorting all contacts, not efficient but least error-prone for now.
@@ -230,8 +223,6 @@ method findNode*(p: KadProto,
   # 4) If still not k contacts, return anyway
   # Look at other implementations to see how this is done
 
-  # TODO: NYI
-  # XXX: Revisit this logic
   var contacts: seq[KadPeer]
   for kb in p.kbuckets:
     for contact in kb:
@@ -255,16 +246,14 @@ method findNode*(p: KadProto,
       break
     res.add(c)
 
-  debug "findNode found contacts contacts", res = res
-  # TODO: Fix return type
-  #return res
+  debug "findNode found contacts", contacts = res
 
+  # TODO: Send result to peer
+  # What's peer? Who wants this data?
 
-  #
-  #XXX
-  var testFut = newFuture[bool]()
-  testFut.complete(true)
-  await allFutures(testFut)
+  #var testFut = newFuture[bool]()
+  #testFut.complete(true)
+  #await allFutures(testFut)
    
 #
 # Find node RPC
