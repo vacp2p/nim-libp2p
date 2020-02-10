@@ -75,11 +75,15 @@ suite "Kademlia":
         completionFut.complete(true)
 
       # TODO: Ensure these nodes have right characteristics
-      var nodes = generateNodes(3)
+      var nodes = generateNodes(6)
       var awaiters: seq[Future[void]]
       awaiters.add((await nodes[0].start())) # Alice
       awaiters.add((await nodes[1].start())) # Bob
       awaiters.add((await nodes[2].start())) # Charlie
+
+      awaiters.add((await nodes[3].start())) # D
+      awaiters.add((await nodes[4].start())) # E
+      awaiters.add((await nodes[5].start())) # F
 
       # XXX: Strictly speaking only A listens to B here
       # We need peer info from connection via switch here
@@ -91,8 +95,11 @@ suite "Kademlia":
       discard nodes[0].addContact(nodes[1].peerInfo)
 
       # More add contacts
-      # Assume Bob is already connected to Charlie
+      # Assume Bob is already connected to Charlie, and D..F
       discard nodes[1].addContact(nodes[2].peerInfo)
+      discard nodes[1].addContact(nodes[3].peerInfo)
+      discard nodes[1].addContact(nodes[4].peerInfo)
+      discard nodes[1].addContact(nodes[5].peerInfo)
 
       await nodes[1].listenForFindNode(handler)
 
@@ -115,7 +122,12 @@ suite "Kademlia":
       #await nodes[0].ping(nodes[1].peerInfo)
 
       result = await completionFut
-      await allFutures(nodes[0].stop(), nodes[1].stop(), nodes[2].stop())
+      await allFutures(nodes[0].stop(),
+                       nodes[1].stop(),
+                       nodes[2].stop(),
+                       nodes[3].stop(),
+                       nodes[4].stop(),
+                       nodes[5].stop())
       await allFutures(awaiters)
 
     check:
