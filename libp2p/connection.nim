@@ -136,7 +136,7 @@ proc readLp*(s: Connection): Future[seq[byte]] {.async, gcsafe.} =
     trace "couldn't read from stream", exc = exc.msg
     raise exc
 
-method writeLp*(s: Connection, msg: string | seq[byte]): Future[void] {.base, gcsafe.} =
+proc writeLp*(s: Connection, msg: string | seq[byte]): Future[void] {.gcsafe.} =
   ## write lenght prefixed
   var buf = initVBuffer()
   buf.writeSeq(msg)
