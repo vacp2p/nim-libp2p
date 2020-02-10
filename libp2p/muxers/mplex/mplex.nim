@@ -30,11 +30,6 @@ type
     currentId*: uint
     maxChannels*: uint
 
-  LazyConnection* = ref object of Connection
-
-proc newLazyConnection*(stream: LPStream): LazyConnection =
-  result.init(stream)
-
 proc getChannelList(m: Mplex, initiator: bool): var Table[uint, LPChannel] =
   if initiator:
     trace "picking local channels", initiator = initiator
@@ -46,12 +41,13 @@ proc getChannelList(m: Mplex, initiator: bool): var Table[uint, LPChannel] =
 proc newStreamInternal*(m: Mplex,
                         initiator: bool = true,
                         chanId: uint = 0,
-                        name: string = ""):
+                        name: string = "",
+                        lazy: bool = false):
                         Future[LPChannel] {.async, gcsafe.} =
   ## create new channel/stream
   let id = if initiator: m.currentId.inc(); m.currentId else: chanId
   trace "creating new channel", channelId = id, initiator = initiator
-  result = newChannel(id, m.connection, initiator, name)
+  result = newChannel(id, m.connection, initiator, name, lazy = lazy)
   m.getChannelList(initiator)[id] = result
 
 proc cleanupChann(m: Mplex, chann: LPChannel, initiator: bool) {.async, inline.} =
@@ -146,20 +142,12 @@ proc newMplex*(conn: Connection,
   .addCallback do (udata: pointer):
     trace "connection closed, cleaning up mplex"
     asyncCheck m.close()
-
-method writeLp*(s: LazyConnection, msg: string | seq[byte]): Future[void] {.async, gcsafe.} =
-  let channel = cast[LPChannel](s.stream) # downcast but we are sure
-  if not channel.isOpen:
-    await channel.open()
-  await procCall writeLp(s.Connection, msg)
     
 method newStream*(m: Mplex, name: string = "", lazy: bool = false): Future[Connection] {.async, gcsafe.} =
-  let channel = await m.newStreamInternal()
-  if lazy:
-    result = newLazyConnection(channel)
-  else:
+  let channel = await m.newStreamInternal(lazy = lazy)
+  if not lazy:
     await channel.open()
-    result = newConnection(channel)
+  result = newConnection(channel)
   result.peerInfo = m.connection.peerInfo
 
 method close*(m: Mplex) {.async, gcsafe.} =
