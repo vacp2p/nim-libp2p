@@ -1,16 +1,19 @@
 import unittest, sequtils, options
-import chronos
+import chronos, chronicles
 import utils,
        ../../libp2p/[switch,
                      crypto/crypto,
                      protocols/kademlia/kademlia]
+
+logScope:
+  topic = "testKademlia"
 
 suite "Kademlia":
   test "Kademlia basic ping":
     proc runTests(): Future[bool] {.async.} =
       var completionFut = newFuture[bool]()
       proc handler(data: string) {.async, gcsafe.} =
-        echo("Hit handler in kademlia ping ", data)
+        debug "Basic ping handler", data=data
         completionFut.complete(true)
 
       # TODO: Ensure these nodes have right characteristics
@@ -67,7 +70,7 @@ suite "Kademlia":
       var completionFut = newFuture[bool]()
       # XXX: handler signature
       proc handler(data: string) {.async, gcsafe.} =
-        echo("Hit handler in find node lol ", data)
+        debug "Find node", data=data
         completionFut.complete(true)
 
       # TODO: Ensure these nodes have right characteristics
@@ -95,7 +98,7 @@ suite "Kademlia":
       #await nodes[1].listenForFindNode()
       #completionFut.complete(true)
 
-      echo("Finding node (self): ", nodes[0].peerInfo.peerId)
+      debug "finding node (self)", self = nodes[0].peerInfo.peerId
       discard nodes[0].iterativeFindNode(nodes[0].peerInfo.peerId)
       # XXX
 

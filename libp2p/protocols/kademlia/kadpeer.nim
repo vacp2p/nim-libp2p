@@ -39,7 +39,7 @@ proc handle*(p: KadPeer, conn: Connection) {.async.} =
     while not conn.closed:
       trace "waiting for data", peer = p.id, closed = conn.closed
       var msg = cast[string](await conn.readLp())
-      echo "Message handle: ", msg
+      debug "handle", msg = msg
       # TODO: Not getting hello response there
       # XXX: Do we want to close connection here?
       await conn.close()
@@ -59,12 +59,12 @@ proc handle*(p: KadPeer, conn: Connection) {.async.} =
 
 # TODO: Fix msg type, RPC style
 proc send*(p: KadPeer, msg: string) {.async.} =
-  echo "kadpeer send to peer", p.id
+  debug "send", peer = p.id
   try:
     # TODO: Encode etc
  
     proc sendToRemote {.async.} =
-      echo "kadpeer send to remote ", msg
+      debug "send to remote", msg = msg
       # XXX: encoded.buffer
       await p.sendConn.writeLp(msg)
 
@@ -73,7 +73,7 @@ proc send*(p: KadPeer, msg: string) {.async.} =
       return
     
     # TODO: handle queuing of messages if no connection
-    echo "kadpeer send no connection, abort"
+    debug "send no connection, abort"
 
   except CatchableError as exc:
     trace "exception occured", exc = exc.msg

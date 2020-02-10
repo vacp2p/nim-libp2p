@@ -1,7 +1,10 @@
 import options, tables
-import chronos
+import chronos, chronicles
 import ../../libp2p/standard_setup
 export standard_setup
+
+logScope:
+  topic = "testKademlia utils"
 
 proc generateNodes*(num: Natural): seq[Switch] =
   for i in 0..<num:
@@ -11,7 +14,7 @@ proc generateNodes*(num: Natural): seq[Switch] =
 # Here all peers listen to all other nodes
 # TODO: Break up
 proc listenAllNodes*(nodes: seq[Switch]) {.async.} =
-  echo("listenAllNodes")
+  trace "listenAllNodes"
   var dials: seq[Future[void]]
   for dialer in nodes:
     for node in nodes:

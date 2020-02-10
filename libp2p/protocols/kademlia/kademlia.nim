@@ -144,7 +144,7 @@ method rpcHandler*(p: KadProto,
 method handleConn*(p: KadProto,
                    conn: Connection,
                    proto: string) {.base, async.} =
-  debug "handleConn remote connection", proto = proto
+  trace "handleConn remote connection", proto = proto
 
   # TODO: see pubsub/handleConn
   #await conn.writeLp("Hello!")
@@ -247,14 +247,15 @@ method findNode*(p: KadProto,
     else: 1
 
   contacts.sort(distCmp)
-  echo("contacts sorted: ", contacts)
+  debug "findNode contacts sorted", contacts = contacts
 
   var res: seq[KadPeer]
   for c in contacts:
     if res.len == k:
       break
     res.add(c)
-  echo("Found up to k contacts: ", res)
+
+  debug "findNode found contacts contacts", res = res
   # TODO: Fix return type
   #return res
 
@@ -273,7 +274,7 @@ method findNode*(p: KadProto,
 method findNodeRPC*(p: KadProto,
                  peerInfo: PeerInfo,
                  id: PeerID): Future[seq[KadPeer]] {.base, async.} =
-  echo("findNodeRPC peer id ", peerInfo.id)
+  debug "findNodeRPC", peer = peerInfo.id
   var peer = p.peers[peerInfo.id]
   var req = "findNode " & $id
   # Later we expect to get findNodeResp
@@ -281,9 +282,9 @@ method findNodeRPC*(p: KadProto,
 
 # XXX
 method iterativeFindNode*(p: KadProto, target: PeerID) {.base, gcsafe, async.} =
-  echo("iterativeFindNode ", target)
+  debug "iterativeFindNode", target = target
   var self = p.peerInfo.peerId
-  echo("xor distance ", self, " ", target, "  : ", xor_distance(self, target))
+  debug "iterativeFindNode xor distance", self = self, target = target, distance = xor_distance(self, target)
 
   # Copy-paste from nim-kad-dht
   var candidate: KadPeer
@@ -296,7 +297,7 @@ method iterativeFindNode*(p: KadProto, target: PeerID) {.base, gcsafe, async.} =
     if p.kbuckets[i].len != 0:
       candidate = p.kbuckets[i][0]
       break
-  echo("Found initial candidate: ", candidate)
+  debug "iterativeFindNode", candidate = candidate
 
   # We note the closest node we have
   var closestNode = candidate
@@ -328,11 +329,11 @@ method iterativeFindNode*(p: KadProto, target: PeerID) {.base, gcsafe, async.} =
   for i in 0..16:
     if ((movedCloser == false) and (shortlist.len() == 0)):
       # XXX: Not tested
-      echo("Didn't move closer to node and no nodes left to check in shortlist, breaking")
+      debug "iterativeFindNode Didn't move closer to node and no nodes left to check in shortlist, breaking"
       break
-    echo("Active contacts: ", activeContacts, " desired: ", k)
+    debug "iterativeFindNode active contacts", activeContacts = activeContacts, desired = k
     if (activeContacts >= k):
-      echo("Found desired number of active and probed contacts ", k, " breaking")
+      debug "iterativeFindNode: Found desired number of active and probed contacts, breaking ", probed = k
       break
     # Get contact from shortlist
     # XXX: Error handling and do first here?
@@ -343,14 +344,14 @@ method iterativeFindNode*(p: KadProto, target: PeerID) {.base, gcsafe, async.} =
     # TODO: Replace with deal dial here
     # XXX HEREATM
     # Mock dial them them
-    echo("Mock dialing ", c)
+    debug "iterativeFindNode: Mock dialing ", c = c
     # XXX: Assuming c.id it exists in networkTable
-    echo("iterativeFindNode: ", c.id, " ", target)
+    debug "iterativeFindNode", id = c.id, target = target
     # TODO: This should be RPC to c.id - how? similar to ping
     # Or req?
     var resp = await p.findNodeRPC(c.peerInfo, target)
     #var resp = await mockFindNode(networkTable[c.id], targetid)
-    echo("iterativeFindNode Response from remote ", resp)
+    debug "iterativeFindNode: Response from remote ", resp = resp
 
     # Add new nodes as contacts, update activeContacts, shortlist and closestNode
     # XXX: Does it matter which order we update closestNode and shortlist in?
@@ -454,7 +455,7 @@ method listenForFindNode*(p: KadProto,
   ##
   ## ``handler`` - user provided proc to be triggered on find node
   # TODO
-  echo("listenForFindNode")
+  debug "listenForFindNode"
 
 
   # The passed handler will be called whenever findNodeHandle is
