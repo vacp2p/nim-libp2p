@@ -32,7 +32,7 @@ const b = 271 # size of bits of keys used to identify nodes and data
 type
   # XXX
   PingHandler* = proc(data: string): Future[void] {.gcsafe.}
-  FindNodeHandler* = proc(data: string): Future[void] {.gcsafe.}
+  FindNodeHandler* = proc(data: seq[KadPeer]): Future[void] {.gcsafe.}
   KBucket = seq[KadPeer] # should be k length
   #KBucket = array[k, KadPeer] # should be k length
   KBuckets = array[b, KBucket] # should be k length
@@ -48,8 +48,8 @@ type
 
 
 # Forward declarations
-#method findNode*(p: KadProto, id: PeerId): Future[seq[KadPeer]] {.base, async.}
-method findNode*(p: KadProto, id: PeerId) {.base, async.}
+method findNode*(p: KadProto, id: PeerId): Future[seq[KadPeer]] {.base, async.}
+#method findNode*(p: KadProto, id: PeerId) {.base, async.}
 
 proc `$`(k: KadPeer): string =
   return "<KadPeer>" & k.peerInfo.peerId.pretty
@@ -136,12 +136,10 @@ method rpcHandler*(p: KadProto,
     # XXX: Bad workaround --threadAnalysis:off
     # See https://github.com/nim-lang/Nim/issues/6186
     # Recipient in this case is the handler, no?
-    await p.findNode(pid)
-    await p.findNodeHandler($pid)
-
-#  var testFut = newFuture[bool]()
-#  testFut.complete(true)
-#  await allFutures(testFut)
+    var res: seq[KadPeer]
+    res = await p.findNode(pid)
+    debug "rpcHandler findNode", res = res
+    await p.findNodeHandler(res)
 
 method handleConn*(p: KadProto,
                    conn: Connection,
@@ -209,7 +207,7 @@ method addContact*(p: KadProto, contact: PeerInfo) {.base, gcsafe.} =
 # MUST NOT return the originating node in its response
 # Returns up to k contacts
 # TODO: When being queried, this should also update that node's routing table
-method findNode*(p: KadProto, id: PeerId) {.async.} =
+method findNode*(p: KadProto, id: PeerId): Future[seq[KadPeer]] {.async.} =
   debug "findNode", peer = id, k = k
 
   # Find up to k closest nodes to target
@@ -247,15 +245,8 @@ method findNode*(p: KadProto, id: PeerId) {.async.} =
     res.add(c)
 
   debug "findNode found contacts", contacts = res
+  return res
 
-  # TODO: Send result to peer
-  # What's peer? Who wants this data?
-
-  #var testFut = newFuture[bool]()
-  #testFut.complete(true)
-  #await allFutures(testFut)
-   
-#
 # Find node RPC
 # TODO: Should be protobuf RPC 
 # TODO: This should return seq, also see logic from mock

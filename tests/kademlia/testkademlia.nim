@@ -3,7 +3,8 @@ import chronos, chronicles
 import utils,
        ../../libp2p/[switch,
                      crypto/crypto,
-                     protocols/kademlia/kademlia]
+                     protocols/kademlia/kademlia,
+                     protocols/kademlia/kadpeer]
 
 logScope:
   topic = "testKademlia"
@@ -69,7 +70,7 @@ suite "Kademlia":
     proc runTests(): Future[bool] {.async.} =
       var completionFut = newFuture[bool]()
       # XXX: handler signature
-      proc handler(data: string) {.async, gcsafe.} =
+      proc handler(data: seq[KadPeer]) {.async, gcsafe.} =
         debug "Find node", data=data
         completionFut.complete(true)
 
