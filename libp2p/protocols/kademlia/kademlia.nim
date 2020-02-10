@@ -215,54 +215,56 @@ method addContact*(p: KadProto, contact: PeerInfo) {.base, gcsafe.} =
 method findNode*(p: KadProto,
                  id: PeerId) {.async.} =
   echo("findNode NYI - this hit?")
-  #echo("findNode looking for up to k=", k, " contacts closest to: ", id)
+  echo("findNode looking for up to k=", k, " contacts closest to: ", id)
 
-  #asyncCheck p.findNodeHandler("XXX")
-  # Simulating some RPC latency
-  #os.sleep(1000)
- 
+  # TODO: Before this, ensure receiving node has contacts already
+  #
+  # Find up to k closest nodes to target
+  #
+  # NOTE: Bruteforcing my sorting all contacts, not efficient but least error-prone for now.
+  # TODO: Make this more efficient, sketch (might be wrong, verify):
+  # 0) If reach k contacts at any point, return
+  # 1) Look in kb=which_kbucket(node, targetid)
+  # 2) Then traverse backward from kb to key bucket 0
+  # 3) If still not reached k, go upwards in kbucket from kb+1
+  # 4) If still not k contacts, return anyway
+  # Look at other implementations to see how this is done
+
+  # TODO: NYI
+  # XXX: Revisit this logic
+  var contacts: seq[KadPeer]
+  for kb in p.kbuckets:
+    for contact in kb:
+      contacts.add(contact)
+
+  # XXX: Duplicate
+  var target = id
+  proc distCmp(x, y: KadPeer): int =
+    var d1 = xor_distance(x.peerInfo.peerId, target)
+    var d2 = xor_distance(y.peerInfo.peerId, target)
+    if d1 < d2:
+      -1
+    else: 1
+
+  contacts.sort(distCmp)
+  echo("contacts sorted: ", contacts)
+
+  var res: seq[KadPeer]
+  for c in contacts:
+    if res.len == k:
+      break
+    res.add(c)
+  echo("Found up to k contacts: ", res)
+  # TODO: Fix return type
+  #return res
+
+
+  #
   #XXX
   var testFut = newFuture[bool]()
   testFut.complete(true)
   await allFutures(testFut)
    
-# Find up to k closest nodes to target
-#
-# NOTE: Bruteforcing my sorting all contacts, not efficient but least error-prone for now.
-# TODO: Make this more efficient, sketch (might be wrong, verify):
-# 0) If reach k contacts at any point, return
-# 1) Look in kb=which_kbucket(node, targetid)
-# 2) Then traverse backward from kb to key bucket 0
-# 3) If still not reached k, go upwards in kbucket from kb+1
-# 4) If still not k contacts, return anyway
-# Look at other implementations to see how this is done
-
-
-  # TODO: NYI
-#  var contacts: seq[KadPeer]
-#  for kb in p.kbuckets:
-#    for contact in kb:
-#      contacts.add(contact)
-#
-#  # XXX: Duplicate
-#  var target = id
-#  proc distCmp(x, y: KadPeer): int =
-#    var d1 = xor_distance(x.peerInfo.peerId, target)
-#    var d2 = xor_distance(y.peerInfo.peerId, target)
-#    if d1 < d2:
-#      -1
-#    else: 1
-#
-#  contacts.sort(distCmp)
-#  echo("contacts sorted: ", contacts)
-#
-#  var res: seq[KadPeer]
-#  for c in contacts:
-#    if res.len == k:
-#      break
-#    res.add(c)
-#  echo("Found up to k contacts: ", res)
-#  return res
 #
 # Find node RPC
 # TODO: Should be protobuf RPC 
