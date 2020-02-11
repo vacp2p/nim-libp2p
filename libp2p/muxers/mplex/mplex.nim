@@ -23,8 +23,6 @@ import ../muxer,
 logScope:
   topic = "Mplex"
 
-const HandleTimeout = 30.seconds
-
 type
   Mplex* = ref object of Muxer
     remote*: Table[uint, LPChannel]
@@ -71,7 +69,7 @@ method handle*(m: Mplex) {.async, gcsafe.} =
     while not m.connection.closed:
       trace "waiting for data"
       let
-        res = await one(m.connection.readMsg(), messageTimeout(HandleTimeout))
+        res = await one(m.connection.readMsg(), messageTimeout(MaxReadWriteTime))
         msg = res.read()
       if msg.isNone:
         trace "connection EOF"
