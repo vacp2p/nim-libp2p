@@ -90,6 +90,9 @@ proc join*(p: PeerInfo): Future[void] {.inline.} =
 proc isClosed*(p: PeerInfo): bool {.inline.} =
   result = p.lifefut.finished()
 
+proc lifeFuture*(p: PeerInfo): Future[void] {.inline.} =
+  result = p.lifefut
+
 proc publicKey*(p: PeerInfo): Option[PublicKey] {.inline.} =
   if p.keyType == HasPublic:
     if p.peerId.hasPublicKey():
