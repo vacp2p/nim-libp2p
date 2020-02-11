@@ -15,7 +15,7 @@ import peerinfo,
        varint,
        vbuffer
 
-const DefaultReadSize*: uint = 64 * 1024
+const DefaultReadSize*: uint = 1 shl 20 # 1mb, in order to fit mplex spec
 
 type
   Connection* = ref object of LPStream

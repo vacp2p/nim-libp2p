@@ -187,9 +187,11 @@ suite "Mplex":
 
       proc connHandler(conn: Connection) {.async, gcsafe.} =
         proc handleMplexListen(stream: Connection) {.async, gcsafe.} =
+          defer:
+            await stream.close()
           let msg = await stream.readLp()
-          check cast[string](msg) == "Hello from stream!"
-          await stream.close()
+          # we should not reach this anyway!!
+          check false
           listenJob.complete()
 
         let mplexListen = newMplex(conn)
@@ -198,9 +200,13 @@ suite "Mplex":
 
       let transport1: TcpTransport = newTransport(TcpTransport)
       discard await transport1.listen(ma, connHandler)
+      defer:
+        await transport1.close()
 
       let transport2: TcpTransport = newTransport(TcpTransport)
       let conn = await transport2.dial(transport1.ma)
+      defer:
+        await conn.close()
 
       let mplexDial = newMplex(conn)
       let stream  = await mplexDial.newStream()
@@ -208,8 +214,11 @@ suite "Mplex":
       for _ in 0..<MaxMsgSize:
         bigseq.add(uint8(rand(uint('A')..uint('z'))))
       await stream.writeLp(bigseq)
-      await conn.close()
-      await listenJob.wait(seconds(5))
+      try:
+        await listenJob.wait(seconds(5))
+      except AsyncTimeoutError:
+        # we want to time out here!
+        discard
       result = true
 
     check:
