@@ -144,6 +144,10 @@ proc cleanupConn(s: Switch, conn: Connection) {.async, gcsafe.} =
         await s.connections[id].close()
       s.connections.del(id)
 
+    # TODO: Investigate cleanupConn() always called twice for one peer.
+    if not(conn.peerInfo.isClosed()):
+      conn.peerInfo.close()
+
 proc disconnect*(s: Switch, peer: PeerInfo) {.async, gcsafe.} =
   let conn = s.connections.getOrDefault(peer.id)
   if not isNil(conn):
