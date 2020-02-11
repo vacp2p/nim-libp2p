@@ -26,6 +26,8 @@ type
     name*: string
     conn*: Connection
     initiator*: bool
+    isLazy*: bool
+    isOpen*: bool
     isReset*: bool
     closedLocal*: bool
     closedRemote*: bool
@@ -39,7 +41,8 @@ proc newChannel*(id: uint,
                  conn: Connection,
                  initiator: bool,
                  name: string = "",
-                 size: int = DefaultChannelSize): LPChannel =
+                 size: int = DefaultChannelSize,
+                 lazy: bool = false): LPChannel =
   new result
   result.id = id
   result.name = name
@@ -49,6 +52,7 @@ proc newChannel*(id: uint,
   result.closeCode = if initiator: MessageType.CloseOut else: MessageType.CloseIn
   result.resetCode = if initiator: MessageType.ResetOut else: MessageType.ResetIn
   result.asyncLock = newAsyncLock()
+  result.isLazy = lazy
 
   let chan = result
   proc writeHandler(data: seq[byte]): Future[void] {.async.} =
@@ -76,6 +80,7 @@ proc cleanUp*(s: LPChannel): Future[void] =
   result = procCall close(BufferStream(s))
 
 proc open*(s: LPChannel): Future[void] =
+  s.isOpen = true
   s.conn.writeMsg(s.id, MessageType.New, s.name)
 
 method close*(s: LPChannel) {.async, gcsafe.} =
@@ -142,19 +147,22 @@ method readUntil*(s: LPChannel,
     raise newLPStreamEOFError()
   result = procCall readOnce(BufferStream(s), pbytes, nbytes)
 
-method write*(s: LPChannel,
-              pbytes: pointer,
-              nbytes: int): Future[void] =
+template writePrefix: untyped =
+  if s.isLazy and not s.isOpen:
+    await s.open()
   if s.closedLocal or s.isReset:
     raise newLPStreamEOFError()
+
+method write*(s: LPChannel,
+              pbytes: pointer,
+              nbytes: int): Future[void] {.async.} =
+  writePrefix()
   result = procCall write(BufferStream(s), pbytes, nbytes)
 
 method write*(s: LPChannel, msg: string, msglen = -1) {.async.} =
-  if s.closedLocal or s.isReset:
-    raise newLPStreamEOFError()
+  writePrefix()
   result = procCall write(BufferStream(s), msg, msglen)
 
 method write*(s: LPChannel, msg: seq[byte], msglen = -1) {.async.} =
-  if s.closedLocal or s.isReset:
-    raise newLPStreamEOFError()
+  writePrefix()
   result = procCall write(BufferStream(s), msg, msglen)

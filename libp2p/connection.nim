@@ -28,21 +28,25 @@ type
 proc newInvalidVarintException*(): ref InvalidVarintException =
   newException(InvalidVarintException, "unable to prase varint")
 
-proc newConnection*(stream: LPStream): Connection =
+proc init*[T: Connection](self: var T, stream: LPStream) =
   ## create a new Connection for the specified async reader/writer
-  new result
-  result.stream = stream
-  result.closeEvent = newAsyncEvent()
+  new self
+  self.stream = stream
+  self.closeEvent = newAsyncEvent()
 
   # bind stream's close event to connection's close
   # to ensure correct close propagation
-  let this = result
-  if not isNil(result.stream.closeEvent):
-    result.stream.closeEvent.wait().
+  let this = self
+  if not isNil(self.stream.closeEvent):
+    self.stream.closeEvent.wait().
       addCallback do (udata: pointer):
         if not this.closed:
           trace "closing this connection because wrapped stream closed"
           asyncCheck this.close()
+
+proc newConnection*(stream: LPStream): Connection =
+  ## create a new Connection for the specified async reader/writer
+  result.init(stream)
 
 method read*(s: Connection, n = -1): Future[seq[byte]] {.gcsafe.} =
  s.stream.read(n)

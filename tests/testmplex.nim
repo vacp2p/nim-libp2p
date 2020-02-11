@@ -116,7 +116,7 @@ suite "Mplex":
 
     check:
       waitFor(testDecodeHeader()) == true
-
+  
   test "e2e - read/write receiver":
     proc testNewStream(): Future[bool] {.async.} =
       let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
@@ -138,9 +138,42 @@ suite "Mplex":
       let conn = await transport2.dial(transport1.ma)
 
       let mplexDial = newMplex(conn)
-      let stream  = await mplexDial.newStream()
+      let stream = await mplexDial.newStream()
+      let openState = cast[LPChannel](stream.stream).isOpen
       await stream.writeLp("Hello from stream!")
       await conn.close()
+      check openState # not lazy
+      result = true
+
+    check:
+      waitFor(testNewStream()) == true
+
+  test "e2e - read/write receiver lazy":
+    proc testNewStream(): Future[bool] {.async.} =
+      let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
+
+      proc connHandler(conn: Connection) {.async, gcsafe.} =
+        proc handleMplexListen(stream: Connection) {.async, gcsafe.} =
+          let msg = await stream.readLp()
+          check cast[string](msg) == "Hello from stream!"
+          await stream.close()
+
+        let mplexListen = newMplex(conn)
+        mplexListen.streamHandler = handleMplexListen
+        discard mplexListen.handle()
+
+      let transport1: TcpTransport = newTransport(TcpTransport)
+      discard await transport1.listen(ma, connHandler)
+
+      let transport2: TcpTransport = newTransport(TcpTransport)
+      let conn = await transport2.dial(transport1.ma)
+
+      let mplexDial = newMplex(conn)
+      let stream = await mplexDial.newStream("", true)
+      let openState = cast[LPChannel](stream.stream).isOpen
+      await stream.writeLp("Hello from stream!")
+      await conn.close()
+      check not openState # assert lazy 
       result = true
 
     check:
