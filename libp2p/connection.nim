@@ -15,7 +15,7 @@ import peerinfo,
        varint,
        vbuffer
 
-const DefaultReadSize*: uint = 1 shl 20 # 1mb, in order to fit mplex spec
+const DefaultReadSize* = 1 shl 20
 
 type
   Connection* = ref object of LPStream
@@ -24,9 +24,13 @@ type
     observedAddrs*: Multiaddress
 
   InvalidVarintException = object of LPStreamError
+  InvalidVarintSizeException = object of LPStreamError
 
 proc newInvalidVarintException*(): ref InvalidVarintException =
   newException(InvalidVarintException, "unable to parse varint")
+
+proc newInvalidVarintSizeException*(): ref InvalidVarintSizeException =
+  newException(InvalidVarintSizeException, "wrong varint size")
 
 proc init*[T: Connection](self: var T, stream: LPStream) =
   ## create a new Connection for the specified async reader/writer
@@ -124,8 +128,8 @@ proc readLp*(s: Connection): Future[seq[byte]] {.async, gcsafe.} =
         break
     if res != VarintStatus.Success:
       raise newInvalidVarintException()
-    if size > DefaultReadSize:
-      raise newLPStreamLimitError()
+    if size.int > DefaultReadSize:
+      raise newInvalidVarintSizeException()
     buff.setLen(size)
     if size > 0.uint:
       trace "reading exact bytes from stream", size = size
