@@ -101,6 +101,7 @@ suite "Switch":
 
       check isNil(conn)
       discard allFutures(switch1.stop(), switch2.stop())
+      await allFutures(awaiters)
       result = true
 
     check:

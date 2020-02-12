@@ -7,7 +7,7 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import unittest, sequtils, options
+import unittest, sequtils
 import chronos
 import utils,
        ../../libp2p/[switch,
