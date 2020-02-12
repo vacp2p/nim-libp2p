@@ -43,21 +43,19 @@ proc readMplexVarint(conn: Connection): Future[Option[uint]] {.async, gcsafe.} =
   except LPStreamIncompleteError as exc:
     trace "unable to read varint", exc = exc.msg
 
-proc readMsg*(conn: Connection): Future[Option[Msg]] {.async, gcsafe.} =
+proc readMsg*(conn: Connection): Future[Msg] {.async, gcsafe.} =
   let headerVarint = await conn.readMplexVarint()
-  if headerVarint.isNone:
-    return
-
-  trace "read header varint", varint = $headerVarint
+  trace "read header varint", varint = headerVarint
 
   let dataLenVarint = await conn.readMplexVarint()
+  trace "read data len varing", varint = dataLenVarint
   var data: seq[byte]
-  if dataLenVarint.isSome and dataLenVarint.get() > 0.uint:
-    data = await conn.read(dataLenVarint.get().int)
-    trace "read size varint", varint = $dataLenVarint
+  if dataLenVarint.int > 0:
+    data = await conn.read(dataLenVarint.int)
+    trace "read data", data = data
 
-  let header = headerVarint.get()
-  result = some((header shr 3, MessageType(header and 0x7), data))
+  let header = headerVarint
+  result = (header shr 3, MessageType(header and 0x7), data)
 
 proc writeMsg*(conn: Connection,
                id: uint,
