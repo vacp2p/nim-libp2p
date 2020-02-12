@@ -38,6 +38,12 @@ type
     na: string
     ls: string
 
+  MultistreamHandshakeException* = object of CatchableError
+
+proc newMultistreamHandshakeException*(): ref Exception {.inline.} =
+  result = newException(MultistreamHandshakeException,
+    "could not perform multistream handshake")
+
 proc newMultistream*(): MultistreamSelect =
   new result
   result.codec = MSCodec
@@ -58,8 +64,8 @@ proc select*(m: MultistreamSelect,
   result = cast[string]((await conn.readLp())) # read ms header
   result.removeSuffix("\n")
   if result != Codec:
-    trace "handshake failed", codec = result.toHex()
-    return ""
+    error "handshake failed", codec = result.toHex()
+    raise newMultistreamHandshakeException()
 
   if proto.len() == 0: # no protocols, must be a handshake call
     return
