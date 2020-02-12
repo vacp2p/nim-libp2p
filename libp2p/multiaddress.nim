@@ -234,17 +234,17 @@ proc dnsVB(vb: var VBuffer): bool =
     if s.find('/') == -1:
       result = true
 
-proc pEq(codec: string): MaPattern =
+proc mapEq*(codec: string): MaPattern =
   ## ``Equal`` operator for pattern
   result.operator = Eq
   result.value = multiCodec(codec)
 
-proc pOr(args: varargs[MaPattern]): MaPattern =
+proc mapOr*(args: varargs[MaPattern]): MaPattern =
   ## ``Or`` operator for pattern
   result.operator = Or
   result.args = @args
 
-proc pAnd(args: varargs[MaPattern]): MaPattern =
+proc mapAnd*(args: varargs[MaPattern]): MaPattern =
   ## ``And`` operator for pattern
   result.operator = And
   result.args = @args
@@ -379,39 +379,39 @@ const
     )
   ]
 
-  DNS4* = pEq("dns4")
-  DNS6* = pEq("dns6")
-  IP4* = pEq("ip4")
-  IP6* = pEq("ip6")
-  DNS* = pOr(pEq("dnsaddr"), DNS4, DNS6)
-  IP* = pOr(IP4, IP6)
-  TCP* = pOr(pAnd(DNS, pEq("tcp")), pAnd(IP, pEq("tcp")))
-  UDP* = pOr(pAnd(DNS, pEq("udp")), pAnd(IP, pEq("udp")))
-  UTP* = pAnd(UDP, pEq("utp"))
-  QUIC* = pAnd(UDP, pEq("quic"))
-  UNIX* = pEq("unix")
+  DNS4* = mapEq("dns4")
+  DNS6* = mapEq("dns6")
+  IP4* = mapEq("ip4")
+  IP6* = mapEq("ip6")
+  DNS* = mapOr(mapEq("dnsaddr"), DNS4, DNS6)
+  IP* = mapOr(IP4, IP6)
+  TCP* = mapOr(mapAnd(DNS, mapEq("tcp")), mapAnd(IP, mapEq("tcp")))
+  UDP* = mapOr(mapAnd(DNS, mapEq("udp")), mapAnd(IP, mapEq("udp")))
+  UTP* = mapAnd(UDP, mapEq("utp"))
+  QUIC* = mapAnd(UDP, mapEq("quic"))
+  UNIX* = mapEq("unix")
 
-  Unreliable* = pOr(UDP)
+  Unreliable* = mapOr(UDP)
 
-  Reliable* = pOr(TCP, UTP, QUIC)
+  Reliable* = mapOr(TCP, UTP, QUIC)
 
-  IPFS* = pAnd(Reliable, pEq("p2p"))
+  IPFS* = mapAnd(Reliable, mapEq("p2p"))
 
-  HTTP* = pOr(
-    pAnd(TCP, pEq("http")),
-    pAnd(IP, pEq("http")),
-    pAnd(DNS, pEq("http"))
+  HTTP* = mapOr(
+    mapAnd(TCP, mapEq("http")),
+    mapAnd(IP, mapEq("http")),
+    mapAnd(DNS, mapEq("http"))
   )
 
-  HTTPS* = pOr(
-    pAnd(TCP, pEq("https")),
-    pAnd(IP, pEq("https")),
-    pAnd(DNS, pEq("https"))
+  HTTPS* = mapOr(
+    mapAnd(TCP, mapEq("https")),
+    mapAnd(IP, mapEq("https")),
+    mapAnd(DNS, mapEq("https"))
   )
 
-  WebRTCDirect* = pOr(
-    pAnd(HTTP, pEq("p2p-webrtc-direct")),
-    pAnd(HTTPS, pEq("p2p-webrtc-direct"))
+  WebRTCDirect* = mapOr(
+    mapAnd(HTTP, mapEq("p2p-webrtc-direct")),
+    mapAnd(HTTPS, mapEq("p2p-webrtc-direct"))
   )
 
 proc initMultiAddressCodeTable(): Table[MultiCodec,
