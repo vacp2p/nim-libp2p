@@ -97,6 +97,7 @@ suite "FloodSub":
       await allFutures(nodes[0].stop(), nodes[1].stop())
       await allFutures(awaiters)
       result = true
+
     check:
       waitFor(runTests()) == true
 
@@ -161,6 +162,7 @@ suite "FloodSub":
       await allFutures(nodes[0].stop(), nodes[1].stop())
       await allFutures(awaiters)
       result = true
+
     check:
       waitFor(runTests()) == true
 
@@ -179,14 +181,16 @@ suite "FloodSub":
       for node in nodes:
         awaitters.add(await node.start())
         await node.subscribe("foobar", handler)
-        await sleepAsync(10.millis)
+        await sleepAsync(100.millis)
 
       await subscribeNodes(nodes)
-      await sleepAsync(10.millis)
+      await sleepAsync(1000.millis)
 
       for node in nodes:
         await node.publish("foobar", cast[seq[byte]]("Hello!"))
-        await sleepAsync(10.millis)
+        await sleepAsync(100.millis)
+
+      await sleepAsync(3000.millis)
 
       await allFutures(nodes.mapIt(it.stop()))
       await allFutures(awaitters)
@@ -211,19 +215,21 @@ suite "FloodSub":
       for node in nodes:
         awaitters.add((await node.start()))
         await node.subscribe("foobar", handler)
-        await sleepAsync(10.millis)
+        await sleepAsync(100.millis)
 
       await subscribeNodes(nodes)
       await sleepAsync(500.millis)
 
       for node in nodes:
         await node.publish("foobar", cast[seq[byte]]("Hello!"))
-        await sleepAsync(10.millis)
+        await sleepAsync(100.millis)
+
+      await sleepAsync(5000.millis)
 
       await allFutures(nodes.mapIt(it.stop()))
       await allFutures(awaitters)
 
-      result = passed >= 10 # non deterministic, so at least 10 times
+      result = passed >= 40 # non deterministic, so at least 10 times
 
     check:
       waitFor(runTests()) == true
