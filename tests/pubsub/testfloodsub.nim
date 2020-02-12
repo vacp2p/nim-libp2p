@@ -168,7 +168,7 @@ suite "FloodSub":
 
   test "FloodSub multiple peers, no self trigger":
     proc runTests(): Future[bool] {.async.} =
-      var passed: int
+      var passed = 0
       proc handler(topic: string, data: seq[byte]) {.async, gcsafe.} =
         check topic == "foobar"
         passed.inc()
@@ -191,7 +191,6 @@ suite "FloodSub":
         await sleepAsync(100.millis)
 
       await sleepAsync(5000.millis)
-
       await allFutures(nodes.mapIt(it.stop()))
       await allFutures(awaitters)
 
@@ -202,7 +201,7 @@ suite "FloodSub":
 
   test "FloodSub multiple peers, with self trigger":
     proc runTests(): Future[bool] {.async.} =
-      var passed: int
+      var passed = 0
       proc handler(topic: string, data: seq[byte]) {.async, gcsafe.} =
         check topic == "foobar"
         passed.inc()
@@ -218,18 +217,17 @@ suite "FloodSub":
         await sleepAsync(100.millis)
 
       await subscribeNodes(nodes)
-      await sleepAsync(500.millis)
+      await sleepAsync(1000.millis)
 
       for node in nodes:
         await node.publish("foobar", cast[seq[byte]]("Hello!"))
         await sleepAsync(100.millis)
 
-      await sleepAsync(5000.millis)
-
+      await sleepAsync(1.minutes)
       await allFutures(nodes.mapIt(it.stop()))
       await allFutures(awaitters)
 
-      result = passed >= 40 # non deterministic, so at least 10 times
+      result = passed >= 20 # non deterministic, so at least 10 times
 
     check:
       waitFor(runTests()) == true
