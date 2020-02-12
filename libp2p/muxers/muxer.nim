@@ -32,7 +32,8 @@ type
     muxerHandler*: MuxerHandler # triggered every time there is a new muxed connection created
 
 # muxer interface
-method newStream*(m: Muxer, name: string = "", lazy: bool = false): Future[Connection] {.base, async, gcsafe.} = discard
+method newStream*(m: Muxer, name: string = "", lazy: bool = false):
+  Future[Connection] {.base, async, gcsafe.} = discard
 method close*(m: Muxer) {.base, async, gcsafe.} = discard
 method handle*(m: Muxer): Future[void] {.base, async, gcsafe.} = discard
 
@@ -52,5 +53,4 @@ method init(c: MuxerProvider) =
       muxer.streamHandler = c.streamHandler
 
     await muxer.handle()
-
   c.handler = handler
