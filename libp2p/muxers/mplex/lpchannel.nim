@@ -33,7 +33,6 @@ type
     msgCode*: MessageType
     closeCode*: MessageType
     resetCode*: MessageType
-    asyncLock: AsyncLock
 
 proc newChannel*(id: uint,
                  conn: Connection,
@@ -49,19 +48,16 @@ proc newChannel*(id: uint,
   result.msgCode = if initiator: MessageType.MsgOut else: MessageType.MsgIn
   result.closeCode = if initiator: MessageType.CloseOut else: MessageType.CloseIn
   result.resetCode = if initiator: MessageType.ResetOut else: MessageType.ResetIn
-  result.asyncLock = newAsyncLock()
   result.isLazy = lazy
 
   let chan = result
   proc writeHandler(data: seq[byte]): Future[void] {.async.} =
     # writes should happen in sequence
-    await chan.asyncLock.acquire()
     trace "sending data ", data = data.toHex(),
                            id = chan.id,
                            initiator = chan.initiator
 
     await conn.writeMsg(chan.id, chan.msgCode, data) # write header
-    chan.asyncLock.release()
 
   result.initBufferStream(writeHandler, size)
 
