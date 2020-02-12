@@ -357,6 +357,12 @@ suite "Mplex":
     expect LPStreamEOFError:
       waitFor(testClosedForWrite())
 
+  # TODO: this locks up after removing sleepAsync as a
+  # synchronization mechanism in mplex. I believe this
+  # is related to how chronos schedules callbacks in select,
+  # which effectively puts to infinite sleep when there
+  # are no more callbacks, so essentially this sequence of
+  # reads isn't possible with the current chronos.
   # test "half closed - channel should close for read by remote":
   #   proc testClosedForRead(): Future[void] {.async.} =
   #     proc writeHandler(data: seq[byte]) {.async, gcsafe.} = discard
