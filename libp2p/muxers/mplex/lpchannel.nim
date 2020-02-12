@@ -18,8 +18,6 @@ import types,
 logScope:
   topic = "MplexChannel"
 
-const DefaultChannelSize* = DefaultBufferSize * 64     # 64kb
-
 type
   LPChannel* = ref object of BufferStream
     id*: uint

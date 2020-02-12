@@ -47,10 +47,10 @@ proc createSwitch(ma: MultiAddress): (Switch, PeerInfo) =
   let muxers = [(MplexCodec, mplexProvider)].toTable()
   let secureManagers = [(SecioCodec, Secure(newSecio(peerInfo.privateKey)))].toTable()
   let switch = newSwitch(peerInfo,
-                          transports,
-                          identify,
-                          muxers,
-                          secureManagers)
+                         transports,
+                         identify,
+                         muxers,
+                         secureManagers)
   result = (switch, peerInfo)
 
 suite "Switch":
@@ -61,16 +61,16 @@ suite "Switch":
 
       var peerInfo1, peerInfo2: PeerInfo
       var switch1, switch2: Switch
+      var awaiters: seq[Future[void]]
+
       (switch1, peerInfo1) = createSwitch(ma1)
 
       let testProto = new TestProto
       testProto.init()
       testProto.codec = TestCodec
       switch1.mount(testProto)
-      var awaiters: seq[Future[void]]
-      awaiters.add(await switch1.start())
-
       (switch2, peerInfo2) = createSwitch(ma2)
+      awaiters.add(await switch1.start())
       awaiters.add(await switch2.start())
       let conn = await switch2.dial(switch1.peerInfo, TestCodec)
       await conn.writeLp("Hello!")
