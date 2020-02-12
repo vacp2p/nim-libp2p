@@ -105,9 +105,13 @@ proc publicKey*(p: PeerInfo): Option[PublicKey] {.inline.} =
     result = some(p.privateKey.getKey())
 
 proc id*(p: PeerInfo): string {.inline.} =
-  result = p.peerId.pretty()
+  if not isNil(p):
+    result = p.peerId.pretty()
 
 proc `$`*(p: PeerInfo): string =
+  if isNil(p):
+    return ""
+
   result.add("PeerID: ")
   result.add(p.id & "\n")
 
