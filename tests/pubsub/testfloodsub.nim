@@ -223,7 +223,7 @@ suite "FloodSub":
         await node.publish("foobar", cast[seq[byte]]("Hello!"))
         await sleepAsync(100.millis)
 
-      await sleepAsync(1.minutes)
+      await sleepAsync(5000.millis)
       await allFutures(nodes.mapIt(it.stop()))
       await allFutures(awaitters)
 
