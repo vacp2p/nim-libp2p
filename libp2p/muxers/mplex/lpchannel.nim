@@ -62,7 +62,8 @@ proc newChannel*(id: uint,
   result.initBufferStream(writeHandler, size)
 
 proc closeMessage(s: LPChannel) {.async.} =
-  await s.conn.writeMsg(s.id, s.closeCode) # write header
+  if not s.closed:
+    await s.conn.writeMsg(s.id, s.closeCode) # write header
 
 proc closedByRemote*(s: LPChannel) {.async.} =
   s.closedRemote = true
