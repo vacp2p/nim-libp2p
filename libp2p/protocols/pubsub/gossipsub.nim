@@ -413,8 +413,9 @@ method start*(g: GossipSub) {.async.} =
 
   # setup the heartbeat interval
   g.heartbeatCancel = addInterval(GossipSubHeartbeatInterval,
-                                  proc (arg: pointer = nil) {.gcsafe, locks: 0.} =
-    asyncCheck g.heartbeat)
+                                  proc (arg: pointer = nil)
+                                    {.gcsafe, locks: 0.} =
+                                    asyncCheck g.heartbeat)
 
 method stop*(g: GossipSub) {.async.} =
   ## stopt pubsub

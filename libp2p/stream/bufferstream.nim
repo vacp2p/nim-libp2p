@@ -107,11 +107,6 @@ proc pushTo*(s: BufferStream, data: seq[byte]) {.async.} =
     await s.lock.acquire()
     var index = 0
     while true:
-      # give readers a chance free up the buffer
-      # it it's full.
-      if s.readBuf.len >= s.maxSize:
-        await sleepAsync(1.millis)
-
       while index < data.len and s.readBuf.len < s.maxSize:
         s.readBuf.addLast(data[index])
         inc(index)
