@@ -117,6 +117,8 @@ proc getPeer(p: KadProto,
 
 # TODO: HERE ATM, This compiles, need to fix interface with await etc
 # TODO: Do proper RPC parsing based on protobuf, e.g.
+# XXX: Should we have some form of request id here?
+# The problem is that we are sending a string instead of encoding it
 method rpcHandler*(p: KadProto,
                    peer: KadPeer,
                    rpcMsg: string) {.async, base.} =
@@ -127,9 +129,12 @@ method rpcHandler*(p: KadProto,
     await p.pingHandler(rpcMsg)
 # XXX: Why problem?
   elif rpcMsg.startsWith("findNode"):
+    # XXX: oops, this is wrong
 #    # TODO: This is a short representation of id, not actual pid
-#    var raw_str_pid = rpcMsg.split("findNode ")[1]
+    var raw_str_pid = rpcMsg.split("findNode ")[1]
     var pstr = "Qmdxy8GAu1pvi35xBAie9sMpMN4G9p6GK6WCNbSCDCDgyp"
+    debug "rpcHandler fake hardcoded id", id = pstr, sender = peer.id, raw = raw_str_pid
+    # It isn't peer.id, that's the sender, coincidence
     var pid = PeerID.init(pstr)
     # TODO: Fix this error, possibly with threadvar
     #/home/oskarth/git/nim-libp2p/libp2p/protocols/kademlia/kademlia.nim(161, 18) Error: type mismatch: got <proc (peer: KadPeer, msg: string): Future[system.void]{.closure, locks: <unknown>.}> but expected 'RPCHandler = proc (peer: KadPeer, msg: string): Future[system.void]{.closure, gcsafe.}'
@@ -258,6 +263,7 @@ method findNodeRPC*(p: KadProto,
   var peer = p.peers[peerInfo.id]
   var req = "findNode " & $id
   # Later we expect to get findNodeResp
+  # Do we really though? Or does the response come in async?
   await peer.send(req)
 
 # XXX
@@ -331,6 +337,7 @@ method iterativeFindNode*(p: KadProto, target: PeerID) {.base, gcsafe, async.} =
     # Or req?
     var resp = await p.findNodeRPC(c.peerInfo, target)
     #var resp = await mockFindNode(networkTable[c.id], targetid)
+    # TODO: No response here
     debug "iterativeFindNode: Response from remote ", resp = resp
 
     # Add new nodes as contacts, update activeContacts, shortlist and closestNode
