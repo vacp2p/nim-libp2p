@@ -10,24 +10,46 @@ proc decodeFindNode*(pb: var ProtoBuffer): seq[byte] {.gcsafe.} =
   # XXX
   result = cast[seq[byte]]("foo")
 
+#TODO: HERE ATM, just keep writing this
+proc encodeRpcMsg*(msg: RPCMsg): ProtoBuffer {.gcsafe.} =
+  result = initProtoBuffer()
+  debug "encoding msg: ", msg = msg, strtype = msg.strtype
+
+  result.write(initProtoField(1, msg.strtype)) 
+
+  #if msg.strtype.len > 0:
+  #  var strtype = initProtoBuffer()
+  #  pb.write(initProtoField(1, strtype))
+    #msg.strtype.get.encodeStrType(strtype)
+
+  result.finish()
+ # if msg.strtype == "PING":
+    # encode as string?
+  
+
+# TODO: Here
+
+#  if msg.ping.isSome:
+#    var ping = 
+
+  #if msg.findnode.isSome:
+
 proc decodeRpcMsg*(msg: seq[byte]): RPCMsg {.gcsafe.} =
   var pb = initProtoBuffer(msg)
 
   while true:
-    var field = pb.enterSubMessage()
-    debug "processing submessage", field = field
-    case field:
-    of 0:
-      debug "no submessage found in RPC msg"
+    var msg: RPCMsg
+    if pb.getString(1, msg.strtype) < 0:
       break
-    of 1:
-      # XXX:
-      result.ping = some(true)
-      #result.ping = pb.decodePing()
-    of 2:
-      debug "RPC msg findnode NYI"
-      # XXX
-      #result.findnode = some(msg)
-      result.findnode = some(pb.decodeFindNode())
-    else:
-      raise newException(CatchableError, "message type not recognized")
+    debug "read message field", strtype = msg.strtype
+    result = msg
+
+# Testing encoding and decoding
+var pingMessage = RPCMsg(strtype: "PING")
+debug "pingMessage", msg = pingMessage
+
+var encodedPing = encodeRpcMsg(pingMessage)
+debug "pingMessage encoded", encoded = encodedPing
+
+var decodedPing = decodeRpcMsg(encodedPing.buffer)
+debug "pingMessage decoded", decoded = decodedPing

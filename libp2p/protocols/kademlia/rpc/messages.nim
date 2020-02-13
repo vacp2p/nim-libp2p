@@ -21,18 +21,24 @@ import options
 # XXX: Use sum type for RPCMsg?
 # https://github.com/nim-lang/Nim/wiki/Common-Criticisms#sum-types-are-weird
 
+# TODO: Probably want to use enums here
+# https://github.com/libp2p/rust-libp2p/blob/master/protocols/kad/src/dht.proto
+
+# Currently using minimal version of kad-dht without enums
 type
-  #Message* = object
-  #  fromPeer*: seq[byte]
-  #  data*: seq[byte]
-    #seqno?, sig? key?
-  
-  #ControlMessage* = object
-  #  ping*: bool
-  #  findnode*: seq[byte]
+  Peer* = object
+    id*: seq[byte]
+    addrs*: seq[seq[byte]]
 
   RPCMsg* = object
-    #messages*: seq[Message]
-    #control*: Option[ControlMessage]
-    ping*: Option[bool]
-    findnode*: Option[seq[byte]]
+    # TODO: replace me with an enum MessageType
+    strtype*: string # "PING" "FIND_NODE"
+
+    key*: seq[byte]
+
+    # Returns values
+    #record*: Option[Record]
+
+    # Return peers closer a key in a query
+    # E.g. FIND_NODE
+    closerPeers*: Option[seq[Peer]]
