@@ -4,7 +4,8 @@ import utils,
        ../../libp2p/[switch,
                      crypto/crypto,
                      protocols/kademlia/kademlia,
-                     protocols/kademlia/kadpeer]
+                     protocols/kademlia/kadpeer,
+                     protocols/kademlia/rpc/messages]
 
 logScope:
   topic = "testKademlia"
@@ -13,7 +14,7 @@ suite "Kademlia":
   test "Kademlia basic ping":
     proc runTests(): Future[bool] {.async.} =
       var completionFut = newFuture[bool]()
-      proc handler(data: string) {.async, gcsafe.} =
+      proc handler(data: RPCMsg) {.async, gcsafe.} =
         debug "Basic ping handler", data=data
         completionFut.complete(true)
 

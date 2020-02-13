@@ -1,8 +1,7 @@
 import options, hashes, strutils, tables, hashes
 import chronos, chronicles
-import
-#rpc/[messages, message, protobuf],
-       ../../peer,
+import rpc/[messages, protobuf]
+import ../../peer,
        ../../peerinfo,
        ../../connection,
        ../../stream/lpstream,
@@ -21,8 +20,7 @@ type
       refs*: int # refcount of the connections this peer is handling
       onConnect: AsyncEvent
 
-    # TODO: Generalize msg field to take seq[RPCMsg]
-    RPCHandler* = proc(peer: KadPeer, msg: string): Future[void] {.gcsafe.}
+    RPCHandler* = proc(peer: KadPeer, msgs: seq[RPCMsg]): Future[void] {.gcsafe.}
 
 proc id*(p: KadPeer): string = p.peerInfo.id
 
@@ -34,22 +32,20 @@ proc `conn=`*(p: KadPeer, conn: Connection) =
   p.sendConn = conn
   p.onConnect.fire()
 
+
+# TODO: Add caching of messages
 proc handle*(p: KadPeer, conn: Connection) {.async.} =
+  debug "handling kademlia rpc", peer = p.id, closed = conn.closed
   try:
     while not conn.closed:
       trace "waiting for data", peer = p.id, closed = conn.closed
-      var msg = cast[string](await conn.readLp())
-      debug "handle", msg = msg
-      # TODO: Not getting hello response there
-      # XXX: Do we want to close connection here?
-      await conn.close()
-      #trace "read data from peer", peer = p.id, data = hexData
-      #let msg = decodeRpcMsg(data)
-      #trace "decoded msg from peer", peer = p.id, msg = msg
-      #await p.handler(p, @[msg])
+      let data = await conn.readLp()
+      let hexData = data.toHex()
+      trace "read data from peer", peer = p.id, data = hexData
 
-      await p.handler(p, msg)
-
+      let msg = decodeRpcMsg(data)
+      debug "decoded msg from peer", peer = p.id, msg = msg
+      await p.handler(p, @[msg])
   except CatchableError as exc:
     error "exception occured", exc = exc.msg
   finally:

@@ -2,6 +2,7 @@ import algorithm
 import options, strutils, tables
 import chronos, chronicles
 import kadpeer
+import rpc/messages
 import ../../../libp2p/[multistream,
                        protocols/identify,
                        connection,
@@ -30,8 +31,8 @@ const b = 271 # size of bits of keys used to identify nodes and data
 
 # Should parameterize by b, size of bits of keys (Peer ID dependent?)
 type
-  # XXX
-  PingHandler* = proc(data: string): Future[void] {.gcsafe.}
+  # XXX: What signature do we want here?
+  PingHandler* = proc(data: RPCMsg): Future[void] {.gcsafe.}
   FindNodeHandler* = proc(data: seq[KadPeer]): Future[void] {.gcsafe.}
   KBucket = seq[KadPeer] # should be k length
   #KBucket = array[k, KadPeer] # should be k length
@@ -121,30 +122,41 @@ proc getPeer(p: KadProto,
 # The problem is that we are sending a string instead of encoding it
 method rpcHandler*(p: KadProto,
                    peer: KadPeer,
-                   rpcMsg: string) {.async, base.} =
-  debug "rpcHandler", peer = peer.id, rpcMsg = rpcMsg
+                   rpcMsgs: seq[RPCMsg]) {.async, base.} =
+  ## handle rpc messages
+  debug "processing RPC message", peer = peer.id, msg = rpcMsgs
+  for m in rpcMsgs:                                # for all RPC messages
+    debug "processing messages", msg = rpcMsgs
+    # TODO: NYI
 
-  if rpcMsg.startsWith("ping"):
-    # Here we are just using the test handler
-    await p.pingHandler(rpcMsg)
-# XXX: Why problem?
-  elif rpcMsg.startsWith("findNode"):
-    # XXX: oops, this is wrong
-#    # TODO: This is a short representation of id, not actual pid
-    var raw_str_pid = rpcMsg.split("findNode ")[1]
-    var pstr = "Qmdxy8GAu1pvi35xBAie9sMpMN4G9p6GK6WCNbSCDCDgyp"
-    debug "rpcHandler fake hardcoded id", id = pstr, sender = peer.id, raw = raw_str_pid
-    # It isn't peer.id, that's the sender, coincidence
-    var pid = PeerID.init(pstr)
-    # TODO: Fix this error, possibly with threadvar
-    #/home/oskarth/git/nim-libp2p/libp2p/protocols/kademlia/kademlia.nim(161, 18) Error: type mismatch: got <proc (peer: KadPeer, msg: string): Future[system.void]{.closure, locks: <unknown>.}> but expected 'RPCHandler = proc (peer: KadPeer, msg: string): Future[system.void]{.closure, gcsafe.}'
-    # XXX: Bad workaround --threadAnalysis:off
-    # See https://github.com/nim-lang/Nim/issues/6186
-    # Recipient in this case is the handler, no?
-    var res: seq[KadPeer]
-    res = await p.findNode(pid)
-    debug "rpcHandler findNode", res = res
-    await p.findNodeHandler(res)
+    if m.ping.isSome:
+        # assume boolean true
+        debug "rpcHandler ping", ping = m.ping
+        echo "huh"
+        # Here we are just using the test handler
+        # FIXME: Type error here
+        await p.pingHandler(m)
+    # XXX: Why problem?
+    # XXX: Can have multiple set according to logic
+    elif m.findNode.isSome:
+      # TODO: Look into val
+      # XXX: oops, this is wrong
+  #    # TODO: This is a short representation of id, not actual pid
+      debug "rpcHandler findNode", findNode = m.findNode
+      #var raw_str_pid = m.split("findNode ")[1]
+      var pstr = "Qmdxy8GAu1pvi35xBAie9sMpMN4G9p6GK6WCNbSCDCDgyp"
+#      debug "rpcHandler fake hardcoded id", id = pstr, sender = peer.id, raw = raw_str_pid
+      # It isn't peer.id, that's the sender, coincidence
+      var pid = PeerID.init(pstr)
+      # TODO: Fix this error, possibly with threadvar
+      #/home/oskarth/git/nim-libp2p/libp2p/protocols/kademlia/kademlia.nim(161, 18) Error: type mismatch: got <proc (peer: KadPeer, msg: string): Future[system.void]{.closure, locks: <unknown>.}> but expected 'RPCHandler = proc (peer: KadPeer, msg: string): Future[system.void]{.closure, gcsafe.}'
+      # XXX: Bad workaround --threadAnalysis:off
+      # See https://github.com/nim-lang/Nim/issues/6186
+      # Recipient in this case is the handler, no?
+      var res: seq[KadPeer]
+      res = await p.findNode(pid)
+      debug "rpcHandler findNode", res = res
+      await p.findNodeHandler(res)
 
 method handleConn*(p: KadProto,
                    conn: Connection,
@@ -159,9 +171,8 @@ method handleConn*(p: KadProto,
     await conn.close()
     return
 
-  # TODO: generalize to msgs seq[RPCMsg]
-  proc handler(peer: KadPeer, msg: string) {.async.} =
-    discard p.rpcHandler(peer, msg)
+  proc handler(peer: KadPeer, msgs: seq[RPCMsg]) {.async.} =
+    discard p.rpcHandler(peer, msgs)
 
   let peer = p.getPeer(conn.peerInfo, proto)
   peer.handler = handler
