@@ -23,7 +23,7 @@ const
   ChaChaPolyTagSize = 16
   
 type
-  ChaChaPoly = object
+  ChaChaPoly* = object
   ChaChaPolyKey* = array[ChaChaPolyKeySize, byte]
   ChaChaPolyNonce* = array[ChaChaPolyNonceSize, byte]
   ChaChaPolyTag* = array[ChaChaPolyTagSize, byte]
