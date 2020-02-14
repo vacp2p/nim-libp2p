@@ -58,18 +58,20 @@ proc mul*(_: type[Curve25519], dst: var Curve25519Key, scalar: Curve25519Key, po
   assert res == 1
 
 proc mulgen*(_: type[Curve25519], dst: var Curve25519Key, scalar: Curve25519Key) =
-  while true:
-    let
-      size = defaultBrEc.mulgen(
-        cast[pcuchar](addr dst[0]),
-        cast[pcuchar](unsafeAddr scalar[0]),
-        Curve25519KeySize,
-        EC_curve25519.cint)
-    assert size == Curve25519KeySize
-    for forbid in ForbiddenCurveValues:
-      if dst == forbid:
-        continue
-    break
+  block iterate:
+    while true:
+      block derive:
+        let
+          size = defaultBrEc.mulgen(
+            cast[pcuchar](addr dst[0]),
+            cast[pcuchar](unsafeAddr scalar[0]),
+            Curve25519KeySize,
+            EC_curve25519.cint)
+        assert size == Curve25519KeySize
+        for forbid in ForbiddenCurveValues:
+          if dst == forbid:
+            break derive
+        break iterate
 
 when isMainModule:
   var
