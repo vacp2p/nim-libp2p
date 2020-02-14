@@ -18,7 +18,7 @@
 import bearssl
 
 const
-  Curve25519KeySize = 32
+  Curve25519KeySize* = 32
   
 type
   Curve25519* = object
