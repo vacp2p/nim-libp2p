@@ -25,6 +25,7 @@ import options
 # https://github.com/libp2p/rust-libp2p/blob/master/protocols/kad/src/dht.proto
 
 # Currently using minimal version of kad-dht without enums
+
 type
   Peer* = object
     id*: seq[byte]
