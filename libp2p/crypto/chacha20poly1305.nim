@@ -39,14 +39,10 @@ var
 
 # fall back if not available
 if chachapoly_native_impl == nil:
-  echo "ChaChaPoly could not use the fastest implementation, falling back"
   chachapoly_native_impl = poly1305CtmulRun
 
 if chacha_native_impl == nil:
-  echo "ChaCha could not use the fastest implementation, falling back"
   chacha_native_impl = chacha20CtRun
-
-echo "ChaCha20Poly1305 global init done."
 
 proc encrypt*(_: type[ChaChaPoly],
                  key: var ChaChaPolyKey,
@@ -81,16 +77,3 @@ proc decrypt*(_: type[ChaChaPoly],
     addr tag[0],
     chacha_native_impl,
     #[decrypt]# 0.cint)
-
-when isMainModule:
-  var
-    key: ChaChaPolyKey
-    iv: ChaChaPolyNonce
-    tag: ChaChaPolyTag
-    data = [0.byte, 1, 2, 3, 4]
-    aad = [0.byte, 1, 2, 3, 4]
-
-  ChaChaPoly.encrypt(key, iv, tag, data, aad)
-  assert data != [0.byte, 1, 2, 3, 4]
-  ChaChaPoly.decrypt(key, iv, tag, data, aad)
-  assert data == [0.byte, 1, 2, 3, 4]
