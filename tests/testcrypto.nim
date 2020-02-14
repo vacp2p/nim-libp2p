@@ -9,10 +9,9 @@
 
 ## Test vectors was made using Go implementation
 ## https://github.com/libp2p/go-libp2p-crypto/blob/master/key.go
-import unittest, sequtils
+import unittest
 import nimcrypto/[utils, sysrand]
 import ../libp2p/crypto/[crypto, chacha20poly1305, curve25519]
-import strutils except fromHex
 
 when defined(nimHasUsed): {.used.}
 
@@ -477,10 +476,10 @@ suite "Key interface test suite":
       aed = [0x50.byte, 0x51, 0x52, 0x53, 0xc0, 0xc1, 0xc2, 0xc3, 0xc4, 0xc5, 0xc6, 0xc7]
 
     ChaChaPoly.encrypt(key, nonce, ntag, text, aed)
-    check text == cipher
-    check ntag == tag
+    check text.toHex == cipher.toHex
+    check ntag.toHex == tag.toHex
     ChaChaPoly.decrypt(key, nonce, ntag, text, aed)
-    check text == plain
+    check text.toHex == plain.toHex
 
   test "Curve25519":
     # from https://github.com/TomCrypto/pycurve25519/blob/48ba3c58fabc4ea4f23e977474d069bb95be6776/test_curve25519.py#L5
@@ -493,22 +492,44 @@ suite "Key interface test suite":
       check (private[31].int and (not 127)) == 0
       check (private[31].int and 64) != 0
 
+    # from bearssl test_crypto.c
     var
-      
-      private1Seq = parseHexStr("a8abababababababababababababababababababababababababababababab6b")
-      private1SeqPtr = cast[ptr Curve25519Key](addr private1Seq[0])
-      private1 = private1SeqPtr[]
-      
+      res: Curve25519Key
+      bearOp = fromHex("A546E36BF0527C9D3B16154B82465EDD62144C0AC1FC5A18506A2244BA449AC4")
+      bearIn = fromHex("E6DB6867583030DB3594C1A424B15F7C726624EC26B3353B10A903A6D0AB1C4C")
+      bearOut = fromHex("C3DA55379DE9C6908E94EA4DF28D084F32ECCF03491C71F754B4075577A28552")
+
+    Curve25519.mul(res, bearIn, bearOp)
+    check res == bearOut
+
+    # from https://github.com/golang/crypto/blob/1d94cc7ab1c630336ab82ccb9c9cda72a875c382/curve25519/vectors_test.go#L26
+    var
+      private1: Curve25519Key = [0x66.byte, 0x8f, 0xb9, 0xf7, 0x6a, 0xd9, 0x71, 0xc8, 0x1a, 0xc9, 0x0, 0x7, 0x1a, 0x15, 0x60, 0xbc, 0xe2, 0xca, 0x0, 0xca, 0xc7, 0xe6, 0x7a, 0xf9, 0x93, 0x48, 0x91, 0x37, 0x61, 0x43, 0x40, 0x14]
+      base: Curve25519Key = [0xdb.byte, 0x5f, 0x32, 0xb7, 0xf8, 0x41, 0xe7, 0xa1, 0xa0, 0x9, 0x68, 0xef, 0xfd, 0xed, 0x12, 0x73, 0x5f, 0xc4, 0x7a, 0x3e, 0xb1, 0x3b, 0x57, 0x9a, 0xac, 0xad, 0xea, 0xe8, 0x9, 0x39, 0xa7, 0xdd]
       public1: Curve25519Key
+      public1Test: Curve25519Key = [0x9.byte, 0xd, 0x85, 0xe5, 0x99, 0xea, 0x8e, 0x2b, 0xee, 0xb6, 0x13, 0x4, 0xd3, 0x7b, 0xe1, 0xe, 0xc5, 0xc9, 0x5, 0xf9, 0x92, 0x7d, 0x32, 0xf4, 0x2a, 0x9a, 0xa, 0xfb, 0x3e, 0xb, 0x40, 0x74]
 
-      public1TestSeq = parseHexStr("e3712d851a0e5d79b831c5e34ab22b41a198171de209b8b8faca23a11c624859")
-      public1TestSeqPtr = cast[ptr Curve25519Key](addr public1TestSeq[0])
-      public1Test = public1TestSeqPtr[]
+    Curve25519.mul(public1, base, private1) 
+    check public1.toHex == public1Test.toHex
 
-    check private1Seq.len == Curve25519KeySize
-    check public1TestSeq.len == Curve25519KeySize
-      
-    Curve25519.mulgen(public1, private1)
-    check public1 == public1Test
+    # RFC vectors
+    private1 = fromHex("a8abababababababababababababababababababababababababababababab6b")
+    check private1.public().toHex  == "E3712D851A0E5D79B831C5E34AB22B41A198171DE209B8B8FACA23A11C624859"
+    private1 = fromHex("c8cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd4d")
+    check private1.public().toHex  == "B5BEA823D9C9FF576091C54B7C596C0AE296884F0E150290E88455D7FBA6126F"
+    private1 = fromHex("77076d0a7318a57d3c16c17251b26645df4c2f87ebc0992ab177fba51db92c2a")
+    var
+      private2 = fromHex("5dab087e624a8a4b79e17f8b83800ee66f3bb1292618b6fd1c2f8b27ff88e0eb")
+      p1Pub = private1.public()
+      p2Pub = private2.public()
+    check p1Pub.toHex  == "8520F0098930A754748B7DDCB43EF75A0DBF3A0D26381AF4EBA4A98EAA9B4E6A"
+    check p2Pub.toHex  == "DE9EDB7D7B7DC1B4D35B61C2ECE435373F8343C85B78674DADFC7E146F882B4F"
+
+    var
+      secret1: Curve25519Key
+      secret2: Curve25519Key
+    Curve25519.mul(secret1, p2Pub, private1)
+    Curve25519.mul(secret2, p1Pub, private2)
+    check secret1.toHex == secret2.toHex
 
   

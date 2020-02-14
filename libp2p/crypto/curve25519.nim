@@ -19,13 +19,16 @@ import bearssl
 
 const
   Curve25519KeySize* = 32
-  
+
 type
   Curve25519* = object
   Curve25519Key* = array[Curve25519KeySize, byte]
   pcuchar = ptr cuchar
 
-
+converter toCurve25519Key*(s: seq[byte]): Curve25519Key =
+  assert s.len == Curve25519KeySize
+  copyMem(addr result[0], unsafeaddr s[0], Curve25519KeySize)
+  
 const
   ForbiddenCurveValues: array[12, Curve25519Key] = [
                 [0.byte, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
@@ -41,20 +44,33 @@ const
                 [218.byte, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255],
                 [219.byte, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 25],
         ]
+  Basepoint*: Curve25519Key = [9.byte, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 
 let defaultBrEc = brEcGetDefault()
+
+proc byteswap*(buf: var Curve25519Key) {.inline.} =
+  for i in 0..<16:
+    let
+      x = buf[i]
+    buf[i] = buf[31 - i]
+    buf[31 - i] = x
     
 proc mul*(_: type[Curve25519], dst: var Curve25519Key, scalar: Curve25519Key, point: Curve25519Key) =
   # The source point is provided in array G (of size Glen bytes);
   # the multiplication result is written over it. 
   dst = scalar
+
+  # point needs to be big-endian
+  var
+    rpoint = point
+  rpoint.byteswap()
   let
     res = defaultBrEc.mul(
       cast[pcuchar](addr dst[0]),
       Curve25519KeySize,
-      cast[pcuchar](unsafeAddr point[0]),
+      cast[pcuchar](addr rpoint[0]),
       Curve25519KeySize,
-      EC_curve25519.cint)
+      EC_curve25519)
   assert res == 1
 
 proc mulgen*(_: type[Curve25519], dst: var Curve25519Key, scalar: Curve25519Key) =
@@ -64,21 +80,15 @@ proc mulgen*(_: type[Curve25519], dst: var Curve25519Key, scalar: Curve25519Key)
         let
           size = defaultBrEc.mulgen(
             cast[pcuchar](addr dst[0]),
-            cast[pcuchar](unsafeAddr scalar[0]),
+            cast[pcuchar](unsafeaddr scalar[0]),
             Curve25519KeySize,
-            EC_curve25519.cint)
+            EC_curve25519)
         assert size == Curve25519KeySize
         for forbid in ForbiddenCurveValues:
           if dst == forbid:
             break derive
         break iterate
 
-when isMainModule:
-  var
-    key: Curve25519Key
-    dst: Curve25519Key
-    dst2: Curve25519Key
-  Curve25519.mulgen(dst, key)
-  echo dst
-  Curve25519.mul(dst2, dst, key)
-  echo dst2
+proc public*(private: Curve25519Key): Curve25519Key =
+  Curve25519.mul(result, Basepoint, private)
+
