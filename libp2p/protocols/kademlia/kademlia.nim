@@ -129,20 +129,15 @@ method rpcHandler*(p: KadProto,
     debug "processing messages", msg = rpcMsgs
     # TODO: NYI
 
-    if m.ping.isSome:
-        # assume boolean true
-        debug "rpcHandler ping", ping = m.ping
-        echo "huh"
-        # Here we are just using the test handler
+    if m.strtype == "PING":
+        debug "rpcHandler ping"
         # FIXME: Type error here
         await p.pingHandler(m)
-    # XXX: Why problem?
-    # XXX: Can have multiple set according to logic
-    elif m.findNode.isSome:
-      # TODO: Look into val
+    elif m.strtype == "FIND_NODE":
       # XXX: oops, this is wrong
   #    # TODO: This is a short representation of id, not actual pid
-      debug "rpcHandler findNode", findNode = m.findNode
+      debug "rpcHandler findNode", key = m.key
+      # TODO: Deal with m.key here
       #var raw_str_pid = m.split("findNode ")[1]
       var pstr = "Qmdxy8GAu1pvi35xBAie9sMpMN4G9p6GK6WCNbSCDCDgyp"
 #      debug "rpcHandler fake hardcoded id", id = pstr, sender = peer.id, raw = raw_str_pid

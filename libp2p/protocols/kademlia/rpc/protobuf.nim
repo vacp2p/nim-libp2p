@@ -31,36 +31,41 @@ proc decodeRpcMsg*(msg: seq[byte]): RPCMsg {.gcsafe.} =
       break
     debug "read message field", strtype = msg.strtype
 
+    # XXX: Interesting, specifying this breaks above strtype for PING
     if pb.getBytes(2, msg.key) < 0:
       break
     debug "read message field", key = msg.key
- 
+
     result = msg
 
-# Testing encoding and decoding ping
-var pingMessage = RPCMsg(strtype: "PING")
-debug "pingMessage", msg = pingMessage
+# TODO: Move me to testkademlia
 
-var encodedPing = encodeRpcMsg(pingMessage)
-debug "pingMessage encoded", encoded = encodedPing
-
-var decodedPing = decodeRpcMsg(encodedPing.buffer)
-debug "pingMessage decoded", decoded = decodedPing
-
-# Example peer
-var pstr = "Qmdxy8GAu1pvi35xBAie9sMpMN4G9p6GK6WCNbSCDCDgyp"
-var pid = PeerID.init(pstr)
-debug "peer id", id = pid.pretty
-
-# Testing encoding and decoding find node
-var findNodeMessage = RPCMsg(strtype: "FIND_NODE", key: pid.getBytes())
-debug "findNode", msg = findNodeMessage
-
-var encodedFindNode = encodeRpcMsg(findNodeMessage)
-debug "findNode encoded", encoded = encodedFindNode
-
-var decodedFindNode = decodeRpcMsg(encodedFindNode.buffer)
-debug "findNode decoded", decoded = decodedFindNode
-
-var decodedId =  PeerID.init(decodedFindNode.key)
-debug "findNode decoded id", id = decodedId.pretty
+## Testing encoding and decoding ping
+#var pingMessage = RPCMsg(strtype: "PING")
+#debug "pingMessage", msg = pingMessage
+#
+#var encodedPing = encodeRpcMsg(pingMessage)
+#debug "pingMessage encoded", encoded = encodedPing
+#
+#var decodedPing = decodeRpcMsg(encodedPing.buffer)
+#debug "pingMessage decoded", decoded = decodedPing
+#
+## Example peer
+#var pstr = "Qmdxy8GAu1pvi35xBAie9sMpMN4G9p6GK6WCNbSCDCDgyp"
+#var pid = PeerID.init(pstr)
+#debug "peer id", id = pid.pretty
+#
+## Testing encoding and decoding find node
+#var findNodeMessage = RPCMsg(strtype: "FIND_NODE", key: pid.getBytes())
+#debug "findNode", msg = findNodeMessage
+#
+#var encodedFindNode = encodeRpcMsg(findNodeMessage)
+#debug "findNode encoded", encoded = encodedFindNode
+#
+#var decodedFindNode = decodeRpcMsg(encodedFindNode.buffer)
+#debug "findNode decoded", decoded = decodedFindNode
+#
+#var decodedId =  PeerID.init(decodedFindNode.key)
+#debug "findNode decoded id", id = decodedId.pretty
+#
+#echo pstr == decodedId.pretty
