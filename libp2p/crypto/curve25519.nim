@@ -7,7 +7,7 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-## This module integrates BearSSL ChaCha20+Poly1305
+## This module integrates BearSSL Cyrve25519 mul and mulgen
 ##
 ## This module uses unmodified parts of code from
 ## BearSSL library <https://bearssl.org/>
