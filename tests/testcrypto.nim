@@ -10,9 +10,9 @@
 ## Test vectors was made using Go implementation
 ## https://github.com/libp2p/go-libp2p-crypto/blob/master/key.go
 import unittest, sequtils
-import nimcrypto/utils
-import ../libp2p/crypto/crypto
-import ../libp2p/crypto/chacha20poly1305
+import nimcrypto/[utils, sysrand]
+import ../libp2p/crypto/[crypto, chacha20poly1305, curve25519]
+import strutils except fromHex
 
 when defined(nimHasUsed): {.used.}
 
@@ -482,6 +482,33 @@ suite "Key interface test suite":
     ChaChaPoly.decrypt(key, nonce, ntag, text, aed)
     check text == plain
 
-  # test "Curve25519":
-  #   discard
+  test "Curve25519":
+    # from https://github.com/TomCrypto/pycurve25519/blob/48ba3c58fabc4ea4f23e977474d069bb95be6776/test_curve25519.py#L5
+    for _ in 0..<1024:
+      var
+        private: Curve25519Key
+      check randomBytes(private) == Curve25519KeySize
+      Curve25519.mulgen(private, private)
+      check (private[0].int and (not 248)) == 0
+      check (private[31].int and (not 127)) == 0
+      check (private[31].int and 64) != 0
 
+    var
+      
+      private1Seq = parseHexStr("a8abababababababababababababababababababababababababababababab6b")
+      private1SeqPtr = cast[ptr Curve25519Key](addr private1Seq[0])
+      private1 = private1SeqPtr[]
+      
+      public1: Curve25519Key
+
+      public1TestSeq = parseHexStr("e3712d851a0e5d79b831c5e34ab22b41a198171de209b8b8faca23a11c624859")
+      public1TestSeqPtr = cast[ptr Curve25519Key](addr public1TestSeq[0])
+      public1Test = public1TestSeqPtr[]
+
+    check private1Seq.len == Curve25519KeySize
+    check public1TestSeq.len == Curve25519KeySize
+      
+    Curve25519.mulgen(public1, private1)
+    check public1 == public1Test
+
+  
