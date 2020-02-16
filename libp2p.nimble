@@ -16,7 +16,7 @@ requires "nim > 0.19.4",
          "stew"
 
 proc runTest(filename: string) =
-  exec "nim c -r tests/" & filename
+  exec "nim --opt:speed -d:release c -r tests/" & filename
   # rmFile "tests/" & filename
 
 task test, "Runs the test suite":
