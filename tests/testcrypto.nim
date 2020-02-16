@@ -499,7 +499,7 @@ suite "Key interface test suite":
       bearIn = fromHex("E6DB6867583030DB3594C1A424B15F7C726624EC26B3353B10A903A6D0AB1C4C")
       bearOut = fromHex("C3DA55379DE9C6908E94EA4DF28D084F32ECCF03491C71F754B4075577A28552")
 
-    Curve25519.mul(res, bearIn, bearOp)
+    Curve25519.mul(res, bearIn.intoCurve25519Key, bearOp.intoCurve25519Key)
     check res == bearOut
 
     # from https://github.com/golang/crypto/blob/1d94cc7ab1c630336ab82ccb9c9cda72a875c382/curve25519/vectors_test.go#L26
@@ -513,13 +513,13 @@ suite "Key interface test suite":
     check public1.toHex == public1Test.toHex
 
     # RFC vectors
-    private1 = fromHex("a8abababababababababababababababababababababababababababababab6b")
+    private1 = fromHex("a8abababababababababababababababababababababababababababababab6b").intoCurve25519Key
     check private1.public().toHex  == "E3712D851A0E5D79B831C5E34AB22B41A198171DE209B8B8FACA23A11C624859"
-    private1 = fromHex("c8cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd4d")
+    private1 = fromHex("c8cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd4d").intoCurve25519Key
     check private1.public().toHex  == "B5BEA823D9C9FF576091C54B7C596C0AE296884F0E150290E88455D7FBA6126F"
-    private1 = fromHex("77076d0a7318a57d3c16c17251b26645df4c2f87ebc0992ab177fba51db92c2a")
+    private1 = fromHex("77076d0a7318a57d3c16c17251b26645df4c2f87ebc0992ab177fba51db92c2a").intoCurve25519Key
     var
-      private2 = fromHex("5dab087e624a8a4b79e17f8b83800ee66f3bb1292618b6fd1c2f8b27ff88e0eb")
+      private2 = fromHex("5dab087e624a8a4b79e17f8b83800ee66f3bb1292618b6fd1c2f8b27ff88e0eb").intoCurve25519Key
       p1Pub = private1.public()
       p2Pub = private2.public()
     check p1Pub.toHex  == "8520F0098930A754748B7DDCB43EF75A0DBF3A0D26381AF4EBA4A98EAA9B4E6A"

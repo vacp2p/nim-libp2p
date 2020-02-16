@@ -25,7 +25,7 @@ type
   Curve25519Key* = array[Curve25519KeySize, byte]
   pcuchar = ptr cuchar
 
-converter toCurve25519Key*(s: seq[byte]): Curve25519Key =
+proc intoCurve25519Key*(s: seq[byte]): Curve25519Key =
   assert s.len == Curve25519KeySize
   copyMem(addr result[0], unsafeaddr s[0], Curve25519KeySize)
   
