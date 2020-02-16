@@ -112,7 +112,7 @@ method handle*(m: Mplex) {.async, gcsafe.} =
                                    msgType = msgType
 
           await channel.closedByRemote()
-          # m.getChannelList(initiator).del(id)
+          m.getChannelList(initiator).del(id)
         of MessageType.ResetIn, MessageType.ResetOut:
           trace "resetting channel", id = id,
                                      initiator = initiator,
