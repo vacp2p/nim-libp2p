@@ -46,8 +46,6 @@ const
         ]
   Basepoint*: Curve25519Key = [9.byte, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 
-let defaultBrEc = brEcGetDefault()
-
 proc byteswap*(buf: var Curve25519Key) {.inline.} =
   for i in 0..<16:
     let
@@ -56,6 +54,8 @@ proc byteswap*(buf: var Curve25519Key) {.inline.} =
     buf[31 - i] = x
     
 proc mul*(_: type[Curve25519], dst: var Curve25519Key, scalar: Curve25519Key, point: Curve25519Key) =
+  let defaultBrEc = brEcGetDefault()
+  
   # The source point is provided in array G (of size Glen bytes);
   # the multiplication result is written over it. 
   dst = scalar
@@ -74,6 +74,8 @@ proc mul*(_: type[Curve25519], dst: var Curve25519Key, scalar: Curve25519Key, po
   assert res == 1
 
 proc mulgen*(_: type[Curve25519], dst: var Curve25519Key, scalar: Curve25519Key) =
+  let defaultBrEc = brEcGetDefault()
+  
   block iterate:
     while true:
       block derive:

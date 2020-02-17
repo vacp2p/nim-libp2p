@@ -44,17 +44,18 @@ proc intoChaChaPolyTag*(s: seq[byte]): ChaChaPolyTag =
 # this is reconciled at runtime
 # we do this in the global scope / module init
 
-# try for the best first
-var
-  chachapoly_native_impl: Poly1305Run = poly1305CtmulqGet()
-  chacha_native_impl: Chacha20Run = chacha20Sse2Get()
+template fetchImpl: untyped =
+  # try for the best first
+  var
+    chachapoly_native_impl {.inject.}: Poly1305Run = poly1305CtmulqGet()
+    chacha_native_impl {.inject.}: Chacha20Run = chacha20Sse2Get()
 
-# fall back if not available
-if chachapoly_native_impl == nil:
-  chachapoly_native_impl = poly1305CtmulRun
+  # fall back if not available
+  if chachapoly_native_impl == nil:
+    chachapoly_native_impl = poly1305CtmulRun
 
-if chacha_native_impl == nil:
-  chacha_native_impl = chacha20CtRun
+  if chacha_native_impl == nil:
+    chacha_native_impl = chacha20CtRun
 
 proc encrypt*(_: type[ChaChaPoly],
                  key: var ChaChaPolyKey,
@@ -62,6 +63,8 @@ proc encrypt*(_: type[ChaChaPoly],
                  tag: var ChaChaPolyTag,
                  data: var openarray[byte],
                  aad: var openarray[byte]) =
+  fetchImpl()
+  
   chachapoly_native_impl(
     addr key[0],
     addr nonce[0],
@@ -79,6 +82,8 @@ proc decrypt*(_: type[ChaChaPoly],
                  tag: var ChaChaPolyTag,
                  data: var openarray[byte],
                  aad: var openarray[byte]) =
+  fetchImpl()
+  
   chachapoly_native_impl(
     addr key[0],
     addr nonce[0],
