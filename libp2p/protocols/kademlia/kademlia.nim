@@ -136,6 +136,7 @@ method rpcHandler*(p: KadProto,
         # FIXME: Type error here
         await p.pingHandler(m)
     elif m.strtype == "FIND_NODE":
+      # XXX: Distinguish reply here? FIND_NODE REPLY:
       debug "rpcHandler FIND_NODE", key = m.key
       # TODO: HERE ATM, USE THIS.
       # XXX This is wrong
@@ -153,7 +154,25 @@ method rpcHandler*(p: KadProto,
       var res: seq[KadPeer]
       res = await p.findNode(pid)
       debug "rpcHandler findNode", res = res
+      # This is for test, but we really want to call iterative here
+      # Can we just respond straight away here?
+      # TODO: Wrong, should have value
+      # TODO: HERE ATM, let's iterate over KadPeers and add RPC Peer construct
+      let replyMsg = RPCMSg(strtype: "FIND_NODE_REPLY", key: m.key) # , closerPeers: some(res))
+      var msgs: seq[RPCMSg]
+      msgs.add(replyMsg)
+      #let encoded = encodeRpcMsg(m2)
+      echo "*** send reply to peer ping"
+      await peer.send(msgs)
+      echo "*** send reply to peer done"
+      # they receive ping, then what?
+      # XXX: print and debug, etc
+      #p.sendConn.writeLp(encoded.buffer)
+      # XXX: Shouldn't above logic and peer sending
+      # be dealt with in handler? then test at end
       await p.findNodeHandler(res)
+    elif m.strtype == "FIND_NODE_REPLY":
+      debug "FIND_NODE_REPLY", m = m
 
 method handleConn*(p: KadProto,
                    conn: Connection,
@@ -262,15 +281,21 @@ method findNode*(p: KadProto, id: PeerId): Future[seq[KadPeer]] {.async.} =
 
 # Find node RPC
 # This assumes the node we are asking, in kbucket, is in peerInfo
+# XXX: Signature wrong, not getting response here from send
+# No, you get RPCmsg back! Maybe, then use tha tto get back
 method findNodeRPC*(p: KadProto,
                     peerInfo: PeerInfo,
-                    id: PeerID): Future[seq[KadPeer]] {.base, async.} =
+                    id: PeerID): Future[seq[RPCMsg]] {.base, async.} =
   debug "findNodeRPC", peer = peerInfo.id
   var peer = p.peers[peerInfo.id]
   var msg = RPCMsg(strtype: "FIND_NODE", key: id.getBytes())
   var msgs: seq[RPCMsg]
   msgs.add(msg)
-  await peer.send(msgs)
+  result = await peer.sendWait(msgs)
+  # XXX: Just to get it last for debugging
+  await sleepAsync(1000.millis)
+  debug "findNodeRPC resp", resp = result
+
 
 # XXX
 method iterativeFindNode*(p: KadProto, target: PeerID) {.base, gcsafe, async.} =
@@ -333,18 +358,17 @@ method iterativeFindNode*(p: KadProto, target: PeerID) {.base, gcsafe, async.} =
     shortlist.delete(0)
     contacted.add(c)
 
-    # TODO: Replace with deal dial here
-    # XXX HEREATM
-    # Mock dial them them
-    debug "iterativeFindNode: Mock dialing ", c = c
-    # XXX: Assuming c.id it exists in networkTable
     debug "iterativeFindNode", id = c.id, target = target
-    # TODO: This should be RPC to c.id - how? similar to ping
-    # Or req?
+    # No direct response here, we fire off request and then wait
     var resp = await p.findNodeRPC(c.peerInfo, target)
+    asyncCheck p.findNodeRPC(c.peerInfo, target)
+    #debug "iterativeFindnode: Waiting for response"
+    debug "iterativeFindNode: Response from remote ", resp = resp
+    #await sleepAsync(3000.millis)
+    # TODO: Not clear exactly how we want to wait here
+
     #var resp = await mockFindNode(networkTable[c.id], targetid)
     # TODO: No response here
-    debug "iterativeFindNode: Response from remote ", resp = resp
 
     # Add new nodes as contacts, update activeContacts, shortlist and closestNode
     # XXX: Does it matter which order we update closestNode and shortlist in?

@@ -53,6 +53,39 @@ proc handle*(p: KadPeer, conn: Connection) {.async.} =
     if not conn.closed():
       await conn.close()
 
+# Waits for response, only sends one message
+proc sendWait*(p: KadPeer, msgs: seq[RPCMsg]): Future[seq[RPCMsg]] {.async.} =
+  try:
+    for m in msgs:
+      debug "sending msgs to peer", toPeer = p.id
+      let encoded = encodeRpcMsg(m)
+      let encodedHex = encoded.buffer.toHex()
+      if encoded.buffer.len <= 0:
+        debug "empty message, skipping", peer = p.id
+        return
+
+      # TODO: Implement caching
+ 
+      proc sendToRemote {.async.} =
+        debug "sending encoded msgs to peer", peer = p.id, encoded = encodedHex
+        await p.sendConn.writeLp(encoded.buffer)
+
+      if p.isConnected:
+        await sendToRemote()
+        debug "*** Waiting for remote to respond"
+        # XXX: Here atm, not hit
+        var res = cast[string](await p.sendConn.readLp())
+        debug "*** Remote responded", res = res
+        return
+
+      # Get response how?
+
+      # TODO: handle queuing iff no connection for later delivery
+
+  except CatchableError as exc:
+    trace "exception occured", exc = exc.msg
+
+
 proc send*(p: KadPeer, msgs: seq[RPCMsg]) {.async.} =
   try:
     for m in msgs:
