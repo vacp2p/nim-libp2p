@@ -482,16 +482,6 @@ suite "Key interface test suite":
     check text.toHex == plain.toHex
 
   test "Curve25519":
-    # from https://github.com/TomCrypto/pycurve25519/blob/48ba3c58fabc4ea4f23e977474d069bb95be6776/test_curve25519.py#L5
-    for _ in 0..<1024:
-      var
-        private: Curve25519Key
-      check randomBytes(private) == Curve25519KeySize
-      Curve25519.mulgen(private, private)
-      check (private[0].int and (not 248)) == 0
-      check (private[31].int and (not 127)) == 0
-      check (private[31].int and 64) != 0
-
     # from bearssl test_crypto.c
     var
       res: Curve25519Key
@@ -522,9 +512,10 @@ suite "Key interface test suite":
       private2 = fromHex("5dab087e624a8a4b79e17f8b83800ee66f3bb1292618b6fd1c2f8b27ff88e0eb").intoCurve25519Key
       p1Pub = private1.public()
       p2Pub = private2.public()
+      p2Gen: Curve25519Key
     check p1Pub.toHex  == "8520F0098930A754748B7DDCB43EF75A0DBF3A0D26381AF4EBA4A98EAA9B4E6A"
     check p2Pub.toHex  == "DE9EDB7D7B7DC1B4D35B61C2ECE435373F8343C85B78674DADFC7E146F882B4F"
-
+    
     var
       secret1: Curve25519Key
       secret2: Curve25519Key
