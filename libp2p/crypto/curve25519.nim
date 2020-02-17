@@ -44,7 +44,6 @@ const
                 [218.byte, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255],
                 [219.byte, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 25],
         ]
-  Basepoint*: Curve25519Key = [9.byte, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 
 proc byteswap*(buf: var Curve25519Key) {.inline.} =
   for i in 0..<16:
@@ -73,8 +72,12 @@ proc mul*(_: type[Curve25519], dst: var Curve25519Key, scalar: Curve25519Key, po
       EC_curve25519)
   assert res == 1
 
-proc mulgen*(_: type[Curve25519], dst: var Curve25519Key, scalar: Curve25519Key) =
+proc mulgen*(_: type[Curve25519], dst: var Curve25519Key, point: Curve25519Key) =
   let defaultBrEc = brEcGetDefault()
+
+  var
+    rpoint = point
+  rpoint.byteswap()
   
   block iterate:
     while true:
@@ -82,7 +85,7 @@ proc mulgen*(_: type[Curve25519], dst: var Curve25519Key, scalar: Curve25519Key)
         let
           size = defaultBrEc.mulgen(
             cast[pcuchar](addr dst[0]),
-            cast[pcuchar](unsafeaddr scalar[0]),
+            cast[pcuchar](addr rpoint[0]),
             Curve25519KeySize,
             EC_curve25519)
         assert size == Curve25519KeySize
@@ -92,5 +95,5 @@ proc mulgen*(_: type[Curve25519], dst: var Curve25519Key, scalar: Curve25519Key)
         break iterate
 
 proc public*(private: Curve25519Key): Curve25519Key =
-  Curve25519.mul(result, Basepoint, private)
+  Curve25519.mulgen(result, private)
 
