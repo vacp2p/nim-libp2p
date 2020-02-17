@@ -3,6 +3,7 @@ import options, strutils, tables
 import chronos, chronicles
 import kadpeer
 import rpc/messages
+import rpc/protobuf
 import ../../../libp2p/[multistream,
                        protocols/identify,
                        connection,
@@ -129,6 +130,7 @@ method rpcHandler*(p: KadProto,
     debug "processing messages", msg = rpcMsgs
     # TODO: NYI
 
+    # TODO: need strtype here
     if m.strtype == "PING":
         debug "rpcHandler ping"
         # FIXME: Type error here
@@ -137,7 +139,7 @@ method rpcHandler*(p: KadProto,
       # XXX: oops, this is wrong
   #    # TODO: This is a short representation of id, not actual pid
       debug "rpcHandler findNode", key = m.key
-      # TODO: Deal with m.key here
+      # TODO: Deal with m.t key here
       #var raw_str_pid = m.split("findNode ")[1]
       var pstr = "Qmdxy8GAu1pvi35xBAie9sMpMN4G9p6GK6WCNbSCDCDgyp"
 #      debug "rpcHandler fake hardcoded id", id = pstr, sender = peer.id, raw = raw_str_pid
@@ -259,18 +261,16 @@ method findNode*(p: KadProto, id: PeerId): Future[seq[KadPeer]] {.async.} =
   return res
 
 # Find node RPC
-# TODO: Should be protobuf RPC 
-# TODO: This should return seq, also see logic from mock
 # This assumes the node we are asking, in kbucket, is in peerInfo
 method findNodeRPC*(p: KadProto,
-                 peerInfo: PeerInfo,
-                 id: PeerID): Future[seq[KadPeer]] {.base, async.} =
+                    peerInfo: PeerInfo,
+                    id: PeerID): Future[seq[KadPeer]] {.base, async.} =
   debug "findNodeRPC", peer = peerInfo.id
   var peer = p.peers[peerInfo.id]
-  var req = "findNode " & $id
-  # Later we expect to get findNodeResp
-  # Do we really though? Or does the response come in async?
-  await peer.send(req)
+  var msg = RPCMsg(strtype: "FIND_NODE", key: id.getBytes())
+  var msgs: seq[RPCMsg]
+  msgs.add(msg)
+  await peer.send(msgs)
 
 # XXX
 method iterativeFindNode*(p: KadProto, target: PeerID) {.base, gcsafe, async.} =
@@ -426,7 +426,10 @@ method iterativeFindNode*(p: KadProto, target: PeerID) {.base, gcsafe, async.} =
 method ping*(p: KadProto,
              peerInfo: PeerInfo) {.base, async.} =
   var peer = p.peers[peerInfo.id]
-  await peer.send("ping")
+  var msgs: seq[RPCMsg]
+  var msg = RPCMsg(strtype: "PING")
+  msgs.add(msg)
+  await peer.send(msgs)
 
   #for peer in p.peers.values:
   #  await p.sendSubs(peer, @[topic], true)

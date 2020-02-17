@@ -53,23 +53,27 @@ proc handle*(p: KadPeer, conn: Connection) {.async.} =
     if not conn.closed():
       await conn.close()
 
-# TODO: Fix msg type, RPC style
-proc send*(p: KadPeer, msg: string) {.async.} =
-  debug "send", peer = p.id
+proc send*(p: KadPeer, msgs: seq[RPCMsg]) {.async.} =
   try:
-    # TODO: Encode etc
- 
-    proc sendToRemote {.async.} =
-      debug "send to remote", msg = msg
-      # XXX: encoded.buffer
-      await p.sendConn.writeLp(msg)
+    for m in msgs:
+      debug "sending msgs to peer", toPeer = p.id
+      let encoded = encodeRpcMsg(m)
+      let encodedHex = encoded.buffer.toHex()
+      if encoded.buffer.len <= 0:
+        debug "empty message, skipping", peer = p.id
+        return
 
-    if p.isConnected:
-      await sendToRemote()
-      return
-    
-    # TODO: handle queuing of messages if no connection
-    debug "send no connection, abort"
+      # TODO: Implement caching
+ 
+      proc sendToRemote {.async.} =
+        debug "sending encoded msgs to peer", peer = p.id, encoded = encodedHex
+        await p.sendConn.writeLp(encoded.buffer)
+
+      if p.isConnected:
+        await sendToRemote()
+        return
+
+      # TODO: handle queuing iff no connection for later delivery
 
   except CatchableError as exc:
     trace "exception occured", exc = exc.msg
