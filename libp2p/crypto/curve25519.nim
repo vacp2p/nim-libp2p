@@ -16,6 +16,7 @@
 # RFC @ https://tools.ietf.org/html/rfc7748
 
 import bearssl
+import nimcrypto/sysrand
 
 const
   Curve25519KeySize* = 32
@@ -28,6 +29,8 @@ type
 proc intoCurve25519Key*(s: seq[byte]): Curve25519Key =
   assert s.len == Curve25519KeySize
   copyMem(addr result[0], unsafeaddr s[0], Curve25519KeySize)
+
+proc getBytes*(key: Curve25519Key): seq[byte] = @key
   
 const
   ForbiddenCurveValues: array[12, Curve25519Key] = [
@@ -97,3 +100,5 @@ proc mulgen*(_: type[Curve25519], dst: var Curve25519Key, point: Curve25519Key) 
 proc public*(private: Curve25519Key): Curve25519Key =
   Curve25519.mulgen(result, private)
 
+proc random*(): Curve25519Key =
+  discard randomBytes(result)
