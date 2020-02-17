@@ -111,7 +111,7 @@ suite "Kademlia":
       var completionFut = newFuture[bool]()
       # XXX: handler signature
       proc handler(data: seq[KadPeer]) {.async, gcsafe.} =
-        debug "Find node", data=data
+        debug "Find node RPC hit", data=data
         completionFut.complete(true)
 
       # TODO: Ensure these nodes have right characteristics
@@ -142,6 +142,7 @@ suite "Kademlia":
       discard nodes[1].addContact(nodes[5].peerInfo)
 
       await nodes[1].listenForFindNode(handler)
+      # TODO: Not what we want, we want to wait for response
 
       #await nodes[1].listenForFindNode()
       #completionFut.complete(true)
@@ -154,6 +155,9 @@ suite "Kademlia":
       # Equivalent 1-1 messages, vs pub/sub which are 1:N/N:1
       #await nodes[1].listenForPing(handler)
       #
+
+      await sleepAsync(1000.millis)
+      debug "Awaiting response from find node request"
       await sleepAsync(3000.millis)
 
       #completionFut.complete(true)

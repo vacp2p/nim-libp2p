@@ -35,7 +35,7 @@ proc `conn=`*(p: KadPeer, conn: Connection) =
 
 # TODO: Add caching of messages
 proc handle*(p: KadPeer, conn: Connection) {.async.} =
-  debug "handling kademlia rpc", peer = p.id, closed = conn.closed
+  trace "handling kademlia rpc", peer = p.id, closed = conn.closed
   try:
     while not conn.closed:
       trace "waiting for data", peer = p.id, closed = conn.closed

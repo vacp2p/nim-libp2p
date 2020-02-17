@@ -132,19 +132,19 @@ method rpcHandler*(p: KadProto,
 
     # TODO: need strtype here
     if m.strtype == "PING":
-        debug "rpcHandler ping"
+        debug "rpcHandler PING"
         # FIXME: Type error here
         await p.pingHandler(m)
     elif m.strtype == "FIND_NODE":
-      # XXX: oops, this is wrong
-  #    # TODO: This is a short representation of id, not actual pid
-      debug "rpcHandler findNode", key = m.key
-      # TODO: Deal with m.t key here
+      debug "rpcHandler FIND_NODE", key = m.key
+      # TODO: HERE ATM, USE THIS.
+      # XXX This is wrong
       #var raw_str_pid = m.split("findNode ")[1]
-      var pstr = "Qmdxy8GAu1pvi35xBAie9sMpMN4G9p6GK6WCNbSCDCDgyp"
-#      debug "rpcHandler fake hardcoded id", id = pstr, sender = peer.id, raw = raw_str_pid
-      # It isn't peer.id, that's the sender, coincidence
-      var pid = PeerID.init(pstr)
+      #var pstr = "Qmdxy8GAu1pvi35xBAie9sMpMN4G9p6GK6WCNbSCDCDgyp"
+
+      var pid = PeerID.init(m.key)
+      #var pid = PeerID.init(pstr)
+
       # TODO: Fix this error, possibly with threadvar
       #/home/oskarth/git/nim-libp2p/libp2p/protocols/kademlia/kademlia.nim(161, 18) Error: type mismatch: got <proc (peer: KadPeer, msg: string): Future[system.void]{.closure, locks: <unknown>.}> but expected 'RPCHandler = proc (peer: KadPeer, msg: string): Future[system.void]{.closure, gcsafe.}'
       # XXX: Bad workaround --threadAnalysis:off
