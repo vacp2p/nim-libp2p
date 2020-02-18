@@ -23,6 +23,8 @@ import ../muxer,
 logScope:
   topic = "Mplex"
 
+const DefaultRWTimeout = InfiniteDuration
+
 type
   Mplex* = ref object of Muxer
     remote*: Table[uint, LPChannel]
@@ -64,14 +66,10 @@ method handle*(m: Mplex) {.async, gcsafe.} =
   try:
     while not m.connection.closed:
       trace "waiting for data"
-      let msg = await m.connection.readMsg()
-      if msg.isNone:
-        trace "connection EOF"
-        # TODO: allow poll with timeout to avoid using `sleepAsync`
-        await sleepAsync(1.millis)
-        continue
-
-      let (id, msgType, data) = msg.get()
+      let (id, msgType, data) = await m.connection.readMsg()
+      trace "read message from connection", id = id,
+                                            msgType = msgType,
+                                            data = data
       let initiator = bool(ord(msgType) and 1)
       var channel: LPChannel
       if MessageType(msgType) != MessageType.New:
@@ -80,7 +78,6 @@ method handle*(m: Mplex) {.async, gcsafe.} =
           trace "Channel not found, skipping", id = id,
                                                initiator = initiator,
                                                msg = msgType
-          await sleepAsync(1.millis)
           continue
         channel = channels[id]
 
@@ -99,7 +96,6 @@ method handle*(m: Mplex) {.async, gcsafe.} =
             #       asyncCheck cleanupChann(m, channel, initiator))
 
             asyncCheck m.streamHandler(stream)
-
             continue
         of MessageType.MsgIn, MessageType.MsgOut:
           trace "pushing data to channel", id = id,
@@ -116,7 +112,7 @@ method handle*(m: Mplex) {.async, gcsafe.} =
                                    msgType = msgType
 
           await channel.closedByRemote()
-          # m.getChannelList(initiator).del(id)
+          m.getChannelList(initiator).del(id)
         of MessageType.ResetIn, MessageType.ResetOut:
           trace "resetting channel", id = id,
                                      initiator = initiator,
@@ -145,8 +141,10 @@ proc newMplex*(conn: Connection,
   .addCallback do (udata: pointer):
     trace "connection closed, cleaning up mplex"
     asyncCheck m.close()
-    
-method newStream*(m: Mplex, name: string = "", lazy: bool = false): Future[Connection] {.async, gcsafe.} =
+
+method newStream*(m: Mplex,
+                  name: string = "",
+                  lazy: bool = false): Future[Connection] {.async, gcsafe.} =
   let channel = await m.newStreamInternal(lazy = lazy)
   if not lazy:
     await channel.open()

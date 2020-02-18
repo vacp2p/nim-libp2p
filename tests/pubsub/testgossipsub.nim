@@ -335,8 +335,9 @@ suite "GossipSub":
       await subscribeNodes(nodes)
 
       await nodes[1].subscribe("foobar", handler)
-      await sleepAsync(100.millis)
+      await sleepAsync(1000.millis)
       await nodes[0].publish("foobar", cast[seq[byte]]("Hello!"))
+      await sleepAsync(1000.millis)
 
       var gossipSub1: GossipSub = GossipSub(nodes[0].pubSub.get())
 
