@@ -32,7 +32,8 @@ type
     muxerHandler*: MuxerHandler # triggered every time there is a new muxed connection created
 
 # muxer interface
-method newStream*(m: Muxer, name: string = "", lazy: bool = false): Future[Connection] {.base, async, gcsafe.} = discard
+method newStream*(m: Muxer, name: string = "", lazy: bool = false):
+  Future[Connection] {.base, async, gcsafe.} = discard
 method close*(m: Muxer) {.base, async, gcsafe.} = discard
 method handle*(m: Muxer): Future[void] {.base, async, gcsafe.} = discard
 
@@ -45,12 +46,14 @@ proc newMuxerProvider*(creator: MuxerConstructor, codec: string): MuxerProvider 
 method init(c: MuxerProvider) =
   proc handler(conn: Connection, proto: string) {.async, gcsafe, closure.} =
     let muxer = c.newMuxer(conn)
-    if not isNil(c.muxerHandler):
-      asyncCheck c.muxerHandler(muxer)
+    var handlerFut = if not isNil(c.muxerHandler):
+      c.muxerHandler(muxer)
+    else:
+      var dummyFut = newFuture[void]()
+      dummyFut.complete(); dummyFut
 
     if not isNil(c.streamHandler):
       muxer.streamHandler = c.streamHandler
 
-    await muxer.handle()
-
+    await allFutures(muxer.handle(), handlerFut)
   c.handler = handler

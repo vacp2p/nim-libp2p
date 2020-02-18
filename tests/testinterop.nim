@@ -54,7 +54,7 @@ proc readLp*(s: StreamTransport): Future[seq[byte]] {.async, gcsafe.} =
       res = LP.getUVarint(result.toOpenArray(0, i), length, size)
       if res == VarintStatus.Success:
         break
-    if res != VarintStatus.Success or size > DefaultReadSize:
+    if res != VarintStatus.Success:
       raise newInvalidVarintException()
     result.setLen(size)
     if size > 0.uint:
@@ -115,7 +115,7 @@ proc testPubSubDaemonPublish(gossip: bool = false, count: int = 1): Future[
     let smsg = cast[string](data)
     check smsg == pubsubData
     times.inc()
-    if times >= count:
+    if times >= count and not handlerFuture.finished:
       handlerFuture.complete(true)
 
   await nativeNode.subscribeToPeer(NativePeerInfo.init(daemonPeer.peer,

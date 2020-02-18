@@ -105,7 +105,7 @@ proc publicKey*(p: PeerInfo): Option[PublicKey] {.inline.} =
     result = some(p.privateKey.getKey())
 
 proc id*(p: PeerInfo): string {.inline.} =
-  result = p.peerId.pretty()
+  p.peerId.pretty()
 
 proc `$`*(p: PeerInfo): string =
   result.add("PeerID: ")

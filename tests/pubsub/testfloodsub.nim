@@ -7,7 +7,7 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import unittest, sequtils, options
+import unittest, sequtils
 import chronos
 import utils,
        ../../libp2p/[switch,
@@ -97,6 +97,7 @@ suite "FloodSub":
       await allFutures(nodes[0].stop(), nodes[1].stop())
       await allFutures(awaiters)
       result = true
+
     check:
       waitFor(runTests()) == true
 
@@ -161,12 +162,13 @@ suite "FloodSub":
       await allFutures(nodes[0].stop(), nodes[1].stop())
       await allFutures(awaiters)
       result = true
+
     check:
       waitFor(runTests()) == true
 
   test "FloodSub multiple peers, no self trigger":
     proc runTests(): Future[bool] {.async.} =
-      var passed: int
+      var passed = 0
       proc handler(topic: string, data: seq[byte]) {.async, gcsafe.} =
         check topic == "foobar"
         passed.inc()
@@ -179,15 +181,16 @@ suite "FloodSub":
       for node in nodes:
         awaitters.add(await node.start())
         await node.subscribe("foobar", handler)
-        await sleepAsync(10.millis)
+        await sleepAsync(100.millis)
 
       await subscribeNodes(nodes)
-      await sleepAsync(10.millis)
+      await sleepAsync(1000.millis)
 
       for node in nodes:
         await node.publish("foobar", cast[seq[byte]]("Hello!"))
-        await sleepAsync(10.millis)
+        await sleepAsync(100.millis)
 
+      await sleepAsync(1.minutes)
       await allFutures(nodes.mapIt(it.stop()))
       await allFutures(awaitters)
 
@@ -198,7 +201,7 @@ suite "FloodSub":
 
   test "FloodSub multiple peers, with self trigger":
     proc runTests(): Future[bool] {.async.} =
-      var passed: int
+      var passed = 0
       proc handler(topic: string, data: seq[byte]) {.async, gcsafe.} =
         check topic == "foobar"
         passed.inc()
@@ -211,19 +214,20 @@ suite "FloodSub":
       for node in nodes:
         awaitters.add((await node.start()))
         await node.subscribe("foobar", handler)
-        await sleepAsync(10.millis)
+        await sleepAsync(100.millis)
 
       await subscribeNodes(nodes)
-      await sleepAsync(500.millis)
+      await sleepAsync(1000.millis)
 
       for node in nodes:
         await node.publish("foobar", cast[seq[byte]]("Hello!"))
-        await sleepAsync(10.millis)
+        await sleepAsync(100.millis)
 
+      await sleepAsync(1.minutes)
       await allFutures(nodes.mapIt(it.stop()))
       await allFutures(awaitters)
 
-      result = passed >= 10 # non deterministic, so at least 10 times
+      result = passed >= 20 # non deterministic, so at least 10 times
 
     check:
       waitFor(runTests()) == true

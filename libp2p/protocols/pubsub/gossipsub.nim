@@ -413,8 +413,9 @@ method start*(g: GossipSub) {.async.} =
 
   # setup the heartbeat interval
   g.heartbeatCancel = addInterval(GossipSubHeartbeatInterval,
-                                  proc (arg: pointer = nil) {.gcsafe, locks: 0.} =
-    asyncCheck g.heartbeat)
+                                  proc (arg: pointer = nil)
+                                    {.gcsafe, locks: 0.} =
+                                    asyncCheck g.heartbeat)
 
 method stop*(g: GossipSub) {.async.} =
   ## stopt pubsub
@@ -564,7 +565,6 @@ when isMainModule and not defined(release):
 
         check gossipSub.fanout[topic].len == GossipSubD
 
-        await sleepAsync(101.millis)
         await gossipSub.dropFanoutPeers()
         check topic notin gossipSub.fanout
 
@@ -603,7 +603,6 @@ when isMainModule and not defined(release):
         check gossipSub.fanout[topic1].len == GossipSubD
         check gossipSub.fanout[topic2].len == GossipSubD
 
-        await sleepAsync(101.millis)
         await gossipSub.dropFanoutPeers()
         check topic1 notin gossipSub.fanout
         check topic2 in gossipSub.fanout

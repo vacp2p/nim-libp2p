@@ -3,6 +3,7 @@ import chronos
 import ../libp2p/connection,
        ../libp2p/multistream,
        ../libp2p/stream/lpstream,
+       ../libp2p/stream/bufferstream,
        ../libp2p/connection,
        ../libp2p/multiaddress,
        ../libp2p/transports/transport,
@@ -51,7 +52,7 @@ method write*(s: TestSelectStream, msg: seq[byte], msglen = -1)
 method write*(s: TestSelectStream, msg: string, msglen = -1)
   {.async, gcsafe.} = discard
 
-method close(s: TestSelectStream) {.async, gcsafe.} = 
+method close(s: TestSelectStream) {.async, gcsafe.} =
   s.isClosed = true
 
 proc newTestSelectStream(): TestSelectStream =
@@ -98,7 +99,7 @@ method write*(s: TestLsStream, msg: seq[byte], msglen = -1) {.async, gcsafe.} =
 method write*(s: TestLsStream, msg: string, msglen = -1)
   {.async, gcsafe.} = discard
 
-method close(s: TestLsStream) {.async, gcsafe.} = 
+method close(s: TestLsStream) {.async, gcsafe.} =
   s.isClosed = true
 
 proc newTestLsStream(ls: LsHandler): TestLsStream {.gcsafe.} =
@@ -145,7 +146,7 @@ method write*(s: TestNaStream, msg: string, msglen = -1) {.async, gcsafe.} =
   if s.step == 4:
     await s.na(msg)
 
-method close(s: TestNaStream) {.async, gcsafe.} = 
+method close(s: TestNaStream) {.async, gcsafe.} =
   s.isClosed = true
 
 proc newTestNaStream(na: NaHandler): TestNaStream =
@@ -194,7 +195,7 @@ suite "Multistream select":
         check strProto == "\x26/test/proto1/1.0.0\n/test/proto2/1.0.0\n"
         await conn.close()
 
-      proc testHandler(conn: Connection, proto: string): Future[void] 
+      proc testHandler(conn: Connection, proto: string): Future[void]
         {.async, gcsafe.} = discard
       var protocol: LPProtocol = new LPProtocol
       protocol.handler = testHandler

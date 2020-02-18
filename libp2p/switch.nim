@@ -372,7 +372,7 @@ proc newSwitch*(peerInfo: PeerInfo,
 
   if result.secureManagers.len == 0:
     # use plain text if no secure managers are provided
-    warn "no secure managers, falling back to palin text", codec = PlainTextCodec
+    warn "no secure managers, falling back to plain text", codec = PlainTextCodec
     result.secureManagers[PlainTextCodec] = Secure(newPlainText())
 
   if pubSub.isSome:

@@ -257,7 +257,7 @@ suite "BufferStream":
         var msg = cast[string](data)
         check  msg == "Hello!"
         await buf2.pushTo(data)
-      
+
       proc writeHandler2(data: seq[byte]) {.async, gcsafe.} =
         var msg = cast[string](data)
         check  msg == "Hello!"
@@ -338,7 +338,7 @@ suite "BufferStream":
 
       var writerFut = writer()
       var readerFut = reader()
-      
+
       await writerFut
       check:
         (await readerFut) == cast[seq[byte]]("Hello!")
@@ -413,7 +413,7 @@ suite "BufferStream":
     check:
       waitFor(pipeTest()) == true
 
-  # TODO: Need to implement deadlock prevention when 
+  # TODO: Need to implement deadlock prevention when
   # piping to self
   test "pipe deadlock":
     proc pipeTest(): Future[bool] {.async.} =
@@ -421,13 +421,13 @@ suite "BufferStream":
       var buf1 = newBufferStream(size = 5)
 
       buf1 = buf1 | buf1
-      
+
       var count = 30000
       proc reader() {.async.} =
         while count > 0:
           discard await buf1.read(7)
 
-      proc writer() {.async.} = 
+      proc writer() {.async.} =
         while count > 0:
           await buf1.write(cast[seq[byte]]("Hello2!"))
           count.dec
