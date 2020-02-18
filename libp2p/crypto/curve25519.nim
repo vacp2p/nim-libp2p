@@ -100,5 +100,5 @@ proc mulgen*(_: type[Curve25519], dst: var Curve25519Key, point: Curve25519Key) 
 proc public*(private: Curve25519Key): Curve25519Key =
   Curve25519.mulgen(result, private)
 
-proc random*(): Curve25519Key =
+proc random*(_: type[Curve25519Key]): Curve25519Key =
   discard randomBytes(result)

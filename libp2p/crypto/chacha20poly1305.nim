@@ -28,6 +28,10 @@ type
   ChaChaPolyNonce* = array[ChaChaPolyNonceSize, byte]
   ChaChaPolyTag* = array[ChaChaPolyTagSize, byte]
 
+proc intoChaChaPolyKey*(s: array[32, byte]): ChaChaPolyKey =
+  assert s.len == ChaChaPolyKeySize
+  copyMem(addr result[0], unsafeaddr s[0], ChaChaPolyKeySize)
+  
 proc intoChaChaPolyKey*(s: seq[byte]): ChaChaPolyKey =
   assert s.len == ChaChaPolyKeySize
   copyMem(addr result[0], unsafeaddr s[0], ChaChaPolyKeySize)
