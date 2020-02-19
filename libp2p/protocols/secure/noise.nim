@@ -57,8 +57,8 @@ type
     ss: SymmetricState
     s: KeyPair
     e: KeyPair
-    rs: ChaChaPolyKey
-    re: ChaChaPolyKey
+    rs: Curve25519Key
+    re: Curve25519Key
     initiator: bool
   
   Noise* = ref object of Secure
@@ -92,6 +92,9 @@ proc hashProtocol(name: string): MDigest[256] =
     copyMem(addr result.data[0], unsafeAddr name[0], name.len)
   else:
     result = sha256.digest(name)
+
+proc dh(priv: Curve25519Key, pub: Curve25519Key): Curve25519Key =
+  Curve25519.mul(result, priv, pub)
 
 # Cipherstate
 
@@ -187,40 +190,68 @@ proc mixKey(ss: var SymmetricState): tuple[cs1, cs2: CipherState] =
 
 proc handshakeXXOutbound(p: Noise, conn: Connection, p2pProof: ProtoBuffer): Future[void] {.async.} =
   init p.hs.ss
-  p.hs.ss.mixHash(p2pProof.buffer)
   p.hs.initiator = true
   p.hs.s.privateKey = p.noisePrivateKey
   p.hs.s.publicKey = p.noisePublicKey
   # the rest of keys in hs are empty/0
 
-  # stage 0 initiator
-  p.hs.e = genKeyPair()
-  var ne = p.hs.e.publicKey
-  p.hs.ss.mixHash(ne)
-  await conn.write(@ne)
+  # stage 0
+  block stage0:
+    p.hs.e = genKeyPair()
+    var ne = p.hs.e.publicKey
+    p.hs.ss.mixHash(ne)
+    var emptyPayload = newSeq[byte]()
+    p.hs.ss.encryptAndHash(emptyPayload)
+    await conn.write(@ne)
   
-  # stage 1 initiator
-  var
-    s1msg = await conn.read()
-  copyMem(addr p.hs.re[0], addr s1msg[0], ChaChaPolyKey.len)
-  p.hs.ss.mixHash(p.hs.re)
-  s1msg = s1msg[ChaChaPolyKey.len..s1msg.high]
-  p.hs.ss.decryptAndHash(s1msg)
-
-  # stage 2 initiator
-  p.hs.e = genKeyPair()
-  ne = p.hs.e.publicKey
-  p.hs.ss.mixHash(ne)
-
-  # TODO
-  
-  var payload = p2pProof.buffer
-  p.hs.ss.encryptAndHash(payload)
-  await conn.write(@ne & payload)
+  # stage 1
+  block stage1:
+    var
+      s1msg = await conn.read()
+      s1ns = s1msg[ChaChaPolyKey.high..<80]
+      s1ciph = s1msg[80..s1msg.high]
+    copyMem(addr p.hs.re[0], addr s1msg[0], Curve25519Key.len)
+    p.hs.ss.mixHash(p.hs.re)
+    p.hs.ss.mixKey(dh(p.hs.e.privateKey, p.hs.re))
+    s1msg = s1msg[Curve25519Key.len..s1msg.high]
+    p.hs.ss.decryptAndHash(s1msg)
+    copyMem(addr p.hs.rs[0], addr s1msg[0], Curve25519Key.len)
+    p.hs.ss.mixKey(dh(p.hs.e.privateKey, p.hs.rs))
+    s1msg = s1msg[Curve25519Key.len..s1msg.high]
+    p.hs.ss.decryptAndHash(s1msg)
   
   unimplemented()
 
 proc handshakeXXInbound(p: Noise, conn: Connection, p2pProof: ProtoBuffer) {.async.} =
+  init p.hs.ss
+  p.hs.initiator = false
+  p.hs.s.privateKey = p.noisePrivateKey
+  p.hs.s.publicKey = p.noisePublicKey
+  # the rest of keys in hs are empty/0
+
+  # stage 0
+  block stage0:
+    var
+      s0msg = await conn.read()
+    copyMem(addr p.hs.re[0], addr s0msg[0], Curve25519Key.len)
+    p.hs.ss.mixHash(p.hs.re)
+    s0msg = s0msg[Curve25519Key.len..s0msg.high]
+    p.hs.ss.decryptAndHash(s0msg)
+
+  # stage 1
+  block stage1:
+    var ne = EmptyKey
+    p.hs.e = genKeyPair()
+    ne = p.hs.e.publicKey
+    p.hs.ss.mixHash(ne)
+    p.hs.ss.mixKey(dh(p.hs.e.privateKey, p.hs.re))
+    var spk = @(p.hs.s.publicKey)
+    p.hs.ss.encryptAndHash(spk)
+    p.hs.ss.mixKey(dh(p.hs.s.privateKey, p.hs.re))
+    var payload = p2pProof.buffer
+    p.hs.ss.encryptAndHash(payload)
+    await conn.write(@ne & spk & payload)
+  
   unimplemented()
 
 proc handshake*(p: Noise, conn: Connection, initiator: bool): Future[NoiseConnection] {.async.} =
