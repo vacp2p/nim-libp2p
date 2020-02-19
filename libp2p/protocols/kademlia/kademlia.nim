@@ -158,10 +158,29 @@ method rpcHandler*(p: KadProto,
       # Can we just respond straight away here?
       # TODO: Wrong, should have value
       # TODO: HERE ATM, let's iterate over KadPeers and add RPC Peer construct
-      let replyMsg = RPCMSg(strtype: "FIND_NODE_REPLY", key: m.key) # , closerPeers: some(res))
+      # Kadpeer -> RPC Peer
+      var closerPeers: seq[Peer]
+      for kp in res:
+        debug "rpc peer", id = kp.peerInfo.peerId, addrs = kp.peerInfo.addrs
+
+        # TODO: Get bytes encoding of addrs in protobuf
+        var mas: seq[seq[byte]]
+        for ma in kp.peerInfo.addrs:
+          # FIXME: Broken
+          mas.add(cast[seq[byte]]($ma))
+        var p = Peer(id: kp.peerInfo.peerId.getBytes(),
+                     addrs: mas)
+
+        closerPeers.add(p)
+        debug "closerPeers", closerPeers = closerPeers
+      let replyMsg = RPCMSg(strtype: "FIND_NODE_REPLY",
+                            key: m.key,
+                            closerPeers: some(closerPeers))
+      debug "find node reply rpc", msg = replyMsg
       var msgs: seq[RPCMSg]
       msgs.add(replyMsg)
       #let encoded = encodeRpcMsg(m2)
+      #Encode
       echo "*** send reply to peer ping"
       await peer.send(msgs)
       echo "*** send reply to peer done"
@@ -172,7 +191,11 @@ method rpcHandler*(p: KadProto,
       # be dealt with in handler? then test at end
       await p.findNodeHandler(res)
     elif m.strtype == "FIND_NODE_REPLY":
-      debug "FIND_NODE_REPLY", m = m
+      # TODO: Pretty print key and get closerPeers list
+      debug "FIND_NODE_REPLY", m = m, key = m.key, closerPeer = m.closerPeers
+      # TODO: Call find node handler
+      # Ok here atm, now what do we do?
+      # Isn't this when we want to call findnodeHandler?
 
 method handleConn*(p: KadProto,
                    conn: Connection,

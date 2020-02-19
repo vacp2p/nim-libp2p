@@ -14,6 +14,10 @@ proc encodeRpcMsg*(msg: RPCMsg): ProtoBuffer {.gcsafe.} =
 
   result.write(initProtoField(2, msg.key))
 
+  # XXX: Which field?
+  # TODO: Encode this properly
+  #result.write(initProtoField(8, msg.closerPeers))
+
   result.finish()
 
 proc decodeRpcMsg*(msg: seq[byte]): RPCMsg {.gcsafe.} =
@@ -27,32 +31,7 @@ proc decodeRpcMsg*(msg: seq[byte]): RPCMsg {.gcsafe.} =
     if pb.getBytes(2, msg.key) < 0:
       break
     trace "read message field", key = msg.key
+    #if pb.getBytes(8, msg.closerPeers) < 0:
+    #  break
+    #trace "read message field", key = msg.closerPeers
     result = msg
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
