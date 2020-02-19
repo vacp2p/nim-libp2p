@@ -12,20 +12,34 @@
 import math
 import nimcrypto
 
-proc hkdf*(H: typedesc, salt, ikm, info: openarray[byte], output: var openarray[byte]) =
-  const
-    HASHLEN = H.bits div 8
-  
+iterator hkdf*(H: typedesc, salt, ikm, info: openarray[byte]): MDigest[H.bits] {.inline.} =
   var
     prk = H.hmac(salt, ikm)
     t: seq[byte]
     okm: seq[byte]
-  
-  for i in 0..<ceil(output.len / HASHLEN).int:
-    var next = H.hmac(prk.data, t & @info & @[(i + 1).byte])
+    i = 1
+
+  while true:
+    var next = H.hmac(prk.data, t & @info & @[i.byte])
+    yield next
     t.setLen(0)
     t &= next.data
-    okm &= t
+    inc i 
+
+proc hkdf*(H: typedesc, salt, ikm, info: openarray[byte], output: var openarray[byte]) =
+  const
+    HASHLEN = H.bits div 8
+
+  var
+    max = ceil(output.len / HASHLEN).int
+    okm: seq[byte]
+  
+  for next in H.hkdf(salt, ikm, info):
+    if max == 0:
+      break
+    okm &= next.data
+    dec max
 
   copyMem(addr output[0], addr okm[0], output.len)
+
 
