@@ -14,9 +14,7 @@ import nimcrypto/[utils, sysrand, sha2, hmac]
 import ../../connection
 import ../../protobuf/minprotobuf
 import secure,
-       ../../crypto/crypto,
-       ../../crypto/chacha20poly1305,
-       ../../crypto/curve25519
+       ../../crypto/[crypto, chacha20poly1305, curve25519, hkdf]
 
 template unimplemented: untyped =
   doAssert(false, "Not implemented")
@@ -59,15 +57,16 @@ type
     ss: SymmetricState
     s: KeyPair
     e: KeyPair
-    rs: Curve25519Key
-    re: Curve25519Key
+    rs: ChaChaPolyKey
+    re: ChaChaPolyKey
+    initiator: bool
   
   Noise* = ref object of Secure
     localPrivateKey: PrivateKey
     localPublicKey: PublicKey
     noisePrivateKey: Curve25519Key
     noisePublicKey: Curve25519Key
-    hstate: HandshakeState
+    hs: HandshakeState
 
   NoiseConnection* = ref object of Connection
 
@@ -94,11 +93,6 @@ proc hashProtocol(name: string): MDigest[256] =
   else:
     result = sha256.digest(name)
 
-proc hkdf(salt: NoiseSeq, ikm: NoiseSeq): tuple[a,b,c: NoiseSeq] =
-  let prk = sha256.hmac(salt, ikm)
-  
-  unimplemented()
-
 # Cipherstate
 
 proc init(cs: var CipherState; key: ChaChaPolyKey) =
@@ -108,7 +102,7 @@ proc init(cs: var CipherState; key: ChaChaPolyKey) =
 proc hasKey(cs: var CipherState): bool =
   cs.k != EmptyKey
 
-proc encryptWithAd(state: var CipherState; ad, data: var seq[byte]) =
+proc encryptWithAd(state: var CipherState; ad, data: var openarray[byte]) =
   var
     tag: ChaChaPolyTag
     nonce: ChaChaPolyNonce
@@ -117,7 +111,7 @@ proc encryptWithAd(state: var CipherState; ad, data: var seq[byte]) =
   ChaChaPoly.encrypt(state.k, nonce, tag, data, ad)
   inc state.n
 
-proc decryptWithAd(state: var CipherState, ad, data: var seq[byte]) =
+proc decryptWithAd(state: var CipherState, ad, data: var openarray[byte]) =
   var
     tag: ChaChaPolyTag
     nonce: ChaChaPolyNonce
@@ -133,16 +127,97 @@ proc init(ss: var SymmetricState) =
   ss.ck = ss.h.data.intoChaChaPolyKey
   init ss.cs, EmptyKey
 
-proc mixKey(ss: var SymmetricState) =
-  unimplemented()
+proc mixKey(ss: var SymmetricState, ikm: ChaChaPolyKey) =
+  var
+    temp_keys: array[2, ChaChaPolyKey]
+    nkeys = 0
+  for next in sha256.hkdf(ss.ck, ikm, []):
+    if nkeys > temp_keys.high:
+      break
+    temp_keys[nkeys] = next.data
+    inc nkeys
 
-proc mixHash(ss: var SymmetricState; data: var openarray[byte]) =
+  ss.ck = temp_keys[0]
+  init ss.cs, temp_keys[1]
+
+proc mixHash(ss: var SymmetricState; data: openarray[byte]) =
   var s: seq[byte]
   s &= ss.h.data
   s &= data
   ss.h = sha256.digest(s)
 
+proc mixKeyAndHash(ss: var SymmetricState; ikm: var openarray[byte]) =
+  var
+    temp_keys: array[3, ChaChaPolyKey]
+    nkeys = 0
+  for next in sha256.hkdf(ss.ck, ikm, []):
+    if nkeys > temp_keys.high:
+      break
+    temp_keys[nkeys] = next.data
+    inc nkeys
+
+  ss.ck = temp_keys[0]
+  ss.mixHash(temp_keys[1])
+  init ss.cs, temp_keys[2]
+
+proc encryptAndHash(ss: var SymmetricState, data: var openarray[byte]) =
+  # according to spec if key is empty leave plaintext
+  if ss.cs.hasKey:
+    ss.cs.encryptWithAd(ss.h.data, data)
+  ss.mixHash(data)
+
+proc decryptAndHash(ss: var SymmetricState, data: var openarray[byte]) =
+  # according to spec if key is empty leave plaintext
+  if ss.cs.hasKey:
+    ss.cs.decryptWithAd(ss.h.data, data)
+  ss.mixHash(data)
+
+proc mixKey(ss: var SymmetricState): tuple[cs1, cs2: CipherState] =
+  var
+    temp_keys: array[2, ChaChaPolyKey]
+    nkeys = 0
+  for next in sha256.hkdf(ss.ck, [], []):
+    if nkeys > temp_keys.high:
+      break
+    temp_keys[nkeys] = next.data
+    inc nkeys
+
+  init result.cs1, temp_keys[0]
+  init result.cs2, temp_keys[1]
+
 proc handshakeXXOutbound(p: Noise, conn: Connection, p2pProof: ProtoBuffer): Future[void] {.async.} =
+  init p.hs.ss
+  p.hs.ss.mixHash(p2pProof.buffer)
+  p.hs.initiator = true
+  p.hs.s.privateKey = p.noisePrivateKey
+  p.hs.s.publicKey = p.noisePublicKey
+  # the rest of keys in hs are empty/0
+
+  # stage 0 initiator
+  p.hs.e = genKeyPair()
+  var ne = p.hs.e.publicKey
+  p.hs.ss.mixHash(ne)
+  await conn.write(@ne)
+  
+  # stage 1 initiator
+  var
+    s1msg = await conn.read()
+  copyMem(addr p.hs.re[0], addr s1msg[0], ChaChaPolyKey.len)
+  p.hs.ss.mixHash(p.hs.re)
+  s1msg = s1msg[ChaChaPolyKey.len..s1msg.high]
+  p.hs.ss.decryptAndHash(s1msg)
+
+  # stage 2 initiator
+  p.hs.e = genKeyPair()
+  ne = p.hs.e.publicKey
+  p.hs.ss.mixHash(ne)
+
+  # TODO
+  
+  var payload = p2pProof.buffer
+  p.hs.ss.encryptAndHash(payload)
+  await conn.write(@ne & payload)
+  
   unimplemented()
 
 proc handshakeXXInbound(p: Noise, conn: Connection, p2pProof: ProtoBuffer) {.async.} =
