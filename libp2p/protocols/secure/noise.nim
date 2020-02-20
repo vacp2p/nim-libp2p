@@ -106,22 +106,25 @@ proc init(cs: var CipherState; key: ChaChaPolyKey) =
 proc hasKey(cs: var CipherState): bool =
   cs.k != EmptyKey
 
-proc encryptWithAd(state: var CipherState; ad, data: var openarray[byte]) =
+proc encryptWithAd(state: var CipherState; ad, data: var openarray[byte]): seq[byte] =
   var
     tag: ChaChaPolyTag
     nonce: ChaChaPolyNonce
-    np = cast[ptr uint64](addr nonce)
+    np = cast[ptr uint64](addr nonce[4])
   np[] = state.n
-  ChaChaPoly.encrypt(state.k, nonce, tag, data, ad)
+  result = @data
+  ChaChaPoly.encrypt(state.k, nonce, tag, result, ad)
   inc state.n
+  result &= @tag
 
-proc decryptWithAd(state: var CipherState, ad, data: var openarray[byte]) =
+proc decryptWithAd(state: var CipherState, ad, data: var openarray[byte]): seq[byte] =
   var
-    tag: ChaChaPolyTag
+    tag = cast[ChaChaPolyTag](data[(data.len - ChaChaPolyTag.len)..data.high])
     nonce: ChaChaPolyNonce
-    np = cast[ptr uint64](addr nonce)
+    np = cast[ptr uint64](addr nonce[4])
   np[] = state.n
-  ChaChaPoly.decrypt(state.k, nonce, tag, data, ad)
+  result = newSeq[byte](data.len - ChaChaPolyTag.len)
+  ChaChaPoly.decrypt(state.k, nonce, tag, result, ad)
   inc state.n
 
 # Symmetricstate
@@ -164,17 +167,21 @@ proc mixKeyAndHash(ss: var SymmetricState; ikm: var openarray[byte]) =
   ss.mixHash(temp_keys[1])
   init ss.cs, temp_keys[2]
 
-proc encryptAndHash(ss: var SymmetricState, data: var openarray[byte]) =
+proc encryptAndHash(ss: var SymmetricState, data: var openarray[byte]): seq[byte] =
   # according to spec if key is empty leave plaintext
   if ss.cs.hasKey:
-    ss.cs.encryptWithAd(ss.h.data, data)
-  ss.mixHash(data)
+    result = ss.cs.encryptWithAd(ss.h.data, data)
+  else:
+    result = @data
+  ss.mixHash(result)
 
-proc decryptAndHash(ss: var SymmetricState, data: var openarray[byte]) =
+proc decryptAndHash(ss: var SymmetricState, data: var openarray[byte]): seq[byte] =
   # according to spec if key is empty leave plaintext
   if ss.cs.hasKey:
-    ss.cs.decryptWithAd(ss.h.data, data)
-  ss.mixHash(data)
+    result = ss.cs.decryptWithAd(ss.h.data, data)
+  else:
+    result = @data
+  ss.mixHash(result)
 
 proc split(ss: var SymmetricState): tuple[cs1, cs2: CipherState] =
   var
@@ -201,8 +208,7 @@ template write_s: untyped =
   echo "write_s"
   # Appends EncryptAndHash(s.public_key) to the buffer.
   var spk = @(hs.s.publicKey)
-  hs.ss.encryptAndHash(spk)
-  msg &= spk
+  msg &= hs.ss.encryptAndHash(spk)
 
 template dh_ee: untyped =
   echo "dh_ee"
@@ -250,8 +256,8 @@ template read_s: untyped =
     temp.setLen(Curve25519Key.len)
     copyMem(addr temp[0], addr msg[0], Curve25519Key.len)
     msg = msg[Curve25519Key.len..msg.high]
-  hs.ss.decryptAndHash(temp)
-  copyMem(addr hs.rs[0], addr temp[0], Curve25519Key.len)
+  var plain = hs.ss.decryptAndHash(temp)
+  copyMem(addr hs.rs[0], addr plain[0], Curve25519Key.len)
   
 proc handshakeXXOutbound(p: Noise, conn: Connection, p2pProof: ProtoBuffer): Future[tuple[cs1, cs2: CipherState]] {.async.} =
   var hs: HandshakeState
@@ -277,6 +283,9 @@ proc handshakeXXOutbound(p: Noise, conn: Connection, p2pProof: ProtoBuffer): Fut
   dh_ee()
   read_s()
   dh_es()
+
+  var s1payload = hs.ss.decryptAndHash(msg)
+  echo s1payload, " len: ", s1payload.len
   
   # -> s, se
 
@@ -286,8 +295,8 @@ proc handshakeXXOutbound(p: Noise, conn: Connection, p2pProof: ProtoBuffer): Fut
   dh_se()
 
   var payload = p2pProof.buffer
-  echo payload
-  hs.ss.encryptAndHash(payload)
+  echo payload, " len: ", payload.len
+  payload = hs.ss.encryptAndHash(payload)
 
   await conn.writeLp(msg & payload)
   
@@ -318,7 +327,8 @@ proc handshakeXXInbound(p: Noise, conn: Connection, p2pProof: ProtoBuffer): Futu
   dh_es()
 
   var payload = p2pProof.buffer
-  hs.ss.encryptAndHash(payload)
+  echo payload, " len: ", payload.len
+  payload = hs.ss.encryptAndHash(payload)
 
   await conn.writeLp(msg & payload)
 
@@ -329,9 +339,9 @@ proc handshakeXXInbound(p: Noise, conn: Connection, p2pProof: ProtoBuffer): Futu
   read_s()
   dh_se()
 
-  hs.ss.decryptAndHash(msg)
+  msg = hs.ss.decryptAndHash(msg)
 
-  echo msg
+  echo msg, " len: ", msg.len
 
   return hs.ss.split()
 
