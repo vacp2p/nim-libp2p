@@ -181,9 +181,7 @@ method rpcHandler*(p: KadProto,
       msgs.add(replyMsg)
       #let encoded = encodeRpcMsg(m2)
       #Encode
-      echo "*** send reply to peer ping"
       await peer.send(msgs)
-      echo "*** send reply to peer done"
       # they receive ping, then what?
       # XXX: print and debug, etc
       #p.sendConn.writeLp(encoded.buffer)
