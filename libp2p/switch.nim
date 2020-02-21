@@ -145,8 +145,7 @@ proc cleanupConn(s: Switch, conn: Connection) {.async, gcsafe.} =
         await s.connections[id].close()
       s.connections.del(id)
 
-    if id in s.dialedPubSubPeers:
-      s.dialedPubSubPeers.excl(id)
+    s.dialedPubSubPeers.excl(id)
 
     # TODO: Investigate cleanupConn() always called twice for one peer.
     if not(conn.peerInfo.isClosed()):
@@ -222,7 +221,11 @@ proc dial*(s: Switch,
       for a in peer.addrs: # for each address
         if t.handles(a):   # check if it can dial it
           trace "Dialing address", address = $a
-          conn = await t.dial(a)
+          try:
+            conn = await t.dial(a)
+          except CatchableError as exc:
+            trace "couldn't dial peer, transport failed", exc = exc.msg, address = a
+            continue
           # make sure to assign the peer to the connection
           conn.peerInfo = peer
           conn = await s.upgradeOutgoing(conn)
@@ -276,7 +279,7 @@ proc start*(s: Switch): Future[seq[Future[void]]] {.async, gcsafe.} =
         await conn.close()
 
       await s.cleanupConn(conn)
-
+        
   var startFuts: seq[Future[void]]
   for t in s.transports: # for each transport
     for i, a in s.peerInfo.addrs:
@@ -307,7 +310,7 @@ proc subscribeToPeer(s: Switch, peerInfo: PeerInfo) {.async, gcsafe.} =
       let conn = await s.dial(peerInfo, s.pubSub.get().codec)
       await s.pubSub.get().subscribeToPeer(conn)
     except CatchableError as exc:
-      trace "unable to initiate pubsub", exc = exc.msg
+      warn "unable to initiate pubsub", exc = exc.msg
       s.dialedPubSubPeers.excl(peerInfo.id)
 
 proc subscribe*(s: Switch, topic: string, handler: TopicHandler): Future[void] {.gcsafe.} =
