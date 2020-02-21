@@ -297,9 +297,9 @@ echo "*** decoding"
 var decodedFindNodeReply = decodeRpcMsg(encodedFindNodeReply.buffer)
 debug "findNodeReply decoded", decoded = decodedFindNodeReply
 
-var decodedReplyId =  PeerID.init(decodedFindNodeReply.key.id)
+var decodedReplyId = PeerID.init(decodedFindNodeReply.key.id)
 debug "findNodeReply decoded id", id = decodedReplyId.pretty
 
-# XXX: Why is this none?
-#echo decodedFindNodeReply.closerPeers
-#echo "assert", pstr == decodedId.pretty
+var someClose = decodedFindNodeReply.closerPeers.get.peers[0].id
+var someCloseNode = PeerID.init(someClose)
+debug "findNodeReply decoded someCloseNode id", id = someCloseNode.pretty
