@@ -53,34 +53,76 @@ suite "Kademlia":
     check:
       pstr == decodedId.pretty
 
-#  test "Kademlia basic ping":
-#    proc runTests(): Future[bool] {.async.} =
-#      var completionFut = newFuture[bool]()
-#      proc handler(data: RPCMsg) {.async, gcsafe.} =
-#        debug "Basic ping handler", data=data
-#        completionFut.complete(true)
-#
-#      # TODO: Ensure these nodes have right characteristics
-#      var nodes = generateNodes(2)
-#      var awaiters: seq[Future[void]]
-#      awaiters.add((await nodes[0].start())) # Alice
-#      awaiters.add((await nodes[1].start())) # Bob
-#
-#      await listenAllNodes(nodes)
-#      # XXX: Unclear if this is right abstraction, ping/find_node
-#      # Equivalent 1-1 messages, vs pub/sub which are 1:N/N:1
-#      await nodes[1].listenForPing(handler)
-#      await sleepAsync(1000.millis)
-#
-#      # This can probably be peer ID only, then look up table etc
-#      await nodes[0].ping(nodes[1].peerInfo)
-#
-#      result = await completionFut
-#      await allFutures(nodes[0].stop(), nodes[1].stop())
-#      await allFutures(awaiters)
-#
-#    check:
-#      waitFor(runTests()) == true
+  test "Kademlia encode and decode find node reply":
+
+    # Example peer
+    var pstr = "Qmdxy8GAu1pvi35xBAie9sMpMN4G9p6GK6WCNbSCDCDgyp"
+    var pid = PeerID.init(pstr)
+
+    # Adding self to closest peers just as test
+    debug "peer id", id = pid.pretty
+    var addrs: seq[seq[byte]]
+    addrs.add(pid.getBytes())
+    var p = Peer(id: pid.getBytes(), addrs: addrs)
+
+    var peers: seq[Peer]
+    peers.add(p)
+    var closerPeers = CloserPeers(peers: peers)
+    var messageType = MessageType(strtype: "FIND_NODE_REPLY")
+    var key = Key(id: pid.getBytes())
+    # Testing encoding and decoding find node reply
+    var findNodeReplyMessage = RPCMsg(messageType: messageType,
+                                      key: key,
+                                      closerPeers: some(closerPeers))
+    debug "findNodeReply", msg = findNodeReplyMessage
+
+    var encodedFindNodeReply = encodeRpcMsg(findNodeReplyMessage)
+    debug "findNodeReply encoded", encoded = encodedFindNodeReply
+
+    echo "*** decoding"
+
+    var decodedFindNodeReply = decodeRpcMsg(encodedFindNodeReply.buffer)
+    debug "findNodeReply decoded", decoded = decodedFindNodeReply
+
+    var decodedReplyId = PeerID.init(decodedFindNodeReply.key.id)
+    debug "findNodeReply decoded id", id = decodedReplyId.pretty
+
+    var someClose = decodedFindNodeReply.closerPeers.get.peers[0].id
+    var someCloseNode = PeerID.init(someClose)
+    debug "findNodeReply decoded someCloseNode id", id = someCloseNode.pretty
+
+    check:
+      decodedReplyId.pretty == someCloseNode.pretty
+
+
+  test "Kademlia basic ping":
+    proc runTests(): Future[bool] {.async.} =
+      var completionFut = newFuture[bool]()
+      proc handler(data: RPCMsg) {.async, gcsafe.} =
+        debug "Basic ping handler", data=data
+        completionFut.complete(true)
+
+      # TODO: Ensure these nodes have right characteristics
+      var nodes = generateNodes(2)
+      var awaiters: seq[Future[void]]
+      awaiters.add((await nodes[0].start())) # Alice
+      awaiters.add((await nodes[1].start())) # Bob
+
+      await listenAllNodes(nodes)
+      # XXX: Unclear if this is right abstraction, ping/find_node
+      # Equivalent 1-1 messages, vs pub/sub which are 1:N/N:1
+      await nodes[1].listenForPing(handler)
+      await sleepAsync(1000.millis)
+
+      # This can probably be peer ID only, then look up table etc
+      await nodes[0].ping(nodes[1].peerInfo)
+
+      result = await completionFut
+      await allFutures(nodes[0].stop(), nodes[1].stop())
+      await allFutures(awaiters)
+
+    check:
+      waitFor(runTests()) == true
 #
 #  test "Kademlia add contact (XXX)":
 #    proc runTests(): Future[bool] {.async.} =
