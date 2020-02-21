@@ -7,12 +7,12 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import tables, sets, options, sequtils
+import tables, sets, options, sequtils, random
 import chronos, chronicles
 import pubsub,
        floodsub,
        pubsubpeer,
-       ../utils/mcache,
+       mcache,
        rpc/[messages, message],
        ../utils/timedcache,
        ../../crypto/crypto,

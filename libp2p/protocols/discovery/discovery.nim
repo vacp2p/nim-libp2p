@@ -7,12 +7,13 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import chronos
+import chronos, sequtils
 import ../protocol,
        ../../peerinfo,
        ../utils/timedcache
 
 const DefaultDiscoveryInterval* = 10.seconds
+const DefaultPeersTimeout* = 5.minutes
 
 type
   NewPeersHandler* = proc(peers: seq[PeerInfo]): Future[void]
@@ -24,10 +25,14 @@ type
 
 proc newDiscovery*(d: type[Discovery],
                    onNewPeers: NewPeersHandler,
-                   interval: Duration = DefaultDiscoveryInterval): d =
+                   interval: Duration = DefaultDiscoveryInterval,
+                   peersTimeout: Duration = DefaultPeersTimeout): d =
   Discovery(onNewPeers: onNewPeers,
             interval: interval,
             peers: newTimedCache[PeerInfo]())
+
+proc getPeers*(d: Discovery): seq[PeerInfo] =
+  d.peers.entries().mapIt( it.val )
 
 method start*(d: Discovery) {.base, async.} =
   doAssert(false, "Not implmented!")
