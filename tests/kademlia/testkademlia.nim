@@ -155,6 +155,7 @@ suite "Kademlia":
     proc runTests(): Future[bool] {.async.} =
       var completionFut = newFuture[bool]()
       # XXX: handler signature
+      # TODO: Convert Peer->KadPeer
       proc handler(data: seq[KadPeer]) {.async, gcsafe.} =
         debug "Find node RPC hit", data=data
         completionFut.complete(true)

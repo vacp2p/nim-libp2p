@@ -117,10 +117,6 @@ proc getPeer(p: KadProto,
   peer.refs.inc # increment reference count
   result = peer
 
-# TODO: HERE ATM, This compiles, need to fix interface with await etc
-# TODO: Do proper RPC parsing based on protobuf, e.g.
-# XXX: Should we have some form of request id here?
-# The problem is that we are sending a string instead of encoding it
 method rpcHandler*(p: KadProto,
                    peer: KadPeer,
                    rpcMsgs: seq[RPCMsg]) {.async, base.} =
@@ -128,23 +124,13 @@ method rpcHandler*(p: KadProto,
   debug "processing RPC message", peer = peer.id, msg = rpcMsgs
   for m in rpcMsgs:                                # for all RPC messages
     debug "processing messages", msg = rpcMsgs
-    # TODO: NYI
-
-    # TODO: need strtype here
     if m.messageType.strtype == "PING":
         debug "rpcHandler PING"
-        # FIXME: Type error here
         await p.pingHandler(m)
     elif m.messageType.strtype == "FIND_NODE":
       # XXX: Distinguish reply here? FIND_NODE REPLY:
       debug "rpcHandler FIND_NODE", key = m.key
-      # TODO: HERE ATM, USE THIS.
-      # XXX This is wrong
-      #var raw_str_pid = m.split("findNode ")[1]
-      #var pstr = "Qmdxy8GAu1pvi35xBAie9sMpMN4G9p6GK6WCNbSCDCDgyp"
-
       var pid = PeerID.init(m.key.id)
-      #var pid = PeerID.init(pstr)
 
       # TODO: Fix this error, possibly with threadvar
       #/home/oskarth/git/nim-libp2p/libp2p/protocols/kademlia/kademlia.nim(161, 18) Error: type mismatch: got <proc (peer: KadPeer, msg: string): Future[system.void]{.closure, locks: <unknown>.}> but expected 'RPCHandler = proc (peer: KadPeer, msg: string): Future[system.void]{.closure, gcsafe.}'
@@ -182,21 +168,12 @@ method rpcHandler*(p: KadProto,
       debug "find node reply rpc", msg = replyMsg
       var msgs: seq[RPCMSg]
       msgs.add(replyMsg)
-      #let encoded = encodeRpcMsg(m2)
-      #Encode
       await peer.send(msgs)
-      # they receive ping, then what?
-      # XXX: print and debug, etc
-      #p.sendConn.writeLp(encoded.buffer)
-      # XXX: Shouldn't above logic and peer sending
-      # be dealt with in handler? then test at end
       await p.findNodeHandler(res)
     elif m.messageType.strtype == "FIND_NODE_REPLY":
-      # TODO: Pretty print key and get closerPeers list
+      # TODO: We want to call findNodeHandler here
+      # Need to convert KadPeer, Peer etc
       debug "FIND_NODE_REPLY", m = m, key = m.key, closerPeer = m.closerPeers
-      # TODO: Call find node handler
-      # Ok here atm, now what do we do?
-      # Isn't this when we want to call findnodeHandler?
 
 method handleConn*(p: KadProto,
                    conn: Connection,
@@ -505,8 +482,8 @@ method listenForFindNode*(p: KadProto,
   # TODO
   debug "listenForFindNode"
 
-
   # The passed handler will be called whenever findNodeHandle is
+  # XXX: This should be findNodeReply
   p.findNodeHandler = handler
 
 method listenToPeer*(p: KadProto,
