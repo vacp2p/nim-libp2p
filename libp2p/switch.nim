@@ -7,7 +7,7 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import tables, sequtils, options, strformat
+import tables, sequtils, options, strformat, sets
 import chronos, chronicles
 import connection,
        transports/transport,
@@ -45,6 +45,7 @@ type
       streamHandler*: StreamHandler
       secureManagers*: Table[string, Secure]
       pubSub*: Option[PubSub]
+      dialedPubSubPeers: HashSet[string]
 
 proc newNoPubSubException(): ref Exception {.inline.} =
   result = newException(NoPubSubException, "no pubsub provided!")
@@ -144,6 +145,9 @@ proc cleanupConn(s: Switch, conn: Connection) {.async, gcsafe.} =
         await s.connections[id].close()
       s.connections.del(id)
 
+    if id in s.dialedPubSubPeers:
+      s.dialedPubSubPeers.excl(id)
+
     # TODO: Investigate cleanupConn() always called twice for one peer.
     if not(conn.peerInfo.isClosed()):
       conn.peerInfo.close()
@@ -204,6 +208,8 @@ proc upgradeIncoming(s: Switch, conn: Connection) {.async, gcsafe.} =
   # handle secured connections
   await ms.handle(conn)
 
+proc subscribeToPeer(s: Switch, peerInfo: PeerInfo) {.async, gcsafe.}
+
 proc dial*(s: Switch,
            peer: PeerInfo,
            proto: string = ""):
@@ -243,6 +249,8 @@ proc dial*(s: Switch,
     if not await s.ms.select(result, proto):
       error "Unable to select sub-protocol", proto = proto
       raise newException(CatchableError, &"unable to select protocol: {proto}")
+
+  await s.subscribeToPeer(peer)
 
 proc mount*[T: LPProtocol](s: Switch, proto: T) {.gcsafe.} =
   if isNil(proto.handler):
@@ -291,11 +299,16 @@ proc stop*(s: Switch) {.async.} =
   await allFutures(toSeq(s.connections.values).mapIt(s.cleanupConn(it)))
   await allFutures(s.transports.mapIt(it.close()))
 
-proc subscribeToPeer*(s: Switch, peerInfo: PeerInfo) {.async, gcsafe.} =
+proc subscribeToPeer(s: Switch, peerInfo: PeerInfo) {.async, gcsafe.} =
   ## Subscribe to pub sub peer
-  if s.pubSub.isSome:
-    let conn = await s.dial(peerInfo, s.pubSub.get().codec)
-    await s.pubSub.get().subscribeToPeer(conn)
+  if s.pubSub.isSome and peerInfo.id notin s.dialedPubSubPeers:
+    try:
+      s.dialedPubSubPeers.incl(peerInfo.id)
+      let conn = await s.dial(peerInfo, s.pubSub.get().codec)
+      await s.pubSub.get().subscribeToPeer(conn)
+    except CatchableError as exc:
+      trace "unable to initiate pubsub", exc = exc.msg
+      s.dialedPubSubPeers.excl(peerInfo.id)
 
 proc subscribe*(s: Switch, topic: string, handler: TopicHandler): Future[void] {.gcsafe.} =
   ## subscribe to a pubsub topic
@@ -351,6 +364,7 @@ proc newSwitch*(peerInfo: PeerInfo,
   result.identity = identity
   result.muxers = muxers
   result.secureManagers = initTable[string, Secure]()
+  result.dialedPubSubPeers = initHashSet[string]()
 
   let s = result # can't capture result
   result.streamHandler = proc(stream: Connection) {.async, gcsafe.} =
