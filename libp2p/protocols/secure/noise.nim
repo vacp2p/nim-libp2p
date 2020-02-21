@@ -91,7 +91,7 @@ proc hashProtocol(name: string): MDigest[256] =
     result = sha256.digest(name)
 
 proc dh(priv: Curve25519Key, pub: Curve25519Key): Curve25519Key =
-  Curve25519.mul(result, priv, pub)
+  Curve25519.mul(result, pub, priv)
 
 # Cipherstate
 
@@ -112,14 +112,17 @@ proc encryptWithAd(state: var CipherState; ad, data: var openarray[byte]): seq[b
   ChaChaPoly.encrypt(state.k, nonce, tag, result, ad)
   inc state.n
   result &= @tag
+  echo "e ", @tag.toHex
+  echo "e -> ", result.toHex
 
 proc decryptWithAd(state: var CipherState, ad, data: var openarray[byte]): seq[byte] =
   var
     tag = cast[ChaChaPolyTag](data[(data.len - ChaChaPolyTag.len)..data.high])
     nonce: ChaChaPolyNonce
     np = cast[ptr uint64](addr nonce[4])
+  echo "d ", @tag.toHex
   np[] = state.n
-  result = newSeq[byte](data.len - ChaChaPolyTag.len)
+  result = data[0..^ChaChaPolyTag.len]
   ChaChaPoly.decrypt(state.k, nonce, tag, result, ad)
   inc state.n
 
@@ -144,8 +147,7 @@ proc mixKey(ss: var SymmetricState, ikm: ChaChaPolyKey) =
   init ss.cs, temp_keys[1]
 
 proc mixHash(ss: var SymmetricState; data: openarray[byte]) =
-  var s: seq[byte]
-  s &= ss.h.data
+  var s = @(ss.h.data)
   s &= data
   ss.h = sha256.digest(s)
 
@@ -177,7 +179,7 @@ proc decryptAndHash(ss: var SymmetricState, data: var openarray[byte]): seq[byte
     result = ss.cs.decryptWithAd(ss.h.data, data)
   else:
     result = @data
-  ss.mixHash(result)
+  ss.mixHash(data)
 
 proc split(ss: var SymmetricState): tuple[cs1, cs2: CipherState] =
   var
@@ -265,17 +267,23 @@ template read_s: untyped =
   copyMem(addr hs.rs[0], addr plain[0], Curve25519Key.len)
   
 proc handshakeXXOutbound(p: Noise, conn: Connection, p2pProof: ProtoBuffer): Future[tuple[cs1, cs2: CipherState]] {.async.} =
-  var hs: HandshakeState
-  
-  init hs.ss
   const initiator = true
+
+  var hs: HandshakeState
+  init hs.ss
+
+  when defined(noise_test_vectors):
+    let prologue = "4a6f686e2047616c74".fromHex
+  else:
+    let prologue = p2pProof.buffer
+  hs.ss.mixHash(prologue)
+
   when not defined(noise_test_vectors):
     hs.s.privateKey = p.noisePrivateKey
     hs.s.publicKey = p.noisePublicKey
   else:
     hs.s.privateKey = "e61ef9919cde45dd5f82166404bd08e38bceb5dfdfded0a34c8df7ed542214d1".fromHex.intoCurve25519Key
     hs.s.publicKey = hs.s.privateKey.public()
-  # the rest of keys in hs are empty/0
 
   # -> e
   var msg: seq[byte]
@@ -294,6 +302,9 @@ proc handshakeXXOutbound(p: Noise, conn: Connection, p2pProof: ProtoBuffer): Fut
   # <- e, ee, s, es
 
   msg = await conn.readLp()
+
+  when defined(noise_test_vectors):
+    doAssert msg.toHex(true) == "95ebc60d2b1fa672c1f46a8aa265ef51bfe38e7ccb39ec5be34069f14480884381cbad1f276e038c48378ffce2b65285e08d6b68aaa3629a5a8639392490e5b9bd5269c2f1e4f488ed8831161f19b7815528f8982ffe09be9b5c412f8a0db50f8814c7194e83f23dbd8d162c9326ad"
 
   read_e()
   dh_ee()
@@ -323,10 +334,17 @@ proc handshakeXXOutbound(p: Noise, conn: Connection, p2pProof: ProtoBuffer): Fut
   return hs.ss.split()
 
 proc handshakeXXInbound(p: Noise, conn: Connection, p2pProof: ProtoBuffer): Future[tuple[cs1, cs2: CipherState]] {.async.} =
-  var hs: HandshakeState
-   
-  init hs.ss
   const initiator = false
+
+  var hs: HandshakeState
+  init hs.ss
+
+  when defined(noise_test_vectors):
+    let prologue = "4a6f686e2047616c74".fromHex
+  else:
+    let prologue = p2pProof.buffer
+  hs.ss.mixHash(prologue)
+
   when not defined(noise_test_vectors):
     hs.s.privateKey = p.noisePrivateKey
     hs.s.publicKey = p.noisePublicKey
@@ -340,9 +358,6 @@ proc handshakeXXInbound(p: Noise, conn: Connection, p2pProof: ProtoBuffer): Futu
   var msg = await conn.readLp()
 
   read_e()
-
-  when defined(noise_test_vectors):
-    doAssert msg.toHex(true) == "4c756477696720766f6e204d69736573"
 
   # <- e, ee, s, es
 
@@ -362,9 +377,6 @@ proc handshakeXXInbound(p: Noise, conn: Connection, p2pProof: ProtoBuffer): Futu
   # payload = hs.ss.encryptAndHash(payload)
 
   await conn.writeLp(msg)
-
-  when defined(noise_test_vectors):
-    doAssert msg.toHex(true) == "95ebc60d2b1fa672c1f46a8aa265ef51bfe38e7ccb39ec5be34069f14480884381cbad1f276e038c48378ffce2b65285e08d6b68aaa3629a5a8639392490e5b9bd5269c2f1e4f488ed8831161f19b7815528f8982ffe09be9b5c412f8a0db50f8814c7194e83f23dbd8d162c9326ad"
 
   # -> s, se
 
