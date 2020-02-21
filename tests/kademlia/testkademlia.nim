@@ -28,29 +28,31 @@ suite "Kademlia":
     check:
       decodedPing.messageType.strtype == "PING"
 
-#  test "Kademlia encode and decode find node":
-#
-#    # Example peer
-#    var pstr = "Qmdxy8GAu1pvi35xBAie9sMpMN4G9p6GK6WCNbSCDCDgyp"
-#    var pid = PeerID.init(pstr)
-#    debug "peer id", id = pid.pretty
-#
-#    # Testing encoding and decoding find node
-#    var findNodeMessage = RPCMsg(strtype: "FIND_NODE", key: pid.getBytes())
-#    debug "findNode", msg = findNodeMessage
-#
-#    var encodedFindNode = encodeRpcMsg(findNodeMessage)
-#    debug "findNode encoded", encoded = encodedFindNode
-#
-#    var decodedFindNode = decodeRpcMsg(encodedFindNode.buffer)
-#    debug "findNode decoded", decoded = decodedFindNode
-#
-#    var decodedId =  PeerID.init(decodedFindNode.key)
-#    debug "findNode decoded id", id = decodedId.pretty
-#
-#    check:
-#      pstr == decodedId.pretty
-#
+  test "Kademlia encode and decode find node":
+
+    # Example peer
+    var pstr = "Qmdxy8GAu1pvi35xBAie9sMpMN4G9p6GK6WCNbSCDCDgyp"
+    var pid = PeerID.init(pstr)
+    debug "peer id", id = pid.pretty
+
+    # Testing encoding and decoding find node
+    var messageType = MessageType(strtype: "FIND_NODE")
+    var key = Key(id: pid.getBytes())
+    var findNodeMessage = RPCMsg(messageType: messageType, key: key)
+    debug "findNode", msg = findNodeMessage
+
+    var encodedFindNode = encodeRpcMsg(findNodeMessage)
+    debug "findNode encoded", encoded = encodedFindNode
+
+    var decodedFindNode = decodeRpcMsg(encodedFindNode.buffer)
+    debug "findNode decoded", decoded = decodedFindNode
+
+    var decodedId =  PeerID.init(decodedFindNode.key.id)
+    debug "findNode decoded id", id = decodedId.pretty
+
+    check:
+      pstr == decodedId.pretty
+
 #  test "Kademlia basic ping":
 #    proc runTests(): Future[bool] {.async.} =
 #      var completionFut = newFuture[bool]()
