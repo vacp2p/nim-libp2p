@@ -7,7 +7,6 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import options
 import chronos
 import chronicles
 import nimcrypto/[utils, sysrand, sha2, hmac]
@@ -33,8 +32,6 @@ let
   NonceMax = uint64.high - 1 # max is reserved
 
 type
-  NoiseSeq = array[32, byte]
-  
   KeyPair = object
     privateKey: Curve25519Key
     publicKey: Curve25519Key
@@ -88,7 +85,6 @@ proc hashProtocol(name: string): MDigest[256] =
      sets h equal to protocol_name with zero bytes appended to make HASHLEN bytes. 
      Otherwise sets h = HASH(protocol_name).
   ]#
-  
   if name.len <= 32:
     copyMem(addr result.data[0], unsafeAddr name[0], name.len)
   else:
@@ -153,19 +149,19 @@ proc mixHash(ss: var SymmetricState; data: openarray[byte]) =
   s &= data
   ss.h = sha256.digest(s)
 
-proc mixKeyAndHash(ss: var SymmetricState; ikm: var openarray[byte]) =
-  var
-    temp_keys: array[3, ChaChaPolyKey]
-    nkeys = 0
-  for next in sha256.hkdf(ss.ck, ikm, []):
-    if nkeys > temp_keys.high:
-      break
-    temp_keys[nkeys] = next.data
-    inc nkeys
+# proc mixKeyAndHash(ss: var SymmetricState; ikm: var openarray[byte]) =
+#   var
+#     temp_keys: array[3, ChaChaPolyKey]
+#     nkeys = 0
+#   for next in sha256.hkdf(ss.ck, ikm, []):
+#     if nkeys > temp_keys.high:
+#       break
+#     temp_keys[nkeys] = next.data
+#     inc nkeys
 
-  ss.ck = temp_keys[0]
-  ss.mixHash(temp_keys[1])
-  init ss.cs, temp_keys[2]
+#   ss.ck = temp_keys[0]
+#   ss.mixHash(temp_keys[1])
+#   init ss.cs, temp_keys[2]
 
 proc encryptAndHash(ss: var SymmetricState, data: var openarray[byte]): seq[byte] =
   # according to spec if key is empty leave plaintext
@@ -199,7 +195,16 @@ proc split(ss: var SymmetricState): tuple[cs1, cs2: CipherState] =
 template write_e: untyped =
   echo "write_e"
   # Sets e (which must be empty) to GENERATE_KEYPAIR(). Appends e.public_key to the buffer. Calls MixHash(e.public_key).
-  hs.e = genKeyPair()
+
+  when defined(noise_test_vectors):
+    when initiator:
+      hs.e.privateKey = "893e28b9dc6ca8d611ab664754b8ceb7bac5117349a4439a6b0569da977c464a".fromHex.intoCurve25519Key
+    else:
+      hs.e.privateKey = "bbdb4cdbd309f1a1f2e1456967fe288cadd6f712d65dc7b7793d5e63da6b375b".fromHex.intoCurve25519Key
+    hs.e.publicKey = hs.e.privateKey.public()
+  else:
+    hs.e = genKeyPair()
+
   var ne = hs.e.publicKey
   msg &= @ne
   hs.ss.mixHash(ne)
@@ -218,7 +223,7 @@ template dh_ee: untyped =
 template dh_es: untyped =
   echo "dh_es"
   # Calls MixKey(DH(e, rs)) if initiator, MixKey(DH(s, re)) if responder.
-  if initiator:
+  when initiator:
     hs.ss.mixKey(dh(hs.e.privateKey, hs.rs))
   else:
     hs.ss.mixKey(dh(hs.s.privateKey, hs.re))
@@ -226,7 +231,7 @@ template dh_es: untyped =
 template dh_se: untyped =
   echo "dh_se"
   # Calls MixKey(DH(s, re)) if initiator, MixKey(DH(e, rs)) if responder.
-  if initiator:
+  when initiator:
     hs.ss.mixKey(dh(hs.s.privateKey, hs.re))
   else:
     hs.ss.mixKey(dh(hs.e.privateKey, hs.rs))
@@ -264,8 +269,12 @@ proc handshakeXXOutbound(p: Noise, conn: Connection, p2pProof: ProtoBuffer): Fut
   
   init hs.ss
   const initiator = true
-  hs.s.privateKey = p.noisePrivateKey
-  hs.s.publicKey = p.noisePublicKey
+  when not defined(noise_test_vectors):
+    hs.s.privateKey = p.noisePrivateKey
+    hs.s.publicKey = p.noisePublicKey
+  else:
+    hs.s.privateKey = "e61ef9919cde45dd5f82166404bd08e38bceb5dfdfded0a34c8df7ed542214d1".fromHex.intoCurve25519Key
+    hs.s.publicKey = hs.s.privateKey.public()
   # the rest of keys in hs are empty/0
 
   # -> e
@@ -273,7 +282,14 @@ proc handshakeXXOutbound(p: Noise, conn: Connection, p2pProof: ProtoBuffer): Fut
 
   write_e()
 
+  when defined(noise_test_vectors):
+    var testload = "4c756477696720766f6e204d69736573".fromHex
+    msg &= hs.ss.encryptAndHash(testload)
+
   await conn.writeLp(msg)
+
+  when defined(noise_test_vectors):
+    doAssert msg.toHex(true) == "ca35def5ae56cec33dc2036731ab14896bc4c75dbb07a61f879f8e3afa4c79444c756477696720766f6e204d69736573"
 
   # <- e, ee, s, es
 
@@ -284,8 +300,12 @@ proc handshakeXXOutbound(p: Noise, conn: Connection, p2pProof: ProtoBuffer): Fut
   read_s()
   dh_es()
 
-  var s1payload = hs.ss.decryptAndHash(msg)
-  echo s1payload, " len: ", s1payload.len
+  when defined(noise_test_vectors):
+    var testloadstr = hs.ss.decryptAndHash(msg).toHex(true)
+    doAssert testloadstr == "4d757272617920526f746862617264", testloadstr
+ 
+  # var s1payload = hs.ss.decryptAndHash(msg)
+  # echo s1payload, " len: ", s1payload.len
   
   # -> s, se
 
@@ -307,8 +327,12 @@ proc handshakeXXInbound(p: Noise, conn: Connection, p2pProof: ProtoBuffer): Futu
    
   init hs.ss
   const initiator = false
-  hs.s.privateKey = p.noisePrivateKey
-  hs.s.publicKey = p.noisePublicKey
+  when not defined(noise_test_vectors):
+    hs.s.privateKey = p.noisePrivateKey
+    hs.s.publicKey = p.noisePublicKey
+  else:
+    hs.s.privateKey = "4a3acbfdb163dec651dfa3194dece676d437029c62a408b4c5ea9114246e4893".fromHex.intoCurve25519Key
+    hs.s.publicKey = hs.s.privateKey.public()
   # the rest of keys in hs are empty/0
 
   # -> e
@@ -316,6 +340,9 @@ proc handshakeXXInbound(p: Noise, conn: Connection, p2pProof: ProtoBuffer): Futu
   var msg = await conn.readLp()
 
   read_e()
+
+  when defined(noise_test_vectors):
+    doAssert msg.toHex(true) == "4c756477696720766f6e204d69736573"
 
   # <- e, ee, s, es
 
@@ -326,11 +353,18 @@ proc handshakeXXInbound(p: Noise, conn: Connection, p2pProof: ProtoBuffer): Futu
   write_s()
   dh_es()
 
-  var payload = p2pProof.buffer
-  echo payload, " len: ", payload.len
-  payload = hs.ss.encryptAndHash(payload)
+  when defined(noise_test_vectors):
+    var testload = "4d757272617920526f746862617264".fromHex
+    msg &= hs.ss.encryptAndHash(testload)
 
-  await conn.writeLp(msg & payload)
+  # var payload = p2pProof.buffer
+  # echo payload, " len: ", payload.len
+  # payload = hs.ss.encryptAndHash(payload)
+
+  await conn.writeLp(msg)
+
+  when defined(noise_test_vectors):
+    doAssert msg.toHex(true) == "95ebc60d2b1fa672c1f46a8aa265ef51bfe38e7ccb39ec5be34069f14480884381cbad1f276e038c48378ffce2b65285e08d6b68aaa3629a5a8639392490e5b9bd5269c2f1e4f488ed8831161f19b7815528f8982ffe09be9b5c412f8a0db50f8814c7194e83f23dbd8d162c9326ad"
 
   # -> s, se
 
