@@ -31,15 +31,23 @@ type
     id*: seq[byte]
     addrs*: seq[seq[byte]]
 
-  RPCMsg* = object
+  CloserPeers* = object
+    peers*: seq[Peer]
+
+  MessageType* = object
     # TODO: replace me with an enum MessageType
     strtype*: string # "PING" "FIND_NODE"
 
-    key*: seq[byte]
+  Key* = object
+    id*: seq[byte]
+
+  RPCMsg* = object
+    messageType*: MessageType
+    key*: Key
+    closerPeers*: Option[CloserPeers]
 
     # Returns values
     #record*: Option[Record]
 
     # Return peers closer a key in a query
     # E.g. FIND_NODE
-    closerPeers*: Option[seq[Peer]]
