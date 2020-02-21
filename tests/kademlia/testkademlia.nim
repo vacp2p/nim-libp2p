@@ -12,21 +12,22 @@ logScope:
   topic = "testKademlia"
 
 suite "Kademlia":
-#  test "Kademlia encode and decode ping":
-#
-#    # Testing encoding and decoding ping
-#    var pingMessage = RPCMsg(strtype: "PING")
-#    debug "pingMessage", msg = pingMessage
-#
-#    var encodedPing = encodeRpcMsg(pingMessage)
-#    debug "pingMessage encoded", encoded = encodedPing
-#
-#    var decodedPing = decodeRpcMsg(encodedPing.buffer)
-#    debug "pingMessage decoded", decoded = decodedPing
-#
-#    check:
-#      decodedPing.strtype == "PING"
-#
+  test "Kademlia encode and decode ping":
+
+    # Testing encoding and decoding ping
+    var messageType = MessageType(strtype: "PING")
+    var pingMessage = RPCMsg(messageType: messageType)
+    debug "pingMessage", msg = pingMessage
+
+    var encodedPing = encodeRpcMsg(pingMessage)
+    debug "pingMessage encoded", encoded = encodedPing
+
+    var decodedPing = decodeRpcMsg(encodedPing.buffer)
+    debug "pingMessage decoded", decoded = decodedPing
+
+    check:
+      decodedPing.messageType.strtype == "PING"
+
 #  test "Kademlia encode and decode find node":
 #
 #    # Example peer

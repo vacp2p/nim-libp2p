@@ -131,11 +131,11 @@ method rpcHandler*(p: KadProto,
     # TODO: NYI
 
     # TODO: need strtype here
-    if m.strtype == "PING":
+    if m.messageType.strtype == "PING":
         debug "rpcHandler PING"
         # FIXME: Type error here
         await p.pingHandler(m)
-    elif m.strtype == "FIND_NODE":
+    elif m.messageType.strtype == "FIND_NODE":
       # XXX: Distinguish reply here? FIND_NODE REPLY:
       debug "rpcHandler FIND_NODE", key = m.key
       # TODO: HERE ATM, USE THIS.
@@ -143,7 +143,7 @@ method rpcHandler*(p: KadProto,
       #var raw_str_pid = m.split("findNode ")[1]
       #var pstr = "Qmdxy8GAu1pvi35xBAie9sMpMN4G9p6GK6WCNbSCDCDgyp"
 
-      var pid = PeerID.init(m.key)
+      var pid = PeerID.init(m.key.id)
       #var pid = PeerID.init(pstr)
 
       # TODO: Fix this error, possibly with threadvar
@@ -159,7 +159,7 @@ method rpcHandler*(p: KadProto,
       # TODO: Wrong, should have value
       # TODO: HERE ATM, let's iterate over KadPeers and add RPC Peer construct
       # Kadpeer -> RPC Peer
-      var closerPeers: seq[Peer]
+      var peers: seq[Peer]
       for kp in res:
         debug "rpc peer", id = kp.peerInfo.peerId, addrs = kp.peerInfo.addrs
 
@@ -171,9 +171,12 @@ method rpcHandler*(p: KadProto,
         var p = Peer(id: kp.peerInfo.peerId.getBytes(),
                      addrs: mas)
 
-        closerPeers.add(p)
-        debug "closerPeers", closerPeers = closerPeers
-      let replyMsg = RPCMSg(strtype: "FIND_NODE_REPLY",
+        peers.add(p)
+        debug "closerPeers", peers = peers
+
+      var closerPeers = CloserPeers(peers: peers)
+      var messageType = messages.MessageType(strtype: "FIND_NODE_REPLY")
+      let replyMsg = RPCMSg(messageType: messageType,
                             key: m.key,
                             closerPeers: some(closerPeers))
       debug "find node reply rpc", msg = replyMsg
@@ -188,7 +191,7 @@ method rpcHandler*(p: KadProto,
       # XXX: Shouldn't above logic and peer sending
       # be dealt with in handler? then test at end
       await p.findNodeHandler(res)
-    elif m.strtype == "FIND_NODE_REPLY":
+    elif m.messageType.strtype == "FIND_NODE_REPLY":
       # TODO: Pretty print key and get closerPeers list
       debug "FIND_NODE_REPLY", m = m, key = m.key, closerPeer = m.closerPeers
       # TODO: Call find node handler
@@ -309,7 +312,9 @@ method findNodeRPC*(p: KadProto,
                     id: PeerID): Future[seq[RPCMsg]] {.base, async.} =
   debug "findNodeRPC", peer = peerInfo.id
   var peer = p.peers[peerInfo.id]
-  var msg = RPCMsg(strtype: "FIND_NODE", key: id.getBytes())
+  var messageType = messages.MessageType(strtype: "FIND_NODE")
+  var key = Key(id: id.getBytes())
+  var msg = RPCMsg(messageType: messageType, key: key)
   var msgs: seq[RPCMsg]
   msgs.add(msg)
   result = await peer.sendWait(msgs)
@@ -472,7 +477,9 @@ method ping*(p: KadProto,
              peerInfo: PeerInfo) {.base, async.} =
   var peer = p.peers[peerInfo.id]
   var msgs: seq[RPCMsg]
-  var msg = RPCMsg(strtype: "PING")
+
+  var messageType = messages.MessageType(strtype: "PING")
+  var msg = RPCMsg(messageType: messageType)
   msgs.add(msg)
   await peer.send(msgs)
 
