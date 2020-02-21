@@ -22,8 +22,8 @@ type
     handler: ExpireHandler[V]
 
   TimedCache*[V] = ref object of RootObj
-    cache*: Table[string, TimedEntry[V]]
-    onExpire*: ExpireHandler[V]
+    cache: Table[string, TimedEntry[V]]
+    onExpire: ExpireHandler[V]
     timeout*: Duration
 
 # TODO: This belong in chronos, temporary left here until chronos is updated
@@ -74,6 +74,5 @@ proc `[]=`*[V](t: TimedCache[V], key: string, val: V): V =
   t.put(key, val)
 
 proc newTimedCache*[V](timeout: Duration = Timeout): TimedCache[V] =
-  new result
-  result.cache = initTable[string, TimedEntry[V]]()
-  result.timeout = timeout
+  TimedCache(cache: initTable[string, TimedEntry[V]](),
+             timeout: timeout)
