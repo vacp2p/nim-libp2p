@@ -112,17 +112,14 @@ proc encryptWithAd(state: var CipherState; ad, data: var openarray[byte]): seq[b
   ChaChaPoly.encrypt(state.k, nonce, tag, result, ad)
   inc state.n
   result &= @tag
-  echo "e ", @tag.toHex
-  echo "e -> ", result.toHex
 
 proc decryptWithAd(state: var CipherState, ad, data: var openarray[byte]): seq[byte] =
   var
-    tag = cast[ChaChaPolyTag](data[(data.len - ChaChaPolyTag.len)..data.high])
+    tag = data[^ChaChaPolyTag.len..data.high].intoChaChaPolyTag
     nonce: ChaChaPolyNonce
     np = cast[ptr uint64](addr nonce[4])
-  echo "d ", @tag.toHex
   np[] = state.n
-  result = data[0..^ChaChaPolyTag.len]
+  result = data[0..(data.high - ChaChaPolyTag.len)]
   ChaChaPoly.decrypt(state.k, nonce, tag, result, ad)
   inc state.n
 
@@ -147,9 +144,11 @@ proc mixKey(ss: var SymmetricState, ikm: ChaChaPolyKey) =
   init ss.cs, temp_keys[1]
 
 proc mixHash(ss: var SymmetricState; data: openarray[byte]) =
-  var s = @(ss.h.data)
-  s &= data
-  ss.h = sha256.digest(s)
+  var ctx: sha256
+  ctx.init()
+  ctx.update(ss.h.data)
+  ctx.update(data)
+  ss.h = ctx.finish()
 
 # proc mixKeyAndHash(ss: var SymmetricState; ikm: var openarray[byte]) =
 #   var
@@ -358,6 +357,10 @@ proc handshakeXXInbound(p: Noise, conn: Connection, p2pProof: ProtoBuffer): Futu
   var msg = await conn.readLp()
 
   read_e()
+
+  when defined(noise_test_vectors):
+    var testrecv = hs.ss.decryptAndHash(msg).toHex(true)
+    doAssert testrecv == "4c756477696720766f6e204d69736573"
 
   # <- e, ee, s, es
 
