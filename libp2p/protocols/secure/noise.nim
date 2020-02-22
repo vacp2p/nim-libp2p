@@ -194,35 +194,22 @@ proc split(ss: var SymmetricState): tuple[cs1, cs2: CipherState] =
   init result.cs2, temp_keys[1]
   
 template write_e: untyped =
-  echo "write_e"
   # Sets e (which must be empty) to GENERATE_KEYPAIR(). Appends e.public_key to the buffer. Calls MixHash(e.public_key).
-
-  when defined(noise_test_vectors):
-    when initiator:
-      hs.e.privateKey = "893e28b9dc6ca8d611ab664754b8ceb7bac5117349a4439a6b0569da977c464a".fromHex.intoCurve25519Key
-    else:
-      hs.e.privateKey = "bbdb4cdbd309f1a1f2e1456967fe288cadd6f712d65dc7b7793d5e63da6b375b".fromHex.intoCurve25519Key
-    hs.e.publicKey = hs.e.privateKey.public()
-  else:
-    hs.e = genKeyPair()
-
+  hs.e = genKeyPair()
   var ne = hs.e.publicKey
   msg &= @ne
   hs.ss.mixHash(ne)
 
 template write_s: untyped =
-  echo "write_s"
   # Appends EncryptAndHash(s.public_key) to the buffer.
   var spk = @(hs.s.publicKey)
   msg &= hs.ss.encryptAndHash(spk)
 
 template dh_ee: untyped =
-  echo "dh_ee"
   # Calls MixKey(DH(e, re)).
   hs.ss.mixKey(dh(hs.e.privateKey, hs.re))
 
 template dh_es: untyped =
-  echo "dh_es"
   # Calls MixKey(DH(e, rs)) if initiator, MixKey(DH(s, re)) if responder.
   when initiator:
     hs.ss.mixKey(dh(hs.e.privateKey, hs.rs))
@@ -230,7 +217,6 @@ template dh_es: untyped =
     hs.ss.mixKey(dh(hs.s.privateKey, hs.re))
 
 template dh_se: untyped =
-  echo "dh_se"
   # Calls MixKey(DH(s, re)) if initiator, MixKey(DH(e, rs)) if responder.
   when initiator:
     hs.ss.mixKey(dh(hs.s.privateKey, hs.re))
@@ -238,19 +224,16 @@ template dh_se: untyped =
     hs.ss.mixKey(dh(hs.e.privateKey, hs.rs))
 
 template dh_ss: untyped =
-  echo "dh_ss"
   # Calls MixKey(DH(s, rs)).
   hs.ss.mixKey(dh(hs.s.privateKey, hs.rs))
 
 template read_e: untyped =
-  echo "read_e"
   # Sets re (which must be empty) to the next DHLEN bytes from the message. Calls MixHash(re.public_key).
   copyMem(addr hs.re[0], addr msg[0], Curve25519Key.len)
   msg = msg[Curve25519Key.len..msg.high]
   hs.ss.mixHash(hs.re)
 
 template read_s: untyped =
-  echo "read_s"
   # Sets temp to the next DHLEN + 16 bytes of the message if HasKey() == True, or to the next DHLEN bytes otherwise.
   # Sets rs (which must be empty) to DecryptAndHash(temp).
   var temp: seq[byte]
@@ -265,58 +248,41 @@ template read_s: untyped =
   var plain = hs.ss.decryptAndHash(temp)
   copyMem(addr hs.rs[0], addr plain[0], Curve25519Key.len)
   
-proc handshakeXXOutbound(p: Noise, conn: Connection, p2pProof: ProtoBuffer): Future[tuple[cs1, cs2: CipherState]] {.async.} =
+proc handshakeXXOutbound(p: Noise, conn: Connection, p2pProof: ProtoBuffer): Future[tuple[cs1, cs2: CipherState; remotePrologue: seq[byte]; rs: Curve25519Key]] {.async.} =
   const initiator = true
 
   var hs: HandshakeState
   init hs.ss
 
-  when defined(noise_test_vectors):
-    let prologue = "4a6f686e2047616c74".fromHex
-  else:
-    let prologue = p2pProof.buffer
+  var prologue = p2pProof.buffer
   hs.ss.mixHash(prologue)
 
-  when not defined(noise_test_vectors):
-    hs.s.privateKey = p.noisePrivateKey
-    hs.s.publicKey = p.noisePublicKey
-  else:
-    hs.s.privateKey = "e61ef9919cde45dd5f82166404bd08e38bceb5dfdfded0a34c8df7ed542214d1".fromHex.intoCurve25519Key
-    hs.s.publicKey = hs.s.privateKey.public()
+  hs.s.privateKey = p.noisePrivateKey
+  hs.s.publicKey = p.noisePublicKey
 
   # -> e
   var msg: seq[byte]
 
   write_e()
 
-  when defined(noise_test_vectors):
-    var testload = "4c756477696720766f6e204d69736573".fromHex
-    msg &= hs.ss.encryptAndHash(testload)
+  # IK might use this btw!
+  var empty: seq[byte]
+  msg &= hs.ss.encryptAndHash(empty)
 
   await conn.writeLp(msg)
-
-  when defined(noise_test_vectors):
-    doAssert msg.toHex(true) == "ca35def5ae56cec33dc2036731ab14896bc4c75dbb07a61f879f8e3afa4c79444c756477696720766f6e204d69736573"
 
   # <- e, ee, s, es
 
   msg = await conn.readLp()
-
-  when defined(noise_test_vectors):
-    doAssert msg.toHex(true) == "95ebc60d2b1fa672c1f46a8aa265ef51bfe38e7ccb39ec5be34069f14480884381cbad1f276e038c48378ffce2b65285e08d6b68aaa3629a5a8639392490e5b9bd5269c2f1e4f488ed8831161f19b7815528f8982ffe09be9b5c412f8a0db50f8814c7194e83f23dbd8d162c9326ad"
 
   read_e()
   dh_ee()
   read_s()
   dh_es()
 
-  when defined(noise_test_vectors):
-    var testloadstr = hs.ss.decryptAndHash(msg).toHex(true)
-    doAssert testloadstr == "4d757272617920526f746862617264", testloadstr
- 
-  # var s1payload = hs.ss.decryptAndHash(msg)
-  # echo s1payload, " len: ", s1payload.len
-  
+
+  let remotePrologue = hs.ss.decryptAndHash(msg)
+
   # -> s, se
 
   msg.setLen(0)
@@ -324,33 +290,24 @@ proc handshakeXXOutbound(p: Noise, conn: Connection, p2pProof: ProtoBuffer): Fut
   write_s()
   dh_se()
 
-  var payload = p2pProof.buffer
-  echo payload, " len: ", payload.len
-  payload = hs.ss.encryptAndHash(payload)
+  msg &= hs.ss.encryptAndHash(prologue)
 
-  await conn.writeLp(msg & payload)
+  await conn.writeLp(msg)
   
-  return hs.ss.split()
+  let (cs1, cs2) = hs.ss.split()
+  return (cs1, cs2, remotePrologue, hs.rs)
 
-proc handshakeXXInbound(p: Noise, conn: Connection, p2pProof: ProtoBuffer): Future[tuple[cs1, cs2: CipherState]] {.async.} =
+proc handshakeXXInbound(p: Noise, conn: Connection, p2pProof: ProtoBuffer): Future[tuple[cs1, cs2: CipherState; remotePrologue: seq[byte]; rs: Curve25519Key]] {.async.} =
   const initiator = false
 
   var hs: HandshakeState
   init hs.ss
 
-  when defined(noise_test_vectors):
-    let prologue = "4a6f686e2047616c74".fromHex
-  else:
-    let prologue = p2pProof.buffer
+  var prologue = p2pProof.buffer
   hs.ss.mixHash(prologue)
 
-  when not defined(noise_test_vectors):
-    hs.s.privateKey = p.noisePrivateKey
-    hs.s.publicKey = p.noisePublicKey
-  else:
-    hs.s.privateKey = "4a3acbfdb163dec651dfa3194dece676d437029c62a408b4c5ea9114246e4893".fromHex.intoCurve25519Key
-    hs.s.publicKey = hs.s.privateKey.public()
-  # the rest of keys in hs are empty/0
+  hs.s.privateKey = p.noisePrivateKey
+  hs.s.publicKey = p.noisePublicKey
 
   # -> e
 
@@ -358,9 +315,7 @@ proc handshakeXXInbound(p: Noise, conn: Connection, p2pProof: ProtoBuffer): Futu
 
   read_e()
 
-  when defined(noise_test_vectors):
-    var testrecv = hs.ss.decryptAndHash(msg).toHex(true)
-    doAssert testrecv == "4c756477696720766f6e204d69736573"
+  let earlyData = hs.ss.decryptAndHash(msg)
 
   # <- e, ee, s, es
 
@@ -371,13 +326,7 @@ proc handshakeXXInbound(p: Noise, conn: Connection, p2pProof: ProtoBuffer): Futu
   write_s()
   dh_es()
 
-  when defined(noise_test_vectors):
-    var testload = "4d757272617920526f746862617264".fromHex
-    msg &= hs.ss.encryptAndHash(testload)
-
-  # var payload = p2pProof.buffer
-  # echo payload, " len: ", payload.len
-  # payload = hs.ss.encryptAndHash(payload)
+  msg &= hs.ss.encryptAndHash(prologue)
 
   await conn.writeLp(msg)
 
@@ -388,11 +337,10 @@ proc handshakeXXInbound(p: Noise, conn: Connection, p2pProof: ProtoBuffer): Futu
   read_s()
   dh_se()
 
-  msg = hs.ss.decryptAndHash(msg)
+  let remotePrologue = hs.ss.decryptAndHash(msg)
 
-  echo msg, " len: ", msg.len
-
-  return hs.ss.split()
+  let (cs1, cs2) = hs.ss.split()
+  return (cs1, cs2, remotePrologue, hs.rs)
 
 proc handshake*(p: Noise, conn: Connection, initiator: bool): Future[NoiseConnection] {.async.} =
   # https://github.com/libp2p/specs/tree/master/noise#libp2p-data-in-handshake-messages
@@ -400,17 +348,30 @@ proc handshake*(p: Noise, conn: Connection, initiator: bool): Future[NoiseConnec
     signedPayload = p.localPrivateKey.sign(PayloadString.getBytes & p.noisePublicKey.getBytes)
     
   var
-    libp2pProofPb = initProtoBuffer({WithUint32BeLength})
-  libp2pProofPb.write(initProtoField(1, p.localPublicKey.getBytes()))
-  libp2pProofPb.write(initProtoField(2, signedPayload))
+    libp2pProof = initProtoBuffer()
+    remoteProofBytes: seq[byte]
+    remoteKey: Curve25519Key
+
+  libp2pProof.write(initProtoField(1, p.localPublicKey))
+  libp2pProof.write(initProtoField(2, signedPayload))
   # data field also there but not used!
-  libp2pProofPb.finish()
+  libp2pProof.finish()
 
   if initiator:
-    (p.cs1, p.cs2) = await handshakeXXOutbound(p, conn, libp2pProofPb)
+    (p.cs1, p.cs2, remoteProofBytes, remoteKey) = await handshakeXXOutbound(p, conn, libp2pProof)
   else:
-    (p.cs1, p.cs2) = await handshakeXXInbound(p, conn, libp2pProofPb)
-  
+    (p.cs1, p.cs2, remoteProofBytes, remoteKey) = await handshakeXXInbound(p, conn, libp2pProof)
+
+  var
+    remoteProof = initProtoBuffer(remoteProofBytes)
+    remotePubKey: PublicKey
+    remoteSig: Signature
+  doAssert remoteProof.getValue(1, remotePubKey) > 0
+  doAssert remoteProof.getValue(2, remoteSig) > 0
+
+  let verifyPayload = PayloadString.getBytes & remoteKey.getBytes
+  doAssert remoteSig.verify(verifyPayload, remotePubKey), "Noise handshake signature verify failed!"
+
   unimplemented()
 
 method init*(p: Noise) {.gcsafe.} =
