@@ -106,7 +106,7 @@ proc pushTo*(s: BufferStream, data: seq[byte]) {.async.} =
   try:
     await s.lock.acquire()
     var index = 0
-    while true:
+    while not s.closed():
       while index < data.len and s.readBuf.len < s.maxSize:
         s.readBuf.addLast(data[index])
         inc(index)

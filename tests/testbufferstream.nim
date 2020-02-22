@@ -440,3 +440,23 @@ suite "BufferStream":
 
     check:
       waitFor(pipeTest()) == true
+
+  test "shouldn't get stuck on close":
+    proc test(): Future[bool] {.async.} =
+      proc createMessage(tmplate: string, size: int): seq[byte] =
+        result = newSeq[byte](size)
+        for i in 0 ..< len(result):
+          result[i] = byte(tmplate[i mod len(tmplate)])
+
+      var stream = newBufferStream()
+      var message = createMessage("MESSAGE", DefaultBufferSize * 2 + 1)
+      var fut = stream.pushTo(message)
+      await stream.close()
+      try:
+        await wait(fut, 100.milliseconds)
+        result = true
+      except AsyncTimeoutError:
+        result = false
+
+      check:
+        waitFor(test()) == true
