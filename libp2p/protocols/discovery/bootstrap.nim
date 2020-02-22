@@ -30,7 +30,7 @@ type
     running: bool
     sentPeers: TimedCache[PeerInfo]
 
-proc encode(msg: seq[PeerInfo]): ProtoBuffer =
+proc encode*(msg: seq[PeerInfo]): ProtoBuffer =
   result = initProtoBuffer()
   var peerMsg: ProtoBuffer
   for m in msg:
@@ -45,7 +45,7 @@ proc encode(msg: seq[PeerInfo]): ProtoBuffer =
 
   result.finish()
 
-proc decode(msg: seq[byte]): seq[PeerInfo] =
+proc decode*(msg: seq[byte]): seq[PeerInfo] =
   var pb = initProtoBuffer(msg)
   while pb.enterSubMessage() > 0:
     var pubKey: PublicKey
@@ -78,12 +78,13 @@ proc newBootstrap*(b: type[Bootstrap],
                    interval: Duration = DefaultDiscoveryInterval,
                    peersTimeout: Duration = DefaultPeersTimeout,
                    maxPeers: int = MaxPeers): b =
-  Bootstrap(switch: switch,
-            bootstrapPeers: bootstrapPeers,
-            interval: interval,
-            onNewPeers: onNewPeers,
-            peersTimeout: peersTimeout,
-            maxPeers: maxPeers)
+  result = Bootstrap(switch: switch,
+                     bootstrapPeers: bootstrapPeers,
+                     interval: interval,
+                     onNewPeers: onNewPeers,
+                     peersTimeout: peersTimeout,
+                     maxPeers: maxPeers)
+  result.init()
 
 proc getNewPeers(b: Bootstrap) {.async.} =
   await b.switch.onStarted.wait() # wait for the switch to start
