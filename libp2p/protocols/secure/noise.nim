@@ -63,10 +63,11 @@ type
     localPublicKey: PublicKey
     noisePrivateKey: Curve25519Key
     noisePublicKey: Curve25519Key
-    cs1: CipherState
-    cs2: CipherState
 
   NoiseConnection* = ref object of Connection
+    insecure: Connection
+    readCs: CipherState
+    writeCs: CipherState
 
   NoiseHandshakeError* = object of CatchableError
 
@@ -355,6 +356,8 @@ proc handshake*(p: Noise, conn: Connection, initiator: bool): Future[NoiseConnec
     libp2pProof = initProtoBuffer()
     remoteProofBytes: seq[byte]
     remoteKey: Curve25519Key
+    cs1: CipherState
+    cs2: CipherState
 
   libp2pProof.write(initProtoField(1, p.localPublicKey))
   libp2pProof.write(initProtoField(2, signedPayload))
@@ -362,9 +365,9 @@ proc handshake*(p: Noise, conn: Connection, initiator: bool): Future[NoiseConnec
   libp2pProof.finish()
 
   if initiator:
-    (p.cs1, p.cs2, remoteProofBytes, remoteKey) = await handshakeXXOutbound(p, conn, libp2pProof)
+    (cs1, cs2, remoteProofBytes, remoteKey) = await handshakeXXOutbound(p, conn, libp2pProof)
   else:
-    (p.cs1, p.cs2, remoteProofBytes, remoteKey) = await handshakeXXInbound(p, conn, libp2pProof)
+    (cs1, cs2, remoteProofBytes, remoteKey) = await handshakeXXInbound(p, conn, libp2pProof)
 
   var
     remoteProof = initProtoBuffer(remoteProofBytes)
@@ -378,7 +381,7 @@ proc handshake*(p: Noise, conn: Connection, initiator: bool): Future[NoiseConnec
   let verifyPayload = PayloadString.getBytes & remoteKey.getBytes
   if not remoteSig.verify(verifyPayload, remotePubKey):
     raise newException(NoiseHandshakeError, "Noise handshake signature verify failed.")
-
+ 
   if initiator:
     let pid = PeerID.init(remotePubKey)
     if not conn.peerInfo.peerId.validate():
@@ -386,7 +389,59 @@ proc handshake*(p: Noise, conn: Connection, initiator: bool): Future[NoiseConnec
     if pid != conn.peerInfo.peerId:
       raise newException(NoiseHandshakeError, "Noise handshake, peer infos don't match! " & $pid & " != " & $conn.peerInfo.peerId)
 
+  var secure = new NoiseConnection
+  secure.insecure = conn
+  if initiator:
+    secure.readCs = cs2
+    secure.writeCs = cs1
+  else:
+    secure.readCs = cs1
+    secure.writeCs = cs2
+ 
   unimplemented()
+
+method readExactly*(s: NoiseConnection,
+                    pbytes: pointer,
+                    nbytes: int):
+                    Future[void] {.gcsafe.} =
+  s.insecure.readExactly(pbytes, nbytes)
+
+method readLine*(s: NoiseConnection,
+                 limit = 0,
+                 sep = "\r\n"):
+                 Future[string] {.gcsafe.} =
+  s.insecure.readLine(limit, sep)
+
+method readOnce*(s: NoiseConnection,
+                 pbytes: pointer,
+                 nbytes: int):
+                 Future[int] {.gcsafe.} =
+  s.insecure.readOnce(pbytes, nbytes)
+
+method readUntil*(s: NoiseConnection,
+                  pbytes: pointer,
+                  nbytes: int,
+                  sep: seq[byte]):
+                  Future[int] {.gcsafe.} =
+  s.insecure.readUntil(pbytes, nbytes, sep)
+
+method write*(s: NoiseConnection,
+              pbytes: pointer,
+              nbytes: int):
+              Future[void] {.gcsafe.} =
+  s.insecure.write(pbytes, nbytes)
+
+method write*(s: NoiseConnection,
+              msg: string,
+              msglen = -1):
+              Future[void] {.gcsafe.} =
+  s.insecure.write(msg, msglen)
+
+method write*(s: NoiseConnection,
+              msg: seq[byte],
+              msglen = -1):
+              Future[void] {.gcsafe.} =
+  s.insecure.write(msg, msglen)
 
 method init*(p: Noise) {.gcsafe.} =
   trace "Noise init called"
