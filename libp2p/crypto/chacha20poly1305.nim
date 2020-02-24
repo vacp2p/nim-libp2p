@@ -50,16 +50,9 @@ proc intoChaChaPolyTag*(s: seq[byte]): ChaChaPolyTag =
 
 template fetchImpl: untyped =
   # try for the best first
-  var
-    chachapoly_native_impl {.inject.}: Poly1305Run = poly1305CtmulqGet()
-    chacha_native_impl {.inject.}: Chacha20Run = chacha20Sse2Get()
-
-  # fall back if not available
-  if chachapoly_native_impl == nil:
-    chachapoly_native_impl = poly1305CtmulRun
-
-  if chacha_native_impl == nil:
-    chacha_native_impl = chacha20CtRun
+  let
+    chachapoly_native_impl {.inject.}: Poly1305Run = poly1305CtmulRun
+    chacha_native_impl {.inject.}: Chacha20Run = chacha20CtRun
 
 proc encrypt*(_: type[ChaChaPoly],
                  key: var ChaChaPolyKey,
