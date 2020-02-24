@@ -11,6 +11,7 @@ import chronos
 import chronicles
 import nimcrypto/[utils, sysrand, sha2, hmac]
 import ../../connection
+import ../../peer
 import ../../protobuf/minprotobuf
 import secure,
        ../../crypto/[crypto, chacha20poly1305, curve25519, hkdf]
@@ -20,7 +21,7 @@ template unimplemented: untyped =
 
 const
   # https://godoc.org/github.com/libp2p/go-libp2p-noise#pkg-constants
-  NoiseCodec = "/noise"
+  NoiseCodec* = "/noise"
   
   PayloadString = "noise-libp2p-static-key:"
 
@@ -64,9 +65,10 @@ type
     noisePublicKey: Curve25519Key
     cs1: CipherState
     cs2: CipherState
-    initiator: bool # remove probably
 
   NoiseConnection* = ref object of Connection
+
+  NoiseHandshakeError* = object of CatchableError
 
 # Utility
 
@@ -343,6 +345,8 @@ proc handshakeXXInbound(p: Noise, conn: Connection, p2pProof: ProtoBuffer): Futu
   return (cs1, cs2, remotePrologue, hs.rs)
 
 proc handshake*(p: Noise, conn: Connection, initiator: bool): Future[NoiseConnection] {.async.} =
+  trace "Starting Noise handshake", initiator
+
   # https://github.com/libp2p/specs/tree/master/noise#libp2p-data-in-handshake-messages
   let
     signedPayload = p.localPrivateKey.sign(PayloadString.getBytes & p.noisePublicKey.getBytes)
@@ -366,15 +370,27 @@ proc handshake*(p: Noise, conn: Connection, initiator: bool): Future[NoiseConnec
     remoteProof = initProtoBuffer(remoteProofBytes)
     remotePubKey: PublicKey
     remoteSig: Signature
-  doAssert remoteProof.getValue(1, remotePubKey) > 0
-  doAssert remoteProof.getValue(2, remoteSig) > 0
+  if remoteProof.getValue(1, remotePubKey) <= 0:
+    raise newException(NoiseHandshakeError, "Failed to deserialize remote public key.")
+  if remoteProof.getValue(2, remoteSig) <= 0:
+    raise newException(NoiseHandshakeError, "Failed to deserialize remote public key.")
 
   let verifyPayload = PayloadString.getBytes & remoteKey.getBytes
-  doAssert remoteSig.verify(verifyPayload, remotePubKey), "Noise handshake signature verify failed!"
+  if not remoteSig.verify(verifyPayload, remotePubKey):
+    raise newException(NoiseHandshakeError, "Noise handshake signature verify failed.")
+
+  if initiator:
+    let pid = PeerID.init(remotePubKey)
+    if not conn.peerInfo.peerId.validate():
+      raise newException(NoiseHandshakeError, "Failed to validate peerId.")
+    if pid != conn.peerInfo.peerId:
+      raise newException(NoiseHandshakeError, "Noise handshake, peer infos don't match! " & $pid & " != " & $conn.peerInfo.peerId)
 
   unimplemented()
 
 method init*(p: Noise) {.gcsafe.} =
+  trace "Noise init called"
+ 
   proc handle(conn: Connection, proto: string) {.async, gcsafe.} =
     trace "handling connection"
     try:
@@ -385,20 +401,19 @@ method init*(p: Noise) {.gcsafe.} =
         warn "securing connection failed", msg = ex.msg
         await conn.close()
 
-    p.codec = NoiseCodec
-    p.handler = handle
+  p.codec = NoiseCodec
+  p.handler = handle
   
-method secure*(p: Noise, conn: Connection): Future[Connection] {.async, gcsafe.} =
+method secure*(p: Noise, conn: Connection, outgoing: bool): Future[Connection] {.async, gcsafe.} =
   try:
-    result = await p.handshake(conn, p.initiator)
+    result = await p.handshake(conn, outgoing)
   except CatchableError as ex:
      warn "securing connection failed", msg = ex.msg
      if not conn.closed():
        await conn.close()
   
-proc newNoise*(privateKey: PrivateKey; initiator: bool): Noise =
+proc newNoise*(privateKey: PrivateKey): Noise =
   new result
-  result.initiator = initiator
   result.localPrivateKey = privateKey
   result.localPublicKey = privateKey.getKey()
   discard randomBytes(result.noisePrivateKey)

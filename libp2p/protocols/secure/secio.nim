@@ -461,7 +461,7 @@ method init(s: Secio) {.gcsafe.} =
   s.codec = SecioCodec
   s.handler = handle
 
-method secure*(s: Secio, conn: Connection): Future[Connection] {.async, gcsafe.} =
+method secure*(s: Secio, conn: Connection, outgoing: bool): Future[Connection] {.async, gcsafe.} =
   try:
     result = await s.handleConn(conn)
   except CatchableError as exc:
