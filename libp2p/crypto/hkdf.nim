@@ -20,12 +20,18 @@ iterator hkdf*(H: typedesc, salt, ikm, info: openarray[byte]): MDigest[H.bits] {
     i = 1
 
   while true:
-    var next = H.hmac(prk.data, t & @info & @[i.byte])
+    var ctx: HMAC[H]
+    ctx.init(prk.data)
+    ctx.update(t)
+    ctx.update(info)
+    ctx.update([i.byte])
+    var next = ctx.finish()
     yield next
     t.setLen(0)
     t &= next.data
     inc i 
 
+# notice we use this call under only in a test, prefer iterator!
 proc hkdf*(H: typedesc, salt, ikm, info: openarray[byte], output: var openarray[byte]) =
   const
     HASHLEN = H.bits div 8
