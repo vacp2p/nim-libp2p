@@ -16,7 +16,7 @@ type
   PlainText* = ref object of Secure
 
 method init(p: PlainText) {.gcsafe.} =
-  proc handle(conn: Connection, proto: string) 
+  proc handle(conn: Connection, proto: string)
     {.async, gcsafe.} = discard
     ## plain text doesn't do anything
 
