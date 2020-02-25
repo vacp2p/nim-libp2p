@@ -321,7 +321,7 @@ proc subscribeToPeer(s: Switch, peerInfo: PeerInfo) {.async, gcsafe.} =
       let conn = await s.dial(peerInfo, s.pubSub.get().codec)
       await s.pubSub.get().subscribeToPeer(conn)
     except CatchableError as exc:
-      trace "unable to initiate pubsub", exc = exc.msg
+      warn "unable to initiate pubsub", exc = exc.msg
       s.dialedPubSubPeers.excl(peerInfo.id)
 
 proc subscribe*(s: Switch, topic: string, handler: TopicHandler): Future[void] {.gcsafe.} =
