@@ -14,7 +14,8 @@ import ../../connection
 import ../../peer
 import ../../protobuf/minprotobuf
 import secure,
-       ../../crypto/[crypto, chacha20poly1305, curve25519, hkdf]
+       ../../crypto/[crypto, chacha20poly1305, curve25519, hkdf],
+       ../../stream/bufferstream
 
 template unimplemented: untyped =
   doAssert(false, "Not implemented")
@@ -69,7 +70,7 @@ type
     noisePrivateKey: Curve25519Key
     noisePublicKey: Curve25519Key
 
-  NoiseConnection* = ref object of Connection
+  NoiseConnection* = ref object of SecureConnection
     insecure: Connection
     readCs: CipherState
     writeCs: CipherState
@@ -109,7 +110,7 @@ proc init(cs: var CipherState; key: ChaChaPolyKey) =
 proc hasKey(cs: var CipherState): bool =
   cs.k != EmptyKey
 
-proc encryptWithAd(state: var CipherState; ad, data: var openarray[byte]): seq[byte] =
+proc encryptWithAd(state: var CipherState, ad, data: openarray[byte]): seq[byte] =
   var
     tag: ChaChaPolyTag
     nonce: ChaChaPolyNonce
@@ -120,7 +121,7 @@ proc encryptWithAd(state: var CipherState; ad, data: var openarray[byte]): seq[b
   inc state.n
   result &= @tag
 
-proc decryptWithAd(state: var CipherState, ad, data: var openarray[byte]): seq[byte] =
+proc decryptWithAd(state: var CipherState, ad, data: openarray[byte]): seq[byte] =
   var
     tag = data[^ChaChaPolyTag.len..data.high].intoChaChaPolyTag
     nonce: ChaChaPolyNonce
@@ -349,6 +350,32 @@ proc handshakeXXInbound(p: Noise, conn: Connection, p2pProof: ProtoBuffer): Futu
   let (cs1, cs2) = hs.ss.split()
   return HandshakeResult(cs1: cs1, cs2: cs2, remotePrologue: remotePrologue, rs: hs.rs)
 
+proc readMessage(sconn: NoiseConnection): Future[seq[byte]] {.async.} =
+  try:
+    let
+      msg = await sconn.insecure.readLp()
+    return sconn.readCs.decryptWithAd([], msg)
+  except AsyncStreamIncompleteError:
+    trace "Connection dropped while reading"
+  except AsyncStreamReadError:
+    trace "Error reading from connection"
+
+proc writeMessage(sconn: NoiseConnection, message: seq[byte]) {.async.} =
+  try:
+    let
+      cipher = sconn.writeCs.encryptWithAd([], message)
+    await sconn.insecure.writeLp(cipher)
+  except AsyncStreamWriteError:
+    trace "Could not write to connection"
+
+proc lifetime*(sconn: NoiseConnection) {.async.} =
+  proc writeHandler(data: seq[byte]) {.async, gcsafe.} =
+    trace "sending encrypted bytes", bytes = data.toHex()
+    await sconn.writeMessage(data)
+
+  var stream = newBufferStream(writeHandler)
+  await readLoop(sconn, stream)
+
 proc handshake*(p: Noise, conn: Connection, initiator: bool): Future[NoiseConnection] {.async.} =
   trace "Starting Noise handshake", initiator
 
@@ -399,58 +426,15 @@ proc handshake*(p: Noise, conn: Connection, initiator: bool): Future[NoiseConnec
     secure.readCs = handshakeRes.cs1
     secure.writeCs = handshakeRes.cs2
  
-  unimplemented()
-
-method readExactly*(s: NoiseConnection,
-                    pbytes: pointer,
-                    nbytes: int):
-                    Future[void] {.gcsafe.} =
-  s.insecure.readExactly(pbytes, nbytes)
-
-method readLine*(s: NoiseConnection,
-                 limit = 0,
-                 sep = "\r\n"):
-                 Future[string] {.gcsafe.} =
-  s.insecure.readLine(limit, sep)
-
-method readOnce*(s: NoiseConnection,
-                 pbytes: pointer,
-                 nbytes: int):
-                 Future[int] {.gcsafe.} =
-  s.insecure.readOnce(pbytes, nbytes)
-
-method readUntil*(s: NoiseConnection,
-                  pbytes: pointer,
-                  nbytes: int,
-                  sep: seq[byte]):
-                  Future[int] {.gcsafe.} =
-  s.insecure.readUntil(pbytes, nbytes, sep)
-
-method write*(s: NoiseConnection,
-              pbytes: pointer,
-              nbytes: int):
-              Future[void] {.gcsafe.} =
-  s.insecure.write(pbytes, nbytes)
-
-method write*(s: NoiseConnection,
-              msg: string,
-              msglen = -1):
-              Future[void] {.gcsafe.} =
-  s.insecure.write(msg, msglen)
-
-method write*(s: NoiseConnection,
-              msg: seq[byte],
-              msglen = -1):
-              Future[void] {.gcsafe.} =
-  s.insecure.write(msg, msglen)
-
 method init*(p: Noise) {.gcsafe.} =
   trace "Noise init called"
  
   proc handle(conn: Connection, proto: string) {.async, gcsafe.} =
     trace "handling connection"
     try:
-      asyncCheck p.handshake(conn, false)
+      let
+        sconn = await p.handshake(conn, false)
+      asyncCheck sconn.lifetime()
       trace "connection secured"
     except CatchableError as ex:
       if not conn.closed():
@@ -462,7 +446,10 @@ method init*(p: Noise) {.gcsafe.} =
   
 method secure*(p: Noise, conn: Connection, outgoing: bool): Future[Connection] {.async, gcsafe.} =
   try:
-    result = await p.handshake(conn, outgoing)
+    let
+      sconn = await p.handshake(conn, outgoing)
+    asyncCheck sconn.lifetime()
+    return sconn
   except CatchableError as ex:
      warn "securing connection failed", msg = ex.msg
      if not conn.closed():
