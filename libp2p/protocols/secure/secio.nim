@@ -6,7 +6,6 @@
 ## at your option.
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
-import options
 import chronos, chronicles
 import nimcrypto/[sysrand, hmac, sha2, sha, hash, rijndael, twofish, bcmode]
 import secure,
@@ -17,8 +16,7 @@ import secure,
        ../../crypto/crypto,
        ../../crypto/ecnist,
        ../../protobuf/minprotobuf,
-       ../../peer,
-       ../../stream/bufferstream
+       ../../peer
 export hmac, sha2, sha, hash, rijndael, bcmode
 
 logScope:
