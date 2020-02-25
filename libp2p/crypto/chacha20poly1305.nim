@@ -61,13 +61,19 @@ proc encrypt*(_: type[ChaChaPoly],
                  data: var openarray[byte],
                  aad: openarray[byte]) =
   fetchImpl()
-  
+
+  let
+    ad = if aad.len > 0:
+           unsafeaddr aad[0]
+         else:
+           nil
+
   chachapoly_native_impl(
     unsafeaddr key[0],
     unsafeaddr nonce[0],
     addr data[0],
     data.len,
-    unsafeaddr aad[0],
+    ad,
     aad.len,
     addr tag[0],
     chacha_native_impl,
@@ -80,13 +86,19 @@ proc decrypt*(_: type[ChaChaPoly],
                  data: var openarray[byte],
                  aad: openarray[byte]) =
   fetchImpl()
+
+  let
+    ad = if aad.len > 0:
+          unsafeaddr aad[0]
+         else:
+           nil
   
   chachapoly_native_impl(
     unsafeaddr key[0],
     unsafeaddr nonce[0],
     addr data[0],
     data.len,
-    unsafeaddr aad[0],
+    ad,
     aad.len,
     addr tag[0],
     chacha_native_impl,
