@@ -237,18 +237,24 @@ proc dial*(s: Switch,
               asyncCheck s.cleanupConn(conn)
           break
   else:
-    trace "Reusing existing connection"
+    trace "Reusing existing connection", id = conn.id
 
   if isNil(conn):
     raise newException(CatchableError, "Unable to establish outgoing link")
+  else:
+    result = conn
 
   if proto.len > 0 and not conn.closed:
+    # TODO: avoid naming confusion. Muxer streams are somehow Connection
+    # instances, but Connection.stream is a child of LPStream which is
+    # unrelated.
     let stream = await s.getMuxedStream(peer)
     if not isNil(stream):
       trace "Connection is muxed, return muxed stream"
       result = stream
       trace "Attempting to select remote", proto = proto
 
+    # TODO: check the state again, because an "await" was executed
     if not await s.ms.select(result, proto):
       error "Unable to select sub-protocol", proto = proto
       raise newException(CatchableError, &"unable to select protocol: {proto}")

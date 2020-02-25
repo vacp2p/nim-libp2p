@@ -7,7 +7,7 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import chronos, chronicles
+import chronos, chronicles, oids
 import peerinfo,
        multiaddress,
        stream/lpstream,
@@ -19,6 +19,7 @@ const DefaultReadSize* = 1 shl 20
 
 type
   Connection* = ref object of LPStream
+    id*: Oid
     peerInfo*: PeerInfo
     stream*: LPStream
     observedAddrs*: Multiaddress
@@ -35,6 +36,7 @@ proc newInvalidVarintSizeException*(): ref InvalidVarintSizeException =
 proc init*[T: Connection](self: var T, stream: LPStream) =
   ## create a new Connection for the specified async reader/writer
   new self
+  self.id = genOid()
   self.stream = stream
   self.closeEvent = newAsyncEvent()
 
@@ -105,13 +107,13 @@ method closed*(s: Connection): bool =
   result = s.stream.closed
 
 method close*(s: Connection) {.async, gcsafe.} =
-  trace "closing connection"
+  trace "closing connection", id = s.id
   if not s.closed:
     if not isNil(s.stream) and not s.stream.closed:
       await s.stream.close()
     s.closeEvent.fire()
     s.isClosed = true
-  trace "connection closed", closed = s.closed
+  trace "connection closed", closed = s.closed, id = s.id
 
 proc readLp*(s: Connection): Future[seq[byte]] {.async, gcsafe.} =
   ## read lenght prefixed msg
