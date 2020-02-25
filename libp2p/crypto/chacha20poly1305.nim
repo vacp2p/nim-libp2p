@@ -55,38 +55,38 @@ template fetchImpl: untyped =
     chacha_native_impl {.inject.}: Chacha20Run = chacha20CtRun
 
 proc encrypt*(_: type[ChaChaPoly],
-                 key: var ChaChaPolyKey,
-                 nonce: var ChaChaPolyNonce,
+                 key: ChaChaPolyKey,
+                 nonce: ChaChaPolyNonce,
                  tag: var ChaChaPolyTag,
                  data: var openarray[byte],
-                 aad: var openarray[byte]) =
+                 aad: openarray[byte]) =
   fetchImpl()
   
   chachapoly_native_impl(
-    addr key[0],
-    addr nonce[0],
+    unsafeaddr key[0],
+    unsafeaddr nonce[0],
     addr data[0],
     data.len,
-    addr aad[0],
+    unsafeaddr aad[0],
     aad.len,
     addr tag[0],
     chacha_native_impl,
     #[encrypt]# 1.cint)
 
 proc decrypt*(_: type[ChaChaPoly],
-                 key: var ChaChaPolyKey,
-                 nonce: var ChaChaPolyNonce,
+                 key: ChaChaPolyKey,
+                 nonce: ChaChaPolyNonce,
                  tag: var ChaChaPolyTag,
                  data: var openarray[byte],
-                 aad: var openarray[byte]) =
+                 aad: openarray[byte]) =
   fetchImpl()
   
   chachapoly_native_impl(
-    addr key[0],
-    addr nonce[0],
+    unsafeaddr key[0],
+    unsafeaddr nonce[0],
     addr data[0],
     data.len,
-    addr aad[0],
+    unsafeaddr aad[0],
     aad.len,
     addr tag[0],
     chacha_native_impl,
