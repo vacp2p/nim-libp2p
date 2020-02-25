@@ -25,6 +25,7 @@ type
   Curve25519* = object
   Curve25519Key* = array[Curve25519KeySize, byte]
   pcuchar = ptr cuchar
+  Curver25519RngError* = object of CatchableError
 
 proc intoCurve25519Key*(s: seq[byte]): Curve25519Key =
   assert s.len == Curve25519KeySize
@@ -48,7 +49,7 @@ const
                 [219.byte, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 25],
         ]
 
-proc byteswap*(buf: var Curve25519Key) {.inline.} =
+proc byteswap(buf: var Curve25519Key) {.inline.} =
   for i in 0..<16:
     let
       x = buf[i]
@@ -101,4 +102,5 @@ proc public*(private: Curve25519Key): Curve25519Key =
   Curve25519.mulgen(result, private)
 
 proc random*(_: type[Curve25519Key]): Curve25519Key =
-  discard randomBytes(result)
+  if randomBytes(result) != Curve25519KeySize:
+    raise newException(Curver25519RngError, "Could not generate random data")
