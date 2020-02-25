@@ -118,8 +118,8 @@ proc testPubSubDaemonPublish(gossip: bool = false,
     if times >= count and not handlerFuture.finished:
       handlerFuture.complete(true)
 
-  discard await nativeNode.dial(NativePeerInfo.init(daemonPeer.peer,
-                                                    daemonPeer.addresses))
+  await nativeNode.connect(NativePeerInfo.init(daemonPeer.peer,
+                                               daemonPeer.addresses))
   await sleepAsync(1.seconds)
   await daemonNode.connect(nativePeer.peerId, nativePeer.addrs)
 
@@ -157,8 +157,8 @@ proc testPubSubNodePublish(gossip: bool = false,
   let nativePeer = nativeNode.peerInfo
 
   var handlerFuture = newFuture[bool]()
-  discard await nativeNode.dial(NativePeerInfo.init(daemonPeer.peer,
-                                                    daemonPeer.addresses))
+  await nativeNode.connect(NativePeerInfo.init(daemonPeer.peer,
+                                               daemonPeer.addresses))
 
   await sleepAsync(1.seconds)
   await daemonNode.connect(nativePeer.peerId, nativePeer.addrs)
