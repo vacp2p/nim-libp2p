@@ -12,6 +12,7 @@ import chronicles
 import nimcrypto/[utils, sysrand, sha2, hmac]
 import ../../connection
 import ../../peer
+import ../../peerinfo
 import ../../protobuf/minprotobuf
 import secure,
        ../../crypto/[crypto, chacha20poly1305, curve25519, hkdf],
@@ -71,7 +72,6 @@ type
     noisePublicKey: Curve25519Key
 
   NoiseConnection* = ref object of SecureConnection
-    insecure: Connection
     readCs: CipherState
     writeCs: CipherState
 
@@ -353,8 +353,11 @@ proc handshakeXXInbound(p: Noise, conn: Connection, p2pProof: ProtoBuffer): Futu
 proc readMessage(sconn: NoiseConnection): Future[seq[byte]] {.async.} =
   try:
     let
-      msg = await sconn.insecure.readLp()
-    return sconn.readCs.decryptWithAd([], msg)
+      msg = await sconn.readLp()
+    if msg.len > 0:
+      return sconn.readCs.decryptWithAd([], msg)
+    else:
+      return msg
   except AsyncStreamIncompleteError:
     trace "Connection dropped while reading"
   except AsyncStreamReadError:
@@ -364,17 +367,22 @@ proc writeMessage(sconn: NoiseConnection, message: seq[byte]) {.async.} =
   try:
     let
       cipher = sconn.writeCs.encryptWithAd([], message)
-    await sconn.insecure.writeLp(cipher)
+    await sconn.writeLp(cipher)
   except AsyncStreamWriteError:
     trace "Could not write to connection"
 
-proc lifetime*(sconn: NoiseConnection) {.async.} =
+proc startLifetime*(sconn: NoiseConnection): Future[Connection] {.async.} =
   proc writeHandler(data: seq[byte]) {.async, gcsafe.} =
     trace "sending encrypted bytes", bytes = data.toHex()
     await sconn.writeMessage(data)
 
   var stream = newBufferStream(writeHandler)
-  await readLoop(sconn, stream)
+  asyncCheck readLoop(sconn, stream)
+  result = newConnection(stream)
+  result.closeEvent.wait().addCallback do (udata: pointer):
+    trace "wrapped connection closed, closing upstream"
+    if not isNil(sconn) and not sconn.closed:
+      asyncCheck sconn.close()
 
 proc handshake*(p: Noise, conn: Connection, initiator: bool): Future[NoiseConnection] {.async.} =
   trace "Starting Noise handshake", initiator
@@ -418,13 +426,17 @@ proc handshake*(p: Noise, conn: Connection, initiator: bool): Future[NoiseConnec
       raise newException(NoiseHandshakeError, "Noise handshake, peer infos don't match! " & $pid & " != " & $conn.peerInfo.peerId)
 
   var secure = new NoiseConnection
-  secure.insecure = conn
+  secure.stream = conn
+  secure.closeEvent = newAsyncEvent()
+  secure.peerInfo = PeerInfo.init(remotePubKey)
   if initiator:
     secure.readCs = handshakeRes.cs2
     secure.writeCs = handshakeRes.cs1
   else:
     secure.readCs = handshakeRes.cs1
     secure.writeCs = handshakeRes.cs2
+
+  return secure
  
 method init*(p: Noise) {.gcsafe.} =
   trace "Noise init called"
@@ -434,7 +446,7 @@ method init*(p: Noise) {.gcsafe.} =
     try:
       let
         sconn = await p.handshake(conn, false)
-      asyncCheck sconn.lifetime()
+      asyncCheck sconn.startLifetime()
       trace "connection secured"
     except CatchableError as ex:
       if not conn.closed():
@@ -448,8 +460,9 @@ method secure*(p: Noise, conn: Connection, outgoing: bool): Future[Connection] {
   try:
     let
       sconn = await p.handshake(conn, outgoing)
-    asyncCheck sconn.lifetime()
-    return sconn
+      securedStream = await sconn.startLifetime()
+    securedStream.peerInfo = sconn.peerInfo
+    return securedStream
   except CatchableError as ex:
      warn "securing connection failed", msg = ex.msg
      if not conn.closed():

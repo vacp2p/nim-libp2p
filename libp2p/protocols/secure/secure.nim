@@ -7,6 +7,7 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
+import typetraits
 import chronos
 import chronicles
 import ../protocol,
@@ -21,6 +22,7 @@ type
   SecureConnection* = ref object of Connection
 
 proc readLoop*[T: SecureConnection](sconn: T, stream: BufferStream) {.async.} =
+  const tname = typedesc[T].name
   try:
     while not sconn.closed:
       let msg = await sconn.readMessage()
@@ -30,11 +32,12 @@ proc readLoop*[T: SecureConnection](sconn: T, stream: BufferStream) {.async.} =
 
       await stream.pushTo(msg)
   except CatchableError as exc:
-    trace "exception occurred SecureConnection.readLoop", exc = exc.msg
+    trace "exception occurred " & tname & ".readLoop", exc = exc.msg
   finally:
     if not sconn.closed:
       await sconn.close()
-    trace "ending secio readLoop", isclosed = sconn.closed()
+    const msg = "ending " & tname & ".readLoop"
+    trace msg, isclosed = sconn.closed()
 
 method secure*(p: Secure, conn: Connection, outgoing: bool): Future[Connection]
   {.base, async, gcsafe.} =
