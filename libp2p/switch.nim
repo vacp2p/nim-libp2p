@@ -241,7 +241,7 @@ proc internalConnect(s: Switch,
   result = conn
 
 proc connect*(s: Switch, peer: PeerInfo) {.async.} =
-  var conn = s.internalConnect(peer)
+  var conn = await s.internalConnect(peer)
   if isNil(conn):
     raise newException(CatchableError, "Unable to connect to peer")
 
