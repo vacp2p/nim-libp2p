@@ -39,7 +39,7 @@ proc readLoop(sconn: SecureConn, stream: BufferStream) {.async.} =
       await sconn.close()
     trace "ending secio readLoop", isclosed = sconn.closed()
 
-method handleConn*(s: Secure, conn: Connection): Future[Connection] {.async, base, gcsafe.} =
+proc handleConn*(s: Secure, conn: Connection): Future[Connection] {.async, gcsafe.} =
   var sconn = await s.handshake(conn)
   proc writeHandler(data: seq[byte]) {.async, gcsafe.} =
     trace "sending encrypted bytes", bytes = data.toHex()
