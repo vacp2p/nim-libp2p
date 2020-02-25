@@ -281,7 +281,7 @@ proc transactMessage(conn: Connection,
   except AsyncStreamWriteError:
     trace "Could not write to connection", conn = $conn
 
-method handshake*(s: Secio, conn: Connection): Future[SecureConn] {.async.} =
+method handshake*(s: Secio, conn: Connection, initiator: bool = false): Future[SecureConn] {.async.} =
   var
     localNonce: array[SecioNonceSize, byte]
     remoteNonce: seq[byte]
