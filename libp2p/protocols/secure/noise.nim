@@ -78,7 +78,7 @@ type
 
 # Utility
 
-proc genKeyPair: KeyPair =
+proc genKeyPair(): KeyPair =
   result.privateKey = Curve25519Key.random()
   result.publicKey = result.privateKey.public()
     
@@ -88,11 +88,10 @@ proc getBytes*(key: string): seq[byte] =
   copyMem(addr result[0], unsafeaddr key[0], key.len)
 
 proc hashProtocol(name: string): MDigest[256] =
-  #[
-     If protocol_name is less than or equal to HASHLEN bytes in length, 
-     sets h equal to protocol_name with zero bytes appended to make HASHLEN bytes. 
-     Otherwise sets h = HASH(protocol_name).
-  ]#
+  # If protocol_name is less than or equal to HASHLEN bytes in length,
+  # sets h equal to protocol_name with zero bytes appended to make HASHLEN bytes.
+  # Otherwise sets h = HASH(protocol_name).
+
   if name.len <= 32:
     copyMem(addr result.data[0], unsafeAddr name[0], name.len)
   else:
