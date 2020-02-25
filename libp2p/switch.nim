@@ -256,6 +256,7 @@ proc dial*(s: Switch,
   if conn.closed:
     raise newException(CatchableError, "Connection dead on arrival")
 
+  result = conn
   let stream = await s.getMuxedStream(peer)
   if not isNil(stream):
     trace "Connection is muxed, return muxed stream"
