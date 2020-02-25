@@ -27,7 +27,6 @@ const
 
   ProtocolXXName = "Noise_XX_25519_ChaChaPoly_SHA256"
 
-let
   # Empty is a special value which indicates k has not yet been initialized.
   EmptyKey: ChaChaPolyKey = [0.byte, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
   NonceMax = uint64.high - 1 # max is reserved
