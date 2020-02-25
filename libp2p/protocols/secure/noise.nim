@@ -57,6 +57,12 @@ type
     e: KeyPair
     rs: Curve25519Key
     re: Curve25519Key
+
+  HandshakeResult = object
+    cs1: CipherState
+    cs2: CipherState
+    remotePrologue: seq[byte]
+    rs: Curve25519Key
   
   Noise* = ref object of Secure
     localPrivateKey: PrivateKey
@@ -251,7 +257,7 @@ template read_s: untyped =
   var plain = hs.ss.decryptAndHash(temp)
   copyMem(addr hs.rs[0], addr plain[0], Curve25519Key.len)
   
-proc handshakeXXOutbound(p: Noise, conn: Connection, p2pProof: ProtoBuffer): Future[tuple[cs1, cs2: CipherState; remotePrologue: seq[byte]; rs: Curve25519Key]] {.async.} =
+proc handshakeXXOutbound(p: Noise, conn: Connection, p2pProof: ProtoBuffer): Future[HandshakeResult] {.async.} =
   const initiator = true
 
   var hs: HandshakeState
@@ -298,9 +304,9 @@ proc handshakeXXOutbound(p: Noise, conn: Connection, p2pProof: ProtoBuffer): Fut
   await conn.writeLp(msg)
   
   let (cs1, cs2) = hs.ss.split()
-  return (cs1, cs2, remotePrologue, hs.rs)
+  return HandshakeResult(cs1: cs1, cs2: cs2, remotePrologue: remotePrologue, rs: hs.rs)
 
-proc handshakeXXInbound(p: Noise, conn: Connection, p2pProof: ProtoBuffer): Future[tuple[cs1, cs2: CipherState; remotePrologue: seq[byte]; rs: Curve25519Key]] {.async.} =
+proc handshakeXXInbound(p: Noise, conn: Connection, p2pProof: ProtoBuffer): Future[HandshakeResult] {.async.} =
   const initiator = false
 
   var hs: HandshakeState
@@ -343,7 +349,7 @@ proc handshakeXXInbound(p: Noise, conn: Connection, p2pProof: ProtoBuffer): Futu
   let remotePrologue = hs.ss.decryptAndHash(msg)
 
   let (cs1, cs2) = hs.ss.split()
-  return (cs1, cs2, remotePrologue, hs.rs)
+  return HandshakeResult(cs1: cs1, cs2: cs2, remotePrologue: remotePrologue, rs: hs.rs)
 
 proc handshake*(p: Noise, conn: Connection, initiator: bool): Future[NoiseConnection] {.async.} =
   trace "Starting Noise handshake", initiator
@@ -354,10 +360,7 @@ proc handshake*(p: Noise, conn: Connection, initiator: bool): Future[NoiseConnec
     
   var
     libp2pProof = initProtoBuffer()
-    remoteProofBytes: seq[byte]
-    remoteKey: Curve25519Key
-    cs1: CipherState
-    cs2: CipherState
+    handshakeRes: HandshakeResult
 
   libp2pProof.write(initProtoField(1, p.localPublicKey))
   libp2pProof.write(initProtoField(2, signedPayload))
@@ -365,12 +368,12 @@ proc handshake*(p: Noise, conn: Connection, initiator: bool): Future[NoiseConnec
   libp2pProof.finish()
 
   if initiator:
-    (cs1, cs2, remoteProofBytes, remoteKey) = await handshakeXXOutbound(p, conn, libp2pProof)
+    handshakeRes = await handshakeXXOutbound(p, conn, libp2pProof)
   else:
-    (cs1, cs2, remoteProofBytes, remoteKey) = await handshakeXXInbound(p, conn, libp2pProof)
+    handshakeRes = await handshakeXXInbound(p, conn, libp2pProof)
 
   var
-    remoteProof = initProtoBuffer(remoteProofBytes)
+    remoteProof = initProtoBuffer(handshakeRes.remotePrologue)
     remotePubKey: PublicKey
     remoteSig: Signature
   if remoteProof.getValue(1, remotePubKey) <= 0:
@@ -378,7 +381,7 @@ proc handshake*(p: Noise, conn: Connection, initiator: bool): Future[NoiseConnec
   if remoteProof.getValue(2, remoteSig) <= 0:
     raise newException(NoiseHandshakeError, "Failed to deserialize remote public key.")
 
-  let verifyPayload = PayloadString.getBytes & remoteKey.getBytes
+  let verifyPayload = PayloadString.getBytes & handshakeRes.rs.getBytes
   if not remoteSig.verify(verifyPayload, remotePubKey):
     raise newException(NoiseHandshakeError, "Noise handshake signature verify failed.")
  
@@ -392,11 +395,11 @@ proc handshake*(p: Noise, conn: Connection, initiator: bool): Future[NoiseConnec
   var secure = new NoiseConnection
   secure.insecure = conn
   if initiator:
-    secure.readCs = cs2
-    secure.writeCs = cs1
+    secure.readCs = handshakeRes.cs2
+    secure.writeCs = handshakeRes.cs1
   else:
-    secure.readCs = cs1
-    secure.writeCs = cs2
+    secure.readCs = handshakeRes.cs1
+    secure.writeCs = handshakeRes.cs2
  
   unimplemented()
 
