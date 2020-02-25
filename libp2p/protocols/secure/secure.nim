@@ -20,7 +20,7 @@ import secureconn,
 type
   Secure* = ref object of LPProtocol # base type for secure managers
 
-method handshake(s: Secure, conn: Connection): Future[SecureConn] {.async, base.} =
+method handshake(s: Secure, conn: Connection, initiator: bool = true): Future[SecureConn] {.async, base.} =
   doAssert(false, "Not implemented!")
 
 proc readLoop(sconn: SecureConn, stream: BufferStream) {.async.} =
