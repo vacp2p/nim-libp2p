@@ -512,7 +512,7 @@ suite "GossipSub":
                                   nodes[1].peerInfo.id)),
                                   1.minutes)
 
-      await wait(seenFut, 1.minutes)
+      await wait(seenFut, 2.minutes)
       check: seen.len >= 10
       for k, v in seen.pairs:
         check: v == 1
