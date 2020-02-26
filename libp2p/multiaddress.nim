@@ -572,11 +572,12 @@ iterator items*(ma: MultiAddress): MultiAddress =
 proc contains*(ma: MultiAddress, codec: MultiCodec): bool {.inline.} =
   ## Returns ``true``, if address with MultiCodec ``codec`` present in
   ## MultiAddress ``ma``.
-  result = false
+  var res = false
   for item in ma.items:
     if item.protoCode() == codec:
-      result = true
+      res = true
       break
+  result = res
 
 proc `[]`*(ma: MultiAddress, codec: MultiCodec): MultiAddress {.inline.} =
   ## Returns partial MultiAddress with MultiCodec ``codec`` and present in
@@ -584,12 +585,14 @@ proc `[]`*(ma: MultiAddress, codec: MultiCodec): MultiAddress {.inline.} =
   ##
   ## Procedure will raise ``MultiAddressError`` if ``codec`` could not be
   ## found inside of ``ma``.
+  var res = MultiAddress(data: initVBuffer())
   for item in ma.items:
     if item.protoCode == codec:
-      result = item
+      res = item
       break
-  if result.data.isEmpty():
+  if res.data.isEmpty():
     raise newException(MultiAddressError, "Codec is not present in address")
+  result = res
 
 proc `$`*(value: MultiAddress): string =
   ## Return string representation of MultiAddress ``value``.
