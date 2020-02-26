@@ -141,13 +141,7 @@ proc init(ss: var SymmetricState) =
 proc mixKey(ss: var SymmetricState, ikm: ChaChaPolyKey) =
   var
     temp_keys: array[2, ChaChaPolyKey]
-    nkeys = 0
-  for next in sha256.hkdf(ss.ck, ikm, []):
-    if nkeys > temp_keys.high:
-      break
-    temp_keys[nkeys] = next.data
-    inc nkeys
-
+  sha256.hkdf(ss.ck, ikm, [], temp_keys)
   ss.ck = temp_keys[0]
   init ss.cs, temp_keys[1]
 
@@ -191,13 +185,7 @@ proc decryptAndHash(ss: var SymmetricState, data: var openarray[byte]): seq[byte
 proc split(ss: var SymmetricState): tuple[cs1, cs2: CipherState] =
   var
     temp_keys: array[2, ChaChaPolyKey]
-    nkeys = 0
-  for next in sha256.hkdf(ss.ck, [], []):
-    if nkeys > temp_keys.high:
-      break
-    temp_keys[nkeys] = next.data
-    inc nkeys
-
+  sha256.hkdf(ss.ck, [], [], temp_keys)
   init result.cs1, temp_keys[0]
   init result.cs2, temp_keys[1]
   

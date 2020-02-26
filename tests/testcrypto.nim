@@ -531,10 +531,10 @@ suite "Key interface test suite":
       info = fromHex("0xf0f1f2f3f4f5f6f7f8f9")
       truth = "3cb25f25faacd57a90434f64d0362f2a2d2d0a90cf1a5a4c5db02d56ecc4c5bf34007208d5b887185865"
     var
-      output = newSeq[byte](42)
+      output: array[1, array[42, byte]]
 
     sha256.hkdf(salt, ikm, info, output)
-    check output.toHex(true) == truth
+    check output[0].toHex(true) == truth
 
   test "HKDF 2":
     let
@@ -543,7 +543,7 @@ suite "Key interface test suite":
       info = fromHex("")
       truth = "8da4e775a563c18f715f802a063c5a31b8a11f5c5ee1879ec3454e5f3c738d2d9d201395faa4b61a96c8"
     var
-      output = newSeq[byte](42)
+      output: array[1, array[42, byte]]
 
     sha256.hkdf(salt, ikm, info, output)
-    check output.toHex(true) == truth
+    check output[0].toHex(true) == truth
