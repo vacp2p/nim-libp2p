@@ -152,19 +152,13 @@ proc mixHash(ss: var SymmetricState; data: openarray[byte]) =
   ctx.update(data)
   ss.h = ctx.finish()
 
-# proc mixKeyAndHash(ss: var SymmetricState; ikm: var openarray[byte]) =
-#   var
-#     temp_keys: array[3, ChaChaPolyKey]
-#     nkeys = 0
-#   for next in sha256.hkdf(ss.ck, ikm, []):
-#     if nkeys > temp_keys.high:
-#       break
-#     temp_keys[nkeys] = next.data
-#     inc nkeys
-
-#   ss.ck = temp_keys[0]
-#   ss.mixHash(temp_keys[1])
-#   init ss.cs, temp_keys[2]
+proc mixKeyAndHash(ss: var SymmetricState; ikm: var openarray[byte]) =
+  var
+    temp_keys: array[3, ChaChaPolyKey]
+  sha256.hkdf(ss.ck, ikm, [], temp_keys)
+  ss.ck = temp_keys[0]
+  ss.mixHash(temp_keys[1])
+  init ss.cs, temp_keys[2]
 
 proc encryptAndHash(ss: var SymmetricState, data: var openarray[byte]): seq[byte] =
   # according to spec if key is empty leave plaintext

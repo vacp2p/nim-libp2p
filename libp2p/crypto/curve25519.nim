@@ -102,5 +102,11 @@ proc public*(private: Curve25519Key): Curve25519Key =
   Curve25519.mulgen(result, private)
 
 proc random*(_: type[Curve25519Key]): Curve25519Key =
-  if randomBytes(result) != Curve25519KeySize:
+  var rng: BrHmacDrbgContext
+  let seeder = brPrngSeederSystem(nil)
+  brHmacDrbgInit(addr rng, addr sha256Vtable, nil, 0)
+  if seeder(addr rng.vtable) == 0:
+    raise newException(ValueError, "Could not seed RNG")
+  let defaultBrEc = brEcGetDefault()
+  if brEcKeygen(addr rng.vtable, defaultBrEc, nil, addr result[0], EC_curve25519) != Curve25519KeySize:
     raise newException(Curver25519RngError, "Could not generate random data")
