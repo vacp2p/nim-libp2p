@@ -93,8 +93,8 @@ proc createNode*(privKey: Option[PrivateKey] = none(PrivateKey),
                      secureManagers = secureManagers,
                      pubSub = pubSub)
 
-proc testPubSubDaemonPublish(gossip: bool = false, count: int = 1): Future[
-    bool] {.async.} =
+proc testPubSubDaemonPublish(gossip: bool = false,
+                             count: int = 1): Future[bool] {.async.} =
   var pubsubData = "TEST MESSAGE"
   var testTopic = "test-topic"
   var msgData = cast[seq[byte]](pubsubData)
@@ -118,8 +118,8 @@ proc testPubSubDaemonPublish(gossip: bool = false, count: int = 1): Future[
     if times >= count and not handlerFuture.finished:
       handlerFuture.complete(true)
 
-  await nativeNode.subscribeToPeer(NativePeerInfo.init(daemonPeer.peer,
-                                                       daemonPeer.addresses))
+  await nativeNode.connect(NativePeerInfo.init(daemonPeer.peer,
+                                               daemonPeer.addresses))
   await sleepAsync(1.seconds)
   await daemonNode.connect(nativePeer.peerId, nativePeer.addrs)
 
@@ -140,8 +140,8 @@ proc testPubSubDaemonPublish(gossip: bool = false, count: int = 1): Future[
   await allFutures(awaiters)
   await daemonNode.close()
 
-proc testPubSubNodePublish(gossip: bool = false, count: int = 1): Future[
-    bool] {.async.} =
+proc testPubSubNodePublish(gossip: bool = false,
+                           count: int = 1): Future[bool] {.async.} =
   var pubsubData = "TEST MESSAGE"
   var testTopic = "test-topic"
   var msgData = cast[seq[byte]](pubsubData)
@@ -157,8 +157,8 @@ proc testPubSubNodePublish(gossip: bool = false, count: int = 1): Future[
   let nativePeer = nativeNode.peerInfo
 
   var handlerFuture = newFuture[bool]()
-  await nativeNode.subscribeToPeer(NativePeerInfo.init(daemonPeer.peer,
-                                                       daemonPeer.addresses))
+  await nativeNode.connect(NativePeerInfo.init(daemonPeer.peer,
+                                               daemonPeer.addresses))
 
   await sleepAsync(1.seconds)
   await daemonNode.connect(nativePeer.peerId, nativePeer.addrs)

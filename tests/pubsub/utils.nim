@@ -1,4 +1,3 @@
-import options, tables
 import chronos
 import ../../libp2p/standard_setup
 export standard_setup
@@ -12,6 +11,6 @@ proc subscribeNodes*(nodes: seq[Switch]) {.async.} =
   for dialer in nodes:
     for node in nodes:
       if dialer.peerInfo.peerId != node.peerInfo.peerId:
-        dials.add(dialer.subscribeToPeer(node.peerInfo))
+        dials.add(dialer.connect(node.peerInfo))
   await sleepAsync(100.millis)
   await allFutures(dials)

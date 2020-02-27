@@ -125,7 +125,7 @@ method handleConn*(p: PubSub,
     return
 
   proc handler(peer: PubSubPeer, msgs: seq[RPCMsg]) {.async.} =
-    # call floodsub rpc handler
+    # call pubsub rpc handler
     await p.rpcHandler(peer, msgs)
 
   let peer = p.getPeer(conn.peerInfo, proto)

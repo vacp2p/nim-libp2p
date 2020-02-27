@@ -91,16 +91,24 @@ suite "Switch":
 
       var peerInfo1, peerInfo2: PeerInfo
       var switch1, switch2: Switch
-      (switch1, peerInfo1) = createSwitch(ma1)
       var awaiters: seq[Future[void]]
-      awaiters.add(await switch1.start())
 
+      (switch1, peerInfo1) = createSwitch(ma1)
+
+      let testProto = new TestProto
+      testProto.init()
+      testProto.codec = TestCodec
+      switch1.mount(testProto)
       (switch2, peerInfo2) = createSwitch(ma2)
+      awaiters.add(await switch1.start())
       awaiters.add(await switch2.start())
-      var conn = await switch2.dial(switch1.peerInfo)
+      await switch2.connect(switch1.peerInfo)
+      let conn = await switch2.dial(switch1.peerInfo, TestCodec)
+      await conn.writeLp("Hello!")
+      let msg = cast[string](await conn.readLp())
+      check "Hello!" == msg
 
-      check isNil(conn)
-      discard allFutures(switch1.stop(), switch2.stop())
+      await allFutures(switch1.stop(), switch2.stop())
       await allFutures(awaiters)
       result = true
 
