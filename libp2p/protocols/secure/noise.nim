@@ -21,6 +21,9 @@ import secure,
 template unimplemented: untyped =
   doAssert(false, "Not implemented")
 
+logScope:
+  topic = "Noise"
+
 const
   # https://godoc.org/github.com/libp2p/go-libp2p-noise#pkg-constants
   NoiseCodec* = "/noise"
@@ -184,6 +187,7 @@ proc split(ss: var SymmetricState): tuple[cs1, cs2: CipherState] =
   init result.cs2, temp_keys[1]
   
 template write_e: untyped =
+  trace "noise write e"
   # Sets e (which must be empty) to GENERATE_KEYPAIR(). Appends e.public_key to the buffer. Calls MixHash(e.public_key).
   hs.e = genKeyPair()
   var ne = hs.e.publicKey
@@ -191,15 +195,18 @@ template write_e: untyped =
   hs.ss.mixHash(ne)
 
 template write_s: untyped =
+  trace "noise write s"
   # Appends EncryptAndHash(s.public_key) to the buffer.
   var spk = @(hs.s.publicKey)
   msg &= hs.ss.encryptAndHash(spk)
 
 template dh_ee: untyped =
+  trace "noise dh ee"
   # Calls MixKey(DH(e, re)).
   hs.ss.mixKey(dh(hs.e.privateKey, hs.re))
 
 template dh_es: untyped =
+  trace "noise dh es"
   # Calls MixKey(DH(e, rs)) if initiator, MixKey(DH(s, re)) if responder.
   when initiator:
     hs.ss.mixKey(dh(hs.e.privateKey, hs.rs))
@@ -207,6 +214,7 @@ template dh_es: untyped =
     hs.ss.mixKey(dh(hs.s.privateKey, hs.re))
 
 template dh_se: untyped =
+  trace "noise dh se"
   # Calls MixKey(DH(s, re)) if initiator, MixKey(DH(e, rs)) if responder.
   when initiator:
     hs.ss.mixKey(dh(hs.s.privateKey, hs.re))
@@ -214,24 +222,30 @@ template dh_se: untyped =
     hs.ss.mixKey(dh(hs.e.privateKey, hs.rs))
 
 template dh_ss: untyped =
+  trace "noise dh ss"
   # Calls MixKey(DH(s, rs)).
   hs.ss.mixKey(dh(hs.s.privateKey, hs.rs))
 
 template read_e: untyped =
+  trace "noise read e", size = msg.len
+  doAssert msg.len >= Curve25519Key.len
   # Sets re (which must be empty) to the next DHLEN bytes from the message. Calls MixHash(re.public_key).
   copyMem(addr hs.re[0], addr msg[0], Curve25519Key.len)
   msg = msg[Curve25519Key.len..msg.high]
   hs.ss.mixHash(hs.re)
 
 template read_s: untyped =
+  trace "noise read s", size = msg.len
   # Sets temp to the next DHLEN + 16 bytes of the message if HasKey() == True, or to the next DHLEN bytes otherwise.
   # Sets rs (which must be empty) to DecryptAndHash(temp).
   var temp: seq[byte]
   if hs.ss.cs.hasKey:
+    doAssert msg.len >= Curve25519Key.len + 16
     temp.setLen(Curve25519Key.len + 16)
     copyMem(addr temp[0], addr msg[0], Curve25519Key.len + 16)
     msg = msg[Curve25519Key.len + 16..msg.high]
   else:
+    doAssert msg.len >= Curve25519Key.len
     temp.setLen(Curve25519Key.len)
     copyMem(addr temp[0], addr msg[0], Curve25519Key.len)
     msg = msg[Curve25519Key.len..msg.high]
@@ -424,10 +438,11 @@ method init*(p: Noise) {.gcsafe.} =
   trace "Noise init called"
  
   proc handle(conn: Connection, proto: string) {.async, gcsafe.} =
-    trace "handling connection"
+    trace "handling connection", proto
     try:
       let
         sconn = await p.handshake(conn, false)
+      trace "Noise handshake completed!"
       asyncCheck sconn.startLifetime()
       trace "connection secured"
     except CatchableError as ex:

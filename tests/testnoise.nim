@@ -9,6 +9,7 @@
 
 import unittest, tables
 import chronos
+import chronicles
 import ../libp2p/crypto/crypto
 import ../libp2p/[switch,
                   multistream,
@@ -91,3 +92,33 @@ suite "Switch":
 
     check:
       waitFor(testSwitch()) == true
+
+
+  test "interop with rust noise":
+    when false: # disable cos in CI we got no interop server/client
+      proc testListenerDialer(): Future[bool] {.async.} =
+        const
+          proto = "/noise/xx/25519/chachapoly/sha256/0.1.0"
+
+        let
+          local = Multiaddress.init("/ip4/0.0.0.0/tcp/23456")
+          info = PeerInfo.init(PrivateKey.random(RSA), [local])
+          noise = newNoise(info.privateKey)
+          ms = newMultistream()
+          transport = TcpTransport.newTransport()
+
+        proc connHandler(conn: Connection) {.async, gcsafe.} =
+          await ms.handle(conn)
+          trace "ms.handle exited"
+          await conn.close()
+     
+        ms.addHandler(proto, noise)
+
+        let
+          clientConn = await transport.listen(local, connHandler)
+        await clientConn
+
+        result = true
+
+      check:
+        waitFor(testListenerDialer()) == true
