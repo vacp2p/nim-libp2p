@@ -7,6 +7,7 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
+import endians
 import chronos
 import chronicles
 import nimcrypto/[utils, sysrand, sha2, hmac]
@@ -35,6 +36,8 @@ const
   # Empty is a special value which indicates k has not yet been initialized.
   EmptyKey: ChaChaPolyKey = [0.byte, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
   NonceMax = uint64.high - 1 # max is reserved
+                             #
+  NoiseMessageMax = 65535
 
 type
   KeyPair = object
@@ -154,6 +157,7 @@ proc mixHash(ss: var SymmetricState; data: openarray[byte]) =
   ctx.update(ss.h.data)
   ctx.update(data)
   ss.h = ctx.finish()
+  trace "mixHash", hash = ss.h.data
 
 proc mixKeyAndHash(ss: var SymmetricState; ikm: var openarray[byte]) =
   var
@@ -190,15 +194,13 @@ template write_e: untyped =
   trace "noise write e"
   # Sets e (which must be empty) to GENERATE_KEYPAIR(). Appends e.public_key to the buffer. Calls MixHash(e.public_key).
   hs.e = genKeyPair()
-  var ne = hs.e.publicKey
-  msg &= @ne
-  hs.ss.mixHash(ne)
+  msg &= hs.e.publicKey
+  hs.ss.mixHash(hs.e.publicKey)
 
 template write_s: untyped =
   trace "noise write s"
   # Appends EncryptAndHash(s.public_key) to the buffer.
-  var spk = @(hs.s.publicKey)
-  msg &= hs.ss.encryptAndHash(spk)
+  msg &= hs.ss.encryptAndHash(hs.s.publicKey)
 
 template dh_ee: untyped =
   trace "noise dh ee"
@@ -251,6 +253,48 @@ template read_s: untyped =
     msg = msg[Curve25519Key.len..msg.high]
   var plain = hs.ss.decryptAndHash(temp)
   copyMem(addr hs.rs[0], addr plain[0], Curve25519Key.len)
+
+proc receiveHSMessage(sconn: Connection): Future[seq[byte]] {.async.} =
+  var
+    besize: array[2, byte]
+    size: uint16
+  await sconn.readExactly(addr besize[0], 2)
+  bigEndian16(addr size, addr besize[0])
+  trace "receiveHSMessage", size
+  return await sconn.read(size.int)
+
+proc sendHSMessage(sconn: Connection; buf: seq[byte]) {.async.} =
+  var
+    lesize = buf.len
+    size: array[2, byte]
+  trace "sendHSMessage", size = lesize
+  bigEndian16(addr size[0], addr lesize)
+  await sconn.write(addr size[0], 2)
+  await sconn.write(buf)
+
+proc receiveEncryptedMessage(sconn: NoiseConnection): Future[seq[byte]] {.async.} =
+  var
+    besize: array[2, byte]
+    size: uint16
+  await sconn.readExactly(addr besize[0], 2)
+  bigEndian16(addr size, addr besize[0])
+  trace "receiveEncryptedMessage", size
+  if size == 0:
+    return newSeq[byte]()
+  let
+    cipher = await sconn.read(size.int)
+  return sconn.readCs.decryptWithAd([], cipher)
+
+proc sendEncryptedMessage(sconn: NoiseConnection; buf: seq[byte]) {.async.} =
+  let
+    cipher = sconn.writeCs.encryptWithAd([], buf)
+  var
+    lesize = cipher.len
+    size: array[2, byte]
+  trace "sendEncryptedMessage", size = lesize
+  bigEndian16(addr size[0], addr lesize)
+  await sconn.write(addr size[0], 2)
+  await sconn.write(cipher)
   
 proc handshakeXXOutbound(p: Noise, conn: Connection, p2pProof: ProtoBuffer): Future[HandshakeResult] {.async.} =
   const initiator = true
@@ -273,11 +317,11 @@ proc handshakeXXOutbound(p: Noise, conn: Connection, p2pProof: ProtoBuffer): Fut
   var empty: seq[byte]
   msg &= hs.ss.encryptAndHash(empty)
 
-  await conn.writeLp(msg)
+  await conn.sendHSMessage(msg)
 
   # <- e, ee, s, es
 
-  msg = await conn.readLp()
+  msg = await conn.receiveHSMessage()
 
   read_e()
   dh_ee()
@@ -296,7 +340,7 @@ proc handshakeXXOutbound(p: Noise, conn: Connection, p2pProof: ProtoBuffer): Fut
 
   msg &= hs.ss.encryptAndHash(prologue)
 
-  await conn.writeLp(msg)
+  await conn.sendHSMessage(msg)
   
   let (cs1, cs2) = hs.ss.split()
   return HandshakeResult(cs1: cs1, cs2: cs2, remotePrologue: remotePrologue, rs: hs.rs)
@@ -315,7 +359,7 @@ proc handshakeXXInbound(p: Noise, conn: Connection, p2pProof: ProtoBuffer): Futu
 
   # -> e
 
-  var msg = await conn.readLp()
+  var msg = await conn.receiveHSMessage()
 
   read_e()
 
@@ -332,11 +376,11 @@ proc handshakeXXInbound(p: Noise, conn: Connection, p2pProof: ProtoBuffer): Futu
 
   msg &= hs.ss.encryptAndHash(prologue)
 
-  await conn.writeLp(msg)
+  await conn.sendHSMessage(msg)
 
   # -> s, se
 
-  msg = await conn.readLp()
+  msg = await conn.receiveHSMessage()
 
   read_s()
   dh_se()
@@ -346,24 +390,17 @@ proc handshakeXXInbound(p: Noise, conn: Connection, p2pProof: ProtoBuffer): Futu
   let (cs1, cs2) = hs.ss.split()
   return HandshakeResult(cs1: cs1, cs2: cs2, remotePrologue: remotePrologue, rs: hs.rs)
 
-proc readMessage(sconn: NoiseConnection): Future[seq[byte]] {.async.} =
+proc readMessage(sconn: NoiseConnection): Future[seq[byte]] =
   try:
-    let
-      msg = await sconn.readLp()
-    if msg.len > 0:
-      return sconn.readCs.decryptWithAd([], msg)
-    else:
-      return msg
+    return sconn.receiveEncryptedMessage()
   except AsyncStreamIncompleteError:
     trace "Connection dropped while reading"
   except AsyncStreamReadError:
     trace "Error reading from connection"
 
-proc writeMessage(sconn: NoiseConnection, message: seq[byte]) {.async.} =
+proc writeMessage(sconn: NoiseConnection, message: seq[byte]): Future[void] =
   try:
-    let
-      cipher = sconn.writeCs.encryptWithAd([], message)
-    await sconn.writeLp(cipher)
+    return sconn.sendEncryptedMessage(message)
   except AsyncStreamWriteError:
     trace "Could not write to connection"
 
@@ -432,6 +469,8 @@ proc handshake*(p: Noise, conn: Connection, initiator: bool): Future[NoiseConnec
     secure.readCs = handshakeRes.cs1
     secure.writeCs = handshakeRes.cs2
 
+  trace "Noise handshake completed!"
+
   return secure
  
 method init*(p: Noise) {.gcsafe.} =
@@ -442,7 +481,6 @@ method init*(p: Noise) {.gcsafe.} =
     try:
       let
         sconn = await p.handshake(conn, false)
-      trace "Noise handshake completed!"
       asyncCheck sconn.startLifetime()
       trace "connection secured"
     except CatchableError as ex:
