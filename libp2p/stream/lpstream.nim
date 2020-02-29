@@ -7,12 +7,13 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import chronos
+import chronos, oids
 
 type
   LPStream* = ref object of RootObj
     isClosed*: bool
     closeEvent*: AsyncEvent
+    oid*: Oid
 
   LPStreamError* = object of CatchableError
   LPStreamIncompleteError* = object of LPStreamError
