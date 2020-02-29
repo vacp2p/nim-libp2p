@@ -84,6 +84,29 @@ suite "BufferStream":
     check:
       waitFor(testRead()) == true
 
+  test "read all from small buffer":
+    proc testRead(): Future[bool] {.async.} =
+      proc writeHandler(data: seq[byte]) {.async, gcsafe.} =
+        discard
+
+      let buff = newBufferStream(writeHandler, 4)
+      check buff.len == 0
+
+      proc reader() {.async.} =
+        var size = 0
+        while size != 5:
+          var msg = await buff.read()
+          size += msg.len
+        check size == 5
+
+      var fut = reader()
+      await buff.pushTo(cast[seq[byte]](@"12345"))
+      await fut
+      result = true
+
+    check:
+      waitFor(testRead()) == true
+
   test "readExactly":
     proc testReadExactly(): Future[bool] {.async.} =
       proc writeHandler(data: seq[byte]) {.async, gcsafe.} = discard
