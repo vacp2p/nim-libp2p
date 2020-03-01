@@ -480,6 +480,7 @@ suite "Key interface test suite":
     check ntag.toHex == tag.toHex
     ChaChaPoly.decrypt(key, nonce, ntag, text, aed)
     check text.toHex == plain.toHex
+    check ntag.toHex == tag.toHex
 
   test "Curve25519":
     # from bearssl test_crypto.c

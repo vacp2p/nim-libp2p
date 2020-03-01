@@ -93,7 +93,6 @@ suite "Switch":
   #   check:
   #     waitFor(testSwitch()) == true
 
-
   test "interop with rust noise":
     when true: # disable cos in CI we got no interop server/client
       proc testListenerDialer(): Future[bool] {.async.} =

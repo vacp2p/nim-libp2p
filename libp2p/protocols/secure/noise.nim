@@ -68,7 +68,7 @@ type
   HandshakeResult = object
     cs1: CipherState
     cs2: CipherState
-    remotePrologue: seq[byte]
+    remoteP2psecret: seq[byte]
     rs: Curve25519Key
   
   Noise* = ref object of Secure
@@ -76,12 +76,15 @@ type
     localPublicKey: PublicKey
     noisePrivateKey: Curve25519Key
     noisePublicKey: Curve25519Key
+    commonPrologue: seq[byte]
 
   NoiseConnection* = ref object of SecureConnection
     readCs: CipherState
     writeCs: CipherState
 
   NoiseHandshakeError* = object of CatchableError
+
+  NoiseDecryptTagError* = object of CatchableError
 
 # Utility
 
@@ -129,12 +132,15 @@ proc encryptWithAd(state: var CipherState, ad, data: openarray[byte]): seq[byte]
 
 proc decryptWithAd(state: var CipherState, ad, data: openarray[byte]): seq[byte] =
   var
-    tag = data[^ChaChaPolyTag.len..data.high].intoChaChaPolyTag
+    tagIn = data[^ChaChaPolyTag.len..data.high].intoChaChaPolyTag
+    tagOut = tagIn
     nonce: ChaChaPolyNonce
     np = cast[ptr uint64](addr nonce[4])
   np[] = state.n
   result = data[0..(data.high - ChaChaPolyTag.len)]
-  ChaChaPoly.decrypt(state.k, nonce, tag, result, ad)
+  ChaChaPoly.decrypt(state.k, nonce, tagOut, result, ad)
+  if tagIn != tagOut:
+    raise newException(NoiseDecryptTagError, "decryptWithAd failed tag authentication.")
   inc state.n
 
 # Symmetricstate
@@ -150,6 +156,7 @@ proc mixKey(ss: var SymmetricState, ikm: ChaChaPolyKey) =
   sha256.hkdf(ss.ck, ikm, [], temp_keys)
   ss.ck = temp_keys[0]
   init ss.cs, temp_keys[1]
+  trace "mixKey", key = ss.cs.k
 
 proc mixHash(ss: var SymmetricState; data: openarray[byte]) =
   var ctx: sha256
@@ -230,7 +237,10 @@ template dh_ss: untyped =
 
 template read_e: untyped =
   trace "noise read e", size = msg.len
-  doAssert msg.len >= Curve25519Key.len
+
+  if msg.len < Curve25519Key.len:
+    raise newException(NoiseHandshakeError, "Noise E, expected more data")
+
   # Sets re (which must be empty) to the next DHLEN bytes from the message. Calls MixHash(re.public_key).
   copyMem(addr hs.re[0], addr msg[0], Curve25519Key.len)
   msg = msg[Curve25519Key.len..msg.high]
@@ -242,12 +252,16 @@ template read_s: untyped =
   # Sets rs (which must be empty) to DecryptAndHash(temp).
   var temp: seq[byte]
   if hs.ss.cs.hasKey:
-    doAssert msg.len >= Curve25519Key.len + 16
+    if msg.len < Curve25519Key.len + ChaChaPolyTag.len:
+      raise newException(NoiseHandshakeError, "Noise S, expected more data")
+   
     temp.setLen(Curve25519Key.len + 16)
     copyMem(addr temp[0], addr msg[0], Curve25519Key.len + 16)
     msg = msg[Curve25519Key.len + 16..msg.high]
   else:
-    doAssert msg.len >= Curve25519Key.len
+    if msg.len < Curve25519Key.len:
+      raise newException(NoiseHandshakeError, "Noise S, expected more data")
+
     temp.setLen(Curve25519Key.len)
     copyMem(addr temp[0], addr msg[0], Curve25519Key.len)
     msg = msg[Curve25519Key.len..msg.high]
@@ -299,12 +313,14 @@ proc sendEncryptedMessage(sconn: NoiseConnection; buf: seq[byte]) {.async.} =
 proc handshakeXXOutbound(p: Noise, conn: Connection, p2pProof: ProtoBuffer): Future[HandshakeResult] {.async.} =
   const initiator = true
 
-  var hs: HandshakeState
+  var
+    hs: HandshakeState
+    empty: seq[byte]
   init hs.ss
 
-  var prologue = p2pProof.buffer
-  hs.ss.mixHash(prologue)
+  var p2psecret = p2pProof.buffer
 
+  hs.ss.mixHash(p.commonPrologue)
   hs.s.privateKey = p.noisePrivateKey
   hs.s.publicKey = p.noisePublicKey
 
@@ -314,7 +330,6 @@ proc handshakeXXOutbound(p: Noise, conn: Connection, p2pProof: ProtoBuffer): Fut
   write_e()
 
   # IK might use this btw!
-  var empty: seq[byte]
   msg &= hs.ss.encryptAndHash(empty)
 
   await conn.sendHSMessage(msg)
@@ -329,31 +344,37 @@ proc handshakeXXOutbound(p: Noise, conn: Connection, p2pProof: ProtoBuffer): Fut
   dh_es()
 
 
-  let remotePrologue = hs.ss.decryptAndHash(msg)
+  let remoteP2psecret = hs.ss.decryptAndHash(msg)
 
   # -> s, se
 
   msg.setLen(0)
 
+  # # FIXME THIS IS WEIRD, GO DOES IT
+  # # But spec seems not respected
+  # msg &= EmptyKey
+
   write_s()
   dh_se()
 
-  msg &= hs.ss.encryptAndHash(prologue)
+  msg &= hs.ss.encryptAndHash(p2psecret)
 
   await conn.sendHSMessage(msg)
   
   let (cs1, cs2) = hs.ss.split()
-  return HandshakeResult(cs1: cs1, cs2: cs2, remotePrologue: remotePrologue, rs: hs.rs)
+  return HandshakeResult(cs1: cs1, cs2: cs2, remoteP2psecret: remoteP2psecret, rs: hs.rs)
 
 proc handshakeXXInbound(p: Noise, conn: Connection, p2pProof: ProtoBuffer): Future[HandshakeResult] {.async.} =
   const initiator = false
 
-  var hs: HandshakeState
+  var
+    hs: HandshakeState
+    empty: seq[byte]
   init hs.ss
 
-  var prologue = p2pProof.buffer
-  hs.ss.mixHash(prologue)
+  var p2psecret = p2pProof.buffer
 
+  hs.ss.mixHash(p.commonPrologue)
   hs.s.privateKey = p.noisePrivateKey
   hs.s.publicKey = p.noisePublicKey
 
@@ -374,7 +395,7 @@ proc handshakeXXInbound(p: Noise, conn: Connection, p2pProof: ProtoBuffer): Futu
   write_s()
   dh_es()
 
-  msg &= hs.ss.encryptAndHash(prologue)
+  msg &= hs.ss.encryptAndHash(p2psecret)
 
   await conn.sendHSMessage(msg)
 
@@ -382,13 +403,17 @@ proc handshakeXXInbound(p: Noise, conn: Connection, p2pProof: ProtoBuffer): Futu
 
   msg = await conn.receiveHSMessage()
 
+  # # FIXME THIS IS WEIRD, GO DOES IT
+  # # But spec seems not respected
+  # msg = msg[ChaChaPolyKey.len..^1] # remove empty key
+ 
   read_s()
   dh_se()
 
-  let remotePrologue = hs.ss.decryptAndHash(msg)
+  let remoteP2psecret = hs.ss.decryptAndHash(msg)
 
   let (cs1, cs2) = hs.ss.split()
-  return HandshakeResult(cs1: cs1, cs2: cs2, remotePrologue: remotePrologue, rs: hs.rs)
+  return HandshakeResult(cs1: cs1, cs2: cs2, remoteP2psecret: remoteP2psecret, rs: hs.rs)
 
 proc readMessage(sconn: NoiseConnection): Future[seq[byte]] =
   try:
@@ -439,7 +464,7 @@ proc handshake*(p: Noise, conn: Connection, initiator: bool): Future[NoiseConnec
     handshakeRes = await handshakeXXInbound(p, conn, libp2pProof)
 
   var
-    remoteProof = initProtoBuffer(handshakeRes.remotePrologue)
+    remoteProof = initProtoBuffer(handshakeRes.remoteP2psecret)
     remotePubKey: PublicKey
     remoteSig: Signature
   if remoteProof.getValue(1, remotePubKey) <= 0:
@@ -450,6 +475,8 @@ proc handshake*(p: Noise, conn: Connection, initiator: bool): Future[NoiseConnec
   let verifyPayload = PayloadString.getBytes & handshakeRes.rs.getBytes
   if not remoteSig.verify(verifyPayload, remotePubKey):
     raise newException(NoiseHandshakeError, "Noise handshake signature verify failed.")
+  else:
+    trace "Remote signature verified"
  
   if initiator:
     let pid = PeerID.init(remotePubKey)
@@ -503,10 +530,11 @@ method secure*(p: Noise, conn: Connection, outgoing: bool): Future[Connection] {
      if not conn.closed():
        await conn.close()
   
-proc newNoise*(privateKey: PrivateKey): Noise =
+proc newNoise*(privateKey: PrivateKey; commonPrologue: seq[byte] = @[]): Noise =
   new result
   result.localPrivateKey = privateKey
   result.localPublicKey = privateKey.getKey()
   discard randomBytes(result.noisePrivateKey)
   result.noisePublicKey = result.noisePrivateKey.public()
+  result.commonPrologue = commonPrologue
   result.init()
