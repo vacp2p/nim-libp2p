@@ -63,66 +63,68 @@ proc createSwitch(ma: MultiAddress): (Switch, PeerInfo) =
   result = (switch, peerInfo)
 
 suite "Switch":
-  # test "e2e use switch dial proto string":
-  #   proc testSwitch(): Future[bool] {.async, gcsafe.} =
-  #     let ma1: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
-  #     let ma2: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
+  test "e2e use switch dial proto string":
+    proc testSwitch(): Future[bool] {.async, gcsafe.} =
+      let ma1: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
+      let ma2: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
 
-  #     var peerInfo1, peerInfo2: PeerInfo
-  #     var switch1, switch2: Switch
-  #     var awaiters: seq[Future[void]]
+      var peerInfo1, peerInfo2: PeerInfo
+      var switch1, switch2: Switch
+      var awaiters: seq[Future[void]]
 
-  #     (switch1, peerInfo1) = createSwitch(ma1)
+      (switch1, peerInfo1) = createSwitch(ma1)
 
-  #     let testProto = new TestProto
-  #     testProto.init()
-  #     testProto.codec = TestCodec
-  #     switch1.mount(testProto)
-  #     (switch2, peerInfo2) = createSwitch(ma2)
-  #     awaiters.add(await switch1.start())
-  #     awaiters.add(await switch2.start())
-  #     let conn = await switch2.dial(switch1.peerInfo, TestCodec)
-  #     await conn.writeLp("Hello!")
-  #     let msg = cast[string](await conn.readLp())
-  #     check "Hello!" == msg
+      let testProto = new TestProto
+      testProto.init()
+      testProto.codec = TestCodec
+      switch1.mount(testProto)
+      (switch2, peerInfo2) = createSwitch(ma2)
+      awaiters.add(await switch1.start())
+      awaiters.add(await switch2.start())
+      let conn = await switch2.dial(switch1.peerInfo, TestCodec)
+      await conn.writeLp("Hello!")
+      let msg = cast[string](await conn.readLp())
+      check "Hello!" == msg
 
-  #     await allFutures(switch1.stop(), switch2.stop())
-  #     await allFutures(awaiters)
-  #     result = true
+      await allFutures(switch1.stop(), switch2.stop())
+      await allFutures(awaiters)
+      result = true
 
-  #   check:
-  #     waitFor(testSwitch()) == true
+    check:
+      waitFor(testSwitch()) == true
 
-  test "interop with rust noise":
-    when true: # disable cos in CI we got no interop server/client
-      proc testListenerDialer(): Future[bool] {.async.} =
-        const
-          proto = "/noise/xx/25519/chachapoly/sha256/0.1.0"
+  # test "interop with rust noise":
+  #   when true: # disable cos in CI we got no interop server/client
+  #     proc testListenerDialer(): Future[bool] {.async.} =
+  #       const
+  #         proto = "/noise/xx/25519/chachapoly/sha256/0.1.0"
 
-        let
-          local = Multiaddress.init("/ip4/0.0.0.0/tcp/23456")
-          info = PeerInfo.init(PrivateKey.random(RSA), [local])
-          noise = newNoise(info.privateKey)
-          ms = newMultistream()
-          transport = TcpTransport.newTransport()
+  #       let
+  #         local = Multiaddress.init("/ip4/0.0.0.0/tcp/23456")
+  #         info = PeerInfo.init(PrivateKey.random(RSA), [local])
+  #         noise = newNoise(info.privateKey)
+  #         ms = newMultistream()
+  #         transport = TcpTransport.newTransport()
 
-        proc connHandler(conn: Connection) {.async, gcsafe.} =
-          try:
-            await ms.handle(conn)
-            trace "ms.handle exited"
-          finally:
-            await conn.close()
+  #       proc connHandler(conn: Connection) {.async, gcsafe.} =
+  #         try:
+  #           await ms.handle(conn)
+  #           trace "ms.handle exited"
+  #         except:
+  #           error getCurrentExceptionMsg()
+  #         finally:
+  #           await conn.close()
      
-        ms.addHandler(proto, noise)
+  #       ms.addHandler(proto, noise)
 
-        let
-          clientConn = await transport.listen(local, connHandler)
-        await clientConn
+  #       let
+  #         clientConn = await transport.listen(local, connHandler)
+  #       await clientConn
 
-        result = true
+  #       result = true
 
-      check:
-        waitFor(testListenerDialer()) == true
+  #     check:
+  #       waitFor(testListenerDialer()) == true
 
   # test "interop with go noise":
   #   when true: # disable cos in CI we got no interop server/client
