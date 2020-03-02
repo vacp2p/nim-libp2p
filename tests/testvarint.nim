@@ -16,6 +16,84 @@ const PBedgeValues = [
   (1'u64 shl 63), 0xFFFF_FFFF_FFFF_FFFF'u64
 ]
 
+const PBPositiveSignedEdgeValues = [
+  0'u64, 0x3F'u64,
+  0x40'u64, 0x1FFF'u64,
+  0x2000'u64, 0xFFFFF'u64,
+  0x100000'u64, 0x7FFFFFF'u64,
+  0x8000000'u64, 0x3FFFFFFFF'u64,
+  0x400000000'u64, 0x1FFFFFFFFFF'u64,
+  0x20000000000'u64, 0xFFFFFFFFFFFF'u64,
+  0x1000000000000'u64, 0x7FFFFFFFFFFFFF'u64,
+  0x80000000000000'u64, 0x3FFFFFFFFFFFFFFF'u64,
+  0x4000000000000000'u64, 0x7FFFFFFFFFFFFFFF'u64
+]
+
+const PBNegativeSignedEdgeValues = [
+  0x0000000000000000'u64, 0xFFFFFFFFFFFFFFC0'u64,
+  0xFFFFFFFFFFFFFFBF'u64, 0xFFFFFFFFFFFFE000'u64,
+  0xFFFFFFFFFFFFDFFF'u64, 0xFFFFFFFFFFF00000'u64,
+  0xFFFFFFFFFFEFFFFF'u64, 0xFFFFFFFFF8000000'u64,
+  0xFFFFFFFFF7FFFFFF'u64, 0xFFFFFFFC00000000'u64,
+  0xFFFFFFFBFFFFFFFF'u64, 0xFFFFFE0000000000'u64,
+  0xFFFFFDFFFFFFFFFF'u64, 0xFFFF000000000000'u64,
+  0xFFFEFFFFFFFFFFFF'u64, 0xFF80000000000000'u64,
+  0xFF7FFFFFFFFFFFFF'u64, 0xC000000000000000'u64,
+  0xBFFFFFFFFFFFFFFF'u64, 0x8000000000000000'u64
+]
+
+const PBPositiveSignedZigZagEdgeExpects = [
+  "00", "7E",
+  "8001", "FE7F",
+  "808001", "FEFF7F",
+  "80808001", "FEFFFF7F",
+  "8080808001", "FEFFFFFF7F",
+  "808080808001", "FEFFFFFFFF7F",
+  "80808080808001", "FEFFFFFFFFFF7F",
+  "8080808080808001", "FEFFFFFFFFFFFF7F",
+  "808080808080808001", "FEFFFFFFFFFFFFFF7F",
+  "80808080808080808001", "FEFFFFFFFFFFFFFFFF01"
+]
+
+const PBNegativeSignedZigZagEdgeExpects = [
+  "00", "7F",
+  "8101", "FF7F",
+  "818001", "FFFF7F",
+  "81808001", "FFFFFF7F",
+  "8180808001", "FFFFFFFF7F",
+  "818080808001", "FFFFFFFFFF7F",
+  "81808080808001", "FFFFFFFFFFFF7F",
+  "8180808080808001", "FFFFFFFFFFFFFF7F",
+  "818080808080808001", "FFFFFFFFFFFFFFFF7F",
+  "81808080808080808001", "FFFFFFFFFFFFFFFFFF01",
+]
+
+const PBPositiveSignedEdgeExpects = [
+  "00", "3F",
+  "40", "FF3F",
+  "8040", "FFFF3F",
+  "808040", "FFFFFF3F",
+  "80808040", "FFFFFFFF3F",
+  "8080808040", "FFFFFFFFFF3F",
+  "808080808040", "FFFFFFFFFFFF3F",
+  "80808080808040", "FFFFFFFFFFFFFF3F",
+  "8080808080808040", "FFFFFFFFFFFFFFFF3F",
+  "808080808080808040", "FFFFFFFFFFFFFFFF7F"
+]
+
+const PBNegativeSignedEdgeExpects = [
+  "00", "C0FFFFFFFFFFFFFFFF01",
+  "BFFFFFFFFFFFFFFFFF01", "80C0FFFFFFFFFFFFFF01",
+  "FFBFFFFFFFFFFFFFFF01", "8080C0FFFFFFFFFFFF01",
+  "FFFFBFFFFFFFFFFFFF01", "808080C0FFFFFFFFFF01",
+  "FFFFFFBFFFFFFFFFFF01", "80808080C0FFFFFFFF01",
+  "FFFFFFFFBFFFFFFFFF01", "8080808080C0FFFFFF01",
+  "FFFFFFFFFFBFFFFFFF01", "808080808080C0FFFF01",
+  "FFFFFFFFFFFFBFFFFF01", "80808080808080C0FF01",
+  "FFFFFFFFFFFFFFBFFF01", "8080808080808080C001",
+  "FFFFFFFFFFFFFFFFBF01", "80808080808080808001"
+]
+
 const PBedgeExpects = [
   "00", "7F",
   "8001", "FF7F",
@@ -31,6 +109,22 @@ const PBedgeExpects = [
 
 const PBedgeSizes = [
   1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 9, 9, 10, 10
+]
+
+const PBEdgeSignedPositiveZigZagSizes = [
+  1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 9, 9, 10, 10
+]
+
+const PBEdgeSignedNegativeZigZagSizes = [
+  1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 9, 9, 10, 10
+]
+
+const PBEdgeSignedPositiveSizes = [
+  1, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 9, 9, 9
+]
+
+const PBEdgeSignedNegativeSizes = [
+  1, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10
 ]
 
 const LPedgeValues = [
@@ -85,20 +179,71 @@ proc toHex*(a: openarray[byte], lowercase: bool = false): string =
 suite "Variable integer test suite":
 
   test "vsizeof() edge cases test":
-    for i in 0..<len(PBedgeValues):
+    for i in 0 ..< len(PBedgeValues):
       check vsizeof(PBedgeValues[i]) == PBedgeSizes[i]
+
+    for i in 0 ..< len(PBPositiveSignedEdgeValues):
+      check:
+        vsizeof(int64(PBPositiveSignedEdgeValues[i])) ==
+          PBEdgeSignedPositiveSizes[i]
+        vsizeof(sint64(PBPositiveSignedEdgeValues[i])) ==
+          PBEdgeSignedPositiveZigZagSizes[i]
+
+    for i in 0 ..< len(PBNegativeSignedEdgeValues):
+      check:
+        vsizeof(int64(PBNegativeSignedEdgeValues[i])) ==
+          PBEdgeSignedNegativeSizes[i]
+        vsizeof(sint64(PBNegativeSignedEdgeValues[i])) ==
+          PBEdgeSignedNegativeZigZagSizes[i]
 
   test "[ProtoBuf] Success edge cases test":
     var buffer = newSeq[byte]()
     var length = 0
-    var value = 0'u64
-    for i in 0..<len(PBedgeValues):
+    var uvalue = 0'u64
+    var ivalue = 0'i64
+    var svalue = sint64(0)
+    for i in 0 ..< len(PBedgeValues):
       buffer.setLen(PBedgeSizes[i])
       check:
         PB.putUVarint(buffer, length, PBedgeValues[i]) == VarintStatus.Success
-        PB.getUVarint(buffer, length, value) == VarintStatus.Success
-        value == PBedgeValues[i]
+        PB.getUVarint(buffer, length, uvalue) == VarintStatus.Success
+        uvalue == PBedgeValues[i]
         toHex(buffer) == PBedgeExpects[i]
+
+    for i in 0 ..< len(PBPositiveSignedEdgeValues):
+      buffer.setLen(PBEdgeSignedPositiveSizes[i])
+      check:
+        putSVarint(buffer, length,
+                   int64(PBPositiveSignedEdgeValues[i])) == VarintStatus.Success
+        getSVarint(buffer, length, ivalue) == VarintStatus.Success
+        ivalue == int64(PBPositiveSignedEdgeValues[i])
+        toHex(buffer) == PBPositiveSignedEdgeExpects[i]
+
+      buffer.setLen(PBEdgeSignedPositiveZigZagSizes[i])
+      check:
+        putSVarint(buffer, length,
+                  sint64(PBPositiveSignedEdgeValues[i])) == VarintStatus.Success
+        getSVarint(buffer, length, svalue) == VarintStatus.Success
+        int64(svalue) == int64(PBPositiveSignedEdgeValues[i])
+        toHex(buffer) == PBPositiveSignedZigZagEdgeExpects[i]
+
+    for i in 0 ..< len(PBNegativeSignedEdgeValues):
+      buffer.setLen(PBEdgeSignedNegativeSizes[i])
+      check:
+        putSVarint(buffer, length,
+                   int64(PBNegativeSignedEdgeValues[i])) == VarintStatus.Success
+        getSVarint(buffer, length, ivalue) == VarintStatus.Success
+        ivalue == int64(PBNegativeSignedEdgeValues[i])
+        toHex(buffer) == PBNegativeSignedEdgeExpects[i]
+
+      buffer.setLen(PBEdgeSignedNegativeZigZagSizes[i])
+      check:
+        putSVarint(buffer, length,
+                   sint64(PBNegativeSignedEdgeValues[i])) == VarintStatus.Success
+        getSVarint(buffer, length, svalue) == VarintStatus.Success
+
+        int64(svalue) == int64(PBNegativeSignedEdgeValues[i])
+        toHex(buffer) == PBNegativeSignedZigZagEdgeExpects[i]
 
   test "[ProtoBuf] Buffer Overrun edge cases test":
     var buffer = newSeq[byte]()
@@ -146,6 +291,23 @@ suite "Variable integer test suite":
         buffer[10] = 0x01'u8
         check:
           PB.getUVarint(buffer, length, value) == VarintStatus.Overflow
+
+  test "[ProtoBuf] Test vectors":
+    # The test vectors which was obtained at:
+    # https://github.com/dermesser/integer-encoding-rs/blob/master/src/varint_tests.rs
+    # https://github.com/That3Percent/zigzag/blob/master/src/lib.rs
+    check:
+      PB.encodeVarint(0'u64) == @[0x00'u8]
+      PB.encodeVarint(0'u32) == @[0x00'u8]
+      PB.encodeVarint(0'i64) == @[0x00'u8]
+      PB.encodeVarint(0'i32) == @[0x00'u8]
+      PB.encodeVarint(sint64(0)) == @[0x00'u8]
+      PB.encodeVarint(sint32(0)) == @[0x00'u8]
+      PB.encodeVarint(sint32(-1)) == PB.encodeVarint(1'u32)
+      PB.encodeVarint(sint64(150)) == PB.encodeVarint(300'u32)
+      PB.encodeVarint(sint64(-150)) == PB.encodeVarint(299'u32)
+      PB.encodeVarint(sint32(-2147483648)) == PB.encodeVarint(4294967295'u64)
+      PB.encodeVarint(sint32(2147483647)) == PB.encodeVarint(4294967294'u64)
 
   test "[LibP2P] Success edge cases test":
     var buffer = newSeq[byte]()

@@ -31,21 +31,59 @@ type
   LP* = object
     ## Use this type to specify LibP2P varint encoding
 
+  sint32* = distinct int32
+  sint64* = distinct int64
+  sint* = distinct int
+    ## Signed integer types which will be encoded using zigzag encoding.
+
   PBSomeUVarint* = uint | uint64 | uint32
   PBSomeSVarint* = int | int64 | int32
-  PBSomeVarint* = PBSomeUVarint | PBSomeSVarint
+  PBZigVarint* = sint | sint64 | sint32
+  PBSomeVarint* = PBSomeUVarint | PBSomeSVarint | PBZigVarint
   LPSomeUVarint* = uint | uint64 | uint32 | uint16 | uint8
   LPSomeVarint* = LPSomeUVarint
   SomeVarint* = PBSomeVarint | LPSomeVarint
   SomeUVarint* = PBSomeUVarint | LPSomeUVarint
   VarintError* = object of CatchableError
 
-proc vsizeof*(x: SomeVarint): int {.inline.} =
+proc vsizeof*(x: SomeUVarint): int {.inline.} =
   ## Returns number of bytes required to encode integer ``x`` as varint.
-  if x == cast[type(x)](0):
-    result = 1
+  if x == type(x)(0):
+    1
   else:
-    result = (fastLog2(x) + 1 + 7 - 1) div 7
+    (fastLog2(x) + 1 + 7 - 1) div 7
+
+proc vsizeof*(x: PBSomeSVarint): int {.inline.} =
+  ## Returns number of bytes required to encode signed integer ``x``.
+  ##
+  ## Note: This procedure interprets signed integer as ProtoBuffer's
+  ## ``int32`` and ``int64`` integers.
+  if x == type(x)(0):
+    1
+  else:
+    (fastLog2(uint(x)) + 1 + 7 - 1) div 7
+
+proc vsizeof*(x: PBZigVarint): int {.inline.} =
+  ## Returns number of bytes required to encode signed integer ``x``.
+  ##
+  ## Note: This procedure interprets signed integer as ProtoBuffer's
+  ## ``sint32`` and ``sint64`` integer.
+  when sizeof(x) == 8:
+    if int64(x) == 0'i64:
+      1
+    else:
+      if int64(x) < 0'i64:
+        vsizeof(not(uint64(x) shl 1))
+      else:
+        vsizeof(uint64(x) shl 1)
+  else:
+    if int32(x) == 0'i32:
+      1
+    else:
+      if int32(x) < 0'i32:
+        vsizeof(not(uint32(x) shl 1))
+      else:
+        vsizeof(uint32(x) shl 1)
 
 proc getUVarint*[T: PB|LP](vtype: typedesc[T],
                            pbytes: openarray[byte],
@@ -83,16 +121,16 @@ proc getUVarint*[T: PB|LP](vtype: typedesc[T],
   var shift = 0'u8
   result = VarintStatus.Incomplete
   outlen = 0
-  outval = cast[type(outval)](0)
+  outval = type(outval)(0)
   for i in 0..<len(pbytes):
     let b = pbytes[i]
     if shift >= MaxBits:
       result = VarintStatus.Overflow
       outlen = 0
-      outval = cast[type(outval)](0)
+      outval = type(outval)(0)
       break
     else:
-      outval = outval or (cast[type(outval)](b and 0x7F'u8) shl shift)
+      outval = outval or (type(outval)(b and 0x7F'u8) shl shift)
       shift += 7
     inc(outlen)
     if (b and 0x80'u8) == 0'u8:
@@ -100,12 +138,12 @@ proc getUVarint*[T: PB|LP](vtype: typedesc[T],
       break
   if result == VarintStatus.Incomplete:
     outlen = 0
-    outval = cast[type(outval)](0)
+    outval = type(outval)(0)
 
   when vtype is LP:
     if result == VarintStatus.Success:
       if outlen != vsizeof(outval):
-        outval = cast[type(outval)](0)
+        outval = type(outval)(0)
         outlen = 0
         result = VarintStatus.Overlong
 
@@ -135,16 +173,16 @@ proc putUVarint*[T: PB|LP](vtype: typedesc[T],
 
   when vtype is LP:
     if sizeof(outval) == 8:
-      if (cast[uint64](outval) and 0x8000_0000_0000_0000'u64) != 0'u64:
+      if (uint64(outval) and 0x8000_0000_0000_0000'u64) != 0'u64:
         result = Overflow
         return
 
-  if value <= cast[type(outval)](0x7F):
-    buffer[0] = cast[byte](outval and 0xFF)
+  if value <= type(outval)(0x7F):
+    buffer[0] = byte(outval and 0xFF)
     inc(k)
   else:
-    while value != cast[type(outval)](0):
-      buffer[k] = cast[byte]((value and 0x7F) or 0x80)
+    while value != type(outval)(0):
+      buffer[k] = byte((value and 0x7F) or 0x80)
       value = value shr 7
       inc(k)
     buffer[k - 1] = buffer[k - 1] and 0x7F'u8
@@ -158,9 +196,11 @@ proc putUVarint*[T: PB|LP](vtype: typedesc[T],
 
 proc getSVarint*(pbytes: openarray[byte], outsize: var int,
                  outval: var PBSomeSVarint): VarintStatus {.inline.} =
-  ## Decode Google ProtoBuf's `signed varint` from buffer ``pbytes`` and store
-  ## it to ``outval``. On success ``outlen`` will be set to number of bytes
-  ## processed while decoding `signed varint`.
+  ## Decode signed integer (``int32`` or ``int64``) from buffer ``pbytes``
+  ## and store it to ``outval``.
+  ##
+  ## On success ``outlen`` will be set to number of bytes processed while
+  ## decoding signed varint.
   ##
   ## If array ``pbytes`` is empty, ``Incomplete`` error will be returned.
   ##
@@ -181,15 +221,44 @@ proc getSVarint*(pbytes: openarray[byte], outsize: var int,
 
   result = PB.getUVarint(pbytes, outsize, value)
   if result == VarintStatus.Success:
-    if (value and cast[type(value)](1)) != cast[type(value)](0):
+    outval = cast[type(outval)](value)
+
+proc getSVarint*(pbytes: openarray[byte], outsize: var int,
+                 outval: var PBZigVarint): VarintStatus {.inline.} =
+  ## Decode Google ProtoBuf's zigzag encoded signed integer (``sint32`` or
+  ## ``sint64`` ) from buffer ``pbytes`` and store it to ``outval``.
+  ##
+  ## On success ``outlen`` will be set to number of bytes processed while
+  ## decoding signed varint.
+  ##
+  ## If array ``pbytes`` is empty, ``Incomplete`` error will be returned.
+  ##
+  ## If there not enough bytes available in array ``pbytes`` to decode `signed
+  ## varint`, ``Incomplete`` error will be returned.
+  ##
+  ## If encoded value can produce integer overflow, ``Overflow`` error will be
+  ## returned.
+  ##
+  ## Note, when decoding 10th byte of 64bit integer only 1 bit from byte will be
+  ## decoded, all other bits will be ignored. When decoding 5th byte of 32bit
+  ## integer only 4 bits from byte will be decoded, all other bits will be
+  ## ignored.
+  when sizeof(outval) == 8:
+    var value: uint64
+  else:
+    var value: uint32
+
+  result = PB.getUVarint(pbytes, outsize, value)
+  if result == VarintStatus.Success:
+    if (value and type(value)(1)) != type(value)(0):
       outval = cast[type(outval)](not(value shr 1))
     else:
       outval = cast[type(outval)](value shr 1)
 
 proc putSVarint*(pbytes: var openarray[byte], outsize: var int,
-                 outval: PBSomeSVarint): VarintStatus {.inline.} =
-  ## Encode Google ProtoBuf's `signed varint` ``outval`` and store it to array
-  ## ``pbytes``.
+                 outval: PBZigVarint): VarintStatus {.inline.} =
+  ## Encode signed integer ``outval`` using ProtoBuffer's zigzag encoding
+  ## (``sint32`` or ``sint64``) and store it to array ``pbytes``.
   ##
   ## On success ``outlen`` will hold number of bytes (octets) used to encode
   ## unsigned integer ``v``.
@@ -202,17 +271,36 @@ proc putSVarint*(pbytes: var openarray[byte], outsize: var int,
   ## Maximum encoded length of 32bit integer is 5 octets.
   when sizeof(outval) == 8:
     var value: uint64 =
-      if outval < 0:
-        not(cast[uint64](outval) shl 1)
+      if int64(outval) < 0'i64:
+        not(uint64(outval) shl 1)
       else:
-        cast[uint64](outval) shl 1
+        uint64(outval) shl 1
   else:
     var value: uint32 =
-      if outval < 0:
-        not(cast[uint32](outval) shl 1)
+      if int32(outval) < 0'i32:
+        not(uint32(outval) shl 1)
       else:
-        cast[uint32](outval) shl 1
+        uint32(outval) shl 1
   result = PB.putUVarint(pbytes, outsize, value)
+
+proc putSVarint*(pbytes: var openarray[byte], outsize: var int,
+                 outval: PBSomeSVarint): VarintStatus {.inline.} =
+  ## Encode signed integer ``outval`` (``int32`` or ``int64``) and store it to
+  ## array ``pbytes``.
+  ##
+  ## On success ``outlen`` will hold number of bytes (octets) used to encode
+  ## unsigned integer ``v``.
+  ##
+  ## If there not enough bytes available in buffer ``pbytes``, ``Incomplete``
+  ## error will be returned and ``outlen`` will be set to number of bytes
+  ## required.
+  ##
+  ## Maximum encoded length of 64bit integer is 10 octets.
+  ## Maximum encoded length of 32bit integer is 5 octets.
+  when sizeof(outval) == 8:
+    result = PB.putUVarint(pbytes, outsize, uint64(outval))
+  else:
+    result = PB.putUVarint(pbytes, outsize, uint32(outval))
 
 proc encodeVarint*(vtype: typedesc[PB],
                    value: PBSomeVarint): seq[byte] {.inline.} =
@@ -224,7 +312,7 @@ proc encodeVarint*(vtype: typedesc[PB],
     result.setLen(5)
   else:
     result.setLen(10)
-  when type(value) is PBSomeSVarint:
+  when (type(value) is PBSomeSVarint) or (type(value) is PBZigVarint):
     let res = putSVarint(result, outsize, value)
   else:
     let res = PB.putUVarint(result, outsize, value)
