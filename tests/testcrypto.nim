@@ -482,6 +482,16 @@ suite "Key interface test suite":
     check text.toHex == plain.toHex
     check ntag.toHex == tag.toHex
 
+    # ensure even a 2 byte array works
+    var
+      smallPlain: array[2, byte]
+      btag: ChaChaPolyTag
+      noaed: array[0, byte]
+    ChaChaPoly.encrypt(key, nonce, btag, smallPlain, noaed)
+    ntag = btag
+    ChaChaPoly.decrypt(key, nonce, btag, smallPlain, noaed)
+    check ntag.toHex == btag.toHex
+
   test "Curve25519":
     # from bearssl test_crypto.c
     var
