@@ -132,6 +132,10 @@ method read*(s: BufferStream, n = -1): Future[seq[byte]] {.async.} =
   ##
   var size = if n > 0: n else: s.readBuf.len()
   var index = 0
+
+  if s.readBuf.len() == 0:
+    await s.requestReadBytes()
+
   while index < size:
     while s.readBuf.len() > 0 and index < size:
       result.add(s.popFirst())
