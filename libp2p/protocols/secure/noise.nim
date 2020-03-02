@@ -129,6 +129,7 @@ proc encryptWithAd(state: var CipherState, ad, data: openarray[byte]): seq[byte]
   ChaChaPoly.encrypt(state.k, nonce, tag, result, ad)
   inc state.n
   result &= @tag
+  trace "encryptWithAd", tag = tag.toHex
 
 proc decryptWithAd(state: var CipherState, ad, data: openarray[byte]): seq[byte] =
   var
@@ -139,6 +140,7 @@ proc decryptWithAd(state: var CipherState, ad, data: openarray[byte]): seq[byte]
   np[] = state.n
   result = data[0..(data.high - ChaChaPolyTag.len)]
   ChaChaPoly.decrypt(state.k, nonce, tagOut, result, ad)
+  trace "decryptWithAd", tagIn = tagIn.toHex, tagOut=tagOut.toHex
   if tagIn != tagOut:
     raise newException(NoiseDecryptTagError, "decryptWithAd failed tag authentication.")
   inc state.n
@@ -292,7 +294,7 @@ proc receiveEncryptedMessage(sconn: NoiseConnection): Future[seq[byte]] {.async.
     size: uint16
   await sconn.readExactly(addr besize[0], 2)
   bigEndian16(addr size, addr besize[0])
-  trace "receiveEncryptedMessage", size
+  trace "receiveEncryptedMessage", size, peer = $sconn.peerInfo
   if size == 0:
     return newSeq[byte]()
   let
@@ -305,7 +307,7 @@ proc sendEncryptedMessage(sconn: NoiseConnection; buf: seq[byte]) {.async.} =
   var
     lesize = cipher.len
     size: array[2, byte]
-  trace "sendEncryptedMessage", size = lesize
+  trace "sendEncryptedMessage", size = lesize, peer = $sconn.peerInfo
   bigEndian16(addr size[0], addr lesize)
   await sconn.write(addr size[0], 2)
   await sconn.write(cipher)
@@ -478,7 +480,7 @@ proc handshake*(p: Noise, conn: Connection, initiator: bool): Future[NoiseConnec
   else:
     trace "Remote signature verified"
  
-  if initiator:
+  if initiator and not isNil(conn.peerInfo):
     let pid = PeerID.init(remotePubKey)
     if not conn.peerInfo.peerId.validate():
       raise newException(NoiseHandshakeError, "Failed to validate peerId.")
