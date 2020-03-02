@@ -10,7 +10,7 @@ skipDirs      = @["tests", "examples", "Nim"]
 requires "nim > 0.19.4",
          "secp256k1",
          "nimcrypto >= 0.4.1",
-         "chronos >= 2.3.5",
+         "chronos >= 2.3.6",
          "bearssl >= 0.1.3",
          "chronicles >= 0.7.0",
          "stew"
