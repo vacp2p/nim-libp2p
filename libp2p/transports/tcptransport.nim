@@ -40,7 +40,7 @@ proc connCb(server: StreamServer,
             client: StreamTransport) {.async, gcsafe.} =
   trace "incomming connection for", address = $client.remoteAddress
   let t: Transport = cast[Transport](server.udata)
-  discard t.connHandler(server, client)
+  asyncCheck t.connHandler(server, client)
 
 method init*(t: TcpTransport) =
   t.multicodec = multiCodec("tcp")
