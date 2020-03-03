@@ -61,7 +61,7 @@ proc vsizeof*(x: PBSomeSVarint): int {.inline.} =
   if x == type(x)(0):
     1
   else:
-    (fastLog2(uint(x)) + 1 + 7 - 1) div 7
+    (fastLog2(uint64(x)) + 1 + 7 - 1) div 7
 
 proc vsizeof*(x: PBZigVarint): int {.inline.} =
   ## Returns number of bytes required to encode signed integer ``x``.
