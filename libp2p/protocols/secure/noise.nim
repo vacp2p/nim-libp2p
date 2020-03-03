@@ -129,7 +129,7 @@ proc encryptWithAd(state: var CipherState, ad, data: openarray[byte]): seq[byte]
   result = @data
   ChaChaPoly.encrypt(state.k, nonce, tag, result, ad)
   inc state.n
-  result &= @tag
+  result &= tag
   trace "encryptWithAd", tag = tag.toHex
 
 proc decryptWithAd(state: var CipherState, ad, data: openarray[byte]): seq[byte] =
@@ -329,7 +329,7 @@ proc receiveEncryptedMessage(sconn: NoiseConnection): Future[seq[byte]] {.async.
   bigEndian16(addr size, addr besize[0])
   trace "receiveEncryptedMessage", size, peer = $sconn.peerInfo
   if size == 0:
-    return newSeq[byte]()
+    return @[]
   let
     cipher = await sconn.read(size.int)
   var plain = sconn.readCs.decryptWithAd([], cipher)
