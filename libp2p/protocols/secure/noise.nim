@@ -10,6 +10,7 @@
 import endians
 import chronos
 import chronicles
+import random
 import nimcrypto/[utils, sysrand, sha2, hmac]
 import ../../connection
 import ../../peer
@@ -83,8 +84,8 @@ type
     writeCs: CipherState
 
   NoiseHandshakeError* = object of CatchableError
-
   NoiseDecryptTagError* = object of CatchableError
+  NoiseOversizedPayloadError* = object of CatchableError
 
 # Utility
 
@@ -281,12 +282,44 @@ proc receiveHSMessage(sconn: Connection): Future[seq[byte]] {.async.} =
 
 proc sendHSMessage(sconn: Connection; buf: seq[byte]) {.async.} =
   var
-    lesize = buf.len
+    lesize = buf.len.uint16
     size: array[2, byte]
   trace "sendHSMessage", size = lesize
   bigEndian16(addr size[0], addr lesize)
   await sconn.write(addr size[0], 2)
   await sconn.write(buf)
+
+proc packNoisePayload(payload: openarray[byte]): seq[byte] {.inline.} =
+  if payload.len > uint16.high.int:
+    raise newException(NoiseOversizedPayloadError, "Trying to send an unsupported oversized payload over Noise")
+
+  let
+    noiselen = rand(2..31)
+
+  var
+    plen = payload.len.uint16
+    besize: array[2, byte]
+    noise = newSeq[byte](noiselen)
+
+  if randomBytes(noise) != noiselen:
+    raise newException(NoiseHandshakeError, "Failed to generate randomBytes")
+
+  bigEndian16(addr besize[0], addr plen)
+
+  result &= besize
+  result &= payload
+  result &= noise
+
+  trace "packed noise payload", inSize = payload.len, outSize = result.len
+
+proc unpackNoisePayload(payload: var seq[byte]) {.inline.} =
+  var
+    besize = payload[0..1]
+    size: uint16
+  bigEndian16(addr size, addr besize[0])
+  payload = payload[2..^((payload.len - size.int) - 1)]
+
+  trace "unpacked noise payload", size = payload.len
 
 proc receiveEncryptedMessage(sconn: NoiseConnection): Future[seq[byte]] {.async.} =
   var
@@ -299,11 +332,14 @@ proc receiveEncryptedMessage(sconn: NoiseConnection): Future[seq[byte]] {.async.
     return newSeq[byte]()
   let
     cipher = await sconn.read(size.int)
-  return sconn.readCs.decryptWithAd([], cipher)
+  var plain = sconn.readCs.decryptWithAd([], cipher)
+  unpackNoisePayload(plain)
+  return plain
 
 proc sendEncryptedMessage(sconn: NoiseConnection; buf: seq[byte]) {.async.} =
   let
-    cipher = sconn.writeCs.encryptWithAd([], buf)
+    packed = packNoisePayload(buf)
+    cipher = sconn.writeCs.encryptWithAd([], packed)
   var
     lesize = cipher.len
     size: array[2, byte]
@@ -346,20 +382,19 @@ proc handshakeXXOutbound(p: Noise, conn: Connection, p2pProof: ProtoBuffer): Fut
   dh_es()
 
 
-  let remoteP2psecret = hs.ss.decryptAndHash(msg)
+  var remoteP2psecret = hs.ss.decryptAndHash(msg)
+  unpackNoisePayload(remoteP2psecret)
 
   # -> s, se
 
   msg.setLen(0)
 
-  # # FIXME THIS IS WEIRD, GO DOES IT
-  # # But spec seems not respected
-  # msg &= EmptyKey
-
   write_s()
   dh_se()
 
-  msg &= hs.ss.encryptAndHash(p2psecret)
+  # last payload must follow the ecrypted way of sending
+  var packed = packNoisePayload(p2psecret)
+  msg &= hs.ss.encryptAndHash(packed)
 
   await conn.sendHSMessage(msg)
   
@@ -397,7 +432,8 @@ proc handshakeXXInbound(p: Noise, conn: Connection, p2pProof: ProtoBuffer): Futu
   write_s()
   dh_es()
 
-  msg &= hs.ss.encryptAndHash(p2psecret)
+  var packedSecret = packNoisePayload(p2psecret)
+  msg &= hs.ss.encryptAndHash(packedSecret)
 
   await conn.sendHSMessage(msg)
 
@@ -405,14 +441,11 @@ proc handshakeXXInbound(p: Noise, conn: Connection, p2pProof: ProtoBuffer): Futu
 
   msg = await conn.receiveHSMessage()
 
-  # # FIXME THIS IS WEIRD, GO DOES IT
-  # # But spec seems not respected
-  # msg = msg[ChaChaPolyKey.len..^1] # remove empty key
- 
   read_s()
   dh_se()
 
-  let remoteP2psecret = hs.ss.decryptAndHash(msg)
+  var remoteP2psecret = hs.ss.decryptAndHash(msg)
+  unpackNoisePayload(remoteP2psecret)
 
   let (cs1, cs2) = hs.ss.split()
   return HandshakeResult(cs1: cs1, cs2: cs2, remoteP2psecret: remoteP2psecret, rs: hs.rs)
