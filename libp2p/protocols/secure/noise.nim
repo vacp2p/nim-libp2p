@@ -10,7 +10,7 @@
 import chronos
 import chronicles
 import random
-import stew/endians2
+import stew/[endians2, byteutils]
 import nimcrypto/[utils, sysrand, sha2, hmac]
 import ../../connection
 import ../../peer
@@ -87,11 +87,6 @@ proc genKeyPair(): KeyPair =
   result.privateKey = Curve25519Key.random()
   result.publicKey = result.privateKey.public()
     
-# todo this should be exposed maybe or replaced with a more public version
-proc getBytes*(key: string): seq[byte] =
-  result.setLen(key.len)
-  copyMem(addr result[0], unsafeaddr key[0], key.len)
-
 proc hashProtocol(name: string): MDigest[256] =
   # If protocol_name is less than or equal to HASHLEN bytes in length,
   # sets h equal to protocol_name with zero bytes appended to make HASHLEN bytes.
@@ -107,9 +102,9 @@ proc dh(priv: Curve25519Key, pub: Curve25519Key): Curve25519Key =
 
 # Cipherstate
 
-proc init(cs: var CipherState; key: ChaChaPolyKey) =
-  cs.k = key
-  cs.n = 0
+proc init(_: type[CipherState]; key: ChaChaPolyKey): CipherState =
+  result.k = key
+  result.n = 0
 
 proc hasKey(cs: CipherState): bool =
   cs.k != EmptyKey
@@ -146,17 +141,17 @@ proc decryptWithAd(state: var CipherState, ad, data: openarray[byte]): seq[byte]
 
 # Symmetricstate
 
-proc init(ss: var SymmetricState) =
-  ss.h = ProtocolXXName.hashProtocol
-  ss.ck = ss.h.data.intoChaChaPolyKey
-  init ss.cs, EmptyKey
+proc init(_: type[SymmetricState]): SymmetricState =
+  result.h = ProtocolXXName.hashProtocol
+  result.ck = result.h.data.intoChaChaPolyKey
+  result.cs = CipherState.init(EmptyKey)
 
 proc mixKey(ss: var SymmetricState, ikm: ChaChaPolyKey) =
   var
     temp_keys: array[2, ChaChaPolyKey]
   sha256.hkdf(ss.ck, ikm, [], temp_keys)
   ss.ck = temp_keys[0]
-  init ss.cs, temp_keys[1]
+  ss.cs = CipherState.init(temp_keys[1])
   trace "mixKey", key = ss.cs.k
 
 proc mixHash(ss: var SymmetricState; data: openarray[byte]) =
@@ -168,15 +163,15 @@ proc mixHash(ss: var SymmetricState; data: openarray[byte]) =
   trace "mixHash", hash = ss.h.data
 
 # We might use this for other handshake patterns/tokens
-proc mixKeyAndHash(ss: var SymmetricState; ikm: var openarray[byte]) {.used.} =
+proc mixKeyAndHash(ss: var SymmetricState; ikm: openarray[byte]) {.used.} =
   var
     temp_keys: array[3, ChaChaPolyKey]
   sha256.hkdf(ss.ck, ikm, [], temp_keys)
   ss.ck = temp_keys[0]
   ss.mixHash(temp_keys[1])
-  init ss.cs, temp_keys[2]
+  ss.cs = CipherState.init(temp_keys[2])
 
-proc encryptAndHash(ss: var SymmetricState, data: var openarray[byte]): seq[byte] =
+proc encryptAndHash(ss: var SymmetricState, data: openarray[byte]): seq[byte] =
   # according to spec if key is empty leave plaintext
   if ss.cs.hasKey:
     result = ss.cs.encryptWithAd(ss.h.data, data)
@@ -184,7 +179,7 @@ proc encryptAndHash(ss: var SymmetricState, data: var openarray[byte]): seq[byte
     result = @data
   ss.mixHash(result)
 
-proc decryptAndHash(ss: var SymmetricState, data: var openarray[byte]): seq[byte] =
+proc decryptAndHash(ss: var SymmetricState, data: openarray[byte]): seq[byte] =
   # according to spec if key is empty leave plaintext
   if ss.cs.hasKey:
     result = ss.cs.decryptWithAd(ss.h.data, data)
@@ -196,8 +191,10 @@ proc split(ss: var SymmetricState): tuple[cs1, cs2: CipherState] =
   var
     temp_keys: array[2, ChaChaPolyKey]
   sha256.hkdf(ss.ck, [], [], temp_keys)
-  init result.cs1, temp_keys[0]
-  init result.cs2, temp_keys[1]
+  return (CipherState.init(temp_keys[0]), CipherState.init(temp_keys[1]))
+
+proc init(_: type[HandshakeState]): HandshakeState =
+  result.ss = SymmetricState.init()
   
 template write_e: untyped =
   trace "noise write e"
@@ -253,21 +250,17 @@ template read_s: untyped =
   trace "noise read s", size = msg.len
   # Sets temp to the next DHLEN + 16 bytes of the message if HasKey() == True, or to the next DHLEN bytes otherwise.
   # Sets rs (which must be empty) to DecryptAndHash(temp).
-  var temp: seq[byte]
-  if hs.ss.cs.hasKey:
-    if msg.len < Curve25519Key.len + ChaChaPolyTag.len:
-      raise newException(NoiseHandshakeError, "Noise S, expected more data")
-   
-    temp.setLen(Curve25519Key.len + 16)
-    copyMem(addr temp[0], addr msg[0], Curve25519Key.len + 16)
-    msg = msg[Curve25519Key.len + 16..msg.high]
-  else:
-    if msg.len < Curve25519Key.len:
-      raise newException(NoiseHandshakeError, "Noise S, expected more data")
-
-    temp.setLen(Curve25519Key.len)
-    copyMem(addr temp[0], addr msg[0], Curve25519Key.len)
-    msg = msg[Curve25519Key.len..msg.high]
+  let
+    temp =
+      if hs.ss.cs.hasKey:
+        if msg.len < Curve25519Key.len + ChaChaPolyTag.len:
+          raise newException(NoiseHandshakeError, "Noise S, expected more data")
+        msg[0..Curve25519Key.high + ChaChaPolyTag.len]
+      else:
+        if msg.len < Curve25519Key.len:
+          raise newException(NoiseHandshakeError, "Noise S, expected more data")
+        msg[0..Curve25519Key.high]
+  msg = msg[temp.len..msg.high]
   var plain = hs.ss.decryptAndHash(temp)
   copyMem(addr hs.rs[0], addr plain[0], Curve25519Key.len)
 
@@ -310,6 +303,10 @@ proc unpackNoisePayload(payload: var seq[byte]) =
   var
     besize = payload[0..1]
     size = uint16.fromBytesBE(besize).int
+
+  if size > (payload.len - 2):
+    raise newException(NoiseOversizedPayloadError, "Received a wrong payload size")
+ 
   payload = payload[2..^((payload.len - size) - 1)]
 
   trace "unpacked noise payload", size = payload.len
@@ -342,11 +339,9 @@ proc handshakeXXOutbound(p: Noise, conn: Connection, p2pProof: ProtoBuffer): Fut
   const initiator = true
 
   var
-    hs: HandshakeState
+    hs = HandshakeState.init()
     empty: seq[byte]
-  init hs.ss
-
-  var p2psecret = p2pProof.buffer
+    p2psecret = p2pProof.buffer
 
   hs.ss.mixHash(p.commonPrologue)
   hs.s.privateKey = p.noisePrivateKey
@@ -394,10 +389,8 @@ proc handshakeXXInbound(p: Noise, conn: Connection, p2pProof: ProtoBuffer): Futu
   const initiator = false
 
   var
-    hs: HandshakeState
-  init hs.ss
-
-  var p2psecret = p2pProof.buffer
+    hs = HandshakeState.init()
+    p2psecret = p2pProof.buffer
 
   hs.ss.mixHash(p.commonPrologue)
   hs.s.privateKey = p.noisePrivateKey
@@ -471,7 +464,7 @@ proc handshake*(p: Noise, conn: Connection, initiator: bool): Future[NoiseConnec
 
   # https://github.com/libp2p/specs/tree/master/noise#libp2p-data-in-handshake-messages
   let
-    signedPayload = p.localPrivateKey.sign(PayloadString.getBytes & p.noisePublicKey.getBytes)
+    signedPayload = p.localPrivateKey.sign(PayloadString.toBytes & p.noisePublicKey.getBytes)
     
   var
     libp2pProof = initProtoBuffer()
@@ -496,7 +489,7 @@ proc handshake*(p: Noise, conn: Connection, initiator: bool): Future[NoiseConnec
   if remoteProof.getValue(2, remoteSig) <= 0:
     raise newException(NoiseHandshakeError, "Failed to deserialize remote public key.")
 
-  let verifyPayload = PayloadString.getBytes & handshakeRes.rs.getBytes
+  let verifyPayload = PayloadString.toBytes & handshakeRes.rs.getBytes
   if not remoteSig.verify(verifyPayload, remotePubKey):
     raise newException(NoiseHandshakeError, "Noise handshake signature verify failed.")
   else:
