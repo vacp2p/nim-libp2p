@@ -34,7 +34,6 @@ const
   # Empty is a special value which indicates k has not yet been initialized.
   EmptyKey: ChaChaPolyKey = [0.byte, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
   NonceMax = uint64.high - 1 # max is reserved
-  NoiseMessageMax = 65535
 
 type
   KeyPair = object
@@ -44,8 +43,6 @@ type
   # https://noiseprotocol.org/noise.html#the-cipherstate-object
   CipherState = object
     k: ChaChaPolyKey
-    # noise spec says uint64
-    # go implementation has uint32 tho I noticed!!
     n: uint64
 
   # https://noiseprotocol.org/noise.html#the-symmetricstate-object
@@ -82,6 +79,7 @@ type
   NoiseHandshakeError* = object of CatchableError
   NoiseDecryptTagError* = object of CatchableError
   NoiseOversizedPayloadError* = object of CatchableError
+  NoiseNonceMaxError* = object of CatchableError # drop connection on purpose
 
 # Utility
 
@@ -125,6 +123,8 @@ proc encryptWithAd(state: var CipherState, ad, data: openarray[byte]): seq[byte]
   result = @data
   ChaChaPoly.encrypt(state.k, nonce, tag, result, ad)
   inc state.n
+  if state.n > NonceMax:
+    raise newException(NoiseNonceMaxError, "Noise max nonce value reached")
   result &= tag
   trace "encryptWithAd", tag = tag.toHex
 
@@ -141,6 +141,8 @@ proc decryptWithAd(state: var CipherState, ad, data: openarray[byte]): seq[byte]
   if tagIn != tagOut:
     raise newException(NoiseDecryptTagError, "decryptWithAd failed tag authentication.")
   inc state.n
+  if state.n > NonceMax:
+    raise newException(NoiseNonceMaxError, "Noise max nonce value reached")
 
 # Symmetricstate
 
