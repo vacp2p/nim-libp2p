@@ -59,7 +59,7 @@ proc addInterval(every: Duration, cb: CallbackFunc,
     udata: pointer = nil): Future[void] =
   ## Arrange the callback ``cb`` to be called on every ``Duration`` window
 
-  var retFuture = newFuture[void]("chronos.addInterval(Duration)")
+  var retFuture = newFuture[void]("gossipsub.addInterval(Duration)")
   proc interval(arg: pointer = nil) {.gcsafe.}
   proc scheduleNext() =
     if not retFuture.finished():

@@ -14,7 +14,8 @@ import ../protocol,
 type
   Secure* = ref object of LPProtocol # base type for secure managers
 
-method secure*(p: Secure, conn: Connection): Future[Connection]
-  {.base, async, gcsafe.} =
+method secure*(p: Secure, conn: Connection): Future[Connection] {.base.} =
   ## default implementation matches plaintext
-  result = conn
+  var retFuture = newFuture[Connection]("secure.secure")
+  retFuture.complete(conn)
+  return retFuture
