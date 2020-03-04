@@ -86,6 +86,7 @@ suite "Noise":
         clientNoise = newNoise(clientInfo.privateKey)
         conn = await transport2.dial(transport1.ma)
         sconn = await clientNoise.secure(conn, true)
+
         msg = await sconn.read(6)
 
       await sconn.close()
@@ -96,39 +97,40 @@ suite "Noise":
     check:
       waitFor(testListenerDialer()) == true
 
-  # test "e2e: handle read + noise":
-  #   proc testListenerDialer(): Future[bool] {.async.} =
-  #     let
-  #       server: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
-  #       serverInfo = PeerInfo.init(PrivateKey.random(RSA), [server])
-  #       serverNoise = newNoise(serverInfo.privateKey)
+  test "e2e: handle read + noise":
+    proc testListenerDialer(): Future[bool] {.async.} =
+      let
+        server: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
+        serverInfo = PeerInfo.init(PrivateKey.random(RSA), [server])
+        serverNoise = newNoise(serverInfo.privateKey)
 
-  #     proc connHandler(conn: Connection): Future[void] {.async, gcsafe.} =
-  #       let sconn = await serverNoise.secure(conn, false)
-  #       defer:
-  #         await sconn.close()
-  #       let msg = await sconn.read(6)
-  #       check cast[string](msg) == "Hello!"
+      proc connHandler(conn: Connection): Future[void] {.async, gcsafe.} =
+        let sconn = await serverNoise.secure(conn, false)
+        defer:
+          await sconn.close()
+        let msg = await sconn.read(6)
+        check cast[string](msg) == "Hello!"
 
-  #     let
-  #       transport1: TcpTransport = newTransport(TcpTransport)
-  #     asyncCheck await transport1.listen(server, connHandler)
+      let
+        transport1: TcpTransport = newTransport(TcpTransport)
+      asyncCheck await transport1.listen(server, connHandler)
 
-  #     let
-  #       transport2: TcpTransport = newTransport(TcpTransport)
-  #       clientInfo = PeerInfo.init(PrivateKey.random(RSA), [transport1.ma])
-  #       clientNoise = newNoise(clientInfo.privateKey)
-  #       conn = await transport2.dial(transport1.ma)
-  #       sconn = await clientNoise.secure(conn, true)
+      let
+        transport2: TcpTransport = newTransport(TcpTransport)
+        clientInfo = PeerInfo.init(PrivateKey.random(RSA), [transport1.ma])
+        clientNoise = newNoise(clientInfo.privateKey)
+        conn = await transport2.dial(transport1.ma)
+        sconn = await clientNoise.secure(conn, true)
 
-  #     await sconn.write("Hello!".cstring, 6)
-  #     await sconn.close()
-  #     await transport1.close()
+      await sconn.write("Hello!".cstring, 6)
 
-  #     result = true
+      await sconn.close()
+      await transport1.close()
 
-  #   check:
-  #     waitFor(testListenerDialer()) == true
+      result = true
+
+    check:
+      waitFor(testListenerDialer()) == true
 
   # test "e2e use switch dial proto string":
   #   proc testSwitch(): Future[bool] {.async, gcsafe.} =
