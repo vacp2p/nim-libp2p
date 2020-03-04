@@ -20,9 +20,6 @@ import secure,
        ../../crypto/[crypto, chacha20poly1305, curve25519, hkdf],
        ../../stream/bufferstream
 
-template unimplemented: untyped =
-  doAssert(false, "Not implemented")
-
 logScope:
   topic = "Noise"
 
@@ -37,7 +34,6 @@ const
   # Empty is a special value which indicates k has not yet been initialized.
   EmptyKey: ChaChaPolyKey = [0.byte, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
   NonceMax = uint64.high - 1 # max is reserved
-                             #
   NoiseMessageMax = 65535
 
 type
@@ -117,7 +113,7 @@ proc init(cs: var CipherState; key: ChaChaPolyKey) =
   cs.k = key
   cs.n = 0
 
-proc hasKey(cs: var CipherState): bool =
+proc hasKey(cs: CipherState): bool =
   cs.k != EmptyKey
 
 proc encryptWithAd(state: var CipherState, ad, data: openarray[byte]): seq[byte] =
@@ -169,7 +165,8 @@ proc mixHash(ss: var SymmetricState; data: openarray[byte]) =
   ss.h = ctx.finish()
   trace "mixHash", hash = ss.h.data
 
-proc mixKeyAndHash(ss: var SymmetricState; ikm: var openarray[byte]) =
+# We might use this for other handshake patterns/tokens
+proc mixKeyAndHash(ss: var SymmetricState; ikm: var openarray[byte]) {.used.} =
   var
     temp_keys: array[3, ChaChaPolyKey]
   sha256.hkdf(ss.ck, ikm, [], temp_keys)
@@ -233,7 +230,8 @@ template dh_se: untyped =
   else:
     hs.ss.mixKey(dh(hs.e.privateKey, hs.rs))
 
-template dh_ss: untyped =
+# might be used for other token/handshakes
+template dh_ss: untyped {.used.} =
   trace "noise dh ss"
   # Calls MixKey(DH(s, rs)).
   hs.ss.mixKey(dh(hs.s.privateKey, hs.rs))
@@ -286,7 +284,7 @@ proc sendHSMessage(sconn: Connection; buf: seq[byte]) {.async.} =
   await sconn.write(besize[0].addr, besize.len)
   await sconn.write(buf)
 
-proc packNoisePayload(payload: openarray[byte]): seq[byte] {.inline.} =
+proc packNoisePayload(payload: openarray[byte]): seq[byte] =
   if payload.len > uint16.high.int:
     raise newException(NoiseOversizedPayloadError, "Trying to send an unsupported oversized payload over Noise")
 
@@ -306,7 +304,7 @@ proc packNoisePayload(payload: openarray[byte]): seq[byte] {.inline.} =
 
   trace "packed noise payload", inSize = payload.len, outSize = result.len
 
-proc unpackNoisePayload(payload: var seq[byte]) {.inline.} =
+proc unpackNoisePayload(payload: var seq[byte]) =
   var
     besize = payload[0..1]
     size = uint16.fromBytesBE(besize).int
@@ -395,7 +393,6 @@ proc handshakeXXInbound(p: Noise, conn: Connection, p2pProof: ProtoBuffer): Futu
 
   var
     hs: HandshakeState
-    empty: seq[byte]
   init hs.ss
 
   var p2psecret = p2pProof.buffer
@@ -410,7 +407,8 @@ proc handshakeXXInbound(p: Noise, conn: Connection, p2pProof: ProtoBuffer): Futu
 
   read_e()
 
-  let earlyData = hs.ss.decryptAndHash(msg)
+  # we might use this early data one day, keeping it here for clarity
+  let earlyData {.used.} = hs.ss.decryptAndHash(msg)
 
   # <- e, ee, s, es
 
