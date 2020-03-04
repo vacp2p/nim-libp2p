@@ -104,7 +104,7 @@ suite "Noise":
         serverInfo = PeerInfo.init(PrivateKey.random(RSA), [server])
         serverNoise = newNoise(serverInfo.privateKey)
 
-      proc connHandler(conn: Connection): Future[void] {.async, gcsafe.} =
+      proc connHandler(conn: Connection) {.async, gcsafe.} =
         let sconn = await serverNoise.secure(conn, false)
         defer:
           await sconn.close()
