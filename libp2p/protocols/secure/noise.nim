@@ -93,7 +93,7 @@ proc hashProtocol(name: string): MDigest[256] =
   # Otherwise sets h = HASH(protocol_name).
 
   if name.len <= 32:
-    copyMem(addr result.data[0], unsafeAddr name[0], name.len)
+    result.data[0..name.high] = name.toBytes
   else:
     result = sha256.digest(name)
 
@@ -242,7 +242,7 @@ template read_e: untyped =
     raise newException(NoiseHandshakeError, "Noise E, expected more data")
 
   # Sets re (which must be empty) to the next DHLEN bytes from the message. Calls MixHash(re.public_key).
-  copyMem(addr hs.re[0], addr msg[0], Curve25519Key.len)
+  hs.re[0..Curve25519Key.high] = msg[0..Curve25519Key.high]
   msg = msg[Curve25519Key.len..msg.high]
   hs.ss.mixHash(hs.re)
 
@@ -261,8 +261,8 @@ template read_s: untyped =
           raise newException(NoiseHandshakeError, "Noise S, expected more data")
         msg[0..Curve25519Key.high]
   msg = msg[temp.len..msg.high]
-  var plain = hs.ss.decryptAndHash(temp)
-  copyMem(addr hs.rs[0], addr plain[0], Curve25519Key.len)
+  let plain = hs.ss.decryptAndHash(temp)
+  hs.rs[0..Curve25519Key.high] = plain
 
 proc receiveHSMessage(sconn: Connection): Future[seq[byte]] {.async.} =
   var besize: array[2, byte]
@@ -285,11 +285,10 @@ proc packNoisePayload(payload: openarray[byte]): seq[byte] =
 
   let
     noiselen = rand(2..31)
+    plen = payload.len.uint16
 
   var
-    plen = payload.len.uint16
     noise = newSeq[byte](noiselen)
-
   if randomBytes(noise) != noiselen:
     raise newException(NoiseHandshakeError, "Failed to generate randomBytes")
 
@@ -300,7 +299,7 @@ proc packNoisePayload(payload: openarray[byte]): seq[byte] =
   trace "packed noise payload", inSize = payload.len, outSize = result.len
 
 proc unpackNoisePayload(payload: var seq[byte]) =
-  var
+  let
     besize = payload[0..1]
     size = uint16.fromBytesBE(besize).int
 
