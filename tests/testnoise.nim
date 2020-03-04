@@ -70,9 +70,11 @@ suite "Noise":
         serverInfo = PeerInfo.init(PrivateKey.random(RSA), [server])
         serverNoise = newNoise(serverInfo.privateKey)
 
-      proc connHandler(conn: Connection): Future[void] {.async, gcsafe.} =
+      proc connHandler(conn: Connection) {.async, gcsafe.} =
         let sconn = await serverNoise.secure(conn, false)
-        result = sconn.write(cstring("Hello!"), 6)
+        defer:
+          await sconn.close()
+        await sconn.write(cstring("Hello!"), 6)
 
       let
         transport1: TcpTransport = newTransport(TcpTransport)
@@ -86,6 +88,7 @@ suite "Noise":
         sconn = await clientNoise.secure(conn, true)
         msg = await sconn.read(6)
 
+      await sconn.close()
       await transport1.close()
 
       result = cast[string](msg) == "Hello!"
@@ -102,6 +105,8 @@ suite "Noise":
 
       proc connHandler(conn: Connection): Future[void] {.async, gcsafe.} =
         let sconn = await serverNoise.secure(conn, false)
+        defer:
+          await sconn.close()
         let msg = await sconn.read(6)
         check cast[string](msg) == "Hello!"
 
@@ -117,6 +122,7 @@ suite "Noise":
         sconn = await clientNoise.secure(conn, true)
 
       await sconn.write("Hello!".cstring, 6)
+      await sconn.close()
       await transport1.close()
 
       result = true
