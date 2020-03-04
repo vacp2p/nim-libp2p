@@ -340,7 +340,6 @@ proc handshakeXXOutbound(p: Noise, conn: Connection, p2pProof: ProtoBuffer): Fut
 
   var
     hs = HandshakeState.init()
-    empty: seq[byte]
     p2psecret = p2pProof.buffer
 
   hs.ss.mixHash(p.commonPrologue)
@@ -353,7 +352,7 @@ proc handshakeXXOutbound(p: Noise, conn: Connection, p2pProof: ProtoBuffer): Fut
   write_e()
 
   # IK might use this btw!
-  msg &= hs.ss.encryptAndHash(empty)
+  msg &= hs.ss.encryptAndHash(@[])
 
   await conn.sendHSMessage(msg)
 
@@ -468,17 +467,17 @@ proc handshake*(p: Noise, conn: Connection, initiator: bool): Future[NoiseConnec
     
   var
     libp2pProof = initProtoBuffer()
-    handshakeRes: HandshakeResult
 
   libp2pProof.write(initProtoField(1, p.localPublicKey))
   libp2pProof.write(initProtoField(2, signedPayload))
   # data field also there but not used!
   libp2pProof.finish()
 
-  if initiator:
-    handshakeRes = await handshakeXXOutbound(p, conn, libp2pProof)
-  else:
-    handshakeRes = await handshakeXXInbound(p, conn, libp2pProof)
+  let handshakeRes =
+    if initiator:
+      await handshakeXXOutbound(p, conn, libp2pProof)
+    else:
+      await handshakeXXInbound(p, conn, libp2pProof)
 
   var
     remoteProof = initProtoBuffer(handshakeRes.remoteP2psecret)
