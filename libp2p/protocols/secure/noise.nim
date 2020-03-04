@@ -7,10 +7,10 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import endians
 import chronos
 import chronicles
 import random
+import stew/endians2
 import nimcrypto/[utils, sysrand, sha2, hmac]
 import ../../connection
 import ../../peer
@@ -272,21 +272,18 @@ template read_s: untyped =
   copyMem(addr hs.rs[0], addr plain[0], Curve25519Key.len)
 
 proc receiveHSMessage(sconn: Connection): Future[seq[byte]] {.async.} =
-  var
-    besize: array[2, byte]
-    size: uint16
+  var besize: array[2, byte]
   await sconn.readExactly(addr besize[0], 2)
-  bigEndian16(addr size, addr besize[0])
+  let size = uint16.fromBytesBE(besize).int
   trace "receiveHSMessage", size
-  return await sconn.read(size.int)
+  return await sconn.read(size)
 
 proc sendHSMessage(sconn: Connection; buf: seq[byte]) {.async.} =
   var
     lesize = buf.len.uint16
-    size: array[2, byte]
+    besize = lesize.toBytesBE
   trace "sendHSMessage", size = lesize
-  bigEndian16(addr size[0], addr lesize)
-  await sconn.write(addr size[0], 2)
+  await sconn.write(besize[0].addr, besize.len)
   await sconn.write(buf)
 
 proc packNoisePayload(payload: openarray[byte]): seq[byte] {.inline.} =
@@ -298,15 +295,12 @@ proc packNoisePayload(payload: openarray[byte]): seq[byte] {.inline.} =
 
   var
     plen = payload.len.uint16
-    besize: array[2, byte]
     noise = newSeq[byte](noiselen)
 
   if randomBytes(noise) != noiselen:
     raise newException(NoiseHandshakeError, "Failed to generate randomBytes")
 
-  bigEndian16(addr besize[0], addr plen)
-
-  result &= besize
+  result &= plen.toBytesBE
   result &= payload
   result &= noise
 
@@ -315,23 +309,20 @@ proc packNoisePayload(payload: openarray[byte]): seq[byte] {.inline.} =
 proc unpackNoisePayload(payload: var seq[byte]) {.inline.} =
   var
     besize = payload[0..1]
-    size: uint16
-  bigEndian16(addr size, addr besize[0])
-  payload = payload[2..^((payload.len - size.int) - 1)]
+    size = uint16.fromBytesBE(besize).int
+  payload = payload[2..^((payload.len - size) - 1)]
 
   trace "unpacked noise payload", size = payload.len
 
 proc receiveEncryptedMessage(sconn: NoiseConnection): Future[seq[byte]] {.async.} =
-  var
-    besize: array[2, byte]
-    size: uint16
+  var besize: array[2, byte]
   await sconn.readExactly(addr besize[0], 2)
-  bigEndian16(addr size, addr besize[0])
+  let size = uint16.fromBytesBE(besize).int
   trace "receiveEncryptedMessage", size, peer = $sconn.peerInfo
   if size == 0:
     return @[]
   let
-    cipher = await sconn.read(size.int)
+    cipher = await sconn.read(size)
   var plain = sconn.readCs.decryptWithAd([], cipher)
   unpackNoisePayload(plain)
   return plain
@@ -341,11 +332,10 @@ proc sendEncryptedMessage(sconn: NoiseConnection; buf: seq[byte]) {.async.} =
     packed = packNoisePayload(buf)
     cipher = sconn.writeCs.encryptWithAd([], packed)
   var
-    lesize = cipher.len
-    size: array[2, byte]
+    lesize = cipher.len.uint16
+    besize = lesize.toBytesBE
   trace "sendEncryptedMessage", size = lesize, peer = $sconn.peerInfo
-  bigEndian16(addr size[0], addr lesize)
-  await sconn.write(addr size[0], 2)
+  await sconn.write(addr besize[0], 2)
   await sconn.write(cipher)
   
 proc handshakeXXOutbound(p: Noise, conn: Connection, p2pProof: ProtoBuffer): Future[HandshakeResult] {.async.} =
@@ -380,7 +370,6 @@ proc handshakeXXOutbound(p: Noise, conn: Connection, p2pProof: ProtoBuffer): Fut
   dh_ee()
   read_s()
   dh_es()
-
 
   var remoteP2psecret = hs.ss.decryptAndHash(msg)
   unpackNoisePayload(remoteP2psecret)

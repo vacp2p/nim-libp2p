@@ -203,7 +203,7 @@ suite "Noise":
   #           trace "ms.handle exited"
   #         finally:
   #           await conn.close()
-     
+         
   #       let
   #         clientConn = await transport.listen(local, connHandler)
   #       await clientConn
