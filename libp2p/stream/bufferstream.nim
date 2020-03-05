@@ -271,10 +271,14 @@ method write*(s: BufferStream,
   ##
   ## Return number of bytes actually consumed (discarded).
   ##
+  if isNil(s.writeHandler):
+    var retFuture = newFuture[void]("BufferStream.write(pointer)")
+    retFuture.fail(newNotWritableError())
+    return retFuture
+
   var buf: seq[byte] = newSeq[byte](nbytes)
   copyMem(addr buf[0], pbytes, nbytes)
-  if not isNil(s.writeHandler):
-    result = s.writeHandler(buf)
+  result = s.writeHandler(buf)
 
 method write*(s: BufferStream,
               msg: string,
@@ -287,10 +291,14 @@ method write*(s: BufferStream,
   ## If ``msglen > len(sbytes)`` only ``len(sbytes)`` bytes will be written to
   ## stream.
   ##
+  if isNil(s.writeHandler):
+    var retFuture = newFuture[void]("BufferStream.write(string)")
+    retFuture.fail(newNotWritableError())
+    return retFuture
+
   var buf = ""
   shallowCopy(buf, if msglen > 0: msg[0..<msglen] else: msg)
-  if not isNil(s.writeHandler):
-    result = s.writeHandler(cast[seq[byte]](buf))
+  result = s.writeHandler(cast[seq[byte]](buf))
 
 method write*(s: BufferStream,
               msg: seq[byte],
@@ -304,10 +312,14 @@ method write*(s: BufferStream,
   ## If ``msglen > len(sbytes)`` only ``len(sbytes)`` bytes will be written to
   ## stream.
   ##
+  if isNil(s.writeHandler):
+    var retFuture = newFuture[void]("BufferStream.write(seq)")
+    retFuture.fail(newNotWritableError())
+    return retFuture
+
   var buf: seq[byte]
   shallowCopy(buf, if msglen > 0: msg[0..<msglen] else: msg)
-  if not isNil(s.writeHandler):
-    result = s.writeHandler(buf)
+  result = s.writeHandler(buf)
 
 proc pipe*(s: BufferStream,
            target: BufferStream): BufferStream =

@@ -381,7 +381,8 @@ suite "Mplex":
       proc writeHandler(data: seq[byte]) {.async, gcsafe.} = discard
       let chann = newChannel(1, newConnection(newBufferStream(writeHandler)), true)
       await chann.reset()
-      asyncDiscard chann.read()
+      var data = await chann.read()
+      doAssert(len(data) == 1)
 
     expect LPStreamEOFError:
       waitFor(testResetRead())

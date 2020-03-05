@@ -283,7 +283,7 @@ proc start*(s: Switch): Future[seq[Future[void]]] {.async, gcsafe.} =
 
   proc handle(conn: Connection): Future[void] {.async, closure, gcsafe.} =
     try:
-        await s.upgradeIncoming(conn) # perform upgrade on incoming connection
+      await s.upgradeIncoming(conn) # perform upgrade on incoming connection
     except CatchableError as exc:
       trace "exception occurred in Switch.start", exc = exc.msg
     finally:
@@ -325,24 +325,31 @@ proc subscribeToPeer(s: Switch, peerInfo: PeerInfo) {.async, gcsafe.} =
       warn "unable to initiate pubsub", exc = exc.msg
       s.dialedPubSubPeers.excl(peerInfo.id)
 
-proc subscribe*(s: Switch, topic: string, handler: TopicHandler): Future[void] {.gcsafe.} =
+proc subscribe*(s: Switch, topic: string,
+                handler: TopicHandler): Future[void] =
   ## subscribe to a pubsub topic
   if s.pubSub.isNone:
-    raise newNoPubSubException()
+    var retFuture = newFuture[void]("Switch.subscribe")
+    retFuture.fail(newNoPubSubException())
+    return retFuture
 
   result = s.pubSub.get().subscribe(topic, handler)
 
-proc unsubscribe*(s: Switch, topics: seq[TopicPair]): Future[void] {.gcsafe.} =
+proc unsubscribe*(s: Switch, topics: seq[TopicPair]): Future[void] =
   ## unsubscribe from topics
   if s.pubSub.isNone:
-    raise newNoPubSubException()
+    var retFuture = newFuture[void]("Switch.unsubscribe")
+    retFuture.fail(newNoPubSubException())
+    return retFuture
 
   result = s.pubSub.get().unsubscribe(topics)
 
-proc publish*(s: Switch, topic: string, data: seq[byte]): Future[void] {.gcsafe.} =
+proc publish*(s: Switch, topic: string, data: seq[byte]): Future[void] =
   # pubslish to pubsub topic
   if s.pubSub.isNone:
-    raise newNoPubSubException()
+    var retFuture = newFuture[void]("Switch.publish")
+    retFuture.fail(newNoPubSubException())
+    return retFuture
 
   result = s.pubSub.get().publish(topic, data)
 
