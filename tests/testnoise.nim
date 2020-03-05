@@ -103,6 +103,7 @@ suite "Noise":
         server: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
         serverInfo = PeerInfo.init(PrivateKey.random(RSA), [server])
         serverNoise = newNoise(serverInfo.privateKey)
+        readTask = newFuture[void]()
 
       proc connHandler(conn: Connection) {.async, gcsafe.} =
         let sconn = await serverNoise.secure(conn, false)
@@ -110,6 +111,7 @@ suite "Noise":
           await sconn.close()
         let msg = await sconn.read(6)
         check cast[string](msg) == "Hello!"
+        readTask.complete()
 
       let
         transport1: TcpTransport = newTransport(TcpTransport)
@@ -123,7 +125,7 @@ suite "Noise":
         sconn = await clientNoise.secure(conn, true)
 
       await sconn.write("Hello!".cstring, 6)
-
+      await readTask
       await sconn.close()
       await transport1.close()
 
@@ -189,6 +191,33 @@ suite "Noise":
   #       let
   #         clientConn = await transport.listen(local, connHandler)
   #       await clientConn
+
+  #       result = true
+
+  #     check:
+  #       waitFor(testListenerDialer()) == true
+
+  # test "interop with rust noise":
+  #   when true: # disable cos in CI we got no interop server/client
+  #     proc testListenerDialer(): Future[bool] {.async.} =
+  #       const
+  #         proto = "/noise/xx/25519/chachapoly/sha256/0.1.0"
+
+  #       let
+  #         local = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
+  #         remote = Multiaddress.init("/ip4/127.0.0.1/tcp/23456")
+  #         info = PeerInfo.init(PrivateKey.random(RSA), [local])
+  #         noise = newNoise(info.privateKey)
+  #         ms = newMultistream()
+  #         transport = TcpTransport.newTransport()
+  #         conn = await transport.dial(remote)
+
+  #       check ms.select(conn, @[proto]).await == proto
+
+  #       let
+  #         sconn = await noise.secure(conn, true)
+
+  #       # use sconn
 
   #       result = true
 
