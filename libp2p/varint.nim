@@ -31,14 +31,19 @@ type
   LP* = object
     ## Use this type to specify LibP2P varint encoding
 
-  sint32* = distinct int32
-  sint64* = distinct int64
-  sint* = distinct int
+  zint32* = distinct int32
+  zint64* = distinct int64
+  zint* = distinct int
     ## Signed integer types which will be encoded using zigzag encoding.
 
+  hint32* = distinct int32
+  hint64* = distinct int64
+  hint* = distinct int
+    ## Signed integer types which will be encoded using simple cast.
+
   PBSomeUVarint* = uint | uint64 | uint32
-  PBSomeSVarint* = int | int64 | int32
-  PBZigVarint* = sint | sint64 | sint32
+  PBSomeSVarint* = hint | hint64 | hint32
+  PBZigVarint* = zint | zint64 | zint32
   PBSomeVarint* = PBSomeUVarint | PBSomeSVarint | PBZigVarint
   LPSomeUVarint* = uint | uint64 | uint32 | uint16 | uint8
   LPSomeVarint* = LPSomeUVarint
@@ -58,10 +63,16 @@ proc vsizeof*(x: PBSomeSVarint): int {.inline.} =
   ##
   ## Note: This procedure interprets signed integer as ProtoBuffer's
   ## ``int32`` and ``int64`` integers.
-  if x == type(x)(0):
-    1
+  when sizeof(x) == 8:
+    if int64(x) == 0'i64:
+      1
+    else:
+      (fastLog2(uint64(x)) + 1 + 7 - 1) div 7
   else:
-    (fastLog2(uint64(x)) + 1 + 7 - 1) div 7
+    if int32(x) == 0'i32:
+      1
+    else:
+      (fastLog2(uint32(x)) + 1 + 7 - 1) div 7
 
 proc vsizeof*(x: PBZigVarint): int {.inline.} =
   ## Returns number of bytes required to encode signed integer ``x``.

@@ -184,24 +184,24 @@ suite "Variable integer test suite":
 
     for i in 0 ..< len(PBPositiveSignedEdgeValues):
       check:
-        vsizeof(int64(PBPositiveSignedEdgeValues[i])) ==
+        vsizeof(hint64(PBPositiveSignedEdgeValues[i])) ==
           PBEdgeSignedPositiveSizes[i]
-        vsizeof(sint64(PBPositiveSignedEdgeValues[i])) ==
+        vsizeof(zint64(PBPositiveSignedEdgeValues[i])) ==
           PBEdgeSignedPositiveZigZagSizes[i]
 
     for i in 0 ..< len(PBNegativeSignedEdgeValues):
       check:
-        vsizeof(int64(PBNegativeSignedEdgeValues[i])) ==
+        vsizeof(hint64(PBNegativeSignedEdgeValues[i])) ==
           PBEdgeSignedNegativeSizes[i]
-        vsizeof(sint64(PBNegativeSignedEdgeValues[i])) ==
+        vsizeof(zint64(PBNegativeSignedEdgeValues[i])) ==
           PBEdgeSignedNegativeZigZagSizes[i]
 
   test "[ProtoBuf] Success edge cases test":
     var buffer = newSeq[byte]()
     var length = 0
     var uvalue = 0'u64
-    var ivalue = 0'i64
-    var svalue = sint64(0)
+    var ivalue = hint64(0)
+    var svalue = zint64(0)
     for i in 0 ..< len(PBedgeValues):
       buffer.setLen(PBedgeSizes[i])
       check:
@@ -214,15 +214,15 @@ suite "Variable integer test suite":
       buffer.setLen(PBEdgeSignedPositiveSizes[i])
       check:
         putSVarint(buffer, length,
-                   int64(PBPositiveSignedEdgeValues[i])) == VarintStatus.Success
+                  hint64(PBPositiveSignedEdgeValues[i])) == VarintStatus.Success
         getSVarint(buffer, length, ivalue) == VarintStatus.Success
-        ivalue == int64(PBPositiveSignedEdgeValues[i])
+        int64(ivalue) == int64(PBPositiveSignedEdgeValues[i])
         toHex(buffer) == PBPositiveSignedEdgeExpects[i]
 
       buffer.setLen(PBEdgeSignedPositiveZigZagSizes[i])
       check:
         putSVarint(buffer, length,
-                  sint64(PBPositiveSignedEdgeValues[i])) == VarintStatus.Success
+                  zint64(PBPositiveSignedEdgeValues[i])) == VarintStatus.Success
         getSVarint(buffer, length, svalue) == VarintStatus.Success
         int64(svalue) == int64(PBPositiveSignedEdgeValues[i])
         toHex(buffer) == PBPositiveSignedZigZagEdgeExpects[i]
@@ -231,15 +231,15 @@ suite "Variable integer test suite":
       buffer.setLen(PBEdgeSignedNegativeSizes[i])
       check:
         putSVarint(buffer, length,
-                   int64(PBNegativeSignedEdgeValues[i])) == VarintStatus.Success
+                  hint64(PBNegativeSignedEdgeValues[i])) == VarintStatus.Success
         getSVarint(buffer, length, ivalue) == VarintStatus.Success
-        ivalue == int64(PBNegativeSignedEdgeValues[i])
+        int64(ivalue) == int64(PBNegativeSignedEdgeValues[i])
         toHex(buffer) == PBNegativeSignedEdgeExpects[i]
 
       buffer.setLen(PBEdgeSignedNegativeZigZagSizes[i])
       check:
         putSVarint(buffer, length,
-                   sint64(PBNegativeSignedEdgeValues[i])) == VarintStatus.Success
+                   zint64(PBNegativeSignedEdgeValues[i])) == VarintStatus.Success
         getSVarint(buffer, length, svalue) == VarintStatus.Success
 
         int64(svalue) == int64(PBNegativeSignedEdgeValues[i])
@@ -299,15 +299,15 @@ suite "Variable integer test suite":
     check:
       PB.encodeVarint(0'u64) == @[0x00'u8]
       PB.encodeVarint(0'u32) == @[0x00'u8]
-      PB.encodeVarint(0'i64) == @[0x00'u8]
-      PB.encodeVarint(0'i32) == @[0x00'u8]
-      PB.encodeVarint(sint64(0)) == @[0x00'u8]
-      PB.encodeVarint(sint32(0)) == @[0x00'u8]
-      PB.encodeVarint(sint32(-1)) == PB.encodeVarint(1'u32)
-      PB.encodeVarint(sint64(150)) == PB.encodeVarint(300'u32)
-      PB.encodeVarint(sint64(-150)) == PB.encodeVarint(299'u32)
-      PB.encodeVarint(sint32(-2147483648)) == PB.encodeVarint(4294967295'u64)
-      PB.encodeVarint(sint32(2147483647)) == PB.encodeVarint(4294967294'u64)
+      PB.encodeVarint(hint64(0)) == @[0x00'u8]
+      PB.encodeVarint(hint32(0)) == @[0x00'u8]
+      PB.encodeVarint(zint64(0)) == @[0x00'u8]
+      PB.encodeVarint(zint32(0)) == @[0x00'u8]
+      PB.encodeVarint(zint32(-1)) == PB.encodeVarint(1'u32)
+      PB.encodeVarint(zint64(150)) == PB.encodeVarint(300'u32)
+      PB.encodeVarint(zint64(-150)) == PB.encodeVarint(299'u32)
+      PB.encodeVarint(zint32(-2147483648)) == PB.encodeVarint(4294967295'u64)
+      PB.encodeVarint(zint32(2147483647)) == PB.encodeVarint(4294967294'u64)
 
   test "[LibP2P] Success edge cases test":
     var buffer = newSeq[byte]()
