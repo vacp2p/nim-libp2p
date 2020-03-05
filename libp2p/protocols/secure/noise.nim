@@ -102,10 +102,6 @@ proc dh(priv: Curve25519Key, pub: Curve25519Key): Curve25519Key =
 
 # Cipherstate
 
-proc init(_: type[CipherState]; key: ChaChaPolyKey): CipherState =
-  result.k = key
-  result.n = 0
-
 proc hasKey(cs: CipherState): bool =
   cs.k != EmptyKey
 
@@ -144,14 +140,14 @@ proc decryptWithAd(state: var CipherState, ad, data: openarray[byte]): seq[byte]
 proc init(_: type[SymmetricState]): SymmetricState =
   result.h = ProtocolXXName.hashProtocol
   result.ck = result.h.data.intoChaChaPolyKey
-  result.cs = CipherState.init(EmptyKey)
+  result.cs = CipherState(k: EmptyKey)
 
 proc mixKey(ss: var SymmetricState, ikm: ChaChaPolyKey) =
   var
     temp_keys: array[2, ChaChaPolyKey]
   sha256.hkdf(ss.ck, ikm, [], temp_keys)
   ss.ck = temp_keys[0]
-  ss.cs = CipherState.init(temp_keys[1])
+  ss.cs = CipherState(k: temp_keys[1])
   trace "mixKey", key = ss.cs.k
 
 proc mixHash(ss: var SymmetricState; data: openarray[byte]) =
@@ -169,7 +165,7 @@ proc mixKeyAndHash(ss: var SymmetricState; ikm: openarray[byte]) {.used.} =
   sha256.hkdf(ss.ck, ikm, [], temp_keys)
   ss.ck = temp_keys[0]
   ss.mixHash(temp_keys[1])
-  ss.cs = CipherState.init(temp_keys[2])
+  ss.cs = CipherState(k: temp_keys[2])
 
 proc encryptAndHash(ss: var SymmetricState, data: openarray[byte]): seq[byte] =
   # according to spec if key is empty leave plaintext
@@ -191,7 +187,7 @@ proc split(ss: var SymmetricState): tuple[cs1, cs2: CipherState] =
   var
     temp_keys: array[2, ChaChaPolyKey]
   sha256.hkdf(ss.ck, [], [], temp_keys)
-  return (CipherState.init(temp_keys[0]), CipherState.init(temp_keys[1]))
+  return (CipherState(k: temp_keys[0]), CipherState(k: temp_keys[1]))
 
 proc init(_: type[HandshakeState]): HandshakeState =
   result.ss = SymmetricState.init()
