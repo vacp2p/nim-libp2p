@@ -28,39 +28,39 @@ import ../libp2p/[switch,
                   protocols/secure/noise,
                   protocols/secure/secure]
 
-const TestCodec = "/test/proto/1.0.0"
+# const TestCodec = "/test/proto/1.0.0"
 
-type
-  TestProto = ref object of LPProtocol
+# type
+#   TestProto = ref object of LPProtocol
 
-method init(p: TestProto) {.gcsafe.} =
-  proc handle(conn: Connection, proto: string) {.async, gcsafe.} =
-    let msg = cast[string](await conn.readLp())
-    check "Hello!" == msg
-    await conn.writeLp("Hello!")
-    await conn.close()
+# method init(p: TestProto) {.gcsafe.} =
+#   proc handle(conn: Connection, proto: string) {.async, gcsafe.} =
+#     let msg = cast[string](await conn.readLp())
+#     check "Hello!" == msg
+#     await conn.writeLp("Hello!")
+#     await conn.close()
 
-  p.codec = TestCodec
-  p.handler = handle
+#   p.codec = TestCodec
+#   p.handler = handle
 
-proc createSwitch(ma: MultiAddress): (Switch, PeerInfo) =
-  var peerInfo: PeerInfo = PeerInfo.init(PrivateKey.random(RSA))
-  peerInfo.addrs.add(ma)
-  let identify = newIdentify(peerInfo)
+# proc createSwitch(ma: MultiAddress): (Switch, PeerInfo) =
+#   var peerInfo: PeerInfo = PeerInfo.init(PrivateKey.random(RSA))
+#   peerInfo.addrs.add(ma)
+#   let identify = newIdentify(peerInfo)
 
-  proc createMplex(conn: Connection): Muxer =
-    result = newMplex(conn)
+#   proc createMplex(conn: Connection): Muxer =
+#     result = newMplex(conn)
 
-  let mplexProvider = newMuxerProvider(createMplex, MplexCodec)
-  let transports = @[Transport(newTransport(TcpTransport))]
-  let muxers = [(MplexCodec, mplexProvider)].toTable()
-  let secureManagers = [(NoiseCodec, Secure(newNoise(peerInfo.privateKey)))].toTable()
-  let switch = newSwitch(peerInfo,
-                         transports,
-                         identify,
-                         muxers,
-                         secureManagers)
-  result = (switch, peerInfo)
+#   let mplexProvider = newMuxerProvider(createMplex, MplexCodec)
+#   let transports = @[Transport(newTransport(TcpTransport))]
+#   let muxers = [(MplexCodec, mplexProvider)].toTable()
+#   let secureManagers = [(NoiseCodec, Secure(newNoise(peerInfo.privateKey)))].toTable()
+#   let switch = newSwitch(peerInfo,
+#                          transports,
+#                          identify,
+#                          muxers,
+#                          secureManagers)
+#   result = (switch, peerInfo)
 
 suite "Noise":
   test "e2e: handle write + noise":

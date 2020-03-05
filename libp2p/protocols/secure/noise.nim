@@ -440,6 +440,23 @@ proc writeMessage(sconn: NoiseConnection, message: seq[byte]): Future[void] =
   except AsyncStreamWriteError:
     trace "Could not write to connection"
 
+proc readLoop*(sconn: NoiseConnection, stream: BufferStream) {.async.} =
+  try:
+    while not sconn.closed:
+      let msg = await sconn.readMessage()
+      if msg.len == 0:
+        trace "stream EOF"
+        return
+
+      await stream.pushTo(msg)
+  except CatchableError as exc:
+    trace "exception occurred in Noise readLoop", exc = exc.msg
+  finally:
+    if not sconn.closed:
+      await sconn.close()
+    const msg = "ending Noise readLoop"
+    trace msg, isclosed = sconn.closed() p
+
 proc startLifetime*(sconn: NoiseConnection): Future[Connection] {.async.} =
   proc writeHandler(data: seq[byte]) {.async, gcsafe.} =
     trace "sending encrypted bytes", bytes = data.toHex()

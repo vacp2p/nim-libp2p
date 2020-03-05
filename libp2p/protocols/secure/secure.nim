@@ -21,24 +21,6 @@ type
   Secure* = ref object of LPProtocol # base type for secure managers
   SecureConnection* = ref object of Connection
 
-proc readLoop*[T: SecureConnection](sconn: T, stream: BufferStream) {.async.} =
-  const tname = typedesc[T].name
-  try:
-    while not sconn.closed:
-      let msg = await sconn.readMessage()
-      if msg.len == 0:
-        trace "stream EOF"
-        return
-
-      await stream.pushTo(msg)
-  except CatchableError as exc:
-    trace "exception occurred " & tname & ".readLoop", exc = exc.msg
-  finally:
-    if not sconn.closed:
-      await sconn.close()
-    const msg = "ending " & tname & ".readLoop"
-    trace msg, isclosed = sconn.closed()
-
 method secure*(p: Secure, conn: Connection, outgoing: bool): Future[Connection]
   {.base, async, gcsafe.} =
   ## default implementation matches plaintext
