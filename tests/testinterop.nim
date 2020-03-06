@@ -232,6 +232,14 @@ suite "Interop":
     proc runTests(): Future[bool] {.async.} =
       var protos = @["/test-stream"]
       var test = "TEST STRING"
+      # We are preparing expect string, which should be prefixed with varint
+      # length and do not have `\r\n` suffix, because we going to use
+      # readLine().
+      var buffer = initVBuffer()
+      buffer.writeSeq(test & "\r\n")
+      buffer.finish()
+      var expect = newString(len(buffer) - 2)
+      copyMem(addr expect[0], addr buffer.buffer[0], len(expect))
 
       let nativeNode = createNode()
       let awaiters = await nativeNode.start()
@@ -241,8 +249,10 @@ suite "Interop":
 
       var testFuture = newFuture[string]("test.future")
       proc daemonHandler(api: DaemonAPI, stream: P2PStream) {.async.} =
+        # We should perform `readLp()` instead of `readLine()`. `readLine()`
+        # here reads actually length prefixed string.
         var line = await stream.transp.readLine()
-        check line == test
+        check line == expect
         testFuture.complete(line)
 
       await daemonNode.addHandler(protos, daemonHandler)
@@ -250,7 +260,7 @@ suite "Interop":
                                                            daemonPeer.addresses),
                                                            protos[0])
       await conn.writeLp(test & "\r\n")
-      result = test == (await wait(testFuture, 10.secs))
+      result = expect == (await wait(testFuture, 10.secs))
       await nativeNode.stop()
       await allFutures(awaiters)
       await daemonNode.close()
