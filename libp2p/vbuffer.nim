@@ -74,14 +74,14 @@ proc writeLPVarint*(vb: var VBuffer, value: LPSomeUVarint) =
   doAssert(res == VarintStatus.Success)
   vb.offset += length
 
-proc writeVarint*(vb: var VBuffer, value: LPSomeUVarint) = 
+proc writeVarint*(vb: var VBuffer, value: LPSomeUVarint) =
   writeLPVarint(vb, value)
 
 proc writeSeq*[T: byte|char](vb: var VBuffer, value: openarray[T]) =
   ## Write array ``value`` to buffer ``vb``, value will be prefixed with
   ## varint length of the array.
   var length = 0
-  vb.buffer.setLen(len(vb.buffer) + vsizeof(len(value)) + len(value))
+  vb.buffer.setLen(len(vb.buffer) + vsizeof(uint(len(value))) + len(value))
   let res = LP.putUVarint(toOpenArray(vb.buffer, vb.offset, len(vb.buffer) - 1),
                           length, uint(len(value)))
   doAssert(res == VarintStatus.Success)

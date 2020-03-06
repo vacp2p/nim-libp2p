@@ -8,8 +8,8 @@
 ## those terms.
 
 ## This module implementes API for `go-libp2p-daemon`.
-import os, osproc, strutils, tables, streams, strtabs
-import chronos, stew/base58
+import os, osproc, strutils, tables, strtabs
+import chronos
 import ../varint, ../multiaddress, ../multicodec, ../cid, ../peer
 import ../wire, ../multihash, ../protobuf/minprotobuf
 import ../crypto/crypto
@@ -175,7 +175,7 @@ proc requestConnect(peerid: PeerID,
   for item in addresses:
     msg.write(initProtoField(2, item.data.buffer))
   if timeout > 0:
-    msg.write(initProtoField(3, timeout))
+    msg.write(initProtoField(3, hint64(timeout)))
   result.write(initProtoField(1, cast[uint](RequestType.CONNECT)))
   result.write(initProtoField(2, msg))
   result.finish()
@@ -201,7 +201,7 @@ proc requestStreamOpen(peerid: PeerID,
   for item in protocols:
     msg.write(initProtoField(2, item))
   if timeout > 0:
-    msg.write(initProtoField(3, timeout))
+    msg.write(initProtoField(3, hint64(timeout)))
   result.write(initProtoField(1, cast[uint](RequestType.STREAM_OPEN)))
   result.write(initProtoField(3, msg))
   result.finish()
@@ -235,7 +235,7 @@ proc requestDHTFindPeer(peer: PeerID, timeout = 0): ProtoBuffer =
   msg.write(initProtoField(1, msgid))
   msg.write(initProtoField(2, peer))
   if timeout > 0:
-    msg.write(initProtoField(7, uint(timeout)))
+    msg.write(initProtoField(7, hint64(timeout)))
   msg.finish()
   result.write(initProtoField(1, cast[uint](RequestType.DHT)))
   result.write(initProtoField(5, msg))
@@ -251,7 +251,7 @@ proc requestDHTFindPeersConnectedToPeer(peer: PeerID,
   msg.write(initProtoField(1, msgid))
   msg.write(initProtoField(2, peer))
   if timeout > 0:
-    msg.write(initProtoField(7, uint(timeout)))
+    msg.write(initProtoField(7, hint64(timeout)))
   msg.finish()
   result.write(initProtoField(1, cast[uint](RequestType.DHT)))
   result.write(initProtoField(5, msg))
@@ -268,7 +268,7 @@ proc requestDHTFindProviders(cid: Cid,
   msg.write(initProtoField(3, cid.data.buffer))
   msg.write(initProtoField(6, count))
   if timeout > 0:
-    msg.write(initProtoField(7, uint(timeout)))
+    msg.write(initProtoField(7, hint64(timeout)))
   msg.finish()
   result.write(initProtoField(1, cast[uint](RequestType.DHT)))
   result.write(initProtoField(5, msg))
@@ -283,7 +283,7 @@ proc requestDHTGetClosestPeers(key: string, timeout = 0): ProtoBuffer =
   msg.write(initProtoField(1, msgid))
   msg.write(initProtoField(4, key))
   if timeout > 0:
-    msg.write(initProtoField(7, uint(timeout)))
+    msg.write(initProtoField(7, hint64(timeout)))
   msg.finish()
   result.write(initProtoField(1, cast[uint](RequestType.DHT)))
   result.write(initProtoField(5, msg))
@@ -298,7 +298,7 @@ proc requestDHTGetPublicKey(peer: PeerID, timeout = 0): ProtoBuffer =
   msg.write(initProtoField(1, msgid))
   msg.write(initProtoField(2, peer))
   if timeout > 0:
-    msg.write(initProtoField(7, uint(timeout)))
+    msg.write(initProtoField(7, hint64(timeout)))
   msg.finish()
   result.write(initProtoField(1, cast[uint](RequestType.DHT)))
   result.write(initProtoField(5, msg))
@@ -313,7 +313,7 @@ proc requestDHTGetValue(key: string, timeout = 0): ProtoBuffer =
   msg.write(initProtoField(1, msgid))
   msg.write(initProtoField(4, key))
   if timeout > 0:
-    msg.write(initProtoField(7, uint(timeout)))
+    msg.write(initProtoField(7, hint64(timeout)))
   msg.finish()
   result.write(initProtoField(1, cast[uint](RequestType.DHT)))
   result.write(initProtoField(5, msg))
@@ -328,7 +328,7 @@ proc requestDHTSearchValue(key: string, timeout = 0): ProtoBuffer =
   msg.write(initProtoField(1, msgid))
   msg.write(initProtoField(4, key))
   if timeout > 0:
-    msg.write(initProtoField(7, uint(timeout)))
+    msg.write(initProtoField(7, hint64(timeout)))
   msg.finish()
   result.write(initProtoField(1, cast[uint](RequestType.DHT)))
   result.write(initProtoField(5, msg))
@@ -345,7 +345,7 @@ proc requestDHTPutValue(key: string, value: openarray[byte],
   msg.write(initProtoField(4, key))
   msg.write(initProtoField(5, value))
   if timeout > 0:
-    msg.write(initProtoField(7, uint(timeout)))
+    msg.write(initProtoField(7, hint64(timeout)))
   msg.finish()
   result.write(initProtoField(1, cast[uint](RequestType.DHT)))
   result.write(initProtoField(5, msg))
@@ -360,7 +360,7 @@ proc requestDHTProvide(cid: Cid, timeout = 0): ProtoBuffer =
   msg.write(initProtoField(1, msgid))
   msg.write(initProtoField(3, cid.data.buffer))
   if timeout > 0:
-    msg.write(initProtoField(7, uint(timeout)))
+    msg.write(initProtoField(7, hint64(timeout)))
   msg.finish()
   result.write(initProtoField(1, cast[uint](RequestType.DHT)))
   result.write(initProtoField(5, msg))
@@ -374,7 +374,7 @@ proc requestCMTagPeer(peer: PeerID, tag: string, weight: int): ProtoBuffer =
   msg.write(initProtoField(1, msgid))
   msg.write(initProtoField(2, peer))
   msg.write(initProtoField(3, tag))
-  msg.write(initProtoField(4, weight))
+  msg.write(initProtoField(4, hint64(weight)))
   msg.finish()
   result.write(initProtoField(1, cast[uint](RequestType.CONNMANAGER)))
   result.write(initProtoField(6, msg))
@@ -949,7 +949,6 @@ proc listPeers*(api: DaemonAPI): Future[seq[PeerInfo]] {.async.} =
   try:
     var pb = await transp.transactMessage(requestListPeers())
     pb.withMessage() do:
-      var address = newSeq[byte]()
       result = newSeq[PeerInfo]()
       var res = pb.enterSubmessage()
       while res != 0:
