@@ -64,7 +64,7 @@ proc select*(m: MultistreamSelect,
   result = cast[string]((await conn.readLp())) # read ms header
   result.removeSuffix("\n")
   if result != Codec:
-    error "handshake failed", codec = result.toHex()
+    error "handshake failed", codec = result
     raise newMultistreamHandshakeException()
 
   if proto.len() == 0: # no protocols, must be a handshake call

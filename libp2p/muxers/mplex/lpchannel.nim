@@ -11,7 +11,7 @@ import chronos, chronicles
 import types,
        coder,
        nimcrypto/utils,
-       ../../stream/bufferstream,
+       ../../stream/simplestream,
        ../../stream/lpstream,
        ../../connection
 
@@ -19,7 +19,7 @@ logScope:
   topic = "MplexChannel"
 
 type
-  LPChannel* = ref object of BufferStream
+  LPChannel* = ref object of SimpleStream
     id*: uint
     name*: string
     conn*: Connection
@@ -33,6 +33,7 @@ type
     msgCode*: MessageType
     closeCode*: MessageType
     resetCode*: MessageType
+    readerFuture*: Future[seq[byte]]
 
 proc newChannel*(id: uint,
                  conn: Connection,
@@ -53,13 +54,22 @@ proc newChannel*(id: uint,
   let chan = result
   proc writeHandler(data: seq[byte]): Future[void] {.async.} =
     # writes should happen in sequence
-    trace "sending data ", data = data.toHex(),
-                           id = chan.id,
-                           initiator = chan.initiator
+    trace "sending data", data = data.toHex(),
+                          id = chan.id,
+                          initiator = chan.initiator
 
     await conn.writeMsg(chan.id, chan.msgCode, data) # write header
 
-  result.initBufferStream(writeHandler, size)
+  proc readHandler(): Future[seq[byte]] {.async.} =
+    # writes should happen in sequence
+    trace "registering reader future", id = chan.id, initiator = chan.initiator
+    doAssert chan.readerFuture == nil
+    chan.readerFuture = newFuture[seq[byte]]("LPChannel.readHandler")
+    let data = await chan.readerFuture
+    trace "got data", id = chan.id, initiator = chan.initiator, data = data.toHex(), len = data.len()
+    return data
+
+  result.initSimpleStream(writeHandler, readHandler, size)
 
 proc closeMessage(s: LPChannel) {.async.} =
   await s.conn.writeMsg(s.id, s.closeCode) # write header
@@ -71,7 +81,7 @@ proc cleanUp*(s: LPChannel): Future[void] =
   # method which calls the underlying buffer's `close`
   # method used instead of `close` since it's overloaded to
   # simulate half-closed streams
-  result = procCall close(BufferStream(s))
+  result = procCall close(SimpleStream(s))
 
 proc open*(s: LPChannel): Future[void] =
   s.isOpen = true
@@ -94,17 +104,18 @@ proc reset*(s: LPChannel) {.async.} =
 method closed*(s: LPChannel): bool =
   result = s.closedRemote and s.len == 0
 
-proc pushTo*(s: LPChannel, data: seq[byte]): Future[void] =
-  if s.closedRemote or s.isReset:
-    var retFuture = newFuture[void]("LPChannel.pushTo")
-    retFuture.fail(newLPStreamEOFError())
-    return retFuture
-
-  trace "pushing data to channel", data = data.toHex(),
-                                   id = s.id,
-                                   initiator = s.initiator
-
-  result = procCall pushTo(BufferStream(s), data)
+proc pushTo*(s: LPChannel, data: seq[byte]) =
+  if s.readerFuture != nil:
+    trace "pushing data to reader future",
+      data = data.toHex(),
+      id = s.id,
+      initiator = s.initiator
+    s.readerFuture.complete(data)
+    s.readerFuture = nil
+  else:
+    trace "no reader future", data = data.toHex(),
+      id = s.id,
+      initiator = s.initiator
 
 method read*(s: LPChannel, n = -1): Future[seq[byte]] =
   if s.closed or s.isReset:
@@ -112,7 +123,7 @@ method read*(s: LPChannel, n = -1): Future[seq[byte]] =
     retFuture.fail(newLPStreamEOFError())
     return retFuture
 
-  result = procCall read(BufferStream(s), n)
+  result = procCall read(SimpleStream(s), n)
 
 method readExactly*(s: LPChannel,
                     pbytes: pointer,
@@ -123,7 +134,7 @@ method readExactly*(s: LPChannel,
     retFuture.fail(newLPStreamEOFError())
     return retFuture
 
-  result = procCall readExactly(BufferStream(s), pbytes, nbytes)
+  result = procCall readExactly(SimpleStream(s), pbytes, nbytes)
 
 method readLine*(s: LPChannel,
                  limit = 0,
@@ -134,7 +145,7 @@ method readLine*(s: LPChannel,
     retFuture.fail(newLPStreamEOFError())
     return retFuture
 
-  result = procCall readLine(BufferStream(s), limit, sep)
+  result = procCall readLine(SimpleStream(s), limit, sep)
 
 method readOnce*(s: LPChannel,
                  pbytes: pointer,
@@ -145,7 +156,7 @@ method readOnce*(s: LPChannel,
     retFuture.fail(newLPStreamEOFError())
     return retFuture
 
-  result = procCall readOnce(BufferStream(s), pbytes, nbytes)
+  result = procCall readOnce(SimpleStream(s), pbytes, nbytes)
 
 method readUntil*(s: LPChannel,
                   pbytes: pointer, nbytes: int,
@@ -156,7 +167,7 @@ method readUntil*(s: LPChannel,
     retFuture.fail(newLPStreamEOFError())
     return retFuture
 
-  result = procCall readOnce(BufferStream(s), pbytes, nbytes)
+  result = procCall readOnce(SimpleStream(s), pbytes, nbytes)
 
 template writePrefix: untyped =
   if s.isLazy and not s.isOpen:
@@ -166,12 +177,12 @@ template writePrefix: untyped =
 
 method write*(s: LPChannel, pbytes: pointer, nbytes: int) {.async.} =
   writePrefix()
-  await procCall write(BufferStream(s), pbytes, nbytes)
+  await procCall write(SimpleStream(s), pbytes, nbytes)
 
 method write*(s: LPChannel, msg: string, msglen = -1) {.async.} =
   writePrefix()
-  await procCall write(BufferStream(s), msg, msglen)
+  await procCall write(SimpleStream(s), msg, msglen)
 
 method write*(s: LPChannel, msg: seq[byte], msglen = -1) {.async.} =
   writePrefix()
-  await procCall write(BufferStream(s), msg, msglen)
+  await procCall write(SimpleStream(s), msg, msglen)

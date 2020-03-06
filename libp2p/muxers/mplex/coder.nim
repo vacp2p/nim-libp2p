@@ -57,7 +57,7 @@ proc readMsg*(conn: Connection): Future[Msg] {.async, gcsafe.} =
   var data: seq[byte]
   if dataLenVarint.int > 0:
     data = await conn.read(dataLenVarint.int)
-    trace "read data", data = data
+    trace "read data", len = data.len(), data = data
 
   let header = headerVarint
   result = (header shr 3, MessageType(header and 0x7), data)

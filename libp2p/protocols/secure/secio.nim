@@ -15,9 +15,8 @@ import secure,
        ../../stream/lpstream,
        ../../crypto/crypto,
        ../../crypto/ecnist,
-       ../../protobuf/minprotobuf,
        ../../peer,
-       ../../stream/bufferstream
+       ../../stream/simplestream
 export hmac, sha2, sha, hash, rijndael, bcmode
 
 logScope:
@@ -414,30 +413,19 @@ proc handshake(s: Secio, conn: Connection): Future[SecureConnection] {.async.} =
   else:
     trace "Secure handshake succeeded"
 
-proc readLoop(sconn: SecureConnection, stream: BufferStream) {.async.} =
-  try:
-    while not sconn.closed:
-      let msg = await sconn.readMessage()
-      if msg.len == 0:
-        trace "stream EOF"
-        return
-
-      await stream.pushTo(msg)
-  except CatchableError as exc:
-    trace "exception occurred SecureConnection.readLoop", exc = exc.msg
-  finally:
-    if not sconn.closed:
-      await sconn.close()
-    trace "ending secio readLoop", isclosed = sconn.closed()
-
 proc handleConn(s: Secio, conn: Connection): Future[Connection] {.async, gcsafe.} =
   var sconn = await s.handshake(conn)
   proc writeHandler(data: seq[byte]) {.async, gcsafe.} =
-    trace "sending encrypted bytes", bytes = data.toHex()
+    trace "sending encrypted bytes", len = data.len(), bytes = data.toHex()
     await sconn.writeMessage(data)
 
-  var stream = newBufferStream(writeHandler)
-  asyncCheck readLoop(sconn, stream)
+  proc readHandler(): Future[seq[byte]] {.async, gcsafe.} =
+    let data = await sconn.readMessage()
+    trace "received encrypted bytes", len = data.len(), bytes = data.toHex()
+    return data
+
+  var stream = newSimpleStream(writeHandler, readHandler)
+
   result = newConnection(stream)
   result.closeEvent.wait()
     .addCallback do (udata: pointer):

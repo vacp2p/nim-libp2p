@@ -11,7 +11,7 @@
 ## Timeouts and message limits are still missing
 ## they need to be added ASAP
 
-import tables, sequtils, options
+import tables, sequtils, options, stew/byteutils
 import chronos, chronicles
 import ../muxer,
        ../../connection,
@@ -69,7 +69,8 @@ method handle*(m: Mplex) {.async, gcsafe.} =
       let (id, msgType, data) = await m.connection.readMsg()
       trace "read message from connection", id = id,
                                             msgType = msgType,
-                                            data = data
+                                            data = data.toHex(),
+                                            len = data.len()
       let initiator = bool(ord(msgType) and 1)
       var channel: LPChannel
       if MessageType(msgType) != MessageType.New:
@@ -105,7 +106,7 @@ method handle*(m: Mplex) {.async, gcsafe.} =
 
           if data.len > MaxMsgSize:
             raise newLPStreamLimitError();
-          await channel.pushTo(data)
+          channel.pushTo(data)
         of MessageType.CloseIn, MessageType.CloseOut:
           trace "closing channel", id = id,
                                    initiator = initiator,

@@ -402,7 +402,7 @@ suite "Mplex":
       proc writeHandler(data: seq[byte]) {.async, gcsafe.} = discard
       let chann = newChannel(1, newConnection(newBufferStream(writeHandler)), true)
       await chann.closedByRemote()
-      await chann.pushTo(@[byte(1)])
+      chann.pushTo(@[byte(1)])
 
     expect LPStreamEOFError:
       waitFor(testResetWrite())

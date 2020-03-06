@@ -14,8 +14,6 @@ logScope:
   topic = "ChronosStream"
 
 type ChronosStream* = ref object of LPStream
-    reader: AsyncStreamReader
-    writer: AsyncStreamWriter
     server: StreamServer
     client: StreamTransport
 
@@ -24,128 +22,63 @@ proc newChronosStream*(server: StreamServer,
   new result
   result.server = server
   result.client = client
-  result.reader = newAsyncStreamReader(client)
-  result.writer = newAsyncStreamWriter(client)
   result.closeEvent = newAsyncEvent()
 
-method read*(s: ChronosStream, n = -1): Future[seq[byte]] {.async.} =
-  if s.reader.atEof:
-    raise newLPStreamEOFError()
-
+template withExceptions(body: untyped) =
   try:
-    result = await s.reader.read(n)
-  except AsyncStreamReadError as exc:
-    raise newLPStreamReadError(exc.par)
+    body
+  except AsyncStreamIncompleteError:
+    raise newLPStreamIncompleteError()
+  except AsyncStreamLimitError:
+    raise newLPStreamLimitError()
   except AsyncStreamIncorrectError as exc:
     raise newLPStreamIncorrectError(exc.msg)
+
+method read*(s: ChronosStream, n = -1): Future[seq[byte]] {.async.} =
+  withExceptions:
+    result = await s.client.read(n)
 
 method readExactly*(s: ChronosStream,
                     pbytes: pointer,
                     nbytes: int): Future[void] {.async.} =
-  if s.reader.atEof:
-    raise newLPStreamEOFError()
-
-  try:
-    await s.reader.readExactly(pbytes, nbytes)
-  except AsyncStreamIncompleteError:
-    raise newLPStreamIncompleteError()
-  except AsyncStreamReadError as exc:
-    raise newLPStreamReadError(exc.par)
-  except AsyncStreamIncorrectError as exc:
-    raise newLPStreamIncorrectError(exc.msg)
+  withExceptions:
+    await s.client.readExactly(pbytes, nbytes)
 
 method readLine*(s: ChronosStream, limit = 0, sep = "\r\n"): Future[string] {.async.} =
-  if s.reader.atEof:
-    raise newLPStreamEOFError()
-
-  try:
-    result = await s.reader.readLine(limit, sep)
-  except AsyncStreamReadError as exc:
-    raise newLPStreamReadError(exc.par)
-  except AsyncStreamIncorrectError as exc:
-    raise newLPStreamIncorrectError(exc.msg)
+  withExceptions:
+    result = await s.client.readLine(limit, sep)
 
 method readOnce*(s: ChronosStream, pbytes: pointer, nbytes: int): Future[int] {.async.} =
-  if s.reader.atEof:
-    raise newLPStreamEOFError()
-
-  try:
-    result = await s.reader.readOnce(pbytes, nbytes)
-  except AsyncStreamReadError as exc:
-    raise newLPStreamReadError(exc.par)
-  except AsyncStreamIncorrectError as exc:
-    raise newLPStreamIncorrectError(exc.msg)
+  withExceptions:
+    result = await s.client.readOnce(pbytes, nbytes)
 
 method readUntil*(s: ChronosStream,
                   pbytes: pointer,
                   nbytes: int,
                   sep: seq[byte]): Future[int] {.async.} =
-  if s.reader.atEof:
-    raise newLPStreamEOFError()
-
-  try:
-    result = await s.reader.readUntil(pbytes, nbytes, sep)
-  except AsyncStreamIncompleteError:
-    raise newLPStreamIncompleteError()
-  except AsyncStreamLimitError:
-    raise newLPStreamLimitError()
-  except LPStreamReadError as exc:
-    raise newLPStreamReadError(exc.par)
-  except AsyncStreamIncorrectError as exc:
-    raise newLPStreamIncorrectError(exc.msg)
+  withExceptions:
+    result = await s.client.readUntil(pbytes, nbytes, sep)
 
 method write*(s: ChronosStream, pbytes: pointer, nbytes: int) {.async.} =
-  if s.writer.atEof:
-    raise newLPStreamEOFError()
-
-  try:
-    await s.writer.write(pbytes, nbytes)
-  except AsyncStreamWriteError as exc:
-    raise newLPStreamWriteError(exc.par)
-  except AsyncStreamIncompleteError:
-    raise newLPStreamIncompleteError()
-  except AsyncStreamIncorrectError as exc:
-    raise newLPStreamIncorrectError(exc.msg)
+  withExceptions:
+    discard await s.client.write(pbytes, nbytes)
 
 method write*(s: ChronosStream, msg: string, msglen = -1) {.async.} =
-  if s.writer.atEof:
-    raise newLPStreamEOFError()
-
-  try:
-    await s.writer.write(msg, msglen)
-  except AsyncStreamWriteError as exc:
-    raise newLPStreamWriteError(exc.par)
-  except AsyncStreamIncompleteError:
-    raise newLPStreamIncompleteError()
-  except AsyncStreamIncorrectError as exc:
-    raise newLPStreamIncorrectError(exc.msg)
+  withExceptions:
+    # TODO do something about return value here
+    discard await s.client.write(msg, msglen)
 
 method write*(s: ChronosStream, msg: seq[byte], msglen = -1) {.async.} =
-  if s.writer.atEof:
-    raise newLPStreamEOFError()
-
-  try:
-    await s.writer.write(msg, msglen)
-  except AsyncStreamWriteError as exc:
-    raise newLPStreamWriteError(exc.par)
-  except AsyncStreamIncompleteError:
-    raise newLPStreamIncompleteError()
-  except AsyncStreamIncorrectError as exc:
-    raise newLPStreamIncorrectError(exc.msg)
+  withExceptions:
+    discard await s.client.write(msg, msglen)
 
 method closed*(s: ChronosStream): bool {.inline.} =
   # TODO: we might only need to check for reader's EOF
-  result = s.reader.atEof()
+  result = s.client.closed()
 
 method close*(s: ChronosStream) {.async.} =
   if not s.closed:
     trace "shutting chronos stream", address = $s.client.remoteAddress()
-    if not s.writer.closed():
-      await s.writer.closeWait()
-
-    if not s.reader.closed():
-      await s.reader.closeWait()
-
     if not s.client.closed():
       await s.client.closeWait()
 
