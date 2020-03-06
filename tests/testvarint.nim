@@ -429,3 +429,35 @@ suite "Variable integer test suite":
       LP.getUVarint(@[0x80'u8, 0x00'u8], length, value) == VarintStatus.Overlong
       length == 0
       value == 0
+
+  test "getVarint/putVarint tests":
+    proc `==`(a, b: zint32|hint32): bool =
+      int32(a) == int32(b)
+    proc `==`(a, b: zint64|hint64): bool =
+      int64(a) == int64(b)
+
+    template varintTest(ttype, vtype, value, expect: untyped) =
+      var ovalue: vtype
+      var buffer = newSeq[byte](10)
+      var length = 0
+      check ttype.putVarint(buffer, length, value) == VarintStatus.Success
+      buffer.setLen(length)
+      check:
+        toHex(buffer) == expect
+        ttype.getVarint(buffer, length, ovalue) == VarintStatus.Success
+        ovalue == value
+
+    varintTest(PB, uint64, high(uint64), "FFFFFFFFFFFFFFFFFF01")
+    varintTest(PB, uint32, high(uint32), "FFFFFFFF0F")
+    varintTest(PB, zint64, zint64(high(int64)), "FEFFFFFFFFFFFFFFFF01")
+    varintTest(PB, zint32, zint32(high(int32)), "FEFFFFFF0F")
+    varintTest(PB, zint64, zint64(low(int64)), "FFFFFFFFFFFFFFFFFF01")
+    varintTest(PB, zint32, zint32(low(int32)), "FFFFFFFF0F")
+    varintTest(PB, hint64, hint64(high(int64)), "FFFFFFFFFFFFFFFF7F")
+    varintTest(PB, hint32, hint32(high(int32)), "FFFFFFFF07")
+    varintTest(PB, hint64, hint64(low(int64)), "80808080808080808001")
+    varintTest(PB, hint32, hint32(low(int32)), "8080808008")
+    varintTest(LP, uint64, uint64(high(int64)), "FFFFFFFFFFFFFFFF7F")
+    varintTest(LP, uint32, uint32(high(uint32)), "FFFFFFFF0F")
+    varintTest(LP, uint16, uint16(high(uint16)), "FFFF03")
+    varintTest(LP, uint8, uint8(high(uint8)), "FF01")

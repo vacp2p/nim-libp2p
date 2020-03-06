@@ -15,7 +15,7 @@
 ## - LibP2P varint, which is able to encode only 63bits of uint64 number and
 ##   maximum size of encoded value is 9 octets (bytes).
 ##   https://github.com/multiformats/unsigned-varint
-import bitops
+import bitops, typetraits
 
 type
   VarintStatus* {.pure.} = enum
@@ -312,6 +312,45 @@ proc putSVarint*(pbytes: var openarray[byte], outsize: var int,
     result = PB.putUVarint(pbytes, outsize, uint64(outval))
   else:
     result = PB.putUVarint(pbytes, outsize, uint32(outval))
+
+template varintFatal(msg) =
+  const m = msg
+  {.fatal: m.}
+
+proc putVarint*[T: PB|LP](vtype: typedesc[T], pbytes: var openarray[byte],
+                nbytes: var int, value: SomeVarint): VarintStatus {.inline.} =
+  when vtype is PB:
+    when (type(value) is PBSomeSVarint) or (type(value) is PBZigVarint):
+      result = putSVarint(pbytes, nbytes, value)
+    elif (type(value) is PBSomeUVarint):
+      result = PB.putUVarint(pbytes, nbytes, value)
+    else:
+      varintFatal("Protobuf's varint do not support type [" &
+                  typetraits.name(type(value)) & "]")
+  elif vtype is LP:
+    when (type(value) is LPSomeVarint):
+      result = LP.putUVarint(pbytes, nbytes, value)
+    else:
+      varintFatal("LibP2P's varint do not support type [" &
+                   typetraits.name(type(value)) & "]")
+
+proc getVarint*[T: PB|LP](vtype: typedesc[T], pbytes: openarray[byte],
+                          nbytes: var int,
+                          value: var SomeVarint): VarintStatus {.inline.} =
+  when vtype is PB:
+    when (type(value) is PBSomeSVarint) or (type(value) is PBZigVarint):
+      result = getSVarint(pbytes, nbytes, value)
+    elif (type(value) is PBSomeUVarint):
+      result = PB.getUVarint(pbytes, nbytes, value)
+    else:
+      varintFatal("Protobuf's varint do not support type [" &
+                  typetraits.name(type(value)) & "]")
+  elif vtype is LP:
+    when (type(value) is LPSomeVarint):
+      result = LP.getUVarint(pbytes, nbytes, value)
+    else:
+      varintFatal("LibP2P's varint do not support type [" &
+                   typetraits.name(type(value)) & "]")
 
 proc encodeVarint*(vtype: typedesc[PB],
                    value: PBSomeVarint): seq[byte] {.inline.} =
