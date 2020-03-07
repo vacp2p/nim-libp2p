@@ -150,7 +150,7 @@ proc encodeSubs*(subs: SubOpts, pb: var ProtoBuffer) {.gcsafe.} =
 proc decodeSubs*(pb: var ProtoBuffer): seq[SubOpts] {.gcsafe.} =
   while true:
     var subOpt: SubOpts
-    var subscr: int
+    var subscr: uint
     discard pb.getVarintValue(1, subscr)
     subOpt.subscribe = cast[bool](subscr)
     trace "read subscribe field", subscribe = subOpt.subscribe
