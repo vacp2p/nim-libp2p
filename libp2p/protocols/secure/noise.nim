@@ -117,7 +117,7 @@ proc encryptWithAd(state: var CipherState, ad, data: openarray[byte]): seq[byte]
   if state.n > NonceMax:
     raise newException(NoiseNonceMaxError, "Noise max nonce value reached")
   result &= tag
-  trace "encryptWithAd", tag = tag.toHex
+  trace "encryptWithAd", tag = byteutils.toHex(tag)
 
 proc decryptWithAd(state: var CipherState, ad, data: openarray[byte]): seq[byte] =
   var
@@ -128,7 +128,7 @@ proc decryptWithAd(state: var CipherState, ad, data: openarray[byte]): seq[byte]
   np[] = state.n
   result = data[0..(data.high - ChaChaPolyTag.len)]
   ChaChaPoly.decrypt(state.k, nonce, tagOut, result, ad)
-  trace "decryptWithAd", tagIn = tagIn.toHex, tagOut=tagOut.toHex
+  trace "decryptWithAd", tagIn = byteutils.toHex(tagIn), tagOut=byteutils.toHex(tagOut)
   if tagIn != tagOut:
     raise newException(NoiseDecryptTagError, "decryptWithAd failed tag authentication.")
   inc state.n
@@ -455,11 +455,11 @@ proc readLoop*(sconn: NoiseConnection, stream: BufferStream) {.async.} =
     if not sconn.closed:
       await sconn.close()
     const msg = "ending Noise readLoop"
-    trace msg, isclosed = sconn.closed() p
+    trace msg, isclosed = sconn.closed()
 
 proc startLifetime*(sconn: NoiseConnection): Future[Connection] {.async.} =
   proc writeHandler(data: seq[byte]) {.async, gcsafe.} =
-    trace "sending encrypted bytes", bytes = data.toHex()
+    trace "sending encrypted bytes", bytes = byteutils.toHex(data)
     await sconn.writeMessage(data)
 
   var stream = newBufferStream(writeHandler)
@@ -524,7 +524,7 @@ proc handshake*(p: Noise, conn: Connection, initiator: bool): Future[NoiseConnec
     secure.readCs = handshakeRes.cs1
     secure.writeCs = handshakeRes.cs2
 
-  trace "Noise handshake completed!"
+  debug "Noise handshake completed!"
 
   return secure
  
