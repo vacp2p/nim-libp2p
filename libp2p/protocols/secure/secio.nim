@@ -418,14 +418,6 @@ method init(s: Secio) {.gcsafe.} =
   procCall Secure(s).init()
   s.codec = SecioCodec
 
-method secure*(s: Secio, conn: Connection): Future[Connection] {.async, gcsafe.} =
-  try:
-    result = await s.handleConn(conn)
-  except CatchableError as exc:
-    warn "securing connection failed", msg = exc.msg
-    if not conn.closed():
-      await conn.close()
-
 proc newSecio*(localPrivateKey: PrivateKey): Secio =
   new result
   result.localPrivateKey = localPrivateKey
