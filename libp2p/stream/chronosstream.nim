@@ -27,11 +27,11 @@ proc newChronosStream*(server: StreamServer,
 template withExceptions(body: untyped) =
   try:
     body
-  except AsyncStreamIncompleteError:
+  except TransportIncompleteError:
     raise newLPStreamIncompleteError()
-  except AsyncStreamLimitError:
+  except TransportLimitError:
     raise newLPStreamLimitError()
-  except AsyncStreamIncorrectError as exc:
+  except TransportError as exc:
     raise newLPStreamIncorrectError(exc.msg)
 
 method read*(s: ChronosStream, n = -1): Future[seq[byte]] {.async.} =

@@ -119,7 +119,12 @@ suite "TCP transport":
     proc testListenerDialer(): Future[bool] {.async.} =
       let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
       proc connHandler(conn: Connection): Future[void] {.async, gcsafe.} =
-        let msg = await conn.read(6)
+        # TODO: chronos ``read`` is broken!
+        # let msg = await conn.read(6)
+
+        var msg = newSeq[byte](6)
+        await conn.readExactly(addr msg[0], 6)
+        echo cast[string](msg)
         check cast[string](msg) == "Hello!"
 
       let transport1: TcpTransport = newTransport(TcpTransport)
@@ -127,7 +132,7 @@ suite "TCP transport":
 
       let transport2: TcpTransport = newTransport(TcpTransport)
       let conn = await transport2.dial(transport1.ma)
-      await conn.write(cstring("Hello!"), 6)
+      await conn.write("Hello!", 6)
       await transport1.close()
       result = true
 

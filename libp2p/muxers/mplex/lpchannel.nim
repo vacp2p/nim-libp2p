@@ -33,7 +33,7 @@ type
     msgCode*: MessageType
     closeCode*: MessageType
     resetCode*: MessageType
-    readerFuture*: Future[seq[byte]]
+    readerFuture*: AsyncQueue[seq[byte]]
 
 proc newChannel*(id: uint,
                  conn: Connection,
@@ -49,6 +49,7 @@ proc newChannel*(id: uint,
   result.msgCode = if initiator: MessageType.MsgOut else: MessageType.MsgIn
   result.closeCode = if initiator: MessageType.CloseOut else: MessageType.CloseIn
   result.resetCode = if initiator: MessageType.ResetOut else: MessageType.ResetIn
+  result.readerFuture = newAsyncQueue[seq[byte]](1)
   result.isLazy = lazy
 
   let chan = result
@@ -62,11 +63,13 @@ proc newChannel*(id: uint,
 
   proc readHandler(): Future[seq[byte]] {.async.} =
     # writes should happen in sequence
-    trace "registering reader future", id = chan.id, initiator = chan.initiator
-    doAssert chan.readerFuture == nil
-    chan.readerFuture = newFuture[seq[byte]]("LPChannel.readHandler")
-    let data = await chan.readerFuture
-    trace "got data", id = chan.id, initiator = chan.initiator, data = data.toHex(), len = data.len()
+    trace "registering reader future", id = chan.id,
+                                       initiator = chan.initiator
+    let data = await chan.readerFuture.get()
+    trace "got data", id = chan.id,
+                      initiator = chan.initiator,
+                      data = data.toHex(),
+                      len = data.len()
     return data
 
   result.initSimpleStream(writeHandler, readHandler, size)
@@ -104,18 +107,15 @@ proc reset*(s: LPChannel) {.async.} =
 method closed*(s: LPChannel): bool =
   result = s.closedRemote and s.len == 0
 
-proc pushTo*(s: LPChannel, data: seq[byte]) =
-  if s.readerFuture != nil:
-    trace "pushing data to reader future",
-      data = data.toHex(),
-      id = s.id,
-      initiator = s.initiator
-    s.readerFuture.complete(data)
-    s.readerFuture = nil
-  else:
-    trace "no reader future", data = data.toHex(),
-      id = s.id,
-      initiator = s.initiator
+proc pushTo*(s: LPChannel, data: seq[byte]) {.async.} =
+  if s.closedRemote or s.isReset:
+    raise newLPStreamEOFError()
+
+  trace "pushing data to reader future",
+    data = data.toHex(),
+    id = s.id,
+    initiator = s.initiator
+  await s.readerFuture.put(data)
 
 method read*(s: LPChannel, n = -1): Future[seq[byte]] =
   if s.closed or s.isReset:
