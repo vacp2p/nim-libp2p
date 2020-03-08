@@ -28,39 +28,39 @@ import ../libp2p/[switch,
                   protocols/secure/noise,
                   protocols/secure/secure]
 
-# const TestCodec = "/test/proto/1.0.0"
+const TestCodec = "/test/proto/1.0.0"
 
-# type
-#   TestProto = ref object of LPProtocol
+type
+  TestProto = ref object of LPProtocol
 
-# method init(p: TestProto) {.gcsafe.} =
-#   proc handle(conn: Connection, proto: string) {.async, gcsafe.} =
-#     let msg = cast[string](await conn.readLp())
-#     check "Hello!" == msg
-#     await conn.writeLp("Hello!")
-#     await conn.close()
+method init(p: TestProto) {.gcsafe.} =
+  proc handle(conn: Connection, proto: string) {.async, gcsafe.} =
+    let msg = cast[string](await conn.readLp())
+    check "Hello!" == msg
+    await conn.writeLp("Hello!")
+    await conn.close()
 
-#   p.codec = TestCodec
-#   p.handler = handle
+  p.codec = TestCodec
+  p.handler = handle
 
-# proc createSwitch(ma: MultiAddress): (Switch, PeerInfo) =
-#   var peerInfo: PeerInfo = PeerInfo.init(PrivateKey.random(RSA))
-#   peerInfo.addrs.add(ma)
-#   let identify = newIdentify(peerInfo)
+proc createSwitch(ma: MultiAddress): (Switch, PeerInfo) =
+  var peerInfo: PeerInfo = PeerInfo.init(PrivateKey.random(RSA))
+  peerInfo.addrs.add(ma)
+  let identify = newIdentify(peerInfo)
 
-#   proc createMplex(conn: Connection): Muxer =
-#     result = newMplex(conn)
+  proc createMplex(conn: Connection): Muxer =
+    result = newMplex(conn)
 
-#   let mplexProvider = newMuxerProvider(createMplex, MplexCodec)
-#   let transports = @[Transport(newTransport(TcpTransport))]
-#   let muxers = [(MplexCodec, mplexProvider)].toTable()
-#   let secureManagers = [(NoiseCodec, Secure(newNoise(peerInfo.privateKey)))].toTable()
-#   let switch = newSwitch(peerInfo,
-#                          transports,
-#                          identify,
-#                          muxers,
-#                          secureManagers)
-#   result = (switch, peerInfo)
+  let mplexProvider = newMuxerProvider(createMplex, MplexCodec)
+  let transports = @[Transport(newTransport(TcpTransport))]
+  let muxers = [(MplexCodec, mplexProvider)].toTable()
+  let secureManagers = [(NoiseCodec, Secure(newNoise(peerInfo.privateKey)))].toTable()
+  let switch = newSwitch(peerInfo,
+                         transports,
+                         identify,
+                         muxers,
+                         secureManagers)
+  result = (switch, peerInfo)
 
 suite "Noise":
   test "e2e: handle write + noise":
@@ -134,35 +134,35 @@ suite "Noise":
     check:
       waitFor(testListenerDialer()) == true
 
-  # test "e2e use switch dial proto string":
-  #   proc testSwitch(): Future[bool] {.async, gcsafe.} =
-  #     let ma1: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
-  #     let ma2: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
+  test "e2e use switch dial proto string":
+    proc testSwitch(): Future[bool] {.async, gcsafe.} =
+      let ma1: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
+      let ma2: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
 
-  #     var peerInfo1, peerInfo2: PeerInfo
-  #     var switch1, switch2: Switch
-  #     var awaiters: seq[Future[void]]
+      var peerInfo1, peerInfo2: PeerInfo
+      var switch1, switch2: Switch
+      var awaiters: seq[Future[void]]
 
-  #     (switch1, peerInfo1) = createSwitch(ma1)
+      (switch1, peerInfo1) = createSwitch(ma1)
 
-  #     let testProto = new TestProto
-  #     testProto.init()
-  #     testProto.codec = TestCodec
-  #     switch1.mount(testProto)
-  #     (switch2, peerInfo2) = createSwitch(ma2)
-  #     awaiters.add(await switch1.start())
-  #     awaiters.add(await switch2.start())
-  #     let conn = await switch2.dial(switch1.peerInfo, TestCodec)
-  #     await conn.writeLp("Hello!")
-  #     let msg = cast[string](await conn.readLp())
-  #     check "Hello!" == msg
+      let testProto = new TestProto
+      testProto.init()
+      testProto.codec = TestCodec
+      switch1.mount(testProto)
+      (switch2, peerInfo2) = createSwitch(ma2)
+      awaiters.add(await switch1.start())
+      awaiters.add(await switch2.start())
+      let conn = await switch2.dial(switch1.peerInfo, TestCodec)
+      await conn.writeLp("Hello!")
+      let msg = cast[string](await conn.readLp())
+      check "Hello!" == msg
 
-  #     await allFutures(switch1.stop(), switch2.stop())
-  #     await allFutures(awaiters)
-  #     result = true
+      await allFutures(switch1.stop(), switch2.stop())
+      await allFutures(awaiters)
+      result = true
 
-  #   check:
-  #     waitFor(testSwitch()) == true
+    check:
+      waitFor(testSwitch()) == true
 
   # test "interop with rust noise":
   #   when true: # disable cos in CI we got no interop server/client

@@ -117,7 +117,7 @@ proc encryptWithAd(state: var CipherState, ad, data: openarray[byte]): seq[byte]
   if state.n > NonceMax:
     raise newException(NoiseNonceMaxError, "Noise max nonce value reached")
   result &= tag
-  trace "encryptWithAd", tag = byteutils.toHex(tag)
+  trace "encryptWithAd", tag = byteutils.toHex(tag), data = byteutils.toHex(result), nonce = state.n - 1
 
 proc decryptWithAd(state: var CipherState, ad, data: openarray[byte]): seq[byte] =
   var
@@ -128,8 +128,9 @@ proc decryptWithAd(state: var CipherState, ad, data: openarray[byte]): seq[byte]
   np[] = state.n
   result = data[0..(data.high - ChaChaPolyTag.len)]
   ChaChaPoly.decrypt(state.k, nonce, tagOut, result, ad)
-  trace "decryptWithAd", tagIn = byteutils.toHex(tagIn), tagOut=byteutils.toHex(tagOut)
+  trace "decryptWithAd", tagIn = byteutils.toHex(tagIn), tagOut=byteutils.toHex(tagOut), nonce = state.n
   if tagIn != tagOut:
+    error "decryptWithAd failed", data = byteutils.toHex(data)
     raise newException(NoiseDecryptTagError, "decryptWithAd failed tag authentication.")
   inc state.n
   if state.n > NonceMax:
@@ -276,9 +277,6 @@ proc sendHSMessage(sconn: Connection; buf: seq[byte]) {.async.} =
   await sconn.write(buf)
 
 proc packNoisePayload(payload: openarray[byte]): seq[byte] =
-  if payload.len > uint16.high.int:
-    raise newException(NoiseOversizedPayloadError, "Trying to send an unsupported oversized payload over Noise")
-
   let
     noiselen = rand(2..31)
     plen = payload.len.uint16
@@ -292,6 +290,9 @@ proc packNoisePayload(payload: openarray[byte]): seq[byte] =
   result &= payload
   result &= noise
 
+  if result.len > uint16.high.int:
+    raise newException(NoiseOversizedPayloadError, "Trying to send an unsupported oversized payload over Noise")
+ 
   trace "packed noise payload", inSize = payload.len, outSize = result.len
 
 proc unpackNoisePayload(payload: var seq[byte]) =
@@ -328,7 +329,8 @@ proc sendEncryptedMessage(sconn: NoiseConnection; buf: seq[byte]) {.async.} =
     besize = lesize.toBytesBE
   trace "sendEncryptedMessage", size = lesize, peer = $sconn.peerInfo
   await sconn.write(addr besize[0], 2)
-  await sconn.write(cipher)
+  if cipher.len > 0:
+    await sconn.write(cipher)
   
 proc handshakeXXOutbound(p: Noise, conn: Connection, p2pProof: ProtoBuffer): Future[HandshakeResult] {.async.} =
   const initiator = true
@@ -459,7 +461,7 @@ proc readLoop*(sconn: NoiseConnection, stream: BufferStream) {.async.} =
 
 proc startLifetime*(sconn: NoiseConnection): Future[Connection] {.async.} =
   proc writeHandler(data: seq[byte]) {.async, gcsafe.} =
-    trace "sending encrypted bytes", bytes = byteutils.toHex(data)
+    trace "sending encrypted bytes", bytes = byteutils.toHex(data), size = data.len
     await sconn.writeMessage(data)
 
   var stream = newBufferStream(writeHandler)
