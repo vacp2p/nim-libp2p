@@ -22,7 +22,7 @@ type
 
 method handshake(s: Secure,
                  conn: Connection,
-                 initiator: bool = true): Future[SecureConn] {.async, base.} =
+                 initiator: bool = false): Future[SecureConn] {.async, base.} =
   doAssert(false, "Not implemented!")
 
 proc readLoop(sconn: SecureConn, stream: BufferStream) {.async.} =
@@ -41,8 +41,8 @@ proc readLoop(sconn: SecureConn, stream: BufferStream) {.async.} =
       await sconn.close()
     trace "ending secio readLoop", isclosed = sconn.closed()
 
-proc handleConn*(s: Secure, conn: Connection): Future[Connection] {.async, gcsafe.} =
-  var sconn = await s.handshake(conn)
+proc handleConn*(s: Secure, conn: Connection, initiator: bool = false): Future[Connection] {.async, gcsafe.} =
+  var sconn = await s.handshake(conn, initiator)
   proc writeHandler(data: seq[byte]) {.async, gcsafe.} =
     trace "sending encrypted bytes", bytes = data.toHex()
     await sconn.writeMessage(data)
@@ -71,9 +71,10 @@ method init*(s: Secure) {.gcsafe.} =
 
   s.handler = handle
 
-method secure*(p: Secure, conn: Connection): Future[Connection]
-  {.base, async, gcsafe.} =
-  ## default implementation matches plaintext
-  var retFuture = newFuture[Connection]("secure.secure")
-  retFuture.complete(conn)
-  return retFuture
+method secure*(s: Secure, conn: Connection): Future[Connection] {.async, base, gcsafe.} =
+  try:
+    result = await s.handleConn(conn, true)
+  except CatchableError as exc:
+    warn "securing connection failed", msg = exc.msg
+    if not conn.closed():
+      await conn.close()
