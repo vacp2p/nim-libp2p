@@ -10,8 +10,7 @@
 import options
 import chronos
 import chronicles
-import secureconn,
-       ../protocol,
+import ../protocol,
        ../../stream/bufferstream,
        ../../crypto/crypto,
        ../../connection,
@@ -19,6 +18,13 @@ import secureconn,
 
 type
   Secure* = ref object of LPProtocol # base type for secure managers
+  SecureConn* = ref object of Connection
+
+method readMessage*(c: SecureConn): Future[seq[byte]] {.async, base.} =
+  doAssert(false, "Not implemented!")
+
+method writeMessage*(c: SecureConn, data: seq[byte]) {.async, base.} =
+  doAssert(false, "Not implemented!")
 
 method handshake(s: Secure,
                  conn: Connection,
