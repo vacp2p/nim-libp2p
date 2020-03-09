@@ -9,7 +9,6 @@
 import chronos, chronicles
 import nimcrypto/[sysrand, hmac, sha2, sha, hash, rijndael, twofish, bcmode]
 import secure,
-       secureconn,
        ../../connection,
        ../../peerinfo,
        ../../stream/lpstream,
