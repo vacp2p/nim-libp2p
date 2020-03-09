@@ -327,11 +327,12 @@ proc sendEncryptedMessage(sconn: NoiseConnection; buf: seq[byte]) {.async.} =
   var
     lesize = cipher.len.uint16
     besize = lesize.toBytesBE
+    outbuf = newSeqOfCap[byte](cipher.len + 2)
   trace "sendEncryptedMessage", size = lesize, peer = $sconn.peerInfo
-  await sconn.write(addr besize[0], 2)
-  if cipher.len > 0:
-    await sconn.write(cipher)
-  
+  outbuf &= besize
+  outbuf &= cipher
+  await sconn.write(outbuf)
+
 proc handshakeXXOutbound(p: Noise, conn: Connection, p2pProof: ProtoBuffer): Future[HandshakeResult] {.async.} =
   const initiator = true
 
