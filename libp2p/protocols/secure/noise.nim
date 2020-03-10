@@ -73,7 +73,7 @@ type
     commonPrologue: seq[byte]
     outgoing: bool
 
-  NoiseConnection* = ref object of SecureConnection
+  NoiseConnection* = ref object of SecureConn
     readCs: CipherState
     writeCs: CipherState
 
@@ -430,7 +430,7 @@ proc handshakeXXInbound(p: Noise, conn: Connection, p2pProof: ProtoBuffer): Futu
   let (cs1, cs2) = hs.ss.split()
   return HandshakeResult(cs1: cs1, cs2: cs2, remoteP2psecret: remoteP2psecret, rs: hs.rs)
 
-proc readMessage(sconn: NoiseConnection): Future[seq[byte]] =
+method readMessage(sconn: NoiseConnection): Future[seq[byte]] =
   try:
     return sconn.receiveEncryptedMessage()
   except AsyncStreamIncompleteError:
@@ -438,43 +438,13 @@ proc readMessage(sconn: NoiseConnection): Future[seq[byte]] =
   except AsyncStreamReadError:
     trace "Error reading from connection"
 
-proc writeMessage(sconn: NoiseConnection, message: seq[byte]): Future[void] =
+method writeMessage(sconn: NoiseConnection, message: seq[byte]): Future[void] =
   try:
     return sconn.sendEncryptedMessage(message)
   except AsyncStreamWriteError:
     trace "Could not write to connection"
 
-proc readLoop*(sconn: NoiseConnection, stream: BufferStream) {.async.} =
-  try:
-    while not sconn.closed:
-      let msg = await sconn.readMessage()
-      if msg.len == 0:
-        trace "stream EOF"
-        return
-
-      await stream.pushTo(msg)
-  except CatchableError as exc:
-    trace "exception occurred in Noise readLoop", exc = exc.msg
-  finally:
-    if not sconn.closed:
-      await sconn.close()
-    const msg = "ending Noise readLoop"
-    trace msg, isclosed = sconn.closed()
-
-proc startLifetime*(sconn: NoiseConnection): Future[Connection] {.async.} =
-  proc writeHandler(data: seq[byte]) {.async, gcsafe.} =
-    trace "sending encrypted bytes", bytes = byteutils.toHex(data), size = data.len
-    await sconn.writeMessage(data)
-
-  var stream = newBufferStream(writeHandler)
-  asyncCheck readLoop(sconn, stream)
-  result = newConnection(stream)
-  result.closeEvent.wait().addCallback do (udata: pointer):
-    trace "wrapped connection closed, closing upstream"
-    if not isNil(sconn) and not sconn.closed:
-      asyncCheck sconn.close()
-
-proc handshake*(p: Noise, conn: Connection, initiator: bool): Future[NoiseConnection] {.async.} =
+method handshake*(p: Noise, conn: Connection, initiator: bool = false): Future[SecureConn] {.async.} =
   trace "Starting Noise handshake", initiator
 
   # https://github.com/libp2p/specs/tree/master/noise#libp2p-data-in-handshake-messages
@@ -533,35 +503,16 @@ proc handshake*(p: Noise, conn: Connection, initiator: bool): Future[NoiseConnec
   return secure
  
 method init*(p: Noise) {.gcsafe.} =
-  trace "Noise init called"
- 
-  proc handle(conn: Connection, proto: string) {.async, gcsafe.} =
-    trace "handling connection", proto
-    p.outgoing = false
-    try:
-      let
-        sconn = await p.handshake(conn, false)
-      asyncCheck sconn.startLifetime()
-      trace "connection secured"
-    except CatchableError as ex:
-      if not conn.closed():
-        warn "securing connection failed", msg = ex.msg
-        await conn.close()
-
+  procCall Secure(p).init()
   p.codec = NoiseCodec
-  p.handler = handle
-  
+
 method secure*(p: Noise, conn: Connection): Future[Connection] {.async, gcsafe.} =
   try:
-    let
-      sconn = await p.handshake(conn, p.outgoing)
-      securedStream = await sconn.startLifetime()
-    securedStream.peerInfo = sconn.peerInfo
-    return securedStream
-  except CatchableError as ex:
-     warn "securing connection failed", msg = ex.msg
-     if not conn.closed():
-       await conn.close()
+    result = await p.handleConn(conn, p.outgoing)
+  except CatchableError as exc:
+    warn "securing connection failed", msg = exc.msg
+    if not conn.closed():
+      await conn.close()
   
 proc newNoise*(privateKey: PrivateKey; outgoing: bool = true; commonPrologue: seq[byte] = @[]): Noise =
   new result
