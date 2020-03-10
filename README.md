@@ -10,12 +10,16 @@
 
 ## Introduction
 
-### Running against the Go daemon
+An implementation of [libp2p](https://libp2p.io/) in Nim. Also provides a Nim wrapper of the [Libp2p Go daemon](https://github.com/libp2p/go-libp2p).
 
-An implementation of [libp2p](https://libp2p.io/) in Nim, as a wrapper of the [Libp2p Go daemon](https://github.com/libp2p/go-libp2p).
+## Warning 
+The current native Nim libp2p implementation support is experimental and shouldn't be relied on for production use. It is however under active development and we hope to achieve a reasonable level of stability in the upcoming months, as we will be integrating it across our own set of products, such as the Nim Beacon Chain.
 
-Note that you need Go 1.12+ for the below instructions to work!
+## Prerequisite 
+- [Nim](https://nim-lang.org/install.html)
+- [Go 1.12+](https://golang.org/dl/) 
 
+## Installation
 Install dependencies and run tests with:
 
 ```bash
@@ -31,6 +35,7 @@ go install ./...
 cd ..
 ```
 
+## Quick Start
 Try out the chat example:
 
 ```bash
@@ -48,31 +53,13 @@ You can now chat between the instances!
 
 ![Chat example](https://imgur.com/caYRu8K.gif)
 
-## API
+## Usage
 
-Coming soon...
+Examples can be found in the [examples folder](https://github.com/status-im/nim-libp2p/tree/master/examples). Below is a quick overview of the [directchat.nim](examples/directchat.nim) example.
 
-## Experimental native implementation
 
-The native Nim libp2p implementation has finally arrived. Currently, it's support is experimental and shouldn't be relied on for production use. It is however under active development and we hope to achieve a reasonable level of stability in the upcoming months, as we will be integrating it across our own set of products, such as the Nim Beacon Chain.
-
-### What to expect?
-
-This implementation has a bare minimum set of components in order to provide a functional and interoperable libp2p stack. These are:
-
-- A TCP transport
-- multistream-select
-- Secio
-- Mplex
-- Identify
-- FloodSub
-- GossipSub
-
-This stack reflects the minimal requirements for the upcoming Eth2 implementation.
-
-### How to try it out?
-
-To run it, add nim-libp2p to your project's nimble file and spawn a node as follows:
+### Example
+To run nim-libp2p, add it to your project's nimble file and spawn a node as follows:
 
 ```nim
 import tables
@@ -166,7 +153,19 @@ proc main() {.async, gcsafe.} =
 waitFor(main())
 ```
 
-For a more complete example, checkout the [directchat.nim](examples/directchat.nim) example in the `examples` directory.
+## What to expect?
+
+This implementation has a bare minimum set of components in order to provide a functional and interoperable libp2p stack. These are:
+
+- A TCP transport
+- multistream-select
+- Secio
+- Mplex
+- Identify
+- FloodSub
+- GossipSub
+
+This stack reflects the minimal requirements for the upcoming Eth2 implementation.
 
 ## License
 
