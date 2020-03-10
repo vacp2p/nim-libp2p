@@ -217,7 +217,7 @@ suite "Mplex":
         bigseq.add(uint8(rand(uint('A')..uint('z'))))
       await stream.writeLp(bigseq)
       try:
-        await listenJob.wait(seconds(5))
+        await listenJob.wait(millis(500))
       except AsyncTimeoutError:
         # we want to time out here!
         discard
