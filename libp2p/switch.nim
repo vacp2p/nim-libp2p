@@ -61,7 +61,7 @@ proc secure(s: Switch, conn: Connection): Future[Connection] {.async, gcsafe.} =
   if manager.len == 0:
     raise newException(CatchableError, "Unable to negotiate a secure channel!")
 
-  result = await s.secureManagers[manager].secure(conn, outgoing = true)
+  result = await s.secureManagers[manager].secure(conn)
 
 proc identify(s: Switch, conn: Connection): Future[PeerInfo] {.async, gcsafe.} =
   ## identify the connection
@@ -190,7 +190,7 @@ proc upgradeIncoming(s: Switch, conn: Connection) {.async, gcsafe.} =
                        {.async, gcsafe, closure.} =
     trace "Securing connection"
     let secure = s.secureManagers[proto]
-    let sconn = await secure.secure(conn, outgoing = false)
+    let sconn = await secure.secure(conn)
     if not isNil(sconn):
       # add the muxer
       for muxer in s.muxers.values:

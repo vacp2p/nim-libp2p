@@ -71,6 +71,7 @@ type
     noisePrivateKey: Curve25519Key
     noisePublicKey: Curve25519Key
     commonPrologue: seq[byte]
+    outgoing: bool
 
   NoiseConnection* = ref object of SecureConnection
     readCs: CipherState
@@ -536,6 +537,7 @@ method init*(p: Noise) {.gcsafe.} =
  
   proc handle(conn: Connection, proto: string) {.async, gcsafe.} =
     trace "handling connection", proto
+    p.outgoing = false
     try:
       let
         sconn = await p.handshake(conn, false)
@@ -549,10 +551,10 @@ method init*(p: Noise) {.gcsafe.} =
   p.codec = NoiseCodec
   p.handler = handle
   
-method secure*(p: Noise, conn: Connection, outgoing: bool): Future[Connection] {.async, gcsafe.} =
+method secure*(p: Noise, conn: Connection): Future[Connection] {.async, gcsafe.} =
   try:
     let
-      sconn = await p.handshake(conn, outgoing)
+      sconn = await p.handshake(conn, p.outgoing)
       securedStream = await sconn.startLifetime()
     securedStream.peerInfo = sconn.peerInfo
     return securedStream
@@ -561,8 +563,9 @@ method secure*(p: Noise, conn: Connection, outgoing: bool): Future[Connection] {
      if not conn.closed():
        await conn.close()
   
-proc newNoise*(privateKey: PrivateKey; commonPrologue: seq[byte] = @[]): Noise =
+proc newNoise*(privateKey: PrivateKey; outgoing: bool = true; commonPrologue: seq[byte] = @[]): Noise =
   new result
+  result.outgoing = outgoing
   result.localPrivateKey = privateKey
   result.localPublicKey = privateKey.getKey()
   discard randomBytes(result.noisePrivateKey)

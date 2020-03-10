@@ -21,7 +21,7 @@ type
   Secure* = ref object of LPProtocol # base type for secure managers
   SecureConnection* = ref object of Connection
 
-method secure*(p: Secure, conn: Connection; outgoing: bool): Future[Connection] {.base.} =
+method secure*(p: Secure, conn: Connection): Future[Connection] {.base.} =
   ## default implementation matches plaintext
   var retFuture = newFuture[Connection]("secure.secure")
   retFuture.complete(conn)

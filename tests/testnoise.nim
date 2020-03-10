@@ -43,7 +43,7 @@ method init(p: TestProto) {.gcsafe.} =
   p.codec = TestCodec
   p.handler = handle
 
-proc createSwitch(ma: MultiAddress): (Switch, PeerInfo) =
+proc createSwitch(ma: MultiAddress; outgoing: bool): (Switch, PeerInfo) =
   var peerInfo: PeerInfo = PeerInfo.init(PrivateKey.random(RSA))
   peerInfo.addrs.add(ma)
   let identify = newIdentify(peerInfo)
@@ -54,7 +54,7 @@ proc createSwitch(ma: MultiAddress): (Switch, PeerInfo) =
   let mplexProvider = newMuxerProvider(createMplex, MplexCodec)
   let transports = @[Transport(newTransport(TcpTransport))]
   let muxers = [(MplexCodec, mplexProvider)].toTable()
-  let secureManagers = [(NoiseCodec, Secure(newNoise(peerInfo.privateKey)))].toTable()
+  let secureManagers = [(NoiseCodec, Secure(newNoise(peerInfo.privateKey, outgoing = outgoing)))].toTable()
   let switch = newSwitch(peerInfo,
                          transports,
                          identify,
@@ -68,10 +68,10 @@ suite "Noise":
       let
         server: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
         serverInfo = PeerInfo.init(PrivateKey.random(RSA), [server])
-        serverNoise = newNoise(serverInfo.privateKey)
+        serverNoise = newNoise(serverInfo.privateKey, outgoing = false)
 
       proc connHandler(conn: Connection) {.async, gcsafe.} =
-        let sconn = await serverNoise.secure(conn, false)
+        let sconn = await serverNoise.secure(conn)
         defer:
           await sconn.close()
         await sconn.write(cstring("Hello!"), 6)
@@ -83,9 +83,9 @@ suite "Noise":
       let
         transport2: TcpTransport = newTransport(TcpTransport)
         clientInfo = PeerInfo.init(PrivateKey.random(RSA), [transport1.ma])
-        clientNoise = newNoise(clientInfo.privateKey)
+        clientNoise = newNoise(clientInfo.privateKey, outgoing = true)
         conn = await transport2.dial(transport1.ma)
-        sconn = await clientNoise.secure(conn, true)
+        sconn = await clientNoise.secure(conn)
 
         msg = await sconn.read(6)
 
@@ -102,11 +102,11 @@ suite "Noise":
       let
         server: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
         serverInfo = PeerInfo.init(PrivateKey.random(RSA), [server])
-        serverNoise = newNoise(serverInfo.privateKey)
+        serverNoise = newNoise(serverInfo.privateKey, outgoing = false)
         readTask = newFuture[void]()
 
       proc connHandler(conn: Connection) {.async, gcsafe.} =
-        let sconn = await serverNoise.secure(conn, false)
+        let sconn = await serverNoise.secure(conn)
         defer:
           await sconn.close()
         let msg = await sconn.read(6)
@@ -120,9 +120,9 @@ suite "Noise":
       let
         transport2: TcpTransport = newTransport(TcpTransport)
         clientInfo = PeerInfo.init(PrivateKey.random(RSA), [transport1.ma])
-        clientNoise = newNoise(clientInfo.privateKey)
+        clientNoise = newNoise(clientInfo.privateKey, outgoing = true)
         conn = await transport2.dial(transport1.ma)
-        sconn = await clientNoise.secure(conn, true)
+        sconn = await clientNoise.secure(conn)
 
       await sconn.write("Hello!".cstring, 6)
       await readTask
@@ -143,13 +143,13 @@ suite "Noise":
       var switch1, switch2: Switch
       var awaiters: seq[Future[void]]
 
-      (switch1, peerInfo1) = createSwitch(ma1)
+      (switch1, peerInfo1) = createSwitch(ma1, false)
 
       let testProto = new TestProto
       testProto.init()
       testProto.codec = TestCodec
       switch1.mount(testProto)
-      (switch2, peerInfo2) = createSwitch(ma2)
+      (switch2, peerInfo2) = createSwitch(ma2, true)
       awaiters.add(await switch1.start())
       awaiters.add(await switch2.start())
       let conn = await switch2.dial(switch1.peerInfo, TestCodec)
