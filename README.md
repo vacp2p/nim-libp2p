@@ -55,7 +55,8 @@ Please read the [GETTING_STARTED.md](doc/GETTING_STARTED.md) guide.
 Examples can be found in the [examples folder](/examples).
 
 ### Using the Go Daemon
-Please find the installation and usage intructions in [GO_DAEMON.md](doc/GO_DAEMON.md). 
+Please find the installation and usage intructions in [GO_DAEMON.md](doc/GO_DAEMON.md). <br>
+Examples can be found in the [examples/go-daemon folder](https://github.com/status-im/nim-libp2p/tree/readme/examples/go-daemon);
 
 ## Development
 **Clone and Install dependencies:**
