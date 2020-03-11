@@ -22,7 +22,6 @@ Check our [examples folder](/examples) to get started!
 - [Install](#install)
   - [Prerequisite](#prerequisite)
 - [Usage](#usage)
-  - [Configuration](#configuration)
   - [API](#api)
   - [Getting Started](#getting-started)
   - [Tutorials and Examples](#tutorials-and-examples)
@@ -46,108 +45,17 @@ nimble install libp2p
 
 ## Usage
 
+### API
+The specification is available on [API.md](doc/API.md) (coming soon).
+
 ### Getting Started
+Please read the [GETTING_STARTED.md](doc/GETTING_STARTED.md) guide. 
 
-Examples can be found in the [examples folder](/examples). Below is a quick overview of the [directchat.nim](examples/directchat.nim) example.
-
-
-### Direct Chat Example
-To run nim-libp2p, add it to your project's nimble file and spawn a node as follows:
-
-```nim
-import tables
-import chronos
-import ../libp2p/[switch,
-                  multistream,
-                  protocols/identify,
-                  connection,
-                  transports/transport,
-                  transports/tcptransport,
-                  multiaddress,
-                  peerinfo,
-                  crypto/crypto,
-                  peer,
-                  protocols/protocol,
-                  muxers/muxer,
-                  muxers/mplex/mplex,
-                  muxers/mplex/types,
-                  protocols/secure/secio,
-                  protocols/secure/secure]
-
-const TestCodec = "/test/proto/1.0.0" # custom protocol string
-
-type
-  TestProto = ref object of LPProtocol # declare a custom protocol
-
-method init(p: TestProto) {.gcsafe.} =
-  # handle incoming connections in closure
-  proc handle(conn: Connection, proto: string) {.async, gcsafe.} =
-    echo "Got from remote - ", cast[string](await conn.readLp())
-    await conn.writeLp("Hello!")
-    await conn.close()
-
-  p.codec = TestCodec # init proto with the correct string id
-  p.handler = handle # set proto handler
-
-proc createSwitch(ma: MultiAddress): (Switch, PeerInfo) =
-  ## Helper to create a swith
-
-  let seckey = PrivateKey.random(RSA) # use a random key for peer id
-  var peerInfo = PeerInfo.init(seckey) # create a peer id and assign
-  peerInfo.addrs.add(ma) # set this peer's multiaddresses (can be any number)
-
-  let identify = newIdentify(peerInfo) # create the identify proto
-
-  proc createMplex(conn: Connection): Muxer =
-    # helper proc to create multiplexers,
-    # use this to perform any custom setup up,
-    # such as adjusting timeout or anything else
-    # that the muxer requires
-    result = newMplex(conn)
-
-  let mplexProvider = newMuxerProvider(createMplex, MplexCodec) # create multiplexer
-  let transports = @[Transport(newTransport(TcpTransport))] # add all transports (tcp only for now, but can be anything in the future)
-  let muxers = {MplexCodec: mplexProvider}.toTable() # add all muxers
-  let secureManagers = {SecioCodec: Secure(newSecio(seckey))}.toTable() # setup the secio and any other secure provider
-
-  # create the switch
-  let switch = newSwitch(peerInfo,
-                         transports,
-                         identify,
-                         muxers,
-                         secureManagers)
-  result = (switch, peerInfo)
-
-proc main() {.async, gcsafe.} =
-  let ma1: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
-  let ma2: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
-
-  var peerInfo1, peerInfo2: PeerInfo
-  var switch1, switch2: Switch
-  (switch1, peerInfo1) = createSwitch(ma1) # create node 1
-
-  # setup the custom proto
-  let testProto = new TestProto
-  testProto.init() # run it's init method to perform any required initialization
-  switch1.mount(testProto) # mount the proto
-  var switch1Fut = await switch1.start() # start the node
-
-  (switch2, peerInfo2) = createSwitch(ma2) # create node 2
-  var switch2Fut = await switch2.start() # start second node
-  let conn = await switch2.dial(switch1.peerInfo, TestCodec) # dial the first node
-
-  await conn.writeLp("Hello!") # writeLp send a length prefixed buffer over the wire
-  # readLp reads length prefixed bytes and returns a buffer without the prefix
-  echo "Remote responded with - ", cast[string](await conn.readLp())
-
-  await allFutures(switch1.stop(), switch2.stop()) # close connections and shutdown all transports
-  await allFutures(switch1Fut & switch2Fut) # wait for all transports to shutdown
-
-waitFor(main())
-```
+### Tutorials and Examples 
+Examples can be found in the [examples folder](/examples).
 
 ### Using the Go Daemon
-Please find the installation and usage intructions on the [Wiki page](https://github.com/status-im/nim-libp2p/wiki/Go-Libp2p-Daemon-Interface#introduction). 
+Please find the installation and usage intructions in [GO_DAEMON.md](doc/GO_DAEMON.md). 
 
 ## Development
 **Clone and Install dependencies:**
@@ -197,20 +105,20 @@ List of packages currently in existence for nim-libp2p:
 - [libp2p-gossipsub](https://github.com/status-im/nim-libp2p/blob/381630f1854818be634a98e92a65dc317bf780a0/libp2p/protocols/pubsub/gossipsub.nim)
 
 
-Packages that is under active development: 
-```
-libp2p-daemon
-libp2p-webrtc-direct
-libp2p-webrtc-star
-libp2p-websockets
-libp2p-spdy
-libp2p-bootstrap
-libp2p-kad-dht
-libp2p-mdns
-libp2p-webrtc-star libp2p-delegated-content-routing libp2p-delegated-peer-routing
-libp2p-nat-mgnr
-libp2p-utils
-```
+Packages that exist in the original libp2p specs and are under active development: 
+- libp2p-daemon
+- libp2p-webrtc-direct
+- libp2p-webrtc-star
+- libp2p-websockets
+- libp2p-spdy
+- libp2p-bootstrap
+- libp2p-kad-dht
+- libp2p-mdns
+- libp2p-webrtc-star
+- libp2p-delegated-content-routing
+- libp2p-delegated-peer-routing
+- libp2p-nat-mgnr
+- libp2p-utils
 
 ** Note that the current stack reflects the minimal requirements for the upcoming Eth2 implementation. <br>
 
