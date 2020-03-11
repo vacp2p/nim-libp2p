@@ -168,32 +168,51 @@ Please find the installation and usage intructions on the [Wiki page](https://gi
 ### Packages 
 
 List of packages currently in existence for nim-libp2p:
+
+#### Libp2p
 - [libp2p](https://github.com/status-im/nim-libp2p)
 - [libp2p-daemon-client](https://github.com/status-im/nim-libp2p/blob/5701d937c8d36a1f629073130d26246ecc02caf7/libp2p/daemon/daemonapi.nim)
 - [interop-libp2p](https://github.com/status-im/nim-libp2p/blob/5701d937c8d36a1f629073130d26246ecc02caf7/tests/testinterop.nim#L191)
+
+#### Transports
 - [libp2p-tcp](https://github.com/status-im/nim-libp2p/blob/293a219dbe078636ce5891c3423ab10ffe3112f9/libp2p/transports/tcptransport.nim)
+
+#### Secure Channels
 - [libp2p-secio](https://github.com/status-im/nim-libp2p/blob/df29ac760e51b5a1815f313a8cdc1bdf428dbafc/libp2p/protocols/secure/secio.nim)
+
+#### Stream Multiplexers
 - [libp2p-mplex](https://github.com/status-im/nim-libp2p/blob/1a987a9c5b5bc4fd35e71576aa54ba7e5a5979e9/libp2p/muxers/mplex/mplex.nim)
+
+#### Utilities
 - [libp2p-crypto](https://github.com/status-im/nim-libp2p/tree/master/libp2p/crypto)
 - [libp2p-crypto-secp256k1](https://github.com/status-im/nim-libp2p/blob/107e71203d136acbabe9d8af45bcad58967eeec0/libp2p/crypto/secp.nim)
-- 
+
+#### Data Types
+- [peer-id](https://github.com/status-im/nim-libp2p/blob/e0aae6d8ac1b4389044c5a6332add796bdf1d3a7/libp2p/peer.nim)
+- [peer-info](https://github.com/status-im/nim-libp2p/blob/8e46460cf61e6ea6e370eff98a9ad85774f87d79/libp2p/peerinfo.nim)
+
+#### Pubsub
+- [libp2p-pubsub](https://github.com/status-im/nim-libp2p/blob/6a7f9f058c04ecdfd26e5dbfd8df88221b8511e7/libp2p/protocols/pubsub/pubsub.nim)
+- [libp2p-floodsub](https://github.com/status-im/nim-libp2p/blob/d5f92663bc5faa6d163d28624d66d740af4942c7/libp2p/protocols/pubsub/floodsub.nim)
+- [libp2p-gossipsub](https://github.com/status-im/nim-libp2p/blob/381630f1854818be634a98e92a65dc317bf780a0/libp2p/protocols/pubsub/gossipsub.nim)
+
 
 Packages that is under active development: 
 ```
-libp2p-daemon, libp2p-webrtc-direct, libp2p-webrtc-star, libp2p-websockets, libp2p-spdy, libp2p-bootstrap, libp2p-kad-dht, libp2p-mdns, libp2p-webrtc-star, libp2p-delegated-content-routing, libp2p-delegated-peer-routing, libp2p-nat-mgnr, libp2p-utils
+libp2p-daemon
+libp2p-webrtc-direct
+libp2p-webrtc-star
+libp2p-websockets
+libp2p-spdy
+libp2p-bootstrap
+libp2p-kad-dht
+libp2p-mdns
+libp2p-webrtc-star libp2p-delegated-content-routing libp2p-delegated-peer-routing
+libp2p-nat-mgnr
+libp2p-utils
 ```
 
-This implementation has a bare minimum set of components in order to provide a functional and interoperable libp2p stack. These are:
-
-- [TCP transport](https://github.com/status-im/nim-libp2p/blob/293a219dbe078636ce5891c3423ab10ffe3112f9/libp2p/transports/tcptransport.nim): 
-- [multistream-select](): 
-- Secio
-- Mplex
-- Identify
-- FloodSub
-- GossipSub
-
-This stack reflects the minimal requirements for the upcoming Eth2 implementation.
+** Note that the current stack reflects the minimal requirements for the upcoming Eth2 implementation. <br>
 
 ## Contribute
 The libp2p implementation in Nim is a work in progress. We welcome contributors to help out! In specific, you can:
