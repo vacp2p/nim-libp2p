@@ -3,15 +3,17 @@
 </h1>
 
 <h3 align="center">The Nim implementation of the libp2p Networking Stack.</h3>
+
 <p align="center">
+<a href="https://travis-ci.org/status-im/nim-libp2p"><img src="https://travis-ci.org/status-im/nim-libp2p.svg?branch=master" /></a>
+<a href="https://ci.appveyor.com/project/nimbus/nim-libp2p/branch/master"><img src="https://ci.appveyor.com/api/projects/status/pqgif5bcie6cp3wi/branch/master?svg=true" /></a>
+<a href="https://dev.azure.com/nimbus-dev/nim-libp2p/_build?definitionId=5&branchName=master"><img src="https://img.shields.io/azure-devops/build/nimbus-dev/dc5eed24-3f6c-4c06-8466-3d060abd6c8b/5/master?label=Azure%20%28Linux%2064-bit%2C%20Windows%2032-bit%2F64-bit%2C%20MacOS%2064-bit%29" /></a>
+</p>
 
-[![Build Status](https://travis-ci.org/status-im/nim-libp2p.svg?branch=master)](https://travis-ci.org/status-im/nim-libp2p)
-[![Build status](https://ci.appveyor.com/api/projects/status/pqgif5bcie6cp3wi/branch/master?svg=true)](https://ci.appveyor.com/project/nimbus/nim-libp2p/branch/master)
-[![Build Status: Azure](https://img.shields.io/azure-devops/build/nimbus-dev/dc5eed24-3f6c-4c06-8466-3d060abd6c8b/5/master?label=Azure%20%28Linux%2064-bit%2C%20Windows%2032-bit%2F64-bit%2C%20MacOS%2064-bit%29)](https://dev.azure.com/nimbus-dev/nim-libp2p/_build?definitionId=5&branchName=master)
-
-[![License: Apache](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
-![Stability: experimental](https://img.shields.io/badge/stability-experimental-orange.svg)
+<p align="center">
+<a href="https://opensource.org/licenses/Apache-2.0"><img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg" /></a>
+<a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-blue.svg" /></a>
+<a href=""><img src="https://img.shields.io/badge/go-%3E%3D1.12-orange.svg?style=flat-square" /></a>
 </p>
 
 ## Introduction
