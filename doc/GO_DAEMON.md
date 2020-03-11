@@ -2,7 +2,9 @@
 - [Introduction](#introduction)
 - [Installation](#installation)
 - [Usage](#usage)
-  - [Example](#example) 
+  - [Example](#example)
+  - [Getting Started](#getting-started)
+
 # Introduction
 This is a libp2p-backed daemon wrapping the functionalities of go-libp2p for use in Nim. <br>
 For more information about the go daemon, check out [this repository](https://github.com/libp2p/go-libp2p-daemon).
@@ -28,7 +30,11 @@ cd ..
 ```
 
 # Usage 
+
 ## Example
+Examples can be found in the [examples folder](https://github.com/status-im/nim-libp2p/tree/readme/examples/go-daemon)
+
+## Getting Started
 Try out the chat example. Full code can be found [here](https://github.com/status-im/nim-libp2p/blob/master/examples/chat.nim):
 
 ```bash
