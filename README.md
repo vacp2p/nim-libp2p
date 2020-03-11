@@ -13,6 +13,7 @@
 <p align="center">
 <a href="https://opensource.org/licenses/Apache-2.0"><img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg" /></a>
 <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-blue.svg" /></a>
+<a href=""><img src="https://img.shields.io/badge/nim-%3E%3D1.0.6-orange.svg?style=flat-square" /></a>
 <a href=""><img src="https://img.shields.io/badge/go-%3E%3D1.12-orange.svg?style=flat-square" /></a>
 </p>
 
