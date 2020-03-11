@@ -104,7 +104,7 @@ method handle*(m: Mplex) {.async, gcsafe.} =
                                            size = data.len
 
           if data.len > MaxMsgSize:
-            raise newLPStreamLimitError();
+            raise newLPStreamLimitError()
           await channel.pushTo(data)
         of MessageType.CloseIn, MessageType.CloseOut:
           trace "closing channel", id = id,
