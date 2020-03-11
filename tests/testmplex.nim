@@ -428,10 +428,7 @@ suite "Mplex":
         const max = 500
         const min = 100
         while sent < total:
-          var len = 0
-          while len > max or len <= 0:
-            len = rand(min..max)
-
+          var len = rand(min..max)
           len = if len > buf.buffer.len: buf.buffer.len else: len
           var send = buf.buffer[0..<len-1]
           await conn.write(send)
