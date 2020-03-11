@@ -58,7 +58,7 @@ proc readMsg*(conn: Connection): Future[Msg] {.async, gcsafe.} =
   var data: seq[byte] = newSeq[byte](dataLenVarint.int)
   if dataLenVarint.int > 0:
     await conn.readExactly(addr data[0], dataLenVarint.int)
-    trace "read data", data = data
+    trace "read data", data = data.len
 
   let header = headerVarint
   result = (header shr 3, MessageType(header and 0x7), data)
@@ -69,7 +69,7 @@ proc writeMsg*(conn: Connection,
                data: seq[byte] = @[]) {.async, gcsafe.} =
   trace "seding data over mplex", id,
                                   msgType,
-                                  data
+                                  data = data.len
   ## write lenght prefixed
   var buf = initVBuffer()
   buf.writePBVarint(id shl 3 or ord(msgType).uint)
