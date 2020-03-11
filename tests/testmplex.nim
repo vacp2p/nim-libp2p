@@ -420,7 +420,7 @@ suite "Mplex":
       mplexBuf.writePBVarint((1.uint shl 3) or ord(MessageType.MsgOut).uint)
       mplexBuf.writePBVarint(buf.buffer.len.uint) # size should be always sent
 
-      await conn.write(mplexBuf.buffer) # write out mplex header
+      await conn.write(mplexBuf.buffer)
       proc writer() {.async.} =
         var sent = 0
         randomize()
