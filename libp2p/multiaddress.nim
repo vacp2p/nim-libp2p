@@ -45,7 +45,7 @@ type
 
   MultiAddressError* = object of LibP2PError
 
-proc ip4StB(s: string, vb: var VBuffer): bool =
+proc ip4StB(s: string, vb: var VBuffer): bool {.raises: [ValueError].} =
   ## IPv4 stringToBuffer() implementation.
   try:
     var a = parseIpAddress(s)
@@ -55,7 +55,7 @@ proc ip4StB(s: string, vb: var VBuffer): bool =
   except:
     discard
 
-proc ip4BtS(vb: var VBuffer, s: var string): bool =
+proc ip4BtS(vb: var VBuffer, s: var string): bool {.raises: [].} =
   ## IPv4 bufferToString() implementation.
   var a = IpAddress(family: IpAddressFamily.IPv4)
   if vb.readArray(a.address_v4) == 4:
@@ -68,7 +68,7 @@ proc ip4VB(vb: var VBuffer): bool =
   if vb.readArray(a.address_v4) == 4:
     result = true
 
-proc ip6StB(s: string, vb: var VBuffer): bool =
+proc ip6StB(s: string, vb: var VBuffer): bool {.raises: [ValueError].} =
   ## IPv6 stringToBuffer() implementation.
   try:
     var a = parseIpAddress(s)
@@ -109,7 +109,7 @@ proc ip6zoneVB(vb: var VBuffer): bool =
     if s.find('/') == -1:
       result = true
 
-proc portStB(s: string, vb: var VBuffer): bool =
+proc portStB(s: string, vb: var VBuffer): bool {.raises: [ValueError].} =
   ## Port number stringToBuffer() implementation.
   var port: array[2, byte]
   try:
@@ -136,7 +136,7 @@ proc portVB(vb: var VBuffer): bool =
   if vb.readArray(port) == 2:
     result = true
 
-proc p2pStB(s: string, vb: var VBuffer): bool =
+proc p2pStB(s: string, vb: var VBuffer): bool {.raises: [Base58Error, MultiHashError].} =
   ## P2P address stringToBuffer() implementation.
   try:
     var data = Base58.decode(s)
@@ -164,7 +164,7 @@ proc p2pVB(vb: var VBuffer): bool =
     if MultiHash.decode(address, mh) >= 0:
       result = true
 
-proc onionStB(s: string, vb: var VBuffer): bool =
+proc onionStB(s: string, vb: var VBuffer): bool {.raises: [Base32Error].} =
   try:
     var parts = s.split(':')
     if len(parts) != 2:
@@ -834,7 +834,7 @@ proc `&=`*(m1: var MultiAddress, m2: MultiAddress) =
   if not m1.validate():
     raise newException(MultiAddressError, "Incorrect MultiAddress!")
 
-proc isWire*(ma: MultiAddress): bool =
+proc isWire*(ma: MultiAddress): bool {.raises: [].} = # FIXME except but raises nothing
   ## Returns ``true`` if MultiAddress ``ma`` is one of:
   ## - {IP4}/{TCP, UDP}
   ## - {IP6}/{TCP, UDP}
