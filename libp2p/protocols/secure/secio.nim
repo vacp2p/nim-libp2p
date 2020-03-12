@@ -297,7 +297,7 @@ method handshake*(s: Secio, conn: Connection, initiator: bool = false): Future[S
     localBytesPubkey = s.localPublicKey.getBytes()
 
   if randomBytes(localNonce) != SecioNonceSize:
-    raise newException(CatchableError, "Could not generate random data")
+    raise newException(SecioError, "Could not generate random data")
 
   var request = createProposal(localNonce,
                                localBytesPubkey,
@@ -410,7 +410,7 @@ method handshake*(s: Secio, conn: Connection, initiator: bool = false): Future[S
   if res != @localNonce:
     trace "Nonce verification failed", receivedNonce = toHex(res),
                                        localNonce = toHex(localNonce)
-    raise newException(CatchableError, "Nonce verification failed")
+    raise newException(SecioError, "Nonce verification failed")
   else:
     trace "Secure handshake succeeded"
 

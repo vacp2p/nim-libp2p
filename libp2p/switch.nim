@@ -32,7 +32,10 @@ logScope:
 # previously provided)
 
 type
-    NoPubSubException = object of LibP2PError
+    NoPubSubException* = object of LibP2PError
+    ConnectionFailedError* = object of LibP2PError
+    SwitchSecureError* = object of LibP2PError
+    SwitchInvalidArgError* = object of LibP2PError
 
     Switch* = ref object of RootObj
       peerInfo*: PeerInfo
@@ -56,11 +59,11 @@ proc secure(s: Switch, conn: Connection): Future[Connection] {.async, gcsafe.} =
 
   let managers = toSeq(s.secureManagers.keys)
   if managers.len == 0:
-    raise newException(CatchableError, "No secure managers registered!")
+    raise newException(SwitchSecureError, "No secure managers registered!")
 
   let manager = await s.ms.select(conn, toSeq(s.secureManagers.values).mapIt(it.codec))
   if manager.len == 0:
-    raise newException(CatchableError, "Unable to negotiate a secure channel!")
+    raise newException(SwitchSecureError, "Unable to negotiate a secure channel!")
 
   result = await s.secureManagers[manager].secure(conn)
 
@@ -75,7 +78,7 @@ proc identify(s: Switch, conn: Connection): Future[PeerInfo] {.async, gcsafe.} =
       let info = await s.identity.identify(conn, conn.peerInfo)
 
       if info.pubKey.isNone and isNil(result):
-        raise newException(CatchableError,
+        raise newException(IdentityInvalidMsgError,
           "no public key provided and no existing peer identity found")
 
       if info.pubKey.isSome:
@@ -244,7 +247,7 @@ proc internalConnect(s: Switch,
 proc connect*(s: Switch, peer: PeerInfo) {.async.} =
   var conn = await s.internalConnect(peer)
   if isNil(conn):
-    raise newException(CatchableError, "Unable to connect to peer")
+    raise newException(ConnectionFailedError, "Unable to connect to peer")
 
 proc dial*(s: Switch,
            peer: PeerInfo,
@@ -252,10 +255,10 @@ proc dial*(s: Switch,
            Future[Connection] {.async.} =
   var conn = await s.internalConnect(peer)
   if isNil(conn):
-    raise newException(CatchableError, "Unable to establish outgoing link")
+    raise newException(ConnectionFailedError, "Unable to establish outgoing link")
 
   if conn.closed:
-    raise newException(CatchableError, "Connection dead on arrival")
+    raise newException(ConnectionFailedError, "Connection dead on arrival")
 
   result = conn
   let stream = await s.getMuxedStream(peer)
@@ -266,15 +269,15 @@ proc dial*(s: Switch,
 
   if not await s.ms.select(result, proto):
     warn "Unable to select sub-protocol", proto = proto
-    raise newException(CatchableError, &"unable to select protocol: {proto}")
+    raise newException(ConnectionFailedError, & "unable to select protocol: {proto}")
 
 proc mount*[T: LPProtocol](s: Switch, proto: T) {.gcsafe.} =
   if isNil(proto.handler):
-    raise newException(CatchableError,
+    raise newException(SwitchInvalidArgError,
     "Protocol has to define a handle method or proc")
 
   if proto.codec.len == 0:
-    raise newException(CatchableError,
+    raise newException(SwitchInvalidArgError,
     "Protocol has to define a codec string")
 
   s.ms.addHandler(proto.codec, proto)

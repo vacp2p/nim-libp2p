@@ -15,6 +15,9 @@ import messages,
        ../../../peer,
        ../../../errors
 
+type
+  PubSubRpcError = object of LibP2PError
+
 proc encodeGraft*(graft: ControlGraft, pb: var ProtoBuffer) {.gcsafe.} =
   pb.write(initProtoField(1, graft.topicID))
 
@@ -139,7 +142,7 @@ proc decodeControl*(pb: var ProtoBuffer): Option[ControlMessage] {.gcsafe.} =
     of 4:
       control.prune = pb.decodePrune()
     else:
-      raise newException(CatchableError, "message type not recognized")
+      raise newException(PubSubRpcError, "message type not recognized")
 
     if result.isNone:
       result = some(control)
@@ -264,4 +267,4 @@ proc decodeRpcMsg*(msg: seq[byte]): RPCMsg {.gcsafe.} =
     of 3:
       result.control = pb.decodeControl()
     else:
-      raise newException(CatchableError, "message type not recognized")
+      raise newException(PubSubRpcError, "message type not recognized")
