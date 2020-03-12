@@ -158,6 +158,8 @@ proc handle*(m: MultistreamSelect, conn: Connection) {.async, gcsafe.} =
     trace "exception occurred in MultistreamSelect.handle", exc = exc.msg
   finally:
     trace "leaving multistream loop"
+    if not conn.closed:
+      await conn.close()
 
 proc addHandler*[T: LPProtocol](m: MultistreamSelect,
                                 codec: string,
