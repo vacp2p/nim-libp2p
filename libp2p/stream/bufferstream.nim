@@ -32,6 +32,7 @@
 
 import deques, math
 import chronos
+import ../errors
 import ../stream/lpstream
 
 const DefaultBufferSize* = 1024
@@ -49,8 +50,8 @@ type
     lock: AsyncLock
     isPiped: bool
 
-  AlreadyPipedError* = object of CatchableError
-  NotWritableError* = object of CatchableError
+  AlreadyPipedError* = object of LibP2PError
+  NotWritableError* = object of LibP2PError
 
 proc newAlreadyPipedError*(): ref Exception {.inline.} =
   result = newException(AlreadyPipedError, "stream already piped")

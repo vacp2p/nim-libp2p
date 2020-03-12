@@ -11,6 +11,7 @@
 import nativesockets
 import tables, strutils, net
 import chronos
+import errors
 import multicodec, multihash, multibase, transcoder, vbuffer
 import stew/[base58, base32]
 from peer import PeerID
@@ -42,7 +43,7 @@ type
     flag*: bool
     rem*: seq[MultiCodec]
 
-  MultiAddressError* = object of CatchableError
+  MultiAddressError* = object of LibP2PError
 
 proc ip4StB(s: string, vb: var VBuffer): bool =
   ## IPv4 stringToBuffer() implementation.

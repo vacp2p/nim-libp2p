@@ -22,7 +22,7 @@
 ## 2. MURMUR
 import tables
 import nimcrypto/[sha, sha2, keccak, blake2, hash, utils]
-import varint, vbuffer, multicodec, multibase
+import varint, vbuffer, multicodec, multibase, errors
 import stew/base58
 # This is workaround for Nim `import` bug.
 export sha, sha2, keccak, blake2, hash, utils
@@ -44,7 +44,7 @@ type
     size*: int
     dpos*: int
 
-  MultiHashError* = object of CatchableError
+  MultiHashError* = object of LibP2PError
 
 proc identhash(data: openarray[byte], output: var openarray[byte]) =
   if len(output) > 0:

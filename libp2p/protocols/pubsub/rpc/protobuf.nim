@@ -12,7 +12,8 @@ import chronicles
 import messages,
        ../../../protobuf/minprotobuf,
        ../../../crypto/crypto,
-       ../../../peer
+       ../../../peer,
+       ../../../errors
 
 proc encodeGraft*(graft: ControlGraft, pb: var ProtoBuffer) {.gcsafe.} =
   pb.write(initProtoField(1, graft.topicID))

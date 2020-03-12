@@ -9,7 +9,8 @@
 
 import strutils
 import chronos, chronicles
-import connection,
+import errors,
+       connection,
        vbuffer,
        protocols/protocol
 
@@ -38,7 +39,7 @@ type
     na: string
     ls: string
 
-  MultistreamHandshakeException* = object of CatchableError
+  MultistreamHandshakeException* = object of LibP2PError
 
 proc newMultistreamHandshakeException*(): ref Exception {.inline.} =
   result = newException(MultistreamHandshakeException,

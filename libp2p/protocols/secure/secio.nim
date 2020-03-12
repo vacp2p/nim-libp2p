@@ -9,6 +9,7 @@
 import chronos, chronicles
 import nimcrypto/[sysrand, hmac, sha2, sha, hash, rijndael, twofish, bcmode]
 import secure,
+       ../../errors,
        ../../connection,
        ../../peerinfo,
        ../../stream/lpstream,
@@ -66,7 +67,7 @@ type
     writerCoder: SecureCipher
     readerCoder: SecureCipher
 
-  SecioError* = object of CatchableError
+  SecioError* = object of LibP2PError
 
 proc init(mac: var SecureMac, hash: string, key: openarray[byte]) =
   if hash == "SHA256":

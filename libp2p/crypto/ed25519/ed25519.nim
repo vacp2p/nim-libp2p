@@ -11,6 +11,7 @@
 ## This code is a port of the public domain, "ref10" implementation of ed25519
 ## from SUPERCOP.
 import constants
+import ../../errors
 import nimcrypto/[hash, sha2, sysrand, utils]
 
 # This workaround needed because of some bugs in Nim Static[T].
@@ -38,7 +39,7 @@ type
     seckey*: EdPrivateKey
     pubkey*: EdPublicKey
 
-  EdError* = object of CatchableError
+  EdError* = object of LibP2PError
   EdRngError* = object of EdError
   EdIncorrectError* = object of EdError
 

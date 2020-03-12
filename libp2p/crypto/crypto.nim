@@ -9,6 +9,7 @@
 
 ## This module implements Public Key and Private Key interface for libp2p.
 import rsa, ecnist, ed25519/ed25519, secp
+import ../errors
 import ../protobuf/minprotobuf, ../vbuffer, ../multihash, ../multicodec
 import nimcrypto/[rijndael, blowfish, twofish, sha, sha2, hash, hmac, utils]
 
@@ -76,8 +77,8 @@ type
   Signature* = object
     data*: seq[byte]
 
-  P2pKeyError* = object of CatchableError
-  P2pSigError* = object of CatchableError
+  P2pKeyError* = object of LibP2PError
+  P2pSigError* = object of LibP2PError
 
 const
   SupportedSchemes* = {RSA, Ed25519, Secp256k1, ECDSA}

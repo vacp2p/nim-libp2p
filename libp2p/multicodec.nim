@@ -9,7 +9,7 @@
 
 ## This module implements MultiCodec.
 import tables, hashes
-import varint, vbuffer
+import varint, vbuffer, errors
 
 {.deadCodeElim: on.}
 
@@ -230,7 +230,7 @@ const MultiCodecList = [
 
 type
   MultiCodec* = distinct int
-  MultiCodecError* = object of CatchableError
+  MultiCodecError* = object of LibP2PError
 
 const
   InvalidMultiCodec* = MultiCodec(-1)

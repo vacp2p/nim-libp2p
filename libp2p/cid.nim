@@ -9,7 +9,7 @@
 
 ## This module implementes CID (Content IDentifier).
 import tables
-import multibase, multicodec, multihash, vbuffer, varint
+import multibase, multicodec, multihash, vbuffer, varint, errors
 import stew/base58
 
 type
@@ -25,7 +25,7 @@ type
     hpos*: int
     data*: VBuffer
 
-  CidError* = object of CatchableError
+  CidError* = object of LibP2PError
 
 const
   ContentIdsList = [

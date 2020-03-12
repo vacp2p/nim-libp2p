@@ -9,7 +9,8 @@
 
 import options
 import chronos, chronicles
-import ../protobuf/minprotobuf,
+import ../errors,
+       ../protobuf/minprotobuf,
        ../peerinfo,
        ../connection,
        ../peer,
@@ -29,8 +30,8 @@ const
 #TODO: implment push identify, leaving out for now as it is not essential
 
 type
-  IdentityNoMatchError* = object of CatchableError
-  IdentityInvalidMsgError* = object of CatchableError
+  IdentityNoMatchError* = object of LibP2PError
+  IdentityInvalidMsgError* = object of LibP2PError
 
   IdentifyInfo* = object
     pubKey*: Option[PublicKey]

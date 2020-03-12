@@ -13,6 +13,7 @@
 ## 1. base32z
 import tables
 import stew/[base32, base58, base64]
+import errors
 
 type
   MultibaseStatus* {.pure.} = enum
@@ -34,7 +35,7 @@ type
     encl: MBCodeSize
     decl: MBCodeSize
 
-  MultiBaseError* = object of CatchableError
+  MultiBaseError* = object of LibP2PError
 
 proc idd(inbytes: openarray[char], outbytes: var openarray[byte],
          outlen: var int): MultibaseStatus =

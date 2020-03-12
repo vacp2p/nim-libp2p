@@ -8,6 +8,7 @@
 ## those terms.
 
 import chronos
+import ../../errors
 
 const MaxMsgSize* = 1 shl 20 # 1mb
 const MaxChannels* = 1000
@@ -15,7 +16,7 @@ const MplexCodec* = "/mplex/6.7.0"
 const MaxReadWriteTime* = 5.seconds
 
 type
-  MplexNoSuchChannel* = object of CatchableError
+  MplexNoSuchChannel* = object of LibP2PError
 
   MessageType* {.pure.} = enum
     New,

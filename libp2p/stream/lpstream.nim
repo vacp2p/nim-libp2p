@@ -8,13 +8,14 @@
 ## those terms.
 
 import chronos
+import ../errors
 
 type
   LPStream* = ref object of RootObj
     isClosed*: bool
     closeEvent*: AsyncEvent
 
-  LPStreamError* = object of CatchableError
+  LPStreamError* = object of LibP2PError
   LPStreamIncompleteError* = object of LPStreamError
   LPStreamIncorrectError* = object of Defect
   LPStreamLimitError* = object of LPStreamError

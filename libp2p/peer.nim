@@ -10,7 +10,7 @@
 ## This module implementes API for libp2p peer.
 import hashes
 import nimcrypto/utils, stew/base58
-import crypto/crypto, multicodec, multihash, vbuffer
+import crypto/crypto, multicodec, multihash, vbuffer, errors
 import protobuf/minprotobuf
 
 const
@@ -22,7 +22,7 @@ type
   PeerID* = object
     data*: seq[byte]
 
-  PeerIDError* = object of CatchableError
+  PeerIDError* = object of LibP2PError
 
 proc pretty*(pid: PeerID): string {.inline.} =
   ## Return base58 encoded ``pid`` representation.

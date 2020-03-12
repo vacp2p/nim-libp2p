@@ -16,6 +16,7 @@
 ##   maximum size of encoded value is 9 octets (bytes).
 ##   https://github.com/multiformats/unsigned-varint
 import bitops, typetraits
+import errors
 
 type
   VarintStatus* {.pure.} = enum
@@ -49,7 +50,7 @@ type
   LPSomeVarint* = LPSomeUVarint
   SomeVarint* = PBSomeVarint | LPSomeVarint
   SomeUVarint* = PBSomeUVarint | LPSomeUVarint
-  VarintError* = object of CatchableError
+  VarintError* = object of LibP2PError
 
 proc vsizeof*(x: SomeUVarint): int {.inline.} =
   ## Returns number of bytes required to encode integer ``x`` as varint.

@@ -12,6 +12,7 @@
 ## This module uses unmodified parts of code from
 ## BearSSL library <https://bearssl.org/>
 ## Copyright(C) 2018 Thomas Pornin <pornin@bolet.org>.
+import ../errors
 import nimcrypto/utils
 import bearssl
 import minasn1
@@ -70,7 +71,7 @@ type
   RsaPKI* = RsaPrivateKey | RsaPublicKey | RsaSignature
   RsaKP* = RsaPrivateKey | RsaKeyPair
 
-  RsaError* = object of CatchableError
+  RsaError* = object of LibP2PError
   RsaRngError* = object of RsaError
   RsaGenError* = object of RsaError
   RsaKeyIncorrectError* = object of RsaError

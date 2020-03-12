@@ -10,6 +10,7 @@
 ## This module implementes API for `go-libp2p-daemon`.
 import os, osproc, strutils, tables, strtabs
 import chronos
+import ../errors
 import ../varint, ../multiaddress, ../multicodec, ../cid, ../peer
 import ../wire, ../multihash, ../protobuf/minprotobuf
 import ../crypto/crypto
@@ -152,8 +153,8 @@ type
                             ticket: PubsubTicket,
                             message: PubSubMessage): Future[bool] {.gcsafe.}
 
-  DaemonRemoteError* = object of CatchableError
-  DaemonLocalError* = object of CatchableError
+  DaemonRemoteError* = object of LibP2PError
+  DaemonLocalError* = object of LibP2PError
 
 var daemonsCount {.threadvar.}: int
 

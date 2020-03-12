@@ -10,6 +10,7 @@
 import tables, sequtils, options, strformat, sets
 import chronos, chronicles
 import connection,
+       errors,
        transports/transport,
        multistream,
        protocols/protocol,
@@ -31,7 +32,7 @@ logScope:
 # previously provided)
 
 type
-    NoPubSubException = object of CatchableError
+    NoPubSubException = object of LibP2PError
 
     Switch* = ref object of RootObj
       peerInfo*: PeerInfo
