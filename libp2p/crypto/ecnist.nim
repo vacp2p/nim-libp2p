@@ -14,6 +14,7 @@
 ## BearSSL library <https://bearssl.org/>
 ## Copyright(C) 2018 Thomas Pornin <pornin@bolet.org>.
 
+import ../errors
 import bearssl
 import nimcrypto/utils
 import minasn1
@@ -56,7 +57,7 @@ type
 
   EcPKI* = EcPrivateKey | EcPublicKey | EcSignature
 
-  EcError* = object of CatchableError
+  EcError* = object of LibP2PError
   EcKeyIncorrectError* = object of EcError
   EcRngError* = object of EcError
   EcPublicKeyError* = object of EcError
