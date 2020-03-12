@@ -14,7 +14,6 @@
 <a href="https://opensource.org/licenses/Apache-2.0"><img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg" /></a>
 <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-blue.svg" /></a>
 <a href=""><img src="https://img.shields.io/badge/nim-%3E%3D1.0.6-orange.svg?style=flat-square" /></a>
-<a href=""><img src="https://img.shields.io/badge/go-%3E%3D1.12-orange.svg?style=flat-square" /></a>
 </p>
 
 ## Introduction
@@ -22,7 +21,7 @@
 An implementation of [libp2p](https://libp2p.io/) in Nim. Also provides a Nim wrapper of the [Libp2p Go daemon](https://github.com/libp2p/go-libp2p).
 
 ## Project Status
-The current native Nim libp2p implementation support is experimental and shouldn't be relied on for production use. It is however under active development and we hope to achieve a reasonable level of stability in the upcoming months, as we will be integrating it across our own set of products, such as the Nim Beacon Chain. <br>
+The current native Nim libp2p implementation support is experimental and shouldn't be relied on for production use. It is under active development and contributions are highly welcomed. :)
 
 Check our [examples folder](/examples) to get started! 
 
@@ -47,7 +46,7 @@ libp2p is a networking stack and library modularized out of [The IPFS Project](h
 
 libp2p is the product of a long, and arduous quest of understanding -- a deep dive into the internet's network stack, and plentiful peer-to-peer protocols from the past. Building large scale peer-to-peer systems has been complex and difficult in the last 15 years, and libp2p is a way to fix that. It is a "network stack" -- a protocol suite -- that cleanly separates concerns, and enables sophisticated applications to only use the protocols they absolutely need, without giving up interoperability and upgradeability. libp2p grew out of IPFS, but it is built so that lots of people can use it, for lots of different projects.
 
-- Learn more about libp2p at [**libp2p.io**](https://libp2p.io) and follow our evolving documentation efforts at [**docs.libp2p.io**](https://docs.libp2p.io). <br>
+- Learn more about libp2p at [**libp2p.io**](https://libp2p.io) and follow our evolving documentation efforts at [**docs.libp2p.io**](https://docs.libp2p.io). 
 - [Here](https://github.com/libp2p/libp2p#description) is an overview of libp2p and its implementations in other programming languages. 
 
 ## Install
@@ -56,7 +55,6 @@ nimble install libp2p
 ```
 ### Prerequisite 
 - [Nim](https://nim-lang.org/install.html)
-- [Go 1.12+](https://golang.org/dl/) 
 
 ## Usage
 
@@ -70,23 +68,28 @@ Please read the [GETTING_STARTED.md](doc/GETTING_STARTED.md) guide.
 Examples can be found in the [examples folder](/examples).
 
 ### Using the Go Daemon
-Please find the installation and usage intructions in [GO_DAEMON.md](doc/GO_DAEMON.md). <br>
+Please find the installation and usage intructions in [GO_DAEMON.md](doc/GO_DAEMON.md). 
+
 Examples can be found in the [examples/go-daemon folder](https://github.com/status-im/nim-libp2p/tree/readme/examples/go-daemon);
 
 ## Development
 **Clone and Install dependencies:**
 
 ```sh
-> git clone https://github.com/status-im/nim-libp2p
-> cd nim-libp2p
-> nimble install
+git clone https://github.com/status-im/nim-libp2p
+cd nim-libp2p
+nimble install
 ```
 
 ### Tests 
+
+#### Prerequisite
+- [Go 1.12+](https://golang.org/dl/) 
+
 #### Run unit tests
 ```sh
 # run all the unit tests
-> nimble test
+nimble test
 ```
 
 ### Packages 
@@ -95,30 +98,30 @@ List of packages currently in existence for nim-libp2p:
 
 #### Libp2p
 - [libp2p](https://github.com/status-im/nim-libp2p)
-- [libp2p-daemon-client](https://github.com/status-im/nim-libp2p/blob/5701d937c8d36a1f629073130d26246ecc02caf7/libp2p/daemon/daemonapi.nim)
-- [interop-libp2p](https://github.com/status-im/nim-libp2p/blob/5701d937c8d36a1f629073130d26246ecc02caf7/tests/testinterop.nim#L191)
+- [libp2p-daemon-client](https://github.com/status-im/nim-libp2p/blob/master/libp2p/daemon/daemonapi.nim)
+- [interop-libp2p](https://github.com/status-im/nim-libp2p/blob/master/tests/testinterop.nim)
 
 #### Transports
-- [libp2p-tcp](https://github.com/status-im/nim-libp2p/blob/293a219dbe078636ce5891c3423ab10ffe3112f9/libp2p/transports/tcptransport.nim)
+- [libp2p-tcp](https://github.com/status-im/nim-libp2p/blob/master/libp2p/transports/tcptransport.nim)
 
 #### Secure Channels
-- [libp2p-secio](https://github.com/status-im/nim-libp2p/blob/df29ac760e51b5a1815f313a8cdc1bdf428dbafc/libp2p/protocols/secure/secio.nim)
+- [libp2p-secio](https://github.com/status-im/nim-libp2p/blob/master/libp2p/protocols/secure/secio.nim)
 
 #### Stream Multiplexers
-- [libp2p-mplex](https://github.com/status-im/nim-libp2p/blob/1a987a9c5b5bc4fd35e71576aa54ba7e5a5979e9/libp2p/muxers/mplex/mplex.nim)
+- [libp2p-mplex](https://github.com/status-im/nim-libp2p/blob/master/libp2p/muxers/mplex/mplex.nim)
 
 #### Utilities
 - [libp2p-crypto](https://github.com/status-im/nim-libp2p/tree/master/libp2p/crypto)
-- [libp2p-crypto-secp256k1](https://github.com/status-im/nim-libp2p/blob/107e71203d136acbabe9d8af45bcad58967eeec0/libp2p/crypto/secp.nim)
+- [libp2p-crypto-secp256k1](https://github.com/status-im/nim-libp2p/blob/master/libp2p/crypto/secp.nim)
 
 #### Data Types
-- [peer-id](https://github.com/status-im/nim-libp2p/blob/e0aae6d8ac1b4389044c5a6332add796bdf1d3a7/libp2p/peer.nim)
-- [peer-info](https://github.com/status-im/nim-libp2p/blob/8e46460cf61e6ea6e370eff98a9ad85774f87d79/libp2p/peerinfo.nim)
+- [peer-id](https://github.com/status-im/nim-libp2p/blob/master/libp2p/peer.nim)
+- [peer-info](https://github.com/status-im/nim-libp2p/blob/master/libp2p/peerinfo.nim)
 
 #### Pubsub
-- [libp2p-pubsub](https://github.com/status-im/nim-libp2p/blob/6a7f9f058c04ecdfd26e5dbfd8df88221b8511e7/libp2p/protocols/pubsub/pubsub.nim)
-- [libp2p-floodsub](https://github.com/status-im/nim-libp2p/blob/d5f92663bc5faa6d163d28624d66d740af4942c7/libp2p/protocols/pubsub/floodsub.nim)
-- [libp2p-gossipsub](https://github.com/status-im/nim-libp2p/blob/381630f1854818be634a98e92a65dc317bf780a0/libp2p/protocols/pubsub/gossipsub.nim)
+- [libp2p-pubsub](https://github.com/status-im/nim-libp2p/blob/master/libp2p/protocols/pubsub/pubsub.nim)
+- [libp2p-floodsub](https://github.com/status-im/nim-libp2p/blob/master/libp2p/protocols/pubsub/floodsub.nim)
+- [libp2p-gossipsub](https://github.com/status-im/nim-libp2p/blob/master/libp2p/protocols/pubsub/gossipsub.nim)
 
 
 Packages that exist in the original libp2p specs and are under active development: 
@@ -136,7 +139,8 @@ Packages that exist in the original libp2p specs and are under active developmen
 - libp2p-nat-mgnr
 - libp2p-utils
 
-** Note that the current stack reflects the minimal requirements for the upcoming Eth2 implementation. <br>
+** Note that the current stack reflects the minimal requirements for the upcoming Eth2 implementation. 
+
 
 ## Contribute
 The libp2p implementation in Nim is a work in progress. We welcome contributors to help out! In specific, you can:
