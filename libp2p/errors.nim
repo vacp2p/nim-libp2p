@@ -3,11 +3,12 @@ type
 
 ## The following is just some diagnostic
 when defined(collect_exceptions):
-  import json
+  import json, sets
 
   var
       f: File
-  doAssert f.open("exceptions.json", fmAppend)
+      entries: HashSet[string]
+  doAssert f.open("exceptions.json", fmWrite)
 
   proc `%`(cstr: cstring): JsonNode = %($cstr)
 
@@ -17,5 +18,9 @@ when defined(collect_exceptions):
         "name": $e.name,
         "stacktrace": e.getStackTraceEntries()
       }
-    f.writeLine(j)
+      jstr = $j
+    {.gcsafe.}:
+      if not entries.contains(jstr):
+        f.writeLine(jstr)
+        entries.incl(jstr)
     return true
