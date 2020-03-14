@@ -145,7 +145,7 @@ Packages that exist in the original libp2p specs and are under active developmen
 
 
 ## Contribute
-The libp2p implementation in Nim is a work in progress. We welcome contributors to help out! In specific, you can:
+The libp2p implementation in Nim is a work in progress. We welcome contributors to help out! Specifically, you can:
 - Go through the modules and **check out existing issues**. This would be especially useful for modules in active development. Some knowledge of IPFS/libp2p may be required, as well as the infrastructure behind it. 
 - **Perform code reviews**. Feel free to let us know if you found anything that can a) speed up the project development b) ensure better quality and c) reduce possible future bugs. 
 - **Add tests**. Help nim-libp2p to be more robust by adding more tests to the [tests folder](https://github.com/status-im/nim-libp2p/tree/master/tests).
