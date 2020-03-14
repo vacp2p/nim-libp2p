@@ -1,5 +1,5 @@
 import chronos, nimcrypto, strutils, os
-import ../libp2p/daemon/daemonapi
+import ../../libp2p/daemon/daemonapi
 
 const
   PubSubTopic = "test-net"

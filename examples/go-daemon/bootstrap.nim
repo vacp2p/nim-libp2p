@@ -1,6 +1,6 @@
 import chronos, nimcrypto, strutils
-import ../libp2p/daemon/daemonapi
-import hexdump
+import ../../libp2p/daemon/daemonapi
+import ../hexdump
 
 const
   PubSubTopic = "test-net"
