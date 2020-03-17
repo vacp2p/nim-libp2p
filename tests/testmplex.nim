@@ -10,7 +10,9 @@ import ../libp2p/[connection,
                   muxers/mplex/mplex,
                   muxers/mplex/coder,
                   muxers/mplex/types,
-                  muxers/mplex/lpchannel]
+                  muxers/mplex/lpchannel,
+                  vbuffer,
+                  varint]
 
 when defined(nimHasUsed): {.used.}
 
@@ -217,7 +219,7 @@ suite "Mplex":
         bigseq.add(uint8(rand(uint('A')..uint('z'))))
       await stream.writeLp(bigseq)
       try:
-        await listenJob.wait(seconds(5))
+        await listenJob.wait(millis(500))
       except AsyncTimeoutError:
         # we want to time out here!
         discard
@@ -375,6 +377,132 @@ suite "Mplex":
 
   #   expect LPStreamEOFError:
   #     waitFor(testClosedForRead())
+
+  test "jitter - channel should be able to handle erratic read/writes":
+    proc test(): Future[bool] {.async.} =
+      let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
+
+      var complete = newFuture[void]()
+      const MsgSize = 1024
+      proc connHandler(conn: Connection) {.async, gcsafe.} =
+        proc handleMplexListen(stream: Connection) {.async, gcsafe.} =
+          let msg = await stream.readLp()
+          check msg.len == MsgSize
+          await stream.close()
+          complete.complete()
+
+        let mplexListen = newMplex(conn)
+        mplexListen.streamHandler = handleMplexListen
+        discard mplexListen.handle()
+
+      let transport1: TcpTransport = newTransport(TcpTransport)
+      discard await transport1.listen(ma, connHandler)
+
+      defer:
+        await transport1.close()
+
+      let transport2: TcpTransport = newTransport(TcpTransport)
+      let conn = await transport2.dial(transport1.ma)
+
+      let mplexDial = newMplex(conn)
+      let stream = await mplexDial.newStream()
+      var bigseq = newSeqOfCap[uint8](MaxMsgSize + 1)
+      for _ in 0..<MsgSize: # write one less than max size
+        bigseq.add(uint8(rand(uint('A')..uint('z'))))
+
+      ## create lenght prefixed libp2p frame
+      var buf = initVBuffer()
+      buf.writeSeq(bigseq)
+      buf.finish()
+
+      ## create mplex header
+      var mplexBuf = initVBuffer()
+      mplexBuf.writePBVarint((1.uint shl 3) or ord(MessageType.MsgOut).uint)
+      mplexBuf.writePBVarint(buf.buffer.len.uint) # size should be always sent
+
+      await conn.write(mplexBuf.buffer)
+      proc writer() {.async.} =
+        var sent = 0
+        randomize()
+        let total = buf.buffer.len
+        const min = 20
+        const max = 50
+        while sent < total:
+          var size = rand(min..max)
+          size = if size > buf.buffer.len: buf.buffer.len else: size
+          var send = buf.buffer[0..<size]
+          await conn.write(send)
+          sent += size
+          buf.buffer = buf.buffer[size..^1]
+
+      await writer()
+
+      await stream.close()
+      await conn.close()
+      await complete
+
+      result = true
+
+    check:
+      waitFor(test()) == true
+
+  test "jitter - channel should handle 1 byte read/write":
+    proc test(): Future[bool] {.async.} =
+      let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
+
+      var complete = newFuture[void]()
+      const MsgSize = 512
+      proc connHandler(conn: Connection) {.async, gcsafe.} =
+        proc handleMplexListen(stream: Connection) {.async, gcsafe.} =
+          let msg = await stream.readLp()
+          check msg.len == MsgSize
+          await stream.close()
+          complete.complete()
+
+        let mplexListen = newMplex(conn)
+        mplexListen.streamHandler = handleMplexListen
+        discard mplexListen.handle()
+
+      let transport1: TcpTransport = newTransport(TcpTransport)
+      discard await transport1.listen(ma, connHandler)
+
+      defer:
+        await transport1.close()
+
+      let transport2: TcpTransport = newTransport(TcpTransport)
+      let conn = await transport2.dial(transport1.ma)
+
+      let mplexDial = newMplex(conn)
+      let stream = await mplexDial.newStream()
+      var bigseq = newSeqOfCap[uint8](MaxMsgSize + 1)
+      for _ in 0..<MsgSize: # write one less than max size
+        bigseq.add(uint8(rand(uint('A')..uint('z'))))
+
+      ## create lenght prefixed libp2p frame
+      var buf = initVBuffer()
+      buf.writeSeq(bigseq)
+      buf.finish()
+
+      ## create mplex header
+      var mplexBuf = initVBuffer()
+      mplexBuf.writePBVarint((1.uint shl 3) or ord(MessageType.MsgOut).uint)
+      mplexBuf.writePBVarint(buf.buffer.len.uint) # size should be always sent
+
+      await conn.write(mplexBuf.buffer)
+      proc writer() {.async.} =
+        for i in buf.buffer:
+          await conn.write(@[i])
+
+      await writer()
+
+      await stream.close()
+      await conn.close()
+      await complete
+
+      result = true
+
+    check:
+      waitFor(test()) == true
 
   test "reset - channel should fail reading":
     proc testResetRead(): Future[void] {.async.} =

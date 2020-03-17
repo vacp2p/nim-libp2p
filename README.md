@@ -1,172 +1,157 @@
-# nim-libp2p
+<h1 align="center">
+  <a href="libp2p.io"><img width="250" src="https://github.com/libp2p/libp2p/blob/master/logo/black-bg-2.png?raw=true" alt="libp2p hex logo" /></a>
+</h1>
 
-[![Build Status](https://travis-ci.org/status-im/nim-libp2p.svg?branch=master)](https://travis-ci.org/status-im/nim-libp2p)
-[![Build status](https://ci.appveyor.com/api/projects/status/pqgif5bcie6cp3wi/branch/master?svg=true)](https://ci.appveyor.com/project/nimbus/nim-libp2p/branch/master)
-[![Build Status: Azure](https://img.shields.io/azure-devops/build/nimbus-dev/dc5eed24-3f6c-4c06-8466-3d060abd6c8b/5/master?label=Azure%20%28Linux%2064-bit%2C%20Windows%2032-bit%2F64-bit%2C%20MacOS%2064-bit%29)](https://dev.azure.com/nimbus-dev/nim-libp2p/_build?definitionId=5&branchName=master)
+<h3 align="center">The Nim implementation of the libp2p Networking Stack.</h3>
 
-[![License: Apache](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
-![Stability: experimental](https://img.shields.io/badge/stability-experimental-orange.svg)
+<p align="center">
+<a href="https://travis-ci.org/status-im/nim-libp2p"><img src="https://travis-ci.org/status-im/nim-libp2p.svg?branch=master" /></a>
+<a href="https://ci.appveyor.com/project/nimbus/nim-libp2p/branch/master"><img src="https://ci.appveyor.com/api/projects/status/pqgif5bcie6cp3wi/branch/master?svg=true" /></a>
+<a href="https://dev.azure.com/nimbus-dev/nim-libp2p/_build?definitionId=5&branchName=master"><img src="https://img.shields.io/azure-devops/build/nimbus-dev/dc5eed24-3f6c-4c06-8466-3d060abd6c8b/5/master?label=Azure%20%28Linux%2064-bit%2C%20Windows%2032-bit%2F64-bit%2C%20MacOS%2064-bit%29" /></a>
+</p>
+
+<p align="center">
+<a href="https://opensource.org/licenses/Apache-2.0"><img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg" /></a>
+<a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-blue.svg" /></a>
+<a href=""><img src="https://img.shields.io/badge/nim-%3E%3D1.0.6-orange.svg?style=flat-square" /></a>
+</p>
 
 ## Introduction
 
-### Running against the Go daemon
+An implementation of [libp2p](https://libp2p.io/) in Nim. Also provides a Nim wrapper of the [Libp2p Go daemon](https://github.com/libp2p/go-libp2p).
 
-An implementation of [libp2p](https://libp2p.io/) in Nim, as a wrapper of the [Libp2p Go daemon](https://github.com/libp2p/go-libp2p).
+## Project Status
+The current native Nim libp2p implementation support is experimental and shouldn't be relied on for production use. It is under active development and contributions are highly welcomed. :)
 
-Note that you need Go 1.12+ for the below instructions to work!
+Check our [examples folder](/examples) to get started! 
 
-Install dependencies and run tests with:
+# Table of Contents
+- [Background](#background)
+- [Install](#install)
+  - [Prerequisite](#prerequisite)
+- [Usage](#usage)
+  - [API](#api)
+  - [Getting Started](#getting-started)
+  - [Tutorials and Examples](#tutorials-and-examples)
+  - [Using the Go Daemon](#using-the-go-daemon)
+- [Development](#development)
+  - [Tests](#tests)
+  - [Packages](#packages)
+- [Contribute](#contribute)
+  - [Core Developers](#core-developers) 
+- [License](#license)
 
-```bash
-git clone https://github.com/status-im/nim-libp2p && cd nim-libp2p
+## Background   
+libp2p is a networking stack and library modularized out of [The IPFS Project](https://github.com/ipfs/ipfs), and bundled separately for other tools to use.
+
+libp2p is the product of a long and arduous quest of understanding; a deep dive into the internet's network stack and the peer-to-peer protocols from the past. Building large scale peer-to-peer systems has been complex and difficult in the last 15 years and libp2p is a way to fix that. It is a "network stack", a suite of networking protocols that cleanly separates concerns and enables sophisticated applications to only use the protocols they absolutely need, without giving up interoperability and upgradeability. 
+
+libp2p grew out of IPFS, but it is built so that lots of people can use it, for lots of different projects.
+
+- Learn more about libp2p at [**libp2p.io**](https://libp2p.io) and follow our evolving documentation efforts at [**docs.libp2p.io**](https://docs.libp2p.io). 
+- [Here](https://github.com/libp2p/libp2p#description) is an overview of libp2p and its implementations in other programming languages. 
+
+## Install
+```
+nimble install libp2p
+```
+### Prerequisite 
+- [Nim](https://nim-lang.org/install.html)
+
+## Usage
+
+### API
+The specification is available on [API.md](doc/API.md) (coming soon).
+
+### Getting Started
+Please read the [GETTING_STARTED.md](doc/GETTING_STARTED.md) guide. 
+
+### Tutorials and Examples 
+Examples can be found in the [examples folder](/examples).
+
+### Using the Go Daemon
+Please find the installation and usage intructions in [GO_DAEMON.md](doc/GO_DAEMON.md). 
+
+Examples can be found in the [examples/go-daemon folder](https://github.com/status-im/nim-libp2p/tree/readme/examples/go-daemon);
+
+## Development
+**Clone and Install dependencies:**
+
+```sh
+git clone https://github.com/status-im/nim-libp2p
+cd nim-libp2p
 nimble install
+```
+
+### Tests 
+
+#### Prerequisite
+- [Go 1.12+](https://golang.org/dl/) 
+
+#### Run unit tests
+```sh
+# run all the unit tests
 nimble test
-git submodule update --init --recursive
-go version
-git clone https://github.com/libp2p/go-libp2p-daemon
-cd go-libp2p-daemon
-git checkout v0.0.1
-go install ./...
-cd ..
 ```
 
-Try out the chat example:
+### Packages 
 
-```bash
-nim c -r --threads:on examples\chat.nim
-```
+List of packages currently in existence for nim-libp2p:
 
-This will output a peer ID such as `QmbmHfVvouKammmQDJck4hz33WvVktNEe7pasxz2HgseRu` which you can use in another instance to connect to it.
+#### Libp2p
+- [libp2p](https://github.com/status-im/nim-libp2p)
+- [libp2p-daemon-client](https://github.com/status-im/nim-libp2p/blob/master/libp2p/daemon/daemonapi.nim)
+- [interop-libp2p](https://github.com/status-im/nim-libp2p/blob/master/tests/testinterop.nim)
 
-```bash
-./example/chat
-/connect QmbmHfVvouKammmQDJck4hz33WvVktNEe7pasxz2HgseRu
-```
+#### Transports
+- [libp2p-tcp](https://github.com/status-im/nim-libp2p/blob/master/libp2p/transports/tcptransport.nim)
 
-You can now chat between the instances!
+#### Secure Channels
+- [libp2p-secio](https://github.com/status-im/nim-libp2p/blob/master/libp2p/protocols/secure/secio.nim)
 
-![Chat example](https://imgur.com/caYRu8K.gif)
+#### Stream Multiplexers
+- [libp2p-mplex](https://github.com/status-im/nim-libp2p/blob/master/libp2p/muxers/mplex/mplex.nim)
 
-## API
+#### Utilities
+- [libp2p-crypto](https://github.com/status-im/nim-libp2p/tree/master/libp2p/crypto)
+- [libp2p-crypto-secp256k1](https://github.com/status-im/nim-libp2p/blob/master/libp2p/crypto/secp.nim)
 
-Coming soon...
+#### Data Types
+- [peer-id](https://github.com/status-im/nim-libp2p/blob/master/libp2p/peer.nim)
+- [peer-info](https://github.com/status-im/nim-libp2p/blob/master/libp2p/peerinfo.nim)
 
-## Experimental native implementation
+#### Pubsub
+- [libp2p-pubsub](https://github.com/status-im/nim-libp2p/blob/master/libp2p/protocols/pubsub/pubsub.nim)
+- [libp2p-floodsub](https://github.com/status-im/nim-libp2p/blob/master/libp2p/protocols/pubsub/floodsub.nim)
+- [libp2p-gossipsub](https://github.com/status-im/nim-libp2p/blob/master/libp2p/protocols/pubsub/gossipsub.nim)
 
-The native Nim libp2p implementation has finally arrived. Currently, it's support is experimental and shouldn't be relied on for production use. It is however under active development and we hope to achieve a reasonable level of stability in the upcoming months, as we will be integrating it across our own set of products, such as the Nim Beacon Chain.
 
-### What to expect?
+Packages that exist in the original libp2p specs and are under active development: 
+- libp2p-daemon
+- libp2p-webrtc-direct
+- libp2p-webrtc-star
+- libp2p-websockets
+- libp2p-spdy
+- libp2p-bootstrap
+- libp2p-kad-dht
+- libp2p-mdns
+- libp2p-webrtc-star
+- libp2p-delegated-content-routing
+- libp2p-delegated-peer-routing
+- libp2p-nat-mgnr
+- libp2p-utils
 
-This implementation has a bare minimum set of components in order to provide a functional and interoperable libp2p stack. These are:
+** Note that the current stack reflects the minimal requirements for the upcoming Eth2 implementation. 
 
-- A TCP transport
-- multistream-select
-- Secio
-- Mplex
-- Identify
-- FloodSub
-- GossipSub
 
-This stack reflects the minimal requirements for the upcoming Eth2 implementation.
+## Contribute
+The libp2p implementation in Nim is a work in progress. We welcome contributors to help out! Specifically, you can:
+- Go through the modules and **check out existing issues**. This would be especially useful for modules in active development. Some knowledge of IPFS/libp2p may be required, as well as the infrastructure behind it. 
+- **Perform code reviews**. Feel free to let us know if you found anything that can a) speed up the project development b) ensure better quality and c) reduce possible future bugs. 
+- **Add tests**. Help nim-libp2p to be more robust by adding more tests to the [tests folder](https://github.com/status-im/nim-libp2p/tree/master/tests).
 
-### How to try it out?
-
-To run it, add nim-libp2p to your project's nimble file and spawn a node as follows:
-
-```nim
-import tables
-import chronos
-import ../libp2p/[switch,
-                  multistream,
-                  protocols/identify,
-                  connection,
-                  transports/transport,
-                  transports/tcptransport,
-                  multiaddress,
-                  peerinfo,
-                  crypto/crypto,
-                  peer,
-                  protocols/protocol,
-                  muxers/muxer,
-                  muxers/mplex/mplex,
-                  muxers/mplex/types,
-                  protocols/secure/secio,
-                  protocols/secure/secure]
-
-const TestCodec = "/test/proto/1.0.0" # custom protocol string
-
-type
-  TestProto = ref object of LPProtocol # declare a custom protocol
-
-method init(p: TestProto) {.gcsafe.} =
-  # handle incoming connections in closure
-  proc handle(conn: Connection, proto: string) {.async, gcsafe.} =
-    echo "Got from remote - ", cast[string](await conn.readLp())
-    await conn.writeLp("Hello!")
-    await conn.close()
-
-  p.codec = TestCodec # init proto with the correct string id
-  p.handler = handle # set proto handler
-
-proc createSwitch(ma: MultiAddress): (Switch, PeerInfo) =
-  ## Helper to create a swith
-
-  let seckey = PrivateKey.random(RSA) # use a random key for peer id
-  var peerInfo = PeerInfo.init(seckey) # create a peer id and assign
-  peerInfo.addrs.add(ma) # set this peer's multiaddresses (can be any number)
-
-  let identify = newIdentify(peerInfo) # create the identify proto
-
-  proc createMplex(conn: Connection): Muxer =
-    # helper proc to create multiplexers,
-    # use this to perform any custom setup up,
-    # such as adjusting timeout or anything else
-    # that the muxer requires
-    result = newMplex(conn)
-
-  let mplexProvider = newMuxerProvider(createMplex, MplexCodec) # create multiplexer
-  let transports = @[Transport(newTransport(TcpTransport))] # add all transports (tcp only for now, but can be anything in the future)
-  let muxers = {MplexCodec: mplexProvider}.toTable() # add all muxers
-  let secureManagers = {SecioCodec: Secure(newSecio(seckey))}.toTable() # setup the secio and any other secure provider
-
-  # create the switch
-  let switch = newSwitch(peerInfo,
-                         transports,
-                         identify,
-                         muxers,
-                         secureManagers)
-  result = (switch, peerInfo)
-
-proc main() {.async, gcsafe.} =
-  let ma1: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
-  let ma2: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
-
-  var peerInfo1, peerInfo2: PeerInfo
-  var switch1, switch2: Switch
-  (switch1, peerInfo1) = createSwitch(ma1) # create node 1
-
-  # setup the custom proto
-  let testProto = new TestProto
-  testProto.init() # run it's init method to perform any required initialization
-  switch1.mount(testProto) # mount the proto
-  var switch1Fut = await switch1.start() # start the node
-
-  (switch2, peerInfo2) = createSwitch(ma2) # create node 2
-  var switch2Fut = await switch2.start() # start second node
-  let conn = await switch2.dial(switch1.peerInfo, TestCodec) # dial the first node
-
-  await conn.writeLp("Hello!") # writeLp send a length prefixed buffer over the wire
-  # readLp reads length prefixed bytes and returns a buffer without the prefix
-  echo "Remote responded with - ", cast[string](await conn.readLp())
-
-  await allFutures(switch1.stop(), switch2.stop()) # close connections and shutdown all transports
-  await allFutures(switch1Fut & switch2Fut) # wait for all transports to shutdown
-
-waitFor(main())
-```
-
-For a more complete example, checkout the [directchat.nim](examples/directchat.nim) example in the `examples` directory.
+### Core Developers 
+[@cheatfate](https://github.com/cheatfate), [Dmitriy Ryajov](https://github.com/dryajov), [Giovanni Petrantoni](https://github.com/sinkingsugar), [Zahary Karadjov](https://github.com/zah)
 
 ## License
 

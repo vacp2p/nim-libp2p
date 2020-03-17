@@ -8,7 +8,7 @@
 ## those terms.
 
 ## This module implements minimal ASN.1 encoding/decoding primitives.
-import endians
+import stew/endians2
 import nimcrypto/utils
 
 type
@@ -218,22 +218,7 @@ proc asn1EncodeInteger*[T: SomeUnsignedInt](dest: var openarray[byte],
   ## If length of ``dest`` is less then number of required bytes to encode
   ## ``value``, then result of encoding will not be stored in ``dest``
   ## but number of bytes (octets) required will be returned.
-  when T is uint64:
-    var buffer: array[8, byte]
-    bigEndian64(addr buffer[0], cast[pointer](unsafeAddr value))
-    result = asn1EncodeInteger(dest, buffer)
-  elif T is uint32:
-    var buffer: array[4, byte]
-    bigEndian32(addr buffer[0], cast[pointer](unsafeAddr value))
-    result = asn1EncodeInteger(dest, buffer)
-  elif T is uint16:
-    var buffer: array[2, byte]
-    bigEndian16(addr buffer[0], cast[pointer](unsafeAddr value))
-    result = asn1EncodeInteger(dest, buffer)
-  elif T is uint8:
-    var buffer: array[1, byte]
-    buffer[0] = value
-    result = asn1EncodeInteger(dest, buffer)
+  dest.asn1EncodeInteger(value.toBytesBE())
 
 proc asn1EncodeBoolean*(dest: var openarray[byte], value: bool): int =
   ## Encode Nim's boolean as ASN.1 DER `BOOLEAN` and return number of bytes

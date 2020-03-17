@@ -1,6 +1,7 @@
 import chronos, nimcrypto, strutils
-import ../libp2p/daemon/daemonapi
+import ../../libp2p/daemon/daemonapi
 
+## nim c -r --threads:on chat.nim
 when not(compileOption("threads")):
   {.fatal: "Please, compile this program with the --threads:on option!".}
 
