@@ -28,22 +28,18 @@ type
   ChaChaPolyNonce* = array[ChaChaPolyNonceSize, byte]
   ChaChaPolyTag* = array[ChaChaPolyTagSize, byte]
 
-proc intoChaChaPolyKey*(s: array[32, byte]): ChaChaPolyKey =
-  assert s.len == ChaChaPolyKeySize
-  copyMem(addr result[0], unsafeaddr s[0], ChaChaPolyKeySize)
-  
-proc intoChaChaPolyKey*(s: seq[byte]): ChaChaPolyKey =
+proc intoChaChaPolyKey*(s: openarray[byte]): ChaChaPolyKey =
   assert s.len == ChaChaPolyKeySize
   copyMem(addr result[0], unsafeaddr s[0], ChaChaPolyKeySize)
 
-proc intoChaChaPolyNonce*(s: seq[byte]): ChaChaPolyNonce =
+proc intoChaChaPolyNonce*(s: openarray[byte]): ChaChaPolyNonce =
   assert s.len == ChaChaPolyNonceSize
   copyMem(addr result[0], unsafeaddr s[0], ChaChaPolyNonceSize)
 
-proc intoChaChaPolyTag*(s: seq[byte]): ChaChaPolyTag =
+proc intoChaChaPolyTag*(s: openarray[byte]): ChaChaPolyTag =
   assert s.len == ChaChaPolyTagSize
   copyMem(addr result[0], unsafeaddr s[0], ChaChaPolyTagSize)
-  
+   
 # bearssl allows us to use optimized versions
 # this is reconciled at runtime
 # we do this in the global scope / module init

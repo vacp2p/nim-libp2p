@@ -27,7 +27,7 @@ type
   pcuchar = ptr cuchar
   Curver25519RngError* = object of CatchableError
 
-proc intoCurve25519Key*(s: seq[byte]): Curve25519Key =
+proc intoCurve25519Key*(s: openarray[byte]): Curve25519Key =
   assert s.len == Curve25519KeySize
   copyMem(addr result[0], unsafeaddr s[0], Curve25519KeySize)
 
