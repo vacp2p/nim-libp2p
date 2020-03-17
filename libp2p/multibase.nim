@@ -21,17 +21,17 @@ type
 
   MultiBase* = object
 
-  MBCodeSize = proc(length: int): int {.nimcall.}
+  MBCodeSize = proc(length: int): int {.nimcall, raises: [].}
 
   MBCodec = object
     code: char
     name: string
     encr: proc(inbytes: openarray[byte],
                outbytes: var openarray[char],
-               outlen: var int): MultibaseStatus {.nimcall.}
+               outlen: var int): MultibaseStatus {.nimcall, raises: [].}
     decr: proc(inbytes: openarray[char],
                outbytes: var openarray[byte],
-               outlen: var int): MultibaseStatus {.nimcall.}
+               outlen: var int): MultibaseStatus {.nimcall, raises: [].}
     encl: MBCodeSize
     decl: MBCodeSize
 
@@ -371,7 +371,7 @@ proc decodedLength*(mbtype: typedesc[MultiBase], encoding: char,
 
 proc encode*(mbtype: typedesc[MultiBase], encoding: string,
              inbytes: openarray[byte], outbytes: var openarray[char],
-             outlen: var int): MultibaseStatus =
+             outlen: var int): MultibaseStatus {.raises: [MultiBaseError].} =
   ## Encode array ``inbytes`` using MultiBase encoding scheme ``encoding`` and
   ## store encoded value to ``outbytes``.
   ##
@@ -410,7 +410,7 @@ proc encode*(mbtype: typedesc[MultiBase], encoding: string,
       outlen = mb.encl(len(inbytes)) + 1
 
 proc decode*(mbtype: typedesc[MultiBase], inbytes: openarray[char],
-             outbytes: var openarray[byte], outlen: var int): MultibaseStatus =
+             outbytes: var openarray[byte], outlen: var int): MultibaseStatus {.raises: [MultiBaseError].} =
   ## Decode array ``inbytes`` using MultiBase encoding and store decoded value
   ## to ``outbytes``.
   ##

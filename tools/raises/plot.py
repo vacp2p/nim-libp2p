@@ -28,5 +28,6 @@ with open("exceptions.json") as f:
 data = pd.DataFrame(data)
 procs = data["raiser"].unique()
 tab = pd.crosstab(data["exception"], data["raiser"]).reindex(columns=procs)
-sns.heatmap(tab, annot=True, fmt="g", cmap='viridis')
-plt.show()
+print(tab)
+# sns.heatmap(tab, annot=True, fmt="g", cmap='viridis')
+# plt.show()

@@ -174,7 +174,7 @@ proc version*(cid: Cid): CidVersion =
   ## Returns CID version
   result = cid.cidver
 
-proc init*[T: char|byte](ctype: typedesc[Cid], data: openarray[T]): Cid =
+proc init*[T: char|byte](ctype: typedesc[Cid], data: openarray[T]): Cid {.raises: [CidError, MultiBaseError].} =
   ## Create new content identifier using array of bytes or string ``data``.
   if decode(data, result) != CidStatus.Success:
     raise newException(CidError, "Incorrect CID!")

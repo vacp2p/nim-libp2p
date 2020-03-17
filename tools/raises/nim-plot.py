@@ -19,9 +19,13 @@ with open("nim-exceptions.txt") as f:
 
 data = pd.DataFrame(data)
 labels = data["name"].unique()
+print(labels)
 count = data.groupby(data["name"]).size().reindex(labels)
 data = {"count": count}
 data = pd.DataFrame(data)
+print(data)
 
-sns.heatmap(data, annot=True, fmt="g", cmap='viridis')
-plt.show()
+# plot is plotting less data for some reason..
+
+# sns.heatmap(data, annot=True, fmt="g", cmap='viridis')
+# plt.show()

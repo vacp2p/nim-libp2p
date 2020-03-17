@@ -669,7 +669,7 @@ proc validate*(ma: MultiAddress): bool =
   result = true
 
 proc init*(mtype: typedesc[MultiAddress], protocol: MultiCodec,
-           value: openarray[byte]): MultiAddress =
+           value: openarray[byte]): MultiAddress {.raises: [MultiAddressError].} =
   ## Initialize MultiAddress object from protocol id ``protocol`` and array
   ## of bytes ``value``.
   let proto = CodeAddresses.getOrDefault(protocol)

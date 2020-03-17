@@ -12,7 +12,8 @@ import chronos, chronicles
 import errors,
        connection,
        vbuffer,
-       protocols/protocol
+       protocols/protocol,
+       stream/lpstream
 
 logScope:
   topic = "Multistream"
@@ -150,12 +151,12 @@ proc handle*(m: MultistreamSelect, conn: Connection) {.async, gcsafe.} =
                 await h.protocol.handler(conn, ms)
                 return
               except CatchableError as exc:
-                warn "exception while handling", msg = exc.msg
+                warn "exception while handling", msg=exc.msg, ex=exc.name
                 return
           warn "no handlers for ", protocol = ms
           await conn.write(m.na)
   except CatchableError as exc:
-    trace "exception occurred in MultistreamSelect.handle", exc = exc.msg
+    trace "exception occurred in MultistreamSelect.handle", msg=exc.msg, ex=exc.name
   finally:
     trace "leaving multistream loop"
     if not conn.closed:
