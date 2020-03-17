@@ -28,68 +28,73 @@ type
   ChaChaPolyNonce* = array[ChaChaPolyNonceSize, byte]
   ChaChaPolyTag* = array[ChaChaPolyTagSize, byte]
 
-proc intoChaChaPolyKey*(s: seq[byte]): ChaChaPolyKey =
+proc intoChaChaPolyKey*(s: openarray[byte]): ChaChaPolyKey =
   assert s.len == ChaChaPolyKeySize
   copyMem(addr result[0], unsafeaddr s[0], ChaChaPolyKeySize)
 
-proc intoChaChaPolyNonce*(s: seq[byte]): ChaChaPolyNonce =
+proc intoChaChaPolyNonce*(s: openarray[byte]): ChaChaPolyNonce =
   assert s.len == ChaChaPolyNonceSize
   copyMem(addr result[0], unsafeaddr s[0], ChaChaPolyNonceSize)
 
-proc intoChaChaPolyTag*(s: seq[byte]): ChaChaPolyTag =
+proc intoChaChaPolyTag*(s: openarray[byte]): ChaChaPolyTag =
   assert s.len == ChaChaPolyTagSize
   copyMem(addr result[0], unsafeaddr s[0], ChaChaPolyTagSize)
-  
+   
 # bearssl allows us to use optimized versions
 # this is reconciled at runtime
 # we do this in the global scope / module init
 
 template fetchImpl: untyped =
   # try for the best first
-  var
-    chachapoly_native_impl {.inject.}: Poly1305Run = poly1305CtmulqGet()
-    chacha_native_impl {.inject.}: Chacha20Run = chacha20Sse2Get()
-
-  # fall back if not available
-  if chachapoly_native_impl == nil:
-    chachapoly_native_impl = poly1305CtmulRun
-
-  if chacha_native_impl == nil:
-    chacha_native_impl = chacha20CtRun
+  let
+    chachapoly_native_impl {.inject.}: Poly1305Run = poly1305CtmulRun
+    chacha_native_impl {.inject.}: Chacha20Run = chacha20CtRun
 
 proc encrypt*(_: type[ChaChaPoly],
-                 key: var ChaChaPolyKey,
-                 nonce: var ChaChaPolyNonce,
+                 key: ChaChaPolyKey,
+                 nonce: ChaChaPolyNonce,
                  tag: var ChaChaPolyTag,
                  data: var openarray[byte],
-                 aad: var openarray[byte]) =
+                 aad: openarray[byte]) =
   fetchImpl()
-  
+
+  let
+    ad = if aad.len > 0:
+           unsafeaddr aad[0]
+         else:
+           nil
+
   chachapoly_native_impl(
-    addr key[0],
-    addr nonce[0],
+    unsafeaddr key[0],
+    unsafeaddr nonce[0],
     addr data[0],
     data.len,
-    addr aad[0],
+    ad,
     aad.len,
     addr tag[0],
     chacha_native_impl,
     #[encrypt]# 1.cint)
 
 proc decrypt*(_: type[ChaChaPoly],
-                 key: var ChaChaPolyKey,
-                 nonce: var ChaChaPolyNonce,
+                 key: ChaChaPolyKey,
+                 nonce: ChaChaPolyNonce,
                  tag: var ChaChaPolyTag,
                  data: var openarray[byte],
-                 aad: var openarray[byte]) =
+                 aad: openarray[byte]) =
   fetchImpl()
+
+  let
+    ad = if aad.len > 0:
+          unsafeaddr aad[0]
+         else:
+           nil
   
   chachapoly_native_impl(
-    addr key[0],
-    addr nonce[0],
+    unsafeaddr key[0],
+    unsafeaddr nonce[0],
     addr data[0],
     data.len,
-    addr aad[0],
+    ad,
     aad.len,
     addr tag[0],
     chacha_native_impl,

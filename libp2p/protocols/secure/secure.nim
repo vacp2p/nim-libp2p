@@ -68,7 +68,7 @@ method init*(s: Secure) {.gcsafe.} =
   proc handle(conn: Connection, proto: string) {.async, gcsafe.} =
     trace "handling connection"
     try:
-      asyncCheck s.handleConn(conn)
+      asyncCheck s.handleConn(conn, false)
       trace "connection secured"
     except CatchableError as exc:
       if not conn.closed():

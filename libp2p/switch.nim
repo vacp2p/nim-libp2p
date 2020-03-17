@@ -181,7 +181,7 @@ proc upgradeOutgoing(s: Switch, conn: Connection): Future[Connection] {.async, g
   s.connections[conn.peerInfo.id] = result
 
 proc upgradeIncoming(s: Switch, conn: Connection) {.async, gcsafe.} =
-  trace "upgrading incoming connection"
+  trace "upgrading incoming connection", conn = $conn
   let ms = newMultistream()
 
   # secure incoming connections
