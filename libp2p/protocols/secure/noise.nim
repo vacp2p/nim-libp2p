@@ -273,9 +273,11 @@ proc sendHSMessage(sconn: Connection; buf: seq[byte]) {.async.} =
   var
     lesize = buf.len.uint16
     besize = lesize.toBytesBE
+    outbuf = newSeqOfCap[byte](besize.len + buf.len)
   trace "sendHSMessage", size = lesize
-  await sconn.write(besize[0].addr, besize.len)
-  await sconn.write(buf)
+  outbuf &= besize
+  outbuf &= buf
+  await sconn.write(outbuf)
 
 proc packNoisePayload(payload: openarray[byte]): seq[byte] =
   let
