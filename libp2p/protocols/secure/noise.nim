@@ -119,7 +119,7 @@ proc encryptWithAd(state: var CipherState, ad, data: openarray[byte]): seq[byte]
   if state.n > NonceMax:
     raise newException(NoiseNonceMaxError, "Noise max nonce value reached")
   result &= tag
-  trace "encryptWithAd", tag = byteutils.toHex(tag), data = result.shortHexDump, nonce = state.n - 1
+  trace "encryptWithAd", tag = byteutils.toHex(tag), data = result.shortLog, nonce = state.n - 1
 
 proc decryptWithAd(state: var CipherState, ad, data: openarray[byte]): seq[byte] =
   var
@@ -130,7 +130,7 @@ proc decryptWithAd(state: var CipherState, ad, data: openarray[byte]): seq[byte]
   np[] = state.n
   result = data[0..(data.high - ChaChaPolyTag.len)]
   ChaChaPoly.decrypt(state.k, nonce, tagOut, result, ad)
-  trace "decryptWithAd", tagIn = tagIn.shortHexDump, tagOut = tagOut.shortHexDump, nonce = state.n
+  trace "decryptWithAd", tagIn = tagIn.shortLog, tagOut = tagOut.shortLog, nonce = state.n
   if tagIn != tagOut:
     error "decryptWithAd failed", data = byteutils.toHex(data)
     raise newException(NoiseDecryptTagError, "decryptWithAd failed tag authentication.")
@@ -151,7 +151,7 @@ proc mixKey(ss: var SymmetricState, ikm: ChaChaPolyKey) =
   sha256.hkdf(ss.ck, ikm, [], temp_keys)
   ss.ck = temp_keys[0]
   ss.cs = CipherState(k: temp_keys[1])
-  trace "mixKey", key = ss.cs.k.shortHexDump
+  trace "mixKey", key = ss.cs.k.shortLog
 
 proc mixHash(ss: var SymmetricState; data: openarray[byte]) =
   var ctx: sha256
@@ -159,7 +159,7 @@ proc mixHash(ss: var SymmetricState; data: openarray[byte]) =
   ctx.update(ss.h.data)
   ctx.update(data)
   ss.h = ctx.finish()
-  trace "mixHash", hash = ss.h.data.shortHexDump
+  trace "mixHash", hash = ss.h.data.shortLog
 
 # We might use this for other handshake patterns/tokens
 proc mixKeyAndHash(ss: var SymmetricState; ikm: openarray[byte]) {.used.} =

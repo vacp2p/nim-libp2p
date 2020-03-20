@@ -119,7 +119,7 @@ method publish*(f: FloodSub,
   let msg = newMessage(f.peerInfo, data, topic)
   var sent: seq[Future[void]]
   for p in f.floodsub[topic]:
-    trace "publishing message", name = topic, peer = p, data = data.shortHexDump
+    trace "publishing message", name = topic, peer = p, data = data.shortLog
     sent.add(f.peers[p].send(@[RPCMsg(messages: @[msg])]))
   await allFutures(sent)
 

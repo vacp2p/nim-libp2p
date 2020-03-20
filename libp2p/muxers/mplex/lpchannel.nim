@@ -54,7 +54,7 @@ proc newChannel*(id: uint,
   let chan = result
   proc writeHandler(data: seq[byte]): Future[void] {.async.} =
     # writes should happen in sequence
-    trace "sending data ", data = data.shortHexDump,
+    trace "sending data ", data = data.shortLog,
                            id = chan.id,
                            initiator = chan.initiator
 
@@ -101,7 +101,7 @@ proc pushTo*(s: LPChannel, data: seq[byte]): Future[void] =
     retFuture.fail(newLPStreamEOFError())
     return retFuture
 
-  trace "pushing data to channel", data = data.shortHexDump,
+  trace "pushing data to channel", data = data.shortLog,
                                    id = s.id,
                                    initiator = s.initiator
 

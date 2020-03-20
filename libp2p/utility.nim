@@ -12,7 +12,7 @@ import nimcrypto/utils
 const
   ShortDumpMax = 24
 
-func shortHexDump*(item: openarray[byte]): string =
+func shortLog*(item: openarray[byte]): string =
   if item.len <= ShortDumpMax:
     item.toHex()
   else:
@@ -22,7 +22,7 @@ func shortHexDump*(item: openarray[byte]): string =
       bslice = item[^split..item.high].toHex()
     aslice & "..." & bslice
 
-func shortHexDump*(item: string): string =
+func shortLog*(item: string): string =
   if item.len <= ShortDumpMax:
     item
   else:

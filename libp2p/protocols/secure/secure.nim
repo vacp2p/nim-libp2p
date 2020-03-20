@@ -51,7 +51,7 @@ proc readLoop(sconn: SecureConn, stream: BufferStream) {.async.} =
 proc handleConn*(s: Secure, conn: Connection, initiator: bool = false): Future[Connection] {.async, gcsafe.} =
   var sconn = await s.handshake(conn, initiator)
   proc writeHandler(data: seq[byte]) {.async, gcsafe.} =
-    trace "sending encrypted bytes", bytes = data.shortHexDump
+    trace "sending encrypted bytes", bytes = data.shortLog
     await sconn.writeMessage(data)
 
   var stream = newBufferStream(writeHandler)

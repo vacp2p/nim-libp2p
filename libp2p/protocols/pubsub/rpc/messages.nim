@@ -47,13 +47,13 @@ type
       messages*: seq[Message]
       control*: Option[ControlMessage]
 
-func shortHexDump*(m: RPCMsg): string =
+func shortLog*(m: RPCMsg): string =
   result &= "subscriptions: " & $m.subscriptions
   result &= "messages: "
   for msg in m.messages:
-    result &= msg.fromPeer.shortHexDump
-    result &= msg.data.shortHexDump
-    result &= msg.seqno.shortHexDump
+    result &= msg.fromPeer.shortLog
+    result &= msg.data.shortLog
+    result &= msg.seqno.shortLog
     result &= $msg.topicIDs
-    result &= msg.signature.shortHexDump
-    result &= msg.key.shortHexDump
+    result &= msg.signature.shortLog
+    result &= msg.key.shortLog

@@ -70,7 +70,7 @@ method handle*(m: Mplex) {.async, gcsafe.} =
       let (id, msgType, data) = await m.connection.readMsg()
       trace "read message from connection", id = id,
                                             msgType = msgType,
-                                            data = data.shortHexDump
+                                            data = data.shortLog
       let initiator = bool(ord(msgType) and 1)
       var channel: LPChannel
       if MessageType(msgType) != MessageType.New:
