@@ -7,27 +7,31 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import nimcrypto/utils
+import stew/byteutils
 
 const
-  ShortDumpMax = 24
+  ShortDumpMax = 12
 
 func shortLog*(item: openarray[byte]): string =
   if item.len <= ShortDumpMax:
-    item.toHex()
+    result = item.toHex()
   else:
-    const split = ShortDumpMax div 2
-    let
-      aslice = item[0..<split].toHex()
-      bslice = item[^split..item.high].toHex()
-    aslice & "..." & bslice
+    const
+      split = ShortDumpMax div 2
+      dumpLen = (ShortDumpMax * 2) + 3
+    result = newStringOfCap(dumpLen)
+    result &= item.toOpenArray(0, split - 1).toHex()
+    result &= "..."
+    result &= item.toOpenArray(item.len - split, item.high).toHex()
 
 func shortLog*(item: string): string =
   if item.len <= ShortDumpMax:
-    item
+    result = item
   else:
-    const split = ShortDumpMax div 2
-    let
-      aslice = item[0..<split]
-      bslice = item[^split..item.high]
-    aslice & "..." & bslice
+    const
+      split = ShortDumpMax div 2
+      dumpLen = ShortDumpMax + 3
+    result = newStringOfCap(dumpLen)
+    result &= item[0..<split]
+    result &= "..."
+    result &= item[(item.len - split)..item.high]
