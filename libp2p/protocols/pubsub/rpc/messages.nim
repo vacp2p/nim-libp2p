@@ -7,7 +7,7 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import options
+import options, sequtils
 import ../../../utility
 
 type
@@ -47,13 +47,55 @@ type
       messages*: seq[Message]
       control*: Option[ControlMessage]
 
-func shortLog*(m: RPCMsg): string =
-  result &= "subscriptions: " & $m.subscriptions
-  result &= "messages: "
-  for msg in m.messages:
-    result &= msg.fromPeer.shortLog
-    result &= msg.data.shortLog
-    result &= msg.seqno.shortLog
-    result &= $msg.topicIDs
-    result &= msg.signature.shortLog
-    result &= msg.key.shortLog
+func shortLog*(s: ControlIHave): auto =
+  (
+    topicID: s.topicID.shortLog,
+    messageIDs: mapIt(s.messageIDs, it.shortLog)
+  )
+
+func shortLog*(s: ControlIWant): auto =
+  (
+    messageIDs: mapIt(s.messageIDs, it.shortLog)
+  )
+
+func shortLog*(s: ControlGraft): auto =
+  (
+    topicID: s.topicID.shortLog
+  )
+
+func shortLog*(s: ControlPrune): auto =
+  (
+    topicID: s.topicID.shortLog
+  )
+
+func shortLog*(c: ControlMessage): auto =
+  (
+    ihave: mapIt(c.ihave, it.shortLog),
+    iwant: mapIt(c.iwant, it.shortLog),
+    graft: mapIt(c.graft, it.shortLog),
+    prune: mapIt(c.prune, it.shortLog)
+  )
+      
+func shortLog*(msg: Message): auto =
+  (
+    fromPeer: msg.fromPeer.shortLog,
+    data: msg.data.shortLog,
+    seqno: msg.seqno.shortLog,
+    topicIDs: $msg.topicIDs,
+    signature: msg.signature.shortLog,
+    key: msg.key.shortLog
+  )
+
+func shortLog*(m: RPCMsg): auto =
+  if m.control.isSome:
+    (
+      subscriptions: m.subscriptions,
+      messages: mapIt(m.messages, it.shortLog),
+      control: m.control.get().shortLog
+    )
+  else:
+    (
+      subscriptions: m.subscriptions,
+      messages: mapIt(m.messages, it.shortLog),
+      control: ControlMessage().shortLog
+    )
