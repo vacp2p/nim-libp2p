@@ -8,6 +8,7 @@
 ## those terms.
 
 import options
+import ../../../utility
 
 type
     SubOpts* = object
@@ -45,3 +46,14 @@ type
       subscriptions*: seq[SubOpts]
       messages*: seq[Message]
       control*: Option[ControlMessage]
+
+func shortHexDump*(m: RPCMsg): string =
+  result &= "subscriptions: " & $m.subscriptions
+  result &= "messages: "
+  for msg in m.messages:
+    result &= msg.fromPeer.shortHexDump
+    result &= msg.data.shortHexDump
+    result &= msg.seqno.shortHexDump
+    result &= $msg.topicIDs
+    result &= msg.signature.shortHexDump
+    result &= msg.key.shortHexDump
