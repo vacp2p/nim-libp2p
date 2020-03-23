@@ -28,12 +28,12 @@ const DefaultRWTimeout = InfiniteDuration
 
 type
   Mplex* = ref object of Muxer
-    remote*: Table[uint, LPChannel]
-    local*: Table[uint, LPChannel]
-    currentId*: uint
-    maxChannels*: uint
+    remote*: Table[uint64, LPChannel]
+    local*: Table[uint64, LPChannel]
+    currentId*: uint64
+    maxChannels*: uint64
 
-proc getChannelList(m: Mplex, initiator: bool): var Table[uint, LPChannel] =
+proc getChannelList(m: Mplex, initiator: bool): var Table[uint64, LPChannel] =
   if initiator:
     trace "picking local channels", initiator = initiator
     result = m.local
@@ -43,7 +43,7 @@ proc getChannelList(m: Mplex, initiator: bool): var Table[uint, LPChannel] =
 
 proc newStreamInternal*(m: Mplex,
                         initiator: bool = true,
-                        chanId: uint = 0,
+                        chanId: uint64 = 0,
                         name: string = "",
                         lazy: bool = false):
                         Future[LPChannel] {.async, gcsafe.} =
@@ -134,8 +134,8 @@ proc newMplex*(conn: Connection,
   new result
   result.connection = conn
   result.maxChannels = maxChanns
-  result.remote = initTable[uint, LPChannel]()
-  result.local = initTable[uint, LPChannel]()
+  result.remote = initTable[uint64, LPChannel]()
+  result.local = initTable[uint64, LPChannel]()
 
   let m = result
   conn.closeEvent.wait()

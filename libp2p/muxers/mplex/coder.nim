@@ -22,7 +22,7 @@ const DefaultChannelSize* = 1 shl 20
 
 type
   Msg* = tuple
-    id: uint
+    id: uint64
     msgType: MessageType
     data: seq[byte]
 
@@ -61,10 +61,10 @@ proc readMsg*(conn: Connection): Future[Msg] {.async, gcsafe.} =
     trace "read data", data = data.len
 
   let header = headerVarint
-  result = (header shr 3, MessageType(header and 0x7), data)
+  result = (uint64(header shr 3), MessageType(header and 0x7), data)
 
 proc writeMsg*(conn: Connection,
-               id: uint,
+               id: uint64,
                msgType: MessageType,
                data: seq[byte] = @[]) {.async, gcsafe.} =
   trace "seding data over mplex", id,
@@ -81,7 +81,7 @@ proc writeMsg*(conn: Connection,
     trace "unable to send message", exc = exc.msg
 
 proc writeMsg*(conn: Connection,
-               id: uint,
+               id: uint64,
                msgType: MessageType,
                data: string) {.async, gcsafe.} =
   result = conn.writeMsg(id, msgType, cast[seq[byte]](data))

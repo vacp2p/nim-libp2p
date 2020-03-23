@@ -21,7 +21,7 @@ logScope:
 
 type
   LPChannel* = ref object of BufferStream
-    id*: uint
+    id*: uint64
     name*: string
     conn*: Connection
     initiator*: bool
@@ -35,7 +35,7 @@ type
     closeCode*: MessageType
     resetCode*: MessageType
 
-proc newChannel*(id: uint,
+proc newChannel*(id: uint64,
                  conn: Connection,
                  initiator: bool,
                  name: string = "",
