@@ -11,6 +11,7 @@
 import rsa, ecnist, ed25519/ed25519, secp
 import ../protobuf/minprotobuf, ../vbuffer, ../multihash, ../multicodec
 import nimcrypto/[rijndael, blowfish, twofish, sha, sha2, hash, hmac, utils]
+import ../utility
 
 # This is workaround for Nim's `import` bug
 export rijndael, blowfish, twofish, sha, sha2, hash, hmac, utils
@@ -421,6 +422,40 @@ proc `$`*(key: PublicKey): string =
   elif key.scheme == Secp256k1:
     result = "Secp256k1 key ("
     result.add($(key.skkey))
+    result.add(")")
+
+func shortLog*(key: PrivateKey): string =
+  ## Get string representation of private key ``key``.
+  if key.scheme == RSA:
+    result = ($key.rsakey).shortLog
+  elif key.scheme == Ed25519:
+    result = "Ed25519 key ("
+    result.add(($key.edkey).shortLog)
+    result.add(")")
+  elif key.scheme == ECDSA:
+    result = "Secp256r1 key ("
+    result.add(($key.eckey).shortLog)
+    result.add(")")
+  elif key.scheme == Secp256k1:
+    result = "Secp256k1 key ("
+    result.add(($key.skkey).shortLog)
+    result.add(")")
+
+proc shortLog*(key: PublicKey): string =
+  ## Get string representation of public key ``key``.
+  if key.scheme == RSA:
+    result = ($key.rsakey).shortLog
+  elif key.scheme == Ed25519:
+    result = "Ed25519 key ("
+    result.add(($key.edkey).shortLog)
+    result.add(")")
+  elif key.scheme == ECDSA:
+    result = "Secp256r1 key ("
+    result.add(($key.eckey).shortLog)
+    result.add(")")
+  elif key.scheme == Secp256k1:
+    result = "Secp256k1 key ("
+    result.add(($key.skkey).shortLog)
     result.add(")")
 
 proc `$`*(sig: Signature): string =

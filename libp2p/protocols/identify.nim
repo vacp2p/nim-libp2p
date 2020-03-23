@@ -15,7 +15,8 @@ import ../protobuf/minprotobuf,
        ../peer,
        ../crypto/crypto,
        ../multiaddress,
-       ../protocols/protocol
+       ../protocols/protocol,
+       ../utility
 
 logScope:
   topic = "identify"
@@ -69,7 +70,7 @@ proc decodeMsg*(buf: seq[byte]): IdentifyInfo =
   result.pubKey = none(PublicKey)
   var pubKey: PublicKey
   if pb.getValue(1, pubKey) > 0:
-    trace "read public key from message", pubKey = $pubKey
+    trace "read public key from message", pubKey = ($pubKey).shortLog
     result.pubKey = some(pubKey)
 
   result.addrs = newSeq[MultiAddress]()

@@ -15,7 +15,8 @@ import secure,
        ../../crypto/crypto,
        ../../crypto/ecnist,
        ../../protobuf/minprotobuf,
-       ../../peer
+       ../../peer,
+       ../../utility
 export hmac, sha2, sha, hash, rijndael, bcmode
 
 logScope:
@@ -181,16 +182,16 @@ method readMessage(sconn: SecioConn): Future[seq[byte]] {.async.} =
     await sconn.readExactly(addr buf[0], 4)
     let length = (int(buf[0]) shl 24) or (int(buf[1]) shl 16) or
                   (int(buf[2]) shl 8) or (int(buf[3]))
-    trace "Recieved message header", header = toHex(buf), length = length
+    trace "Recieved message header", header = buf.shortLog, length = length
     if length <= SecioMaxMessageSize:
       buf.setLen(length)
       await sconn.readExactly(addr buf[0], length)
       trace "Received message body", length = length,
-                                     buffer = toHex(buf)
+                                     buffer = buf.shortLog
       if sconn.macCheckAndDecode(buf):
         result = buf
       else:
-        trace "Message MAC verification failed", buf = toHex(buf)
+        trace "Message MAC verification failed", buf = buf.shortLog
     else:
       trace "Received message header size is more then allowed",
             length = length, allowed_length = SecioMaxMessageSize
@@ -213,7 +214,7 @@ method writeMessage(sconn: SecioConn, message: seq[byte]) {.async.} =
   msg[1] = byte((length shr 16) and 0xFF)
   msg[2] = byte((length shr 8) and 0xFF)
   msg[3] = byte(length and 0xFF)
-  trace "Writing message", message = toHex(msg)
+  trace "Writing message", message = msg.shortLog
   try:
     await sconn.write(msg)
   except AsyncStreamWriteError:
@@ -236,12 +237,12 @@ proc newSecioConn(conn: Connection,
   let i0 = if order < 0: 1 else: 0
   let i1 = if order < 0: 0 else: 1
 
-  trace "Writer credentials", mackey = toHex(secrets.macOpenArray(i0)),
-                              enckey = toHex(secrets.keyOpenArray(i0)),
-                              iv = toHex(secrets.ivOpenArray(i0))
-  trace "Reader credentials", mackey = toHex(secrets.macOpenArray(i1)),
-                              enckey = toHex(secrets.keyOpenArray(i1)),
-                              iv = toHex(secrets.ivOpenArray(i1))
+  trace "Writer credentials", mackey = secrets.macOpenArray(i0).shortLog,
+                              enckey = secrets.keyOpenArray(i0).shortLog,
+                              iv = secrets.ivOpenArray(i0).shortLog
+  trace "Reader credentials", mackey = secrets.macOpenArray(i1).shortLog,
+                              enckey = secrets.keyOpenArray(i1).shortLog,
+                              iv = secrets.ivOpenArray(i1).shortLog
   result.writerMac.init(hash, secrets.macOpenArray(i0))
   result.readerMac.init(hash, secrets.macOpenArray(i1))
   result.writerCoder.init(cipher, secrets.keyOpenArray(i0),
@@ -255,18 +256,18 @@ proc transactMessage(conn: Connection,
                      msg: seq[byte]): Future[seq[byte]] {.async.} =
   var buf = newSeq[byte](4)
   try:
-    trace "Sending message", message = toHex(msg), length = len(msg)
+    trace "Sending message", message = msg.shortLog, length = len(msg)
     await conn.write(msg)
     await conn.readExactly(addr buf[0], 4)
     let length = (int(buf[0]) shl 24) or (int(buf[1]) shl 16) or
                   (int(buf[2]) shl 8) or (int(buf[3]))
-    trace "Recieved message header", header = toHex(buf), length = length
+    trace "Recieved message header", header = buf.shortLog, length = length
     if length <= SecioMaxMessageSize:
       buf.setLen(length)
       await conn.readExactly(addr buf[0], length)
       trace "Received message body", conn = $conn,
                                      length = length,
-                                     buff = buf
+                                     buff = buf.shortLog
       result = buf
     else:
       trace "Received size of message exceed limits", conn = $conn,
@@ -309,7 +310,7 @@ method handshake*(s: Secio, conn: Connection, initiator: bool = false): Future[S
   trace "Local proposal", schemes = SecioExchanges,
                           ciphers = SecioCiphers,
                           hashes = SecioHashes,
-                          pubkey = toHex(localBytesPubkey),
+                          pubkey = localBytesPubkey.shortLog,
                           peer = localPeerId
 
   var answer = await transactMessage(conn, request)
@@ -324,7 +325,7 @@ method handshake*(s: Secio, conn: Connection, initiator: bool = false): Future[S
     raise newException(SecioError, "Remote proposal decoding failed")
 
   if not remotePubkey.init(remoteBytesPubkey):
-    trace "Remote public key incorrect or corrupted", pubkey = remoteBytesPubkey
+    trace "Remote public key incorrect or corrupted", pubkey = remoteBytesPubkey.shortLog
     raise newException(SecioError, "Remote public key incorrect or corrupted")
 
   remotePeerId = PeerID.init(remotePubkey)
@@ -334,7 +335,7 @@ method handshake*(s: Secio, conn: Connection, initiator: bool = false): Future[S
                        remoteNonce)
   trace "Remote proposal", schemes = remoteExchanges, ciphers = remoteCiphers,
                            hashes = remoteHashes,
-                           pubkey = toHex(remoteBytesPubkey), order = order,
+                           pubkey = remoteBytesPubkey.shortLog, order = order,
                            peer = remotePeerId
 
   let scheme = selectBest(order, SecioExchanges, remoteExchanges)
@@ -364,7 +365,7 @@ method handshake*(s: Secio, conn: Connection, initiator: bool = false): Future[S
     raise newException(SecioError, "Remote exchange decoding failed")
 
   if not remoteESignature.init(remoteEBytesSig):
-    trace "Remote signature incorrect or corrupted", signature = toHex(remoteEBytesSig)
+    trace "Remote signature incorrect or corrupted", signature = remoteEBytesSig.shortLog
     raise newException(SecioError, "Remote signature incorrect or corrupted")
 
   var remoteCorpus = answer & request[4..^1] & remoteEBytesPubkey
@@ -389,15 +390,15 @@ method handshake*(s: Secio, conn: Connection, initiator: bool = false): Future[S
           seckeyScheme = ekeypair.seckey.scheme
     raise newException(SecioError, "Shared secret could not be created")
 
-  trace "Shared secret calculated", secret = toHex(secret)
+  trace "Shared secret calculated", secret = secret.shortLog
 
   var keys = stretchKeys(cipher, hash, secret)
 
   trace "Authenticated encryption parameters",
-        iv0 = toHex(keys.ivOpenArray(0)), key0 = toHex(keys.keyOpenArray(0)),
-        mac0 = toHex(keys.macOpenArray(0)),
-        iv1 = toHex(keys.ivOpenArray(1)), key1 = toHex(keys.keyOpenArray(1)),
-        mac1 = toHex(keys.macOpenArray(1))
+        iv0 = toHex(keys.ivOpenArray(0)), key0 = keys.keyOpenArray(0).shortLog,
+        mac0 = keys.macOpenArray(0).shortLog,
+        iv1 = keys.ivOpenArray(1).shortLog, key1 = keys.keyOpenArray(1).shortLog,
+        mac1 = keys.macOpenArray(1).shortLog
 
   # Perform Nonce exchange over encrypted channel.
 
@@ -407,8 +408,8 @@ method handshake*(s: Secio, conn: Connection, initiator: bool = false): Future[S
   var res = await secioConn.readMessage()
 
   if res != @localNonce:
-    trace "Nonce verification failed", receivedNonce = toHex(res),
-                                       localNonce = toHex(localNonce)
+    trace "Nonce verification failed", receivedNonce = res.shortLog,
+                                       localNonce = localNonce.shortLog
     raise newException(CatchableError, "Nonce verification failed")
   else:
     trace "Secure handshake succeeded"

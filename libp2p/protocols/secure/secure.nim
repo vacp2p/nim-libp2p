@@ -14,7 +14,8 @@ import ../protocol,
        ../../stream/bufferstream,
        ../../crypto/crypto,
        ../../connection,
-       ../../peerinfo
+       ../../peerinfo,
+       ../../utility
 
 type
   Secure* = ref object of LPProtocol # base type for secure managers
@@ -50,7 +51,7 @@ proc readLoop(sconn: SecureConn, stream: BufferStream) {.async.} =
 proc handleConn*(s: Secure, conn: Connection, initiator: bool = false): Future[Connection] {.async, gcsafe.} =
   var sconn = await s.handshake(conn, initiator)
   proc writeHandler(data: seq[byte]) {.async, gcsafe.} =
-    trace "sending encrypted bytes", bytes = data.toHex()
+    trace "sending encrypted bytes", bytes = data.shortLog
     await sconn.writeMessage(data)
 
   var stream = newBufferStream(writeHandler)

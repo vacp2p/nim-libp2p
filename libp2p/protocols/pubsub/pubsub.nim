@@ -70,9 +70,9 @@ method rpcHandler*(p: PubSub,
                    peer: PubSubPeer,
                    rpcMsgs: seq[RPCMsg]) {.async, base.} =
   ## handle rpc messages
-  trace "processing RPC message", peer = peer.id, msg = $rpcMsgs
+  trace "processing RPC message", peer = peer.id, msgs = rpcMsgs.len
   for m in rpcMsgs:                                # for all RPC messages
-    trace "processing messages", msg = $rpcMsgs
+    trace "processing messages", msg = m.shortLog
     if m.subscriptions.len > 0:                    # if there are any subscriptions
       for s in m.subscriptions:                    # subscribe/unsubscribe the peer for each topic
         p.subscribeTopic(s.topic, s.subscribe, peer.id)

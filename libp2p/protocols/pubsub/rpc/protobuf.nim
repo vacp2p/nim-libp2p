@@ -12,13 +12,14 @@ import chronicles
 import messages,
        ../../../protobuf/minprotobuf,
        ../../../crypto/crypto,
-       ../../../peer
+       ../../../peer,
+       ../../../utility
 
 proc encodeGraft*(graft: ControlGraft, pb: var ProtoBuffer) {.gcsafe.} =
   pb.write(initProtoField(1, graft.topicID))
 
 proc decodeGraft*(pb: var ProtoBuffer): seq[ControlGraft] {.gcsafe.} =
-  trace "decoding graft msg", buffer = pb.buffer.toHex()
+  trace "decoding graft msg", buffer = pb.buffer.shortLog
   while true:
     var topic: string
     if pb.getString(1, topic) < 0:
@@ -185,15 +186,15 @@ proc decodeMessages*(pb: var ProtoBuffer): seq[Message] {.gcsafe.} =
     var msg: Message
     if pb.getBytes(1, msg.fromPeer) < 0:
       break
-    trace "read message field", fromPeer = msg.fromPeer
+    trace "read message field", fromPeer = msg.fromPeer.shortLog
 
     if pb.getBytes(2, msg.data) < 0:
       break
-    trace "read message field", data = msg.data
+    trace "read message field", data = msg.data.shortLog
 
     if pb.getBytes(3, msg.seqno) < 0:
       break
-    trace "read message field", seqno = msg.seqno
+    trace "read message field", seqno = msg.seqno.shortLog
 
     var topic: string
     while true:
@@ -204,16 +205,16 @@ proc decodeMessages*(pb: var ProtoBuffer): seq[Message] {.gcsafe.} =
       topic = ""
 
     discard pb.getBytes(5, msg.signature)
-    trace "read message field", signature = msg.signature
+    trace "read message field", signature = msg.signature.shortLog
 
     discard pb.getBytes(6, msg.key)
-    trace "read message field", key = msg.key
+    trace "read message field", key = msg.key.shortLog
 
     result.add(msg)
 
 proc encodeRpcMsg*(msg: RPCMsg): ProtoBuffer {.gcsafe.} =
   result = initProtoBuffer()
-  trace "encoding msg: ", msg = $msg
+  trace "encoding msg: ", msg = msg.shortLog
 
   if msg.subscriptions.len > 0:
     var subs = initProtoBuffer()

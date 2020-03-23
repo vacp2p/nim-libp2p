@@ -13,7 +13,8 @@ import types,
        nimcrypto/utils,
        ../../stream/bufferstream,
        ../../stream/lpstream,
-       ../../connection
+       ../../connection,
+       ../../utility
 
 logScope:
   topic = "MplexChannel"
@@ -53,7 +54,7 @@ proc newChannel*(id: uint,
   let chan = result
   proc writeHandler(data: seq[byte]): Future[void] {.async.} =
     # writes should happen in sequence
-    trace "sending data ", data = data.toHex(),
+    trace "sending data ", data = data.shortLog,
                            id = chan.id,
                            initiator = chan.initiator
 
@@ -100,7 +101,7 @@ proc pushTo*(s: LPChannel, data: seq[byte]): Future[void] =
     retFuture.fail(newLPStreamEOFError())
     return retFuture
 
-  trace "pushing data to channel", data = data.toHex(),
+  trace "pushing data to channel", data = data.shortLog,
                                    id = s.id,
                                    initiator = s.initiator
 

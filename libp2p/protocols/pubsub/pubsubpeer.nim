@@ -16,7 +16,8 @@ import rpc/[messages, message, protobuf],
        ../../connection,
        ../../stream/lpstream,
        ../../crypto/crypto,
-       ../../protobuf/minprotobuf
+       ../../protobuf/minprotobuf,
+       ../../utility
 
 logScope:
   topic = "PubSubPeer"
@@ -52,13 +53,13 @@ proc handle*(p: PubSubPeer, conn: Connection) {.async.} =
       trace "waiting for data", peer = p.id, closed = conn.closed
       let data = await conn.readLp()
       let hexData = data.toHex()
-      trace "read data from peer", peer = p.id, data = hexData
+      trace "read data from peer", peer = p.id, data = data.shortLog
       if $hexData.hash in p.recvdRpcCache:
         trace "message already received, skipping", peer = p.id
         continue
 
       let msg = decodeRpcMsg(data)
-      trace "decoded msg from peer", peer = p.id, msg = $msg
+      trace "decoded msg from peer", peer = p.id, msg = msg.shortLog
       await p.handler(p, @[msg])
       p.recvdRpcCache.put($hexData.hash)
   except CatchableError as exc:
@@ -83,7 +84,7 @@ proc send*(p: PubSubPeer, msgs: seq[RPCMsg]) {.async.} =
         continue
 
       proc sendToRemote() {.async.} =
-        trace "sending encoded msgs to peer", peer = p.id, encoded = encodedHex
+        trace "sending encoded msgs to peer", peer = p.id, encoded = encoded.buffer.shortLog
         await p.sendConn.writeLp(encoded.buffer)
         p.sentRpcCache.put($encodedHex.hash)
 
