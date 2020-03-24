@@ -26,7 +26,7 @@ type
     msgType: MessageType
     data: seq[byte]
 
-proc readMplexVarint(conn: Connection): Future[uint] {.async, gcsafe.} =
+proc readMplexVarint(conn: Connection): Future[uint64] {.async, gcsafe.} =
   var
     varint: uint
     length: int
