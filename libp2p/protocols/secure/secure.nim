@@ -42,11 +42,11 @@ proc readLoop(sconn: SecureConn, stream: BufferStream) {.async.} =
 
       await stream.pushTo(msg)
   except CatchableError as exc:
-    trace "exception occurred SecioConn.readLoop", exc = exc.msg
+    trace "exception occurred Secure.readLoop", exc = exc.msg
   finally:
     if not sconn.closed:
       await sconn.close()
-    trace "ending secio readLoop", isclosed = sconn.closed()
+    trace "ending Secure readLoop", isclosed = sconn.closed()
 
 proc handleConn*(s: Secure, conn: Connection, initiator: bool = false): Future[Connection] {.async, gcsafe.} =
   var sconn = await s.handshake(conn, initiator)
@@ -69,7 +69,8 @@ method init*(s: Secure) {.gcsafe.} =
   proc handle(conn: Connection, proto: string) {.async, gcsafe.} =
     trace "handling connection"
     try:
-      asyncCheck s.handleConn(conn, false)
+      # We don't need the result but we definitely need to await the handshake
+      discard await s.handleConn(conn, false)
       trace "connection secured"
     except CatchableError as exc:
       if not conn.closed():
