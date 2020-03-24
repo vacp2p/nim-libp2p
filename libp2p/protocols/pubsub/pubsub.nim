@@ -26,7 +26,7 @@ type
                        data: seq[byte]): Future[void] {.gcsafe.}
 
   ValidatorHandler* = proc(topic: string,
-                           message: Message): Future[bool] {.closure.}
+                           message: Message): Future[bool] {.gcsafe, closure.}
 
   TopicPair* = tuple[topic: string, handler: TopicHandler]
 

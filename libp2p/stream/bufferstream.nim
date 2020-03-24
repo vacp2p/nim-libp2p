@@ -38,7 +38,7 @@ const DefaultBufferSize* = 1024
 
 type
   # TODO: figure out how to make this generic to avoid casts
-  WriteHandler* = proc (data: seq[byte]): Future[void]
+  WriteHandler* = proc (data: seq[byte]): Future[void] {.gcsafe.}
 
   BufferStream* = ref object of LPStream
     maxSize*: int # buffer's max size in bytes
@@ -335,7 +335,7 @@ proc pipe*(s: BufferStream,
 
   s.isPiped = true
   let oldHandler = target.writeHandler
-  proc handler(data: seq[byte]) {.async, closure.} =
+  proc handler(data: seq[byte]) {.async, closure, gcsafe.} =
     if not isNil(oldHandler):
       await oldHandler(data)
 
