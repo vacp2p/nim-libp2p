@@ -67,13 +67,14 @@ proc requestReadBytes(s: BufferStream): Future[void] =
 proc initBufferStream*(s: BufferStream,
                        handler: WriteHandler = nil,
                        size: int = DefaultBufferSize) =
+  initLPStream(s)
+
   s.maxSize = if isPowerOfTwo(size): size else: nextPowerOfTwo(size)
   s.readBuf = initDeque[byte](s.maxSize)
   s.readReqs = initDeque[Future[void]]()
   s.dataReadEvent = newAsyncEvent()
   s.lock = newAsyncLock()
   s.writeHandler = handler
-  s.closeEvent = newAsyncEvent()
 
 proc newBufferStream*(handler: WriteHandler = nil,
                       size: int = DefaultBufferSize): BufferStream =

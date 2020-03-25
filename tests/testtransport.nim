@@ -31,8 +31,8 @@ suite "TCP transport":
     proc testListener(): Future[bool] {.async.} =
       let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
       proc connHandler(conn: Connection): Future[void] {.async, gcsafe.} =
-        let msg = await conn.read(6)
-        check cast[string](msg) == "Hello!"
+        let msg = await conn.sb.readExactly(6)
+        check cast[string](msg.get()) == "Hello!"
 
       let transport: TcpTransport = newTransport(TcpTransport)
       asyncCheck await transport.listen(ma, connHandler)
@@ -61,8 +61,8 @@ suite "TCP transport":
       let ma: MultiAddress = MultiAddress.init(server.sock.getLocalAddress())
       let transport: TcpTransport = newTransport(TcpTransport)
       let conn = await transport.dial(ma)
-      let msg = await conn.read(6)
-      result = cast[string](msg) == "Hello!"
+      let msg = await conn.sb.readExactly(6)
+      result = cast[string](msg.get()) == "Hello!"
 
       server.stop()
       server.close()
@@ -107,10 +107,10 @@ suite "TCP transport":
 
       let transport2: TcpTransport = newTransport(TcpTransport)
       let conn = await transport2.dial(transport1.ma)
-      let msg = await conn.read(6)
+      let msg = await conn.sb.readExactly(6)
       await transport1.close()
 
-      result = cast[string](msg) == "Hello!"
+      result = cast[string](msg.get()) == "Hello!"
 
     check:
       waitFor(testListenerDialer()) == true
@@ -119,8 +119,8 @@ suite "TCP transport":
     proc testListenerDialer(): Future[bool] {.async.} =
       let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
       proc connHandler(conn: Connection): Future[void] {.async, gcsafe.} =
-        let msg = await conn.read(6)
-        check cast[string](msg) == "Hello!"
+        let msg = await conn.sb.readExactly(6)
+        check cast[string](msg.get()) == "Hello!"
 
       let transport1: TcpTransport = newTransport(TcpTransport)
       asyncCheck await transport1.listen(ma, connHandler)

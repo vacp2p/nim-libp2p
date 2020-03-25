@@ -12,8 +12,9 @@ import peerinfo,
        multiaddress,
        stream/lpstream,
        peerinfo,
-       varint,
        vbuffer
+
+export lpstream
 
 logScope:
   topic = "Connection"
@@ -26,6 +27,8 @@ type
     stream*: LPStream
     observedAddrs*: Multiaddress
 
+    sb*: StreamBuffer
+
   InvalidVarintException = object of LPStreamError
   InvalidVarintSizeException = object of LPStreamError
 
@@ -37,9 +40,13 @@ proc newInvalidVarintSizeException*(): ref InvalidVarintSizeException =
 
 proc init*[T: Connection](self: var T, stream: LPStream) =
   ## create a new Connection for the specified async reader/writer
+  doAssert not stream.isNil, "not nil life is easier"
+
   new self
+  initLPStream(self)
+
   self.stream = stream
-  self.closeEvent = newAsyncEvent()
+  self.sb = buffer(stream) # TODO it's now unsafe to read from raw stream!
 
   # bind stream's close event to connection's close
   # to ensure correct close propagation
@@ -55,45 +62,8 @@ proc newConnection*(stream: LPStream): Connection =
   ## create a new Connection for the specified async reader/writer
   result.init(stream)
 
-method read*(s: Connection, n = -1): Future[seq[byte]] {.gcsafe.} =
- s.stream.read(n)
-
-method readExactly*(s: Connection,
-                    pbytes: pointer,
-                    nbytes: int):
-                    Future[void] {.gcsafe.} =
- s.stream.readExactly(pbytes, nbytes)
-
-method readLine*(s: Connection,
-                 limit = 0,
-                 sep = "\r\n"):
-                 Future[string] {.gcsafe.} =
-  s.stream.readLine(limit, sep)
-
-method readOnce*(s: Connection,
-                 pbytes: pointer,
-                 nbytes: int):
-                 Future[int] {.gcsafe.} =
-  s.stream.readOnce(pbytes, nbytes)
-
-method readUntil*(s: Connection,
-                  pbytes: pointer,
-                  nbytes: int,
-                  sep: seq[byte]):
-                  Future[int] {.gcsafe.} =
-  s.stream.readUntil(pbytes, nbytes, sep)
-
-method write*(s: Connection,
-              pbytes: pointer,
-              nbytes: int):
-              Future[void] {.gcsafe.} =
-  s.stream.write(pbytes, nbytes)
-
-method write*(s: Connection,
-              msg: string,
-              msglen = -1):
-              Future[void] {.gcsafe.} =
-  s.stream.write(msg, msglen)
+method readOnce*(s: Connection): Future[seq[byte]] {.gcsafe.} =
+  s.sb.readOnce()
 
 method write*(s: Connection,
               msg: seq[byte],
@@ -110,40 +80,19 @@ method closed*(s: Connection): bool =
 method close*(s: Connection) {.async, gcsafe.} =
   trace "closing connection"
   if not s.closed:
-    if not isNil(s.stream) and not s.stream.closed:
+    if not s.stream.closed:
       await s.stream.close()
-    s.closeEvent.fire()
-    s.isClosed = true
+    await procCall close(LPStream(s))
+
   trace "connection closed", closed = s.closed
 
-proc readLp*(s: Connection): Future[seq[byte]] {.async, gcsafe.} =
-  ## read lenght prefixed msg
-  var
-    size: uint
-    length: int
-    res: VarintStatus
-    buff = newSeq[byte](10)
-  try:
-    for i in 0..<len(buff):
-      await s.readExactly(addr buff[i], 1)
-      res = LP.getUVarint(buff.toOpenArray(0, i), length, size)
-      if res == VarintStatus.Success:
-        break
-    if res != VarintStatus.Success:
-      raise newInvalidVarintException()
-    if size.int > DefaultReadSize:
-      raise newInvalidVarintSizeException()
-    buff.setLen(size)
-    if size > 0.uint:
-      trace "reading exact bytes from stream", size = size
-      await s.readExactly(addr buff[0], int(size))
-    return buff
-  except LPStreamIncompleteError as exc:
-    trace "remote connection ended unexpectedly", exc = exc.msg
-    raise exc
-  except LPStreamReadError as exc:
-    trace "couldn't read from stream", exc = exc.msg
-    raise exc
+proc readLp*(s: Connection, maxLen: int): Future[seq[byte]] {.async, gcsafe.} =
+  var tmp = await s.sb.readVarintMessage(maxLen)
+  if tmp.isNone(): raise newLPStreamEOFError()
+  return tmp.get()
+
+proc readLp*(s: Connection): Future[seq[byte]] {.deprecated: "Unsafe, pass a max size!", gcsafe .} =
+  s.readLp(1024*1024) # Arbitrary!
 
 proc writeLp*(s: Connection, msg: string | seq[byte]): Future[void] {.gcsafe.} =
   ## write lenght prefixed

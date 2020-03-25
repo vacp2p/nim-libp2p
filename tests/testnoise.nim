@@ -88,12 +88,12 @@ suite "Noise":
         conn = await transport2.dial(transport1.ma)
         sconn = await clientNoise.secure(conn)
 
-        msg = await sconn.read(6)
+        msg = await sconn.sb.readExactly(6)
 
       await sconn.close()
       await transport1.close()
 
-      result = cast[string](msg) == "Hello!"
+      result = cast[string](msg.get()) == "Hello!"
 
     check:
       waitFor(testListenerDialer()) == true
@@ -110,8 +110,8 @@ suite "Noise":
         let sconn = await serverNoise.secure(conn)
         defer:
           await sconn.close()
-        let msg = await sconn.read(6)
-        check cast[string](msg) == "Hello!"
+        let msg = await sconn.sb.readExactly(6)
+        check cast[string](msg.get()) == "Hello!"
         readTask.complete()
 
       let
@@ -227,7 +227,7 @@ suite "Noise":
   #           error getCurrentExceptionMsg()
   #         finally:
   #           await conn.close()
-     
+
   #       ms.addHandler(proto, noise)
 
   #       let
@@ -282,7 +282,7 @@ suite "Noise":
   #           trace "ms.handle exited"
   #         finally:
   #           await conn.close()
-         
+
   #       let
   #         clientConn = await transport.listen(local, connHandler)
   #       await clientConn

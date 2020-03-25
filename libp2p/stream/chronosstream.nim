@@ -9,6 +9,7 @@
 
 import chronos, chronicles
 import lpstream
+export lpstream
 
 logScope:
   topic = "ChronosStream"
@@ -22,11 +23,11 @@ type ChronosStream* = ref object of LPStream
 proc newChronosStream*(server: StreamServer,
                        client: StreamTransport): ChronosStream =
   new result
+  initLPStream(result)
   result.server = server
   result.client = client
   result.reader = newAsyncStreamReader(client)
   result.writer = newAsyncStreamWriter(client)
-  result.closeEvent = newAsyncEvent()
 
 template withExceptions(body: untyped) =
   try:
@@ -40,59 +41,15 @@ template withExceptions(body: untyped) =
   except AsyncStreamIncompleteError:
     raise newLPStreamIncompleteError()
 
-method read*(s: ChronosStream, n = -1): Future[seq[byte]] {.async.} =
+method readOnce*(s: ChronosStream): Future[seq[byte]] {.async, gcsafe.} =
   if s.reader.atEof:
     raise newLPStreamEOFError()
 
   withExceptions:
-    result = await s.reader.read(n)
-
-method readExactly*(s: ChronosStream,
-                    pbytes: pointer,
-                    nbytes: int): Future[void] {.async.} =
-  if s.reader.atEof:
-    raise newLPStreamEOFError()
-
-  withExceptions:
-    await s.reader.readExactly(pbytes, nbytes)
-
-method readLine*(s: ChronosStream, limit = 0, sep = "\r\n"): Future[string] {.async.} =
-  if s.reader.atEof:
-    raise newLPStreamEOFError()
-
-  withExceptions:
-    result = await s.reader.readLine(limit, sep)
-
-method readOnce*(s: ChronosStream, pbytes: pointer, nbytes: int): Future[int] {.async.} =
-  if s.reader.atEof:
-    raise newLPStreamEOFError()
-
-  withExceptions:
-    result = await s.reader.readOnce(pbytes, nbytes)
-
-method readUntil*(s: ChronosStream,
-                  pbytes: pointer,
-                  nbytes: int,
-                  sep: seq[byte]): Future[int] {.async.} =
-  if s.reader.atEof:
-    raise newLPStreamEOFError()
-
-  withExceptions:
-    result = await s.reader.readUntil(pbytes, nbytes, sep)
-
-method write*(s: ChronosStream, pbytes: pointer, nbytes: int) {.async.} =
-  if s.writer.atEof:
-    raise newLPStreamEOFError()
-
-  withExceptions:
-    await s.writer.write(pbytes, nbytes)
-
-method write*(s: ChronosStream, msg: string, msglen = -1) {.async.} =
-  if s.writer.atEof:
-    raise newLPStreamEOFError()
-
-  withExceptions:
-    await s.writer.write(msg, msglen)
+    var tmp = newSeq[byte](1024)
+    let bytes = await s.reader.readOnce(addr tmp[0], tmp.len)
+    tmp.setLen(bytes)
+    return tmp
 
 method write*(s: ChronosStream, msg: seq[byte], msglen = -1) {.async.} =
   if s.writer.atEof:
@@ -107,6 +64,8 @@ method closed*(s: ChronosStream): bool {.inline.} =
 
 method close*(s: ChronosStream) {.async.} =
   if not s.closed:
+    s.isClosed = true
+
     trace "shutting chronos stream", address = $s.client.remoteAddress()
     if not s.writer.closed():
       await s.writer.closeWait()

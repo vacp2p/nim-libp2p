@@ -384,8 +384,8 @@ suite "Mplex":
 
       await chann.pushTo(cast[seq[byte]]("Hello!"))
       await chann.closedByRemote()
-      discard await chann.read() # this should work, since there is data in the buffer
-      discard await chann.read() # this should throw
+      discard await chann.readOnce() # this should work, since there is data in the buffer
+      discard await chann.readOnce() # this should throw
 
     expect LPStreamEOFError:
       waitFor(testClosedForRead())
@@ -521,7 +521,7 @@ suite "Mplex":
       proc writeHandler(data: seq[byte]) {.async, gcsafe.} = discard
       let chann = newChannel(1, newConnection(newBufferStream(writeHandler)), true)
       await chann.reset()
-      var data = await chann.read()
+      var data = await chann.readOnce()
       doAssert(len(data) == 1)
 
     expect LPStreamEOFError:

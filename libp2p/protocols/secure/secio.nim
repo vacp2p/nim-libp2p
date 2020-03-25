@@ -177,28 +177,16 @@ proc macCheckAndDecode(sconn: SecioConn, data: var seq[byte]): bool =
 
 method readMessage(sconn: SecioConn): Future[seq[byte]] {.async.} =
   ## Read message from channel secure connection ``sconn``.
-  try:
-    var buf = newSeq[byte](4)
-    await sconn.readExactly(addr buf[0], 4)
-    let length = (int(buf[0]) shl 24) or (int(buf[1]) shl 16) or
-                  (int(buf[2]) shl 8) or (int(buf[3]))
-    trace "Recieved message header", header = buf.shortLog, length = length
-    if length <= SecioMaxMessageSize:
-      buf.setLen(length)
-      await sconn.readExactly(addr buf[0], length)
-      trace "Received message body", length = length,
-                                     buffer = buf.shortLog
-      if sconn.macCheckAndDecode(buf):
-        result = buf
-      else:
-        trace "Message MAC verification failed", buf = buf.shortLog
-    else:
-      trace "Received message header size is more then allowed",
-            length = length, allowed_length = SecioMaxMessageSize
-  except AsyncStreamIncompleteError:
-    trace "Connection dropped while reading"
-  except AsyncStreamReadError:
-    trace "Error reading from connection"
+  let buf = await sconn.sb.readBigEndianMessage32(SecioMaxMessageSize)
+  if buf.isNone(): raise newLPStreamEOFError()
+
+  trace "Received message body", length = buf.get().len, buffer = buf.get().shortLog
+  var data = buf.get()
+  if sconn.macCheckAndDecode(data):
+    return data
+
+  # TODO errr... empty message returned???
+  trace "Message MAC verification failed", buf = buf.get().shortLog
 
 method writeMessage(sconn: SecioConn, message: seq[byte]) {.async.} =
   ## Write message ``message`` to secure connection ``sconn``.
@@ -239,9 +227,10 @@ proc newSecioConn(conn: Connection,
   ## cipher algorithm ``cipher``, stretched keys ``secrets`` and order
   ## ``order``.
   new result
+  initLPStream(result)
 
   result.stream = conn
-  result.closeEvent = newAsyncEvent()
+  result.sb = buffer(conn)
 
   let i0 = if order < 0: 1 else: 0
   let i1 = if order < 0: 0 else: 1
@@ -263,30 +252,11 @@ proc newSecioConn(conn: Connection,
 
 proc transactMessage(conn: Connection,
                      msg: seq[byte]): Future[seq[byte]] {.async.} =
-  var buf = newSeq[byte](4)
-  try:
-    trace "Sending message", message = msg.shortLog, length = len(msg)
-    await conn.write(msg)
-    await conn.readExactly(addr buf[0], 4)
-    let length = (int(buf[0]) shl 24) or (int(buf[1]) shl 16) or
-                  (int(buf[2]) shl 8) or (int(buf[3]))
-    trace "Recieved message header", header = buf.shortLog, length = length
-    if length <= SecioMaxMessageSize:
-      buf.setLen(length)
-      await conn.readExactly(addr buf[0], length)
-      trace "Received message body", conn = $conn,
-                                     length = length,
-                                     buff = buf.shortLog
-      result = buf
-    else:
-      trace "Received size of message exceed limits", conn = $conn,
-                                                      length = length
-  except AsyncStreamIncompleteError:
-    trace "Connection dropped while reading", conn = $conn
-  except AsyncStreamReadError:
-    trace "Error reading from connection", conn = $conn
-  except AsyncStreamWriteError:
-    trace "Could not write to connection", conn = $conn
+  trace "Sending message", message = msg.shortLog, length = len(msg)
+  await conn.write(msg)
+  let buf = await conn.sb.readBigEndianMessage32(SecioMaxMessageSize)
+  if buf.isNone(): raise newLPStreamEOFError()
+  return buf.get()
 
 method handshake*(s: Secio, conn: Connection, initiator: bool = false): Future[SecureConn] {.async.} =
   var

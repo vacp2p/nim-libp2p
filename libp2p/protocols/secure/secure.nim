@@ -11,7 +11,6 @@ import options
 import chronos
 import chronicles
 import ../protocol,
-       ../../stream/bufferstream,
        ../../crypto/crypto,
        ../../connection,
        ../../peerinfo,
@@ -32,31 +31,10 @@ method handshake(s: Secure,
                  initiator: bool = false): Future[SecureConn] {.async, base.} =
   doAssert(false, "Not implemented!")
 
-proc readLoop(sconn: SecureConn, stream: BufferStream) {.async.} =
-  try:
-    while not sconn.closed:
-      let msg = await sconn.readMessage()
-      if msg.len == 0:
-        trace "stream EOF"
-        return
-
-      await stream.pushTo(msg)
-  except CatchableError as exc:
-    trace "Exception occurred Secure.readLoop", exc = exc.msg
-  finally:
-    if not sconn.closed:
-      await sconn.close()
-    trace "ending Secure readLoop", isclosed = sconn.closed()
-
 proc handleConn*(s: Secure, conn: Connection, initiator: bool = false): Future[Connection] {.async, gcsafe.} =
   var sconn = await s.handshake(conn, initiator)
-  proc writeHandler(data: seq[byte]) {.async, gcsafe.} =
-    trace "sending encrypted bytes", bytes = data.shortLog
-    await sconn.writeMessage(data)
 
-  var stream = newBufferStream(writeHandler)
-  asyncCheck readLoop(sconn, stream)
-  result = newConnection(stream)
+  result = newConnection(conn)
   result.closeEvent.wait()
     .addCallback do (udata: pointer):
       trace "wrapped connection closed, closing upstream"
