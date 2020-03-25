@@ -41,8 +41,6 @@ proc readMplexVarint(conn: Connection): Future[uint64] {.async, gcsafe.} =
         break
     if res != VarintStatus.Success:
       raise newInvalidVarintException()
-    if varint.int > DefaultReadSize:
-      raise newInvalidVarintSizeException()
     return varint
   except LPStreamIncompleteError as exc:
     trace "unable to read varint", exc = exc.msg
@@ -54,6 +52,9 @@ proc readMsg*(conn: Connection): Future[Msg] {.async, gcsafe.} =
 
   let dataLenVarint = await conn.readMplexVarint()
   trace "read data len varint", varint = dataLenVarint
+
+  if dataLenVarint.int > DefaultReadSize:
+    raise newInvalidVarintSizeException()
 
   var data: seq[byte] = newSeq[byte](dataLenVarint.int)
   if dataLenVarint.int > 0:
