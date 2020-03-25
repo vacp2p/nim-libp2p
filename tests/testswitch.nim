@@ -1,5 +1,7 @@
 import unittest, tables
 import chronos
+import chronicles
+import nimcrypto/sysrand
 import ../libp2p/[switch,
                   multistream,
                   protocols/identify,
@@ -114,3 +116,44 @@ suite "Switch":
 
     check:
       waitFor(testSwitch()) == true
+
+  test "e2e: handle read + noise fragmented":
+    proc testListenerDialer(): Future[bool] {.async.} =
+      let
+        server: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
+        serverInfo = PeerInfo.init(PrivateKey.random(RSA), [server])
+        serverNoise = newSecio(serverInfo.privateKey)
+        readTask = newFuture[void]()
+
+      var hugePayload = newSeq[byte](0x1200000)
+      check randomBytes(hugePayload) == hugePayload.len
+      trace "Sending huge payload", size = hugePayload.len
+
+      proc connHandler(conn: Connection) {.async, gcsafe.} =
+        let sconn = await serverNoise.secure(conn)
+        defer:
+          await sconn.close()
+        let msg = await sconn.readLp(0x2000000)
+        check msg == hugePayload
+        readTask.complete()
+
+      let
+        transport1: TcpTransport = newTransport(TcpTransport)
+      asyncCheck await transport1.listen(server, connHandler)
+
+      let
+        transport2: TcpTransport = newTransport(TcpTransport)
+        clientInfo = PeerInfo.init(PrivateKey.random(RSA), [transport1.ma])
+        clientNoise = newSecio(clientInfo.privateKey)
+        conn = await transport2.dial(transport1.ma)
+        sconn = await clientNoise.secure(conn)
+
+      await sconn.writeLp(hugePayload)
+      await readTask
+      await sconn.close()
+      await transport1.close()
+
+      result = true
+
+    check:
+      waitFor(testListenerDialer()) == true

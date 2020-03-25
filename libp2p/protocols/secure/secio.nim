@@ -208,7 +208,7 @@ method writeMessage(sconn: SecioConn, message: seq[byte]) {.async.} =
       offset = 0
     while left > 0:
       let
-        chunkSize = if left > SecioMaxMessageSize: SecioMaxMessageSize else: left
+        chunkSize = if left > SecioMaxMessageSize - 64: SecioMaxMessageSize - 64 else: left
       let macsize = sconn.writerMac.sizeDigest()
       var msg = newSeq[byte](chunkSize + 4 + macsize)
       sconn.writerCoder.encrypt(message.toOpenArray(offset, offset + chunkSize - 1),

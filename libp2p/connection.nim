@@ -113,7 +113,7 @@ method close*(s: Connection) {.async, gcsafe.} =
     s.isClosed = true
   trace "connection closed", closed = s.closed
 
-proc readLp*(s: Connection): Future[seq[byte]] {.async, gcsafe.} =
+proc readLp*(s: Connection; maxSize: int = DefaultReadSize): Future[seq[byte]] {.async, gcsafe.} =
   ## read lenght prefixed msg
   var
     size: uint
@@ -128,7 +128,7 @@ proc readLp*(s: Connection): Future[seq[byte]] {.async, gcsafe.} =
         break
     if res != VarintStatus.Success:
       raise newInvalidVarintException()
-    if size.int > DefaultReadSize:
+    if size.int > maxSize:
       raise newInvalidVarintSizeException()
     buff.setLen(size)
     if size > 0.uint:
