@@ -237,7 +237,9 @@ proc internalConnect(s: Switch,
   else:
     trace "Reusing existing connection"
 
-  await s.subscribeToPeer(peer)
+  if not isNil(conn):
+    await s.subscribeToPeer(peer)
+
   result = conn
 
 proc connect*(s: Switch, peer: PeerInfo) {.async.} =
@@ -323,6 +325,7 @@ proc subscribeToPeer(s: Switch, peerInfo: PeerInfo) {.async, gcsafe.} =
       await s.pubSub.get().subscribeToPeer(conn)
     except CatchableError as exc:
       warn "unable to initiate pubsub", exc = exc.msg
+    finally:
       s.dialedPubSubPeers.excl(peerInfo.id)
 
 proc subscribe*(s: Switch, topic: string,
