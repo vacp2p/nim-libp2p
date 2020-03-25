@@ -117,7 +117,7 @@ suite "Switch":
     check:
       waitFor(testSwitch()) == true
 
-  test "e2e: handle read + noise fragmented":
+  test "e2e: handle read + secio fragmented":
     proc testListenerDialer(): Future[bool] {.async.} =
       let
         server: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
@@ -133,7 +133,7 @@ suite "Switch":
         let sconn = await serverNoise.secure(conn)
         defer:
           await sconn.close()
-        let msg = await sconn.readLp(0x2000000)
+        let msg = await sconn.read(0x1200000)
         check msg == hugePayload
         readTask.complete()
 
@@ -148,7 +148,7 @@ suite "Switch":
         conn = await transport2.dial(transport1.ma)
         sconn = await clientNoise.secure(conn)
 
-      await sconn.writeLp(hugePayload)
+      await sconn.write(hugePayload)
       await readTask
       await sconn.close()
       await transport1.close()
