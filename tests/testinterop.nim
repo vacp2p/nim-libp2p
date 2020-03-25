@@ -385,9 +385,11 @@ suite "Interop":
       var count2 = 0
       while count2 < 10:
         discard await stream.transp.writeLp(test)
-        let line = await stream.transp.readLp()
-        check test == cast[string](line)
-        inc(count2)
+        try:
+          let line = await stream.transp.readLp()
+          check test == cast[string](line)
+        except TransportIncompleteError:
+          break
 
       result = 10 == (await wait(testFuture, 10.secs))
       await nativeNode.stop()
