@@ -30,21 +30,16 @@
 ## will suspend until either the amount of elements in the
 ## buffer goes below ``maxSize`` or more data becomes available.
 
-import deques, math
+import deques, math, sequtils
 import chronos, chronicles
 import ../stream/lpstream
-
-const DefaultBufferSize* = 1024
 
 type
   # TODO: figure out how to make this generic to avoid casts
   WriteHandler* = proc (data: seq[byte]): Future[void] {.gcsafe.}
 
   BufferStream* = ref object of LPStream
-    maxSize*: int # buffer's max size in bytes
-    readBuf: Deque[byte] # this is a ring buffer based dequeue, this makes it perfect as the backing store here
-    readReqs: Deque[Future[void]] # use dequeue to fire reads in order
-    dataReadEvent: AsyncEvent
+    queue*: AsyncQueue[seq[byte]]
     writeHandler*: WriteHandler
     lock: AsyncLock
     isPiped: bool
@@ -58,42 +53,19 @@ proc newAlreadyPipedError*(): ref Exception {.inline.} =
 proc newNotWritableError*(): ref Exception {.inline.} =
   result = newException(NotWritableError, "stream is not writable")
 
-proc requestReadBytes(s: BufferStream): Future[void] =
-  ## create a future that will complete when more
-  ## data becomes available in the read buffer
-  result = newFuture[void]()
-  s.readReqs.addLast(result)
-
 proc initBufferStream*(s: BufferStream,
-                       handler: WriteHandler = nil,
-                       size: int = DefaultBufferSize) =
+                       handler: WriteHandler = nil) =
   initLPStream(s)
 
-  s.maxSize = if isPowerOfTwo(size): size else: nextPowerOfTwo(size)
-  s.readBuf = initDeque[byte](s.maxSize)
-  s.readReqs = initDeque[Future[void]]()
-  s.dataReadEvent = newAsyncEvent()
-  s.lock = newAsyncLock()
+  s.queue = newAsyncQueue[seq[byte]]()
+
   s.writeHandler = handler
 
-proc newBufferStream*(handler: WriteHandler = nil,
-                      size: int = DefaultBufferSize): BufferStream =
+proc newBufferStream*(handler: WriteHandler = nil): BufferStream =
   new result
-  result.initBufferStream(handler, size)
+  result.initBufferStream(handler)
 
-proc popFirst*(s: BufferStream): byte =
-  result = s.readBuf.popFirst()
-  s.dataReadEvent.fire()
-
-proc popLast*(s: BufferStream): byte =
-  result = s.readBuf.popLast()
-  s.dataReadEvent.fire()
-
-proc shrink(s: BufferStream, fromFirst = 0, fromLast = 0) =
-  s.readBuf.shrink(fromFirst, fromLast)
-  s.dataReadEvent.fire()
-
-proc len*(s: BufferStream): int = s.readBuf.len
+proc len*(s: BufferStream): int = s.queue.len
 
 proc pushTo*(s: BufferStream, data: seq[byte]) {.async.} =
   ## Write bytes to internal read buffer, use this to fill up the
@@ -103,208 +75,21 @@ proc pushTo*(s: BufferStream, data: seq[byte]) {.async.} =
   ## written to the internal buffer; this is done so that backpressure
   ## is preserved.
   ##
+  if data.len() > 0:
+    await s.queue.put(data)
 
-  try:
-    await s.lock.acquire()
-    var index = 0
-    while not s.closed():
-      while index < data.len and s.readBuf.len < s.maxSize:
-        s.readBuf.addLast(data[index])
-        inc(index)
-
-      # resolve the next queued read request
-      if s.readReqs.len > 0:
-        s.readReqs.popFirst().complete()
-
-      if index >= data.len:
-        return
-
-      # if we couldn't transfer all the data to the
-      # internal buf wait on a read event
-      await s.dataReadEvent.wait()
-      s.dataReadEvent.clear()
-  finally:
-    s.lock.release()
-
-method read*(s: BufferStream, n = -1): Future[seq[byte]] {.async.} =
-  ## Read all bytes (n <= 0) or exactly `n` bytes from buffer
-  ##
-  ## This procedure allocates buffer seq[byte] and return it as result.
-  ##
-  var size = if n > 0: n else: s.readBuf.len()
-  var index = 0
-
-  if s.readBuf.len() == 0:
-    await s.requestReadBytes()
-
-  while index < size:
-    while s.readBuf.len() > 0 and index < size:
-      result.add(s.popFirst())
-      inc(index)
-
-    if index < size:
-      await s.requestReadBytes()
-
-method readExactly*(s: BufferStream,
-                    pbytes: pointer,
-                    nbytes: int):
-                    Future[void] {.async.} =
-  ## Read exactly ``nbytes`` bytes from read-only stream ``rstream`` and store
-  ## it to ``pbytes``.
-  ##
-  ## If EOF is received and ``nbytes`` is not yet read, the procedure
-  ## will raise ``LPStreamIncompleteError``.
-  ##
-  var buff: seq[byte]
-  try:
-    buff = await s.read(nbytes)
-  except LPStreamEOFError as exc:
-    trace "Exception occured", exc = exc.msg
-
-  if nbytes > buff.len():
-    raise newLPStreamIncompleteError()
-
-  copyMem(pbytes, addr buff[0], nbytes)
-
-method readLine*(s: BufferStream,
-                 limit = 0,
-                 sep = "\r\n"):
-                 Future[string] {.async.} =
-  ## Read one line from read-only stream ``rstream``, where ``"line"`` is a
-  ## sequence of bytes ending with ``sep`` (default is ``"\r\n"``).
-  ##
-  ## If EOF is received, and ``sep`` was not found, the method will return the
-  ## partial read bytes.
-  ##
-  ## If the EOF was received and the internal buffer is empty, return an
-  ## empty string.
-  ##
-  ## If ``limit`` more then 0, then result string will be limited to ``limit``
-  ## bytes.
-  ##
-  result = ""
-  var lim = if limit <= 0: -1 else: limit
-  var state = 0
-  var index = 0
-
-  index = 0
-  while index < s.readBuf.len:
-    let ch = char(s.readBuf[index])
-    if sep[state] == ch:
-      inc(state)
-      if state == len(sep):
-        s.shrink(index + 1)
-        break
-    else:
-      state = 0
-      result.add(ch)
-      if len(result) == lim:
-        s.shrink(index + 1)
-        break
-    inc(index)
-
-method readOnce*(s: BufferStream,
-                 pbytes: pointer,
-                 nbytes: int):
-                 Future[int] {.async.} =
+method readOnce*(s: BufferStream): Future[seq[byte]] {.async.} =
   ## Perform one read operation on read-only stream ``rstream``.
   ##
   ## If internal buffer is not empty, ``nbytes`` bytes will be transferred from
   ## internal buffer, otherwise it will wait until some bytes will be received.
   ##
-  if s.readBuf.len == 0:
-    await s.requestReadBytes()
-
-  var len = if nbytes > s.readBuf.len: s.readBuf.len else: nbytes
-  await s.readExactly(pbytes, len)
-  result = len
-
-method readUntil*(s: BufferStream,
-                  pbytes: pointer,
-                  nbytes: int,
-                  sep: seq[byte]):
-                  Future[int] {.async.} =
-  ## Read data from the read-only stream ``rstream`` until separator ``sep`` is
-  ## found.
-  ##
-  ## On success, the data and separator will be removed from the internal
-  ## buffer (consumed). Returned data will include the separator at the end.
-  ##
-  ## If EOF is received, and `sep` was not found, procedure will raise
-  ## ``LPStreamIncompleteError``.
-  ##
-  ## If ``nbytes`` bytes has been received and `sep` was not found, procedure
-  ## will raise ``LPStreamLimitError``.
-  ##
-  ## Procedure returns actual number of bytes read.
-  ##
-  var
-    dest = cast[ptr UncheckedArray[byte]](pbytes)
-    state = 0
-    k = 0
-
-  let datalen = s.readBuf.len()
-  if datalen == 0 and s.readBuf.len() == 0:
-    raise newLPStreamIncompleteError()
-
-  var index = 0
-  while index < datalen:
-    let ch = s.readBuf[index]
-    if sep[state] == ch:
-      inc(state)
-    else:
-      state = 0
-    if k < nbytes:
-      dest[k] = ch
-      inc(k)
-    else:
-      raise newLPStreamLimitError()
-    if state == len(sep):
-      break
-    inc(index)
-
-  if state == len(sep):
-    s.shrink(index + 1)
-    result = k
-  else:
-    s.shrink(datalen)
-
-method write*(s: BufferStream,
-              pbytes: pointer,
-              nbytes: int): Future[void] =
-  ## Consume (discard) all bytes (n <= 0) or ``n`` bytes from read-only stream
-  ## ``rstream``.
-  ##
-  ## Return number of bytes actually consumed (discarded).
-  ##
-  if isNil(s.writeHandler):
-    var retFuture = newFuture[void]("BufferStream.write(pointer)")
-    retFuture.fail(newNotWritableError())
-    return retFuture
-
-  var buf: seq[byte] = newSeq[byte](nbytes)
-  copyMem(addr buf[0], pbytes, nbytes)
-  result = s.writeHandler(buf)
-
-method write*(s: BufferStream,
-              msg: string,
-              msglen = -1): Future[void] =
-  ## Write string ``sbytes`` of length ``msglen`` to writer stream ``wstream``.
-  ##
-  ## String ``sbytes`` must not be zero-length.
-  ##
-  ## If ``msglen < 0`` whole string ``sbytes`` will be writen to stream.
-  ## If ``msglen > len(sbytes)`` only ``len(sbytes)`` bytes will be written to
-  ## stream.
-  ##
-  if isNil(s.writeHandler):
-    var retFuture = newFuture[void]("BufferStream.write(string)")
-    retFuture.fail(newNotWritableError())
-    return retFuture
-
-  var buf = ""
-  shallowCopy(buf, if msglen > 0: msg[0..<msglen] else: msg)
-  result = s.writeHandler(cast[seq[byte]](buf))
+  if s.queue.len == 0:
+    if s.closed():
+      return
+  result = await s.queue.get()
+  if result.len() == 0:
+    raise newLPStreamEOFError()
 
 method write*(s: BufferStream,
               msg: seq[byte],
@@ -345,19 +130,7 @@ proc pipe*(s: BufferStream,
     if not isNil(oldHandler):
       await oldHandler(data)
 
-    # if we're piping to self,
-    # then add the data to the
-    # buffer directly and fire
-    # the read event
-    if s == target:
-      for b in data:
-        s.readBuf.addLast(b)
-
-      # notify main loop of available
-      # data
-      s.dataReadEvent.fire()
-    else:
-      await target.pushTo(data)
+    await target.pushTo(data)
 
   s.writeHandler = handler
   result = target
@@ -368,11 +141,8 @@ proc `|`*(s: BufferStream, target: BufferStream): BufferStream =
 
 method close*(s: BufferStream) {.async.} =
   ## close the stream and clear the buffer
-  trace "closing bufferstream"
-  for r in s.readReqs:
-    if not(isNil(r)) and not(r.finished()):
-      r.fail(newLPStreamEOFError())
-  s.dataReadEvent.fire()
-  s.readBuf.clear()
-  s.closeEvent.fire()
-  s.isClosed = true
+  if not s.isClosed:
+    s.closeEvent.fire()
+    s.isClosed = true
+
+    await s.queue.put(@[])

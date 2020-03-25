@@ -7,7 +7,10 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
+import stew/byteutils
 import chronos
+import stew/[endians2, result], options, ../varint
+export options
 
 import stew/[endians2, result], options, libp2p/varint
 export options
@@ -48,7 +51,7 @@ proc newLPStreamLimitError*(): ref Exception {.inline.} =
 proc newLPStreamIncorrectError*(m: string): ref Exception {.inline.} =
   result = newException(LPStreamIncorrectError, m)
 
-proc newLPStreamEOFError*(): ref Exception {.inline.} =
+proc newLPStreamEOFError*(): ref LPStreamEOFError {.inline.} =
   result = newException(LPStreamEOFError, "Stream EOF!")
 
 proc initLPStream*(v: LPStream) =
@@ -66,7 +69,6 @@ method write*(s: LPStream, msg: seq[byte], msglen = -1) {.base, async.} =
 proc write*(s: LPStream, pbytes: pointer, nbytes: int): Future[void] =
   return s.write(@(toOpenArray(cast[ptr UncheckedArray[byte]](pbytes), 0, nbytes - 1)))
 
-import stew/byteutils
 proc write*(s: LPStream, msg: string): Future[void] =
   s.write(msg.toBytes())
 
@@ -123,11 +125,11 @@ proc readMessage*(sb: StreamBuffer, predicate: ReadMessagePredicate): Future[boo
       sb.buf.add newData
 
 proc readBigEndian*(sb: StreamBuffer, T: type SomeUnsignedInt): Future[Option[T]] {.async.} =
-  var res: Result[T, ref CatchableError]
+  var res: T
 
   proc predicate(data: openArray[byte]): tuple[consumed: int, done: bool] =
     if data.len() >= sizeof(T):
-      res.ok(T.fromBytesBE(data))
+      res = T.fromBytesBE(data)
       (sizeof(T), true)
     else:
       (0, false)
@@ -135,7 +137,7 @@ proc readBigEndian*(sb: StreamBuffer, T: type SomeUnsignedInt): Future[Option[T]
   if await sb.readMessage(predicate):
     return none(T)
 
-  return some(res[])
+  return some(res)
 
 proc readVarint*(sb: StreamBuffer): Future[Option[uint64]] {.async.} =
   var res: Result[uint64, ref CatchableError]
@@ -162,11 +164,11 @@ proc readVarint*(sb: StreamBuffer): Future[Option[uint64]] {.async.} =
   return some(res[])
 
 proc readExactly*(sb: StreamBuffer, n: int): Future[Option[seq[byte]]] {.async.} =
-  var res: Result[seq[byte], ref CatchableError]
+  var res: seq[byte]
 
   proc predicate(data: openArray[byte]): tuple[consumed: int, done: bool] =
     if data.len >= n:
-      res.ok(data[0..<n])
+      res = data[0..<n]
       (n, true)
     else:
       (0, false)
@@ -174,7 +176,7 @@ proc readExactly*(sb: StreamBuffer, n: int): Future[Option[seq[byte]]] {.async.}
   if await sb.readMessage(predicate):
     return none(seq[byte])
 
-  return some(res[])
+  return some(res)
 
 proc readVarintMessage*(sb: StreamBuffer, maxLen: int): Future[Option[seq[byte]]] {.async.} =
   doAssert maxLen > 0

@@ -36,8 +36,6 @@ proc readMsg*(conn: Connection): Future[Msg] {.async, gcsafe.} =
   let headerVarint = await conn.sb.readVarint()
   if headerVarint.isNone(): raise newLPStreamEOFError()
 
-  trace "read header varint", varint = headerVarint
-
   let data = await conn.sb.readVarintMessage(MaxFrameSize)
   if data.isNone(): raise newLPStreamIncompleteError()
 
@@ -48,14 +46,17 @@ proc readMsg*(conn: Connection): Future[Msg] {.async, gcsafe.} =
     raise newInvalidMplexMsgType()
 
   result = (header shr 3, MessageType(msgType), data.get())
+  trace "read mplex",
+    id = result.id,
+    msgType = result.msgType,
+    data = shortLog(result.data)
 
 proc writeMsg*(conn: Connection,
                id: uint64,
                msgType: MessageType,
                data: seq[byte] = @[]) {.async, gcsafe.} =
-  trace "seding data over mplex", id,
-                                  msgType,
-                                  data = data.len
+  trace "send mplex", id, msgType, data = shortLog(data)
+
   ## write lenght prefixed
   var buf = initVBuffer()
   buf.writePBVarint(id shl 3 or ord(msgType).uint)

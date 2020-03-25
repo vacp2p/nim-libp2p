@@ -46,7 +46,7 @@ proc newStreamInternal*(m: Mplex,
                         chanId: uint64 = 0,
                         name: string = "",
                         lazy: bool = false):
-                        Future[LPChannel] {.async, gcsafe.} =
+                        LPChannel {.gcsafe.} =
   ## create new channel/stream
   let id = if initiator: m.currentId.inc(); m.currentId else: chanId
   trace "creating new channel", channelId = id, initiator = initiator
@@ -85,7 +85,7 @@ method handle*(m: Mplex) {.async, gcsafe.} =
       case msgType:
         of MessageType.New:
           let name = cast[string](data)
-          channel = await m.newStreamInternal(false, id, name)
+          channel = m.newStreamInternal(false, id, name)
           trace "created channel", id = id, name = name, inititator = true
           if not isNil(m.streamHandler):
             let stream = newConnection(channel)
@@ -103,9 +103,6 @@ method handle*(m: Mplex) {.async, gcsafe.} =
                                            initiator = initiator,
                                            msgType = msgType,
                                            size = data.len
-
-          if data.len > MaxMsgSize:
-            raise newLPStreamLimitError()
           await channel.pushTo(data)
         of MessageType.CloseIn, MessageType.CloseOut:
           trace "closing channel", id = id,
@@ -146,7 +143,7 @@ proc newMplex*(conn: Connection,
 method newStream*(m: Mplex,
                   name: string = "",
                   lazy: bool = false): Future[Connection] {.async, gcsafe.} =
-  let channel = await m.newStreamInternal(lazy = lazy)
+  let channel = m.newStreamInternal(lazy = lazy)
   if not lazy:
     await channel.open()
   result = newConnection(channel)
@@ -154,5 +151,5 @@ method newStream*(m: Mplex,
 
 method close*(m: Mplex) {.async, gcsafe.} =
   trace "closing mplex muxer"
-  await allFutures(@[allFutures(toSeq(m.remote.values).mapIt(it.reset())),
-                      allFutures(toSeq(m.local.values).mapIt(it.reset()))])
+  await allFutures(
+    (toSeq(m.remote.values) & toSeq(m.local.values)).mapIt(it.reset()))
