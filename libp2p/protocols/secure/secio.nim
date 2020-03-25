@@ -202,21 +202,30 @@ method readMessage(sconn: SecioConn): Future[seq[byte]] {.async.} =
 
 method writeMessage(sconn: SecioConn, message: seq[byte]) {.async.} =
   ## Write message ``message`` to secure connection ``sconn``.
-  let macsize = sconn.writerMac.sizeDigest()
-  var msg = newSeq[byte](len(message) + 4 + macsize)
-  sconn.writerCoder.encrypt(message, msg.toOpenArray(4, 4 + len(message) - 1))
-  let mo = 4 + len(message)
-  sconn.writerMac.update(msg.toOpenArray(4, 4 + len(message) - 1))
-  sconn.writerMac.finish(msg.toOpenArray(mo, mo + macsize - 1))
-  sconn.writerMac.reset()
-  let length = len(message) + macsize
-  msg[0] = byte((length shr 24) and 0xFF)
-  msg[1] = byte((length shr 16) and 0xFF)
-  msg[2] = byte((length shr 8) and 0xFF)
-  msg[3] = byte(length and 0xFF)
-  trace "Writing message", message = msg.shortLog
   try:
-    await sconn.write(msg)
+    var
+      left = message.len
+      offset = 0
+    while left > 0:
+      let
+        chunkSize = if left > SecioMaxMessageSize: SecioMaxMessageSize else: left
+      let macsize = sconn.writerMac.sizeDigest()
+      var msg = newSeq[byte](chunkSize + 4 + macsize)
+      sconn.writerCoder.encrypt(message.toOpenArray(offset, offset + chunkSize - 1),
+                                msg.toOpenArray(4, 4 + chunkSize - 1))
+      left = left - chunkSize
+      offset = offset + chunkSize
+      let mo = 4 + chunkSize
+      sconn.writerMac.update(msg.toOpenArray(4, 4 + chunkSize - 1))
+      sconn.writerMac.finish(msg.toOpenArray(mo, mo + macsize - 1))
+      sconn.writerMac.reset()
+      let length = chunkSize + macsize
+      msg[0] = byte((length shr 24) and 0xFF)
+      msg[1] = byte((length shr 16) and 0xFF)
+      msg[2] = byte((length shr 8) and 0xFF)
+      msg[3] = byte(length and 0xFF)
+      trace "Writing message", message = msg.shortLog, left, offset
+      await sconn.write(msg)
   except AsyncStreamWriteError:
     trace "Could not write to connection"
 
