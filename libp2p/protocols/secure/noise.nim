@@ -35,6 +35,8 @@ const
   # Empty is a special value which indicates k has not yet been initialized.
   EmptyKey: ChaChaPolyKey = [0.byte, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
   NonceMax = uint64.high - 1 # max is reserved
+  NoiseSize = 32
+  MaxPlainSize = int(uint16.high - NoiseSize - ChaChaPolyTag.len)
 
 type
   KeyPair = object
@@ -282,7 +284,7 @@ proc sendHSMessage(sconn: Connection; buf: seq[byte]) {.async.} =
 
 proc packNoisePayload(payload: openarray[byte]): seq[byte] =
   let
-    noiselen = rand(2..31)
+    noiselen = rand(2..<NoiseSize)
     plen = payload.len.uint16
 
   var
@@ -427,17 +429,24 @@ method readMessage(sconn: NoiseConnection): Future[seq[byte]] {.async.} =
 
 method writeMessage(sconn: NoiseConnection, message: seq[byte]): Future[void] {.async.} =
   try:
-    let
-      packed = packNoisePayload(message)
-      cipher = sconn.writeCs.encryptWithAd([], packed)
     var
-      lesize = cipher.len.uint16
-      besize = lesize.toBytesBE
-      outbuf = newSeqOfCap[byte](cipher.len + 2)
-    trace "sendEncryptedMessage", size = lesize, peer = $sconn.peerInfo
-    outbuf &= besize
-    outbuf &= cipher
-    await sconn.write(outbuf)
+      left = message.len
+      offset = 0
+    while left > 0:
+      let
+        chunkSize = if left > MaxPlainSize: MaxPlainSize else: left
+        packed = packNoisePayload(message.toOpenArray(offset, offset + chunkSize - 1))
+        cipher = sconn.writeCs.encryptWithAd([], packed)
+      left = left - chunkSize
+      offset = offset + chunkSize
+      var
+        lesize = cipher.len.uint16
+        besize = lesize.toBytesBE
+        outbuf = newSeqOfCap[byte](cipher.len + 2)
+      trace "sendEncryptedMessage", size = lesize, peer = $sconn.peerInfo, left, offset
+      outbuf &= besize
+      outbuf &= cipher
+      await sconn.write(outbuf)
   except AsyncStreamWriteError:
     trace "Could not write to connection"
 
