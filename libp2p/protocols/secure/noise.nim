@@ -9,7 +9,6 @@
 
 import chronos
 import chronicles
-import random
 import stew/[endians2, byteutils]
 import nimcrypto/[utils, sysrand, sha2, hmac]
 import ../../connection
@@ -283,8 +282,13 @@ proc sendHSMessage(sconn: Connection; buf: seq[byte]) {.async.} =
   await sconn.write(outbuf)
 
 proc packNoisePayload(payload: openarray[byte]): seq[byte] =
+  var
+    ns: uint32
+  if randomBytes(addr ns, 4) != 4:
+    raise newException(NoiseHandshakeError, "Failed to generate randomBytes")
+
   let
-    noiselen = rand(2..<NoiseSize)
+    noiselen = int((ns mod (NoiseSize - 2)) + 1)
     plen = payload.len.uint16
 
   var
