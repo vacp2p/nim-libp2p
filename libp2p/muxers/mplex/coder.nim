@@ -14,7 +14,8 @@ import types,
        ../../connection,
        ../../varint,
        ../../vbuffer,
-       ../../stream/lpstream
+       ../../stream/lpstream,
+       ../../utility
 
 logScope:
   topic = "MplexCoder"
