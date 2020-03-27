@@ -123,7 +123,7 @@ method handle*(m: Mplex) {.async, gcsafe.} =
           m.getChannelList(initiator).del(id)
           break
   except CatchableError as exc:
-    trace "exception occurred", exception = exc.msg
+    trace "Exception occurred", exception = exc.msg
   finally:
     trace "stopping mplex main loop"
     if not m.connection.closed():

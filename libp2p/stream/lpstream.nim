@@ -51,24 +51,36 @@ proc newLPStreamEOFError*(): ref Exception {.inline.} =
 method closed*(s: LPStream): bool {.base, inline.} =
   s.isClosed
 
-method read*(s: LPStream, n = -1): Future[seq[byte]] {.base, async.} =
+method read*(s: LPStream,
+             n = -1):
+             Future[seq[byte]] {.base, async.} =
   doAssert(false, "not implemented!")
 
-method readExactly*(s: LPStream, pbytes: pointer,
-                    nbytes: int): Future[void] {.base, async.} =
+method readExactly*(s: LPStream,
+                    pbytes: pointer,
+                    nbytes: int):
+                    Future[void] {.base, async.} =
   doAssert(false, "not implemented!")
 
-method readLine*(s: LPStream, limit = 0, sep = "\r\n"): Future[string]
+method readLine*(s: LPStream,
+                 limit = 0,
+                 sep = "\r\n"):
+                 Future[string]
   {.base, async.} =
   doAssert(false, "not implemented!")
 
-method readOnce*(s: LPStream, pbytes: pointer, nbytes: int): Future[int]
+method readOnce*(s: LPStream,
+                 pbytes: pointer,
+                 nbytes: int):
+                 Future[int]
   {.base, async.} =
   doAssert(false, "not implemented!")
 
 method readUntil*(s: LPStream,
-                  pbytes: pointer, nbytes: int,
-                  sep: seq[byte]): Future[int]
+                  pbytes: pointer,
+                  nbytes: int,
+                  sep: seq[byte]):
+                  Future[int]
   {.base, async.} =
   doAssert(false, "not implemented!")
 
