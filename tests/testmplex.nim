@@ -193,7 +193,12 @@ suite "Mplex":
         proc handleMplexListen(stream: Connection) {.async, gcsafe.} =
           defer:
             await stream.close()
-          let msg = await stream.readLp()
+
+          try:
+            discard await stream.readLp()
+          except CatchableError:
+            return
+
           # we should not reach this anyway!!
           check false
           listenJob.complete()
@@ -217,12 +222,14 @@ suite "Mplex":
       var bigseq = newSeqOfCap[uint8](MaxMsgSize + 1)
       for _ in 0..<MaxMsgSize:
         bigseq.add(uint8(rand(uint('A')..uint('z'))))
-      await stream.writeLp(bigseq)
+
       try:
+        await stream.writeLp(bigseq)
         await listenJob.wait(millis(500))
       except AsyncTimeoutError:
         # we want to time out here!
         discard
+
       result = true
 
     check:
@@ -359,24 +366,18 @@ suite "Mplex":
     expect LPStreamEOFError:
       waitFor(testClosedForWrite())
 
-  # TODO: this locks up after removing sleepAsync as a
-  # synchronization mechanism in mplex. I believe this
-  # is related to how chronos schedules callbacks in select,
-  # which effectively puts to infinite sleep when there
-  # are no more callbacks, so essentially this sequence of
-  # reads isn't possible with the current chronos.
-  # test "half closed - channel should close for read by remote":
-  #   proc testClosedForRead(): Future[void] {.async.} =
-  #     proc writeHandler(data: seq[byte]) {.async, gcsafe.} = discard
-  #     let chann = newChannel(1, newConnection(newBufferStream(writeHandler)), true)
+  test "half closed - channel should close for read by remote":
+    proc testClosedForRead(): Future[void] {.async.} =
+      proc writeHandler(data: seq[byte]) {.async, gcsafe.} = discard
+      let chann = newChannel(1, newConnection(newBufferStream(writeHandler)), true)
 
-  #     await chann.pushTo(cast[seq[byte]]("Hello!"))
-  #     await chann.closedByRemote()
-  #     discard await chann.read() # this should work, since there is data in the buffer
-  #     discard await chann.read() # this should throw
+      await chann.pushTo(cast[seq[byte]]("Hello!"))
+      await chann.closedByRemote()
+      discard await chann.read() # this should work, since there is data in the buffer
+      discard await chann.read() # this should throw
 
-  #   expect LPStreamEOFError:
-  #     waitFor(testClosedForRead())
+    expect LPStreamEOFError:
+      waitFor(testClosedForRead())
 
   test "jitter - channel should be able to handle erratic read/writes":
     proc test(): Future[bool] {.async.} =

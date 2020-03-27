@@ -42,7 +42,7 @@ proc readLoop(sconn: SecureConn, stream: BufferStream) {.async.} =
 
       await stream.pushTo(msg)
   except CatchableError as exc:
-    trace "exception occurred Secure.readLoop", exc = exc.msg
+    trace "Exception occurred Secure.readLoop", exc = exc.msg
   finally:
     if not sconn.closed:
       await sconn.close()
@@ -63,7 +63,8 @@ proc handleConn*(s: Secure, conn: Connection, initiator: bool = false): Future[C
       if not isNil(sconn) and not sconn.closed:
         asyncCheck sconn.close()
 
-  result.peerInfo = PeerInfo.init(sconn.peerInfo.publicKey.get())
+  if not isNil(sconn.peerInfo) and sconn.peerInfo.publicKey.isSome:
+    result.peerInfo = PeerInfo.init(sconn.peerInfo.publicKey.get())
 
 method init*(s: Secure) {.gcsafe.} =
   proc handle(conn: Connection, proto: string) {.async, gcsafe.} =
