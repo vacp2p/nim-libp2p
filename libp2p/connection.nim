@@ -25,7 +25,6 @@ type
     peerInfo*: PeerInfo
     stream*: LPStream
     observedAddrs*: Multiaddress
-    maxReadSize: int
 
   InvalidVarintException = object of LPStreamError
   InvalidVarintSizeException = object of LPStreamError
@@ -36,12 +35,11 @@ proc newInvalidVarintException*(): ref InvalidVarintException =
 proc newInvalidVarintSizeException*(): ref InvalidVarintSizeException =
   newException(InvalidVarintSizeException, "Wrong varint size")
 
-proc init*[T: Connection](self: var T, stream: LPStream, maxReadSize = DefaultReadSize) =
+proc init*[T: Connection](self: var T, stream: LPStream) =
   ## create a new Connection for the specified async reader/writer
   new self
   self.stream = stream
   self.closeEvent = newAsyncEvent()
-  self.maxReadSize = maxReadSize
 
   # bind stream's close event to connection's close
   # to ensure correct close propagation
@@ -133,7 +131,7 @@ proc readLp*(s: Connection): Future[seq[byte]] {.async, gcsafe.} =
         break
     if res != VarintStatus.Success:
       raise newInvalidVarintException()
-    if size.int > s.maxReadSize:
+    if size.int > DefaultReadSize:
       raise newInvalidVarintSizeException()
     buff.setLen(size)
     if size > 0.uint:
