@@ -183,11 +183,15 @@ suite "Mplex":
     check:
       waitFor(testNewStream()) == true
 
-  test "e2e - write limits":
+  test "e2e - write fragmented":
     proc testNewStream(): Future[bool] {.async.} =
       let
         ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
         listenJob = newFuture[void]()
+
+      var bigseq = newSeqOfCap[uint8](MaxMsgSize * 2)
+      for _ in 0..<MaxMsgSize:
+        bigseq.add(uint8(rand(uint('A')..uint('z'))))
 
       proc connHandler(conn: Connection) {.async, gcsafe.} =
         proc handleMplexListen(stream: Connection) {.async, gcsafe.} =
@@ -195,7 +199,8 @@ suite "Mplex":
             await stream.close()
           let msg = await stream.readLp()
           # we should not reach this anyway!!
-          check false
+          check msg == bigseq
+          trace "Bigseq check passed!"
           listenJob.complete()
 
         let mplexListen = newMplex(conn)
@@ -214,15 +219,12 @@ suite "Mplex":
 
       let mplexDial = newMplex(conn)
       let stream  = await mplexDial.newStream()
-      var bigseq = newSeqOfCap[uint8](MaxMsgSize + 1)
-      for _ in 0..<MaxMsgSize:
-        bigseq.add(uint8(rand(uint('A')..uint('z'))))
+
       await stream.writeLp(bigseq)
       try:
-        await listenJob.wait(millis(500))
+        await listenJob.wait(millis(5000))
       except AsyncTimeoutError:
-        # we want to time out here!
-        discard
+        check false
       result = true
 
     check:
