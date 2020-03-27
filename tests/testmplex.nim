@@ -165,9 +165,7 @@ suite "Mplex":
         discard mplexListen.handle()
 
       let transport1: TcpTransport = newTransport(TcpTransport)
-      discard await transport1.listen(ma, connHandler)
-      defer:
-        await transport1.close()
+      let listenFut = await transport1.listen(ma, connHandler)
 
       let transport2: TcpTransport = newTransport(TcpTransport)
       let conn = await transport2.dial(transport1.ma)
@@ -177,8 +175,13 @@ suite "Mplex":
       let openState = cast[LPChannel](stream.stream).isOpen
       await stream.writeLp("Hello from stream!")
       await conn.close()
+
       check not openState # assert lazy
       result = true
+
+      await mplexDial.close()
+      await transport1.close()
+      await listenFut
 
     check:
       waitFor(testNewStream()) == true
@@ -208,9 +211,7 @@ suite "Mplex":
         discard mplexListen.handle()
 
       let transport1: TcpTransport = newTransport(TcpTransport)
-      discard await transport1.listen(ma, connHandler)
-      defer:
-        await transport1.close()
+      let listenFut = await transport1.listen(ma, connHandler)
 
       let transport2: TcpTransport = newTransport(TcpTransport)
       let conn = await transport2.dial(transport1.ma)
@@ -232,6 +233,10 @@ suite "Mplex":
 
       result = true
 
+      await mplexDial.close()
+      await transport1.close()
+      await listenFut
+
     check:
       waitFor(testNewStream()) == true
 
@@ -249,9 +254,7 @@ suite "Mplex":
         await mplexListen.handle()
 
       let transport1: TcpTransport = newTransport(TcpTransport)
-      discard await transport1.listen(ma, connHandler)
-      defer:
-        await transport1.close()
+      let listenFut = await transport1.listen(ma, connHandler)
 
       let transport2: TcpTransport = newTransport(TcpTransport)
       let conn = await transport2.dial(transport1.ma)
@@ -264,6 +267,10 @@ suite "Mplex":
       await conn.close()
       # await dialFut
       result = true
+
+      await mplexDial.close()
+      await transport1.close()
+      await listenFut
 
     check:
       waitFor(testNewStream()) == true
@@ -286,22 +293,26 @@ suite "Mplex":
         mplexListen.streamHandler = handleMplexListen
         await mplexListen.handle()
 
-      let transport1: TcpTransport = newTransport(TcpTransport)
-      discard await transport1.listen(ma, connHandler)
-      defer:
-        await transport1.close()
+      let transport1 = newTransport(TcpTransport)
+      let listenFut = await transport1.listen(ma, connHandler)
 
       let transport2: TcpTransport = newTransport(TcpTransport)
       let conn = await transport2.dial(transport1.ma)
 
       let mplexDial = newMplex(conn)
-      for i in 1..<10:
+      for i in 1..10:
         let stream  = await mplexDial.newStream()
         await stream.writeLp(&"stream {i}!")
         await stream.close()
 
-      await conn.close()
+      await sleepAsync(1.seconds) # allow messages to get to the handler
+      await conn.close() # TODO: chronos sockets don't seem to have half-closed functionality
+
+      await mplexDial.close()
       await listenConn.close()
+      await transport1.close()
+      await listenFut
+
       result = true
 
     check:
@@ -330,9 +341,7 @@ suite "Mplex":
                                 = trace "completed listener")
 
       let transport1: TcpTransport = newTransport(TcpTransport)
-      discard transport1.listen(ma, connHandler)
-      defer:
-        await transport1.close()
+      let transportFut = await transport1.listen(ma, connHandler)
 
       let transport2: TcpTransport = newTransport(TcpTransport)
       let conn = await transport2.dial(transport1.ma)
@@ -351,6 +360,8 @@ suite "Mplex":
       await conn.close()
       await listenConn.close()
       await allFutures(dialFut, listenFut)
+      await transport1.close()
+      await transportFut
       result = true
 
     check:
@@ -397,10 +408,7 @@ suite "Mplex":
         discard mplexListen.handle()
 
       let transport1: TcpTransport = newTransport(TcpTransport)
-      discard await transport1.listen(ma, connHandler)
-
-      defer:
-        await transport1.close()
+      let listenFut = await transport1.listen(ma, connHandler)
 
       let transport2: TcpTransport = newTransport(TcpTransport)
       let conn = await transport2.dial(transport1.ma)
@@ -442,6 +450,9 @@ suite "Mplex":
       await conn.close()
       await complete
 
+      await transport1.close()
+      await listenFut
+
       result = true
 
     check:
@@ -465,10 +476,7 @@ suite "Mplex":
         discard mplexListen.handle()
 
       let transport1: TcpTransport = newTransport(TcpTransport)
-      discard await transport1.listen(ma, connHandler)
-
-      defer:
-        await transport1.close()
+      let listenFut = await transport1.listen(ma, connHandler)
 
       let transport2: TcpTransport = newTransport(TcpTransport)
       let conn = await transport2.dial(transport1.ma)
@@ -499,6 +507,9 @@ suite "Mplex":
       await stream.close()
       await conn.close()
       await complete
+
+      await transport1.close()
+      await listenFut
 
       result = true
 
