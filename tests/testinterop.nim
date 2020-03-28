@@ -385,13 +385,12 @@ suite "Interop":
       var count2 = 0
       while count2 < 10:
         discard await stream.transp.writeLp(test)
-        try:
-          let line = await stream.transp.readLp()
-          check test == cast[string](line)
-        except TransportIncompleteError:
-          break
+        let line = await stream.transp.readLp()
+        check test == cast[string](line)
+        inc(count2)
 
       result = 10 == (await wait(testFuture, 10.secs))
+      await stream.close()
       await nativeNode.stop()
       await allFutures(awaiters)
       await daemonNode.close()
