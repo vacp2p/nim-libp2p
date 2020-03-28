@@ -15,10 +15,11 @@ import ../protobuf/minprotobuf,
        ../peer,
        ../crypto/crypto,
        ../multiaddress,
-       ../protocols/protocol
+       ../protocols/protocol,
+       ../utility
 
 logScope:
-  topic = "identify"
+  topic = "Identify"
 
 const
   IdentifyCodec* = "/ipfs/id/1.0.0"
@@ -69,7 +70,7 @@ proc decodeMsg*(buf: seq[byte]): IdentifyInfo =
   result.pubKey = none(PublicKey)
   var pubKey: PublicKey
   if pb.getValue(1, pubKey) > 0:
-    trace "read public key from message", pubKey = $pubKey
+    trace "read public key from message", pubKey = ($pubKey).shortLog
     result.pubKey = some(pubKey)
 
   result.addrs = newSeq[MultiAddress]()
@@ -122,6 +123,7 @@ method init*(p: Identify) =
 proc identify*(p: Identify,
                conn: Connection,
                remotePeerInfo: PeerInfo): Future[IdentifyInfo] {.async, gcsafe.} =
+  trace "initiating identify"
   var message = await conn.readLp()
   if len(message) == 0:
     trace "identify: Invalid or empty message received!"

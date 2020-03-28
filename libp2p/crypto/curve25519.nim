@@ -16,6 +16,7 @@
 # RFC @ https://tools.ietf.org/html/rfc7748
 
 import bearssl
+import nimcrypto/sysrand
 
 const
   Curve25519KeySize* = 32
@@ -24,10 +25,13 @@ type
   Curve25519* = object
   Curve25519Key* = array[Curve25519KeySize, byte]
   pcuchar = ptr cuchar
+  Curver25519RngError* = object of CatchableError
 
-proc intoCurve25519Key*(s: seq[byte]): Curve25519Key =
+proc intoCurve25519Key*(s: openarray[byte]): Curve25519Key =
   assert s.len == Curve25519KeySize
   copyMem(addr result[0], unsafeaddr s[0], Curve25519KeySize)
+
+proc getBytes*(key: Curve25519Key): seq[byte] = @key
   
 const
   ForbiddenCurveValues: array[12, Curve25519Key] = [
@@ -45,7 +49,7 @@ const
                 [219.byte, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 25],
         ]
 
-proc byteswap*(buf: var Curve25519Key) {.inline.} =
+proc byteswap(buf: var Curve25519Key) {.inline.} =
   for i in 0..<16:
     let
       x = buf[i]
@@ -97,3 +101,12 @@ proc mulgen*(_: type[Curve25519], dst: var Curve25519Key, point: Curve25519Key) 
 proc public*(private: Curve25519Key): Curve25519Key =
   Curve25519.mulgen(result, private)
 
+proc random*(_: type[Curve25519Key]): Curve25519Key =
+  var rng: BrHmacDrbgContext
+  let seeder = brPrngSeederSystem(nil)
+  brHmacDrbgInit(addr rng, addr sha256Vtable, nil, 0)
+  if seeder(addr rng.vtable) == 0:
+    raise newException(ValueError, "Could not seed RNG")
+  let defaultBrEc = brEcGetDefault()
+  if brEcKeygen(addr rng.vtable, defaultBrEc, nil, addr result[0], EC_curve25519) != Curve25519KeySize:
+    raise newException(Curver25519RngError, "Could not generate random data")

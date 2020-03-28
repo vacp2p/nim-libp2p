@@ -11,7 +11,7 @@
 ## https://github.com/libp2p/go-libp2p-crypto/blob/master/key.go
 import unittest
 import nimcrypto/[utils, sysrand]
-import ../libp2p/crypto/[crypto, chacha20poly1305, curve25519]
+import ../libp2p/crypto/[crypto, chacha20poly1305, curve25519, hkdf]
 
 when defined(nimHasUsed): {.used.}
 
@@ -480,6 +480,17 @@ suite "Key interface test suite":
     check ntag.toHex == tag.toHex
     ChaChaPoly.decrypt(key, nonce, ntag, text, aed)
     check text.toHex == plain.toHex
+    check ntag.toHex == tag.toHex
+
+    # ensure even a 2 byte array works
+    var
+      smallPlain: array[2, byte]
+      btag: ChaChaPolyTag
+      noaed: array[0, byte]
+    ChaChaPoly.encrypt(key, nonce, btag, smallPlain, noaed)
+    ntag = btag
+    ChaChaPoly.decrypt(key, nonce, btag, smallPlain, noaed)
+    check ntag.toHex == btag.toHex
 
   test "Curve25519":
     # from bearssl test_crypto.c
@@ -524,3 +535,26 @@ suite "Key interface test suite":
     check secret1.toHex == secret2.toHex
 
   
+  test "HKDF 1":
+    let
+      ikm = fromHex("0x0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b")
+      salt = fromHex("0x000102030405060708090a0b0c")
+      info = fromHex("0xf0f1f2f3f4f5f6f7f8f9")
+      truth = "3cb25f25faacd57a90434f64d0362f2a2d2d0a90cf1a5a4c5db02d56ecc4c5bf34007208d5b887185865"
+    var
+      output: array[1, array[42, byte]]
+
+    sha256.hkdf(salt, ikm, info, output)
+    check output[0].toHex(true) == truth
+
+  test "HKDF 2":
+    let
+      ikm = fromHex("0x0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b")
+      salt = fromHex("")
+      info = fromHex("")
+      truth = "8da4e775a563c18f715f802a063c5a31b8a11f5c5ee1879ec3454e5f3c738d2d9d201395faa4b61a96c8"
+    var
+      output: array[1, array[42, byte]]
+
+    sha256.hkdf(salt, ikm, info, output)
+    check output[0].toHex(true) == truth

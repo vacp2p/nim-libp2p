@@ -10,7 +10,9 @@ import ../libp2p/[connection,
                   muxers/mplex/mplex,
                   muxers/mplex/coder,
                   muxers/mplex/types,
-                  muxers/mplex/lpchannel]
+                  muxers/mplex/lpchannel,
+                  vbuffer,
+                  varint]
 
 when defined(nimHasUsed): {.used.}
 
@@ -163,9 +165,7 @@ suite "Mplex":
         discard mplexListen.handle()
 
       let transport1: TcpTransport = newTransport(TcpTransport)
-      discard await transport1.listen(ma, connHandler)
-      defer:
-        await transport1.close()
+      let listenFut = await transport1.listen(ma, connHandler)
 
       let transport2: TcpTransport = newTransport(TcpTransport)
       let conn = await transport2.dial(transport1.ma)
@@ -175,8 +175,13 @@ suite "Mplex":
       let openState = cast[LPChannel](stream.stream).isOpen
       await stream.writeLp("Hello from stream!")
       await conn.close()
+
       check not openState # assert lazy
       result = true
+
+      await mplexDial.close()
+      await transport1.close()
+      await listenFut
 
     check:
       waitFor(testNewStream()) == true
@@ -191,7 +196,12 @@ suite "Mplex":
         proc handleMplexListen(stream: Connection) {.async, gcsafe.} =
           defer:
             await stream.close()
-          let msg = await stream.readLp()
+
+          try:
+            discard await stream.readLp()
+          except CatchableError:
+            return
+
           # we should not reach this anyway!!
           check false
           listenJob.complete()
@@ -201,9 +211,7 @@ suite "Mplex":
         discard mplexListen.handle()
 
       let transport1: TcpTransport = newTransport(TcpTransport)
-      discard await transport1.listen(ma, connHandler)
-      defer:
-        await transport1.close()
+      let listenFut = await transport1.listen(ma, connHandler)
 
       let transport2: TcpTransport = newTransport(TcpTransport)
       let conn = await transport2.dial(transport1.ma)
@@ -215,13 +223,19 @@ suite "Mplex":
       var bigseq = newSeqOfCap[uint8](MaxMsgSize + 1)
       for _ in 0..<MaxMsgSize:
         bigseq.add(uint8(rand(uint('A')..uint('z'))))
-      await stream.writeLp(bigseq)
+
       try:
-        await listenJob.wait(seconds(5))
+        await stream.writeLp(bigseq)
+        await listenJob.wait(millis(500))
       except AsyncTimeoutError:
         # we want to time out here!
         discard
+
       result = true
+
+      await mplexDial.close()
+      await transport1.close()
+      await listenFut
 
     check:
       waitFor(testNewStream()) == true
@@ -240,9 +254,7 @@ suite "Mplex":
         await mplexListen.handle()
 
       let transport1: TcpTransport = newTransport(TcpTransport)
-      discard await transport1.listen(ma, connHandler)
-      defer:
-        await transport1.close()
+      let listenFut = await transport1.listen(ma, connHandler)
 
       let transport2: TcpTransport = newTransport(TcpTransport)
       let conn = await transport2.dial(transport1.ma)
@@ -255,6 +267,10 @@ suite "Mplex":
       await conn.close()
       # await dialFut
       result = true
+
+      await mplexDial.close()
+      await transport1.close()
+      await listenFut
 
     check:
       waitFor(testNewStream()) == true
@@ -277,22 +293,26 @@ suite "Mplex":
         mplexListen.streamHandler = handleMplexListen
         await mplexListen.handle()
 
-      let transport1: TcpTransport = newTransport(TcpTransport)
-      discard await transport1.listen(ma, connHandler)
-      defer:
-        await transport1.close()
+      let transport1 = newTransport(TcpTransport)
+      let listenFut = await transport1.listen(ma, connHandler)
 
       let transport2: TcpTransport = newTransport(TcpTransport)
       let conn = await transport2.dial(transport1.ma)
 
       let mplexDial = newMplex(conn)
-      for i in 1..<10:
+      for i in 1..10:
         let stream  = await mplexDial.newStream()
         await stream.writeLp(&"stream {i}!")
         await stream.close()
 
-      await conn.close()
+      await sleepAsync(1.seconds) # allow messages to get to the handler
+      await conn.close() # TODO: chronos sockets don't seem to have half-closed functionality
+
+      await mplexDial.close()
       await listenConn.close()
+      await transport1.close()
+      await listenFut
+
       result = true
 
     check:
@@ -321,9 +341,7 @@ suite "Mplex":
                                 = trace "completed listener")
 
       let transport1: TcpTransport = newTransport(TcpTransport)
-      discard transport1.listen(ma, connHandler)
-      defer:
-        await transport1.close()
+      let transportFut = await transport1.listen(ma, connHandler)
 
       let transport2: TcpTransport = newTransport(TcpTransport)
       let conn = await transport2.dial(transport1.ma)
@@ -342,6 +360,8 @@ suite "Mplex":
       await conn.close()
       await listenConn.close()
       await allFutures(dialFut, listenFut)
+      await transport1.close()
+      await transportFut
       result = true
 
     check:
@@ -357,24 +377,144 @@ suite "Mplex":
     expect LPStreamEOFError:
       waitFor(testClosedForWrite())
 
-  # TODO: this locks up after removing sleepAsync as a
-  # synchronization mechanism in mplex. I believe this
-  # is related to how chronos schedules callbacks in select,
-  # which effectively puts to infinite sleep when there
-  # are no more callbacks, so essentially this sequence of
-  # reads isn't possible with the current chronos.
-  # test "half closed - channel should close for read by remote":
-  #   proc testClosedForRead(): Future[void] {.async.} =
-  #     proc writeHandler(data: seq[byte]) {.async, gcsafe.} = discard
-  #     let chann = newChannel(1, newConnection(newBufferStream(writeHandler)), true)
+  test "half closed - channel should close for read by remote":
+    proc testClosedForRead(): Future[void] {.async.} =
+      proc writeHandler(data: seq[byte]) {.async, gcsafe.} = discard
+      let chann = newChannel(1, newConnection(newBufferStream(writeHandler)), true)
 
-  #     await chann.pushTo(cast[seq[byte]]("Hello!"))
-  #     await chann.closedByRemote()
-  #     discard await chann.read() # this should work, since there is data in the buffer
-  #     discard await chann.read() # this should throw
+      await chann.pushTo(cast[seq[byte]]("Hello!"))
+      await chann.closedByRemote()
+      discard await chann.read() # this should work, since there is data in the buffer
+      discard await chann.read() # this should throw
 
-  #   expect LPStreamEOFError:
-  #     waitFor(testClosedForRead())
+    expect LPStreamEOFError:
+      waitFor(testClosedForRead())
+
+  test "jitter - channel should be able to handle erratic read/writes":
+    proc test(): Future[bool] {.async.} =
+      let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
+
+      var complete = newFuture[void]()
+      const MsgSize = 1024
+      proc connHandler(conn: Connection) {.async, gcsafe.} =
+        proc handleMplexListen(stream: Connection) {.async, gcsafe.} =
+          let msg = await stream.readLp()
+          check msg.len == MsgSize
+          await stream.close()
+          complete.complete()
+
+        let mplexListen = newMplex(conn)
+        mplexListen.streamHandler = handleMplexListen
+        discard mplexListen.handle()
+
+      let transport1: TcpTransport = newTransport(TcpTransport)
+      let listenFut = await transport1.listen(ma, connHandler)
+
+      let transport2: TcpTransport = newTransport(TcpTransport)
+      let conn = await transport2.dial(transport1.ma)
+
+      let mplexDial = newMplex(conn)
+      let stream = await mplexDial.newStream()
+      var bigseq = newSeqOfCap[uint8](MaxMsgSize + 1)
+      for _ in 0..<MsgSize: # write one less than max size
+        bigseq.add(uint8(rand(uint('A')..uint('z'))))
+
+      ## create lenght prefixed libp2p frame
+      var buf = initVBuffer()
+      buf.writeSeq(bigseq)
+      buf.finish()
+
+      ## create mplex header
+      var mplexBuf = initVBuffer()
+      mplexBuf.writePBVarint((1.uint shl 3) or ord(MessageType.MsgOut).uint)
+      mplexBuf.writePBVarint(buf.buffer.len.uint) # size should be always sent
+
+      await conn.write(mplexBuf.buffer)
+      proc writer() {.async.} =
+        var sent = 0
+        randomize()
+        let total = buf.buffer.len
+        const min = 20
+        const max = 50
+        while sent < total:
+          var size = rand(min..max)
+          size = if size > buf.buffer.len: buf.buffer.len else: size
+          var send = buf.buffer[0..<size]
+          await conn.write(send)
+          sent += size
+          buf.buffer = buf.buffer[size..^1]
+
+      await writer()
+
+      await stream.close()
+      await conn.close()
+      await complete
+
+      await transport1.close()
+      await listenFut
+
+      result = true
+
+    check:
+      waitFor(test()) == true
+
+  test "jitter - channel should handle 1 byte read/write":
+    proc test(): Future[bool] {.async.} =
+      let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
+
+      var complete = newFuture[void]()
+      const MsgSize = 512
+      proc connHandler(conn: Connection) {.async, gcsafe.} =
+        proc handleMplexListen(stream: Connection) {.async, gcsafe.} =
+          let msg = await stream.readLp()
+          check msg.len == MsgSize
+          await stream.close()
+          complete.complete()
+
+        let mplexListen = newMplex(conn)
+        mplexListen.streamHandler = handleMplexListen
+        discard mplexListen.handle()
+
+      let transport1: TcpTransport = newTransport(TcpTransport)
+      let listenFut = await transport1.listen(ma, connHandler)
+
+      let transport2: TcpTransport = newTransport(TcpTransport)
+      let conn = await transport2.dial(transport1.ma)
+
+      let mplexDial = newMplex(conn)
+      let stream = await mplexDial.newStream()
+      var bigseq = newSeqOfCap[uint8](MaxMsgSize + 1)
+      for _ in 0..<MsgSize: # write one less than max size
+        bigseq.add(uint8(rand(uint('A')..uint('z'))))
+
+      ## create lenght prefixed libp2p frame
+      var buf = initVBuffer()
+      buf.writeSeq(bigseq)
+      buf.finish()
+
+      ## create mplex header
+      var mplexBuf = initVBuffer()
+      mplexBuf.writePBVarint((1.uint shl 3) or ord(MessageType.MsgOut).uint)
+      mplexBuf.writePBVarint(buf.buffer.len.uint) # size should be always sent
+
+      await conn.write(mplexBuf.buffer)
+      proc writer() {.async.} =
+        for i in buf.buffer:
+          await conn.write(@[i])
+
+      await writer()
+
+      await stream.close()
+      await conn.close()
+      await complete
+
+      await transport1.close()
+      await listenFut
+
+      result = true
+
+    check:
+      waitFor(test()) == true
 
   test "reset - channel should fail reading":
     proc testResetRead(): Future[void] {.async.} =

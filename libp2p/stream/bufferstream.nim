@@ -31,14 +31,14 @@
 ## buffer goes below ``maxSize`` or more data becomes available.
 
 import deques, math
-import chronos
+import chronos, chronicles
 import ../stream/lpstream
 
 const DefaultBufferSize* = 1024
 
 type
   # TODO: figure out how to make this generic to avoid casts
-  WriteHandler* = proc (data: seq[byte]): Future[void]
+  WriteHandler* = proc (data: seq[byte]): Future[void] {.gcsafe.}
 
   BufferStream* = ref object of LPStream
     maxSize*: int # buffer's max size in bytes
@@ -154,7 +154,12 @@ method readExactly*(s: BufferStream,
   ## If EOF is received and ``nbytes`` is not yet read, the procedure
   ## will raise ``LPStreamIncompleteError``.
   ##
-  var buff = await s.read(nbytes)
+  var buff: seq[byte]
+  try:
+    buff = await s.read(nbytes)
+  except LPStreamEOFError as exc:
+    trace "Exception occured", exc = exc.msg
+
   if nbytes > buff.len():
     raise newLPStreamIncompleteError()
 
@@ -335,7 +340,7 @@ proc pipe*(s: BufferStream,
 
   s.isPiped = true
   let oldHandler = target.writeHandler
-  proc handler(data: seq[byte]) {.async, closure.} =
+  proc handler(data: seq[byte]) {.async, closure, gcsafe.} =
     if not isNil(oldHandler):
       await oldHandler(data)
 
@@ -362,9 +367,10 @@ proc `|`*(s: BufferStream, target: BufferStream): BufferStream =
 
 method close*(s: BufferStream) {.async.} =
   ## close the stream and clear the buffer
+  trace "closing bufferstream"
   for r in s.readReqs:
     if not(isNil(r)) and not(r.finished()):
-      r.cancel()
+      r.fail(newLPStreamEOFError())
   s.dataReadEvent.fire()
   s.readBuf.clear()
   s.closeEvent.fire()

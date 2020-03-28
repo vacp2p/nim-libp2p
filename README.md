@@ -151,7 +151,7 @@ The libp2p implementation in Nim is a work in progress. We welcome contributors 
 - **Add tests**. Help nim-libp2p to be more robust by adding more tests to the [tests folder](https://github.com/status-im/nim-libp2p/tree/master/tests).
 
 ### Core Developers 
-[Eugene Kabanov](https://github.com/cheatfate), [Dmitriy Ryajov](https://github.com/dryajov), [Giovanni Petrantoni](https://github.com/sinkingsugar), [Zahary](https://github.com/zah)
+[@cheatfate](https://github.com/cheatfate), [Dmitriy Ryajov](https://github.com/dryajov), [Giovanni Petrantoni](https://github.com/sinkingsugar), [Zahary Karadjov](https://github.com/zah)
 
 ## License
 

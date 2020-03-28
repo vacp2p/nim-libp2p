@@ -545,7 +545,7 @@ proc getSocket(pattern: string,
     closeSocket(sock)
 
 # This is forward declaration needed for newDaemonApi()
-proc listPeers*(api: DaemonAPI): Future[seq[PeerInfo]] {.async.}
+proc listPeers*(api: DaemonAPI): Future[seq[PeerInfo]] {.async, gcsafe.}
 
 proc copyEnv(): StringTableRef =
   ## This procedure copy all environment variables into StringTable.

@@ -6,7 +6,6 @@
 ## at your option.
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
-import options
 import chronos, chronicles
 import nimcrypto/[sysrand, hmac, sha2, sha, hash, rijndael, twofish, bcmode]
 import secure,
@@ -17,7 +16,7 @@ import secure,
        ../../crypto/ecnist,
        ../../protobuf/minprotobuf,
        ../../peer,
-       ../../stream/bufferstream
+       ../../utility
 export hmac, sha2, sha, hash, rijndael, bcmode
 
 logScope:
@@ -62,7 +61,7 @@ type
     of SecureMacType.Sha1:
       ctxsha1: HMAC[sha1]
 
-  SecureConnection = ref object of Connection
+  SecioConn = ref object of SecureConn
     writerMac: SecureMac
     readerMac: SecureMac
     writerCoder: SecureCipher
@@ -149,7 +148,7 @@ proc decrypt(cipher: var SecureCipher, input: openarray[byte],
   of SecureCipherType.Twofish:
     cipher.ctxtwofish256.decrypt(input, output)
 
-proc macCheckAndDecode(sconn: SecureConnection, data: var seq[byte]): bool =
+proc macCheckAndDecode(sconn: SecioConn, data: var seq[byte]): bool =
   ## This procedure checks MAC of recieved message ``data`` and if message is
   ## authenticated, then decrypt message.
   ##
@@ -176,23 +175,23 @@ proc macCheckAndDecode(sconn: SecureConnection, data: var seq[byte]): bool =
   data.setLen(mark)
   result = true
 
-proc readMessage(sconn: SecureConnection): Future[seq[byte]] {.async.} =
+method readMessage(sconn: SecioConn): Future[seq[byte]] {.async.} =
   ## Read message from channel secure connection ``sconn``.
   try:
     var buf = newSeq[byte](4)
     await sconn.readExactly(addr buf[0], 4)
     let length = (int(buf[0]) shl 24) or (int(buf[1]) shl 16) or
                   (int(buf[2]) shl 8) or (int(buf[3]))
-    trace "Recieved message header", header = toHex(buf), length = length
+    trace "Recieved message header", header = buf.shortLog, length = length
     if length <= SecioMaxMessageSize:
       buf.setLen(length)
       await sconn.readExactly(addr buf[0], length)
       trace "Received message body", length = length,
-                                     buffer = toHex(buf)
+                                     buffer = buf.shortLog
       if sconn.macCheckAndDecode(buf):
         result = buf
       else:
-        trace "Message MAC verification failed", buf = toHex(buf)
+        trace "Message MAC verification failed", buf = buf.shortLog
     else:
       trace "Received message header size is more then allowed",
             length = length, allowed_length = SecioMaxMessageSize
@@ -201,32 +200,41 @@ proc readMessage(sconn: SecureConnection): Future[seq[byte]] {.async.} =
   except AsyncStreamReadError:
     trace "Error reading from connection"
 
-proc writeMessage(sconn: SecureConnection, message: seq[byte]) {.async.} =
+method writeMessage(sconn: SecioConn, message: seq[byte]) {.async.} =
   ## Write message ``message`` to secure connection ``sconn``.
-  let macsize = sconn.writerMac.sizeDigest()
-  var msg = newSeq[byte](len(message) + 4 + macsize)
-  sconn.writerCoder.encrypt(message, msg.toOpenArray(4, 4 + len(message) - 1))
-  let mo = 4 + len(message)
-  sconn.writerMac.update(msg.toOpenArray(4, 4 + len(message) - 1))
-  sconn.writerMac.finish(msg.toOpenArray(mo, mo + macsize - 1))
-  sconn.writerMac.reset()
-  let length = len(message) + macsize
-  msg[0] = byte((length shr 24) and 0xFF)
-  msg[1] = byte((length shr 16) and 0xFF)
-  msg[2] = byte((length shr 8) and 0xFF)
-  msg[3] = byte(length and 0xFF)
-  trace "Writing message", message = toHex(msg)
   try:
-    await sconn.write(msg)
+    var
+      left = message.len
+      offset = 0
+    while left > 0:
+      let
+        chunkSize = if left > SecioMaxMessageSize - 64: SecioMaxMessageSize - 64 else: left
+      let macsize = sconn.writerMac.sizeDigest()
+      var msg = newSeq[byte](chunkSize + 4 + macsize)
+      sconn.writerCoder.encrypt(message.toOpenArray(offset, offset + chunkSize - 1),
+                                msg.toOpenArray(4, 4 + chunkSize - 1))
+      left = left - chunkSize
+      offset = offset + chunkSize
+      let mo = 4 + chunkSize
+      sconn.writerMac.update(msg.toOpenArray(4, 4 + chunkSize - 1))
+      sconn.writerMac.finish(msg.toOpenArray(mo, mo + macsize - 1))
+      sconn.writerMac.reset()
+      let length = chunkSize + macsize
+      msg[0] = byte((length shr 24) and 0xFF)
+      msg[1] = byte((length shr 16) and 0xFF)
+      msg[2] = byte((length shr 8) and 0xFF)
+      msg[3] = byte(length and 0xFF)
+      trace "Writing message", message = msg.shortLog, left, offset
+      await sconn.write(msg)
   except AsyncStreamWriteError:
     trace "Could not write to connection"
 
-proc newSecureConnection(conn: Connection,
-                         hash: string,
-                         cipher: string,
-                         secrets: Secret,
-                         order: int,
-                         remotePubKey: PublicKey): SecureConnection =
+proc newSecioConn(conn: Connection,
+                  hash: string,
+                  cipher: string,
+                  secrets: Secret,
+                  order: int,
+                  remotePubKey: PublicKey): SecioConn =
   ## Create new secure connection, using specified hash algorithm ``hash``,
   ## cipher algorithm ``cipher``, stretched keys ``secrets`` and order
   ## ``order``.
@@ -238,12 +246,12 @@ proc newSecureConnection(conn: Connection,
   let i0 = if order < 0: 1 else: 0
   let i1 = if order < 0: 0 else: 1
 
-  trace "Writer credentials", mackey = toHex(secrets.macOpenArray(i0)),
-                              enckey = toHex(secrets.keyOpenArray(i0)),
-                              iv = toHex(secrets.ivOpenArray(i0))
-  trace "Reader credentials", mackey = toHex(secrets.macOpenArray(i1)),
-                              enckey = toHex(secrets.keyOpenArray(i1)),
-                              iv = toHex(secrets.ivOpenArray(i1))
+  trace "Writer credentials", mackey = secrets.macOpenArray(i0).shortLog,
+                              enckey = secrets.keyOpenArray(i0).shortLog,
+                              iv = secrets.ivOpenArray(i0).shortLog
+  trace "Reader credentials", mackey = secrets.macOpenArray(i1).shortLog,
+                              enckey = secrets.keyOpenArray(i1).shortLog,
+                              iv = secrets.ivOpenArray(i1).shortLog
   result.writerMac.init(hash, secrets.macOpenArray(i0))
   result.readerMac.init(hash, secrets.macOpenArray(i1))
   result.writerCoder.init(cipher, secrets.keyOpenArray(i0),
@@ -257,18 +265,18 @@ proc transactMessage(conn: Connection,
                      msg: seq[byte]): Future[seq[byte]] {.async.} =
   var buf = newSeq[byte](4)
   try:
-    trace "Sending message", message = toHex(msg), length = len(msg)
+    trace "Sending message", message = msg.shortLog, length = len(msg)
     await conn.write(msg)
     await conn.readExactly(addr buf[0], 4)
     let length = (int(buf[0]) shl 24) or (int(buf[1]) shl 16) or
                   (int(buf[2]) shl 8) or (int(buf[3]))
-    trace "Recieved message header", header = toHex(buf), length = length
+    trace "Recieved message header", header = buf.shortLog, length = length
     if length <= SecioMaxMessageSize:
       buf.setLen(length)
       await conn.readExactly(addr buf[0], length)
       trace "Received message body", conn = $conn,
                                      length = length,
-                                     buff = buf
+                                     buff = buf.shortLog
       result = buf
     else:
       trace "Received size of message exceed limits", conn = $conn,
@@ -280,7 +288,7 @@ proc transactMessage(conn: Connection,
   except AsyncStreamWriteError:
     trace "Could not write to connection", conn = $conn
 
-proc handshake(s: Secio, conn: Connection): Future[SecureConnection] {.async.} =
+method handshake*(s: Secio, conn: Connection, initiator: bool = false): Future[SecureConn] {.async.} =
   var
     localNonce: array[SecioNonceSize, byte]
     remoteNonce: seq[byte]
@@ -311,7 +319,7 @@ proc handshake(s: Secio, conn: Connection): Future[SecureConnection] {.async.} =
   trace "Local proposal", schemes = SecioExchanges,
                           ciphers = SecioCiphers,
                           hashes = SecioHashes,
-                          pubkey = toHex(localBytesPubkey),
+                          pubkey = localBytesPubkey.shortLog,
                           peer = localPeerId
 
   var answer = await transactMessage(conn, request)
@@ -326,7 +334,7 @@ proc handshake(s: Secio, conn: Connection): Future[SecureConnection] {.async.} =
     raise newException(SecioError, "Remote proposal decoding failed")
 
   if not remotePubkey.init(remoteBytesPubkey):
-    trace "Remote public key incorrect or corrupted", pubkey = remoteBytesPubkey
+    trace "Remote public key incorrect or corrupted", pubkey = remoteBytesPubkey.shortLog
     raise newException(SecioError, "Remote public key incorrect or corrupted")
 
   remotePeerId = PeerID.init(remotePubkey)
@@ -336,7 +344,7 @@ proc handshake(s: Secio, conn: Connection): Future[SecureConnection] {.async.} =
                        remoteNonce)
   trace "Remote proposal", schemes = remoteExchanges, ciphers = remoteCiphers,
                            hashes = remoteHashes,
-                           pubkey = toHex(remoteBytesPubkey), order = order,
+                           pubkey = remoteBytesPubkey.shortLog, order = order,
                            peer = remotePeerId
 
   let scheme = selectBest(order, SecioExchanges, remoteExchanges)
@@ -366,7 +374,7 @@ proc handshake(s: Secio, conn: Connection): Future[SecureConnection] {.async.} =
     raise newException(SecioError, "Remote exchange decoding failed")
 
   if not remoteESignature.init(remoteEBytesSig):
-    trace "Remote signature incorrect or corrupted", signature = toHex(remoteEBytesSig)
+    trace "Remote signature incorrect or corrupted", signature = remoteEBytesSig.shortLog
     raise newException(SecioError, "Remote signature incorrect or corrupted")
 
   var remoteCorpus = answer & request[4..^1] & remoteEBytesPubkey
@@ -391,83 +399,33 @@ proc handshake(s: Secio, conn: Connection): Future[SecureConnection] {.async.} =
           seckeyScheme = ekeypair.seckey.scheme
     raise newException(SecioError, "Shared secret could not be created")
 
-  trace "Shared secret calculated", secret = toHex(secret)
+  trace "Shared secret calculated", secret = secret.shortLog
 
   var keys = stretchKeys(cipher, hash, secret)
 
   trace "Authenticated encryption parameters",
-        iv0 = toHex(keys.ivOpenArray(0)), key0 = toHex(keys.keyOpenArray(0)),
-        mac0 = toHex(keys.macOpenArray(0)),
-        iv1 = toHex(keys.ivOpenArray(1)), key1 = toHex(keys.keyOpenArray(1)),
-        mac1 = toHex(keys.macOpenArray(1))
+        iv0 = toHex(keys.ivOpenArray(0)), key0 = keys.keyOpenArray(0).shortLog,
+        mac0 = keys.macOpenArray(0).shortLog,
+        iv1 = keys.ivOpenArray(1).shortLog, key1 = keys.keyOpenArray(1).shortLog,
+        mac1 = keys.macOpenArray(1).shortLog
 
   # Perform Nonce exchange over encrypted channel.
 
-  result = newSecureConnection(conn, hash, cipher, keys, order, remotePubkey)
-  await result.writeMessage(remoteNonce)
-  var res = await result.readMessage()
+  var secioConn = newSecioConn(conn, hash, cipher, keys, order, remotePubkey)
+  result = secioConn
+  await secioConn.writeMessage(remoteNonce)
+  var res = await secioConn.readMessage()
 
   if res != @localNonce:
-    trace "Nonce verification failed", receivedNonce = toHex(res),
-                                       localNonce = toHex(localNonce)
+    trace "Nonce verification failed", receivedNonce = res.shortLog,
+                                       localNonce = localNonce.shortLog
     raise newException(CatchableError, "Nonce verification failed")
   else:
     trace "Secure handshake succeeded"
 
-proc readLoop(sconn: SecureConnection, stream: BufferStream) {.async.} =
-  try:
-    while not sconn.closed:
-      let msg = await sconn.readMessage()
-      if msg.len == 0:
-        trace "stream EOF"
-        return
-
-      await stream.pushTo(msg)
-  except CatchableError as exc:
-    trace "exception occurred SecureConnection.readLoop", exc = exc.msg
-  finally:
-    if not sconn.closed:
-      await sconn.close()
-    trace "ending secio readLoop", isclosed = sconn.closed()
-
-proc handleConn(s: Secio, conn: Connection): Future[Connection] {.async, gcsafe.} =
-  var sconn = await s.handshake(conn)
-  proc writeHandler(data: seq[byte]) {.async, gcsafe.} =
-    trace "sending encrypted bytes", bytes = data.toHex()
-    await sconn.writeMessage(data)
-
-  var stream = newBufferStream(writeHandler)
-  asyncCheck readLoop(sconn, stream)
-  result = newConnection(stream)
-  result.closeEvent.wait()
-    .addCallback do (udata: pointer):
-      trace "wrapped connection closed, closing upstream"
-      if not isNil(sconn) and not sconn.closed:
-        asyncCheck sconn.close()
-
-  result.peerInfo = PeerInfo.init(sconn.peerInfo.publicKey.get())
-
 method init(s: Secio) {.gcsafe.} =
-  proc handle(conn: Connection, proto: string) {.async, gcsafe.} =
-    trace "handling connection"
-    try:
-      asyncCheck s.handleConn(conn)
-      trace "connection secured"
-    except CatchableError as exc:
-      if not conn.closed():
-        warn "securing connection failed", msg = exc.msg
-        await conn.close()
-
+  procCall Secure(s).init()
   s.codec = SecioCodec
-  s.handler = handle
-
-method secure*(s: Secio, conn: Connection): Future[Connection] {.async, gcsafe.} =
-  try:
-    result = await s.handleConn(conn)
-  except CatchableError as exc:
-    warn "securing connection failed", msg = exc.msg
-    if not conn.closed():
-      await conn.close()
 
 proc newSecio*(localPrivateKey: PrivateKey): Secio =
   new result

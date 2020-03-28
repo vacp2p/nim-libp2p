@@ -1,5 +1,7 @@
 import unittest, tables
 import chronos
+import chronicles
+import nimcrypto/sysrand
 import ../libp2p/[switch,
                   multistream,
                   protocols/identify,
@@ -15,7 +17,8 @@ import ../libp2p/[switch,
                   muxers/mplex/mplex,
                   muxers/mplex/types,
                   protocols/secure/secio,
-                  protocols/secure/secure]
+                  protocols/secure/secure,
+                  stream/lpstream]
 
 when defined(nimHasUsed): {.used.}
 
@@ -23,16 +26,6 @@ const TestCodec = "/test/proto/1.0.0"
 
 type
   TestProto = ref object of LPProtocol
-
-method init(p: TestProto) {.gcsafe.} =
-  proc handle(conn: Connection, proto: string) {.async, gcsafe.} =
-    let msg = cast[string](await conn.readLp())
-    check "Hello!" == msg
-    await conn.writeLp("Hello!")
-    await conn.close()
-
-  p.codec = TestCodec
-  p.handler = handle
 
 proc createSwitch(ma: MultiAddress): (Switch, PeerInfo) =
   var peerInfo: PeerInfo = PeerInfo.init(PrivateKey.random(RSA))
@@ -65,21 +58,33 @@ suite "Switch":
 
       (switch1, peerInfo1) = createSwitch(ma1)
 
+      proc handle(conn: Connection, proto: string) {.async, gcsafe.} =
+        let msg = cast[string](await conn.readLp())
+        check "Hello!" == msg
+        await conn.writeLp("Hello!")
+        await conn.close()
+
       let testProto = new TestProto
-      testProto.init()
       testProto.codec = TestCodec
+      testProto.handler = handle
       switch1.mount(testProto)
+
       (switch2, peerInfo2) = createSwitch(ma2)
       awaiters.add(await switch1.start())
       awaiters.add(await switch2.start())
+
       let conn = await switch2.dial(switch1.peerInfo, TestCodec)
-      await conn.writeLp("Hello!")
-      let msg = cast[string](await conn.readLp())
-      check "Hello!" == msg
+
+      try:
+        await conn.writeLp("Hello!")
+        let msg = cast[string](await conn.readLp())
+        check "Hello!" == msg
+        result = true
+      except LPStreamError:
+        result = false
 
       await allFutures(switch1.stop(), switch2.stop())
       await allFutures(awaiters)
-      result = true
 
     check:
       waitFor(testSwitch()) == true
@@ -95,22 +100,74 @@ suite "Switch":
 
       (switch1, peerInfo1) = createSwitch(ma1)
 
+      proc handle(conn: Connection, proto: string) {.async, gcsafe.} =
+        let msg = cast[string](await conn.readLp())
+        check "Hello!" == msg
+        await conn.writeLp("Hello!")
+        await conn.close()
+
       let testProto = new TestProto
-      testProto.init()
       testProto.codec = TestCodec
+      testProto.handler = handle
       switch1.mount(testProto)
+
       (switch2, peerInfo2) = createSwitch(ma2)
       awaiters.add(await switch1.start())
       awaiters.add(await switch2.start())
       await switch2.connect(switch1.peerInfo)
       let conn = await switch2.dial(switch1.peerInfo, TestCodec)
-      await conn.writeLp("Hello!")
-      let msg = cast[string](await conn.readLp())
-      check "Hello!" == msg
+
+      try:
+        await conn.writeLp("Hello!")
+        let msg = cast[string](await conn.readLp())
+        check "Hello!" == msg
+        result = true
+      except LPStreamError:
+        result = false
 
       await allFutures(switch1.stop(), switch2.stop())
       await allFutures(awaiters)
-      result = true
 
     check:
       waitFor(testSwitch()) == true
+
+  # test "e2e: handle read + secio fragmented":
+  #   proc testListenerDialer(): Future[bool] {.async.} =
+  #     let
+  #       server: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
+  #       serverInfo = PeerInfo.init(PrivateKey.random(RSA), [server])
+  #       serverNoise = newSecio(serverInfo.privateKey)
+  #       readTask = newFuture[void]()
+
+  #     var hugePayload = newSeq[byte](0x1200000)
+  #     check randomBytes(hugePayload) == hugePayload.len
+  #     trace "Sending huge payload", size = hugePayload.len
+
+  #     proc connHandler(conn: Connection) {.async, gcsafe.} =
+  #       let sconn = await serverNoise.secure(conn)
+  #       defer:
+  #         await sconn.close()
+  #       let msg = await sconn.read(0x1200000)
+  #       check msg == hugePayload
+  #       readTask.complete()
+
+  #     let
+  #       transport1: TcpTransport = newTransport(TcpTransport)
+  #     asyncCheck await transport1.listen(server, connHandler)
+
+  #     let
+  #       transport2: TcpTransport = newTransport(TcpTransport)
+  #       clientInfo = PeerInfo.init(PrivateKey.random(RSA), [transport1.ma])
+  #       clientNoise = newSecio(clientInfo.privateKey)
+  #       conn = await transport2.dial(transport1.ma)
+  #       sconn = await clientNoise.secure(conn)
+
+  #     await sconn.write(hugePayload)
+  #     await readTask
+  #     await sconn.close()
+  #     await transport1.close()
+
+  #     result = true
+
+  #   check:
+  #     waitFor(testListenerDialer()) == true
