@@ -2,25 +2,25 @@ when not(compileOption("threads")):
   {.fatal: "Please, compile this program with the --threads:on option!".}
 
 import tables, options, sequtils, algorithm, strformat, os, strutils
-import chronos
-import ../libp2p/[switch,
-                  multistream,
-                  crypto/crypto,
-                  protocols/identify,
-                  connection,
-                  transports/transport,
-                  transports/tcptransport,
-                  multiaddress,
-                  peerinfo,
-                  peer,
-                  protocols/protocol,
-                  protocols/secure/secure,
-                  protocols/secure/secio,
-                  protocols/pubsub/pubsub,
-                  protocols/pubsub/floodsub,
-                  muxers/muxer,
-                  muxers/mplex/mplex,
-                  muxers/mplex/types]
+import chronos                              # an efficient library for async, developed by Status
+import ../libp2p/[switch,                   # manage transports, a single entry point for dialing and listening
+                  multistream,              # tag stream with short header to identify it
+                  crypto/crypto,            # cryptographic functions
+                  protocols/identify,       # identify the peer info of a peer
+                  connection,               # create and close stream read / write connections
+                  transports/transport,     # listen and dial to other peers using p2p protocol
+                  transports/tcptransport,  # listen and dial to other peers using client-server protocol
+                  multiaddress,             # encode different addressing schemes. For example, /ip4/7.7.7.7/tcp/6543 means it is using IPv4 protocol and TCP
+                  peerinfo,                 # manage the information of a peer, such as peer ID and public / private key 
+                  peer,                     # Implement how peers interact
+                  protocols/protocol,       # define the protocol base type
+                  protocols/secure/secure,  # define the protocol of secure connection
+                  protocols/secure/secio,   # define the protocol of secure input / output, allows encrypted communication that uses public keys to validate signed messages instead of a certificate authority like in TLS
+                  protocols/pubsub/pubsub,  # define the protocol of publish / subscribe, for sending messages to groups of interested receivers 
+                  protocols/pubsub/floodsub,# define the protocol of publish / subscribe based on the "network flooding" strategy
+                  muxers/muxer,             # define an interface for stream multiplexing, allowing peers to offer many protocols over a single connection
+                  muxers/mplex/mplex,       # implement stream multiplexing 
+                  muxers/mplex/types]       # define some contants and message types for stream multiplexing 
 
 const ChatCodec = "/nim-libp2p/chat/1.0.0"
 const DefaultAddr = "/ip4/127.0.0.1/tcp/55505"
@@ -223,5 +223,5 @@ proc main() {.async.} =
   thread.createThread(threadMain, wfd)
   await data.serveFut
 
-when isMainModule:
+when isMainModule: # isMainModule = true when the module is compiled as the main file
   waitFor(main())
