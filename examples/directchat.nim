@@ -31,13 +31,7 @@ const Help = """
   exit: closes the chat
 """
 
-type
-  CustomData = ref object
-    consoleFd: AsyncFD
-    serveFut: Future[void]
-
-  ChatProto = ref object of LPProtocol
-    customData*: CustomData
+type ChatProto = ref object of LPProtocol
     switch: Switch
     transp: StreamTransport
     conn: Connection
@@ -50,7 +44,6 @@ proc readWriteLoop(p: ChatProto) {.async, gcsafe.}
 proc readAndPrint(p: ChatProto) {.async, gcsafe.} =
   while true:
     while p.connected:
-      # echo &"{p.id} -> "
       echo cast[string](await p.conn.readLp())
     await sleepAsync(100.millis)
 
@@ -69,8 +62,6 @@ proc dialPeer(p: ChatProto, address: string) {.async, gcsafe.} =
 proc writeAndPrint(p: ChatProto) {.async, gcsafe.} =
   while true:
     if not p.connected:
-      # echo &"{p.id} ->"
-    # else:
       echo "type an address or wait for a connection:"
       echo "type /[help|?] for help"
 
@@ -144,7 +135,7 @@ proc newChatProto(switch: Switch, transp: StreamTransport): ChatProto =
   result.transp = transp
   result.init()
 
-proc threadMain(wfd: AsyncFD) {.thread.} =
+proc readInput(wfd: AsyncFD) {.thread.} =
   ## This procedure performs reading from `stdin` and sends data over
   ## pipe to main thread.
   var transp = fromPipe(wfd)
@@ -153,8 +144,8 @@ proc threadMain(wfd: AsyncFD) {.thread.} =
     var line = stdin.readLine()
     discard waitFor transp.write(line & "\r\n")
 
-proc serveThread(customData: CustomData) {.async.} =
-  var transp = fromPipe(customData.consoleFd)
+proc processInput(rfd: AsyncFD) {.async.} =
+  var transp = fromPipe(rfd)
 
   let seckey = PrivateKey.random(RSA)
   var peerInfo = PeerInfo.init(seckey)
@@ -203,17 +194,14 @@ proc serveThread(customData: CustomData) {.async.} =
   await allFutures(libp2pFuts)
 
 proc main() {.async.} =
-  var data = new CustomData
-
   var (rfd, wfd) = createAsyncPipe()
   if rfd == asyncInvalidPipe or wfd == asyncInvalidPipe:
     raise newException(ValueError, "Could not initialize pipe!")
 
-  data.consoleFd = rfd
-  data.serveFut = serveThread(data)
   var thread: Thread[AsyncFD]
-  thread.createThread(threadMain, wfd)
-  await data.serveFut
+  thread.createThread(readInput, wfd)
+
+  await processInput(rfd)
 
 when isMainModule: # isMainModule = true when the module is compiled as the main file
   waitFor(main())
