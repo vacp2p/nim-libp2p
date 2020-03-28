@@ -67,7 +67,7 @@ proc readMsg*(conn: Connection): Future[Msg] {.async, gcsafe.} =
     trace "read data", data = data.len
 
   let msgType = header and 0x7
-  if msgType.int >= 0x7:
+  if msgType.int > ord(MessageType.ResetOut):
     raise newInvalidMplexMsgType()
 
   result = (uint64(header shr 3), MessageType(msgType), data)

@@ -11,7 +11,7 @@
 ## Timeouts and message limits are still missing
 ## they need to be added ASAP
 
-import tables, sequtils, options
+import tables, sequtils
 import chronos, chronicles
 import ../muxer,
        ../../connection,
