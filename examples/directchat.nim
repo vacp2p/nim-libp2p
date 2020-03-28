@@ -1,7 +1,7 @@
 when not(compileOption("threads")):
   {.fatal: "Please, compile this program with the --threads:on option!".}
 
-import tables, options, sequtils, algorithm, strformat, os, strutils
+import tables, strformat, strutils
 import chronos                              # an efficient library for async, developed by Status
 import ../libp2p/[switch,                   # manage transports, a single entry point for dialing and listening
                   multistream,              # tag stream with short header to identify it
@@ -16,8 +16,6 @@ import ../libp2p/[switch,                   # manage transports, a single entry 
                   protocols/protocol,       # define the protocol base type
                   protocols/secure/secure,  # define the protocol of secure connection
                   protocols/secure/secio,   # define the protocol of secure input / output, allows encrypted communication that uses public keys to validate signed messages instead of a certificate authority like in TLS
-                  protocols/pubsub/pubsub,  # define the protocol of publish / subscribe, for sending messages to groups of interested receivers 
-                  protocols/pubsub/floodsub,# define the protocol of publish / subscribe based on the "network flooding" strategy
                   muxers/muxer,             # define an interface for stream multiplexing, allowing peers to offer many protocols over a single connection
                   muxers/mplex/mplex,       # implement stream multiplexing 
                   muxers/mplex/types]       # define some contants and message types for stream multiplexing 
@@ -46,12 +44,6 @@ type
     client: bool
     connected: bool
     started: bool
-
-proc id (p: ChatProto): string =
-  if not isNil(p.conn.peerInfo):
-    $p.conn.peerInfo.peerId
-  else:
-    "unknown"
 
 # forward declaration
 proc readWriteLoop(p: ChatProto) {.async, gcsafe.}
