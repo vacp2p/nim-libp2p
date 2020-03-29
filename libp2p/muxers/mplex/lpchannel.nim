@@ -93,12 +93,40 @@ proc resetMessage(s: LPChannel) {.async.} =
   await s.conn.writeMsg(s.id, s.resetCode)
 
 proc resetByRemote*(s: LPChannel) {.async.} =
-  await allFutures(s.close(), s.closedByRemote())
+  let
+    f1 = awaitne s.close()
+    f2 = awaitne s.closedByRemote()
+  # NOTICE WE DO NOT RETHROW
+  # Those failures are not critical but still wait and warn about them!
+  if f1.failed:
+    warn "Something went wrong during resetByRemote -> close",
+     failure = f1.readError.name, msg = f1.readError.msg
+  if f2.failed:
+    warn "Something went wrong during resetByRemote -> closedByRemote",
+     failure = f2.readError.name, msg = f2.readError.msg
+
   s.isReset = true
-  await s.cleanUp()
+
+  let
+    f3 = awaitne s.cleanUp()
+  # NOTICE WE DO NOT RETHROW
+  # Those failures are not critical but still wait and warn about them!
+  if f3.failed:
+    warn "Something went wrong during resetByRemote -> cleanUp",
+     failure = f3.readError.name, msg = f3.readError.msg
 
 proc reset*(s: LPChannel) {.async.} =
-  await allFutures(s.resetMessage(), s.resetByRemote())
+  let
+    f1 = awaitne s.resetMessage()
+    f2 = awaitne s.resetByRemote()
+  # NOTICE WE DO NOT RETHROW
+  # Those failures are not critical but still wait and warn about them!
+  if f1.failed:
+    warn "Something went wrong during reset -> resetMessage",
+     failure = f1.readError.name, msg = f1.readError.msg
+  if f2.failed:
+    warn "Something went wrong during reset -> resetByRemote",
+     failure = f2.readError.name, msg = f2.readError.msg
 
 method closed*(s: LPChannel): bool =
   trace "closing lpchannel", id = s.id, initiator = s.initiator
