@@ -158,10 +158,11 @@ method readUntil*(s: LPChannel,
   await s.tryCleanup()
 
 template writePrefix: untyped =
-  if s.isLazy and not s.isOpen:
-    await s.open()
   if s.closedLocal or s.isReset:
     raise newLPStreamEOFError()
+
+  if s.isLazy and not s.isOpen:
+    await s.open()
 
 method write*(s: LPChannel, pbytes: pointer, nbytes: int) {.async.} =
   writePrefix()
