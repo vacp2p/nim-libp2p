@@ -51,7 +51,7 @@ method close*(t: TcpTransport): Future[void] {.async, gcsafe.} =
   await procCall Transport(t).close() # call base
 
   t.server.stop()
-  t.server.close()
+  await t.server.closeWait()
   trace "transport stopped"
 
 method listen*(t: TcpTransport,

@@ -85,10 +85,12 @@ method rpcHandler*(f: FloodSub,
 
         # forward the message to all peers interested in it
         var sent: seq[Future[void]]
+        # start the future but do not wait yet
         for p in toSendPeers:
           if p in f.peers and f.peers[p].id != peer.id:
             sent.add(f.peers[p].send(@[RPCMsg(messages: m.messages)]))
-        await allFutures(sent)
+        # wait for all the futures now
+        for fut in sent: await fut
 
 method init(f: FloodSub) =
   proc handler(conn: Connection, proto: string) {.async.} =
@@ -118,10 +120,12 @@ method publish*(f: FloodSub,
   trace "publishing on topic", name = topic
   let msg = newMessage(f.peerInfo, data, topic)
   var sent: seq[Future[void]]
+  # start the future but do not wait yet
   for p in f.floodsub[topic]:
     trace "publishing message", name = topic, peer = p, data = data.shortLog
     sent.add(f.peers[p].send(@[RPCMsg(messages: @[msg])]))
-  await allFutures(sent)
+  # wait for all the futures now
+  for fut in sent: await fut
 
 method unsubscribe*(f: FloodSub,
                     topics: seq[TopicPair]) {.async.} =

@@ -45,15 +45,20 @@ proc newMuxerProvider*(creator: MuxerConstructor, codec: string): MuxerProvider 
 
 method init(c: MuxerProvider) =
   proc handler(conn: Connection, proto: string) {.async, gcsafe, closure.} =
-    let muxer = c.newMuxer(conn)
-    var handlerFut = if not isNil(c.muxerHandler):
-      c.muxerHandler(muxer)
-    else:
-      var dummyFut = newFuture[void]()
-      dummyFut.complete(); dummyFut
+    let
+      muxer = c.newMuxer(conn)
 
     if not isNil(c.streamHandler):
       muxer.streamHandler = c.streamHandler
 
-    await allFutures(muxer.handle(), handlerFut)
+    let
+      # Start the future but do not wait
+      # notice this will already queue it to the dispatch
+      muxerHandle = muxer.handle()
+
+    # finally await both the futures
+    if not isNil(c.muxerHandler):
+      await c.muxerHandler(muxer)
+    await muxerHandle
+ 
   c.handler = handler
