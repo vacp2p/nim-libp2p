@@ -39,6 +39,16 @@ type ChatProto = ref object of LPProtocol
     connected: bool
     started: bool
 
+
+# copied from https://github.com/status-im/nim-beacon-chain/blob/0ed657e953740a92458f23033d47483ffa17ccb0/beacon_chain/eth2_network.nim#L109-L115 
+proc initAddress(T: type MultiAddress, str: string): T =
+    let address = MultiAddress.init(str)
+    if IPFS.match(address) and matchPartial(multiaddress.TCP, address):
+      result = address
+    else:
+      raise newException(MultiAddressError,
+                         "Invalid bootstrap node multi-address")
+
 # forward declaration
 proc readWriteLoop(p: ChatProto) {.async, gcsafe.}
 proc readAndPrint(p: ChatProto) {.async, gcsafe.} =
@@ -48,14 +58,13 @@ proc readAndPrint(p: ChatProto) {.async, gcsafe.} =
     await sleepAsync(100.millis)
 
 proc dialPeer(p: ChatProto, address: string) {.async, gcsafe.} =
-  var parts = address.split("/")
-  if parts.len == 11 and parts[^2] notin ["ipfs", "p2p"]:
-    quit("invalid or incompelete peerId")
+  let multiAddr = MultiAddress.initAddress(address);
+  
+  let parts = address.split("/")
+  let remotePeer = PeerInfo.init(parts[^1],
+                                 [multiAddr])
 
-  var remotePeer = PeerInfo.init(parts[^1],
-                                 [MultiAddress.init(address)])
-
-  echo &"dialing peer: {address}"
+  echo &"dialing peer: {multiAddr}"
   p.conn = await p.switch.dial(remotePeer, ChatCodec)
   p.connected = true
 
@@ -111,10 +120,10 @@ proc writeAndPrint(p: ChatProto) {.async, gcsafe.} =
             await p.dialPeer(line)
         except:
           echo &"unable to dial remote peer {line}"
-          # echo getCurrentExceptionMsg()
+          echo getCurrentExceptionMsg()
 
 proc readWriteLoop(p: ChatProto) {.async, gcsafe.} =
-  asyncCheck p.writeAndPrint()
+  asyncCheck p.writeAndPrint() # execute the async function but does not block until getting a result (different from await) 
   asyncCheck p.readAndPrint()
 
 method init(p: ChatProto) {.gcsafe.} =
@@ -165,6 +174,7 @@ proc processInput(rfd: AsyncFD) {.async.} =
       localAddress = DefaultAddr
       continue
 
+  # a constructor for building different multiplexers under various connections
   proc createMplex(conn: Connection): Muxer =
     result = newMplex(conn)
 
@@ -177,7 +187,7 @@ proc processInput(rfd: AsyncFD) {.async.} =
                          transports,
                          identify,
                          muxers,
-                         secureManagers = secureManagers)
+                         secureManagers)
 
   var chatProto = newChatProto(switch, transp)
   switch.mount(chatProto)

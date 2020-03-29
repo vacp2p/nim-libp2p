@@ -1,7 +1,36 @@
 when not(compileOption("threads")):
   {.fatal: "Please, compile this program with the --threads:on option!".}
 
-import chronos          # an efficient library for async, developed by Status
+import tables, strformat, strutils
+import chronos                              
+import ../libp2p/[switch,                   
+                  multistream,              
+                  crypto/crypto,            
+                  protocols/identify,       
+                  connection,               
+                  transports/transport,     
+                  transports/tcptransport,  
+                  multiaddress,             
+                  peerinfo,                 
+                  peer,                     
+                  protocols/protocol,       
+                  protocols/secure/secure,  
+                  protocols/secure/secio,   
+                  muxers/muxer,            
+                  muxers/mplex/mplex,       
+                  muxers/mplex/types]     
+
+const ChatCodec = "/nim-libp2p/chat/1.0.0"
+const DefaultAddr = "/ip4/127.0.0.1/tcp/55505"
+
+const Help = """
+  Commands: /[?|hep|connect|disconnect|exit]
+  help: Prints this help
+  connect: dials a remote peer
+  disconnect: ends current session
+  exit: closes the chat
+"""
+  
 
 proc processInput(rfd: AsyncFD) {.async.} =
   var transp = fromPipe(rfd)
