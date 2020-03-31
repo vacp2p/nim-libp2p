@@ -26,6 +26,11 @@ type
     msgType: MessageType
     data: seq[byte]
 
+  InvalidMplexMsgType = object of CatchableError
+
+proc newInvalidMplexMsgType*(): ref InvalidMplexMsgType =
+  newException(InvalidMplexMsgType, "invalid message type")
+
 proc readMplexVarint(conn: Connection): Future[uint64] {.async, gcsafe.} =
   var
     varint: uint
@@ -41,27 +46,31 @@ proc readMplexVarint(conn: Connection): Future[uint64] {.async, gcsafe.} =
         break
     if res != VarintStatus.Success:
       raise newInvalidVarintException()
-    if varint.int > DefaultReadSize:
-      raise newInvalidVarintSizeException()
     return varint
   except LPStreamIncompleteError as exc:
     trace "unable to read varint", exc = exc.msg
     raise exc
 
 proc readMsg*(conn: Connection): Future[Msg] {.async, gcsafe.} =
-  let headerVarint = await conn.readMplexVarint()
-  trace "read header varint", varint = headerVarint
+  let header = await conn.readMplexVarint()
+  trace "read header varint", varint = header
 
   let dataLenVarint = await conn.readMplexVarint()
   trace "read data len varint", varint = dataLenVarint
+
+  if dataLenVarint.int > DefaultReadSize:
+    raise newInvalidVarintSizeException()
 
   var data: seq[byte] = newSeq[byte](dataLenVarint.int)
   if dataLenVarint.int > 0:
     await conn.readExactly(addr data[0], dataLenVarint.int)
     trace "read data", data = data.len
 
-  let header = headerVarint
-  result = (uint64(header shr 3), MessageType(header and 0x7), data)
+  let msgType = header and 0x7
+  if msgType.int > ord(MessageType.ResetOut):
+    raise newInvalidMplexMsgType()
+
+  result = (uint64(header shr 3), MessageType(msgType), data)
 
 proc writeMsg*(conn: Connection,
                id: uint64,

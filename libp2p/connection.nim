@@ -15,6 +15,9 @@ import peerinfo,
        varint,
        vbuffer
 
+logScope:
+  topic = "Connection"
+
 const DefaultReadSize* = 1 shl 20
 
 type
@@ -27,10 +30,10 @@ type
   InvalidVarintSizeException = object of LPStreamError
 
 proc newInvalidVarintException*(): ref InvalidVarintException =
-  newException(InvalidVarintException, "unable to parse varint")
+  newException(InvalidVarintException, "Unable to parse varint")
 
 proc newInvalidVarintSizeException*(): ref InvalidVarintSizeException =
-  newException(InvalidVarintSizeException, "wrong varint size")
+  newException(InvalidVarintSizeException, "Wrong varint size")
 
 proc init*[T: Connection](self: var T, stream: LPStream) =
   ## create a new Connection for the specified async reader/writer
@@ -45,7 +48,7 @@ proc init*[T: Connection](self: var T, stream: LPStream) =
     self.stream.closeEvent.wait().
       addCallback do (udata: pointer):
         if not this.closed:
-          trace "closing this connection because wrapped stream closed"
+          trace "wrapped stream closed, closing conn"
           asyncCheck this.close()
 
 proc newConnection*(stream: LPStream): Connection =

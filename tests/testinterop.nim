@@ -59,9 +59,9 @@ proc readLp*(s: StreamTransport): Future[seq[byte]] {.async, gcsafe.} =
     result.setLen(size)
     if size > 0.uint:
       await s.readExactly(addr result[0], int(size))
-  except LPStreamIncompleteError as exc:
+  except TransportIncompleteError as exc:
     trace "remote connection ended unexpectedly", exc = exc.msg
-  except LPStreamReadError as exc:
+  except TransportError as exc:
     trace "unable to read from remote connection", exc = exc.msg
 
 proc createNode*(privKey: Option[PrivateKey] = none(PrivateKey),
@@ -382,12 +382,15 @@ suite "Interop":
       await daemonNode.connect(nativePeer.peerId, nativePeer.addrs)
       var stream = await daemonNode.openStream(nativePeer.peerId, protos)
 
-      while count < 10:
+      var count2 = 0
+      while count2 < 10:
         discard await stream.transp.writeLp(test)
         let line = await stream.transp.readLp()
         check test == cast[string](line)
+        inc(count2)
 
       result = 10 == (await wait(testFuture, 10.secs))
+      await stream.close()
       await nativeNode.stop()
       await allFutures(awaiters)
       await daemonNode.close()

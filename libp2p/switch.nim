@@ -237,7 +237,9 @@ proc internalConnect(s: Switch,
   else:
     trace "Reusing existing connection"
 
-  await s.subscribeToPeer(peer)
+  if not isNil(conn):
+    await s.subscribeToPeer(peer)
+
   result = conn
 
 proc connect*(s: Switch, peer: PeerInfo) {.async.} =
@@ -285,7 +287,7 @@ proc start*(s: Switch): Future[seq[Future[void]]] {.async, gcsafe.} =
     try:
       await s.upgradeIncoming(conn) # perform upgrade on incoming connection
     except CatchableError as exc:
-      trace "exception occurred in Switch.start", exc = exc.msg
+      trace "Exception occurred in Switch.start", exc = exc.msg
     finally:
       if not isNil(conn) and not conn.closed:
         await conn.close()
@@ -323,6 +325,7 @@ proc subscribeToPeer(s: Switch, peerInfo: PeerInfo) {.async, gcsafe.} =
       await s.pubSub.get().subscribeToPeer(conn)
     except CatchableError as exc:
       warn "unable to initiate pubsub", exc = exc.msg
+    finally:
       s.dialedPubSubPeers.excl(peerInfo.id)
 
 proc subscribe*(s: Switch, topic: string,

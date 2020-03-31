@@ -65,14 +65,21 @@ proc newChannel*(id: uint64,
 proc closeMessage(s: LPChannel) {.async.} =
   await s.conn.writeMsg(s.id, s.closeCode) # write header
 
-proc closedByRemote*(s: LPChannel) {.async.} =
-  s.closedRemote = true
-
 proc cleanUp*(s: LPChannel): Future[void] =
   # method which calls the underlying buffer's `close`
   # method used instead of `close` since it's overloaded to
   # simulate half-closed streams
   result = procCall close(BufferStream(s))
+
+proc tryCleanup(s: LPChannel) {.async, inline.} =
+  # if stream is EOF, then cleanup immediatelly
+  if s.closedRemote and s.len == 0:
+    await s.cleanUp()
+
+proc closedByRemote*(s: LPChannel) {.async.} =
+  s.closedRemote = true
+  if s.len == 0:
+    await s.cleanUp()
 
 proc open*(s: LPChannel): Future[void] =
   s.isOpen = true
@@ -88,11 +95,13 @@ proc resetMessage(s: LPChannel) {.async.} =
 proc resetByRemote*(s: LPChannel) {.async.} =
   await allFutures(s.close(), s.closedByRemote())
   s.isReset = true
+  await s.cleanUp()
 
 proc reset*(s: LPChannel) {.async.} =
   await allFutures(s.resetMessage(), s.resetByRemote())
 
 method closed*(s: LPChannel): bool =
+  trace "closing lpchannel", id = s.id, initiator = s.initiator
   result = s.closedRemote and s.len == 0
 
 proc pushTo*(s: LPChannel, data: seq[byte]): Future[void] =
@@ -107,63 +116,53 @@ proc pushTo*(s: LPChannel, data: seq[byte]): Future[void] =
 
   result = procCall pushTo(BufferStream(s), data)
 
-method read*(s: LPChannel, n = -1): Future[seq[byte]] =
+template raiseEOF(): untyped =
   if s.closed or s.isReset:
-    var retFuture = newFuture[seq[byte]]("LPChannel.read")
-    retFuture.fail(newLPStreamEOFError())
-    return retFuture
+    raise newLPStreamEOFError()
 
-  result = procCall read(BufferStream(s), n)
+method read*(s: LPChannel, n = -1): Future[seq[byte]] {.async.} =
+  raiseEOF()
+  result = (await procCall(read(BufferStream(s), n)))
+  await s.tryCleanup()
 
 method readExactly*(s: LPChannel,
                     pbytes: pointer,
                     nbytes: int):
-                    Future[void] =
-  if s.closed or s.isReset:
-    var retFuture = newFuture[void]("LPChannel.readExactly")
-    retFuture.fail(newLPStreamEOFError())
-    return retFuture
-
-  result = procCall readExactly(BufferStream(s), pbytes, nbytes)
+                    Future[void] {.async.} =
+  raiseEOF()
+  await procCall readExactly(BufferStream(s), pbytes, nbytes)
+  await s.tryCleanup()
 
 method readLine*(s: LPChannel,
                  limit = 0,
                  sep = "\r\n"):
-                 Future[string] =
-  if s.closed or s.isReset:
-    var retFuture = newFuture[string]("LPChannel.readLine")
-    retFuture.fail(newLPStreamEOFError())
-    return retFuture
-
-  result = procCall readLine(BufferStream(s), limit, sep)
+                 Future[string] {.async.} =
+  raiseEOF()
+  result = await procCall readLine(BufferStream(s), limit, sep)
+  await s.tryCleanup()
 
 method readOnce*(s: LPChannel,
                  pbytes: pointer,
                  nbytes: int):
-                 Future[int] =
-  if s.closed or s.isReset:
-    var retFuture = newFuture[int]("LPChannel.readOnce")
-    retFuture.fail(newLPStreamEOFError())
-    return retFuture
-
-  result = procCall readOnce(BufferStream(s), pbytes, nbytes)
+                 Future[int] {.async.} =
+  raiseEOF()
+  result = await procCall readOnce(BufferStream(s), pbytes, nbytes)
+  await s.tryCleanup()
 
 method readUntil*(s: LPChannel,
                   pbytes: pointer, nbytes: int,
                   sep: seq[byte]):
-                  Future[int] =
-  if s.closed or s.isReset:
-    var retFuture = newFuture[int]("LPChannel.readUntil")
-    retFuture.fail(newLPStreamEOFError())
-    return retFuture
-
-  result = procCall readOnce(BufferStream(s), pbytes, nbytes)
+                  Future[int] {.async.} =
+  raiseEOF()
+  result = await procCall readOnce(BufferStream(s), pbytes, nbytes)
+  await s.tryCleanup()
 
 template writePrefix: untyped =
-  if s.isLazy and not s.isOpen:
-    await s.open()
   if s.closedLocal or s.isReset:
     raise newLPStreamEOFError()
+
+  if s.isLazy and not s.isOpen:
+    await s.open()
 
 method write*(s: LPChannel, pbytes: pointer, nbytes: int) {.async.} =
   writePrefix()

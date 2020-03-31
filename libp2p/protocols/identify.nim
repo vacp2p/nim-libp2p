@@ -19,7 +19,7 @@ import ../protobuf/minprotobuf,
        ../utility
 
 logScope:
-  topic = "identify"
+  topic = "Identify"
 
 const
   IdentifyCodec* = "/ipfs/id/1.0.0"
@@ -123,6 +123,7 @@ method init*(p: Identify) =
 proc identify*(p: Identify,
                conn: Connection,
                remotePeerInfo: PeerInfo): Future[IdentifyInfo] {.async, gcsafe.} =
+  trace "initiating identify"
   var message = await conn.readLp()
   if len(message) == 0:
     trace "identify: Invalid or empty message received!"

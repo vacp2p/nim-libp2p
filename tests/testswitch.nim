@@ -17,7 +17,8 @@ import ../libp2p/[switch,
                   muxers/mplex/mplex,
                   muxers/mplex/types,
                   protocols/secure/secio,
-                  protocols/secure/secure]
+                  protocols/secure/secure,
+                  stream/lpstream]
 
 when defined(nimHasUsed): {.used.}
 
@@ -25,16 +26,6 @@ const TestCodec = "/test/proto/1.0.0"
 
 type
   TestProto = ref object of LPProtocol
-
-method init(p: TestProto) {.gcsafe.} =
-  proc handle(conn: Connection, proto: string) {.async, gcsafe.} =
-    let msg = cast[string](await conn.readLp())
-    check "Hello!" == msg
-    await conn.writeLp("Hello!")
-    await conn.close()
-
-  p.codec = TestCodec
-  p.handler = handle
 
 proc createSwitch(ma: MultiAddress): (Switch, PeerInfo) =
   var peerInfo: PeerInfo = PeerInfo.init(PrivateKey.random(RSA))
@@ -67,21 +58,33 @@ suite "Switch":
 
       (switch1, peerInfo1) = createSwitch(ma1)
 
+      proc handle(conn: Connection, proto: string) {.async, gcsafe.} =
+        let msg = cast[string](await conn.readLp())
+        check "Hello!" == msg
+        await conn.writeLp("Hello!")
+        await conn.close()
+
       let testProto = new TestProto
-      testProto.init()
       testProto.codec = TestCodec
+      testProto.handler = handle
       switch1.mount(testProto)
+
       (switch2, peerInfo2) = createSwitch(ma2)
       awaiters.add(await switch1.start())
       awaiters.add(await switch2.start())
+
       let conn = await switch2.dial(switch1.peerInfo, TestCodec)
-      await conn.writeLp("Hello!")
-      let msg = cast[string](await conn.readLp())
-      check "Hello!" == msg
+
+      try:
+        await conn.writeLp("Hello!")
+        let msg = cast[string](await conn.readLp())
+        check "Hello!" == msg
+        result = true
+      except LPStreamError:
+        result = false
 
       await allFutures(switch1.stop(), switch2.stop())
       await allFutures(awaiters)
-      result = true
 
     check:
       waitFor(testSwitch()) == true
@@ -97,22 +100,33 @@ suite "Switch":
 
       (switch1, peerInfo1) = createSwitch(ma1)
 
+      proc handle(conn: Connection, proto: string) {.async, gcsafe.} =
+        let msg = cast[string](await conn.readLp())
+        check "Hello!" == msg
+        await conn.writeLp("Hello!")
+        await conn.close()
+
       let testProto = new TestProto
-      testProto.init()
       testProto.codec = TestCodec
+      testProto.handler = handle
       switch1.mount(testProto)
+
       (switch2, peerInfo2) = createSwitch(ma2)
       awaiters.add(await switch1.start())
       awaiters.add(await switch2.start())
       await switch2.connect(switch1.peerInfo)
       let conn = await switch2.dial(switch1.peerInfo, TestCodec)
-      await conn.writeLp("Hello!")
-      let msg = cast[string](await conn.readLp())
-      check "Hello!" == msg
+
+      try:
+        await conn.writeLp("Hello!")
+        let msg = cast[string](await conn.readLp())
+        check "Hello!" == msg
+        result = true
+      except LPStreamError:
+        result = false
 
       await allFutures(switch1.stop(), switch2.stop())
       await allFutures(awaiters)
-      result = true
 
     check:
       waitFor(testSwitch()) == true

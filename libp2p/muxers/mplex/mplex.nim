@@ -11,7 +11,7 @@
 ## Timeouts and message limits are still missing
 ## they need to be added ASAP
 
-import tables, sequtils, options
+import tables, sequtils
 import chronos, chronicles
 import ../muxer,
        ../../connection,
@@ -123,7 +123,7 @@ method handle*(m: Mplex) {.async, gcsafe.} =
           m.getChannelList(initiator).del(id)
           break
   except CatchableError as exc:
-    trace "exception occurred", exception = exc.msg
+    trace "Exception occurred", exception = exc.msg
   finally:
     trace "stopping mplex main loop"
     if not m.connection.closed():

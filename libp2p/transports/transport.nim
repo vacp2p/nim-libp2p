@@ -62,7 +62,7 @@ method upgrade*(t: Transport) {.base, async, gcsafe.} =
 method handles*(t: Transport, address: MultiAddress): bool {.base, gcsafe.} =
   ## check if transport supportes the multiaddress
 
-  # by default we skip circuit addresses to avoid 
+  # by default we skip circuit addresses to avoid
   # having to repeat the check in every transport
   address.protocols.filterIt( it == multiCodec("p2p-circuit") ).len == 0
 
