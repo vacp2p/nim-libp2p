@@ -156,12 +156,18 @@ method close*(m: Mplex) {.async, gcsafe.} =
   # Just warn if any error happens here
   # Todo propagate with Result that can be optionally used
   trace "closing mplex muxer"
-  for ch in m.remote.values:
+
+  let
+    remotes = toSeq(m.remote.values)
+    locals = toSeq(m.local.values)
+
+  for ch in remotes:
     let res = awaitne ch.reset()
     if res.failed:
       warn "Something went wrong during mplex.close",
        failure = res.readError.name, msg = res.readError.msg
-  for ch in m.local.values:
+
+  for ch in locals:
     let res = awaitne ch.reset()
     if res.failed:
       warn "Something went wrong during mplex.close",

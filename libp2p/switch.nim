@@ -324,8 +324,14 @@ proc stop*(s: Switch) {.async.} =
         warn "Something went wrong during switch.stop -> pubsub.stop",
          failure = exc.name, msg = exc.msg
 
+  # sadly we got no other way but copying...
+  # else collection changes while iterating will happen
+  # cos apparently we remove from table in the async op
+  let
+    conns = toSeq(s.connections.values)
+    transports = toSeq(s.transports)
 
-  for conn in s.connections.values:
+  for conn in conns:
     let res = awaitne s.cleanupConn(conn)
     if res.failed:
       let exc = res.readError()
@@ -334,7 +340,7 @@ proc stop*(s: Switch) {.async.} =
         warn "Something went wrong during switch.stop -> connection",
          failure = exc.name, msg = exc.msg
 
-  for transport in s.transports:
+  for transport in transports:
     let res = awaitne transport.close()
     if res.failed:
       let exc = res.readError()
