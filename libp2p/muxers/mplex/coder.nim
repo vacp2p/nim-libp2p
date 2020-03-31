@@ -79,8 +79,8 @@ proc writeMsg*(conn: Connection,
       chunk = if chunkSize > 0 : data[offset..(offset + chunkSize - 1)] else: data
     ## write lenght prefixed
     var buf = initVBuffer()
-    buf.writePBVarint(id shl 3 or ord(msgType).uint)
-    buf.writePBVarint(chunkSize.uint) # size should be always sent
+    buf.writePBVarint(id shl 3 or ord(msgType).uint64)
+    buf.writePBVarint(chunkSize.uint64) # size should be always sent
     buf.finish()
     left = left - chunkSize
     offset = offset + chunkSize
