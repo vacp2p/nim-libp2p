@@ -308,11 +308,38 @@ proc start*(s: Switch): Future[seq[Future[void]]] {.async, gcsafe.} =
 proc stop*(s: Switch) {.async.} =
   trace "stopping switch"
 
-  if s.pubSub.isSome:
-    await s.pubSub.get().stop()
+  # we want to report erros but we do not want to fail
+  # or crash here, cos we need to clean possibly MANY items
+  # we need awaitne, because await would throw
+  # and any following conn/transport won't be cleaned up
 
-  await allFutures(toSeq(s.connections.values).mapIt(s.cleanupConn(it)))
-  await allFutures(s.transports.mapIt(it.close()))
+  if s.pubSub.isSome:
+    let res = awaitne s.pubSub.get().stop()
+    if res.failed:
+      let exc = res.readError()
+      # EOF are likely to happen here
+      if exc.name != "LPStreamEOFError":
+        warn "Something went wrong during switch.stop -> pubsub.stop",
+         failure = exc.name, msg = exc.msg
+
+
+  for conn in s.connections.values:
+    let res = awaitne s.cleanupConn(conn)
+    if res.failed:
+      let exc = res.readError()
+      # EOF are likely to happen here
+      if exc.name != "LPStreamEOFError":
+        warn "Something went wrong during switch.stop -> connection",
+         failure = exc.name, msg = exc.msg
+
+  for transport in s.transports:
+    let res = awaitne transport.close()
+    if res.failed:
+      let exc = res.readError()
+      # EOF are likely to happen here
+      if exc.name != "LPStreamEOFError":
+        warn "Something went wrong during switch.stop -> transport",
+         failure = exc.name, msg = exc.msg
 
 proc subscribeToPeer(s: Switch, peerInfo: PeerInfo) {.async, gcsafe.} =
   ## Subscribe to pub sub peer

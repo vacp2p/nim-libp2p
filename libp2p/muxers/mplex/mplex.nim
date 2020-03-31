@@ -153,6 +153,16 @@ method newStream*(m: Mplex,
   result.peerInfo = m.connection.peerInfo
 
 method close*(m: Mplex) {.async, gcsafe.} =
+  # Just warn if any error happens here
+  # Todo propagate with Result that can be optionally used
   trace "closing mplex muxer"
-  await allFutures(@[allFutures(toSeq(m.remote.values).mapIt(it.reset())),
-                      allFutures(toSeq(m.local.values).mapIt(it.reset()))])
+  for ch in m.remote.values:
+    let res = awaitne ch.reset()
+    if res.failed:
+      warn "Something went wrong during mplex.close",
+       failure = res.readError.name, msg = res.readError.msg
+  for ch in m.local.values:
+    let res = awaitne ch.reset()
+    if res.failed:
+      warn "Something went wrong during mplex.close",
+       failure = res.readError.name, msg = res.readError.msg

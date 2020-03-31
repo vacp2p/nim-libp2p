@@ -99,8 +99,11 @@ proc resetByRemote*(s: LPChannel) {.async.} =
   # NOTICE WE DO NOT RETHROW
   # Those failures are not critical but still wait and warn about them!
   if f1.failed:
-    warn "Something went wrong during resetByRemote -> close",
-     failure = f1.readError.name, msg = f1.readError.msg
+    let exc = f1.readError()
+    # EOF are likely to happen here
+    if exc.name != "LPStreamEOFError":
+      warn "Something went wrong during resetByRemote -> close",
+       failure = exc.name, msg = exc.msg
   if f2.failed:
     warn "Something went wrong during resetByRemote -> closedByRemote",
      failure = f2.readError.name, msg = f2.readError.msg
@@ -122,8 +125,10 @@ proc reset*(s: LPChannel) {.async.} =
   # NOTICE WE DO NOT RETHROW
   # Those failures are not critical but still wait and warn about them!
   if f1.failed:
-    warn "Something went wrong during reset -> resetMessage",
-     failure = f1.readError.name, msg = f1.readError.msg
+    let exc = f1.readError()
+    if exc.name != "LPStreamEOFError":
+      warn "Something went wrong during reset -> resetMessage",
+       failure = exc.name, msg = exc.msg
   if f2.failed:
     warn "Something went wrong during reset -> resetByRemote",
      failure = f2.readError.name, msg = f2.readError.msg
