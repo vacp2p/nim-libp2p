@@ -47,7 +47,7 @@ proc initAddress(T: type MultiAddress, str: string): T =
     raise newException(MultiAddressError,
                          "Invalid bootstrap node multi-address")
 
-proc dialPeer(p: ChatProto, address: string) {.async, gcsafe.} =
+proc dialPeer(p: ChatProto, address: string) {.async.} =
   let multiAddr = MultiAddress.initAddress(address);
   let parts = address.split("/")
   let remotePeer = PeerInfo.init(parts[^1],
@@ -57,13 +57,13 @@ proc dialPeer(p: ChatProto, address: string) {.async, gcsafe.} =
   p.conn = await p.switch.dial(remotePeer, ChatCodec)
   p.connected = true
 
-proc readAndPrint(p: ChatProto) {.async, gcsafe.} =
+proc readAndPrint(p: ChatProto) {.async.} =
   while true:
     while p.connected:
       echo cast[string](await p.conn.readLp())
     await sleepAsync(100.millis)
 
-proc writeAndPrint(p: ChatProto) {.async, gcsafe.} =
+proc writeAndPrint(p: ChatProto) {.async.} =
   while true:
     if not p.connected:
       echo "type an address or wait for a connection:"
@@ -117,7 +117,7 @@ proc writeAndPrint(p: ChatProto) {.async, gcsafe.} =
           echo &"unable to dial remote peer {line}"
           echo getCurrentExceptionMsg()
 
-proc readWriteLoop(p: ChatProto) {.async, gcsafe.} =
+proc readWriteLoop(p: ChatProto) {.async.} =
   asyncCheck p.writeAndPrint() # execute the async function but does not block until getting a result (different from await) 
   asyncCheck p.readAndPrint()
 
