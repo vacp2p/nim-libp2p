@@ -312,41 +312,21 @@ proc stop*(s: Switch) {.async.} =
 
   # we want to report erros but we do not want to fail
   # or crash here, cos we need to clean possibly MANY items
-  # we need awaitne, because await would throw
   # and any following conn/transport won't be cleaned up
+  var futs = newSeq[Future[void]]()
 
   if s.pubSub.isSome:
-    let res = awaitne s.pubSub.get().stop()
+    futs &= s.pubSub.get().stop()
+
+  futs &= toSeq(s.connections.values).mapIt(s.cleanupConn(it))
+  futs &= s.transports.mapIt(it.close())
+
+  futs = await allFinished(futs)
+
+  for res in futs:
     if res.failed:
       let exc = res.readError()
-      # EOF are likely to happen here
-      if exc.name != "LPStreamEOFError":
-        warn "Something went wrong during switch.stop -> pubsub.stop",
-         failure = exc.name, msg = exc.msg
-
-  # sadly we got no other way but copying...
-  # else collection changes while iterating will happen
-  # cos apparently we remove from table in the async op
-  let
-    conns = toSeq(s.connections.values)
-    transports = toSeq(s.transports)
-
-  for conn in conns:
-    let res = awaitne s.cleanupConn(conn)
-    if res.failed:
-      let exc = res.readError()
-      # EOF are likely to happen here
-      if exc.name != "LPStreamEOFError":
-        warn "Something went wrong during switch.stop -> connection",
-         failure = exc.name, msg = exc.msg
-
-  for transport in transports:
-    let res = awaitne transport.close()
-    if res.failed:
-      let exc = res.readError()
-      # EOF are likely to happen here
-      if exc.name != "LPStreamEOFError":
-        warn "Something went wrong during switch.stop -> transport",
+      warn "Something went wrong during Switch.stop",
          failure = exc.name, msg = exc.msg
 
 proc subscribeToPeer(s: Switch, peerInfo: PeerInfo) {.async, gcsafe.} =

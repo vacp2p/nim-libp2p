@@ -51,14 +51,15 @@ method init(c: MuxerProvider) =
     if not isNil(c.streamHandler):
       muxer.streamHandler = c.streamHandler
 
-    let
-      # Start the future but do not wait
-      # notice this will already queue it to the dispatch
-      muxerHandle = muxer.handle()
+    var futs = newSeq[Future[void]]()
+
+    futs &= muxer.handle()
 
     # finally await both the futures
     if not isNil(c.muxerHandler):
-      await c.muxerHandler(muxer)
-    await muxerHandle
- 
+      futs &= c.muxerHandler(muxer)
+
+    # TODO FIXME what to do with erros here??
+    await allFutures(futs)
+
   c.handler = handler

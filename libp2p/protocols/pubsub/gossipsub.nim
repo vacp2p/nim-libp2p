@@ -220,7 +220,8 @@ method rpcHandler(g: GossipSub,
             if msgs.len > 0:
               trace "forwarding message to", peerId = id
               sent.add(g.peers[p].send(@[RPCMsg(messages: msgs)]))
-            for fut in sent: await fut
+            # TODO FIXME what to do with erros here??
+            await allFutures(sent)
 
     var respControl: ControlMessage
     if m.control.isSome:
@@ -405,7 +406,8 @@ method publish*(g: GossipSub,
       trace "publishing on topic", name = topic
       g.mcache.put(msg)
       sent.add(g.peers[p].send(@[RPCMsg(messages: @[msg])]))
-    for fut in sent: await fut
+    # TODO FIXME what to do with erros here??
+    await allFutures(sent)
 
 method start*(g: GossipSub) {.async.} =
   ## start pubsub

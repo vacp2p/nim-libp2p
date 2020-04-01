@@ -93,45 +93,47 @@ proc resetMessage(s: LPChannel) {.async.} =
   await s.conn.writeMsg(s.id, s.resetCode)
 
 proc resetByRemote*(s: LPChannel) {.async.} =
-  let
-    f1 = awaitne s.close()
-    f2 = awaitne s.closedByRemote()
-  # NOTICE WE DO NOT RETHROW
-  # Those failures are not critical but still wait and warn about them!
-  if f1.failed:
-    let exc = f1.readError()
-    # EOF are likely to happen here
-    if exc.name != "LPStreamEOFError":
-      warn "Something went wrong during resetByRemote -> close",
-       failure = exc.name, msg = exc.msg
-  if f2.failed:
-    warn "Something went wrong during resetByRemote -> closedByRemote",
-     failure = f2.readError.name, msg = f2.readError.msg
-
+  # Immediately block futher calls
   s.isReset = true
 
+  # start and await async teardown
   let
-    f3 = awaitne s.cleanUp()
-  # NOTICE WE DO NOT RETHROW
-  # Those failures are not critical but still wait and warn about them!
-  if f3.failed:
-    warn "Something went wrong during resetByRemote -> cleanUp",
-     failure = f3.readError.name, msg = f3.readError.msg
+    futs = await allFinished(
+      s.close(),
+      s.closedByRemote(),
+      s.cleanUp()
+    )
+
+  for res in futs:
+    if res.failed:
+      let exc = res.readError()
+      if exc of LPStreamEOFError:
+        # EOF are likely to happen here
+        trace "Got a non fatal error", failure = exc.name, msg = exc.msg
+      else:
+        # We still don't abort but warn
+        warn "Something went wrong during LPChennel.resetByRemote",
+         failure = exc.name, msg = exc.msg
+
 
 proc reset*(s: LPChannel) {.async.} =
   let
-    f1 = awaitne s.resetMessage()
-    f2 = awaitne s.resetByRemote()
+    futs = await allFinished(
+      s.resetMessage(),
+      s.resetByRemote()
+    )
+
   # NOTICE WE DO NOT RETHROW
   # Those failures are not critical but still wait and warn about them!
-  if f1.failed:
-    let exc = f1.readError()
-    if exc.name != "LPStreamEOFError":
-      warn "Something went wrong during reset -> resetMessage",
-       failure = exc.name, msg = exc.msg
-  if f2.failed:
-    warn "Something went wrong during reset -> resetByRemote",
-     failure = f2.readError.name, msg = f2.readError.msg
+  for res in futs:
+    if res.failed:
+      let exc = res.readError()
+      if exc of LPStreamEOFError:
+        # EOF are likely to happen here
+        trace "Got a non fatal error", failure = exc.name, msg = exc.msg
+      else:
+        warn "Something went wrong during LPChannel.reset",
+          failure = exc.name, msg = exc.msg
 
 method closed*(s: LPChannel): bool =
   trace "closing lpchannel", id = s.id, initiator = s.initiator

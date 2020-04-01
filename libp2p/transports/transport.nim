@@ -37,14 +37,12 @@ proc newTransport*(t: typedesc[Transport]): t {.gcsafe.} =
 method close*(t: Transport) {.base, async, gcsafe.} =
   ## stop and cleanup the transport
   ## including all outstanding connections
-  for holder in t.connections:
-    let res = awaitne holder.connection.close()
+  let futs = await allFinished(t.connections.mapIt(it.connection.close()))
+  for res in futs:
     if res.failed:
       let exc = res.readError()
-      # EOF are likely to happen here
-      if exc.name != "LPStreamEOFError":
-        warn "Something went wrong during transport.close",
-         failure = exc.name, msg = exc.msg
+      warn "Something went wrong during Transport.close",
+       failure = exc.name, msg = exc.msg
 
 method listen*(t: Transport,
                ma: MultiAddress,
