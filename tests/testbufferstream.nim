@@ -465,7 +465,7 @@ suite "BufferStream":
       waitFor(pipeTest()) == true
 
   test "shouldn't get stuck on close":
-    proc test(): Future[bool] {.async.} =
+    proc closeTest(): Future[bool] {.async.} =
       proc createMessage(tmplate: string, size: int): seq[byte] =
         result = newSeq[byte](size)
         for i in 0 ..< len(result):
@@ -482,4 +482,5 @@ suite "BufferStream":
         result = false
 
       check:
-        waitFor(test()) == true
+        waitFor(closeTest()) == true
+

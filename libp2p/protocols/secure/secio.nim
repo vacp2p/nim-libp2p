@@ -195,9 +195,9 @@ method readMessage(sconn: SecioConn): Future[seq[byte]] {.async.} =
     else:
       trace "Received message header size is more then allowed",
             length = length, allowed_length = SecioMaxMessageSize
-  except AsyncStreamIncompleteError:
+  except LPStreamIncompleteError:
     trace "Connection dropped while reading"
-  except AsyncStreamReadError:
+  except LPStreamReadError:
     trace "Error reading from connection"
 
 method writeMessage(sconn: SecioConn, message: seq[byte]) {.async.} =
