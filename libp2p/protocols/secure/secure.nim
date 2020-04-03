@@ -19,6 +19,8 @@ import ../protocol,
 
 type
   Secure* = ref object of LPProtocol # base type for secure managers
+    cleanupFut: Future[void]
+
   SecureConn* = ref object of Connection
 
 method readMessage*(c: SecureConn): Future[seq[byte]] {.async, base.} =
@@ -32,8 +34,9 @@ method handshake(s: Secure,
                  initiator: bool = false): Future[SecureConn] {.async, base.} =
   doAssert(false, "Not implemented!")
 
-proc readLoop(sconn: SecureConn, stream: BufferStream) {.async.} =
+proc readLoop(sconn: SecureConn, conn: Connection) {.async.} =
   try:
+    let stream = BufferStream(conn.stream)
     while not sconn.closed:
       let msg = await sconn.readMessage()
       if msg.len == 0:
@@ -44,6 +47,9 @@ proc readLoop(sconn: SecureConn, stream: BufferStream) {.async.} =
   except CatchableError as exc:
     trace "Exception occurred Secure.readLoop", exc = exc.msg
   finally:
+    if not conn.closed:
+      await conn.close()
+
     if not sconn.closed:
       await sconn.close()
     trace "ending Secure readLoop", isclosed = sconn.closed()
@@ -54,14 +60,8 @@ proc handleConn*(s: Secure, conn: Connection, initiator: bool = false): Future[C
     trace "sending encrypted bytes", bytes = data.shortLog
     await sconn.writeMessage(data)
 
-  var stream = newBufferStream(writeHandler)
-  asyncCheck readLoop(sconn, stream)
-  result = newConnection(stream)
-  result.closeEvent.wait()
-    .addCallback do (udata: pointer):
-      trace "wrapped connection closed, closing upstream"
-      if not isNil(sconn) and not sconn.closed:
-        asyncCheck sconn.close()
+  result = newConnection(newBufferStream(writeHandler))
+  asyncCheck readLoop(sconn, result)
 
   if not isNil(sconn.peerInfo) and sconn.peerInfo.publicKey.isSome:
     result.peerInfo = PeerInfo.init(sconn.peerInfo.publicKey.get())

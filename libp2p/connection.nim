@@ -44,11 +44,16 @@ proc init*[T: Connection](self: var T, stream: LPStream) =
   # bind stream's close event to connection's close
   # to ensure correct close propagation
   let this = self
-  if not isNil(self.stream.closeEvent):
-    self.stream.closeEvent.wait().
+  if not isNil(stream.closeEvent):
+    stream.closeEvent.wait().
       addCallback do (udata: pointer):
-        if not this.closed:
-          trace "wrapped stream closed, closing conn"
+        trace "wrapped stream closed, about to close conn", closed = this.isClosed,
+                                                            peer = if not isNil(this.peerInfo):
+                                                              this.peerInfo.id else: ""
+        if not this.isClosed:
+          trace "wrapped stream closed, closing conn", closed = this.isClosed,
+                                                       peer = if not isNil(this.peerInfo):
+                                                          this.peerInfo.id else: ""
           asyncCheck this.close()
 
 proc newConnection*(stream: LPStream): Connection =
@@ -108,13 +113,21 @@ method closed*(s: Connection): bool =
   result = s.stream.closed
 
 method close*(s: Connection) {.async, gcsafe.} =
-  trace "closing connection"
+  trace "closing connection", closed = s.closed,
+                              peer = if not isNil(s.peerInfo):
+                                s.peerInfo.id else: ""
   if not s.closed:
     if not isNil(s.stream) and not s.stream.closed:
+      trace "closing connection", closed = s.closed,
+                                  peer = if not isNil(s.peerInfo):
+                                    s.peerInfo.id else: ""
       await s.stream.close()
+
     s.closeEvent.fire()
     s.isClosed = true
-  trace "connection closed", closed = s.closed
+  trace "connection closed", closed = s.closed,
+                             peer = if not isNil(s.peerInfo):
+                               s.peerInfo.id else: ""
 
 proc readLp*(s: Connection): Future[seq[byte]] {.async, gcsafe.} =
   ## read lenght prefixed msg
