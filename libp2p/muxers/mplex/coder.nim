@@ -76,18 +76,29 @@ proc writeMsg*(conn: Connection,
                id: uint64,
                msgType: MessageType,
                data: seq[byte] = @[]) {.async, gcsafe.} =
-  trace "seding data over mplex", id,
+  trace "sending data over mplex", id,
                                   msgType,
                                   data = data.len
-  ## write lenght prefixed
-  var buf = initVBuffer()
-  buf.writePBVarint(id shl 3 or ord(msgType).uint)
-  buf.writePBVarint(data.len().uint) # size should be always sent
-  buf.finish()
-  try:
-    await conn.write(buf.buffer & data)
-  except LPStreamIncompleteError as exc:
-    trace "unable to send message", exc = exc.msg
+  var
+      left = data.len
+      offset = 0
+  while left > 0 or data.len == 0:
+    let
+      chunkSize = if left > MaxMsgSize: MaxMsgSize - 64 else: left
+      chunk = if chunkSize > 0 : data[offset..(offset + chunkSize - 1)] else: data
+    ## write lenght prefixed
+    var buf = initVBuffer()
+    buf.writePBVarint(id shl 3 or ord(msgType).uint64)
+    buf.writePBVarint(chunkSize.uint64) # size should be always sent
+    buf.finish()
+    left = left - chunkSize
+    offset = offset + chunkSize
+    try:
+      await conn.write(buf.buffer & chunk)
+    except LPStreamIncompleteError as exc:
+      trace "unable to send message", exc = exc.msg
+    if data.len == 0:
+      return
 
 proc writeMsg*(conn: Connection,
                id: uint64,
