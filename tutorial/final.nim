@@ -2,23 +2,23 @@ when not(compileOption("threads")):
   {.fatal: "Please, compile this program with the --threads:on option!".}
 
 import tables, strformat, strutils
-import chronos                              # an efficient library for async, developed by Status
-import ../libp2p/[switch,                   # manage transports, a single entry point for dialing and listening
-                  multistream,              # tag stream with short header to identify it
-                  crypto/crypto,            # cryptographic functions
-                  protocols/identify,       # identify the peer info of a peer
-                  connection,               # create and close stream read / write connections
-                  transports/transport,     # listen and dial to other peers using p2p protocol
-                  transports/tcptransport,  # listen and dial to other peers using client-server protocol
-                  multiaddress,             # encode different addressing schemes. For example, /ip4/7.7.7.7/tcp/6543 means it is using IPv4 protocol and TCP
-                  peerinfo,                 # manage the information of a peer, such as peer ID and public / private key 
-                  peer,                     # Implement how peers interact
-                  protocols/protocol,       # define the protocol base type
-                  protocols/secure/secure,  # define the protocol of secure connection
-                  protocols/secure/secio,   # define the protocol of secure input / output, allows encrypted communication that uses public keys to validate signed messages instead of a certificate authority like in TLS
-                  muxers/muxer,             # define an interface for stream multiplexing, allowing peers to offer many protocols over a single connection
-                  muxers/mplex/mplex,       # implement stream multiplexing 
-                  muxers/mplex/types]       # define some contants and message types for stream multiplexing 
+import chronos                              
+import ../libp2p/[switch,                   
+                  multistream,              
+                  crypto/crypto,            
+                  protocols/identify,       
+                  connection,               
+                  transports/transport,     
+                  transports/tcptransport,  
+                  multiaddress,             
+                  peerinfo,                 
+                  peer,                     
+                  protocols/protocol,       
+                  protocols/secure/secure,  
+                  protocols/secure/secio,   
+                  muxers/muxer,            
+                  muxers/mplex/mplex,       
+                  muxers/mplex/types]     
 
 const ChatCodec = "/nim-libp2p/chat/1.0.0"
 const DefaultAddr = "/ip4/127.0.0.1/tcp/55505"
@@ -38,7 +38,6 @@ type ChatProto = ref object of LPProtocol
   connected: bool         # if the node is connected to another peer
   started: bool           # if the node has started
 
-
 # copied from https://github.com/status-im/nim-beacon-chain/blob/0ed657e953740a92458f23033d47483ffa17ccb0/beacon_chain/eth2_network.nim#L109-L115 
 proc initAddress(T: type MultiAddress, str: string): T =
   let address = MultiAddress.init(str)
@@ -47,6 +46,7 @@ proc initAddress(T: type MultiAddress, str: string): T =
   else:
     raise newException(MultiAddressError,
                          "Invalid bootstrap node multi-address")
+
 proc dialPeer(p: ChatProto, address: string) {.async.} =
   let multiAddr = MultiAddress.initAddress(address);
   let parts = address.split("/")
@@ -121,23 +121,11 @@ proc readWriteLoop(p: ChatProto) {.async.} =
   asyncCheck p.writeAndPrint() # execute the async function but does not block until getting a result (different from await) 
   asyncCheck p.readAndPrint()
 
-proc newChatProto(switch: Switch, transp: StreamTransport): ChatProto =
-  new result
-  result.switch = switch
-  result.transp = transp
-  result.codec = ChatCodec
-
-  # create handler for incoming connection
-  proc handle(stream: Connection, proto: string) {.async.} =
-    if result.connected and not result.conn.closed:
-      echo "a chat session is already in progress - disconnecting!"
-      await stream.close()
-    else:
-      result.conn = stream
-      result.connected = true
-
-  # assign the new handler
-  result.handler = handle
+proc processInput(rfd: AsyncFD) {.async.} =
+  var transp = fromPipe(rfd)
+  while true:
+    let a = await transp.readLine()
+    echo "You just entered: " & a
 
 proc readInput(wfd: AsyncFD) {.thread.} =
   ## This procedure performs reading from `stdin` and sends data over
@@ -148,65 +136,16 @@ proc readInput(wfd: AsyncFD) {.thread.} =
     var line = stdin.readLine()
     discard waitFor transp.write(line & "\r\n")
 
-proc processInput(rfd: AsyncFD) {.async.} =
-  var transp = fromPipe(rfd)
-
-  let seckey = PrivateKey.random(RSA)
-  var peerInfo = PeerInfo.init(seckey)
-  var localAddress = DefaultAddr
-  while true:
-    echo &"Type an address to bind to or Enter to use the default {DefaultAddr}"
-    let a = await transp.readLine()
-    try:
-      if a.len > 0:
-        peerInfo.addrs.add(Multiaddress.init(a))
-        break
-
-      peerInfo.addrs.add(Multiaddress.init(localAddress))
-      break
-    except:
-      echo "invalid address"
-      localAddress = DefaultAddr
-      continue
-
-  # a constructor for building different multiplexers under various connections
-  proc createMplex(conn: Connection): Muxer =
-    result = newMplex(conn)
-
-  let mplexProvider = newMuxerProvider(createMplex, MplexCodec)
-  let transports = @[Transport(newTransport(TcpTransport))]
-  let muxers = [(MplexCodec, mplexProvider)].toTable()
-  let identify = newIdentify(peerInfo)
-  let secureManagers = [(SecioCodec, Secure(newSecio(seckey)))].toTable()
-  let switch = newSwitch(peerInfo,
-                         transports,
-                         identify,
-                         muxers,
-                         secureManagers)
-
-  var chatProto = newChatProto(switch, transp)
-  switch.mount(chatProto)
-  var libp2pFuts = await switch.start()
-  chatProto.started = true
-
-  let id = peerInfo.peerId.pretty
-  echo "PeerID: " & id
-  echo "listening on: "
-  for a in peerInfo.addrs:
-    echo &"{a}/ipfs/{id}"
-
-  await chatProto.readWriteLoop()
-  await allFutures(libp2pFuts)
-
 proc main() {.async.} =
   var (rfd, wfd) = createAsyncPipe()
   if rfd == asyncInvalidPipe or wfd == asyncInvalidPipe:
     raise newException(ValueError, "Could not initialize pipe!")
-
+  
   var thread: Thread[AsyncFD]
   thread.createThread(readInput, wfd)
-
+  
   await processInput(rfd)
 
-when isMainModule: # isMainModule = true when the module is compiled as the main file
+when isMainModule:      # isMainModule = true when the module is compiled as the main file
   waitFor(main())
+ 
