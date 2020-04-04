@@ -1,7 +1,7 @@
 when not(compileOption("threads")):
   {.fatal: "Please, compile this program with the --threads:on option!".}
   
-import chronos          # an efficient library for async, developed by Status
+import chronos          # an efficient library for async
 
 proc processInput(rfd: AsyncFD) {.async.} =
   let transp = fromPipe(rfd)

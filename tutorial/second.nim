@@ -118,7 +118,7 @@ proc writeAndPrint(p: ChatProto) {.async.} =
           echo getCurrentExceptionMsg()
 
 proc readWriteLoop(p: ChatProto) {.async.} =
-  asyncCheck p.writeAndPrint() # execute the async function but does not block until getting a result (different from await) 
+  asyncCheck p.writeAndPrint() # execute the async function but does not block
   asyncCheck p.readAndPrint()
 
 proc processInput(rfd: AsyncFD) {.async.} =
