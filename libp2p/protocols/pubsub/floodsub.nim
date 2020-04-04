@@ -90,8 +90,12 @@ method rpcHandler*(f: FloodSub,
           if p in f.peers and f.peers[p].id != peer.id:
             sent.add(f.peers[p].send(@[RPCMsg(messages: m.messages)]))
         # wait for all the futures now
-        # TODO FIXME what to do with errors here??
-        await allFutures(sent)
+        sent = await allFinished(sent)
+        for res in sent:
+          if res.failed:
+            let exc = res.readError()
+            debug "floodsub: A rpc message send failed",
+                failure = exc.name, msg = exc.msg
 
 method init(f: FloodSub) =
   proc handler(conn: Connection, proto: string) {.async.} =
@@ -126,8 +130,12 @@ method publish*(f: FloodSub,
     trace "publishing message", name = topic, peer = p, data = data.shortLog
     sent.add(f.peers[p].send(@[RPCMsg(messages: @[msg])]))
   # wait for all the futures now
-  # TODO FIXME what to do with errors here??
-  await allFutures(sent)
+  sent = await allFinished(sent)
+  for res in sent:
+    if res.failed:
+      let exc = res.readError()
+      debug "floodsub: A publish send failed",
+          failure = exc.name, msg = exc.msg
 
 method unsubscribe*(f: FloodSub,
                     topics: seq[TopicPair]) {.async.} =

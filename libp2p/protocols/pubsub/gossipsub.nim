@@ -220,8 +220,12 @@ method rpcHandler(g: GossipSub,
             if msgs.len > 0:
               trace "forwarding message to", peerId = id
               sent.add(g.peers[p].send(@[RPCMsg(messages: msgs)]))
-            # TODO FIXME what to do with erros here??
-            await allFutures(sent)
+            sent = await allFinished(sent)
+            for res in sent:
+              if res.failed:
+                let exc = res.readError()
+                debug "gossipsub: A rpc message send failed",
+                    failure = exc.name, msg = exc.msg
 
     var respControl: ControlMessage
     if m.control.isSome:
@@ -406,8 +410,12 @@ method publish*(g: GossipSub,
       trace "publishing on topic", name = topic
       g.mcache.put(msg)
       sent.add(g.peers[p].send(@[RPCMsg(messages: @[msg])]))
-    # TODO FIXME what to do with erros here??
-    await allFutures(sent)
+    sent = await allFinished(sent)
+    for res in sent:
+      if res.failed:
+        let exc = res.readError()
+        debug "gossipsub: A publish send failed",
+            failure = exc.name, msg = exc.msg
 
 method start*(g: GossipSub) {.async.} =
   ## start pubsub
