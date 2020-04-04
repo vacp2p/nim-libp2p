@@ -69,7 +69,7 @@ proc writeAndPrint(p: ChatProto) {.async.} =
       echo "type an address or wait for a connection:"
       echo "type /[help|?] for help"
 
-    var line = await p.transp.readLine()
+    let line = await p.transp.readLine()
     if line.startsWith("/help") or line.startsWith("/?") or not p.started:
       echo Help
       continue
@@ -122,37 +122,35 @@ proc readWriteLoop(p: ChatProto) {.async.} =
   asyncCheck p.readAndPrint()
 
 proc newChatProto(switch: Switch, transp: StreamTransport): ChatProto =
-  new result
-  result.switch = switch
-  result.transp = transp
-  result.codec = ChatCodec
+  var chatproto = ChatProto(switch: switch, transp: transp, codec: ChatCodec)
 
   # create handler for incoming connection
   proc handle(stream: Connection, proto: string) {.async.} =
-    if result.connected and not result.conn.closed:
+    if chatproto.connected and not chatproto.conn.closed:
       echo "a chat session is already in progress - disconnecting!"
       await stream.close()
     else:
-      result.conn = stream
-      result.connected = true
+      chatproto.conn = stream
+      chatproto.connected = true
 
   # assign the new handler
-  result.handler = handle
+  chatproto.handler = handle
+  result = chatproto
 
 proc readInput(wfd: AsyncFD) {.thread.} =
   ## This procedure performs reading from `stdin` and sends data over
   ## pipe to main thread.
-  var transp = fromPipe(wfd)
+  let transp = fromPipe(wfd)
 
   while true:
-    var line = stdin.readLine()
+    let line = stdin.readLine()
     discard waitFor transp.write(line & "\r\n")
 
 proc processInput(rfd: AsyncFD) {.async.} =
-  var transp = fromPipe(rfd)
+  let transp = fromPipe(rfd)
 
   let seckey = PrivateKey.random(RSA)
-  var peerInfo = PeerInfo.init(seckey)
+  let peerInfo = PeerInfo.init(seckey)
   var localAddress = DefaultAddr
   while true:
     echo &"Type an address to bind to or Enter to use the default {DefaultAddr}"
@@ -184,9 +182,9 @@ proc processInput(rfd: AsyncFD) {.async.} =
                          muxers,
                          secureManagers)
 
-  var chatProto = newChatProto(switch, transp)
+  let chatProto = newChatProto(switch, transp)
   switch.mount(chatProto)
-  var libp2pFuts = await switch.start()
+  let libp2pFuts = await switch.start()
   chatProto.started = true
 
   let id = peerInfo.peerId.pretty
@@ -199,7 +197,7 @@ proc processInput(rfd: AsyncFD) {.async.} =
   await allFutures(libp2pFuts)
 
 proc main() {.async.} =
-  var (rfd, wfd) = createAsyncPipe()
+  let (rfd, wfd) = createAsyncPipe()
   if rfd == asyncInvalidPipe or wfd == asyncInvalidPipe:
     raise newException(ValueError, "Could not initialize pipe!")
 
