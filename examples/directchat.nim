@@ -2,7 +2,7 @@ when not(compileOption("threads")):
   {.fatal: "Please, compile this program with the --threads:on option!".}
 
 import tables, strformat, strutils
-import chronos                              # an efficient library for async, developed by Status
+import chronos                              # an efficient library for async
 import ../libp2p/[switch,                   # manage transports, a single entry point for dialing and listening
                   multistream,              # tag stream with short header to identify it
                   crypto/crypto,            # cryptographic functions
@@ -118,7 +118,7 @@ proc writeAndPrint(p: ChatProto) {.async.} =
           echo getCurrentExceptionMsg()
 
 proc readWriteLoop(p: ChatProto) {.async.} =
-  asyncCheck p.writeAndPrint() # execute the async function but does not block until getting a result (different from await) 
+  asyncCheck p.writeAndPrint() # execute the async function but does not block
   asyncCheck p.readAndPrint()
 
 proc newChatProto(switch: Switch, transp: StreamTransport): ChatProto =
