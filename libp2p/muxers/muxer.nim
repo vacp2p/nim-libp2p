@@ -59,7 +59,13 @@ method init(c: MuxerProvider) =
     if not isNil(c.muxerHandler):
       futs &= c.muxerHandler(muxer)
 
-    # TODO FIXME what to do with erros here??
-    await allFutures(futs)
+    # log and re-raise on errors
+    futs = await allFinished(futs)
+    for res in futs:
+      if res.failed:
+        let exc = res.readError()
+        error "A MuxerProvider handler had a failure, raising an exception",
+            failure=exc.name, msg = exc.msg
+        raise exc
 
   c.handler = handler
