@@ -286,14 +286,12 @@ proc start*(s: Switch): Future[seq[Future[void]]] {.async, gcsafe.} =
 
   proc handle(conn: Connection): Future[void] {.async, closure, gcsafe.} =
     try:
-      dumpNumberOfInstances()
       await s.upgradeIncoming(conn) # perform upgrade on incoming connection
     except CatchableError as exc:
       trace "Exception occurred in Switch.start", exc = exc.msg
     finally:
       await conn.close()
       await s.cleanupConn(conn)
-      dumpNumberOfInstances()
 
   var startFuts: seq[Future[void]]
   for t in s.transports: # for each transport
