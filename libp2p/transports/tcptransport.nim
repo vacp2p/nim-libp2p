@@ -30,12 +30,13 @@ proc connHandler*(t: Transport,
   let conn: Connection = newConnection(newChronosStream(server, client))
   conn.observedAddrs = MultiAddress.init(client.remoteAddress)
   if not initiator:
-    let handlerFut = if isNil(t.handler): nil else: t.handler(conn)
-    let connHolder: ConnHolder = ConnHolder(connection: conn,
-                                            connFuture: handlerFut)
+    if not isNil(t.handler):
+      asyncCheck t.handler(conn)
     # TODO: this needs rethinking,
     # currently it leaks since there
     # is no way to delete the conn on close
+    # let connHolder: ConnHolder = ConnHolder(connection: conn,
+    #                                         connFuture: handlerFut)
     # t.connections.add(connHolder)
   result = conn
 
