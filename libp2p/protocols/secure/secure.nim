@@ -47,12 +47,14 @@ proc readLoop(sconn: SecureConn, conn: Connection) {.async.} =
   except CatchableError as exc:
     trace "Exception occurred Secure.readLoop", exc = exc.msg
   finally:
+    trace "closing conn", closed = conn.closed()
     if not conn.closed:
       await conn.close()
 
+    trace "closing sconn", closed = sconn.closed()
     if not sconn.closed:
       await sconn.close()
-    trace "ending Secure readLoop", isclosed = sconn.closed()
+    trace "ending Secure readLoop"
 
 proc handleConn*(s: Secure, conn: Connection, initiator: bool = false): Future[Connection] {.async, gcsafe.} =
   var sconn = await s.handshake(conn, initiator)

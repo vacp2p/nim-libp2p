@@ -281,11 +281,11 @@ proc transactMessage(conn: Connection,
     else:
       trace "Received size of message exceed limits", conn = $conn,
                                                       length = length
-  except AsyncStreamIncompleteError:
+  except LPStreamIncompleteError:
     trace "Connection dropped while reading", conn = $conn
-  except AsyncStreamReadError:
+  except LPStreamReadError:
     trace "Error reading from connection", conn = $conn
-  except AsyncStreamWriteError:
+  except LPStreamWriteError:
     trace "Could not write to connection", conn = $conn
 
 method handshake*(s: Secio, conn: Connection, initiator: bool = false): Future[SecureConn] {.async.} =
