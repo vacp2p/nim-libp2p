@@ -126,8 +126,7 @@ method handle*(m: Mplex) {.async, gcsafe.} =
     trace "Exception occurred", exception = exc.msg
   finally:
     trace "stopping mplex main loop"
-    if not m.connection.closed():
-      await m.connection.close()
+    await m.close()
 
 proc newMplex*(conn: Connection,
                maxChanns: uint = MaxChannels): Mplex =
@@ -154,5 +153,10 @@ method newStream*(m: Mplex,
 
 method close*(m: Mplex) {.async, gcsafe.} =
   trace "closing mplex muxer"
+  if not m.connection.closed():
+    await m.connection.close()
+
   await allFutures(@[allFutures(toSeq(m.remote.values).mapIt(it.reset())),
                       allFutures(toSeq(m.local.values).mapIt(it.reset()))])
+  m.remote.clear()
+  m.local.clear()

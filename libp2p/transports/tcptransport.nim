@@ -33,7 +33,10 @@ proc connHandler*(t: Transport,
     let handlerFut = if isNil(t.handler): nil else: t.handler(conn)
     let connHolder: ConnHolder = ConnHolder(connection: conn,
                                             connFuture: handlerFut)
-    t.connections.add(connHolder)
+    # TODO: this needs rethinking,
+    # currently it leaks since there
+    # is no way to delete the conn on close
+    # t.connections.add(connHolder)
   result = conn
 
 proc connCb(server: StreamServer,
