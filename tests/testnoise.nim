@@ -29,7 +29,10 @@ import ../libp2p/[switch,
                   protocols/secure/noise,
                   protocols/secure/secure]
 
-const TestCodec = "/test/proto/1.0.0"
+const
+  TestCodec = "/test/proto/1.0.0"
+  StreamTransportTrackerName = "stream.transport"
+  StreamServerTrackerName = "stream.server"
 
 type
   TestProto = ref object of LPProtocol
@@ -75,6 +78,7 @@ suite "Noise":
         let sconn = await serverNoise.secure(conn)
         defer:
           await sconn.close()
+          await conn.close()
         await sconn.write(cstring("Hello!"), 6)
 
       let
@@ -91,12 +95,18 @@ suite "Noise":
         msg = await sconn.read(6)
 
       await sconn.close()
+      await conn.close()
       await transport1.close()
+      await transport2.close()
 
       result = cast[string](msg) == "Hello!"
 
     check:
       waitFor(testListenerDialer()) == true
+      getTracker(AsyncStreamReaderTrackerName).isLeaked() == false
+      getTracker(AsyncStreamWriterTrackerName).isLeaked() == false
+      getTracker(StreamTransportTrackerName).isLeaked() == false
+      getTracker(StreamServerTrackerName).isLeaked() == false
 
   test "e2e: handle read + noise":
     proc testListenerDialer(): Future[bool] {.async.} =
@@ -110,6 +120,7 @@ suite "Noise":
         let sconn = await serverNoise.secure(conn)
         defer:
           await sconn.close()
+          await conn.close()
         let msg = await sconn.read(6)
         check cast[string](msg) == "Hello!"
         readTask.complete()
@@ -128,12 +139,18 @@ suite "Noise":
       await sconn.write("Hello!".cstring, 6)
       await readTask
       await sconn.close()
+      await conn.close()
       await transport1.close()
+      await transport2.close()
 
       result = true
 
     check:
       waitFor(testListenerDialer()) == true
+      getTracker(AsyncStreamReaderTrackerName).isLeaked() == false
+      getTracker(AsyncStreamWriterTrackerName).isLeaked() == false
+      getTracker(StreamTransportTrackerName).isLeaked() == false
+      getTracker(StreamServerTrackerName).isLeaked() == false
 
   # test "e2e: handle read + noise fragmented":
   #   proc testListenerDialer(): Future[bool] {.async.} =
@@ -205,6 +222,10 @@ suite "Noise":
 
     check:
       waitFor(testSwitch()) == true
+      getTracker(AsyncStreamReaderTrackerName).isLeaked() == false
+      getTracker(AsyncStreamWriterTrackerName).isLeaked() == false
+      getTracker(StreamTransportTrackerName).isLeaked() == false
+      getTracker(StreamServerTrackerName).isLeaked() == false
 
   # test "interop with rust noise":
   #   when true: # disable cos in CI we got no interop server/client
