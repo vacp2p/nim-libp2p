@@ -19,7 +19,6 @@ import ../protocol,
 
 type
   Secure* = ref object of LPProtocol # base type for secure managers
-    cleanupFut: Future[void]
 
   SecureConn* = ref object of Connection
 
