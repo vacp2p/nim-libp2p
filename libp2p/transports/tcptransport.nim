@@ -21,6 +21,10 @@ logScope:
 type TcpTransport* = ref object of Transport
   server*: StreamServer
 
+proc cleanup(t: Transport, conn: Connection) {.async.} =
+  await conn.closeEvent.wait()
+  t.connections.keepItIf(it != conn)
+
 proc connHandler*(t: Transport,
                   server: StreamServer,
                   client: StreamTransport,
@@ -32,12 +36,10 @@ proc connHandler*(t: Transport,
   if not initiator:
     if not isNil(t.handler):
       asyncCheck t.handler(conn)
-    # TODO: this needs rethinking,
-    # currently it leaks since there
-    # is no way to delete the conn on close
-    # let connHolder: ConnHolder = ConnHolder(connection: conn,
-    #                                         connFuture: handlerFut)
-    # t.connections.add(connHolder)
+
+    t.connections.add(conn)
+    asyncCheck t.cleanup(conn)
+
   result = conn
 
 proc connCb(server: StreamServer,
@@ -55,10 +57,11 @@ method close*(t: TcpTransport): Future[void] {.async, gcsafe.} =
   await procCall Transport(t).close() # call base
 
   # server can be nil
-  if t.server != nil:
+  if isNil(t.server):
     t.server.stop()
     t.server.close()
-  trace "transport stopped"
+    await t.server.join()
+    trace "transport stopped"
 
 method listen*(t: TcpTransport,
                ma: MultiAddress,

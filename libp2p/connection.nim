@@ -113,9 +113,10 @@ method closed*(s: Connection): bool =
   result = s.stream.closed
 
 method close*(s: Connection) {.async, gcsafe.} =
-  trace "closing connection", closed = s.closed,
-                              peer = if not isNil(s.peerInfo):
-                                s.peerInfo.id else: ""
+  trace "about to close connection", closed = s.closed,
+                                     peer = if not isNil(s.peerInfo):
+                                       s.peerInfo.id else: ""
+
   if not s.closed:
     if not isNil(s.stream) and not s.stream.closed:
       trace "closing connection", closed = s.closed,
@@ -125,6 +126,7 @@ method close*(s: Connection) {.async, gcsafe.} =
 
     s.closeEvent.fire()
     s.isClosed = true
+
   trace "connection closed", closed = s.closed,
                              peer = if not isNil(s.peerInfo):
                                s.peerInfo.id else: ""
