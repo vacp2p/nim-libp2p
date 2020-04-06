@@ -135,7 +135,7 @@ proc newChatProto(switch: Switch, transp: StreamTransport): ChatProto =
 
   # assign the new handler
   chatproto.handler = handle
-  result = chatproto
+  return chatproto
 
 proc readInput(wfd: AsyncFD) {.thread.} =
   ## This procedure performs reading from `stdin` and sends data over
