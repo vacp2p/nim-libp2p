@@ -37,6 +37,7 @@ proc newTransport*(t: typedesc[Transport]): t {.gcsafe.} =
 method close*(t: Transport) {.base, async, gcsafe.} =
   ## stop and cleanup the transport
   ## including all outstanding connections
+  trace "stopping all transport connections"
   await allFutures(t.connections.mapIt(it.connection.close()))
 
 method listen*(t: Transport,

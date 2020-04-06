@@ -45,7 +45,7 @@ proc connCb(server: StreamServer,
 method init*(t: TcpTransport) =
   t.multicodec = multiCodec("tcp")
 
-method close*(t: TcpTransport): Future[void] {.async, gcsafe.} =
+method close*(t: TcpTransport) {.async, gcsafe.} =
   ## start the transport
   trace "stopping transport"
   await procCall Transport(t).close() # call base
@@ -53,7 +53,8 @@ method close*(t: TcpTransport): Future[void] {.async, gcsafe.} =
   # server can be nil
   if t.server != nil:
     t.server.stop()
-    t.server.close()
+    await t.server.closeWait()
+
   trace "transport stopped"
 
 method listen*(t: TcpTransport,
