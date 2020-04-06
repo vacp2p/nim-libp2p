@@ -64,10 +64,7 @@ proc connect*(ma: MultiAddress, bufferSize = DefaultStreamBufferSize,
   let address = initTAddress(ma)
   if address.family in {AddressFamily.IPv4, AddressFamily.IPv6}:
     if ma[1].protoCode() != multiCodec("tcp"):
-      var retFuture = newFuture[StreamTransport]()
-      retFuture.fail(newException(TransportAddressError,
-                                  "Incorrect address type!"))
-      return retFuture
+      raise newException(TransportAddressError, "Incorrect address type!")
   result = connect(address, bufferSize, child)
 
 proc createStreamServer*[T](ma: MultiAddress,
