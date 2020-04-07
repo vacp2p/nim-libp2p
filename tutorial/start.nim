@@ -4,9 +4,15 @@ when not(compileOption("threads")):
 import chronos          # an efficient library for async
 
 proc processInput(rfd: AsyncFD) {.async.} =
+  echo "Type something below to see if the multithread IO works:"
+
   let transp = fromPipe(rfd)
   while true:
     let a = await transp.readLine()
+
+    if a == "exit":
+      quit(0);
+      
     echo "You just entered: " & a
 
 proc readInput(wfd: AsyncFD) {.thread.} =
