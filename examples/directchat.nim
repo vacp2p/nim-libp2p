@@ -12,7 +12,7 @@ when not(compileOption("threads")):
 
 import tables, options, sequtils, algorithm, strformat, os, strutils
 import chronos
-import ../libp2p/core
+import ../libp2p/libp2p
 
 const ChatCodec = "/nim-libp2p/chat/1.0.0"
 const DefaultAddr = "/ip4/127.0.0.1/tcp/55505"
