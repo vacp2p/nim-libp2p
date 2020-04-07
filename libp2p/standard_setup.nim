@@ -9,9 +9,9 @@
 
 import
   options, tables
-import core
+import libp2p
 
-export core
+export libp2p
 
 proc newStandardSwitch*(privKey = none(PrivateKey),
                         address = MultiAddress.init("/ip4/127.0.0.1/tcp/0"),
