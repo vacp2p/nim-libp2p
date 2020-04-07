@@ -57,7 +57,7 @@ method close*(t: TcpTransport): Future[void] {.async, gcsafe.} =
   await procCall Transport(t).close() # call base
 
   # server can be nil
-  if isNil(t.server):
+  if not isNil(t.server):
     t.server.stop()
     t.server.close()
     await t.server.join()
