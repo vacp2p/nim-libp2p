@@ -18,6 +18,7 @@
 import bearssl
 
 # have to do this due to a nim bug and raises[] on callbacks
+# https://github.com/nim-lang/Nim/issues/13905
 proc ourPoly1305CtmulRun*(key: pointer; iv: pointer; data: pointer; len: int;
                       aad: pointer; aadLen: int; tag: pointer; ichacha: pointer;
                       encrypt: cint) {.cdecl, importc: "br_poly1305_ctmul_run",
