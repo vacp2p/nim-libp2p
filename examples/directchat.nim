@@ -1,14 +1,18 @@
+## Nim-LibP2P
+## Copyright (c) 2020 Status Research & Development GmbH
+## Licensed under either of
+##  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+##  * MIT license ([LICENSE-MIT](LICENSE-MIT))
+## at your option.
+## This file may not be copied, modified, or distributed except according to
+## those terms.
+
 when not(compileOption("threads")):
   {.fatal: "Please, compile this program with the --threads:on option!".}
 
 import tables, options, sequtils, algorithm, strformat, os, strutils
 import chronos
-import ../libp2p/[core,
-                  protocols/pubsub/floodsub,
-                  protocols/pubsub/gossipsub,
-                  protocols/secure/secio,
-                  muxers/mplex/mplex,
-                  transports/tcptransport]
+import ../libp2p/core
 
 const ChatCodec = "/nim-libp2p/chat/1.0.0"
 const DefaultAddr = "/ip4/127.0.0.1/tcp/55505"

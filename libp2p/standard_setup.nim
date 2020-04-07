@@ -1,9 +1,15 @@
+## Nim-LibP2P
+## Copyright (c) 2020 Status Research & Development GmbH
+## Licensed under either of
+##  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+##  * MIT license ([LICENSE-MIT](LICENSE-MIT))
+## at your option.
+## This file may not be copied, modified, or distributed except according to
+## those terms.
+
 import
   options, tables
-import core,
-       muxers/mplex/mplex,
-       transports/tcptransport,
-       protocols/[pubsub/floodsub, pubsub/gossipsub, secure/secio]
+import core
 
 export core
 
