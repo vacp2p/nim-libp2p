@@ -3,24 +3,12 @@ when not(compileOption("threads")):
 
 import tables, options, sequtils, algorithm, strformat, os, strutils
 import chronos
-import ../libp2p/[switch,
-                  multistream,
-                  crypto/crypto,
-                  protocols/identify,
-                  connection,
-                  transports/transport,
-                  transports/tcptransport,
-                  multiaddress,
-                  peerinfo,
-                  peer,
-                  protocols/protocol,
-                  protocols/secure/secure,
-                  protocols/secure/secio,
-                  protocols/pubsub/pubsub,
+import ../libp2p/[core,
                   protocols/pubsub/floodsub,
-                  muxers/muxer,
+                  protocols/pubsub/gossipsub,
+                  protocols/secure/secio,
                   muxers/mplex/mplex,
-                  muxers/mplex/types]
+                  transports/tcptransport]
 
 const ChatCodec = "/nim-libp2p/chat/1.0.0"
 const DefaultAddr = "/ip4/127.0.0.1/tcp/55505"

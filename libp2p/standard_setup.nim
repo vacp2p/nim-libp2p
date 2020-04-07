@@ -1,13 +1,11 @@
 import
-  options, tables,
-  switch, peer, peerinfo, connection, multiaddress,
-  crypto/crypto, transports/[transport, tcptransport],
-  muxers/[muxer, mplex/mplex, mplex/types],
-  protocols/[identify, secure/secure, secure/secio],
-  protocols/pubsub/[pubsub, gossipsub, floodsub]
+  options, tables
+import core,
+       muxers/mplex/mplex,
+       transports/tcptransport,
+       protocols/[pubsub/floodsub, pubsub/gossipsub, secure/secio]
 
-export
-  switch, peer, peerinfo, connection, multiaddress, crypto
+export core
 
 proc newStandardSwitch*(privKey = none(PrivateKey),
                         address = MultiAddress.init("/ip4/127.0.0.1/tcp/0"),
@@ -33,4 +31,3 @@ proc newStandardSwitch*(privKey = none(PrivateKey),
                      muxers,
                      secureManagers = secureManagers,
                      pubSub = some(pubSub))
-
