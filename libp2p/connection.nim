@@ -35,26 +35,28 @@ proc newInvalidVarintException*(): ref InvalidVarintException =
 proc newInvalidVarintSizeException*(): ref InvalidVarintSizeException =
   newException(InvalidVarintSizeException, "Wrong varint size")
 
-proc init*[T: Connection](self: var T, stream: LPStream) =
+proc bindStreamClose(conn: Connection) {.async.} =
+  # bind stream's close event to connection's close
+  # to ensure correct close propagation
+  if not isNil(conn.stream.closeEvent):
+    await conn.stream.closeEvent.wait()
+    trace "wrapped stream closed, about to close conn", closed = this.isClosed,
+                                                        peer = if not isNil(this.peerInfo):
+                                                          this.peerInfo.id else: ""
+    if not conn.isClosed:
+      trace "wrapped stream closed, closing conn", closed = this.isClosed,
+                                                    peer = if not isNil(this.peerInfo):
+                                                      this.peerInfo.id else: ""
+      asyncCheck conn.close()
+
+proc init*[T: Connection](self: var T, stream: LPStream): T =
   ## create a new Connection for the specified async reader/writer
   new self
   self.stream = stream
   self.closeEvent = newAsyncEvent()
+  asyncCheck self.bindStreamClose()
 
-  # bind stream's close event to connection's close
-  # to ensure correct close propagation
-  let this = self
-  if not isNil(stream.closeEvent):
-    stream.closeEvent.wait().
-      addCallback do (udata: pointer):
-        trace "wrapped stream closed, about to close conn", closed = this.isClosed,
-                                                            peer = if not isNil(this.peerInfo):
-                                                              this.peerInfo.id else: ""
-        if not this.isClosed:
-          trace "wrapped stream closed, closing conn", closed = this.isClosed,
-                                                       peer = if not isNil(this.peerInfo):
-                                                          this.peerInfo.id else: ""
-          asyncCheck this.close()
+  return self
 
 proc newConnection*(stream: LPStream): Connection =
   ## create a new Connection for the specified async reader/writer
@@ -119,9 +121,9 @@ method close*(s: Connection) {.async, gcsafe.} =
 
   if not s.closed:
     if not isNil(s.stream) and not s.stream.closed:
-      trace "closing connection", closed = s.closed,
-                                  peer = if not isNil(s.peerInfo):
-                                    s.peerInfo.id else: ""
+      trace "closing child stream", closed = s.closed,
+                                    peer = if not isNil(s.peerInfo):
+                                      s.peerInfo.id else: ""
       await s.stream.close()
 
     s.closeEvent.fire()

@@ -128,6 +128,11 @@ method handle*(m: Mplex) {.async, gcsafe.} =
     trace "stopping mplex main loop"
     await m.close()
 
+proc internalCleanup(m: Mplex, conn: Connection) {.async.} =
+  await conn.closeEvent.wait()
+  trace "connection closed, cleaning up mplex"
+  await m.close()
+
 proc newMplex*(conn: Connection,
                maxChanns: uint = MaxChannels): Mplex =
   new result
@@ -136,11 +141,7 @@ proc newMplex*(conn: Connection,
   result.remote = initTable[uint64, LPChannel]()
   result.local = initTable[uint64, LPChannel]()
 
-  let m = result
-  conn.closeEvent.wait()
-  .addCallback do (udata: pointer):
-    trace "connection closed, cleaning up mplex"
-    asyncCheck m.close()
+  asyncCheck result.internalCleanup(conn)
 
 method newStream*(m: Mplex,
                   name: string = "",

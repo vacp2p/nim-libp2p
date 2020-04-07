@@ -138,6 +138,14 @@ method handleConn*(p: PubSub,
   trace "pubsub peer handler ended, cleaning up"
   await p.cleanUpHelper(peer)
 
+proc internalClenaup(p: PubSub, conn: Connection) {.async.} =
+  # handle connection close
+  var peer = p.getPeer(conn.peerInfo, p.codec)
+  await conn.closeEvent.wait()
+  trace "connection closed, cleaning up peer", peer = conn.peerInfo.id
+
+  await  p.cleanUpHelper(peer)
+
 method subscribeToPeer*(p: PubSub,
                         conn: Connection) {.base, async.} =
   var peer = p.getPeer(conn.peerInfo, p.codec)
@@ -145,13 +153,7 @@ method subscribeToPeer*(p: PubSub,
   if not peer.isConnected:
     peer.conn = conn
 
-  # handle connection close
-  conn.closeEvent.wait()
-  .addCallback do (udata: pointer = nil):
-    trace "connection closed, cleaning up peer",
-      peer = conn.peerInfo.id
-
-    asyncCheck p.cleanUpHelper(peer)
+  asyncCheck p.internalClenaup(conn)
 
 method unsubscribe*(p: PubSub,
                     topics: seq[TopicPair]) {.base, async.} =
