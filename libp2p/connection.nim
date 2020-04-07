@@ -40,13 +40,13 @@ proc bindStreamClose(conn: Connection) {.async.} =
   # to ensure correct close propagation
   if not isNil(conn.stream.closeEvent):
     await conn.stream.closeEvent.wait()
-    trace "wrapped stream closed, about to close conn", closed = this.isClosed,
-                                                        peer = if not isNil(this.peerInfo):
-                                                          this.peerInfo.id else: ""
+    trace "wrapped stream closed, about to close conn", closed = conn.isClosed,
+                                                        peer = if not isNil(conn.peerInfo):
+                                                          conn.peerInfo.id else: ""
     if not conn.isClosed:
-      trace "wrapped stream closed, closing conn", closed = this.isClosed,
-                                                    peer = if not isNil(this.peerInfo):
-                                                      this.peerInfo.id else: ""
+      trace "wrapped stream closed, closing conn", closed = conn.isClosed,
+                                                    peer = if not isNil(conn.peerInfo):
+                                                      conn.peerInfo.id else: ""
       asyncCheck conn.close()
 
 proc init*[T: Connection](self: var T, stream: LPStream): T =
