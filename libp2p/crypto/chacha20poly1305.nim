@@ -28,7 +28,7 @@ const
   ChaChaPolyKeySize = 32
   ChaChaPolyNonceSize = 12
   ChaChaPolyTagSize = 16
-  
+
 type
   ChaChaPoly* = object
   ChaChaPolyKey* = array[ChaChaPolyKeySize, byte]
@@ -46,7 +46,7 @@ proc intoChaChaPolyNonce*(s: openarray[byte]): ChaChaPolyNonce =
 proc intoChaChaPolyTag*(s: openarray[byte]): ChaChaPolyTag =
   assert s.len == ChaChaPolyTagSize
   copyMem(addr result[0], unsafeaddr s[0], ChaChaPolyTagSize)
-   
+
 # bearssl allows us to use optimized versions
 # this is reconciled at runtime
 # we do this in the global scope / module init
@@ -85,7 +85,7 @@ proc decrypt*(_: type[ChaChaPoly],
           unsafeaddr aad[0]
          else:
            nil
-  
+
   ourPoly1305CtmulRun(
     unsafeaddr key[0],
     unsafeaddr nonce[0],
