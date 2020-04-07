@@ -17,6 +17,12 @@
 
 import bearssl
 
+# have to do this due to a nim bug and raises[] on callbacks
+proc ourPoly1305CtmulRun*(key: pointer; iv: pointer; data: pointer; len: int;
+                      aad: pointer; aadLen: int; tag: pointer; ichacha: pointer;
+                      encrypt: cint) {.cdecl, importc: "br_poly1305_ctmul_run",
+                                     header: "bearssl_block.h".}
+
 const
   ChaChaPolyKeySize = 32
   ChaChaPolyNonceSize = 12
@@ -44,27 +50,19 @@ proc intoChaChaPolyTag*(s: openarray[byte]): ChaChaPolyTag =
 # this is reconciled at runtime
 # we do this in the global scope / module init
 
-template fetchImpl: untyped =
-  # try for the best first
-  let
-    chachapoly_native_impl {.inject.}: Poly1305Run = poly1305CtmulRun
-    chacha_native_impl {.inject.}: Chacha20Run = chacha20CtRun
-
 proc encrypt*(_: type[ChaChaPoly],
                  key: ChaChaPolyKey,
                  nonce: ChaChaPolyNonce,
                  tag: var ChaChaPolyTag,
                  data: var openarray[byte],
                  aad: openarray[byte]) =
-  fetchImpl()
-
   let
     ad = if aad.len > 0:
            unsafeaddr aad[0]
          else:
            nil
 
-  chachapoly_native_impl(
+  ourPoly1305CtmulRun(
     unsafeaddr key[0],
     unsafeaddr nonce[0],
     addr data[0],
@@ -72,7 +70,7 @@ proc encrypt*(_: type[ChaChaPoly],
     ad,
     aad.len,
     addr tag[0],
-    chacha_native_impl,
+    chacha20CtRun,
     #[encrypt]# 1.cint)
 
 proc decrypt*(_: type[ChaChaPoly],
@@ -81,15 +79,13 @@ proc decrypt*(_: type[ChaChaPoly],
                  tag: var ChaChaPolyTag,
                  data: var openarray[byte],
                  aad: openarray[byte]) =
-  fetchImpl()
-
   let
     ad = if aad.len > 0:
           unsafeaddr aad[0]
          else:
            nil
   
-  chachapoly_native_impl(
+  ourPoly1305CtmulRun(
     unsafeaddr key[0],
     unsafeaddr nonce[0],
     addr data[0],
@@ -97,5 +93,5 @@ proc decrypt*(_: type[ChaChaPoly],
     ad,
     aad.len,
     addr tag[0],
-    chacha_native_impl,
+    chacha20CtRun,
     #[decrypt]# 0.cint)
