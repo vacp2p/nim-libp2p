@@ -445,7 +445,7 @@ method initPubSub(g: GossipSub) =
   g.heartbeatLock = newAsyncLock()
 
 ## Unit tests
-when isMainModule and not defined(release):
+when isMainModule:
   ## Test internal (private) methods for gossip,
   ## mesh and fanout maintenance.
   ## Usually I wouldn't test private behaviour,

@@ -21,6 +21,10 @@ logScope:
 type TcpTransport* = ref object of Transport
   server*: StreamServer
 
+proc cleanup(t: Transport, conn: Connection) {.async.} =
+  await conn.closeEvent.wait()
+  t.connections.keepItIf(it != conn)
+
 proc connHandler*(t: Transport,
                   server: StreamServer,
                   client: StreamTransport,
@@ -30,10 +34,12 @@ proc connHandler*(t: Transport,
   let conn: Connection = newConnection(newChronosStream(server, client))
   conn.observedAddrs = MultiAddress.init(client.remoteAddress)
   if not initiator:
-    let handlerFut = if isNil(t.handler): nil else: t.handler(conn)
-    let connHolder: ConnHolder = ConnHolder(connection: conn,
-                                            connFuture: handlerFut)
-    t.connections.add(connHolder)
+    if not isNil(t.handler):
+      asyncCheck t.handler(conn)
+
+    t.connections.add(conn)
+    asyncCheck t.cleanup(conn)
+
   result = conn
 
 proc connCb(server: StreamServer,
@@ -51,9 +57,10 @@ method close*(t: TcpTransport) {.async, gcsafe.} =
   await procCall Transport(t).close() # call base
 
   # server can be nil
-  if t.server != nil:
+  if not isNil(t.server):
     t.server.stop()
-    await t.server.closeWait()
+    t.server.close()
+    await t.server.join()
 
   trace "transport stopped"
 
