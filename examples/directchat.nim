@@ -39,7 +39,6 @@ type ChatProto = ref object of LPProtocol
   started: bool           # if the node has started
 
 
-# copied from https://github.com/status-im/nim-beacon-chain/blob/0ed657e953740a92458f23033d47483ffa17ccb0/beacon_chain/eth2_network.nim#L109-L115 
 proc initAddress(T: type MultiAddress, str: string): T =
   let address = MultiAddress.init(str)
   if IPFS.match(address) and matchPartial(multiaddress.TCP, address):
@@ -47,6 +46,7 @@ proc initAddress(T: type MultiAddress, str: string): T =
   else:
     raise newException(MultiAddressError,
                          "Invalid bootstrap node multi-address")
+
 proc dialPeer(p: ChatProto, address: string) {.async.} =
   let multiAddr = MultiAddress.initAddress(address);
   let parts = address.split("/")
@@ -60,6 +60,8 @@ proc dialPeer(p: ChatProto, address: string) {.async.} =
 proc readAndPrint(p: ChatProto) {.async.} =
   while true:
     while p.connected:
+      # TODO: echo &"{p.id} -> "
+
       echo cast[string](await p.conn.readLp())
     await sleepAsync(100.millis)
 
