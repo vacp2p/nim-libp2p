@@ -1,5 +1,7 @@
 language: go
 
+dist: bionic
+
 # https://docs.travis-ci.com/user/caching/
 cache:
   directories:
@@ -15,9 +17,21 @@ go: "1.12.x"
 matrix:
   include:
     - os: linux
+      arch: amd64
+      env:
+        - NPROC=2
+      before_install:
+        - export GOPATH=$HOME/go
+    - os: linux
+      arch: arm64
+      env:
+        - NPROC=6 # Worth trying more than 2 parallel jobs: https://travis-ci.community/t/no-cache-support-on-arm64/5416/8
+        # (also used to get a different cache key than the amd64 one)
       before_install:
         - export GOPATH=$HOME/go
     - os: osx
+      env:
+        - NPROC=2
       before_install:
         - export GOPATH=$HOME/go
 
@@ -26,7 +40,7 @@ install:
   # regressions of the fast-paced Nim development while maintaining the
   # flexibility to apply patches
   - curl -O -L -s -S https://raw.githubusercontent.com/status-im/nimbus-build-system/master/scripts/build_nim.sh
-  - env MAKE="make -j2" bash build_nim.sh Nim csources dist/nimble NimBinaries
+  - env MAKE="make -j${NPROC}" bash build_nim.sh Nim csources dist/nimble NimBinaries
   - export PATH="$PWD/Nim/bin:$GOPATH/bin:$PATH"
 
   # install and build go-libp2p-daemon
