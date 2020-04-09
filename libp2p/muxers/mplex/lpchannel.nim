@@ -14,7 +14,8 @@ import types,
        ../../stream/bufferstream,
        ../../stream/lpstream,
        ../../connection,
-       ../../utility
+       ../../utility,
+       ../../errors
 
 logScope:
   topic = "MplexChannel"
@@ -104,17 +105,7 @@ proc resetByRemote*(s: LPChannel) {.async.} =
       s.cleanUp()
     )
 
-  for res in futs:
-    if res.failed:
-      let exc = res.readError()
-      if exc of LPStreamEOFError:
-        # EOF are likely to happen here
-        trace "Got a non fatal error", failure = exc.name, msg = exc.msg
-      else:
-        # We still don't abort but warn
-        warn "Something went wrong during LPChennel.resetByRemote",
-         failure = exc.name, msg = exc.msg
-
+  checkFutures(futs, [LPStreamEOFError])
 
 proc reset*(s: LPChannel) {.async.} =
   let
@@ -123,17 +114,7 @@ proc reset*(s: LPChannel) {.async.} =
       s.resetByRemote()
     )
 
-  # NOTICE WE DO NOT RETHROW
-  # Those failures are not critical but still wait and warn about them!
-  for res in futs:
-    if res.failed:
-      let exc = res.readError()
-      if exc of LPStreamEOFError:
-        # EOF are likely to happen here
-        trace "Got a non fatal error", failure = exc.name, msg = exc.msg
-      else:
-        warn "Something went wrong during LPChannel.reset",
-          failure = exc.name, msg = exc.msg
+  checkFutures(futs, [LPStreamEOFError])
 
 method closed*(s: LPChannel): bool =
   trace "closing lpchannel", id = s.id, initiator = s.initiator

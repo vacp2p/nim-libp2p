@@ -17,6 +17,7 @@ import ../muxer,
        ../../connection,
        ../../stream/lpstream,
        ../../utility,
+       ../../errors,
        coder,
        types,
        lpchannel
@@ -163,10 +164,7 @@ method close*(m: Mplex) {.async, gcsafe.} =
       toSeq(m.remote.values).mapIt(it.reset()) &
         toSeq(m.local.values).mapIt(it.reset()))
 
-  for res in futs:
-    if res.failed:
-      warn "Something went wrong during Mplex.close",
-       failure = res.readError.name, msg = res.readError.msg
+  checkFutures(futs)
 
   m.remote.clear()
   m.local.clear()

@@ -19,7 +19,8 @@ import pubsub,
        ../protocol,
        ../../peerinfo,
        ../../connection,
-       ../../peer
+       ../../peer,
+       ../../errors
 
 logScope:
   topic = "GossipSub"
@@ -221,11 +222,7 @@ method rpcHandler(g: GossipSub,
               trace "forwarding message to", peerId = id
               sent.add(g.peers[p].send(@[RPCMsg(messages: msgs)]))
             sent = await allFinished(sent)
-            for res in sent:
-              if res.failed:
-                let exc = res.readError()
-                debug "gossipsub: A rpc message send failed",
-                    failure = exc.name, msg = exc.msg
+            checkFutures(sent)
 
     var respControl: ControlMessage
     if m.control.isSome:
@@ -414,11 +411,7 @@ method publish*(g: GossipSub,
       g.mcache.put(msg)
       sent.add(g.peers[p].send(@[RPCMsg(messages: @[msg])]))
     sent = await allFinished(sent)
-    for res in sent:
-      if res.failed:
-        let exc = res.readError()
-        debug "gossipsub: A publish send failed",
-            failure = exc.name, msg = exc.msg
+    checkFutures(sent)
 
 method start*(g: GossipSub) {.async.} =
   ## start pubsub

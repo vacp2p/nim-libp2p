@@ -19,6 +19,7 @@ import connection,
        protocols/identify,
        protocols/pubsub/pubsub,
        muxers/muxer,
+       errors,
        peer
 
 logScope:
@@ -321,12 +322,7 @@ proc stop*(s: Switch) {.async.} =
   futs &= s.transports.mapIt(it.close())
 
   futs = await allFinished(futs)
-
-  for res in futs:
-    if res.failed:
-      let exc = res.readError()
-      warn "Something went wrong during Switch.stop",
-         failure = exc.name, msg = exc.msg
+  checkFutures(futs)
 
 proc subscribeToPeer(s: Switch, peerInfo: PeerInfo) {.async, gcsafe.} =
   ## Subscribe to pub sub peer

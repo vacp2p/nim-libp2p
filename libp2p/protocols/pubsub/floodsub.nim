@@ -17,7 +17,8 @@ import pubsub,
        ../../connection,
        ../../peerinfo,
        ../../peer,
-       ../../utility
+       ../../utility,
+       ../../errors
 
 logScope:
   topic = "FloodSub"
@@ -91,11 +92,7 @@ method rpcHandler*(f: FloodSub,
             sent.add(f.peers[p].send(@[RPCMsg(messages: m.messages)]))
         # wait for all the futures now
         sent = await allFinished(sent)
-        for res in sent:
-          if res.failed:
-            let exc = res.readError()
-            debug "floodsub: A rpc message send failed",
-                failure = exc.name, msg = exc.msg
+        checkFutures(sent)
 
 method init(f: FloodSub) =
   proc handler(conn: Connection, proto: string) {.async.} =
@@ -131,11 +128,7 @@ method publish*(f: FloodSub,
     sent.add(f.peers[p].send(@[RPCMsg(messages: @[msg])]))
   # wait for all the futures now
   sent = await allFinished(sent)
-  for res in sent:
-    if res.failed:
-      let exc = res.readError()
-      debug "floodsub: A publish send failed",
-          failure = exc.name, msg = exc.msg
+  checkFutures(sent)
 
 method unsubscribe*(f: FloodSub,
                     topics: seq[TopicPair]) {.async.} =

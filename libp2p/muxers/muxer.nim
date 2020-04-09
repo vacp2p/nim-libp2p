@@ -9,7 +9,8 @@
 
 import chronos, chronicles
 import ../protocols/protocol,
-       ../connection
+       ../connection,
+       ../errors
 
 logScope:
   topic = "Muxer"
@@ -61,11 +62,6 @@ method init(c: MuxerProvider) =
 
     # log and re-raise on errors
     futs = await allFinished(futs)
-    for res in futs:
-      if res.failed:
-        let exc = res.readError()
-        error "A MuxerProvider handler had a failure, raising an exception",
-            failure=exc.name, msg = exc.msg
-        raise exc
+    checkFutures(futs)
 
   c.handler = handler

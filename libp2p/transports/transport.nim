@@ -11,7 +11,8 @@ import sequtils
 import chronos, chronicles
 import ../connection,
        ../multiaddress,
-       ../multicodec
+       ../multicodec,
+       ../errors
 
 type
   ConnHandler* = proc (conn: Connection): Future[void] {.gcsafe.}
@@ -34,11 +35,7 @@ method close*(t: Transport) {.base, async, gcsafe.} =
   ## stop and cleanup the transport
   ## including all outstanding connections
   let futs = await allFinished(t.connections.mapIt(it.close()))
-  for res in futs:
-    if res.failed:
-      let exc = res.readError()
-      warn "Something went wrong during Transport.close",
-       failure = exc.name, msg = exc.msg
+  checkFutures(futs)
 
 method listen*(t: Transport,
                ma: MultiAddress,
