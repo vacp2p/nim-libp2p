@@ -198,6 +198,7 @@ proc upgradeIncoming(s: Switch, conn: Connection) {.async, gcsafe.} =
 
     # handle subsequent requests
     await ms.handle(sconn)
+    await sconn.close()
 
   if (await ms.select(conn)): # just handshake
     # add the secure handlers
@@ -289,9 +290,7 @@ proc start*(s: Switch): Future[seq[Future[void]]] {.async, gcsafe.} =
     except CatchableError as exc:
       trace "Exception occurred in Switch.start", exc = exc.msg
     finally:
-      if not isNil(conn) and not conn.closed:
-        await conn.close()
-
+      await conn.close()
       await s.cleanupConn(conn)
 
   var startFuts: seq[Future[void]]

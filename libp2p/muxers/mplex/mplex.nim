@@ -126,8 +126,12 @@ method handle*(m: Mplex) {.async, gcsafe.} =
     trace "Exception occurred", exception = exc.msg
   finally:
     trace "stopping mplex main loop"
-    if not m.connection.closed():
-      await m.connection.close()
+    await m.close()
+
+proc internalCleanup(m: Mplex, conn: Connection) {.async.} =
+  await conn.closeEvent.wait()
+  trace "connection closed, cleaning up mplex"
+  await m.close()
 
 proc newMplex*(conn: Connection,
                maxChanns: uint = MaxChannels): Mplex =
@@ -137,11 +141,7 @@ proc newMplex*(conn: Connection,
   result.remote = initTable[uint64, LPChannel]()
   result.local = initTable[uint64, LPChannel]()
 
-  let m = result
-  conn.closeEvent.wait()
-  .addCallback do (udata: pointer):
-    trace "connection closed, cleaning up mplex"
-    asyncCheck m.close()
+  asyncCheck result.internalCleanup(conn)
 
 method newStream*(m: Mplex,
                   name: string = "",
@@ -153,9 +153,10 @@ method newStream*(m: Mplex,
   result.peerInfo = m.connection.peerInfo
 
 method close*(m: Mplex) {.async, gcsafe.} =
-  # Just warn if any error happens here
-  # Todo propagate with Result that can be optionally used
   trace "closing mplex muxer"
+
+  if not m.connection.closed():
+    await m.connection.close()
 
   let
     futs = await allFinished(
@@ -166,3 +167,6 @@ method close*(m: Mplex) {.async, gcsafe.} =
     if res.failed:
       warn "Something went wrong during Mplex.close",
        failure = res.readError.name, msg = res.readError.msg
+
+  m.remote.clear()
+  m.local.clear()

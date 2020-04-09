@@ -16,13 +16,9 @@ import ../connection,
 type
   ConnHandler* = proc (conn: Connection): Future[void] {.gcsafe.}
 
-  ConnHolder* = object
-    connection*: Connection
-    connFuture*: Future[void]
-
   Transport* = ref object of RootObj
     ma*: Multiaddress
-    connections*: seq[ConnHolder]
+    connections*: seq[Connection]
     handler*: ConnHandler
     multicodec*: MultiCodec
 
@@ -37,7 +33,7 @@ proc newTransport*(t: typedesc[Transport]): t {.gcsafe.} =
 method close*(t: Transport) {.base, async, gcsafe.} =
   ## stop and cleanup the transport
   ## including all outstanding connections
-  let futs = await allFinished(t.connections.mapIt(it.connection.close()))
+  let futs = await allFinished(t.connections.mapIt(it.close()))
   for res in futs:
     if res.failed:
       let exc = res.readError()

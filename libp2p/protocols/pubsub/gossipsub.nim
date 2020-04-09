@@ -303,10 +303,13 @@ proc rebalanceMesh(g: GossipSub, topic: string) {.async.} =
 proc dropFanoutPeers(g: GossipSub) {.async.} =
   # drop peers that we haven't published to in
   # GossipSubFanoutTTL seconds
-  for topic in g.lastFanoutPubSub.keys:
-    if Moment.now > g.lastFanoutPubSub[topic]:
-      g.lastFanoutPubSub.del(topic)
+  var dropping = newSeq[string]()
+  for topic, val in g.lastFanoutPubSub:
+    if Moment.now > val:
+      dropping.add(topic)
       g.fanout.del(topic)
+  for topic in dropping:
+      g.lastFanoutPubSub.del(topic)
 
 proc getGossipPeers(g: GossipSub): Table[string, ControlMessage] {.gcsafe.} =
   ## gossip iHave messages to peers
@@ -452,7 +455,7 @@ method initPubSub(g: GossipSub) =
   g.heartbeatLock = newAsyncLock()
 
 ## Unit tests
-when isMainModule and not defined(release):
+when isMainModule:
   ## Test internal (private) methods for gossip,
   ## mesh and fanout maintenance.
   ## Usually I wouldn't test private behaviour,
