@@ -53,7 +53,7 @@ steps:
   - task: CacheBeta@1
     displayName: 'cache Nim binaries'
     inputs:
-      key: NimBinaries | $(Agent.OS) | $(PLATFORM) | "$(Build.SourceBranchName)" | "v2"
+      key: NimBinaries | $(Agent.OS) | $(PLATFORM) | "$(Build.SourceBranchName)" | "v3"
       path: NimBinaries
 
   - task: CacheBeta@1

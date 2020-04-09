@@ -177,8 +177,9 @@ proc macCheckAndDecode(sconn: SecioConn, data: var seq[byte]): bool =
 
 method readMessage(sconn: SecioConn): Future[seq[byte]] {.async.} =
   ## Read message from channel secure connection ``sconn``.
-  logScope:
-    stream_oid = $sconn.stream.oid
+  when chronicles.enabledLogLevel == LogLevel.TRACE:
+    logScope:
+      stream_oid = $sconn.stream.oid
   try:
     var buf = newSeq[byte](4)
     await sconn.readExactly(addr buf[0], 4)
@@ -262,7 +263,8 @@ proc newSecioConn(conn: Connection,
                           secrets.ivOpenArray(i1))
 
   result.peerInfo = PeerInfo.init(remotePubKey)
-  result.oid = genOid()
+  when chronicles.enabledLogLevel == LogLevel.TRACE:
+    result.oid = genOid()
 
 proc transactMessage(conn: Connection,
                      msg: seq[byte]): Future[seq[byte]] {.async.} =

@@ -75,7 +75,8 @@ proc initBufferStream*(s: BufferStream,
   s.lock = newAsyncLock()
   s.writeHandler = handler
   s.closeEvent = newAsyncEvent()
-  s.oid = genOid()
+  when chronicles.enabledLogLevel == LogLevel.TRACE:
+    s.oid = genOid()
 
 proc newBufferStream*(handler: WriteHandler = nil,
                       size: int = DefaultBufferSize): BufferStream =
@@ -105,8 +106,9 @@ proc pushTo*(s: BufferStream, data: seq[byte]) {.async.} =
   ## is preserved.
   ##
 
-  logScope:
-    stream_oid = $s.oid
+  when chronicles.enabledLogLevel == LogLevel.TRACE:
+    logScope:
+      stream_oid = $s.oid
 
   try:
     await s.lock.acquire()
@@ -137,8 +139,9 @@ method read*(s: BufferStream, n = -1): Future[seq[byte]] {.async.} =
   ##
   ## This procedure allocates buffer seq[byte] and return it as result.
   ##
-  logScope:
-    stream_oid = $s.oid
+  when chronicles.enabledLogLevel == LogLevel.TRACE:
+    logScope:
+      stream_oid = $s.oid
 
   trace "read()", requested_bytes = n
   var size = if n > 0: n else: s.readBuf.len()
@@ -166,8 +169,9 @@ method readExactly*(s: BufferStream,
   ## If EOF is received and ``nbytes`` is not yet read, the procedure
   ## will raise ``LPStreamIncompleteError``.
   ##
-  logScope:
-    stream_oid = $s.oid
+  when chronicles.enabledLogLevel == LogLevel.TRACE:
+    logScope:
+      stream_oid = $s.oid
 
   var buff: seq[byte]
   try:

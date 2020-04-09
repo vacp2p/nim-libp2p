@@ -54,7 +54,8 @@ proc init*[T: Connection](self: var T, stream: LPStream): T =
   new self
   self.stream = stream
   self.closeEvent = newAsyncEvent()
-  self.oid = genOid()
+  when chronicles.enabledLogLevel == LogLevel.TRACE:
+    self.oid = genOid()
   asyncCheck self.bindStreamClose()
 
   return self
