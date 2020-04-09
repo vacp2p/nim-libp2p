@@ -8,7 +8,7 @@
 ## those terms.
 
 import options, hashes, strutils, tables, hashes
-import chronos, chronicles
+import chronos, chronicles, nimcrypto/sha2
 import rpc/[messages, message, protobuf],
        timedcache,
        ../../peer,
@@ -56,10 +56,10 @@ proc handle*(p: PubSubPeer, conn: Connection) {.async.} =
   try:
     while not conn.closed:
       trace "waiting for data", peer = p.id, closed = conn.closed
-      let data = await conn.readLp(64 * 1024)
-      let hexData = data.toHex()
+      let data = await conn.readLp()
+      let digest = $(sha256.digest(data))
       trace "read data from peer", peer = p.id, data = data.shortLog
-      if $hexData.hash in p.recvdRpcCache:
+      if digest in p.recvdRpcCache:
         trace "message already received, skipping", peer = p.id
         continue
 
@@ -69,7 +69,7 @@ proc handle*(p: PubSubPeer, conn: Connection) {.async.} =
       for obs in p.observers[]:
         obs.onRecv(p, msg)
       await p.handler(p, @[msg])
-      p.recvdRpcCache.put($hexData.hash)
+      p.recvdRpcCache.put(digest)
   except CatchableError as exc:
     trace "Exception occurred in PubSubPeer.handle", exc = exc.msg
   finally:
@@ -92,14 +92,15 @@ proc send*(p: PubSubPeer, msgs: seq[RPCMsg]) {.async.} =
         trace "empty message, skipping", peer = p.id
         return
 
-      if $encodedHex.hash in p.sentRpcCache:
+      if digest in p.sentRpcCache:
         trace "message already sent to peer, skipping", peer = p.id
         continue
 
       proc sendToRemote() {.async.} =
-        trace "sending encoded msgs to peer", peer = p.id, encoded = encoded.buffer.shortLog
+        trace "sending encoded msgs to peer", peer = p.id,
+                                              encoded = encoded.buffer.shortLog
         await p.sendConn.writeLp(encoded.buffer)
-        p.sentRpcCache.put($encodedHex.hash)
+        p.sentRpcCache.put(digest)
 
       # if no connection has been set,
       # queue messages untill a connection
