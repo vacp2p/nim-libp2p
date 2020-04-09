@@ -7,7 +7,8 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import chronos, chronicles, oids
+import oids
+import chronos, chronicles, metrics
 import peerinfo,
        multiaddress,
        stream/lpstream,
@@ -28,6 +29,8 @@ type
 
   InvalidVarintException = object of LPStreamError
   InvalidVarintSizeException = object of LPStreamError
+
+declareGauge libp2p_open_connection, "open Connection instances"
 
 proc newInvalidVarintException*(): ref InvalidVarintException =
   newException(InvalidVarintException, "Unable to parse varint")
@@ -57,6 +60,7 @@ proc init*[T: Connection](self: var T, stream: LPStream): T =
   when chronicles.enabledLogLevel == LogLevel.TRACE:
     self.oid = genOid()
   asyncCheck self.bindStreamClose()
+  libp2p_open_connection.inc()
 
   return self
 
@@ -117,11 +121,11 @@ method closed*(s: Connection): bool =
   result = s.stream.closed
 
 method close*(s: Connection) {.async, gcsafe.} =
-  trace "about to close connection", closed = s.closed,
-                                     peer = if not isNil(s.peerInfo):
-                                       s.peerInfo.id else: ""
-
   if not s.closed:
+    trace "about to close connection", closed = s.closed,
+                                       peer = if not isNil(s.peerInfo):
+                                         s.peerInfo.id else: ""
+
     if not isNil(s.stream) and not s.stream.closed:
       trace "closing child stream", closed = s.closed,
                                     peer = if not isNil(s.peerInfo):
@@ -131,9 +135,10 @@ method close*(s: Connection) {.async, gcsafe.} =
     s.closeEvent.fire()
     s.isClosed = true
 
-  trace "connection closed", closed = s.closed,
-                             peer = if not isNil(s.peerInfo):
-                               s.peerInfo.id else: ""
+    trace "connection closed", closed = s.closed,
+                               peer = if not isNil(s.peerInfo):
+                                 s.peerInfo.id else: ""
+    libp2p_open_connection.dec()
 
 proc readLp*(s: Connection): Future[seq[byte]] {.async, gcsafe.} =
   ## read lenght prefixed msg
