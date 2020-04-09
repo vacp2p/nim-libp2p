@@ -20,6 +20,10 @@ type
   TestSelectStream = ref object of LPStream
     step*: int
 
+const
+  StreamTransportTrackerName = "stream.transport"
+  StreamServerTrackerName = "stream.server"
+
 method readExactly*(s: TestSelectStream,
                     pbytes: pointer,
                     nbytes: int): Future[void] {.async, gcsafe.} =
@@ -235,6 +239,10 @@ suite "Multistream select":
     proc endToEnd(): Future[bool] {.async.} =
       let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
 
+      let
+        handlerWait1 = newFuture[void]()
+        handlerWait2 = newFuture[void]()
+
       var protocol: LPProtocol = new LPProtocol
       proc testHandler(conn: Connection,
                        proto: string):
@@ -242,6 +250,7 @@ suite "Multistream select":
         check proto == "/test/proto/1.0.0"
         await conn.writeLp("Hello!")
         await conn.close()
+        handlerWait1.complete()
 
       protocol.handler = testHandler
       let msListen = newMultistream()
@@ -249,6 +258,8 @@ suite "Multistream select":
 
       proc connHandler(conn: Connection): Future[void] {.async, gcsafe.} =
         await msListen.handle(conn)
+        await conn.close()
+        handlerWait2.complete()
 
       let transport1: TcpTransport = newTransport(TcpTransport)
       asyncCheck transport1.listen(ma, connHandler)
@@ -262,21 +273,38 @@ suite "Multistream select":
       let hello = cast[string](await conn.readLp())
       result = hello == "Hello!"
       await conn.close()
+     
+      await transport2.close()
+      await transport1.close()
+
+      await allFutures(handlerWait1.wait(1000.millis), handlerWait2.wait(1000.millis))
 
     check:
       waitFor(endToEnd()) == true
+      getTracker(AsyncStreamReaderTrackerName).isLeaked() == false
+      getTracker(AsyncStreamWriterTrackerName).isLeaked() == false
+      getTracker(StreamTransportTrackerName).isLeaked() == false
+      getTracker(StreamServerTrackerName).isLeaked() == false
 
   test "e2e - ls":
     proc endToEnd(): Future[bool] {.async.} =
       let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
 
+      let
+        handlerWait = newFuture[void]()
+
       let msListen = newMultistream()
       var protocol: LPProtocol = new LPProtocol
       protocol.handler = proc(conn: Connection, proto: string) {.async, gcsafe.} =
-        await conn.close()
+        # never reached
+        discard
+
       proc testHandler(conn: Connection,
                        proto: string):
-                       Future[void] {.async.} = discard
+                       Future[void] {.async.} =
+        # never reached
+        discard
+
       protocol.handler = testHandler
       msListen.addHandler("/test/proto1/1.0.0", protocol)
       msListen.addHandler("/test/proto2/1.0.0", protocol)
@@ -284,6 +312,9 @@ suite "Multistream select":
       let transport1: TcpTransport = newTransport(TcpTransport)
       proc connHandler(conn: Connection): Future[void] {.async, gcsafe.} =
         await msListen.handle(conn)
+        await conn.close()
+        handlerWait.complete()
+
       asyncCheck transport1.listen(ma, connHandler)
 
       let msDial = newMultistream()
@@ -292,11 +323,22 @@ suite "Multistream select":
 
       let ls = await msDial.list(conn)
       let protos: seq[string] = @["/test/proto1/1.0.0", "/test/proto2/1.0.0"]
-      await conn.close()
+
       result = ls == protos
+
+      await conn.close()
+      await transport2.close()
+      await transport1.close()
+
+      await handlerWait.wait(1000.millis)
 
     check:
       waitFor(endToEnd()) == true
+      getTracker(TcpTransportTrackerName).isLeaked() == false
+      getTracker(AsyncStreamReaderTrackerName).isLeaked() == false
+      getTracker(AsyncStreamWriterTrackerName).isLeaked() == false
+      getTracker(StreamTransportTrackerName).isLeaked() == false
+      getTracker(StreamServerTrackerName).isLeaked() == false
 
   test "e2e - select one from a list with unsupported protos":
     proc endToEnd(): Future[bool] {.async.} =
@@ -333,6 +375,10 @@ suite "Multistream select":
 
     check:
       waitFor(endToEnd()) == true
+      getTracker(AsyncStreamReaderTrackerName).isLeaked() == false
+      getTracker(AsyncStreamWriterTrackerName).isLeaked() == false
+      getTracker(StreamTransportTrackerName).isLeaked() == false
+      getTracker(StreamServerTrackerName).isLeaked() == false
 
   test "e2e - select one with both valid":
     proc endToEnd(): Future[bool] {.async.} =
@@ -367,3 +413,7 @@ suite "Multistream select":
 
     check:
       waitFor(endToEnd()) == true
+      getTracker(AsyncStreamReaderTrackerName).isLeaked() == false
+      getTracker(AsyncStreamWriterTrackerName).isLeaked() == false
+      getTracker(StreamTransportTrackerName).isLeaked() == false
+      getTracker(StreamServerTrackerName).isLeaked() == false

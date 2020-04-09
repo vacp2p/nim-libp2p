@@ -18,8 +18,40 @@ import transport,
 logScope:
   topic = "TcpTransport"
 
-type TcpTransport* = ref object of Transport
-  server*: StreamServer
+const
+  TcpTransportTrackerName* = "libp2p.tcptransport"
+
+type
+  TcpTransport* = ref object of Transport
+    server*: StreamServer
+
+  TcpTransportTracker* = ref object of TrackerBase
+    opened*: uint64
+    closed*: uint64
+
+proc setupTcpTransportTracker(): TcpTransportTracker {.gcsafe.}
+
+proc getTcpTransportTracker(): TcpTransportTracker {.gcsafe.} =
+  result = cast[TcpTransportTracker](getTracker(TcpTransportTrackerName))
+  if isNil(result):
+    result = setupTcpTransportTracker()
+
+proc dumpTracking(): string {.gcsafe.} =
+  var tracker = getTcpTransportTracker()
+  result = "Opened transports: " & $tracker.opened & "\n" &
+           "Closed transports: " & $tracker.closed
+
+proc leakTransport(): bool {.gcsafe.} =
+  var tracker = getTcpTransportTracker()
+  result = (tracker.opened != tracker.closed)
+
+proc setupTcpTransportTracker(): TcpTransportTracker =
+  result = new TcpTransportTracker
+  result.opened = 0
+  result.closed = 0
+  result.dump = dumpTracking
+  result.isLeaked = leakTransport
+  addTracker(TcpTransportTrackerName, result)
 
 proc cleanup(t: Transport, conn: Connection) {.async.} =
   await conn.closeEvent.wait()
@@ -51,6 +83,8 @@ proc connCb(server: StreamServer,
 method init*(t: TcpTransport) =
   t.multicodec = multiCodec("tcp")
 
+  inc getTcpTransportTracker().opened
+
 method close*(t: TcpTransport) {.async, gcsafe.} =
   ## start the transport
   trace "stopping transport"
@@ -63,6 +97,8 @@ method close*(t: TcpTransport) {.async, gcsafe.} =
     await t.server.join()
 
   trace "transport stopped"
+
+  inc getTcpTransportTracker().closed
 
 method listen*(t: TcpTransport,
                ma: MultiAddress,

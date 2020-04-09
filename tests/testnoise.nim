@@ -14,6 +14,7 @@ import nimcrypto/sysrand
 import ../libp2p/crypto/crypto
 import ../libp2p/[switch,
                   multistream,
+                  stream/bufferstream,
                   protocols/identify,
                   connection,
                   transports/transport,
@@ -67,6 +68,9 @@ proc createSwitch(ma: MultiAddress; outgoing: bool): (Switch, PeerInfo) =
   result = (switch, peerInfo)
 
 suite "Noise":
+  teardown:
+    echo getTracker(BufferStreamTrackerName).dump()
+ 
   test "e2e: handle write + noise":
     proc testListenerDialer(): Future[bool] {.async.} =
       let
@@ -107,6 +111,7 @@ suite "Noise":
       getTracker(AsyncStreamWriterTrackerName).isLeaked() == false
       getTracker(StreamTransportTrackerName).isLeaked() == false
       getTracker(StreamServerTrackerName).isLeaked() == false
+      getTracker(BufferStreamTrackerName).isLeaked() == false
 
   test "e2e: handle read + noise":
     proc testListenerDialer(): Future[bool] {.async.} =
@@ -151,6 +156,7 @@ suite "Noise":
       getTracker(AsyncStreamWriterTrackerName).isLeaked() == false
       getTracker(StreamTransportTrackerName).isLeaked() == false
       getTracker(StreamServerTrackerName).isLeaked() == false
+      getTracker(BufferStreamTrackerName).isLeaked() == false
 
   # test "e2e: handle read + noise fragmented":
   #   proc testListenerDialer(): Future[bool] {.async.} =
@@ -226,6 +232,7 @@ suite "Noise":
       getTracker(AsyncStreamWriterTrackerName).isLeaked() == false
       getTracker(StreamTransportTrackerName).isLeaked() == false
       getTracker(StreamServerTrackerName).isLeaked() == false
+      getTracker(BufferStreamTrackerName).isLeaked() == false
 
   # test "interop with rust noise":
   #   when true: # disable cos in CI we got no interop server/client
