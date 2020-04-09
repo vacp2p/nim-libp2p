@@ -8,11 +8,12 @@ license       = "MIT"
 skipDirs      = @["tests", "examples", "Nim"]
 
 requires "nim > 0.19.4",
-         "secp256k1",
-         "nimcrypto >= 0.4.1",
-         "chronos >= 2.3.8",
          "bearssl >= 0.1.4",
          "chronicles >= 0.7.1",
+         "chronos >= 2.3.8",
+         "metrics",
+         "nimcrypto >= 0.4.1",
+         "secp256k1",
          "stew"
 
 proc runTest(filename: string) =
