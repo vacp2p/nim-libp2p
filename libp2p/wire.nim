@@ -56,7 +56,7 @@ proc initTAddress*(ma: MultiAddress): TransportAddress =
                            "Could not initialize address!")
 
 proc connect*(ma: MultiAddress, bufferSize = DefaultStreamBufferSize,
-              child: StreamTransport = nil): Future[StreamTransport] =
+              child: StreamTransport = nil): Future[StreamTransport] {.async.} =
   ## Open new connection to remote peer with address ``ma`` and create
   ## new transport object ``StreamTransport`` for established connection.
   ## ``bufferSize`` is size of internal buffer for transport.
@@ -65,7 +65,7 @@ proc connect*(ma: MultiAddress, bufferSize = DefaultStreamBufferSize,
   if address.family in {AddressFamily.IPv4, AddressFamily.IPv6}:
     if ma[1].protoCode() != multiCodec("tcp"):
       raise newException(TransportAddressError, "Incorrect address type!")
-  result = connect(address, bufferSize, child)
+  result = await connect(address, bufferSize, child)
 
 proc createStreamServer*[T](ma: MultiAddress,
                             cbproc: StreamCallback,
