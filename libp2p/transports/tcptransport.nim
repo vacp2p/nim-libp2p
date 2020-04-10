@@ -55,6 +55,7 @@ proc setupTcpTransportTracker(): TcpTransportTracker =
 
 proc cleanup(t: Transport, conn: Connection) {.async.} =
   await conn.closeEvent.wait()
+  trace "connection cleanup event wait ended"
   t.connections.keepItIf(it != conn)
 
 proc connHandler*(t: Transport,

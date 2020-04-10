@@ -459,7 +459,25 @@ when isMainModule:
   type
     TestGossipSub = ref object of GossipSub
 
+  const
+    StreamTransportTrackerName = "stream.transport"
+    StreamServerTrackerName = "stream.server"
+
   suite "GossipSub":
+    teardown:
+      let
+        trackers = [
+          getTracker(BufferStreamTrackerName),
+          getTracker(AsyncStreamWriterTrackerName),
+          getTracker(AsyncStreamReaderTrackerName),
+          getTracker(StreamTransportTrackerName),
+          getTracker(StreamServerTrackerName)
+        ]
+      for tracker in trackers:
+        if not isNil(tracker):
+          # echo tracker.dump()
+          check tracker.isLeaked() == false
+   
     test "`rebalanceMesh` Degree Lo":
       proc testRun(): Future[bool] {.async.} =
         let gossipSub = newPubSub(TestGossipSub,
@@ -470,8 +488,10 @@ when isMainModule:
         proc writeHandler(data: seq[byte]) {.async.} =
           discard
 
+        var conns = newSeq[Connection]()
         for i in 0..<15:
           let conn = newConnection(newBufferStream(writeHandler))
+          conns &= conn
           let peerInfo = PeerInfo.init(PrivateKey.random(RSA))
           conn.peerInfo = peerInfo
           gossipSub.peers[peerInfo.id] = newPubSubPeer(peerInfo, GossipSubCodec)
@@ -481,6 +501,8 @@ when isMainModule:
         check gossipSub.peers.len == 15
         await gossipSub.rebalanceMesh(topic)
         check gossipSub.mesh[topic].len == GossipSubD
+
+        await allFutures(conns.mapIt(it.close()))
 
         result = true
 
@@ -497,8 +519,10 @@ when isMainModule:
         proc writeHandler(data: seq[byte]) {.async.} =
           discard
 
+        var conns = newSeq[Connection]()
         for i in 0..<15:
           let conn = newConnection(newBufferStream(writeHandler))
+          conns &= conn
           let peerInfo = PeerInfo.init(PrivateKey.random(RSA))
           conn.peerInfo = peerInfo
           gossipSub.peers[peerInfo.id] = newPubSubPeer(peerInfo, GossipSubCodec)
@@ -508,6 +532,8 @@ when isMainModule:
         check gossipSub.gossipsub[topic].len == 15
         await gossipSub.rebalanceMesh(topic)
         check gossipSub.mesh[topic].len == GossipSubD
+
+        await allFutures(conns.mapIt(it.close()))
 
         result = true
 
@@ -527,8 +553,10 @@ when isMainModule:
         proc writeHandler(data: seq[byte]) {.async.} =
           discard
 
+        var conns = newSeq[Connection]()
         for i in 0..<15:
           let conn = newConnection(newBufferStream(writeHandler))
+          conns &= conn
           var peerInfo = PeerInfo.init(PrivateKey.random(RSA))
           conn.peerInfo = peerInfo
           gossipSub.peers[peerInfo.id] = newPubSubPeer(peerInfo, GossipSubCodec)
@@ -538,6 +566,8 @@ when isMainModule:
         check gossipSub.gossipsub[topic].len == 15
         await gossipSub.replenishFanout(topic)
         check gossipSub.fanout[topic].len == GossipSubD
+
+        await allFutures(conns.mapIt(it.close()))
 
         result = true
 
@@ -558,8 +588,10 @@ when isMainModule:
         proc writeHandler(data: seq[byte]) {.async.} =
           discard
 
+        var conns = newSeq[Connection]()
         for i in 0..<6:
           let conn = newConnection(newBufferStream(writeHandler))
+          conns &= conn
           let peerInfo = PeerInfo.init(PrivateKey.random(RSA))
           conn.peerInfo = peerInfo
           gossipSub.peers[peerInfo.id] = newPubSubPeer(peerInfo, GossipSubCodec)
@@ -570,6 +602,8 @@ when isMainModule:
 
         await gossipSub.dropFanoutPeers()
         check topic notin gossipSub.fanout
+
+        await allFutures(conns.mapIt(it.close()))
 
         result = true
 
@@ -594,8 +628,10 @@ when isMainModule:
         proc writeHandler(data: seq[byte]) {.async.} =
           discard
 
+        var conns = newSeq[Connection]()
         for i in 0..<6:
           let conn = newConnection(newBufferStream(writeHandler))
+          conns &= conn
           let peerInfo = PeerInfo.init(PrivateKey.random(RSA))
           conn.peerInfo = peerInfo
           gossipSub.peers[peerInfo.id] = newPubSubPeer(peerInfo, GossipSubCodec)
@@ -609,6 +645,8 @@ when isMainModule:
         await gossipSub.dropFanoutPeers()
         check topic1 notin gossipSub.fanout
         check topic2 in gossipSub.fanout
+
+        await allFutures(conns.mapIt(it.close()))
 
         result = true
 
@@ -630,8 +668,10 @@ when isMainModule:
         gossipSub.mesh[topic] = initHashSet[string]()
         gossipSub.fanout[topic] = initHashSet[string]()
         gossipSub.gossipsub[topic] = initHashSet[string]()
+        var conns = newSeq[Connection]()
         for i in 0..<30:
           let conn = newConnection(newBufferStream(writeHandler))
+          conns &= conn
           let peerInfo = PeerInfo.init(PrivateKey.random(RSA))
           conn.peerInfo = peerInfo
           gossipSub.peers[peerInfo.id] = newPubSubPeer(peerInfo, GossipSubCodec)
@@ -643,6 +683,7 @@ when isMainModule:
 
         for i in 0..<15:
           let conn = newConnection(newBufferStream(writeHandler))
+          conns &= conn
           let peerInfo = PeerInfo.init(PrivateKey.random(RSA))
           conn.peerInfo = peerInfo
           gossipSub.peers[peerInfo.id] = newPubSubPeer(peerInfo, GossipSubCodec)
@@ -658,6 +699,8 @@ when isMainModule:
         for p in peers.keys:
           check p notin gossipSub.fanout[topic]
           check p notin gossipSub.mesh[topic]
+
+        await allFutures(conns.mapIt(it.close()))
 
         result = true
 
@@ -678,8 +721,10 @@ when isMainModule:
         let topic = "foobar"
         gossipSub.fanout[topic] = initHashSet[string]()
         gossipSub.gossipsub[topic] = initHashSet[string]()
+        var conns = newSeq[Connection]()
         for i in 0..<30:
           let conn = newConnection(newBufferStream(writeHandler))
+          conns &= conn
           let peerInfo = PeerInfo.init(PrivateKey.random(RSA))
           conn.peerInfo = peerInfo
           gossipSub.peers[peerInfo.id] = newPubSubPeer(peerInfo, GossipSubCodec)
@@ -691,6 +736,9 @@ when isMainModule:
 
         let peers = gossipSub.getGossipPeers()
         check peers.len == GossipSubD
+
+        await allFutures(conns.mapIt(it.close()))
+
         result = true
 
       check:
@@ -710,8 +758,10 @@ when isMainModule:
         let topic = "foobar"
         gossipSub.mesh[topic] = initHashSet[string]()
         gossipSub.gossipsub[topic] = initHashSet[string]()
+        var conns = newSeq[Connection]()
         for i in 0..<30:
           let conn = newConnection(newBufferStream(writeHandler))
+          conns &= conn
           let peerInfo = PeerInfo.init(PrivateKey.random(RSA))
           conn.peerInfo = peerInfo
           gossipSub.peers[peerInfo.id] = newPubSubPeer(peerInfo, GossipSubCodec)
@@ -723,6 +773,9 @@ when isMainModule:
 
         let peers = gossipSub.getGossipPeers()
         check peers.len == GossipSubD
+
+        await allFutures(conns.mapIt(it.close()))
+
         result = true
 
       check:
@@ -742,8 +795,10 @@ when isMainModule:
         let topic = "foobar"
         gossipSub.mesh[topic] = initHashSet[string]()
         gossipSub.fanout[topic] = initHashSet[string]()
+        var conns = newSeq[Connection]()
         for i in 0..<30:
           let conn = newConnection(newBufferStream(writeHandler))
+          conns &= conn
           let peerInfo = PeerInfo.init(PrivateKey.random(RSA))
           conn.peerInfo = peerInfo
           gossipSub.peers[peerInfo.id] = newPubSubPeer(peerInfo, GossipSubCodec)
@@ -755,6 +810,9 @@ when isMainModule:
 
         let peers = gossipSub.getGossipPeers()
         check peers.len == 0
+
+        await allFutures(conns.mapIt(it.close()))
+
         result = true
 
       check:

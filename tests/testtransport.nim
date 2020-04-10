@@ -19,6 +19,13 @@ template ignoreErrors(body: untyped): untyped =
     echo getCurrentExceptionMsg()
 
 suite "TCP transport":
+  teardown:
+    check:
+      getTracker(AsyncStreamReaderTrackerName).isLeaked() == false
+      getTracker(AsyncStreamWriterTrackerName).isLeaked() == false
+      getTracker(StreamTransportTrackerName).isLeaked() == false
+      getTracker(StreamServerTrackerName).isLeaked() == false
+
   test "test listener: handle write":
     proc testListener(): Future[bool] {.async, gcsafe.} =
       let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
@@ -36,7 +43,7 @@ suite "TCP transport":
 
       let msg = await streamTransport.read(6)
 
-      await handlerWait.wait(1000.millis)
+      await handlerWait.wait(5000.millis) # when no issues will not wait that long!
       await streamTransport.closeWait()
       await transport.close()
 
@@ -44,10 +51,6 @@ suite "TCP transport":
 
     check:
       waitFor(testListener()) == true
-      getTracker(AsyncStreamReaderTrackerName).isLeaked() == false
-      getTracker(AsyncStreamWriterTrackerName).isLeaked() == false
-      getTracker(StreamTransportTrackerName).isLeaked() == false
-      getTracker(StreamServerTrackerName).isLeaked() == false
 
   test "test listener: handle read":
     proc testListener(): Future[bool] {.async.} =
@@ -64,7 +67,7 @@ suite "TCP transport":
       let streamTransport: StreamTransport = await connect(transport.ma)
       let sent = await streamTransport.write("Hello!", 6)
 
-      await handlerWait.wait(1000.millis)
+      await handlerWait.wait(5000.millis) # when no issues will not wait that long!
       await streamTransport.closeWait()
       await transport.close()
 
@@ -72,10 +75,6 @@ suite "TCP transport":
 
     check:
       waitFor(testListener()) == true
-      getTracker(AsyncStreamReaderTrackerName).isLeaked() == false
-      getTracker(AsyncStreamWriterTrackerName).isLeaked() == false
-      getTracker(StreamTransportTrackerName).isLeaked() == false
-      getTracker(StreamServerTrackerName).isLeaked() == false
 
   test "test dialer: handle write":
     proc testDialer(address: TransportAddress): Future[bool] {.async.} =
@@ -100,7 +99,7 @@ suite "TCP transport":
       let msg = await conn.read(6)
       result = cast[string](msg) == "Hello!"
 
-      await handlerWait.wait(1000.millis)
+      await handlerWait.wait(5000.millis) # when no issues will not wait that long!
 
       await conn.close()
       await transport.close()
@@ -111,10 +110,6 @@ suite "TCP transport":
 
     check:
       waitFor(testDialer(initTAddress("0.0.0.0:0"))) == true
-      getTracker(AsyncStreamReaderTrackerName).isLeaked() == false
-      getTracker(AsyncStreamWriterTrackerName).isLeaked() == false
-      getTracker(StreamTransportTrackerName).isLeaked() == false
-      getTracker(StreamServerTrackerName).isLeaked() == false
 
   test "test dialer: handle write":
     proc testDialer(address: TransportAddress): Future[bool] {.async, gcsafe.} =
@@ -140,7 +135,7 @@ suite "TCP transport":
       await conn.write(cstring("Hello!"), 6)
       result = true
 
-      await handlerWait.wait(1000.millis)
+      await handlerWait.wait(5000.millis) # when no issues will not wait that long!
 
       await conn.close()
       await transport.close()
@@ -150,10 +145,6 @@ suite "TCP transport":
       await server.join()
     check:
       waitFor(testDialer(initTAddress("0.0.0.0:0"))) == true
-      getTracker(AsyncStreamReaderTrackerName).isLeaked() == false
-      getTracker(AsyncStreamWriterTrackerName).isLeaked() == false
-      getTracker(StreamTransportTrackerName).isLeaked() == false
-      getTracker(StreamServerTrackerName).isLeaked() == false
 
   test "e2e: handle write":
     proc testListenerDialer(): Future[bool] {.async.} =
@@ -171,7 +162,7 @@ suite "TCP transport":
       let conn = await transport2.dial(transport1.ma)
       let msg = await conn.read(6)
 
-      await handlerWait.wait(1000.millis)
+      await handlerWait.wait(5000.millis) # when no issues will not wait that long!
 
       await conn.close()
       await transport2.close()
@@ -181,10 +172,6 @@ suite "TCP transport":
 
     check:
       waitFor(testListenerDialer()) == true
-      getTracker(AsyncStreamReaderTrackerName).isLeaked() == false
-      getTracker(AsyncStreamWriterTrackerName).isLeaked() == false
-      getTracker(StreamTransportTrackerName).isLeaked() == false
-      getTracker(StreamServerTrackerName).isLeaked() == false
 
   test "e2e: handle read":
     proc testListenerDialer(): Future[bool] {.async.} =
@@ -203,7 +190,7 @@ suite "TCP transport":
       let conn = await transport2.dial(transport1.ma)
       await conn.write(cstring("Hello!"), 6)
 
-      await handlerWait.wait(1000.millis)
+      await handlerWait.wait(5000.millis) # when no issues will not wait that long!
 
       await conn.close()
       await transport2.close()
@@ -212,7 +199,3 @@ suite "TCP transport":
 
     check:
       waitFor(testListenerDialer()) == true
-      getTracker(AsyncStreamReaderTrackerName).isLeaked() == false
-      getTracker(AsyncStreamWriterTrackerName).isLeaked() == false
-      getTracker(StreamTransportTrackerName).isLeaked() == false
-      getTracker(StreamServerTrackerName).isLeaked() == false

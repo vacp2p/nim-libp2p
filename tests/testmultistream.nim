@@ -159,6 +159,20 @@ proc newTestNaStream(na: NaHandler): TestNaStream =
   result.step = 1
 
 suite "Multistream select":
+  teardown:
+    let
+      trackers = [
+        getTracker(AsyncStreamWriterTrackerName),
+        getTracker(TcpTransportTrackerName),
+        getTracker(AsyncStreamReaderTrackerName),
+        getTracker(StreamTransportTrackerName),
+        getTracker(StreamServerTrackerName)
+      ]
+    for tracker in trackers:
+      if not isNil(tracker):
+        # echo tracker.dump()
+        check tracker.isLeaked() == false
+ 
   test "test select custom proto":
     proc testSelect(): Future[bool] {.async.} =
       let ms = newMultistream()
@@ -277,14 +291,10 @@ suite "Multistream select":
       await transport2.close()
       await transport1.close()
 
-      await allFutures(handlerWait1.wait(1000.millis), handlerWait2.wait(1000.millis))
+      await allFutures(handlerWait1.wait(5000.millis) #[if OK won't happen!!]#, handlerWait2.wait(5000.millis) #[if OK won't happen!!]#)
 
     check:
       waitFor(endToEnd()) == true
-      getTracker(AsyncStreamReaderTrackerName).isLeaked() == false
-      getTracker(AsyncStreamWriterTrackerName).isLeaked() == false
-      getTracker(StreamTransportTrackerName).isLeaked() == false
-      getTracker(StreamServerTrackerName).isLeaked() == false
 
   test "e2e - ls":
     proc endToEnd(): Future[bool] {.async.} =
@@ -330,15 +340,10 @@ suite "Multistream select":
       await transport2.close()
       await transport1.close()
 
-      await handlerWait.wait(1000.millis)
+      await handlerWait.wait(5000.millis) # when no issues will not wait that long!
 
     check:
       waitFor(endToEnd()) == true
-      getTracker(TcpTransportTrackerName).isLeaked() == false
-      getTracker(AsyncStreamReaderTrackerName).isLeaked() == false
-      getTracker(AsyncStreamWriterTrackerName).isLeaked() == false
-      getTracker(StreamTransportTrackerName).isLeaked() == false
-      getTracker(StreamServerTrackerName).isLeaked() == false
 
   test "e2e - select one from a list with unsupported protos":
     proc endToEnd(): Future[bool] {.async.} =
@@ -371,14 +376,14 @@ suite "Multistream select":
 
       let hello = cast[string](await conn.readLp())
       result = hello == "Hello!"
+
       await conn.close()
+      await transport2.close()
+      await transport1.close()
+
 
     check:
       waitFor(endToEnd()) == true
-      getTracker(AsyncStreamReaderTrackerName).isLeaked() == false
-      getTracker(AsyncStreamWriterTrackerName).isLeaked() == false
-      getTracker(StreamTransportTrackerName).isLeaked() == false
-      getTracker(StreamServerTrackerName).isLeaked() == false
 
   test "e2e - select one with both valid":
     proc endToEnd(): Future[bool] {.async.} =
@@ -409,11 +414,10 @@ suite "Multistream select":
       check (await msDial.select(conn, @["/test/proto2/1.0.0", "/test/proto1/1.0.0"])) == "/test/proto2/1.0.0"
 
       result = cast[string](await conn.readLp()) == "Hello from /test/proto2/1.0.0!"
+
       await conn.close()
+      await transport2.close()
+      await transport1.close()
 
     check:
       waitFor(endToEnd()) == true
-      getTracker(AsyncStreamReaderTrackerName).isLeaked() == false
-      getTracker(AsyncStreamWriterTrackerName).isLeaked() == false
-      getTracker(StreamTransportTrackerName).isLeaked() == false
-      getTracker(StreamServerTrackerName).isLeaked() == false

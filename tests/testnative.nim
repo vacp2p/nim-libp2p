@@ -12,14 +12,12 @@ import testmultibase,
        testcid,
        testpeer
 
-import testtransport
+import testtransport,
        testmultistream,
-       # testbufferstream,
-       # testidentify,
-       # testswitch,
-       # testnoise,
-       # testpeerinfo,
-       # pubsub/testpubsub,
-       # # TODO: placing this before pubsub tests,
-       # # breaks some flood and gossip tests - no idea why
-       # testmplex
+       testbufferstream,
+       testidentify,
+       testswitch,
+       testnoise,
+       testpeerinfo,
+       testmplex,
+       pubsub/testpubsub

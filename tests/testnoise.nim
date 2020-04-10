@@ -69,7 +69,19 @@ proc createSwitch(ma: MultiAddress; outgoing: bool): (Switch, PeerInfo) =
 
 suite "Noise":
   teardown:
-    echo getTracker(BufferStreamTrackerName).dump()
+    let
+      trackers = [
+        getTracker(BufferStreamTrackerName),
+        getTracker(AsyncStreamWriterTrackerName),
+        getTracker(TcpTransportTrackerName),
+        getTracker(AsyncStreamReaderTrackerName),
+        getTracker(StreamTransportTrackerName),
+        getTracker(StreamServerTrackerName)
+      ]
+    for tracker in trackers:
+      if not isNil(tracker):
+        # echo tracker.dump()
+        check tracker.isLeaked() == false
  
   test "e2e: handle write + noise":
     proc testListenerDialer(): Future[bool] {.async.} =
@@ -107,11 +119,6 @@ suite "Noise":
 
     check:
       waitFor(testListenerDialer()) == true
-      getTracker(AsyncStreamReaderTrackerName).isLeaked() == false
-      getTracker(AsyncStreamWriterTrackerName).isLeaked() == false
-      getTracker(StreamTransportTrackerName).isLeaked() == false
-      getTracker(StreamServerTrackerName).isLeaked() == false
-      getTracker(BufferStreamTrackerName).isLeaked() == false
 
   test "e2e: handle read + noise":
     proc testListenerDialer(): Future[bool] {.async.} =
@@ -152,52 +159,50 @@ suite "Noise":
 
     check:
       waitFor(testListenerDialer()) == true
-      getTracker(AsyncStreamReaderTrackerName).isLeaked() == false
-      getTracker(AsyncStreamWriterTrackerName).isLeaked() == false
-      getTracker(StreamTransportTrackerName).isLeaked() == false
-      getTracker(StreamServerTrackerName).isLeaked() == false
-      getTracker(BufferStreamTrackerName).isLeaked() == false
 
-  # test "e2e: handle read + noise fragmented":
-  #   proc testListenerDialer(): Future[bool] {.async.} =
-  #     let
-  #       server: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
-  #       serverInfo = PeerInfo.init(PrivateKey.random(RSA), [server])
-  #       serverNoise = newNoise(serverInfo.privateKey, outgoing = false)
-  #       readTask = newFuture[void]()
+  test "e2e: handle read + noise fragmented":
+    proc testListenerDialer(): Future[bool] {.async.} =
+      let
+        server: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
+        serverInfo = PeerInfo.init(PrivateKey.random(RSA), [server])
+        serverNoise = newNoise(serverInfo.privateKey, outgoing = false)
+        readTask = newFuture[void]()
 
-  #     var hugePayload = newSeq[byte](0xFFFFF)
-  #     check randomBytes(hugePayload) == hugePayload.len
-  #     trace "Sending huge payload", size = hugePayload.len
+      var hugePayload = newSeq[byte](0xFFFFF)
+      check randomBytes(hugePayload) == hugePayload.len
+      trace "Sending huge payload", size = hugePayload.len
 
-  #     proc connHandler(conn: Connection) {.async, gcsafe.} =
-  #       let sconn = await serverNoise.secure(conn)
-  #       defer:
-  #         await sconn.close()
-  #       let msg = await sconn.readLp()
-  #       check msg == hugePayload
-  #       readTask.complete()
+      proc connHandler(conn: Connection) {.async, gcsafe.} =
+        let sconn = await serverNoise.secure(conn)
+        defer:
+          await sconn.close()
+        let msg = await sconn.readLp()
+        check msg == hugePayload
+        readTask.complete()
 
-  #     let
-  #       transport1: TcpTransport = newTransport(TcpTransport)
-  #     asyncCheck await transport1.listen(server, connHandler)
+      let
+        transport1: TcpTransport = newTransport(TcpTransport)
+      asyncCheck await transport1.listen(server, connHandler)
 
-  #     let
-  #       transport2: TcpTransport = newTransport(TcpTransport)
-  #       clientInfo = PeerInfo.init(PrivateKey.random(RSA), [transport1.ma])
-  #       clientNoise = newNoise(clientInfo.privateKey, outgoing = true)
-  #       conn = await transport2.dial(transport1.ma)
-  #       sconn = await clientNoise.secure(conn)
+      let
+        transport2: TcpTransport = newTransport(TcpTransport)
+        clientInfo = PeerInfo.init(PrivateKey.random(RSA), [transport1.ma])
+        clientNoise = newNoise(clientInfo.privateKey, outgoing = true)
+        conn = await transport2.dial(transport1.ma)
+        sconn = await clientNoise.secure(conn)
 
-  #     await sconn.writeLp(hugePayload)
-  #     await readTask
-  #     await sconn.close()
-  #     await transport1.close()
+      await sconn.writeLp(hugePayload)
+      await readTask
 
-  #     result = true
+      await sconn.close()
+      await conn.close()
+      await transport2.close()
+      await transport1.close()
 
-  #   check:
-  #     waitFor(testListenerDialer()) == true
+      result = true
+
+    check:
+      waitFor(testListenerDialer()) == true
 
   test "e2e use switch dial proto string":
     proc testSwitch(): Future[bool] {.async, gcsafe.} =
@@ -228,11 +233,6 @@ suite "Noise":
 
     check:
       waitFor(testSwitch()) == true
-      getTracker(AsyncStreamReaderTrackerName).isLeaked() == false
-      getTracker(AsyncStreamWriterTrackerName).isLeaked() == false
-      getTracker(StreamTransportTrackerName).isLeaked() == false
-      getTracker(StreamServerTrackerName).isLeaked() == false
-      getTracker(BufferStreamTrackerName).isLeaked() == false
 
   # test "interop with rust noise":
   #   when true: # disable cos in CI we got no interop server/client

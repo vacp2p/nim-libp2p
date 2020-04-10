@@ -16,7 +16,24 @@ import utils,
                      protocols/pubsub/rpc/messages,
                      protocols/pubsub/rpc/message]
 
+const
+  StreamTransportTrackerName = "stream.transport"
+  StreamServerTrackerName = "stream.server"
+
 suite "FloodSub":
+  teardown:
+    let
+      trackers = [
+        getTracker(AsyncStreamWriterTrackerName),
+        getTracker(AsyncStreamReaderTrackerName),
+        getTracker(StreamTransportTrackerName),
+        getTracker(StreamServerTrackerName)
+      ]
+    for tracker in trackers:
+      if not isNil(tracker):
+        echo tracker.dump()
+        check tracker.isLeaked() == false
+
   test "FloodSub basic publish/subscribe A -> B":
     proc runTests(): Future[bool] {.async.} =
       var completionFut = newFuture[bool]()
@@ -30,15 +47,14 @@ suite "FloodSub":
       awaiters.add((await nodes[1].start()))
 
       await subscribeNodes(nodes)
-      await nodes[1].subscribe("foobar", handler)
-      await sleepAsync(1000.millis)
 
+      await nodes[1].subscribe("foobar", handler)
       await nodes[0].publish("foobar", cast[seq[byte]]("Hello!"))
 
-      result = await completionFut
+      result = await completionFut.wait(5.seconds)
+
       await allFutures(nodes[0].stop(), nodes[1].stop())
       await allFutures(awaiters)
-
     check:
       waitFor(runTests()) == true
 
@@ -55,12 +71,12 @@ suite "FloodSub":
       awaiters.add((await nodes[1].start()))
 
       await subscribeNodes(nodes)
-      await nodes[0].subscribe("foobar", handler)
-      await sleepAsync(1000.millis)
 
+      await nodes[0].subscribe("foobar", handler)
       await nodes[1].publish("foobar", cast[seq[byte]]("Hello!"))
 
-      result = await completionFut
+      result = await completionFut.wait(5.seconds)
+
       await allFutures(nodes[0].stop(), nodes[1].stop())
       await allFutures(awaiters)
 

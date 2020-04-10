@@ -67,8 +67,8 @@ proc getBufferStreamTracker(): BufferStreamTracker {.gcsafe.} =
 
 proc dumpTracking(): string {.gcsafe.} =
   var tracker = getBufferStreamTracker()
-  result = "Opened transports: " & $tracker.opened & "\n" &
-           "Closed transports: " & $tracker.closed
+  result = "Opened buffers: " & $tracker.opened & "\n" &
+           "Closed buffers: " & $tracker.closed
 
 proc leakTransport(): bool {.gcsafe.} =
   var tracker = getBufferStreamTracker()
@@ -397,13 +397,16 @@ proc `|`*(s: BufferStream, target: BufferStream): BufferStream =
   pipe(s, target)
 
 method close*(s: BufferStream) {.async.} =
-  ## close the stream and clear the buffer
-  trace "closing bufferstream"
-  for r in s.readReqs:
-    if not(isNil(r)) and not(r.finished()):
-      r.fail(newLPStreamEOFError())
-  s.dataReadEvent.fire()
-  s.readBuf.clear()
-  s.closeEvent.fire()
-  s.isClosed = true
-  inc getBufferStreamTracker().closed
+  if not s.isClosed:
+    ## close the stream and clear the buffer
+    trace "closing bufferstream"
+    for r in s.readReqs:
+      if not(isNil(r)) and not(r.finished()):
+        r.fail(newLPStreamEOFError())
+    s.dataReadEvent.fire()
+    s.readBuf.clear()
+    s.closeEvent.fire()
+    s.isClosed = true
+    inc getBufferStreamTracker().closed
+  else:
+    trace "attempt to close an already closed bufferstream", trace=getStackTrace()
