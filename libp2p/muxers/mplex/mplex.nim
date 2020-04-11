@@ -17,6 +17,7 @@ import ../muxer,
        ../../connection,
        ../../stream/lpstream,
        ../../utility,
+       ../../errors,
        coder,
        types,
        lpchannel
@@ -154,10 +155,16 @@ method newStream*(m: Mplex,
 
 method close*(m: Mplex) {.async, gcsafe.} =
   trace "closing mplex muxer"
+
   if not m.connection.closed():
     await m.connection.close()
 
-  await allFutures(@[allFutures(toSeq(m.remote.values).mapIt(it.reset())),
-                      allFutures(toSeq(m.local.values).mapIt(it.reset()))])
+  let
+    futs = await allFinished(
+      toSeq(m.remote.values).mapIt(it.reset()) &
+        toSeq(m.local.values).mapIt(it.reset()))
+
+  checkFutures(futs)
+
   m.remote.clear()
   m.local.clear()

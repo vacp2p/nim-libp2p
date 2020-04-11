@@ -9,7 +9,8 @@
 
 import chronos, chronicles
 import ../protocols/protocol,
-       ../connection
+       ../connection,
+       ../errors
 
 logScope:
   topic = "Muxer"
@@ -45,15 +46,22 @@ proc newMuxerProvider*(creator: MuxerConstructor, codec: string): MuxerProvider 
 
 method init(c: MuxerProvider) =
   proc handler(conn: Connection, proto: string) {.async, gcsafe, closure.} =
-    let muxer = c.newMuxer(conn)
-    var handlerFut = if not isNil(c.muxerHandler):
-      c.muxerHandler(muxer)
-    else:
-      var dummyFut = newFuture[void]()
-      dummyFut.complete(); dummyFut
+    let
+      muxer = c.newMuxer(conn)
 
     if not isNil(c.streamHandler):
       muxer.streamHandler = c.streamHandler
 
-    await allFutures(muxer.handle(), handlerFut)
+    var futs = newSeq[Future[void]]()
+
+    futs &= muxer.handle()
+
+    # finally await both the futures
+    if not isNil(c.muxerHandler):
+      futs &= c.muxerHandler(muxer)
+
+    # log and re-raise on errors
+    futs = await allFinished(futs)
+    checkFutures(futs)
+
   c.handler = handler

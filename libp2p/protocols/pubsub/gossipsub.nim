@@ -19,7 +19,8 @@ import pubsub,
        ../protocol,
        ../../peerinfo,
        ../../connection,
-       ../../peer
+       ../../peer,
+       ../../errors
 
 logScope:
   topic = "GossipSub"
@@ -220,7 +221,8 @@ method rpcHandler(g: GossipSub,
             if msgs.len > 0:
               trace "forwarding message to", peerId = id
               sent.add(g.peers[p].send(@[RPCMsg(messages: msgs)]))
-            await allFutures(sent)
+            sent = await allFinished(sent)
+            checkFutures(sent)
 
     var respControl: ControlMessage
     if m.control.isSome:
@@ -408,7 +410,8 @@ method publish*(g: GossipSub,
       trace "publishing on topic", name = topic
       g.mcache.put(msg)
       sent.add(g.peers[p].send(@[RPCMsg(messages: @[msg])]))
-    await allFutures(sent)
+    sent = await allFinished(sent)
+    checkFutures(sent)
 
 method start*(g: GossipSub) {.async.} =
   ## start pubsub

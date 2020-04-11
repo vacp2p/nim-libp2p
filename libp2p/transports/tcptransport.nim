@@ -86,6 +86,7 @@ method init*(t: TcpTransport) =
 
   inc getTcpTransportTracker().opened
 
+
 method close*(t: TcpTransport) {.async, gcsafe.} =
   ## start the transport
   trace "stopping transport"
@@ -100,6 +101,7 @@ method close*(t: TcpTransport) {.async, gcsafe.} =
   trace "transport stopped"
 
   inc getTcpTransportTracker().closed
+
 
 method listen*(t: TcpTransport,
                ma: MultiAddress,
