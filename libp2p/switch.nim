@@ -19,6 +19,7 @@ import connection,
        protocols/identify,
        protocols/pubsub/pubsub,
        muxers/muxer,
+       errors,
        peer
 
 logScope:
@@ -309,11 +310,19 @@ proc start*(s: Switch): Future[seq[Future[void]]] {.async, gcsafe.} =
 proc stop*(s: Switch) {.async.} =
   trace "stopping switch"
 
-  if s.pubSub.isSome:
-    await s.pubSub.get().stop()
+  # we want to report erros but we do not want to fail
+  # or crash here, cos we need to clean possibly MANY items
+  # and any following conn/transport won't be cleaned up
+  var futs = newSeq[Future[void]]()
 
-  await allFutures(toSeq(s.connections.values).mapIt(s.cleanupConn(it)))
-  await allFutures(s.transports.mapIt(it.close()))
+  if s.pubSub.isSome:
+    futs &= s.pubSub.get().stop()
+
+  futs &= toSeq(s.connections.values).mapIt(s.cleanupConn(it))
+  futs &= s.transports.mapIt(it.close())
+
+  futs = await allFinished(futs)
+  checkFutures(futs)
 
 proc subscribeToPeer(s: Switch, peerInfo: PeerInfo) {.async, gcsafe.} =
   ## Subscribe to pub sub peer

@@ -61,7 +61,8 @@ method close*(t: TcpTransport): Future[void] {.async, gcsafe.} =
     t.server.stop()
     t.server.close()
     await t.server.join()
-    trace "transport stopped"
+
+  trace "transport stopped"
 
 method listen*(t: TcpTransport,
                ma: MultiAddress,

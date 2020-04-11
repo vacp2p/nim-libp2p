@@ -238,9 +238,8 @@ method validate*(p: PubSub, message: Message): Future[bool] {.async, base.} =
       # TODO: add timeout to validator
       pending.add(p.validators[topic].mapIt(it(topic, message)))
 
-  await allFutures(pending)
-  if pending.allIt(it.read()): # only if all passed
-    result = true
+  let futs = await allFinished(pending)
+  result = futs.allIt(not it.failed and it.read())
 
 proc newPubSub*(p: typedesc[PubSub],
                 peerInfo: PeerInfo,
