@@ -7,12 +7,13 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import unittest, sequtils
+import unittest, sequtils, options, tables, sets
 import chronos
 import utils,
        ../../libp2p/[switch,
                      crypto/crypto,
                      protocols/pubsub/pubsub,
+                     protocols/pubsub/floodsub,
                      protocols/pubsub/rpc/messages,
                      protocols/pubsub/rpc/message]
 
@@ -20,16 +21,16 @@ const
   StreamTransportTrackerName = "stream.transport"
   StreamServerTrackerName = "stream.server"
 
-# this is a quick and not too dirty hack to add some sort of determinism
-# as awaiting sequencially is not enough to garanteer consumers can receive
-# published stuff!
-template fuzzyWait(fut: FutureBase; body: untyped): untyped =
+proc waitSub(sender, receiver: auto; key: string) {.async, gcsafe.} =
+  # turn things deterministic
+  # this is for testing purposes only
   var ceil = 15
-  while not fut.finished and ceil > 0:
-    body
+  let fsub = cast[FloodSub](sender.pubSub.get())
+  while not fsub.floodsub.hasKey(key) or
+        not fsub.floodsub[key].contains(receiver.peerInfo.id):
     await sleepAsync(100.millis)
     dec ceil
-  doAssert(ceil > 0)
+    doAssert(ceil > 0, "waitSub timeout!")
 
 suite "FloodSub":
   teardown:
@@ -62,9 +63,9 @@ suite "FloodSub":
       await subscribeNodes(nodes)
 
       await nodes[1].subscribe("foobar", handler)
+      await waitSub(nodes[0], nodes[1], "foobar")
 
-      fuzzyWait completionFut:
-        await nodes[0].publish("foobar", cast[seq[byte]]("Hello!"))
+      await nodes[0].publish("foobar", cast[seq[byte]]("Hello!"))
 
       result = await completionFut.wait(5.seconds)
 
@@ -94,8 +95,9 @@ suite "FloodSub":
       await subscribeNodes(nodes)
 
       await nodes[0].subscribe("foobar", handler)
-      fuzzyWait completionFut:
-        await nodes[1].publish("foobar", cast[seq[byte]]("Hello!"))
+      await waitSub(nodes[1], nodes[0], "foobar")
+
+      await nodes[1].publish("foobar", cast[seq[byte]]("Hello!"))
 
       result = await completionFut.wait(5.seconds)
 
@@ -119,6 +121,7 @@ suite "FloodSub":
 
       await subscribeNodes(nodes)
       await nodes[1].subscribe("foobar", handler)
+      await waitSub(nodes[0], nodes[1], "foobar")
 
       var validatorFut = newFuture[bool]()
       proc validator(topic: string,
@@ -128,8 +131,8 @@ suite "FloodSub":
         result = true
 
       nodes[1].addValidator("foobar", validator)
-      fuzzyWait handlerFut:
-        await nodes[0].publish("foobar", cast[seq[byte]]("Hello!"))
+
+      await nodes[0].publish("foobar", cast[seq[byte]]("Hello!"))
 
       await allFutures(handlerFut, handlerFut)
       await allFutures(nodes[0].stop(), nodes[1].stop())
@@ -151,6 +154,7 @@ suite "FloodSub":
 
       await subscribeNodes(nodes)
       await nodes[1].subscribe("foobar", handler)
+      await waitSub(nodes[0], nodes[1], "foobar")
 
       var validatorFut = newFuture[bool]()
       proc validator(topic: string,
@@ -160,8 +164,7 @@ suite "FloodSub":
 
       nodes[1].addValidator("foobar", validator)
 
-      fuzzyWait validatorFut:
-        await nodes[0].publish("foobar", cast[seq[byte]]("Hello!"))
+      await nodes[0].publish("foobar", cast[seq[byte]]("Hello!"))
 
       await allFutures(nodes[0].stop(), nodes[1].stop())
       await allFutures(awaiters)
@@ -184,7 +187,9 @@ suite "FloodSub":
 
       await subscribeNodes(nodes)
       await nodes[1].subscribe("foo", handler)
+      await waitSub(nodes[0], nodes[1], "foo")
       await nodes[1].subscribe("bar", handler)
+      await waitSub(nodes[0], nodes[1], "bar")
 
       proc validator(topic: string,
                      message: Message): Future[bool] {.async.} =
@@ -194,9 +199,9 @@ suite "FloodSub":
           result = false
 
       nodes[1].addValidator("foo", "bar", validator)
-      fuzzyWait handlerFut:
-        await nodes[0].publish("foo", cast[seq[byte]]("Hello!"))
-        await nodes[0].publish("bar", cast[seq[byte]]("Hello!"))
+
+      await nodes[0].publish("foo", cast[seq[byte]]("Hello!"))
+      await nodes[0].publish("bar", cast[seq[byte]]("Hello!"))
 
       await allFutures(nodes[0].stop(), nodes[1].stop())
       await allFutures(awaiters)
@@ -209,35 +214,47 @@ suite "FloodSub":
     proc runTests(): Future[bool] {.async.} =
       var passed = 0
 
-      var futs = newSeq[(Future[void], TopicHandler)](10)
+      var futs = newSeq[(Future[void], TopicHandler, ref int)](10)
       for i in 0..<10:
-        var fut = newFuture[void]()
-        futs[i] = (
-          fut,
-          (proc(topic: string, data: seq[byte]) {.async, gcsafe.} =
-            check topic == "foobar"
-            if not fut.finished:
-              fut.complete())
-        )
+        var
+          index = i
+          fut = newFuture[void]()
+          counter = new int
+        echo cast[int](counter)
+        futs[i][0] = fut
+        futs[i][1] = proc(topic: string, data: seq[byte]) {.async, closure, gcsafe.} =
+          check topic == "foobar"
+          echo index
+          inc counter[]
+          echo counter[], " ", cast[int](counter)
+          if counter[] == 10:
+            fut.complete()
+        futs[i][2] = counter
 
-      var nodes: seq[Switch] = newSeq[Switch]()
-      for i in 0..<10:
-        nodes.add(newStandardSwitch())
-
-      await subscribeNodes(nodes)
+      var nodes = generateNodes(10)
 
       var awaitters: seq[Future[void]]
       for i in 0..<10:
         awaitters.add(await nodes[i].start())
+      
+      await subscribeNodes(nodes)
+
+      for i in 0..<10:
         await nodes[i].subscribe("foobar", futs[i][1])
 
-      var done = allFutures(futs.mapIt(it[0]))
-      fuzzyWait done:
-        var pubs: seq[Future[void]]
-        for i in 0..<10:
-          pubs &= nodes[i].publish("foobar", cast[seq[byte]]("Hello!"))
-        await allFutures(pubs)
+      var subs: seq[Future[void]]
+      for i in 0..<10:
+        for y in 0..<10:
+          if y != i:
+            subs &= waitSub(nodes[i], nodes[y], "foobar")
+      await allFutures(subs)
 
+      var pubs: seq[Future[void]]
+      for i in 0..<10:
+        pubs &= nodes[i].publish("foobar", cast[seq[byte]]("Hello!"))
+      await allFutures(pubs)
+
+      await allFutures(futs.mapIt(it[0])).wait(10.seconds)
       await allFutures(nodes.mapIt(it.stop()))
       await allFutures(awaitters)
     check:
