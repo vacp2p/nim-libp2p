@@ -49,11 +49,11 @@ type
 var secpContext {.threadvar.}: SkContext
   ## Thread local variable which holds current context
 
-proc illegalCallback(message: cstring, data: pointer) {.cdecl.} =
+proc illegalCallback(message: cstring, data: pointer) {.cdecl, raises: [].} =
   let ctx = cast[SkContext](data)
   ctx.error = $message
 
-proc errorCallback(message: cstring, data: pointer) {.cdecl.} =
+proc errorCallback(message: cstring, data: pointer) {.cdecl, raises: [].} =
   let ctx = cast[SkContext](data)
   ctx.error = $message
 
@@ -130,7 +130,7 @@ proc init*(key: var SkPublicKey, data: openarray[byte]): bool =
       return false
     let res = secp256k1_ec_pubkey_parse(ctx.context, addr key,
                                         cast[ptr cuchar](unsafeAddr data[0]),
-                                        length)
+                                        csize_t(length))
     result = (res == 1) and (len(ctx.error) == 0)
 
 proc init*(key: var SkPublicKey, data: string): bool =
@@ -155,7 +155,7 @@ proc init*(sig: var SkSignature, data: openarray[byte]): bool =
   if length >= 0:
     let res = secp256k1_ecdsa_signature_parse_der(ctx.context, addr sig,
                                            cast[ptr cuchar](unsafeAddr data[0]),
-                                                  csize(length))
+                                                  csize_t(length))
     result = (res == 1) and (len(ctx.error) == 0)
 
 proc init*(sig: var SkSignature, data: string): bool =
@@ -264,7 +264,7 @@ proc toBytes*(key: SkPublicKey, data: var openarray[byte]): int =
   ## Procedure returns number of bytes (octets) needed to store
   ## Secp256k1 public key.
   let ctx = getContext()
-  var length = csize(len(data))
+  var length = csize_t(len(data))
   result = SkRawPublicKeySize
   if len(data) >= SkRawPublicKeySize:
     discard secp256k1_ec_pubkey_serialize(ctx.context,
@@ -281,13 +281,13 @@ proc toBytes*(sig: SkSignature, data: var openarray[byte]): int =
   let ctx = getContext()
   var buffer: array[72, byte]
   let pdata = cast[ptr cuchar](addr buffer[0])
-  var plength = csize(len(buffer))
+  var plength = csize_t(len(buffer))
   discard secp256k1_ecdsa_signature_serialize_der(ctx.context, pdata,
                                                   addr plength,
                                                   unsafeAddr sig)
-  result = plength
-  if len(data) >= plength:
-    copyMem(addr data[0], addr buffer[0], plength)
+  result = int(plength)
+  if len(data) >= result:
+    copyMem(addr data[0], addr buffer[0], result)
 
 proc getBytes*(key: SkPrivateKey): seq[byte] {.inline.} =
   ## Serialize Secp256k1 `private key` and return it.
