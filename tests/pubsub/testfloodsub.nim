@@ -216,22 +216,24 @@ suite "FloodSub":
 
       var futs = newSeq[(Future[void], TopicHandler, ref int)](10)
       for i in 0..<10:
-        var
-          index = i
-          fut = newFuture[void]()
-          counter = new int
-        echo cast[int](counter)
-        futs[i][0] = fut
-        futs[i][1] = proc(topic: string, data: seq[byte]) {.async, closure, gcsafe.} =
-          check topic == "foobar"
-          echo index
-          inc counter[]
-          echo counter[], " ", cast[int](counter)
-          if counter[] == 10:
-            fut.complete()
-        futs[i][2] = counter
+        closureScope:
+          var
+            fut = newFuture[void]()
+            counter = new int
+          futs[i] = (
+            fut,
+            (proc(topic: string, data: seq[byte]) {.async, gcsafe.} =
+              check topic == "foobar"
+              inc counter[]
+              if counter[] == 9:
+                fut.complete()),
+            counter
+          )
 
-      var nodes = generateNodes(10)
+      var nodes: seq[Switch] = newSeq[Switch]()
+      for i in 0..<10:
+        nodes.add newStandardSwitch()
+
 
       var awaitters: seq[Future[void]]
       for i in 0..<10:
@@ -254,41 +256,64 @@ suite "FloodSub":
         pubs &= nodes[i].publish("foobar", cast[seq[byte]]("Hello!"))
       await allFutures(pubs)
 
-      await allFutures(futs.mapIt(it[0])).wait(10.seconds)
+      await allFutures(futs.mapIt(it[0]))
       await allFutures(nodes.mapIt(it.stop()))
       await allFutures(awaitters)
+
+      result = true
     check:
       waitFor(runTests()) == true
 
-  # test "FloodSub multiple peers, with self trigger":
-  #   proc runTests(): Future[bool] {.async.} =
-  #     var passed = 0
-  #     proc handler(topic: string, data: seq[byte]) {.async, gcsafe.} =
-  #       check topic == "foobar"
-  #       passed.inc()
+  test "FloodSub multiple peers, with self trigger":
+    proc runTests(): Future[bool] {.async.} =
+      var passed = 0
 
-  #     var nodes: seq[Switch] = newSeq[Switch]()
-  #     for i in 0..<10:
-  #       nodes.add newStandardSwitch(triggerSelf = true)
+      var futs = newSeq[(Future[void], TopicHandler, ref int)](10)
+      for i in 0..<10:
+        closureScope:
+          var
+            fut = newFuture[void]()
+            counter = new int
+          futs[i] = (
+            fut,
+            (proc(topic: string, data: seq[byte]) {.async, gcsafe.} =
+              check topic == "foobar"
+              inc counter[]
+              if counter[] == 10:
+                fut.complete()),
+            counter
+          )
 
-  #     var awaitters: seq[Future[void]]
-  #     for node in nodes:
-  #       awaitters.add((await node.start()))
-  #       await node.subscribe("foobar", handler)
-  #       await sleepAsync(100.millis)
+      var nodes: seq[Switch] = newSeq[Switch]()
+      for i in 0..<10:
+        nodes.add newStandardSwitch(triggerSelf = true)
 
-  #     await subscribeNodes(nodes)
-  #     await sleepAsync(1000.millis)
 
-  #     for node in nodes:
-  #       await node.publish("foobar", cast[seq[byte]]("Hello!"))
-  #       await sleepAsync(100.millis)
+      var awaitters: seq[Future[void]]
+      for i in 0..<10:
+        awaitters.add(await nodes[i].start())
 
-  #     await sleepAsync(1.minutes)
-  #     await allFutures(nodes.mapIt(it.stop()))
-  #     await allFutures(awaitters)
+      await subscribeNodes(nodes)
 
-  #     result = passed >= 20 # non deterministic, so at least 10 times
+      for i in 0..<10:
+        await nodes[i].subscribe("foobar", futs[i][1])
 
-  #   check:
-  #     waitFor(runTests()) == true
+      var subs: seq[Future[void]]
+      for i in 0..<10:
+        for y in 0..<10:
+          if y != i:
+            subs &= waitSub(nodes[i], nodes[y], "foobar")
+      await allFutures(subs)
+
+      var pubs: seq[Future[void]]
+      for i in 0..<10:
+        pubs &= nodes[i].publish("foobar", cast[seq[byte]]("Hello!"))
+      await allFutures(pubs)
+
+      await allFutures(futs.mapIt(it[0]))
+      await allFutures(nodes.mapIt(it.stop()))
+      await allFutures(awaitters)
+
+      result = true
+    check:
+      waitFor(runTests()) == true
