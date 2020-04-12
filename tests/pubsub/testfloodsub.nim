@@ -43,7 +43,6 @@ suite "FloodSub":
       ]
     for tracker in trackers:
       if not isNil(tracker):
-        echo tracker.dump()
         check tracker.isLeaked() == false
 
   test "FloodSub basic publish/subscribe A -> B":
