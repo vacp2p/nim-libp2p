@@ -9,11 +9,12 @@
 
 import chronos, chronicles
 import ringbuffer,
+       stream,
       ../varint,
       ../vbuffer
 
 const
-  DefaultBuffSize* = 1024
+  DefaultBuffSize* = 4 shl 20
   SafeVarintSize* = 4
 
 type
@@ -80,17 +81,18 @@ proc read(lp: LenPrefixed,
     trace "Exception occured", exc = exc.msg
     raise exc
 
-proc decode*(lp: LenPrefixed,
-             i: iterator(): Future[seq[byte]]):
-             iterator(): Future[seq[byte]] =
-  return iterator(): Future[seq[byte]] =
-    for chunk in i():
-      yield lp.read(chunk)
+proc decoder*(lp: LenPrefixed): Through[seq[byte]] =
+  return proc(i: Source[seq[byte]]): Source[seq[byte]] =
+    return iterator(): Future[seq[byte]] {.closure.} =
+      static: echo "i is ", typeof i
+      for chunk in i:
+        yield lp.read(chunk)
 
 proc write(lp: LenPrefixed,
-           i: iterator(): Future[seq[byte]]):
+           i: Source[seq[byte]]):
            Future[seq[byte]] {.async.} =
-  for chunk in i():
+
+  for chunk in i:
     lp.writeBuff.append((await chunk))
 
   var buf = initVBuffer()
@@ -98,8 +100,7 @@ proc write(lp: LenPrefixed,
   buf.finish()
   result = buf.buffer
 
-proc encode*(lp: LenPrefixed,
-             i: iterator(): Future[seq[byte]]):
-             iterator(): Future[seq[byte]] =
-  return iterator(): Future[seq[byte]] =
-    yield lp.write(i)
+proc encoder*(lp: LenPrefixed): Through[seq[byte]] =
+  return proc(i: Source[seq[byte]]): Source[seq[byte]] =
+    return iterator(): Future[seq[byte]] {.closure.} =
+      yield lp.write(i)
