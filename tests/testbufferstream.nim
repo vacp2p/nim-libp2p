@@ -1,5 +1,6 @@
 import unittest, strformat
 import chronos
+import ../libp2p/errors
 import ../libp2p/stream/bufferstream
 
 when defined(nimHasUsed): {.used.}
@@ -338,7 +339,7 @@ suite "BufferStream":
       await buf1.pushTo(cast[seq[byte]]("Hello2!"))
       await buf2.pushTo(cast[seq[byte]]("Hello1!"))
 
-      await allFutures(readFut1, readFut2)
+      await allFuturesThrowing(readFut1, readFut2)
 
       check:
         res1 == cast[seq[byte]]("Hello2!")
@@ -388,7 +389,7 @@ suite "BufferStream":
 
       await buf1.write(cast[seq[byte]]("Hello1!"))
       await buf2.write(cast[seq[byte]]("Hello2!"))
-      await allFutures(readFut1, readFut2)
+      await allFuturesThrowing(readFut1, readFut2)
 
       check:
         res1 == cast[seq[byte]]("Hello2!")
@@ -461,7 +462,7 @@ suite "BufferStream":
 
       await buf1.write(cast[seq[byte]]("Hello1!"))
       await buf2.write(cast[seq[byte]]("Hello2!"))
-      await allFutures(readFut1, readFut2)
+      await allFuturesThrowing(readFut1, readFut2)
 
       check:
         res1 == cast[seq[byte]]("Hello2!")
@@ -520,7 +521,7 @@ suite "BufferStream":
       var writerFut = writer()
       var readerFut = reader()
 
-      await allFutures(readerFut, writerFut)
+      await allFuturesThrowing(readerFut, writerFut)
       result = true
 
       await buf1.close()

@@ -263,9 +263,9 @@ proc rebalanceMesh(g: GossipSub, topic: string) {.async.} =
 
   if g.mesh[topic].len < GossipSubDlo:
     trace "replenishing mesh"
-    # replenish the mesh if we're bellow GossipSubDlo
+    # replenish the mesh if we're below GossipSubDlo
     while g.mesh[topic].len < GossipSubD:
-      trace "gattering peers", peers = g.mesh[topic].len
+      trace "gathering peers", peers = g.mesh[topic].len
       var id: string
       if topic in g.fanout and g.fanout[topic].len > 0:
         id = g.fanout[topic].pop()
@@ -457,6 +457,7 @@ when isMainModule:
   ##
 
   import unittest
+  import ../../errors
   import ../../stream/bufferstream
 
   type
@@ -505,7 +506,7 @@ when isMainModule:
         await gossipSub.rebalanceMesh(topic)
         check gossipSub.mesh[topic].len == GossipSubD
 
-        await allFutures(conns.mapIt(it.close()))
+        await allFuturesThrowing(conns.mapIt(it.close()))
 
         result = true
 
@@ -536,7 +537,7 @@ when isMainModule:
         await gossipSub.rebalanceMesh(topic)
         check gossipSub.mesh[topic].len == GossipSubD
 
-        await allFutures(conns.mapIt(it.close()))
+        await allFuturesThrowing(conns.mapIt(it.close()))
 
         result = true
 
@@ -570,7 +571,7 @@ when isMainModule:
         await gossipSub.replenishFanout(topic)
         check gossipSub.fanout[topic].len == GossipSubD
 
-        await allFutures(conns.mapIt(it.close()))
+        await allFuturesThrowing(conns.mapIt(it.close()))
 
         result = true
 
@@ -606,7 +607,7 @@ when isMainModule:
         await gossipSub.dropFanoutPeers()
         check topic notin gossipSub.fanout
 
-        await allFutures(conns.mapIt(it.close()))
+        await allFuturesThrowing(conns.mapIt(it.close()))
 
         result = true
 
@@ -649,7 +650,7 @@ when isMainModule:
         check topic1 notin gossipSub.fanout
         check topic2 in gossipSub.fanout
 
-        await allFutures(conns.mapIt(it.close()))
+        await allFuturesThrowing(conns.mapIt(it.close()))
 
         result = true
 
@@ -703,7 +704,7 @@ when isMainModule:
           check p notin gossipSub.fanout[topic]
           check p notin gossipSub.mesh[topic]
 
-        await allFutures(conns.mapIt(it.close()))
+        await allFuturesThrowing(conns.mapIt(it.close()))
 
         result = true
 
@@ -740,7 +741,7 @@ when isMainModule:
         let peers = gossipSub.getGossipPeers()
         check peers.len == GossipSubD
 
-        await allFutures(conns.mapIt(it.close()))
+        await allFuturesThrowing(conns.mapIt(it.close()))
 
         result = true
 
@@ -777,7 +778,7 @@ when isMainModule:
         let peers = gossipSub.getGossipPeers()
         check peers.len == GossipSubD
 
-        await allFutures(conns.mapIt(it.close()))
+        await allFuturesThrowing(conns.mapIt(it.close()))
 
         result = true
 
@@ -814,7 +815,7 @@ when isMainModule:
         let peers = gossipSub.getGossipPeers()
         check peers.len == 0
 
-        await allFutures(conns.mapIt(it.close()))
+        await allFuturesThrowing(conns.mapIt(it.close()))
 
         result = true
 

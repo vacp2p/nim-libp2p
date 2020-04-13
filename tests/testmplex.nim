@@ -1,6 +1,7 @@
 import unittest, sequtils, sugar, strformat, options, strformat, random
 import chronos, nimcrypto/utils, chronicles
-import ../libp2p/[connection,
+import ../libp2p/[errors,
+                  connection,
                   stream/lpstream,
                   stream/bufferstream,
                   transports/tcptransport,
@@ -421,7 +422,7 @@ suite "Mplex":
       await done.wait(5.seconds)
       await conn.close()
       await listenConn.close()
-      await allFutures(dialFut)
+      await allFuturesThrowing(dialFut)
       await mplexDial.close()
       await transport2.close()
       await transport1.close()

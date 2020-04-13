@@ -1,6 +1,7 @@
 import unittest, strutils, sequtils, strformat, options
 import chronos
-import ../libp2p/connection,
+import ../libp2p/errors,
+       ../libp2p/connection,
        ../libp2p/multistream,
        ../libp2p/stream/lpstream,
        ../libp2p/stream/bufferstream,
@@ -291,7 +292,7 @@ suite "Multistream select":
       await transport2.close()
       await transport1.close()
 
-      await allFutures(handlerWait1.wait(5000.millis) #[if OK won't happen!!]#, handlerWait2.wait(5000.millis) #[if OK won't happen!!]#)
+      await allFuturesThrowing(handlerWait1.wait(5000.millis) #[if OK won't happen!!]#, handlerWait2.wait(5000.millis) #[if OK won't happen!!]#)
 
     check:
       waitFor(endToEnd()) == true

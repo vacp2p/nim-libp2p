@@ -10,7 +10,9 @@
 import unittest, sequtils, options, tables, sets
 import chronos
 import utils,
-       ../../libp2p/[switch,
+       ../../libp2p/[errors,
+                     switch,
+                     stream/bufferstream,
                      crypto/crypto,
                      protocols/pubsub/pubsub,
                      protocols/pubsub/floodsub,
@@ -36,6 +38,7 @@ suite "FloodSub":
   teardown:
     let
       trackers = [
+        getTracker(BufferStreamTrackerName),
         getTracker(AsyncStreamWriterTrackerName),
         getTracker(AsyncStreamReaderTrackerName),
         getTracker(StreamTransportTrackerName),
@@ -68,14 +71,14 @@ suite "FloodSub":
 
       result = await completionFut.wait(5.seconds)
 
-      await allFutures(
+      await allFuturesThrowing(
         nodes[0].stop(),
         nodes[1].stop()
       )
 
       for fut in nodesFut:
         let res = fut.read()
-        await allFutures(res)
+        await allFuturesThrowing(res)
     check:
       waitFor(runTests()) == true
 
@@ -100,8 +103,8 @@ suite "FloodSub":
 
       result = await completionFut.wait(5.seconds)
 
-      await allFutures(nodes[0].stop(), nodes[1].stop())
-      await allFutures(awaiters)
+      await allFuturesThrowing(nodes[0].stop(), nodes[1].stop())
+      await allFuturesThrowing(awaiters)
 
     check:
       waitFor(runTests()) == true
@@ -133,9 +136,9 @@ suite "FloodSub":
 
       await nodes[0].publish("foobar", cast[seq[byte]]("Hello!"))
 
-      await allFutures(handlerFut, handlerFut)
-      await allFutures(nodes[0].stop(), nodes[1].stop())
-      await allFutures(awaiters)
+      await allFuturesThrowing(handlerFut, handlerFut)
+      await allFuturesThrowing(nodes[0].stop(), nodes[1].stop())
+      await allFuturesThrowing(awaiters)
       result = true
 
     check:
@@ -165,8 +168,8 @@ suite "FloodSub":
 
       await nodes[0].publish("foobar", cast[seq[byte]]("Hello!"))
 
-      await allFutures(nodes[0].stop(), nodes[1].stop())
-      await allFutures(awaiters)
+      await allFuturesThrowing(nodes[0].stop(), nodes[1].stop())
+      await allFuturesThrowing(awaiters)
       result = true
 
     check:
@@ -202,8 +205,8 @@ suite "FloodSub":
       await nodes[0].publish("foo", cast[seq[byte]]("Hello!"))
       await nodes[0].publish("bar", cast[seq[byte]]("Hello!"))
 
-      await allFutures(nodes[0].stop(), nodes[1].stop())
-      await allFutures(awaiters)
+      await allFuturesThrowing(nodes[0].stop(), nodes[1].stop())
+      await allFuturesThrowing(awaiters)
       result = true
 
     check:
@@ -248,16 +251,16 @@ suite "FloodSub":
         for y in 0..<10:
           if y != i:
             subs &= waitSub(nodes[i], nodes[y], "foobar")
-      await allFutures(subs)
+      await allFuturesThrowing(subs)
 
       var pubs: seq[Future[void]]
       for i in 0..<10:
         pubs &= nodes[i].publish("foobar", cast[seq[byte]]("Hello!"))
-      await allFutures(pubs)
+      await allFuturesThrowing(pubs)
 
-      await allFutures(futs.mapIt(it[0]))
-      await allFutures(nodes.mapIt(it.stop()))
-      await allFutures(awaitters)
+      await allFuturesThrowing(futs.mapIt(it[0]))
+      await allFuturesThrowing(nodes.mapIt(it.stop()))
+      await allFuturesThrowing(awaitters)
 
       result = true
     check:
@@ -302,16 +305,16 @@ suite "FloodSub":
         for y in 0..<10:
           if y != i:
             subs &= waitSub(nodes[i], nodes[y], "foobar")
-      await allFutures(subs)
+      await allFuturesThrowing(subs)
 
       var pubs: seq[Future[void]]
       for i in 0..<10:
         pubs &= nodes[i].publish("foobar", cast[seq[byte]]("Hello!"))
-      await allFutures(pubs)
+      await allFuturesThrowing(pubs)
 
-      await allFutures(futs.mapIt(it[0]))
-      await allFutures(nodes.mapIt(it.stop()))
-      await allFutures(awaitters)
+      await allFuturesThrowing(futs.mapIt(it[0]))
+      await allFuturesThrowing(nodes.mapIt(it.stop()))
+      await allFuturesThrowing(awaitters)
 
       result = true
     check:

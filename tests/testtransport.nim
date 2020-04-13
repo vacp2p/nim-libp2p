@@ -1,6 +1,7 @@
 import unittest
 import chronos
-import ../libp2p/[connection,
+import ../libp2p/[errors,
+                  connection,
                   transports/transport,
                   transports/tcptransport,
                   multiaddress,

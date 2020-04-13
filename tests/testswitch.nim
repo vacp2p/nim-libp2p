@@ -2,7 +2,8 @@ import unittest, tables
 import chronos
 import chronicles
 import nimcrypto/sysrand
-import ../libp2p/[switch,
+import ../libp2p/[errors,
+                  switch,
                   multistream,
                   protocols/identify,
                   connection,
@@ -103,7 +104,7 @@ suite "Switch":
       except LPStreamError:
         result = false
 
-      await allFutures(
+      await allFuturesThrowing(
         done.wait(5000.millis) #[if OK won't happen!!]#,
         conn.close(),
         switch1.stop(),
@@ -111,7 +112,7 @@ suite "Switch":
       )
 
       # this needs to go at end
-      await allFutures(awaiters)
+      await allFuturesThrowing(awaiters)
 
     check:
       waitFor(testSwitch()) == true
@@ -126,8 +127,6 @@ suite "Switch":
       var awaiters: seq[Future[void]]
 
       (switch1, peerInfo1) = createSwitch(ma1)
-
-      let done = newFuture[void]()
 
       proc handle(conn: Connection, proto: string) {.async, gcsafe.} =
         let msg = cast[string](await conn.readLp())
@@ -154,13 +153,12 @@ suite "Switch":
       except LPStreamError:
         result = false
 
-      await allFutures(
-        done.wait(5000.millis) #[if OK won't happen!!]#,
+      await allFuturesThrowing(
         conn.close(),
         switch1.stop(),
         switch2.stop()
       )
-      await allFutures(awaiters)
+      await allFuturesThrowing(awaiters)
 
     check:
       waitFor(testSwitch()) == true
