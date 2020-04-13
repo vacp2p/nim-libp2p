@@ -23,11 +23,16 @@ suite "LenPrefixed stream":
     proc test(): Future[bool] {.async.} =
       var lp = LenPrefixed.init()
       iterator stream(): Future[seq[byte]] {.closure.} =
-        var fut = newFuture[seq[byte]]()
-        fut.complete(cast[seq[byte]](@['\5', 'a', 'b', 'c', 'd', 'e']))
-        yield fut
+        for i in @['\5', 'a', 'b', 'c', 'd', 'e']:
+          var fut = newFuture[seq[byte]]()
+          fut.complete(cast[seq[byte]](@[i]))
+          yield fut
 
-      var decoded = await lp.decode(stream)()
+      var decoded: seq[byte]
+      var decodeStream = lp.decode(stream)
+      for i in decodeStream():
+        decoded.add(await i)
+
       check:
         decoded == cast[seq[byte]](@['a', 'b', 'c', 'd', 'e'])
       result = true
