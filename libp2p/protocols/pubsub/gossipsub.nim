@@ -87,7 +87,10 @@ method init(g: GossipSub) =
 
 method handleDisconnect(g: GossipSub, peer: PubSubPeer) {.async.} =
   ## handle peer disconnects
+  trace "peer disconnected", peer=peer.id
+
   await procCall FloodSub(g).handleDisconnect(peer)
+ 
   for t in g.gossipsub.keys:
     g.gossipsub[t].excl(peer.id)
 
