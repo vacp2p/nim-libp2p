@@ -8,24 +8,24 @@
 ## those terms.
 
 import chronos, chronicles
+import stream
 
 logScope:
   topic = "ChronosStream"
 
 const DefaultChunkSize* = 1 shl 20 # 1MB
 
-type ChronosStream* = ref object
+type ChronosStream* = ref object of Stream[seq[byte]]
     reader: AsyncStreamReader
     writer: AsyncStreamWriter
     server: StreamServer
     client: StreamTransport
     maxChunkSize: int
-    closed: bool
 
-proc init*[T](c: type[ChronosStream],
-              server: StreamServer,
-              client: StreamTransport,
-              maxChunkSize = DefaultChunkSize): c =
+proc init*(c: type[ChronosStream],
+           server: StreamServer,
+           client: StreamTransport,
+           maxChunkSize = DefaultChunkSize): c =
 
   ChronosStream(server: server,
                 client: client,
@@ -33,18 +33,33 @@ proc init*[T](c: type[ChronosStream],
                 writer: newAsyncStreamWriter(client),
                 maxChunkSize)
 
-proc close*(c: ChronosStream) =
-  c.closed = true
+proc close*(c: ChronosStream) {.async.} =
+  if not c.closed:
+    trace "shutting chronos stream", address = $c.client.remoteAddress()
+    if not c.writer.closed():
+      await c.writer.closeWait()
 
-iterator source*(c: ChronosStream, size: int = c.maxChunkSize): Future[seq[byte]] =
-  while not c.reader.atEof():
-      yield c.reader.read(c.maxChunkSize)
+    if not c.reader.closed():
+      await c.reader.closeWait()
 
-proc sink*(c: ChronosStream,
-          iter: iterator(): Future[seq[byte]]):
-          Future[void] {.async.}=
-  for chunk in iter():
-    if c.closed:
-      break
+    if not c.client.closed():
+      await c.client.closeWait()
 
-    await c.writer.write((await chunk))
+  c.isClosed = true
+
+proc atEof*(c: ChronosStream): bool =
+  c.reader.atEof()
+
+proc source*(c: ChronosStream,
+             size: int = c.maxChunkSize): Source[seq[byte]] =
+  return iterator(): Future[seq[byte]] =
+    while not c.reader.atEof():
+        yield c.reader.read(c.maxChunkSize)
+
+proc sink*(c: ChronosStream): Sink[seq[byte]] =
+  return proc(i: Source[seq[byte]]): Future[void] {.async.} =
+    for chunk in i:
+      if c.closed:
+        break
+
+      await c.writer.write((await chunk))
