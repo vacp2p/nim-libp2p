@@ -1,10 +1,7 @@
 type
   RingBuffer*[T: byte | char] = object
-    buff*: seq[T]
-    head: int
-    tail: int
-    size: int
-    len*: int
+    buff: seq[T]
+    head, tail, size, len: int
 
 const DefaultSize = 1024
 
@@ -197,7 +194,7 @@ when isMainModule:
     assert(buff.tail == 4, "tail should be 9")
 
   block:
-    ## Complex reading scenarios
+    ## Try reading more than buff contents
     var buff = RingBuffer[char].init(10)
     var data = newSeq[char](10)
 
@@ -210,6 +207,18 @@ when isMainModule:
     assert(buff.len == 0, "len should be 0")
     assert(buff.head == 1, "head should be 9")
     assert(buff.tail == 1, "tail should be 9")
+
+  block:
+    ## Read one by one
+    var buff = RingBuffer[char].init(10)
+
+    var contents = @['a', 'b', 'c', 'd', 'e']
+    buff.append(contents)
+    for i in 0..<buff.len:
+      assert(buff.read(1) == @[contents[i]])
+      assert(buff.len == 4 - i)
+      assert(buff.head == i + 1)
+      assert(buff.tail == 5)
 
   block:
     ## Error checking
