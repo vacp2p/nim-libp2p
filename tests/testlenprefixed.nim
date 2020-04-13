@@ -1,6 +1,6 @@
 import unittest
 import chronos
-import ../libp2p/stream/lenprefixed
+import ../libp2p/stream/[lenprefixed, stream]
 
 suite "LenPrefixed stream":
   test "encode":
@@ -11,7 +11,12 @@ suite "LenPrefixed stream":
         fut.complete(cast[seq[byte]](@['a', 'b', 'c', 'd', 'e']))
         yield fut
 
-      var encoded = await lp.encode(stream)()
+      var encode = lp.encoder()
+      var encoded: seq[byte]
+
+      for i in stream.encode():
+        encoded = await i
+
       check:
         encoded == cast[seq[byte]](@['\5', 'a', 'b', 'c', 'd', 'e'])
       result = true
@@ -29,8 +34,9 @@ suite "LenPrefixed stream":
           yield fut
 
       var decoded: seq[byte]
-      var decodeStream = lp.decode(stream)
-      for i in decodeStream():
+      var decode = lp.decoder()
+
+      for i in stream.decode():
         decoded.add(await i)
 
       check:
@@ -43,15 +49,17 @@ suite "LenPrefixed stream":
   test "pipe":
     proc test(): Future[bool] {.async.} =
       var lp = LenPrefixed.init()
-      iterator source(): Future[seq[byte]] {.closure.} =
+      iterator stream(): Future[seq[byte]] {.closure.} =
         for i in @['a', 'b', 'c', 'd', 'e']:
           var fut = newFuture[seq[byte]]()
           fut.complete(cast[seq[byte]](@[i]))
           yield fut
 
       var decoded: seq[byte]
-      var decodeStream = lp.decode(lp.encode(source))
-      for i in decodeStream():
+      var decode = lp.decoder()
+      var encode = lp.encoder()
+
+      for i in stream.encode.decode():
         decoded.add(await i)
 
       check:
