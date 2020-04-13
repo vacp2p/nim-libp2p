@@ -57,7 +57,7 @@ suite "GossipSub":
       ]
     for tracker in trackers:
       if not isNil(tracker):
-        # echo tracker.dump()
+        echo tracker.dump()
         check tracker.isLeaked() == false
 
   test "GossipSub validation should succeed":
@@ -381,10 +381,10 @@ suite "GossipSub":
 
   test "e2e - GossipSub send over fanout A -> B":
     proc runTests(): Future[bool] {.async.} =
-      var passed: bool
+      var passed = newFuture[void]()
       proc handler(topic: string, data: seq[byte]) {.async, gcsafe.} =
         check topic == "foobar"
-        passed = true
+        passed.complete()
 
       var nodes = generateNodes(2, true)
       var wait = newSeq[Future[void]]()
@@ -402,11 +402,13 @@ suite "GossipSub":
       check:
         "foobar" in gossipSub1.gossipsub
 
+      await passed.wait(5.seconds)
+
       await nodes[1].stop()
       await nodes[0].stop()
-
       await allFuturesThrowing(wait)
-      result = passed
+
+      result = true
 
     check:
       waitFor(runTests()) == true
@@ -468,6 +470,7 @@ suite "GossipSub":
       await waitSub(nodes[0], nodes[1], "foobar")
 
       await nodes[0].publish("foobar", cast[seq[byte]]("Hello!"))
+
       result = await passed
 
       await nodes[0].stop()
