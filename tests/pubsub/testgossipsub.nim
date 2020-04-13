@@ -33,13 +33,15 @@ proc waitSub(sender, receiver: auto; key: string) {.async, gcsafe.} =
     return
   # turn things deterministic
   # this is for testing purposes only
-  # peers can be inside `mesh`, not just `gossipsub`
+  # peers can be inside `mesh` and `fanout`, not just `gossipsub`
   var ceil = 15
   let fsub = cast[GossipSub](sender.pubSub.get())
   while (not fsub.gossipsub.hasKey(key) or
          not fsub.gossipsub[key].contains(receiver.peerInfo.id)) and
         (not fsub.mesh.hasKey(key) or
-         not fsub.mesh[key].contains(receiver.peerInfo.id)):
+         not fsub.mesh[key].contains(receiver.peerInfo.id)) and
+        (not fsub.fanout.hasKey(key) or
+         not fsub.fanout[key].contains(receiver.peerInfo.id)):
     trace "waitSub sleeping...", peers=fsub.gossipsub[key]
     await sleepAsync(100.millis)
     dec ceil
@@ -57,7 +59,7 @@ suite "GossipSub":
       ]
     for tracker in trackers:
       if not isNil(tracker):
-        echo tracker.dump()
+        # echo tracker.dump()
         check tracker.isLeaked() == false
 
   test "GossipSub validation should succeed":
