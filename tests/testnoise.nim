@@ -13,6 +13,7 @@ import chronicles
 import nimcrypto/sysrand
 import ../libp2p/crypto/crypto
 import ../libp2p/[switch,
+                  errors,
                   multistream,
                   stream/bufferstream,
                   protocols/identify,
@@ -227,8 +228,8 @@ suite "Noise":
       let msg = cast[string](await conn.readLp())
       check "Hello!" == msg
 
-      await allFutures(switch1.stop(), switch2.stop())
-      await allFutures(awaiters)
+      await allFuturesThrowing(switch1.stop(), switch2.stop())
+      await allFuturesThrowing(awaiters)
       result = true
 
     check:
