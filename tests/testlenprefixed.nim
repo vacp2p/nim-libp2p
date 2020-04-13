@@ -39,3 +39,24 @@ suite "LenPrefixed stream":
 
     check:
       waitFor(test()) == true
+
+  test "pipe":
+    proc test(): Future[bool] {.async.} =
+      var lp = LenPrefixed.init()
+      iterator source(): Future[seq[byte]] {.closure.} =
+        for i in @['a', 'b', 'c', 'd', 'e']:
+          var fut = newFuture[seq[byte]]()
+          fut.complete(cast[seq[byte]](@[i]))
+          yield fut
+
+      var decoded: seq[byte]
+      var decodeStream = lp.decode(lp.encode(source))
+      for i in decodeStream():
+        decoded.add(await i)
+
+      check:
+        decoded == cast[seq[byte]](@['a', 'b', 'c', 'd', 'e'])
+      result = true
+
+    check:
+      waitFor(test()) == true
