@@ -72,7 +72,6 @@ proc read(lp: LenPrefixed,
         lp.mode = Mode.Reading
       else:
         result = lp.readBuff.read(lp.size)
-        echo result
         lp.size -= result.len
         if lp.size == 0:
           lp.mode = Mode.Decoding

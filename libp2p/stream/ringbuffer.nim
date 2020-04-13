@@ -110,7 +110,7 @@ proc read*[T](b: var RingBuffer[T], size: int = -1): seq[T] =
   ## assert(buff.read() == @[...])
   ##
   var isize = size
-  if size < 0:
+  if size < 0 or size > b.len:
     isize = b.len
 
   result = newSeq[T](isize)
@@ -131,7 +131,9 @@ proc clear*[T](b: var RingBuffer[T]) =
   b.buff.setLen(0)
 
 when isMainModule:
-  block Basic:
+
+  block:
+    ## Basic tests
     var buff = RingBuffer[char].init(10)
     var data = newSeq[char](10)
 
@@ -194,7 +196,23 @@ when isMainModule:
     assert(buff.head == 4, "head should be 9")
     assert(buff.tail == 4, "tail should be 9")
 
-  block Errors:
+  block:
+    ## Complex reading scenarios
+    var buff = RingBuffer[char].init(10)
+    var data = newSeq[char](10)
+
+    buff.append(@['a'])
+    assert(buff.len == 1, "len should be 1")
+    assert(buff.head == 0, "head should be 0")
+    assert(buff.tail == 1, "tail should be 1")
+
+    assert(buff.read(5) == @['a'])
+    assert(buff.len == 0, "len should be 0")
+    assert(buff.head == 1, "head should be 9")
+    assert(buff.tail == 1, "tail should be 9")
+
+  block:
+    ## Error checking
     var buff = RingBuffer[char].init(5)
 
     try:
@@ -219,7 +237,8 @@ when isMainModule:
     except CatchableError as exc:
       assert(true)
 
-  block Cleanup:
+  block:
+    ## Cleanup
     var buff = RingBuffer[char].init(5)
 
     buff.reset()
