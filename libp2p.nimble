@@ -16,8 +16,8 @@ requires "nim > 0.19.4",
          "stew"
 
 proc runTest(filename: string) =
-  exec "nim --opt:speed -d:release c -r tests/" & filename
-  # rmFile "tests/" & filename
+  exec "nim c -r --opt:speed -d:debug --verbosity:0 --hints:off tests/" & filename
+  rmFile "tests/" & filename.toExe
 
 task test, "Runs the test suite":
   runTest "testnative"

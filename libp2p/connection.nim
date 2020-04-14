@@ -7,7 +7,7 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import chronos, chronicles
+import chronos, chronicles, oids
 import peerinfo,
        multiaddress,
        stream/lpstream,
@@ -54,6 +54,8 @@ proc init*[T: Connection](self: var T, stream: LPStream): T =
   new self
   self.stream = stream
   self.closeEvent = newAsyncEvent()
+  when chronicles.enabledLogLevel == LogLevel.TRACE:
+    self.oid = genOid()
   asyncCheck self.bindStreamClose()
 
   return self
