@@ -31,7 +31,7 @@
 ## buffer goes below ``maxSize`` or more data becomes available.
 
 import deques, math, oids
-import chronos, chronicles
+import chronos, chronicles, metrics
 import ../stream/lpstream
 
 const DefaultBufferSize* = 1024
@@ -51,6 +51,8 @@ type
 
   AlreadyPipedError* = object of CatchableError
   NotWritableError* = object of CatchableError
+
+declareGauge libp2p_open_bufferstream, "open BufferStream instances"
 
 proc newAlreadyPipedError*(): ref Exception {.inline.} =
   result = newException(AlreadyPipedError, "stream already piped")
@@ -77,6 +79,8 @@ proc initBufferStream*(s: BufferStream,
   s.closeEvent = newAsyncEvent()
   when chronicles.enabledLogLevel == LogLevel.TRACE:
     s.oid = genOid()
+  s.isClosed = false
+  libp2p_open_bufferstream.inc()
 
 proc newBufferStream*(handler: WriteHandler = nil,
                       size: int = DefaultBufferSize): BufferStream =
@@ -386,11 +390,14 @@ proc `|`*(s: BufferStream, target: BufferStream): BufferStream =
 
 method close*(s: BufferStream) {.async.} =
   ## close the stream and clear the buffer
-  trace "closing bufferstream"
-  for r in s.readReqs:
-    if not(isNil(r)) and not(r.finished()):
-      r.fail(newLPStreamEOFError())
-  s.dataReadEvent.fire()
-  s.readBuf.clear()
-  s.closeEvent.fire()
-  s.isClosed = true
+  if not s.isClosed:
+    trace "closing bufferstream"
+    for r in s.readReqs:
+      if not(isNil(r)) and not(r.finished()):
+        r.fail(newLPStreamEOFError())
+    s.dataReadEvent.fire()
+    s.readBuf.clear()
+    s.closeEvent.fire()
+    s.isClosed = true
+    libp2p_open_bufferstream.dec()
+
