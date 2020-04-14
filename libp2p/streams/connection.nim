@@ -13,26 +13,24 @@ import stream,
        ../multiaddress
 
 type
-  Connection* = ref object of Stream[seq[byte]]
+  Connection* = ref object of Stream
     peerInfo*: PeerInfo
     observedAddr*: MultiAddress
-    stream*: Stream[seq[byte]]
+    stream*: Stream
 
-proc init*[T](C: type[Connection],
-              stream: T,
-              peerInfo: PeerInfo = nil): C =
+proc init*(C: type[Connection],
+           stream: Stream,
+           peerInfo: PeerInfo = nil): C =
   Connection(stream: stream, peerInfo: peerInfo)
 
 proc source*(s: Connection): Source[seq[byte]] =
-  result = s.stream.source()
+  source(s.stream)
 
 proc sink*(s: Connection): Sink[seq[byte]] =
-  static:
-    echo "type of stream ", typeof s.stream
-  result = s.stream.sink()
+  sink(s.stream)
 
 proc close*(s: Connection) {.async.} =
-  result = s.stream.close()
+  result = close(s.stream)
 
 proc closed*(s: Connection): bool =
   s.stream.isClosed

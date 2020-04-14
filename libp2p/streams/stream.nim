@@ -15,27 +15,25 @@ type
   Sink*[T] = proc(i: Source[T]): Future[void]
   Duplex*[T] = Source[T] | Sink[T]
 
-  Stream*[T] = ref object of RootObj
+  Stream* = ref object of RootObj
     isClosed*: bool
 
-  ByteStream* = Stream[seq[byte]]
-
-proc source*[T](s: Stream[T]): Source[seq[byte]] =
+method source*(s: Stream): Source[seq[byte]] {.base.} =
   discard
 
-proc sink*[T](s: Stream[T]): Sink[seq[byte]] =
+method sink*(s: Stream): Sink[seq[byte]] {.base.} =
   discard
 
-proc atEof*[T](s: Stream[T]): bool =
+method atEof*(s: Stream): bool {.base.} =
   false
 
-proc close*[T](s: Stream[T]) {.async.} =
+method close*(s: Stream) {.async, base.} =
   s.isClosed = true
 
-proc closed*[T](s: Stream[T]): bool =
+method closed*(s: Stream): bool {.base.} =
   s.isClosed
 
-proc duplex*[T](s: Stream[T]): (Source[T], Sink[T]) =
+proc duplex*[T](s: Stream): (Source[T], Sink[T]) =
   (s.source, s.sink)
 
 iterator items*[T](i: Source[T]): Future[T] =

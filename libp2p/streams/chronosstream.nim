@@ -15,7 +15,7 @@ logScope:
 
 const DefaultChunkSize* = 1 shl 20 # 1MB
 
-type ChronosStream* = ref object of Stream[seq[byte]]
+type ChronosStream* = ref object of Stream
     reader: AsyncStreamReader
     writer: AsyncStreamWriter
     server: StreamServer
@@ -33,21 +33,22 @@ proc init*(C: type[ChronosStream],
                 writer: newAsyncStreamWriter(client),
                 maxChunkSize: maxChunkSize)
 
-
-proc source*(c: ChronosStream): Source[seq[byte]] =
+method source*(c: ChronosStream): Source[seq[byte]] =
   return iterator(): Future[seq[byte]] =
     while not c.reader.atEof():
         yield c.reader.read(c.maxChunkSize)
 
-proc sink*(c: ChronosStream): Sink[seq[byte]] =
+method sink*(c: ChronosStream): Sink[seq[byte]] =
   return proc(i: Source[seq[byte]]) {.async.} =
     for chunk in i:
       if c.closed:
         break
 
-      await c.writer.write((await chunk))
+      # saddly `await c.writer.write((await chunk))` breaks
+      var cchunk = await chunk
+      await c.writer.write(cchunk)
 
-proc close*(c: ChronosStream) {.async.} =
+method close*(c: ChronosStream) {.async.} =
   if not c.closed:
     trace "shutting chronos stream", address = $c.client.remoteAddress()
     if not c.writer.closed():
@@ -61,5 +62,5 @@ proc close*(c: ChronosStream) {.async.} =
 
   c.isClosed = true
 
-proc atEof*(c: ChronosStream): bool =
+method atEof*(c: ChronosStream): bool =
   c.reader.atEof()
