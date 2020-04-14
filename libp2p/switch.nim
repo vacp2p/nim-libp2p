@@ -324,6 +324,8 @@ proc stop*(s: Switch) {.async.} =
   futs = await allFinished(futs)
   checkFutures(futs)
 
+  trace "switch stopped"
+
 proc subscribeToPeer(s: Switch, peerInfo: PeerInfo) {.async, gcsafe.} =
   ## Subscribe to pub sub peer
   if s.pubSub.isSome and peerInfo.id notin s.dialedPubSubPeers:

@@ -189,7 +189,7 @@ method readExactly*(s: BufferStream,
   try:
     buff = await s.read(nbytes)
   except LPStreamEOFError as exc:
-    trace "Exception occured", exc = exc.msg
+    trace "Exception occurred", exc = exc.msg
 
   if nbytes > buff.len():
     raise newLPStreamIncompleteError()
