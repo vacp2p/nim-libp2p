@@ -7,8 +7,9 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import chronos, chronicles, sequtils
+import chronos, chronicles, sequtils, sets
 import transport,
+       ../errors,
        ../wire,
        ../connection,
        ../multiaddress,
@@ -24,6 +25,8 @@ const
 type
   TcpTransport* = ref object of Transport
     server*: StreamServer
+    cleanups*: seq[Future[void]]
+    handlers*: seq[Future[void]]
 
   TcpTransportTracker* = ref object of TrackerBase
     opened*: uint64
@@ -58,34 +61,34 @@ proc cleanup(t: Transport, conn: Connection) {.async.} =
   trace "connection cleanup event wait ended"
   t.connections.keepItIf(it != conn)
 
-proc connHandler*(t: Transport,
+proc connHandler*(t: TcpTransport,
                   server: StreamServer,
                   client: StreamTransport,
-                  initiator: bool = false):
-                  Future[Connection] {.async, gcsafe.} =
+                  initiator: bool): Connection =
   trace "handling connection for", address = $client.remoteAddress
   let conn: Connection = newConnection(newChronosStream(server, client))
   conn.observedAddrs = MultiAddress.init(client.remoteAddress)
   if not initiator:
     if not isNil(t.handler):
-      asyncCheck t.handler(conn)
+      t.handlers &= t.handler(conn)
 
     t.connections.add(conn)
-    asyncCheck t.cleanup(conn)
+    t.cleanups &= t.cleanup(conn)
 
   result = conn
 
 proc connCb(server: StreamServer,
             client: StreamTransport) {.async, gcsafe.} =
   trace "incomming connection for", address = $client.remoteAddress
-  let t: Transport = cast[Transport](server.udata)
-  asyncCheck t.connHandler(server, client)
+  let t = cast[TcpTransport](server.udata)
+  # we don't need result connection in this case
+  # as it's added inside connHandler
+  discard t.connHandler(server, client, false)
 
 method init*(t: TcpTransport) =
   t.multicodec = multiCodec("tcp")
 
   inc getTcpTransportTracker().opened
-
 
 method close*(t: TcpTransport) {.async, gcsafe.} =
   ## start the transport
@@ -95,13 +98,23 @@ method close*(t: TcpTransport) {.async, gcsafe.} =
   # server can be nil
   if not isNil(t.server):
     t.server.stop()
-    t.server.close()
-    await t.server.join()
+    await t.server.closeWait()
+
+  for fut in t.handlers:
+    if not fut.finished:
+      fut.cancel()
+  t.handlers = await allFinished(t.handlers)
+  checkFutures(t.handlers)
+
+  for fut in t.cleanups:
+    if not fut.finished:
+      fut.cancel()
+  t.cleanups = await allFinished(t.cleanups)
+  checkFutures(t.cleanups)
 
   trace "transport stopped"
 
   inc getTcpTransportTracker().closed
-
 
 method listen*(t: TcpTransport,
                ma: MultiAddress,
@@ -124,7 +137,7 @@ method dial*(t: TcpTransport,
   trace "dialing remote peer", address = $address
   ## dial a peer
   let client: StreamTransport = await connect(address)
-  result = await t.connHandler(t.server, client, true)
+  result = t.connHandler(t.server, client, true)
 
 method handles*(t: TcpTransport, address: MultiAddress): bool {.gcsafe.} =
   if procCall Transport(t).handles(address):

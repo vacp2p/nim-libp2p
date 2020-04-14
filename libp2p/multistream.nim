@@ -148,6 +148,8 @@ proc handle*(m: MultistreamSelect, conn: Connection) {.async, gcsafe.} =
               try:
                 await h.protocol.handler(conn, ms)
                 return
+              except CancelledError:
+                return
               except CatchableError as exc:
                 warn "exception while handling", msg = exc.msg
                 return
