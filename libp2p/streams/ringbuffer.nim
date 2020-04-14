@@ -1,18 +1,9 @@
 type
   RingBuffer*[T: byte | char] = object
     buff: seq[T]
-    head, tail, size: int
-    len*: int
+    head, tail, size, len: int
 
 const DefaultSize = 1024
-
-## A bare bones ring buffer suited for byte oriented data.
-## The buffer uses `shallowCopy` when appending and reading
-## data to overcome Nim's copy semantics.
-##
-## This is a FIFO data structure, data is always appended to the end
-## and read from the front.
-##
 
 proc init*[T](b: type[RingBuffer[T]], size = DefaultSize): b =
   ## Create and initialize the ring buffer. Takes an optional
@@ -30,9 +21,7 @@ proc init*[T](b: type[RingBuffer[T]], size = DefaultSize): b =
   RingBuffer[T](buff: newSeq[T](size), size: size)
 
 proc append*[T](b: var RingBuffer[T], data: openArray[T]) =
-  ## Append data to the end of the buffer. ``data`` will be
-  ## ``shallowCopy``ed into the buffer to overcome Nim's copy
-  ## semantics for ``seq``.
+  ## Append ``data`` to the end of the buffer.
   ##
   ## .. code-block:: nim
   ##    buff.append(@['a', 'b', 'b', 'c', 'd'])
@@ -41,7 +30,7 @@ proc append*[T](b: var RingBuffer[T], data: openArray[T]) =
     raise newException(CatchableError, "Buffer would overflow!")
 
   for i in data:
-    shallowCopy(b.buff[b.tail], i)
+    b.buff[b.tail] = i
     if b.tail == b.size - 1:
       b.tail = 0
     else:
@@ -82,7 +71,7 @@ proc read*[T](b: var RingBuffer[T],
     isize = size
 
   while result < isize:
-    shallowCopy(data[result], b.buff[b.head])
+    data[result] = b.buff[b.head]
     if b.len == 0:
       break
 
@@ -197,7 +186,6 @@ when isMainModule:
   block:
     ## Try reading more than buff contents
     var buff = RingBuffer[char].init(10)
-    var data = newSeq[char](10)
 
     buff.append(@['a'])
     assert(buff.len == 1, "len should be 1")
