@@ -406,8 +406,10 @@ suite "GossipSub":
 
       await passed.wait(5.seconds)
 
-      await nodes[1].stop()
+      trace "test done, stopping..."
+
       await nodes[0].stop()
+      await nodes[1].stop()
       await allFuturesThrowing(wait)
 
       result = true
@@ -417,13 +419,13 @@ suite "GossipSub":
 
   # test "send over mesh A -> B":
   #   proc runTests(): Future[bool] {.async.} =
-  #     var passed: bool
+  #     var passed = newFuture[void]()
   #     proc handler(topic: string, data: seq[byte]) {.async, gcsafe.} =
   #       check:
   #         topic == "foobar"
   #         cast[string](data) == "Hello!"
 
-  #       passed = true
+  #       passed.complete()
 
   #     let gossip1 = createGossipSub()
   #     let gossip2 = createGossipSub()
@@ -449,7 +451,11 @@ suite "GossipSub":
 
   #     await gossip2.publish("foobar", cast[seq[byte]]("Hello!"))
   #     await sleepAsync(1.seconds)
-  #     result = passed
+
+  #     await passed.wait(5.seconds)
+  #     result = true
+
+  #     await allFuturesThrowing(buf1.close(), buf2.close())
 
   #   check:
   #     waitFor(runTests()) == true
