@@ -18,6 +18,9 @@ const
   SafeVarintSize* = 4
 
 type
+  InvalidVarintException* = object of CatchableError
+  InvalidVarintSizeException* = object of CatchableError
+
   LenPrefixed* = ref object
     readBuff: RingBuffer[byte]
     writeBuff: RingBuffer[byte]
@@ -25,9 +28,6 @@ type
     size: int
 
   Mode {.pure.} = enum Decoding, Reading
-
-  InvalidVarintException* = object of CatchableError
-  InvalidVarintSizeException* = object of CatchableError
 
 proc newInvalidVarintException*(): ref InvalidVarintException =
   newException(InvalidVarintException, "Unable to parse varint")

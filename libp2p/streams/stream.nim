@@ -18,14 +18,25 @@ type
   Stream*[T] = ref object of RootObj
     isClosed*: bool
 
+  ByteStream* = Stream[seq[byte]]
+
+proc source*[T](s: Stream[T]): Source[seq[byte]] =
+  discard
+
+proc sink*[T](s: Stream[T]): Sink[seq[byte]] =
+  discard
+
 proc atEof*[T](s: Stream[T]): bool =
   false
 
 proc close*[T](s: Stream[T]) {.async.} =
-  discard
+  s.isClosed = true
 
 proc closed*[T](s: Stream[T]): bool =
   s.isClosed
+
+proc duplex*[T](s: Stream[T]): (Source[T], Sink[T]) =
+  (s.source, s.sink)
 
 iterator items*[T](i: Source[T]): Future[T] =
   ## Workaround semcheck, inlining everything allow proper iteration
