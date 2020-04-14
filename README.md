@@ -70,7 +70,7 @@ Please read the [GETTING_STARTED.md](docs/GETTING_STARTED.md) guide.
 Examples can be found in the [examples folder](/examples).
 
 ### Using the Go Daemon
-Please find the installation and usage intructions in [daemonapi.md](docs/api/daemonapi.md). 
+Please find the installation and usage intructions in [daemonapi.md](docs/api/libp2p/daemonapi.md). 
 
 Examples can be found in the [examples/go-daemon folder](https://github.com/status-im/nim-libp2p/tree/readme/examples/go-daemon);
 
