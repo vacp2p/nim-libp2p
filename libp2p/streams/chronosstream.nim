@@ -7,19 +7,23 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
+# {.push raises: [].}
+
 import chronos, chronicles
-import stream, ringbuffer
+import stream
 
 logScope:
   topic = "ChronosStream"
 
 const DefaultChunkSize* = 1 shl 20 # 1MB
+# const DefaultChunkSize* = 10
 
 type ChronosStream* = ref object of Stream
     reader: AsyncStreamReader
     writer: AsyncStreamWriter
     server: StreamServer
     client: StreamTransport
+    eof: bool
     buffer: seq[byte]
     maxChunkSize: int
 
@@ -36,14 +40,18 @@ proc init*(C: type[ChronosStream],
                 buffer: newSeq[byte](maxChunkSize))
 
 proc internalRead(c: ChronosStream): Future[seq[byte]] {.async.} =
-  var buff = newSeq[byte](1024)
-  var read = await c.reader.readOnce(unsafeAddr buff[0], buff.len)
-  result = buff[0..<read]
+  var read = await c.reader.readOnce(addr c.buffer[0], c.buffer.len)
+  if read <= 0:
+    c.eof = true
+    return
+
+  result = c.buffer[0..<read]
 
 method source*(c: ChronosStream): Source[seq[byte]] =
   return iterator(): Future[seq[byte]] =
-    while not c.reader.atEof():
+    while not c.atEof():
       yield c.internalRead()
+      echo c.buffer
 
 method sink*(c: ChronosStream): Sink[seq[byte]] =
   return proc(i: Source[seq[byte]]) {.async.} =
@@ -55,7 +63,7 @@ method sink*(c: ChronosStream): Sink[seq[byte]] =
       var cchunk = await chunk
       await c.writer.write(cchunk)
 
-method close*(c: ChronosStream) {.async.} =
+proc close*(c: ChronosStream) {.async.} =
   if not c.closed:
     trace "shutting chronos stream", address = $c.client.remoteAddress()
     if not c.writer.closed():
@@ -69,5 +77,7 @@ method close*(c: ChronosStream) {.async.} =
 
   c.isClosed = true
 
-method atEof*(c: ChronosStream): bool =
-  c.reader.atEof()
+proc atEof*(c: ChronosStream): bool =
+  c.eof
+
+# {.pop.}
