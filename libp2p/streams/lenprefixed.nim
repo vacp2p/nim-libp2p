@@ -21,7 +21,7 @@ type
   InvalidVarintException* = object of CatchableError
   InvalidVarintSizeException* = object of CatchableError
 
-  LenPrefixed* = ref object
+  LenPrefixed* = object
     readBuff: RingBuffer[byte]
     writeBuff: RingBuffer[byte]
     mode: Mode
@@ -40,7 +40,7 @@ proc init*(lp: type[LenPrefixed], maxSize: int = DefaultBuffSize): lp =
               writeBuff: RingBuffer[byte].init(maxSize),
               mode: Mode.Decoding)
 
-proc decodeLen(lp: LenPrefixed): int =
+proc decodeLen(lp: var LenPrefixed): int =
   var
     size: uint
     length: int
@@ -60,7 +60,7 @@ proc decodeLen(lp: LenPrefixed): int =
 
   return size.int
 
-proc read(lp: LenPrefixed,
+proc read(lp: var LenPrefixed,
           chunk: Future[seq[byte]]):
           Future[seq[byte]] {.async, gcsafe.} =
   try:
@@ -81,14 +81,13 @@ proc read(lp: LenPrefixed,
     trace "Exception occured", exc = exc.msg
     raise exc
 
-proc decoder*(lp: LenPrefixed): Through[seq[byte]] =
+proc decoder*(lp: var LenPrefixed): Through[seq[byte]] =
   return proc(i: Source[seq[byte]]): Source[seq[byte]] =
     return iterator(): Future[seq[byte]] {.closure.} =
-      static: echo "i is ", typeof i
       for chunk in i:
         yield lp.read(chunk)
 
-proc write(lp: LenPrefixed,
+proc write(lp: var LenPrefixed,
            i: Source[seq[byte]]):
            Future[seq[byte]] {.async.} =
 
@@ -100,7 +99,7 @@ proc write(lp: LenPrefixed,
   buf.finish()
   result = buf.buffer
 
-proc encoder*(lp: LenPrefixed): Through[seq[byte]] =
+proc encoder*(lp: var LenPrefixed): Through[seq[byte]] =
   return proc(i: Source[seq[byte]]): Source[seq[byte]] =
     return iterator(): Future[seq[byte]] {.closure.} =
       yield lp.write(i)
