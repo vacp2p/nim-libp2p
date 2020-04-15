@@ -16,7 +16,6 @@ logScope:
   topic = "ChronosStream"
 
 const DefaultChunkSize* = 1 shl 20 # 1MB
-# const DefaultChunkSize* = 10
 
 type ChronosStream* = ref object of Stream
     reader: AsyncStreamReader
