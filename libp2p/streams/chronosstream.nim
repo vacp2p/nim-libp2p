@@ -22,7 +22,6 @@ type ChronosStream* = ref object of Stream
     writer: AsyncStreamWriter
     server: StreamServer
     client: StreamTransport
-    eof: bool
     buffer: seq[byte]
     maxChunkSize: int
 
@@ -74,7 +73,7 @@ proc close*(c: ChronosStream) {.async.} =
     if not c.client.closed():
       await c.client.closeWait()
 
-  c.isClosed = true
+  c.closed = true
 
 proc atEof*(c: ChronosStream): bool =
   c.eof

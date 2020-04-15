@@ -16,7 +16,8 @@ type
   Duplex*[T] = Source[T] | Sink[T]
 
   Stream* = ref object of RootObj
-    isClosed*: bool
+    closed*: bool
+    eof*: bool
 
 method source*(s: Stream): Source[seq[byte]] {.base.} =
   doAssert(false, "Not implemented!")
@@ -25,19 +26,15 @@ method sink*(s: Stream): Sink[seq[byte]] {.base.} =
   doAssert(false, "Not implemented!")
 
 proc atEof*(s: Stream): bool =
-  false
+  s.eof
 
 proc close*(s: Stream) {.async.} =
-  s.isClosed = true
-
-proc closed*(s: Stream): bool =
-  s.isClosed
+  s.closed = true
 
 proc duplex*[T](s: Stream): (Source[T], Sink[T]) =
   (s.source, s.sink)
 
 iterator items*[T](i: Source[T]): Future[T] =
-  ## Workaround semcheck, inlining everything allow proper iteration
   while true:
     var item = i()
     if i.finished:
