@@ -33,7 +33,7 @@ proc close*(s: Connection) {.async.} =
   result = close(s.stream)
 
 proc closed*(s: Connection): bool =
-  s.stream.isClosed
+  s.stream.closed
 
 proc getObservedAddrs*(c: Connection): Future[MultiAddress] {.async.} =
   ## get resolved multiaddresses for the connection
