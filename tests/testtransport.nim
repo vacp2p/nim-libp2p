@@ -1,6 +1,7 @@
 import unittest
 import chronos
 import ../libp2p/[streams/stream,
+                  streams/asynciters,
                   streams/connection,
                   transports/transport,
                   transports/tcptransport,
@@ -9,56 +10,60 @@ import ../libp2p/[streams/stream,
 
 when defined(nimHasUsed): {.used.}
 
+const
+  TestBytes: seq[byte] = @[72.byte, 101.byte,
+                           108.byte, 108.byte,
+                           111.byte, 33.byte]
+
 suite "TCP transport":
-  # test "test listener: handle write":
-  #   proc test(): Future[bool] {.async.} =
-  #     let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
-  #     proc connHandler(conn: Connection) {.async.} =
-  #       iterator source(): Future[seq[byte]] {.closure.} =
-  #         yield cast[seq[byte]]("Hello!").toFuture
+  test "test listener handle write":
+    proc test(): Future[bool] {.async.} =
+      let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
+      let finished = Future[void]()
+      proc connHandler(conn: Connection) {.async.} =
+        iterator source(): Future[seq[byte]] {.closure.} =
+          yield TestBytes.toFuture
 
-  #       var sink = conn.sink()
-  #       await source.sink()
-  #       await conn.close()
+        var sink = conn.sink()
+        await source.sink()
+        await conn.close()
+        finished.complete()
 
-  #     let transport: TcpTransport = newTransport(TcpTransport)
-  #     var transportFut = await transport.listen(ma, connHandler)
-  #     let streamTransport: StreamTransport = await transport.ma.connect()
-  #     let msg = await streamTransport.read(6)
+      let transport: TcpTransport = newTransport(TcpTransport)
+      var transportFut = await transport.listen(ma, connHandler)
+      let streamTransport: StreamTransport = await transport.ma.connect()
+      let msg = await streamTransport.read(TestBytes.len)
 
-  #     await transport.close()
-  #     await streamTransport.closeWait()
-  #     await transportFut
+      await finished
+      await transport.close()
+      await streamTransport.closeWait()
+      await transportFut
 
-  #     result = cast[string](msg) == "Hello!"
+      result = msg == TestBytes
 
-  #   check:
-  #     waitFor(test()) == true
+    check:
+      waitFor(test()) == true
 
-  test "test listener: handle read":
+  test "test listener handle read":
     proc testListener(): Future[bool] {.async.} =
       let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
       var finished = newFuture[void]()
       proc connHandler(conn: Connection): Future[void] {.async, gcsafe.} =
-        var source = conn.source()
-        static:
-          echo "typeof source ", typeof source
-
         var msg: seq[byte]
-        msg = await source()
+        msg = await conn.source()() # read from the source
 
         check:
-          cast[string](msg) == "Hello!"
+          msg == TestBytes
+
         finished.complete()
 
       let transport = newTransport(TcpTransport)
       let transportFut = await transport.listen(ma, connHandler)
       let streamTransport = await connect(transport.ma)
-      let sent = await streamTransport.write("Hello!", 6)
-
-      await finished
+      let sent = await streamTransport.write(TestBytes, TestBytes.len)
       result = sent == 6
 
+      await finished
       await transport.close()
       await streamTransport.closeWait()
       await transportFut
@@ -66,98 +71,140 @@ suite "TCP transport":
     check:
       waitFor(testListener()) == true
 
-  # test "test dialer handle write":
-  #   proc testDialer(address: TransportAddress): Future[bool] {.async.} =
-  #     proc serveClient(server: StreamServer,
-  #                      transp: StreamTransport) {.async, gcsafe.} =
-  #       var wstream = newAsyncStreamWriter(transp)
-  #       await wstream.write("Hello!")
+  test "test dialer handle write":
+    proc testDialer(address: TransportAddress): Future[bool] {.async.} =
+      let finished = newFuture[void]()
+      proc serveClient(server: StreamServer,
+                       transp: StreamTransport) {.async, gcsafe.} =
+        var wstream = newAsyncStreamWriter(transp)
+        await wstream.write("Hello!")
 
-  #       await wstream.finish()
-  #       await wstream.closeWait()
-  #       await transp.closeWait()
-  #       server.stop()
-  #       server.close()
+        await wstream.finish()
+        await wstream.closeWait()
+        await transp.closeWait()
+        server.stop()
+        server.close()
+        finished.complete()
 
-  #     var server = createStreamServer(address, serveClient)
-  #     server.start()
+      var server = createStreamServer(address, serveClient)
+      server.start()
 
-  #     let ma: MultiAddress = MultiAddress.init(server.sock.getLocalAddress())
-  #     let transport: TcpTransport = newTransport(TcpTransport)
-  #     let conn = await transport.dial(ma)
-  #     let source  = conn.source()
-  #     for item in source:
-  #       let msg = await item
-  #       result = cast[string](msg) == "Hello!"
+      let ma: MultiAddress = MultiAddress.init(server.sock.getLocalAddress())
+      let transport: TcpTransport = newTransport(TcpTransport)
+      let conn = await transport.dial(ma)
+      let source  = conn.source()
+      var msg: seq[byte]
+      for item in source:
+        msg = await item
+        if msg.len > 0: break
 
-  #     await conn.close()
-  #     server.stop()
-  #     server.close()
-  #     await server.join()
-  #   check:
-  #     waitFor(testDialer(initTAddress("0.0.0.0:0"))) == true
+      result = msg == TestBytes
 
-  # test "test dialer: handle write":
-  #   proc testDialer(address: TransportAddress): Future[bool] {.async, gcsafe.} =
-  #     proc serveClient(server: StreamServer,
-  #                       transp: StreamTransport) {.async, gcsafe.} =
-  #       var rstream = newAsyncStreamReader(transp)
-  #       let msg = await rstream.read(6)
-  #       check cast[string](msg) == "Hello!"
+      await finished
+      await conn.close()
+      server.stop()
+      server.close()
+      await server.join()
 
-  #       await rstream.closeWait()
-  #       await transp.closeWait()
-  #       server.stop()
-  #       server.close()
+    check:
+      waitFor(testDialer(initTAddress("0.0.0.0:0"))) == true
 
-  #     var server = createStreamServer(address, serveClient, {ReuseAddr})
-  #     server.start()
+  test "test dialer handle write":
+    proc testDialer(address: TransportAddress): Future[bool] {.async, gcsafe.} =
 
-  #     let ma: MultiAddress = MultiAddress.init(server.sock.getLocalAddress())
-  #     let transport: TcpTransport = newTransport(TcpTransport)
-  #     let conn = await transport.dial(ma)
-  #     await conn.write(cstring("Hello!"), 6)
-  #     result = true
+      let finished = Future[void]()
+      proc serveClient(server: StreamServer,
+                        transp: StreamTransport) {.async, gcsafe.} =
+        var rstream = newAsyncStreamReader(transp)
+        let msg = await rstream.read(TestBytes.len)
+        check: msg == TestBytes
 
-  #     server.stop()
-  #     server.close()
-  #     await server.join()
-  #   check waitFor(testDialer(initTAddress("0.0.0.0:0"))) == true
+        await rstream.closeWait()
+        await transp.closeWait()
+        server.stop()
+        server.close()
 
-  # test "e2e: handle write":
-  #   proc testListenerDialer(): Future[bool] {.async.} =
-  #     let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
-  #     proc connHandler(conn: Connection): Future[void] {.async, gcsafe.} =
-  #       result = conn.write(cstring("Hello!"), 6)
+        finished.complete()
 
-  #     let transport1: TcpTransport = newTransport(TcpTransport)
-  #     asyncCheck await transport1.listen(ma, connHandler)
+      var server = createStreamServer(address, serveClient, {ReuseAddr})
+      server.start()
 
-  #     let transport2: TcpTransport = newTransport(TcpTransport)
-  #     let conn = await transport2.dial(transport1.ma)
-  #     let msg = await conn.read(6)
-  #     await transport1.close()
+      let ma: MultiAddress = MultiAddress.init(server.sock.getLocalAddress())
+      let transport: TcpTransport = newTransport(TcpTransport)
+      let conn = await transport.dial(ma)
 
-  #     result = cast[string](msg) == "Hello!"
+      iterator source(): Future[seq[byte]] {.closure.} =
+        yield TestBytes.toFuture
 
-  #   check:
-  #     waitFor(testListenerDialer()) == true
+      let sink = conn.sink()
+      await source.sink()
+      await finished
 
-  # test "e2e: handle read":
-  #   proc testListenerDialer(): Future[bool] {.async.} =
-  #     let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
-  #     proc connHandler(conn: Connection): Future[void] {.async, gcsafe.} =
-  #       let msg = await conn.read(6)
-  #       check cast[string](msg) == "Hello!"
+      server.stop()
+      server.close()
+      await server.join()
+      result = true
 
-  #     let transport1: TcpTransport = newTransport(TcpTransport)
-  #     asyncCheck await transport1.listen(ma, connHandler)
+    check:
+      waitFor(testDialer(initTAddress("0.0.0.0:0"))) == true
 
-  #     let transport2: TcpTransport = newTransport(TcpTransport)
-  #     let conn = await transport2.dial(transport1.ma)
-  #     await conn.write(cstring("Hello!"), 6)
-  #     await transport1.close()
-  #     result = true
+  test "e2e handle write":
+    proc testListenerDialer(): Future[bool] {.async.} =
+      let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
 
-  #   check:
-  #     waitFor(testListenerDialer()) == true
+      let finished = newFuture[void]()
+      proc connHandler(conn: Connection): Future[void] {.async, gcsafe.} =
+        iterator source(): Future[seq[byte]] {.closure.} =
+          yield TestBytes.toFuture
+
+        let sink = conn.sink()
+        await source.sink()
+
+        finished.complete()
+
+      let transport1: TcpTransport = newTransport(TcpTransport)
+      let transportFut = await transport1.listen(ma, connHandler)
+
+      let transport2: TcpTransport = newTransport(TcpTransport)
+      let conn = await transport2.dial(transport1.ma)
+      let msg = await conn.source()()
+      result = msg == TestBytes
+
+      await finished
+      await transport1.close()
+      await transport2.close()
+      await transportFut
+
+    check:
+      waitFor(testListenerDialer()) == true
+
+  test "e2e handle read":
+    proc testListenerDialer(): Future[bool] {.async.} =
+      let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
+
+      let finished = newFuture[void]()
+      proc connHandler(conn: Connection): Future[void] {.async, gcsafe.} =
+        let msg = await conn.source()()
+        check: msg == TestBytes
+
+        finished.complete()
+
+      let transport1: TcpTransport = newTransport(TcpTransport)
+      let transportFut = await transport1.listen(ma, connHandler)
+
+      let transport2: TcpTransport = newTransport(TcpTransport)
+      let conn = await transport2.dial(transport1.ma)
+      iterator source(): Future[seq[byte]] {.closure.} =
+        yield TestBytes.toFuture
+
+      var sink = conn.sink()
+      await source.sink()
+
+      await finished
+      await transport1.close()
+      await transportFut
+
+      result = true
+
+    check:
+      waitFor(testListenerDialer()) == true
