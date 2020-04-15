@@ -24,13 +24,13 @@ method source*(s: Stream): Source[seq[byte]] {.base.} =
 method sink*(s: Stream): Sink[seq[byte]] {.base.} =
   doAssert(false, "Not implemented!")
 
-method atEof*(s: Stream): bool {.base.} =
+proc atEof*(s: Stream): bool =
   false
 
-method close*(s: Stream) {.async, base.} =
+proc close*(s: Stream) {.async.} =
   s.isClosed = true
 
-method closed*(s: Stream): bool {.base.} =
+proc closed*(s: Stream): bool =
   s.isClosed
 
 proc duplex*[T](s: Stream): (Source[T], Sink[T]) =
