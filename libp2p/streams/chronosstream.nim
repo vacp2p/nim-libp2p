@@ -8,7 +8,7 @@
 ## those terms.
 
 import chronos, chronicles
-import stream
+import stream, asynciters
 
 logScope:
   topic = "ChronosStream"
@@ -36,7 +36,7 @@ proc init*(C: type[ChronosStream],
 method source*(c: ChronosStream): Source[seq[byte]] =
   return iterator(): Future[seq[byte]] =
     while not c.reader.atEof():
-        yield c.reader.read(c.maxChunkSize)
+      yield c.reader.read(c.maxChunkSize)
 
 method sink*(c: ChronosStream): Sink[seq[byte]] =
   return proc(i: Source[seq[byte]]) {.async.} =
@@ -44,7 +44,7 @@ method sink*(c: ChronosStream): Sink[seq[byte]] =
       if c.closed:
         break
 
-      # saddly `await c.writer.write((await chunk))` breaks
+      # sadly `await c.writer.write((await chunk))` breaks
       var cchunk = await chunk
       await c.writer.write(cchunk)
 

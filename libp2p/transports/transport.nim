@@ -9,7 +9,7 @@
 
 import sequtils
 import chronos, chronicles
-import ../connection,
+import ../streams/[connection, stream],
        ../multiaddress,
        ../multicodec,
        ../errors

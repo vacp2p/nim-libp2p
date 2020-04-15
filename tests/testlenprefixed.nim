@@ -1,6 +1,6 @@
 import unittest
 import chronos
-import ../libp2p/stream/[lenprefixed, stream]
+import ../libp2p/streams/[lenprefixed, stream]
 
 suite "LenPrefixed stream":
   test "encode":

@@ -9,11 +9,11 @@
 
 import chronos, chronicles, sequtils
 import transport,
-       ../wire,
-       ../connection,
+       ../streams/connection,
        ../multiaddress,
        ../multicodec,
-       ../stream/chronosstream
+       ../streams/chronosstream,
+       ../wire
 
 logScope:
   topic = "TcpTransport"
@@ -21,9 +21,8 @@ logScope:
 type TcpTransport* = ref object of Transport
   server*: StreamServer
 
-proc cleanup(t: Transport, conn: Connection) {.async.} =
-  await conn.closeEvent.wait()
-  t.connections.keepItIf(it != conn)
+# proc cleanup(t: Transport, conn: Connection) {.async.} =
+#   t.connections.keepItIf(it != conn)
 
 proc connHandler*(t: Transport,
                   server: StreamServer,
@@ -31,18 +30,18 @@ proc connHandler*(t: Transport,
                   initiator: bool = false):
                   Future[Connection] {.async, gcsafe.} =
   trace "handling connection for", address = $client.remoteAddress
-  let conn: Connection = newConnection(newChronosStream(server, client))
-  conn.observedAddrs = MultiAddress.init(client.remoteAddress)
+  let conn: Connection = Connection.init(ChronosStream.init(server, client))
+  conn.observedAddr = MultiAddress.init(client.remoteAddress)
   if not initiator:
     if not isNil(t.handler):
       asyncCheck t.handler(conn)
 
     t.connections.add(conn)
-    asyncCheck t.cleanup(conn)
+    # asyncCheck t.cleanup(conn)
 
   result = conn
 
-proc connCb(server: StreamServer,
+proc connCallback(server: StreamServer,
             client: StreamTransport) {.async, gcsafe.} =
   trace "incomming connection for", address = $client.remoteAddress
   let t: Transport = cast[Transport](server.udata)
@@ -71,7 +70,7 @@ method listen*(t: TcpTransport,
   discard await procCall Transport(t).listen(ma, handler) # call base
 
   ## listen on the transport
-  t.server = createStreamServer(t.ma, connCb, {}, t)
+  t.server = createStreamServer(t.ma, connCallback, {}, t)
   t.server.start()
 
   # always get the resolved address in case we're bound to 0.0.0.0:0
