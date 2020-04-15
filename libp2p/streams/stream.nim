@@ -19,10 +19,10 @@ type
     isClosed*: bool
 
 method source*(s: Stream): Source[seq[byte]] {.base.} =
-  discard
+  doAssert(false, "Not implemented!")
 
 method sink*(s: Stream): Sink[seq[byte]] {.base.} =
-  discard
+  doAssert(false, "Not implemented!")
 
 method atEof*(s: Stream): bool {.base.} =
   false

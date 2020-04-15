@@ -21,8 +21,11 @@ logScope:
 type TcpTransport* = ref object of Transport
   server*: StreamServer
 
-# proc cleanup(t: Transport, conn: Connection) {.async.} =
-#   t.connections.keepItIf(it != conn)
+proc cleanup(t: Transport,
+             finisher: Future[void],
+             conn: Connection) {.async.} =
+  await finisher
+  t.connections.keepItIf(it != conn)
 
 proc connHandler*(t: Transport,
                   server: StreamServer,
@@ -31,13 +34,12 @@ proc connHandler*(t: Transport,
                   Future[Connection] {.async, gcsafe.} =
   trace "handling connection for", address = $client.remoteAddress
   let conn: Connection = Connection.init(ChronosStream.init(server, client))
+  t.connections.add(conn)
+
   conn.observedAddr = MultiAddress.init(client.remoteAddress)
   if not initiator:
     if not isNil(t.handler):
-      asyncCheck t.handler(conn)
-
-    t.connections.add(conn)
-    # asyncCheck t.cleanup(conn)
+      asyncCheck t.cleanup(t.handler(conn), conn)
 
   result = conn
 

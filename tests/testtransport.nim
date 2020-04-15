@@ -38,18 +38,25 @@ suite "TCP transport":
   test "test listener: handle read":
     proc testListener(): Future[bool] {.async.} =
       let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
+      var finished = newFuture[void]()
       proc connHandler(conn: Connection): Future[void] {.async, gcsafe.} =
         var source = conn.source()
-        for item in source:
-          var msg = await item
+        static:
+          echo "typeof source ", typeof source
 
-          check:
-            cast[string](msg) == "Hello!"
+        var msg: seq[byte]
+        msg = await source()
+
+        check:
+          cast[string](msg) == "Hello!"
+        finished.complete()
 
       let transport = newTransport(TcpTransport)
       let transportFut = await transport.listen(ma, connHandler)
       let streamTransport = await connect(transport.ma)
       let sent = await streamTransport.write("Hello!", 6)
+
+      await finished
       result = sent == 6
 
       await transport.close()

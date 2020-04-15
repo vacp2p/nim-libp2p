@@ -8,7 +8,7 @@
 ## those terms.
 
 import chronos, chronicles
-import stream, asynciters
+import stream, ringbuffer
 
 logScope:
   topic = "ChronosStream"
@@ -20,6 +20,7 @@ type ChronosStream* = ref object of Stream
     writer: AsyncStreamWriter
     server: StreamServer
     client: StreamTransport
+    buffer: seq[byte]
     maxChunkSize: int
 
 proc init*(C: type[ChronosStream],
@@ -31,12 +32,18 @@ proc init*(C: type[ChronosStream],
                 client: client,
                 reader: newAsyncStreamReader(client),
                 writer: newAsyncStreamWriter(client),
-                maxChunkSize: maxChunkSize)
+                maxChunkSize: maxChunkSize,
+                buffer: newSeq[byte](maxChunkSize))
+
+proc internalRead(c: ChronosStream): Future[seq[byte]] {.async.} =
+  var buff = newSeq[byte](1024)
+  var read = await c.reader.readOnce(unsafeAddr buff[0], buff.len)
+  result = buff[0..<read]
 
 method source*(c: ChronosStream): Source[seq[byte]] =
   return iterator(): Future[seq[byte]] =
     while not c.reader.atEof():
-      yield c.reader.read(c.maxChunkSize)
+      yield c.internalRead()
 
 method sink*(c: ChronosStream): Sink[seq[byte]] =
   return proc(i: Source[seq[byte]]) {.async.} =
