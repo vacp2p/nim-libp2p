@@ -221,7 +221,7 @@ proc `$`*(key: SkPrivateKey): string = s.SkSecretKey(key).toHex()
 
 proc `$`*(key: SkPublicKey): string =
   ## Return string representation of Secp256k1 `private key`.s
-  result = s.SkPublicKey(key).toHex()
+  result = toHex(s.SkPublicKey(key).toRawCompressed())
 
 proc `$`*(sig: SkSignature): string =
   ## Return string representation of Secp256k1 `signature`.s
