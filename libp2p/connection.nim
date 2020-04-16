@@ -27,6 +27,8 @@ type
     peerInfo*: PeerInfo
     stream*: LPStream
     observedAddrs*: Multiaddress
+    when defined traceConns:
+      initLoc: StackTraceEntry
 
   InvalidVarintException = object of LPStreamError
   InvalidVarintSizeException = object of LPStreamError
@@ -34,6 +36,8 @@ type
   ConnectionTracker* = ref object of TrackerBase
     opened*: uint64
     closed*: uint64
+    when defined traceConns:
+      conns: seq[Connection]
 
 proc setupConnectionTracker(): ConnectionTracker {.gcsafe.}
 
@@ -46,6 +50,10 @@ proc dumpTracking(): string {.gcsafe.} =
   var tracker = getConnectionTracker()
   result = "Opened conns: " & $tracker.opened & "\n" &
            "Closed conns: " & $tracker.closed
+  when defined traceConns:
+    for conn in tracker.conns:
+      if not conn.isClosed:
+        echo "Still open: ", conn.initLoc
 
 proc leakTransport(): bool {.gcsafe.} =
   var tracker = getConnectionTracker()
@@ -79,13 +87,17 @@ proc bindStreamClose(conn: Connection) {.async.} =
                                                       conn.peerInfo.id else: ""
       asyncCheck conn.close()
 
-proc init*[T: Connection](self: var T, stream: LPStream): T =
+proc init[T: Connection](self: var T, stream: LPStream): T =
   ## create a new Connection for the specified async reader/writer
   new self
   self.stream = stream
   self.closeEvent = newAsyncEvent()
   asyncCheck self.bindStreamClose()
   inc getConnectionTracker().opened
+  when defined traceConns:
+    getConnectionTracker().conns &= self
+    self.initLoc = getStackTraceEntries()[^3]
+    echo self.initLoc
   return self
 
 proc newConnection*(stream: LPStream): Connection =
@@ -140,7 +152,7 @@ method write*(s: Connection,
 
 method closed*(s: Connection): bool =
   if isNil(s.stream):
-    return false
+    return true
 
   result = s.stream.closed
 

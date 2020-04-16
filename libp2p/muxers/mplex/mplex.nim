@@ -92,12 +92,14 @@ method handle*(m: Mplex) {.async, gcsafe.} =
             let stream = newConnection(channel)
             stream.peerInfo = m.connection.peerInfo
 
-            # cleanup channel once handler is finished
-            # stream.closeEvent.wait().addCallback(
-            #   proc(udata: pointer) =
-            #       asyncCheck cleanupChann(m, channel, initiator))
+            proc handler() {.async.} =
+              try:
+                await m.streamHandler(stream)
+                await stream.close()
+              except CatchableError as ex:
+                trace "channel stream handler had an exception", name=ex.name
 
-            asyncCheck m.streamHandler(stream)
+            asyncCheck handler()
             continue
         of MessageType.MsgIn, MessageType.MsgOut:
           trace "pushing data to channel", id = id,
