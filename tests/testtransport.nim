@@ -22,6 +22,7 @@ template ignoreErrors(body: untyped): untyped =
 suite "TCP transport":
   teardown:
     check:
+      getTracker(ConnectionTrackerName).isLeaked() == false
       getTracker(AsyncStreamReaderTrackerName).isLeaked() == false
       getTracker(AsyncStreamWriterTrackerName).isLeaked() == false
       getTracker(StreamTransportTrackerName).isLeaked() == false

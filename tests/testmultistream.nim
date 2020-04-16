@@ -163,6 +163,7 @@ suite "Multistream select":
   teardown:
     let
       trackers = [
+        getTracker(ConnectionTrackerName),
         getTracker(AsyncStreamWriterTrackerName),
         getTracker(TcpTransportTrackerName),
         getTracker(AsyncStreamReaderTrackerName),
@@ -179,6 +180,7 @@ suite "Multistream select":
       let ms = newMultistream()
       let conn = newConnection(newTestSelectStream())
       result = (await ms.select(conn, @["/test/proto/1.0.0"])) == "/test/proto/1.0.0"
+      await conn.close()
 
     check:
       waitFor(testSelect()) == true
@@ -209,10 +211,12 @@ suite "Multistream select":
 
       proc testLsHandler(proto: seq[byte]) {.async, gcsafe.} # forward declaration
       let conn = newConnection(newTestLsStream(testLsHandler))
+      let done = newFuture[void]()
       proc testLsHandler(proto: seq[byte]) {.async, gcsafe.} =
         var strProto: string = cast[string](proto)
         check strProto == "\x26/test/proto1/1.0.0\n/test/proto2/1.0.0\n"
         await conn.close()
+        done.complete()
 
       proc testHandler(conn: Connection, proto: string): Future[void]
         {.async, gcsafe.} = discard
@@ -222,6 +226,8 @@ suite "Multistream select":
       ms.addHandler("/test/proto2/1.0.0", protocol)
       await ms.handle(conn)
       result = true
+
+      await done.wait(5.seconds)
 
     check:
       waitFor(testLs()) == true
@@ -323,7 +329,6 @@ suite "Multistream select":
       let transport1: TcpTransport = newTransport(TcpTransport)
       proc connHandler(conn: Connection): Future[void] {.async, gcsafe.} =
         await msListen.handle(conn)
-        await conn.close()
         handlerWait.complete()
 
       asyncCheck transport1.listen(ma, connHandler)

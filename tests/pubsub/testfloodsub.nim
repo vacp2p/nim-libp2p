@@ -12,6 +12,7 @@ import chronos
 import utils,
        ../../libp2p/[errors,
                      switch,
+                     connection,
                      stream/bufferstream,
                      crypto/crypto,
                      protocols/pubsub/pubsub,
@@ -38,6 +39,7 @@ suite "FloodSub":
   teardown:
     let
       trackers = [
+        getTracker(ConnectionTrackerName),
         getTracker(BufferStreamTrackerName),
         getTracker(AsyncStreamWriterTrackerName),
         getTracker(AsyncStreamReaderTrackerName),

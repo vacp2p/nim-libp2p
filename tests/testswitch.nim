@@ -5,6 +5,7 @@ import nimcrypto/sysrand
 import ../libp2p/[errors,
                   switch,
                   multistream,
+                  stream/bufferstream,
                   protocols/identify,
                   connection,
                   transports/transport,
@@ -54,6 +55,8 @@ suite "Switch":
   teardown:
     let
       trackers = [
+        getTracker(ConnectionTrackerName),
+        getTracker(BufferStreamTrackerName),
         getTracker(AsyncStreamWriterTrackerName),
         getTracker(TcpTransportTrackerName),
         getTracker(AsyncStreamReaderTrackerName),
@@ -62,7 +65,7 @@ suite "Switch":
       ]
     for tracker in trackers:
       if not isNil(tracker):
-        # echo tracker.dump()
+        echo tracker.dump()
         check tracker.isLeaked() == false
 
   test "e2e use switch dial proto string":
