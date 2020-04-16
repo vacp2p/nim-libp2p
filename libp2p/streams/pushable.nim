@@ -23,9 +23,8 @@ proc push*[T](p: Pushable, item: T): Future[void] =
 proc pushSource*[T](s: Stream[T]): Source[T] {.gcsafe.} =
   var p = Pushable[T](s)
   return iterator(): Future[T] =
-    while not (p.closed and p.queue.len <= 0):
+    while not (p.closed and p.queue.empty()):
       yield p.queue.get()
-    echo "EXITING PUSHABLE"
 
 proc init*[T](P: type[Pushable[T]], maxChunkSize = DefaultChunkSize): P =
   P(queue: newAsyncQueue[T](1),

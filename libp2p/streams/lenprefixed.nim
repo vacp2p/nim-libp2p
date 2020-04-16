@@ -62,10 +62,9 @@ proc decodeLen(lp: LenPrefixed): int =
   return size.int
 
 proc read(lp: LenPrefixed,
-          i: Source[seq[byte]]):
+          chunk: Future[seq[byte]]):
           Future[seq[byte]] {.async, gcsafe.} =
   try:
-    for chunk in i:
       lp.readBuff.append((await chunk))
 
       while lp.readBuff.len > 0:
@@ -81,10 +80,7 @@ proc read(lp: LenPrefixed,
           if lp.size == 0:
             lp.mode = Mode.Decoding
             result = lp.buff[0..<lp.pos]
-            echo result
-            echo cast[string](result)
             lp.pos = 0
-            break
 
   except CatchableError as exc:
     trace "Exception occured", exc = exc.msg
@@ -93,8 +89,8 @@ proc read(lp: LenPrefixed,
 proc decoder*(lp: LenPrefixed): Through[seq[byte]] =
   return proc(i: Source[seq[byte]]): Source[seq[byte]] =
     return iterator(): Future[seq[byte]] {.closure.} =
-      yield lp.read(i)
-      echo "EXITING LEN"
+      for chunk in i:
+        yield lp.read(chunk)
 
 proc write(lp: LenPrefixed,
            chunk: Future[seq[byte]]):
