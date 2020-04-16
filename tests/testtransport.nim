@@ -1,12 +1,12 @@
 import unittest
 import chronos
-import ../libp2p/[streams/stream,
-                  streams/asynciters,
-                  streams/connection,
-                  transports/transport,
-                  transports/tcptransport,
-                  multiaddress,
-                  wire]
+import streams/stream,
+       streams/asynciters,
+       streams/connection,
+       transports/transport,
+       transports/tcptransport,
+       multiaddress,
+       wire
 
 when defined(nimHasUsed): {.used.}
 
@@ -20,7 +20,7 @@ suite "TCP transport":
     proc test(): Future[bool] {.async.} =
       let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
       let finished = Future[void]()
-      proc connHandler(conn: Connection) {.async.} =
+      proc connHandler(conn: Connection) {.async, gcsafe.} =
         iterator source(): Future[seq[byte]] {.closure.} =
           yield TestBytes.toFuture
 
