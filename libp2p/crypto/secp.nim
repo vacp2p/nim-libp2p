@@ -196,7 +196,7 @@ proc getBytes*(key: SkPrivateKey): seq[byte] {.inline.} =
 
 proc getBytes*(key: SkPublicKey): seq[byte] {.inline.} =
   ## Serialize Secp256k1 `public key` and return it.
-  result = @(s.SkPublicKey(key).toRaw())
+  result = @(s.SkPublicKey(key).toRawCompressed())
 
 proc getBytes*(sig: SkSignature): seq[byte] {.inline.} =
   ## Serialize Secp256k1 `signature` and return it.
