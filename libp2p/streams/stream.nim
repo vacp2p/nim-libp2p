@@ -9,30 +9,20 @@
 
 import chronos
 
+# TODO: Rework without methods
+
 type
   Source*[T] = iterator(): Future[T] {.closure.}
   Through*[T] = proc(i: Source[T]): Source[T]
   Sink*[T] = proc(i: Source[T]): Future[void]
   Duplex*[T] = Source[T] | Sink[T]
 
-  Stream* = ref object of RootObj
+  Stream*[T] = ref object of RootObj
+    name*: string
     closed*: bool
     eof*: bool
-
-method source*(s: Stream): Source[seq[byte]] {.base.} =
-  doAssert(false, "Not implemented!")
-
-method sink*(s: Stream): Sink[seq[byte]] {.base.} =
-  doAssert(false, "Not implemented!")
-
-proc atEof*(s: Stream): bool =
-  s.eof
-
-proc close*(s: Stream) {.async.} =
-  s.closed = true
-
-proc duplex*[T](s: Stream): (Source[T], Sink[T]) =
-  (s.source, s.sink)
+    sourceImpl*: proc (s: Stream[T]): Source[T] {.gcsafe.}
+    sinkImpl*: proc(s: Stream[T]): Sink[T] {.gcsafe.}
 
 iterator items*[T](i: Source[T]): Future[T] =
   while true:
@@ -40,3 +30,47 @@ iterator items*[T](i: Source[T]): Future[T] =
     if i.finished:
       break
     yield item
+
+proc source*[T](s: Stream[T]): Source[T] =
+  if not isNil(s.sourceImpl):
+    return s.sourceImpl(s)
+
+proc sink*[T](s: Stream[T]): Sink[T] =
+  if not isNil(s.sinkImpl):
+    return s.sinkImpl(s)
+
+proc atEof*[T](s: Stream[T]): bool =
+  s.eof
+
+proc close*[T](s: Stream[T]) {.async.} =
+  s.closed = true
+
+template toFuture*[T](v: T): Future[T] =
+  var fut = newFuture[T]()
+  fut.complete(v)
+  fut
+
+template pipe*[T](s: Stream[T] | Source[T],
+                  t: varargs[Through[T]]): Source[T] =
+  var pipeline: Source[T]
+  when s is Source[T]:
+    pipeline = s
+  elif s is Stream[T]:
+    pipeline = s.source
+
+  for i in t:
+    pipeline = i(pipeline)
+
+  pipeline
+
+template pipe*[T](s: Stream[T] | Source[T],
+                  t: varargs[Through[T]],
+                  x: Stream[T] | Sink[T]): Future[void] =
+  var pipeline = pipe(s, t)
+  var terminal: Future[void]
+  when x is Stream[T]:
+    terminal = x.sink()(pipeline)
+  elif x is Sink[T]:
+    terminal = x(pipeline)
+
+  terminal

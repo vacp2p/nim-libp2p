@@ -17,49 +17,13 @@ logScope:
 
 const DefaultChunkSize* = 1 shl 20 # 1MB
 
-type ChronosStream* = ref object of Stream
+type ChronosStream* = ref object of Stream[seq[byte]]
     reader: AsyncStreamReader
     writer: AsyncStreamWriter
     server: StreamServer
     client: StreamTransport
     buffer: seq[byte]
     maxChunkSize: int
-
-proc init*(C: type[ChronosStream],
-           server: StreamServer,
-           client: StreamTransport,
-           maxChunkSize = DefaultChunkSize): C =
-
-  ChronosStream(server: server,
-                client: client,
-                reader: newAsyncStreamReader(client),
-                writer: newAsyncStreamWriter(client),
-                maxChunkSize: maxChunkSize,
-                buffer: newSeq[byte](maxChunkSize))
-
-proc internalRead(c: ChronosStream): Future[seq[byte]] {.async.} =
-  var read = await c.reader.readOnce(addr c.buffer[0], c.buffer.len)
-  if read <= 0:
-    c.eof = true
-    return
-
-  result = c.buffer[0..<read]
-
-method source*(c: ChronosStream): Source[seq[byte]] =
-  return iterator(): Future[seq[byte]] =
-    while not c.atEof():
-      yield c.internalRead()
-      echo c.buffer
-
-method sink*(c: ChronosStream): Sink[seq[byte]] =
-  return proc(i: Source[seq[byte]]) {.async.} =
-    for chunk in i:
-      if c.closed:
-        break
-
-      # sadly `await c.writer.write((await chunk))` breaks
-      var cchunk = await chunk
-      await c.writer.write(cchunk)
 
 proc close*(c: ChronosStream) {.async.} =
   if not c.closed:
@@ -77,5 +41,45 @@ proc close*(c: ChronosStream) {.async.} =
 
 proc atEof*(c: ChronosStream): bool =
   c.eof
+
+proc internalRead(c: ChronosStream): Future[seq[byte]] {.async.} =
+  var read = await c.reader.readOnce(addr c.buffer[0], c.buffer.len)
+  if read <= 0:
+    c.eof = true
+    return
+
+  result = c.buffer[0..<read]
+
+proc chronosSource(s: Stream[seq[byte]]): Source[seq[byte]] {.gcsafe.} =
+  var c = ChronosStream(s)
+  return iterator(): Future[seq[byte]] =
+    while not c.atEof():
+      yield c.internalRead()
+
+proc chronosSink(s: Stream[seq[byte]]): Sink[seq[byte]] {.gcsafe.} =
+  var c = ChronosStream(s)
+  return proc(i: Source[seq[byte]]) {.async.} =
+    for chunk in i:
+      if c.closed:
+        break
+
+      # sadly `await c.writer.write((await chunk))` breaks
+      var cchunk = await chunk
+      await c.writer.write(cchunk)
+
+proc init*(C: type[ChronosStream],
+           server: StreamServer,
+           client: StreamTransport,
+           maxChunkSize = DefaultChunkSize): C =
+
+  ChronosStream(server: server,
+                client: client,
+                reader: newAsyncStreamReader(client),
+                writer: newAsyncStreamWriter(client),
+                maxChunkSize: maxChunkSize,
+                buffer: newSeq[byte](maxChunkSize),
+                sourceImpl: chronosSource,
+                sinkImpl: chronosSink,
+                name: "ChronosStream")
 
 # {.pop.}
