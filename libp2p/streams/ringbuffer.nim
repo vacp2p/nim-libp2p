@@ -1,12 +1,13 @@
 type
   RingBuffer*[T: byte | char] = object
-    buff: seq[T]
-    head, tail, size: int
+    buff*: seq[T]
+    head*, tail*: int
+    size*: int
     len*: int
 
 const DefaultSize = 1024
 
-proc init*[T](b: type[RingBuffer[T]], size = DefaultSize): b =
+proc init*[T](B: type[RingBuffer[T]], size = DefaultSize): B =
   ## Create and initialize the ring buffer. Takes an optional
   ## maximum ``size`` parameter, otherwise ``size`` will default
   ## to ``DefaultSize`` which is set to 1024.
@@ -19,7 +20,7 @@ proc init*[T](b: type[RingBuffer[T]], size = DefaultSize): b =
   ##   discard buff.read(data)
   ##   echo data # prints @['a', 'b', 'c', 'd', 'e']
   ##
-  RingBuffer[T](buff: newSeq[T](size), size: size)
+  B(buff: newSeq[T](size), size: size)
 
 proc append*[T](b: var RingBuffer[T], data: openArray[T]) =
   ## Append ``data`` to the end of the buffer.
