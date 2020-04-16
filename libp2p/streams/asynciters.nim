@@ -1,18 +1,13 @@
 import chronos
 import stream
 
-template toFuture*[T](v: T): Future[T] =
-  var fut = newFuture[T]()
-  fut.complete(v)
-  fut
-
 proc forEach*[T](iter: Source[T],
                  pred: proc(item: Future[T]):
                  Future[void] {.gcsafe.}) {.async.} =
   for i in iter:
     await pred(i)
 
-proc collect*[T](iter: Source[T]): Future[seq[T]] =
+proc collect*[T](iter: Source[T]): Future[openArray[T]] =
   for i in iter:
     result.add(i)
 
