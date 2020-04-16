@@ -44,7 +44,7 @@ proc connHandler*(t: Transport,
   result = conn
 
 proc connCallback(server: StreamServer,
-            client: StreamTransport) {.async, gcsafe.} =
+                  client: StreamTransport) {.async, gcsafe.} =
   trace "incomming connection for", address = $client.remoteAddress
   let t: Transport = cast[Transport](server.udata)
   asyncCheck t.connHandler(server, client)
