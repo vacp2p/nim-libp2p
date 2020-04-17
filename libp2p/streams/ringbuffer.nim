@@ -61,14 +61,16 @@ proc read*[T](b: var RingBuffer[T],
     return
 
   if data.len == 0 or size > data.len:
-    raise newException(CatchableError, "Data isn't big enough!")
+    raise newException(CatchableError, "Destination isn't big enough!")
 
   var isize = size
-  if size > b.size:
+
+  if isize > b.size:
     isize = b.size
 
-  if size < 0 or size > b.len:
-    isize = b.len
+
+  if isize < 0 or isize > b.len:
+    isize = data.len
   else:
     isize = size
 
