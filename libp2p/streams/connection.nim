@@ -18,34 +18,21 @@ type
     observedAddr*: MultiAddress
     stream*: Stream[seq[byte]]
 
-proc init*[T](C: type[Connection],
-           stream: T,
-           peerInfo: PeerInfo = nil): C =
-
-  Connection(stream: stream,
-             sourceImpl: stream.sourceImpl,
-             sinkImpl: stream.sinkImpl,
-             peerInfo: peerInfo,
-             name: "Connection")
-
-proc source*(s: Connection): Source[seq[byte]] =
+proc connSource*(s: Stream[seq[byte]]): Source[seq[byte]] {.gcsafe.} =
   if not isNil(s.sourceImpl):
-    return s.sourceImpl(s.stream)
+    var c = Connection(s)
+    return c.stream.sourceImpl(c.stream)
 
-proc sink*(s: Connection): Sink[seq[byte]] =
+proc connSink*(s: Stream[seq[byte]]): Sink[seq[byte]] {.gcsafe.} =
   if not isNil(s.sinkImpl):
-    return s.sinkImpl(s.stream)
+    var c = Connection(s)
+    return c.stream.sinkImpl(c.stream)
 
 proc close*(s: Connection) {.async.} =
   result = close(s.stream)
 
 proc closed*(s: Connection): bool =
   s.stream.closed
-
-proc duplex*(s: Connection): (Source[seq[byte]], Sink[seq[byte]]) =
-  var source = if isNil(s.sourceImpl): nil else: s.sourceImpl(s.stream)
-  var sink = if isNil(s.sourceImpl): nil else: s.sinkImpl(s.stream)
-  (source, sink)
 
 proc getObservedAddrs*(c: Connection): Future[MultiAddress] {.async.} =
   ## get resolved multiaddresses for the connection
@@ -54,3 +41,13 @@ proc getObservedAddrs*(c: Connection): Future[MultiAddress] {.async.} =
 proc `$`*(c: Connection): string =
   if not isNil(c.peerInfo):
     result = $(c.peerInfo)
+
+proc init*[T](C: type[Connection],
+           stream: T,
+           peerInfo: PeerInfo = nil): C =
+
+  Connection(stream: stream,
+             sourceImpl: connSource,
+             sinkImpl: connSink,
+             peerInfo: peerInfo,
+             name: "Connection")
