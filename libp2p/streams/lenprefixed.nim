@@ -10,12 +10,13 @@
 import chronos, chronicles
 import ringbuffer,
        stream,
+       utils,
       ../varint,
       ../vbuffer
 
 const
-  DefaultBuffSize* = 4 shl 20
-  SafeVarintSize* = 4
+  DefaultBuffSize* = 1 shl 20
+  SafeVarintSize* = sizeof(uint)
 
 type
   InvalidVarintException* = object of CatchableError
@@ -37,7 +38,7 @@ proc newInvalidVarintSizeException*(): ref InvalidVarintSizeException =
 
 proc init*(lp: type[LenPrefixed], maxSize: int = DefaultBuffSize): lp =
   LenPrefixed(readBuff: RingBuffer[byte].init(maxSize),
-              buff: newSeq[byte](maxSize),
+              buff: newSeq[byte](maxSize), # TODO: don't allocate all - grow dinamicaly
               mode: Mode.Decoding,
               pos: 0, size: 0)
 
@@ -46,17 +47,17 @@ proc decodeLen(lp: LenPrefixed): int =
     size: uint
     length: int
     res: VarintStatus
-    buff: seq[byte]
-    i: int
-  while true:
-    buff.add(lp.readBuff.read(1))
-    res = LP.getUVarint(buff, length, size)
-    i.inc
+  for i in 0..SafeVarintSize:
+    lp.buff[i] = lp.readBuff.read(1)[0]
+    res = LP.getUVarint(lp.buff.toOpenArray(0, i), length, size)
 
     if res == VarintStatus.Success:
       break
 
-    if buff.len > SafeVarintSize:
+    if length > SafeVarintSize:
+      raise newInvalidVarintSizeException()
+
+    if size.int <= 0:
       raise newInvalidVarintSizeException()
 
   return size.int
@@ -73,8 +74,11 @@ proc read(lp: LenPrefixed,
           lp.size = lp.decodeLen()
           lp.mode = Mode.Reading
         else:
-          var read = 0
-          read += lp.readBuff.read(lp.buff.toOpenArray(lp.pos, lp.pos + lp.size))
+          var last = lp.pos + lp.size - 1
+          if last <= 0:
+            last = 1
+
+          var read = lp.readBuff.read(lp.buff.toOpenArray(lp.pos, last))
           lp.size -= read
           lp.pos += read
           if lp.size == 0:
@@ -111,22 +115,20 @@ when isMainModule:
 
   suite "Lenght Prefixed":
     test "encode":
-      proc test(): Future[bool] {.async.} =
+      proc test() {.async.} =
         var pushable = Pushable[seq[byte]].init()
         var lp = LenPrefixed.init()
 
         var source = pipe(pushable, lp.encoder())
         await pushable.push(cast[seq[byte]]("HELLO"))
-        result = (await source()) == @[5, 72, 69, 76, 76, 79].mapIt( it.byte )
+        check: (await source()) == @[5, 72, 69, 76, 76, 79].mapIt( it.byte )
 
-      check:
-        waitFor(test()) == true
+      waitFor(test())
 
     test "encode multiple":
-      proc test(): Future[bool] {.async.} =
+      proc test() {.async.} =
         var pushable = Pushable[seq[byte]].init()
         var lp = LenPrefixed.init()
-
         var source = pipe(pushable, lp.encoder())
 
         proc read(): Future[bool] {.async.} =
@@ -135,20 +137,20 @@ when isMainModule:
             check:
               (await chunk).len == count
             count.inc
-          result = true
+
+          return true
 
         var reader = read()
         for i in 5..<15:
           await pushable.push(toSeq("a".repeat(i)).mapIt( it.byte ))
         await pushable.close()
 
-        result = await reader
+        check: await reader
 
-      check:
-        waitFor(test()) == true
+      waitFor(test())
 
     test "decode":
-      proc test(): Future[bool] {.async.} =
+      proc test() {.async.} =
         var pushable = Pushable[seq[byte]].init()
         var lp = LenPrefixed.init()
 
@@ -156,13 +158,12 @@ when isMainModule:
         await pushable.push(@[5, 72, 69, 76, 76, 79].mapIt( it.byte ))
         await pushable.close()
 
-        result = (await source()) == @[72, 69, 76, 76, 79].mapIt( it.byte )
+        check: (await source()) == @[72, 69, 76, 76, 79].mapIt( it.byte )
 
-      check:
-        waitFor(test()) == true
+      waitFor(test())
 
     test "decode in parts":
-      proc test(): Future[bool] {.async.} =
+      proc test() {.async.} =
         var pushable = Pushable[seq[byte]].init()
         var lp = LenPrefixed.init()
 
@@ -178,7 +179,9 @@ when isMainModule:
         for i in source:
           res &= await i
 
-        result = res == @[72, 69, 76, 76, 79].mapIt( it.byte )
+        check:
+          res == @[72, 69, 76, 76, 79].mapIt( it.byte )
+
         await writer
-      check:
-        waitFor(test()) == true
+
+      waitFor(test())
