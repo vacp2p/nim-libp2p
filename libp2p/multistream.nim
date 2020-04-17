@@ -15,7 +15,8 @@ import vbuffer,
                 stream,
                 pushable,
                 asynciters,
-                lenprefixed]
+                lenprefixed,
+                utils]
 
 logScope:
   topic = "Multistream"
@@ -48,25 +49,6 @@ proc newMultistreamHandshakeException*(): ref Exception {.inline.} =
   result = newException(MultistreamHandshakeException,
     "could not perform multistream handshake")
 
-var appendNl: Through[seq[byte]] = proc (i: Source[seq[byte]]): Source[seq[byte]] {.gcsafe.} =
-  proc append(item: Future[seq[byte]]): Future[seq[byte]] {.async.} =
-    result = await item
-    result.add(byte('\n'))
-
-  return iterator(): Future[seq[byte]] {.closure.} =
-    for item in i:
-      yield append(item)
-
-var stripNl: Through[seq[byte]] = proc (i: Source[seq[byte]]): Source[seq[byte]] {.gcsafe.} =
-  proc strip(item: Future[seq[byte]]): Future[seq[byte]] {.async.} =
-    result = await item
-    if result.len > 0 and result[^1] == byte('\n'):
-      result.setLen(result.high)
-
-  return iterator(): Future[seq[byte]] {.closure.} =
-    for item in i:
-      yield strip(item)
-
 proc init*(M: type[MultistreamSelect]): MultistreamSelect =
   M(codec: toSeq(Codec).mapIt( it.byte ),
     ls: Ls.toBytes(),
@@ -77,15 +59,15 @@ proc select*(m: MultistreamSelect,
              conn: Connection,
              protos: seq[string]):
              Future[string] {.async.} =
-  trace "initiating handshake", codec = m.codec
+  trace "initiating handshake", codec = Codec,
+                                proto = protos
   var pushable = Pushable[seq[byte]].init() # pushable source
-
   var source = pipe(pushable,
-                   appendNl,
-                   m.lp.encoder,
-                   conn.toThrough,
-                   m.lp.decoder,
-                   stripNl)
+                    appendNl(),
+                    m.lp.encoder,
+                    conn.toThrough,
+                    m.lp.decoder,
+                    stripNl())
 
   # handshake first
   await pushable.push(m.codec)
@@ -138,11 +120,11 @@ proc list*(m: MultistreamSelect,
 
   var pushable = Pushable[seq[byte]].init()
   var source = pipe(pushable,
-                    appendNl,
+                    appendNl(),
                     m.lp.encoder,
                     conn.toThrough,
                     m.lp.decoder,
-                    stripNl)
+                    stripNl())
 
   await pushable.push(m.ls) # send ls
 
@@ -156,15 +138,15 @@ proc list*(m: MultistreamSelect,
   result = list
 
 proc handle*(m: MultistreamSelect, conn: Connection) {.async, gcsafe.} =
-  trace "handle: starting multistream handling"
+  trace "starting multistream handling"
   try:
     var pushable = Pushable[seq[byte]].init()
     var source = pipe(pushable,
-                      appendNl,
+                      appendNl(),
                       m.lp.encoder,
                       conn.toThrough,
                       m.lp.decoder,
-                      stripNl)
+                      stripNl())
 
     for chunk in source:
       var msg = string.fromBytes((await chunk))
@@ -181,8 +163,13 @@ proc handle*(m: MultistreamSelect, conn: Connection) {.async, gcsafe.} =
       case msg:
         of Ls:
           trace "listing protos"
-          for h in m.handlers:
-            await pushable.push(h.proto.toBytes())
+          var protos: string
+          for i in 0..m.handlers.high:
+            protos &= m.handlers[i].proto
+            if i < m.handlers.high:
+              protos &= "\n"
+
+          await pushable.push(protos.toBytes())
         of Codec:
           trace "handling handshake"
           await pushable.push(m.codec)
