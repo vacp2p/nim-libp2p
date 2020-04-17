@@ -21,7 +21,7 @@ type
   InvalidVarintException* = object of CatchableError
   InvalidVarintSizeException* = object of CatchableError
 
-  LenPrefixed* = ref object {.requiresInit.}
+  LenPrefixed* = ref object
     readBuff: RingBuffer[byte]
     buff: seq[byte]
     pos, size: int
