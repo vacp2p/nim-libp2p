@@ -261,6 +261,8 @@ proc newSecioConn(conn: Connection,
 
   result.peerInfo = PeerInfo.init(remotePubKey)
 
+  inc  getConnectionTracker().opened
+
 proc transactMessage(conn: Connection,
                      msg: seq[byte]): Future[seq[byte]] {.async.} =
   var buf = newSeq[byte](4)

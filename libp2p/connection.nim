@@ -9,6 +9,7 @@
 
 import chronos, chronicles
 import peerinfo,
+       errors,
        multiaddress,
        stream/lpstream,
        peerinfo,
@@ -27,8 +28,9 @@ type
     peerInfo*: PeerInfo
     stream*: LPStream
     observedAddrs*: Multiaddress
-    when defined traceConns:
-      initLoc: StackTraceEntry
+    # notice this is a ugly circular reference collection
+    # (we got many actually :-))
+    readLoops*: seq[Future[void]]
 
   InvalidVarintException = object of LPStreamError
   InvalidVarintSizeException = object of LPStreamError
@@ -36,12 +38,10 @@ type
   ConnectionTracker* = ref object of TrackerBase
     opened*: uint64
     closed*: uint64
-    when defined traceConns:
-      conns: seq[Connection]
 
 proc setupConnectionTracker(): ConnectionTracker {.gcsafe.}
 
-proc getConnectionTracker(): ConnectionTracker {.gcsafe.} =
+proc getConnectionTracker*(): ConnectionTracker {.gcsafe.} =
   result = cast[ConnectionTracker](getTracker(ConnectionTrackerName))
   if isNil(result):
     result = setupConnectionTracker()
@@ -50,10 +50,6 @@ proc dumpTracking(): string {.gcsafe.} =
   var tracker = getConnectionTracker()
   result = "Opened conns: " & $tracker.opened & "\n" &
            "Closed conns: " & $tracker.closed
-  when defined traceConns:
-    for conn in tracker.conns:
-      if not conn.isClosed:
-        echo "Still open: ", conn.initLoc
 
 proc leakTransport(): bool {.gcsafe.} =
   var tracker = getConnectionTracker()
@@ -85,7 +81,7 @@ proc bindStreamClose(conn: Connection) {.async.} =
       trace "wrapped stream closed, closing conn", closed = conn.isClosed,
                                                     peer = if not isNil(conn.peerInfo):
                                                       conn.peerInfo.id else: ""
-      asyncCheck conn.close()
+      await conn.close()
 
 proc init[T: Connection](self: var T, stream: LPStream): T =
   ## create a new Connection for the specified async reader/writer
@@ -94,10 +90,6 @@ proc init[T: Connection](self: var T, stream: LPStream): T =
   self.closeEvent = newAsyncEvent()
   asyncCheck self.bindStreamClose()
   inc getConnectionTracker().opened
-  when defined traceConns:
-    getConnectionTracker().conns &= self
-    self.initLoc = getStackTraceEntries()[^3]
-    echo self.initLoc
   return self
 
 proc newConnection*(stream: LPStream): Connection =
@@ -161,7 +153,10 @@ method close*(s: Connection) {.async, gcsafe.} =
                                      peer = if not isNil(s.peerInfo):
                                        s.peerInfo.id else: ""
 
-  if not s.closed:
+  if not s.isClosed:
+    s.isClosed = true
+    inc getConnectionTracker().closed
+
     if not isNil(s.stream) and not s.stream.closed:
       trace "closing child stream", closed = s.closed,
                                     peer = if not isNil(s.peerInfo):
@@ -169,8 +164,11 @@ method close*(s: Connection) {.async, gcsafe.} =
       await s.stream.close()
 
     s.closeEvent.fire()
-    s.isClosed = true
-    inc getConnectionTracker().closed
+
+    trace "waiting readloops", count=s.readLoops.len
+    let loopFuts = await allFinished(s.readLoops)
+    checkFutures(loopFuts)
+    s.readLoops = @[]
 
   trace "connection closed", closed = s.closed,
                              peer = if not isNil(s.peerInfo):

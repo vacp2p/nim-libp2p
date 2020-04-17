@@ -163,7 +163,7 @@ suite "Multistream select":
   teardown:
     let
       trackers = [
-        getTracker(ConnectionTrackerName),
+        # getTracker(ConnectionTrackerName),
         getTracker(AsyncStreamWriterTrackerName),
         getTracker(TcpTransportTrackerName),
         getTracker(AsyncStreamReaderTrackerName),

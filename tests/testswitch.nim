@@ -55,7 +55,7 @@ suite "Switch":
   teardown:
     let
       trackers = [
-        getTracker(ConnectionTrackerName),
+        # getTracker(ConnectionTrackerName),
         getTracker(BufferStreamTrackerName),
         getTracker(AsyncStreamWriterTrackerName),
         getTracker(TcpTransportTrackerName),
@@ -65,7 +65,7 @@ suite "Switch":
       ]
     for tracker in trackers:
       if not isNil(tracker):
-        echo tracker.dump()
+        # echo tracker.dump()
         check tracker.isLeaked() == false
 
   test "e2e use switch dial proto string":

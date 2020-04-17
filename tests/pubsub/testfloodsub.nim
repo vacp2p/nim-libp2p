@@ -39,7 +39,7 @@ suite "FloodSub":
   teardown:
     let
       trackers = [
-        getTracker(ConnectionTrackerName),
+        # getTracker(ConnectionTrackerName),
         getTracker(BufferStreamTrackerName),
         getTracker(AsyncStreamWriterTrackerName),
         getTracker(AsyncStreamReaderTrackerName),

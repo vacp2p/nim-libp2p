@@ -95,9 +95,11 @@ method handle*(m: Mplex) {.async, gcsafe.} =
             proc handler() {.async.} =
               try:
                 await m.streamHandler(stream)
-                await stream.close()
               except CatchableError as ex:
-                trace "channel stream handler had an exception", name=ex.name
+                debug "channel stream handler had an exception", name=ex.name
+              finally:
+                if not stream.closed:
+                  await stream.close()
 
             asyncCheck handler()
             continue

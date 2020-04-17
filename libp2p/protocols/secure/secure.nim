@@ -62,7 +62,7 @@ proc handleConn*(s: Secure, conn: Connection, initiator: bool = false): Future[C
     await sconn.writeMessage(data)
 
   result = newConnection(newBufferStream(writeHandler))
-  asyncCheck readLoop(sconn, result)
+  conn.readLoops &= readLoop(sconn, result)
 
   if not isNil(sconn.peerInfo) and sconn.peerInfo.publicKey.isSome:
     result.peerInfo = PeerInfo.init(sconn.peerInfo.publicKey.get())
