@@ -8,8 +8,7 @@
 ## those terms.
 
 import options
-import chronos
-import chronicles
+import chronos, chronicles
 import ../protocol,
        ../../stream/bufferstream,
        ../../crypto/crypto,

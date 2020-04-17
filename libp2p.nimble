@@ -7,17 +7,18 @@ description   = "LibP2P implementation"
 license       = "MIT"
 skipDirs      = @["tests", "examples", "Nim"]
 
-requires "nim > 0.19.4",
-         "secp256k1",
+requires "nim >= 1.2.0",
          "nimcrypto >= 0.4.1",
-         "chronos >= 2.3.8",
          "bearssl >= 0.1.4",
          "chronicles >= 0.7.2",
+         "chronos >= 2.3.8",
+         "metrics",
+         "secp256k1",
          "stew"
 
 proc runTest(filename: string) =
-  exec "nim --opt:speed -d:release c -r tests/" & filename
-  # rmFile "tests/" & filename
+  exec "nim c -r --opt:speed -d:debug --verbosity:0 --hints:off tests/" & filename
+  rmFile "tests/" & filename.toExe
 
 task test, "Runs the test suite":
   runTest "testnative"

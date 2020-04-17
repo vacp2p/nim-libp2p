@@ -7,7 +7,8 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import chronos, chronicles
+import oids
+import chronos, chronicles, metrics
 import peerinfo,
        errors,
        multiaddress,
@@ -63,6 +64,8 @@ proc setupConnectionTracker(): ConnectionTracker =
   result.isLeaked = leakTransport
   addTracker(ConnectionTrackerName, result)
 
+declareGauge libp2p_open_connection, "open Connection instances"
+
 proc newInvalidVarintException*(): ref InvalidVarintException =
   newException(InvalidVarintException, "Unable to parse varint")
 
@@ -88,8 +91,12 @@ proc init[T: Connection](self: var T, stream: LPStream): T =
   new self
   self.stream = stream
   self.closeEvent = newAsyncEvent()
+  when chronicles.enabledLogLevel == LogLevel.TRACE:
+    self.oid = genOid()
   asyncCheck self.bindStreamClose()
   inc getConnectionTracker().opened
+  libp2p_open_connection.inc()
+
   return self
 
 proc newConnection*(stream: LPStream): Connection =
@@ -170,9 +177,10 @@ method close*(s: Connection) {.async, gcsafe.} =
     checkFutures(loopFuts)
     s.readLoops = @[]
 
-  trace "connection closed", closed = s.closed,
-                             peer = if not isNil(s.peerInfo):
-                               s.peerInfo.id else: ""
+    trace "connection closed", closed = s.closed,
+                               peer = if not isNil(s.peerInfo):
+                                 s.peerInfo.id else: ""
+    libp2p_open_connection.dec()
 
 proc readLp*(s: Connection): Future[seq[byte]] {.async, gcsafe.} =
   ## read lenght prefixed msg
