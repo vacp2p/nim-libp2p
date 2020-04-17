@@ -17,14 +17,22 @@ type
     queue: AsyncQueue[T]
     maxChunkSize: int
 
-proc push*[T](p: Pushable, item: T): Future[void] =
-  p.queue.put(item)
+proc close*[T](p: Pushable[T]) {.async.} =
+  p.queue.clear()
+  p.eof = true
+
+proc push*[T](p: Pushable, item: T): Future[void] {.async.} =
+  # TODO: just returning p.queue.put(item) future,
+  # doesn't work reliably here. Might be a chronos
+  # bug?
+  await p.queue.put(item)
 
 proc pushSource*[T](s: Stream[T]): Source[T] {.gcsafe.} =
   var p = Pushable[T](s)
   return iterator(): Future[T] =
-    while not (p.closed and p.queue.empty()):
-      yield p.queue.get()
+    while not p.atEof:
+      yield p.queue.get() # TODO: need to signal EOF on close here, possibly just cancel the future
+    p.eof = true # we're EOF
 
 proc init*[T](P: type[Pushable[T]], maxChunkSize = DefaultChunkSize): P =
   P(queue: newAsyncQueue[T](1),

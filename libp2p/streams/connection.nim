@@ -31,9 +31,6 @@ proc connSink*(s: Stream[seq[byte]]): Sink[seq[byte]] {.gcsafe.} =
 proc close*(s: Connection) {.async.} =
   result = close(s.stream)
 
-proc closed*(s: Connection): bool =
-  s.stream.closed
-
 proc getObservedAddrs*(c: Connection): Future[MultiAddress] {.async.} =
   ## get resolved multiaddresses for the connection
   result = c.observedAddr
