@@ -7,6 +7,7 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
+import macros
 import chronos
 
 # TODO: Rework without methods
@@ -49,6 +50,14 @@ template toFuture*[T](v: T): Future[T] =
   var fut = newFuture[T]()
   fut.complete(v)
   fut
+
+proc toThrough*[T](s: Stream[T]): Through[T] =
+  proc sinkit(i: Source[T]) {.async.} =
+    await s.sink()(i)
+
+  return proc(i: Source[T]): Source[T] =
+    asyncCheck sinkit(i)
+    s.source()
 
 template pipe*[T](s: Stream[T] | Source[T],
                   t: varargs[Through[T]]): Source[T] =
