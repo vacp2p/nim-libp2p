@@ -161,7 +161,9 @@ suite "Mplex":
     proc testNewStream(): Future[bool] {.async.} =
       let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
 
-      var done = newFuture[void]()
+      var
+        done = newFuture[void]()
+        done2 = newFuture[void]()
 
       proc connHandler(conn: Connection) {.async, gcsafe.} =
         proc handleMplexListen(stream: Connection) {.async, gcsafe.} =
@@ -172,10 +174,12 @@ suite "Mplex":
 
         let mplexListen = newMplex(conn)
         mplexListen.streamHandler = handleMplexListen
-        discard mplexListen.handle()
+        await mplexListen.handle()
+        await conn.close()
+        done2.complete()
 
       let transport1: TcpTransport = newTransport(TcpTransport)
-      discard await transport1.listen(ma, connHandler)
+      let lfut = await transport1.listen(ma, connHandler)
 
       let transport2: TcpTransport = newTransport(TcpTransport)
       let conn = await transport2.dial(transport1.ma)
@@ -190,10 +194,12 @@ suite "Mplex":
       result = true
 
       await done.wait(5000.millis)
+      await done2.wait(5000.millis)
       await stream.close()
       await conn.close()
       await transport2.close()
       await transport1.close()
+      await lfut
 
     check:
       waitFor(testNewStream()) == true
@@ -202,7 +208,9 @@ suite "Mplex":
     proc testNewStream(): Future[bool] {.async.} =
       let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
 
-      var done = newFuture[void]()
+      var
+        done = newFuture[void]()
+        done2 = newFuture[void]()
 
       proc connHandler(conn: Connection) {.async, gcsafe.} =
         proc handleMplexListen(stream: Connection) {.async, gcsafe.} =
@@ -213,7 +221,8 @@ suite "Mplex":
 
         let mplexListen = newMplex(conn)
         mplexListen.streamHandler = handleMplexListen
-        discard mplexListen.handle()
+        await mplexListen.handle()
+        done2.complete()
 
       let transport1: TcpTransport = newTransport(TcpTransport)
       let listenFut = await transport1.listen(ma, connHandler)
@@ -231,6 +240,7 @@ suite "Mplex":
       result = true
 
       await done.wait(5000.millis)
+      await done2.wait(5000.millis)
       await conn.close()
       await stream.close()
       await mplexDial.close()
