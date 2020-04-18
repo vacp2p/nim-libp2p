@@ -34,7 +34,7 @@ suite "Mplex":
       ]
     for tracker in trackers:
       if not isNil(tracker):
-        echo tracker.dump()
+        # echo tracker.dump()
         check tracker.isLeaked() == false
 
   test "encode header with channel id 0":
