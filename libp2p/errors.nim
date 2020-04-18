@@ -48,3 +48,11 @@ proc allFuturesThrowing*[T](args: varargs[Future[T]]): Future[void] =
       if fut.failed:
         raise fut.readError()
   return call()
+
+template tryAndWarn*(msg: static[string]; body: untyped): untyped =
+  try:
+    body
+  except CancelledError as ex:
+    raise ex
+  except CatchableError as ex:
+    warn "ignored an error", name=ex.name, msg=msg

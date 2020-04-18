@@ -93,15 +93,14 @@ method handle*(m: Mplex) {.async, gcsafe.} =
             stream.peerInfo = m.connection.peerInfo
 
             proc handler() {.async.} =
-              try:
+              tryAndWarn "mplex channel handler":
                 await m.streamHandler(stream)
-              except CatchableError as ex:
-                debug "channel stream handler had an exception", name=ex.name
-              finally:
-                if not stream.closed:
-                  await stream.close()
+              # TODO closing stream
+              # or doing cleanupChann
+              # will make go interop tests fail
+              # need to investigate why
 
-            asyncCheck handler()
+            asynccheck handler()
             continue
         of MessageType.MsgIn, MessageType.MsgOut:
           trace "pushing data to channel", id = id,
