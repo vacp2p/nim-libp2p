@@ -34,7 +34,7 @@ const
 suite "Multistream select":
   test "test select custom proto":
     proc test(): Future[bool] {.async.} =
-      let pushable = Pushable[seq[byte]].init()
+      let pushable = BytePushable.init()
       pushable.sinkImpl = proc(s: Stream[seq[byte]]): Sink[seq[byte]] {.gcsafe.} =
         return proc(i: Source[seq[byte]]) {.async, gcsafe.} =
           check: (await i()) == CodecBytes
@@ -55,7 +55,7 @@ suite "Multistream select":
   test "test handle custom proto":
     proc testHandle(): Future[bool] {.async.} =
       var ms = MultistreamSelect.init()
-      let pushable = Pushable[seq[byte]].init()
+      let pushable = BytePushable.init()
       pushable.sinkImpl = proc(s: Stream[seq[byte]]): Sink[seq[byte]] {.gcsafe.} =
         return proc(i: Source[seq[byte]]) {.async.} =
           check: (await i()) == CodecBytes
@@ -87,7 +87,7 @@ suite "Multistream select":
   test "test handle `ls`":
     proc testLs(): Future[bool] {.async.} =
       var ms = MultistreamSelect.init()
-      let pushable = Pushable[seq[byte]].init()
+      let pushable = BytePushable.init()
       pushable.sinkImpl = proc(s: Stream[seq[byte]]): Sink[seq[byte]] {.gcsafe.} =
         return proc(i: Source[seq[byte]]) {.async.} =
           check: (await i()) == CodecBytes
@@ -120,7 +120,7 @@ suite "Multistream select":
     proc testNa(): Future[bool] {.async.} =
 
       var ms = MultistreamSelect.init()
-      let pushable = Pushable[seq[byte]].init()
+      let pushable = BytePushable.init()
       pushable.sinkImpl = proc(s: Stream[seq[byte]]): Sink[seq[byte]] {.gcsafe.} =
         return proc(i: Source[seq[byte]]) {.async.} =
           check: (await i()) == "\3na\n".toBytes()
@@ -150,7 +150,7 @@ suite "Multistream select":
       var protocol: LPProtocol = new LPProtocol
       proc testHandler(conn: Connection, proto: string):
         Future[void] {.async, gcsafe.} =
-        var pushable = Pushable[seq[byte]].init()
+        var pushable = BytePushable.init()
         var lp = LenPrefixed.init()
         var sink = pipe(pushable, lp.encoder, conn)
 

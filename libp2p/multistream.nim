@@ -61,7 +61,7 @@ proc select*(m: MultistreamSelect,
              Future[string] {.async.} =
   trace "initiating handshake", codec = Codec,
                                 proto = protos
-  var pushable = Pushable[seq[byte]].init() # pushable source
+  var pushable = BytePushable.init() # pushable source
   var source = pipe(pushable,
                     appendNl(),
                     m.lp.encoder,
@@ -118,7 +118,7 @@ proc list*(m: MultistreamSelect,
   if not await m.select(conn):
     return
 
-  var pushable = Pushable[seq[byte]].init()
+  var pushable = BytePushable.init()
   var source = pipe(pushable,
                     appendNl(),
                     m.lp.encoder,
@@ -140,7 +140,7 @@ proc list*(m: MultistreamSelect,
 proc handle*(m: MultistreamSelect, conn: Connection) {.async, gcsafe.} =
   trace "starting multistream handling"
   try:
-    var pushable = Pushable[seq[byte]].init()
+    var pushable = BytePushable.init()
     var source = pipe(pushable,
                       appendNl(),
                       m.lp.encoder,

@@ -116,7 +116,7 @@ when isMainModule:
   suite "Lenght Prefixed":
     test "encode":
       proc test() {.async.} =
-        var pushable = Pushable[seq[byte]].init()
+        var pushable = BytePushable.init()
         var lp = LenPrefixed.init()
 
         var source = pipe(pushable, lp.encoder())
@@ -127,7 +127,7 @@ when isMainModule:
 
     test "encode multiple":
       proc test() {.async.} =
-        var pushable = Pushable[seq[byte]].init()
+        var pushable = BytePushable.init()
         var lp = LenPrefixed.init()
         var source = pipe(pushable, lp.encoder())
 
@@ -151,20 +151,19 @@ when isMainModule:
 
     test "decode":
       proc test() {.async.} =
-        var pushable = Pushable[seq[byte]].init()
+        var pushable = BytePushable.init(eofTag = @[])
         var lp = LenPrefixed.init()
 
         var source = pipe(pushable, lp.decoder())
         await pushable.push(@[5, 72, 69, 76, 76, 79].mapIt( it.byte ))
-        await pushable.close()
-
         check: (await source()) == @[72, 69, 76, 76, 79].mapIt( it.byte )
+        await pushable.close()
 
       waitFor(test())
 
     test "decode in parts":
       proc test() {.async.} =
-        var pushable = Pushable[seq[byte]].init()
+        var pushable = BytePushable.init(eofTag = @[])
         var lp = LenPrefixed.init()
 
         proc write() {.async.} =
