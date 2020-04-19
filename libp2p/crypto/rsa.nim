@@ -16,6 +16,8 @@ import nimcrypto/utils
 import bearssl
 import minasn1
 export Asn1Error
+import stew/results
+export results
 
 const
   DefaultPublicExponent* = 3'u32
@@ -379,7 +381,7 @@ proc getBytes*(sig: RsaSignature): seq[byte] =
   else:
     raise newException(RsaSignatureError, "Incorrect signature")
 
-proc init*(key: var RsaPrivateKey, data: openarray[byte]): Asn1Error =
+proc init*(key: var RsaPrivateKey, data: openarray[byte]): Result[void, Asn1Error] =
   ## Initialize RSA private key ``key`` from ASN.1 DER binary representation
   ## ``data``.
   ##
@@ -390,100 +392,60 @@ proc init*(key: var RsaPrivateKey, data: openarray[byte]): Asn1Error =
   # Asn1Field is not trivial so avoid too much Result
 
   var ab = Asn1Buffer.init(data)
-  var fres = ab.read()
-  if fres.isErr:
-    return fres.error
-  else:
-    field = fres.value
+  field = ? ab.read()
 
   if field.kind != Asn1Tag.Sequence:
-    return Asn1Error.Incorrect
+    return err(Asn1Error.Incorrect)
 
   var ib = field.getBuffer()
 
-  fres = ib.read()
-  if fres.isErr:
-    return fres.error
-  else:
-    field = fres.value
+  field = ? ib.read()
 
   if field.kind != Asn1Tag.Integer:
-    return Asn1Error.Incorrect
+    return err(Asn1Error.Incorrect)
 
   if field.vint != 0'u64:
-    return Asn1Error.Incorrect
+    return err(Asn1Error.Incorrect)
 
-  fres = ib.read()
-  if fres.isErr:
-    return fres.error
-  else:
-    rawn = fres.value
+  rawn = ? ib.read()
 
   if rawn.kind != Asn1Tag.Integer:
-    return Asn1Error.Incorrect
+    return err(Asn1Error.Incorrect)
 
-  fres = ib.read()
-  if fres.isErr:
-    return fres.error
-  else:
-    rawpube = fres.value
+  rawpube = ? ib.read()
 
   if rawpube.kind != Asn1Tag.Integer:
-    return Asn1Error.Incorrect
+    return err(Asn1Error.Incorrect)
 
-  fres = ib.read()
-  if fres.isErr:
-    return fres.error
-  else:
-    rawprie = fres.value
+  rawprie = ? ib.read()
 
   if rawprie.kind != Asn1Tag.Integer:
-    return Asn1Error.Incorrect
+    return err(Asn1Error.Incorrect)
 
-  fres = ib.read()
-  if fres.isErr:
-    return fres.error
-  else:
-    rawp = fres.value
+  rawp = ? ib.read()
 
   if rawp.kind != Asn1Tag.Integer:
-    return Asn1Error.Incorrect
+    return err(Asn1Error.Incorrect)
 
-  fres = ib.read()
-  if fres.isErr:
-    return fres.error
-  else:
-    rawq = fres.value
+  rawq = ? ib.read()
 
   if rawq.kind != Asn1Tag.Integer:
-    return Asn1Error.Incorrect
+    return err(Asn1Error.Incorrect)
 
-  fres = ib.read()
-  if fres.isErr:
-    return fres.error
-  else:
-    rawdp = fres.value
+  rawdp = ? ib.read()
 
   if rawdp.kind != Asn1Tag.Integer:
-    return Asn1Error.Incorrect
+    return err(Asn1Error.Incorrect)
 
-  fres = ib.read()
-  if fres.isErr:
-    return fres.error
-  else:
-    rawdq = fres.value
+  rawdq = ? ib.read()
 
   if rawdq.kind != Asn1Tag.Integer:
-    return Asn1Error.Incorrect
+    return err(Asn1Error.Incorrect)
 
-  fres = ib.read()
-  if fres.isErr:
-    return fres.error
-  else:
-    rawiq = fres.value
+  rawiq = ? ib.read()
 
   if rawiq.kind != Asn1Tag.Integer:
-    return Asn1Error.Incorrect
+    return err(Asn1Error.Incorrect)
 
   if len(rawn) >= (MinKeySize shr 3) and len(rawp) > 0 and len(rawq) > 0 and
      len(rawdp) > 0 and len(rawdq) > 0 and len(rawiq) > 0:
@@ -506,11 +468,11 @@ proc init*(key: var RsaPrivateKey, data: openarray[byte]): Asn1Error =
     key.seck.iqlen = len(rawiq)
     key.pexplen = len(rawprie)
     key.seck.nBitlen = cast[uint32](len(rawn) shl 3)
-    result = Asn1Error.None
+    return ok()
   else:
-    result = Asn1Error.Incorrect
+    return err(Asn1Error.Incorrect)
 
-proc init*(key: var RsaPublicKey, data: openarray[byte]): Asn1Error =
+proc init*(key: var RsaPublicKey, data: openarray[byte]): Result[void, Asn1Error] =
   ## Initialize RSA public key ``key`` from ASN.1 DER binary representation
   ## ``data``.
   ##
@@ -518,87 +480,55 @@ proc init*(key: var RsaPublicKey, data: openarray[byte]): Asn1Error =
   var field, rawn, rawe: Asn1Field
   var ab = Asn1Buffer.init(data)
 
-  var fres = ab.read()
-  if fres.isErr:
-    return fres.error
-  else:
-    field = fres.value
+  field = ? ab.read()
 
   if field.kind != Asn1Tag.Sequence:
-    return Asn1Error.Incorrect
+    return err(Asn1Error.Incorrect)
 
   var ib = field.getBuffer()
 
-  fres = ib.read()
-  if fres.isErr:
-    return fres.error
-  else:
-    field = fres.value
+  field = ? ib.read()
 
   if field.kind != Asn1Tag.Sequence:
-    return Asn1Error.Incorrect
+    return err(Asn1Error.Incorrect)
 
   var ob = field.getBuffer()
 
-  fres = ob.read()
-  if fres.isErr:
-    return fres.error
-  else:
-    field = fres.value
+  field = ? ob.read()
 
   if field.kind != Asn1Tag.Oid:
-    return Asn1Error.Incorrect
+    return err(Asn1Error.Incorrect)
   elif field != Asn1OidRsaEncryption:
-    return Asn1Error.Incorrect
+    return err(Asn1Error.Incorrect)
 
-  fres = ob.read()
-  if fres.isErr:
-    return fres.error
-  else:
-    field = fres.value
+  field = ? ob.read()
 
   if field.kind != Asn1Tag.Null:
-    return Asn1Error.Incorrect
+    return err(Asn1Error.Incorrect)
 
-  fres = ib.read()
-  if fres.isErr:
-    return fres.error
-  else:
-    field = fres.value
+  field = ? ib.read()
 
   if field.kind != Asn1Tag.BitString:
-    return Asn1Error.Incorrect
+    return err(Asn1Error.Incorrect)
 
   var vb = field.getBuffer()
 
-  fres = vb.read()
-  if fres.isErr:
-    return fres.error
-  else:
-    field = fres.value
+  field = ? vb.read()
 
   if field.kind != Asn1Tag.Sequence:
-    return Asn1Error.Incorrect
+    return err(Asn1Error.Incorrect)
 
   var sb = field.getBuffer()
 
-  fres = sb.read()
-  if fres.isErr:
-    return fres.error
-  else:
-    rawn = fres.value
+  rawn = ? sb.read()
 
   if rawn.kind != Asn1Tag.Integer:
-    return Asn1Error.Incorrect
+    return err(Asn1Error.Incorrect)
 
-  fres = sb.read()
-  if fres.isErr:
-    return fres.error
-  else:
-    rawe = fres.value
+  rawe = ? sb.read()
 
   if rawe.kind != Asn1Tag.Integer:
-    return Asn1Error.Incorrect
+    return err(Asn1Error.Incorrect)
 
   if len(rawn) >= (MinKeySize shr 3) and len(rawe) > 0:
     key = new RsaPublicKey
@@ -607,51 +537,54 @@ proc init*(key: var RsaPublicKey, data: openarray[byte]): Asn1Error =
     key.key.e = cast[ptr cuchar](addr key.buffer[rawe.offset])
     key.key.nlen = len(rawn)
     key.key.elen = len(rawe)
-    result = Asn1Error.None
+    return ok()
   else:
-    result = Asn1Error.Incorrect
+    return err(Asn1Error.Incorrect)
 
-proc init*(sig: var RsaSignature, data: openarray[byte]): Asn1Error =
+proc init*(sig: var RsaSignature, data: openarray[byte]): Result[void, Asn1Error] =
   ## Initialize RSA signature ``sig`` from ASN.1 DER binary representation
   ## ``data``.
   ##
-  ## Procedure returns ``Asn1Status``.
-  result = Asn1Error.Incorrect
+  ## Procedure returns ``Result[void, Asn1Status]``.
   if len(data) > 0:
     sig = new RsaSignature
     sig.buffer = @data
-    result = Asn1Error.None
+    ok()
+  else:
+    err(Asn1Error.Incorrect)
 
-proc init*[T: RsaPKI](sospk: var T, data: string): Asn1Error {.inline.} =
+proc init*[T: RsaPKI](sospk: var T, data: string): Result[void, Asn1Error] {.inline.} =
   ## Initialize EC `private key`, `public key` or `scalar` ``sospk`` from
   ## hexadecimal string representation ``data``.
   ##
-  ## Procedure returns ``Asn1Status``.
-  result = sospk.init(fromHex(data))
+  ## Procedure returns ``Result[void, Asn1Status]``.
+  sospk.init(fromHex(data))
+
+# FIXME remove exceptions!
 
 proc init*(t: typedesc[RsaPrivateKey], data: openarray[byte]): RsaPrivateKey =
   ## Initialize RSA private key from ASN.1 DER binary representation ``data``
   ## and return constructed object.
   let res = result.init(data)
-  if res != Asn1Error.None:
+  if res.isErr:
     raise newException(RsaKeyIncorrectError,
-                       "Incorrect private key (" & $res & ")")
+                       "Incorrect private key (" & $res.error & ")")
 
 proc init*(t: typedesc[RsaPublicKey], data: openarray[byte]): RsaPublicKey =
   ## Initialize RSA public key from ASN.1 DER binary representation ``data``
   ## and return constructed object.
   let res = result.init(data)
-  if res != Asn1Error.None:
+  if res.isErr:
     raise newException(RsaKeyIncorrectError,
-                       "Incorrect public key (" & $res & ")")
+                       "Incorrect public key (" & $res.error & ")")
 
 proc init*(t: typedesc[RsaSignature], data: openarray[byte]): RsaSignature =
   ## Initialize RSA signature from raw binary representation ``data`` and
   ## return constructed object.
   let res = result.init(data)
-  if res != Asn1Error.None:
+  if res.isErr:
     raise newException(RsaKeyIncorrectError,
-                       "Incorrect signature (" & $res & ")")
+                       "Incorrect signature (" & $res.error & ")")
 
 proc init*[T: RsaPKI](t: typedesc[T], data: string): T {.inline.} =
   ## Initialize RSA `private key`, `public key` or `signature` from hexadecimal

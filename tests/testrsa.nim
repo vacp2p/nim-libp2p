@@ -277,8 +277,8 @@ suite "RSA 512/1024/2048/4096 test suite":
       var skey1 = key.getBytes()
       check key.toBytes(skey2) > 0
       check:
-        rkey1.init(skey1) == Asn1Error.None
-        rkey2.init(skey2) == Asn1Error.None
+        rkey1.init(skey1).isOk()
+        rkey2.init(skey2).isOk()
       var rkey3 = RsaPrivateKey.init(skey1)
       var rkey4 = RsaPrivateKey.init(skey2)
       check:
@@ -295,8 +295,8 @@ suite "RSA 512/1024/2048/4096 test suite":
       var skey1 = key.getBytes()
       check key.toBytes(skey2) > 0
       check:
-        rkey1.init(skey1) == Asn1Error.None
-        rkey2.init(skey2) == Asn1Error.None
+        rkey1.init(skey1).isOk()
+        rkey2.init(skey2).isOk()
       var rkey3 = RsaPrivateKey.init(skey1)
       var rkey4 = RsaPrivateKey.init(skey2)
       check:
@@ -312,8 +312,8 @@ suite "RSA 512/1024/2048/4096 test suite":
     var skey1 = key.getBytes()
     check key.toBytes(skey2) > 0
     check:
-      rkey1.init(skey1) == Asn1Error.None
-      rkey2.init(skey2) == Asn1Error.None
+      rkey1.init(skey1).isOk()
+      rkey2.init(skey2).isOk()
     var rkey3 = RsaPrivateKey.init(skey1)
     var rkey4 = RsaPrivateKey.init(skey2)
     check:
@@ -331,8 +331,8 @@ suite "RSA 512/1024/2048/4096 test suite":
       var skey1 = key.getBytes()
       check key.toBytes(skey2) > 0
       check:
-        rkey1.init(skey1) == Asn1Error.None
-        rkey2.init(skey2) == Asn1Error.None
+        rkey1.init(skey1).isOk()
+        rkey2.init(skey2).isOk()
       var rkey3 = RsaPrivateKey.init(skey1)
       var rkey4 = RsaPrivateKey.init(skey2)
       check:
@@ -349,8 +349,8 @@ suite "RSA 512/1024/2048/4096 test suite":
       var skey1 = pair.pubkey().getBytes()
       check:
         pair.pubkey.toBytes(skey2) > 0
-        rkey1.init(skey1) == Asn1Error.None
-        rkey2.init(skey2) == Asn1Error.None
+        rkey1.init(skey1).isOk()
+        rkey2.init(skey2).isOk()
       var rkey3 = RsaPublicKey.init(skey1)
       var rkey4 = RsaPublicKey.init(skey2)
       check:
@@ -367,8 +367,8 @@ suite "RSA 512/1024/2048/4096 test suite":
       var skey1 = pair.pubkey.getBytes()
       check:
         pair.pubkey.toBytes(skey2) > 0
-        rkey1.init(skey1) == Asn1Error.None
-        rkey2.init(skey2) == Asn1Error.None
+        rkey1.init(skey1).isOk()
+        rkey2.init(skey2).isOk()
       var rkey3 = RsaPublicKey.init(skey1)
       var rkey4 = RsaPublicKey.init(skey2)
       check:
@@ -384,8 +384,8 @@ suite "RSA 512/1024/2048/4096 test suite":
     var skey1 = pair.pubkey.getBytes()
     check:
       pair.pubkey.toBytes(skey2) > 0
-      rkey1.init(skey1) == Asn1Error.None
-      rkey2.init(skey2) == Asn1Error.None
+      rkey1.init(skey1).isOk()
+      rkey2.init(skey2).isOk()
     var rkey3 = RsaPublicKey.init(skey1)
     var rkey4 = RsaPublicKey.init(skey2)
     check:
@@ -402,8 +402,8 @@ suite "RSA 512/1024/2048/4096 test suite":
       var skey1 = pair.pubkey.getBytes()
       check:
         pair.pubkey.toBytes(skey2) > 0
-        rkey1.init(skey1) == Asn1Error.None
-        rkey2.init(skey2) == Asn1Error.None
+        rkey1.init(skey1).isOk()
+        rkey2.init(skey2).isOk()
       var rkey3 = RsaPublicKey.init(skey1)
       var rkey4 = RsaPublicKey.init(skey2)
       check:

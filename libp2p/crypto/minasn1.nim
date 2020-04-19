@@ -466,28 +466,17 @@ proc read*(ab: var Asn1Buffer): Asn1Result[Asn1Field] =
   inclass = false
   while true:
     offset = ab.offset
-    let rklass = ab.getTag(tag)
-    if rklass.isErr:
-      return err(rklass.error)
-    else:
-      klass = rklass.value
+    klass = ? ab.getTag(tag)
 
     if klass == Asn1Class.ContextSpecific:
       if inclass:
         return err(Asn1Error.Incorrect)
       inclass = true
       ttag = tag
-      let rlength = ab.getLength()
-      if rlength.isErr:
-        return err(rlength.error)
-      else:
-        length = rlength.value
+      length = ? ab.getLength()
+
     elif klass == Asn1Class.Universal:
-      let rlength = ab.getLength()
-      if rlength.isErr:
-        return err(rlength.error)
-      else:
-        length = rlength.value
+      length = ? ab.getLength()
 
       if inclass:
         if length >= tlength:
