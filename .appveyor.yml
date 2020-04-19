@@ -47,6 +47,7 @@ build_script:
 
 test_script:
   - nimble test
+  - nimble examples_build
 
 deploy: off
 

@@ -22,7 +22,14 @@ proc runTest(filename: string) =
   exec "nim c -r --opt:speed -d:debug --verbosity:0 --hints:off tests/" & filename
   rmFile "tests/" & filename.toExe
 
+proc buildSample(filename: string) =
+  exec "nim c --opt:speed --threads:on -d:debug --verbosity:0 --hints:off examples/" & filename
+  rmFile "examples" & filename.toExe
+
 task test, "Runs the test suite":
   runTest "testnative"
   runTest "testdaemon"
   runTest "testinterop"
+
+task examples_build, "Build the samples":
+  buildSample "directchat"

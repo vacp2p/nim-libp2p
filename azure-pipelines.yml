@@ -188,4 +188,5 @@ steps:
       gcc -v
 
       nimble test
+      nimble examples_build
     displayName: 'Testing the package'
