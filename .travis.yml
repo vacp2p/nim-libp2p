@@ -50,4 +50,4 @@ install:
 script:
   - nimble install -y --depsOnly
   - nimble test
-
+  - nimble examples_build
