@@ -84,11 +84,13 @@ proc select*(m: MultistreamSelect,
     error "handshake failed", codec = result.toHex()
     raise newMultistreamHandshakeException()
 
+  if protos.len == 0:
+    return Codec
+
   # write out first protocol without waiting for response
-  var i = 0
-  while i < protos.len:
+  for i in 0..protos.high:
     # first read because we've the outstanding requirest above
-    trace "reading requested proto"
+    trace "reading requested proto", proto = protos[i]
     res = await source()
 
     var protoBytes = protos[i].toBytes()
@@ -99,7 +101,6 @@ proc select*(m: MultistreamSelect,
     if i > 0:
       trace "selecting proto", proto = protos[i]
       await pushable.push(protoBytes) # select proto
-    i.inc()
 
 proc select*(m: MultistreamSelect,
              conn: Connection,
@@ -116,6 +117,7 @@ proc list*(m: MultistreamSelect,
            conn: Connection): Future[seq[string]] {.async.} =
   ## list remote protos requests on connection
   if not await m.select(conn):
+    trace "unable to list, handshake failed"
     return
 
   var pushable = BytePushable.init()
@@ -129,18 +131,18 @@ proc list*(m: MultistreamSelect,
   await pushable.push(m.ls) # send ls
 
   var list = newSeq[string]()
-  for chunk in source:
-    var msg = string.fromBytes((await chunk))
-    for s in msg.split("\n"):
-      if s.len() > 0:
-        list.add(s)
+  var msg = string.fromBytes((await source()))
+  for s in msg.split("\n"):
+    if s.len() > 0:
+      list.add(s)
 
   result = list
 
 proc handle*(m: MultistreamSelect, conn: Connection) {.async, gcsafe.} =
   trace "starting multistream handling"
+
+  var pushable = BytePushable.init()
   try:
-    var pushable = BytePushable.init()
     var source = pipe(pushable,
                       appendNl(),
                       m.lp.encoder,
@@ -177,9 +179,18 @@ proc handle*(m: MultistreamSelect, conn: Connection) {.async, gcsafe.} =
           for h in m.handlers:
             if (not isNil(h.match) and h.match(msg)) or msg == h.proto:
               trace "found handler for", protocol = msg
-              await pushable.push(h.proto.toBytes())
+              await pushable.push(msg.toBytes())
+              # TODO: we should dispose of the pipeline here,
+              # but we can't just close because that will also
+              # close the `sink`, which would prevent the handler
+              # from writing to it.
+              # await pushable.close()
               try:
+                trace "after push", queue = pushable.queue
+                # await sleepAsync(1.millis)
                 await h.protocol.handler(conn, msg)
+                trace "after push", queue = pushable.queue
+
                 return
               except CatchableError as exc:
                 warn "exception while handling", msg = exc.msg
@@ -189,6 +200,7 @@ proc handle*(m: MultistreamSelect, conn: Connection) {.async, gcsafe.} =
   except CatchableError as exc:
     trace "Exception occurred", exc = exc.msg
   finally:
+    await pushable.close()
     trace "leaving multistream loop"
 
 proc addHandler*(m: var MultistreamSelect,
