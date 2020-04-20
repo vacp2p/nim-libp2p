@@ -100,17 +100,21 @@ method close*(t: TcpTransport) {.async, gcsafe.} =
     t.server.stop()
     await t.server.closeWait()
 
+  t.server = nil
+
   for fut in t.handlers:
     if not fut.finished:
       fut.cancel()
   t.handlers = await allFinished(t.handlers)
   checkFutures(t.handlers)
+  t.handlers = @[]
 
   for fut in t.cleanups:
     if not fut.finished:
       fut.cancel()
   t.cleanups = await allFinished(t.cleanups)
   checkFutures(t.cleanups)
+  t.cleanups = @[]
 
   trace "transport stopped"
 
