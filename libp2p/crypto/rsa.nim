@@ -468,9 +468,9 @@ proc init*(key: var RsaPrivateKey, data: openarray[byte]): Result[void, Asn1Erro
     key.seck.iqlen = len(rawiq)
     key.pexplen = len(rawprie)
     key.seck.nBitlen = cast[uint32](len(rawn) shl 3)
-    return ok()
+    ok()
   else:
-    return err(Asn1Error.Incorrect)
+    err(Asn1Error.Incorrect)
 
 proc init*(key: var RsaPublicKey, data: openarray[byte]): Result[void, Asn1Error] =
   ## Initialize RSA public key ``key`` from ASN.1 DER binary representation
@@ -537,9 +537,9 @@ proc init*(key: var RsaPublicKey, data: openarray[byte]): Result[void, Asn1Error
     key.key.e = cast[ptr cuchar](addr key.buffer[rawe.offset])
     key.key.nlen = len(rawn)
     key.key.elen = len(rawe)
-    return ok()
+    ok()
   else:
-    return err(Asn1Error.Incorrect)
+    err(Asn1Error.Incorrect)
 
 proc init*(sig: var RsaSignature, data: openarray[byte]): Result[void, Asn1Error] =
   ## Initialize RSA signature ``sig`` from ASN.1 DER binary representation
@@ -559,8 +559,6 @@ proc init*[T: RsaPKI](sospk: var T, data: string): Result[void, Asn1Error] {.inl
   ##
   ## Procedure returns ``Result[void, Asn1Status]``.
   sospk.init(fromHex(data))
-
-# FIXME remove exceptions!
 
 proc init*(t: typedesc[RsaPrivateKey], data: openarray[byte]): RsaPrivateKey =
   ## Initialize RSA private key from ASN.1 DER binary representation ``data``

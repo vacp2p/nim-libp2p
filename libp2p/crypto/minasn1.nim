@@ -11,8 +11,8 @@
 
 {.push raises: [Defect].}
 
-import stew/[endians2, result]
-export result
+import stew/[endians2, results]
+export results
 import nimcrypto/utils
 
 type
@@ -441,16 +441,15 @@ proc getLength(ab: var Asn1Buffer): Asn1Result[uint64] =
 proc getTag(ab: var Asn1Buffer, tag: var int): Asn1Result[Asn1Class] =
   ## Decode tag part of ASN.1 TLV triplet.
   if not ab.isEmpty():
-    let b = ab.buffer[ab.offset]
-    var c = int((b and 0xC0'u8) shr 6)
-    var klass: Asn1Class
-    if c >= 0 and c < 4:
-      klass = cast[Asn1Class](c)
-    else:
-      return err(Asn1Error.Incorrect)
+    let
+      b = ab.buffer[ab.offset]
+      c = int((b and 0xC0'u8) shr 6)
     tag = int(b and 0x3F)
     ab.offset += 1
-    return ok(klass)
+    if c >= 0 and c < 4:
+      ok(cast[Asn1Class](c))
+    else:
+      err(Asn1Error.Incorrect)
   else:
     err(Asn1Error.Incomplete)
 
