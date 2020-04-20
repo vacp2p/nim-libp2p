@@ -9,7 +9,7 @@
 
 # {.push raises: [].}
 
-import chronos, chronicles
+import chronos, chronicles, stew/byteutils
 import stream
 
 logScope:
@@ -19,7 +19,8 @@ const
   DefaultChunkSize* = 1 shl 20 # 1MB
   EofTag: seq[byte] = @[]
 
-type ChronosStream* = ref object of Stream[seq[byte]]
+type
+  ChronosStream* = ref object of Stream[seq[byte]]
     reader: AsyncStreamReader
     writer: AsyncStreamWriter
     server: StreamServer
@@ -39,38 +40,51 @@ proc close*(c: ChronosStream) {.async.} =
     if not c.client.closed():
       await c.client.closeWait()
 
-  c.eof = true
-
-proc internalRead(c: ChronosStream): Future[seq[byte]] {.async.} =
-  var read = await c.reader.readOnce(addr c.buffer[0], c.buffer.len)
-  if read <= 0:
-    c.eof = true
-    return
-
-  result = c.buffer[0..<read]
-
 proc onEof(c: ChronosStream): Future[seq[byte]] {.async.} =
   await c.close()
+  c.eof = true
   result = EofTag
+
+proc read(c: ChronosStream): Future[seq[byte]] {.async.} =
+  var read = 0
+  if not c.reader.atEof:
+    read = await c.reader.readOnce(addr c.buffer[0], c.buffer.len)
+
+  if read <= 0:
+    return await c.onEof()
+
+  result = c.buffer[0..<read]
 
 proc chronosSource(s: Stream[seq[byte]]): Source[seq[byte]] {.gcsafe.} =
   var c = ChronosStream(s)
   return iterator(): Future[seq[byte]] =
-    while not c.atEof:
-      yield c.internalRead()
-    yield c.onEof() # propagate eof
+    if c.atEof:
+      raise newStreamEofError()
+
+    while true:
+      var res = c.read()
+      if c.atEof:
+        break
+      yield res
 
 proc chronosSink(s: Stream[seq[byte]]): Sink[seq[byte]] {.gcsafe.} =
   var c = ChronosStream(s)
   return proc(i: Source[seq[byte]]) {.async.} =
+    if c.atEof:
+      raise newStreamEofError()
+
     for chunk in i:
-      # sadly `await c.writer.write((await chunk))` breaks
       var cchunk = await chunk
+      if cchunk.len <= 0:
+        break
+
       await c.writer.write(cchunk)
 
-      if c.atEof:
-        await c.close()
-        return
+    trace "sink ended, clenaning up"
+    # TODO: Should `sink` close the entire
+    # chronos stream or just the writer?
+    # Ssame question goes for the `source`.
+    # discard await c.onEof()
 
 proc init*(C: type[ChronosStream],
            server: StreamServer,

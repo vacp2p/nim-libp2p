@@ -7,36 +7,47 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import chronos
+import chronos, chronicles, stew/byteutils
 import stream
+
+logScope:
+  topic = "PushableStream"
 
 const DefaultChunkSize* = 1 shl 20 # 1MB
 
 type
   Pushable*[T] = ref object of Stream[T]
-    queue: AsyncQueue[T]
+    queue*: AsyncQueue[T]
     maxChunkSize: int
-    eofFut: Future[T]
     eofTag: T
 
   BytePushable* = Pushable[seq[byte]]
 
 proc close*[T](p: Pushable[T]) {.async.} =
-  p.eofFut.complete(p.eofTag)
-  p.eof = true
+  await p.queue.put(p.eofTag)
 
-proc push*[T](p: Pushable[T], item: T): Future[void] {.async.} =
-  await p.queue.put(item)
+proc push*[T](p: Pushable[T], item: T): Future[void] =
+  p.queue.put(item)
 
-proc getOrCancel[T](p: Pushable[T]): Future[T] {.async.} =
-  var res = await one(p.queue.get(), p.eofFut)
-  result = await res
+proc get[T](p: Pushable[T]): Future[T] {.async.} =
+  result = await p.queue.get()
+  if result == p.eofTag:
+    p.eof = true
 
 proc pushSource*[T](s: Stream[T]): Source[T] {.gcsafe.} =
   var p = Pushable[T](s)
   return iterator(): Future[T] =
-    while not p.atEof:
-      yield p.getOrCancel()
+    if p.atEof:
+      raise newStreamEofError()
+
+    while true:
+      var res = p.get()
+      if p.atEof:
+        break
+
+      yield res
+
+    trace "source ended, clenaning up"
     p.eof = true # we're EOF
 
 proc init*[T](P: type[Pushable[T]],
@@ -45,13 +56,11 @@ proc init*[T](P: type[Pushable[T]],
   P(queue: newAsyncQueue[T](1),
     maxChunkSize: maxChunkSize,
     sourceImpl: pushSource,
-    name: "Pushable",
-    eofFut: newFuture[T]())
+    name: "Pushable")
 
 proc init*(P: type[BytePushable], maxChunkSize = DefaultChunkSize): P =
   P(queue: newAsyncQueue[seq[byte]](1),
     maxChunkSize: maxChunkSize,
     sourceImpl: pushSource,
     name: "BytePushable",
-    eofFut: newFuture[seq[byte]](),
     eofTag: @[])

@@ -7,12 +7,14 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import chronos, chronicles
+import chronos, chronicles, stew/byteutils
 import ringbuffer,
        stream,
-       utils,
       ../varint,
       ../vbuffer
+
+logScope:
+  topic = "LenPrefixed"
 
 const
   DefaultBuffSize* = 1 shl 20
@@ -54,11 +56,8 @@ proc decodeLen(lp: LenPrefixed): int =
     if res == VarintStatus.Success:
       break
 
-    if length > SafeVarintSize:
-      raise newInvalidVarintSizeException()
-
-    if size.int <= 0:
-      raise newInvalidVarintSizeException()
+  if length > SafeVarintSize:
+    raise newInvalidVarintSizeException()
 
   return size.int
 
@@ -66,12 +65,19 @@ proc read(lp: LenPrefixed,
           chunk: Future[seq[byte]]):
           Future[seq[byte]] {.async, gcsafe.} =
   try:
+      var cchunk = await chunk
+      if cchunk.len <= 0:
+        return
+
       lp.readBuff.append((await chunk))
 
       while lp.readBuff.len > 0:
         case lp.mode:
         of Mode.Decoding:
           lp.size = lp.decodeLen()
+          if lp.size <= 0:
+            break
+
           lp.mode = Mode.Reading
         else:
           var last = lp.pos + lp.size - 1
@@ -81,10 +87,12 @@ proc read(lp: LenPrefixed,
           var read = lp.readBuff.read(lp.buff.toOpenArray(lp.pos, last))
           lp.size -= read
           lp.pos += read
-          if lp.size == 0:
+
+          if lp.size <= 0:
             lp.mode = Mode.Decoding
             result = lp.buff[0..<lp.pos]
             lp.pos = 0
+            break
 
   except CatchableError as exc:
     trace "Exception occured", exc = exc.msg
@@ -95,6 +103,8 @@ proc decoder*(lp: LenPrefixed): Through[seq[byte]] =
     return iterator(): Future[seq[byte]] {.closure.} =
       for chunk in i:
         yield lp.read(chunk)
+
+      trace "source ended, clenaning up"
 
 proc write(lp: LenPrefixed,
            chunk: Future[seq[byte]]):
@@ -109,9 +119,11 @@ proc encoder*(lp: LenPrefixed): Through[seq[byte]] =
       for chunk in i:
         yield lp.write(chunk)
 
+      trace "source ended, clenaning up"
+
 when isMainModule:
   import unittest, sequtils, strutils
-  import pushable
+  import pushable, utils
 
   suite "Lenght Prefixed":
     test "encode":

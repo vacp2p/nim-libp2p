@@ -12,6 +12,8 @@ import chronos
 # TODO: Rework without methods
 
 type
+  StreamEofError = object of CatchableError
+
   Source*[T] = iterator(): Future[T] {.closure.}
   Through*[T] = proc(i: Source[T]): Source[T]
   Sink*[T] = proc(i: Source[T]): Future[void]
@@ -22,6 +24,9 @@ type
     eof*: bool
     sourceImpl*: proc (s: Stream[T]): Source[T] {.gcsafe.}
     sinkImpl*: proc(s: Stream[T]): Sink[T] {.gcsafe.}
+
+proc newStreamEofError*(): ref StreamEofError =
+  raise newException(StreamEofError, "Stream at EOF!")
 
 iterator items*[T](i: Source[T]): Future[T] =
   while true:
@@ -38,9 +43,9 @@ proc sink*[T](s: Stream[T]): Sink[T] =
   if not isNil(s.sinkImpl):
     return s.sinkImpl(s)
 
-proc atEof*[T](s: Stream[T]): bool =
+proc atEof*[T; S: Stream[T]](s: S): bool =
   s.eof
 
-proc close*[T](s: Stream[T]) {.async.} =
+proc close*[T; S: Stream[T]](s: S) {.async.} =
   # close is called externally
   s.eof = true

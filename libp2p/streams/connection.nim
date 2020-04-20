@@ -7,6 +7,8 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
+# {.push raises: [].}
+
 import chronos
 import stream,
        ../peerinfo,
@@ -48,3 +50,5 @@ proc init*[T](C: type[Connection],
              sinkImpl: connSink,
              peerInfo: peerInfo,
              name: "Connection")
+
+# {.pop.}
