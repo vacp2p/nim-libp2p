@@ -110,7 +110,7 @@ suite "TCP transport":
 
       let finished = Future[void]()
       proc serveClient(server: StreamServer,
-                        transp: StreamTransport) {.async, gcsafe.} =
+                       transp: StreamTransport) {.async, gcsafe.} =
         var rstream = newAsyncStreamReader(transp)
         let msg = await rstream.read(TestBytes.len)
         check: msg == TestBytes
