@@ -15,38 +15,42 @@ macro checkFutures*[T](futs: seq[Future[T]], exclude: untyped = []): untyped =
   case nexclude
   of 0:
     quote do:
-      let pos = instantiationInfo()
       for res in `futs`:
         if res.failed:
           let exc = res.readError()
           # We still don't abort but warn
-          warn "Something went wrong in a future",
-              error=exc.name, file=pos.filename, line=pos.line
+          warn "Something went wrong in a future", error=exc.name
   else:
     quote do:
-      let pos = instantiationInfo()
       for res in `futs`:
         block check:
           if res.failed:
             let exc = res.readError()
             for i in 0..<`nexclude`:
               if exc of `exclude`[i]:
-                trace "Ignoring an error (no warning)",
-                    error=exc.name, file=pos.filename, line=pos.line
+                trace "Ignoring an error (no warning)", error=exc.name
                 break check
             # We still don't abort but warn
-            warn "Something went wrong in a future",
-                error=exc.name, file=pos.filename, line=pos.line
+            warn "Something went wrong in a future", error=exc.name
 
 proc allFuturesThrowing*[T](args: varargs[Future[T]]): Future[void] =
   var futs: seq[Future[T]]
   for fut in args:
     futs &= fut
   proc call() {.async.} =
+    var first: ref Exception = nil
     futs = await allFinished(futs)
     for fut in futs:
       if fut.failed:
-        raise fut.readError()
+        let err = fut.readError()
+        if err of Defect:
+          raise err
+        else:
+          if isNil(first):
+            first = err
+    if not isNil(first):
+      raise first
+
   return call()
 
 template tryAndWarn*(msg: static[string]; body: untyped): untyped =
