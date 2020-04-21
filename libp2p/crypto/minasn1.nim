@@ -470,9 +470,10 @@ proc read*(ab: var Asn1Buffer): Asn1Result[Asn1Field] =
     if klass == Asn1Class.ContextSpecific:
       if inclass:
         return err(Asn1Error.Incorrect)
+
       inclass = true
       ttag = tag
-      length = ? ab.getLength()
+      tlength = ? ab.getLength()
 
     elif klass == Asn1Class.Universal:
       length = ? ab.getLength()
