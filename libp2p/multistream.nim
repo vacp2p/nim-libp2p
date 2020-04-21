@@ -92,6 +92,7 @@ proc select*(m: MultistreamSelect,
     # first read because we've the outstanding requirest above
     trace "reading requested proto", proto = protos[i]
     res = await source()
+    echo "RES ", res
 
     var protoBytes = protos[i].toBytes()
     if res == protoBytes:
@@ -154,8 +155,8 @@ proc handle*(m: MultistreamSelect, conn: Connection) {.async, gcsafe.} =
       var msg = string.fromBytes((await chunk))
       trace "got request for ", msg
       if msg.len <= 0:
-        trace "invalid proto"
-        await pushable.push(m.na)
+        trace "empty request, handler EOF"
+        break
 
       if m.handlers.len() == 0:
         trace "sending `na` for protocol ", protocol = msg
@@ -180,14 +181,8 @@ proc handle*(m: MultistreamSelect, conn: Connection) {.async, gcsafe.} =
             if (not isNil(h.match) and h.match(msg)) or msg == h.proto:
               trace "found handler for", protocol = msg
               await pushable.push(msg.toBytes())
-              # TODO: we should dispose of the pipeline here,
-              # but we can't just close because that will also
-              # close the `sink`, which would prevent the handler
-              # from writing to it.
-              # await pushable.close()
               try:
                 trace "after push", queue = pushable.queue
-                # await sleepAsync(1.millis)
                 await h.protocol.handler(conn, msg)
                 trace "after push", queue = pushable.queue
 
@@ -200,7 +195,6 @@ proc handle*(m: MultistreamSelect, conn: Connection) {.async, gcsafe.} =
   except CatchableError as exc:
     trace "Exception occurred", exc = exc.msg
   finally:
-    await pushable.close()
     trace "leaving multistream loop"
 
 proc addHandler*(m: var MultistreamSelect,

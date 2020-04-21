@@ -32,111 +32,112 @@ const
                      46.byte, 48.byte, 10.byte]
 
 suite "Multistream select":
-  test "test select custom proto":
-    proc test() {.async.} =
-      let pushable = BytePushable.init()
-      pushable.sinkImpl = proc(s: Stream[seq[byte]]): Sink[seq[byte]] {.gcsafe.} =
-        return proc(i: Source[seq[byte]]) {.async, gcsafe.} =
-          check: (await i()) == CodecBytes
-          check: (await i()) == TestProtoBytes
+  # test "test select custom proto":
+  #   proc test() {.async.} =
+  #     let pushable = BytePushable.init()
+  #     pushable.sinkImpl = proc(s: Stream[seq[byte]]): Sink[seq[byte]] {.gcsafe.} =
+  #       return proc(i: Source[seq[byte]]) {.async, gcsafe.} =
+  #         check: (await i()) == CodecBytes
+  #         check: (await i()) == TestProtoBytes
 
-          await pushable.push(CodecBytes)
-          await pushable.push(TestProtoBytes)
+  #         await pushable.push(CodecBytes)
+  #         await pushable.push(TestProtoBytes)
 
-      let conn = Connection.init(pushable)
-      var ms = MultistreamSelect.init()
+  #     let conn = Connection.init(pushable)
+  #     var ms = MultistreamSelect.init()
 
-      check: (await ms.select(conn, @[TestProtoString])) == TestProtoString
-      await pushable.close()
+  #     check: (await ms.select(conn, @[TestProtoString])) == TestProtoString
+  #     await pushable.close()
 
-    waitFor(test())
+  #   waitFor(test())
 
-  test "test handle custom proto":
-    proc test() {.async.} =
-      var ms = MultistreamSelect.init()
-      let pushable = BytePushable.init()
-      pushable.sinkImpl = proc(s: Stream[seq[byte]]): Sink[seq[byte]] {.gcsafe.} =
-        return proc(i: Source[seq[byte]]) {.async.} =
-          check: (await i()) == CodecBytes
-          check: (await i()) == TestProtoBytes
-          await pushable.close()
+  # test "test handle custom proto":
+  #   proc test() {.async.} =
+  #     var ms = MultistreamSelect.init()
+  #     let pushable = BytePushable.init()
+  #     pushable.sinkImpl = proc(s: Stream[seq[byte]]): Sink[seq[byte]] {.gcsafe.} =
+  #       return proc(i: Source[seq[byte]]) {.async.} =
+  #         check: (await i()) == CodecBytes
+  #         check: (await i()) == TestProtoBytes
+  #         await pushable.close()
 
-      let conn = Connection.init(pushable)
+  #     let conn = Connection.init(pushable)
 
-      var protocol: LPProtocol = new LPProtocol
-      proc testHandler(conn: Connection, proto: string):
-                       Future[void] {.async, gcsafe.} =
-        check: proto == TestProtoString
-        await conn.close()
+  #     var protocol: LPProtocol = new LPProtocol
+  #     proc testHandler(conn: Connection, proto: string):
+  #                      Future[void] {.async, gcsafe.} =
+  #       check: proto == TestProtoString
+  #       await conn.close()
 
-      protocol.handler = testHandler
-      ms.addHandler(TestProtoString, protocol)
-      var handlerFut = ms.handle(conn)
+  #     protocol.handler = testHandler
+  #     ms.addHandler(TestProtoString, protocol)
+  #     var handlerFut = ms.handle(conn)
 
-      await pushable.push(CodecBytes)
-      await pushable.push(TestProtoBytes)
-      await pushable.close()
+  #     await pushable.push(CodecBytes)
+  #     await pushable.push(TestProtoBytes)
+  #     await pushable.close()
 
-      await handlerFut
+  #     await handlerFut
 
-    waitFor(test())
+  #   waitFor(test())
 
-  test "test handle `ls`":
-    proc test() {.async.} =
-      var ms = MultistreamSelect.init()
-      let pushable = BytePushable.init()
-      pushable.sinkImpl = proc(s: Stream[seq[byte]]): Sink[seq[byte]] {.gcsafe.} =
-        return proc(i: Source[seq[byte]]) {.async.} =
-          check: (await i()) == CodecBytes
-          check: (await i()) == ("\x26/test/proto1/1.0.0\n" &
-                                "/test/proto2/1.0.0\n").toBytes()
+  # test "test handle `ls`":
+  #   proc test() {.async.} =
+  #     var ms = MultistreamSelect.init()
+  #     let pushable = BytePushable.init()
+  #     pushable.sinkImpl = proc(s: Stream[seq[byte]]): Sink[seq[byte]] {.gcsafe.} =
+  #       return proc(i: Source[seq[byte]]) {.async.} =
+  #         check: (await i()) == CodecBytes
+  #         check: (await i()) == ("\x26/test/proto1/1.0.0\n" &
+  #                               "/test/proto2/1.0.0\n").toBytes()
 
-      let conn = Connection.init(pushable)
-      var protocol: LPProtocol = new LPProtocol
+  #     let conn = Connection.init(pushable)
+  #     var protocol: LPProtocol = new LPProtocol
 
-      protocol.handler = proc(conn: Connection, proto: string):
-        Future[void] {.async, gcsafe.} = discard
+  #     protocol.handler = proc(conn: Connection, proto: string):
+  #       Future[void] {.async, gcsafe.} = discard
 
-      ms.addHandler("/test/proto1/1.0.0", protocol)
-      ms.addHandler("/test/proto2/1.0.0", protocol)
+  #     ms.addHandler("/test/proto1/1.0.0", protocol)
+  #     ms.addHandler("/test/proto2/1.0.0", protocol)
 
-      var handlerFut = ms.handle(conn)
+  #     var handlerFut = ms.handle(conn)
 
-      await pushable.push(CodecBytes) # handshake
-      await pushable.push("\3ls\n".toBytes())
-      await pushable.close()
+  #     await pushable.push(CodecBytes) # handshake
+  #     await pushable.push("\3ls\n".toBytes())
+  #     await pushable.close()
 
-      await handlerFut
+  #     await handlerFut
 
-    waitFor(test())
+  #   waitFor(test())
 
-  test "test handle `na`":
-    proc test() {.async.} =
-      var ms = MultistreamSelect.init()
-      let pushable = BytePushable.init()
-      pushable.sinkImpl = proc(s: Stream[seq[byte]]): Sink[seq[byte]] {.gcsafe.} =
-        return proc(i: Source[seq[byte]]) {.async.} =
-          check: (await i()) == "\3na\n".toBytes()
-          await pushable.close()
+  # test "test handle `na`":
+  #   proc test() {.async.} =
+  #     var ms = MultistreamSelect.init()
+  #     let pushable = BytePushable.init()
+  #     pushable.sinkImpl = proc(s: Stream[seq[byte]]): Sink[seq[byte]] {.gcsafe.} =
+  #       return proc(i: Source[seq[byte]]) {.async.} =
+  #         check: (await i()) == "\3na\n".toBytes()
+  #         await pushable.close()
 
-      var protocol: LPProtocol = new LPProtocol
-      proc testHandler(conn: Connection, proto: string):
-        Future[void] {.async, gcsafe.} = discard
-      protocol.handler = testHandler
-      ms.addHandler(TestProtoString, protocol)
+  #     var protocol: LPProtocol = new LPProtocol
+  #     proc testHandler(conn: Connection, proto: string):
+  #       Future[void] {.async, gcsafe.} = discard
+  #     protocol.handler = testHandler
+  #     ms.addHandler(TestProtoString, protocol)
 
-      let conn = Connection.init(pushable)
-      asyncCheck ms.handle(conn) # asyncCheck is fine here, because `handle` doesn't exit on `na`
+  #     let conn = Connection.init(pushable)
+  #     asyncCheck ms.handle(conn) # asyncCheck is fine here, because `handle` doesn't exit on `na`
 
-      await pushable.push("/invalid/proto".toBytes())
+  #     await pushable.push("/invalid/proto".toBytes())
 
-    waitFor(test())
+  #   waitFor(test())
 
   test "e2e - handle":
     proc test() {.async.} =
       let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
 
       var protocol: LPProtocol = new LPProtocol
+      var finished = newFuture[void]()
       proc testHandler(conn: Connection, proto: string):
         Future[void] {.async, gcsafe.} =
         var pushable = BytePushable.init()
@@ -146,8 +147,9 @@ suite "Multistream select":
         check: proto == TestProtoString
         await pushable.push(TestString.toBytes())
         await pushable.close()
-
         await sink
+
+        finished.complete()
 
       protocol.handler = testHandler
       var msListen = MultistreamSelect.init()
@@ -165,6 +167,7 @@ suite "Multistream select":
 
       check:
         await msDial.select(conn, TestProtoString)
+      echo "SELECTED"
 
       var lp = LenPrefixed.init()
       var source = pipe(conn, lp.decoder)
@@ -172,98 +175,99 @@ suite "Multistream select":
       let hello = string.fromBytes(await source())
       check: hello == TestString
 
+      await finished
       await conn.close()
       await transport1.close()
       await transportFut
 
     waitFor(test())
 
-  test "e2e - ls":
-    proc test() {.async.} =
-      let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
+  # test "e2e - ls":
+  #   proc test() {.async.} =
+  #     let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
 
-      var msListen = MultistreamSelect.init()
-      var protocol: LPProtocol = new LPProtocol
-      protocol.handler = proc(conn: Connection,
-                              proto: string) {.async, gcsafe.} =
-        check: false
+  #     var msListen = MultistreamSelect.init()
+  #     var protocol: LPProtocol = new LPProtocol
+  #     protocol.handler = proc(conn: Connection,
+  #                             proto: string) {.async, gcsafe.} =
+  #       check: false
 
-      proc testHandler(conn: Connection,
-                       proto: string):
-                       Future[void] {.async.} = discard
+  #     proc testHandler(conn: Connection,
+  #                      proto: string):
+  #                      Future[void] {.async.} = discard
 
-      protocol.handler = testHandler
-      msListen.addHandler("/test/proto1/1.0.0", protocol)
-      msListen.addHandler("/test/proto2/1.0.0", protocol)
+  #     protocol.handler = testHandler
+  #     msListen.addHandler("/test/proto1/1.0.0", protocol)
+  #     msListen.addHandler("/test/proto2/1.0.0", protocol)
 
-      let transport1 = newTransport(TcpTransport)
-      proc connHandler(conn: Connection): Future[void] {.async, gcsafe.} =
-        await msListen.handle(conn)
+  #     let transport1 = newTransport(TcpTransport)
+  #     proc connHandler(conn: Connection): Future[void] {.async, gcsafe.} =
+  #       await msListen.handle(conn)
 
-      var transportFut = await transport1.listen(ma, connHandler)
-      let msDial = MultistreamSelect.init()
-      let transport2 = newTransport(TcpTransport)
-      let conn = await transport2.dial(transport1.ma)
+  #     var transportFut = await transport1.listen(ma, connHandler)
+  #     let msDial = MultistreamSelect.init()
+  #     let transport2 = newTransport(TcpTransport)
+  #     let conn = await transport2.dial(transport1.ma)
 
-      check:
-        (await msDial.list(conn)) == @["/test/proto1/1.0.0", "/test/proto2/1.0.0"]
+  #     check:
+  #       (await msDial.list(conn)) == @["/test/proto1/1.0.0", "/test/proto2/1.0.0"]
 
-      await conn.close()
-      await transport1.close()
-      await transportFut
+  #     await conn.close()
+  #     await transport1.close()
+  #     await transportFut
 
-    waitFor(test())
+  #   waitFor(test())
 
-  test "e2e - select one from a list with unsupported protos":
-    proc test() {.async.} =
-      let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
-      let lp = LenPrefixed.init()
+  # test "e2e - select one from a list with unsupported protos":
+  #   proc test() {.async.} =
+  #     let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
+  #     let lp = LenPrefixed.init()
 
-      var protocol: LPProtocol = new LPProtocol
-      proc testHandler(conn: Connection,
-                       proto: string):
-                       Future[void] {.async, gcsafe.} =
-        check:
-          proto == "/test/proto/1.0.0"
+  #     var protocol: LPProtocol = new LPProtocol
+  #     proc testHandler(conn: Connection,
+  #                      proto: string):
+  #                      Future[void] {.async, gcsafe.} =
+  #       check:
+  #         proto == "/test/proto/1.0.0"
 
-        var pushable = BytePushable.init()
-        var sink = pipe(pushable,
-                        lp.encoder(),
-                        conn)
+  #       var pushable = BytePushable.init()
+  #       var sink = pipe(pushable,
+  #                       lp.encoder(),
+  #                       conn)
 
-        await pushable.push(TestString.toBytes())
-        await pushable.close()
-        await sink
+  #       await pushable.push(TestString.toBytes())
+  #       await pushable.close()
+  #       await sink
 
-      protocol.handler = testHandler
+  #     protocol.handler = testHandler
 
-      var msListen = MultistreamSelect.init()
-      msListen.addHandler("/test/proto/1.0.0", protocol)
+  #     var msListen = MultistreamSelect.init()
+  #     msListen.addHandler("/test/proto/1.0.0", protocol)
 
-      proc connHandler(conn: Connection): Future[void] {.async, gcsafe.} =
-        await msListen.handle(conn)
+  #     proc connHandler(conn: Connection): Future[void] {.async, gcsafe.} =
+  #       await msListen.handle(conn)
 
-      let transport1: TcpTransport = newTransport(TcpTransport)
-      var transportFut = await transport1.listen(ma, connHandler)
+  #     let transport1: TcpTransport = newTransport(TcpTransport)
+  #     var transportFut = await transport1.listen(ma, connHandler)
 
-      let msDial = MultistreamSelect.init()
-      let transport2: TcpTransport = newTransport(TcpTransport)
-      let conn = await transport2.dial(transport1.ma)
+  #     let msDial = MultistreamSelect.init()
+  #     let transport2: TcpTransport = newTransport(TcpTransport)
+  #     let conn = await transport2.dial(transport1.ma)
 
-      check:
-        (await msDial.select(conn,
-                             @["/test/proto/1.0.0",
-                             "/test/no/proto/1.0.0"])) == "/test/proto/1.0.0"
+  #     check:
+  #       (await msDial.select(conn,
+  #                            @["/test/proto/1.0.0",
+  #                            "/test/no/proto/1.0.0"])) == "/test/proto/1.0.0"
 
-      var source = pipe(conn, lp.decoder())
-      check:
-        (await source()) == TestString.toBytes()
+  #     var source = pipe(conn, lp.decoder())
+  #     check:
+  #       (await source()) == TestString.toBytes()
 
-      await conn.close()
-      await transport1.close()
-      await transportFut
+  #     await conn.close()
+  #     await transport1.close()
+  #     await transportFut
 
-    waitFor(test())
+  #   waitFor(test())
 
   # test "e2e - select one with both valid":
   #   proc endToEnd(): Future[bool] {.async.} =

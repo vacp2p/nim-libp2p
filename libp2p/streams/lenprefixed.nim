@@ -110,7 +110,11 @@ proc write(lp: LenPrefixed,
            chunk: Future[seq[byte]]):
            Future[seq[byte]] {.async.} =
   var buf = initVBuffer()
-  buf.writeSeq((await chunk))
+  var msg = await chunk
+  if msg.len <= 0:
+    return
+
+  buf.writeSeq(msg)
   result = buf.buffer
 
 proc encoder*(lp: LenPrefixed): Through[seq[byte]] =
@@ -146,15 +150,20 @@ when isMainModule:
         proc read(): Future[bool] {.async.} =
           var count = 6
           for chunk in source:
+            var msg = await chunk
+            if msg.len <= 0:
+              break
+
             check:
-              (await chunk).len == count
+              msg.len == count
             count.inc
 
           return true
 
         var reader = read()
         for i in 5..<15:
-          await pushable.push(toSeq("a".repeat(i)).mapIt( it.byte ))
+          var msg = toSeq("a".repeat(i)).mapIt( it.byte )
+          await pushable.push(msg)
         await pushable.close()
 
         check: await reader

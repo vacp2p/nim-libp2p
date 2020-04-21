@@ -24,6 +24,7 @@ type
     eof*: bool
     sourceImpl*: proc (s: Stream[T]): Source[T] {.gcsafe.}
     sinkImpl*: proc(s: Stream[T]): Sink[T] {.gcsafe.}
+    eofTag*: T
 
 proc newStreamEofError*(): ref StreamEofError =
   raise newException(StreamEofError, "Stream at EOF!")

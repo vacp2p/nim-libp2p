@@ -19,7 +19,6 @@ type
   Pushable*[T] = ref object of Stream[T]
     queue*: AsyncQueue[T]
     maxChunkSize: int
-    eofTag: T
 
   BytePushable* = Pushable[seq[byte]]
 
@@ -40,15 +39,8 @@ proc pushSource*[T](s: Stream[T]): Source[T] {.gcsafe.} =
     if p.atEof:
       raise newStreamEofError()
 
-    while true:
-      var res = p.get()
-      if p.atEof:
-        break
-
-      yield res
-
-    trace "source ended, clenaning up"
-    p.eof = true # we're EOF
+    while not p.atEof:
+      yield p.get()
 
 proc init*[T](P: type[Pushable[T]],
               maxChunkSize = DefaultChunkSize,
@@ -56,6 +48,7 @@ proc init*[T](P: type[Pushable[T]],
   P(queue: newAsyncQueue[T](1),
     maxChunkSize: maxChunkSize,
     sourceImpl: pushSource,
+    eofTag: eofTag,
     name: "Pushable")
 
 proc init*(P: type[BytePushable], maxChunkSize = DefaultChunkSize): P =

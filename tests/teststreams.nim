@@ -183,6 +183,8 @@ suite "streams":
         var source = conn.source()
         for i in source:
           var msg = await i
+          if msg.len <= 0:
+            break
           echo "STREAM ", string.fromBytes(msg)
         finished.complete()
 
@@ -191,6 +193,25 @@ suite "streams":
 
       let transport2: TcpTransport = newTransport(TcpTransport)
       let conn = await transport2.dial(transport1.ma)
+
+      # iterator source(): Future[seq[byte]] {.closure.} =
+      #   var count = 0
+      #   proc src(): Future[seq[byte]] =
+      #     result = (("item " & $count).toBytes()).toFuture
+
+      #   while true:
+      #     var res = src()
+      #     echo "HERE 1"
+      #     if count > 2:
+      #       break
+      #     count.inc
+
+      #     echo "HERE 2"
+      #     yield res
+      #     echo "HERE 3"
+      #   echo "DONE!"
+
+      # var sink = conn.sink()(source)
 
       var pushable = BytePushable.init()
       var sink = pipe(pushable, conn)
