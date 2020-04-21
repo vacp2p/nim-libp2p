@@ -34,7 +34,9 @@ import deques, math, oids
 import chronos, chronicles, metrics
 import ../stream/lpstream
 
-const DefaultBufferSize* = 1024
+const
+  BufferStreamTrackerName* = "libp2p.bufferstream"
+  DefaultBufferSize* = 1024
 
 type
   # TODO: figure out how to make this generic to avoid casts
@@ -52,6 +54,33 @@ type
   AlreadyPipedError* = object of CatchableError
   NotWritableError* = object of CatchableError
 
+  BufferStreamTracker* = ref object of TrackerBase
+    opened*: uint64
+    closed*: uint64
+
+proc setupBufferStreamTracker(): BufferStreamTracker {.gcsafe.}
+
+proc getBufferStreamTracker(): BufferStreamTracker {.gcsafe.} =
+  result = cast[BufferStreamTracker](getTracker(BufferStreamTrackerName))
+  if isNil(result):
+    result = setupBufferStreamTracker()
+
+proc dumpTracking(): string {.gcsafe.} =
+  var tracker = getBufferStreamTracker()
+  result = "Opened buffers: " & $tracker.opened & "\n" &
+           "Closed buffers: " & $tracker.closed
+
+proc leakTransport(): bool {.gcsafe.} =
+  var tracker = getBufferStreamTracker()
+  result = (tracker.opened != tracker.closed)
+
+proc setupBufferStreamTracker(): BufferStreamTracker =
+  result = new BufferStreamTracker
+  result.opened = 0
+  result.closed = 0
+  result.dump = dumpTracking
+  result.isLeaked = leakTransport
+  addTracker(BufferStreamTrackerName, result)
 declareGauge libp2p_open_bufferstream, "open BufferStream instances"
 
 proc newAlreadyPipedError*(): ref Exception {.inline.} =
@@ -77,6 +106,7 @@ proc initBufferStream*(s: BufferStream,
   s.lock = newAsyncLock()
   s.writeHandler = handler
   s.closeEvent = newAsyncEvent()
+  inc getBufferStreamTracker().opened
   when chronicles.enabledLogLevel == LogLevel.TRACE:
     s.oid = genOid()
   s.isClosed = false
@@ -181,7 +211,7 @@ method readExactly*(s: BufferStream,
   try:
     buff = await s.read(nbytes)
   except LPStreamEOFError as exc:
-    trace "Exception occured", exc = exc.msg
+    trace "Exception occurred", exc = exc.msg
 
   if nbytes > buff.len():
     raise newLPStreamIncompleteError()
@@ -399,5 +429,7 @@ method close*(s: BufferStream) {.async.} =
     s.readBuf.clear()
     s.closeEvent.fire()
     s.isClosed = true
+    inc getBufferStreamTracker().closed
     libp2p_open_bufferstream.dec()
-
+  else:
+    trace "attempt to close an already closed bufferstream", trace=getStackTrace()

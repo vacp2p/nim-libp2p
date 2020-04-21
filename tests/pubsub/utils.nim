@@ -12,5 +12,4 @@ proc subscribeNodes*(nodes: seq[Switch]) {.async.} =
     for node in nodes:
       if dialer.peerInfo.peerId != node.peerInfo.peerId:
         dials.add(dialer.connect(node.peerInfo))
-  await sleepAsync(100.millis)
   await allFutures(dials)

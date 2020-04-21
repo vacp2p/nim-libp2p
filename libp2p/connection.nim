@@ -10,6 +10,7 @@
 import oids
 import chronos, chronicles, metrics
 import peerinfo,
+       errors,
        multiaddress,
        stream/lpstream,
        peerinfo,
@@ -19,16 +20,49 @@ import peerinfo,
 logScope:
   topic = "Connection"
 
-const DefaultReadSize* = 1 shl 20
+const
+  DefaultReadSize* = 1 shl 20
+  ConnectionTrackerName* = "libp2p.connection"
 
 type
   Connection* = ref object of LPStream
     peerInfo*: PeerInfo
     stream*: LPStream
     observedAddrs*: Multiaddress
+    # notice this is a ugly circular reference collection
+    # (we got many actually :-))
+    readLoops*: seq[Future[void]]
 
   InvalidVarintException = object of LPStreamError
   InvalidVarintSizeException = object of LPStreamError
+
+  ConnectionTracker* = ref object of TrackerBase
+    opened*: uint64
+    closed*: uint64
+
+proc setupConnectionTracker(): ConnectionTracker {.gcsafe.}
+
+proc getConnectionTracker*(): ConnectionTracker {.gcsafe.} =
+  result = cast[ConnectionTracker](getTracker(ConnectionTrackerName))
+  if isNil(result):
+    result = setupConnectionTracker()
+
+proc dumpTracking(): string {.gcsafe.} =
+  var tracker = getConnectionTracker()
+  result = "Opened conns: " & $tracker.opened & "\n" &
+           "Closed conns: " & $tracker.closed
+
+proc leakTransport(): bool {.gcsafe.} =
+  var tracker = getConnectionTracker()
+  result = (tracker.opened != tracker.closed)
+
+proc setupConnectionTracker(): ConnectionTracker =
+  result = new ConnectionTracker
+  result.opened = 0
+  result.closed = 0
+  result.dump = dumpTracking
+  result.isLeaked = leakTransport
+  addTracker(ConnectionTrackerName, result)
 
 declareGauge libp2p_open_connection, "open Connection instances"
 
@@ -50,9 +84,9 @@ proc bindStreamClose(conn: Connection) {.async.} =
       trace "wrapped stream closed, closing conn", closed = conn.isClosed,
                                                     peer = if not isNil(conn.peerInfo):
                                                       conn.peerInfo.id else: ""
-      asyncCheck conn.close()
+      await conn.close()
 
-proc init*[T: Connection](self: var T, stream: LPStream): T =
+proc init[T: Connection](self: var T, stream: LPStream): T =
   ## create a new Connection for the specified async reader/writer
   new self
   self.stream = stream
@@ -60,6 +94,7 @@ proc init*[T: Connection](self: var T, stream: LPStream): T =
   when chronicles.enabledLogLevel == LogLevel.TRACE:
     self.oid = genOid()
   asyncCheck self.bindStreamClose()
+  inc getConnectionTracker().opened
   libp2p_open_connection.inc()
 
   return self
@@ -116,15 +151,18 @@ method write*(s: Connection,
 
 method closed*(s: Connection): bool =
   if isNil(s.stream):
-    return false
+    return true
 
   result = s.stream.closed
 
 method close*(s: Connection) {.async, gcsafe.} =
-  if not s.closed:
-    trace "about to close connection", closed = s.closed,
-                                       peer = if not isNil(s.peerInfo):
-                                         s.peerInfo.id else: ""
+  trace "about to close connection", closed = s.closed,
+                                     peer = if not isNil(s.peerInfo):
+                                       s.peerInfo.id else: ""
+
+  if not s.isClosed:
+    s.isClosed = true
+    inc getConnectionTracker().closed
 
     if not isNil(s.stream) and not s.stream.closed:
       trace "closing child stream", closed = s.closed,
@@ -133,7 +171,11 @@ method close*(s: Connection) {.async, gcsafe.} =
       await s.stream.close()
 
     s.closeEvent.fire()
-    s.isClosed = true
+
+    trace "waiting readloops", count=s.readLoops.len
+    let loopFuts = await allFinished(s.readLoops)
+    checkFutures(loopFuts)
+    s.readLoops = @[]
 
     trace "connection closed", closed = s.closed,
                                peer = if not isNil(s.peerInfo):

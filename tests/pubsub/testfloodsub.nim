@@ -7,16 +7,49 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import unittest, sequtils
+import unittest, sequtils, options, tables, sets
 import chronos
 import utils,
-       ../../libp2p/[switch,
+       ../../libp2p/[errors,
+                     switch,
+                     connection,
+                     stream/bufferstream,
                      crypto/crypto,
                      protocols/pubsub/pubsub,
+                     protocols/pubsub/floodsub,
                      protocols/pubsub/rpc/messages,
                      protocols/pubsub/rpc/message]
 
+const
+  StreamTransportTrackerName = "stream.transport"
+  StreamServerTrackerName = "stream.server"
+
+proc waitSub(sender, receiver: auto; key: string) {.async, gcsafe.} =
+  # turn things deterministic
+  # this is for testing purposes only
+  var ceil = 15
+  let fsub = cast[FloodSub](sender.pubSub.get())
+  while not fsub.floodsub.hasKey(key) or
+        not fsub.floodsub[key].contains(receiver.peerInfo.id):
+    await sleepAsync(100.millis)
+    dec ceil
+    doAssert(ceil > 0, "waitSub timeout!")
+
 suite "FloodSub":
+  teardown:
+    let
+      trackers = [
+        # getTracker(ConnectionTrackerName),
+        getTracker(BufferStreamTrackerName),
+        getTracker(AsyncStreamWriterTrackerName),
+        getTracker(AsyncStreamReaderTrackerName),
+        getTracker(StreamTransportTrackerName),
+        getTracker(StreamServerTrackerName)
+      ]
+    for tracker in trackers:
+      if not isNil(tracker):
+        check tracker.isLeaked() == false
+
   test "FloodSub basic publish/subscribe A -> B":
     proc runTests(): Future[bool] {.async.} =
       var completionFut = newFuture[bool]()
@@ -24,21 +57,30 @@ suite "FloodSub":
         check topic == "foobar"
         completionFut.complete(true)
 
-      var nodes = generateNodes(2)
-      var awaiters: seq[Future[void]]
-      awaiters.add((await nodes[0].start()))
-      awaiters.add((await nodes[1].start()))
+      let
+        nodes = generateNodes(2)
+        nodesFut = await allFinished(
+          nodes[0].start(),
+          nodes[1].start()
+        )
 
       await subscribeNodes(nodes)
+
       await nodes[1].subscribe("foobar", handler)
-      await sleepAsync(1000.millis)
+      await waitSub(nodes[0], nodes[1], "foobar")
 
       await nodes[0].publish("foobar", cast[seq[byte]]("Hello!"))
 
-      result = await completionFut
-      await allFutures(nodes[0].stop(), nodes[1].stop())
-      await allFutures(awaiters)
+      result = await completionFut.wait(5.seconds)
 
+      await allFuturesThrowing(
+        nodes[0].stop(),
+        nodes[1].stop()
+      )
+
+      for fut in nodesFut:
+        let res = fut.read()
+        await allFuturesThrowing(res)
     check:
       waitFor(runTests()) == true
 
@@ -55,14 +97,16 @@ suite "FloodSub":
       awaiters.add((await nodes[1].start()))
 
       await subscribeNodes(nodes)
+
       await nodes[0].subscribe("foobar", handler)
-      await sleepAsync(1000.millis)
+      await waitSub(nodes[1], nodes[0], "foobar")
 
       await nodes[1].publish("foobar", cast[seq[byte]]("Hello!"))
 
-      result = await completionFut
-      await allFutures(nodes[0].stop(), nodes[1].stop())
-      await allFutures(awaiters)
+      result = await completionFut.wait(5.seconds)
+
+      await allFuturesThrowing(nodes[0].stop(), nodes[1].stop())
+      await allFuturesThrowing(awaiters)
 
     check:
       waitFor(runTests()) == true
@@ -81,7 +125,7 @@ suite "FloodSub":
 
       await subscribeNodes(nodes)
       await nodes[1].subscribe("foobar", handler)
-      await sleepAsync(1000.millis)
+      await waitSub(nodes[0], nodes[1], "foobar")
 
       var validatorFut = newFuture[bool]()
       proc validator(topic: string,
@@ -91,11 +135,12 @@ suite "FloodSub":
         result = true
 
       nodes[1].addValidator("foobar", validator)
+
       await nodes[0].publish("foobar", cast[seq[byte]]("Hello!"))
 
-      await allFutures(handlerFut, handlerFut)
-      await allFutures(nodes[0].stop(), nodes[1].stop())
-      await allFutures(awaiters)
+      await allFuturesThrowing(handlerFut, handlerFut)
+      await allFuturesThrowing(nodes[0].stop(), nodes[1].stop())
+      await allFuturesThrowing(awaiters)
       result = true
 
     check:
@@ -113,7 +158,7 @@ suite "FloodSub":
 
       await subscribeNodes(nodes)
       await nodes[1].subscribe("foobar", handler)
-      await sleepAsync(100.millis)
+      await waitSub(nodes[0], nodes[1], "foobar")
 
       var validatorFut = newFuture[bool]()
       proc validator(topic: string,
@@ -122,9 +167,11 @@ suite "FloodSub":
         result = false
 
       nodes[1].addValidator("foobar", validator)
+
       await nodes[0].publish("foobar", cast[seq[byte]]("Hello!"))
-      await allFutures(nodes[0].stop(), nodes[1].stop())
-      await allFutures(awaiters)
+
+      await allFuturesThrowing(nodes[0].stop(), nodes[1].stop())
+      await allFuturesThrowing(awaiters)
       result = true
 
     check:
@@ -144,8 +191,9 @@ suite "FloodSub":
 
       await subscribeNodes(nodes)
       await nodes[1].subscribe("foo", handler)
+      await waitSub(nodes[0], nodes[1], "foo")
       await nodes[1].subscribe("bar", handler)
-      await sleepAsync(1000.millis)
+      await waitSub(nodes[0], nodes[1], "bar")
 
       proc validator(topic: string,
                      message: Message): Future[bool] {.async.} =
@@ -155,12 +203,12 @@ suite "FloodSub":
           result = false
 
       nodes[1].addValidator("foo", "bar", validator)
+
       await nodes[0].publish("foo", cast[seq[byte]]("Hello!"))
       await nodes[0].publish("bar", cast[seq[byte]]("Hello!"))
 
-      await sleepAsync(100.millis)
-      await allFutures(nodes[0].stop(), nodes[1].stop())
-      await allFutures(awaiters)
+      await allFuturesThrowing(nodes[0].stop(), nodes[1].stop())
+      await allFuturesThrowing(awaiters)
       result = true
 
     check:
@@ -169,65 +217,107 @@ suite "FloodSub":
   test "FloodSub multiple peers, no self trigger":
     proc runTests(): Future[bool] {.async.} =
       var passed = 0
-      proc handler(topic: string, data: seq[byte]) {.async, gcsafe.} =
-        check topic == "foobar"
-        passed.inc()
+
+      var futs = newSeq[(Future[void], TopicHandler, ref int)](10)
+      for i in 0..<10:
+        closureScope:
+          var
+            fut = newFuture[void]()
+            counter = new int
+          futs[i] = (
+            fut,
+            (proc(topic: string, data: seq[byte]) {.async, gcsafe.} =
+              check topic == "foobar"
+              inc counter[]
+              if counter[] == 9:
+                fut.complete()),
+            counter
+          )
 
       var nodes: seq[Switch] = newSeq[Switch]()
       for i in 0..<10:
-        nodes.add(newStandardSwitch())
+        nodes.add newStandardSwitch()
+
 
       var awaitters: seq[Future[void]]
-      for node in nodes:
-        awaitters.add(await node.start())
-        await node.subscribe("foobar", handler)
-        await sleepAsync(100.millis)
-
+      for i in 0..<10:
+        awaitters.add(await nodes[i].start())
+      
       await subscribeNodes(nodes)
-      await sleepAsync(1000.millis)
 
-      for node in nodes:
-        await node.publish("foobar", cast[seq[byte]]("Hello!"))
-        await sleepAsync(100.millis)
+      for i in 0..<10:
+        await nodes[i].subscribe("foobar", futs[i][1])
 
-      await sleepAsync(1.minutes)
-      await allFutures(nodes.mapIt(it.stop()))
-      await allFutures(awaitters)
+      var subs: seq[Future[void]]
+      for i in 0..<10:
+        for y in 0..<10:
+          if y != i:
+            subs &= waitSub(nodes[i], nodes[y], "foobar")
+      await allFuturesThrowing(subs)
 
-      result = passed >= 10 # non deterministic, so at least 10 times
+      var pubs: seq[Future[void]]
+      for i in 0..<10:
+        pubs &= nodes[i].publish("foobar", cast[seq[byte]]("Hello!"))
+      await allFuturesThrowing(pubs)
 
+      await allFuturesThrowing(futs.mapIt(it[0]))
+      await allFuturesThrowing(nodes.mapIt(it.stop()))
+      await allFuturesThrowing(awaitters)
+
+      result = true
     check:
       waitFor(runTests()) == true
 
   test "FloodSub multiple peers, with self trigger":
     proc runTests(): Future[bool] {.async.} =
       var passed = 0
-      proc handler(topic: string, data: seq[byte]) {.async, gcsafe.} =
-        check topic == "foobar"
-        passed.inc()
+
+      var futs = newSeq[(Future[void], TopicHandler, ref int)](10)
+      for i in 0..<10:
+        closureScope:
+          var
+            fut = newFuture[void]()
+            counter = new int
+          futs[i] = (
+            fut,
+            (proc(topic: string, data: seq[byte]) {.async, gcsafe.} =
+              check topic == "foobar"
+              inc counter[]
+              if counter[] == 10:
+                fut.complete()),
+            counter
+          )
 
       var nodes: seq[Switch] = newSeq[Switch]()
       for i in 0..<10:
         nodes.add newStandardSwitch(triggerSelf = true)
 
+
       var awaitters: seq[Future[void]]
-      for node in nodes:
-        awaitters.add((await node.start()))
-        await node.subscribe("foobar", handler)
-        await sleepAsync(100.millis)
+      for i in 0..<10:
+        awaitters.add(await nodes[i].start())
 
       await subscribeNodes(nodes)
-      await sleepAsync(1000.millis)
 
-      for node in nodes:
-        await node.publish("foobar", cast[seq[byte]]("Hello!"))
-        await sleepAsync(100.millis)
+      for i in 0..<10:
+        await nodes[i].subscribe("foobar", futs[i][1])
 
-      await sleepAsync(1.minutes)
-      await allFutures(nodes.mapIt(it.stop()))
-      await allFutures(awaitters)
+      var subs: seq[Future[void]]
+      for i in 0..<10:
+        for y in 0..<10:
+          if y != i:
+            subs &= waitSub(nodes[i], nodes[y], "foobar")
+      await allFuturesThrowing(subs)
 
-      result = passed >= 20 # non deterministic, so at least 10 times
+      var pubs: seq[Future[void]]
+      for i in 0..<10:
+        pubs &= nodes[i].publish("foobar", cast[seq[byte]]("Hello!"))
+      await allFuturesThrowing(pubs)
 
+      await allFuturesThrowing(futs.mapIt(it[0]))
+      await allFuturesThrowing(nodes.mapIt(it.stop()))
+      await allFuturesThrowing(awaitters)
+
+      result = true
     check:
       waitFor(runTests()) == true

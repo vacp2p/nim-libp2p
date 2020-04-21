@@ -92,12 +92,15 @@ method handle*(m: Mplex) {.async, gcsafe.} =
             let stream = newConnection(channel)
             stream.peerInfo = m.connection.peerInfo
 
-            # cleanup channel once handler is finished
-            # stream.closeEvent.wait().addCallback(
-            #   proc(udata: pointer) =
-            #       asyncCheck cleanupChann(m, channel, initiator))
+            proc handler() {.async.} =
+              tryAndWarn "mplex channel handler":
+                await m.streamHandler(stream)
+              # TODO closing stream
+              # or doing cleanupChann
+              # will make go interop tests fail
+              # need to investigate why
 
-            asyncCheck m.streamHandler(stream)
+            asynccheck handler()
             continue
         of MessageType.MsgIn, MessageType.MsgOut:
           trace "pushing data to channel", id = id,

@@ -266,6 +266,8 @@ proc newSecioConn(conn: Connection,
   when chronicles.enabledLogLevel == LogLevel.TRACE:
     result.oid = genOid()
 
+  inc  getConnectionTracker().opened
+
 proc transactMessage(conn: Connection,
                      msg: seq[byte]): Future[seq[byte]] {.async.} =
   var buf = newSeq[byte](4)

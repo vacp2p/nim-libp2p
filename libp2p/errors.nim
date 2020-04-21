@@ -37,3 +37,22 @@ macro checkFutures*[T](futs: seq[Future[T]], exclude: untyped = []): untyped =
             # We still don't abort but warn
             warn "Something went wrong in a future",
                 error=exc.name, file=pos.filename, line=pos.line
+
+proc allFuturesThrowing*[T](args: varargs[Future[T]]): Future[void] =
+  var futs: seq[Future[T]]
+  for fut in args:
+    futs &= fut
+  proc call() {.async.} =
+    futs = await allFinished(futs)
+    for fut in futs:
+      if fut.failed:
+        raise fut.readError()
+  return call()
+
+template tryAndWarn*(msg: static[string]; body: untyped): untyped =
+  try:
+    body
+  except CancelledError as ex:
+    raise ex
+  except CatchableError as ex:
+    warn "ignored an error", name=ex.name, msg=msg

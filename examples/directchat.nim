@@ -6,6 +6,7 @@ import chronos                              # an efficient library for async
 import ../libp2p/[switch,                   # manage transports, a single entry point for dialing and listening
                   multistream,              # tag stream with short header to identify it
                   crypto/crypto,            # cryptographic functions
+                  errors,                   # error handling utilities
                   protocols/identify,       # identify the peer info of a peer
                   connection,               # create and close stream read / write connections
                   transports/transport,     # listen and dial to other peers using p2p protocol
@@ -196,7 +197,7 @@ proc processInput(rfd: AsyncFD) {.async.} =
     echo &"{a}/ipfs/{id}"
 
   await chatProto.readWriteLoop()
-  await allFutures(libp2pFuts)
+  await allFuturesThrowing(libp2pFuts)
 
 proc main() {.async.} =
   let (rfd, wfd) = createAsyncPipe()
