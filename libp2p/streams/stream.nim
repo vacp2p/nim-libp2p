@@ -20,11 +20,11 @@ type
   Duplex*[T] = Source[T] | Sink[T]
 
   Stream*[T] = ref object of RootObj
-    name*: string
     eof*: bool
     sourceImpl*: proc (s: Stream[T]): Source[T] {.gcsafe.}
     sinkImpl*: proc(s: Stream[T]): Sink[T] {.gcsafe.}
     eofTag*: T
+    name*: string
 
 proc newStreamEofError*(): ref StreamEofError =
   raise newException(StreamEofError, "Stream at EOF!")

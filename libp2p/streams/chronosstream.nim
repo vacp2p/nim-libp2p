@@ -17,7 +17,6 @@ logScope:
 
 const
   DefaultChunkSize* = 1 shl 20 # 1MB
-  EofTag: seq[byte] = @[]
 
 type
   ChronosStream* = ref object of Stream[seq[byte]]

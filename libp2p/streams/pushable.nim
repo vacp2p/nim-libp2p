@@ -55,5 +55,5 @@ proc init*(P: type[BytePushable], maxChunkSize = DefaultChunkSize): P =
   P(queue: newAsyncQueue[seq[byte]](1),
     maxChunkSize: maxChunkSize,
     sourceImpl: pushSource,
-    name: "BytePushable",
-    eofTag: @[])
+    eofTag: @[],
+    name: "BytePushable")
