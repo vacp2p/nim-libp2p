@@ -270,7 +270,9 @@ proc receiveHSMessage(sconn: Connection): Future[seq[byte]] {.async.} =
   await sconn.readExactly(addr besize[0], 2)
   let size = uint16.fromBytesBE(besize).int
   trace "receiveHSMessage", size
-  return await sconn.read(size)
+  var buffer = newSeq[byte](size)
+  await sconn.readExactly(addr buffer[0], size)
+  return buffer
 
 proc sendHSMessage(sconn: Connection; buf: seq[byte]) {.async.} =
   var
@@ -422,9 +424,9 @@ method readMessage(sconn: NoiseConnection): Future[seq[byte]] {.async.} =
     trace "receiveEncryptedMessage", size, peer = $sconn.peerInfo
     if size == 0:
       return @[]
-    let
-      cipher = await sconn.read(size)
-    var plain = sconn.readCs.decryptWithAd([], cipher)
+    var buffer = newSeq[byte](size)
+    await sconn.readExactly(addr buffer[0], size)
+    var plain = sconn.readCs.decryptWithAd([], buffer)
     unpackNoisePayload(plain)
     return plain
   except LPStreamIncompleteError:
