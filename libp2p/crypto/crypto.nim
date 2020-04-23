@@ -12,6 +12,8 @@ import rsa, ecnist, ed25519/ed25519, secp
 import ../protobuf/minprotobuf, ../vbuffer, ../multihash, ../multicodec
 import nimcrypto/[rijndael, blowfish, twofish, sha, sha2, hash, hmac, utils]
 import ../utility
+import stew/results
+export results
 
 # This is workaround for Nim's `import` bug
 export rijndael, blowfish, twofish, sha, sha2, hash, hmac, utils
@@ -263,7 +265,7 @@ proc init*(key: var PrivateKey, data: openarray[byte]): bool =
           var scheme = cast[PKScheme](cast[int8](id))
           var nkey = PrivateKey(scheme: scheme)
           if scheme == RSA:
-            if init(nkey.rsakey, buffer) == Asn1Status.Success:
+            if init(nkey.rsakey, buffer).isOk:
               key = nkey
               result = true
           elif scheme == Ed25519:
@@ -271,7 +273,7 @@ proc init*(key: var PrivateKey, data: openarray[byte]): bool =
               key = nkey
               result = true
           elif scheme == ECDSA:
-            if init(nkey.eckey, buffer) == Asn1Status.Success:
+            if init(nkey.eckey, buffer).isOk:
               key = nkey
               result = true
           elif scheme == Secp256k1:
@@ -294,7 +296,7 @@ proc init*(key: var PublicKey, data: openarray[byte]): bool =
           var scheme = cast[PKScheme](cast[int8](id))
           var nkey = PublicKey(scheme: scheme)
           if scheme == RSA:
-            if init(nkey.rsakey, buffer) == Asn1Status.Success:
+            if init(nkey.rsakey, buffer).isOk:
               key = nkey
               result = true
           elif scheme == Ed25519:
@@ -302,7 +304,7 @@ proc init*(key: var PublicKey, data: openarray[byte]): bool =
               key = nkey
               result = true
           elif scheme == ECDSA:
-            if init(nkey.eckey, buffer) == Asn1Status.Success:
+            if init(nkey.eckey, buffer).isOk:
               key = nkey
               result = true
           elif scheme == Secp256k1:
@@ -484,7 +486,7 @@ proc verify*(sig: Signature, message: openarray[byte],
   ## Return ``true`` if message signature is valid.
   if key.scheme == RSA:
     var signature: RsaSignature
-    if signature.init(sig.data) == Asn1Status.Success:
+    if signature.init(sig.data).isOk:
       result = signature.verify(message, key.rsakey)
   elif key.scheme == Ed25519:
     var signature: EdSignature
@@ -492,7 +494,7 @@ proc verify*(sig: Signature, message: openarray[byte],
       result = signature.verify(message, key.edkey)
   elif key.scheme == ECDSA:
     var signature: EcSignature
-    if signature.init(sig.data) == Asn1Status.Success:
+    if signature.init(sig.data).isOk:
       result = signature.verify(message, key.eckey)
   elif key.scheme == Secp256k1:
     var signature: SkSignature

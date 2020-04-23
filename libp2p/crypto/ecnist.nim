@@ -17,7 +17,9 @@
 import bearssl
 import nimcrypto/utils
 import minasn1
-export minasn1.Asn1Status
+export minasn1.Asn1Error
+import stew/results
+export results
 
 const
   PubKey256Length* = 65
@@ -529,43 +531,39 @@ proc `==`*(sig1, sig2: EcSignature): bool =
   else:
     result = (sig1.buffer == sig2.buffer)
 
-proc init*(key: var EcPrivateKey, data: openarray[byte]): Asn1Status =
+proc init*(key: var EcPrivateKey, data: openarray[byte]): Result[void, Asn1Error] =
   ## Initialize EC `private key` or `signature` ``key`` from ASN.1 DER binary
   ## representation ``data``.
   ##
-  ## Procedure returns ``Asn1Status``.
+  ## Procedure returns ``Result[void, Asn1Error]``.
   var raw, oid, field: Asn1Field
   var curve: cint
 
   var ab = Asn1Buffer.init(data)
 
-  result = ab.read(field)
-  if result != Asn1Status.Success:
-    return
+  field = ? ab.read()
+
   if field.kind != Asn1Tag.Sequence:
-    return Asn1Status.Incorrect
+    return err(Asn1Error.Incorrect)
 
   var ib = field.getBuffer()
 
-  result = ib.read(field)
-  if result != Asn1Status.Success:
-    return
+  field = ? ib.read()
+
   if field.kind != Asn1Tag.Integer:
-    return Asn1Status.Incorrect
+    return err(Asn1Error.Incorrect)
   if field.vint != 1'u64:
-    return Asn1Status.Incorrect
+    return err(Asn1Error.Incorrect)
 
-  result = ib.read(raw)
-  if result != Asn1Status.Success:
-    return
+  raw = ? ib.read()
+
   if raw.kind != Asn1Tag.OctetString:
-    return Asn1Status.Incorrect
+    return err(Asn1Error.Incorrect)
 
-  result = ib.read(oid)
-  if result != Asn1Status.Success:
-    return
+  oid = ? ib.read()
+
   if oid.kind != Asn1Tag.Oid:
-    return Asn1Status.Incorrect
+    return err(Asn1Error.Incorrect)
 
   if oid == Asn1OidSecp256r1:
     curve = cast[cint](Secp256r1)
@@ -574,7 +572,7 @@ proc init*(key: var EcPrivateKey, data: openarray[byte]): Asn1Status =
   elif oid == Asn1OidSecp521r1:
     curve = cast[cint](Secp521r1)
   else:
-    return Asn1Status.Incorrect
+    return err(Asn1Error.Incorrect)
 
   if checkScalar(raw.toOpenArray(), curve) == 1'u32:
     key = new EcPrivateKey
@@ -583,47 +581,44 @@ proc init*(key: var EcPrivateKey, data: openarray[byte]): Asn1Status =
     key.key.x = cast[ptr cuchar](addr key.buffer[0])
     key.key.xlen = raw.length
     key.key.curve = curve
-    result = Asn1Status.Success
+    ok()
   else:
-    result = Asn1Status.Incorrect
+    err(Asn1Error.Incorrect)
 
-proc init*(pubkey: var EcPublicKey, data: openarray[byte]): Asn1Status =
+proc init*(pubkey: var EcPublicKey, data: openarray[byte]): Result[void, Asn1Error] =
   ## Initialize EC public key ``pubkey`` from ASN.1 DER binary representation
   ## ``data``.
   ##
-  ## Procedure returns ``Asn1Status``.
+  ## Procedure returns ``Result[void, Asn1Error]``.
   var raw, oid, field: Asn1Field
   var curve: cint
 
   var ab = Asn1Buffer.init(data)
-  result = ab.read(field)
-  if result != Asn1Status.Success:
-    return
+
+  field = ? ab.read()
+
   if field.kind != Asn1Tag.Sequence:
-    return Asn1Status.Incorrect
+    return err(Asn1Error.Incorrect)
 
   var ib = field.getBuffer()
-  result = ib.read(field)
-  if result != Asn1Status.Success:
-    return
+  field = ? ib.read()
+
   if field.kind != Asn1Tag.Sequence:
-    return Asn1Status.Incorrect
+    return err(Asn1Error.Incorrect)
 
   var ob = field.getBuffer()
-  result = ob.read(oid)
-  if result != Asn1Status.Success:
-    return
+  oid = ? ob.read()
+
   if oid.kind != Asn1Tag.Oid:
-    return Asn1Status.Incorrect
+    return err(Asn1Error.Incorrect)
 
   if oid != Asn1OidEcPublicKey:
-    return Asn1Status.Incorrect
+    return err(Asn1Error.Incorrect)
 
-  result = ob.read(oid)
-  if result != Asn1Status.Success:
-    return
+  oid = ? ob.read()
+
   if oid.kind != Asn1Tag.Oid:
-    return Asn1Status.Incorrect
+    return err(Asn1Error.Incorrect)
 
   if oid == Asn1OidSecp256r1:
     curve = cast[cint](Secp256r1)
@@ -632,13 +627,12 @@ proc init*(pubkey: var EcPublicKey, data: openarray[byte]): Asn1Status =
   elif oid == Asn1OidSecp521r1:
     curve = cast[cint](Secp521r1)
   else:
-    return Asn1Status.Incorrect
+    return err(Asn1Error.Incorrect)
 
-  result = ib.read(raw)
-  if result != Asn1Status.Success:
-    return
+  raw = ? ib.read()
+
   if raw.kind != Asn1Tag.BitString:
-    return Asn1Status.Incorrect
+    return err(Asn1Error.Incorrect)
 
   if checkPublic(raw.toOpenArray(), curve) != 0:
     pubkey = new EcPublicKey
@@ -647,50 +641,51 @@ proc init*(pubkey: var EcPublicKey, data: openarray[byte]): Asn1Status =
     pubkey.key.q = cast[ptr cuchar](addr pubkey.buffer[0])
     pubkey.key.qlen = raw.length
     pubkey.key.curve = curve
-    result = Asn1Status.Success
+    ok()
   else:
-    result = Asn1Status.Incorrect
+    err(Asn1Error.Incorrect)
 
-proc init*(sig: var EcSignature, data: openarray[byte]): Asn1Status =
+proc init*(sig: var EcSignature, data: openarray[byte]): Result[void, Asn1Error] =
   ## Initialize EC signature ``sig`` from raw binary representation ``data``.
   ##
-  ## Procedure returns ``Asn1Status``.
-  result = Asn1Status.Incorrect
+  ## Procedure returns ``Result[void, Asn1Error]``.
   if len(data) > 0:
     sig = new EcSignature
     sig.buffer = @data
-    result = Asn1Status.Success
+    ok()
+  else:
+    err(Asn1Error.Incorrect)
 
-proc init*[T: EcPKI](sospk: var T, data: string): Asn1Status {.inline.} =
+proc init*[T: EcPKI](sospk: var T, data: string): Result[void, Asn1Error] {.inline.} =
   ## Initialize EC `private key`, `public key` or `signature` ``sospk`` from
   ## ASN.1 DER hexadecimal string representation ``data``.
   ##
   ## Procedure returns ``Asn1Status``.
-  result = sospk.init(fromHex(data))
+  sospk.init(fromHex(data))
 
 proc init*(t: typedesc[EcPrivateKey], data: openarray[byte]): EcPrivateKey =
   ## Initialize EC private key from ASN.1 DER binary representation ``data`` and
   ## return constructed object.
   let res = result.init(data)
-  if res != Asn1Status.Success:
+  if res.isErr:
     raise newException(EcKeyIncorrectError,
-                       "Incorrect private key (" & $res & ")")
+                       "Incorrect private key (" & $res.error & ")")
 
 proc init*(t: typedesc[EcPublicKey], data: openarray[byte]): EcPublicKey =
   ## Initialize EC public key from ASN.1 DER binary representation ``data`` and
   ## return constructed object.
   let res = result.init(data)
-  if res != Asn1Status.Success:
+  if res.isErr:
     raise newException(EcKeyIncorrectError,
-                       "Incorrect public key (" & $res & ")")
+                       "Incorrect public key (" & $res.error & ")")
 
 proc init*(t: typedesc[EcSignature], data: openarray[byte]): EcSignature =
   ## Initialize EC signature from raw binary representation ``data`` and
   ## return constructed object.
   let res = result.init(data)
-  if res != Asn1Status.Success:
+  if res.isErr:
     raise newException(EcKeyIncorrectError,
-                       "Incorrect signature (" & $res & ")")
+                       "Incorrect signature (" & $res.error & ")")
 
 proc init*[T: EcPKI](t: typedesc[T], data: string): T {.inline.} =
   ## Initialize EC `private key`, `public key` or `signature` from hexadecimal

@@ -9,6 +9,7 @@
 import unittest
 import nimcrypto/utils
 import ../libp2p/crypto/ecnist
+import stew/results
 
 when defined(nimHasUsed): {.used.}
 
@@ -304,8 +305,8 @@ suite "EC NIST-P256/384/521 test suite":
       check:
         key.toBytes(skey2) > 0
       check:
-        rkey1.init(skey1) == Asn1Status.Success
-        rkey2.init(skey2) == Asn1Status.Success
+        rkey1.init(skey1).isOk
+        rkey2.init(skey2).isOk
       var rkey3 = EcPrivateKey.init(skey1)
       var rkey4 = EcPrivateKey.init(skey2)
       check:
@@ -322,8 +323,8 @@ suite "EC NIST-P256/384/521 test suite":
       var skey1 = pair.pubkey.getBytes()
       check:
         pair.pubkey.toBytes(skey2) > 0
-        rkey1.init(skey1) == Asn1Status.Success
-        rkey2.init(skey2) == Asn1Status.Success
+        rkey1.init(skey1).isOk
+        rkey2.init(skey2).isOk
       var rkey3 = EcPublicKey.init(skey1)
       var rkey4 = EcPublicKey.init(skey2)
       check:
@@ -411,8 +412,8 @@ suite "EC NIST-P256/384/521 test suite":
       check:
         key.toBytes(skey2) > 0
       check:
-        rkey1.init(skey1) == Asn1Status.Success
-        rkey2.init(skey2) == Asn1Status.Success
+        rkey1.init(skey1).isOk
+        rkey2.init(skey2).isOk
       var rkey3 = EcPrivateKey.init(skey1)
       var rkey4 = EcPrivateKey.init(skey2)
       check:
@@ -429,8 +430,8 @@ suite "EC NIST-P256/384/521 test suite":
       var skey1 = pair.pubkey.getBytes()
       check:
         pair.pubkey.toBytes(skey2) > 0
-        rkey1.init(skey1) == Asn1Status.Success
-        rkey2.init(skey2) == Asn1Status.Success
+        rkey1.init(skey1).isOk
+        rkey2.init(skey2).isOk
       var rkey3 = EcPublicKey.init(skey1)
       var rkey4 = EcPublicKey.init(skey2)
       check:
@@ -518,8 +519,8 @@ suite "EC NIST-P256/384/521 test suite":
       check:
         key.toBytes(skey2) > 0
       check:
-        rkey1.init(skey1) == Asn1Status.Success
-        rkey2.init(skey2) == Asn1Status.Success
+        rkey1.init(skey1).isOk
+        rkey2.init(skey2).isOk
       var rkey3 = EcPrivateKey.init(skey1)
       var rkey4 = EcPrivateKey.init(skey2)
       check:
@@ -536,8 +537,8 @@ suite "EC NIST-P256/384/521 test suite":
       var skey1 = pair.pubkey.getBytes()
       check:
         pair.pubkey.toBytes(skey2) > 0
-        rkey1.init(skey1) == Asn1Status.Success
-        rkey2.init(skey2) == Asn1Status.Success
+        rkey1.init(skey1).isOk
+        rkey2.init(skey2).isOk
       var rkey3 = EcPublicKey.init(skey1)
       var rkey4 = EcPublicKey.init(skey2)
       check:
