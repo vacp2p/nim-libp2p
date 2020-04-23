@@ -16,7 +16,7 @@ requires "nim >= 1.2.0",
          "secp256k1",
          "stew"
 
-proc runTest(filename: string) =
+proc runTest(filename: string, secure: string = "secio") =
   exec "nim c -r --opt:speed -d:debug --verbosity:0 --hints:off tests/" & filename
   rmFile "tests/" & filename.toExe
 
@@ -25,9 +25,10 @@ proc buildSample(filename: string) =
   rmFile "examples" & filename.toExe
 
 task test, "Runs the test suite":
-  runTest "testnative"
-  runTest "testdaemon"
-  runTest "testinterop"
+  runTest("testnative")
+  runTest("testnative", "noise")
+  runTest("testdaemon")
+  runTest("testinterop")
 
 task examples_build, "Build the samples":
-  buildSample "directchat"
+  buildSample("directchat")

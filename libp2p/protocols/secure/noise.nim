@@ -521,6 +521,7 @@ method init*(p: Noise) {.gcsafe.} =
   p.codec = NoiseCodec
 
 method secure*(p: Noise, conn: Connection): Future[Connection] {.async, gcsafe.} =
+  trace "Noise.secure called", initiator=p.outgoing
   try:
     result = await p.handleConn(conn, p.outgoing)
   except CatchableError as exc:

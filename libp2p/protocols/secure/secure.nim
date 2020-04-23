@@ -29,7 +29,7 @@ method writeMessage*(c: SecureConn, data: seq[byte]) {.async, base.} =
 
 method handshake(s: Secure,
                  conn: Connection,
-                 initiator: bool = false): Future[SecureConn] {.async, base.} =
+                 initiator: bool): Future[SecureConn] {.async, base.} =
   doAssert(false, "Not implemented!")
 
 proc readLoop(sconn: SecureConn, conn: Connection) {.async.} =
@@ -54,7 +54,7 @@ proc readLoop(sconn: SecureConn, conn: Connection) {.async.} =
       await sconn.close()
     trace "ending Secure readLoop"
 
-proc handleConn*(s: Secure, conn: Connection, initiator: bool = false): Future[Connection] {.async, gcsafe.} =
+proc handleConn*(s: Secure, conn: Connection, initiator: bool): Future[Connection] {.async, gcsafe.} =
   var sconn = await s.handshake(conn, initiator)
   proc writeHandler(data: seq[byte]) {.async, gcsafe.} =
     trace "sending encrypted bytes", bytes = data.shortLog
@@ -68,7 +68,7 @@ proc handleConn*(s: Secure, conn: Connection, initiator: bool = false): Future[C
 
 method init*(s: Secure) {.gcsafe.} =
   proc handle(conn: Connection, proto: string) {.async, gcsafe.} =
-    trace "handling connection"
+    trace "handling connection upgrade", proto
     try:
       # We don't need the result but we definitely need to await the handshake
       discard await s.handleConn(conn, false)
@@ -80,9 +80,9 @@ method init*(s: Secure) {.gcsafe.} =
 
   s.handler = handle
 
-method secure*(s: Secure, conn: Connection): Future[Connection] {.async, base, gcsafe.} =
+method secure*(s: Secure, conn: Connection, initiator: bool): Future[Connection] {.async, base, gcsafe.} =
   try:
-    result = await s.handleConn(conn, true)
+    result = await s.handleConn(conn, initiator)
   except CatchableError as exc:
     warn "securing connection failed", msg = exc.msg
     if not conn.closed():
