@@ -18,6 +18,8 @@ import bearssl
 import nimcrypto/utils
 import minasn1
 export minasn1.Asn1Error
+import stew/results
+export results
 
 const
   PubKey256Length* = 65
