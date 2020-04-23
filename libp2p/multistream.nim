@@ -11,6 +11,7 @@ import strutils
 import chronos, chronicles
 import connection,
        vbuffer,
+       errors,
        protocols/protocol
 
 logScope:
@@ -116,7 +117,7 @@ proc list*(m: MultistreamSelect,
 
 proc handle*(m: MultistreamSelect, conn: Connection) {.async, gcsafe.} =
   trace "handle: starting multistream handling"
-  try:
+  tryAndWarn "multistream handle":
     while not conn.closed:
       var ms = cast[string]((await conn.readLp()))
       ms.removeSuffix("\n")
@@ -145,18 +146,14 @@ proc handle*(m: MultistreamSelect, conn: Connection) {.async, gcsafe.} =
             if (not isNil(h.match) and h.match(ms)) or ms == h.proto:
               trace "found handler for", protocol = ms
               await conn.writeLp((h.proto & "\n"))
-              try:
+              tryAndWarn "multistream handle handler":
                 await h.protocol.handler(conn, ms)
-                return
-              except CatchableError as exc:
-                warn "exception while handling", msg = exc.msg
                 return
           warn "no handlers for ", protocol = ms
           await conn.write(m.na)
-  except CatchableError as exc:
-    trace "Exception occurred", exc = exc.msg
-  finally:
-    trace "leaving multistream loop"
+  trace "leaving multistream loop"
+  # we might be tempted to close conn here but that would be a bad idea!
+  # we indeed will reuse it later on
 
 proc addHandler*[T: LPProtocol](m: MultistreamSelect,
                                 codec: string,

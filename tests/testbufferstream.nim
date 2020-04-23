@@ -1,10 +1,15 @@
 import unittest, strformat
 import chronos
+import ../libp2p/errors
 import ../libp2p/stream/bufferstream
 
 when defined(nimHasUsed): {.used.}
 
 suite "BufferStream":
+  teardown:
+    # echo getTracker("libp2p.bufferstream").dump()
+    check getTracker("libp2p.bufferstream").isLeaked() == false
+
   test "push data to buffer":
     proc testPushTo(): Future[bool] {.async.} =
       proc writeHandler(data: seq[byte]) {.async, gcsafe.} = discard
@@ -15,6 +20,8 @@ suite "BufferStream":
       await buff.pushTo(cast[seq[byte]](data))
       check buff.len == 5
       result = true
+
+      await buff.close()
 
     check:
       waitFor(testPushTo()) == true
@@ -33,6 +40,8 @@ suite "BufferStream":
 
       result = true
 
+      await buff.close()
+
     check:
       waitFor(testPushTo()) == true
 
@@ -46,6 +55,8 @@ suite "BufferStream":
       check @"12345" == cast[string](await buff.read())
 
       result = true
+
+      await buff.close()
 
     check:
       waitFor(testRead()) == true
@@ -61,6 +72,8 @@ suite "BufferStream":
       check ['1', '2', '3'] == data
 
       result = true
+
+      await buff.close()
 
     check:
       waitFor(testRead()) == true
@@ -80,6 +93,8 @@ suite "BufferStream":
       check cast[string](await readFut) == ['1', '2', '3', '4', '5']
 
       result = true
+
+      await buff.close()
 
     check:
       waitFor(testRead()) == true
@@ -102,7 +117,10 @@ suite "BufferStream":
       var fut = reader()
       await buff.pushTo(cast[seq[byte]](@"12345"))
       await fut
+
       result = true
+
+      await buff.close()
 
     check:
       waitFor(testRead()) == true
@@ -118,7 +136,10 @@ suite "BufferStream":
       var data: seq[byte] = newSeq[byte](2)
       await buff.readExactly(addr data[0], 2)
       check cast[string](data) == @['1', '2']
+
       result = true
+
+      await buff.close()
 
     check:
       waitFor(testReadExactly()) == true
@@ -132,7 +153,10 @@ suite "BufferStream":
       await buff.pushTo(cast[seq[byte]](@"12345\n67890"))
       check buff.len == 11
       check "12345" == await buff.readLine(0, "\n")
+
       result = true
+
+      await buff.close()
 
     check:
       waitFor(testReadLine()) == true
@@ -150,7 +174,10 @@ suite "BufferStream":
 
       check (await readFut) == 3
       check cast[string](data) == @['1', '2', '3']
+
       result = true
+
+      await buff.close()
 
     check:
       waitFor(testReadOnce()) == true
@@ -168,7 +195,10 @@ suite "BufferStream":
 
       check (await readFut) == 4
       check cast[string](data) == @['1', '2', '3']
+
       result = true
+
+      await buff.close()
 
     check:
       waitFor(testReadUntil()) == true
@@ -183,7 +213,10 @@ suite "BufferStream":
 
       var data = "Hello!"
       await buff.write(addr data[0], data.len)
+
       result = true
+
+      await buff.close()
 
     check:
       waitFor(testWritePtr()) == true
@@ -197,7 +230,10 @@ suite "BufferStream":
       check buff.len == 0
 
       await buff.write("Hello!", 6)
+
       result = true
+
+      await buff.close()
 
     check:
       waitFor(testWritePtr()) == true
@@ -211,7 +247,10 @@ suite "BufferStream":
       check buff.len == 0
 
       await buff.write(cast[seq[byte]]("Hello!"), 6)
+
       result = true
+
+      await buff.close()
 
     check:
       waitFor(testWritePtr()) == true
@@ -236,7 +275,10 @@ suite "BufferStream":
       await buff.write("Msg 8")
       await buff.write("Msg 9")
       await buff.write("Msg 10")
+
       result = true
+
+      await buff.close()
 
     check:
       waitFor(testWritePtr()) == true
@@ -264,6 +306,8 @@ suite "BufferStream":
       check cast[string](await buff.read(5)) == "Msg 6"
 
       result = true
+
+      await buff.close()
 
     check:
       waitFor(testWritePtr()) == true
@@ -295,13 +339,16 @@ suite "BufferStream":
       await buf1.pushTo(cast[seq[byte]]("Hello2!"))
       await buf2.pushTo(cast[seq[byte]]("Hello1!"))
 
-      await allFutures(readFut1, readFut2)
+      await allFuturesThrowing(readFut1, readFut2)
 
       check:
         res1 == cast[seq[byte]]("Hello2!")
         res2 == cast[seq[byte]]("Hello1!")
 
       result = true
+
+      await buf1.close()
+      await buf2.close()
 
     check:
       waitFor(pipeTest()) == true
@@ -321,6 +368,9 @@ suite "BufferStream":
 
       result = true
 
+      await buf1.close()
+      await buf2.close()
+
     check:
       waitFor(pipeTest()) == true
 
@@ -339,13 +389,16 @@ suite "BufferStream":
 
       await buf1.write(cast[seq[byte]]("Hello1!"))
       await buf2.write(cast[seq[byte]]("Hello2!"))
-      await allFutures(readFut1, readFut2)
+      await allFuturesThrowing(readFut1, readFut2)
 
       check:
         res1 == cast[seq[byte]]("Hello2!")
         res2 == cast[seq[byte]]("Hello1!")
 
       result = true
+
+      await buf1.close()
+      await buf2.close()
 
     check:
       waitFor(pipeTest()) == true
@@ -368,6 +421,8 @@ suite "BufferStream":
 
       result = true
 
+      await buf1.close()
+
     check:
       waitFor(pipeTest()) == true
 
@@ -385,6 +440,9 @@ suite "BufferStream":
         res1 == cast[seq[byte]]("Hello1!")
 
       result = true
+
+      await buf1.close()
+      await buf2.close()
 
     check:
       waitFor(pipeTest()) == true
@@ -404,13 +462,16 @@ suite "BufferStream":
 
       await buf1.write(cast[seq[byte]]("Hello1!"))
       await buf2.write(cast[seq[byte]]("Hello2!"))
-      await allFutures(readFut1, readFut2)
+      await allFuturesThrowing(readFut1, readFut2)
 
       check:
         res1 == cast[seq[byte]]("Hello2!")
         res2 == cast[seq[byte]]("Hello1!")
 
       result = true
+
+      await buf1.close()
+      await buf2.close()
 
     check:
       waitFor(pipeTest()) == true
@@ -432,6 +493,8 @@ suite "BufferStream":
         (await readerFut) == cast[seq[byte]]("Hello!")
 
       result = true
+
+      await buf1.close()
 
     check:
       waitFor(pipeTest()) == true
@@ -458,8 +521,10 @@ suite "BufferStream":
       var writerFut = writer()
       var readerFut = reader()
 
-      await allFutures(readerFut, writerFut)
+      await allFuturesThrowing(readerFut, writerFut)
       result = true
+
+      await buf1.close()
 
     check:
       waitFor(pipeTest()) == true
@@ -480,6 +545,8 @@ suite "BufferStream":
         result = true
       except AsyncTimeoutError:
         result = false
+
+      await stream.close()
 
       check:
         waitFor(closeTest()) == true

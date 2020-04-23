@@ -23,7 +23,6 @@ proc decodeGraft*(pb: var ProtoBuffer): seq[ControlGraft] {.gcsafe.} =
   while true:
     var topic: string
     if pb.getString(1, topic) < 0:
-      trace "unable to read topic field from graft msg, breaking"
       break
 
     trace "read topic field from graft msg", topicID = topic
@@ -38,8 +37,8 @@ proc decodePrune*(pb: var ProtoBuffer): seq[ControlPrune] {.gcsafe.} =
     var topic: string
     if pb.getString(1, topic) < 0:
       break
-    trace "read topic field", topicID = topic
-
+   
+    trace "read topic field from prune msg", topicID = topic
     result.add(ControlPrune(topicID: topic))
 
 proc encodeIHave*(ihave: ControlIHave, pb: var ProtoBuffer) {.gcsafe.} =
