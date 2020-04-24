@@ -4,6 +4,7 @@ dist: bionic
 
 # https://docs.travis-ci.com/user/caching/
 cache:
+  ccache: true
   directories:
     - NimBinaries
     - p2pdCache
@@ -30,6 +31,8 @@ matrix:
       before_install:
         - export GOPATH=$HOME/go
     - os: osx
+      before_install:
+        - HOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_INSTALL_CLEANUP=1 brew install ccache
       env:
         - NPROC=2
       before_install:
