@@ -67,7 +67,12 @@ The specification is available in the [docs/api](docs/api) folder.
 Please read the [GETTING_STARTED.md](docs/GETTING_STARTED.md) guide. 
 
 ### Tutorials and Examples 
-Examples can be found in the [examples folder](/examples).
+Example code can be found in the [examples folder](/examples).
+#### Direct Chat Tutorial
+- [Part I](https://our.status.im/nim-libp2p-tutorial-a-peer-to-peer-chat-example-1/): Set up the main function and use multi-thread for processing IO.
+- [Part II](https://our.status.im/nim-libp2p-tutorial-a-peer-to-peer-chat-example-2/): Dial remote peer and allow customized user input commands.
+- [Part III](https://our.status.im/nim-libp2p-tutorial-a-peer-to-peer-chat-example-3/): Configure and establish a libp2p node. 
+
 
 ### Using the Go Daemon
 Please find the installation and usage intructions in [daemonapi.md](docs/api/libp2p/daemonapi.md). 
