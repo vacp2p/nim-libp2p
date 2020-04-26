@@ -72,11 +72,13 @@ type
   RsaPKI* = RsaPrivateKey | RsaPublicKey | RsaSignature
   RsaKP* = RsaPrivateKey | RsaKeyPair
 
-  RsaError* = object of CatchableError
-  RsaRngError* = object of RsaError
-  RsaGenError* = object of RsaError
-  RsaKeyIncorrectError* = object of RsaError
-  RsaSignatureError* = object of RsaError
+  RsaError* = enum
+    RsaRngError,
+    RsaGenError,
+    RsaKeyIncorrectError,
+    RsaSignatureError
+
+  RsaResult*[T] = Result[T, RsaError]
 
 template getStart(bs, os, ls: untyped): untyped =
   let p = cast[uint](os)
@@ -108,7 +110,7 @@ template trimZeroes(b: seq[byte], pt, ptlen: untyped) =
     ptlen -= 1
 
 proc random*[T: RsaKP](t: typedesc[T], bits = DefaultKeySize,
-                       pubexp = DefaultPublicExponent): T =
+                       pubexp = DefaultPublicExponent): RsaResult[T] =
   ## Generate new random RSA private key using BearSSL's HMAC-SHA256-DRBG
   ## algorithm.
   ##
@@ -121,7 +123,8 @@ proc random*[T: RsaKP](t: typedesc[T], bits = DefaultKeySize,
   var seeder = brPrngSeederSystem(nil)
   brHmacDrbgInit(addr rng, addr sha256Vtable, nil, 0)
   if seeder(addr rng.vtable) == 0:
-    raise newException(RsaRngError, "Could not seed RNG")
+    return err(RsaRngError)
+  
   keygen = brRsaKeygenGetDefault()
 
   let length = brRsaPrivateKeyBufferSize(bits) +
@@ -131,34 +134,38 @@ proc random*[T: RsaKP](t: typedesc[T], bits = DefaultKeySize,
   let pko = brRsaPrivateKeyBufferSize(bits)
   let eko = pko + brRsaPublicKeyBufferSize(bits)
 
-  when T is RsaKeyPair:
-    result = new RsaKeyPair
-  else:
-    result = new RsaPrivateKey
+  var res: T
 
-  result.buffer = newSeq[byte](length)
+  when T is RsaKeyPair:
+    res = new RsaKeyPair
+  else:
+    res = new RsaPrivateKey
+
+  res.buffer = newSeq[byte](length)
   if keygen(addr rng.vtable,
-            addr result.seck, addr result.buffer[sko],
-            addr result.pubk, addr result.buffer[pko],
+            addr res.seck, addr res.buffer[sko],
+            addr res.pubk, addr res.buffer[pko],
             cuint(bits), pubexp) == 0:
-    raise newException(RsaGenError, "Could not create private key")
+    return err(RsaGenError)
 
   let compute = brRsaComputePrivexpGetDefault()
-  let res = compute(addr result.buffer[eko], addr result.seck, pubexp)
-  if res == 0:
-    raise newException(RsaGenError, "Could not create private key")
+  let computed = compute(addr res.buffer[eko], addr res.seck, pubexp)
+  if computed == 0:
+    return err(RsaGenError)
 
-  result.pexp = cast[ptr cuchar](addr result.buffer[eko])
-  result.pexplen = res
+  res.pexp = cast[ptr cuchar](addr res.buffer[eko])
+  res.pexplen = computed
 
-  trimZeroes(result.buffer, result.seck.p, result.seck.plen)
-  trimZeroes(result.buffer, result.seck.q, result.seck.qlen)
-  trimZeroes(result.buffer, result.seck.dp, result.seck.dplen)
-  trimZeroes(result.buffer, result.seck.dq, result.seck.dqlen)
-  trimZeroes(result.buffer, result.seck.iq, result.seck.iqlen)
-  trimZeroes(result.buffer, result.pubk.n, result.pubk.nlen)
-  trimZeroes(result.buffer, result.pubk.e, result.pubk.elen)
-  trimZeroes(result.buffer, result.pexp, result.pexplen)
+  trimZeroes(res.buffer, res.seck.p, res.seck.plen)
+  trimZeroes(res.buffer, res.seck.q, res.seck.qlen)
+  trimZeroes(res.buffer, res.seck.dp, res.seck.dplen)
+  trimZeroes(res.buffer, res.seck.dq, res.seck.dqlen)
+  trimZeroes(res.buffer, res.seck.iq, res.seck.iqlen)
+  trimZeroes(res.buffer, res.pubk.n, res.pubk.nlen)
+  trimZeroes(res.buffer, res.pubk.e, res.pubk.elen)
+  trimZeroes(res.buffer, res.pexp, res.pexplen)
+
+  ok(res)
 
 proc copy*[T: RsaPKI](key: T): T =
   ## Create copy of RSA private key, public key or signature.
@@ -349,37 +356,43 @@ proc toBytes*(sig: RsaSignature, data: var openarray[byte]): int =
   if len(data) >= result:
     copyMem(addr data[0], addr sig.buffer[0], result)
 
-proc getBytes*(key: RsaPrivateKey): seq[byte] =
+proc getBytes*(key: RsaPrivateKey): RsaResult[seq[byte]] =
   ## Serialize RSA private key ``key`` to ASN.1 DER binary form and
   ## return it.
-  doAssert(not isNil(key))
-  result = newSeq[byte](4096)
-  let length = key.toBytes(result)
+  if isNil(key):
+    return err(RsaKeyIncorrectError)
+  var res = newSeq[byte](4096)
+  let length = key.toBytes(res)
   if length > 0:
-    result.setLen(length)
+    res.setLen(length)
+    ok(res)
   else:
-    raise newException(RsaKeyIncorrectError, "Incorrect private key")
+    err(RsaKeyIncorrectError)
 
-proc getBytes*(key: RsaPublicKey): seq[byte] =
+proc getBytes*(key: RsaPublicKey): RsaResult[seq[byte]] =
   ## Serialize RSA public key ``key`` to ASN.1 DER binary form and
   ## return it.
-  doAssert(not isNil(key))
-  result = newSeq[byte](4096)
-  let length = key.toBytes(result)
+  if isNil(key):
+    return err(RsaKeyIncorrectError)
+  var res = newSeq[byte](4096)
+  let length = key.toBytes(res)
   if length > 0:
-    result.setLen(length)
+    res.setLen(length)
+    ok(res)
   else:
-    raise newException(RsaKeyIncorrectError, "Incorrect private key")
+    err(RsaKeyIncorrectError)
 
-proc getBytes*(sig: RsaSignature): seq[byte] =
+proc getBytes*(sig: RsaSignature): RsaResult[seq[byte]] =
   ## Serialize RSA signature ``sig`` to raw binary form and return it.
-  doAssert(not isNil(sig))
-  result = newSeq[byte](4096)
-  let length = sig.toBytes(result)
+  if isNil(sig):
+    return err(RsaSignatureError)
+  var res = newSeq[byte](4096)
+  let length = sig.toBytes(res)
   if length > 0:
-    result.setLen(length)
+    res.setLen(length)
+    ok(res)
   else:
-    raise newException(RsaSignatureError, "Incorrect signature")
+    err(RsaSignatureError)
 
 proc init*(key: var RsaPrivateKey, data: openarray[byte]): Result[void, Asn1Error] =
   ## Initialize RSA private key ``key`` from ASN.1 DER binary representation
@@ -560,29 +573,32 @@ proc init*[T: RsaPKI](sospk: var T, data: string): Result[void, Asn1Error] {.inl
   ## Procedure returns ``Result[void, Asn1Status]``.
   sospk.init(fromHex(data))
 
-proc init*(t: typedesc[RsaPrivateKey], data: openarray[byte]): RsaPrivateKey =
+proc init*(t: typedesc[RsaPrivateKey], data: openarray[byte]): RsaResult[RsaPrivateKey] =
   ## Initialize RSA private key from ASN.1 DER binary representation ``data``
   ## and return constructed object.
-  let res = result.init(data)
-  if res.isErr:
-    raise newException(RsaKeyIncorrectError,
-                       "Incorrect private key (" & $res.error & ")")
+  var res: RsaPrivateKey
+  if res.init(data).isErr:
+    err(RsaKeyIncorrectError)
+  else:
+    ok(res)
 
-proc init*(t: typedesc[RsaPublicKey], data: openarray[byte]): RsaPublicKey =
+proc init*(t: typedesc[RsaPublicKey], data: openarray[byte]): RsaResult[RsaPublicKey] =
   ## Initialize RSA public key from ASN.1 DER binary representation ``data``
   ## and return constructed object.
-  let res = result.init(data)
-  if res.isErr:
-    raise newException(RsaKeyIncorrectError,
-                       "Incorrect public key (" & $res.error & ")")
+  var res: RsaPublicKey
+  if res.init(data).isErr:
+    err(RsaKeyIncorrectError)
+  else:
+    ok(res)
 
-proc init*(t: typedesc[RsaSignature], data: openarray[byte]): RsaSignature =
+proc init*(t: typedesc[RsaSignature], data: openarray[byte]): RsaResult[RsaSignature] =
   ## Initialize RSA signature from raw binary representation ``data`` and
   ## return constructed object.
-  let res = result.init(data)
-  if res.isErr:
-    raise newException(RsaKeyIncorrectError,
-                       "Incorrect signature (" & $res.error & ")")
+  var res: RsaSignature
+  if res.init(data).isErr:
+    err(RsaSignatureError)
+  else:
+    ok(res)
 
 proc init*[T: RsaPKI](t: typedesc[T], data: string): T {.inline.} =
   ## Initialize RSA `private key`, `public key` or `signature` from hexadecimal
@@ -714,15 +730,17 @@ proc `==`*(a, b: RsaPublicKey): bool =
     result = r1 and r2
 
 proc sign*[T: byte|char](key: RsaPrivateKey,
-                         message: openarray[T]): RsaSignature {.gcsafe.} =
+                         message: openarray[T]): RsaResult[RsaSignature] {.gcsafe.} =
   ## Get RSA PKCS1.5 signature of data ``message`` using SHA256 and private
   ## key ``key``.
-  doAssert(not isNil(key))
+  if isNil(key):
+    return err(RsaKeyIncorrectError)
+
   var hc: BrHashCompatContext
   var hash: array[32, byte]
   let impl = BrRsaPkcs1SignGetDefault()
-  result = new RsaSignature
-  result.buffer = newSeq[byte]((key.seck.nBitlen + 7) shr 3)
+  var res = new RsaSignature
+  res.buffer = newSeq[byte]((key.seck.nBitlen + 7) shr 3)
   var kv = addr sha256Vtable
   kv.init(addr hc.vtable)
   if len(message) > 0:
@@ -731,11 +749,13 @@ proc sign*[T: byte|char](key: RsaPrivateKey,
     kv.update(addr hc.vtable, nil, 0)
   kv.output(addr hc.vtable, addr hash[0])
   var oid = RsaOidSha256
-  let res = impl(cast[ptr cuchar](addr oid[0]),
+  let implRes = impl(cast[ptr cuchar](addr oid[0]),
                  cast[ptr cuchar](addr hash[0]), len(hash),
-                 addr key.seck, cast[ptr cuchar](addr result.buffer[0]))
-  if res == 0:
-    raise newException(RsaSignatureError, "Signature generation error")
+                 addr key.seck, cast[ptr cuchar](addr res.buffer[0]))
+  if implRes == 0:
+    err(RsaSignatureError)
+  else:
+    ok(res)
 
 proc verify*[T: byte|char](sig: RsaSignature, message: openarray[T],
                            pubkey: RsaPublicKey): bool {.inline.} =
