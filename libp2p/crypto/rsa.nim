@@ -12,6 +12,9 @@
 ## This module uses unmodified parts of code from
 ## BearSSL library <https://bearssl.org/>
 ## Copyright(C) 2018 Thomas Pornin <pornin@bolet.org>.
+
+{.push raises: Defect.}
+
 import nimcrypto/utils
 import bearssl
 import minasn1
