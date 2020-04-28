@@ -10,6 +10,7 @@
 import chronos, chronicles, stew/byteutils
 import ringbuffer,
        stream,
+       utils,
       ../varint,
       ../vbuffer
 
@@ -37,12 +38,6 @@ proc newInvalidVarintException*(): ref InvalidVarintException =
 
 proc newInvalidVarintSizeException*(): ref InvalidVarintSizeException =
   newException(InvalidVarintSizeException, "Wrong varint size")
-
-proc init*(lp: type[LenPrefixed], maxSize: int = DefaultBuffSize): lp =
-  LenPrefixed(readBuff: RingBuffer[byte].init(maxSize),
-              buff: newSeq[byte](maxSize), # TODO: don't allocate all - grow dinamicaly
-              mode: Mode.Decoding,
-              pos: 0, size: 0)
 
 proc decodeLen(lp: LenPrefixed): int =
   var
@@ -76,7 +71,7 @@ proc read(lp: LenPrefixed,
         of Mode.Decoding:
           lp.size = lp.decodeLen()
           if lp.size <= 0:
-            break
+            raise newInvalidVarintException()
 
           lp.mode = Mode.Reading
         else:
@@ -92,7 +87,7 @@ proc read(lp: LenPrefixed,
             lp.mode = Mode.Decoding
             result = lp.buff[0..<lp.pos]
             lp.pos = 0
-            break
+            return
 
   except CatchableError as exc:
     trace "Exception occured", exc = exc.msg
@@ -100,9 +95,12 @@ proc read(lp: LenPrefixed,
 
 proc decoder*(lp: LenPrefixed): Through[seq[byte]] =
   return proc(i: Source[seq[byte]]): Source[seq[byte]] =
-    return iterator(): Future[seq[byte]] {.closure.} =
-      for chunk in i:
-        yield lp.read(chunk)
+    return iterator(abort: bool = false): Future[seq[byte]] {.closure.} =
+      for chunk in i(abort):
+        while true:
+          yield lp.read(chunk)
+          if lp.readBuff.len <= 0:
+            break
 
       trace "source ended, clenaning up"
 
@@ -119,33 +117,44 @@ proc write(lp: LenPrefixed,
 
 proc encoder*(lp: LenPrefixed): Through[seq[byte]] =
   return proc(i: Source[seq[byte]]): Source[seq[byte]] {.gcsafe.} =
-    return iterator(): Future[seq[byte]] {.closure.} =
-      for chunk in i:
+    return iterator(abort: bool = false): Future[seq[byte]] {.closure.} =
+      for chunk in i(abort):
         yield lp.write(chunk)
 
       trace "source ended, clenaning up"
 
+proc rest*(lp: LenPrefixed): Source[seq[byte]] =
+  return iterator(abort: bool = false): Future[seq[byte]] =
+    if lp.readBuff.len > 0 and not abort:
+      yield lp.readBuff.read().toFuture
+
+proc init*(lp: type[LenPrefixed], maxSize: int = DefaultBuffSize): lp =
+  LenPrefixed(readBuff: RingBuffer[byte].init(maxSize),
+              buff: newSeq[byte](maxSize), # TODO: don't allocate all - grow dinamicaly
+              mode: Mode.Decoding,
+              pos: 0, size: 0)
+
 when isMainModule:
   import unittest, sequtils, strutils
-  import pushable, utils
+  import writable, utils
 
   suite "Lenght Prefixed":
     test "encode":
       proc test() {.async.} =
-        var pushable = BytePushable.init()
+        var writable = ByteWritable.init()
         var lp = LenPrefixed.init()
 
-        var source = pipe(pushable, lp.encoder())
-        await pushable.push(cast[seq[byte]]("HELLO"))
+        var source = pipe(writable, lp.encoder())
+        await writable.write(cast[seq[byte]]("HELLO"))
         check: (await source()) == @[5, 72, 69, 76, 76, 79].mapIt( it.byte )
 
       waitFor(test())
 
     test "encode multiple":
       proc test() {.async.} =
-        var pushable = BytePushable.init()
+        var writable = ByteWritable.init()
         var lp = LenPrefixed.init()
-        var source = pipe(pushable, lp.encoder())
+        var source = pipe(writable, lp.encoder())
 
         proc read(): Future[bool] {.async.} =
           var count = 6
@@ -163,8 +172,8 @@ when isMainModule:
         var reader = read()
         for i in 5..<15:
           var msg = toSeq("a".repeat(i)).mapIt( it.byte )
-          await pushable.push(msg)
-        await pushable.close()
+          await writable.write(msg)
+        await writable.close()
 
         check: await reader
 
@@ -172,27 +181,27 @@ when isMainModule:
 
     test "decode":
       proc test() {.async.} =
-        var pushable = BytePushable.init(eofTag = @[])
+        var writable = ByteWritable.init(eofTag = @[])
         var lp = LenPrefixed.init()
 
-        var source = pipe(pushable, lp.decoder())
-        await pushable.push(@[5, 72, 69, 76, 76, 79].mapIt( it.byte ))
+        var source = pipe(writable, lp.decoder())
+        await writable.write(@[5, 72, 69, 76, 76, 79].mapIt( it.byte ))
         check: (await source()) == @[72, 69, 76, 76, 79].mapIt( it.byte )
-        await pushable.close()
+        await writable.close()
 
       waitFor(test())
 
     test "decode in parts":
       proc test() {.async.} =
-        var pushable = BytePushable.init(eofTag = @[])
+        var writable = ByteWritable.init(eofTag = @[])
         var lp = LenPrefixed.init()
 
         proc write() {.async.} =
-          await pushable.push(@[5, 72, 69].mapIt( it.byte ))
-          await pushable.push(@[76, 76, 79].mapIt( it.byte ))
-          await pushable.close()
+          await writable.write(@[5, 72, 69].mapIt( it.byte ))
+          await writable.write(@[76, 76, 79].mapIt( it.byte ))
+          await writable.close()
 
-        var source = pipe(pushable, lp.decoder())
+        var source = pipe(writable, lp.decoder())
         var writer = write()
 
         var res: seq[byte]

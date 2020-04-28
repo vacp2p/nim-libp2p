@@ -1,0 +1,315 @@
+Hint: used config file '/Users/dryajov/.choosenim/toolchains/nim-1.2.0/config/nim.cfg' [Conf]
+Hint: used config file '/Users/dryajov/personal/projects/status/nim-libp2p/tests/nim.cfg' [Conf]
+Hint: used config file '/Users/dryajov/personal/projects/status/nim-libp2p/tests/config.nims' [Conf]
+Hint: system [Processing]
+Hint: widestrs [Processing]
+Hint: io [Processing]
+Hint: testmultistream [Processing]
+Hint: unittest [Processing]
+Hint: macros [Processing]
+Hint: strutils [Processing]
+Hint: parseutils [Processing]
+Hint: math [Processing]
+Hint: bitops [Processing]
+Hint: algorithm [Processing]
+Hint: unicode [Processing]
+Hint: streams [Processing]
+Hint: times [Processing]
+Hint: options [Processing]
+Hint: typetraits [Processing]
+Hint: posix [Processing]
+Hint: sets [Processing]
+Hint: hashes [Processing]
+Hint: sequtils [Processing]
+Hint: os [Processing]
+Hint: pathnorm [Processing]
+Hint: osseps [Processing]
+Hint: terminal [Processing]
+Hint: strformat [Processing]
+Hint: colors [Processing]
+Hint: termios [Processing]
+Hint: chronos [Processing]
+Hint: asyncloop [Processing]
+Hint: tables [Processing]
+Hint: heapqueue [Processing]
+Hint: lists [Processing]
+Hint: nativesockets [Processing]
+Hint: net [Processing]
+Hint: monotimes [Processing]
+Hint: ssl_certs [Processing]
+Hint: ospaths [Processing]
+Hint: deques [Processing]
+Hint: timer [Processing]
+Hint: selectors [Processing]
+Hint: kqueue [Processing]
+Hint: cstrutils [Processing]
+Hint: srcloc [Processing]
+Hint: asyncsync [Processing]
+Hint: handles [Processing]
+Hint: transport [Processing]
+Hint: datagram [Processing]
+Hint: common [Processing]
+Hint: stream [Processing]
+Hint: sendfile [Processing]
+Hint: ipnet [Processing]
+Hint: endians [Processing]
+Hint: osnet [Processing]
+Hint: asyncstream [Processing]
+Hint: chunkstream [Processing]
+Hint: byteutils [Processing]
+Hint: crypto [Processing]
+Hint: rsa [Processing]
+Hint: utils [Processing]
+Hint: bearssl [Processing]
+Hint: decls [Processing]
+Hint: errors [Processing]
+Hint: minasn1 [Processing]
+Hint: endians2 [Processing]
+Hint: ecnist [Processing]
+Hint: ed25519 [Processing]
+Hint: constants [Processing]
+Hint: hash [Processing]
+Hint: sha2 [Processing]
+Hint: sysrand [Processing]
+Hint: secp [Processing]
+Hint: secp256k1 [Processing]
+Hint: objects [Processing]
+Hint: results [Processing]
+Hint: secp256k1_abi [Processing]
+/Users/dryajov/.nimble/pkgs/secp256k1-0.2.0/secp256k1.nim(168, 1) Hint: 'Defect' is declared but not used [XDeclaredButNotUsed]
+/Users/dryajov/.nimble/pkgs/secp256k1-0.2.0/secp256k1.nim(148, 1) Hint: 'Defect' is declared but not used [XDeclaredButNotUsed]
+Hint: minprotobuf [Processing]
+Hint: varint [Processing]
+Hint: vbuffer [Processing]
+Hint: multihash [Processing]
+Hint: sha [Processing]
+Hint: keccak [Processing]
+Hint: blake2 [Processing]
+Hint: multicodec [Processing]
+Hint: multibase [Processing]
+Hint: base32 [Processing]
+Hint: base58 [Processing]
+Hint: base64 [Processing]
+Hint: rijndael [Processing]
+Hint: blowfish [Processing]
+Hint: twofish [Processing]
+Hint: hmac [Processing]
+Hint: ripemd [Processing]
+Hint: utility [Processing]
+Hint: stream [Processing]
+Hint: writable [Processing]
+Hint: chronicles [Processing]
+Hint: scope_helpers [Processing]
+Hint: options [Processing]
+Hint: dynamic_scope [Processing]
+Hint: log_output [Processing]
+Hint: dynamic_scope_types [Processing]
+Hint: output_stream [Processing]
+Hint: ptrops [Processing]
+Hint: strings [Processing]
+Hint: ptr_arith [Processing]
+Hint: async_backend [Processing]
+Hint: writer [Processing]
+Hint: serialization [Processing]
+Hint: macros [Processing]
+Hint: faststreams [Processing]
+Hint: input_stream [Processing]
+Hint: memfiles [Processing]
+Hint: object_serialization [Processing]
+Hint: errors [Processing]
+Hint: json [Processing]
+Hint: lexbase [Processing]
+Hint: parsejson [Processing]
+/Users/dryajov/.nimble/pkgs/chronicles-0.7.2/chronicles.nim(74, 14) Hint: 'activeChroniclesScope' is declared but not used [XDeclaredButNotUsed]
+/Users/dryajov/personal/projects/status/nim-libp2p/libp2p/streams/writable.nim(10, 33) Warning: imported and not used: 'byteutils' [UnusedImport]
+Hint: connection [Processing]
+Hint: peerinfo [Processing]
+Hint: peer [Processing]
+Hint: multiaddress [Processing]
+Hint: transcoder [Processing]
+Hint: utils [Processing]
+Hint: lenprefixed [Processing]
+Hint: ringbuffer [Processing]
+/Users/dryajov/personal/projects/status/nim-libp2p/libp2p/streams/lenprefixed.nim(10, 33) Warning: imported and not used: 'byteutils' [UnusedImport]
+Hint: transport [Processing]
+Hint: errors [Processing]
+Hint: tcptransport [Processing]
+Hint: chronosstream [Processing]
+/Users/dryajov/personal/projects/status/nim-libp2p/libp2p/streams/chronosstream.nim(12, 33) Warning: imported and not used: 'byteutils' [UnusedImport]
+Hint: wire [Processing]
+Hint: protocol [Processing]
+Hint: multistream [Processing]
+/Users/dryajov/personal/projects/status/nim-libp2p/tests/testmultistream.nim(15, 3) Hint: 'CodecString' is declared but not used [XDeclaredButNotUsed]
+/Users/dryajov/personal/projects/status/nim-libp2p/tests/testmultistream.nim(10, 8) Warning: imported and not used: 'peer' [UnusedImport]
+/Users/dryajov/personal/projects/status/nim-libp2p/tests/testmultistream.nim(4, 15) Warning: imported and not used: 'utils' [UnusedImport]
+/Users/dryajov/personal/projects/status/nim-libp2p/tests/testmultistream.nim(3, 14) Warning: imported and not used: 'crypto' [UnusedImport]
+/Users/dryajov/personal/projects/status/nim-libp2p/tests/testmultistream.nim(9, 8) Warning: imported and not used: 'peerinfo' [UnusedImport]
+CC: stdlib_system.nim
+CC: ../chronos/chronos/srcloc.nim
+CC: ../chronos/chronos/asyncloop.nim
+CC: ../libp2p/streams/stream.nim
+CC: ../../../../../.nimble/pkgs/chronicles-0.7.2/chronicles/log_output.nim
+CC: ../libp2p/streams/connection.nim
+CC: ../libp2p/multistream.nim
+CC: testmultistream.nim
+Hint:  [Link]
+Hint: 157492 LOC; 5.756 sec; 282.105MiB peakmem; Debug build; proj: /Users/dryajov/personal/projects/status/nim-libp2p/tests/testmultistream.nim; out: /Users/dryajov/personal/projects/status/nim-libp2p/tests/testmultistream [SuccessX]
+Hint: /Users/dryajov/personal/projects/status/nim-libp2p/tests/testmultistream  [Exec]
+
+[Suite] Multistream select
+TRC 2020-04-28 00:14:30-06:00 initiating handshake                       tid=764977 file=multistream.nim:61 codec=/multistream/1.0.0 proto="@[\"/test/proto/1.0.0\"]" topic=Multistream
+WRN 2020-04-28 00:14:30-06:00 LENPREFIXED                                tid=764977 file=lenprefixed.nim:89 result="@[47, 109, 117, 108, 116, 105, 115, 116, 114, 101, 97, 109, 47, 49, 46, 48, 46, 48, 10]" topic=LenPrefixed
+WRN 2020-04-28 00:14:30-06:00 RESSSSSS                                   tid=764977 file=multistream.nim:82 res="@[47, 109, 117, 108, 116, 105, 115, 116, 114, 101, 97, 109, 47, 49, 46, 48, 46, 48]" topic=Multistream
+TRC 2020-04-28 00:14:30-06:00 reading requested proto                    tid=764977 file=multistream.nim:93 proto=/test/proto/1.0.0 topic=Multistream
+WRN 2020-04-28 00:14:30-06:00 LENPREFIXED                                tid=764977 file=lenprefixed.nim:89 result="@[47, 116, 101, 115, 116, 47, 112, 114, 111, 116, 111, 47, 49, 46, 48, 46, 48, 10]" topic=LenPrefixed
+RES @[47, 116, 101, 115, 116, 47, 112, 114, 111, 116, 111, 47, 49, 46, 48, 46, 48]
+TRC 2020-04-28 00:14:30-06:00 succesfully selected                       tid=764977 file=multistream.nim:99 proto=/test/proto/1.0.0 topic=Multistream
+  [OK] test select custom proto
+TRC 2020-04-28 00:14:30-06:00 registering protocol                       tid=764977 file=multistream.nim:207 codec=/test/proto/1.0.0 topic=Multistream
+TRC 2020-04-28 00:14:30-06:00 starting multistream handling              tid=764977 file=multistream.nim:143 topic=Multistream
+WRN 2020-04-28 00:14:30-06:00 LENPREFIXED                                tid=764977 file=lenprefixed.nim:89 result="@[47, 109, 117, 108, 116, 105, 115, 116, 114, 101, 97, 109, 47, 49, 46, 48, 46, 48, 10]" topic=LenPrefixed
+TRC 2020-04-28 00:14:30-06:00 got request for                            tid=764977 file=multistream.nim:156 msg=/multistream/1.0.0 topic=Multistream
+TRC 2020-04-28 00:14:30-06:00 handling handshake                         tid=764977 file=multistream.nim:177 topic=Multistream
+WRN 2020-04-28 00:14:30-06:00 LENPREFIXED                                tid=764977 file=lenprefixed.nim:89 result="@[47, 116, 101, 115, 116, 47, 112, 114, 111, 116, 111, 47, 49, 46, 48, 46, 48, 10]" topic=LenPrefixed
+TRC 2020-04-28 00:14:30-06:00 got request for                            tid=764977 file=multistream.nim:156 msg=/test/proto/1.0.0 topic=Multistream
+TRC 2020-04-28 00:14:30-06:00 found handler for                          tid=764977 file=multistream.nim:182 protocol=/test/proto/1.0.0 topic=Multistream
+WRN 2020-04-28 00:14:30-06:00 before push                                tid=764977 file=multistream.nim:186 queue=[] topic=Multistream
+WRN 2020-04-28 00:14:30-06:00 after push                                 tid=764977 file=multistream.nim:190 queue=[] topic=Multistream
+TRC 2020-04-28 00:14:30-06:00 leaving multistream loop                   tid=764977 file=multistream.nim:200 topic=Multistream
+  [OK] test handle custom proto
+TRC 2020-04-28 00:14:30-06:00 registering protocol                       tid=764977 file=multistream.nim:207 codec=/test/proto1/1.0.0 topic=Multistream
+TRC 2020-04-28 00:14:30-06:00 registering protocol                       tid=764977 file=multistream.nim:207 codec=/test/proto2/1.0.0 topic=Multistream
+TRC 2020-04-28 00:14:30-06:00 starting multistream handling              tid=764977 file=multistream.nim:143 topic=Multistream
+WRN 2020-04-28 00:14:30-06:00 LENPREFIXED                                tid=764977 file=lenprefixed.nim:89 result="@[47, 109, 117, 108, 116, 105, 115, 116, 114, 101, 97, 109, 47, 49, 46, 48, 46, 48, 10]" topic=LenPrefixed
+TRC 2020-04-28 00:14:30-06:00 got request for                            tid=764977 file=multistream.nim:156 msg=/multistream/1.0.0 topic=Multistream
+TRC 2020-04-28 00:14:30-06:00 handling handshake                         tid=764977 file=multistream.nim:177 topic=Multistream
+WRN 2020-04-28 00:14:30-06:00 LENPREFIXED                                tid=764977 file=lenprefixed.nim:89 result="@[108, 115, 10]" topic=LenPrefixed
+TRC 2020-04-28 00:14:30-06:00 got request for                            tid=764977 file=multistream.nim:156 msg=ls topic=Multistream
+TRC 2020-04-28 00:14:30-06:00 listing protos                             tid=764977 file=multistream.nim:168 topic=Multistream
+TRC 2020-04-28 00:14:30-06:00 Exception occured                          tid=764977 file=lenprefixed.nim:94 exc="Unable to parse varint" topic=LenPrefixed
+TRC 2020-04-28 00:14:30-06:00 Exception occurred                         tid=764977 file=multistream.nim:198 exc="Unable to parse varint\nAsync traceback:\n  /Users/dryajov/personal/projects/status/nim-libp2p/tests/testmultistream.nim(111)         testmultistream\n  /Users/dryajov/personal/projects/status/nim-libp2p/chronos/chronos/asyncloop.nim(946)     waitFor\n  /Users/dryajov/personal/projects/status/nim-libp2p/chronos/chronos/asyncloop.nim(278)     poll\n  /Users/dryajov/personal/projects/status/nim-libp2p/libp2p/streams/stream.nim(96)          handle\n  /Users/dryajov/personal/projects/status/nim-libp2p/libp2p/streams/stream.nim(96)          :anonymous\n  /Users/dryajov/personal/projects/status/nim-libp2p/libp2p/streams/lenprefixed.nim(102)    :anonymous\n  /Users/dryajov/personal/projects/status/nim-libp2p/libp2p/streams/lenprefixed.nim(65)     read\n  #[\n    /Users/dryajov/personal/projects/status/nim-libp2p/tests/testmultistream.nim(111)         testmultistream\n    /Users/dryajov/personal/projects/status/nim-libp2p/chronos/chronos/asyncloop.nim(946)     waitFor\n    /Users/dryajov/personal/projects/status/nim-libp2p/chronos/chronos/asyncloop.nim(278)     poll\n    /Users/dryajov/personal/projects/status/nim-libp2p/libp2p/streams/stream.nim(96)          handle\n    /Users/dryajov/personal/projects/status/nim-libp2p/libp2p/streams/stream.nim(96)          :anonymous\n    /Users/dryajov/personal/projects/status/nim-libp2p/libp2p/streams/lenprefixed.nim(102)    :anonymous\n    /Users/dryajov/personal/projects/status/nim-libp2p/libp2p/streams/lenprefixed.nim(95)     read\n  ]#\n  #[\n    /Users/dryajov/personal/projects/status/nim-libp2p/tests/testmultistream.nim(111)         testmultistream\n    /Users/dryajov/personal/projects/status/nim-libp2p/chronos/chronos/asyncloop.nim(946)     waitFor\n    /Users/dryajov/personal/projects/status/nim-libp2p/chronos/chronos/asyncloop.nim(278)     poll\n    /Users/dryajov/personal/projects/status/nim-libp2p/libp2p/streams/stream.nim(96)          handle\n    /Users/dryajov/personal/projects/status/nim-libp2p/libp2p/streams/stream.nim(96)          :anonymous\n    /Users/dryajov/personal/projects/status/nim-libp2p/libp2p/streams/lenprefixed.nim(102)    :anonymous\n    /Users/dryajov/.choosenim/toolchains/nim-1.2.0/lib/system/excpt.nim(126)                  read\n  ]#\n  #[\n    /Users/dryajov/personal/projects/status/nim-libp2p/tests/testmultistream.nim(111)         testmultistream\n    /Users/dryajov/personal/projects/status/nim-libp2p/chronos/chronos/asyncloop.nim(946)     waitFor\n    /Users/dryajov/personal/projects/status/nim-libp2p/chronos/chronos/asyncloop.nim(278)     poll\n    /Users/dryajov/personal/projects/status/nim-libp2p/libp2p/streams/stream.nim(96)          handle\n    /Users/dryajov/personal/projects/status/nim-libp2p/libp2p/streams/utils.nim(28)           :anonymous\n    /Users/dryajov/personal/projects/status/nim-libp2p/chronos/chronos/asyncmacro2.nim(273)   strip\n    /Users/dryajov/personal/projects/status/nim-libp2p/chronos/chronos/asyncfutures2.nim(407) internalCheckComplete\n  ]#\nException message: Unable to parse varint\nException type:" topic=Multistream
+TRC 2020-04-28 00:14:30-06:00 leaving multistream loop                   tid=764977 file=multistream.nim:200 topic=Multistream
+  [OK] test handle `ls`
+TRC 2020-04-28 00:14:30-06:00 registering protocol                       tid=764977 file=multistream.nim:207 codec=/test/proto/1.0.0 topic=Multistream
+TRC 2020-04-28 00:14:30-06:00 starting multistream handling              tid=764977 file=multistream.nim:143 topic=Multistream
+  [OK] test handle `na`
+TRC 2020-04-28 00:14:30-06:00 registering protocol                       tid=764977 file=multistream.nim:207 codec=/test/proto/1.0.0 topic=Multistream
+TRC 2020-04-28 00:14:30-06:00 starting node                              tid=764977 file=transport.nim:47 address=/ip4/0.0.0.0/tcp/0
+TRC 2020-04-28 00:14:30-06:00 started node on                            tid=764977 file=tcptransport.nim:81 address=/ip4/0.0.0.0/tcp/61515 topic=TcpTransport
+TRC 2020-04-28 00:14:30-06:00 dialing remote peer                        tid=764977 file=tcptransport.nim:86 address=/ip4/0.0.0.0/tcp/61515 topic=TcpTransport
+TRC 2020-04-28 00:14:30-06:00 incomming connection for                   tid=764977 file=tcptransport.nim:48 address=127.0.0.1:61516 topic=TcpTransport
+TRC 2020-04-28 00:14:30-06:00 handling connection for                    tid=764977 file=tcptransport.nim:35 address=127.0.0.1:61516 topic=TcpTransport
+TRC 2020-04-28 00:14:30-06:00 starting multistream handling              tid=764977 file=multistream.nim:143 topic=Multistream
+WRN 2020-04-28 00:14:30-06:00 READING                                    tid=764977 file=chronosstream.nim:49 abort=false ateof=false topic=ChronosStream
+TRC 2020-04-28 00:14:30-06:00 handling connection for                    tid=764977 file=tcptransport.nim:35 address=127.0.0.1:61515 topic=TcpTransport
+TRC 2020-04-28 00:14:30-06:00 got request for                            tid=764977 file=multistream.nim:156 msg= topic=Multistream
+TRC 2020-04-28 00:14:30-06:00 empty request, handler EOF                 tid=764977 file=multistream.nim:158 topic=Multistream
+TRC 2020-04-28 00:14:30-06:00 leaving multistream loop                   tid=764977 file=multistream.nim:200 topic=Multistream
+TRC 2020-04-28 00:14:30-06:00 initiating handshake                       tid=764977 file=multistream.nim:61 codec=/multistream/1.0.0 proto="@[\"/test/proto/1.0.0\"]" topic=Multistream
+WRN 2020-04-28 00:14:30-06:00 READING                                    tid=764977 file=chronosstream.nim:49 abort=false ateof=false topic=ChronosStream
+WRN 2020-04-28 00:14:30-06:00 WRITTING                                   tid=764977 file=chronosstream.nim:63 cchunk="@[19, 47, 109, 117, 108, 116, 105, 115, 116, 114, 101, 97, 109, 47, 49, 46, 48, 46, 48, 10]" topic=ChronosStream
+WRN 2020-04-28 00:14:30-06:00 WRITTING                                   tid=764977 file=chronosstream.nim:63 cchunk="@[18, 47, 116, 101, 115, 116, 47, 112, 114, 111, 116, 111, 47, 49, 46, 48, 46, 48, 10]" topic=ChronosStream
+WRN 2020-04-28 00:14:30-06:00 READ                                       tid=764977 file=chronosstream.nim:43 result="@[19, 47, 109, 117, 108, 116, 105, 115, 116, 114, 101, 97, 109, 47, 49, 46, 48, 46, 48, 10, 18, 47, 116, 101, 115, 116, 47, 112, 114, 111, 116, 111, 47, 49, 46, 48, 46, 48, 10]" topic=ChronosStream
+WRN 2020-04-28 00:14:30-06:00 LENPREFIXED                                tid=764977 file=lenprefixed.nim:89 result="@[47, 109, 117, 108, 116, 105, 115, 116, 114, 101, 97, 109, 47, 49, 46, 48, 46, 48, 10]" topic=LenPrefixed
+TRC 2020-04-28 00:14:30-06:00 got request for                            tid=764977 file=multistream.nim:156 msg=/multistream/1.0.0 topic=Multistream
+TRC 2020-04-28 00:14:30-06:00 handling handshake                         tid=764977 file=multistream.nim:177 topic=Multistream
+WRN 2020-04-28 00:14:30-06:00 LENPREFIXED                                tid=764977 file=lenprefixed.nim:89 result="@[47, 116, 101, 115, 116, 47, 112, 114, 111, 116, 111, 47, 49, 46, 48, 46, 48, 10]" topic=LenPrefixed
+TRC 2020-04-28 00:14:30-06:00 got request for                            tid=764977 file=multistream.nim:156 msg=/test/proto/1.0.0 topic=Multistream
+TRC 2020-04-28 00:14:30-06:00 found handler for                          tid=764977 file=multistream.nim:182 protocol=/test/proto/1.0.0 topic=Multistream
+WRN 2020-04-28 00:14:30-06:00 WRITTING                                   tid=764977 file=chronosstream.nim:63 cchunk="@[19, 47, 109, 117, 108, 116, 105, 115, 116, 114, 101, 97, 109, 47, 49, 46, 48, 46, 48, 10]" topic=ChronosStream
+WRN 2020-04-28 00:14:30-06:00 WRITTING                                   tid=764977 file=chronosstream.nim:63 cchunk="@[18, 47, 116, 101, 115, 116, 47, 112, 114, 111, 116, 111, 47, 49, 46, 48, 46, 48, 10]" topic=ChronosStream
+WRN 2020-04-28 00:14:30-06:00 before push                                tid=764977 file=multistream.nim:186 queue=[] topic=Multistream
+WRN 2020-04-28 00:14:30-06:00 READ                                       tid=764977 file=chronosstream.nim:43 result="@[19, 47, 109, 117, 108, 116, 105, 115, 116, 114, 101, 97, 109, 47, 49, 46, 48, 46, 48, 10, 18, 47, 116, 101, 115, 116, 47, 112, 114, 111, 116, 111, 47, 49, 46, 48, 46, 48, 10]" topic=ChronosStream
+WRN 2020-04-28 00:14:30-06:00 LENPREFIXED                                tid=764977 file=lenprefixed.nim:89 result="@[47, 109, 117, 108, 116, 105, 115, 116, 114, 101, 97, 109, 47, 49, 46, 48, 46, 48, 10]" topic=LenPrefixed
+WRN 2020-04-28 00:14:30-06:00 WRITTING                                   tid=764977 file=chronosstream.nim:63 cchunk="@[5, 72, 69, 76, 76, 79]" topic=ChronosStream
+WRN 2020-04-28 00:14:30-06:00 RESSSSSS                                   tid=764977 file=multistream.nim:82 res="@[47, 109, 117, 108, 116, 105, 115, 116, 114, 101, 97, 109, 47, 49, 46, 48, 46, 48]" topic=Multistream
+TRC 2020-04-28 00:14:30-06:00 reading requested proto                    tid=764977 file=multistream.nim:93 proto=/test/proto/1.0.0 topic=Multistream
+WRN 2020-04-28 00:14:30-06:00 LENPREFIXED                                tid=764977 file=lenprefixed.nim:89 result="@[47, 116, 101, 115, 116, 47, 112, 114, 111, 116, 111, 47, 49, 46, 48, 46, 48, 10]" topic=LenPrefixed
+RES @[47, 116, 101, 115, 116, 47, 112, 114, 111, 116, 111, 47, 49, 46, 48, 46, 48]
+TRC 2020-04-28 00:14:30-06:00 succesfully selected                       tid=764977 file=multistream.nim:99 proto=/test/proto/1.0.0 topic=Multistream
+WRN 2020-04-28 00:14:30-06:00 READING                                    tid=764977 file=chronosstream.nim:49 abort=false ateof=false topic=ChronosStream
+TRC 2020-04-28 00:14:30-06:00 sink ended, clenaning up                   tid=764977 file=chronosstream.nim:68 topic=ChronosStream
+TRC 2020-04-28 00:14:30-06:00 shutting chronos stream                    tid=764977 file=chronosstream.nim:30 address=127.0.0.1:61516 topic=ChronosStream
+WRN 2020-04-28 00:14:30-06:00 READ                                       tid=764977 file=chronosstream.nim:43 result="@[5, 72, 69, 76, 76, 79]" topic=ChronosStream
+WRN 2020-04-28 00:14:30-06:00 LENPREFIXED                                tid=764977 file=lenprefixed.nim:89 result="@[72, 69, 76, 76, 79]" topic=LenPrefixed
+TRC 2020-04-28 00:14:30-06:00 stopping transport                         tid=764977 file=tcptransport.nim:57 topic=TcpTransport
+WRN 2020-04-28 00:14:30-06:00 after push                                 tid=764977 file=multistream.nim:190 queue=[] topic=Multistream
+TRC 2020-04-28 00:14:30-06:00 leaving multistream loop                   tid=764977 file=multistream.nim:200 topic=Multistream
+TRC 2020-04-28 00:14:30-06:00 transport stopped                          tid=764977 file=tcptransport.nim:66 topic=TcpTransport
+  [OK] e2e - handle
+TRC 2020-04-28 00:14:30-06:00 registering protocol                       tid=764977 file=multistream.nim:207 codec=/test/proto1/1.0.0 topic=Multistream
+TRC 2020-04-28 00:14:30-06:00 registering protocol                       tid=764977 file=multistream.nim:207 codec=/test/proto2/1.0.0 topic=Multistream
+TRC 2020-04-28 00:14:30-06:00 starting node                              tid=764977 file=transport.nim:47 address=/ip4/0.0.0.0/tcp/0
+TRC 2020-04-28 00:14:30-06:00 started node on                            tid=764977 file=tcptransport.nim:81 address=/ip4/0.0.0.0/tcp/61517 topic=TcpTransport
+TRC 2020-04-28 00:14:30-06:00 dialing remote peer                        tid=764977 file=tcptransport.nim:86 address=/ip4/0.0.0.0/tcp/61517 topic=TcpTransport
+TRC 2020-04-28 00:14:30-06:00 handling connection for                    tid=764977 file=tcptransport.nim:35 address=127.0.0.1:61517 topic=TcpTransport
+TRC 2020-04-28 00:14:30-06:00 incomming connection for                   tid=764977 file=tcptransport.nim:48 address=127.0.0.1:61518 topic=TcpTransport
+TRC 2020-04-28 00:14:30-06:00 handling connection for                    tid=764977 file=tcptransport.nim:35 address=127.0.0.1:61518 topic=TcpTransport
+TRC 2020-04-28 00:14:30-06:00 starting multistream handling              tid=764977 file=multistream.nim:143 topic=Multistream
+WRN 2020-04-28 00:14:30-06:00 READING                                    tid=764977 file=chronosstream.nim:49 abort=false ateof=false topic=ChronosStream
+TRC 2020-04-28 00:14:30-06:00 initiating handshake                       tid=764977 file=multistream.nim:61 codec=/multistream/1.0.0 proto=@[] topic=Multistream
+WRN 2020-04-28 00:14:30-06:00 READING                                    tid=764977 file=chronosstream.nim:49 abort=false ateof=false topic=ChronosStream
+WRN 2020-04-28 00:14:30-06:00 WRITTING                                   tid=764977 file=chronosstream.nim:63 cchunk="@[19, 47, 109, 117, 108, 116, 105, 115, 116, 114, 101, 97, 109, 47, 49, 46, 48, 46, 48, 10]" topic=ChronosStream
+WRN 2020-04-28 00:14:30-06:00 READ                                       tid=764977 file=chronosstream.nim:43 result="@[19, 47, 109, 117, 108, 116, 105, 115, 116, 114, 101, 97, 109, 47, 49, 46, 48, 46, 48, 10]" topic=ChronosStream
+WRN 2020-04-28 00:14:30-06:00 LENPREFIXED                                tid=764977 file=lenprefixed.nim:89 result="@[47, 109, 117, 108, 116, 105, 115, 116, 114, 101, 97, 109, 47, 49, 46, 48, 46, 48, 10]" topic=LenPrefixed
+TRC 2020-04-28 00:14:30-06:00 got request for                            tid=764977 file=multistream.nim:156 msg=/multistream/1.0.0 topic=Multistream
+TRC 2020-04-28 00:14:30-06:00 handling handshake                         tid=764977 file=multistream.nim:177 topic=Multistream
+WRN 2020-04-28 00:14:30-06:00 READING                                    tid=764977 file=chronosstream.nim:49 abort=false ateof=false topic=ChronosStream
+WRN 2020-04-28 00:14:30-06:00 WRITTING                                   tid=764977 file=chronosstream.nim:63 cchunk="@[19, 47, 109, 117, 108, 116, 105, 115, 116, 114, 101, 97, 109, 47, 49, 46, 48, 46, 48, 10]" topic=ChronosStream
+WRN 2020-04-28 00:14:30-06:00 READ                                       tid=764977 file=chronosstream.nim:43 result="@[19, 47, 109, 117, 108, 116, 105, 115, 116, 114, 101, 97, 109, 47, 49, 46, 48, 46, 48, 10]" topic=ChronosStream
+WRN 2020-04-28 00:14:30-06:00 LENPREFIXED                                tid=764977 file=lenprefixed.nim:89 result="@[47, 109, 117, 108, 116, 105, 115, 116, 114, 101, 97, 109, 47, 49, 46, 48, 46, 48, 10]" topic=LenPrefixed
+WRN 2020-04-28 00:14:30-06:00 RESSSSSS                                   tid=764977 file=multistream.nim:82 res="@[47, 109, 117, 108, 116, 105, 115, 116, 114, 101, 97, 109, 47, 49, 46, 48, 46, 48]" topic=Multistream
+WRN 2020-04-28 00:14:30-06:00 READING                                    tid=764977 file=chronosstream.nim:49 abort=false ateof=false topic=ChronosStream
+WRN 2020-04-28 00:14:30-06:00 WRITTING                                   tid=764977 file=chronosstream.nim:63 cchunk="@[3, 108, 115, 10]" topic=ChronosStream
+WRN 2020-04-28 00:14:30-06:00 READ                                       tid=764977 file=chronosstream.nim:43 result="@[3, 108, 115, 10]" topic=ChronosStream
+WRN 2020-04-28 00:14:30-06:00 LENPREFIXED                                tid=764977 file=lenprefixed.nim:89 result="@[108, 115, 10]" topic=LenPrefixed
+TRC 2020-04-28 00:14:30-06:00 got request for                            tid=764977 file=multistream.nim:156 msg=ls topic=Multistream
+TRC 2020-04-28 00:14:30-06:00 listing protos                             tid=764977 file=multistream.nim:168 topic=Multistream
+WRN 2020-04-28 00:14:30-06:00 READING                                    tid=764977 file=chronosstream.nim:49 abort=false ateof=false topic=ChronosStream
+WRN 2020-04-28 00:14:30-06:00 WRITTING                                   tid=764977 file=chronosstream.nim:63 cchunk="@[38, 47, 116, 101, 115, 116, 47, 112, 114, 111, 116, 111, 49, 47, 49, 46, 48, 46, 48, 10, 47, 116, 101, 115, 116, 47, 112, 114, 111, 116, 111, 50, 47, 49, 46, 48, 46, 48, 10]" topic=ChronosStream
+WRN 2020-04-28 00:14:30-06:00 READ                                       tid=764977 file=chronosstream.nim:43 result="@[38, 47, 116, 101, 115, 116, 47, 112, 114, 111, 116, 111, 49, 47, 49, 46, 48, 46, 48, 10, 47, 116, 101, 115, 116, 47, 112, 114, 111, 116, 111, 50, 47, 49, 46, 48, 46, 48, 10]" topic=ChronosStream
+WRN 2020-04-28 00:14:30-06:00 LENPREFIXED                                tid=764977 file=lenprefixed.nim:89 result="@[47, 116, 101, 115, 116, 47, 112, 114, 111, 116, 111, 49, 47, 49, 46, 48, 46, 48, 10, 47, 116, 101, 115, 116, 47, 112, 114, 111, 116, 111, 50, 47, 49, 46, 48, 46, 48, 10]" topic=LenPrefixed
+TRC 2020-04-28 00:14:30-06:00 stopping transport                         tid=764977 file=tcptransport.nim:57 topic=TcpTransport
+TRC 2020-04-28 00:14:30-06:00 transport stopped                          tid=764977 file=tcptransport.nim:66 topic=TcpTransport
+  [OK] e2e - ls
+TRC 2020-04-28 00:14:30-06:00 registering protocol                       tid=764977 file=multistream.nim:207 codec=/test/proto/1.0.0 topic=Multistream
+TRC 2020-04-28 00:14:30-06:00 starting node                              tid=764977 file=transport.nim:47 address=/ip4/0.0.0.0/tcp/0
+TRC 2020-04-28 00:14:30-06:00 started node on                            tid=764977 file=tcptransport.nim:81 address=/ip4/0.0.0.0/tcp/61520 topic=TcpTransport
+TRC 2020-04-28 00:14:30-06:00 dialing remote peer                        tid=764977 file=tcptransport.nim:86 address=/ip4/0.0.0.0/tcp/61520 topic=TcpTransport
+TRC 2020-04-28 00:14:30-06:00 handling connection for                    tid=764977 file=tcptransport.nim:35 address=127.0.0.1:61520 topic=TcpTransport
+TRC 2020-04-28 00:14:30-06:00 incomming connection for                   tid=764977 file=tcptransport.nim:48 address=127.0.0.1:61521 topic=TcpTransport
+TRC 2020-04-28 00:14:30-06:00 handling connection for                    tid=764977 file=tcptransport.nim:35 address=127.0.0.1:61521 topic=TcpTransport
+TRC 2020-04-28 00:14:30-06:00 starting multistream handling              tid=764977 file=multistream.nim:143 topic=Multistream
+WRN 2020-04-28 00:14:30-06:00 READING                                    tid=764977 file=chronosstream.nim:49 abort=false ateof=false topic=ChronosStream
+TRC 2020-04-28 00:14:30-06:00 initiating handshake                       tid=764977 file=multistream.nim:61 codec=/multistream/1.0.0 proto="@[\"/test/proto/1.0.0\", \"/test/no/proto/1.0.0\"]" topic=Multistream
+WRN 2020-04-28 00:14:30-06:00 READING                                    tid=764977 file=chronosstream.nim:49 abort=false ateof=false topic=ChronosStream
+WRN 2020-04-28 00:14:30-06:00 WRITTING                                   tid=764977 file=chronosstream.nim:63 cchunk="@[19, 47, 109, 117, 108, 116, 105, 115, 116, 114, 101, 97, 109, 47, 49, 46, 48, 46, 48, 10]" topic=ChronosStream
+WRN 2020-04-28 00:14:30-06:00 WRITTING                                   tid=764977 file=chronosstream.nim:63 cchunk="@[18, 47, 116, 101, 115, 116, 47, 112, 114, 111, 116, 111, 47, 49, 46, 48, 46, 48, 10]" topic=ChronosStream
+WRN 2020-04-28 00:14:30-06:00 READ                                       tid=764977 file=chronosstream.nim:43 result="@[19, 47, 109, 117, 108, 116, 105, 115, 116, 114, 101, 97, 109, 47, 49, 46, 48, 46, 48, 10, 18, 47, 116, 101, 115, 116, 47, 112, 114, 111, 116, 111, 47, 49, 46, 48, 46, 48, 10]" topic=ChronosStream
+WRN 2020-04-28 00:14:30-06:00 LENPREFIXED                                tid=764977 file=lenprefixed.nim:89 result="@[47, 109, 117, 108, 116, 105, 115, 116, 114, 101, 97, 109, 47, 49, 46, 48, 46, 48, 10]" topic=LenPrefixed
+TRC 2020-04-28 00:14:30-06:00 got request for                            tid=764977 file=multistream.nim:156 msg=/multistream/1.0.0 topic=Multistream
+TRC 2020-04-28 00:14:30-06:00 handling handshake                         tid=764977 file=multistream.nim:177 topic=Multistream
+WRN 2020-04-28 00:14:30-06:00 LENPREFIXED                                tid=764977 file=lenprefixed.nim:89 result="@[47, 116, 101, 115, 116, 47, 112, 114, 111, 116, 111, 47, 49, 46, 48, 46, 48, 10]" topic=LenPrefixed
+TRC 2020-04-28 00:14:30-06:00 got request for                            tid=764977 file=multistream.nim:156 msg=/test/proto/1.0.0 topic=Multistream
+TRC 2020-04-28 00:14:30-06:00 found handler for                          tid=764977 file=multistream.nim:182 protocol=/test/proto/1.0.0 topic=Multistream
+WRN 2020-04-28 00:14:30-06:00 WRITTING                                   tid=764977 file=chronosstream.nim:63 cchunk="@[19, 47, 109, 117, 108, 116, 105, 115, 116, 114, 101, 97, 109, 47, 49, 46, 48, 46, 48, 10]" topic=ChronosStream
+WRN 2020-04-28 00:14:30-06:00 WRITTING                                   tid=764977 file=chronosstream.nim:63 cchunk="@[18, 47, 116, 101, 115, 116, 47, 112, 114, 111, 116, 111, 47, 49, 46, 48, 46, 48, 10]" topic=ChronosStream
+WRN 2020-04-28 00:14:30-06:00 before push                                tid=764977 file=multistream.nim:186 queue=[] topic=Multistream
+WRN 2020-04-28 00:14:30-06:00 READ                                       tid=764977 file=chronosstream.nim:43 result="@[19, 47, 109, 117, 108, 116, 105, 115, 116, 114, 101, 97, 109, 47, 49, 46, 48, 46, 48, 10, 18, 47, 116, 101, 115, 116, 47, 112, 114, 111, 116, 111, 47, 49, 46, 48, 46, 48, 10]" topic=ChronosStream
+WRN 2020-04-28 00:14:30-06:00 LENPREFIXED                                tid=764977 file=lenprefixed.nim:89 result="@[47, 109, 117, 108, 116, 105, 115, 116, 114, 101, 97, 109, 47, 49, 46, 48, 46, 48, 10]" topic=LenPrefixed
+WRN 2020-04-28 00:14:30-06:00 WRITTING                                   tid=764977 file=chronosstream.nim:63 cchunk="@[5, 72, 69, 76, 76, 79]" topic=ChronosStream
+WRN 2020-04-28 00:14:30-06:00 RESSSSSS                                   tid=764977 file=multistream.nim:82 res="@[47, 109, 117, 108, 116, 105, 115, 116, 114, 101, 97, 109, 47, 49, 46, 48, 46, 48]" topic=Multistream
+TRC 2020-04-28 00:14:30-06:00 reading requested proto                    tid=764977 file=multistream.nim:93 proto=/test/proto/1.0.0 topic=Multistream
+WRN 2020-04-28 00:14:30-06:00 LENPREFIXED                                tid=764977 file=lenprefixed.nim:89 result="@[47, 116, 101, 115, 116, 47, 112, 114, 111, 116, 111, 47, 49, 46, 48, 46, 48, 10]" topic=LenPrefixed
+RES @[47, 116, 101, 115, 116, 47, 112, 114, 111, 116, 111, 47, 49, 46, 48, 46, 48]
+TRC 2020-04-28 00:14:30-06:00 succesfully selected                       tid=764977 file=multistream.nim:99 proto=/test/proto/1.0.0 topic=Multistream
+WRN 2020-04-28 00:14:30-06:00 READING                                    tid=764977 file=chronosstream.nim:49 abort=false ateof=false topic=ChronosStream
+TRC 2020-04-28 00:14:30-06:00 sink ended, clenaning up                   tid=764977 file=chronosstream.nim:68 topic=ChronosStream
+TRC 2020-04-28 00:14:30-06:00 shutting chronos stream                    tid=764977 file=chronosstream.nim:30 address=127.0.0.1:61521 topic=ChronosStream
+WRN 2020-04-28 00:14:30-06:00 READ                                       tid=764977 file=chronosstream.nim:43 result="@[5, 72, 69, 76, 76, 79]" topic=ChronosStream
+WRN 2020-04-28 00:14:30-06:00 LENPREFIXED                                tid=764977 file=lenprefixed.nim:89 result="@[72, 69, 76, 76, 79]" topic=LenPrefixed
+TRC 2020-04-28 00:14:30-06:00 stopping transport                         tid=764977 file=tcptransport.nim:57 topic=TcpTransport
+WRN 2020-04-28 00:14:30-06:00 after push                                 tid=764977 file=multistream.nim:190 queue=[] topic=Multistream
+TRC 2020-04-28 00:14:30-06:00 leaving multistream loop                   tid=764977 file=multistream.nim:200 topic=Multistream
+TRC 2020-04-28 00:14:30-06:00 transport stopped                          tid=764977 file=tcptransport.nim:66 topic=TcpTransport
+  [OK] e2e - select one from a list with unsupported protos

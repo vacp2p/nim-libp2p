@@ -13,8 +13,7 @@ import vbuffer,
        protocols/protocol,
        streams/[connection,
                 stream,
-                pushable,
-                asynciters,
+                writable,
                 lenprefixed,
                 utils]
 
@@ -61,22 +60,22 @@ proc select*(m: MultistreamSelect,
              Future[string] {.async.} =
   trace "initiating handshake", codec = Codec,
                                 proto = protos
-  var pushable = BytePushable.init() # pushable source
-  var source = pipe(pushable,
+  var writable = ByteWritable.init() # writable source
+  var source = pipe(writable,
                     appendNl(),
                     m.lp.encoder,
-                    conn.toThrough,
+                    conn.toDuplex,
                     m.lp.decoder,
                     stripNl())
 
   # handshake first
-  await pushable.push(m.codec)
+  await writable.write(m.codec)
 
   # (common optimization) if we've got
   # protos send the first one out immediately
   # without waiting for the handshake response
   if protos.len > 0:
-    await pushable.push(protos[0].toBytes())
+    await writable.write(protos[0].toBytes())
 
   # check for handshake result
   var res = await source()
@@ -92,7 +91,6 @@ proc select*(m: MultistreamSelect,
     # first read because we've the outstanding requirest above
     trace "reading requested proto", proto = protos[i]
     res = await source()
-    echo "RES ", res
 
     var protoBytes = protos[i].toBytes()
     if res == protoBytes:
@@ -101,7 +99,7 @@ proc select*(m: MultistreamSelect,
 
     if i > 0:
       trace "selecting proto", proto = protos[i]
-      await pushable.push(protoBytes) # select proto
+      await writable.write(protoBytes) # select proto
 
 proc select*(m: MultistreamSelect,
              conn: Connection,
@@ -121,15 +119,15 @@ proc list*(m: MultistreamSelect,
     trace "unable to list, handshake failed"
     return
 
-  var pushable = BytePushable.init()
-  var source = pipe(pushable,
+  var writable = ByteWritable.init()
+  var source = pipe(writable,
                     appendNl(),
                     m.lp.encoder,
-                    conn.toThrough,
+                    conn.toDuplex,
                     m.lp.decoder,
                     stripNl())
 
-  await pushable.push(m.ls) # send ls
+  await writable.write(m.ls) # send ls
 
   var list = newSeq[string]()
   var msg = string.fromBytes((await source()))
@@ -142,16 +140,16 @@ proc list*(m: MultistreamSelect,
 proc handle*(m: MultistreamSelect, conn: Connection) {.async, gcsafe.} =
   trace "starting multistream handling"
 
-  var pushable = BytePushable.init()
+  var writable = ByteWritable.init()
   try:
-    var source = pipe(pushable,
+    var src = pipe(writable,
                       appendNl(),
                       m.lp.encoder,
-                      conn.toThrough,
+                      conn.toDuplex,
                       m.lp.decoder,
                       stripNl())
 
-    for chunk in source:
+    for chunk in src:
       var msg = string.fromBytes((await chunk))
       trace "got request for ", msg
       if msg.len <= 0:
@@ -160,7 +158,7 @@ proc handle*(m: MultistreamSelect, conn: Connection) {.async, gcsafe.} =
 
       if m.handlers.len() == 0:
         trace "sending `na` for protocol ", protocol = msg
-        await pushable.push(m.na)
+        await writable.write(m.na)
         continue
 
       case msg:
@@ -172,26 +170,24 @@ proc handle*(m: MultistreamSelect, conn: Connection) {.async, gcsafe.} =
             if i < m.handlers.high:
               protos &= "\n"
 
-          await pushable.push(protos.toBytes())
+          await writable.write(protos.toBytes())
         of Codec:
           trace "handling handshake"
-          await pushable.push(m.codec)
+          await writable.write(m.codec)
         else:
           for h in m.handlers:
             if (not isNil(h.match) and h.match(msg)) or msg == h.proto:
               trace "found handler for", protocol = msg
-              await pushable.push(msg.toBytes())
+              await writable.write(msg.toBytes())
+              await sleepAsync(1.millis) #TODO: remove this!
               try:
-                trace "after push", queue = pushable.queue
                 await h.protocol.handler(conn, msg)
-                trace "after push", queue = pushable.queue
-
                 return
               except CatchableError as exc:
                 warn "exception while handling", msg = exc.msg
                 return
           warn "no handlers for ", protocol = msg
-          await pushable.push(m.na)
+          await writable.write(m.na)
   except CatchableError as exc:
     trace "Exception occurred", exc = exc.msg
   finally:

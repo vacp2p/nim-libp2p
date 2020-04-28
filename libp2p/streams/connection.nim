@@ -42,9 +42,8 @@ proc `$`*(c: Connection): string =
     result = $(c.peerInfo)
 
 proc init*[T](C: type[Connection],
-           stream: T,
-           peerInfo: PeerInfo = nil): C =
-
+              stream: T,
+              peerInfo: PeerInfo = nil): C =
   Connection(stream: stream,
              sourceImpl: connSource,
              sinkImpl: connSink,

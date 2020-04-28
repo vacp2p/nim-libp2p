@@ -3,10 +3,10 @@ import chronos, chronicles, stew/byteutils
 import multiaddress,
        transports/[transport, tcptransport],
        streams/[stream,
-               pushable,
+               writable,
                chronosstream,
                connection,
-               pushable,
+               writable,
                utils]
 
 suite "streams":
@@ -155,26 +155,26 @@ suite "streams":
 
   #   waitFor(test())
 
-  # test "pushable should not terminate prematurely":
+  # test "writable should not terminate prematurely":
   #   proc test() {.async.} =
-  #     var pushable: Pushable[string] = Pushable[string].init(eofTag = "\0")
+  #     var writable: Writable[string] = Writable[string].init(eofTag = "\0")
 
   #     var dest: Sink[string] = proc (i: Source[string]): Future[void] {.async.} =
   #       for item in i:
   #         echo await item
 
-  #     var sink = pipe(pushable, dest)
+  #     var sink = pipe(writable, dest)
 
-  #     await pushable.push("item 1")
-  #     # await pushable.push("item 2")
-  #     # await pushable.push("item 3")
-  #     await pushable.close()
+  #     await writable.write("item 1")
+  #     # await writable.write("item 2")
+  #     # await writable.write("item 3")
+  #     await writable.close()
 
   #     await sink
 
   #   waitFor(test())
 
-  test "pushable should not terminate prematurely":
+  test "writable should not terminate prematurely":
     proc test() {.async.} =
       let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
 
@@ -213,13 +213,13 @@ suite "streams":
 
       # var sink = conn.sink()(source)
 
-      var pushable = BytePushable.init()
-      var sink = pipe(pushable, conn)
+      var writable = ByteWritable.init()
+      var sink = pipe(writable, conn)
 
-      await pushable.push("item 1".toBytes())
-      await pushable.push("item 2".toBytes())
-      await pushable.push("item 3".toBytes())
-      await pushable.close()
+      await writable.write("item 1".toBytes())
+      await writable.write("item 2".toBytes())
+      await writable.write("item 3".toBytes())
+      await writable.close()
 
       await finished
       await transport1.close()

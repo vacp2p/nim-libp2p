@@ -5,19 +5,17 @@ const
   DefaultBuffSize* = 1 shl 20
 
 type
-  Reader*[T: char | byte] = ref object of Stream
+  Reader*[T: byte | char] = ref object of Stream[T]
     readBuff: RingBuffer[T]
     source: Source[T]
 
-proc init*[T: char | byte](R: type(Reader[T]),
-                           source: Source[T] | Stream[T],
-                           maxSize: int = DefaultBuffSize): R =
-  R(source: source,
-    readBuff: RingBuffer[T].init(maxSize))
+proc init*[T](R: type(Reader[T]),
+              source: Source[T] | Stream[T],
+              maxSize: int = DefaultBuffSize): R =
+  R(source: source, readBuff: RingBuffer[T].init(maxSize))
 
-proc read*[T: char | byte](r: Reader[T],
-                           data: openarray[T],
-                           n = -1): Future[seq[T]] {.async.} =
+proc read*[T](r: Reader[T],
+              n = -1): Future[seq[T]] {.async.} =
   var size = n
   if size < 0:
     size = r.len
@@ -45,4 +43,10 @@ proc read*[T: char | byte](r: Reader[T],
         trace "LENPREF RESULT ", result = result
         break
 
+proc rest*[T](r: Reader): Source[T] =
+  return iterator(): Future[T] =
+    if r.readBuff.len > 0:
+      yield r.read()
 
+    for i in r.source():
+      yield i

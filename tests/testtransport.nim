@@ -18,7 +18,7 @@ suite "TCP transport":
       let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
       let finished = Future[void]()
       proc connHandler(conn: Connection) {.async, gcsafe.} =
-        iterator source(): Future[seq[byte]] {.closure.} =
+        iterator source(abort: bool = false): Future[seq[byte]] {.closure.} =
           yield TestBytes.toFuture
 
         var sink = conn.sink()
@@ -129,7 +129,7 @@ suite "TCP transport":
       let transport: TcpTransport = newTransport(TcpTransport)
       let conn = await transport.dial(ma)
 
-      iterator source(): Future[seq[byte]] {.closure.} =
+      iterator source(abort: bool = false): Future[seq[byte]] {.closure.} =
         yield TestBytes.toFuture
 
       let sink = conn.sink()
@@ -148,7 +148,7 @@ suite "TCP transport":
 
       let finished = newFuture[void]()
       proc connHandler(conn: Connection): Future[void] {.async, gcsafe.} =
-        iterator source(): Future[seq[byte]] {.closure.} =
+        iterator source(abort: bool = false): Future[seq[byte]] {.closure.} =
           yield TestBytes.toFuture
 
         let sink = conn.sink()
@@ -188,7 +188,7 @@ suite "TCP transport":
 
       let transport2: TcpTransport = newTransport(TcpTransport)
       let conn = await transport2.dial(transport1.ma)
-      iterator source(): Future[seq[byte]] {.closure.} =
+      iterator source(abort: bool = false): Future[seq[byte]] {.closure.} =
         yield TestBytes.toFuture
 
       var sink = conn.sink()
