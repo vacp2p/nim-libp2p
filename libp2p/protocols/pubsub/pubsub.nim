@@ -110,6 +110,16 @@ proc getPeer(p: PubSub,
   peer.observers = p.observers
   result = peer
 
+proc internalClenaup(p: PubSub, conn: Connection) {.async.} =
+  # handle connection close
+  if conn.closed:
+    return
+
+  var peer = p.getPeer(conn.peerInfo, p.codec)
+  await conn.closeEvent.wait()
+  trace "connection closed, cleaning up peer", peer = conn.peerInfo.id
+  await p.cleanUpHelper(peer)
+
 method handleConn*(p: PubSub,
                    conn: Connection,
                    proto: string) {.base, async.} =
@@ -141,15 +151,7 @@ method handleConn*(p: PubSub,
   peer.handler = handler
   await peer.handle(conn) # spawn peer read loop
   trace "pubsub peer handler ended, cleaning up"
-  await p.cleanUpHelper(peer)
-
-proc internalClenaup(p: PubSub, conn: Connection) {.async.} =
-  # handle connection close
-  var peer = p.getPeer(conn.peerInfo, p.codec)
-  await conn.closeEvent.wait()
-  trace "connection closed, cleaning up peer", peer = conn.peerInfo.id
-
-  await  p.cleanUpHelper(peer)
+  await p.internalClenaup(conn)
 
 method subscribeToPeer*(p: PubSub,
                         conn: Connection) {.base, async.} =

@@ -24,10 +24,6 @@ import utils, ../../libp2p/[errors,
 
 import ../helpers
 
-proc createGossipSub(): GossipSub =
-  var peerInfo = PeerInfo.init(PrivateKey.random(RSA).get())
-  result = newPubSub(GossipSub, peerInfo)
-
 proc waitSub(sender, receiver: auto; key: string) {.async, gcsafe.} =
   if sender == receiver:
     return
@@ -35,7 +31,7 @@ proc waitSub(sender, receiver: auto; key: string) {.async, gcsafe.} =
   # this is for testing purposes only
   # peers can be inside `mesh` and `fanout`, not just `gossipsub`
   var ceil = 15
-  let fsub = cast[GossipSub](sender.pubSub.get())
+  let fsub = GossipSub(sender.pubSub.get())
   while (not fsub.gossipsub.hasKey(key) or
          not fsub.gossipsub[key].contains(receiver.peerInfo.id)) and
         (not fsub.mesh.hasKey(key) or
@@ -56,7 +52,8 @@ suite "GossipSub":
     proc runTests(): Future[bool] {.async.} =
       var handlerFut = newFuture[bool]()
       proc handler(topic: string, data: seq[byte]) {.async, gcsafe.} =
-        check topic == "foobar"
+        check:
+          topic == "foobar"
         handlerFut.complete(true)
 
       var nodes = generateNodes(2, true)
@@ -75,7 +72,8 @@ suite "GossipSub":
       proc validator(topic: string,
                      message: Message):
                      Future[bool] {.async.} =
-        check topic == "foobar"
+        check:
+          topic == "foobar"
         validatorFut.complete(true)
         result = true
 
@@ -92,7 +90,8 @@ suite "GossipSub":
   test "GossipSub validation should fail":
     proc runTests(): Future[bool] {.async.} =
       proc handler(topic: string, data: seq[byte]) {.async, gcsafe.} =
-        check false # if we get here, it should fail
+        check:
+          false # if we get here, it should fail
 
       var nodes = generateNodes(2, true)
       var awaiters: seq[Future[void]]
@@ -125,7 +124,8 @@ suite "GossipSub":
     proc runTests(): Future[bool] {.async.} =
       var handlerFut = newFuture[bool]()
       proc handler(topic: string, data: seq[byte]) {.async, gcsafe.} =
-        check topic == "foo"
+        check:
+          topic == "foo"
         handlerFut.complete(true)
 
       var nodes = generateNodes(2, true)
@@ -246,7 +246,8 @@ suite "GossipSub":
     proc runTests(): Future[bool] {.async.} =
       var passed = newFuture[void]()
       proc handler(topic: string, data: seq[byte]) {.async, gcsafe.} =
-        check topic == "foobar"
+        check:
+          topic == "foobar"
         passed.complete()
 
       var nodes = generateNodes(2, true)
@@ -277,7 +278,7 @@ suite "GossipSub":
       check:
         "foobar" in gossipSub1.gossipsub
 
-      await passed.wait(5.seconds)
+      await passed.wait(1.seconds)
 
       trace "test done, stopping..."
 
@@ -294,7 +295,8 @@ suite "GossipSub":
     proc runTests(): Future[bool] {.async.} =
       var passed: Future[bool] = newFuture[bool]()
       proc handler(topic: string, data: seq[byte]) {.async, gcsafe.} =
-        check topic == "foobar"
+        check:
+          topic == "foobar"
         passed.complete(true)
 
       var nodes = generateNodes(2, true)
@@ -340,7 +342,8 @@ suite "GossipSub":
             if dialerNode.peerInfo.id notin seen:
               seen[dialerNode.peerInfo.id] = 0
             seen[dialerNode.peerInfo.id].inc
-            check topic == "foobar"
+            check:
+              topic == "foobar"
             if not seenFut.finished() and seen.len == 10:
               seenFut.complete()
 
