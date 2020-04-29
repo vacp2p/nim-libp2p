@@ -729,18 +729,23 @@ proc init*(t: typedesc[EcPublicKey], data: openarray[byte]): EcResult[EcPublicKe
   else:
     ok(key)
 
-proc init*(t: typedesc[EcSignature], data: openarray[byte]): EcSignature =
+proc init*(t: typedesc[EcSignature], data: openarray[byte]): EcResult[EcSignature] =
   ## Initialize EC signature from raw binary representation ``data`` and
   ## return constructed object.
-  let res = result.init(data)
+  var sig: EcSignature
+  let res = sig.init(data)
   if res.isErr:
-    raise newException(EcKeyIncorrectError,
-                       "Incorrect signature (" & $res.error & ")")
+    err(EcSignatureError)
+  else:
+    ok(sig)
 
-proc init*[T: EcPKI](t: typedesc[T], data: string): T {.inline.} =
+proc init*[T: EcPKI](t: typedesc[T], data: string): EcResult[T] =
   ## Initialize EC `private key`, `public key` or `signature` from hexadecimal
   ## string representation ``data`` and return constructed object.
-  result = t.init(fromHex(data))
+  try:
+    t.init(fromHex(data))
+  except ValueError:
+    err(EcKeyIncorrectError)
 
 proc initRaw*(key: var EcPrivateKey, data: openarray[byte]): bool =
   ## Initialize EC `private key` or `scalar` ``key`` from raw binary
@@ -826,23 +831,32 @@ proc initRaw*[T: EcPKI](sospk: var T, data: string): bool {.inline.} =
   ## Procedure returns ``true`` on success, ``false`` otherwise.
   result = sospk.initRaw(fromHex(data))
 
-proc initRaw*(t: typedesc[EcPrivateKey], data: openarray[byte]): EcPrivateKey =
+proc initRaw*(t: typedesc[EcPrivateKey], data: openarray[byte]): EcResult[EcPrivateKey] =
   ## Initialize EC private key from raw binary representation ``data`` and
   ## return constructed object.
-  if not result.initRaw(data):
-    raise newException(EcKeyIncorrectError, "Incorrect private key")
+  var res: EcPrivateKey
+  if not res.initRaw(data):
+    err(EcKeyIncorrectError)
+  else:
+    ok(res)
 
-proc initRaw*(t: typedesc[EcPublicKey], data: openarray[byte]): EcPublicKey =
+proc initRaw*(t: typedesc[EcPublicKey], data: openarray[byte]): EcResult[EcPublicKey] =
   ## Initialize EC public key from raw binary representation ``data`` and
   ## return constructed object.
-  if not result.initRaw(data):
-    raise newException(EcKeyIncorrectError, "Incorrect public key")
+  var res: EcPublicKey
+  if not res.initRaw(data):
+    err(EcKeyIncorrectError)
+  else:
+    ok(res)
 
-proc initRaw*(t: typedesc[EcSignature], data: openarray[byte]): EcSignature =
+proc initRaw*(t: typedesc[EcSignature], data: openarray[byte]): EcResult[EcSignature] =
   ## Initialize EC signature from raw binary representation ``data`` and
   ## return constructed object.
-  if not result.initRaw(data):
-    raise newException(EcKeyIncorrectError, "Incorrect signature")
+  var res: EcSignature
+  if not res.initRaw(data):
+    err(EcSignatureError)
+  else:
+    ok(res)
 
 proc initRaw*[T: EcPKI](t: typedesc[T], data: string): T {.inline.} =
   ## Initialize EC `private key`, `public key` or `signature` from raw
@@ -908,15 +922,16 @@ proc getSecret*(pubkey: EcPublicKey, seckey: EcPrivateKey): seq[byte] =
     copyMem(addr result[0], addr data[0], res)
 
 proc sign*[T: byte|char](seckey: EcPrivateKey,
-                         message: openarray[T]): EcSignature {.gcsafe.} =
+                         message: openarray[T]): EcResult[EcSignature] {.gcsafe.} =
   ## Get ECDSA signature of data ``message`` using private key ``seckey``.
-  doAssert(not isNil(seckey))
+  if isNil(seckey):
+    return err(EcKeyIncorrectError)
   var hc: BrHashCompatContext
   var hash: array[32, byte]
   var impl = brEcGetDefault()
   if seckey.key.curve in EcSupportedCurvesCint:
-    result = new EcSignature
-    result.buffer = newSeq[byte](256)
+    var sig = new EcSignature
+    sig.buffer = newSeq[byte](256)
     var kv = addr sha256Vtable
     kv.init(addr hc.vtable)
     if len(message) > 0:
@@ -925,15 +940,16 @@ proc sign*[T: byte|char](seckey: EcPrivateKey,
       kv.update(addr hc.vtable, nil, 0)
     kv.output(addr hc.vtable, addr hash[0])
     let res = brEcdsaSignAsn1(impl, kv, addr hash[0], addr seckey.key,
-                              addr result.buffer[0])
+                              addr sig.buffer[0])
     # Clear context with initial value
     kv.init(addr hc.vtable)
     if res != 0:
-      result.buffer.setLen(res)
+      sig.buffer.setLen(res)
+      ok(sig)
     else:
-      raise newException(EcSignatureError, "Could not make signature")
+      err(EcSignatureError)
   else:
-    raise newException(EcKeyIncorrectError, "Incorrect private key")
+    err(EcKeyIncorrectError)
 
 proc verify*[T: byte|char](sig: EcSignature, message: openarray[T],
                            pubkey: EcPublicKey): bool {.inline.} =
