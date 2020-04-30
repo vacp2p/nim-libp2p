@@ -19,6 +19,7 @@ import connection,
        protocols/identify,
        protocols/pubsub/pubsub,
        muxers/muxer,
+       errors,
        peer
 
 logScope:
@@ -61,7 +62,7 @@ proc secure(s: Switch, conn: Connection): Future[Connection] {.async, gcsafe.} =
   if manager.len == 0:
     raise newException(CatchableError, "Unable to negotiate a secure channel!")
 
-  result = await s.secureManagers[manager].secure(conn)
+  result = await s.secureManagers[manager].secure(conn, true)
 
 proc identify(s: Switch, conn: Connection): Future[PeerInfo] {.async, gcsafe.} =
   ## identify the connection
@@ -190,7 +191,7 @@ proc upgradeIncoming(s: Switch, conn: Connection) {.async, gcsafe.} =
                        {.async, gcsafe, closure.} =
     trace "Securing connection"
     let secure = s.secureManagers[proto]
-    let sconn = await secure.secure(conn)
+    let sconn = await secure.secure(conn, false)
     if not isNil(sconn):
       # add the muxer
       for muxer in s.muxers.values:
@@ -198,6 +199,7 @@ proc upgradeIncoming(s: Switch, conn: Connection) {.async, gcsafe.} =
 
     # handle subsequent requests
     await ms.handle(sconn)
+    await sconn.close()
 
   if (await ms.select(conn)): # just handshake
     # add the secure handlers
@@ -237,7 +239,9 @@ proc internalConnect(s: Switch,
   else:
     trace "Reusing existing connection"
 
-  await s.subscribeToPeer(peer)
+  if not isNil(conn):
+    await s.subscribeToPeer(peer)
+
   result = conn
 
 proc connect*(s: Switch, peer: PeerInfo) {.async.} =
@@ -287,9 +291,7 @@ proc start*(s: Switch): Future[seq[Future[void]]] {.async, gcsafe.} =
     except CatchableError as exc:
       trace "Exception occurred in Switch.start", exc = exc.msg
     finally:
-      if not isNil(conn) and not conn.closed:
-        await conn.close()
-
+      await conn.close()
       await s.cleanupConn(conn)
 
   var startFuts: seq[Future[void]]
@@ -308,11 +310,21 @@ proc start*(s: Switch): Future[seq[Future[void]]] {.async, gcsafe.} =
 proc stop*(s: Switch) {.async.} =
   trace "stopping switch"
 
-  if s.pubSub.isSome:
-    await s.pubSub.get().stop()
+  # we want to report erros but we do not want to fail
+  # or crash here, cos we need to clean possibly MANY items
+  # and any following conn/transport won't be cleaned up
+  var futs = newSeq[Future[void]]()
 
-  await allFutures(toSeq(s.connections.values).mapIt(s.cleanupConn(it)))
-  await allFutures(s.transports.mapIt(it.close()))
+  if s.pubSub.isSome:
+    futs &= s.pubSub.get().stop()
+
+  futs &= toSeq(s.connections.values).mapIt(s.cleanupConn(it))
+  futs &= s.transports.mapIt(it.close())
+
+  futs = await allFinished(futs)
+  checkFutures(futs)
+
+  trace "switch stopped"
 
 proc subscribeToPeer(s: Switch, peerInfo: PeerInfo) {.async, gcsafe.} =
   ## Subscribe to pub sub peer
@@ -323,6 +335,7 @@ proc subscribeToPeer(s: Switch, peerInfo: PeerInfo) {.async, gcsafe.} =
       await s.pubSub.get().subscribeToPeer(conn)
     except CatchableError as exc:
       warn "unable to initiate pubsub", exc = exc.msg
+    finally:
       s.dialedPubSubPeers.excl(peerInfo.id)
 
 proc subscribe*(s: Switch, topic: string,

@@ -1,5 +1,5 @@
 import unittest
-import ../libp2p/multiaddress
+import ../libp2p/[multicodec, multiaddress]
 
 when defined(nimHasUsed): {.used.}
 
@@ -363,3 +363,39 @@ suite "MultiAddress test suite":
       for bitem in item.bad:
         var a = MultiAddress.init(bitem)
         check item.pattern.match(a) == false
+
+  test "MultiAddress init(\"tcp/udp/dccp/sctp\", int) test":
+    check:
+      $MultiAddress.init(multiCodec("tcp"), 0) == "/tcp/0"
+      $MultiAddress.init(multiCodec("tcp"), 65535) == "/tcp/65535"
+      $MultiAddress.init(multiCodec("tcp"), 34000) == "/tcp/34000"
+      $MultiAddress.init(multiCodec("udp"), 0) == "/udp/0"
+      $MultiAddress.init(multiCodec("udp"), 65535) == "/udp/65535"
+      $MultiAddress.init(multiCodec("udp"), 34000) == "/udp/34000"
+      $MultiAddress.init(multiCodec("dccp"), 0) == "/dccp/0"
+      $MultiAddress.init(multiCodec("dccp"), 65535) == "/dccp/65535"
+      $MultiAddress.init(multiCodec("dccp"), 34000) == "/dccp/34000"
+      $MultiAddress.init(multiCodec("sctp"), 0) == "/sctp/0"
+      $MultiAddress.init(multiCodec("sctp"), 65535) == "/sctp/65535"
+      $MultiAddress.init(multiCodec("sctp"), 34000) == "/sctp/34000"
+
+    expect(MultiAddressError):
+      discard MultiAddress.init(multiCodec("ip4"), 0)
+      discard MultiAddress.init(multiCodec("ip6"), 0)
+      discard MultiAddress.init(multiCodec("p2p"), 0)
+      discard MultiAddress.init(multiCodec("tcp"), 65536)
+      discard MultiAddress.init(multiCodec("udp"), 65536)
+      discard MultiAddress.init(multiCodec("dccp"), 65536)
+      discard MultiAddress.init(multiCodec("sctp"), 65536)
+      discard MultiAddress.init(multiCodec("tcp"), -1)
+      discard MultiAddress.init(multiCodec("udp"), -1)
+      discard MultiAddress.init(multiCodec("dccp"), -1)
+      discard MultiAddress.init(multiCodec("sctp"), -1)
+
+  test "MultiAddress protoAddress(fixed) test":
+    var
+      address_v4: array[4, byte]
+      address_v6: array[16, byte]
+    check:
+      MultiAddress.init("/ip4/0.0.0.0").protoAddress() == address_v4
+      MultiAddress.init("/ip6/::0").protoAddress() == address_v6

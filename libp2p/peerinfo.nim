@@ -108,15 +108,10 @@ proc id*(p: PeerInfo): string {.inline.} =
   p.peerId.pretty()
 
 proc `$`*(p: PeerInfo): string =
-  result.add("PeerID: ")
-  result.add(p.id & "\n")
+  result.add(p.id)
 
-  if p.addrs.len > 0:
-    result.add("Peer Addrs: ")
-    for a in p.addrs:
-      result.add($a & "\n")
+  result.add(" ")
+  result.add($p.addrs)
 
-  if p.protocols.len > 0:
-    result.add("Protocols: ")
-    for proto in p.protocols:
-      result.add(proto & "\n")
+  result.add(" ")
+  result.add($p.protocols)

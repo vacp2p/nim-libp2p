@@ -5,7 +5,24 @@ import ../libp2p/crypto/crypto,
        ../libp2p/peerinfo,
        ../libp2p/peer
 
+const
+  StreamTransportTrackerName = "stream.transport"
+  StreamServerTrackerName = "stream.server"
+
 suite "PeerInfo":
+  teardown:
+    let
+      trackers = [
+        getTracker(AsyncStreamWriterTrackerName),
+        getTracker(AsyncStreamReaderTrackerName),
+        getTracker(StreamTransportTrackerName),
+        getTracker(StreamServerTrackerName)
+      ]
+    for tracker in trackers:
+      if not isNil(tracker):
+        # echo tracker.dump()
+        check tracker.isLeaked() == false
+
   test "Should init with private key":
     let seckey = PrivateKey.random(RSA)
     var peerInfo = PeerInfo.init(seckey)

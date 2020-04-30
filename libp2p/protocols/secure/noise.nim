@@ -16,6 +16,7 @@ import ../../peer
 import ../../peerinfo
 import ../../protobuf/minprotobuf
 import ../../utility
+import ../../stream/lpstream
 import secure,
        ../../crypto/[crypto, chacha20poly1305, curve25519, hkdf],
        ../../stream/bufferstream
@@ -26,7 +27,7 @@ logScope:
 const
   # https://godoc.org/github.com/libp2p/go-libp2p-noise#pkg-constants
   NoiseCodec* = "/noise"
-  
+
   PayloadString = "noise-libp2p-static-key:"
 
   ProtocolXXName = "Noise_XX_25519_ChaChaPoly_SHA256"
@@ -41,7 +42,7 @@ type
   KeyPair = object
     privateKey: Curve25519Key
     publicKey: Curve25519Key
-  
+
   # https://noiseprotocol.org/noise.html#the-cipherstate-object
   CipherState = object
     k: ChaChaPolyKey
@@ -66,7 +67,7 @@ type
     cs2: CipherState
     remoteP2psecret: seq[byte]
     rs: Curve25519Key
-  
+
   Noise* = ref object of Secure
     localPrivateKey: PrivateKey
     localPublicKey: PublicKey
@@ -89,7 +90,7 @@ type
 proc genKeyPair(): KeyPair =
   result.privateKey = Curve25519Key.random()
   result.publicKey = result.privateKey.public()
-    
+
 proc hashProtocol(name: string): MDigest[256] =
   # If protocol_name is less than or equal to HASHLEN bytes in length,
   # sets h equal to protocol_name with zero bytes appended to make HASHLEN bytes.
@@ -195,7 +196,7 @@ proc split(ss: var SymmetricState): tuple[cs1, cs2: CipherState] =
 
 proc init(_: type[HandshakeState]): HandshakeState =
   result.ss = SymmetricState.init()
-  
+
 template write_e: untyped =
   trace "noise write e"
   # Sets e (which must be empty) to GENERATE_KEYPAIR(). Appends e.public_key to the buffer. Calls MixHash(e.public_key).
@@ -269,7 +270,9 @@ proc receiveHSMessage(sconn: Connection): Future[seq[byte]] {.async.} =
   await sconn.readExactly(addr besize[0], 2)
   let size = uint16.fromBytesBE(besize).int
   trace "receiveHSMessage", size
-  return await sconn.read(size)
+  var buffer = newSeq[byte](size)
+  await sconn.readExactly(addr buffer[0], size)
+  return buffer
 
 proc sendHSMessage(sconn: Connection; buf: seq[byte]) {.async.} =
   var
@@ -302,7 +305,7 @@ proc packNoisePayload(payload: openarray[byte]): seq[byte] =
 
   if result.len > uint16.high.int:
     raise newException(NoiseOversizedPayloadError, "Trying to send an unsupported oversized payload over Noise")
- 
+
   trace "packed noise payload", inSize = payload.len, outSize = result.len
 
 proc unpackNoisePayload(payload: var seq[byte]) =
@@ -312,7 +315,7 @@ proc unpackNoisePayload(payload: var seq[byte]) =
 
   if size > (payload.len - 2):
     raise newException(NoiseOversizedPayloadError, "Received a wrong payload size")
- 
+
   payload = payload[2..^((payload.len - size) - 1)]
 
   trace "unpacked noise payload", size = payload.len
@@ -362,7 +365,7 @@ proc handshakeXXOutbound(p: Noise, conn: Connection, p2pProof: ProtoBuffer): Fut
   msg &= hs.ss.encryptAndHash(packed)
 
   await conn.sendHSMessage(msg)
-  
+
   let (cs1, cs2) = hs.ss.split()
   return HandshakeResult(cs1: cs1, cs2: cs2, remoteP2psecret: remoteP2psecret, rs: hs.rs)
 
@@ -421,14 +424,14 @@ method readMessage(sconn: NoiseConnection): Future[seq[byte]] {.async.} =
     trace "receiveEncryptedMessage", size, peer = $sconn.peerInfo
     if size == 0:
       return @[]
-    let
-      cipher = await sconn.read(size)
-    var plain = sconn.readCs.decryptWithAd([], cipher)
+    var buffer = newSeq[byte](size)
+    await sconn.readExactly(addr buffer[0], size)
+    var plain = sconn.readCs.decryptWithAd([], buffer)
     unpackNoisePayload(plain)
     return plain
-  except AsyncStreamIncompleteError:
+  except LPStreamIncompleteError:
     trace "Connection dropped while reading"
-  except AsyncStreamReadError:
+  except LPStreamReadError:
     trace "Error reading from connection"
 
 method writeMessage(sconn: NoiseConnection, message: seq[byte]): Future[void] {.async.} =
@@ -460,7 +463,7 @@ method handshake*(p: Noise, conn: Connection, initiator: bool = false): Future[S
   # https://github.com/libp2p/specs/tree/master/noise#libp2p-data-in-handshake-messages
   let
     signedPayload = p.localPrivateKey.sign(PayloadString.toBytes & p.noisePublicKey.getBytes)
-    
+
   var
     libp2pProof = initProtoBuffer()
 
@@ -489,7 +492,7 @@ method handshake*(p: Noise, conn: Connection, initiator: bool = false): Future[S
     raise newException(NoiseHandshakeError, "Noise handshake signature verify failed.")
   else:
     trace "Remote signature verified"
- 
+
   if initiator and not isNil(conn.peerInfo):
     let pid = PeerID.init(remotePubKey)
     if not conn.peerInfo.peerId.validate():
@@ -498,6 +501,7 @@ method handshake*(p: Noise, conn: Connection, initiator: bool = false): Future[S
       raise newException(NoiseHandshakeError, "Noise handshake, peer infos don't match! " & $pid & " != " & $conn.peerInfo.peerId)
 
   var secure = new NoiseConnection
+  inc getConnectionTracker().opened
   secure.stream = conn
   secure.closeEvent = newAsyncEvent()
   secure.peerInfo = PeerInfo.init(remotePubKey)
@@ -508,22 +512,23 @@ method handshake*(p: Noise, conn: Connection, initiator: bool = false): Future[S
     secure.readCs = handshakeRes.cs1
     secure.writeCs = handshakeRes.cs2
 
-  debug "Noise handshake completed!"
+  trace "Noise handshake completed!"
 
   return secure
- 
+
 method init*(p: Noise) {.gcsafe.} =
   procCall Secure(p).init()
   p.codec = NoiseCodec
 
 method secure*(p: Noise, conn: Connection): Future[Connection] {.async, gcsafe.} =
+  trace "Noise.secure called", initiator=p.outgoing
   try:
     result = await p.handleConn(conn, p.outgoing)
   except CatchableError as exc:
     warn "securing connection failed", msg = exc.msg
     if not conn.closed():
       await conn.close()
-  
+
 proc newNoise*(privateKey: PrivateKey; outgoing: bool = true; commonPrologue: seq[byte] = @[]): Noise =
   new result
   result.outgoing = outgoing

@@ -13,7 +13,25 @@ import ../libp2p/[protocols/identify,
 
 when defined(nimHasUsed): {.used.}
 
+const
+  StreamTransportTrackerName = "stream.transport"
+  StreamServerTrackerName = "stream.server"
+
 suite "Identify":
+  teardown:
+    let
+      trackers = [
+        getTracker(AsyncStreamWriterTrackerName),
+        getTracker(TcpTransportTrackerName),
+        getTracker(AsyncStreamReaderTrackerName),
+        getTracker(StreamTransportTrackerName),
+        getTracker(StreamServerTrackerName)
+      ]
+    for tracker in trackers:
+      if not isNil(tracker):
+        # echo tracker.dump()
+        check tracker.isLeaked() == false
+
   test "handle identify message":
     proc testHandle(): Future[bool] {.async.} =
       let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
@@ -51,7 +69,10 @@ suite "Identify":
       await conn.close()
       await transport1.close()
       await serverFut
+
       result = true
+
+      await transport2.close()
 
     check:
       waitFor(testHandle()) == true
@@ -63,9 +84,13 @@ suite "Identify":
       let identifyProto1 = newIdentify(remotePeerInfo)
       let msListen = newMultistream()
 
+      let done = newFuture[void]()
+
       msListen.addHandler(IdentifyCodec, identifyProto1)
       proc connHandler(conn: Connection): Future[void] {.async, gcsafe.} =
         await msListen.handle(conn)
+        await conn.close()
+        done.complete()
 
       let transport1: TcpTransport = newTransport(TcpTransport)
       asyncCheck transport1.listen(ma, connHandler)
@@ -76,9 +101,15 @@ suite "Identify":
 
       var localPeerInfo = PeerInfo.init(PrivateKey.random(RSA), [ma])
       let identifyProto2 = newIdentify(localPeerInfo)
-      discard await msDial.select(conn, IdentifyCodec)
-      discard await identifyProto2.identify(conn, PeerInfo.init(PrivateKey.random(RSA)))
-      await conn.close()
+
+      try:
+        discard await msDial.select(conn, IdentifyCodec)
+        discard await identifyProto2.identify(conn, PeerInfo.init(PrivateKey.random(RSA)))
+      finally:
+        await done.wait(5000.millis) # when no issues will not wait that long!
+        await conn.close()
+        await transport2.close()
+        await transport1.close()
 
     expect IdentityNoMatchError:
       waitFor(testHandleError())

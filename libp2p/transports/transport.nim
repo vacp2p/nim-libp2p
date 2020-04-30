@@ -11,18 +11,15 @@ import sequtils
 import chronos, chronicles
 import ../connection,
        ../multiaddress,
-       ../multicodec
+       ../multicodec,
+       ../errors
 
 type
   ConnHandler* = proc (conn: Connection): Future[void] {.gcsafe.}
 
-  ConnHolder* = object
-    connection*: Connection
-    connFuture*: Future[void]
-
   Transport* = ref object of RootObj
     ma*: Multiaddress
-    connections*: seq[ConnHolder]
+    connections*: seq[Connection]
     handler*: ConnHandler
     multicodec*: MultiCodec
 
@@ -37,7 +34,8 @@ proc newTransport*(t: typedesc[Transport]): t {.gcsafe.} =
 method close*(t: Transport) {.base, async, gcsafe.} =
   ## stop and cleanup the transport
   ## including all outstanding connections
-  await allFutures(t.connections.mapIt(it.connection.close()))
+  let futs = await allFinished(t.connections.mapIt(it.close()))
+  checkFutures(futs)
 
 method listen*(t: Transport,
                ma: MultiAddress,

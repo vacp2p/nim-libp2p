@@ -12,7 +12,7 @@ import nativesockets
 import tables, strutils, net
 import chronos
 import multicodec, multihash, multibase, transcoder, vbuffer
-import stew/[base58, base32]
+import stew/[base58, base32, endians2]
 from peer import PeerID
 
 {.deadCodeElim:on.}
@@ -482,7 +482,7 @@ proc protoArgument*(ma: MultiAddress, value: var openarray[byte]): int =
   if proto.kind == Fixed:
     result = proto.size
     if len(value) >= result:
-      if vb.data.readArray(value) != proto.size:
+      if vb.data.readArray(value.toOpenArray(0, proto.size - 1)) != proto.size:
         raise newException(MultiAddressError, "Decoding protocol error")
   elif proto.kind in {Length, Path}:
     if vb.data.readSeq(buffer) == -1:
@@ -702,6 +702,24 @@ proc init*(mtype: typedesc[MultiAddress], protocol: MultiCodec): MultiAddress =
   if proto.kind != Marker:
     raise newException(MultiAddressError, "Protocol missing value")
   result.data.writeVarint(cast[uint64](proto.mcodec))
+  result.data.finish()
+
+proc init*(mtype: typedesc[MultiAddress], protocol: MultiCodec,
+           value: int): MultiAddress =
+  ## Initialize MultiAddress object from protocol id ``protocol`` and integer
+  ## ``value``. This procedure can be used to instantiate ``tcp``, ``udp``,
+  ## ``dccp`` and ``sctp`` MultiAddresses.
+  var allowed = [multiCodec("tcp"), multiCodec("udp"), multiCodec("dccp"),
+                 multiCodec("sctp")]
+  if protocol notin allowed:
+    raise newException(MultiAddressError,
+                       "Incorrect protocol for integer value")
+  let proto = CodeAddresses.getOrDefault(protocol)
+  result.data = initVBuffer()
+  result.data.writeVarint(cast[uint64](proto.mcodec))
+  if value < 0 or value > 65535:
+    raise newException(MultiAddressError, "Incorrect integer value")
+  result.data.writeArray(toBytesBE(cast[uint16](value)))
   result.data.finish()
 
 proc getProtocol(name: string): MAProtocol {.inline.} =

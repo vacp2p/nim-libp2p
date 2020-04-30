@@ -35,8 +35,8 @@ suite "Secp256k1 testing suite":
       rkey1.clear()
       rkey2.clear()
       check:
-        isFullZero(rkey1.data) == true
-        isFullZero(rkey2.data) == true
+        not rkey1.verify()
+        not rkey2.verify()
   test "Public key serialize/deserialize test":
     for i in 0..<TestsCount:
       var rkey1, rkey2: SkPublicKey
@@ -68,6 +68,7 @@ suite "Secp256k1 testing suite":
       var pubkey = SkPublicKey.init(serpk)
       var csig = SkSignature.init(sersig)
       check csig.verify(message, pubkey) == true
-      let error = len(csig.data) - 1
-      csig.data[error] = not(csig.data[error])
+      var error = csig.getBytes()
+      error[^1] = not error[^1]
+      csig = SkSignature.init(error)
       check csig.verify(message, pubkey) == false

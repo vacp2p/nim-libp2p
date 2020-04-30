@@ -390,6 +390,7 @@ suite "Interop":
         inc(count2)
 
       result = 10 == (await wait(testFuture, 10.secs))
+      await stream.close()
       await nativeNode.stop()
       await allFutures(awaiters)
       await daemonNode.close()

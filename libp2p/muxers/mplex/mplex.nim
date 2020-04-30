@@ -11,12 +11,13 @@
 ## Timeouts and message limits are still missing
 ## they need to be added ASAP
 
-import tables, sequtils, options
+import tables, sequtils
 import chronos, chronicles
 import ../muxer,
        ../../connection,
        ../../stream/lpstream,
        ../../utility,
+       ../../errors,
        coder,
        types,
        lpchannel
@@ -91,12 +92,15 @@ method handle*(m: Mplex) {.async, gcsafe.} =
             let stream = newConnection(channel)
             stream.peerInfo = m.connection.peerInfo
 
-            # cleanup channel once handler is finished
-            # stream.closeEvent.wait().addCallback(
-            #   proc(udata: pointer) =
-            #       asyncCheck cleanupChann(m, channel, initiator))
+            proc handler() {.async.} =
+              tryAndWarn "mplex channel handler":
+                await m.streamHandler(stream)
+              # TODO closing stream
+              # or doing cleanupChann
+              # will make go interop tests fail
+              # need to investigate why
 
-            asyncCheck m.streamHandler(stream)
+            asynccheck handler()
             continue
         of MessageType.MsgIn, MessageType.MsgOut:
           trace "pushing data to channel", id = id,
@@ -126,8 +130,12 @@ method handle*(m: Mplex) {.async, gcsafe.} =
     trace "Exception occurred", exception = exc.msg
   finally:
     trace "stopping mplex main loop"
-    if not m.connection.closed():
-      await m.connection.close()
+    await m.close()
+
+proc internalCleanup(m: Mplex, conn: Connection) {.async.} =
+  await conn.closeEvent.wait()
+  trace "connection closed, cleaning up mplex"
+  await m.close()
 
 proc newMplex*(conn: Connection,
                maxChanns: uint = MaxChannels): Mplex =
@@ -137,11 +145,7 @@ proc newMplex*(conn: Connection,
   result.remote = initTable[uint64, LPChannel]()
   result.local = initTable[uint64, LPChannel]()
 
-  let m = result
-  conn.closeEvent.wait()
-  .addCallback do (udata: pointer):
-    trace "connection closed, cleaning up mplex"
-    asyncCheck m.close()
+  asyncCheck result.internalCleanup(conn)
 
 method newStream*(m: Mplex,
                   name: string = "",
@@ -154,5 +158,16 @@ method newStream*(m: Mplex,
 
 method close*(m: Mplex) {.async, gcsafe.} =
   trace "closing mplex muxer"
-  await allFutures(@[allFutures(toSeq(m.remote.values).mapIt(it.reset())),
-                      allFutures(toSeq(m.local.values).mapIt(it.reset()))])
+
+  if not m.connection.closed():
+    await m.connection.close()
+
+  let
+    futs = await allFinished(
+      toSeq(m.remote.values).mapIt(it.reset()) &
+        toSeq(m.local.values).mapIt(it.reset()))
+
+  checkFutures(futs)
+
+  m.remote.clear()
+  m.local.clear()

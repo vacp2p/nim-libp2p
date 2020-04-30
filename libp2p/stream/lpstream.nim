@@ -7,12 +7,15 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import chronos
+import oids
+import chronicles, chronos
 
 type
   LPStream* = ref object of RootObj
     isClosed*: bool
     closeEvent*: AsyncEvent
+    when chronicles.enabledLogLevel == LogLevel.TRACE:
+      oid*: Oid
 
   LPStreamError* = object of CatchableError
   LPStreamIncompleteError* = object of LPStreamError

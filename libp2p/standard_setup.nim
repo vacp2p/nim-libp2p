@@ -1,10 +1,19 @@
+# compile time options here
+const
+  libp2p_secure {.strdefine.} = ""
+
 import
   options, tables,
   switch, peer, peerinfo, connection, multiaddress,
   crypto/crypto, transports/[transport, tcptransport],
   muxers/[muxer, mplex/mplex, mplex/types],
-  protocols/[identify, secure/secure, secure/secio],
+  protocols/[identify, secure/secure],
   protocols/pubsub/[pubsub, gossipsub, floodsub]
+
+when libp2p_secure == "noise":
+  import protocols/secure/noise
+else:
+  import protocols/secure/secio
 
 export
   switch, peer, peerinfo, connection, multiaddress, crypto
@@ -23,9 +32,14 @@ proc newStandardSwitch*(privKey = none(PrivateKey),
     transports = @[Transport(newTransport(TcpTransport))]
     muxers = {MplexCodec: mplexProvider}.toTable
     identify = newIdentify(peerInfo)
-    secureManagers = {SecioCodec: Secure(newSecio seckey)}.toTable
-    pubSub = if gossip: PubSub newPubSub(GossipSub, peerInfo, triggerSelf)
-             else: PubSub newPubSub(FloodSub, peerInfo, triggerSelf)
+  when libp2p_secure == "noise":
+    let secureManagers = {NoiseCodec: newNoise(seckey).Secure}.toTable
+  else:
+    let secureManagers = {SecioCodec: newSecio(seckey).Secure}.toTable
+  let pubSub = if gossip:
+                 PubSub newPubSub(GossipSub, peerInfo, triggerSelf)
+               else:
+                 PubSub newPubSub(FloodSub, peerInfo, triggerSelf)
 
   result = newSwitch(peerInfo,
                      transports,

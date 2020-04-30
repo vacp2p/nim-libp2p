@@ -14,7 +14,8 @@ import types,
        ../../stream/bufferstream,
        ../../stream/lpstream,
        ../../connection,
-       ../../utility
+       ../../utility,
+       ../../errors
 
 logScope:
   topic = "MplexChannel"
@@ -93,12 +94,27 @@ proc resetMessage(s: LPChannel) {.async.} =
   await s.conn.writeMsg(s.id, s.resetCode)
 
 proc resetByRemote*(s: LPChannel) {.async.} =
-  await allFutures(s.close(), s.closedByRemote())
+  # Immediately block futher calls
   s.isReset = true
-  await s.cleanUp()
+
+  # start and await async teardown
+  let
+    futs = await allFinished(
+      s.close(),
+      s.closedByRemote(),
+      s.cleanUp()
+    )
+
+  checkFutures(futs, [LPStreamEOFError])
 
 proc reset*(s: LPChannel) {.async.} =
-  await allFutures(s.resetMessage(), s.resetByRemote())
+  let
+    futs = await allFinished(
+      s.resetMessage(),
+      s.resetByRemote()
+    )
+
+  checkFutures(futs, [LPStreamEOFError])
 
 method closed*(s: LPChannel): bool =
   trace "closing lpchannel", id = s.id, initiator = s.initiator
@@ -158,10 +174,11 @@ method readUntil*(s: LPChannel,
   await s.tryCleanup()
 
 template writePrefix: untyped =
-  if s.isLazy and not s.isOpen:
-    await s.open()
   if s.closedLocal or s.isReset:
     raise newLPStreamEOFError()
+
+  if s.isLazy and not s.isOpen:
+    await s.open()
 
 method write*(s: LPChannel, pbytes: pointer, nbytes: int) {.async.} =
   writePrefix()

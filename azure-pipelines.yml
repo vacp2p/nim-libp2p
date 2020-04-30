@@ -18,10 +18,10 @@ strategy:
     #   UCPU: amd64
     #   PLATFORM: x64
     #   TEST_LANG: cpp
-    Linux_64bit:
-      VM: 'ubuntu-16.04'
-      PLATFORM: x64
-      TEST_LANG: c
+    #Linux_64bit:
+      #VM: 'ubuntu-16.04'
+      #PLATFORM: x64
+      #TEST_LANG: c
     # Linux_cpp_64bit:
     #   VM: 'ubuntu-16.04'
     #   UCPU: amd64
@@ -53,7 +53,7 @@ steps:
   - task: CacheBeta@1
     displayName: 'cache Nim binaries'
     inputs:
-      key: NimBinaries | $(Agent.OS) | $(PLATFORM)
+      key: NimBinaries | $(Agent.OS) | $(PLATFORM) | "$(Build.SourceBranchName)" | "v3"
       path: NimBinaries
 
   - task: CacheBeta@1
@@ -188,4 +188,5 @@ steps:
       gcc -v
 
       nimble test
+      nimble examples_build
     displayName: 'Testing the package'

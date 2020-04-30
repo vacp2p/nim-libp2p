@@ -6,7 +6,7 @@
 ## at your option.
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
-import chronos, chronicles
+import chronos, chronicles, oids
 import nimcrypto/[sysrand, hmac, sha2, sha, hash, rijndael, twofish, bcmode]
 import secure,
        ../../connection,
@@ -177,12 +177,15 @@ proc macCheckAndDecode(sconn: SecioConn, data: var seq[byte]): bool =
 
 method readMessage(sconn: SecioConn): Future[seq[byte]] {.async.} =
   ## Read message from channel secure connection ``sconn``.
+  when chronicles.enabledLogLevel == LogLevel.TRACE:
+    logScope:
+      stream_oid = $sconn.stream.oid
   try:
     var buf = newSeq[byte](4)
     await sconn.readExactly(addr buf[0], 4)
     let length = (int(buf[0]) shl 24) or (int(buf[1]) shl 16) or
                   (int(buf[2]) shl 8) or (int(buf[3]))
-    trace "Recieved message header", header = buf.shortLog, length = length
+    trace "Received message header", header = buf.shortLog, length = length
     if length <= SecioMaxMessageSize:
       buf.setLen(length)
       await sconn.readExactly(addr buf[0], length)
@@ -195,9 +198,9 @@ method readMessage(sconn: SecioConn): Future[seq[byte]] {.async.} =
     else:
       trace "Received message header size is more then allowed",
             length = length, allowed_length = SecioMaxMessageSize
-  except AsyncStreamIncompleteError:
+  except LPStreamIncompleteError:
     trace "Connection dropped while reading"
-  except AsyncStreamReadError:
+  except LPStreamReadError:
     trace "Error reading from connection"
 
 method writeMessage(sconn: SecioConn, message: seq[byte]) {.async.} =
@@ -260,6 +263,10 @@ proc newSecioConn(conn: Connection,
                           secrets.ivOpenArray(i1))
 
   result.peerInfo = PeerInfo.init(remotePubKey)
+  when chronicles.enabledLogLevel == LogLevel.TRACE:
+    result.oid = genOid()
+
+  inc  getConnectionTracker().opened
 
 proc transactMessage(conn: Connection,
                      msg: seq[byte]): Future[seq[byte]] {.async.} =
@@ -281,11 +288,11 @@ proc transactMessage(conn: Connection,
     else:
       trace "Received size of message exceed limits", conn = $conn,
                                                       length = length
-  except AsyncStreamIncompleteError:
+  except LPStreamIncompleteError:
     trace "Connection dropped while reading", conn = $conn
-  except AsyncStreamReadError:
+  except LPStreamReadError:
     trace "Error reading from connection", conn = $conn
-  except AsyncStreamWriteError:
+  except LPStreamWriteError:
     trace "Could not write to connection", conn = $conn
 
 method handshake*(s: Secio, conn: Connection, initiator: bool = false): Future[SecureConn] {.async.} =

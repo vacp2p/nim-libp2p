@@ -2,8 +2,10 @@ import unittest, tables
 import chronos
 import chronicles
 import nimcrypto/sysrand
-import ../libp2p/[switch,
+import ../libp2p/[errors,
+                  switch,
                   multistream,
+                  stream/bufferstream,
                   protocols/identify,
                   connection,
                   transports/transport,
@@ -22,7 +24,10 @@ import ../libp2p/[switch,
 
 when defined(nimHasUsed): {.used.}
 
-const TestCodec = "/test/proto/1.0.0"
+const
+  TestCodec = "/test/proto/1.0.0"
+  StreamTransportTrackerName = "stream.transport"
+  StreamServerTrackerName = "stream.server"
 
 type
   TestProto = ref object of LPProtocol
@@ -47,6 +52,22 @@ proc createSwitch(ma: MultiAddress): (Switch, PeerInfo) =
   result = (switch, peerInfo)
 
 suite "Switch":
+  teardown:
+    let
+      trackers = [
+        # getTracker(ConnectionTrackerName),
+        getTracker(BufferStreamTrackerName),
+        getTracker(AsyncStreamWriterTrackerName),
+        getTracker(TcpTransportTrackerName),
+        getTracker(AsyncStreamReaderTrackerName),
+        getTracker(StreamTransportTrackerName),
+        getTracker(StreamServerTrackerName)
+      ]
+    for tracker in trackers:
+      if not isNil(tracker):
+        # echo tracker.dump()
+        check tracker.isLeaked() == false
+
   test "e2e use switch dial proto string":
     proc testSwitch(): Future[bool] {.async, gcsafe.} =
       let ma1: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
@@ -58,11 +79,14 @@ suite "Switch":
 
       (switch1, peerInfo1) = createSwitch(ma1)
 
+      let done = newFuture[void]()
+
       proc handle(conn: Connection, proto: string) {.async, gcsafe.} =
         let msg = cast[string](await conn.readLp())
         check "Hello!" == msg
         await conn.writeLp("Hello!")
         await conn.close()
+        done.complete()
 
       let testProto = new TestProto
       testProto.codec = TestCodec
@@ -83,8 +107,15 @@ suite "Switch":
       except LPStreamError:
         result = false
 
-      await allFutures(switch1.stop(), switch2.stop())
-      await allFutures(awaiters)
+      await allFuturesThrowing(
+        done.wait(5000.millis) #[if OK won't happen!!]#,
+        conn.close(),
+        switch1.stop(),
+        switch2.stop(),
+      )
+
+      # this needs to go at end
+      await allFuturesThrowing(awaiters)
 
     check:
       waitFor(testSwitch()) == true
@@ -125,8 +156,12 @@ suite "Switch":
       except LPStreamError:
         result = false
 
-      await allFutures(switch1.stop(), switch2.stop())
-      await allFutures(awaiters)
+      await allFuturesThrowing(
+        conn.close(),
+        switch1.stop(),
+        switch2.stop()
+      )
+      await allFuturesThrowing(awaiters)
 
     check:
       waitFor(testSwitch()) == true
@@ -164,7 +199,10 @@ suite "Switch":
 
   #     await sconn.write(hugePayload)
   #     await readTask
+
   #     await sconn.close()
+  #     await conn.close()
+  #     await transport2.close()
   #     await transport1.close()
 
   #     result = true
