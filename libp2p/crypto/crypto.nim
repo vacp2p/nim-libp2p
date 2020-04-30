@@ -8,6 +8,9 @@
 ## those terms.
 
 ## This module implements Public Key and Private Key interface for libp2p.
+
+{.push raises: [Defect].}
+
 import rsa, ecnist, ed25519/ed25519, secp
 import ../protobuf/minprotobuf, ../vbuffer, ../multihash, ../multicodec
 import nimcrypto/[rijndael, blowfish, twofish, sha, sha2, hash, hmac, utils]
@@ -79,8 +82,11 @@ type
   Signature* = object
     data*: seq[byte]
 
-  P2pKeyError* = object of CatchableError
-  P2pSigError* = object of CatchableError
+  CryptoError* = enum
+    KeyError,
+    SigError
+
+  CryptoResult*[T] = Result[T, CryptoError]
 
 const
   SupportedSchemes* = {RSA, Ed25519, Secp256k1, ECDSA}
@@ -130,17 +136,23 @@ proc random*(t: typedesc[KeyPair], scheme: PKScheme,
     result.seckey.skkey = pair.seckey
     result.pubkey.skkey = pair.pubkey
 
-proc getKey*(key: PrivateKey): PublicKey =
+proc getKey*(key: PrivateKey): CryptoResult[PublicKey] =
   ## Get public key from corresponding private key ``key``.
-  result = PublicKey(scheme: key.scheme)
+  var res = PublicKey(scheme: key.scheme)
   if key.scheme == RSA:
-    result.rsakey = key.rsakey.getKey()
+    res.rsakey = key.rsakey.getKey()
+    ok(res)
   elif key.scheme == Ed25519:
-    result.edkey = key.edkey.getKey()
+    res.edkey = key.edkey.getKey()
+    ok(res)
   elif key.scheme == ECDSA:
-    result.eckey = key.eckey.getKey()
+    res.eckey = ? (key.eckey.getKey().mapErr do (_: auto) -> auto: KeyError)
+    ok(res)
   elif key.scheme == Secp256k1:
-    result.skkey = key.skkey.getKey()
+    res.skkey = key.skkey.getKey()
+    ok(res)
+  else:
+    err(KeyError)
 
 proc toRawBytes*(key: PrivateKey, data: var openarray[byte]): int =
   ## Serialize private key ``key`` (using scheme's own serialization) and store
