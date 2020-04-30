@@ -153,6 +153,9 @@ method handleConn*(p: PubSub,
   trace "pubsub peer handler ended, cleaning up"
   await p.internalClenaup(conn)
 
+proc isConnected*(p: PubSub, peer: PeerInfo): bool =
+  peer.id in p.peers and p.peers[peer.id].isConnected
+
 method subscribeToPeer*(p: PubSub,
                         conn: Connection) {.base, async.} =
   var peer = p.getPeer(conn.peerInfo, p.codec)
@@ -193,7 +196,7 @@ method subscribe*(p: PubSub,
 
   p.topics[topic].handler.add(handler)
 
-  for peer in p.peers.values:
+  for peer in toSeq(p.peers.values):
     await p.sendSubs(peer, @[topic], true)
 
 method publish*(p: PubSub,
