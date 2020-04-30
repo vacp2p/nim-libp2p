@@ -199,7 +199,7 @@ suite "GossipSub":
       proc handler(topic: string, data: seq[byte]) {.async, gcsafe.} =
         discard
 
-      var nodes: seq[Switch] = newSeq[Switch]()
+      var nodes: seq[Switch]
       for i in 0..<2:
         nodes.add newStandardSwitch(gossip = true)
 
@@ -277,8 +277,6 @@ suite "GossipSub":
 
       check:
         "foobar" in gossipSub1.gossipsub
-
-      await passed.wait(1.seconds)
 
       trace "test done, stopping..."
 
