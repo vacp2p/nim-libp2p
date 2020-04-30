@@ -268,6 +268,18 @@ suite "GossipSub":
 
       await nodes[1].subscribe("foobar", handler)
       await waitSub(nodes[0], nodes[1], "foobar")
+
+      var observed = 0
+      let
+        obs1 = PubSubObserver(onRecv: proc(peer: PubSubPeer; msgs: var RPCMsg) =
+          inc observed
+        )
+        obs2 = PubSubObserver(onSend: proc(peer: PubSubPeer; msgs: var RPCMsg) =
+          inc observed
+        )
+      nodes[1].pubsub.get().addObserver(obs1)
+      nodes[0].pubsub.get().addObserver(obs2)
+
       await nodes[0].publish("foobar", cast[seq[byte]]("Hello!"))
 
       var gossipSub1: GossipSub = GossipSub(nodes[0].pubSub.get())
@@ -283,7 +295,7 @@ suite "GossipSub":
       await nodes[1].stop()
       await allFuturesThrowing(wait)
 
-      result = true
+      result = observed == 2
 
     check:
       waitFor(runTests()) == true

@@ -16,6 +16,7 @@ import pubsubpeer,
        ../../peerinfo
 
 export PubSubPeer
+export PubSubObserver
 
 logScope:
   topic = "PubSub"
@@ -42,6 +43,7 @@ type
     sign*: bool                       # enable message signing
     cleanupLock: AsyncLock
     validators*: Table[string, HashSet[ValidatorHandler]]
+    observers: ref seq[PubSubObserver] # ref as in smart_ptr
 
 proc sendSubs*(p: PubSub,
                peer: PubSubPeer,
@@ -72,6 +74,7 @@ method rpcHandler*(p: PubSub,
                    rpcMsgs: seq[RPCMsg]) {.async, base.} =
   ## handle rpc messages
   trace "processing RPC message", peer = peer.id, msgs = rpcMsgs.len
+
   for m in rpcMsgs:                                # for all RPC messages
     trace "processing messages", msg = m.shortLog
     if m.subscriptions.len > 0:                    # if there are any subscriptions
@@ -104,6 +107,7 @@ proc getPeer(p: PubSub,
 
   p.peers[peer.id] = peer
   peer.refs.inc # increment reference cound
+  peer.observers = p.observers
   result = peer
 
 method handleConn*(p: PubSub,
@@ -201,7 +205,7 @@ method publish*(p: PubSub,
 
 method initPubSub*(p: PubSub) {.base.} =
   ## perform pubsub initializaion
-  discard
+  p.observers = new(seq[PubSubObserver])
 
 method start*(p: PubSub) {.async, base.} =
   ## start pubsub
@@ -253,3 +257,10 @@ proc newPubSub*(P: typedesc[PubSub],
              sign: sign,
              cleanupLock: newAsyncLock())
   result.initPubSub()
+
+proc addObserver*(p: PubSub; observer: PubSubObserver) = p.observers[] &= observer
+
+proc removeObserver*(p: PubSub; observer: PubSubObserver) =
+  let idx = p.observers[].find(observer)
+  if idx != -1:
+    p.observers[].del(idx)
