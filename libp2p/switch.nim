@@ -12,6 +12,7 @@ import chronos, chronicles
 import connection,
        transports/transport,
        multistream,
+       multicodec,
        protocols/protocol,
        protocols/secure/secure,
        protocols/secure/plaintext, # for plain text
@@ -236,6 +237,7 @@ proc internalConnect(s: Switch,
   var conn = s.connections.getOrDefault(id)
   if conn.isNil or conn.closed:
     for t in s.transports: # for each transport
+      trace "Dialing on transport", multicodec = $t.multicodec
       for a in peer.addrs: # for each address
         if t.handles(a):   # check if it can dial it
           trace "Dialing address", address = $a
@@ -255,6 +257,7 @@ proc internalConnect(s: Switch,
           conn.closeEvent.wait()
             .addCallback do (udata: pointer):
               asyncCheck s.cleanupConn(conn)
+
           break
   else:
     trace "Reusing existing connection"
@@ -332,7 +335,7 @@ proc start*(s: Switch): Future[seq[Future[void]]] {.async, gcsafe.} =
 proc stop*(s: Switch) {.async.} =
   trace "stopping switch"
 
-  # we want to report erros but we do not want to fail
+  # we want to report errors but we do not want to fail
   # or crash here, cos we need to clean possibly MANY items
   # and any following conn/transport won't be cleaned up
   if s.pubSub.isSome:
@@ -352,13 +355,17 @@ proc subscribeToPeer(s: Switch, peerInfo: PeerInfo) {.async, gcsafe.} =
   ## Subscribe to pub sub peer
   if s.pubSub.isSome and peerInfo.id notin s.dialedPubSubPeers:
     try:
+      if s.pubsub.get().isConnected(peerInfo):
+        return
+
+      trace "subscribing to pubsub peer", peer = peerInfo
       s.dialedPubSubPeers.incl(peerInfo.id)
       let conn = await s.dial(peerInfo, s.pubSub.get().codec)
       await s.pubSub.get().subscribeToPeer(conn)
     except CancelledError as exc:
       raise exc
     except CatchableError as exc:
-      warn "unable to initiate pubsub", exc = exc.msg
+      warn "unable to subscribe to pubsub peer", peer = peerInfo, exc = exc.msg
     finally:
       s.dialedPubSubPeers.excl(peerInfo.id)
 
