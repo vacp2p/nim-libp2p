@@ -138,6 +138,7 @@ method unsubscribe*(f: FloodSub,
     await f.sendSubs(p, topics.mapIt(it.topic).deduplicate(), false)
 
 method initPubSub*(f: FloodSub) =
+  procCall PubSub(f).initPubSub()
   f.peers = initTable[string, PubSubPeer]()
   f.topics = initTable[string, Topic]()
   f.floodsub = initTable[string, HashSet[string]]()

@@ -23,18 +23,23 @@ logScope:
   topic = "PubSubPeer"
 
 type
-    PubSubPeer* = ref object of RootObj
-      proto: string # the protocol that this peer joined from
-      sendConn: Connection
-      peerInfo*: PeerInfo
-      handler*: RPCHandler
-      topics*: seq[string]
-      sentRpcCache: TimedCache[string] # cache for already sent messages
-      recvdRpcCache: TimedCache[string] # cache for already received messages
-      refs*: int # refcount of the connections this peer is handling
-      onConnect: AsyncEvent
+  PubSubObserver* = ref object
+    onRecv*: proc(peer: PubSubPeer; msgs: var RPCMsg) {.gcsafe.}
+    onSend*: proc(peer: PubSubPeer; msgs: var RPCMsg) {.gcsafe.}
 
-    RPCHandler* = proc(peer: PubSubPeer, msg: seq[RPCMsg]): Future[void] {.gcsafe.}
+  PubSubPeer* = ref object of RootObj
+    proto: string # the protocol that this peer joined from
+    sendConn: Connection
+    peerInfo*: PeerInfo
+    handler*: RPCHandler
+    topics*: seq[string]
+    sentRpcCache: TimedCache[string] # cache for already sent messages
+    recvdRpcCache: TimedCache[string] # cache for already received messages
+    refs*: int # refcount of the connections this peer is handling
+    onConnect: AsyncEvent
+    observers*: ref seq[PubSubObserver] # ref as in smart_ptr
+
+  RPCHandler* = proc(peer: PubSubPeer, msg: seq[RPCMsg]): Future[void] {.gcsafe.}
 
 proc id*(p: PubSubPeer): string = p.peerInfo.id
 
@@ -58,8 +63,11 @@ proc handle*(p: PubSubPeer, conn: Connection) {.async.} =
         trace "message already received, skipping", peer = p.id
         continue
 
-      let msg = decodeRpcMsg(data)
+      var msg = decodeRpcMsg(data)
       trace "decoded msg from peer", peer = p.id, msg = msg.shortLog
+      # trigger hooks
+      for obs in p.observers[]:
+        obs.onRecv(p, msg)
       await p.handler(p, @[msg])
       p.recvdRpcCache.put($hexData.hash)
   except CatchableError as exc:
@@ -71,9 +79,14 @@ proc handle*(p: PubSubPeer, conn: Connection) {.async.} =
 
 proc send*(p: PubSubPeer, msgs: seq[RPCMsg]) {.async.} =
   try:
-    for m in msgs:
+    for m in msgs.items:
       trace "sending msgs to peer", toPeer = p.id
       let encoded = encodeRpcMsg(m)
+      # trigger hooks
+      if p.observers[].len > 0:
+        var mm = m
+        for obs in p.observers[]:
+          obs.onSend(p, mm)
       let encodedHex = encoded.buffer.toHex()
       if encoded.buffer.len <= 0:
         trace "empty message, skipping", peer = p.id
