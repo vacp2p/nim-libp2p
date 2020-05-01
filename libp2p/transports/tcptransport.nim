@@ -127,7 +127,7 @@ method listen*(t: TcpTransport,
   discard await procCall Transport(t).listen(ma, handler) # call base
 
   ## listen on the transport
-  t.server = createStreamServer(t.ma, connCb, {}, t)
+  t.server = createStreamServer(t.ma, connCb, {ReuseAddr}, t)
   t.server.start()
 
   # always get the resolved address in case we're bound to 0.0.0.0:0
