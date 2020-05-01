@@ -9,7 +9,7 @@ import
   switch, peer, peerinfo, connection, multiaddress,
   crypto/crypto, transports/[transport, tcptransport],
   muxers/[muxer, mplex/mplex, mplex/types],
-  protocols/[identify, secure/secure],
+  protocols/[identify, secure/secure, protocol],
   protocols/pubsub/[pubsub, gossipsub, floodsub]
 
 when libp2p_secure == "noise":
@@ -18,7 +18,13 @@ else:
   import protocols/secure/secio
 
 export
-  switch, peer, peerinfo, connection, multiaddress, crypto
+  switch,
+  peer,
+  peerinfo,
+  connection,
+  multiaddress,
+  crypto,
+  protocol
 
 proc newStandardSwitch*(privKey = none(PrivateKey),
                         address = MultiAddress.init("/ip4/127.0.0.1/tcp/0"),

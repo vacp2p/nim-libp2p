@@ -138,6 +138,7 @@ proc initBufferStream*(s: BufferStream,
   trace "created bufferstream", oid = s.oid
   inc getBufferStreamTracker().opened
   libp2p_open_bufferstream.inc()
+  trace "created new bufferstream", oid = s.oid
 
 proc newBufferStream*(handler: WriteHandler = nil,
                       size: int = DefaultBufferSize): BufferStream =
@@ -316,7 +317,6 @@ method close*(s: BufferStream) {.async, gcsafe.} =
 
     inc getBufferStreamTracker().closed
     libp2p_open_bufferstream.dec()
-
     trace "bufferstream closed", oid = s.oid
   else:
     trace "attempt to close an already closed bufferstream", trace = getStackTrace()
