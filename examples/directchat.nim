@@ -39,7 +39,6 @@ type ChatProto = ref object of LPProtocol
   connected: bool         # if the node is connected to another peer
   started: bool           # if the node has started
 
-
 proc initAddress(T: type MultiAddress, str: string): T =
   let address = MultiAddress.init(str)
   if IPFS.match(address) and matchPartial(multiaddress.TCP, address):
@@ -49,7 +48,7 @@ proc initAddress(T: type MultiAddress, str: string): T =
                          "Invalid bootstrap node multi-address")
 
 proc dialPeer(p: ChatProto, address: string) {.async.} =
-  let multiAddr = MultiAddress.initAddress(address);
+  let multiAddr = MultiAddress.initAddress(address)
   let parts = address.split("/")
   let remotePeer = PeerInfo.init(parts[^1],
                                  [multiAddr])
