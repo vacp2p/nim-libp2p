@@ -149,7 +149,7 @@ proc getKey*(key: PrivateKey): CryptoResult[PublicKey] =
     res.eckey = ? (key.eckey.getKey().mapErr do (_: auto) -> auto: KeyError)
     ok(res)
   elif key.scheme == Secp256k1:
-    res.skkey = key.skkey.getKey()
+    res.skkey = ? (key.skkey.getKey().mapErr do (_: auto) -> auto: KeyError)
     ok(res)
   else:
     err(KeyError)

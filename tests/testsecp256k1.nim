@@ -18,15 +18,15 @@ suite "Secp256k1 testing suite":
     for i in 0..<TestsCount:
       var rkey1, rkey2: SkPrivateKey
       var skey2 = newSeq[byte](256)
-      var key = SkPrivateKey.random()
+      var key = SkPrivateKey.random().expect("random key")
       var skey1 = key.getBytes()
       check:
-        key.toBytes(skey2) > 0
+        key.toBytes(skey2).expect("bytes len") > 0
       check:
-        rkey1.init(skey1) == true
-        rkey2.init(skey2) == true
-      var rkey3 = SkPrivateKey.init(skey1)
-      var rkey4 = SkPrivateKey.init(skey2)
+        rkey1.init(skey1).isOk == true
+        rkey2.init(skey2).isOk == true
+      var rkey3 = SkPrivateKey.init(skey1).expect("private key")
+      var rkey4 = SkPrivateKey.init(skey2).expect("private key")
       check:
         rkey1 == key
         rkey2 == key
@@ -41,14 +41,14 @@ suite "Secp256k1 testing suite":
     for i in 0..<TestsCount:
       var rkey1, rkey2: SkPublicKey
       var skey2 = newSeq[byte](256)
-      var pair = SkKeyPair.random()
+      var pair = SkKeyPair.random().expect("random key pair")
       var skey1 = pair.pubkey.getBytes()
       check:
-        pair.pubkey.toBytes(skey2) > 0
-        rkey1.init(skey1) == true
-        rkey2.init(skey2) == true
-      var rkey3 = SkPublicKey.init(skey1)
-      var rkey4 = SkPublicKey.init(skey2)
+        pair.pubkey.toBytes(skey2).expect("bytes len") > 0
+        rkey1.init(skey1).isOk == true
+        rkey2.init(skey2).isOk == true
+      var rkey3 = SkPublicKey.init(skey1).expect("public key")
+      var rkey4 = SkPublicKey.init(skey2).expect("public key")
       check:
         rkey1 == pair.pubkey
         rkey2 == pair.pubkey
@@ -59,16 +59,16 @@ suite "Secp256k1 testing suite":
   test "Generate/Sign/Serialize/Deserialize/Verify test":
     var message = "message to sign"
     for i in 0..<TestsCount:
-      var kp = SkKeyPair.random()
-      var sig = kp.seckey.sign(message)
+      var kp = SkKeyPair.random().expect("random key pair")
+      var sig = kp.seckey.sign(message).expect("signature")
       var sersk = kp.seckey.getBytes()
       var serpk = kp.pubkey.getBytes()
       var sersig = sig.getBytes()
-      discard SkPrivateKey.init(sersk)
-      var pubkey = SkPublicKey.init(serpk)
-      var csig = SkSignature.init(sersig)
+      discard SkPrivateKey.init(sersk).expect("private key")
+      var pubkey = SkPublicKey.init(serpk).expect("public key")
+      var csig = SkSignature.init(sersig).expect("signature")
       check csig.verify(message, pubkey) == true
       var error = csig.getBytes()
       error[^1] = not error[^1]
-      csig = SkSignature.init(error)
+      csig = SkSignature.init(error).expect("signature")
       check csig.verify(message, pubkey) == false
