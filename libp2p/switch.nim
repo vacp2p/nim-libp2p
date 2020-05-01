@@ -153,6 +153,9 @@ proc cleanupConn(s: Switch, conn: Connection) {.async, gcsafe.} =
     if not(conn.peerInfo.isClosed()):
       conn.peerInfo.close()
 
+    if not conn.closed:
+      await conn.close()
+
 proc disconnect*(s: Switch, peer: PeerInfo) {.async, gcsafe.} =
   let conn = s.connections.getOrDefault(peer.id)
   if not isNil(conn):
@@ -316,8 +319,8 @@ proc start*(s: Switch): Future[seq[Future[void]]] {.async, gcsafe.} =
     except CatchableError as exc:
       trace "Exception occurred in Switch.start", exc = exc.msg
     finally:
+      trace "cleaning up transport handler"
       await conn.close()
-      await s.cleanupConn(conn)
 
   var startFuts: seq[Future[void]]
   for t in s.transports: # for each transport
