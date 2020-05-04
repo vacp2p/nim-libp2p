@@ -39,6 +39,7 @@ type
     topics*: Table[string, Topic]     # local topics
     peers*: Table[string, PubSubPeer] # peerid to peer map
     triggerSelf*: bool                # trigger own local handler on publish
+    verifySignature*: bool            # trigger signature verification
     cleanupLock: AsyncLock
     validators*: Table[string, HashSet[ValidatorHandler]]
 
@@ -243,9 +244,11 @@ method validate*(p: PubSub, message: Message): Future[bool] {.async, base.} =
 
 proc newPubSub*(p: typedesc[PubSub],
                 peerInfo: PeerInfo,
-                triggerSelf: bool = false): p =
+                triggerSelf: bool = false,
+                verifySignature: bool = false): p =
   new result
   result.peerInfo = peerInfo
   result.triggerSelf = triggerSelf
+  result.verifySignature = verifySignature
   result.cleanupLock = newAsyncLock()
   result.initPubSub()

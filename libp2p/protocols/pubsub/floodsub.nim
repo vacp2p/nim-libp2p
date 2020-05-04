@@ -65,7 +65,7 @@ method rpcHandler*(f: FloodSub,
         if msg.msgId notin f.seen:
           f.seen.put(msg.msgId)                      # add the message to the seen cache
 
-          if not msg.verify(peer.peerInfo):
+          if f.verifySignature and not msg.verify(peer.peerInfo):
             trace "dropping message due to failed signature verification"
             continue
 

@@ -179,7 +179,7 @@ method rpcHandler(g: GossipSub,
 
         g.seen.put(msg.msgId)                        # add the message to the seen cache
 
-        if not msg.verify(peer.peerInfo):
+        if g.verifySignature and not msg.verify(peer.peerInfo):
           trace "dropping message due to failed signature verification"
           continue
 
