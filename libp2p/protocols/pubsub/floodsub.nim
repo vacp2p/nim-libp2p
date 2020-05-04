@@ -120,7 +120,7 @@ method publish*(f: FloodSub,
     return
 
   trace "publishing on topic", name = topic
-  let msg = newMessage(f.peerInfo, data, topic)
+  let msg = newMessage(f.peerInfo, data, topic, f.sign)
   var sent: seq[Future[void]]
   # start the future but do not wait yet
   for p in f.floodsub[topic]:

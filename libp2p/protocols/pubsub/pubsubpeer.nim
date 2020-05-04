@@ -106,8 +106,9 @@ proc send*(p: PubSubPeer, msgs: seq[RPCMsg]) {.async.} =
 proc sendMsg*(p: PubSubPeer,
               peerId: PeerID,
               topic: string,
-              data: seq[byte]): Future[void] {.gcsafe.} =
-  p.send(@[RPCMsg(messages: @[newMessage(p.peerInfo, data, topic)])])
+              data: seq[byte],
+              sign: bool): Future[void] {.gcsafe.} =
+  p.send(@[RPCMsg(messages: @[newMessage(p.peerInfo, data, topic, sign)])])
 
 proc sendGraft*(p: PubSubPeer, topics: seq[string]) {.async.} =
   for topic in topics:

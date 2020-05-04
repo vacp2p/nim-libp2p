@@ -404,7 +404,7 @@ method publish*(g: GossipSub,
         # set the fanout expiery time
         g.lastFanoutPubSub[topic] = Moment.fromNow(GossipSubFanoutTTL)
 
-    let msg = newMessage(g.peerInfo, data, topic)
+    let msg = newMessage(g.peerInfo, data, topic, g.sign)
     var sent: seq[Future[void]]
     for p in peers:
       if p == g.peerInfo.id:
