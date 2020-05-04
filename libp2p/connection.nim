@@ -26,7 +26,7 @@ const
   ConnectionTrackerName* = "libp2p.connection"
 
 type
-  Connection* {.acyclic.} = ref object of LPStream
+  Connection* = ref object of LPStream
     peerInfo*: PeerInfo
     stream*: LPStream
     observedAddrs*: Multiaddress
