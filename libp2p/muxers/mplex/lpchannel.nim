@@ -77,6 +77,7 @@ proc newChannel*(id: uint64,
   result.msgCode = if initiator: MessageType.MsgOut else: MessageType.MsgIn
   result.closeCode = if initiator: MessageType.CloseOut else: MessageType.CloseIn
   result.resetCode = if initiator: MessageType.ResetOut else: MessageType.ResetIn
+  result.resetLock = newAsyncLock()
   result.isLazy = lazy
 
   let chan = result
