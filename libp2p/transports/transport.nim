@@ -14,6 +14,8 @@ import ../connection,
        ../multicodec,
        ../errors
 
+export ServerFlags
+
 type
   ConnHandler* = proc (conn: Connection): Future[void] {.gcsafe.}
 
@@ -39,7 +41,8 @@ method close*(t: Transport) {.base, async, gcsafe.} =
 
 method listen*(t: Transport,
                ma: MultiAddress,
-               handler: ConnHandler):
+               handler: ConnHandler,
+               serverFlags: set[ServerFlags] = {}):
                Future[Future[void]] {.base, async, gcsafe.} =
   ## listen for incoming connections
   t.ma = ma

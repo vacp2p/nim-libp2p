@@ -16,6 +16,8 @@ import transport,
        ../multicodec,
        ../stream/chronosstream
 
+export ServerFlags
+
 logScope:
   topic = "TcpTransport"
 
@@ -122,12 +124,13 @@ method close*(t: TcpTransport) {.async, gcsafe.} =
 
 method listen*(t: TcpTransport,
                ma: MultiAddress,
-               handler: ConnHandler):
+               handler: ConnHandler,
+               serverFlags: set[ServerFlags] = {}):
                Future[Future[void]] {.async, gcsafe.} =
   discard await procCall Transport(t).listen(ma, handler) # call base
 
   ## listen on the transport
-  t.server = createStreamServer(t.ma, connCb, {ReuseAddr}, t)
+  t.server = createStreamServer(t.ma, connCb, serverFlags, t)
   t.server.start()
 
   # always get the resolved address in case we're bound to 0.0.0.0:0
