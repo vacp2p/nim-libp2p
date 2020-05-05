@@ -22,6 +22,8 @@ import connection,
        errors,
        peer
 
+export ServerFlags
+
 logScope:
   topic = "Switch"
 
@@ -282,7 +284,7 @@ proc mount*[T: LPProtocol](s: Switch, proto: T) {.gcsafe.} =
 
   s.ms.addHandler(proto.codec, proto)
 
-proc start*(s: Switch): Future[seq[Future[void]]] {.async, gcsafe.} =
+proc start*(s: Switch, serverFlags: set[ServerFlags] = {}): Future[seq[Future[void]]] {.async, gcsafe.} =
   trace "starting switch"
 
   proc handle(conn: Connection): Future[void] {.async, closure, gcsafe.} =
@@ -298,7 +300,7 @@ proc start*(s: Switch): Future[seq[Future[void]]] {.async, gcsafe.} =
   for t in s.transports: # for each transport
     for i, a in s.peerInfo.addrs:
       if t.handles(a): # check if it handles the multiaddr
-        var server = await t.listen(a, handle)
+        var server = await t.listen(a, handle, serverFlags)
         s.peerInfo.addrs[i] = t.ma # update peer's address
         startFuts.add(server)
 
