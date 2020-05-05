@@ -110,7 +110,7 @@ proc getPeer(p: PubSub,
   peer.observers = p.observers
   result = peer
 
-proc internalClenaup(p: PubSub, conn: Connection) {.async.} =
+proc internalCleanup(p: PubSub, conn: Connection) {.async.} =
   # handle connection close
   if conn.closed:
     return
@@ -151,7 +151,7 @@ method handleConn*(p: PubSub,
   peer.handler = handler
   await peer.handle(conn) # spawn peer read loop
   trace "pubsub peer handler ended, cleaning up"
-  await p.internalClenaup(conn)
+  await p.internalCleanup(conn)
 
 proc isConnected*(p: PubSub, peer: PeerInfo): bool =
   peer.id in p.peers and p.peers[peer.id].isConnected
@@ -163,7 +163,7 @@ method subscribeToPeer*(p: PubSub,
   if not peer.isConnected:
     peer.conn = conn
 
-  asyncCheck p.internalClenaup(conn)
+  asyncCheck p.internalCleanup(conn)
 
 method unsubscribe*(p: PubSub,
                     topics: seq[TopicPair]) {.base, async.} =
