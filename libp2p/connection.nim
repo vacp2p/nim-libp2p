@@ -17,6 +17,8 @@ import peerinfo,
 
 export lpstream
 
+export lpstream
+
 logScope:
   topic = "Connection"
 
