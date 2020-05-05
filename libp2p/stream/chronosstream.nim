@@ -36,7 +36,7 @@ template withExceptions(body: untyped) =
   except TransportLimitError:
     raise newLPStreamLimitError()
   except TransportError as exc:
-    raise newLPStreamIncorrectError(exc.msg)
+    raise newLPStreamIncorrectDetect(exc.msg)
   except AsyncStreamIncompleteError:
     raise newLPStreamIncompleteError()
 
