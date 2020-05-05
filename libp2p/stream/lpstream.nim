@@ -54,22 +54,10 @@ proc newLPStreamEOFError*(): ref Exception {.inline.} =
 method closed*(s: LPStream): bool {.base, inline.} =
   s.isClosed
 
-method read*(s: LPStream,
-             n = -1):
-             Future[seq[byte]] {.base, async.} =
-  doAssert(false, "not implemented!")
-
 method readExactly*(s: LPStream,
                     pbytes: pointer,
                     nbytes: int):
                     Future[void] {.base, async.} =
-  doAssert(false, "not implemented!")
-
-method readLine*(s: LPStream,
-                 limit = 0,
-                 sep = "\r\n"):
-                 Future[string]
-  {.base, async.} =
   doAssert(false, "not implemented!")
 
 method readOnce*(s: LPStream,
@@ -79,25 +67,55 @@ method readOnce*(s: LPStream,
   {.base, async.} =
   doAssert(false, "not implemented!")
 
-method readUntil*(s: LPStream,
-                  pbytes: pointer,
-                  nbytes: int,
-                  sep: seq[byte]):
-                  Future[int]
-  {.base, async.} =
-  doAssert(false, "not implemented!")
+proc read*(s: LPStream, nbytes: int): Future[seq[byte]] {.async, deprecated: "readExactly".} =
+  # This function is deprecated - it was broken and used inappropriately as
+  # `readExacltly` in tests and code - tests still need refactoring to remove
+  # any calls
+  # `read` without nbytes was also incorrectly implemented - it worked more
+  # like `readOnce` in that it would not wait for stream to close, in
+  # BufferStream in particular - both tests and implementation were broken
+  var ret = newSeq[byte](nbytes)
+  await readExactly(s, addr ret[0], ret.len)
+  return ret
 
-method write*(s: LPStream, pbytes: pointer, nbytes: int)
-  {.base, async.} =
-  doAssert(false, "not implemented!")
+proc readLine*(s: LPStream, limit = 0, sep = "\r\n"): Future[string] {.async, deprecated: "todo".} =
+  # TODO replace with something that exploits buffering better
+  var lim = if limit <= 0: -1 else: limit
+  var state = 0
 
-method write*(s: LPStream, msg: string, msglen = -1)
-  {.base, async.} =
-  doAssert(false, "not implemented!")
+  try:
+    while true:
+      var ch: char
+      await readExactly(s, addr ch, 1)
+
+      if sep[state] == ch:
+        inc(state)
+        if state == len(sep):
+          break
+      else:
+        state = 0
+        if limit > 0:
+          let missing = min(state, lim - len(result) - 1)
+          result.add(sep[0 ..< missing])
+        else:
+          result.add(sep[0 ..< state])
+
+        result.add(ch)
+        if len(result) == lim:
+          break
+  except LPStreamIncompleteError, LPStreamReadError:
+    discard # EOF, in which case we should return whatever we read so far..
 
 method write*(s: LPStream, msg: seq[byte], msglen = -1)
   {.base, async.} =
   doAssert(false, "not implemented!")
+
+proc write*(s: LPStream, pbytes: pointer, nbytes: int): Future[void] {.deprecated: "seq".} =
+  s.write(@(toOpenArray(cast[ptr UncheckedArray[byte]](pbytes), 0, nbytes - 1)))
+
+proc write*(s: LPStream, msg: string, msglen = -1): Future[void] {.deprecated: "seq".} =
+  let nbytes = if msglen >= 0: msglen else: msg.len
+  s.write(@(toOpenArrayByte(msg, 0, nbytes - 1)))
 
 method close*(s: LPStream)
   {.base, async.} =

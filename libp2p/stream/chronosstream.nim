@@ -40,13 +40,6 @@ template withExceptions(body: untyped) =
   except AsyncStreamIncompleteError:
     raise newLPStreamIncompleteError()
 
-method read*(s: ChronosStream, n = -1): Future[seq[byte]] {.async.} =
-  if s.reader.atEof:
-    raise newLPStreamEOFError()
-
-  withExceptions:
-    result = await s.reader.read(n)
-
 method readExactly*(s: ChronosStream,
                     pbytes: pointer,
                     nbytes: int): Future[void] {.async.} =
@@ -56,43 +49,12 @@ method readExactly*(s: ChronosStream,
   withExceptions:
     await s.reader.readExactly(pbytes, nbytes)
 
-method readLine*(s: ChronosStream, limit = 0, sep = "\r\n"): Future[string] {.async.} =
-  if s.reader.atEof:
-    raise newLPStreamEOFError()
-
-  withExceptions:
-    result = await s.reader.readLine(limit, sep)
-
 method readOnce*(s: ChronosStream, pbytes: pointer, nbytes: int): Future[int] {.async.} =
   if s.reader.atEof:
     raise newLPStreamEOFError()
 
   withExceptions:
     result = await s.reader.readOnce(pbytes, nbytes)
-
-method readUntil*(s: ChronosStream,
-                  pbytes: pointer,
-                  nbytes: int,
-                  sep: seq[byte]): Future[int] {.async.} =
-  if s.reader.atEof:
-    raise newLPStreamEOFError()
-
-  withExceptions:
-    result = await s.reader.readUntil(pbytes, nbytes, sep)
-
-method write*(s: ChronosStream, pbytes: pointer, nbytes: int) {.async.} =
-  if s.writer.atEof:
-    raise newLPStreamEOFError()
-
-  withExceptions:
-    await s.writer.write(pbytes, nbytes)
-
-method write*(s: ChronosStream, msg: string, msglen = -1) {.async.} =
-  if s.writer.atEof:
-    raise newLPStreamEOFError()
-
-  withExceptions:
-    await s.writer.write(msg, msglen)
 
 method write*(s: ChronosStream, msg: seq[byte], msglen = -1) {.async.} =
   if s.writer.atEof:

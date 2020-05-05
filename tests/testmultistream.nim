@@ -1,4 +1,4 @@
-import unittest, strutils, sequtils, strformat, options
+import unittest, strutils, sequtils, strformat, options, stew/byteutils
 import chronos
 import ../libp2p/errors,
        ../libp2p/connection,
@@ -54,9 +54,6 @@ method readExactly*(s: TestSelectStream,
 method write*(s: TestSelectStream, msg: seq[byte], msglen = -1)
   {.async, gcsafe.} = discard
 
-method write*(s: TestSelectStream, msg: string, msglen = -1)
-  {.async, gcsafe.} = discard
-
 method close(s: TestSelectStream) {.async, gcsafe.} =
   s.isClosed = true
 
@@ -101,9 +98,6 @@ method write*(s: TestLsStream, msg: seq[byte], msglen = -1) {.async, gcsafe.} =
   if s.step == 4:
     await s.ls(msg)
 
-method write*(s: TestLsStream, msg: string, msglen = -1)
-  {.async, gcsafe.} = discard
-
 method close(s: TestLsStream) {.async, gcsafe.} =
   s.isClosed = true
 
@@ -147,9 +141,9 @@ method readExactly*(s: TestNaStream,
               cstring("\0x3na\n"),
               "\0x3na\n".len())
 
-method write*(s: TestNaStream, msg: string, msglen = -1) {.async, gcsafe.} =
+method write*(s: TestNaStream, msg: seq[byte], msglen = -1) {.async, gcsafe.} =
   if s.step == 4:
-    await s.na(msg)
+    await s.na(string.fromBytes(msg))
 
 method close(s: TestNaStream) {.async, gcsafe.} =
   s.isClosed = true
@@ -174,7 +168,7 @@ suite "Multistream select":
       if not isNil(tracker):
         # echo tracker.dump()
         check tracker.isLeaked() == false
- 
+
   test "test select custom proto":
     proc testSelect(): Future[bool] {.async.} =
       let ms = newMultistream()
@@ -294,7 +288,7 @@ suite "Multistream select":
       let hello = cast[string](await conn.readLp())
       result = hello == "Hello!"
       await conn.close()
-     
+
       await transport2.close()
       await transport1.close()
 

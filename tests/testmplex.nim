@@ -470,8 +470,8 @@ suite "Mplex":
       try:
         await chann.pushTo(cast[seq[byte]]("Hello!"))
         await chann.closedByRemote()
-        discard await chann.read() # this should work, since there is data in the buffer
-        discard await chann.read() # this should throw
+        discard await chann.read(6) # this should work, since there is data in the buffer
+        discard await chann.read(6) # this should throw
       finally:
         await chann.cleanUp()
         await conn.close()
@@ -616,7 +616,7 @@ suite "Mplex":
 
       try:
         await chann.reset()
-        var data = await chann.read()
+        var data = await chann.read(1)
         doAssert(len(data) == 1)
       finally:
         await chann.cleanUp()

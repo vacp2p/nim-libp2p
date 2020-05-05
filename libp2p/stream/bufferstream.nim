@@ -34,6 +34,8 @@ import deques, math, oids
 import chronos, chronicles, metrics
 import ../stream/lpstream
 
+export lpstream
+
 const
   BufferStreamTrackerName* = "libp2p.bufferstream"
   DefaultBufferSize* = 1024
@@ -168,31 +170,6 @@ proc pushTo*(s: BufferStream, data: seq[byte]) {.async.} =
   finally:
     s.lock.release()
 
-method read*(s: BufferStream, n = -1): Future[seq[byte]] {.async.} =
-  ## Read all bytes (n <= 0) or exactly `n` bytes from buffer
-  ##
-  ## This procedure allocates buffer seq[byte] and return it as result.
-  ##
-  when chronicles.enabledLogLevel == LogLevel.TRACE:
-    logScope:
-      stream_oid = $s.oid
-
-  trace "read()", requested_bytes = n
-  var size = if n > 0: n else: s.readBuf.len()
-  var index = 0
-
-  if s.readBuf.len() == 0:
-    await s.requestReadBytes()
-
-  while index < size:
-    while s.readBuf.len() > 0 and index < size:
-      result.add(s.popFirst())
-      inc(index)
-    trace "read()", read_bytes = index
-
-    if index < size:
-      await s.requestReadBytes()
-
 method readExactly*(s: BufferStream,
                     pbytes: pointer,
                     nbytes: int):
@@ -207,53 +184,21 @@ method readExactly*(s: BufferStream,
     logScope:
       stream_oid = $s.oid
 
-  var buff: seq[byte]
-  try:
-    buff = await s.read(nbytes)
-  except LPStreamEOFError as exc:
-    trace "Exception occurred", exc = exc.msg
-
-  if nbytes > buff.len():
-    raise newLPStreamIncompleteError()
-
-  copyMem(pbytes, addr buff[0], nbytes)
-
-method readLine*(s: BufferStream,
-                 limit = 0,
-                 sep = "\r\n"):
-                 Future[string] {.async.} =
-  ## Read one line from read-only stream ``rstream``, where ``"line"`` is a
-  ## sequence of bytes ending with ``sep`` (default is ``"\r\n"``).
-  ##
-  ## If EOF is received, and ``sep`` was not found, the method will return the
-  ## partial read bytes.
-  ##
-  ## If the EOF was received and the internal buffer is empty, return an
-  ## empty string.
-  ##
-  ## If ``limit`` more then 0, then result string will be limited to ``limit``
-  ## bytes.
-  ##
-  result = ""
-  var lim = if limit <= 0: -1 else: limit
-  var state = 0
+  trace "read()", requested_bytes = nbytes
   var index = 0
 
-  index = 0
-  while index < s.readBuf.len:
-    let ch = char(s.readBuf[index])
-    if sep[state] == ch:
-      inc(state)
-      if state == len(sep):
-        s.shrink(index + 1)
-        break
-    else:
-      state = 0
-      result.add(ch)
-      if len(result) == lim:
-        s.shrink(index + 1)
-        break
-    inc(index)
+  if s.readBuf.len() == 0:
+    await s.requestReadBytes()
+
+  let output = cast[ptr UncheckedArray[byte]](pbytes)
+  while index < nbytes:
+    while s.readBuf.len() > 0 and index < nbytes:
+      output[index] = s.popFirst()
+      inc(index)
+    trace "readExactly()", read_bytes = index
+
+    if index < nbytes:
+      await s.requestReadBytes()
 
 method readOnce*(s: BufferStream,
                  pbytes: pointer,
@@ -270,93 +215,6 @@ method readOnce*(s: BufferStream,
   var len = if nbytes > s.readBuf.len: s.readBuf.len else: nbytes
   await s.readExactly(pbytes, len)
   result = len
-
-method readUntil*(s: BufferStream,
-                  pbytes: pointer,
-                  nbytes: int,
-                  sep: seq[byte]):
-                  Future[int] {.async.} =
-  ## Read data from the read-only stream ``rstream`` until separator ``sep`` is
-  ## found.
-  ##
-  ## On success, the data and separator will be removed from the internal
-  ## buffer (consumed). Returned data will include the separator at the end.
-  ##
-  ## If EOF is received, and `sep` was not found, procedure will raise
-  ## ``LPStreamIncompleteError``.
-  ##
-  ## If ``nbytes`` bytes has been received and `sep` was not found, procedure
-  ## will raise ``LPStreamLimitError``.
-  ##
-  ## Procedure returns actual number of bytes read.
-  ##
-  var
-    dest = cast[ptr UncheckedArray[byte]](pbytes)
-    state = 0
-    k = 0
-
-  let datalen = s.readBuf.len()
-  if datalen == 0 and s.readBuf.len() == 0:
-    raise newLPStreamIncompleteError()
-
-  var index = 0
-  while index < datalen:
-    let ch = s.readBuf[index]
-    if sep[state] == ch:
-      inc(state)
-    else:
-      state = 0
-    if k < nbytes:
-      dest[k] = ch
-      inc(k)
-    else:
-      raise newLPStreamLimitError()
-    if state == len(sep):
-      break
-    inc(index)
-
-  if state == len(sep):
-    s.shrink(index + 1)
-    result = k
-  else:
-    s.shrink(datalen)
-
-method write*(s: BufferStream,
-              pbytes: pointer,
-              nbytes: int): Future[void] =
-  ## Consume (discard) all bytes (n <= 0) or ``n`` bytes from read-only stream
-  ## ``rstream``.
-  ##
-  ## Return number of bytes actually consumed (discarded).
-  ##
-  if isNil(s.writeHandler):
-    var retFuture = newFuture[void]("BufferStream.write(pointer)")
-    retFuture.fail(newNotWritableError())
-    return retFuture
-
-  var buf: seq[byte] = newSeq[byte](nbytes)
-  copyMem(addr buf[0], pbytes, nbytes)
-  result = s.writeHandler(buf)
-
-method write*(s: BufferStream,
-              msg: string,
-              msglen = -1): Future[void] =
-  ## Write string ``sbytes`` of length ``msglen`` to writer stream ``wstream``.
-  ##
-  ## String ``sbytes`` must not be zero-length.
-  ##
-  ## If ``msglen < 0`` whole string ``sbytes`` will be writen to stream.
-  ## If ``msglen > len(sbytes)`` only ``len(sbytes)`` bytes will be written to
-  ## stream.
-  ##
-  if isNil(s.writeHandler):
-    var retFuture = newFuture[void]("BufferStream.write(string)")
-    retFuture.fail(newNotWritableError())
-    return retFuture
-
-  var buf = ""
-  shallowCopy(buf, if msglen > 0: msg[0..<msglen] else: msg)
-  result = s.writeHandler(cast[seq[byte]](buf))
 
 method write*(s: BufferStream,
               msg: seq[byte],
@@ -375,9 +233,7 @@ method write*(s: BufferStream,
     retFuture.fail(newNotWritableError())
     return retFuture
 
-  var buf: seq[byte]
-  shallowCopy(buf, if msglen > 0: msg[0..<msglen] else: msg)
-  result = s.writeHandler(buf)
+  result = s.writeHandler(if msglen >= 0: msg[0..<msglen] else: msg)
 
 proc pipe*(s: BufferStream,
            target: BufferStream): BufferStream =
