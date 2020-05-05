@@ -24,13 +24,15 @@ type
     connections*: seq[Connection]
     handler*: ConnHandler
     multicodec*: MultiCodec
+    serverFlags*: set[ServerFlags]
 
 method init*(t: Transport) {.base, gcsafe.} =
   ## perform protocol initialization
   discard
 
-proc newTransport*(t: typedesc[Transport]): t {.gcsafe.} =
+proc newTransport*(t: typedesc[Transport], serverFlags: set[ServerFlags] = {}): t {.gcsafe.} =
   new result
+  result.serverFlags = serverFlags
   result.init()
 
 method close*(t: Transport) {.base, async, gcsafe.} =
@@ -41,8 +43,7 @@ method close*(t: Transport) {.base, async, gcsafe.} =
 
 method listen*(t: Transport,
                ma: MultiAddress,
-               handler: ConnHandler,
-               serverFlags: set[ServerFlags] = {}):
+               handler: ConnHandler):
                Future[Future[void]] {.base, async, gcsafe.} =
   ## listen for incoming connections
   t.ma = ma
