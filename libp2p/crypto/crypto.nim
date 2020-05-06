@@ -154,83 +154,73 @@ proc getKey*(key: PrivateKey): CryptoResult[PublicKey] =
   else:
     err(KeyError)
 
-proc toRawBytes*(key: PrivateKey, data: var openarray[byte]): int =
+proc toRawBytes*(key: PrivateKey | PublicKey, data: var openarray[byte]): CryptoResult[int] =
   ## Serialize private key ``key`` (using scheme's own serialization) and store
   ## it to ``data``.
   ##
   ## Returns number of bytes (octets) needed to store private key ``key``.
+  var res = 0
   if key.scheme == RSA:
-    result = key.rsakey.toBytes(data)
+    res = ? (key.rsakey.toBytes(data).mapErr do (_: auto) -> auto: KeyError)
+    ok(res)
   elif key.scheme == Ed25519:
-    result = key.edkey.toBytes(data)
+    res = key.edkey.toBytes(data)
+    ok(res)
   elif key.scheme == ECDSA:
-    result = key.eckey.toBytes(data)
+    res = ? (key.eckey.toBytes(data).mapErr do (_: auto) -> auto: KeyError)
+    ok(res)
   elif key.scheme == Secp256k1:
-    result = key.skkey.toBytes(data)
+    res = ? (key.skkey.toBytes(data).mapErr do (_: auto) -> auto: KeyError)
+    ok(res)
+  else:
+    err(KeyError)
 
-proc toRawBytes*(key: PublicKey, data: var openarray[byte]): int =
-  ## Serialize public key ``key`` (using scheme's own serialization) and store
-  ## it to ``data``.
-  ##
-  ## Returns number of bytes (octets) needed to store public key ``key``.
-  if key.scheme == RSA:
-    result = key.rsakey.toBytes(data)
-  elif key.scheme == Ed25519:
-    result = key.edkey.toBytes(data)
-  elif key.scheme == ECDSA:
-    result = key.eckey.toBytes(data)
-  elif key.scheme == Secp256k1:
-    result = key.skkey.toBytes(data)
-
-proc getRawBytes*(key: PrivateKey): seq[byte] =
+proc getRawBytes*(key: PrivateKey | PublicKey): CryptoResult[seq[byte]] =
   ## Return private key ``key`` in binary form (using scheme's own
   ## serialization).
+  var res: seq[byte]
   if key.scheme == RSA:
-    result = key.rsakey.getBytes()
+    res = ? (key.rsakey.getBytes().mapErr do (_: auto) -> auto: KeyError)
+    ok(res)
   elif key.scheme == Ed25519:
-    result = key.edkey.getBytes()
+    res = key.edkey.getBytes()
+    ok(res)
   elif key.scheme == ECDSA:
-    result = key.eckey.getBytes()
+    res = ? (key.eckey.getBytes().mapErr do (_: auto) -> auto: KeyError)
+    ok(res)
   elif key.scheme == Secp256k1:
-    result = key.skkey.getBytes()
+    res = key.skkey.getBytes()
+    ok(res)
+  else:
+    err(KeyError)
 
-proc getRawBytes*(key: PublicKey): seq[byte] =
-  ## Return public key ``key`` in binary form (using scheme's own
-  ## serialization).
-  if key.scheme == RSA:
-    result = key.rsakey.getBytes()
-  elif key.scheme == Ed25519:
-    result = key.edkey.getBytes()
-  elif key.scheme == ECDSA:
-    result = key.eckey.getBytes()
-  elif key.scheme == Secp256k1:
-    result = key.skkey.getBytes()
-
-proc toBytes*(key: PrivateKey, data: var openarray[byte]): int =
+proc toBytes*(key: PrivateKey, data: var openarray[byte]): CryptoResult[int] =
   ## Serialize private key ``key`` (using libp2p protobuf scheme) and store
   ## it to ``data``.
   ##
   ## Returns number of bytes (octets) needed to store private key ``key``.
   var msg = initProtoBuffer()
   msg.write(initProtoField(1, cast[uint64](key.scheme)))
-  msg.write(initProtoField(2, key.getRawBytes()))
+  msg.write(initProtoField(2, ? key.getRawBytes()))
   msg.finish()
-  result = len(msg.buffer)
-  if len(data) >= result:
-    copyMem(addr data[0], addr msg.buffer[0], len(msg.buffer))
+  var blen = len(msg.buffer)
+  if len(data) >= blen:
+    copyMem(addr data[0], addr msg.buffer[0], blen)
+  ok(blen)
 
-proc toBytes*(key: PublicKey, data: var openarray[byte]): int =
+proc toBytes*(key: PublicKey, data: var openarray[byte]): CryptoResult[int] =
   ## Serialize public key ``key`` (using libp2p protobuf scheme) and store
   ## it to ``data``.
   ##
   ## Returns number of bytes (octets) needed to store public key ``key``.
   var msg = initProtoBuffer()
   msg.write(initProtoField(1, cast[uint64](key.scheme)))
-  msg.write(initProtoField(2, key.getRawBytes()))
+  msg.write(initProtoField(2, ? key.getRawBytes()))
   msg.finish()
-  result = len(msg.buffer)
-  if len(data) >= result:
-    copyMem(addr data[0], addr msg.buffer[0], len(msg.buffer))
+  var blen = len(msg.buffer)
+  if len(data) >= blen:
+    copyMem(addr data[0], addr msg.buffer[0], blen)
+  ok(blen)
 
 proc toBytes*(sig: Signature, data: var openarray[byte]): int =
   ## Serialize signature ``sig`` and store it to ``data``.
@@ -240,23 +230,23 @@ proc toBytes*(sig: Signature, data: var openarray[byte]): int =
   if len(data) >= result:
     copyMem(addr data[0], unsafeAddr sig.data[0], len(sig.data))
 
-proc getBytes*(key: PrivateKey): seq[byte] =
+proc getBytes*(key: PrivateKey): CryptoResult[seq[byte]] =
   ## Return private key ``key`` in binary form (using libp2p's protobuf
   ## serialization).
   var msg = initProtoBuffer()
   msg.write(initProtoField(1, cast[uint64](key.scheme)))
-  msg.write(initProtoField(2, key.getRawBytes()))
+  msg.write(initProtoField(2, ? key.getRawBytes()))
   msg.finish()
-  result = msg.buffer
+  ok(msg.buffer)
 
-proc getBytes*(key: PublicKey): seq[byte] =
+proc getBytes*(key: PublicKey): CryptoResult[seq[byte]] =
   ## Return public key ``key`` in binary form (using libp2p's protobuf
   ## serialization).
   var msg = initProtoBuffer()
   msg.write(initProtoField(1, cast[uint64](key.scheme)))
-  msg.write(initProtoField(2, key.getRawBytes()))
+  msg.write(initProtoField(2, ? key.getRawBytes()))
   msg.finish()
-  result = msg.buffer
+  ok(msg.buffer)
 
 proc getBytes*(sig: Signature): seq[byte] =
   ## Return signature ``sig`` in binary form.
@@ -289,7 +279,7 @@ proc init*(key: var PrivateKey, data: openarray[byte]): bool =
               key = nkey
               result = true
           elif scheme == Secp256k1:
-            if init(nkey.skkey, buffer):
+            if init(nkey.skkey, buffer).isOk:
               key = nkey
               result = true
 
@@ -320,7 +310,7 @@ proc init*(key: var PublicKey, data: openarray[byte]): bool =
               key = nkey
               result = true
           elif scheme == Secp256k1:
-            if init(nkey.skkey, buffer):
+            if init(nkey.skkey, buffer).isOk:
               key = nkey
               result = true
 
@@ -337,21 +327,30 @@ proc init*(key: var PrivateKey, data: string): bool =
   ## hexadecimal string representation.
   ##
   ## Returns ``true`` on success.
-  result = key.init(fromHex(data))
+  try:
+    key.init(fromHex(data))
+  except ValueError:
+    false
 
 proc init*(key: var PublicKey, data: string): bool =
   ## Initialize public key ``key`` from libp2p's protobuf serialized
   ## hexadecimal string representation.
   ##
   ## Returns ``true`` on success.
-  result = key.init(fromHex(data))
+  try:
+    key.init(fromHex(data))
+  except ValueError:
+    false
 
 proc init*(sig: var Signature, data: string): bool =
   ## Initialize signature ``sig`` from serialized hexadecimal string
   ## representation.
   ##
   ## Returns ``true`` on success.
-  result = sig.init(fromHex(data))
+  try:
+    sig.init(fromHex(data))
+  except ValueError:
+    false
 
 proc init*(t: typedesc[PrivateKey], data: openarray[byte]): PrivateKey =
   ## Create new private key from libp2p's protobuf serialized binary form.
@@ -476,24 +475,30 @@ proc `$`*(sig: Signature): string =
   ## Get string representation of signature ``sig``.
   result = toHex(sig.data)
 
-proc sign*(key: PrivateKey, data: openarray[byte]): Signature {.gcsafe.} =
+proc sign*(key: PrivateKey, data: openarray[byte]): CryptoResult[Signature] {.gcsafe.} =
   ## Sign message ``data`` using private key ``key`` and return generated
   ## signature in raw binary form.
+  var res: Signature
   if key.scheme == RSA:
-    var sig = key.rsakey.sign(data)
-    result.data = sig.getBytes()
+    var sig = ? (key.rsakey.sign(data).mapErr do (_: auto) -> auto: SigError)
+    res.data = ? (sig.getBytes().mapErr do (_: auto) -> auto: SigError)
+    ok(res)
   elif key.scheme == Ed25519:
     var sig = key.edkey.sign(data)
-    result.data = sig.getBytes()
+    res.data = sig.getBytes()
+    ok(res)
   elif key.scheme == ECDSA:
-    var sig = key.eckey.sign(data)
-    result.data = sig.getBytes()
+    var sig = ? (key.eckey.sign(data).mapErr do (_: auto) -> auto: SigError)
+    res.data = ? (sig.getBytes().mapErr do (_: auto) -> auto: SigError)
+    ok(res)
   elif key.scheme == Secp256k1:
-    var sig = key.skkey.sign(data)
-    result.data = sig.getBytes()
+    var sig = ? (key.skkey.sign(data).mapErr do (_: auto) -> auto: SigError)
+    res.data = sig.getBytes()
+    ok(res)
+  else:
+    err(SigError)
 
-proc verify*(sig: Signature, message: openarray[byte],
-             key: PublicKey): bool =
+proc verify*(sig: Signature, message: openarray[byte], key: PublicKey): bool =
   ## Verify signature ``sig`` using message ``message`` and public key ``key``.
   ## Return ``true`` if message signature is valid.
   if key.scheme == RSA:
@@ -510,7 +515,7 @@ proc verify*(sig: Signature, message: openarray[byte],
       result = signature.verify(message, key.eckey)
   elif key.scheme == Secp256k1:
     var signature: SkSignature
-    if signature.init(sig.data):
+    if signature.init(sig.data).isOk:
       result = signature.verify(message, key.skkey)
 
 template makeSecret(buffer, hmactype, secret, seed: untyped) {.dirty.}=
@@ -600,33 +605,32 @@ proc mac*(secret: Secret, id: int): seq[byte] {.inline.} =
   offset += secret.ivsize + secret.keysize
   copyMem(addr result[0], unsafeAddr secret.data[offset], secret.macsize)
 
-proc ephemeral*(scheme: ECDHEScheme): KeyPair =
+proc ephemeral*(scheme: ECDHEScheme): CryptoResult[KeyPair] =
   ## Generate ephemeral keys used to perform ECDHE.
   var keypair: EcKeyPair
   if scheme == Secp256r1:
-    keypair = EcKeyPair.random(Secp256r1)
+    keypair = ? (EcKeyPair.random(Secp256r1).mapErr do (_: auto) -> auto: KeyError)
   elif scheme == Secp384r1:
-    keypair = EcKeyPair.random(Secp384r1)
+    keypair = ? (EcKeyPair.random(Secp384r1).mapErr do (_: auto) -> auto: KeyError)
   elif scheme == Secp521r1:
-    keypair = EcKeyPair.random(Secp521r1)
-  result.seckey = PrivateKey(scheme: ECDSA)
-  result.pubkey = PublicKey(scheme: ECDSA)
-  result.seckey.eckey = keypair.seckey
-  result.pubkey.eckey = keypair.pubkey
+    keypair = ? (EcKeyPair.random(Secp521r1).mapErr do (_: auto) -> auto: KeyError)
+  ok(KeyPair(
+    seckey: PrivateKey(scheme: ECDSA, eckey: keypair.seckey), 
+    pubkey: PublicKey(scheme: ECDSA, eckey: keypair.pubkey)))
 
-proc ephemeral*(scheme: string): KeyPair {.inline.} =
+proc ephemeral*(scheme: string): CryptoResult[KeyPair] {.inline.} =
   ## Generate ephemeral keys used to perform ECDHE using string encoding.
   ##
   ## Currently supported encoding strings are P-256, P-384, P-521, if encoding
   ## string is not supported P-521 key will be generated.
   if scheme == "P-256":
-    result = ephemeral(Secp256r1)
+    ephemeral(Secp256r1)
   elif scheme == "P-384":
-    result = ephemeral(Secp384r1)
+    ephemeral(Secp384r1)
   elif scheme == "P-521":
-    result = ephemeral(Secp521r1)
+    ephemeral(Secp521r1)
   else:
-    result = ephemeral(Secp521r1)
+    ephemeral(Secp521r1)
 
 proc makeSecret*(remoteEPublic: PublicKey, localEPrivate: PrivateKey,
                  data: var openarray[byte]): int =

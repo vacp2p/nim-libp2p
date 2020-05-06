@@ -20,10 +20,15 @@
 ## Hashes which are not yet supported
 ## 1. SKEIN
 ## 2. MURMUR
+
+{.push raises: [Defect].}
+
 import tables
 import nimcrypto/[sha, sha2, keccak, blake2, hash, utils]
 import varint, vbuffer, multicodec, multibase
 import stew/base58
+import stew/results
+export results
 # This is workaround for Nim `import` bug.
 export sha, sha2, keccak, blake2, hash, utils
 
@@ -32,7 +37,7 @@ const
 
 type
   MHashCoderProc* = proc(data: openarray[byte],
-                         output: var openarray[byte]) {.nimcall, gcsafe.}
+                         output: var openarray[byte]) {.nimcall, gcsafe, raises: [Defect].}
   MHash* = object
     mcodec*: MultiCodec
     size*: int
@@ -44,7 +49,12 @@ type
     size*: int
     dpos*: int
 
-  MultiHashError* = object of CatchableError
+  MultiHashError* {.pure.} = enum
+    IncorrectName,
+    NotSupported,
+    WrongDigestSize
+
+  MultiHashResult*[T] = Result[T, MultiHashError]
 
 proc identhash(data: openarray[byte], output: var openarray[byte]) =
   if len(output) > 0:
@@ -345,16 +355,18 @@ proc digestImplWithoutHash(hash: MHash, data: openarray[byte]): MultiHash =
   result.data.finish()
 
 proc digest*(mhtype: typedesc[MultiHash], hashname: string,
-             data: openarray[byte]): MultiHash {.inline.} =
+             data: openarray[byte]): MultiHashResult[MultiHash] {.inline.} =
   ## Perform digest calculation using hash algorithm with name ``hashname`` on
   ## data array ``data``.
   let mc = MultiCodec.codec(hashname)
   if mc == InvalidMultiCodec:
-    raise newException(MultihashError, "Incorrect hash name")
-  let hash = CodeHashes.getOrDefault(mc)
-  if isNil(hash.coder):
-    raise newException(MultihashError, "Hash not supported")
-  result = digestImplWithHash(hash, data)
+    err(MultiHashError.IncorrectName)
+  else:
+    let hash = CodeHashes.getOrDefault(mc)
+    if isNil(hash.coder):
+      err(MultiHashError.NotSupported)
+    else:
+      ok(digestImplWithHash(hash, data))
 
 proc digest*(mhtype: typedesc[MultiHash], hashcode: int,
              data: openarray[byte]): MultiHash {.inline.} =
@@ -366,7 +378,7 @@ proc digest*(mhtype: typedesc[MultiHash], hashcode: int,
   result = digestImplWithHash(hash, data)
 
 proc init*[T](mhtype: typedesc[MultiHash], hashname: string,
-                mdigest: MDigest[T]): MultiHash {.inline.} =
+                mdigest: MDigest[T]): MultiHashResult[MultiHash] {.inline.} =
   ## Create MultiHash from nimcrypto's `MDigest` object and hash algorithm name
   ## ``hashname``.
   let mc = MultiCodec.codec(hashname)

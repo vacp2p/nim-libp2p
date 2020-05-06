@@ -275,7 +275,7 @@ suite "RSA 512/1024/2048/4096 test suite":
       var skey2 = newSeq[byte](4096)
       var key = RsaPrivateKey.random(512).expect("random key")
       var skey1 = key.getBytes().expect("bytes")
-      check key.toBytes(skey2) > 0
+      check key.toBytes(skey2).expect("bytes") > 0
       check:
         rkey1.init(skey1).isOk()
         rkey2.init(skey2).isOk()
@@ -293,7 +293,7 @@ suite "RSA 512/1024/2048/4096 test suite":
       var skey2 = newSeq[byte](4096)
       var key = RsaPrivateKey.random(1024).expect("random failed")
       var skey1 = key.getBytes().expect("bytes")
-      check key.toBytes(skey2) > 0
+      check key.toBytes(skey2).expect("bytes") > 0
       check:
         rkey1.init(skey1).isOk()
         rkey2.init(skey2).isOk()
@@ -310,7 +310,7 @@ suite "RSA 512/1024/2048/4096 test suite":
     var skey2 = newSeq[byte](4096)
     var key = RsaPrivateKey.random(2048).expect("random failed")
     var skey1 = key.getBytes().expect("bytes")
-    check key.toBytes(skey2) > 0
+    check key.toBytes(skey2).expect("bytes") > 0
     check:
       rkey1.init(skey1).isOk()
       rkey2.init(skey2).isOk()
@@ -329,7 +329,7 @@ suite "RSA 512/1024/2048/4096 test suite":
       var skey2 = newSeq[byte](4096)
       var key = RsaPrivateKey.random(4096).expect("random failed")
       var skey1 = key.getBytes().expect("bytes")
-      check key.toBytes(skey2) > 0
+      check key.toBytes(skey2).expect("bytes") > 0
       check:
         rkey1.init(skey1).isOk()
         rkey2.init(skey2).isOk()
@@ -348,7 +348,7 @@ suite "RSA 512/1024/2048/4096 test suite":
       var pair = RsaKeyPair.random(512).expect("random failed")
       var skey1 = pair.pubkey().getBytes().expect("bytes")
       check:
-        pair.pubkey.toBytes(skey2) > 0
+        pair.pubkey.toBytes(skey2).expect("bytes") > 0
         rkey1.init(skey1).isOk()
         rkey2.init(skey2).isOk()
       var rkey3 = RsaPublicKey.init(skey1).expect("key initialization")
@@ -366,7 +366,7 @@ suite "RSA 512/1024/2048/4096 test suite":
       var pair = RsaKeyPair.random(1024).expect("random failed")
       var skey1 = pair.pubkey.getBytes().expect("bytes")
       check:
-        pair.pubkey.toBytes(skey2) > 0
+        pair.pubkey.toBytes(skey2).expect("bytes") > 0
         rkey1.init(skey1).isOk()
         rkey2.init(skey2).isOk()
       var rkey3 = RsaPublicKey.init(skey1).expect("key initialization")
@@ -383,7 +383,7 @@ suite "RSA 512/1024/2048/4096 test suite":
     var pair = RsaKeyPair.random(2048).expect("random failed")
     var skey1 = pair.pubkey.getBytes().expect("bytes")
     check:
-      pair.pubkey.toBytes(skey2) > 0
+      pair.pubkey.toBytes(skey2).expect("bytes") > 0
       rkey1.init(skey1).isOk()
       rkey2.init(skey2).isOk()
     var rkey3 = RsaPublicKey.init(skey1).expect("key initialization")
@@ -401,7 +401,7 @@ suite "RSA 512/1024/2048/4096 test suite":
       var pair = RsaKeyPair.random(4096).expect("random failed")
       var skey1 = pair.pubkey.getBytes().expect("bytes")
       check:
-        pair.pubkey.toBytes(skey2) > 0
+        pair.pubkey.toBytes(skey2).expect("bytes") > 0
         rkey1.init(skey1).isOk()
         rkey2.init(skey2).isOk()
       var rkey3 = RsaPublicKey.init(skey1).expect("key initialization")

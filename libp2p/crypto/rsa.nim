@@ -285,14 +285,15 @@ proc clear*[T: RsaPKI|RsaKeyPair](pki: var T) =
     burnMem(pki.buffer)
     pki.buffer.setLen(0)
 
-proc toBytes*(key: RsaPrivateKey, data: var openarray[byte]): int =
+proc toBytes*(key: RsaPrivateKey, data: var openarray[byte]): RsaResult[int] =
   ## Serialize RSA private key ``key`` to ASN.1 DER binary form and store it
   ## to ``data``.
   ##
   ## Procedure returns number of bytes (octets) needed to store RSA private key,
   ## or `0` if private key is is incorrect.
-  doAssert(not isNil(key))
-  if len(key.buffer) > 0:
+  if isNil(key):
+    err(RsaKeyIncorrectError)
+  elif len(key.buffer) > 0:
     var b = Asn1Buffer.init()
     var p = Asn1Composite.init(Asn1Tag.Sequence)
     p.write(0'u64)
@@ -314,18 +315,22 @@ proc toBytes*(key: RsaPrivateKey, data: var openarray[byte]): int =
     p.finish()
     b.write(p)
     b.finish()
-    result = len(b)
-    if len(data) >= result:
-      copyMem(addr data[0], addr b.buffer[0], result)
+    var blen = len(b)
+    if len(data) >= blen:
+      copyMem(addr data[0], addr b.buffer[0], blen)
+    ok(blen)
+  else:
+    err(RsaKeyIncorrectError)
 
-proc toBytes*(key: RsaPublicKey, data: var openarray[byte]): int =
+proc toBytes*(key: RsaPublicKey, data: var openarray[byte]): RsaResult[int] =
   ## Serialize RSA public key ``key`` to ASN.1 DER binary form and store it
   ## to ``data``.
   ##
   ## Procedure returns number of bytes (octets) needed to store RSA public key,
   ## or `0` if public key is incorrect.
-  doAssert(not isNil(key))
-  if len(key.buffer) > 0:
+  if isNil(key):
+    err(RsaKeyIncorrectError)
+  elif len(key.buffer) > 0:
     var b = Asn1Buffer.init()
     var p = Asn1Composite.init(Asn1Tag.Sequence)
     var c0 = Asn1Composite.init(Asn1Tag.Sequence)
@@ -344,20 +349,26 @@ proc toBytes*(key: RsaPublicKey, data: var openarray[byte]): int =
     p.finish()
     b.write(p)
     b.finish()
-    result = len(b)
-    if len(data) >= result:
-      copyMem(addr data[0], addr b.buffer[0], result)
+    var blen = len(b)
+    if len(data) >= blen:
+      copyMem(addr data[0], addr b.buffer[0], blen)
+    ok(blen)
+  else:
+    err(RsaKeyIncorrectError)
 
-proc toBytes*(sig: RsaSignature, data: var openarray[byte]): int =
+proc toBytes*(sig: RsaSignature, data: var openarray[byte]): RSaResult[int] =
   ## Serialize RSA signature ``sig`` to raw binary form and store it
   ## to ``data``.
   ##
   ## Procedure returns number of bytes (octets) needed to store RSA public key,
   ## or `0` if public key is incorrect.
-  doAssert(not isNil(sig))
-  result = len(sig.buffer)
-  if len(data) >= result:
-    copyMem(addr data[0], addr sig.buffer[0], result)
+  if isNil(sig):
+    err(RsaSignatureError)
+  else:
+    var slen = len(sig.buffer)
+    if len(data) >= slen:
+      copyMem(addr data[0], addr sig.buffer[0], slen)
+    ok(slen)
 
 proc getBytes*(key: RsaPrivateKey): RsaResult[seq[byte]] =
   ## Serialize RSA private key ``key`` to ASN.1 DER binary form and
@@ -365,7 +376,7 @@ proc getBytes*(key: RsaPrivateKey): RsaResult[seq[byte]] =
   if isNil(key):
     return err(RsaKeyIncorrectError)
   var res = newSeq[byte](4096)
-  let length = key.toBytes(res)
+  let length = ? key.toBytes(res)
   if length > 0:
     res.setLen(length)
     ok(res)
@@ -378,7 +389,7 @@ proc getBytes*(key: RsaPublicKey): RsaResult[seq[byte]] =
   if isNil(key):
     return err(RsaKeyIncorrectError)
   var res = newSeq[byte](4096)
-  let length = key.toBytes(res)
+  let length = ? key.toBytes(res)
   if length > 0:
     res.setLen(length)
     ok(res)
@@ -390,7 +401,7 @@ proc getBytes*(sig: RsaSignature): RsaResult[seq[byte]] =
   if isNil(sig):
     return err(RsaSignatureError)
   var res = newSeq[byte](4096)
-  let length = sig.toBytes(res)
+  let length = ? sig.toBytes(res)
   if length > 0:
     res.setLen(length)
     ok(res)
