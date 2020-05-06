@@ -33,12 +33,10 @@ suite "GossipSub internal":
 
       let topic = "foobar"
       gossipSub.mesh[topic] = initHashSet[string]()
-      proc writeHandler(data: seq[byte]) {.async.} =
-        discard
 
       var conns = newSeq[Connection]()
       for i in 0..<15:
-        let conn = newConnection(newBufferStream(writeHandler))
+        let conn = newConnection(newBufferStream())
         conns &= conn
         let peerInfo = PeerInfo.init(PrivateKey.random(RSA))
         conn.peerInfo = peerInfo
@@ -64,12 +62,10 @@ suite "GossipSub internal":
 
       let topic = "foobar"
       gossipSub.gossipsub[topic] = initHashSet[string]()
-      proc writeHandler(data: seq[byte]) {.async.} =
-        discard
 
       var conns = newSeq[Connection]()
       for i in 0..<15:
-        let conn = newConnection(newBufferStream(writeHandler))
+        let conn = newConnection(newBufferStream())
         conns &= conn
         let peerInfo = PeerInfo.init(PrivateKey.random(RSA))
         conn.peerInfo = peerInfo
@@ -98,12 +94,10 @@ suite "GossipSub internal":
 
       let topic = "foobar"
       gossipSub.gossipsub[topic] = initHashSet[string]()
-      proc writeHandler(data: seq[byte]) {.async.} =
-        discard
 
       var conns = newSeq[Connection]()
       for i in 0..<15:
-        let conn = newConnection(newBufferStream(writeHandler))
+        let conn = newConnection(newBufferStream())
         conns &= conn
         var peerInfo = PeerInfo.init(PrivateKey.random(RSA))
         conn.peerInfo = peerInfo
@@ -133,12 +127,10 @@ suite "GossipSub internal":
       let topic = "foobar"
       gossipSub.fanout[topic] = initHashSet[string]()
       gossipSub.lastFanoutPubSub[topic] = Moment.fromNow(100.millis)
-      proc writeHandler(data: seq[byte]) {.async.} =
-        discard
 
       var conns = newSeq[Connection]()
       for i in 0..<6:
-        let conn = newConnection(newBufferStream(writeHandler))
+        let conn = newConnection(newBufferStream())
         conns &= conn
         let peerInfo = PeerInfo.init(PrivateKey.random(RSA))
         conn.peerInfo = peerInfo
@@ -171,14 +163,11 @@ suite "GossipSub internal":
       gossipSub.fanout[topic1] = initHashSet[string]()
       gossipSub.fanout[topic2] = initHashSet[string]()
       gossipSub.lastFanoutPubSub[topic1] = Moment.fromNow(100.millis)
-      gossipSub.lastFanoutPubSub[topic1] = Moment.fromNow(500.millis)
-
-      proc writeHandler(data: seq[byte]) {.async.} =
-        discard
+      gossipSub.lastFanoutPubSub[topic2] = Moment.fromNow(5.seconds)
 
       var conns = newSeq[Connection]()
       for i in 0..<6:
-        let conn = newConnection(newBufferStream(writeHandler))
+        let conn = newConnection(newBufferStream())
         conns &= conn
         let peerInfo = PeerInfo.init(PrivateKey.random(RSA))
         conn.peerInfo = peerInfo
@@ -209,16 +198,13 @@ suite "GossipSub internal":
       proc handler(peer: PubSubPeer, msg: seq[RPCMsg]) {.async.} =
         discard
 
-      proc writeHandler(data: seq[byte]) {.async.} =
-        discard
-
       let topic = "foobar"
       gossipSub.mesh[topic] = initHashSet[string]()
       gossipSub.fanout[topic] = initHashSet[string]()
       gossipSub.gossipsub[topic] = initHashSet[string]()
       var conns = newSeq[Connection]()
       for i in 0..<30:
-        let conn = newConnection(newBufferStream(writeHandler))
+        let conn = newConnection(newBufferStream())
         conns &= conn
         let peerInfo = PeerInfo.init(PrivateKey.random(RSA))
         conn.peerInfo = peerInfo
@@ -230,7 +216,7 @@ suite "GossipSub internal":
           gossipSub.mesh[topic].incl(peerInfo.id)
 
       for i in 0..<15:
-        let conn = newConnection(newBufferStream(writeHandler))
+        let conn = newConnection(newBufferStream())
         conns &= conn
         let peerInfo = PeerInfo.init(PrivateKey.random(RSA))
         conn.peerInfo = peerInfo
@@ -263,15 +249,12 @@ suite "GossipSub internal":
       proc handler(peer: PubSubPeer, msg: seq[RPCMsg]) {.async.} =
         discard
 
-      proc writeHandler(data: seq[byte]) {.async.} =
-        discard
-
       let topic = "foobar"
       gossipSub.fanout[topic] = initHashSet[string]()
       gossipSub.gossipsub[topic] = initHashSet[string]()
       var conns = newSeq[Connection]()
       for i in 0..<30:
-        let conn = newConnection(newBufferStream(writeHandler))
+        let conn = newConnection(newBufferStream())
         conns &= conn
         let peerInfo = PeerInfo.init(PrivateKey.random(RSA))
         conn.peerInfo = peerInfo
@@ -300,15 +283,12 @@ suite "GossipSub internal":
       proc handler(peer: PubSubPeer, msg: seq[RPCMsg]) {.async.} =
         discard
 
-      proc writeHandler(data: seq[byte]) {.async.} =
-        discard
-
       let topic = "foobar"
       gossipSub.mesh[topic] = initHashSet[string]()
       gossipSub.gossipsub[topic] = initHashSet[string]()
       var conns = newSeq[Connection]()
       for i in 0..<30:
-        let conn = newConnection(newBufferStream(writeHandler))
+        let conn = newConnection(newBufferStream())
         conns &= conn
         let peerInfo = PeerInfo.init(PrivateKey.random(RSA))
         conn.peerInfo = peerInfo
@@ -337,15 +317,12 @@ suite "GossipSub internal":
       proc handler(peer: PubSubPeer, msg: seq[RPCMsg]) {.async.} =
         discard
 
-      proc writeHandler(data: seq[byte]) {.async.} =
-        discard
-
       let topic = "foobar"
       gossipSub.mesh[topic] = initHashSet[string]()
       gossipSub.fanout[topic] = initHashSet[string]()
       var conns = newSeq[Connection]()
       for i in 0..<30:
-        let conn = newConnection(newBufferStream(writeHandler))
+        let conn = newConnection(newBufferStream())
         conns &= conn
         let peerInfo = PeerInfo.init(PrivateKey.random(RSA))
         conn.peerInfo = peerInfo

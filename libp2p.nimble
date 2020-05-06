@@ -33,6 +33,9 @@ proc buildSample(filename: string) =
   exec "nim c --opt:speed --threads:on -d:debug --verbosity:0 --hints:off examples/" & filename
   rmFile "examples" & filename.toExe
 
+task testnative, "Runs libp2p native tests":
+  runTest("testnative")
+
 task testdaemon, "Runs daemon tests":
   runTest("testdaemon")
 
@@ -45,11 +48,11 @@ task testpubsub, "Runs pubsub tests":
   # runTest("pubsub/testpubsub", "noise")
 
 task test, "Runs the test suite":
-  runTest("testnative")
+  exec "nimble testnative"
   # runTest("testnative", "noise")
-  exec "nimble test testpubsub"
-  exec "ninble test testdaemon"
-  exec "nimble test testinterop"
+  exec "nimble testpubsub"
+  exec "nimble testdaemon"
+  exec "nimble testinterop"
 
 task examples_build, "Build the samples":
   buildSample("directchat")
