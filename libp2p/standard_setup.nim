@@ -1,6 +1,8 @@
 # compile time options here
 const
   libp2p_secure {.strdefine.} = ""
+  libp2p_pubsub_sign {.booldefine.} = true
+  libp2p_pubsub_verify {.booldefine.} = true
 
 import
   options, tables,
@@ -22,8 +24,8 @@ proc newStandardSwitch*(privKey = none(PrivateKey),
                         address = MultiAddress.init("/ip4/127.0.0.1/tcp/0"),
                         triggerSelf = false,
                         gossip = false,
-                        verifySignature = true,
-                        sign = true): Switch =
+                        verifySignature = libp2p_pubsub_verify,
+                        sign = libp2p_pubsub_sign): Switch =
   proc createMplex(conn: Connection): Muxer =
     result = newMplex(conn)
 
