@@ -19,7 +19,7 @@ type
 
   LPStreamError* = object of CatchableError
   LPStreamIncompleteError* = object of LPStreamError
-  LPStreamIncorrectDetect* = object of Defect
+  LPStreamIncorrectDefect* = object of Defect
   LPStreamLimitError* = object of LPStreamError
   LPStreamReadError* = object of LPStreamError
     par*: ref Exception
@@ -45,8 +45,8 @@ proc newLPStreamIncompleteError*(): ref Exception {.inline.} =
 proc newLPStreamLimitError*(): ref Exception {.inline.} =
   result = newException(LPStreamLimitError, "Buffer limit reached")
 
-proc newLPStreamIncorrectDetect*(m: string): ref Exception {.inline.} =
-  result = newException(LPStreamIncorrectDetect, m)
+proc newLPStreamIncorrectDefect*(m: string): ref Exception {.inline.} =
+  result = newException(LPStreamIncorrectDefect, m)
 
 proc newLPStreamEOFError*(): ref Exception {.inline.} =
   result = newException(LPStreamEOFError, "Stream EOF!")
