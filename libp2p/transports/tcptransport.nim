@@ -7,7 +7,7 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import chronos, chronicles, sequtils, sets
+import chronos, chronicles, sequtils
 import transport,
        ../errors,
        ../wire,

@@ -1,5 +1,5 @@
 import unittest, options
-import chronos, strutils, sequtils
+import chronos, strutils
 import ../libp2p/[protocols/identify,
                   multiaddress,
                   peerinfo,
@@ -8,7 +8,6 @@ import ../libp2p/[protocols/identify,
                   multistream,
                   transports/transport,
                   transports/tcptransport,
-                  protocols/protocol,
                   crypto/crypto]
 
 when defined(nimHasUsed): {.used.}

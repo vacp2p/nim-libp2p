@@ -1,7 +1,6 @@
 import unittest
 import chronos
-import ../libp2p/[errors,
-                  connection,
+import ../libp2p/[connection,
                   transports/transport,
                   transports/tcptransport,
                   multiaddress,
@@ -12,12 +11,6 @@ when defined(nimHasUsed): {.used.}
 const
   StreamTransportTrackerName = "stream.transport"
   StreamServerTrackerName = "stream.server"
-
-template ignoreErrors(body: untyped): untyped =
-  try:
-    body
-  except:
-    echo getCurrentExceptionMsg()
 
 suite "TCP transport":
   teardown:

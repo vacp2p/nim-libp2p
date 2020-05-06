@@ -7,6 +7,8 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
+{.used.}
+
 import unittest, tables
 import chronos
 import chronicles
@@ -23,7 +25,6 @@ import ../libp2p/[switch,
                   multiaddress,
                   peerinfo,
                   crypto/crypto,
-                  peer,
                   protocols/protocol,
                   muxers/muxer,
                   muxers/mplex/mplex,
@@ -83,7 +84,7 @@ suite "Noise":
       if not isNil(tracker):
         # echo tracker.dump()
         check tracker.isLeaked() == false
- 
+
   test "e2e: handle write + noise":
     proc testListenerDialer(): Future[bool] {.async.} =
       let
@@ -256,7 +257,7 @@ suite "Noise":
   #           error getCurrentExceptionMsg()
   #         finally:
   #           await conn.close()
-     
+
   #       ms.addHandler(proto, noise)
 
   #       let
@@ -311,7 +312,7 @@ suite "Noise":
   #           trace "ms.handle exited"
   #         finally:
   #           await conn.close()
-         
+
   #       let
   #         clientConn = await transport.listen(local, connHandler)
   #       await clientConn

@@ -11,7 +11,6 @@ import options
 import chronos, chronicles
 import ../protocol,
        ../../stream/bufferstream,
-       ../../crypto/crypto,
        ../../connection,
        ../../peerinfo,
        ../../utility
