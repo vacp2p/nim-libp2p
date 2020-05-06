@@ -1,4 +1,4 @@
-include ../../libp2p/protocols/pubsub/gossipsub
-import testfloodsub,
+import testgossipinternal,
+       testfloodsub,
        testgossipsub,
        testmcache
