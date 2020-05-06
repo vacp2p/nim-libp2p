@@ -10,10 +10,8 @@
 import options
 import chronicles
 import messages,
-       ../../../protobuf/minprotobuf,
-       ../../../crypto/crypto,
-       ../../../peer,
-       ../../../utility
+       ../../../utility,
+       ../../../protobuf/minprotobuf
 
 proc encodeGraft*(graft: ControlGraft, pb: var ProtoBuffer) {.gcsafe.} =
   pb.write(initProtoField(1, graft.topicID))
@@ -37,7 +35,7 @@ proc decodePrune*(pb: var ProtoBuffer): seq[ControlPrune] {.gcsafe.} =
     var topic: string
     if pb.getString(1, topic) < 0:
       break
-   
+
     trace "read topic field from prune msg", topicID = topic
     result.add(ControlPrune(topicID: topic))
 

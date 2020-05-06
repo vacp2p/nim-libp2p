@@ -113,7 +113,7 @@ method write*(s: LPStream, msg: seq[byte], msglen = -1)
 proc write*(s: LPStream, pbytes: pointer, nbytes: int): Future[void] {.deprecated: "seq".} =
   s.write(@(toOpenArray(cast[ptr UncheckedArray[byte]](pbytes), 0, nbytes - 1)))
 
-proc write*(s: LPStream, msg: string, msglen = -1): Future[void] {.deprecated: "seq".} =
+proc write*(s: LPStream, msg: string, msglen = -1): Future[void] =
   let nbytes = if msglen >= 0: msglen else: msg.len
   s.write(@(toOpenArrayByte(msg, 0, nbytes - 1)))
 

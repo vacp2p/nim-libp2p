@@ -1,4 +1,4 @@
-import unittest, strutils, sequtils, strformat, options, stew/byteutils
+import unittest, strutils, sequtils, strformat, stew/byteutils
 import chronos
 import ../libp2p/errors,
        ../libp2p/connection,
@@ -9,10 +9,7 @@ import ../libp2p/errors,
        ../libp2p/multiaddress,
        ../libp2p/transports/transport,
        ../libp2p/transports/tcptransport,
-       ../libp2p/protocols/protocol,
-       ../libp2p/crypto/crypto,
-       ../libp2p/peerinfo,
-       ../libp2p/peer
+       ../libp2p/protocols/protocol
 
 when defined(nimHasUsed): {.used.}
 
@@ -92,7 +89,8 @@ method readExactly*(s: TestLsStream,
       var buf = "ls\n"
       copyMem(pbytes, addr buf[0], buf.len())
     else:
-      copyMem(pbytes, cstring(Na), Na.len())
+      var buf = "na\n"
+      copyMem(pbytes, addr buf[0], buf.len())
 
 method write*(s: TestLsStream, msg: seq[byte], msglen = -1) {.async, gcsafe.} =
   if s.step == 4:
@@ -234,7 +232,7 @@ suite "Multistream select":
       let conn = newConnection(newTestNaStream(testNaHandler))
 
       proc testNaHandler(msg: string): Future[void] {.async, gcsafe.} =
-        check cast[string](msg) == Na
+        check msg == Na
         await conn.close()
 
       var protocol: LPProtocol = new LPProtocol

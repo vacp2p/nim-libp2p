@@ -520,7 +520,7 @@ method init*(p: Noise) {.gcsafe.} =
   procCall Secure(p).init()
   p.codec = NoiseCodec
 
-method secure*(p: Noise, conn: Connection): Future[Connection] {.async, gcsafe.} =
+proc secure*(p: Noise, conn: Connection): Future[Connection] {.async, gcsafe.} =
   trace "Noise.secure called", initiator=p.outgoing
   try:
     result = await p.handleConn(conn, p.outgoing)

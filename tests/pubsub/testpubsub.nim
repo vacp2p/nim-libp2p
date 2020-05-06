@@ -1,3 +1,5 @@
+{.used.}
+
 import testgossipinternal,
        testfloodsub,
        testgossipsub,

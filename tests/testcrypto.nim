@@ -510,7 +510,7 @@ suite "Key interface test suite":
       public1: Curve25519Key
       public1Test: Curve25519Key = [0x9.byte, 0xd, 0x85, 0xe5, 0x99, 0xea, 0x8e, 0x2b, 0xee, 0xb6, 0x13, 0x4, 0xd3, 0x7b, 0xe1, 0xe, 0xc5, 0xc9, 0x5, 0xf9, 0x92, 0x7d, 0x32, 0xf4, 0x2a, 0x9a, 0xa, 0xfb, 0x3e, 0xb, 0x40, 0x74]
 
-    Curve25519.mul(public1, base, private1) 
+    Curve25519.mul(public1, base, private1)
     check public1.toHex == public1Test.toHex
 
     # RFC vectors
@@ -523,10 +523,9 @@ suite "Key interface test suite":
       private2 = fromHex("5dab087e624a8a4b79e17f8b83800ee66f3bb1292618b6fd1c2f8b27ff88e0eb").intoCurve25519Key
       p1Pub = private1.public()
       p2Pub = private2.public()
-      p2Gen: Curve25519Key
     check p1Pub.toHex  == "8520F0098930A754748B7DDCB43EF75A0DBF3A0D26381AF4EBA4A98EAA9B4E6A"
     check p2Pub.toHex  == "DE9EDB7D7B7DC1B4D35B61C2ECE435373F8343C85B78674DADFC7E146F882B4F"
-    
+
     var
       secret1: Curve25519Key
       secret2: Curve25519Key
@@ -534,7 +533,7 @@ suite "Key interface test suite":
     Curve25519.mul(secret2, p1Pub, private2)
     check secret1.toHex == secret2.toHex
 
-  
+
   test "HKDF 1":
     let
       ikm = fromHex("0x0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b")

@@ -1,4 +1,4 @@
-import unittest, sequtils, sugar, strformat, options, strformat, random
+import unittest, strformat, strformat, random
 import chronos, nimcrypto/utils, chronicles
 import ../libp2p/[errors,
                   connection,
@@ -6,7 +6,6 @@ import ../libp2p/[errors,
                   stream/bufferstream,
                   transports/tcptransport,
                   transports/transport,
-                  protocols/identify,
                   multiaddress,
                   muxers/mplex/mplex,
                   muxers/mplex/coder,

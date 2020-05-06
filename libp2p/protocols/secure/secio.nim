@@ -14,7 +14,6 @@ import secure,
        ../../stream/lpstream,
        ../../crypto/crypto,
        ../../crypto/ecnist,
-       ../../protobuf/minprotobuf,
        ../../peer,
        ../../utility
 export hmac, sha2, sha, hash, rijndael, bcmode

@@ -13,8 +13,7 @@ import pubsubpeer,
        rpc/messages,
        ../protocol,
        ../../connection,
-       ../../peerinfo,
-       ../../peer
+       ../../peerinfo
 
 export PubSubPeer
 

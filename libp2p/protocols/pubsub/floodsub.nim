@@ -7,7 +7,7 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import sequtils, tables, options, sets, strutils
+import sequtils, tables, sets, strutils
 import chronos, chronicles
 import pubsub,
        pubsubpeer,
@@ -15,8 +15,8 @@ import pubsub,
        rpc/[messages, message],
        ../../crypto/crypto,
        ../../connection,
-       ../../peerinfo,
        ../../peer,
+       ../../peerinfo,
        ../../utility,
        ../../errors
 
