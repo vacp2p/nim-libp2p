@@ -84,7 +84,9 @@ type
 
   CryptoError* = enum
     KeyError,
-    SigError
+    SigError,
+    HashError,
+    SchemeError
 
   CryptoResult*[T] = Result[T, CryptoError]
 
@@ -94,47 +96,65 @@ const
                           int8(ECDSA)}
 
 proc random*(t: typedesc[PrivateKey], scheme: PKScheme,
-             bits = DefaultKeySize): PrivateKey =
+             bits = DefaultKeySize): CryptoResult[PrivateKey] =
   ## Generate random private key for scheme ``scheme``.
   ##
   ## ``bits`` is number of bits for RSA key, ``bits`` value must be in
   ## [512, 4096], default value is 2048 bits.
-  doAssert(scheme in SupportedSchemes)
-  result = PrivateKey(scheme: scheme)
-  if scheme == RSA:
-    result.rsakey = RsaPrivateKey.random(bits)
-  elif scheme == Ed25519:
-    result.edkey = EdPrivateKey.random()
-  elif scheme == ECDSA:
-    result.eckey = EcPrivateKey.random(Secp256r1)
-  elif scheme == Secp256k1:
-    result.skkey = SkPrivateKey.random()
+  if scheme notin SupportedSchemes:
+    err(SchemeError)
+  else:
+    var res: t
+    res = PrivateKey(scheme: scheme)
+    if scheme == RSA:
+      res.rsakey = ? (RsaPrivateKey.random(bits).mapErr do (_: auto) -> auto: KeyError)
+      ok(res)
+    elif scheme == Ed25519:
+      res.edkey = ? (EdPrivateKey.random().mapErr do (_: auto) -> auto: KeyError)
+      ok(res)
+    elif scheme == ECDSA:
+      res.eckey = ? (EcPrivateKey.random(Secp256r1).mapErr do (_: auto) -> auto: KeyError)
+      ok(res)
+    elif scheme == Secp256k1:
+      res.skkey = ? (SkPrivateKey.random().mapErr do (_: auto) -> auto: KeyError)
+      ok(res)
+    else:
+      err(SchemeError)
 
 proc random*(t: typedesc[KeyPair], scheme: PKScheme,
-             bits = DefaultKeySize): KeyPair =
+             bits = DefaultKeySize): CryptoResult[KeyPair] =
   ## Generate random key pair for scheme ``scheme``.
   ##
   ## ``bits`` is number of bits for RSA key, ``bits`` value must be in
   ## [512, 4096], default value is 2048 bits.
-  doAssert(scheme in SupportedSchemes)
-  result.seckey = PrivateKey(scheme: scheme)
-  result.pubkey = PublicKey(scheme: scheme)
-  if scheme == RSA:
-    var pair = RsaKeyPair.random(bits)
-    result.seckey.rsakey = pair.seckey
-    result.pubkey.rsakey = pair.pubkey
-  elif scheme == Ed25519:
-    var pair = EdKeyPair.random()
-    result.seckey.edkey = pair.seckey
-    result.pubkey.edkey = pair.pubkey
-  elif scheme == ECDSA:
-    var pair = EcKeyPair.random(Secp256r1)
-    result.seckey.eckey = pair.seckey
-    result.pubkey.eckey = pair.pubkey
-  elif scheme == Secp256k1:
-    var pair = SkKeyPair.random()
-    result.seckey.skkey = pair.seckey
-    result.pubkey.skkey = pair.pubkey
+  if scheme notin SupportedSchemes:
+    err(SchemeError)
+  else:
+    var res: t
+    res.seckey = PrivateKey(scheme: scheme)
+    res.pubkey = PublicKey(scheme: scheme)
+    if scheme == RSA:
+      var pair = ? (RsaKeyPair.random(bits).mapErr do (_: auto) -> auto: KeyError)
+      res.seckey.rsakey = pair.seckey
+      res.pubkey.rsakey = pair.pubkey
+      ok(res)
+    elif scheme == Ed25519:
+      var pair = ? (EdKeyPair.random().mapErr do (_: auto) -> auto: KeyError)
+      res.seckey.edkey = pair.seckey
+      res.pubkey.edkey = pair.pubkey
+      ok(res)
+    elif scheme == ECDSA:
+      var pair = ? (EcKeyPair.random(Secp256r1).mapErr do (_: auto) -> auto: KeyError)
+      res.seckey.eckey = pair.seckey
+      res.pubkey.eckey = pair.pubkey
+      ok(res)
+    elif scheme == Secp256k1:
+      var pair = ? (SkKeyPair.random().mapErr do (_: auto) -> auto: KeyError)
+      res.seckey.skkey = pair.seckey
+      res.pubkey.skkey = pair.pubkey
+      ok(res)
+    else:
+      err(SchemeError)
 
 proc getKey*(key: PrivateKey): CryptoResult[PublicKey] =
   ## Get public key from corresponding private key ``key``.
@@ -352,34 +372,52 @@ proc init*(sig: var Signature, data: string): bool =
   except ValueError:
     false
 
-proc init*(t: typedesc[PrivateKey], data: openarray[byte]): PrivateKey =
+proc init*(t: typedesc[PrivateKey], data: openarray[byte]): CryptoResult[PrivateKey] =
   ## Create new private key from libp2p's protobuf serialized binary form.
-  if not result.init(data):
-    raise newException(P2pKeyError, "Incorrect binary form")
+  var res: t
+  if not res.init(data):
+    err(KeyError)
+  else:
+    ok(res)
 
-proc init*(t: typedesc[PublicKey], data: openarray[byte]): PublicKey =
+proc init*(t: typedesc[PublicKey], data: openarray[byte]): CryptoResult[PublicKey] =
   ## Create new public key from libp2p's protobuf serialized binary form.
-  if not result.init(data):
-    raise newException(P2pKeyError, "Incorrect binary form")
+  var res: t
+  if not res.init(data):
+    err(KeyError)
+  else:
+    ok(res)
 
-proc init*(t: typedesc[Signature], data: openarray[byte]): Signature =
+proc init*(t: typedesc[Signature], data: openarray[byte]): CryptoResult[Signature] =
   ## Create new public key from libp2p's protobuf serialized binary form.
-  if not result.init(data):
-    raise newException(P2pSigError, "Incorrect binary form")
+  var res: t
+  if not res.init(data):
+    err(SigError)
+  else:
+    ok(res)
 
-proc init*(t: typedesc[PrivateKey], data: string): PrivateKey =
+proc init*(t: typedesc[PrivateKey], data: string): CryptoResult[PrivateKey] =
   ## Create new private key from libp2p's protobuf serialized hexadecimal string
   ## form.
-  result = t.init(fromHex(data))
+  try:
+    t.init(fromHex(data))
+  except ValueError:
+    err(KeyError)
 
-proc init*(t: typedesc[PublicKey], data: string): PublicKey =
+proc init*(t: typedesc[PublicKey], data: string): CryptoResult[PublicKey] =
   ## Create new public key from libp2p's protobuf serialized hexadecimal string
   ## form.
-  result = t.init(fromHex(data))
+  try:
+    t.init(fromHex(data))
+  except ValueError:
+    err(KeyError)
 
-proc init*(t: typedesc[Signature], data: string): Signature =
+proc init*(t: typedesc[Signature], data: string): CryptoResult[Signature] =
   ## Create new signature from serialized hexadecimal string form.
-  result = t.init(fromHex(data))
+  try:
+    t.init(fromHex(data))
+  except ValueError:
+    err(SigError)
 
 proc `==`*(key1, key2: PublicKey): bool =
   ## Return ``true`` if two public keys ``key1`` and ``key2`` of the same
@@ -660,7 +698,7 @@ proc getSecret*(remoteEPublic: PublicKey,
       result = getSecret(remoteEPublic.eckey, localEPrivate.eckey)
 
 proc getOrder*(remotePubkey, localNonce: openarray[byte],
-               localPubkey, remoteNonce: openarray[byte]): int =
+               localPubkey, remoteNonce: openarray[byte]): CryptoResult[int] =
   ## Compare values and calculate `order` parameter.
   var ctx: sha256
   ctx.init()
@@ -671,16 +709,18 @@ proc getOrder*(remotePubkey, localNonce: openarray[byte],
   ctx.update(localPubkey)
   ctx.update(remoteNonce)
   var digest2 = ctx.finish()
-  var mh1 = MultiHash.init(multiCodec("sha2-256"), digest1)
-  var mh2 = MultiHash.init(multiCodec("sha2-256"), digest2)
+  var mh1 = ? (MultiHash.init(multiCodec("sha2-256"), digest1).mapErr do (_: auto) -> auto: HashError)
+  var mh2 = ? (MultiHash.init(multiCodec("sha2-256"), digest2).mapErr do (_: auto) -> auto: HashError)
+  var res = 0;
   for i in 0 ..< len(mh1.data.buffer):
-    result = int(mh1.data.buffer[i]) - int(mh2.data.buffer[i])
-    if result != 0:
-      if result < 0:
-        result = -1
-      elif result > 0:
-        result = 1
+    res = int(mh1.data.buffer[i]) - int(mh2.data.buffer[i])
+    if res != 0:
+      if res < 0:
+        res = -1
+      elif res > 0:
+        res = 1
       break
+  ok(res)
 
 proc selectBest*(order: int, p1, p2: string): string =
   ## Determines which algorithm to use from list `p1` and `p2`.
@@ -759,23 +799,23 @@ proc decodeExchange*(message: seq[byte],
 
 proc write*(vb: var VBuffer, pubkey: PublicKey) {.inline.} =
   ## Write PublicKey value ``pubkey`` to buffer ``vb``.
-  vb.writeSeq(pubkey.getBytes())
+  vb.writeSeq(pubkey.getBytes().get())
 
 proc write*(vb: var VBuffer, seckey: PrivateKey) {.inline.} =
   ## Write PrivateKey value ``seckey`` to buffer ``vb``.
-  vb.writeSeq(seckey.getBytes())
+  vb.writeSeq(seckey.getBytes().get())
 
 proc write*(vb: var VBuffer, sig: PrivateKey) {.inline.} =
   ## Write Signature value ``sig`` to buffer ``vb``.
-  vb.writeSeq(sig.getBytes())
+  vb.writeSeq(sig.getBytes().get())
 
 proc initProtoField*(index: int, pubkey: PublicKey): ProtoField =
   ## Initialize ProtoField with PublicKey ``pubkey``.
-  result = initProtoField(index, pubkey.getBytes())
+  result = initProtoField(index, pubkey.getBytes().get())
 
 proc initProtoField*(index: int, seckey: PrivateKey): ProtoField =
   ## Initialize ProtoField with PrivateKey ``seckey``.
-  result = initProtoField(index, seckey.getBytes())
+  result = initProtoField(index, seckey.getBytes().get())
 
 proc initProtoField*(index: int, sig: Signature): ProtoField =
   ## Initialize ProtoField with Signature ``sig``.

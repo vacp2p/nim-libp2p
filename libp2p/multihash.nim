@@ -392,15 +392,16 @@ proc init*[T](mhtype: typedesc[MultiHash], hashname: string,
   result = digestImplWithoutHash(hash, mdigest.data)
 
 proc init*[T](mhtype: typedesc[MultiHash], hashcode: MultiCodec,
-              mdigest: MDigest[T]): MultiHash {.inline.} =
+              mdigest: MDigest[T]): MultiHashResult[MultiHash] {.inline.} =
   ## Create MultiHash from nimcrypto's `MDigest` and hash algorithm code
   ## ``hashcode``.
   let hash = CodeHashes.getOrDefault(hashcode)
   if isNil(hash.coder):
-    raise newException(MultihashError, "Hash not supported")
-  if (hash.size != 0) and (hash.size != len(mdigest.data)):
-    raise newException(MultiHashError, "Incorrect MDigest[T] size")
-  result = digestImplWithoutHash(hash, mdigest.data)
+    err(MultiHashError.NotSupported)
+  elif (hash.size != 0) and (hash.size != len(mdigest.data)):
+    err(MultiHashError.WrongDigestSize)
+  else:
+    ok(digestImplWithoutHash(hash, mdigest.data))
 
 proc init*(mhtype: typedesc[MultiHash], hashname: string,
            bdigest: openarray[byte]): MultiHash {.inline.} =

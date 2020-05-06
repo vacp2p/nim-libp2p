@@ -378,13 +378,13 @@ suite "Key interface test suite":
 
   test "Go test vectors":
     for i in 0..<len(PrivateKeys):
-      var seckey = PrivateKey.init(fromHex(stripSpaces(PrivateKeys[i])))
-      var pubkey = PublicKey.init(fromHex(stripSpaces(PublicKeys[i])))
-      var calckey = seckey.getKey()
+      var seckey = PrivateKey.init(fromHex(stripSpaces(PrivateKeys[i]))).expect("private key")
+      var pubkey = PublicKey.init(fromHex(stripSpaces(PublicKeys[i]))).expect("public key")
+      var calckey = seckey.getKey().expect("public key")
       check:
         pubkey == calckey
-      var checkseckey = seckey.getBytes()
-      var checkpubkey = pubkey.getBytes()
+      var checkseckey = seckey.getBytes().expect("private key")
+      var checkpubkey = pubkey.getBytes().expect("public key")
       check:
         toHex(checkseckey) == stripSpaces(PrivateKeys[i])
         toHex(checkpubkey) == stripSpaces(PublicKeys[i])
@@ -394,19 +394,19 @@ suite "Key interface test suite":
     var bmsg = cast[seq[byte]](msg)
 
     for i in 0..<5:
-      var seckey = PrivateKey.random(ECDSA)
-      var pubkey = seckey.getKey()
-      var pair = KeyPair.random(ECDSA)
-      var sig1 = pair.seckey.sign(bmsg)
-      var sig2 = seckey.sign(bmsg)
+      var seckey = PrivateKey.random(ECDSA).get()
+      var pubkey = seckey.getKey().get()
+      var pair = KeyPair.random(ECDSA).get()
+      var sig1 = pair.seckey.sign(bmsg).get()
+      var sig2 = seckey.sign(bmsg).get()
       var sersig1 = sig1.getBytes()
       var sersig2 = sig2.getBytes()
-      var serpub1 = pair.pubkey.getBytes()
-      var serpub2 = pubkey.getBytes()
-      var recsig1 = Signature.init(sersig1)
-      var recsig2 = Signature.init(sersig2)
-      var recpub1 = PublicKey.init(serpub1)
-      var recpub2 = PublicKey.init(serpub2)
+      var serpub1 = pair.pubkey.getBytes().get()
+      var serpub2 = pubkey.getBytes().get()
+      var recsig1 = Signature.init(sersig1).get()
+      var recsig2 = Signature.init(sersig2).get()
+      var recpub1 = PublicKey.init(serpub1).get()
+      var recpub2 = PublicKey.init(serpub2).get()
       check:
         sig1.verify(bmsg, pair.pubkey) == true
         recsig1.verify(bmsg, recpub1) == true
@@ -414,19 +414,19 @@ suite "Key interface test suite":
         recsig2.verify(bmsg, recpub2) == true
 
     for i in 0..<5:
-      var seckey = PrivateKey.random(Ed25519)
-      var pubkey = seckey.getKey()
-      var pair = KeyPair.random(Ed25519)
-      var sig1 = pair.seckey.sign(bmsg)
-      var sig2 = seckey.sign(bmsg)
+      var seckey = PrivateKey.random(Ed25519).get()
+      var pubkey = seckey.getKey().get()
+      var pair = KeyPair.random(Ed25519).get()
+      var sig1 = pair.seckey.sign(bmsg).get()
+      var sig2 = seckey.sign(bmsg).get()
       var sersig1 = sig1.getBytes()
       var sersig2 = sig2.getBytes()
-      var serpub1 = pair.pubkey.getBytes()
-      var serpub2 = pubkey.getBytes()
-      var recsig1 = Signature.init(sersig1)
-      var recsig2 = Signature.init(sersig2)
-      var recpub1 = PublicKey.init(serpub1)
-      var recpub2 = PublicKey.init(serpub2)
+      var serpub1 = pair.pubkey.getBytes().get()
+      var serpub2 = pubkey.getBytes().get()
+      var recsig1 = Signature.init(sersig1).get()
+      var recsig2 = Signature.init(sersig2).get()
+      var recpub1 = PublicKey.init(serpub1).get()
+      var recpub2 = PublicKey.init(serpub2).get()
       check:
         sig1.verify(bmsg, pair.pubkey) == true
         recsig1.verify(bmsg, recpub1) == true
@@ -434,19 +434,19 @@ suite "Key interface test suite":
         recsig2.verify(bmsg, recpub2) == true
 
     for i in 0..<5:
-      var seckey = PrivateKey.random(RSA, 512)
-      var pubkey = seckey.getKey()
-      var pair = KeyPair.random(RSA, 512)
-      var sig1 = pair.seckey.sign(bmsg)
-      var sig2 = seckey.sign(bmsg)
+      var seckey = PrivateKey.random(RSA, 512).get()
+      var pubkey = seckey.getKey().get()
+      var pair = KeyPair.random(RSA, 512).get()
+      var sig1 = pair.seckey.sign(bmsg).get()
+      var sig2 = seckey.sign(bmsg).get()
       var sersig1 = sig1.getBytes()
       var sersig2 = sig2.getBytes()
-      var serpub1 = pair.pubkey.getBytes()
-      var serpub2 = pubkey.getBytes()
-      var recsig1 = Signature.init(sersig1)
-      var recsig2 = Signature.init(sersig2)
-      var recpub1 = PublicKey.init(serpub1)
-      var recpub2 = PublicKey.init(serpub2)
+      var serpub1 = pair.pubkey.getBytes().get()
+      var serpub2 = pubkey.getBytes().get()
+      var recsig1 = Signature.init(sersig1).get()
+      var recsig2 = Signature.init(sersig2).get()
+      var recpub1 = PublicKey.init(serpub1).get()
+      var recpub2 = PublicKey.init(serpub2).get()
       check:
         sig1.verify(bmsg, pair.pubkey) == true
         recsig1.verify(bmsg, recpub1) == true
