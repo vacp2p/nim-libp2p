@@ -106,16 +106,14 @@ proc readLine*(s: LPStream, limit = 0, sep = "\r\n"): Future[string] {.async, de
   except LPStreamIncompleteError, LPStreamReadError:
     discard # EOF, in which case we should return whatever we read so far..
 
-method write*(s: LPStream, msg: seq[byte], msglen = -1)
-  {.base, async.} =
+method write*(s: LPStream, msg: seq[byte]) {.base, async.} =
   doAssert(false, "not implemented!")
 
 proc write*(s: LPStream, pbytes: pointer, nbytes: int): Future[void] {.deprecated: "seq".} =
   s.write(@(toOpenArray(cast[ptr UncheckedArray[byte]](pbytes), 0, nbytes - 1)))
 
-proc write*(s: LPStream, msg: string, msglen = -1): Future[void] =
-  let nbytes = if msglen >= 0: msglen else: msg.len
-  s.write(@(toOpenArrayByte(msg, 0, nbytes - 1)))
+proc write*(s: LPStream, msg: string): Future[void] =
+  s.write(@(toOpenArrayByte(msg, 0, msg.high)))
 
 method close*(s: LPStream)
   {.base, async.} =

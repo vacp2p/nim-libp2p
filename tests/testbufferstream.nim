@@ -149,7 +149,7 @@ suite "BufferStream":
       let buff = newBufferStream(writeHandler, 10)
       check buff.len == 0
 
-      await buff.write("Hello!", 6)
+      await buff.write("Hello!")
 
       result = true
 
@@ -166,7 +166,7 @@ suite "BufferStream":
       let buff = newBufferStream(writeHandler, 10)
       check buff.len == 0
 
-      await buff.write(cast[seq[byte]]("Hello!"), 6)
+      await buff.write(cast[seq[byte]]("Hello!"))
 
       result = true
 

@@ -8,7 +8,7 @@
 ## those terms.
 
 import chronos, chronicles
-import lpstream
+import lpstream, ../utility
 
 logScope:
   topic = "ChronosStream"
@@ -56,12 +56,12 @@ method readOnce*(s: ChronosStream, pbytes: pointer, nbytes: int): Future[int] {.
   withExceptions:
     result = await s.reader.readOnce(pbytes, nbytes)
 
-method write*(s: ChronosStream, msg: seq[byte], msglen = -1) {.async.} =
+method write*(s: ChronosStream, msg: seq[byte]) {.async.} =
   if s.writer.atEof:
     raise newLPStreamEOFError()
 
   withExceptions:
-    await s.writer.write(msg, msglen)
+    await s.writer.write(msg)
 
 method closed*(s: ChronosStream): bool {.inline.} =
   # TODO: we might only need to check for reader's EOF

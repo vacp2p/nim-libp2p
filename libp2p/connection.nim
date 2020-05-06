@@ -109,7 +109,7 @@ method readExactly*(s: Connection,
                     pbytes: pointer,
                     nbytes: int):
                     Future[void] {.gcsafe.} =
- s.stream.readExactly(pbytes, nbytes)
+  s.stream.readExactly(pbytes, nbytes)
 
 method readOnce*(s: Connection,
                  pbytes: pointer,
@@ -118,10 +118,9 @@ method readOnce*(s: Connection,
   s.stream.readOnce(pbytes, nbytes)
 
 method write*(s: Connection,
-              msg: seq[byte],
-              msglen = -1):
+              msg: seq[byte]):
               Future[void] {.gcsafe.} =
-  s.stream.write(msg, msglen)
+  s.stream.write(msg)
 
 method closed*(s: Connection): bool =
   if isNil(s.stream):

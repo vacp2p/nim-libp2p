@@ -48,8 +48,7 @@ method readExactly*(s: TestSelectStream,
               cstring("\0x3na\n"),
               "\0x3na\n".len())
 
-method write*(s: TestSelectStream, msg: seq[byte], msglen = -1)
-  {.async, gcsafe.} = discard
+method write*(s: TestSelectStream, msg: seq[byte]) {.async, gcsafe.} = discard
 
 method close(s: TestSelectStream) {.async, gcsafe.} =
   s.isClosed = true
@@ -92,7 +91,7 @@ method readExactly*(s: TestLsStream,
       var buf = "na\n"
       copyMem(pbytes, addr buf[0], buf.len())
 
-method write*(s: TestLsStream, msg: seq[byte], msglen = -1) {.async, gcsafe.} =
+method write*(s: TestLsStream, msg: seq[byte]) {.async, gcsafe.} =
   if s.step == 4:
     await s.ls(msg)
 
@@ -139,7 +138,7 @@ method readExactly*(s: TestNaStream,
               cstring("\0x3na\n"),
               "\0x3na\n".len())
 
-method write*(s: TestNaStream, msg: seq[byte], msglen = -1) {.async, gcsafe.} =
+method write*(s: TestNaStream, msg: seq[byte]) {.async, gcsafe.} =
   if s.step == 4:
     await s.na(string.fromBytes(msg))
 

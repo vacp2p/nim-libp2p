@@ -267,11 +267,12 @@ template read_s: untyped =
 
 proc receiveHSMessage(sconn: Connection): Future[seq[byte]] {.async.} =
   var besize: array[2, byte]
-  await sconn.readExactly(addr besize[0], 2)
+  await sconn.stream.readExactly(addr besize[0], besize.len)
   let size = uint16.fromBytesBE(besize).int
   trace "receiveHSMessage", size
   var buffer = newSeq[byte](size)
-  await sconn.readExactly(addr buffer[0], size)
+  if buffer.len > 0:
+    await sconn.stream.readExactly(addr buffer[0], buffer.len)
   return buffer
 
 proc sendHSMessage(sconn: Connection; buf: seq[byte]) {.async.} =
@@ -416,16 +417,16 @@ proc handshakeXXInbound(p: Noise, conn: Connection, p2pProof: ProtoBuffer): Futu
   let (cs1, cs2) = hs.ss.split()
   return HandshakeResult(cs1: cs1, cs2: cs2, remoteP2psecret: remoteP2psecret, rs: hs.rs)
 
-method readMessage(sconn: NoiseConnection): Future[seq[byte]] {.async.} =
+method readMessage*(sconn: NoiseConnection): Future[seq[byte]] {.async.} =
   try:
     var besize: array[2, byte]
-    await sconn.readExactly(addr besize[0], 2)
+    await sconn.stream.readExactly(addr besize[0], besize.len)
     let size = uint16.fromBytesBE(besize).int
     trace "receiveEncryptedMessage", size, peer = $sconn.peerInfo
-    if size == 0:
+    if size == 0: # TODO end-of-stream vs 0-byte message
       return @[]
     var buffer = newSeq[byte](size)
-    await sconn.readExactly(addr buffer[0], size)
+    await sconn.stream.readExactly(addr buffer[0], buffer.len)
     var plain = sconn.readCs.decryptWithAd([], buffer)
     unpackNoisePayload(plain)
     return plain
@@ -434,7 +435,10 @@ method readMessage(sconn: NoiseConnection): Future[seq[byte]] {.async.} =
   except LPStreamReadError:
     trace "Error reading from connection"
 
-method writeMessage(sconn: NoiseConnection, message: seq[byte]): Future[void] {.async.} =
+method write*(sconn: NoiseConnection, message: seq[byte]): Future[void] {.async.} =
+  if message.len == 0:
+    return
+
   try:
     var
       left = message.len
@@ -453,7 +457,7 @@ method writeMessage(sconn: NoiseConnection, message: seq[byte]): Future[void] {.
       trace "sendEncryptedMessage", size = lesize, peer = $sconn.peerInfo, left, offset
       outbuf &= besize
       outbuf &= cipher
-      await sconn.write(outbuf)
+      await sconn.stream.write(outbuf)
   except AsyncStreamWriteError:
     trace "Could not write to connection"
 
