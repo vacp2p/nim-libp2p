@@ -39,6 +39,8 @@ type
     topics*: Table[string, Topic]     # local topics
     peers*: Table[string, PubSubPeer] # peerid to peer map
     triggerSelf*: bool                # trigger own local handler on publish
+    verifySignature*: bool            # enable signature verification
+    sign*: bool                       # enable message signing
     cleanupLock: AsyncLock
     validators*: Table[string, HashSet[ValidatorHandler]]
 
@@ -241,11 +243,14 @@ method validate*(p: PubSub, message: Message): Future[bool] {.async, base.} =
   let futs = await allFinished(pending)
   result = futs.allIt(not it.failed and it.read())
 
-proc newPubSub*(p: typedesc[PubSub],
+proc newPubSub*(P: typedesc[PubSub],
                 peerInfo: PeerInfo,
-                triggerSelf: bool = false): p =
-  new result
-  result.peerInfo = peerInfo
-  result.triggerSelf = triggerSelf
-  result.cleanupLock = newAsyncLock()
+                triggerSelf: bool = false,
+                verifySignature: bool = true,
+                sign: bool = true): P =
+  result = P(peerInfo: peerInfo,
+             triggerSelf: triggerSelf,
+             verifySignature: verifySignature,
+             sign: sign,
+             cleanupLock: newAsyncLock())
   result.initPubSub()

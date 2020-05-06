@@ -19,5 +19,4 @@ import testtransport,
        testswitch,
        testnoise,
        testpeerinfo,
-       testmplex,
-       pubsub/testpubsub
+       testmplex

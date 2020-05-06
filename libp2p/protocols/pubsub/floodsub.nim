@@ -65,7 +65,7 @@ method rpcHandler*(f: FloodSub,
         if msg.msgId notin f.seen:
           f.seen.put(msg.msgId)                      # add the message to the seen cache
 
-          if not msg.verify(peer.peerInfo):
+          if f.verifySignature and not msg.verify(peer.peerInfo):
             trace "dropping message due to failed signature verification"
             continue
 
@@ -120,7 +120,7 @@ method publish*(f: FloodSub,
     return
 
   trace "publishing on topic", name = topic
-  let msg = newMessage(f.peerInfo, data, topic)
+  let msg = newMessage(f.peerInfo, data, topic, f.sign)
   var sent: seq[Future[void]]
   # start the future but do not wait yet
   for p in f.floodsub[topic]:

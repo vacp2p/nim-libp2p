@@ -1,6 +1,8 @@
 # compile time options here
 const
   libp2p_secure {.strdefine.} = ""
+  libp2p_pubsub_sign {.booldefine.} = true
+  libp2p_pubsub_verify {.booldefine.} = true
 
 import
   options, tables,
@@ -21,7 +23,9 @@ export
 proc newStandardSwitch*(privKey = none(PrivateKey),
                         address = MultiAddress.init("/ip4/127.0.0.1/tcp/0"),
                         triggerSelf = false,
-                        gossip = false): Switch =
+                        gossip = false,
+                        verifySignature = libp2p_pubsub_verify,
+                        sign = libp2p_pubsub_sign): Switch =
   proc createMplex(conn: Connection): Muxer =
     result = newMplex(conn)
 
@@ -36,10 +40,19 @@ proc newStandardSwitch*(privKey = none(PrivateKey),
     let secureManagers = {NoiseCodec: newNoise(seckey).Secure}.toTable
   else:
     let secureManagers = {SecioCodec: newSecio(seckey).Secure}.toTable
+
   let pubSub = if gossip:
-                 PubSub newPubSub(GossipSub, peerInfo, triggerSelf)
+                 PubSub newPubSub(GossipSub,
+                                  peerInfo = peerInfo,
+                                  triggerSelf = triggerSelf,
+                                  verifySignature = verifySignature,
+                                  sign = sign)
                else:
-                 PubSub newPubSub(FloodSub, peerInfo, triggerSelf)
+                 PubSub newPubSub(FloodSub,
+                                  peerInfo = peerInfo,
+                                  triggerSelf = triggerSelf,
+                                  verifySignature = verifySignature,
+                                  sign = sign)
 
   result = newSwitch(peerInfo,
                      transports,
@@ -47,4 +60,3 @@ proc newStandardSwitch*(privKey = none(PrivateKey),
                      muxers,
                      secureManagers = secureManagers,
                      pubSub = some(pubSub))
-

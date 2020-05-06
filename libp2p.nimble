@@ -16,19 +16,43 @@ requires "nim >= 1.2.0",
          "secp256k1",
          "stew"
 
-proc runTest(filename: string, secure: string = "secio") =
-  exec "nim c -r --opt:speed -d:debug --verbosity:0 --hints:off tests/" & filename
+proc runTest(filename: string, secure: string = "secio", verify: bool = true, sign: bool = true) =
+  var excstr: string = "nim c -r --opt:speed -d:debug --verbosity:0 --hints:off"
+  excstr.add(" ")
+  excstr.add("-d:libp2p_secure=" & $secure)
+  excstr.add(" ")
+  excstr.add("-d:libp2p_pubsub_sign=" & $sign)
+  excstr.add(" ")
+  excstr.add("-d:libp2p_pubsub_verify=" & $verify)
+  excstr.add(" ")
+  excstr.add("tests/" & filename)
+  exec excstr
   rmFile "tests/" & filename.toExe
 
 proc buildSample(filename: string) =
   exec "nim c --opt:speed --threads:on -d:debug --verbosity:0 --hints:off examples/" & filename
   rmFile "examples" & filename.toExe
 
-task test, "Runs the test suite":
+task testnative, "Runs libp2p native tests":
   runTest("testnative")
-  runTest("testnative", "noise")
+
+task testdaemon, "Runs daemon tests":
   runTest("testdaemon")
+
+task testinterop, "Runs interop tests":
   runTest("testinterop")
+
+task testpubsub, "Runs pubsub tests":
+  runTest("pubsub/testpubsub")
+  runTest("pubsub/testpubsub", sign = false, verify = false)
+  # runTest("pubsub/testpubsub", "noise")
+
+task test, "Runs the test suite":
+  exec "nimble testnative"
+  # runTest("testnative", "noise")
+  exec "nimble testpubsub"
+  exec "nimble testdaemon"
+  exec "nimble testinterop"
 
 task examples_build, "Build the samples":
   buildSample("directchat")
