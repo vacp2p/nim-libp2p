@@ -82,8 +82,8 @@ suite "MultiHash test suite":
     for item in RustTestVectors:
       var msg = item[1]
       var bmsg = cast[seq[byte]](msg)
-      var mh1 = MultiHash.digest(item[0], bmsg)
-      var mh2 = MultiHash.init(stripSpaces(item[2]))
+      var mh1 = MultiHash.digest(item[0], bmsg).get()
+      var mh2 = MultiHash.init(stripSpaces(item[2])).get()
       check:
         hex(mh1) == stripSpaces(item[2])
         hex(mh1) == hex(mh2)

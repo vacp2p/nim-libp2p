@@ -38,17 +38,17 @@ suite "Content identifier CID test suite":
     var bmsg = cast[seq[byte]](msg)
     var bmmsg = cast[seq[byte]](mmsg)
     var cid0 = Cid.init(CIDv0, multiCodec("dag-pb"),
-                        MultiHash.digest("sha2-256", bmsg))
+                        MultiHash.digest("sha2-256", bmsg).get())
     var cid1 = Cid.init(CIDv1, multiCodec("dag-pb"),
-                        MultiHash.digest("sha2-256", bmsg))
+                        MultiHash.digest("sha2-256", bmsg).get())
     var cid2 = cid1
     var cid3 = cid0
     var cid4 = Cid.init(CIDv1, multiCodec("dag-cbor"),
-                        MultiHash.digest("sha2-256", bmsg))
+                        MultiHash.digest("sha2-256", bmsg).get())
     var cid5 = Cid.init(CIDv1, multiCodec("dag-pb"),
-                        MultiHash.digest("sha2-256", bmmsg))
+                        MultiHash.digest("sha2-256", bmmsg).get())
     var cid6 = Cid.init(CIDv1, multiCodec("dag-pb"),
-                        MultiHash.digest("keccak-256", bmsg))
+                        MultiHash.digest("keccak-256", bmsg).get())
     check:
       cid0 == cid1
       cid1 == cid2

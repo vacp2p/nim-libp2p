@@ -24,29 +24,29 @@ suite "PeerInfo":
         check tracker.isLeaked() == false
 
   test "Should init with private key":
-    let seckey = PrivateKey.random(RSA)
+    let seckey = PrivateKey.random(RSA).get()
     var peerInfo = PeerInfo.init(seckey)
     var peerId = PeerID.init(seckey)
 
     check peerId == peerInfo.peerId
     check seckey == peerInfo.privateKey
-    check seckey.getKey == peerInfo.publicKey.get()
+    check seckey.getKey().get() == peerInfo.publicKey.get()
 
   test "Should init with public key":
-    let seckey = PrivateKey.random(RSA)
-    var peerInfo = PeerInfo.init(seckey.getKey())
-    var peerId = PeerID.init(seckey.getKey())
+    let seckey = PrivateKey.random(RSA).get()
+    var peerInfo = PeerInfo.init(seckey.getKey().get())
+    var peerId = PeerID.init(seckey.getKey().get())
 
     check peerId == peerInfo.peerId
-    check seckey.getKey == peerInfo.publicKey.get()
+    check seckey.getKey.get() == peerInfo.publicKey.get()
 
   test "Should init from PeerId with public key":
-    let seckey = PrivateKey.random(Ed25519)
-    var peerInfo = PeerInfo.init(PeerID.init(seckey.getKey()))
-    var peerId = PeerID.init(seckey.getKey())
+    let seckey = PrivateKey.random(Ed25519).get()
+    var peerInfo = PeerInfo.init(PeerID.init(seckey.getKey.get()))
+    var peerId = PeerID.init(seckey.getKey.get())
 
     check peerId == peerInfo.peerId
-    check seckey.getKey == peerInfo.publicKey.get()
+    check seckey.getKey.get() == peerInfo.publicKey.get()
 
   test "Should init from CIDv0 string":
     var peerInfo = PeerInfo.init("QmYyQSo1c1Ym7orWxLYvCrM2EmxFTANf8wXmmE7DWjhx5N")
@@ -63,16 +63,16 @@ suite "PeerInfo":
   #     PeerID.init("bafzbeie5745rpv2m6tjyuugywy4d5ewrqgqqhfnf445he3omzpjbx5xqxe") == peerInfo.peerId
 
   test "Should return none if pubkey is missing from id":
-    let peerInfo = PeerInfo.init(PeerID.init(PrivateKey.random(RSA)))
+    let peerInfo = PeerInfo.init(PeerID.init(PrivateKey.random(RSA).get()))
     check peerInfo.publicKey.isNone
 
   test "Should return some if pubkey is present in id":
-    let peerInfo = PeerInfo.init(PeerID.init(PrivateKey.random(Ed25519)))
+    let peerInfo = PeerInfo.init(PeerID.init(PrivateKey.random(Ed25519).get()))
     check peerInfo.publicKey.isSome
 
   test "join() and isClosed() test":
     proc testJoin(): Future[bool] {.async, gcsafe.} =
-      let peerInfo = PeerInfo.init(PeerID.init(PrivateKey.random(Ed25519)))
+      let peerInfo = PeerInfo.init(PeerID.init(PrivateKey.random(Ed25519).get()))
       check peerInfo.isClosed() == false
       var joinFut = peerInfo.join()
       check joinFut.finished() == false

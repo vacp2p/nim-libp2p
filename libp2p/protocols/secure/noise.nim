@@ -462,7 +462,8 @@ method handshake*(p: Noise, conn: Connection, initiator: bool = false): Future[S
 
   # https://github.com/libp2p/specs/tree/master/noise#libp2p-data-in-handshake-messages
   let
-    signedPayload = p.localPrivateKey.sign(PayloadString.toBytes & p.noisePublicKey.getBytes)
+    signedPayload = p.localPrivateKey.sign(
+      PayloadString.toBytes & p.noisePublicKey.getBytes).tryGet()
 
   var
     libp2pProof = initProtoBuffer()
@@ -520,7 +521,7 @@ method init*(p: Noise) {.gcsafe.} =
   procCall Secure(p).init()
   p.codec = NoiseCodec
 
-method secure*(p: Noise, conn: Connection): Future[Connection] {.async, gcsafe.} =
+method secure*(p: Noise, conn: Connection, initiator: bool): Future[Connection] {.async, gcsafe.} =
   trace "Noise.secure called", initiator=p.outgoing
   try:
     result = await p.handleConn(conn, p.outgoing)
@@ -533,7 +534,7 @@ proc newNoise*(privateKey: PrivateKey; outgoing: bool = true; commonPrologue: se
   new result
   result.outgoing = outgoing
   result.localPrivateKey = privateKey
-  result.localPublicKey = privateKey.getKey()
+  result.localPublicKey = privateKey.getKey().tryGet()
   discard randomBytes(result.noisePrivateKey)
   result.noisePublicKey = result.noisePrivateKey.public()
   result.commonPrologue = commonPrologue

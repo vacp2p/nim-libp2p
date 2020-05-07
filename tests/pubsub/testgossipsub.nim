@@ -25,7 +25,7 @@ const
   StreamServerTrackerName = "stream.server"
 
 proc createGossipSub(): GossipSub =
-  var peerInfo = PeerInfo.init(PrivateKey.random(RSA))
+  var peerInfo = PeerInfo.init(PrivateKey.random(RSA).get())
   result = newPubSub(GossipSub, peerInfo)
 
 proc waitSub(sender, receiver: auto; key: string) {.async, gcsafe.} =

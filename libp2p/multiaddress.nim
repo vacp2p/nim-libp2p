@@ -140,7 +140,7 @@ proc p2pStB(s: string, vb: var VBuffer): bool =
   try:
     var data = Base58.decode(s)
     var mh: MultiHash
-    if MultiHash.decode(data, mh) >= 0:
+    if MultiHash.decode(data, mh).isOk:
       vb.writeSeq(data)
       result = true
   except:
@@ -151,7 +151,7 @@ proc p2pBtS(vb: var VBuffer, s: var string): bool =
   var address = newSeq[byte]()
   if vb.readSeq(address) > 0:
     var mh: MultiHash
-    if MultiHash.decode(address, mh) >= 0:
+    if MultiHash.decode(address, mh).isOk:
       s = Base58.encode(address)
       result = true
 
@@ -160,7 +160,7 @@ proc p2pVB(vb: var VBuffer): bool =
   var address = newSeq[byte]()
   if vb.readSeq(address) > 0:
     var mh: MultiHash
-    if MultiHash.decode(address, mh) >= 0:
+    if MultiHash.decode(address, mh).isOk:
       result = true
 
 proc onionStB(s: string, vb: var VBuffer): bool =

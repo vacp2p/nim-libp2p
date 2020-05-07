@@ -9,7 +9,7 @@ import ../../libp2p/[peer,
 suite "MCache":
   test "put/get":
     var mCache = newMCache(3, 5)
-    var msg = Message(fromPeer: PeerID.init(PrivateKey.random(RSA)).data,
+    var msg = Message(fromPeer: PeerID.init(PrivateKey.random(RSA).get()).data,
                        seqno: cast[seq[byte]]("12345"))
     mCache.put(msg)
     check mCache.get(msg.msgId).isSome and mCache.get(msg.msgId).get() == msg
@@ -18,13 +18,13 @@ suite "MCache":
     var mCache = newMCache(3, 5)
 
     for i in 0..<3:
-      var msg = Message(fromPeer: PeerID.init(PrivateKey.random(RSA)).data,
+      var msg = Message(fromPeer: PeerID.init(PrivateKey.random(RSA).get()).data,
                         seqno: cast[seq[byte]]("12345"),
                         topicIDs: @["foo"])
       mCache.put(msg)
 
     for i in 0..<5:
-      var msg = Message(fromPeer: PeerID.init(PrivateKey.random(RSA)).data,
+      var msg = Message(fromPeer: PeerID.init(PrivateKey.random(RSA).get()).data,
                         seqno: cast[seq[byte]]("12345"),
                         topicIDs: @["bar"])
       mCache.put(msg)
@@ -39,7 +39,7 @@ suite "MCache":
     var mCache = newMCache(1, 5)
 
     for i in 0..<3:
-      var msg = Message(fromPeer: PeerID.init(PrivateKey.random(RSA)).data,
+      var msg = Message(fromPeer: PeerID.init(PrivateKey.random(RSA).get()).data,
                         seqno: cast[seq[byte]]("12345"),
                         topicIDs: @["foo"])
       mCache.put(msg)
@@ -48,7 +48,7 @@ suite "MCache":
     check mCache.window("foo").len == 0
 
     for i in 0..<3:
-      var msg = Message(fromPeer: PeerID.init(PrivateKey.random(RSA)).data,
+      var msg = Message(fromPeer: PeerID.init(PrivateKey.random(RSA).get()).data,
                         seqno: cast[seq[byte]]("12345"),
                         topicIDs: @["bar"])
       mCache.put(msg)
@@ -57,7 +57,7 @@ suite "MCache":
     check mCache.window("bar").len == 0
 
     for i in 0..<3:
-      var msg = Message(fromPeer: PeerID.init(PrivateKey.random(RSA)).data,
+      var msg = Message(fromPeer: PeerID.init(PrivateKey.random(RSA).get()).data,
                         seqno: cast[seq[byte]]("12345"),
                         topicIDs: @["baz"])
       mCache.put(msg)
@@ -69,19 +69,19 @@ suite "MCache":
     var mCache = newMCache(1, 5)
 
     for i in 0..<3:
-      var msg = Message(fromPeer: PeerID.init(PrivateKey.random(RSA)).data,
+      var msg = Message(fromPeer: PeerID.init(PrivateKey.random(RSA).get()).data,
                         seqno: cast[seq[byte]]("12345"),
                         topicIDs: @["foo"])
       mCache.put(msg)
 
     for i in 0..<3:
-      var msg = Message(fromPeer: PeerID.init(PrivateKey.random(RSA)).data,
+      var msg = Message(fromPeer: PeerID.init(PrivateKey.random(RSA).get()).data,
                         seqno: cast[seq[byte]]("12345"),
                         topicIDs: @["bar"])
       mCache.put(msg)
 
     for i in 0..<3:
-      var msg = Message(fromPeer: PeerID.init(PrivateKey.random(RSA)).data,
+      var msg = Message(fromPeer: PeerID.init(PrivateKey.random(RSA).get()).data,
                         seqno: cast[seq[byte]]("12345"),
                         topicIDs: @["baz"])
       mCache.put(msg)

@@ -50,7 +50,7 @@ method init(p: TestProto) {.gcsafe.} =
   p.handler = handle
 
 proc createSwitch(ma: MultiAddress; outgoing: bool): (Switch, PeerInfo) =
-  var peerInfo: PeerInfo = PeerInfo.init(PrivateKey.random(RSA))
+  var peerInfo: PeerInfo = PeerInfo.init(PrivateKey.random(RSA).get())
   peerInfo.addrs.add(ma)
   let identify = newIdentify(peerInfo)
 
@@ -88,11 +88,11 @@ suite "Noise":
     proc testListenerDialer(): Future[bool] {.async.} =
       let
         server: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
-        serverInfo = PeerInfo.init(PrivateKey.random(RSA), [server])
+        serverInfo = PeerInfo.init(PrivateKey.random(RSA).get(), [server])
         serverNoise = newNoise(serverInfo.privateKey, outgoing = false)
 
       proc connHandler(conn: Connection) {.async, gcsafe.} =
-        let sconn = await serverNoise.secure(conn)
+        let sconn = await serverNoise.secure(conn, false)
         defer:
           await sconn.close()
           await conn.close()
@@ -104,10 +104,10 @@ suite "Noise":
 
       let
         transport2: TcpTransport = newTransport(TcpTransport)
-        clientInfo = PeerInfo.init(PrivateKey.random(RSA), [transport1.ma])
+        clientInfo = PeerInfo.init(PrivateKey.random(RSA).get(), [transport1.ma])
         clientNoise = newNoise(clientInfo.privateKey, outgoing = true)
         conn = await transport2.dial(transport1.ma)
-        sconn = await clientNoise.secure(conn)
+        sconn = await clientNoise.secure(conn, true)
 
         msg = await sconn.read(6)
 
@@ -125,12 +125,12 @@ suite "Noise":
     proc testListenerDialer(): Future[bool] {.async.} =
       let
         server: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
-        serverInfo = PeerInfo.init(PrivateKey.random(RSA), [server])
+        serverInfo = PeerInfo.init(PrivateKey.random(RSA).get(), [server])
         serverNoise = newNoise(serverInfo.privateKey, outgoing = false)
         readTask = newFuture[void]()
 
       proc connHandler(conn: Connection) {.async, gcsafe.} =
-        let sconn = await serverNoise.secure(conn)
+        let sconn = await serverNoise.secure(conn, false)
         defer:
           await sconn.close()
           await conn.close()
@@ -144,10 +144,10 @@ suite "Noise":
 
       let
         transport2: TcpTransport = newTransport(TcpTransport)
-        clientInfo = PeerInfo.init(PrivateKey.random(RSA), [transport1.ma])
+        clientInfo = PeerInfo.init(PrivateKey.random(RSA).get(), [transport1.ma])
         clientNoise = newNoise(clientInfo.privateKey, outgoing = true)
         conn = await transport2.dial(transport1.ma)
-        sconn = await clientNoise.secure(conn)
+        sconn = await clientNoise.secure(conn, true)
 
       await sconn.write("Hello!".cstring, 6)
       await readTask
@@ -165,7 +165,7 @@ suite "Noise":
     proc testListenerDialer(): Future[bool] {.async.} =
       let
         server: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
-        serverInfo = PeerInfo.init(PrivateKey.random(RSA), [server])
+        serverInfo = PeerInfo.init(PrivateKey.random(RSA).get(), [server])
         serverNoise = newNoise(serverInfo.privateKey, outgoing = false)
         readTask = newFuture[void]()
 
@@ -174,7 +174,7 @@ suite "Noise":
       trace "Sending huge payload", size = hugePayload.len
 
       proc connHandler(conn: Connection) {.async, gcsafe.} =
-        let sconn = await serverNoise.secure(conn)
+        let sconn = await serverNoise.secure(conn, false)
         defer:
           await sconn.close()
         let msg = await sconn.readLp()
@@ -187,10 +187,10 @@ suite "Noise":
 
       let
         transport2: TcpTransport = newTransport(TcpTransport)
-        clientInfo = PeerInfo.init(PrivateKey.random(RSA), [transport1.ma])
+        clientInfo = PeerInfo.init(PrivateKey.random(RSA).get(), [transport1.ma])
         clientNoise = newNoise(clientInfo.privateKey, outgoing = true)
         conn = await transport2.dial(transport1.ma)
-        sconn = await clientNoise.secure(conn)
+        sconn = await clientNoise.secure(conn, true)
 
       await sconn.writeLp(hugePayload)
       await readTask

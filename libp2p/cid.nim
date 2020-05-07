@@ -161,8 +161,8 @@ proc mhash*(cid: Cid): MultiHash =
   ## Returns MultiHash part of CID.
   if cid.cidver notin {CIDv0, CIDv1}:
     raise newException(CidError, "Incorrect CID!")
-  result = MultiHash.init(cid.data.buffer.toOpenArray(cid.hpos,
-                                                      len(cid.data) - 1))
+  result = MultiHash.init(
+    cid.data.buffer.toOpenArray(cid.hpos, len(cid.data) - 1)).tryGet()
 
 proc contentType*(cid: Cid): MultiCodec =
   ## Returns content type part of CID
@@ -221,11 +221,11 @@ proc `==`*(a: Cid, b: Cid): bool =
   ## are equal, ``false`` otherwise.
   if a.mcodec == b.mcodec:
     var ah, bh: MultiHash
-    if MultiHash.decode(a.data.buffer.toOpenArray(a.hpos,
-                                                  len(a.data) - 1), ah) == -1:
+    if MultiHash.decode(
+      a.data.buffer.toOpenArray(a.hpos, len(a.data) - 1), ah).isErr:
       return false
-    if MultiHash.decode(b.data.buffer.toOpenArray(b.hpos,
-                                                  len(b.data) - 1), bh) == -1:
+    if MultiHash.decode(
+      b.data.buffer.toOpenArray(b.hpos, len(b.data) - 1), bh).isErr:
       return false
     result = (ah == bh)
 
