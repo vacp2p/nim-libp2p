@@ -57,7 +57,8 @@ func add*(v: var StreamSeq, data: openArray[byte]) =
     v.commit(data.len)
 
 template data*(v: StreamSeq): openArray[byte] =
-  ## Data that is ready to be consumed
+  # Data that is ready to be consumed
+  # TODO a double-hash comment here breaks compile (!)
   v.buf.toOpenArray(v.rpos, v.wpos - 1)
 
 func consume*(v: var StreamSeq, n: int) =
