@@ -57,6 +57,7 @@ func add*(v: var StreamSeq, data: openArray[byte]) =
     v.commit(data.len)
 
 template data*(v: StreamSeq): openArray[byte] =
+  ## Data that is ready to be consumed
   v.buf.toOpenArray(v.rpos, v.wpos - 1)
 
 func consume*(v: var StreamSeq, n: int) =
@@ -69,6 +70,3 @@ func consumeTo*(v: var StreamSeq, buf: var openArray[byte]): int =
     copyMem(addr buf[0], addr v.buf[v.rpos], bytes)
     v.consume(bytes)
   bytes
-
-func capacity*(v: StreamSeq): int =
-  ## The number of bytes
