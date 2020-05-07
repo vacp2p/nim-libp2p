@@ -27,28 +27,31 @@ type
     par*: ref Exception
   LPStreamEOFError* = object of LPStreamError
 
-proc newLPStreamReadError*(p: ref Exception): ref Exception {.inline.} =
+proc newLPStreamReadError*(p: ref Exception): ref Exception =
   var w = newException(LPStreamReadError, "Read stream failed")
   w.msg = w.msg & ", originated from [" & $p.name & "] " & p.msg
   w.par = p
   result = w
 
-proc newLPStreamWriteError*(p: ref Exception): ref Exception {.inline.} =
+proc newLPStreamReadError*(msg: string): ref Exception =
+  newException(LPStreamReadError, msg)
+
+proc newLPStreamWriteError*(p: ref Exception): ref Exception =
   var w = newException(LPStreamWriteError, "Write stream failed")
   w.msg = w.msg & ", originated from [" & $p.name & "] " & p.msg
   w.par = p
   result = w
 
-proc newLPStreamIncompleteError*(): ref Exception {.inline.} =
+proc newLPStreamIncompleteError*(): ref Exception =
   result = newException(LPStreamIncompleteError, "Incomplete data received")
 
-proc newLPStreamLimitError*(): ref Exception {.inline.} =
+proc newLPStreamLimitError*(): ref Exception =
   result = newException(LPStreamLimitError, "Buffer limit reached")
 
-proc newLPStreamIncorrectDefect*(m: string): ref Exception {.inline.} =
+proc newLPStreamIncorrectDefect*(m: string): ref Exception =
   result = newException(LPStreamIncorrectDefect, m)
 
-proc newLPStreamEOFError*(): ref Exception {.inline.} =
+proc newLPStreamEOFError*(): ref Exception =
   result = newException(LPStreamEOFError, "Stream EOF!")
 
 method closed*(s: LPStream): bool {.base, inline.} =
@@ -106,16 +109,14 @@ proc readLine*(s: LPStream, limit = 0, sep = "\r\n"): Future[string] {.async, de
   except LPStreamIncompleteError, LPStreamReadError:
     discard # EOF, in which case we should return whatever we read so far..
 
-method write*(s: LPStream, msg: seq[byte], msglen = -1)
-  {.base, async.} =
+method write*(s: LPStream, msg: seq[byte]) {.base, async.} =
   doAssert(false, "not implemented!")
 
 proc write*(s: LPStream, pbytes: pointer, nbytes: int): Future[void] {.deprecated: "seq".} =
   s.write(@(toOpenArray(cast[ptr UncheckedArray[byte]](pbytes), 0, nbytes - 1)))
 
-proc write*(s: LPStream, msg: string, msglen = -1): Future[void] =
-  let nbytes = if msglen >= 0: msglen else: msg.len
-  s.write(@(toOpenArrayByte(msg, 0, nbytes - 1)))
+proc write*(s: LPStream, msg: string): Future[void] =
+  s.write(@(toOpenArrayByte(msg, 0, msg.high)))
 
 method close*(s: LPStream)
   {.base, async.} =

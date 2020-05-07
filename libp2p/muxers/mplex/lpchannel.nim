@@ -161,6 +161,6 @@ template writePrefix: untyped =
   if s.isLazy and not s.isOpen:
     await s.open()
 
-method write*(s: LPChannel, msg: seq[byte], msglen = -1) {.async.} =
+method write*(s: LPChannel, msg: seq[byte]) {.async.} =
   writePrefix()
-  await procCall write(BufferStream(s), msg, msglen)
+  await procCall write(BufferStream(s), msg)

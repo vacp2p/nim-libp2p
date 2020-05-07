@@ -1,4 +1,5 @@
-import testvarint
+import testvarint,
+       teststreamseq
 
 import testrsa,
        testecnist,

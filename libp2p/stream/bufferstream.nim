@@ -216,9 +216,7 @@ method readOnce*(s: BufferStream,
   await s.readExactly(pbytes, len)
   result = len
 
-method write*(s: BufferStream,
-              msg: seq[byte],
-              msglen = -1): Future[void] =
+method write*(s: BufferStream, msg: seq[byte]): Future[void] =
   ## Write sequence of bytes ``sbytes`` of length ``msglen`` to writer
   ## stream ``wstream``.
   ##
@@ -233,7 +231,7 @@ method write*(s: BufferStream,
     retFuture.fail(newNotWritableError())
     return retFuture
 
-  result = s.writeHandler(if msglen >= 0: msg[0..<msglen] else: msg)
+  result = s.writeHandler(msg)
 
 proc pipe*(s: BufferStream,
            target: BufferStream): BufferStream =

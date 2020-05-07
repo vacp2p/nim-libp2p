@@ -10,20 +10,17 @@
 import options
 import chronos, chronicles
 import ../protocol,
-       ../../stream/bufferstream,
+       ../../stream/streamseq,
        ../../connection,
-       ../../peerinfo,
-       ../../utility
+       ../../peerinfo
 
 type
   Secure* = ref object of LPProtocol # base type for secure managers
 
   SecureConn* = ref object of Connection
+    buf: StreamSeq
 
 method readMessage*(c: SecureConn): Future[seq[byte]] {.async, base.} =
-  doAssert(false, "Not implemented!")
-
-method writeMessage*(c: SecureConn, data: seq[byte]) {.async, base.} =
   doAssert(false, "Not implemented!")
 
 method handshake(s: Secure,
@@ -31,36 +28,10 @@ method handshake(s: Secure,
                  initiator: bool): Future[SecureConn] {.async, base.} =
   doAssert(false, "Not implemented!")
 
-proc readLoop(sconn: SecureConn, conn: Connection) {.async.} =
-  try:
-    let stream = BufferStream(conn.stream)
-    while not sconn.closed:
-      let msg = await sconn.readMessage()
-      if msg.len == 0:
-        trace "stream EOF"
-        return
-
-      await stream.pushTo(msg)
-  except CatchableError as exc:
-    trace "Exception occurred Secure.readLoop", exc = exc.msg
-  finally:
-    trace "closing conn", closed = conn.closed()
-    if not conn.closed:
-      await conn.close()
-
-    trace "closing sconn", closed = sconn.closed()
-    if not sconn.closed:
-      await sconn.close()
-    trace "ending Secure readLoop"
-
 proc handleConn*(s: Secure, conn: Connection, initiator: bool): Future[Connection] {.async, gcsafe.} =
   var sconn = await s.handshake(conn, initiator)
-  proc writeHandler(data: seq[byte]) {.async, gcsafe.} =
-    trace "sending encrypted bytes", bytes = data.shortLog
-    await sconn.writeMessage(data)
 
-  result = newConnection(newBufferStream(writeHandler))
-  conn.readLoops &= readLoop(sconn, result)
+  result = sconn
 
   if not isNil(sconn.peerInfo) and sconn.peerInfo.publicKey.isSome:
     result.peerInfo = PeerInfo.init(sconn.peerInfo.publicKey.get())
@@ -86,3 +57,37 @@ method secure*(s: Secure, conn: Connection, initiator: bool): Future[Connection]
     warn "securing connection failed", msg = exc.msg
     if not conn.closed():
       await conn.close()
+
+method readExactly*(s: SecureConn,
+                    pbytes: pointer,
+                    nbytes: int):
+                    Future[void] {.async, gcsafe.} =
+  if nbytes == 0:
+    return
+
+  while s.buf.data().len < nbytes:
+    # TODO write decrypted content straight into buf using `prepare`
+    let buf = await s.readMessage()
+    if buf.len == 0:
+      raise newLPStreamIncompleteError()
+    s.buf.add(buf)
+
+  var p = cast[ptr UncheckedArray[byte]](pbytes)
+  let consumed = s.buf.consumeTo(toOpenArray(p, 0, nbytes - 1))
+  doAssert consumed == nbytes, "checked above"
+
+method readOnce*(s: SecureConn,
+                 pbytes: pointer,
+                 nbytes: int):
+                 Future[int] {.async, gcsafe.} =
+  if nbytes == 0:
+    return 0
+
+  if s.buf.data().len() == 0:
+    let buf = await s.readMessage()
+    if buf.len == 0:
+      raise newLPStreamIncompleteError()
+    s.buf.add(buf)
+
+  var p = cast[ptr UncheckedArray[byte]](pbytes)
+  return s.buf.consumeTo(toOpenArray(p, 0, nbytes - 1))
