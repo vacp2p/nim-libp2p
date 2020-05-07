@@ -27,28 +27,31 @@ type
     par*: ref Exception
   LPStreamEOFError* = object of LPStreamError
 
-proc newLPStreamReadError*(p: ref Exception): ref Exception {.inline.} =
+proc newLPStreamReadError*(p: ref Exception): ref Exception =
   var w = newException(LPStreamReadError, "Read stream failed")
   w.msg = w.msg & ", originated from [" & $p.name & "] " & p.msg
   w.par = p
   result = w
 
-proc newLPStreamWriteError*(p: ref Exception): ref Exception {.inline.} =
+proc newLPStreamReadError*(msg: string): ref Exception =
+  newException(LPStreamReadError, msg)
+
+proc newLPStreamWriteError*(p: ref Exception): ref Exception =
   var w = newException(LPStreamWriteError, "Write stream failed")
   w.msg = w.msg & ", originated from [" & $p.name & "] " & p.msg
   w.par = p
   result = w
 
-proc newLPStreamIncompleteError*(): ref Exception {.inline.} =
+proc newLPStreamIncompleteError*(): ref Exception =
   result = newException(LPStreamIncompleteError, "Incomplete data received")
 
-proc newLPStreamLimitError*(): ref Exception {.inline.} =
+proc newLPStreamLimitError*(): ref Exception =
   result = newException(LPStreamLimitError, "Buffer limit reached")
 
-proc newLPStreamIncorrectDefect*(m: string): ref Exception {.inline.} =
+proc newLPStreamIncorrectDefect*(m: string): ref Exception =
   result = newException(LPStreamIncorrectDefect, m)
 
-proc newLPStreamEOFError*(): ref Exception {.inline.} =
+proc newLPStreamEOFError*(): ref Exception =
   result = newException(LPStreamEOFError, "Stream EOF!")
 
 method closed*(s: LPStream): bool {.base, inline.} =

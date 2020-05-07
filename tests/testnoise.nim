@@ -93,7 +93,7 @@ suite "Noise":
         serverNoise = newNoise(serverInfo.privateKey, outgoing = false)
 
       proc connHandler(conn: Connection) {.async, gcsafe.} =
-        let sconn = await serverNoise.secure(conn)
+        let sconn = await serverNoise.secure(conn, false)
         defer:
           await sconn.close()
           await conn.close()
@@ -108,7 +108,7 @@ suite "Noise":
         clientInfo = PeerInfo.init(PrivateKey.random(RSA), [transport1.ma])
         clientNoise = newNoise(clientInfo.privateKey, outgoing = true)
         conn = await transport2.dial(transport1.ma)
-        sconn = await clientNoise.secure(conn)
+        sconn = await clientNoise.secure(conn, true)
 
         msg = await sconn.read(6)
 
@@ -131,7 +131,7 @@ suite "Noise":
         readTask = newFuture[void]()
 
       proc connHandler(conn: Connection) {.async, gcsafe.} =
-        let sconn = await serverNoise.secure(conn)
+        let sconn = await serverNoise.secure(conn, false)
         defer:
           await sconn.close()
           await conn.close()
@@ -148,7 +148,7 @@ suite "Noise":
         clientInfo = PeerInfo.init(PrivateKey.random(RSA), [transport1.ma])
         clientNoise = newNoise(clientInfo.privateKey, outgoing = true)
         conn = await transport2.dial(transport1.ma)
-        sconn = await clientNoise.secure(conn)
+        sconn = await clientNoise.secure(conn, true)
 
       await sconn.write("Hello!".cstring, 6)
       await readTask
@@ -175,7 +175,7 @@ suite "Noise":
       trace "Sending huge payload", size = hugePayload.len
 
       proc connHandler(conn: Connection) {.async, gcsafe.} =
-        let sconn = await serverNoise.secure(conn)
+        let sconn = await serverNoise.secure(conn, false)
         defer:
           await sconn.close()
         let msg = await sconn.readLp()
@@ -191,7 +191,7 @@ suite "Noise":
         clientInfo = PeerInfo.init(PrivateKey.random(RSA), [transport1.ma])
         clientNoise = newNoise(clientInfo.privateKey, outgoing = true)
         conn = await transport2.dial(transport1.ma)
-        sconn = await clientNoise.secure(conn)
+        sconn = await clientNoise.secure(conn, true)
 
       await sconn.writeLp(hugePayload)
       await readTask

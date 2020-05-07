@@ -418,22 +418,19 @@ proc handshakeXXInbound(p: Noise, conn: Connection, p2pProof: ProtoBuffer): Futu
   return HandshakeResult(cs1: cs1, cs2: cs2, remoteP2psecret: remoteP2psecret, rs: hs.rs)
 
 method readMessage*(sconn: NoiseConnection): Future[seq[byte]] {.async.} =
-  try:
+  while true: # Discard 0-length payloads
     var besize: array[2, byte]
     await sconn.stream.readExactly(addr besize[0], besize.len)
-    let size = uint16.fromBytesBE(besize).int
+    let size = uint16.fromBytesBE(besize).int # Cannot overflow
     trace "receiveEncryptedMessage", size, peer = $sconn.peerInfo
-    if size == 0: # TODO end-of-stream vs 0-byte message
-      return @[]
-    var buffer = newSeq[byte](size)
-    await sconn.stream.readExactly(addr buffer[0], buffer.len)
-    var plain = sconn.readCs.decryptWithAd([], buffer)
-    unpackNoisePayload(plain)
-    return plain
-  except LPStreamIncompleteError:
-    trace "Connection dropped while reading"
-  except LPStreamReadError:
-    trace "Error reading from connection"
+    if size > 0:
+      var buffer = newSeq[byte](size)
+      await sconn.stream.readExactly(addr buffer[0], buffer.len)
+      var plain = sconn.readCs.decryptWithAd([], buffer)
+      unpackNoisePayload(plain)
+      return plain
+    else:
+      trace "Received 0-length message", conn = $conn
 
 method write*(sconn: NoiseConnection, message: seq[byte]): Future[void] {.async.} =
   if message.len == 0:
@@ -523,15 +520,6 @@ method handshake*(p: Noise, conn: Connection, initiator: bool = false): Future[S
 method init*(p: Noise) {.gcsafe.} =
   procCall Secure(p).init()
   p.codec = NoiseCodec
-
-proc secure*(p: Noise, conn: Connection): Future[Connection] {.async, gcsafe.} =
-  trace "Noise.secure called", initiator=p.outgoing
-  try:
-    result = await p.handleConn(conn, p.outgoing)
-  except CatchableError as exc:
-    warn "securing connection failed", msg = exc.msg
-    if not conn.closed():
-      await conn.close()
 
 proc newNoise*(privateKey: PrivateKey; outgoing: bool = true; commonPrologue: seq[byte] = @[]): Noise =
   new result

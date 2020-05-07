@@ -175,40 +175,37 @@ proc macCheckAndDecode(sconn: SecioConn, data: var seq[byte]): bool =
   result = true
 
 proc readRawMessage(conn: Connection): Future[seq[byte]] {.async.} =
-  var lengthBuf: array[4, byte]
-  await conn.stream.readExactly(addr lengthBuf[0], lengthBuf.len)
-  let length = uint32.fromBytesBE(lengthBuf)
-  trace "Recieved message header", header = lengthBuf.shortLog, length = length
+  while true: # Discard 0-length payloads
+    var lengthBuf: array[4, byte]
+    await conn.stream.readExactly(addr lengthBuf[0], lengthBuf.len)
+    let length = uint32.fromBytesBE(lengthBuf)
 
-  if length <= SecioMaxMessageSize: # Verify length before casting!
-    var buf = newSeq[byte](int(length))
-    if buf.len > 0: # TODO end-of-stream vs 0-byte message
+    trace "Recieved message header", header = lengthBuf.shortLog, length = length
+
+    if length > SecioMaxMessageSize: # Verify length before casting!
+      trace "Received size of message exceed limits", conn = $conn, length = length
+      raise (ref SecioError)(msg: "Message exceeds maximum length")
+
+    if length > 0:
+      var buf = newSeq[byte](int(length))
       await conn.stream.readExactly(addr buf[0], buf.len)
       trace "Received message body",
         conn = $conn, length = buf.len, buff = buf.shortLog
-    return buf
-  else:
-    # TODO this looks the same from the callers perspective if the payload was 0
-    #      bytes - should probably raise
-    trace "Received size of message exceed limits", conn = $conn, length = length
+      return buf
+
+    trace "Discarding 0-length payload", conn = $conn
 
 method readMessage*(sconn: SecioConn): Future[seq[byte]] {.async.} =
   ## Read message from channel secure connection ``sconn``.
   when chronicles.enabledLogLevel == LogLevel.TRACE:
     logScope:
       stream_oid = $sconn.stream.oid
-  try:
-    var buf = await sconn.readRawMessage()
-    if sconn.macCheckAndDecode(buf):
-      result = buf
-    else:
-      # TODO a legitimate 0-length message is returned the same as a broken
-      #      message - should probably raise here
-      trace "Message MAC verification failed", buf = buf.shortLog
-  except LPStreamIncompleteError:
-    trace "Connection dropped while reading"
-  except LPStreamReadError:
-    trace "Error reading from connection"
+  var buf = await sconn.readRawMessage()
+  if sconn.macCheckAndDecode(buf):
+    result = buf
+  else:
+    trace "Message MAC verification failed", buf = buf.shortLog
+    raise (ref SecioError)(msg: "message failed MAC verification")
 
 method write*(sconn: SecioConn, message: seq[byte]) {.async.} =
   ## Write message ``message`` to secure connection ``sconn``.
@@ -280,16 +277,9 @@ proc newSecioConn(conn: Connection,
 
 proc transactMessage(conn: Connection,
                      msg: seq[byte]): Future[seq[byte]] {.async.} =
-  try:
-    trace "Sending message", message = msg.shortLog, length = len(msg)
-    await conn.write(msg)
-    return await conn.readRawMessage()
-  except LPStreamIncompleteError:
-    trace "Connection dropped while reading", conn = $conn
-  except LPStreamReadError:
-    trace "Error reading from connection", conn = $conn
-  except LPStreamWriteError:
-    trace "Could not write to connection", conn = $conn
+  trace "Sending message", message = msg.shortLog, length = len(msg)
+  await conn.write(msg)
+  return await conn.readRawMessage()
 
 method handshake*(s: Secio, conn: Connection, initiator: bool = false): Future[SecureConn] {.async.} =
   var
@@ -309,7 +299,7 @@ method handshake*(s: Secio, conn: Connection, initiator: bool = false): Future[S
     localBytesPubkey = s.localPublicKey.getBytes()
 
   if randomBytes(localNonce) != SecioNonceSize:
-    raise newException(CatchableError, "Could not generate random data")
+    raise (ref SecioError)(msg: "Could not generate random data")
 
   var request = createProposal(localNonce,
                                localBytesPubkey,
@@ -329,16 +319,16 @@ method handshake*(s: Secio, conn: Connection, initiator: bool = false): Future[S
 
   if len(answer) == 0:
     trace "Proposal exchange failed", conn = $conn
-    raise newException(SecioError, "Proposal exchange failed")
+    raise (ref SecioError)(msg: "Proposal exchange failed")
 
   if not decodeProposal(answer, remoteNonce, remoteBytesPubkey, remoteExchanges,
                         remoteCiphers, remoteHashes):
     trace "Remote proposal decoding failed", conn = $conn
-    raise newException(SecioError, "Remote proposal decoding failed")
+    raise (ref SecioError)(msg: "Remote proposal decoding failed")
 
   if not remotePubkey.init(remoteBytesPubkey):
     trace "Remote public key incorrect or corrupted", pubkey = remoteBytesPubkey.shortLog
-    raise newException(SecioError, "Remote public key incorrect or corrupted")
+    raise (ref SecioError)(msg: "Remote public key incorrect or corrupted")
 
   remotePeerId = PeerID.init(remotePubkey)
 
@@ -355,7 +345,7 @@ method handshake*(s: Secio, conn: Connection, initiator: bool = false): Future[S
   let hash = selectBest(order, SecioHashes, remoteHashes)
   if len(scheme) == 0 or len(cipher) == 0 or len(hash) == 0:
     trace "No algorithms in common", peer = remotePeerId
-    raise newException(SecioError, "No algorithms in common")
+    raise (ref SecioError)(msg: "No algorithms in common")
 
   trace "Encryption scheme selected", scheme = scheme, cipher = cipher,
                                       hash = hash
@@ -370,15 +360,15 @@ method handshake*(s: Secio, conn: Connection, initiator: bool = false): Future[S
   var remoteExchange = await transactMessage(conn, localExchange)
   if len(remoteExchange) == 0:
     trace "Corpus exchange failed", conn = $conn
-    raise newException(SecioError, "Corpus exchange failed")
+    raise (ref SecioError)(msg: "Corpus exchange failed")
 
   if not decodeExchange(remoteExchange, remoteEBytesPubkey, remoteEBytesSig):
     trace "Remote exchange decoding failed", conn = $conn
-    raise newException(SecioError, "Remote exchange decoding failed")
+    raise (ref SecioError)(msg: "Remote exchange decoding failed")
 
   if not remoteESignature.init(remoteEBytesSig):
     trace "Remote signature incorrect or corrupted", signature = remoteEBytesSig.shortLog
-    raise newException(SecioError, "Remote signature incorrect or corrupted")
+    raise (ref SecioError)(msg: "Remote signature incorrect or corrupted")
 
   var remoteCorpus = answer & request[4..^1] & remoteEBytesPubkey
   if not remoteESignature.verify(remoteCorpus, remotePubkey):
@@ -386,21 +376,21 @@ method handshake*(s: Secio, conn: Connection, initiator: bool = false): Future[S
                                            signature = $remoteESignature,
                                            pubkey = $remotePubkey,
                                            corpus = $remoteCorpus
-    raise newException(SecioError, "Signature verification failed")
+    raise (ref SecioError)(msg: "Signature verification failed")
 
   trace "Signature verified", scheme = remotePubkey.scheme
 
   if not remoteEPubkey.eckey.initRaw(remoteEBytesPubkey):
     trace "Remote ephemeral public key incorrect or corrupted",
           pubkey = toHex(remoteEBytesPubkey)
-    raise newException(SecioError, "Remote ephemeral public key incorrect or corrupted")
+    raise (ref SecioError)(msg: "Remote ephemeral public key incorrect or corrupted")
 
   var secret = getSecret(remoteEPubkey, ekeypair.seckey)
   if len(secret) == 0:
     trace "Shared secret could not be created",
           pubkeyScheme = remoteEPubkey.scheme,
           seckeyScheme = ekeypair.seckey.scheme
-    raise newException(SecioError, "Shared secret could not be created")
+    raise (ref SecioError)(msg: "Shared secret could not be created")
 
   trace "Shared secret calculated", secret = secret.shortLog
 
@@ -422,7 +412,7 @@ method handshake*(s: Secio, conn: Connection, initiator: bool = false): Future[S
   if res != @localNonce:
     trace "Nonce verification failed", receivedNonce = res.shortLog,
                                        localNonce = localNonce.shortLog
-    raise newException(CatchableError, "Nonce verification failed")
+    raise (ref SecioError)(msg: "Nonce verification failed")
   else:
     trace "Secure handshake succeeded"
 
