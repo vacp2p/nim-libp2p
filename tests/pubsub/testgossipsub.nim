@@ -20,9 +20,7 @@ import utils, ../../libp2p/[errors,
                             protocols/pubsub/gossipsub,
                             protocols/pubsub/rpc/messages]
 
-const
-  StreamTransportTrackerName = "stream.transport"
-  StreamServerTrackerName = "stream.server"
+import ../helpers
 
 proc createGossipSub(): GossipSub =
   var peerInfo = PeerInfo.init(PrivateKey.random(RSA))
@@ -49,18 +47,8 @@ proc waitSub(sender, receiver: auto; key: string) {.async, gcsafe.} =
 
 suite "GossipSub":
   teardown:
-    let
-      trackers = [
-        getTracker(BufferStreamTrackerName),
-        getTracker(AsyncStreamWriterTrackerName),
-        getTracker(AsyncStreamReaderTrackerName),
-        getTracker(StreamTransportTrackerName),
-        getTracker(StreamServerTrackerName)
-      ]
-    for tracker in trackers:
-      if not isNil(tracker):
-        # echo tracker.dump()
-        check tracker.isLeaked() == false
+    for tracker in testTrackers():
+      check tracker.isLeaked() == false
 
   test "GossipSub validation should succeed":
     proc runTests(): Future[bool] {.async.} =

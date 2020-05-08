@@ -20,9 +20,7 @@ import utils,
                      protocols/pubsub/rpc/messages,
                      protocols/pubsub/rpc/message]
 
-const
-  StreamTransportTrackerName = "stream.transport"
-  StreamServerTrackerName = "stream.server"
+import ../helpers
 
 proc waitSub(sender, receiver: auto; key: string) {.async, gcsafe.} =
   # turn things deterministic
@@ -37,18 +35,8 @@ proc waitSub(sender, receiver: auto; key: string) {.async, gcsafe.} =
 
 suite "FloodSub":
   teardown:
-    let
-      trackers = [
-        # getTracker(ConnectionTrackerName),
-        getTracker(BufferStreamTrackerName),
-        getTracker(AsyncStreamWriterTrackerName),
-        getTracker(AsyncStreamReaderTrackerName),
-        getTracker(StreamTransportTrackerName),
-        getTracker(StreamServerTrackerName)
-      ]
-    for tracker in trackers:
-      if not isNil(tracker):
-        check tracker.isLeaked() == false
+    for tracker in testTrackers():
+      check tracker.isLeaked() == false
 
   test "FloodSub basic publish/subscribe A -> B":
     proc runTests(): Future[bool] {.async.} =
@@ -242,7 +230,7 @@ suite "FloodSub":
       var awaitters: seq[Future[void]]
       for i in 0..<10:
         awaitters.add(await nodes[i].start())
-      
+
       await subscribeNodes(nodes)
 
       for i in 0..<10:

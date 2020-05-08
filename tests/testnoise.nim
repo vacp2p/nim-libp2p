@@ -31,11 +31,10 @@ import ../libp2p/[switch,
                   muxers/mplex/types,
                   protocols/secure/noise,
                   protocols/secure/secure]
+import ./helpers
 
 const
   TestCodec = "/test/proto/1.0.0"
-  StreamTransportTrackerName = "stream.transport"
-  StreamServerTrackerName = "stream.server"
 
 type
   TestProto = ref object of LPProtocol
@@ -71,19 +70,8 @@ proc createSwitch(ma: MultiAddress; outgoing: bool): (Switch, PeerInfo) =
 
 suite "Noise":
   teardown:
-    let
-      trackers = [
-        getTracker(BufferStreamTrackerName),
-        getTracker(AsyncStreamWriterTrackerName),
-        getTracker(TcpTransportTrackerName),
-        getTracker(AsyncStreamReaderTrackerName),
-        getTracker(StreamTransportTrackerName),
-        getTracker(StreamServerTrackerName)
-      ]
-    for tracker in trackers:
-      if not isNil(tracker):
-        # echo tracker.dump()
-        check tracker.isLeaked() == false
+    for tracker in testTrackers():
+      check tracker.isLeaked() == false
 
   test "e2e: handle write + noise":
     proc testListenerDialer(): Future[bool] {.async.} =

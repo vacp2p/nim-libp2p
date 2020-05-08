@@ -11,16 +11,14 @@ import ../libp2p/errors,
        ../libp2p/transports/tcptransport,
        ../libp2p/protocols/protocol
 
+import ./helpers
+
 when defined(nimHasUsed): {.used.}
 
 ## Mock stream for select test
 type
   TestSelectStream = ref object of LPStream
     step*: int
-
-const
-  StreamTransportTrackerName = "stream.transport"
-  StreamServerTrackerName = "stream.server"
 
 method readExactly*(s: TestSelectStream,
                     pbytes: pointer,
@@ -152,19 +150,8 @@ proc newTestNaStream(na: NaHandler): TestNaStream =
 
 suite "Multistream select":
   teardown:
-    let
-      trackers = [
-        # getTracker(ConnectionTrackerName),
-        getTracker(AsyncStreamWriterTrackerName),
-        getTracker(TcpTransportTrackerName),
-        getTracker(AsyncStreamReaderTrackerName),
-        getTracker(StreamTransportTrackerName),
-        getTracker(StreamServerTrackerName)
-      ]
-    for tracker in trackers:
-      if not isNil(tracker):
-        # echo tracker.dump()
-        check tracker.isLeaked() == false
+    for tracker in testTrackers():
+      check tracker.isLeaked() == false
 
   test "test select custom proto":
     proc testSelect(): Future[bool] {.async.} =
