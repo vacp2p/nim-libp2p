@@ -83,7 +83,7 @@ proc send*(p: PubSubPeer, msgs: seq[RPCMsg]) {.async.} =
       trace "sending msgs to peer", toPeer = p.id
       let encoded = encodeRpcMsg(m)
       # trigger hooks
-      if p.observers[].len > 0:
+      if not(isNil(p.observers)) and p.observers[].len > 0:
         var mm = m
         for obs in p.observers[]:
           obs.onSend(p, mm)
