@@ -8,7 +8,9 @@
 ## those terms.
 
 import oids
-import chronicles, chronos
+import chronicles, chronos, strformat
+import ../varint,
+       ../vbuffer
 
 type
   LPStream* = ref object of RootObj
@@ -26,6 +28,9 @@ type
   LPStreamWriteError* = object of LPStreamError
     par*: ref Exception
   LPStreamEOFError* = object of LPStreamError
+
+  InvalidVarintError* = object of LPStreamError
+  MaxSizeError* = object of LPStreamError
 
 proc newLPStreamReadError*(p: ref Exception): ref Exception =
   var w = newException(LPStreamReadError, "Read stream failed")
@@ -108,6 +113,45 @@ proc readLine*(s: LPStream, limit = 0, sep = "\r\n"): Future[string] {.async, de
           break
   except LPStreamIncompleteError, LPStreamReadError:
     discard # EOF, in which case we should return whatever we read so far..
+
+proc readVarint*(conn: LPStream): Future[uint64] {.async, gcsafe.} =
+  var
+    varint: uint64
+    length: int
+    buffer: array[10, byte]
+
+  for i in 0..<len(buffer):
+    await conn.readExactly(addr buffer[i], 1)
+    let res = PB.getUVarint(buffer.toOpenArray(0, i), length, varint)
+    if res == VarintStatus.Success:
+      return varint
+    if res != VarintStatus.Incomplete:
+      break
+  if true: # can't end with a raise apparently
+    raise (ref InvalidVarintError)(msg: "Cannot parse varint")
+
+proc readLp*(s: LPStream, maxSize: int): Future[seq[byte]] {.async, gcsafe.} =
+  ## read length prefixed msg, with the length encoded as a varint
+  let
+    length = await s.readVarint()
+    maxLen = uint64(if maxSize < 0: int.high else: maxSize)
+
+  if length > maxLen:
+    raise (ref MaxSizeError)(msg: "Message exceeds maximum length")
+
+  if length == 0:
+    return
+
+  var res = newSeq[byte](length)
+  await s.readExactly(addr res[0], res.len)
+  return res
+
+proc writeLp*(s: LPStream, msg: string | seq[byte]): Future[void] {.gcsafe.} =
+  ## write length prefixed
+  var buf = initVBuffer()
+  buf.writeSeq(msg)
+  buf.finish()
+  s.write(buf.buffer)
 
 method write*(s: LPStream, msg: seq[byte]) {.base, async.} =
   doAssert(false, "not implemented!")

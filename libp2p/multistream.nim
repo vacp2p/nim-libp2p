@@ -58,7 +58,7 @@ proc select*(m: MultistreamSelect,
     trace "selecting proto", proto = proto
     await conn.writeLp((proto[0] & "\n")) # select proto
 
-  result = cast[string]((await conn.readLp())) # read ms header
+  result = cast[string]((await conn.readLp(1024))) # read ms header
   result.removeSuffix("\n")
   if result != Codec:
     error "handshake failed", codec = result.toHex()
@@ -67,7 +67,7 @@ proc select*(m: MultistreamSelect,
   if proto.len() == 0: # no protocols, must be a handshake call
     return
 
-  result = string.fromBytes(await conn.readLp()) # read the first proto
+  result = string.fromBytes(await conn.readLp(1024)) # read the first proto
   trace "reading first requested proto"
   result.removeSuffix("\n")
   if result == proto[0]:
@@ -78,7 +78,7 @@ proc select*(m: MultistreamSelect,
     trace "selecting one of several protos"
     for p in proto[1..<proto.len()]:
       await conn.writeLp((p & "\n")) # select proto
-      result = string.fromBytes(await conn.readLp()) # read the first proto
+      result = string.fromBytes(await conn.readLp(1024)) # read the first proto
       result.removeSuffix("\n")
       if result == p:
         trace "selected protocol", protocol = result
@@ -104,7 +104,7 @@ proc list*(m: MultistreamSelect,
   await conn.write(Ls) # send ls
 
   var list = newSeq[string]()
-  let ms = string.fromBytes(await conn.readLp())
+  let ms = string.fromBytes(await conn.readLp(1024))
   for s in ms.split("\n"):
     if s.len() > 0:
       list.add(s)
@@ -115,7 +115,7 @@ proc handle*(m: MultistreamSelect, conn: Connection) {.async, gcsafe.} =
   trace "handle: starting multistream handling"
   tryAndWarn "multistream handle":
     while not conn.closed:
-      var ms = string.fromBytes(await conn.readLp())
+      var ms = string.fromBytes(await conn.readLp(1024))
       ms.removeSuffix("\n")
 
       trace "handle: got request for ", ms

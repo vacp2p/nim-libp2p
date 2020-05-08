@@ -41,7 +41,7 @@ type
 
 method init(p: TestProto) {.gcsafe.} =
   proc handle(conn: Connection, proto: string) {.async, gcsafe.} =
-    let msg = cast[string](await conn.readLp())
+    let msg = cast[string](await conn.readLp(1024))
     check "Hello!" == msg
     await conn.writeLp("Hello!")
     await conn.close()
@@ -166,7 +166,7 @@ suite "Noise":
         let sconn = await serverNoise.secure(conn, false)
         defer:
           await sconn.close()
-        let msg = await sconn.readLp()
+        let msg = await sconn.readLp(1024*1024)
         check msg == hugePayload
         readTask.complete()
 
@@ -214,7 +214,7 @@ suite "Noise":
       awaiters.add(await switch2.start())
       let conn = await switch2.dial(switch1.peerInfo, TestCodec)
       await conn.writeLp("Hello!")
-      let msg = cast[string](await conn.readLp())
+      let msg = cast[string](await conn.readLp(1024))
       check "Hello!" == msg
 
       await allFuturesThrowing(switch1.stop(), switch2.stop())

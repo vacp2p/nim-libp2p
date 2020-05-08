@@ -55,7 +55,7 @@ proc readLp*(s: StreamTransport): Future[seq[byte]] {.async, gcsafe.} =
     if res == VarintStatus.Success:
       break
   if res != VarintStatus.Success:
-    raise newInvalidVarintException()
+    raise (ref InvalidVarintError)()
   result.setLen(size)
   if size > 0.uint:
     await s.readExactly(addr result[0], int(size))
@@ -209,11 +209,11 @@ suite "Interop":
                                                            daemonPeer.addresses),
                                                            protos[0])
       await conn.writeLp("test 1")
-      check "test 2" == cast[string]((await conn.readLp()))
+      check "test 2" == cast[string]((await conn.readLp(1024)))
       await sleepAsync(10.millis)
 
       await conn.writeLp("test 3")
-      check "test 4" == cast[string]((await conn.readLp()))
+      check "test 4" == cast[string]((await conn.readLp(1024)))
 
       await wait(testFuture, 10.secs)
       await nativeNode.stop()
@@ -271,7 +271,7 @@ suite "Interop":
 
       var testFuture = newFuture[string]("test.future")
       proc nativeHandler(conn: Connection, proto: string) {.async.} =
-        var line = cast[string](await conn.readLp())
+        var line = cast[string](await conn.readLp(1024))
         check line == test
         testFuture.complete(line)
         await conn.close()
@@ -306,10 +306,10 @@ suite "Interop":
 
       var testFuture = newFuture[void]("test.future")
       proc nativeHandler(conn: Connection, proto: string) {.async.} =
-        check "test 1" == cast[string](await conn.readLp())
+        check "test 1" == cast[string](await conn.readLp(1024))
         await conn.writeLp(cast[seq[byte]]("test 2"))
 
-        check "test 3" == cast[string](await conn.readLp())
+        check "test 3" == cast[string](await conn.readLp(1024))
         await conn.writeLp(cast[seq[byte]]("test 4"))
 
         testFuture.complete()
@@ -355,7 +355,7 @@ suite "Interop":
       var testFuture = newFuture[int]("test.future")
       proc nativeHandler(conn: Connection, proto: string) {.async.} =
         while count < 10:
-          var line = cast[string](await conn.readLp())
+          var line = cast[string](await conn.readLp(1024))
           check line == test
           await conn.writeLp(cast[seq[byte]](test))
           count.inc()

@@ -9,6 +9,7 @@
 
 import chronos
 
+# https://github.com/libp2p/specs/tree/master/mplex#writing-to-a-stream
 const MaxMsgSize* = 1 shl 20 # 1mb
 const MaxChannels* = 1000
 const MplexCodec* = "/mplex/6.7.0"
