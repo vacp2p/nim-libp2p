@@ -6,7 +6,6 @@ const
 
 import
   options, tables,
-  chronos,
   switch, peer, peerinfo, connection, multiaddress,
   crypto/crypto, transports/[transport, tcptransport],
   muxers/[muxer, mplex/mplex, mplex/types],
@@ -19,7 +18,7 @@ else:
   import protocols/secure/secio
 
 export
-  switch, peer, peerinfo, connection, multiaddress, crypto, ServerFlags
+  switch, peer, peerinfo, connection, multiaddress, crypto
 
 proc newStandardSwitch*(privKey = none(PrivateKey),
                         address = MultiAddress.init("/ip4/127.0.0.1/tcp/0"),
@@ -27,7 +26,7 @@ proc newStandardSwitch*(privKey = none(PrivateKey),
                         gossip = false,
                         verifySignature = libp2p_pubsub_verify,
                         sign = libp2p_pubsub_sign,
-                        serverFlags: set[ServerFlags] = {}): Switch =
+                        transportFlags: TransportFlags = {}): Switch =
   proc createMplex(conn: Connection): Muxer =
     result = newMplex(conn)
 
@@ -35,7 +34,7 @@ proc newStandardSwitch*(privKey = none(PrivateKey),
     seckey = privKey.get(otherwise = PrivateKey.random(ECDSA))
     peerInfo = PeerInfo.init(seckey, [address])
     mplexProvider = newMuxerProvider(createMplex, MplexCodec)
-    transports = @[Transport(newTransport(TcpTransport, serverFlags))]
+    transports = @[Transport(newTransport(TcpTransport, transportFlags))]
     muxers = {MplexCodec: mplexProvider}.toTable
     identify = newIdentify(peerInfo)
   when libp2p_secure == "noise":
