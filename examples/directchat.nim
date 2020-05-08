@@ -152,7 +152,7 @@ proc readInput(wfd: AsyncFD) {.thread.} =
 proc processInput(rfd: AsyncFD) {.async.} =
   let transp = fromPipe(rfd)
 
-  let seckey = PrivateKey.random(RSA)
+  let seckey = PrivateKey.random(RSA).get()
   let peerInfo = PeerInfo.init(seckey)
   var localAddress = DefaultAddr
   while true:
