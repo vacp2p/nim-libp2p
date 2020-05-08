@@ -14,18 +14,11 @@ logScope:
   topic = "ChronosStream"
 
 type ChronosStream* = ref object of LPStream
-    reader: AsyncStreamReader
-    writer: AsyncStreamWriter
-    server: StreamServer
     client: StreamTransport
 
-proc newChronosStream*(server: StreamServer,
-                       client: StreamTransport): ChronosStream =
+proc newChronosStream*(client: StreamTransport): ChronosStream =
   new result
-  result.server = server
   result.client = client
-  result.reader = newAsyncStreamReader(client)
-  result.writer = newAsyncStreamWriter(client)
   result.closeEvent = newAsyncEvent()
 
 template withExceptions(body: untyped) =
@@ -35,47 +28,44 @@ template withExceptions(body: untyped) =
     raise newLPStreamIncompleteError()
   except TransportLimitError:
     raise newLPStreamLimitError()
-  except TransportError as exc:
-    raise newLPStreamIncorrectDefect(exc.msg)
-  except AsyncStreamIncompleteError:
-    raise newLPStreamIncompleteError()
+  except TransportUseClosedError:
+    raise newLPStreamEOFError()
+  except TransportError:
+    # TODO https://github.com/status-im/nim-chronos/pull/99
+    raise newLPStreamEOFError()
+    # raise (ref LPStreamError)(msg: exc.msg, parent: exc)
 
 method readExactly*(s: ChronosStream,
                     pbytes: pointer,
                     nbytes: int): Future[void] {.async.} =
-  if s.reader.atEof:
+  if s.client.atEof:
     raise newLPStreamEOFError()
 
   withExceptions:
-    await s.reader.readExactly(pbytes, nbytes)
+    await s.client.readExactly(pbytes, nbytes)
 
 method readOnce*(s: ChronosStream, pbytes: pointer, nbytes: int): Future[int] {.async.} =
-  if s.reader.atEof:
+  if s.client.atEof:
     raise newLPStreamEOFError()
 
   withExceptions:
-    result = await s.reader.readOnce(pbytes, nbytes)
+    result = await s.client.readOnce(pbytes, nbytes)
 
 method write*(s: ChronosStream, msg: seq[byte]) {.async.} =
-  if s.writer.atEof:
-    raise newLPStreamEOFError()
+  if msg.len == 0:
+    return
 
   withExceptions:
-    await s.writer.write(msg)
+    # Returns 0 sometimes when write fails - but there's not much we can do here?
+    if (await s.client.write(msg)) != msg.len:
+      raise (ref LPStreamError)(msg: "Write couldn't finish writing")
 
 method closed*(s: ChronosStream): bool {.inline.} =
-  # TODO: we might only need to check for reader's EOF
-  result = s.reader.atEof()
+  result = s.client.closed
 
 method close*(s: ChronosStream) {.async.} =
   if not s.closed:
     trace "shutting chronos stream", address = $s.client.remoteAddress()
-    if not s.writer.closed():
-      await s.writer.closeWait()
-
-    if not s.reader.closed():
-      await s.reader.closeWait()
-
     if not s.client.closed():
       await s.client.closeWait()
 

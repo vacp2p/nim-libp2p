@@ -9,27 +9,14 @@ import ../libp2p/[protocols/identify,
                   transports/transport,
                   transports/tcptransport,
                   crypto/crypto]
+import ./helpers
 
 when defined(nimHasUsed): {.used.}
 
-const
-  StreamTransportTrackerName = "stream.transport"
-  StreamServerTrackerName = "stream.server"
-
 suite "Identify":
   teardown:
-    let
-      trackers = [
-        getTracker(AsyncStreamWriterTrackerName),
-        getTracker(TcpTransportTrackerName),
-        getTracker(AsyncStreamReaderTrackerName),
-        getTracker(StreamTransportTrackerName),
-        getTracker(StreamServerTrackerName)
-      ]
-    for tracker in trackers:
-      if not isNil(tracker):
-        # echo tracker.dump()
-        check tracker.isLeaked() == false
+    for tracker in testTrackers():
+      check tracker.isLeaked() == false
 
   test "handle identify message":
     proc testHandle(): Future[bool] {.async.} =

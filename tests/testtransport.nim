@@ -1,3 +1,5 @@
+{.used.}
+
 import unittest
 import chronos
 import ../libp2p/[connection,
@@ -5,21 +7,12 @@ import ../libp2p/[connection,
                   transports/tcptransport,
                   multiaddress,
                   wire]
-
-when defined(nimHasUsed): {.used.}
-
-const
-  StreamTransportTrackerName = "stream.transport"
-  StreamServerTrackerName = "stream.server"
+import ./helpers
 
 suite "TCP transport":
   teardown:
-    check:
-      # getTracker(ConnectionTrackerName).isLeaked() == false
-      getTracker(AsyncStreamReaderTrackerName).isLeaked() == false
-      getTracker(AsyncStreamWriterTrackerName).isLeaked() == false
-      getTracker(StreamTransportTrackerName).isLeaked() == false
-      getTracker(StreamServerTrackerName).isLeaked() == false
+    for tracker in testTrackers():
+      check tracker.isLeaked() == false
 
   test "test listener: handle write":
     proc testListener(): Future[bool] {.async, gcsafe.} =

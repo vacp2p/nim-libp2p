@@ -14,27 +14,14 @@ import ../libp2p/[errors,
                   vbuffer,
                   varint]
 
-when defined(nimHasUsed): {.used.}
+import ./helpers
 
-const
-  StreamTransportTrackerName = "stream.transport"
-  StreamServerTrackerName = "stream.server"
+when defined(nimHasUsed): {.used.}
 
 suite "Mplex":
   teardown:
-    let
-      trackers = [
-        getTracker(BufferStreamTrackerName),
-        getTracker(AsyncStreamWriterTrackerName),
-        getTracker(TcpTransportTrackerName),
-        getTracker(AsyncStreamReaderTrackerName),
-        getTracker(StreamTransportTrackerName),
-        getTracker(StreamServerTrackerName)
-      ]
-    for tracker in trackers:
-      if not isNil(tracker):
-        # echo tracker.dump()
-        check tracker.isLeaked() == false
+    for tracker in testTrackers():
+      check tracker.isLeaked() == false
 
   test "encode header with channel id 0":
     proc testEncodeHeader(): Future[bool] {.async.} =
