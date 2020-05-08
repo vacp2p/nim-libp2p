@@ -2,23 +2,23 @@ when not(compileOption("threads")):
   {.fatal: "Please, compile this program with the --threads:on option!".}
 
 import tables, strformat, strutils
-import chronos                              
-import ../libp2p/[switch,                   
-                  multistream,              
-                  crypto/crypto,            
-                  protocols/identify,       
-                  connection,               
-                  transports/transport,     
-                  transports/tcptransport,  
-                  multiaddress,             
-                  peerinfo,                 
-                  peer,                     
-                  protocols/protocol,       
-                  protocols/secure/secure,  
-                  protocols/secure/secio,   
-                  muxers/muxer,            
-                  muxers/mplex/mplex,       
-                  muxers/mplex/types]     
+import chronos
+import ../libp2p/[switch,
+                  multistream,
+                  crypto/crypto,
+                  protocols/identify,
+                  connection,
+                  transports/transport,
+                  transports/tcptransport,
+                  multiaddress,
+                  peerinfo,
+                  peer,
+                  protocols/protocol,
+                  protocols/secure/secure,
+                  protocols/secure/secio,
+                  muxers/muxer,
+                  muxers/mplex/mplex,
+                  muxers/mplex/types]
 
 const ChatCodec = "/nim-libp2p/chat/1.0.0"
 const DefaultAddr = "/ip4/127.0.0.1/tcp/55505"
@@ -33,12 +33,12 @@ const Help = """
 
 type ChatProto = ref object of LPProtocol
   switch: Switch          # a single entry point for dialing and listening to peer
-  transp: StreamTransport # transport streams between read & write file descriptor 
+  transp: StreamTransport # transport streams between read & write file descriptor
   conn: Connection        # create and close read & write stream
   connected: bool         # if the node is connected to another peer
   started: bool           # if the node has started
 
-# copied from https://github.com/status-im/nim-beacon-chain/blob/0ed657e953740a92458f23033d47483ffa17ccb0/beacon_chain/eth2_network.nim#L109-L115 
+# copied from https://github.com/status-im/nim-beacon-chain/blob/0ed657e953740a92458f23033d47483ffa17ccb0/beacon_chain/eth2_network.nim#L109-L115
 proc initAddress(T: type MultiAddress, str: string): T =
   let address = MultiAddress.init(str)
   if IPFS.match(address) and matchPartial(multiaddress.TCP, address):
@@ -60,7 +60,7 @@ proc dialPeer(p: ChatProto, address: string) {.async.} =
 proc readAndPrint(p: ChatProto) {.async.} =
   while true:
     while p.connected:
-      echo cast[string](await p.conn.readLp())
+      echo cast[string](await p.conn.readLp(1024))
     await sleepAsync(100.millis)
 
 proc writeAndPrint(p: ChatProto) {.async.} =
@@ -140,12 +140,11 @@ proc main() {.async.} =
   let (rfd, wfd) = createAsyncPipe()
   if rfd == asyncInvalidPipe or wfd == asyncInvalidPipe:
     raise newException(ValueError, "Could not initialize pipe!")
-  
+
   var thread: Thread[AsyncFD]
   thread.createThread(readInput, wfd)
-  
+
   await processInput(rfd)
 
 when isMainModule:      # isMainModule = true when the module is compiled as the main file
   waitFor(main())
- 

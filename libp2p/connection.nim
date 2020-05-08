@@ -23,7 +23,6 @@ logScope:
   topic = "Connection"
 
 const
-  DefaultReadSize* = 1 shl 20
   ConnectionTrackerName* = "libp2p.connection"
 
 type
@@ -34,9 +33,6 @@ type
     # notice this is a ugly circular reference collection
     # (we got many actually :-))
     readLoops*: seq[Future[void]]
-
-  InvalidVarintException = object of LPStreamError
-  InvalidVarintSizeException = object of LPStreamError
 
   ConnectionTracker* = ref object of TrackerBase
     opened*: uint64
@@ -67,12 +63,6 @@ proc setupConnectionTracker(): ConnectionTracker =
   addTracker(ConnectionTrackerName, result)
 
 declareGauge libp2p_open_connection, "open Connection instances"
-
-proc newInvalidVarintException*(): ref InvalidVarintException =
-  newException(InvalidVarintException, "Unable to parse varint")
-
-proc newInvalidVarintSizeException*(): ref InvalidVarintSizeException =
-  newException(InvalidVarintSizeException, "Wrong varint size")
 
 proc bindStreamClose(conn: Connection) {.async.} =
   # bind stream's close event to connection's close
@@ -154,42 +144,6 @@ method close*(s: Connection) {.async, gcsafe.} =
                                peer = if not isNil(s.peerInfo):
                                  s.peerInfo.id else: ""
     libp2p_open_connection.dec()
-
-proc readLp*(s: Connection): Future[seq[byte]] {.async, gcsafe.} =
-  ## read lenght prefixed msg
-  var
-    size: uint
-    length: int
-    res: VarintStatus
-    buff = newSeq[byte](10)
-  try:
-    for i in 0..<len(buff):
-      await s.readExactly(addr buff[i], 1)
-      res = LP.getUVarint(buff.toOpenArray(0, i), length, size)
-      if res == VarintStatus.Success:
-        break
-    if res != VarintStatus.Success:
-      raise newInvalidVarintException()
-    if size.int > DefaultReadSize:
-      raise newInvalidVarintSizeException()
-    buff.setLen(size)
-    if size > 0.uint:
-      trace "reading exact bytes from stream", size = size
-      await s.readExactly(addr buff[0], int(size))
-    return buff
-  except LPStreamIncompleteError as exc:
-    trace "remote connection ended unexpectedly", exc = exc.msg
-    raise exc
-  except LPStreamReadError as exc:
-    trace "couldn't read from stream", exc = exc.msg
-    raise exc
-
-proc writeLp*(s: Connection, msg: string | seq[byte]): Future[void] {.gcsafe.} =
-  ## write lenght prefixed
-  var buf = initVBuffer()
-  buf.writeSeq(msg)
-  buf.finish()
-  s.write(buf.buffer)
 
 method getObservedAddrs*(c: Connection): Future[MultiAddress] {.base, async, gcsafe.} =
   ## get resolved multiaddresses for the connection

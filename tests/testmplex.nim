@@ -153,7 +153,7 @@ suite "Mplex":
 
       proc connHandler(conn: Connection) {.async, gcsafe.} =
         proc handleMplexListen(stream: Connection) {.async, gcsafe.} =
-          let msg = await stream.readLp()
+          let msg = await stream.readLp(1024)
           check cast[string](msg) == "Hello from stream!"
           await stream.close()
           done.complete()
@@ -200,7 +200,7 @@ suite "Mplex":
 
       proc connHandler(conn: Connection) {.async, gcsafe.} =
         proc handleMplexListen(stream: Connection) {.async, gcsafe.} =
-          let msg = await stream.readLp()
+          let msg = await stream.readLp(1024)
           check cast[string](msg) == "Hello from stream!"
           await stream.close()
           done.complete()
@@ -251,7 +251,7 @@ suite "Mplex":
         proc handleMplexListen(stream: Connection) {.async, gcsafe.} =
           defer:
             await stream.close()
-          let msg = await stream.readLp()
+          let msg = await stream.readLp(MaxMsgSize)
           check msg == bigseq
           trace "Bigseq check passed!"
           listenJob.complete()
@@ -312,7 +312,7 @@ suite "Mplex":
       let mplexDial = newMplex(conn)
       let dialFut = mplexDial.handle()
       let stream  = await mplexDial.newStream("DIALER")
-      let msg = cast[string](await stream.readLp())
+      let msg = cast[string](await stream.readLp(1024))
       check msg == "Hello from stream!"
 
       # await dialFut
@@ -339,7 +339,7 @@ suite "Mplex":
       var listenConn: Connection
       proc connHandler(conn: Connection) {.async, gcsafe.} =
         proc handleMplexListen(stream: Connection) {.async, gcsafe.} =
-          let msg = await stream.readLp()
+          let msg = await stream.readLp(1024)
           check cast[string](msg) == &"stream {count}!"
           count.inc
           await stream.close()
@@ -386,7 +386,7 @@ suite "Mplex":
       proc connHandler(conn: Connection) {.async, gcsafe.} =
         listenConn = conn
         proc handleMplexListen(stream: Connection) {.async, gcsafe.} =
-          let msg = await stream.readLp()
+          let msg = await stream.readLp(1024)
           check cast[string](msg) == &"stream {count} from dialer!"
           await stream.writeLp(&"stream {count} from listener!")
           count.inc
@@ -411,7 +411,7 @@ suite "Mplex":
       for i in 1..10:
         let stream  = await mplexDial.newStream("dialer stream")
         await stream.writeLp(&"stream {i} from dialer!")
-        let msg = await stream.readLp()
+        let msg = await stream.readLp(1024)
         check cast[string](msg) == &"stream {i} from listener!"
         await stream.close()
 
@@ -473,7 +473,7 @@ suite "Mplex":
       const MsgSize = 1024
       proc connHandler(conn: Connection) {.async, gcsafe.} =
         proc handleMplexListen(stream: Connection) {.async, gcsafe.} =
-          let msg = await stream.readLp()
+          let msg = await stream.readLp(MsgSize)
           check msg.len == MsgSize
           await stream.close()
           complete.complete()
@@ -542,7 +542,7 @@ suite "Mplex":
       const MsgSize = 512
       proc connHandler(conn: Connection) {.async, gcsafe.} =
         proc handleMplexListen(stream: Connection) {.async, gcsafe.} =
-          let msg = await stream.readLp()
+          let msg = await stream.readLp(MsgSize)
           check msg.len == MsgSize
           await stream.close()
           complete.complete()

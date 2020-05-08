@@ -11,6 +11,7 @@ import chronos
 import nimcrypto/utils, chronicles
 import types,
        ../../connection,
+       ../../utility,
        ../../varint,
        ../../vbuffer,
        ../../stream/lpstream
@@ -29,46 +30,18 @@ type
 proc newInvalidMplexMsgType*(): ref InvalidMplexMsgType =
   newException(InvalidMplexMsgType, "invalid message type")
 
-proc readMplexVarint(conn: Connection): Future[uint64] {.async, gcsafe.} =
-  var
-    varint: uint
-    length: int
-    res: VarintStatus
-    buffer = newSeq[byte](10)
-
-  try:
-    for i in 0..<len(buffer):
-      await conn.readExactly(addr buffer[i], 1)
-      res = PB.getUVarint(buffer.toOpenArray(0, i), length, varint)
-      if res == VarintStatus.Success:
-        break
-    if res != VarintStatus.Success:
-      raise newInvalidVarintException()
-    return varint
-  except LPStreamIncompleteError as exc:
-    trace "unable to read varint", exc = exc.msg
-    raise exc
-
 proc readMsg*(conn: Connection): Future[Msg] {.async, gcsafe.} =
-  let header = await conn.readMplexVarint()
+  let header = await conn.readVarint()
   trace "read header varint", varint = header
 
-  let dataLenVarint = await conn.readMplexVarint()
-  trace "read data len varint", varint = dataLenVarint
-
-  if dataLenVarint.int > DefaultReadSize:
-    raise newInvalidVarintSizeException()
-
-  var data: seq[byte] = newSeq[byte](dataLenVarint.int)
-  if dataLenVarint.int > 0:
-    await conn.readExactly(addr data[0], dataLenVarint.int)
-    trace "read data", data = data.len
+  let data = await conn.readLp(MaxMsgSize)
+  trace "read data", dataLen = data.len, data = shortLog(data)
 
   let msgType = header and 0x7
   if msgType.int > ord(MessageType.ResetOut):
     raise newInvalidMplexMsgType()
 
-  result = (uint64(header shr 3), MessageType(msgType), data)
+  result = (header shr 3, MessageType(msgType), data)
 
 proc writeMsg*(conn: Connection,
                id: uint64,

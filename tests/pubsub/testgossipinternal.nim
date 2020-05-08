@@ -1,5 +1,7 @@
 include ../../libp2p/protocols/pubsub/gossipsub
 
+{.used.}
+
 import unittest
 import ../../libp2p/errors
 import ../../libp2p/stream/bufferstream

@@ -56,7 +56,7 @@ proc handle*(p: PubSubPeer, conn: Connection) {.async.} =
   try:
     while not conn.closed:
       trace "waiting for data", peer = p.id, closed = conn.closed
-      let data = await conn.readLp()
+      let data = await conn.readLp(64 * 1024)
       let hexData = data.toHex()
       trace "read data from peer", peer = p.id, data = data.shortLog
       if $hexData.hash in p.recvdRpcCache:
