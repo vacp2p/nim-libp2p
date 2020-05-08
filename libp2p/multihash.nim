@@ -56,7 +56,7 @@ type
     DecodeError,
     ParseError
 
-  MultiHashResult*[T] = Result[T, MultiHashError]
+  MhResult*[T] = Result[T, MultiHashError]
 
 proc identhash(data: openarray[byte], output: var openarray[byte]) =
   if len(output) > 0:
@@ -357,7 +357,7 @@ proc digestImplWithoutHash(hash: MHash, data: openarray[byte]): MultiHash =
   result.data.finish()
 
 proc digest*(mhtype: typedesc[MultiHash], hashname: string,
-             data: openarray[byte]): MultiHashResult[MultiHash] {.inline.} =
+             data: openarray[byte]): MhResult[MultiHash] {.inline.} =
   ## Perform digest calculation using hash algorithm with name ``hashname`` on
   ## data array ``data``.
   let mc = MultiCodec.codec(hashname)
@@ -371,7 +371,7 @@ proc digest*(mhtype: typedesc[MultiHash], hashname: string,
       ok(digestImplWithHash(hash, data))
 
 proc digest*(mhtype: typedesc[MultiHash], hashcode: int,
-             data: openarray[byte]): MultiHashResult[MultiHash] {.inline.} =
+             data: openarray[byte]): MhResult[MultiHash] {.inline.} =
   ## Perform digest calculation using hash algorithm with code ``hashcode`` on
   ## data array ``data``.
   let hash = CodeHashes.getOrDefault(hashcode)
@@ -381,7 +381,7 @@ proc digest*(mhtype: typedesc[MultiHash], hashcode: int,
     ok(digestImplWithHash(hash, data))
 
 proc init*[T](mhtype: typedesc[MultiHash], hashname: string,
-                mdigest: MDigest[T]): MultiHashResult[MultiHash] {.inline.} =
+                mdigest: MDigest[T]): MhResult[MultiHash] {.inline.} =
   ## Create MultiHash from nimcrypto's `MDigest` object and hash algorithm name
   ## ``hashname``.
   let mc = MultiCodec.codec(hashname)
@@ -397,7 +397,7 @@ proc init*[T](mhtype: typedesc[MultiHash], hashname: string,
       ok(digestImplWithoutHash(hash, mdigest.data))
 
 proc init*[T](mhtype: typedesc[MultiHash], hashcode: MultiCodec,
-              mdigest: MDigest[T]): MultiHashResult[MultiHash] {.inline.} =
+              mdigest: MDigest[T]): MhResult[MultiHash] {.inline.} =
   ## Create MultiHash from nimcrypto's `MDigest` and hash algorithm code
   ## ``hashcode``.
   let hash = CodeHashes.getOrDefault(hashcode)
@@ -409,7 +409,7 @@ proc init*[T](mhtype: typedesc[MultiHash], hashcode: MultiCodec,
     ok(digestImplWithoutHash(hash, mdigest.data))
 
 proc init*(mhtype: typedesc[MultiHash], hashname: string,
-           bdigest: openarray[byte]): MultiHashResult[MultiHash] {.inline.} =
+           bdigest: openarray[byte]): MhResult[MultiHash] {.inline.} =
   ## Create MultiHash from array of bytes ``bdigest`` and hash algorithm code
   ## ``hashcode``.
   let mc = MultiCodec.codec(hashname)
@@ -425,7 +425,7 @@ proc init*(mhtype: typedesc[MultiHash], hashname: string,
       ok(digestImplWithoutHash(hash, bdigest))
 
 proc init*(mhtype: typedesc[MultiHash], hashcode: MultiCodec,
-           bdigest: openarray[byte]): MultiHashResult[MultiHash] {.inline.} =
+           bdigest: openarray[byte]): MhResult[MultiHash] {.inline.} =
   ## Create MultiHash from array of bytes ``bdigest`` and hash algorithm code
   ## ``hashcode``.
   let hash = CodeHashes.getOrDefault(hashcode)
@@ -437,7 +437,7 @@ proc init*(mhtype: typedesc[MultiHash], hashcode: MultiCodec,
     ok(digestImplWithoutHash(hash, bdigest))
 
 proc decode*(mhtype: typedesc[MultiHash], data: openarray[byte],
-             mhash: var MultiHash): MultiHashResult[int] =
+             mhash: var MultiHash): MhResult[int] =
   ## Decode MultiHash value from array of bytes ``data``.
   ##
   ## On success decoded MultiHash will be stored into ``mhash`` and number of
@@ -512,13 +512,13 @@ proc validate*(mhtype: typedesc[MultiHash], data: openarray[byte]): bool =
   result = true
 
 proc init*(mhtype: typedesc[MultiHash],
-           data: openarray[byte]): MultiHashResult[MultiHash] {.inline.} =
+           data: openarray[byte]): MhResult[MultiHash] {.inline.} =
   ## Create MultiHash from bytes array ``data``.
   var hash: MultiHash
   discard ? MultiHash.decode(data, hash)
   ok(hash)
 
-proc init*(mhtype: typedesc[MultiHash], data: string): MultiHashResult[MultiHash] {.inline.} =
+proc init*(mhtype: typedesc[MultiHash], data: string): MhResult[MultiHash] {.inline.} =
   ## Create MultiHash from hexadecimal string representation ``data``.
   var hash: MultiHash
   try:

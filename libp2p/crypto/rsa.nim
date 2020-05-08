@@ -140,7 +140,7 @@ proc random*[T: RsaKP](t: typedesc[T], bits = DefaultKeySize,
   var res: T
 
   when T is RsaKeyPair:
-    res = new RsaKeyPair
+    res = new T
   else:
     res = new RsaPrivateKey
 
