@@ -30,8 +30,10 @@ template withExceptions(body: untyped) =
     raise newLPStreamLimitError()
   except TransportUseClosedError:
     raise newLPStreamEOFError()
-  except TransportError as exc:
-    raise (ref LPStreamError)(msg: exc.msg, parent: exc)
+  except TransportError:
+    # TODO https://github.com/status-im/nim-chronos/pull/99
+    raise newLPStreamEOFError()
+    # raise (ref LPStreamError)(msg: exc.msg, parent: exc)
 
 method readExactly*(s: ChronosStream,
                     pbytes: pointer,
