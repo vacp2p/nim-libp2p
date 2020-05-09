@@ -392,7 +392,7 @@ proc encode*(mbtype: typedesc[MultiBase], encoding: string,
   if isNil(mb.encr) or isNil(mb.encl):
     return MultibaseStatus.NotSupported
   if len(outbytes) > 1:
-    result = mb.encr(inbytes, outbytes.toOpenArray(1, len(outbytes) - 1),
+    result = mb.encr(inbytes, outbytes.toOpenArray(1, outbytes.high),
                      outlen)
     if result == MultiBaseStatus.Overrun:
       outlen += 1
@@ -452,7 +452,7 @@ proc encode*(mbtype: typedesc[MultiBase], encoding: string,
   if length > 0:
     buffer = newString(mb.encl(length) + 1)
     var outlen = 0
-    let res = mb.encr(inbytes, buffer.toOpenArray(1, len(buffer) - 1), outlen)
+    let res = mb.encr(inbytes, buffer.toOpenArray(1, buffer.high), outlen)
     if res != MultiBaseStatus.Success:
       raise newException(MultiBaseError, "Encoding error [" & $res & "]")
     buffer.setLen(outlen + 1)

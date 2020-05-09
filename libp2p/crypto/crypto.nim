@@ -101,25 +101,21 @@ proc random*(t: typedesc[PrivateKey], scheme: PKScheme,
   ##
   ## ``bits`` is number of bits for RSA key, ``bits`` value must be in
   ## [512, 4096], default value is 2048 bits.
-  if scheme notin SupportedSchemes:
-    err(SchemeError)
+  case scheme
+  of RSA:
+    let rsakey = ? (RsaPrivateKey.random(bits).mapErr do (_: auto) -> auto: KeyError)
+    ok(PrivateKey(scheme: scheme, rsakey: rsakey))
+  of Ed25519:
+    let edkey = ? (EdPrivateKey.random().mapErr do (_: auto) -> auto: KeyError)
+    ok(PrivateKey(scheme: scheme, edkey: edkey))
+  of ECDSA:
+    let eckey = ? (EcPrivateKey.random(Secp256r1).mapErr do (_: auto) -> auto: KeyError)
+    ok(PrivateKey(scheme: scheme, eckey: eckey))
+  of Secp256k1:
+    let skkey = ? (SkPrivateKey.random().mapErr do (_: auto) -> auto: KeyError)
+    ok(PrivateKey(scheme: scheme, skkey: skkey))
   else:
-    var res: t
-    res = PrivateKey(scheme: scheme)
-    if scheme == RSA:
-      res.rsakey = ? (RsaPrivateKey.random(bits).mapErr do (_: auto) -> auto: KeyError)
-      ok(res)
-    elif scheme == Ed25519:
-      res.edkey = ? (EdPrivateKey.random().mapErr do (_: auto) -> auto: KeyError)
-      ok(res)
-    elif scheme == ECDSA:
-      res.eckey = ? (EcPrivateKey.random(Secp256r1).mapErr do (_: auto) -> auto: KeyError)
-      ok(res)
-    elif scheme == Secp256k1:
-      res.skkey = ? (SkPrivateKey.random().mapErr do (_: auto) -> auto: KeyError)
-      ok(res)
-    else:
-      err(SchemeError)
+    err(SchemeError)
 
 proc random*(t: typedesc[KeyPair], scheme: PKScheme,
              bits = DefaultKeySize): CryptoResult[KeyPair] =
@@ -127,50 +123,45 @@ proc random*(t: typedesc[KeyPair], scheme: PKScheme,
   ##
   ## ``bits`` is number of bits for RSA key, ``bits`` value must be in
   ## [512, 4096], default value is 2048 bits.
-  if scheme notin SupportedSchemes:
-    err(SchemeError)
+  case scheme
+  of RSA:
+    let pair = ? (RsaKeyPair.random(bits).mapErr do (_: auto) -> auto: KeyError)
+    ok(KeyPair(
+      seckey: PrivateKey(scheme: scheme, rsakey: pair.seckey),
+      pubkey: PublicKey(scheme: scheme, rsakey: pair.pubkey)))
+  of Ed25519:
+    let pair = ? (EdKeyPair.random().mapErr do (_: auto) -> auto: KeyError)
+    ok(KeyPair(
+      seckey: PrivateKey(scheme: scheme, edkey: pair.seckey),
+      pubkey: PublicKey(scheme: scheme, edkey: pair.pubkey)))
+  of ECDSA:
+    let pair = ? (EcKeyPair.random(Secp256r1).mapErr do (_: auto) -> auto: KeyError)
+    ok(KeyPair(
+      seckey: PrivateKey(scheme: scheme, eckey: pair.seckey),
+      pubkey: PublicKey(scheme: scheme, eckey: pair.pubkey)))
+  of Secp256k1:
+    let pair = ? (SkKeyPair.random().mapErr do (_: auto) -> auto: KeyError)
+    ok(KeyPair(
+      seckey: PrivateKey(scheme: scheme, skkey: pair.seckey),
+      pubkey: PublicKey(scheme: scheme, skkey: pair.pubkey)))
   else:
-    var res: t
-    res.seckey = PrivateKey(scheme: scheme)
-    res.pubkey = PublicKey(scheme: scheme)
-    if scheme == RSA:
-      var pair = ? (RsaKeyPair.random(bits).mapErr do (_: auto) -> auto: KeyError)
-      res.seckey.rsakey = pair.seckey
-      res.pubkey.rsakey = pair.pubkey
-      ok(res)
-    elif scheme == Ed25519:
-      var pair = ? (EdKeyPair.random().mapErr do (_: auto) -> auto: KeyError)
-      res.seckey.edkey = pair.seckey
-      res.pubkey.edkey = pair.pubkey
-      ok(res)
-    elif scheme == ECDSA:
-      var pair = ? (EcKeyPair.random(Secp256r1).mapErr do (_: auto) -> auto: KeyError)
-      res.seckey.eckey = pair.seckey
-      res.pubkey.eckey = pair.pubkey
-      ok(res)
-    elif scheme == Secp256k1:
-      var pair = ? (SkKeyPair.random().mapErr do (_: auto) -> auto: KeyError)
-      res.seckey.skkey = pair.seckey
-      res.pubkey.skkey = pair.pubkey
-      ok(res)
-    else:
-      err(SchemeError)
+    err(SchemeError)
 
 proc getKey*(key: PrivateKey): CryptoResult[PublicKey] =
   ## Get public key from corresponding private key ``key``.
-  var res = PublicKey(scheme: key.scheme)
-  if key.scheme == RSA:
-    res.rsakey = key.rsakey.getKey()
-    ok(res)
-  elif key.scheme == Ed25519:
-    res.edkey = key.edkey.getKey()
-    ok(res)
-  elif key.scheme == ECDSA:
-    res.eckey = ? (key.eckey.getKey().mapErr do (_: auto) -> auto: KeyError)
-    ok(res)
-  elif key.scheme == Secp256k1:
-    res.skkey = ? (key.skkey.getKey().mapErr do (_: auto) -> auto: KeyError)
-    ok(res)
+  case key.scheme
+  of RSA:
+    let rsakey = key.rsakey.getKey()
+    ok(PublicKey(scheme: RSA, rsakey: rsakey))
+  of Ed25519:
+    let edkey = key.edkey.getKey()
+    ok(PublicKey(scheme: Ed25519, edkey: edkey))
+  of ECDSA:
+    let eckey = ? (key.eckey.getKey().mapErr do (_: auto) -> auto: KeyError)
+    ok(PublicKey(scheme: ECDSA, eckey: eckey))
+  of Secp256k1:
+    let skkey = ? (key.skkey.getKey().mapErr do (_: auto) -> auto: KeyError)
+    ok(PublicKey(scheme: Secp256k1, skkey: skkey))
   else:
     err(KeyError)
 
@@ -179,18 +170,18 @@ proc toRawBytes*(key: PrivateKey | PublicKey, data: var openarray[byte]): Crypto
   ## it to ``data``.
   ##
   ## Returns number of bytes (octets) needed to store private key ``key``.
-  var res = 0
-  if key.scheme == RSA:
-    res = ? (key.rsakey.toBytes(data).mapErr do (_: auto) -> auto: KeyError)
+  case key.scheme
+  of RSA:
+    let res = ? (key.rsakey.toBytes(data).mapErr do (_: auto) -> auto: KeyError)
     ok(res)
-  elif key.scheme == Ed25519:
-    res = key.edkey.toBytes(data)
+  of Ed25519:
+    let res = key.edkey.toBytes(data)
     ok(res)
-  elif key.scheme == ECDSA:
-    res = ? (key.eckey.toBytes(data).mapErr do (_: auto) -> auto: KeyError)
+  of ECDSA:
+    let res = ? (key.eckey.toBytes(data).mapErr do (_: auto) -> auto: KeyError)
     ok(res)
-  elif key.scheme == Secp256k1:
-    res = ? (key.skkey.toBytes(data).mapErr do (_: auto) -> auto: KeyError)
+  of Secp256k1:
+    let res = ? (key.skkey.toBytes(data).mapErr do (_: auto) -> auto: KeyError)
     ok(res)
   else:
     err(KeyError)
@@ -198,18 +189,18 @@ proc toRawBytes*(key: PrivateKey | PublicKey, data: var openarray[byte]): Crypto
 proc getRawBytes*(key: PrivateKey | PublicKey): CryptoResult[seq[byte]] =
   ## Return private key ``key`` in binary form (using scheme's own
   ## serialization).
-  var res: seq[byte]
-  if key.scheme == RSA:
-    res = ? (key.rsakey.getBytes().mapErr do (_: auto) -> auto: KeyError)
+  case key.scheme
+  of RSA:
+    let res = ? (key.rsakey.getBytes().mapErr do (_: auto) -> auto: KeyError)
     ok(res)
-  elif key.scheme == Ed25519:
-    res = key.edkey.getBytes()
+  of Ed25519:
+    let res = key.edkey.getBytes()
     ok(res)
-  elif key.scheme == ECDSA:
-    res = ? (key.eckey.getBytes().mapErr do (_: auto) -> auto: KeyError)
+  of ECDSA:
+    let res = ? (key.eckey.getBytes().mapErr do (_: auto) -> auto: KeyError)
     ok(res)
-  elif key.scheme == Secp256k1:
-    res = key.skkey.getBytes()
+  of Secp256k1:
+    let res = key.skkey.getBytes()
     ok(res)
   else:
     err(KeyError)
@@ -238,7 +229,7 @@ proc toBytes*(key: PublicKey, data: var openarray[byte]): CryptoResult[int] =
   msg.write(initProtoField(2, ? key.getRawBytes()))
   msg.finish()
   var blen = len(msg.buffer)
-  if len(data) >= blen:
+  if len(data) >= blen and blen > 0:
     copyMem(addr data[0], addr msg.buffer[0], blen)
   ok(blen)
 
@@ -247,7 +238,7 @@ proc toBytes*(sig: Signature, data: var openarray[byte]): int =
   ##
   ## Returns number of bytes (octets) needed to store signature ``sig``.
   result = len(sig.data)
-  if len(data) >= result:
+  if len(data) >= result and result > 0:
     copyMem(addr data[0], unsafeAddr sig.data[0], len(sig.data))
 
 proc getBytes*(key: PrivateKey): CryptoResult[seq[byte]] =
@@ -565,11 +556,11 @@ template makeSecret(buffer, hmactype, secret, seed: untyped) {.dirty.}=
     if secret[i] != 0x00'u8:
       break
     inc(offset)
-  ctx.init(secret.toOpenArray(offset, len(secret) - 1))
+  ctx.init(secret.toOpenArray(offset, secret.high))
   ctx.update(seed)
   var a = ctx.finish()
   while j < len(buffer):
-    ctx.init(secret.toOpenArray(offset, len(secret) - 1))
+    ctx.init(secret.toOpenArray(offset, secret.high))
     ctx.update(a.data)
     ctx.update(seed)
     var b = ctx.finish()
@@ -578,7 +569,7 @@ template makeSecret(buffer, hmactype, secret, seed: untyped) {.dirty.}=
       todo = len(buffer) - j
     copyMem(addr buffer[j], addr b.data[0], todo)
     j += todo
-    ctx.init(secret.toOpenArray(offset, len(secret) - 1))
+    ctx.init(secret.toOpenArray(offset, secret.high))
     ctx.update(a.data)
     a = ctx.finish()
 

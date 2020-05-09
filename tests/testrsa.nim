@@ -424,7 +424,7 @@ suite "RSA 512/1024/2048/4096 test suite":
       var pubkey = RsaPublicKey.init(serpk).expect("RsaPublicKey.key initialization")
       var csig = RsaSignature.init(sersig).expect("RsaSignature.key initialization")
       check csig.verify(message, pubkey) == true
-      let error = len(csig.buffer) - 1
+      let error = csig.buffer.high
       csig.buffer[error] = not(csig.buffer[error])
       check csig.verify(message, pubkey) == false
 
@@ -440,7 +440,7 @@ suite "RSA 512/1024/2048/4096 test suite":
       var pubkey = RsaPublicKey.init(serpk).expect("key initialization")
       var csig = RsaSignature.init(sersig).expect("key initialization")
       check csig.verify(message, pubkey) == true
-      let error = len(csig.buffer) - 1
+      let error = csig.buffer.high
       csig.buffer[error] = not(csig.buffer[error])
       check csig.verify(message, pubkey) == false
 
@@ -455,7 +455,7 @@ suite "RSA 512/1024/2048/4096 test suite":
     var pubkey = RsaPublicKey.init(serpk).expect("key initialization")
     var csig = RsaSignature.init(sersig).expect("key initialization")
     check csig.verify(message, pubkey) == true
-    let error = len(csig.buffer) - 1
+    let error = csig.buffer.high
     csig.buffer[error] = not(csig.buffer[error])
     check csig.verify(message, pubkey) == false
 
@@ -471,7 +471,7 @@ suite "RSA 512/1024/2048/4096 test suite":
       var pubkey = RsaPublicKey.init(serpk).expect("key initialization")
       var csig = RsaSignature.init(sersig).expect("key initialization")
       check csig.verify(message, pubkey) == true
-      let error = len(csig.buffer) - 1
+      let error = csig.buffer.high
       csig.buffer[error] = not(csig.buffer[error])
       check csig.verify(message, pubkey) == false
 

@@ -95,7 +95,7 @@ proc decode(data: openarray[byte], cid: var Cid): CidStatus =
     if mcodec == InvalidMultiCodec:
       return CidStatus.Incorrect
     if not MultiHash.validate(vb.buffer.toOpenArray(vb.offset,
-                                                    len(vb.buffer) - 1)):
+                                                    vb.buffer.high)):
       return CidStatus.Incorrect
     vb.finish()
     cid.cidver = CIDv1
@@ -133,7 +133,7 @@ proc validate*(ctype: typedesc[Cid], data: openarray[byte]): bool =
   var res: VarintStatus
   if len(data) < 2:
     return false
-  let last = len(data) - 1
+  let last = data.high
   if len(data) == 34:
     if data[0] == 0x12'u8 and data[1] == 0x20'u8:
       return true
@@ -162,7 +162,7 @@ proc mhash*(cid: Cid): MultiHash =
   if cid.cidver notin {CIDv0, CIDv1}:
     raise newException(CidError, "Incorrect CID!")
   result = MultiHash.init(
-    cid.data.buffer.toOpenArray(cid.hpos, len(cid.data) - 1)).tryGet()
+    cid.data.buffer.toOpenArray(cid.hpos, cid.data.high)).tryGet()
 
 proc contentType*(cid: Cid): MultiCodec =
   ## Returns content type part of CID
@@ -222,10 +222,10 @@ proc `==`*(a: Cid, b: Cid): bool =
   if a.mcodec == b.mcodec:
     var ah, bh: MultiHash
     if MultiHash.decode(
-      a.data.buffer.toOpenArray(a.hpos, len(a.data) - 1), ah).isErr:
+      a.data.buffer.toOpenArray(a.hpos, a.data.high), ah).isErr:
       return false
     if MultiHash.decode(
-      b.data.buffer.toOpenArray(b.hpos, len(b.data) - 1), bh).isErr:
+      b.data.buffer.toOpenArray(b.hpos, b.data.high), bh).isErr:
       return false
     result = (ah == bh)
 

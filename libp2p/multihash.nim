@@ -34,6 +34,11 @@ export sha, sha2, keccak, blake2, hash, utils
 
 const
   MaxHashSize* = 128
+  ErrIncorrectName = "Incorrect hash name"
+  ErrNotSupported = "Hash not supported"
+  ErrWrongDigestSize = "Incorrect digest size"
+  ErrDecodeError = "Decoding error from bytes"
+  ErrParseError = "Parse error fromHex"
 
 type
   MHashCoderProc* = proc(data: openarray[byte],
@@ -49,14 +54,7 @@ type
     size*: int
     dpos*: int
 
-  MultiHashError* {.pure.} = enum
-    IncorrectName,
-    NotSupported,
-    WrongDigestSize,
-    DecodeError,
-    ParseError
-
-  MhResult*[T] = Result[T, MultiHashError]
+  MhResult*[T] = Result[T, cstring]
 
 proc identhash(data: openarray[byte], output: var openarray[byte]) =
   if len(output) > 0:
@@ -362,11 +360,11 @@ proc digest*(mhtype: typedesc[MultiHash], hashname: string,
   ## data array ``data``.
   let mc = MultiCodec.codec(hashname)
   if mc == InvalidMultiCodec:
-    err(MultiHashError.IncorrectName)
+    err(ErrIncorrectName)
   else:
     let hash = CodeHashes.getOrDefault(mc)
     if isNil(hash.coder):
-      err(MultiHashError.NotSupported)
+      err(ErrNotSupported)
     else:
       ok(digestImplWithHash(hash, data))
 
@@ -376,7 +374,7 @@ proc digest*(mhtype: typedesc[MultiHash], hashcode: int,
   ## data array ``data``.
   let hash = CodeHashes.getOrDefault(hashcode)
   if isNil(hash.coder):
-    err(MultiHashError.NotSupported)
+    err(ErrNotSupported)
   else:
     ok(digestImplWithHash(hash, data))
 
@@ -386,13 +384,13 @@ proc init*[T](mhtype: typedesc[MultiHash], hashname: string,
   ## ``hashname``.
   let mc = MultiCodec.codec(hashname)
   if mc == InvalidMultiCodec:
-    err(MultiHashError.IncorrectName)
+    err(ErrIncorrectName)
   else:
     let hash = CodeHashes.getOrDefault(mc)
     if isNil(hash.coder):
-      err(MultiHashError.NotSupported)
+      err(ErrNotSupported)
     elif hash.size != len(mdigest.data):
-      err(MultiHashError.WrongDigestSize)
+      err(ErrWrongDigestSize)
     else:
       ok(digestImplWithoutHash(hash, mdigest.data))
 
@@ -402,9 +400,9 @@ proc init*[T](mhtype: typedesc[MultiHash], hashcode: MultiCodec,
   ## ``hashcode``.
   let hash = CodeHashes.getOrDefault(hashcode)
   if isNil(hash.coder):
-    err(MultiHashError.NotSupported)
+    err(ErrNotSupported)
   elif (hash.size != 0) and (hash.size != len(mdigest.data)):
-    err(MultiHashError.WrongDigestSize)
+    err(ErrWrongDigestSize)
   else:
     ok(digestImplWithoutHash(hash, mdigest.data))
 
@@ -414,13 +412,13 @@ proc init*(mhtype: typedesc[MultiHash], hashname: string,
   ## ``hashcode``.
   let mc = MultiCodec.codec(hashname)
   if mc == InvalidMultiCodec:
-    err(MultiHashError.IncorrectName)
+    err(ErrIncorrectName)
   else:
     let hash = CodeHashes.getOrDefault(mc)
     if isNil(hash.coder):
-      err(MultiHashError.NotSupported)
+      err(ErrNotSupported)
     elif (hash.size != 0) and (hash.size != len(bdigest)):
-      err(MultiHashError.WrongDigestSize)
+      err(ErrWrongDigestSize)
     else:
       ok(digestImplWithoutHash(hash, bdigest))
 
@@ -430,9 +428,9 @@ proc init*(mhtype: typedesc[MultiHash], hashcode: MultiCodec,
   ## ``hashcode``.
   let hash = CodeHashes.getOrDefault(hashcode)
   if isNil(hash.coder):
-    err(MultiHashError.NotSupported)
+    err(ErrNotSupported)
   elif (hash.size != 0) and (hash.size != len(bdigest)):
-    err(MultiHashError.WrongDigestSize)
+    err(ErrWrongDigestSize)
   else:
     ok(digestImplWithoutHash(hash, bdigest))
 
@@ -447,34 +445,34 @@ proc decode*(mhtype: typedesc[MultiHash], data: openarray[byte],
   var code, size: uint64
   var res, dpos: int
   if len(data) < 2:
-    return err(MultiHashError.DecodeError)
+    return err(ErrDecodeError)
 
   var vb = initVBuffer(data)
   if vb.isEmpty():
-    return err(MultiHashError.DecodeError)
+    return err(ErrDecodeError)
 
   res = vb.readVarint(code)
   if res == -1:
-    return err(MultiHashError.DecodeError)
+    return err(ErrDecodeError)
 
   dpos += res
   res = vb.readVarint(size)
   if res == -1:
-    return err(MultiHashError.DecodeError)
+    return err(ErrDecodeError)
 
   dpos += res
   if size > 0x7FFF_FFFF'u64:
-    return err(MultiHashError.DecodeError)
+    return err(ErrDecodeError)
 
   let hash = CodeHashes.getOrDefault(MultiCodec(code))
   if isNil(hash.coder):
-    return err(MultiHashError.DecodeError)
+    return err(ErrDecodeError)
 
   if (hash.size != 0) and (hash.size != int(size)):
-    return err(MultiHashError.DecodeError)
+    return err(ErrDecodeError)
 
   if not vb.isEnough(int(size)):
-    return err(MultiHashError.DecodeError)
+    return err(ErrDecodeError)
 
   mhash = ? MultiHash.init(MultiCodec(code),
                          vb.buffer.toOpenArray(vb.offset,
@@ -487,7 +485,7 @@ proc validate*(mhtype: typedesc[MultiHash], data: openarray[byte]): bool =
   var res: VarintStatus
   if len(data) < 2:
     return false
-  let last = len(data) - 1
+  let last = data.high
   var offset = 0
   var length = 0
   res = LP.getUVarint(data.toOpenArray(offset, last), length, code)
@@ -525,7 +523,7 @@ proc init*(mhtype: typedesc[MultiHash], data: string): MhResult[MultiHash] {.inl
     discard ? MultiHash.decode(fromHex(data), hash)
     ok(hash)
   except ValueError:
-    err(MultiHashError.ParseError)
+    err(ErrParseError)
 
 proc init58*(mhtype: typedesc[MultiHash],
              data: string): MultiHash {.inline.} =
@@ -552,7 +550,7 @@ proc `==`*[T](mh: MultiHash, mdigest: MDigest[T]): bool =
   if len(mdigest.data) != mh.size:
     return false
   result = cmp(mh.data.buffer.toOpenArray(mh.dpos, mh.dpos + mh.size - 1),
-               mdigest.data.toOpenArray(0, len(mdigest.data) - 1))
+               mdigest.data.toOpenArray(0, mdigest.data.high))
 
 proc `==`*[T](mdigest: MDigest[T], mh: MultiHash): bool {.inline.} =
   ## Compares MultiHash with nimcrypto's MDigest[T], returns ``true`` if

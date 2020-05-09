@@ -370,7 +370,7 @@ suite "EC NIST-P256/384/521 test suite":
       check:
         checksig == expectsig
         checksig.verify(SignatureMessages[i], checkpk) == true
-      let error = len(checksig.buffer) - 1
+      let error = checksig.buffer.high
       checksig.buffer[error] = not(checksig.buffer[error])
       check checksig.verify(SignatureMessages[i], checkpk) == false
 
@@ -383,7 +383,7 @@ suite "EC NIST-P256/384/521 test suite":
       var message = NDMessages[i]
       var checksig = EcSignature.init(stripSpaces(NDSignatures[i])).expect("signature")
       check checksig.verify(message, pk) == true
-      let error = len(checksig.buffer) - 1
+      let error = checksig.buffer.high
       checksig.buffer[error] = not(checksig.buffer[error])
       check checksig.verify(message, pk) == false
 
@@ -399,7 +399,7 @@ suite "EC NIST-P256/384/521 test suite":
       var pubkey = EcPublicKey.init(serpk).expect("public key")
       var csig = EcSignature.init(sersig).expect("signature")
       check csig.verify(message, pubkey) == true
-      let error = len(csig.buffer) - 1
+      let error = csig.buffer.high
       csig.buffer[error] = not(csig.buffer[error])
       check csig.verify(message, pubkey) == false
 
@@ -477,7 +477,7 @@ suite "EC NIST-P256/384/521 test suite":
       check:
         checksig == expectsig
         checksig.verify(SignatureMessages[i], checkpk) == true
-      let error = len(checksig.buffer) - 1
+      let error = checksig.buffer.high
       checksig.buffer[error] = not(checksig.buffer[error])
       check checksig.verify(SignatureMessages[i], checkpk) == false
 
@@ -490,7 +490,7 @@ suite "EC NIST-P256/384/521 test suite":
       var message = NDMessages[i]
       var checksig = EcSignature.init(stripSpaces(NDSignatures[i])).expect("signature")
       check checksig.verify(message, pk) == true
-      let error = len(checksig.buffer) - 1
+      let error = checksig.buffer.high
       checksig.buffer[error] = not(checksig.buffer[error])
       check checksig.verify(message, pk) == false
 
@@ -506,7 +506,7 @@ suite "EC NIST-P256/384/521 test suite":
       var pubkey = EcPublicKey.init(serpk).expect("public key")
       var csig = EcSignature.init(sersig).expect("signature")
       check csig.verify(message, pubkey) == true
-      let error = len(csig.buffer) - 1
+      let error = csig.buffer.high
       csig.buffer[error] = not(csig.buffer[error])
       check csig.verify(message, pubkey) == false
 
@@ -584,7 +584,7 @@ suite "EC NIST-P256/384/521 test suite":
       check:
         checksig == expectsig
         checksig.verify(SignatureMessages[i], checkpk) == true
-      let error = len(checksig.buffer) - 1
+      let error = checksig.buffer.high
       checksig.buffer[error] = not(checksig.buffer[error])
       check checksig.verify(SignatureMessages[i], checkpk) == false
 
@@ -597,7 +597,7 @@ suite "EC NIST-P256/384/521 test suite":
       var message = NDMessages[i]
       var checksig = EcSignature.init(stripSpaces(NDSignatures[i])).expect("signature")
       check checksig.verify(message, pk) == true
-      let error = len(checksig.buffer) - 1
+      let error = checksig.buffer.high
       checksig.buffer[error] = not(checksig.buffer[error])
       check checksig.verify(message, pk) == false
 
@@ -613,6 +613,6 @@ suite "EC NIST-P256/384/521 test suite":
       var pubkey = EcPublicKey.init(serpk).expect("public key")
       var csig = EcSignature.init(sersig).expect("signature")
       check csig.verify(message, pubkey) == true
-      let error = len(csig.buffer) - 1
+      let error = csig.buffer.high
       csig.buffer[error] = not(csig.buffer[error])
       check csig.verify(message, pubkey) == false

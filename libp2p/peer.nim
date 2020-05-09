@@ -117,7 +117,7 @@ proc `$`*(pid: PeerID): string =
     for i in 0..<2:
       result.add(spid[i])
     result.add("*")
-    for i in (len(spid) - 6)..(len(spid) - 1):
+    for i in (len(spid) - 6)..spid.high:
       result.add(spid[i])
 
 proc init*(pid: var PeerID, data: openarray[byte]): bool =

@@ -180,6 +180,6 @@ suite "Ed25519 test suite":
       var pubkey = EdPublicKey.init(serpk).expect("key/sig")
       var csig = EdSignature.init(sersig).expect("key/sig")
       check csig.verify(message, pubkey) == true
-      let error = len(csig.data) - 1
+      let error = csig.data.high
       csig.data[error] = not(csig.data[error])
       check csig.verify(message, pubkey) == false

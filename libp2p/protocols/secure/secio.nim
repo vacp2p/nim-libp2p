@@ -167,7 +167,7 @@ proc macCheckAndDecode(sconn: SecioConn, data: var seq[byte]): bool =
   if not equalMem(addr data[mark], addr macData[0], macsize):
     trace "Invalid MAC",
           calculated = toHex(macData.toOpenArray(0, macsize - 1)),
-          stored = toHex(data.toOpenArray(mark, len(data) - 1))
+          stored = toHex(data.toOpenArray(mark, data.high))
     return false
 
   sconn.readerCoder.decrypt(data.toOpenArray(0, mark - 1),

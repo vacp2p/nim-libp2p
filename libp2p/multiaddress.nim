@@ -426,12 +426,12 @@ const
 proc trimRight(s: string, ch: char): string =
   ## Consume trailing characters ``ch`` from string ``s`` and return result.
   var m = 0
-  for i in countdown(len(s) - 1, 0):
+  for i in countdown(s.high, 0):
     if s[i] == ch:
       inc(m)
     else:
       break
-  result = s[0..(len(s) - 1 - m)]
+  result = s[0..(s.high - m)]
 
 proc shcopy*(m1: var MultiAddress, m2: MultiAddress) =
   shallowCopy(m1.data.buffer, m2.data.buffer)

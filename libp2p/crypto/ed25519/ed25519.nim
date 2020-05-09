@@ -1637,7 +1637,7 @@ proc checkScalar*(scalar: openarray[byte]): uint32 =
   for u in scalar:
     z = z or u
   if len(scalar) == len(CurveOrder):
-    for i in countdown(len(scalar) - 1, 0):
+    for i in countdown(scalar.high, 0):
       c = c or (-(cast[int32](EQ0(c))) and CMP(scalar[i], CurveOrder[i]))
   else:
     c = -1

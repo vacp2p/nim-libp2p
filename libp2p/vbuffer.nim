@@ -24,9 +24,15 @@ template isEnough*(vb: VBuffer, length: int): bool =
   ## Returns ``true`` if buffer ``vb`` holds at least ``length`` bytes.
   len(vb.buffer) - vb.offset - length >= 0
 
+proc high*(vb: VBuffer): int =
+  ## Returns number of bytes left in buffer ``vb``.
+  result = vb.buffer.high - vb.offset
+  doAssert(result >= 0)
+
 proc len*(vb: VBuffer): int =
   ## Returns number of bytes left in buffer ``vb``.
   result = len(vb.buffer) - vb.offset
+  doAssert(result >= 0)
 
 proc isLiteral[T](s: seq[T]): bool {.inline.} =
   type
@@ -58,7 +64,7 @@ proc writePBVarint*(vb: var VBuffer, value: PBSomeUVarint) =
   var length = 0
   var v = value and cast[type(value)](0xFFFF_FFFF_FFFF_FFFF)
   vb.buffer.setLen(len(vb.buffer) + vsizeof(v))
-  let res = PB.putUVarint(toOpenArray(vb.buffer, vb.offset, len(vb.buffer) - 1),
+  let res = PB.putUVarint(toOpenArray(vb.buffer, vb.offset, vb.buffer.high),
                           length, v)
   doAssert(res == VarintStatus.Success)
   vb.offset += length
@@ -69,7 +75,7 @@ proc writeLPVarint*(vb: var VBuffer, value: LPSomeUVarint) =
   # LibP2P varint supports only 63 bits.
   var v = value and cast[type(value)](0x7FFF_FFFF_FFFF_FFFF)
   vb.buffer.setLen(len(vb.buffer) + vsizeof(v))
-  let res = LP.putUVarint(toOpenArray(vb.buffer, vb.offset, len(vb.buffer) - 1),
+  let res = LP.putUVarint(toOpenArray(vb.buffer, vb.offset, vb.buffer.high),
                           length, v)
   doAssert(res == VarintStatus.Success)
   vb.offset += length
@@ -82,7 +88,7 @@ proc writeSeq*[T: byte|char](vb: var VBuffer, value: openarray[T]) =
   ## varint length of the array.
   var length = 0
   vb.buffer.setLen(len(vb.buffer) + vsizeof(uint(len(value))) + len(value))
-  let res = LP.putUVarint(toOpenArray(vb.buffer, vb.offset, len(vb.buffer) - 1),
+  let res = LP.putUVarint(toOpenArray(vb.buffer, vb.offset, vb.buffer.high),
                           length, uint(len(value)))
   doAssert(res == VarintStatus.Success)
   vb.offset += length
@@ -113,7 +119,7 @@ proc peekVarint*(vb: var VBuffer, value: var LPSomeUVarint): int =
   var length = 0
   if not vb.isEmpty():
     let res = LP.getUVarint(
-      toOpenArray(vb.buffer, vb.offset, len(vb.buffer) - 1), length, value)
+      toOpenArray(vb.buffer, vb.offset, vb.buffer.high), length, value)
     if res == VarintStatus.Success:
       result = length
 
@@ -129,7 +135,7 @@ proc peekSeq*[T: string|seq[byte]](vb: var VBuffer, value: var T): int =
   var length = 0
   var size = 0'u64
   if not vb.isEmpty() and
-     LP.getUVarint(toOpenArray(vb.buffer, vb.offset, len(vb.buffer) - 1),
+     LP.getUVarint(toOpenArray(vb.buffer, vb.offset, vb.buffer.high),
                    length, size) == VarintStatus.Success:
     vb.offset += length
     result = length
