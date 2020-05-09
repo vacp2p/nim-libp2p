@@ -25,8 +25,6 @@ import ../muxer,
 logScope:
   topic = "Mplex"
 
-const DefaultRWTimeout = InfiniteDuration
-
 type
   Mplex* = ref object of Muxer
     remote*: Table[uint64, LPChannel]

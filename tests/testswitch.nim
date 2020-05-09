@@ -1,3 +1,5 @@
+{.used.}
+
 import unittest, tables
 import chronos
 import chronicles
@@ -13,7 +15,6 @@ import ../libp2p/[errors,
                   multiaddress,
                   peerinfo,
                   crypto/crypto,
-                  peer,
                   protocols/protocol,
                   muxers/muxer,
                   muxers/mplex/mplex,
@@ -21,13 +22,10 @@ import ../libp2p/[errors,
                   protocols/secure/secio,
                   protocols/secure/secure,
                   stream/lpstream]
-
-when defined(nimHasUsed): {.used.}
+import ./helpers
 
 const
   TestCodec = "/test/proto/1.0.0"
-  StreamTransportTrackerName = "stream.transport"
-  StreamServerTrackerName = "stream.server"
 
 type
   TestProto = ref object of LPProtocol
@@ -53,20 +51,8 @@ proc createSwitch(ma: MultiAddress): (Switch, PeerInfo) =
 
 suite "Switch":
   teardown:
-    let
-      trackers = [
-        # getTracker(ConnectionTrackerName),
-        getTracker(BufferStreamTrackerName),
-        getTracker(AsyncStreamWriterTrackerName),
-        getTracker(TcpTransportTrackerName),
-        getTracker(AsyncStreamReaderTrackerName),
-        getTracker(StreamTransportTrackerName),
-        getTracker(StreamServerTrackerName)
-      ]
-    for tracker in trackers:
-      if not isNil(tracker):
-        # echo tracker.dump()
-        check tracker.isLeaked() == false
+    for tracker in testTrackers():
+      check tracker.isLeaked() == false
 
   test "e2e use switch dial proto string":
     proc testSwitch(): Future[bool] {.async, gcsafe.} =

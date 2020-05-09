@@ -17,8 +17,12 @@ import types,
        ../../utility,
        ../../errors
 
+export lpstream
+
 logScope:
   topic = "MplexChannel"
+
+const DefaultChannelSize* = 1 shl 20
 
 type
   LPChannel* = ref object of BufferStream
@@ -136,11 +140,6 @@ template raiseEOF(): untyped =
   if s.closed or s.isReset:
     raise newLPStreamEOFError()
 
-method read*(s: LPChannel, n = -1): Future[seq[byte]] {.async.} =
-  raiseEOF()
-  result = (await procCall(read(BufferStream(s), n)))
-  await s.tryCleanup()
-
 method readExactly*(s: LPChannel,
                     pbytes: pointer,
                     nbytes: int):
@@ -149,26 +148,10 @@ method readExactly*(s: LPChannel,
   await procCall readExactly(BufferStream(s), pbytes, nbytes)
   await s.tryCleanup()
 
-method readLine*(s: LPChannel,
-                 limit = 0,
-                 sep = "\r\n"):
-                 Future[string] {.async.} =
-  raiseEOF()
-  result = await procCall readLine(BufferStream(s), limit, sep)
-  await s.tryCleanup()
-
 method readOnce*(s: LPChannel,
                  pbytes: pointer,
                  nbytes: int):
                  Future[int] {.async.} =
-  raiseEOF()
-  result = await procCall readOnce(BufferStream(s), pbytes, nbytes)
-  await s.tryCleanup()
-
-method readUntil*(s: LPChannel,
-                  pbytes: pointer, nbytes: int,
-                  sep: seq[byte]):
-                  Future[int] {.async.} =
   raiseEOF()
   result = await procCall readOnce(BufferStream(s), pbytes, nbytes)
   await s.tryCleanup()
@@ -180,14 +163,6 @@ template writePrefix: untyped =
   if s.isLazy and not s.isOpen:
     await s.open()
 
-method write*(s: LPChannel, pbytes: pointer, nbytes: int) {.async.} =
+method write*(s: LPChannel, msg: seq[byte]) {.async.} =
   writePrefix()
-  await procCall write(BufferStream(s), pbytes, nbytes)
-
-method write*(s: LPChannel, msg: string, msglen = -1) {.async.} =
-  writePrefix()
-  await procCall write(BufferStream(s), msg, msglen)
-
-method write*(s: LPChannel, msg: seq[byte], msglen = -1) {.async.} =
-  writePrefix()
-  await procCall write(BufferStream(s), msg, msglen)
+  await procCall write(BufferStream(s), msg)

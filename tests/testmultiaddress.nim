@@ -391,3 +391,11 @@ suite "MultiAddress test suite":
       discard MultiAddress.init(multiCodec("udp"), -1)
       discard MultiAddress.init(multiCodec("dccp"), -1)
       discard MultiAddress.init(multiCodec("sctp"), -1)
+
+  test "MultiAddress protoAddress(fixed) test":
+    var
+      address_v4: array[4, byte]
+      address_v6: array[16, byte]
+    check:
+      MultiAddress.init("/ip4/0.0.0.0").protoAddress() == address_v4
+      MultiAddress.init("/ip6/::0").protoAddress() == address_v6

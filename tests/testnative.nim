@@ -1,4 +1,5 @@
-import testvarint
+import testvarint,
+       teststreamseq
 
 import testrsa,
        testecnist,
@@ -19,5 +20,4 @@ import testtransport,
        testswitch,
        testnoise,
        testpeerinfo,
-       testmplex,
-       pubsub/testpubsub
+       testmplex

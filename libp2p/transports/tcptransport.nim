@@ -7,7 +7,7 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import chronos, chronicles, sequtils, sets
+import chronos, chronicles, sequtils
 import transport,
        ../errors,
        ../wire,
@@ -62,11 +62,10 @@ proc cleanup(t: Transport, conn: Connection) {.async.} =
   t.connections.keepItIf(it != conn)
 
 proc connHandler*(t: TcpTransport,
-                  server: StreamServer,
                   client: StreamTransport,
                   initiator: bool): Connection =
   trace "handling connection for", address = $client.remoteAddress
-  let conn: Connection = newConnection(newChronosStream(server, client))
+  let conn: Connection = newConnection(newChronosStream(client))
   conn.observedAddrs = MultiAddress.init(client.remoteAddress)
   if not initiator:
     if not isNil(t.handler):
@@ -83,7 +82,7 @@ proc connCb(server: StreamServer,
   let t = cast[TcpTransport](server.udata)
   # we don't need result connection in this case
   # as it's added inside connHandler
-  discard t.connHandler(server, client, false)
+  discard t.connHandler(client, false)
 
 method init*(t: TcpTransport) =
   t.multicodec = multiCodec("tcp")
@@ -127,7 +126,7 @@ method listen*(t: TcpTransport,
   discard await procCall Transport(t).listen(ma, handler) # call base
 
   ## listen on the transport
-  t.server = createStreamServer(t.ma, connCb, {}, t)
+  t.server = createStreamServer(t.ma, connCb, transportFlagsToServerFlags(t.flags), t)
   t.server.start()
 
   # always get the resolved address in case we're bound to 0.0.0.0:0
@@ -141,7 +140,7 @@ method dial*(t: TcpTransport,
   trace "dialing remote peer", address = $address
   ## dial a peer
   let client: StreamTransport = await connect(address)
-  result = t.connHandler(t.server, client, true)
+  result = t.connHandler(client, true)
 
 method handles*(t: TcpTransport, address: MultiAddress): bool {.gcsafe.} =
   if procCall Transport(t).handles(address):

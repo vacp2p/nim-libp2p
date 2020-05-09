@@ -7,7 +7,7 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import strutils
+import strutils, stew/byteutils
 import chronos, chronicles
 import connection,
        vbuffer,
@@ -36,8 +36,6 @@ type
   MultistreamSelect* = ref object of RootObj
     handlers*: seq[HandlerHolder]
     codec*: string
-    na: string
-    ls: string
 
   MultistreamHandshakeException* = object of CatchableError
 
@@ -48,8 +46,6 @@ proc newMultistreamHandshakeException*(): ref Exception {.inline.} =
 proc newMultistream*(): MultistreamSelect =
   new result
   result.codec = MSCodec
-  result.ls = Ls
-  result.na = Na
 
 proc select*(m: MultistreamSelect,
              conn: Connection,
@@ -71,7 +67,7 @@ proc select*(m: MultistreamSelect,
   if proto.len() == 0: # no protocols, must be a handshake call
     return
 
-  result = cast[string]((await conn.readLp())) # read the first proto
+  result = string.fromBytes(await conn.readLp()) # read the first proto
   trace "reading first requested proto"
   result.removeSuffix("\n")
   if result == proto[0]:
@@ -82,7 +78,7 @@ proc select*(m: MultistreamSelect,
     trace "selecting one of several protos"
     for p in proto[1..<proto.len()]:
       await conn.writeLp((p & "\n")) # select proto
-      result = cast[string]((await conn.readLp())) # read the first proto
+      result = string.fromBytes(await conn.readLp()) # read the first proto
       result.removeSuffix("\n")
       if result == p:
         trace "selected protocol", protocol = result
@@ -105,10 +101,10 @@ proc list*(m: MultistreamSelect,
   if not await m.select(conn):
     return
 
-  await conn.write(m.ls) # send ls
+  await conn.write(Ls) # send ls
 
   var list = newSeq[string]()
-  let ms = cast[string]((await conn.readLp()))
+  let ms = string.fromBytes(await conn.readLp())
   for s in ms.split("\n"):
     if s.len() > 0:
       list.add(s)
@@ -119,17 +115,17 @@ proc handle*(m: MultistreamSelect, conn: Connection) {.async, gcsafe.} =
   trace "handle: starting multistream handling"
   tryAndWarn "multistream handle":
     while not conn.closed:
-      var ms = cast[string]((await conn.readLp()))
+      var ms = string.fromBytes(await conn.readLp())
       ms.removeSuffix("\n")
 
       trace "handle: got request for ", ms
       if ms.len() <= 0:
         trace "handle: invalid proto"
-        await conn.write(m.na)
+        await conn.write(Na)
 
       if m.handlers.len() == 0:
         trace "handle: sending `na` for protocol ", protocol = ms
-        await conn.write(m.na)
+        await conn.write(Na)
         continue
 
       case ms:
@@ -150,7 +146,7 @@ proc handle*(m: MultistreamSelect, conn: Connection) {.async, gcsafe.} =
                 await h.protocol.handler(conn, ms)
                 return
           warn "no handlers for ", protocol = ms
-          await conn.write(m.na)
+          await conn.write(Na)
   trace "leaving multistream loop"
   # we might be tempted to close conn here but that would be a bad idea!
   # we indeed will reuse it later on

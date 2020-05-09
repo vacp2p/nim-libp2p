@@ -7,6 +7,8 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
+{.used.}
+
 import unittest, tables
 import chronos
 import chronicles
@@ -23,18 +25,16 @@ import ../libp2p/[switch,
                   multiaddress,
                   peerinfo,
                   crypto/crypto,
-                  peer,
                   protocols/protocol,
                   muxers/muxer,
                   muxers/mplex/mplex,
                   muxers/mplex/types,
                   protocols/secure/noise,
                   protocols/secure/secure]
+import ./helpers
 
 const
   TestCodec = "/test/proto/1.0.0"
-  StreamTransportTrackerName = "stream.transport"
-  StreamServerTrackerName = "stream.server"
 
 type
   TestProto = ref object of LPProtocol
@@ -70,20 +70,9 @@ proc createSwitch(ma: MultiAddress; outgoing: bool): (Switch, PeerInfo) =
 
 suite "Noise":
   teardown:
-    let
-      trackers = [
-        getTracker(BufferStreamTrackerName),
-        getTracker(AsyncStreamWriterTrackerName),
-        getTracker(TcpTransportTrackerName),
-        getTracker(AsyncStreamReaderTrackerName),
-        getTracker(StreamTransportTrackerName),
-        getTracker(StreamServerTrackerName)
-      ]
-    for tracker in trackers:
-      if not isNil(tracker):
-        # echo tracker.dump()
-        check tracker.isLeaked() == false
- 
+    for tracker in testTrackers():
+      check tracker.isLeaked() == false
+
   test "e2e: handle write + noise":
     proc testListenerDialer(): Future[bool] {.async.} =
       let
@@ -256,7 +245,7 @@ suite "Noise":
   #           error getCurrentExceptionMsg()
   #         finally:
   #           await conn.close()
-     
+
   #       ms.addHandler(proto, noise)
 
   #       let
@@ -311,7 +300,7 @@ suite "Noise":
   #           trace "ms.handle exited"
   #         finally:
   #           await conn.close()
-         
+
   #       let
   #         clientConn = await transport.listen(local, connHandler)
   #       await clientConn

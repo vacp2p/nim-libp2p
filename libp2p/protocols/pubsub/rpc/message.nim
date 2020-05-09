@@ -53,7 +53,7 @@ proc verify*(m: Message, p: PeerInfo): bool =
 
 proc newMessage*(p: PeerInfo,
                  data: seq[byte],
-                 name: string,
+                 topic: string,
                  sign: bool = true): Message {.gcsafe.} =
   var seqno: seq[byte] = newSeq[byte](20)
   if p.publicKey.isSome and randomBytes(addr seqno[0], 20) > 0:
@@ -62,7 +62,7 @@ proc newMessage*(p: PeerInfo,
     result = Message(fromPeer: p.peerId.getBytes(),
                      data: data,
                      seqno: seqno,
-                     topicIDs: @[name])
+                     topicIDs: @[topic])
     if sign:
       result = result.sign(p)
 

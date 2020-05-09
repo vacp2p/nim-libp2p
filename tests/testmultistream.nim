@@ -1,4 +1,4 @@
-import unittest, strutils, sequtils, strformat, options
+import unittest, strutils, sequtils, strformat, stew/byteutils
 import chronos
 import ../libp2p/errors,
        ../libp2p/connection,
@@ -9,10 +9,9 @@ import ../libp2p/errors,
        ../libp2p/multiaddress,
        ../libp2p/transports/transport,
        ../libp2p/transports/tcptransport,
-       ../libp2p/protocols/protocol,
-       ../libp2p/crypto/crypto,
-       ../libp2p/peerinfo,
-       ../libp2p/peer
+       ../libp2p/protocols/protocol
+
+import ./helpers
 
 when defined(nimHasUsed): {.used.}
 
@@ -20,10 +19,6 @@ when defined(nimHasUsed): {.used.}
 type
   TestSelectStream = ref object of LPStream
     step*: int
-
-const
-  StreamTransportTrackerName = "stream.transport"
-  StreamServerTrackerName = "stream.server"
 
 method readExactly*(s: TestSelectStream,
                     pbytes: pointer,
@@ -51,11 +46,7 @@ method readExactly*(s: TestSelectStream,
               cstring("\0x3na\n"),
               "\0x3na\n".len())
 
-method write*(s: TestSelectStream, msg: seq[byte], msglen = -1)
-  {.async, gcsafe.} = discard
-
-method write*(s: TestSelectStream, msg: string, msglen = -1)
-  {.async, gcsafe.} = discard
+method write*(s: TestSelectStream, msg: seq[byte]) {.async, gcsafe.} = discard
 
 method close(s: TestSelectStream) {.async, gcsafe.} =
   s.isClosed = true
@@ -95,14 +86,12 @@ method readExactly*(s: TestLsStream,
       var buf = "ls\n"
       copyMem(pbytes, addr buf[0], buf.len())
     else:
-      copyMem(pbytes, cstring(Na), Na.len())
+      var buf = "na\n"
+      copyMem(pbytes, addr buf[0], buf.len())
 
-method write*(s: TestLsStream, msg: seq[byte], msglen = -1) {.async, gcsafe.} =
+method write*(s: TestLsStream, msg: seq[byte]) {.async, gcsafe.} =
   if s.step == 4:
     await s.ls(msg)
-
-method write*(s: TestLsStream, msg: string, msglen = -1)
-  {.async, gcsafe.} = discard
 
 method close(s: TestLsStream) {.async, gcsafe.} =
   s.isClosed = true
@@ -147,9 +136,9 @@ method readExactly*(s: TestNaStream,
               cstring("\0x3na\n"),
               "\0x3na\n".len())
 
-method write*(s: TestNaStream, msg: string, msglen = -1) {.async, gcsafe.} =
+method write*(s: TestNaStream, msg: seq[byte]) {.async, gcsafe.} =
   if s.step == 4:
-    await s.na(msg)
+    await s.na(string.fromBytes(msg))
 
 method close(s: TestNaStream) {.async, gcsafe.} =
   s.isClosed = true
@@ -161,20 +150,9 @@ proc newTestNaStream(na: NaHandler): TestNaStream =
 
 suite "Multistream select":
   teardown:
-    let
-      trackers = [
-        # getTracker(ConnectionTrackerName),
-        getTracker(AsyncStreamWriterTrackerName),
-        getTracker(TcpTransportTrackerName),
-        getTracker(AsyncStreamReaderTrackerName),
-        getTracker(StreamTransportTrackerName),
-        getTracker(StreamServerTrackerName)
-      ]
-    for tracker in trackers:
-      if not isNil(tracker):
-        # echo tracker.dump()
-        check tracker.isLeaked() == false
- 
+    for tracker in testTrackers():
+      check tracker.isLeaked() == false
+
   test "test select custom proto":
     proc testSelect(): Future[bool] {.async.} =
       let ms = newMultistream()
@@ -240,7 +218,7 @@ suite "Multistream select":
       let conn = newConnection(newTestNaStream(testNaHandler))
 
       proc testNaHandler(msg: string): Future[void] {.async, gcsafe.} =
-        check cast[string](msg) == Na
+        check msg == Na
         await conn.close()
 
       var protocol: LPProtocol = new LPProtocol
@@ -294,7 +272,7 @@ suite "Multistream select":
       let hello = cast[string](await conn.readLp())
       result = hello == "Hello!"
       await conn.close()
-     
+
       await transport2.close()
       await transport1.close()
 

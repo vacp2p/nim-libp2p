@@ -45,22 +45,6 @@ suite "BufferStream":
     check:
       waitFor(testPushTo()) == true
 
-  test "read":
-    proc testRead(): Future[bool] {.async.} =
-      proc writeHandler(data: seq[byte]) {.async, gcsafe.} = discard
-      let buff = newBufferStream(writeHandler, 10)
-      check buff.len == 0
-
-      await buff.pushTo(cast[seq[byte]](@"12345"))
-      check @"12345" == cast[string](await buff.read())
-
-      result = true
-
-      await buff.close()
-
-    check:
-      waitFor(testRead()) == true
-
   test "read with size":
     proc testRead(): Future[bool] {.async.} =
       proc writeHandler(data: seq[byte]) {.async, gcsafe.} = discard
@@ -99,32 +83,6 @@ suite "BufferStream":
     check:
       waitFor(testRead()) == true
 
-  test "read all from small buffer":
-    proc testRead(): Future[bool] {.async.} =
-      proc writeHandler(data: seq[byte]) {.async, gcsafe.} =
-        discard
-
-      let buff = newBufferStream(writeHandler, 4)
-      check buff.len == 0
-
-      proc reader() {.async.} =
-        var size = 0
-        while size != 5:
-          var msg = await buff.read()
-          size += msg.len
-        check size == 5
-
-      var fut = reader()
-      await buff.pushTo(cast[seq[byte]](@"12345"))
-      await fut
-
-      result = true
-
-      await buff.close()
-
-    check:
-      waitFor(testRead()) == true
-
   test "readExactly":
     proc testReadExactly(): Future[bool] {.async.} =
       proc writeHandler(data: seq[byte]) {.async, gcsafe.} = discard
@@ -143,23 +101,6 @@ suite "BufferStream":
 
     check:
       waitFor(testReadExactly()) == true
-
-  test "readLine":
-    proc testReadLine(): Future[bool] {.async.} =
-      proc writeHandler(data: seq[byte]) {.async, gcsafe.} = discard
-      let buff = newBufferStream(writeHandler, 16)
-      check buff.len == 0
-
-      await buff.pushTo(cast[seq[byte]](@"12345\n67890"))
-      check buff.len == 11
-      check "12345" == await buff.readLine(0, "\n")
-
-      result = true
-
-      await buff.close()
-
-    check:
-      waitFor(testReadLine()) == true
 
   test "readOnce":
     proc testReadOnce(): Future[bool] {.async.} =
@@ -181,27 +122,6 @@ suite "BufferStream":
 
     check:
       waitFor(testReadOnce()) == true
-
-  test "readUntil":
-    proc testReadUntil(): Future[bool] {.async.} =
-      proc writeHandler(data: seq[byte]) {.async, gcsafe.} = discard
-      let buff = newBufferStream(writeHandler, 10)
-      check buff.len == 0
-
-      var data: seq[byte] = newSeq[byte](3)
-      await buff.pushTo(cast[seq[byte]](@"123$45"))
-      check buff.len == 6
-      let readFut = buff.readUntil(addr data[0], 5, @[byte('$')])
-
-      check (await readFut) == 4
-      check cast[string](data) == @['1', '2', '3']
-
-      result = true
-
-      await buff.close()
-
-    check:
-      waitFor(testReadUntil()) == true
 
   test "write ptr":
     proc testWritePtr(): Future[bool] {.async.} =
@@ -229,7 +149,7 @@ suite "BufferStream":
       let buff = newBufferStream(writeHandler, 10)
       check buff.len == 0
 
-      await buff.write("Hello!", 6)
+      await buff.write("Hello!")
 
       result = true
 
@@ -246,7 +166,7 @@ suite "BufferStream":
       let buff = newBufferStream(writeHandler, 10)
       check buff.len == 0
 
-      await buff.write(cast[seq[byte]]("Hello!"), 6)
+      await buff.write(cast[seq[byte]]("Hello!"))
 
       result = true
 

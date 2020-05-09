@@ -17,6 +17,8 @@ import peerinfo,
        varint,
        vbuffer
 
+export lpstream
+
 logScope:
   topic = "Connection"
 
@@ -103,20 +105,11 @@ proc newConnection*(stream: LPStream): Connection =
   ## create a new Connection for the specified async reader/writer
   result.init(stream)
 
-method read*(s: Connection, n = -1): Future[seq[byte]] {.gcsafe.} =
- s.stream.read(n)
-
 method readExactly*(s: Connection,
                     pbytes: pointer,
                     nbytes: int):
                     Future[void] {.gcsafe.} =
- s.stream.readExactly(pbytes, nbytes)
-
-method readLine*(s: Connection,
-                 limit = 0,
-                 sep = "\r\n"):
-                 Future[string] {.gcsafe.} =
-  s.stream.readLine(limit, sep)
+  s.stream.readExactly(pbytes, nbytes)
 
 method readOnce*(s: Connection,
                  pbytes: pointer,
@@ -124,30 +117,10 @@ method readOnce*(s: Connection,
                  Future[int] {.gcsafe.} =
   s.stream.readOnce(pbytes, nbytes)
 
-method readUntil*(s: Connection,
-                  pbytes: pointer,
-                  nbytes: int,
-                  sep: seq[byte]):
-                  Future[int] {.gcsafe.} =
-  s.stream.readUntil(pbytes, nbytes, sep)
-
 method write*(s: Connection,
-              pbytes: pointer,
-              nbytes: int):
+              msg: seq[byte]):
               Future[void] {.gcsafe.} =
-  s.stream.write(pbytes, nbytes)
-
-method write*(s: Connection,
-              msg: string,
-              msglen = -1):
-              Future[void] {.gcsafe.} =
-  s.stream.write(msg, msglen)
-
-method write*(s: Connection,
-              msg: seq[byte],
-              msglen = -1):
-              Future[void] {.gcsafe.} =
-  s.stream.write(msg, msglen)
+  s.stream.write(msg)
 
 method closed*(s: Connection): bool =
   if isNil(s.stream):

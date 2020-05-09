@@ -482,7 +482,7 @@ proc protoArgument*(ma: MultiAddress, value: var openarray[byte]): int =
   if proto.kind == Fixed:
     result = proto.size
     if len(value) >= result:
-      if vb.data.readArray(value) != proto.size:
+      if vb.data.readArray(value.toOpenArray(0, proto.size - 1)) != proto.size:
         raise newException(MultiAddressError, "Decoding protocol error")
   elif proto.kind in {Length, Path}:
     if vb.data.readSeq(buffer) == -1:

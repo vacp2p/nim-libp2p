@@ -7,7 +7,7 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import sequtils, tables, options, sets, strutils
+import sequtils, tables, sets, strutils
 import chronos, chronicles
 import pubsub,
        pubsubpeer,
@@ -15,8 +15,8 @@ import pubsub,
        rpc/[messages, message],
        ../../crypto/crypto,
        ../../connection,
-       ../../peerinfo,
        ../../peer,
+       ../../peerinfo,
        ../../utility,
        ../../errors
 
@@ -65,7 +65,7 @@ method rpcHandler*(f: FloodSub,
         if msg.msgId notin f.seen:
           f.seen.put(msg.msgId)                      # add the message to the seen cache
 
-          if not msg.verify(peer.peerInfo):
+          if f.verifySignature and not msg.verify(peer.peerInfo):
             trace "dropping message due to failed signature verification"
             continue
 
@@ -120,7 +120,7 @@ method publish*(f: FloodSub,
     return
 
   trace "publishing on topic", name = topic
-  let msg = newMessage(f.peerInfo, data, topic)
+  let msg = newMessage(f.peerInfo, data, topic, f.sign)
   var sent: seq[Future[void]]
   # start the future but do not wait yet
   for p in f.floodsub[topic]:
@@ -138,6 +138,7 @@ method unsubscribe*(f: FloodSub,
     await f.sendSubs(p, topics.mapIt(it.topic).deduplicate(), false)
 
 method initPubSub*(f: FloodSub) =
+  procCall PubSub(f).initPubSub()
   f.peers = initTable[string, PubSubPeer]()
   f.topics = initTable[string, Topic]()
   f.floodsub = initTable[string, HashSet[string]]()

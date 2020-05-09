@@ -7,7 +7,7 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import sequtils
+import sequtils, tables
 import chronos, chronicles
 import ../connection,
        ../multiaddress,
@@ -17,18 +17,33 @@ import ../connection,
 type
   ConnHandler* = proc (conn: Connection): Future[void] {.gcsafe.}
 
+  TransportFlag* {.pure.} = enum
+    ReuseAddr
+
+  TransportFlags* = set[TransportFlag]
+
   Transport* = ref object of RootObj
     ma*: Multiaddress
     connections*: seq[Connection]
     handler*: ConnHandler
     multicodec*: MultiCodec
+    flags*: TransportFlags
+
+proc transportFlagsToServerFlags*(flags: TransportFlags): set[ServerFlags] {.gcsafe.} =
+  let transportFlagToServerFlagMapping = {
+      TransportFlag.ReuseAddr: ServerFlags.ReuseAddr,
+    }.toTable()
+
+  for flag in flags:
+    result.incl(transportFlagToServerFlagMapping[flag])
 
 method init*(t: Transport) {.base, gcsafe.} =
   ## perform protocol initialization
   discard
 
-proc newTransport*(t: typedesc[Transport]): t {.gcsafe.} =
+proc newTransport*(t: typedesc[Transport], flags: TransportFlags = {}): t {.gcsafe.} =
   new result
+  result.flags = flags
   result.init()
 
 method close*(t: Transport) {.base, async, gcsafe.} =

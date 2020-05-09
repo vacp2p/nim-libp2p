@@ -48,21 +48,17 @@ proc readLp*(s: StreamTransport): Future[seq[byte]] {.async, gcsafe.} =
     length: int
     res: VarintStatus
   result = newSeq[byte](10)
-  try:
-    for i in 0..<len(result):
-      await s.readExactly(addr result[i], 1)
-      res = LP.getUVarint(result.toOpenArray(0, i), length, size)
-      if res == VarintStatus.Success:
-        break
-    if res != VarintStatus.Success:
-      raise newInvalidVarintException()
-    result.setLen(size)
-    if size > 0.uint:
-      await s.readExactly(addr result[0], int(size))
-  except TransportIncompleteError as exc:
-    trace "remote connection ended unexpectedly", exc = exc.msg
-  except TransportError as exc:
-    trace "unable to read from remote connection", exc = exc.msg
+
+  for i in 0..<len(result):
+    await s.readExactly(addr result[i], 1)
+    res = LP.getUVarint(result.toOpenArray(0, i), length, size)
+    if res == VarintStatus.Success:
+      break
+  if res != VarintStatus.Success:
+    raise newInvalidVarintException()
+  result.setLen(size)
+  if size > 0.uint:
+    await s.readExactly(addr result[0], int(size))
 
 proc createNode*(privKey: Option[PrivateKey] = none(PrivateKey),
                  address: string = "/ip4/127.0.0.1/tcp/0",

@@ -16,7 +16,6 @@
 # RFC @ https://tools.ietf.org/html/rfc7748
 
 import bearssl
-import nimcrypto/sysrand
 
 const
   Curve25519KeySize* = 32
@@ -32,7 +31,7 @@ proc intoCurve25519Key*(s: openarray[byte]): Curve25519Key =
   copyMem(addr result[0], unsafeaddr s[0], Curve25519KeySize)
 
 proc getBytes*(key: Curve25519Key): seq[byte] = @key
-  
+
 const
   ForbiddenCurveValues: array[12, Curve25519Key] = [
                 [0.byte, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
@@ -55,12 +54,12 @@ proc byteswap(buf: var Curve25519Key) {.inline.} =
       x = buf[i]
     buf[i] = buf[31 - i]
     buf[31 - i] = x
-    
+
 proc mul*(_: type[Curve25519], dst: var Curve25519Key, scalar: Curve25519Key, point: Curve25519Key) =
   let defaultBrEc = brEcGetDefault()
-  
+
   # The source point is provided in array G (of size Glen bytes);
-  # the multiplication result is written over it. 
+  # the multiplication result is written over it.
   dst = scalar
 
   # point needs to be big-endian
@@ -82,7 +81,7 @@ proc mulgen*(_: type[Curve25519], dst: var Curve25519Key, point: Curve25519Key) 
   var
     rpoint = point
   rpoint.byteswap()
-  
+
   block iterate:
     while true:
       block derive:
