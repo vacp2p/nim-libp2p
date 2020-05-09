@@ -430,7 +430,7 @@ method readMessage*(sconn: NoiseConnection): Future[seq[byte]] {.async.} =
       unpackNoisePayload(plain)
       return plain
     else:
-      trace "Received 0-length message", conn = $conn
+      trace "Received 0-length message", conn = $sconn
 
 method write*(sconn: NoiseConnection, message: seq[byte]): Future[void] {.async.} =
   if message.len == 0:
