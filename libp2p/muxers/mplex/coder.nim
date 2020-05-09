@@ -18,8 +18,6 @@ import types,
 logScope:
   topic = "MplexCoder"
 
-const DefaultChannelSize* = 1 shl 20
-
 type
   Msg* = tuple
     id: uint64

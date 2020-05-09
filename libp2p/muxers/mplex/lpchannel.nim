@@ -22,6 +22,8 @@ export lpstream
 logScope:
   topic = "MplexChannel"
 
+const DefaultChannelSize* = 1 shl 20
+
 type
   LPChannel* = ref object of BufferStream
     id*: uint64
