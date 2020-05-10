@@ -61,5 +61,4 @@ template tryAndWarn*(msg: static[string]; body: untyped): untyped =
   except CancelledError as ex:
     raise ex
   except CatchableError as ex:
-    warn "Ignored an error", name=ex.name
-    trace "Exception message", msg=ex.msg
+    warn "Ignored an error", name=ex.name, msg=msg
