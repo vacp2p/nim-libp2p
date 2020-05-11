@@ -438,16 +438,16 @@ suite "Mplex":
 
   test "half closed - channel should close for read by remote":
     proc testClosedForRead(): Future[void] {.async.} =
-      proc writeHandler(data: seq[byte]) {.async, gcsafe.} = discard
       let
-        conn = newBufferStream(writeHandler)
+        conn = newBufferStream()
         chann = newChannel(1, conn, true)
 
       try:
         await chann.pushTo(cast[seq[byte]]("Hello!"))
         await chann.closedByRemote()
-        discard await chann.read(6) # this should work, since there is data in the buffer
-        discard await chann.read(6) # this should throw
+        var data = newSeq[byte](6)
+        await chann.readExactly(addr data[0], 6) # this should work, since there is data in the buffer
+        await chann.readExactly(addr data[0], 6) # this should throw
       finally:
         await chann.cleanUp()
         await conn.close()
@@ -591,7 +591,8 @@ suite "Mplex":
 
       try:
         await chann.reset()
-        var data = await chann.read(1)
+        var data = newSeq[byte](1)
+        await chann.readExactly(addr data[0], 1)
         doAssert(len(data) == 1)
       finally:
         await chann.cleanUp()

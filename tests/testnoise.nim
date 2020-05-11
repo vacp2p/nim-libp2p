@@ -98,7 +98,8 @@ suite "Noise":
         conn = await transport2.dial(transport1.ma)
         sconn = await clientNoise.secure(conn, true)
 
-        msg = await sconn.read(6)
+      var msg = newSeq[byte](6)
+      await sconn.readExactly(addr msg[0], 6)
 
       await sconn.close()
       await conn.close()
@@ -123,7 +124,8 @@ suite "Noise":
         defer:
           await sconn.close()
           await conn.close()
-        let msg = await sconn.read(6)
+        var msg = newSeq[byte](6)
+        await sconn.readExactly(addr msg[0], 6)
         check cast[string](msg) == "Hello!"
         readTask.complete()
 
