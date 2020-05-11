@@ -26,19 +26,19 @@ const DefaultChannelSize* = 1 shl 20
 
 type
   LPChannel* = ref object of BufferStream
-    id*: uint64
-    name*: string
-    conn*: Connection
-    initiator*: bool
-    isLazy*: bool
-    isOpen*: bool
-    isReset*: bool
-    closedLocal*: bool
-    closedRemote*: bool
-    handlerFuture*: Future[void]
-    msgCode*: MessageType
-    closeCode*: MessageType
-    resetCode*: MessageType
+    id*: uint64                   # channel id
+    name*: string                 # name of the channel (for debugging)
+    conn*: Connection             # wrapped connection used to for writing
+    initiator*: bool              # initiated remotely or locally flag
+    isLazy*: bool                 # is channel lazy
+    isOpen*: bool                 # has channel been oppened (only used with isLazy)
+    isReset*: bool                # has channel been reset
+    closedLocal*: bool            # has channel been closed locally
+    closedRemote*: bool           # has channel been closed remotely
+    msgCode*: MessageType         # cached in/out message code
+    closeCode*: MessageType       # cached in/out close code
+    resetCode*: MessageType       # cached in/out reset code
+    resetLock*: AsyncLock
 
 proc newChannel*(id: uint64,
                  conn: Connection,
