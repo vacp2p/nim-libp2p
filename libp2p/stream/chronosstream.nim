@@ -35,13 +35,6 @@ template withExceptions(body: untyped) =
     raise newLPStreamEOFError()
     # raise (ref LPStreamError)(msg: exc.msg, parent: exc)
 
-method read*(s: ChronosStream, n: int = -1): Future[seq[byte]] {.async.} =
-  if s.client.atEof:
-    raise newLPStreamEOFError()
-
-  withExceptions:
-    result = await s.client.read(n)
-
 method readExactly*(s: ChronosStream,
                     pbytes: pointer,
                     nbytes: int): Future[void] {.async.} =

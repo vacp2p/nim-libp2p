@@ -69,11 +69,6 @@ proc newLPStreamEOFError*(): ref Exception =
 method closed*(s: Connection): bool {.base, inline.} =
   s.isClosed
 
-method read*(s: Connection,
-             n: int = -1):
-             Future[seq[byte]] {.base, async.} =
-  doAssert(false, "not implemented!")
-
 method readExactly*(s: Connection,
                     pbytes: pointer,
                     nbytes: int):
@@ -163,11 +158,10 @@ proc write*(s: Connection, pbytes: pointer, nbytes: int): Future[void] {.depreca
 proc write*(s: Connection, msg: string): Future[void] =
   s.write(@(toOpenArrayByte(msg, 0, msg.high)))
 
-method close*(s: Connection) {.base, async.} =
+method close*(s: Connection) {.base, async, gcsafe.} =
   trace "about to close connection", closed = s.closed,
                                      peer = if not isNil(s.peerInfo):
                                        s.peerInfo.id else: ""
-
   if not s.isClosed:
     s.isClosed = true
     inc getConnectionTracker().closed
