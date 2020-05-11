@@ -786,27 +786,29 @@ proc decodeExchange*(message: seq[byte],
      pb.getLengthValue(2, signature) != -1:
     result = true
 
+{.pop.}
+
 ## Serialization/Deserialization helpers
 
 proc write*(vb: var VBuffer, pubkey: PublicKey) {.inline.} =
   ## Write PublicKey value ``pubkey`` to buffer ``vb``.
-  vb.writeSeq(pubkey.getBytes().get())
+  vb.writeSeq(pubkey.getBytes().tryGet())
 
 proc write*(vb: var VBuffer, seckey: PrivateKey) {.inline.} =
   ## Write PrivateKey value ``seckey`` to buffer ``vb``.
-  vb.writeSeq(seckey.getBytes().get())
+  vb.writeSeq(seckey.getBytes().tryGet())
 
 proc write*(vb: var VBuffer, sig: PrivateKey) {.inline.} =
   ## Write Signature value ``sig`` to buffer ``vb``.
-  vb.writeSeq(sig.getBytes().get())
+  vb.writeSeq(sig.getBytes().tryGet())
 
 proc initProtoField*(index: int, pubkey: PublicKey): ProtoField =
   ## Initialize ProtoField with PublicKey ``pubkey``.
-  result = initProtoField(index, pubkey.getBytes().get())
+  result = initProtoField(index, pubkey.getBytes().tryGet())
 
 proc initProtoField*(index: int, seckey: PrivateKey): ProtoField =
   ## Initialize ProtoField with PrivateKey ``seckey``.
-  result = initProtoField(index, seckey.getBytes().get())
+  result = initProtoField(index, seckey.getBytes().tryGet())
 
 proc initProtoField*(index: int, sig: Signature): ProtoField =
   ## Initialize ProtoField with Signature ``sig``.
