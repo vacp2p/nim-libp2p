@@ -15,6 +15,7 @@ import ../varint,
 type
   LPStream* = ref object of RootObj
     isClosed*: bool
+    isEof*: bool
     closeEvent*: AsyncEvent
     when chronicles.enabledLogLevel == LogLevel.TRACE:
       oid*: Oid
@@ -28,6 +29,7 @@ type
   LPStreamWriteError* = object of LPStreamError
     par*: ref Exception
   LPStreamEOFError* = object of LPStreamError
+  LPStreamClosedError* = object of LPStreamError
 
   InvalidVarintError* = object of LPStreamError
   MaxSizeError* = object of LPStreamError
@@ -59,8 +61,14 @@ proc newLPStreamIncorrectDefect*(m: string): ref Exception =
 proc newLPStreamEOFError*(): ref Exception =
   result = newException(LPStreamEOFError, "Stream EOF!")
 
+proc newLPStreamClosedError*(): ref Exception =
+  result = newException(LPStreamClosedError, "Stream Closed!")
+
 method closed*(s: LPStream): bool {.base, inline.} =
   s.isClosed
+
+method atEof*(s: LPStream): bool {.base, inline.} =
+  s.isEof
 
 method readExactly*(s: LPStream,
                     pbytes: pointer,
