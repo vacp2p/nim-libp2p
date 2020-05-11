@@ -112,7 +112,14 @@ proc readLine*(s: Connection,
   except LPStreamIncompleteError, LPStreamReadError:
     discard # EOF, in which case we should return whatever we read so far..
 
-proc readVarint*(conn: Connection): Future[uint64] {.async, gcsafe.} =
+proc readVarint*[T: LP | PB](vtype: type[T],
+                             conn: Connection): Future[uint64] {.async, gcsafe.} =
+  ## Read Protobuf or libp2p encoded varints
+  ##
+  ## NOTE: there is a difference between the two and
+  ## libp2p uses both, in particular, mplex uses Protobuf
+  ## varints, while most everything else uses libp2p varints
+  ##
   var
     varint: uint64
     length: int
@@ -120,7 +127,7 @@ proc readVarint*(conn: Connection): Future[uint64] {.async, gcsafe.} =
 
   for i in 0..<len(buffer):
     await conn.readExactly(addr buffer[i], 1)
-    let res = PB.getUVarint(buffer.toOpenArray(0, i), length, varint)
+    let res = vtype.getUVarint(buffer.toOpenArray(0, i), length, varint)
     if res == VarintStatus.Success:
       return varint
     if res != VarintStatus.Incomplete:
@@ -128,10 +135,12 @@ proc readVarint*(conn: Connection): Future[uint64] {.async, gcsafe.} =
   if true: # can't end with a raise apparently
     raise (ref InvalidVarintError)(msg: "Cannot parse varint")
 
-proc readLp*(s: Connection, maxSize: int): Future[seq[byte]] {.async, gcsafe.} =
+proc readLp*[T: LP | PB](vtype: type[T],
+                         s: Connection,
+                         maxSize: int): Future[seq[byte]] {.async, gcsafe.} =
   ## read length prefixed msg, with the length encoded as a varint
   let
-    length = await s.readVarint()
+    length = await vtype.readVarint(s)
     maxLen = uint64(if maxSize < 0: int.high else: maxSize)
 
   if length > maxLen:
@@ -143,6 +152,9 @@ proc readLp*(s: Connection, maxSize: int): Future[seq[byte]] {.async, gcsafe.} =
   var res = newSeq[byte](length)
   await s.readExactly(addr res[0], res.len)
   return res
+
+proc readLp*(s: Connection, maxSize: int): Future[seq[byte]] {.async, gcsafe.} =
+  result = await LP.readLp(s, maxSize)
 
 proc writeLp*(s: Connection, msg: string | seq[byte]): Future[void] {.gcsafe.} =
   ## write length prefixed
