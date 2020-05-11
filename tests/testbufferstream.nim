@@ -52,29 +52,9 @@ suite "BufferStream":
       check buff.len == 0
 
       await buff.pushTo(cast[seq[byte]](@"12345"))
-      let data = cast[string](await buff.read(3))
-      check ['1', '2', '3'] == data
-
-      result = true
-
-      await buff.close()
-
-    check:
-      waitFor(testRead()) == true
-
-  test "read and wait":
-    proc testRead(): Future[bool] {.async.} =
-      proc writeHandler(data: seq[byte]) {.async, gcsafe.} = discard
-      let buff = newBufferStream(writeHandler, 10)
-      check buff.len == 0
-
-      await buff.pushTo(cast[seq[byte]](@"123"))
-      check buff.len == 3
-      let readFut = buff.read(5)
-      await buff.pushTo(cast[seq[byte]](@"45"))
-      check buff.len == 2
-
-      check cast[string](await readFut) == ['1', '2', '3', '4', '5']
+      var data = newSeq[byte](3)
+      await buff.readExactly(addr data[0], 3)
+      check ['1', '2', '3'] == cast[string](data)
 
       result = true
 
@@ -213,17 +193,28 @@ suite "BufferStream":
       await buff.pushTo(cast[seq[byte]]("Msg 2"))
       await buff.pushTo(cast[seq[byte]]("Msg 3"))
 
-      check cast[string](await buff.read(5)) == "Msg 1"
-      check cast[string](await buff.read(5)) == "Msg 2"
-      check cast[string](await buff.read(5)) == "Msg 3"
+      var data = newSeq[byte](5)
+      await buff.readExactly(addr data[0], 5)
+      check cast[string](data) == "Msg 1"
+
+      await buff.readExactly(addr data[0], 5)
+      check cast[string](data) == "Msg 2"
+
+      await buff.readExactly(addr data[0], 5)
+      check cast[string](data) == "Msg 3"
 
       await buff.pushTo(cast[seq[byte]]("Msg 4"))
       await buff.pushTo(cast[seq[byte]]("Msg 5"))
       await buff.pushTo(cast[seq[byte]]("Msg 6"))
 
-      check cast[string](await buff.read(5)) == "Msg 4"
-      check cast[string](await buff.read(5)) == "Msg 5"
-      check cast[string](await buff.read(5)) == "Msg 6"
+      await buff.readExactly(addr data[0], 5)
+      check cast[string](data) == "Msg 4"
+
+      await buff.readExactly(addr data[0], 5)
+      check cast[string](data) == "Msg 5"
+
+      await buff.readExactly(addr data[0], 5)
+      check cast[string](data) == "Msg 6"
 
       result = true
 
@@ -329,7 +320,10 @@ suite "BufferStream":
 
       buf1 = buf1.pipe(buf1)
 
-      proc reader(): Future[seq[byte]] = buf1.read(6)
+      proc reader(): Future[seq[byte]] {.async.} =
+        result = newSeq[byte](6)
+        await buf1.readExactly(addr result[0], 6)
+
       proc writer(): Future[void] = buf1.write(cast[seq[byte]]("Hello!"))
 
       var writerFut = writer()
@@ -402,7 +396,10 @@ suite "BufferStream":
 
       buf1 = buf1 | buf1
 
-      proc reader(): Future[seq[byte]] = buf1.read(6)
+      proc reader(): Future[seq[byte]] {.async.} =
+        result = newSeq[byte](6)
+        await buf1.readExactly(addr result[0], 6)
+
       proc writer(): Future[void] = buf1.write(cast[seq[byte]]("Hello!"))
 
       var writerFut = writer()
@@ -423,15 +420,14 @@ suite "BufferStream":
   # piping to self
   test "pipe deadlock":
     proc pipeTest(): Future[bool] {.async.} =
-
       var buf1 = newBufferStream(size = 5)
 
       buf1 = buf1 | buf1
 
       var count = 30000
       proc reader() {.async.} =
-        while count > 0:
-          discard await buf1.read(7)
+        var data = newSeq[byte](7)
+        await buf1.readExactly(addr data[0], 7)
 
       proc writer() {.async.} =
         while count > 0:
@@ -470,4 +466,3 @@ suite "BufferStream":
 
       check:
         waitFor(closeTest()) == true
-
