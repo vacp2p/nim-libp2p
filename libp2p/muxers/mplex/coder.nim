@@ -30,10 +30,10 @@ proc newInvalidMplexMsgType*(): ref InvalidMplexMsgType =
   newException(InvalidMplexMsgType, "invalid message type")
 
 proc readMsg*(conn: Connection): Future[Msg] {.async, gcsafe.} =
-  let header = await conn.readVarint()
+  let header = await PB.readVarint(conn)
   trace "read header varint", varint = header
 
-  let data = await conn.readLp(MaxMsgSize)
+  let data = await PB.readLp(conn, MaxMsgSize)
   trace "read data", dataLen = data.len, data = shortLog(data)
 
   let msgType = header and 0x7
