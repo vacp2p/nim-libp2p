@@ -14,7 +14,7 @@ import chronos
 import utils,
        ../../libp2p/[errors,
                      switch,
-                     connection,
+                     stream/connection,
                      stream/bufferstream,
                      crypto/crypto,
                      protocols/pubsub/pubsub,

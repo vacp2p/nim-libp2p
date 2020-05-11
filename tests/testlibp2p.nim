@@ -1,12 +1,6 @@
 import testvarint,
        teststreamseq
 
-import testrsa,
-       testecnist,
-       tested25519,
-       testsecp256k1,
-       testcrypto
-
 import testmultibase,
        testmultihash,
        testmultiaddress,

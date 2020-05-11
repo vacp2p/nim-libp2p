@@ -11,7 +11,7 @@ import options
 import chronos, chronicles
 import ../protobuf/minprotobuf,
        ../peerinfo,
-       ../connection,
+       ../stream/connection,
        ../peer,
        ../crypto/crypto,
        ../multiaddress,

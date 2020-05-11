@@ -26,7 +26,7 @@ suite "GossipSub internal":
 
       var conns = newSeq[Connection]()
       for i in 0..<15:
-        let conn = newConnection(newBufferStream())
+        let conn = newBufferStream()
         conns &= conn
         let peerInfo = PeerInfo.init(PrivateKey.random(RSA))
         conn.peerInfo = peerInfo
@@ -55,7 +55,7 @@ suite "GossipSub internal":
 
       var conns = newSeq[Connection]()
       for i in 0..<15:
-        let conn = newConnection(newBufferStream())
+        let conn = newBufferStream()
         conns &= conn
         let peerInfo = PeerInfo.init(PrivateKey.random(RSA))
         conn.peerInfo = peerInfo
@@ -87,7 +87,7 @@ suite "GossipSub internal":
 
       var conns = newSeq[Connection]()
       for i in 0..<15:
-        let conn = newConnection(newBufferStream())
+        let conn = newBufferStream()
         conns &= conn
         var peerInfo = PeerInfo.init(PrivateKey.random(RSA))
         conn.peerInfo = peerInfo
@@ -120,7 +120,7 @@ suite "GossipSub internal":
 
       var conns = newSeq[Connection]()
       for i in 0..<6:
-        let conn = newConnection(newBufferStream())
+        let conn = newBufferStream()
         conns &= conn
         let peerInfo = PeerInfo.init(PrivateKey.random(RSA))
         conn.peerInfo = peerInfo
@@ -157,7 +157,7 @@ suite "GossipSub internal":
 
       var conns = newSeq[Connection]()
       for i in 0..<6:
-        let conn = newConnection(newBufferStream())
+        let conn = newBufferStream()
         conns &= conn
         let peerInfo = PeerInfo.init(PrivateKey.random(RSA))
         conn.peerInfo = peerInfo
@@ -194,7 +194,7 @@ suite "GossipSub internal":
       gossipSub.gossipsub[topic] = initHashSet[string]()
       var conns = newSeq[Connection]()
       for i in 0..<30:
-        let conn = newConnection(newBufferStream())
+        let conn = newBufferStream()
         conns &= conn
         let peerInfo = PeerInfo.init(PrivateKey.random(RSA))
         conn.peerInfo = peerInfo
@@ -206,7 +206,7 @@ suite "GossipSub internal":
           gossipSub.mesh[topic].incl(peerInfo.id)
 
       for i in 0..<15:
-        let conn = newConnection(newBufferStream())
+        let conn = newBufferStream()
         conns &= conn
         let peerInfo = PeerInfo.init(PrivateKey.random(RSA))
         conn.peerInfo = peerInfo
@@ -244,7 +244,7 @@ suite "GossipSub internal":
       gossipSub.gossipsub[topic] = initHashSet[string]()
       var conns = newSeq[Connection]()
       for i in 0..<30:
-        let conn = newConnection(newBufferStream())
+        let conn = newBufferStream()
         conns &= conn
         let peerInfo = PeerInfo.init(PrivateKey.random(RSA))
         conn.peerInfo = peerInfo
@@ -278,7 +278,7 @@ suite "GossipSub internal":
       gossipSub.gossipsub[topic] = initHashSet[string]()
       var conns = newSeq[Connection]()
       for i in 0..<30:
-        let conn = newConnection(newBufferStream())
+        let conn = newBufferStream()
         conns &= conn
         let peerInfo = PeerInfo.init(PrivateKey.random(RSA))
         conn.peerInfo = peerInfo
@@ -312,7 +312,7 @@ suite "GossipSub internal":
       gossipSub.fanout[topic] = initHashSet[string]()
       var conns = newSeq[Connection]()
       for i in 0..<30:
-        let conn = newConnection(newBufferStream())
+        let conn = newBufferStream()
         conns &= conn
         let peerInfo = PeerInfo.init(PrivateKey.random(RSA))
         conn.peerInfo = peerInfo

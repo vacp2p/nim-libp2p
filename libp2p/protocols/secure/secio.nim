@@ -9,9 +9,9 @@
 import chronos, chronicles, oids, stew/endians2
 import nimcrypto/[sysrand, hmac, sha2, sha, hash, rijndael, twofish, bcmode]
 import secure,
-       ../../connection,
+       ../../stream/connectiontracker,
+       ../../stream/connection,
        ../../peerinfo,
-       ../../stream/lpstream,
        ../../crypto/crypto,
        ../../crypto/ecnist,
        ../../peer,
@@ -174,7 +174,7 @@ proc macCheckAndDecode(sconn: SecioConn, data: var seq[byte]): bool =
   data.setLen(mark)
   result = true
 
-proc readRawMessage(conn: Connection): Future[seq[byte]] {.async.} =
+proc readRawMessage(conn: SecureConn): Future[seq[byte]] {.async.} =
   while true: # Discard 0-length payloads
     var lengthBuf: array[4, byte]
     await conn.stream.readExactly(addr lengthBuf[0], lengthBuf.len)
@@ -279,7 +279,7 @@ proc transactMessage(conn: Connection,
                      msg: seq[byte]): Future[seq[byte]] {.async.} =
   trace "Sending message", message = msg.shortLog, length = len(msg)
   await conn.write(msg)
-  return await conn.readRawMessage()
+  return await SecureConn(conn).readRawMessage()
 
 method handshake*(s: Secio, conn: Connection, initiator: bool = false): Future[SecureConn] {.async.} =
   var

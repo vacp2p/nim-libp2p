@@ -13,12 +13,12 @@
 ## The stream is based on the standard library's `Deque`,
 ## which is itself based on a ring buffer.
 ##
-## It works by exposing a regular LPStream interface and
+## It works by exposing a regular Connection interface and
 ## a method ``pushTo`` to push data to the internal read
 ## buffer; as well as a handler that can be registrered
 ## that gets triggered on every write to the stream. This
 ## allows using the buffered stream as a sort of proxy,
-## which can be consumed as a regular LPStream but allows
+## which can be consumed as a regular Connection but allows
 ## injecting data for reads and intercepting writes.
 ##
 ## Another notable feature is that the stream is fully
@@ -32,9 +32,9 @@
 
 import deques, math, oids
 import chronos, chronicles, metrics
-import ../stream/lpstream
+import ../stream/connection
 
-export lpstream
+export connection
 
 const
   BufferStreamTrackerName* = "libp2p.bufferstream"
@@ -44,7 +44,7 @@ type
   # TODO: figure out how to make this generic to avoid casts
   WriteHandler* = proc (data: seq[byte]): Future[void] {.gcsafe.}
 
-  BufferStream* = ref object of LPStream
+  BufferStream* = ref object of Connection
     maxSize*: int # buffer's max size in bytes
     readBuf: Deque[byte] # this is a ring buffer based dequeue, this makes it perfect as the backing store here
     readReqs: Deque[Future[void]] # use dequeue to fire reads in order
@@ -238,7 +238,7 @@ proc pipe*(s: BufferStream,
   ## pipe the write end of this stream to
   ## be the source of the target stream
   ##
-  ## Note that this only works with the LPStream
+  ## Note that this only works with the Connection
   ## interface methods `read*` and `write` are
   ## piped.
   ##

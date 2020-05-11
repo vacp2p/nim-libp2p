@@ -1,8 +1,7 @@
 import unittest, strformat, strformat, random
 import chronos, nimcrypto/utils, chronicles
 import ../libp2p/[errors,
-                  connection,
-                  stream/lpstream,
+                  stream/connection,
                   stream/bufferstream,
                   transports/tcptransport,
                   transports/transport,
@@ -28,13 +27,12 @@ suite "Mplex":
       proc encHandler(msg: seq[byte]) {.async.} =
         check msg == fromHex("000873747265616d2031")
 
-      let stream = newBufferStream(encHandler)
-      let conn = newConnection(stream)
+      let conn = newBufferStream(encHandler)
       await conn.writeMsg(0, MessageType.New, cast[seq[byte]]("stream 1"))
 
       result = true
 
-      await stream.close()
+      await conn.close()
 
     check:
       waitFor(testEncodeHeader()) == true
@@ -44,13 +42,12 @@ suite "Mplex":
       proc encHandler(msg: seq[byte]) {.async.} =
         check msg == fromHex("88010873747265616d2031")
 
-      let stream = newBufferStream(encHandler)
-      let conn = newConnection(stream)
+      let conn = newBufferStream(encHandler)
       await conn.writeMsg(17, MessageType.New, cast[seq[byte]]("stream 1"))
 
       result = true
 
-      await stream.close()
+      await conn.close()
 
     check:
       waitFor(testEncodeHeader()) == true
@@ -61,13 +58,12 @@ suite "Mplex":
       proc encHandler(msg: seq[byte]) {.async.} =
         check msg == fromHex("020873747265616d2031")
 
-      let stream = newBufferStream(encHandler)
-      let conn = newConnection(stream)
+      let conn = newBufferStream(encHandler)
       await conn.writeMsg(0, MessageType.MsgOut, cast[seq[byte]]("stream 1"))
 
       result = true
 
-      await stream.close()
+      await conn.close()
 
     check:
       waitFor(testEncodeHeaderBody()) == true
@@ -78,23 +74,21 @@ suite "Mplex":
       proc encHandler(msg: seq[byte]) {.async.} =
         check msg == fromHex("8a010873747265616d2031")
 
-      let stream = newBufferStream(encHandler)
-      let conn = newConnection(stream)
+      let conn = newBufferStream(encHandler)
       await conn.writeMsg(17, MessageType.MsgOut, cast[seq[byte]]("stream 1"))
       await conn.close()
 
       result = true
 
-      await stream.close()
+      await conn.close()
 
     check:
       waitFor(testEncodeHeaderBody()) == true
 
   test "decode header with channel id 0":
     proc testDecodeHeader(): Future[bool] {.async.} =
-      let stream = newBufferStream()
-      let conn = newConnection(stream)
-      await stream.pushTo(fromHex("000873747265616d2031"))
+      let conn = newBufferStream()
+      await conn.pushTo(fromHex("000873747265616d2031"))
       let msg = await conn.readMsg()
 
       check msg.id == 0
@@ -102,16 +96,15 @@ suite "Mplex":
 
       result = true
 
-      await stream.close()
+      await conn.close()
 
     check:
       waitFor(testDecodeHeader()) == true
 
   test "decode header and body with channel id 0":
     proc testDecodeHeader(): Future[bool] {.async.} =
-      let stream = newBufferStream()
-      let conn = newConnection(stream)
-      await stream.pushTo(fromHex("021668656C6C6F2066726F6D206368616E6E656C20302121"))
+      let conn = newBufferStream()
+      await conn.pushTo(fromHex("021668656C6C6F2066726F6D206368616E6E656C20302121"))
       let msg = await conn.readMsg()
 
       check msg.id == 0
@@ -120,16 +113,15 @@ suite "Mplex":
 
       result = true
 
-      await stream.close()
+      await conn.close()
 
     check:
       waitFor(testDecodeHeader()) == true
 
   test "decode header and body with channel id other than 0":
     proc testDecodeHeader(): Future[bool] {.async.} =
-      let stream = newBufferStream()
-      let conn = newConnection(stream)
-      await stream.pushTo(fromHex("8a011668656C6C6F2066726F6D206368616E6E656C20302121"))
+      let conn = newBufferStream()
+      await conn.pushTo(fromHex("8a011668656C6C6F2066726F6D206368616E6E656C20302121"))
       let msg = await conn.readMsg()
 
       check msg.id == 17
@@ -138,7 +130,7 @@ suite "Mplex":
 
       result = true
 
-      await stream.close()
+      await conn.close()
 
     check:
       waitFor(testDecodeHeader()) == true
@@ -155,7 +147,7 @@ suite "Mplex":
         proc handleMplexListen(stream: Connection) {.async, gcsafe.} =
           let msg = await stream.readLp(1024)
           check cast[string](msg) == "Hello from stream!"
-          await stream.close()
+          await conn.close()
           done.complete()
 
         let mplexListen = newMplex(conn)
@@ -172,7 +164,7 @@ suite "Mplex":
 
       let mplexDial = newMplex(conn)
       let stream = await mplexDial.newStream()
-      let openState = cast[LPChannel](stream.stream).isOpen
+      let openState = cast[LPChannel](stream).isOpen
       await stream.writeLp("Hello from stream!")
       await conn.close()
       check openState # not lazy
@@ -181,7 +173,7 @@ suite "Mplex":
 
       await done.wait(5000.millis)
       await done2.wait(5000.millis)
-      await stream.close()
+      await conn.close()
       await conn.close()
       await transport2.close()
       await transport1.close()
@@ -202,7 +194,7 @@ suite "Mplex":
         proc handleMplexListen(stream: Connection) {.async, gcsafe.} =
           let msg = await stream.readLp(1024)
           check cast[string](msg) == "Hello from stream!"
-          await stream.close()
+          await conn.close()
           done.complete()
 
         let mplexListen = newMplex(conn)
@@ -218,7 +210,7 @@ suite "Mplex":
 
       let mplexDial = newMplex(conn)
       let stream = await mplexDial.newStream("", true)
-      let openState = cast[LPChannel](stream.stream).isOpen
+      let openState = cast[LPChannel](stream).isOpen
       await stream.writeLp("Hello from stream!")
       await conn.close()
 
@@ -228,7 +220,7 @@ suite "Mplex":
       await done.wait(5000.millis)
       await done2.wait(5000.millis)
       await conn.close()
-      await stream.close()
+      await conn.close()
       await mplexDial.close()
       await transport2.close()
       await transport1.close()
@@ -250,7 +242,7 @@ suite "Mplex":
       proc connHandler(conn: Connection) {.async, gcsafe.} =
         proc handleMplexListen(stream: Connection) {.async, gcsafe.} =
           defer:
-            await stream.close()
+            await conn.close()
           let msg = await stream.readLp(MaxMsgSize)
           check msg == bigseq
           trace "Bigseq check passed!"
@@ -277,7 +269,7 @@ suite "Mplex":
 
       result = true
 
-      await stream.close()
+      await conn.close()
       await mplexDial.close()
       await conn.close()
       await transport2.close()
@@ -296,7 +288,7 @@ suite "Mplex":
       proc connHandler(conn: Connection) {.async, gcsafe.} =
         proc handleMplexListen(stream: Connection) {.async, gcsafe.} =
           await stream.writeLp("Hello from stream!")
-          await stream.close()
+          await conn.close()
           done.complete()
 
         let mplexListen = newMplex(conn)
@@ -319,7 +311,7 @@ suite "Mplex":
       result = true
 
       await done.wait(5000.millis)
-      await stream.close()
+      await conn.close()
       await conn.close()
       await mplexDial.close()
       await transport2.close()
@@ -342,7 +334,7 @@ suite "Mplex":
           let msg = await stream.readLp(1024)
           check cast[string](msg) == &"stream {count}!"
           count.inc
-          await stream.close()
+          await conn.close()
           if count == 10:
             done.complete()
 
@@ -361,7 +353,7 @@ suite "Mplex":
       for i in 1..10:
         let stream  = await mplexDial.newStream()
         await stream.writeLp(&"stream {i}!")
-        await stream.close()
+        await conn.close()
 
       await done.wait(5000.millis)
       await conn.close()
@@ -390,7 +382,7 @@ suite "Mplex":
           check cast[string](msg) == &"stream {count} from dialer!"
           await stream.writeLp(&"stream {count} from listener!")
           count.inc
-          await stream.close()
+          await conn.close()
           if count == 10:
             done.complete()
 
@@ -413,7 +405,7 @@ suite "Mplex":
         await stream.writeLp(&"stream {i} from dialer!")
         let msg = await stream.readLp(1024)
         check cast[string](msg) == &"stream {i} from listener!"
-        await stream.close()
+        await conn.close()
 
       await done.wait(5.seconds)
       await conn.close()
@@ -432,8 +424,7 @@ suite "Mplex":
     proc testClosedForWrite(): Future[void] {.async.} =
       proc writeHandler(data: seq[byte]) {.async, gcsafe.} = discard
       let
-        buff = newBufferStream(writeHandler)
-        conn = newConnection(buff)
+        conn = newBufferStream(writeHandler)
         chann = newChannel(1, conn, true)
       try:
         await chann.close()
@@ -449,8 +440,7 @@ suite "Mplex":
     proc testClosedForRead(): Future[void] {.async.} =
       proc writeHandler(data: seq[byte]) {.async, gcsafe.} = discard
       let
-        buff = newBufferStream(writeHandler)
-        conn = newConnection(buff)
+        conn = newBufferStream(writeHandler)
         chann = newChannel(1, conn, true)
 
       try:
@@ -475,7 +465,7 @@ suite "Mplex":
         proc handleMplexListen(stream: Connection) {.async, gcsafe.} =
           let msg = await stream.readLp(MsgSize)
           check msg.len == MsgSize
-          await stream.close()
+          await conn.close()
           complete.complete()
 
         let mplexListen = newMplex(conn)
@@ -521,7 +511,7 @@ suite "Mplex":
 
       await writer()
 
-      await stream.close()
+      await conn.close()
       await conn.close()
       await complete
 
@@ -544,7 +534,7 @@ suite "Mplex":
         proc handleMplexListen(stream: Connection) {.async, gcsafe.} =
           let msg = await stream.readLp(MsgSize)
           check msg.len == MsgSize
-          await stream.close()
+          await conn.close()
           complete.complete()
 
         let mplexListen = newMplex(conn)
@@ -580,7 +570,7 @@ suite "Mplex":
 
       await writer()
 
-      await stream.close()
+      await conn.close()
       await conn.close()
       await complete
       await transport2.close()
@@ -596,8 +586,7 @@ suite "Mplex":
     proc testResetRead(): Future[void] {.async.} =
       proc writeHandler(data: seq[byte]) {.async, gcsafe.} = discard
       let
-        buff = newBufferStream(writeHandler)
-        conn = newConnection(buff)
+        conn = newBufferStream(writeHandler)
         chann = newChannel(1, conn, true)
 
       try:
@@ -615,8 +604,7 @@ suite "Mplex":
     proc testResetWrite(): Future[void] {.async.} =
       proc writeHandler(data: seq[byte]) {.async, gcsafe.} = discard
       let
-        buff = newBufferStream(writeHandler)
-        conn = newConnection(buff)
+        conn = newBufferStream(writeHandler)
         chann = newChannel(1, conn, true)
       try:
         await chann.reset()
@@ -632,8 +620,7 @@ suite "Mplex":
     proc testResetWrite(): Future[void] {.async.} =
       proc writeHandler(data: seq[byte]) {.async, gcsafe.} = discard
       let
-        buff = newBufferStream(writeHandler)
-        conn = newConnection(buff)
+        conn = newBufferStream(writeHandler)
         chann = newChannel(1, conn, true)
       try:
         await chann.closedByRemote()

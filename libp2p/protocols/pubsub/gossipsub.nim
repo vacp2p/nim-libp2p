@@ -18,7 +18,7 @@ import pubsub,
        ../../crypto/crypto,
        ../protocol,
        ../../peerinfo,
-       ../../connection,
+       ../../stream/connection,
        ../../peer,
        ../../errors
 

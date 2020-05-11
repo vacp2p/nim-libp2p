@@ -11,7 +11,7 @@ import chronos, chronicles, sequtils
 import transport,
        ../errors,
        ../wire,
-       ../connection,
+       ../stream/connection,
        ../multiaddress,
        ../multicodec,
        ../stream/chronosstream
@@ -65,7 +65,7 @@ proc connHandler*(t: TcpTransport,
                   client: StreamTransport,
                   initiator: bool): Connection =
   trace "handling connection for", address = $client.remoteAddress
-  let conn: Connection = newConnection(newChronosStream(client))
+  let conn: Connection = newChronosStream(client)
   conn.observedAddrs = MultiAddress.init(client.remoteAddress)
   if not initiator:
     if not isNil(t.handler):

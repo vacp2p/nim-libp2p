@@ -11,12 +11,12 @@ import chronos
 import chronicles
 import stew/[endians2, byteutils]
 import nimcrypto/[utils, sysrand, sha2, hmac]
-import ../../connection
 import ../../peer
 import ../../peerinfo
 import ../../protobuf/minprotobuf
 import ../../utility
-import ../../stream/lpstream
+import ../../stream/connection
+import ../../stream/connectiontracker
 import secure,
        ../../crypto/[crypto, chacha20poly1305, curve25519, hkdf],
        ../../stream/bufferstream
@@ -265,7 +265,7 @@ template read_s: untyped =
   let plain = hs.ss.decryptAndHash(temp)
   hs.rs[0..Curve25519Key.high] = plain
 
-proc receiveHSMessage(sconn: Connection): Future[seq[byte]] {.async.} =
+proc receiveHSMessage(sconn: SecureConn): Future[seq[byte]] {.async.} =
   var besize: array[2, byte]
   await sconn.stream.readExactly(addr besize[0], besize.len)
   let size = uint16.fromBytesBE(besize).int
@@ -275,7 +275,7 @@ proc receiveHSMessage(sconn: Connection): Future[seq[byte]] {.async.} =
     await sconn.stream.readExactly(addr buffer[0], buffer.len)
   return buffer
 
-proc sendHSMessage(sconn: Connection; buf: seq[byte]) {.async.} =
+proc sendHSMessage(sconn: SecureConn; buf: seq[byte]) {.async.} =
   var
     lesize = buf.len.uint16
     besize = lesize.toBytesBE
@@ -321,7 +321,7 @@ proc unpackNoisePayload(payload: var seq[byte]) =
 
   trace "unpacked noise payload", size = payload.len
 
-proc handshakeXXOutbound(p: Noise, conn: Connection, p2pProof: ProtoBuffer): Future[HandshakeResult] {.async.} =
+proc handshakeXXOutbound(p: Noise, conn: SecureConn, p2pProof: ProtoBuffer): Future[HandshakeResult] {.async.} =
   const initiator = true
 
   var
@@ -370,7 +370,7 @@ proc handshakeXXOutbound(p: Noise, conn: Connection, p2pProof: ProtoBuffer): Fut
   let (cs1, cs2) = hs.ss.split()
   return HandshakeResult(cs1: cs1, cs2: cs2, remoteP2psecret: remoteP2psecret, rs: hs.rs)
 
-proc handshakeXXInbound(p: Noise, conn: Connection, p2pProof: ProtoBuffer): Future[HandshakeResult] {.async.} =
+proc handshakeXXInbound(p: Noise, conn: SecureConn, p2pProof: ProtoBuffer): Future[HandshakeResult] {.async.} =
   const initiator = false
 
   var
@@ -458,7 +458,7 @@ method write*(sconn: NoiseConnection, message: seq[byte]): Future[void] {.async.
   except AsyncStreamWriteError:
     trace "Could not write to connection"
 
-method handshake*(p: Noise, conn: Connection, initiator: bool = false): Future[SecureConn] {.async.} =
+method handshake*(p: Noise, conn: SecureConn, initiator: bool = false): Future[SecureConn] {.async.} =
   trace "Starting Noise handshake", initiator
 
   # https://github.com/libp2p/specs/tree/master/noise#libp2p-data-in-handshake-messages

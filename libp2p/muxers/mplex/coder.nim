@@ -10,11 +10,10 @@
 import chronos
 import nimcrypto/utils, chronicles
 import types,
-       ../../connection,
+       ../../stream/connection,
        ../../utility,
        ../../varint,
-       ../../vbuffer,
-       ../../stream/lpstream
+       ../../vbuffer
 
 logScope:
   topic = "MplexCoder"

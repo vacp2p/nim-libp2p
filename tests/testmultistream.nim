@@ -1,11 +1,9 @@
 import unittest, strutils, sequtils, strformat, stew/byteutils
 import chronos
 import ../libp2p/errors,
-       ../libp2p/connection,
        ../libp2p/multistream,
-       ../libp2p/stream/lpstream,
+       ../libp2p/stream/connection,
        ../libp2p/stream/bufferstream,
-       ../libp2p/connection,
        ../libp2p/multiaddress,
        ../libp2p/transports/transport,
        ../libp2p/transports/tcptransport,
@@ -17,7 +15,7 @@ when defined(nimHasUsed): {.used.}
 
 ## Mock stream for select test
 type
-  TestSelectStream = ref object of LPStream
+  TestSelectStream = ref object of Connection
     step*: int
 
 method readExactly*(s: TestSelectStream,
@@ -59,7 +57,7 @@ proc newTestSelectStream(): TestSelectStream =
 type
   LsHandler = proc(procs: seq[byte]): Future[void] {.gcsafe.}
 
-  TestLsStream = ref object of LPStream
+  TestLsStream = ref object of Connection
     step*: int
     ls*: LsHandler
 
@@ -105,7 +103,7 @@ proc newTestLsStream(ls: LsHandler): TestLsStream {.gcsafe.} =
 type
   NaHandler = proc(procs: string): Future[void] {.gcsafe.}
 
-  TestNaStream = ref object of LPStream
+  TestNaStream = ref object of Connection
     step*: int
     na*: NaHandler
 
@@ -156,7 +154,7 @@ suite "Multistream select":
   test "test select custom proto":
     proc testSelect(): Future[bool] {.async.} =
       let ms = newMultistream()
-      let conn = newConnection(newTestSelectStream())
+      let conn = newTestSelectStream()
       result = (await ms.select(conn, @["/test/proto/1.0.0"])) == "/test/proto/1.0.0"
       await conn.close()
 
@@ -166,7 +164,7 @@ suite "Multistream select":
   test "test handle custom proto":
     proc testHandle(): Future[bool] {.async.} =
       let ms = newMultistream()
-      let conn = newConnection(newTestSelectStream())
+      let conn = newTestSelectStream()
 
       var protocol: LPProtocol = new LPProtocol
       proc testHandler(conn: Connection,
@@ -188,7 +186,7 @@ suite "Multistream select":
       let ms = newMultistream()
 
       proc testLsHandler(proto: seq[byte]) {.async, gcsafe.} # forward declaration
-      let conn = newConnection(newTestLsStream(testLsHandler))
+      let conn = newTestLsStream(testLsHandler)
       let done = newFuture[void]()
       proc testLsHandler(proto: seq[byte]) {.async, gcsafe.} =
         var strProto: string = cast[string](proto)
@@ -215,7 +213,7 @@ suite "Multistream select":
       let ms = newMultistream()
 
       proc testNaHandler(msg: string): Future[void] {.async, gcsafe.}
-      let conn = newConnection(newTestNaStream(testNaHandler))
+      let conn = newTestNaStream(testNaHandler)
 
       proc testNaHandler(msg: string): Future[void] {.async, gcsafe.} =
         check msg == Na

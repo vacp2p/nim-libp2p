@@ -11,7 +11,7 @@ import options
 import chronos, chronicles
 import ../protocol,
        ../../stream/streamseq,
-       ../../connection,
+       ../../stream/connection,
        ../../peerinfo
 
 type
@@ -19,6 +19,7 @@ type
 
   SecureConn* = ref object of Connection
     buf: StreamSeq
+    stream*: Connection
 
 method readMessage*(c: SecureConn): Future[seq[byte]] {.async, base.} =
   doAssert(false, "Not implemented!")

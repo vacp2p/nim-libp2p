@@ -14,8 +14,7 @@
 import tables, sequtils
 import chronos, chronicles
 import ../muxer,
-       ../../connection,
-       ../../stream/lpstream,
+       ../../stream/connection,
        ../../utility,
        ../../errors,
        coder,
@@ -80,7 +79,7 @@ method handle*(m: Mplex) {.async, gcsafe.} =
                                             msgType = msgType,
                                             data = data.shortLog
       let initiator = bool(ord(msgType) and 1)
-      var channel: LPChannel
+      var stream: LPChannel
       if MessageType(msgType) != MessageType.New:
         let channels = m.getChannelList(initiator)
         if id notin channels:
@@ -88,7 +87,7 @@ method handle*(m: Mplex) {.async, gcsafe.} =
                                                initiator = initiator,
                                                msg = msgType
           continue
-        channel = channels[id]
+        stream = channels[id]
 
       case msgType:
         of MessageType.New:
@@ -96,7 +95,6 @@ method handle*(m: Mplex) {.async, gcsafe.} =
           channel = await m.newStreamInternal(false, id, name)
           trace "created channel", id = id, name = name, inititator = initiator
           if not isNil(m.streamHandler):
-            let stream = newConnection(channel)
             stream.peerInfo = m.connection.peerInfo
 
             proc handler() {.async.} =
@@ -117,20 +115,20 @@ method handle*(m: Mplex) {.async, gcsafe.} =
 
           if data.len > MaxMsgSize:
             raise newLPStreamLimitError()
-          await channel.pushTo(data)
+          await stream.pushTo(data)
         of MessageType.CloseIn, MessageType.CloseOut:
           trace "closing channel", id = id,
                                    initiator = initiator,
                                    msgType = msgType
 
-          await channel.closedByRemote()
+          await stream.closedByRemote()
           m.getChannelList(initiator).del(id)
         of MessageType.ResetIn, MessageType.ResetOut:
-          trace "resetting channel", id = id,
+          trace "resetting stream", id = id,
                                      initiator = initiator,
                                      msgType = msgType
 
-          await channel.resetByRemote()
+          await stream.resetByRemote()
           m.getChannelList(initiator).del(id)
           break
   except CatchableError as exc:
@@ -160,7 +158,7 @@ method newStream*(m: Mplex,
   let channel = await m.newStreamInternal(lazy = lazy)
   if not lazy:
     await channel.open()
-  result = newConnection(channel)
+  result = channel
   result.peerInfo = m.connection.peerInfo
 
 method close*(m: Mplex) {.async, gcsafe.} =

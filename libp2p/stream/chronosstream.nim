@@ -8,12 +8,12 @@
 ## those terms.
 
 import chronos, chronicles
-import lpstream, ../utility
+import connection, ../utility
 
 logScope:
   topic = "ChronosStream"
 
-type ChronosStream* = ref object of LPStream
+type ChronosStream* = ref object of Connection
     client: StreamTransport
 
 proc newChronosStream*(client: StreamTransport): ChronosStream =
@@ -34,6 +34,13 @@ template withExceptions(body: untyped) =
     # TODO https://github.com/status-im/nim-chronos/pull/99
     raise newLPStreamEOFError()
     # raise (ref LPStreamError)(msg: exc.msg, parent: exc)
+
+method read*(s: ChronosStream, n: int = -1): Future[seq[byte]] {.async.} =
+  if s.client.atEof:
+    raise newLPStreamEOFError()
+
+  withExceptions:
+    result = await s.client.read()
 
 method readExactly*(s: ChronosStream,
                     pbytes: pointer,

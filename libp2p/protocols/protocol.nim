@@ -8,7 +8,7 @@
 ## those terms.
 
 import chronos
-import ../connection
+import ../stream/connection
 
 type
   LPProtoHandler* = proc (conn: Connection,

@@ -9,7 +9,7 @@
 
 import chronos, chronicles
 import ../protocols/protocol,
-       ../connection,
+       ../stream/connection,
        ../errors
 
 logScope:

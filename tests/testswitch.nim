@@ -9,7 +9,7 @@ import ../libp2p/[errors,
                   multistream,
                   stream/bufferstream,
                   protocols/identify,
-                  connection,
+                  stream/connection,
                   transports/transport,
                   transports/tcptransport,
                   multiaddress,
@@ -20,8 +20,7 @@ import ../libp2p/[errors,
                   muxers/mplex/mplex,
                   muxers/mplex/types,
                   protocols/secure/secio,
-                  protocols/secure/secure,
-                  stream/lpstream]
+                  protocols/secure/secure]
 import ./helpers
 
 const
