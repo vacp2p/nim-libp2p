@@ -174,10 +174,10 @@ proc macCheckAndDecode(sconn: SecioConn, data: var seq[byte]): bool =
   data.setLen(mark)
   result = true
 
-proc readRawMessage(conn: SecureConn): Future[seq[byte]] {.async.} =
+proc readRawMessage(conn: Connection): Future[seq[byte]] {.async.} =
   while true: # Discard 0-length payloads
     var lengthBuf: array[4, byte]
-    await conn.stream.readExactly(addr lengthBuf[0], lengthBuf.len)
+    await conn.readExactly(addr lengthBuf[0], lengthBuf.len)
     let length = uint32.fromBytesBE(lengthBuf)
 
     trace "Recieved message header", header = lengthBuf.shortLog, length = length
@@ -188,7 +188,7 @@ proc readRawMessage(conn: SecureConn): Future[seq[byte]] {.async.} =
 
     if length > 0:
       var buf = newSeq[byte](int(length))
-      await conn.stream.readExactly(addr buf[0], buf.len)
+      await conn.readExactly(addr buf[0], buf.len)
       trace "Received message body",
         conn = $conn, length = buf.len, buff = buf.shortLog
       return buf
@@ -200,7 +200,7 @@ method readMessage*(sconn: SecioConn): Future[seq[byte]] {.async.} =
   when chronicles.enabledLogLevel == LogLevel.TRACE:
     logScope:
       stream_oid = $sconn.stream.oid
-  var buf = await sconn.readRawMessage()
+  var buf = await sconn.stream.readRawMessage()
   if sconn.macCheckAndDecode(buf):
     result = buf
   else:
@@ -279,7 +279,7 @@ proc transactMessage(conn: Connection,
                      msg: seq[byte]): Future[seq[byte]] {.async.} =
   trace "Sending message", message = msg.shortLog, length = len(msg)
   await conn.write(msg)
-  return await SecureConn(conn).readRawMessage()
+  return await conn.readRawMessage()
 
 method handshake*(s: Secio, conn: Connection, initiator: bool = false): Future[SecureConn] {.async.} =
   var

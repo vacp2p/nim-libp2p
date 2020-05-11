@@ -82,7 +82,9 @@ method readOnce*(s: Connection,
   {.base, async.} =
   doAssert(false, "not implemented!")
 
-proc readLine*(s: Connection, limit = 0, sep = "\r\n"): Future[string] {.async, deprecated: "todo".} =
+proc readLine*(s: Connection,
+               limit = 0,
+               sep = "\r\n"): Future[string] {.async, deprecated: "todo".} =
   # TODO replace with something that exploits buffering better
   var lim = if limit <= 0: -1 else: limit
   var state = 0
