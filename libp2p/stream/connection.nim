@@ -180,6 +180,14 @@ proc write*(s: Connection, pbytes: pointer, nbytes: int): Future[void] {.depreca
 proc write*(s: Connection, msg: string): Future[void] =
   s.write(@(toOpenArrayByte(msg, 0, msg.high)))
 
+method getObservedAddrs*(c: Connection): Future[MultiAddress] {.base, async, gcsafe.} =
+  ## get resolved multiaddresses for the connection
+  result = c.observedAddrs
+
+proc `$`*(conn: Connection): string =
+  if not isNil(conn.peerInfo):
+    result = $(conn.peerInfo)
+
 method close*(s: Connection) {.base, async, gcsafe.} =
   trace "about to close connection", closed = s.closed,
                                      peer = if not isNil(s.peerInfo):
