@@ -22,8 +22,6 @@ export lpstream
 logScope:
   topic = "MplexChannel"
 
-const DefaultChannelSize* = 1 shl 20
-
 type
   LPChannel* = ref object of BufferStream
     id*: uint64                   # channel id
@@ -44,7 +42,7 @@ proc newChannel*(id: uint64,
                  conn: Connection,
                  initiator: bool,
                  name: string = "",
-                 size: int = DefaultChannelSize,
+                 size: int = DefaultBufferSize,
                  lazy: bool = false): LPChannel =
   new result
   result.id = id
