@@ -40,7 +40,7 @@ method read*(s: ChronosStream, n: int = -1): Future[seq[byte]] {.async.} =
     raise newLPStreamEOFError()
 
   withExceptions:
-    result = await s.client.read()
+    result = await s.client.read(n)
 
 method readExactly*(s: ChronosStream,
                     pbytes: pointer,
