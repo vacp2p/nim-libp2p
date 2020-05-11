@@ -8,12 +8,17 @@
 ## those terms.
 
 import oids
-import chronicles, chronos, strformat
-import ../varint,
+import chronicles, chronos, metrics
+import connectiontracker,
+       ../multiaddress,
+       ../peerinfo,
+       ../varint,
        ../vbuffer
 
 type
-  LPStream* = ref object of RootObj
+  Connection* = ref object of RootObj
+    peerInfo*: PeerInfo
+    observedAddrs*: Multiaddress
     isClosed*: bool
     closeEvent*: AsyncEvent
     when chronicles.enabledLogLevel == LogLevel.TRACE:
@@ -31,6 +36,8 @@ type
 
   InvalidVarintError* = object of LPStreamError
   MaxSizeError* = object of LPStreamError
+
+declareGauge libp2p_open_connection, "open Connection instances"
 
 proc newLPStreamReadError*(p: ref Exception): ref Exception =
   var w = newException(LPStreamReadError, "Read stream failed")
@@ -59,34 +66,28 @@ proc newLPStreamIncorrectDefect*(m: string): ref Exception =
 proc newLPStreamEOFError*(): ref Exception =
   result = newException(LPStreamEOFError, "Stream EOF!")
 
-method closed*(s: LPStream): bool {.base, inline.} =
+method closed*(s: Connection): bool {.base, inline.} =
   s.isClosed
 
-method readExactly*(s: LPStream,
+method read*(s: Connection,
+             n: int = -1):
+             Future[seq[byte]] {.base, async.} =
+  doAssert(false, "not implemented!")
+
+method readExactly*(s: Connection,
                     pbytes: pointer,
                     nbytes: int):
                     Future[void] {.base, async.} =
   doAssert(false, "not implemented!")
 
-method readOnce*(s: LPStream,
+method readOnce*(s: Connection,
                  pbytes: pointer,
                  nbytes: int):
                  Future[int]
   {.base, async.} =
   doAssert(false, "not implemented!")
 
-proc read*(s: LPStream, nbytes: int): Future[seq[byte]] {.async, deprecated: "readExactly".} =
-  # This function is deprecated - it was broken and used inappropriately as
-  # `readExacltly` in tests and code - tests still need refactoring to remove
-  # any calls
-  # `read` without nbytes was also incorrectly implemented - it worked more
-  # like `readOnce` in that it would not wait for stream to close, in
-  # BufferStream in particular - both tests and implementation were broken
-  var ret = newSeq[byte](nbytes)
-  await readExactly(s, addr ret[0], ret.len)
-  return ret
-
-proc readLine*(s: LPStream, limit = 0, sep = "\r\n"): Future[string] {.async, deprecated: "todo".} =
+proc readLine*(s: Connection, limit = 0, sep = "\r\n"): Future[string] {.async, deprecated: "todo".} =
   # TODO replace with something that exploits buffering better
   var lim = if limit <= 0: -1 else: limit
   var state = 0
@@ -114,7 +115,7 @@ proc readLine*(s: LPStream, limit = 0, sep = "\r\n"): Future[string] {.async, de
   except LPStreamIncompleteError, LPStreamReadError:
     discard # EOF, in which case we should return whatever we read so far..
 
-proc readVarint*(conn: LPStream): Future[uint64] {.async, gcsafe.} =
+proc readVarint*(conn: Connection): Future[uint64] {.async, gcsafe.} =
   var
     varint: uint64
     length: int
@@ -130,7 +131,7 @@ proc readVarint*(conn: LPStream): Future[uint64] {.async, gcsafe.} =
   if true: # can't end with a raise apparently
     raise (ref InvalidVarintError)(msg: "Cannot parse varint")
 
-proc readLp*(s: LPStream, maxSize: int): Future[seq[byte]] {.async, gcsafe.} =
+proc readLp*(s: Connection, maxSize: int): Future[seq[byte]] {.async, gcsafe.} =
   ## read length prefixed msg, with the length encoded as a varint
   let
     length = await s.readVarint()
@@ -146,22 +147,40 @@ proc readLp*(s: LPStream, maxSize: int): Future[seq[byte]] {.async, gcsafe.} =
   await s.readExactly(addr res[0], res.len)
   return res
 
-proc writeLp*(s: LPStream, msg: string | seq[byte]): Future[void] {.gcsafe.} =
+proc writeLp*(s: Connection, msg: string | seq[byte]): Future[void] {.gcsafe.} =
   ## write length prefixed
   var buf = initVBuffer()
   buf.writeSeq(msg)
   buf.finish()
   s.write(buf.buffer)
 
-method write*(s: LPStream, msg: seq[byte]) {.base, async.} =
+method write*(s: Connection, msg: seq[byte]) {.base, async, gcsafe.} =
   doAssert(false, "not implemented!")
 
-proc write*(s: LPStream, pbytes: pointer, nbytes: int): Future[void] {.deprecated: "seq".} =
+proc write*(s: Connection, pbytes: pointer, nbytes: int): Future[void] {.deprecated: "seq".} =
   s.write(@(toOpenArray(cast[ptr UncheckedArray[byte]](pbytes), 0, nbytes - 1)))
 
-proc write*(s: LPStream, msg: string): Future[void] =
+proc write*(s: Connection, msg: string): Future[void] =
   s.write(@(toOpenArrayByte(msg, 0, msg.high)))
 
-method close*(s: LPStream)
-  {.base, async.} =
-  doAssert(false, "not implemented!")
+method close*(s: Connection) {.base, async.} =
+  trace "about to close connection", closed = s.closed,
+                                     peer = if not isNil(s.peerInfo):
+                                       s.peerInfo.id else: ""
+
+  if not s.isClosed:
+    s.isClosed = true
+    inc getConnectionTracker().closed
+    trace "connection closed", closed = s.closed,
+                               peer = if not isNil(s.peerInfo):
+                                 s.peerInfo.id else: ""
+    s.closeEvent.fire()
+    libp2p_open_connection.dec()
+
+method getObservedAddrs*(c: Connection): Future[MultiAddress] {.base, async, gcsafe.} =
+  ## get resolved multiaddresses for the connection
+  result = c.observedAddrs
+
+proc `$`*(conn: Connection): string =
+  if not isNil(conn.peerInfo):
+    result = $(conn.peerInfo)
