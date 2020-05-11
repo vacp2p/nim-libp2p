@@ -13,9 +13,7 @@ import peerinfo,
        errors,
        multiaddress,
        stream/lpstream,
-       peerinfo,
-       varint,
-       vbuffer
+       peerinfo
 
 export lpstream
 
@@ -64,18 +62,20 @@ proc setupConnectionTracker(): ConnectionTracker =
 
 declareGauge libp2p_open_connection, "open Connection instances"
 
+proc `$`*(conn: Connection): string =
+  if not isNil(conn.peerInfo):
+    result = $(conn.peerInfo)
+
 proc bindStreamClose(conn: Connection) {.async.} =
   # bind stream's close event to connection's close
   # to ensure correct close propagation
   if not isNil(conn.stream.closeEvent):
     await conn.stream.closeEvent.wait()
-    trace "wrapped stream closed, about to close conn", closed = conn.isClosed,
-                                                        peer = if not isNil(conn.peerInfo):
-                                                          conn.peerInfo.id else: ""
+    trace "wrapped stream closed, about to close conn",
+      closed = conn.isClosed, conn = $conn
     if not conn.isClosed:
-      trace "wrapped stream closed, closing conn", closed = conn.isClosed,
-                                                    peer = if not isNil(conn.peerInfo):
-                                                      conn.peerInfo.id else: ""
+      trace "wrapped stream closed, closing conn",
+        closed = conn.isClosed, conn = $conn
       await conn.close()
 
 proc init[T: Connection](self: var T, stream: LPStream): T =
@@ -119,36 +119,26 @@ method closed*(s: Connection): bool =
   result = s.stream.closed
 
 method close*(s: Connection) {.async, gcsafe.} =
-  trace "about to close connection", closed = s.closed,
-                                     peer = if not isNil(s.peerInfo):
-                                       s.peerInfo.id else: ""
+  trace "about to close connection", closed = s.closed, conn = $s
 
   if not s.isClosed:
     s.isClosed = true
     inc getConnectionTracker().closed
 
     if not isNil(s.stream) and not s.stream.closed:
-      trace "closing child stream", closed = s.closed,
-                                    peer = if not isNil(s.peerInfo):
-                                      s.peerInfo.id else: ""
+      trace "closing child stream", closed = s.closed, conn = $s
       await s.stream.close()
 
     s.closeEvent.fire()
 
-    trace "waiting readloops", count=s.readLoops.len
+    trace "waiting readloops", count=s.readLoops.len, conn = $s
     let loopFuts = await allFinished(s.readLoops)
     checkFutures(loopFuts)
     s.readLoops = @[]
 
-    trace "connection closed", closed = s.closed,
-                               peer = if not isNil(s.peerInfo):
-                                 s.peerInfo.id else: ""
+    trace "connection closed", closed = s.closed, conn = $s
     libp2p_open_connection.dec()
 
 method getObservedAddrs*(c: Connection): Future[MultiAddress] {.base, async, gcsafe.} =
   ## get resolved multiaddresses for the connection
   result = c.observedAddrs
-
-proc `$`*(conn: Connection): string =
-  if not isNil(conn.peerInfo):
-    result = $(conn.peerInfo)

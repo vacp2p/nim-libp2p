@@ -8,7 +8,7 @@
 ## those terms.
 
 import options
-import chronos
+import chronos, chronicles
 import peer, multiaddress, crypto/crypto
 
 ## A peer can be constructed in one of tree ways:
@@ -34,6 +34,18 @@ type
       privateKey*: PrivateKey
     of HasPublic:
       key: Option[PublicKey]
+
+proc id*(p: PeerInfo): string =
+  p.peerId.pretty()
+
+proc `$`*(p: PeerInfo): string =
+  result.add(p.id)
+
+  result.add(" ")
+  result.add($p.addrs)
+
+  result.add(" ")
+  result.add($p.protocols)
 
 template postInit(peerinfo: PeerInfo,
                   addrs: openarray[MultiAddress],
@@ -71,7 +83,11 @@ proc init*(p: typedesc[PeerInfo], key: PublicKey,
   result.postInit(addrs, protocols)
 
 proc close*(p: PeerInfo) {.inline.} =
-  p.lifefut.complete()
+  if not p.lifefut.finished:
+    p.lifefut.complete()
+  else:
+    # TODO this should ideally not happen
+    notice "Closing closed peer", peer = p.id
 
 proc join*(p: PeerInfo): Future[void] {.inline.} =
   var retFuture = newFuture[void]()
@@ -103,15 +119,3 @@ proc publicKey*(p: PeerInfo): Option[PublicKey] {.inline.} =
       result = p.key
   else:
     result = some(p.privateKey.getKey())
-
-proc id*(p: PeerInfo): string {.inline.} =
-  p.peerId.pretty()
-
-proc `$`*(p: PeerInfo): string =
-  result.add(p.id)
-
-  result.add(" ")
-  result.add($p.addrs)
-
-  result.add(" ")
-  result.add($p.protocols)
