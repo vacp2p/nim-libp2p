@@ -276,10 +276,11 @@ suite "Mplex":
       let mplexDial = newMplex(conn)
       let stream = await mplexDial.newStream(lazy = true)
       let mplexDialFut = mplexDial.handle()
-      check not LPChannel(stream.stream).isOpen # assert lazy
+      let openState = cast[LPChannel](stream).isOpen
       await stream.writeLp("HELLO")
-      check LPChannel(stream.stream).isOpen # assert lazy
       await stream.close()
+
+      check not openState # assert lazy
 
       await done.wait(1.seconds)
       await conn.close()
@@ -387,6 +388,7 @@ suite "Mplex":
           check string.fromBytes(msg) == &"stream {count}!"
           count.inc
           await stream.close()
+          count.inc
           if count == 10:
             done.complete()
 
