@@ -2,7 +2,7 @@ import chronos
 
 import ../libp2p/transports/tcptransport
 import ../libp2p/stream/[bufferstream,
-                        bufferstreamtrackers]
+                         bufferstreamtrackers]
 
 const
   StreamTransportTrackerName = "stream.transport"

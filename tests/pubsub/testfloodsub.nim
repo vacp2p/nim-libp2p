@@ -38,6 +38,7 @@ proc waitSub(sender, receiver: auto; key: string) {.async, gcsafe.} =
 suite "FloodSub":
   teardown:
     for tracker in testTrackers():
+      # echo tracker.dump()
       check tracker.isLeaked() == false
 
   test "FloodSub basic publish/subscribe A -> B":

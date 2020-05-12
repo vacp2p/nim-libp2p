@@ -50,6 +50,7 @@ proc waitSub(sender, receiver: auto; key: string) {.async, gcsafe.} =
 suite "GossipSub":
   teardown:
     for tracker in testTrackers():
+      # echo tracker.dump()
       check tracker.isLeaked() == false
 
   test "GossipSub validation should succeed":

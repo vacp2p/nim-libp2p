@@ -94,6 +94,7 @@ proc join*(p: PeerInfo): Future[void] {.inline.} =
   proc continuation(udata: pointer) {.gcsafe.} =
     if not(retFuture.finished()):
       retFuture.complete()
+      
   proc cancellation(udata: pointer) {.gcsafe.} =
     p.lifefut.removeCallback(continuation)
   if p.lifefut.finished:
