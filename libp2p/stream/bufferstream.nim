@@ -51,7 +51,7 @@ type
     dataReadEvent: AsyncEvent
     writeHandler*: WriteHandler
     lock: AsyncLock
-    isPiped: bool
+    piped: BufferStream
 
   AlreadyPipedError* = object of CatchableError
   NotWritableError* = object of CatchableError
@@ -256,10 +256,10 @@ proc pipe*(s: BufferStream,
   ## interface methods `read*` and `write` are
   ## piped.
   ##
-  if s.isPiped:
+  if not(isNil(s.piped)):
     raise newAlreadyPipedError()
 
-  s.isPiped = true
+  s.piped = target
   let oldHandler = target.writeHandler
   proc handler(data: seq[byte]) {.async, closure, gcsafe.} =
     if not isNil(oldHandler):
@@ -286,7 +286,7 @@ proc `|`*(s: BufferStream, target: BufferStream): BufferStream =
   ## pipe operator to make piping less verbose
   pipe(s, target)
 
-method close*(s: BufferStream) {.async.} =
+method close*(s: BufferStream) {.async, gcsafe.} =
   ## close the stream and clear the buffer
   if not s.isClosed:
     trace "closing bufferstream"
@@ -299,5 +299,10 @@ method close*(s: BufferStream) {.async.} =
     s.isClosed = true
     inc getBufferStreamTracker().closed
     libp2p_open_bufferstream.dec()
+    trace "bufferstream closed"
+
+    if not(isNil(s.piped)):
+      await s.piped.close()
+
   else:
-    trace "attempt to close an already closed bufferstream", trace=getStackTrace()
+    trace "attempt to close an already closed bufferstream", trace = getStackTrace()
