@@ -31,6 +31,7 @@ type
     local: Table[uint64, LPChannel]
     currentId*: uint64
     maxChannels*: uint64
+    isClosed: bool
     when chronicles.enabledLogLevel == LogLevel.TRACE:
       oid*: Oid
 
@@ -203,12 +204,15 @@ method newStream*(m: Mplex,
   result.peerInfo = m.connection.peerInfo
 
 method close*(m: Mplex) {.async, gcsafe.} =
+  if m.isClosed:
+    return
+
   trace "closing mplex muxer", oid = m.oid
 
   let
     futs = await allFinished(
-      toSeq(m.remote.values).mapIt(it.close()) &
-        toSeq(m.local.values).mapIt(it.close()))
+      toSeq(m.remote.values).mapIt(it.reset()) &
+        toSeq(m.local.values).mapIt(it.reset()))
 
   checkFutures(futs)
 
@@ -216,5 +220,4 @@ method close*(m: Mplex) {.async, gcsafe.} =
   m.handlers[1].clear()
   m.remote.clear()
   m.local.clear()
-
-  trace "mplex muxer closed"
+  m.isClosed = true
