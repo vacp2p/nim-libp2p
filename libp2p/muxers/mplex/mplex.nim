@@ -71,13 +71,6 @@ proc newStreamInternal*(m: Mplex,
 #     m.getChannelList(initiator).del(chann.id)
 #     trace "cleaned up channel", id = chann.id
 
-proc cleanupChann(chann: LPChannel) {.async.} =
-  trace "cleaning up channel", id = chann.id
-  await chann.reset()
-  await chann.close()
-  await chann.cleanUp()
-  trace "cleaned up channel", id = chann.id
-
 method handle*(m: Mplex) {.async, gcsafe.} =
   trace "starting mplex main loop", oid = m.oid
   try:
@@ -121,10 +114,6 @@ method handle*(m: Mplex) {.async, gcsafe.} =
               # will make go interop tests fail
               # need to investigate why
 
-            if not initiator:
-              m.handlers[0][id] = handler()
-            else:
-              m.handlers[1][id] = handler()
         of MessageType.MsgIn, MessageType.MsgOut:
           trace "pushing data to channel", id = id,
                                            initiator = initiator,
@@ -216,8 +205,6 @@ method close*(m: Mplex) {.async, gcsafe.} =
 
   checkFutures(futs)
 
-  m.handlers[0].clear()
-  m.handlers[1].clear()
   m.remote.clear()
   m.local.clear()
   m.isClosed = true
