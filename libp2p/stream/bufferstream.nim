@@ -39,8 +39,9 @@ export connection
 logScope:
   topic = "BufferStream"
 
+declareGauge libp2p_open_bufferstream, "open BufferStream instances"
+
 const
-  BufferStreamTrackerName* = "libp2p.bufferstream"
   DefaultBufferSize* = 1024
 
 type
@@ -48,45 +49,17 @@ type
   WriteHandler* = proc (data: seq[byte]): Future[void] {.gcsafe.}
 
   BufferStream* = ref object of Connection
-    maxSize*: int # buffer's max size in bytes
-    readBuf: Deque[byte] # this is a ring buffer based dequeue, this makes it perfect as the backing store here
-    readReqs: Deque[Future[void]] # use dequeue to fire reads in order
-    dataReadEvent: AsyncEvent
-    writeHandler*: WriteHandler
-    lock: AsyncLock
-    piped: BufferStream
+    maxSize*: int                     # buffer's max size in bytes
+    readBuf: Deque[byte]              # this is a ring buffer based dequeue
+    readReqs*: Deque[Future[void]]    # use dequeue to fire reads in order
+    dataReadEvent: AsyncEvent         # event triggered when data has been consumed from the internal buffer
+    writeHandler*: WriteHandler       # user provided write callback
+    writeLock*: AsyncLock             # write lock to guarantee ordered writes
+    lock: AsyncLock                   # pushTo lock to guarantee ordered reads
+    piped: BufferStream               # a piped bufferstream instance
 
   AlreadyPipedError* = object of CatchableError
   NotWritableError* = object of CatchableError
-
-  BufferStreamTracker* = ref object of TrackerBase
-    opened*: uint64
-    closed*: uint64
-
-proc setupBufferStreamTracker(): BufferStreamTracker {.gcsafe.}
-
-proc getBufferStreamTracker(): BufferStreamTracker {.gcsafe.} =
-  result = cast[BufferStreamTracker](getTracker(BufferStreamTrackerName))
-  if isNil(result):
-    result = setupBufferStreamTracker()
-
-proc dumpTracking(): string {.gcsafe.} =
-  var tracker = getBufferStreamTracker()
-  result = "Opened buffers: " & $tracker.opened & "\n" &
-           "Closed buffers: " & $tracker.closed
-
-proc leakTransport(): bool {.gcsafe.} =
-  var tracker = getBufferStreamTracker()
-  result = (tracker.opened != tracker.closed)
-
-proc setupBufferStreamTracker(): BufferStreamTracker =
-  result = new BufferStreamTracker
-  result.opened = 0
-  result.closed = 0
-  result.dump = dumpTracking
-  result.isLeaked = leakTransport
-  addTracker(BufferStreamTrackerName, result)
-declareGauge libp2p_open_bufferstream, "open BufferStream instances"
 
 proc newAlreadyPipedError*(): ref Exception {.inline.} =
   result = newException(AlreadyPipedError, "stream already piped")
@@ -99,7 +72,7 @@ proc requestReadBytes(s: BufferStream): Future[void] =
   ## data becomes available in the read buffer
   result = newFuture[void]()
   s.readReqs.addLast(result)
-  trace "requestReadBytes(): added a future to readReqs"
+  trace "requestReadBytes(): added a future to readReqs", oid = s.oid
 
 proc initBufferStream*(s: BufferStream,
                        handler: WriteHandler = nil,
@@ -136,7 +109,7 @@ proc shrink(s: BufferStream, fromFirst = 0, fromLast = 0) =
 
 proc len*(s: BufferStream): int = s.readBuf.len
 
-proc pushTo*(s: BufferStream, data: seq[byte]) {.async.} =
+method pushTo*(s: BufferStream, data: seq[byte]) {.base, async.} =
   ## Write bytes to internal read buffer, use this to fill up the
   ## buffer with data.
   ##
@@ -144,10 +117,6 @@ proc pushTo*(s: BufferStream, data: seq[byte]) {.async.} =
   ## written to the internal buffer; this is done so that backpressure
   ## is preserved.
   ##
-
-  when chronicles.enabledLogLevel == LogLevel.TRACE:
-    logScope:
-      stream_oid = $s.oid
 
   if s.atEof:
     raise newLPStreamEOFError()
@@ -159,12 +128,12 @@ proc pushTo*(s: BufferStream, data: seq[byte]) {.async.} =
       while index < data.len and s.readBuf.len < s.maxSize:
         s.readBuf.addLast(data[index])
         inc(index)
-      trace "pushTo()", msg = "added " & $index & " bytes to readBuf"
+      trace "pushTo()", msg = "added " & $index & " bytes to readBuf", oid = s.oid
 
       # resolve the next queued read request
       if s.readReqs.len > 0:
         s.readReqs.popFirst().complete()
-        trace "pushTo(): completed a readReqs future"
+        trace "pushTo(): completed a readReqs future", oid = s.oid
 
       if index >= data.len:
         return
@@ -186,14 +155,11 @@ method readExactly*(s: BufferStream,
   ## If EOF is received and ``nbytes`` is not yet read, the procedure
   ## will raise ``LPStreamIncompleteError``.
   ##
-  when chronicles.enabledLogLevel == LogLevel.TRACE:
-    logScope:
-      stream_oid = $s.oid
 
   if s.atEof:
     raise newLPStreamEOFError()
 
-  trace "read()", requested_bytes = nbytes
+  trace "read()", requested_bytes = nbytes, oid = s.oid
   var index = 0
 
   if s.readBuf.len() == 0:
@@ -204,7 +170,7 @@ method readExactly*(s: BufferStream,
     while s.readBuf.len() > 0 and index < nbytes:
       output[index] = s.popFirst()
       inc(index)
-    trace "readExactly()", read_bytes = index
+    trace "readExactly()", read_bytes = index, oid = s.oid
 
     if index < nbytes:
       await s.requestReadBytes()
@@ -292,7 +258,7 @@ proc `|`*(s: BufferStream, target: BufferStream): BufferStream =
 method close*(s: BufferStream) {.async, gcsafe.} =
   ## close the stream and clear the buffer
   if not s.isClosed:
-    trace "closing bufferstream"
+    trace "closing bufferstream", oid = s.oid
     for r in s.readReqs:
       if not(isNil(r)) and not(r.finished()):
         r.fail(newLPStreamEOFError())
@@ -303,7 +269,7 @@ method close*(s: BufferStream) {.async, gcsafe.} =
 
     inc getBufferStreamTracker().closed
     libp2p_open_bufferstream.dec()
-    trace "bufferstream closed"
+    trace "bufferstream closed", oid = s.oid
 
     if not(isNil(s.piped)):
       await s.piped.close()
