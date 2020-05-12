@@ -162,7 +162,7 @@ suite "Mplex":
       waitFor(testResetWrite())
 
   test "reset - channel should fail reading":
-    proc testResetRead(): Future[void] {.async.} =
+    proc testResetRead() {.async.} =
       proc writeHandler(data: seq[byte]) {.async, gcsafe.} = discard
       let
         conn = newBufferStream(writeHandler)
@@ -180,7 +180,7 @@ suite "Mplex":
       waitFor(testResetRead())
 
   test "reset - channel should fail writing":
-    proc testResetWrite(): Future[void] {.async.} =
+    proc testResetWrite() {.async.} =
       proc writeHandler(data: seq[byte]) {.async, gcsafe.} = discard
       let
         conn = newBufferStream(writeHandler)
@@ -225,7 +225,7 @@ suite "Mplex":
   #     # so we need to give them some time
   #     # to properly pipe data
   #     await allFuturesThrowing(conn1.close(), conn2.close())
-  #     await done.wait(1.seconds)
+  #     await done.wait(5.seconds)
   #     await allFuturesThrowing(listenHandler, dialHandler)
 
   #   waitFor(testNewStream())
@@ -248,7 +248,7 @@ suite "Mplex":
         await mplexListen.close()
 
       let transport1: TcpTransport = newTransport(TcpTransport)
-      let lfut = await transport1.listen(ma, connHandler)
+      let listenFut = await transport1.listen(ma, connHandler)
 
       let transport2: TcpTransport = newTransport(TcpTransport)
       let conn = await transport2.dial(transport1.ma)
@@ -265,7 +265,7 @@ suite "Mplex":
       await conn.close()
       await mplexDialFut
       await allFuturesThrowing(transport1.close(), transport2.close())
-      await lfut
+      await listenFut
 
     waitFor(testNewStream())
 
