@@ -41,8 +41,8 @@ proc getTcpTransportTracker(): TcpTransportTracker {.gcsafe.} =
 
 proc dumpTracking(): string {.gcsafe.} =
   var tracker = getTcpTransportTracker()
-  result = "Opened transports: " & $tracker.opened & "\n" &
-           "Closed transports: " & $tracker.closed
+  result = "Opened tcp transports: " & $tracker.opened & "\n" &
+           "Closed tcp transports: " & $tracker.closed
 
 proc leakTransport(): bool {.gcsafe.} =
   var tracker = getTcpTransportTracker()
@@ -86,7 +86,6 @@ proc connCb(server: StreamServer,
 
 method init*(t: TcpTransport) =
   t.multicodec = multiCodec("tcp")
-
   inc getTcpTransportTracker().opened
 
 method close*(t: TcpTransport) {.async, gcsafe.} =
