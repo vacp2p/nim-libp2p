@@ -44,6 +44,8 @@ type
     closeCode*: MessageType       # cached in/out close code
     resetCode*: MessageType       # cached in/out reset code
 
+proc open*(s: LPChannel) {.async, gcsafe.}
+
 proc newChannel*(id: uint64,
                  conn: Connection,
                  initiator: bool,
@@ -58,11 +60,13 @@ proc newChannel*(id: uint64,
   result.msgCode = if initiator: MessageType.MsgOut else: MessageType.MsgIn
   result.closeCode = if initiator: MessageType.CloseOut else: MessageType.CloseIn
   result.resetCode = if initiator: MessageType.ResetOut else: MessageType.ResetIn
-  result.writeLock = newAsyncLock()
   result.isLazy = lazy
 
   let chan = result
-  proc writeHandler(data: seq[byte]): Future[void] {.async.} =
+  proc writeHandler(data: seq[byte]): Future[void] {.async, gcsafe.} =
+    if chan.isLazy and not(chan.isOpen):
+      await chan.open()
+
     # writes should happen in sequence
     trace "sending data", data = data.shortLog,
                           id = chan.id,
@@ -110,7 +114,7 @@ proc resetMessage(s: LPChannel) {.async.} =
   except CatchableError as exc:
     trace "unable to send reset message", exc = exc.msg
 
-proc open*(s: LPChannel) {.async.} =
+proc open*(s: LPChannel) {.async, gcsafe.} =
   await s.conn.writeMsg(s.id, MessageType.New, s.name)
   trace "oppened channel", oid = s.oid,
                            name = s.name,
@@ -123,11 +127,15 @@ proc closeRemote*(s: LPChannel) {.async.} =
                                     name = s.name,
                                     oid = s.oid
 
-  echo "READ REQS ", s.readReqs.len
+  # wait for all data in the buffer to be consumed
+  while s.len > 0:
+    await s.dataReadEvent.wait()
+    s.dataReadEvent.clear()
 
-  if s.closedLocal:
-    await procCall BufferStream(s).close() # close parent bufferstream
-  s.isEof = true
+  # TODO: Not sure if this needs to be set here or bfore consuming
+  # the buffer
+  s.isEof = true # set EOF immediately to prevent further reads
+  await procCall BufferStream(s).close() # close parent bufferstream
 
   trace "channel closed on EOF", id = s.id,
                                  initiator = s.initiator,
@@ -148,10 +156,12 @@ method close*(s: LPChannel) {.async, gcsafe.} =
   s.closedLocal = true
   if s.atEof: # already closed by remote close parent buffer imediately
     await procCall BufferStream(s).close()
+
   trace "lpchannel closed local", id = s.id,
                                   initiator = s.initiator,
                                   name = s.name,
                                   oid = s.oid
 
 method reset*(s: LPChannel) {.base, async.} =
-  discard
+  await s.resetMessage()
+  await procCall BufferStream(s).close()
