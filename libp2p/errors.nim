@@ -29,7 +29,7 @@ macro checkFutures*[T](futs: seq[Future[T]], exclude: untyped = []): untyped =
             let exc = res.readError()
             for i in 0..<`nexclude`:
               if exc of `exclude`[i]:
-                trace "Ignoring an error (no warning)", error=exc.name, msg = exc.msg
+                trace "Ignoring an error (no warning)", error=exc.name, msg=exc.msg
                 break check
             # We still don't abort but warn
             warn "Something went wrong in a future", error=exc.name

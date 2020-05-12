@@ -67,7 +67,7 @@ proc cleanupChann(chann: LPChannel) {.async.} =
   trace "cleaning up channel", id = chann.id
   await chann.reset()
   await chann.close()
-  await chann.cleanUp()    
+  await chann.cleanUp()
   trace "cleaned up channel", id = chann.id
 
 method handle*(m: Mplex) {.async, gcsafe.} =
