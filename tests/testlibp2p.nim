@@ -7,11 +7,11 @@ import testmultibase,
        testcid,
        testpeer
 
-import testtransport,
+import testmplex,
+       testtransport,
        testmultistream,
        testbufferstream,
        testidentify,
        testswitch,
        testnoise,
-       testpeerinfo,
-       testmplex
+       testpeerinfo
