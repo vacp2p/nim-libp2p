@@ -96,7 +96,7 @@ const
                           int8(ECDSA)}
 
 template orError(exp: untyped, err: CryptoError): untyped = 
-  ? (exp.mapErr do (_: auto) -> auto: err)
+  (exp.mapErr do (_: auto) -> auto: err)
 
 proc random*(t: typedesc[PrivateKey], scheme: PKScheme,
              bits = DefaultKeySize): CryptoResult[PrivateKey] =
@@ -106,16 +106,16 @@ proc random*(t: typedesc[PrivateKey], scheme: PKScheme,
   ## [512, 4096], default value is 2048 bits.
   case scheme
   of RSA:
-    let rsakey = RsaPrivateKey.random(bits).orError(KeyError)
+    let rsakey = ? RsaPrivateKey.random(bits).orError(KeyError)
     ok(PrivateKey(scheme: scheme, rsakey: rsakey))
   of Ed25519:
-    let edkey = EdPrivateKey.random().orError(KeyError)
+    let edkey = ? EdPrivateKey.random().orError(KeyError)
     ok(PrivateKey(scheme: scheme, edkey: edkey))
   of ECDSA:
-    let eckey = EcPrivateKey.random(Secp256r1).orError(KeyError)
+    let eckey = ? EcPrivateKey.random(Secp256r1).orError(KeyError)
     ok(PrivateKey(scheme: scheme, eckey: eckey))
   of Secp256k1:
-    let skkey = SkPrivateKey.random().orError(KeyError)
+    let skkey = ? SkPrivateKey.random().orError(KeyError)
     ok(PrivateKey(scheme: scheme, skkey: skkey))
   else:
     err(SchemeError)
@@ -128,22 +128,22 @@ proc random*(t: typedesc[KeyPair], scheme: PKScheme,
   ## [512, 4096], default value is 2048 bits.
   case scheme
   of RSA:
-    let pair = RsaKeyPair.random(bits).orError(KeyError)
+    let pair = ? RsaKeyPair.random(bits).orError(KeyError)
     ok(KeyPair(
       seckey: PrivateKey(scheme: scheme, rsakey: pair.seckey),
       pubkey: PublicKey(scheme: scheme, rsakey: pair.pubkey)))
   of Ed25519:
-    let pair = EdKeyPair.random().orError(KeyError)
+    let pair = ? EdKeyPair.random().orError(KeyError)
     ok(KeyPair(
       seckey: PrivateKey(scheme: scheme, edkey: pair.seckey),
       pubkey: PublicKey(scheme: scheme, edkey: pair.pubkey)))
   of ECDSA:
-    let pair = EcKeyPair.random(Secp256r1).orError(KeyError)
+    let pair = ? EcKeyPair.random(Secp256r1).orError(KeyError)
     ok(KeyPair(
       seckey: PrivateKey(scheme: scheme, eckey: pair.seckey),
       pubkey: PublicKey(scheme: scheme, eckey: pair.pubkey)))
   of Secp256k1:
-    let pair = SkKeyPair.random().orError(KeyError)
+    let pair = ? SkKeyPair.random().orError(KeyError)
     ok(KeyPair(
       seckey: PrivateKey(scheme: scheme, skkey: pair.seckey),
       pubkey: PublicKey(scheme: scheme, skkey: pair.pubkey)))
@@ -160,10 +160,10 @@ proc getKey*(key: PrivateKey): CryptoResult[PublicKey] =
     let edkey = key.edkey.getKey()
     ok(PublicKey(scheme: Ed25519, edkey: edkey))
   of ECDSA:
-    let eckey = key.eckey.getKey().orError(KeyError)
+    let eckey = ? key.eckey.getKey().orError(KeyError)
     ok(PublicKey(scheme: ECDSA, eckey: eckey))
   of Secp256k1:
-    let skkey = key.skkey.getKey().orError(KeyError)
+    let skkey = ? key.skkey.getKey().orError(KeyError)
     ok(PublicKey(scheme: Secp256k1, skkey: skkey))
   else:
     err(KeyError)
@@ -175,17 +175,13 @@ proc toRawBytes*(key: PrivateKey | PublicKey, data: var openarray[byte]): Crypto
   ## Returns number of bytes (octets) needed to store private key ``key``.
   case key.scheme
   of RSA:
-    let res = key.rsakey.toBytes(data).orError(KeyError)
-    ok(res)
+    key.rsakey.toBytes(data).orError(KeyError)
   of Ed25519:
-    let res = key.edkey.toBytes(data)
-    ok(res)
+    ok(key.edkey.toBytes(data))
   of ECDSA:
-    let res = key.eckey.toBytes(data).orError(KeyError)
-    ok(res)
+    key.eckey.toBytes(data).orError(KeyError)
   of Secp256k1:
-    let res = key.skkey.toBytes(data).orError(KeyError)
-    ok(res)
+    key.skkey.toBytes(data).orError(KeyError)
   else:
     err(KeyError)
 
@@ -194,17 +190,13 @@ proc getRawBytes*(key: PrivateKey | PublicKey): CryptoResult[seq[byte]] =
   ## serialization).
   case key.scheme
   of RSA:
-    let res = key.rsakey.getBytes().orError(KeyError)
-    ok(res)
+    key.rsakey.getBytes().orError(KeyError)
   of Ed25519:
-    let res = key.edkey.getBytes()
-    ok(res)
+    ok(key.edkey.getBytes())
   of ECDSA:
-    let res = key.eckey.getBytes().orError(KeyError)
-    ok(res)
+    key.eckey.getBytes().orError(KeyError)
   of Secp256k1:
-    let res = key.skkey.getBytes()
-    ok(res)
+    ok(key.skkey.getBytes())
   else:
     err(KeyError)
 
@@ -512,19 +504,19 @@ proc sign*(key: PrivateKey, data: openarray[byte]): CryptoResult[Signature] {.gc
   ## signature in raw binary form.
   var res: Signature
   if key.scheme == RSA:
-    var sig = key.rsakey.sign(data).orError(SigError)
-    res.data = sig.getBytes().orError(SigError)
+    let sig = ? key.rsakey.sign(data).orError(SigError)
+    res.data = ? sig.getBytes().orError(SigError)
     ok(res)
   elif key.scheme == Ed25519:
-    var sig = key.edkey.sign(data)
+    let sig = key.edkey.sign(data)
     res.data = sig.getBytes()
     ok(res)
   elif key.scheme == ECDSA:
-    var sig = key.eckey.sign(data).orError(SigError)
-    res.data = sig.getBytes().orError(SigError)
+    let sig = ? key.eckey.sign(data).orError(SigError)
+    res.data = ? sig.getBytes().orError(SigError)
     ok(res)
   elif key.scheme == Secp256k1:
-    var sig = key.skkey.sign(data).orError(SigError)
+    let sig = ? key.skkey.sign(data).orError(SigError)
     res.data = sig.getBytes()
     ok(res)
   else:
@@ -641,11 +633,11 @@ proc ephemeral*(scheme: ECDHEScheme): CryptoResult[KeyPair] =
   ## Generate ephemeral keys used to perform ECDHE.
   var keypair: EcKeyPair
   if scheme == Secp256r1:
-    keypair = EcKeyPair.random(Secp256r1).orError(KeyError)
+    keypair = ? EcKeyPair.random(Secp256r1).orError(KeyError)
   elif scheme == Secp384r1:
-    keypair = EcKeyPair.random(Secp384r1).orError(KeyError)
+    keypair = ? EcKeyPair.random(Secp384r1).orError(KeyError)
   elif scheme == Secp521r1:
-    keypair = EcKeyPair.random(Secp521r1).orError(KeyError)
+    keypair = ? EcKeyPair.random(Secp521r1).orError(KeyError)
   ok(KeyPair(
     seckey: PrivateKey(scheme: ECDSA, eckey: keypair.seckey), 
     pubkey: PublicKey(scheme: ECDSA, eckey: keypair.pubkey)))
@@ -703,8 +695,8 @@ proc getOrder*(remotePubkey, localNonce: openarray[byte],
   ctx.update(localPubkey)
   ctx.update(remoteNonce)
   var digest2 = ctx.finish()
-  var mh1 = MultiHash.init(multiCodec("sha2-256"), digest1).orError(HashError)
-  var mh2 = MultiHash.init(multiCodec("sha2-256"), digest2).orError(HashError)
+  var mh1 = ? MultiHash.init(multiCodec("sha2-256"), digest1).orError(HashError)
+  var mh2 = ? MultiHash.init(multiCodec("sha2-256"), digest2).orError(HashError)
   var res = 0;
   for i in 0 ..< len(mh1.data.buffer):
     res = int(mh1.data.buffer[i]) - int(mh2.data.buffer[i])
