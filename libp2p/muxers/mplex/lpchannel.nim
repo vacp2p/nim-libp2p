@@ -77,7 +77,6 @@ proc newChannel*(id: uint64,
   result.msgCode = if initiator: MessageType.MsgOut else: MessageType.MsgIn
   result.closeCode = if initiator: MessageType.CloseOut else: MessageType.CloseIn
   result.resetCode = if initiator: MessageType.ResetOut else: MessageType.ResetIn
-  result.writeLock = newAsyncLock()
   result.isLazy = lazy
 
   let chan = result
@@ -178,6 +177,7 @@ method close*(s: LPChannel) {.async, gcsafe.} =
   s.closedLocal = true
   if s.atEof: # already closed by remote close parent buffer imediately
     await procCall BufferStream(s).close()
+
   trace "lpchannel closed local", id = s.id,
                                   initiator = s.initiator,
                                   name = s.name,
