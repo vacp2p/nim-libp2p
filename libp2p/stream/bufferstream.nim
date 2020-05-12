@@ -109,7 +109,15 @@ proc initBufferStream*(s: BufferStream,
   s.readReqs = initDeque[Future[void]]()
   s.dataReadEvent = newAsyncEvent()
   s.lock = newAsyncLock()
-  s.writeHandler = handler
+
+  if not(isNil(s.writeHandler)):
+    s.writeHandler = proc (data: seq[byte]) {.async, gcsafe.} =
+      defer:
+        s.writeLock.release()
+      await s.writeLock.acquire()
+
+      await handler(data)
+
   s.closeEvent = newAsyncEvent()
   inc getBufferStreamTracker().opened
   when chronicles.enabledLogLevel == LogLevel.TRACE:
