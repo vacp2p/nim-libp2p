@@ -38,20 +38,23 @@ template withExceptions(body: untyped) =
 method readExactly*(s: ChronosStream,
                     pbytes: pointer,
                     nbytes: int): Future[void] {.async.} =
-  if s.client.atEof:
+  if s.atEof:
     raise newLPStreamEOFError()
 
   withExceptions:
     await s.client.readExactly(pbytes, nbytes)
 
 method readOnce*(s: ChronosStream, pbytes: pointer, nbytes: int): Future[int] {.async.} =
-  if s.client.atEof:
+  if s.atEof:
     raise newLPStreamEOFError()
 
   withExceptions:
     result = await s.client.readOnce(pbytes, nbytes)
 
 method write*(s: ChronosStream, msg: seq[byte]) {.async.} =
+  if s.closed:
+    raise newLPStreamClosedError()
+
   if msg.len == 0:
     return
 
@@ -62,6 +65,9 @@ method write*(s: ChronosStream, msg: seq[byte]) {.async.} =
 
 method closed*(s: ChronosStream): bool {.inline.} =
   result = s.client.closed
+
+method atEof*(s: ChronosStream): bool {.inline.} =
+  s.client.atEof()
 
 method close*(s: ChronosStream) {.async.} =
   if not s.closed:
