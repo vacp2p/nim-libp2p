@@ -34,7 +34,7 @@ type
 method init(p: TestProto) {.gcsafe.} =
   # handle incoming connections in closure
   proc handle(conn: Connection, proto: string) {.async, gcsafe.} =
-    echo "Got from remote - ", cast[string](await conn.readLp())
+    echo "Got from remote - ", cast[string](await conn.readLp(1024))
     await conn.writeLp("Hello!")
     await conn.close()
 
@@ -90,7 +90,7 @@ proc main() {.async, gcsafe.} =
 
   await conn.writeLp("Hello!") # writeLp send a length prefixed buffer over the wire
   # readLp reads length prefixed bytes and returns a buffer without the prefix
-  echo "Remote responded with - ", cast[string](await conn.readLp())
+  echo "Remote responded with - ", cast[string](await conn.readLp(1024))
 
   await allFutures(switch1.stop(), switch2.stop()) # close connections and shutdown all transports
   await allFutures(switch1Fut & switch2Fut) # wait for all transports to shutdown

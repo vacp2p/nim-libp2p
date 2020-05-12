@@ -68,7 +68,7 @@ suite "Switch":
       let done = newFuture[void]()
 
       proc handle(conn: Connection, proto: string) {.async, gcsafe.} =
-        let msg = cast[string](await conn.readLp())
+        let msg = cast[string](await conn.readLp(1024))
         check "Hello!" == msg
         await conn.writeLp("Hello!")
         await conn.close()
@@ -87,7 +87,7 @@ suite "Switch":
 
       try:
         await conn.writeLp("Hello!")
-        let msg = cast[string](await conn.readLp())
+        let msg = cast[string](await conn.readLp(1024))
         check "Hello!" == msg
         result = true
       except LPStreamError:
@@ -118,7 +118,7 @@ suite "Switch":
       (switch1, peerInfo1) = createSwitch(ma1)
 
       proc handle(conn: Connection, proto: string) {.async, gcsafe.} =
-        let msg = cast[string](await conn.readLp())
+        let msg = cast[string](await conn.readLp(1024))
         check "Hello!" == msg
         await conn.writeLp("Hello!")
         await conn.close()
@@ -136,7 +136,7 @@ suite "Switch":
 
       try:
         await conn.writeLp("Hello!")
-        let msg = cast[string](await conn.readLp())
+        let msg = cast[string](await conn.readLp(1024))
         check "Hello!" == msg
         result = true
       except LPStreamError:

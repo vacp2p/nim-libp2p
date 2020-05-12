@@ -269,7 +269,7 @@ suite "Multistream select":
 
       check (await msDial.select(conn, "/test/proto/1.0.0")) == true
 
-      let hello = cast[string](await conn.readLp())
+      let hello = cast[string](await conn.readLp(1024))
       result = hello == "Hello!"
       await conn.close()
 
@@ -358,7 +358,7 @@ suite "Multistream select":
       check (await msDial.select(conn,
         @["/test/proto/1.0.0", "/test/no/proto/1.0.0"])) == "/test/proto/1.0.0"
 
-      let hello = cast[string](await conn.readLp())
+      let hello = cast[string](await conn.readLp(1024))
       result = hello == "Hello!"
 
       await conn.close()
@@ -397,7 +397,7 @@ suite "Multistream select":
 
       check (await msDial.select(conn, @["/test/proto2/1.0.0", "/test/proto1/1.0.0"])) == "/test/proto2/1.0.0"
 
-      result = cast[string](await conn.readLp()) == "Hello from /test/proto2/1.0.0!"
+      result = cast[string](await conn.readLp(1024)) == "Hello from /test/proto2/1.0.0!"
 
       await conn.close()
       await transport2.close()

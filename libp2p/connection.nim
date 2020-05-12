@@ -13,9 +13,7 @@ import peerinfo,
        errors,
        multiaddress,
        stream/lpstream,
-       peerinfo,
-       varint,
-       vbuffer
+       peerinfo
 
 export lpstream
 
@@ -23,7 +21,6 @@ logScope:
   topic = "Connection"
 
 const
-  DefaultReadSize* = 1 shl 20
   ConnectionTrackerName* = "libp2p.connection"
 
 type
@@ -34,9 +31,6 @@ type
     # notice this is a ugly circular reference collection
     # (we got many actually :-))
     readLoops*: seq[Future[void]]
-
-  InvalidVarintException = object of LPStreamError
-  InvalidVarintSizeException = object of LPStreamError
 
   ConnectionTracker* = ref object of TrackerBase
     opened*: uint64
@@ -68,24 +62,20 @@ proc setupConnectionTracker(): ConnectionTracker =
 
 declareGauge libp2p_open_connection, "open Connection instances"
 
-proc newInvalidVarintException*(): ref InvalidVarintException =
-  newException(InvalidVarintException, "Unable to parse varint")
-
-proc newInvalidVarintSizeException*(): ref InvalidVarintSizeException =
-  newException(InvalidVarintSizeException, "Wrong varint size")
+proc `$`*(conn: Connection): string =
+  if not isNil(conn.peerInfo):
+    result = $(conn.peerInfo)
 
 proc bindStreamClose(conn: Connection) {.async.} =
   # bind stream's close event to connection's close
   # to ensure correct close propagation
   if not isNil(conn.stream.closeEvent):
     await conn.stream.closeEvent.wait()
-    trace "wrapped stream closed, about to close conn", closed = conn.isClosed,
-                                                        peer = if not isNil(conn.peerInfo):
-                                                          conn.peerInfo.id else: ""
+    trace "wrapped stream closed, about to close conn",
+      closed = conn.isClosed, conn = $conn
     if not conn.isClosed:
-      trace "wrapped stream closed, closing conn", closed = conn.isClosed,
-                                                    peer = if not isNil(conn.peerInfo):
-                                                      conn.peerInfo.id else: ""
+      trace "wrapped stream closed, closing conn",
+        closed = conn.isClosed, conn = $conn
       await conn.close()
 
 proc init[T: Connection](self: var T, stream: LPStream): T =
@@ -129,72 +119,26 @@ method closed*(s: Connection): bool =
   result = s.stream.closed
 
 method close*(s: Connection) {.async, gcsafe.} =
-  trace "about to close connection", closed = s.closed,
-                                     peer = if not isNil(s.peerInfo):
-                                       s.peerInfo.id else: ""
+  trace "about to close connection", closed = s.closed, conn = $s
 
   if not s.isClosed:
     s.isClosed = true
     inc getConnectionTracker().closed
 
     if not isNil(s.stream) and not s.stream.closed:
-      trace "closing child stream", closed = s.closed,
-                                    peer = if not isNil(s.peerInfo):
-                                      s.peerInfo.id else: ""
+      trace "closing child stream", closed = s.closed, conn = $s
       await s.stream.close()
 
     s.closeEvent.fire()
 
-    trace "waiting readloops", count=s.readLoops.len
+    trace "waiting readloops", count=s.readLoops.len, conn = $s
     let loopFuts = await allFinished(s.readLoops)
     checkFutures(loopFuts)
     s.readLoops = @[]
 
-    trace "connection closed", closed = s.closed,
-                               peer = if not isNil(s.peerInfo):
-                                 s.peerInfo.id else: ""
+    trace "connection closed", closed = s.closed, conn = $s
     libp2p_open_connection.dec()
-
-proc readLp*(s: Connection): Future[seq[byte]] {.async, gcsafe.} =
-  ## read lenght prefixed msg
-  var
-    size: uint
-    length: int
-    res: VarintStatus
-    buff = newSeq[byte](10)
-  try:
-    for i in 0..<len(buff):
-      await s.readExactly(addr buff[i], 1)
-      res = LP.getUVarint(buff.toOpenArray(0, i), length, size)
-      if res == VarintStatus.Success:
-        break
-    if res != VarintStatus.Success:
-      raise newInvalidVarintException()
-    if size.int > DefaultReadSize:
-      raise newInvalidVarintSizeException()
-    buff.setLen(size)
-    if size > 0.uint:
-      trace "reading exact bytes from stream", size = size
-      await s.readExactly(addr buff[0], int(size))
-    return buff
-  except LPStreamIncompleteError as exc:
-    trace "remote connection ended unexpectedly", exc = exc.msg
-    raise exc
-  except LPStreamReadError as exc:
-    trace "couldn't read from stream", exc = exc.msg
-    raise exc
-
-proc writeLp*(s: Connection, msg: string | seq[byte]): Future[void] {.gcsafe.} =
-  ## write lenght prefixed
-  var buf = initVBuffer()
-  buf.writeSeq(msg)
-  buf.finish()
-  s.write(buf.buffer)
 
 method getObservedAddrs*(c: Connection): Future[MultiAddress] {.base, async, gcsafe.} =
   ## get resolved multiaddresses for the connection
   result = c.observedAddrs
-
-proc `$`*(conn: Connection): string =
-  if not isNil(conn.peerInfo):
-    result = $(conn.peerInfo)

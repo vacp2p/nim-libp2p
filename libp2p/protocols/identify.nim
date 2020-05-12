@@ -124,7 +124,7 @@ proc identify*(p: Identify,
                conn: Connection,
                remotePeerInfo: PeerInfo): Future[IdentifyInfo] {.async, gcsafe.} =
   trace "initiating identify"
-  var message = await conn.readLp()
+  var message = await conn.readLp(64*1024)
   if len(message) == 0:
     trace "identify: Invalid or empty message received!"
     raise newException(IdentityInvalidMsgError,

@@ -12,14 +12,14 @@ import ../libp2p/[switch,                   # manage transports, a single entry 
                   transports/transport,     # listen and dial to other peers using p2p protocol
                   transports/tcptransport,  # listen and dial to other peers using client-server protocol
                   multiaddress,             # encode different addressing schemes. For example, /ip4/7.7.7.7/tcp/6543 means it is using IPv4 protocol and TCP
-                  peerinfo,                 # manage the information of a peer, such as peer ID and public / private key 
+                  peerinfo,                 # manage the information of a peer, such as peer ID and public / private key
                   peer,                     # Implement how peers interact
                   protocols/protocol,       # define the protocol base type
                   protocols/secure/secure,  # define the protocol of secure connection
                   protocols/secure/secio,   # define the protocol of secure input / output, allows encrypted communication that uses public keys to validate signed messages instead of a certificate authority like in TLS
                   muxers/muxer,             # define an interface for stream multiplexing, allowing peers to offer many protocols over a single connection
-                  muxers/mplex/mplex,       # implement stream multiplexing 
-                  muxers/mplex/types]       # define some contants and message types for stream multiplexing 
+                  muxers/mplex/mplex,       # implement stream multiplexing
+                  muxers/mplex/types]       # define some contants and message types for stream multiplexing
 
 const ChatCodec = "/nim-libp2p/chat/1.0.0"
 const DefaultAddr = "/ip4/127.0.0.1/tcp/55505"
@@ -34,7 +34,7 @@ const Help = """
 
 type ChatProto = ref object of LPProtocol
   switch: Switch          # a single entry point for dialing and listening to peer
-  transp: StreamTransport # transport streams between read & write file descriptor 
+  transp: StreamTransport # transport streams between read & write file descriptor
   conn: Connection        # create and close read & write stream
   connected: bool         # if the node is connected to another peer
   started: bool           # if the node has started
@@ -63,7 +63,7 @@ proc readAndPrint(p: ChatProto) {.async.} =
     while p.connected:
       # TODO: echo &"{p.id} -> "
 
-      echo cast[string](await p.conn.readLp())
+      echo cast[string](await p.conn.readLp(1024))
     await sleepAsync(100.millis)
 
 proc writeAndPrint(p: ChatProto) {.async.} =

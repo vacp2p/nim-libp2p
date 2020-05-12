@@ -1,3 +1,5 @@
+{.used.}
+
 import options, sets, sequtils
 import unittest
 import ../../libp2p/[peer,
