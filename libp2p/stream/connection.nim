@@ -124,9 +124,23 @@ proc readVarint*[T: LP | PB](vtype: type[T],
                              conn: Connection): Future[uint64] {.async, gcsafe.} =
   ## Read Protobuf or libp2p encoded varints
   ##
-  ## NOTE: there is a difference between the two and
-  ## libp2p uses both, in particular, mplex uses Protobuf
-  ## varints, while most everything else uses libp2p varints
+  ## NOTE: there is a difference between Protobuf's
+  ## and libp2p varints; the library uses
+  ## both varint types. In particular, mplex uses
+  ## Protobuf varints, while (most) everything else
+  ## uses libp2p varints.
+  ##
+  ## See bellow for an explanation (source varint.nim):
+  ##
+  ## Google ProtoBuf
+  ## When decoding 10th byte of Google Protobuf's 64bit integer only 1 bit from
+  ## byte will be decoded, all other bits will be ignored. When decoding 5th
+  ## byte of 32bit integer only 4 bits from byte will be decoded, all other bits
+  ## will be ignored.
+  ##
+  ## LibP2P
+  ## When decoding 5th byte of 32bit integer only 4 bits from byte will be
+  ## decoded, all other bits will be ignored.
   ##
   var
     varint: uint64
@@ -145,11 +159,11 @@ proc readVarint*[T: LP | PB](vtype: type[T],
 
 proc readLp*[T: LP | PB](vtype: type[T],
                          s: Connection,
-                         maxSize: int): Future[seq[byte]] {.async, gcsafe.} =
+                         maxSize: int = int.high): Future[seq[byte]] {.async, gcsafe.} =
   ## read length prefixed msg, with the length encoded as a varint
   let
     length = await vtype.readVarint(s)
-    maxLen = uint64(if maxSize < 0: int.high else: maxSize)
+    maxLen = uint64(maxSize)
 
   if length > maxLen:
     raise (ref MaxSizeError)(msg: "Message exceeds maximum length")
@@ -161,7 +175,7 @@ proc readLp*[T: LP | PB](vtype: type[T],
   await s.readExactly(addr res[0], res.len)
   return res
 
-proc readLp*(s: Connection, maxSize: int): Future[seq[byte]] {.async, gcsafe.} =
+proc readLp*(s: Connection, maxSize: int = int.high): Future[seq[byte]] {.async, gcsafe.} =
   result = await LP.readLp(s, maxSize)
 
 proc writeLp*(s: Connection, msg: string | seq[byte]): Future[void] {.gcsafe.} =
@@ -200,11 +214,3 @@ method close*(s: Connection) {.base, async, gcsafe.} =
                                  s.peerInfo.id else: ""
     s.closeEvent.fire()
     libp2p_open_connection.dec()
-
-method getObservedAddrs*(c: Connection): Future[MultiAddress] {.base, async, gcsafe.} =
-  ## get resolved multiaddresses for the connection
-  result = c.observedAddrs
-
-proc `$`*(conn: Connection): string =
-  if not isNil(conn.peerInfo):
-    result = $(conn.peerInfo)
