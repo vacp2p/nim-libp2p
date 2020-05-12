@@ -783,26 +783,23 @@ proc decodeExchange*(message: seq[byte],
 
 ## Serialization/Deserialization helpers
 
-type SerializationError = ref object of CatchableError
-func toException(v: CryptoError): SerializationError = (SerializationError)(msg: $v)
-
-proc write*(vb: var VBuffer, pubkey: PublicKey) {.inline, raises: [Defect, SerializationError].} =
+proc write*(vb: var VBuffer, pubkey: PublicKey) {.inline, raises: [Defect, ResultError[CryptoError]].} =
   ## Write PublicKey value ``pubkey`` to buffer ``vb``.
   vb.writeSeq(pubkey.getBytes().tryGet())
 
-proc write*(vb: var VBuffer, seckey: PrivateKey) {.inline, raises: [Defect, SerializationError].} =
+proc write*(vb: var VBuffer, seckey: PrivateKey) {.inline, raises: [Defect, ResultError[CryptoError]].} =
   ## Write PrivateKey value ``seckey`` to buffer ``vb``.
   vb.writeSeq(seckey.getBytes().tryGet())
 
-proc write*(vb: var VBuffer, sig: PrivateKey) {.inline, raises: [Defect, SerializationError].} =
+proc write*(vb: var VBuffer, sig: PrivateKey) {.inline, raises: [Defect, ResultError[CryptoError]].} =
   ## Write Signature value ``sig`` to buffer ``vb``.
   vb.writeSeq(sig.getBytes().tryGet())
 
-proc initProtoField*(index: int, pubkey: PublicKey): ProtoField {.raises: [Defect, SerializationError].} =
+proc initProtoField*(index: int, pubkey: PublicKey): ProtoField {.raises: [Defect, ResultError[CryptoError]].} =
   ## Initialize ProtoField with PublicKey ``pubkey``.
   result = initProtoField(index, pubkey.getBytes().tryGet())
 
-proc initProtoField*(index: int, seckey: PrivateKey): ProtoField {.raises: [Defect, SerializationError].} =
+proc initProtoField*(index: int, seckey: PrivateKey): ProtoField {.raises: [Defect, ResultError[CryptoError]].} =
   ## Initialize ProtoField with PrivateKey ``seckey``.
   result = initProtoField(index, seckey.getBytes().tryGet())
 
