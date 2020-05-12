@@ -146,6 +146,9 @@ proc pushTo*(s: BufferStream, data: seq[byte]) {.async.} =
     logScope:
       stream_oid = $s.oid
 
+  if s.atEof:
+    raise newLPStreamEOFError()
+
   try:
     await s.lock.acquire()
     var index = 0
@@ -184,6 +187,9 @@ method readExactly*(s: BufferStream,
     logScope:
       stream_oid = $s.oid
 
+  if s.atEof:
+    raise newLPStreamEOFError()
+
   trace "read()", requested_bytes = nbytes
   var index = 0
 
@@ -209,6 +215,10 @@ method readOnce*(s: BufferStream,
   ## If internal buffer is not empty, ``nbytes`` bytes will be transferred from
   ## internal buffer, otherwise it will wait until some bytes will be received.
   ##
+
+  if s.atEof:
+    raise newLPStreamEOFError()
+
   if s.readBuf.len == 0:
     await s.requestReadBytes()
 
@@ -226,6 +236,10 @@ method write*(s: BufferStream, msg: seq[byte]): Future[void] =
   ## If ``msglen > len(sbytes)`` only ``len(sbytes)`` bytes will be written to
   ## stream.
   ##
+
+  if s.closed:
+    raise newLPStreamClosedError()
+
   if isNil(s.writeHandler):
     var retFuture = newFuture[void]("BufferStream.write(seq)")
     retFuture.fail(newNotWritableError())
