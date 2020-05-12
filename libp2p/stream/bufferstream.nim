@@ -36,6 +36,9 @@ import ../stream/lpstream
 
 export lpstream
 
+logScope:
+  topic = "BufferStream"
+
 const
   BufferStreamTrackerName* = "libp2p.bufferstream"
   DefaultBufferSize* = 1024
@@ -295,8 +298,9 @@ method close*(s: BufferStream) {.async.} =
         r.fail(newLPStreamEOFError())
     s.dataReadEvent.fire()
     s.readBuf.clear()
-    s.closeEvent.fire()
-    s.isClosed = true
+
+    await procCall Connection(s).close() # call parent close
+
     inc getBufferStreamTracker().closed
     libp2p_open_bufferstream.dec()
   else:
