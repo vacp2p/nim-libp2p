@@ -53,7 +53,7 @@ type
     maxSize*: int                     # buffer's max size in bytes
     readBuf: Deque[byte]              # this is a ring buffer based dequeue
     readReqs*: Deque[Future[void]]    # use dequeue to fire reads in order
-    dataReadEvent: AsyncEvent         # event triggered when data has been consumed from the internal buffer
+    dataReadEvent*: AsyncEvent        # event triggered when data has been consumed from the internal buffer
     writeHandler*: WriteHandler       # user provided write callback
     writeLock*: AsyncLock             # write lock to guarantee ordered writes
     lock: AsyncLock                   # pushTo lock to guarantee ordered reads
@@ -83,8 +83,11 @@ proc initBufferStream*(s: BufferStream,
   s.readReqs = initDeque[Future[void]]()
   s.dataReadEvent = newAsyncEvent()
   s.lock = newAsyncLock()
+  s.writeLock = newAsyncLock()
+  s.isClosed = false
+  s.closeEvent = newAsyncEvent()
 
-  if not(isNil(s.writeHandler)):
+  if not(isNil(handler)):
     s.writeHandler = proc (data: seq[byte]) {.async, gcsafe.} =
       defer:
         s.writeLock.release()
@@ -92,11 +95,9 @@ proc initBufferStream*(s: BufferStream,
 
       await handler(data)
 
-  s.closeEvent = newAsyncEvent()
-  inc getBufferStreamTracker().opened
   when chronicles.enabledLogLevel == LogLevel.TRACE:
     s.oid = genOid()
-  s.isClosed = false
+  inc getBufferStreamTracker().opened
   libp2p_open_bufferstream.inc()
 
 proc newBufferStream*(handler: WriteHandler = nil,
@@ -168,7 +169,7 @@ method readExactly*(s: BufferStream,
   if s.atEof:
     raise newLPStreamEOFError()
 
-  trace "read()", requested_bytes = nbytes, oid = s.oid
+  trace "readExactly()", requested_bytes = nbytes, oid = s.oid
   var index = 0
 
   if s.readBuf.len() == 0:
