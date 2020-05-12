@@ -42,7 +42,6 @@ type
     msgCode*: MessageType         # cached in/out message code
     closeCode*: MessageType       # cached in/out close code
     resetCode*: MessageType       # cached in/out reset code
-    writeLock*: AsyncLock         # writing lock
 
 proc newChannel*(id: uint64,
                  conn: Connection,
@@ -63,10 +62,6 @@ proc newChannel*(id: uint64,
 
   let chan = result
   proc writeHandler(data: seq[byte]): Future[void] {.async.} =
-    defer:
-      chan.writeLock.release()
-    await chan.writeLock.acquire()
-
     # writes should happen in sequence
     trace "sending data", data = data.shortLog,
                           id = chan.id,
@@ -126,6 +121,8 @@ proc closeRemote*(s: LPChannel) {.async.} =
                                     initiator = s.initiator,
                                     name = s.name,
                                     oid = s.oid
+
+  echo "READ REQS ", s.readReqs.len
 
   if s.closedLocal:
     await procCall BufferStream(s).close() # close parent bufferstream
