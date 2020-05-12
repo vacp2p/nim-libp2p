@@ -83,4 +83,4 @@ proc writeMsg*(conn: Connection,
                id: uint64,
                msgType: MessageType,
                data: string) {.async, gcsafe.} =
-  result = conn.writeMsg(id, msgType, cast[seq[byte]](data))
+  await conn.writeMsg(id, msgType, cast[seq[byte]](data))
