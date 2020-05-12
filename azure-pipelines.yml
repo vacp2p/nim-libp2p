@@ -74,8 +74,8 @@ steps:
     displayName: 'long path support'
     condition: eq(variables['Agent.OS'], 'Windows_NT')
   - bash: |
-      echo "PATH=${PATH}"
       set -e
+      echo "PATH=${PATH}"
       echo "Installing MinGW-w64"
       if [[ $PLATFORM == "x86" ]]; then
         MINGW_FILE="i686-8.1.0-release-posix-dwarf-rt_v6-rev0.7z"
@@ -111,6 +111,7 @@ steps:
     condition: eq(variables['Agent.OS'], 'Windows_NT')
 
   - bash: |
+      set -e
       echo "PATH=${PATH}"
       export ncpu=
       case '$(Agent.OS)' in
@@ -130,6 +131,7 @@ steps:
     displayName: 'Detecting number of cores'
 
   - bash: |
+      set -e
       echo "PATH=${PATH}"
 
       # build nim from our own branch - this to avoid the day-to-day churn and
@@ -146,6 +148,7 @@ steps:
     condition: eq(variables['Agent.OS'], 'Windows_NT')
 
   - bash: |
+      set -e
       echo "PATH=${PATH}"
 
       # build nim from our own branch - this to avoid the day-to-day churn and
@@ -161,6 +164,7 @@ steps:
     condition: ne(variables['Agent.OS'], 'Windows_NT')
 
   - bash: |
+      set -e
       # install and build go-libp2p-daemon
       go version
 
@@ -170,6 +174,7 @@ steps:
     displayName: 'Building Go libp2p daemon'
 
   - bash: |
+      set -e
       echo "PATH=${PATH}"
       nimble refresh
       nimble install -y --depsOnly
@@ -183,6 +188,7 @@ steps:
     condition: eq(variables['Agent.OS'], 'Windows_NT')
 
   - bash: |
+      set -e
       echo "PATH=${PATH}"
       which gcc
       gcc -v
