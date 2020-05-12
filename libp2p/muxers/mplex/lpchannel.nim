@@ -92,7 +92,14 @@ proc open*(s: LPChannel): Future[void] =
 
 method close*(s: LPChannel) {.async, gcsafe.} =
   s.closedLocal = true
-  await s.closeMessage()
+  # If remote is closed
+  # EOF will happepn here
+  # We can safely ignore in that case
+  # s.closed won't be true sadly
+  try:
+    await s.closeMessage()
+  except LPStreamEOFError:
+    discard
 
 proc resetMessage(s: LPChannel) {.async.} =
   await s.conn.writeMsg(s.id, s.resetCode)

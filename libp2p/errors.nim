@@ -19,7 +19,8 @@ macro checkFutures*[T](futs: seq[Future[T]], exclude: untyped = []): untyped =
         if res.failed:
           let exc = res.readError()
           # We still don't abort but warn
-          warn "Something went wrong in a future", error=exc.name, msg = exc.msg
+          warn "Something went wrong in a future", error=exc.name
+          trace "Exception message", msg=exc.msg
   else:
     quote do:
       for res in `futs`:
@@ -28,10 +29,11 @@ macro checkFutures*[T](futs: seq[Future[T]], exclude: untyped = []): untyped =
             let exc = res.readError()
             for i in 0..<`nexclude`:
               if exc of `exclude`[i]:
-                trace "Ignoring an error (no warning)", error=exc.name, msg = exc.msg
+                trace "Ignoring an error (no warning)", error=exc.name, msg=exc.msg
                 break check
             # We still don't abort but warn
-            warn "Something went wrong in a future", error=exc.name, msg = exc.msg
+            warn "Something went wrong in a future", error=exc.name
+            trace "Exception message", msg=exc.msg
 
 proc allFuturesThrowing*[T](args: varargs[Future[T]]): Future[void] =
   var futs: seq[Future[T]]
@@ -59,4 +61,4 @@ template tryAndWarn*(msg: static[string]; body: untyped): untyped =
   except CancelledError as ex:
     raise ex
   except CatchableError as ex:
-    warn "ignored an error", name=ex.name, msg=msg
+    warn "Ignored an error", name=ex.name, msg=msg
