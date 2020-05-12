@@ -115,8 +115,8 @@ proc initBufferStream*(s: BufferStream,
   s.dataReadEvent = newAsyncEvent()
   s.lock = newAsyncLock()
   s.writeLock = newAsyncLock()
-  s.isClosed = false
   s.closeEvent = newAsyncEvent()
+  s.isClosed = false
 
   if not(isNil(handler)):
     s.writeHandler = proc (data: seq[byte]) {.async, gcsafe.} =

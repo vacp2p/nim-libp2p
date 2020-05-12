@@ -87,24 +87,21 @@ proc newChannel*(id: uint64,
 
 proc closeMessage(s: LPChannel) {.async.} =
   try:
+    await s.writeLock.acquire()
     trace "sending close message", id = s.id,
                                    initiator = s.initiator,
                                    name = s.name,
                                    oid = s.oid
-    defer:
-      s.writeLock.release()
-    await s.writeLock.acquire()
 
     await s.conn.writeMsg(s.id, s.closeCode) # write close
   except LPStreamEOFError as exc:
     trace "unable to send close, stream is EOF", exc = exc.msg
+  finally:
+    s.writeLock.release()
 
 proc resetMessage(s: LPChannel) {.async.} =
   try:
-    defer:
-      s.writeLock.release()
     await s.writeLock.acquire()
-
     trace "sending reset message", id = s.id,
                                    initiator = s.initiator,
                                    name = s.name,
@@ -113,6 +110,8 @@ proc resetMessage(s: LPChannel) {.async.} =
     await s.conn.writeMsg(s.id, s.resetCode) # write reset
   except CatchableError as exc:
     trace "unable to send reset message", exc = exc.msg
+  finally:
+    s.writeLock.release()
 
 proc open*(s: LPChannel) {.async, gcsafe.} =
   await s.conn.writeMsg(s.id, MessageType.New, s.name)

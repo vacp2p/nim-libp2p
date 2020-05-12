@@ -109,10 +109,8 @@ method handle*(m: Mplex) {.async, gcsafe.} =
             proc handler() {.async.} =
               tryAndWarn "mplex channel handler":
                 await m.streamHandler(channel)
-              # TODO closing channel
-              # or doing cleanupChann
-              # will make go interop tests fail
-              # need to investigate why
+
+            asyncCheck handler()
 
         of MessageType.MsgIn, MessageType.MsgOut:
           trace "pushing data to channel", id = id,
