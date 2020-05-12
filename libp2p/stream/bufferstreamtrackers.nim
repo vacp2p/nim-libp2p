@@ -21,7 +21,7 @@ type
 
 proc setupBufferStreamTracker(): BufferStreamTracker {.gcsafe.}
 
-proc getBufferStreamTracker(): BufferStreamTracker {.gcsafe.} =
+proc getBufferStreamTracker*(): BufferStreamTracker {.gcsafe.} =
   result = cast[BufferStreamTracker](getTracker(BufferStreamTrackerName))
   if isNil(result):
     result = setupBufferStreamTracker()
