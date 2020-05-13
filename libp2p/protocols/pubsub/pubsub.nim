@@ -41,7 +41,7 @@ type
     triggerSelf*: bool                # trigger own local handler on publish
     verifySignature*: bool            # enable signature verification
     sign*: bool                       # enable message signing
-    cleanupLock: AsyncLock
+    cleanupLock: AsyncLock            # cleanup lock
     validators*: Table[string, HashSet[ValidatorHandler]]
     observers: ref seq[PubSubObserver] # ref as in smart_ptr
 
