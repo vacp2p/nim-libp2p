@@ -267,12 +267,12 @@ template read_s: untyped =
 
 proc receiveHSMessage(sconn: Connection): Future[seq[byte]] {.async.} =
   var besize: array[2, byte]
-  await sconn.stream.readExactly(addr besize[0], besize.len)
+  await sconn.readExactly(addr besize[0], besize.len)
   let size = uint16.fromBytesBE(besize).int
   trace "receiveHSMessage", size
   var buffer = newSeq[byte](size)
   if buffer.len > 0:
-    await sconn.stream.readExactly(addr buffer[0], buffer.len)
+    await sconn.readExactly(addr buffer[0], buffer.len)
   return buffer
 
 proc sendHSMessage(sconn: Connection; buf: seq[byte]) {.async.} =
