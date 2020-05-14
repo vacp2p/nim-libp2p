@@ -69,7 +69,6 @@ proc writeMsg*(conn: Connection,
         return
   except CatchableError as exc:
     trace "unable to send message", exc = exc.msg
-    raise exc
 
 proc writeMsg*(conn: Connection,
                id: uint64,

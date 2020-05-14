@@ -454,9 +454,8 @@ method write*(sconn: NoiseConnection, message: seq[byte]): Future[void] {.async.
       outbuf &= besize
       outbuf &= cipher
       await sconn.stream.write(outbuf)
-  except CatchableError as exc:
+  except LPStreamWriteError as exc:
     trace "Could not write to connection", exc = exc.msg
-    raise exc
 
 method handshake*(p: Noise, conn: Connection, initiator: bool = false): Future[SecureConn] {.async.} =
   trace "Starting Noise handshake", initiator

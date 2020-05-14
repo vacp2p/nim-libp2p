@@ -236,9 +236,8 @@ method write*(sconn: SecioConn, message: seq[byte]) {.async.} =
 
       trace "Writing message", message = msg.shortLog, left, offset
       await sconn.stream.write(msg)
-  except CatchableError as exc:
+  except LPStreamWriteError as exc:
     trace "Could not write to connection", msg = exc.msg
-    raise exc
 
 proc newSecioConn(conn: Connection,
                   hash: string,

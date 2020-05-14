@@ -158,7 +158,6 @@ proc handle*(m: MultistreamSelect, conn: Connection) {.async, gcsafe.} =
           await conn.write(Na)
   except CatchableError as exc:
     trace "connection EOF", exc = exc.msg
-    raise exc
   finally:
     trace "leaving multistream loop"
 

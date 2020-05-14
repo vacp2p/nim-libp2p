@@ -60,7 +60,6 @@ method secure*(s: Secure,
   except CatchableError as exc:
     warn "securing connection failed", msg = exc.msg
     await conn.close()
-    raise exc
 
 method readExactly*(s: SecureConn,
                     pbytes: pointer,

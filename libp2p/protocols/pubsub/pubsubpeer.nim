@@ -121,7 +121,6 @@ proc send*(p: PubSubPeer, msgs: seq[RPCMsg]) {.async.} =
 
   except CatchableError as exc:
     trace "Exception occurred in PubSubPeer.send", exc = exc.msg
-    raise exc
 
 proc sendMsg*(p: PubSubPeer,
               peerId: PeerID,
