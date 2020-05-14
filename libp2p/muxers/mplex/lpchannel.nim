@@ -160,7 +160,9 @@ method close*(s: LPChannel) {.async, gcsafe.} =
                                   oid = s.oid
 
 method reset*(s: LPChannel) {.base, async.} =
-  await s.resetMessage()
+  # we asyncCheck here becayse the other end
+  # might be dead
+  asyncCheck s.resetMessage()
   await procCall BufferStream(s).close()
   s.isEof = true
   s.closedLocal = true
