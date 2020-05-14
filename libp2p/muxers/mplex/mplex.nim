@@ -16,6 +16,7 @@ import chronos, chronicles
 import ../muxer,
        ../../connection,
        ../../stream/lpstream,
+       ../../stream/bufferstream,
        ../../utility,
        ../../errors,
        coder,
@@ -101,7 +102,8 @@ method handle*(m: Mplex) {.async, gcsafe.} =
             var fut = newFuture[void]()
             proc handler() {.async.} =
               tryAndWarn "mplex channel handler":
-                await m.streamHandler(channel)
+                var conn = newConnection(channel)
+                await m.streamHandler(conn)
 
             fut = handler()
             m.handlerFuts.add(fut)
