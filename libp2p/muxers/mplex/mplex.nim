@@ -102,8 +102,7 @@ method handle*(m: Mplex) {.async, gcsafe.} =
             var fut = newFuture[void]()
             proc handler() {.async.} =
               tryAndWarn "mplex channel handler":
-                var conn = newConnection(channel)
-                await m.streamHandler(conn)
+                await m.streamHandler(stream)
 
             fut = handler()
             m.handlerFuts.add(fut)
