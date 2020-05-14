@@ -276,11 +276,10 @@ suite "Mplex":
       let mplexDial = newMplex(conn)
       let stream = await mplexDial.newStream(lazy = true)
       let mplexDialFut = mplexDial.handle()
-      let openState = cast[LPChannel](stream).isOpen
+      check not LPChannel(stream.stream).isOpen # assert lazy
       await stream.writeLp("HELLO")
+      check LPChannel(stream.stream).isOpen # assert lazy
       await stream.close()
-
-      check not openState # assert lazy
 
       await done.wait(1.seconds)
       await conn.close()
