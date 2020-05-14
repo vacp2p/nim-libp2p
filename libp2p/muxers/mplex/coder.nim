@@ -52,23 +52,24 @@ proc writeMsg*(conn: Connection,
   var
       left = data.len
       offset = 0
-  while left > 0 or data.len == 0:
-    let
-      chunkSize = if left > MaxMsgSize: MaxMsgSize - 64 else: left
-      chunk = if chunkSize > 0 : data[offset..(offset + chunkSize - 1)] else: data
-    ## write lenght prefixed
-    var buf = initVBuffer()
-    buf.writePBVarint(id shl 3 or ord(msgType).uint64)
-    buf.writePBVarint(chunkSize.uint64) # size should be always sent
-    buf.finish()
-    left = left - chunkSize
-    offset = offset + chunkSize
-    try:
+  try:
+    while left > 0 or data.len == 0:
+      let
+        chunkSize = if left > MaxMsgSize: MaxMsgSize - 64 else: left
+        chunk = if chunkSize > 0 : data[offset..(offset + chunkSize - 1)] else: data
+      ## write lenght prefixed
+      var buf = initVBuffer()
+      buf.writePBVarint(id shl 3 or ord(msgType).uint64)
+      buf.writePBVarint(chunkSize.uint64) # size should be always sent
+      buf.finish()
+      left = left - chunkSize
+      offset = offset + chunkSize
       await conn.write(buf.buffer & chunk)
-    except LPStreamIncompleteError as exc:
-      trace "unable to send message", exc = exc.msg
-    if data.len == 0:
-      return
+      if data.len == 0:
+        return
+  except CatchableError as exc:
+    trace "unable to send message", exc = exc.msg
+    raise exc
 
 proc writeMsg*(conn: Connection,
                id: uint64,
