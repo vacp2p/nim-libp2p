@@ -415,6 +415,15 @@ proc newSwitch*(peerInfo: PeerInfo,
       muxer.connection.peerInfo = await s.identify(stream)
       await stream.close()
 
+      trace "incomming muxed connection", oid = muxer.connection.oid,
+                                          peerInfo = muxer.connection.peerInfo
+
+      # store muxer for connection
+      s.muxed[muxer.connection.peerInfo.id] = muxer
+
+      # store muxed connection
+      s.connections[muxer.connection.peerInfo.id] = muxer.connection
+
   for k in secureManagers.keys:
     trace "adding secure manager ", codec = secureManagers[k].codec
     result.secureManagers[k] = secureManagers[k]
