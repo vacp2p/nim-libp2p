@@ -20,7 +20,7 @@ when defined(nimHasUsed): {.used.}
 suite "Mplex":
   teardown:
     for tracker in testTrackers():
-      echo tracker.dump()
+      # echo tracker.dump()
       check tracker.isLeaked() == false
 
   test "encode header with channel id 0":

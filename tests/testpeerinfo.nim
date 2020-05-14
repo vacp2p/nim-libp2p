@@ -10,7 +10,7 @@ import ./helpers
 suite "PeerInfo":
   teardown:
     for tracker in testTrackers():
-      echo tracker.dump()
+      # echo tracker.dump()
       check tracker.isLeaked() == false
 
   test "Should init with private key":

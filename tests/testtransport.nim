@@ -12,7 +12,7 @@ import ./helpers
 suite "TCP transport":
   teardown:
     for tracker in testTrackers():
-      echo tracker.dump()
+      # echo tracker.dump()
       check tracker.isLeaked() == false
 
   test "test listener: handle write":

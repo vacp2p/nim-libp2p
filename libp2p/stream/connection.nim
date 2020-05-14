@@ -159,7 +159,8 @@ proc readVarint*[T: LP | PB](vtype: type[T],
 
 proc readLp*[T: LP | PB](vtype: type[T],
                          s: Connection,
-                         maxSize: int = int.high): Future[seq[byte]] {.async, gcsafe.} =
+                         maxSize: int = int.high):
+                         Future[seq[byte]] {.async, gcsafe.} =
   ## read length prefixed msg, with the length encoded as a varint
   let
     length = await vtype.readVarint(s)
