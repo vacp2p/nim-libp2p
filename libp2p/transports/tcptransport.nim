@@ -71,8 +71,9 @@ proc connHandler*(t: TcpTransport,
     if not isNil(t.handler):
       t.handlers &= t.handler(conn)
 
-    t.connections.add(conn)
-    t.cleanups &= t.cleanup(conn)
+  # TODO: store the streamtransport client here
+  t.connections.add(conn)
+  t.cleanups &= t.cleanup(conn)
 
   result = conn
 
