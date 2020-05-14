@@ -75,17 +75,6 @@ method readOnce*(s: LPStream,
   {.base, async.} =
   doAssert(false, "not implemented!")
 
-proc read*(s: LPStream, nbytes: int): Future[seq[byte]] {.async, deprecated: "readExactly".} =
-  # This function is deprecated - it was broken and used inappropriately as
-  # `readExacltly` in tests and code - tests still need refactoring to remove
-  # any calls
-  # `read` without nbytes was also incorrectly implemented - it worked more
-  # like `readOnce` in that it would not wait for stream to close, in
-  # BufferStream in particular - both tests and implementation were broken
-  var ret = newSeq[byte](nbytes)
-  await readExactly(s, addr ret[0], ret.len)
-  return ret
-
 proc readLine*(s: LPStream, limit = 0, sep = "\r\n"): Future[string] {.async, deprecated: "todo".} =
   # TODO replace with something that exploits buffering better
   var lim = if limit <= 0: -1 else: limit
