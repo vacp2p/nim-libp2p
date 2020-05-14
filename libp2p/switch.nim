@@ -167,19 +167,23 @@ proc getMuxedStream(s: Switch, peerInfo: PeerInfo): Future[Connection] {.async, 
     result = conn
 
 proc upgradeOutgoing(s: Switch, conn: Connection): Future[Connection] {.async, gcsafe.} =
-  trace "handling connection", conn = $conn
-  result = conn
+  try:
+    trace "handling connection", conn = $conn
+    result = conn
 
-  # don't mux/secure twise
-  if conn.peerInfo.id in s.muxed:
-    return
+    # don't mux/secure twise
+    if conn.peerInfo.id in s.muxed:
+      return
 
-  result = await s.secure(result) # secure the connection
-  if isNil(result):
-    return
+    result = await s.secure(result) # secure the connection
+    if isNil(result):
+      return
 
-  await s.mux(result) # mux it if possible
-  s.connections[conn.peerInfo.id] = result
+    await s.mux(result) # mux it if possible
+    s.connections[conn.peerInfo.id] = result
+  except CatchableError as exc:
+    debug "Couldn't upgrade outgoing connection", msg = exc.msg
+    return nil
 
 proc upgradeIncoming(s: Switch, conn: Connection) {.async, gcsafe.} =
   trace "upgrading incoming connection", conn = $conn
@@ -189,25 +193,33 @@ proc upgradeIncoming(s: Switch, conn: Connection) {.async, gcsafe.} =
   proc securedHandler (conn: Connection,
                        proto: string)
                        {.async, gcsafe, closure.} =
-    trace "Securing connection"
-    let secure = s.secureManagers[proto]
-    let sconn = await secure.secure(conn, false)
-    if not isNil(sconn):
+    try:
+      trace "Securing connection"
+      let secure = s.secureManagers[proto]
+      let sconn = await secure.secure(conn, false)
+      if sconn.isNil:
+        return
+
       # add the muxer
       for muxer in s.muxers.values:
         ms.addHandler(muxer.codec, muxer)
 
-    # handle subsequent requests
-    await ms.handle(sconn)
-    await sconn.close()
+      # handle subsequent requests
+      await ms.handle(sconn)
+      await sconn.close()
+    except CatchableError as exc:
+      debug "ending secured handler", err = exc.msg
 
   if (await ms.select(conn)): # just handshake
     # add the secure handlers
     for k in s.secureManagers.keys:
       ms.addHandler(k, securedHandler)
 
-  # handle secured connections
-  await ms.handle(conn)
+  try:
+    # handle secured connections
+    await ms.handle(conn)
+  except CatchableError as exc:
+    debug "ending multistream", err = exc.msg
 
 proc subscribeToPeer(s: Switch, peerInfo: PeerInfo) {.async, gcsafe.}
 

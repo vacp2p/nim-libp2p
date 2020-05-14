@@ -91,15 +91,16 @@ proc open*(s: LPChannel): Future[void] =
   s.conn.writeMsg(s.id, MessageType.New, s.name)
 
 method close*(s: LPChannel) {.async, gcsafe.} =
-  s.closedLocal = true
-  # If remote is closed
-  # EOF will happepn here
-  # We can safely ignore in that case
-  # s.closed won't be true sadly
   try:
+    s.closedLocal = true
     await s.closeMessage()
-  except LPStreamEOFError:
-    discard
+  except LPStreamEOFError as exc:
+    trace "Connection closed already", exc = exc.msg
+  except CancelledError as exc:
+    raise exc
+  except CatchableError as exc:
+    # Write might fail if connection is already closed
+    debug "Error while closing connection", msg = exc.msg
 
 proc resetMessage(s: LPChannel) {.async.} =
   await s.conn.writeMsg(s.id, s.resetCode)

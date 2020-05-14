@@ -127,7 +127,12 @@ method close*(s: Connection) {.async, gcsafe.} =
 
     if not isNil(s.stream) and not s.stream.closed:
       trace "closing child stream", closed = s.closed, conn = $s
-      await s.stream.close()
+      try:
+        await s.stream.close()
+      except CancelledError as exc:
+        raise exc
+      except CatchableError as exc:
+        debug "Error while closing child stream", err = exc.msg
 
     s.closeEvent.fire()
 

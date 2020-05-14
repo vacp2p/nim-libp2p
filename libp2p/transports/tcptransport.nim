@@ -64,7 +64,7 @@ proc cleanup(t: Transport, conn: Connection) {.async.} =
 proc connHandler*(t: TcpTransport,
                   client: StreamTransport,
                   initiator: bool): Connection =
-  trace "handling connection for", address = $client.remoteAddress
+  trace "handling connection", address = $client.remoteAddress
   let conn: Connection = newConnection(newChronosStream(client))
   conn.observedAddrs = MultiAddress.init(client.remoteAddress)
   if not initiator:
@@ -78,11 +78,22 @@ proc connHandler*(t: TcpTransport,
 
 proc connCb(server: StreamServer,
             client: StreamTransport) {.async, gcsafe.} =
-  trace "incomming connection for", address = $client.remoteAddress
-  let t = cast[TcpTransport](server.udata)
-  # we don't need result connection in this case
-  # as it's added inside connHandler
-  discard t.connHandler(client, false)
+  trace "incoming connection", address = $client.remoteAddress
+  try:
+    let t = cast[TcpTransport](server.udata)
+    # we don't need result connection in this case
+    # as it's added inside connHandler
+    discard t.connHandler(client, false)
+  except CatchableError as err:
+    debug "Connection setup failed", err = err.msg
+    if not client.closed:
+      try:
+        client.close()
+      except CancelledError as err:
+        raise err
+      except CatchableError as err:
+        # shouldn't happen but..
+        warn "Error closing connection", err = err.msg
 
 method init*(t: TcpTransport) =
   t.multicodec = multiCodec("tcp")

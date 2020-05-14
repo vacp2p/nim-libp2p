@@ -201,7 +201,10 @@ method publish*(p: PubSub,
   if p.triggerSelf and topic in p.topics:
     for h in p.topics[topic].handler:
       trace "triggering handler", topicID = topic
-      await h(topic, data)
+      try:
+        await h(topic, data)
+      except CatchableError as exc:
+        debug "Topic handler failed", msg = exc.msg
 
 method initPubSub*(p: PubSub) {.base.} =
   ## perform pubsub initializaion
