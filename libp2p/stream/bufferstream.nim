@@ -128,6 +128,8 @@ proc initBufferStream*(s: BufferStream,
 
   when chronicles.enabledLogLevel == LogLevel.TRACE:
     s.oid = genOid()
+
+  trace "created bufferstream", oid = s.oid
   inc getBufferStreamTracker().opened
   libp2p_open_bufferstream.inc()
 
@@ -310,6 +312,7 @@ method close*(s: BufferStream) {.async, gcsafe.} =
 
     inc getBufferStreamTracker().closed
     libp2p_open_bufferstream.dec()
+
     trace "bufferstream closed", oid = s.oid
 
   else:
