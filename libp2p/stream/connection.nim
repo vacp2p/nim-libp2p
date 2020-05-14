@@ -203,14 +203,15 @@ proc `$`*(conn: Connection): string =
     result = $(conn.peerInfo)
 
 method close*(s: Connection) {.base, async, gcsafe.} =
-  trace "about to close connection", closed = s.closed,
+  trace "about to close connection", closed = s.isClosed,
                                      peer = if not isNil(s.peerInfo):
                                        s.peerInfo.id else: ""
   if not s.isClosed:
     s.isClosed = true
-    inc getConnectionTracker().closed
-    trace "connection closed", closed = s.closed,
+    trace "connection closed", closed = s.isClosed,
                                peer = if not isNil(s.peerInfo):
                                  s.peerInfo.id else: ""
     s.closeEvent.fire()
+
+    inc getConnectionTracker().closed
     libp2p_open_connection.dec()
