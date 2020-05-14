@@ -299,8 +299,6 @@ method close*(s: BufferStream) {.async.} =
     s.dataReadEvent.fire()
     s.readBuf.clear()
 
-    await procCall Connection(s).close() # call parent close
-
     inc getBufferStreamTracker().closed
     libp2p_open_bufferstream.dec()
   else:
