@@ -222,6 +222,8 @@ proc upgradeIncoming(s: Switch, conn: Connection) {.async, gcsafe.} =
   try:
     # handle secured connections
     await ms.handle(conn)
+  except CancelledError as exc:
+    raise exc
   except CatchableError as exc:
     debug "ending multistream", err = exc.msg
 
@@ -239,6 +241,8 @@ proc internalConnect(s: Switch,
           trace "Dialing address", address = $a
           try:
             conn = await t.dial(a)
+          except CancelledError as exc:
+            raise exc
           except CatchableError as exc:
             trace "couldn't dial peer, transport failed", exc = exc.msg, address = a
             continue
@@ -304,6 +308,8 @@ proc start*(s: Switch): Future[seq[Future[void]]] {.async, gcsafe.} =
   proc handle(conn: Connection): Future[void] {.async, closure, gcsafe.} =
     try:
       await s.upgradeIncoming(conn) # perform upgrade on incoming connection
+    except CancelledError as exc:
+      raise exc
     except CatchableError as exc:
       trace "Exception occurred in Switch.start", exc = exc.msg
     finally:
@@ -349,6 +355,8 @@ proc subscribeToPeer(s: Switch, peerInfo: PeerInfo) {.async, gcsafe.} =
       s.dialedPubSubPeers.incl(peerInfo.id)
       let conn = await s.dial(peerInfo, s.pubSub.get().codec)
       await s.pubSub.get().subscribeToPeer(conn)
+    except CancelledError as exc:
+      raise exc
     except CatchableError as exc:
       warn "unable to initiate pubsub", exc = exc.msg
     finally:
