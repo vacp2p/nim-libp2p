@@ -46,6 +46,23 @@ type
 
 proc open*(s: LPChannel) {.async, gcsafe.}
 
+template withWriteLock(lock: AsyncLock, body: untyped): untyped =
+  try:
+    await lock.acquire()
+    body
+  finally:
+    lock.release()
+
+template withEOFExceptions(body: untyped): untyped =
+  try:
+      body
+  except LPStreamEOFError as exc:
+    trace "muxed connection EOF", exc = exc.msg
+  except LPStreamClosedError as exc:
+    trace "muxed connection closed", exc = exc.msg
+  except LPStreamIncompleteError as exc:
+    trace "incomplete message", exc = exc.msg
+
 proc newChannel*(id: uint64,
                  conn: Connection,
                  initiator: bool,
@@ -86,47 +103,35 @@ proc newChannel*(id: uint64,
                                  name = result.name
 
 proc closeMessage(s: LPChannel) {.async.} =
-  try:
-    await s.writeLock.acquire()
-    trace "sending close message", id = s.id,
-                                   initiator = s.initiator,
-                                   name = s.name,
-                                   oid = s.oid
+  withEOFExceptions:
+    withWriteLock(s.writeLock):
+      trace "sending close message", id = s.id,
+                                    initiator = s.initiator,
+                                    name = s.name,
+                                    oid = s.oid
 
-    await s.conn.writeMsg(s.id, s.closeCode) # write close
-  except LPStreamEOFError as exc:
-    trace "unable to send closed, muxed connection EOF", exc = exc.msg
-  except LPStreamClosedError as exc:
-    trace "unable to send close, muxed connection closed", exc = exc.msg
-  except LPStreamIncompleteError as exc:
-    trace "unable to send close, incomplete message", exc = exc.msg
-  finally:
-    s.writeLock.release()
+      await s.conn.writeMsg(s.id, s.closeCode) # write close
 
 proc resetMessage(s: LPChannel) {.async.} =
-  try:
-    await s.writeLock.acquire()
-    trace "sending reset message", id = s.id,
-                                   initiator = s.initiator,
-                                   name = s.name,
-                                   oid = s.oid
+  withEOFExceptions:
+    withWriteLock(s.writeLock):
+      trace "sending reset message", id = s.id,
+                                    initiator = s.initiator,
+                                    name = s.name,
+                                    oid = s.oid
 
-    await s.conn.writeMsg(s.id, s.resetCode) # write reset
-  except LPStreamEOFError as exc:
-    trace "unable to send reset, muxed connection EOF", exc = exc.msg
-  except LPStreamClosedError as exc:
-    trace "unable to send reset, muxed connection closed", exc = exc.msg
-  except LPStreamIncompleteError as exc:
-    trace "unable to send reset, incomplete message", exc = exc.msg
-  finally:
-    s.writeLock.release()
+      await s.conn.writeMsg(s.id, s.resetCode) # write reset
 
 proc open*(s: LPChannel) {.async, gcsafe.} =
-  await s.conn.writeMsg(s.id, MessageType.New, s.name)
-  trace "oppened channel", oid = s.oid,
-                           name = s.name,
-                           initiator = s.initiator
-  s.isOpen = true
+  ## NOTE: Don't call withExcAndLock or withWriteLock,
+  ## because this already gets called from writeHandler
+  ## which is locked
+  withEOFExceptions:
+    await s.conn.writeMsg(s.id, MessageType.New, s.name)
+    trace "oppened channel", oid = s.oid,
+                            name = s.name,
+                            initiator = s.initiator
+    s.isOpen = true
 
 proc closeRemote*(s: LPChannel) {.async.} =
   trace "got EOF, closing channel", id = s.id,
@@ -180,3 +185,5 @@ method reset*(s: LPChannel) {.base, async.} =
   # optimistic
   asyncCheck s.resetMessage()
   await procCall BufferStream(s).close()
+  s.isEof = true
+  s.closedLocal = true
