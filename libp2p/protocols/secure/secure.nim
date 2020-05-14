@@ -41,7 +41,8 @@ method init*(s: Secure) {.gcsafe.} =
   proc handle(conn: Connection, proto: string) {.async, gcsafe.} =
     trace "handling connection upgrade", proto
     try:
-      # We don't need the result but we definitely need to await the handshake
+      # We don't need the result but we definitely
+      # need to await the handshake
       discard await s.handleConn(conn, false)
       trace "connection secured"
     except CatchableError as exc:
@@ -51,7 +52,9 @@ method init*(s: Secure) {.gcsafe.} =
 
   s.handler = handle
 
-method secure*(s: Secure, conn: Connection, initiator: bool): Future[Connection] {.async, base, gcsafe.} =
+method secure*(s: Secure,
+               conn: Connection,
+               initiator: bool): Future[Connection] {.async, base, gcsafe.} =
   try:
     result = await s.handleConn(conn, initiator)
   except CatchableError as exc:
