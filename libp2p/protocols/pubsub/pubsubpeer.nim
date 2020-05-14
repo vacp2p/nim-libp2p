@@ -76,16 +76,22 @@ proc handle*(p: PubSubPeer, conn: Connection) {.async.} =
     if not conn.closed():
       await conn.close()
 
+proc triggerHooks(p: PubSubPeer, m: RPCMsg) =
+  # trigger hooks
+  if not(isNil(p.observers)) and p.observers[].len > 0:
+    var mm = m
+    for obs in p.observers[]:
+      obs.onSend(p, mm)
+
 proc send*(p: PubSubPeer, msgs: seq[RPCMsg]) {.async.} =
   try:
     for m in msgs.items:
       trace "sending msgs to peer", toPeer = p.id
       let encoded = encodeRpcMsg(m)
+
       # trigger hooks
-      if not(isNil(p.observers)) and p.observers[].len > 0:
-        var mm = m
-        for obs in p.observers[]:
-          obs.onSend(p, mm)
+      p.triggerHooks(m)
+
       let encodedHex = encoded.buffer.toHex()
       if encoded.buffer.len <= 0:
         trace "empty message, skipping", peer = p.id
