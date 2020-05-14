@@ -7,7 +7,7 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import tables, sequtils, options, strformat, sets
+import tables, sequtils, options, strformat, sets, oids
 import chronos, chronicles
 import stream/connection,
        transports/transport,
@@ -142,11 +142,11 @@ proc cleanupConn(s: Switch, conn: Connection) {.async, gcsafe.} =
       s.muxed.del(id)
 
     if id in s.connections:
+      trace "attempting to close connection", oid = s.connections[id].oid,
+                                              closed = s.connections[id].closed
       if not s.connections[id].closed:
         await s.connections[id].close()
       s.connections.del(id)
-
-    s.dialedPubSubPeers.excl(id)
 
     # TODO: Investigate cleanupConn() always called twice for one peer.
     if not(conn.peerInfo.isClosed()):
@@ -291,8 +291,8 @@ proc start*(s: Switch): Future[seq[Future[void]]] {.async, gcsafe.} =
     except CatchableError as exc:
       trace "Exception occurred in Switch.start", exc = exc.msg
     finally:
-      await conn.close()
       await s.cleanupConn(conn)
+      await conn.close()
 
   var startFuts: seq[Future[void]]
   for t in s.transports: # for each transport
