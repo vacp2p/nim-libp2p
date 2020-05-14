@@ -457,6 +457,8 @@ method write*(sconn: NoiseConnection, message: seq[byte]): Future[void] {.async.
       await sconn.stream.write(outbuf)
   except LPStreamEOFError:
     trace "Ignoring EOF while writing"
+  except CancelledError as exc:
+    raise exc
   except CatchableError as exc:
     # TODO these exceptions are ignored since it's likely that if writes are
     #      are failing, the underlying connection is already closed - this needs
