@@ -55,10 +55,10 @@ proc allFuturesThrowing*[T](args: varargs[Future[T]]): Future[void] =
 
   return call()
 
-template tryAndWarn*(msg: static[string]; body: untyped): untyped =
+template tryAndWarn*(message: static[string]; body: untyped): untyped =
   try:
     body
-  except CancelledError as ex:
-    raise ex
-  except CatchableError as ex:
-    warn "Ignored an error", name=ex.name, msg=msg
+  except CancelledError as exc:
+    raise exc # TODO: why catch and re-raise?
+  except CatchableError as exc:
+    warn "Ignored an error", name = exc.name, msg = message, exc = exc.msg
