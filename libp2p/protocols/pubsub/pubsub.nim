@@ -203,8 +203,15 @@ method publish*(p: PubSub,
       trace "triggering handler", topicID = topic
       try:
         await h(topic, data)
+      except LPStreamEOFError:
+        trace "Ignoring EOF while writing"
+      except CancelledError as exc:
+        raise exc
       except CatchableError as exc:
-        debug "Topic handler failed", msg = exc.msg
+        # TODO these exceptions are ignored since it's likely that if writes are
+        #      are failing, the underlying connection is already closed - this needs
+        #      more cleanup though
+        debug "Could not write to pubsub connection", msg = exc.msg
 
 method initPubSub*(p: PubSub) {.base.} =
   ## perform pubsub initializaion
