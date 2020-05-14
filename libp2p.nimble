@@ -35,6 +35,7 @@ proc buildSample(filename: string) =
 
 task testlibp2p, "Runs libp2p tests":
   runTest("testlibp2p")
+  runTest("testlibp2p", "noise")
 
 task testprimitives, "Runs libp2p primitives tests":
   runTest("testprimitives")
@@ -47,13 +48,12 @@ task testinterop, "Runs interop tests":
 
 task testpubsub, "Runs pubsub tests":
   runTest("pubsub/testpubsub")
+  runTest("pubsub/testpubsub", "noise")
   runTest("pubsub/testpubsub", sign = false, verify = false)
-  # runTest("pubsub/testpubsub", "noise")
 
 task test, "Runs the test suite":
   exec "nimble testlibp2p"
   exec "nimble testprimitives"
-  # runTest("testnative", "noise")
   exec "nimble testpubsub"
   exec "nimble testdaemon"
   exec "nimble testinterop"
