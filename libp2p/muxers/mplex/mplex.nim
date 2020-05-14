@@ -29,6 +29,7 @@ type
   Mplex* = ref object of Muxer
     remote: Table[uint64, LPChannel]
     local: Table[uint64, LPChannel]
+    handlerFuts: seq[Future[void]]
     currentId*: uint64
     maxChannels*: uint64
     isClosed: bool
@@ -61,15 +62,6 @@ proc newStreamInternal*(m: Mplex,
                       name,
                       lazy = lazy)
   m.getChannelList(initiator)[id] = result
-
-# proc cleanupChann(m: Mplex, chann: LPChannel, initiator: bool) {.async, inline.} =
-#   ## call the channel's `close` to signal the
-#   ## remote that the channel is closing
-#   if not isNil(chann) and not chann.closed:
-#     await chann.close()
-#     await chann.cleanUp()
-#     m.getChannelList(initiator).del(chann.id)
-#     trace "cleaned up channel", id = chann.id
 
 method handle*(m: Mplex) {.async, gcsafe.} =
   trace "starting mplex main loop", oid = m.oid
@@ -106,11 +98,15 @@ method handle*(m: Mplex) {.async, gcsafe.} =
             let stream = newConnection(channel)
             stream.peerInfo = m.connection.peerInfo
 
+            var fut = newFuture[void]()
             proc handler() {.async.} =
               tryAndWarn "mplex channel handler":
                 await m.streamHandler(channel)
 
-            asyncCheck handler()
+            fut = handler()
+            m.handlerFuts.add(fut)
+            fut.addCallback do(udata: pointer):
+                m.handlerFuts.keepItIf(it != fut)
 
         of MessageType.MsgIn, MessageType.MsgOut:
           trace "pushing data to channel", id = id,
@@ -163,11 +159,6 @@ method handle*(m: Mplex) {.async, gcsafe.} =
     trace "stopping mplex main loop", oid = m.oid
     await m.close()
 
-proc internalCleanup(m: Mplex, conn: Connection) {.async.} =
-  await conn.closeEvent.wait()
-  trace "connection closed, cleaning up mplex", oid = m.oid
-  await m.close()
-
 proc newMplex*(conn: Connection,
                maxChanns: uint = MaxChannels): Mplex =
   new result
@@ -179,7 +170,13 @@ proc newMplex*(conn: Connection,
   when chronicles.enabledLogLevel == LogLevel.TRACE:
     result.oid = genOid()
 
-  asyncCheck result.internalCleanup(conn)
+proc cleanupChann(m: Mplex, chann: LPChannel) {.async, inline.} =
+  ## remove the local channel from the internal tables
+  ##
+  await chann.closeEvent.wait()
+  if not isNil(chann):
+    m.getChannelList(true).del(chann.id)
+    trace "cleaned up channel", id = chann.id
 
 method newStream*(m: Mplex,
                   name: string = "",
@@ -190,19 +187,33 @@ method newStream*(m: Mplex,
   result = newConnection(channel)
   result.peerInfo = m.connection.peerInfo
 
+  asyncCheck m.cleanupChann(channel)
+
 method close*(m: Mplex) {.async, gcsafe.} =
   if m.isClosed:
     return
 
   trace "closing mplex muxer", oid = m.oid
 
-  let
-    futs = await allFinished(
+  # let the other end know that we're closing
+  let closeFuts = await allFinished(
+      toSeq(m.remote.values).mapIt(it.close()) &
+        toSeq(m.local.values).mapIt(it.close()))
+
+  checkFutures(closeFuts)
+
+  # send a reset as well, this will release
+  # local resources deterministically
+  let resetFuts = await allFinished(
       toSeq(m.remote.values).mapIt(it.reset()) &
         toSeq(m.local.values).mapIt(it.reset()))
 
+  checkFutures(resetFuts)
+
+  let futs = await allFinished(m.handlerFuts)
   checkFutures(futs)
 
   m.remote.clear()
   m.local.clear()
+  m.handlerFuts = @[]
   m.isClosed = true
