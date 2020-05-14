@@ -55,8 +55,7 @@ method secure*(s: Secure, conn: Connection, initiator: bool): Future[Connection]
     result = await s.handleConn(conn, initiator)
   except CatchableError as exc:
     warn "securing connection failed", msg = exc.msg
-    if not conn.closed():
-      await conn.close()
+    await conn.close()
 
 method readExactly*(s: SecureConn,
                     pbytes: pointer,
