@@ -309,8 +309,5 @@ method close*(s: BufferStream) {.async, gcsafe.} =
     libp2p_open_bufferstream.dec()
     trace "bufferstream closed", oid = s.oid
 
-    if not(isNil(s.piped)):
-      await s.piped.close()
-
   else:
     trace "attempt to close an already closed bufferstream", trace = getStackTrace()
