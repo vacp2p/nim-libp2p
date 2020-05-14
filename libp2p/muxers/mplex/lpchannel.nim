@@ -95,7 +95,11 @@ proc closeMessage(s: LPChannel) {.async.} =
 
     await s.conn.writeMsg(s.id, s.closeCode) # write close
   except LPStreamEOFError as exc:
-    trace "unable to send close, stream is EOF", exc = exc.msg
+    trace "unable to send closed, muxed connection EOF", exc = exc.msg
+  except LPStreamClosedError as exc:
+    trace "unable to send close, muxed connection closed", exc = exc.msg
+  except LPStreamIncompleteError as exc:
+    trace "unable to send close, incomplete message", exc = exc.msg
   finally:
     s.writeLock.release()
 
@@ -108,8 +112,12 @@ proc resetMessage(s: LPChannel) {.async.} =
                                    oid = s.oid
 
     await s.conn.writeMsg(s.id, s.resetCode) # write reset
-  except CatchableError as exc:
-    trace "unable to send reset message", exc = exc.msg
+  except LPStreamEOFError as exc:
+    trace "unable to send reset, muxed connection EOF", exc = exc.msg
+  except LPStreamClosedError as exc:
+    trace "unable to send reset, muxed connection closed", exc = exc.msg
+  except LPStreamIncompleteError as exc:
+    trace "unable to send reset, incomplete message", exc = exc.msg
   finally:
     s.writeLock.release()
 
@@ -141,7 +149,12 @@ proc closeRemote*(s: LPChannel) {.async.} =
                                  oid = s.oid,
                                  name = s.name
 
-method closed*(s: LPChannel): bool = s.closedLocal
+method closed*(s: LPChannel): bool =
+  ## this emulates half-closed behavior
+  ## when closed locally writing is
+  ## dissabled - see the table in the
+  ## header of the file
+  s.closedLocal
 
 method close*(s: LPChannel) {.async, gcsafe.} =
   if s.closedLocal:
@@ -162,7 +175,8 @@ method close*(s: LPChannel) {.async, gcsafe.} =
                                   oid = s.oid
 
 method reset*(s: LPChannel) {.base, async.} =
-  # we asyncCheck here becayse the other end
-  # might be dead
+  # we asyncCheck here because the other end
+  # might be dead already - reset is always
+  # optimistic
   asyncCheck s.resetMessage()
   await procCall BufferStream(s).close()
