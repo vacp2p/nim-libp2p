@@ -84,6 +84,8 @@ proc connCb(server: StreamServer,
     # we don't need result connection in this case
     # as it's added inside connHandler
     discard t.connHandler(client, false)
+  except CancelledError as exc:
+    raise exc
   except CatchableError as err:
     debug "Connection setup failed", err = err.msg
     if not client.closed:

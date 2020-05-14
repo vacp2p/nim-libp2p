@@ -181,6 +181,8 @@ proc upgradeOutgoing(s: Switch, conn: Connection): Future[Connection] {.async, g
 
     await s.mux(result) # mux it if possible
     s.connections[conn.peerInfo.id] = result
+  except CancelledError as exc:
+    raise exc
   except CatchableError as exc:
     debug "Couldn't upgrade outgoing connection", msg = exc.msg
     return nil
@@ -207,6 +209,8 @@ proc upgradeIncoming(s: Switch, conn: Connection) {.async, gcsafe.} =
       # handle subsequent requests
       await ms.handle(sconn)
       await sconn.close()
+    except CancelledError as exc:
+      raise exc
     except CatchableError as exc:
       debug "ending secured handler", err = exc.msg
 
