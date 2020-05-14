@@ -91,16 +91,8 @@ proc open*(s: LPChannel): Future[void] =
   s.conn.writeMsg(s.id, MessageType.New, s.name)
 
 method close*(s: LPChannel) {.async, gcsafe.} =
-  try:
-    s.closedLocal = true
-    await s.closeMessage()
-  except LPStreamEOFError as exc:
-    trace "Connection closed already", exc = exc.msg
-  except CancelledError as exc:
-    raise exc
-  except CatchableError as exc:
-    # Write might fail if connection is already closed
-    debug "Error while closing connection", msg = exc.msg
+  s.closedLocal = true
+  await s.closeMessage()
 
 proc resetMessage(s: LPChannel) {.async.} =
   await s.conn.writeMsg(s.id, s.resetCode)
@@ -164,13 +156,11 @@ method readOnce*(s: LPChannel,
   result = await procCall readOnce(BufferStream(s), pbytes, nbytes)
   await s.tryCleanup()
 
-template writePrefix: untyped =
+method write*(s: LPChannel, msg: seq[byte]) {.async.} =
   if s.closedLocal or s.isReset:
     raise newLPStreamEOFError()
 
   if s.isLazy and not s.isOpen:
     await s.open()
 
-method write*(s: LPChannel, msg: seq[byte]) {.async.} =
-  writePrefix()
   await procCall write(BufferStream(s), msg)
