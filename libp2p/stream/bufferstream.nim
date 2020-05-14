@@ -114,6 +114,8 @@ proc initBufferStream*(s: BufferStream,
   s.readReqs = initDeque[Future[void]]()
   s.dataReadEvent = newAsyncEvent()
   s.lock = newAsyncLock()
+  s.writeLock = newAsyncLock()
+  s.writeHandler = handler
 
   if not(isNil(s.writeHandler)):
     s.writeHandler = proc (data: seq[byte]) {.async, gcsafe.} =
@@ -304,6 +306,8 @@ method close*(s: BufferStream) {.async, gcsafe.} =
         r.fail(newLPStreamEOFError())
     s.dataReadEvent.fire()
     s.readBuf.clear()
+    s.closeEvent.fire()
+    s.isClosed = true
 
     inc getBufferStreamTracker().closed
     libp2p_open_bufferstream.dec()
