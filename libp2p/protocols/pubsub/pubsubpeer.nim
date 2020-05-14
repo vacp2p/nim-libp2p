@@ -73,8 +73,7 @@ proc handle*(p: PubSubPeer, conn: Connection) {.async.} =
     trace "Exception occurred in PubSubPeer.handle", exc = exc.msg
   finally:
     trace "exiting pubsub peer read loop", peer = p.id
-    if not conn.closed():
-      await conn.close()
+    await conn.close()
 
 proc triggerHooks(p: PubSubPeer, m: RPCMsg) =
   # trigger hooks
@@ -104,6 +103,8 @@ proc send*(p: PubSubPeer, msgs: seq[RPCMsg]) {.async.} =
       proc sendToRemote() {.async.} =
         trace "sending encoded msgs to peer", peer = p.id, encoded = encoded.buffer.shortLog
         await p.sendConn.writeLp(encoded.buffer)
+        # TODO: add a limit for messages that can
+        # be cached before giving up and disconnecting
         p.sentRpcCache.put($encodedHex.hash)
 
       # if no connection has been set,
@@ -120,6 +121,7 @@ proc send*(p: PubSubPeer, msgs: seq[RPCMsg]) {.async.} =
 
   except CatchableError as exc:
     trace "Exception occurred in PubSubPeer.send", exc = exc.msg
+    raise exc
 
 proc sendMsg*(p: PubSubPeer,
               peerId: PeerID,

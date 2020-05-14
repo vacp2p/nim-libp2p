@@ -60,7 +60,6 @@ method init(c: MuxerProvider) =
     if not isNil(c.muxerHandler):
       futs &= c.muxerHandler(muxer)
 
-    # log and re-raise on errors
     futs = await allFinished(futs)
     checkFutures(futs)
 

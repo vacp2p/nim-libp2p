@@ -46,9 +46,9 @@ method init*(s: Secure) {.gcsafe.} =
       discard await s.handleConn(conn, false)
       trace "connection secured"
     except CatchableError as exc:
-      if not conn.closed():
-        warn "securing connection failed", msg = exc.msg
-        await conn.close()
+      warn "securing connection failed", msg = exc.msg
+      await conn.close()
+      # don't reraise in handlers!
 
   s.handler = handle
 
@@ -59,8 +59,8 @@ method secure*(s: Secure,
     result = await s.handleConn(conn, initiator)
   except CatchableError as exc:
     warn "securing connection failed", msg = exc.msg
-    if not conn.closed():
-      await conn.close()
+    await conn.close()
+    raise exc
 
 method readExactly*(s: SecureConn,
                     pbytes: pointer,
