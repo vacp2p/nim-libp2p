@@ -238,7 +238,7 @@ method readOnce*(s: BufferStream,
   await s.readExactly(pbytes, len)
   result = len
 
-method write*(s: BufferStream, msg: seq[byte]): Future[void] =
+method write*(s: BufferStream, msg: seq[byte]) {.async.} =
   ## Write sequence of bytes ``sbytes`` of length ``msglen`` to writer
   ## stream ``wstream``.
   ##
@@ -253,11 +253,9 @@ method write*(s: BufferStream, msg: seq[byte]): Future[void] =
     raise newLPStreamClosedError()
 
   if isNil(s.writeHandler):
-    var retFuture = newFuture[void]("BufferStream.write(seq)")
-    retFuture.fail(newNotWritableError())
-    return retFuture
+    raise newNotWritableError()
 
-  result = s.writeHandler(msg)
+  await s.writeHandler(msg)
 
 proc pipe*(s: BufferStream,
            target: BufferStream): BufferStream =
@@ -314,6 +312,5 @@ method close*(s: BufferStream) {.async, gcsafe.} =
     libp2p_open_bufferstream.dec()
 
     trace "bufferstream closed", oid = s.oid
-
   else:
     trace "attempt to close an already closed bufferstream", trace = getStackTrace()
