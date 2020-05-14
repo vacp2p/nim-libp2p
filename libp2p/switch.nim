@@ -335,18 +335,16 @@ proc stop*(s: Switch) {.async.} =
   # we want to report erros but we do not want to fail
   # or crash here, cos we need to clean possibly MANY items
   # and any following conn/transport won't be cleaned up
-  var futs = newSeq[Future[void]]()
-
   if s.pubSub.isSome:
-    futs &= s.pubSub.get().stop()
+    await s.pubSub.get().stop()
 
-  futs = toSeq(s.connections.values).mapIt(s.cleanupConn(it))
-  futs = await allFinished(futs)
-  checkFutures(futs)
+  checkFutures(
+    await allFinished(
+    toSeq(s.connections.values).mapIt(s.cleanupConn(it))))
 
-  futs = s.transports.mapIt(it.close())
-  futs = await allFinished(futs)
-  checkFutures(futs)
+  checkFutures(
+    await allFinished(
+    s.transports.mapIt(it.close())))
 
   trace "switch stopped"
 
