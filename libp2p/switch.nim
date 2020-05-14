@@ -340,9 +340,11 @@ proc stop*(s: Switch) {.async.} =
   if s.pubSub.isSome:
     futs &= s.pubSub.get().stop()
 
-  futs &= toSeq(s.connections.values).mapIt(s.cleanupConn(it))
-  futs &= s.transports.mapIt(it.close())
+  futs = toSeq(s.connections.values).mapIt(s.cleanupConn(it))
+  futs = await allFinished(futs)
+  checkFutures(futs)
 
+  futs = s.transports.mapIt(it.close())
   futs = await allFinished(futs)
   checkFutures(futs)
 
