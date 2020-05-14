@@ -194,42 +194,6 @@ suite "Mplex":
     expect LPStreamClosedError:
       waitFor(testResetWrite())
 
-  # test "read/write receiver":
-  #   proc testNewStream() {.async.} =
-  #     let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
-
-  #     var
-  #       done = newFuture[void]()
-  #       conn1 = newBufferStream()
-  #       conn2 = newBufferStream()
-
-  #     conn1 = conn1 | conn2 | conn1
-  #     var listenHandler: Future[void]
-  #     let mplexListen = newMplex(conn2)
-  #     mplexListen.streamHandler = proc(stream: Connection) {.async, gcsafe.} =
-  #       let msg = await stream.readLp(1024)
-  #       check cast[string](msg) == "HELLO"
-  #       await stream.close()
-  #       done.complete()
-
-  #     listenHandler = mplexListen.handle()
-
-  #     var dialHandler: Future[void]
-  #     let mplexDial = newMplex(conn1)
-  #     dialHandler = mplexDial.handle()
-  #     let stream = await mplexDial.newStream()
-  #     await stream.writeLp("HELLO")
-  #     await stream.close()
-
-  #     # bufferstreams aren't half closed,
-  #     # so we need to give them some time
-  #     # to properly pipe data
-  #     await allFuturesThrowing(conn1.close(), conn2.close())
-  #     await done.wait(5.seconds)
-  #     await allFuturesThrowing(listenHandler, dialHandler)
-
-  #   waitFor(testNewStream())
-
   test "e2e - read/write receiver":
     proc testNewStream() {.async.} =
       let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
