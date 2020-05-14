@@ -102,51 +102,51 @@ suite "Switch":
 
     waitFor(testSwitch())
 
-  # test "e2e use switch no proto string":
-  #   proc testSwitch(): Future[bool] {.async, gcsafe.} =
-  #     let ma1: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
-  #     let ma2: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
+  test "e2e use switch no proto string":
+    proc testSwitch(): Future[bool] {.async, gcsafe.} =
+      let ma1: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
+      let ma2: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
 
-  #     var peerInfo1, peerInfo2: PeerInfo
-  #     var switch1, switch2: Switch
-  #     var awaiters: seq[Future[void]]
+      var peerInfo1, peerInfo2: PeerInfo
+      var switch1, switch2: Switch
+      var awaiters: seq[Future[void]]
 
-  #     (switch1, peerInfo1) = createSwitch(ma1)
+      (switch1, peerInfo1) = createSwitch(ma1)
 
-  #     proc handle(conn: Connection, proto: string) {.async, gcsafe.} =
-  #       let msg = cast[string](await conn.readLp(1024))
-  #       check "Hello!" == msg
-  #       await conn.writeLp("Hello!")
-  #       await conn.close()
+      proc handle(conn: Connection, proto: string) {.async, gcsafe.} =
+        let msg = cast[string](await conn.readLp(1024))
+        check "Hello!" == msg
+        await conn.writeLp("Hello!")
+        await conn.close()
 
-  #     let testProto = new TestProto
-  #     testProto.codec = TestCodec
-  #     testProto.handler = handle
-  #     switch1.mount(testProto)
+      let testProto = new TestProto
+      testProto.codec = TestCodec
+      testProto.handler = handle
+      switch1.mount(testProto)
 
-  #     (switch2, peerInfo2) = createSwitch(ma2)
-  #     awaiters.add(await switch1.start())
-  #     awaiters.add(await switch2.start())
-  #     await switch2.connect(switch1.peerInfo)
-  #     let conn = await switch2.dial(switch1.peerInfo, TestCodec)
+      (switch2, peerInfo2) = createSwitch(ma2)
+      awaiters.add(await switch1.start())
+      awaiters.add(await switch2.start())
+      await switch2.connect(switch1.peerInfo)
+      let conn = await switch2.dial(switch1.peerInfo, TestCodec)
 
-  #     try:
-  #       await conn.writeLp("Hello!")
-  #       let msg = cast[string](await conn.readLp(1024))
-  #       check "Hello!" == msg
-  #       result = true
-  #     except LPStreamError:
-  #       result = false
+      try:
+        await conn.writeLp("Hello!")
+        let msg = cast[string](await conn.readLp(1024))
+        check "Hello!" == msg
+        result = true
+      except LPStreamError:
+        result = false
 
-  #     await allFuturesThrowing(
-  #       conn.close(),
-  #       switch1.stop(),
-  #       switch2.stop()
-  #     )
-  #     await allFuturesThrowing(awaiters)
+      await allFuturesThrowing(
+        conn.close(),
+        switch1.stop(),
+        switch2.stop()
+      )
+      await allFuturesThrowing(awaiters)
 
-  #   check:
-  #     waitFor(testSwitch()) == true
+    check:
+      waitFor(testSwitch()) == true
 
   # test "e2e: handle read + secio fragmented":
   #   proc testListenerDialer(): Future[bool] {.async.} =
