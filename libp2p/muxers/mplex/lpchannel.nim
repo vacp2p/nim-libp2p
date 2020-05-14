@@ -39,7 +39,6 @@ type
     initiator*: bool              # initiated remotely or locally flag
     isLazy*: bool                 # is channel lazy
     isOpen*: bool                 # has channel been oppened (only used with isLazy)
-    isReset*: bool                # has channel been reset
     closedLocal*: bool            # has channel been closed locally
     msgCode*: MessageType         # cached in/out message code
     closeCode*: MessageType       # cached in/out close code
