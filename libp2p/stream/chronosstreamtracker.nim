@@ -12,7 +12,7 @@ import chronos
 #TODO: unify with connection trackers
 
 const
-  ChronosStreamTrackerName* = "libp2p.bufferstream"
+  ChronosStreamTrackerName* = "libp2p.chronosstream"
 
 type
   ChronosStreamTracker* = ref object of TrackerBase
@@ -28,8 +28,8 @@ proc getChronosStreamTracker*(): ChronosStreamTracker {.gcsafe.} =
 
 proc dumpTracking(): string {.gcsafe.} =
   var tracker = getChronosStreamTracker()
-  result = "Opened buffers: " & $tracker.opened & "\n" &
-           "Closed buffers: " & $tracker.closed
+  result = "Opened chronosstreams: " & $tracker.opened & "\n" &
+           "Closed chronosstreams: " & $tracker.closed
 
 proc leakTransport(): bool {.gcsafe.} =
   var tracker = getChronosStreamTracker()

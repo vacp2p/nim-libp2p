@@ -7,8 +7,11 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
+import oids
 import chronos, chronicles
-import connection, ../utility
+import connection,
+       chronosstreamtracker,
+       ../utility
 
 logScope:
   topic = "ChronosStream"
@@ -19,7 +22,7 @@ type ChronosStream* = ref object of Connection
 proc onTransportClose(s: ChronosStream,
                       client: StreamTransport) {.async.} =
   await client.join()
-  trace "Transport closed, closing connection"
+  trace "transport closed, closing connection"
   await s.close()
 
 proc newChronosStream*(client: StreamTransport): ChronosStream =
@@ -27,7 +30,13 @@ proc newChronosStream*(client: StreamTransport): ChronosStream =
   result.client = client
   result.closeEvent = newAsyncEvent()
 
+  when chronicles.enabledLogLevel == LogLevel.TRACE:
+    result.oid = genOid()
+
   asyncCheck result.onTransportClose(result.client)
+  inc getChronosStreamTracker().opened
+
+  trace "created chronossteam", oid = result.oid
 
 template withExceptions(body: untyped) =
   try:
@@ -78,9 +87,13 @@ method atEof*(s: ChronosStream): bool {.inline.} =
   s.client.atEof()
 
 method close*(s: ChronosStream) {.async.} =
+  trace "about to shutdown chronosstream", address = $s.client.remoteAddress(),
+                                           closed = s.closed
   if not s.closed:
-    trace "shutting chronos stream", address = $s.client.remoteAddress()
+    trace "shutting chronos stream down", address = $s.client.remoteAddress()
     if not s.client.closed():
       await s.client.closeWait()
 
-    s.closeEvent.fire()
+    # await procCall Connection(s).close()
+
+    inc getChronosStreamTracker().closed
