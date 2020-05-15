@@ -12,6 +12,7 @@ import ../libp2p/[daemon/daemonapi,
                   peer,
                   peerinfo,
                   switch,
+                  errors,
                   connection,
                   stream/lpstream,
                   muxers/muxer,
@@ -105,23 +106,20 @@ proc testPubSubDaemonPublish(gossip: bool = false,
   let awaiters = nativeNode.start()
   let nativePeer = nativeNode.peerInfo
 
-  var finished = false
+  var finished = newFuture[void]()
   var times = 0
   proc nativeHandler(topic: string, data: seq[byte]) {.async.} =
     let smsg = cast[string](data)
     check smsg == pubsubData
     times.inc()
-    if times >= count and not finished:
-      finished = true
+    if times >= count and not finished.finished:
+      finished.complete()
 
   await nativeNode.connect(NativePeerInfo.init(daemonPeer.peer,
                                                daemonPeer.addresses))
-  info "nim connect done"
-
   await sleepAsync(1.seconds)
 
   await daemonNode.connect(nativePeer.peerId, nativePeer.addrs)
-  info "go connect done"
 
   proc pubsubHandler(api: DaemonAPI,
                      ticket: PubsubTicket,
@@ -129,12 +127,11 @@ proc testPubSubDaemonPublish(gossip: bool = false,
     result = true # don't cancel subscription
 
   asyncDiscard daemonNode.pubsubSubscribe(testTopic, pubsubHandler)
-  info "go sub done"
   await nativeNode.subscribe(testTopic, nativeHandler)
   await sleepAsync(1.seconds)
 
   proc publisher() {.async.} =
-    while not finished:
+    while not finished.finished:
       await daemonNode.pubsubPublish(testTopic, msgData)
       await sleepAsync(100.millis)
 
@@ -142,7 +139,7 @@ proc testPubSubDaemonPublish(gossip: bool = false,
 
   result = true
   await nativeNode.stop()
-  await allFutures(awaiters)
+  await allFuturesThrowing(awaiters)
   await daemonNode.close()
 
 proc testPubSubNodePublish(gossip: bool = false,
@@ -193,7 +190,7 @@ proc testPubSubNodePublish(gossip: bool = false,
 
   result = finished
   await nativeNode.stop()
-  await allFutures(awaiters)
+  await allFuturesThrowing(awaiters)
   await daemonNode.close()
 
 suite "Interop":
@@ -229,7 +226,7 @@ suite "Interop":
 
       await wait(testFuture, 10.secs)
       await nativeNode.stop()
-      await allFutures(awaiters)
+      await allFuturesThrowing(awaiters)
       await daemonNode.close()
       result = true
 
@@ -270,7 +267,7 @@ suite "Interop":
       await conn.writeLp(test & "\r\n")
       result = expect == (await wait(testFuture, 10.secs))
       await nativeNode.stop()
-      await allFutures(awaiters)
+      await allFuturesThrowing(awaiters)
       await daemonNode.close()
 
     check:
@@ -306,7 +303,7 @@ suite "Interop":
 
       result = test == (await wait(testFuture, 10.secs))
       await nativeNode.stop()
-      await allFutures(awaiters)
+      await allFuturesThrowing(awaiters)
       await daemonNode.close()
 
     check:
@@ -352,7 +349,7 @@ suite "Interop":
 
       result = true
       await nativeNode.stop()
-      await allFutures(awaiters)
+      await allFuturesThrowing(awaiters)
       await daemonNode.close()
 
     check:
@@ -400,7 +397,7 @@ suite "Interop":
       result = 10 == (await wait(testFuture, 1.minutes))
       await stream.close()
       await nativeNode.stop()
-      await allFutures(awaiters)
+      await allFuturesThrowing(awaiters)
       await daemonNode.close()
 
     check:
