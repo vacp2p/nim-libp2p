@@ -92,14 +92,7 @@ proc open*(s: LPChannel): Future[void] =
 
 method close*(s: LPChannel) {.async, gcsafe.} =
   s.closedLocal = true
-  # If remote is closed
-  # EOF will happepn here
-  # We can safely ignore in that case
-  # s.closed won't be true sadly
-  try:
-    await s.closeMessage()
-  except LPStreamEOFError:
-    discard
+  await s.closeMessage()
 
 proc resetMessage(s: LPChannel) {.async.} =
   await s.conn.writeMsg(s.id, s.resetCode)
@@ -163,13 +156,11 @@ method readOnce*(s: LPChannel,
   result = await procCall readOnce(BufferStream(s), pbytes, nbytes)
   await s.tryCleanup()
 
-template writePrefix: untyped =
+method write*(s: LPChannel, msg: seq[byte]) {.async.} =
   if s.closedLocal or s.isReset:
     raise newLPStreamEOFError()
 
   if s.isLazy and not s.isOpen:
     await s.open()
 
-method write*(s: LPChannel, msg: seq[byte]) {.async.} =
-  writePrefix()
   await procCall write(BufferStream(s), msg)

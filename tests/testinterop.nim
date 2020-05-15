@@ -105,14 +105,14 @@ proc testPubSubDaemonPublish(gossip: bool = false,
   let awaiters = nativeNode.start()
   let nativePeer = nativeNode.peerInfo
 
-  var handlerFuture = newFuture[bool]()
+  var finished = false
   var times = 0
   proc nativeHandler(topic: string, data: seq[byte]) {.async.} =
     let smsg = cast[string](data)
     check smsg == pubsubData
     times.inc()
-    if times >= count and not handlerFuture.finished:
-      handlerFuture.complete(true)
+    if times >= count and not finished:
+      finished = true
 
   await nativeNode.connect(NativePeerInfo.init(daemonPeer.peer,
                                                daemonPeer.addresses))
@@ -126,12 +126,16 @@ proc testPubSubDaemonPublish(gossip: bool = false,
 
   asyncDiscard daemonNode.pubsubSubscribe(testTopic, pubsubHandler)
   await nativeNode.subscribe(testTopic, nativeHandler)
-  while times < count:
-    await sleepAsync(1.seconds)
-    await daemonNode.pubsubPublish(testTopic, msgData)
-    await sleepAsync(100.millis)
+  await sleepAsync(1.seconds)
 
-  result = await handlerFuture
+  proc publisher() {.async.} =
+    while not finished:
+      await daemonNode.pubsubPublish(testTopic, msgData)
+      await sleepAsync(100.millis)
+
+  await wait(publisher(), 1.minutes) # should be plenty of time
+
+  result = true
   await nativeNode.stop()
   await allFutures(awaiters)
   await daemonNode.close()
@@ -152,7 +156,6 @@ proc testPubSubNodePublish(gossip: bool = false,
   let awaiters = nativeNode.start()
   let nativePeer = nativeNode.peerInfo
 
-  var handlerFuture = newFuture[bool]()
   await nativeNode.connect(NativePeerInfo.init(daemonPeer.peer,
                                                daemonPeer.addresses))
 
@@ -160,26 +163,30 @@ proc testPubSubNodePublish(gossip: bool = false,
   await daemonNode.connect(nativePeer.peerId, nativePeer.addrs)
 
   var times = 0
+  var finished = false
   proc pubsubHandler(api: DaemonAPI,
                      ticket: PubsubTicket,
                      message: PubSubMessage): Future[bool] {.async.} =
     let smsg = cast[string](message.data)
     check smsg == pubsubData
     times.inc()
-    if times >= count:
-      handlerFuture.complete(true)
+    if times >= count and not finished:
+      finished = true
     result = true # don't cancel subscription
 
   discard await daemonNode.pubsubSubscribe(testTopic, pubsubHandler)
   proc nativeHandler(topic: string, data: seq[byte]) {.async.} = discard
   await nativeNode.subscribe(testTopic, nativeHandler)
   await sleepAsync(1.seconds)
-  while times < count:
-    await sleepAsync(1.seconds)
-    await nativeNode.publish(testTopic, msgData)
-    await sleepAsync(100.millis)
 
-  result = await handlerFuture
+  proc publisher() {.async.} =
+    while not finished:
+      await nativeNode.publish(testTopic, msgData)
+      await sleepAsync(100.millis)
+
+  await wait(publisher(), 1.minutes) # should be plenty of time
+
+  result = finished
   await nativeNode.stop()
   await allFutures(awaiters)
   await daemonNode.close()
@@ -385,7 +392,7 @@ suite "Interop":
         check test == cast[string](line)
         inc(count2)
 
-      result = 10 == (await wait(testFuture, 10.secs))
+      result = 10 == (await wait(testFuture, 1.minutes))
       await stream.close()
       await nativeNode.stop()
       await allFutures(awaiters)
