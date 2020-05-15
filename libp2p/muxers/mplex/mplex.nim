@@ -200,6 +200,11 @@ method close*(m: Mplex) {.async, gcsafe.} =
 
   # send a reset as well, this will release
   # local resources deterministically
+  # TODO: shouldn't be needed once close has a
+  # timeout to track the close flow, if the timeout
+  # expires, it will automatically send a reset,
+  # this wouldn't probably be needed. Re-evaluate
+  # as soon as timer is in place.
   checkFutures(
     await allFinished(
       toSeq(m.remote.values).mapIt(it.reset()) &
