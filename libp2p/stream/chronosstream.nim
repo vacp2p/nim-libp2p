@@ -67,6 +67,12 @@ method close*(s: ChronosStream) {.async.} =
   if not s.closed:
     trace "shutting chronos stream", address = $s.client.remoteAddress()
     if not s.client.closed():
-      await s.client.closeWait()
+      try:
+        await s.client.closeWait()
+      except CancelledError as exc:
+        raise exc
+      except CatchableError as exc:
+        # Shouldn't happen, but we can't be sure
+        warn "error while closing connection", msg = exc.msg
 
     s.closeEvent.fire()

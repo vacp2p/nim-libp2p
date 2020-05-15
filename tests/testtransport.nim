@@ -45,7 +45,8 @@ suite "TCP transport":
       let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
       let handlerWait = newFuture[void]()
       proc connHandler(conn: Connection) {.async, gcsafe.} =
-        let msg = await conn.read(6)
+        var msg = newSeq[byte](6)
+        await conn.readExactly(addr msg[0], 6)
         check cast[string](msg) == "Hello!"
         await conn.close()
         handlerWait.complete()
@@ -84,7 +85,8 @@ suite "TCP transport":
       let ma: MultiAddress = MultiAddress.init(server.sock.getLocalAddress())
       let transport: TcpTransport = newTransport(TcpTransport)
       let conn = await transport.dial(ma)
-      let msg = await conn.read(6)
+      var msg = newSeq[byte](6)
+      await conn.readExactly(addr msg[0], 6)
       result = cast[string](msg) == "Hello!"
 
       await handlerWait.wait(5000.millis) # when no issues will not wait that long!
@@ -148,7 +150,8 @@ suite "TCP transport":
 
       let transport2: TcpTransport = newTransport(TcpTransport)
       let conn = await transport2.dial(transport1.ma)
-      let msg = await conn.read(6)
+      var msg = newSeq[byte](6)
+      await conn.readExactly(addr msg[0], 6)
 
       await handlerWait.wait(5000.millis) # when no issues will not wait that long!
 
@@ -166,7 +169,8 @@ suite "TCP transport":
       let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
       let handlerWait = newFuture[void]()
       proc connHandler(conn: Connection) {.async, gcsafe.} =
-        let msg = await conn.read(6)
+        var msg = newSeq[byte](6)
+        await conn.readExactly(addr msg[0], 6)
         check cast[string](msg) == "Hello!"
         await conn.close()
         handlerWait.complete()
