@@ -28,7 +28,7 @@ logScope:
 ## | State    | Closed local      | Closed remote
 ## |=============================================
 ## | Read     | Yes (until EOF)   | No
-## | Write    | No	              | Yes
+## | Write    | No                | Yes
 ##
 
 type
@@ -169,6 +169,10 @@ method close*(s: LPChannel) {.async, gcsafe.} =
                                    initiator = s.initiator,
                                    name = s.name,
                                    oid = s.oid
+  # TODO: we should install a timer that on expire
+  # will make sure the channel did close by the remote
+  # so the hald-closed flow completed, if it didn't
+  # we should send a `reset` and move on.
   await s.closeMessage()
   s.closedLocal = true
   if s.atEof: # already closed by remote close parent buffer imediately
