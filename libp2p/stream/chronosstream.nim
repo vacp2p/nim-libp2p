@@ -16,12 +16,6 @@ logScope:
 type ChronosStream* = ref object of LPStream
     client: StreamTransport
 
-proc onTransportClose(s: ChronosStream,
-                      client: StreamTransport) {.async.} =
-  await client.join()
-  trace "Transport closed, closing connection"
-  await s.close()
-
 proc newChronosStream*(client: StreamTransport): ChronosStream =
   new result
   result.client = client
