@@ -60,9 +60,9 @@ method write*(s: ChronosStream, msg: seq[byte]) {.async.} =
     return
 
   withExceptions:
-    var writen = 0
-    while (writen < msg.len):
-      writen += await s.client.write(msg[writen..<msg.len]) # TODO: does the slice create a copy here?
+    # Returns 0 sometimes when write fails - but there's not much we can do here?
+    if (await s.client.write(msg)) != msg.len:
+      raise (ref LPStreamError)(msg: "Write couldn't finish writing")
 
 method closed*(s: ChronosStream): bool {.inline.} =
   result = s.client.closed
