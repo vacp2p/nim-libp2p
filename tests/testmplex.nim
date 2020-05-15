@@ -388,6 +388,7 @@ suite "Mplex":
           count.inc
           await stream.close()
           count.inc
+          await stream.close()
           if count == 10:
             done.complete()
 
