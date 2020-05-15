@@ -7,10 +7,6 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-## TODO:
-## Timeouts and message limits are still missing
-## they need to be added ASAP
-
 import tables, sequtils, oids
 import chronos, chronicles
 import ../muxer,
@@ -197,23 +193,21 @@ method close*(m: Mplex) {.async, gcsafe.} =
   trace "closing mplex muxer", oid = m.oid
 
   # let the other end know that we're closing
-  let closeFuts = await allFinished(
+  checkFutures(
+    await allFinished(
       toSeq(m.remote.values).mapIt(it.close()) &
-        toSeq(m.local.values).mapIt(it.close()))
-
-  checkFutures(closeFuts)
+        toSeq(m.local.values).mapIt(it.close())))
 
   # send a reset as well, this will release
   # local resources deterministically
-  let resetFuts = await allFinished(
+  checkFutures(
+    await allFinished(
       toSeq(m.remote.values).mapIt(it.reset()) &
-        toSeq(m.local.values).mapIt(it.reset()))
+        toSeq(m.local.values).mapIt(it.reset())))
 
-  checkFutures(resetFuts)
+  checkFutures(await allFinished(m.handlerFuts))
 
-  let futs = await allFinished(m.handlerFuts)
-  checkFutures(futs)
-
+  await m.connection.close()
   m.remote.clear()
   m.local.clear()
   m.handlerFuts = @[]
