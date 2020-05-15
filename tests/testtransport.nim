@@ -23,7 +23,7 @@ suite "TCP transport":
         await conn.close()
         handlerWait.complete()
 
-      let transport: TcpTransport = newTransport(TcpTransport)
+      let transport: TcpTransport = TcpTransport.init()
 
       asyncCheck transport.listen(ma, connHandler)
 
@@ -51,7 +51,7 @@ suite "TCP transport":
         await conn.close()
         handlerWait.complete()
 
-      let transport: TcpTransport = newTransport(TcpTransport)
+      let transport: TcpTransport = TcpTransport.init()
       asyncCheck await transport.listen(ma, connHandler)
       let streamTransport: StreamTransport = await connect(transport.ma)
       let sent = await streamTransport.write("Hello!", 6)
@@ -83,7 +83,7 @@ suite "TCP transport":
       server.start()
 
       let ma: MultiAddress = MultiAddress.init(server.sock.getLocalAddress())
-      let transport: TcpTransport = newTransport(TcpTransport)
+      let transport: TcpTransport = TcpTransport.init()
       let conn = await transport.dial(ma)
       var msg = newSeq[byte](6)
       await conn.readExactly(addr msg[0], 6)
@@ -120,7 +120,7 @@ suite "TCP transport":
       server.start()
 
       let ma: MultiAddress = MultiAddress.init(server.sock.getLocalAddress())
-      let transport: TcpTransport = newTransport(TcpTransport)
+      let transport: TcpTransport = TcpTransport.init()
       let conn = await transport.dial(ma)
       await conn.write(cstring("Hello!"), 6)
       result = true
@@ -145,10 +145,10 @@ suite "TCP transport":
         await conn.close()
         handlerWait.complete()
 
-      let transport1: TcpTransport = newTransport(TcpTransport)
+      let transport1: TcpTransport = TcpTransport.init()
       asyncCheck transport1.listen(ma, connHandler)
 
-      let transport2: TcpTransport = newTransport(TcpTransport)
+      let transport2: TcpTransport = TcpTransport.init()
       let conn = await transport2.dial(transport1.ma)
       var msg = newSeq[byte](6)
       await conn.readExactly(addr msg[0], 6)
@@ -175,10 +175,10 @@ suite "TCP transport":
         await conn.close()
         handlerWait.complete()
 
-      let transport1: TcpTransport = newTransport(TcpTransport)
+      let transport1: TcpTransport = TcpTransport.init()
       asyncCheck transport1.listen(ma, connHandler)
 
-      let transport2: TcpTransport = newTransport(TcpTransport)
+      let transport2: TcpTransport = TcpTransport.init()
       let conn = await transport2.dial(transport1.ma)
       await conn.write(cstring("Hello!"), 6)
 

@@ -58,7 +58,7 @@ proc createSwitch(ma: MultiAddress; outgoing: bool): (Switch, PeerInfo) =
     result = newMplex(conn)
 
   let mplexProvider = newMuxerProvider(createMplex, MplexCodec)
-  let transports = @[Transport(newTransport(TcpTransport))]
+  let transports = @[Transport(TcpTransport.init())]
   let muxers = [(MplexCodec, mplexProvider)].toTable()
   let secureManagers = [(NoiseCodec, Secure(newNoise(peerInfo.privateKey, outgoing = outgoing)))].toTable()
   let switch = newSwitch(peerInfo,
@@ -88,12 +88,12 @@ suite "Noise":
         await sconn.write(cstring("Hello!"), 6)
 
       let
-        transport1: TcpTransport = newTransport(TcpTransport)
+        transport1: TcpTransport = TcpTransport.init()
       asyncCheck await transport1.listen(server, connHandler)
 
       let
-        transport2: TcpTransport = newTransport(TcpTransport)
-        clientInfo = PeerInfo.init(PrivateKey.random(RSA).get(), [transport1.ma])
+        transport2: TcpTransport = TcpTransport.init()
+        clientInfo = PeerInfo.init(PrivateKey.random(RSA), [transport1.ma])
         clientNoise = newNoise(clientInfo.privateKey, outgoing = true)
         conn = await transport2.dial(transport1.ma)
         sconn = await clientNoise.secure(conn, true)
@@ -130,12 +130,12 @@ suite "Noise":
         readTask.complete()
 
       let
-        transport1: TcpTransport = newTransport(TcpTransport)
+        transport1: TcpTransport = TcpTransport.init()
       asyncCheck await transport1.listen(server, connHandler)
 
       let
-        transport2: TcpTransport = newTransport(TcpTransport)
-        clientInfo = PeerInfo.init(PrivateKey.random(RSA).get(), [transport1.ma])
+        transport2: TcpTransport = TcpTransport.init()
+        clientInfo = PeerInfo.init(PrivateKey.random(RSA), [transport1.ma])
         clientNoise = newNoise(clientInfo.privateKey, outgoing = true)
         conn = await transport2.dial(transport1.ma)
         sconn = await clientNoise.secure(conn, true)
@@ -173,12 +173,12 @@ suite "Noise":
         readTask.complete()
 
       let
-        transport1: TcpTransport = newTransport(TcpTransport)
+        transport1: TcpTransport = TcpTransport.init()
       asyncCheck await transport1.listen(server, connHandler)
 
       let
-        transport2: TcpTransport = newTransport(TcpTransport)
-        clientInfo = PeerInfo.init(PrivateKey.random(RSA).get(), [transport1.ma])
+        transport2: TcpTransport = TcpTransport.init()
+        clientInfo = PeerInfo.init(PrivateKey.random(RSA), [transport1.ma])
         clientNoise = newNoise(clientInfo.privateKey, outgoing = true)
         conn = await transport2.dial(transport1.ma)
         sconn = await clientNoise.secure(conn, true)

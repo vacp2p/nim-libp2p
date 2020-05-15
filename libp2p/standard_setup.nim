@@ -5,7 +5,7 @@ const
   libp2p_pubsub_verify {.booldefine.} = true
 
 import
-  options, tables,
+  options, tables, chronos,
   switch, peer, peerinfo, connection, multiaddress,
   crypto/crypto, transports/[transport, tcptransport],
   muxers/[muxer, mplex/mplex, mplex/types],
@@ -26,7 +26,7 @@ proc newStandardSwitch*(privKey = none(PrivateKey),
                         gossip = false,
                         verifySignature = libp2p_pubsub_verify,
                         sign = libp2p_pubsub_sign,
-                        transportFlags: TransportFlags = {}): Switch =
+                        transportFlags: set[ServerFlags] = {}): Switch =
   proc createMplex(conn: Connection): Muxer =
     result = newMplex(conn)
 
@@ -34,7 +34,7 @@ proc newStandardSwitch*(privKey = none(PrivateKey),
     seckey = privKey.get(otherwise = PrivateKey.random(ECDSA).tryGet())
     peerInfo = PeerInfo.init(seckey, [address])
     mplexProvider = newMuxerProvider(createMplex, MplexCodec)
-    transports = @[Transport(newTransport(TcpTransport, transportFlags))]
+    transports = @[Transport(TcpTransport.init(transportFlags))]
     muxers = {MplexCodec: mplexProvider}.toTable
     identify = newIdentify(peerInfo)
   when libp2p_secure == "noise":

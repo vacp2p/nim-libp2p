@@ -34,11 +34,11 @@ suite "Identify":
       proc connHandler(conn: Connection): Future[void] {.async, gcsafe.} =
         await msListen.handle(conn)
 
-      var transport1 = newTransport(TcpTransport)
+      var transport1 = TcpTransport.init()
       serverFut = await transport1.listen(ma, connHandler)
 
       let msDial = newMultistream()
-      let transport2: TcpTransport = newTransport(TcpTransport)
+      let transport2: TcpTransport = TcpTransport.init()
       let conn = await transport2.dial(transport1.ma)
 
       var peerInfo = PeerInfo.init(PrivateKey.random(RSA).get(), [ma])
@@ -78,11 +78,11 @@ suite "Identify":
         await conn.close()
         done.complete()
 
-      let transport1: TcpTransport = newTransport(TcpTransport)
+      let transport1: TcpTransport = TcpTransport.init()
       asyncCheck transport1.listen(ma, connHandler)
 
       let msDial = newMultistream()
-      let transport2: TcpTransport = newTransport(TcpTransport)
+      let transport2: TcpTransport = TcpTransport.init()
       let conn = await transport2.dial(transport1.ma)
 
       var localPeerInfo = PeerInfo.init(PrivateKey.random(RSA).get(), [ma])
