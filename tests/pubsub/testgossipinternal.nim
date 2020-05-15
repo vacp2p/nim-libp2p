@@ -153,7 +153,7 @@ suite "GossipSub internal":
       gossipSub.fanout[topic1] = initHashSet[string]()
       gossipSub.fanout[topic2] = initHashSet[string]()
       gossipSub.lastFanoutPubSub[topic1] = Moment.fromNow(100.millis)
-      gossipSub.lastFanoutPubSub[topic2] = Moment.fromNow(5.seconds)
+      gossipSub.lastFanoutPubSub[topic2] = Moment.fromNow(1.minutes)
 
       var conns = newSeq[Connection]()
       for i in 0..<6:
