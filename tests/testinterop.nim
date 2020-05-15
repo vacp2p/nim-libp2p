@@ -111,13 +111,18 @@ proc testPubSubDaemonPublish(gossip: bool = false,
     let smsg = cast[string](data)
     check smsg == pubsubData
     times.inc()
+    info "received published data"
     if times >= count and not handlerFuture.finished:
       handlerFuture.complete(true)
 
   await nativeNode.connect(NativePeerInfo.init(daemonPeer.peer,
                                                daemonPeer.addresses))
+  info "nim connect done"
+
   await sleepAsync(1.seconds)
+
   await daemonNode.connect(nativePeer.peerId, nativePeer.addrs)
+  info "go connect done"
 
   proc pubsubHandler(api: DaemonAPI,
                      ticket: PubsubTicket,
@@ -125,11 +130,16 @@ proc testPubSubDaemonPublish(gossip: bool = false,
     result = true # don't cancel subscription
 
   asyncDiscard daemonNode.pubsubSubscribe(testTopic, pubsubHandler)
+  info "go sub done"
   await nativeNode.subscribe(testTopic, nativeHandler)
+  info "nim sub done"
   while times < count:
     await sleepAsync(1.seconds)
     await daemonNode.pubsubPublish(testTopic, msgData)
+    info "go publish done"
     await sleepAsync(100.millis)
+
+  info "done"
 
   result = await handlerFuture
   await nativeNode.stop()
