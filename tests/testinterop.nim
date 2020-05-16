@@ -106,14 +106,22 @@ proc testPubSubDaemonPublish(gossip: bool = false,
   let awaiters = nativeNode.start()
   let nativePeer = nativeNode.peerInfo
 
-  var finished = newFuture[void]()
+  var lock = newAsyncLock()
+  var finished = false
   var times = 0
   proc nativeHandler(topic: string, data: seq[byte]) {.async.} =
-    let smsg = cast[string](data)
-    check smsg == pubsubData
-    times.inc()
-    if times >= count and not finished.finished:
-      finished.complete()
+    await lock.acquire()
+    try:
+      let smsg = cast[string](data)
+      check smsg == pubsubData
+      times.inc()
+      if times >= count and not finished:
+        finished = true
+    except:
+      error "Something wrong happened during nativeHandler"
+      raise
+    finally:
+      lock.release()
 
   await nativeNode.connect(NativePeerInfo.init(daemonPeer.peer,
                                                daemonPeer.addresses))
@@ -131,9 +139,16 @@ proc testPubSubDaemonPublish(gossip: bool = false,
   await sleepAsync(1.seconds)
 
   proc publisher() {.async.} =
-    while not finished.finished:
-      await daemonNode.pubsubPublish(testTopic, msgData)
-      await sleepAsync(100.millis)
+    while not finished:
+      try:
+        await lock.acquire()
+        await daemonNode.pubsubPublish(testTopic, msgData)
+        await sleepAsync(100.millis)
+      except:
+        error "Something wrong happened during daemonNode.pubsubPublish"
+        raise
+      finally:
+        lock.release()
 
   await wait(publisher(), 1.minutes) # should be plenty of time
 
@@ -165,16 +180,24 @@ proc testPubSubNodePublish(gossip: bool = false,
   await daemonNode.connect(nativePeer.peerId, nativePeer.addrs)
 
   var times = 0
+  var lock = newAsyncLock()
   var finished = false
   proc pubsubHandler(api: DaemonAPI,
                      ticket: PubsubTicket,
                      message: PubSubMessage): Future[bool] {.async.} =
-    let smsg = cast[string](message.data)
-    check smsg == pubsubData
-    times.inc()
-    if times >= count and not finished:
-      finished = true
-    result = true # don't cancel subscription
+    try:
+      await lock.acquire()
+      let smsg = cast[string](message.data)
+      check smsg == pubsubData
+      times.inc()
+      if times >= count and not finished:
+        finished = true
+      result = true # don't cancel subscription
+    except:
+      error "Something wrong happened during pubsubHandler"
+      raise
+    finally:
+      lock.release();
 
   discard await daemonNode.pubsubSubscribe(testTopic, pubsubHandler)
   proc nativeHandler(topic: string, data: seq[byte]) {.async.} = discard
@@ -183,8 +206,15 @@ proc testPubSubNodePublish(gossip: bool = false,
 
   proc publisher() {.async.} =
     while not finished:
-      await nativeNode.publish(testTopic, msgData)
-      await sleepAsync(100.millis)
+      try:
+        await lock.acquire()
+        await nativeNode.publish(testTopic, msgData)
+        await sleepAsync(100.millis)
+      except:
+        error "Something wrong happened during nativeNode.publish"
+        raise
+      finally:
+        lock.release()
 
   await wait(publisher(), 1.minutes) # should be plenty of time
 
