@@ -133,7 +133,7 @@ proc testPubSubDaemonPublish(gossip: bool = false,
       await daemonNode.pubsubPublish(testTopic, msgData)
       await sleepAsync(100.millis)
 
-  await wait(publisher(), 1.minutes) # should be plenty of time
+  await wait(publisher(), 5.minutes) # should be plenty of time
 
   result = true
   await nativeNode.stop()
@@ -184,7 +184,7 @@ proc testPubSubNodePublish(gossip: bool = false,
       await nativeNode.publish(testTopic, msgData)
       await sleepAsync(100.millis)
 
-  await wait(publisher(), 1.minutes) # should be plenty of time
+  await wait(publisher(), 5.minutes) # should be plenty of time
 
   result = finished
   await nativeNode.stop()
