@@ -117,8 +117,8 @@ proc testPubSubDaemonPublish(gossip: bool = false,
       times.inc()
       if times >= count and not finished:
         finished = true
-    except:
-      error "Something wrong happened during nativeHandler"
+    except CatchableError as ex:
+      error "Something wrong happened during nativeHandler", error=ex.name, msg=ex.msg
       raise
     finally:
       lock.release()
@@ -144,8 +144,8 @@ proc testPubSubDaemonPublish(gossip: bool = false,
         await lock.acquire()
         await daemonNode.pubsubPublish(testTopic, msgData)
         await sleepAsync(100.millis)
-      except:
-        error "Something wrong happened during daemonNode.pubsubPublish"
+      except CatchableError as ex:
+        error "Something wrong happened during daemonNode.pubsubPublish", error=ex.name, msg=ex.msg
         raise
       finally:
         lock.release()
@@ -193,8 +193,8 @@ proc testPubSubNodePublish(gossip: bool = false,
       if times >= count and not finished:
         finished = true
       result = true # don't cancel subscription
-    except:
-      error "Something wrong happened during pubsubHandler"
+    except CatchableError as ex:
+      error "Something wrong happened during pubsubHandler", error=ex.name, msg=ex.msg
       raise
     finally:
       lock.release();
@@ -210,8 +210,8 @@ proc testPubSubNodePublish(gossip: bool = false,
         await lock.acquire()
         await nativeNode.publish(testTopic, msgData)
         await sleepAsync(100.millis)
-      except:
-        error "Something wrong happened during nativeNode.publish"
+      except CatchableError as ex:
+        error "Something wrong happened during nativeNode.publish", error=ex.name, msg=ex.msg
         raise
       finally:
         lock.release()
