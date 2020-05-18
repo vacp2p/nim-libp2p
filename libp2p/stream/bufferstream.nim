@@ -120,11 +120,17 @@ proc initBufferStream*(s: BufferStream,
 
   if not(isNil(handler)):
     s.writeHandler = proc (data: seq[byte]) {.async, gcsafe.} =
-      defer:
+      try:
+        # Using a lock here to guarantee
+        # proper write ordering. This is
+        # specially important when
+        # implementing half-closed in mplex
+        # or other functionality that requires
+        # strict message ordering
+        await s.writeLock.acquire()
+        await handler(data)
+      finally:
         s.writeLock.release()
-      await s.writeLock.acquire()
-
-      await handler(data)
 
   when chronicles.enabledLogLevel == LogLevel.TRACE:
     s.oid = genOid()
