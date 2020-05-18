@@ -97,24 +97,27 @@ proc send*(p: PubSubPeer, msgs: seq[RPCMsg]) {.async.} =
         continue
 
       proc sendToRemote() {.async.} =
-        trace "sending encoded msgs to peer", peer = p.id, encoded = encoded.buffer.shortLog
+        trace "about to send encoded msgs to peer", peer = p.id,
+                                                    encoded = encoded.buffer.shortLog
+        await p.onConnect.wait()
         await p.sendConn.writeLp(encoded.buffer)
+        trace "sent encoded msgs to peer", peer = p.id,
+                                           encoded = encoded.buffer.shortLog
         p.sentRpcCache.put($encodedHex.hash)
 
       # if no connection has been set,
       # queue messages untill a connection
       # becomes available
-      if p.isConnected:
-        await sendToRemote()
-        return
+      # TODO: add limit to queue to prevent exploints
+      await sendToRemote()
 
-      p.onConnect.wait().addCallback do (udata: pointer):
-          asyncCheck sendToRemote()
-      trace "enqueued message to send at a later time", peer = p.id,
-                                                        encoded = encodedHex
-
+  except LPStreamEOFError:
+    trace "Send connection EOF", peer = p.id
+    p.sendConn = nil
+    p.onConnect.clear()
   except CatchableError as exc:
-    trace "Exception occurred in PubSubPeer.send", exc = exc.msg
+    trace "Exception occurred in PubSubPeer.send", exc = exc.msg,
+                                                   peer = p.id
 
 proc sendMsg*(p: PubSubPeer,
               peerId: PeerID,
