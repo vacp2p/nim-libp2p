@@ -141,7 +141,7 @@ suite "Mplex":
         chann = newChannel(1, conn, true)
 
       await chann.pushTo(("Hello!").toBytes)
-      let closeFut = chann.closedByRemote()
+      let closeFut = chann.closeRemote()
 
       var data = newSeq[byte](6)
       await chann.readExactly(addr data[0], 6) # this should work, since there is data in the buffer
@@ -163,7 +163,7 @@ suite "Mplex":
       let
         conn = newConnection(newBufferStream(writeHandler))
         chann = newChannel(1, conn, true)
-      await chann.closedByRemote()
+      await chann.closeRemote()
       try:
         await chann.pushTo(@[byte(1)])
       except LPStreamEOFError:
