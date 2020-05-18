@@ -113,8 +113,8 @@ proc send*(p: PubSubPeer, msgs: seq[RPCMsg]) {.async.} =
 
   except LPStreamEOFError:
     trace "Send connection EOF", peer = p.id
-    p.sendConn = nil
     p.onConnect.clear()
+    p.sendConn = nil
   except CatchableError as exc:
     trace "Exception occurred in PubSubPeer.send", exc = exc.msg,
                                                    peer = p.id
