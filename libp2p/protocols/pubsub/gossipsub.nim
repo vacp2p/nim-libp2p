@@ -391,7 +391,7 @@ method publish*(g: GossipSub,
   await procCall PubSub(g).publish(topic, data)
 
   trace "about to publish message on topic", name = topic,
-                                             data = data.toHex()
+                                             data = data.shortLog
   if data.len > 0 and topic.len > 0:
     var peers: HashSet[string]
     if topic in g.topics: # if we're subscribed to the topic attempt to build a mesh
