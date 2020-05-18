@@ -56,7 +56,7 @@ proc handle*(p: PubSubPeer, conn: Connection) {.async.} =
   try:
     while not conn.closed:
       trace "waiting for data", peer = p.id, closed = conn.closed
-      let data = await conn.readLp()
+      let data = await conn.readLp(64 * 1024)
       let digest = $(sha256.digest(data))
       trace "read data from peer", peer = p.id, data = data.shortLog
       if digest in p.recvdRpcCache:
@@ -87,11 +87,12 @@ proc send*(p: PubSubPeer, msgs: seq[RPCMsg]) {.async.} =
         var mm = m
         for obs in p.observers[]:
           obs.onSend(p, mm)
-      let encodedHex = encoded.buffer.toHex()
+
       if encoded.buffer.len <= 0:
         trace "empty message, skipping", peer = p.id
         return
 
+      let digest = $(sha256.digest(encoded.buffer))
       if digest in p.sentRpcCache:
         trace "message already sent to peer, skipping", peer = p.id
         continue
