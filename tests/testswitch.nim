@@ -52,6 +52,7 @@ proc createSwitch(ma: MultiAddress): (Switch, PeerInfo) =
 suite "Switch":
   teardown:
     for tracker in testTrackers():
+      # echo tracker.dump()
       check tracker.isLeaked() == false
 
   test "e2e use switch dial proto string":

@@ -83,4 +83,8 @@ proc writeMsg*(conn: Connection,
                id: uint64,
                msgType: MessageType,
                data: string) {.async, gcsafe.} =
+  # TODO: changing this to
+  #`await conn.writeMsg(id, msgType, cast[seq[byte]](data))`
+  # causes all sorts of race conditions and hangs.
+  # DON'T DO IT!
   result = conn.writeMsg(id, msgType, cast[seq[byte]](data))
