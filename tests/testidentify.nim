@@ -21,7 +21,7 @@ suite "Identify":
   test "handle identify message":
     proc testHandle(): Future[bool] {.async.} =
       let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
-      let remoteSecKey = PrivateKey.random(RSA)
+      let remoteSecKey = PrivateKey.random(RSA).get()
       let remotePeerInfo = PeerInfo.init(remoteSecKey,
                                         [ma],
                                         ["/test/proto1/1.0.0",
@@ -41,12 +41,12 @@ suite "Identify":
       let transport2: TcpTransport = newTransport(TcpTransport)
       let conn = await transport2.dial(transport1.ma)
 
-      var peerInfo = PeerInfo.init(PrivateKey.random(RSA), [ma])
+      var peerInfo = PeerInfo.init(PrivateKey.random(RSA).get(), [ma])
       let identifyProto2 = newIdentify(peerInfo)
       discard await msDial.select(conn, IdentifyCodec)
       let id = await identifyProto2.identify(conn, remotePeerInfo)
 
-      check id.pubKey.get() == remoteSecKey.getKey()
+      check id.pubKey.get() == remoteSecKey.getKey().get()
       check id.addrs[0] == ma
       check id.protoVersion.get() == ProtoVersion
       # check id.agentVersion.get() == AgentVersion
@@ -66,7 +66,7 @@ suite "Identify":
   test "handle failed identify":
     proc testHandleError() {.async.} =
       let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
-      var remotePeerInfo = PeerInfo.init(PrivateKey.random(RSA), [ma])
+      var remotePeerInfo = PeerInfo.init(PrivateKey.random(RSA).get(), [ma])
       let identifyProto1 = newIdentify(remotePeerInfo)
       let msListen = newMultistream()
 
@@ -85,12 +85,12 @@ suite "Identify":
       let transport2: TcpTransport = newTransport(TcpTransport)
       let conn = await transport2.dial(transport1.ma)
 
-      var localPeerInfo = PeerInfo.init(PrivateKey.random(RSA), [ma])
+      var localPeerInfo = PeerInfo.init(PrivateKey.random(RSA).get(), [ma])
       let identifyProto2 = newIdentify(localPeerInfo)
 
       try:
         discard await msDial.select(conn, IdentifyCodec)
-        discard await identifyProto2.identify(conn, PeerInfo.init(PrivateKey.random(RSA)))
+        discard await identifyProto2.identify(conn, PeerInfo.init(PrivateKey.random(RSA).get()))
       finally:
         await done.wait(5000.millis) # when no issues will not wait that long!
         await conn.close()

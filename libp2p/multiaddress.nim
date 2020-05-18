@@ -140,7 +140,7 @@ proc p2pStB(s: string, vb: var VBuffer): bool =
   try:
     var data = Base58.decode(s)
     var mh: MultiHash
-    if MultiHash.decode(data, mh) >= 0:
+    if MultiHash.decode(data, mh).isOk:
       vb.writeSeq(data)
       result = true
   except:
@@ -151,7 +151,7 @@ proc p2pBtS(vb: var VBuffer, s: var string): bool =
   var address = newSeq[byte]()
   if vb.readSeq(address) > 0:
     var mh: MultiHash
-    if MultiHash.decode(address, mh) >= 0:
+    if MultiHash.decode(address, mh).isOk:
       s = Base58.encode(address)
       result = true
 
@@ -160,7 +160,7 @@ proc p2pVB(vb: var VBuffer): bool =
   var address = newSeq[byte]()
   if vb.readSeq(address) > 0:
     var mh: MultiHash
-    if MultiHash.decode(address, mh) >= 0:
+    if MultiHash.decode(address, mh).isOk:
       result = true
 
 proc onionStB(s: string, vb: var VBuffer): bool =
@@ -426,12 +426,12 @@ const
 proc trimRight(s: string, ch: char): string =
   ## Consume trailing characters ``ch`` from string ``s`` and return result.
   var m = 0
-  for i in countdown(len(s) - 1, 0):
+  for i in countdown(s.high, 0):
     if s[i] == ch:
       inc(m)
     else:
       break
-  result = s[0..(len(s) - 1 - m)]
+  result = s[0..(s.high - m)]
 
 proc shcopy*(m1: var MultiAddress, m2: MultiAddress) =
   shallowCopy(m1.data.buffer, m2.data.buffer)

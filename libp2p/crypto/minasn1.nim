@@ -106,10 +106,10 @@ const
     ## Encoded ``NULL`` value.
 
 template toOpenArray*(ab: Asn1Buffer): untyped =
-  toOpenArray(ab.buffer, ab.offset, len(ab.buffer) - 1)
+  toOpenArray(ab.buffer, ab.offset, ab.buffer.high)
 
 template toOpenArray*(ac: Asn1Composite): untyped =
-  toOpenArray(ac.buffer, ac.offset, len(ac.buffer) - 1)
+  toOpenArray(ac.buffer, ac.offset, ac.buffer.high)
 
 template toOpenArray*(af: Asn1Field): untyped =
   toOpenArray(af.buffer, af.offset, af.offset + af.length - 1)
@@ -336,7 +336,7 @@ proc asn1EncodeOid*(dest: var openarray[byte], value: openarray[int]): int =
   result += asn1EncodeLength(buffer, oidlen)
   result += oidlen
   if len(dest) >= result:
-    let last = len(dest) - 1
+    let last = dest.high
     var offset = 1
     dest[0] = Asn1Tag.Oid.code()
     offset += asn1EncodeLength(dest.toOpenArray(offset, last), oidlen)

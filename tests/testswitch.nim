@@ -31,7 +31,7 @@ type
   TestProto = ref object of LPProtocol
 
 proc createSwitch(ma: MultiAddress): (Switch, PeerInfo) =
-  var peerInfo: PeerInfo = PeerInfo.init(PrivateKey.random(RSA))
+  var peerInfo: PeerInfo = PeerInfo.init(PrivateKey.random(RSA).tryGet())
   peerInfo.addrs.add(ma)
   let identify = newIdentify(peerInfo)
 

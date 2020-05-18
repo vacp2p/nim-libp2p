@@ -50,7 +50,7 @@ method init(p: TestProto) {.gcsafe.} =
   p.handler = handle
 
 proc createSwitch(ma: MultiAddress; outgoing: bool): (Switch, PeerInfo) =
-  var peerInfo: PeerInfo = PeerInfo.init(PrivateKey.random(RSA))
+  var peerInfo: PeerInfo = PeerInfo.init(PrivateKey.random(RSA).get())
   peerInfo.addrs.add(ma)
   let identify = newIdentify(peerInfo)
 
@@ -77,7 +77,7 @@ suite "Noise":
     proc testListenerDialer(): Future[bool] {.async.} =
       let
         server: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
-        serverInfo = PeerInfo.init(PrivateKey.random(RSA), [server])
+        serverInfo = PeerInfo.init(PrivateKey.random(RSA).get(), [server])
         serverNoise = newNoise(serverInfo.privateKey, outgoing = false)
 
       proc connHandler(conn: Connection) {.async, gcsafe.} =
@@ -93,7 +93,7 @@ suite "Noise":
 
       let
         transport2: TcpTransport = newTransport(TcpTransport)
-        clientInfo = PeerInfo.init(PrivateKey.random(RSA), [transport1.ma])
+        clientInfo = PeerInfo.init(PrivateKey.random(RSA).get(), [transport1.ma])
         clientNoise = newNoise(clientInfo.privateKey, outgoing = true)
         conn = await transport2.dial(transport1.ma)
         sconn = await clientNoise.secure(conn, true)
@@ -115,7 +115,7 @@ suite "Noise":
     proc testListenerDialer(): Future[bool] {.async.} =
       let
         server: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
-        serverInfo = PeerInfo.init(PrivateKey.random(RSA), [server])
+        serverInfo = PeerInfo.init(PrivateKey.random(RSA).get(), [server])
         serverNoise = newNoise(serverInfo.privateKey, outgoing = false)
         readTask = newFuture[void]()
 
@@ -135,7 +135,7 @@ suite "Noise":
 
       let
         transport2: TcpTransport = newTransport(TcpTransport)
-        clientInfo = PeerInfo.init(PrivateKey.random(RSA), [transport1.ma])
+        clientInfo = PeerInfo.init(PrivateKey.random(RSA).get(), [transport1.ma])
         clientNoise = newNoise(clientInfo.privateKey, outgoing = true)
         conn = await transport2.dial(transport1.ma)
         sconn = await clientNoise.secure(conn, true)
@@ -156,7 +156,7 @@ suite "Noise":
     proc testListenerDialer(): Future[bool] {.async.} =
       let
         server: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
-        serverInfo = PeerInfo.init(PrivateKey.random(RSA), [server])
+        serverInfo = PeerInfo.init(PrivateKey.random(RSA).get(), [server])
         serverNoise = newNoise(serverInfo.privateKey, outgoing = false)
         readTask = newFuture[void]()
 
@@ -178,7 +178,7 @@ suite "Noise":
 
       let
         transport2: TcpTransport = newTransport(TcpTransport)
-        clientInfo = PeerInfo.init(PrivateKey.random(RSA), [transport1.ma])
+        clientInfo = PeerInfo.init(PrivateKey.random(RSA).get(), [transport1.ma])
         clientNoise = newNoise(clientInfo.privateKey, outgoing = true)
         conn = await transport2.dial(transport1.ma)
         sconn = await clientNoise.secure(conn, true)

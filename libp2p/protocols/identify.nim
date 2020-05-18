@@ -47,7 +47,7 @@ type
 proc encodeMsg*(peerInfo: PeerInfo, observedAddrs: Multiaddress): ProtoBuffer =
   result = initProtoBuffer()
 
-  result.write(initProtoField(1, peerInfo.publicKey.get().getBytes()))
+  result.write(initProtoField(1, peerInfo.publicKey.get().getBytes().tryGet()))
 
   for ma in peerInfo.addrs:
     result.write(initProtoField(2, ma.data.buffer))

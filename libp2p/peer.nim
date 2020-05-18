@@ -91,7 +91,7 @@ proc hasPublicKey*(pid: PeerID): bool =
   ## Returns ``true`` if ``pid`` is small enough to hold public key inside.
   if len(pid.data) > 0:
     var mh: MultiHash
-    if MultiHash.decode(pid.data, mh) > 0:
+    if MultiHash.decode(pid.data, mh).isOk:
       if mh.mcodec == multiCodec("identity"):
         result = true
 
@@ -102,7 +102,7 @@ proc extractPublicKey*(pid: PeerID, pubkey: var PublicKey): bool =
   ## Returns ``false`` otherwise.
   var mh: MultiHash
   if len(pid.data) > 0:
-    if MultiHash.decode(pid.data, mh) > 0:
+    if MultiHash.decode(pid.data, mh).isOk:
       if mh.mcodec == multiCodec("identity"):
         let length = len(mh.data.buffer)
         result = pubkey.init(mh.data.buffer.toOpenArray(mh.dpos, length - 1))
@@ -117,7 +117,7 @@ proc `$`*(pid: PeerID): string =
     for i in 0..<2:
       result.add(spid[i])
     result.add("*")
-    for i in (len(spid) - 6)..(len(spid) - 1):
+    for i in (len(spid) - 6)..spid.high:
       result.add(spid[i])
 
 proc init*(pid: var PeerID, data: openarray[byte]): bool =
@@ -155,17 +155,17 @@ proc init*(t: typedesc[PeerID], data: string): PeerID {.inline.} =
 
 proc init*(t: typedesc[PeerID], pubkey: PublicKey): PeerID =
   ## Create new peer id from public key ``pubkey``.
-  var pubraw = pubkey.getBytes()
+  var pubraw = pubkey.getBytes().tryGet()
   var mh: MultiHash
   if len(pubraw) <= maxInlineKeyLength:
-    mh = MultiHash.digest("identity", pubraw)
+    mh = MultiHash.digest("identity", pubraw).tryGet()
   else:
-    mh = MultiHash.digest("sha2-256", pubraw)
+    mh = MultiHash.digest("sha2-256", pubraw).tryGet()
   result.data = mh.data.buffer
 
 proc init*(t: typedesc[PeerID], seckey: PrivateKey): PeerID {.inline.} =
   ## Create new peer id from private key ``seckey``.
-  result = PeerID.init(seckey.getKey())
+  result = PeerID.init(seckey.getKey().tryGet())
 
 proc match*(pid: PeerID, pubkey: PublicKey): bool {.inline.} =
   ## Returns ``true`` if ``pid`` matches public key ``pubkey``.

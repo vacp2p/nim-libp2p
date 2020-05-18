@@ -10,8 +10,13 @@
 ## This module implements ED25519.
 ## This code is a port of the public domain, "ref10" implementation of ed25519
 ## from SUPERCOP.
+
+{.push raises: Defect.}
+
 import constants
 import nimcrypto/[hash, sha2, sysrand, utils]
+import stew/results
+export results
 
 # This workaround needed because of some bugs in Nim Static[T].
 export hash, sha2
@@ -38,9 +43,9 @@ type
     seckey*: EdPrivateKey
     pubkey*: EdPublicKey
 
-  EdError* = object of CatchableError
-  EdRngError* = object of EdError
-  EdIncorrectError* = object of EdError
+  EdError* = enum
+    EdRngError,
+    EdIncorrectError
 
 proc `-`(x: uint32): uint32 {.inline.} =
   result = (0xFFFF_FFFF'u32 - x) + 1'u32
@@ -1632,40 +1637,47 @@ proc checkScalar*(scalar: openarray[byte]): uint32 =
   for u in scalar:
     z = z or u
   if len(scalar) == len(CurveOrder):
-    for i in countdown(len(scalar) - 1, 0):
+    for i in countdown(scalar.high, 0):
       c = c or (-(cast[int32](EQ0(c))) and CMP(scalar[i], CurveOrder[i]))
   else:
     c = -1
   result = NEQ(z, 0'u32) and LT0(c)
 
-proc random*(t: typedesc[EdPrivateKey]): EdPrivateKey =
+proc random*(t: typedesc[EdPrivateKey]): Result[EdPrivateKey, EdError] =
   ## Generate new random ED25519 private key using OS specific CSPRNG.
   var
     point: GeP3
     pk: array[EdPublicKeySize, byte]
-  if randomBytes(result.data.toOpenArray(0, 31)) != 32:
-    raise newException(EdRngError, "Could not generate random data")
-  var hh = sha512.digest(result.data.toOpenArray(0, 31))
-  hh.data[0] = hh.data[0] and 0xF8'u8
-  hh.data[31] = hh.data[31] and 0x3F'u8
-  hh.data[31] = hh.data[31] or 0x40'u8
-  geScalarMultBase(point, hh.data)
-  geP3ToBytes(pk, point)
-  copyMem(addr result.data[32], addr pk[0], 32)
+    res: EdPrivateKey
+  if randomBytes(res.data.toOpenArray(0, 31)) != 32:
+    err(EdRngError)
+  else:
+    var hh = sha512.digest(res.data.toOpenArray(0, 31))
+    hh.data[0] = hh.data[0] and 0xF8'u8
+    hh.data[31] = hh.data[31] and 0x3F'u8
+    hh.data[31] = hh.data[31] or 0x40'u8
+    geScalarMultBase(point, hh.data)
+    geP3ToBytes(pk, point)
+    copyMem(addr res.data[32], addr pk[0], 32)
+    ok(res)
 
-proc random*(t: typedesc[EdKeyPair]): EdKeyPair =
+proc random*(t: typedesc[EdKeyPair]): Result[EdKeyPair, EdError] =
   ## Generate new random ED25519 private and public keypair using OS specific
   ## CSPRNG.
-  var point: GeP3
-  if randomBytes(result.seckey.data.toOpenArray(0, 31)) != 32:
-    raise newException(EdRngError, "Could not generate random data")
-  var hh = sha512.digest(result.seckey.data.toOpenArray(0, 31))
-  hh.data[0] = hh.data[0] and 0xF8'u8
-  hh.data[31] = hh.data[31] and 0x3F'u8
-  hh.data[31] = hh.data[31] or 0x40'u8
-  geScalarMultBase(point, hh.data)
-  geP3ToBytes(result.pubkey.data, point)
-  copyMem(addr result.seckey.data[32], addr result.pubkey.data[0], 32)
+  var
+    point: GeP3
+    res: EdKeyPair
+  if randomBytes(res.seckey.data.toOpenArray(0, 31)) != 32:
+    err(EdRngError)
+  else:
+    var hh = sha512.digest(res.seckey.data.toOpenArray(0, 31))
+    hh.data[0] = hh.data[0] and 0xF8'u8
+    hh.data[31] = hh.data[31] and 0x3F'u8
+    hh.data[31] = hh.data[31] or 0x40'u8
+    geScalarMultBase(point, hh.data)
+    geP3ToBytes(res.pubkey.data, point)
+    copyMem(addr res.seckey.data[32], addr res.pubkey.data[0], 32)
+    ok(res)
 
 proc getKey*(key: EdPrivateKey): EdPublicKey =
   ## Calculate and return ED25519 public key from private key ``key``.
@@ -1766,57 +1778,84 @@ proc init*(key: var EdPrivateKey, data: string): bool =
   ## representation ``data``.
   ##
   ## Procedure returns ``true`` on success.
-  result = init(key, fromHex(data))
+  try:
+    init(key, fromHex(data))
+  except ValueError:
+    false
 
 proc init*(key: var EdPublicKey, data: string): bool =
   ## Initialize ED25519 `public key` ``key`` from hexadecimal string
   ## representation ``data``.
   ##
   ## Procedure returns ``true`` on success.
-  result = init(key, fromHex(data))
+  try:
+    init(key, fromHex(data))
+  except ValueError:
+    false
 
 proc init*(sig: var EdSignature, data: string): bool =
   ## Initialize ED25519 `signature` ``sig`` from hexadecimal string
   ## representation ``data``.
   ##
   ## Procedure returns ``true`` on success.
-  result = init(sig, fromHex(data))
+  try:
+    init(sig, fromHex(data))
+  except ValueError:
+    false
 
-proc init*(t: typedesc[EdPrivateKey], data: openarray[byte]): EdPrivateKey =
+proc init*(t: typedesc[EdPrivateKey], data: openarray[byte]): Result[EdPrivateKey, EdError] =
   ## Initialize ED25519 `private key` from raw binary representation ``data``
   ## and return constructed object.
-  if not init(result, data):
-    raise newException(EdIncorrectError, "Incorrect binary form")
+  var res: t
+  if not init(res, data):
+    err(EdIncorrectError)
+  else:
+    ok(res)
 
-proc init*(t: typedesc[EdPublicKey], data: openarray[byte]): EdPublicKey =
+proc init*(t: typedesc[EdPublicKey], data: openarray[byte]): Result[EdPublicKey, EdError] =
   ## Initialize ED25519 `public key` from raw binary representation ``data``
   ## and return constructed object.
-  if not init(result, data):
-    raise newException(EdIncorrectError, "Incorrect binary form")
+  var res: t
+  if not init(res, data):
+    err(EdIncorrectError)
+  else:
+    ok(res)
 
-proc init*(t: typedesc[EdSignature], data: openarray[byte]): EdSignature =
+proc init*(t: typedesc[EdSignature], data: openarray[byte]): Result[EdSignature, EdError] =
   ## Initialize ED25519 `signature` from raw binary representation ``data``
   ## and return constructed object.
-  if not init(result, data):
-    raise newException(EdIncorrectError, "Incorrect binary form")
+  var res: t
+  if not init(res, data):
+    err(EdIncorrectError)
+  else:
+    ok(res)
 
-proc init*(t: typedesc[EdPrivateKey], data: string): EdPrivateKey =
+proc init*(t: typedesc[EdPrivateKey], data: string): Result[EdPrivateKey, EdError] =
   ## Initialize ED25519 `private key` from hexadecimal string representation
   ## ``data`` and return constructed object.
-  if not init(result, data):
-    raise newException(EdIncorrectError, "Incorrect binary form")
+  var res: t
+  if not init(res, data):
+    err(EdIncorrectError)
+  else:
+    ok(res)
 
-proc init*(t: typedesc[EdPublicKey], data: string): EdPublicKey =
+proc init*(t: typedesc[EdPublicKey], data: string): Result[EdPublicKey, EdError] =
   ## Initialize ED25519 `public key` from hexadecimal string representation
   ## ``data`` and return constructed object.
-  if not init(result, data):
-    raise newException(EdIncorrectError, "Incorrect binary form")
+  var res: t
+  if not init(res, data):
+    err(EdIncorrectError)
+  else:
+    ok(res)
 
-proc init*(t: typedesc[EdSignature], data: string): EdSignature =
+proc init*(t: typedesc[EdSignature], data: string): Result[EdSignature, EdError] =
   ## Initialize ED25519 `signature` from hexadecimal string representation
   ## ``data`` and return constructed object.
-  if not init(result, data):
-    raise newException(EdIncorrectError, "Incorrect binary form")
+  var res: t
+  if not init(res, data):
+    err(EdIncorrectError)
+  else:
+    ok(res)
 
 proc clear*(key: var EdPrivateKey) =
   ## Wipe and clear memory of ED25519 `private key`.

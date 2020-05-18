@@ -118,4 +118,4 @@ proc publicKey*(p: PeerInfo): Option[PublicKey] {.inline.} =
     elif p.key.isSome:
       result = p.key
   else:
-    result = some(p.privateKey.getKey())
+    result = some(p.privateKey.getKey().tryGet())

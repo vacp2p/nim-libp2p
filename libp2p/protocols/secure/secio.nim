@@ -166,7 +166,7 @@ proc macCheckAndDecode(sconn: SecioConn, data: var seq[byte]): bool =
   if not equalMem(addr data[mark], addr macData[0], macsize):
     trace "Invalid MAC",
           calculated = toHex(macData.toOpenArray(0, macsize - 1)),
-          stored = toHex(data.toOpenArray(mark, len(data) - 1))
+          stored = toHex(data.toOpenArray(mark, data.high))
     return false
 
   sconn.readerCoder.decrypt(data.toOpenArray(0, mark - 1),
@@ -303,7 +303,7 @@ method handshake*(s: Secio, conn: Connection, initiator: bool = false): Future[S
     remoteHashes: string
     remotePeerId: PeerID
     localPeerId: PeerID
-    localBytesPubkey = s.localPublicKey.getBytes()
+    localBytesPubkey = s.localPublicKey.getBytes().tryGet()
 
   if randomBytes(localNonce) != SecioNonceSize:
     raise (ref SecioError)(msg: "Could not generate random data")
@@ -341,7 +341,7 @@ method handshake*(s: Secio, conn: Connection, initiator: bool = false): Future[S
 
   # TODO: PeerID check against supplied PeerID
   let order = getOrder(remoteBytesPubkey, localNonce, localBytesPubkey,
-                       remoteNonce)
+                       remoteNonce).tryGet()
   trace "Remote proposal", schemes = remoteExchanges, ciphers = remoteCiphers,
                            hashes = remoteHashes,
                            pubkey = remoteBytesPubkey.shortLog, order = order,
@@ -357,11 +357,11 @@ method handshake*(s: Secio, conn: Connection, initiator: bool = false): Future[S
   trace "Encryption scheme selected", scheme = scheme, cipher = cipher,
                                       hash = hash
 
-  var ekeypair = ephemeral(scheme)
+  var ekeypair = ephemeral(scheme).tryGet()
   # We need EC public key in raw binary form
-  var epubkey = ekeypair.pubkey.eckey.getRawBytes()
+  var epubkey = ekeypair.pubkey.eckey.getRawBytes().tryGet()
   var localCorpus = request[4..^1] & answer & epubkey
-  var signature = s.localPrivateKey.sign(localCorpus)
+  var signature = s.localPrivateKey.sign(localCorpus).tryGet()
 
   var localExchange = createExchange(epubkey, signature.getBytes())
   var remoteExchange = await transactMessage(conn, localExchange)
@@ -430,5 +430,5 @@ method init(s: Secio) {.gcsafe.} =
 proc newSecio*(localPrivateKey: PrivateKey): Secio =
   new result
   result.localPrivateKey = localPrivateKey
-  result.localPublicKey = localPrivateKey.getKey()
+  result.localPublicKey = localPrivateKey.getKey().tryGet()
   result.init()

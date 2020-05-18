@@ -470,7 +470,8 @@ method handshake*(p: Noise, conn: Connection, initiator: bool = false): Future[S
 
   # https://github.com/libp2p/specs/tree/master/noise#libp2p-data-in-handshake-messages
   let
-    signedPayload = p.localPrivateKey.sign(PayloadString.toBytes & p.noisePublicKey.getBytes)
+    signedPayload = p.localPrivateKey.sign(
+      PayloadString.toBytes & p.noisePublicKey.getBytes).tryGet()
 
   var
     libp2pProof = initProtoBuffer()
@@ -532,7 +533,7 @@ proc newNoise*(privateKey: PrivateKey; outgoing: bool = true; commonPrologue: se
   new result
   result.outgoing = outgoing
   result.localPrivateKey = privateKey
-  result.localPublicKey = privateKey.getKey()
+  result.localPublicKey = privateKey.getKey().tryGet()
   discard randomBytes(result.noisePrivateKey)
   result.noisePublicKey = result.noisePrivateKey.public()
   result.commonPrologue = commonPrologue

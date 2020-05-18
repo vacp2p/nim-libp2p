@@ -66,7 +66,7 @@ proc createNode*(privKey: Option[PrivateKey] = none(PrivateKey),
                  gossip: bool = false): Switch =
   var seckey = privKey
   if privKey.isNone:
-    seckey = some(PrivateKey.random(RSA))
+    seckey = some(PrivateKey.random(RSA).get())
 
   var peerInfo = NativePeerInfo.init(seckey.get(), [Multiaddress.init(address)])
   proc createMplex(conn: Connection): Muxer = newMplex(conn)

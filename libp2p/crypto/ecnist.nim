@@ -14,6 +14,8 @@
 ## BearSSL library <https://bearssl.org/>
 ## Copyright(C) 2018 Thomas Pornin <pornin@bolet.org>.
 
+{.push raises: [Defect].}
+
 import bearssl
 import nimcrypto/utils
 import minasn1
@@ -58,11 +60,14 @@ type
 
   EcPKI* = EcPrivateKey | EcPublicKey | EcSignature
 
-  EcError* = object of CatchableError
-  EcKeyIncorrectError* = object of EcError
-  EcRngError* = object of EcError
-  EcPublicKeyError* = object of EcError
-  EcSignatureError* = object of EcError
+  EcError* = enum
+    EcRngError,
+    EcKeyGenError,
+    EcPublicKeyError,
+    EcKeyIncorrectError,
+    EcSignatureError
+
+  EcResult*[T] = Result[T, EcError]
 
 const
   EcSupportedCurvesCint* = {cint(Secp256r1), cint(Secp384r1), cint(Secp521r1)}
@@ -222,7 +227,7 @@ proc clear*[T: EcPKI|EcKeyPair](pki: var T) =
     pki.pubkey.key.qlen = 0
     pki.pubkey.key.curve = 0
 
-proc random*(t: typedesc[EcPrivateKey], kind: EcCurveKind): EcPrivateKey =
+proc random*(t: typedesc[EcPrivateKey], kind: EcCurveKind): EcResult[EcPrivateKey] =
   ## Generate new random EC private key using BearSSL's HMAC-SHA256-DRBG
   ## algorithm.
   ##
@@ -232,37 +237,46 @@ proc random*(t: typedesc[EcPrivateKey], kind: EcCurveKind): EcPrivateKey =
   var seeder = brPrngSeederSystem(nil)
   brHmacDrbgInit(addr rng, addr sha256Vtable, nil, 0)
   if seeder(addr rng.vtable) == 0:
-    raise newException(ValueError, "Could not seed RNG")
+    return err(EcRngError)
   var ecimp = brEcGetDefault()
-  result = new EcPrivateKey
-  result.buffer = newSeq[byte](BR_EC_KBUF_PRIV_MAX_SIZE)
+  var res = new EcPrivateKey
+  res.buffer = newSeq[byte](BR_EC_KBUF_PRIV_MAX_SIZE)
   if brEcKeygen(addr rng.vtable, ecimp,
-                addr result.key, addr result.buffer[0],
+                addr res.key, addr res.buffer[0],
                 cast[cint](kind)) == 0:
-    raise newException(ValueError, "Could not generate private key")
+    err(EcKeyGenError)
+  else:
+    ok(res)
 
-proc getKey*(seckey: EcPrivateKey): EcPublicKey =
+proc getKey*(seckey: EcPrivateKey): EcResult[EcPublicKey] =
   ## Calculate and return EC public key from private key ``seckey``.
-  doAssert(not isNil(seckey))
+  if isNil(seckey):
+    return err(EcKeyIncorrectError)
+
   var ecimp = brEcGetDefault()
   if seckey.key.curve in EcSupportedCurvesCint:
     var length = getPublicKeyLength(cast[EcCurveKind](seckey.key.curve))
-    result = new EcPublicKey
-    result.buffer = newSeq[byte](length)
-    if brEcComputePublicKey(ecimp, addr result.key,
-                            addr result.buffer[0], unsafeAddr seckey.key) == 0:
-      raise newException(EcKeyIncorrectError, "Could not calculate public key")
+    var res = new EcPublicKey
+    res.buffer = newSeq[byte](length)
+    if brEcComputePublicKey(ecimp, addr res.key,
+                            addr res.buffer[0], unsafeAddr seckey.key) == 0:
+      err(EcKeyIncorrectError)
+    else:
+      ok(res)
   else:
-    raise newException(EcKeyIncorrectError, "Incorrect private key")
+    err(EcKeyIncorrectError)
 
-proc random*(t: typedesc[EcKeyPair], kind: EcCurveKind): EcKeyPair {.inline.} =
+proc random*(t: typedesc[EcKeyPair], kind: EcCurveKind): EcResult[EcKeyPair] =
   ## Generate new random EC private and public keypair using BearSSL's
   ## HMAC-SHA256-DRBG algorithm.
   ##
   ## ``kind`` elliptic curve kind of your choice (secp256r1, secp384r1 or
   ## secp521r1).
-  result.seckey = EcPrivateKey.random(kind)
-  result.pubkey = result.seckey.getKey()
+  let
+    seckey = ? EcPrivateKey.random(kind)
+    pubkey = ? seckey.getKey()
+    key = EcKeyPair(seckey: seckey, pubkey: pubkey)
+  ok(key)
 
 proc `$`*(seckey: EcPrivateKey): string =
   ## Return string representation of EC private key.
@@ -303,29 +317,37 @@ proc `$`*(sig: EcSignature): string =
   else:
     result = toHex(sig.buffer)
 
-proc toRawBytes*(seckey: EcPrivateKey, data: var openarray[byte]): int =
+proc toRawBytes*(seckey: EcPrivateKey, data: var openarray[byte]): EcResult[int] =
   ## Serialize EC private key ``seckey`` to raw binary form and store it
   ## to ``data``.
   ##
   ## Returns number of bytes (octets) needed to store EC private key, or `0`
   ## if private key is not in supported curve.
-  doAssert(not isNil(seckey))
+  if isNil(seckey):
+    return err(EcKeyIncorrectError)
   if seckey.key.curve in EcSupportedCurvesCint:
-    result = getPrivateKeyLength(cast[EcCurveKind](seckey.key.curve))
-    if len(data) >= result:
-      copyMem(addr data[0], unsafeAddr seckey.buffer[0], result)
+    let klen = getPrivateKeyLength(cast[EcCurveKind](seckey.key.curve))
+    if len(data) >= klen:
+      copyMem(addr data[0], unsafeAddr seckey.buffer[0], klen)
+    ok(klen)
+  else:
+    err(EcKeyIncorrectError)
 
-proc toRawBytes*(pubkey: EcPublicKey, data: var openarray[byte]): int =
+proc toRawBytes*(pubkey: EcPublicKey, data: var openarray[byte]): EcResult[int] =
   ## Serialize EC public key ``pubkey`` to uncompressed form specified in
   ## section 4.3.6 of ANSI X9.62.
   ##
   ## Returns number of bytes (octets) needed to store EC public key, or `0`
   ## if public key is not in supported curve.
-  doAssert(not isNil(pubkey))
+  if isNil(pubkey):
+    return err(EcKeyIncorrectError)
   if pubkey.key.curve in EcSupportedCurvesCint:
-    result = getPublicKeyLength(cast[EcCurveKind](pubkey.key.curve))
-    if len(data) >= result:
-      copyMem(addr data[0], unsafeAddr pubkey.buffer[0], result)
+    let klen = getPublicKeyLength(cast[EcCurveKind](pubkey.key.curve))
+    if len(data) >= klen:
+      copyMem(addr data[0], unsafeAddr pubkey.buffer[0], klen)
+    ok(klen)
+  else:
+    err(EcKeyIncorrectError)
 
 proc toRawBytes*(sig: EcSignature, data: var openarray[byte]): int =
   ## Serialize EC signature ``sig`` to raw binary form and store it to ``data``.
@@ -338,16 +360,17 @@ proc toRawBytes*(sig: EcSignature, data: var openarray[byte]): int =
     if len(sig.buffer) > 0:
       copyMem(addr data[0], unsafeAddr sig.buffer[0], len(sig.buffer))
 
-proc toBytes*(seckey: EcPrivateKey, data: var openarray[byte]): int =
+proc toBytes*(seckey: EcPrivateKey, data: var openarray[byte]): EcResult[int] =
   ## Serialize EC private key ``seckey`` to ASN.1 DER binary form and store it
   ## to ``data``.
   ##
   ## Procedure returns number of bytes (octets) needed to store EC private key,
   ## or `0` if private key is not in supported curve.
-  doAssert(not isNil(seckey))
+  if isNil(seckey):
+    return err(EcKeyIncorrectError)
   if seckey.key.curve in EcSupportedCurvesCint:
     var offset, length: int
-    var pubkey = seckey.getKey()
+    var pubkey = ? seckey.getKey()
     var b = Asn1Buffer.init()
     var p = Asn1Composite.init(Asn1Tag.Sequence)
     var c0 = Asn1Composite.init(0)
@@ -374,17 +397,23 @@ proc toBytes*(seckey: EcPrivateKey, data: var openarray[byte]): int =
     p.finish()
     b.write(p)
     b.finish()
-    result = len(b)
-    if len(data) >= result:
-      copyMem(addr data[0], addr b.buffer[0], result)
+    var blen = len(b)
+    if len(data) >= blen:
+      copyMem(addr data[0], addr b.buffer[0], blen)
+    # ok anyway, since it might have been a query...
+    ok(blen)
+  else:
+    err(EcKeyIncorrectError)
 
-proc toBytes*(pubkey: EcPublicKey, data: var openarray[byte]): int =
+
+proc toBytes*(pubkey: EcPublicKey, data: var openarray[byte]): EcResult[int] =
   ## Serialize EC public key ``pubkey`` to ASN.1 DER binary form and store it
   ## to ``data``.
   ##
   ## Procedure returns number of bytes (octets) needed to store EC public key,
   ## or `0` if public key is not in supported curve.
-  doAssert(not isNil(pubkey))
+  if isNil(pubkey):
+    return err(EcKeyIncorrectError)
   if pubkey.key.curve in EcSupportedCurvesCint:
     var b = Asn1Buffer.init()
     var p = Asn1Composite.init(Asn1Tag.Sequence)
@@ -405,80 +434,97 @@ proc toBytes*(pubkey: EcPublicKey, data: var openarray[byte]): int =
     p.finish()
     b.write(p)
     b.finish()
-    result = len(b)
-    if len(data) >= result:
-      copyMem(addr data[0], addr b.buffer[0], result)
+    var blen = len(b)
+    if len(data) >= blen:
+      copyMem(addr data[0], addr b.buffer[0], blen)
+    ok(blen)
+  else:
+    err(EcKeyIncorrectError)
 
-proc toBytes*(sig: EcSignature, data: var openarray[byte]): int =
+proc toBytes*(sig: EcSignature, data: var openarray[byte]): EcResult[int] =
   ## Serialize EC signature ``sig`` to ASN.1 DER binary form and store it
   ## to ``data``.
   ##
   ## Procedure returns number of bytes (octets) needed to store EC signature,
   ## or `0` if signature is not in supported curve.
-  doAssert(not isNil(sig))
-  result = len(sig.buffer)
-  if len(data) >= result:
-    copyMem(addr data[0], unsafeAddr sig.buffer[0], result)
+  if isNil(sig):
+    return err(EcSignatureError)
+  let slen = len(sig.buffer)
+  if len(data) >= slen:
+    copyMem(addr data[0], unsafeAddr sig.buffer[0], slen)
+  ok(slen)
 
-proc getBytes*(seckey: EcPrivateKey): seq[byte] =
+proc getBytes*(seckey: EcPrivateKey): EcResult[seq[byte]] =
   ## Serialize EC private key ``seckey`` to ASN.1 DER binary form and return it.
-  doAssert(not isNil(seckey))
+  if isNil(seckey):
+    return err(EcKeyIncorrectError)
   if seckey.key.curve in EcSupportedCurvesCint:
-    result = newSeq[byte]()
-    let length = seckey.toBytes(result)
-    result.setLen(length)
-    discard seckey.toBytes(result)
+    var res = newSeq[byte]()
+    let length = ? seckey.toBytes(res)
+    res.setLen(length)
+    discard ? seckey.toBytes(res)
+    ok(res)
   else:
-    raise newException(EcKeyIncorrectError, "Incorrect private key")
+    err(EcKeyIncorrectError)
 
-proc getBytes*(pubkey: EcPublicKey): seq[byte] =
+proc getBytes*(pubkey: EcPublicKey): EcResult[seq[byte]] =
   ## Serialize EC public key ``pubkey`` to ASN.1 DER binary form and return it.
-  doAssert(not isNil(pubkey))
+  if isNil(pubkey):
+    return err(EcKeyIncorrectError)
   if pubkey.key.curve in EcSupportedCurvesCint:
-    result = newSeq[byte]()
-    let length = pubkey.toBytes(result)
-    result.setLen(length)
-    discard pubkey.toBytes(result)
+    var res = newSeq[byte]()
+    let length = ? pubkey.toBytes(res)
+    res.setLen(length)
+    discard ? pubkey.toBytes(res)
+    ok(res)
   else:
-    raise newException(EcKeyIncorrectError, "Incorrect public key")
+    err(EcKeyIncorrectError)
 
-proc getBytes*(sig: EcSignature): seq[byte] =
+proc getBytes*(sig: EcSignature): EcResult[seq[byte]] =
   ## Serialize EC signature ``sig`` to ASN.1 DER binary form and return it.
-  doAssert(not isNil(sig))
-  result = newSeq[byte]()
-  let length = sig.toBytes(result)
-  result.setLen(length)
-  discard sig.toBytes(result)
+  if isNil(sig):
+    return err(EcSignatureError)
+  var res = newSeq[byte]()
+  let length = ? sig.toBytes(res)
+  res.setLen(length)
+  discard ? sig.toBytes(res)
+  ok(res)
 
-proc getRawBytes*(seckey: EcPrivateKey): seq[byte] =
+proc getRawBytes*(seckey: EcPrivateKey): EcResult[seq[byte]] =
   ## Serialize EC private key ``seckey`` to raw binary form and return it.
-  doAssert(not isNil(seckey))
+  if isNil(seckey):
+    return err(EcKeyIncorrectError)
   if seckey.key.curve in EcSupportedCurvesCint:
-    result = newSeq[byte]()
-    let length = seckey.toRawBytes(result)
-    result.setLen(length)
-    discard seckey.toRawBytes(result)
+    var res = newSeq[byte]()
+    let length = ? seckey.toRawBytes(res)
+    res.setLen(length)
+    discard ? seckey.toRawBytes(res)
+    ok(res)
   else:
-    raise newException(EcKeyIncorrectError, "Incorrect private key")
+    err(EcKeyIncorrectError)
 
-proc getRawBytes*(pubkey: EcPublicKey): seq[byte] =
+proc getRawBytes*(pubkey: EcPublicKey): EcResult[seq[byte]] =
   ## Serialize EC public key ``pubkey`` to raw binary form and return it.
-  doAssert(not isNil(pubkey))
+  if isNil(pubkey):
+    return err(EcKeyIncorrectError)
   if pubkey.key.curve in EcSupportedCurvesCint:
-    result = newSeq[byte]()
-    let length = pubkey.toRawBytes(result)
-    result.setLen(length)
-    discard pubkey.toRawBytes(result)
+    var res = newSeq[byte]()
+    let length = ? pubkey.toRawBytes(res)
+    res.setLen(length)
+    discard ? pubkey.toRawBytes(res)
+    ok(res)
   else:
-    raise newException(EcKeyIncorrectError, "Incorrect public key")
+    return err(EcKeyIncorrectError)
 
-proc getRawBytes*(sig: EcSignature): seq[byte] =
+proc getRawBytes*(sig: EcSignature): EcResult[seq[byte]] =
   ## Serialize EC signature ``sig`` to raw binary form and return it.
-  doAssert(not isNil(sig))
-  result = newSeq[byte]()
-  let length = sig.toBytes(result)
-  result.setLen(length)
-  discard sig.toBytes(result)
+  if isNil(sig):
+    return err(EcSignatureError)
+  var res = newSeq[byte]()
+  let length = ? sig.toBytes(res)
+  res.setLen(length)
+  discard ? sig.toBytes(res)
+  ok(res)
 
 proc `==`*(pubkey1, pubkey2: EcPublicKey): bool =
   ## Returns ``true`` if both keys ``pubkey1`` and ``pubkey2`` are equal.
@@ -663,34 +709,43 @@ proc init*[T: EcPKI](sospk: var T, data: string): Result[void, Asn1Error] {.inli
   ## Procedure returns ``Asn1Status``.
   sospk.init(fromHex(data))
 
-proc init*(t: typedesc[EcPrivateKey], data: openarray[byte]): EcPrivateKey =
+proc init*(t: typedesc[EcPrivateKey], data: openarray[byte]): EcResult[EcPrivateKey] =
   ## Initialize EC private key from ASN.1 DER binary representation ``data`` and
   ## return constructed object.
-  let res = result.init(data)
+  var key: EcPrivateKey
+  let res = key.init(data)
   if res.isErr:
-    raise newException(EcKeyIncorrectError,
-                       "Incorrect private key (" & $res.error & ")")
+    err(EcKeyIncorrectError)
+  else:
+    ok(key)
 
-proc init*(t: typedesc[EcPublicKey], data: openarray[byte]): EcPublicKey =
+proc init*(t: typedesc[EcPublicKey], data: openarray[byte]): EcResult[EcPublicKey] =
   ## Initialize EC public key from ASN.1 DER binary representation ``data`` and
   ## return constructed object.
-  let res = result.init(data)
+  var key: EcPublicKey
+  let res = key.init(data)
   if res.isErr:
-    raise newException(EcKeyIncorrectError,
-                       "Incorrect public key (" & $res.error & ")")
+    err(EcKeyIncorrectError)
+  else:
+    ok(key)
 
-proc init*(t: typedesc[EcSignature], data: openarray[byte]): EcSignature =
+proc init*(t: typedesc[EcSignature], data: openarray[byte]): EcResult[EcSignature] =
   ## Initialize EC signature from raw binary representation ``data`` and
   ## return constructed object.
-  let res = result.init(data)
+  var sig: EcSignature
+  let res = sig.init(data)
   if res.isErr:
-    raise newException(EcKeyIncorrectError,
-                       "Incorrect signature (" & $res.error & ")")
+    err(EcSignatureError)
+  else:
+    ok(sig)
 
-proc init*[T: EcPKI](t: typedesc[T], data: string): T {.inline.} =
+proc init*[T: EcPKI](t: typedesc[T], data: string): EcResult[T] =
   ## Initialize EC `private key`, `public key` or `signature` from hexadecimal
   ## string representation ``data`` and return constructed object.
-  result = t.init(fromHex(data))
+  try:
+    t.init(fromHex(data))
+  except ValueError:
+    err(EcKeyIncorrectError)
 
 proc initRaw*(key: var EcPrivateKey, data: openarray[byte]): bool =
   ## Initialize EC `private key` or `scalar` ``key`` from raw binary
@@ -776,23 +831,32 @@ proc initRaw*[T: EcPKI](sospk: var T, data: string): bool {.inline.} =
   ## Procedure returns ``true`` on success, ``false`` otherwise.
   result = sospk.initRaw(fromHex(data))
 
-proc initRaw*(t: typedesc[EcPrivateKey], data: openarray[byte]): EcPrivateKey =
+proc initRaw*(t: typedesc[EcPrivateKey], data: openarray[byte]): EcResult[EcPrivateKey] =
   ## Initialize EC private key from raw binary representation ``data`` and
   ## return constructed object.
-  if not result.initRaw(data):
-    raise newException(EcKeyIncorrectError, "Incorrect private key")
+  var res: EcPrivateKey
+  if not res.initRaw(data):
+    err(EcKeyIncorrectError)
+  else:
+    ok(res)
 
-proc initRaw*(t: typedesc[EcPublicKey], data: openarray[byte]): EcPublicKey =
+proc initRaw*(t: typedesc[EcPublicKey], data: openarray[byte]): EcResult[EcPublicKey] =
   ## Initialize EC public key from raw binary representation ``data`` and
   ## return constructed object.
-  if not result.initRaw(data):
-    raise newException(EcKeyIncorrectError, "Incorrect public key")
+  var res: EcPublicKey
+  if not res.initRaw(data):
+    err(EcKeyIncorrectError)
+  else:
+    ok(res)
 
-proc initRaw*(t: typedesc[EcSignature], data: openarray[byte]): EcSignature =
+proc initRaw*(t: typedesc[EcSignature], data: openarray[byte]): EcResult[EcSignature] =
   ## Initialize EC signature from raw binary representation ``data`` and
   ## return constructed object.
-  if not result.initRaw(data):
-    raise newException(EcKeyIncorrectError, "Incorrect signature")
+  var res: EcSignature
+  if not res.initRaw(data):
+    err(EcSignatureError)
+  else:
+    ok(res)
 
 proc initRaw*[T: EcPKI](t: typedesc[T], data: string): T {.inline.} =
   ## Initialize EC `private key`, `public key` or `signature` from raw
@@ -858,15 +922,16 @@ proc getSecret*(pubkey: EcPublicKey, seckey: EcPrivateKey): seq[byte] =
     copyMem(addr result[0], addr data[0], res)
 
 proc sign*[T: byte|char](seckey: EcPrivateKey,
-                         message: openarray[T]): EcSignature {.gcsafe.} =
+                         message: openarray[T]): EcResult[EcSignature] {.gcsafe.} =
   ## Get ECDSA signature of data ``message`` using private key ``seckey``.
-  doAssert(not isNil(seckey))
+  if isNil(seckey):
+    return err(EcKeyIncorrectError)
   var hc: BrHashCompatContext
   var hash: array[32, byte]
   var impl = brEcGetDefault()
   if seckey.key.curve in EcSupportedCurvesCint:
-    result = new EcSignature
-    result.buffer = newSeq[byte](256)
+    var sig = new EcSignature
+    sig.buffer = newSeq[byte](256)
     var kv = addr sha256Vtable
     kv.init(addr hc.vtable)
     if len(message) > 0:
@@ -875,15 +940,16 @@ proc sign*[T: byte|char](seckey: EcPrivateKey,
       kv.update(addr hc.vtable, nil, 0)
     kv.output(addr hc.vtable, addr hash[0])
     let res = brEcdsaSignAsn1(impl, kv, addr hash[0], addr seckey.key,
-                              addr result.buffer[0])
+                              addr sig.buffer[0])
     # Clear context with initial value
     kv.init(addr hc.vtable)
     if res != 0:
-      result.buffer.setLen(res)
+      sig.buffer.setLen(res)
+      ok(sig)
     else:
-      raise newException(EcSignatureError, "Could not make signature")
+      err(EcSignatureError)
   else:
-    raise newException(EcKeyIncorrectError, "Incorrect private key")
+    err(EcKeyIncorrectError)
 
 proc verify*[T: byte|char](sig: EcSignature, message: openarray[T],
                            pubkey: EcPublicKey): bool {.inline.} =

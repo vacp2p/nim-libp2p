@@ -8,8 +8,13 @@
 ## those terms.
 
 ## This module implements MultiCodec.
+
+{.push raises: [Defect].}
+
 import tables, hashes
 import varint, vbuffer
+import stew/results
+export results
 
 {.deadCodeElim: on.}
 
@@ -230,7 +235,8 @@ const MultiCodecList = [
 
 type
   MultiCodec* = distinct int
-  MultiCodecError* = object of CatchableError
+  MultiCodecError* = enum
+    MultiCodecNotSupported
 
 const
   InvalidMultiCodec* = MultiCodec(-1)
@@ -251,37 +257,32 @@ const
 
 proc multiCodec*(name: string): MultiCodec {.compileTime.} =
   ## Generate MultiCodec from string ``name`` at compile time.
-  var code = NameCodecs.getOrDefault(name, -1)
-  if code == -1:
-    raise newException(MultiCodecError,
-                       "MultiCodec `" & name & "` not supported!")
-  result = MultiCodec(code)
+  let code = NameCodecs.getOrDefault(name, -1)
+  doAssert(code != -1)
+  MultiCodec(code)
 
 proc multiCodec*(code: int): MultiCodec {.compileTime.} =
   ## Generate MultiCodec from integer ``code`` at compile time.
-  var name = CodeCodecs.getOrDefault(code, "")
-  if name == "":
-    raise newException(MultiCodecError,
-                       "MultiCodec with code " & $code & " not supported!")
-  result = MultiCodec(code)
+  let name = CodeCodecs.getOrDefault(code, "")
+  doAssert(name != "")
+  MultiCodec(code)
 
 proc `$`*(mc: MultiCodec): string =
   ## Returns string representation of MultiCodec ``mc``.
-  result = CodeCodecs.getOrDefault(int(mc), "")
-  if result == "":
-    raise newException(MultiCodecError,
-                       "MultiCodec with code " & $int(mc) & " not supported!")
+  let name = CodeCodecs.getOrDefault(int(mc), "")
+  doAssert(name != "")
+  name  
 
 proc `==`*(mc: MultiCodec, name: string): bool {.inline.} =
   ## Compares MultiCodec ``mc`` with string ``name``.
-  var mcname = CodeCodecs.getOrDefault(int(mc), "")
+  let mcname = CodeCodecs.getOrDefault(int(mc), "")
   if mcname == "":
     return false
   result = (mcname == name)
 
 proc `==`*(mc: MultiCodec, code: int): bool {.inline.} =
   ## Compares MultiCodec ``mc`` with integer ``code``.
-  result = (int(mc) == code)
+  (int(mc) == code)
 
 proc `==`*(a, b: MultiCodec): bool =
   ## Returns ``true`` if MultiCodecs ``a`` and ``b`` are equal.
@@ -293,13 +294,13 @@ proc `!=`*(a, b: MultiCodec): bool =
 
 proc hash*(m: MultiCodec): Hash {.inline.} =
   ## Hash procedure for tables.
-  result = hash(int(m))
+  hash(int(m))
 
 proc codec*(mt: typedesc[MultiCodec], name: string): MultiCodec {.inline.} =
   ## Return MultiCodec from string representation ``name``.
   ## If ``name`` is not valid multicodec name, then ``InvalidMultiCodec`` will
   ## be returned.
-  result = MultiCodec(NameCodecs.getOrDefault(name, -1))
+  MultiCodec(NameCodecs.getOrDefault(name, -1))
 
 proc codec*(mt: typedesc[MultiCodec], code: int): MultiCodec {.inline.} =
   ## Return MultiCodec from integer representation ``code``.
@@ -307,9 +308,9 @@ proc codec*(mt: typedesc[MultiCodec], code: int): MultiCodec {.inline.} =
   ## be returned.
   let res = CodeCodecs.getOrDefault(code, "")
   if res == "":
-    result = InvalidMultiCodec
+    InvalidMultiCodec
   else:
-    result = MultiCodec(code)
+    MultiCodec(code)
 
 proc write*(vb: var VBuffer, mc: MultiCodec) {.inline.} =
   ## Write MultiCodec to buffer ``vb``.

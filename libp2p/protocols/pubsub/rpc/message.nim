@@ -33,7 +33,7 @@ proc sign*(msg: Message, p: PeerInfo): Message {.gcsafe.} =
   if buff.buffer.len > 0:
     result = msg
     result.signature = p.privateKey.
-                       sign(cast[seq[byte]](PubSubPrefix) & buff.buffer).
+                       sign(cast[seq[byte]](PubSubPrefix) & buff.buffer).tryGet().
                        getBytes()
 
 proc verify*(m: Message, p: PeerInfo): bool =
@@ -57,7 +57,7 @@ proc newMessage*(p: PeerInfo,
                  sign: bool = true): Message {.gcsafe.} =
   var seqno: seq[byte] = newSeq[byte](20)
   if p.publicKey.isSome and randomBytes(addr seqno[0], 20) > 0:
-    var key: seq[byte] = p.publicKey.get().getBytes()
+    var key: seq[byte] = p.publicKey.get().getBytes().tryGet()
 
     result = Message(fromPeer: p.peerId.getBytes(),
                      data: data,

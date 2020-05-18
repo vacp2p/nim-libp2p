@@ -263,7 +263,7 @@ suite "Variable integer test suite":
       buffer.setLen(PBedgeSizes[i])
       check:
         PB.putUVarint(buffer, length, PBedgeValues[i]) == VarintStatus.Success
-      buffer.setLen(len(buffer) - 1)
+      buffer.setlen(buffer.high)
       check:
         PB.getUVarint(buffer, length, value) == VarintStatus.Incomplete
 
@@ -339,7 +339,7 @@ suite "Variable integer test suite":
       buffer.setLen(LPedgeSizes[i])
       check:
         LP.putUVarint(buffer, length, LPedgeValues[i]) == VarintStatus.Success
-      buffer.setLen(len(buffer) - 1)
+      buffer.setlen(buffer.high)
       check:
         LP.getUVarint(buffer, length, value) == VarintStatus.Incomplete
 

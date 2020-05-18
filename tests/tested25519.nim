@@ -111,15 +111,15 @@ suite "Ed25519 test suite":
     for i in 0..<TestsCount:
       var rkey1, rkey2: EdPrivateKey
       var skey2 = newSeq[byte](256)
-      var key = EdPrivateKey.random()
+      var key = EdPrivateKey.random().expect("private key")
       var skey1 = key.getBytes()
       check:
         key.toBytes(skey2) > 0
       check:
         rkey1.init(skey1) == true
         rkey2.init(skey2) == true
-      var rkey3 = EdPrivateKey.init(skey1)
-      var rkey4 = EdPrivateKey.init(skey2)
+      var rkey3 = EdPrivateKey.init(skey1).expect("key/sig")
+      var rkey4 = EdPrivateKey.init(skey2).expect("key/sig")
       check:
         rkey1 == key
         rkey2 == key
@@ -135,14 +135,14 @@ suite "Ed25519 test suite":
     for i in 0..<TestsCount:
       var rkey1, rkey2: EdPublicKey
       var skey2 = newSeq[byte](256)
-      var pair = EdKeyPair.random()
+      var pair = EdKeyPair.random().expect("random key pair")
       var skey1 = pair.pubkey.getBytes()
       check:
         pair.pubkey.toBytes(skey2) > 0
         rkey1.init(skey1) == true
         rkey2.init(skey2) == true
-      var rkey3 = EdPublicKey.init(skey1)
-      var rkey4 = EdPublicKey.init(skey2)
+      var rkey3 = EdPublicKey.init(skey1).expect("key/sig")
+      var rkey4 = EdPublicKey.init(skey2).expect("key/sig")
       check:
         rkey1 == pair.pubkey
         rkey2 == pair.pubkey
@@ -156,13 +156,13 @@ suite "Ed25519 test suite":
 
   test "RFC8032 test vectors":
     for i in 0..<5:
-      var key = EdPrivateKey.init(stripSpaces(SecretKeys[i]))
-      var exppub = EdPublicKey.init(stripSpaces(PublicKeys[i]))
+      var key = EdPrivateKey.init(stripSpaces(SecretKeys[i])).expect("key/sig")
+      var exppub = EdPublicKey.init(stripSpaces(PublicKeys[i])).expect("key/sig")
       var pubkey = key.getKey()
       check pubkey == exppub
       var msg = fromHex(stripSpaces(Messages[i]))
       var sig = key.sign(msg)
-      var expsig = EdSignature.init(fromHex(stripSpaces(Signatures[i])))
+      var expsig = EdSignature.init(fromHex(stripSpaces(Signatures[i]))).expect("key/sig")
       check sig == expsig
       check sig.verify(msg, pubkey) == true
       sig.data[32] = not(sig.data[32])
@@ -171,15 +171,15 @@ suite "Ed25519 test suite":
   test "Generate/Sign/Serialize/Deserialize/Verify test":
     var message = "message to sign"
     for i in 0..<TestsCount:
-      var kp = EdKeyPair.random()
+      var kp = EdKeyPair.random().expect("random key pair")
       var sig = kp.seckey.sign(message)
       var sersk = kp.seckey.getBytes()
       var serpk = kp.pubkey.getBytes()
       var sersig = sig.getBytes()
       discard EdPrivateKey.init(sersk)
-      var pubkey = EdPublicKey.init(serpk)
-      var csig = EdSignature.init(sersig)
+      var pubkey = EdPublicKey.init(serpk).expect("key/sig")
+      var csig = EdSignature.init(sersig).expect("key/sig")
       check csig.verify(message, pubkey) == true
-      let error = len(csig.data) - 1
+      let error = csig.data.high
       csig.data[error] = not(csig.data[error])
       check csig.verify(message, pubkey) == false
