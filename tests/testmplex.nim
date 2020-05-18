@@ -122,7 +122,7 @@ suite "Mplex":
       await chann.close()
       try:
         await chann.write("Hello")
-      except LPStreamEOFError:
+      except LPStreamClosedError:
         result = true
       finally:
         await chann.reset()
@@ -204,7 +204,7 @@ suite "Mplex":
       await chann.reset()
       try:
         await chann.write(("Hello!").toBytes)
-      except LPStreamEOFError:
+      except LPStreamClosedError:
         result = true
       finally:
         await conn.close()
