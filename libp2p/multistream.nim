@@ -114,39 +114,45 @@ proc list*(m: MultistreamSelect,
 proc handle*(m: MultistreamSelect, conn: Connection) {.async, gcsafe.} =
   trace "handle: starting multistream handling"
   tryAndWarn "multistream handle":
-    while not conn.closed:
-      var ms = string.fromBytes(await conn.readLp(1024))
-      ms.removeSuffix("\n")
+    try:
+      while not conn.closed:
+        var ms = string.fromBytes(await conn.readLp(1024))
+        ms.removeSuffix("\n")
 
-      trace "handle: got request for ", ms
-      if ms.len() <= 0:
-        trace "handle: invalid proto"
-        await conn.write(Na)
-
-      if m.handlers.len() == 0:
-        trace "handle: sending `na` for protocol ", protocol = ms
-        await conn.write(Na)
-        continue
-
-      case ms:
-        of "ls":
-          trace "handle: listing protos"
-          var protos = ""
-          for h in m.handlers:
-            protos &= (h.proto & "\n")
-          await conn.writeLp(protos)
-        of Codec:
-          await conn.write(m.codec)
-        else:
-          for h in m.handlers:
-            if (not isNil(h.match) and h.match(ms)) or ms == h.proto:
-              trace "found handler for", protocol = ms
-              await conn.writeLp((h.proto & "\n"))
-              tryAndWarn "multistream handle handler":
-                await h.protocol.handler(conn, ms)
-                return
-          warn "no handlers for ", protocol = ms
+        trace "handle: got request for ", ms
+        if ms.len() <= 0:
+          trace "handle: invalid proto"
           await conn.write(Na)
+
+        if m.handlers.len() == 0:
+          trace "handle: sending `na` for protocol ", protocol = ms
+          await conn.write(Na)
+          continue
+
+        case ms:
+          of "ls":
+            trace "handle: listing protos"
+            var protos = ""
+            for h in m.handlers:
+              protos &= (h.proto & "\n")
+            await conn.writeLp(protos)
+          of Codec:
+            await conn.write(m.codec)
+          else:
+            for h in m.handlers:
+              if (not isNil(h.match) and h.match(ms)) or ms == h.proto:
+                trace "found handler for", protocol = ms
+                await conn.writeLp((h.proto & "\n"))
+                tryAndWarn "multistream handle handler":
+                  try:
+                    await h.protocol.handler(conn, ms)
+                  except LPStreamEOFError:
+                    await conn.close()
+                  return
+            warn "no handlers for ", protocol = ms
+            await conn.write(Na)
+    except LPStreamEOFError:
+      await conn.close()
   trace "leaving multistream loop"
   # we might be tempted to close conn here but that would be a bad idea!
   # we indeed will reuse it later on
