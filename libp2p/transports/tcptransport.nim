@@ -25,6 +25,7 @@ const
 type
   TcpTransport* = ref object of Transport
     server*: StreamServer
+    clients: seq[StreamTransport]
     cleanups*: seq[Future[void]]
     handlers*: seq[Future[void]]
 
@@ -56,11 +57,6 @@ proc setupTcpTransportTracker(): TcpTransportTracker =
   result.isLeaked = leakTransport
   addTracker(TcpTransportTrackerName, result)
 
-proc cleanup(t: Transport, conn: Connection) {.async.} =
-  await conn.closeEvent.wait()
-  trace "connection cleanup event wait ended"
-  t.connections.keepItIf(it != conn)
-
 proc connHandler*(t: TcpTransport,
                   client: StreamTransport,
                   initiator: bool): Connection =
@@ -71,10 +67,7 @@ proc connHandler*(t: TcpTransport,
     if not isNil(t.handler):
       t.handlers &= t.handler(conn)
 
-  # TODO: store the streamtransport client here
-  t.connections.add(conn)
-  t.cleanups &= t.cleanup(conn)
-
+  t.clients.add(client)
   result = conn
 
 proc connCb(server: StreamServer,
@@ -108,6 +101,9 @@ method close*(t: TcpTransport) {.async, gcsafe.} =
   trace "stopping transport"
   await procCall Transport(t).close() # call base
 
+  checkFutures(await allFinished(
+    t.clients.mapIt(it.closeWait())))
+
   # server can be nil
   if not isNil(t.server):
     t.server.stop()
@@ -118,15 +114,13 @@ method close*(t: TcpTransport) {.async, gcsafe.} =
   for fut in t.handlers:
     if not fut.finished:
       fut.cancel()
-  t.handlers = await allFinished(t.handlers)
-  checkFutures(t.handlers)
+  checkFutures(await allFinished(t.handlers))
   t.handlers = @[]
 
   for fut in t.cleanups:
     if not fut.finished:
       fut.cancel()
-  t.cleanups = await allFinished(t.cleanups)
-  checkFutures(t.cleanups)
+  checkFutures(await allFinished(t.cleanups))
   t.cleanups = @[]
 
   trace "transport stopped"

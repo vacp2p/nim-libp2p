@@ -24,7 +24,6 @@ type
 
   Transport* = ref object of RootObj
     ma*: Multiaddress
-    connections*: seq[Connection]
     handler*: ConnHandler
     multicodec*: MultiCodec
     flags*: TransportFlags
@@ -49,8 +48,7 @@ proc newTransport*(t: typedesc[Transport], flags: TransportFlags = {}): t {.gcsa
 method close*(t: Transport) {.base, async, gcsafe.} =
   ## stop and cleanup the transport
   ## including all outstanding connections
-  let futs = await allFinished(t.connections.mapIt(it.close()))
-  checkFutures(futs)
+  discard
 
 method listen*(t: Transport,
                ma: MultiAddress,
