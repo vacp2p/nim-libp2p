@@ -230,7 +230,7 @@ suite "Mplex":
         await mplexListen.close()
 
       let transport1: TcpTransport = TcpTransport.init()
-      let lfut = await transport1.listen(ma, connHandler)
+      let listenFut = await transport1.listen(ma, connHandler)
 
       let transport2: TcpTransport = TcpTransport.init()
       let conn = await transport2.dial(transport1.ma)
@@ -437,7 +437,7 @@ suite "Mplex":
         await mplexListen.close()
 
       let transport1: TcpTransport = TcpTransport.init()
-      let transportFut = await transport1.listen(ma, connHandler)
+      let listenFut = await transport1.listen(ma, connHandler)
 
       let transport2: TcpTransport = TcpTransport.init()
       let conn = await transport2.dial(transport1.ma)

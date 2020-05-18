@@ -93,7 +93,7 @@ suite "Noise":
 
       let
         transport2: TcpTransport = TcpTransport.init()
-        clientInfo = PeerInfo.init(PrivateKey.random(RSA), [transport1.ma])
+        clientInfo = PeerInfo.init(PrivateKey.random(RSA).get(), [transport1.ma])
         clientNoise = newNoise(clientInfo.privateKey, outgoing = true)
         conn = await transport2.dial(transport1.ma)
         sconn = await clientNoise.secure(conn, true)
@@ -135,7 +135,7 @@ suite "Noise":
 
       let
         transport2: TcpTransport = TcpTransport.init()
-        clientInfo = PeerInfo.init(PrivateKey.random(RSA), [transport1.ma])
+        clientInfo = PeerInfo.init(PrivateKey.random(RSA).get(), [transport1.ma])
         clientNoise = newNoise(clientInfo.privateKey, outgoing = true)
         conn = await transport2.dial(transport1.ma)
         sconn = await clientNoise.secure(conn, true)
@@ -178,7 +178,7 @@ suite "Noise":
 
       let
         transport2: TcpTransport = TcpTransport.init()
-        clientInfo = PeerInfo.init(PrivateKey.random(RSA), [transport1.ma])
+        clientInfo = PeerInfo.init(PrivateKey.random(RSA).get(), [transport1.ma])
         clientNoise = newNoise(clientInfo.privateKey, outgoing = true)
         conn = await transport2.dial(transport1.ma)
         sconn = await clientNoise.secure(conn, true)
