@@ -387,8 +387,6 @@ suite "Mplex":
           check string.fromBytes(msg) == &"stream {count}!"
           count.inc
           await stream.close()
-          count.inc
-          await stream.close()
           if count == 10:
             done.complete()
 
@@ -403,7 +401,7 @@ suite "Mplex":
 
       let mplexDial = newMplex(conn)
       # TODO: Reenable once half-closed is working properly
-      # let mplexDialFut = mplexDial.handle()
+      let mplexDialFut = mplexDial.handle()
       for i in 1..10:
         let stream  = await mplexDial.newStream()
         await stream.writeLp(&"stream {i}!")
@@ -411,7 +409,7 @@ suite "Mplex":
 
       await done.wait(10.seconds)
       await conn.close()
-      # await mplexDialFut
+      await mplexDialFut
       await allFuturesThrowing(transport1.close(), transport2.close())
       await listenFut
 
