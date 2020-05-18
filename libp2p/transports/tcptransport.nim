@@ -26,6 +26,7 @@ type
   TcpTransport* = ref object of Transport
     server*: StreamServer
     clients: seq[StreamTransport]
+    flags: set[ServerFlags]
     cleanups*: seq[Future[void]]
     handlers*: seq[Future[void]]
 
@@ -91,7 +92,11 @@ proc connCb(server: StreamServer,
         # shouldn't happen but..
         warn "Error closing connection", err = err.msg
 
-method init*(t: TcpTransport) =
+proc init*(T: type TcpTransport, flags: set[ServerFlags] = {}): T =
+  result = T(flags: flags)
+  result.initTransport()
+
+method initTransport*(t: TcpTransport) =
   t.multicodec = multiCodec("tcp")
 
   inc getTcpTransportTracker().opened
@@ -134,7 +139,7 @@ method listen*(t: TcpTransport,
   discard await procCall Transport(t).listen(ma, handler) # call base
 
   ## listen on the transport
-  t.server = createStreamServer(t.ma, connCb, transportFlagsToServerFlags(t.flags), t)
+  t.server = createStreamServer(t.ma, connCb, t.flags, t)
   t.server.start()
 
   # always get the resolved address in case we're bound to 0.0.0.0:0

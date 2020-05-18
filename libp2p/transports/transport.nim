@@ -17,33 +17,14 @@ import ../connection,
 type
   ConnHandler* = proc (conn: Connection): Future[void] {.gcsafe.}
 
-  TransportFlag* {.pure.} = enum
-    ReuseAddr
-
-  TransportFlags* = set[TransportFlag]
-
   Transport* = ref object of RootObj
     ma*: Multiaddress
     handler*: ConnHandler
     multicodec*: MultiCodec
-    flags*: TransportFlags
 
-proc transportFlagsToServerFlags*(flags: TransportFlags): set[ServerFlags] {.gcsafe.} =
-  let transportFlagToServerFlagMapping = {
-      TransportFlag.ReuseAddr: ServerFlags.ReuseAddr,
-    }.toTable()
-
-  for flag in flags:
-    result.incl(transportFlagToServerFlagMapping[flag])
-
-method init*(t: Transport) {.base, gcsafe.} =
+method initTransport*(t: Transport) {.base, gcsafe, locks: "unknown".} =
   ## perform protocol initialization
   discard
-
-proc newTransport*(t: typedesc[Transport], flags: TransportFlags = {}): t {.gcsafe.} =
-  new result
-  result.flags = flags
-  result.init()
 
 method close*(t: Transport) {.base, async, gcsafe.} =
   ## stop and cleanup the transport

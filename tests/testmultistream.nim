@@ -260,11 +260,11 @@ suite "Multistream select":
         await conn.close()
         handlerWait2.complete()
 
-      let transport1: TcpTransport = newTransport(TcpTransport)
+      let transport1: TcpTransport = TcpTransport.init()
       asyncCheck transport1.listen(ma, connHandler)
 
       let msDial = newMultistream()
-      let transport2: TcpTransport = newTransport(TcpTransport)
+      let transport2: TcpTransport = TcpTransport.init()
       let conn = await transport2.dial(transport1.ma)
 
       check (await msDial.select(conn, "/test/proto/1.0.0")) == true
@@ -304,7 +304,7 @@ suite "Multistream select":
       msListen.addHandler("/test/proto1/1.0.0", protocol)
       msListen.addHandler("/test/proto2/1.0.0", protocol)
 
-      let transport1: TcpTransport = newTransport(TcpTransport)
+      let transport1: TcpTransport = TcpTransport.init()
       proc connHandler(conn: Connection): Future[void] {.async, gcsafe.} =
         await msListen.handle(conn)
         handlerWait.complete()
@@ -312,7 +312,7 @@ suite "Multistream select":
       asyncCheck transport1.listen(ma, connHandler)
 
       let msDial = newMultistream()
-      let transport2: TcpTransport = newTransport(TcpTransport)
+      let transport2: TcpTransport = TcpTransport.init()
       let conn = await transport2.dial(transport1.ma)
 
       let ls = await msDial.list(conn)
@@ -348,11 +348,11 @@ suite "Multistream select":
       proc connHandler(conn: Connection): Future[void] {.async, gcsafe.} =
         await msListen.handle(conn)
 
-      let transport1: TcpTransport = newTransport(TcpTransport)
+      let transport1: TcpTransport = TcpTransport.init()
       asyncCheck transport1.listen(ma, connHandler)
 
       let msDial = newMultistream()
-      let transport2: TcpTransport = newTransport(TcpTransport)
+      let transport2: TcpTransport = TcpTransport.init()
       let conn = await transport2.dial(transport1.ma)
 
       check (await msDial.select(conn,
@@ -388,11 +388,11 @@ suite "Multistream select":
       proc connHandler(conn: Connection): Future[void] {.async, gcsafe.} =
         await msListen.handle(conn)
 
-      let transport1: TcpTransport = newTransport(TcpTransport)
+      let transport1: TcpTransport = TcpTransport.init()
       asyncCheck transport1.listen(ma, connHandler)
 
       let msDial = newMultistream()
-      let transport2: TcpTransport = newTransport(TcpTransport)
+      let transport2: TcpTransport = TcpTransport.init()
       let conn = await transport2.dial(transport1.ma)
 
       check (await msDial.select(conn, @["/test/proto2/1.0.0", "/test/proto1/1.0.0"])) == "/test/proto2/1.0.0"

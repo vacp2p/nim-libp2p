@@ -229,10 +229,10 @@ suite "Mplex":
         await mplexListen.handle()
         await mplexListen.close()
 
-      let transport1: TcpTransport = newTransport(TcpTransport)
+      let transport1: TcpTransport = TcpTransport.init()
       let listenFut = await transport1.listen(ma, connHandler)
 
-      let transport2: TcpTransport = newTransport(TcpTransport)
+      let transport2: TcpTransport = TcpTransport.init()
       let conn = await transport2.dial(transport1.ma)
 
       let mplexDial = newMplex(conn)
@@ -267,10 +267,10 @@ suite "Mplex":
         await mplexListen.handle()
         await mplexListen.close()
 
-      let transport1: TcpTransport = newTransport(TcpTransport)
+      let transport1: TcpTransport = TcpTransport.init()
       let listenFut = await transport1.listen(ma, connHandler)
 
-      let transport2: TcpTransport = newTransport(TcpTransport)
+      let transport2: TcpTransport = TcpTransport.init()
       let conn = await transport2.dial(transport1.ma)
 
       let mplexDial = newMplex(conn)
@@ -312,10 +312,10 @@ suite "Mplex":
         await mplexListen.handle()
         await mplexListen.close()
 
-      let transport1: TcpTransport = newTransport(TcpTransport)
+      let transport1: TcpTransport = TcpTransport.init()
       let listenFut = await transport1.listen(ma, connHandler)
 
-      let transport2: TcpTransport = newTransport(TcpTransport)
+      let transport2: TcpTransport = TcpTransport.init()
       let conn = await transport2.dial(transport1.ma)
 
       let mplexDial = newMplex(conn)
@@ -352,10 +352,10 @@ suite "Mplex":
         await mplexListen.handle()
         await mplexListen.close()
 
-      let transport1: TcpTransport = newTransport(TcpTransport)
+      let transport1: TcpTransport = TcpTransport.init()
       let listenFut = await transport1.listen(ma, connHandler)
 
-      let transport2: TcpTransport = newTransport(TcpTransport)
+      let transport2: TcpTransport = TcpTransport.init()
       let conn = await transport2.dial(transport1.ma)
 
       let mplexDial = newMplex(conn)
@@ -393,10 +393,10 @@ suite "Mplex":
         await mplexListen.handle()
         await mplexListen.close()
 
-      let transport1 = newTransport(TcpTransport)
+      let transport1 = TcpTransport.init()
       let listenFut = await transport1.listen(ma, connHandler)
 
-      let transport2: TcpTransport = newTransport(TcpTransport)
+      let transport2: TcpTransport = TcpTransport.init()
       let conn = await transport2.dial(transport1.ma)
 
       let mplexDial = newMplex(conn)
@@ -436,10 +436,10 @@ suite "Mplex":
         await mplexListen.handle()
         await mplexListen.close()
 
-      let transport1: TcpTransport = newTransport(TcpTransport)
+      let transport1: TcpTransport = TcpTransport.init()
       let listenFut = await transport1.listen(ma, connHandler)
 
-      let transport2: TcpTransport = newTransport(TcpTransport)
+      let transport2: TcpTransport = TcpTransport.init()
       let conn = await transport2.dial(transport1.ma)
 
       let mplexDial = newMplex(conn)
@@ -477,10 +477,10 @@ suite "Mplex":
         await mplexListen.handle()
         await mplexListen.close()
 
-      let transport1: TcpTransport = newTransport(TcpTransport)
+      let transport1: TcpTransport = TcpTransport.init()
       let listenFut = await transport1.listen(ma, connHandler)
 
-      let transport2: TcpTransport = newTransport(TcpTransport)
+      let transport2: TcpTransport = TcpTransport.init()
       let conn = await transport2.dial(transport1.ma)
 
       let mplexDial = newMplex(conn)
@@ -545,10 +545,10 @@ suite "Mplex":
         await mplexListen.handle()
         await mplexListen.close()
 
-      let transport1: TcpTransport = newTransport(TcpTransport)
+      let transport1: TcpTransport = TcpTransport.init()
       let listenFut = await transport1.listen(ma, connHandler)
 
-      let transport2: TcpTransport = newTransport(TcpTransport)
+      let transport2: TcpTransport = TcpTransport.init()
       let conn = await transport2.dial(transport1.ma)
 
       let mplexDial = newMplex(conn)

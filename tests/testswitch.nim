@@ -39,7 +39,7 @@ proc createSwitch(ma: MultiAddress): (Switch, PeerInfo) =
     result = newMplex(conn)
 
   let mplexProvider = newMuxerProvider(createMplex, MplexCodec)
-  let transports = @[Transport(newTransport(TcpTransport))]
+  let transports = @[Transport(TcpTransport.init())]
   let muxers = [(MplexCodec, mplexProvider)].toTable()
   let secureManagers = [(SecioCodec, Secure(newSecio(peerInfo.privateKey)))].toTable()
   let switch = newSwitch(peerInfo,
@@ -174,11 +174,11 @@ suite "Switch":
   #       readTask.complete()
 
   #     let
-  #       transport1: TcpTransport = newTransport(TcpTransport)
+  #       transport1: TcpTransport = TcpTransport.init()
   #     asyncCheck await transport1.listen(server, connHandler)
 
   #     let
-  #       transport2: TcpTransport = newTransport(TcpTransport)
+  #       transport2: TcpTransport = TcpTransport.init()
   #       clientInfo = PeerInfo.init(PrivateKey.random(RSA), [transport1.ma])
   #       clientNoise = newSecio(clientInfo.privateKey)
   #       conn = await transport2.dial(transport1.ma)
