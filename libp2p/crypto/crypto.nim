@@ -50,7 +50,7 @@ type
     of Ed25519:
       edkey*: EdPublicKey
     of Secp256k1:
-      skkey*: SkPublicKey
+      skkey*: SecpPublicKey
     of ECDSA:
       eckey*: EcPublicKey
     of NoSupport:
@@ -63,7 +63,7 @@ type
     of Ed25519:
       edkey*: EdPrivateKey
     of Secp256k1:
-      skkey*: SkPrivateKey
+      skkey*: SecpPrivateKey
     of ECDSA:
       eckey*: EcPrivateKey
     of NoSupport:
@@ -115,7 +115,7 @@ proc random*(t: typedesc[PrivateKey], scheme: PKScheme,
     let eckey = ? EcPrivateKey.random(Secp256r1).orError(KeyError)
     ok(PrivateKey(scheme: scheme, eckey: eckey))
   of Secp256k1:
-    let skkey = ? SkPrivateKey.random().orError(KeyError)
+    let skkey = ? SecpPrivateKey.random().orError(KeyError)
     ok(PrivateKey(scheme: scheme, skkey: skkey))
   else:
     err(SchemeError)
@@ -143,7 +143,7 @@ proc random*(t: typedesc[KeyPair], scheme: PKScheme,
       seckey: PrivateKey(scheme: scheme, eckey: pair.seckey),
       pubkey: PublicKey(scheme: scheme, eckey: pair.pubkey)))
   of Secp256k1:
-    let pair = ? SkKeyPair.random().orError(KeyError)
+    let pair = ? SecpKeyPair.random().orError(KeyError)
     ok(KeyPair(
       seckey: PrivateKey(scheme: scheme, skkey: pair.seckey),
       pubkey: PublicKey(scheme: scheme, skkey: pair.pubkey)))
@@ -538,7 +538,7 @@ proc verify*(sig: Signature, message: openarray[byte], key: PublicKey): bool =
     if signature.init(sig.data).isOk:
       result = signature.verify(message, key.eckey)
   elif key.scheme == Secp256k1:
-    var signature: SkSignature
+    var signature: SecpSignature
     if signature.init(sig.data).isOk:
       result = signature.verify(message, key.skkey)
 
