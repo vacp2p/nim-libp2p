@@ -15,7 +15,11 @@
 
 # RFC @ https://tools.ietf.org/html/rfc7748
 
+{.push raises: [Defect].}
+
 import bearssl
+import stew/results
+export results
 
 const
   Curve25519KeySize* = 32
@@ -24,7 +28,8 @@ type
   Curve25519* = object
   Curve25519Key* = array[Curve25519KeySize, byte]
   pcuchar = ptr cuchar
-  Curver25519RngError* = object of CatchableError
+  Curve25519Error* = enum  
+    Curver25519RngError
 
 proc intoCurve25519Key*(s: openarray[byte]): Curve25519Key =
   assert s.len == Curve25519KeySize
@@ -100,12 +105,16 @@ proc mulgen*(_: type[Curve25519], dst: var Curve25519Key, point: Curve25519Key) 
 proc public*(private: Curve25519Key): Curve25519Key =
   Curve25519.mulgen(result, private)
 
-proc random*(_: type[Curve25519Key]): Curve25519Key =
+proc random*(_: type[Curve25519Key]): Result[Curve25519Key, Curve25519Error] =
   var rng: BrHmacDrbgContext
+  var res: Curve25519Key
   let seeder = brPrngSeederSystem(nil)
   brHmacDrbgInit(addr rng, addr sha256Vtable, nil, 0)
   if seeder(addr rng.vtable) == 0:
-    raise newException(ValueError, "Could not seed RNG")
-  let defaultBrEc = brEcGetDefault()
-  if brEcKeygen(addr rng.vtable, defaultBrEc, nil, addr result[0], EC_curve25519) != Curve25519KeySize:
-    raise newException(Curver25519RngError, "Could not generate random data")
+    err(Curver25519RngError)
+  else:
+    let defaultBrEc = brEcGetDefault()
+    if brEcKeygen(addr rng.vtable, defaultBrEc, nil, addr res[0], EC_curve25519) != Curve25519KeySize:
+      err(Curver25519RngError)
+    else:
+      ok(res)

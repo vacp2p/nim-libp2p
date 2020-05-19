@@ -15,6 +15,8 @@
 
 # RFC @ https://tools.ietf.org/html/rfc7539
 
+{.push raises: [Defect].}
+
 import bearssl
 
 # have to do this due to a nim bug and raises[] on callbacks
