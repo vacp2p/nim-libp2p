@@ -20,7 +20,8 @@ import pubsub,
        ../../peerinfo,
        ../../connection,
        ../../peer,
-       ../../errors
+       ../../errors,
+       ../../utility
 
 logScope:
   topic = "GossipSub"

@@ -113,7 +113,7 @@ proc send*(p: PubSubPeer, msgs: seq[RPCMsg]) {.async.} =
       p.onConnect.wait().addCallback do (udata: pointer):
           asyncCheck sendToRemote()
       trace "enqueued message to send at a later time", peer = p.id,
-                                                        encoded = encodedHex
+                                                        encoded = digest
 
   except CatchableError as exc:
     trace "Exception occurred in PubSubPeer.send", exc = exc.msg
