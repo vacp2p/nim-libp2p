@@ -12,9 +12,7 @@
 import secp256k1, stew/byteutils, nimcrypto/hash, nimcrypto/sha2
 export sha2
 import stew/results
-
 export results
-export secp256k1
 
 const
   SkRawPrivateKeySize* = 256 div 8
@@ -24,40 +22,56 @@ const
   SkRawPublicKeySize* = SkRawPrivateKeySize + 1
     ## Size of public key in octets (bytes)
 
+# This is extremely confusing but it's to avoid.. confusion between Eth standard and Secp standard
 type
-  SkPrivateKey* = SkSecretKey
+  SkPrivateKey* = distinct secp256k1.SkSecretKey
+  SkPublicKey* = distinct secp256k1.SkPublicKey
+  SkSignature* = distinct secp256k1.SkSignature
+  SkKeyPair* = distinct secp256k1.SkKeyPair
 
-template pubkey*(v: SkKeyPair): SkPublicKey = SkPublicKey(SkKeyPair(v).pubkey)
-template seckey*(v: SkKeyPair): SkPrivateKey = SkPrivateKey(SkKeyPair(v).seckey)
+template pubkey*(v: SkKeyPair): SkPublicKey = SkPublicKey(secp256k1.SkKeyPair(v).pubkey)
+template seckey*(v: SkKeyPair): SkPrivateKey = SkPrivateKey(secp256k1.SkKeyPair(v).seckey)
+
+proc random*(t: typedesc[SkPrivateKey]): SkResult[SkPrivateKey] =
+  ok(SkPrivateKey(? SkSecretKey.random()))
+
+proc random*(t: typedesc[SkKeyPair]): SkResult[SkKeyPair] =
+  ok(SkKeyPair(? secp256k1.SkKeyPair.random()))
+
+template seckey*(v: SkKeyPair): SkPrivateKey =
+  SkPrivateKey(secp256k1.SkKeyPair(v).seckey)
+
+template pubkey*(v: SkKeyPair): SkPublicKey =
+  SkPublicKey(secp256k1.SkKeyPair(v).pubkey)
 
 proc init*(key: var SkPrivateKey, data: openarray[byte]): SkResult[void] =
   ## Initialize Secp256k1 `private key` ``key`` from raw binary
   ## representation ``data``.
-  key = ? SkSecretKey.fromRaw(data)
+  key = SkPrivateKey(? secp256k1.SkSecretKey.fromRaw(data))
   ok()
 
 proc init*(key: var SkPrivateKey, data: string): SkResult[void] =
   ## Initialize Secp256k1 `private key` ``key`` from hexadecimal string
   ## representation ``data``.
-  key = ? SkSecretKey.fromHex(data)
+  key = SkPrivateKey(? secp256k1.SkSecretKey.fromHex(data))
   ok()
 
 proc init*(key: var SkPublicKey, data: openarray[byte]): SkResult[void] =
   ## Initialize Secp256k1 `public key` ``key`` from raw binary
   ## representation ``data``.
-  key = ? SkPublicKey.fromRaw(data)
+  key = SkPublicKey(? secp256k1.SkPublicKey.fromRaw(data))
   ok()
 
 proc init*(key: var SkPublicKey, data: string): SkResult[void] =
   ## Initialize Secp256k1 `public key` ``key`` from hexadecimal string
   ## representation ``data``.
-  key = ? SkPublicKey.fromHex(data)
+  key = SkPublicKey(? secp256k1.SkPublicKey.fromHex(data))
   ok()
 
 proc init*(sig: var SkSignature, data: openarray[byte]): SkResult[void] =
   ## Initialize Secp256k1 `signature` ``sig`` from raw binary
   ## representation ``data``.
-  sig = ? SkSignature.fromDer(data)
+  sig = SkSignature(? secp256k1.SkSignature.fromDer(data))
   ok()
 
 proc init*(sig: var SkSignature, data: string): SkResult[void] =
@@ -76,14 +90,14 @@ proc init*(t: typedesc[SkPrivateKey], data: openarray[byte]): SkResult[SkPrivate
   ## representation ``data``.
   ##
   ## Procedure returns `private key` on success.
-  SkSecretKey.fromRaw(data)
+  ok(SkPrivateKey(? SkSecretKey.fromRaw(data)))
 
 proc init*(t: typedesc[SkPrivateKey], data: string): SkResult[SkPrivateKey] =
   ## Initialize Secp256k1 `private key` from hexadecimal string
   ## representation ``data``.
   ##
   ## Procedure returns `private key` on success.
-  SkSecretKey.fromHex(data)
+  ok(SkPrivateKey(? SkSecretKey.fromHex(data)))
 
 proc init*(t: typedesc[SkPublicKey], data: openarray[byte]): SkResult[SkPublicKey] =
   ## Initialize Secp256k1 `public key` from raw binary
@@ -119,7 +133,7 @@ proc init*(t: typedesc[SkSignature], data: string): SkResult[SkSignature] =
 
 proc getKey*(key: SkPrivateKey): SkResult[SkPublicKey] =
   ## Calculate and return Secp256k1 `public key` from `private key` ``key``.
-  key.toPublicKey()
+  ok(SkPublicKey(? SkSecretKey(key).toPublicKey()))
 
 proc toBytes*(key: SkPrivateKey, data: var openarray[byte]): SkResult[int] =
   ## Serialize Secp256k1 `private key` ``key`` to raw binary form and store it
@@ -140,7 +154,7 @@ proc toBytes*(key: SkPublicKey, data: var openarray[byte]): SkResult[int] =
   ## Procedure returns number of bytes (octets) needed to store
   ## Secp256k1 public key.
   if len(data) >= SkRawPublicKeySize:
-    data[0..<SkRawPublicKeySize] = key.toRawCompressed()
+    data[0..<SkRawPublicKeySize] = secp256k1.SkPublicKey(key).toRawCompressed()
     ok(SkRawPublicKeySize)
   else:
     err("Not enough bytes")
@@ -151,7 +165,7 @@ proc toBytes*(sig: SkSignature, data: var openarray[byte]): int =
   ##
   ## Procedure returns number of bytes (octets) needed to store
   ## Secp256k1 signature.
-  sig.toDer(data)
+  secp256k1.SkSignature(sig).toDer(data)
 
 proc getBytes*(key: SkPrivateKey): seq[byte] {.inline.} =
   ## Serialize Secp256k1 `private key` and return it.
@@ -159,7 +173,7 @@ proc getBytes*(key: SkPrivateKey): seq[byte] {.inline.} =
 
 proc getBytes*(key: SkPublicKey): seq[byte] {.inline.} =
   ## Serialize Secp256k1 `public key` and return it.
-  result = @(key.toRawCompressed())
+  result = @(secp256k1.SkPublicKey(key).toRawCompressed())
 
 proc getBytes*(sig: SkSignature): seq[byte] {.inline.} =
   ## Serialize Secp256k1 `signature` and return it.
@@ -170,9 +184,26 @@ proc getBytes*(sig: SkSignature): seq[byte] {.inline.} =
 proc sign*[T: byte|char](key: SkPrivateKey, msg: openarray[T]): SkResult[SkSignature] =
   ## Sign message `msg` using private key `key` and return signature object.
   let h = sha256.digest(msg)
-  sign(key, h)
+  ok(SkSignature(? sign(SkSecretKey(key), h)))
 
 proc verify*[T: byte|char](sig: SkSignature, msg: openarray[T],
                            key: SkPublicKey): bool =
   let h = sha256.digest(msg)
-  verify(SkSignature(sig), h, SkPublicKey(key))
+  verify(secp256k1.SkSignature(sig), h, secp256k1.SkPublicKey(key))
+
+proc clear*(key: var SkPrivateKey) {.borrow.}
+proc clear*(key: var SkPublicKey) {.borrow.}
+proc clear*(key: var SkSignature) {.borrow.}
+proc clear*(key: var SkKeyPair) {.borrow.}
+
+proc verify*(key: SkPrivateKey): bool {.borrow.}
+
+proc `$`*(key: SkPrivateKey): string {.borrow.}
+proc `$`*(key: SkPublicKey): string {.borrow.}
+proc `$`*(key: SkSignature): string {.borrow.}
+proc `$`*(key: SkKeyPair): string {.borrow.}
+
+proc `==`*(a, b: SkPrivateKey): bool {.borrow.}
+proc `==`*(a, b: SkPublicKey): bool {.borrow.}
+proc `==`*(a, b: SkSignature): bool {.borrow.}
+proc `==`*(a, b: SkKeyPair): bool {.borrow.}
