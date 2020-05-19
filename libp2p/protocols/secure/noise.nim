@@ -88,7 +88,7 @@ type
 # Utility
 
 proc genKeyPair(): KeyPair =
-  result.privateKey = Curve25519Key.random()
+  result.privateKey = Curve25519Key.random().tryGet()
   result.publicKey = result.privateKey.public()
 
 proc hashProtocol(name: string): MDigest[256] =
