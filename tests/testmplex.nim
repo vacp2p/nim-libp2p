@@ -122,7 +122,7 @@ suite "Mplex":
       await chann.close()
       try:
         await chann.write("Hello")
-      except LPStreamEOFError:
+      except LPStreamClosedError:
         result = true
       finally:
         await chann.reset()
@@ -141,7 +141,7 @@ suite "Mplex":
         chann = newChannel(1, conn, true)
 
       await chann.pushTo(("Hello!").toBytes)
-      let closeFut = chann.closedByRemote()
+      let closeFut = chann.closeRemote()
 
       var data = newSeq[byte](6)
       await chann.readExactly(addr data[0], 6) # this should work, since there is data in the buffer
@@ -163,7 +163,7 @@ suite "Mplex":
       let
         conn = newConnection(newBufferStream(writeHandler))
         chann = newChannel(1, conn, true)
-      await chann.closedByRemote()
+      await chann.closeRemote()
       try:
         await chann.pushTo(@[byte(1)])
       except LPStreamEOFError:
@@ -204,7 +204,7 @@ suite "Mplex":
       await chann.reset()
       try:
         await chann.write(("Hello!").toBytes)
-      except LPStreamEOFError:
+      except LPStreamClosedError:
         result = true
       finally:
         await conn.close()
@@ -401,7 +401,7 @@ suite "Mplex":
 
       let mplexDial = newMplex(conn)
       # TODO: Reenable once half-closed is working properly
-      # let mplexDialFut = mplexDial.handle()
+      let mplexDialFut = mplexDial.handle()
       for i in 1..10:
         let stream  = await mplexDial.newStream()
         await stream.writeLp(&"stream {i}!")
@@ -409,7 +409,7 @@ suite "Mplex":
 
       await done.wait(10.seconds)
       await conn.close()
-      # await mplexDialFut
+      await mplexDialFut
       await allFuturesThrowing(transport1.close(), transport2.close())
       await listenFut
 
