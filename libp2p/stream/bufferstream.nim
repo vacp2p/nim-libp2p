@@ -170,9 +170,6 @@ method pushTo*(s: BufferStream, data: seq[byte]) {.base, async.} =
   if s.atEof:
     raise newLPStreamEOFError()
 
-  if s.atEof:
-    raise newLPStreamEOFError()
-
   try:
     await s.lock.acquire()
     var index = 0
