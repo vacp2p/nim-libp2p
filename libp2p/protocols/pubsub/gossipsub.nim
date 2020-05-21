@@ -101,6 +101,11 @@ method handleDisconnect(g: GossipSub, peer: PubSubPeer) {.async.} =
   for t in g.fanout.keys:
     g.fanout[t].excl(peer.id)
 
+method subscribeToPeer*(p: GossipSub,
+                        conn: Connection) {.async.} =
+  await procCall PubSub(p).subscribeToPeer(conn)
+  asyncCheck p.handleConn(conn, GossipSubCodec)
+
 method subscribeTopic*(g: GossipSub,
                        topic: string,
                        subscribe: bool,

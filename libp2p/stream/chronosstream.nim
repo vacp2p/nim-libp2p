@@ -71,7 +71,8 @@ method atEof*(s: ChronosStream): bool {.inline.} =
   s.client.atEof()
 
 method close*(s: ChronosStream) {.async.} =
-  if not s.closed:
+  if not s.isClosed:
+    s.isClosed = true
     trace "shutting chronos stream", address = $s.client.remoteAddress()
     if not s.client.closed():
       try:

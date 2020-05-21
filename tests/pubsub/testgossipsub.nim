@@ -24,10 +24,6 @@ import utils, ../../libp2p/[errors,
 
 import ../helpers
 
-proc createGossipSub(): GossipSub =
-  var peerInfo = PeerInfo.init(PrivateKey.random(RSA).get())
-  result = newPubSub(GossipSub, peerInfo)
-
 proc waitSub(sender, receiver: auto; key: string) {.async, gcsafe.} =
   if sender == receiver:
     return
@@ -35,7 +31,7 @@ proc waitSub(sender, receiver: auto; key: string) {.async, gcsafe.} =
   # this is for testing purposes only
   # peers can be inside `mesh` and `fanout`, not just `gossipsub`
   var ceil = 15
-  let fsub = cast[GossipSub](sender.pubSub.get())
+  let fsub = GossipSub(sender.pubSub.get())
   while (not fsub.gossipsub.hasKey(key) or
          not fsub.gossipsub[key].contains(receiver.peerInfo.id)) and
         (not fsub.mesh.hasKey(key) or
@@ -277,7 +273,7 @@ suite "GossipSub":
       check:
         "foobar" in gossipSub1.gossipsub
 
-      await passed.wait(5.seconds)
+      await passed.wait(1.seconds)
 
       trace "test done, stopping..."
 
