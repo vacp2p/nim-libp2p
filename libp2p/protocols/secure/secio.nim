@@ -212,39 +212,29 @@ method write*(sconn: SecioConn, message: seq[byte]) {.async.} =
   if message.len == 0:
     return
 
-  try:
-    var
-      left = message.len
-      offset = 0
-    while left > 0:
-      let
-        chunkSize = if left > SecioMaxMessageSize - 64: SecioMaxMessageSize - 64 else: left
-        macsize = sconn.writerMac.sizeDigest()
-        length = chunkSize + macsize
+  var
+    left = message.len
+    offset = 0
+  while left > 0:
+    let
+      chunkSize = if left > SecioMaxMessageSize - 64: SecioMaxMessageSize - 64 else: left
+      macsize = sconn.writerMac.sizeDigest()
+      length = chunkSize + macsize
 
-      var msg = newSeq[byte](chunkSize + 4 + macsize)
-      msg[0..<4] = uint32(length).toBytesBE()
+    var msg = newSeq[byte](chunkSize + 4 + macsize)
+    msg[0..<4] = uint32(length).toBytesBE()
 
-      sconn.writerCoder.encrypt(message.toOpenArray(offset, offset + chunkSize - 1),
-                                msg.toOpenArray(4, 4 + chunkSize - 1))
-      left = left - chunkSize
-      offset = offset + chunkSize
-      let mo = 4 + chunkSize
-      sconn.writerMac.update(msg.toOpenArray(4, 4 + chunkSize - 1))
-      sconn.writerMac.finish(msg.toOpenArray(mo, mo + macsize - 1))
-      sconn.writerMac.reset()
+    sconn.writerCoder.encrypt(message.toOpenArray(offset, offset + chunkSize - 1),
+                              msg.toOpenArray(4, 4 + chunkSize - 1))
+    left = left - chunkSize
+    offset = offset + chunkSize
+    let mo = 4 + chunkSize
+    sconn.writerMac.update(msg.toOpenArray(4, 4 + chunkSize - 1))
+    sconn.writerMac.finish(msg.toOpenArray(mo, mo + macsize - 1))
+    sconn.writerMac.reset()
 
-      trace "Writing message", message = msg.shortLog, left, offset
-      await sconn.stream.write(msg)
-  except LPStreamEOFError:
-    trace "Ignoring EOF while writing"
-  except CancelledError as exc:
-    raise exc
-  except CatchableError as exc:
-    # TODO these exceptions are ignored since it's likely that if writes are
-    #      are failing, the underlying connection is already closed - this needs
-    #      more cleanup though
-    debug "Could not write to connection", msg = exc.msg
+    trace "Writing message", message = msg.shortLog, left, offset
+    await sconn.stream.write(msg)
 
 proc newSecioConn(conn: Connection,
                   hash: string,
