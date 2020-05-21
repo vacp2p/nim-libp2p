@@ -86,6 +86,139 @@ method init(g: GossipSub) =
   g.handler = handler
   g.codec = GossipSubCodec
 
+proc replenishFanout(g: GossipSub, topic: string) {.async.} =
+  ## get fanout peers for a topic
+  trace "about to replenish fanout"
+  if topic notin g.fanout:
+    g.fanout[topic] = initHashSet[string]()
+
+  if g.fanout[topic].len < GossipSubDLo:
+    trace "replenishing fanout", peers = g.fanout[topic].len
+    if topic in g.gossipsub:
+      for p in g.gossipsub[topic]:
+        if not g.fanout[topic].containsOrIncl(p):
+          if g.fanout[topic].len == GossipSubD:
+            break
+
+  trace "fanout replenished with peers", peers = g.fanout[topic].len
+
+proc rebalanceMesh(g: GossipSub, topic: string) {.async.} =
+  try:
+    trace "about to rebalance mesh"
+    # create a mesh topic that we're subscribing to
+    if topic notin g.mesh:
+      g.mesh[topic] = initHashSet[string]()
+
+    if g.mesh[topic].len < GossipSubDlo:
+      trace "replenishing mesh"
+      # replenish the mesh if we're below GossipSubDlo
+      while g.mesh[topic].len < GossipSubD:
+        trace "gathering peers", peers = g.mesh[topic].len
+        var id: string
+        if topic in g.fanout and g.fanout[topic].len > 0:
+          id = sample(toSeq(g.fanout[topic]))
+          g.fanout[topic].excl(id)
+          trace "got fanout peer", peer = id
+        elif topic in g.gossipsub and g.gossipsub[topic].len > 0:
+          id = sample(toSeq(g.gossipsub[topic]))
+          g.gossipsub[topic].excl(id)
+          trace "got gossipsub peer", peer = id
+        else:
+          trace "no more peers"
+          break
+
+        g.mesh[topic].incl(id)
+        if id in g.peers:
+          let p = g.peers[id]
+          # send a graft message to the peer
+          await p.sendGraft(@[topic])
+
+    # prune peers if we've gone over
+    if g.mesh[topic].len > GossipSubDhi:
+      trace "pruning mesh"
+      while g.mesh[topic].len > GossipSubD:
+        trace "pruning peers", peers = g.mesh[topic].len
+        let id = toSeq(g.mesh[topic])[rand(0..<g.mesh[topic].len)]
+        g.mesh[topic].excl(id)
+
+        let p = g.peers[id]
+        # send a graft message to the peer
+        await p.sendPrune(@[topic])
+
+    trace "mesh balanced, got peers", peers = g.mesh[topic].len
+  except CatchableError as exc:
+    trace "exception occured rebalancing mes", exc = exc.msg
+
+proc dropFanoutPeers(g: GossipSub) {.async.} =
+  # drop peers that we haven't published to in
+  # GossipSubFanoutTTL seconds
+  var dropping = newSeq[string]()
+  for topic, val in g.lastFanoutPubSub:
+    if Moment.now > val:
+      dropping.add(topic)
+      g.fanout.del(topic)
+  for topic in dropping:
+      g.lastFanoutPubSub.del(topic)
+
+proc getGossipPeers(g: GossipSub): Table[string, ControlMessage] {.gcsafe.} =
+  ## gossip iHave messages to peers
+  let topics = toHashSet(toSeq(g.mesh.keys)) + toHashSet(toSeq(g.fanout.keys))
+  for topic in topics:
+    let mesh: HashSet[string] =
+      if topic in g.mesh:
+        g.mesh[topic]
+      else:
+        initHashSet[string]()
+
+    let fanout: HashSet[string] =
+      if topic in g.fanout:
+        g.fanout[topic]
+      else:
+        initHashSet[string]()
+
+    let gossipPeers = mesh + fanout
+    let mids = g.mcache.window(topic)
+    if mids.len > 0:
+      let ihave = ControlIHave(topicID: topic,
+                               messageIDs: toSeq(mids))
+
+      if topic notin g.gossipsub:
+        trace "topic not in gossip array, skipping", topicID = topic
+        continue
+
+      while result.len < GossipSubD:
+        if not (g.gossipsub[topic].len > 0):
+          trace "no peers for topic, skipping", topicID = topic
+          break
+
+        let id = toSeq(g.gossipsub[topic]).sample()
+        g.gossipsub[topic].excl(id)
+        if id notin gossipPeers:
+          if id notin result:
+            result[id] = ControlMessage()
+          result[id].ihave.add(ihave)
+
+proc heartbeat(g: GossipSub) {.async.} =
+  try:
+    await g.heartbeatLock.acquire()
+    trace "running heartbeat"
+
+    await sleepAsync(GossipSubHeartbeatInitialDelay)
+
+    for t in g.mesh.keys:
+      await g.rebalanceMesh(t)
+
+    await g.dropFanoutPeers()
+    let peers = g.getGossipPeers()
+    for peer in peers.keys:
+      await g.peers[peer].send(@[RPCMsg(control: some(peers[peer]))])
+
+    g.mcache.shift() # shift the cache
+  except CatchableError as exc:
+    trace "exception ocurred in gossipsub heartbeat", exc = exc.msg
+  finally:
+    g.heartbeatLock.release()
+
 method handleDisconnect(g: GossipSub, peer: PubSubPeer) {.async.} =
   ## handle peer disconnects
   trace "peer disconnected", peer=peer.id
@@ -148,19 +281,22 @@ proc handlePrune(g: GossipSub, peer: PubSubPeer, prunes: seq[ControlPrune]) =
     if prune.topicID in g.mesh:
       g.mesh[prune.topicID].excl(peer.id)
 
-proc handleIHave(g: GossipSub, peer: PubSubPeer, ihaves: seq[
-    ControlIHave]): ControlIWant =
+proc handleIHave(g: GossipSub,
+                 peer: PubSubPeer,
+                 ihaves: seq[ControlIHave]): ControlIWant =
   for ihave in ihaves:
     trace "processing ihave message", peer = peer.id,
-                                      topicID = ihave.topicID
+                                      topicID = ihave.topicID,
+                                      msgs = ihave.messageIDs
 
     if ihave.topicID in g.mesh:
       for m in ihave.messageIDs:
         if m notin g.seen:
           result.messageIDs.add(m)
 
-proc handleIWant(g: GossipSub, peer: PubSubPeer, iwants: seq[
-    ControlIWant]): seq[Message] =
+proc handleIWant(g: GossipSub,
+                 peer: PubSubPeer,
+                 iwants: seq[ControlIWant]): seq[Message] =
   for iwant in iwants:
     for mid in iwant.messageIDs:
       trace "processing iwant message", peer = peer.id,
@@ -176,7 +312,7 @@ method rpcHandler(g: GossipSub,
 
   for m in rpcMsgs:                                  # for all RPC messages
     if m.messages.len > 0:                           # if there are any messages
-      var toSendPeers: HashSet[string] = initHashSet[string]()
+      var toSendPeers: HashSet[string]
       for msg in m.messages:                         # for every message
         trace "processing message with id", msg = msg.msgId
         if msg.msgId in g.seen:
@@ -199,7 +335,7 @@ method rpcHandler(g: GossipSub,
           continue
 
         for t in msg.topicIDs:                     # for every topic in the message
-
+          await g.rebalanceMesh(t)                 # gather peers for each topic
           if t in g.floodsub:
             toSendPeers.incl(g.floodsub[t])        # get all floodsub peers for topic
 
@@ -218,20 +354,23 @@ method rpcHandler(g: GossipSub,
       for p in toSendPeers:
         if p in g.peers:
           let id = g.peers[p].peerInfo.peerId
-          trace "about to forward message to peer", peerId = id
+          trace "about to forward message to peer", peerId = id, msgs = m.messages
 
-          if id != peer.peerInfo.peerId:
-            let msgs = m.messages.filterIt(
-              # don't forward to message originator
-              id != it.fromPeerId()
-            )
+          if id == peer.peerInfo.peerId:
+            trace "not forwarding message to originator", peerId = id
+            continue
 
-            var sent: seq[Future[void]]
-            if msgs.len > 0:
-              trace "forwarding message to", peerId = id
-              sent.add(g.peers[p].send(@[RPCMsg(messages: msgs)]))
-            sent = await allFinished(sent)
-            checkFutures(sent)
+          let msgs = m.messages.filterIt(
+            # don't forward to message originator
+            id != it.fromPeerId()
+          )
+
+          var sent: seq[Future[void]]
+          if msgs.len > 0:
+            trace "forwarding message to", peerId = id
+            sent.add(g.peers[p].send(@[RPCMsg(messages: msgs)]))
+          sent = await allFinished(sent)
+          checkFutures(sent)
 
     var respControl: ControlMessage
     if m.control.isSome:
@@ -248,135 +387,11 @@ method rpcHandler(g: GossipSub,
          respControl.ihave.len > 0 or respControl.iwant.len > 0:
         await peer.send(@[RPCMsg(control: some(respControl), messages: messages)])
 
-proc replenishFanout(g: GossipSub, topic: string) {.async.} =
-  ## get fanout peers for a topic
-  trace "about to replenish fanout"
-  if topic notin g.fanout:
-    g.fanout[topic] = initHashSet[string]()
-
-  if g.fanout[topic].len < GossipSubDLo:
-    trace "replenishing fanout", peers = g.fanout[topic].len
-    if topic in g.gossipsub:
-      for p in g.gossipsub[topic]:
-        if not g.fanout[topic].containsOrIncl(p):
-          if g.fanout[topic].len == GossipSubD:
-            break
-
-  trace "fanout replenished with peers", peers = g.fanout[topic].len
-
-proc rebalanceMesh(g: GossipSub, topic: string) {.async.} =
-  trace "about to rebalance mesh"
-  # create a mesh topic that we're subscribing to
-  if topic notin g.mesh:
-    g.mesh[topic] = initHashSet[string]()
-
-  if g.mesh[topic].len < GossipSubDlo:
-    trace "replenishing mesh"
-    # replenish the mesh if we're below GossipSubDlo
-    while g.mesh[topic].len < GossipSubD:
-      trace "gathering peers", peers = g.mesh[topic].len
-      var id: string
-      if topic in g.fanout and g.fanout[topic].len > 0:
-        id = g.fanout[topic].pop()
-        trace "got fanout peer", peer = id
-      elif topic in g.gossipsub and g.gossipsub[topic].len > 0:
-        id = g.gossipsub[topic].pop()
-        trace "got gossipsub peer", peer = id
-      else:
-        trace "no more peers"
-        break
-
-      g.mesh[topic].incl(id)
-      if id in g.peers:
-        let p = g.peers[id]
-        # send a graft message to the peer
-        await p.sendGraft(@[topic])
-
-  # prune peers if we've gone over
-  if g.mesh[topic].len > GossipSubDhi:
-    trace "pruning mesh"
-    while g.mesh[topic].len > GossipSubD:
-      trace "pruning peers", peers = g.mesh[topic].len
-      let id = toSeq(g.mesh[topic])[rand(0..<g.mesh[topic].len)]
-      g.mesh[topic].excl(id)
-
-      let p = g.peers[id]
-      # send a graft message to the peer
-      await p.sendPrune(@[topic])
-
-  trace "mesh balanced, got peers", peers = g.mesh[topic].len
-
-proc dropFanoutPeers(g: GossipSub) {.async.} =
-  # drop peers that we haven't published to in
-  # GossipSubFanoutTTL seconds
-  var dropping = newSeq[string]()
-  for topic, val in g.lastFanoutPubSub:
-    if Moment.now > val:
-      dropping.add(topic)
-      g.fanout.del(topic)
-  for topic in dropping:
-      g.lastFanoutPubSub.del(topic)
-
-proc getGossipPeers(g: GossipSub): Table[string, ControlMessage] {.gcsafe.} =
-  ## gossip iHave messages to peers
-  let topics = toHashSet(toSeq(g.mesh.keys)) + toHashSet(toSeq(g.fanout.keys))
-
-  for topic in topics:
-    let mesh: HashSet[string] =
-      if topic in g.mesh:
-        g.mesh[topic]
-      else:
-        initHashSet[string]()
-
-    let fanout: HashSet[string] =
-      if topic in g.fanout:
-        g.fanout[topic]
-      else:
-        initHashSet[string]()
-
-    let gossipPeers = mesh + fanout
-    let mids = g.mcache.window(topic)
-    let ihave = ControlIHave(topicID: topic,
-                             messageIDs: toSeq(mids))
-
-    if topic notin g.gossipsub:
-      trace "topic not in gossip array, skipping", topicID = topic
-      continue
-
-    while result.len < GossipSubD:
-      if not (g.gossipsub[topic].len > 0):
-        trace "no peers for topic, skipping", topicID = topic
-        break
-
-      let id = toSeq(g.gossipsub[topic]).sample()
-      g.gossipsub[topic].excl(id)
-      if id notin gossipPeers:
-        if id notin result:
-          result[id] = ControlMessage()
-        result[id].ihave.add(ihave)
-
-proc heartbeat(g: GossipSub) {.async.} =
-  await g.heartbeatLock.acquire()
-  trace "running heartbeat"
-
-  await sleepAsync(GossipSubHeartbeatInitialDelay)
-
-  for t in g.mesh.keys:
-    await g.rebalanceMesh(t)
-
-  await g.dropFanoutPeers()
-  let peers = g.getGossipPeers()
-  for peer in peers.keys:
-    await g.peers[peer].send(@[RPCMsg(control: some(peers[peer]))])
-
-  g.mcache.shift() # shift the cache
-  g.heartbeatLock.release()
-
 method subscribe*(g: GossipSub,
                   topic: string,
                   handler: TopicHandler) {.async.} =
   await procCall PubSub(g).subscribe(topic, handler)
-  asyncCheck g.rebalanceMesh(topic)
+  await g.rebalanceMesh(topic)
 
 method unsubscribe*(g: GossipSub,
                     topics: seq[TopicPair]) {.async.} =
@@ -447,6 +462,7 @@ method stop*(g: GossipSub) {.async.} =
 method initPubSub(g: GossipSub) =
   procCall FloodSub(g).initPubSub()
 
+  randomize()
   g.mcache = newMCache(GossipSubHistoryGossip, GossipSubHistoryLength)
   g.mesh = initTable[string, HashSet[string]]() # meshes - topic to peer
   g.fanout = initTable[string, HashSet[string]]() # fanout - topic to peer

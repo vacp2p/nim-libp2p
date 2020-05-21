@@ -199,14 +199,13 @@ method subscribe*(p: PubSub,
 method publish*(p: PubSub,
                 topic: string,
                 data: seq[byte]) {.base, async.} =
+  # TODO: Should return bool indicating success/failure
   ## publish to a ``topic``
   if p.triggerSelf and topic in p.topics:
     for h in p.topics[topic].handler:
       trace "triggering handler", topicID = topic
       try:
         await h(topic, data)
-      except LPStreamEOFError:
-        trace "Ignoring EOF while writing"
       except CancelledError as exc:
         raise exc
       except CatchableError as exc:

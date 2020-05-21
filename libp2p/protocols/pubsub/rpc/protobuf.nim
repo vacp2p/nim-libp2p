@@ -49,19 +49,18 @@ proc decodeIHave*(pb: var ProtoBuffer): seq[ControlIHave] {.gcsafe.} =
 
   while true:
     var control: ControlIHave
-    if pb.enterSubMessage() > 0:
-      if pb.getString(1, control.topicID) < 0:
-        trace "topic field missing from ihave msg"
+    if pb.getString(1, control.topicID) < 0:
+      trace "topic field missing from ihave msg"
+      break
+
+    trace "read topic field", topicID = control.topicID
+
+    while true:
+      var mid: string
+      if pb.getString(2, mid) < 0:
         break
-
-      trace "read topic field", topicID = control.topicID
-
-      while true:
-        var mid: string
-        if pb.getString(2, mid) < 0:
-          break
-        trace "read messageID field", mid = mid
-        control.messageIDs.add(mid)
+      trace "read messageID field", mid = mid
+      control.messageIDs.add(mid)
 
     result.add(control)
 
@@ -70,15 +69,16 @@ proc encodeIWant*(iwant: ControlIWant, pb: var ProtoBuffer) {.gcsafe.} =
     pb.write(initProtoField(1, mid))
 
 proc decodeIWant*(pb: var ProtoBuffer): seq[ControlIWant] {.gcsafe.} =
-  trace "decoding ihave msg"
+  trace "decoding iwant msg"
 
-  while pb.enterSubMessage() > 0:
+  var control: ControlIWant
+  while true:
     var mid: string
-    var iWant: ControlIWant
-    while pb.getString(1, mid) > 0:
-      trace "read messageID field", mid = mid
-      iWant.messageIDs.add(mid)
-      result.add(iWant)
+    if pb.getString(1, mid) < 0:
+      break
+    control.messageIDs.add(mid)
+    trace "read messageID field", mid = mid
+  result.add(control)
 
 proc encodeControl*(control: ControlMessage, pb: var ProtoBuffer) {.gcsafe.} =
   if control.ihave.len > 0:
@@ -128,13 +128,13 @@ proc decodeControl*(pb: var ProtoBuffer): Option[ControlMessage] {.gcsafe.} =
       trace "no submessage found in Control msg"
       break
     of 1:
-      control.ihave = pb.decodeIHave()
+      control.ihave &= pb.decodeIHave()
     of 2:
-      control.iwant = pb.decodeIWant()
+      control.iwant &= pb.decodeIWant()
     of 3:
-      control.graft = pb.decodeGraft()
+      control.graft &= pb.decodeGraft()
     of 4:
-      control.prune = pb.decodePrune()
+      control.prune &= pb.decodePrune()
     else:
       raise newException(CatchableError, "message type not recognized")
 

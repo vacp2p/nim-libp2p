@@ -318,12 +318,13 @@ suite "GossipSub":
     proc runTests(): Future[bool] {.async.} =
       var nodes: seq[Switch] = newSeq[Switch]()
       var awaitters: seq[Future[void]]
+      var runs = 10
 
-      for i in 0..<11:
+      for i in 0..<runs:
         nodes.add newStandardSwitch(triggerSelf = true, gossip = true)
         awaitters.add((await nodes[i].start()))
 
-      await subscribeNodes(nodes)
+      await subscribeRandom(nodes)
 
       var seen: Table[string, int]
       var subs: seq[Future[void]]
@@ -337,10 +338,11 @@ suite "GossipSub":
               seen[dialerNode.peerInfo.id] = 0
             seen[dialerNode.peerInfo.id].inc
             check topic == "foobar"
-            if not seenFut.finished() and seen.len == 10:
+            if not seenFut.finished() and seen.len >= runs:
               seenFut.complete()
 
-        subs.add(allFutures(dialer.subscribe("foobar", handler), waitSub(nodes[0], dialer, "foobar")))
+        subs.add(allFutures(dialer.subscribe("foobar", handler),
+          waitSub(nodes[0], dialer, "foobar")))
 
       await allFuturesThrowing(subs)
 
@@ -350,7 +352,7 @@ suite "GossipSub":
                                   1.minutes)
 
       await wait(seenFut, 2.minutes)
-      check: seen.len >= 10
+      check: seen.len >= runs
       for k, v in seen.pairs:
         check: v == 1
 

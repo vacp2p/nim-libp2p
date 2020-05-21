@@ -207,10 +207,10 @@ suite "FloodSub":
 
   test "FloodSub multiple peers, no self trigger":
     proc runTests(): Future[bool] {.async.} =
-      var passed = 0
+      var runs = 10
 
-      var futs = newSeq[(Future[void], TopicHandler, ref int)](10)
-      for i in 0..<10:
+      var futs = newSeq[(Future[void], TopicHandler, ref int)](runs)
+      for i in 0..<runs:
         closureScope:
           var
             fut = newFuture[void]()
@@ -226,28 +226,28 @@ suite "FloodSub":
           )
 
       var nodes: seq[Switch] = newSeq[Switch]()
-      for i in 0..<10:
+      for i in 0..<runs:
         nodes.add newStandardSwitch()
 
 
       var awaitters: seq[Future[void]]
-      for i in 0..<10:
+      for i in 0..<runs:
         awaitters.add(await nodes[i].start())
 
       await subscribeNodes(nodes)
 
-      for i in 0..<10:
+      for i in 0..<runs:
         await nodes[i].subscribe("foobar", futs[i][1])
 
       var subs: seq[Future[void]]
-      for i in 0..<10:
-        for y in 0..<10:
+      for i in 0..<runs:
+        for y in 0..<runs:
           if y != i:
             subs &= waitSub(nodes[i], nodes[y], "foobar")
       await allFuturesThrowing(subs)
 
       var pubs: seq[Future[void]]
-      for i in 0..<10:
+      for i in 0..<runs:
         pubs &= nodes[i].publish("foobar", cast[seq[byte]]("Hello!"))
       await allFuturesThrowing(pubs)
 
@@ -261,10 +261,10 @@ suite "FloodSub":
 
   test "FloodSub multiple peers, with self trigger":
     proc runTests(): Future[bool] {.async.} =
-      var passed = 0
+      var runs = 10
 
-      var futs = newSeq[(Future[void], TopicHandler, ref int)](10)
-      for i in 0..<10:
+      var futs = newSeq[(Future[void], TopicHandler, ref int)](runs)
+      for i in 0..<runs:
         closureScope:
           var
             fut = newFuture[void]()
@@ -274,34 +274,34 @@ suite "FloodSub":
             (proc(topic: string, data: seq[byte]) {.async, gcsafe.} =
               check topic == "foobar"
               inc counter[]
-              if counter[] == 10:
+              if counter[] == runs:
                 fut.complete()),
             counter
           )
 
       var nodes: seq[Switch] = newSeq[Switch]()
-      for i in 0..<10:
+      for i in 0..<runs:
         nodes.add newStandardSwitch(triggerSelf = true)
 
 
       var awaitters: seq[Future[void]]
-      for i in 0..<10:
+      for i in 0..<runs:
         awaitters.add(await nodes[i].start())
 
       await subscribeNodes(nodes)
 
-      for i in 0..<10:
+      for i in 0..<runs:
         await nodes[i].subscribe("foobar", futs[i][1])
 
       var subs: seq[Future[void]]
-      for i in 0..<10:
-        for y in 0..<10:
+      for i in 0..<runs:
+        for y in 0..<runs:
           if y != i:
             subs &= waitSub(nodes[i], nodes[y], "foobar")
       await allFuturesThrowing(subs)
 
       var pubs: seq[Future[void]]
-      for i in 0..<10:
+      for i in 0..<runs:
         pubs &= nodes[i].publish("foobar", cast[seq[byte]]("Hello!"))
       await allFuturesThrowing(pubs)
 
@@ -310,5 +310,6 @@ suite "FloodSub":
       await allFuturesThrowing(awaitters)
 
       result = true
+
     check:
       waitFor(runTests()) == true

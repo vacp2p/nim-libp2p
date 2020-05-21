@@ -80,7 +80,7 @@ proc handle*(p: PubSubPeer, conn: Connection) {.async.} =
 proc send*(p: PubSubPeer, msgs: seq[RPCMsg]) {.async.} =
   try:
     for m in msgs.items:
-      trace "sending msgs to peer", toPeer = p.id
+      trace "sending msgs to peer", toPeer = p.id, msgs = msgs
       let encoded = encodeRpcMsg(m)
       # trigger hooks
       if not(isNil(p.observers)) and p.observers[].len > 0:
@@ -98,25 +98,32 @@ proc send*(p: PubSubPeer, msgs: seq[RPCMsg]) {.async.} =
         continue
 
       proc sendToRemote() {.async.} =
-        trace "sending encoded msgs to peer", peer = p.id,
-                                              encoded = encoded.buffer.shortLog
-        await p.sendConn.writeLp(encoded.buffer)
-        p.sentRpcCache.put(digest)
+        trace "about send message", peer = p.id,
+                                    encoded = digest
+        await p.onConnect.wait()
+        try:
+          trace "sending encoded msgs to peer", peer = p.id,
+                                                encoded = encoded.buffer.shortLog
+          await p.sendConn.writeLp(encoded.buffer)
+          p.sentRpcCache.put(digest)
+        except CatchableError as exc:
+          trace "unable to send to remote", exc = exc.msg
+          if not(isNil(p.sendConn)):
+            await p.sendConn.close()
+            p.sendConn = nil
+            p.onConnect.clear()
 
       # if no connection has been set,
       # queue messages untill a connection
       # becomes available
-      if p.isConnected:
-        await sendToRemote()
-        return
-
-      p.onConnect.wait().addCallback do (udata: pointer):
-          asyncCheck sendToRemote()
-      trace "enqueued message to send at a later time", peer = p.id,
-                                                        encoded = digest
+      asyncCheck sendToRemote()
 
   except CatchableError as exc:
     trace "Exception occurred in PubSubPeer.send", exc = exc.msg
+    if not(isNil(p.sendConn)):
+      await p.sendConn.close()
+      p.sendConn = nil
+      p.onConnect.clear()
 
 proc sendMsg*(p: PubSubPeer,
               peerId: PeerID,
