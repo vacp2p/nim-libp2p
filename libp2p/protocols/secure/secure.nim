@@ -53,9 +53,11 @@ method init*(s: Secure) {.gcsafe.} =
 method secure*(s: Secure, conn: Connection, initiator: bool): Future[Connection] {.async, base, gcsafe.} =
   try:
     result = await s.handleConn(conn, initiator)
+  except CancelledError as exc:
+    raise exc
   except CatchableError as exc:
     warn "securing connection failed", msg = exc.msg
-    await conn.close()
+    return nil
 
 method readExactly*(s: SecureConn,
                     pbytes: pointer,

@@ -3,6 +3,7 @@ include ../../libp2p/protocols/pubsub/gossipsub
 {.used.}
 
 import unittest
+import stew/byteutils
 import ../../libp2p/errors
 import ../../libp2p/stream/bufferstream
 
@@ -11,24 +12,27 @@ import ../helpers
 type
   TestGossipSub = ref object of GossipSub
 
+proc noop(data: seq[byte]) {.async, gcsafe.} = discard
+
 suite "GossipSub internal":
   teardown:
     for tracker in testTrackers():
+      # echo tracker.dump()
       check tracker.isLeaked() == false
 
   test "`rebalanceMesh` Degree Lo":
     proc testRun(): Future[bool] {.async.} =
       let gossipSub = newPubSub(TestGossipSub,
-                                PeerInfo.init(PrivateKey.random(RSA).get()))
+                                PeerInfo.init(PrivateKey.random(ECDSA).get()))
 
       let topic = "foobar"
       gossipSub.mesh[topic] = initHashSet[string]()
 
       var conns = newSeq[Connection]()
       for i in 0..<15:
-        let conn = newConnection(newBufferStream())
+        let conn = newConnection(newBufferStream(noop))
         conns &= conn
-        let peerInfo = PeerInfo.init(PrivateKey.random(RSA).get())
+        let peerInfo = PeerInfo.init(PrivateKey.random(ECDSA).get())
         conn.peerInfo = peerInfo
         gossipSub.peers[peerInfo.id] = newPubSubPeer(peerInfo, GossipSubCodec)
         gossipSub.peers[peerInfo.id].conn = conn
@@ -48,16 +52,16 @@ suite "GossipSub internal":
   test "`rebalanceMesh` Degree Hi":
     proc testRun(): Future[bool] {.async.} =
       let gossipSub = newPubSub(TestGossipSub,
-                                PeerInfo.init(PrivateKey.random(RSA).get()))
+                                PeerInfo.init(PrivateKey.random(ECDSA).get()))
 
       let topic = "foobar"
       gossipSub.gossipsub[topic] = initHashSet[string]()
 
       var conns = newSeq[Connection]()
       for i in 0..<15:
-        let conn = newConnection(newBufferStream())
+        let conn = newConnection(newBufferStream(noop))
         conns &= conn
-        let peerInfo = PeerInfo.init(PrivateKey.random(RSA).get())
+        let peerInfo = PeerInfo.init(PrivateKey.random(ECDSA).get())
         conn.peerInfo = peerInfo
         gossipSub.peers[peerInfo.id] = newPubSubPeer(peerInfo, GossipSubCodec)
         gossipSub.peers[peerInfo.id].conn = conn
@@ -77,7 +81,7 @@ suite "GossipSub internal":
   test "`replenishFanout` Degree Lo":
     proc testRun(): Future[bool] {.async.} =
       let gossipSub = newPubSub(TestGossipSub,
-                                PeerInfo.init(PrivateKey.random(RSA).get()))
+                                PeerInfo.init(PrivateKey.random(ECDSA).get()))
 
       proc handler(peer: PubSubPeer, msg: seq[RPCMsg]) {.async.} =
         discard
@@ -87,9 +91,9 @@ suite "GossipSub internal":
 
       var conns = newSeq[Connection]()
       for i in 0..<15:
-        let conn = newConnection(newBufferStream())
+        let conn = newConnection(newBufferStream(noop))
         conns &= conn
-        var peerInfo = PeerInfo.init(PrivateKey.random(RSA).get())
+        var peerInfo = PeerInfo.init(PrivateKey.random(ECDSA).get())
         conn.peerInfo = peerInfo
         gossipSub.peers[peerInfo.id] = newPubSubPeer(peerInfo, GossipSubCodec)
         gossipSub.peers[peerInfo.id].handler = handler
@@ -109,20 +113,21 @@ suite "GossipSub internal":
   test "`dropFanoutPeers` drop expired fanout topics":
     proc testRun(): Future[bool] {.async.} =
       let gossipSub = newPubSub(TestGossipSub,
-                                PeerInfo.init(PrivateKey.random(RSA).get()))
+                                PeerInfo.init(PrivateKey.random(ECDSA).get()))
 
       proc handler(peer: PubSubPeer, msg: seq[RPCMsg]) {.async.} =
         discard
 
       let topic = "foobar"
       gossipSub.fanout[topic] = initHashSet[string]()
-      gossipSub.lastFanoutPubSub[topic] = Moment.fromNow(100.millis)
+      gossipSub.lastFanoutPubSub[topic] = Moment.fromNow(1.millis)
+      await sleepAsync(5.millis) # allow the topic to expire
 
       var conns = newSeq[Connection]()
       for i in 0..<6:
-        let conn = newConnection(newBufferStream())
+        let conn = newConnection(newBufferStream(noop))
         conns &= conn
-        let peerInfo = PeerInfo.init(PrivateKey.random(RSA).get())
+        let peerInfo = PeerInfo.init(PrivateKey.random(ECDSA).get())
         conn.peerInfo = peerInfo
         gossipSub.peers[peerInfo.id] = newPubSubPeer(peerInfo, GossipSubCodec)
         gossipSub.peers[peerInfo.id].handler = handler
@@ -143,7 +148,7 @@ suite "GossipSub internal":
   test "`dropFanoutPeers` leave unexpired fanout topics":
     proc testRun(): Future[bool] {.async.} =
       let gossipSub = newPubSub(TestGossipSub,
-                                PeerInfo.init(PrivateKey.random(RSA).get()))
+                                PeerInfo.init(PrivateKey.random(ECDSA).get()))
 
       proc handler(peer: PubSubPeer, msg: seq[RPCMsg]) {.async.} =
         discard
@@ -152,14 +157,15 @@ suite "GossipSub internal":
       let topic2 = "foobar2"
       gossipSub.fanout[topic1] = initHashSet[string]()
       gossipSub.fanout[topic2] = initHashSet[string]()
-      gossipSub.lastFanoutPubSub[topic1] = Moment.fromNow(100.millis)
+      gossipSub.lastFanoutPubSub[topic1] = Moment.fromNow(1.millis)
       gossipSub.lastFanoutPubSub[topic2] = Moment.fromNow(1.minutes)
+      await sleepAsync(5.millis) # allow the topic to expire
 
       var conns = newSeq[Connection]()
       for i in 0..<6:
-        let conn = newConnection(newBufferStream())
+        let conn = newConnection(newBufferStream(noop))
         conns &= conn
-        let peerInfo = PeerInfo.init(PrivateKey.random(RSA).get())
+        let peerInfo = PeerInfo.init(PrivateKey.random(ECDSA).get())
         conn.peerInfo = peerInfo
         gossipSub.peers[peerInfo.id] = newPubSubPeer(peerInfo, GossipSubCodec)
         gossipSub.peers[peerInfo.id].handler = handler
@@ -183,7 +189,7 @@ suite "GossipSub internal":
   test "`getGossipPeers` - should gather up to degree D non intersecting peers":
     proc testRun(): Future[bool] {.async.} =
       let gossipSub = newPubSub(TestGossipSub,
-                                PeerInfo.init(PrivateKey.random(RSA).get()))
+                                PeerInfo.init(PrivateKey.random(ECDSA).get()))
 
       proc handler(peer: PubSubPeer, msg: seq[RPCMsg]) {.async.} =
         discard
@@ -193,10 +199,12 @@ suite "GossipSub internal":
       gossipSub.fanout[topic] = initHashSet[string]()
       gossipSub.gossipsub[topic] = initHashSet[string]()
       var conns = newSeq[Connection]()
+
+      # geerate mesh and fanout peers
       for i in 0..<30:
-        let conn = newConnection(newBufferStream())
+        let conn = newConnection(newBufferStream(noop))
         conns &= conn
-        let peerInfo = PeerInfo.init(PrivateKey.random(RSA).get())
+        let peerInfo = PeerInfo.init(PrivateKey.random(ECDSA).get())
         conn.peerInfo = peerInfo
         gossipSub.peers[peerInfo.id] = newPubSubPeer(peerInfo, GossipSubCodec)
         gossipSub.peers[peerInfo.id].handler = handler
@@ -205,17 +213,27 @@ suite "GossipSub internal":
         else:
           gossipSub.mesh[topic].incl(peerInfo.id)
 
+      # generate gossipsub (free standing) peers
       for i in 0..<15:
-        let conn = newConnection(newBufferStream())
+        let conn = newConnection(newBufferStream(noop))
         conns &= conn
-        let peerInfo = PeerInfo.init(PrivateKey.random(RSA).get())
+        let peerInfo = PeerInfo.init(PrivateKey.random(ECDSA).get())
         conn.peerInfo = peerInfo
         gossipSub.peers[peerInfo.id] = newPubSubPeer(peerInfo, GossipSubCodec)
         gossipSub.peers[peerInfo.id].handler = handler
         gossipSub.gossipsub[topic].incl(peerInfo.id)
 
+      # generate messages
+      for i in 0..5:
+        let conn = newConnection(newBufferStream(noop))
+        conns &= conn
+        let peerInfo = PeerInfo.init(PrivateKey.random(ECDSA).get())
+        conn.peerInfo = peerInfo
+        let msg = newMessage(peerInfo, ("HELLO" & $i).toBytes(), topic, false)
+        gossipSub.mcache.put(msg)
+
       check gossipSub.fanout[topic].len == 15
-      check gossipSub.fanout[topic].len == 15
+      check gossipSub.mesh[topic].len == 15
       check gossipSub.gossipsub[topic].len == 15
 
       let peers = gossipSub.getGossipPeers()
@@ -234,7 +252,7 @@ suite "GossipSub internal":
   test "`getGossipPeers` - should not crash on missing topics in mesh":
     proc testRun(): Future[bool] {.async.} =
       let gossipSub = newPubSub(TestGossipSub,
-                                PeerInfo.init(PrivateKey.random(RSA).get()))
+                                PeerInfo.init(PrivateKey.random(ECDSA).get()))
 
       proc handler(peer: PubSubPeer, msg: seq[RPCMsg]) {.async.} =
         discard
@@ -244,9 +262,9 @@ suite "GossipSub internal":
       gossipSub.gossipsub[topic] = initHashSet[string]()
       var conns = newSeq[Connection]()
       for i in 0..<30:
-        let conn = newConnection(newBufferStream())
+        let conn = newConnection(newBufferStream(noop))
         conns &= conn
-        let peerInfo = PeerInfo.init(PrivateKey.random(RSA).get())
+        let peerInfo = PeerInfo.init(PrivateKey.random(ECDSA).get())
         conn.peerInfo = peerInfo
         gossipSub.peers[peerInfo.id] = newPubSubPeer(peerInfo, GossipSubCodec)
         gossipSub.peers[peerInfo.id].handler = handler
@@ -254,6 +272,58 @@ suite "GossipSub internal":
           gossipSub.fanout[topic].incl(peerInfo.id)
         else:
           gossipSub.gossipsub[topic].incl(peerInfo.id)
+
+      # generate messages
+      for i in 0..5:
+        let conn = newConnection(newBufferStream(noop))
+        conns &= conn
+        let peerInfo = PeerInfo.init(PrivateKey.random(ECDSA).get())
+        conn.peerInfo = peerInfo
+        let msg = newMessage(peerInfo, ("HELLO" & $i).toBytes(), topic, false)
+        gossipSub.mcache.put(msg)
+
+      let peers = gossipSub.getGossipPeers()
+      check peers.len == GossipSubD
+
+      await allFuturesThrowing(conns.mapIt(it.close()))
+
+      result = true
+
+    check:
+      waitFor(testRun()) == true
+
+  test "`getGossipPeers` - should not crash on missing topics in fanout":
+    proc testRun(): Future[bool] {.async.} =
+      let gossipSub = newPubSub(TestGossipSub,
+                                PeerInfo.init(PrivateKey.random(ECDSA).get()))
+
+      proc handler(peer: PubSubPeer, msg: seq[RPCMsg]) {.async.} =
+        discard
+
+      let topic = "foobar"
+      gossipSub.mesh[topic] = initHashSet[string]()
+      gossipSub.gossipsub[topic] = initHashSet[string]()
+      var conns = newSeq[Connection]()
+      for i in 0..<30:
+        let conn = newConnection(newBufferStream(noop))
+        conns &= conn
+        let peerInfo = PeerInfo.init(PrivateKey.random(ECDSA).get())
+        conn.peerInfo = peerInfo
+        gossipSub.peers[peerInfo.id] = newPubSubPeer(peerInfo, GossipSubCodec)
+        gossipSub.peers[peerInfo.id].handler = handler
+        if i mod 2 == 0:
+          gossipSub.mesh[topic].incl(peerInfo.id)
+        else:
+          gossipSub.gossipsub[topic].incl(peerInfo.id)
+
+      # generate messages
+      for i in 0..5:
+        let conn = newConnection(newBufferStream(noop))
+        conns &= conn
+        let peerInfo = PeerInfo.init(PrivateKey.random(ECDSA).get())
+        conn.peerInfo = peerInfo
+        let msg = newMessage(peerInfo, ("HELLO" & $i).toBytes(), topic, false)
+        gossipSub.mcache.put(msg)
 
       let peers = gossipSub.getGossipPeers()
       check peers.len == GossipSubD
@@ -268,41 +338,7 @@ suite "GossipSub internal":
   test "`getGossipPeers` - should not crash on missing topics in gossip":
     proc testRun(): Future[bool] {.async.} =
       let gossipSub = newPubSub(TestGossipSub,
-                                PeerInfo.init(PrivateKey.random(RSA).get()))
-
-      proc handler(peer: PubSubPeer, msg: seq[RPCMsg]) {.async.} =
-        discard
-
-      let topic = "foobar"
-      gossipSub.mesh[topic] = initHashSet[string]()
-      gossipSub.gossipsub[topic] = initHashSet[string]()
-      var conns = newSeq[Connection]()
-      for i in 0..<30:
-        let conn = newConnection(newBufferStream())
-        conns &= conn
-        let peerInfo = PeerInfo.init(PrivateKey.random(RSA).get())
-        conn.peerInfo = peerInfo
-        gossipSub.peers[peerInfo.id] = newPubSubPeer(peerInfo, GossipSubCodec)
-        gossipSub.peers[peerInfo.id].handler = handler
-        if i mod 2 == 0:
-          gossipSub.mesh[topic].incl(peerInfo.id)
-        else:
-          gossipSub.gossipsub[topic].incl(peerInfo.id)
-
-      let peers = gossipSub.getGossipPeers()
-      check peers.len == GossipSubD
-
-      await allFuturesThrowing(conns.mapIt(it.close()))
-
-      result = true
-
-    check:
-      waitFor(testRun()) == true
-
-  test "`getGossipPeers` - should not crash on missing topics in gossip":
-    proc testRun(): Future[bool] {.async.} =
-      let gossipSub = newPubSub(TestGossipSub,
-                                PeerInfo.init(PrivateKey.random(RSA).get()))
+                                PeerInfo.init(PrivateKey.random(ECDSA).get()))
 
       proc handler(peer: PubSubPeer, msg: seq[RPCMsg]) {.async.} =
         discard
@@ -312,9 +348,9 @@ suite "GossipSub internal":
       gossipSub.fanout[topic] = initHashSet[string]()
       var conns = newSeq[Connection]()
       for i in 0..<30:
-        let conn = newConnection(newBufferStream())
+        let conn = newConnection(newBufferStream(noop))
         conns &= conn
-        let peerInfo = PeerInfo.init(PrivateKey.random(RSA).get())
+        let peerInfo = PeerInfo.init(PrivateKey.random(ECDSA).get())
         conn.peerInfo = peerInfo
         gossipSub.peers[peerInfo.id] = newPubSubPeer(peerInfo, GossipSubCodec)
         gossipSub.peers[peerInfo.id].handler = handler
@@ -322,6 +358,15 @@ suite "GossipSub internal":
           gossipSub.mesh[topic].incl(peerInfo.id)
         else:
           gossipSub.fanout[topic].incl(peerInfo.id)
+
+      # generate messages
+      for i in 0..5:
+        let conn = newConnection(newBufferStream(noop))
+        conns &= conn
+        let peerInfo = PeerInfo.init(PrivateKey.random(ECDSA).get())
+        conn.peerInfo = peerInfo
+        let msg = newMessage(peerInfo, ("bar" & $i).toBytes(), topic, false)
+        gossipSub.mcache.put(msg)
 
       let peers = gossipSub.getGossipPeers()
       check peers.len == 0
