@@ -7,13 +7,14 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import chronos, chronicles, sequtils
+import chronos, chronicles, sequtils, oids
 import transport,
        ../errors,
        ../wire,
        ../connection,
        ../multiaddress,
        ../multicodec,
+       ../stream/lpstream,
        ../stream/chronosstream
 
 logScope:
@@ -68,7 +69,18 @@ proc connHandler*(t: TcpTransport,
     if not isNil(t.handler):
       t.handlers &= t.handler(conn)
 
+  proc cleanup() {.async.} =
+    try:
+      await client.join()
+      trace "cleaning up client", addrs = client.remoteAddress, connoid = conn.oid
+      if not(isNil(conn)):
+        await conn.close()
+      t.clients.keepItIf(it != client)
+    except CatchableError as exc:
+      trace "error cleaning up client", exc = exc.msg
+
   t.clients.add(client)
+  asyncCheck cleanup()
   result = conn
 
 proc connCb(server: StreamServer,
@@ -105,8 +117,8 @@ method close*(t: TcpTransport) {.async, gcsafe.} =
   trace "stopping transport"
   await procCall Transport(t).close() # call base
 
-  checkFutures(await allFinished(
-    t.clients.mapIt(it.closeWait())))
+  await all(
+    t.clients.mapIt(it.closeWait()))
 
   # server can be nil
   if not isNil(t.server):
@@ -118,13 +130,13 @@ method close*(t: TcpTransport) {.async, gcsafe.} =
   for fut in t.handlers:
     if not fut.finished:
       fut.cancel()
-  checkFutures(await allFinished(t.handlers))
+  await all(t.handlers)
   t.handlers = @[]
 
   for fut in t.cleanups:
     if not fut.finished:
       fut.cancel()
-  checkFutures(await allFinished(t.cleanups))
+  await all(t.cleanups)
   t.cleanups = @[]
 
   trace "transport stopped"
