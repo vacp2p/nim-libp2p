@@ -7,10 +7,12 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import oids
-import chronicles, chronos, strformat
+import chronicles, chronos
 import ../varint,
        ../vbuffer
+
+when chronicles.enabledLogLevel == LogLevel.TRACE:
+  import oids
 
 type
   LPStream* = ref object of RootObj
@@ -25,44 +27,49 @@ type
   LPStreamIncorrectDefect* = object of Defect
   LPStreamLimitError* = object of LPStreamError
   LPStreamReadError* = object of LPStreamError
-    par*: ref Exception
+    par*: ref CatchableError
   LPStreamWriteError* = object of LPStreamError
-    par*: ref Exception
+    par*: ref CatchableError
   LPStreamEOFError* = object of LPStreamError
   LPStreamClosedError* = object of LPStreamError
 
   InvalidVarintError* = object of LPStreamError
   MaxSizeError* = object of LPStreamError
 
-proc newLPStreamReadError*(p: ref Exception): ref Exception =
+proc newLPStreamReadError*(p: ref CatchableError): ref CatchableError =
   var w = newException(LPStreamReadError, "Read stream failed")
   w.msg = w.msg & ", originated from [" & $p.name & "] " & p.msg
   w.par = p
   result = w
 
-proc newLPStreamReadError*(msg: string): ref Exception =
+proc newLPStreamReadError*(msg: string): ref CatchableError =
   newException(LPStreamReadError, msg)
 
-proc newLPStreamWriteError*(p: ref Exception): ref Exception =
+proc newLPStreamWriteError*(p: ref CatchableError): ref CatchableError =
   var w = newException(LPStreamWriteError, "Write stream failed")
   w.msg = w.msg & ", originated from [" & $p.name & "] " & p.msg
   w.par = p
   result = w
 
-proc newLPStreamIncompleteError*(): ref Exception =
+proc newLPStreamIncompleteError*(): ref CatchableError =
   result = newException(LPStreamIncompleteError, "Incomplete data received")
 
-proc newLPStreamLimitError*(): ref Exception =
+proc newLPStreamLimitError*(): ref CatchableError =
   result = newException(LPStreamLimitError, "Buffer limit reached")
 
-proc newLPStreamIncorrectDefect*(m: string): ref Exception =
+proc newLPStreamIncorrectDefect*(m: string): ref Defect =
   result = newException(LPStreamIncorrectDefect, m)
 
-proc newLPStreamEOFError*(): ref Exception =
+proc newLPStreamEOFError*(): ref CatchableError =
   result = newException(LPStreamEOFError, "Stream EOF!")
 
 proc newLPStreamClosedError*(): ref Exception =
   result = newException(LPStreamClosedError, "Stream Closed!")
+
+method initStream*(s: LPStream) {.base.} =
+  s.closeEvent = newAsyncEvent()
+  when chronicles.enabledLogLevel == LogLevel.TRACE:
+    s.oid = genOid()
 
 method closed*(s: LPStream): bool {.base, inline.} =
   s.isClosed
@@ -88,28 +95,25 @@ proc readLine*(s: LPStream, limit = 0, sep = "\r\n"): Future[string] {.async, de
   var lim = if limit <= 0: -1 else: limit
   var state = 0
 
-  try:
-    while true:
-      var ch: char
-      await readExactly(s, addr ch, 1)
+  while true:
+    var ch: char
+    await readExactly(s, addr ch, 1)
 
-      if sep[state] == ch:
-        inc(state)
-        if state == len(sep):
-          break
+    if sep[state] == ch:
+      inc(state)
+      if state == len(sep):
+        break
+    else:
+      state = 0
+      if limit > 0:
+        let missing = min(state, lim - len(result) - 1)
+        result.add(sep[0 ..< missing])
       else:
-        state = 0
-        if limit > 0:
-          let missing = min(state, lim - len(result) - 1)
-          result.add(sep[0 ..< missing])
-        else:
-          result.add(sep[0 ..< state])
+        result.add(sep[0 ..< state])
 
-        result.add(ch)
-        if len(result) == lim:
-          break
-  except LPStreamIncompleteError, LPStreamReadError:
-    discard # EOF, in which case we should return whatever we read so far..
+      result.add(ch)
+      if len(result) == lim:
+        break
 
 proc readVarint*(conn: LPStream): Future[uint64] {.async, gcsafe.} =
   var
