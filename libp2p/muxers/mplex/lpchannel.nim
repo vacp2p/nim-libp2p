@@ -63,6 +63,8 @@ template withEOFExceptions(body: untyped): untyped =
   except LPStreamIncompleteError as exc:
     trace "incomplete message", exc = exc.msg
 
+method reset*(s: LPChannel) {.base, async, gcsafe.}
+
 proc newChannel*(id: uint64,
                  conn: Connection,
                  initiator: bool,
@@ -81,17 +83,26 @@ proc newChannel*(id: uint64,
 
   let chan = result
   proc writeHandler(data: seq[byte]): Future[void] {.async, gcsafe.} =
-    if chan.isLazy and not(chan.isOpen):
-      await chan.open()
+    try:
+      if chan.isLazy and not(chan.isOpen):
+        await chan.open()
 
-    # writes should happen in sequence
-    trace "sending data", data = data.shortLog,
-                          id = chan.id,
-                          initiator = chan.initiator,
-                          name = chan.name,
-                          oid = chan.oid
+      # writes should happen in sequence
+      trace "sending data", data = data.shortLog,
+                            id = chan.id,
+                            initiator = chan.initiator,
+                            name = chan.name,
+                            oid = chan.oid
 
-    await conn.writeMsg(chan.id, chan.msgCode, data) # write header
+      try:
+        await conn.writeMsg(chan.id,
+                            chan.msgCode,
+                            data).wait(2.minutes) # write header
+      except AsyncTimeoutError:
+        trace "timeout writting channel, resetting"
+        asyncCheck chan.reset()
+    except CatchableError as exc:
+      trace "unable to write in bufferstream handler", exc = exc.msg
 
   result.initBufferStream(writeHandler, size)
   when chronicles.enabledLogLevel == LogLevel.TRACE:
@@ -106,9 +117,9 @@ proc closeMessage(s: LPChannel) {.async.} =
   withEOFExceptions:
     withWriteLock(s.writeLock):
       trace "sending close message", id = s.id,
-                                    initiator = s.initiator,
-                                    name = s.name,
-                                    oid = s.oid
+                                     initiator = s.initiator,
+                                     name = s.name,
+                                     oid = s.oid
 
       await s.conn.writeMsg(s.id, s.closeCode) # write close
 
@@ -116,9 +127,9 @@ proc resetMessage(s: LPChannel) {.async.} =
   withEOFExceptions:
     withWriteLock(s.writeLock):
       trace "sending reset message", id = s.id,
-                                    initiator = s.initiator,
-                                    name = s.name,
-                                    oid = s.oid
+                                     initiator = s.initiator,
+                                     name = s.name,
+                                     oid = s.oid
 
       await s.conn.writeMsg(s.id, s.resetCode) # write reset
 
@@ -129,8 +140,8 @@ proc open*(s: LPChannel) {.async, gcsafe.} =
   withEOFExceptions:
     await s.conn.writeMsg(s.id, MessageType.New, s.name)
     trace "oppened channel", oid = s.oid,
-                            name = s.name,
-                            initiator = s.initiator
+                             name = s.name,
+                             initiator = s.initiator
     s.isOpen = true
 
 proc closeRemote*(s: LPChannel) {.async.} =
@@ -144,9 +155,9 @@ proc closeRemote*(s: LPChannel) {.async.} =
     await s.dataReadEvent.wait()
     s.dataReadEvent.clear()
 
-  # TODO: Not sure if this needs to be set here or bfore consuming
-  # the buffer
+  await s.close() # close local end
   s.isEof = true # set EOF immediately to prevent further reads
+  # call to avoid leacks
   await procCall BufferStream(s).close() # close parent bufferstream
 
   trace "channel closed on EOF", id = s.id,
@@ -161,33 +172,49 @@ method closed*(s: LPChannel): bool =
   ## header of the file
   s.closedLocal
 
-method close*(s: LPChannel) {.async, gcsafe.} =
-  if s.closedLocal:
-    return
-
-  trace "closing local lpchannel", id = s.id,
-                                   initiator = s.initiator,
-                                   name = s.name,
-                                   oid = s.oid
-  # TODO: we should install a timer that on expire
-  # will make sure the channel did close by the remote
-  # so the hald-closed flow completed, if it didn't
-  # we should send a `reset` and move on.
-  await s.closeMessage()
-  s.closedLocal = true
-  if s.atEof: # already closed by remote close parent buffer imediately
-    await procCall BufferStream(s).close()
-
-  trace "lpchannel closed local", id = s.id,
-                                  initiator = s.initiator,
-                                  name = s.name,
-                                  oid = s.oid
-
-method reset*(s: LPChannel) {.base, async.} =
+method reset*(s: LPChannel) {.base, async, gcsafe.} =
   # we asyncCheck here because the other end
   # might be dead already - reset is always
   # optimistic
   asyncCheck s.resetMessage()
+  # # because of the async check above,
+  # # give the message time to depart
+  # await sleepAsync(100.millis)
   await procCall BufferStream(s).close()
   s.isEof = true
   s.closedLocal = true
+
+method close*(s: LPChannel) {.async, gcsafe.} =
+  if s.closedLocal:
+    trace "channel already closed", id = s.id,
+                                    initiator = s.initiator,
+                                    name = s.name,
+                                    oid = s.oid
+    return
+
+  proc closeRemote() {.async.} =
+    try:
+      trace "closing local lpchannel", id = s.id,
+                                       initiator = s.initiator,
+                                       name = s.name,
+                                       oid = s.oid
+      # TODO: we should install a timer that on expire
+      # will make sure the channel did close by the remote
+      # so the hald-closed flow completed, if it didn't
+      # we should send a `reset` and move on.
+      await s.closeMessage().wait(2.minutes)
+      s.closedLocal = true
+      if s.atEof: # already closed by remote close parent buffer imediately
+        await procCall BufferStream(s).close()
+    except AsyncTimeoutError:
+      trace "close timeoud, reset channel"
+      asyncCheck s.reset() # reset on timeout
+    except CatchableError as exc:
+      trace "exception closing channel"
+
+    trace "lpchannel closed local", id = s.id,
+                                    initiator = s.initiator,
+                                    name = s.name,
+                                    oid = s.oid
+
+  asyncCheck closeRemote()

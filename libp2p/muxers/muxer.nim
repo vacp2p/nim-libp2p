@@ -46,22 +46,23 @@ proc newMuxerProvider*(creator: MuxerConstructor, codec: string): MuxerProvider 
 
 method init(c: MuxerProvider) =
   proc handler(conn: Connection, proto: string) {.async, gcsafe, closure.} =
-    let
-      muxer = c.newMuxer(conn)
+    try:
+      let
+        muxer = c.newMuxer(conn)
 
-    if not isNil(c.streamHandler):
-      muxer.streamHandler = c.streamHandler
+      if not isNil(c.streamHandler):
+        muxer.streamHandler = c.streamHandler
 
-    var futs = newSeq[Future[void]]()
+      var futs = newSeq[Future[void]]()
+      futs &= muxer.handle()
 
-    futs &= muxer.handle()
+      # finally await both the futures
+      if not isNil(c.muxerHandler):
+        futs &= c.muxerHandler(muxer)
 
-    # finally await both the futures
-    if not isNil(c.muxerHandler):
-      futs &= c.muxerHandler(muxer)
-
-    # log and re-raise on errors
-    futs = await allFinished(futs)
-    checkFutures(futs)
+      # log and re-raise on errors
+      await all(futs)
+    except CatchableError as exc:
+      trace "exception in muxer handler", exc = exc.msg
 
   c.handler = handler
