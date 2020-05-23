@@ -425,8 +425,15 @@ proc newSwitch*(peerInfo: PeerInfo,
 
   let s = result # can't capture result
   result.streamHandler = proc(stream: Connection) {.async, gcsafe.} =
-    trace "handling connection for", peerInfo = $stream.peerInfo
-    await s.ms.handle(stream) # handle incoming connection
+    try:
+      trace "handling connection for", peerInfo = $stream.peerInfo
+      try:
+        await s.ms.handle(stream) # handle incoming connection
+      finally:
+        if not(stream.closed):
+          await stream.close()
+    except CatchableError as exc:
+      trace "excepton in stream handler", exc = exc.msg
 
   result.mount(identity)
   for key, val in muxers:
