@@ -26,6 +26,7 @@ type
   Mplex* = ref object of Muxer
     remote: Table[uint64, LPChannel]
     local: Table[uint64, LPChannel]
+    conns: seq[Connection]
     handlerFuts: seq[Future[void]]
     currentId*: uint64
     maxChannels*: uint64
@@ -93,17 +94,25 @@ method handle*(m: Mplex) {.async, gcsafe.} =
                                    oid = m.oid
           if not isNil(m.streamHandler):
             let stream = newConnection(channel)
+            m.conns.add(stream)
             stream.peerInfo = m.connection.peerInfo
 
             var fut = newFuture[void]()
             proc handler() {.async.} =
-              tryAndWarn "mplex channel handler":
-                await m.streamHandler(stream)
+              try:
+                try:
+                  await m.streamHandler(stream)
+                  trace "streamhandler ended", oid = stream.oid
+                finally:
+                  if not(stream.closed):
+                    await stream.close()
+              except CatchableError as exc:
+                trace "exception in stream handler", exc = exc.msg
+              finally:
+                m.conns.keepItIf(it != stream)
+                m.handlerFuts.keepItIf(it != fut)
 
             fut = handler()
-            m.handlerFuts.add(fut)
-            fut.addCallback do(udata: pointer):
-                m.handlerFuts.keepItIf(it != fut)
 
         of MessageType.MsgIn, MessageType.MsgOut:
           trace "pushing data to channel", id = id,
@@ -191,16 +200,16 @@ method close*(m: Mplex) {.async, gcsafe.} =
     return
 
   trace "closing mplex muxer", oid = m.oid
+  await all(
+    toSeq(m.remote.values).mapIt(it.reset()) &
+      toSeq(m.local.values).mapIt(it.reset()))
 
-  checkFutures(
-    await allFinished(
-      toSeq(m.remote.values).mapIt(it.reset()) &
-        toSeq(m.local.values).mapIt(it.reset())))
-
-  checkFutures(await allFinished(m.handlerFuts))
+  await all(m.conns.mapIt(it.close())) # dispose of channe's connections
+  await all(m.handlerFuts)
 
   await m.connection.close()
   m.remote.clear()
   m.local.clear()
+  m.conns = @[]
   m.handlerFuts = @[]
   m.isClosed = true
