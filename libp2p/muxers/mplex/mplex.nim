@@ -49,7 +49,10 @@ proc newStreamInternal*(m: Mplex,
                         lazy: bool = false):
                         Future[LPChannel] {.async, gcsafe.} =
   ## create new channel/stream
-  let id = if initiator: m.currentId.inc(); m.currentId else: chanId
+  let id = if initiator:
+    m.currentId.inc(); m.currentId
+    else: chanId
+
   trace "creating new channel", channelId = id,
                                 initiator = initiator,
                                 name = name,
@@ -100,12 +103,7 @@ method handle*(m: Mplex) {.async, gcsafe.} =
             var fut = newFuture[void]()
             proc handler() {.async.} =
               try:
-                try:
-                  await m.streamHandler(stream)
-                  trace "streamhandler ended", oid = stream.oid
-                finally:
-                  if not(stream.closed):
-                    await stream.close()
+                await m.streamHandler(stream)
               except CatchableError as exc:
                 trace "exception in stream handler", exc = exc.msg
               finally:
