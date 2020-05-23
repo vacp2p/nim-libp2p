@@ -175,7 +175,7 @@ suite "Noise":
 
       let
         transport1: TcpTransport = TcpTransport.init()
-      asyncCheck await transport1.listen(server, connHandler)
+        listenFut = await transport1.listen(server, connHandler)
 
       let
         transport2: TcpTransport = TcpTransport.init()
@@ -191,6 +191,7 @@ suite "Noise":
       await conn.close()
       await transport2.close()
       await transport1.close()
+      await listenFut
 
       result = true
 
@@ -219,9 +220,10 @@ suite "Noise":
       await conn.writeLp("Hello!")
       let msg = cast[string](await conn.readLp(1024))
       check "Hello!" == msg
+      await conn.close()
 
-      await allFuturesThrowing(switch1.stop(), switch2.stop())
-      await allFuturesThrowing(awaiters)
+      await all(switch1.stop(), switch2.stop())
+      await all(awaiters)
       result = true
 
     check:
