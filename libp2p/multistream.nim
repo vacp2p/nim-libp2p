@@ -39,7 +39,7 @@ type
 
   MultistreamHandshakeException* = object of CatchableError
 
-proc newMultistreamHandshakeException*(): ref Exception {.inline.} =
+proc newMultistreamHandshakeException*(): ref CatchableError {.inline.} =
   result = newException(MultistreamHandshakeException,
     "could not perform multistream handshake")
 
@@ -113,7 +113,7 @@ proc list*(m: MultistreamSelect,
 
 proc handle*(m: MultistreamSelect, conn: Connection) {.async, gcsafe.} =
   trace "handle: starting multistream handling"
-  tryAndWarn "multistream handle":
+  try:
     while not conn.closed:
       var ms = string.fromBytes(await conn.readLp(1024))
       ms.removeSuffix("\n")
@@ -142,14 +142,14 @@ proc handle*(m: MultistreamSelect, conn: Connection) {.async, gcsafe.} =
             if (not isNil(h.match) and h.match(ms)) or ms == h.proto:
               trace "found handler for", protocol = ms
               await conn.writeLp((h.proto & "\n"))
-              tryAndWarn "multistream handle handler":
-                await h.protocol.handler(conn, ms)
-                return
+              await h.protocol.handler(conn, ms)
+              return
           warn "no handlers for ", protocol = ms
           await conn.write(Na)
-  trace "leaving multistream loop"
-  # we might be tempted to close conn here but that would be a bad idea!
-  # we indeed will reuse it later on
+  except CatchableError as exc:
+    trace "exception in multistream", exc = exc.msg
+  finally:
+    trace "leaving multistream loop"
 
 proc addHandler*[T: LPProtocol](m: MultistreamSelect,
                                 codec: string,
