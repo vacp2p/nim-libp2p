@@ -500,7 +500,8 @@ method handshake*(p: Noise, conn: Connection, initiator: bool = false): Future[S
       raise newException(NoiseHandshakeError, "Noise handshake, peer infos don't match! " & $pid & " != " & $conn.peerInfo.peerId)
 
   var secure = new NoiseConnection
-  inc getConnectionTracker().opened
+  secure.initStream()
+
   secure.stream = conn
   secure.closeEvent = newAsyncEvent()
   secure.peerInfo = PeerInfo.init(remotePubKey)
