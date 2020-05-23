@@ -2,12 +2,14 @@ import chronos
 
 import ../libp2p/transports/tcptransport
 import ../libp2p/stream/bufferstream
+import ../libp2p/connection
 
 const
   StreamTransportTrackerName = "stream.transport"
   StreamServerTrackerName = "stream.server"
 
   trackerNames = [
+    ConnectionTrackerName,
     BufferStreamTrackerName,
     TcpTransportTrackerName,
     StreamTransportTrackerName,

@@ -79,8 +79,8 @@ suite "GossipSub":
       await nodes[0].publish("foobar", cast[seq[byte]]("Hello!"))
 
       result = (await validatorFut) and (await handlerFut)
-      await allFuturesThrowing(nodes[0].stop(), nodes[1].stop())
-      await allFuturesThrowing(awaiters)
+      await all(nodes[0].stop(), nodes[1].stop())
+      await all(awaiters)
 
     check:
       waitFor(runTests()) == true
@@ -111,9 +111,8 @@ suite "GossipSub":
       await nodes[0].publish("foobar", cast[seq[byte]]("Hello!"))
 
       result = await validatorFut
-
-      await allFuturesThrowing(nodes[0].stop(), nodes[1].stop())
-      await allFuturesThrowing(awaiters)
+      await all(nodes[0].stop(), nodes[1].stop())
+      await all(awaiters)
 
     check:
       waitFor(runTests()) == true
@@ -152,8 +151,8 @@ suite "GossipSub":
       await nodes[0].publish("bar", cast[seq[byte]]("Hello!"))
 
       result = ((await passed) and (await failed) and (await handlerFut))
-      await allFuturesThrowing(nodes[0].stop(), nodes[1].stop())
-      await allFuturesThrowing(awaiters)
+      await all(nodes[0].stop(), nodes[1].stop())
+      await all(awaiters)
       result = true
     check:
       waitFor(runTests()) == true
@@ -183,8 +182,8 @@ suite "GossipSub":
         "foobar" in gossip1.gossipsub
         gossip2.peerInfo.id in gossip1.gossipsub["foobar"]
 
-      await allFuturesThrowing(nodes.mapIt(it.stop()))
-      await allFuturesThrowing(awaitters)
+      await all(nodes.mapIt(it.stop()))
+      await all(awaitters)
 
       result = true
 
@@ -212,7 +211,7 @@ suite "GossipSub":
       var subs: seq[Future[void]]
       subs &= waitSub(nodes[1], nodes[0], "foobar")
       subs &= waitSub(nodes[0], nodes[1], "foobar")
-      await allFuturesThrowing(subs)
+      await all(subs)
 
       let
         gossip1 = GossipSub(nodes[0].pubSub.get())
@@ -231,8 +230,8 @@ suite "GossipSub":
         gossip1.peerInfo.id in gossip2.gossipsub["foobar"] or
         gossip1.peerInfo.id in gossip2.mesh["foobar"]
 
-      await allFuturesThrowing(nodes.mapIt(it.stop()))
-      await allFuturesThrowing(awaitters)
+      await all(nodes.mapIt(it.stop()))
+      await all(awaitters)
 
       result = true
 
@@ -280,7 +279,7 @@ suite "GossipSub":
 
       await nodes[0].stop()
       await nodes[1].stop()
-      await allFuturesThrowing(wait)
+      await all(wait)
 
       result = observed == 2
 
@@ -310,7 +309,7 @@ suite "GossipSub":
 
       await nodes[0].stop()
       await nodes[1].stop()
-      await allFuturesThrowing(wait)
+      await all(wait)
 
     check:
       waitFor(runTests()) == true
@@ -345,7 +344,8 @@ suite "GossipSub":
         subs.add(allFutures(dialer.subscribe("foobar", handler),
           waitSub(nodes[0], dialer, "foobar")))
 
-      await allFuturesThrowing(subs)
+      await all(subs)
+
       await wait(nodes[0].publish("foobar",
                                   cast[seq[byte]]("from node " &
                                   nodes[1].peerInfo.id)),
@@ -356,8 +356,8 @@ suite "GossipSub":
       for k, v in seen.pairs:
         check: v == 1
 
-      await allFuturesThrowing(nodes.mapIt(it.stop()))
-      await allFuturesThrowing(awaitters)
+      await all(nodes.mapIt(it.stop()))
+      await all(awaitters)
       result = true
 
     check:
