@@ -246,9 +246,8 @@ proc newSecioConn(conn: Connection,
   ## cipher algorithm ``cipher``, stretched keys ``secrets`` and order
   ## ``order``.
   new result
-
+  result.initStream()
   result.stream = conn
-  result.closeEvent = newAsyncEvent()
 
   let i0 = if order < 0: 1 else: 0
   let i1 = if order < 0: 0 else: 1
@@ -267,10 +266,6 @@ proc newSecioConn(conn: Connection,
                           secrets.ivOpenArray(i1))
 
   result.peerInfo = PeerInfo.init(remotePubKey)
-  when chronicles.enabledLogLevel == LogLevel.TRACE:
-    result.oid = genOid()
-
-  inc  getConnectionTracker().opened
 
 proc transactMessage(conn: Connection,
                      msg: seq[byte]): Future[seq[byte]] {.async.} =

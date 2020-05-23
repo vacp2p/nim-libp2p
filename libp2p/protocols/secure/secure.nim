@@ -44,9 +44,8 @@ method init*(s: Secure) {.gcsafe.} =
       discard await s.handleConn(conn, false)
       trace "connection secured"
     except CatchableError as exc:
-      if not conn.closed():
-        warn "securing connection failed", msg = exc.msg
-        await conn.close()
+      warn "securing connection failed", msg = exc.msg
+      await conn.close()
 
   s.handler = handle
 
@@ -63,32 +62,42 @@ method readExactly*(s: SecureConn,
                     pbytes: pointer,
                     nbytes: int):
                     Future[void] {.async, gcsafe.} =
-  if nbytes == 0:
-    return
+  try:
+    if nbytes == 0:
+      return
 
-  while s.buf.data().len < nbytes:
-    # TODO write decrypted content straight into buf using `prepare`
-    let buf = await s.readMessage()
-    if buf.len == 0:
-      raise newLPStreamIncompleteError()
-    s.buf.add(buf)
+    while s.buf.data().len < nbytes:
+      # TODO write decrypted content straight into buf using `prepare`
+      let buf = await s.readMessage()
+      if buf.len == 0:
+        raise newLPStreamIncompleteError()
+      s.buf.add(buf)
 
-  var p = cast[ptr UncheckedArray[byte]](pbytes)
-  let consumed = s.buf.consumeTo(toOpenArray(p, 0, nbytes - 1))
-  doAssert consumed == nbytes, "checked above"
+    var p = cast[ptr UncheckedArray[byte]](pbytes)
+    let consumed = s.buf.consumeTo(toOpenArray(p, 0, nbytes - 1))
+    doAssert consumed == nbytes, "checked above"
+  except CatchableError as exc:
+    trace "exception reading from secure connection", exc = exc.msg
+    await s.close() # make sure to close the wrapped connection
+    raise exc
 
 method readOnce*(s: SecureConn,
                  pbytes: pointer,
                  nbytes: int):
                  Future[int] {.async, gcsafe.} =
-  if nbytes == 0:
-    return 0
+  try:
+    if nbytes == 0:
+      return 0
 
-  if s.buf.data().len() == 0:
-    let buf = await s.readMessage()
-    if buf.len == 0:
-      raise newLPStreamIncompleteError()
-    s.buf.add(buf)
+    if s.buf.data().len() == 0:
+      let buf = await s.readMessage()
+      if buf.len == 0:
+        raise newLPStreamIncompleteError()
+      s.buf.add(buf)
 
-  var p = cast[ptr UncheckedArray[byte]](pbytes)
-  return s.buf.consumeTo(toOpenArray(p, 0, nbytes - 1))
+    var p = cast[ptr UncheckedArray[byte]](pbytes)
+    return s.buf.consumeTo(toOpenArray(p, 0, nbytes - 1))
+  except CatchableError as exc:
+    trace "exception reading from secure connection", exc = exc.msg
+    await s.close() # make sure to close the wrapped connection
+    raise exc
