@@ -193,6 +193,9 @@ method reset*(s: LPChannel) {.base, async, gcsafe.} =
   # might be dead already - reset is always
   # optimistic
   asyncCheck s.resetMessage()
+  # # because of the async check above,
+  # # give the message time to depart
+  # await sleepAsync(100.millis)
   await procCall BufferStream(s).close()
   s.isEof = true
   s.closedLocal = true
