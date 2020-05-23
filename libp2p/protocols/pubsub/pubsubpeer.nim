@@ -79,7 +79,7 @@ proc handle*(p: PubSubPeer, conn: Connection) {.async.} =
 
 proc send*(p: PubSubPeer, msgs: seq[RPCMsg]) {.async.} =
   for m in msgs.items:
-    trace "sending msgs to peer", toPeer = p.id, msgs = msgs
+    trace "sending msgs to peer", toPeer = p.id, msgs = $msgs
     let encoded = encodeRpcMsg(m)
     # trigger hooks
     if not(isNil(p.observers)) and p.observers[].len > 0:

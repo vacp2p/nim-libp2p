@@ -84,7 +84,6 @@ proc testPubSubDaemonPublish(gossip: bool = false,
     let smsg = cast[string](data)
     check smsg == pubsubData
     times.inc()
-    echo "TIMES ", times
     if times >= count and not finished:
       finished = true
 
@@ -109,7 +108,6 @@ proc testPubSubDaemonPublish(gossip: bool = false,
 
   await wait(publisher(), 5.minutes) # should be plenty of time
 
-  echo "HEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE"
   result = true
   await nativeNode.stop()
   await allFutures(awaiters)
@@ -145,7 +143,6 @@ proc testPubSubNodePublish(gossip: bool = false,
     let smsg = cast[string](message.data)
     check smsg == pubsubData
     times.inc()
-    echo "TIMES ", times
     if times >= count and not finished:
       finished = true
     result = true # don't cancel subscription
@@ -168,10 +165,14 @@ proc testPubSubNodePublish(gossip: bool = false,
   await daemonNode.close()
 
 suite "Interop":
-  teardown:
-    for tracker in testTrackers():
-      echo tracker.dump()
-      # check tracker.isLeaked() == false
+  # TODO: chronos transports are leaking,
+  # but those are tracked for both the daemon
+  # and libp2p, so not sure which one it is,
+  # need to investigate more
+  # teardown:
+  #   for tracker in testTrackers():
+  #     # echo tracker.dump()
+  #     # check tracker.isLeaked() == false
 
   test "native -> daemon multiple reads and writes":
     proc runTests(): Future[bool] {.async.} =
@@ -353,7 +354,6 @@ suite "Interop":
           check line == test
           await conn.writeLp(cast[seq[byte]](test))
           count.inc()
-          echo "COUNT ", count
 
         testFuture.complete(count)
         await conn.close()
