@@ -118,7 +118,7 @@ proc internalCleanup(p: PubSub, conn: Connection) {.async.} =
 
   var peer = p.getPeer(conn.peerInfo, p.codec)
   await conn.closeEvent.wait()
-  trace "connection closed, cleaning up peer", peer = conn.peerInfo.id
+  trace "pubsub conn closed, cleaning up peer", peer = conn.peerInfo.id
   await p.cleanUpHelper(peer)
 
 method handleConn*(p: PubSub,

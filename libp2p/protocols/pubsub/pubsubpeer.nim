@@ -78,52 +78,42 @@ proc handle*(p: PubSubPeer, conn: Connection) {.async.} =
       await conn.close()
 
 proc send*(p: PubSubPeer, msgs: seq[RPCMsg]) {.async.} =
-  try:
-    for m in msgs.items:
-      trace "sending msgs to peer", toPeer = p.id, msgs = msgs
-      let encoded = encodeRpcMsg(m)
-      # trigger hooks
-      if not(isNil(p.observers)) and p.observers[].len > 0:
-        var mm = m
-        for obs in p.observers[]:
-          obs.onSend(p, mm)
+  for m in msgs.items:
+    trace "sending msgs to peer", toPeer = p.id, msgs = msgs
+    let encoded = encodeRpcMsg(m)
+    # trigger hooks
+    if not(isNil(p.observers)) and p.observers[].len > 0:
+      var mm = m
+      for obs in p.observers[]:
+        obs.onSend(p, mm)
 
-      if encoded.buffer.len <= 0:
-        trace "empty message, skipping", peer = p.id
-        return
+    if encoded.buffer.len <= 0:
+      trace "empty message, skipping", peer = p.id
+      return
 
-      let digest = $(sha256.digest(encoded.buffer))
-      if digest in p.sentRpcCache:
-        trace "message already sent to peer, skipping", peer = p.id
-        continue
+    let digest = $(sha256.digest(encoded.buffer))
+    if digest in p.sentRpcCache:
+      trace "message already sent to peer, skipping", peer = p.id
+      continue
 
-      proc sendToRemote() {.async.} =
-        trace "about send message", peer = p.id,
-                                    encoded = digest
+    proc sendToRemote() {.async.} =
+      try:
+        trace "about to send message", peer = p.id,
+                                       encoded = digest
         await p.onConnect.wait()
-        try:
-          trace "sending encoded msgs to peer", peer = p.id,
-                                                encoded = encoded.buffer.shortLog
-          await p.sendConn.writeLp(encoded.buffer)
-          p.sentRpcCache.put(digest)
-        except CatchableError as exc:
-          trace "unable to send to remote", exc = exc.msg
-          if not(isNil(p.sendConn)):
-            await p.sendConn.close()
-            p.sendConn = nil
-            p.onConnect.clear()
+        trace "sending encoded msgs to peer", peer = p.id,
+                                              encoded = encoded.buffer.shortLog
+        await p.sendConn.writeLp(encoded.buffer)
+        p.sentRpcCache.put(digest)
+      except CatchableError as exc:
+        trace "unable to send to remote", exc = exc.msg
+        p.sendConn = nil
+        p.onConnect.clear()
 
-      # if no connection has been set,
-      # queue messages untill a connection
-      # becomes available
-      asyncCheck sendToRemote()
-
-  except CatchableError as exc:
-    trace "Exception occurred in PubSubPeer.send", exc = exc.msg
-    if not(isNil(p.sendConn)):
-      await p.sendConn.close()
-      p.sendConn = nil
-      p.onConnect.clear()
+    # if no connection has been set,
+    # queue messages untill a connection
+    # becomes available
+    asyncCheck sendToRemote()
 
 proc sendMsg*(p: PubSubPeer,
               peerId: PeerID,
