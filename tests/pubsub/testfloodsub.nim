@@ -50,7 +50,7 @@ suite "FloodSub":
 
       let
         nodes = generateNodes(2)
-        nodesFut = await allFinished(
+        nodesFut = await all(
           nodes[0].start(),
           nodes[1].start()
         )
@@ -64,14 +64,13 @@ suite "FloodSub":
 
       result = await completionFut.wait(5.seconds)
 
-      await allFuturesThrowing(
+      await all(
         nodes[0].stop(),
         nodes[1].stop()
       )
 
-      for fut in nodesFut:
-        let res = fut.read()
-        await allFuturesThrowing(res)
+      await all(nodesFut.concat())
+
     check:
       waitFor(runTests()) == true
 
@@ -96,8 +95,8 @@ suite "FloodSub":
 
       result = await completionFut.wait(5.seconds)
 
-      await allFuturesThrowing(nodes[0].stop(), nodes[1].stop())
-      await allFuturesThrowing(awaiters)
+      await all(nodes[0].stop(), nodes[1].stop())
+      await all(awaiters)
 
     check:
       waitFor(runTests()) == true
@@ -129,9 +128,9 @@ suite "FloodSub":
 
       await nodes[0].publish("foobar", cast[seq[byte]]("Hello!"))
 
-      await allFuturesThrowing(handlerFut, handlerFut)
-      await allFuturesThrowing(nodes[0].stop(), nodes[1].stop())
-      await allFuturesThrowing(awaiters)
+      check (await handlerFut) == true
+      await all(nodes[0].stop(), nodes[1].stop())
+      await all(awaiters)
       result = true
 
     check:
@@ -161,8 +160,8 @@ suite "FloodSub":
 
       await nodes[0].publish("foobar", cast[seq[byte]]("Hello!"))
 
-      await allFuturesThrowing(nodes[0].stop(), nodes[1].stop())
-      await allFuturesThrowing(awaiters)
+      await all(nodes[0].stop(), nodes[1].stop())
+      await all(awaiters)
       result = true
 
     check:
@@ -198,8 +197,8 @@ suite "FloodSub":
       await nodes[0].publish("foo", cast[seq[byte]]("Hello!"))
       await nodes[0].publish("bar", cast[seq[byte]]("Hello!"))
 
-      await allFuturesThrowing(nodes[0].stop(), nodes[1].stop())
-      await allFuturesThrowing(awaiters)
+      await all(nodes[0].stop(), nodes[1].stop())
+      await all(awaiters)
       result = true
 
     check:
@@ -220,7 +219,7 @@ suite "FloodSub":
             (proc(topic: string, data: seq[byte]) {.async, gcsafe.} =
               check topic == "foobar"
               inc counter[]
-              if counter[] == 9:
+              if counter[] == runs - 1:
                 fut.complete()),
             counter
           )
@@ -228,7 +227,6 @@ suite "FloodSub":
       var nodes: seq[Switch] = newSeq[Switch]()
       for i in 0..<runs:
         nodes.add newStandardSwitch()
-
 
       var awaitters: seq[Future[void]]
       for i in 0..<runs:
@@ -244,16 +242,16 @@ suite "FloodSub":
         for y in 0..<runs:
           if y != i:
             subs &= waitSub(nodes[i], nodes[y], "foobar")
-      await allFuturesThrowing(subs)
+      await all(subs)
 
       var pubs: seq[Future[void]]
       for i in 0..<runs:
         pubs &= nodes[i].publish("foobar", cast[seq[byte]]("Hello!"))
-      await allFuturesThrowing(pubs)
+      await all(pubs)
 
-      await allFuturesThrowing(futs.mapIt(it[0]))
-      await allFuturesThrowing(nodes.mapIt(it.stop()))
-      await allFuturesThrowing(awaitters)
+      await all(futs.mapIt(it[0]))
+      await all(nodes.mapIt(it.stop()))
+      await all(awaitters)
 
       result = true
     check:
@@ -298,16 +296,16 @@ suite "FloodSub":
         for y in 0..<runs:
           if y != i:
             subs &= waitSub(nodes[i], nodes[y], "foobar")
-      await allFuturesThrowing(subs)
+      await all(subs)
 
       var pubs: seq[Future[void]]
       for i in 0..<runs:
         pubs &= nodes[i].publish("foobar", cast[seq[byte]]("Hello!"))
-      await allFuturesThrowing(pubs)
+      await all(pubs)
 
-      await allFuturesThrowing(futs.mapIt(it[0]))
-      await allFuturesThrowing(nodes.mapIt(it.stop()))
-      await allFuturesThrowing(awaitters)
+      await all(futs.mapIt(it[0]))
+      await all(nodes.mapIt(it.stop()))
+      await all(awaitters)
 
       result = true
 

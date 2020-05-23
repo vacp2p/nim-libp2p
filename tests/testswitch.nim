@@ -90,7 +90,7 @@ suite "Switch":
       let msg = cast[string](await conn.readLp(1024))
       check "Hello!" == msg
 
-      await allFuturesThrowing(
+      await all(
         done.wait(5.seconds) #[if OK won't happen!!]#,
         conn.close(),
         switch1.stop(),
@@ -98,7 +98,7 @@ suite "Switch":
       )
 
       # this needs to go at end
-      await allFuturesThrowing(awaiters)
+      await all(awaiters)
 
     waitFor(testSwitch())
 
@@ -138,12 +138,12 @@ suite "Switch":
       except LPStreamError:
         result = false
 
-      await allFuturesThrowing(
+      await all(
         conn.close(),
         switch1.stop(),
         switch2.stop()
       )
-      await allFuturesThrowing(awaiters)
+      await all(awaiters)
 
     check:
       waitFor(testSwitch()) == true
