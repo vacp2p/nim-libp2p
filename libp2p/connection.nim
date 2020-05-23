@@ -30,9 +30,6 @@ type
     peerInfo*: PeerInfo
     stream*: LPStream
     observedAddrs*: Multiaddress
-    # notice this is a ugly circular reference collection
-    # (we got many actually :-))
-    readLoops*: seq[Future[void]]
 
   ConnectionTracker* = ref object of TrackerBase
     opened*: uint64
@@ -144,12 +141,6 @@ method close*(s: Connection) {.async, gcsafe.} =
         # s.stream = nil
 
       s.closeEvent.fire()
-      trace "waiting readloops", count=s.readLoops.len,
-                                 conn = $s,
-                                 oid = s.oid
-      await all(s.readLoops)
-      s.readLoops = @[]
-
       trace "connection closed", closed = s.closed,
                                  conn = $s,
                                  oid = s.oid
