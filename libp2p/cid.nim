@@ -130,7 +130,7 @@ proc decode(data: openarray[char], cid: var Cid): CidStatus =
 proc validate*(ctype: typedesc[Cid], data: openarray[byte]): bool =
   ## Returns ``true`` is data has valid binary CID representation.
   var version, codec: uint64
-  var res: VarintStatus
+  var res: VarintResult[void]
   if len(data) < 2:
     return false
   let last = data.high
@@ -140,7 +140,7 @@ proc validate*(ctype: typedesc[Cid], data: openarray[byte]): bool =
   var offset = 0
   var length = 0
   res = LP.getUVarint(data.toOpenArray(offset, last), length, version)
-  if res != VarintStatus.Success:
+  if res.isErr():
     return false
   if version != 1'u64:
     return false
@@ -148,7 +148,7 @@ proc validate*(ctype: typedesc[Cid], data: openarray[byte]): bool =
   if offset >= len(data):
     return false
   res = LP.getUVarint(data.toOpenArray(offset, last), length, codec)
-  if res != VarintStatus.Success:
+  if res.isErr():
     return false
   var mcodec = CodeContentIds.getOrDefault(cast[int](codec), InvalidMultiCodec)
   if mcodec == InvalidMultiCodec:

@@ -205,8 +205,8 @@ suite "Variable integer test suite":
     for i in 0 ..< len(PBedgeValues):
       buffer.setLen(PBedgeSizes[i])
       check:
-        PB.putUVarint(buffer, length, PBedgeValues[i]) == VarintStatus.Success
-        PB.getUVarint(buffer, length, uvalue) == VarintStatus.Success
+        PB.putUVarint(buffer, length, PBedgeValues[i]).isOk()
+        PB.getUVarint(buffer, length, uvalue).isOk()
         uvalue == PBedgeValues[i]
         toHex(buffer) == PBedgeExpects[i]
 
@@ -214,16 +214,16 @@ suite "Variable integer test suite":
       buffer.setLen(PBEdgeSignedPositiveSizes[i])
       check:
         putSVarint(buffer, length,
-                  hint64(PBPositiveSignedEdgeValues[i])) == VarintStatus.Success
-        getSVarint(buffer, length, ivalue) == VarintStatus.Success
+                  hint64(PBPositiveSignedEdgeValues[i])).isOk()
+        getSVarint(buffer, length, ivalue).isOk()
         int64(ivalue) == int64(PBPositiveSignedEdgeValues[i])
         toHex(buffer) == PBPositiveSignedEdgeExpects[i]
 
       buffer.setLen(PBEdgeSignedPositiveZigZagSizes[i])
       check:
         putSVarint(buffer, length,
-                  zint64(PBPositiveSignedEdgeValues[i])) == VarintStatus.Success
-        getSVarint(buffer, length, svalue) == VarintStatus.Success
+                  zint64(PBPositiveSignedEdgeValues[i])).isOk()
+        getSVarint(buffer, length, svalue).isOk()
         int64(svalue) == int64(PBPositiveSignedEdgeValues[i])
         toHex(buffer) == PBPositiveSignedZigZagEdgeExpects[i]
 
@@ -231,16 +231,16 @@ suite "Variable integer test suite":
       buffer.setLen(PBEdgeSignedNegativeSizes[i])
       check:
         putSVarint(buffer, length,
-                  hint64(PBNegativeSignedEdgeValues[i])) == VarintStatus.Success
-        getSVarint(buffer, length, ivalue) == VarintStatus.Success
+                  hint64(PBNegativeSignedEdgeValues[i])).isOk()
+        getSVarint(buffer, length, ivalue).isOk()
         int64(ivalue) == int64(PBNegativeSignedEdgeValues[i])
         toHex(buffer) == PBNegativeSignedEdgeExpects[i]
 
       buffer.setLen(PBEdgeSignedNegativeZigZagSizes[i])
       check:
         putSVarint(buffer, length,
-                   zint64(PBNegativeSignedEdgeValues[i])) == VarintStatus.Success
-        getSVarint(buffer, length, svalue) == VarintStatus.Success
+                   zint64(PBNegativeSignedEdgeValues[i])).isOk()
+        getSVarint(buffer, length, svalue).isOk()
 
         int64(svalue) == int64(PBNegativeSignedEdgeValues[i])
         toHex(buffer) == PBNegativeSignedZigZagEdgeExpects[i]
@@ -252,7 +252,7 @@ suite "Variable integer test suite":
       buffer.setLen(PBedgeSizes[i] - 1)
       let res = PB.putUVarint(buffer, length, PBedgeValues[i])
       check:
-        res == VarintStatus.Overrun
+        res.error() == VarintError.Overrun
         length == PBedgeSizes[i]
 
   test "[ProtoBuf] Buffer Incomplete edge cases test":
@@ -262,10 +262,10 @@ suite "Variable integer test suite":
     for i in 0..<len(PBedgeValues):
       buffer.setLen(PBedgeSizes[i])
       check:
-        PB.putUVarint(buffer, length, PBedgeValues[i]) == VarintStatus.Success
+        PB.putUVarint(buffer, length, PBedgeValues[i]).isOk()
       buffer.setlen(buffer.high)
       check:
-        PB.getUVarint(buffer, length, value) == VarintStatus.Incomplete
+        PB.getUVarint(buffer, length, value).error() == VarintError.Incomplete
 
   test "[ProtoBuf] Integer Overflow 32bit test":
     var buffer = newSeq[byte]()
@@ -275,8 +275,8 @@ suite "Variable integer test suite":
         var value = 0'u32
         buffer.setLen(PBedgeSizes[i])
         check:
-          PB.putUVarint(buffer, length, PBedgeValues[i]) == VarintStatus.Success
-          PB.getUVarint(buffer, length, value) == VarintStatus.Overflow
+          PB.putUVarint(buffer, length, PBedgeValues[i]).isOk()
+          PB.getUVarint(buffer, length, value).error() == VarintError.Overflow
 
   test "[ProtoBuf] Integer Overflow 64bit test":
     var buffer = newSeq[byte]()
@@ -286,28 +286,28 @@ suite "Variable integer test suite":
         var value = 0'u64
         buffer.setLen(PBedgeSizes[i] + 1)
         check:
-          PB.putUVarint(buffer, length, PBedgeValues[i]) == VarintStatus.Success
+          PB.putUVarint(buffer, length, PBedgeValues[i]).isOk()
         buffer[9] = buffer[9] or 0x80'u8
         buffer[10] = 0x01'u8
         check:
-          PB.getUVarint(buffer, length, value) == VarintStatus.Overflow
+          PB.getUVarint(buffer, length, value).error() == VarintError.Overflow
 
   test "[ProtoBuf] Test vectors":
     # The test vectors which was obtained at:
     # https://github.com/dermesser/integer-encoding-rs/blob/master/src/varint_tests.rs
     # https://github.com/That3Percent/zigzag/blob/master/src/lib.rs
     check:
-      PB.encodeVarint(0'u64) == @[0x00'u8]
-      PB.encodeVarint(0'u32) == @[0x00'u8]
-      PB.encodeVarint(hint64(0)) == @[0x00'u8]
-      PB.encodeVarint(hint32(0)) == @[0x00'u8]
-      PB.encodeVarint(zint64(0)) == @[0x00'u8]
-      PB.encodeVarint(zint32(0)) == @[0x00'u8]
-      PB.encodeVarint(zint32(-1)) == PB.encodeVarint(1'u32)
-      PB.encodeVarint(zint64(150)) == PB.encodeVarint(300'u32)
-      PB.encodeVarint(zint64(-150)) == PB.encodeVarint(299'u32)
-      PB.encodeVarint(zint32(-2147483648)) == PB.encodeVarint(4294967295'u64)
-      PB.encodeVarint(zint32(2147483647)) == PB.encodeVarint(4294967294'u64)
+      PB.encodeVarint(0'u64).get() == @[0x00'u8]
+      PB.encodeVarint(0'u32).get() == @[0x00'u8]
+      PB.encodeVarint(hint64(0)).get() == @[0x00'u8]
+      PB.encodeVarint(hint32(0)).get() == @[0x00'u8]
+      PB.encodeVarint(zint64(0)).get() == @[0x00'u8]
+      PB.encodeVarint(zint32(0)).get() == @[0x00'u8]
+      PB.encodeVarint(zint32(-1)).get() == PB.encodeVarint(1'u32).get()
+      PB.encodeVarint(zint64(150)).get( ) == PB.encodeVarint(300'u32).get()
+      PB.encodeVarint(zint64(-150)).get() == PB.encodeVarint(299'u32).get()
+      PB.encodeVarint(zint32(-2147483648)).get() == PB.encodeVarint(4294967295'u64).get()
+      PB.encodeVarint(zint32(2147483647)).get() == PB.encodeVarint(4294967294'u64).get()
 
   test "[LibP2P] Success edge cases test":
     var buffer = newSeq[byte]()
@@ -316,8 +316,8 @@ suite "Variable integer test suite":
     for i in 0..<len(LPedgeValues):
       buffer.setLen(LPedgeSizes[i])
       check:
-        LP.putUVarint(buffer, length, LPedgeValues[i]) == VarintStatus.Success
-        LP.getUVarint(buffer, length, value) == VarintStatus.Success
+        LP.putUVarint(buffer, length, LPedgeValues[i]).isOk()
+        LP.getUVarint(buffer, length, value).isOk()
         value == LPedgeValues[i]
         toHex(buffer) == LPedgeExpects[i]
 
@@ -328,7 +328,7 @@ suite "Variable integer test suite":
       buffer.setLen(PBedgeSizes[i] - 1)
       let res = LP.putUVarint(buffer, length, LPedgeValues[i])
       check:
-        res == VarintStatus.Overrun
+        res.error() == VarintError.Overrun
         length == LPedgeSizes[i]
 
   test "[LibP2P] Buffer Incomplete edge cases test":
@@ -338,10 +338,10 @@ suite "Variable integer test suite":
     for i in 0..<len(LPedgeValues):
       buffer.setLen(LPedgeSizes[i])
       check:
-        LP.putUVarint(buffer, length, LPedgeValues[i]) == VarintStatus.Success
+        LP.putUVarint(buffer, length, LPedgeValues[i]).isOk()
       buffer.setlen(buffer.high)
       check:
-        LP.getUVarint(buffer, length, value) == VarintStatus.Incomplete
+        LP.getUVarint(buffer, length, value).error() == VarintError.Incomplete
 
   test "[LibP2P] Integer Overflow 32bit test":
     var buffer = newSeq[byte]()
@@ -351,8 +351,8 @@ suite "Variable integer test suite":
         var value = 0'u32
         buffer.setLen(LPedgeSizes[i])
         check:
-          LP.putUVarint(buffer, length, LPedgeValues[i]) == VarintStatus.Success
-          LP.getUVarint(buffer, length, value) == VarintStatus.Overflow
+          LP.putUVarint(buffer, length, LPedgeValues[i]).isOk()
+          LP.getUVarint(buffer, length, value).error() == VarintError.Overflow
 
   test "[LibP2P] Integer Overflow 64bit test":
     var buffer = newSeq[byte]()
@@ -362,22 +362,22 @@ suite "Variable integer test suite":
         var value = 0'u64
         buffer.setLen(LPedgeSizes[i] + 1)
         check:
-          LP.putUVarint(buffer, length, LPedgeValues[i]) == VarintStatus.Success
+          LP.putUVarint(buffer, length, LPedgeValues[i]).isOk()
         buffer[8] = buffer[8] or 0x80'u8
         buffer[9] = 0x01'u8
         check:
-          LP.getUVarint(buffer, length, value) == VarintStatus.Overflow
+          LP.getUVarint(buffer, length, value).error() == VarintError.Overflow
 
   test "[LibP2P] Over 63bit test":
     var buffer = newSeq[byte](10)
     var length = 0
     check:
       LP.putUVarint(buffer, length,
-                    0x7FFF_FFFF_FFFF_FFFF'u64) == VarintStatus.Success
+                    0x7FFF_FFFF_FFFF_FFFF'u64).isOk()
       LP.putUVarint(buffer, length,
-                    0x8000_0000_0000_0000'u64) == VarintStatus.Overflow
+                    0x8000_0000_0000_0000'u64).error() == VarintError.Overflow
       LP.putUVarint(buffer, length,
-                    0xFFFF_FFFF_FFFF_FFFF'u64) == VarintStatus.Overflow
+                    0xFFFF_FFFF_FFFF_FFFF'u64).error() == VarintError.Overflow
 
   test "[LibP2P] Overlong values test":
     const OverlongValues = [
@@ -414,19 +414,19 @@ suite "Variable integer test suite":
 
     for item in OverlongValues:
       check:
-        LP.getUVarint(item, length, value) == VarintStatus.Overlong
+        LP.getUVarint(item, length, value).error() == VarintError.Overlong
         length == 0
         value == 0
 
     # We still should be able to decode zero value
     check:
-      LP.getUVarint(@[0x00'u8], length, value) == VarintStatus.Success
+      LP.getUVarint(@[0x00'u8], length, value).isOk()
       length == 1
       value == 0
 
     # But not overlonged zero value
     check:
-      LP.getUVarint(@[0x80'u8, 0x00'u8], length, value) == VarintStatus.Overlong
+      LP.getUVarint(@[0x80'u8, 0x00'u8], length, value).error() == VarintError.Overlong
       length == 0
       value == 0
 
@@ -440,11 +440,11 @@ suite "Variable integer test suite":
       var ovalue: vtype
       var buffer = newSeq[byte](10)
       var length = 0
-      check ttype.putVarint(buffer, length, value) == VarintStatus.Success
+      check ttype.putVarint(buffer, length, value).isOk()
       buffer.setLen(length)
       check:
         toHex(buffer) == expect
-        ttype.getVarint(buffer, length, ovalue) == VarintStatus.Success
+        ttype.getVarint(buffer, length, ovalue).isOk()
         ovalue == value
 
     varintTest(PB, uint64, high(uint64), "FFFFFFFFFFFFFFFFFF01")

@@ -8,6 +8,9 @@
 ## those terms.
 
 ## This module implements minimal Google's ProtoBuf primitives.
+
+{.push raises: [Defect].}
+
 import ../varint
 
 const
@@ -142,15 +145,15 @@ proc initProtoBuffer*(options: set[ProtoFlags] = {}): ProtoBuffer =
 proc write*(pb: var ProtoBuffer, field: ProtoField) =
   ## Encode protobuf's field ``field`` and store it to protobuf's buffer ``pb``.
   var length = 0
-  var res: VarintStatus
+  var res: VarintResult[void]
   pb.buffer.setLen(len(pb.buffer) + vsizeof(field))
   res = PB.putUVarint(pb.toOpenArray(), length, protoHeader(field))
-  doAssert(res == VarintStatus.Success)
+  doAssert(res.isOk())
   pb.offset += length
   case field.kind
   of ProtoFieldKind.Varint:
     res = PB.putUVarint(pb.toOpenArray(), length, field.vint)
-    doAssert(res == VarintStatus.Success)
+    doAssert(res.isOk())
     pb.offset += length
   of ProtoFieldKind.Fixed64:
     doAssert(pb.isEnough(8))
@@ -174,7 +177,7 @@ proc write*(pb: var ProtoBuffer, field: ProtoField) =
     pb.offset += 4
   of ProtoFieldKind.Length:
     res = PB.putUVarint(pb.toOpenArray(), length, uint(len(field.vbuffer)))
-    doAssert(res == VarintStatus.Success)
+    doAssert(res.isOk())
     pb.offset += length
     doAssert(pb.isEnough(len(field.vbuffer)))
     if len(field.vbuffer) > 0:
@@ -192,7 +195,7 @@ proc finish*(pb: var ProtoBuffer) =
     let pos = 10 - vsizeof(size)
     var usedBytes = 0
     let res = PB.putUVarint(pb.buffer.toOpenArray(pos, 9), usedBytes, size)
-    doAssert(res == VarintStatus.Success)
+    doAssert(res.isOk())
     pb.offset = pos
   elif WithUint32BeLength in pb.options:
     let size = uint(len(pb.buffer) - 4)
@@ -218,8 +221,7 @@ proc getVarintValue*(data: var ProtoBuffer, field: int,
   var header = 0'u64
   var soffset = data.offset
 
-  if not data.isEmpty() and
-     PB.getUVarint(data.toOpenArray(), length, header) == VarintStatus.Success:
+  if not data.isEmpty() and PB.getUVarint(data.toOpenArray(), length, header).isOk():
     data.offset += length
     if header == protoHeader(field, Varint):
       if not data.isEmpty():
@@ -227,7 +229,7 @@ proc getVarintValue*(data: var ProtoBuffer, field: int,
           let res = getSVarint(data.toOpenArray(), length, value)
         else:
           let res = PB.getUVarint(data.toOpenArray(), length, value)
-        if res == VarintStatus.Success:
+        if res.isOk():
           data.offset += length
           result = length
           return
@@ -243,12 +245,10 @@ proc getLengthValue*[T: string|seq[byte]](data: var ProtoBuffer, field: int,
   var soffset = data.offset
   result = -1
   buffer.setLen(0)
-  if not data.isEmpty() and
-     PB.getUVarint(data.toOpenArray(), length, header) == VarintStatus.Success:
+  if not data.isEmpty() and PB.getUVarint(data.toOpenArray(), length, header).isOk():
     data.offset += length
     if header == protoHeader(field, Length):
-      if not data.isEmpty() and
-         PB.getUVarint(data.toOpenArray(), length, ssize) == VarintStatus.Success:
+      if not data.isEmpty() and PB.getUVarint(data.toOpenArray(), length, ssize).isOk():
         data.offset += length
         if ssize <= MaxMessageSize and data.isEnough(int(ssize)):
           buffer.setLen(ssize)
@@ -280,12 +280,10 @@ proc enterSubmessage*(pb: var ProtoBuffer): int =
   var msize = 0'u64
   var soffset = pb.offset
 
-  if not pb.isEmpty() and
-     PB.getUVarint(pb.toOpenArray(), length, header) == VarintStatus.Success:
+  if not pb.isEmpty() and PB.getUVarint(pb.toOpenArray(), length, header).isOk():
     pb.offset += length
     if (header and 0x07'u64) == cast[uint64](ProtoFieldKind.Length):
-      if not pb.isEmpty() and
-         PB.getUVarint(pb.toOpenArray(), length, msize) == VarintStatus.Success:
+      if not pb.isEmpty() and PB.getUVarint(pb.toOpenArray(), length, msize).isOk():
         pb.offset += length
         if msize <= MaxMessageSize and pb.isEnough(int(msize)):
           pb.length = int(msize)
