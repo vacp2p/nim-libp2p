@@ -46,16 +46,15 @@ proc readLp*(s: StreamTransport): Future[seq[byte]] {.async, gcsafe.} =
   var
     size: uint
     length: int
-    res: VarintStatus
+    res: VarintResult[void]
   result = newSeq[byte](10)
 
   for i in 0..<len(result):
     await s.readExactly(addr result[i], 1)
     res = LP.getUVarint(result.toOpenArray(0, i), length, size)
-    if res == VarintStatus.Success:
+    if res.isOk():
       break
-  if res != VarintStatus.Success:
-    raise (ref InvalidVarintError)()
+  res.expect("Valid varint")
   result.setLen(size)
   if size > 0.uint:
     await s.readExactly(addr result[0], int(size))

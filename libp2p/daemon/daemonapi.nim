@@ -474,15 +474,15 @@ proc recvMessage(conn: StreamTransport): Future[seq[byte]] {.async.} =
   var
     size: uint
     length: int
-    res: VarintStatus
+    res: VarintResult[void]
   var buffer = newSeq[byte](10)
   try:
     for i in 0..<len(buffer):
       await conn.readExactly(addr buffer[i], 1)
       res = PB.getUVarint(buffer.toOpenArray(0, i), length, size)
-      if res == VarintStatus.Success:
+      if res.isOk():
         break
-    if res != VarintStatus.Success or size > MaxMessageSize:
+    if res.isErr() or size > MaxMessageSize:
       buffer.setLen(0)
       result = buffer
       return
