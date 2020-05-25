@@ -66,28 +66,29 @@ proc sendObservers(p: PubSubPeer, msg: var RPCMsg) =
 proc handle*(p: PubSubPeer, conn: Connection) {.async.} =
   trace "handling pubsub rpc", peer = p.id, closed = conn.closed
   try:
-    while not conn.closed:
-      trace "waiting for data", peer = p.id, closed = conn.closed
-      let data = await conn.readLp(64 * 1024)
-      let digest = $(sha256.digest(data))
-      trace "read data from peer", peer = p.id, data = data.shortLog
-      if digest in p.recvdRpcCache:
-        trace "message already received, skipping", peer = p.id
-        continue
+    try:
+      while not conn.closed:
+        trace "waiting for data", peer = p.id, closed = conn.closed
+        let data = await conn.readLp(64 * 1024)
+        let digest = $(sha256.digest(data))
+        trace "read data from peer", peer = p.id, data = data.shortLog
+        if digest in p.recvdRpcCache:
+          trace "message already received, skipping", peer = p.id
+          continue
 
-      var msg = decodeRpcMsg(data)
-      trace "decoded msg from peer", peer = p.id, msg = msg.shortLog
+        var msg = decodeRpcMsg(data)
+        trace "decoded msg from peer", peer = p.id, msg = msg.shortLog
+        # trigger hooks
+        for obs in p.observers[]:
+          obs.onRecv(p, msg)
+        await p.handler(p, @[msg])
+        p.recvdRpcCache.put(digest)
+    finally:
+      trace "exiting pubsub peer read loop", peer = p.id
+      await conn.close()
 
-      p.recvObservers(msg) # hooks can modify the message
-
-      await p.handler(p, @[msg])
-      p.recvdRpcCache.put(digest)
   except CatchableError as exc:
     trace "Exception occurred in PubSubPeer.handle", exc = exc.msg
-  finally:
-    trace "exiting pubsub peer read loop", peer = p.id
-    if not conn.closed():
-      await conn.close()
 
 proc send*(p: PubSubPeer, msgs: seq[RPCMsg]) {.async.} =
   for m in msgs.items:
