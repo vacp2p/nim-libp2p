@@ -86,30 +86,18 @@ method readExactly*(s: Connection,
                     pbytes: pointer,
                     nbytes: int):
                     Future[void] {.async, gcsafe.} =
-  try:
-    await s.stream.readExactly(pbytes, nbytes)
-  except CatchableError as exc:
-    await s.close()
-    raise exc
+  await s.stream.readExactly(pbytes, nbytes)
 
 method readOnce*(s: Connection,
                  pbytes: pointer,
                  nbytes: int):
                  Future[int] {.async, gcsafe.} =
-  try:
-    result = await s.stream.readOnce(pbytes, nbytes)
-  except CatchableError as exc:
-    await s.close()
-    raise exc
+  result = await s.stream.readOnce(pbytes, nbytes)
 
 method write*(s: Connection,
               msg: seq[byte]):
               Future[void] {.async, gcsafe.} =
-  try:
-    await s.stream.write(msg)
-  except CatchableError as exc:
-    await s.close()
-    raise exc
+  await s.stream.write(msg)
 
 method atEof*(s: Connection): bool {.inline.} =
   if isNil(s.stream):
