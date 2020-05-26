@@ -1,5 +1,6 @@
 import unittest
 import ../libp2p/multibase
+import stew/results
 
 when defined(nimHasUsed): {.used.}
 
@@ -97,49 +98,49 @@ suite "MultiBase test suite":
       MultiBase.decodedLength('\x00', 0) == -1
       MultiBase.decodedLength('\x00', 1) == 0
     check:
-      MultiBase.encode("identity", plain) == "\x00"
+      MultiBase.encode("identity", plain).get() == "\x00"
       # MultiBase.encode("base1", plain) == "1"
       # MultiBase.encode("base2", plain) == "0"
       # MultiBase.encode("base8", plain) == "7"
       # MultiBase.encode("base10", plain) == "9"
       # MultiBase.encode("base16", plain) == "f"
       # MultiBase.encode("base16upper", plain) == "F"
-      MultiBase.encode("base32hex", plain) == "v"
-      MultiBase.encode("base32hexupper", plain) == "V"
-      MultiBase.encode("base32hexpad", plain) == "t"
-      MultiBase.encode("base32hexpadupper", plain) == "T"
-      MultiBase.encode("base32", plain) == "b"
-      MultiBase.encode("base32upper", plain) == "B"
-      MultiBase.encode("base32pad", plain) == "c"
-      MultiBase.encode("base32padupper", plain) == "C"
-      MultiBase.encode("base58btc", plain) == "z"
-      MultiBase.encode("base58flickr", plain) == "Z"
-      MultiBase.encode("base64", plain) == "m"
-      MultiBase.encode("base64pad", plain) == "M"
-      MultiBase.encode("base64url", plain) == "u"
-      MultiBase.encode("base64urlpad", plain) == "U"
+      MultiBase.encode("base32hex", plain).get() == "v"
+      MultiBase.encode("base32hexupper", plain).get() == "V"
+      MultiBase.encode("base32hexpad", plain).get() == "t"
+      MultiBase.encode("base32hexpadupper", plain).get() == "T"
+      MultiBase.encode("base32", plain).get() == "b"
+      MultiBase.encode("base32upper", plain).get() == "B"
+      MultiBase.encode("base32pad", plain).get() == "c"
+      MultiBase.encode("base32padupper", plain).get() == "C"
+      MultiBase.encode("base58btc", plain).get() == "z"
+      MultiBase.encode("base58flickr", plain).get() == "Z"
+      MultiBase.encode("base64", plain).get() == "m"
+      MultiBase.encode("base64pad", plain).get() == "M"
+      MultiBase.encode("base64url", plain).get() == "u"
+      MultiBase.encode("base64urlpad", plain).get() == "U"
     check:
-      len(MultiBase.decode("\x00")) == 0
+      len(MultiBase.decode("\x00").get()) == 0
       # len(MultiBase.decode("1")) == 0
       # len(MultiBase.decode("0")) == 0
       # len(MultiBase.decode("7")) == 0
       # len(MultiBase.decode("9")) == 0
       # len(MultiBase.decode("f")) == 0
       # len(MultiBase.decode("F")) == 0
-      len(MultiBase.decode("v")) == 0
-      len(MultiBase.decode("V")) == 0
-      len(MultiBase.decode("t")) == 0
-      len(MultiBase.decode("T")) == 0
-      len(MultiBase.decode("b")) == 0
-      len(MultiBase.decode("B")) == 0
-      len(MultiBase.decode("c")) == 0
-      len(MultiBase.decode("C")) == 0
-      len(MultiBase.decode("z")) == 0
-      len(MultiBase.decode("Z")) == 0
-      len(MultiBase.decode("m")) == 0
-      len(MultiBase.decode("M")) == 0
-      len(MultiBase.decode("u")) == 0
-      len(MultiBase.decode("U")) == 0
+      len(MultiBase.decode("v").get()) == 0
+      len(MultiBase.decode("V").get()) == 0
+      len(MultiBase.decode("t").get()) == 0
+      len(MultiBase.decode("T").get()) == 0
+      len(MultiBase.decode("b").get()) == 0
+      len(MultiBase.decode("B").get()) == 0
+      len(MultiBase.decode("c").get()) == 0
+      len(MultiBase.decode("C").get()) == 0
+      len(MultiBase.decode("z").get()) == 0
+      len(MultiBase.decode("Z").get()) == 0
+      len(MultiBase.decode("m").get()) == 0
+      len(MultiBase.decode("M").get()) == 0
+      len(MultiBase.decode("u").get()) == 0
+      len(MultiBase.decode("U").get()) == 0
     check:
       MultiBase.encode("identity", plain, enc,
                        olens[0]) == MultiBaseStatus.Success
@@ -261,8 +262,8 @@ suite "MultiBase test suite":
       var bexpect = cast[seq[byte]](expect)
       var outlen = 0
       check:
-        MultiBase.encode(encoding, bexpect) == encoded
-        MultiBase.decode(encoded) == bexpect
+        MultiBase.encode(encoding, bexpect).get() == encoded
+        MultiBase.decode(encoded).get() == bexpect
 
       let elength = MultiBase.encodedLength(encoding, len(expect))
       var ebuffer = newString(elength)
@@ -291,18 +292,5 @@ suite "MultiBase test suite":
       MultiBase.encode("unknown", data, ebuffer,
                        outlen) == MultiBaseStatus.BadCodec
       MultiBase.decode("\x01\x00", dbuffer, outlen) == MultiBaseStatus.BadCodec
-    var r1 = false
-    var r2 = false
-    try:
-      discard MultiBase.encode("unknwon", data)
-    except MultiBaseError:
-      r1 = true
-
-    try:
-      discard MultiBase.decode("\x01\x00")
-    except MultiBaseError:
-      r2 = true
-
-    check:
-      r1 == true
-      r2 == true
+      MultiBase.encode("unknwon", data).isErr()
+      MultiBase.decode("\x01\x00").isErr()

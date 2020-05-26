@@ -253,11 +253,11 @@ proc encode*(mbtype: typedesc[MultiBase], encoding: string,
              cid: Cid): string {.inline.} =
   ## Get MultiBase encoded representation of ``cid`` using encoding
   ## ``encoding``.
-  result = MultiBase.encode(encoding, cid.data.buffer)
+  result = MultiBase.encode(encoding, cid.data.buffer).tryGet()
 
 proc `$`*(cid: Cid): string =
   ## Return official string representation of content identifier ``cid``.
   if cid.cidver == CIDv0:
     result = BTCBase58.encode(cid.data.buffer)
   elif cid.cidver == CIDv1:
-    result = Multibase.encode("base58btc", cid.data.buffer)
+    result = Multibase.encode("base58btc", cid.data.buffer).tryGet()
