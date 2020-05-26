@@ -153,7 +153,7 @@ method handleConn*(p: PubSub,
     peer.handler = handler
     await peer.handle(conn) # spawn peer read loop
     trace "pubsub peer handler ended, cleaning up"
-    await p.internalClenaup(conn)
+    await p.internalCleanup(conn)
   except CatchableError as exc:
     trace "exception ocurred in pubsub handle", exc = exc.msg
 
