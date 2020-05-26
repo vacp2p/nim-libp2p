@@ -50,7 +50,7 @@ method init(p: TestProto) {.gcsafe.} =
   p.handler = handle
 
 proc createSwitch(ma: MultiAddress; outgoing: bool): (Switch, PeerInfo) =
-  var peerInfo: PeerInfo = PeerInfo.init(PrivateKey.random(RSA).get())
+  var peerInfo: PeerInfo = PeerInfo.init(PrivateKey.random(ECDSA).get())
   peerInfo.addrs.add(ma)
   let identify = newIdentify(peerInfo)
 
@@ -78,7 +78,7 @@ suite "Noise":
     proc testListenerDialer(): Future[bool] {.async.} =
       let
         server: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
-        serverInfo = PeerInfo.init(PrivateKey.random(RSA).get(), [server])
+        serverInfo = PeerInfo.init(PrivateKey.random(ECDSA).get(), [server])
         serverNoise = newNoise(serverInfo.privateKey, outgoing = false)
 
       proc connHandler(conn: Connection) {.async, gcsafe.} =
@@ -94,7 +94,7 @@ suite "Noise":
 
       let
         transport2: TcpTransport = TcpTransport.init()
-        clientInfo = PeerInfo.init(PrivateKey.random(RSA).get(), [transport1.ma])
+        clientInfo = PeerInfo.init(PrivateKey.random(ECDSA).get(), [transport1.ma])
         clientNoise = newNoise(clientInfo.privateKey, outgoing = true)
         conn = await transport2.dial(transport1.ma)
         sconn = await clientNoise.secure(conn, true)
@@ -116,7 +116,7 @@ suite "Noise":
     proc testListenerDialer(): Future[bool] {.async.} =
       let
         server: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
-        serverInfo = PeerInfo.init(PrivateKey.random(RSA).get(), [server])
+        serverInfo = PeerInfo.init(PrivateKey.random(ECDSA).get(), [server])
         serverNoise = newNoise(serverInfo.privateKey, outgoing = false)
         readTask = newFuture[void]()
 
@@ -136,7 +136,7 @@ suite "Noise":
 
       let
         transport2: TcpTransport = TcpTransport.init()
-        clientInfo = PeerInfo.init(PrivateKey.random(RSA).get(), [transport1.ma])
+        clientInfo = PeerInfo.init(PrivateKey.random(ECDSA).get(), [transport1.ma])
         clientNoise = newNoise(clientInfo.privateKey, outgoing = true)
         conn = await transport2.dial(transport1.ma)
         sconn = await clientNoise.secure(conn, true)
@@ -157,7 +157,7 @@ suite "Noise":
     proc testListenerDialer(): Future[bool] {.async.} =
       let
         server: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
-        serverInfo = PeerInfo.init(PrivateKey.random(RSA).get(), [server])
+        serverInfo = PeerInfo.init(PrivateKey.random(ECDSA).get(), [server])
         serverNoise = newNoise(serverInfo.privateKey, outgoing = false)
         readTask = newFuture[void]()
 
@@ -179,7 +179,7 @@ suite "Noise":
 
       let
         transport2: TcpTransport = TcpTransport.init()
-        clientInfo = PeerInfo.init(PrivateKey.random(RSA).get(), [transport1.ma])
+        clientInfo = PeerInfo.init(PrivateKey.random(ECDSA).get(), [transport1.ma])
         clientNoise = newNoise(clientInfo.privateKey, outgoing = true)
         conn = await transport2.dial(transport1.ma)
         sconn = await clientNoise.secure(conn, true)
@@ -235,7 +235,7 @@ suite "Noise":
 
   #       let
   #         local = Multiaddress.init("/ip4/0.0.0.0/tcp/23456")
-  #         info = PeerInfo.init(PrivateKey.random(RSA), [local])
+  #         info = PeerInfo.init(PrivateKey.random(ECDSA), [local])
   #         noise = newNoise(info.privateKey)
   #         ms = newMultistream()
   #         transport = TcpTransport.newTransport()
@@ -269,7 +269,7 @@ suite "Noise":
   #       let
   #         local = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
   #         remote = Multiaddress.init("/ip4/127.0.0.1/tcp/23456")
-  #         info = PeerInfo.init(PrivateKey.random(RSA), [local])
+  #         info = PeerInfo.init(PrivateKey.random(ECDSA), [local])
   #         noise = newNoise(info.privateKey)
   #         ms = newMultistream()
   #         transport = TcpTransport.newTransport()
@@ -292,7 +292,7 @@ suite "Noise":
   #     proc testListenerDialer(): Future[bool] {.async.} =
   #       let
   #         local = Multiaddress.init("/ip4/0.0.0.0/tcp/23456")
-  #         info = PeerInfo.init(PrivateKey.random(RSA), [local])
+  #         info = PeerInfo.init(PrivateKey.random(ECDSA), [local])
   #         noise = newNoise(info.privateKey)
   #         ms = newMultistream()
   #         transport = TcpTransport.newTransport()
