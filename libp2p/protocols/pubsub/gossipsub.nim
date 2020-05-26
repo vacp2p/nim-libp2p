@@ -396,14 +396,16 @@ method publish*(g: GossipSub,
                 topic: string,
                 data: seq[byte]) {.async.} =
   await procCall PubSub(g).publish(topic, data)
-
   trace "about to publish message on topic", name = topic,
                                              data = data.shortLog
 
   var peers: HashSet[string]
-  var tries = 5 # try publishing up to 5 times
+  var tries = 5 # try to get peers up to 5 times
   if data.len > 0 and topic.len > 0:
-    while peers.len <= 0 and tries > 0:
+    for _ in 0..<tries:
+      if peers.len > 0:
+        break
+
       if topic in g.topics: # if we're subscribed to the topic attempt to build a mesh
         await g.rebalanceMesh(topic)
         peers = g.mesh[topic]
@@ -414,21 +416,21 @@ method publish*(g: GossipSub,
           # set the fanout expiry time
           g.lastFanoutPubSub[topic] = Moment.fromNow(GossipSubFanoutTTL)
 
-      let msg = newMessage(g.peerInfo, data, topic, g.sign)
-      var sent: seq[Future[void]]
-      for p in peers:
-        if p == g.peerInfo.id:
-          continue
-
-        trace "publishing on topic", name = topic
-        g.mcache.put(msg)
-        sent.add(g.peers[p].send(@[RPCMsg(messages: @[msg])]))
-        sent = await allFinished(sent)
-        checkFutures(sent)
-        break
-
+      # wait a second between tries
       await sleepAsync(1.seconds)
-      tries.dec()
+
+    let msg = newMessage(g.peerInfo, data, topic, g.sign)
+    var sent: seq[Future[void]]
+    for p in peers:
+      if p == g.peerInfo.id:
+        continue
+
+      trace "publishing on topic", name = topic
+      g.mcache.put(msg)
+      sent.add(g.peers[p].send(@[RPCMsg(messages: @[msg])]))
+
+    sent = await allFinished(sent)
+    checkFutures(sent)
 
 method start*(g: GossipSub) {.async.} =
   ## start pubsub
