@@ -425,6 +425,7 @@ method publish*(g: GossipSub,
         sent.add(g.peers[p].send(@[RPCMsg(messages: @[msg])]))
         sent = await allFinished(sent)
         checkFutures(sent)
+        break
 
       await sleepAsync(1.seconds)
       tries.dec()
