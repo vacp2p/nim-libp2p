@@ -21,7 +21,7 @@ export
   switch, peer, peerinfo, connection, multiaddress, crypto
 
 proc newStandardSwitch*(privKey = none(PrivateKey),
-                        address = MultiAddress.init("/ip4/127.0.0.1/tcp/0"),
+                        address = MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet(),
                         triggerSelf = false,
                         gossip = false,
                         verifySignature = libp2p_pubsub_verify,
