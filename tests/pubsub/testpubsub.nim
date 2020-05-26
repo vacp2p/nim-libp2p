@@ -3,4 +3,5 @@
 import testgossipinternal,
        testfloodsub,
        testgossipsub,
-       testmcache
+       testmcache,
+       testmessage
