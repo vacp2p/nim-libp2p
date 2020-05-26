@@ -57,8 +57,8 @@ suite "Switch":
 
   test "e2e use switch dial proto string":
     proc testSwitch() {.async, gcsafe.} =
-      let ma1: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
-      let ma2: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
+      let ma1: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
+      let ma2: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
 
       var peerInfo1, peerInfo2: PeerInfo
       var switch1, switch2: Switch
@@ -104,8 +104,8 @@ suite "Switch":
 
   test "e2e use switch no proto string":
     proc testSwitch(): Future[bool] {.async, gcsafe.} =
-      let ma1: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
-      let ma2: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
+      let ma1: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
+      let ma2: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
 
       var peerInfo1, peerInfo2: PeerInfo
       var switch1, switch2: Switch

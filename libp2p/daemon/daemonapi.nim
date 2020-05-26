@@ -521,27 +521,27 @@ proc getSocket(pattern: string,
   var sockname = ""
   var pid = $getProcessId()
   sockname = pattern % [pid, $(count[])]
-  let tmpma = MultiAddress.init(sockname)
+  let tmpma = MultiAddress.init(sockname).tryGet()
 
-  if UNIX.match(tmpma):
+  if UNIX.match(tmpma).tryGet():
     while true:
       count[] = count[] + 1
       sockname = pattern % [pid, $(count[])]
-      var ma = MultiAddress.init(sockname)
+      var ma = MultiAddress.init(sockname).tryGet()
       let res = await socketExists(ma)
       if not res:
         result = ma
         break
-  elif TCP.match(tmpma):
+  elif TCP.match(tmpma).tryGet():
     sockname = pattern % [pid, "0"]
-    var ma = MultiAddress.init(sockname)
+    var ma = MultiAddress.init(sockname).tryGet()
     var sock = createAsyncSocket(ma)
     if sock.bindAsyncSocket(ma):
       # Socket was successfully bound, then its free to use
       count[] = count[] + 1
       var ta = sock.getLocalAddress()
       sockname = pattern % [pid, $ta.port]
-      result = MultiAddress.init(sockname)
+      result = MultiAddress.init(sockname).tryGet()
     closeSocket(sock)
 
 # This is forward declaration needed for newDaemonApi()
@@ -649,7 +649,7 @@ proc newDaemonApi*(flags: set[P2PDaemonFlags] = {},
     api.flags.excl(NoProcessCtrl)
     api.address = await getSocket(patternForSocket, addr daemonsCount)
   else:
-    api.address = MultiAddress.init(sockpath)
+    api.address = MultiAddress.init(sockpath).tryGet()
     api.flags.incl(NoProcessCtrl)
     let res = await socketExists(api.address)
     if not res:
@@ -830,7 +830,7 @@ proc getPeerInfo(pb: var ProtoBuffer): PeerInfo =
   while pb.getBytes(2, address) != -1:
     if len(address) != 0:
       var copyaddr = address
-      result.addresses.add(MultiAddress.init(copyaddr))
+      result.addresses.add(MultiAddress.init(copyaddr).tryGet())
       address.setLen(0)
 
 proc identity*(api: DaemonAPI): Future[PeerInfo] {.async.} =
@@ -888,7 +888,7 @@ proc openStream*(api: DaemonAPI, peer: PeerID,
           raise newException(DaemonLocalError, "Missing `peer` field!")
         if pb.getLengthValue(2, raddress) == -1:
           raise newException(DaemonLocalError, "Missing `address` field!")
-        stream.raddress = MultiAddress.init(raddress)
+        stream.raddress = MultiAddress.init(raddress).tryGet()
         if pb.getLengthValue(3, stream.protocol) == -1:
           raise newException(DaemonLocalError, "Missing `proto` field!")
         stream.flags.incl(Outbound)
@@ -909,7 +909,7 @@ proc streamHandler(server: StreamServer, transp: StreamTransport) {.async.} =
     raise newException(DaemonLocalError, "Missing `peer` field!")
   if pb.getLengthValue(2, raddress) == -1:
     raise newException(DaemonLocalError, "Missing `address` field!")
-  stream.raddress = MultiAddress.init(raddress)
+  stream.raddress = MultiAddress.init(raddress).tryGet()
   if pb.getLengthValue(3, stream.protocol) == -1:
     raise newException(DaemonLocalError, "Missing `proto` field!")
   stream.flags.incl(Inbound)

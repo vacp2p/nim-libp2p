@@ -22,38 +22,40 @@ proc initTAddress*(ma: MultiAddress): TransportAddress =
   ## MultiAddress must be wire address, e.g. ``{IP4, IP6, UNIX}/{TCP, UDP}``.
   var state = 0
   var pbuf: array[2, byte]
-  for part in ma.items():
-    let code = part.protoCode()
+  for rpart in ma.items():
+    let 
+      part = rpart.tryGet()
+      rcode = part.protoCode()
+      code = rcode.tryGet()
+      
     if state == 0:
       if code == multiCodec("ip4"):
         result = TransportAddress(family: AddressFamily.IPv4)
-        if part.protoArgument(result.address_v4) == 0:
+        if part.protoArgument(result.address_v4).tryGet() == 0:
           raise newException(TransportAddressError, "Incorrect IPv4 address")
         inc(state)
       elif code == multiCodec("ip6"):
         result = TransportAddress(family: AddressFamily.IPv6)
-        if part.protoArgument(result.address_v6) == 0:
+        if part.protoArgument(result.address_v6).tryGet() == 0:
           raise newException(TransportAddressError, "Incorrect IPv6 address")
         inc(state)
       elif code == multiCodec("unix"):
         result = TransportAddress(family: AddressFamily.Unix)
-        if part.protoArgument(result.address_un) == 0:
+        if part.protoArgument(result.address_un).tryGet() == 0:
           raise newException(TransportAddressError, "Incorrect Unix address")
         result.port = Port(1)
         break
       else:
-        raise newException(TransportAddressError,
-                           "Could not initialize address!")
+        raise newException(TransportAddressError, "Could not initialize address!")
     elif state == 1:
       if code == multiCodec("tcp") or code == multiCodec("udp"):
-        if part.protoArgument(pbuf) == 0:
+        if part.protoArgument(pbuf).tryGet() == 0:
           raise newException(TransportAddressError, "Incorrect port")
         result.port = Port((cast[uint16](pbuf[0]) shl 8) or
                             cast[uint16](pbuf[1]))
         break
       else:
-        raise newException(TransportAddressError,
-                           "Could not initialize address!")
+        raise newException(TransportAddressError, "Could not initialize address!")
 
 proc connect*(ma: MultiAddress, bufferSize = DefaultStreamBufferSize,
               child: StreamTransport = nil): Future[StreamTransport] {.async.} =
@@ -63,7 +65,7 @@ proc connect*(ma: MultiAddress, bufferSize = DefaultStreamBufferSize,
 
   let address = initTAddress(ma)
   if address.family in {AddressFamily.IPv4, AddressFamily.IPv6}:
-    if ma[1].protoCode() != multiCodec("tcp"):
+    if ma[1].tryGet().protoCode().tryGet() != multiCodec("tcp"):
       raise newException(TransportAddressError, "Incorrect address type!")
   result = await connect(address, bufferSize, child)
 
@@ -79,7 +81,7 @@ proc createStreamServer*[T](ma: MultiAddress,
   ## Create new TCP stream server which bounds to ``ma`` address.
   var address = initTAddress(ma)
   if address.family in {AddressFamily.IPv4, AddressFamily.IPv6}:
-    if ma[1].protoCode() != multiCodec("tcp"):
+    if ma[1].tryGet().protoCode().tryGet() != multiCodec("tcp"):
       raise newException(TransportAddressError, "Incorrect address type!")
   result = createStreamServer(address, cbproc, flags, udata, sock, backlog,
                               bufferSize, child, init)
@@ -100,10 +102,10 @@ proc createAsyncSocket*(ma: MultiAddress): AsyncFD =
     return asyncInvalidSocket
 
   if address.family in {AddressFamily.IPv4, AddressFamily.IPv6}:
-    if ma[1].protoCode() == multiCodec("udp"):
+    if ma[1].tryGet().protoCode().tryGet() == multiCodec("udp"):
       socktype = SockType.SOCK_DGRAM
       protocol = Protocol.IPPROTO_UDP
-    elif ma[1].protoCode() == multiCodec("tcp"):
+    elif ma[1].tryGet().protoCode().tryGet() == multiCodec("tcp"):
       socktype = SockType.SOCK_STREAM
       protocol = Protocol.IPPROTO_TCP
   elif address.family in {AddressFamily.Unix}:
