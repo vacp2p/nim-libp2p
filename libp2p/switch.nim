@@ -303,7 +303,7 @@ proc mount*[T: LPProtocol](s: Switch, proto: T) {.gcsafe.} =
   s.ms.addHandler(proto.codec, proto)
 
 proc start*(s: Switch): Future[seq[Future[void]]] {.async, gcsafe.} =
-  trace "starting switch"
+  trace "starting switch for peer", peerInfo = $s.peerInfo
 
   proc handle(conn: Connection): Future[void] {.async, closure, gcsafe.} =
     try:
