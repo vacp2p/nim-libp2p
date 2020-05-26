@@ -61,5 +61,5 @@ template tryAndWarn*(message: static[string]; body: untyped): untyped =
   except CancelledError as exc:
     raise exc # TODO: why catch and re-raise?
   except CatchableError as exc:
-    warn "An exception has ocurred, enable trace logging for details", name = exc.name
+    warn "An exception has ocurred, enable trace logging for details", name = exc.name, msg = message
     trace "Exception details", exc = exc.msg
