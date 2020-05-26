@@ -400,9 +400,8 @@ method publish*(g: GossipSub,
                                              data = data.shortLog
 
   var peers: HashSet[string]
-  var tries = 5 # try to get peers up to 5 times
   if data.len > 0 and topic.len > 0:
-    for _ in 0..<tries:
+    for _ in 0..<5: # try to get peers up to 5 times
       if peers.len > 0:
         break
 
