@@ -113,35 +113,41 @@ method initTransport*(t: TcpTransport) =
   inc getTcpTransportTracker().opened
 
 method close*(t: TcpTransport) {.async, gcsafe.} =
-  ## start the transport
-  trace "stopping transport"
-  await procCall Transport(t).close() # call base
+  try:
+    ## start the transport
+    trace "stopping transport"
+    await procCall Transport(t).close() # call base
 
-  await all(
-    t.clients.mapIt(it.closeWait()))
+    checkFutures(await allFinished(
+      t.clients.mapIt(it.closeWait())))
 
-  # server can be nil
-  if not isNil(t.server):
-    t.server.stop()
-    await t.server.closeWait()
+    # server can be nil
+    if not isNil(t.server):
+      t.server.stop()
+      await t.server.closeWait()
 
-  t.server = nil
+    t.server = nil
 
-  for fut in t.handlers:
-    if not fut.finished:
-      fut.cancel()
-  await all(t.handlers)
-  t.handlers = @[]
+    for fut in t.handlers:
+      if not fut.finished:
+        fut.cancel()
 
-  for fut in t.cleanups:
-    if not fut.finished:
-      fut.cancel()
-  await all(t.cleanups)
-  t.cleanups = @[]
+    checkFutures(
+      await allFinished(t.handlers))
+    t.handlers = @[]
 
-  trace "transport stopped"
+    for fut in t.cleanups:
+      if not fut.finished:
+        fut.cancel()
 
-  inc getTcpTransportTracker().closed
+    checkFutures(
+      await allFinished(t.cleanups))
+    t.cleanups = @[]
+
+    trace "transport stopped"
+    inc getTcpTransportTracker().closed
+  except CatchableError as exc:
+    trace "error shutting down tcp transport", exc = exc.msg
 
 method listen*(t: TcpTransport,
                ma: MultiAddress,

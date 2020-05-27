@@ -197,17 +197,30 @@ method close*(m: Mplex) {.async, gcsafe.} =
   if m.isClosed:
     return
 
-  trace "closing mplex muxer", oid = m.oid
-  await all(
-    toSeq(m.remote.values).mapIt(it.reset()) &
-      toSeq(m.local.values).mapIt(it.reset()))
+  try:
+    trace "closing mplex muxer", oid = m.oid
+    let channs = toSeq(m.remote.values) &
+      toSeq(m.local.values)
 
-  await all(m.conns.mapIt(it.close())) # dispose of channe's connections
-  await all(m.handlerFuts)
+    for chann in channs:
+      try:
+        await chann.reset()
+      except CatchableError as exc:
+        warn "error resetting channel", exc = exc.msg
 
-  await m.connection.close()
-  m.remote.clear()
-  m.local.clear()
-  m.conns = @[]
-  m.handlerFuts = @[]
-  m.isClosed = true
+    for conn in m.conns:
+      try:
+        await conn.close()
+      except CatchableError as exc:
+        warn "error closing channel's connection"
+
+    checkFutures(
+      await allFinished(m.handlerFuts))
+
+    await m.connection.close()
+  finally:
+    m.remote.clear()
+    m.local.clear()
+    m.conns = @[]
+    m.handlerFuts = @[]
+    m.isClosed = true
