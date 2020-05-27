@@ -66,7 +66,7 @@ proc sendSubs*(p: PubSub,
 method subscribeTopic*(p: PubSub,
                        topic: string,
                        subscribe: bool,
-                       peerId: string) {.base.} =
+                       peerId: string) {.base, async.} =
   discard
 
 method rpcHandler*(p: PubSub,
@@ -79,7 +79,8 @@ method rpcHandler*(p: PubSub,
     trace "processing messages", msg = m.shortLog
     if m.subscriptions.len > 0:                    # if there are any subscriptions
       for s in m.subscriptions:                    # subscribe/unsubscribe the peer for each topic
-        p.subscribeTopic(s.topic, s.subscribe, peer.id)
+        trace "about to subscribe to topic", topicId = s.topic
+        await p.subscribeTopic(s.topic, s.subscribe, peer.id)
 
 method handleDisconnect*(p: PubSub, peer: PubSubPeer) {.async, base.} =
   ## handle peer disconnects
@@ -110,7 +111,7 @@ proc getPeer(p: PubSub,
   peer.observers = p.observers
   result = peer
 
-proc internalClenaup(p: PubSub, conn: Connection) {.async.} =
+proc internalCleanup(p: PubSub, conn: Connection) {.async.} =
   # handle connection close
   if conn.closed:
     return
@@ -151,7 +152,7 @@ method handleConn*(p: PubSub,
   peer.handler = handler
   await peer.handle(conn) # spawn peer read loop
   trace "pubsub peer handler ended, cleaning up"
-  await p.internalClenaup(conn)
+  await p.internalCleanup(conn)
 
 method subscribeToPeer*(p: PubSub,
                         conn: Connection) {.base, async.} =
@@ -160,7 +161,7 @@ method subscribeToPeer*(p: PubSub,
   if not peer.isConnected:
     peer.conn = conn
 
-  asyncCheck p.internalClenaup(conn)
+  asyncCheck p.internalCleanup(conn)
 
 method unsubscribe*(p: PubSub,
                     topics: seq[TopicPair]) {.base, async.} =
@@ -199,7 +200,7 @@ method subscribe*(p: PubSub,
 method publish*(p: PubSub,
                 topic: string,
                 data: seq[byte]) {.base, async.} =
-  # TODO: Should return bool indicating success/failure
+  # TODO: Should throw indicating success/failure
   ## publish to a ``topic``
   if p.triggerSelf and topic in p.topics:
     for h in p.topics[topic].handler:
@@ -215,7 +216,7 @@ method publish*(p: PubSub,
         debug "Could not write to pubsub connection", msg = exc.msg
 
 method initPubSub*(p: PubSub) {.base.} =
-  ## perform pubsub initializaion
+  ## perform pubsub initialization
   p.observers = new(seq[PubSubObserver])
 
 method start*(p: PubSub) {.async, base.} =

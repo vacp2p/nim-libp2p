@@ -33,8 +33,8 @@ type
 method subscribeTopic*(f: FloodSub,
                        topic: string,
                        subscribe: bool,
-                       peerId: string) {.gcsafe.} =
-  procCall PubSub(f).subscribeTopic(topic, subscribe, peerId)
+                       peerId: string) {.gcsafe, async.} =
+  await procCall PubSub(f).subscribeTopic(topic, subscribe, peerId)
 
   if topic notin f.floodsub:
     f.floodsub[topic] = initHashSet[string]()
