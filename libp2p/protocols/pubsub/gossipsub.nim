@@ -191,8 +191,10 @@ proc heartbeat(g: GossipSub) {.async.} =
 
       await g.dropFanoutPeers()
       let peers = g.getGossipPeers()
+      var sent: seq[Future[void]]
       for peer in peers.keys:
-        await g.peers[peer].send(@[RPCMsg(control: some(peers[peer]))])
+        sent &= g.peers[peer].send(@[RPCMsg(control: some(peers[peer]))])
+      checkFutures(await allFinished(sent))
 
       g.mcache.shift() # shift the cache
     except CatchableError as exc:
