@@ -328,22 +328,30 @@ proc start*(s: Switch): Future[seq[Future[void]]] {.async, gcsafe.} =
   result = startFuts # listen for incoming connections
 
 proc stop*(s: Switch) {.async.} =
-  trace "stopping switch"
+  try:
+    trace "stopping switch"
 
-  # we want to report erros but we do not want to fail
-  # or crash here, cos we need to clean possibly MANY items
-  # and any following conn/transport won't be cleaned up
-  if s.pubSub.isSome:
-    await s.pubSub.get().stop()
+    # we want to report errors but we do not want to fail
+    # or crash here, cos we need to clean possibly MANY items
+    # and any following conn/transport won't be cleaned up
+    if s.pubSub.isSome:
+      await s.pubSub.get().stop()
 
-  await all(
-    toSeq(s.connections.values)
-    .mapIt(s.cleanupConn(it)))
+    for conn in toSeq(s.connections.values):
+      try:
+          await s.cleanupConn(conn)
+      except CatchableError as exc:
+        warn "error cleaning up connections"
 
-  await all(
-    s.transports.mapIt(it.close()))
+    for t in s.transports:
+      try:
+          await t.close()
+      except CatchableError as exc:
+        warn "error cleaning up transports"
 
-  trace "switch stopped"
+    trace "switch stopped"
+  except CatchableError as exc:
+    warn "error stopping switch", exc = exc.msg
 
 proc subscribeToPeer*(s: Switch, peerInfo: PeerInfo) {.async, gcsafe.} =
   ## Subscribe to pub sub peer

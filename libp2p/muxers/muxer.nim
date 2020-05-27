@@ -60,8 +60,7 @@ method init(c: MuxerProvider) =
       if not isNil(c.muxerHandler):
         futs &= c.muxerHandler(muxer)
 
-      # log and re-raise on errors
-      await all(futs)
+      checkFutures(await allFinished(futs))
     except CatchableError as exc:
       trace "exception in muxer handler", exc = exc.msg
 
