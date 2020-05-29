@@ -14,12 +14,16 @@ import pubsubpeer,
        ../protocol,
        ../../connection,
        ../../peerinfo
+import metrics
 
 export PubSubPeer
 export PubSubObserver
 
 logScope:
   topic = "PubSub"
+
+declareGauge libp2p_pubsub_peers, "pubsub peer instances"
+declareGauge libp2p_pubsub_topics, "current pubsub subscribed topics"
 
 type
   TopicHandler* = proc(topic: string,
@@ -86,6 +90,8 @@ method handleDisconnect*(p: PubSub, peer: PubSubPeer) {.async, base.} =
   ## handle peer disconnects
   if peer.id in p.peers:
     p.peers.del(peer.id)
+  # metrics
+  libp2p_pubsub_peers.dec()
 
 proc cleanUpHelper(p: PubSub, peer: PubSubPeer) {.async.} =
   await p.cleanupLock.acquire()
@@ -105,6 +111,8 @@ proc getPeer(p: PubSub,
   # create new pubsub peer
   let peer = newPubSubPeer(peerInfo, proto)
   trace "created new pubsub peer", peerId = peer.id
+  # metrics
+  libp2p_pubsub_peers.inc()
 
   p.peers[peer.id] = peer
   peer.refs.inc # increment reference cound
@@ -174,8 +182,11 @@ method unsubscribe*(p: PubSub,
 method unsubscribe*(p: PubSub,
                     topic: string,
                     handler: TopicHandler): Future[void] {.base.} =
+  # metrics
+  libp2p_pubsub_topics.dec()
+
   ## unsubscribe from a ``topic`` string
-  result = p.unsubscribe(@[(topic, handler)])
+  p.unsubscribe(@[(topic, handler)])
 
 method subscribe*(p: PubSub,
                   topic: string,
@@ -196,6 +207,9 @@ method subscribe*(p: PubSub,
 
   for peer in p.peers.values:
     await p.sendSubs(peer, @[topic], true)
+
+  # metrics
+  libp2p_pubsub_topics.inc()
 
 method publish*(p: PubSub,
                 topic: string,

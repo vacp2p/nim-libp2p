@@ -18,6 +18,7 @@ import rpc/[messages, message, protobuf],
        ../../crypto/crypto,
        ../../protobuf/minprotobuf,
        ../../utility
+import metrics
 
 logScope:
   topic = "PubSubPeer"
@@ -40,6 +41,9 @@ type
     observers*: ref seq[PubSubObserver] # ref as in smart_ptr
 
   RPCHandler* = proc(peer: PubSubPeer, msg: seq[RPCMsg]): Future[void] {.gcsafe.}
+
+declareGauge libp2p_pubsub_encoded_messages, "number of messages encoded"
+declareGauge libp2p_pubsub_decoded_messages, "number of messages decoded"
 
 proc id*(p: PubSubPeer): string = p.peerInfo.id
 
@@ -65,9 +69,14 @@ proc handle*(p: PubSubPeer, conn: Connection) {.async.} =
 
       var msg = decodeRpcMsg(data)
       trace "decoded msg from peer", peer = p.id, msg = msg.shortLog
+      
       # trigger hooks
       for obs in p.observers[]:
         obs.onRecv(p, msg)
+      
+      # metrics
+      libp2p_pubsub_decoded_messages.inc()
+
       await p.handler(p, @[msg])
       p.recvdRpcCache.put(digest)
   except CatchableError as exc:
@@ -82,11 +91,15 @@ proc send*(p: PubSubPeer, msgs: seq[RPCMsg]) {.async.} =
     for m in msgs.items:
       trace "sending msgs to peer", toPeer = p.id, msgs = msgs
       let encoded = encodeRpcMsg(m)
+
       # trigger hooks
       if not(isNil(p.observers)) and p.observers[].len > 0:
         var mm = m
         for obs in p.observers[]:
           obs.onSend(p, mm)
+
+      # metrics
+      libp2p_pubsub_encoded_messages.inc()
 
       if encoded.buffer.len <= 0:
         trace "empty message, skipping", peer = p.id
