@@ -74,7 +74,7 @@ proc createNode*(privKey: Option[PrivateKey] = none(PrivateKey),
   let transports = @[Transport(TcpTransport.init())]
   let muxers = [(MplexCodec, mplexProvider)].toTable()
   let identify = newIdentify(peerInfo)
-  let secureManagers = [(SecioCodec, Secure(newSecio(seckey.get())))].toTable()
+  let secureManagers = [(SecioCodec, Secure(newSecio(seckey.get())))].toOrderedTable()
 
   var pubSub: Option[PubSub]
   if gossip:
