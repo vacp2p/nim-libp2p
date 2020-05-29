@@ -1,6 +1,5 @@
 # compile time options here
 const
-  libp2p_secure {.strdefine.} = ""
   libp2p_pubsub_sign {.booldefine.} = true
   libp2p_pubsub_verify {.booldefine.} = true
 
@@ -12,10 +11,9 @@ import
   protocols/[identify, secure/secure],
   protocols/pubsub/[pubsub, gossipsub, floodsub]
 
-when libp2p_secure == "noise":
-  import protocols/secure/noise
-else:
-  import protocols/secure/secio
+import
+  protocols/secure/noise,
+  protocols/secure/secio
 
 export
   switch, peer, peerinfo, connection, multiaddress, crypto
@@ -24,11 +22,12 @@ proc newStandardSwitch*(privKey = none(PrivateKey),
                         address = MultiAddress.init("/ip4/127.0.0.1/tcp/0"),
                         triggerSelf = false,
                         gossip = false,
+                        secureManagers: openarray[string] = ["noise", "secio"],
                         verifySignature = libp2p_pubsub_verify,
                         sign = libp2p_pubsub_sign,
                         transportFlags: set[ServerFlags] = {}): Switch =
   proc createMplex(conn: Connection): Muxer =
-    result = newMplex(conn)
+    newMplex(conn)
 
   let
     seckey = privKey.get(otherwise = PrivateKey.random(ECDSA).tryGet())
@@ -37,27 +36,33 @@ proc newStandardSwitch*(privKey = none(PrivateKey),
     transports = @[Transport(TcpTransport.init(transportFlags))]
     muxers = {MplexCodec: mplexProvider}.toTable
     identify = newIdentify(peerInfo)
-  when libp2p_secure == "noise":
-    let secureManagers = {NoiseCodec: newNoise(seckey).Secure}.toTable
-  else:
-    let secureManagers = {SecioCodec: newSecio(seckey).Secure}.toTable
+
+  var 
+    secureManagerInstances: OrderedTable[string, Secure]
+  for sec in secureManagers:
+    case sec
+    of "noise":
+      secureManagerInstances[NoiseCodec] = newNoise(seckey).Secure
+    of "secio":
+      secureManagerInstances[SecioCodec] = newSecio(seckey).Secure
 
   let pubSub = if gossip:
-                 PubSub newPubSub(GossipSub,
-                                  peerInfo = peerInfo,
-                                  triggerSelf = triggerSelf,
-                                  verifySignature = verifySignature,
-                                  sign = sign)
+                  newPubSub(GossipSub,
+                            peerInfo = peerInfo,
+                            triggerSelf = triggerSelf,
+                            verifySignature = verifySignature,
+                            sign = sign).PubSub
                else:
-                 PubSub newPubSub(FloodSub,
-                                  peerInfo = peerInfo,
-                                  triggerSelf = triggerSelf,
-                                  verifySignature = verifySignature,
-                                  sign = sign)
+                  newPubSub(FloodSub,
+                            peerInfo = peerInfo,
+                            triggerSelf = triggerSelf,
+                            verifySignature = verifySignature,
+                            sign = sign).PubSub
 
-  result = newSwitch(peerInfo,
-                     transports,
-                     identify,
-                     muxers,
-                     secureManagers = secureManagers,
-                     pubSub = some(pubSub))
+  newSwitch(
+    peerInfo,
+    transports,
+    identify,
+    muxers,
+    secureManagers = secureManagerInstances,
+    pubSub = some(pubSub))

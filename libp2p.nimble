@@ -16,7 +16,7 @@ requires "nim >= 1.2.0",
          "secp256k1",
          "stew"
 
-proc runTest(filename: string, secure: string = "secio", verify: bool = true, sign: bool = true) =
+proc runTest(filename: string, verify: bool = true, sign: bool = true) =
   var excstr: string = "nim c -r --opt:speed -d:debug --verbosity:0 --hints:off"
   excstr.add(" ")
   excstr.add("-d:libp2p_secure=" & $secure)
@@ -45,11 +45,9 @@ task testinterop, "Runs interop tests":
 task testpubsub, "Runs pubsub tests":
   runTest("pubsub/testpubsub")
   runTest("pubsub/testpubsub", sign = false, verify = false)
-  # runTest("pubsub/testpubsub", "noise")
 
 task test, "Runs the test suite":
   exec "nimble testnative"
-  # runTest("testnative", "noise")
   exec "nimble testpubsub"
   exec "nimble testdaemon"
   exec "nimble testinterop"

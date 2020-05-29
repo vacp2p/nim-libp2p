@@ -44,7 +44,7 @@ type
       ms*: MultistreamSelect
       identity*: Identify
       streamHandler*: StreamHandler
-      secureManagers*: Table[string, Secure]
+      secureManagers*: OrderedTable[string, Secure]
       pubSub*: Option[PubSub]
       dialedPubSubPeers: HashSet[string]
 
@@ -412,7 +412,7 @@ proc newSwitch*(peerInfo: PeerInfo,
                 transports: seq[Transport],
                 identity: Identify,
                 muxers: Table[string, MuxerProvider],
-                secureManagers: Table[string, Secure] = initTable[string, Secure](),
+                secureManagers: OrderedTable[string, Secure] = initOrderedTable[string, Secure](),
                 pubSub: Option[PubSub] = none(PubSub)): Switch =
   new result
   result.peerInfo = peerInfo
@@ -422,7 +422,7 @@ proc newSwitch*(peerInfo: PeerInfo,
   result.muxed = initTable[string, Muxer]()
   result.identity = identity
   result.muxers = muxers
-  result.secureManagers = initTable[string, Secure]()
+  result.secureManagers = initOrderedTable[string, Secure]()
   result.dialedPubSubPeers = initHashSet[string]()
 
   let s = result # can't capture result
