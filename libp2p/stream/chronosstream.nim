@@ -60,11 +60,11 @@ method write*(s: ChronosStream, msg: seq[byte]) {.async.} =
     return
 
   withExceptions:
-    var writen = 0
-    while not s.client.closed and writen < msg.len:
-      writen += await s.client.write(msg[writen..<msg.len])
+    var written = 0
+    while not s.client.closed and written < msg.len:
+      written += await s.client.write(msg[written..<msg.len])
 
-    if writen < msg.len:
+    if written < msg.len:
       raise (ref LPStreamClosedError)(msg: "Write couldn't finish writing")
 
 method closed*(s: ChronosStream): bool {.inline.} =
