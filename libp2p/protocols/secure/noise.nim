@@ -463,7 +463,8 @@ method write*(sconn: NoiseConnection, message: seq[byte]): Future[void] {.async.
     # TODO these exceptions are ignored since it's likely that if writes are
     #      are failing, the underlying connection is already closed - this needs
     #      more cleanup though
-    debug "Could not write to connection", msg = exc.msg
+    debug "Could not write to connection", error = exc.name
+    trace "Could not write to connection - verbose", msg = exc.msg
 
 method handshake*(p: Noise, conn: Connection, initiator: bool = false): Future[SecureConn] {.async.} =
   trace "Starting Noise handshake", initiator
