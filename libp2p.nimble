@@ -19,8 +19,6 @@ requires "nim >= 1.2.0",
 proc runTest(filename: string, verify: bool = true, sign: bool = true) =
   var excstr: string = "nim c -r --opt:speed -d:debug --verbosity:0 --hints:off"
   excstr.add(" ")
-  excstr.add("-d:libp2p_secure=" & $secure)
-  excstr.add(" ")
   excstr.add("-d:libp2p_pubsub_sign=" & $sign)
   excstr.add(" ")
   excstr.add("-d:libp2p_pubsub_verify=" & $verify)
