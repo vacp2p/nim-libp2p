@@ -44,7 +44,7 @@ proc writeLp*(s: StreamTransport, msg: string | seq[byte]): Future[int] {.gcsafe
   result = s.write(buf.buffer)
 
 proc readLp*(s: StreamTransport): Future[seq[byte]] {.async, gcsafe.} =
-  ## read lenght prefixed msg
+  ## read length prefixed msg
   var
     size: uint
     length: int
