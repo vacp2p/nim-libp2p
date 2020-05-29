@@ -178,7 +178,7 @@ proc processInput(rfd: AsyncFD) {.async.} =
   let transports = @[Transport(TcpTransport.init())]
   let muxers = [(MplexCodec, mplexProvider)].toTable()
   let identify = newIdentify(peerInfo)
-  let secureManagers = [(SecioCodec, Secure(newSecio(seckey)))].toTable()
+  let secureManagers = [(SecioCodec, Secure(newSecio(seckey)))].toOrderedTable()
   let switch = newSwitch(peerInfo,
                          transports,
                          identify,
