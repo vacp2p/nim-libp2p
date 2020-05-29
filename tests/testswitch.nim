@@ -41,7 +41,7 @@ proc createSwitch(ma: MultiAddress): (Switch, PeerInfo) =
   let mplexProvider = newMuxerProvider(createMplex, MplexCodec)
   let transports = @[Transport(TcpTransport.init())]
   let muxers = [(MplexCodec, mplexProvider)].toTable()
-  let secureManagers = [(SecioCodec, Secure(newSecio(peerInfo.privateKey)))].toTable()
+  let secureManagers = [(SecioCodec, Secure(newSecio(peerInfo.privateKey)))].toOrderedTable()
   let switch = newSwitch(peerInfo,
                          transports,
                          identify,
