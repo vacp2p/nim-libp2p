@@ -192,6 +192,9 @@ suite "Switch":
       awaiters.add(await switch2.start())
       await switch2.connect(switch1.peerInfo)
 
+      check switch1.connections.len > 0
+      check switch2.connections.len > 0
+
       await sleepAsync(100.millis)
       await switch2.disconnect(switch1.peerInfo)
 
@@ -203,6 +206,9 @@ suite "Switch":
       var connTracker = getTracker(ConnectionTrackerName)
       # echo connTracker.dump()
       check connTracker.isLeaked() == false
+
+      check switch1.connections.len == 0
+      check switch2.connections.len == 0
 
       await all(
         switch1.stop(),
