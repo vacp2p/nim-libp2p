@@ -41,11 +41,11 @@ type ChatProto = ref object of LPProtocol
 
 
 proc initAddress(T: type MultiAddress, str: string): T =
-  let address = MultiAddress.init(str)
+  let address = MultiAddress.init(str).tryGet()
   if IPFS.match(address) and matchPartial(multiaddress.TCP, address):
     result = address
   else:
-    raise newException(MultiAddressError,
+    raise newException(ValueError,
                          "Invalid bootstrap node multi-address")
 
 proc dialPeer(p: ChatProto, address: string) {.async.} =
@@ -160,10 +160,10 @@ proc processInput(rfd: AsyncFD) {.async.} =
     let a = await transp.readLine()
     try:
       if a.len > 0:
-        peerInfo.addrs.add(Multiaddress.init(a))
+        peerInfo.addrs.add(Multiaddress.init(a).tryGet())
         break
 
-      peerInfo.addrs.add(Multiaddress.init(localAddress))
+      peerInfo.addrs.add(Multiaddress.init(localAddress).tryGet())
       break
     except:
       echo "invalid address"
