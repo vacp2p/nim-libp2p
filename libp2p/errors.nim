@@ -8,9 +8,9 @@ import macros
 # Uncomment only in dire need
 globalRaiseHook = proc (e: ref Exception): bool {.gcsafe, locks: 0.} =
   var msg = e.msg
-  if msg.len > 50:
+  if msg.len > 100:
     msg = msg[0..49]
-  debug "Raising an exception (global debug handler)", name = e.name, msg
+  debug "Raising an exception (global debug handler)", name = e.name, msg, exptr = cast[int](e)
   return true # to continue propagating
 
 # could not figure how to make it with a simple template

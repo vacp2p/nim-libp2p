@@ -77,7 +77,8 @@ proc writeMsg*(conn: Connection,
     # TODO these exceptions are ignored since it's likely that if writes are
     #      are failing, the underlying connection is already closed - this needs
     #      more cleanup though
-    debug "Could not write to connection", msg = exc.msg
+    debug "Could not write to connection", name = exc.name
+    trace "Could not write to connection - message", msg = exc.msg
 
 proc writeMsg*(conn: Connection,
                id: uint64,
