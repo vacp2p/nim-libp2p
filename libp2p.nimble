@@ -44,11 +44,11 @@ task testinterop, "Runs interop tests":
 
 task testpubsub, "Runs pubsub tests":
   runTest("pubsub/testpubsub")
-  runTest("pubsub/testpubsub", sign = false, verify = false)
+  # runTest("pubsub/testpubsub", sign = false, verify = false)
   # runTest("pubsub/testpubsub", "noise")
 
 task test, "Runs the test suite":
-  exec "nimble testnative"
+  # exec "nimble testnative"
   # runTest("testnative", "noise")
   exec "nimble testpubsub"
   exec "nimble testdaemon"
