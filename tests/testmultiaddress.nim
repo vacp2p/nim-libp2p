@@ -354,10 +354,10 @@ suite "MultiAddress test suite":
     for item in PatternVectors:
       for gitem in item.good:
         var a = MultiAddress.init(gitem).get()
-        check item.pattern.match(a).get() == true
+        check item.pattern.match(a) == true
       for bitem in item.bad:
         var a = MultiAddress.init(bitem).get()
-        check item.pattern.match(a).get() == false
+        check item.pattern.match(a) == false
 
   test "MultiAddress init(\"tcp/udp/dccp/sctp\", int) test":
     check:

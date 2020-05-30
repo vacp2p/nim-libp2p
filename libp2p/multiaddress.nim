@@ -47,7 +47,7 @@ type
     flag*: bool
     rem*: seq[MultiCodec]
 
-  MAResult*[T] = Result[T, string]
+  MaResult*[T] = Result[T, string]
 
 proc ip4StB(s: string, vb: var VBuffer): bool =
   ## IPv4 stringToBuffer() implementation.
@@ -443,35 +443,35 @@ proc shcopy*(m1: var MultiAddress, m2: MultiAddress) =
   m1.data.offset = m2.data.offset
   m1.data.length = m2.data.length
 
-proc protoCode*(ma: MultiAddress): MAResult[MultiCodec] =
+proc protoCode*(ma: MultiAddress): MaResult[MultiCodec] =
   ## Returns MultiAddress ``ma`` protocol code.
   var header: uint64
   var vb: MultiAddress
   shcopy(vb, ma)
   if vb.data.readVarint(header) == -1:
-    err("Malformed binary address!")
+    err("multiaddress - Malformed binary address!")
   else:
     let proto = CodeAddresses.getOrDefault(MultiCodec(header))
     if proto.kind == None:
-      err("Unsupported protocol '" & $header & "'")
+      err("multiaddress - Unsupported protocol '" & $header & "'")
     else:
       ok(proto.mcodec)
 
-proc protoName*(ma: MultiAddress): MAResult[string] =
+proc protoName*(ma: MultiAddress): MaResult[string] =
   ## Returns MultiAddress ``ma`` protocol name.
   var header: uint64
   var vb: MultiAddress
   shcopy(vb, ma)
   if vb.data.readVarint(header) == -1:
-    err("Malformed binary address!")
+    err("multiaddress - Malformed binary address!")
   else:
     let proto = CodeAddresses.getOrDefault(MultiCodec(header))
     if proto.kind == None:
-      err("Unsupported protocol '" & $header & "'")
+      err("multiaddress - Unsupported protocol '" & $header & "'")
     else:
       ok($(proto.mcodec))
 
-proc protoArgument*(ma: MultiAddress, value: var openarray[byte]): MAResult[int] =
+proc protoArgument*(ma: MultiAddress, value: var openarray[byte]): MaResult[int] =
   ## Returns MultiAddress ``ma`` protocol argument value.
   ##
   ## If current MultiAddress do not have argument value, then result will be
@@ -481,23 +481,23 @@ proc protoArgument*(ma: MultiAddress, value: var openarray[byte]): MAResult[int]
   var buffer: seq[byte]
   shcopy(vb, ma)
   if vb.data.readVarint(header) == -1:
-    err("Malformed binary address!")
+    err("multiaddress - Malformed binary address!")
   else:
     let proto = CodeAddresses.getOrDefault(MultiCodec(header))
     if proto.kind == None:
-      err("Unsupported protocol '" & $header & "'")
+      err("multiaddress - Unsupported protocol '" & $header & "'")
     else:
       var res: int
       if proto.kind == Fixed:
         res = proto.size
         if  len(value) >= res and  
             vb.data.readArray(value.toOpenArray(0, proto.size - 1)) != proto.size:
-          err("Decoding protocol error")
+          err("multiaddress - Decoding protocol error")
         else:
           ok(res)
       elif proto.kind in {Length, Path}:
         if vb.data.readSeq(buffer) == -1:
-          err("Decoding protocol error")
+          err("multiaddress - Decoding protocol error")
         else:
           res = len(buffer)
           if len(value) >= res:
@@ -506,7 +506,7 @@ proc protoArgument*(ma: MultiAddress, value: var openarray[byte]): MAResult[int]
       else:
         ok(res)
 
-proc protoAddress*(ma: MultiAddress): MAResult[seq[byte]] =
+proc protoAddress*(ma: MultiAddress): MaResult[seq[byte]] =
   ## Returns MultiAddress ``ma`` protocol address binary blob.
   ##
   ## If current MultiAddress do not have argument value, then result array will
@@ -516,7 +516,7 @@ proc protoAddress*(ma: MultiAddress): MAResult[seq[byte]] =
   buffer.setLen(res)
   ok(buffer)
 
-proc getPart(ma: MultiAddress, index: int): MAResult[MultiAddress] =
+proc getPart(ma: MultiAddress, index: int): MaResult[MultiAddress] =
   var header: uint64
   var data = newSeq[byte]()
   var offset = 0
@@ -525,16 +525,16 @@ proc getPart(ma: MultiAddress, index: int): MAResult[MultiAddress] =
   res.data = initVBuffer()
   while offset <= index:
     if vb.data.readVarint(header) == -1:
-      return err("Malformed binary address!")
+      return err("multiaddress - Malformed binary address!")
 
     let proto = CodeAddresses.getOrDefault(MultiCodec(header))
     if proto.kind == None:
-      return err("Unsupported protocol '" & $header & "'")
+      return err("multiaddress - Unsupported protocol '" & $header & "'")
 
     elif proto.kind == Fixed:
       data.setLen(proto.size)
       if vb.data.readArray(data) != proto.size:
-        return err("Decoding protocol error")
+        return err("multiaddress - Decoding protocol error")
 
       if offset == index:
         res.data.writeVarint(header)
@@ -542,7 +542,7 @@ proc getPart(ma: MultiAddress, index: int): MAResult[MultiAddress] =
         res.data.finish()
     elif proto.kind in {Length, Path}:
       if vb.data.readSeq(data) == -1:
-        return err("Decoding protocol error")
+        return err("multiaddress - Decoding protocol error")
 
       if offset == index:
         res.data.writeVarint(header)
@@ -555,11 +555,11 @@ proc getPart(ma: MultiAddress, index: int): MAResult[MultiAddress] =
     inc(offset)
   ok(res)
 
-proc `[]`*(ma: MultiAddress, i: int): MAResult[MultiAddress] {.inline.} =
+proc `[]`*(ma: MultiAddress, i: int): MaResult[MultiAddress] {.inline.} =
   ## Returns part with index ``i`` of MultiAddress ``ma``.
   ma.getPart(i)
 
-iterator items*(ma: MultiAddress): MAResult[MultiAddress] =
+iterator items*(ma: MultiAddress): MaResult[MultiAddress] =
   ## Iterates over all addresses inside of MultiAddress ``ma``.
   var header: uint64
   var data = newSeq[byte]()
@@ -570,31 +570,31 @@ iterator items*(ma: MultiAddress): MAResult[MultiAddress] =
 
     var res = MultiAddress(data: initVBuffer())
     if vb.data.readVarint(header) == -1:
-      yield err(MAResult[MultiAddress], "Malformed binary address!")
+      yield err(MaResult[MultiAddress], "Malformed binary address!")
 
     let proto = CodeAddresses.getOrDefault(MultiCodec(header))
     if proto.kind == None:
-      yield err(MAResult[MultiAddress], "Unsupported protocol '" & $header & "'")
+      yield err(MaResult[MultiAddress], "Unsupported protocol '" & $header & "'")
 
     elif proto.kind == Fixed:
       data.setLen(proto.size)
       if vb.data.readArray(data) != proto.size:
-        yield err(MAResult[MultiAddress], "Decoding protocol error")
+        yield err(MaResult[MultiAddress], "Decoding protocol error")
 
       res.data.writeVarint(header)
       res.data.writeArray(data)
     elif proto.kind in {Length, Path}:
       if vb.data.readSeq(data) == -1:
-        yield err(MAResult[MultiAddress], "Decoding protocol error")
+        yield err(MaResult[MultiAddress], "Decoding protocol error")
 
       res.data.writeVarint(header)
       res.data.writeSeq(data)
     elif proto.kind == Marker:
       res.data.writeVarint(header)
     res.data.finish()
-    yield ok(MAResult[MultiAddress], res)
+    yield ok(MaResult[MultiAddress], res)
 
-proc contains*(ma: MultiAddress, codec: MultiCodec): MAResult[bool] {.inline.} =
+proc contains*(ma: MultiAddress, codec: MultiCodec): MaResult[bool] {.inline.} =
   ## Returns ``true``, if address with MultiCodec ``codec`` present in
   ## MultiAddress ``ma``.
   for item in ma.items:
@@ -603,15 +603,15 @@ proc contains*(ma: MultiAddress, codec: MultiCodec): MAResult[bool] {.inline.} =
       return ok(true)
   ok(false)
 
-proc `[]`*(ma: MultiAddress, codec: MultiCodec): MAResult[MultiAddress] {.inline.} =
+proc `[]`*(ma: MultiAddress, codec: MultiCodec): MaResult[MultiAddress] {.inline.} =
   ## Returns partial MultiAddress with MultiCodec ``codec`` and present in
   ## MultiAddress ``ma``.
   for item in ma.items:
     if ?(?item).protoCode == codec:
       return item
-  err("Codec is not present in address")
+  err("multiaddress - Codec is not present in address")
 
-proc toString*(value: MultiAddress): MAResult[string] =
+proc toString*(value: MultiAddress): MaResult[string] =
   ## Return string representation of MultiAddress ``value``.
   var header: uint64
   var vb = value
@@ -622,15 +622,15 @@ proc toString*(value: MultiAddress): MAResult[string] =
     if vb.data.isEmpty():
       break
     if vb.data.readVarint(header) == -1:
-      return err("Malformed binary address!") 
+      return err("multiaddress - Malformed binary address!") 
     let proto = CodeAddresses.getOrDefault(MultiCodec(header))
     if proto.kind == None:
-      return err("Unsupported protocol '" & $header & "'")
+      return err("multiaddress - Unsupported protocol '" & $header & "'")
     if proto.kind in {Fixed, Length, Path}:
       if isNil(proto.coder.bufferToString):
-        return err("Missing protocol '" & $(proto.mcodec) & "' coder")
+        return err("multiaddress - Missing protocol '" & $(proto.mcodec) & "' coder")
       if not proto.coder.bufferToString(vb.data, part):
-        return err("Decoding protocol error")
+        return err("multiaddress - Decoding protocol error")
       parts.add($(proto.mcodec))
       if proto.kind == Path and part[0] == '/':
         parts.add(part[1..^1])
@@ -646,7 +646,7 @@ proc `$`*(value: MultiAddress): string {.raises: [Defect, ResultError[string]].}
   ## Return string representation of MultiAddress ``value``.
   value.toString().tryGet()
 
-proc protocols*(value: MultiAddress): MAResult[seq[MultiCodec]] =
+proc protocols*(value: MultiAddress): MaResult[seq[MultiCodec]] =
   ## Returns list of protocol codecs inside of MultiAddress ``value``.
   var res = newSeq[MultiCodec]()
   for item in value.items():
@@ -689,19 +689,19 @@ proc validate*(ma: MultiAddress): bool =
       discard
   result = true
 
-proc init*(mtype: typedesc[MultiAddress], protocol: MultiCodec, value: openarray[byte]): MAResult[MultiAddress] =
+proc init*(mtype: typedesc[MultiAddress], protocol: MultiCodec, value: openarray[byte]): MaResult[MultiAddress] =
   ## Initialize MultiAddress object from protocol id ``protocol`` and array
   ## of bytes ``value``.
   let proto = CodeAddresses.getOrDefault(protocol)
   if proto.kind == None:
-    err("Protocol not found")
+    err("multiaddress - Protocol not found")
   else:
     var res: MultiAddress
     res.data = initVBuffer()
     res.data.writeVarint(cast[uint64](proto.mcodec))
     if proto.kind in {Fixed, Length, Path}:
       if len(value) == 0:
-        err("Value must not be empty array")
+        err("multiaddress - Value must not be empty array")
       else:
         if proto.kind == Fixed:
           res.data.writeArray(value)
@@ -712,16 +712,16 @@ proc init*(mtype: typedesc[MultiAddress], protocol: MultiCodec, value: openarray
         res.data.finish()
         ok(res)
 
-proc init*(mtype: typedesc[MultiAddress], protocol: MultiCodec, value: PeerID): MAResult[MultiAddress] {.inline.} =
+proc init*(mtype: typedesc[MultiAddress], protocol: MultiCodec, value: PeerID): MaResult[MultiAddress] {.inline.} =
   ## Initialize MultiAddress object from protocol id ``protocol`` and peer id
   ## ``value``.
   init(mtype, protocol, value.data)
 
-proc init*(mtype: typedesc[MultiAddress], protocol: MultiCodec): MAResult[MultiAddress] =
+proc init*(mtype: typedesc[MultiAddress], protocol: MultiCodec): MaResult[MultiAddress] =
   ## Initialize MultiAddress object from protocol id ``protocol``.
   let proto = CodeAddresses.getOrDefault(protocol)
   if proto.kind == None:
-    err("Protocol not found")
+    err("multiaddress - Protocol not found")
   else:
     var res: MultiAddress
     res.data = initVBuffer()
@@ -731,21 +731,21 @@ proc init*(mtype: typedesc[MultiAddress], protocol: MultiCodec): MAResult[MultiA
     res.data.finish()
     ok(res)
 
-proc init*(mtype: typedesc[MultiAddress], protocol: MultiCodec, value: int): MAResult[MultiAddress] =
+proc init*(mtype: typedesc[MultiAddress], protocol: MultiCodec, value: int): MaResult[MultiAddress] =
   ## Initialize MultiAddress object from protocol id ``protocol`` and integer
   ## ``value``. This procedure can be used to instantiate ``tcp``, ``udp``,
   ## ``dccp`` and ``sctp`` MultiAddresses.
   var allowed = [multiCodec("tcp"), multiCodec("udp"), multiCodec("dccp"),
                  multiCodec("sctp")]
   if protocol notin allowed:
-    err("Incorrect protocol for integer value")
+    err("multiaddress - Incorrect protocol for integer value")
   else:
     let proto = CodeAddresses.getOrDefault(protocol)
     var res: MultiAddress
     res.data = initVBuffer()
     res.data.writeVarint(cast[uint64](proto.mcodec))
     if value < 0 or value > 65535:
-      err("Incorrect integer value")
+      err("multiaddress - Incorrect integer value")
     else:
       res.data.writeArray(toBytesBE(cast[uint16](value)))
       res.data.finish()
@@ -756,11 +756,11 @@ proc getProtocol(name: string): MAProtocol {.inline.} =
   if mc != InvalidMultiCodec:
     result = CodeAddresses.getOrDefault(mc)
 
-proc init*(mtype: typedesc[MultiAddress], value: string): MAResult[MultiAddress] =
+proc init*(mtype: typedesc[MultiAddress], value: string): MaResult[MultiAddress] =
   ## Initialize MultiAddress object from string representation ``value``.
   var parts = value.trimRight('/').split('/')
   if len(parts[0]) != 0:
-    err("Invalid MultiAddress, must start with `/`")
+    err("multiaddress - Invalid MultiAddress, must start with `/`")
   else:
     var offset = 1
     var res: MultiAddress
@@ -769,27 +769,27 @@ proc init*(mtype: typedesc[MultiAddress], value: string): MAResult[MultiAddress]
       let part = parts[offset]
       let proto = getProtocol(part)
       if proto.kind == None:
-        return err("Unsupported protocol '" & part & "'")
+        return err("multiaddress - Unsupported protocol '" & part & "'")
       else:
         if proto.kind in {Fixed, Length, Path}:
           if isNil(proto.coder.stringToBuffer):
-            return err("Missing protocol '" & part & "' transcoder")
+            return err("multiaddress - Missing protocol '" & part & "' transcoder")
             
           if offset + 1 >= len(parts):
-            return err("Missing protocol '" & part & "' argument")
+            return err("multiaddress - Missing protocol '" & part & "' argument")
 
         if proto.kind in {Fixed, Length}:
           res.data.write(proto.mcodec)
           let res = proto.coder.stringToBuffer(parts[offset + 1], res.data)
           if not res:
-            return err("Error encoding `" & part & "/" &  parts[offset + 1] & "`")
+            return err("multiaddress - Error encoding `" & part & "/" &  parts[offset + 1] & "`")
           offset += 2
 
         elif proto.kind == Path:
           var path = "/" & (parts[(offset + 1)..^1].join("/"))
           res.data.write(proto.mcodec)
           if not proto.coder.stringToBuffer(path, res.data):
-            return err("Error encoding `" & part & "/" &  path & "`")
+            return err("multiaddress - Error encoding `" & part & "/" &  path & "`")
 
           break
         elif proto.kind == Marker:
@@ -799,17 +799,17 @@ proc init*(mtype: typedesc[MultiAddress], value: string): MAResult[MultiAddress]
     ok(res)
 
 
-proc init*(mtype: typedesc[MultiAddress], data: openarray[byte]): MAResult[MultiAddress] =
+proc init*(mtype: typedesc[MultiAddress], data: openarray[byte]): MaResult[MultiAddress] =
   ## Initialize MultiAddress with array of bytes ``data``.
   if len(data) == 0:
-    err("Address could not be empty!")
+    err("multiaddress - Address could not be empty!")
   else:
     var res: MultiAddress
     res.data = initVBuffer()
     res.data.buffer.setLen(len(data))
     copyMem(addr res.data.buffer[0], unsafeAddr data[0], len(data))
     if not res.validate():
-      err("Incorrect MultiAddress!")
+      err("multiaddress - Incorrect MultiAddress!")
     else:
       ok(res)
 
@@ -818,7 +818,7 @@ proc init*(mtype: typedesc[MultiAddress]): MultiAddress =
   result.data = initVBuffer()
 
 proc init*(mtype: typedesc[MultiAddress],
-           address: IpAddress, protocol: Protocol, port: Port): MAResult[MultiAddress] =
+           address: IpAddress, protocol: Protocol, port: Port): MaResult[MultiAddress] =
   ## Initialize MultiAddress using stdlib's net.IpAddress (IPv4/IPv6) and
   ## net.Protocol (UDP/TCP) information.
   var res: MultiAddress
@@ -829,21 +829,21 @@ proc init*(mtype: typedesc[MultiAddress],
   let protoProto = case protocol
                    of IPPROTO_TCP: getProtocol("tcp")
                    of IPPROTO_UDP: getProtocol("udp")
-                   else: return err("protocol should be either TCP or UDP")
+                   else: return err("multiaddress - protocol should be either TCP or UDP")
 
   res.data.write(familyProto.mcodec)
   if not familyProto.coder.stringToBuffer($address, res.data):
-    err("Error encoding IPv4/IPv6 address")
+    err("multiaddress - Error encoding IPv4/IPv6 address")
   else:
     res.data.write(protoProto.mcodec)
     if not protoProto.coder.stringToBuffer($port, res.data):
-      err("Error encoding port number")
+      err("multiaddress - Error encoding port number")
     else:
       res.data.finish()
       ok(res)
 
 proc init*(mtype: typedesc[MultiAddress], address: TransportAddress,
-           protocol: Protocol = IPPROTO_TCP): MAResult[MultiAddress] =
+           protocol: Protocol = IPPROTO_TCP): MaResult[MultiAddress] =
   ## Initialize MultiAddress using chronos.TransportAddress (IPv4/IPv6/Unix)
   ## and protocol information (UDP/TCP).
   var res: MultiAddress
@@ -851,7 +851,7 @@ proc init*(mtype: typedesc[MultiAddress], address: TransportAddress,
   let protoProto = case protocol
                    of IPPROTO_TCP: getProtocol("tcp")
                    of IPPROTO_UDP: getProtocol("udp")
-                   else: return err("protocol should be either TCP or UDP")
+                   else: return err("multiaddress - protocol should be either TCP or UDP")
   if address.family == AddressFamily.IPv4:
     res.data.write(getProtocol("ip4").mcodec)
     res.data.writeArray(address.address_v4)
@@ -872,19 +872,19 @@ proc isEmpty*(ma: MultiAddress): bool =
   ## Returns ``true``, if MultiAddress ``ma`` is empty or non initialized.
   result = len(ma.data) == 0
 
-proc concat*(m1, m2: MultiAddress): MAResult[MultiAddress] =
+proc concat*(m1, m2: MultiAddress): MaResult[MultiAddress] =
   var res: MultiAddress
   res.data = initVBuffer()
   res.data.buffer = m1.data.buffer & m2.data.buffer
   if not res.validate():
-    err("Incorrect MultiAddress!")
+    err("multiaddress - Incorrect MultiAddress!")
   else:
     ok(res)
 
-proc append*(m1: var MultiAddress, m2: MultiAddress): MAResult[void] =
+proc append*(m1: var MultiAddress, m2: MultiAddress): MaResult[void] =
   m1.data.buffer &= m2.data.buffer
   if not m1.validate():
-    err("Incorrect MultiAddress!")
+    err("multiaddress - Incorrect MultiAddress!")
   else:
     ok()
 
@@ -974,19 +974,23 @@ proc matchPart(pat: MaPattern, protos: seq[MultiCodec]): MaPatResult =
       return MaPatResult(flag: true, rem: pcs[1..^1])
     result = MaPatResult(flag: false, rem: empty)
 
-proc match*(pat: MaPattern, address: MultiAddress): MAResult[bool] =
+proc match*(pat: MaPattern, address: MultiAddress): bool =
   ## Match full ``address`` using pattern ``pat`` and return ``true`` if
   ## ``address`` satisfies pattern.
-  var protos = ? address.protocols()
-  let res = matchPart(pat, protos)
-  ok(res.flag and (len(res.rem) == 0))
+  let protos = address.protocols()
+  if protos.isErr():
+    return false
+  let res = matchPart(pat, protos.get())
+  res.flag and (len(res.rem) == 0)
 
-proc matchPartial*(pat: MaPattern, address: MultiAddress): MAResult[bool] =
+proc matchPartial*(pat: MaPattern, address: MultiAddress): bool =
   ## Match prefix part of ``address`` using pattern ``pat`` and return
   ## ``true`` if ``address`` starts with pattern.
-  var protos = ? address.protocols()
-  let res = matchPart(pat, protos)
-  ok(res.flag)
+  let protos = address.protocols()
+  if protos.isErr():
+    return false
+  let res = matchPart(pat, protos.get())
+  res.flag
 
 proc `$`*(pat: MaPattern): string =
   ## Return pattern ``pat`` as string.

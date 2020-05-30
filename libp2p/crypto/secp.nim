@@ -82,7 +82,7 @@ proc init*(sig: var SkSignature, data: string): SkResult[void] =
   try:
     buffer = hexToSeqByte(data)
   except ValueError:
-    return err("Hex to bytes failed")
+    return err("secp - Hex to bytes failed")
   init(sig, buffer)
 
 proc init*(t: typedesc[SkPrivateKey], data: openarray[byte]): SkResult[SkPrivateKey] =
@@ -145,7 +145,7 @@ proc toBytes*(key: SkPrivateKey, data: var openarray[byte]): SkResult[int] =
     data[0..<SkRawPrivateKeySize] = SkSecretKey(key).toRaw()
     ok(SkRawPrivateKeySize)
   else:
-    err("Not enough bytes")
+    err("secp - Not enough bytes")
 
 proc toBytes*(key: SkPublicKey, data: var openarray[byte]): SkResult[int] =
   ## Serialize Secp256k1 `public key` ``key`` to raw binary form and store it
@@ -157,7 +157,7 @@ proc toBytes*(key: SkPublicKey, data: var openarray[byte]): SkResult[int] =
     data[0..<SkRawPublicKeySize] = secp256k1.SkPublicKey(key).toRawCompressed()
     ok(SkRawPublicKeySize)
   else:
-    err("Not enough bytes")
+    err("secp - Not enough bytes")
 
 proc toBytes*(sig: SkSignature, data: var openarray[byte]): int =
   ## Serialize Secp256k1 `signature` ``sig`` to raw binary form and store it
