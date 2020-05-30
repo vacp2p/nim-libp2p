@@ -31,7 +31,7 @@ type
   TestProto = ref object of LPProtocol
 
 proc createSwitch(ma: MultiAddress): (Switch, PeerInfo) =
-  var peerInfo: PeerInfo = PeerInfo.init(PrivateKey.random(RSA).tryGet())
+  var peerInfo: PeerInfo = PeerInfo.init(PrivateKey.random(ECDSA).tryGet())
   peerInfo.addrs.add(ma)
   let identify = newIdentify(peerInfo)
 
@@ -152,7 +152,7 @@ suite "Switch":
   #   proc testListenerDialer(): Future[bool] {.async.} =
   #     let
   #       server: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
-  #       serverInfo = PeerInfo.init(PrivateKey.random(RSA), [server])
+  #       serverInfo = PeerInfo.init(PrivateKey.random(ECDSA), [server])
   #       serverNoise = newSecio(serverInfo.privateKey)
   #       readTask = newFuture[void]()
 
@@ -174,7 +174,7 @@ suite "Switch":
 
   #     let
   #       transport2: TcpTransport = TcpTransport.init()
-  #       clientInfo = PeerInfo.init(PrivateKey.random(RSA), [transport1.ma])
+  #       clientInfo = PeerInfo.init(PrivateKey.random(ECDSA), [transport1.ma])
   #       clientNoise = newSecio(clientInfo.privateKey)
   #       conn = await transport2.dial(transport1.ma)
   #       sconn = await clientNoise.secure(conn)

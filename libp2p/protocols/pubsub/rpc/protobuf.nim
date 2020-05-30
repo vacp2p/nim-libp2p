@@ -214,13 +214,12 @@ proc encodeRpcMsg*(msg: RPCMsg): ProtoBuffer {.gcsafe.} =
   trace "encoding msg: ", msg = msg.shortLog
 
   if msg.subscriptions.len > 0:
-    var subs = initProtoBuffer()
     for s in msg.subscriptions:
+      var subs = initProtoBuffer()
       encodeSubs(s, subs)
-
-    # write subscriptions to protobuf
-    subs.finish()
-    result.write(initProtoField(1, subs))
+      # write subscriptions to protobuf
+      subs.finish()
+      result.write(initProtoField(1, subs))
 
   if msg.messages.len > 0:
     var messages = initProtoBuffer()
@@ -255,9 +254,9 @@ proc decodeRpcMsg*(msg: seq[byte]): RPCMsg {.gcsafe.} =
       trace "no submessage found in RPC msg"
       break
     of 1:
-      result.subscriptions = pb.decodeSubs()
+      result.subscriptions &= pb.decodeSubs()
     of 2:
-      result.messages = pb.decodeMessages()
+      result.messages &= pb.decodeMessages()
     of 3:
       result.control = pb.decodeControl()
     else:

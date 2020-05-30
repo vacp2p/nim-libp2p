@@ -38,7 +38,7 @@ proc waitSub(sender, receiver: auto; key: string) {.async, gcsafe.} =
          not fsub.mesh[key].contains(receiver.peerInfo.id)) and
         (not fsub.fanout.hasKey(key) or
          not fsub.fanout[key].contains(receiver.peerInfo.id)):
-    trace "waitSub sleeping...", peers=fsub.gossipsub[key]
+    trace "waitSub sleeping..."
     await sleepAsync(100.millis)
     dec ceil
     doAssert(ceil > 0, "waitSub timeout!")
@@ -111,6 +111,7 @@ suite "GossipSub":
       await nodes[0].publish("foobar", cast[seq[byte]]("Hello!"))
 
       result = await validatorFut
+
       await allFuturesThrowing(nodes[0].stop(), nodes[1].stop())
       await allFuturesThrowing(awaiters)
 
@@ -345,7 +346,6 @@ suite "GossipSub":
           waitSub(nodes[0], dialer, "foobar")))
 
       await allFuturesThrowing(subs)
-
       await wait(nodes[0].publish("foobar",
                                   cast[seq[byte]]("from node " &
                                   nodes[1].peerInfo.id)),

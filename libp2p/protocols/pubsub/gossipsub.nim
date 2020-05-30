@@ -53,26 +53,8 @@ type
     gossip*: Table[string, seq[ControlIHave]]  # pending gossip
     control*: Table[string, ControlMessage]    # pending control messages
     mcache*: MCache                            # messages cache
-    heartbeatCancel*: Future[void]             # cancelation future for heartbeat interval
-    heartbeatLock: AsyncLock                   # hearbeat lock to prevent two concecutive concurent hearbeats
-
-# TODO: This belong in chronos, temporary left here until chronos is updated
-proc addInterval(every: Duration, cb: CallbackFunc,
-    udata: pointer = nil): Future[void] =
-  ## Arrange the callback ``cb`` to be called on every ``Duration`` window
-
-  var retFuture = newFuture[void]("gossipsub.addInterval(Duration)")
-  proc interval(arg: pointer = nil) {.gcsafe.}
-  proc scheduleNext() =
-    if not retFuture.finished():
-      addTimer(Moment.fromNow(every), interval)
-
-  proc interval(arg: pointer = nil) {.gcsafe.} =
-    cb(udata)
-    scheduleNext()
-
-  scheduleNext()
-  return retFuture
+    heartbeatCancel*: Future[void]             # cancellation future for heartbeat interval
+    heartbeatLock: AsyncLock                   # heartbeat lock to prevent two consecutive concurrent heartbeats
 
 method init(g: GossipSub) =
   proc handler(conn: Connection, proto: string) {.async.} =
@@ -145,9 +127,9 @@ proc rebalanceMesh(g: GossipSub, topic: string) {.async.} =
         # send a graft message to the peer
         await p.sendPrune(@[topic])
 
-    trace "mesh balanced, got peers", peers = g.mesh[topic].len
+    trace "mesh balanced, got peers", peers = g.mesh[topic].len, topicId = topic
   except CatchableError as exc:
-    trace "exception occured rebalancing mes", exc = exc.msg
+    trace "exception occurred re-balancing mesh", exc = exc.msg
 
 proc dropFanoutPeers(g: GossipSub) {.async.} =
   # drop peers that we haven't published to in
@@ -199,25 +181,28 @@ proc getGossipPeers(g: GossipSub): Table[string, ControlMessage] {.gcsafe.} =
           result[id].ihave.add(ihave)
 
 proc heartbeat(g: GossipSub) {.async.} =
-  try:
-    await g.heartbeatLock.acquire()
-    trace "running heartbeat"
+  while true:
+    try:
+      await g.heartbeatLock.acquire()
+      trace "running heartbeat"
 
-    await sleepAsync(GossipSubHeartbeatInitialDelay)
+      for t in g.mesh.keys:
+        await g.rebalanceMesh(t)
 
-    for t in g.mesh.keys:
-      await g.rebalanceMesh(t)
+      await g.dropFanoutPeers()
+      let peers = g.getGossipPeers()
+      var sent: seq[Future[void]]
+      for peer in peers.keys:
+        sent &= g.peers[peer].send(@[RPCMsg(control: some(peers[peer]))])
+      checkFutures(await allFinished(sent))
 
-    await g.dropFanoutPeers()
-    let peers = g.getGossipPeers()
-    for peer in peers.keys:
-      await g.peers[peer].send(@[RPCMsg(control: some(peers[peer]))])
+      g.mcache.shift() # shift the cache
+    except CatchableError as exc:
+      trace "exception ocurred in gossipsub heartbeat", exc = exc.msg
+    finally:
+      g.heartbeatLock.release()
 
-    g.mcache.shift() # shift the cache
-  except CatchableError as exc:
-    trace "exception ocurred in gossipsub heartbeat", exc = exc.msg
-  finally:
-    g.heartbeatLock.release()
+    await sleepAsync(1.seconds)
 
 method handleDisconnect(g: GossipSub, peer: PubSubPeer) {.async.} =
   ## handle peer disconnects
@@ -242,20 +227,23 @@ method subscribeToPeer*(p: GossipSub,
 method subscribeTopic*(g: GossipSub,
                        topic: string,
                        subscribe: bool,
-                       peerId: string) {.gcsafe.} =
-  procCall PubSub(g).subscribeTopic(topic, subscribe, peerId)
+                       peerId: string) {.gcsafe, async.} =
+  await procCall PubSub(g).subscribeTopic(topic, subscribe, peerId)
 
   if topic notin g.gossipsub:
     g.gossipsub[topic] = initHashSet[string]()
 
   if subscribe:
     trace "adding subscription for topic", peer = peerId, name = topic
-    # subscribe the peer to the topic
+    # subscribe remote peer to the topic
     g.gossipsub[topic].incl(peerId)
   else:
     trace "removing subscription for topic", peer = peerId, name = topic
-    # unsubscribe the peer from the topic
+    # unsubscribe remote peer from the topic
     g.gossipsub[topic].excl(peerId)
+
+  if topic in g.topics:
+    await g.rebalanceMesh(topic)
 
 proc handleGraft(g: GossipSub,
                  peer: PubSubPeer,
@@ -410,20 +398,27 @@ method publish*(g: GossipSub,
                 topic: string,
                 data: seq[byte]) {.async.} =
   await procCall PubSub(g).publish(topic, data)
-
   trace "about to publish message on topic", name = topic,
                                              data = data.shortLog
+
+  var peers: HashSet[string]
   if data.len > 0 and topic.len > 0:
-    var peers: HashSet[string]
-    if topic in g.topics: # if we're subscribed to the topic attempt to build a mesh
-      await g.rebalanceMesh(topic)
-      peers = g.mesh[topic]
-    else: # send to fanout peers
-      await g.replenishFanout(topic)
-      if topic in g.fanout:
-        peers = g.fanout[topic]
-        # set the fanout expiery time
-        g.lastFanoutPubSub[topic] = Moment.fromNow(GossipSubFanoutTTL)
+    for _ in 0..<5: # try to get peers up to 5 times
+      if peers.len > 0:
+        break
+
+      if topic in g.topics: # if we're subscribed to the topic attempt to build a mesh
+        await g.rebalanceMesh(topic)
+        peers = g.mesh[topic]
+      else: # send to fanout peers
+        await g.replenishFanout(topic)
+        if topic in g.fanout:
+          peers = g.fanout[topic]
+          # set the fanout expiry time
+          g.lastFanoutPubSub[topic] = Moment.fromNow(GossipSubFanoutTTL)
+
+      # wait a second between tries
+      await sleepAsync(1.seconds)
 
     let msg = newMessage(g.peerInfo, data, topic, g.sign)
     var sent: seq[Future[void]]
@@ -434,6 +429,7 @@ method publish*(g: GossipSub,
       trace "publishing on topic", name = topic
       g.mcache.put(msg)
       sent.add(g.peers[p].send(@[RPCMsg(messages: @[msg])]))
+
     sent = await allFinished(sent)
     checkFutures(sent)
 
@@ -442,10 +438,7 @@ method start*(g: GossipSub) {.async.} =
   ## start long running/repeating procedures
 
   # setup the heartbeat interval
-  g.heartbeatCancel = addInterval(GossipSubHeartbeatInterval,
-                                  proc (arg: pointer = nil)
-                                    {.gcsafe, locks: 0.} =
-                                    asyncCheck g.heartbeat)
+  g.heartbeatCancel = g.heartbeat()
 
 method stop*(g: GossipSub) {.async.} =
   ## stopt pubsub
@@ -459,7 +452,7 @@ method stop*(g: GossipSub) {.async.} =
 
   g.heartbeatLock.release()
 
-method initPubSub(g: GossipSub) =
+method initPubSub*(g: GossipSub) =
   procCall FloodSub(g).initPubSub()
 
   randomize()

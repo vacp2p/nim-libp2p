@@ -21,8 +21,16 @@ logScope:
 
 const PubSubPrefix = "libp2p-pubsub:"
 
-proc msgId*(m: Message): string =
+proc msgIdProvider(m: Message): string =
+  ## default msg id provider
   m.seqno.toHex() & PeerID.init(m.fromPeer).pretty
+
+template msgId*(m: Message): string =
+  ## calls the ``msgIdProvider`` from
+  ## the instantiation scope
+  ##
+  mixin msgIdProvider
+  m.msgIdProvider()
 
 proc fromPeerId*(m: Message): PeerId =
   PeerID.init(m.fromPeer)
@@ -55,15 +63,16 @@ proc newMessage*(p: PeerInfo,
                  data: seq[byte],
                  topic: string,
                  sign: bool = true): Message {.gcsafe.} =
-  var seqno: seq[byte] = newSeq[byte](20)
-  if p.publicKey.isSome and randomBytes(addr seqno[0], 20) > 0:
-    var key: seq[byte] = p.publicKey.get().getBytes().tryGet()
+  var seqno: seq[byte] = newSeq[byte](8)
+  if randomBytes(addr seqno[0], 8) > 0:
+    if p.publicKey.isSome:
+      var key: seq[byte] = p.publicKey.get().getBytes().tryGet()
 
-    result = Message(fromPeer: p.peerId.getBytes(),
-                     data: data,
-                     seqno: seqno,
-                     topicIDs: @[topic])
-    if sign:
-      result = result.sign(p)
+      result = Message(fromPeer: p.peerId.getBytes(),
+                      data: data,
+                      seqno: seqno,
+                      topicIDs: @[topic])
+      if sign:
+        result = result.sign(p)
 
-    result.key = key
+      result.key = key
