@@ -15,12 +15,9 @@ import nativesockets
 import tables, strutils, net
 import chronos
 import multicodec, multihash, multibase, transcoder, vbuffer
-import stew/[base58, base32, endians2]
+import stew/[base58, base32, endians2, results]
 from peer import PeerID
-import stew/results
 export results
-
-{.deadCodeElim:on.}
 
 type
   MAKind* = enum
@@ -48,6 +45,12 @@ type
     rem*: seq[MultiCodec]
 
   MaResult*[T] = Result[T, string]
+
+const
+  # These are needed in order to avoid an ambiguity error stemming from
+  # some cint constants with the same name defined in the posix modules
+  IPPROTO_TCP = Protocol.IPPROTO_TCP
+  IPPROTO_UDP = Protocol.IPPROTO_UDP
 
 proc ip4StB(s: string, vb: var VBuffer): bool =
   ## IPv4 stringToBuffer() implementation.
@@ -490,7 +493,7 @@ proc protoArgument*(ma: MultiAddress, value: var openarray[byte]): MaResult[int]
       var res: int
       if proto.kind == Fixed:
         res = proto.size
-        if  len(value) >= res and  
+        if  len(value) >= res and
             vb.data.readArray(value.toOpenArray(0, proto.size - 1)) != proto.size:
           err("multiaddress - Decoding protocol error")
         else:
@@ -622,7 +625,7 @@ proc toString*(value: MultiAddress): MaResult[string] =
     if vb.data.isEmpty():
       break
     if vb.data.readVarint(header) == -1:
-      return err("multiaddress - Malformed binary address!") 
+      return err("multiaddress - Malformed binary address!")
     let proto = CodeAddresses.getOrDefault(MultiCodec(header))
     if proto.kind == None:
       return err("multiaddress - Unsupported protocol '" & $header & "'")
@@ -774,7 +777,7 @@ proc init*(mtype: typedesc[MultiAddress], value: string): MaResult[MultiAddress]
         if proto.kind in {Fixed, Length, Path}:
           if isNil(proto.coder.stringToBuffer):
             return err("multiaddress - Missing protocol '" & part & "' transcoder")
-            
+
           if offset + 1 >= len(parts):
             return err("multiaddress - Missing protocol '" & part & "' argument")
 
@@ -843,7 +846,7 @@ proc init*(mtype: typedesc[MultiAddress],
       ok(res)
 
 proc init*(mtype: typedesc[MultiAddress], address: TransportAddress,
-           protocol: Protocol = IPPROTO_TCP): MaResult[MultiAddress] =
+           protocol = IPPROTO_TCP): MaResult[MultiAddress] =
   ## Initialize MultiAddress using chronos.TransportAddress (IPv4/IPv6/Unix)
   ## and protocol information (UDP/TCP).
   var res: MultiAddress
@@ -900,7 +903,7 @@ proc `&=`*(m1: var MultiAddress, m2: MultiAddress) {.raises: [Defect, ResultErro
   ##
   ## This procedure performs validation of concatenated result and can raise
   ## exception on error.
-  ## 
+  ##
   m1.append(m2).tryGet()
 
 proc isWire*(ma: MultiAddress): bool =
@@ -908,7 +911,7 @@ proc isWire*(ma: MultiAddress): bool =
   ## - {IP4}/{TCP, UDP}
   ## - {IP6}/{TCP, UDP}
   ## - {UNIX}/{PATH}
-  var 
+  var
     state = 0
   try:
     for rpart in ma.items():
