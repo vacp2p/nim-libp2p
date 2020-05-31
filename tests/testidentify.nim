@@ -20,7 +20,7 @@ suite "Identify":
 
   test "handle identify message":
     proc testHandle(): Future[bool] {.async.} =
-      let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
+      let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
       let remoteSecKey = PrivateKey.random(ECDSA).get()
       let remotePeerInfo = PeerInfo.init(remoteSecKey,
                                         [ma],
@@ -65,7 +65,7 @@ suite "Identify":
 
   test "handle failed identify":
     proc testHandleError() {.async.} =
-      let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
+      let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
       var remotePeerInfo = PeerInfo.init(PrivateKey.random(ECDSA).get(), [ma])
       let identifyProto1 = newIdentify(remotePeerInfo)
       let msListen = newMultistream()

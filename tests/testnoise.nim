@@ -77,7 +77,7 @@ suite "Noise":
   test "e2e: handle write + noise":
     proc testListenerDialer(): Future[bool] {.async.} =
       let
-        server: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
+        server: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
         serverInfo = PeerInfo.init(PrivateKey.random(ECDSA).get(), [server])
         serverNoise = newNoise(serverInfo.privateKey, outgoing = false)
 
@@ -115,7 +115,7 @@ suite "Noise":
   test "e2e: handle read + noise":
     proc testListenerDialer(): Future[bool] {.async.} =
       let
-        server: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
+        server: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
         serverInfo = PeerInfo.init(PrivateKey.random(ECDSA).get(), [server])
         serverNoise = newNoise(serverInfo.privateKey, outgoing = false)
         readTask = newFuture[void]()
@@ -156,7 +156,7 @@ suite "Noise":
   test "e2e: handle read + noise fragmented":
     proc testListenerDialer(): Future[bool] {.async.} =
       let
-        server: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
+        server: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
         serverInfo = PeerInfo.init(PrivateKey.random(ECDSA).get(), [server])
         serverNoise = newNoise(serverInfo.privateKey, outgoing = false)
         readTask = newFuture[void]()
@@ -199,8 +199,8 @@ suite "Noise":
 
   test "e2e use switch dial proto string":
     proc testSwitch(): Future[bool] {.async, gcsafe.} =
-      let ma1: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
-      let ma2: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
+      let ma1: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
+      let ma2: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
 
       var peerInfo1, peerInfo2: PeerInfo
       var switch1, switch2: Switch

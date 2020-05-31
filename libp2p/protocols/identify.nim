@@ -78,7 +78,7 @@ proc decodeMsg*(buf: seq[byte]): IdentifyInfo =
   while pb.getBytes(2, address) > 0:
     if len(address) != 0:
       var copyaddr = address
-      var ma = MultiAddress.init(copyaddr)
+      var ma = MultiAddress.init(copyaddr).tryGet()
       result.addrs.add(ma)
       trace "read address bytes from message", address = ma
       address.setLen(0)
@@ -91,7 +91,7 @@ proc decodeMsg*(buf: seq[byte]): IdentifyInfo =
 
   var observableAddr = newSeq[byte]()
   if pb.getBytes(4, observableAddr) > 0: # attempt to read the observed addr
-    var ma = MultiAddress.init(observableAddr)
+    var ma = MultiAddress.init(observableAddr).tryGet()
     trace "read observedAddr from message", address = ma
     result.observedAddr = some(ma)
 

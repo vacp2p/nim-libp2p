@@ -56,7 +56,7 @@ method handles*(t: Transport, address: MultiAddress): bool {.base, gcsafe.} =
 
   # by default we skip circuit addresses to avoid
   # having to repeat the check in every transport
-  address.protocols.filterIt( it == multiCodec("p2p-circuit") ).len == 0
+  address.protocols.tryGet().filterIt( it == multiCodec("p2p-circuit") ).len == 0
 
 method localAddress*(t: Transport): MultiAddress {.base, gcsafe.} =
   ## get the local address of the transport in case started with 0.0.0.0:0

@@ -482,20 +482,20 @@ proc decode*(mhtype: typedesc[MultiHash], data: openarray[byte],
 proc validate*(mhtype: typedesc[MultiHash], data: openarray[byte]): bool =
   ## Returns ``true`` if array of bytes ``data`` has correct MultiHash inside.
   var code, size: uint64
-  var res: VarintStatus
+  var res: VarintResult[void]
   if len(data) < 2:
     return false
   let last = data.high
   var offset = 0
   var length = 0
   res = LP.getUVarint(data.toOpenArray(offset, last), length, code)
-  if res != VarintStatus.Success:
+  if res.isErr():
     return false
   offset += length
   if offset >= len(data):
     return false
   res = LP.getUVarint(data.toOpenArray(offset, last), length, size)
-  if res != VarintStatus.Success:
+  if res.isErr():
     return false
   offset += length
   if size > 0x7FFF_FFFF'u64:

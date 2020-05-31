@@ -16,7 +16,7 @@ suite "TCP transport":
 
   test "test listener: handle write":
     proc testListener(): Future[bool] {.async, gcsafe.} =
-      let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
+      let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
       let handlerWait = newFuture[void]()
       proc connHandler(conn: Connection) {.async, gcsafe.} =
         await conn.write(cstring("Hello!"), 6)
@@ -42,7 +42,7 @@ suite "TCP transport":
 
   test "test listener: handle read":
     proc testListener(): Future[bool] {.async.} =
-      let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
+      let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
       let handlerWait = newFuture[void]()
       proc connHandler(conn: Connection) {.async, gcsafe.} =
         var msg = newSeq[byte](6)
@@ -82,7 +82,7 @@ suite "TCP transport":
       var server = createStreamServer(address, serveClient, {ReuseAddr})
       server.start()
 
-      let ma: MultiAddress = MultiAddress.init(server.sock.getLocalAddress())
+      let ma: MultiAddress = MultiAddress.init(server.sock.getLocalAddress()).tryGet()
       let transport: TcpTransport = TcpTransport.init()
       let conn = await transport.dial(ma)
       var msg = newSeq[byte](6)
@@ -119,7 +119,7 @@ suite "TCP transport":
       var server = createStreamServer(address, serveClient, {ReuseAddr})
       server.start()
 
-      let ma: MultiAddress = MultiAddress.init(server.sock.getLocalAddress())
+      let ma: MultiAddress = MultiAddress.init(server.sock.getLocalAddress()).tryGet()
       let transport: TcpTransport = TcpTransport.init()
       let conn = await transport.dial(ma)
       await conn.write(cstring("Hello!"), 6)
@@ -138,7 +138,7 @@ suite "TCP transport":
 
   test "e2e: handle write":
     proc testListenerDialer(): Future[bool] {.async.} =
-      let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
+      let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
       let handlerWait = newFuture[void]()
       proc connHandler(conn: Connection) {.async, gcsafe.} =
         await conn.write(cstring("Hello!"), 6)
@@ -166,7 +166,7 @@ suite "TCP transport":
 
   test "e2e: handle read":
     proc testListenerDialer(): Future[bool] {.async.} =
-      let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
+      let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
       let handlerWait = newFuture[void]()
       proc connHandler(conn: Connection) {.async, gcsafe.} =
         var msg = newSeq[byte](6)

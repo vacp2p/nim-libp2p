@@ -120,9 +120,9 @@ proc readVarint*(conn: LPStream): Future[uint64] {.async, gcsafe.} =
   for i in 0..<len(buffer):
     await conn.readExactly(addr buffer[i], 1)
     let res = PB.getUVarint(buffer.toOpenArray(0, i), length, varint)
-    if res == VarintStatus.Success:
+    if res.isOk():
       return varint
-    if res != VarintStatus.Incomplete:
+    if res.error() != VarintError.Incomplete:
       break
   if true: # can't end with a raise apparently
     raise (ref InvalidVarintError)(msg: "Cannot parse varint")

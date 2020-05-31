@@ -236,7 +236,7 @@ suite "Multistream select":
 
   test "e2e - handle":
     proc endToEnd(): Future[bool] {.async.} =
-      let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
+      let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
 
       let
         handlerWait1 = newFuture[void]()
@@ -283,7 +283,7 @@ suite "Multistream select":
 
   test "e2e - ls":
     proc endToEnd(): Future[bool] {.async.} =
-      let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
+      let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
 
       let
         handlerWait = newFuture[void]()
@@ -331,7 +331,7 @@ suite "Multistream select":
 
   test "e2e - select one from a list with unsupported protos":
     proc endToEnd(): Future[bool] {.async.} =
-      let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
+      let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
 
       var protocol: LPProtocol = new LPProtocol
       proc testHandler(conn: Connection,
@@ -371,7 +371,7 @@ suite "Multistream select":
 
   test "e2e - select one with both valid":
     proc endToEnd(): Future[bool] {.async.} =
-      let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
+      let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
 
       var protocol: LPProtocol = new LPProtocol
       proc testHandler(conn: Connection,

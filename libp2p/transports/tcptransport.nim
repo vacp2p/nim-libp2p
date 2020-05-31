@@ -63,7 +63,7 @@ proc connHandler*(t: TcpTransport,
                   initiator: bool): Connection =
   trace "handling connection", address = $client.remoteAddress
   let conn: Connection = newConnection(newChronosStream(client))
-  conn.observedAddrs = MultiAddress.init(client.remoteAddress)
+  conn.observedAddrs = MultiAddress.init(client.remoteAddress).tryGet()
   if not initiator:
     if not isNil(t.handler):
       t.handlers &= t.handler(conn)
@@ -142,7 +142,7 @@ method listen*(t: TcpTransport,
   t.server.start()
 
   # always get the resolved address in case we're bound to 0.0.0.0:0
-  t.ma = MultiAddress.init(t.server.sock.getLocalAddress())
+  t.ma = MultiAddress.init(t.server.sock.getLocalAddress()).tryGet()
   result = t.server.join()
   trace "started node on", address = t.ma
 
@@ -156,4 +156,4 @@ method dial*(t: TcpTransport,
 
 method handles*(t: TcpTransport, address: MultiAddress): bool {.gcsafe.} =
   if procCall Transport(t).handles(address):
-    result = address.protocols.filterIt( it == multiCodec("tcp") ).len > 0
+    result = address.protocols.tryGet().filterIt( it == multiCodec("tcp") ).len > 0
