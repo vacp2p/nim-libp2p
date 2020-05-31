@@ -86,7 +86,7 @@ suite "Noise":
         defer:
           await sconn.close()
           await conn.close()
-        await sconn.write(cstring("Hello!"), 6)
+        await sconn.write("Hello!")
 
       let
         transport1: TcpTransport = TcpTransport.init()
@@ -141,7 +141,7 @@ suite "Noise":
         conn = await transport2.dial(transport1.ma)
         sconn = await clientNoise.secure(conn, true)
 
-      await sconn.write("Hello!".cstring, 6)
+      await sconn.write("Hello!")
       await readTask
       await sconn.close()
       await conn.close()
