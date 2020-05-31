@@ -523,7 +523,7 @@ proc getSocket(pattern: string,
   sockname = pattern % [pid, $(count[])]
   let tmpma = MultiAddress.init(sockname).tryGet()
 
-  if UNIX.match(tmpma).tryGet():
+  if UNIX.match(tmpma):
     while true:
       count[] = count[] + 1
       sockname = pattern % [pid, $(count[])]
@@ -532,7 +532,7 @@ proc getSocket(pattern: string,
       if not res:
         result = ma
         break
-  elif TCP.match(tmpma).tryGet():
+  elif TCP.match(tmpma):
     sockname = pattern % [pid, "0"]
     var ma = MultiAddress.init(sockname).tryGet()
     var sock = createAsyncSocket(ma)
