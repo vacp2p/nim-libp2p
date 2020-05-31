@@ -412,7 +412,7 @@ proc newSwitch*(peerInfo: PeerInfo,
                 transports: seq[Transport],
                 identity: Identify,
                 muxers: Table[string, MuxerProvider],
-                secureManagers: OrderedTable[string, Secure] = initOrderedTable[string, Secure](),
+                secureManagers: openarray[Secure] = [],
                 pubSub: Option[PubSub] = none(PubSub)): Switch =
   new result
   result.peerInfo = peerInfo
@@ -448,9 +448,9 @@ proc newSwitch*(peerInfo: PeerInfo,
       # try establishing a pubsub connection
       await s.subscribeToPeer(muxer.connection.peerInfo)
 
-  for k in secureManagers.keys:
-    trace "adding secure manager ", codec = secureManagers[k].codec
-    result.secureManagers[k] = secureManagers[k]
+  for proto in secureManagers:
+    trace "adding secure manager ", codec = proto.codec
+    result.secureManagers[proto.codec] = proto
 
   if result.secureManagers.len == 0:
     # use plain text if no secure managers are provided

@@ -18,11 +18,19 @@ import
 export
   switch, peer, peerinfo, connection, multiaddress, crypto
 
+type
+  SecureProtocol* {.pure.} = enum
+    Noise,
+    Secio
+
 proc newStandardSwitch*(privKey = none(PrivateKey),
                         address = MultiAddress.init("/ip4/127.0.0.1/tcp/0"),
                         triggerSelf = false,
                         gossip = false,
-                        secureManagers: openarray[string] = ["noise", "secio"],
+                        secureManagers: openarray[SecureProtocol] = [
+                            SecureProtocol.Noise, # array cos order matters
+                            SecureProtocol.Secio
+                          ],
                         verifySignature = libp2p_pubsub_verify,
                         sign = libp2p_pubsub_sign,
                         transportFlags: set[ServerFlags] = {}): Switch =
@@ -38,13 +46,13 @@ proc newStandardSwitch*(privKey = none(PrivateKey),
     identify = newIdentify(peerInfo)
 
   var 
-    secureManagerInstances: OrderedTable[string, Secure]
+    secureManagerInstances: seq[Secure]
   for sec in secureManagers:
     case sec
-    of "noise":
-      secureManagerInstances[NoiseCodec] = newNoise(seckey).Secure
-    of "secio":
-      secureManagerInstances[SecioCodec] = newSecio(seckey).Secure
+    of SecureProtocol.Noise:
+      secureManagerInstances &= newNoise(seckey).Secure
+    of SecureProtocol.Secio:
+      secureManagerInstances &= newSecio(seckey).Secure
 
   let pubSub = if gossip:
                   newPubSub(GossipSub,
