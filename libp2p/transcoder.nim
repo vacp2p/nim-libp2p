@@ -13,7 +13,7 @@ import vbuffer
 type
   Transcoder* = object
     stringToBuffer*: proc(s: string,
-                          vb: var VBuffer): bool {.nimcall, gcsafe, raises: [Defect].}
+                          vb: var VBuffer): bool {.nimcall, gcsafe, noSideEffect, raises: [Defect].}
     bufferToString*: proc(vb: var VBuffer,
-                          s: var string): bool {.nimcall, gcsafe, raises: [Defect].}
-    validateBuffer*: proc(vb: var VBuffer): bool {.nimcall, gcsafe, raises: [Defect].}
+                          s: var string): bool {.nimcall, gcsafe, noSideEffect, raises: [Defect].}
+    validateBuffer*: proc(vb: var VBuffer): bool {.nimcall, gcsafe, noSideEffect, raises: [Defect].}

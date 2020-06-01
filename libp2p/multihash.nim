@@ -42,7 +42,7 @@ const
 
 type
   MHashCoderProc* = proc(data: openarray[byte],
-                         output: var openarray[byte]) {.nimcall, gcsafe, raises: [Defect].}
+                         output: var openarray[byte]) {.nimcall, gcsafe, noSideEffect, raises: [Defect].}
   MHash* = object
     mcodec*: MultiCodec
     size*: int
