@@ -60,7 +60,7 @@ proc createSwitch(ma: MultiAddress; outgoing: bool): (Switch, PeerInfo) =
   let mplexProvider = newMuxerProvider(createMplex, MplexCodec)
   let transports = @[Transport(TcpTransport.init())]
   let muxers = [(MplexCodec, mplexProvider)].toTable()
-  let secureManagers = [(NoiseCodec, Secure(newNoise(peerInfo.privateKey, outgoing = outgoing)))].toTable()
+  let secureManagers = [Secure(newNoise(peerInfo.privateKey, outgoing = outgoing))]
   let switch = newSwitch(peerInfo,
                          transports,
                          identify,
@@ -86,7 +86,7 @@ suite "Noise":
         defer:
           await sconn.close()
           await conn.close()
-        await sconn.write(cstring("Hello!"), 6)
+        await sconn.write("Hello!")
 
       let
         transport1: TcpTransport = TcpTransport.init()
@@ -141,7 +141,7 @@ suite "Noise":
         conn = await transport2.dial(transport1.ma)
         sconn = await clientNoise.secure(conn, true)
 
-      await sconn.write("Hello!".cstring, 6)
+      await sconn.write("Hello!")
       await readTask
       await sconn.close()
       await conn.close()
