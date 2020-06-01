@@ -710,15 +710,12 @@ proc init*(mtype: typedesc[MultiAddress], protocol: MultiCodec, value: openarray
         if proto.kind == Fixed:
           res.data.writeArray(value)
         else:
-          var data = newSeq[byte](len(value))
-          copyMem(addr data[0], unsafeAddr value[0], len(value))
-          res.data.writeSeq(data)
+          res.data.writeSeq(value)
         res.data.finish()
         ok(res)
     of Marker:
-      res.data.finish()
-      ok(res)
-    else:
+      raiseAssert "Markers do appear at this level in protocols"
+    of None:
       raiseAssert "None checked above"
 
 proc init*(mtype: typedesc[MultiAddress], protocol: MultiCodec, value: PeerID): MaResult[MultiAddress] {.inline.} =
