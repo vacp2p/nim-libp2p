@@ -717,7 +717,7 @@ proc init*(
         ok(res)
     of Marker:
       if len(value) != 0:
-        err("multiaddress: Value must empty for markers")
+        err("multiaddress: Value must be empty for markers")
       else:
         res.data.finish()
         ok(res)
