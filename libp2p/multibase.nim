@@ -11,7 +11,7 @@
 ##
 ## TODO:
 ## 1. base32z
-## 
+##
 
 {.push raises: [Defect].}
 
@@ -24,17 +24,17 @@ type
 
   MultiBase* = object
 
-  MBCodeSize = proc(length: int): int {.nimcall, raises: [Defect].}
+  MBCodeSize = proc(length: int): int {.nimcall, gcsafe, noSideEffect, raises: [Defect].}
 
   MBCodec = object
     code: char
     name: string
     encr: proc(inbytes: openarray[byte],
                outbytes: var openarray[char],
-               outlen: var int): MultibaseStatus {.nimcall, raises: [Defect].}
+               outlen: var int): MultibaseStatus {.nimcall, gcsafe, noSideEffect, raises: [Defect].}
     decr: proc(inbytes: openarray[char],
                outbytes: var openarray[byte],
-               outlen: var int): MultibaseStatus {.nimcall, raises: [Defect].}
+               outlen: var int): MultibaseStatus {.nimcall, gcsafe, noSideEffect, raises: [Defect].}
     encl: MBCodeSize
     decl: MBCodeSize
 
