@@ -127,6 +127,8 @@ proc newChannel*(id: uint64,
                                  name = result.name
 
 proc closeMessage(s: LPChannel) {.async.} =
+  ## send close message - this will not raise
+  ## on EOF or Closed
   withEOFExceptions:
     withWriteLock(s.writeLock):
       trace "sending close message", id = s.id,
@@ -137,6 +139,7 @@ proc closeMessage(s: LPChannel) {.async.} =
       await s.conn.writeMsg(s.id, s.closeCode) # write close
 
 proc resetMessage(s: LPChannel) {.async.} =
+  ## send reset message - this will not raise
   withEOFExceptions:
     withWriteLock(s.writeLock):
       trace "sending reset message", id = s.id,
