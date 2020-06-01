@@ -44,7 +44,7 @@ type
       ms*: MultistreamSelect
       identity*: Identify
       streamHandler*: StreamHandler
-      secureManagers*: OrderedTable[string, Secure]
+      secureManagers*: seq[Secure]
       pubSub*: Option[PubSub]
       dialedPubSubPeers: HashSet[string]
 
@@ -52,17 +52,14 @@ proc newNoPubSubException(): ref CatchableError {.inline.} =
   result = newException(NoPubSubException, "no pubsub provided!")
 
 proc secure(s: Switch, conn: Connection): Future[Connection] {.async, gcsafe.} =
-  ## secure the incoming connection
-
-  let managers = toSeq(s.secureManagers.keys)
-  if managers.len == 0:
+  if s.secureManagers.len <= 0:
     raise newException(CatchableError, "No secure managers registered!")
 
-  let manager = await s.ms.select(conn, toSeq(s.secureManagers.values).mapIt(it.codec))
+  let manager = await s.ms.select(conn, s.secureManagers.mapIt(it.codec))
   if manager.len == 0:
     raise newException(CatchableError, "Unable to negotiate a secure channel!")
 
-  result = await s.secureManagers[manager].secure(conn, true)
+  result = await s.secureManagers.filterIt(it.codec == manager)[0].secure(conn, true)
 
 proc identify(s: Switch, conn: Connection): Future[PeerInfo] {.async, gcsafe.} =
   ## identify the connection
@@ -194,7 +191,7 @@ proc upgradeIncoming(s: Switch, conn: Connection) {.async, gcsafe.} =
                        {.async, gcsafe, closure.} =
     try:
       trace "Securing connection"
-      let secure = s.secureManagers[proto]
+      let secure = s.secureManagers.filterIt(it.codec == proto)[0]
       let sconn = await secure.secure(conn, false)
       if sconn.isNil:
         return
@@ -218,8 +215,8 @@ proc upgradeIncoming(s: Switch, conn: Connection) {.async, gcsafe.} =
     try:
       if (await ms.select(conn)): # just handshake
         # add the secure handlers
-        for k in s.secureManagers.keys:
-          ms.addHandler(k, securedHandler)
+        for k in s.secureManagers:
+          ms.addHandler(k.codec, securedHandler)
 
         # handle secured connections
       await ms.handle(conn)
@@ -428,7 +425,7 @@ proc newSwitch*(peerInfo: PeerInfo,
   result.muxed = initTable[string, Muxer]()
   result.identity = identity
   result.muxers = muxers
-  result.secureManagers = initOrderedTable[string, Secure]()
+  result.secureManagers = @secureManagers
   result.dialedPubSubPeers = initHashSet[string]()
 
   let s = result # can't capture result
@@ -467,14 +464,10 @@ proc newSwitch*(peerInfo: PeerInfo,
         if not(isNil(stream)):
           await stream.close()
 
-  for proto in secureManagers:
-    trace "adding secure manager ", codec = proto.codec
-    result.secureManagers[proto.codec] = proto
-
-  if result.secureManagers.len == 0:
+  if result.secureManagers.len <= 0:
     # use plain text if no secure managers are provided
     warn "no secure managers, falling back to plain text", codec = PlainTextCodec
-    result.secureManagers[PlainTextCodec] = Secure(newPlainText())
+    result.secureManagers &= Secure(newPlainText())
 
   if pubSub.isSome:
     result.pubSub = pubSub
