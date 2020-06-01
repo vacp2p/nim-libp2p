@@ -71,18 +71,19 @@ proc select*(m: MultistreamSelect,
   trace "reading first requested proto"
   result.removeSuffix("\n")
   if result == proto[0]:
-    trace "succesfully selected ", proto = proto
+    trace "successfully selected ", proto = proto
     return
 
-  if not result.len > 0:
-    trace "selecting one of several protos"
-    for p in proto[1..<proto.len()]:
-      await conn.writeLp((p & "\n")) # select proto
-      result = string.fromBytes(await conn.readLp(1024)) # read the first proto
-      result.removeSuffix("\n")
-      if result == p:
-        trace "selected protocol", protocol = result
-        break
+  let protos = proto[1..<proto.len()]
+  trace "selecting one of several protos", protos = protos
+  for p in protos:
+    trace "selecting proto", proto = p
+    await conn.writeLp((p & "\n")) # select proto
+    result = string.fromBytes(await conn.readLp(1024)) # read the first proto
+    result.removeSuffix("\n")
+    if result == p:
+      trace "selected protocol", protocol = result
+      break
 
 proc select*(m: MultistreamSelect,
              conn: Connection,
@@ -157,7 +158,7 @@ proc addHandler*[T: LPProtocol](m: MultistreamSelect,
                                 matcher: Matcher = nil) =
   ## register a protocol
   # TODO: This is a bug in chronicles,
-  # it break if I uncoment this line.
+  # it break if I uncomment this line.
   # Which is almost the same as the
   # one on the next override of addHandler
   #
