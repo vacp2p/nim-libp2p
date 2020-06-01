@@ -692,7 +692,9 @@ proc validate*(ma: MultiAddress): bool =
       discard
   result = true
 
-proc init*(mtype: typedesc[MultiAddress], protocol: MultiCodec, value: openarray[byte]): MaResult[MultiAddress] =
+proc init*(
+    mtype: typedesc[MultiAddress], protocol: MultiCodec,
+    value: openarray[byte] = []): MaResult[MultiAddress] =
   ## Initialize MultiAddress object from protocol id ``protocol`` and array
   ## of bytes ``value``.
   let proto = CodeAddresses.getOrDefault(protocol)
@@ -714,7 +716,11 @@ proc init*(mtype: typedesc[MultiAddress], protocol: MultiCodec, value: openarray
         res.data.finish()
         ok(res)
     of Marker:
-      raiseAssert "Markers do appear at this level in protocols"
+      if len(value) != 0:
+        err("multiaddress: Value must empty for markers")
+      else:
+        res.data.finish()
+        ok(res)
     of None:
       raiseAssert "None checked above"
 
@@ -722,20 +728,6 @@ proc init*(mtype: typedesc[MultiAddress], protocol: MultiCodec, value: PeerID): 
   ## Initialize MultiAddress object from protocol id ``protocol`` and peer id
   ## ``value``.
   init(mtype, protocol, value.data)
-
-proc init*(mtype: typedesc[MultiAddress], protocol: MultiCodec): MaResult[MultiAddress] =
-  ## Initialize MultiAddress object from protocol id ``protocol``.
-  let proto = CodeAddresses.getOrDefault(protocol)
-  if proto.kind == None:
-    err("multiaddress: Protocol not found")
-  else:
-    var res: MultiAddress
-    res.data = initVBuffer()
-    if proto.kind != Marker:
-      raise newException(MultiAddressError, "Protocol missing value")
-    res.data.writeVarint(cast[uint64](proto.mcodec))
-    res.data.finish()
-    ok(res)
 
 proc init*(mtype: typedesc[MultiAddress], protocol: MultiCodec, value: int): MaResult[MultiAddress] =
   ## Initialize MultiAddress object from protocol id ``protocol`` and integer
