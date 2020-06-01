@@ -702,7 +702,8 @@ proc init*(mtype: typedesc[MultiAddress], protocol: MultiCodec, value: openarray
     var res: MultiAddress
     res.data = initVBuffer()
     res.data.writeVarint(cast[uint64](proto.mcodec))
-    if proto.kind in {Fixed, Length, Path}:
+    case proto.kind
+    of Fixed, Length, Path:
       if len(value) == 0:
         err("multiaddress: Value must not be empty array")
       else:
@@ -714,6 +715,11 @@ proc init*(mtype: typedesc[MultiAddress], protocol: MultiCodec, value: openarray
           res.data.writeSeq(data)
         res.data.finish()
         ok(res)
+    of Marker:
+      res.data.finish()
+      ok(res)
+    else:
+      raiseAssert "None checked above"
 
 proc init*(mtype: typedesc[MultiAddress], protocol: MultiCodec, value: PeerID): MaResult[MultiAddress] {.inline.} =
   ## Initialize MultiAddress object from protocol id ``protocol`` and peer id
