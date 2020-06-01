@@ -692,7 +692,9 @@ proc validate*(ma: MultiAddress): bool =
       discard
   result = true
 
-proc init*(mtype: typedesc[MultiAddress], protocol: MultiCodec, value: openarray[byte]): MaResult[MultiAddress] =
+proc init*(
+    mtype: typedesc[MultiAddress], protocol: MultiCodec,
+    value: openarray[byte] = []): MaResult[MultiAddress] =
   ## Initialize MultiAddress object from protocol id ``protocol`` and array
   ## of bytes ``value``.
   let proto = CodeAddresses.getOrDefault(protocol)
@@ -702,37 +704,30 @@ proc init*(mtype: typedesc[MultiAddress], protocol: MultiCodec, value: openarray
     var res: MultiAddress
     res.data = initVBuffer()
     res.data.writeVarint(cast[uint64](proto.mcodec))
-    if proto.kind in {Fixed, Length, Path}:
+    case proto.kind
+    of Fixed, Length, Path:
       if len(value) == 0:
         err("multiaddress: Value must not be empty array")
       else:
         if proto.kind == Fixed:
           res.data.writeArray(value)
         else:
-          var data = newSeq[byte](len(value))
-          copyMem(addr data[0], unsafeAddr value[0], len(value))
-          res.data.writeSeq(data)
+          res.data.writeSeq(value)
         res.data.finish()
         ok(res)
+    of Marker:
+      if len(value) != 0:
+        err("multiaddress: Value must be empty for markers")
+      else:
+        res.data.finish()
+        ok(res)
+    of None:
+      raiseAssert "None checked above"
 
 proc init*(mtype: typedesc[MultiAddress], protocol: MultiCodec, value: PeerID): MaResult[MultiAddress] {.inline.} =
   ## Initialize MultiAddress object from protocol id ``protocol`` and peer id
   ## ``value``.
   init(mtype, protocol, value.data)
-
-proc init*(mtype: typedesc[MultiAddress], protocol: MultiCodec): MaResult[MultiAddress] =
-  ## Initialize MultiAddress object from protocol id ``protocol``.
-  let proto = CodeAddresses.getOrDefault(protocol)
-  if proto.kind == None:
-    err("multiaddress: Protocol not found")
-  else:
-    var res: MultiAddress
-    res.data = initVBuffer()
-    if proto.kind != Marker:
-      raise newException(MultiAddressError, "Protocol missing value")
-    res.data.writeVarint(cast[uint64](proto.mcodec))
-    res.data.finish()
-    ok(res)
 
 proc init*(mtype: typedesc[MultiAddress], protocol: MultiCodec, value: int): MaResult[MultiAddress] =
   ## Initialize MultiAddress object from protocol id ``protocol`` and integer
