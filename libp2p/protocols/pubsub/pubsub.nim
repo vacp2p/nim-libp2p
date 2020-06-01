@@ -24,6 +24,12 @@ logScope:
 
 declareGauge libp2p_pubsub_peers, "pubsub peer instances"
 declareGauge libp2p_pubsub_topics, "current pubsub subscribed topics"
+declareGauge libp2p_pubsub_validation_success, "current pubsub successfully validated messages"
+declareGauge libp2p_pubsub_validation_failure, "current pubsub failed validated messages"
+# TODO
+# * Number of peers per topic
+# * Number of messages failed/passed signature checks (if enabled)
+#   * Total number of dropped messages (due to validation and signature checks)
 
 type
   TopicHandler* = proc(topic: string,
@@ -271,6 +277,10 @@ method validate*(p: PubSub, message: Message): Future[bool] {.async, base.} =
 
   let futs = await allFinished(pending)
   result = futs.allIt(not it.failed and it.read())
+  if result:
+    libp2p_pubsub_validation_success.inc()
+  else:
+    libp2p_pubsub_validation_failure.inc()
 
 proc newPubSub*(P: typedesc[PubSub],
                 peerInfo: PeerInfo,
