@@ -8,6 +8,9 @@
 ## those terms.
 
 ## This module implements variable buffer.
+
+{.push raises: [Defect].}
+
 import varint, strutils
 
 type
@@ -66,7 +69,7 @@ proc writePBVarint*(vb: var VBuffer, value: PBSomeUVarint) =
   vb.buffer.setLen(len(vb.buffer) + vsizeof(v))
   let res = PB.putUVarint(toOpenArray(vb.buffer, vb.offset, vb.buffer.high),
                           length, v)
-  doAssert(res == VarintStatus.Success)
+  doAssert(res.isOk())
   vb.offset += length
 
 proc writeLPVarint*(vb: var VBuffer, value: LPSomeUVarint) =
@@ -77,7 +80,7 @@ proc writeLPVarint*(vb: var VBuffer, value: LPSomeUVarint) =
   vb.buffer.setLen(len(vb.buffer) + vsizeof(v))
   let res = LP.putUVarint(toOpenArray(vb.buffer, vb.offset, vb.buffer.high),
                           length, v)
-  doAssert(res == VarintStatus.Success)
+  doAssert(res.isOk())
   vb.offset += length
 
 proc writeVarint*(vb: var VBuffer, value: LPSomeUVarint) =
@@ -90,7 +93,7 @@ proc writeSeq*[T: byte|char](vb: var VBuffer, value: openarray[T]) =
   vb.buffer.setLen(len(vb.buffer) + vsizeof(uint(len(value))) + len(value))
   let res = LP.putUVarint(toOpenArray(vb.buffer, vb.offset, vb.buffer.high),
                           length, uint(len(value)))
-  doAssert(res == VarintStatus.Success)
+  doAssert(res.isOk())
   vb.offset += length
   if len(value) > 0:
     copyMem(addr vb.buffer[vb.offset], unsafeAddr value[0], len(value))
@@ -120,7 +123,7 @@ proc peekVarint*(vb: var VBuffer, value: var LPSomeUVarint): int =
   if not vb.isEmpty():
     let res = LP.getUVarint(
       toOpenArray(vb.buffer, vb.offset, vb.buffer.high), length, value)
-    if res == VarintStatus.Success:
+    if res.isOk():
       result = length
 
 proc peekSeq*[T: string|seq[byte]](vb: var VBuffer, value: var T): int =
@@ -135,8 +138,7 @@ proc peekSeq*[T: string|seq[byte]](vb: var VBuffer, value: var T): int =
   var length = 0
   var size = 0'u64
   if not vb.isEmpty() and
-     LP.getUVarint(toOpenArray(vb.buffer, vb.offset, vb.buffer.high),
-                   length, size) == VarintStatus.Success:
+     LP.getUVarint(toOpenArray(vb.buffer, vb.offset, vb.buffer.high), length, size).isOk():
     vb.offset += length
     result = length
     if vb.isEnough(int(size)):

@@ -44,7 +44,7 @@ type
       ms*: MultistreamSelect
       identity*: Identify
       streamHandler*: StreamHandler
-      secureManagers*: Table[string, Secure]
+      secureManagers*: OrderedTable[string, Secure]
       pubSub*: Option[PubSub]
       dialedPubSubPeers: HashSet[string]
 
@@ -412,7 +412,7 @@ proc newSwitch*(peerInfo: PeerInfo,
                 transports: seq[Transport],
                 identity: Identify,
                 muxers: Table[string, MuxerProvider],
-                secureManagers: Table[string, Secure] = initTable[string, Secure](),
+                secureManagers: openarray[Secure] = [],
                 pubSub: Option[PubSub] = none(PubSub)): Switch =
   new result
   result.peerInfo = peerInfo
@@ -422,7 +422,7 @@ proc newSwitch*(peerInfo: PeerInfo,
   result.muxed = initTable[string, Muxer]()
   result.identity = identity
   result.muxers = muxers
-  result.secureManagers = initTable[string, Secure]()
+  result.secureManagers = initOrderedTable[string, Secure]()
   result.dialedPubSubPeers = initHashSet[string]()
 
   let s = result # can't capture result
@@ -448,9 +448,9 @@ proc newSwitch*(peerInfo: PeerInfo,
       # try establishing a pubsub connection
       await s.subscribeToPeer(muxer.connection.peerInfo)
 
-  for k in secureManagers.keys:
-    trace "adding secure manager ", codec = secureManagers[k].codec
-    result.secureManagers[k] = secureManagers[k]
+  for proto in secureManagers:
+    trace "adding secure manager ", codec = proto.codec
+    result.secureManagers[proto.codec] = proto
 
   if result.secureManagers.len == 0:
     # use plain text if no secure managers are provided

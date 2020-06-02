@@ -60,7 +60,7 @@ proc createSwitch(ma: MultiAddress; outgoing: bool): (Switch, PeerInfo) =
   let mplexProvider = newMuxerProvider(createMplex, MplexCodec)
   let transports = @[Transport(TcpTransport.init())]
   let muxers = [(MplexCodec, mplexProvider)].toTable()
-  let secureManagers = [(NoiseCodec, Secure(newNoise(peerInfo.privateKey, outgoing = outgoing)))].toTable()
+  let secureManagers = [Secure(newNoise(peerInfo.privateKey, outgoing = outgoing))]
   let switch = newSwitch(peerInfo,
                          transports,
                          identify,
@@ -77,7 +77,7 @@ suite "Noise":
   test "e2e: handle write + noise":
     proc testListenerDialer(): Future[bool] {.async.} =
       let
-        server: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
+        server: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
         serverInfo = PeerInfo.init(PrivateKey.random(ECDSA).get(), [server])
         serverNoise = newNoise(serverInfo.privateKey, outgoing = false)
 
@@ -86,7 +86,7 @@ suite "Noise":
         defer:
           await sconn.close()
           await conn.close()
-        await sconn.write(cstring("Hello!"), 6)
+        await sconn.write("Hello!")
 
       let
         transport1: TcpTransport = TcpTransport.init()
@@ -115,7 +115,7 @@ suite "Noise":
   test "e2e: handle read + noise":
     proc testListenerDialer(): Future[bool] {.async.} =
       let
-        server: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
+        server: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
         serverInfo = PeerInfo.init(PrivateKey.random(ECDSA).get(), [server])
         serverNoise = newNoise(serverInfo.privateKey, outgoing = false)
         readTask = newFuture[void]()
@@ -141,7 +141,7 @@ suite "Noise":
         conn = await transport2.dial(transport1.ma)
         sconn = await clientNoise.secure(conn, true)
 
-      await sconn.write("Hello!".cstring, 6)
+      await sconn.write("Hello!")
       await readTask
       await sconn.close()
       await conn.close()
@@ -156,7 +156,7 @@ suite "Noise":
   test "e2e: handle read + noise fragmented":
     proc testListenerDialer(): Future[bool] {.async.} =
       let
-        server: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
+        server: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
         serverInfo = PeerInfo.init(PrivateKey.random(ECDSA).get(), [server])
         serverNoise = newNoise(serverInfo.privateKey, outgoing = false)
         readTask = newFuture[void]()
@@ -199,8 +199,8 @@ suite "Noise":
 
   test "e2e use switch dial proto string":
     proc testSwitch(): Future[bool] {.async, gcsafe.} =
-      let ma1: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
-      let ma2: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
+      let ma1: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
+      let ma2: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
 
       var peerInfo1, peerInfo2: PeerInfo
       var switch1, switch2: Switch

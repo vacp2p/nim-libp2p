@@ -15,16 +15,22 @@
 ## - LibP2P varint, which is able to encode only 63bits of uint64 number and
 ##   maximum size of encoded value is 9 octets (bytes).
 ##   https://github.com/multiformats/unsigned-varint
+
+{.push raises: [Defect].}
+
 import bitops, typetraits
+import stew/results
+export results
 
 type
-  VarintStatus* {.pure.} = enum
+  VarintError* {.pure.} = enum
     Error,
-    Success,
     Overflow,
     Incomplete,
     Overlong,
     Overrun
+
+  VarintResult*[T] = Result[T, VarintError]
 
   PB* = object
     ## Use this type to specify Google ProtoBuf's varint encoding
@@ -49,7 +55,6 @@ type
   LPSomeVarint* = LPSomeUVarint
   SomeVarint* = PBSomeVarint | LPSomeVarint
   SomeUVarint* = PBSomeUVarint | LPSomeUVarint
-  VarintError* = object of CatchableError
 
 proc vsizeof*(x: SomeUVarint): int {.inline.} =
   ## Returns number of bytes required to encode integer ``x`` as varint.
@@ -99,7 +104,7 @@ proc vsizeof*(x: PBZigVarint): int {.inline.} =
 proc getUVarint*[T: PB|LP](vtype: typedesc[T],
                            pbytes: openarray[byte],
                            outlen: var int,
-                           outval: var SomeUVarint): VarintStatus =
+                           outval: var SomeUVarint): VarintResult[void] =
   ## Decode `unsigned varint` from buffer ``pbytes`` and store it to ``outval``.
   ## On success ``outlen`` will be set to number of bytes processed while
   ## decoding `unsigned varint`.
@@ -130,38 +135,35 @@ proc getUVarint*[T: PB|LP](vtype: typedesc[T],
       const MaxBits = byte(sizeof(outval) * 8)
 
   var shift = 0'u8
-  result = VarintStatus.Incomplete
   outlen = 0
   outval = type(outval)(0)
   for i in 0..<len(pbytes):
     let b = pbytes[i]
     if shift >= MaxBits:
-      result = VarintStatus.Overflow
       outlen = 0
       outval = type(outval)(0)
-      break
+      return err(VarintError.Overflow)
     else:
       outval = outval or (type(outval)(b and 0x7F'u8) shl shift)
       shift += 7
     inc(outlen)
     if (b and 0x80'u8) == 0'u8:
-      result = VarintStatus.Success
-      break
-  if result == VarintStatus.Incomplete:
-    outlen = 0
-    outval = type(outval)(0)
-
-  when vtype is LP:
-    if result == VarintStatus.Success:
+      # done, success
       if outlen != vsizeof(outval):
         outval = type(outval)(0)
         outlen = 0
-        result = VarintStatus.Overlong
+        return err(VarintError.Overlong)
+      else:
+        return ok()
+  
+  outlen = 0
+  outval = type(outval)(0)
+  err(VarintError.Incomplete)
 
 proc putUVarint*[T: PB|LP](vtype: typedesc[T],
                            pbytes: var openarray[byte],
                            outlen: var int,
-                           outval: SomeUVarint): VarintStatus =
+                           outval: SomeUVarint): VarintResult[void] =
   ## Encode `unsigned varint` ``outval`` and store it to array ``pbytes``.
   ##
   ## On success ``outlen`` will hold number of bytes (octets) used to encode
@@ -185,8 +187,7 @@ proc putUVarint*[T: PB|LP](vtype: typedesc[T],
   when vtype is LP:
     if sizeof(outval) == 8:
       if (uint64(outval) and 0x8000_0000_0000_0000'u64) != 0'u64:
-        result = Overflow
-        return
+        return err(VarintError.Overflow)
 
   if value <= type(outval)(0x7F):
     buffer[0] = byte(outval and 0xFF)
@@ -201,12 +202,12 @@ proc putUVarint*[T: PB|LP](vtype: typedesc[T],
   outlen = k
   if len(pbytes) >= k:
     copyMem(addr pbytes[0], addr buffer[0], k)
-    result = VarintStatus.Success
+    ok()
   else:
-    result = VarintStatus.Overrun
+    err(VarintError.Overrun)
 
 proc getSVarint*(pbytes: openarray[byte], outsize: var int,
-                 outval: var PBSomeSVarint): VarintStatus {.inline.} =
+                 outval: var PBSomeSVarint): VarintResult[void] {.inline.} =
   ## Decode signed integer (``int32`` or ``int64``) from buffer ``pbytes``
   ## and store it to ``outval``.
   ##
@@ -230,12 +231,13 @@ proc getSVarint*(pbytes: openarray[byte], outsize: var int,
   else:
     var value: uint32
 
-  result = PB.getUVarint(pbytes, outsize, value)
-  if result == VarintStatus.Success:
+  let res = PB.getUVarint(pbytes, outsize, value)
+  if res.isOk():
     outval = cast[type(outval)](value)
+  res
 
 proc getSVarint*(pbytes: openarray[byte], outsize: var int,
-                 outval: var PBZigVarint): VarintStatus {.inline.} =
+                 outval: var PBZigVarint): VarintResult[void] {.inline.} =
   ## Decode Google ProtoBuf's zigzag encoded signed integer (``sint32`` or
   ## ``sint64`` ) from buffer ``pbytes`` and store it to ``outval``.
   ##
@@ -259,15 +261,16 @@ proc getSVarint*(pbytes: openarray[byte], outsize: var int,
   else:
     var value: uint32
 
-  result = PB.getUVarint(pbytes, outsize, value)
-  if result == VarintStatus.Success:
+  let res = PB.getUVarint(pbytes, outsize, value)
+  if res.isOk():
     if (value and type(value)(1)) != type(value)(0):
       outval = cast[type(outval)](not(value shr 1))
     else:
       outval = cast[type(outval)](value shr 1)
+  res
 
 proc putSVarint*(pbytes: var openarray[byte], outsize: var int,
-                 outval: PBZigVarint): VarintStatus {.inline.} =
+                 outval: PBZigVarint): VarintResult[void] {.inline.} =
   ## Encode signed integer ``outval`` using ProtoBuffer's zigzag encoding
   ## (``sint32`` or ``sint64``) and store it to array ``pbytes``.
   ##
@@ -292,10 +295,10 @@ proc putSVarint*(pbytes: var openarray[byte], outsize: var int,
         not(uint32(outval) shl 1)
       else:
         uint32(outval) shl 1
-  result = PB.putUVarint(pbytes, outsize, value)
+  PB.putUVarint(pbytes, outsize, value)
 
 proc putSVarint*(pbytes: var openarray[byte], outsize: var int,
-                 outval: PBSomeSVarint): VarintStatus {.inline.} =
+                 outval: PBSomeSVarint): VarintResult[void] {.inline.} =
   ## Encode signed integer ``outval`` (``int32`` or ``int64``) and store it to
   ## array ``pbytes``.
   ##
@@ -309,84 +312,87 @@ proc putSVarint*(pbytes: var openarray[byte], outsize: var int,
   ## Maximum encoded length of 64bit integer is 10 octets.
   ## Maximum encoded length of 32bit integer is 5 octets.
   when sizeof(outval) == 8:
-    result = PB.putUVarint(pbytes, outsize, uint64(outval))
+    PB.putUVarint(pbytes, outsize, uint64(outval))
   else:
-    result = PB.putUVarint(pbytes, outsize, uint32(outval))
+    PB.putUVarint(pbytes, outsize, uint32(outval))
 
 template varintFatal(msg) =
   const m = msg
   {.fatal: m.}
 
 proc putVarint*[T: PB|LP](vtype: typedesc[T], pbytes: var openarray[byte],
-                nbytes: var int, value: SomeVarint): VarintStatus {.inline.} =
+                nbytes: var int, value: SomeVarint): VarintResult[void] {.inline.} =
   when vtype is PB:
     when (type(value) is PBSomeSVarint) or (type(value) is PBZigVarint):
-      result = putSVarint(pbytes, nbytes, value)
+      putSVarint(pbytes, nbytes, value)
     elif (type(value) is PBSomeUVarint):
-      result = PB.putUVarint(pbytes, nbytes, value)
+      PB.putUVarint(pbytes, nbytes, value)
     else:
       varintFatal("Protobuf's varint do not support type [" &
                   typetraits.name(type(value)) & "]")
   elif vtype is LP:
     when (type(value) is LPSomeVarint):
-      result = LP.putUVarint(pbytes, nbytes, value)
+      LP.putUVarint(pbytes, nbytes, value)
     else:
       varintFatal("LibP2P's varint do not support type [" &
                    typetraits.name(type(value)) & "]")
 
 proc getVarint*[T: PB|LP](vtype: typedesc[T], pbytes: openarray[byte],
                           nbytes: var int,
-                          value: var SomeVarint): VarintStatus {.inline.} =
+                          value: var SomeVarint): VarintResult[void] {.inline.} =
   when vtype is PB:
     when (type(value) is PBSomeSVarint) or (type(value) is PBZigVarint):
-      result = getSVarint(pbytes, nbytes, value)
+      getSVarint(pbytes, nbytes, value)
     elif (type(value) is PBSomeUVarint):
-      result = PB.getUVarint(pbytes, nbytes, value)
+      PB.getUVarint(pbytes, nbytes, value)
     else:
       varintFatal("Protobuf's varint do not support type [" &
                   typetraits.name(type(value)) & "]")
   elif vtype is LP:
     when (type(value) is LPSomeVarint):
-      result = LP.getUVarint(pbytes, nbytes, value)
+      LP.getUVarint(pbytes, nbytes, value)
     else:
       varintFatal("LibP2P's varint do not support type [" &
                    typetraits.name(type(value)) & "]")
 
 proc encodeVarint*(vtype: typedesc[PB],
-                   value: PBSomeVarint): seq[byte] {.inline.} =
+                   value: PBSomeVarint): VarintResult[seq[byte]] {.inline.} =
   ## Encode integer to Google ProtoBuf's `signed/unsigned varint` and returns
-  ## sequence of bytes as result.
+  ## sequence of bytes as buffer.
   var outsize = 0
-  result = newSeqOfCap[byte](10)
+  var buffer = newSeqOfCap[byte](10)
   when sizeof(value) == 4:
-    result.setLen(5)
+    buffer.setLen(5)
   else:
-    result.setLen(10)
+    buffer.setLen(10)
   when (type(value) is PBSomeSVarint) or (type(value) is PBZigVarint):
-    let res = putSVarint(result, outsize, value)
+    let res = putSVarint(buffer, outsize, value)
   else:
-    let res = PB.putUVarint(result, outsize, value)
-  if res == VarintStatus.Success:
-    result.setLen(outsize)
+    let res = PB.putUVarint(buffer, outsize, value)
+  if res.isOk():
+    buffer.setLen(outsize)
+    ok(buffer)
   else:
-    raise newException(VarintError, "Error '" & $res & "'")
+    err(res.error())
+  
 
 proc encodeVarint*(vtype: typedesc[LP],
-                   value: LPSomeVarint): seq[byte] {.inline.} =
+                   value: LPSomeVarint): VarintResult[seq[byte]] {.inline.} =
   ## Encode integer to LibP2P `unsigned varint` and returns sequence of bytes
-  ## as result.
+  ## as buffer.
   var outsize = 0
-  result = newSeqOfCap[byte](9)
+  var buffer = newSeqOfCap[byte](9)
   when sizeof(value) == 1:
-    result.setLen(2)
+    buffer.setLen(2)
   elif sizeof(value) == 2:
-    result.setLen(3)
+    buffer.setLen(3)
   elif sizeof(value) == 4:
-    result.setLen(5)
+    buffer.setLen(5)
   else:
-    result.setLen(9)
-  let res = LP.putUVarint(result, outsize, value)
-  if res == VarintStatus.Success:
-    result.setLen(outsize)
+    buffer.setLen(9)
+  let res = LP.putUVarint(buffer, outsize, value)
+  if res.isOk():
+    buffer.setLen(outsize)
+    ok(buffer)
   else:
-    raise newException(VarintError, "Error '" & $res & "'")
+    err(res.error)

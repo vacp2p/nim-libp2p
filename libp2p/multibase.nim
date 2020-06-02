@@ -11,8 +11,12 @@
 ##
 ## TODO:
 ## 1. base32z
+##
+
+{.push raises: [Defect].}
+
 import tables
-import stew/[base32, base58, base64]
+import stew/[base32, base58, base64, results]
 
 type
   MultibaseStatus* {.pure.} = enum
@@ -20,21 +24,19 @@ type
 
   MultiBase* = object
 
-  MBCodeSize = proc(length: int): int {.nimcall.}
+  MBCodeSize = proc(length: int): int {.nimcall, gcsafe, noSideEffect, raises: [Defect].}
 
   MBCodec = object
     code: char
     name: string
     encr: proc(inbytes: openarray[byte],
                outbytes: var openarray[char],
-               outlen: var int): MultibaseStatus {.nimcall.}
+               outlen: var int): MultibaseStatus {.nimcall, gcsafe, noSideEffect, raises: [Defect].}
     decr: proc(inbytes: openarray[char],
                outbytes: var openarray[byte],
-               outlen: var int): MultibaseStatus {.nimcall.}
+               outlen: var int): MultibaseStatus {.nimcall, gcsafe, noSideEffect, raises: [Defect].}
     encl: MBCodeSize
     decl: MBCodeSize
-
-  MultiBaseError* = object of CatchableError
 
 proc idd(inbytes: openarray[char], outbytes: var openarray[byte],
          outlen: var int): MultibaseStatus =
@@ -439,48 +441,50 @@ proc decode*(mbtype: typedesc[MultiBase], inbytes: openarray[char],
     result = mb.decr(inbytes.toOpenArray(1, length - 1), outbytes, outlen)
 
 proc encode*(mbtype: typedesc[MultiBase], encoding: string,
-             inbytes: openarray[byte]): string =
+             inbytes: openarray[byte]): Result[string, string] =
   ## Encode array ``inbytes`` using MultiBase encoding scheme ``encoding`` and
   ## return encoded string.
   let length = len(inbytes)
   let mb = NameMultibases.getOrDefault(encoding)
   if len(mb.name) == 0:
-    raise newException(MultiBaseError, "Encoding scheme is incorrect!")
+    return err("multibase: Encoding scheme is incorrect!")
   if isNil(mb.encr) or isNil(mb.encl):
-    raise newException(MultiBaseError, "Encoding scheme is not supported!")
+    return err("multibase: Encoding scheme is not supported!")
   var buffer: string
   if length > 0:
     buffer = newString(mb.encl(length) + 1)
     var outlen = 0
     let res = mb.encr(inbytes, buffer.toOpenArray(1, buffer.high), outlen)
     if res != MultiBaseStatus.Success:
-      raise newException(MultiBaseError, "Encoding error [" & $res & "]")
+      return err("multibase: Encoding error [" & $res & "]")
     buffer.setLen(outlen + 1)
     buffer[0] = mb.code
   else:
     buffer = newString(1)
     buffer[0] = mb.code
-  result = buffer
+  ok(buffer)
 
-proc decode*(mbtype: typedesc[MultiBase], inbytes: openarray[char]): seq[byte] =
+proc decode*(mbtype: typedesc[MultiBase], inbytes: openarray[char]): Result[seq[byte], string] =
   ## Decode MultiBase encoded array ``inbytes`` and return decoded sequence of
   ## bytes.
   let length = len(inbytes)
   if length == 0:
-    raise newException(MultiBaseError, "Could not decode zero-length string")
+    return err("multibase: Could not decode zero-length string")
   let mb = CodeMultibases.getOrDefault(inbytes[0])
   if len(mb.name) == 0:
-    raise newException(MultiBaseError, "MultiBase scheme is incorrect!")
+    return err("multibase: MultiBase scheme is incorrect!")
   if isNil(mb.decr) or isNil(mb.decl):
-    raise newException(MultiBaseError, "MultiBase scheme is not supported!")
+    return err("multibase: MultiBase scheme is not supported!")
   if length == 1:
-    result = newSeq[byte]()
+    let empty: seq[byte] = @[]
+    ok(empty) # empty
   else:
     var buffer = newSeq[byte](mb.decl(length - 1))
     var outlen = 0
     let res = mb.decr(inbytes.toOpenArray(1, length - 1),
                       buffer, outlen)
     if res != MultiBaseStatus.Success:
-      raise newException(MultiBaseError, "Decoding error [" & $res & "]")
-    result = buffer
-    result.setLen(outlen)
+      err("multibase: Decoding error [" & $res & "]")
+    else:
+      buffer.setLen(outlen)
+      ok(buffer)

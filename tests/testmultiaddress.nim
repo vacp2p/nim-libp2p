@@ -297,23 +297,18 @@ suite "MultiAddress test suite":
 
   test "go-multiaddr success test vectors":
     for item in SuccessVectors:
-      var a = MultiAddress.init(item)
+      var a = MultiAddress.init(item).get()
       check a.isEmpty() == false
       check a.validate() == true
 
   test "go-multiaddr failure test vectors":
     for item in FailureVectors:
-      var r = false
-      try:
-        discard MultiAddress.init(item)
-      except:
-        r = true
-      check r == true
+      check MultiAddress.init(item).isErr()
 
   test "rust-multiaddr success test vectors":
     ## Rust test vectors are with changed UDP encoding and without WSS
     for i in 0..<len(RustSuccessVectors):
-      var a = MultiAddress.init(RustSuccessVectors[i])
+      var a = MultiAddress.init(RustSuccessVectors[i]).get()
       check:
         hex(a) == RustSuccessExpects[i]
 
@@ -321,7 +316,7 @@ suite "MultiAddress test suite":
     for item in RustFailureVectors:
       var r = false
       try:
-        discard MultiAddress.init(item)
+        discard MultiAddress.init(item).get()
       except:
         r = true
       check r == true
@@ -329,9 +324,9 @@ suite "MultiAddress test suite":
   test "Concatenation test":
     var ma1 = MultiAddress.init()
     var ma2 = MultiAddress.init()
-    var ma3 = MultiAddress.init("/ip4/127.0.0.1")
-    var ma4 = MultiAddress.init("/udp/30000")
-    var ma5 = MultiAddress.init("/p2p-circuit")
+    var ma3 = MultiAddress.init("/ip4/127.0.0.1").get()
+    var ma4 = MultiAddress.init("/udp/30000").get()
+    var ma5 = MultiAddress.init("/p2p-circuit").get()
     var cma = ma1 & ma3 & ma4 & ma5
     ma2 &= ma3
     ma2 &= ma4
@@ -342,15 +337,15 @@ suite "MultiAddress test suite":
 
   test "isWire() test":
     for item in UtilitySuccessVectors:
-      var a = MultiAddress.init(item)
+      var a = MultiAddress.init(item).get()
       check a.isWire() == true
     for item in UtilityFailVectors:
-      var a = MultiAddress.init(item)
+      var a = MultiAddress.init(item).get()
       check a.isWire() == false
 
   test "Path addresses serialization/deserialization":
     for i in 0..<len(PathVectors):
-      var a = MultiAddress.init(PathVectors[i])
+      var a = MultiAddress.init(PathVectors[i]).get()
       check:
         hex(a) == PathExpects[i]
         $a == PathVectors[i]
@@ -358,44 +353,44 @@ suite "MultiAddress test suite":
   test "MultiAddress pattern matching test vectors":
     for item in PatternVectors:
       for gitem in item.good:
-        var a = MultiAddress.init(gitem)
+        var a = MultiAddress.init(gitem).get()
         check item.pattern.match(a) == true
       for bitem in item.bad:
-        var a = MultiAddress.init(bitem)
+        var a = MultiAddress.init(bitem).get()
         check item.pattern.match(a) == false
 
   test "MultiAddress init(\"tcp/udp/dccp/sctp\", int) test":
     check:
-      $MultiAddress.init(multiCodec("tcp"), 0) == "/tcp/0"
-      $MultiAddress.init(multiCodec("tcp"), 65535) == "/tcp/65535"
-      $MultiAddress.init(multiCodec("tcp"), 34000) == "/tcp/34000"
-      $MultiAddress.init(multiCodec("udp"), 0) == "/udp/0"
-      $MultiAddress.init(multiCodec("udp"), 65535) == "/udp/65535"
-      $MultiAddress.init(multiCodec("udp"), 34000) == "/udp/34000"
-      $MultiAddress.init(multiCodec("dccp"), 0) == "/dccp/0"
-      $MultiAddress.init(multiCodec("dccp"), 65535) == "/dccp/65535"
-      $MultiAddress.init(multiCodec("dccp"), 34000) == "/dccp/34000"
-      $MultiAddress.init(multiCodec("sctp"), 0) == "/sctp/0"
-      $MultiAddress.init(multiCodec("sctp"), 65535) == "/sctp/65535"
-      $MultiAddress.init(multiCodec("sctp"), 34000) == "/sctp/34000"
+      $MultiAddress.init(multiCodec("tcp"), 0).get() == "/tcp/0"
+      $MultiAddress.init(multiCodec("tcp"), 65535).get() == "/tcp/65535"
+      $MultiAddress.init(multiCodec("tcp"), 34000).get() == "/tcp/34000"
+      $MultiAddress.init(multiCodec("udp"), 0).get() == "/udp/0"
+      $MultiAddress.init(multiCodec("udp"), 65535).get() == "/udp/65535"
+      $MultiAddress.init(multiCodec("udp"), 34000).get() == "/udp/34000"
+      $MultiAddress.init(multiCodec("dccp"), 0).get() == "/dccp/0"
+      $MultiAddress.init(multiCodec("dccp"), 65535).get() == "/dccp/65535"
+      $MultiAddress.init(multiCodec("dccp"), 34000).get() == "/dccp/34000"
+      $MultiAddress.init(multiCodec("sctp"), 0).get() == "/sctp/0"
+      $MultiAddress.init(multiCodec("sctp"), 65535).get() == "/sctp/65535"
+      $MultiAddress.init(multiCodec("sctp"), 34000).get() == "/sctp/34000"
 
-    expect(MultiAddressError):
-      discard MultiAddress.init(multiCodec("ip4"), 0)
-      discard MultiAddress.init(multiCodec("ip6"), 0)
-      discard MultiAddress.init(multiCodec("p2p"), 0)
-      discard MultiAddress.init(multiCodec("tcp"), 65536)
-      discard MultiAddress.init(multiCodec("udp"), 65536)
-      discard MultiAddress.init(multiCodec("dccp"), 65536)
-      discard MultiAddress.init(multiCodec("sctp"), 65536)
-      discard MultiAddress.init(multiCodec("tcp"), -1)
-      discard MultiAddress.init(multiCodec("udp"), -1)
-      discard MultiAddress.init(multiCodec("dccp"), -1)
-      discard MultiAddress.init(multiCodec("sctp"), -1)
+    check:
+      MultiAddress.init(multiCodec("ip4"), 0).isErr()
+      MultiAddress.init(multiCodec("ip6"), 0).isErr()
+      MultiAddress.init(multiCodec("p2p"), 0).isErr()
+      MultiAddress.init(multiCodec("tcp"), 65536).isErr()
+      MultiAddress.init(multiCodec("udp"), 65536).isErr()
+      MultiAddress.init(multiCodec("dccp"), 65536).isErr()
+      MultiAddress.init(multiCodec("sctp"), 65536).isErr()
+      MultiAddress.init(multiCodec("tcp"), -1).isErr()
+      MultiAddress.init(multiCodec("udp"), -1).isErr()
+      MultiAddress.init(multiCodec("dccp"), -1).isErr()
+      MultiAddress.init(multiCodec("sctp"), -1).isErr()
 
   test "MultiAddress protoAddress(fixed) test":
     var
       address_v4: array[4, byte]
       address_v6: array[16, byte]
     check:
-      MultiAddress.init("/ip4/0.0.0.0").protoAddress() == address_v4
-      MultiAddress.init("/ip6/::0").protoAddress() == address_v6
+      MultiAddress.init("/ip4/0.0.0.0").get().protoAddress().get() == address_v4
+      MultiAddress.init("/ip6/::0").get().protoAddress().get() == address_v6

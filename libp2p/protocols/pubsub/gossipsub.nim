@@ -452,7 +452,7 @@ method stop*(g: GossipSub) {.async.} =
 
   g.heartbeatLock.release()
 
-method initPubSub(g: GossipSub) =
+method initPubSub*(g: GossipSub) =
   procCall FloodSub(g).initPubSub()
 
   randomize()

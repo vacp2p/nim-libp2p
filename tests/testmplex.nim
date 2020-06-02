@@ -214,7 +214,7 @@ suite "Mplex":
 
   test "e2e - read/write receiver":
     proc testNewStream() {.async.} =
-      let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
+      let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
 
       var done = newFuture[void]()
       proc connHandler(conn: Connection) {.async, gcsafe.} =
@@ -252,7 +252,7 @@ suite "Mplex":
 
   test "e2e - read/write receiver lazy":
     proc testNewStream() {.async.} =
-      let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
+      let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
 
       var done = newFuture[void]()
       proc connHandler(conn: Connection) {.async, gcsafe.} =
@@ -292,7 +292,7 @@ suite "Mplex":
   test "e2e - write fragmented":
     proc testNewStream() {.async.} =
       let
-        ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
+        ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
         listenJob = newFuture[void]()
 
       var bigseq = newSeqOfCap[uint8](MaxMsgSize * 2)
@@ -338,7 +338,7 @@ suite "Mplex":
 
   test "e2e - read/write initiator":
     proc testNewStream() {.async.} =
-      let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
+      let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
 
       let done = newFuture[void]()
       proc connHandler(conn: Connection) {.async, gcsafe.} =
@@ -375,7 +375,7 @@ suite "Mplex":
 
   test "e2e - multiple streams":
     proc testNewStream() {.async.} =
-      let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
+      let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
 
       let done = newFuture[void]()
       proc connHandler(conn: Connection) {.async, gcsafe.} =
@@ -417,7 +417,7 @@ suite "Mplex":
 
   test "e2e - multiple read/write streams":
     proc testNewStream() {.async.} =
-      let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
+      let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
 
       let done = newFuture[void]()
       proc connHandler(conn: Connection) {.async, gcsafe.} =
@@ -461,7 +461,7 @@ suite "Mplex":
 
   test "jitter - channel should be able to handle erratic read/writes":
     proc test() {.async.} =
-      let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
+      let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
 
       var complete = newFuture[void]()
       const MsgSize = 1024
@@ -529,7 +529,7 @@ suite "Mplex":
 
   test "jitter - channel should handle 1 byte read/write":
     proc test() {.async.} =
-      let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
+      let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
 
       var complete = newFuture[void]()
       const MsgSize = 512
