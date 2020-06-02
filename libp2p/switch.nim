@@ -140,9 +140,8 @@ proc cleanupConn(s: Switch, conn: Connection) {.async, gcsafe.} =
         s.muxed.del(id)
 
       if id in s.connections:
-        if not s.connections[id].closed:
-          await s.connections[id].close()
         s.connections.del(id)
+      await conn.close()
 
       s.dialedPubSubPeers.excl(id)
 
@@ -438,7 +437,7 @@ proc newSwitch*(peerInfo: PeerInfo,
         if not(stream.closed):
           await stream.close()
     except CatchableError as exc:
-      trace "excepton in stream handler", exc = exc.msg
+      trace "exception in stream handler", exc = exc.msg
 
   result.mount(identity)
   for key, val in muxers:
@@ -448,6 +447,8 @@ proc newSwitch*(peerInfo: PeerInfo,
       try:
         trace "got new muxer"
         stream = await muxer.newStream()
+        # once we got a muxed connection, attempt to
+        # identify it
         muxer.connection.peerInfo = await s.identify(stream)
 
         # store muxer for connection
@@ -455,6 +456,10 @@ proc newSwitch*(peerInfo: PeerInfo,
 
         # store muxed connection
         s.connections[muxer.connection.peerInfo.id] = muxer.connection
+
+        muxer.connection.closeEvent.wait()
+          .addCallback do(udata: pointer):
+            asyncCheck s.cleanupConn(muxer.connection)
 
         # try establishing a pubsub connection
         await s.subscribeToPeer(muxer.connection.peerInfo)
