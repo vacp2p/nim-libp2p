@@ -8,6 +8,7 @@
 ## those terms.
 
 import stew/byteutils
+import chronicles
 
 const
   ShortDumpMax = 12
@@ -35,3 +36,8 @@ func shortLog*(item: string): string =
     result &= item[0..<split]
     result &= "..."
     result &= item[(item.len - split)..item.high]
+
+when defined(metricsServer):
+  import metrics, net
+  info "Starting metrics http server"
+  startHttpServer("127.0.0.1", Port(8000))
