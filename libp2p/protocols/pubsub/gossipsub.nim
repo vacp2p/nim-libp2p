@@ -8,7 +8,7 @@
 ## those terms.
 
 import tables, sets, options, sequtils, random
-import chronos, chronicles
+import chronos, chronicles, metrics
 import pubsub,
        floodsub,
        pubsubpeer,
@@ -56,6 +56,10 @@ type
     heartbeatCancel*: Future[void]             # cancellation future for heartbeat interval
     heartbeatLock: AsyncLock                   # heartbeat lock to prevent two consecutive concurrent heartbeats
 
+declareGauge libp2p_gossipsub_peers_per_topic_mesh, "current gossipsub peers per topic in mesh", labels = ["topic"]
+declareGauge libp2p_gossipsub_peers_per_topic_fanout, "current gossipsub peers per topic in fanout", labels = ["topic"]
+declareGauge libp2p_gossipsub_peers_per_topic_gossipsub, "current gossipsub peers per topic in gossipsub", labels = ["topic"]
+
 method init(g: GossipSub) =
   proc handler(conn: Connection, proto: string) {.async.} =
     ## main protocol handler that gets triggered on every
@@ -79,6 +83,7 @@ proc replenishFanout(g: GossipSub, topic: string) {.async.} =
     if topic in g.gossipsub:
       for p in g.gossipsub[topic]:
         if not g.fanout[topic].containsOrIncl(p):
+          libp2p_gossipsub_peers_per_topic_fanout.inc(labelValues = [topic])
           if g.fanout[topic].len == GossipSubD:
             break
 
@@ -100,16 +105,19 @@ proc rebalanceMesh(g: GossipSub, topic: string) {.async.} =
         if topic in g.fanout and g.fanout[topic].len > 0:
           id = sample(toSeq(g.fanout[topic]))
           g.fanout[topic].excl(id)
+          libp2p_gossipsub_peers_per_topic_fanout.dec(labelValues = [topic])
           trace "got fanout peer", peer = id
         elif topic in g.gossipsub and g.gossipsub[topic].len > 0:
           id = sample(toSeq(g.gossipsub[topic]))
           g.gossipsub[topic].excl(id)
+          libp2p_gossipsub_peers_per_topic_gossipsub.dec(labelValues = [topic])
           trace "got gossipsub peer", peer = id
         else:
           trace "no more peers"
           break
 
         g.mesh[topic].incl(id)
+        libp2p_gossipsub_peers_per_topic_mesh.inc(labelValues = [topic])
         if id in g.peers:
           let p = g.peers[id]
           # send a graft message to the peer
@@ -122,6 +130,7 @@ proc rebalanceMesh(g: GossipSub, topic: string) {.async.} =
         trace "pruning peers", peers = g.mesh[topic].len
         let id = toSeq(g.mesh[topic])[rand(0..<g.mesh[topic].len)]
         g.mesh[topic].excl(id)
+        libp2p_gossipsub_peers_per_topic_mesh.dec(labelValues = [topic])
 
         let p = g.peers[id]
         # send a graft message to the peer
@@ -175,6 +184,7 @@ proc getGossipPeers(g: GossipSub): Table[string, ControlMessage] {.gcsafe.} =
 
         let id = toSeq(g.gossipsub[topic]).sample()
         g.gossipsub[topic].excl(id)
+        libp2p_gossipsub_peers_per_topic_gossipsub.dec(labelValues = [topic])
         if id notin gossipPeers:
           if id notin result:
             result[id] = ControlMessage()
@@ -212,12 +222,15 @@ method handleDisconnect(g: GossipSub, peer: PubSubPeer) {.async.} =
 
   for t in g.gossipsub.keys:
     g.gossipsub[t].excl(peer.id)
+    libp2p_gossipsub_peers_per_topic_gossipsub.dec(labelValues = [t])
 
   for t in g.mesh.keys:
     g.mesh[t].excl(peer.id)
+    libp2p_gossipsub_peers_per_topic_mesh.dec(labelValues = [t])
 
   for t in g.fanout.keys:
     g.fanout[t].excl(peer.id)
+    libp2p_gossipsub_peers_per_topic_fanout.dec(labelValues = [t])
 
 method subscribeToPeer*(p: GossipSub,
                         conn: Connection) {.async.} =
@@ -237,10 +250,12 @@ method subscribeTopic*(g: GossipSub,
     trace "adding subscription for topic", peer = peerId, name = topic
     # subscribe remote peer to the topic
     g.gossipsub[topic].incl(peerId)
+    libp2p_gossipsub_peers_per_topic_gossipsub.inc(labelValues = [topic])
   else:
     trace "removing subscription for topic", peer = peerId, name = topic
     # unsubscribe remote peer from the topic
     g.gossipsub[topic].excl(peerId)
+    libp2p_gossipsub_peers_per_topic_gossipsub.dec(labelValues = [topic])
 
   if topic in g.topics:
     await g.rebalanceMesh(topic)
@@ -256,8 +271,10 @@ proc handleGraft(g: GossipSub,
     if graft.topicID in g.topics:
       if g.mesh.len < GossipSubD:
         g.mesh[graft.topicID].incl(peer.id)
+        libp2p_gossipsub_peers_per_topic_mesh.inc(labelValues = [graft.topicID])
       else:
         g.gossipsub[graft.topicID].incl(peer.id)
+        libp2p_gossipsub_peers_per_topic_gossipsub.inc(labelValues = [graft.topicID])
     else:
       respControl.prune.add(ControlPrune(topicID: graft.topicID))
 
@@ -268,6 +285,7 @@ proc handlePrune(g: GossipSub, peer: PubSubPeer, prunes: seq[ControlPrune]) =
 
     if prune.topicID in g.mesh:
       g.mesh[prune.topicID].excl(peer.id)
+      libp2p_gossipsub_peers_per_topic_mesh.dec(labelValues = [prune.topicID])
 
 proc handleIHave(g: GossipSub,
                  peer: PubSubPeer,
