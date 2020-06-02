@@ -22,14 +22,13 @@ export PubSubObserver
 logScope:
   topic = "PubSub"
 
-declareGauge libp2p_pubsub_peers, "pubsub peer instances"
-declareGauge libp2p_pubsub_topics, "current pubsub subscribed topics"
-declareGauge libp2p_pubsub_validation_success, "current pubsub successfully validated messages"
-declareGauge libp2p_pubsub_validation_failure, "current pubsub failed validated messages"
-declareGauge libp2p_pubsub_peers_per_topic, "current pubsub peers per topic", labels = ["topic"]
-# TODO
-# * Number of messages failed/passed signature checks (if enabled)
-#   * Total number of dropped messages (due to validation and signature checks)
+declareGauge(libp2p_pubsub_peers, "pubsub peer instances")
+declareGauge(libp2p_pubsub_topics, "current pubsub subscribed topics")
+declareGauge(libp2p_pubsub_validation_success, "current pubsub successfully validated messages")
+declareGauge(libp2p_pubsub_validation_failure, "current pubsub failed validated messages")
+declareGauge(libp2p_pubsub_peers_per_topic, "current pubsub peers per topic", labels = ["topic"])
+declarePublicGauge(libp2p_pubsub_sig_verify_success, "current pubsub successfully validated messages")
+declarePublicGauge(libp2p_pubsub_sig_verify_failure, "current pubsub failed validated messages")
 
 type
   TopicHandler* = proc(topic: string,
