@@ -245,7 +245,9 @@ suite "Mplex":
       await done.wait(1.seconds)
       await conn.close()
       await mplexDialFut
-      await all(transport1.close(), transport2.close())
+      await allFuturesThrowing(
+        transport1.close(),
+        transport2.close())
       await listenFut
 
     waitFor(testNewStream())
@@ -284,7 +286,9 @@ suite "Mplex":
       await done.wait(1.seconds)
       await conn.close()
       await mplexDialFut
-      await all(transport1.close(), transport2.close())
+      await allFuturesThrowing(
+        transport1.close(),
+        transport2.close())
       await listenFut
 
     waitFor(testNewStream())
@@ -331,7 +335,9 @@ suite "Mplex":
       await stream.close()
       await conn.close()
       await mplexDialFut
-      await all(transport1.close(), transport2.close())
+      await allFuturesThrowing(
+        transport1.close(),
+        transport2.close())
       await listenFut
 
     waitFor(testNewStream())
@@ -368,7 +374,9 @@ suite "Mplex":
       await done.wait(1.seconds)
       await conn.close()
       await mplexDialFut
-      await all(transport1.close(), transport2.close())
+      await allFuturesThrowing(
+        transport1.close(),
+        transport2.close())
       await listenFut
 
     waitFor(testNewStream())
@@ -410,7 +418,9 @@ suite "Mplex":
       await done.wait(10.seconds)
       await conn.close()
       await mplexDialFut
-      await all(transport1.close(), transport2.close())
+      await allFuturesThrowing(
+        transport1.close(),
+        transport2.close())
       await listenFut
 
     waitFor(testNewStream())
@@ -454,7 +464,9 @@ suite "Mplex":
       await done.wait(5.seconds)
       await conn.close()
       await mplexDialFut
-      await all(transport1.close(), transport2.close())
+      await allFuturesThrowing(
+        transport1.close(),
+        transport2.close())
       await listenFut
 
     waitFor(testNewStream())
@@ -522,7 +534,9 @@ suite "Mplex":
       await complete.wait(1.seconds)
       await mplexDialFut
 
-      await all(transport1.close(), transport2.close())
+      await allFuturesThrowing(
+        transport1.close(),
+        transport2.close())
       await listenFut
 
     waitFor(test())
@@ -579,7 +593,9 @@ suite "Mplex":
       await stream.close()
       await conn.close()
       await mplexDialFut
-      await all(transport1.close(), transport2.close())
+      await allFuturesThrowing(
+        transport1.close(),
+        transport2.close())
       await listenFut
 
     waitFor(test())

@@ -224,7 +224,7 @@ proc upgradeIncoming(s: Switch, conn: Connection) {.async, gcsafe.} =
   except CancelledError as exc:
     raise exc
   except CatchableError as exc:
-    debug "ending multistream", err = exc.msg
+    trace "error in multistream", err = exc.msg
 
 proc subscribeToPeer*(s: Switch, peerInfo: PeerInfo) {.async, gcsafe.}
 

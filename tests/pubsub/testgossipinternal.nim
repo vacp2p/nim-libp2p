@@ -42,7 +42,7 @@ suite "GossipSub internal":
       await gossipSub.rebalanceMesh(topic)
       check gossipSub.mesh[topic].len == GossipSubD
 
-      await all(conns.mapIt(it.close()))
+      await allFuturesThrowing(conns.mapIt(it.close()))
 
       result = true
 
@@ -71,7 +71,7 @@ suite "GossipSub internal":
       await gossipSub.rebalanceMesh(topic)
       check gossipSub.mesh[topic].len == GossipSubD
 
-      await all(conns.mapIt(it.close()))
+      await allFuturesThrowing(conns.mapIt(it.close()))
 
       result = true
 
@@ -103,7 +103,7 @@ suite "GossipSub internal":
       await gossipSub.replenishFanout(topic)
       check gossipSub.fanout[topic].len == GossipSubD
 
-      await all(conns.mapIt(it.close()))
+      await allFuturesThrowing(conns.mapIt(it.close()))
 
       result = true
 
@@ -138,7 +138,7 @@ suite "GossipSub internal":
       await gossipSub.dropFanoutPeers()
       check topic notin gossipSub.fanout
 
-      await all(conns.mapIt(it.close()))
+      await allFuturesThrowing(conns.mapIt(it.close()))
 
       result = true
 
@@ -179,7 +179,7 @@ suite "GossipSub internal":
       check topic1 notin gossipSub.fanout
       check topic2 in gossipSub.fanout
 
-      await all(conns.mapIt(it.close()))
+      await allFuturesThrowing(conns.mapIt(it.close()))
 
       result = true
 
@@ -200,7 +200,7 @@ suite "GossipSub internal":
       gossipSub.gossipsub[topic] = initHashSet[string]()
       var conns = newSeq[Connection]()
 
-      # geerate mesh and fanout peers
+      # generate mesh and fanout peers
       for i in 0..<30:
         let conn = newConnection(newBufferStream(noop))
         conns &= conn
@@ -242,7 +242,7 @@ suite "GossipSub internal":
         check p notin gossipSub.fanout[topic]
         check p notin gossipSub.mesh[topic]
 
-      await all(conns.mapIt(it.close()))
+      await allFuturesThrowing(conns.mapIt(it.close()))
 
       result = true
 
@@ -285,7 +285,7 @@ suite "GossipSub internal":
       let peers = gossipSub.getGossipPeers()
       check peers.len == GossipSubD
 
-      await all(conns.mapIt(it.close()))
+      await allFuturesThrowing(conns.mapIt(it.close()))
 
       result = true
 
@@ -328,7 +328,7 @@ suite "GossipSub internal":
       let peers = gossipSub.getGossipPeers()
       check peers.len == GossipSubD
 
-      await all(conns.mapIt(it.close()))
+      await allFuturesThrowing(conns.mapIt(it.close()))
 
       result = true
 
@@ -371,7 +371,7 @@ suite "GossipSub internal":
       let peers = gossipSub.getGossipPeers()
       check peers.len == 0
 
-      await all(conns.mapIt(it.close()))
+      await allFuturesThrowing(conns.mapIt(it.close()))
 
       result = true
 

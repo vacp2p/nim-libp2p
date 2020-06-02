@@ -222,8 +222,10 @@ suite "Noise":
       check "Hello!" == msg
       await conn.close()
 
-      await all(switch1.stop(), switch2.stop())
-      await all(awaiters)
+      await allFuturesThrowing(
+        switch1.stop(),
+        switch2.stop())
+      await allFuturesThrowing(awaiters)
       result = true
 
     check:

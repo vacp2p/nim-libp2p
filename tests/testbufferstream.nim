@@ -250,7 +250,7 @@ suite "BufferStream":
       await buf1.pushTo(cast[seq[byte]]("Hello2!"))
       await buf2.pushTo(cast[seq[byte]]("Hello1!"))
 
-      await all(readFut1, readFut2)
+      await allFuturesThrowing(readFut1, readFut2)
 
       check:
         res1 == cast[seq[byte]]("Hello2!")
@@ -300,7 +300,7 @@ suite "BufferStream":
 
       await buf1.write(cast[seq[byte]]("Hello1!"))
       await buf2.write(cast[seq[byte]]("Hello2!"))
-      await all(readFut1, readFut2)
+      await allFuturesThrowing(readFut1, readFut2)
 
       check:
         res1 == cast[seq[byte]]("Hello2!")
@@ -376,7 +376,7 @@ suite "BufferStream":
 
       await buf1.write(cast[seq[byte]]("Hello1!"))
       await buf2.write(cast[seq[byte]]("Hello2!"))
-      await all(readFut1, readFut2)
+      await allFuturesThrowing(readFut1, readFut2)
 
       check:
         res1 == cast[seq[byte]]("Hello2!")
@@ -437,7 +437,7 @@ suite "BufferStream":
       var writerFut = writer()
       var readerFut = reader()
 
-      await all(readerFut, writerFut)
+      await allFuturesThrowing(readerFut, writerFut)
       result = true
 
       await buf1.close()

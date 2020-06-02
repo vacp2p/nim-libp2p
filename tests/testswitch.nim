@@ -67,14 +67,13 @@ suite "Switch":
       check "Hello!" == msg
       await conn.close()
 
-      await all(
-        done.wait(5.seconds), #[if OK won't happen!!]#
+      await allFuturesThrowing(
+        done.wait(5.seconds),
         switch1.stop(),
-        switch2.stop(),
-      )
+        switch2.stop())
 
       # this needs to go at end
-      await all(awaiters)
+      await allFuturesThrowing(awaiters)
 
     waitFor(testSwitch())
 
@@ -125,14 +124,14 @@ suite "Switch":
       check (ConnectionTracker(connTracker).opened ==
         (ConnectionTracker(connTracker).closed + 8.uint64))
 
-      await all(
-        done.wait(5.seconds), #[if OK won't happen!!]#
+      await allFuturesThrowing(
+        done.wait(5.seconds),
         switch1.stop(),
         switch2.stop(),
       )
 
       # this needs to go at end
-      await all(awaiters)
+      await allFuturesThrowing(awaiters)
 
     waitFor(testSwitch())
 
@@ -172,12 +171,12 @@ suite "Switch":
       except LPStreamError:
         result = false
 
-      await all(
+      await allFuturesThrowing(
         conn.close(),
         switch1.stop(),
         switch2.stop()
       )
-      await all(awaiters)
+      await allFuturesThrowing(awaiters)
 
     check:
       waitFor(testSwitch()) == true
@@ -210,11 +209,10 @@ suite "Switch":
       check switch1.connections.len == 0
       check switch2.connections.len == 0
 
-      await all(
+      await allFuturesThrowing(
         switch1.stop(),
-        switch2.stop()
-      )
-      await all(awaiters)
+        switch2.stop())
+      await allFuturesThrowing(awaiters)
 
     waitFor(testSwitch())
 
