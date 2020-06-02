@@ -67,101 +67,102 @@ proc newStreamInternal*(m: Mplex,
 method handle*(m: Mplex) {.async, gcsafe.} =
   trace "starting mplex main loop", oid = m.oid
   try:
-    while not m.connection.closed:
-      trace "waiting for data", oid = m.oid
-      let (id, msgType, data) = await m.connection.readMsg()
-      trace "read message from connection", id = id,
+    try:
+      while not m.connection.closed:
+        trace "waiting for data", oid = m.oid
+        let (id, msgType, data) = await m.connection.readMsg()
+        trace "read message from connection", id = id,
+                                              msgType = msgType,
+                                              data = data.shortLog,
+                                              oid = m.oid
+        let initiator = bool(ord(msgType) and 1)
+        var channel: LPChannel
+        if MessageType(msgType) != MessageType.New:
+          let channels = m.getChannelList(initiator)
+          if id notin channels:
+            trace "Channel not found, skipping", id = id,
+                                                initiator = initiator,
+                                                msg = msgType,
+                                                oid = m.oid
+            continue
+          channel = channels[id]
+
+        case msgType:
+          of MessageType.New:
+            let name = cast[string](data)
+            channel = await m.newStreamInternal(false, id, name)
+            trace "created channel", id = id,
+                                    name = name,
+                                    inititator = channel.initiator,
+                                    channoid = channel.oid,
+                                    oid = m.oid
+            if not isNil(m.streamHandler):
+              let stream = newConnection(channel)
+              m.conns.add(stream)
+              stream.peerInfo = m.connection.peerInfo
+
+              var fut = newFuture[void]()
+              proc handler() {.async.} =
+                try:
+                  await m.streamHandler(stream)
+                except CatchableError as exc:
+                  trace "exception in stream handler", exc = exc.msg
+                finally:
+                  m.conns.keepItIf(it != stream)
+                  m.handlerFuts.keepItIf(it != fut)
+
+              fut = handler()
+
+          of MessageType.MsgIn, MessageType.MsgOut:
+            trace "pushing data to channel", id = id,
+                                            initiator = initiator,
                                             msgType = msgType,
-                                            data = data.shortLog,
+                                            size = data.len,
+                                            name = channel.name,
+                                            channoid = channel.oid,
                                             oid = m.oid
-      let initiator = bool(ord(msgType) and 1)
-      var channel: LPChannel
-      if MessageType(msgType) != MessageType.New:
-        let channels = m.getChannelList(initiator)
-        if id notin channels:
-          trace "Channel not found, skipping", id = id,
-                                               initiator = initiator,
-                                               msg = msgType,
-                                               oid = m.oid
-          continue
-        channel = channels[id]
 
-      case msgType:
-        of MessageType.New:
-          let name = cast[string](data)
-          channel = await m.newStreamInternal(false, id, name)
-          trace "created channel", id = id,
-                                   name = name,
-                                   inititator = channel.initiator,
-                                   channoid = channel.oid,
-                                   oid = m.oid
-          if not isNil(m.streamHandler):
-            let stream = newConnection(channel)
-            m.conns.add(stream)
-            stream.peerInfo = m.connection.peerInfo
+            if data.len > MaxMsgSize:
+              raise newLPStreamLimitError()
+            await channel.pushTo(data)
+          of MessageType.CloseIn, MessageType.CloseOut:
+            trace "closing channel", id = id,
+                                    initiator = initiator,
+                                    msgType = msgType,
+                                    name = channel.name,
+                                    channoid = channel.oid,
+                                    oid = m.oid
 
-            var fut = newFuture[void]()
-            proc handler() {.async.} =
-              try:
-                await m.streamHandler(stream)
-              except CatchableError as exc:
-                trace "exception in stream handler", exc = exc.msg
-              finally:
-                m.conns.keepItIf(it != stream)
-                m.handlerFuts.keepItIf(it != fut)
+            await channel.closeRemote()
+            m.getChannelList(initiator).del(id)
+            trace "deleted channel", id = id,
+                                    initiator = initiator,
+                                    msgType = msgType,
+                                    name = channel.name,
+                                    channoid = channel.oid,
+                                    oid = m.oid
+          of MessageType.ResetIn, MessageType.ResetOut:
+            trace "resetting channel", id = id,
+                                      initiator = initiator,
+                                      msgType = msgType,
+                                      name = channel.name,
+                                      channoid = channel.oid,
+                                      oid = m.oid
 
-            fut = handler()
-
-        of MessageType.MsgIn, MessageType.MsgOut:
-          trace "pushing data to channel", id = id,
-                                           initiator = initiator,
-                                           msgType = msgType,
-                                           size = data.len,
-                                           name = channel.name,
-                                           channoid = channel.oid,
-                                           oid = m.oid
-
-          if data.len > MaxMsgSize:
-            raise newLPStreamLimitError()
-          await channel.pushTo(data)
-        of MessageType.CloseIn, MessageType.CloseOut:
-          trace "closing channel", id = id,
-                                   initiator = initiator,
-                                   msgType = msgType,
-                                   name = channel.name,
-                                   channoid = channel.oid,
-                                   oid = m.oid
-
-          await channel.closeRemote()
-          m.getChannelList(initiator).del(id)
-          trace "deleted channel", id = id,
-                                   initiator = initiator,
-                                   msgType = msgType,
-                                   name = channel.name,
-                                   channoid = channel.oid,
-                                   oid = m.oid
-        of MessageType.ResetIn, MessageType.ResetOut:
-          trace "resetting channel", id = id,
-                                     initiator = initiator,
-                                     msgType = msgType,
-                                     name = channel.name,
-                                     channoid = channel.oid,
-                                     oid = m.oid
-
-          await channel.reset()
-          m.getChannelList(initiator).del(id)
-          trace "deleted channel", id = id,
-                                   initiator = initiator,
-                                   msgType = msgType,
-                                   name = channel.name,
-                                   channoid = channel.oid,
-                                   oid = m.oid
-          break
+            await channel.reset()
+            m.getChannelList(initiator).del(id)
+            trace "deleted channel", id = id,
+                                    initiator = initiator,
+                                    msgType = msgType,
+                                    name = channel.name,
+                                    channoid = channel.oid,
+                                    oid = m.oid
+            break
+    finally:
+        trace "stopping mplex main loop", oid = m.oid
+        await m.close()
   except CatchableError as exc:
     trace "Exception occurred", exception = exc.msg, oid = m.oid
-  finally:
-    trace "stopping mplex main loop", oid = m.oid
-    await m.close()
 
 proc newMplex*(conn: Connection,
                maxChanns: uint = MaxChannels): Mplex =
