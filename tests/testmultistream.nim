@@ -277,7 +277,9 @@ suite "Multistream select":
       await transport2.close()
       await transport1.close()
 
-      await all(handlerWait1.wait(5000.millis) #[if OK won't happen!!]#, handlerWait2.wait(5000.millis) #[if OK won't happen!!]#)
+      await allFuturesThrowing(
+        handlerWait1.wait(5000.millis),
+        handlerWait2.wait(5000.millis))
 
     check:
       waitFor(endToEnd()) == true

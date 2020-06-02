@@ -79,8 +79,8 @@ proc handle*(p: PubSubPeer, conn: Connection) {.async.} =
         var msg = decodeRpcMsg(data)
         trace "decoded msg from peer", peer = p.id, msg = msg.shortLog
         # trigger hooks
-        for obs in p.observers[]:
-          obs.onRecv(p, msg)
+        p.recvObservers(msg)
+
         await p.handler(p, @[msg])
         p.recvdRpcCache.put(digest)
     finally:
