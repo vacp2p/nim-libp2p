@@ -10,7 +10,7 @@
 {.used.}
 
 import unittest, sequtils, options, tables, sets
-import chronos
+import chronos, stew/byteutils
 import chronicles
 import utils, ../../libp2p/[errors,
                             peer,
@@ -76,7 +76,7 @@ suite "GossipSub":
         result = true
 
       nodes[1].addValidator("foobar", validator)
-      await nodes[0].publish("foobar", cast[seq[byte]]("Hello!"))
+      await nodes[0].publish("foobar", "Hello!".toBytes())
 
       result = (await validatorFut) and (await handlerFut)
       await allFuturesThrowing(
@@ -110,7 +110,7 @@ suite "GossipSub":
         result = false
 
       nodes[1].addValidator("foobar", validator)
-      await nodes[0].publish("foobar", cast[seq[byte]]("Hello!"))
+      await nodes[0].publish("foobar", "Hello!".toBytes())
 
       result = await validatorFut
       await allFuturesThrowing(
@@ -151,8 +151,8 @@ suite "GossipSub":
           false
 
       nodes[1].addValidator("foo", "bar", validator)
-      await nodes[0].publish("foo", cast[seq[byte]]("Hello!"))
-      await nodes[0].publish("bar", cast[seq[byte]]("Hello!"))
+      await nodes[0].publish("foo", "Hello!".toBytes())
+      await nodes[0].publish("bar", "Hello!".toBytes())
 
       result = ((await passed) and (await failed) and (await handlerFut))
       await allFuturesThrowing(
@@ -272,7 +272,7 @@ suite "GossipSub":
       nodes[1].pubsub.get().addObserver(obs1)
       nodes[0].pubsub.get().addObserver(obs2)
 
-      await nodes[0].publish("foobar", cast[seq[byte]]("Hello!"))
+      await nodes[0].publish("foobar", "Hello!".toBytes())
 
       var gossipSub1: GossipSub = GossipSub(nodes[0].pubSub.get())
 
@@ -309,7 +309,7 @@ suite "GossipSub":
       await nodes[1].subscribe("foobar", handler)
       await waitSub(nodes[0], nodes[1], "foobar")
 
-      await nodes[0].publish("foobar", cast[seq[byte]]("Hello!"))
+      await nodes[0].publish("foobar", "Hello!".toBytes())
 
       result = await passed
 

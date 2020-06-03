@@ -8,7 +8,7 @@
 ## those terms.
 
 import chronos
-import nimcrypto/utils, chronicles
+import nimcrypto/utils, chronicles, stew/byteutils
 import types,
        ../../connection,
        ../../utility,
@@ -74,7 +74,7 @@ proc writeMsg*(conn: Connection,
                msgType: MessageType,
                data: string) {.async, gcsafe.} =
   # TODO: changing this to
-  #`await conn.writeMsg(id, msgType, cast[seq[byte]](data))`
+  #`await conn.writeMsg(id, msgType, data.toBytes())`
   # causes all sorts of race conditions and hangs.
   # DON'T DO IT!
-  result = conn.writeMsg(id, msgType, cast[seq[byte]](data))
+  result = conn.writeMsg(id, msgType, data.toBytes())

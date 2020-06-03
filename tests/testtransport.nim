@@ -1,7 +1,7 @@
 {.used.}
 
 import unittest
-import chronos
+import chronos, stew/byteutils
 import ../libp2p/[connection,
                   transports/transport,
                   transports/tcptransport,
@@ -35,7 +35,7 @@ suite "TCP transport":
       await streamTransport.closeWait()
       await transport.close()
 
-      result = cast[string](msg) == "Hello!"
+      result = string.fromBytes(msg) == "Hello!"
 
     check:
       waitFor(testListener()) == true
@@ -47,7 +47,7 @@ suite "TCP transport":
       proc connHandler(conn: Connection) {.async, gcsafe.} =
         var msg = newSeq[byte](6)
         await conn.readExactly(addr msg[0], 6)
-        check cast[string](msg) == "Hello!"
+        check string.fromBytes(msg) == "Hello!"
         await conn.close()
         handlerWait.complete()
 
@@ -87,7 +87,7 @@ suite "TCP transport":
       let conn = await transport.dial(ma)
       var msg = newSeq[byte](6)
       await conn.readExactly(addr msg[0], 6)
-      result = cast[string](msg) == "Hello!"
+      result = string.fromBytes(msg) == "Hello!"
 
       await handlerWait.wait(5000.millis) # when no issues will not wait that long!
 
@@ -108,7 +108,7 @@ suite "TCP transport":
                         transp: StreamTransport) {.async, gcsafe.} =
         var rstream = newAsyncStreamReader(transp)
         let msg = await rstream.read(6)
-        check cast[string](msg) == "Hello!"
+        check string.fromBytes(msg) == "Hello!"
 
         await rstream.closeWait()
         await transp.closeWait()
@@ -159,7 +159,7 @@ suite "TCP transport":
       await transport2.close()
       await transport1.close()
 
-      result = cast[string](msg) == "Hello!"
+      result = string.fromBytes(msg) == "Hello!"
 
     check:
       waitFor(testListenerDialer()) == true
@@ -171,7 +171,7 @@ suite "TCP transport":
       proc connHandler(conn: Connection) {.async, gcsafe.} =
         var msg = newSeq[byte](6)
         await conn.readExactly(addr msg[0], 6)
-        check cast[string](msg) == "Hello!"
+        check string.fromBytes(msg) == "Hello!"
         await conn.close()
         handlerWait.complete()
 

@@ -8,7 +8,7 @@
 ## those terms.
 
 import options
-import chronicles
+import chronicles, stew/byteutils
 import nimcrypto/sysrand
 import messages, protobuf,
        ../../../peer,
@@ -23,7 +23,7 @@ const PubSubPrefix = "libp2p-pubsub:"
 
 proc msgIdProvider(m: Message): string =
   ## default msg id provider
-  m.seqno.toHex() & PeerID.init(m.fromPeer).pretty
+  crypto.toHex(m.seqno) & PeerID.init(m.fromPeer).pretty
 
 template msgId*(m: Message): string =
   ## calls the ``msgIdProvider`` from
@@ -41,7 +41,7 @@ proc sign*(msg: Message, p: PeerInfo): Message {.gcsafe.} =
   if buff.buffer.len > 0:
     result = msg
     result.signature = p.privateKey.
-                       sign(cast[seq[byte]](PubSubPrefix) & buff.buffer).tryGet().
+                       sign(PubSubPrefix.toBytes() & buff.buffer).tryGet().
                        getBytes()
 
 proc verify*(m: Message, p: PeerInfo): bool =
@@ -57,7 +57,7 @@ proc verify*(m: Message, p: PeerInfo): bool =
     var key: PublicKey
     if remote.init(m.signature) and key.init(m.key):
       trace "verifying signature", remoteSignature = remote
-      result = remote.verify(cast[seq[byte]](PubSubPrefix) & buff.buffer, key)
+      result = remote.verify(PubSubPrefix.toBytes() & buff.buffer, key)
 
 proc newMessage*(p: PeerInfo,
                  data: seq[byte],
