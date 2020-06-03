@@ -65,7 +65,7 @@ proc testPubSubDaemonPublish(gossip: bool = false,
                              count: int = 1): Future[bool] {.async.} =
   var pubsubData = "TEST MESSAGE"
   var testTopic = "test-topic"
-  var msgData = cast[seq[byte]](pubsubData)
+  var msgData = pubsubData.toBytes()
 
   var flags = {PSFloodSub}
   if gossip:
@@ -80,7 +80,7 @@ proc testPubSubDaemonPublish(gossip: bool = false,
   var finished = false
   var times = 0
   proc nativeHandler(topic: string, data: seq[byte]) {.async.} =
-    let smsg = cast[string](data)
+    let smsg = string.fromBytes(data)
     check smsg == pubsubData
     times.inc()
     if times >= count and not finished:
@@ -116,7 +116,7 @@ proc testPubSubNodePublish(gossip: bool = false,
                            count: int = 1): Future[bool] {.async.} =
   var pubsubData = "TEST MESSAGE"
   var testTopic = "test-topic"
-  var msgData = cast[seq[byte]](pubsubData)
+  var msgData = pubsubData.toBytes()
 
   var flags = {PSFloodSub}
   if gossip:
@@ -139,7 +139,7 @@ proc testPubSubNodePublish(gossip: bool = false,
   proc pubsubHandler(api: DaemonAPI,
                      ticket: PubsubTicket,
                      message: PubSubMessage): Future[bool] {.async.} =
-    let smsg = cast[string](message.data)
+    let smsg = string.fromBytes(message.data)
     check smsg == pubsubData
     times.inc()
     if times >= count and not finished:
@@ -184,11 +184,11 @@ suite "Interop":
 
       var testFuture = newFuture[void]("test.future")
       proc daemonHandler(api: DaemonAPI, stream: P2PStream) {.async.} =
-        check cast[string](await stream.transp.readLp()) == "test 1"
+        check string.fromBytes(await stream.transp.readLp()) == "test 1"
         asyncDiscard stream.transp.writeLp("test 2")
 
         await sleepAsync(10.millis)
-        check cast[string](await stream.transp.readLp()) == "test 3"
+        check string.fromBytes(await stream.transp.readLp()) == "test 3"
         asyncDiscard stream.transp.writeLp("test 4")
         testFuture.complete()
 
@@ -197,11 +197,11 @@ suite "Interop":
                                                            daemonPeer.addresses),
                                                            protos[0])
       await conn.writeLp("test 1")
-      check "test 2" == cast[string]((await conn.readLp(1024)))
+      check "test 2" == string.fromBytes((await conn.readLp(1024)))
       await sleepAsync(10.millis)
 
       await conn.writeLp("test 3")
-      check "test 4" == cast[string]((await conn.readLp(1024)))
+      check "test 4" == string.fromBytes((await conn.readLp(1024)))
 
       await wait(testFuture, 10.secs)
       await conn.close()
@@ -265,7 +265,7 @@ suite "Interop":
 
       var testFuture = newFuture[string]("test.future")
       proc nativeHandler(conn: Connection, proto: string) {.async.} =
-        var line = cast[string](await conn.readLp(1024))
+        var line = string.fromBytes(await conn.readLp(1024))
         check line == test
         testFuture.complete(line)
         await conn.close()
@@ -300,11 +300,11 @@ suite "Interop":
 
       var testFuture = newFuture[void]("test.future")
       proc nativeHandler(conn: Connection, proto: string) {.async.} =
-        check "test 1" == cast[string](await conn.readLp(1024))
-        await conn.writeLp(cast[seq[byte]]("test 2"))
+        check "test 1" == string.fromBytes(await conn.readLp(1024))
+        await conn.writeLp("test 2".toBytes())
 
-        check "test 3" == cast[string](await conn.readLp(1024))
-        await conn.writeLp(cast[seq[byte]]("test 4"))
+        check "test 3" == string.fromBytes(await conn.readLp(1024))
+        await conn.writeLp("test 4".toBytes())
 
         testFuture.complete()
         await conn.close()
@@ -325,10 +325,10 @@ suite "Interop":
       var stream = await daemonNode.openStream(nativePeer.peerId, protos)
 
       asyncDiscard stream.transp.writeLp("test 1")
-      check "test 2" == cast[string](await stream.transp.readLp())
+      check "test 2" == string.fromBytes(await stream.transp.readLp())
 
       asyncDiscard stream.transp.writeLp("test 3")
-      check "test 4" == cast[string](await stream.transp.readLp())
+      check "test 4" == string.fromBytes(await stream.transp.readLp())
 
       await wait(testFuture, 10.secs)
 
@@ -349,9 +349,9 @@ suite "Interop":
       var testFuture = newFuture[int]("test.future")
       proc nativeHandler(conn: Connection, proto: string) {.async.} =
         while count < 10:
-          var line = cast[string](await conn.readLp(1024))
+          var line = string.fromBytes(await conn.readLp(1024))
           check line == test
-          await conn.writeLp(cast[seq[byte]](test))
+          await conn.writeLp(test.toBytes())
           count.inc()
 
         testFuture.complete(count)
@@ -376,7 +376,7 @@ suite "Interop":
       while count2 < 10:
         discard await stream.transp.writeLp(test)
         let line = await stream.transp.readLp()
-        check test == cast[string](line)
+        check test == string.fromBytes(line)
         inc(count2)
 
       result = 10 == (await wait(testFuture, 1.minutes))

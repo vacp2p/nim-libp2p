@@ -7,8 +7,8 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import strutils, stew/byteutils
-import chronos, chronicles
+import strutils
+import chronos, chronicles, stew/byteutils
 import connection,
        vbuffer,
        errors,
@@ -58,7 +58,7 @@ proc select*(m: MultistreamSelect,
     trace "selecting proto", proto = proto
     await conn.writeLp((proto[0] & "\n")) # select proto
 
-  result = cast[string]((await conn.readLp(1024))) # read ms header
+  result = string.fromBytes((await conn.readLp(1024))) # read ms header
   result.removeSuffix("\n")
   if result != Codec:
     notice "handshake failed", codec = result.toHex()

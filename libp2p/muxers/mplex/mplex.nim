@@ -8,7 +8,7 @@
 ## those terms.
 
 import tables, sequtils, oids
-import chronos, chronicles
+import chronos, chronicles, stew/byteutils
 import ../muxer,
        ../../connection,
        ../../stream/lpstream,
@@ -89,7 +89,7 @@ method handle*(m: Mplex) {.async, gcsafe.} =
 
         case msgType:
           of MessageType.New:
-            let name = cast[string](data)
+            let name = string.fromBytes(data)
             channel = await m.newStreamInternal(false, id, name)
             trace "created channel", id = id,
                                     name = name,
