@@ -12,7 +12,7 @@
 {.push raises: [Defect].}
 
 import nativesockets
-import tables, strutils, net
+import tables, strutils, stew/shims/net
 import chronos
 import multicodec, multihash, multibase, transcoder, vbuffer
 import stew/[base58, base32, endians2, results]
@@ -45,6 +45,10 @@ type
     rem*: seq[MultiCodec]
 
   MaResult*[T] = Result[T, string]
+
+  IpTransportProtocol* = enum
+    tcpProtocol
+    udpProtocol
 
 const
   # These are needed in order to avoid an ambiguity error stemming from
@@ -816,29 +820,26 @@ proc init*(mtype: typedesc[MultiAddress]): MultiAddress =
   result.data = initVBuffer()
 
 proc init*(mtype: typedesc[MultiAddress],
-           address: IpAddress, protocol: Protocol, port: Port): MaResult[MultiAddress] =
-  ## Initialize MultiAddress using stdlib's net.IpAddress (IPv4/IPv6) and
-  ## net.Protocol (UDP/TCP) information.
-  var res: MultiAddress
-  res.data = initVBuffer()
-  let familyProto = case address.family
-                    of IpAddressFamily.IPv4: getProtocol("ip4")
-                    of IpAddressFamily.IPv6: getProtocol("ip6")
-  let protoProto = case protocol
-                   of IPPROTO_TCP: getProtocol("tcp")
-                   of IPPROTO_UDP: getProtocol("udp")
-                   else: return err("multiaddress: protocol should be either TCP or UDP")
+           address: ValidIpAddress,
+           protocol: IpTransportProtocol,
+           port: Port): MultiAddress =
+  let
+    familyProto = case address.family
+      of IpAddressFamily.IPv4: getProtocol("ip4")
+      of IpAddressFamily.IPv6: getProtocol("ip6")
 
-  res.data.write(familyProto.mcodec)
-  if not familyProto.coder.stringToBuffer($address, res.data):
-    err("multiaddress: Error encoding IPv4/IPv6 address")
-  else:
-    res.data.write(protoProto.mcodec)
-    if not protoProto.coder.stringToBuffer($port, res.data):
-      err("multiaddress: Error encoding port number")
-    else:
-      res.data.finish()
-      ok(res)
+    protoProto = case protocol
+      of tcpProtocol: getProtocol("tcp")
+      of udpProtocol: getProtocol("udp")
+
+  var data = initVBuffer()
+  data.write(familyProto.mcodec)
+  doAssert familyProto.coder.stringToBuffer($address, data)
+  data.write(protoProto.mcodec)
+  doAssert protoProto.coder.stringToBuffer($port, data)
+  data.finish()
+
+  MultiAddress(data: data)
 
 proc init*(mtype: typedesc[MultiAddress], address: TransportAddress,
            protocol = IPPROTO_TCP): MaResult[MultiAddress] =
