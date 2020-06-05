@@ -45,7 +45,7 @@ proc newStandardSwitch*(privKey = none(PrivateKey),
     muxers = {MplexCodec: mplexProvider}.toTable
     identify = newIdentify(peerInfo)
 
-  var 
+  var
     secureManagerInstances: seq[Secure]
   for sec in secureManagers:
     case sec
