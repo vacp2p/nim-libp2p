@@ -65,13 +65,9 @@ method rpcHandler*(f: FloodSub,
         if msg.msgId notin f.seen:
           f.seen.put(msg.msgId)                      # add the message to the seen cache
 
-          if f.verifySignature:
-            if not msg.verify(peer.peerInfo):
-              libp2p_pubsub_sig_verify_failure.inc()
-              trace "dropping message due to failed signature verification"
-              continue
-            else:
-              libp2p_pubsub_sig_verify_success.inc()
+          if f.verifySignature and not msg.verify(peer.peerInfo):
+            trace "dropping message due to failed signature verification"
+            continue
 
           if not (await f.validate(msg)):
             trace "dropping message due to failed validation"

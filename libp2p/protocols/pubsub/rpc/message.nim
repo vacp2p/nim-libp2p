@@ -9,6 +9,7 @@
 
 import options
 import chronicles
+import metrics
 import nimcrypto/sysrand
 import messages, protobuf,
        ../../../peer,
@@ -20,6 +21,9 @@ logScope:
   topic = "PubSubMessage"
 
 const PubSubPrefix = "libp2p-pubsub:"
+
+declareGauge(libp2p_pubsub_sig_verify_success, "pubsub successfully validated messages")
+declareGauge(libp2p_pubsub_sig_verify_failure, "pubsub failed validated messages")
 
 proc msgIdProvider(m: Message): string =
   ## default msg id provider
@@ -58,6 +62,11 @@ proc verify*(m: Message, p: PeerInfo): bool =
     if remote.init(m.signature) and key.init(m.key):
       trace "verifying signature", remoteSignature = remote
       result = remote.verify(cast[seq[byte]](PubSubPrefix) & buff.buffer, key)
+  
+  if result:
+    libp2p_pubsub_sig_verify_success.inc()
+  else:
+    libp2p_pubsub_sig_verify_failure.inc()
 
 proc newMessage*(p: PeerInfo,
                  data: seq[byte],

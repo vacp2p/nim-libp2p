@@ -56,9 +56,9 @@ type
     heartbeatCancel*: Future[void]             # cancellation future for heartbeat interval
     heartbeatLock: AsyncLock                   # heartbeat lock to prevent two consecutive concurrent heartbeats
 
-declareGauge(libp2p_gossipsub_peers_per_topic_mesh, "current gossipsub peers per topic in mesh", labels = ["topic"])
-declareGauge(libp2p_gossipsub_peers_per_topic_fanout, "current gossipsub peers per topic in fanout", labels = ["topic"])
-declareGauge(libp2p_gossipsub_peers_per_topic_gossipsub, "current gossipsub peers per topic in gossipsub", labels = ["topic"])
+declareGauge(libp2p_gossipsub_peers_per_topic_mesh, "gossipsub peers per topic in mesh", labels = ["topic"])
+declareGauge(libp2p_gossipsub_peers_per_topic_fanout, "gossipsub peers per topic in fanout", labels = ["topic"])
+declareGauge(libp2p_gossipsub_peers_per_topic_gossipsub, "gossipsub peers per topic in gossipsub", labels = ["topic"])
 
 method init(g: GossipSub) =
   proc handler(conn: Connection, proto: string) {.async.} =
@@ -327,13 +327,9 @@ method rpcHandler(g: GossipSub,
 
         g.seen.put(msg.msgId)                        # add the message to the seen cache
 
-        if g.verifySignature:
-          if not msg.verify(peer.peerInfo):
-            libp2p_pubsub_sig_verify_failure.inc()
-            trace "dropping message due to failed signature verification"
-            continue
-          else:
-            libp2p_pubsub_sig_verify_success.inc()
+        if g.verifySignature and not msg.verify(peer.peerInfo):
+          trace "dropping message due to failed signature verification"
+          continue
 
         if not (await g.validate(msg)):
           trace "dropping message due to failed validation"
