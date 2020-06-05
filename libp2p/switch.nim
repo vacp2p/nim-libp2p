@@ -282,8 +282,7 @@ proc dial*(s: Switch,
     trace "Attempting to select remote", proto = proto
 
   if not await s.ms.select(result, proto):
-    warn "Unable to select sub-protocol", proto = proto
-    return nil
+    raise newException(CatchableError, "Unable to select sub-protocol " & proto)
 
 proc mount*[T: LPProtocol](s: Switch, proto: T) {.gcsafe.} =
   if isNil(proto.handler):

@@ -14,7 +14,7 @@ requires "nim >= 1.2.0",
          "chronos >= 2.3.8",
          "metrics",
          "secp256k1",
-         "stew"
+         "stew >= 0.1.0"
 
 proc runTest(filename: string, verify: bool = true, sign: bool = true) =
   var excstr: string = "nim c -r --opt:speed -d:debug --verbosity:0 --hints:off"
