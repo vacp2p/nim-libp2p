@@ -1,5 +1,5 @@
 import unittest, strformat
-import chronos
+import chronos, stew/byteutils
 import ../libp2p/errors
 import ../libp2p/stream/bufferstream
 
@@ -15,9 +15,8 @@ suite "BufferStream":
       proc writeHandler(data: seq[byte]) {.async, gcsafe.} = discard
       let buff = newBufferStream(writeHandler, 16)
       check buff.len == 0
-      var data: seq[char]
-      data.add(@"12345")
-      await buff.pushTo(cast[seq[byte]](data))
+      var data = "12345"
+      await buff.pushTo(data.toBytes())
       check buff.len == 5
       result = true
 
@@ -32,7 +31,7 @@ suite "BufferStream":
       let buff = newBufferStream(writeHandler, 4)
       check buff.len == 0
 
-      let fut = buff.pushTo(cast[seq[byte]](@"12345"))
+      let fut = buff.pushTo("12345".toBytes())
       check buff.len == 4
       check buff.popFirst() == byte(ord('1'))
       await fut
@@ -51,10 +50,10 @@ suite "BufferStream":
       let buff = newBufferStream(writeHandler, 10)
       check buff.len == 0
 
-      await buff.pushTo(cast[seq[byte]](@"12345"))
+      await buff.pushTo("12345".toBytes())
       var data = newSeq[byte](3)
       await buff.readExactly(addr data[0], 3)
-      check ['1', '2', '3'] == cast[string](data)
+      check ['1', '2', '3'] == string.fromBytes(data)
 
       result = true
 
@@ -69,11 +68,11 @@ suite "BufferStream":
       let buff = newBufferStream(writeHandler, 10)
       check buff.len == 0
 
-      await buff.pushTo(cast[seq[byte]](@"12345"))
+      await buff.pushTo("12345".toBytes())
       check buff.len == 5
       var data: seq[byte] = newSeq[byte](2)
       await buff.readExactly(addr data[0], 2)
-      check cast[string](data) == @['1', '2']
+      check string.fromBytes(data) == @['1', '2']
 
       result = true
 
@@ -90,11 +89,11 @@ suite "BufferStream":
 
       var data: seq[byte] = newSeq[byte](3)
       let readFut = buff.readOnce(addr data[0], 5)
-      await buff.pushTo(cast[seq[byte]](@"123"))
+      await buff.pushTo("123".toBytes())
       check buff.len == 3
 
       check (await readFut) == 3
-      check cast[string](data) == @['1', '2', '3']
+      check string.fromBytes(data) == @['1', '2', '3']
 
       result = true
 
@@ -106,7 +105,7 @@ suite "BufferStream":
   test "write ptr":
     proc testWritePtr(): Future[bool] {.async.} =
       proc writeHandler(data: seq[byte]) {.async, gcsafe.} =
-        check cast[string](data) == "Hello!"
+        check string.fromBytes(data) == "Hello!"
 
       let buff = newBufferStream(writeHandler, 10)
       check buff.len == 0
@@ -124,7 +123,7 @@ suite "BufferStream":
   test "write string":
     proc testWritePtr(): Future[bool] {.async.} =
       proc writeHandler(data: seq[byte]) {.async, gcsafe.} =
-        check cast[string](data) == "Hello!"
+        check string.fromBytes(data) == "Hello!"
 
       let buff = newBufferStream(writeHandler, 10)
       check buff.len == 0
@@ -141,12 +140,12 @@ suite "BufferStream":
   test "write bytes":
     proc testWritePtr(): Future[bool] {.async.} =
       proc writeHandler(data: seq[byte]) {.async, gcsafe.} =
-        check cast[string](data) == "Hello!"
+        check string.fromBytes(data) == "Hello!"
 
       let buff = newBufferStream(writeHandler, 10)
       check buff.len == 0
 
-      await buff.write(cast[seq[byte]]("Hello!"))
+      await buff.write("Hello!".toBytes())
 
       result = true
 
@@ -159,7 +158,7 @@ suite "BufferStream":
     proc testWritePtr(): Future[bool] {.async.} =
       var count = 1
       proc writeHandler(data: seq[byte]) {.async, gcsafe.} =
-        check cast[string](data) == &"Msg {$count}"
+        check string.fromBytes(data) == &"Msg {$count}"
         count.inc
 
       let buff = newBufferStream(writeHandler, 10)
@@ -189,32 +188,32 @@ suite "BufferStream":
       let buff = newBufferStream(writeHandler, 10)
       check buff.len == 0
 
-      await buff.pushTo(cast[seq[byte]]("Msg 1"))
-      await buff.pushTo(cast[seq[byte]]("Msg 2"))
-      await buff.pushTo(cast[seq[byte]]("Msg 3"))
+      await buff.pushTo("Msg 1".toBytes())
+      await buff.pushTo("Msg 2".toBytes())
+      await buff.pushTo("Msg 3".toBytes())
 
       var data = newSeq[byte](5)
       await buff.readExactly(addr data[0], 5)
-      check cast[string](data) == "Msg 1"
+      check string.fromBytes(data) == "Msg 1"
 
       await buff.readExactly(addr data[0], 5)
-      check cast[string](data) == "Msg 2"
+      check string.fromBytes(data) == "Msg 2"
 
       await buff.readExactly(addr data[0], 5)
-      check cast[string](data) == "Msg 3"
+      check string.fromBytes(data) == "Msg 3"
 
-      await buff.pushTo(cast[seq[byte]]("Msg 4"))
-      await buff.pushTo(cast[seq[byte]]("Msg 5"))
-      await buff.pushTo(cast[seq[byte]]("Msg 6"))
-
-      await buff.readExactly(addr data[0], 5)
-      check cast[string](data) == "Msg 4"
+      await buff.pushTo("Msg 4".toBytes())
+      await buff.pushTo("Msg 5".toBytes())
+      await buff.pushTo("Msg 6".toBytes())
 
       await buff.readExactly(addr data[0], 5)
-      check cast[string](data) == "Msg 5"
+      check string.fromBytes(data) == "Msg 4"
 
       await buff.readExactly(addr data[0], 5)
-      check cast[string](data) == "Msg 6"
+      check string.fromBytes(data) == "Msg 5"
+
+      await buff.readExactly(addr data[0], 5)
+      check string.fromBytes(data) == "Msg 6"
 
       result = true
 
@@ -232,12 +231,12 @@ suite "BufferStream":
       var buf2 = newBufferStream(writeHandler2)
 
       proc writeHandler1(data: seq[byte]) {.async, gcsafe.} =
-        var msg = cast[string](data)
+        var msg = string.fromBytes(data)
         check  msg == "Hello!"
         await buf2.pushTo(data)
 
       proc writeHandler2(data: seq[byte]) {.async, gcsafe.} =
-        var msg = cast[string](data)
+        var msg = string.fromBytes(data)
         check  msg == "Hello!"
         await buf1.pushTo(data)
 
@@ -247,14 +246,14 @@ suite "BufferStream":
       var res2: seq[byte] = newSeq[byte](7)
       var readFut2 = buf2.readExactly(addr res2[0], 7)
 
-      await buf1.pushTo(cast[seq[byte]]("Hello2!"))
-      await buf2.pushTo(cast[seq[byte]]("Hello1!"))
+      await buf1.pushTo("Hello2!".toBytes())
+      await buf2.pushTo("Hello1!".toBytes())
 
       await allFuturesThrowing(readFut1, readFut2)
 
       check:
-        res1 == cast[seq[byte]]("Hello2!")
-        res2 == cast[seq[byte]]("Hello1!")
+        res1 == "Hello2!".toBytes()
+        res2 == "Hello1!".toBytes()
 
       result = true
 
@@ -271,11 +270,11 @@ suite "BufferStream":
 
       var res1: seq[byte] = newSeq[byte](7)
       var readFut = buf2.readExactly(addr res1[0], 7)
-      await buf1.write(cast[seq[byte]]("Hello1!"))
+      await buf1.write("Hello1!".toBytes())
       await readFut
 
       check:
-        res1 == cast[seq[byte]]("Hello1!")
+        res1 == "Hello1!".toBytes()
 
       result = true
 
@@ -298,13 +297,13 @@ suite "BufferStream":
       var res2: seq[byte] = newSeq[byte](7)
       var readFut2 = buf2.readExactly(addr res2[0], 7)
 
-      await buf1.write(cast[seq[byte]]("Hello1!"))
-      await buf2.write(cast[seq[byte]]("Hello2!"))
+      await buf1.write("Hello1!".toBytes())
+      await buf2.write("Hello2!".toBytes())
       await allFuturesThrowing(readFut1, readFut2)
 
       check:
-        res1 == cast[seq[byte]]("Hello2!")
-        res2 == cast[seq[byte]]("Hello1!")
+        res1 == "Hello2!".toBytes()
+        res2 == "Hello1!".toBytes()
 
       result = true
 
@@ -324,14 +323,14 @@ suite "BufferStream":
         result = newSeq[byte](6)
         await buf1.readExactly(addr result[0], 6)
 
-      proc writer(): Future[void] = buf1.write(cast[seq[byte]]("Hello!"))
+      proc writer(): Future[void] = buf1.write("Hello!".toBytes())
 
       var writerFut = writer()
       var readerFut = reader()
 
       await writerFut
       check:
-        (await readerFut) == cast[seq[byte]]("Hello!")
+        (await readerFut) == "Hello!".toBytes()
 
       result = true
 
@@ -347,11 +346,11 @@ suite "BufferStream":
 
       var res1: seq[byte] = newSeq[byte](7)
       var readFut = buf2.readExactly(addr res1[0], 7)
-      await buf1.write(cast[seq[byte]]("Hello1!"))
+      await buf1.write("Hello1!".toBytes())
       await readFut
 
       check:
-        res1 == cast[seq[byte]]("Hello1!")
+        res1 == "Hello1!".toBytes()
 
       result = true
 
@@ -374,13 +373,13 @@ suite "BufferStream":
       var res2: seq[byte] = newSeq[byte](7)
       var readFut2 = buf2.readExactly(addr res2[0], 7)
 
-      await buf1.write(cast[seq[byte]]("Hello1!"))
-      await buf2.write(cast[seq[byte]]("Hello2!"))
+      await buf1.write("Hello1!".toBytes())
+      await buf2.write("Hello2!".toBytes())
       await allFuturesThrowing(readFut1, readFut2)
 
       check:
-        res1 == cast[seq[byte]]("Hello2!")
-        res2 == cast[seq[byte]]("Hello1!")
+        res1 == "Hello2!".toBytes()
+        res2 == "Hello1!".toBytes()
 
       result = true
 
@@ -400,14 +399,14 @@ suite "BufferStream":
         result = newSeq[byte](6)
         await buf1.readExactly(addr result[0], 6)
 
-      proc writer(): Future[void] = buf1.write(cast[seq[byte]]("Hello!"))
+      proc writer(): Future[void] = buf1.write("Hello!".toBytes())
 
       var writerFut = writer()
       var readerFut = reader()
 
       await writerFut
       check:
-        (await readerFut) == cast[seq[byte]]("Hello!")
+        (await readerFut) == "Hello!".toBytes()
 
       result = true
 
@@ -431,7 +430,7 @@ suite "BufferStream":
 
       proc writer() {.async.} =
         while count > 0:
-          await buf1.write(cast[seq[byte]]("Hello2!"))
+          await buf1.write("Hello2!".toBytes())
           count.dec
 
       var writerFut = writer()

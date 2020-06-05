@@ -5,13 +5,8 @@ import chronos
 import ../libp2p/crypto/crypto,
        ../libp2p/peerinfo,
        ../libp2p/peer
-import ./helpers
 
 suite "PeerInfo":
-  teardown:
-    for tracker in testTrackers():
-      check tracker.isLeaked() == false
-
   test "Should init with private key":
     let seckey = PrivateKey.random(ECDSA).get()
     var peerInfo = PeerInfo.init(seckey)
@@ -43,7 +38,7 @@ suite "PeerInfo":
     check:
       PeerID.init("QmYyQSo1c1Ym7orWxLYvCrM2EmxFTANf8wXmmE7DWjhx5N") == peerInfo.peerId
 
-  # TODO: CIDv1 is handling is missing from PeerID
+  # TODO: CIDv1 handling is missing from PeerID
   # https://github.com/status-im/nim-libp2p/issues/53
   # test "Should init from CIDv1 string":
   #   var peerInfo = PeerInfo.init("bafzbeie5745rpv2m6tjyuugywy4d5ewrqgqqhfnf445he3omzpjbx5xqxe")

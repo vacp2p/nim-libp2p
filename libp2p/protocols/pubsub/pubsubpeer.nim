@@ -25,8 +25,8 @@ logScope:
 
 type
   PubSubObserver* = ref object
-    onRecv*: proc(peer: PubSubPeer; msgs: var RPCMsg) {.gcsafe.}
-    onSend*: proc(peer: PubSubPeer; msgs: var RPCMsg) {.gcsafe.}
+    onRecv*: proc(peer: PubSubPeer; msgs: var RPCMsg) {.gcsafe, raises: [Defect].}
+    onSend*: proc(peer: PubSubPeer; msgs: var RPCMsg) {.gcsafe, raises: [Defect].}
 
   PubSubPeer* = ref object of RootObj
     proto: string # the protocol that this peer joined from
@@ -55,88 +55,87 @@ proc `conn=`*(p: PubSubPeer, conn: Connection) =
   p.sendConn = conn
   p.onConnect.fire()
 
+proc recvObservers(p: PubSubPeer, msg: var RPCMsg) =
+  # trigger hooks
+  if not(isNil(p.observers)) and p.observers[].len > 0:
+    for obs in p.observers[]:
+      obs.onRecv(p, msg)
+
+proc sendObservers(p: PubSubPeer, msg: var RPCMsg) =
+  # trigger hooks
+  if not(isNil(p.observers)) and p.observers[].len > 0:
+    for obs in p.observers[]:
+      obs.onSend(p, msg)
+
 proc handle*(p: PubSubPeer, conn: Connection) {.async.} =
   trace "handling pubsub rpc", peer = p.id, closed = conn.closed
   try:
-    while not conn.closed:
-      trace "waiting for data", peer = p.id, closed = conn.closed
-      let data = await conn.readLp(64 * 1024)
-      let digest = $(sha256.digest(data))
-      trace "read data from peer", peer = p.id, data = data.shortLog
-      if digest in p.recvdRpcCache:
-        trace "message already received, skipping", peer = p.id
-        continue
+    try:
+      while not conn.closed:
+        trace "waiting for data", peer = p.id, closed = conn.closed
+        let data = await conn.readLp(64 * 1024)
+        let digest = $(sha256.digest(data))
+        trace "read data from peer", peer = p.id, data = data.shortLog
+        if digest in p.recvdRpcCache:
+          trace "message already received, skipping", peer = p.id
+          continue
 
-      var msg = decodeRpcMsg(data)
-      trace "decoded msg from peer", peer = p.id, msg = msg.shortLog
-      
-      # trigger hooks
-      for obs in p.observers[]:
-        obs.onRecv(p, msg)
-      
-      # metrics
-      libp2p_pubsub_decoded_messages.inc()
+        var msg = decodeRpcMsg(data)
+        trace "decoded msg from peer", peer = p.id, msg = msg.shortLog
+        # trigger hooks
+        p.recvObservers(msg)
 
-      await p.handler(p, @[msg])
-      p.recvdRpcCache.put(digest)
-  except CatchableError as exc:
-    trace "Exception occurred in PubSubPeer.handle", exc = exc.msg
-  finally:
-    trace "exiting pubsub peer read loop", peer = p.id
-    if not conn.closed():
+        await p.handler(p, @[msg])
+        p.recvdRpcCache.put(digest)
+
+        # metrics
+        libp2p_pubsub_decoded_messages.inc()
+    finally:
+      trace "exiting pubsub peer read loop", peer = p.id
       await conn.close()
 
-proc send*(p: PubSubPeer, msgs: seq[RPCMsg]) {.async.} =
-  try:
-    for m in msgs.items:
-      trace "sending msgs to peer", toPeer = p.id, msgs = msgs
-      let encoded = encodeRpcMsg(m)
-
-      # trigger hooks
-      if not(isNil(p.observers)) and p.observers[].len > 0:
-        var mm = m
-        for obs in p.observers[]:
-          obs.onSend(p, mm)
-
-      # metrics
-      libp2p_pubsub_encoded_messages.inc()
-
-      if encoded.buffer.len <= 0:
-        trace "empty message, skipping", peer = p.id
-        return
-
-      let digest = $(sha256.digest(encoded.buffer))
-      if digest in p.sentRpcCache:
-        trace "message already sent to peer, skipping", peer = p.id
-        continue
-
-      proc sendToRemote() {.async.} =
-        trace "about send message", peer = p.id,
-                                    encoded = digest
-        await p.onConnect.wait()
-        try:
-          trace "sending encoded msgs to peer", peer = p.id,
-                                                encoded = encoded.buffer.shortLog
-          await p.sendConn.writeLp(encoded.buffer)
-          p.sentRpcCache.put(digest)
-        except CatchableError as exc:
-          trace "unable to send to remote", exc = exc.msg
-          if not(isNil(p.sendConn)):
-            await p.sendConn.close()
-            p.sendConn = nil
-            p.onConnect.clear()
-
-      # if no connection has been set,
-      # queue messages untill a connection
-      # becomes available
-      asyncCheck sendToRemote()
-
   except CatchableError as exc:
-    trace "Exception occurred in PubSubPeer.send", exc = exc.msg
-    if not(isNil(p.sendConn)):
-      await p.sendConn.close()
-      p.sendConn = nil
-      p.onConnect.clear()
+    trace "Exception occurred in PubSubPeer.handle", exc = exc.msg
+
+proc send*(p: PubSubPeer, msgs: seq[RPCMsg]) {.async.} =
+  for m in msgs.items:
+    trace "sending msgs to peer", toPeer = p.id, msgs = $msgs
+
+    # trigger send hooks
+    var mm = m # hooks can modify the message
+    p.sendObservers(mm)
+    
+    # metrics
+    libp2p_pubsub_encoded_messages.inc()
+
+    let encoded = encodeRpcMsg(mm)
+    if encoded.buffer.len <= 0:
+      trace "empty message, skipping", peer = p.id
+      return
+
+    let digest = $(sha256.digest(encoded.buffer))
+    if digest in p.sentRpcCache:
+      trace "message already sent to peer, skipping", peer = p.id
+      continue
+
+    proc sendToRemote() {.async.} =
+      try:
+        trace "about to send message", peer = p.id,
+                                       encoded = digest
+        await p.onConnect.wait()
+        trace "sending encoded msgs to peer", peer = p.id,
+                                              encoded = encoded.buffer.shortLog
+        await p.sendConn.writeLp(encoded.buffer)
+        p.sentRpcCache.put(digest)
+      except CatchableError as exc:
+        trace "unable to send to remote", exc = exc.msg
+        p.sendConn = nil
+        p.onConnect.clear()
+
+    # if no connection has been set,
+    # queue messages until a connection
+    # becomes available
+    asyncCheck sendToRemote()
 
 proc sendMsg*(p: PubSubPeer,
               peerId: PeerID,

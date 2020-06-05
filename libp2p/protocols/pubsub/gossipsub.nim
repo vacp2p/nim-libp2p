@@ -447,9 +447,7 @@ method publish*(g: GossipSub,
       trace "publishing on topic", name = topic
       g.mcache.put(msg)
       sent.add(g.peers[p].send(@[RPCMsg(messages: @[msg])]))
-
-    sent = await allFinished(sent)
-    checkFutures(sent)
+    checkFutures(await allFinished(sent))
 
 method start*(g: GossipSub) {.async.} =
   ## start pubsub

@@ -7,13 +7,15 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import oids
 import chronos, chronicles, metrics
 import peerinfo,
        errors,
        multiaddress,
        stream/lpstream,
        peerinfo
+
+when chronicles.enabledLogLevel == LogLevel.TRACE:
+  import oids
 
 export lpstream
 
@@ -28,9 +30,6 @@ type
     peerInfo*: PeerInfo
     stream*: LPStream
     observedAddrs*: Multiaddress
-    # notice this is a ugly circular reference collection
-    # (we got many actually :-))
-    readLoops*: seq[Future[void]]
 
   ConnectionTracker* = ref object of TrackerBase
     opened*: uint64
@@ -66,51 +65,45 @@ proc `$`*(conn: Connection): string =
   if not isNil(conn.peerInfo):
     result = $(conn.peerInfo)
 
-proc bindStreamClose(conn: Connection) {.async.} =
-  # bind stream's close event to connection's close
-  # to ensure correct close propagation
-  if not isNil(conn.stream.closeEvent):
-    await conn.stream.closeEvent.wait()
-    trace "wrapped stream closed, about to close conn",
-      closed = conn.isClosed, conn = $conn
-    if not conn.isClosed:
-      trace "wrapped stream closed, closing conn",
-        closed = conn.isClosed, conn = $conn
-      await conn.close()
-
 proc init[T: Connection](self: var T, stream: LPStream): T =
   ## create a new Connection for the specified async reader/writer
   new self
   self.stream = stream
-  self.closeEvent = newAsyncEvent()
-  when chronicles.enabledLogLevel == LogLevel.TRACE:
-    self.oid = genOid()
-  asyncCheck self.bindStreamClose()
-  inc getConnectionTracker().opened
-  libp2p_open_connection.inc()
-
+  self.initStream()
   return self
 
 proc newConnection*(stream: LPStream): Connection =
   ## create a new Connection for the specified async reader/writer
   result.init(stream)
 
+method initStream*(s: Connection) =
+  procCall LPStream(s).initStream()
+  trace "created connection", oid = s.oid
+  inc getConnectionTracker().opened
+  libp2p_open_connection.inc()
+
 method readExactly*(s: Connection,
                     pbytes: pointer,
                     nbytes: int):
-                    Future[void] {.gcsafe.} =
-  s.stream.readExactly(pbytes, nbytes)
+                    Future[void] {.async, gcsafe.} =
+  await s.stream.readExactly(pbytes, nbytes)
 
 method readOnce*(s: Connection,
                  pbytes: pointer,
                  nbytes: int):
-                 Future[int] {.gcsafe.} =
-  s.stream.readOnce(pbytes, nbytes)
+                 Future[int] {.async, gcsafe.} =
+  result = await s.stream.readOnce(pbytes, nbytes)
 
 method write*(s: Connection,
               msg: seq[byte]):
-              Future[void] {.gcsafe.} =
-  s.stream.write(msg)
+              Future[void] {.async, gcsafe.} =
+  await s.stream.write(msg)
+
+method atEof*(s: Connection): bool {.inline.} =
+  if isNil(s.stream):
+    return true
+
+  s.stream.atEof
 
 method closed*(s: Connection): bool =
   if isNil(s.stream):
@@ -119,30 +112,31 @@ method closed*(s: Connection): bool =
   result = s.stream.closed
 
 method close*(s: Connection) {.async, gcsafe.} =
-  trace "about to close connection", closed = s.closed, conn = $s
+  try:
+    if not s.isClosed:
+      s.isClosed = true
 
-  if not s.isClosed:
-    s.isClosed = true
-    inc getConnectionTracker().closed
+      trace "about to close connection", closed = s.closed,
+                                        conn = $s,
+                                        oid = s.oid
 
-    if not isNil(s.stream) and not s.stream.closed:
-      trace "closing child stream", closed = s.closed, conn = $s
-      try:
+
+      if not isNil(s.stream) and not s.stream.closed:
+        trace "closing child stream", closed = s.closed,
+                                      conn = $s,
+                                      oid = s.stream.oid
         await s.stream.close()
-      except CancelledError as exc:
-        raise exc
-      except CatchableError as exc:
-        debug "Error while closing child stream", err = exc.msg
+        # s.stream = nil
 
-    s.closeEvent.fire()
+      s.closeEvent.fire()
+      trace "connection closed", closed = s.closed,
+                                 conn = $s,
+                                 oid = s.oid
 
-    trace "waiting readloops", count=s.readLoops.len, conn = $s
-    let loopFuts = await allFinished(s.readLoops)
-    checkFutures(loopFuts)
-    s.readLoops = @[]
-
-    trace "connection closed", closed = s.closed, conn = $s
-    libp2p_open_connection.dec()
+      inc getConnectionTracker().closed
+      libp2p_open_connection.dec()
+  except CatchableError as exc:
+    trace "exception closing connections", exc = exc.msg
 
 method getObservedAddrs*(c: Connection): Future[MultiAddress] {.base, async, gcsafe.} =
   ## get resolved multiaddresses for the connection

@@ -30,9 +30,12 @@
 ## will suspend until either the amount of elements in the
 ## buffer goes below ``maxSize`` or more data becomes available.
 
-import deques, math, oids
+import deques, math
 import chronos, chronicles, metrics
 import ../stream/lpstream
+
+when chronicles.enabledLogLevel == LogLevel.TRACE:
+  import oids
 
 export lpstream
 
@@ -93,10 +96,10 @@ type
   AlreadyPipedError* = object of CatchableError
   NotWritableError* = object of CatchableError
 
-proc newAlreadyPipedError*(): ref Exception {.inline.} =
+proc newAlreadyPipedError*(): ref CatchableError {.inline.} =
   result = newException(AlreadyPipedError, "stream already piped")
 
-proc newNotWritableError*(): ref Exception {.inline.} =
+proc newNotWritableError*(): ref CatchableError {.inline.} =
   result = newException(NotWritableError, "stream is not writable")
 
 proc requestReadBytes(s: BufferStream): Future[void] =
@@ -104,19 +107,25 @@ proc requestReadBytes(s: BufferStream): Future[void] =
   ## data becomes available in the read buffer
   result = newFuture[void]()
   s.readReqs.addLast(result)
-  trace "requestReadBytes(): added a future to readReqs", oid = s.oid
+  # trace "requestReadBytes(): added a future to readReqs", oid = s.oid
+
+method initStream(s: BufferStream) =
+  procCall LPStream(s).initStream()
+
+  inc getBufferStreamTracker().opened
+  libp2p_open_bufferstream.inc()
 
 proc initBufferStream*(s: BufferStream,
                        handler: WriteHandler = nil,
                        size: int = DefaultBufferSize) =
+  s.initStream()
+
   s.maxSize = if isPowerOfTwo(size): size else: nextPowerOfTwo(size)
   s.readBuf = initDeque[byte](s.maxSize)
   s.readReqs = initDeque[Future[void]]()
   s.dataReadEvent = newAsyncEvent()
   s.lock = newAsyncLock()
   s.writeLock = newAsyncLock()
-  s.closeEvent = newAsyncEvent()
-  s.isClosed = false
 
   if not(isNil(handler)):
     s.writeHandler = proc (data: seq[byte]) {.async, gcsafe.} =
@@ -132,12 +141,7 @@ proc initBufferStream*(s: BufferStream,
       finally:
         s.writeLock.release()
 
-  when chronicles.enabledLogLevel == LogLevel.TRACE:
-    s.oid = genOid()
-
   trace "created bufferstream", oid = s.oid
-  inc getBufferStreamTracker().opened
-  libp2p_open_bufferstream.inc()
 
 proc newBufferStream*(handler: WriteHandler = nil,
                       size: int = DefaultBufferSize): BufferStream =
@@ -177,12 +181,12 @@ method pushTo*(s: BufferStream, data: seq[byte]) {.base, async.} =
       while index < data.len and s.readBuf.len < s.maxSize:
         s.readBuf.addLast(data[index])
         inc(index)
-      trace "pushTo()", msg = "added " & $index & " bytes to readBuf", oid = s.oid
+      # trace "pushTo()", msg = "added " & $index & " bytes to readBuf", oid = s.oid
 
       # resolve the next queued read request
       if s.readReqs.len > 0:
         s.readReqs.popFirst().complete()
-        trace "pushTo(): completed a readReqs future", oid = s.oid
+        # trace "pushTo(): completed a readReqs future", oid = s.oid
 
       if index >= data.len:
         return
@@ -208,7 +212,7 @@ method readExactly*(s: BufferStream,
   if s.atEof:
     raise newLPStreamEOFError()
 
-  trace "readExactly()", requested_bytes = nbytes, oid = s.oid
+  # trace "readExactly()", requested_bytes = nbytes, oid = s.oid
   var index = 0
 
   if s.readBuf.len() == 0:
@@ -219,7 +223,7 @@ method readExactly*(s: BufferStream,
     while s.readBuf.len() > 0 and index < nbytes:
       output[index] = s.popFirst()
       inc(index)
-    trace "readExactly()", read_bytes = index, oid = s.oid
+    # trace "readExactly()", read_bytes = index, oid = s.oid
 
     if index < nbytes:
       await s.requestReadBytes()
@@ -303,20 +307,23 @@ proc `|`*(s: BufferStream, target: BufferStream): BufferStream =
   pipe(s, target)
 
 method close*(s: BufferStream) {.async, gcsafe.} =
-  ## close the stream and clear the buffer
-  if not s.isClosed:
-    trace "closing bufferstream", oid = s.oid
-    for r in s.readReqs:
-      if not(isNil(r)) and not(r.finished()):
-        r.fail(newLPStreamEOFError())
-    s.dataReadEvent.fire()
-    s.readBuf.clear()
-    s.closeEvent.fire()
-    s.isClosed = true
+  try:
+    ## close the stream and clear the buffer
+    if not s.isClosed:
+      trace "closing bufferstream", oid = s.oid
+      for r in s.readReqs:
+        if not(isNil(r)) and not(r.finished()):
+          r.fail(newLPStreamEOFError())
+      s.dataReadEvent.fire()
+      s.readBuf.clear()
+      s.closeEvent.fire()
+      s.isClosed = true
 
-    inc getBufferStreamTracker().closed
-    libp2p_open_bufferstream.dec()
+      inc getBufferStreamTracker().closed
+      libp2p_open_bufferstream.dec()
 
-    trace "bufferstream closed", oid = s.oid
-  else:
-    trace "attempt to close an already closed bufferstream", trace = getStackTrace()
+      trace "bufferstream closed", oid = s.oid
+    else:
+      trace "attempt to close an already closed bufferstream", trace = getStackTrace()
+  except CatchableError as exc:
+    trace "error closing buffer stream", exc = exc.msg

@@ -151,6 +151,7 @@ proc newTestNaStream(na: NaHandler): TestNaStream =
 suite "Multistream select":
   teardown:
     for tracker in testTrackers():
+      # echo tracker.dump()
       check tracker.isLeaked() == false
 
   test "test select custom proto":
@@ -191,7 +192,7 @@ suite "Multistream select":
       let conn = newConnection(newTestLsStream(testLsHandler))
       let done = newFuture[void]()
       proc testLsHandler(proto: seq[byte]) {.async, gcsafe.} =
-        var strProto: string = cast[string](proto)
+        var strProto: string = string.fromBytes(proto)
         check strProto == "\x26/test/proto1/1.0.0\n/test/proto2/1.0.0\n"
         await conn.close()
         done.complete()
@@ -269,14 +270,16 @@ suite "Multistream select":
 
       check (await msDial.select(conn, "/test/proto/1.0.0")) == true
 
-      let hello = cast[string](await conn.readLp(1024))
+      let hello = string.fromBytes(await conn.readLp(1024))
       result = hello == "Hello!"
       await conn.close()
 
       await transport2.close()
       await transport1.close()
 
-      await allFuturesThrowing(handlerWait1.wait(5000.millis) #[if OK won't happen!!]#, handlerWait2.wait(5000.millis) #[if OK won't happen!!]#)
+      await allFuturesThrowing(
+        handlerWait1.wait(5000.millis),
+        handlerWait2.wait(5000.millis))
 
     check:
       waitFor(endToEnd()) == true
@@ -306,10 +309,16 @@ suite "Multistream select":
 
       let transport1: TcpTransport = TcpTransport.init()
       proc connHandler(conn: Connection): Future[void] {.async, gcsafe.} =
-        await msListen.handle(conn)
-        handlerWait.complete()
+        try:
+          await msListen.handle(conn)
+        except LPStreamEOFError:
+          discard
+        except LPStreamClosedError:
+          discard
+        finally:
+          await conn.close()
 
-      asyncCheck transport1.listen(ma, connHandler)
+      let listenFut = transport1.listen(ma, connHandler)
 
       let msDial = newMultistream()
       let transport2: TcpTransport = TcpTransport.init()
@@ -323,8 +332,7 @@ suite "Multistream select":
       await conn.close()
       await transport2.close()
       await transport1.close()
-
-      await handlerWait.wait(5000.millis) # when no issues will not wait that long!
+      discard await listenFut.wait(5.seconds)
 
     check:
       waitFor(endToEnd()) == true
@@ -358,7 +366,7 @@ suite "Multistream select":
       check (await msDial.select(conn,
         @["/test/proto/1.0.0", "/test/no/proto/1.0.0"])) == "/test/proto/1.0.0"
 
-      let hello = cast[string](await conn.readLp(1024))
+      let hello = string.fromBytes(await conn.readLp(1024))
       result = hello == "Hello!"
 
       await conn.close()
@@ -397,7 +405,7 @@ suite "Multistream select":
 
       check (await msDial.select(conn, @["/test/proto2/1.0.0", "/test/proto1/1.0.0"])) == "/test/proto2/1.0.0"
 
-      result = cast[string](await conn.readLp(1024)) == "Hello from /test/proto2/1.0.0!"
+      result = string.fromBytes(await conn.readLp(1024)) == "Hello from /test/proto2/1.0.0!"
 
       await conn.close()
       await transport2.close()

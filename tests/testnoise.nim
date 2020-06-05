@@ -10,7 +10,7 @@
 {.used.}
 
 import unittest, tables
-import chronos
+import chronos, stew/byteutils
 import chronicles
 import nimcrypto/sysrand
 import ../libp2p/crypto/crypto
@@ -41,7 +41,7 @@ type
 
 method init(p: TestProto) {.gcsafe.} =
   proc handle(conn: Connection, proto: string) {.async, gcsafe.} =
-    let msg = cast[string](await conn.readLp(1024))
+    let msg = string.fromBytes(await conn.readLp(1024))
     check "Hello!" == msg
     await conn.writeLp("Hello!")
     await conn.close()
@@ -107,7 +107,7 @@ suite "Noise":
       await transport1.close()
       await transport2.close()
 
-      result = cast[string](msg) == "Hello!"
+      result = string.fromBytes(msg) == "Hello!"
 
     check:
       waitFor(testListenerDialer()) == true
@@ -127,7 +127,7 @@ suite "Noise":
           await conn.close()
         var msg = newSeq[byte](6)
         await sconn.readExactly(addr msg[0], 6)
-        check cast[string](msg) == "Hello!"
+        check string.fromBytes(msg) == "Hello!"
         readTask.complete()
 
       let
@@ -175,7 +175,7 @@ suite "Noise":
 
       let
         transport1: TcpTransport = TcpTransport.init()
-      asyncCheck await transport1.listen(server, connHandler)
+        listenFut = await transport1.listen(server, connHandler)
 
       let
         transport2: TcpTransport = TcpTransport.init()
@@ -191,6 +191,7 @@ suite "Noise":
       await conn.close()
       await transport2.close()
       await transport1.close()
+      await listenFut
 
       result = true
 
@@ -217,10 +218,13 @@ suite "Noise":
       awaiters.add(await switch2.start())
       let conn = await switch2.dial(switch1.peerInfo, TestCodec)
       await conn.writeLp("Hello!")
-      let msg = cast[string](await conn.readLp(1024))
+      let msg = string.fromBytes(await conn.readLp(1024))
       check "Hello!" == msg
+      await conn.close()
 
-      await allFuturesThrowing(switch1.stop(), switch2.stop())
+      await allFuturesThrowing(
+        switch1.stop(),
+        switch2.stop())
       await allFuturesThrowing(awaiters)
       result = true
 

@@ -7,8 +7,8 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import strutils, stew/byteutils
-import chronos, chronicles
+import strutils
+import chronos, chronicles, stew/byteutils
 import connection,
        vbuffer,
        errors,
@@ -39,7 +39,7 @@ type
 
   MultistreamHandshakeException* = object of CatchableError
 
-proc newMultistreamHandshakeException*(): ref Exception {.inline.} =
+proc newMultistreamHandshakeException*(): ref CatchableError {.inline.} =
   result = newException(MultistreamHandshakeException,
     "could not perform multistream handshake")
 
@@ -58,7 +58,7 @@ proc select*(m: MultistreamSelect,
     trace "selecting proto", proto = proto
     await conn.writeLp((proto[0] & "\n")) # select proto
 
-  result = cast[string]((await conn.readLp(1024))) # read ms header
+  result = string.fromBytes((await conn.readLp(1024))) # read ms header
   result.removeSuffix("\n")
   if result != Codec:
     notice "handshake failed", codec = result.toHex()
@@ -71,18 +71,19 @@ proc select*(m: MultistreamSelect,
   trace "reading first requested proto"
   result.removeSuffix("\n")
   if result == proto[0]:
-    trace "succesfully selected ", proto = proto
+    trace "successfully selected ", proto = proto
     return
 
-  if not result.len > 0:
-    trace "selecting one of several protos"
-    for p in proto[1..<proto.len()]:
-      await conn.writeLp((p & "\n")) # select proto
-      result = string.fromBytes(await conn.readLp(1024)) # read the first proto
-      result.removeSuffix("\n")
-      if result == p:
-        trace "selected protocol", protocol = result
-        break
+  let protos = proto[1..<proto.len()]
+  trace "selecting one of several protos", protos = protos
+  for p in protos:
+    trace "selecting proto", proto = p
+    await conn.writeLp((p & "\n")) # select proto
+    result = string.fromBytes(await conn.readLp(1024)) # read the first proto
+    result.removeSuffix("\n")
+    if result == p:
+      trace "selected protocol", protocol = result
+      break
 
 proc select*(m: MultistreamSelect,
              conn: Connection,
@@ -113,7 +114,7 @@ proc list*(m: MultistreamSelect,
 
 proc handle*(m: MultistreamSelect, conn: Connection) {.async, gcsafe.} =
   trace "handle: starting multistream handling"
-  tryAndWarn "multistream handle":
+  try:
     while not conn.closed:
       var ms = string.fromBytes(await conn.readLp(1024))
       ms.removeSuffix("\n")
@@ -142,14 +143,14 @@ proc handle*(m: MultistreamSelect, conn: Connection) {.async, gcsafe.} =
             if (not isNil(h.match) and h.match(ms)) or ms == h.proto:
               trace "found handler for", protocol = ms
               await conn.writeLp((h.proto & "\n"))
-              tryAndWarn "multistream handle handler":
-                await h.protocol.handler(conn, ms)
-                return
+              await h.protocol.handler(conn, ms)
+              return
           warn "no handlers for ", protocol = ms
           await conn.write(Na)
-  trace "leaving multistream loop"
-  # we might be tempted to close conn here but that would be a bad idea!
-  # we indeed will reuse it later on
+  except CatchableError as exc:
+    trace "exception in multistream", exc = exc.msg
+  finally:
+    trace "leaving multistream loop"
 
 proc addHandler*[T: LPProtocol](m: MultistreamSelect,
                                 codec: string,
@@ -157,7 +158,7 @@ proc addHandler*[T: LPProtocol](m: MultistreamSelect,
                                 matcher: Matcher = nil) =
   ## register a protocol
   # TODO: This is a bug in chronicles,
-  # it break if I uncoment this line.
+  # it break if I uncomment this line.
   # Which is almost the same as the
   # one on the next override of addHandler
   #

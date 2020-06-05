@@ -244,7 +244,6 @@ proc encodeRpcMsg*(msg: RPCMsg): ProtoBuffer {.gcsafe.} =
 proc decodeRpcMsg*(msg: seq[byte]): RPCMsg {.gcsafe.} =
   var pb = initProtoBuffer(msg)
 
-  result.subscriptions = newSeq[SubOpts]()
   while true:
     # decode SubOpts array
     var field = pb.enterSubMessage()

@@ -17,6 +17,20 @@ proc subscribeNodes*(nodes: seq[Switch]) {.async.} =
         dials.add(dialer.connect(node.peerInfo))
   await allFutures(dials)
 
+proc subscribeSparseNodes*(nodes: seq[Switch], degree: int = 2) {.async.} =
+  if nodes.len < degree:
+    raise (ref CatchableError)(msg: "nodes count needs to be greater or equal to degree!")
+
+  var dials: seq[Future[void]]
+  for i, dialer in nodes:
+    if (i mod degree) != 0:
+      continue
+
+    for node in nodes:
+      if dialer.peerInfo.peerId != node.peerInfo.peerId:
+        dials.add(dialer.connect(node.peerInfo))
+  await allFutures(dials)
+
 proc subscribeRandom*(nodes: seq[Switch]) {.async.} =
   var dials: seq[Future[void]]
   for dialer in nodes:

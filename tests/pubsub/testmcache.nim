@@ -1,7 +1,7 @@
 {.used.}
 
-import options, sets, sequtils
-import unittest
+import unittest, options, sets, sequtils
+import stew/byteutils
 import ../../libp2p/[peer,
                      crypto/crypto,
                      protocols/pubsub/mcache,
@@ -12,7 +12,7 @@ suite "MCache":
   test "put/get":
     var mCache = newMCache(3, 5)
     var msg = Message(fromPeer: PeerID.init(PrivateKey.random(ECDSA).get()).data,
-                       seqno: cast[seq[byte]]("12345"))
+                       seqno: "12345".toBytes())
     mCache.put(msg)
     check mCache.get(msg.msgId).isSome and mCache.get(msg.msgId).get() == msg
 
@@ -21,13 +21,13 @@ suite "MCache":
 
     for i in 0..<3:
       var msg = Message(fromPeer: PeerID.init(PrivateKey.random(ECDSA).get()).data,
-                        seqno: cast[seq[byte]]("12345"),
+                        seqno: "12345".toBytes(),
                         topicIDs: @["foo"])
       mCache.put(msg)
 
     for i in 0..<5:
       var msg = Message(fromPeer: PeerID.init(PrivateKey.random(ECDSA).get()).data,
-                        seqno: cast[seq[byte]]("12345"),
+                        seqno: "12345".toBytes(),
                         topicIDs: @["bar"])
       mCache.put(msg)
 
@@ -42,7 +42,7 @@ suite "MCache":
 
     for i in 0..<3:
       var msg = Message(fromPeer: PeerID.init(PrivateKey.random(ECDSA).get()).data,
-                        seqno: cast[seq[byte]]("12345"),
+                        seqno: "12345".toBytes(),
                         topicIDs: @["foo"])
       mCache.put(msg)
 
@@ -51,7 +51,7 @@ suite "MCache":
 
     for i in 0..<3:
       var msg = Message(fromPeer: PeerID.init(PrivateKey.random(ECDSA).get()).data,
-                        seqno: cast[seq[byte]]("12345"),
+                        seqno: "12345".toBytes(),
                         topicIDs: @["bar"])
       mCache.put(msg)
 
@@ -60,7 +60,7 @@ suite "MCache":
 
     for i in 0..<3:
       var msg = Message(fromPeer: PeerID.init(PrivateKey.random(ECDSA).get()).data,
-                        seqno: cast[seq[byte]]("12345"),
+                        seqno: "12345".toBytes(),
                         topicIDs: @["baz"])
       mCache.put(msg)
 
@@ -72,19 +72,19 @@ suite "MCache":
 
     for i in 0..<3:
       var msg = Message(fromPeer: PeerID.init(PrivateKey.random(ECDSA).get()).data,
-                        seqno: cast[seq[byte]]("12345"),
+                        seqno: "12345".toBytes(),
                         topicIDs: @["foo"])
       mCache.put(msg)
 
     for i in 0..<3:
       var msg = Message(fromPeer: PeerID.init(PrivateKey.random(ECDSA).get()).data,
-                        seqno: cast[seq[byte]]("12345"),
+                        seqno: "12345".toBytes(),
                         topicIDs: @["bar"])
       mCache.put(msg)
 
     for i in 0..<3:
       var msg = Message(fromPeer: PeerID.init(PrivateKey.random(ECDSA).get()).data,
-                        seqno: cast[seq[byte]]("12345"),
+                        seqno: "12345".toBytes(),
                         topicIDs: @["baz"])
       mCache.put(msg)
 

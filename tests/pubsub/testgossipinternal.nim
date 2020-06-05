@@ -200,7 +200,7 @@ suite "GossipSub internal":
       gossipSub.gossipsub[topic] = initHashSet[string]()
       var conns = newSeq[Connection]()
 
-      # geerate mesh and fanout peers
+      # generate mesh and fanout peers
       for i in 0..<30:
         let conn = newConnection(newBufferStream(noop))
         conns &= conn

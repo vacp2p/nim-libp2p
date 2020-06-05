@@ -7,13 +7,14 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import chronos, chronicles, sequtils
+import chronos, chronicles, sequtils, oids
 import transport,
        ../errors,
        ../wire,
        ../connection,
        ../multiaddress,
        ../multicodec,
+       ../stream/lpstream,
        ../stream/chronosstream
 
 logScope:
@@ -68,7 +69,18 @@ proc connHandler*(t: TcpTransport,
     if not isNil(t.handler):
       t.handlers &= t.handler(conn)
 
+  proc cleanup() {.async.} =
+    try:
+      await client.join()
+      trace "cleaning up client", addrs = client.remoteAddress, connoid = conn.oid
+      if not(isNil(conn)):
+        await conn.close()
+      t.clients.keepItIf(it != client)
+    except CatchableError as exc:
+      trace "error cleaning up client", exc = exc.msg
+
   t.clients.add(client)
+  asyncCheck cleanup()
   result = conn
 
 proc connCb(server: StreamServer,
@@ -101,35 +113,41 @@ method initTransport*(t: TcpTransport) =
   inc getTcpTransportTracker().opened
 
 method close*(t: TcpTransport) {.async, gcsafe.} =
-  ## start the transport
-  trace "stopping transport"
-  await procCall Transport(t).close() # call base
+  try:
+    ## start the transport
+    trace "stopping transport"
+    await procCall Transport(t).close() # call base
 
-  checkFutures(await allFinished(
-    t.clients.mapIt(it.closeWait())))
+    checkFutures(await allFinished(
+      t.clients.mapIt(it.closeWait())))
 
-  # server can be nil
-  if not isNil(t.server):
-    t.server.stop()
-    await t.server.closeWait()
+    # server can be nil
+    if not isNil(t.server):
+      t.server.stop()
+      await t.server.closeWait()
 
-  t.server = nil
+    t.server = nil
 
-  for fut in t.handlers:
-    if not fut.finished:
-      fut.cancel()
-  checkFutures(await allFinished(t.handlers))
-  t.handlers = @[]
+    for fut in t.handlers:
+      if not fut.finished:
+        fut.cancel()
 
-  for fut in t.cleanups:
-    if not fut.finished:
-      fut.cancel()
-  checkFutures(await allFinished(t.cleanups))
-  t.cleanups = @[]
+    checkFutures(
+      await allFinished(t.handlers))
+    t.handlers = @[]
 
-  trace "transport stopped"
+    for fut in t.cleanups:
+      if not fut.finished:
+        fut.cancel()
 
-  inc getTcpTransportTracker().closed
+    checkFutures(
+      await allFinished(t.cleanups))
+    t.cleanups = @[]
+
+    trace "transport stopped"
+    inc getTcpTransportTracker().closed
+  except CatchableError as exc:
+    trace "error shutting down tcp transport", exc = exc.msg
 
 method listen*(t: TcpTransport,
                ma: MultiAddress,

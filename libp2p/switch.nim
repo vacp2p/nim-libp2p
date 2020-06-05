@@ -44,25 +44,22 @@ type
       ms*: MultistreamSelect
       identity*: Identify
       streamHandler*: StreamHandler
-      secureManagers*: OrderedTable[string, Secure]
+      secureManagers*: seq[Secure]
       pubSub*: Option[PubSub]
       dialedPubSubPeers: HashSet[string]
 
-proc newNoPubSubException(): ref Exception {.inline.} =
+proc newNoPubSubException(): ref CatchableError {.inline.} =
   result = newException(NoPubSubException, "no pubsub provided!")
 
 proc secure(s: Switch, conn: Connection): Future[Connection] {.async, gcsafe.} =
-  ## secure the incoming connection
-
-  let managers = toSeq(s.secureManagers.keys)
-  if managers.len == 0:
+  if s.secureManagers.len <= 0:
     raise newException(CatchableError, "No secure managers registered!")
 
-  let manager = await s.ms.select(conn, toSeq(s.secureManagers.values).mapIt(it.codec))
+  let manager = await s.ms.select(conn, s.secureManagers.mapIt(it.codec))
   if manager.len == 0:
     raise newException(CatchableError, "Unable to negotiate a secure channel!")
 
-  result = await s.secureManagers[manager].secure(conn, true)
+  result = await s.secureManagers.filterIt(it.codec == manager)[0].secure(conn, true)
 
 proc identify(s: Switch, conn: Connection): Future[PeerInfo] {.async, gcsafe.} =
   ## identify the connection
@@ -134,23 +131,25 @@ proc mux(s: Switch, conn: Connection): Future[void] {.async, gcsafe.} =
     s.muxed[conn.peerInfo.id] = muxer
 
 proc cleanupConn(s: Switch, conn: Connection) {.async, gcsafe.} =
-  if not isNil(conn.peerInfo):
-    let id = conn.peerInfo.id
-    trace "cleaning up connection for peer", peerId = id
-    if id in s.muxed:
-      await s.muxed[id].close()
-      s.muxed.del(id)
+  try:
+    if not isNil(conn.peerInfo):
+      let id = conn.peerInfo.id
+      trace "cleaning up connection for peer", peerId = id
+      if id in s.muxed:
+        await s.muxed[id].close()
+        s.muxed.del(id)
 
-    if id in s.connections:
-      if not s.connections[id].closed:
-        await s.connections[id].close()
-      s.connections.del(id)
+      if id in s.connections:
+        s.connections.del(id)
+      await conn.close()
 
-    s.dialedPubSubPeers.excl(id)
+      s.dialedPubSubPeers.excl(id)
 
-    # TODO: Investigate cleanupConn() always called twice for one peer.
-    if not(conn.peerInfo.isClosed()):
-      conn.peerInfo.close()
+      # TODO: Investigate cleanupConn() always called twice for one peer.
+      if not(conn.peerInfo.isClosed()):
+        conn.peerInfo.close()
+  except CatchableError as exc:
+    trace "exception cleaning up connection", exc = exc.msg
 
 proc disconnect*(s: Switch, peer: PeerInfo) {.async, gcsafe.} =
   let conn = s.connections.getOrDefault(peer.id)
@@ -167,25 +166,19 @@ proc getMuxedStream(s: Switch, peerInfo: PeerInfo): Future[Connection] {.async, 
     result = conn
 
 proc upgradeOutgoing(s: Switch, conn: Connection): Future[Connection] {.async, gcsafe.} =
-  try:
-    trace "handling connection", conn = $conn
-    result = conn
+  trace "handling connection", conn = $conn
+  result = conn
 
-    # don't mux/secure twise
-    if conn.peerInfo.id in s.muxed:
-      return
+  # don't mux/secure twise
+  if conn.peerInfo.id in s.muxed:
+    return
 
-    result = await s.secure(result) # secure the connection
-    if isNil(result):
-      return
+  result = await s.secure(result) # secure the connection
+  if isNil(result):
+    return
 
-    await s.mux(result) # mux it if possible
-    s.connections[conn.peerInfo.id] = result
-  except CancelledError as exc:
-    raise exc
-  except CatchableError as exc:
-    debug "Couldn't upgrade outgoing connection", msg = exc.msg
-    return nil
+  await s.mux(result) # mux it if possible
+  s.connections[conn.peerInfo.id] = result
 
 proc upgradeIncoming(s: Switch, conn: Connection) {.async, gcsafe.} =
   trace "upgrading incoming connection", conn = $conn
@@ -197,7 +190,7 @@ proc upgradeIncoming(s: Switch, conn: Connection) {.async, gcsafe.} =
                        {.async, gcsafe, closure.} =
     try:
       trace "Securing connection"
-      let secure = s.secureManagers[proto]
+      let secure = s.secureManagers.filterIt(it.codec == proto)[0]
       let sconn = await secure.secure(conn, false)
       if sconn.isNil:
         return
@@ -207,27 +200,33 @@ proc upgradeIncoming(s: Switch, conn: Connection) {.async, gcsafe.} =
         ms.addHandler(muxer.codec, muxer)
 
       # handle subsequent requests
-      await ms.handle(sconn)
-      await sconn.close()
+      try:
+        await ms.handle(sconn)
+      finally:
+        await sconn.close()
+
     except CancelledError as exc:
       raise exc
     except CatchableError as exc:
       debug "ending secured handler", err = exc.msg
 
-  if (await ms.select(conn)): # just handshake
-    # add the secure handlers
-    for k in s.secureManagers.keys:
-      ms.addHandler(k, securedHandler)
-
   try:
-    # handle secured connections
-    await ms.handle(conn)
+    try:
+      if (await ms.select(conn)): # just handshake
+        # add the secure handlers
+        for k in s.secureManagers:
+          ms.addHandler(k.codec, securedHandler)
+
+        # handle secured connections
+      await ms.handle(conn)
+    finally:
+      await conn.close()
   except CancelledError as exc:
     raise exc
   except CatchableError as exc:
-    debug "ending multistream", err = exc.msg
+    trace "error in multistream", err = exc.msg
 
-proc subscribeToPeer(s: Switch, peerInfo: PeerInfo) {.async, gcsafe.}
+proc subscribeToPeer*(s: Switch, peerInfo: PeerInfo) {.async, gcsafe.}
 
 proc internalConnect(s: Switch,
                      peer: PeerInfo): Future[Connection] {.async.} =
@@ -239,13 +238,7 @@ proc internalConnect(s: Switch,
       for a in peer.addrs: # for each address
         if t.handles(a):   # check if it can dial it
           trace "Dialing address", address = $a
-          try:
-            conn = await t.dial(a)
-          except CancelledError as exc:
-            raise exc
-          except CatchableError as exc:
-            trace "couldn't dial peer, transport failed", exc = exc.msg, address = a
-            continue
+          conn = await t.dial(a)
           # make sure to assign the peer to the connection
           conn.peerInfo = peer
           conn = await s.upgradeOutgoing(conn)
@@ -253,8 +246,9 @@ proc internalConnect(s: Switch,
             continue
 
           conn.closeEvent.wait()
-            .addCallback do (udata: pointer):
-              asyncCheck s.cleanupConn(conn)
+          .addCallback do(udata: pointer):
+            asyncCheck s.cleanupConn(conn)
+
           break
   else:
     trace "Reusing existing connection"
@@ -289,7 +283,7 @@ proc dial*(s: Switch,
 
   if not await s.ms.select(result, proto):
     warn "Unable to select sub-protocol", proto = proto
-    raise newException(CatchableError, &"unable to select protocol: {proto}")
+    return nil
 
 proc mount*[T: LPProtocol](s: Switch, proto: T) {.gcsafe.} =
   if isNil(proto.handler):
@@ -307,14 +301,14 @@ proc start*(s: Switch): Future[seq[Future[void]]] {.async, gcsafe.} =
 
   proc handle(conn: Connection): Future[void] {.async, closure, gcsafe.} =
     try:
-      await s.upgradeIncoming(conn) # perform upgrade on incoming connection
+      try:
+        await s.upgradeIncoming(conn) # perform upgrade on incoming connection
+      finally:
+        await s.cleanupConn(conn)
     except CancelledError as exc:
       raise exc
     except CatchableError as exc:
       trace "Exception occurred in Switch.start", exc = exc.msg
-    finally:
-      await conn.close()
-      await s.cleanupConn(conn)
 
   var startFuts: seq[Future[void]]
   for t in s.transports: # for each transport
@@ -330,35 +324,43 @@ proc start*(s: Switch): Future[seq[Future[void]]] {.async, gcsafe.} =
   result = startFuts # listen for incoming connections
 
 proc stop*(s: Switch) {.async.} =
-  trace "stopping switch"
+  try:
+    trace "stopping switch"
 
-  # we want to report erros but we do not want to fail
-  # or crash here, cos we need to clean possibly MANY items
-  # and any following conn/transport won't be cleaned up
-  if s.pubSub.isSome:
-    await s.pubSub.get().stop()
+    # we want to report errors but we do not want to fail
+    # or crash here, cos we need to clean possibly MANY items
+    # and any following conn/transport won't be cleaned up
+    if s.pubSub.isSome:
+      await s.pubSub.get().stop()
 
-  checkFutures(
-    await allFinished(
-    toSeq(s.connections.values).mapIt(s.cleanupConn(it))))
+    for conn in toSeq(s.connections.values):
+      try:
+          await s.cleanupConn(conn)
+      except CatchableError as exc:
+        warn "error cleaning up connections"
 
-  checkFutures(
-    await allFinished(
-    s.transports.mapIt(it.close())))
+    for t in s.transports:
+      try:
+          await t.close()
+      except CatchableError as exc:
+        warn "error cleaning up transports"
 
-  trace "switch stopped"
+    trace "switch stopped"
+  except CatchableError as exc:
+    warn "error stopping switch", exc = exc.msg
 
-proc subscribeToPeer(s: Switch, peerInfo: PeerInfo) {.async, gcsafe.} =
+proc subscribeToPeer*(s: Switch, peerInfo: PeerInfo) {.async, gcsafe.} =
   ## Subscribe to pub sub peer
   if s.pubSub.isSome and peerInfo.id notin s.dialedPubSubPeers:
     try:
       s.dialedPubSubPeers.incl(peerInfo.id)
       let conn = await s.dial(peerInfo, s.pubSub.get().codec)
+      if isNil(conn):
+        trace "unable to subscribe to peer"
+        return
       await s.pubSub.get().subscribeToPeer(conn)
-    except CancelledError as exc:
-      raise exc
     except CatchableError as exc:
-      warn "unable to initiate pubsub", exc = exc.msg
+      trace "exception in subscribe to peer", exc = exc.msg
     finally:
       s.dialedPubSubPeers.excl(peerInfo.id)
 
@@ -422,40 +424,55 @@ proc newSwitch*(peerInfo: PeerInfo,
   result.muxed = initTable[string, Muxer]()
   result.identity = identity
   result.muxers = muxers
-  result.secureManagers = initOrderedTable[string, Secure]()
+  result.secureManagers = @secureManagers
   result.dialedPubSubPeers = initHashSet[string]()
 
   let s = result # can't capture result
   result.streamHandler = proc(stream: Connection) {.async, gcsafe.} =
-    trace "handling connection for", peerInfo = $stream.peerInfo
-    await s.ms.handle(stream) # handle incoming connection
+    try:
+      trace "handling connection for", peerInfo = $stream.peerInfo
+      try:
+        await s.ms.handle(stream) # handle incoming connection
+      finally:
+        if not(stream.closed):
+          await stream.close()
+    except CatchableError as exc:
+      trace "exception in stream handler", exc = exc.msg
 
   result.mount(identity)
   for key, val in muxers:
     val.streamHandler = result.streamHandler
     val.muxerHandler = proc(muxer: Muxer) {.async, gcsafe.} =
-      trace "got new muxer"
-      let stream = await muxer.newStream()
-      muxer.connection.peerInfo = await s.identify(stream)
-      await stream.close()
+      var stream: Connection
+      try:
+        trace "got new muxer"
+        stream = await muxer.newStream()
+        # once we got a muxed connection, attempt to
+        # identify it
+        muxer.connection.peerInfo = await s.identify(stream)
 
-      # store muxer for connection
-      s.muxed[muxer.connection.peerInfo.id] = muxer
+        # store muxer for connection
+        s.muxed[muxer.connection.peerInfo.id] = muxer
 
-      # store muxed connection
-      s.connections[muxer.connection.peerInfo.id] = muxer.connection
+        # store muxed connection
+        s.connections[muxer.connection.peerInfo.id] = muxer.connection
 
-      # try establishing a pubsub connection
-      await s.subscribeToPeer(muxer.connection.peerInfo)
+        muxer.connection.closeEvent.wait()
+          .addCallback do(udata: pointer):
+            asyncCheck s.cleanupConn(muxer.connection)
 
-  for proto in secureManagers:
-    trace "adding secure manager ", codec = proto.codec
-    result.secureManagers[proto.codec] = proto
+        # try establishing a pubsub connection
+        await s.subscribeToPeer(muxer.connection.peerInfo)
+      except CatchableError as exc:
+        trace "exception in muxer handler", exc = exc.msg
+      finally:
+        if not(isNil(stream)):
+          await stream.close()
 
-  if result.secureManagers.len == 0:
+  if result.secureManagers.len <= 0:
     # use plain text if no secure managers are provided
     warn "no secure managers, falling back to plain text", codec = PlainTextCodec
-    result.secureManagers[PlainTextCodec] = Secure(newPlainText())
+    result.secureManagers &= Secure(newPlainText())
 
   if pubSub.isSome:
     result.pubSub = pubSub

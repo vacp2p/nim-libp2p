@@ -10,7 +10,7 @@
 {.used.}
 
 import unittest, sequtils, options, tables, sets
-import chronos
+import chronos, stew/byteutils
 import chronicles
 import utils, ../../libp2p/[errors,
                             peer,
@@ -76,10 +76,12 @@ suite "GossipSub":
         result = true
 
       nodes[1].addValidator("foobar", validator)
-      await nodes[0].publish("foobar", cast[seq[byte]]("Hello!"))
+      await nodes[0].publish("foobar", "Hello!".toBytes())
 
       result = (await validatorFut) and (await handlerFut)
-      await allFuturesThrowing(nodes[0].stop(), nodes[1].stop())
+      await allFuturesThrowing(
+        nodes[0].stop(),
+        nodes[1].stop())
       await allFuturesThrowing(awaiters)
 
     check:
@@ -108,11 +110,12 @@ suite "GossipSub":
         result = false
 
       nodes[1].addValidator("foobar", validator)
-      await nodes[0].publish("foobar", cast[seq[byte]]("Hello!"))
+      await nodes[0].publish("foobar", "Hello!".toBytes())
 
       result = await validatorFut
-
-      await allFuturesThrowing(nodes[0].stop(), nodes[1].stop())
+      await allFuturesThrowing(
+        nodes[0].stop(),
+        nodes[1].stop())
       await allFuturesThrowing(awaiters)
 
     check:
@@ -148,11 +151,13 @@ suite "GossipSub":
           false
 
       nodes[1].addValidator("foo", "bar", validator)
-      await nodes[0].publish("foo", cast[seq[byte]]("Hello!"))
-      await nodes[0].publish("bar", cast[seq[byte]]("Hello!"))
+      await nodes[0].publish("foo", "Hello!".toBytes())
+      await nodes[0].publish("bar", "Hello!".toBytes())
 
       result = ((await passed) and (await failed) and (await handlerFut))
-      await allFuturesThrowing(nodes[0].stop(), nodes[1].stop())
+      await allFuturesThrowing(
+        nodes[0].stop(),
+        nodes[1].stop())
       await allFuturesThrowing(awaiters)
       result = true
     check:
@@ -267,7 +272,7 @@ suite "GossipSub":
       nodes[1].pubsub.get().addObserver(obs1)
       nodes[0].pubsub.get().addObserver(obs2)
 
-      await nodes[0].publish("foobar", cast[seq[byte]]("Hello!"))
+      await nodes[0].publish("foobar", "Hello!".toBytes())
 
       var gossipSub1: GossipSub = GossipSub(nodes[0].pubSub.get())
 
@@ -304,7 +309,7 @@ suite "GossipSub":
       await nodes[1].subscribe("foobar", handler)
       await waitSub(nodes[0], nodes[1], "foobar")
 
-      await nodes[0].publish("foobar", cast[seq[byte]]("Hello!"))
+      await nodes[0].publish("foobar", "Hello!".toBytes())
 
       result = await passed
 
@@ -346,12 +351,61 @@ suite "GossipSub":
           waitSub(nodes[0], dialer, "foobar")))
 
       await allFuturesThrowing(subs)
+
       await wait(nodes[0].publish("foobar",
                                   cast[seq[byte]]("from node " &
                                   nodes[1].peerInfo.id)),
                                   1.minutes)
 
       await wait(seenFut, 2.minutes)
+      check: seen.len >= runs
+      for k, v in seen.pairs:
+        check: v == 1
+
+      await allFuturesThrowing(nodes.mapIt(it.stop()))
+      await allFuturesThrowing(awaitters)
+      result = true
+
+    check:
+      waitFor(runTests()) == true
+
+  test "e2e - GossipSub with multiple peers (sparse)":
+    proc runTests(): Future[bool] {.async.} =
+      var nodes: seq[Switch] = newSeq[Switch]()
+      var awaitters: seq[Future[void]]
+      var runs = 10
+
+      for i in 0..<runs:
+        nodes.add newStandardSwitch(triggerSelf = true, gossip = true)
+        awaitters.add((await nodes[i].start()))
+
+      await subscribeSparseNodes(nodes, 4)
+
+      var seen: Table[string, int]
+      var subs: seq[Future[void]]
+      var seenFut = newFuture[void]()
+      for dialer in nodes:
+        var handler: TopicHandler
+        closureScope:
+          var dialerNode = dialer
+          handler = proc(topic: string, data: seq[byte])
+            {.async, gcsafe, closure.} =
+            if dialerNode.peerInfo.id notin seen:
+              seen[dialerNode.peerInfo.id] = 0
+            seen[dialerNode.peerInfo.id].inc
+            check topic == "foobar"
+            if not seenFut.finished() and seen.len >= runs:
+              seenFut.complete()
+
+        subs &= dialer.subscribe("foobar", handler)
+
+      await allFuturesThrowing(subs)
+      await wait(nodes[0].publish("foobar",
+                                  cast[seq[byte]]("from node " &
+                                  nodes[1].peerInfo.id)),
+                                  1.minutes)
+
+      await wait(seenFut, 5.minutes)
       check: seen.len >= runs
       for k, v in seen.pairs:
         check: v == 1

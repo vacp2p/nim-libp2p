@@ -10,7 +10,7 @@
 {.used.}
 
 import unittest, sequtils, options, tables, sets
-import chronos
+import chronos, stew/byteutils
 import utils,
        ../../libp2p/[errors,
                      switch,
@@ -60,7 +60,7 @@ suite "FloodSub":
       await nodes[1].subscribe("foobar", handler)
       await waitSub(nodes[0], nodes[1], "foobar")
 
-      await nodes[0].publish("foobar", cast[seq[byte]]("Hello!"))
+      await nodes[0].publish("foobar", "Hello!".toBytes())
 
       result = await completionFut.wait(5.seconds)
 
@@ -69,9 +69,8 @@ suite "FloodSub":
         nodes[1].stop()
       )
 
-      for fut in nodesFut:
-        let res = fut.read()
-        await allFuturesThrowing(res)
+      await allFuturesThrowing(nodesFut.concat())
+
     check:
       waitFor(runTests()) == true
 
@@ -92,7 +91,7 @@ suite "FloodSub":
       await nodes[0].subscribe("foobar", handler)
       await waitSub(nodes[1], nodes[0], "foobar")
 
-      await nodes[1].publish("foobar", cast[seq[byte]]("Hello!"))
+      await nodes[1].publish("foobar", "Hello!".toBytes())
 
       result = await completionFut.wait(5.seconds)
 
@@ -127,10 +126,12 @@ suite "FloodSub":
 
       nodes[1].addValidator("foobar", validator)
 
-      await nodes[0].publish("foobar", cast[seq[byte]]("Hello!"))
+      await nodes[0].publish("foobar", "Hello!".toBytes())
 
-      await allFuturesThrowing(handlerFut, handlerFut)
-      await allFuturesThrowing(nodes[0].stop(), nodes[1].stop())
+      check (await handlerFut) == true
+      await allFuturesThrowing(
+        nodes[0].stop(),
+        nodes[1].stop())
       await allFuturesThrowing(awaiters)
       result = true
 
@@ -159,9 +160,11 @@ suite "FloodSub":
 
       nodes[1].addValidator("foobar", validator)
 
-      await nodes[0].publish("foobar", cast[seq[byte]]("Hello!"))
+      await nodes[0].publish("foobar", "Hello!".toBytes())
 
-      await allFuturesThrowing(nodes[0].stop(), nodes[1].stop())
+      await allFuturesThrowing(
+        nodes[0].stop(),
+        nodes[1].stop())
       await allFuturesThrowing(awaiters)
       result = true
 
@@ -195,10 +198,12 @@ suite "FloodSub":
 
       nodes[1].addValidator("foo", "bar", validator)
 
-      await nodes[0].publish("foo", cast[seq[byte]]("Hello!"))
-      await nodes[0].publish("bar", cast[seq[byte]]("Hello!"))
+      await nodes[0].publish("foo", "Hello!".toBytes())
+      await nodes[0].publish("bar", "Hello!".toBytes())
 
-      await allFuturesThrowing(nodes[0].stop(), nodes[1].stop())
+      await allFuturesThrowing(
+        nodes[0].stop(),
+        nodes[1].stop())
       await allFuturesThrowing(awaiters)
       result = true
 
@@ -220,7 +225,7 @@ suite "FloodSub":
             (proc(topic: string, data: seq[byte]) {.async, gcsafe.} =
               check topic == "foobar"
               inc counter[]
-              if counter[] == 9:
+              if counter[] == runs - 1:
                 fut.complete()),
             counter
           )
@@ -228,7 +233,6 @@ suite "FloodSub":
       var nodes: seq[Switch] = newSeq[Switch]()
       for i in 0..<runs:
         nodes.add newStandardSwitch()
-
 
       var awaitters: seq[Future[void]]
       for i in 0..<runs:
@@ -248,7 +252,7 @@ suite "FloodSub":
 
       var pubs: seq[Future[void]]
       for i in 0..<runs:
-        pubs &= nodes[i].publish("foobar", cast[seq[byte]]("Hello!"))
+        pubs &= nodes[i].publish("foobar", "Hello!".toBytes())
       await allFuturesThrowing(pubs)
 
       await allFuturesThrowing(futs.mapIt(it[0]))
@@ -302,7 +306,7 @@ suite "FloodSub":
 
       var pubs: seq[Future[void]]
       for i in 0..<runs:
-        pubs &= nodes[i].publish("foobar", cast[seq[byte]]("Hello!"))
+        pubs &= nodes[i].publish("foobar", "Hello!".toBytes())
       await allFuturesThrowing(pubs)
 
       await allFuturesThrowing(futs.mapIt(it[0]))

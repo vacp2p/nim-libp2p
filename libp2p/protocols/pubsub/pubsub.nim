@@ -132,7 +132,7 @@ proc internalCleanup(p: PubSub, conn: Connection) {.async.} =
 
   var peer = p.getPeer(conn.peerInfo, p.codec)
   await conn.closeEvent.wait()
-  trace "connection closed, cleaning up peer", peer = conn.peerInfo.id
+  trace "pubsub conn closed, cleaning up peer", peer = conn.peerInfo.id
   await p.cleanUpHelper(peer)
 
 method handleConn*(p: PubSub,
@@ -149,24 +149,27 @@ method handleConn*(p: PubSub,
   ##    that we're interested in
   ##
 
-  if isNil(conn.peerInfo):
-    trace "no valid PeerId for peer"
-    await conn.close()
-    return
+  try:
+    if isNil(conn.peerInfo):
+      trace "no valid PeerId for peer"
+      await conn.close()
+      return
 
-  proc handler(peer: PubSubPeer, msgs: seq[RPCMsg]) {.async.} =
-    # call pubsub rpc handler
-    await p.rpcHandler(peer, msgs)
+    proc handler(peer: PubSubPeer, msgs: seq[RPCMsg]) {.async.} =
+      # call pubsub rpc handler
+      await p.rpcHandler(peer, msgs)
 
-  let peer = p.getPeer(conn.peerInfo, proto)
-  let topics = toSeq(p.topics.keys)
-  if topics.len > 0:
-    await p.sendSubs(peer, topics, true)
+    let peer = p.getPeer(conn.peerInfo, proto)
+    let topics = toSeq(p.topics.keys)
+    if topics.len > 0:
+      await p.sendSubs(peer, topics, true)
 
-  peer.handler = handler
-  await peer.handle(conn) # spawn peer read loop
-  trace "pubsub peer handler ended, cleaning up"
-  await p.internalCleanup(conn)
+    peer.handler = handler
+    await peer.handle(conn) # spawn peer read loop
+    trace "pubsub peer handler ended, cleaning up"
+    await p.internalCleanup(conn)
+  except CatchableError as exc:
+    trace "exception ocurred in pubsub handle", exc = exc.msg
 
 method subscribeToPeer*(p: PubSub,
                         conn: Connection) {.base, async.} =

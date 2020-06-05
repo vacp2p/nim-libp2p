@@ -436,35 +436,24 @@ method write*(sconn: NoiseConnection, message: seq[byte]): Future[void] {.async.
   if message.len == 0:
     return
 
-  try:
+  var
+    left = message.len
+    offset = 0
+  while left > 0:
+    let
+      chunkSize = if left > MaxPlainSize: MaxPlainSize else: left
+      packed = packNoisePayload(message.toOpenArray(offset, offset + chunkSize - 1))
+      cipher = sconn.writeCs.encryptWithAd([], packed)
+    left = left - chunkSize
+    offset = offset + chunkSize
     var
-      left = message.len
-      offset = 0
-    while left > 0:
-      let
-        chunkSize = if left > MaxPlainSize: MaxPlainSize else: left
-        packed = packNoisePayload(message.toOpenArray(offset, offset + chunkSize - 1))
-        cipher = sconn.writeCs.encryptWithAd([], packed)
-      left = left - chunkSize
-      offset = offset + chunkSize
-      var
-        lesize = cipher.len.uint16
-        besize = lesize.toBytesBE
-        outbuf = newSeqOfCap[byte](cipher.len + 2)
-      trace "sendEncryptedMessage", size = lesize, peer = $sconn.peerInfo, left, offset
-      outbuf &= besize
-      outbuf &= cipher
-      await sconn.stream.write(outbuf)
-  except LPStreamEOFError:
-    trace "Ignoring EOF while writing"
-  except CancelledError as exc:
-    raise exc
-  except CatchableError as exc:
-    # TODO these exceptions are ignored since it's likely that if writes are
-    #      are failing, the underlying connection is already closed - this needs
-    #      more cleanup though
-    debug "Could not write to connection", error = exc.name
-    trace "Could not write to connection - verbose", msg = exc.msg
+      lesize = cipher.len.uint16
+      besize = lesize.toBytesBE
+      outbuf = newSeqOfCap[byte](cipher.len + 2)
+    trace "sendEncryptedMessage", size = lesize, peer = $sconn.peerInfo, left, offset
+    outbuf &= besize
+    outbuf &= cipher
+    await sconn.stream.write(outbuf)
 
 method handshake*(p: Noise, conn: Connection, initiator: bool = false): Future[SecureConn] {.async.} =
   trace "Starting Noise handshake", initiator
@@ -511,7 +500,8 @@ method handshake*(p: Noise, conn: Connection, initiator: bool = false): Future[S
       raise newException(NoiseHandshakeError, "Noise handshake, peer infos don't match! " & $pid & " != " & $conn.peerInfo.peerId)
 
   var secure = new NoiseConnection
-  inc getConnectionTracker().opened
+  secure.initStream()
+
   secure.stream = conn
   secure.closeEvent = newAsyncEvent()
   secure.peerInfo = PeerInfo.init(remotePubKey)

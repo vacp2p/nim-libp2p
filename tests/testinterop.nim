@@ -1,6 +1,7 @@
 import options, tables
 import unittest
-import chronos, chronicles
+import chronos, chronicles, stew/byteutils
+import helpers
 import ../libp2p/[daemon/daemonapi,
                   protobuf/minprotobuf,
                   vbuffer,
@@ -9,6 +10,7 @@ import ../libp2p/[daemon/daemonapi,
                   cid,
                   varint,
                   multihash,
+                  standard_setup,
                   peer,
                   peerinfo,
                   switch,
@@ -42,7 +44,7 @@ proc writeLp*(s: StreamTransport, msg: string | seq[byte]): Future[int] {.gcsafe
   result = s.write(buf.buffer)
 
 proc readLp*(s: StreamTransport): Future[seq[byte]] {.async, gcsafe.} =
-  ## read lenght prefixed msg
+  ## read length prefixed msg
   var
     size: uint
     length: int
@@ -59,40 +61,11 @@ proc readLp*(s: StreamTransport): Future[seq[byte]] {.async, gcsafe.} =
   if size > 0.uint:
     await s.readExactly(addr result[0], int(size))
 
-proc createNode*(privKey: Option[PrivateKey] = none(PrivateKey),
-                 address: string = "/ip4/127.0.0.1/tcp/0",
-                 triggerSelf: bool = false,
-                 gossip: bool = false): Switch =
-  var seckey = privKey
-  if privKey.isNone:
-    seckey = some(PrivateKey.random(RSA).get())
-
-  var peerInfo = NativePeerInfo.init(seckey.get(), [Multiaddress.init(address).tryGet()])
-  proc createMplex(conn: Connection): Muxer = newMplex(conn)
-  let mplexProvider = newMuxerProvider(createMplex, MplexCodec)
-  let transports = @[Transport(TcpTransport.init())]
-  let muxers = [(MplexCodec, mplexProvider)].toTable()
-  let identify = newIdentify(peerInfo)
-  let secureManagers = [Secure(newSecio(seckey.get()))]
-
-  var pubSub: Option[PubSub]
-  if gossip:
-    pubSub = some(PubSub(newPubSub(GossipSub, peerInfo, triggerSelf)))
-  else:
-    pubSub = some(PubSub(newPubSub(FloodSub, peerInfo, triggerSelf)))
-
-  result = newSwitch(peerInfo,
-                     transports,
-                     identify,
-                     muxers,
-                     secureManagers = secureManagers,
-                     pubSub = pubSub)
-
 proc testPubSubDaemonPublish(gossip: bool = false,
                              count: int = 1): Future[bool] {.async.} =
   var pubsubData = "TEST MESSAGE"
   var testTopic = "test-topic"
-  var msgData = cast[seq[byte]](pubsubData)
+  var msgData = pubsubData.toBytes()
 
   var flags = {PSFloodSub}
   if gossip:
@@ -100,14 +73,14 @@ proc testPubSubDaemonPublish(gossip: bool = false,
 
   let daemonNode = await newDaemonApi(flags)
   let daemonPeer = await daemonNode.identity()
-  let nativeNode = createNode(gossip = gossip)
+  let nativeNode = newStandardSwitch(gossip = gossip)
   let awaiters = nativeNode.start()
   let nativePeer = nativeNode.peerInfo
 
   var finished = false
   var times = 0
   proc nativeHandler(topic: string, data: seq[byte]) {.async.} =
-    let smsg = cast[string](data)
+    let smsg = string.fromBytes(data)
     check smsg == pubsubData
     times.inc()
     if times >= count and not finished:
@@ -125,12 +98,12 @@ proc testPubSubDaemonPublish(gossip: bool = false,
 
   asyncDiscard daemonNode.pubsubSubscribe(testTopic, pubsubHandler)
   await nativeNode.subscribe(testTopic, nativeHandler)
-  await sleepAsync(1.seconds)
+  await sleepAsync(5.seconds)
 
   proc publisher() {.async.} =
     while not finished:
       await daemonNode.pubsubPublish(testTopic, msgData)
-      await sleepAsync(100.millis)
+      await sleepAsync(500.millis)
 
   await wait(publisher(), 5.minutes) # should be plenty of time
 
@@ -143,7 +116,7 @@ proc testPubSubNodePublish(gossip: bool = false,
                            count: int = 1): Future[bool] {.async.} =
   var pubsubData = "TEST MESSAGE"
   var testTopic = "test-topic"
-  var msgData = cast[seq[byte]](pubsubData)
+  var msgData = pubsubData.toBytes()
 
   var flags = {PSFloodSub}
   if gossip:
@@ -151,7 +124,7 @@ proc testPubSubNodePublish(gossip: bool = false,
 
   let daemonNode = await newDaemonApi(flags)
   let daemonPeer = await daemonNode.identity()
-  let nativeNode = createNode(gossip = gossip)
+  let nativeNode = newStandardSwitch(gossip = gossip)
   let awaiters = nativeNode.start()
   let nativePeer = nativeNode.peerInfo
 
@@ -166,7 +139,7 @@ proc testPubSubNodePublish(gossip: bool = false,
   proc pubsubHandler(api: DaemonAPI,
                      ticket: PubsubTicket,
                      message: PubSubMessage): Future[bool] {.async.} =
-    let smsg = cast[string](message.data)
+    let smsg = string.fromBytes(message.data)
     check smsg == pubsubData
     times.inc()
     if times >= count and not finished:
@@ -176,12 +149,12 @@ proc testPubSubNodePublish(gossip: bool = false,
   discard await daemonNode.pubsubSubscribe(testTopic, pubsubHandler)
   proc nativeHandler(topic: string, data: seq[byte]) {.async.} = discard
   await nativeNode.subscribe(testTopic, nativeHandler)
-  await sleepAsync(1.seconds)
+  await sleepAsync(5.seconds)
 
   proc publisher() {.async.} =
     while not finished:
       await nativeNode.publish(testTopic, msgData)
-      await sleepAsync(100.millis)
+      await sleepAsync(500.millis)
 
   await wait(publisher(), 5.minutes) # should be plenty of time
 
@@ -191,22 +164,31 @@ proc testPubSubNodePublish(gossip: bool = false,
   await daemonNode.close()
 
 suite "Interop":
+  # TODO: chronos transports are leaking,
+  # but those are tracked for both the daemon
+  # and libp2p, so not sure which one it is,
+  # need to investigate more
+  # teardown:
+  #   for tracker in testTrackers():
+  #     # echo tracker.dump()
+  #     # check tracker.isLeaked() == false
+
   test "native -> daemon multiple reads and writes":
     proc runTests(): Future[bool] {.async.} =
       var protos = @["/test-stream"]
 
-      let nativeNode = createNode()
+      let nativeNode = newStandardSwitch()
       let awaiters = await nativeNode.start()
       let daemonNode = await newDaemonApi()
       let daemonPeer = await daemonNode.identity()
 
       var testFuture = newFuture[void]("test.future")
       proc daemonHandler(api: DaemonAPI, stream: P2PStream) {.async.} =
-        check cast[string](await stream.transp.readLp()) == "test 1"
+        check string.fromBytes(await stream.transp.readLp()) == "test 1"
         asyncDiscard stream.transp.writeLp("test 2")
 
         await sleepAsync(10.millis)
-        check cast[string](await stream.transp.readLp()) == "test 3"
+        check string.fromBytes(await stream.transp.readLp()) == "test 3"
         asyncDiscard stream.transp.writeLp("test 4")
         testFuture.complete()
 
@@ -215,16 +197,20 @@ suite "Interop":
                                                            daemonPeer.addresses),
                                                            protos[0])
       await conn.writeLp("test 1")
-      check "test 2" == cast[string]((await conn.readLp(1024)))
+      check "test 2" == string.fromBytes((await conn.readLp(1024)))
       await sleepAsync(10.millis)
 
       await conn.writeLp("test 3")
-      check "test 4" == cast[string]((await conn.readLp(1024)))
+      check "test 4" == string.fromBytes((await conn.readLp(1024)))
 
       await wait(testFuture, 10.secs)
+      await conn.close()
+
+      await daemonNode.close()
       await nativeNode.stop()
       await allFutures(awaiters)
-      await daemonNode.close()
+
+      await sleepAsync(1.seconds)
       result = true
 
     check:
@@ -243,7 +229,7 @@ suite "Interop":
       var expect = newString(len(buffer) - 2)
       copyMem(addr expect[0], addr buffer.buffer[0], len(expect))
 
-      let nativeNode = createNode()
+      let nativeNode = newStandardSwitch()
       let awaiters = await nativeNode.start()
 
       let daemonNode = await newDaemonApi()
@@ -263,6 +249,8 @@ suite "Interop":
                                                            protos[0])
       await conn.writeLp(test & "\r\n")
       result = expect == (await wait(testFuture, 10.secs))
+
+      await conn.close()
       await nativeNode.stop()
       await allFutures(awaiters)
       await daemonNode.close()
@@ -277,7 +265,7 @@ suite "Interop":
 
       var testFuture = newFuture[string]("test.future")
       proc nativeHandler(conn: Connection, proto: string) {.async.} =
-        var line = cast[string](await conn.readLp(1024))
+        var line = string.fromBytes(await conn.readLp(1024))
         check line == test
         testFuture.complete(line)
         await conn.close()
@@ -287,7 +275,7 @@ suite "Interop":
       proto.handler = nativeHandler
       proto.codec = protos[0] # codec
 
-      let nativeNode = createNode()
+      let nativeNode = newStandardSwitch()
       nativeNode.mount(proto)
 
       let awaiters = await nativeNode.start()
@@ -312,11 +300,11 @@ suite "Interop":
 
       var testFuture = newFuture[void]("test.future")
       proc nativeHandler(conn: Connection, proto: string) {.async.} =
-        check "test 1" == cast[string](await conn.readLp(1024))
-        await conn.writeLp(cast[seq[byte]]("test 2"))
+        check "test 1" == string.fromBytes(await conn.readLp(1024))
+        await conn.writeLp("test 2".toBytes())
 
-        check "test 3" == cast[string](await conn.readLp(1024))
-        await conn.writeLp(cast[seq[byte]]("test 4"))
+        check "test 3" == string.fromBytes(await conn.readLp(1024))
+        await conn.writeLp("test 4".toBytes())
 
         testFuture.complete()
         await conn.close()
@@ -326,7 +314,7 @@ suite "Interop":
       proto.handler = nativeHandler
       proto.codec = protos[0] # codec
 
-      let nativeNode = createNode()
+      let nativeNode = newStandardSwitch()
       nativeNode.mount(proto)
 
       let awaiters = await nativeNode.start()
@@ -337,10 +325,10 @@ suite "Interop":
       var stream = await daemonNode.openStream(nativePeer.peerId, protos)
 
       asyncDiscard stream.transp.writeLp("test 1")
-      check "test 2" == cast[string](await stream.transp.readLp())
+      check "test 2" == string.fromBytes(await stream.transp.readLp())
 
       asyncDiscard stream.transp.writeLp("test 3")
-      check "test 4" == cast[string](await stream.transp.readLp())
+      check "test 4" == string.fromBytes(await stream.transp.readLp())
 
       await wait(testFuture, 10.secs)
 
@@ -361,9 +349,9 @@ suite "Interop":
       var testFuture = newFuture[int]("test.future")
       proc nativeHandler(conn: Connection, proto: string) {.async.} =
         while count < 10:
-          var line = cast[string](await conn.readLp(1024))
+          var line = string.fromBytes(await conn.readLp(1024))
           check line == test
-          await conn.writeLp(cast[seq[byte]](test))
+          await conn.writeLp(test.toBytes())
           count.inc()
 
         testFuture.complete(count)
@@ -374,7 +362,7 @@ suite "Interop":
       proto.handler = nativeHandler
       proto.codec = protos[0] # codec
 
-      let nativeNode = createNode()
+      let nativeNode = newStandardSwitch()
       nativeNode.mount(proto)
 
       let awaiters = await nativeNode.start()
@@ -388,7 +376,7 @@ suite "Interop":
       while count2 < 10:
         discard await stream.transp.writeLp(test)
         let line = await stream.transp.readLp()
-        check test == cast[string](line)
+        check test == string.fromBytes(line)
         inc(count2)
 
       result = 10 == (await wait(testFuture, 1.minutes))
