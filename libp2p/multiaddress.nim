@@ -834,9 +834,11 @@ proc init*(mtype: typedesc[MultiAddress],
 
   var data = initVBuffer()
   data.write(familyProto.mcodec)
-  doAssert familyProto.coder.stringToBuffer($address, data)
+  var written = familyProto.coder.stringToBuffer($address, data)
+  doAssert written, "Merely writing a string to a buffer should always be possible"
   data.write(protoProto.mcodec)
-  doAssert protoProto.coder.stringToBuffer($port, data)
+  written = protoProto.coder.stringToBuffer($port, data)
+  doAssert written, "Merely writing a string to a buffer should always be possible"
   data.finish()
 
   MultiAddress(data: data)
