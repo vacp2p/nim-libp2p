@@ -48,8 +48,9 @@ proc isConnected*(p: PubSubPeer): bool =
 
 proc `conn=`*(p: PubSubPeer, conn: Connection) =
   trace "attaching send connection for peer", peer = p.id
-  p.sendConn = conn
-  p.onConnect.fire()
+  if not(isNil(conn)):
+    p.sendConn = conn
+    p.onConnect.fire()
 
 proc recvObservers(p: PubSubPeer, msg: var RPCMsg) =
   # trigger hooks
@@ -113,10 +114,11 @@ proc send*(p: PubSubPeer, msgs: seq[RPCMsg]) {.async.} =
         trace "about to send message", peer = p.id,
                                        encoded = digest
         await p.onConnect.wait()
-        trace "sending encoded msgs to peer", peer = p.id,
-                                              encoded = encoded.buffer.shortLog
-        await p.sendConn.writeLp(encoded.buffer)
-        p.sentRpcCache.put(digest)
+        if p.isConnected: # this can happen if the remote disconnected
+          trace "sending encoded msgs to peer", peer = p.id,
+                                                encoded = encoded.buffer.shortLog
+          await p.sendConn.writeLp(encoded.buffer)
+          p.sentRpcCache.put(digest)
       except CatchableError as exc:
         trace "unable to send to remote", exc = exc.msg
         p.sendConn = nil
