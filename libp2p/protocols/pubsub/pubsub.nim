@@ -24,8 +24,8 @@ logScope:
 
 declareGauge(libp2p_pubsub_peers, "pubsub peer instances")
 declareGauge(libp2p_pubsub_topics, "pubsub subscribed topics")
-declareGauge(libp2p_pubsub_validation_success, "pubsub successfully validated messages")
-declareGauge(libp2p_pubsub_validation_failure, "pubsub failed validated messages")
+declareCounter(libp2p_pubsub_validation_success, "pubsub successfully validated messages")
+declareCounter(libp2p_pubsub_validation_failure, "pubsub failed validated messages")
 declareGauge(libp2p_pubsub_peers_per_topic, "pubsub peers per topic", labels = ["topic"])
 
 type

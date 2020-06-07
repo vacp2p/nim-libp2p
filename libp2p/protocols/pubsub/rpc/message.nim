@@ -22,8 +22,8 @@ logScope:
 
 const PubSubPrefix = "libp2p-pubsub:"
 
-declareGauge(libp2p_pubsub_sig_verify_success, "pubsub successfully validated messages")
-declareGauge(libp2p_pubsub_sig_verify_failure, "pubsub failed validated messages")
+declareCounter(libp2p_pubsub_sig_verify_success, "pubsub successfully validated messages")
+declareCounter(libp2p_pubsub_sig_verify_failure, "pubsub failed validated messages")
 
 proc msgIdProvider(m: Message): string =
   ## default msg id provider

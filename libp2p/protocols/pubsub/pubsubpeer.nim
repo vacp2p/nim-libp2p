@@ -42,8 +42,8 @@ type
 
   RPCHandler* = proc(peer: PubSubPeer, msg: seq[RPCMsg]): Future[void] {.gcsafe.}
 
-declareGauge(libp2p_pubsub_encoded_messages, "number of messages encoded")
-declareGauge(libp2p_pubsub_decoded_messages, "number of messages decoded")
+declareCounter(libp2p_pubsub_encoded_messages, "number of messages encoded")
+declareCounter(libp2p_pubsub_decoded_messages, "number of messages decoded")
 
 proc id*(p: PubSubPeer): string = p.peerInfo.id
 
