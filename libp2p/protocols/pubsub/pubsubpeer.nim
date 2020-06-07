@@ -18,6 +18,7 @@ import rpc/[messages, message, protobuf],
        ../../crypto/crypto,
        ../../protobuf/minprotobuf,
        ../../utility
+import metrics
 
 logScope:
   topic = "PubSubPeer"
@@ -40,6 +41,9 @@ type
     observers*: ref seq[PubSubObserver] # ref as in smart_ptr
 
   RPCHandler* = proc(peer: PubSubPeer, msg: seq[RPCMsg]): Future[void] {.gcsafe.}
+
+declareGauge(libp2p_pubsub_encoded_messages, "number of messages encoded")
+declareGauge(libp2p_pubsub_decoded_messages, "number of messages decoded")
 
 proc id*(p: PubSubPeer): string = p.peerInfo.id
 
@@ -84,6 +88,9 @@ proc handle*(p: PubSubPeer, conn: Connection) {.async.} =
 
         await p.handler(p, @[msg])
         p.recvdRpcCache.put(digest)
+
+        # metrics
+        libp2p_pubsub_decoded_messages.inc()
     finally:
       trace "exiting pubsub peer read loop", peer = p.id
       await conn.close()
@@ -98,6 +105,9 @@ proc send*(p: PubSubPeer, msgs: seq[RPCMsg]) {.async.} =
     # trigger send hooks
     var mm = m # hooks can modify the message
     p.sendObservers(mm)
+    
+    # metrics
+    libp2p_pubsub_encoded_messages.inc()
 
     let encoded = encodeRpcMsg(mm)
     if encoded.buffer.len <= 0:

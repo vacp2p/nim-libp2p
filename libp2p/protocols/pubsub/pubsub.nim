@@ -14,12 +14,19 @@ import pubsubpeer,
        ../protocol,
        ../../connection,
        ../../peerinfo
+import metrics
 
 export PubSubPeer
 export PubSubObserver
 
 logScope:
   topic = "PubSub"
+
+declareGauge(libp2p_pubsub_peers, "pubsub peer instances")
+declareGauge(libp2p_pubsub_topics, "pubsub subscribed topics")
+declareGauge(libp2p_pubsub_validation_success, "pubsub successfully validated messages")
+declareGauge(libp2p_pubsub_validation_failure, "pubsub failed validated messages")
+declareGauge(libp2p_pubsub_peers_per_topic, "pubsub peers per topic", labels = ["topic"])
 
 type
   TopicHandler* = proc(topic: string,
@@ -67,7 +74,10 @@ method subscribeTopic*(p: PubSub,
                        topic: string,
                        subscribe: bool,
                        peerId: string) {.base, async.} =
-  discard
+  if subscribe:
+    libp2p_pubsub_peers_per_topic.inc(labelValues = [topic])
+  else:
+    libp2p_pubsub_peers_per_topic.dec(labelValues = [topic])
 
 method rpcHandler*(p: PubSub,
                    peer: PubSubPeer,
@@ -86,6 +96,8 @@ method handleDisconnect*(p: PubSub, peer: PubSubPeer) {.async, base.} =
   ## handle peer disconnects
   if peer.id in p.peers:
     p.peers.del(peer.id)
+  # metrics
+  libp2p_pubsub_peers.dec()
 
 proc cleanUpHelper(p: PubSub, peer: PubSubPeer) {.async.} =
   await p.cleanupLock.acquire()
@@ -105,6 +117,8 @@ proc getPeer(p: PubSub,
   # create new pubsub peer
   let peer = newPubSubPeer(peerInfo, proto)
   trace "created new pubsub peer", peerId = peer.id
+  # metrics
+  libp2p_pubsub_peers.inc()
 
   p.peers[peer.id] = peer
   peer.refs.inc # increment reference cound
@@ -177,8 +191,11 @@ method unsubscribe*(p: PubSub,
 method unsubscribe*(p: PubSub,
                     topic: string,
                     handler: TopicHandler): Future[void] {.base.} =
+  # metrics
+  libp2p_pubsub_topics.dec()
+
   ## unsubscribe from a ``topic`` string
-  result = p.unsubscribe(@[(topic, handler)])
+  p.unsubscribe(@[(topic, handler)])
 
 method subscribe*(p: PubSub,
                   topic: string,
@@ -199,6 +216,9 @@ method subscribe*(p: PubSub,
 
   for peer in p.peers.values:
     await p.sendSubs(peer, @[topic], true)
+
+  # metrics
+  libp2p_pubsub_topics.inc()
 
 method publish*(p: PubSub,
                 topic: string,
@@ -260,6 +280,10 @@ method validate*(p: PubSub, message: Message): Future[bool] {.async, base.} =
 
   let futs = await allFinished(pending)
   result = futs.allIt(not it.failed and it.read())
+  if result:
+    libp2p_pubsub_validation_success.inc()
+  else:
+    libp2p_pubsub_validation_failure.inc()
 
 proc newPubSub*(P: typedesc[PubSub],
                 peerInfo: PeerInfo,

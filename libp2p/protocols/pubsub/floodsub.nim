@@ -8,7 +8,7 @@
 ## those terms.
 
 import sequtils, tables, sets, strutils
-import chronos, chronicles
+import chronos, chronicles, metrics
 import pubsub,
        pubsubpeer,
        timedcache,
