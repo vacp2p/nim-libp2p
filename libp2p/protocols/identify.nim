@@ -112,10 +112,15 @@ proc newIdentify*(peerInfo: PeerInfo): Identify =
 
 method init*(p: Identify) =
   proc handle(conn: Connection, proto: string) {.async, gcsafe, closure.} =
-    trace "handling identify request"
-    var pb = encodeMsg(p.peerInfo, await conn.getObservedAddrs())
-    await conn.writeLp(pb.buffer)
-    # await conn.close() #TODO: investigate why this breaks
+    try:
+      try:
+        trace "handling identify request"
+        var pb = encodeMsg(p.peerInfo, await conn.getObservedAddrs())
+        await conn.writeLp(pb.buffer)
+      finally:
+        await conn.close()
+    except CatchableError as exc:
+      trace "exception in identify handler", exc = exc.msg
 
   p.handler = handle
   p.codec = IdentifyCodec

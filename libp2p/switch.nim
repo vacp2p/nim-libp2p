@@ -110,6 +110,8 @@ proc mux(s: Switch, conn: Connection): Future[void] {.async, gcsafe.} =
 
   # new stream for identify
   var stream = await muxer.newStream()
+  # call muxer handler, this should
+  # not end until muxer ends
   let handlerFut = muxer.handle()
 
   # add muxer handler cleanup proc
@@ -117,11 +119,12 @@ proc mux(s: Switch, conn: Connection): Future[void] {.async, gcsafe.} =
     trace "muxer handler completed for peer",
       peer = conn.peerInfo.id
 
-  # do identify first, so that we have a
-  # PeerInfo in case we didn't before
-  conn.peerInfo = await s.identify(stream)
-
-  await stream.close() # close identify stream
+  try:
+    # do identify first, so that we have a
+    # PeerInfo in case we didn't before
+    conn.peerInfo = await s.identify(stream)
+  finally:
+    await stream.close() # close identify stream
 
   trace "connection's peerInfo", peerInfo = $conn.peerInfo
 
