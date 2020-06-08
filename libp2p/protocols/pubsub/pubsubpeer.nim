@@ -51,8 +51,8 @@ proc isConnected*(p: PubSubPeer): bool =
   (not isNil(p.sendConn))
 
 proc `conn=`*(p: PubSubPeer, conn: Connection) =
-  trace "attaching send connection for peer", peer = p.id
   if not(isNil(conn)):
+    trace "attaching send connection for peer", peer = p.id
     p.sendConn = conn
     p.onConnect.fire()
 
