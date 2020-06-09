@@ -63,7 +63,7 @@ declareGauge libp2p_open_connection, "open Connection instances"
 
 proc `$`*(conn: Connection): string =
   if not isNil(conn.peerInfo):
-    result = $(conn.peerInfo)
+    result = conn.peerInfo.id
 
 proc init[T: Connection](self: var T, stream: LPStream): T =
   ## create a new Connection for the specified async reader/writer

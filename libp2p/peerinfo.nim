@@ -7,7 +7,7 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import options
+import options, sequtils
 import chronos, chronicles
 import peer, multiaddress, crypto/crypto
 
@@ -29,6 +29,8 @@ type
     addrs*: seq[MultiAddress]
     protocols*: seq[string]
     lifefut: Future[void]
+    protoVersion*: string
+    agentVersion*: string
     case keyType*: KeyType:
     of HasPrivate:
       privateKey*: PrivateKey
@@ -38,14 +40,14 @@ type
 proc id*(p: PeerInfo): string =
   p.peerId.pretty()
 
-proc `$`*(p: PeerInfo): string =
-  result.add(p.id)
-
-  result.add(" ")
-  result.add($p.addrs)
-
-  result.add(" ")
-  result.add($p.protocols)
+proc shortLog*(p: PeerInfo): auto =
+  (
+    id: p.id(),
+    addrs: mapIt(p.addrs, $it),
+    protocols: mapIt(p.protocols, $it),
+    protoVersion: p.protoVersion,
+    agentVersion: p.agentVersion,
+  )
 
 template postInit(peerinfo: PeerInfo,
                   addrs: openarray[MultiAddress],

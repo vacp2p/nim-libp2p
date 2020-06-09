@@ -22,7 +22,7 @@ import secure,
        ../../stream/bufferstream
 
 logScope:
-  topic = "Noise"
+  topic = "noise"
 
 const
   # https://godoc.org/github.com/libp2p/go-libp2p-noise#pkg-constants
@@ -422,7 +422,7 @@ method readMessage*(sconn: NoiseConnection): Future[seq[byte]] {.async.} =
     var besize: array[2, byte]
     await sconn.stream.readExactly(addr besize[0], besize.len)
     let size = uint16.fromBytesBE(besize).int # Cannot overflow
-    trace "receiveEncryptedMessage", size, peer = $sconn.peerInfo
+    trace "receiveEncryptedMessage", size, peer = $sconn
     if size > 0:
       var buffer = newSeq[byte](size)
       await sconn.stream.readExactly(addr buffer[0], buffer.len)
@@ -450,7 +450,7 @@ method write*(sconn: NoiseConnection, message: seq[byte]): Future[void] {.async.
       lesize = cipher.len.uint16
       besize = lesize.toBytesBE
       outbuf = newSeqOfCap[byte](cipher.len + 2)
-    trace "sendEncryptedMessage", size = lesize, peer = $sconn.peerInfo, left, offset
+    trace "sendEncryptedMessage", size = lesize, peer = $sconn, left, offset
     outbuf &= besize
     outbuf &= cipher
     await sconn.stream.write(outbuf)
