@@ -18,7 +18,7 @@ import messages, protobuf,
        ../../../protobuf/minprotobuf
 
 logScope:
-  topic = "PubSubMessage"
+  topics = "PubSubMessage"
 
 const PubSubPrefix = "libp2p-pubsub:"
 

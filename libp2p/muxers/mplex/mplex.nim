@@ -20,7 +20,7 @@ import ../muxer,
        lpchannel
 
 logScope:
-  topic = "Mplex"
+  topics = "Mplex"
 
 type
   Mplex* = ref object of Muxer

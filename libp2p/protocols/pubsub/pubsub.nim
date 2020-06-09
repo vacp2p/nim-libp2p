@@ -20,7 +20,7 @@ export PubSubPeer
 export PubSubObserver
 
 logScope:
-  topic = "PubSub"
+  topics = "PubSub"
 
 declareGauge(libp2p_pubsub_peers, "pubsub peer instances")
 declareGauge(libp2p_pubsub_topics, "pubsub subscribed topics")

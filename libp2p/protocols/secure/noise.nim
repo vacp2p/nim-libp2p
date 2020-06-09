@@ -22,7 +22,7 @@ import secure,
        ../../stream/bufferstream
 
 logScope:
-  topic = "noise"
+  topics = "Noise"
 
 const
   # https://godoc.org/github.com/libp2p/go-libp2p-noise#pkg-constants

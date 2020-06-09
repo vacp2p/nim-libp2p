@@ -18,7 +18,7 @@ import transport,
        ../stream/chronosstream
 
 logScope:
-  topic = "TcpTransport"
+  topics = "TcpTransport"
 
 const
   TcpTransportTrackerName* = "libp2p.tcptransport"

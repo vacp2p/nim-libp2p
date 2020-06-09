@@ -24,7 +24,7 @@ import pubsub,
        ../../utility
 
 logScope:
-  topic = "GossipSub"
+  topics = "GossipSub"
 
 const GossipSubCodec* = "/meshsub/1.0.0"
 

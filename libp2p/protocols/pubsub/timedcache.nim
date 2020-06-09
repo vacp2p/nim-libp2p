@@ -11,7 +11,7 @@ import tables
 import chronos, chronicles
 
 logScope:
-  topic = "TimedCache"
+  topics = "TimedCache"
 
 const Timeout* = 10.seconds # default timeout in ms
 

@@ -23,7 +23,7 @@ import connection,
        peer
 
 logScope:
-  topic = "Switch"
+  topics = "Switch"
 
 #TODO: General note - use a finite state machine to manage the different
 # steps of connections establishing and upgrading. This makes everything
