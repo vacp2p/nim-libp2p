@@ -103,7 +103,7 @@ proc decodeMsg*(buf: seq[byte]): IdentifyInfo =
   var agentVersion = ""
   if pb.getString(6, agentVersion) > 0:
     trace "read agentVersion from message", agentVersion = agentVersion
-    result.agentVersion = some(protoVersion)
+    result.agentVersion = some(agentVersion)
 
 proc newIdentify*(peerInfo: PeerInfo): Identify =
   new result
@@ -145,8 +145,6 @@ proc identify*(p: Identify,
 
       raise newException(IdentityNoMatchError,
         "Peer ids don't match")
-
-  trace "Identify for remote peer succeded"
 
 proc push*(p: Identify, conn: Connection) {.async.} =
   await conn.write(IdentifyPushCodec)

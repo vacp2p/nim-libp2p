@@ -82,9 +82,15 @@ proc identify(s: Switch, conn: Connection): Future[PeerInfo] {.async, gcsafe.} =
       if info.addrs.len > 0:
         result.addrs = info.addrs
 
+      if info.agentVersion.isSome:
+        result.agentVersion = info.agentVersion.get()
+
+      if info.protoVersion.isSome:
+        result.protoVersion = info.protoVersion.get()
+
       if info.protos.len > 0:
         result.protocols = info.protos
-
+      debug "identify", info = shortLog(result)
   except IdentityInvalidMsgError as exc:
     error "identify: invalid message", msg = exc.msg
   except IdentityNoMatchError as exc:
@@ -122,8 +128,6 @@ proc mux(s: Switch, conn: Connection): Future[void] {.async, gcsafe.} =
   conn.peerInfo = await s.identify(stream)
 
   await stream.close() # close identify stream
-
-  trace "connection's peerInfo", peerInfo = $conn.peerInfo
 
   # store it in muxed connections if we have a peer for it
   if not isNil(conn.peerInfo):
@@ -296,7 +300,7 @@ proc mount*[T: LPProtocol](s: Switch, proto: T) {.gcsafe.} =
   s.ms.addHandler(proto.codec, proto)
 
 proc start*(s: Switch): Future[seq[Future[void]]] {.async, gcsafe.} =
-  trace "starting switch for peer", peerInfo = $s.peerInfo
+  trace "starting switch for peer", peerInfo = shortLog(s.peerInfo)
 
   proc handle(conn: Connection): Future[void] {.async, closure, gcsafe.} =
     try:
@@ -429,7 +433,7 @@ proc newSwitch*(peerInfo: PeerInfo,
   let s = result # can't capture result
   result.streamHandler = proc(stream: Connection) {.async, gcsafe.} =
     try:
-      trace "handling connection for", peerInfo = $stream.peerInfo
+      trace "handling connection for", peerInfo = $stream
       try:
         await s.ms.handle(stream) # handle incoming connection
       finally:

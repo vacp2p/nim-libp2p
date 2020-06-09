@@ -649,9 +649,11 @@ proc toString*(value: MultiAddress): MaResult[string] =
     res = "/" & parts.join("/")
   ok(res)
 
-proc `$`*(value: MultiAddress): string {.raises: [Defect, ResultError[string]].} =
+proc `$`*(value: MultiAddress): string {.raises: [Defect].} =
   ## Return string representation of MultiAddress ``value``.
-  value.toString().tryGet()
+  let s = value.toString()
+  if s.isErr: s.error
+  else: s[]
 
 proc protocols*(value: MultiAddress): MaResult[seq[MultiCodec]] =
   ## Returns list of protocol codecs inside of MultiAddress ``value``.
