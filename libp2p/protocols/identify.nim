@@ -19,7 +19,7 @@ import ../protobuf/minprotobuf,
        ../utility
 
 logScope:
-  topics = "Identify"
+  topics = "identify"
 
 const
   IdentifyCodec* = "/ipfs/id/1.0.0"

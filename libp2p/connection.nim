@@ -20,7 +20,7 @@ when chronicles.enabledLogLevel == LogLevel.TRACE:
 export lpstream
 
 logScope:
-  topics = "Connection"
+  topics = "connection"
 
 const
   ConnectionTrackerName* = "libp2p.connection"

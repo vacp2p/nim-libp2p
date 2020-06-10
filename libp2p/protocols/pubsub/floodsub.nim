@@ -21,7 +21,7 @@ import pubsub,
        ../../errors
 
 logScope:
-  topics = "FloodSub"
+  topics = "floodsub"
 
 const FloodSubCodec* = "/floodsub/1.0.0"
 

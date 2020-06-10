@@ -13,7 +13,7 @@ import ../protocols/protocol,
        ../errors
 
 logScope:
-  topics = "Muxer"
+  topics = "muxer"
 
 type
   StreamHandler* = proc(conn: Connection): Future[void] {.gcsafe.}

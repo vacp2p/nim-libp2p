@@ -21,7 +21,7 @@ import types,
 export lpstream
 
 logScope:
-  topics = "MplexChannel"
+  topics = "mplexchannel"
 
 ## Channel half-closed states
 ##

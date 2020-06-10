@@ -21,7 +21,7 @@ import rpc/[messages, message, protobuf],
 import metrics
 
 logScope:
-  topics = "PubSubPeer"
+  topics = "pubsubpeer"
 
 type
   PubSubObserver* = ref object
