@@ -32,7 +32,9 @@ logScope:
 # previously provided)
 
 declareGauge(libp2p_connected_peers, "total connected peers")
-declareCounter(libp2p_dialed_peers, "count of dialed peers")
+declareCounter(libp2p_dialed_peers, "dialed peers")
+declareCounter(libp2p_failed_dials, "failed dials")
+declareCounter(libp2p_failed_upgrade, "peers failed upgrade")
 
 type
     NoPubSubException = object of CatchableError
@@ -255,12 +257,15 @@ proc internalConnect(s: Switch,
             libp2p_dialed_peers.inc()
           except CatchableError as exc:
             trace "dialing failed", exc = exc.msg
+            libp2p_failed_dials.inc()
             continue
 
           # make sure to assign the peer to the connection
           conn.peerInfo = peer
+
           conn = await s.upgradeOutgoing(conn)
           if isNil(conn):
+            libp2p_failed_upgrade.inc()
             continue
 
           conn.closeEvent.wait()
@@ -483,6 +488,7 @@ proc newSwitch*(peerInfo: PeerInfo,
         # try establishing a pubsub connection
         await s.subscribeToPeer(muxer.connection.peerInfo)
       except CatchableError as exc:
+        libp2p_failed_upgrade.inc()
         trace "exception in muxer handler", exc = exc.msg
       finally:
         if not(isNil(stream)):
