@@ -40,6 +40,8 @@ type
 proc id*(p: PeerInfo): string =
   p.peerId.pretty()
 
+proc `$`*(p: PeerInfo): string = p.id
+
 proc shortLog*(p: PeerInfo): auto =
   (
     id: p.id(),
