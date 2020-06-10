@@ -64,7 +64,8 @@ template withWriteLock(lock: AsyncLock, body: untyped): untyped =
     await lock.acquire()
     body
   finally:
-    lock.release()
+    if not(isNil(lock)) and lock.locked:
+      lock.release()
 
 template withEOFExceptions(body: untyped): untyped =
   try:
