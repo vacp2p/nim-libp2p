@@ -40,7 +40,7 @@ when chronicles.enabledLogLevel == LogLevel.TRACE:
 export lpstream
 
 logScope:
-  topic = "BufferStream"
+  topics = "bufferstream"
 
 declareGauge libp2p_open_bufferstream, "open BufferStream instances"
 

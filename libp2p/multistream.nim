@@ -15,7 +15,7 @@ import connection,
        protocols/protocol
 
 logScope:
-  topic = "Multistream"
+  topics = "multistream"
 
 const
   MsgSize* = 64*1024

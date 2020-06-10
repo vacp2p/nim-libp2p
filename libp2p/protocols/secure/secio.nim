@@ -19,7 +19,7 @@ import secure,
 export hmac, sha2, sha, hash, rijndael, bcmode
 
 logScope:
-  topic = "secio"
+  topics = "secio"
 
 const
   SecioCodec* = "/secio/1.0.0"

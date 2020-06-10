@@ -17,7 +17,7 @@ import types,
        ../../stream/lpstream
 
 logScope:
-  topic = "MplexCoder"
+  topics = "mplexcoder"
 
 type
   Msg* = tuple

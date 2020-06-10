@@ -11,7 +11,7 @@ import chronos, chronicles
 import lpstream, ../utility
 
 logScope:
-  topic = "ChronosStream"
+  topics = "chronosstream"
 
 type ChronosStream* = ref object of LPStream
     client: StreamTransport
