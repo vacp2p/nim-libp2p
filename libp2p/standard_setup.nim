@@ -28,6 +28,7 @@ proc newStandardSwitch*(privKey = none(PrivateKey),
                         triggerSelf = false,
                         gossip = false,
                         secureManagers: openarray[SecureProtocol] = [
+                            # TODO investigate why we're getting fewer peers on public testnets with noise
                             SecureProtocol.Secio,
                             SecureProtocol.Noise, # array cos order matters
                           ],
