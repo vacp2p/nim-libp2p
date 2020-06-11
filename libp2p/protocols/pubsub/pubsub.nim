@@ -96,16 +96,18 @@ method handleDisconnect*(p: PubSub, peer: PubSubPeer) {.async, base.} =
   ## handle peer disconnects
   if peer.id in p.peers:
     p.peers.del(peer.id)
+
   # metrics
   libp2p_pubsub_peers.dec()
 
 proc cleanUpHelper(p: PubSub, peer: PubSubPeer) {.async.} =
-  await p.cleanupLock.acquire()
-  if peer.refs == 0:
-    await p.handleDisconnect(peer)
-
-  peer.refs.dec() # decrement refcount
-  p.cleanupLock.release()
+  try:
+    await p.cleanupLock.acquire()
+    peer.refs.dec() # decrement refcount
+    if peer.refs == 0:
+      await p.handleDisconnect(peer)
+  finally:
+    p.cleanupLock.release()
 
 proc getPeer(p: PubSub,
              peerInfo: PeerInfo,
@@ -117,11 +119,12 @@ proc getPeer(p: PubSub,
   # create new pubsub peer
   let peer = newPubSubPeer(peerInfo, proto)
   trace "created new pubsub peer", peerId = peer.id
+
   # metrics
   libp2p_pubsub_peers.inc()
 
   p.peers[peer.id] = peer
-  peer.refs.inc # increment reference cound
+  peer.refs.inc # increment reference count
   peer.observers = p.observers
   result = peer
 

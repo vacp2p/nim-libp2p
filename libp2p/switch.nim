@@ -8,7 +8,7 @@
 ## those terms.
 
 import tables, sequtils, options, strformat, sets
-import chronos, chronicles
+import chronos, chronicles, metrics
 import connection,
        transports/transport,
        multistream,
@@ -30,6 +30,11 @@ logScope:
 # more robust and less prone to ordering attacks - i.e. muxing can come if
 # and only if the channel has been secured (i.e. if a secure manager has been
 # previously provided)
+
+declareGauge(libp2p_connected_peers, "total connected peers")
+declareCounter(libp2p_dialed_peers, "dialed peers")
+declareCounter(libp2p_failed_dials, "failed dials")
+declareCounter(libp2p_failed_upgrade, "peers failed upgrade")
 
 type
     NoPubSubException = object of CatchableError
@@ -90,6 +95,7 @@ proc identify(s: Switch, conn: Connection): Future[PeerInfo] {.async, gcsafe.} =
 
       if info.protos.len > 0:
         result.protocols = info.protos
+
       debug "identify", info = shortLog(result)
   except IdentityInvalidMsgError as exc:
     error "identify: invalid message", msg = exc.msg
@@ -152,6 +158,7 @@ proc cleanupConn(s: Switch, conn: Connection) {.async, gcsafe.} =
 
       s.dialedPubSubPeers.excl(id)
 
+      libp2p_connected_peers.dec()
       # TODO: Investigate cleanupConn() always called twice for one peer.
       if not(conn.peerInfo.isClosed()):
         conn.peerInfo.close()
@@ -245,17 +252,27 @@ proc internalConnect(s: Switch,
       for a in peer.addrs: # for each address
         if t.handles(a):   # check if it can dial it
           trace "Dialing address", address = $a
-          conn = await t.dial(a)
+          try:
+            conn = await t.dial(a)
+            libp2p_dialed_peers.inc()
+          except CatchableError as exc:
+            trace "dialing failed", exc = exc.msg
+            libp2p_failed_dials.inc()
+            continue
+
           # make sure to assign the peer to the connection
           conn.peerInfo = peer
+
           conn = await s.upgradeOutgoing(conn)
           if isNil(conn):
+            libp2p_failed_upgrade.inc()
             continue
 
           conn.closeEvent.wait()
           .addCallback do(udata: pointer):
             asyncCheck s.cleanupConn(conn)
 
+          libp2p_connected_peers.inc()
           break
   else:
     trace "Reusing existing connection"
@@ -308,6 +325,7 @@ proc start*(s: Switch): Future[seq[Future[void]]] {.async, gcsafe.} =
   proc handle(conn: Connection): Future[void] {.async, closure, gcsafe.} =
     try:
       try:
+        libp2p_connected_peers.inc()
         await s.upgradeIncoming(conn) # perform upgrade on incoming connection
       finally:
         await s.cleanupConn(conn)
@@ -470,6 +488,7 @@ proc newSwitch*(peerInfo: PeerInfo,
         # try establishing a pubsub connection
         await s.subscribeToPeer(muxer.connection.peerInfo)
       except CatchableError as exc:
+        libp2p_failed_upgrade.inc()
         trace "exception in muxer handler", exc = exc.msg
       finally:
         if not(isNil(stream)):

@@ -40,6 +40,8 @@ type
 proc id*(p: PeerInfo): string =
   p.peerId.pretty()
 
+proc `$`*(p: PeerInfo): string = p.id
+
 proc shortLog*(p: PeerInfo): auto =
   (
     id: p.id(),
@@ -58,30 +60,36 @@ template postInit(peerinfo: PeerInfo,
     peerinfo.protocols = @protocols
   peerinfo.lifefut = newFuture[void]("libp2p.peerinfo.lifetime")
 
-proc init*(p: typedesc[PeerInfo], key: PrivateKey,
+proc init*(p: typedesc[PeerInfo],
+           key: PrivateKey,
            addrs: openarray[MultiAddress] = [],
            protocols: openarray[string] = []): PeerInfo {.inline.} =
   result = PeerInfo(keyType: HasPrivate, peerId: PeerID.init(key),
                     privateKey: key)
   result.postInit(addrs, protocols)
 
-proc init*(p: typedesc[PeerInfo], peerId: PeerID,
+proc init*(p: typedesc[PeerInfo],
+           peerId: PeerID,
            addrs: openarray[MultiAddress] = [],
            protocols: openarray[string] = []): PeerInfo {.inline.} =
   result = PeerInfo(keyType: HasPublic, peerId: peerId)
   result.postInit(addrs, protocols)
 
-proc init*(p: typedesc[PeerInfo], peerId: string,
+proc init*(p: typedesc[PeerInfo],
+           peerId: string,
            addrs: openarray[MultiAddress] = [],
            protocols: openarray[string] = []): PeerInfo {.inline.} =
   result = PeerInfo(keyType: HasPublic, peerId: PeerID.init(peerId))
   result.postInit(addrs, protocols)
 
-proc init*(p: typedesc[PeerInfo], key: PublicKey,
+proc init*(p: typedesc[PeerInfo],
+           key: PublicKey,
            addrs: openarray[MultiAddress] = [],
            protocols: openarray[string] = []): PeerInfo {.inline.} =
-  result = PeerInfo(keyType: HasPublic, peerId: PeerID.init(key),
+  result = PeerInfo(keyType: HasPublic,
+                    peerId: PeerID.init(key),
                     key: some(key))
+
   result.postInit(addrs, protocols)
 
 proc close*(p: PeerInfo) {.inline.} =
