@@ -187,6 +187,8 @@ method unsubscribe*(p: PubSub,
                     topics: seq[TopicPair]) {.base, async.} =
   ## unsubscribe from a list of ``topic`` strings
   for t in topics:
+    # metrics
+    libp2p_pubsub_topics.dec()
     for i, h in p.topics[t.topic].handler:
       if h == t.handler:
         p.topics[t.topic].handler.del(i)
@@ -194,9 +196,6 @@ method unsubscribe*(p: PubSub,
 method unsubscribe*(p: PubSub,
                     topic: string,
                     handler: TopicHandler): Future[void] {.base.} =
-  # metrics
-  libp2p_pubsub_topics.dec()
-
   ## unsubscribe from a ``topic`` string
   p.unsubscribe(@[(topic, handler)])
 

@@ -22,6 +22,10 @@ import rpc/[messages, message, protobuf],
 logScope:
   topics = "pubsubpeer"
 
+declareCounter(libp2p_pubsub_sent_messages, "number of messages sent", labels = ["id"])
+declareCounter(libp2p_pubsub_received_messages, "number of messages received", labels = ["id"])
+declareCounter(libp2p_pubsub_skipped_messages, "number of skipped messages", labels = ["id"])
+
 type
   PubSubObserver* = ref object
     onRecv*: proc(peer: PubSubPeer; msgs: var RPCMsg) {.gcsafe, raises: [Defect].}
@@ -40,9 +44,6 @@ type
     observers*: ref seq[PubSubObserver] # ref as in smart_ptr
 
   RPCHandler* = proc(peer: PubSubPeer, msg: seq[RPCMsg]): Future[void] {.gcsafe.}
-
-declareCounter(libp2p_pubsub_sent_messages, "number of messages sent")
-declareCounter(libp2p_pubsub_received_messages, "number of messages received")
 
 proc id*(p: PubSubPeer): string = p.peerInfo.id
 
@@ -77,6 +78,7 @@ proc handle*(p: PubSubPeer, conn: Connection) {.async.} =
         let digest = $(sha256.digest(data))
         trace "read data from peer", peer = p.id, data = data.shortLog
         if digest in p.recvdRpcCache:
+          libp2p_pubsub_skipped_messages.inc(labelValues = [p.id])
           trace "message already received, skipping", peer = p.id
           continue
 
@@ -86,7 +88,7 @@ proc handle*(p: PubSubPeer, conn: Connection) {.async.} =
         p.recvObservers(msg)
 
         # metrics
-        libp2p_pubsub_received_messages.inc()
+        libp2p_pubsub_received_messages.inc(labelValues = [p.id])
 
         await p.handler(p, @[msg])
         p.recvdRpcCache.put(digest)
@@ -127,7 +129,7 @@ proc send*(p: PubSubPeer, msgs: seq[RPCMsg]) {.async.} =
           p.sentRpcCache.put(digest)
 
           # metrics
-          libp2p_pubsub_sent_messages.inc()
+          libp2p_pubsub_sent_messages.inc(labelValues = [p.id])
       except CatchableError as exc:
         trace "unable to send to remote", exc = exc.msg
         p.sendConn = nil
