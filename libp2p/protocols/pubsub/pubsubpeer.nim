@@ -8,7 +8,7 @@
 ## those terms.
 
 import options, hashes, strutils, tables, hashes
-import chronos, chronicles, nimcrypto/sha2
+import chronos, chronicles, nimcrypto/sha2, metrics
 import rpc/[messages, message, protobuf],
        timedcache,
        ../../peer,
@@ -18,7 +18,6 @@ import rpc/[messages, message, protobuf],
        ../../crypto/crypto,
        ../../protobuf/minprotobuf,
        ../../utility
-import metrics
 
 logScope:
   topics = "pubsubpeer"
@@ -42,8 +41,8 @@ type
 
   RPCHandler* = proc(peer: PubSubPeer, msg: seq[RPCMsg]): Future[void] {.gcsafe.}
 
-declareCounter(libp2p_pubsub_encoded_messages, "number of messages encoded")
-declareCounter(libp2p_pubsub_decoded_messages, "number of messages decoded")
+declareCounter(libp2p_pubsub_sent_messages, "number of messages sent")
+declareCounter(libp2p_pubsub_received_messages, "number of messages received")
 
 proc id*(p: PubSubPeer): string = p.peerInfo.id
 
@@ -86,11 +85,11 @@ proc handle*(p: PubSubPeer, conn: Connection) {.async.} =
         # trigger hooks
         p.recvObservers(msg)
 
+        # metrics
+        libp2p_pubsub_received_messages.inc()
+
         await p.handler(p, @[msg])
         p.recvdRpcCache.put(digest)
-
-        # metrics
-        libp2p_pubsub_decoded_messages.inc()
     finally:
       trace "exiting pubsub peer read loop", peer = p.id
       await conn.close()
@@ -105,9 +104,6 @@ proc send*(p: PubSubPeer, msgs: seq[RPCMsg]) {.async.} =
     # trigger send hooks
     var mm = m # hooks can modify the message
     p.sendObservers(mm)
-    
-    # metrics
-    libp2p_pubsub_encoded_messages.inc()
 
     let encoded = encodeRpcMsg(mm)
     if encoded.buffer.len <= 0:
@@ -129,6 +125,9 @@ proc send*(p: PubSubPeer, msgs: seq[RPCMsg]) {.async.} =
                                                 encoded = encoded.buffer.shortLog
           await p.sendConn.writeLp(encoded.buffer)
           p.sentRpcCache.put(digest)
+
+          # metrics
+          libp2p_pubsub_sent_messages.inc()
       except CatchableError as exc:
         trace "unable to send to remote", exc = exc.msg
         p.sendConn = nil
