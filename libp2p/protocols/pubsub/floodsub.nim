@@ -96,7 +96,7 @@ method rpcHandler*(f: FloodSub,
         sent = await allFinished(sent)
         checkFutures(sent)
 
-method init(f: FloodSub) =
+method init*(f: FloodSub) =
   proc handler(conn: Connection, proto: string) {.async.} =
     ## main protocol handler that gets triggered on every
     ## connection for a protocol string
