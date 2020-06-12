@@ -60,7 +60,7 @@ declareGauge(libp2p_gossipsub_peers_per_topic_mesh, "gossipsub peers per topic i
 declareGauge(libp2p_gossipsub_peers_per_topic_fanout, "gossipsub peers per topic in fanout", labels = ["topic"])
 declareGauge(libp2p_gossipsub_peers_per_topic_gossipsub, "gossipsub peers per topic in gossipsub", labels = ["topic"])
 
-method init(g: GossipSub) =
+method init*(g: GossipSub) =
   proc handler(conn: Connection, proto: string) {.async.} =
     ## main protocol handler that gets triggered on every
     ## connection for a protocol string
@@ -233,7 +233,7 @@ proc heartbeat(g: GossipSub) {.async.} =
 
     await sleepAsync(1.seconds)
 
-method handleDisconnect(g: GossipSub, peer: PubSubPeer) {.async.} =
+method handleDisconnect*(g: GossipSub, peer: PubSubPeer) {.async.} =
   ## handle peer disconnects
   trace "peer disconnected", peer=peer.id
 
@@ -342,7 +342,7 @@ proc handleIWant(g: GossipSub,
       if msg.isSome:
         result.add(msg.get())
 
-method rpcHandler(g: GossipSub,
+method rpcHandler*(g: GossipSub,
                   peer: PubSubPeer,
                   rpcMsgs: seq[RPCMsg]) {.async.} =
   await procCall PubSub(g).rpcHandler(peer, rpcMsgs)
