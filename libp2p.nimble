@@ -17,7 +17,7 @@ requires "nim >= 1.2.0",
          "stew >= 0.1.0"
 
 proc runTest(filename: string, verify: bool = true, sign: bool = true) =
-  var excstr: string = "nim c -r --opt:speed -d:debug --verbosity:0 --hints:off"
+  var excstr: string = "nim c -r --opt:speed -d:debug --verbosity:0 --hints:off -d:chronicles_log_level=info"
   excstr.add(" ")
   excstr.add("-d:libp2p_pubsub_sign=" & $sign)
   excstr.add(" ")

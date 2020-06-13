@@ -29,7 +29,7 @@ type
   Connection* = ref object of LPStream
     peerInfo*: PeerInfo
     stream*: LPStream
-    observedAddrs*: Multiaddress
+    observedAddr*: Multiaddress
 
   ConnectionTracker* = ref object of TrackerBase
     opened*: uint64
@@ -117,8 +117,8 @@ method close*(s: Connection) {.async, gcsafe.} =
       s.isClosed = true
 
       trace "about to close connection", closed = s.closed,
-                                        conn = $s,
-                                        oid = s.oid
+                                         conn = $s,
+                                         oid = s.oid
 
 
       if not isNil(s.stream) and not s.stream.closed:
@@ -137,7 +137,3 @@ method close*(s: Connection) {.async, gcsafe.} =
       libp2p_open_connection.dec()
   except CatchableError as exc:
     trace "exception closing connections", exc = exc.msg
-
-method getObservedAddrs*(c: Connection): Future[MultiAddress] {.base, async, gcsafe.} =
-  ## get resolved multiaddresses for the connection
-  result = c.observedAddrs

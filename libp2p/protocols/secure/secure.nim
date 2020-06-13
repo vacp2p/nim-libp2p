@@ -32,6 +32,7 @@ proc handleConn*(s: Secure, conn: Connection, initiator: bool): Future[Connectio
   var sconn = await s.handshake(conn, initiator)
 
   result = sconn
+  result.observedAddr = conn.observedAddr
 
   if not isNil(sconn.peerInfo) and sconn.peerInfo.publicKey.isSome:
     result.peerInfo = PeerInfo.init(sconn.peerInfo.publicKey.get())

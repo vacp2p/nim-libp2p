@@ -44,7 +44,7 @@ type
   Identify* = ref object of LPProtocol
     peerInfo*: PeerInfo
 
-proc encodeMsg*(peerInfo: PeerInfo, observedAddrs: Multiaddress): ProtoBuffer =
+proc encodeMsg*(peerInfo: PeerInfo, observedAddr: Multiaddress): ProtoBuffer =
   result = initProtoBuffer()
 
   result.write(initProtoField(1, peerInfo.publicKey.get().getBytes().tryGet()))
@@ -55,7 +55,7 @@ proc encodeMsg*(peerInfo: PeerInfo, observedAddrs: Multiaddress): ProtoBuffer =
   for proto in peerInfo.protocols:
     result.write(initProtoField(3, proto))
 
-  result.write(initProtoField(4, observedAddrs.data.buffer))
+  result.write(initProtoField(4, observedAddr.data.buffer))
 
   let protoVersion = ProtoVersion
   result.write(initProtoField(5, protoVersion))
@@ -114,10 +114,11 @@ method init*(p: Identify) =
   proc handle(conn: Connection, proto: string) {.async, gcsafe, closure.} =
     try:
       try:
-        trace "handling identify request"
-        var pb = encodeMsg(p.peerInfo, await conn.getObservedAddrs())
+        trace "handling identify request", oid = conn.oid
+        var pb = encodeMsg(p.peerInfo, conn.observedAddr)
         await conn.writeLp(pb.buffer)
       finally:
+        trace "exiting identify handler", oid = conn.oid
         await conn.close()
     except CatchableError as exc:
       trace "exception in identify handler", exc = exc.msg
@@ -148,10 +149,9 @@ proc identify*(p: Identify,
             remote = peer.pretty(),
             local = remotePeerInfo.id
 
-      raise newException(IdentityNoMatchError,
-        "Peer ids don't match")
+      raise newException(IdentityNoMatchError, "Peer ids don't match")
 
 proc push*(p: Identify, conn: Connection) {.async.} =
   await conn.write(IdentifyPushCodec)
-  var pb = encodeMsg(p.peerInfo, await conn.getObservedAddrs())
+  var pb = encodeMsg(p.peerInfo, conn.observedAddr)
   await conn.writeLp(pb.buffer)
