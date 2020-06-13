@@ -100,6 +100,7 @@ method handle*(m: Mplex) {.async, gcsafe.} =
               let stream = newConnection(channel)
               m.conns.add(stream)
               stream.peerInfo = m.connection.peerInfo
+              stream.observedAddr = m.connection.observedAddr
 
               var fut = newFuture[void]()
               proc handler() {.async.} =
@@ -191,6 +192,7 @@ method newStream*(m: Mplex,
     await channel.open()
   result = newConnection(channel)
   result.peerInfo = m.connection.peerInfo
+  result.observedAddr = m.connection.observedAddr
 
   asyncCheck m.cleanupChann(channel)
 
