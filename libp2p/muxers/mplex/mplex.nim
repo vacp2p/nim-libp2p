@@ -92,14 +92,16 @@ method handle*(m: Mplex) {.async, gcsafe.} =
           initiator = initiator
           msgType = msgType
           size = data.len
-          name = channel.name
-          chann_iod = channel.oid
           oid = m.oid
 
         case msgType:
           of MessageType.New:
             let name = string.fromBytes(data)
             channel = await m.newStreamInternal(false, id, name)
+            logScope:
+              name = channel.name
+              chann_iod = channel.oid
+
             trace "created channel"
 
             if not isNil(m.streamHandler):
@@ -122,18 +124,30 @@ method handle*(m: Mplex) {.async, gcsafe.} =
               fut = handler()
 
           of MessageType.MsgIn, MessageType.MsgOut:
+            logScope:
+              name = channel.name
+              chann_iod = channel.oid
+
             trace "pushing data to channel"
 
             if data.len > MaxMsgSize:
               raise newLPStreamLimitError()
             await channel.pushTo(data)
           of MessageType.CloseIn, MessageType.CloseOut:
+            logScope:
+              name = channel.name
+              chann_iod = channel.oid
+
             trace "closing channel"
 
             await channel.closeRemote()
             m.getChannelList(initiator).del(id)
             trace "deleted channel"
           of MessageType.ResetIn, MessageType.ResetOut:
+            logScope:
+              name = channel.name
+              chann_iod = channel.oid
+
             trace "resetting channel"
 
             await channel.reset()
