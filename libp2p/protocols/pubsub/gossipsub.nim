@@ -215,7 +215,7 @@ proc heartbeat(g: GossipSub) {.async.} =
       await g.heartbeatLock.acquire()
       trace "running heartbeat"
 
-      for t in g.topics.keys:
+      for t in toSeq(g.topics.keys):
         await g.rebalanceMesh(t)
 
       await g.dropFanoutPeers()

@@ -118,6 +118,7 @@ method handle*(m: Mplex) {.async, gcsafe.} =
                   # doAssert(stream.closed, "connection not closed by handler!")
                 except CatchableError as exc:
                   trace "exception in stream handler", exc = exc.msg
+                  doAssert(stream.closed, "stream not closed by protocol handler")
                 finally:
                   m.conns.keepItIf(it != stream)
                   m.handlerFuts.keepItIf(it != fut)
