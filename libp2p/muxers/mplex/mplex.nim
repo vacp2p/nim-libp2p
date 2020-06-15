@@ -75,11 +75,13 @@ method handle*(m: Mplex) {.async, gcsafe.} =
                                               msgType = msgType,
                                               data = data.shortLog,
                                               oid = m.oid
+
         let initiator = bool(ord(msgType) and 1)
         var channel: LPChannel
         if MessageType(msgType) != MessageType.New:
           let channels = m.getChannelList(initiator)
           if id notin channels:
+
             trace "Channel not found, skipping", id = id,
                                                  initiator = initiator,
                                                  msg = msgType,
@@ -98,11 +100,9 @@ method handle*(m: Mplex) {.async, gcsafe.} =
           of MessageType.New:
             let name = string.fromBytes(data)
             channel = await m.newStreamInternal(false, id, name)
-            logScope:
-              name = channel.name
-              chann_iod = channel.oid
 
-            trace "created channel"
+            trace "created channel", name = channel.name,
+                                     chann_iod = channel.oid
 
             if not isNil(m.streamHandler):
               let stream = newConnection(channel)
