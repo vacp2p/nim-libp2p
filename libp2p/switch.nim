@@ -146,6 +146,10 @@ proc mux(s: Switch, conn: Connection): Future[void] {.async, gcsafe.} =
 
 proc cleanupConn(s: Switch, conn: Connection) {.async, gcsafe.} =
   try:
+    # echo "PEERINFO ", conn.peerInfo
+    # echo "CONNS ", toSeq(s.connections.values)
+    # echo "MUXERS ", toSeq(s.muxed.values)
+
     if not isNil(conn.peerInfo):
       let id = conn.peerInfo.id
       trace "cleaning up connection for peer", peerId = id
