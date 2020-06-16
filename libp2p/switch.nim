@@ -31,7 +31,7 @@ logScope:
 # and only if the channel has been secured (i.e. if a secure manager has been
 # previously provided)
 
-declareGauge(libp2p_connected_peers, "total connected peers")
+declareGauge(libp2p_peers, "total connected peers")
 declareCounter(libp2p_dialed_peers, "dialed peers")
 declareCounter(libp2p_failed_dials, "failed dials")
 declareCounter(libp2p_failed_upgrade, "peers failed upgrade")
@@ -158,7 +158,7 @@ proc cleanupConn(s: Switch, conn: Connection) {.async, gcsafe.} =
 
       s.dialedPubSubPeers.excl(id)
 
-      libp2p_connected_peers.dec()
+      libp2p_peers.dec()
       # TODO: Investigate cleanupConn() always called twice for one peer.
       if not(conn.peerInfo.isClosed()):
         conn.peerInfo.close()
@@ -272,7 +272,7 @@ proc internalConnect(s: Switch,
           .addCallback do(udata: pointer):
             asyncCheck s.cleanupConn(conn)
 
-          libp2p_connected_peers.inc()
+          libp2p_peers.inc()
           break
   else:
     trace "Reusing existing connection"
@@ -325,7 +325,7 @@ proc start*(s: Switch): Future[seq[Future[void]]] {.async, gcsafe.} =
   proc handle(conn: Connection): Future[void] {.async, closure, gcsafe.} =
     try:
       try:
-        libp2p_connected_peers.inc()
+        libp2p_peers.inc()
         await s.upgradeIncoming(conn) # perform upgrade on incoming connection
       finally:
         await s.cleanupConn(conn)
