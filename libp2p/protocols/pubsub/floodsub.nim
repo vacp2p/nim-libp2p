@@ -92,6 +92,7 @@ method rpcHandler*(f: FloodSub,
         for p in toSendPeers:
           if p in f.peers and f.peers[p].id != peer.id:
             sent.add(f.peers[p].send(@[RPCMsg(messages: m.messages)]))
+
         # wait for all the futures now
         sent = await allFinished(sent)
         checkFutures(sent)
@@ -133,9 +134,12 @@ method publish*(f: FloodSub,
   for p in f.floodsub[topic]:
     trace "publishing message", name = topic, peer = p, data = data.shortLog
     sent.add(f.peers[p].send(@[RPCMsg(messages: @[msg])]))
+
   # wait for all the futures now
   sent = await allFinished(sent)
   checkFutures(sent)
+
+  libp2p_pubsub_messages_published.inc(labelValues = [topic])
 
 method unsubscribe*(f: FloodSub,
                     topics: seq[TopicPair]) {.async.} =
