@@ -286,38 +286,23 @@ proc sendHSMessage(sconn: Connection; buf: seq[byte]) {.async.} =
   await sconn.write(outbuf)
 
 proc packNoisePayload(payload: openarray[byte]): seq[byte] =
-  var
-    ns: uint32
-  if randomBytes(addr ns, 4) != 4:
-    raise newException(NoiseHandshakeError, "Failed to generate randomBytes")
-
-  let
-    noiselen = int((ns mod (NoiseSize - 2)) + 1)
-    plen = payload.len.uint16
-
-  var
-    noise = newSeq[byte](noiselen)
-  if randomBytes(noise) != noiselen:
-    raise newException(NoiseHandshakeError, "Failed to generate randomBytes")
-
-  result &= plen.toBytesBE
+  result &= payload.len.uint16.toBytesBE
   result &= payload
-  result &= noise
 
   if result.len > uint16.high.int:
     raise newException(NoiseOversizedPayloadError, "Trying to send an unsupported oversized payload over Noise")
 
-  trace "packed noise payload", inSize = payload.len, outSize = result.len
+  trace "packed noise payload", size = payload.len
 
 proc unpackNoisePayload(payload: var seq[byte]) =
   let
     besize = payload[0..1]
     size = uint16.fromBytesBE(besize).int
 
-  if size > (payload.len - 2):
+  if size != (payload.len - 2):
     raise newException(NoiseOversizedPayloadError, "Received a wrong payload size")
 
-  payload = payload[2..^((payload.len - size) - 1)]
+  payload = payload[2..^1]
 
   trace "unpacked noise payload", size = payload.len
 
