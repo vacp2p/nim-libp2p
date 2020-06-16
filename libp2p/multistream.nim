@@ -55,7 +55,7 @@ proc select*(m: MultistreamSelect,
   ## select a remote protocol
   await conn.write(m.codec) # write handshake
   if proto.len() > 0:
-    trace "selecting proto", proto = proto
+    trace "selecting proto", proto = proto[0]
     await conn.writeLp((proto[0] & "\n")) # select proto
 
   result = string.fromBytes((await conn.readLp(1024))) # read ms header
@@ -71,7 +71,7 @@ proc select*(m: MultistreamSelect,
   trace "reading first requested proto"
   result.removeSuffix("\n")
   if result == proto[0]:
-    trace "successfully selected ", proto = proto
+    trace "successfully selected ", proto = proto[0]
     return
 
   let protos = proto[1..<proto.len()]
