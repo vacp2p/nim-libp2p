@@ -285,27 +285,6 @@ proc sendHSMessage(sconn: Connection; buf: seq[byte]) {.async.} =
   outbuf &= buf
   await sconn.write(outbuf)
 
-proc packNoisePayload(payload: openarray[byte]): seq[byte] =
-  result &= payload.len.uint16.toBytesBE
-  result &= payload
-
-  if result.len > uint16.high.int:
-    raise newException(NoiseOversizedPayloadError, "Trying to send an unsupported oversized payload over Noise")
-
-  trace "packed noise payload", size = payload.len
-
-proc unpackNoisePayload(payload: var seq[byte]) =
-  let
-    besize = payload[0..1]
-    size = uint16.fromBytesBE(besize).int
-
-  if size != (payload.len - 2):
-    raise newException(NoiseOversizedPayloadError, "Received a wrong payload size")
-
-  payload = payload[2..^1]
-
-  trace "unpacked noise payload", size = payload.len
-
 proc handshakeXXOutbound(p: Noise, conn: Connection, p2pProof: ProtoBuffer): Future[HandshakeResult] {.async.} =
   const initiator = true
 
@@ -336,8 +315,7 @@ proc handshakeXXOutbound(p: Noise, conn: Connection, p2pProof: ProtoBuffer): Fut
   read_s()
   dh_es()
 
-  var remoteP2psecret = hs.ss.decryptAndHash(msg)
-  unpackNoisePayload(remoteP2psecret)
+  let remoteP2psecret = hs.ss.decryptAndHash(msg)
 
   # -> s, se
 
@@ -347,8 +325,7 @@ proc handshakeXXOutbound(p: Noise, conn: Connection, p2pProof: ProtoBuffer): Fut
   dh_se()
 
   # last payload must follow the ecrypted way of sending
-  var packed = packNoisePayload(p2psecret)
-  msg &= hs.ss.encryptAndHash(packed)
+  msg &= hs.ss.encryptAndHash(p2psecret)
 
   await conn.sendHSMessage(msg)
 
@@ -384,8 +361,7 @@ proc handshakeXXInbound(p: Noise, conn: Connection, p2pProof: ProtoBuffer): Futu
   write_s()
   dh_es()
 
-  var packedSecret = packNoisePayload(p2psecret)
-  msg &= hs.ss.encryptAndHash(packedSecret)
+  msg &= hs.ss.encryptAndHash(p2psecret)
 
   await conn.sendHSMessage(msg)
 
@@ -396,8 +372,7 @@ proc handshakeXXInbound(p: Noise, conn: Connection, p2pProof: ProtoBuffer): Futu
   read_s()
   dh_se()
 
-  var remoteP2psecret = hs.ss.decryptAndHash(msg)
-  unpackNoisePayload(remoteP2psecret)
+  let remoteP2psecret = hs.ss.decryptAndHash(msg)
 
   let (cs1, cs2) = hs.ss.split()
   return HandshakeResult(cs1: cs1, cs2: cs2, remoteP2psecret: remoteP2psecret, rs: hs.rs)
@@ -411,9 +386,7 @@ method readMessage*(sconn: NoiseConnection): Future[seq[byte]] {.async.} =
     if size > 0:
       var buffer = newSeq[byte](size)
       await sconn.stream.readExactly(addr buffer[0], buffer.len)
-      var plain = sconn.readCs.decryptWithAd([], buffer)
-      unpackNoisePayload(plain)
-      return plain
+      return sconn.readCs.decryptWithAd([], buffer)
     else:
       trace "Received 0-length message", conn = $sconn
 
@@ -427,8 +400,7 @@ method write*(sconn: NoiseConnection, message: seq[byte]): Future[void] {.async.
   while left > 0:
     let
       chunkSize = if left > MaxPlainSize: MaxPlainSize else: left
-      packed = packNoisePayload(message.toOpenArray(offset, offset + chunkSize - 1))
-      cipher = sconn.writeCs.encryptWithAd([], packed)
+      cipher = sconn.writeCs.encryptWithAd([], message.toOpenArray(offset, offset + chunkSize - 1))
     left = left - chunkSize
     offset = offset + chunkSize
     var
@@ -441,7 +413,7 @@ method write*(sconn: NoiseConnection, message: seq[byte]): Future[void] {.async.
     await sconn.stream.write(outbuf)
 
 method handshake*(p: Noise, conn: Connection, initiator: bool = false): Future[SecureConn] {.async.} =
-  trace "Starting Noise handshake", initiator
+  debug "Starting Noise handshake", initiator, peer = $conn.peerInfo.peerId
 
   # https://github.com/libp2p/specs/tree/master/noise#libp2p-data-in-handshake-messages
   let
@@ -467,9 +439,12 @@ method handshake*(p: Noise, conn: Connection, initiator: bool = false): Future[S
     remotePubKey: PublicKey
     remoteSig: Signature
   if remoteProof.getValue(1, remotePubKey) <= 0:
-    raise newException(NoiseHandshakeError, "Failed to deserialize remote public key.")
+    var failedKey: PublicKey
+    discard extractPublicKey(conn.peerInfo.peerId, failedKey)
+    error "Failed to deserialize remote public key", initiator, peer=conn.peerInfo.peerId, key=failedKey
+    raise newException(NoiseHandshakeError, "Failed to deserialize remote public key. (initiator: " & $initiator & ", peer: " & $conn.peerInfo.peerId & ")")
   if remoteProof.getValue(2, remoteSig) <= 0:
-    raise newException(NoiseHandshakeError, "Failed to deserialize remote public key.")
+    raise newException(NoiseHandshakeError, "Failed to deserialize remote signature. (initiator: " & $initiator & ", peer: " & $conn.peerInfo.peerId & ")")
 
   let verifyPayload = PayloadString.toBytes & handshakeRes.rs.getBytes
   if not remoteSig.verify(verifyPayload, remotePubKey):
@@ -482,7 +457,11 @@ method handshake*(p: Noise, conn: Connection, initiator: bool = false): Future[S
     if not conn.peerInfo.peerId.validate():
       raise newException(NoiseHandshakeError, "Failed to validate peerId.")
     if pid != conn.peerInfo.peerId:
-      raise newException(NoiseHandshakeError, "Noise handshake, peer infos don't match! " & $pid & " != " & $conn.peerInfo.peerId)
+      var
+        failedKey: PublicKey
+      discard extractPublicKey(conn.peerInfo.peerId, failedKey)
+      error "Noise handshake, peer infos don't match!", initiator, dealt_peer=conn.peerInfo.peerId, dealt_key=failedKey, received_peer=pid, received_key=remotePubKey
+      # raise newException(NoiseHandshakeError, "Noise handshake, peer infos don't match! " & $pid & " != " & $conn.peerInfo.peerId)
 
   var secure = new NoiseConnection
   secure.initStream()
@@ -497,7 +476,7 @@ method handshake*(p: Noise, conn: Connection, initiator: bool = false): Future[S
     secure.readCs = handshakeRes.cs1
     secure.writeCs = handshakeRes.cs2
 
-  trace "Noise handshake completed!"
+  debug "Noise handshake completed!", initiator, peer = $conn.peerInfo.peerId
 
   return secure
 
