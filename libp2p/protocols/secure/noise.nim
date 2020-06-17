@@ -412,7 +412,7 @@ method write*(sconn: NoiseConnection, message: seq[byte]): Future[void] {.async.
     outbuf &= cipher
     await sconn.stream.write(outbuf)
 
-method handshake*(p: Noise, conn: Connection, initiator: bool = false): Future[SecureConn] {.async.} =
+method handshake*(p: Noise, conn: Connection, initiator: bool): Future[SecureConn] {.async.} =
   debug "Starting Noise handshake", initiator, peer = $conn.peerInfo.peerId
 
   # https://github.com/libp2p/specs/tree/master/noise#libp2p-data-in-handshake-messages
@@ -422,9 +422,8 @@ method handshake*(p: Noise, conn: Connection, initiator: bool = false): Future[S
 
   var
     libp2pProof = initProtoBuffer()
-
-  libp2pProof.write(initProtoField(1, p.localPublicKey))
-  libp2pProof.write(initProtoField(2, signedPayload))
+  libp2pProof.write(initProtoField(1, p.localPublicKey.getBytes.tryGet()))
+  libp2pProof.write(initProtoField(2, signedPayload.getBytes()))
   # data field also there but not used!
   libp2pProof.finish()
 
@@ -437,14 +436,19 @@ method handshake*(p: Noise, conn: Connection, initiator: bool = false): Future[S
   var
     remoteProof = initProtoBuffer(handshakeRes.remoteP2psecret)
     remotePubKey: PublicKey
+    remotePubKeyBytes: seq[byte]
     remoteSig: Signature
-  if remoteProof.getValue(1, remotePubKey) <= 0:
-    var failedKey: PublicKey
-    discard extractPublicKey(conn.peerInfo.peerId, failedKey)
-    error "Failed to deserialize remote public key", initiator, peer=conn.peerInfo.peerId, key=failedKey
-    raise newException(NoiseHandshakeError, "Failed to deserialize remote public key. (initiator: " & $initiator & ", peer: " & $conn.peerInfo.peerId & ")")
-  if remoteProof.getValue(2, remoteSig) <= 0:
-    raise newException(NoiseHandshakeError, "Failed to deserialize remote signature. (initiator: " & $initiator & ", peer: " & $conn.peerInfo.peerId & ")")
+    remoteSigBytes: seq[byte]
+  
+  if remoteProof.getLengthValue(1, remotePubKeyBytes) <= 0:
+    raise newException(NoiseHandshakeError, "Failed to deserialize remote public key bytes. (initiator: " & $initiator & ", peer: " & $conn.peerInfo.peerId & ")")
+  if remoteProof.getLengthValue(2, remoteSigBytes) <= 0:
+    raise newException(NoiseHandshakeError, "Failed to deserialize remote signature bytes. (initiator: " & $initiator & ", peer: " & $conn.peerInfo.peerId & ")")
+
+  if not remotePubKey.init(remotePubKeyBytes):
+    raise newException(NoiseHandshakeError, "Failed to decode remote public key. (initiator: " & $initiator & ", peer: " & $conn.peerInfo.peerId & ")")
+  if not remoteSig.init(remoteSigBytes):
+    raise newException(NoiseHandshakeError, "Failed to decode remote signature. (initiator: " & $initiator & ", peer: " & $conn.peerInfo.peerId & ")")
 
   let verifyPayload = PayloadString.toBytes & handshakeRes.rs.getBytes
   if not remoteSig.verify(verifyPayload, remotePubKey):
@@ -489,7 +493,7 @@ proc newNoise*(privateKey: PrivateKey; outgoing: bool = true; commonPrologue: se
   result.outgoing = outgoing
   result.localPrivateKey = privateKey
   result.localPublicKey = privateKey.getKey().tryGet()
-  discard randomBytes(result.noisePrivateKey)
+  result.noisePrivateKey = Curve25519Key.random().tryGet()
   result.noisePublicKey = result.noisePrivateKey.public()
   result.commonPrologue = commonPrologue
   result.init()
