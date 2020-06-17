@@ -12,6 +12,7 @@ import chronos, chronicles, metrics
 import connection,
        transports/transport,
        multistream,
+       multiaddress,
        protocols/protocol,
        protocols/secure/secure,
        protocols/secure/plaintext, # for plain text

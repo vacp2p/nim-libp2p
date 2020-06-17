@@ -480,6 +480,8 @@ method publish*(g: GossipSub,
       sent.add(g.peers[p].send(@[RPCMsg(messages: @[msg])]))
     checkFutures(await allFinished(sent))
 
+    libp2p_pubsub_messages_published.inc(labelValues = [topic])
+
 method start*(g: GossipSub) {.async.} =
   ## start pubsub
   ## start long running/repeating procedures
