@@ -11,13 +11,14 @@ import options
 import chronos, chronicles
 import ../protocol,
        ../../stream/streamseq,
-       ../../connection,
+       ../../stream/connection,
        ../../peerinfo
 
 type
   Secure* = ref object of LPProtocol # base type for secure managers
 
   SecureConn* = ref object of Connection
+    stream*: Connection
     buf: StreamSeq
 
 method readMessage*(c: SecureConn): Future[seq[byte]] {.async, base.} =

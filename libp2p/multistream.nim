@@ -9,7 +9,7 @@
 
 import strutils
 import chronos, chronicles, stew/byteutils
-import connection,
+import stream/connection,
        vbuffer,
        errors,
        protocols/protocol

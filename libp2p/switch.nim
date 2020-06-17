@@ -9,7 +9,7 @@
 
 import tables, sequtils, options, strformat, sets
 import chronos, chronicles, metrics
-import connection,
+import stream/connection,
        transports/transport,
        multistream,
        multiaddress,

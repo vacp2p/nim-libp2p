@@ -8,12 +8,12 @@
 ## those terms.
 
 import chronos, chronicles
-import lpstream, ../utility
+import connection, ../utility
 
 logScope:
   topics = "chronosstream"
 
-type ChronosStream* = ref object of LPStream
+type ChronosStream* = ref object of Connection
     client: StreamTransport
 
 proc newChronosStream*(client: StreamTransport): ChronosStream =

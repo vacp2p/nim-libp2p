@@ -9,7 +9,9 @@
 
 import chronicles, chronos
 import ../varint,
-       ../vbuffer
+       ../vbuffer,
+       ../peerinfo,
+       ../multiaddress
 
 when chronicles.enabledLogLevel == LogLevel.TRACE:
   import oids
@@ -163,6 +165,6 @@ proc write*(s: LPStream, pbytes: pointer, nbytes: int): Future[void] {.deprecate
 proc write*(s: LPStream, msg: string): Future[void] =
   s.write(@(toOpenArrayByte(msg, 0, msg.high)))
 
-method close*(s: LPStream)
-  {.base, async.} =
-  doAssert(false, "not implemented!")
+method close*(s: LPStream) {.base, async.} =
+  s.isClosed = true
+  s.closeEvent.fire()

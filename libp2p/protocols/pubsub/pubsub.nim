@@ -12,7 +12,7 @@ import chronos, chronicles
 import pubsubpeer,
        rpc/messages,
        ../protocol,
-       ../../connection,
+       ../../stream/connection,
        ../../peerinfo
 import metrics
 

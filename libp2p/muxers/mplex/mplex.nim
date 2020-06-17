@@ -10,8 +10,7 @@
 import tables, sequtils, oids
 import chronos, chronicles, stew/byteutils
 import ../muxer,
-       ../../connection,
-       ../../stream/lpstream,
+       ../../stream/connection,
        ../../stream/bufferstream,
        ../../utility,
        ../../errors,
@@ -26,7 +25,6 @@ type
   Mplex* = ref object of Muxer
     remote: Table[uint64, LPChannel]
     local: Table[uint64, LPChannel]
-    conns: seq[Connection]
     handlerFuts: seq[Future[void]]
     currentId*: uint64
     maxChannels*: uint64
@@ -62,6 +60,10 @@ proc newStreamInternal*(m: Mplex,
                       initiator,
                       name,
                       lazy = lazy)
+
+  result.peerInfo = m.connection.peerInfo
+  result.observedAddr = m.connection.observedAddr
+
   m.getChannelList(initiator)[id] = result
 
 method handle*(m: Mplex) {.async, gcsafe.} =
@@ -105,22 +107,16 @@ method handle*(m: Mplex) {.async, gcsafe.} =
                                      chann_iod = channel.oid
 
             if not isNil(m.streamHandler):
-              let stream = newConnection(channel)
-              m.conns.add(stream)
-              stream.peerInfo = m.connection.peerInfo
-              stream.observedAddr = m.connection.observedAddr
-
               var fut = newFuture[void]()
               proc handler() {.async.} =
                 try:
-                  await m.streamHandler(stream)
+                  await m.streamHandler(channel)
                   trace "finished handling stream"
                   # doAssert(stream.closed, "connection not closed by handler!")
                 except CatchableError as exc:
                   trace "exception in stream handler", exc = exc.msg
-                  doAssert(stream.closed, "stream not closed by protocol handler")
+                  doAssert(channel.closed, "stream not closed by protocol handler")
                 finally:
-                  m.conns.keepItIf(it != stream)
                   m.handlerFuts.keepItIf(it != fut)
 
               fut = handler()
@@ -187,11 +183,9 @@ method newStream*(m: Mplex,
   let channel = await m.newStreamInternal(lazy = lazy)
   if not lazy:
     await channel.open()
-  result = newConnection(channel)
-  result.peerInfo = m.connection.peerInfo
-  result.observedAddr = m.connection.observedAddr
 
   asyncCheck m.cleanupChann(channel)
+  return Connection(channel)
 
 method close*(m: Mplex) {.async, gcsafe.} =
   if m.isClosed:
@@ -208,12 +202,6 @@ method close*(m: Mplex) {.async, gcsafe.} =
       except CatchableError as exc:
         warn "error resetting channel", exc = exc.msg
 
-    for conn in m.conns:
-      try:
-        await conn.close()
-      except CatchableError as exc:
-        warn "error closing channel's connection"
-
     checkFutures(
       await allFinished(m.handlerFuts))
 
@@ -221,6 +209,5 @@ method close*(m: Mplex) {.async, gcsafe.} =
   finally:
     m.remote.clear()
     m.local.clear()
-    m.conns = @[]
     m.handlerFuts = @[]
     m.isClosed = true

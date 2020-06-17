@@ -13,12 +13,11 @@ import types,
        coder,
        nimcrypto/utils,
        ../../stream/bufferstream,
-       ../../stream/lpstream,
-       ../../connection,
+       ../../stream/connection,
        ../../utility,
        ../../errors
 
-export lpstream
+export connection
 
 logScope:
   topics = "mplexchannel"
