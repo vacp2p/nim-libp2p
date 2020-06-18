@@ -151,7 +151,6 @@ method handle*(m: Mplex) {.async, gcsafe.} =
             await channel.reset()
             m.getChannelList(initiator).del(id)
             trace "deleted channel"
-            break
     finally:
       trace "stopping mplex main loop", oid = m.oid
       await m.close()
