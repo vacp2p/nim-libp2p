@@ -26,7 +26,6 @@ import ../libp2p/[daemon/daemonapi,
                   transports/transport,
                   transports/tcptransport,
                   protocols/secure/secure,
-                  protocols/secure/secio,
                   protocols/pubsub/pubsub,
                   protocols/pubsub/gossipsub,
                   protocols/pubsub/floodsub]
