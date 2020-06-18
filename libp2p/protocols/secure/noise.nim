@@ -488,8 +488,9 @@ method handshake*(p: Noise, conn: Connection, initiator: bool = false): Future[S
   secure.initStream()
 
   secure.stream = conn
-  secure.closeEvent = newAsyncEvent()
   secure.peerInfo = PeerInfo.init(remotePubKey)
+  secure.observedAddr = conn.observedAddr
+
   if initiator:
     secure.readCs = handshakeRes.cs2
     secure.writeCs = handshakeRes.cs1

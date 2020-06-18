@@ -10,6 +10,7 @@
 import tables, sequtils, options, strformat, sets
 import chronos, chronicles, metrics
 import stream/connection,
+       stream/chronosstream,
        transports/transport,
        multistream,
        multiaddress,
@@ -97,7 +98,7 @@ proc identify(s: Switch, conn: Connection): Future[PeerInfo] {.async, gcsafe.} =
       if info.protos.len > 0:
         result.protocols = info.protos
 
-      debug "identify", info = shortLog(result)
+      trace "identify", info = shortLog(result)
   except IdentityInvalidMsgError as exc:
     error "identify: invalid message", msg = exc.msg
   except IdentityNoMatchError as exc:
@@ -155,6 +156,7 @@ proc cleanupConn(s: Switch, conn: Connection) {.async, gcsafe.} =
 
       if id in s.connections:
         s.connections.del(id)
+
       await conn.close()
 
       s.dialedPubSubPeers.excl(id)
@@ -169,6 +171,7 @@ proc cleanupConn(s: Switch, conn: Connection) {.async, gcsafe.} =
 proc disconnect*(s: Switch, peer: PeerInfo) {.async, gcsafe.} =
   let conn = s.connections.getOrDefault(peer.id)
   if not isNil(conn):
+    trace "disconnecting peer", peer = $peer
     await s.cleanupConn(conn)
 
 proc getMuxedStream(s: Switch, peerInfo: PeerInfo): Future[Connection] {.async, gcsafe.} =

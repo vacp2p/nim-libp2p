@@ -42,8 +42,6 @@ export connection
 logScope:
   topics = "bufferstream"
 
-declareGauge libp2p_open_bufferstream, "open BufferStream instances"
-
 const
   DefaultBufferSize* = 1024
 
@@ -109,11 +107,12 @@ proc requestReadBytes(s: BufferStream): Future[void] =
   s.readReqs.addLast(result)
   # trace "requestReadBytes(): added a future to readReqs", oid = s.oid
 
-method initStream(s: BufferStream) =
-  procCall Connection(s).initStream()
+method initStream*(s: BufferStream) =
+  if s.objName.len == 0:
+    s.objName = "BufferStream"
 
+  procCall Connection(s).initStream()
   inc getBufferStreamTracker().opened
-  libp2p_open_bufferstream.inc()
 
 proc initBufferStream*(s: BufferStream,
                        handler: WriteHandler = nil,
@@ -318,10 +317,7 @@ method close*(s: BufferStream) {.async, gcsafe.} =
       s.readBuf.clear()
 
       await procCall Connection(s).close()
-
       inc getBufferStreamTracker().closed
-      libp2p_open_bufferstream.dec()
-
       trace "bufferstream closed", oid = s.oid
     else:
       trace "attempt to close an already closed bufferstream", trace = getStackTrace()

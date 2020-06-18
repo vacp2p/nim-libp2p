@@ -21,6 +21,12 @@ type
     stream*: Connection
     buf: StreamSeq
 
+method initStream*(s: SecureConn) =
+  if s.objName.len == 0:
+    s.objName = "SecureConn"
+
+  procCall Connection(s).initStream()
+
 method close*(s: SecureConn) {.async.} =
   await s.stream.close()
 

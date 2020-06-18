@@ -189,6 +189,7 @@ suite "Switch":
       let switch2 = newStandardSwitch()
       awaiters.add(await switch1.start())
       awaiters.add(await switch2.start())
+
       await switch2.connect(switch1.peerInfo)
 
       check switch1.connections.len > 0

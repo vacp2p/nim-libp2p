@@ -266,6 +266,7 @@ proc newSecioConn(conn: Connection,
                           secrets.ivOpenArray(i1))
 
   result.peerInfo = PeerInfo.init(remotePubKey)
+  result.observedAddr = conn.observedAddr
 
 proc transactMessage(conn: Connection,
                      msg: seq[byte]): Future[seq[byte]] {.async.} =
