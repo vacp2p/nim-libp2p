@@ -28,7 +28,8 @@ method initStream*(s: SecureConn) =
   procCall Connection(s).initStream()
 
 method close*(s: SecureConn) {.async.} =
-  await s.stream.close()
+  if not(isNil(s.stream)):
+    await s.stream.close()
 
   await procCall Connection(s).close()
 
