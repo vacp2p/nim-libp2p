@@ -169,6 +169,6 @@ proc write*(s: LPStream, msg: string): Future[void] =
 
 method close*(s: LPStream) {.base, async.} =
   if not s.isClosed:
-    libp2p_open_streams.dec(labelValues = [s.objName, $s.oid])
+    libp2p_open_streams.dec(labelValues = [s.objName])
     s.isClosed = true
     trace "stream destroyed", oid = s.oid
