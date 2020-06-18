@@ -14,7 +14,7 @@ import ../varint,
        ../peerinfo,
        ../multiaddress
 
-declareGauge(libp2p_open_streams, "open Connection instances", labels = ["type", "oid"])
+declareGauge(libp2p_open_streams, "open stream instances", labels = ["type"])
 
 type
   LPStream* = ref object of RootObj
@@ -72,7 +72,7 @@ method initStream*(s: LPStream) {.base.} =
     s.objName = "LPStream"
 
   s.oid = genOid()
-  libp2p_open_streams.inc(labelValues = [s.objName, $s.oid])
+  libp2p_open_streams.inc(labelValues = [s.objName])
   trace "stream created", oid = s.oid
 
 method closed*(s: LPStream): bool {.base, inline.} =
