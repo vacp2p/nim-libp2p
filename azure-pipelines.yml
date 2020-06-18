@@ -170,7 +170,7 @@ steps:
 
       echo "##vso[task.prependpath]$(GOPATH)/bin"
       curl -O -L -s -S https://raw.githubusercontent.com/status-im/nimbus-build-system/master/scripts/build_p2pd.sh
-      bash build_p2pd.sh p2pdCache
+      bash build_p2pd.sh p2pdCache v0.2.4
     displayName: 'Building Go libp2p daemon'
 
   - bash: |
