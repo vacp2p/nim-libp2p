@@ -465,7 +465,7 @@ method handshake*(p: Noise, conn: Connection, initiator: bool): Future[SecureCon
         failedKey: PublicKey
       discard extractPublicKey(conn.peerInfo.peerId, failedKey)
       error "Noise handshake, peer infos don't match!", initiator, dealt_peer=conn.peerInfo.peerId, dealt_key=failedKey, received_peer=pid, received_key=remotePubKey
-      # raise newException(NoiseHandshakeError, "Noise handshake, peer infos don't match! " & $pid & " != " & $conn.peerInfo.peerId)
+      raise newException(NoiseHandshakeError, "Noise handshake, peer infos don't match! " & $pid & " != " & $conn.peerInfo.peerId)
 
   var secure = new NoiseConnection
   secure.initStream()
