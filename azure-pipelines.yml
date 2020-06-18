@@ -59,7 +59,7 @@ steps:
   - task: CacheBeta@1
     displayName: 'cache Go libp2p daemon'
     inputs:
-      key: p2pdCache | $(Agent.OS) | $(PLATFORM)
+      key: p2pdCache | $(Agent.OS) | $(PLATFORM) | v0.2.4
       path: p2pdCache
 
   - task: CacheBeta@1
