@@ -21,6 +21,11 @@ type
     stream*: Connection
     buf: StreamSeq
 
+method close*(s: SecureConn) {.async.} =
+  await s.stream.close()
+
+  await procCall Connection(s).close()
+
 method readMessage*(c: SecureConn): Future[seq[byte]] {.async, base.} =
   doAssert(false, "Not implemented!")
 
