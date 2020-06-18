@@ -46,6 +46,7 @@ proc newMuxerProvider*(creator: MuxerConstructor, codec: string): MuxerProvider 
 
 method init(c: MuxerProvider) =
   proc handler(conn: Connection, proto: string) {.async, gcsafe, closure.} =
+    trace "starting muxer handler", proto=proto, peer=conn
     try:
       let
         muxer = c.newMuxer(conn)
@@ -62,6 +63,6 @@ method init(c: MuxerProvider) =
 
       checkFutures(await allFinished(futs))
     except CatchableError as exc:
-      trace "exception in muxer handler", exc = exc.msg
+      trace "exception in muxer handler", exc = exc.msg, peer=conn, proto=proto
 
   c.handler = handler

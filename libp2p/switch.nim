@@ -110,7 +110,7 @@ proc identify(s: Switch, conn: Connection): Future[PeerInfo] {.async, gcsafe.} =
 proc mux(s: Switch, conn: Connection): Future[void] {.async, gcsafe.} =
   ## mux incoming connection
 
-  trace "muxing connection"
+  trace "muxing connection", peer=conn
   let muxers = toSeq(s.muxers.keys)
   if muxers.len == 0:
     warn "no muxers registered, skipping upgrade flow"
@@ -118,10 +118,14 @@ proc mux(s: Switch, conn: Connection): Future[void] {.async, gcsafe.} =
 
   let muxerName = await s.ms.select(conn, muxers)
   if muxerName.len == 0 or muxerName == "na":
+    debug "no muxer available, early exit", peer=conn
     return
 
   # create new muxer for connection
   let muxer = s.muxers[muxerName].newMuxer(conn)
+
+  trace "found a muxer", name=muxerName, peer=conn
+
   # install stream handler
   muxer.streamHandler = s.streamHandler
 
