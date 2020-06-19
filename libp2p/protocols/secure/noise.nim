@@ -480,7 +480,7 @@ method handshake*(p: Noise, conn: Connection, initiator: bool): Future[SecureCon
     secure.readCs = handshakeRes.cs1
     secure.writeCs = handshakeRes.cs2
 
-  debug "Noise handshake completed!", initiator, peer=conn
+  debug "Noise handshake completed!", initiator, peer=secure.peerInfo
 
   return secure
 

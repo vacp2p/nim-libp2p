@@ -29,8 +29,8 @@ proc newStandardSwitch*(privKey = none(PrivateKey),
                         gossip = false,
                         secureManagers: openarray[SecureProtocol] = [
                             # array cos order matters
-                            SecureProtocol.Noise, 
                             SecureProtocol.Secio,
+                            SecureProtocol.Noise, 
                           ],
                         verifySignature = libp2p_pubsub_verify,
                         sign = libp2p_pubsub_sign,
