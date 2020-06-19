@@ -17,18 +17,19 @@ requires "nim >= 1.2.0",
          "stew >= 0.1.0"
 
 proc runTest(filename: string, verify: bool = true, sign: bool = true) =
-  var excstr: string = "nim c -r --opt:speed -d:debug --verbosity:0 --hints:off -d:chronicles_log_level=info"
-  excstr.add(" ")
-  excstr.add("-d:libp2p_pubsub_sign=" & $sign)
-  excstr.add(" ")
-  excstr.add("-d:libp2p_pubsub_verify=" & $verify)
-  excstr.add(" ")
-  excstr.add("tests/" & filename)
+  var excstr = "nim c -r --opt:speed -d:debug --verbosity:0 --hints:off -d:chronicles_log_level=info"
+  excstr.add(" --warning[CaseTransition]:off --warning[ObservableStores]:off --warning[LockLevel]:off")
+  excstr.add(" -d:libp2p_pubsub_sign=" & $sign)
+  excstr.add(" -d:libp2p_pubsub_verify=" & $verify)
+  excstr.add(" tests/" & filename)
   exec excstr
   rmFile "tests/" & filename.toExe
 
 proc buildSample(filename: string) =
-  exec "nim c --opt:speed --threads:on -d:debug --verbosity:0 --hints:off examples/" & filename
+  var excstr = "nim c --opt:speed --threads:on -d:debug --verbosity:0 --hints:off"
+  excstr.add(" --warning[CaseTransition]:off --warning[ObservableStores]:off --warning[LockLevel]:off")
+  excstr.add(" examples/" & filename)
+  exec excstr
   rmFile "examples" & filename.toExe
 
 task testnative, "Runs libp2p native tests":

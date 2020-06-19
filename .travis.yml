@@ -12,7 +12,7 @@ git:
   # when multiple CI builds are queued, the tested commit needs to be in the last X commits cloned with "--depth X"
   depth: 10
 
-go: "1.12.x"
+go: "1.14.x"
 
 matrix:
   include:
@@ -51,3 +51,4 @@ script:
   - nimble install -y --depsOnly
   - nimble test
   - nimble examples_build
+

@@ -12,6 +12,7 @@ import chronos, chronicles, metrics
 import connection,
        transports/transport,
        multistream,
+       multiaddress,
        protocols/protocol,
        protocols/secure/secure,
        protocols/secure/plaintext, # for plain text
@@ -31,7 +32,7 @@ logScope:
 # and only if the channel has been secured (i.e. if a secure manager has been
 # previously provided)
 
-declareGauge(libp2p_connected_peers, "total connected peers")
+declareGauge(libp2p_peers, "total connected peers")
 declareCounter(libp2p_dialed_peers, "dialed peers")
 declareCounter(libp2p_failed_dials, "failed dials")
 declareCounter(libp2p_failed_upgrade, "peers failed upgrade")
@@ -167,7 +168,7 @@ proc cleanupConn(s: Switch, conn: Connection) {.async, gcsafe.} =
 
       s.dialedPubSubPeers.excl(id)
 
-      libp2p_connected_peers.dec()
+      libp2p_peers.dec()
       # TODO: Investigate cleanupConn() always called twice for one peer.
       if not(conn.peerInfo.isClosed()):
         conn.peerInfo.close()
@@ -281,7 +282,7 @@ proc internalConnect(s: Switch,
           .addCallback do(udata: pointer):
             asyncCheck s.cleanupConn(conn)
 
-          libp2p_connected_peers.inc()
+          libp2p_peers.inc()
           break
   else:
     trace "Reusing existing connection"
@@ -334,7 +335,7 @@ proc start*(s: Switch): Future[seq[Future[void]]] {.async, gcsafe.} =
   proc handle(conn: Connection): Future[void] {.async, closure, gcsafe.} =
     try:
       try:
-        libp2p_connected_peers.inc()
+        libp2p_peers.inc()
         await s.upgradeIncoming(conn) # perform upgrade on incoming connection
       finally:
         await s.cleanupConn(conn)
@@ -383,17 +384,24 @@ proc stop*(s: Switch) {.async.} =
     warn "error stopping switch", exc = exc.msg
 
 proc subscribeToPeer*(s: Switch, peerInfo: PeerInfo) {.async, gcsafe.} =
+  trace "about to subscribe to pubsub peer", peer = peerInfo.shortLog()
   ## Subscribe to pub sub peer
-  if s.pubSub.isSome and peerInfo.id notin s.dialedPubSubPeers:
+  if s.pubSub.isSome and (peerInfo.id notin s.dialedPubSubPeers):
+    let conn = await s.getMuxedStream(peerInfo)
     try:
-      s.dialedPubSubPeers.incl(peerInfo.id)
-      let conn = await s.dial(peerInfo, s.pubSub.get().codec)
       if isNil(conn):
-        trace "unable to subscribe to peer"
+        trace "unable to subscribe to peer", peer = peerInfo.shortLog
         return
-      await s.pubSub.get().subscribeToPeer(conn)
+
+      s.dialedPubSubPeers.incl(peerInfo.id)
+      if (await s.ms.select(conn, s.pubSub.get().codec)):
+        await s.pubSub.get().subscribeToPeer(conn)
+      else:
+        await conn.close()
+
     except CatchableError as exc:
-      trace "exception in subscribe to peer", exc = exc.msg
+      trace "exception in subscribe to peer", peer = peerInfo.shortLog, exc = exc.msg
+      await conn.close()
     finally:
       s.dialedPubSubPeers.excl(peerInfo.id)
 
