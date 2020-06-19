@@ -8,18 +8,24 @@
 ## those terms.
 
 import chronos, chronicles
-import lpstream, ../utility
+import connection, ../utility
 
 logScope:
   topics = "chronosstream"
 
-type ChronosStream* = ref object of LPStream
+type ChronosStream* = ref object of Connection
     client: StreamTransport
+
+method initStream*(s: ChronosStream) =
+  if s.objName.len == 0:
+    s.objName = "ChronosStream"
+
+  procCall Connection(s).initStream()
 
 proc newChronosStream*(client: StreamTransport): ChronosStream =
   new result
   result.client = client
-  result.closeEvent = newAsyncEvent()
+  result.initStream()
 
 template withExceptions(body: untyped) =
   try:
@@ -82,6 +88,6 @@ method close*(s: ChronosStream) {.async.} =
       if not s.client.closed():
         await s.client.closeWait()
 
-      s.closeEvent.fire()
+      await procCall Connection(s).close()
   except CatchableError as exc:
     trace "error closing chronosstream", exc = exc.msg

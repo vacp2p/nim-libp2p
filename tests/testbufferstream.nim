@@ -1,7 +1,7 @@
 import unittest, strformat
 import chronos, stew/byteutils
-import ../libp2p/errors
-import ../libp2p/stream/bufferstream
+import ../libp2p/stream/bufferstream,
+       ../libp2p/errors
 
 when defined(nimHasUsed): {.used.}
 

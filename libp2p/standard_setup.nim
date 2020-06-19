@@ -5,7 +5,7 @@ const
 
 import
   options, tables, chronos,
-  switch, peer, peerinfo, connection, multiaddress,
+  switch, peer, peerinfo, stream/connection, multiaddress,
   crypto/crypto, transports/[transport, tcptransport],
   muxers/[muxer, mplex/mplex, mplex/types],
   protocols/[identify, secure/secure],

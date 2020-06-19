@@ -32,17 +32,15 @@
 
 import deques, math
 import chronos, chronicles, metrics
-import ../stream/lpstream
+import ../stream/connection
 
 when chronicles.enabledLogLevel == LogLevel.TRACE:
   import oids
 
-export lpstream
+export connection
 
 logScope:
   topics = "bufferstream"
-
-declareGauge libp2p_open_bufferstream, "open BufferStream instances"
 
 const
   DefaultBufferSize* = 1024
@@ -83,7 +81,7 @@ type
   # TODO: figure out how to make this generic to avoid casts
   WriteHandler* = proc (data: seq[byte]): Future[void] {.gcsafe.}
 
-  BufferStream* = ref object of LPStream
+  BufferStream* = ref object of Connection
     maxSize*: int                     # buffer's max size in bytes
     readBuf: Deque[byte]              # this is a ring buffer based dequeue
     readReqs*: Deque[Future[void]]    # use dequeue to fire reads in order
@@ -109,11 +107,12 @@ proc requestReadBytes(s: BufferStream): Future[void] =
   s.readReqs.addLast(result)
   # trace "requestReadBytes(): added a future to readReqs", oid = s.oid
 
-method initStream(s: BufferStream) =
-  procCall LPStream(s).initStream()
+method initStream*(s: BufferStream) =
+  if s.objName.len == 0:
+    s.objName = "BufferStream"
 
+  procCall Connection(s).initStream()
   inc getBufferStreamTracker().opened
-  libp2p_open_bufferstream.inc()
 
 proc initBufferStream*(s: BufferStream,
                        handler: WriteHandler = nil,
@@ -316,12 +315,9 @@ method close*(s: BufferStream) {.async, gcsafe.} =
           r.fail(newLPStreamEOFError())
       s.dataReadEvent.fire()
       s.readBuf.clear()
-      s.closeEvent.fire()
-      s.isClosed = true
 
+      await procCall Connection(s).close()
       inc getBufferStreamTracker().closed
-      libp2p_open_bufferstream.dec()
-
       trace "bufferstream closed", oid = s.oid
     else:
       trace "attempt to close an already closed bufferstream", trace = getStackTrace()

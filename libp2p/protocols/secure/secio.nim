@@ -9,13 +9,13 @@
 import chronos, chronicles, oids, stew/endians2
 import nimcrypto/[sysrand, hmac, sha2, sha, hash, rijndael, twofish, bcmode]
 import secure,
-       ../../connection,
+       ../../stream/connection,
        ../../peerinfo,
-       ../../stream/lpstream,
        ../../crypto/crypto,
        ../../crypto/ecnist,
        ../../peer,
        ../../utility
+
 export hmac, sha2, sha, hash, rijndael, bcmode
 
 logScope:
@@ -177,7 +177,7 @@ proc macCheckAndDecode(sconn: SecioConn, data: var seq[byte]): bool =
 proc readRawMessage(conn: Connection): Future[seq[byte]] {.async.} =
   while true: # Discard 0-length payloads
     var lengthBuf: array[4, byte]
-    await conn.stream.readExactly(addr lengthBuf[0], lengthBuf.len)
+    await conn.readExactly(addr lengthBuf[0], lengthBuf.len)
     let length = uint32.fromBytesBE(lengthBuf)
 
     trace "Recieved message header", header = lengthBuf.shortLog, length = length
@@ -188,7 +188,7 @@ proc readRawMessage(conn: Connection): Future[seq[byte]] {.async.} =
 
     if length > 0:
       var buf = newSeq[byte](int(length))
-      await conn.stream.readExactly(addr buf[0], buf.len)
+      await conn.readExactly(addr buf[0], buf.len)
       trace "Received message body",
         conn = $conn, length = buf.len, buff = buf.shortLog
       return buf
@@ -200,7 +200,7 @@ method readMessage*(sconn: SecioConn): Future[seq[byte]] {.async.} =
   when chronicles.enabledLogLevel == LogLevel.TRACE:
     logScope:
       stream_oid = $sconn.stream.oid
-  var buf = await sconn.readRawMessage()
+  var buf = await sconn.stream.readRawMessage()
   if sconn.macCheckAndDecode(buf):
     result = buf
   else:
@@ -242,7 +242,7 @@ proc newSecioConn(conn: Connection,
                   secrets: Secret,
                   order: int,
                   remotePubKey: PublicKey): SecioConn =
-  ## Create new secure connection, using specified hash algorithm ``hash``,
+  ## Create new secure stream/lpstream, using specified hash algorithm ``hash``,
   ## cipher algorithm ``cipher``, stretched keys ``secrets`` and order
   ## ``order``.
   new result
@@ -266,6 +266,7 @@ proc newSecioConn(conn: Connection,
                           secrets.ivOpenArray(i1))
 
   result.peerInfo = PeerInfo.init(remotePubKey)
+  result.observedAddr = conn.observedAddr
 
 proc transactMessage(conn: Connection,
                      msg: seq[byte]): Future[seq[byte]] {.async.} =

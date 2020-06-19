@@ -2,7 +2,7 @@
 
 import unittest
 import chronos, stew/byteutils
-import ../libp2p/[connection,
+import ../libp2p/[stream/connection,
                   transports/transport,
                   transports/tcptransport,
                   multiaddress,
