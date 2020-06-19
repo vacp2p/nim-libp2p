@@ -200,11 +200,12 @@ proc getGossipPeers(g: GossipSub): Table[string, ControlMessage] {.gcsafe.} =
           break
 
         let id = toSeq(g.gossipsub.getOrDefault(topic)).sample()
-        g.gossipsub[topic].excl(id)
-        if id notin gossipPeers:
-          if id notin result:
-            result[id] = ControlMessage()
-          result[id].ihave.add(ihave)
+        if id in g.gossipsub.getOrDefault(topic):
+          g.gossipsub[topic].excl(id)
+          if id notin gossipPeers:
+            if id notin result:
+              result[id] = ControlMessage()
+            result[id].ihave.add(ihave)
 
     libp2p_gossipsub_peers_per_topic_gossipsub
       .set(g.gossipsub.getOrDefault(topic).len.int64, labelValues = [topic])
@@ -222,12 +223,14 @@ proc heartbeat(g: GossipSub) {.async.} =
       let peers = g.getGossipPeers()
       var sent: seq[Future[void]]
       for peer in peers.keys:
-        sent &= g.peers[peer].send(@[RPCMsg(control: some(peers[peer]))])
+        if peer in g.peers:
+          sent &= g.peers[peer].send(@[RPCMsg(control: some(peers[peer]))])
       checkFutures(await allFinished(sent))
 
       g.mcache.shift() # shift the cache
     except CatchableError as exc:
       trace "exception ocurred in gossipsub heartbeat", exc = exc.msg
+      continue
     finally:
       g.heartbeatLock.release()
 
@@ -239,21 +242,27 @@ method handleDisconnect*(g: GossipSub, peer: PubSubPeer) {.async.} =
 
   await procCall FloodSub(g).handleDisconnect(peer)
 
-  for t in g.gossipsub.keys:
-    g.gossipsub[t].excl(peer.id)
+  for t in toSeq(g.gossipsub.keys):
+    if t in g.gossipsub:
+      g.gossipsub[t].excl(peer.id)
+
     libp2p_gossipsub_peers_per_topic_gossipsub
-      .set(g.gossipsub[t].len.int64, labelValues = [t])
+      .set(g.gossipsub.getOrDefault(t).len.int64, labelValues = [t])
 
     # mostly for metrics
     await procCall PubSub(g).subscribeTopic(t, false, peer.id)
 
-  for t in g.mesh.keys:
-    g.mesh[t].excl(peer.id)
+  for t in toSeq(g.mesh.keys):
+    if t in g.mesh:
+      g.mesh[t].excl(peer.id)
+
     libp2p_gossipsub_peers_per_topic_mesh
       .set(g.mesh[t].len.int64, labelValues = [t])
 
-  for t in g.fanout.keys:
-    g.fanout[t].excl(peer.id)
+  for t in toSeq(g.fanout.keys):
+    if t in g.fanout:
+      g.fanout[t].excl(peer.id)
+
     libp2p_gossipsub_peers_per_topic_fanout
       .set(g.fanout[t].len.int64, labelValues = [t])
 

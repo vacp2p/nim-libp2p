@@ -52,8 +52,9 @@ method handleDisconnect*(f: FloodSub, peer: PubSubPeer) {.async.} =
   await procCall PubSub(f).handleDisconnect(peer)
 
   ## handle peer disconnects
-  for t in f.floodsub.keys:
-    f.floodsub[t].excl(peer.id)
+  for t in toSeq(f.floodsub.keys):
+    if t in f.floodsub:
+      f.floodsub[t].excl(peer.id)
 
 method rpcHandler*(f: FloodSub,
                    peer: PubSubPeer,
@@ -131,9 +132,10 @@ method publish*(f: FloodSub,
   let msg = newMessage(f.peerInfo, data, topic, f.sign)
   var sent: seq[Future[void]]
   # start the future but do not wait yet
-  for p in f.floodsub[topic]:
-    trace "publishing message", name = topic, peer = p, data = data.shortLog
-    sent.add(f.peers[p].send(@[RPCMsg(messages: @[msg])]))
+  for p in f.floodsub.getOrDefault(topic):
+    if p in f.peers:
+      trace "publishing message", name = topic, peer = p, data = data.shortLog
+      sent.add(f.peers[p].send(@[RPCMsg(messages: @[msg])]))
 
   # wait for all the futures now
   sent = await allFinished(sent)
