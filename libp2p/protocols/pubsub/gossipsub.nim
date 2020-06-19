@@ -451,6 +451,7 @@ method publish*(g: GossipSub,
                                              data = data.shortLog
 
   var peers: HashSet[string]
+  # TODO: we probably don't need to try multiple times
   if data.len > 0 and topic.len > 0:
     for _ in 0..<5: # try to get peers up to 5 times
       if peers.len > 0:
@@ -470,14 +471,18 @@ method publish*(g: GossipSub,
       await sleepAsync(1.seconds)
 
     let msg = newMessage(g.peerInfo, data, topic, g.sign)
+    trace "created new message", msg
     var sent: seq[Future[void]]
     for p in peers:
       if p == g.peerInfo.id:
         continue
 
       trace "publishing on topic", name = topic
-      g.mcache.put(msg)
-      sent.add(g.peers[p].send(@[RPCMsg(messages: @[msg])]))
+      if msg.msgId notin g.mcache:
+        g.mcache.put(msg)
+
+      if p in g.peers:
+        sent.add(g.peers[p].send(@[RPCMsg(messages: @[msg])]))
     checkFutures(await allFinished(sent))
 
     libp2p_pubsub_messages_published.inc(labelValues = [topic])

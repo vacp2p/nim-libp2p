@@ -22,6 +22,14 @@ type
     historySize*: Natural
     windowSize*: Natural
 
+proc get*(c: MCache, mid: string): Option[Message] =
+  result = none(Message)
+  if mid in c.msgs:
+    result = some(c.msgs[mid])
+
+proc contains*(c: MCache, mid: string): bool =
+  c.get(mid).isSome
+
 proc put*(c: MCache, msg: Message) =
   proc handler(key: string, val: Message) {.gcsafe.} =
     ## make sure we remove the message from history
@@ -30,13 +38,9 @@ proc put*(c: MCache, msg: Message) =
       it.filterIt(it.mid != msg.msgId)
     )
 
-  c.msgs.put(msg.msgId, msg, handler = handler)
-  c.history[0].add(CacheEntry(mid: msg.msgId, msg: msg))
-
-proc get*(c: MCache, mid: string): Option[Message] =
-  result = none(Message)
-  if mid in c.msgs:
-    result = some(c.msgs[mid])
+  if msg.msgId notin c.msgs:
+    c.msgs.put(msg.msgId, msg, handler = handler)
+    c.history[0].add(CacheEntry(mid: msg.msgId, msg: msg))
 
 proc window*(c: MCache, topic: string): HashSet[string] =
   result = initHashSet[string]()
