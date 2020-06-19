@@ -379,17 +379,16 @@ proc subscribeToPeer*(s: Switch, peerInfo: PeerInfo) {.async, gcsafe.} =
   ## Subscribe to pub sub peer
   if s.pubSub.isSome and (peerInfo.id notin s.dialedPubSubPeers):
     let conn = await s.getMuxedStream(peerInfo)
-    try:
-      if isNil(conn):
-        trace "unable to subscribe to peer", peer = peerInfo.shortLog
-        return
+    if isNil(conn):
+      trace "unable to subscribe to peer", peer = peerInfo.shortLog
+      return
 
-      s.dialedPubSubPeers.incl(peerInfo.id)
+    s.dialedPubSubPeers.incl(peerInfo.id)
+    try:
       if (await s.ms.select(conn, s.pubSub.get().codec)):
         await s.pubSub.get().subscribeToPeer(conn)
       else:
         await conn.close()
-
     except CatchableError as exc:
       trace "exception in subscribe to peer", peer = peerInfo.shortLog, exc = exc.msg
       await conn.close()
