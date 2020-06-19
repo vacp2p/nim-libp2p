@@ -278,8 +278,8 @@ suite "Multistream select":
       await transport1.close()
 
       await allFuturesThrowing(
-        handlerWait1.wait(5000.millis),
-        handlerWait2.wait(5000.millis))
+        handlerWait1.wait(30.seconds),
+        handlerWait2.wait(30.seconds))
 
     check:
       waitFor(endToEnd()) == true
