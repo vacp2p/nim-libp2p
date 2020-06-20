@@ -213,7 +213,6 @@ proc getGossipPeers(g: GossipSub): Table[string, ControlMessage] {.gcsafe.} =
 proc heartbeat(g: GossipSub) {.async.} =
   while g.heartbeatRunning:
     try:
-      await g.heartbeatLock.acquire()
       trace "running heartbeat"
 
       for t in toSeq(g.topics.keys):
@@ -229,8 +228,6 @@ proc heartbeat(g: GossipSub) {.async.} =
       g.mcache.shift() # shift the cache
     except CatchableError as exc:
       trace "exception ocurred in gossipsub heartbeat", exc = exc.msg
-    finally:
-      g.heartbeatLock.release()
 
     await sleepAsync(1.seconds)
 
@@ -484,7 +481,7 @@ method publish*(g: GossipSub,
     libp2p_pubsub_messages_published.inc(labelValues = [topic])
 
 method start*(g: GossipSub) {.async.} =
-  trace "gossipsub start"
+  debug "gossipsub start"
   
   ## start pubsub
   ## start long running/repeating procedures
@@ -499,7 +496,7 @@ method start*(g: GossipSub) {.async.} =
   g.heartbeatLock.release()
 
 method stop*(g: GossipSub) {.async.} =
-  trace "gossipsub stop"
+  debug "gossipsub stop"
   
   ## stop pubsub
   ## stop long running tasks
@@ -509,7 +506,7 @@ method stop*(g: GossipSub) {.async.} =
   # stop heartbeat interval
   g.heartbeatRunning = false
   if not g.heartbeatFut.finished:
-    trace "awaiting last heartbeat"
+    debug "awaiting last heartbeat"
     await g.heartbeatFut
 
   g.heartbeatLock.release()
