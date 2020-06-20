@@ -8,17 +8,16 @@
 ## those terms.
 
 import oids, deques
-import chronos, chronicles
+import chronos, chronicles, metrics
 import types,
        coder,
        nimcrypto/utils,
+       ../../stream/connection,
        ../../stream/bufferstream,
-       ../../stream/lpstream,
-       ../../connection,
        ../../utility,
        ../../errors
 
-export lpstream
+export connection
 
 logScope:
   topics = "mplexchannel"
@@ -78,6 +77,12 @@ template withEOFExceptions(body: untyped): untyped =
     trace "incomplete message", exc = exc.msg
 
 method reset*(s: LPChannel) {.base, async, gcsafe.}
+
+method initStream*(s: LPChannel) =
+  if s.objName.len == 0:
+    s.objName = "LPChannel"
+
+  procCall BufferStream(s).initStream()
 
 proc newChannel*(id: uint64,
                  conn: Connection,
@@ -213,7 +218,6 @@ method close*(s: LPChannel) {.async, gcsafe.} =
                                        name = s.name,
                                        oid = s.oid
       await s.closeMessage().wait(2.minutes)
-      s.closedLocal = true
       if s.atEof: # already closed by remote close parent buffer immediately
         await procCall BufferStream(s).close()
     except AsyncTimeoutError:
@@ -227,4 +231,5 @@ method close*(s: LPChannel) {.async, gcsafe.} =
                                     name = s.name,
                                     oid = s.oid
 
+  s.closedLocal = true
   asyncCheck closeRemote()

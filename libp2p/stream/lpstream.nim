@@ -7,20 +7,21 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import chronicles, chronos
+import oids
+import chronicles, chronos, metrics
 import ../varint,
-       ../vbuffer
+       ../vbuffer,
+       ../peerinfo,
+       ../multiaddress
 
-when chronicles.enabledLogLevel == LogLevel.TRACE:
-  import oids
+declareGauge(libp2p_open_streams, "open stream instances", labels = ["type"])
 
 type
   LPStream* = ref object of RootObj
     isClosed*: bool
     isEof*: bool
-    closeEvent*: AsyncEvent
-    when chronicles.enabledLogLevel == LogLevel.TRACE:
-      oid*: Oid
+    objName*: string
+    oid*: Oid
 
   LPStreamError* = object of CatchableError
   LPStreamIncompleteError* = object of LPStreamError
@@ -67,9 +68,12 @@ proc newLPStreamClosedError*(): ref Exception =
   result = newException(LPStreamClosedError, "Stream Closed!")
 
 method initStream*(s: LPStream) {.base.} =
-  s.closeEvent = newAsyncEvent()
-  when chronicles.enabledLogLevel == LogLevel.TRACE:
-    s.oid = genOid()
+  if s.objName.len == 0:
+    s.objName = "LPStream"
+
+  s.oid = genOid()
+  libp2p_open_streams.inc(labelValues = [s.objName])
+  trace "stream created", oid = s.oid
 
 method closed*(s: LPStream): bool {.base, inline.} =
   s.isClosed
@@ -163,6 +167,8 @@ proc write*(s: LPStream, pbytes: pointer, nbytes: int): Future[void] {.deprecate
 proc write*(s: LPStream, msg: string): Future[void] =
   s.write(@(toOpenArrayByte(msg, 0, msg.high)))
 
-method close*(s: LPStream)
-  {.base, async.} =
-  doAssert(false, "not implemented!")
+method close*(s: LPStream) {.base, async.} =
+  if not s.isClosed:
+    libp2p_open_streams.dec(labelValues = [s.objName])
+    s.isClosed = true
+    trace "stream destroyed", oid = s.oid

@@ -11,7 +11,7 @@ import chronos
 import chronicles
 import stew/[endians2, byteutils]
 import nimcrypto/[utils, sysrand, sha2, hmac]
-import ../../connection
+import ../../stream/lpstream
 import ../../peer
 import ../../peerinfo
 import ../../protobuf/minprotobuf
@@ -267,12 +267,12 @@ template read_s: untyped =
 
 proc receiveHSMessage(sconn: Connection): Future[seq[byte]] {.async.} =
   var besize: array[2, byte]
-  await sconn.stream.readExactly(addr besize[0], besize.len)
+  await sconn.readExactly(addr besize[0], besize.len)
   let size = uint16.fromBytesBE(besize).int
   trace "receiveHSMessage", size
   var buffer = newSeq[byte](size)
   if buffer.len > 0:
-    await sconn.stream.readExactly(addr buffer[0], buffer.len)
+    await sconn.readExactly(addr buffer[0], buffer.len)
   return buffer
 
 proc sendHSMessage(sconn: Connection; buf: seq[byte]) {.async.} =
@@ -488,8 +488,9 @@ method handshake*(p: Noise, conn: Connection, initiator: bool = false): Future[S
   secure.initStream()
 
   secure.stream = conn
-  secure.closeEvent = newAsyncEvent()
   secure.peerInfo = PeerInfo.init(remotePubKey)
+  secure.observedAddr = conn.observedAddr
+
   if initiator:
     secure.readCs = handshakeRes.cs2
     secure.writeCs = handshakeRes.cs1

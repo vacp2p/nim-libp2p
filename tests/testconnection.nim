@@ -1,13 +1,12 @@
 import unittest
 import chronos, nimcrypto/utils
-import ../libp2p/[connection,
-                  stream/lpstream,
+import ../libp2p/[stream/connection,
                   stream/bufferstream]
 
 suite "Connection":
   test "close":
     proc test(): Future[bool] {.async.} =
-      var conn = newConnection(newBufferStream())
+      var conn = newBufferStream()
       await conn.close()
       check:
         conn.closed == true
@@ -20,7 +19,7 @@ suite "Connection":
   test "parent close":
     proc test(): Future[bool] {.async.} =
       var buf = newBufferStream()
-      var conn = newConnection(buf)
+      var conn = buf
 
       await conn.close()
       check:
@@ -36,7 +35,7 @@ suite "Connection":
   test "child close":
     proc test(): Future[bool] {.async.} =
       var buf = newBufferStream()
-      var conn = newConnection(buf)
+      var conn = buf
 
       await buf.close()
       check:

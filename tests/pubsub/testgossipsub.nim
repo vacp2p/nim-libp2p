@@ -15,7 +15,7 @@ import chronicles
 import utils, ../../libp2p/[errors,
                             peer,
                             peerinfo,
-                            connection,
+                            stream/connection,
                             crypto/crypto,
                             stream/bufferstream,
                             protocols/pubsub/pubsub,
