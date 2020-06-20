@@ -13,8 +13,7 @@ import rpc/[messages, message, protobuf],
        timedcache,
        ../../peer,
        ../../peerinfo,
-       ../../connection,
-       ../../stream/lpstream,
+       ../../stream/connection,
        ../../crypto/crypto,
        ../../protobuf/minprotobuf,
        ../../utility
@@ -24,7 +23,8 @@ logScope:
 
 declareCounter(libp2p_pubsub_sent_messages, "number of messages sent", labels = ["id", "topic"])
 declareCounter(libp2p_pubsub_received_messages, "number of messages received", labels = ["id", "topic"])
-declareCounter(libp2p_pubsub_skipped_messages, "number of skipped messages", labels = ["id"])
+declareCounter(libp2p_pubsub_skipped_received_messages, "number of received skipped messages", labels = ["id"])
+declareCounter(libp2p_pubsub_skipped_sent_messages, "number of sent skipped messages", labels = ["id"])
 
 type
   PubSubObserver* = ref object
@@ -78,7 +78,7 @@ proc handle*(p: PubSubPeer, conn: Connection) {.async.} =
         let digest = $(sha256.digest(data))
         trace "read data from peer", peer = p.id, data = data.shortLog
         if digest in p.recvdRpcCache:
-          libp2p_pubsub_skipped_messages.inc(labelValues = [p.id])
+          libp2p_pubsub_skipped_received_messages.inc(labelValues = [p.id])
           trace "message already received, skipping", peer = p.id
           continue
 
@@ -117,6 +117,7 @@ proc send*(p: PubSubPeer, msgs: seq[RPCMsg]) {.async.} =
     let digest = $(sha256.digest(encoded.buffer))
     if digest in p.sentRpcCache:
       trace "message already sent to peer, skipping", peer = p.id
+      libp2p_pubsub_skipped_sent_messages.inc(labelValues = [p.id])
       continue
 
     proc sendToRemote() {.async.} =

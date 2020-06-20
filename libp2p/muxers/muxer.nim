@@ -9,7 +9,8 @@
 
 import chronos, chronicles
 import ../protocols/protocol,
-       ../connection,
+       ../stream/connection,
+       ../peerinfo,
        ../errors
 
 logScope:
@@ -66,3 +67,6 @@ method init(c: MuxerProvider) =
       trace "exception in muxer handler", exc = exc.msg, peer=conn, proto=proto
 
   c.handler = handler
+
+proc `$`*(m: Muxer): string =
+  $m.connection.peerInfo

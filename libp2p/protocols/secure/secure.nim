@@ -11,7 +11,7 @@ import options
 import chronos, chronicles
 import ../protocol,
        ../../stream/streamseq,
-       ../../connection,
+       ../../stream/connection,
        ../../peerinfo
 
 logScope:
@@ -21,7 +21,20 @@ type
   Secure* = ref object of LPProtocol # base type for secure managers
 
   SecureConn* = ref object of Connection
+    stream*: Connection
     buf: StreamSeq
+
+method initStream*(s: SecureConn) =
+  if s.objName.len == 0:
+    s.objName = "SecureConn"
+
+  procCall Connection(s).initStream()
+
+method close*(s: SecureConn) {.async.} =
+  if not(isNil(s.stream)):
+    await s.stream.close()
+
+  await procCall Connection(s).close()
 
 method readMessage*(c: SecureConn): Future[seq[byte]] {.async, base.} =
   doAssert(false, "Not implemented!")

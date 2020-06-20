@@ -8,7 +8,7 @@
 ## those terms.
 
 import chronos
-import secure, ../../connection
+import secure, ../../stream/connection
 
 const PlainTextCodec* = "/plaintext/1.0.0"
 
