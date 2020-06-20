@@ -63,10 +63,15 @@ proc secure(s: Switch, conn: Connection): Future[Connection] {.async, gcsafe.} =
     raise newException(CatchableError, "No secure managers registered!")
 
   let manager = await s.ms.select(conn, s.secureManagers.mapIt(it.codec))
-  if manager.len == 0:
+  if manager.len == 0 or manager == "na":
     raise newException(CatchableError, "Unable to negotiate a secure channel!")
 
-  result = await s.secureManagers.filterIt(it.codec == manager)[0].secure(conn, true)
+  trace "securing connection", codec=manager
+  let secureProtocol = s.secureManagers.filterIt(it.codec == manager)
+  # ms.select should deal with the correctness of this
+  # let's avoid duplicating checks but detect if it fails to do it properly
+  doAssert(secureProtocol.len > 0) 
+  result = await secureProtocol[0].secure(conn, true)
 
 proc identify(s: Switch, conn: Connection): Future[PeerInfo] {.async, gcsafe.} =
   ## identify the connection
@@ -107,7 +112,7 @@ proc identify(s: Switch, conn: Connection): Future[PeerInfo] {.async, gcsafe.} =
 proc mux(s: Switch, conn: Connection): Future[void] {.async, gcsafe.} =
   ## mux incoming connection
 
-  trace "muxing connection"
+  trace "muxing connection", peer=conn
   let muxers = toSeq(s.muxers.keys)
   if muxers.len == 0:
     warn "no muxers registered, skipping upgrade flow"
@@ -115,10 +120,14 @@ proc mux(s: Switch, conn: Connection): Future[void] {.async, gcsafe.} =
 
   let muxerName = await s.ms.select(conn, muxers)
   if muxerName.len == 0 or muxerName == "na":
+    debug "no muxer available, early exit", peer=conn
     return
 
   # create new muxer for connection
   let muxer = s.muxers[muxerName].newMuxer(conn)
+
+  trace "found a muxer", name=muxerName, peer=conn
+
   # install stream handler
   muxer.streamHandler = s.streamHandler
 

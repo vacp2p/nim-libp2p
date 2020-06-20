@@ -53,7 +53,8 @@ type
     gossip*: Table[string, seq[ControlIHave]]  # pending gossip
     control*: Table[string, ControlMessage]    # pending control messages
     mcache*: MCache                            # messages cache
-    heartbeatCancel*: Future[void]             # cancellation future for heartbeat interval
+    heartbeatFut: Future[void]             # cancellation future for heartbeat interval
+    heartbeatRunning: bool
     heartbeatLock: AsyncLock                   # heartbeat lock to prevent two consecutive concurrent heartbeats
 
 declareGauge(libp2p_gossipsub_peers_per_topic_mesh, "gossipsub peers per topic in mesh", labels = ["topic"])
@@ -211,9 +212,8 @@ proc getGossipPeers(g: GossipSub): Table[string, ControlMessage] {.gcsafe.} =
       .set(g.gossipsub.getOrDefault(topic).len.int64, labelValues = [topic])
 
 proc heartbeat(g: GossipSub) {.async.} =
-  while true:
+  while g.heartbeatRunning:
     try:
-      await g.heartbeatLock.acquire()
       trace "running heartbeat"
 
       for t in toSeq(g.topics.keys):
@@ -230,9 +230,10 @@ proc heartbeat(g: GossipSub) {.async.} =
       g.mcache.shift() # shift the cache
     except CatchableError as exc:
       trace "exception ocurred in gossipsub heartbeat", exc = exc.msg
+      # sleep less in the case of an error
+      # but still throttle
+      await sleepAsync(100.millis)
       continue
-    finally:
-      g.heartbeatLock.release()
 
     await sleepAsync(1.seconds)
 
@@ -497,21 +498,33 @@ method publish*(g: GossipSub,
     libp2p_pubsub_messages_published.inc(labelValues = [topic])
 
 method start*(g: GossipSub) {.async.} =
+  debug "gossipsub start"
+  
   ## start pubsub
   ## start long running/repeating procedures
+  
+  # interlock start to to avoid overlapping to stops
+  await g.heartbeatLock.acquire()
 
   # setup the heartbeat interval
-  g.heartbeatCancel = g.heartbeat()
+  g.heartbeatRunning = true
+  g.heartbeatFut = g.heartbeat()
+
+  g.heartbeatLock.release()
 
 method stop*(g: GossipSub) {.async.} =
-  ## stopt pubsub
+  debug "gossipsub stop"
+  
+  ## stop pubsub
   ## stop long running tasks
 
   await g.heartbeatLock.acquire()
 
   # stop heartbeat interval
-  if not g.heartbeatCancel.finished:
-    g.heartbeatCancel.complete()
+  g.heartbeatRunning = false
+  if not g.heartbeatFut.finished:
+    debug "awaiting last heartbeat"
+    await g.heartbeatFut
 
   g.heartbeatLock.release()
 

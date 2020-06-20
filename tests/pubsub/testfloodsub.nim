@@ -232,7 +232,7 @@ suite "FloodSub":
 
       var nodes: seq[Switch] = newSeq[Switch]()
       for i in 0..<runs:
-        nodes.add newStandardSwitch()
+        nodes.add newStandardSwitch(secureManagers = [SecureProtocol.Noise])
 
       var awaitters: seq[Future[void]]
       for i in 0..<runs:
@@ -285,7 +285,7 @@ suite "FloodSub":
 
       var nodes: seq[Switch] = newSeq[Switch]()
       for i in 0..<runs:
-        nodes.add newStandardSwitch(triggerSelf = true)
+        nodes.add newStandardSwitch(triggerSelf = true, secureManagers = [SecureProtocol.Secio])
 
 
       var awaitters: seq[Future[void]]

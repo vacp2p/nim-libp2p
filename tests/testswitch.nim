@@ -53,10 +53,10 @@ suite "Switch":
       testProto.codec = TestCodec
       testProto.handler = handle
 
-      let switch1 = newStandardSwitch()
+      let switch1 = newStandardSwitch(secureManagers = [SecureProtocol.Noise])
       switch1.mount(testProto)
 
-      let switch2 = newStandardSwitch()
+      let switch2 = newStandardSwitch(secureManagers = [SecureProtocol.Noise])
       var awaiters: seq[Future[void]]
       awaiters.add(await switch1.start())
       awaiters.add(await switch2.start())
@@ -93,10 +93,10 @@ suite "Switch":
       testProto.codec = TestCodec
       testProto.handler = handle
 
-      let switch1 = newStandardSwitch()
+      let switch1 = newStandardSwitch(secureManagers = [SecureProtocol.Secio])
       switch1.mount(testProto)
 
-      let switch2 = newStandardSwitch()
+      let switch2 = newStandardSwitch(secureManagers = [SecureProtocol.Secio])
       var awaiters: seq[Future[void]]
       awaiters.add(await switch1.start())
       awaiters.add(await switch2.start())
@@ -151,10 +151,10 @@ suite "Switch":
       testProto.codec = TestCodec
       testProto.handler = handle
 
-      let switch1 = newStandardSwitch()
+      let switch1 = newStandardSwitch(secureManagers = [SecureProtocol.Noise])
       switch1.mount(testProto)
 
-      let switch2 = newStandardSwitch()
+      let switch2 = newStandardSwitch(secureManagers = [SecureProtocol.Noise])
       awaiters.add(await switch1.start())
       awaiters.add(await switch2.start())
 
@@ -185,8 +185,8 @@ suite "Switch":
     proc testSwitch() {.async, gcsafe.} =
       var awaiters: seq[Future[void]]
 
-      let switch1 = newStandardSwitch()
-      let switch2 = newStandardSwitch()
+      let switch1 = newStandardSwitch(secureManagers = [SecureProtocol.Secio])
+      let switch2 = newStandardSwitch(secureManagers = [SecureProtocol.Secio])
       awaiters.add(await switch1.start())
       awaiters.add(await switch2.start())
 

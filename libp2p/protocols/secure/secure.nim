@@ -14,6 +14,9 @@ import ../protocol,
        ../../stream/connection,
        ../../peerinfo
 
+logScope:
+  topics = "secure"
+
 type
   Secure* = ref object of LPProtocol # base type for secure managers
 

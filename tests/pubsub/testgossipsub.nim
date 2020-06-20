@@ -170,7 +170,7 @@ suite "GossipSub":
 
       var nodes: seq[Switch] = newSeq[Switch]()
       for i in 0..<2:
-        nodes.add newStandardSwitch(gossip = true)
+        nodes.add newStandardSwitch(gossip = true, secureManagers = [SecureProtocol.Noise])
 
       var awaitters: seq[Future[void]]
       for node in nodes:
@@ -203,7 +203,7 @@ suite "GossipSub":
 
       var nodes: seq[Switch] = newSeq[Switch]()
       for i in 0..<2:
-        nodes.add newStandardSwitch(gossip = true)
+        nodes.add newStandardSwitch(gossip = true, secureManagers = [SecureProtocol.Secio])
 
       var awaitters: seq[Future[void]]
       for node in nodes:
@@ -327,7 +327,7 @@ suite "GossipSub":
       var runs = 10
 
       for i in 0..<runs:
-        nodes.add newStandardSwitch(triggerSelf = true, gossip = true)
+        nodes.add newStandardSwitch(triggerSelf = true, gossip = true, secureManagers = [SecureProtocol.Noise])
         awaitters.add((await nodes[i].start()))
 
       await subscribeRandom(nodes)
@@ -376,7 +376,7 @@ suite "GossipSub":
       var runs = 10
 
       for i in 0..<runs:
-        nodes.add newStandardSwitch(triggerSelf = true, gossip = true)
+        nodes.add newStandardSwitch(triggerSelf = true, gossip = true, secureManagers = [SecureProtocol.Secio])
         awaitters.add((await nodes[i].start()))
 
       await subscribeSparseNodes(nodes, 4)

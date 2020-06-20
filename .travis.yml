@@ -12,7 +12,7 @@ git:
   # when multiple CI builds are queued, the tested commit needs to be in the last X commits cloned with "--depth X"
   depth: 10
 
-go: "1.12.x"
+go: "1.14.x"
 
 matrix:
   include:
@@ -45,9 +45,10 @@ install:
 
   # install and build go-libp2p-daemon
   - curl -O -L -s -S https://raw.githubusercontent.com/status-im/nimbus-build-system/master/scripts/build_p2pd.sh
-  - bash build_p2pd.sh p2pdCache v0.2.1
+  - bash build_p2pd.sh p2pdCache v0.2.4
 
 script:
   - nimble install -y --depsOnly
   - nimble test
   - nimble examples_build
+
