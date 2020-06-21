@@ -131,9 +131,9 @@ proc init*(t: typedesc[SkSignature], data: string): SkResult[SkSignature] =
   var sig: SkSignature
   sig.init(data) and ok(sig)
 
-proc getKey*(key: SkPrivateKey): SkResult[SkPublicKey] =
+proc getKey*(key: SkPrivateKey): SkPublicKey =
   ## Calculate and return Secp256k1 `public key` from `private key` ``key``.
-  ok(SkPublicKey(? SkSecretKey(key).toPublicKey()))
+  SkPublicKey(SkSecretKey(key).toPublicKey())
 
 proc toBytes*(key: SkPrivateKey, data: var openarray[byte]): SkResult[int] =
   ## Serialize Secp256k1 `private key` ``key`` to raw binary form and store it
@@ -181,10 +181,10 @@ proc getBytes*(sig: SkSignature): seq[byte] {.inline.} =
   let length = toBytes(sig, result)
   result.setLen(length)
 
-proc sign*[T: byte|char](key: SkPrivateKey, msg: openarray[T]): SkResult[SkSignature] =
+proc sign*[T: byte|char](key: SkPrivateKey, msg: openarray[T]): SkSignature =
   ## Sign message `msg` using private key `key` and return signature object.
   let h = sha256.digest(msg)
-  ok(SkSignature(? sign(SkSecretKey(key), h)))
+  SkSignature(sign(SkSecretKey(key), h))
 
 proc verify*[T: byte|char](sig: SkSignature, msg: openarray[T],
                            key: SkPublicKey): bool =
@@ -192,11 +192,6 @@ proc verify*[T: byte|char](sig: SkSignature, msg: openarray[T],
   verify(secp256k1.SkSignature(sig), h, secp256k1.SkPublicKey(key))
 
 proc clear*(key: var SkPrivateKey) {.borrow.}
-proc clear*(key: var SkPublicKey) {.borrow.}
-proc clear*(key: var SkSignature) {.borrow.}
-proc clear*(key: var SkKeyPair) {.borrow.}
-
-proc verify*(key: SkPrivateKey): bool {.borrow.}
 
 proc `$`*(key: SkPrivateKey): string {.borrow.}
 proc `$`*(key: SkPublicKey): string {.borrow.}
