@@ -14,7 +14,7 @@ import testmultibase,
        testpeer
 
 import testtransport,
-      #  testmultistream,
+       testmultistream,
        testbufferstream,
        testidentify,
        testswitch,

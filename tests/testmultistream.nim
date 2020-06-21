@@ -57,7 +57,7 @@ proc newTestSelectStream(): TestSelectStream =
 type
   LsHandler = proc(procs: seq[byte]): Future[void] {.gcsafe.}
 
-  TestLsStream = ref object of LPStream
+  TestLsStream = ref object of Connection
     step*: int
     ls*: LsHandler
 
@@ -103,7 +103,7 @@ proc newTestLsStream(ls: LsHandler): TestLsStream {.gcsafe.} =
 type
   NaHandler = proc(procs: string): Future[void] {.gcsafe.}
 
-  TestNaStream = ref object of LPStream
+  TestNaStream = ref object of Connection
     step*: int
     na*: NaHandler
 

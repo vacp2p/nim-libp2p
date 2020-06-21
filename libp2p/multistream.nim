@@ -74,16 +74,21 @@ proc select*(m: MultistreamSelect,
     trace "successfully selected ", proto = proto[0]
     return
 
-  let protos = proto[1..<proto.len()]
-  trace "selecting one of several protos", protos = protos
-  for p in protos:
-    trace "selecting proto", proto = p
-    await conn.writeLp((p & "\n")) # select proto
-    result = string.fromBytes(await conn.readLp(1024)) # read the first proto
-    result.removeSuffix("\n")
-    if result == p:
-      trace "selected protocol", protocol = result
-      break
+  if proto.len > 1:
+    # Try to negotiate alternatives
+    let protos = proto[1..<proto.len()]
+    trace "selecting one of several protos", protos = protos
+    for p in protos:
+      trace "selecting proto", proto = p
+      await conn.writeLp((p & "\n")) # select proto
+      result = string.fromBytes(await conn.readLp(1024)) # read the first proto
+      result.removeSuffix("\n")
+      if result == p:
+        trace "selected protocol", protocol = result
+        break
+  else:
+    # No alternatives, fail
+    result = ""
 
 proc select*(m: MultistreamSelect,
              conn: Connection,
