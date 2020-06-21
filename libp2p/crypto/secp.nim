@@ -191,7 +191,7 @@ proc verify*[T: byte|char](sig: SkSignature, msg: openarray[T],
   let h = sha256.digest(msg)
   verify(secp256k1.SkSignature(sig), h, secp256k1.SkPublicKey(key))
 
-proc clear*(key: var SkPrivateKey) {.borrow.}
+func clear*(key: var SkPrivateKey) {.borrow.}
 
 proc `$`*(key: SkPrivateKey): string {.borrow.}
 proc `$`*(key: SkPublicKey): string {.borrow.}
