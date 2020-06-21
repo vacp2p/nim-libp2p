@@ -129,7 +129,7 @@ method init*(p: Identify) =
 proc identify*(p: Identify,
                conn: Connection,
                remotePeerInfo: PeerInfo): Future[IdentifyInfo] {.async, gcsafe.} =
-  trace "initiating identify", peer=conn
+  trace "initiating identify", peer = $conn
   var message = await conn.readLp(64*1024)
   if len(message) == 0:
     trace "identify: Invalid or empty message received!"

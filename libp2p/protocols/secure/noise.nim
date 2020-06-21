@@ -413,7 +413,7 @@ method write*(sconn: NoiseConnection, message: seq[byte]): Future[void] {.async.
     await sconn.stream.write(outbuf)
 
 method handshake*(p: Noise, conn: Connection, initiator: bool): Future[SecureConn] {.async.} =
-  debug "Starting Noise handshake", initiator, peer=conn
+  debug "Starting Noise handshake", initiator, peer = $conn
 
   # https://github.com/libp2p/specs/tree/master/noise#libp2p-data-in-handshake-messages
   let
@@ -439,7 +439,7 @@ method handshake*(p: Noise, conn: Connection, initiator: bool): Future[SecureCon
     remotePubKeyBytes: seq[byte]
     remoteSig: Signature
     remoteSigBytes: seq[byte]
-  
+
   if remoteProof.getLengthValue(1, remotePubKeyBytes) <= 0:
     raise newException(NoiseHandshakeError, "Failed to deserialize remote public key bytes. (initiator: " & $initiator & ", peer: " & $conn.peerInfo.peerId & ")")
   if remoteProof.getLengthValue(2, remoteSigBytes) <= 0:
@@ -454,7 +454,7 @@ method handshake*(p: Noise, conn: Connection, initiator: bool): Future[SecureCon
   if not remoteSig.verify(verifyPayload, remotePubKey):
     raise newException(NoiseHandshakeError, "Noise handshake signature verify failed.")
   else:
-    debug "Remote signature verified", peer=conn
+    debug "Remote signature verified", peer = $conn
 
   if initiator and not isNil(conn.peerInfo):
     let pid = PeerID.init(remotePubKey)
@@ -464,7 +464,7 @@ method handshake*(p: Noise, conn: Connection, initiator: bool): Future[SecureCon
       var
         failedKey: PublicKey
       discard extractPublicKey(conn.peerInfo.peerId, failedKey)
-      debug "Noise handshake, peer infos don't match!", initiator, dealt_peer=conn.peerInfo.peerId, dealt_key=failedKey, received_peer=pid, received_key=remotePubKey
+      debug "Noise handshake, peer infos don't match!", initiator, dealt_peer = $conn.peerInfo.id, dealt_key = $failedKey, received_peer = $pid, received_key = $remotePubKey
       raise newException(NoiseHandshakeError, "Noise handshake, peer infos don't match! " & $pid & " != " & $conn.peerInfo.peerId)
 
   var secure = new NoiseConnection
@@ -481,7 +481,7 @@ method handshake*(p: Noise, conn: Connection, initiator: bool): Future[SecureCon
     secure.readCs = handshakeRes.cs1
     secure.writeCs = handshakeRes.cs2
 
-  debug "Noise handshake completed!", initiator, peer=secure.peerInfo
+  debug "Noise handshake completed!", initiator, peer = $secure.peerInfo
 
   return secure
 
