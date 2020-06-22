@@ -32,11 +32,6 @@ suite "Secp256k1 testing suite":
         rkey2 == key
         rkey3 == key
         rkey4 == key
-      rkey1.clear()
-      rkey2.clear()
-      check:
-        not rkey1.verify()
-        not rkey2.verify()
   test "Public key serialize/deserialize test":
     for i in 0..<TestsCount:
       var rkey1, rkey2: SkPublicKey
@@ -54,13 +49,11 @@ suite "Secp256k1 testing suite":
         rkey2 == pair.pubkey
         rkey3 == pair.pubkey
         rkey4 == pair.pubkey
-      rkey1.clear()
-      rkey2.clear()
   test "Generate/Sign/Serialize/Deserialize/Verify test":
     var message = "message to sign"
     for i in 0..<TestsCount:
       var kp = SkKeyPair.random().expect("random key pair")
-      var sig = kp.seckey.sign(message).expect("signature")
+      var sig = kp.seckey.sign(message)
       var sersk = kp.seckey.getBytes()
       var serpk = kp.pubkey.getBytes()
       var sersig = sig.getBytes()

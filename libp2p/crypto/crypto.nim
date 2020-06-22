@@ -95,7 +95,7 @@ const
   SupportedSchemesInt* = {int8(RSA), int8(Ed25519), int8(Secp256k1),
                           int8(ECDSA)}
 
-template orError(exp: untyped, err: CryptoError): untyped = 
+template orError(exp: untyped, err: CryptoError): untyped =
   (exp.mapErr do (_: auto) -> auto: err)
 
 proc random*(t: typedesc[PrivateKey], scheme: PKScheme,
@@ -163,7 +163,7 @@ proc getKey*(key: PrivateKey): CryptoResult[PublicKey] =
     let eckey = ? key.eckey.getKey().orError(KeyError)
     ok(PublicKey(scheme: ECDSA, eckey: eckey))
   of Secp256k1:
-    let skkey = ? key.skkey.getKey().orError(KeyError)
+    let skkey = key.skkey.getKey()
     ok(PublicKey(scheme: Secp256k1, skkey: skkey))
   else:
     err(KeyError)
@@ -516,7 +516,7 @@ proc sign*(key: PrivateKey, data: openarray[byte]): CryptoResult[Signature] {.gc
     res.data = ? sig.getBytes().orError(SigError)
     ok(res)
   elif key.scheme == Secp256k1:
-    let sig = ? key.skkey.sign(data).orError(SigError)
+    let sig = key.skkey.sign(data)
     res.data = sig.getBytes()
     ok(res)
   else:
@@ -639,7 +639,7 @@ proc ephemeral*(scheme: ECDHEScheme): CryptoResult[KeyPair] =
   elif scheme == Secp521r1:
     keypair = ? EcKeyPair.random(Secp521r1).orError(KeyError)
   ok(KeyPair(
-    seckey: PrivateKey(scheme: ECDSA, eckey: keypair.seckey), 
+    seckey: PrivateKey(scheme: ECDSA, eckey: keypair.seckey),
     pubkey: PublicKey(scheme: ECDSA, eckey: keypair.pubkey)))
 
 proc ephemeral*(scheme: string): CryptoResult[KeyPair] {.inline.} =
