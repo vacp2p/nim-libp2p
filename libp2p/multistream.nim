@@ -58,45 +58,45 @@ proc select*(m: MultistreamSelect,
     trace "selecting proto", proto = proto[0]
     await conn.writeLp((proto[0] & "\n")) # select proto
 
-  result = string.fromBytes((await conn.readLp(1024))) # read ms header
-  result.removeSuffix("\n")
-  if result != Codec:
-    notice "handshake failed", codec = result.toHex()
+  var s = string.fromBytes((await conn.readLp(1024))) # read ms header
+  s.removeSuffix("\n")
+  if s != Codec:
+    notice "handshake failed", codec = s.toHex()
     raise newMultistreamHandshakeException()
 
   if proto.len() == 0: # no protocols, must be a handshake call
-    return
-
-  result = string.fromBytes(await conn.readLp(1024)) # read the first proto
-  trace "reading first requested proto"
-  result.removeSuffix("\n")
-  if result == proto[0]:
-    trace "successfully selected ", proto = proto[0]
-    return
-
-  if proto.len > 1:
-    # Try to negotiate alternatives
-    let protos = proto[1..<proto.len()]
-    trace "selecting one of several protos", protos = protos
-    for p in protos:
-      trace "selecting proto", proto = p
-      await conn.writeLp((p & "\n")) # select proto
-      result = string.fromBytes(await conn.readLp(1024)) # read the first proto
-      result.removeSuffix("\n")
-      if result == p:
-        trace "selected protocol", protocol = result
-        break
+    return Codec
   else:
-    # No alternatives, fail
-    result = ""
+    s = string.fromBytes(await conn.readLp(1024)) # read the first proto
+    trace "reading first requested proto"
+    s.removeSuffix("\n")
+    if s == proto[0]:
+      trace "successfully selected ", proto = proto[0]
+      return proto[0]
+    elif proto.len > 1:
+      # Try to negotiate alternatives
+      let protos = proto[1..<proto.len()]
+      trace "selecting one of several protos", protos = protos
+      for p in protos:
+        trace "selecting proto", proto = p
+        await conn.writeLp((p & "\n")) # select proto
+        s = string.fromBytes(await conn.readLp(1024)) # read the first proto
+        s.removeSuffix("\n")
+        if s == p:
+          trace "selected protocol", protocol = s
+          return s
+      return ""
+    else:
+      # No alternatives, fail
+      return ""
 
 proc select*(m: MultistreamSelect,
              conn: Connection,
              proto: string): Future[bool] {.async.} =
   if proto.len > 0:
-    result = (await m.select(conn, @[proto])) == proto
+    return (await m.select(conn, @[proto])) == proto
   else:
-    result = (await m.select(conn, @[])) == Codec
+    return (await m.select(conn, @[])) == Codec
 
 proc select*(m: MultistreamSelect, conn: Connection): Future[bool] =
   m.select(conn, "")
