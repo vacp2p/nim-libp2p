@@ -63,7 +63,7 @@ proc secure(s: Switch, conn: Connection): Future[Connection] {.async, gcsafe.} =
     raise newException(CatchableError, "No secure managers registered!")
 
   let manager = await s.ms.select(conn, s.secureManagers.mapIt(it.codec))
-  if manager.len == 0 or manager == "na":
+  if manager.len == 0:
     raise newException(CatchableError, "Unable to negotiate a secure channel!")
 
   trace "securing connection", codec=manager
