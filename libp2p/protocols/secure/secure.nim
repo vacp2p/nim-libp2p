@@ -12,6 +12,7 @@ import chronos, chronicles
 import ../protocol,
        ../../stream/streamseq,
        ../../stream/connection,
+       ../../multiaddress,
        ../../peerinfo
 
 logScope:
@@ -24,6 +25,16 @@ type
     stream*: Connection
     buf: StreamSeq
 
+proc init*[T: SecureConn](C: type T,
+                          conn: Connection,
+                          peerInfo: PeerInfo,
+                          observedAddr: Multiaddress): T =
+  result = C(stream: conn,
+             peerInfo: peerInfo,
+             observedAddr: observedAddr,
+             closeEvent: conn.closeEvent)
+  result.initStream()
+
 method initStream*(s: SecureConn) =
   if s.objName.len == 0:
     s.objName = "SecureConn"
@@ -31,10 +42,10 @@ method initStream*(s: SecureConn) =
   procCall Connection(s).initStream()
 
 method close*(s: SecureConn) {.async.} =
+  await procCall Connection(s).close()
+
   if not(isNil(s.stream)):
     await s.stream.close()
-
-  await procCall Connection(s).close()
 
 method readMessage*(c: SecureConn): Future[seq[byte]] {.async, base.} =
   doAssert(false, "Not implemented!")
@@ -47,11 +58,12 @@ method handshake(s: Secure,
 proc handleConn*(s: Secure, conn: Connection, initiator: bool): Future[Connection] {.async, gcsafe.} =
   var sconn = await s.handshake(conn, initiator)
 
-  result = sconn
-  result.observedAddr = conn.observedAddr
+  conn.closeEvent.wait()
+    .addCallback do(udata: pointer = nil):
+      if not(isNil(sconn)):
+        asyncCheck sconn.close()
 
-  if not isNil(sconn.peerInfo) and sconn.peerInfo.publicKey.isSome:
-    result.peerInfo = PeerInfo.init(sconn.peerInfo.publicKey.get())
+  return sconn
 
 method init*(s: Secure) {.gcsafe.} =
   proc handle(conn: Connection, proto: string) {.async, gcsafe.} =
@@ -94,7 +106,7 @@ method readExactly*(s: SecureConn,
     let consumed = s.buf.consumeTo(toOpenArray(p, 0, nbytes - 1))
     doAssert consumed == nbytes, "checked above"
   except CatchableError as exc:
-    trace "exception reading from secure connection", exc = exc.msg
+    trace "exception reading from secure connection", exc = exc.msg, oid = s.oid
     await s.close() # make sure to close the wrapped connection
     raise exc
 
@@ -115,6 +127,6 @@ method readOnce*(s: SecureConn,
     var p = cast[ptr UncheckedArray[byte]](pbytes)
     return s.buf.consumeTo(toOpenArray(p, 0, nbytes - 1))
   except CatchableError as exc:
-    trace "exception reading from secure connection", exc = exc.msg
+    trace "exception reading from secure connection", exc = exc.msg, oid = s.oid
     await s.close() # make sure to close the wrapped connection
     raise exc

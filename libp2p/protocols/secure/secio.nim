@@ -245,9 +245,9 @@ proc newSecioConn(conn: Connection,
   ## Create new secure stream/lpstream, using specified hash algorithm ``hash``,
   ## cipher algorithm ``cipher``, stretched keys ``secrets`` and order
   ## ``order``.
-  new result
-  result.initStream()
-  result.stream = conn
+  result = SecioConn.init(conn,
+                          PeerInfo.init(remotePubKey),
+                          conn.observedAddr)
 
   let i0 = if order < 0: 1 else: 0
   let i1 = if order < 0: 0 else: 1
@@ -264,9 +264,6 @@ proc newSecioConn(conn: Connection,
                           secrets.ivOpenArray(i0))
   result.readerCoder.init(cipher, secrets.keyOpenArray(i1),
                           secrets.ivOpenArray(i1))
-
-  result.peerInfo = PeerInfo.init(remotePubKey)
-  result.observedAddr = conn.observedAddr
 
 proc transactMessage(conn: Connection,
                      msg: seq[byte]): Future[seq[byte]] {.async.} =
