@@ -415,8 +415,9 @@ proc maintainPeer(s: Switch, peerInfo: PeerInfo) {.async.} =
     tryAndWarn "explicit peer maintain":
       var conn = s.connections.getOrDefault(peerInfo.id)
       if conn.isNil or conn.closed:
-        # attempt redial in this case
-        discard
+        # attempt re-connect in this case
+        trace "explicit peering, trying to re-connect", peer=peerInfo
+        await s.connect(peerInfo)
     
       await sleepAsync(5.minutes) # spec recommended 
 
