@@ -65,6 +65,15 @@ proc newStreamInternal*(m: Mplex,
 
   m.getChannelList(initiator)[id] = result
 
+proc handleStream(m: Muxer, chann: LPChannel) {.async.} =
+  try:
+    await m.streamHandler(chann)
+    trace "finished handling stream"
+    doAssert(chann.closed, "connection not closed by handler!")
+  except CatchableError as exc:
+    trace "exception in stream handler", exc = exc.msg
+    await chann.reset()
+
 method handle*(m: Mplex) {.async, gcsafe.} =
   trace "starting mplex main loop", oid = m.oid
   try:
@@ -95,7 +104,7 @@ method handle*(m: Mplex) {.async, gcsafe.} =
           initiator = initiator
           msgType = msgType
           size = data.len
-          oid = m.oid
+          muxer_oid = m.oid
 
         case msgType:
           of MessageType.New:
@@ -103,25 +112,16 @@ method handle*(m: Mplex) {.async, gcsafe.} =
             channel = await m.newStreamInternal(false, id, name)
 
             trace "created channel", name = channel.name,
-                                     chann_iod = channel.oid
+                                     oid = channel.oid
 
             if not isNil(m.streamHandler):
-              proc handler(chann: LPChannel) {.async.} =
-                try:
-                  await m.streamHandler(channel)
-                  trace "finished handling stream"
-                  doAssert(chann.closed, "connection not closed by handler!")
-                except CatchableError as exc:
-                  trace "exception in stream handler", exc = exc.msg
-                  await chann.reset()
-
               # launch handler task
-              asyncCheck handler(channel)
+              asyncCheck m.handleStream(channel)
 
           of MessageType.MsgIn, MessageType.MsgOut:
             logScope:
               name = channel.name
-              chann_iod = channel.oid
+              oid = channel.oid
 
             trace "pushing data to channel"
 
@@ -131,7 +131,7 @@ method handle*(m: Mplex) {.async, gcsafe.} =
           of MessageType.CloseIn, MessageType.CloseOut:
             logScope:
               name = channel.name
-              chann_iod = channel.oid
+              oid = channel.oid
 
             trace "closing channel"
 
@@ -141,7 +141,7 @@ method handle*(m: Mplex) {.async, gcsafe.} =
           of MessageType.ResetIn, MessageType.ResetOut:
             logScope:
               name = channel.name
-              chann_iod = channel.oid
+              oid = channel.oid
 
             trace "resetting channel"
 
