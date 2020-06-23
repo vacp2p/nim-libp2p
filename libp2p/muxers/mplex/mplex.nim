@@ -25,7 +25,6 @@ type
   Mplex* = ref object of Muxer
     remote: Table[uint64, LPChannel]
     local: Table[uint64, LPChannel]
-    handlerFuts: seq[Future[void]]
     currentId*: uint64
     maxChannels*: uint64
     isClosed: bool
@@ -107,19 +106,17 @@ method handle*(m: Mplex) {.async, gcsafe.} =
                                      chann_iod = channel.oid
 
             if not isNil(m.streamHandler):
-              var fut = newFuture[void]()
-              proc handler() {.async.} =
+              proc handler(chann: LPChannel) {.async.} =
                 try:
                   await m.streamHandler(channel)
                   trace "finished handling stream"
-                  # doAssert(channel.closed, "connection not closed by handler!")
+                  doAssert(chann.closed, "connection not closed by handler!")
                 except CatchableError as exc:
                   trace "exception in stream handler", exc = exc.msg
-                  await channel.reset()
-                finally:
-                  m.handlerFuts.keepItIf(it != fut)
+                  await chann.reset()
 
-              fut = handler()
+              # launch handler task
+              asyncCheck handler(channel)
 
           of MessageType.MsgIn, MessageType.MsgOut:
             logScope:
@@ -201,12 +198,9 @@ method close*(m: Mplex) {.async, gcsafe.} =
       except CatchableError as exc:
         warn "error resetting channel", exc = exc.msg
 
-    checkFutures(
-      await allFinished(m.handlerFuts))
-
     await m.connection.close()
   finally:
     m.remote.clear()
     m.local.clear()
-    m.handlerFuts = @[]
+    # m.handlerFuts = @[]
     m.isClosed = true
