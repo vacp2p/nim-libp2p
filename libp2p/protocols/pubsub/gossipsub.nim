@@ -316,6 +316,14 @@ proc handleGraft(g: GossipSub,
     trace "processing graft message", peer = peer.id,
                                       topicID = graft.topicID
 
+    # It is an error to GRAFT on a explicit peer
+    if peer.peerInfo.maintain:
+      trace "attempt to graft an explicit peer",  peer=peer.id, 
+                                                  topicID=graft.topicID
+      # and such an attempt should be logged and rejected with a PRUNE
+      respControl.prune.add(ControlPrune(topicID: graft.topicID))
+      continue
+
     if graft.topicID in g.topics:
       if g.mesh.len < GossipSubD:
         g.mesh[graft.topicID].incl(peer.id)
