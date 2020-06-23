@@ -26,7 +26,9 @@ import pubsub,
 logScope:
   topics = "gossipsub"
 
-const GossipSubCodec* = "/meshsub/1.0.0"
+const
+  GossipSubCodec* = "/meshsub/1.0.0"
+  GossipSubCodec_11* = "/meshsub/1.1.0"
 
 # overlay parameters
 const GossipSubD* = 6
@@ -71,7 +73,8 @@ method init*(g: GossipSub) =
     await g.handleConn(conn, proto)
 
   g.handler = handler
-  g.codec = GossipSubCodec
+  g.codecs &= GossipSubCodec
+  g.codecs &= GossipSubCodec_11
 
 proc replenishFanout(g: GossipSub, topic: string) {.async.} =
   ## get fanout peers for a topic
