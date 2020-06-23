@@ -16,7 +16,16 @@ type
                           Future[void] {.gcsafe, closure.}
 
   LPProtocol* = ref object of RootObj
-    codec*: string
+    codecs*: seq[string]
     handler*: LPProtoHandler ## this handler gets invoked by the protocol negotiator
 
 method init*(p: LPProtocol) {.base, gcsafe.} = discard
+
+func codec*(p: LPProtocol): string = 
+  assert(p.codecs.len > 0, "Codecs sequence was empty!")
+  p.codecs[0]
+
+func `codec=`*(p: LPProtocol, codec: string) =
+  # always insert as first codec 
+  # if we use this abstraction
+  p.codecs.insert(codec, 0)

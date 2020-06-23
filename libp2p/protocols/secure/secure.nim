@@ -14,6 +14,8 @@ import ../protocol,
        ../../stream/connection,
        ../../peerinfo
 
+export protocol
+
 logScope:
   topics = "secure"
 

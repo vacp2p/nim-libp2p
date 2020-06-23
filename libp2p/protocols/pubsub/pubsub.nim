@@ -18,6 +18,7 @@ import metrics
 
 export PubSubPeer
 export PubSubObserver
+export protocol
 
 logScope:
   topics = "pubsub"
