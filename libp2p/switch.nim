@@ -50,7 +50,8 @@ declareCounter(libp2p_failed_upgrade, "peers failed upgrade")
 const MaxConnectionsPerPeer = 5
 
 type
-    NoPubSubException = object of CatchableError
+    NoPubSubException* = object of CatchableError
+    TooManyConnections* = object of CatchableError
 
     Direction {.pure.} = enum
       In, Out
@@ -79,13 +80,27 @@ type
       dialedPubSubPeers: HashSet[string]
       dialLock: Table[string, AsyncLock]
 
-proc newNoPubSubException(): ref CatchableError {.inline.} =
+proc newNoPubSubException(): ref NoPubSubException {.inline.} =
   result = newException(NoPubSubException, "no pubsub provided!")
 
-proc addConn(s: Switch, conn: Connection, dir: Direction) =
+proc newTooManyConnections(): ref TooManyConnections {.inline.} =
+  result = newException(TooManyConnections, "too many connections for peer")
+
+proc disconnect*(s: Switch, peer: PeerInfo) {.async, gcsafe.}
+
+proc addConn(s: Switch, conn: Connection, dir: Direction) {.async.} =
   if not(isNil(conn)):
+    let id = conn.peerInfo.id
+    if s.connections.getOrDefault(id).len >= MaxConnectionsPerPeer:
+      warn "connection count exceeded for peer", peer = conn.peerInfo,
+                                                 conns = s.connections
+                                                 .getOrDefault(id).len
+      await s.disconnect(conn.peerInfo)
+      await conn.close()
+      raise newTooManyConnections()
+
     s.connections.mgetOrPut(
-      conn.peerInfo.id,
+      id,
       newSeq[ConnectionHolder]())
       .add(ConnectionHolder(conn: conn, dir: dir))
 
@@ -306,7 +321,7 @@ proc upgradeOutgoing(s: Switch, conn: Connection): Future[Connection] {.async, g
     await sconn.close()
     return
 
-  s.addConn(sconn, Direction.Out)
+  await s.addConn(sconn, Direction.Out)
 
   libp2p_peers.set(s.connections.len.int64)
   trace "succesfully upgraded outgoing connection", conn = $conn,
@@ -623,7 +638,7 @@ proc newSwitch*(peerInfo: PeerInfo,
         s.addMuxer(muxer, Direction.In)
 
         # store muxed connection
-        s.addConn(muxer.connection, Direction.In)
+        await s.addConn(muxer.connection, Direction.In)
         libp2p_peers.set(s.connections.len.int64)
 
         muxer.connection.closeEvent.wait()
