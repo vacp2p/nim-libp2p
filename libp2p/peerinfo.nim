@@ -36,6 +36,9 @@ type
       privateKey*: PrivateKey
     of HasPublic:
       key: Option[PublicKey]
+    # gossip 1.1 spec related
+    # https://github.com/libp2p/specs/blob/master/pubsub/gossipsub/gossipsub-v1.1.md#explicit-peering-agreements
+    maintain*: bool 
 
 proc id*(p: PeerInfo): string =
   p.peerId.pretty()
