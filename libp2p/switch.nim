@@ -88,31 +88,6 @@ proc newTooManyConnections(): ref TooManyConnections {.inline.} =
 
 proc disconnect*(s: Switch, peer: PeerInfo) {.async, gcsafe.}
 
-proc addConn(s: Switch, conn: Connection, dir: Direction) {.async.} =
-  if not(isNil(conn)):
-    let id = conn.peerInfo.id
-    if s.connections.getOrDefault(id).len >= MaxConnectionsPerPeer:
-      warn "connection count exceeded for peer", peer = conn.peerInfo,
-                                                 conns = s.connections
-                                                 .getOrDefault(id).len
-      await s.disconnect(conn.peerInfo)
-      await conn.close()
-      raise newTooManyConnections()
-
-    s.connections.mgetOrPut(
-      id,
-      newSeq[ConnectionHolder]())
-      .add(ConnectionHolder(conn: conn, dir: dir))
-
-proc addMuxer(s: Switch, muxer: Muxer, dir: Direction, handle: Future[void] = nil) =
-  if not(isNil(muxer)):
-    s.muxed.mgetOrPut(
-      muxer.connection.peerInfo.id,
-      newSeq[MuxerHolder]())
-      .add(MuxerHolder(muxer: muxer,
-                       handle: handle,
-                       dir: dir))
-
 proc selectConn(s: Switch, peerInfo: PeerInfo): Connection =
   ## select the "best" connection according to some criteria
   ##
@@ -152,6 +127,30 @@ proc selectMuxer(s: Switch, conn: Connection): Muxer =
         .filterIt( it.muxer.connection == conn )
       if muxers.len > 0:
         return muxers[0].muxer
+
+proc addMuxer(s: Switch, muxer: Muxer, dir: Direction, handle: Future[void] = nil) =
+  if not(isNil(muxer)):
+    s.muxed.mgetOrPut(
+      muxer.connection.peerInfo.id,
+      newSeq[MuxerHolder]())
+      .add(MuxerHolder(muxer: muxer, handle: handle, dir: dir))
+
+proc addConn(s: Switch, conn: Connection, dir: Direction) {.async.} =
+  if not(isNil(conn)):
+    let id = conn.peerInfo.id
+    if s.connections.getOrDefault(id).len >= MaxConnectionsPerPeer:
+      warn "disconnecting peer, too many connections", peer = conn.peerInfo,
+                                                       conns = s.connections
+                                                       .getOrDefault(id).len
+      let muxer = s.selectMuxer(conn)
+      await muxer.close()
+      await s.disconnect(conn.peerInfo)
+      raise newTooManyConnections()
+
+    s.connections.mgetOrPut(
+      id,
+      newSeq[ConnectionHolder]())
+      .add(ConnectionHolder(conn: conn, dir: dir))
 
 proc secure(s: Switch, conn: Connection): Future[Connection] {.async, gcsafe.} =
   if s.secureManagers.len <= 0:
