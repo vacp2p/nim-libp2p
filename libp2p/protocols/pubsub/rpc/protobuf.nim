@@ -32,8 +32,13 @@ proc encodePeerInfo*(info: PeerInfoMsg, pb: var ProtoBuffer) {.gcsafe.} =
 
 proc encodePrune*(prune: ControlPrune, pb: var ProtoBuffer) {.gcsafe.} =
   pb.write(initProtoField(1, prune.topicID))
+
+  var peers = initProtoBuffer()
   for p in prune.peers:
-    encodePeerInfo(p, pb)
+    p.encodePeerInfo(peers)
+  peers.finish()
+  pb.write(initProtoField(2, peers))
+  
   pb.write(initProtoField(3, prune.backoff))
 
 proc decodePrune*(pb: var ProtoBuffer): seq[ControlPrune] {.gcsafe.} =
