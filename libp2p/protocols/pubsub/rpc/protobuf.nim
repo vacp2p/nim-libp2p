@@ -26,8 +26,15 @@ proc decodeGraft*(pb: var ProtoBuffer): seq[ControlGraft] {.gcsafe.} =
     trace "read topic field from graft msg", topicID = topic
     result.add(ControlGraft(topicID: topic))
 
+proc encodePeerInfo*(info: PeerInfoMsg, pb: var ProtoBuffer) {.gcsafe.} =
+  pb.write(initProtoField(1, info.peerID))
+  pb.write(initProtoField(2, info.signedPeerRecord))
+
 proc encodePrune*(prune: ControlPrune, pb: var ProtoBuffer) {.gcsafe.} =
   pb.write(initProtoField(1, prune.topicID))
+  for p in prune.peers:
+    encodePeerInfo(p, pb)
+  pb.write(initProtoField(3, prune.backoff))
 
 proc decodePrune*(pb: var ProtoBuffer): seq[ControlPrune] {.gcsafe.} =
   trace "decoding prune msg"
