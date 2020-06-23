@@ -128,29 +128,33 @@ proc selectMuxer(s: Switch, conn: Connection): Muxer =
       if muxers.len > 0:
         return muxers[0].muxer
 
-proc addMuxer(s: Switch, muxer: Muxer, dir: Direction, handle: Future[void] = nil) =
+proc storeConn(s: Switch,
+               muxer: Muxer,
+               dir: Direction,
+               handle: Future[void] = nil) {.async.} =
+  ## store the connection and muxer
+  ##
   if not(isNil(muxer)):
+    let conn = muxer.connection
+    if not(isNil(conn)):
+      let id = conn.peerInfo.id
+      if s.connections.getOrDefault(id).len >= MaxConnectionsPerPeer:
+        warn "disconnecting peer, too many connections", peer = $conn.peerInfo,
+                                                        conns = s.connections
+                                                        .getOrDefault(id).len
+        await muxer.close()
+        await s.disconnect(conn.peerInfo)
+        raise newTooManyConnections()
+
+      s.connections.mgetOrPut(
+        id,
+        newSeq[ConnectionHolder]())
+        .add(ConnectionHolder(conn: conn, dir: dir))
+
     s.muxed.mgetOrPut(
       muxer.connection.peerInfo.id,
       newSeq[MuxerHolder]())
       .add(MuxerHolder(muxer: muxer, handle: handle, dir: dir))
-
-proc addConn(s: Switch, conn: Connection, dir: Direction) {.async.} =
-  if not(isNil(conn)):
-    let id = conn.peerInfo.id
-    if s.connections.getOrDefault(id).len >= MaxConnectionsPerPeer:
-      warn "disconnecting peer, too many connections", peer = conn.peerInfo,
-                                                       conns = s.connections
-                                                       .getOrDefault(id).len
-      let muxer = s.selectMuxer(conn)
-      await muxer.close()
-      await s.disconnect(conn.peerInfo)
-      raise newTooManyConnections()
-
-    s.connections.mgetOrPut(
-      id,
-      newSeq[ConnectionHolder]())
-      .add(ConnectionHolder(conn: conn, dir: dir))
 
 proc secure(s: Switch, conn: Connection): Future[Connection] {.async, gcsafe.} =
   if s.secureManagers.len <= 0:
@@ -244,7 +248,7 @@ proc mux(s: Switch, conn: Connection): Future[void] {.async, gcsafe.} =
 
   # store it in muxed connections if we have a peer for it
   trace "adding muxer for peer", peer = conn.peerInfo.id
-  s.addMuxer(muxer, Direction.Out, handlerFut)
+  await s.storeConn(muxer, Direction.Out, handlerFut)
 
 proc cleanupConn(s: Switch, conn: Connection) {.async, gcsafe.} =
   try:
@@ -319,8 +323,6 @@ proc upgradeOutgoing(s: Switch, conn: Connection): Future[Connection] {.async, g
                                                         oid = conn.oid
     await sconn.close()
     return
-
-  await s.addConn(sconn, Direction.Out)
 
   libp2p_peers.set(s.connections.len.int64)
   trace "succesfully upgraded outgoing connection", conn = $conn,
@@ -633,11 +635,8 @@ proc newSwitch*(peerInfo: PeerInfo,
         # identify it
         muxer.connection.peerInfo = await s.identify(stream)
 
-        # store muxer for connection
-        s.addMuxer(muxer, Direction.In)
-
-        # store muxed connection
-        await s.addConn(muxer.connection, Direction.In)
+        # store muxer and muxed connection
+        await s.storeConn(muxer, Direction.In)
         libp2p_peers.set(s.connections.len.int64)
 
         muxer.connection.closeEvent.wait()
