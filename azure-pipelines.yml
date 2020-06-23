@@ -36,7 +36,7 @@ steps:
   - task: CacheBeta@1
     displayName: 'cache MinGW-w64'
     inputs:
-      key: mingwCache | 8_1_0 | $(PLATFORM) | "v1"
+      key: mingwCache | 8_1_0 | $(PLATFORM) | "v2"
       path: mingwCache
 
   - powershell: |
@@ -53,7 +53,6 @@ steps:
         mkdir -p mingwCache
         cd mingwCache
         if [[ ! -e "$MINGW_FILE" ]]; then
-          rm -f *.7z
           curl -OLsS "$MINGW_URL"
         fi
         7z x -y -bd "$MINGW_FILE" >/dev/null
