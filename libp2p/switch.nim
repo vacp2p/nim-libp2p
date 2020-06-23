@@ -138,7 +138,7 @@ proc storeConn(s: Switch,
     let conn = muxer.connection
     if not(isNil(conn)):
       let id = conn.peerInfo.id
-      if s.connections.getOrDefault(id).len >= MaxConnectionsPerPeer:
+      if s.connections.getOrDefault(id).len > MaxConnectionsPerPeer:
         warn "disconnecting peer, too many connections", peer = $conn.peerInfo,
                                                          conns = s.connections
                                                          .getOrDefault(id).len
