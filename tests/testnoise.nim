@@ -108,7 +108,6 @@ suite "Noise":
       await transport1.close()
       await transport2.close()
 
-      echo "MSG ", string.fromBytes(msg)
       result = string.fromBytes(msg) == "Hello!"
 
     check:
