@@ -45,6 +45,10 @@ type
 
   RPCHandler* = proc(peer: PubSubPeer, msg: seq[RPCMsg]): Future[void] {.gcsafe.}
 
+func score*(p: PubSubPeer): float64 = 
+  # TODO
+  0.0
+
 proc id*(p: PubSubPeer): string = p.peerInfo.id
 
 proc isConnected*(p: PubSubPeer): bool =
@@ -159,10 +163,10 @@ proc sendGraft*(p: PubSubPeer, topics: seq[string]) {.async.} =
     trace "sending graft msg to peer", peer = p.id, topicID = topic
     await p.send(@[RPCMsg(control: some(ControlMessage(graft: @[ControlGraft(topicID: topic)])))])
 
-proc sendPrune*(p: PubSubPeer, topics: seq[string]) {.async.} =
+proc sendPrune*(p: PubSubPeer, topics: seq[string], peers: seq[PeerInfoMsg] = @[], backoff: uint64 = 0) {.async.} =
   for topic in topics:
     trace "sending prune msg to peer", peer = p.id, topicID = topic
-    await p.send(@[RPCMsg(control: some(ControlMessage(prune: @[ControlPrune(topicID: topic)])))])
+    await p.send(@[RPCMsg(control: some(ControlMessage(prune: @[ControlPrune(topicID: topic, peers: peers, backoff: backoff)])))])
 
 proc newPubSubPeer*(peerInfo: PeerInfo,
                     proto: string): PubSubPeer =

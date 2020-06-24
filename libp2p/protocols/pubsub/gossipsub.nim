@@ -7,7 +7,7 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import tables, sets, options, sequtils, random
+import tables, sets, options, sequtils, random, algorithm
 import chronos, chronicles, metrics
 import pubsub,
        floodsub,
@@ -31,17 +31,21 @@ const
   GossipSubCodec_11* = "/meshsub/1.1.0"
 
 # overlay parameters
-const GossipSubD* = 6
-const GossipSubDlo* = 4
-const GossipSubDhi* = 12
+const
+  GossipSubD* = 6
+  GossipSubDlo* = 4
+  GossipSubDhi* = 12
 
 # gossip parameters
-const GossipSubHistoryLength* = 5
-const GossipSubHistoryGossip* = 3
+const
+  GossipSubHistoryLength* = 5
+  GossipSubHistoryGossip* = 3
+  GossipBackoffPeriod* = 1.minutes
 
 # heartbeat interval
-const GossipSubHeartbeatInitialDelay* = 100.millis
-const GossipSubHeartbeatInterval* = 1.seconds
+const
+  GossipSubHeartbeatInitialDelay* = 100.millis
+  GossipSubHeartbeatInterval* = 1.seconds
 
 # fanout ttl
 const GossipSubFanoutTTL* = 1.minutes
@@ -148,13 +152,33 @@ proc rebalanceMesh(g: GossipSub, topic: string) {.async.} =
     # prune peers if we've gone over
     if g.mesh.getOrDefault(topic).len > GossipSubDhi:
       trace "about to prune mesh", mesh = g.mesh.getOrDefault(topic).len
+      
+      # ATTN possible perf bottleneck here... score is a "red" function
+      # and we call a lot of Table[] etc etc
+
+      # gather peers
+      var peers = toSeq(g.mesh[topic])
+      # sort peers by score
+      peers.sort(proc (x, y: string): int =
+        let
+          peerx = g.peers[x].score()
+          peery = g.peers[y].score()
+        if peerx < peery: -1
+        elif peerx == peery: 0
+        else: 1)
+      
       while g.mesh.getOrDefault(topic).len > GossipSubD:
         trace "pruning peers", peers = g.mesh[topic].len
-        let id = toSeq(g.mesh[topic])[rand(0..<g.mesh[topic].len)]
+
+        # pop a low score peer
+        let
+          id = peers.pop()
         g.mesh[topic].excl(id)
 
-        let p = g.peers[id]
-        # send a graft message to the peer
+        # send a prune message to the peer
+        let
+          p = g.peers[id]
+        # TODO send a set of other peers where the pruned peer can connect to reform its mesh
         await p.sendPrune(@[topic])
 
     libp2p_gossipsub_peers_per_topic_gossipsub
