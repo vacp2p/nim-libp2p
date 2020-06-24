@@ -27,7 +27,7 @@ const
   ProtoVersion* = "ipfs/0.1.0"
   AgentVersion* = "nim-libp2p/0.0.1"
 
-#TODO: implment push identify, leaving out for now as it is not essential
+#TODO: implement push identify, leaving out for now as it is not essential
 
 type
   IdentityNoMatchError* = object of CatchableError
@@ -141,7 +141,7 @@ proc identify*(p: Identify,
   if not isNil(remotePeerInfo) and result.pubKey.isSome:
     let peer = PeerID.init(result.pubKey.get())
 
-    # do a string comaprison of the ids,
+    # do a string comparison of the ids,
     # because that is the only thing we
     # have in most cases
     if peer != remotePeerInfo.peerId:

@@ -15,7 +15,7 @@
 ##
 ## It works by exposing a regular LPStream interface and
 ## a method ``pushTo`` to push data to the internal read
-## buffer; as well as a handler that can be registrered
+## buffer; as well as a handler that can be registered
 ## that gets triggered on every write to the stream. This
 ## allows using the buffered stream as a sort of proxy,
 ## which can be consumed as a regular LPStream but allows
@@ -25,7 +25,7 @@
 ## ordered and asynchronous. Reads are queued up in order
 ## and are suspended when not enough data available. This
 ## allows preserving backpressure while maintaining full
-## asynchrony. Both writting to the internal buffer with
+## asynchrony. Both writing to the internal buffer with
 ## ``pushTo`` as well as reading with ``read*` methods,
 ## will suspend until either the amount of elements in the
 ## buffer goes below ``maxSize`` or more data becomes available.
@@ -180,7 +180,7 @@ method pushTo*(s: BufferStream, data: seq[byte]) {.base, async.} =
       while index < data.len and s.readBuf.len < s.maxSize:
         s.readBuf.addLast(data[index])
         inc(index)
-      # trace "pushTo()", msg = "added " & $index & " bytes to readBuf", oid = s.oid
+      # trace "pushTo()", msg = "added " & $s.len & " bytes to readBuf", oid = s.oid
 
       # resolve the next queued read request
       if s.readReqs.len > 0:
@@ -195,57 +195,27 @@ method pushTo*(s: BufferStream, data: seq[byte]) {.base, async.} =
       await s.dataReadEvent.wait()
       s.dataReadEvent.clear()
   finally:
+    # trace "ended", size = s.len
     s.lock.release()
-
-method readExactly*(s: BufferStream,
-                    pbytes: pointer,
-                    nbytes: int):
-                    Future[void] {.async.} =
-  ## Read exactly ``nbytes`` bytes from read-only stream ``rstream`` and store
-  ## it to ``pbytes``.
-  ##
-  ## If EOF is received and ``nbytes`` is not yet read, the procedure
-  ## will raise ``LPStreamIncompleteError``.
-  ##
-
-  if s.atEof:
-    raise newLPStreamEOFError()
-
-  # trace "readExactly()", requested_bytes = nbytes, oid = s.oid
-  var index = 0
-
-  if s.readBuf.len() == 0:
-    await s.requestReadBytes()
-
-  let output = cast[ptr UncheckedArray[byte]](pbytes)
-  while index < nbytes:
-    while s.readBuf.len() > 0 and index < nbytes:
-      output[index] = s.popFirst()
-      inc(index)
-    # trace "readExactly()", read_bytes = index, oid = s.oid
-
-    if index < nbytes:
-      await s.requestReadBytes()
 
 method readOnce*(s: BufferStream,
                  pbytes: pointer,
                  nbytes: int):
                  Future[int] {.async.} =
-  ## Perform one read operation on read-only stream ``rstream``.
-  ##
-  ## If internal buffer is not empty, ``nbytes`` bytes will be transferred from
-  ## internal buffer, otherwise it will wait until some bytes will be received.
-  ##
-
   if s.atEof:
     raise newLPStreamEOFError()
 
-  if s.readBuf.len == 0:
+  if s.len() == 0:
     await s.requestReadBytes()
 
-  var len = if nbytes > s.readBuf.len: s.readBuf.len else: nbytes
-  await s.readExactly(pbytes, len)
-  result = len
+  var index = 0
+  var size = min(nbytes, s.len)
+  let output = cast[ptr UncheckedArray[byte]](pbytes)
+  while s.len() > 0 and index < size:
+    output[index] = s.popFirst()
+    inc(index)
+
+  return size
 
 method write*(s: BufferStream, msg: seq[byte]) {.async.} =
   ## Write sequence of bytes ``sbytes`` of length ``msglen`` to writer
@@ -266,6 +236,7 @@ method write*(s: BufferStream, msg: seq[byte]) {.async.} =
 
   await s.writeHandler(msg)
 
+# TODO: move pipe routines out
 proc pipe*(s: BufferStream,
            target: BufferStream): BufferStream =
   ## pipe the write end of this stream to

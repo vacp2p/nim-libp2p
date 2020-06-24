@@ -94,18 +94,25 @@ method closed*(s: LPStream): bool {.base, inline.} =
 method atEof*(s: LPStream): bool {.base, inline.} =
   s.isEof
 
-method readExactly*(s: LPStream,
-                    pbytes: pointer,
-                    nbytes: int):
-                    Future[void] {.base, async.} =
-  doAssert(false, "not implemented!")
-
 method readOnce*(s: LPStream,
                  pbytes: pointer,
                  nbytes: int):
                  Future[int]
   {.base, async.} =
   doAssert(false, "not implemented!")
+
+proc readExactly*(s: LPStream,
+                    pbytes: pointer,
+                    nbytes: int):
+                    Future[void] {.async.} =
+
+  if s.atEof:
+    raise newLPStreamEOFError()
+
+  var pbuffer = cast[ptr UncheckedArray[byte]](pbytes)
+  var read = 0
+  while read < nbytes and not(s.atEof()):
+    read += await s.readOnce(addr pbuffer[read], nbytes - read)
 
 proc readLine*(s: LPStream, limit = 0, sep = "\r\n"): Future[string] {.async, deprecated: "todo".} =
   # TODO replace with something that exploits buffering better
@@ -140,6 +147,7 @@ proc readVarint*(conn: LPStream): Future[uint64] {.async, gcsafe.} =
 
   for i in 0..<len(buffer):
     await conn.readExactly(addr buffer[i], 1)
+    trace "BUFFER ", buffer
     let res = PB.getUVarint(buffer.toOpenArray(0, i), length, varint)
     if res.isOk():
       return varint
