@@ -189,6 +189,7 @@ suite "Interop":
         check string.fromBytes(await stream.transp.readLp()) == "test 3"
         asyncDiscard stream.transp.writeLp("test 4")
         testFuture.complete()
+        await stream.close()
 
       await daemonNode.addHandler(protos, daemonHandler)
       let conn = await nativeNode.dial(NativePeerInfo.init(daemonPeer.peer,
@@ -240,6 +241,7 @@ suite "Interop":
         var line = await stream.transp.readLine()
         check line == expect
         testFuture.complete(line)
+        await stream.close()
 
       await daemonNode.addHandler(protos, daemonHandler)
       let conn = await nativeNode.dial(NativePeerInfo.init(daemonPeer.peer,
@@ -285,9 +287,12 @@ suite "Interop":
       discard await stream.transp.writeLp(test)
 
       result = test == (await wait(testFuture, 10.secs))
+
+      await stream.close()
       await nativeNode.stop()
       await allFutures(awaiters)
       await daemonNode.close()
+      await sleepAsync(1.seconds)
 
     check:
       waitFor(runTests()) == true
@@ -331,6 +336,7 @@ suite "Interop":
       await wait(testFuture, 10.secs)
 
       result = true
+      await stream.close()
       await nativeNode.stop()
       await allFutures(awaiters)
       await daemonNode.close()

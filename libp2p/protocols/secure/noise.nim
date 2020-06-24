@@ -467,13 +467,9 @@ method handshake*(p: Noise, conn: Connection, initiator: bool): Future[SecureCon
       debug "Noise handshake, peer infos don't match!", initiator, dealt_peer = $conn.peerInfo.id, dealt_key = $failedKey, received_peer = $pid, received_key = $remotePubKey
       raise newException(NoiseHandshakeError, "Noise handshake, peer infos don't match! " & $pid & " != " & $conn.peerInfo.peerId)
 
-  var secure = new NoiseConnection
-  secure.initStream()
-
-  secure.stream = conn
-  secure.peerInfo = PeerInfo.init(remotePubKey)
-  secure.observedAddr = conn.observedAddr
-
+  var secure = NoiseConnection.init(conn,
+                                    PeerInfo.init(remotePubKey),
+                                    conn.observedAddr)
   if initiator:
     secure.readCs = handshakeRes.cs2
     secure.writeCs = handshakeRes.cs1

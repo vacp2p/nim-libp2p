@@ -82,12 +82,11 @@ method atEof*(s: ChronosStream): bool {.inline.} =
 method close*(s: ChronosStream) {.async.} =
   try:
     if not s.isClosed:
-      s.isClosed = true
+      await procCall Connection(s).close()
 
-      trace "shutting down chronos stream", address = $s.client.remoteAddress()
+      trace "shutting down chronos stream", address = $s.client.remoteAddress(), oid = s.oid
       if not s.client.closed():
         await s.client.closeWait()
 
-      await procCall Connection(s).close()
   except CatchableError as exc:
     trace "error closing chronosstream", exc = exc.msg

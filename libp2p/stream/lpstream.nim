@@ -18,6 +18,7 @@ declareGauge(libp2p_open_streams, "open stream instances", labels = ["type"])
 
 type
   LPStream* = ref object of RootObj
+    closeEvent*: AsyncEvent
     isClosed*: bool
     isEof*: bool
     objName*: string
@@ -73,7 +74,19 @@ method initStream*(s: LPStream) {.base.} =
 
   s.oid = genOid()
   libp2p_open_streams.inc(labelValues = [s.objName])
-  trace "stream created", oid = s.oid
+  trace "stream created", oid = s.oid, name = s.objName
+
+  # TODO: debuging aid to troubleshoot streams open/close
+  # try:
+  #   echo "ChronosStream ", libp2p_open_streams.value(labelValues = ["ChronosStream"])
+  #   echo "SecureConn ", libp2p_open_streams.value(labelValues = ["SecureConn"])
+  #   # doAssert(libp2p_open_streams.value(labelValues = ["ChronosStream"]) >=
+  #   #   libp2p_open_streams.value(labelValues = ["SecureConn"]))
+  # except CatchableError:
+  #   discard
+
+proc join*(s: LPStream): Future[void] =
+  s.closeEvent.wait()
 
 method closed*(s: LPStream): bool {.base, inline.} =
   s.isClosed
@@ -169,6 +182,16 @@ proc write*(s: LPStream, msg: string): Future[void] =
 
 method close*(s: LPStream) {.base, async.} =
   if not s.isClosed:
-    libp2p_open_streams.dec(labelValues = [s.objName])
     s.isClosed = true
-    trace "stream destroyed", oid = s.oid
+    s.closeEvent.fire()
+    libp2p_open_streams.dec(labelValues = [s.objName])
+    trace "stream destroyed", oid = s.oid, name = s.objName
+
+  # TODO: debuging aid to troubleshoot streams open/close
+  # try:
+  #   echo "ChronosStream ", libp2p_open_streams.value(labelValues = ["ChronosStream"])
+  #   echo "SecureConn ", libp2p_open_streams.value(labelValues = ["SecureConn"])
+  #   # doAssert(libp2p_open_streams.value(labelValues = ["ChronosStream"]) >=
+  #   #   libp2p_open_streams.value(labelValues = ["SecureConn"]))
+  # except CatchableError:
+  #   discard
