@@ -392,8 +392,7 @@ method rpcHandler*(g: GossipSub,
           trace "dropping message due to failed signature verification"
           continue
 
-        # explicit peers skip validation!
-        if not peer.peerInfo.maintain and not (await g.validate(msg)):
+        if not (await g.validate(msg)):
           trace "dropping message due to failed validation"
           continue
 
