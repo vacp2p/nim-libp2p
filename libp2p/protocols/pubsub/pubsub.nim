@@ -289,17 +289,27 @@ method validate*(p: PubSub, message: Message): Future[bool] {.async, base.} =
   else:
     libp2p_pubsub_validation_failure.inc()
 
-proc newPubSub*(P: typedesc[PubSub],
+proc newPubSub*[PubParams: object  | bool](P: typedesc[PubSub],
                 peerInfo: PeerInfo,
                 triggerSelf: bool = false,
                 verifySignature: bool = true,
-                sign: bool = true): P =
-  result = P(peerInfo: peerInfo,
-             triggerSelf: triggerSelf,
-             verifySignature: verifySignature,
-             sign: sign,
-             cleanupLock: newAsyncLock())
+                sign: bool = true,
+                params: PubParams = false): P =
+  when PubParams is bool:
+    result = P(peerInfo: peerInfo,
+              triggerSelf: triggerSelf,
+              verifySignature: verifySignature,
+              sign: sign,
+              cleanupLock: newAsyncLock())
+  else:
+    result = P(peerInfo: peerInfo,
+              triggerSelf: triggerSelf,
+              verifySignature: verifySignature,
+              sign: sign,
+              cleanupLock: newAsyncLock(),
+              parameters: params)
   result.initPubSub()
+
 
 proc addObserver*(p: PubSub; observer: PubSubObserver) = p.observers[] &= observer
 

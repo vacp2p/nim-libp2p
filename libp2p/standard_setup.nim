@@ -56,11 +56,13 @@ proc newStandardSwitch*(privKey = none(PrivateKey),
       secureManagerInstances &= newSecio(seckey).Secure
 
   let pubSub = if gossip:
+                  let params = GossipSubParams.init()
                   newPubSub(GossipSub,
                             peerInfo = peerInfo,
                             triggerSelf = triggerSelf,
                             verifySignature = verifySignature,
-                            sign = sign).PubSub
+                            sign = sign,
+                            params).PubSub
                else:
                   newPubSub(FloodSub,
                             peerInfo = peerInfo,

@@ -48,10 +48,19 @@ const
   GossipSubHeartbeatInterval* = 1.seconds
 
 # fanout ttl
-const GossipSubFanoutTTL* = 1.minutes
+const 
+  GossipSubFanoutTTL* = 1.minutes
 
 type
+  GossipSubParams* = object
+    pruneBackoff: Duration
+    floodPublish: bool
+    gossipFactor: float
+    dScore: int
+    dOut: int
+
   GossipSub* = ref object of FloodSub
+    parameters*: GossipSubParams
     mesh*: Table[string, HashSet[string]]      # meshes - topic to peer
     fanout*: Table[string, HashSet[string]]    # fanout - topic to peer
     gossipsub*: Table[string, HashSet[string]] # topic to peer map of all gossipsub peers
@@ -68,6 +77,15 @@ type
 declareGauge(libp2p_gossipsub_peers_per_topic_mesh, "gossipsub peers per topic in mesh", labels = ["topic"])
 declareGauge(libp2p_gossipsub_peers_per_topic_fanout, "gossipsub peers per topic in fanout", labels = ["topic"])
 declareGauge(libp2p_gossipsub_peers_per_topic_gossipsub, "gossipsub peers per topic in gossipsub", labels = ["topic"])
+
+proc init*(_: type[GossipSubParams]): GossipSubParams =
+  GossipSubParams(
+      pruneBackoff: 1.minutes,
+      floodPublish: true,
+      gossipFactor: 0.25,
+      dScore: 4,
+      dOut: 2,
+    )
 
 method init*(g: GossipSub) =
   proc handler(conn: Connection, proto: string) {.async.} =
