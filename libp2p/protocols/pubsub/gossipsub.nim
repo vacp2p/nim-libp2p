@@ -59,6 +59,8 @@ type
     dScore: int
     dOut: int
 
+    publishThreshold: float
+
   GossipSub* = ref object of FloodSub
     parameters*: GossipSubParams
     mesh*: Table[string, HashSet[string]]      # meshes - topic to peer
@@ -529,6 +531,12 @@ method publish*(g: GossipSub,
   var peers = g.explicitPeers
 
   if data.len > 0 and topic.len > 0:
+    if g.parameters.floodPublish:
+      for id, peer in g.peers:
+        if  peer.topics.find(topic) != -1 and 
+            peer.score() >= g.parameters.publishThreshold:
+          peers.incl(id)
+      
     if topic in g.topics: # if we're subscribed to the topic attempt to build a mesh
       await g.rebalanceMesh(topic)
       peers.incl(g.mesh.getOrDefault(topic))
