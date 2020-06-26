@@ -524,40 +524,37 @@ method publish*(g: GossipSub,
   await procCall PubSub(g).publish(topic, data)
   trace "about to publish message on topic", name = topic,
                                              data = data.shortLog
+  # directly copy explicit peers
+  # as we will always publish to those
+  var peers = g.explicitPeers
 
-  var peers: HashSet[string]
-  # TODO: we probably don't need to try multiple times
   if data.len > 0 and topic.len > 0:
-    for _ in 0..<5: # try to get peers up to 5 times
-      if peers.len > 0:
-        break
-
-      if topic in g.topics: # if we're subscribed to the topic attempt to build a mesh
-        await g.rebalanceMesh(topic)
-        peers = g.mesh.getOrDefault(topic)
-      else: # send to fanout peers
-        await g.replenishFanout(topic)
-        if topic in g.fanout:
-          peers = g.fanout.getOrDefault(topic)
-          # set the fanout expiry time
-          g.lastFanoutPubSub[topic] = Moment.fromNow(GossipSubFanoutTTL)
-
-      # wait a second between tries
-      await sleepAsync(1.seconds)
+    if topic in g.topics: # if we're subscribed to the topic attempt to build a mesh
+      await g.rebalanceMesh(topic)
+      peers.incl(g.mesh.getOrDefault(topic))
+    else: # send to fanout peers
+      await g.replenishFanout(topic)
+      if topic in g.fanout:
+        peers.incl(g.fanout.getOrDefault(topic))
+        # set the fanout expiry time
+        g.lastFanoutPubSub[topic] = Moment.fromNow(GossipSubFanoutTTL)
 
     let msg = newMessage(g.peerInfo, data, topic, g.sign)
     trace "created new message", msg
+
+    trace "publishing on topic", name = topic
+    if msg.msgId notin g.mcache:
+      g.mcache.put(msg)
+
     var sent: seq[Future[void]]
     for p in peers:
+      # avoid sending to self
       if p == g.peerInfo.id:
         continue
-
-      trace "publishing on topic", name = topic
-      if msg.msgId notin g.mcache:
-        g.mcache.put(msg)
-
-      if p in g.peers:
+      let peer = g.peers.getOrDefault(p)
+      if not isNil(peer.peerInfo):
         sent.add(g.peers[p].send(@[RPCMsg(messages: @[msg])]))
+    
     checkFutures(await allFinished(sent))
 
     libp2p_pubsub_messages_published.inc(labelValues = [topic])
