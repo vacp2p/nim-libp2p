@@ -53,13 +53,13 @@ const
 
 type
   GossipSubParams* = object
-    pruneBackoff: Duration
-    floodPublish: bool
-    gossipFactor: float
-    dScore: int
-    dOut: int
+    pruneBackoff*: Duration
+    floodPublish*: bool
+    gossipFactor*: float
+    dScore*: int
+    dOut*: int
 
-    publishThreshold: float
+    publishThreshold*: float
 
   GossipSub* = ref object of FloodSub
     parameters*: GossipSubParams
@@ -87,6 +87,7 @@ proc init*(_: type[GossipSubParams]): GossipSubParams =
       gossipFactor: 0.25,
       dScore: 4,
       dOut: 2,
+      publishThreshold: 1.0,
     )
 
 method init*(g: GossipSub) =
@@ -524,7 +525,7 @@ method publish*(g: GossipSub,
                 topic: string,
                 data: seq[byte]) {.async.} =
   await procCall PubSub(g).publish(topic, data)
-  trace "about to publish message on topic", name = topic,
+  debug "about to publish message on topic", name = topic,
                                              data = data.shortLog
   # directly copy explicit peers
   # as we will always publish to those
@@ -535,6 +536,7 @@ method publish*(g: GossipSub,
       for id, peer in g.peers:
         if  peer.topics.find(topic) != -1 and 
             peer.score() >= g.parameters.publishThreshold:
+          debug "publish: including flood/high score peer", peer = id
           peers.incl(id)
       
     if topic in g.topics: # if we're subscribed to the topic attempt to build a mesh
@@ -548,9 +550,9 @@ method publish*(g: GossipSub,
         g.lastFanoutPubSub[topic] = Moment.fromNow(GossipSubFanoutTTL)
 
     let msg = newMessage(g.peerInfo, data, topic, g.sign)
-    trace "created new message", msg
+    debug "created new message", msg
 
-    trace "publishing on topic", name = topic
+    debug "publishing on topic", name = topic
     if msg.msgId notin g.mcache:
       g.mcache.put(msg)
 
@@ -561,7 +563,10 @@ method publish*(g: GossipSub,
         continue
       let peer = g.peers.getOrDefault(p)
       if not isNil(peer.peerInfo):
-        sent.add(g.peers[p].send(@[RPCMsg(messages: @[msg])]))
+        debug "publish: sending message to peer", peer = p
+        sent.add(peer.send(@[RPCMsg(messages: @[msg])]))
+      else:
+        debug "gossip peer's peerInfo was nil!", peer = p
     
     checkFutures(await allFinished(sent))
 
