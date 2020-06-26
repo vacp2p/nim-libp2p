@@ -379,7 +379,7 @@ suite "GossipSub":
         nodes.add newStandardSwitch(triggerSelf = true, gossip = true, secureManagers = [SecureProtocol.Secio])
         awaitters.add((await nodes[i].start()))
 
-      await subscribeSparseNodes(nodes, 4)
+      await subscribeSparseNodes(nodes, 4)        
 
       var seen: Table[string, int]
       var subs: seq[Future[void]]
@@ -398,6 +398,7 @@ suite "GossipSub":
               seenFut.complete()
 
         subs &= dialer.subscribe("foobar", handler)
+        subs &= waitSub(nodes[0], dialer, "foobar")
 
       await allFuturesThrowing(subs)
       await wait(nodes[0].publish("foobar",

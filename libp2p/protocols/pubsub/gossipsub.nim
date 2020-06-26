@@ -552,7 +552,7 @@ method publish*(g: GossipSub,
     let msg = newMessage(g.peerInfo, data, topic, g.sign)
     debug "created new message", msg
 
-    debug "publishing on topic", name = topic
+    debug "publishing on topic", name = topic, peers = peers
     if msg.msgId notin g.mcache:
       g.mcache.put(msg)
 
