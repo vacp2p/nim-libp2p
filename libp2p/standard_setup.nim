@@ -27,6 +27,7 @@ proc newStandardSwitch*(privKey = none(PrivateKey),
                         address = MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet(),
                         triggerSelf = false,
                         gossip = false,
+                        gossipParams = GossipSubParams.init(),
                         secureManagers: openarray[SecureProtocol] = [
                             # array cos order matters
                             SecureProtocol.Secio,
@@ -56,13 +57,12 @@ proc newStandardSwitch*(privKey = none(PrivateKey),
       secureManagerInstances &= newSecio(seckey).Secure
 
   let pubSub = if gossip:
-                  let params = GossipSubParams.init()
                   newPubSub(GossipSub,
                             peerInfo = peerInfo,
                             triggerSelf = triggerSelf,
                             verifySignature = verifySignature,
                             sign = sign,
-                            params).PubSub
+                            gossipParams).PubSub
                else:
                   newPubSub(FloodSub,
                             peerInfo = peerInfo,
