@@ -38,7 +38,7 @@ const GossipSubHistoryGossip* = 3
 
 # heartbeat interval
 const GossipSubHeartbeatInitialDelay* = 100.millis
-const GossipSubHeartbeatInterval* = 1.seconds
+const GossipSubHeartbeatInterval* = 5.seconds # TODO: per the spec it should be 1 second
 
 # fanout ttl
 const GossipSubFanoutTTL* = 1.minutes
@@ -245,10 +245,6 @@ proc getGossipPeers(g: GossipSub): Table[string, ControlMessage] {.gcsafe.} =
         trace "got gossip peers", peers = result.len
         break
 
-      if allPeers.len == 0:
-        trace "no peers for topic, skipping", topicID = topic
-        break
-
       if id in gossipPeers:
         continue
 
@@ -258,33 +254,35 @@ proc getGossipPeers(g: GossipSub): Table[string, ControlMessage] {.gcsafe.} =
       result[id].ihave.add(ihave)
 
 proc heartbeat(g: GossipSub) {.async.} =
-  while g.heartbeatRunning:
-    try:
-      trace "running heartbeat"
+  # don't lock on every iteration
+  withLock g.heartbeatLock:
+    while g.heartbeatRunning:
+      try:
+        trace "running heartbeat"
 
-      for t in toSeq(g.topics.keys):
-        await g.rebalanceMesh(t)
+        for t in toSeq(g.topics.keys):
+          await g.rebalanceMesh(t)
 
       g.dropFanoutPeers()
 
-      # replenish known topics to the fanout
-      for t in toSeq(g.fanout.keys):
-        g.replenishFanout(t)
+        # replenish known topics to the fanout
+        for t in toSeq(g.fanout.keys):
+          g.replenishFanout(t)
 
-      let peers = g.getGossipPeers()
-      var sent: seq[Future[void]]
-      for peer in peers.keys:
-        if peer in g.peers:
-          sent &= g.peers[peer].send(@[RPCMsg(control: some(peers[peer]))])
-      checkFutures(await allFinished(sent))
+        let peers = g.getGossipPeers()
+        var sent: seq[Future[void]]
+        for peer in peers.keys:
+          if peer in g.peers:
+            sent &= g.peers[peer].send(@[RPCMsg(control: some(peers[peer]))])
+        checkFutures(await allFinished(sent))
 
-      g.mcache.shift() # shift the cache
-    except CancelledError as exc:
-      raise exc
-    except CatchableError as exc:
-      trace "exception ocurred in gossipsub heartbeat", exc = exc.msg
+        g.mcache.shift() # shift the cache
+      except CancelledError as exc:
+        raise exc
+      except CatchableError as exc:
+        trace "exception ocurred in gossipsub heartbeat", exc = exc.msg
 
-    await sleepAsync(5.seconds)
+      await sleepAsync(GossipSubHeartbeatInterval)
 
 method handleDisconnect*(g: GossipSub, peer: PubSubPeer) =
   ## handle peer disconnects
@@ -308,7 +306,7 @@ method handleDisconnect*(g: GossipSub, peer: PubSubPeer) =
       .set(g.fanout.peers(t).int64, labelValues = [t])
 
 method subscribePeer*(p: GossipSub,
-                        conn: Connection) =
+                      conn: Connection) =
   procCall PubSub(p).subscribePeer(conn)
   asyncCheck p.handleConn(conn, GossipSubCodec)
 
@@ -316,7 +314,6 @@ method subscribeTopic*(g: GossipSub,
                        topic: string,
                        subscribe: bool,
                        peerId: string) {.gcsafe, async.} =
-  await procCall PubSub(g).subscribeTopic(topic, subscribe, peerId)
 
   if subscribe:
     trace "adding subscription for topic", peer = peerId, name = topic
@@ -550,14 +547,10 @@ method start*(g: GossipSub) {.async.} =
   ## start pubsub
   ## start long running/repeating procedures
 
-  # interlock start to to avoid overlapping to stops
-  await g.heartbeatLock.acquire()
-
-  # setup the heartbeat interval
-  g.heartbeatRunning = true
-  g.heartbeatFut = g.heartbeat()
-
-  g.heartbeatLock.release()
+  withLock g.heartbeatLock:
+    # setup the heartbeat interval
+    g.heartbeatRunning = true
+    g.heartbeatFut = g.heartbeat()
 
 method stop*(g: GossipSub) {.async.} =
   trace "gossipsub stop"
@@ -565,16 +558,13 @@ method stop*(g: GossipSub) {.async.} =
   ## stop pubsub
   ## stop long running tasks
 
-  await g.heartbeatLock.acquire()
-
-  # stop heartbeat interval
   g.heartbeatRunning = false
-  if not g.heartbeatFut.finished:
-    trace "awaiting last heartbeat"
-    await g.heartbeatFut
-    trace "heartbeat stopped"
-
-  g.heartbeatLock.release()
+  withLock g.heartbeatLock:
+    # stop heartbeat interval
+    if not g.heartbeatFut.finished:
+      trace "awaiting last heartbeat"
+      await g.heartbeatFut
+      trace "heartbeat stopped"
 
 method initPubSub*(g: GossipSub) =
   procCall FloodSub(g).initPubSub()
