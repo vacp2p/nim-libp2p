@@ -126,8 +126,10 @@ proc send*(p: PubSubPeer, msgs: seq[RPCMsg]) {.async.} =
       try:
         trace "about to send message", peer = p.id,
                                        encoded = digest
-        await p.onConnect.wait()
-        if p.isConnected: # this can happen if the remote disconnected
+        if not p.onConnect.isSet:
+          await p.onConnect.wait()
+
+        if p.connected: # this can happen if the remote disconnected
           trace "sending encoded msgs to peer", peer = p.id,
                                                 encoded = encoded.buffer.shortLog
           await p.sendConn.writeLp(encoded.buffer)
@@ -139,10 +141,14 @@ proc send*(p: PubSubPeer, msgs: seq[RPCMsg]) {.async.} =
                 # metrics
                 libp2p_pubsub_sent_messages.inc(labelValues = [p.id, t])
 
+      except CancelledError:
+        raise
       except CatchableError as exc:
         trace "unable to send to remote", exc = exc.msg
-        p.sendConn = nil
-        p.onConnect.clear()
+        if not(isNil(p.sendConn)):
+          await p.sendConn.close()
+          p.sendConn = nil
+          p.onConnect.clear()
 
     # if no connection has been set,
     # queue messages until a connection
