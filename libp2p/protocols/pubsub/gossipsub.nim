@@ -56,6 +56,7 @@ type
     heartbeatFut: Future[void]             # cancellation future for heartbeat interval
     heartbeatRunning: bool
     heartbeatLock: AsyncLock                   # heartbeat lock to prevent two consecutive concurrent heartbeats
+    subLock: AsyncLock
 
 declareGauge(libp2p_gossipsub_peers_per_topic_mesh, "gossipsub peers per topic in mesh", labels = ["topic"])
 declareGauge(libp2p_gossipsub_peers_per_topic_fanout, "gossipsub peers per topic in fanout", labels = ["topic"])
@@ -75,8 +76,8 @@ method init*(g: GossipSub) =
 
 proc replenishFanout(g: GossipSub, topic: string) =
   ## get fanout peers for a topic
-  debug "about to replenish fanout", topic
-
+  debug "about to replenish fanout", topic, avail = g.gossipsub[topic].len
+  
   var topicHash = g.fanout.mgetOrPut(topic, initHashSet[string]())
 
   if topicHash.len < GossipSubDLo:
@@ -87,14 +88,16 @@ proc replenishFanout(g: GossipSub, topic: string) =
         # set the fanout expiry time
         g.lastFanoutPubSub[topic] = Moment.fromNow(GossipSubFanoutTTL)
         if topicHash.len == GossipSubD:
-            break
+          break
 
   libp2p_gossipsub_peers_per_topic_fanout.set(topicHash.len.int64, labelValues = [topic])
-  debug "fanout replenished with peers", peers = topicHash.len
+  debug "fanout replenished with peers", peers = g.fanout[topic].len
 
 proc rebalanceMesh(g: GossipSub, topic: string) {.async.} =
   try:
     trace "about to rebalance mesh"
+    
+    await g.subLock.acquire()
 
     var
       topicHash = g.mesh.mgetOrPut(topic, initHashSet[string]())
@@ -106,10 +109,9 @@ proc rebalanceMesh(g: GossipSub, topic: string) {.async.} =
       # replenish the mesh if we're below GossipSubDlo
       while topicHash.len < GossipSubD:
         trace "gathering peers", peers = topicHash.len
-        await sleepAsync(1.millis) # don't starve the event loop
         var id: string
         if fanOutHash.len > 0:
-          trace "getting peer from fanout", topic,
+          debug "getting peer from fanout", topic,
                                             peers = fanOutHash.len
 
           id = sample(toSeq(fanOutHash))
@@ -120,7 +122,7 @@ proc rebalanceMesh(g: GossipSub, topic: string) {.async.} =
 
           trace "got fanout peer", peer = id
         elif gossipHash.len > 0:
-          trace "getting peer from gossipsub", topic,
+          debug "getting peer from gossipsub", topic,
                                                peers = gossipHash.len
 
           id = sample(toSeq(gossipHash))
@@ -161,10 +163,12 @@ proc rebalanceMesh(g: GossipSub, topic: string) {.async.} =
     libp2p_gossipsub_peers_per_topic_mesh
       .set(topicHash.len.int64, labelValues = [topic])
 
-    trace "mesh balanced, got peers", peers = topicHash.len,
+    debug "mesh balanced, got peers", peers = g.mesh[topic].len,
                                       topicId = topic
   except CatchableError as exc:
     trace "exception occurred re-balancing mesh", exc = exc.msg
+  finally:
+    g.subLock.release()
 
 proc dropFanoutPeers(g: GossipSub) {.async.} =
   # drop peers that we haven't published to in
@@ -174,6 +178,7 @@ proc dropFanoutPeers(g: GossipSub) {.async.} =
     if Moment.now > val:
       dropping.add(topic)
       g.fanout.del(topic)
+      debug "dropping fanout topic", topic
 
   for topic in dropping:
     g.lastFanoutPubSub.del(topic)
@@ -221,6 +226,7 @@ proc heartbeat(g: GossipSub) {.async.} =
 
       for t in toSeq(g.topics.keys):
         await g.rebalanceMesh(t)
+        g.replenishFanout(t)
 
       await g.dropFanoutPeers()
       let peers = g.getGossipPeers()
@@ -281,20 +287,26 @@ method subscribeTopic*(g: GossipSub,
                        peerId: string) {.gcsafe, async.} =
   await procCall PubSub(g).subscribeTopic(topic, subscribe, peerId)
 
-  if topic notin g.gossipsub:
-    g.gossipsub[topic] = initHashSet[string]()
+  try:
+    await g.subLock.acquire()
 
-  if subscribe:
-    trace "adding subscription for topic", peer = peerId, name = topic
-    # subscribe remote peer to the topic
-    g.gossipsub[topic].incl(peerId)
-  else:
-    trace "removing subscription for topic", peer = peerId, name = topic
-    # unsubscribe remote peer from the topic
-    g.gossipsub[topic].excl(peerId)
+    var gossipHash = g.gossipsub.mgetOrPut(topic, initHashSet[string]())
+
+    if subscribe:
+      debug "adding subscription for topic", peer = peerId, name = topic
+      # subscribe remote peer to the topic
+      gossipHash.incl(peerId)
+    else:
+      trace "removing subscription for topic", peer = peerId, name = topic
+      # unsubscribe remote peer from the topic
+      gossipHash.excl(peerId)
+  finally:
+    g.subLock.release()
 
   libp2p_gossipsub_peers_per_topic_gossipsub
-    .set(g.gossipsub.getOrDefault(topic).len.int64, labelValues = [topic])
+    .set(g.gossipsub[topic].len.int64, labelValues = [topic])
+
+  debug "gossip peers", peers = g.gossipsub[topic].len, topic
 
   if topic in g.topics:
     await g.rebalanceMesh(topic)
@@ -385,7 +397,6 @@ method rpcHandler*(g: GossipSub,
           continue
 
         for t in msg.topicIDs:                     # for every topic in the message
-          await g.rebalanceMesh(t)                 # gather peers for each topic
           if t in g.floodsub:
             toSendPeers.incl(g.floodsub[t])        # get all floodsub peers for topic
 
@@ -458,48 +469,48 @@ method unsubscribe*(g: GossipSub,
 
 method publish*(g: GossipSub,
                 topic: string,
-                data: seq[byte]) {.async.} =
-  await procCall PubSub(g).publish(topic, data)
+                data: seq[byte]): Future[int] {.async.} =
+  # base returns always 0
+  discard await procCall PubSub(g).publish(topic, data)
   trace "about to publish message on topic", name = topic,
                                              data = data.shortLog
 
   var peers: HashSet[string]
-  # TODO: we probably don't need to try multiple times
-  if data.len > 0 and topic.len > 0:
-    for _ in 0..<5: # try to get peers up to 5 times
-      if peers.len > 0:
-        break
 
-      if topic in g.topics: # if we're subscribed to the topic attempt to build a mesh
-        await g.rebalanceMesh(topic)
-        peers = g.mesh.getOrDefault(topic)
-      else: # send to fanout peers
-        await g.replenishFanout(topic)
-        if topic in g.fanout:
-          peers = g.fanout.getOrDefault(topic)
-          # set the fanout expiry time
-          g.lastFanoutPubSub[topic] = Moment.fromNow(GossipSubFanoutTTL)
-
-      # wait a second between tries
-      await sleepAsync(1.seconds)
+  if topic.len > 0: # data could be 0/empty
+    if topic in g.topics: # if we're subscribed use the mesh
+      peers = g.mesh.getOrDefault(topic)
+    else: # not subscribed, send to fanout peers
+      peers = g.fanout.getOrDefault(topic)
 
     let msg = newMessage(g.peerInfo, data, topic, g.sign)
     trace "created new message", msg
+
+    trace "publishing on topic", name = topic, peers = peers
+    if msg.msgId notin g.mcache:
+      g.mcache.put(msg)
+
     var sent: seq[Future[void]]
     for p in peers:
+      # avoid sending to self
       if p == g.peerInfo.id:
         continue
 
-      trace "publishing on topic", name = topic
-      if msg.msgId notin g.mcache:
-        g.mcache.put(msg)
-
-      if p in g.peers:
-        sent.add(g.peers[p].send(@[RPCMsg(messages: @[msg])]))
-    checkFutures(await allFinished(sent))
+      let peer = g.peers.getOrDefault(p)
+      if not isNil(peer.peerInfo):
+        trace "publish: sending message to peer", peer = p
+        sent.add(peer.send(@[RPCMsg(messages: @[msg])]))
+    
+    sent = await allFinished(sent)
+    checkFutures(sent)
 
     libp2p_pubsub_messages_published.inc(labelValues = [topic])
 
+    return sent.filterIt(not it.failed).len
+  else:
+    return 0
+
+  
 method start*(g: GossipSub) {.async.} =
   debug "gossipsub start"
   
@@ -543,3 +554,4 @@ method initPubSub*(g: GossipSub) =
   g.gossip = initTable[string, seq[ControlIHave]]() # pending gossip
   g.control = initTable[string, ControlMessage]()   # pending control messages
   g.heartbeatLock = newAsyncLock()
+  g.subLock = newAsyncLock()

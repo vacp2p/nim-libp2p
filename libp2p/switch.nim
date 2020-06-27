@@ -556,7 +556,7 @@ proc subscribe*(s: Switch, topic: string,
     retFuture.fail(newNoPubSubException())
     return retFuture
 
-  result = s.pubSub.get().subscribe(topic, handler)
+  return s.pubSub.get().subscribe(topic, handler)
 
 proc unsubscribe*(s: Switch, topics: seq[TopicPair]): Future[void] =
   ## unsubscribe from topics
@@ -565,16 +565,16 @@ proc unsubscribe*(s: Switch, topics: seq[TopicPair]): Future[void] =
     retFuture.fail(newNoPubSubException())
     return retFuture
 
-  result = s.pubSub.get().unsubscribe(topics)
+  return s.pubSub.get().unsubscribe(topics)
 
-proc publish*(s: Switch, topic: string, data: seq[byte]): Future[void] =
+proc publish*(s: Switch, topic: string, data: seq[byte]): Future[int] =
   # pubslish to pubsub topic
   if s.pubSub.isNone:
-    var retFuture = newFuture[void]("Switch.publish")
+    var retFuture = newFuture[int]("Switch.publish")
     retFuture.fail(newNoPubSubException())
     return retFuture
 
-  result = s.pubSub.get().publish(topic, data)
+  return s.pubSub.get().publish(topic, data)
 
 proc addValidator*(s: Switch,
                    topics: varargs[string],

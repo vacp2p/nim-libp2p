@@ -225,8 +225,7 @@ method subscribe*(p: PubSub,
 
 method publish*(p: PubSub,
                 topic: string,
-                data: seq[byte]) {.base, async.} =
-  # TODO: Should throw indicating success/failure
+                data: seq[byte]): Future[int] {.base, async.} =
   ## publish to a ``topic``
   if p.triggerSelf and topic in p.topics:
     for h in p.topics[topic].handler:
@@ -240,6 +239,8 @@ method publish*(p: PubSub,
         #      are failing, the underlying connection is already closed - this needs
         #      more cleanup though
         debug "Could not write to pubsub connection", msg = exc.msg
+
+  return 0
 
 method initPubSub*(p: PubSub) {.base.} =
   ## perform pubsub initialization
