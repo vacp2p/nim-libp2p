@@ -150,7 +150,6 @@ proc readVarint*(conn: LPStream): Future[uint64] {.async, gcsafe.} =
 
   for i in 0..<len(buffer):
     await conn.readExactly(addr buffer[i], 1)
-    trace "BUFFER ", buffer
     let res = PB.getUVarint(buffer.toOpenArray(0, i), length, varint)
     if res.isOk():
       return varint

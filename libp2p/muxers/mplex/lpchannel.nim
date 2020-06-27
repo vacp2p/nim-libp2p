@@ -142,7 +142,6 @@ proc closeMessage(s: LPChannel) {.async.} =
 
   ## send close message - this will not raise
   ## on EOF or Closed
-  # withEOFExceptions:
   withWriteLock(s.writeLock):
     trace "sending close message"
 
@@ -176,7 +175,6 @@ proc open*(s: LPChannel) {.async, gcsafe.} =
   ## NOTE: Don't call withExcAndLock or withWriteLock,
   ## because this already gets called from writeHandler
   ## which is locked
-  # withEOFExceptions:
   await s.conn.writeMsg(s.id, MessageType.New, s.name)
   trace "opened channel"
   s.isOpen = true

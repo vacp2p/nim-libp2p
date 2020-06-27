@@ -47,8 +47,8 @@ proc writeMsg*(conn: Connection,
                msgType: MessageType,
                data: seq[byte] = @[]) {.async, gcsafe.} =
   trace "sending data over mplex", id,
-                                  msgType,
-                                  data = data.len
+                                   msgType,
+                                   data = data.len
   var
     left = data.len
     offset = 0
