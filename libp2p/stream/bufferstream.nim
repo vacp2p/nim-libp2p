@@ -281,6 +281,7 @@ method close*(s: BufferStream) {.async, gcsafe.} =
     ## close the stream and clear the buffer
     if not s.isClosed:
       trace "closing bufferstream", oid = s.oid
+      s.isEof = true
       for r in s.readReqs:
         if not(isNil(r)) and not(r.finished()):
           r.fail(newLPStreamEOFError())
