@@ -118,8 +118,9 @@ method subscribeToPeer*(p: FloodSub,
 
 method publish*(f: FloodSub,
                 topic: string,
-                data: seq[byte]) {.async.} =
-  await procCall PubSub(f).publish(topic, data)
+                data: seq[byte]): Future[int] {.async.} =
+  # base returns always 0
+  discard await procCall PubSub(f).publish(topic, data)
 
   if data.len <= 0 or topic.len <= 0:
     trace "topic or data missing, skipping publish"
@@ -143,6 +144,8 @@ method publish*(f: FloodSub,
   checkFutures(sent)
 
   libp2p_pubsub_messages_published.inc(labelValues = [topic])
+
+  return sent.filterIt(not it.failed).len
 
 method unsubscribe*(f: FloodSub,
                     topics: seq[TopicPair]) {.async.} =
