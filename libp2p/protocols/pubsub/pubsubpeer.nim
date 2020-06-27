@@ -47,8 +47,8 @@ type
 
 proc id*(p: PubSubPeer): string = p.peerInfo.id
 
-proc isConnected*(p: PubSubPeer): bool =
-  (not isNil(p.sendConn))
+proc connected*(p: PubSubPeer): bool =
+  not(isNil(p.sendConn))
 
 proc `conn=`*(p: PubSubPeer, conn: Connection) =
   if not(isNil(conn)):
