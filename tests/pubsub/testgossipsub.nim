@@ -408,7 +408,7 @@ suite "GossipSub":
       tryPublish await wait(nodes[0].publish("foobar",
                                     cast[seq[byte]]("from node " &
                                     nodes[1].peerInfo.id)),
-                                    1.minutes), runs
+                                    1.minutes), 3
 
       await wait(seenFut, 5.minutes)
       check: seen.len >= runs

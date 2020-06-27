@@ -79,18 +79,21 @@ proc replenishFanout(g: GossipSub, topic: string) =
 
   var topicHash = g.fanout.mgetOrPut(topic, initHashSet[string]())
 
-  if topicHash.len < GossipSubDLo:
-    debug "replenishing fanout", peers = topicHash.len
-    let peers = g.gossipsub.getOrDefault(topic)
-    for p in peers:
-      if not topicHash.containsOrIncl(p):
-        # set the fanout expiry time
-        g.lastFanoutPubSub[topic] = Moment.fromNow(GossipSubFanoutTTL)
-        if topicHash.len == GossipSubD:
-          break
+  if topic notin g.fanout:
+    g.fanout[topic] = initHashSet[string]()
 
-  libp2p_gossipsub_peers_per_topic_fanout.set(topicHash.len.int64, labelValues = [topic])
-  debug "fanout replenished with peers", peers = g.fanout[topic].len
+  if g.fanout.getOrDefault(topic).len < GossipSubDLo:
+    debug "replenishing fanout", peers = g.fanout.getOrDefault(topic).len
+    if topic in g.gossipsub:
+      for p in g.gossipsub.getOrDefault(topic):
+        if not g.fanout[topic].containsOrIncl(p):
+          g.lastFanoutPubSub[topic] = Moment.fromNow(GossipSubFanoutTTL)
+          if g.fanout.getOrDefault(topic).len == GossipSubD:
+            break
+
+  libp2p_gossipsub_peers_per_topic_fanout
+    .set(g.fanout.getOrDefault(topic).len.int64, labelValues = [topic])
+  debug "fanout replenished with peers", peers = g.fanout.getOrDefault(topic).len
 
 proc rebalanceMesh(g: GossipSub, topic: string) {.async.} =
   try:
@@ -103,73 +106,75 @@ proc rebalanceMesh(g: GossipSub, topic: string) {.async.} =
       fanOutHash = g.fanout.mgetOrPut(topic, initHashSet[string]())
       gossipHash = g.gossipsub.mgetOrPut(topic, initHashSet[string]())
 
-    if topicHash.len < GossipSubDlo:
+    if g.mesh.getOrDefault(topic).len < GossipSubDlo:
       trace "replenishing mesh", topic
       # replenish the mesh if we're below GossipSubDlo
-      while topicHash.len < GossipSubD:
-        trace "gathering peers", peers = topicHash.len
+      while g.mesh.getOrDefault(topic).len < GossipSubD and topic in g.topics:
+        trace "gathering peers", peers = g.mesh.getOrDefault(topic).len
+        await sleepAsync(1.millis) # don't starve the event loop
         var id: string
-        if fanOutHash.len > 0:
+        if topic in g.fanout and g.fanout.getOrDefault(topic).len > 0:
           debug "getting peer from fanout", topic,
-                                            peers = fanOutHash.len
+                                            peers = g.fanout.getOrDefault(topic).len
 
-          id = sample(toSeq(fanOutHash))
-          fanOutHash.excl(id)
+          id = sample(toSeq(g.fanout.getOrDefault(topic)))
+          g.fanout[topic].excl(id)
 
-          if id in fanOutHash:
+          if id in g.fanout[topic]:
             continue # we already have this peer in the mesh, try again
 
-          trace "got fanout peer", peer = id
-        elif gossipHash.len > 0:
+          debug "got fanout peer", peer = id
+        elif topic in g.gossipsub and g.gossipsub.getOrDefault(topic).len > 0:
           debug "getting peer from gossipsub", topic,
-                                               peers = gossipHash.len
+                                               peers = g.gossipsub.getOrDefault(topic).len
 
-          id = sample(toSeq(gossipHash))
-          gossipHash.excl(id)
+          id = sample(toSeq(g.gossipsub[topic]))
+          g.gossipsub[topic].excl(id)
 
-          if id in topicHash:
+          if id in g.mesh[topic]:
             continue # we already have this peer in the mesh, try again
 
-          trace "got gossipsub peer", peer = id
+          debug "got gossipsub peer", peer = id
         else:
           trace "no more peers"
           break
 
-        topicHash.incl(id)
+        g.mesh[topic].incl(id)
         if id in g.peers:
           let p = g.peers[id]
           # send a graft message to the peer
           await p.sendGraft(@[topic])
 
+    # run fanout
+    g.replenishFanout(topic)
+
     # prune peers if we've gone over
-    if topicHash.len > GossipSubDhi:
-      trace "about to prune mesh", mesh = topicHash.len
-      while topicHash.len > GossipSubD:
-        trace "pruning peers", peers = topicHash.len
-        let id = toSeq(topicHash)[rand(0..<topicHash.len)]
-        topicHash.excl(id)
+    if g.mesh.getOrDefault(topic).len > GossipSubDhi:
+      trace "about to prune mesh", mesh = g.mesh.getOrDefault(topic).len
+      while g.mesh.getOrDefault(topic).len > GossipSubD:
+        trace "pruning peers", peers = g.mesh[topic].len
+        let id = toSeq(g.mesh[topic])[rand(0..<g.mesh[topic].len)]
+        g.mesh[topic].excl(id)
 
         let p = g.peers[id]
         # send a graft message to the peer
         await p.sendPrune(@[topic])
 
     libp2p_gossipsub_peers_per_topic_gossipsub
-      .set(gossipHash.len.int64, labelValues = [topic])
+      .set(g.gossipsub.getOrDefault(topic).len.int64, labelValues = [topic])
 
     libp2p_gossipsub_peers_per_topic_fanout
-      .set(fanOutHash.len.int64, labelValues = [topic])
+      .set(g.fanout.getOrDefault(topic).len.int64, labelValues = [topic])
 
     libp2p_gossipsub_peers_per_topic_mesh
-      .set(topicHash.len.int64, labelValues = [topic])
+      .set(g.mesh.getOrDefault(topic).len.int64, labelValues = [topic])
 
-    debug "mesh balanced, got peers", peers = g.mesh[topic].len,
+    debug "mesh balanced, got peers", peers = g.mesh.getOrDefault(topic).len,
                                       topicId = topic
   except CancelledError as exc:
     raise exc
   except CatchableError as exc:
-    trace "exception occurred re-balancing mesh", exc = exc.msg
-  finally:
-    g.subLock.release()
+    warn "exception occurred re-balancing mesh", exc = exc.msg
 
 proc dropFanoutPeers(g: GossipSub) {.async.} =
   # drop peers that we haven't published to in
@@ -227,7 +232,6 @@ proc heartbeat(g: GossipSub) {.async.} =
 
       for t in toSeq(g.topics.keys):
         await g.rebalanceMesh(t)
-        g.replenishFanout(t)
 
       await g.dropFanoutPeers()
       let peers = g.getGossipPeers()
@@ -286,29 +290,25 @@ method subscribeTopic*(g: GossipSub,
                        peerId: string) {.gcsafe, async.} =
   await procCall PubSub(g).subscribeTopic(topic, subscribe, peerId)
 
-  try:
-    await g.subLock.acquire()
+  if topic notin g.gossipsub:
+    g.gossipsub[topic] = initHashSet[string]()
 
-    var gossipHash = g.gossipsub.mgetOrPut(topic, initHashSet[string]())
-
-    if subscribe:
-      debug "adding subscription for topic", peer = peerId, name = topic
-      # subscribe remote peer to the topic
-      gossipHash.incl(peerId)
-    else:
-      trace "removing subscription for topic", peer = peerId, name = topic
-      # unsubscribe remote peer from the topic
-      gossipHash.excl(peerId)
-  finally:
-    g.subLock.release()
+  if subscribe:
+    debug "adding subscription for topic", peer = peerId, name = topic
+    # subscribe remote peer to the topic
+    g.gossipsub[topic].incl(peerId)
+  else:
+    trace "removing subscription for topic", peer = peerId, name = topic
+    # unsubscribe remote peer from the topic
+    g.gossipsub[topic].excl(peerId)
 
   libp2p_gossipsub_peers_per_topic_gossipsub
     .set(g.gossipsub[topic].len.int64, labelValues = [topic])
 
   debug "gossip peers", peers = g.gossipsub[topic].len, topic
 
-  if topic in g.topics:
-    await g.rebalanceMesh(topic)
+  # also rebalance current topic
+  await g.rebalanceMesh(topic)
 
 proc handleGraft(g: GossipSub,
                  peer: PubSubPeer,
