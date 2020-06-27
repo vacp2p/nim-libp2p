@@ -71,8 +71,8 @@ proc createSwitch(ma: MultiAddress; outgoing: bool): (Switch, PeerInfo) =
 suite "Noise":
   teardown:
     for tracker in testTrackers():
-      echo tracker.dump()
-      # check tracker.isLeaked() == false
+      # echo tracker.dump()
+      check tracker.isLeaked() == false
 
   test "e2e: handle write + noise":
     proc testListenerDialer(): Future[bool] {.async.} =
