@@ -71,8 +71,8 @@ proc createSwitch(ma: MultiAddress; outgoing: bool): (Switch, PeerInfo) =
 suite "Noise":
   teardown:
     for tracker in testTrackers():
-      # echo tracker.dump()
-      check tracker.isLeaked() == false
+      echo tracker.dump()
+      # check tracker.isLeaked() == false
 
   test "e2e: handle write + noise":
     proc testListenerDialer(): Future[bool] {.async.} =
@@ -83,10 +83,11 @@ suite "Noise":
 
       proc connHandler(conn: Connection) {.async, gcsafe.} =
         let sconn = await serverNoise.secure(conn, false)
-        defer:
+        try:
+          await sconn.write("Hello!")
+        finally:
           await sconn.close()
           await conn.close()
-        await sconn.write("Hello!")
 
       let
         transport1: TcpTransport = TcpTransport.init()

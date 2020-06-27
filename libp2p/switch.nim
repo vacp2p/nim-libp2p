@@ -203,9 +203,9 @@ proc identify(s: Switch, conn: Connection): Future[PeerInfo] {.async, gcsafe.} =
 
       trace "identify", info = shortLog(result)
   except IdentityInvalidMsgError as exc:
-    error "identify: invalid message", msg = exc.msg
+    debug "identify: invalid message", msg = exc.msg
   except IdentityNoMatchError as exc:
-    error "identify: peer's public keys don't match ", msg = exc.msg
+    debug "identify: peer's public keys don't match ", msg = exc.msg
 
 proc mux(s: Switch, conn: Connection): Future[void] {.async, gcsafe.} =
   ## mux incoming connection
@@ -464,11 +464,11 @@ proc dial*(s: Switch,
 proc mount*[T: LPProtocol](s: Switch, proto: T) {.gcsafe.} =
   if isNil(proto.handler):
     raise newException(CatchableError,
-    "Protocol has to define a handle method or proc")
+      "Protocol has to define a handle method or proc")
 
   if proto.codec.len == 0:
     raise newException(CatchableError,
-    "Protocol has to define a codec string")
+      "Protocol has to define a codec string")
 
   s.ms.addHandler(proto.codec, proto)
 

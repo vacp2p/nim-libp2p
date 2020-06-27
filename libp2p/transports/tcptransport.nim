@@ -7,7 +7,7 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import chronos, chronicles, sequtils, oids
+import chronos, chronicles, sequtils
 import transport,
        ../errors,
        ../wire,
@@ -15,6 +15,9 @@ import transport,
        ../multicodec,
        ../stream/connection,
        ../stream/chronosstream
+
+when chronicles.enabledLogLevel == LogLevel.TRACE:
+  import oids
 
 logScope:
   topics = "tcptransport"
