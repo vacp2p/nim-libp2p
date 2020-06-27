@@ -15,7 +15,8 @@ import types,
        ../../stream/connection,
        ../../stream/bufferstream,
        ../../utility,
-       ../../errors
+       ../../errors,
+       ../../peerinfo
 
 export connection
 
@@ -90,87 +91,106 @@ proc newChannel*(id: uint64,
                  name: string = "",
                  size: int = DefaultBufferSize,
                  lazy: bool = false): LPChannel =
-  new result
-  result.id = id
-  result.name = name
-  result.conn = conn
-  result.initiator = initiator
-  result.msgCode = if initiator: MessageType.MsgOut else: MessageType.MsgIn
-  result.closeCode = if initiator: MessageType.CloseOut else: MessageType.CloseIn
-  result.resetCode = if initiator: MessageType.ResetOut else: MessageType.ResetIn
-  result.isLazy = lazy
+  result = LPChannel(id: id,
+                     name: name,
+                     conn: conn,
+                     initiator: initiator,
+                     msgCode: if initiator: MessageType.MsgOut else: MessageType.MsgIn,
+                     closeCode: if initiator: MessageType.CloseOut else: MessageType.CloseIn,
+                     resetCode: if initiator: MessageType.ResetOut else: MessageType.ResetIn,
+                     isLazy: lazy)
 
   let chan = result
+  logScope:
+    id = chan.id
+    initiator = chan.initiator
+    name = chan.name
+    oid = $chan.oid
+    peer = $chan.conn.peerInfo
+    stack = getStackTrace()
+
   proc writeHandler(data: seq[byte]): Future[void] {.async, gcsafe.} =
     try:
       if chan.isLazy and not(chan.isOpen):
         await chan.open()
 
       # writes should happen in sequence
-      trace "sending data", data = data.shortLog,
-                            id = chan.id,
-                            initiator = chan.initiator,
-                            name = chan.name,
-                            oid = chan.oid
+      trace "sending data"
 
-      try:
-        await conn.writeMsg(chan.id,
-                            chan.msgCode,
-                            data).wait(2.minutes) # write header
-      except AsyncTimeoutError:
-        trace "timeout writing channel, resetting"
-        asyncCheck chan.reset()
+      await conn.writeMsg(chan.id,
+                          chan.msgCode,
+                          data).wait(2.minutes) # write header
     except CatchableError as exc:
-      trace "unable to write in bufferstream handler", exc = exc.msg
+      trace "exception in lpchannel write handler", exc = exc.msg
+      await chan.reset()
+      raise exc
 
   result.initBufferStream(writeHandler, size)
   when chronicles.enabledLogLevel == LogLevel.TRACE:
     result.name = if result.name.len > 0: result.name else: $result.oid
 
-  trace "created new lpchannel", id = result.id,
-                                 oid = result.oid,
-                                 initiator = result.initiator,
-                                 name = result.name
+  trace "created new lpchannel"
 
 proc closeMessage(s: LPChannel) {.async.} =
+  logScope:
+    id = s.id
+    initiator = s.initiator
+    name = s.name
+    oid = $s.oid
+    peer = $s.conn.peerInfo
+    stack = getStackTrace()
+
   ## send close message - this will not raise
   ## on EOF or Closed
-  withEOFExceptions:
-    withWriteLock(s.writeLock):
-      trace "sending close message", id = s.id,
-                                     initiator = s.initiator,
-                                     name = s.name,
-                                     oid = s.oid
+  # withEOFExceptions:
+  withWriteLock(s.writeLock):
+    trace "sending close message"
 
-      await s.conn.writeMsg(s.id, s.closeCode) # write close
+    await s.conn.writeMsg(s.id, s.closeCode) # write close
 
 proc resetMessage(s: LPChannel) {.async.} =
+  logScope:
+    id = s.id
+    initiator = s.initiator
+    name = s.name
+    oid = $s.oid
+    peer = $s.conn.peerInfo
+    stack = getStackTrace()
+
   ## send reset message - this will not raise
   withEOFExceptions:
     withWriteLock(s.writeLock):
-      trace "sending reset message", id = s.id,
-                                     initiator = s.initiator,
-                                     name = s.name,
-                                     oid = s.oid
+      trace "sending reset message"
 
       await s.conn.writeMsg(s.id, s.resetCode) # write reset
 
 proc open*(s: LPChannel) {.async, gcsafe.} =
+  logScope:
+    id = s.id
+    initiator = s.initiator
+    name = s.name
+    oid = $s.oid
+    peer = $s.conn.peerInfo
+    stack = getStackTrace()
+
   ## NOTE: Don't call withExcAndLock or withWriteLock,
   ## because this already gets called from writeHandler
   ## which is locked
-  withEOFExceptions:
-    await s.conn.writeMsg(s.id, MessageType.New, s.name)
-    trace "opened channel", oid = s.oid,
-                             name = s.name,
-                             initiator = s.initiator
-    s.isOpen = true
+  # withEOFExceptions:
+  await s.conn.writeMsg(s.id, MessageType.New, s.name)
+  trace "opened channel"
+  s.isOpen = true
 
 proc closeRemote*(s: LPChannel) {.async.} =
-  trace "got EOF, closing channel", id = s.id,
-                                    initiator = s.initiator,
-                                    name = s.name,
-                                    oid = s.oid
+  logScope:
+    id = s.id
+    initiator = s.initiator
+    name = s.name
+    oid = $s.oid
+    peer = $s.conn.peerInfo
+    stack = getStackTrace()
+
+  trace "got EOF, closing channel"
 
   # wait for all data in the buffer to be consumed
   while s.len > 0:
@@ -181,11 +201,7 @@ proc closeRemote*(s: LPChannel) {.async.} =
   await s.close() # close local end
   # call to avoid leaks
   await procCall BufferStream(s).close() # close parent bufferstream
-
-  trace "channel closed on EOF", id = s.id,
-                                 initiator = s.initiator,
-                                 oid = s.oid,
-                                 name = s.name
+  trace "channel closed on EOF"
 
 method closed*(s: LPChannel): bool =
   ## this emulates half-closed behavior
@@ -195,6 +211,20 @@ method closed*(s: LPChannel): bool =
   s.closedLocal
 
 method reset*(s: LPChannel) {.base, async, gcsafe.} =
+  logScope:
+    id = s.id
+    initiator = s.initiator
+    name = s.name
+    oid = $s.oid
+    peer = $s.conn.peerInfo
+    stack = getStackTrace()
+
+  trace "resetting channel"
+
+  if s.closedLocal and s.isEof:
+    trace "channel already closed or reset"
+    return
+
   # we asyncCheck here because the other end
   # might be dead already - reset is always
   # optimistic
@@ -203,33 +233,36 @@ method reset*(s: LPChannel) {.base, async, gcsafe.} =
   s.isEof = true
   s.closedLocal = true
 
+  trace "channel reset"
+
 method close*(s: LPChannel) {.async, gcsafe.} =
+  logScope:
+    id = s.id
+    initiator = s.initiator
+    name = s.name
+    oid = $s.oid
+    peer = $s.conn.peerInfo
+    stack = getStackTrace()
+
   if s.closedLocal:
-    trace "channel already closed", id = s.id,
-                                    initiator = s.initiator,
-                                    name = s.name,
-                                    oid = s.oid
+    trace "channel already closed"
     return
 
-  proc closeRemote() {.async.} =
+  trace "closing local lpchannel"
+
+  proc closeInternal() {.async.} =
     try:
-      trace "closing local lpchannel", id = s.id,
-                                       initiator = s.initiator,
-                                       name = s.name,
-                                       oid = s.oid
       await s.closeMessage().wait(2.minutes)
       if s.atEof: # already closed by remote close parent buffer immediately
         await procCall BufferStream(s).close()
-    except AsyncTimeoutError:
-      trace "close timed out, reset channel"
-      asyncCheck s.reset() # reset on timeout
+    except CancelledError as exc:
+      await s.reset() # reset on timeout
+      raise exc
     except CatchableError as exc:
       trace "exception closing channel"
+      await s.reset() # reset on timeout
 
-    trace "lpchannel closed local", id = s.id,
-                                    initiator = s.initiator,
-                                    name = s.name,
-                                    oid = s.oid
+    trace "lpchannel closed local"
 
   s.closedLocal = true
-  asyncCheck closeRemote()
+  asyncCheck closeInternal()
