@@ -114,6 +114,9 @@ proc readExactly*(s: LPStream,
   while read < nbytes and not(s.atEof()):
     read += await s.readOnce(addr pbuffer[read], nbytes - read)
 
+  if read < nbytes:
+    raise newLPStreamIncompleteError()
+
 proc readLine*(s: LPStream, limit = 0, sep = "\r\n"): Future[string] {.async, deprecated: "todo".} =
   # TODO replace with something that exploits buffering better
   var lim = if limit <= 0: -1 else: limit
