@@ -52,7 +52,7 @@ type
     gossip*: Table[string, seq[ControlIHave]]  # pending gossip
     control*: Table[string, ControlMessage]    # pending control messages
     mcache*: MCache                            # messages cache
-    heartbeatFut: Future[void]             # cancellation future for heartbeat interval
+    heartbeatFut: Future[void]                 # cancellation future for heartbeat interval
     heartbeatRunning: bool
     heartbeatLock: AsyncLock                   # heartbeat lock to prevent two consecutive concurrent heartbeats
 
@@ -159,6 +159,8 @@ proc rebalanceMesh(g: GossipSub, topic: string) {.async.} =
 
     trace "mesh balanced, got peers", peers = g.mesh.getOrDefault(topic).len,
                                       topicId = topic
+  except CancelledError:
+    raise
   except CatchableError as exc:
     trace "exception occurred re-balancing mesh", exc = exc.msg
 
@@ -227,12 +229,10 @@ proc heartbeat(g: GossipSub) {.async.} =
       checkFutures(await allFinished(sent))
 
       g.mcache.shift() # shift the cache
+    except CancelledError:
+      raise
     except CatchableError as exc:
       trace "exception ocurred in gossipsub heartbeat", exc = exc.msg
-      # sleep less in the case of an error
-      # but still throttle
-      await sleepAsync(100.millis)
-      continue
 
     await sleepAsync(1.seconds)
 
