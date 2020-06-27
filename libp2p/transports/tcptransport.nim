@@ -97,14 +97,7 @@ proc connCb(server: StreamServer,
     raise exc
   except CatchableError as err:
     debug "Connection setup failed", err = err.msg
-    if not client.closed:
-      try:
-        client.close()
-      except CancelledError as err:
-        raise err
-      except CatchableError as err:
-        # shouldn't happen but..
-        warn "Error closing connection", err = err.msg
+    client.close()
 
 proc init*(T: type TcpTransport, flags: set[ServerFlags] = {}): T =
   result = T(flags: flags)
