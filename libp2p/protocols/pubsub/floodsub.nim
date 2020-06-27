@@ -13,7 +13,6 @@ import pubsub,
        pubsubpeer,
        timedcache,
        rpc/[messages, message],
-       ../../crypto/crypto,
        ../../stream/connection,
        ../../peer,
        ../../peerinfo,
@@ -65,8 +64,11 @@ method rpcHandler*(f: FloodSub,
     if m.messages.len > 0:                           # if there are any messages
       var toSendPeers: HashSet[string] = initHashSet[string]()
       for msg in m.messages:                         # for every message
-        if msg.msgId notin f.seen:
-          f.seen.put(msg.msgId)                      # add the message to the seen cache
+        let msgId = f.msgIdProvider(msg)
+        logScope: msgId
+
+        if msgId notin f.seen:
+          f.seen.put(msgId)                          # add the message to the seen cache
 
           if f.verifySignature and not msg.verify(peer.peerInfo):
             trace "dropping message due to failed signature verification"
@@ -81,10 +83,9 @@ method rpcHandler*(f: FloodSub,
               toSendPeers.incl(f.floodsub[t])        # get all the peers interested in this topic
             if t in f.topics:                        # check that we're subscribed to it
               for h in f.topics[t].handler:
-                trace "calling handler for message", msg = msg.msgId,
-                                                     topicId = t,
+                trace "calling handler for message", topicId = t,
                                                      localPeer = f.peerInfo.id,
-                                                     fromPeer = msg.fromPeerId().pretty
+                                                     fromPeer = msg.fromPeer.pretty
                 await h(t, msg.data)                 # trigger user provided handler
 
         # forward the message to all peers interested in it
@@ -129,7 +130,7 @@ method publish*(f: FloodSub,
     return
 
   trace "publishing on topic", name = topic
-  let msg = newMessage(f.peerInfo, data, topic, f.sign)
+  let msg = Message.init(f.peerInfo, data, topic, f.sign)
   var sent: seq[Future[void]]
   # start the future but do not wait yet
   for p in f.floodsub.getOrDefault(topic):

@@ -5,6 +5,7 @@ include ../../libp2p/protocols/pubsub/gossipsub
 import unittest
 import stew/byteutils
 import ../../libp2p/errors
+import ../../libp2p/crypto/crypto
 import ../../libp2p/stream/bufferstream
 
 import ../helpers
@@ -229,8 +230,8 @@ suite "GossipSub internal":
         conns &= conn
         let peerInfo = PeerInfo.init(PrivateKey.random(ECDSA).get())
         conn.peerInfo = peerInfo
-        let msg = newMessage(peerInfo, ("HELLO" & $i).toBytes(), topic, false)
-        gossipSub.mcache.put(msg)
+        let msg = Message.init(peerInfo, ("HELLO" & $i).toBytes(), topic, false)
+        gossipSub.mcache.put(gossipSub.msgIdProvider(msg), msg)
 
       check gossipSub.fanout[topic].len == 15
       check gossipSub.mesh[topic].len == 15
@@ -279,8 +280,8 @@ suite "GossipSub internal":
         conns &= conn
         let peerInfo = PeerInfo.init(PrivateKey.random(ECDSA).get())
         conn.peerInfo = peerInfo
-        let msg = newMessage(peerInfo, ("HELLO" & $i).toBytes(), topic, false)
-        gossipSub.mcache.put(msg)
+        let msg = Message.init(peerInfo, ("HELLO" & $i).toBytes(), topic, false)
+        gossipSub.mcache.put(gossipSub.msgIdProvider(msg), msg)
 
       let peers = gossipSub.getGossipPeers()
       check peers.len == GossipSubD
@@ -322,8 +323,8 @@ suite "GossipSub internal":
         conns &= conn
         let peerInfo = PeerInfo.init(PrivateKey.random(ECDSA).get())
         conn.peerInfo = peerInfo
-        let msg = newMessage(peerInfo, ("HELLO" & $i).toBytes(), topic, false)
-        gossipSub.mcache.put(msg)
+        let msg = Message.init(peerInfo, ("HELLO" & $i).toBytes(), topic, false)
+        gossipSub.mcache.put(gossipSub.msgIdProvider(msg), msg)
 
       let peers = gossipSub.getGossipPeers()
       check peers.len == GossipSubD
@@ -365,8 +366,8 @@ suite "GossipSub internal":
         conns &= conn
         let peerInfo = PeerInfo.init(PrivateKey.random(ECDSA).get())
         conn.peerInfo = peerInfo
-        let msg = newMessage(peerInfo, ("bar" & $i).toBytes(), topic, false)
-        gossipSub.mcache.put(msg)
+        let msg = Message.init(peerInfo, ("bar" & $i).toBytes(), topic, false)
+        gossipSub.mcache.put(gossipSub.msgIdProvider(msg), msg)
 
       let peers = gossipSub.getGossipPeers()
       check peers.len == 0

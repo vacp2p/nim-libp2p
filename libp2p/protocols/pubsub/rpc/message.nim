@@ -7,9 +7,12 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
+{.push raises: [Defect].}
+
 import options
 import chronicles, stew/byteutils
 import metrics
+import chronicles
 import nimcrypto/sysrand
 import messages, protobuf,
        ../../../peer,
@@ -20,33 +23,18 @@ import messages, protobuf,
 logScope:
   topics = "pubsubmessage"
 
-const PubSubPrefix = "libp2p-pubsub:"
+const PubSubPrefix = toBytes("libp2p-pubsub:")
 
 declareCounter(libp2p_pubsub_sig_verify_success, "pubsub successfully validated messages")
 declareCounter(libp2p_pubsub_sig_verify_failure, "pubsub failed validated messages")
 
-proc msgIdProvider(m: Message): string =
-  ## default msg id provider
-  crypto.toHex(m.seqno) & PeerID.init(m.fromPeer).pretty
+func defaultMsgIdProvider*(m: Message): string =
+  byteutils.toHex(m.seqno) & m.fromPeer.pretty
 
-template msgId*(m: Message): string =
-  ## calls the ``msgIdProvider`` from
-  ## the instantiation scope
-  ##
-  mixin msgIdProvider
-  m.msgIdProvider()
-
-proc fromPeerId*(m: Message): PeerId =
-  PeerID.init(m.fromPeer)
-
-proc sign*(msg: Message, p: PeerInfo): Message {.gcsafe.} =
+proc sign*(msg: Message, p: PeerInfo): seq[byte] {.gcsafe, raises: [ResultError[CryptoError], Defect].} =
   var buff = initProtoBuffer()
   encodeMessage(msg, buff)
-  if buff.buffer.len > 0:
-    result = msg
-    result.signature = p.privateKey.
-                       sign(PubSubPrefix.toBytes() & buff.buffer).tryGet().
-                       getBytes()
+  p.privateKey.sign(PubSubPrefix & buff.buffer).tryGet().getBytes()
 
 proc verify*(m: Message, p: PeerInfo): bool =
   if m.signature.len > 0 and m.key.len > 0:
@@ -61,27 +49,29 @@ proc verify*(m: Message, p: PeerInfo): bool =
     var key: PublicKey
     if remote.init(m.signature) and key.init(m.key):
       trace "verifying signature", remoteSignature = remote
-      result = remote.verify(PubSubPrefix.toBytes() & buff.buffer, key)
-    
+      result = remote.verify(PubSubPrefix & buff.buffer, key)
+
   if result:
     libp2p_pubsub_sig_verify_success.inc()
   else:
     libp2p_pubsub_sig_verify_failure.inc()
 
-proc newMessage*(p: PeerInfo,
-                 data: seq[byte],
-                 topic: string,
-                 sign: bool = true): Message {.gcsafe.} =
+proc init*(
+    T: type Message,
+    p: PeerInfo,
+    data: seq[byte],
+    topic: string,
+    sign: bool = true): Message {.gcsafe, raises: [CatchableError, Defect].} =
   var seqno: seq[byte] = newSeq[byte](8)
-  if randomBytes(addr seqno[0], 8) > 0:
-    if p.publicKey.isSome:
-      var key: seq[byte] = p.publicKey.get().getBytes().tryGet()
+  if randomBytes(addr seqno[0], 8) <= 0:
+    raise (ref CatchableError)(msg: "Cannot get randomness for message")
 
-      result = Message(fromPeer: p.peerId.getBytes(),
-                      data: data,
-                      seqno: seqno,
-                      topicIDs: @[topic])
-      if sign:
-        result = result.sign(p)
+  result = Message(
+    fromPeer: p.peerId,
+    data: data,
+    seqno: seqno,
+    topicIDs: @[topic])
 
-      result.key = key
+  if sign and p.publicKey.isSome:
+    result.signature = sign(result, p)
+    result.key =  p.publicKey.get().getBytes().tryGet()
