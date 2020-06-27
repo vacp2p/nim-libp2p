@@ -59,6 +59,10 @@ suite "GossipSub internal":
       let topic = "foobar"
       gossipSub.gossipsub[topic] = initHashSet[string]()
 
+      # our implementation requires that topic is in gossipSub.topics
+      # for this test to work properly and publish properly
+      gossipSub.topics[topic] = Topic()
+
       var conns = newSeq[Connection]()
       for i in 0..<15:
         let conn = newBufferStream(noop)
@@ -101,7 +105,7 @@ suite "GossipSub internal":
         gossipSub.gossipsub[topic].incl(peerInfo.id)
 
       check gossipSub.gossipsub[topic].len == 15
-      await gossipSub.replenishFanout(topic)
+      gossipSub.replenishFanout(topic)
       check gossipSub.fanout[topic].len == GossipSubD
 
       await allFuturesThrowing(conns.mapIt(it.close()))
