@@ -76,16 +76,16 @@ method init*(g: GossipSub) =
 
 proc replenishFanout(g: GossipSub, topic: string) =
   ## get fanout peers for a topic
-  debug "about to replenish fanout", avail = g.gossipsub.getOrDefault(topic).len
+  debug "about to replenish fanout", totalPeers = g.peers.len
 
   if topic notin g.fanout:
     g.fanout[topic] = initHashSet[string]()
 
-  if g.fanout.getOrDefault(topic).len < GossipSubDLo:
-    debug "replenishing fanout", peers = g.fanout.getOrDefault(topic).len
-    if topic in g.gossipsub:
-      for p in g.gossipsub.getOrDefault(topic):
-        if not g.fanout[topic].containsOrIncl(p):
+  if g.fanout[topic].len < GossipSubDLo:
+    debug "replenishing fanout", peers = g.fanout[topic].len
+    for id, peer in g.peers:
+      if peer.topics.find(topic) != -1: # linear search but likely faster then a small hash
+        if not g.fanout[topic].containsOrIncl(id):
           g.lastFanoutPubSub[topic] = Moment.fromNow(GossipSubFanoutTTL)
           if g.fanout.getOrDefault(topic).len == GossipSubD:
             break
@@ -140,9 +140,6 @@ proc rebalanceMesh(g: GossipSub, topic: string) {.async.} =
           # send a graft message to the peer
           await p.sendGraft(@[topic])
     
-    # run fanout 
-    g.replenishFanout(topic)
-
     # prune peers if we've gone over
     if g.mesh.getOrDefault(topic).len > GossipSubDhi:
       trace "about to prune mesh", mesh = g.mesh.getOrDefault(topic).len
@@ -302,8 +299,9 @@ method subscribeTopic*(g: GossipSub,
 
   debug "gossip peers", peers = g.gossipsub[topic].len, topic
 
-  # also rebalance current topic
-  await g.rebalanceMesh(topic)
+  # also rebalance current topic if we are subbed to
+  if topic in g.topics:
+    await g.rebalanceMesh(topic)
 
 proc handleGraft(g: GossipSub,
                  peer: PubSubPeer,
@@ -475,6 +473,7 @@ method publish*(g: GossipSub,
     if topic in g.topics: # if we're subscribed use the mesh
       peers = g.mesh.getOrDefault(topic)
     else: # not subscribed, send to fanout peers
+      g.replenishFanout(topic)
       peers = g.fanout.getOrDefault(topic)
 
     let msg = newMessage(g.peerInfo, data, topic, g.sign)
