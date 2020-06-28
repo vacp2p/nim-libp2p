@@ -59,7 +59,7 @@ suite "FloodSub":
       await nodes[1].subscribe("foobar", handler)
       await waitSub(nodes[0], nodes[1], "foobar")
 
-      await nodes[0].publish("foobar", "Hello!".toBytes())
+      discard await nodes[0].publish("foobar", "Hello!".toBytes())
 
       result = await completionFut.wait(5.seconds)
 
@@ -90,7 +90,7 @@ suite "FloodSub":
       await nodes[0].subscribe("foobar", handler)
       await waitSub(nodes[1], nodes[0], "foobar")
 
-      await nodes[1].publish("foobar", "Hello!".toBytes())
+      discard await nodes[1].publish("foobar", "Hello!".toBytes())
 
       result = await completionFut.wait(5.seconds)
 
@@ -125,7 +125,7 @@ suite "FloodSub":
 
       nodes[1].addValidator("foobar", validator)
 
-      await nodes[0].publish("foobar", "Hello!".toBytes())
+      discard await nodes[0].publish("foobar", "Hello!".toBytes())
 
       check (await handlerFut) == true
       await allFuturesThrowing(
@@ -159,7 +159,7 @@ suite "FloodSub":
 
       nodes[1].addValidator("foobar", validator)
 
-      await nodes[0].publish("foobar", "Hello!".toBytes())
+      discard await nodes[0].publish("foobar", "Hello!".toBytes())
 
       await allFuturesThrowing(
         nodes[0].stop(),
@@ -197,8 +197,8 @@ suite "FloodSub":
 
       nodes[1].addValidator("foo", "bar", validator)
 
-      await nodes[0].publish("foo", "Hello!".toBytes())
-      await nodes[0].publish("bar", "Hello!".toBytes())
+      discard await nodes[0].publish("foo", "Hello!".toBytes())
+      discard await nodes[0].publish("bar", "Hello!".toBytes())
 
       await allFuturesThrowing(
         nodes[0].stop(),
@@ -249,7 +249,7 @@ suite "FloodSub":
             subs &= waitSub(nodes[i], nodes[y], "foobar")
       await allFuturesThrowing(subs)
 
-      var pubs: seq[Future[void]]
+      var pubs: seq[Future[int]]
       for i in 0..<runs:
         pubs &= nodes[i].publish("foobar", "Hello!".toBytes())
       await allFuturesThrowing(pubs)
@@ -303,7 +303,7 @@ suite "FloodSub":
             subs &= waitSub(nodes[i], nodes[y], "foobar")
       await allFuturesThrowing(subs)
 
-      var pubs: seq[Future[void]]
+      var pubs: seq[Future[int]]
       for i in 0..<runs:
         pubs &= nodes[i].publish("foobar", "Hello!".toBytes())
       await allFuturesThrowing(pubs)
