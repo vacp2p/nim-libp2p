@@ -11,7 +11,7 @@ requires "nim >= 1.2.0",
          "nimcrypto >= 0.4.1",
          "bearssl >= 0.1.4",
          "chronicles >= 0.7.2",
-         "chronos >= 2.3.8",
+         "chronos >= 2.4.1",
          "metrics",
          "secp256k1",
          "stew >= 0.1.0"
