@@ -85,7 +85,7 @@ proc replenishFanout(g: GossipSub, topic: string) =
   if g.fanout[topic].len < GossipSubDLo:
     debug "replenishing fanout", peers = g.fanout[topic].len
     for id, peer in g.peers:
-      if peer.topics.find(topic) != -1: # linear search but likely faster then a small hash
+      if peer.proto == GossipSubCodec and peer.topics.find(topic) != -1: # linear search but likely faster then a small hash
         if not g.fanout[topic].containsOrIncl(id):
           g.lastFanoutPubSub[topic] = Moment.fromNow(GossipSubFanoutTTL)
           if g.fanout.getOrDefault(topic).len == GossipSubD:
