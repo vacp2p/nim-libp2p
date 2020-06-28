@@ -151,7 +151,7 @@ proc testPubSubNodePublish(gossip: bool = false,
 
   proc publisher() {.async.} =
     while not finished:
-      await nativeNode.publish(testTopic, msgData)
+      discard await nativeNode.publish(testTopic, msgData)
       await sleepAsync(500.millis)
 
   await wait(publisher(), 5.minutes) # should be plenty of time
