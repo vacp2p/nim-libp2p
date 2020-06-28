@@ -107,7 +107,7 @@ proc newChannel*(id: uint64,
     name = chan.name
     oid = $chan.oid
     peer = $chan.conn.peerInfo
-    stack = getStackTrace()
+    # stack = getStackTrace()
 
   proc writeHandler(data: seq[byte]): Future[void] {.async, gcsafe.} =
     try:
@@ -138,7 +138,7 @@ proc closeMessage(s: LPChannel) {.async.} =
     name = s.name
     oid = $s.oid
     peer = $s.conn.peerInfo
-    stack = getStackTrace()
+    # stack = getStackTrace()
 
   ## send close message - this will not raise
   ## on EOF or Closed
@@ -154,7 +154,7 @@ proc resetMessage(s: LPChannel) {.async.} =
     name = s.name
     oid = $s.oid
     peer = $s.conn.peerInfo
-    stack = getStackTrace()
+    # stack = getStackTrace()
 
   ## send reset message - this will not raise
   withEOFExceptions:
@@ -170,7 +170,7 @@ proc open*(s: LPChannel) {.async, gcsafe.} =
     name = s.name
     oid = $s.oid
     peer = $s.conn.peerInfo
-    stack = getStackTrace()
+    # stack = getStackTrace()
 
   ## NOTE: Don't call withExcAndLock or withWriteLock,
   ## because this already gets called from writeHandler
@@ -186,7 +186,7 @@ proc closeRemote*(s: LPChannel) {.async.} =
     name = s.name
     oid = $s.oid
     peer = $s.conn.peerInfo
-    stack = getStackTrace()
+    # stack = getStackTrace()
 
   trace "got EOF, closing channel"
 
@@ -215,7 +215,7 @@ method reset*(s: LPChannel) {.base, async, gcsafe.} =
     name = s.name
     oid = $s.oid
     peer = $s.conn.peerInfo
-    stack = getStackTrace()
+    # stack = getStackTrace()
 
   trace "resetting channel"
 
@@ -240,7 +240,7 @@ method close*(s: LPChannel) {.async, gcsafe.} =
     name = s.name
     oid = $s.oid
     peer = $s.conn.peerInfo
-    stack = getStackTrace()
+    # stack = getStackTrace()
 
   if s.closedLocal:
     trace "channel already closed"
