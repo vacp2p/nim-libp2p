@@ -59,10 +59,6 @@ suite "GossipSub internal":
       let topic = "foobar"
       gossipSub.gossipsub[topic] = initHashSet[string]()
 
-      # our implementation requires that topic is in gossipSub.topics
-      # for this test to work properly and publish properly
-      gossipSub.topics[topic] = Topic()
-
       var conns = newSeq[Connection]()
       for i in 0..<15:
         let conn = newBufferStream(noop)

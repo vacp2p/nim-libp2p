@@ -82,11 +82,11 @@ proc replenishFanout(g: GossipSub, topic: string) =
   if topic notin g.fanout:
     g.fanout[topic] = initHashSet[string]()
 
-  if g.fanout.getOrDefault(topic).len < GossipSubDLo:
-    debug "replenishing fanout", peers = g.fanout.getOrDefault(topic).len
-    if topic in g.gossipsub:
-      for p in g.gossipsub.getOrDefault(topic):
-        if not g.fanout[topic].containsOrIncl(p):
+  if g.fanout[topic].len < GossipSubDLo:
+    debug "replenishing fanout", peers = g.fanout[topic].len
+    for id, peer in g.peers:
+      if peer.topics.find(topic) != -1: # linear search but likely faster then a small hash
+        if not g.fanout[topic].containsOrIncl(id):
           g.lastFanoutPubSub[topic] = Moment.fromNow(GossipSubFanoutTTL)
           if g.fanout.getOrDefault(topic).len == GossipSubD:
             break
@@ -307,8 +307,9 @@ method subscribeTopic*(g: GossipSub,
 
   debug "gossip peers", peers = g.gossipsub[topic].len, topic
 
-  # also rebalance current topic
-  await g.rebalanceMesh(topic)
+  # also rebalance current topic if we are subbed to
+  if topic in g.topics:
+    await g.rebalanceMesh(topic)
 
 proc handleGraft(g: GossipSub,
                  peer: PubSubPeer,

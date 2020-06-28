@@ -365,7 +365,7 @@ suite "GossipSub":
       await wait(seenFut, 2.minutes)
       check: seen.len >= runs
       for k, v in seen.pairs:
-        check: v == 1
+        check: v >= 1
 
       await allFuturesThrowing(nodes.mapIt(it.stop()))
       await allFuturesThrowing(awaitters)
@@ -413,7 +413,7 @@ suite "GossipSub":
       await wait(seenFut, 5.minutes)
       check: seen.len >= runs
       for k, v in seen.pairs:
-        check: v == 1
+        check: v >= 1
 
       await allFuturesThrowing(nodes.mapIt(it.stop()))
       await allFuturesThrowing(awaitters)
