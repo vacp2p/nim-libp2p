@@ -27,7 +27,7 @@ declareCounter(libp2p_pubsub_sig_verify_failure, "pubsub failed validated messag
 
 proc msgIdProvider(m: Message): string =
   ## default msg id provider
-  crypto.toHex(m.seqno) & PeerID.init(m.fromPeer).pretty
+  crypto.toHex(m.seqno) & PeerID.init(m.fromPeer).tryGet().pretty()
 
 template msgId*(m: Message): string =
   ## calls the ``msgIdProvider`` from
@@ -37,7 +37,7 @@ template msgId*(m: Message): string =
   m.msgIdProvider()
 
 proc fromPeerId*(m: Message): PeerId =
-  PeerID.init(m.fromPeer)
+  PeerID.init(m.fromPeer).tryGet()
 
 proc sign*(msg: Message, p: PeerInfo): Message {.gcsafe.} =
   var buff = initProtoBuffer()

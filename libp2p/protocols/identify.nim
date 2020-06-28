@@ -140,16 +140,18 @@ proc identify*(p: Identify,
 
   if not isNil(remotePeerInfo) and result.pubKey.isSome:
     let peer = PeerID.init(result.pubKey.get())
+    if peer.isErr:
+      raise newException(IdentityInvalidMsgError, "Could not derived a PeerID")
+    else:
+      # do a string comaprison of the ids,
+      # because that is the only thing we
+      # have in most cases
+      if peer.get() != remotePeerInfo.peerId:
+        trace "Peer ids don't match",
+              remote = peer.get().pretty(),
+              local = remotePeerInfo.id
 
-    # do a string comaprison of the ids,
-    # because that is the only thing we
-    # have in most cases
-    if peer != remotePeerInfo.peerId:
-      trace "Peer ids don't match",
-            remote = peer.pretty(),
-            local = remotePeerInfo.id
-
-      raise newException(IdentityNoMatchError, "Peer ids don't match")
+        raise newException(IdentityNoMatchError, "Peer ids don't match")
 
 proc push*(p: Identify, conn: Connection) {.async.} =
   await conn.write(IdentifyPushCodec)

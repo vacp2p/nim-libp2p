@@ -64,7 +64,7 @@ proc init*(p: typedesc[PeerInfo],
            key: PrivateKey,
            addrs: openarray[MultiAddress] = [],
            protocols: openarray[string] = []): PeerInfo {.inline.} =
-  result = PeerInfo(keyType: HasPrivate, peerId: PeerID.init(key),
+  result = PeerInfo(keyType: HasPrivate, peerId: PeerID.init(key).tryGet(),
                     privateKey: key)
   result.postInit(addrs, protocols)
 
@@ -79,7 +79,7 @@ proc init*(p: typedesc[PeerInfo],
            peerId: string,
            addrs: openarray[MultiAddress] = [],
            protocols: openarray[string] = []): PeerInfo {.inline.} =
-  result = PeerInfo(keyType: HasPublic, peerId: PeerID.init(peerId))
+  result = PeerInfo(keyType: HasPublic, peerId: PeerID.init(peerId).tryGet())
   result.postInit(addrs, protocols)
 
 proc init*(p: typedesc[PeerInfo],
@@ -87,7 +87,7 @@ proc init*(p: typedesc[PeerInfo],
            addrs: openarray[MultiAddress] = [],
            protocols: openarray[string] = []): PeerInfo {.inline.} =
   result = PeerInfo(keyType: HasPublic,
-                    peerId: PeerID.init(key),
+                    peerId: PeerID.init(key).tryGet(),
                     key: some(key))
 
   result.postInit(addrs, protocols)
