@@ -56,6 +56,7 @@ suite "GossipSub internal":
 
       let topic = "foobar"
       gossipSub.gossipsub[topic] = initHashSet[string]()
+      gossipSub.topics[topic] = Topic() # has to be in topics to rebalance
 
       var conns = newSeq[Connection]()
       for i in 0..<15:
@@ -97,6 +98,7 @@ suite "GossipSub internal":
         conn.peerInfo = peerInfo
         gossipSub.peers[peerInfo.id] = newPubSubPeer(peerInfo, GossipSubCodec)
         gossipSub.peers[peerInfo.id].handler = handler
+        gossipSub.peers[peerInfo.id].topics &= topic
         gossipSub.gossipsub[topic].incl(peerInfo.id)
 
       check gossipSub.gossipsub[topic].len == 15
