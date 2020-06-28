@@ -57,9 +57,8 @@ suite "GossipSub":
         handlerFut.complete(true)
 
       var nodes = generateNodes(2, true)
-      var awaiters: seq[Future[void]]
-      awaiters.add((await nodes[0].start()))
-      awaiters.add((await nodes[1].start()))
+
+      await allFuturesThrowing(nodes[0].start(), nodes[1].start())
 
       await subscribeNodes(nodes)
 
@@ -80,10 +79,8 @@ suite "GossipSub":
       await nodes[0].publish("foobar", "Hello!".toBytes())
 
       result = (await validatorFut) and (await handlerFut)
-      await allFuturesThrowing(
-        nodes[0].stop(),
-        nodes[1].stop())
-      await allFuturesThrowing(awaiters)
+      await allFuturesThrowing(nodes[0].stop(), nodes[1].stop())
+      await allFuturesThrowing(nodes[0].join(), nodes[1].join())
 
     check:
       waitFor(runTests()) == true
@@ -94,9 +91,8 @@ suite "GossipSub":
         check false # if we get here, it should fail
 
       var nodes = generateNodes(2, true)
-      var awaiters: seq[Future[void]]
-      awaiters.add((await nodes[0].start()))
-      awaiters.add((await nodes[1].start()))
+
+      await allFuturesThrowing(nodes[0].start(), nodes[1].start())
 
       await subscribeNodes(nodes)
 
@@ -114,10 +110,8 @@ suite "GossipSub":
       await nodes[0].publish("foobar", "Hello!".toBytes())
 
       result = await validatorFut
-      await allFuturesThrowing(
-        nodes[0].stop(),
-        nodes[1].stop())
-      await allFuturesThrowing(awaiters)
+      await allFuturesThrowing(nodes[0].stop(), nodes[1].stop())
+      await allFuturesThrowing(nodes[0].join(), nodes[1].join())
 
     check:
       waitFor(runTests()) == true
@@ -130,9 +124,8 @@ suite "GossipSub":
         handlerFut.complete(true)
 
       var nodes = generateNodes(2, true)
-      var awaiters: seq[Future[void]]
-      awaiters.add((await nodes[0].start()))
-      awaiters.add((await nodes[1].start()))
+
+      await allFuturesThrowing(nodes[0].start(), nodes[1].start())
 
       await subscribeNodes(nodes)
       await nodes[1].subscribe("foo", handler)
@@ -156,10 +149,8 @@ suite "GossipSub":
       await nodes[0].publish("bar", "Hello!".toBytes())
 
       result = ((await passed) and (await failed) and (await handlerFut))
-      await allFuturesThrowing(
-        nodes[0].stop(),
-        nodes[1].stop())
-      await allFuturesThrowing(awaiters)
+      await allFuturesThrowing(nodes[0].stop(), nodes[1].stop())
+      await allFuturesThrowing(nodes[0].join(), nodes[1].join())
       result = true
     check:
       waitFor(runTests()) == true
@@ -171,11 +162,14 @@ suite "GossipSub":
 
       var nodes: seq[Switch] = newSeq[Switch]()
       for i in 0..<2:
-        nodes.add newStandardSwitch(gossip = true, secureManagers = [SecureProtocol.Noise])
+        nodes.add newStandardSwitch(gossip = true,
+                                    secureManagers = [SecureProtocol.Noise])
 
       var awaitters: seq[Future[void]]
       for node in nodes:
-        awaitters.add(await node.start())
+        awaitters.add(node.start())
+
+      await allFuturesThrowing(awaitters)
 
       await subscribeNodes(nodes)
       await nodes[1].subscribe("foobar", handler)
@@ -190,7 +184,7 @@ suite "GossipSub":
         gossip2.peerInfo.id in gossip1.gossipsub["foobar"]
 
       await allFuturesThrowing(nodes.mapIt(it.stop()))
-      await allFuturesThrowing(awaitters)
+      await allFuturesThrowing(nodes.mapIt(it.join()))
 
       result = true
 
@@ -208,7 +202,9 @@ suite "GossipSub":
 
       var awaitters: seq[Future[void]]
       for node in nodes:
-        awaitters.add(await node.start())
+        awaitters.add(node.start())
+
+      await allFuturesThrowing(awaitters)
 
       await subscribeNodes(nodes)
 
@@ -238,7 +234,7 @@ suite "GossipSub":
         gossip1.peerInfo.id in gossip2.mesh["foobar"]
 
       await allFuturesThrowing(nodes.mapIt(it.stop()))
-      await allFuturesThrowing(awaitters)
+      await allFuturesThrowing(nodes.mapIt(it.join()))
 
       result = true
 
@@ -253,9 +249,8 @@ suite "GossipSub":
         passed.complete()
 
       var nodes = generateNodes(2, true)
-      var wait = newSeq[Future[void]]()
-      wait.add(await nodes[0].start())
-      wait.add(await nodes[1].start())
+
+      await allFuturesThrowing(nodes[0].start(), nodes[1].start())
 
       await subscribeNodes(nodes)
 
@@ -284,9 +279,8 @@ suite "GossipSub":
 
       trace "test done, stopping..."
 
-      await nodes[0].stop()
-      await nodes[1].stop()
-      await allFuturesThrowing(wait)
+      await allFuturesThrowing(nodes[0].stop(), nodes[1].stop())
+      await allFuturesThrowing(nodes[0].join(), nodes[1].join())
 
       # result = observed == 2
       result = true
@@ -302,9 +296,8 @@ suite "GossipSub":
         passed.complete(true)
 
       var nodes = generateNodes(2, true)
-      var wait: seq[Future[void]]
-      wait.add(await nodes[0].start())
-      wait.add(await nodes[1].start())
+
+      await allFuturesThrowing(nodes[0].start(), nodes[1].start())
 
       await subscribeNodes(nodes)
 
@@ -315,9 +308,8 @@ suite "GossipSub":
 
       result = await passed
 
-      await nodes[0].stop()
-      await nodes[1].stop()
-      await allFuturesThrowing(wait)
+      await allFuturesThrowing(nodes[0].stop(), nodes[1].stop())
+      await allFuturesThrowing(nodes[0].join(), nodes[1].join())
 
     check:
       waitFor(runTests()) == true
@@ -329,8 +321,11 @@ suite "GossipSub":
       var runs = 10
 
       for i in 0..<runs:
-        nodes.add newStandardSwitch(triggerSelf = true, gossip = true, secureManagers = [SecureProtocol.Noise])
-        awaitters.add((await nodes[i].start()))
+        nodes.add newStandardSwitch(triggerSelf = true, gossip = true,
+                                    secureManagers = [SecureProtocol.Noise])
+        awaitters.add((nodes[i].start()))
+
+      await allFuturesThrowing(awaitters)
 
       await subscribeRandom(nodes)
 
@@ -365,7 +360,7 @@ suite "GossipSub":
         check: v == 1
 
       await allFuturesThrowing(nodes.mapIt(it.stop()))
-      await allFuturesThrowing(awaitters)
+      await allFuturesThrowing(nodes.mapIt(it.join()))
       result = true
 
     check:
@@ -379,7 +374,9 @@ suite "GossipSub":
 
       for i in 0..<runs:
         nodes.add newStandardSwitch(triggerSelf = true, gossip = true, secureManagers = [SecureProtocol.Secio])
-        awaitters.add((await nodes[i].start()))
+        awaitters.add(nodes[i].start())
+
+      await allFuturesThrowing(awaitters)
 
       await subscribeSparseNodes(nodes, 4)
 
@@ -413,7 +410,7 @@ suite "GossipSub":
         check: v == 1
 
       await allFuturesThrowing(nodes.mapIt(it.stop()))
-      await allFuturesThrowing(awaitters)
+      await allFuturesThrowing(nodes.mapIt(it.join()))
       result = true
 
     check:

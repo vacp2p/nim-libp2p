@@ -206,7 +206,6 @@ suite "Noise":
 
       var peerInfo1, peerInfo2: PeerInfo
       var switch1, switch2: Switch
-      var awaiters: seq[Future[void]]
 
       (switch1, peerInfo1) = createSwitch(ma1, false)
 
@@ -215,18 +214,17 @@ suite "Noise":
       testProto.codec = TestCodec
       switch1.mount(testProto)
       (switch2, peerInfo2) = createSwitch(ma2, true)
-      awaiters.add(await switch1.start())
-      awaiters.add(await switch2.start())
+
+      await allFuturesThrowing(switch1.start(), switch2.start())
+
       let conn = await switch2.dial(switch1.peerInfo, TestCodec)
       await conn.writeLp("Hello!")
       let msg = string.fromBytes(await conn.readLp(1024))
       check "Hello!" == msg
       await conn.close()
 
-      await allFuturesThrowing(
-        switch1.stop(),
-        switch2.stop())
-      await allFuturesThrowing(awaiters)
+      await allFuturesThrowing(switch1.stop(), switch2.stop())
+      await allFuturesThrowing(switch1.join(), switch2.join())
       result = true
 
     check:

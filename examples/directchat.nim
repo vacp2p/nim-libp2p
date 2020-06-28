@@ -187,7 +187,7 @@ proc processInput(rfd: AsyncFD) {.async.} =
 
   let chatProto = newChatProto(switch, transp)
   switch.mount(chatProto)
-  let libp2pFuts = await switch.start()
+  await switch.start()
   chatProto.started = true
 
   let id = peerInfo.peerId.pretty
@@ -197,7 +197,7 @@ proc processInput(rfd: AsyncFD) {.async.} =
     echo &"{a}/ipfs/{id}"
 
   await chatProto.readWriteLoop()
-  await allFuturesThrowing(libp2pFuts)
+  await switch.join()
 
 proc main() {.async.} =
   let (rfd, wfd) = createAsyncPipe()

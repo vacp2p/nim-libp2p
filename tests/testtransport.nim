@@ -20,7 +20,7 @@ suite "TCP transport":
       let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
       let handlerWait = newFuture[void]()
       proc connHandler(conn: Connection) {.async, gcsafe.} =
-        await conn.write(cstring("Hello!"), 6)
+        await conn.write("Hello!")
         await conn.close()
         handlerWait.complete()
 
@@ -53,9 +53,9 @@ suite "TCP transport":
         handlerWait.complete()
 
       let transport: TcpTransport = TcpTransport.init()
-      asyncCheck await transport.listen(ma, connHandler)
+      asyncCheck transport.listen(ma, connHandler)
       let streamTransport: StreamTransport = await connect(transport.ma)
-      let sent = await streamTransport.write("Hello!", 6)
+      let sent = await streamTransport.write("Hello!")
 
       await handlerWait.wait(5000.millis) # when no issues will not wait that long!
       await streamTransport.closeWait()
@@ -123,7 +123,7 @@ suite "TCP transport":
       let ma: MultiAddress = MultiAddress.init(server.sock.getLocalAddress()).tryGet()
       let transport: TcpTransport = TcpTransport.init()
       let conn = await transport.dial(ma)
-      await conn.write(cstring("Hello!"), 6)
+      await conn.write("Hello!")
       result = true
 
       await handlerWait.wait(5000.millis) # when no issues will not wait that long!
@@ -142,7 +142,7 @@ suite "TCP transport":
       let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
       let handlerWait = newFuture[void]()
       proc connHandler(conn: Connection) {.async, gcsafe.} =
-        await conn.write(cstring("Hello!"), 6)
+        await conn.write("Hello!")
         await conn.close()
         handlerWait.complete()
 
@@ -181,7 +181,7 @@ suite "TCP transport":
 
       let transport2: TcpTransport = TcpTransport.init()
       let conn = await transport2.dial(transport1.ma)
-      await conn.write(cstring("Hello!"), 6)
+      await conn.write("Hello!")
 
       await handlerWait.wait(5000.millis) # when no issues will not wait that long!
 

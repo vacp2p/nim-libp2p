@@ -57,9 +57,8 @@ suite "Switch":
       switch1.mount(testProto)
 
       let switch2 = newStandardSwitch(secureManagers = [SecureProtocol.Noise])
-      var awaiters: seq[Future[void]]
-      awaiters.add(await switch1.start())
-      awaiters.add(await switch2.start())
+
+      await allFuturesThrowing(switch1.start(), switch2.start())
 
       let conn = await switch2.dial(switch1.peerInfo, TestCodec)
       await conn.writeLp("Hello!")
@@ -73,7 +72,7 @@ suite "Switch":
         switch2.stop())
 
       # this needs to go at end
-      await allFuturesThrowing(awaiters)
+      await allFuturesThrowing(switch1.join(), switch2.join())
 
     waitFor(testSwitch())
 
@@ -97,9 +96,8 @@ suite "Switch":
       switch1.mount(testProto)
 
       let switch2 = newStandardSwitch(secureManagers = [SecureProtocol.Secio])
-      var awaiters: seq[Future[void]]
-      awaiters.add(await switch1.start())
-      awaiters.add(await switch2.start())
+
+      await allFuturesThrowing(switch1.start(), switch2.start())
 
       let conn = await switch2.dial(switch1.peerInfo, TestCodec)
       await conn.writeLp("Hello!")
@@ -131,14 +129,12 @@ suite "Switch":
       )
 
       # this needs to go at end
-      await allFuturesThrowing(awaiters)
+      await allFuturesThrowing(switch1.join(), switch2.join())
 
     waitFor(testSwitch())
 
   test "e2e use connect then dial":
     proc testSwitch(): Future[bool] {.async, gcsafe.} =
-      var awaiters: seq[Future[void]]
-
       proc handle(conn: Connection, proto: string) {.async, gcsafe.} =
         try:
           let msg = string.fromBytes(await conn.readLp(1024))
@@ -155,8 +151,8 @@ suite "Switch":
       switch1.mount(testProto)
 
       let switch2 = newStandardSwitch(secureManagers = [SecureProtocol.Noise])
-      awaiters.add(await switch1.start())
-      awaiters.add(await switch2.start())
+
+      await allFuturesThrowing(switch1.start(), switch2.start())
 
       await switch2.connect(switch1.peerInfo)
       check switch1.peerInfo.id in switch2.connections
@@ -176,19 +172,17 @@ suite "Switch":
         switch1.stop(),
         switch2.stop()
       )
-      await allFuturesThrowing(awaiters)
+      await allFuturesThrowing(switch1.join(), switch2.join())
 
     check:
       waitFor(testSwitch()) == true
 
   test "e2e should not leak on peer disconnect":
     proc testSwitch() {.async, gcsafe.} =
-      var awaiters: seq[Future[void]]
-
       let switch1 = newStandardSwitch(secureManagers = [SecureProtocol.Secio])
       let switch2 = newStandardSwitch(secureManagers = [SecureProtocol.Secio])
-      awaiters.add(await switch1.start())
-      awaiters.add(await switch2.start())
+
+      await allFuturesThrowing(switch1.starT(), switch2.start())
 
       await switch2.connect(switch1.peerInfo)
 
@@ -210,10 +204,8 @@ suite "Switch":
       check switch2.peerInfo.id notin switch1.connections
       check switch1.peerInfo.id notin switch2.connections
 
-      await allFuturesThrowing(
-        switch1.stop(),
-        switch2.stop())
-      await allFuturesThrowing(awaiters)
+      await allFuturesThrowing(switch1.stop(), switch2.stop())
+      await allFuturesThrowing(switch1.join(), switch2.join())
 
     waitFor(testSwitch())
 

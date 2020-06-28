@@ -69,35 +69,23 @@ proc connHandler*(t: TcpTransport,
   conn.observedAddr = MultiAddress.init(client.remoteAddress).tryGet()
   if not initiator:
     if not isNil(t.handler):
-      t.handlers &= t.handler(conn)
+      t.handlers.add(t.handler(conn))
 
   proc cleanup() {.async.} =
     try:
       await client.join()
-      trace "cleaning up client", addrs = client.remoteAddress, connoid = conn.oid
+      trace "cleaning up client", addrs = client.remoteAddress,
+                                  connoid = conn.oid
       if not(isNil(conn)):
         await conn.close()
       t.clients.keepItIf(it != client)
     except CatchableError as exc:
-      trace "error cleaning up client", exc = exc.msg
+      let useExc {.used.} = exc
+      trace "error cleaning up client", errMsg = exc.msg
 
   t.clients.add(client)
   asyncCheck cleanup()
   result = conn
-
-proc connCb(server: StreamServer,
-            client: StreamTransport) {.async, gcsafe.} =
-  trace "incoming connection", address = $client.remoteAddress
-  try:
-    let t = cast[TcpTransport](server.udata)
-    # we don't need result connection in this case
-    # as it's added inside connHandler
-    discard t.connHandler(client, false)
-  except CancelledError as exc:
-    raise exc
-  except CatchableError as err:
-    debug "Connection setup failed", err = err.msg
-    client.close()
 
 proc init*(T: type TcpTransport, flags: set[ServerFlags] = {}): T =
   result = T(flags: flags)
@@ -142,31 +130,74 @@ method close*(t: TcpTransport) {.async, gcsafe.} =
     trace "transport stopped"
     inc getTcpTransportTracker().closed
   except CatchableError as exc:
-    trace "error shutting down tcp transport", exc = exc.msg
+    let useExc {.used.} = exc
+    trace "error shutting down tcp transport", errMsg = exc.msg
 
-method listen*(t: TcpTransport,
-               ma: MultiAddress,
-               handler: ConnHandler):
-               Future[Future[void]] {.async, gcsafe.} =
-  discard await procCall Transport(t).listen(ma, handler) # call base
+method listen*(t: TcpTransport, ma: MultiAddress,
+               handler: ConnHandler) {.async, gcsafe.} =
+  discard procCall Transport(t).listen(ma, handler) # call base
 
   ## listen on the transport
-  t.server = createStreamServer(t.ma, connCb, t.flags, t)
-  t.server.start()
+  t.server = createStreamServer(t.ma, t.flags, t)
 
   # always get the resolved address in case we're bound to 0.0.0.0:0
   t.ma = MultiAddress.init(t.server.sock.getLocalAddress()).tryGet()
-  result = t.server.join()
-  trace "started node on", address = t.ma
+  trace "Listen started on", address = t.ma
+
+  while true:
+    try:
+      let transp = await t.server.accept()
+      trace "Received incoming connection", address = $transp.remoteAddress
+      # we don't need result connection in this case as it's added inside
+      # connHandler
+      try:
+        discard t.connHandler(transp, false)
+      except CancelledError as exc:
+        raise exc
+      except CatchableError as exc:
+        let useExc {.used.} = exc
+        debug "listen: connection setup failed", errMsg = exc.msg
+        if not transp.closed:
+          await transp.closeWait()
+    except TransportTooManyError as exc:
+      let useExc {.used.} = exc
+      warn "listen: could not accept new client, too many files opened"
+    except TransportOsError as exc:
+      let useExc {.used.} = exc
+      error "listen: could not accept new client, got an error",
+            errMsg = exc.msg
+      break
+    except TransportUseClosedError as exc:
+      let useExc {.used.} = exc
+      trace "Server was closed, exiting listening loop"
+      break
+    except CancelledError as exc:
+      raise exc
 
 method dial*(t: TcpTransport,
              address: MultiAddress):
              Future[Connection] {.async, gcsafe.} =
   trace "dialing remote peer", address = $address
   ## dial a peer
-  let client: StreamTransport = await connect(address)
-  result = t.connHandler(client, true)
+  try:
+    let transp = await connect(address)
+    result = t.connHandler(transp, true)
+  except TransportTooManyError as exc:
+    warn "dial: could not create new connection, too many files opened"
+    raise exc
+  except TransportOsError as exc:
+    debug "dial: could not create new connection, got an error",
+         errMsg = exc.msg
+    raise exc
+  except CancelledError as exc:
+    raise exc
+  except CatchableError as exc:
+    warn "dial: could not create new connection, unexpected error",
+         errMsg = exc.msg
+    raise exc
 
 method handles*(t: TcpTransport, address: MultiAddress): bool {.gcsafe.} =
   if procCall Transport(t).handles(address):
-    result = address.protocols.tryGet().filterIt( it == multiCodec("tcp") ).len > 0
+    address.protocols.tryGet().filterIt( it == multiCodec("tcp") ).len > 0
+  else:
+    false

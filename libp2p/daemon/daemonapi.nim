@@ -787,7 +787,7 @@ proc close*(api: DaemonAPI) {.async.} =
       pending.add(server.server.join())
     await allFutures(pending)
     for server in api.servers:
-      let address = initTAddress(server.address)
+      let address = initTAddress(server.address).tryGet()
       discard tryRemoveFile($address)
     api.servers.setLen(0)
   # Closing daemon's process.
@@ -798,7 +798,7 @@ proc close*(api: DaemonAPI) {.async.} =
       api.process.terminate()
     discard api.process.waitForExit()
   # Attempt to delete unix socket endpoint.
-  let address = initTAddress(api.address)
+  let address = initTAddress(api.address).tryGet()
   if address.family == AddressFamily.Unix:
     discard tryRemoveFile($address)
 

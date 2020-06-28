@@ -72,7 +72,7 @@ proc testPubSubDaemonPublish(gossip: bool = false,
   let daemonNode = await newDaemonApi(flags)
   let daemonPeer = await daemonNode.identity()
   let nativeNode = newStandardSwitch(gossip = gossip, secureManagers = [SecureProtocol.Noise])
-  let awaiters = nativeNode.start()
+  await nativeNode.start()
   let nativePeer = nativeNode.peerInfo
 
   var finished = false
@@ -107,7 +107,7 @@ proc testPubSubDaemonPublish(gossip: bool = false,
 
   result = true
   await nativeNode.stop()
-  await allFutures(awaiters)
+  await nativeNode.join()
   await daemonNode.close()
 
 proc testPubSubNodePublish(gossip: bool = false,
@@ -123,7 +123,7 @@ proc testPubSubNodePublish(gossip: bool = false,
   let daemonNode = await newDaemonApi(flags)
   let daemonPeer = await daemonNode.identity()
   let nativeNode = newStandardSwitch(gossip = gossip, secureManagers = [SecureProtocol.Secio])
-  let awaiters = nativeNode.start()
+  await nativeNode.start()
   let nativePeer = nativeNode.peerInfo
 
   await nativeNode.connect(NativePeerInfo.init(daemonPeer.peer,
@@ -158,7 +158,7 @@ proc testPubSubNodePublish(gossip: bool = false,
 
   result = finished
   await nativeNode.stop()
-  await allFutures(awaiters)
+  await nativeNode.join()
   await daemonNode.close()
 
 suite "Interop":
@@ -176,7 +176,7 @@ suite "Interop":
       var protos = @["/test-stream"]
 
       let nativeNode = newStandardSwitch(secureManagers = [SecureProtocol.Noise])
-      let awaiters = await nativeNode.start()
+      await nativeNode.start()
       let daemonNode = await newDaemonApi()
       let daemonPeer = await daemonNode.identity()
 
@@ -207,7 +207,7 @@ suite "Interop":
 
       await daemonNode.close()
       await nativeNode.stop()
-      await allFutures(awaiters)
+      await nativeNode.join()
 
       await sleepAsync(1.seconds)
       result = true
@@ -229,7 +229,7 @@ suite "Interop":
       copyMem(addr expect[0], addr buffer.buffer[0], len(expect))
 
       let nativeNode = newStandardSwitch(secureManagers = [SecureProtocol.Secio])
-      let awaiters = await nativeNode.start()
+      await nativeNode.start()
 
       let daemonNode = await newDaemonApi()
       let daemonPeer = await daemonNode.identity()
@@ -252,7 +252,7 @@ suite "Interop":
 
       await conn.close()
       await nativeNode.stop()
-      await allFutures(awaiters)
+      await nativeNode.join()
       await daemonNode.close()
 
     check:
@@ -278,7 +278,7 @@ suite "Interop":
       let nativeNode = newStandardSwitch(secureManagers = [SecureProtocol.Noise])
       nativeNode.mount(proto)
 
-      let awaiters = await nativeNode.start()
+      await nativeNode.start()
       let nativePeer = nativeNode.peerInfo
 
       let daemonNode = await newDaemonApi()
@@ -290,7 +290,7 @@ suite "Interop":
 
       await stream.close()
       await nativeNode.stop()
-      await allFutures(awaiters)
+      await nativeNode.join()
       await daemonNode.close()
       await sleepAsync(1.seconds)
 
@@ -320,7 +320,7 @@ suite "Interop":
       let nativeNode = newStandardSwitch(secureManagers = [SecureProtocol.Secio])
       nativeNode.mount(proto)
 
-      let awaiters = await nativeNode.start()
+      await nativeNode.start()
       let nativePeer = nativeNode.peerInfo
 
       let daemonNode = await newDaemonApi()
@@ -338,7 +338,7 @@ suite "Interop":
       result = true
       await stream.close()
       await nativeNode.stop()
-      await allFutures(awaiters)
+      await nativeNode.join()
       await daemonNode.close()
 
     check:
@@ -369,7 +369,7 @@ suite "Interop":
       let nativeNode = newStandardSwitch(secureManagers = [SecureProtocol.Noise])
       nativeNode.mount(proto)
 
-      let awaiters = await nativeNode.start()
+      await nativeNode.start()
       let nativePeer = nativeNode.peerInfo
 
       let daemonNode = await newDaemonApi()
@@ -386,7 +386,7 @@ suite "Interop":
       result = 10 == (await wait(testFuture, 1.minutes))
       await stream.close()
       await nativeNode.stop()
-      await allFutures(awaiters)
+      await nativeNode.join()
       await daemonNode.close()
 
     check:

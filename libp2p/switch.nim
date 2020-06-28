@@ -78,6 +78,7 @@ type
       secureManagers*: seq[Secure]
       pubSub*: Option[PubSub]
       dialLock: Table[string, AsyncLock]
+      listeners*: seq[Future[void]]
 
 proc newNoPubSubException(): ref NoPubSubException {.inline.} =
   result = newException(NoPubSubException, "no pubsub provided!")
@@ -471,7 +472,7 @@ proc mount*[T: LPProtocol](s: Switch, proto: T) {.gcsafe.} =
 
   s.ms.addHandler(proto.codec, proto)
 
-proc start*(s: Switch): Future[seq[Future[void]]] {.async, gcsafe.} =
+proc start*(s: Switch): Future[void] {.async, gcsafe.} =
   trace "starting switch for peer", peerInfo = shortLog(s.peerInfo)
 
   proc handle(conn: Connection): Future[void] {.async, closure, gcsafe.} =
@@ -485,19 +486,22 @@ proc start*(s: Switch): Future[seq[Future[void]]] {.async, gcsafe.} =
     except CatchableError as exc:
       trace "Exception occurred in Switch.start", exc = exc.msg
 
-  var startFuts: seq[Future[void]]
   for t in s.transports: # for each transport
     for i, a in s.peerInfo.addrs:
       if t.handles(a): # check if it handles the multiaddr
-        var server = await t.listen(a, handle)
+        # We spawning listeners and store all of them inside `switch`.
+        let listener = t.listen(a, handle)
         s.peerInfo.addrs[i] = t.ma # update peer's address
-        startFuts.add(server)
+        s.listeners.add(listener)
 
   if s.pubSub.isSome:
     await s.pubSub.get().start()
 
   info "started libp2p node", peer = $s.peerInfo, addrs = s.peerInfo.addrs
-  result = startFuts # listen for incoming connections
+  
+proc join*(s: Switch): Future[void] =
+  ## Waits for switch `s` to be finished.
+  allFutures(s.listeners)
 
 proc stop*(s: Switch) {.async.} =
   trace "stopping switch"

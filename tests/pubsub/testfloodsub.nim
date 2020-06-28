@@ -48,12 +48,9 @@ suite "FloodSub":
         check topic == "foobar"
         completionFut.complete(true)
 
-      let
-        nodes = generateNodes(2)
-        nodesFut = await allFinished(
-          nodes[0].start(),
-          nodes[1].start()
-        )
+      let nodes = generateNodes(2)
+
+      await allFuturesThrowing(nodes[0].start(), nodes[1].start())
 
       await subscribeNodes(nodes)
 
@@ -64,12 +61,8 @@ suite "FloodSub":
 
       result = await completionFut.wait(5.seconds)
 
-      await allFuturesThrowing(
-        nodes[0].stop(),
-        nodes[1].stop()
-      )
-
-      await allFuturesThrowing(nodesFut.concat())
+      await allFuturesThrowing(nodes[0].stop(), nodes[1].stop())
+      await allFuturesThrowing(nodes[0].join(), nodes[1].join())
 
     check:
       waitFor(runTests()) == true
@@ -82,9 +75,8 @@ suite "FloodSub":
         completionFut.complete(true)
 
       var nodes = generateNodes(2)
-      var awaiters: seq[Future[void]]
-      awaiters.add((await nodes[0].start()))
-      awaiters.add((await nodes[1].start()))
+
+      await allFuturesThrowing(nodes[0].start(), nodes[1].start())
 
       await subscribeNodes(nodes)
 
@@ -96,7 +88,7 @@ suite "FloodSub":
       result = await completionFut.wait(5.seconds)
 
       await allFuturesThrowing(nodes[0].stop(), nodes[1].stop())
-      await allFuturesThrowing(awaiters)
+      await allFuturesThrowing(nodes[0].join(), nodes[1].join())
 
     check:
       waitFor(runTests()) == true
@@ -109,9 +101,8 @@ suite "FloodSub":
         handlerFut.complete(true)
 
       var nodes = generateNodes(2)
-      var awaiters: seq[Future[void]]
-      awaiters.add((await nodes[0].start()))
-      awaiters.add((await nodes[1].start()))
+
+      await allFuturesThrowing(nodes[0].start(), nodes[1].start())
 
       await subscribeNodes(nodes)
       await nodes[1].subscribe("foobar", handler)
@@ -129,10 +120,8 @@ suite "FloodSub":
       await nodes[0].publish("foobar", "Hello!".toBytes())
 
       check (await handlerFut) == true
-      await allFuturesThrowing(
-        nodes[0].stop(),
-        nodes[1].stop())
-      await allFuturesThrowing(awaiters)
+      await allFuturesThrowing(nodes[0].stop(), nodes[1].stop())
+      await allFuturesThrowing(nodes[0].join(), nodes[1].join())
       result = true
 
     check:
@@ -144,9 +133,8 @@ suite "FloodSub":
         check false # if we get here, it should fail
 
       var nodes = generateNodes(2)
-      var awaiters: seq[Future[void]]
-      awaiters.add((await nodes[0].start()))
-      awaiters.add((await nodes[1].start()))
+
+      await allFuturesThrowing(nodes[0].start(), nodes[1].start())
 
       await subscribeNodes(nodes)
       await nodes[1].subscribe("foobar", handler)
@@ -162,10 +150,8 @@ suite "FloodSub":
 
       await nodes[0].publish("foobar", "Hello!".toBytes())
 
-      await allFuturesThrowing(
-        nodes[0].stop(),
-        nodes[1].stop())
-      await allFuturesThrowing(awaiters)
+      await allFuturesThrowing(nodes[0].stop(), nodes[1].stop())
+      await allFuturesThrowing(nodes[0].join(), nodes[1].join())
       result = true
 
     check:
@@ -179,9 +165,8 @@ suite "FloodSub":
         handlerFut.complete(true)
 
       var nodes = generateNodes(2)
-      var awaiters: seq[Future[void]]
-      awaiters.add((await nodes[0].start()))
-      awaiters.add((await nodes[1].start()))
+
+      await allFuturesThrowing(nodes[0].start(), nodes[1].start())
 
       await subscribeNodes(nodes)
       await nodes[1].subscribe("foo", handler)
@@ -201,10 +186,8 @@ suite "FloodSub":
       await nodes[0].publish("foo", "Hello!".toBytes())
       await nodes[0].publish("bar", "Hello!".toBytes())
 
-      await allFuturesThrowing(
-        nodes[0].stop(),
-        nodes[1].stop())
-      await allFuturesThrowing(awaiters)
+      await allFuturesThrowing(nodes[0].stop(), nodes[1].stop())
+      await allFuturesThrowing(nodes[0].join(), nodes[1].join())
       result = true
 
     check:
@@ -236,7 +219,8 @@ suite "FloodSub":
 
       var awaitters: seq[Future[void]]
       for i in 0..<runs:
-        awaitters.add(await nodes[i].start())
+        awaitters.add(nodes[i].start())
+      await allFuturesThrowing(awaitters)
 
       await subscribeNodes(nodes)
 
@@ -257,7 +241,7 @@ suite "FloodSub":
 
       await allFuturesThrowing(futs.mapIt(it[0]))
       await allFuturesThrowing(nodes.mapIt(it.stop()))
-      await allFuturesThrowing(awaitters)
+      await allFuturesThrowing(nodes.mapIt(it.join()))
 
       result = true
     check:
@@ -290,7 +274,9 @@ suite "FloodSub":
 
       var awaitters: seq[Future[void]]
       for i in 0..<runs:
-        awaitters.add(await nodes[i].start())
+        awaitters.add(nodes[i].start())
+
+      await allFuturesThrowing(awaitters)
 
       await subscribeNodes(nodes)
 
@@ -311,7 +297,7 @@ suite "FloodSub":
 
       await allFuturesThrowing(futs.mapIt(it[0]))
       await allFuturesThrowing(nodes.mapIt(it.stop()))
-      await allFuturesThrowing(awaitters)
+      await allFuturesThrowing(nodes.mapIt(it.join()))
 
       result = true
 
