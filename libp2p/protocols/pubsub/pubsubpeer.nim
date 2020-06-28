@@ -32,7 +32,7 @@ type
     onSend*: proc(peer: PubSubPeer; msgs: var RPCMsg) {.gcsafe, raises: [Defect].}
 
   PubSubPeer* = ref object of RootObj
-    proto: string # the protocol that this peer joined from
+    proto*: string # the protocol that this peer joined from
     sendConn: Connection
     peerInfo*: PeerInfo
     handler*: RPCHandler
