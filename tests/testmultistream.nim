@@ -347,7 +347,7 @@ suite "Multistream select":
       await conn.close()
       await transport2.close()
       await transport1.close()
-      discard await listenFut.wait(5.seconds)
+      await listenFut.wait(5.seconds)
 
     check:
       waitFor(endToEnd()) == true

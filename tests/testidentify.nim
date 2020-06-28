@@ -36,7 +36,7 @@ suite "Identify":
         await msListen.handle(conn)
 
       var transport1 = TcpTransport.init()
-      serverFut = await transport1.listen(ma, connHandler)
+      serverFut = transport1.listen(ma, connHandler)
 
       let msDial = newMultistream()
       let transport2: TcpTransport = TcpTransport.init()
