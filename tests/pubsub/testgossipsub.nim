@@ -43,9 +43,12 @@ proc waitSub(sender, receiver: auto; key: string) {.async, gcsafe.} =
     dec ceil
     doAssert(ceil > 0, "waitSub timeout!")
 
-template tryPublish(call: untyped, require: int, times: int = 10, wait: Duration = 1.seconds): untyped =
-  var limit = times
-  while (call) < require and limit > 0:
+template tryPublish(call: untyped, require: int, wait: Duration = 1.seconds, times: int = 10): untyped =
+  var
+    limit = times
+    pubs = 0
+  while pubs < require and limit > 0:
+    pubs = pubs + call
     await sleepAsync(wait)
     limit.dec()
   if limit == 0:
@@ -360,7 +363,7 @@ suite "GossipSub":
       tryPublish await wait(nodes[0].publish("foobar",
                                     cast[seq[byte]]("from node " &
                                     nodes[1].peerInfo.id)),
-                                    1.minutes), runs
+                                    1.minutes), runs, 5.seconds
 
       await wait(seenFut, 2.minutes)
       check: seen.len >= runs
@@ -408,7 +411,7 @@ suite "GossipSub":
       tryPublish await wait(nodes[0].publish("foobar",
                                     cast[seq[byte]]("from node " &
                                     nodes[1].peerInfo.id)),
-                                    1.minutes), 3
+                                    1.minutes), 3, 5.seconds
 
       await wait(seenFut, 5.minutes)
       check: seen.len >= runs
