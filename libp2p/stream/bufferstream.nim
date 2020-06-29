@@ -293,7 +293,7 @@ method close*(s: BufferStream) {.async, gcsafe.} =
       trace "bufferstream closed", oid = $s.oid
     else:
       trace "attempt to close an already closed bufferstream", trace = getStackTrace()
-  except CancelledError:
+  except CancelledError as exc:
     raise
   except CatchableError as exc:
     trace "error closing buffer stream", exc = exc.msg

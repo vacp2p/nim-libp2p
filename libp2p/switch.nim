@@ -355,8 +355,8 @@ proc upgradeIncoming(s: Switch, conn: Connection) {.async, gcsafe.} =
       # handle subsequent requests
       await ms.handle(sconn)
 
-    except CancelledError:
-      raise
+    except CancelledError as exc:
+      raise exc
     except CatchableError as exc:
       debug "ending secured handler", err = exc.msg
 
@@ -480,8 +480,8 @@ proc start*(s: Switch): Future[seq[Future[void]]] {.async, gcsafe.} =
         await s.cleanupConn(conn)
 
       await s.upgradeIncoming(conn) # perform upgrade on incoming connection
-    except CancelledError:
-      raise
+    except CancelledError as exc:
+      raise exc
     except CatchableError as exc:
       trace "Exception occurred in Switch.start", exc = exc.msg
 
@@ -512,16 +512,16 @@ proc stop*(s: Switch) {.async.} =
     for conn in conns:
       try:
           await s.cleanupConn(conn.conn)
-      except CancelledError:
-        raise
+      except CancelledError as exc:
+        raise exc
       except CatchableError as exc:
         warn "error cleaning up connections"
 
   for t in s.transports:
     try:
         await t.close()
-    except CancelledError:
-      raise
+    except CancelledError as exc:
+      raise exc
     except CatchableError as exc:
       warn "error cleaning up transports"
 
@@ -663,8 +663,8 @@ proc newSwitch*(peerInfo: PeerInfo,
         if not(isNil(stream)):
           await stream.close()
       await s.ms.handle(stream) # handle incoming connection
-    except CancelledError:
-      raise
+    except CancelledError as exc:
+      raise exc
     except CatchableError as exc:
       trace "exception in stream handler", exc = exc.msg
 

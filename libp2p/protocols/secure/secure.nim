@@ -72,7 +72,7 @@ method init*(s: Secure) {.gcsafe.} =
       # We don't need the result but we definitely need to await the handshake
       discard await s.handleConn(conn, false)
       trace "connection secured"
-    except CancelledError:
+    except CancelledError as exc:
       warn "securing connection canceled"
       await conn.close()
       raise

@@ -120,8 +120,8 @@ method init*(p: Identify) =
       trace "handling identify request", oid = conn.oid
       var pb = encodeMsg(p.peerInfo, conn.observedAddr)
       await conn.writeLp(pb.buffer)
-    except CancelledError:
-      raise
+    except CancelledError as exc:
+      raise exc
     except CatchableError as exc:
       trace "exception in identify handler", exc = exc.msg
 

@@ -104,7 +104,7 @@ method handleDisconnect*(p: PubSub, peer: PubSubPeer) {.async, base.} =
     p.peers.del(peer.id)
 
   # metrics
-  libp2p_pubsub_peers.dec()
+  libp2p_pubsub_peers.set(p.peers.len.int64)
 
 proc cleanUpHelper(p: PubSub, peer: PubSubPeer) {.async.} =
   try:
@@ -126,11 +126,11 @@ proc getPeer(p: PubSub,
   trace "created new pubsub peer", peerId = peer.id
 
   # metrics
-  libp2p_pubsub_peers.inc()
 
   p.peers[peer.id] = peer
   peer.refs.inc # increment reference count
   peer.observers = p.observers
+  libp2p_pubsub_peers.set(p.peers.len.int64)
   return peer
 
 proc internalCleanup(p: PubSub, conn: Connection) {.async.} =

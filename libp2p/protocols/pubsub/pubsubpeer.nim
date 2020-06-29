@@ -141,8 +141,8 @@ proc send*(p: PubSubPeer, msgs: seq[RPCMsg]) {.async.} =
                 # metrics
                 libp2p_pubsub_sent_messages.inc(labelValues = [p.id, t])
 
-      except CancelledError:
-        raise
+      except CancelledError as exc:
+        raise exc
       except CatchableError as exc:
         trace "unable to send to remote", exc = exc.msg
         if not(isNil(p.sendConn)):

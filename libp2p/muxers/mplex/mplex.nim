@@ -185,8 +185,8 @@ method handle*(m: Mplex) {.async, gcsafe.} =
           await m.cleanupChann(channel)
 
           trace "deleted channel"
-  except CancelledError:
-    raise
+  except CancelledError as exc:
+    raise exc
   except CatchableError as exc:
     trace "Exception occurred", exception = exc.msg, oid = $m.oid
 

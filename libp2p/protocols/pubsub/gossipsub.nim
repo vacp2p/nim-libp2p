@@ -159,8 +159,8 @@ proc rebalanceMesh(g: GossipSub, topic: string) {.async.} =
 
     trace "mesh balanced, got peers", peers = g.mesh.getOrDefault(topic).len,
                                       topicId = topic
-  except CancelledError:
-    raise
+  except CancelledError as exc:
+    raise exc
   except CatchableError as exc:
     trace "exception occurred re-balancing mesh", exc = exc.msg
 
@@ -229,8 +229,8 @@ proc heartbeat(g: GossipSub) {.async.} =
       checkFutures(await allFinished(sent))
 
       g.mcache.shift() # shift the cache
-    except CancelledError:
-      raise
+    except CancelledError as exc:
+      raise exc
     except CatchableError as exc:
       trace "exception ocurred in gossipsub heartbeat", exc = exc.msg
 
