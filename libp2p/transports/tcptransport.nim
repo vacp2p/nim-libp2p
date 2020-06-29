@@ -106,7 +106,6 @@ method close*(t: TcpTransport) {.async, gcsafe.} =
 
     # server can be nil
     if not isNil(t.server):
-      t.server.stop()
       await t.server.closeWait()
 
     t.server = nil
