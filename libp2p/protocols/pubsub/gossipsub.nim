@@ -200,30 +200,28 @@ proc getGossipPeers(g: GossipSub): Table[string, ControlMessage] {.gcsafe.} =
     let fanout: HashSet[string] = g.fanout.getOrDefault(topic)
 
     let gossipPeers = mesh + fanout
+    var extraPeers = g.gossipsub # copy it!
     let mids = g.mcache.window(topic)
     if mids.len > 0:
       let ihave = ControlIHave(topicID: topic,
                                messageIDs: toSeq(mids))
 
-      if topic notin g.gossipsub:
+      if topic notin extraPeers:
         trace "topic not in gossip array, skipping", topicID = topic
         continue
 
       while result.len < GossipSubD:
-        if g.gossipsub.getOrDefault(topic).len == 0:
+        if extraPeers.getOrDefault(topic).len == 0:
           trace "no peers for topic, skipping", topicID = topic
           break
 
-        let id = toSeq(g.gossipsub.getOrDefault(topic)).sample()
-        if id in g.gossipsub.getOrDefault(topic):
-          g.gossipsub[topic].excl(id)
+        let id = toSeq(extraPeers.getOrDefault(topic)).sample()
+        if id in extraPeers.getOrDefault(topic):
+          extraPeers[topic].excl(id)
           if id notin gossipPeers:
             if id notin result:
               result[id] = ControlMessage()
             result[id].ihave.add(ihave)
-
-    libp2p_gossipsub_peers_per_topic_gossipsub
-      .set(g.gossipsub.getOrDefault(topic).len.int64, labelValues = [topic])
 
 proc heartbeat(g: GossipSub) {.async.} =
   while g.heartbeatRunning:
