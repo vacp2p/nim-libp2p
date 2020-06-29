@@ -72,6 +72,10 @@ method init*(s: Secure) {.gcsafe.} =
       # We don't need the result but we definitely need to await the handshake
       discard await s.handleConn(conn, false)
       trace "connection secured"
+    except CancelledError as exc:
+      warn "securing connection canceled"
+      await conn.close()
+      raise
     except CatchableError as exc:
       warn "securing connection failed", msg = exc.msg
       await conn.close()
@@ -79,31 +83,20 @@ method init*(s: Secure) {.gcsafe.} =
   s.handler = handle
 
 method secure*(s: Secure, conn: Connection, initiator: bool): Future[Connection] {.async, base, gcsafe.} =
-  try:
-    result = await s.handleConn(conn, initiator)
-  except CancelledError as exc:
-    raise exc
-  except CatchableError as exc:
-    warn "securing connection failed", msg = exc.msg
-    return nil
+  result = await s.handleConn(conn, initiator)
 
 method readOnce*(s: SecureConn,
                  pbytes: pointer,
                  nbytes: int):
                  Future[int] {.async, gcsafe.} =
-  try:
-    if nbytes == 0:
-      return 0
+  if nbytes == 0:
+    return 0
 
-    if s.buf.data().len() == 0:
-      let buf = await s.readMessage()
-      if buf.len == 0:
-        raise newLPStreamIncompleteError()
-      s.buf.add(buf)
+  if s.buf.data().len() == 0:
+    let buf = await s.readMessage()
+    if buf.len == 0:
+      raise newLPStreamIncompleteError()
+    s.buf.add(buf)
 
-    var p = cast[ptr UncheckedArray[byte]](pbytes)
-    return s.buf.consumeTo(toOpenArray(p, 0, nbytes - 1))
-  except CatchableError as exc:
-    trace "exception reading from secure connection", exc = exc.msg, oid = s.oid
-    await s.close() # make sure to close the wrapped connection
-    raise exc
+  var p = cast[ptr UncheckedArray[byte]](pbytes)
+  return s.buf.consumeTo(toOpenArray(p, 0, nbytes - 1))

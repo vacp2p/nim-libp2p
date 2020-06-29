@@ -128,19 +128,19 @@ proc initBufferStream*(s: BufferStream,
 
   if not(isNil(handler)):
     s.writeHandler = proc (data: seq[byte]) {.async, gcsafe.} =
-      try:
-        # Using a lock here to guarantee
-        # proper write ordering. This is
-        # specially important when
-        # implementing half-closed in mplex
-        # or other functionality that requires
-        # strict message ordering
-        await s.writeLock.acquire()
-        await handler(data)
-      finally:
+      defer:
         s.writeLock.release()
 
-  trace "created bufferstream", oid = s.oid
+      # Using a lock here to guarantee
+      # proper write ordering. This is
+      # specially important when
+      # implementing half-closed in mplex
+      # or other functionality that requires
+      # strict message ordering
+      await s.writeLock.acquire()
+      await handler(data)
+
+  trace "created bufferstream", oid = $s.oid
 
 proc newBufferStream*(handler: WriteHandler = nil,
                       size: int = DefaultBufferSize): BufferStream =
@@ -173,30 +173,30 @@ method pushTo*(s: BufferStream, data: seq[byte]) {.base, async.} =
   if s.atEof:
     raise newLPStreamEOFError()
 
-  try:
-    await s.lock.acquire()
-    var index = 0
-    while not s.closed():
-      while index < data.len and s.readBuf.len < s.maxSize:
-        s.readBuf.addLast(data[index])
-        inc(index)
-      # trace "pushTo()", msg = "added " & $s.len & " bytes to readBuf", oid = s.oid
-
-      # resolve the next queued read request
-      if s.readReqs.len > 0:
-        s.readReqs.popFirst().complete()
-        # trace "pushTo(): completed a readReqs future", oid = s.oid
-
-      if index >= data.len:
-        return
-
-      # if we couldn't transfer all the data to the
-      # internal buf wait on a read event
-      await s.dataReadEvent.wait()
-      s.dataReadEvent.clear()
-  finally:
+  defer:
     # trace "ended", size = s.len
     s.lock.release()
+
+  await s.lock.acquire()
+  var index = 0
+  while not s.closed():
+    while index < data.len and s.readBuf.len < s.maxSize:
+      s.readBuf.addLast(data[index])
+      inc(index)
+    # trace "pushTo()", msg = "added " & $s.len & " bytes to readBuf", oid = s.oid
+
+    # resolve the next queued read request
+    if s.readReqs.len > 0:
+      s.readReqs.popFirst().complete()
+      # trace "pushTo(): completed a readReqs future", oid = s.oid
+
+    if index >= data.len:
+      return
+
+    # if we couldn't transfer all the data to the
+    # internal buf wait on a read event
+    await s.dataReadEvent.wait()
+    s.dataReadEvent.clear()
 
 method readOnce*(s: BufferStream,
                  pbytes: pointer,
@@ -290,8 +290,10 @@ method close*(s: BufferStream) {.async, gcsafe.} =
 
       await procCall Connection(s).close()
       inc getBufferStreamTracker().closed
-      trace "bufferstream closed", oid = s.oid
+      trace "bufferstream closed", oid = $s.oid
     else:
       trace "attempt to close an already closed bufferstream", trace = getStackTrace()
+  except CancelledError as exc:
+    raise
   except CatchableError as exc:
     trace "error closing buffer stream", exc = exc.msg

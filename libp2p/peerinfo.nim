@@ -38,7 +38,8 @@ type
       key: Option[PublicKey]
 
 proc id*(p: PeerInfo): string =
-  p.peerId.pretty()
+  if not(isNil(p)):
+    return p.peerId.pretty()
 
 proc `$`*(p: PeerInfo): string = p.id
 

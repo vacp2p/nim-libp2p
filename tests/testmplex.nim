@@ -243,7 +243,7 @@ suite "Mplex":
 
       await done.wait(1.seconds)
       await conn.close()
-      await mplexDialFut
+      await mplexDialFut.wait(1.seconds)
       await allFuturesThrowing(
         transport1.close(),
         transport2.close())
