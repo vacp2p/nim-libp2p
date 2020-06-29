@@ -8,13 +8,13 @@ import ../../libp2p/[peer,
 
 suite "Message":
   test "default message id":
-    let msg = Message(fromPeer: PeerID.init(PrivateKey.random(ECDSA).get()).data,
+    let msg = Message(fromPeer: PeerID.init(PrivateKey.random(ECDSA).get()).get().data,
                        seqno: ("12345").toBytes())
 
-    check msg.msgId == byteutils.toHex(msg.seqno) & PeerID.init(msg.fromPeer).pretty
+    check msg.msgId == byteutils.toHex(msg.seqno) & PeerID.init(msg.fromPeer).get().pretty()
 
   test "sha256 message id":
-    let msg = Message(fromPeer: PeerID.init(PrivateKey.random(ECDSA).get()).data,
+    let msg = Message(fromPeer: PeerID.init(PrivateKey.random(ECDSA).get()).get().data,
                        seqno: ("12345").toBytes(),
                        data: ("12345").toBytes())
 
