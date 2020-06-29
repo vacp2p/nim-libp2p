@@ -19,7 +19,8 @@ import pubsub,
        ../../peerinfo,
        ../../stream/connection,
        ../../peer,
-       ../../errors
+       ../../errors,
+       ../../utility
 
 logScope:
   topics = "gossipsub"
