@@ -19,8 +19,7 @@ import pubsub,
        ../../peerinfo,
        ../../stream/connection,
        ../../peer,
-       ../../errors,
-       ../../utility
+       ../../errors
 
 logScope:
   topics = "gossipsub"
@@ -55,7 +54,6 @@ type
     heartbeatFut: Future[void]             # cancellation future for heartbeat interval
     heartbeatRunning: bool
     heartbeatLock: AsyncLock                   # heartbeat lock to prevent two consecutive concurrent heartbeats
-    subLock: AsyncLock
 
 declareGauge(libp2p_gossipsub_peers_per_topic_mesh, "gossipsub peers per topic in mesh", labels = ["topic"])
 declareGauge(libp2p_gossipsub_peers_per_topic_fanout, "gossipsub peers per topic in fanout", labels = ["topic"])
@@ -548,4 +546,3 @@ method initPubSub*(g: GossipSub) =
   g.gossip = initTable[string, seq[ControlIHave]]() # pending gossip
   g.control = initTable[string, ControlMessage]()   # pending control messages
   g.heartbeatLock = newAsyncLock()
-  g.subLock = newAsyncLock()

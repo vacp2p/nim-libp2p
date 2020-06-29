@@ -39,7 +39,7 @@ proc waitSub(sender, receiver: auto; key: string) {.async, gcsafe.} =
         (not fsub.fanout.hasKey(key) or
          not fsub.fanout[key].contains(receiver.peerInfo.id)):
     trace "waitSub sleeping..."
-    await sleepAsync(100.millis)
+    await sleepAsync(1.seconds)
     dec ceil
     doAssert(ceil > 0, "waitSub timeout!")
 
