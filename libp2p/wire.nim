@@ -28,7 +28,8 @@ const
     mapAnd(mapEq("unix"))
   )
 
-proc initTAddress*(ma: MultiAddress): MaResult[TransportAddress] =
+proc initTAddress*(ma: MultiAddress): MaResult[TransportAddress] {.
+     raises: [Defect, ResultError[string]] .} =
   ## Initialize ``TransportAddress`` with MultiAddress ``ma``.
   ##
   ## MultiAddress must be wire address, e.g. ``{IP4, IP6, UNIX}/{TCP, UDP}``.
