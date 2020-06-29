@@ -202,5 +202,4 @@ method close*(m: Mplex) {.async, gcsafe.} =
   finally:
     m.remote.clear()
     m.local.clear()
-    # m.handlerFuts = @[]
     m.isClosed = true

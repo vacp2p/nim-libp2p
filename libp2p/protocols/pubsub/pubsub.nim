@@ -10,9 +10,10 @@
 import tables, sequtils, sets
 import chronos, chronicles
 import pubsubpeer,
-       rpc/messages,
+       rpc/[message, messages],
        ../protocol,
        ../../stream/connection,
+       ../../peer,
        ../../peerinfo
 import metrics
 
@@ -38,6 +39,9 @@ type
 
   TopicPair* = tuple[topic: string, handler: TopicHandler]
 
+  MsgIdProvider* =
+    proc(m: Message): string {.noSideEffect, raises: [Defect], nimcall, gcsafe.}
+
   Topic* = object
     name*: string
     handler*: seq[TopicHandler]
@@ -52,6 +56,7 @@ type
     cleanupLock: AsyncLock
     validators*: Table[string, HashSet[ValidatorHandler]]
     observers: ref seq[PubSubObserver] # ref as in smart_ptr
+    msgIdProvider*: MsgIdProvider     # Turn message into message id (not nil)
 
 proc sendSubs*(p: PubSub,
                peer: PubSubPeer,
@@ -262,6 +267,8 @@ method publish*(p: PubSub,
 method initPubSub*(p: PubSub) {.base.} =
   ## perform pubsub initialization
   p.observers = new(seq[PubSubObserver])
+  if p.msgIdProvider == nil:
+    p.msgIdProvider = defaultMsgIdProvider
 
 method start*(p: PubSub) {.async, base.} =
   ## start pubsub
@@ -310,12 +317,14 @@ proc newPubSub*(P: typedesc[PubSub],
                 peerInfo: PeerInfo,
                 triggerSelf: bool = false,
                 verifySignature: bool = true,
-                sign: bool = true): P =
+                sign: bool = true,
+                msgIdProvider: MsgIdProvider = defaultMsgIdProvider): P =
   result = P(peerInfo: peerInfo,
              triggerSelf: triggerSelf,
              verifySignature: verifySignature,
              sign: sign,
-             cleanupLock: newAsyncLock())
+             cleanupLock: newAsyncLock(),
+             msgIdProvider: msgIdProvider)
   result.initPubSub()
 
 proc addObserver*(p: PubSub; observer: PubSubObserver) = p.observers[] &= observer

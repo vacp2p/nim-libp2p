@@ -15,7 +15,6 @@ import pubsub,
        mcache,
        timedcache,
        rpc/[messages, message],
-       ../../crypto/crypto,
        ../protocol,
        ../../peerinfo,
        ../../stream/connection,
@@ -364,12 +363,16 @@ method rpcHandler*(g: GossipSub,
     if m.messages.len > 0:                           # if there are any messages
       var toSendPeers: HashSet[string]
       for msg in m.messages:                         # for every message
-        trace "processing message with id", msg = msg.msgId
-        if msg.msgId in g.seen:
-          trace "message already processed, skipping", msg = msg.msgId
+        let msgId = g.msgIdProvider(msg)
+        logScope: msgId
+
+        if msgId in g.seen:
+          trace "message already processed, skipping"
           continue
 
-        g.seen.put(msg.msgId)                        # add the message to the seen cache
+        trace "processing message"
+
+        g.seen.put(msgId)                        # add the message to the seen cache
 
         if g.verifySignature and not msg.verify(peer.peerInfo):
           trace "dropping message due to failed signature verification"
@@ -380,8 +383,8 @@ method rpcHandler*(g: GossipSub,
           continue
 
         # this shouldn't happen
-        if g.peerInfo.peerId == msg.fromPeerId():
-          trace "skipping messages from self", msg = msg.msgId
+        if g.peerInfo.peerId == msg.fromPeer:
+          trace "skipping messages from self"
           continue
 
         for t in msg.topicIDs:                     # for every topic in the message
@@ -393,10 +396,9 @@ method rpcHandler*(g: GossipSub,
 
           if t in g.topics:                        # if we're subscribed to the topic
             for h in g.topics[t].handler:
-              trace "calling handler for message", msg = msg.msgId,
-                                                   topicId = t,
+              trace "calling handler for message", topicId = t,
                                                    localPeer = g.peerInfo.id,
-                                                   fromPeer = msg.fromPeerId().pretty
+                                                   fromPeer = msg.fromPeer.pretty
               await h(t, msg.data)                 # trigger user provided handler
 
       # forward the message to all peers interested in it
@@ -411,7 +413,7 @@ method rpcHandler*(g: GossipSub,
 
           let msgs = m.messages.filterIt(
             # don't forward to message originator
-            id != it.fromPeerId()
+            id != it.fromPeer
           )
 
           var sent: seq[Future[void]]
@@ -472,12 +474,15 @@ method publish*(g: GossipSub,
       g.replenishFanout(topic)
       peers = g.fanout.getOrDefault(topic)
 
-    let msg = newMessage(g.peerInfo, data, topic, g.sign)
+    let
+      msg = Message.init(g.peerInfo, data, topic, g.sign)
+      msgId = g.msgIdProvider(msg)
+
     trace "created new message", msg
 
     trace "publishing on topic", name = topic, peers = peers
-    if msg.msgId notin g.mcache:
-      g.mcache.put(msg)
+    if msgId notin g.mcache:
+      g.mcache.put(msgId, msg)
 
     var sent: seq[Future[void]]
     for p in peers:
@@ -502,10 +507,10 @@ method publish*(g: GossipSub,
   
 method start*(g: GossipSub) {.async.} =
   debug "gossipsub start"
-  
+
   ## start pubsub
   ## start long running/repeating procedures
-  
+
   # interlock start to to avoid overlapping to stops
   await g.heartbeatLock.acquire()
 
@@ -517,7 +522,7 @@ method start*(g: GossipSub) {.async.} =
 
 method stop*(g: GossipSub) {.async.} =
   debug "gossipsub stop"
-  
+
   ## stop pubsub
   ## stop long running tasks
 

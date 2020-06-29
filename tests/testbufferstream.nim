@@ -1,6 +1,7 @@
 import unittest, strformat
 import chronos, stew/byteutils
 import ../libp2p/stream/bufferstream,
+       ../libp2p/stream/lpstream,
        ../libp2p/errors
 
 when defined(nimHasUsed): {.used.}
@@ -77,6 +78,26 @@ suite "BufferStream":
       result = true
 
       await buff.close()
+
+    check:
+      waitFor(testReadExactly()) == true
+
+  test "readExactly raises":
+    proc testReadExactly(): Future[bool] {.async.} =
+      proc writeHandler(data: seq[byte]) {.async, gcsafe.} = discard
+      let buff = newBufferStream(writeHandler, 10)
+      check buff.len == 0
+
+      await buff.pushTo("123".toBytes())
+      var data: seq[byte] = newSeq[byte](5)
+      var readFut: Future[void]
+      readFut = buff.readExactly(addr data[0], 5)
+      await buff.close()
+
+      try:
+        await readFut
+      except LPStreamIncompleteError, LPStreamEOFError:
+        result = true
 
     check:
       waitFor(testReadExactly()) == true

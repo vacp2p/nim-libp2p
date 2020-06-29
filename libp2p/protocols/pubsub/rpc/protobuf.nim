@@ -10,6 +10,7 @@
 import options
 import chronicles
 import messages,
+       ../../../peer,
        ../../../utility,
        ../../../protobuf/minprotobuf
 
@@ -162,7 +163,7 @@ proc decodeSubs*(pb: var ProtoBuffer): seq[SubOpts] {.gcsafe.} =
   trace "got subscriptions", subscriptions = result
 
 proc encodeMessage*(msg: Message, pb: var ProtoBuffer) {.gcsafe.} =
-  pb.write(initProtoField(1, msg.fromPeer))
+  pb.write(initProtoField(1, msg.fromPeer.getBytes()))
   pb.write(initProtoField(2, msg.data))
   pb.write(initProtoField(3, msg.seqno))
 
@@ -181,9 +182,16 @@ proc decodeMessages*(pb: var ProtoBuffer): seq[Message] {.gcsafe.} =
   # TODO: which of this fields are really optional?
   while true:
     var msg: Message
-    if pb.getBytes(1, msg.fromPeer) < 0:
+    var fromPeer: seq[byte]
+    if pb.getBytes(1, fromPeer) < 0:
       break
-    trace "read message field", fromPeer = msg.fromPeer.shortLog
+    try:
+      msg.fromPeer = PeerID.init(fromPeer)
+    except CatchableError as err:
+      debug "Invalid fromPeer in message", msg = err.msg
+      break
+
+    trace "read message field", fromPeer = msg.fromPeer.pretty
 
     if pb.getBytes(2, msg.data) < 0:
       break

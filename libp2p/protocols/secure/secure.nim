@@ -87,29 +87,6 @@ method secure*(s: Secure, conn: Connection, initiator: bool): Future[Connection]
     warn "securing connection failed", msg = exc.msg
     return nil
 
-method readExactly*(s: SecureConn,
-                    pbytes: pointer,
-                    nbytes: int):
-                    Future[void] {.async, gcsafe.} =
-  try:
-    if nbytes == 0:
-      return
-
-    while s.buf.data().len < nbytes:
-      # TODO write decrypted content straight into buf using `prepare`
-      let buf = await s.readMessage()
-      if buf.len == 0:
-        raise newLPStreamIncompleteError()
-      s.buf.add(buf)
-
-    var p = cast[ptr UncheckedArray[byte]](pbytes)
-    let consumed = s.buf.consumeTo(toOpenArray(p, 0, nbytes - 1))
-    doAssert consumed == nbytes, "checked above"
-  except CatchableError as exc:
-    trace "exception reading from secure connection", exc = exc.msg, oid = s.oid
-    await s.close() # make sure to close the wrapped connection
-    raise exc
-
 method readOnce*(s: SecureConn,
                  pbytes: pointer,
                  nbytes: int):

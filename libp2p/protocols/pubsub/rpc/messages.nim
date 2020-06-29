@@ -9,6 +9,7 @@
 
 import options, sequtils
 import ../../../utility
+import ../../../peer
 
 type
     SubOpts* = object
@@ -16,7 +17,7 @@ type
       topic*: string
 
     Message* = object
-      fromPeer*: seq[byte]
+      fromPeer*: PeerId
       data*: seq[byte]
       seqno*: seq[byte]
       topicIDs*: seq[string]
@@ -75,10 +76,10 @@ func shortLog*(c: ControlMessage): auto =
     graft: mapIt(c.graft, it.shortLog),
     prune: mapIt(c.prune, it.shortLog)
   )
-      
+
 func shortLog*(msg: Message): auto =
   (
-    fromPeer: msg.fromPeer.shortLog,
+    fromPeer: msg.fromPeer,
     data: msg.data.shortLog,
     seqno: msg.seqno.shortLog,
     topicIDs: $msg.topicIDs,
