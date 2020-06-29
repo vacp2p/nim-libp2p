@@ -82,18 +82,17 @@ proc replenishFanout(g: GossipSub, topic: string) =
   if topic notin g.fanout:
     g.fanout[topic] = initHashSet[string]()
 
-  if g.fanout[topic].len < GossipSubDLo:
-    debug "replenishing fanout", peers = g.fanout[topic].len
-    for id, peer in g.peers:
-      if peer.proto == GossipSubCodec and peer.topics.find(topic) != -1: # linear search but likely faster then a small hash
-        if not g.fanout[topic].containsOrIncl(id):
-          g.lastFanoutPubSub[topic] = Moment.fromNow(GossipSubFanoutTTL)
+  if g.fanout.getOrDefault(topic).len < GossipSubDLo:
+    trace "replenishing fanout", peers = g.fanout.getOrDefault(topic).len
+    if topic in g.gossipsub:
+      for p in g.gossipsub.getOrDefault(topic):
+        if not g.fanout[topic].containsOrIncl(p):
           if g.fanout.getOrDefault(topic).len == GossipSubD:
             break
 
   libp2p_gossipsub_peers_per_topic_fanout
     .set(g.fanout.getOrDefault(topic).len.int64, labelValues = [topic])
-  debug "fanout replenished with peers", peers = g.fanout.getOrDefault(topic).len
+  trace "fanout replenished with peers", peers = g.fanout.getOrDefault(topic).len
 
 proc rebalanceMesh(g: GossipSub, topic: string) {.async.} =
   try:
