@@ -105,7 +105,7 @@ proc rebalanceMesh(g: GossipSub, topic: string) {.async.} =
         await sleepAsync(1.millis) # don't starve the event loop
         var id: string
         if topic in g.fanout and g.fanout.getOrDefault(topic).len > 0:
-          debug "getting peer from fanout", topic,
+          trace "getting peer from fanout", topic,
                                             peers = g.fanout.getOrDefault(topic).len
 
           id = sample(toSeq(g.fanout.getOrDefault(topic)))
@@ -114,9 +114,9 @@ proc rebalanceMesh(g: GossipSub, topic: string) {.async.} =
           if id in g.fanout[topic]:
             continue # we already have this peer in the mesh, try again
 
-          debug "got fanout peer", peer = id
+          trace "got fanout peer", peer = id
         elif topic in g.gossipsub and g.gossipsub.getOrDefault(topic).len > 0:
-          debug "getting peer from gossipsub", topic,
+          trace "getting peer from gossipsub", topic,
                                                peers = g.gossipsub.getOrDefault(topic).len
 
           id = sample(toSeq(g.gossipsub[topic]))
@@ -125,7 +125,7 @@ proc rebalanceMesh(g: GossipSub, topic: string) {.async.} =
           if id in g.mesh[topic]:
             continue # we already have this peer in the mesh, try again
 
-          debug "got gossipsub peer", peer = id
+          trace "got gossipsub peer", peer = id
         else:
           trace "no more peers"
           break
@@ -157,7 +157,7 @@ proc rebalanceMesh(g: GossipSub, topic: string) {.async.} =
     libp2p_gossipsub_peers_per_topic_mesh
       .set(g.mesh.getOrDefault(topic).len.int64, labelValues = [topic])
 
-    debug "mesh balanced, got peers", peers = g.mesh.getOrDefault(topic).len,
+    trace "mesh balanced, got peers", peers = g.mesh.getOrDefault(topic).len,
                                       topicId = topic
   except CatchableError as exc:
     warn "exception occurred re-balancing mesh", exc = exc.msg
@@ -170,7 +170,7 @@ proc dropFanoutPeers(g: GossipSub) {.async.} =
     if Moment.now > val:
       dropping.add(topic)
       g.fanout.del(topic)
-      debug "dropping fanout topic", topic
+      trace "dropping fanout topic", topic
 
   for topic in dropping:
     g.lastFanoutPubSub.del(topic)
@@ -280,7 +280,7 @@ method subscribeTopic*(g: GossipSub,
     g.gossipsub[topic] = initHashSet[string]()
 
   if subscribe:
-    debug "adding subscription for topic", peer = peerId, name = topic
+    trace "adding subscription for topic", peer = peerId, name = topic
     # subscribe remote peer to the topic
     g.gossipsub[topic].incl(peerId)
   else:
@@ -291,7 +291,7 @@ method subscribeTopic*(g: GossipSub,
   libp2p_gossipsub_peers_per_topic_gossipsub
     .set(g.gossipsub[topic].len.int64, labelValues = [topic])
 
-  debug "gossip peers", peers = g.gossipsub[topic].len, topic
+  trace "gossip peers", peers = g.gossipsub[topic].len, topic
 
   # also rebalance current topic if we are subbed to
   if topic in g.topics:
@@ -505,7 +505,7 @@ method publish*(g: GossipSub,
 
   
 method start*(g: GossipSub) {.async.} =
-  debug "gossipsub start"
+  trace "gossipsub start"
 
   ## start pubsub
   ## start long running/repeating procedures
@@ -520,7 +520,7 @@ method start*(g: GossipSub) {.async.} =
   g.heartbeatLock.release()
 
 method stop*(g: GossipSub) {.async.} =
-  debug "gossipsub stop"
+  trace "gossipsub stop"
 
   ## stop pubsub
   ## stop long running tasks
@@ -530,7 +530,7 @@ method stop*(g: GossipSub) {.async.} =
   # stop heartbeat interval
   g.heartbeatRunning = false
   if not g.heartbeatFut.finished:
-    debug "awaiting last heartbeat"
+    trace "awaiting last heartbeat"
     await g.heartbeatFut
 
   g.heartbeatLock.release()
