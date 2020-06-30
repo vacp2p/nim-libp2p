@@ -16,6 +16,7 @@ when defined(nimHasUsed): {.used.}
 suite "Identify":
   teardown:
     for tracker in testTrackers():
+      # echo tracker.dump()
       check tracker.isLeaked() == false
 
   test "handle identify message":
