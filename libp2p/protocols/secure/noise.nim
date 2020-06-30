@@ -12,7 +12,7 @@ import chronicles
 import stew/[endians2, byteutils]
 import nimcrypto/[utils, sysrand, sha2, hmac]
 import ../../stream/lpstream
-import ../../peer
+import ../../peerid
 import ../../peerinfo
 import ../../protobuf/minprotobuf
 import ../../utility

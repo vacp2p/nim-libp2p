@@ -1,7 +1,7 @@
 import unittest
 import nimcrypto/sha2,
        stew/[base64, byteutils]
-import ../../libp2p/[peer,
+import ../../libp2p/[peerid,
                      crypto/crypto,
                      protocols/pubsub/rpc/message,
                      protocols/pubsub/rpc/messages]

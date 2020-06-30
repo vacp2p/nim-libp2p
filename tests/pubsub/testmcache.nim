@@ -2,7 +2,7 @@
 
 import unittest, options, sets, sequtils
 import stew/byteutils
-import ../../libp2p/[peer,
+import ../../libp2p/[peerid,
                      crypto/crypto,
                      protocols/pubsub/mcache,
                      protocols/pubsub/rpc/message,

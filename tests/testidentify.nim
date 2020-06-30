@@ -3,7 +3,7 @@ import chronos, strutils
 import ../libp2p/[protocols/identify,
                   multiaddress,
                   peerinfo,
-                  peer,
+                  peerid,
                   stream/connection,
                   multistream,
                   transports/transport,

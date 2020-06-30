@@ -15,7 +15,7 @@ import pubsub,
        rpc/[messages, message],
        ../../crypto/crypto,
        ../../stream/connection,
-       ../../peer,
+       ../../peerid,
        ../../peerinfo,
        ../../utility,
        ../../errors

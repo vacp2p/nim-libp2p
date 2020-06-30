@@ -12,7 +12,7 @@ import chronicles, stew/byteutils
 import metrics
 import nimcrypto/sysrand
 import messages, protobuf,
-       ../../../peer,
+       ../../../peerid,
        ../../../peerinfo,
        ../../../crypto/crypto,
        ../../../protobuf/minprotobuf

@@ -11,7 +11,7 @@
 ## https://github.com/libp2p/go-libp2p-peer
 import unittest
 import nimcrypto/utils, stew/base58
-import ../libp2p/crypto/crypto, ../libp2p/peer
+import ../libp2p/crypto/crypto, ../libp2p/peerid
 
 when defined(nimHasUsed): {.used.}
 

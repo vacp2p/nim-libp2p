@@ -13,7 +13,7 @@ import secure,
        ../../peerinfo,
        ../../crypto/crypto,
        ../../crypto/ecnist,
-       ../../peer,
+       ../../peerid,
        ../../utility
 
 export hmac, sha2, sha, hash, rijndael, bcmode

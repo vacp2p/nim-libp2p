@@ -11,7 +11,7 @@ import options, hashes, strutils, tables, hashes
 import chronos, chronicles, nimcrypto/sha2, metrics
 import rpc/[messages, message, protobuf],
        timedcache,
-       ../../peer,
+       ../../peerid,
        ../../peerinfo,
        ../../stream/connection,
        ../../crypto/crypto,

@@ -152,7 +152,7 @@ proc init*(t: typedesc[PeerID], data: openarray[byte]): Result[PeerID, cstring] 
   ## Create new peer id from raw binary representation ``data``.
   var res: PeerID
   if not init(res, data):
-    err("Incorrect PeerID binary form")
+    err("peerid: incorrect PeerID binary form")
   else:
     ok(res)
 
@@ -160,13 +160,13 @@ proc init*(t: typedesc[PeerID], data: string): Result[PeerID, cstring] {.inline.
   ## Create new peer id from base58 encoded string representation ``data``.
   var res: PeerID
   if not init(res, data):
-    err("Incorrect PeerID string")
+    err("peerid: incorrect PeerID string")
   else:
     ok(res)
 
 proc init*(t: typedesc[PeerID], pubkey: PublicKey): Result[PeerID, cstring] =
   ## Create new peer id from public key ``pubkey``.
-  var pubraw = ? pubkey.getBytes().orError("failed to get bytes from given key")
+  var pubraw = ? pubkey.getBytes().orError("peerid: failed to get bytes from given key")
   var mh: MultiHash
   if len(pubraw) <= maxInlineKeyLength:
     mh = ? MultiHash.digest("identity", pubraw)

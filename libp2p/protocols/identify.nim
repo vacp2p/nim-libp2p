@@ -12,7 +12,7 @@ import chronos, chronicles
 import ../protobuf/minprotobuf,
        ../peerinfo,
        ../stream/connection,
-       ../peer,
+       ../peerid,
        ../crypto/crypto,
        ../multiaddress,
        ../protocols/protocol,

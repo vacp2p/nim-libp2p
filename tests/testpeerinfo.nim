@@ -4,7 +4,7 @@ import unittest, options
 import chronos
 import ../libp2p/crypto/crypto,
        ../libp2p/peerinfo,
-       ../libp2p/peer
+       ../libp2p/peerid
 
 suite "PeerInfo":
   test "Should init with private key":

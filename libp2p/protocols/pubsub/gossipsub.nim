@@ -19,7 +19,7 @@ import pubsub,
        ../protocol,
        ../../peerinfo,
        ../../stream/connection,
-       ../../peer,
+       ../../peerid,
        ../../errors,
        ../../utility
 
