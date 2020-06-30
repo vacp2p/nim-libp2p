@@ -218,6 +218,11 @@ proc heartbeat(g: GossipSub) {.async.} =
         await g.rebalanceMesh(t)
 
       await g.dropFanoutPeers()
+
+      # replenish known topics to the fanout
+      for t in toSeq(g.fanout.keys):
+        g.replenishFanout(t)
+
       let peers = g.getGossipPeers()
       var sent: seq[Future[void]]
       for peer in peers.keys:
@@ -470,8 +475,12 @@ method publish*(g: GossipSub,
     if topic in g.topics: # if we're subscribed use the mesh
       peers = g.mesh.getOrDefault(topic)
     else: # not subscribed, send to fanout peers
-      g.replenishFanout(topic)
+      # try optimistically
       peers = g.fanout.getOrDefault(topic)
+      if peers.len == 0:
+        # ok we had nothing.. let's try replenish inline
+        g.replenishFanout(topic)
+        peers = g.fanout.getOrDefault(topic)
 
     let
       msg = Message.init(g.peerInfo, data, topic, g.sign)
