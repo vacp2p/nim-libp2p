@@ -143,7 +143,7 @@ proc identify*(p: Identify,
   if not isNil(remotePeerInfo) and result.pubKey.isSome:
     let peer = PeerID.init(result.pubKey.get())
     if peer.isErr:
-      raise newException(IdentityInvalidMsgError, "Could not derived a PeerID")
+      raise newException(IdentityInvalidMsgError, $peer.error)
     else:
       # do a string comaprison of the ids,
       # because that is the only thing we
