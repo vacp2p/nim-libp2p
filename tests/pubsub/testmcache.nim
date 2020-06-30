@@ -11,7 +11,7 @@ import ../../libp2p/[peerid,
 suite "MCache":
   test "put/get":
     var mCache = newMCache(3, 5)
-    var msg = Message(fromPeer: PeerID.init(PrivateKey.random(ECDSA).get()),
+    var msg = Message(fromPeer: PeerID.init(PrivateKey.random(ECDSA).get()).get(),
                        seqno: "12345".toBytes())
     let msgId = defaultMsgIdProvider(msg)
     mCache.put(msgId, msg)
@@ -21,13 +21,13 @@ suite "MCache":
     var mCache = newMCache(3, 5)
 
     for i in 0..<3:
-      var msg = Message(fromPeer: PeerID.init(PrivateKey.random(ECDSA).get()),
+      var msg = Message(fromPeer: PeerID.init(PrivateKey.random(ECDSA).get()).get(),
                         seqno: "12345".toBytes(),
                         topicIDs: @["foo"])
       mCache.put(defaultMsgIdProvider(msg), msg)
 
     for i in 0..<5:
-      var msg = Message(fromPeer: PeerID.init(PrivateKey.random(ECDSA).get()),
+      var msg = Message(fromPeer: PeerID.init(PrivateKey.random(ECDSA).get()).get(),
                         seqno: "12345".toBytes(),
                         topicIDs: @["bar"])
       mCache.put(defaultMsgIdProvider(msg), msg)

@@ -1,6 +1,6 @@
 import unittest
 
-import ../../libp2p/[peer, peerinfo,
+import ../../libp2p/[peerid, peerinfo,
                      crypto/crypto,
                      protocols/pubsub/rpc/message,
                      protocols/pubsub/rpc/messages]
@@ -8,7 +8,7 @@ import ../../libp2p/[peer, peerinfo,
 suite "Message":
   test "signature":
     let
-      peer = PeerInfo.init(PrivateKey.random(ECDSA).get()).get()
+      peer = PeerInfo.init(PrivateKey.random(ECDSA).get())
       msg = Message.init(peer, @[], "topic", sign = true)
 
     check verify(msg, peer)
