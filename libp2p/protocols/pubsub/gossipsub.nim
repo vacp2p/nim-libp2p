@@ -499,9 +499,18 @@ method publish*(g: GossipSub,
         continue
 
       let peer = g.peers.getOrDefault(p)
-      if not isNil(peer.peerInfo):
+      if not isNil(peer) and not isNil(peer.peerInfo):
         trace "publish: sending message to peer", peer = p
         sent.add(peer.send(@[RPCMsg(messages: @[msg])]))
+      else:
+        # Notice this needs a better fix! for now it's a hack
+        error "publish: peer or peerInfo was nil"
+        if topic in g.mesh:
+          g.mesh[topic].excl(p)
+        if topic in g.fanout:
+          g.fanout[topic].excl(p)
+        if topic in g.gossipsub:
+          g.gossipsub[topic].excl(p)
     
     sent = await allFinished(sent)
     checkFutures(sent)
