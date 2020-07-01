@@ -13,7 +13,7 @@ import secure,
        ../../peerinfo,
        ../../crypto/crypto,
        ../../crypto/ecnist,
-       ../../peer,
+       ../../peerid,
        ../../utility
 
 export hmac, sha2, sha, hash, rijndael, bcmode
@@ -297,7 +297,7 @@ method handshake*(s: Secio, conn: Connection, initiator: bool = false): Future[S
                                SecioCiphers,
                                SecioHashes)
 
-  localPeerId = PeerID.init(s.localPublicKey)
+  localPeerId = PeerID.init(s.localPublicKey).tryGet()
 
   trace "Local proposal", schemes = SecioExchanges,
                           ciphers = SecioCiphers,
@@ -320,7 +320,7 @@ method handshake*(s: Secio, conn: Connection, initiator: bool = false): Future[S
     trace "Remote public key incorrect or corrupted", pubkey = remoteBytesPubkey.shortLog
     raise (ref SecioError)(msg: "Remote public key incorrect or corrupted")
 
-  remotePeerId = PeerID.init(remotePubkey)
+  remotePeerId = PeerID.init(remotePubkey).tryGet()
 
   # TODO: PeerID check against supplied PeerID
   let order = getOrder(remoteBytesPubkey, localNonce, localBytesPubkey,

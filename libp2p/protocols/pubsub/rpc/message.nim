@@ -15,7 +15,7 @@ import metrics
 import chronicles
 import nimcrypto/sysrand
 import messages, protobuf,
-       ../../../peer,
+       ../../../peerid,
        ../../../peerinfo,
        ../../../crypto/crypto,
        ../../../protobuf/minprotobuf

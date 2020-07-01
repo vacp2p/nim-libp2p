@@ -31,7 +31,7 @@ import stream/connection,
        protocols/pubsub/pubsub,
        muxers/muxer,
        errors,
-       peer
+       peerid
 
 logScope:
   topics = "switch"

@@ -95,7 +95,7 @@ const
   SupportedSchemesInt* = {int8(RSA), int8(Ed25519), int8(Secp256k1),
                           int8(ECDSA)}
 
-template orError(exp: untyped, err: CryptoError): untyped =
+template orError*(exp: untyped, err: untyped): untyped =
   (exp.mapErr do (_: auto) -> auto: err)
 
 proc random*(t: typedesc[PrivateKey], scheme: PKScheme,

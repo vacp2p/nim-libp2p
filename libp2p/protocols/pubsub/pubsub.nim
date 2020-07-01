@@ -13,7 +13,7 @@ import pubsubpeer,
        rpc/[message, messages],
        ../protocol,
        ../../stream/connection,
-       ../../peer,
+       ../../peerid,
        ../../peerinfo
 import metrics
 
