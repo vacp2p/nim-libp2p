@@ -11,7 +11,7 @@ import options, sequtils
 import chronos, chronicles
 import peerid, multiaddress, crypto/crypto
 
-export peerid, crypto
+export peerid, multiaddress, crypto
 
 ## A peer can be constructed in one of tree ways:
 ## 1) A local peer with a private key
