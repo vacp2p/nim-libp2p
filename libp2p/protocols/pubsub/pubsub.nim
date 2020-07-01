@@ -28,7 +28,6 @@ declareGauge(libp2p_pubsub_topics, "pubsub subscribed topics")
 declareCounter(libp2p_pubsub_validation_success, "pubsub successfully validated messages")
 declareCounter(libp2p_pubsub_validation_failure, "pubsub failed validated messages")
 declarePublicCounter(libp2p_pubsub_messages_published, "published messages", labels = ["topic"])
-declareGauge(libp2p_pubsub_peers_per_topic, "pubsub peers per topic", labels = ["topic"])
 
 type
   TopicHandler* = proc(topic: string,
@@ -84,23 +83,6 @@ method subscribeTopic*(p: PubSub,
   if isNil(peer) or isNil(peer.peerInfo): # should not happen
     if subscribe:
       warn "subscribeTopic but peer was unknown!"
-      return # Stop causing bad metrics!
-    else:
-      return # Stop causing bad metrics!
-  
-  let idx = peer.topics.find(topic)
-  if subscribe:
-    libp2p_pubsub_peers_per_topic.inc(labelValues = [topic])
-    if idx == -1:
-      peer.topics &= topic
-    else:
-      warn "subscribe but topic was already previously subscribed", topic, peer = peerId
-  else:
-    libp2p_pubsub_peers_per_topic.dec(labelValues = [topic])   
-    if idx == -1:
-      warn "unsubscribe but topic was not previously subscribed", topic, peer = peerId
-    else:
-      peer.topics.del(idx)
 
 method rpcHandler*(p: PubSub,
                    peer: PubSubPeer,
