@@ -97,45 +97,27 @@ proc rebalanceMesh(g: GossipSub, topic: string) {.async.} =
     if topic notin g.mesh:
       g.mesh[topic] = initHashSet[string]()
 
-    if g.mesh.getOrDefault(topic).len < GossipSubDlo:
-      trace "replenishing mesh", topic
-      # replenish the mesh if we're below GossipSubDlo
-      while g.mesh.getOrDefault(topic).len < GossipSubD and topic in g.topics:
-        trace "gathering peers", peers = g.mesh.getOrDefault(topic).len
-        await sleepAsync(1.millis) # don't starve the event loop
-        var id: string
-        if topic in g.fanout and g.fanout.getOrDefault(topic).len > 0:
-          trace "getting peer from fanout", topic,
-                                            peers = g.fanout.getOrDefault(topic).len
+    # https://github.com/libp2p/specs/blob/master/pubsub/gossipsub/gossipsub-v1.0.md#mesh-maintenance
+    if g.mesh.getOrDefault(topic).len < GossipSubDlo  and topic in g.topics:
+      var availPeers = toSeq(g.gossipsub.getOrDefault(topic))
+      shuffle(availPeers)
+      if availPeers.len > GossipSubD:
+        availPeers = availPeers[0..<GossipSubD]
 
-          id = sample(toSeq(g.fanout.getOrDefault(topic)))
-          g.fanout[topic].excl(id)
+      trace "gathering more mesh peers", current = g.mesh.getOrDefault(topic).len, avail = availPeers.len
 
-          if id in g.fanout[topic]:
-            continue # we already have this peer in the mesh, try again
+      for id in availPeers:
+        if id in g.mesh[topic]:
+          continue # we already have this peer in the mesh, try again
 
-          trace "got fanout peer", peer = id
-        elif topic in g.gossipsub and g.gossipsub.getOrDefault(topic).len > 0:
-          trace "getting peer from gossipsub", topic,
-                                               peers = g.gossipsub.getOrDefault(topic).len
-
-          id = sample(toSeq(g.gossipsub[topic]))
-          g.gossipsub[topic].excl(id)
-
-          if id in g.mesh[topic]:
-            continue # we already have this peer in the mesh, try again
-
-          trace "got gossipsub peer", peer = id
-        else:
-          trace "no more peers"
-          break
+        trace "got gossipsub peer", peer = id
 
         g.mesh[topic].incl(id)
         if id in g.peers:
           let p = g.peers[id]
           # send a graft message to the peer
           await p.sendGraft(@[topic])
-
+    
     # prune peers if we've gone over
     if g.mesh.getOrDefault(topic).len > GossipSubDhi:
       trace "about to prune mesh", mesh = g.mesh.getOrDefault(topic).len
@@ -179,11 +161,6 @@ proc dropFanoutPeers(g: GossipSub) {.async.} =
 
     libp2p_gossipsub_peers_per_topic_fanout
       .set(g.fanout.getOrDefault(topic).len.int64, labelValues = [topic])
-
-proc shuffle[T](collection: var seq[T]) = 
-  for i in 0..collection.high:
-    let r = rand(collection.high)
-    swap(collection[i], collection[r])
 
 proc getGossipPeers(g: GossipSub): Table[string, ControlMessage] {.gcsafe.} =
   ## gossip iHave messages to peers
