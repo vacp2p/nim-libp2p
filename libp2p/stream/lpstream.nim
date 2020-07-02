@@ -74,7 +74,7 @@ method initStream*(s: LPStream) {.base.} =
 
   s.oid = genOid()
   libp2p_open_streams.inc(labelValues = [s.objName])
-  trace "stream created", oid = s.oid, name = s.objName
+  trace "stream created", oid = $s.oid, name = s.objName
 
   # TODO: debuging aid to troubleshoot streams open/close
   # try:
@@ -150,7 +150,6 @@ proc readVarint*(conn: LPStream): Future[uint64] {.async, gcsafe.} =
 
   for i in 0..<len(buffer):
     await conn.readExactly(addr buffer[i], 1)
-    trace "BUFFER ", buffer
     let res = PB.getUVarint(buffer.toOpenArray(0, i), length, varint)
     if res.isOk():
       return varint
@@ -191,12 +190,13 @@ proc write*(s: LPStream, pbytes: pointer, nbytes: int): Future[void] {.deprecate
 proc write*(s: LPStream, msg: string): Future[void] =
   s.write(@(toOpenArrayByte(msg, 0, msg.high)))
 
+# TODO: split `close` into `close` and `dispose/destroy`
 method close*(s: LPStream) {.base, async.} =
   if not s.isClosed:
     s.isClosed = true
     s.closeEvent.fire()
     libp2p_open_streams.dec(labelValues = [s.objName])
-    trace "stream destroyed", oid = s.oid, name = s.objName
+    trace "stream destroyed", oid = $s.oid, name = s.objName
 
   # TODO: debuging aid to troubleshoot streams open/close
   # try:

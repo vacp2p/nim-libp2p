@@ -9,7 +9,7 @@
 
 import options, sequtils
 import ../../../utility
-import ../../../peer
+import ../../../peerid
 
 type
     SubOpts* = object

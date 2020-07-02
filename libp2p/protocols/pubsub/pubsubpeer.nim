@@ -11,7 +11,7 @@ import options, hashes, strutils, tables, hashes
 import chronos, chronicles, nimcrypto/sha2, metrics
 import rpc/[messages, message, protobuf],
        timedcache,
-       ../../peer,
+       ../../peerid,
        ../../peerinfo,
        ../../stream/connection,
        ../../crypto/crypto,
@@ -46,8 +46,8 @@ type
 
 proc id*(p: PubSubPeer): string = p.peerInfo.id
 
-proc isConnected*(p: PubSubPeer): bool =
-  (not isNil(p.sendConn))
+proc connected*(p: PubSubPeer): bool =
+  not(isNil(p.sendConn))
 
 proc `conn=`*(p: PubSubPeer, conn: Connection) =
   if not(isNil(conn)):
@@ -125,8 +125,10 @@ proc send*(p: PubSubPeer, msgs: seq[RPCMsg]) {.async.} =
       try:
         trace "about to send message", peer = p.id,
                                        encoded = digest
-        await p.onConnect.wait()
-        if p.isConnected: # this can happen if the remote disconnected
+        if not p.onConnect.isSet:
+          await p.onConnect.wait()
+
+        if p.connected: # this can happen if the remote disconnected
           trace "sending encoded msgs to peer", peer = p.id,
                                                 encoded = encoded.buffer.shortLog
           await p.sendConn.writeLp(encoded.buffer)
@@ -138,10 +140,14 @@ proc send*(p: PubSubPeer, msgs: seq[RPCMsg]) {.async.} =
                 # metrics
                 libp2p_pubsub_sent_messages.inc(labelValues = [p.id, t])
 
+      except CancelledError as exc:
+        raise exc
       except CatchableError as exc:
         trace "unable to send to remote", exc = exc.msg
-        p.sendConn = nil
-        p.onConnect.clear()
+        if not(isNil(p.sendConn)):
+          await p.sendConn.close()
+          p.sendConn = nil
+          p.onConnect.clear()
 
     # if no connection has been set,
     # queue messages until a connection

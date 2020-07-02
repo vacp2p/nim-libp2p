@@ -10,11 +10,11 @@
 ## This module implementes API for `go-libp2p-daemon`.
 import os, osproc, strutils, tables, strtabs
 import chronos
-import ../varint, ../multiaddress, ../multicodec, ../cid, ../peer
+import ../varint, ../multiaddress, ../multicodec, ../cid, ../peerid
 import ../wire, ../multihash, ../protobuf/minprotobuf
 import ../crypto/crypto
 
-export peer, multiaddress, multicodec, multihash, cid, crypto, wire
+export peerid, multiaddress, multicodec, multihash, cid, crypto, wire
 
 when not defined(windows):
   import posix

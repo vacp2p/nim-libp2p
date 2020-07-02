@@ -1,6 +1,6 @@
 import unittest
 
-import ../../libp2p/[peer, peerinfo,
+import ../../libp2p/[peerid, peerinfo,
                      crypto/crypto,
                      protocols/pubsub/rpc/message,
                      protocols/pubsub/rpc/messages]

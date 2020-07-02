@@ -37,12 +37,6 @@ type
     handlers*: seq[HandlerHolder]
     codec*: string
 
-  MultistreamHandshakeException* = object of CatchableError
-
-proc newMultistreamHandshakeException*(): ref CatchableError {.inline.} =
-  result = newException(MultistreamHandshakeException,
-    "could not perform multistream handshake")
-
 proc newMultistream*(): MultistreamSelect =
   new result
   result.codec = MSCodec
@@ -62,7 +56,7 @@ proc select*(m: MultistreamSelect,
   s.removeSuffix("\n")
   if s != Codec:
     notice "handshake failed", codec = s.toHex()
-    raise newMultistreamHandshakeException()
+    return ""
 
   if proto.len() == 0: # no protocols, must be a handshake call
     return Codec
@@ -152,8 +146,12 @@ proc handle*(m: MultistreamSelect, conn: Connection) {.async, gcsafe.} =
               return
           debug "no handlers for ", protocol = ms
           await conn.write(Na)
+  except CancelledError as exc:
+    await conn.close()
+    raise exc
   except CatchableError as exc:
     trace "exception in multistream", exc = exc.msg
+    await conn.close()
   finally:
     trace "leaving multistream loop"
 

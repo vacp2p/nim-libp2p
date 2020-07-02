@@ -14,9 +14,8 @@
 import nativesockets
 import tables, strutils, stew/shims/net
 import chronos
-import multicodec, multihash, multibase, transcoder, vbuffer
+import multicodec, multihash, multibase, transcoder, vbuffer, peerid
 import stew/[base58, base32, endians2, results]
-from peer import PeerID
 export results
 
 type

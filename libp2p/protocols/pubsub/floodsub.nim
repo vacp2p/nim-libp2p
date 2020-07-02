@@ -14,7 +14,7 @@ import pubsub,
        timedcache,
        rpc/[messages, message],
        ../../stream/connection,
-       ../../peer,
+       ../../peerid,
        ../../peerinfo,
        ../../utility,
        ../../errors

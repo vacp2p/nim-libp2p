@@ -10,7 +10,7 @@
 import options
 import chronicles
 import messages,
-       ../../../peer,
+       ../../../peerid,
        ../../../utility,
        ../../../protobuf/minprotobuf
 
@@ -186,7 +186,7 @@ proc decodeMessages*(pb: var ProtoBuffer): seq[Message] {.gcsafe.} =
     if pb.getBytes(1, fromPeer) < 0:
       break
     try:
-      msg.fromPeer = PeerID.init(fromPeer)
+      msg.fromPeer = PeerID.init(fromPeer).tryGet()
     except CatchableError as err:
       debug "Invalid fromPeer in message", msg = err.msg
       break

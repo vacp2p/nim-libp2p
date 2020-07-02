@@ -13,7 +13,7 @@ import ../libp2p/[switch,                   # manage transports, a single entry 
                   transports/tcptransport,  # listen and dial to other peers using client-server protocol
                   multiaddress,             # encode different addressing schemes. For example, /ip4/7.7.7.7/tcp/6543 means it is using IPv4 protocol and TCP
                   peerinfo,                 # manage the information of a peer, such as peer ID and public / private key
-                  peer,                     # Implement how peers interact
+                  peerid,                   # Implement how peers interact
                   protocols/protocol,       # define the protocol base type
                   protocols/secure/secure,  # define the protocol of secure connection
                   protocols/secure/secio,   # define the protocol of secure input / output, allows encrypted communication that uses public keys to validate signed messages instead of a certificate authority like in TLS
