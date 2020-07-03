@@ -480,7 +480,7 @@ method publish*(g: GossipSub,
         sent.add(peer.send(@[RPCMsg(messages: @[msg])]))
       else:
         # Notice this needs a better fix! for now it's a hack
-        error "publish: peer or peerInfo was nil"
+        error "publish: peer or peerInfo was nil", missing = p
         if topic in g.mesh:
           g.mesh[topic].excl(p)
         if topic in g.fanout:

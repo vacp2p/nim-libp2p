@@ -100,6 +100,7 @@ method rpcHandler*(p: PubSub,
 method handleDisconnect*(p: PubSub, peer: PubSubPeer) {.async, base.} =
   ## handle peer disconnects
   if peer.id in p.peers:
+    trace "deleting peer", id = peer.id
     p.peers.del(peer.id)
 
   # metrics
