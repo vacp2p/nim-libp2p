@@ -19,8 +19,12 @@ import utils, ../../libp2p/[errors,
                             crypto/crypto,
                             stream/bufferstream,
                             protocols/pubsub/pubsub,
-                            protocols/pubsub/gossipsub,
                             protocols/pubsub/rpc/messages]
+
+when not defined(gossip11):
+  import ../../libp2p/protocols/pubsub/gossipsub
+else:
+  import ../../libp2p/protocols/pubsub/gossipsub11
 
 import ../helpers
 
