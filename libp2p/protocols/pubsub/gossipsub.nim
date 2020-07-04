@@ -189,7 +189,9 @@ proc getGossipPeers(g: GossipSub): Table[string, ControlMessage] {.gcsafe.} =
 
 proc heartbeat(g: GossipSub) {.async.} =
   while g.heartbeatRunning:
+    await g.heartbeatLock.acquire()
     try:
+
       trace "running heartbeat"
 
       for t in toSeq(g.topics.keys):
@@ -213,6 +215,8 @@ proc heartbeat(g: GossipSub) {.async.} =
       raise exc
     except CatchableError as exc:
       trace "exception ocurred in gossipsub heartbeat", exc = exc.msg
+    finally:
+      g.heartbeatLock.release()
 
     await sleepAsync(1.seconds)
 
