@@ -224,11 +224,11 @@ method handleDisconnect*(g: GossipSub, peer: PubSubPeer) {.async.} =
   ## handle peer disconnects
   trace "peer disconnected", peer=peer.id
 
+  await procCall FloodSub(g).handleDisconnect(peer)
+
   # must avoid running this while manipulating mesh/gossip tables
   await g.heartbeatLock.acquire()
   try:
-    await procCall FloodSub(g).handleDisconnect(peer)
-
     for t in toSeq(g.gossipsub.keys):
       g.gossipsub[t].excl(peer.id)
 
@@ -261,12 +261,11 @@ method subscribeTopic*(g: GossipSub,
                        topic: string,
                        subscribe: bool,
                        peerId: string) {.gcsafe, async.} =
+  await procCall PubSub(g).subscribeTopic(topic, subscribe, peerId)
   
   # must avoid running this while manipulating mesh/gossip tables
   await g.heartbeatLock.acquire()
   try:
-    await procCall PubSub(g).subscribeTopic(topic, subscribe, peerId)
-
     if topic notin g.gossipsub:
       g.gossipsub[topic] = initHashSet[string]()
 
