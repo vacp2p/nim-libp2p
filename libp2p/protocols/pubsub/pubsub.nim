@@ -319,14 +319,14 @@ proc newPubSub*[PubParams: object  | bool](P: typedesc[PubSub],
               verifySignature: verifySignature,
               sign: sign,
               cleanupLock: newAsyncLock(),
-              msgIdProvider)
+              msgIdProvider: msgIdProvider)
   else:
     result = P(peerInfo: peerInfo,
               triggerSelf: triggerSelf,
               verifySignature: verifySignature,
               sign: sign,
               cleanupLock: newAsyncLock(),
-              msgIdProvider,
+              msgIdProvider: msgIdProvider,
               parameters: params)
   result.initPubSub()
 

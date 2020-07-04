@@ -509,29 +509,29 @@ proc start*(s: Switch): Future[seq[Future[void]]] {.async, gcsafe.} =
 proc stop*(s: Switch) {.async.} =
   trace "stopping switch"
 
-    s.running = false
+  s.running = false
 
-    # Stop explicit peering system (gossip 1.1 related, but useful even with other pubsubs)
-    # Cancel their sleep as it likely is running for 5 mins
-    # running is false so they should exit after that
-    # and so we just wait/ensure all has finished
-    # Maintain has tryAndWarn so we should not be priting any error here
-    # nevertheless use checkFutures!
-    # Notice.. this is ugly but we have no clean way to express a Chain of operations/futures
-    # and simply post a cancelation/stop from the root of the chain...
-    let
-      maintainers = toSeq(s.maintainFuts.values)
-      sleepFuts = maintainers.mapIt(it.sleepFut)
-      loopFuts = maintainers.mapIt(it.loopFut)
-    for f in sleepFuts: f.cancel()
-    checkFutures(await allFinished(sleepFuts))
-    checkFutures(await allFinished(loopFuts))
+  # Stop explicit peering system (gossip 1.1 related, but useful even with other pubsubs)
+  # Cancel their sleep as it likely is running for 5 mins
+  # running is false so they should exit after that
+  # and so we just wait/ensure all has finished
+  # Maintain has tryAndWarn so we should not be priting any error here
+  # nevertheless use checkFutures!
+  # Notice.. this is ugly but we have no clean way to express a Chain of operations/futures
+  # and simply post a cancelation/stop from the root of the chain...
+  let
+    maintainers = toSeq(s.maintainFuts.values)
+    sleepFuts = maintainers.mapIt(it.sleepFut)
+    loopFuts = maintainers.mapIt(it.loopFut)
+  for f in sleepFuts: f.cancel()
+  checkFutures(await allFinished(sleepFuts))
+  checkFutures(await allFinished(loopFuts))
 
-    # we want to report errors but we do not want to fail
-    # or crash here, cos we need to clean possibly MANY items
-    # and any following conn/transport won't be cleaned up
-    if s.pubSub.isSome:
-      await s.pubSub.get().stop()
+  # we want to report errors but we do not want to fail
+  # or crash here, cos we need to clean possibly MANY items
+  # and any following conn/transport won't be cleaned up
+  if s.pubSub.isSome:
+    await s.pubSub.get().stop()
 
   for conns in toSeq(s.connections.values):
     for conn in conns:
@@ -555,8 +555,8 @@ proc stop*(s: Switch) {.async.} =
 proc maintainPeer(s: Switch, peerInfo: PeerInfo) {.async.} =
   while s.running:
     tryAndWarn "explicit peer maintain":
-      var conn = s.connections.getOrDefault(peerInfo.id)
-      if conn.isNil or conn.closed:
+      var conns = s.connections.getOrDefault(peerInfo.id)
+      if conns.len == 0:
         # attempt re-connect in this case
         trace "explicit peering, trying to re-connect", peer=peerInfo
         await s.connect(peerInfo)
@@ -587,13 +587,13 @@ proc subscribeToPeer*(s: Switch, peerInfo: PeerInfo) {.async, gcsafe.} =
 
     s.dialedPubSubPeers.incl(peerInfo.id)
     try:
-      if (await s.ms.select(conn, s.pubSub.get().codec)):
-        await s.pubSub.get().subscribeToPeer(conn)
+      if (await s.ms.select(stream, s.pubSub.get().codec)):
+        await s.pubSub.get().subscribeToPeer(stream)
       else:
-        await conn.close()
+        await stream.close()
     except CatchableError as exc:
       trace "exception in subscribe to peer", peer = peerInfo.shortLog, exc = exc.msg
-      await conn.close()
+      await stream.close()
     finally:
       s.dialedPubSubPeers.excl(peerInfo.id)
   
