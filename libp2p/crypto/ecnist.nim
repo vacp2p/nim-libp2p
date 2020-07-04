@@ -227,17 +227,14 @@ proc clear*[T: EcPKI|EcKeyPair](pki: var T) =
     pki.pubkey.key.qlen = 0
     pki.pubkey.key.curve = 0
 
-proc random*(t: typedesc[EcPrivateKey], kind: EcCurveKind): EcResult[EcPrivateKey] =
+proc random*(
+    T: typedesc[EcPrivateKey], kind: EcCurveKind,
+    rng: var BrHmacDrbgContext): EcResult[EcPrivateKey] =
   ## Generate new random EC private key using BearSSL's HMAC-SHA256-DRBG
   ## algorithm.
   ##
   ## ``kind`` elliptic curve kind of your choice (secp256r1, secp384r1 or
   ## secp521r1).
-  var rng: BrHmacDrbgContext
-  var seeder = brPrngSeederSystem(nil)
-  brHmacDrbgInit(addr rng, addr sha256Vtable, nil, 0)
-  if seeder(addr rng.vtable) == 0:
-    return err(EcRngError)
   var ecimp = brEcGetDefault()
   var res = new EcPrivateKey
   res.buffer = newSeq[byte](BR_EC_KBUF_PRIV_MAX_SIZE)
@@ -266,14 +263,16 @@ proc getKey*(seckey: EcPrivateKey): EcResult[EcPublicKey] =
   else:
     err(EcKeyIncorrectError)
 
-proc random*(t: typedesc[EcKeyPair], kind: EcCurveKind): EcResult[EcKeyPair] =
+proc random*(
+    T: typedesc[EcKeyPair], kind: EcCurveKind,
+    rng: var BrHmacDrbgContext): EcResult[T] =
   ## Generate new random EC private and public keypair using BearSSL's
   ## HMAC-SHA256-DRBG algorithm.
   ##
   ## ``kind`` elliptic curve kind of your choice (secp256r1, secp384r1 or
   ## secp521r1).
   let
-    seckey = ? EcPrivateKey.random(kind)
+    seckey = ? EcPrivateKey.random(kind, rng)
     pubkey = ? seckey.getKey()
     key = EcKeyPair(seckey: seckey, pubkey: pubkey)
   ok(key)

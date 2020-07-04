@@ -28,8 +28,8 @@ type
   Curve25519* = object
   Curve25519Key* = array[Curve25519KeySize, byte]
   pcuchar = ptr cuchar
-  Curve25519Error* = enum  
-    Curver25519RngError
+  Curve25519Error* = enum
+    Curver25519GenError
 
 proc intoCurve25519Key*(s: openarray[byte]): Curve25519Key =
   assert s.len == Curve25519KeySize
@@ -105,16 +105,10 @@ proc mulgen*(_: type[Curve25519], dst: var Curve25519Key, point: Curve25519Key) 
 proc public*(private: Curve25519Key): Curve25519Key =
   Curve25519.mulgen(result, private)
 
-proc random*(_: type[Curve25519Key]): Result[Curve25519Key, Curve25519Error] =
-  var rng: BrHmacDrbgContext
+proc random*(_: type[Curve25519Key], rng: var BrHmacDrbgContext): Result[Curve25519Key, Curve25519Error] =
   var res: Curve25519Key
-  let seeder = brPrngSeederSystem(nil)
-  brHmacDrbgInit(addr rng, addr sha256Vtable, nil, 0)
-  if seeder(addr rng.vtable) == 0:
-    err(Curver25519RngError)
+  let defaultBrEc = brEcGetDefault()
+  if brEcKeygen(addr rng.vtable, defaultBrEc, nil, addr res[0], EC_curve25519) != Curve25519KeySize:
+    err(Curver25519GenError)
   else:
-    let defaultBrEc = brEcGetDefault()
-    if brEcKeygen(addr rng.vtable, defaultBrEc, nil, addr res[0], EC_curve25519) != Curve25519KeySize:
-      err(Curver25519RngError)
-    else:
-      ok(res)
+    ok(res)

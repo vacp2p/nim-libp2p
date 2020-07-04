@@ -50,7 +50,8 @@ method init(p: TestProto) {.gcsafe.} =
   p.handler = handle
 
 proc createSwitch(ma: MultiAddress; outgoing: bool): (Switch, PeerInfo) =
-  var peerInfo: PeerInfo = PeerInfo.init(PrivateKey.random(ECDSA).get())
+  let rng = initRng()
+  var peerInfo: PeerInfo = PeerInfo.init(PrivateKey.random(ECDSA, rng[]).get())
   peerInfo.addrs.add(ma)
   let identify = newIdentify(peerInfo)
 
@@ -60,7 +61,7 @@ proc createSwitch(ma: MultiAddress; outgoing: bool): (Switch, PeerInfo) =
   let mplexProvider = newMuxerProvider(createMplex, MplexCodec)
   let transports = @[Transport(TcpTransport.init())]
   let muxers = [(MplexCodec, mplexProvider)].toTable()
-  let secureManagers = [Secure(newNoise(peerInfo.privateKey, outgoing = outgoing))]
+  let secureManagers = [Secure(newNoise(rng, peerInfo.privateKey, outgoing = outgoing))]
   let switch = newSwitch(peerInfo,
                          transports,
                          identify,
@@ -77,9 +78,10 @@ suite "Noise":
   test "e2e: handle write + noise":
     proc testListenerDialer(): Future[bool] {.async.} =
       let
+        rng = initRng()
         server: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
-        serverInfo = PeerInfo.init(PrivateKey.random(ECDSA).get(), [server])
-        serverNoise = newNoise(serverInfo.privateKey, outgoing = false)
+        serverInfo = PeerInfo.init(PrivateKey.random(ECDSA, rng[]).get(), [server])
+        serverNoise = newNoise(rng, serverInfo.privateKey, outgoing = false)
 
       proc connHandler(conn: Connection) {.async, gcsafe.} =
         let sconn = await serverNoise.secure(conn, false)
@@ -95,8 +97,8 @@ suite "Noise":
 
       let
         transport2: TcpTransport = TcpTransport.init()
-        clientInfo = PeerInfo.init(PrivateKey.random(ECDSA).get(), [transport1.ma])
-        clientNoise = newNoise(clientInfo.privateKey, outgoing = true)
+        clientInfo = PeerInfo.init(PrivateKey.random(ECDSA, rng[]).get(), [transport1.ma])
+        clientNoise = newNoise(rng, clientInfo.privateKey, outgoing = true)
         conn = await transport2.dial(transport1.ma)
         sconn = await clientNoise.secure(conn, true)
 
@@ -116,9 +118,10 @@ suite "Noise":
   test "e2e: handle read + noise":
     proc testListenerDialer(): Future[bool] {.async.} =
       let
+        rng = initRng()
         server: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
-        serverInfo = PeerInfo.init(PrivateKey.random(ECDSA).get(), [server])
-        serverNoise = newNoise(serverInfo.privateKey, outgoing = false)
+        serverInfo = PeerInfo.init(PrivateKey.random(ECDSA, rng[]).get(), [server])
+        serverNoise = newNoise(rng, serverInfo.privateKey, outgoing = false)
         readTask = newFuture[void]()
 
       proc connHandler(conn: Connection) {.async, gcsafe.} =
@@ -137,8 +140,8 @@ suite "Noise":
 
       let
         transport2: TcpTransport = TcpTransport.init()
-        clientInfo = PeerInfo.init(PrivateKey.random(ECDSA).get(), [transport1.ma])
-        clientNoise = newNoise(clientInfo.privateKey, outgoing = true)
+        clientInfo = PeerInfo.init(PrivateKey.random(ECDSA, rng[]).get(), [transport1.ma])
+        clientNoise = newNoise(rng, clientInfo.privateKey, outgoing = true)
         conn = await transport2.dial(transport1.ma)
         sconn = await clientNoise.secure(conn, true)
 
@@ -157,9 +160,10 @@ suite "Noise":
   test "e2e: handle read + noise fragmented":
     proc testListenerDialer(): Future[bool] {.async.} =
       let
+        rng = initRng()
         server: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
-        serverInfo = PeerInfo.init(PrivateKey.random(ECDSA).get(), [server])
-        serverNoise = newNoise(serverInfo.privateKey, outgoing = false)
+        serverInfo = PeerInfo.init(PrivateKey.random(ECDSA, rng[]).get(), [server])
+        serverNoise = newNoise(rng, serverInfo.privateKey, outgoing = false)
         readTask = newFuture[void]()
 
       var hugePayload = newSeq[byte](0xFFFFF)
@@ -180,8 +184,8 @@ suite "Noise":
 
       let
         transport2: TcpTransport = TcpTransport.init()
-        clientInfo = PeerInfo.init(PrivateKey.random(ECDSA).get(), [transport1.ma])
-        clientNoise = newNoise(clientInfo.privateKey, outgoing = true)
+        clientInfo = PeerInfo.init(PrivateKey.random(ECDSA, rng[]).get(), [transport1.ma])
+        clientNoise = newNoise(rng, clientInfo.privateKey, outgoing = true)
         conn = await transport2.dial(transport1.ma)
         sconn = await clientNoise.secure(conn, true)
 
