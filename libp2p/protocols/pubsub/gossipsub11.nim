@@ -517,12 +517,12 @@ method publish*(g: GossipSub,
   var peers = g.explicitPeers
 
   if topic.len > 0: # data could be 0/empty
-    # if g.parameters.floodPublish:
-    #   for id, peer in g.peers:
-    #     if  peer.topics.find(topic) != -1 and
-    #         peer.score() >= g.parameters.publishThreshold:
-    #       debug "publish: including flood/high score peer", peer = id
-    #       peers.incl(id)
+    if g.parameters.floodPublish:
+      for id, peer in g.peers:
+        if  topic in peer.topics and
+            peer.score() >= g.parameters.publishThreshold:
+          debug "publish: including flood/high score peer", peer = id
+          peers.incl(id)
 
     if topic in g.topics: # if we're subscribed use the mesh
       peers = g.mesh.getOrDefault(topic)

@@ -7,7 +7,7 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import options, hashes, strutils, tables, hashes
+import options, hashes, strutils, tables, hashes, sets
 import chronos, chronicles, nimcrypto/sha2, metrics
 import rpc/[messages, message, protobuf],
        timedcache,
@@ -45,6 +45,7 @@ type
     sendConn: Connection
     peerInfo*: PeerInfo
     handler*: RPCHandler
+    topics*: HashSet[string]
     sentRpcCache: TimedCache[string] # cache for already sent messages
     recvdRpcCache: TimedCache[string] # cache for already received messages
     refs*: int # refcount of the connections this peer is handling
@@ -192,3 +193,4 @@ proc newPubSubPeer*(peerInfo: PeerInfo,
   result.sentRpcCache = newTimedCache[string](2.minutes)
   result.recvdRpcCache = newTimedCache[string](2.minutes)
   result.onConnect = newAsyncEvent()
+  result.topics = initHashSet[string]()

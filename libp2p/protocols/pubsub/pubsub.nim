@@ -81,9 +81,17 @@ method subscribeTopic*(p: PubSub,
                        subscribe: bool,
                        peerId: string) {.base, async.} =
   var peer = p.peers.getOrDefault(peerId)
+
   if isNil(peer) or isNil(peer.peerInfo): # should not happen
     if subscribe:
-      warn "subscribeTopic but peer was unknown!"
+      warn "subscribeTopic (subscribe) but peer was unknown!", peer = peerId
+      assert(false, "subscribeTopic (subscribe) but peer was unknown!") # bad , stop here if debug
+    return
+
+  if subscribe:
+    peer.topics.incl(topic)
+  else:
+    peer.topics.excl(topic)
 
 method rpcHandler*(p: PubSub,
                    peer: PubSubPeer,
