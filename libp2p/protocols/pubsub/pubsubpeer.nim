@@ -11,7 +11,7 @@ import options, hashes, strutils, tables, hashes
 import chronos, chronicles, nimcrypto/sha2, metrics
 import rpc/[messages, message, protobuf],
        timedcache,
-       ../../peer,
+       ../../peerid,
        ../../peerinfo,
        ../../stream/connection,
        ../../crypto/crypto,
@@ -41,11 +41,10 @@ type
     onSend*: proc(peer: PubSubPeer; msgs: var RPCMsg) {.gcsafe, raises: [Defect].}
 
   PubSubPeer* = ref object of RootObj
-    proto: string # the protocol that this peer joined from
+    proto*: string # the protocol that this peer joined from
     sendConn: Connection
     peerInfo*: PeerInfo
     handler*: RPCHandler
-    topics*: seq[string]
     sentRpcCache: TimedCache[string] # cache for already sent messages
     recvdRpcCache: TimedCache[string] # cache for already received messages
     refs*: int # refcount of the connections this peer is handling
@@ -60,8 +59,8 @@ func score*(p: PubSubPeer): float64 =
 
 proc id*(p: PubSubPeer): string = p.peerInfo.id
 
-proc isConnected*(p: PubSubPeer): bool =
-  (not isNil(p.sendConn))
+proc connected*(p: PubSubPeer): bool =
+  not(isNil(p.sendConn))
 
 proc `conn=`*(p: PubSubPeer, conn: Connection) =
   if not(isNil(conn)):
@@ -73,13 +72,15 @@ proc recvObservers(p: PubSubPeer, msg: var RPCMsg) =
   # trigger hooks
   if not(isNil(p.observers)) and p.observers[].len > 0:
     for obs in p.observers[]:
-      obs.onRecv(p, msg)
+      if not(isNil(obs)): # TODO: should never be nil, but...
+        obs.onRecv(p, msg)
 
 proc sendObservers(p: PubSubPeer, msg: var RPCMsg) =
   # trigger hooks
   if not(isNil(p.observers)) and p.observers[].len > 0:
     for obs in p.observers[]:
-      obs.onSend(p, msg)
+      if not(isNil(obs)): # TODO: should never be nil, but...
+        obs.onSend(p, msg)
 
 proc handle*(p: PubSubPeer, conn: Connection) {.async.} =
   trace "handling pubsub rpc", peer = p.id, closed = conn.closed
@@ -137,8 +138,10 @@ proc send*(p: PubSubPeer, msgs: seq[RPCMsg]) {.async.} =
       try:
         trace "about to send message", peer = p.id,
                                        encoded = digest
-        await p.onConnect.wait()
-        if p.isConnected: # this can happen if the remote disconnected
+        if not p.onConnect.isSet:
+          await p.onConnect.wait()
+
+        if p.connected: # this can happen if the remote disconnected
           trace "sending encoded msgs to peer", peer = p.id,
                                                 encoded = encoded.buffer.shortLog
           await p.sendConn.writeLp(encoded.buffer)
@@ -150,10 +153,14 @@ proc send*(p: PubSubPeer, msgs: seq[RPCMsg]) {.async.} =
                 # metrics
                 libp2p_pubsub_sent_messages.inc(labelValues = [p.id, t])
 
+      except CancelledError as exc:
+        raise exc
       except CatchableError as exc:
         trace "unable to send to remote", exc = exc.msg
-        p.sendConn = nil
-        p.onConnect.clear()
+        if not(isNil(p.sendConn)):
+          await p.sendConn.close()
+          p.sendConn = nil
+          p.onConnect.clear()
 
     # if no connection has been set,
     # queue messages until a connection
@@ -165,7 +172,7 @@ proc sendMsg*(p: PubSubPeer,
               topic: string,
               data: seq[byte],
               sign: bool): Future[void] {.gcsafe.} =
-  p.send(@[RPCMsg(messages: @[newMessage(p.peerInfo, data, topic, sign)])])
+  p.send(@[RPCMsg(messages: @[Message.init(p.peerInfo, data, topic, sign)])])
 
 proc sendGraft*(p: PubSubPeer, topics: seq[string]) {.async.} =
   for topic in topics:
