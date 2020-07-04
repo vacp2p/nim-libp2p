@@ -18,31 +18,37 @@ type
   TestSelectStream = ref object of Connection
     step*: int
 
-method readExactly*(s: TestSelectStream,
-                    pbytes: pointer,
-                    nbytes: int): Future[void] {.async, gcsafe.} =
+method readOnce*(s: TestSelectStream,
+                 pbytes: pointer,
+                 nbytes: int): Future[int] {.async, gcsafe.} =
   case s.step:
     of 1:
       var buf = newSeq[byte](1)
       buf[0] = 19
       copyMem(pbytes, addr buf[0], buf.len())
       s.step = 2
+      return buf.len
     of 2:
       var buf = "/multistream/1.0.0\n"
       copyMem(pbytes, addr buf[0], buf.len())
       s.step = 3
+      return buf.len
     of 3:
       var buf = newSeq[byte](1)
       buf[0] = 18
       copyMem(pbytes, addr buf[0], buf.len())
       s.step = 4
+      return buf.len
     of 4:
       var buf = "/test/proto/1.0.0\n"
       copyMem(pbytes, addr buf[0], buf.len())
+      return buf.len
     else:
       copyMem(pbytes,
               cstring("\0x3na\n"),
               "\0x3na\n".len())
+
+      return "\0x3na\n".len()
 
 method write*(s: TestSelectStream, msg: seq[byte]) {.async, gcsafe.} = discard
 
@@ -61,31 +67,36 @@ type
     step*: int
     ls*: LsHandler
 
-method readExactly*(s: TestLsStream,
-                    pbytes: pointer,
-                    nbytes: int):
-                    Future[void] {.async.} =
+method readOnce*(s: TestLsStream,
+                 pbytes: pointer,
+                 nbytes: int):
+                 Future[int] {.async.} =
   case s.step:
     of 1:
       var buf = newSeq[byte](1)
       buf[0] = 19
       copyMem(pbytes, addr buf[0], buf.len())
       s.step = 2
+      return buf.len()
     of 2:
       var buf = "/multistream/1.0.0\n"
       copyMem(pbytes, addr buf[0], buf.len())
       s.step = 3
+      return buf.len()
     of 3:
       var buf = newSeq[byte](1)
       buf[0] = 3
       copyMem(pbytes, addr buf[0], buf.len())
       s.step = 4
+      return buf.len()
     of 4:
       var buf = "ls\n"
       copyMem(pbytes, addr buf[0], buf.len())
+      return buf.len()
     else:
       var buf = "na\n"
       copyMem(pbytes, addr buf[0], buf.len())
+      return buf.len()
 
 method write*(s: TestLsStream, msg: seq[byte]) {.async, gcsafe.} =
   if s.step == 4:
@@ -107,32 +118,38 @@ type
     step*: int
     na*: NaHandler
 
-method readExactly*(s: TestNaStream,
-                    pbytes: pointer,
-                    nbytes: int):
-                    Future[void] {.async, gcsafe.} =
+method readOnce*(s: TestNaStream,
+                 pbytes: pointer,
+                 nbytes: int):
+                 Future[int] {.async, gcsafe.} =
   case s.step:
     of 1:
       var buf = newSeq[byte](1)
       buf[0] = 19
       copyMem(pbytes, addr buf[0], buf.len())
       s.step = 2
+      return buf.len()
     of 2:
       var buf = "/multistream/1.0.0\n"
       copyMem(pbytes, addr buf[0], buf.len())
       s.step = 3
+      return buf.len()
     of 3:
       var buf = newSeq[byte](1)
       buf[0] = 18
       copyMem(pbytes, addr buf[0], buf.len())
       s.step = 4
+      return buf.len()
     of 4:
       var buf = "/test/proto/1.0.0\n"
       copyMem(pbytes, addr buf[0], buf.len())
+      return buf.len()
     else:
       copyMem(pbytes,
               cstring("\0x3na\n"),
               "\0x3na\n".len())
+
+      return "\0x3na\n".len()
 
 method write*(s: TestNaStream, msg: seq[byte]) {.async, gcsafe.} =
   if s.step == 4:

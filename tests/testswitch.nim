@@ -192,8 +192,8 @@ suite "Switch":
 
       await switch2.connect(switch1.peerInfo)
 
-      check switch1.connections.len > 0
-      check switch2.connections.len > 0
+      check switch1.connections[switch2.peerInfo.id].len > 0
+      check switch2.connections[switch1.peerInfo.id].len > 0
 
       await sleepAsync(100.millis)
       await switch2.disconnect(switch1.peerInfo)
@@ -207,8 +207,8 @@ suite "Switch":
       # echo connTracker.dump()
       # check connTracker.isLeaked() == false
 
-      check switch1.connections.len == 0
-      check switch2.connections.len == 0
+      check switch2.peerInfo.id notin switch1.connections
+      check switch1.peerInfo.id notin switch2.connections
 
       await allFuturesThrowing(
         switch1.stop(),

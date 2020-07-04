@@ -21,7 +21,6 @@ type
   Connection* = ref object of LPStream
     peerInfo*: PeerInfo
     observedAddr*: Multiaddress
-    closeEvent*: AsyncEvent
 
   ConnectionTracker* = ref object of TrackerBase
     opened*: uint64
@@ -65,8 +64,6 @@ method initStream*(s: Connection) =
 
 method close*(s: Connection) {.async.} =
   await procCall LPStream(s).close()
-
-  s.closeEvent.fire()
   inc getConnectionTracker().closed
 
 proc `$`*(conn: Connection): string =

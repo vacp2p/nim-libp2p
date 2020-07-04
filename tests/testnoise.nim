@@ -83,10 +83,11 @@ suite "Noise":
 
       proc connHandler(conn: Connection) {.async, gcsafe.} =
         let sconn = await serverNoise.secure(conn, false)
-        defer:
+        try:
+          await sconn.write("Hello!")
+        finally:
           await sconn.close()
           await conn.close()
-        await sconn.write("Hello!")
 
       let
         transport1: TcpTransport = TcpTransport.init()

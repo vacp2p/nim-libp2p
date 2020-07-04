@@ -18,6 +18,7 @@ declareGauge(libp2p_open_streams, "open stream instances", labels = ["type"])
 
 type
   LPStream* = ref object of RootObj
+    closeEvent*: AsyncEvent
     isClosed*: bool
     isEof*: bool
     objName*: string
@@ -73,7 +74,19 @@ method initStream*(s: LPStream) {.base.} =
 
   s.oid = genOid()
   libp2p_open_streams.inc(labelValues = [s.objName])
-  trace "stream created", oid = s.oid
+  trace "stream created", oid = $s.oid, name = s.objName
+
+  # TODO: debuging aid to troubleshoot streams open/close
+  # try:
+  #   echo "ChronosStream ", libp2p_open_streams.value(labelValues = ["ChronosStream"])
+  #   echo "SecureConn ", libp2p_open_streams.value(labelValues = ["SecureConn"])
+  #   # doAssert(libp2p_open_streams.value(labelValues = ["ChronosStream"]) >=
+  #   #   libp2p_open_streams.value(labelValues = ["SecureConn"]))
+  # except CatchableError:
+  #   discard
+
+proc join*(s: LPStream): Future[void] =
+  s.closeEvent.wait()
 
 method closed*(s: LPStream): bool {.base, inline.} =
   s.isClosed
@@ -81,18 +94,28 @@ method closed*(s: LPStream): bool {.base, inline.} =
 method atEof*(s: LPStream): bool {.base, inline.} =
   s.isEof
 
-method readExactly*(s: LPStream,
-                    pbytes: pointer,
-                    nbytes: int):
-                    Future[void] {.base, async.} =
-  doAssert(false, "not implemented!")
-
 method readOnce*(s: LPStream,
                  pbytes: pointer,
                  nbytes: int):
                  Future[int]
   {.base, async.} =
   doAssert(false, "not implemented!")
+
+proc readExactly*(s: LPStream,
+                    pbytes: pointer,
+                    nbytes: int):
+                    Future[void] {.async.} =
+
+  if s.atEof:
+    raise newLPStreamEOFError()
+
+  var pbuffer = cast[ptr UncheckedArray[byte]](pbytes)
+  var read = 0
+  while read < nbytes and not(s.atEof()):
+    read += await s.readOnce(addr pbuffer[read], nbytes - read)
+
+  if read < nbytes:
+    raise newLPStreamIncompleteError()
 
 proc readLine*(s: LPStream, limit = 0, sep = "\r\n"): Future[string] {.async, deprecated: "todo".} =
   # TODO replace with something that exploits buffering better
@@ -167,8 +190,19 @@ proc write*(s: LPStream, pbytes: pointer, nbytes: int): Future[void] {.deprecate
 proc write*(s: LPStream, msg: string): Future[void] =
   s.write(@(toOpenArrayByte(msg, 0, msg.high)))
 
+# TODO: split `close` into `close` and `dispose/destroy`
 method close*(s: LPStream) {.base, async.} =
   if not s.isClosed:
-    libp2p_open_streams.dec(labelValues = [s.objName])
     s.isClosed = true
-    trace "stream destroyed", oid = s.oid
+    s.closeEvent.fire()
+    libp2p_open_streams.dec(labelValues = [s.objName])
+    trace "stream destroyed", oid = $s.oid, name = s.objName
+
+  # TODO: debuging aid to troubleshoot streams open/close
+  # try:
+  #   echo "ChronosStream ", libp2p_open_streams.value(labelValues = ["ChronosStream"])
+  #   echo "SecureConn ", libp2p_open_streams.value(labelValues = ["SecureConn"])
+  #   # doAssert(libp2p_open_streams.value(labelValues = ["ChronosStream"]) >=
+  #   #   libp2p_open_streams.value(labelValues = ["SecureConn"]))
+  # except CatchableError:
+  #   discard

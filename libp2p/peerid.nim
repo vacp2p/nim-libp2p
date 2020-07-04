@@ -8,10 +8,15 @@
 ## those terms.
 
 ## This module implementes API for libp2p peer.
+
+{.push raises: [Defect].}
+
 import hashes
 import nimcrypto/utils, stew/base58
 import crypto/crypto, multicodec, multihash, vbuffer
 import protobuf/minprotobuf
+import stew/results
+export results
 
 const
   maxInlineKeyLength* = 42
@@ -143,37 +148,51 @@ proc init*(pid: var PeerID, data: string): bool =
       pid = opid
       result = true
 
-proc init*(t: typedesc[PeerID], data: openarray[byte]): PeerID {.inline.} =
+proc init*(t: typedesc[PeerID], data: openarray[byte]): Result[PeerID, cstring] {.inline.} =
   ## Create new peer id from raw binary representation ``data``.
-  if not init(result, data):
-    raise newException(PeerIDError, "Incorrect PeerID binary form")
+  var res: PeerID
+  if not init(res, data):
+    err("peerid: incorrect PeerID binary form")
+  else:
+    ok(res)
 
-proc init*(t: typedesc[PeerID], data: string): PeerID {.inline.} =
+proc init*(t: typedesc[PeerID], data: string): Result[PeerID, cstring] {.inline.} =
   ## Create new peer id from base58 encoded string representation ``data``.
-  if not init(result, data):
-    raise newException(PeerIDError, "Incorrect PeerID string")
+  var res: PeerID
+  if not init(res, data):
+    err("peerid: incorrect PeerID string")
+  else:
+    ok(res)
 
-proc init*(t: typedesc[PeerID], pubkey: PublicKey): PeerID =
+proc init*(t: typedesc[PeerID], pubkey: PublicKey): Result[PeerID, cstring] =
   ## Create new peer id from public key ``pubkey``.
-  var pubraw = pubkey.getBytes().tryGet()
+  var pubraw = ? pubkey.getBytes().orError("peerid: failed to get bytes from given key")
   var mh: MultiHash
   if len(pubraw) <= maxInlineKeyLength:
-    mh = MultiHash.digest("identity", pubraw).tryGet()
+    mh = ? MultiHash.digest("identity", pubraw)
   else:
-    mh = MultiHash.digest("sha2-256", pubraw).tryGet()
-  result.data = mh.data.buffer
+    mh = ? MultiHash.digest("sha2-256", pubraw)
+  ok(PeerID(data: mh.data.buffer))
 
-proc init*(t: typedesc[PeerID], seckey: PrivateKey): PeerID {.inline.} =
+proc init*(t: typedesc[PeerID], seckey: PrivateKey): Result[PeerID, cstring] {.inline.} =
   ## Create new peer id from private key ``seckey``.
-  result = PeerID.init(seckey.getKey().tryGet())
+  PeerID.init(? seckey.getKey().orError("invalid private key"))
 
 proc match*(pid: PeerID, pubkey: PublicKey): bool {.inline.} =
   ## Returns ``true`` if ``pid`` matches public key ``pubkey``.
-  result = (pid == PeerID.init(pubkey))
+  let p = PeerID.init(pubkey)
+  if p.isErr:
+    false
+  else:
+    pid == p.get()
 
 proc match*(pid: PeerID, seckey: PrivateKey): bool {.inline.} =
   ## Returns ``true`` if ``pid`` matches private key ``seckey``.
-  result = (pid == PeerID.init(seckey))
+  let p = PeerID.init(seckey)
+  if p.isErr:
+    false
+  else:
+    pid == p.get()
 
 ## Serialization/Deserialization helpers
 

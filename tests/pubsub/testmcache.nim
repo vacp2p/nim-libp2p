@@ -2,7 +2,7 @@
 
 import unittest, options, sets, sequtils
 import stew/byteutils
-import ../../libp2p/[peer,
+import ../../libp2p/[peerid,
                      crypto/crypto,
                      protocols/pubsub/mcache,
                      protocols/pubsub/rpc/message,
@@ -11,25 +11,26 @@ import ../../libp2p/[peer,
 suite "MCache":
   test "put/get":
     var mCache = newMCache(3, 5)
-    var msg = Message(fromPeer: PeerID.init(PrivateKey.random(ECDSA).get()).data,
+    var msg = Message(fromPeer: PeerID.init(PrivateKey.random(ECDSA).get()).get(),
                        seqno: "12345".toBytes())
-    mCache.put(msg)
-    check mCache.get(msg.msgId).isSome and mCache.get(msg.msgId).get() == msg
+    let msgId = defaultMsgIdProvider(msg)
+    mCache.put(msgId, msg)
+    check mCache.get(msgId).isSome and mCache.get(msgId).get() == msg
 
   test "window":
     var mCache = newMCache(3, 5)
 
     for i in 0..<3:
-      var msg = Message(fromPeer: PeerID.init(PrivateKey.random(ECDSA).get()).data,
+      var msg = Message(fromPeer: PeerID.init(PrivateKey.random(ECDSA).get()).get(),
                         seqno: "12345".toBytes(),
                         topicIDs: @["foo"])
-      mCache.put(msg)
+      mCache.put(defaultMsgIdProvider(msg), msg)
 
     for i in 0..<5:
-      var msg = Message(fromPeer: PeerID.init(PrivateKey.random(ECDSA).get()).data,
+      var msg = Message(fromPeer: PeerID.init(PrivateKey.random(ECDSA).get()).get(),
                         seqno: "12345".toBytes(),
                         topicIDs: @["bar"])
-      mCache.put(msg)
+      mCache.put(defaultMsgIdProvider(msg), msg)
 
     var mids = mCache.window("foo")
     check mids.len == 3
@@ -41,28 +42,28 @@ suite "MCache":
     var mCache = newMCache(1, 5)
 
     for i in 0..<3:
-      var msg = Message(fromPeer: PeerID.init(PrivateKey.random(ECDSA).get()).data,
+      var msg = Message(fromPeer: PeerID.init(PrivateKey.random(ECDSA).get()).get(),
                         seqno: "12345".toBytes(),
                         topicIDs: @["foo"])
-      mCache.put(msg)
+      mCache.put(defaultMsgIdProvider(msg), msg)
 
     mCache.shift()
     check mCache.window("foo").len == 0
 
     for i in 0..<3:
-      var msg = Message(fromPeer: PeerID.init(PrivateKey.random(ECDSA).get()).data,
+      var msg = Message(fromPeer: PeerID.init(PrivateKey.random(ECDSA).get()).get(),
                         seqno: "12345".toBytes(),
                         topicIDs: @["bar"])
-      mCache.put(msg)
+      mCache.put(defaultMsgIdProvider(msg), msg)
 
     mCache.shift()
     check mCache.window("bar").len == 0
 
     for i in 0..<3:
-      var msg = Message(fromPeer: PeerID.init(PrivateKey.random(ECDSA).get()).data,
+      var msg = Message(fromPeer: PeerID.init(PrivateKey.random(ECDSA).get()).get(),
                         seqno: "12345".toBytes(),
                         topicIDs: @["baz"])
-      mCache.put(msg)
+      mCache.put(defaultMsgIdProvider(msg), msg)
 
     mCache.shift()
     check mCache.window("baz").len == 0
@@ -71,22 +72,22 @@ suite "MCache":
     var mCache = newMCache(1, 5)
 
     for i in 0..<3:
-      var msg = Message(fromPeer: PeerID.init(PrivateKey.random(ECDSA).get()).data,
+      var msg = Message(fromPeer: PeerID.init(PrivateKey.random(ECDSA).get()).get(),
                         seqno: "12345".toBytes(),
                         topicIDs: @["foo"])
-      mCache.put(msg)
+      mCache.put(defaultMsgIdProvider(msg), msg)
 
     for i in 0..<3:
-      var msg = Message(fromPeer: PeerID.init(PrivateKey.random(ECDSA).get()).data,
+      var msg = Message(fromPeer: PeerID.init(PrivateKey.random(ECDSA).get()).get(),
                         seqno: "12345".toBytes(),
                         topicIDs: @["bar"])
-      mCache.put(msg)
+      mCache.put(defaultMsgIdProvider(msg), msg)
 
     for i in 0..<3:
-      var msg = Message(fromPeer: PeerID.init(PrivateKey.random(ECDSA).get()).data,
+      var msg = Message(fromPeer: PeerID.init(PrivateKey.random(ECDSA).get()).get(),
                         seqno: "12345".toBytes(),
                         topicIDs: @["baz"])
-      mCache.put(msg)
+      mCache.put(defaultMsgIdProvider(msg), msg)
 
     mCache.shift()
     check mCache.window("foo").len == 0

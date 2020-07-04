@@ -9,7 +9,7 @@
 
 import chronos, chronicles
 import tables, options, sets, sequtils
-import rpc/[messages, message], timedcache
+import rpc/[messages], timedcache
 
 type
   CacheEntry* = object
@@ -30,17 +30,17 @@ proc get*(c: MCache, mid: string): Option[Message] =
 proc contains*(c: MCache, mid: string): bool =
   c.get(mid).isSome
 
-proc put*(c: MCache, msg: Message) =
+proc put*(c: MCache, msgId: string, msg: Message) =
   proc handler(key: string, val: Message) {.gcsafe.} =
     ## make sure we remove the message from history
     ## to keep things consisten
     c.history.applyIt(
-      it.filterIt(it.mid != msg.msgId)
+      it.filterIt(it.mid != msgId)
     )
 
-  if msg.msgId notin c.msgs:
-    c.msgs.put(msg.msgId, msg, handler = handler)
-    c.history[0].add(CacheEntry(mid: msg.msgId, msg: msg))
+  if msgId notin c.msgs:
+    c.msgs.put(msgId, msg, handler = handler)
+    c.history[0].add(CacheEntry(mid: msgId, msg: msg))
 
 proc window*(c: MCache, topic: string): HashSet[string] =
   result = initHashSet[string]()
@@ -56,7 +56,7 @@ proc window*(c: MCache, topic: string): HashSet[string] =
       for entry in slot:
         for t in entry.msg.topicIDs:
           if t == topic:
-            result.incl(entry.msg.msgId)
+            result.incl(entry.mid)
             break
 
 proc shift*(c: MCache) =

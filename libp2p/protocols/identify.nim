@@ -12,7 +12,7 @@ import chronos, chronicles
 import ../protobuf/minprotobuf,
        ../peerinfo,
        ../stream/connection,
-       ../peer,
+       ../peerid,
        ../crypto/crypto,
        ../multiaddress,
        ../protocols/protocol,
@@ -27,7 +27,7 @@ const
   ProtoVersion* = "ipfs/0.1.0"
   AgentVersion* = "nim-libp2p/0.0.1"
 
-#TODO: implment push identify, leaving out for now as it is not essential
+#TODO: implement push identify, leaving out for now as it is not essential
 
 type
   IdentityNoMatchError* = object of CatchableError
@@ -113,13 +113,15 @@ proc newIdentify*(peerInfo: PeerInfo): Identify =
 method init*(p: Identify) =
   proc handle(conn: Connection, proto: string) {.async, gcsafe, closure.} =
     try:
-      try:
-        trace "handling identify request", oid = conn.oid
-        var pb = encodeMsg(p.peerInfo, conn.observedAddr)
-        await conn.writeLp(pb.buffer)
-      finally:
+      defer:
         trace "exiting identify handler", oid = conn.oid
         await conn.close()
+
+      trace "handling identify request", oid = conn.oid
+      var pb = encodeMsg(p.peerInfo, conn.observedAddr)
+      await conn.writeLp(pb.buffer)
+    except CancelledError as exc:
+      raise exc
     except CatchableError as exc:
       trace "exception in identify handler", exc = exc.msg
 
@@ -140,16 +142,18 @@ proc identify*(p: Identify,
 
   if not isNil(remotePeerInfo) and result.pubKey.isSome:
     let peer = PeerID.init(result.pubKey.get())
+    if peer.isErr:
+      raise newException(IdentityInvalidMsgError, $peer.error)
+    else:
+      # do a string comaprison of the ids,
+      # because that is the only thing we
+      # have in most cases
+      if peer.get() != remotePeerInfo.peerId:
+        trace "Peer ids don't match",
+              remote = peer.get().pretty(),
+              local = remotePeerInfo.id
 
-    # do a string comaprison of the ids,
-    # because that is the only thing we
-    # have in most cases
-    if peer != remotePeerInfo.peerId:
-      trace "Peer ids don't match",
-            remote = peer.pretty(),
-            local = remotePeerInfo.id
-
-      raise newException(IdentityNoMatchError, "Peer ids don't match")
+        raise newException(IdentityNoMatchError, "Peer ids don't match")
 
 proc push*(p: Identify, conn: Connection) {.async.} =
   await conn.write(IdentifyPushCodec)

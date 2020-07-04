@@ -7,7 +7,7 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import chronos, chronicles, sequtils, oids
+import chronos, chronicles, sequtils
 import transport,
        ../errors,
        ../wire,
@@ -15,6 +15,9 @@ import transport,
        ../multicodec,
        ../stream/connection,
        ../stream/chronosstream
+
+when chronicles.enabledLogLevel == LogLevel.TRACE:
+  import oids
 
 logScope:
   topics = "tcptransport"
@@ -94,14 +97,7 @@ proc connCb(server: StreamServer,
     raise exc
   except CatchableError as err:
     debug "Connection setup failed", err = err.msg
-    if not client.closed:
-      try:
-        client.close()
-      except CancelledError as err:
-        raise err
-      except CatchableError as err:
-        # shouldn't happen but..
-        warn "Error closing connection", err = err.msg
+    client.close()
 
 proc init*(T: type TcpTransport, flags: set[ServerFlags] = {}): T =
   result = T(flags: flags)

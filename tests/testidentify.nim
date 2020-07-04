@@ -3,7 +3,7 @@ import chronos, strutils
 import ../libp2p/[protocols/identify,
                   multiaddress,
                   peerinfo,
-                  peer,
+                  peerid,
                   stream/connection,
                   multistream,
                   transports/transport,
@@ -16,6 +16,7 @@ when defined(nimHasUsed): {.used.}
 suite "Identify":
   teardown:
     for tracker in testTrackers():
+      # echo tracker.dump()
       check tracker.isLeaked() == false
 
   test "handle identify message":

@@ -42,15 +42,6 @@ template withExceptions(body: untyped) =
     raise newLPStreamEOFError()
     # raise (ref LPStreamError)(msg: exc.msg, parent: exc)
 
-method readExactly*(s: ChronosStream,
-                    pbytes: pointer,
-                    nbytes: int): Future[void] {.async.} =
-  if s.atEof:
-    raise newLPStreamEOFError()
-
-  withExceptions:
-    await s.client.readExactly(pbytes, nbytes)
-
 method readOnce*(s: ChronosStream, pbytes: pointer, nbytes: int): Future[int] {.async.} =
   if s.atEof:
     raise newLPStreamEOFError()
@@ -82,12 +73,11 @@ method atEof*(s: ChronosStream): bool {.inline.} =
 method close*(s: ChronosStream) {.async.} =
   try:
     if not s.isClosed:
-      s.isClosed = true
+      await procCall Connection(s).close()
 
-      trace "shutting down chronos stream", address = $s.client.remoteAddress()
+      trace "shutting down chronos stream", address = $s.client.remoteAddress(), oid = s.oid
       if not s.client.closed():
         await s.client.closeWait()
 
-      await procCall Connection(s).close()
   except CatchableError as exc:
     trace "error closing chronosstream", exc = exc.msg

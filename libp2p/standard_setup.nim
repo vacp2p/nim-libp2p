@@ -5,18 +5,19 @@ const
 
 import
   options, tables, chronos,
-  switch, peer, peerinfo, stream/connection, multiaddress,
+  switch, peerid, peerinfo, stream/connection, multiaddress,
   crypto/crypto, transports/[transport, tcptransport],
   muxers/[muxer, mplex/mplex, mplex/types],
   protocols/[identify, secure/secure],
-  protocols/pubsub/[pubsub, gossipsub, floodsub]
+  protocols/pubsub/[pubsub, gossipsub, floodsub],
+  protocols/pubsub/rpc/message
 
 import
   protocols/secure/noise,
   protocols/secure/secio
 
 export
-  switch, peer, peerinfo, connection, multiaddress, crypto
+  switch, peerid, peerinfo, connection, multiaddress, crypto
 
 type
   SecureProtocol* {.pure.} = enum
@@ -31,11 +32,12 @@ proc newStandardSwitch*(privKey = none(PrivateKey),
                         secureManagers: openarray[SecureProtocol] = [
                             # array cos order matters
                             SecureProtocol.Secio,
-                            SecureProtocol.Noise, 
+                            SecureProtocol.Noise,
                           ],
                         verifySignature = libp2p_pubsub_verify,
                         sign = libp2p_pubsub_sign,
-                        transportFlags: set[ServerFlags] = {}): Switch =
+                        transportFlags: set[ServerFlags] = {},
+                        msgIdProvider: MsgIdProvider = defaultMsgIdProvider): Switch =
   proc createMplex(conn: Connection): Muxer =
     newMplex(conn)
 
@@ -62,13 +64,15 @@ proc newStandardSwitch*(privKey = none(PrivateKey),
                             triggerSelf = triggerSelf,
                             verifySignature = verifySignature,
                             sign = sign,
+                            msgIdProvider = msgIdProvider,
                             gossipParams).PubSub
                else:
                   newPubSub(FloodSub,
                             peerInfo = peerInfo,
                             triggerSelf = triggerSelf,
                             verifySignature = verifySignature,
-                            sign = sign).PubSub
+                            sign = sign,
+                            msgIdProvider = msgIdProvider).PubSub
 
   newSwitch(
     peerInfo,
