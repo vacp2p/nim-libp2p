@@ -1,4 +1,4 @@
-import unittest, options
+import unittest, options, bearssl
 import chronos, strutils
 import ../libp2p/[protocols/identify,
                   multiaddress,
@@ -13,6 +13,9 @@ import ./helpers
 
 when defined(nimHasUsed): {.used.}
 
+var rng {.threadvar.}: ref BrHmacDrbgContext
+rng = initRng()
+
 suite "Identify":
   teardown:
     for tracker in testTrackers():
@@ -22,7 +25,6 @@ suite "Identify":
   test "handle identify message":
     proc testHandle(): Future[bool] {.async.} =
       let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
-      let rng = initRng()
       let remoteSecKey = PrivateKey.random(ECDSA, rng[]).get()
       let remotePeerInfo = PeerInfo.init(remoteSecKey,
                                         [ma],
@@ -67,8 +69,7 @@ suite "Identify":
 
   test "handle failed identify":
     proc testHandleError() {.async.} =
-      let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
-      let rng = initRng()
+      let ma = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
       var remotePeerInfo = PeerInfo.init(PrivateKey.random(ECDSA, rng[]).get(), [ma])
       let identifyProto1 = newIdentify(remotePeerInfo)
       let msListen = newMultistream()

@@ -12,15 +12,16 @@ import nimcrypto/utils
 
 when defined(nimHasUsed): {.used.}
 
+let rng = initRng()
+
 suite "Secp256k1 testing suite":
   const TestsCount = 20
-  let rng = initRng()
 
   test "Private key serialize/deserialize test":
     for i in 0..<TestsCount:
       var rkey1, rkey2: SkPrivateKey
       var skey2 = newSeq[byte](256)
-      var key = SkPrivateKey.random(rng[]).expect("random key")
+      var key = SkPrivateKey.random(rng[])
       var skey1 = key.getBytes()
       check:
         key.toBytes(skey2).expect("bytes len") > 0
@@ -38,7 +39,7 @@ suite "Secp256k1 testing suite":
     for i in 0..<TestsCount:
       var rkey1, rkey2: SkPublicKey
       var skey2 = newSeq[byte](256)
-      var pair = SkKeyPair.random(rng[]).expect("random key pair")
+      var pair = SkKeyPair.random(rng[])
       var skey1 = pair.pubkey.getBytes()
       check:
         pair.pubkey.toBytes(skey2).expect("bytes len") > 0
@@ -54,7 +55,7 @@ suite "Secp256k1 testing suite":
   test "Generate/Sign/Serialize/Deserialize/Verify test":
     var message = "message to sign"
     for i in 0..<TestsCount:
-      var kp = SkKeyPair.random(rng[]).expect("random key pair")
+      var kp = SkKeyPair.random(rng[])
       var sig = kp.seckey.sign(message)
       var sersk = kp.seckey.getBytes()
       var serpk = kp.pubkey.getBytes()

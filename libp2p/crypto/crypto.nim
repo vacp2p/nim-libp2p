@@ -99,6 +99,8 @@ template orError*(exp: untyped, err: untyped): untyped =
   (exp.mapErr do (_: auto) -> auto: err)
 
 proc initRng*(): ref BrHmacDrbgContext =
+  # You should only create one instance of the RNG per application / library
+  # Ref is used so that it can be shared between components
   var
     seeder = brPrngSeederSystem(nil)
     rng = (ref BrHmacDrbgContext)()
@@ -125,7 +127,7 @@ proc random*(
     let eckey = ? ecnist.EcPrivateKey.random(Secp256r1, rng).orError(KeyError)
     ok(PrivateKey(scheme: scheme, eckey: eckey))
   of Secp256k1:
-    let skkey = ? SkPrivateKey.random(rng).orError(KeyError)
+    let skkey = SkPrivateKey.random(rng)
     ok(PrivateKey(scheme: scheme, skkey: skkey))
   else:
     err(SchemeError)
@@ -154,7 +156,7 @@ proc random*(
       seckey: PrivateKey(scheme: scheme, eckey: pair.seckey),
       pubkey: PublicKey(scheme: scheme, eckey: pair.pubkey)))
   of Secp256k1:
-    let pair = ? SkKeyPair.random(rng).orError(KeyError)
+    let pair = SkKeyPair.random(rng)
     ok(KeyPair(
       seckey: PrivateKey(scheme: scheme, skkey: pair.seckey),
       pubkey: PublicKey(scheme: scheme, skkey: pair.pubkey)))

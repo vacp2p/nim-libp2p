@@ -36,12 +36,12 @@ proc newStandardSwitch*(privKey = none(PrivateKey),
                         verifySignature = libp2p_pubsub_verify,
                         sign = libp2p_pubsub_sign,
                         transportFlags: set[ServerFlags] = {},
-                        msgIdProvider: MsgIdProvider = defaultMsgIdProvider): Switch =
+                        msgIdProvider: MsgIdProvider = defaultMsgIdProvider,
+                        rng = initRng()): Switch =
   proc createMplex(conn: Connection): Muxer =
     newMplex(conn)
 
-  let rng = initRng()
-  if rng == nil:
+  if rng == nil: # initRng could fail
     raise (ref CatchableError)(msg: "Cannot initialize RNG")
 
   let

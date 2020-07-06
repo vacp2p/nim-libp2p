@@ -34,21 +34,19 @@ type
 template pubkey*(v: SkKeyPair): SkPublicKey = SkPublicKey(secp256k1.SkKeyPair(v).pubkey)
 template seckey*(v: SkKeyPair): SkPrivateKey = SkPrivateKey(secp256k1.SkKeyPair(v).seckey)
 
-proc random*(t: typedesc[SkPrivateKey], rng: var BrHmacDrbgContext): SkResult[SkPrivateKey] =
+proc random*(t: typedesc[SkPrivateKey], rng: var BrHmacDrbgContext): SkPrivateKey =
   let rngPtr = unsafeAddr rng # doesn't escape
-  proc callRng(data: var openArray[byte]): bool =
+  proc callRng(data: var openArray[byte]) =
     brHmacDrbgGenerate(rngPtr[], data)
-    true
 
-  ok(SkPrivateKey(? SkSecretKey.random(callRng)))
+  SkPrivateKey(SkSecretKey.random(callRng))
 
-proc random*(t: typedesc[SkKeyPair], rng: var BrHmacDrbgContext): SkResult[SkKeyPair] =
+proc random*(t: typedesc[SkKeyPair], rng: var BrHmacDrbgContext): SkKeyPair =
   let rngPtr = unsafeAddr rng # doesn't escape
-  proc callRng(data: var openArray[byte]): bool =
+  proc callRng(data: var openArray[byte]) =
     brHmacDrbgGenerate(rngPtr[], data)
-    true
 
-  ok(SkKeyPair(? secp256k1.SkKeyPair.random(callRng)))
+  SkKeyPair(secp256k1.SkKeyPair.random(callRng))
 
 template seckey*(v: SkKeyPair): SkPrivateKey =
   SkPrivateKey(secp256k1.SkKeyPair(v).seckey)
@@ -102,14 +100,14 @@ proc init*(t: typedesc[SkPrivateKey], data: openarray[byte]): SkResult[SkPrivate
   ## representation ``data``.
   ##
   ## Procedure returns `private key` on success.
-  ok(SkPrivateKey(? SkSecretKey.fromRaw(data)))
+  SkSecretKey.fromRaw(data).mapConvert(SkPrivateKey)
 
 proc init*(t: typedesc[SkPrivateKey], data: string): SkResult[SkPrivateKey] =
   ## Initialize Secp256k1 `private key` from hexadecimal string
   ## representation ``data``.
   ##
   ## Procedure returns `private key` on success.
-  ok(SkPrivateKey(? SkSecretKey.fromHex(data)))
+  SkSecretKey.fromHex(data).mapConvert(SkPrivateKey)
 
 proc init*(t: typedesc[SkPublicKey], data: openarray[byte]): SkResult[SkPublicKey] =
   ## Initialize Secp256k1 `public key` from raw binary
@@ -181,11 +179,11 @@ proc toBytes*(sig: SkSignature, data: var openarray[byte]): int =
 
 proc getBytes*(key: SkPrivateKey): seq[byte] {.inline.} =
   ## Serialize Secp256k1 `private key` and return it.
-  result = @(SkSecretKey(key).toRaw())
+  @(SkSecretKey(key).toRaw())
 
 proc getBytes*(key: SkPublicKey): seq[byte] {.inline.} =
   ## Serialize Secp256k1 `public key` and return it.
-  result = @(secp256k1.SkPublicKey(key).toRawCompressed())
+  @(secp256k1.SkPublicKey(key).toRawCompressed())
 
 proc getBytes*(sig: SkSignature): seq[byte] {.inline.} =
   ## Serialize Secp256k1 `signature` and return it.

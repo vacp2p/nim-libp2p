@@ -1,6 +1,6 @@
 {.used.}
 
-import unittest, options, sets, sequtils
+import unittest, options, sets, sequtils, bearssl
 import stew/byteutils
 import ../../libp2p/[peerid,
                      crypto/crypto,
@@ -8,11 +8,16 @@ import ../../libp2p/[peerid,
                      protocols/pubsub/rpc/message,
                      protocols/pubsub/rpc/messages]
 
+var rng {.threadvar.}: ref BrHmacDrbgContext
+rng = initRng()
+
+proc randomPeerID(): PeerID =
+  PeerID.init(PrivateKey.random(ECDSA, rng[]).get()).get()
+
 suite "MCache":
   test "put/get":
     var mCache = newMCache(3, 5)
-    var msg = Message(fromPeer: PeerID.init(PrivateKey.random(ECDSA).get()).get(),
-                       seqno: "12345".toBytes())
+    var msg = Message(fromPeer: randomPeerID(), seqno: "12345".toBytes())
     let msgId = defaultMsgIdProvider(msg)
     mCache.put(msgId, msg)
     check mCache.get(msgId).isSome and mCache.get(msgId).get() == msg
@@ -21,13 +26,13 @@ suite "MCache":
     var mCache = newMCache(3, 5)
 
     for i in 0..<3:
-      var msg = Message(fromPeer: PeerID.init(PrivateKey.random(ECDSA).get()).get(),
+      var msg = Message(fromPeer: randomPeerID(),
                         seqno: "12345".toBytes(),
                         topicIDs: @["foo"])
       mCache.put(defaultMsgIdProvider(msg), msg)
 
     for i in 0..<5:
-      var msg = Message(fromPeer: PeerID.init(PrivateKey.random(ECDSA).get()).get(),
+      var msg = Message(fromPeer: randomPeerID(),
                         seqno: "12345".toBytes(),
                         topicIDs: @["bar"])
       mCache.put(defaultMsgIdProvider(msg), msg)
@@ -42,7 +47,7 @@ suite "MCache":
     var mCache = newMCache(1, 5)
 
     for i in 0..<3:
-      var msg = Message(fromPeer: PeerID.init(PrivateKey.random(ECDSA).get()).get(),
+      var msg = Message(fromPeer: randomPeerID(),
                         seqno: "12345".toBytes(),
                         topicIDs: @["foo"])
       mCache.put(defaultMsgIdProvider(msg), msg)
@@ -51,7 +56,7 @@ suite "MCache":
     check mCache.window("foo").len == 0
 
     for i in 0..<3:
-      var msg = Message(fromPeer: PeerID.init(PrivateKey.random(ECDSA).get()).get(),
+      var msg = Message(fromPeer: randomPeerID(),
                         seqno: "12345".toBytes(),
                         topicIDs: @["bar"])
       mCache.put(defaultMsgIdProvider(msg), msg)
@@ -60,7 +65,7 @@ suite "MCache":
     check mCache.window("bar").len == 0
 
     for i in 0..<3:
-      var msg = Message(fromPeer: PeerID.init(PrivateKey.random(ECDSA).get()).get(),
+      var msg = Message(fromPeer: randomPeerID(),
                         seqno: "12345".toBytes(),
                         topicIDs: @["baz"])
       mCache.put(defaultMsgIdProvider(msg), msg)
@@ -72,19 +77,19 @@ suite "MCache":
     var mCache = newMCache(1, 5)
 
     for i in 0..<3:
-      var msg = Message(fromPeer: PeerID.init(PrivateKey.random(ECDSA).get()).get(),
+      var msg = Message(fromPeer: randomPeerID(),
                         seqno: "12345".toBytes(),
                         topicIDs: @["foo"])
       mCache.put(defaultMsgIdProvider(msg), msg)
 
     for i in 0..<3:
-      var msg = Message(fromPeer: PeerID.init(PrivateKey.random(ECDSA).get()).get(),
+      var msg = Message(fromPeer: randomPeerID(),
                         seqno: "12345".toBytes(),
                         topicIDs: @["bar"])
       mCache.put(defaultMsgIdProvider(msg), msg)
 
     for i in 0..<3:
-      var msg = Message(fromPeer: PeerID.init(PrivateKey.random(ECDSA).get()).get(),
+      var msg = Message(fromPeer: randomPeerID(),
                         seqno: "12345".toBytes(),
                         topicIDs: @["baz"])
       mCache.put(defaultMsgIdProvider(msg), msg)

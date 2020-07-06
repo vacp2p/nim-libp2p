@@ -267,9 +267,10 @@ const
        ACB51807206B8332127E3692269013B96F0CABD95D7431805E48176ADC5D1366"""
   ]
 
+let rng = initRng()
+
 suite "RSA 512/1024/2048/4096 test suite":
   test "[rsa512] Private key serialize/deserialize test":
-    let rng = initRng()
     for i in 0..<TestsCount:
       var rkey1, rkey2: RsaPrivateKey
       var skey2 = newSeq[byte](4096)
@@ -288,7 +289,6 @@ suite "RSA 512/1024/2048/4096 test suite":
         rkey4 == key
 
   test "[rsa1024] Private key serialize/deserialize test":
-    let rng = initRng()
     for i in 0..<TestsCount:
       var rkey1, rkey2: RsaPrivateKey
       var skey2 = newSeq[byte](4096)
@@ -307,7 +307,6 @@ suite "RSA 512/1024/2048/4096 test suite":
         rkey4 == key
 
   test "[rsa2048] Private key serialize/deserialize test":
-    let rng = initRng()
     var rkey1, rkey2: RsaPrivateKey
     var skey2 = newSeq[byte](4096)
     var key = RsaPrivateKey.random(rng[], 2048).expect("random failed")
@@ -327,7 +326,6 @@ suite "RSA 512/1024/2048/4096 test suite":
   test "[rsa4096] Private key serialize/deserialize test":
     # This test is too slow to run in debug mode.
     when defined(release):
-      let rng = initRng()
       var rkey1, rkey2: RsaPrivateKey
       var skey2 = newSeq[byte](4096)
       var key = RsaPrivateKey.random(rng[], 4096).expect("random failed")
@@ -345,7 +343,6 @@ suite "RSA 512/1024/2048/4096 test suite":
         rkey4 == key
 
   test "[rsa512] Public key serialize/deserialize test":
-    let rng = initRng()
     for i in 0..<TestsCount:
       var rkey1, rkey2: RsaPublicKey
       var skey2 = newSeq[byte](4096)
@@ -364,7 +361,6 @@ suite "RSA 512/1024/2048/4096 test suite":
         rkey4 == pair.pubkey
 
   test "[rsa1024] Public key serialize/deserialize test":
-    let rng = initRng()
     for i in 0..<TestsCount:
       var rkey1, rkey2: RsaPublicKey
       var skey2 = newSeq[byte](4096)
@@ -383,7 +379,6 @@ suite "RSA 512/1024/2048/4096 test suite":
         rkey4 == pair.pubkey
 
   test "[rsa2048] Public key serialize/deserialize test":
-    let rng = initRng()
     var rkey1, rkey2: RsaPublicKey
     var skey2 = newSeq[byte](4096)
     var pair = RsaKeyPair.random(rng[], 2048).expect("random failed")
@@ -402,7 +397,6 @@ suite "RSA 512/1024/2048/4096 test suite":
 
   test "[rsa4096] Public key serialize/deserialize test":
     when defined(release):
-      let rng = initRng()
       var rkey1, rkey2: RsaPublicKey
       var skey2 = newSeq[byte](4096)
       var pair = RsaKeyPair.random(rng[], 4096).expect("random failed")
@@ -421,7 +415,6 @@ suite "RSA 512/1024/2048/4096 test suite":
 
   test "[rsa512] Generate/Sign/Serialize/Deserialize/Verify test":
     var message = "message to sign"
-    let rng = initRng()
     for i in 0..<TestsCount:
       var kp = RsaKeyPair.random(rng[], 512).expect("RsaKeyPair.random failed")
       var sig = kp.seckey.sign(message).expect("signature")
@@ -438,7 +431,6 @@ suite "RSA 512/1024/2048/4096 test suite":
 
   test "[rsa1024] Generate/Sign/Serialize/Deserialize/Verify test":
     var message = "message to sign"
-    let rng = initRng()
     for i in 0..<TestsCount:
       var kp = RsaKeyPair.random(rng[], 1024).expect("RsaPrivateKey.random failed")
       var sig = kp.seckey.sign(message).expect("signature")
@@ -455,7 +447,6 @@ suite "RSA 512/1024/2048/4096 test suite":
 
   test "[rsa2048] Generate/Sign/Serialize/Deserialize/Verify test":
     var message = "message to sign"
-    let rng = initRng()
     var kp = RsaKeyPair.random(rng[], 2048).expect("RsaPrivateKey.random failed")
     var sig = kp.seckey.sign(message).expect("signature")
     var sersk = kp.seckey.getBytes().expect("bytes")
@@ -472,7 +463,6 @@ suite "RSA 512/1024/2048/4096 test suite":
   test "[rsa4096] Generate/Sign/Serialize/Deserialize/Verify test":
     when defined(release):
       var message = "message to sign"
-      let rng = initRng()
       var kp = RsaKeyPair.random(rng[], 2048).expect("RsaPrivateKey.random failed")
       var sig = kp.seckey.sign(message).expect("signature")
       var sersk = kp.seckey.getBytes().expect("bytes")

@@ -9,7 +9,7 @@
 
 {.used.}
 
-import unittest, tables
+import unittest, tables, bearssl
 import chronos, stew/byteutils
 import chronicles
 import nimcrypto/sysrand
@@ -39,6 +39,9 @@ const
 type
   TestProto = ref object of LPProtocol
 
+var rng {.threadvar.}: ref BrHmacDrbgContext
+rng = initRng()
+
 method init(p: TestProto) {.gcsafe.} =
   proc handle(conn: Connection, proto: string) {.async, gcsafe.} =
     let msg = string.fromBytes(await conn.readLp(1024))
@@ -50,7 +53,6 @@ method init(p: TestProto) {.gcsafe.} =
   p.handler = handle
 
 proc createSwitch(ma: MultiAddress; outgoing: bool): (Switch, PeerInfo) =
-  let rng = initRng()
   var peerInfo: PeerInfo = PeerInfo.init(PrivateKey.random(ECDSA, rng[]).get())
   peerInfo.addrs.add(ma)
   let identify = newIdentify(peerInfo)
@@ -78,8 +80,7 @@ suite "Noise":
   test "e2e: handle write + noise":
     proc testListenerDialer(): Future[bool] {.async.} =
       let
-        rng = initRng()
-        server: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
+        server = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
         serverInfo = PeerInfo.init(PrivateKey.random(ECDSA, rng[]).get(), [server])
         serverNoise = newNoise(rng, serverInfo.privateKey, outgoing = false)
 
@@ -118,8 +119,7 @@ suite "Noise":
   test "e2e: handle read + noise":
     proc testListenerDialer(): Future[bool] {.async.} =
       let
-        rng = initRng()
-        server: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
+        server = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
         serverInfo = PeerInfo.init(PrivateKey.random(ECDSA, rng[]).get(), [server])
         serverNoise = newNoise(rng, serverInfo.privateKey, outgoing = false)
         readTask = newFuture[void]()
@@ -160,8 +160,7 @@ suite "Noise":
   test "e2e: handle read + noise fragmented":
     proc testListenerDialer(): Future[bool] {.async.} =
       let
-        rng = initRng()
-        server: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
+        server = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
         serverInfo = PeerInfo.init(PrivateKey.random(ECDSA, rng[]).get(), [server])
         serverNoise = newNoise(rng, serverInfo.privateKey, outgoing = false)
         readTask = newFuture[void]()
