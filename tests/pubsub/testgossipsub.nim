@@ -86,7 +86,7 @@ suite "GossipSub":
 
       nodes[1].addValidator("foobar", validator)
       tryPublish await nodes[0].publish("foobar", "Hello!".toBytes()), 1
-  
+
       result = (await validatorFut) and (await handlerFut)
       await allFuturesThrowing(
         nodes[0].stop(),
@@ -142,7 +142,7 @@ suite "GossipSub":
       awaiters.add((await nodes[1].start()))
 
       await subscribeNodes(nodes)
-      
+
       await nodes[1].subscribe("foo", handler)
       await nodes[1].subscribe("bar", handler)
 
@@ -177,7 +177,8 @@ suite "GossipSub":
 
       var nodes: seq[Switch] = newSeq[Switch]()
       for i in 0..<2:
-        nodes.add newStandardSwitch(gossip = true, secureManagers = [SecureProtocol.Noise])
+        nodes.add newStandardSwitch(gossip = true,
+                                    secureManagers = [SecureProtocol.Noise])
 
       var awaitters: seq[Future[void]]
       for node in nodes:
@@ -294,7 +295,7 @@ suite "GossipSub":
       await nodes[1].stop()
       await allFuturesThrowing(wait)
 
-      # result = observed == 2
+      check observed == 2
       result = true
 
     check:
@@ -335,7 +336,9 @@ suite "GossipSub":
       var runs = 10
 
       for i in 0..<runs:
-        nodes.add newStandardSwitch(triggerSelf = true, gossip = true, secureManagers = [SecureProtocol.Noise])
+        nodes.add newStandardSwitch(triggerSelf = true,
+                                    gossip = true,
+                                    secureManagers = [SecureProtocol.Noise])
         awaitters.add((await nodes[i].start()))
 
       await subscribeRandom(nodes)
@@ -355,8 +358,7 @@ suite "GossipSub":
             if not seenFut.finished() and seen.len >= runs:
               seenFut.complete()
 
-        subs.add(allFutures(dialer.subscribe("foobar", handler),
-          waitSub(nodes[0], dialer, "foobar")))
+        subs &= dialer.subscribe("foobar", handler)
 
       await allFuturesThrowing(subs)
 
@@ -384,10 +386,12 @@ suite "GossipSub":
       var runs = 10
 
       for i in 0..<runs:
-        nodes.add newStandardSwitch(triggerSelf = true, gossip = true, secureManagers = [SecureProtocol.Secio])
+        nodes.add newStandardSwitch(triggerSelf = true,
+                                    gossip = true,
+                                    secureManagers = [SecureProtocol.Secio])
         awaitters.add((await nodes[i].start()))
 
-      await subscribeSparseNodes(nodes, 4)
+      await subscribeSparseNodes(nodes, 1) # TODO: figure out better sparse mesh
 
       var seen: Table[string, int]
       var subs: seq[Future[void]]
@@ -408,6 +412,7 @@ suite "GossipSub":
         subs &= dialer.subscribe("foobar", handler)
 
       await allFuturesThrowing(subs)
+
       tryPublish await wait(nodes[0].publish("foobar",
                                     cast[seq[byte]]("from node " &
                                     nodes[1].peerInfo.id)),
