@@ -301,8 +301,7 @@ proc cleanupConn(s: Switch, conn: Connection) {.async, gcsafe.} =
       if not(conn.peerInfo.isClosed()):
         conn.peerInfo.close()
     finally:
-      # TODO: the muxer already closes the connection
-      # await conn.close()
+      await conn.close()
 
       if lock.locked():
         lock.release()
