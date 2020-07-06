@@ -134,22 +134,17 @@ method publish*(f: FloodSub,
 
   trace "publishing on topic", name = topic
   let msg = Message.init(f.peerInfo, data, topic, f.sign)
-  var sent: seq[Future[void]]
   # start the future but do not wait yet
-  for p in f.floodsub.getOrDefault(topic):
-    if p in f.peers:
-      trace "publishing message", name = topic,
-                                  peer = p,
-                                  data = data.shortLog
-      sent.add(f.peers[p].send(@[RPCMsg(messages: @[msg])]))
-
-  # wait for all the futures now
-  sent = await allFinished(sent)
-  checkFutures(sent)
+  let (published, failed) = await f.sendHelper(f.floodsub.getOrDefault(topic), @[msg])
+  for p in failed:
+    let peer = f.peers.getOrDefault(p)
+    f.handleDisconnect(peer) # cleanup failed peers
 
   libp2p_pubsub_messages_published.inc(labelValues = [topic])
 
-  return sent.filterIt(not it.failed).len
+  trace "published message to peers", peers = published.len,
+                                      msg = msg.shortLog()
+  return published.len
 
 method unsubscribe*(f: FloodSub,
                     topics: seq[TopicPair]) {.async.} =
