@@ -12,7 +12,7 @@ import nimcrypto/utils
 
 when defined(nimHasUsed): {.used.}
 
-let rng = initRng()
+let rng = newRng()
 
 suite "Secp256k1 testing suite":
   const TestsCount = 20

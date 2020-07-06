@@ -9,7 +9,7 @@ import ../../libp2p/[peerid,
                      protocols/pubsub/rpc/messages]
 
 var rng {.threadvar.}: ref BrHmacDrbgContext
-rng = initRng()
+rng = newRng()
 
 proc randomPeerID(): PeerID =
   PeerID.init(PrivateKey.random(ECDSA, rng[]).get()).get()

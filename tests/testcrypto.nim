@@ -374,7 +374,7 @@ proc testStretcher(s, e: int, cs: string, ds: string): bool =
     if not result:
       break
 
-let rng = initRng()
+let rng = newRng()
 
 suite "Key interface test suite":
 

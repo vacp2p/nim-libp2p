@@ -14,7 +14,7 @@ import ./helpers
 when defined(nimHasUsed): {.used.}
 
 var rng {.threadvar.}: ref BrHmacDrbgContext
-rng = initRng()
+rng = newRng()
 
 suite "Identify":
   teardown:

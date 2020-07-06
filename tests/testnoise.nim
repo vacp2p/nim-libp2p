@@ -40,7 +40,7 @@ type
   TestProto = ref object of LPProtocol
 
 var rng {.threadvar.}: ref BrHmacDrbgContext
-rng = initRng()
+rng = newRng()
 
 method init(p: TestProto) {.gcsafe.} =
   proc handle(conn: Connection, proto: string) {.async, gcsafe.} =

@@ -16,7 +16,7 @@ type
 proc noop(data: seq[byte]) {.async, gcsafe.} = discard
 
 var rng {.threadvar.}: ref BrHmacDrbgContext
-rng = initRng()
+rng = newRng()
 
 proc randomPeerInfo(): PeerInfo =
   PeerInfo.init(PrivateKey.random(ECDSA, rng[]).get())

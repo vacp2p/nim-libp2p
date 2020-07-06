@@ -294,7 +294,7 @@ const
        35ab"""
   ]
 
-let rng = initRng()
+let rng = newRng()
 
 suite "EC NIST-P256/384/521 test suite":
   test "[secp256r1] Private key serialize/deserialize test":

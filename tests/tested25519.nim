@@ -101,7 +101,7 @@ const GoodScalars = [
   "ECD3F55C1A631258D69CF7A2DEF9DE1400000000000000000000000000000010",
 ]
 
-let rng = initRng()
+let rng = newRng()
 
 suite "Ed25519 test suite":
   test "Scalar check edge cases test":

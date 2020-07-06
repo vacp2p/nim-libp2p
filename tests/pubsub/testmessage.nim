@@ -7,7 +7,7 @@ import ../../libp2p/[peerid, peerinfo,
                      protocols/pubsub/rpc/message,
                      protocols/pubsub/rpc/messages]
 
-let rng = initRng()
+let rng = newRng()
 
 suite "Message":
   test "signature":

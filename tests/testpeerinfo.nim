@@ -7,7 +7,7 @@ import ../libp2p/crypto/crypto,
        ../libp2p/peerid
 
 var rng {.threadvar.}: ref BrHmacDrbgContext
-rng = initRng()
+rng = newRng()
 
 suite "PeerInfo":
   test "Should init with private key":
