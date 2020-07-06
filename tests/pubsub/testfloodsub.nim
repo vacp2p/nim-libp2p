@@ -59,7 +59,7 @@ suite "FloodSub":
       await nodes[1].subscribe("foobar", handler)
       await waitSub(nodes[0], nodes[1], "foobar")
 
-      discard await nodes[0].publish("foobar", "Hello!".toBytes())
+      check (await nodes[0].publish("foobar", "Hello!".toBytes())) > 0
 
       result = await completionFut.wait(5.seconds)
 
@@ -90,7 +90,7 @@ suite "FloodSub":
       await nodes[0].subscribe("foobar", handler)
       await waitSub(nodes[1], nodes[0], "foobar")
 
-      discard await nodes[1].publish("foobar", "Hello!".toBytes())
+      check (await nodes[1].publish("foobar", "Hello!".toBytes())) > 0
 
       result = await completionFut.wait(5.seconds)
 
@@ -125,7 +125,7 @@ suite "FloodSub":
 
       nodes[1].addValidator("foobar", validator)
 
-      discard await nodes[0].publish("foobar", "Hello!".toBytes())
+      check (await nodes[0].publish("foobar", "Hello!".toBytes())) > 0
 
       check (await handlerFut) == true
       await allFuturesThrowing(
@@ -197,8 +197,8 @@ suite "FloodSub":
 
       nodes[1].addValidator("foo", "bar", validator)
 
-      discard await nodes[0].publish("foo", "Hello!".toBytes())
-      discard await nodes[0].publish("bar", "Hello!".toBytes())
+      check (await nodes[0].publish("foo", "Hello!".toBytes())) > 0
+      check (await nodes[0].publish("bar", "Hello!".toBytes())) > 0
 
       await allFuturesThrowing(
         nodes[0].stop(),
