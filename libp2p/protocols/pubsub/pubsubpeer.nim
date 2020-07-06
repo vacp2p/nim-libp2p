@@ -39,8 +39,7 @@ type
     topics*: seq[string]
     sentRpcCache: TimedCache[string] # cache for already sent messages
     recvdRpcCache: TimedCache[string] # cache for already received messages
-    refs*: int # refcount of the connections this peer is handling
-    onConnect: AsyncEvent
+    onConnect*: AsyncEvent
     observers*: ref seq[PubSubObserver] # ref as in smart_ptr
 
   RPCHandler* = proc(peer: PubSubPeer, msg: seq[RPCMsg]): Future[void] {.gcsafe.}
@@ -55,6 +54,9 @@ proc `conn=`*(p: PubSubPeer, conn: Connection) =
     trace "attaching send connection for peer", peer = p.id
     p.sendConn = conn
     p.onConnect.fire()
+
+proc conn*(p: PubSubPeer): Connection =
+  p.sendConn
 
 proc recvObservers(p: PubSubPeer, msg: var RPCMsg) =
   # trigger hooks
@@ -100,10 +102,17 @@ proc handle*(p: PubSubPeer, conn: Connection) {.async.} =
       trace "exiting pubsub peer read loop", peer = p.id
       await conn.close()
 
+  except CancelledError as exc:
+    raise exc
   except CatchableError as exc:
     trace "Exception occurred in PubSubPeer.handle", exc = exc.msg
+    raise exc
 
 proc send*(p: PubSubPeer, msgs: seq[RPCMsg]) {.async.} =
+  logScope:
+    peer = p.id
+    msgs = $msgs
+
   for m in msgs.items:
     trace "sending msgs to peer", toPeer = p.id, msgs = $msgs
 
@@ -122,38 +131,29 @@ proc send*(p: PubSubPeer, msgs: seq[RPCMsg]) {.async.} =
       libp2p_pubsub_skipped_sent_messages.inc(labelValues = [p.id])
       continue
 
-    proc sendToRemote() {.async.} =
-      try:
-        trace "about to send message", peer = p.id,
-                                       encoded = digest
-        if not p.onConnect.isSet:
-          await p.onConnect.wait()
+    try:
+      trace "about to send message", peer = p.id,
+                                     encoded = digest
+      if p.connected: # this can happen if the remote disconnected
+        trace "sending encoded msgs to peer", peer = p.id,
+                                              encoded = encoded.buffer.shortLog
+        await p.sendConn.writeLp(encoded.buffer)
+        p.sentRpcCache.put(digest)
 
-        if p.connected: # this can happen if the remote disconnected
-          trace "sending encoded msgs to peer", peer = p.id,
-                                                encoded = encoded.buffer.shortLog
-          await p.sendConn.writeLp(encoded.buffer)
-          p.sentRpcCache.put(digest)
+        for m in msgs:
+          for mm in m.messages:
+            for t in mm.topicIDs:
+              # metrics
+              libp2p_pubsub_sent_messages.inc(labelValues = [p.id, t])
 
-          for m in msgs:
-            for mm in m.messages:
-              for t in mm.topicIDs:
-                # metrics
-                libp2p_pubsub_sent_messages.inc(labelValues = [p.id, t])
+    except CatchableError as exc:
+      trace "unable to send to remote", exc = exc.msg
+      if not(isNil(p.sendConn)):
+        await p.sendConn.close()
+        p.sendConn = nil
+        p.onConnect.clear()
 
-      except CancelledError as exc:
-        raise exc
-      except CatchableError as exc:
-        trace "unable to send to remote", exc = exc.msg
-        if not(isNil(p.sendConn)):
-          await p.sendConn.close()
-          p.sendConn = nil
-          p.onConnect.clear()
-
-    # if no connection has been set,
-    # queue messages until a connection
-    # becomes available
-    asyncCheck sendToRemote()
+      raise exc
 
 proc sendMsg*(p: PubSubPeer,
               peerId: PeerID,
@@ -171,6 +171,9 @@ proc sendPrune*(p: PubSubPeer, topics: seq[string]) {.async.} =
   for topic in topics:
     trace "sending prune msg to peer", peer = p.id, topicID = topic
     await p.send(@[RPCMsg(control: some(ControlMessage(prune: @[ControlPrune(topicID: topic)])))])
+
+proc `$`*(p: PubSubPeer): string =
+  p.id
 
 proc newPubSubPeer*(peerInfo: PeerInfo,
                     proto: string): PubSubPeer =
