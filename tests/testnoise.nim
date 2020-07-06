@@ -12,7 +12,6 @@
 import unittest, tables, bearssl
 import chronos, stew/byteutils
 import chronicles
-import nimcrypto/sysrand
 import ../libp2p/crypto/crypto
 import ../libp2p/[switch,
                   errors,
@@ -166,7 +165,7 @@ suite "Noise":
         readTask = newFuture[void]()
 
       var hugePayload = newSeq[byte](0xFFFFF)
-      check randomBytes(hugePayload) == hugePayload.len
+      brHmacDrbgGenerate(rng[], hugePayload)
       trace "Sending huge payload", size = hugePayload.len
 
       proc connHandler(conn: Connection) {.async, gcsafe.} =
