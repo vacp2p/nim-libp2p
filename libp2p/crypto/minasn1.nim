@@ -17,8 +17,6 @@ import nimcrypto/utils
 
 type
   Asn1Error* {.pure.} = enum
-    None,
-    Error,
     Overflow,
     Incomplete,
     Indefinite,
