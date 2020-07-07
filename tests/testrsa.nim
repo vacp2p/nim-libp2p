@@ -269,6 +269,10 @@ const
 
 let rng = newRng()
 
+type
+  RsaPrivateKey = rsa.RsaPrivateKey
+  RsaPublicKey = rsa.RsaPublicKey
+
 suite "RSA 512/1024/2048/4096 test suite":
   test "[rsa512] Private key serialize/deserialize test":
     for i in 0..<TestsCount:
