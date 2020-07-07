@@ -6,8 +6,8 @@
 ## at your option.
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
-import chronos, chronicles, oids, stew/endians2
-import nimcrypto/[sysrand, hmac, sha2, sha, hash, rijndael, twofish, bcmode]
+import chronos, chronicles, oids, stew/endians2, bearssl
+import nimcrypto/[hmac, sha2, sha, hash, rijndael, twofish, bcmode]
 import secure,
        ../../stream/connection,
        ../../peerinfo,
@@ -32,6 +32,7 @@ const
 
 type
   Secio = ref object of Secure
+    rng: ref BrHmacDrbgContext
     localPrivateKey: PrivateKey
     localPublicKey: PublicKey
     remotePublicKey: PublicKey
@@ -288,8 +289,7 @@ method handshake*(s: Secio, conn: Connection, initiator: bool = false): Future[S
     localPeerId: PeerID
     localBytesPubkey = s.localPublicKey.getBytes().tryGet()
 
-  if randomBytes(localNonce) != SecioNonceSize:
-    raise (ref SecioError)(msg: "Could not generate random data")
+  brHmacDrbgGenerate(s.rng[], localNonce)
 
   var request = createProposal(localNonce,
                                localBytesPubkey,
@@ -340,7 +340,7 @@ method handshake*(s: Secio, conn: Connection, initiator: bool = false): Future[S
   trace "Encryption scheme selected", scheme = scheme, cipher = cipher,
                                       hash = hash
 
-  var ekeypair = ephemeral(scheme).tryGet()
+  var ekeypair = ephemeral(scheme, s.rng[]).tryGet()
   # We need EC public key in raw binary form
   var epubkey = ekeypair.pubkey.eckey.getRawBytes().tryGet()
   var localCorpus = request[4..^1] & answer & epubkey
@@ -410,8 +410,10 @@ method init(s: Secio) {.gcsafe.} =
   procCall Secure(s).init()
   s.codec = SecioCodec
 
-proc newSecio*(localPrivateKey: PrivateKey): Secio =
-  new result
-  result.localPrivateKey = localPrivateKey
-  result.localPublicKey = localPrivateKey.getKey().tryGet()
+proc newSecio*(rng: ref BrHmacDrbgContext, localPrivateKey: PrivateKey): Secio =
+  result = Secio(
+    rng: rng,
+    localPrivateKey: localPrivateKey,
+    localPublicKey: localPrivateKey.getKey().tryGet(),
+  )
   result.init()

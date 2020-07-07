@@ -335,6 +335,8 @@ proc testStretcher(s, e: int, cs: string, ds: string): bool =
     if not result:
       break
 
+let rng = newRng()
+
 suite "Key interface test suite":
 
   test "Go test vectors":
@@ -355,9 +357,9 @@ suite "Key interface test suite":
     var bmsg = cast[seq[byte]](msg)
 
     for i in 0..<5:
-      var seckey = PrivateKey.random(ECDSA).get()
+      var seckey = PrivateKey.random(ECDSA, rng[]).get()
       var pubkey = seckey.getKey().get()
-      var pair = KeyPair.random(ECDSA).get()
+      var pair = KeyPair.random(ECDSA, rng[]).get()
       var sig1 = pair.seckey.sign(bmsg).get()
       var sig2 = seckey.sign(bmsg).get()
       var sersig1 = sig1.getBytes()
@@ -375,9 +377,9 @@ suite "Key interface test suite":
         recsig2.verify(bmsg, recpub2) == true
 
     for i in 0..<5:
-      var seckey = PrivateKey.random(Ed25519).get()
+      var seckey = PrivateKey.random(Ed25519, rng[]).get()
       var pubkey = seckey.getKey().get()
-      var pair = KeyPair.random(Ed25519).get()
+      var pair = KeyPair.random(Ed25519, rng[]).get()
       var sig1 = pair.seckey.sign(bmsg).get()
       var sig2 = seckey.sign(bmsg).get()
       var sersig1 = sig1.getBytes()
@@ -395,9 +397,9 @@ suite "Key interface test suite":
         recsig2.verify(bmsg, recpub2) == true
 
     for i in 0..<5:
-      var seckey = PrivateKey.random(RSA, 512).get()
+      var seckey = PrivateKey.random(RSA, rng[], 512).get()
       var pubkey = seckey.getKey().get()
-      var pair = KeyPair.random(RSA, 512).get()
+      var pair = KeyPair.random(RSA, rng[], 512).get()
       var sig1 = pair.seckey.sign(bmsg).get()
       var sig2 = seckey.sign(bmsg).get()
       var sersig1 = sig1.getBytes()

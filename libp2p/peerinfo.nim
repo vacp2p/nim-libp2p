@@ -33,6 +33,7 @@ type
     lifefut: Future[void]
     protoVersion*: string
     agentVersion*: string
+    secure*: string
     case keyType*: KeyType:
     of HasPrivate:
       privateKey*: PrivateKey
