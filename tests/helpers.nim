@@ -31,7 +31,10 @@ type RngWrap = object
 var rngVar: RngWrap
 
 proc getRng(): ref BrHmacDrbgContext =
-  {.gcsafe.}:  # TODO this is not gcsafe really
+  # TODO if `rngVar` is a threadvar like it should be, there are random and
+  #      spurious compile failures on mac - this is not gcsafe but for the
+  #      purpose of the tests, it's ok as long as we only use a single thread
+  {.gcsafe.}:
     if rngVar.rng.isNil:
       rngVar.rng = newRng()
     rngVar.rng
