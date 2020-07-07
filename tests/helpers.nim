@@ -30,7 +30,10 @@ type RngWrap = object
 
 var rngVar {.threadvar.}: RngWrap
 
-template rng*(): ref BrHmacDrbgContext =
+proc getRng(): ref BrHmacDrbgContext =
   if rngVar.rng.isNil:
     rngVar.rng = newRng()
   rngVar.rng
+
+template rng*(): ref BrHmacDrbgContext =
+  getRng()

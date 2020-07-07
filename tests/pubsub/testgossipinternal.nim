@@ -35,7 +35,7 @@ suite "GossipSub internal":
       for i in 0..<15:
         let conn = newBufferStream(noop)
         conns &= conn
-      let peerInfo = randomPeerInfo()
+        let peerInfo = randomPeerInfo()
         conn.peerInfo = peerInfo
         gossipSub.peers[peerInfo.id] = newPubSubPeer(peerInfo, GossipSubCodec)
         gossipSub.peers[peerInfo.id].conn = conn
