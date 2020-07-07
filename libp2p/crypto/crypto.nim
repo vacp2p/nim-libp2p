@@ -19,7 +19,7 @@ import stew/results
 export results
 
 # Export modules of types that are part of public API
-export rijndael, blowfish, twofish, sha, sha2, hash, hmac, utils, bearssl
+export rijndael, blowfish, twofish, sha, sha2, hash, hmac, utils
 
 from strutils import split
 
