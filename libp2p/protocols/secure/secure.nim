@@ -8,7 +8,7 @@
 ## those terms.
 
 import options
-import chronos, chronicles
+import chronos, chronicles, bearssl
 import ../protocol,
        ../../stream/streamseq,
        ../../stream/connection,
@@ -68,6 +68,8 @@ proc handleConn*(s: Secure, conn: Connection, initiator: bool): Future[Connectio
   return sconn
 
 method init*(s: Secure) {.gcsafe.} =
+  procCall LPProtocol(s).init()
+
   proc handle(conn: Connection, proto: string) {.async, gcsafe.} =
     trace "handling connection upgrade", proto
     try:

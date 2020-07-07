@@ -9,10 +9,12 @@
 
 {.push raises: [Defect].}
 
-import secp256k1, stew/byteutils, nimcrypto/hash, nimcrypto/sha2
-export sha2
-import stew/results
-export results
+import
+  secp256k1, bearssl,
+  stew/[byteutils, results],
+  nimcrypto/[hash, sha2]
+
+export sha2, results
 
 const
   SkRawPrivateKeySize* = 256 div 8
@@ -32,11 +34,19 @@ type
 template pubkey*(v: SkKeyPair): SkPublicKey = SkPublicKey(secp256k1.SkKeyPair(v).pubkey)
 template seckey*(v: SkKeyPair): SkPrivateKey = SkPrivateKey(secp256k1.SkKeyPair(v).seckey)
 
-proc random*(t: typedesc[SkPrivateKey]): SkResult[SkPrivateKey] =
-  ok(SkPrivateKey(? SkSecretKey.random()))
+proc random*(t: typedesc[SkPrivateKey], rng: var BrHmacDrbgContext): SkPrivateKey =
+  let rngPtr = unsafeAddr rng # doesn't escape
+  proc callRng(data: var openArray[byte]) =
+    brHmacDrbgGenerate(rngPtr[], data)
 
-proc random*(t: typedesc[SkKeyPair]): SkResult[SkKeyPair] =
-  ok(SkKeyPair(? secp256k1.SkKeyPair.random()))
+  SkPrivateKey(SkSecretKey.random(callRng))
+
+proc random*(t: typedesc[SkKeyPair], rng: var BrHmacDrbgContext): SkKeyPair =
+  let rngPtr = unsafeAddr rng # doesn't escape
+  proc callRng(data: var openArray[byte]) =
+    brHmacDrbgGenerate(rngPtr[], data)
+
+  SkKeyPair(secp256k1.SkKeyPair.random(callRng))
 
 template seckey*(v: SkKeyPair): SkPrivateKey =
   SkPrivateKey(secp256k1.SkKeyPair(v).seckey)
@@ -90,14 +100,14 @@ proc init*(t: typedesc[SkPrivateKey], data: openarray[byte]): SkResult[SkPrivate
   ## representation ``data``.
   ##
   ## Procedure returns `private key` on success.
-  ok(SkPrivateKey(? SkSecretKey.fromRaw(data)))
+  SkSecretKey.fromRaw(data).mapConvert(SkPrivateKey)
 
 proc init*(t: typedesc[SkPrivateKey], data: string): SkResult[SkPrivateKey] =
   ## Initialize Secp256k1 `private key` from hexadecimal string
   ## representation ``data``.
   ##
   ## Procedure returns `private key` on success.
-  ok(SkPrivateKey(? SkSecretKey.fromHex(data)))
+  SkSecretKey.fromHex(data).mapConvert(SkPrivateKey)
 
 proc init*(t: typedesc[SkPublicKey], data: openarray[byte]): SkResult[SkPublicKey] =
   ## Initialize Secp256k1 `public key` from raw binary
@@ -169,11 +179,11 @@ proc toBytes*(sig: SkSignature, data: var openarray[byte]): int =
 
 proc getBytes*(key: SkPrivateKey): seq[byte] {.inline.} =
   ## Serialize Secp256k1 `private key` and return it.
-  result = @(SkSecretKey(key).toRaw())
+  @(SkSecretKey(key).toRaw())
 
 proc getBytes*(key: SkPublicKey): seq[byte] {.inline.} =
   ## Serialize Secp256k1 `public key` and return it.
-  result = @(secp256k1.SkPublicKey(key).toRawCompressed())
+  @(secp256k1.SkPublicKey(key).toRawCompressed())
 
 proc getBytes*(sig: SkSignature): seq[byte] {.inline.} =
   ## Serialize Secp256k1 `signature` and return it.
@@ -184,12 +194,12 @@ proc getBytes*(sig: SkSignature): seq[byte] {.inline.} =
 proc sign*[T: byte|char](key: SkPrivateKey, msg: openarray[T]): SkSignature =
   ## Sign message `msg` using private key `key` and return signature object.
   let h = sha256.digest(msg)
-  SkSignature(sign(SkSecretKey(key), h))
+  SkSignature(sign(SkSecretKey(key), SkMessage(h.data)))
 
 proc verify*[T: byte|char](sig: SkSignature, msg: openarray[T],
                            key: SkPublicKey): bool =
   let h = sha256.digest(msg)
-  verify(secp256k1.SkSignature(sig), h, secp256k1.SkPublicKey(key))
+  verify(secp256k1.SkSignature(sig), SkMessage(h.data), secp256k1.SkPublicKey(key))
 
 func clear*(key: var SkPrivateKey) {.borrow.}
 

@@ -473,15 +473,11 @@ method publish*(g: GossipSub,
         continue
 
       let peer = g.peers.getOrDefault(p)
+      # This can actually happen, between heartbeats we might 
+      # still have peers in the mesh table but actually disconnected
       if not isNil(peer) and not isNil(peer.peerInfo):
         trace "publish: sending message to peer", peer = p
         sent.add(peer.send(@[RPCMsg(messages: @[msg])]))
-      else:
-        # this absolutely should not happen
-        # if it happens there is a bug that needs fixing asap
-        # this ain't no place to manage connections
-        fatal "publish: peer or peerInfo was nil", missing = p
-        doAssert(false, "publish: peer or peerInfo was nil")
     
     sent = await allFinished(sent)
     checkFutures(sent)

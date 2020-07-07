@@ -9,8 +9,9 @@
 
 import chronos
 import chronicles
+import bearssl
 import stew/[endians2, byteutils]
-import nimcrypto/[utils, sysrand, sha2, hmac]
+import nimcrypto/[utils, sha2, hmac]
 import ../../stream/lpstream
 import ../../peerid
 import ../../peerinfo
@@ -69,10 +70,10 @@ type
     rs: Curve25519Key
 
   Noise* = ref object of Secure
+    rng: ref BrHmacDrbgContext
     localPrivateKey: PrivateKey
     localPublicKey: PublicKey
-    noisePrivateKey: Curve25519Key
-    noisePublicKey: Curve25519Key
+    noiseKeys: KeyPair
     commonPrologue: seq[byte]
     outgoing: bool
 
@@ -87,8 +88,8 @@ type
 
 # Utility
 
-proc genKeyPair(): KeyPair =
-  result.privateKey = Curve25519Key.random().tryGet()
+proc genKeyPair(rng: var BrHmacDrbgContext): KeyPair =
+  result.privateKey = Curve25519Key.random(rng).tryGet()
   result.publicKey = result.privateKey.public()
 
 proc hashProtocol(name: string): MDigest[256] =
@@ -200,7 +201,7 @@ proc init(_: type[HandshakeState]): HandshakeState =
 template write_e: untyped =
   trace "noise write e"
   # Sets e (which must be empty) to GENERATE_KEYPAIR(). Appends e.public_key to the buffer. Calls MixHash(e.public_key).
-  hs.e = genKeyPair()
+  hs.e = genKeyPair(p.rng[])
   msg &= hs.e.publicKey
   hs.ss.mixHash(hs.e.publicKey)
 
@@ -293,8 +294,7 @@ proc handshakeXXOutbound(p: Noise, conn: Connection, p2pProof: ProtoBuffer): Fut
     p2psecret = p2pProof.buffer
 
   hs.ss.mixHash(p.commonPrologue)
-  hs.s.privateKey = p.noisePrivateKey
-  hs.s.publicKey = p.noisePublicKey
+  hs.s = p.noiseKeys
 
   # -> e
   var msg: seq[byte]
@@ -340,8 +340,7 @@ proc handshakeXXInbound(p: Noise, conn: Connection, p2pProof: ProtoBuffer): Futu
     p2psecret = p2pProof.buffer
 
   hs.ss.mixHash(p.commonPrologue)
-  hs.s.privateKey = p.noisePrivateKey
-  hs.s.publicKey = p.noisePublicKey
+  hs.s = p.noiseKeys
 
   # -> e
 
@@ -418,7 +417,7 @@ method handshake*(p: Noise, conn: Connection, initiator: bool): Future[SecureCon
   # https://github.com/libp2p/specs/tree/master/noise#libp2p-data-in-handshake-messages
   let
     signedPayload = p.localPrivateKey.sign(
-      PayloadString.toBytes & p.noisePublicKey.getBytes).tryGet()
+      PayloadString.toBytes & p.noiseKeys.publicKey.getBytes).tryGet()
 
   var
     libp2pProof = initProtoBuffer()
@@ -485,12 +484,15 @@ method init*(p: Noise) {.gcsafe.} =
   procCall Secure(p).init()
   p.codec = NoiseCodec
 
-proc newNoise*(privateKey: PrivateKey; outgoing: bool = true; commonPrologue: seq[byte] = @[]): Noise =
-  new result
-  result.outgoing = outgoing
-  result.localPrivateKey = privateKey
-  result.localPublicKey = privateKey.getKey().tryGet()
-  result.noisePrivateKey = Curve25519Key.random().tryGet()
-  result.noisePublicKey = result.noisePrivateKey.public()
-  result.commonPrologue = commonPrologue
+proc newNoise*(
+    rng: ref BrHmacDrbgContext, privateKey: PrivateKey;
+    outgoing: bool = true; commonPrologue: seq[byte] = @[]): Noise =
+  result = Noise(
+    rng: rng,
+    outgoing: outgoing,
+    localPrivateKey: privateKey,
+    localPublicKey: privateKey.getKey().tryGet(),
+    noiseKeys: genKeyPair(rng[]),
+    commonPrologue: commonPrologue,
+  )
   result.init()

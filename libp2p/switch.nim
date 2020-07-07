@@ -690,15 +690,19 @@ proc newSwitch*(peerInfo: PeerInfo,
                 muxers: Table[string, MuxerProvider],
                 secureManagers: openarray[Secure] = [],
                 pubSub: Option[PubSub] = none(PubSub)): Switch =
-  new result
-  result.peerInfo = peerInfo
-  result.ms = newMultistream()
-  result.transports = transports
-  result.connections = initTable[string, seq[ConnectionHolder]]()
-  result.muxed = initTable[string, seq[MuxerHolder]]()
-  result.identity = identity
-  result.muxers = muxers
-  result.secureManagers = @secureManagers
+  if secureManagers.len == 0:
+    raise (ref CatchableError)(msg: "Provide at least one secure manager")
+
+  result = Switch(
+    peerInfo: peerInfo,
+    ms: newMultistream(),
+    transports: transports,
+    connections: initTable[string, seq[ConnectionHolder]](),
+    muxed: initTable[string, seq[MuxerHolder]](),
+    identity: identity,
+    muxers: muxers,
+    secureManagers: @secureManagers,
+  )
 
   let s = result # can't capture result
   result.streamHandler = proc(stream: Connection) {.async, gcsafe.} =
@@ -718,11 +722,6 @@ proc newSwitch*(peerInfo: PeerInfo,
     val.streamHandler = result.streamHandler
     val.muxerHandler = proc(muxer: Muxer): Future[void] =
       s.muxerHandler(muxer)
-
-  if result.secureManagers.len <= 0:
-    # use plain text if no secure managers are provided
-    warn "no secure managers, falling back to plain text", codec = PlainTextCodec
-    result.secureManagers &= Secure(newPlainText())
 
   if pubSub.isSome:
     result.pubSub = pubSub
