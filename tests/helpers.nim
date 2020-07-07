@@ -28,12 +28,13 @@ iterator testTrackers*(extras: openArray[string] = []): TrackerBase =
 type RngWrap = object
   rng: ref BrHmacDrbgContext
 
-var rngVar {.threadvar.}: RngWrap
+var rngVar: RngWrap
 
 proc getRng(): ref BrHmacDrbgContext =
-  if rngVar.rng.isNil:
-    rngVar.rng = newRng()
-  rngVar.rng
+  {.gcsafe.}:  # TODO this is not gcsafe really
+    if rngVar.rng.isNil:
+      rngVar.rng = newRng()
+    rngVar.rng
 
 template rng*(): ref BrHmacDrbgContext =
   getRng()
