@@ -13,9 +13,6 @@ import ./helpers
 
 when defined(nimHasUsed): {.used.}
 
-var rng {.threadvar.}: ref BrHmacDrbgContext
-rng = newRng()
-
 suite "Identify":
   teardown:
     for tracker in testTrackers():

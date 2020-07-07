@@ -1,7 +1,8 @@
-import chronos
+import chronos, bearssl
 
 import ../libp2p/transports/tcptransport
 import ../libp2p/stream/bufferstream
+import ../libp2p/crypto/crypto
 import ../libp2p/stream/lpstream
 
 const
@@ -23,3 +24,13 @@ iterator testTrackers*(extras: openArray[string] = []): TrackerBase =
   for name in extras:
     let t = getTracker(name)
     if not isNil(t): yield t
+
+type RngWrap = object
+  rng: ref BrHmacDrbgContext
+
+var rngVar {.threadvar.}: RngWrap
+
+template rng*(): ref BrHmacDrbgContext =
+  if rngVar.rng.isNil:
+    rngVar.rng = newRng()
+  rngVar.rng

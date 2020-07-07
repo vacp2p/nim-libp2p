@@ -38,9 +38,6 @@ const
 type
   TestProto = ref object of LPProtocol
 
-var rng {.threadvar.}: ref BrHmacDrbgContext
-rng = newRng()
-
 method init(p: TestProto) {.gcsafe.} =
   proc handle(conn: Connection, proto: string) {.async, gcsafe.} =
     let msg = string.fromBytes(await conn.readLp(1024))

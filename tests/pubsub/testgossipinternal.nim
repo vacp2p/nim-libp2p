@@ -15,9 +15,6 @@ type
 
 proc noop(data: seq[byte]) {.async, gcsafe.} = discard
 
-var rng {.threadvar.}: ref BrHmacDrbgContext
-rng = newRng()
-
 proc randomPeerInfo(): PeerInfo =
   PeerInfo.init(PrivateKey.random(ECDSA, rng[]).get())
 
@@ -38,7 +35,7 @@ suite "GossipSub internal":
       for i in 0..<15:
         let conn = newBufferStream(noop)
         conns &= conn
-        let peerInfo = randomPeerInfo()
+      let peerInfo = randomPeerInfo()
         conn.peerInfo = peerInfo
         gossipSub.peers[peerInfo.id] = newPubSubPeer(peerInfo, GossipSubCodec)
         gossipSub.peers[peerInfo.id].conn = conn
