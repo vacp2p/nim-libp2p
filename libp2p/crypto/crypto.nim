@@ -11,14 +11,14 @@
 
 {.push raises: [Defect].}
 
-import rsa, ecnist, ed25519/ed25519, secp
+import rsa, ecnist, ed25519/ed25519, secp, bearssl
 import ../protobuf/minprotobuf, ../vbuffer, ../multihash, ../multicodec
 import nimcrypto/[rijndael, blowfish, twofish, sha, sha2, hash, hmac, utils]
 import ../utility
 import stew/results
 export results
 
-# This is workaround for Nim's `import` bug
+# Export modules of types that are part of public API
 export rijndael, blowfish, twofish, sha, sha2, hash, hmac, utils
 
 from strutils import split
@@ -46,26 +46,26 @@ type
   PublicKey* = object
     case scheme*: PKScheme
     of RSA:
-      rsakey*: RsaPublicKey
+      rsakey*: rsa.RsaPublicKey
     of Ed25519:
       edkey*: EdPublicKey
     of Secp256k1:
       skkey*: SkPublicKey
     of ECDSA:
-      eckey*: EcPublicKey
+      eckey*: ecnist.EcPublicKey
     of NoSupport:
       discard
 
   PrivateKey* = object
     case scheme*: PKScheme
     of RSA:
-      rsakey*: RsaPrivateKey
+      rsakey*: rsa.RsaPrivateKey
     of Ed25519:
       edkey*: EdPrivateKey
     of Secp256k1:
       skkey*: SkPrivateKey
     of ECDSA:
-      eckey*: EcPrivateKey
+      eckey*: ecnist.EcPrivateKey
     of NoSupport:
       discard
 
@@ -98,52 +98,68 @@ const
 template orError*(exp: untyped, err: untyped): untyped =
   (exp.mapErr do (_: auto) -> auto: err)
 
-proc random*(t: typedesc[PrivateKey], scheme: PKScheme,
-             bits = DefaultKeySize): CryptoResult[PrivateKey] =
+proc newRng*(): ref BrHmacDrbgContext =
+  # You should only create one instance of the RNG per application / library
+  # Ref is used so that it can be shared between components
+  # TODO consider moving to bearssl
+  var seeder = brPrngSeederSystem(nil)
+  if seeder == nil:
+    return nil
+
+  var rng = (ref BrHmacDrbgContext)()
+  brHmacDrbgInit(addr rng[], addr sha256Vtable, nil, 0)
+  if seeder(addr rng.vtable) == 0:
+    return nil
+  rng
+
+proc random*(
+    T: typedesc[PrivateKey], scheme: PKScheme,
+    rng: var BrHmacDrbgContext, bits = DefaultKeySize): CryptoResult[PrivateKey] =
   ## Generate random private key for scheme ``scheme``.
   ##
   ## ``bits`` is number of bits for RSA key, ``bits`` value must be in
   ## [512, 4096], default value is 2048 bits.
   case scheme
   of RSA:
-    let rsakey = ? RsaPrivateKey.random(bits).orError(KeyError)
+    let rsakey = ? RsaPrivateKey.random(rng, bits).orError(KeyError)
     ok(PrivateKey(scheme: scheme, rsakey: rsakey))
   of Ed25519:
-    let edkey = ? EdPrivateKey.random().orError(KeyError)
+    let edkey = EdPrivateKey.random(rng)
     ok(PrivateKey(scheme: scheme, edkey: edkey))
   of ECDSA:
-    let eckey = ? EcPrivateKey.random(Secp256r1).orError(KeyError)
+    let eckey = ? ecnist.EcPrivateKey.random(Secp256r1, rng).orError(KeyError)
     ok(PrivateKey(scheme: scheme, eckey: eckey))
   of Secp256k1:
-    let skkey = ? SkPrivateKey.random().orError(KeyError)
+    let skkey = SkPrivateKey.random(rng)
     ok(PrivateKey(scheme: scheme, skkey: skkey))
   else:
     err(SchemeError)
 
-proc random*(t: typedesc[KeyPair], scheme: PKScheme,
-             bits = DefaultKeySize): CryptoResult[KeyPair] =
+proc random*(
+    T: typedesc[KeyPair], scheme: PKScheme,
+    rng: var BrHmacDrbgContext, bits = DefaultKeySize): CryptoResult[KeyPair] =
   ## Generate random key pair for scheme ``scheme``.
   ##
   ## ``bits`` is number of bits for RSA key, ``bits`` value must be in
   ## [512, 4096], default value is 2048 bits.
   case scheme
   of RSA:
-    let pair = ? RsaKeyPair.random(bits).orError(KeyError)
+    let pair = ? RsaKeyPair.random(rng, bits).orError(KeyError)
     ok(KeyPair(
       seckey: PrivateKey(scheme: scheme, rsakey: pair.seckey),
       pubkey: PublicKey(scheme: scheme, rsakey: pair.pubkey)))
   of Ed25519:
-    let pair = ? EdKeyPair.random().orError(KeyError)
+    let pair = EdKeyPair.random(rng)
     ok(KeyPair(
       seckey: PrivateKey(scheme: scheme, edkey: pair.seckey),
       pubkey: PublicKey(scheme: scheme, edkey: pair.pubkey)))
   of ECDSA:
-    let pair = ? EcKeyPair.random(Secp256r1).orError(KeyError)
+    let pair = ? EcKeyPair.random(Secp256r1, rng).orError(KeyError)
     ok(KeyPair(
       seckey: PrivateKey(scheme: scheme, eckey: pair.seckey),
       pubkey: PublicKey(scheme: scheme, eckey: pair.pubkey)))
   of Secp256k1:
-    let pair = ? SkKeyPair.random().orError(KeyError)
+    let pair = SkKeyPair.random(rng)
     ok(KeyPair(
       seckey: PrivateKey(scheme: scheme, skkey: pair.seckey),
       pubkey: PublicKey(scheme: scheme, skkey: pair.pubkey)))
@@ -629,32 +645,35 @@ proc mac*(secret: Secret, id: int): seq[byte] {.inline.} =
   offset += secret.ivsize + secret.keysize
   copyMem(addr result[0], unsafeAddr secret.data[offset], secret.macsize)
 
-proc ephemeral*(scheme: ECDHEScheme): CryptoResult[KeyPair] =
+proc ephemeral*(
+    scheme: ECDHEScheme,
+    rng: var BrHmacDrbgContext): CryptoResult[KeyPair] =
   ## Generate ephemeral keys used to perform ECDHE.
   var keypair: EcKeyPair
   if scheme == Secp256r1:
-    keypair = ? EcKeyPair.random(Secp256r1).orError(KeyError)
+    keypair = ? EcKeyPair.random(Secp256r1, rng).orError(KeyError)
   elif scheme == Secp384r1:
-    keypair = ? EcKeyPair.random(Secp384r1).orError(KeyError)
+    keypair = ? EcKeyPair.random(Secp384r1, rng).orError(KeyError)
   elif scheme == Secp521r1:
-    keypair = ? EcKeyPair.random(Secp521r1).orError(KeyError)
+    keypair = ? EcKeyPair.random(Secp521r1, rng).orError(KeyError)
   ok(KeyPair(
     seckey: PrivateKey(scheme: ECDSA, eckey: keypair.seckey),
     pubkey: PublicKey(scheme: ECDSA, eckey: keypair.pubkey)))
 
-proc ephemeral*(scheme: string): CryptoResult[KeyPair] {.inline.} =
+proc ephemeral*(
+    scheme: string, rng: var BrHmacDrbgContext): CryptoResult[KeyPair] =
   ## Generate ephemeral keys used to perform ECDHE using string encoding.
   ##
   ## Currently supported encoding strings are P-256, P-384, P-521, if encoding
   ## string is not supported P-521 key will be generated.
   if scheme == "P-256":
-    ephemeral(Secp256r1)
+    ephemeral(Secp256r1, rng)
   elif scheme == "P-384":
-    ephemeral(Secp384r1)
+    ephemeral(Secp384r1, rng)
   elif scheme == "P-521":
-    ephemeral(Secp521r1)
+    ephemeral(Secp521r1, rng)
   else:
-    ephemeral(Secp521r1)
+    ephemeral(Secp521r1, rng)
 
 proc makeSecret*(remoteEPublic: PublicKey, localEPrivate: PrivateKey,
                  data: var openarray[byte]): int =

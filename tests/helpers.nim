@@ -1,7 +1,8 @@
-import chronos
+import chronos, bearssl
 
 import ../libp2p/transports/tcptransport
 import ../libp2p/stream/bufferstream
+import ../libp2p/crypto/crypto
 import ../libp2p/stream/lpstream
 
 const
@@ -23,3 +24,20 @@ iterator testTrackers*(extras: openArray[string] = []): TrackerBase =
   for name in extras:
     let t = getTracker(name)
     if not isNil(t): yield t
+
+type RngWrap = object
+  rng: ref BrHmacDrbgContext
+
+var rngVar: RngWrap
+
+proc getRng(): ref BrHmacDrbgContext =
+  # TODO if `rngVar` is a threadvar like it should be, there are random and
+  #      spurious compile failures on mac - this is not gcsafe but for the
+  #      purpose of the tests, it's ok as long as we only use a single thread
+  {.gcsafe.}:
+    if rngVar.rng.isNil:
+      rngVar.rng = newRng()
+    rngVar.rng
+
+template rng*(): ref BrHmacDrbgContext =
+  getRng()

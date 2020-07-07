@@ -17,7 +17,6 @@ import utils, ../../libp2p/[errors,
                             peerinfo,
                             stream/connection,
                             crypto/crypto,
-                            stream/bufferstream,
                             protocols/pubsub/pubsub,
                             protocols/pubsub/gossipsub,
                             protocols/pubsub/rpc/messages]

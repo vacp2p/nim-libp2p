@@ -76,7 +76,6 @@ type
   RsaKP* = RsaPrivateKey | RsaKeyPair
 
   RsaError* = enum
-    RsaRngError,
     RsaGenError,
     RsaKeyIncorrectError,
     RsaSignatureError
@@ -112,7 +111,8 @@ template trimZeroes(b: seq[byte], pt, ptlen: untyped) =
     pt = cast[ptr cuchar](cast[uint](pt) + 1)
     ptlen -= 1
 
-proc random*[T: RsaKP](t: typedesc[T], bits = DefaultKeySize,
+proc random*[T: RsaKP](t: typedesc[T], rng: var BrHmacDrbgContext,
+                       bits = DefaultKeySize,
                        pubexp = DefaultPublicExponent): RsaResult[T] =
   ## Generate new random RSA private key using BearSSL's HMAC-SHA256-DRBG
   ## algorithm.
@@ -121,38 +121,26 @@ proc random*[T: RsaKP](t: typedesc[T], bits = DefaultKeySize,
   ## range [512, 4096] (default = 2048).
   ##
   ## ``pubexp`` is RSA public exponent, which must be prime (default = 3).
-  var rng: BrHmacDrbgContext
-  var keygen: BrRsaKeygen
-  var seeder = brPrngSeederSystem(nil)
-  brHmacDrbgInit(addr rng, addr sha256Vtable, nil, 0)
-  if seeder(addr rng.vtable) == 0:
-    return err(RsaRngError)
-  
-  keygen = brRsaKeygenGetDefault()
+  let
+    sko = 0
+    pko = brRsaPrivateKeyBufferSize(bits)
+    eko = pko + brRsaPublicKeyBufferSize(bits)
+    length = eko + ((bits + 7) shr 3)
 
-  let length = brRsaPrivateKeyBufferSize(bits) +
-               brRsaPublicKeyBufferSize(bits) +
-               ((bits + 7) shr 3)
-  let sko = 0
-  let pko = brRsaPrivateKeyBufferSize(bits)
-  let eko = pko + brRsaPublicKeyBufferSize(bits)
-
-  var res: T
-
-  when T is RsaKeyPair:
-    res = new T
-  else:
-    res = new RsaPrivateKey
-
+  let res = new T
   res.buffer = newSeq[byte](length)
+
+  var keygen = brRsaKeygenGetDefault()
+
   if keygen(addr rng.vtable,
             addr res.seck, addr res.buffer[sko],
             addr res.pubk, addr res.buffer[pko],
             cuint(bits), pubexp) == 0:
     return err(RsaGenError)
 
-  let compute = brRsaComputePrivexpGetDefault()
-  let computed = compute(addr res.buffer[eko], addr res.seck, pubexp)
+  let
+    compute = brRsaComputePrivexpGetDefault()
+    computed = compute(addr res.buffer[eko], addr res.seck, pubexp)
   if computed == 0:
     return err(RsaGenError)
 

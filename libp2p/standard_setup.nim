@@ -4,7 +4,7 @@ const
   libp2p_pubsub_verify {.booldefine.} = true
 
 import
-  options, tables, chronos,
+  options, tables, chronos, bearssl,
   switch, peerid, peerinfo, stream/connection, multiaddress,
   crypto/crypto, transports/[transport, tcptransport],
   muxers/[muxer, mplex/mplex, mplex/types],
@@ -36,12 +36,16 @@ proc newStandardSwitch*(privKey = none(PrivateKey),
                         verifySignature = libp2p_pubsub_verify,
                         sign = libp2p_pubsub_sign,
                         transportFlags: set[ServerFlags] = {},
-                        msgIdProvider: MsgIdProvider = defaultMsgIdProvider): Switch =
+                        msgIdProvider: MsgIdProvider = defaultMsgIdProvider,
+                        rng = newRng()): Switch =
   proc createMplex(conn: Connection): Muxer =
     newMplex(conn)
 
+  if rng == nil: # newRng could fail
+    raise (ref CatchableError)(msg: "Cannot initialize RNG")
+
   let
-    seckey = privKey.get(otherwise = PrivateKey.random(ECDSA).tryGet())
+    seckey = privKey.get(otherwise = PrivateKey.random(ECDSA, rng[]).tryGet())
     peerInfo = PeerInfo.init(seckey, [address])
     mplexProvider = newMuxerProvider(createMplex, MplexCodec)
     transports = @[Transport(TcpTransport.init(transportFlags))]
@@ -53,9 +57,9 @@ proc newStandardSwitch*(privKey = none(PrivateKey),
   for sec in secureManagers:
     case sec
     of SecureProtocol.Noise:
-      secureManagerInstances &= newNoise(seckey).Secure
+      secureManagerInstances &= newNoise(rng, seckey).Secure
     of SecureProtocol.Secio:
-      secureManagerInstances &= newSecio(seckey).Secure
+      secureManagerInstances &= newSecio(rng, seckey).Secure
 
   let pubSub = if gossip:
                   newPubSub(GossipSub,

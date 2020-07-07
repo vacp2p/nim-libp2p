@@ -1,7 +1,7 @@
 when not(compileOption("threads")):
   {.fatal: "Please, compile this program with the --threads:on option!".}
 
-import tables, strformat, strutils
+import tables, strformat, strutils, bearssl
 import chronos                              # an efficient library for async
 import ../libp2p/[switch,                   # manage transports, a single entry point for dialing and listening
                   multistream,              # tag stream with short header to identify it
@@ -149,10 +149,10 @@ proc readInput(wfd: AsyncFD) {.thread.} =
     let line = stdin.readLine()
     discard waitFor transp.write(line & "\r\n")
 
-proc processInput(rfd: AsyncFD) {.async.} =
+proc processInput(rfd: AsyncFD, rng: ref BrHmacDrbgContext) {.async.} =
   let transp = fromPipe(rfd)
 
-  let seckey = PrivateKey.random(RSA).get()
+  let seckey = PrivateKey.random(RSA, rng[]).get()
   let peerInfo = PeerInfo.init(seckey)
   var localAddress = DefaultAddr
   while true:
@@ -178,7 +178,7 @@ proc processInput(rfd: AsyncFD) {.async.} =
   let transports = @[Transport(TcpTransport.init())]
   let muxers = [(MplexCodec, mplexProvider)].toTable()
   let identify = newIdentify(peerInfo)
-  let secureManagers = [Secure(newSecio(seckey))]
+  let secureManagers = [Secure(newSecio(rng, seckey))]
   let switch = newSwitch(peerInfo,
                          transports,
                          identify,
@@ -200,6 +200,7 @@ proc processInput(rfd: AsyncFD) {.async.} =
   await allFuturesThrowing(libp2pFuts)
 
 proc main() {.async.} =
+  let rng = newRng() # Singe random number source for the whole application
   let (rfd, wfd) = createAsyncPipe()
   if rfd == asyncInvalidPipe or wfd == asyncInvalidPipe:
     raise newException(ValueError, "Could not initialize pipe!")
@@ -207,7 +208,7 @@ proc main() {.async.} =
   var thread: Thread[AsyncFD]
   thread.createThread(readInput, wfd)
 
-  await processInput(rfd)
+  await processInput(rfd, rng)
 
 when isMainModule: # isMainModule = true when the module is compiled as the main file
   waitFor(main())

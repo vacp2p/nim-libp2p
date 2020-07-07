@@ -1,14 +1,16 @@
 {.used.}
 
-import unittest, options
+import unittest, options, bearssl
 import chronos
 import ../libp2p/crypto/crypto,
        ../libp2p/peerinfo,
        ../libp2p/peerid
 
+import ./helpers
+
 suite "PeerInfo":
   test "Should init with private key":
-    let seckey = PrivateKey.random(ECDSA).get()
+    let seckey = PrivateKey.random(ECDSA, rng[]).get()
     var peerInfo = PeerInfo.init(seckey)
     var peerId = PeerID.init(seckey).get()
 
@@ -17,7 +19,7 @@ suite "PeerInfo":
     check seckey.getKey().get() == peerInfo.publicKey.get()
 
   test "Should init with public key":
-    let seckey = PrivateKey.random(ECDSA).get()
+    let seckey = PrivateKey.random(ECDSA, rng[]).get()
     var peerInfo = PeerInfo.init(seckey.getKey().get())
     var peerId = PeerID.init(seckey.getKey().get()).get()
 
@@ -25,7 +27,7 @@ suite "PeerInfo":
     check seckey.getKey.get() == peerInfo.publicKey.get()
 
   test "Should init from PeerId with public key":
-    let seckey = PrivateKey.random(Ed25519).get()
+    let seckey = PrivateKey.random(Ed25519, rng[]).get()
     var peerInfo = PeerInfo.init(PeerID.init(seckey.getKey.get()).get())
     var peerId = PeerID.init(seckey.getKey.get()).get()
 
@@ -47,16 +49,16 @@ suite "PeerInfo":
   #     PeerID.init("bafzbeie5745rpv2m6tjyuugywy4d5ewrqgqqhfnf445he3omzpjbx5xqxe") == peerInfo.peerId
 
   test "Should return none if pubkey is missing from id":
-    let peerInfo = PeerInfo.init(PeerID.init(PrivateKey.random(ECDSA).get()).get())
+    let peerInfo = PeerInfo.init(PeerID.init(PrivateKey.random(ECDSA, rng[]).get()).get())
     check peerInfo.publicKey.isNone
 
   test "Should return some if pubkey is present in id":
-    let peerInfo = PeerInfo.init(PeerID.init(PrivateKey.random(Ed25519).get()).get())
+    let peerInfo = PeerInfo.init(PeerID.init(PrivateKey.random(Ed25519, rng[]).get()).get())
     check peerInfo.publicKey.isSome
 
   test "join() and isClosed() test":
     proc testJoin(): Future[bool] {.async, gcsafe.} =
-      let peerInfo = PeerInfo.init(PeerID.init(PrivateKey.random(Ed25519).get()).get())
+      let peerInfo = PeerInfo.init(PeerID.init(PrivateKey.random(Ed25519, rng[]).get()).get())
       check peerInfo.isClosed() == false
       var joinFut = peerInfo.join()
       check joinFut.finished() == false

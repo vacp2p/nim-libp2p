@@ -13,8 +13,8 @@
 
 {.push raises: Defect.}
 
-import constants
-import nimcrypto/[hash, sha2, sysrand, utils]
+import constants, bearssl
+import nimcrypto/[hash, sha2, utils]
 import stew/results
 export results
 
@@ -44,7 +44,6 @@ type
     pubkey*: EdPublicKey
 
   EdError* = enum
-    EdRngError,
     EdIncorrectError
 
 proc `-`(x: uint32): uint32 {.inline.} =
@@ -1643,41 +1642,43 @@ proc checkScalar*(scalar: openarray[byte]): uint32 =
     c = -1
   result = NEQ(z, 0'u32) and LT0(c)
 
-proc random*(t: typedesc[EdPrivateKey]): Result[EdPrivateKey, EdError] =
-  ## Generate new random ED25519 private key using OS specific CSPRNG.
+proc random*(t: typedesc[EdPrivateKey], rng: var BrHmacDrbgContext): EdPrivateKey =
+  ## Generate new random ED25519 private key using the given random number generator
   var
     point: GeP3
     pk: array[EdPublicKeySize, byte]
     res: EdPrivateKey
-  if randomBytes(res.data.toOpenArray(0, 31)) != 32:
-    err(EdRngError)
-  else:
-    var hh = sha512.digest(res.data.toOpenArray(0, 31))
-    hh.data[0] = hh.data[0] and 0xF8'u8
-    hh.data[31] = hh.data[31] and 0x3F'u8
-    hh.data[31] = hh.data[31] or 0x40'u8
-    geScalarMultBase(point, hh.data)
-    geP3ToBytes(pk, point)
-    copyMem(addr res.data[32], addr pk[0], 32)
-    ok(res)
 
-proc random*(t: typedesc[EdKeyPair]): Result[EdKeyPair, EdError] =
+  brHmacDrbgGenerate(addr rng, addr res.data[0], 32)
+
+  var hh = sha512.digest(res.data.toOpenArray(0, 31))
+  hh.data[0] = hh.data[0] and 0xF8'u8
+  hh.data[31] = hh.data[31] and 0x3F'u8
+  hh.data[31] = hh.data[31] or 0x40'u8
+  geScalarMultBase(point, hh.data)
+  geP3ToBytes(pk, point)
+  res.data[32..63] = pk
+
+  res
+
+proc random*(t: typedesc[EdKeyPair], rng: var BrHmacDrbgContext): EdKeyPair =
   ## Generate new random ED25519 private and public keypair using OS specific
   ## CSPRNG.
   var
     point: GeP3
     res: EdKeyPair
-  if randomBytes(res.seckey.data.toOpenArray(0, 31)) != 32:
-    err(EdRngError)
-  else:
-    var hh = sha512.digest(res.seckey.data.toOpenArray(0, 31))
-    hh.data[0] = hh.data[0] and 0xF8'u8
-    hh.data[31] = hh.data[31] and 0x3F'u8
-    hh.data[31] = hh.data[31] or 0x40'u8
-    geScalarMultBase(point, hh.data)
-    geP3ToBytes(res.pubkey.data, point)
-    copyMem(addr res.seckey.data[32], addr res.pubkey.data[0], 32)
-    ok(res)
+
+  brHmacDrbgGenerate(addr rng, addr res.seckey.data[0], 32)
+
+  var hh = sha512.digest(res.seckey.data.toOpenArray(0, 31))
+  hh.data[0] = hh.data[0] and 0xF8'u8
+  hh.data[31] = hh.data[31] and 0x3F'u8
+  hh.data[31] = hh.data[31] or 0x40'u8
+  geScalarMultBase(point, hh.data)
+  geP3ToBytes(res.pubkey.data, point)
+  res.seckey.data[32..63] = res.pubkey.data
+
+  res
 
 proc getKey*(key: EdPrivateKey): EdPublicKey =
   ## Calculate and return ED25519 public key from private key ``key``.
