@@ -13,13 +13,13 @@
 
 import rsa, ecnist, ed25519/ed25519, secp
 import ../protobuf/minprotobuf, ../vbuffer, ../multihash, ../multicodec
-import nimcrypto/[rijndael, blowfish, twofish, sha, sha2, hash, hmac, utils]
+import nimcrypto/[rijndael, blowfish, twofish, sha2, hash, hmac, utils]
 import ../utility
 import stew/results
 export results
 
 # This is workaround for Nim's `import` bug
-export rijndael, blowfish, twofish, sha, sha2, hash, hmac, utils
+export rijndael, blowfish, twofish, sha2, hash, hmac, utils
 
 from strutils import split
 
@@ -37,7 +37,6 @@ type
     Blowfish
 
   DigestSheme* = enum
-    Sha1,
     Sha256,
     Sha512
 
@@ -358,7 +357,8 @@ proc init*(sig: var Signature, data: string): bool =
   except ValueError:
     false
 
-proc init*(t: typedesc[PrivateKey], data: openarray[byte]): CryptoResult[PrivateKey] =
+proc init*(t: typedesc[PrivateKey],
+           data: openarray[byte]): CryptoResult[PrivateKey] =
   ## Create new private key from libp2p's protobuf serialized binary form.
   var res: t
   if not res.init(data):
@@ -366,7 +366,8 @@ proc init*(t: typedesc[PrivateKey], data: openarray[byte]): CryptoResult[Private
   else:
     ok(res)
 
-proc init*(t: typedesc[PublicKey], data: openarray[byte]): CryptoResult[PublicKey] =
+proc init*(t: typedesc[PublicKey],
+           data: openarray[byte]): CryptoResult[PublicKey] =
   ## Create new public key from libp2p's protobuf serialized binary form.
   var res: t
   if not res.init(data):
@@ -374,7 +375,8 @@ proc init*(t: typedesc[PublicKey], data: openarray[byte]): CryptoResult[PublicKe
   else:
     ok(res)
 
-proc init*(t: typedesc[Signature], data: openarray[byte]): CryptoResult[Signature] =
+proc init*(t: typedesc[Signature],
+           data: openarray[byte]): CryptoResult[Signature] =
   ## Create new public key from libp2p's protobuf serialized binary form.
   var res: t
   if not res.init(data):
@@ -499,7 +501,8 @@ proc `$`*(sig: Signature): string =
   ## Get string representation of signature ``sig``.
   result = toHex(sig.data)
 
-proc sign*(key: PrivateKey, data: openarray[byte]): CryptoResult[Signature] {.gcsafe.} =
+proc sign*(key: PrivateKey,
+           data: openarray[byte]): CryptoResult[Signature] {.gcsafe.} =
   ## Sign message ``data`` using private key ``key`` and return generated
   ## signature in raw binary form.
   var res: Signature
@@ -593,8 +596,6 @@ proc stretchKeys*(cipherType: string, hashType: string,
     makeSecret(result.data, HMAC[sha256], sharedSecret, seed)
   elif hashType == "SHA512":
     makeSecret(result.data, HMAC[sha512], sharedSecret, seed)
-  elif hashType == "SHA1":
-    makeSecret(result.data, HMAC[sha1], sharedSecret, seed)
 
 template goffset*(secret, id, o: untyped): untyped =
   id * (len(secret.data) shr 1) + o
@@ -783,23 +784,28 @@ proc decodeExchange*(message: seq[byte],
 
 ## Serialization/Deserialization helpers
 
-proc write*(vb: var VBuffer, pubkey: PublicKey) {.inline, raises: [Defect, ResultError[CryptoError]].} =
+proc write*(vb: var VBuffer, pubkey: PublicKey) {.
+     inline, raises: [Defect, ResultError[CryptoError]].} =
   ## Write PublicKey value ``pubkey`` to buffer ``vb``.
   vb.writeSeq(pubkey.getBytes().tryGet())
 
-proc write*(vb: var VBuffer, seckey: PrivateKey) {.inline, raises: [Defect, ResultError[CryptoError]].} =
+proc write*(vb: var VBuffer, seckey: PrivateKey) {.
+     inline, raises: [Defect, ResultError[CryptoError]].} =
   ## Write PrivateKey value ``seckey`` to buffer ``vb``.
   vb.writeSeq(seckey.getBytes().tryGet())
 
-proc write*(vb: var VBuffer, sig: PrivateKey) {.inline, raises: [Defect, ResultError[CryptoError]].} =
+proc write*(vb: var VBuffer, sig: PrivateKey) {.
+     inline, raises: [Defect, ResultError[CryptoError]].} =
   ## Write Signature value ``sig`` to buffer ``vb``.
   vb.writeSeq(sig.getBytes().tryGet())
 
-proc initProtoField*(index: int, pubkey: PublicKey): ProtoField {.raises: [Defect, ResultError[CryptoError]].} =
+proc initProtoField*(index: int, pubkey: PublicKey): ProtoField {.
+     raises: [Defect, ResultError[CryptoError]].} =
   ## Initialize ProtoField with PublicKey ``pubkey``.
   result = initProtoField(index, pubkey.getBytes().tryGet())
 
-proc initProtoField*(index: int, seckey: PrivateKey): ProtoField {.raises: [Defect, ResultError[CryptoError]].} =
+proc initProtoField*(index: int, seckey: PrivateKey): ProtoField {.
+     raises: [Defect, ResultError[CryptoError]].} =
   ## Initialize ProtoField with PrivateKey ``seckey``.
   result = initProtoField(index, seckey.getBytes().tryGet())
 
