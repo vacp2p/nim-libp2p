@@ -287,16 +287,15 @@ method handleDisconnect*(g: GossipSub, peer: PubSubPeer) =
       .set(g.gossipsub.getOrDefault(t).len.int64, labelValues = [t])
 
   for t in toSeq(g.mesh.keys):
-    if t in g.mesh:
-      g.mesh[t].excl(peer.id)
+    g.mesh[t].excl(peer.id)
 
-      libp2p_gossipsub_peers_per_topic_mesh
+    libp2p_gossipsub_peers_per_topic_mesh
         .set(g.mesh[t].len.int64, labelValues = [t])
 
-    for t in toSeq(g.fanout.keys):
-      g.fanout[t].excl(peer.id)
+  for t in toSeq(g.fanout.keys):
+    g.fanout[t].excl(peer.id)
 
-      libp2p_gossipsub_peers_per_topic_fanout
+    libp2p_gossipsub_peers_per_topic_fanout
         .set(g.fanout[t].len.int64, labelValues = [t])
 
 method subscribePeer*(p: GossipSub,
