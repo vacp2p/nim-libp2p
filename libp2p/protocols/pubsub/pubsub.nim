@@ -28,9 +28,10 @@ declareGauge(libp2p_pubsub_topics, "pubsub subscribed topics")
 declareCounter(libp2p_pubsub_validation_success, "pubsub successfully validated messages")
 declareCounter(libp2p_pubsub_validation_failure, "pubsub failed validated messages")
 declarePublicCounter(libp2p_pubsub_messages_published, "published messages", labels = ["topic"])
-declareGauge(libp2p_pubsub_peers_per_topic, "pubsub peers per topic", labels = ["topic"])
 
 type
+  SendRes = tuple[published: seq[string], failed: seq[string]] # keep private
+
   TopicHandler* = proc(topic: string,
                        data: seq[byte]): Future[void] {.gcsafe.}
 
@@ -58,6 +59,18 @@ type
     observers: ref seq[PubSubObserver] # ref as in smart_ptr
     msgIdProvider*: MsgIdProvider     # Turn message into message id (not nil)
 
+method handleDisconnect*(p: PubSub, peer: PubSubPeer) {.base.} =
+  ## handle peer disconnects
+  ##
+  if peer.id in p.peers:
+    trace "deleting peer", peer = peer.id, stack = getStackTrace()
+    p.peers[peer.id] = nil
+    p.peers.del(peer.id)
+
+  # metrics
+  libp2p_pubsub_peers.set(p.peers.len.int64)
+  trace "peer disconnected", peer = peer.id
+
 proc sendSubs*(p: PubSub,
                peer: PubSubPeer,
                topics: seq[string],
@@ -74,16 +87,26 @@ proc sendSubs*(p: PubSub,
                            topicName = t
     msg.subscriptions.add(SubOpts(topic: t, subscribe: subscribe))
 
-  await peer.send(@[msg])
+  try:
+    # wait for a connection before publishing
+    # this happens when
+    if not peer.onConnect.isSet:
+      trace "awaiting send connection"
+      await peer.onConnect.wait()
+
+    await peer.send(@[msg])
+  except CancelledError as exc:
+    p.handleDisconnect(peer)
+    raise exc
+  except CatchableError as exc:
+    trace "unable to send subscriptions", exc = exc.msg
+    p.handleDisconnect(peer)
 
 method subscribeTopic*(p: PubSub,
                        topic: string,
                        subscribe: bool,
                        peerId: string) {.base, async.} =
-  if subscribe:
-    libp2p_pubsub_peers_per_topic.inc(labelValues = [topic])
-  else:
-    libp2p_pubsub_peers_per_topic.dec(labelValues = [topic])
+  discard
 
 method rpcHandler*(p: PubSub,
                    peer: PubSubPeer,
@@ -98,23 +121,6 @@ method rpcHandler*(p: PubSub,
         trace "about to subscribe to topic", topicId = s.topic
         await p.subscribeTopic(s.topic, s.subscribe, peer.id)
 
-method handleDisconnect*(p: PubSub, peer: PubSubPeer) {.async, base.} =
-  ## handle peer disconnects
-  if peer.id in p.peers:
-    p.peers.del(peer.id)
-
-  # metrics
-  libp2p_pubsub_peers.set(p.peers.len.int64)
-
-proc cleanUpHelper(p: PubSub, peer: PubSubPeer) {.async.} =
-  try:
-    await p.cleanupLock.acquire()
-    peer.refs.dec() # decrement refcount
-    if peer.refs <= 0:
-      await p.handleDisconnect(peer)
-  finally:
-    p.cleanupLock.release()
-
 proc getPeer(p: PubSub,
              peerInfo: PeerInfo,
              proto: string): PubSubPeer =
@@ -123,25 +129,12 @@ proc getPeer(p: PubSub,
 
   # create new pubsub peer
   let peer = newPubSubPeer(peerInfo, proto)
-  trace "created new pubsub peer", peerId = peer.id
-
-  # metrics
+  trace "created new pubsub peer", peerId = peer.id, stack = getStackTrace()
 
   p.peers[peer.id] = peer
-  peer.refs.inc # increment reference count
   peer.observers = p.observers
   libp2p_pubsub_peers.set(p.peers.len.int64)
   return peer
-
-proc internalCleanup(p: PubSub, conn: Connection) {.async.} =
-  # handle connection close
-  if isNil(conn):
-    return
-
-  var peer = p.getPeer(conn.peerInfo, p.codec)
-  await conn.closeEvent.wait()
-  trace "pubsub conn closed, cleaning up peer", peer = conn.peerInfo.id
-  await p.cleanUpHelper(peer)
 
 method handleConn*(p: PubSub,
                    conn: Connection,
@@ -157,41 +150,46 @@ method handleConn*(p: PubSub,
   ##    that we're interested in
   ##
 
+  if isNil(conn.peerInfo):
+    trace "no valid PeerId for peer"
+    await conn.close()
+    return
+
+  proc handler(peer: PubSubPeer, msgs: seq[RPCMsg]) {.async.} =
+    # call pubsub rpc handler
+    await p.rpcHandler(peer, msgs)
+
+  let peer = p.getPeer(conn.peerInfo, proto)
+  let topics = toSeq(p.topics.keys)
+  if topics.len > 0:
+    await p.sendSubs(peer, topics, true)
+
   try:
-    if isNil(conn.peerInfo):
-      trace "no valid PeerId for peer"
-      await conn.close()
-      return
-
-    proc handler(peer: PubSubPeer, msgs: seq[RPCMsg]) {.async.} =
-      # call pubsub rpc handler
-      await p.rpcHandler(peer, msgs)
-
-    asyncCheck p.internalCleanup(conn)
-    let peer = p.getPeer(conn.peerInfo, proto)
-    let topics = toSeq(p.topics.keys)
-    if topics.len > 0:
-      await p.sendSubs(peer, topics, true)
-
     peer.handler = handler
     await peer.handle(conn) # spawn peer read loop
-    trace "pubsub peer handler ended, cleaning up"
+    trace "pubsub peer handler ended", peer = peer.id
   except CancelledError as exc:
-    await conn.close()
     raise exc
   except CatchableError as exc:
     trace "exception ocurred in pubsub handle", exc = exc.msg
+  finally:
+    p.handleDisconnect(peer)
     await conn.close()
 
-method subscribeToPeer*(p: PubSub,
-                        conn: Connection) {.base, async.} =
+method subscribePeer*(p: PubSub, conn: Connection) {.base.} =
   if not(isNil(conn)):
     let peer = p.getPeer(conn.peerInfo, p.codec)
-    trace "setting connection for peer", peerId = conn.peerInfo.id
+    trace "subscribing to peer", peerId = conn.peerInfo.id
     if not peer.connected:
       peer.conn = conn
 
-    asyncCheck p.internalCleanup(conn)
+method unsubscribePeer*(p: PubSub, peerInfo: PeerInfo) {.base, async.} =
+  let peer = p.getPeer(peerInfo, p.codec)
+  trace "unsubscribing from peer", peerId = $peerInfo
+  if not(isNil(peer.conn)):
+    await peer.conn.close()
+
+  p.handleDisconnect(peer)
 
 proc connected*(p: PubSub, peer: PeerInfo): bool =
   let peer = p.getPeer(peer, p.codec)
@@ -231,16 +229,46 @@ method subscribe*(p: PubSub,
 
   p.topics[topic].handler.add(handler)
 
-  for peer in p.peers.values:
+  for peer in toSeq(p.peers.values):
     await p.sendSubs(peer, @[topic], true)
 
   # metrics
   libp2p_pubsub_topics.inc()
 
+proc sendHelper*(p: PubSub,
+                 sendPeers: HashSet[string],
+                 msgs: seq[Message]): Future[SendRes] {.async.} =
+  var sent: seq[tuple[id: string, fut: Future[void]]]
+  for sendPeer in sendPeers:
+    # avoid sending to self
+    if sendPeer == p.peerInfo.id:
+      continue
+
+    let peer = p.peers.getOrDefault(sendPeer)
+    if isNil(peer):
+      continue
+
+    trace "sending messages to peer", peer = peer.id, msgs
+    sent.add((id: peer.id, fut: peer.send(@[RPCMsg(messages: msgs)])))
+
+  var published: seq[string]
+  var failed: seq[string]
+  let futs = await allFinished(sent.mapIt(it.fut))
+  for s in futs:
+    let f = sent.filterIt(it.fut == s)
+    if f.len > 0:
+      if s.failed:
+        trace "sending messages to peer failed", peer = f[0].id
+        failed.add(f[0].id)
+      else:
+        trace "sending messages to peer succeeded", peer = f[0].id
+        published.add(f[0].id)
+
+  return (published, failed)
+
 method publish*(p: PubSub,
                 topic: string,
-                data: seq[byte]) {.base, async.} =
-  # TODO: Should throw indicating success/failure
+                data: seq[byte]): Future[int] {.base, async.} =
   ## publish to a ``topic``
   if p.triggerSelf and topic in p.topics:
     for h in p.topics[topic].handler:
@@ -254,6 +282,8 @@ method publish*(p: PubSub,
         #      are failing, the underlying connection is already closed - this needs
         #      more cleanup though
         debug "Could not write to pubsub connection", msg = exc.msg
+
+  return 0
 
 method initPubSub*(p: PubSub) {.base.} =
   ## perform pubsub initialization

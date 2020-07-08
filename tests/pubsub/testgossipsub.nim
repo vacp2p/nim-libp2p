@@ -38,9 +38,20 @@ proc waitSub(sender, receiver: auto; key: string) {.async, gcsafe.} =
         (not fsub.fanout.hasKey(key) or
          not fsub.fanout[key].contains(receiver.peerInfo.id)):
     trace "waitSub sleeping..."
-    await sleepAsync(100.millis)
+    await sleepAsync(1.seconds)
     dec ceil
     doAssert(ceil > 0, "waitSub timeout!")
+
+template tryPublish(call: untyped, require: int, wait: Duration = 1.seconds, times: int = 10): untyped =
+  var
+    limit = times
+    pubs = 0
+  while pubs < require and limit > 0:
+    pubs = pubs + call
+    await sleepAsync(wait)
+    limit.dec()
+  if limit == 0:
+    doAssert(false, "Failed to publish!")
 
 suite "GossipSub":
   teardown:
@@ -63,9 +74,7 @@ suite "GossipSub":
       await subscribeNodes(nodes)
 
       await nodes[0].subscribe("foobar", handler)
-      await waitSub(nodes[1], nodes[0], "foobar")
       await nodes[1].subscribe("foobar", handler)
-      await waitSub(nodes[0], nodes[1], "foobar")
 
       var validatorFut = newFuture[bool]()
       proc validator(topic: string,
@@ -76,7 +85,7 @@ suite "GossipSub":
         result = true
 
       nodes[1].addValidator("foobar", validator)
-      await nodes[0].publish("foobar", "Hello!".toBytes())
+      tryPublish await nodes[0].publish("foobar", "Hello!".toBytes()), 1
 
       result = (await validatorFut) and (await handlerFut)
       await allFuturesThrowing(
@@ -100,17 +109,16 @@ suite "GossipSub":
       await subscribeNodes(nodes)
 
       await nodes[1].subscribe("foobar", handler)
-      await waitSub(nodes[0], nodes[1], "foobar")
 
       var validatorFut = newFuture[bool]()
       proc validator(topic: string,
                      message: Message):
                      Future[bool] {.async.} =
-        validatorFut.complete(true)
         result = false
+        validatorFut.complete(true)
 
       nodes[1].addValidator("foobar", validator)
-      await nodes[0].publish("foobar", "Hello!".toBytes())
+      tryPublish await nodes[0].publish("foobar", "Hello!".toBytes()), 1
 
       result = await validatorFut
       await allFuturesThrowing(
@@ -134,10 +142,9 @@ suite "GossipSub":
       awaiters.add((await nodes[1].start()))
 
       await subscribeNodes(nodes)
+
       await nodes[1].subscribe("foo", handler)
-      await waitSub(nodes[0], nodes[1], "foo")
       await nodes[1].subscribe("bar", handler)
-      await waitSub(nodes[0], nodes[1], "bar")
 
       var passed, failed: Future[bool] = newFuture[bool]()
       proc validator(topic: string,
@@ -151,8 +158,8 @@ suite "GossipSub":
           false
 
       nodes[1].addValidator("foo", "bar", validator)
-      await nodes[0].publish("foo", "Hello!".toBytes())
-      await nodes[0].publish("bar", "Hello!".toBytes())
+      tryPublish await nodes[0].publish("foo", "Hello!".toBytes()), 1
+      tryPublish await nodes[0].publish("bar", "Hello!".toBytes()), 1
 
       result = ((await passed) and (await failed) and (await handlerFut))
       await allFuturesThrowing(
@@ -170,7 +177,8 @@ suite "GossipSub":
 
       var nodes: seq[Switch] = newSeq[Switch]()
       for i in 0..<2:
-        nodes.add newStandardSwitch(gossip = true, secureManagers = [SecureProtocol.Noise])
+        nodes.add newStandardSwitch(gossip = true,
+                                    secureManagers = [SecureProtocol.Noise])
 
       var awaitters: seq[Future[void]]
       for node in nodes:
@@ -178,7 +186,7 @@ suite "GossipSub":
 
       await subscribeNodes(nodes)
       await nodes[1].subscribe("foobar", handler)
-      await sleepAsync(1.seconds)
+      await sleepAsync(10.seconds)
 
       let gossip1 = GossipSub(nodes[0].pubSub.get())
       let gossip2 = GossipSub(nodes[1].pubSub.get())
@@ -272,7 +280,7 @@ suite "GossipSub":
       nodes[1].pubsub.get().addObserver(obs1)
       nodes[0].pubsub.get().addObserver(obs2)
 
-      await nodes[0].publish("foobar", "Hello!".toBytes())
+      tryPublish await nodes[0].publish("foobar", "Hello!".toBytes()), 1
 
       var gossipSub1: GossipSub = GossipSub(nodes[0].pubSub.get())
 
@@ -287,7 +295,7 @@ suite "GossipSub":
       await nodes[1].stop()
       await allFuturesThrowing(wait)
 
-      # result = observed == 2
+      check observed == 2
       result = true
 
     check:
@@ -310,7 +318,7 @@ suite "GossipSub":
       await nodes[1].subscribe("foobar", handler)
       await waitSub(nodes[0], nodes[1], "foobar")
 
-      await nodes[0].publish("foobar", "Hello!".toBytes())
+      tryPublish await nodes[0].publish("foobar", "Hello!".toBytes()), 1
 
       result = await passed
 
@@ -328,7 +336,9 @@ suite "GossipSub":
       var runs = 10
 
       for i in 0..<runs:
-        nodes.add newStandardSwitch(triggerSelf = true, gossip = true, secureManagers = [SecureProtocol.Noise])
+        nodes.add newStandardSwitch(triggerSelf = true,
+                                    gossip = true,
+                                    secureManagers = [SecureProtocol.Noise])
         awaitters.add((await nodes[i].start()))
 
       await subscribeRandom(nodes)
@@ -348,20 +358,19 @@ suite "GossipSub":
             if not seenFut.finished() and seen.len >= runs:
               seenFut.complete()
 
-        subs.add(allFutures(dialer.subscribe("foobar", handler),
-          waitSub(nodes[0], dialer, "foobar")))
+        subs &= dialer.subscribe("foobar", handler)
 
       await allFuturesThrowing(subs)
 
-      await wait(nodes[0].publish("foobar",
-                                  cast[seq[byte]]("from node " &
-                                  nodes[1].peerInfo.id)),
-                                  1.minutes)
+      tryPublish await wait(nodes[0].publish("foobar",
+                                    cast[seq[byte]]("from node " &
+                                    nodes[1].peerInfo.id)),
+                                    1.minutes), runs, 5.seconds
 
       await wait(seenFut, 2.minutes)
       check: seen.len >= runs
       for k, v in seen.pairs:
-        check: v == 1
+        check: v >= 1
 
       await allFuturesThrowing(nodes.mapIt(it.stop()))
       await allFuturesThrowing(awaitters)
@@ -377,10 +386,12 @@ suite "GossipSub":
       var runs = 10
 
       for i in 0..<runs:
-        nodes.add newStandardSwitch(triggerSelf = true, gossip = true, secureManagers = [SecureProtocol.Secio])
+        nodes.add newStandardSwitch(triggerSelf = true,
+                                    gossip = true,
+                                    secureManagers = [SecureProtocol.Secio])
         awaitters.add((await nodes[i].start()))
 
-      await subscribeSparseNodes(nodes, 4)
+      await subscribeSparseNodes(nodes, 1) # TODO: figure out better sparse mesh
 
       var seen: Table[string, int]
       var subs: seq[Future[void]]
@@ -401,15 +412,16 @@ suite "GossipSub":
         subs &= dialer.subscribe("foobar", handler)
 
       await allFuturesThrowing(subs)
-      await wait(nodes[0].publish("foobar",
-                                  cast[seq[byte]]("from node " &
-                                  nodes[1].peerInfo.id)),
-                                  1.minutes)
+
+      tryPublish await wait(nodes[0].publish("foobar",
+                                    cast[seq[byte]]("from node " &
+                                    nodes[1].peerInfo.id)),
+                                    1.minutes), 3, 5.seconds
 
       await wait(seenFut, 5.minutes)
       check: seen.len >= runs
       for k, v in seen.pairs:
-        check: v == 1
+        check: v >= 1
 
       await allFuturesThrowing(nodes.mapIt(it.stop()))
       await allFuturesThrowing(awaitters)
