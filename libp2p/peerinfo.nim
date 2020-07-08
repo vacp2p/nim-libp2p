@@ -7,7 +7,7 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import options, sequtils
+import options, sequtils, hashes
 import chronos, chronicles
 import peerid, multiaddress, crypto/crypto
 
@@ -42,6 +42,8 @@ type
     # gossip 1.1 spec related
     # https://github.com/libp2p/specs/blob/master/pubsub/gossipsub/gossipsub-v1.1.md#explicit-peering-agreements
     maintain*: bool 
+
+proc hash*(i: PeerInfo): Hash = cast[int](i).hash # cast ptr to int and hash
 
 proc id*(p: PeerInfo): string =
   if not(isNil(p)):
