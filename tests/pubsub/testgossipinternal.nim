@@ -32,6 +32,7 @@ suite "GossipSub internal":
       gossipSub.mesh[topic] = initHashSet[string]()
 
       var conns = newSeq[Connection]()
+      gossipSub.gossipsub[topic] = initHashSet[string]()
       for i in 0..<15:
         let conn = newBufferStream(noop)
         conns &= conn
@@ -60,6 +61,7 @@ suite "GossipSub internal":
       gossipSub.mesh[topic] = initHashSet[string]()
       gossipSub.topics[topic] = Topic() # has to be in topics to rebalance
 
+      gossipSub.gossipsub[topic] = initHashSet[string]()
       var conns = newSeq[Connection]()
       for i in 0..<15:
         let conn = newBufferStream(noop)
