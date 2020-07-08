@@ -168,6 +168,7 @@ proc rebalanceMesh(g: GossipSub, topic: string) {.async.} =
         # send a graft message to the peer
         await p.sendPrune(@[topic])
         g.mesh[topic].excl(id)
+        g.gossipsub[topic].incl(id)
 
     libp2p_gossipsub_peers_per_topic_gossipsub
       .set(g.gossipsub.getOrDefault(topic).len.int64,
@@ -274,7 +275,7 @@ proc heartbeat(g: GossipSub) {.async.} =
     except CatchableError as exc:
       trace "exception ocurred in gossipsub heartbeat", exc = exc.msg
 
-    await sleepAsync(1.seconds)
+    await sleepAsync(5.seconds)
 
 method handleDisconnect*(g: GossipSub, peer: PubSubPeer) =
   ## handle peer disconnects
@@ -362,6 +363,7 @@ proc handlePrune(g: GossipSub, peer: PubSubPeer, prunes: seq[ControlPrune]) =
 
     if prune.topicID in g.mesh:
       g.mesh[prune.topicID].excl(peer.id)
+      g.gossipsub[prune.topicID].incl(peer.id)
       libp2p_gossipsub_peers_per_topic_mesh
         .set(g.mesh[prune.topicID].len.int64, labelValues = [prune.topicID])
 
