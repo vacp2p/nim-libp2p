@@ -324,6 +324,10 @@ method subscribeTopic*(g: GossipSub,
     trace "removing subscription for topic", peer = peerId, name = topic
     # unsubscribe remote peer from the topic
     g.gossipsub[topic].excl(peerId)
+    if peerId in g.mesh.getOrDefault(topic):
+      g.mesh[topic].excl(peerId)
+    if peerId in g.fanout.getOrDefault(topic):
+      g.fanout[topic].excl(peerId)
 
   libp2p_gossipsub_peers_per_topic_gossipsub
     .set(g.gossipsub[topic].len.int64, labelValues = [topic])
