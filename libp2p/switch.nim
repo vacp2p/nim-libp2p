@@ -357,7 +357,7 @@ proc upgradeIncoming(s: Switch, conn: Connection) {.async, gcsafe.} =
 
       # add the muxer
       for muxer in s.muxers.values:
-        ms.addHandler(muxer.codec, muxer)
+        ms.addHandler(muxer.codecs, muxer)
 
       # handle subsequent requests
       await ms.handle(sconn)
@@ -476,7 +476,7 @@ proc mount*[T: LPProtocol](s: Switch, proto: T) {.gcsafe.} =
     raise newException(CatchableError,
       "Protocol has to define a codec string")
 
-  s.ms.addHandler(proto.codec, proto)
+  s.ms.addHandler(proto.codecs, proto)
 
 proc start*(s: Switch): Future[seq[Future[void]]] {.async, gcsafe.} =
   trace "starting switch for peer", peerInfo = shortLog(s.peerInfo)

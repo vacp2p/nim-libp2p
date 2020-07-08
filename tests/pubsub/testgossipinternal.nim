@@ -40,7 +40,7 @@ suite "GossipSub internal":
         conns &= conn
         let peerInfo = randomPeerInfo()
         conn.peerInfo = peerInfo
-        gossipSub.peers[peerInfo.id] = newPubSubPeer(peerInfo, GossipSubCodec)
+        gossipSub.peers[peerInfo.id] = newPubSubPeer(peerInfo, GossipSubCodec_11)
         gossipSub.peers[peerInfo.id].conn = conn
         gossipSub.mesh[topic].incl(peerInfo.id)
 
@@ -69,7 +69,7 @@ suite "GossipSub internal":
         conns &= conn
         let peerInfo = PeerInfo.init(PrivateKey.random(ECDSA, rng[]).get())
         conn.peerInfo = peerInfo
-        gossipSub.peers[peerInfo.id] = newPubSubPeer(peerInfo, GossipSubCodec)
+        gossipSub.peers[peerInfo.id] = newPubSubPeer(peerInfo, GossipSubCodec_11)
         gossipSub.peers[peerInfo.id].conn = conn
         gossipSub.gossipsub[topic].incl(peerInfo.id)
 
@@ -100,7 +100,7 @@ suite "GossipSub internal":
         conns &= conn
         var peerInfo = randomPeerInfo()
         conn.peerInfo = peerInfo
-        gossipSub.peers[peerInfo.id] = newPubSubPeer(peerInfo, GossipSubCodec)
+        gossipSub.peers[peerInfo.id] = newPubSubPeer(peerInfo, GossipSubCodec_11)
         gossipSub.peers[peerInfo.id].handler = handler
         gossipSub.gossipsub[topic].incl(peerInfo.id)
 
@@ -133,7 +133,7 @@ suite "GossipSub internal":
         conns &= conn
         let peerInfo = PeerInfo.init(PrivateKey.random(ECDSA, rng[]).get())
         conn.peerInfo = peerInfo
-        gossipSub.peers[peerInfo.id] = newPubSubPeer(peerInfo, GossipSubCodec)
+        gossipSub.peers[peerInfo.id] = newPubSubPeer(peerInfo, GossipSubCodec_11)
         gossipSub.peers[peerInfo.id].handler = handler
         gossipSub.fanout[topic].incl(peerInfo.id)
 
@@ -170,7 +170,7 @@ suite "GossipSub internal":
         conns &= conn
         let peerInfo = randomPeerInfo()
         conn.peerInfo = peerInfo
-        gossipSub.peers[peerInfo.id] = newPubSubPeer(peerInfo, GossipSubCodec)
+        gossipSub.peers[peerInfo.id] = newPubSubPeer(peerInfo, GossipSubCodec_11)
         gossipSub.peers[peerInfo.id].handler = handler
         gossipSub.fanout[topic1].incl(peerInfo.id)
         gossipSub.fanout[topic2].incl(peerInfo.id)
@@ -208,7 +208,7 @@ suite "GossipSub internal":
         conns &= conn
         let peerInfo = randomPeerInfo()
         conn.peerInfo = peerInfo
-        gossipSub.peers[peerInfo.id] = newPubSubPeer(peerInfo, GossipSubCodec)
+        gossipSub.peers[peerInfo.id] = newPubSubPeer(peerInfo, GossipSubCodec_11)
         gossipSub.peers[peerInfo.id].handler = handler
         if i mod 2 == 0:
           gossipSub.fanout[topic].incl(peerInfo.id)
@@ -221,7 +221,7 @@ suite "GossipSub internal":
         conns &= conn
         let peerInfo = randomPeerInfo()
         conn.peerInfo = peerInfo
-        gossipSub.peers[peerInfo.id] = newPubSubPeer(peerInfo, GossipSubCodec)
+        gossipSub.peers[peerInfo.id] = newPubSubPeer(peerInfo, GossipSubCodec_11)
         gossipSub.peers[peerInfo.id].handler = handler
         gossipSub.gossipsub[topic].incl(peerInfo.id)
 
@@ -267,7 +267,7 @@ suite "GossipSub internal":
         conns &= conn
         let peerInfo = randomPeerInfo()
         conn.peerInfo = peerInfo
-        gossipSub.peers[peerInfo.id] = newPubSubPeer(peerInfo, GossipSubCodec)
+        gossipSub.peers[peerInfo.id] = newPubSubPeer(peerInfo, GossipSubCodec_11)
         gossipSub.peers[peerInfo.id].handler = handler
         if i mod 2 == 0:
           gossipSub.fanout[topic].incl(peerInfo.id)
@@ -309,7 +309,7 @@ suite "GossipSub internal":
         conns &= conn
         let peerInfo = randomPeerInfo()
         conn.peerInfo = peerInfo
-        gossipSub.peers[peerInfo.id] = newPubSubPeer(peerInfo, GossipSubCodec)
+        gossipSub.peers[peerInfo.id] = newPubSubPeer(peerInfo, GossipSubCodec_11)
         gossipSub.peers[peerInfo.id].handler = handler
         if i mod 2 == 0:
           gossipSub.mesh[topic].incl(peerInfo.id)
@@ -351,7 +351,7 @@ suite "GossipSub internal":
         conns &= conn
         let peerInfo = randomPeerInfo()
         conn.peerInfo = peerInfo
-        gossipSub.peers[peerInfo.id] = newPubSubPeer(peerInfo, GossipSubCodec)
+        gossipSub.peers[peerInfo.id] = newPubSubPeer(peerInfo, GossipSubCodec_11)
         gossipSub.peers[peerInfo.id].handler = handler
         if i mod 2 == 0:
           gossipSub.mesh[topic].incl(peerInfo.id)

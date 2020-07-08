@@ -7,7 +7,7 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import strutils
+import strutils, tables
 import chronos, chronicles, stew/byteutils
 import stream/connection,
        vbuffer,
@@ -29,7 +29,7 @@ type
   Matcher* = proc (proto: string): bool {.gcsafe.}
 
   HandlerHolder* = object
-    proto*: string
+    protos*: seq[string]
     protocol*: LPProtocol
     match*: Matcher
 
@@ -133,15 +133,16 @@ proc handle*(m: MultistreamSelect, conn: Connection) {.async, gcsafe.} =
           trace "handle: listing protos"
           var protos = ""
           for h in m.handlers:
-            protos &= (h.proto & "\n")
+            for proto in h.protos:
+              protos &= (proto & "\n")
           await conn.writeLp(protos)
         of Codec:
           await conn.write(m.codec)
         else:
           for h in m.handlers:
-            if (not isNil(h.match) and h.match(ms)) or ms == h.proto:
+            if (not isNil(h.match) and h.match(ms)) or h.protos.contains(ms):
               trace "found handler for", protocol = ms
-              await conn.writeLp((h.proto & "\n"))
+              await conn.writeLp((ms & "\n"))
               await h.protocol.handler(conn, ms)
               return
           debug "no handlers for ", protocol = ms
@@ -156,17 +157,11 @@ proc handle*(m: MultistreamSelect, conn: Connection) {.async, gcsafe.} =
     trace "leaving multistream loop"
 
 proc addHandler*[T: LPProtocol](m: MultistreamSelect,
-                                codec: string,
+                                codecs: seq[string],
                                 protocol: T,
                                 matcher: Matcher = nil) =
-  ## register a protocol
-  # TODO: This is a bug in chronicles,
-  # it break if I uncomment this line.
-  # Which is almost the same as the
-  # one on the next override of addHandler
-  #
-  # trace "registering protocol", codec = codec
-  m.handlers.add(HandlerHolder(proto: codec,
+  trace "registering protocol", protos = codecs
+  m.handlers.add(HandlerHolder(protos: codecs,
                                protocol: protocol,
                                match: matcher))
 
@@ -176,11 +171,11 @@ proc addHandler*[T: LPProtoHandler](m: MultistreamSelect,
                                     matcher: Matcher = nil) =
   ## helper to allow registering pure handlers
 
-  trace "registering proto handler", codec = codec
+  trace "registering proto handler", proto = codec
   let protocol = new LPProtocol
   protocol.codec = codec
   protocol.handler = handler
 
-  m.handlers.add(HandlerHolder(proto: codec,
+  m.handlers.add(HandlerHolder(protos: @[codec],
                                protocol: protocol,
                                match: matcher))

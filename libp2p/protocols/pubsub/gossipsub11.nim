@@ -102,8 +102,8 @@ method init*(g: GossipSub) =
     await g.handleConn(conn, proto)
 
   g.handler = handler
-  g.codecs &= GossipSubCodec
   g.codecs &= GossipSubCodec_11
+  g.codecs &= GossipSubCodec
 
 proc replenishFanout(g: GossipSub, topic: string) =
   ## get fanout peers for a topic
@@ -304,7 +304,7 @@ method handleDisconnect*(g: GossipSub, peer: PubSubPeer) {.async.} =
 method subscribeToPeer*(p: GossipSub,
                         conn: Connection) {.async.} =
   await procCall PubSub(p).subscribeToPeer(conn)
-  asyncCheck p.handleConn(conn, GossipSubCodec)
+  asyncCheck p.handleConn(conn, GossipSubCodec_11)
 
 method subscribeTopic*(g: GossipSub,
                        topic: string,
