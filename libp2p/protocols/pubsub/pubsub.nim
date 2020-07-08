@@ -107,7 +107,12 @@ method subscribeTopic*(p: PubSub,
                        topic: string,
                        subscribe: bool,
                        peerId: string) {.base, async.} =
-  discard
+  var peer = p.peers.getOrDefault(peerId)
+  if not isNil(peer):
+    if subscribe:
+      peer.topics.incl(topic)
+    else:
+      peer.topics.excl(topic)
 
 method rpcHandler*(p: PubSub,
                    peer: PubSubPeer,
