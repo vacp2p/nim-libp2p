@@ -47,13 +47,13 @@ method subscribeTopic*(f: FloodSub,
     # unsubscribe the peer from the topic
     f.floodsub[topic].excl(peerId)
 
-method handleDisconnect*(f: FloodSub, peer: PubSubPeer) {.async.} =
-  await procCall PubSub(f).handleDisconnect(peer)
-
+method handleDisconnect*(f: FloodSub, peer: PubSubPeer) =
   ## handle peer disconnects
   for t in toSeq(f.floodsub.keys):
     if t in f.floodsub:
       f.floodsub[t].excl(peer.id)
+
+  procCall PubSub(f).handleDisconnect(peer)
 
 method rpcHandler*(f: FloodSub,
                    peer: PubSubPeer,
@@ -86,18 +86,20 @@ method rpcHandler*(f: FloodSub,
                 trace "calling handler for message", topicId = t,
                                                      localPeer = f.peerInfo.id,
                                                      fromPeer = msg.fromPeer.pretty
-                await h(t, msg.data)                 # trigger user provided handler
+
+                try:
+                  await h(t, msg.data)                 # trigger user provided handler
+                except CatchableError as exc:
+                  trace "exception in message handler", exc = exc.msg
 
         # forward the message to all peers interested in it
-        var sent: seq[Future[void]]
-        # start the future but do not wait yet
-        for p in toSendPeers:
-          if p in f.peers and f.peers[p].id != peer.id:
-            sent.add(f.peers[p].send(@[RPCMsg(messages: m.messages)]))
+        let (published, failed) = await f.sendHelper(toSendPeers, m.messages)
+        for p in failed:
+          let peer = f.peers.getOrDefault(p)
+          if not(isNil(peer)):
+            f.handleDisconnect(peer) # cleanup failed peers
 
-        # wait for all the futures now
-        sent = await allFinished(sent)
-        checkFutures(sent)
+        trace "forwared message to peers", peers = published.len
 
 method init*(f: FloodSub) =
   proc handler(conn: Connection, proto: string) {.async.} =
@@ -111,9 +113,9 @@ method init*(f: FloodSub) =
   f.handler = handler
   f.codec = FloodSubCodec
 
-method subscribeToPeer*(p: FloodSub,
-                        conn: Connection) {.async.} =
-  await procCall PubSub(p).subscribeToPeer(conn)
+method subscribePeer*(p: FloodSub,
+                      conn: Connection) =
+  procCall PubSub(p).subscribePeer(conn)
   asyncCheck p.handleConn(conn, FloodSubCodec)
 
 method publish*(f: FloodSub,
@@ -132,20 +134,17 @@ method publish*(f: FloodSub,
 
   trace "publishing on topic", name = topic
   let msg = Message.init(f.peerInfo, data, topic, f.sign)
-  var sent: seq[Future[void]]
   # start the future but do not wait yet
-  for p in f.floodsub.getOrDefault(topic):
-    if p in f.peers:
-      trace "publishing message", name = topic, peer = p, data = data.shortLog
-      sent.add(f.peers[p].send(@[RPCMsg(messages: @[msg])]))
-
-  # wait for all the futures now
-  sent = await allFinished(sent)
-  checkFutures(sent)
+  let (published, failed) = await f.sendHelper(f.floodsub.getOrDefault(topic), @[msg])
+  for p in failed:
+    let peer = f.peers.getOrDefault(p)
+    f.handleDisconnect(peer) # cleanup failed peers
 
   libp2p_pubsub_messages_published.inc(labelValues = [topic])
 
-  return sent.filterIt(not it.failed).len
+  trace "published message to peers", peers = published.len,
+                                      msg = msg.shortLog()
+  return published.len
 
 method unsubscribe*(f: FloodSub,
                     topics: seq[TopicPair]) {.async.} =

@@ -12,7 +12,8 @@ import tables,
        options,
        strformat,
        sets,
-       algorithm
+       algorithm,
+       oids
 
 import chronos,
        chronicles,
@@ -65,10 +66,6 @@ type
       muxer: Muxer
       handle: Future[void]
 
-    Maintainer = object
-      loopFut: Future[void]
-      sleepFut: Future[void]
-
     Switch* = ref object of RootObj
       peerInfo*: PeerInfo
       connections*: Table[string, seq[ConnectionHolder]]
@@ -81,10 +78,13 @@ type
       streamHandler*: StreamHandler
       secureManagers*: seq[Secure]
       pubSub*: Option[PubSub]
-      dialedPubSubPeers: HashSet[string]
       running: bool
-      maintainFuts: Table[string, Maintainer]
       dialLock: Table[string, AsyncLock]
+      cleanUpLock: Table[string, AsyncLock]
+      # gossip 1.1 related
+      maintaining: HashSet[PeerInfo]
+      maintainFut: Future[void]
+      maintainSleepFut: Future[void]
 
 proc newNoPubSubException(): ref NoPubSubException {.inline.} =
   result = newException(NoPubSubException, "no pubsub provided!")
@@ -93,7 +93,7 @@ proc newTooManyConnections(): ref TooManyConnections {.inline.} =
   result = newException(TooManyConnections, "too many connections for peer")
 
 proc disconnect*(s: Switch, peer: PeerInfo) {.async, gcsafe.}
-proc subscribeToPeer*(s: Switch, peerInfo: PeerInfo) {.async, gcsafe.}
+proc subscribePeer*(s: Switch, peerInfo: PeerInfo) {.async, gcsafe.}
 
 proc selectConn(s: Switch, peerInfo: PeerInfo): Connection =
   ## select the "best" connection according to some criteria
@@ -165,6 +165,9 @@ proc storeConn(s: Switch,
     muxer.connection.peerInfo.id,
     newSeq[MuxerHolder]())
     .add(MuxerHolder(muxer: muxer, handle: handle, dir: dir))
+
+  trace "storred connection", connections = s.connections.len
+  libp2p_peers.set(s.connections.len.int64)
 
 proc secure(s: Switch, conn: Connection): Future[Connection] {.async, gcsafe.} =
   if s.secureManagers.len <= 0:
@@ -259,45 +262,56 @@ proc cleanupConn(s: Switch, conn: Connection) {.async, gcsafe.} =
     if isNil(conn):
       return
 
-    defer:
-      await conn.close()
-      libp2p_peers.set(s.connections.len.int64)
-
     if isNil(conn.peerInfo):
       return
 
     let id = conn.peerInfo.id
-    trace "cleaning up connection for peer", peerId = id
-    if id in s.muxed:
-      let muxerHolder = s.muxed[id]
-        .filterIt(
-          it.muxer.connection == conn
-        )
+    let lock = s.cleanUpLock.mgetOrPut(id, newAsyncLock())
 
-      if muxerHolder.len > 0:
-        await muxerHolder[0].muxer.close()
-        if not(isNil(muxerHolder[0].handle)):
-          await muxerHolder[0].handle
-
+    try:
+      await lock.acquire()
+      trace "cleaning up connection for peer", peerId = id
       if id in s.muxed:
-        s.muxed[id].keepItIf(
-          it.muxer.connection != conn
+        let muxerHolder = s.muxed[id]
+          .filterIt(
+            it.muxer.connection == conn
+          )
+
+        if muxerHolder.len > 0:
+          await muxerHolder[0].muxer.close()
+          if not(isNil(muxerHolder[0].handle)):
+            await muxerHolder[0].handle
+
+        if id in s.muxed:
+          s.muxed[id].keepItIf(
+            it.muxer.connection != conn
+          )
+
+          if s.muxed[id].len == 0:
+            s.muxed.del(id)
+
+      if s.pubSub.isSome:
+        await s.pubSub.get()
+          .unsubscribePeer(conn.peerInfo)
+
+      if id in s.connections:
+        s.connections[id].keepItIf(
+          it.conn != conn
         )
 
-        if s.muxed[id].len == 0:
-          s.muxed.del(id)
+        if s.connections[id].len == 0:
+          s.connections.del(id)
 
-    if id in s.connections:
-      s.connections[id].keepItIf(
-        it.conn != conn
-      )
+      # TODO: Investigate cleanupConn() always called twice for one peer.
+      if not(conn.peerInfo.isClosed()):
+        conn.peerInfo.close()
+    finally:
+      await conn.close()
 
-      if s.connections[id].len == 0:
-        s.connections.del(id)
+      if lock.locked():
+        lock.release()
 
-    # TODO: Investigate cleanupConn() always called twice for one peer.
-    if not(conn.peerInfo.isClosed()):
-      conn.peerInfo.close()
+      libp2p_peers.set(s.connections.len.int64)
 
 proc disconnect*(s: Switch, peer: PeerInfo) {.async, gcsafe.} =
   let connections = s.connections.getOrDefault(peer.id)
@@ -330,7 +344,6 @@ proc upgradeOutgoing(s: Switch, conn: Connection): Future[Connection] {.async, g
     raise newException(CatchableError,
       "unable to mux connection, stopping upgrade")
 
-  libp2p_peers.set(s.connections.len.int64)
   trace "succesfully upgraded outgoing connection", uoid = sconn.oid
   return sconn
 
@@ -382,8 +395,8 @@ proc internalConnect(s: Switch,
     raise newException(CatchableError, "can't dial self!")
 
   let id = peer.id
-  let lock = s.dialLock.mgetOrPut(id, newAsyncLock())
   var conn: Connection
+  let lock = s.dialLock.mgetOrPut(id, newAsyncLock())
 
   defer:
     if lock.locked():
@@ -443,29 +456,48 @@ proc internalConnect(s: Switch,
   doAssert(conn.peerInfo.id in s.connections,
     "connection not tracked!")
 
-  trace "dial succesfull", oid = conn.oid
-  await s.subscribeToPeer(peer)
+  trace "dial succesfull", oid = $conn.oid,
+                           peer = $conn.peerInfo
+
+  await s.subscribePeer(peer)
   return conn
 
 proc connect*(s: Switch, peer: PeerInfo) {.async.} =
-  var conn = await s.internalConnect(peer)
+  discard await s.internalConnect(peer)
 
 proc dial*(s: Switch,
            peer: PeerInfo,
            proto: string):
            Future[Connection] {.async.} =
-  var conn = await s.internalConnect(peer)
+  let conn = await s.internalConnect(peer)
   let stream = await s.getMuxedStream(peer)
-  if isNil(stream):
-    await conn.close()
-    raise newException(CatchableError, "Couldn't get muxed stream")
 
-  trace "Attempting to select remote", proto = proto, oid = conn.oid
-  if not await s.ms.select(stream, proto):
-    await stream.close()
-    raise newException(CatchableError, "Unable to select sub-protocol " & proto)
+  proc cleanup() {.async.} =
+    if not(isNil(stream)):
+      await stream.close()
 
-  return stream
+    if not(isNil(conn)):
+      await conn.close()
+
+  try:
+    if isNil(stream):
+      await conn.close()
+      raise newException(CatchableError, "Couldn't get muxed stream")
+
+    trace "Attempting to select remote", proto = proto, oid = conn.oid
+    if not await s.ms.select(stream, proto):
+      await stream.close()
+      raise newException(CatchableError, "Unable to select sub-protocol " & proto)
+
+    return stream
+  except CancelledError as exc:
+    trace "dial canceled"
+    await cleanup()
+    raise exc
+  except CatchableError as exc:
+    trace "error dialing"
+    await cleanup()
+    raise exc
 
 proc mount*[T: LPProtocol](s: Switch, proto: T) {.gcsafe.} =
   if isNil(proto.handler):
@@ -477,6 +509,8 @@ proc mount*[T: LPProtocol](s: Switch, proto: T) {.gcsafe.} =
       "Protocol has to define a codec string")
 
   s.ms.addHandler(proto.codec, proto)
+
+proc maintainPeers(s: Switch) {.async, gcsafe.}
 
 proc start*(s: Switch): Future[seq[Future[void]]] {.async, gcsafe.} =
   trace "starting switch for peer", peerInfo = shortLog(s.peerInfo)
@@ -502,6 +536,7 @@ proc start*(s: Switch): Future[seq[Future[void]]] {.async, gcsafe.} =
 
   if s.pubSub.isSome:
     await s.pubSub.get().start()
+    s.maintainFut = maintainPeers(s)
 
   info "started libp2p node", peer = $s.peerInfo, addrs = s.peerInfo.addrs
   result = startFuts # listen for incoming connections
@@ -511,26 +546,16 @@ proc stop*(s: Switch) {.async.} =
 
   s.running = false
 
-  # Stop explicit peering system (gossip 1.1 related, but useful even with other pubsubs)
-  # Cancel their sleep as it likely is running for 5 mins
-  # running is false so they should exit after that
-  # and so we just wait/ensure all has finished
-  # Maintain has tryAndWarn so we should not be priting any error here
-  # nevertheless use checkFutures!
-  # Notice.. this is ugly but we have no clean way to express a Chain of operations/futures
-  # and simply post a cancelation/stop from the root of the chain...
-  let
-    maintainers = toSeq(s.maintainFuts.values)
-    sleepFuts = maintainers.mapIt(it.sleepFut)
-    loopFuts = maintainers.mapIt(it.loopFut)
-  for f in sleepFuts: f.cancel()
-  checkFutures(await allFinished(sleepFuts))
-  checkFutures(await allFinished(loopFuts))
-
   # we want to report errors but we do not want to fail
   # or crash here, cos we need to clean possibly MANY items
   # and any following conn/transport won't be cleaned up
   if s.pubSub.isSome:
+    # Stop explicit peering system (gossip 1.1 related, but useful even with other pubsubs)
+    if not isNil(s.maintainSleepFut):
+      s.maintainSleepFut.cancel()
+    if not isNil(s.maintainFut):
+      await s.maintainFut
+      
     await s.pubSub.get().stop()
 
   for conns in toSeq(s.connections.values):
@@ -552,18 +577,20 @@ proc stop*(s: Switch) {.async.} =
 
   trace "switch stopped"
 
-proc maintainPeer(s: Switch, peerInfo: PeerInfo) {.async.} =
+proc maintainPeers(s: Switch) {.async.} =
   while s.running:
-    tryAndWarn "explicit peer maintain":
-      var conns = s.connections.getOrDefault(peerInfo.id)
-      if conns.len == 0:
-        # attempt re-connect in this case
-        trace "explicit peering, trying to re-connect", peer=peerInfo
-        await s.connect(peerInfo)
+    for peer in s.maintaining:
+      tryAndWarn "explicit peer maintain":
+        var conns = s.connections.getOrDefault(peer.id)
+        if conns.len == 0:
+          # attempt re-connect in this case
+          trace "explicit peering, trying to re-connect", peer
+          await s.connect(peer)
     
-      await sleepAsync(5.minutes) # spec recommended 
+    s.maintainSleepFut = sleepAsync(5.minutes) # spec recommended 
+    await s.maintainSleepFut # do this in order to cancel it
 
-proc subscribeToPeer*(s: Switch, peerInfo: PeerInfo) {.async, gcsafe.} =
+proc subscribePeer*(s: Switch, peerInfo: PeerInfo) {.async, gcsafe.} =
   ## Subscribe to pub sub peer
   if s.pubSub.isSome and not(s.pubSub.get().connected(peerInfo)):
     trace "about to subscribe to pubsub peer", peer = peerInfo.shortLog()
@@ -585,21 +612,13 @@ proc subscribeToPeer*(s: Switch, peerInfo: PeerInfo) {.async, gcsafe.} =
       trace "unable to subscribe to peer", peer = peerInfo.shortLog
       return
 
-    s.dialedPubSubPeers.incl(peerInfo.id)
-    try:
-      if (await s.ms.select(stream, s.pubSub.get().codec)):
-        await s.pubSub.get().subscribeToPeer(stream)
-      else:
+    if not await s.ms.select(stream, s.pubSub.get().codec):
+      if not(isNil(stream)):
         await stream.close()
-    except CatchableError as exc:
-      trace "exception in subscribe to peer", peer = peerInfo.shortLog, exc = exc.msg
-      await stream.close()
-    finally:
-      s.dialedPubSubPeers.excl(peerInfo.id)
-  
-    if peerInfo.maintain:
-      s.maintainFuts[peerInfo.id].loopFut = maintainPeer(s, peerInfo)
-      s.maintainFuts[peerInfo.id].sleepFut = newFuture[void]() # stub until real one happens
+      return
+
+    s.maintaining.incl(peerInfo)
+    s.pubSub.get().subscribePeer(stream)
 
 proc subscribe*(s: Switch, topic: string,
                 handler: TopicHandler): Future[void] =
@@ -653,8 +672,6 @@ proc muxerHandler(s: Switch, muxer: Muxer) {.async, gcsafe.} =
     if not(isNil(stream)):
       await stream.close()
 
-  trace "got new muxer"
-
   try:
     # once we got a muxed connection, attempt to
     # identify it
@@ -667,14 +684,15 @@ proc muxerHandler(s: Switch, muxer: Muxer) {.async, gcsafe.} =
 
     # store muxer and muxed connection
     await s.storeConn(muxer, Direction.In)
-    libp2p_peers.set(s.connections.len.int64)
 
     muxer.connection.closeEvent.wait()
       .addCallback do(udata: pointer):
         asyncCheck s.cleanupConn(muxer.connection)
 
+    trace "got new muxer", peer = $muxer.connection.peerInfo
+
     # try establishing a pubsub connection
-    await s.subscribeToPeer(muxer.connection.peerInfo)
+    await s.subscribePeer(muxer.connection.peerInfo)
 
   except CancelledError as exc:
     await muxer.close()
@@ -702,6 +720,7 @@ proc newSwitch*(peerInfo: PeerInfo,
     identity: identity,
     muxers: muxers,
     secureManagers: @secureManagers,
+    maintaining: initHashSet[PeerInfo]()
   )
 
   let s = result # can't capture result

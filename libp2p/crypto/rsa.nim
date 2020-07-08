@@ -661,15 +661,16 @@ proc cmp(a: openarray[byte], b: openarray[byte]): bool =
   let blen = len(b)
   if alen == blen:
     if alen == 0:
-      result = true
+      true
     else:
       var n = alen
-      var res, diff: int
+      var res = 0
       while n > 0:
         dec(n)
-        diff = int(a[n]) - int(b[n])
-        res = (res and -not(diff)) or diff
-      result = (res == 0)
+        res = res or int(a[n] xor b[n])
+      (res == 0)
+  else:
+    false
 
 proc `==`*(a, b: RsaPrivateKey): bool =
   ## Compare two RSA private keys for equality.
