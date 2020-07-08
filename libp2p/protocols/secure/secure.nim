@@ -42,10 +42,10 @@ method initStream*(s: SecureConn) =
   procCall Connection(s).initStream()
 
 method close*(s: SecureConn) {.async.} =
-  await procCall Connection(s).close()
-
   if not(isNil(s.stream)):
     await s.stream.close()
+
+  await procCall Connection(s).close()
 
 method readMessage*(c: SecureConn): Future[seq[byte]] {.async, base.} =
   doAssert(false, "Not implemented!")
