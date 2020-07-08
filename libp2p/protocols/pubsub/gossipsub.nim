@@ -310,20 +310,6 @@ method subscribeTopic*(g: GossipSub,
                        peerId: string) {.gcsafe, async.} =
   await procCall PubSub(g).subscribeTopic(topic, subscribe, peerId)
   
-  # must avoid running this while manipulating mesh/gossip tables
-  withLock g.heartbeatLock:
-    if topic notin g.gossipsub:
-      g.gossipsub[topic] = initHashSet[string]()
-
-    if subscribe:
-      trace "adding subscription for topic", peer = peerId, name = topic
-      # subscribe remote peer to the topic
-      g.gossipsub[topic].incl(peerId)
-    else:
-      trace "removing subscription for topic", peer = peerId, name = topic
-      # unsubscribe remote peer from the topic
-      g.gossipsub[topic].excl(peerId)
-
   if topic notin g.gossipsub:
     g.gossipsub[topic] = initHashSet[string]()
 
