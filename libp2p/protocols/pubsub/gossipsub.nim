@@ -168,7 +168,8 @@ proc rebalanceMesh(g: GossipSub, topic: string) {.async.} =
         # send a graft message to the peer
         await p.sendPrune(@[topic])
         g.mesh[topic].excl(id)
-        g.gossipsub[topic].incl(id)
+        if topic in g.gossipsub:
+          g.gossipsub[topic].incl(id)
 
     libp2p_gossipsub_peers_per_topic_gossipsub
       .set(g.gossipsub.getOrDefault(topic).len.int64,
