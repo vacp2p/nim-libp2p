@@ -491,6 +491,10 @@ method unsubscribe*(g: GossipSub,
     let topic = pair.topic
     if topic in g.mesh:
       let peers = g.mesh.getOrDefault(topic)
+      # add peers to gossip table.. otherwise they are lost
+      if topic notin g.gossipsub:
+        g.gossipsub[topic] = initHashSet[string]()
+      g.gossipsub[topic].incl(peers)
       g.mesh.del(topic)
       for id in peers:
         let p = g.peers[id]
