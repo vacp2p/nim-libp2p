@@ -35,10 +35,3 @@ func shortLog*(item: string): string =
     result &= item[0..<split]
     result &= "..."
     result &= item[(item.len - split)..item.high]
-
-template withLock*(l: auto, body: untyped): untyped =
-  await l.acquire()
-  try:
-    body
-  finally:
-    l.release()
