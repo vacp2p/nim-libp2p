@@ -168,8 +168,10 @@ proc rebalanceMesh(g: GossipSub, topic: string) {.async.} =
         # send a graft message to the peer
         await p.sendPrune(@[topic])
         g.mesh[topic].excl(id)
-        if topic in g.gossipsub:
-          g.gossipsub[topic].incl(id)
+
+        if topic notin g.gossipsub:
+          g.gossipsub[topic] = initHashSet[string]()
+        g.gossipsub[topic].incl(id)
 
     libp2p_gossipsub_peers_per_topic_gossipsub
       .set(g.gossipsub.getOrDefault(topic).len.int64,
@@ -368,7 +370,11 @@ proc handlePrune(g: GossipSub, peer: PubSubPeer, prunes: seq[ControlPrune]) =
 
     if prune.topicID in g.mesh:
       g.mesh[prune.topicID].excl(peer.id)
+
+      if prune.topicID notin g.gossipsub:
+        g.gossipsub[prune.topicID] = initHashSet[string]()
       g.gossipsub[prune.topicID].incl(peer.id)
+      
       libp2p_gossipsub_peers_per_topic_mesh
         .set(g.mesh[prune.topicID].len.int64, labelValues = [prune.topicID])
 
