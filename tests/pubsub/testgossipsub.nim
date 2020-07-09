@@ -86,7 +86,6 @@ suite "GossipSub":
 
       nodes[1].addValidator("foobar", validator)
       tryPublish await nodes[0].publish("foobar", "Hello!".toBytes()), 1
-
       result = (await validatorFut) and (await handlerFut)
       await allFuturesThrowing(
         nodes[0].stop(),
@@ -142,7 +141,6 @@ suite "GossipSub":
       awaiters.add((await nodes[1].start()))
 
       await subscribeNodes(nodes)
-
       await nodes[1].subscribe("foo", handler)
       await nodes[1].subscribe("bar", handler)
 

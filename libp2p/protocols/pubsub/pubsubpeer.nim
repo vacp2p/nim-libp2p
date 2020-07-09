@@ -36,7 +36,6 @@ type
     sendConn: Connection
     peerInfo*: PeerInfo
     handler*: RPCHandler
-    topics*: seq[string]
     sentRpcCache: TimedCache[string] # cache for already sent messages
     recvdRpcCache: TimedCache[string] # cache for already received messages
     onConnect*: AsyncEvent

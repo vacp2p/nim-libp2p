@@ -302,11 +302,10 @@ proc cleanupConn(s: Switch, conn: Connection) {.async, gcsafe.} =
         conn.peerInfo.close()
     finally:
       await conn.close()
+      libp2p_peers.set(s.connections.len.int64)
 
       if lock.locked():
         lock.release()
-
-      libp2p_peers.set(s.connections.len.int64)
 
 proc disconnect*(s: Switch, peer: PeerInfo) {.async, gcsafe.} =
   let connections = s.connections.getOrDefault(peer.id)

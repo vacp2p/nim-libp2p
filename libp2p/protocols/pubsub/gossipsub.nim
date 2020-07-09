@@ -38,7 +38,7 @@ const GossipSubHistoryGossip* = 3
 
 # heartbeat interval
 const GossipSubHeartbeatInitialDelay* = 100.millis
-const GossipSubHeartbeatInterval* = 1.seconds
+const GossipSubHeartbeatInterval* = 5.seconds # TODO: per the spec it should be 1 second
 
 # fanout ttl
 const GossipSubFanoutTTL* = 1.minutes
@@ -144,7 +144,7 @@ proc rebalanceMesh(g: GossipSub, topic: string) {.async.} =
 
     shuffle(newPeers)
 
-    trace "getting peers", topic, peers = peerIds.len
+    trace "getting peers", topic, peers = newPeers.len
 
     for id in newPeers:
       if g.mesh.peers(topic) >= GossipSubD:
@@ -208,9 +208,6 @@ proc dropFanoutPeers(g: GossipSub) =
       g.fanout.del(topic)
       trace "dropping fanout topic", topic
 
-  for topic in dropping:
-    g.lastFanoutPubSub.del(topic)
-
     libp2p_gossipsub_peers_per_topic_fanout
       .set(g.fanout.peers(topic).int64, labelValues = [topic])
 
@@ -243,10 +240,6 @@ proc getGossipPeers(g: GossipSub): Table[string, ControlMessage] {.gcsafe.} =
     for id in allPeers:
       if result.len >= GossipSubD:
         trace "got gossip peers", peers = result.len
-        break
-
-      if allPeers.len == 0:
-        trace "no peers for topic, skipping", topicID = topic
         break
 
       if id in gossipPeers:
@@ -284,7 +277,7 @@ proc heartbeat(g: GossipSub) {.async.} =
     except CatchableError as exc:
       trace "exception ocurred in gossipsub heartbeat", exc = exc.msg
 
-    await sleepAsync(5.seconds)
+    await sleepAsync(GossipSubHeartbeatInterval)
 
 method handleDisconnect*(g: GossipSub, peer: PubSubPeer) =
   ## handle peer disconnects
@@ -308,7 +301,7 @@ method handleDisconnect*(g: GossipSub, peer: PubSubPeer) =
       .set(g.fanout.peers(t).int64, labelValues = [t])
 
 method subscribePeer*(p: GossipSub,
-                        conn: Connection) =
+                      conn: Connection) =
   procCall PubSub(p).subscribePeer(conn)
   asyncCheck p.handleConn(conn, GossipSubCodec)
 
@@ -316,7 +309,7 @@ method subscribeTopic*(g: GossipSub,
                        topic: string,
                        subscribe: bool,
                        peerId: string) {.gcsafe, async.} =
-  await procCall PubSub(g).subscribeTopic(topic, subscribe, peerId)
+  await procCall FloodSub(g).subscribeTopic(topic, subscribe, peerId)
 
   if subscribe:
     trace "adding subscription for topic", peer = peerId, name = topic
@@ -520,6 +513,13 @@ method publish*(g: GossipSub,
       # ok we had nothing.. let's try replenish inline
       g.replenishFanout(topic)
       peers = g.fanout.getOrDefault(topic)
+
+    # even if we couldn't publish,
+    # we still attempted to publish
+    # on the topic, so it makes sense
+    # to update the last topic publish
+    # time
+    g.lastFanoutPubSub[topic] = Moment.fromNow(GossipSubFanoutTTL)
 
   let
     msg = Message.init(g.peerInfo, data, topic, g.sign)
