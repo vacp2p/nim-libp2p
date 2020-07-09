@@ -199,13 +199,12 @@ proc rebalanceMesh(g: GossipSub, topic: string) {.async.} =
 proc dropFanoutPeers(g: GossipSub) =
   # drop peers that we haven't published to in
   # GossipSubFanoutTTL seconds
-  var dropping = newSeq[string]()
   let now = Moment.now()
-
-  for topic, val in g.lastFanoutPubSub:
+  for topic in toSeq(g.lastFanoutPubSub.keys):
+    let val = g.lastFanoutPubSub[topic]
     if now > val:
-      dropping.add(topic)
       g.fanout.del(topic)
+      g.lastFanoutPubSub.del(topic)
       trace "dropping fanout topic", topic
 
     libp2p_gossipsub_peers_per_topic_fanout
