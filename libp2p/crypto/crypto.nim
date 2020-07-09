@@ -374,6 +374,24 @@ proc init*(t: typedesc[PrivateKey], data: string): CryptoResult[PrivateKey] =
   except ValueError:
     err(KeyError)
 
+proc init*(t: typedesc[PrivateKey], key: rsa.RsaPrivateKey): PrivateKey =
+  PrivateKey(scheme: RSA, rsakey: key)
+proc init*(t: typedesc[PrivateKey], key: EdPrivateKey): PrivateKey =
+  PrivateKey(scheme: Ed25519, edkey: key)
+proc init*(t: typedesc[PrivateKey], key: SkPrivateKey): PrivateKey =
+  PrivateKey(scheme: Secp256k1, skkey: key)
+proc init*(t: typedesc[PrivateKey], key: ecnist.EcPrivateKey): PrivateKey =
+  PrivateKey(scheme: ECDSA, eckey: key)
+
+proc init*(t: typedesc[PublicKey], key: rsa.RsaPublicKey): PublicKey =
+  PublicKey(scheme: RSA, rsakey: key)
+proc init*(t: typedesc[PublicKey], key: EdPublicKey): PublicKey =
+  PublicKey(scheme: Ed25519, edkey: key)
+proc init*(t: typedesc[PublicKey], key: SkPublicKey): PublicKey =
+  PublicKey(scheme: Secp256k1, skkey: key)
+proc init*(t: typedesc[PublicKey], key: ecnist.EcPublicKey): PublicKey =
+  PublicKey(scheme: ECDSA, eckey: key)
+
 proc init*(t: typedesc[PublicKey], data: string): CryptoResult[PublicKey] =
   ## Create new public key from libp2p's protobuf serialized hexadecimal string
   ## form.
