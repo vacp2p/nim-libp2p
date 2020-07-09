@@ -474,6 +474,13 @@ method subscribe*(g: GossipSub,
                   topic: string,
                   handler: TopicHandler) {.async.} =
   await procCall PubSub(g).subscribe(topic, handler)
+
+  # add our current peers to availability table
+  for peerid, _ in g.peers:
+    if topic notin g.gossipsub:
+      g.gossipsub[topic] = initHashSet[string]()
+    g.gossipsub[topic].incl(peerid)
+  
   await g.rebalanceMesh(topic)
 
 method unsubscribe*(g: GossipSub,
