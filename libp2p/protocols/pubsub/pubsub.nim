@@ -129,7 +129,7 @@ proc getPeer(p: PubSub,
 
   # create new pubsub peer
   let peer = newPubSubPeer(peerInfo, proto)
-  trace "created new pubsub peer", peerId = peer.id, stack = getStackTrace()
+  trace "created new pubsub peer", peerId = peer.id
 
   p.peers[peer.id] = peer
   peer.observers = p.observers
