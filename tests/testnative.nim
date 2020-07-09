@@ -1,4 +1,5 @@
 import testvarint,
+       testminprotobuf,
        teststreamseq
 
 import testrsa,

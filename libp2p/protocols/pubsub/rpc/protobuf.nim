@@ -14,265 +14,247 @@ import messages,
        ../../../utility,
        ../../../protobuf/minprotobuf
 
-proc encodeGraft*(graft: ControlGraft, pb: var ProtoBuffer) {.gcsafe.} =
-  pb.write(initProtoField(1, graft.topicID))
+proc write*(pb: var ProtoBuffer, field: int64, graft: ControlGraft) =
+  var ipb = initProtoBuffer()
+  ipb.write(1, graft.topicID)
+  ipb.finish()
+  pb.write(field, ipb)
 
-proc decodeGraft*(pb: var ProtoBuffer): seq[ControlGraft] {.gcsafe.} =
-  trace "decoding graft msg", buffer = pb.buffer.shortLog
-  while true:
-    var topic: string
-    if pb.getString(1, topic) < 0:
-      break
+proc write*(pb: var ProtoBuffer, field: int64, prune: ControlPrune) =
+  var ipb = initProtoBuffer()
+  ipb.write(1, prune.topicID)
+  ipb.finish()
+  pb.write(field, ipb)
 
-    trace "read topic field from graft msg", topicID = topic
-    result.add(ControlGraft(topicID: topic))
-
-proc encodePrune*(prune: ControlPrune, pb: var ProtoBuffer) {.gcsafe.} =
-  pb.write(initProtoField(1, prune.topicID))
-
-proc decodePrune*(pb: var ProtoBuffer): seq[ControlPrune] {.gcsafe.} =
-  trace "decoding prune msg"
-  while true:
-    var topic: string
-    if pb.getString(1, topic) < 0:
-      break
-
-    trace "read topic field from prune msg", topicID = topic
-    result.add(ControlPrune(topicID: topic))
-
-proc encodeIHave*(ihave: ControlIHave, pb: var ProtoBuffer) {.gcsafe.} =
-  pb.write(initProtoField(1, ihave.topicID))
+proc write*(pb: var ProtoBuffer, field: int64, ihave: ControlIHave) =
+  var ipb = initProtoBuffer()
+  ipb.write(1, ihave.topicID)
   for mid in ihave.messageIDs:
-    pb.write(initProtoField(2, mid))
+    ipb.write(2, mid)
+  ipb.finish()
+  pb.write(field, ipb)
 
-proc decodeIHave*(pb: var ProtoBuffer): seq[ControlIHave] {.gcsafe.} =
-  trace "decoding ihave msg"
-
-  while true:
-    var control: ControlIHave
-    if pb.getString(1, control.topicID) < 0:
-      trace "topic field missing from ihave msg"
-      break
-
-    trace "read topic field", topicID = control.topicID
-
-    while true:
-      var mid: string
-      if pb.getString(2, mid) < 0:
-        break
-      trace "read messageID field", mid = mid
-      control.messageIDs.add(mid)
-
-    result.add(control)
-
-proc encodeIWant*(iwant: ControlIWant, pb: var ProtoBuffer) {.gcsafe.} =
+proc write*(pb: var ProtoBuffer, field: int64, iwant: ControlIWant) =
+  var ipb = initProtoBuffer()
   for mid in iwant.messageIDs:
-    pb.write(initProtoField(1, mid))
+    ipb.write(1, mid)
+  if len(ipb.buffer) > 0:
+    ipb.finish()
+    pb.write(field, ipb)
 
-proc decodeIWant*(pb: var ProtoBuffer): seq[ControlIWant] {.gcsafe.} =
-  trace "decoding iwant msg"
+proc write*(pb: var ProtoBuffer, field: int64, control: ControlMessage) =
+  var ipb = initProtoBuffer()
+  for ihave in control.ihave:
+    ipb.write(1, ihave)
+  for iwant in control.iwant:
+    ipb.write(2, iwant)
+  for graft in control.graft:
+    ipb.write(3, graft)
+  for prune in control.prune:
+    ipb.write(4, prune)
+  if len(ipb.buffer) > 0:
+    ipb.finish()
+    pb.write(field, ipb)
 
-  var control: ControlIWant
-  while true:
-    var mid: string
-    if pb.getString(1, mid) < 0:
-      break
-    control.messageIDs.add(mid)
-    trace "read messageID field", mid = mid
-  result.add(control)
+proc write*(pb: var ProtoBuffer, field: int64, subs: SubOpts) =
+  var ipb = initProtoBuffer()
+  ipb.write(1, uint64(subs.subscribe))
+  ipb.write(2, subs.topic)
+  ipb.finish()
+  pb.write(field, ipb)
 
-proc encodeControl*(control: ControlMessage, pb: var ProtoBuffer) {.gcsafe.} =
-  if control.ihave.len > 0:
-    var ihave = initProtoBuffer()
-    for h in control.ihave:
-      h.encodeIHave(ihave)
-
-    # write messages to protobuf
-    if ihave.buffer.len > 0:
-      ihave.finish()
-      pb.write(initProtoField(1, ihave))
-
-  if control.iwant.len > 0:
-    var iwant = initProtoBuffer()
-    for w in control.iwant:
-      w.encodeIWant(iwant)
-
-    # write messages to protobuf
-    if iwant.buffer.len > 0:
-      iwant.finish()
-      pb.write(initProtoField(2, iwant))
-
-  if control.graft.len > 0:
-    var graft = initProtoBuffer()
-    for g in control.graft:
-      g.encodeGraft(graft)
-
-    # write messages to protobuf
-    if graft.buffer.len > 0:
-      graft.finish()
-      pb.write(initProtoField(3, graft))
-
-  if control.prune.len > 0:
-    var prune = initProtoBuffer()
-    for p in control.prune:
-      p.encodePrune(prune)
-
-    # write messages to protobuf
-    if prune.buffer.len > 0:
-      prune.finish()
-      pb.write(initProtoField(4, prune))
-
-proc decodeControl*(pb: var ProtoBuffer): Option[ControlMessage] {.gcsafe.} =
-  trace "decoding control submessage"
-  var control: ControlMessage
-  while true:
-    var field = pb.enterSubMessage()
-    trace "processing submessage", field = field
-    case field:
-    of 0:
-      trace "no submessage found in Control msg"
-      break
-    of 1:
-      control.ihave &= pb.decodeIHave()
-    of 2:
-      control.iwant &= pb.decodeIWant()
-    of 3:
-      control.graft &= pb.decodeGraft()
-    of 4:
-      control.prune &= pb.decodePrune()
-    else:
-      raise newException(CatchableError, "message type not recognized")
-
-    if result.isNone:
-      result = some(control)
-
-proc encodeSubs*(subs: SubOpts, pb: var ProtoBuffer) {.gcsafe.} =
-  pb.write(initProtoField(1, subs.subscribe))
-  pb.write(initProtoField(2, subs.topic))
-
-proc decodeSubs*(pb: var ProtoBuffer): seq[SubOpts] {.gcsafe.} =
-  while true:
-    var subOpt: SubOpts
-    var subscr: uint
-    discard pb.getVarintValue(1, subscr)
-    subOpt.subscribe = cast[bool](subscr)
-    trace "read subscribe field", subscribe = subOpt.subscribe
-
-    if pb.getString(2, subOpt.topic) < 0:
-      break
-    trace "read subscribe field", topicName = subOpt.topic
-
-    result.add(subOpt)
-
-  trace "got subscriptions", subscriptions = result
-
-proc encodeMessage*(msg: Message, pb: var ProtoBuffer) {.gcsafe.} =
-  pb.write(initProtoField(1, msg.fromPeer.getBytes()))
-  pb.write(initProtoField(2, msg.data))
-  pb.write(initProtoField(3, msg.seqno))
-
-  for t in msg.topicIDs:
-    pb.write(initProtoField(4, t))
-
-  if msg.signature.len > 0:
-    pb.write(initProtoField(5, msg.signature))
-
-  if msg.key.len > 0:
-    pb.write(initProtoField(6, msg.key))
-
+proc encodeMessage*(msg: Message): seq[byte] =
+  var pb = initProtoBuffer()
+  pb.write(1, msg.fromPeer)
+  pb.write(2, msg.data)
+  pb.write(3, msg.seqno)
+  for topic in msg.topicIDs:
+    pb.write(4, topic)
+  if len(msg.signature) > 0:
+    pb.write(5, msg.signature)
+  if len(msg.key) > 0:
+    pb.write(6, msg.key)
   pb.finish()
+  pb.buffer
 
-proc decodeMessages*(pb: var ProtoBuffer): seq[Message] {.gcsafe.} =
-  # TODO: which of this fields are really optional?
-  while true:
-    var msg: Message
-    var fromPeer: seq[byte]
-    if pb.getBytes(1, fromPeer) < 0:
-      break
-    try:
-      msg.fromPeer = PeerID.init(fromPeer).tryGet()
-    except CatchableError as err:
-      debug "Invalid fromPeer in message", msg = err.msg
-      break
+proc write*(pb: var ProtoBuffer, field: int64, msg: Message) =
+  pb.write(field, encodeMessage(msg))
 
-    trace "read message field", fromPeer = msg.fromPeer.pretty
+proc decodeGraft*(pb: ProtoBuffer): ControlGraft {.inline.} =
+  trace "decodeGraft: decoding message"
+  var control = ControlGraft()
+  var topicId: string
+  if pb.getField(1, topicId):
+    control.topicId = topicId
+    trace "decodeGraft: read topicId", topic_id = topicId
+  else:
+    trace "decodeGraft: topicId is missing"
+  control
 
-    if pb.getBytes(2, msg.data) < 0:
-      break
-    trace "read message field", data = msg.data.shortLog
+proc decodePrune*(pb: ProtoBuffer): ControlPrune {.inline.} =
+  trace "decodePrune: decoding message"
+  var control = ControlPrune()
+  var topicId: string
+  if pb.getField(1, topicId):
+    control.topicId = topicId
+    trace "decodePrune: read topicId", topic_id = topicId
+  else:
+    trace "decodePrune: topicId is missing"
+  control
 
-    if pb.getBytes(3, msg.seqno) < 0:
-      break
-    trace "read message field", seqno = msg.seqno.shortLog
+proc decodeIHave*(pb: ProtoBuffer): ControlIHave {.inline.} =
+  trace "decodeIHave: decoding message"
+  var control = ControlIHave()
+  var topicId: string
+  if pb.getField(1, topicId):
+    control.topicId = topicId
+    trace "decodeIHave: read topicId", topic_id = topicId
+  else:
+    trace "decodeIHave: topicId is missing"
+  if pb.getRepeatedField(2, control.messageIDs):
+    trace "decodeIHave: read messageIDs", message_ids = control.messageIDs
+  else:
+    trace "decodeIHave: no messageIDs"
+  control
 
-    var topic: string
-    while true:
-      if pb.getString(4, topic) < 0:
-        break
-      msg.topicIDs.add(topic)
-      trace "read message field", topicName = topic
-      topic = ""
+proc decodeIWant*(pb: ProtoBuffer): ControlIWant {.inline.} =
+  trace "decodeIWant: decoding message"
+  var control = ControlIWant()
+  if pb.getRepeatedField(1, control.messageIDs):
+    trace "decodeIWant: read messageIDs", message_ids = control.messageIDs
+  else:
+    trace "decodeIWant: no messageIDs"
 
-    discard pb.getBytes(5, msg.signature)
-    trace "read message field", signature = msg.signature.shortLog
+proc decodeControl*(pb: ProtoBuffer): Option[ControlMessage] {.inline.} =
+  trace "decodeControl: decoding message"
+  var buffer: seq[byte]
+  if pb.getField(3, buffer):
+    var control: ControlMessage
+    var cpb = initProtoBuffer(buffer)
+    var ihavepbs: seq[seq[byte]]
+    var iwantpbs: seq[seq[byte]]
+    var graftpbs: seq[seq[byte]]
+    var prunepbs: seq[seq[byte]]
 
-    discard pb.getBytes(6, msg.key)
-    trace "read message field", key = msg.key.shortLog
+    discard cpb.getRepeatedField(1, ihavepbs)
+    discard cpb.getRepeatedField(2, iwantpbs)
+    discard cpb.getRepeatedField(3, graftpbs)
+    discard cpb.getRepeatedField(4, prunepbs)
 
-    result.add(msg)
+    for item in ihavepbs:
+      control.ihave.add(decodeIHave(initProtoBuffer(item)))
+    for item in iwantpbs:
+      control.iwant.add(decodeIWant(initProtoBuffer(item)))
+    for item in graftpbs:
+      control.graft.add(decodeGraft(initProtoBuffer(item)))
+    for item in prunepbs:
+      control.prune.add(decodePrune(initProtoBuffer(item)))
 
-proc encodeRpcMsg*(msg: RPCMsg): ProtoBuffer {.gcsafe.} =
-  result = initProtoBuffer()
-  trace "encoding msg: ", msg = msg.shortLog
+    trace "decodeControl: "
+    some(control)
+  else:
+    none[ControlMessage]()
 
-  if msg.subscriptions.len > 0:
-    for s in msg.subscriptions:
-      var subs = initProtoBuffer()
-      encodeSubs(s, subs)
+proc decodeSubscription*(pb: ProtoBuffer): SubOpts {.inline.} =
+  trace "decodeSubscription: decoding message"
+  var subflag: uint64
+  var sub = SubOpts()
+  if pb.getField(1, subflag):
+    sub.subscribe = bool(subflag)
+    trace "decodeSubscription: read subscribe", subscribe = subflag
+  else:
+    trace "decodeSubscription: subscribe is missing"
+  if pb.getField(2, sub.topic):
+    trace "decodeSubscription: read topic", topic = sub.topic
+  else:
+    trace "decodeSubscription: topic is missing"
 
-      # write subscriptions to protobuf
-      if subs.buffer.len > 0:
-        subs.finish()
-        result.write(initProtoField(1, subs))
+  sub
 
-  if msg.messages.len > 0:
-    var messages = initProtoBuffer()
-    for m in msg.messages:
-      encodeMessage(m, messages)
+proc decodeSubscriptions*(pb: ProtoBuffer): seq[SubOpts] {.inline.} =
+  trace "decodeSubscriptions: decoding message"
+  var subpbs: seq[seq[byte]]
+  var subs: seq[SubOpts]
+  if pb.getRepeatedField(1, subpbs):
+    trace "decodeSubscriptions: read subscriptions", count = len(subpbs)
+    for item in subpbs:
+      let sub = decodeSubscription(initProtoBuffer(item))
+      subs.add(sub)
 
-    # write messages to protobuf
-    if messages.buffer.len > 0:
-      messages.finish()
-      result.write(initProtoField(2, messages))
+  if len(subs) == 0:
+    trace "decodeSubscription: no subscriptions found"
 
-  if msg.control.isSome:
-    var control = initProtoBuffer()
-    msg.control.get.encodeControl(control)
+  subs
 
-    # write messages to protobuf
-    if control.buffer.len > 0:
-      control.finish()
-      result.write(initProtoField(3, control))
+proc decodeMessage*(pb: ProtoBuffer): Message {.inline.} =
+  trace "decodeMessage: decoding message"
+  var msg: Message
+  if pb.getField(1, msg.fromPeer):
+    trace "decodeMessage: read fromPeer", fromPeer = msg.fromPeer.pretty()
+  else:
+    trace "decodeMessage: fromPeer is missing"
 
-  if result.buffer.len > 0:
-    result.finish()
+  if pb.getField(2, msg.data):
+    trace "decodeMessage: read data", data = msg.data.shortLog()
+  else:
+    trace "decodeMessage: data is missing"
 
-proc decodeRpcMsg*(msg: seq[byte]): RPCMsg {.gcsafe.} =
+  if pb.getField(3, msg.seqno):
+    trace "decodeMessage: read seqno", seqno = msg.data.shortLog()
+  else:
+    trace "decodeMessage: seqno is missing"
+
+  if pb.getRepeatedField(4, msg.topicIDs):
+    trace "decodeMessage: read topics", topic_ids = msg.topicIDs
+  else:
+    trace "decodeMessage: topics are missing"
+
+  if pb.getField(5, msg.signature):
+    trace "decodeMessage: read signature", signature = msg.signature.shortLog()
+  else:
+    trace "decodeMessage: signature is missing"
+
+  if pb.getField(6, msg.key):
+    trace "decodeMessage: read public key", key = msg.key.shortLog()
+  else:
+    trace "decodeMessage: public key is missing"
+
+  msg
+
+proc decodeMessages*(pb: ProtoBuffer): seq[Message] {.inline.} =
+  trace "decodeMessages: decoding message"
+  var msgpbs: seq[seq[byte]]
+  var msgs: seq[Message]
+  if pb.getRepeatedField(2, msgpbs):
+    trace "decodeMessages: read messages", count = len(msgpbs)
+    for item in msgpbs:
+      let msg = decodeMessage(initProtoBuffer(item))
+      msgs.add(msg)
+
+  if len(msgs) == 0:
+    trace "decodeMessages: no messages found"
+
+  msgs
+
+proc encodeRpcMsg*(msg: RPCMsg): ProtoBuffer =
+  trace "encodeRpcMsg: encoding message", msg = msg.shortLog()
+  var pb = initProtoBuffer()
+  for item in msg.subscriptions:
+    pb.write(1, item)
+  for item in msg.messages:
+    pb.write(2, item)
+  if msg.control.isSome():
+    pb.write(3, msg.control.get())
+  if len(pb.buffer) > 0:
+    pb.finish()
+  result = pb
+
+proc decodeRpcMsg*(msg: seq[byte]): RPCMsg =
+  trace "decodeRpcMsg: decoding message", msg = msg.shortLog()
   var pb = initProtoBuffer(msg)
+  var rpcMsg: RPCMsg
+  rpcMsg.messages = pb.decodeMessages()
+  rpcMsg.subscriptions = pb.decodeSubscriptions()
+  rpcMsg.control = pb.decodeControl()
 
-  while true:
-    # decode SubOpts array
-    var field = pb.enterSubMessage()
-    trace "processing submessage", field = field
-    case field:
-    of 0:
-      trace "no submessage found in RPC msg"
-      break
-    of 1:
-      result.subscriptions &= pb.decodeSubs()
-    of 2:
-      result.messages &= pb.decodeMessages()
-    of 3:
-      result.control = pb.decodeControl()
-    else:
-      raise newException(CatchableError, "message type not recognized")
+  rpcMsg

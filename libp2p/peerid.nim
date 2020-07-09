@@ -200,11 +200,12 @@ proc write*(vb: var VBuffer, pid: PeerID) {.inline.} =
   ## Write PeerID value ``peerid`` to buffer ``vb``.
   vb.writeSeq(pid.data)
 
-proc initProtoField*(index: int, pid: PeerID): ProtoField =
+proc initProtoField*(index: int, pid: PeerID): ProtoField {.deprecated.} =
   ## Initialize ProtoField with PeerID ``value``.
   result = initProtoField(index, pid.data)
 
-proc getValue*(data: var ProtoBuffer, field: int, value: var PeerID): int =
+proc getValue*(data: var ProtoBuffer, field: int, value: var PeerID): int {.
+     deprecated.} =
   ## Read ``PeerID`` from ProtoBuf's message and validate it.
   var pid: PeerID
   result = getLengthValue(data, field, pid.data)
@@ -213,3 +214,21 @@ proc getValue*(data: var ProtoBuffer, field: int, value: var PeerID): int =
       result = -1
     else:
       value = pid
+
+proc write*(pb: var ProtoBuffer, field: int64, pid: PeerID) =
+  ## Write PeerID value ``peerid`` to object ``pb`` using ProtoBuf's encoding.
+  write(pb, field, pid.data)
+
+proc getField*(pb: ProtoBuffer, field: int64, pid: var PeerID): bool =
+  ## Read ``PeerID`` from ProtoBuf's message and validate it
+  var buffer: seq[byte]
+  var peerId: PeerID
+  if not(getField(pb, field, buffer)):
+    return false
+  if len(buffer) == 0:
+    return false
+  if peerId.init(buffer):
+    pid = peerId
+    true
+  else:
+    false

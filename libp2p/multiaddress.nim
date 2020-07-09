@@ -14,9 +14,10 @@
 import nativesockets
 import tables, strutils, stew/shims/net
 import chronos
-import multicodec, multihash, multibase, transcoder, vbuffer, peerid
+import multicodec, multihash, multibase, transcoder, vbuffer, peerid,
+       protobuf/minprotobuf
 import stew/[base58, base32, endians2, results]
-export results
+export results, minprotobuf, vbuffer
 
 type
   MAKind* = enum
@@ -477,7 +478,8 @@ proc protoName*(ma: MultiAddress): MaResult[string] =
     else:
       ok($(proto.mcodec))
 
-proc protoArgument*(ma: MultiAddress, value: var openarray[byte]): MaResult[int] =
+proc protoArgument*(ma: MultiAddress,
+                    value: var openarray[byte]): MaResult[int] =
   ## Returns MultiAddress ``ma`` protocol argument value.
   ##
   ## If current MultiAddress do not have argument value, then result will be
@@ -496,8 +498,8 @@ proc protoArgument*(ma: MultiAddress, value: var openarray[byte]): MaResult[int]
       var res: int
       if proto.kind == Fixed:
         res = proto.size
-        if  len(value) >= res and
-            vb.data.readArray(value.toOpenArray(0, proto.size - 1)) != proto.size:
+        if len(value) >= res and
+          vb.data.readArray(value.toOpenArray(0, proto.size - 1)) != proto.size:
           err("multiaddress: Decoding protocol error")
         else:
           ok(res)
@@ -580,7 +582,8 @@ iterator items*(ma: MultiAddress): MaResult[MultiAddress] =
 
     let proto = CodeAddresses.getOrDefault(MultiCodec(header))
     if proto.kind == None:
-      yield err(MaResult[MultiAddress], "Unsupported protocol '" & $header & "'")
+      yield err(MaResult[MultiAddress], "Unsupported protocol '" &
+                $header & "'")
 
     elif proto.kind == Fixed:
       data.setLen(proto.size)
@@ -609,7 +612,8 @@ proc contains*(ma: MultiAddress, codec: MultiCodec): MaResult[bool] {.inline.} =
       return ok(true)
   ok(false)
 
-proc `[]`*(ma: MultiAddress, codec: MultiCodec): MaResult[MultiAddress] {.inline.} =
+proc `[]`*(ma: MultiAddress,
+           codec: MultiCodec): MaResult[MultiAddress] {.inline.} =
   ## Returns partial MultiAddress with MultiCodec ``codec`` and present in
   ## MultiAddress ``ma``.
   for item in ma.items:
@@ -634,7 +638,8 @@ proc toString*(value: MultiAddress): MaResult[string] =
       return err("multiaddress: Unsupported protocol '" & $header & "'")
     if proto.kind in {Fixed, Length, Path}:
       if isNil(proto.coder.bufferToString):
-        return err("multiaddress: Missing protocol '" & $(proto.mcodec) & "' coder")
+        return err("multiaddress: Missing protocol '" & $(proto.mcodec) &
+                   "' coder")
       if not proto.coder.bufferToString(vb.data, part):
         return err("multiaddress: Decoding protocol error")
       parts.add($(proto.mcodec))
@@ -729,12 +734,14 @@ proc init*(
     of None:
       raiseAssert "None checked above"
 
-proc init*(mtype: typedesc[MultiAddress], protocol: MultiCodec, value: PeerID): MaResult[MultiAddress] {.inline.} =
+proc init*(mtype: typedesc[MultiAddress], protocol: MultiCodec,
+           value: PeerID): MaResult[MultiAddress] {.inline.} =
   ## Initialize MultiAddress object from protocol id ``protocol`` and peer id
   ## ``value``.
   init(mtype, protocol, value.data)
 
-proc init*(mtype: typedesc[MultiAddress], protocol: MultiCodec, value: int): MaResult[MultiAddress] =
+proc init*(mtype: typedesc[MultiAddress], protocol: MultiCodec,
+           value: int): MaResult[MultiAddress] =
   ## Initialize MultiAddress object from protocol id ``protocol`` and integer
   ## ``value``. This procedure can be used to instantiate ``tcp``, ``udp``,
   ## ``dccp`` and ``sctp`` MultiAddresses.
@@ -759,7 +766,8 @@ proc getProtocol(name: string): MAProtocol {.inline.} =
   if mc != InvalidMultiCodec:
     result = CodeAddresses.getOrDefault(mc)
 
-proc init*(mtype: typedesc[MultiAddress], value: string): MaResult[MultiAddress] =
+proc init*(mtype: typedesc[MultiAddress],
+           value: string): MaResult[MultiAddress] =
   ## Initialize MultiAddress object from string representation ``value``.
   var parts = value.trimRight('/').split('/')
   if len(parts[0]) != 0:
@@ -776,7 +784,8 @@ proc init*(mtype: typedesc[MultiAddress], value: string): MaResult[MultiAddress]
       else:
         if proto.kind in {Fixed, Length, Path}:
           if isNil(proto.coder.stringToBuffer):
-            return err("multiaddress: Missing protocol '" & part & "' transcoder")
+            return err("multiaddress: Missing protocol '" &
+                        part & "' transcoder")
 
           if offset + 1 >= len(parts):
             return err("multiaddress: Missing protocol '" & part & "' argument")
@@ -785,14 +794,16 @@ proc init*(mtype: typedesc[MultiAddress], value: string): MaResult[MultiAddress]
           res.data.write(proto.mcodec)
           let res = proto.coder.stringToBuffer(parts[offset + 1], res.data)
           if not res:
-            return err("multiaddress: Error encoding `" & part & "/" &  parts[offset + 1] & "`")
+            return err("multiaddress: Error encoding `" & part & "/" &
+                       parts[offset + 1] & "`")
           offset += 2
 
         elif proto.kind == Path:
           var path = "/" & (parts[(offset + 1)..^1].join("/"))
           res.data.write(proto.mcodec)
           if not proto.coder.stringToBuffer(path, res.data):
-            return err("multiaddress: Error encoding `" & part & "/" &  path & "`")
+            return err("multiaddress: Error encoding `" & part & "/" &
+                       path & "`")
 
           break
         elif proto.kind == Marker:
@@ -801,8 +812,8 @@ proc init*(mtype: typedesc[MultiAddress], value: string): MaResult[MultiAddress]
     res.data.finish()
     ok(res)
 
-
-proc init*(mtype: typedesc[MultiAddress], data: openarray[byte]): MaResult[MultiAddress] =
+proc init*(mtype: typedesc[MultiAddress],
+           data: openarray[byte]): MaResult[MultiAddress] =
   ## Initialize MultiAddress with array of bytes ``data``.
   if len(data) == 0:
     err("multiaddress: Address could not be empty!")
@@ -836,10 +847,12 @@ proc init*(mtype: typedesc[MultiAddress],
   var data = initVBuffer()
   data.write(familyProto.mcodec)
   var written = familyProto.coder.stringToBuffer($address, data)
-  doAssert written, "Merely writing a string to a buffer should always be possible"
+  doAssert written,
+           "Merely writing a string to a buffer should always be possible"
   data.write(protoProto.mcodec)
   written = protoProto.coder.stringToBuffer($port, data)
-  doAssert written, "Merely writing a string to a buffer should always be possible"
+  doAssert written,
+           "Merely writing a string to a buffer should always be possible"
   data.finish()
 
   MultiAddress(data: data)
@@ -890,14 +903,16 @@ proc append*(m1: var MultiAddress, m2: MultiAddress): MaResult[void] =
   else:
     ok()
 
-proc `&`*(m1, m2: MultiAddress): MultiAddress {.raises: [Defect, ResultError[string]].} =
+proc `&`*(m1, m2: MultiAddress): MultiAddress {.
+     raises: [Defect, ResultError[string]].} =
   ## Concatenates two addresses ``m1`` and ``m2``, and returns result.
   ##
   ## This procedure performs validation of concatenated result and can raise
   ## exception on error.
   concat(m1, m2).tryGet()
 
-proc `&=`*(m1: var MultiAddress, m2: MultiAddress) {.raises: [Defect, ResultError[string]].} =
+proc `&=`*(m1: var MultiAddress, m2: MultiAddress) {.
+     raises: [Defect, ResultError[string]].} =
   ## Concatenates two addresses ``m1`` and ``m2``.
   ##
   ## This procedure performs validation of concatenated result and can raise
@@ -1005,3 +1020,37 @@ proc `$`*(pat: MaPattern): string =
     result = "(" & sub.join("|") & ")"
   elif pat.operator == Eq:
     result = $pat.value
+
+proc write*(pb: var ProtoBuffer, field: int64, value: MultiAddress) {.
+     inline.} =
+  write(pb, field, value.data.buffer)
+
+proc getField*(pb: var ProtoBuffer, field: int64,
+               value: var MultiAddress): bool {.inline.} =
+  var buffer: seq[byte]
+  if not(getField(pb, field, buffer)):
+    return false
+  if len(buffer) == 0:
+    return false
+  let ma = MultiAddress.init(buffer)
+  if ma.isOk():
+    value = ma.get()
+    true
+  else:
+    false
+
+proc getRepeatedField*(pb: var ProtoBuffer, field: int64,
+                       value: var seq[MultiAddress]): bool {.inline.} =
+  var items: seq[seq[byte]]
+  value.setLen(0)
+  if not(getRepeatedField(pb, field, items)):
+    return false
+  if len(items) == 0:
+    return true
+  for item in items:
+    let ma = MultiAddress.init(item)
+    if ma.isOk():
+      value.add(ma.get())
+    else:
+      value.setLen(0)
+      return false
