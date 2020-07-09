@@ -163,14 +163,24 @@ proc sendMsg*(p: PubSubPeer,
   p.send(@[RPCMsg(messages: @[Message.init(p.peerInfo, data, topic, sign)])])
 
 proc sendGraft*(p: PubSubPeer, topics: seq[string]) {.async.} =
-  for topic in topics:
-    trace "sending graft msg to peer", peer = p.id, topicID = topic
-    await p.send(@[RPCMsg(control: some(ControlMessage(graft: @[ControlGraft(topicID: topic)])))])
+  try:
+    for topic in topics:
+      trace "sending graft msg to peer", peer = p.id, topicID = topic
+      await p.send(@[RPCMsg(control: some(ControlMessage(graft: @[ControlGraft(topicID: topic)])))])
+  except CancelledError as exc:
+    raise exc
+  except CatchableError as exc:
+    trace "Could not send graft", msg = exc.msg
 
 proc sendPrune*(p: PubSubPeer, topics: seq[string]) {.async.} =
-  for topic in topics:
-    trace "sending prune msg to peer", peer = p.id, topicID = topic
-    await p.send(@[RPCMsg(control: some(ControlMessage(prune: @[ControlPrune(topicID: topic)])))])
+  try:
+    for topic in topics:
+      trace "sending prune msg to peer", peer = p.id, topicID = topic
+      await p.send(@[RPCMsg(control: some(ControlMessage(prune: @[ControlPrune(topicID: topic)])))])
+  except CancelledError as exc:
+    raise exc
+  except CatchableError as exc:
+    trace "Could not send prune", msg = exc.msg
 
 proc `$`*(p: PubSubPeer): string =
   p.id
