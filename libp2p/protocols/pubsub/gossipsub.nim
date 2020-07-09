@@ -208,9 +208,6 @@ proc dropFanoutPeers(g: GossipSub) =
       g.fanout.del(topic)
       trace "dropping fanout topic", topic
 
-  for topic in dropping:
-    g.lastFanoutPubSub.del(topic)
-
     libp2p_gossipsub_peers_per_topic_fanout
       .set(g.fanout.peers(topic).int64, labelValues = [topic])
 
@@ -517,6 +514,8 @@ method publish*(g: GossipSub,
       # ok we had nothing.. let's try replenish inline
       g.replenishFanout(topic)
       peers = g.fanout.getOrDefault(topic)
+
+    g.lastFanoutPubSub[topic] = Moment.fromNow(GossipSubFanoutTTL)
 
   let
     msg = Message.init(g.peerInfo, data, topic, g.sign)
