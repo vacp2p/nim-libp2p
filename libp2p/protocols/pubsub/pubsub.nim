@@ -63,7 +63,7 @@ method handleDisconnect*(p: PubSub, peer: PubSubPeer) {.base.} =
   ## handle peer disconnects
   ##
   if peer.id in p.peers:
-    trace "deleting peer", peer = peer.id, stack = getStackTrace()
+    trace "deleting peer", peer = peer.id
     p.peers[peer.id] = nil
     p.peers.del(peer.id)
 
