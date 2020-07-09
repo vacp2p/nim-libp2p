@@ -62,9 +62,8 @@ type
 method handleDisconnect*(p: PubSub, peer: PubSubPeer) {.base.} =
   ## handle peer disconnects
   ##
-  if peer.id in p.peers:
+  if not isNil(peer.peerInfo) and peer.id in p.peers:
     trace "deleting peer", peer = peer.id
-    p.peers[peer.id] = nil
     p.peers.del(peer.id)
 
   # metrics
