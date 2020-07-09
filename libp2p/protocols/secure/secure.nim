@@ -59,10 +59,9 @@ proc handleConn*(s: Secure,
                  conn: Connection,
                  initiator: bool): Future[Connection] {.async, gcsafe.} =
   var sconn = await s.handshake(conn, initiator)
-
-  conn.closeEvent.wait()
-    .addCallback do(udata: pointer = nil):
-      if not(isNil(sconn)):
+  if not isNil(sconn):
+    conn.closeEvent.wait()
+      .addCallback do(udata: pointer = nil):
         asyncCheck sconn.close()
 
   return sconn

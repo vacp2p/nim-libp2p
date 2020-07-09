@@ -105,10 +105,13 @@ proc mulgen*(_: type[Curve25519], dst: var Curve25519Key, point: Curve25519Key) 
 proc public*(private: Curve25519Key): Curve25519Key =
   Curve25519.mulgen(result, private)
 
-proc random*(_: type[Curve25519Key], rng: var BrHmacDrbgContext): Result[Curve25519Key, Curve25519Error] =
+proc random*(_: type[Curve25519Key], rng: var BrHmacDrbgContext): Curve25519Key =
   var res: Curve25519Key
   let defaultBrEc = brEcGetDefault()
-  if brEcKeygen(addr rng.vtable, defaultBrEc, nil, addr res[0], EC_curve25519) != Curve25519KeySize:
-    err(Curver25519GenError)
-  else:
-    ok(res)
+  let len = brEcKeygen(
+    addr rng.vtable, defaultBrEc, nil, addr res[0], EC_curve25519)
+  # Per bearssl documentation, the keygen only fails if the curve is
+  # unrecognised -
+  doAssert len == Curve25519KeySize, "Could not generate curve"
+
+  res

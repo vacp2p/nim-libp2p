@@ -61,6 +61,11 @@ template data*(v: StreamSeq): openArray[byte] =
   # TODO a double-hash comment here breaks compile (!)
   v.buf.toOpenArray(v.rpos, v.wpos - 1)
 
+template toOpenArray*(v: StreamSeq, b, e: int): openArray[byte] =
+  # Data that is ready to be consumed
+  # TODO a double-hash comment here breaks compile (!)
+  v.buf.toOpenArray(v.rpos + b, v.rpos + e - b)
+
 func consume*(v: var StreamSeq, n: int) =
   ## Mark `n` bytes that were returned via `data` as consumed
   v.rpos += n
@@ -71,3 +76,10 @@ func consumeTo*(v: var StreamSeq, buf: var openArray[byte]): int =
     copyMem(addr buf[0], addr v.buf[v.rpos], bytes)
     v.consume(bytes)
   bytes
+
+func clear*(v: var StreamSeq) =
+  v.consume(v.len)
+
+func assign*(v: var StreamSeq, buf: openArray[byte]) =
+  v.clear()
+  v.add(buf)
