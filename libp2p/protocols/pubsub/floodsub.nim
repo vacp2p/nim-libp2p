@@ -138,7 +138,8 @@ method publish*(f: FloodSub,
   let (published, failed) = await f.sendHelper(f.floodsub.getOrDefault(topic), @[msg])
   for p in failed:
     let peer = f.peers.getOrDefault(p)
-    f.handleDisconnect(peer) # cleanup failed peers
+    if not isNil(peer):
+      f.handleDisconnect(peer) # cleanup failed peers
 
   libp2p_pubsub_messages_published.inc(labelValues = [topic])
 

@@ -450,7 +450,7 @@ method rpcHandler*(g: GossipSub,
       let (published, failed) = await g.sendHelper(toSendPeers, m.messages)
       for p in failed:
         let peer = g.peers.getOrDefault(p)
-        if not(isNil(peer)):
+        if not isNil(peer):
           g.handleDisconnect(peer) # cleanup failed peers
 
       trace "forwared message to peers", peers = published.len
@@ -523,7 +523,8 @@ method publish*(g: GossipSub,
   let (published, failed) = await g.sendHelper(peers, @[msg])
   for p in failed:
     let peer = g.peers.getOrDefault(p)
-    g.handleDisconnect(peer) # cleanup failed peers
+    if not isNil(peer):
+      g.handleDisconnect(peer) # cleanup failed peers
 
   if published.len > 0:
     libp2p_pubsub_messages_published.inc(labelValues = [topic])
