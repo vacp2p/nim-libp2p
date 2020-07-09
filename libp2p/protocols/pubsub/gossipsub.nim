@@ -199,13 +199,12 @@ proc rebalanceMesh(g: GossipSub, topic: string) {.async.} =
 proc dropFanoutPeers(g: GossipSub) =
   # drop peers that we haven't published to in
   # GossipSubFanoutTTL seconds
-  var dropping = newSeq[string]()
   let now = Moment.now()
-
-  for topic, val in g.lastFanoutPubSub:
+  for topic in toSeq(g.lastFanoutPubSub.keys):
+    let val = g.lastFanoutPubSub[topic]
     if now > val:
-      dropping.add(topic)
       g.fanout.del(topic)
+      g.lastFanoutPubSub.del(topic)
       trace "dropping fanout topic", topic
 
     libp2p_gossipsub_peers_per_topic_fanout
@@ -338,8 +337,7 @@ method subscribeTopic*(g: GossipSub,
 
 proc handleGraft(g: GossipSub,
                  peer: PubSubPeer,
-                 grafts: seq[ControlGraft],
-                 respControl: var ControlMessage) =
+                 grafts: seq[ControlGraft]): seq[ControlPrune] =
   let peerId = peer.id
   for graft in grafts:
     let topic = graft.topicID
@@ -358,9 +356,9 @@ proc handleGraft(g: GossipSub,
         else:
           trace "Peer already in mesh", topic, peerId
       else:
-        respControl.prune.add(ControlPrune(topicID: topic))
+        result.add(ControlPrune(topicID: topic))
     else:
-      respControl.prune.add(ControlPrune(topicID: topic))
+      result.add(ControlPrune(topicID: topic))
 
     libp2p_gossipsub_peers_per_topic_mesh
       .set(g.mesh.peers(topic).int64, labelValues = [topic])
@@ -459,18 +457,17 @@ method rpcHandler*(g: GossipSub,
 
     var respControl: ControlMessage
     if m.control.isSome:
-      var control: ControlMessage = m.control.get()
-      let iWant: ControlIWant = g.handleIHave(peer, control.ihave)
-      if iWant.messageIDs.len > 0:
-        respControl.iwant.add(iWant)
-      let messages: seq[Message] = g.handleIWant(peer, control.iwant)
-
-      g.handleGraft(peer, control.graft, respControl)
+      let control = m.control.get()
       g.handlePrune(peer, control.prune)
+
+      respControl.iwant.add(g.handleIHave(peer, control.ihave))
+      respControl.prune.add(g.handleGraft(peer, control.graft))
 
       if respControl.graft.len > 0 or respControl.prune.len > 0 or
          respControl.ihave.len > 0 or respControl.iwant.len > 0:
-        await peer.send(@[RPCMsg(control: some(respControl), messages: messages)])
+        await peer.send(
+          @[RPCMsg(control: some(respControl),
+                   messages: g.handleIWant(peer, control.iwant))])
 
 method subscribe*(g: GossipSub,
                   topic: string,
