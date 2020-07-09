@@ -88,8 +88,9 @@ proc encodeControl*(control: ControlMessage, pb: var ProtoBuffer) {.gcsafe.} =
       h.encodeIHave(ihave)
 
     # write messages to protobuf
-    ihave.finish()
-    pb.write(initProtoField(1, ihave))
+    if ihave.buffer.len > 0:
+      ihave.finish()
+      pb.write(initProtoField(1, ihave))
 
   if control.iwant.len > 0:
     var iwant = initProtoBuffer()
@@ -97,8 +98,9 @@ proc encodeControl*(control: ControlMessage, pb: var ProtoBuffer) {.gcsafe.} =
       w.encodeIWant(iwant)
 
     # write messages to protobuf
-    iwant.finish()
-    pb.write(initProtoField(2, iwant))
+    if iwant.buffer.len > 0:
+      iwant.finish()
+      pb.write(initProtoField(2, iwant))
 
   if control.graft.len > 0:
     var graft = initProtoBuffer()
@@ -106,8 +108,9 @@ proc encodeControl*(control: ControlMessage, pb: var ProtoBuffer) {.gcsafe.} =
       g.encodeGraft(graft)
 
     # write messages to protobuf
-    graft.finish()
-    pb.write(initProtoField(3, graft))
+    if graft.buffer.len > 0:
+      graft.finish()
+      pb.write(initProtoField(3, graft))
 
   if control.prune.len > 0:
     var prune = initProtoBuffer()
@@ -115,8 +118,9 @@ proc encodeControl*(control: ControlMessage, pb: var ProtoBuffer) {.gcsafe.} =
       p.encodePrune(prune)
 
     # write messages to protobuf
-    prune.finish()
-    pb.write(initProtoField(4, prune))
+    if prune.buffer.len > 0:
+      prune.finish()
+      pb.write(initProtoField(4, prune))
 
 proc decodeControl*(pb: var ProtoBuffer): Option[ControlMessage] {.gcsafe.} =
   trace "decoding control submessage"
@@ -225,9 +229,11 @@ proc encodeRpcMsg*(msg: RPCMsg): ProtoBuffer {.gcsafe.} =
     for s in msg.subscriptions:
       var subs = initProtoBuffer()
       encodeSubs(s, subs)
+
       # write subscriptions to protobuf
-      subs.finish()
-      result.write(initProtoField(1, subs))
+      if subs.buffer.len > 0:
+        subs.finish()
+        result.write(initProtoField(1, subs))
 
   if msg.messages.len > 0:
     var messages = initProtoBuffer()
@@ -235,16 +241,18 @@ proc encodeRpcMsg*(msg: RPCMsg): ProtoBuffer {.gcsafe.} =
       encodeMessage(m, messages)
 
     # write messages to protobuf
-    messages.finish()
-    result.write(initProtoField(2, messages))
+    if messages.buffer.len > 0:
+      messages.finish()
+      result.write(initProtoField(2, messages))
 
   if msg.control.isSome:
     var control = initProtoBuffer()
     msg.control.get.encodeControl(control)
 
     # write messages to protobuf
-    control.finish()
-    result.write(initProtoField(3, control))
+    if control.buffer.len > 0:
+      control.finish()
+      result.write(initProtoField(3, control))
 
   if result.buffer.len > 0:
     result.finish()
