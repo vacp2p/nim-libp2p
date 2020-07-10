@@ -102,12 +102,18 @@ method readOnce*(s: LPStream,
   doAssert(false, "not implemented!")
 
 proc readExactly*(s: LPStream,
-                    pbytes: pointer,
-                    nbytes: int):
-                    Future[void] {.async.} =
+                  pbytes: pointer,
+                  nbytes: int):
+                  Future[void] {.async.} =
 
   if s.atEof:
     raise newLPStreamEOFError()
+
+  logScope:
+    nbytes = nbytes
+    obName = s.objName
+    stack = getStackTrace()
+    oid = $s.oid
 
   var pbuffer = cast[ptr UncheckedArray[byte]](pbytes)
   var read = 0
@@ -115,9 +121,13 @@ proc readExactly*(s: LPStream,
     read += await s.readOnce(addr pbuffer[read], nbytes - read)
 
   if read < nbytes:
+    trace "incomplete data received", read
     raise newLPStreamIncompleteError()
 
-proc readLine*(s: LPStream, limit = 0, sep = "\r\n"): Future[string] {.async, deprecated: "todo".} =
+proc readLine*(s: LPStream,
+               limit = 0,
+               sep = "\r\n"): Future[string]
+               {.async, deprecated: "todo".} =
   # TODO replace with something that exploits buffering better
   var lim = if limit <= 0: -1 else: limit
   var state = 0
