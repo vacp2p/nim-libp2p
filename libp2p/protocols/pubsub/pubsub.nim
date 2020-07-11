@@ -30,6 +30,8 @@ declareCounter(libp2p_pubsub_validation_failure, "pubsub failed validated messag
 declarePublicCounter(libp2p_pubsub_messages_published, "published messages", labels = ["topic"])
 
 type
+  PeerTable* = Table[string, HashSet[PubSubPeer]]
+
   SendRes = tuple[published: seq[string], failed: seq[string]] # keep private
 
   TopicHandler* = proc(topic: string,
@@ -58,6 +60,16 @@ type
     validators*: Table[string, HashSet[ValidatorHandler]]
     observers: ref seq[PubSubObserver] # ref as in smart_ptr
     msgIdProvider*: MsgIdProvider      # Turn message into message id (not nil)
+
+proc hasPeerID*(t: PeerTable, topic, peerId: string): bool =
+  # unefficient but used only in tests!
+  let peers = t.getOrDefault(topic)
+  if peers.len == 0:
+    false
+  else:
+    let ps = toSeq(peers)
+    ps.any do (peer: PubSubPeer) -> bool:
+      peer.id == peerId
 
 method handleDisconnect*(p: PubSub, peer: PubSubPeer) {.base.} =
   ## handle peer disconnects
@@ -243,20 +255,16 @@ method subscribe*(p: PubSub,
   libp2p_pubsub_topics.inc()
 
 proc sendHelper*(p: PubSub,
-                 sendPeers: HashSet[string],
+                 sendPeers: HashSet[PubSubPeer],
                  msgs: seq[Message]): Future[SendRes] {.async.} =
   var sent: seq[tuple[id: string, fut: Future[void]]]
   for sendPeer in sendPeers:
     # avoid sending to self
-    if sendPeer == p.peerInfo.id:
+    if sendPeer.peerInfo == p.peerInfo:
       continue
 
-    let peer = p.peers.getOrDefault(sendPeer)
-    if isNil(peer):
-      continue
-
-    trace "sending messages to peer", peer = peer.id, msgs
-    sent.add((id: peer.id, fut: peer.send(@[RPCMsg(messages: msgs)])))
+    trace "sending messages to peer", peer = sendPeer.id, msgs
+    sent.add((id: sendPeer.id, fut: sendPeer.send(@[RPCMsg(messages: msgs)])))
 
   var published: seq[string]
   var failed: seq[string]

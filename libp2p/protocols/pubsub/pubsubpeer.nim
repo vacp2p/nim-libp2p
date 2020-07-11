@@ -43,6 +43,10 @@ type
 
   RPCHandler* = proc(peer: PubSubPeer, msg: seq[RPCMsg]): Future[void] {.gcsafe.}
 
+proc hash*(p: PubSubPeer): Hash = 
+  # int is either 32/64, so intptr basically, pubsubpeer is a ref
+  cast[int](p).hash
+
 proc id*(p: PubSubPeer): string = p.peerInfo.id
 
 proc connected*(p: PubSubPeer): bool =

@@ -45,9 +45,9 @@ const GossipSubFanoutTTL* = 1.minutes
 
 type
   GossipSub* = ref object of FloodSub
-    mesh*: Table[string, HashSet[string]]      # peers that we send messages to when we are subscribed to the topic
-    fanout*: Table[string, HashSet[string]]    # peers that we send messages to when we're not subscribed to the topic
-    gossipsub*: Table[string, HashSet[string]] # peers that are subscribed to a topic
+    mesh*: PeerTable                           # peers that we send messages to when we are subscribed to the topic
+    fanout*: PeerTable                         # peers that we send messages to when we're not subscribed to the topic
+    gossipsub*: PeerTable                      # peers that are subscribed to a topic
     lastFanoutPubSub*: Table[string, Moment]   # last publish time for fanout topics
     gossip*: Table[string, seq[ControlIHave]]  # pending gossip
     control*: Table[string, ControlMessage]    # pending control messages
@@ -68,23 +68,20 @@ declareGauge(libp2p_gossipsub_peers_per_topic_gossipsub,
   "gossipsub peers per topic in gossipsub",
   labels = ["topic"])
 
-func addPeer(
-    table: var Table[string, HashSet[string]], topic: string,
-    peerId: string): bool =
+func addPeer(table: var PeerTable, topic: string, peer: PubSubPeer): bool =
   # returns true if the peer was added, false if it was already in the collection
-  not table.mgetOrPut(topic, initHashSet[string]()).containsOrIncl(peerId)
+  not table.mgetOrPut(topic, initHashSet[PubSubPeer]()).containsOrIncl(peer)
 
-func removePeer(
-    table: var Table[string, HashSet[string]], topic, peerId: string) =
+func removePeer(table: var PeerTable, topic: string, peer: PubSubPeer) =
   table.withValue(topic, peers):
-    peers[].excl(peerId)
+    peers[].excl(peer)
     if peers[].len == 0:
       table.del(topic)
 
-func hasPeer(table: Table[string, HashSet[string]], topic, peerId: string): bool =
-  (topic in table) and (peerId in table[topic])
+func hasPeer(table: PeerTable, topic: string, peer: PubSubPeer): bool =
+  (topic in table) and (peer in table[topic])
 
-func peers(table: Table[string, HashSet[string]], topic: string): int =
+func peers(table: PeerTable, topic: string): int =
   if topic in table:
     table[topic].len
   else:
@@ -112,8 +109,8 @@ proc replenishFanout(g: GossipSub, topic: string) =
   if g.fanout.peers(topic) < GossipSubDLo:
     trace "replenishing fanout", peers = g.fanout.peers(topic)
     if topic in g.gossipsub:
-      for peerId in g.gossipsub[topic]:
-        if g.fanout.addPeer(topic, peerId):
+      for peer in g.gossipsub[topic]:
+        if g.fanout.addPeer(topic, peer):
           if g.fanout.peers(topic) == GossipSubD:
             break
 
@@ -133,8 +130,8 @@ proc rebalanceMesh(g: GossipSub, topic: string) {.async.} =
     trace "replenishing mesh", topic, peers = g.mesh.peers(topic)
     # replenish the mesh if we're below GossipSubDlo
     var newPeers = toSeq(
-      g.gossipsub.getOrDefault(topic, initHashSet[string]()) -
-      g.mesh.getOrDefault(topic, initHashSet[string]())
+      g.gossipsub.getOrDefault(topic, initHashSet[PubSubPeer]()) -
+      g.mesh.getOrDefault(topic, initHashSet[PubSubPeer]())
     )
 
     logScope:
@@ -146,19 +143,11 @@ proc rebalanceMesh(g: GossipSub, topic: string) {.async.} =
 
     trace "getting peers", topic, peers = newPeers.len
 
-    for id in newPeers:
-      if g.mesh.peers(topic) >= GossipSubD:
-        break
-
-      let p = g.peers.getOrDefault(id)
-      if p != nil:
-        # send a graft message to the peer
-        grafts.add p
-        discard g.mesh.addPeer(topic, id)
-        trace "got peer", peer = id
-      else:
-        # Peer should have been removed from mesh also!
-        warn "Unknown peer in mesh", peer = id
+    for peer in newPeers:
+      # send a graft message to the peer
+      grafts.add peer
+      discard g.mesh.addPeer(topic, peer)
+      trace "got peer", peer = peer.id
 
   if g.mesh.peers(topic) > GossipSubDhi:
     # prune peers if we've gone over
@@ -166,17 +155,14 @@ proc rebalanceMesh(g: GossipSub, topic: string) {.async.} =
     shuffle(mesh)
 
     trace "about to prune mesh", mesh = mesh.len
-    for id in mesh:
+    for peer in mesh:
       if g.mesh.peers(topic) <= GossipSubD:
         break
 
       trace "pruning peers", peers = g.mesh.peers(topic)
       # send a graft message to the peer
-      g.mesh.removePeer(topic, id)
-
-      let p = g.peers.getOrDefault(id)
-      if p != nil:
-        prunes.add(p)
+      g.mesh.removePeer(topic, peer)
+      prunes.add(peer)
 
   libp2p_gossipsub_peers_per_topic_gossipsub
     .set(g.gossipsub.peers(topic).int64, labelValues = [topic])
@@ -236,18 +222,18 @@ proc getGossipPeers(g: GossipSub): Table[string, ControlMessage] {.gcsafe.} =
       trace "topic not in gossip array, skipping", topicID = topic
       continue
 
-    for id in allPeers:
+    for peer in allPeers:
       if result.len >= GossipSubD:
         trace "got gossip peers", peers = result.len
         break
 
-      if id in gossipPeers:
+      if peer in gossipPeers:
         continue
 
-      if id notin result:
-        result[id] = controlMsg
+      if peer.id notin result:
+        result[peer.id] = controlMsg
 
-      result[id].ihave.add(ihave)
+      result[peer.id].ihave.add(ihave)
 
 proc heartbeat(g: GossipSub) {.async.} =
   while g.heartbeatRunning:
@@ -282,19 +268,19 @@ method handleDisconnect*(g: GossipSub, peer: PubSubPeer) =
   ## handle peer disconnects
   procCall FloodSub(g).handleDisconnect(peer)
   for t in toSeq(g.gossipsub.keys):
-    g.gossipsub.removePeer(t, peer.id)
+    g.gossipsub.removePeer(t, peer)
 
     libp2p_gossipsub_peers_per_topic_gossipsub
       .set(g.gossipsub.peers(t).int64, labelValues = [t])
 
   for t in toSeq(g.mesh.keys):
-    g.mesh.removePeer(t, peer.id)
+    g.mesh.removePeer(t, peer)
 
     libp2p_gossipsub_peers_per_topic_mesh
       .set(g.mesh.peers(t).int64, labelValues = [t])
 
   for t in toSeq(g.fanout.keys):
-    g.fanout.removePeer(t, peer.id)
+    g.fanout.removePeer(t, peer)
 
     libp2p_gossipsub_peers_per_topic_fanout
       .set(g.fanout.peers(t).int64, labelValues = [t])
@@ -310,16 +296,21 @@ method subscribeTopic*(g: GossipSub,
                        peerId: string) {.gcsafe, async.} =
   await procCall FloodSub(g).subscribeTopic(topic, subscribe, peerId)
 
+  let peer = g.peers.getOrDefault(peerId)
+  if peer == nil:
+    debug "subscribeTopic on a nil peer!"
+    return
+
   if subscribe:
     trace "adding subscription for topic", peer = peerId, name = topic
     # subscribe remote peer to the topic
-    discard g.gossipsub.addPeer(topic, peerId)
+    discard g.gossipsub.addPeer(topic, peer)
   else:
     trace "removing subscription for topic", peer = peerId, name = topic
     # unsubscribe remote peer from the topic
-    g.gossipsub.removePeer(topic, peerId)
-    g.mesh.removePeer(topic, peerId)
-    g.fanout.removePeer(topic, peerId)
+    g.gossipsub.removePeer(topic, peer)
+    g.mesh.removePeer(topic, peer)
+    g.fanout.removePeer(topic, peer)
 
     libp2p_gossipsub_peers_per_topic_mesh
       .set(g.mesh.peers(topic).int64, labelValues = [topic])
@@ -338,10 +329,9 @@ method subscribeTopic*(g: GossipSub,
 proc handleGraft(g: GossipSub,
                  peer: PubSubPeer,
                  grafts: seq[ControlGraft]): seq[ControlPrune] =
-  let peerId = peer.id
   for graft in grafts:
     let topic = graft.topicID
-    trace "processing graft message", topic, peerId
+    trace "processing graft message", topic, peer
 
       # If they send us a graft before they send us a subscribe, what should
       # we do? For now, we add them to mesh but don't add them to gossipsub.
@@ -351,10 +341,10 @@ proc handleGraft(g: GossipSub,
         # In the spec, there's no mention of DHi here, but implicitly, a
         # peer will be removed from the mesh on next rebalance, so we don't want
         # this peer to push someone else out
-        if g.mesh.addPeer(topic, peerId):
-          g.fanout.removePeer(topic, peer.id)
+        if g.mesh.addPeer(topic, peer):
+          g.fanout.removePeer(topic, peer)
         else:
-          trace "Peer already in mesh", topic, peerId
+          trace "Peer already in mesh", topic, peer
       else:
         result.add(ControlPrune(topicID: topic))
     else:
@@ -368,7 +358,7 @@ proc handlePrune(g: GossipSub, peer: PubSubPeer, prunes: seq[ControlPrune]) =
     trace "processing prune message", peer = peer.id,
                                       topicID = prune.topicID
 
-    g.mesh.removePeer(prune.topicID, peer.id)
+    g.mesh.removePeer(prune.topicID, peer)
     libp2p_gossipsub_peers_per_topic_mesh
       .set(g.mesh.peers(prune.topicID).int64, labelValues = [prune.topicID])
 
@@ -403,7 +393,7 @@ method rpcHandler*(g: GossipSub,
 
   for m in rpcMsgs:                                  # for all RPC messages
     if m.messages.len > 0:                           # if there are any messages
-      var toSendPeers: HashSet[string]
+      var toSendPeers: HashSet[PubSubPeer]
       for msg in m.messages:                         # for every message
         let msgId = g.msgIdProvider(msg)
         logScope: msgId
@@ -485,10 +475,8 @@ method unsubscribe*(g: GossipSub,
       let peers = g.mesh.getOrDefault(topic)
       g.mesh.del(topic)
 
-      for id in peers:
-        let p = g.peers.getOrDefault(id)
-        if p != nil:
-          await p.sendPrune(@[topic])
+      for peer in peers:
+        await peer.sendPrune(@[topic])
 
 method publish*(g: GossipSub,
                 topic: string,
@@ -497,7 +485,7 @@ method publish*(g: GossipSub,
   discard await procCall PubSub(g).publish(topic, data)
   trace "about to publish message on topic", name = topic,
                                              data = data.shortLog
-  var peers: HashSet[string]
+  var peers: HashSet[PubSubPeer]
   if topic.len <= 0: # data could be 0/empty
     return 0
 
@@ -578,9 +566,9 @@ method initPubSub*(g: GossipSub) =
 
   randomize()
   g.mcache = newMCache(GossipSubHistoryGossip, GossipSubHistoryLength)
-  g.mesh = initTable[string, HashSet[string]]()     # meshes - topic to peer
-  g.fanout = initTable[string, HashSet[string]]()   # fanout - topic to peer
-  g.gossipsub = initTable[string, HashSet[string]]()# topic to peer map of all gossipsub peers
+  g.mesh = initTable[string, HashSet[PubSubPeer]]()     # meshes - topic to peer
+  g.fanout = initTable[string, HashSet[PubSubPeer]]()   # fanout - topic to peer
+  g.gossipsub = initTable[string, HashSet[PubSubPeer]]()# topic to peer map of all gossipsub peers
   g.lastFanoutPubSub = initTable[string, Moment]()  # last publish time for fanout topics
   g.gossip = initTable[string, seq[ControlIHave]]() # pending gossip
   g.control = initTable[string, ControlMessage]()   # pending control messages
