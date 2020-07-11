@@ -179,22 +179,6 @@ proc open*(s: LPChannel) {.async, gcsafe.} =
   trace "opened channel"
   s.isOpen = true
 
-proc drainBuffer(s: LPChannel) {.async.} =
-  # wait for all data in the buffer to be consumed
-
-  logScope:
-    id = s.id
-    initiator = s.initiator
-    name = s.name
-    oid = $s.oid
-    peer = $s.conn.peerInfo
-    # stack = getStackTrace()
-
-  trace "draining buffer", len = s.len
-  while s.len > 0:
-    await s.dataReadEvent.wait()
-    s.dataReadEvent.clear()
-
 proc closeRemote*(s: LPChannel) {.async.} =
   logScope:
     id = s.id
