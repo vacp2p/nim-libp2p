@@ -242,8 +242,8 @@ suite "GossipSub internal":
       let peers = gossipSub.getGossipPeers()
       check peers.len == GossipSubD
       for p in peers.keys:
-        check gossipSub.fanout.hasPeerID(topic, p)
-        check gossipSub.mesh.hasPeerID(topic, p)
+        check not gossipSub.fanout.hasPeerID(topic, p)
+        check not gossipSub.mesh.hasPeerID(topic, p)
 
       await allFuturesThrowing(conns.mapIt(it.close()))
 
