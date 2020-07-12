@@ -22,13 +22,14 @@ matrix:
         - NPROC=2
       before_install:
         - export GOPATH=$HOME/go
-    - os: linux
-      arch: arm64
-      env:
-        - NPROC=6 # Worth trying more than 2 parallel jobs: https://travis-ci.community/t/no-cache-support-on-arm64/5416/8
-        # (also used to get a different cache key than the amd64 one)
-      before_install:
-        - export GOPATH=$HOME/go
+    ## arm64 is very unreliable and slow, disabled for now
+    # - os: linux
+    #   arch: arm64
+    #   env:
+    #     - NPROC=6 # Worth trying more than 2 parallel jobs: https://travis-ci.community/t/no-cache-support-on-arm64/5416/8
+    #     # (also used to get a different cache key than the amd64 one)
+    #   before_install:
+    #     - export GOPATH=$HOME/go
     - os: osx
       env:
         - NPROC=2
