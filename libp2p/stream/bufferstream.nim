@@ -198,6 +198,15 @@ method pushTo*(s: BufferStream, data: seq[byte]) {.base, async.} =
     await s.dataReadEvent.wait()
     s.dataReadEvent.clear()
 
+proc drainBuffer*(s: BufferStream) {.async.} =
+  ## wait for all data in the buffer to be consumed
+  ##
+
+  trace "draining buffer", len = s.len
+  while s.len > 0:
+    await s.dataReadEvent.wait()
+    s.dataReadEvent.clear()
+
 method readOnce*(s: BufferStream,
                  pbytes: pointer,
                  nbytes: int):
