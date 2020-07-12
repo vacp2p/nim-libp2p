@@ -430,7 +430,7 @@ method handshake*(p: Noise, conn: Connection, initiator: bool): Future[SecureCon
 
   var
     libp2pProof = initProtoBuffer()
-  libp2pProof.write(1, p.localPublicKey.getBytes.tryGet())
+  libp2pProof.write(1, p.localPublicKey)
   libp2pProof.write(2, signedPayload.getBytes())
   # data field also there but not used!
   libp2pProof.finish()
