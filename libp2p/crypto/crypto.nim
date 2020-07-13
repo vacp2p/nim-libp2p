@@ -222,7 +222,7 @@ proc toBytes*(key: PrivateKey, data: var openarray[byte]): CryptoResult[int] =
   ##
   ## Returns number of bytes (octets) needed to store private key ``key``.
   var msg = initProtoBuffer()
-  msg.write(1, cast[uint64](key.scheme))
+  msg.write(1, uint64(key.scheme))
   msg.write(2, ? key.getRawBytes())
   msg.finish()
   var blen = len(msg.buffer)
@@ -236,7 +236,7 @@ proc toBytes*(key: PublicKey, data: var openarray[byte]): CryptoResult[int] =
   ##
   ## Returns number of bytes (octets) needed to store public key ``key``.
   var msg = initProtoBuffer()
-  msg.write(1, cast[uint64](key.scheme))
+  msg.write(1, uint64(key.scheme))
   msg.write(2, ? key.getRawBytes())
   msg.finish()
   var blen = len(msg.buffer)
@@ -256,7 +256,7 @@ proc getBytes*(key: PrivateKey): CryptoResult[seq[byte]] =
   ## Return private key ``key`` in binary form (using libp2p's protobuf
   ## serialization).
   var msg = initProtoBuffer()
-  msg.write(1, cast[uint64](key.scheme))
+  msg.write(1, uint64(key.scheme))
   msg.write(2, ? key.getRawBytes())
   msg.finish()
   ok(msg.buffer)
@@ -265,7 +265,7 @@ proc getBytes*(key: PublicKey): CryptoResult[seq[byte]] =
   ## Return public key ``key`` in binary form (using libp2p's protobuf
   ## serialization).
   var msg = initProtoBuffer()
-  msg.write(1, cast[uint64](key.scheme))
+  msg.write(1, uint64(key.scheme))
   msg.write(2, ? key.getRawBytes())
   msg.finish()
   ok(msg.buffer)

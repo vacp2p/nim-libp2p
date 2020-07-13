@@ -1021,8 +1021,7 @@ proc `$`*(pat: MaPattern): string =
   elif pat.operator == Eq:
     result = $pat.value
 
-proc write*(pb: var ProtoBuffer, field: int64, value: MultiAddress) {.
-     inline.} =
+proc write*(pb: var ProtoBuffer, field: int64, value: MultiAddress) {.inline.} =
   write(pb, field, value.data.buffer)
 
 proc getField*(pb: var ProtoBuffer, field: int64,
