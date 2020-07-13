@@ -14,19 +14,19 @@ import messages,
        ../../../utility,
        ../../../protobuf/minprotobuf
 
-proc write*(pb: var ProtoBuffer, field: int64, graft: ControlGraft) =
+proc write*(pb: var ProtoBuffer, field: int, graft: ControlGraft) =
   var ipb = initProtoBuffer()
   ipb.write(1, graft.topicID)
   ipb.finish()
   pb.write(field, ipb)
 
-proc write*(pb: var ProtoBuffer, field: int64, prune: ControlPrune) =
+proc write*(pb: var ProtoBuffer, field: int, prune: ControlPrune) =
   var ipb = initProtoBuffer()
   ipb.write(1, prune.topicID)
   ipb.finish()
   pb.write(field, ipb)
 
-proc write*(pb: var ProtoBuffer, field: int64, ihave: ControlIHave) =
+proc write*(pb: var ProtoBuffer, field: int, ihave: ControlIHave) =
   var ipb = initProtoBuffer()
   ipb.write(1, ihave.topicID)
   for mid in ihave.messageIDs:
@@ -34,7 +34,7 @@ proc write*(pb: var ProtoBuffer, field: int64, ihave: ControlIHave) =
   ipb.finish()
   pb.write(field, ipb)
 
-proc write*(pb: var ProtoBuffer, field: int64, iwant: ControlIWant) =
+proc write*(pb: var ProtoBuffer, field: int, iwant: ControlIWant) =
   var ipb = initProtoBuffer()
   for mid in iwant.messageIDs:
     ipb.write(1, mid)
@@ -42,7 +42,7 @@ proc write*(pb: var ProtoBuffer, field: int64, iwant: ControlIWant) =
     ipb.finish()
     pb.write(field, ipb)
 
-proc write*(pb: var ProtoBuffer, field: int64, control: ControlMessage) =
+proc write*(pb: var ProtoBuffer, field: int, control: ControlMessage) =
   var ipb = initProtoBuffer()
   for ihave in control.ihave:
     ipb.write(1, ihave)
@@ -56,7 +56,7 @@ proc write*(pb: var ProtoBuffer, field: int64, control: ControlMessage) =
     ipb.finish()
     pb.write(field, ipb)
 
-proc write*(pb: var ProtoBuffer, field: int64, subs: SubOpts) =
+proc write*(pb: var ProtoBuffer, field: int, subs: SubOpts) =
   var ipb = initProtoBuffer()
   ipb.write(1, uint64(subs.subscribe))
   ipb.write(2, subs.topic)
@@ -77,7 +77,7 @@ proc encodeMessage*(msg: Message): seq[byte] =
   pb.finish()
   pb.buffer
 
-proc write*(pb: var ProtoBuffer, field: int64, msg: Message) =
+proc write*(pb: var ProtoBuffer, field: int, msg: Message) =
   pb.write(field, encodeMessage(msg))
 
 proc decodeGraft*(pb: ProtoBuffer): ControlGraft {.inline.} =

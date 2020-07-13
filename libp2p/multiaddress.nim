@@ -1021,10 +1021,10 @@ proc `$`*(pat: MaPattern): string =
   elif pat.operator == Eq:
     result = $pat.value
 
-proc write*(pb: var ProtoBuffer, field: int64, value: MultiAddress) {.inline.} =
+proc write*(pb: var ProtoBuffer, field: int, value: MultiAddress) {.inline.} =
   write(pb, field, value.data.buffer)
 
-proc getField*(pb: var ProtoBuffer, field: int64,
+proc getField*(pb: var ProtoBuffer, field: int,
                value: var MultiAddress): bool {.inline.} =
   var buffer: seq[byte]
   if not(getField(pb, field, buffer)):
@@ -1038,7 +1038,7 @@ proc getField*(pb: var ProtoBuffer, field: int64,
   else:
     false
 
-proc getRepeatedField*(pb: var ProtoBuffer, field: int64,
+proc getRepeatedField*(pb: var ProtoBuffer, field: int,
                        value: var seq[MultiAddress]): bool {.inline.} =
   var items: seq[seq[byte]]
   value.setLen(0)

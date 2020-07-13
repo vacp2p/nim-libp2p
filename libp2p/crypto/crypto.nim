@@ -782,12 +782,12 @@ proc write*(vb: var VBuffer, sig: PrivateKey) {.
   ## Write Signature value ``sig`` to buffer ``vb``.
   vb.writeSeq(sig.getBytes().tryGet())
 
-proc write*[T: PublicKey|PrivateKey](pb: var ProtoBuffer, field: int64,
+proc write*[T: PublicKey|PrivateKey](pb: var ProtoBuffer, field: int,
                                      key: T) {.
      inline, raises: [Defect, ResultError[CryptoError]].} =
   write(pb, field, key.getBytes().tryGet())
 
-proc write*(pb: var ProtoBuffer, field: int64, sig: Signature) {.
+proc write*(pb: var ProtoBuffer, field: int, sig: Signature) {.
      inline, raises: [Defect, ResultError[CryptoError]].} =
   write(pb, field, sig.getBytes())
 
@@ -824,7 +824,7 @@ proc getValue*(data: var ProtoBuffer, field: int, value: var Signature): int {.
     else:
       value = sig
 
-proc getField*[T: PublicKey|PrivateKey](pb: ProtoBuffer, field: int64,
+proc getField*[T: PublicKey|PrivateKey](pb: ProtoBuffer, field: int,
                                         value: var T): bool =
   var buffer: seq[byte]
   var key: T
@@ -838,7 +838,7 @@ proc getField*[T: PublicKey|PrivateKey](pb: ProtoBuffer, field: int64,
   else:
     false
 
-proc getField*(pb: ProtoBuffer, field: int64, value: var Signature): bool =
+proc getField*(pb: ProtoBuffer, field: int, value: var Signature): bool =
   var buffer: seq[byte]
   var sig: Signature
   if not(getField(pb, field, buffer)):
