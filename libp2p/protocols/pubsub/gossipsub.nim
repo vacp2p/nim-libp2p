@@ -331,7 +331,7 @@ proc handleGraft(g: GossipSub,
                  grafts: seq[ControlGraft]): seq[ControlPrune] =
   for graft in grafts:
     let topic = graft.topicID
-    trace "processing graft message", topic, peer
+    trace "processing graft message", topic, peer = peer.id
 
       # If they send us a graft before they send us a subscribe, what should
       # we do? For now, we add them to mesh but don't add them to gossipsub.
@@ -344,7 +344,7 @@ proc handleGraft(g: GossipSub,
         if g.mesh.addPeer(topic, peer):
           g.fanout.removePeer(topic, peer)
         else:
-          trace "Peer already in mesh", topic, peer
+          trace "Peer already in mesh", topic, peer = peer.id
       else:
         result.add(ControlPrune(topicID: topic))
     else:
