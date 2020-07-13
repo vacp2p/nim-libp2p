@@ -206,19 +206,19 @@ proc identify(s: Switch, conn: Connection) {.async, gcsafe.} =
 
     trace "identify: identified remote peer", peer = $conn.peerInfo
 
-proc mux(s: Switch, conn: Connection) {.async, gcsafe.} =
+proc mux(s: Switch, conn: Connection): Future[bool] {.async, gcsafe.} =
   ## mux incoming connection
 
   trace "muxing connection", peer = $conn
   let muxers = toSeq(s.muxers.keys)
   if muxers.len == 0:
     warn "no muxers registered, skipping upgrade flow"
-    return
+    return false
 
   let muxerName = await s.ms.select(conn, muxers)
   if muxerName.len == 0 or muxerName == "na":
     debug "no muxer available, early exit", peer = $conn
-    return
+    return false
 
   # create new muxer for connection
   let muxer = s.muxers[muxerName].newMuxer(conn)
@@ -252,6 +252,7 @@ proc mux(s: Switch, conn: Connection) {.async, gcsafe.} =
   # store it in muxed connections if we have a peer for it
   trace "adding muxer for peer", peer = conn.peerInfo.id
   await s.storeConn(muxer, Direction.Out, handlerFut)
+  return true
 
 proc cleanupConn(s: Switch, conn: Connection) {.async, gcsafe.} =
     if isNil(conn):
@@ -332,8 +333,8 @@ proc upgradeOutgoing(s: Switch, conn: Connection): Future[Connection] {.async, g
       "unable to secure connection, stopping upgrade")
 
   trace "upgrading connection"
-  await s.mux(sconn) # mux it if possible
-  if isNil(sconn.peerInfo):
+  let success = await s.mux(sconn) # mux it if possible
+  if isNil(sconn.peerInfo) or not success:
     await sconn.close()
     raise newException(CatchableError,
       "unable to mux connection, stopping upgrade")
