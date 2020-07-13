@@ -32,9 +32,7 @@ func defaultMsgIdProvider*(m: Message): string =
   byteutils.toHex(m.seqno) & m.fromPeer.pretty
 
 proc sign*(msg: Message, p: PeerInfo): seq[byte] {.gcsafe, raises: [ResultError[CryptoError], Defect].} =
-  var buff = initProtoBuffer()
-  encodeMessage(msg, buff)
-  p.privateKey.sign(PubSubPrefix & buff.buffer).tryGet().getBytes()
+  p.privateKey.sign(PubSubPrefix & encodeMessage(msg)).tryGet().getBytes()
 
 proc verify*(m: Message, p: PeerInfo): bool =
   if m.signature.len > 0 and m.key.len > 0:
@@ -42,14 +40,11 @@ proc verify*(m: Message, p: PeerInfo): bool =
     msg.signature = @[]
     msg.key = @[]
 
-    var buff = initProtoBuffer()
-    encodeMessage(msg, buff)
-
     var remote: Signature
     var key: PublicKey
     if remote.init(m.signature) and key.init(m.key):
       trace "verifying signature", remoteSignature = remote
-      result = remote.verify(PubSubPrefix & buff.buffer, key)
+      result = remote.verify(PubSubPrefix & encodeMessage(msg), key)
 
   if result:
     libp2p_pubsub_sig_verify_success.inc()

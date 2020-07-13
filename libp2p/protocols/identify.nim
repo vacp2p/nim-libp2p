@@ -47,61 +47,49 @@ type
 proc encodeMsg*(peerInfo: PeerInfo, observedAddr: Multiaddress): ProtoBuffer =
   result = initProtoBuffer()
 
-  result.write(initProtoField(1, peerInfo.publicKey.get().getBytes().tryGet()))
+  result.write(1, peerInfo.publicKey.get().getBytes().tryGet())
 
   for ma in peerInfo.addrs:
-    result.write(initProtoField(2, ma.data.buffer))
+    result.write(2, ma.data.buffer)
 
   for proto in peerInfo.protocols:
-    result.write(initProtoField(3, proto))
+    result.write(3, proto)
 
-  result.write(initProtoField(4, observedAddr.data.buffer))
+  result.write(4, observedAddr.data.buffer)
 
   let protoVersion = ProtoVersion
-  result.write(initProtoField(5, protoVersion))
+  result.write(5, protoVersion)
 
   let agentVersion = AgentVersion
-  result.write(initProtoField(6, agentVersion))
+  result.write(6, agentVersion)
   result.finish()
 
 proc decodeMsg*(buf: seq[byte]): IdentifyInfo =
   var pb = initProtoBuffer(buf)
 
-  result.pubKey = none(PublicKey)
   var pubKey: PublicKey
-  if pb.getValue(1, pubKey) > 0:
+  if pb.getField(1, pubKey):
     trace "read public key from message", pubKey = ($pubKey).shortLog
     result.pubKey = some(pubKey)
 
-  result.addrs = newSeq[MultiAddress]()
-  var address = newSeq[byte]()
-  while pb.getBytes(2, address) > 0:
-    if len(address) != 0:
-      var copyaddr = address
-      var ma = MultiAddress.init(copyaddr).tryGet()
-      result.addrs.add(ma)
-      trace "read address bytes from message", address = ma
-      address.setLen(0)
+  if pb.getRepeatedField(2, result.addrs):
+    trace "read addresses from message", addresses = result.addrs
 
-  var proto = ""
-  while pb.getString(3, proto) > 0:
-    trace "read proto from message", proto = proto
-    result.protos.add(proto)
-    proto = ""
+  if pb.getRepeatedField(3, result.protos):
+    trace "read protos from message", protocols = result.protos
 
-  var observableAddr = newSeq[byte]()
-  if pb.getBytes(4, observableAddr) > 0: # attempt to read the observed addr
-    var ma = MultiAddress.init(observableAddr).tryGet()
-    trace "read observedAddr from message", address = ma
-    result.observedAddr = some(ma)
+  var observableAddr: MultiAddress
+  if pb.getField(4, observableAddr):
+    trace "read observableAddr from message", address = observableAddr
+    result.observedAddr = some(observableAddr)
 
   var protoVersion = ""
-  if pb.getString(5, protoVersion) > 0:
+  if pb.getField(5, protoVersion):
     trace "read protoVersion from message", protoVersion = protoVersion
     result.protoVersion = some(protoVersion)
 
   var agentVersion = ""
-  if pb.getString(6, agentVersion) > 0:
+  if pb.getField(6, agentVersion):
     trace "read agentVersion from message", agentVersion = agentVersion
     result.agentVersion = some(agentVersion)
 

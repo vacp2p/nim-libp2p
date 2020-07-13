@@ -430,8 +430,8 @@ method handshake*(p: Noise, conn: Connection, initiator: bool): Future[SecureCon
 
   var
     libp2pProof = initProtoBuffer()
-  libp2pProof.write(initProtoField(1, p.localPublicKey))
-  libp2pProof.write(initProtoField(2, signedPayload.getBytes()))
+  libp2pProof.write(1, p.localPublicKey)
+  libp2pProof.write(2, signedPayload.getBytes())
   # data field also there but not used!
   libp2pProof.finish()
 
@@ -449,9 +449,9 @@ method handshake*(p: Noise, conn: Connection, initiator: bool): Future[SecureCon
       remoteSig: Signature
       remoteSigBytes: seq[byte]
 
-    if remoteProof.getLengthValue(1, remotePubKeyBytes) <= 0:
+    if not(remoteProof.getField(1, remotePubKeyBytes)):
       raise newException(NoiseHandshakeError, "Failed to deserialize remote public key bytes. (initiator: " & $initiator & ", peer: " & $conn.peerInfo.peerId & ")")
-    if remoteProof.getLengthValue(2, remoteSigBytes) <= 0:
+    if not(remoteProof.getField(2, remoteSigBytes)):
       raise newException(NoiseHandshakeError, "Failed to deserialize remote signature bytes. (initiator: " & $initiator & ", peer: " & $conn.peerInfo.peerId & ")")
 
     if not remotePubKey.init(remotePubKeyBytes):
