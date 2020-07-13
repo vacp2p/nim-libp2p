@@ -79,8 +79,8 @@ method handleDisconnect*(p: PubSub, peer: PubSubPeer) {.base.} =
     p.peers.del(peer.id)
     trace "peer disconnected", peer = peer.id
 
-  # metrics
-  libp2p_pubsub_peers.set(p.peers.len.int64)
+    # metrics
+    libp2p_pubsub_peers.set(p.peers.len.int64)
 
 proc sendSubs*(p: PubSub,
                peer: PubSubPeer,
