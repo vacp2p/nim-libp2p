@@ -75,15 +75,10 @@ method close*(s: ChronosStream) {.async.} =
     if not s.isClosed:
       trace "shutting down chronos stream", address = $s.client.remoteAddress(),
                                             oid = s.oid
-
-      # TODO: the sequence here matters
-      # don't move it after the connections
-      # close bellow
       if not s.client.closed():
         await s.client.closeWait()
 
       await procCall Connection(s).close()
-
   except CancelledError as exc:
     raise exc
   except CatchableError as exc:

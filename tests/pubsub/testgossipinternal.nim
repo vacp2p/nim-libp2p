@@ -32,6 +32,7 @@ suite "GossipSub internal":
       gossipSub.mesh[topic] = initHashSet[string]()
 
       var conns = newSeq[Connection]()
+      gossipSub.gossipsub[topic] = initHashSet[string]()
       for i in 0..<15:
         let conn = newBufferStream(noop)
         conns &= conn
@@ -60,6 +61,7 @@ suite "GossipSub internal":
       gossipSub.mesh[topic] = initHashSet[string]()
       gossipSub.topics[topic] = Topic() # has to be in topics to rebalance
 
+      gossipSub.gossipsub[topic] = initHashSet[string]()
       var conns = newSeq[Connection]()
       for i in 0..<15:
         let conn = newBufferStream(noop)
@@ -99,7 +101,6 @@ suite "GossipSub internal":
         conn.peerInfo = peerInfo
         gossipSub.peers[peerInfo.id] = newPubSubPeer(peerInfo, GossipSubCodec)
         gossipSub.peers[peerInfo.id].handler = handler
-        gossipSub.peers[peerInfo.id].topics &= topic
         gossipSub.gossipsub[topic].incl(peerInfo.id)
 
       check gossipSub.gossipsub[topic].len == 15
@@ -137,7 +138,7 @@ suite "GossipSub internal":
 
       check gossipSub.fanout[topic].len == GossipSubD
 
-      await gossipSub.dropFanoutPeers()
+      gossipSub.dropFanoutPeers()
       check topic notin gossipSub.fanout
 
       await allFuturesThrowing(conns.mapIt(it.close()))
@@ -176,7 +177,7 @@ suite "GossipSub internal":
       check gossipSub.fanout[topic1].len == GossipSubD
       check gossipSub.fanout[topic2].len == GossipSubD
 
-      await gossipSub.dropFanoutPeers()
+      gossipSub.dropFanoutPeers()
       check topic1 notin gossipSub.fanout
       check topic2 in gossipSub.fanout
 

@@ -57,19 +57,18 @@ type
     cleanupLock: AsyncLock
     validators*: Table[string, HashSet[ValidatorHandler]]
     observers: ref seq[PubSubObserver] # ref as in smart_ptr
-    msgIdProvider*: MsgIdProvider     # Turn message into message id (not nil)
+    msgIdProvider*: MsgIdProvider      # Turn message into message id (not nil)
 
 method handleDisconnect*(p: PubSub, peer: PubSubPeer) {.base.} =
   ## handle peer disconnects
   ##
-  if peer.id in p.peers:
-    trace "deleting peer", peer = peer.id, stack = getStackTrace()
-    p.peers[peer.id] = nil
+  if not isNil(peer.peerInfo) and peer.id in p.peers:
+    trace "deleting peer", peer = peer.id
     p.peers.del(peer.id)
+    trace "peer disconnected", peer = peer.id
 
   # metrics
   libp2p_pubsub_peers.set(p.peers.len.int64)
-  trace "peer disconnected", peer = peer.id
 
 proc sendSubs*(p: PubSub,
                peer: PubSubPeer,
@@ -121,19 +120,18 @@ method rpcHandler*(p: PubSub,
         trace "about to subscribe to topic", topicId = s.topic
         await p.subscribeTopic(s.topic, s.subscribe, peer.id)
 
-proc getPeer(p: PubSub,
-             peerInfo: PeerInfo,
-             proto: string): PubSubPeer =
+proc getOrCreatePeer(p: PubSub,
+                     peerInfo: PeerInfo,
+                     proto: string): PubSubPeer =
   if peerInfo.id in p.peers:
     return p.peers[peerInfo.id]
 
   # create new pubsub peer
   let peer = newPubSubPeer(peerInfo, proto)
-  trace "created new pubsub peer", peerId = peer.id, stack = getStackTrace()
+  trace "created new pubsub peer", peerId = peer.id
 
   p.peers[peer.id] = peer
   peer.observers = p.observers
-  libp2p_pubsub_peers.set(p.peers.len.int64)
   return peer
 
 method handleConn*(p: PubSub,
@@ -159,7 +157,7 @@ method handleConn*(p: PubSub,
     # call pubsub rpc handler
     await p.rpcHandler(peer, msgs)
 
-  let peer = p.getPeer(conn.peerInfo, proto)
+  let peer = p.getOrCreatePeer(conn.peerInfo, proto)
   let topics = toSeq(p.topics.keys)
   if topics.len > 0:
     await p.sendSubs(peer, topics, true)
@@ -178,23 +176,27 @@ method handleConn*(p: PubSub,
 
 method subscribePeer*(p: PubSub, conn: Connection) {.base.} =
   if not(isNil(conn)):
-    let peer = p.getPeer(conn.peerInfo, p.codec)
+    let peer = p.getOrCreatePeer(conn.peerInfo, p.codec)
     trace "subscribing to peer", peerId = conn.peerInfo.id
     if not peer.connected:
       peer.conn = conn
 
 method unsubscribePeer*(p: PubSub, peerInfo: PeerInfo) {.base, async.} =
-  let peer = p.getPeer(peerInfo, p.codec)
-  trace "unsubscribing from peer", peerId = $peerInfo
-  if not(isNil(peer.conn)):
-    await peer.conn.close()
+  if peerInfo.id in p.peers:
+    let peer = p.peers[peerInfo.id]
 
-  p.handleDisconnect(peer)
+    trace "unsubscribing from peer", peerId = $peerInfo
+    if not(isNil(peer.conn)):
+      await peer.conn.close()
 
-proc connected*(p: PubSub, peer: PeerInfo): bool =
-  let peer = p.getPeer(peer, p.codec)
-  if not(isNil(peer)):
-    return peer.connected
+    p.handleDisconnect(peer)
+
+proc connected*(p: PubSub, peerInfo: PeerInfo): bool =
+  if peerInfo.id in p.peers:
+    let peer = p.peers[peerInfo.id]
+
+    if not(isNil(peer)):
+      return peer.connected
 
 method unsubscribe*(p: PubSub,
                     topics: seq[TopicPair]) {.base, async.} =
@@ -205,6 +207,11 @@ method unsubscribe*(p: PubSub,
     for i, h in p.topics[t.topic].handler:
       if h == t.handler:
         p.topics[t.topic].handler.del(i)
+
+      # make sure we delete the topic if
+      # no more handlers are left
+      if p.topics[t.topic].handler.len <= 0:
+        p.topics.del(t.topic)
 
 method unsubscribe*(p: PubSub,
                     topic: string,

@@ -12,15 +12,13 @@ import chronicles
 import bearssl
 import stew/[endians2, byteutils]
 import nimcrypto/[utils, sha2, hmac]
-import ../../stream/lpstream
+import ../../stream/[connection, streamseq]
 import ../../peerid
 import ../../peerinfo
 import ../../protobuf/minprotobuf
 import ../../utility
-import ../../stream/lpstream
 import secure,
-       ../../crypto/[crypto, chacha20poly1305, curve25519, hkdf],
-       ../../stream/bufferstream
+       ../../crypto/[crypto, chacha20poly1305, curve25519, hkdf]
 
 logScope:
   topics = "noise"
@@ -34,7 +32,7 @@ const
   ProtocolXXName = "Noise_XX_25519_ChaChaPoly_SHA256"
 
   # Empty is a special value which indicates k has not yet been initialized.
-  EmptyKey: ChaChaPolyKey = [0.byte, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+  EmptyKey = default(ChaChaPolyKey)
   NonceMax = uint64.high - 1 # max is reserved
   NoiseSize = 32
   MaxPlainSize = int(uint16.high - NoiseSize - ChaChaPolyTag.len)
@@ -72,7 +70,7 @@ type
   Noise* = ref object of Secure
     rng: ref BrHmacDrbgContext
     localPrivateKey: PrivateKey
-    localPublicKey: PublicKey
+    localPublicKey: seq[byte]
     noiseKeys: KeyPair
     commonPrologue: seq[byte]
     outgoing: bool
@@ -89,7 +87,7 @@ type
 # Utility
 
 proc genKeyPair(rng: var BrHmacDrbgContext): KeyPair =
-  result.privateKey = Curve25519Key.random(rng).tryGet()
+  result.privateKey = Curve25519Key.random(rng)
   result.publicKey = result.privateKey.public()
 
 proc hashProtocol(name: string): MDigest[256] =
@@ -110,12 +108,11 @@ proc dh(priv: Curve25519Key, pub: Curve25519Key): Curve25519Key =
 proc hasKey(cs: CipherState): bool =
   cs.k != EmptyKey
 
-proc encryptWithAd(state: var CipherState, ad, data: openarray[byte]): seq[byte] =
+proc encryptWithAd(state: var CipherState, ad, data: openArray[byte]): seq[byte] =
   var
     tag: ChaChaPolyTag
     nonce: ChaChaPolyNonce
-    np = cast[ptr uint64](addr nonce[4])
-  np[] = state.n
+  nonce[4..<12] = toBytesLE(state.n)
   result = @data
   ChaChaPoly.encrypt(state.k, nonce, tag, result, ad)
   inc state.n
@@ -124,13 +121,12 @@ proc encryptWithAd(state: var CipherState, ad, data: openarray[byte]): seq[byte]
   result &= tag
   trace "encryptWithAd", tag = byteutils.toHex(tag), data = result.shortLog, nonce = state.n - 1
 
-proc decryptWithAd(state: var CipherState, ad, data: openarray[byte]): seq[byte] =
+proc decryptWithAd(state: var CipherState, ad, data: openArray[byte]): seq[byte] =
   var
-    tagIn = data[^ChaChaPolyTag.len..data.high].intoChaChaPolyTag
-    tagOut = tagIn
+    tagIn = data.toOpenArray(data.len - ChaChaPolyTag.len, data.high).intoChaChaPolyTag
+    tagOut: ChaChaPolyTag
     nonce: ChaChaPolyNonce
-    np = cast[ptr uint64](addr nonce[4])
-  np[] = state.n
+  nonce[4..<12] = toBytesLE(state.n)
   result = data[0..(data.high - ChaChaPolyTag.len)]
   ChaChaPoly.decrypt(state.k, nonce, tagOut, result, ad)
   trace "decryptWithAd", tagIn = tagIn.shortLog, tagOut = tagOut.shortLog, nonce = state.n
@@ -156,7 +152,7 @@ proc mixKey(ss: var SymmetricState, ikm: ChaChaPolyKey) =
   ss.cs = CipherState(k: temp_keys[1])
   trace "mixKey", key = ss.cs.k.shortLog
 
-proc mixHash(ss: var SymmetricState; data: openarray[byte]) =
+proc mixHash(ss: var SymmetricState; data: openArray[byte]) =
   var ctx: sha256
   ctx.init()
   ctx.update(ss.h.data)
@@ -165,7 +161,7 @@ proc mixHash(ss: var SymmetricState; data: openarray[byte]) =
   trace "mixHash", hash = ss.h.data.shortLog
 
 # We might use this for other handshake patterns/tokens
-proc mixKeyAndHash(ss: var SymmetricState; ikm: openarray[byte]) {.used.} =
+proc mixKeyAndHash(ss: var SymmetricState; ikm: openArray[byte]) {.used.} =
   var
     temp_keys: array[3, ChaChaPolyKey]
   sha256.hkdf(ss.ck, ikm, [], temp_keys)
@@ -173,7 +169,7 @@ proc mixKeyAndHash(ss: var SymmetricState; ikm: openarray[byte]) {.used.} =
   ss.mixHash(temp_keys[1])
   ss.cs = CipherState(k: temp_keys[2])
 
-proc encryptAndHash(ss: var SymmetricState, data: openarray[byte]): seq[byte] =
+proc encryptAndHash(ss: var SymmetricState, data: openArray[byte]): seq[byte] =
   # according to spec if key is empty leave plaintext
   if ss.cs.hasKey:
     result = ss.cs.encryptWithAd(ss.h.data, data)
@@ -181,7 +177,7 @@ proc encryptAndHash(ss: var SymmetricState, data: openarray[byte]): seq[byte] =
     result = @data
   ss.mixHash(result)
 
-proc decryptAndHash(ss: var SymmetricState, data: openarray[byte]): seq[byte] =
+proc decryptAndHash(ss: var SymmetricState, data: openArray[byte]): seq[byte] =
   # according to spec if key is empty leave plaintext
   if ss.cs.hasKey:
     result = ss.cs.decryptWithAd(ss.h.data, data)
@@ -202,13 +198,13 @@ template write_e: untyped =
   trace "noise write e"
   # Sets e (which must be empty) to GENERATE_KEYPAIR(). Appends e.public_key to the buffer. Calls MixHash(e.public_key).
   hs.e = genKeyPair(p.rng[])
-  msg &= hs.e.publicKey
+  msg.add hs.e.publicKey
   hs.ss.mixHash(hs.e.publicKey)
 
 template write_s: untyped =
   trace "noise write s"
   # Appends EncryptAndHash(s.public_key) to the buffer.
-  msg &= hs.ss.encryptAndHash(hs.s.publicKey)
+  msg.add hs.ss.encryptAndHash(hs.s.publicKey)
 
 template dh_ee: untyped =
   trace "noise dh ee"
@@ -244,8 +240,8 @@ template read_e: untyped =
     raise newException(NoiseHandshakeError, "Noise E, expected more data")
 
   # Sets re (which must be empty) to the next DHLEN bytes from the message. Calls MixHash(re.public_key).
-  hs.re[0..Curve25519Key.high] = msg[0..Curve25519Key.high]
-  msg = msg[Curve25519Key.len..msg.high]
+  hs.re[0..Curve25519Key.high] = msg.toOpenArray(0, Curve25519Key.high)
+  msg.consume(Curve25519Key.len)
   hs.ss.mixHash(hs.re)
 
 template read_s: untyped =
@@ -253,30 +249,33 @@ template read_s: untyped =
   # Sets temp to the next DHLEN + 16 bytes of the message if HasKey() == True, or to the next DHLEN bytes otherwise.
   # Sets rs (which must be empty) to DecryptAndHash(temp).
   let
-    temp =
+    rsLen =
       if hs.ss.cs.hasKey:
         if msg.len < Curve25519Key.len + ChaChaPolyTag.len:
           raise newException(NoiseHandshakeError, "Noise S, expected more data")
-        msg[0..Curve25519Key.high + ChaChaPolyTag.len]
+        Curve25519Key.len + ChaChaPolyTag.len
       else:
         if msg.len < Curve25519Key.len:
           raise newException(NoiseHandshakeError, "Noise S, expected more data")
-        msg[0..Curve25519Key.high]
-  msg = msg[temp.len..msg.high]
-  let plain = hs.ss.decryptAndHash(temp)
-  hs.rs[0..Curve25519Key.high] = plain
+        Curve25519Key.len
+  hs.rs[0..Curve25519Key.high] =
+    hs.ss.decryptAndHash(msg.toOpenArray(0, rsLen - 1))
+
+  msg.consume(rsLen)
 
 proc receiveHSMessage(sconn: Connection): Future[seq[byte]] {.async.} =
   var besize: array[2, byte]
   await sconn.readExactly(addr besize[0], besize.len)
   let size = uint16.fromBytesBE(besize).int
   trace "receiveHSMessage", size
+  if size == 0:
+    return
+
   var buffer = newSeq[byte](size)
-  if buffer.len > 0:
-    await sconn.readExactly(addr buffer[0], buffer.len)
+  await sconn.readExactly(addr buffer[0], buffer.len)
   return buffer
 
-proc sendHSMessage(sconn: Connection; buf: seq[byte]) {.async.} =
+proc sendHSMessage(sconn: Connection; buf: openArray[byte]): Future[void] =
   var
     lesize = buf.len.uint16
     besize = lesize.toBytesBE
@@ -284,97 +283,106 @@ proc sendHSMessage(sconn: Connection; buf: seq[byte]) {.async.} =
   trace "sendHSMessage", size = lesize
   outbuf &= besize
   outbuf &= buf
-  await sconn.write(outbuf)
+  sconn.write(outbuf)
 
-proc handshakeXXOutbound(p: Noise, conn: Connection, p2pProof: ProtoBuffer): Future[HandshakeResult] {.async.} =
+proc handshakeXXOutbound(
+    p: Noise, conn: Connection,
+    p2pSecret: seq[byte]): Future[HandshakeResult] {.async.} =
   const initiator = true
-
   var
     hs = HandshakeState.init()
-    p2psecret = p2pProof.buffer
 
-  hs.ss.mixHash(p.commonPrologue)
-  hs.s = p.noiseKeys
+  try:
 
-  # -> e
-  var msg: seq[byte]
+    hs.ss.mixHash(p.commonPrologue)
+    hs.s = p.noiseKeys
 
-  write_e()
+    # -> e
+    var msg: StreamSeq
 
-  # IK might use this btw!
-  msg &= hs.ss.encryptAndHash(@[])
+    write_e()
 
-  await conn.sendHSMessage(msg)
+    # IK might use this btw!
+    msg.add hs.ss.encryptAndHash([])
 
-  # <- e, ee, s, es
+    await conn.sendHSMessage(msg.data)
 
-  msg = await conn.receiveHSMessage()
+    # <- e, ee, s, es
 
-  read_e()
-  dh_ee()
-  read_s()
-  dh_es()
+    msg.assign(await conn.receiveHSMessage())
 
-  let remoteP2psecret = hs.ss.decryptAndHash(msg)
+    read_e()
+    dh_ee()
+    read_s()
+    dh_es()
 
-  # -> s, se
+    let remoteP2psecret = hs.ss.decryptAndHash(msg.data)
+    msg.clear()
 
-  msg.setLen(0)
+    # -> s, se
 
-  write_s()
-  dh_se()
+    write_s()
+    dh_se()
 
-  # last payload must follow the ecrypted way of sending
-  msg &= hs.ss.encryptAndHash(p2psecret)
+    # last payload must follow the encrypted way of sending
+    msg.add hs.ss.encryptAndHash(p2psecret)
 
-  await conn.sendHSMessage(msg)
+    await conn.sendHSMessage(msg.data)
 
-  let (cs1, cs2) = hs.ss.split()
-  return HandshakeResult(cs1: cs1, cs2: cs2, remoteP2psecret: remoteP2psecret, rs: hs.rs)
+    let (cs1, cs2) = hs.ss.split()
+    return HandshakeResult(cs1: cs1, cs2: cs2, remoteP2psecret: remoteP2psecret, rs: hs.rs)
+  finally:
+    burnMem(hs)
 
-proc handshakeXXInbound(p: Noise, conn: Connection, p2pProof: ProtoBuffer): Future[HandshakeResult] {.async.} =
+proc handshakeXXInbound(
+    p: Noise, conn: Connection,
+    p2pSecret: seq[byte]): Future[HandshakeResult] {.async.} =
   const initiator = false
 
   var
     hs = HandshakeState.init()
-    p2psecret = p2pProof.buffer
 
-  hs.ss.mixHash(p.commonPrologue)
-  hs.s = p.noiseKeys
+  try:
+    hs.ss.mixHash(p.commonPrologue)
+    hs.s = p.noiseKeys
 
-  # -> e
+    # -> e
 
-  var msg = await conn.receiveHSMessage()
+    var msg: StreamSeq
+    msg.add(await conn.receiveHSMessage())
 
-  read_e()
+    read_e()
 
-  # we might use this early data one day, keeping it here for clarity
-  let earlyData {.used.} = hs.ss.decryptAndHash(msg)
+    # we might use this early data one day, keeping it here for clarity
+    let earlyData {.used.} = hs.ss.decryptAndHash(msg.data)
 
-  # <- e, ee, s, es
+    # <- e, ee, s, es
 
-  msg.setLen(0)
+    msg.consume(msg.len)
 
-  write_e()
-  dh_ee()
-  write_s()
-  dh_es()
+    write_e()
+    dh_ee()
+    write_s()
+    dh_es()
 
-  msg &= hs.ss.encryptAndHash(p2psecret)
+    msg.add hs.ss.encryptAndHash(p2psecret)
 
-  await conn.sendHSMessage(msg)
+    await conn.sendHSMessage(msg.data)
+    msg.clear()
 
-  # -> s, se
+    # -> s, se
 
-  msg = await conn.receiveHSMessage()
+    msg.add(await conn.receiveHSMessage())
 
-  read_s()
-  dh_se()
+    read_s()
+    dh_se()
 
-  let remoteP2psecret = hs.ss.decryptAndHash(msg)
-
-  let (cs1, cs2) = hs.ss.split()
-  return HandshakeResult(cs1: cs1, cs2: cs2, remoteP2psecret: remoteP2psecret, rs: hs.rs)
+    let
+      remoteP2psecret = hs.ss.decryptAndHash(msg.data)
+      (cs1, cs2) = hs.ss.split()
+    return HandshakeResult(cs1: cs1, cs2: cs2, remoteP2psecret: remoteP2psecret, rs: hs.rs)
+  finally:
+    burnMem(hs)
 
 method readMessage*(sconn: NoiseConnection): Future[seq[byte]] {.async.} =
   while true: # Discard 0-length payloads
@@ -399,7 +407,8 @@ method write*(sconn: NoiseConnection, message: seq[byte]): Future[void] {.async.
   while left > 0:
     let
       chunkSize = if left > MaxPlainSize: MaxPlainSize else: left
-      cipher = sconn.writeCs.encryptWithAd([], message.toOpenArray(offset, offset + chunkSize - 1))
+      cipher = sconn.writeCs.encryptWithAd(
+        [], message.toOpenArray(offset, offset + chunkSize - 1))
     left = left - chunkSize
     offset = offset + chunkSize
     var
@@ -421,64 +430,74 @@ method handshake*(p: Noise, conn: Connection, initiator: bool): Future[SecureCon
 
   var
     libp2pProof = initProtoBuffer()
-  libp2pProof.write(initProtoField(1, p.localPublicKey.getBytes.tryGet()))
+  libp2pProof.write(initProtoField(1, p.localPublicKey))
   libp2pProof.write(initProtoField(2, signedPayload.getBytes()))
   # data field also there but not used!
   libp2pProof.finish()
 
-  let handshakeRes =
+  var handshakeRes =
     if initiator:
-      await handshakeXXOutbound(p, conn, libp2pProof)
+      await handshakeXXOutbound(p, conn, libp2pProof.buffer)
     else:
-      await handshakeXXInbound(p, conn, libp2pProof)
+      await handshakeXXInbound(p, conn, libp2pProof.buffer)
 
-  var
-    remoteProof = initProtoBuffer(handshakeRes.remoteP2psecret)
-    remotePubKey: PublicKey
-    remotePubKeyBytes: seq[byte]
-    remoteSig: Signature
-    remoteSigBytes: seq[byte]
+  var secure = try:
+    var
+      remoteProof = initProtoBuffer(handshakeRes.remoteP2psecret)
+      remotePubKey: PublicKey
+      remotePubKeyBytes: seq[byte]
+      remoteSig: Signature
+      remoteSigBytes: seq[byte]
 
-  if remoteProof.getLengthValue(1, remotePubKeyBytes) <= 0:
-    raise newException(NoiseHandshakeError, "Failed to deserialize remote public key bytes. (initiator: " & $initiator & ", peer: " & $conn.peerInfo.peerId & ")")
-  if remoteProof.getLengthValue(2, remoteSigBytes) <= 0:
-    raise newException(NoiseHandshakeError, "Failed to deserialize remote signature bytes. (initiator: " & $initiator & ", peer: " & $conn.peerInfo.peerId & ")")
+    if remoteProof.getLengthValue(1, remotePubKeyBytes) <= 0:
+      raise newException(NoiseHandshakeError, "Failed to deserialize remote public key bytes. (initiator: " & $initiator & ", peer: " & $conn.peerInfo.peerId & ")")
+    if remoteProof.getLengthValue(2, remoteSigBytes) <= 0:
+      raise newException(NoiseHandshakeError, "Failed to deserialize remote signature bytes. (initiator: " & $initiator & ", peer: " & $conn.peerInfo.peerId & ")")
 
-  if not remotePubKey.init(remotePubKeyBytes):
-    raise newException(NoiseHandshakeError, "Failed to decode remote public key. (initiator: " & $initiator & ", peer: " & $conn.peerInfo.peerId & ")")
-  if not remoteSig.init(remoteSigBytes):
-    raise newException(NoiseHandshakeError, "Failed to decode remote signature. (initiator: " & $initiator & ", peer: " & $conn.peerInfo.peerId & ")")
+    if not remotePubKey.init(remotePubKeyBytes):
+      raise newException(NoiseHandshakeError, "Failed to decode remote public key. (initiator: " & $initiator & ", peer: " & $conn.peerInfo.peerId & ")")
+    if not remoteSig.init(remoteSigBytes):
+      raise newException(NoiseHandshakeError, "Failed to decode remote signature. (initiator: " & $initiator & ", peer: " & $conn.peerInfo.peerId & ")")
 
-  let verifyPayload = PayloadString.toBytes & handshakeRes.rs.getBytes
-  if not remoteSig.verify(verifyPayload, remotePubKey):
-    raise newException(NoiseHandshakeError, "Noise handshake signature verify failed.")
-  else:
-    trace "Remote signature verified", peer = $conn
+    let verifyPayload = PayloadString.toBytes & handshakeRes.rs.getBytes
+    if not remoteSig.verify(verifyPayload, remotePubKey):
+      raise newException(NoiseHandshakeError, "Noise handshake signature verify failed.")
+    else:
+      trace "Remote signature verified", peer = $conn
 
-  if initiator and not isNil(conn.peerInfo):
-    let pid = PeerID.init(remotePubKey)
-    if not conn.peerInfo.peerId.validate():
-      raise newException(NoiseHandshakeError, "Failed to validate peerId.")
-    if pid.isErr or pid.get() != conn.peerInfo.peerId:
-      var
-        failedKey: PublicKey
-      discard extractPublicKey(conn.peerInfo.peerId, failedKey)
-      debug "Noise handshake, peer infos don't match!", initiator, dealt_peer = $conn.peerInfo.id, dealt_key = $failedKey, received_peer = $pid, received_key = $remotePubKey
-      raise newException(NoiseHandshakeError, "Noise handshake, peer infos don't match! " & $pid & " != " & $conn.peerInfo.peerId)
+    if initiator and not isNil(conn.peerInfo):
+      let pid = PeerID.init(remotePubKey)
+      if not conn.peerInfo.peerId.validate():
+        raise newException(NoiseHandshakeError, "Failed to validate peerId.")
+      if pid.isErr or pid.get() != conn.peerInfo.peerId:
+        var
+          failedKey: PublicKey
+        discard extractPublicKey(conn.peerInfo.peerId, failedKey)
+        debug "Noise handshake, peer infos don't match!", initiator, dealt_peer = $conn.peerInfo.id, dealt_key = $failedKey, received_peer = $pid, received_key = $remotePubKey
+        raise newException(NoiseHandshakeError, "Noise handshake, peer infos don't match! " & $pid & " != " & $conn.peerInfo.peerId)
 
-  var secure = NoiseConnection.init(conn,
-                                    PeerInfo.init(remotePubKey),
-                                    conn.observedAddr)
-  if initiator:
-    secure.readCs = handshakeRes.cs2
-    secure.writeCs = handshakeRes.cs1
-  else:
-    secure.readCs = handshakeRes.cs1
-    secure.writeCs = handshakeRes.cs2
+    var tmp = NoiseConnection.init(
+      conn, PeerInfo.init(remotePubKey), conn.observedAddr)
+
+    if initiator:
+      tmp.readCs = handshakeRes.cs2
+      tmp.writeCs = handshakeRes.cs1
+    else:
+      tmp.readCs = handshakeRes.cs1
+      tmp.writeCs = handshakeRes.cs2
+    tmp
+  finally:
+    burnMem(handshakeRes)
 
   trace "Noise handshake completed!", initiator, peer = $secure.peerInfo
 
   return secure
+
+method close*(s: NoiseConnection) {.async.} =
+  await procCall SecureConn(s).close()
+
+  burnMem(s.readCs)
+  burnMem(s.writeCs)
 
 method init*(p: Noise) {.gcsafe.} =
   procCall Secure(p).init()
@@ -491,7 +510,7 @@ proc newNoise*(
     rng: rng,
     outgoing: outgoing,
     localPrivateKey: privateKey,
-    localPublicKey: privateKey.getKey().tryGet(),
+    localPublicKey: privateKey.getKey().tryGet().getBytes().tryGet(),
     noiseKeys: genKeyPair(rng[]),
     commonPrologue: commonPrologue,
   )

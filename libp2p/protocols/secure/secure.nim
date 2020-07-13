@@ -42,10 +42,10 @@ method initStream*(s: SecureConn) =
   procCall Connection(s).initStream()
 
 method close*(s: SecureConn) {.async.} =
-  await procCall Connection(s).close()
-
   if not(isNil(s.stream)):
     await s.stream.close()
+
+  await procCall Connection(s).close()
 
 method readMessage*(c: SecureConn): Future[seq[byte]] {.async, base.} =
   doAssert(false, "Not implemented!")
@@ -59,10 +59,9 @@ proc handleConn*(s: Secure,
                  conn: Connection,
                  initiator: bool): Future[Connection] {.async, gcsafe.} =
   var sconn = await s.handshake(conn, initiator)
-
-  conn.closeEvent.wait()
-    .addCallback do(udata: pointer = nil):
-      if not(isNil(sconn)):
+  if not isNil(sconn):
+    conn.closeEvent.wait()
+      .addCallback do(udata: pointer = nil):
         asyncCheck sconn.close()
 
   return sconn
