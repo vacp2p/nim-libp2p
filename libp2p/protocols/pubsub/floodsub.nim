@@ -15,9 +15,7 @@ import pubsub,
        rpc/[messages, message],
        ../../stream/connection,
        ../../peerid,
-       ../../peerinfo,
-       ../../utility,
-       ../../errors
+       ../../peerinfo
 
 logScope:
   topics = "floodsub"

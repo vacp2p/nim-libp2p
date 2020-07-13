@@ -11,7 +11,6 @@ import strutils
 import chronos, chronicles, stew/byteutils
 import stream/connection,
        vbuffer,
-       errors,
        protocols/protocol
 
 logScope:

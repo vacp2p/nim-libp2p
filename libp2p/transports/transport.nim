@@ -7,12 +7,11 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import sequtils, tables
+import sequtils
 import chronos, chronicles
 import ../stream/connection,
        ../multiaddress,
-       ../multicodec,
-       ../errors
+       ../multicodec
 
 type
   ConnHandler* = proc (conn: Connection): Future[void] {.gcsafe.}

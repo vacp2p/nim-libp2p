@@ -16,9 +16,6 @@ import transport,
        ../stream/connection,
        ../stream/chronosstream
 
-when chronicles.enabledLogLevel == LogLevel.TRACE:
-  import oids
-
 logScope:
   topics = "tcptransport"
 
@@ -74,7 +71,7 @@ proc connHandler*(t: TcpTransport,
   proc cleanup() {.async.} =
     try:
       await client.join()
-      trace "cleaning up client", addrs = client.remoteAddress, connoid = conn.oid
+      trace "cleaning up client", addrs = $client.remoteAddress, connoid = conn.oid
       if not(isNil(conn)):
         await conn.close()
       t.clients.keepItIf(it != client)

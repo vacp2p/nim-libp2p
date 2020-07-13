@@ -10,7 +10,6 @@
 import chronos, chronicles
 import ../protocols/protocol,
        ../stream/connection,
-       ../peerinfo,
        ../errors
 
 logScope:

@@ -14,8 +14,6 @@ import types,
        nimcrypto/utils,
        ../../stream/connection,
        ../../stream/bufferstream,
-       ../../utility,
-       ../../errors,
        ../../peerinfo
 
 export connection
