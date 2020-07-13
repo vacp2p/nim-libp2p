@@ -57,19 +57,22 @@ proc verify*(m: Message, p: PeerInfo): bool =
   else:
     libp2p_pubsub_sig_verify_failure.inc()
 
+# cannot explicit init but:
+# Thread locals are initialized to binary zero (usually default(T)). (Araq)
+var tSeqno {.threadvar.}: uint64 
+
 proc init*(
     T: type Message,
     p: PeerInfo,
     data: seq[byte],
     topic: string,
     sign: bool = true): Message {.gcsafe, raises: [CatchableError, Defect].} =
-  var seqno: seq[byte] = newSeq[byte](8)
   # peer is a ref obj
-  inc p.seqno
+  inc tSeqno
   result = Message(
     fromPeer: p.peerId,
     data: data,
-    seqno: @(p.seqno.toBytesBE), # unefficient, fine for now
+    seqno: @(tSeqno.toBytesBE), # unefficient, fine for now
     topicIDs: @[topic])
 
   if sign and p.publicKey.isSome:

@@ -39,7 +39,6 @@ type
       privateKey*: PrivateKey
     of HasPublic:
       key: Option[PublicKey]
-    seqno*: uint64
 
 proc id*(p: PeerInfo): string =
   if not(isNil(p)):
