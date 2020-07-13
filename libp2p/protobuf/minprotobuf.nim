@@ -61,6 +61,14 @@ type
   ProtoScalar* = uint | uint32 | uint64 | zint | zint32 | zint64 |
                  hint | hint32 | hint64 | float32 | float64
 
+const
+  SupportedWireTypes* = {
+    int(ProtoFieldKind.Varint),
+    int(ProtoFieldKind.Fixed64),
+    int(ProtoFieldKind.Length),
+    int(ProtoFieldKind.Fixed32)
+  }
+
 template checkFieldNumber*(i: int) =
   doAssert((i > 0 and i < (1 shl 29)) and not(i >= 19000 and i <= 19999),
            "Incorrect or reserved field number")
@@ -149,7 +157,7 @@ proc initProtoBuffer*(data: seq[byte], offset = 0,
 
 proc initProtoBuffer*(data: openarray[byte], offset = 0,
                       options: set[ProtoFlags] = {}): ProtoBuffer =
-  ## Initialize ProtoBuffer with shallow copy of ``data``.
+  ## Initialize ProtoBuffer with copy of ``data``.
   result.buffer = @data
   result.offset = offset
   result.options = options
@@ -165,7 +173,7 @@ proc initProtoBuffer*(options: set[ProtoFlags] = {}): ProtoBuffer =
     result.offset = 10
   elif {WithUint32LeLength, WithUint32BeLength} * options != {}:
     # Our buffer will start from position 4, so we can store length of buffer
-    # in [0, 9].
+    # in [0, 3].
     result.buffer.setLen(4)
     result.offset = 4
 
@@ -359,8 +367,7 @@ proc getHeader(data: var ProtoBuffer, header: var ProtoHeader): bool =
   if PB.getUVarint(data.toOpenArray(), length, hdr).isOk():
     let index = uint64(hdr shr 3)
     let wire = hdr and 0x07
-    # We going to work only with Varint, Fixed32, Fixed64 and Length.
-    if wire in {0, 1, 2, 5}:
+    if wire in SupportedWireTypes:
       data.offset += length
       header = ProtoHeader(index: index, wire: cast[ProtoFieldKind](wire))
       true
