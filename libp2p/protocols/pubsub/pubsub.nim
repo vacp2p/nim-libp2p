@@ -144,6 +144,10 @@ proc getOrCreatePeer(p: PubSub,
 
   p.peers[peer.id] = peer
   peer.observers = p.observers
+
+    # metrics
+  libp2p_pubsub_peers.set(p.peers.len.int64)
+
   return peer
 
 method handleConn*(p: PubSub,
