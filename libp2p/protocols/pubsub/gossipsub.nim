@@ -510,7 +510,8 @@ method publish*(g: GossipSub,
     msg = Message.init(g.peerInfo, data, topic, g.sign)
     msgId = g.msgIdProvider(msg)
 
-  trace "publishing on topic", name = topic, peers = peers, msg = msg.shortLog()
+  trace "publishing on topic",
+    topic, peers = peers.len, msg = msg.shortLog()
   if msgId notin g.mcache:
     g.mcache.put(msgId, msg)
 
