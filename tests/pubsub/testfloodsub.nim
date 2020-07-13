@@ -29,7 +29,7 @@ proc waitSub(sender, receiver: auto; key: string) {.async, gcsafe.} =
   var ceil = 15
   let fsub = cast[FloodSub](sender.pubSub.get())
   while not fsub.floodsub.hasKey(key) or
-        not fsub.floodsub[key].contains(receiver.peerInfo.id):
+        not fsub.floodsub.hasPeerID(key, receiver.peerInfo.id):
     await sleepAsync(100.millis)
     dec ceil
     doAssert(ceil > 0, "waitSub timeout!")

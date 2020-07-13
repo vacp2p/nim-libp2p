@@ -43,6 +43,35 @@ type
 
   RPCHandler* = proc(peer: PubSubPeer, msg: seq[RPCMsg]): Future[void] {.gcsafe.}
 
+func hash*(p: PubSubPeer): Hash = 
+  # int is either 32/64, so intptr basically, pubsubpeer is a ref
+  cast[pointer](p).hash
+
+func `==`*(a, b: PubSubPeer): bool =
+  # override equiality to support both nil and peerInfo comparisons
+  # this in the future will allow us to recycle refs
+  let
+    aptr = cast[pointer](a)
+    bptr = cast[pointer](b)
+  if aptr == nil:
+    if bptr == nil:
+      true
+    else:
+      false
+  elif bptr == nil:
+    false
+  else:
+    if a.peerInfo == nil:
+      if b.peerInfo == nil:
+        true
+      else:
+        false
+    else:
+      if b.peerInfo == nil:
+        false
+      else:
+        a.peerInfo.id == b.peerInfo.id
+
 proc id*(p: PubSubPeer): string = p.peerInfo.id
 
 proc connected*(p: PubSubPeer): bool =
