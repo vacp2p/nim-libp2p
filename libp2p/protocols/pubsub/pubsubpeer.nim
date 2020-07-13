@@ -70,7 +70,7 @@ func `==`*(a, b: PubSubPeer): bool =
       if b.peerInfo == nil:
         false
       else:
-        a.peerInfo == b.peerInfo
+        a.peerInfo.id == b.peerInfo.id
 
 proc id*(p: PubSubPeer): string = p.peerInfo.id
 
