@@ -58,8 +58,7 @@ type
     BufferOverflow,
     MessageTooBig,
     BadWireType,
-    IncorrectBlob,
-    NoError
+    IncorrectBlob
 
   ProtoResult*[T] = Result[T, ProtoError]
 
