@@ -10,7 +10,6 @@
 import tables,
        sequtils,
        options,
-       strformat,
        sets,
        algorithm,
        oids
@@ -20,18 +19,15 @@ import chronos,
        metrics
 
 import stream/connection,
-       stream/chronosstream,
        transports/transport,
        multistream,
        multiaddress,
        protocols/protocol,
        protocols/secure/secure,
-       protocols/secure/plaintext, # for plain text
        peerinfo,
        protocols/identify,
        protocols/pubsub/pubsub,
        muxers/muxer,
-       errors,
        peerid
 
 logScope:

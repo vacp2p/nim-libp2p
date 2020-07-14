@@ -7,9 +7,8 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import oids
 import chronos, chronicles
-import connection, ../utility
+import connection
 
 logScope:
   topics = "chronosstream"
