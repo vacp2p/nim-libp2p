@@ -587,6 +587,9 @@ suite "RSA 2048/3072/4096 test suite":
       key1.isErr() == true
       key2.isErr() == true
       key3.isErr() == true
+      key1.error == RsaLowSecurityError
+      key2.error == RsaKeyIncorrectError
+      key3.error == RsaKeyIncorrectError
 
   test "[rsa1024] not allowed test":
     var key1 = RsaPrivateKey.random(rng[], 1024)
