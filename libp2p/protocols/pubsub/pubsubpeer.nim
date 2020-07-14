@@ -116,7 +116,7 @@ proc handle*(p: PubSubPeer, conn: Connection) {.async.} =
 
         var rmsg = decodeRpcMsg(data)
         if rmsg.isErr():
-          trace "failed to decode msg from peer", peer = p.id
+          notice "failed to decode msg from peer", peer = p.id
           break
 
         var msg = rmsg.get()
