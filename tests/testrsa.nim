@@ -13,9 +13,7 @@ import ../libp2p/crypto/[crypto, rsa]
 when defined(nimHasUsed): {.used.}
 
 const
-  TestsCount = 20 # number of random tests
-
-  PrivateKeys = [
+  NotAllowedPrivateKeys = [
     """3082013902010002410093405660EDBF5DADAF93DD91E1B38F1EF086A3A0C6EA
        38011E58E08D27B163A9506AB837F4AF5CA23338AB3BFBC0AC7A0FAF6B9EE3B1
        27BD66083C7B272C1D370203010001024017EE5DDB74E823F6655197B1ECC77C
@@ -46,6 +44,21 @@ const
        00C2200411163DFAD0D56501AB1076A2CD7CC2FDB066CEAACD8212EC1F292C22
        F1840B8C1E23D941436F2EB38873FB76DC649D4DB85FF026D1D5DF405481A2F7
        F5""",
+  ]
+
+  NotAllowedPublicKeys = [
+    """305C300D06092A864886F70D0101010500034B00304802410093405660EDBF5D
+       ADAF93DD91E1B38F1EF086A3A0C6EA38011E58E08D27B163A9506AB837F4AF5C
+       A23338AB3BFBC0AC7A0FAF6B9EE3B127BD66083C7B272C1D370203010001""",
+    """30819F300D06092A864886F70D010101050003818D0030818902818100BDB0E9
+       A7AF9865E318C8890A883D185F6D9F88868A5F586244CA6A07F298349EE52E38
+       EA322D7E453AD2AA8B5019C25C50AEAAA59AFA57173F2B3B44501EF45BCC6C1F
+       75BEBAC5C11D7861A8A9DAED68964DEFA6ABD0D9FE232E6BA9E97572B6F68C57
+       030CCBAE19E972D16338201B7C11E00364FE7D613CB3367BB6CF2C3BE5020301
+       0001""",
+  ]
+
+  PrivateKeys = [
     """308204A40201000282010100B7362C6653ED53C35C3AE663DA496C9B834FF34D
        72DA98FA6DBF4AABA39FCA0901F58A1B1D205076D20010151DBCA8FC2693E14D
        3502320D61E796E9C102C4EBB8F50B90616DE7FB8EA0A4BFC89BE542CC86DB7F
@@ -84,6 +97,62 @@ const
        8A97B09FF1DC131E7136B557002205E2ADE5DB114499F15AA1E3C6C7E6FE6381
        04B6A67697C60C4113F613130403C554688C7046D6AC5F5364A658917E23D40F
        1FDDD3DE4C9F51A9""",
+    """308206E402010002820181009E4E6CCBE33B69A9FB6A3CAEADDC47E26AE15E1F
+       F8C56B3126C4C66E549F86F0002A1CC3D0169F034825A3683AA0A579D844B415
+       698F6F2AA5907246D911CFCD69A5151A78BA5AD803A8FAF0184DAD4BF471469D
+       B91BE951FD12EE5C8047B536984873A4F79BC054BF0E0A4730A1B20C3CF92440
+       B1ECC5FA608213AD823C10D9994B3F532FE5FDEF25D6DAE7CDAF1EE7238E70F1
+       59BA05684261A49050B8E3F37141D13A328A4418168629A5CE8845FBDB70EAF8
+       988617D5200F1D3695E07CF72978B220AF30E9832BBCFC02273716D2851D43A0
+       154E16DED7B4975C1881411B63ACEEC3EA7E438DB441128BEB77BC7D452C931D
+       C8C03E8A882F85BF6E211EB79DC649A2CEF2F1A197EA69C022C6929AA79D9BAB
+       6BF56DC21F7E3A70192F2523F8393AC95ADD0C07889F31C4BB2F936C35D2C25F
+       9BDB1DCF131FCC87038C5F53898616956CC92FF904ED9DE01202630100E99D76
+       31556C3A335B4E44D74C2145F7769E071576CBBFB120850D85C524F0E613705E
+       0EF3F8D2386F4EBF47520FB50203010001028201800C32CADB63251EDD444C49
+       64C46CE6F5217B403F8271E3F2A3A4220E3A631888C1DA7CE0F1D5EC66DA565C
+       2319F16B0EDA8560C30DA149D5A5705DFDEB981DC51C50E63166002623E31450
+       51D3ED985EF3F50E95F4BF9BD8FF8147F0C4C9C1C2F535100434384237C58915
+       6DAAE7AACA9AA03014F420E498887B3D7CEF3E25A63ED3B78B7773677FD81098
+       49A865C821D371946E64959AF90FB46A73DC6482DC2D6BFEED571BA4679EC4B3
+       CCDCFF4F353B11966995872FAAF28F7796CF31BF2F457270466CF15971A2F0F1
+       89EA7F9B68EA76290F06FF4FCE9D3A4526D9CB111B5B606CD6AB143B48D5444E
+       1CA10F24AE42C243C9CDE87CFEF846D229D76707EB3ADA819C073FD4D601CB2D
+       4FF7E58F61363B76826394327D1460A334C5C09BA5CEB51ED865ECC5D0BE75E7
+       19939A4C029F0AA49B5E958EC8303FF431D251CA7B4EA13158C3C61758675390
+       A97D2BFE31CC592E249E78B55D434D837DD0F471C5782244C8ACCC2FDFEFDAB7
+       0FA53B8DC8C60933B94284853199C7EB6F9B7070F90281C100C9707D75B3C445
+       93C6295D6FF65FB41F38C74A8B358A3D6AF188B99971ABCA0B3374FFC15DC154
+       3DB4B4B502331E5FB075987C68FC42844855D45303DD3B78FA0581631149E31B
+       7739E13C7CE2D2727AC75ECECAFAD3C2DF63A147134A9476F8DFAF72C74DB184
+       875434F94BD8C617B60B4CDE3C5EBEA372CFAB5FBBC56ADFAC2A5C25CDB157C8
+       56579AEB36338791AEFCC46B62481F3EABC753AD1ACDCAF2C1856B0E5F061941
+       4C1B5B133E25B70CD92AE6CDEC776A8D064BECBF11DBE3794F0281C100C92F26
+       EFDCEB269267FB024A9C3BC33187CB80FAEA989E3F3A2CF657226D7FA8D9F32E
+       D3EA93730F7D1BA7CE807F3155E9CF931A812579CDF194C3608B12E66967B7F3
+       50E4AD150878F1CD4B18BDB7C250F3D69E078F0F4B6BFC32DC3369D7B7318896
+       5A6BCE2A73EC4BEDACF6165DC191C57A642AB69DF5B5B5B1F35D9488035FBF2E
+       A0BE3D0868A66E2C93E06EAEF6080CBC94D7CEABC895751618AD6ECB43C4146F
+       C5FD7A4CE761BA24F0EB4C7F159C74A18201174661037294F9364D9DBB0281C1
+       009C2D2DE822AF0A6EAED5854EF80A6D4143A927BF548C505FE8D1E36BF73884
+       963897FE6E71FD210E125B84772720E6798E42E23A17528EF2F23083085CEEEE
+       35922D259CD2D754851487EF78B7F707B0EF802EFE2A8821EF46745501BCF1EC
+       67BA2D71E4D9F4C6D6914FDCF49425C95E67D679FAFE4DF9B55B12F84F419941
+       BF5EBC40C7003719E8EF54FA05F4DFA7F0AEA2AECAED35E446146D68A97E6259
+       E1F649F143751C01873B325A71F595BD4D6638B9F11B08AE3BF283A403F9A29C
+       7B0281C077FAB2D1E1822B62ACB839499D9AD671B77659D94A06F278EA8CDDEC
+       610FC44E428C90A4B9046E5E125267E4F324E79B40F115DD7C9F88E094EE0F06
+       886A2117434FA4BFDD608B669E1A36404EE4F5ADE0F14A50BC5948D9C5F085B4
+       64C4FE6CB611AAF909C9CDEF8C404BE2167088416459CCFFE7A938D2CC272B94
+       E37E2D0F360EA21422DFEB1FDE015E7C6220201F81F576919D9217486C39838F
+       FBFE53227AD16547423FA99563E6CB19127A705FC70A97371CC770A57294E6DB
+       28D368F90281C1009D7403C764BBF9CC1A23F600E542B3069F1FC6C8B44D1C21
+       BF2260E65EE86E4116E2CDB721257BB2D27BA8648DC47A3F583D2234263B24EE
+       49B5549C8732D14493F72BB4A1290D70A181086A2ADFCA250FDAE11245353032
+       5A6E065A8C96E59E11BCADB3C4810AC2B1899AB986F62282B430EB317B771E6D
+       B7D2FC2F3F1A8C73CEE0095C67D102263143A518B6622EC47A39B52E276A82D1
+       CFBFCF6011D9ED12206458512E807B310D9643FAB61DE3F517441116D7270E9E
+       B626451B5007DBCC""",
     """30820928020100028202010099EBDD4A8DBFD112966F0242CD0D0DFEE9A48572
        D49ED4F1E8BD52A08924691A6CE53A47140EC84D046DB142E0607733204FD461
        D8CB58BDBF05E51FFB77854660ED814861429AE54BD682A06F0B3C51FBD7A27D
@@ -161,15 +230,6 @@ const
   ]
 
   PublicKeys = [
-    """305C300D06092A864886F70D0101010500034B00304802410093405660EDBF5D
-       ADAF93DD91E1B38F1EF086A3A0C6EA38011E58E08D27B163A9506AB837F4AF5C
-       A23338AB3BFBC0AC7A0FAF6B9EE3B127BD66083C7B272C1D370203010001""",
-    """30819F300D06092A864886F70D010101050003818D0030818902818100BDB0E9
-       A7AF9865E318C8890A883D185F6D9F88868A5F586244CA6A07F298349EE52E38
-       EA322D7E453AD2AA8B5019C25C50AEAAA59AFA57173F2B3B44501EF45BCC6C1F
-       75BEBAC5C11D7861A8A9DAED68964DEFA6ABD0D9FE232E6BA9E97572B6F68C57
-       030CCBAE19E972D16338201B7C11E00364FE7D613CB3367BB6CF2C3BE5020301
-       0001""",
     """30820122300D06092A864886F70D01010105000382010F003082010A02820101
        00B7362C6653ED53C35C3AE663DA496C9B834FF34D72DA98FA6DBF4AABA39FCA
        0901F58A1B1D205076D20010151DBCA8FC2693E14D3502320D61E796E9C102C4
@@ -180,6 +240,20 @@ const
        7847CA4806722BC74ED9954F409D42CAA3BE028E251FA0218414F2ED4469ED78
        C601C71EF7C68D06BBA24DCDFDC8DCCB1F93A72896756B9CCA840E4188D8D02F
        890203010001""",
+    """308201A2300D06092A864886F70D01010105000382018F003082018A02820181
+       009E4E6CCBE33B69A9FB6A3CAEADDC47E26AE15E1FF8C56B3126C4C66E549F86
+       F0002A1CC3D0169F034825A3683AA0A579D844B415698F6F2AA5907246D911CF
+       CD69A5151A78BA5AD803A8FAF0184DAD4BF471469DB91BE951FD12EE5C8047B5
+       36984873A4F79BC054BF0E0A4730A1B20C3CF92440B1ECC5FA608213AD823C10
+       D9994B3F532FE5FDEF25D6DAE7CDAF1EE7238E70F159BA05684261A49050B8E3
+       F37141D13A328A4418168629A5CE8845FBDB70EAF8988617D5200F1D3695E07C
+       F72978B220AF30E9832BBCFC02273716D2851D43A0154E16DED7B4975C188141
+       1B63ACEEC3EA7E438DB441128BEB77BC7D452C931DC8C03E8A882F85BF6E211E
+       B79DC649A2CEF2F1A197EA69C022C6929AA79D9BAB6BF56DC21F7E3A70192F25
+       23F8393AC95ADD0C07889F31C4BB2F936C35D2C25F9BDB1DCF131FCC87038C5F
+       53898616956CC92FF904ED9DE01202630100E99D7631556C3A335B4E44D74C21
+       45F7769E071576CBBFB120850D85C524F0E613705E0EF3F8D2386F4EBF47520F
+       B50203010001""",
     """30820222300D06092A864886F70D01010105000382020F003082020A02820201
        0099EBDD4A8DBFD112966F0242CD0D0DFEE9A48572D49ED4F1E8BD52A0892469
        1A6CE53A47140EC84D046DB142E0607733204FD461D8CB58BDBF05E51FFB7785
@@ -201,22 +275,10 @@ const
   ]
 
   Messages = [
-    "sample", "test", "sample", "test", "sample", "test", "sample", "test"
+    "sample", "test", "sample", "test", "sample", "test"
   ]
 
   Signatures = [
-    """2E597258C445FC802E502E23E9ECC711F22A2264F661C2A738032A62408FA74B
-       C170A8C32F5283355898B2A547BB8C63E0A5CC80CBB326EE52C46094B9D1C517""",
-    """8CA474B07CFB229D530E9A1955D30058D3589DFCF44B442DA9F3D5362F1D36CD
-       03184CFAA1F9153E034FCB2DA2226BD99BCD51612F909016707B22585A43DA96""",
-    """7B5311FED58881F5684343E030011A376563A7264C72553C66A5B2EA5D203127
-       8701B248C8D5008415AB7AB302F53A2C44064C84720C5F96A179B0DBC3AF7447
-       3E5A040513B0F8212509EE168E7AB90C0E59E157182471202D189F5C0AA2C30B
-       F172994581ECEC82F0D59DA7E35611B7E6938E8642F9F13DEC8E257FC5F1D70F""",
-    """8C8D7F3E30F8E8D9171F38BFFE2D80A8CF1F9CFC40BED7E530B650149BD395EF
-       FE1FFF5683B7E75215453E7ECFB5EF40BBF35B194FB85B718C80B3190C2851B1
-       36C84EBB8A8E45D55AB610B7E78B38F0D6A4E7032959CA1EF94E3B1C26702366
-       F1524A9FFBA5243DF07876B7B77C4262C064841FEDCF82D1D7A1A0A411ED6E8D""",
     """30768DB2A850D5F3F9044D2C7545C3E3D30B03B6F8159D305F19B1CF939C1336
        DDA83B406D86ECE5170CE922671FCB178FC03DEF87DBA73C002DC7D302FD122F
        1A23BB9F39F21DEBFE42E69A06A0871691B02AEE59772B485ABBF92B99B8E3C8
@@ -233,6 +295,30 @@ const
        7CAEBE2EACA1067E9B76DB8A74AF8416A3C1E0711F92A520AFE4A258ACDB6128
        47B06DF8B6705618D284C4272EDC1C11D1EDDF4D8174DE4F4706034421B0CB82
        70771C40A2020E022886C44F7811AB06A3838B055F8D652104E653A1312B7506""",
+    """89D01B4043322ED57F20D6756EAE5295A86AA3503FA66A6AC35E2AABAD78F199
+       EC5E85DBD6D43DE03C662CEFA003413434EC890DD58DF8ED6C3167DA9B4DBFD5
+       703ADED2544C72E6300A76F0126720F7843A0B0C82CBE220619B3925F94BE8D1
+       E6B9455EC9DFE6A133868E6E6893C8868B9DAD5D6F1A49056BD2784B6677A76D
+       B0B90152C398890305FC3A37BAAB5253CBC358FD33BC86FBFAC88E136C3EF393
+       8C922575C20878FEF8AB0CBD8570654275F9B96801410E13A8BF9F3ED8AAA72F
+       5C7A9500A80761EB4462FBD3A0011C660C54301460B63E79F0693352E62DDD7C
+       2EFF6522A39EA366A1CE0386EAE546EB373AD8BFE8371DF6D76241FB67215DE0
+       3D0A0EC109B2CD7D74BDCBBBD1700F6BA04CD737FB11A2BFDEA5CDC5AA162C73
+       26DBFE23D7EEBBCFD2462381BFEFDDC6929E0338CA552181022834F8C869D37B
+       4EC5FD00A6AA7D8FDBB77AF226E2CB1D5A01056B3050409F9EE6C04188106E21
+       E6EAE8991FB4355BA1037E6792F80F35A99598E493F910439DB7AC6BB211BE3B""",
+    """16A0A6913C5FFB44105C25B5C217249BC8A72D9AF0D7C669B66CB3520D131497
+       A60EAD1EAE629C3102812FBC17FE681489F4B88705BD9E3DF6587897FF86AE4F
+       4C23753BFDB59FCB6723910B087C2BEBA379AB418CE54C2FD98DBD8A64798F48
+       9989DE0C3980B2DA1EFF03A98945947DFFAE0053FD7E62C9C1525F5608693FF7
+       A359CCA7970143878ED13E510D83B872FDE3E74E869B650728C93146A926D81F
+       B56A938E8F76F5D617A814926E54A43819815286B3A929A61A64C1D4D6236FFE
+       3A3D6E5D1D77787A80B1EF30FE06F02DABC908C635E9D16CE15D3DD5F3DDEBEE
+       F30C2CD930A0835B75889EFCE46868A5CB6D484ABB1178E3867DEDAA81921414
+       AA34200E2066C50AC5A9E926E4EB2ABFAD7B1D068E88D7A4EC748420DAE63926
+       CF47E8A911B99FA9C9A4016A378B5AEB8B9AA2C92C1836994A9069D10985B394
+       7AC24DD27432DE0B4D3D62D9D2EC24CC1F1D9F44B6BFF74085CE3D8E2B23BD3F
+       9BD704817EE7DC8E2B07D32A02790C8B40F8286802FA0C0707B1CD98F19DE9AF""",
     """984A8ACD327392DF3C16D504AC152BB7484255A9A8E06EE54F4CE61D017B6908
        11FA8D1845E72073E775A07FE5C8C028B1FC6E9B8349993D69A058DFA233E9FF
        69B2F65D12A80051C823AD81BAA143C958D484E1ED5749F67B21E2D69D7EC6E9
@@ -273,43 +359,7 @@ type
   RsaPrivateKey = rsa.RsaPrivateKey
   RsaPublicKey = rsa.RsaPublicKey
 
-suite "RSA 512/1024/2048/4096 test suite":
-  test "[rsa512] Private key serialize/deserialize test":
-    for i in 0..<TestsCount:
-      var rkey1, rkey2: RsaPrivateKey
-      var skey2 = newSeq[byte](4096)
-      var key = RsaPrivateKey.random(rng[], 512).expect("random key")
-      var skey1 = key.getBytes().expect("bytes")
-      check key.toBytes(skey2).expect("bytes") > 0
-      check:
-        rkey1.init(skey1).isOk()
-        rkey2.init(skey2).isOk()
-      var rkey3 = RsaPrivateKey.init(skey1).expect("key initialization")
-      var rkey4 = RsaPrivateKey.init(skey2).expect("key initialization")
-      check:
-        rkey1 == key
-        rkey2 == key
-        rkey3 == key
-        rkey4 == key
-
-  test "[rsa1024] Private key serialize/deserialize test":
-    for i in 0..<TestsCount:
-      var rkey1, rkey2: RsaPrivateKey
-      var skey2 = newSeq[byte](4096)
-      var key = RsaPrivateKey.random(rng[], 1024).expect("random failed")
-      var skey1 = key.getBytes().expect("bytes")
-      check key.toBytes(skey2).expect("bytes") > 0
-      check:
-        rkey1.init(skey1).isOk()
-        rkey2.init(skey2).isOk()
-      var rkey3 = RsaPrivateKey.init(skey1).expect("key initialization")
-      var rkey4 = RsaPrivateKey.init(skey2).expect("key initialization")
-      check:
-        rkey1 == key
-        rkey2 == key
-        rkey3 == key
-        rkey4 == key
-
+suite "RSA 2048/3072/4096 test suite":
   test "[rsa2048] Private key serialize/deserialize test":
     var rkey1, rkey2: RsaPrivateKey
     var skey2 = newSeq[byte](4096)
@@ -327,60 +377,40 @@ suite "RSA 512/1024/2048/4096 test suite":
       rkey3 == key
       rkey4 == key
 
+  test "[rsa3072] Private key serialize/deserialize test":
+    var rkey1, rkey2: RsaPrivateKey
+    var skey2 = newSeq[byte](4096)
+    var key = RsaPrivateKey.random(rng[], 3072).expect("random failed")
+    var skey1 = key.getBytes().expect("bytes")
+    check key.toBytes(skey2).expect("bytes") > 0
+    check:
+      rkey1.init(skey1).isOk()
+      rkey2.init(skey2).isOk()
+    var rkey3 = RsaPrivateKey.init(skey1).expect("key initialization")
+    var rkey4 = RsaPrivateKey.init(skey2).expect("key initialization")
+    check:
+      rkey1 == key
+      rkey2 == key
+      rkey3 == key
+      rkey4 == key
+
   test "[rsa4096] Private key serialize/deserialize test":
     # This test is too slow to run in debug mode.
-    when defined(release):
-      var rkey1, rkey2: RsaPrivateKey
-      var skey2 = newSeq[byte](4096)
-      var key = RsaPrivateKey.random(rng[], 4096).expect("random failed")
-      var skey1 = key.getBytes().expect("bytes")
-      check key.toBytes(skey2).expect("bytes") > 0
-      check:
-        rkey1.init(skey1).isOk()
-        rkey2.init(skey2).isOk()
-      var rkey3 = RsaPrivateKey.init(skey1).expect("key initialization")
-      var rkey4 = RsaPrivateKey.init(skey2).expect("key initialization")
-      check:
-        rkey1 == key
-        rkey2 == key
-        rkey3 == key
-        rkey4 == key
-
-  test "[rsa512] Public key serialize/deserialize test":
-    for i in 0..<TestsCount:
-      var rkey1, rkey2: RsaPublicKey
-      var skey2 = newSeq[byte](4096)
-      var pair = RsaKeyPair.random(rng[], 512).expect("random failed")
-      var skey1 = pair.pubkey().getBytes().expect("bytes")
-      check:
-        pair.pubkey.toBytes(skey2).expect("bytes") > 0
-        rkey1.init(skey1).isOk()
-        rkey2.init(skey2).isOk()
-      var rkey3 = RsaPublicKey.init(skey1).expect("key initialization")
-      var rkey4 = RsaPublicKey.init(skey2).expect("key initialization")
-      check:
-        rkey1 == pair.pubkey
-        rkey2 == pair.pubkey
-        rkey3 == pair.pubkey
-        rkey4 == pair.pubkey
-
-  test "[rsa1024] Public key serialize/deserialize test":
-    for i in 0..<TestsCount:
-      var rkey1, rkey2: RsaPublicKey
-      var skey2 = newSeq[byte](4096)
-      var pair = RsaKeyPair.random(rng[], 1024).expect("random failed")
-      var skey1 = pair.pubkey.getBytes().expect("bytes")
-      check:
-        pair.pubkey.toBytes(skey2).expect("bytes") > 0
-        rkey1.init(skey1).isOk()
-        rkey2.init(skey2).isOk()
-      var rkey3 = RsaPublicKey.init(skey1).expect("key initialization")
-      var rkey4 = RsaPublicKey.init(skey2).expect("key initialization")
-      check:
-        rkey1 == pair.pubkey
-        rkey2 == pair.pubkey
-        rkey3 == pair.pubkey
-        rkey4 == pair.pubkey
+    var rkey1, rkey2: RsaPrivateKey
+    var skey2 = newSeq[byte](4096)
+    var key = RsaPrivateKey.random(rng[], 4096).expect("random failed")
+    var skey1 = key.getBytes().expect("bytes")
+    check key.toBytes(skey2).expect("bytes") > 0
+    check:
+      rkey1.init(skey1).isOk()
+      rkey2.init(skey2).isOk()
+    var rkey3 = RsaPrivateKey.init(skey1).expect("key initialization")
+    var rkey4 = RsaPrivateKey.init(skey2).expect("key initialization")
+    check:
+      rkey1 == key
+      rkey2 == key
+      rkey3 == key
+      rkey4 == key
 
   test "[rsa2048] Public key serialize/deserialize test":
     var rkey1, rkey2: RsaPublicKey
@@ -399,55 +429,39 @@ suite "RSA 512/1024/2048/4096 test suite":
       rkey3 == pair.pubkey
       rkey4 == pair.pubkey
 
+  test "[rsa3072] Public key serialize/deserialize test":
+    var rkey1, rkey2: RsaPublicKey
+    var skey2 = newSeq[byte](4096)
+    var pair = RsaKeyPair.random(rng[], 3072).expect("random failed")
+    var skey1 = pair.pubkey.getBytes().expect("bytes")
+    check:
+      pair.pubkey.toBytes(skey2).expect("bytes") > 0
+      rkey1.init(skey1).isOk()
+      rkey2.init(skey2).isOk()
+    var rkey3 = RsaPublicKey.init(skey1).expect("key initialization")
+    var rkey4 = RsaPublicKey.init(skey2).expect("key initialization")
+    check:
+      rkey1 == pair.pubkey
+      rkey2 == pair.pubkey
+      rkey3 == pair.pubkey
+      rkey4 == pair.pubkey
+
   test "[rsa4096] Public key serialize/deserialize test":
-    when defined(release):
-      var rkey1, rkey2: RsaPublicKey
-      var skey2 = newSeq[byte](4096)
-      var pair = RsaKeyPair.random(rng[], 4096).expect("random failed")
-      var skey1 = pair.pubkey.getBytes().expect("bytes")
-      check:
-        pair.pubkey.toBytes(skey2).expect("bytes") > 0
-        rkey1.init(skey1).isOk()
-        rkey2.init(skey2).isOk()
-      var rkey3 = RsaPublicKey.init(skey1).expect("key initialization")
-      var rkey4 = RsaPublicKey.init(skey2).expect("key initialization")
-      check:
-        rkey1 == pair.pubkey
-        rkey2 == pair.pubkey
-        rkey3 == pair.pubkey
-        rkey4 == pair.pubkey
-
-  test "[rsa512] Generate/Sign/Serialize/Deserialize/Verify test":
-    var message = "message to sign"
-    for i in 0..<TestsCount:
-      var kp = RsaKeyPair.random(rng[], 512).expect("RsaKeyPair.random failed")
-      var sig = kp.seckey.sign(message).expect("signature")
-      var sersk = kp.seckey.getBytes().expect("bytes")
-      var serpk = kp.pubkey.getBytes().expect("bytes")
-      var sersig = sig.getBytes().expect("bytes")
-      discard RsaPrivateKey.init(sersk).expect("RsaPrivateKey.key initialization")
-      var pubkey = RsaPublicKey.init(serpk).expect("RsaPublicKey.key initialization")
-      var csig = RsaSignature.init(sersig).expect("RsaSignature.key initialization")
-      check csig.verify(message, pubkey) == true
-      let error = csig.buffer.high
-      csig.buffer[error] = not(csig.buffer[error])
-      check csig.verify(message, pubkey) == false
-
-  test "[rsa1024] Generate/Sign/Serialize/Deserialize/Verify test":
-    var message = "message to sign"
-    for i in 0..<TestsCount:
-      var kp = RsaKeyPair.random(rng[], 1024).expect("RsaPrivateKey.random failed")
-      var sig = kp.seckey.sign(message).expect("signature")
-      var sersk = kp.seckey.getBytes().expect("bytes")
-      var serpk = kp.pubkey.getBytes().expect("bytes")
-      var sersig = sig.getBytes().expect("bytes")
-      discard RsaPrivateKey.init(sersk).expect("key initialization")
-      var pubkey = RsaPublicKey.init(serpk).expect("key initialization")
-      var csig = RsaSignature.init(sersig).expect("key initialization")
-      check csig.verify(message, pubkey) == true
-      let error = csig.buffer.high
-      csig.buffer[error] = not(csig.buffer[error])
-      check csig.verify(message, pubkey) == false
+    var rkey1, rkey2: RsaPublicKey
+    var skey2 = newSeq[byte](4096)
+    var pair = RsaKeyPair.random(rng[], 4096).expect("random failed")
+    var skey1 = pair.pubkey.getBytes().expect("bytes")
+    check:
+      pair.pubkey.toBytes(skey2).expect("bytes") > 0
+      rkey1.init(skey1).isOk()
+      rkey2.init(skey2).isOk()
+    var rkey3 = RsaPublicKey.init(skey1).expect("key initialization")
+    var rkey4 = RsaPublicKey.init(skey2).expect("key initialization")
+    check:
+      rkey1 == pair.pubkey
+      rkey2 == pair.pubkey
+      rkey3 == pair.pubkey
+      rkey4 == pair.pubkey
 
   test "[rsa2048] Generate/Sign/Serialize/Deserialize/Verify test":
     var message = "message to sign"
@@ -464,23 +478,37 @@ suite "RSA 512/1024/2048/4096 test suite":
     csig.buffer[error] = not(csig.buffer[error])
     check csig.verify(message, pubkey) == false
 
-  test "[rsa4096] Generate/Sign/Serialize/Deserialize/Verify test":
-    when defined(release):
-      var message = "message to sign"
-      var kp = RsaKeyPair.random(rng[], 2048).expect("RsaPrivateKey.random failed")
-      var sig = kp.seckey.sign(message).expect("signature")
-      var sersk = kp.seckey.getBytes().expect("bytes")
-      var serpk = kp.pubkey.getBytes().expect("bytes")
-      var sersig = sig.getBytes().expect("bytes")
-      discard RsaPrivateKey.init(sersk).expect("key initialization")
-      var pubkey = RsaPublicKey.init(serpk).expect("key initialization")
-      var csig = RsaSignature.init(sersig).expect("key initialization")
-      check csig.verify(message, pubkey) == true
-      let error = csig.buffer.high
-      csig.buffer[error] = not(csig.buffer[error])
-      check csig.verify(message, pubkey) == false
+  test "[rsa3072] Generate/Sign/Serialize/Deserialize/Verify test":
+    var message = "message to sign"
+    var kp = RsaKeyPair.random(rng[], 3072).expect("RsaPrivateKey.random failed")
+    var sig = kp.seckey.sign(message).expect("signature")
+    var sersk = kp.seckey.getBytes().expect("bytes")
+    var serpk = kp.pubkey.getBytes().expect("bytes")
+    var sersig = sig.getBytes().expect("bytes")
+    discard RsaPrivateKey.init(sersk).expect("key initialization")
+    var pubkey = RsaPublicKey.init(serpk).expect("key initialization")
+    var csig = RsaSignature.init(sersig).expect("key initialization")
+    check csig.verify(message, pubkey) == true
+    let error = csig.buffer.high
+    csig.buffer[error] = not(csig.buffer[error])
+    check csig.verify(message, pubkey) == false
 
-  test "[rsa512] Test vectors":
+  test "[rsa4096] Generate/Sign/Serialize/Deserialize/Verify test":
+    var message = "message to sign"
+    var kp = RsaKeyPair.random(rng[], 4096).expect("RsaPrivateKey.random failed")
+    var sig = kp.seckey.sign(message).expect("signature")
+    var sersk = kp.seckey.getBytes().expect("bytes")
+    var serpk = kp.pubkey.getBytes().expect("bytes")
+    var sersig = sig.getBytes().expect("bytes")
+    discard RsaPrivateKey.init(sersk).expect("key initialization")
+    var pubkey = RsaPublicKey.init(serpk).expect("key initialization")
+    var csig = RsaSignature.init(sersig).expect("key initialization")
+    check csig.verify(message, pubkey) == true
+    let error = csig.buffer.high
+    csig.buffer[error] = not(csig.buffer[error])
+    check csig.verify(message, pubkey) == false
+
+  test "[rsa2048] Test vectors":
     var prvser = fromHex(stripSpaces(PrivateKeys[0]))
     var pubser = fromHex(stripSpaces(PublicKeys[0]))
     var seckey = RsaPrivateKey.init(prvser).expect("key initialization")
@@ -503,7 +531,7 @@ suite "RSA 512/1024/2048/4096 test suite":
         csig.verify(Messages[i], pubkey) == true
         csig.verify(Messages[(i + 1) mod 2], pubkey) == false
 
-  test "[rsa1024] Test vectors":
+  test "[rsa3072] Test vectors":
     var prvser = fromHex(stripSpaces(PrivateKeys[1]))
     var pubser = fromHex(stripSpaces(PublicKeys[1]))
     var seckey = RsaPrivateKey.init(prvser).expect("key initialization")
@@ -526,7 +554,7 @@ suite "RSA 512/1024/2048/4096 test suite":
         csig.verify(Messages[2 + i], pubkey) == true
         csig.verify(Messages[2 + (i + 1) mod 2], pubkey) == false
 
-  test "[rsa2048] Test vectors":
+  test "[rsa4096] Test vectors":
     var prvser = fromHex(stripSpaces(PrivateKeys[2]))
     var pubser = fromHex(stripSpaces(PublicKeys[2]))
     var seckey = RsaPrivateKey.init(prvser).expect("key initialization")
@@ -549,25 +577,27 @@ suite "RSA 512/1024/2048/4096 test suite":
         csig.verify(Messages[4 + i], pubkey) == true
         csig.verify(Messages[4 + (i + 1) mod 2], pubkey) == false
 
-  test "[rsa4096] Test vectors":
-    var prvser = fromHex(stripSpaces(PrivateKeys[3]))
-    var pubser = fromHex(stripSpaces(PublicKeys[3]))
-    var seckey = RsaPrivateKey.init(prvser).expect("key initialization")
-    var pubkey = RsaPublicKey.init(pubser).expect("key initialization")
+  test "[rsa512] not allowed test":
+    var key1 = RsaPrivateKey.random(rng[], 512)
+    let prvser = fromHex(stripSpaces(NotAllowedPrivateKeys[0]))
+    let pubser = fromHex(stripSpaces(NotAllowedPublicKeys[0]))
+    var key2 = RsaPrivateKey.init(prvser)
+    var key3 = RsaPublicKey.init(pubser)
     check:
-      seckey.getBytes().expect("bytes") == prvser
-    var cpubkey = seckey.getKey()
-    check:
-      pubkey == cpubkey
-      pubkey.getBytes().expect("bytes") == cpubkey.getBytes().expect("bytes")
-      pubkey.getBytes().expect("bytes") == pubser
+      key1.isErr() == true
+      key2.isErr() == true
+      key3.isErr() == true
 
-    for i in 0..1:
-      var sigser = fromHex(stripSpaces(Signatures[6 + i]))
-      var sig = RsaSignature.init(sigser).expect("key initialization")
-      var csig = seckey.sign(Messages[6 + i]).expect("signature")
-      check:
-        sig == csig
-        sig.getBytes().expect("bytes") == csig.getBytes().expect("bytes")
-        csig.verify(Messages[6 + i], pubkey) == true
-        csig.verify(Messages[6 + (i + 1) mod 2], pubkey) == false
+  test "[rsa1024] not allowed test":
+    var key1 = RsaPrivateKey.random(rng[], 1024)
+    let prvser = fromHex(stripSpaces(NotAllowedPrivateKeys[1]))
+    let pubser = fromHex(stripSpaces(NotAllowedPublicKeys[1]))
+    var key2 = RsaPrivateKey.init(prvser)
+    var key3 = RsaPublicKey.init(pubser)
+    check:
+      key1.isErr() == true
+      key2.isErr() == true
+      key3.isErr() == true
+      key1.error == RsaLowSecurityError
+      key2.error == RsaKeyIncorrectError
+      key3.error == RsaKeyIncorrectError
