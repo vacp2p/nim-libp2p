@@ -1025,31 +1025,34 @@ proc write*(pb: var ProtoBuffer, field: int, value: MultiAddress) {.inline.} =
   write(pb, field, value.data.buffer)
 
 proc getField*(pb: var ProtoBuffer, field: int,
-               value: var MultiAddress): bool {.inline.} =
+               value: var MultiAddress): ProtoResult[bool] {.
+     inline.} =
   var buffer: seq[byte]
-  if not(getField(pb, field, buffer)):
-    return false
-  if len(buffer) == 0:
-    return false
-  let ma = MultiAddress.init(buffer)
-  if ma.isOk():
-    value = ma.get()
-    true
+  let res = ? pb.getField(field, buffer)
+  if not(res):
+    ok(false)
   else:
-    false
+    let ma = MultiAddress.init(buffer)
+    if ma.isOk():
+      value = ma.get()
+      ok(true)
+    else:
+      err(ProtoError.IncorrectBlob)
 
 proc getRepeatedField*(pb: var ProtoBuffer, field: int,
-                       value: var seq[MultiAddress]): bool {.inline.} =
+                       value: var seq[MultiAddress]): ProtoResult[bool] {.
+     inline.} =
   var items: seq[seq[byte]]
   value.setLen(0)
-  if not(getRepeatedField(pb, field, items)):
-    return false
-  if len(items) == 0:
-    return true
-  for item in items:
-    let ma = MultiAddress.init(item)
-    if ma.isOk():
-      value.add(ma.get())
-    else:
-      value.setLen(0)
-      return false
+  let res = ? pb.getRepeatedField(field, items)
+  if not(res):
+    ok(false)
+  else:
+    for item in items:
+      let ma = MultiAddress.init(item)
+      if ma.isOk():
+        value.add(ma.get())
+      else:
+        value.setLen(0)
+        return err(ProtoError.IncorrectBlob)
+    ok(true)

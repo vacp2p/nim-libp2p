@@ -46,52 +46,56 @@ type
 
 proc encodeMsg*(peerInfo: PeerInfo, observedAddr: Multiaddress): ProtoBuffer =
   result = initProtoBuffer()
-
   result.write(1, peerInfo.publicKey.get().getBytes().tryGet())
-
   for ma in peerInfo.addrs:
     result.write(2, ma.data.buffer)
-
   for proto in peerInfo.protocols:
     result.write(3, proto)
-
   result.write(4, observedAddr.data.buffer)
-
   let protoVersion = ProtoVersion
   result.write(5, protoVersion)
-
   let agentVersion = AgentVersion
   result.write(6, agentVersion)
   result.finish()
 
-proc decodeMsg*(buf: seq[byte]): IdentifyInfo =
+proc decodeMsg*(buf: seq[byte]): Option[IdentifyInfo] =
+  var
+    iinfo: IdentifyInfo
+    pubKey: PublicKey
+    oaddr: MultiAddress
+    protoVersion: string
+    agentVersion: string
+
   var pb = initProtoBuffer(buf)
 
-  var pubKey: PublicKey
-  if pb.getField(1, pubKey):
-    trace "read public key from message", pubKey = ($pubKey).shortLog
-    result.pubKey = some(pubKey)
+  let r1 = pb.getField(1, pubKey)
+  let r2 = pb.getRepeatedField(2, iinfo.addrs)
+  let r3 = pb.getRepeatedField(3, iinfo.protos)
+  let r4 = pb.getField(4, oaddr)
+  let r5 = pb.getField(5, protoVersion)
+  let r6 = pb.getField(6, agentVersion)
 
-  if pb.getRepeatedField(2, result.addrs):
-    trace "read addresses from message", addresses = result.addrs
+  let res = r1.isOk() and r2.isOk() and r3.isOk() and
+            r4.isOk() and r5.isOk() and r6.isOk()
 
-  if pb.getRepeatedField(3, result.protos):
-    trace "read protos from message", protocols = result.protos
-
-  var observableAddr: MultiAddress
-  if pb.getField(4, observableAddr):
-    trace "read observableAddr from message", address = observableAddr
-    result.observedAddr = some(observableAddr)
-
-  var protoVersion = ""
-  if pb.getField(5, protoVersion):
-    trace "read protoVersion from message", protoVersion = protoVersion
-    result.protoVersion = some(protoVersion)
-
-  var agentVersion = ""
-  if pb.getField(6, agentVersion):
-    trace "read agentVersion from message", agentVersion = agentVersion
-    result.agentVersion = some(agentVersion)
+  if res:
+    if r1.get():
+      iinfo.pubKey = some(pubKey)
+    if r4.get():
+      iinfo.observedAddr = some(oaddr)
+    if r5.get():
+      iinfo.protoVersion = some(protoVersion)
+    if r6.get():
+      iinfo.agentVersion = some(agentVersion)
+    trace "decodeMsg: decoded message", pubkey = ($pubKey).shortLog,
+          addresses = $iinfo.addrs, protocols = $iinfo.protos,
+          observable_address = $iinfo.observedAddr,
+          proto_version = $iinfo.protoVersion,
+          agent_version = $iinfo.agentVersion
+    some(iinfo)
+  else:
+    trace "decodeMsg: failed to decode received message"
+    none[IdentifyInfo]()
 
 proc newIdentify*(peerInfo: PeerInfo): Identify =
   new result
@@ -122,11 +126,13 @@ proc identify*(p: Identify,
   trace "initiating identify", peer = $conn
   var message = await conn.readLp(64*1024)
   if len(message) == 0:
-    trace "identify: Invalid or empty message received!"
-    raise newException(IdentityInvalidMsgError,
-      "Invalid or empty message received!")
+    trace "identify: Empty message received!"
+    raise newException(IdentityInvalidMsgError, "Empty message received!")
 
-  result = decodeMsg(message)
+  let infoOpt = decodeMsg(message)
+  if infoOpt.isNone():
+    raise newException(IdentityInvalidMsgError, "Incorrect message received!")
+  result = infoOpt.get()
 
   if not isNil(remotePeerInfo) and result.pubKey.isSome:
     let peer = PeerID.init(result.pubKey.get())

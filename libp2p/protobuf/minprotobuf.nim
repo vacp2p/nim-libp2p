@@ -11,7 +11,8 @@
 
 {.push raises: [Defect].}
 
-import ../varint, stew/endians2
+import ../varint, stew/[endians2, results]
+export results
 
 const
   MaxMessageSize* = 1'u shl 22
@@ -51,12 +52,16 @@ type
     of StartGroup, EndGroup:
       discard
 
-  ProtoResult {.pure.} = enum
-    VarintDecodeError,
-    MessageIncompleteError,
-    BufferOverflowError,
-    MessageSizeTooBigError,
+  ProtoError* {.pure.} = enum
+    VarintDecode,
+    MessageIncomplete,
+    BufferOverflow,
+    MessageTooBig,
+    BadWireType,
+    IncorrectBlob,
     NoError
+
+  ProtoResult*[T] = Result[T, ProtoError]
 
   ProtoScalar* = uint | uint32 | uint64 | zint | zint32 | zint64 |
                  hint | hint32 | hint64 | float32 | float64
@@ -361,7 +366,8 @@ proc finish*(pb: var ProtoBuffer) =
   else:
     pb.offset = 0
 
-proc getHeader(data: var ProtoBuffer, header: var ProtoHeader): bool =
+proc getHeader(data: var ProtoBuffer,
+               header: var ProtoHeader): ProtoResult[void] =
   var length = 0
   var hdr = 0'u64
   if PB.getUVarint(data.toOpenArray(), length, hdr).isOk():
@@ -370,34 +376,34 @@ proc getHeader(data: var ProtoBuffer, header: var ProtoHeader): bool =
     if wire in SupportedWireTypes:
       data.offset += length
       header = ProtoHeader(index: index, wire: cast[ProtoFieldKind](wire))
-      true
+      ok()
     else:
-      false
+      err(ProtoError.BadWireType)
   else:
-    false
+    err(ProtoError.VarintDecode)
 
-proc skipValue(data: var ProtoBuffer, header: ProtoHeader): bool =
+proc skipValue(data: var ProtoBuffer, header: ProtoHeader): ProtoResult[void] =
   case header.wire
   of ProtoFieldKind.Varint:
     var length = 0
     var value = 0'u64
     if PB.getUVarint(data.toOpenArray(), length, value).isOk():
       data.offset += length
-      true
+      ok()
     else:
-      false
+      err(ProtoError.VarintDecode)
   of ProtoFieldKind.Fixed32:
     if data.isEnough(sizeof(uint32)):
       data.offset += sizeof(uint32)
-      true
+      ok()
     else:
-      false
+      err(ProtoError.VarintDecode)
   of ProtoFieldKind.Fixed64:
     if data.isEnough(sizeof(uint64)):
       data.offset += sizeof(uint64)
-      true
+      ok()
     else:
-      false
+      err(ProtoError.VarintDecode)
   of ProtoFieldKind.Length:
     var length = 0
     var bsize = 0'u64
@@ -406,19 +412,19 @@ proc skipValue(data: var ProtoBuffer, header: ProtoHeader): bool =
       if bsize <= uint64(MaxMessageSize):
         if data.isEnough(int(bsize)):
           data.offset += int(bsize)
-          true
+          ok()
         else:
-          false
+          err(ProtoError.MessageIncomplete)
       else:
-        false
+        err(ProtoError.MessageTooBig)
     else:
-      false
+      err(ProtoError.VarintDecode)
   of ProtoFieldKind.StartGroup, ProtoFieldKind.EndGroup:
-    false
+    err(ProtoError.BadWireType)
 
 proc getValue[T: ProtoScalar](data: var ProtoBuffer,
                               header: ProtoHeader,
-                              outval: var T): ProtoResult =
+                              outval: var T): ProtoResult[void] =
   when (T is uint64) or (T is uint32) or (T is uint):
     doAssert(header.wire == ProtoFieldKind.Varint)
     var length = 0
@@ -426,9 +432,9 @@ proc getValue[T: ProtoScalar](data: var ProtoBuffer,
     if PB.getUVarint(data.toOpenArray(), length, value).isOk():
       data.offset += length
       outval = value
-      ProtoResult.NoError
+      ok()
     else:
-      ProtoResult.VarintDecodeError
+      err(ProtoError.VarintDecode)
   elif (T is zint64) or (T is zint32) or (T is zint) or
        (T is hint64) or (T is hint32) or (T is hint):
     doAssert(header.wire == ProtoFieldKind.Varint)
@@ -437,29 +443,29 @@ proc getValue[T: ProtoScalar](data: var ProtoBuffer,
     if getSVarint(data.toOpenArray(), length, value).isOk():
       data.offset += length
       outval = value
-      ProtoResult.NoError
+      ok()
     else:
-      ProtoResult.VarintDecodeError
+      err(ProtoError.VarintDecode)
   elif T is float32:
     doAssert(header.wire == ProtoFieldKind.Fixed32)
     if data.isEnough(sizeof(float32)):
       outval = cast[float32](fromBytesLE(uint32, data.toOpenArray()))
       data.offset += sizeof(float32)
-      ProtoResult.NoError
+      ok()
     else:
-      ProtoResult.MessageIncompleteError
+      err(ProtoError.MessageIncomplete)
   elif T is float64:
     doAssert(header.wire == ProtoFieldKind.Fixed64)
     if data.isEnough(sizeof(float64)):
       outval = cast[float64](fromBytesLE(uint64, data.toOpenArray()))
       data.offset += sizeof(float64)
-      ProtoResult.NoError
+      ok()
     else:
-      ProtoResult.MessageIncompleteError
+      err(ProtoError.MessageIncomplete)
 
 proc getValue[T:byte|char](data: var ProtoBuffer, header: ProtoHeader,
                            outBytes: var openarray[T],
-                           outLength: var int): ProtoResult =
+                           outLength: var int): ProtoResult[void] =
   doAssert(header.wire == ProtoFieldKind.Length)
   var length = 0
   var bsize = 0'u64
@@ -474,20 +480,20 @@ proc getValue[T:byte|char](data: var ProtoBuffer, header: ProtoHeader,
           if bsize > 0'u64:
             copyMem(addr outBytes[0], addr data.buffer[data.offset], int(bsize))
           data.offset += int(bsize)
-          ProtoResult.NoError
+          ok()
         else:
           # Buffer overflow should not be critical failure
           data.offset += int(bsize)
-          ProtoResult.BufferOverflowError
+          err(ProtoError.BufferOverflow)
       else:
-        ProtoResult.MessageIncompleteError
+        err(ProtoError.MessageIncomplete)
     else:
-      ProtoResult.MessageSizeTooBigError
+      err(ProtoError.MessageTooBig)
   else:
-    ProtoResult.VarintDecodeError
+    err(ProtoError.VarintDecode)
 
 proc getValue[T:seq[byte]|string](data: var ProtoBuffer, header: ProtoHeader,
-                                  outBytes: var T): ProtoResult =
+                                  outBytes: var T): ProtoResult[void] =
   doAssert(header.wire == ProtoFieldKind.Length)
   var length = 0
   var bsize = 0'u64
@@ -501,27 +507,24 @@ proc getValue[T:seq[byte]|string](data: var ProtoBuffer, header: ProtoHeader,
         if bsize > 0'u64:
           copyMem(addr outBytes[0], addr data.buffer[data.offset], int(bsize))
         data.offset += int(bsize)
-        ProtoResult.NoError
+        ok()
       else:
-        ProtoResult.MessageIncompleteError
+        err(ProtoError.MessageIncomplete)
     else:
-      ProtoResult.MessageSizeTooBigError
+      err(ProtoError.MessageTooBig)
   else:
-    ProtoResult.VarintDecodeError
+    err(ProtoError.VarintDecode)
 
 proc getField*[T: ProtoScalar](data: ProtoBuffer, field: int,
-                               output: var T): bool =
+                               output: var T): ProtoResult[bool] =
   checkFieldNumber(field)
-  var value: T
+  var current: T
   var res = false
   var pb = data
-  output = T(0)
 
   while not(pb.isEmpty()):
     var header: ProtoHeader
-    if not(pb.getHeader(header)):
-      output = T(0)
-      return false
+    ? pb.getHeader(header)
     let wireCheck =
       when (T is uint64) or (T is uint32) or (T is uint) or
            (T is zint64) or (T is zint32) or (T is zint) or
@@ -533,28 +536,29 @@ proc getField*[T: ProtoScalar](data: ProtoBuffer, field: int,
         header.wire == ProtoFieldKind.Fixed64
     if header.index == uint64(field):
       if wireCheck:
-        let r = getValue(pb, header, value)
-        case r
-        of ProtoResult.NoError:
+        var value: T
+        let vres = pb.getValue(header, value)
+        if vres.isOk():
           res = true
-          output = value
+          current = value
         else:
-          return false
+          return err(vres.error)
       else:
         # We are ignoring wire types different from what we expect, because it
         # is how `protoc` is working.
-        if not(skipValue(pb, header)):
-          output = T(0)
-          return false
+        ? pb.skipValue(header)
     else:
-      if not(skipValue(pb, header)):
-        output = T(0)
-        return false
-  res
+      ? pb.skipValue(header)
+
+  if res:
+    output = current
+    ok(true)
+  else:
+    ok(false)
 
 proc getField*[T: byte|char](data: ProtoBuffer, field: int,
                              output: var openarray[T],
-                             outlen: var int): bool =
+                             outlen: var int): ProtoResult[bool] =
   checkFieldNumber(field)
   var pb = data
   var res = false
@@ -563,182 +567,191 @@ proc getField*[T: byte|char](data: ProtoBuffer, field: int,
 
   while not(pb.isEmpty()):
     var header: ProtoHeader
-    if not(pb.getHeader(header)):
+    let hres = pb.getHeader(header)
+    if hres.isErr():
       if len(output) > 0:
         zeroMem(addr output[0], len(output))
       outlen = 0
-      return false
-
+      return err(hres.error)
     if header.index == uint64(field):
       if header.wire == ProtoFieldKind.Length:
-        let r = getValue(pb, header, output, outlen)
-        case r
-        of ProtoResult.NoError:
+        let vres = pb.getValue(header, output, outlen)
+        if vres.isOk():
           res = true
-        of ProtoResult.BufferOverflowError:
+        else:
           # Buffer overflow error is not critical error, we still can get
           # field values with proper size.
-          discard
-        else:
-          if len(output) > 0:
-            zeroMem(addr output[0], len(output))
-          return false
+          if vres.error != ProtoError.BufferOverflow:
+            if len(output) > 0:
+              zeroMem(addr output[0], len(output))
+            outlen = 0
+            return err(vres.error)
       else:
         # We are ignoring wire types different from ProtoFieldKind.Length,
         # because it is how `protoc` is working.
-        if not(skipValue(pb, header)):
+        let sres = pb.skipValue(header)
+        if sres.isErr():
           if len(output) > 0:
             zeroMem(addr output[0], len(output))
           outlen = 0
-          return false
+          return err(sres.error)
     else:
-      if not(skipValue(pb, header)):
+      let sres = pb.skipValue(header)
+      if sres.isErr():
         if len(output) > 0:
           zeroMem(addr output[0], len(output))
         outlen = 0
-        return false
+        return err(sres.error)
 
-  res
+  if res:
+    ok(true)
+  else:
+    ok(false)
 
 proc getField*[T: seq[byte]|string](data: ProtoBuffer, field: int,
-                                    output: var T): bool =
+                                    output: var T): ProtoResult[bool] =
   checkFieldNumber(field)
   var res = false
   var pb = data
 
   while not(pb.isEmpty()):
     var header: ProtoHeader
-    if not(pb.getHeader(header)):
+    let hres = pb.getHeader(header)
+    if hres.isErr():
       output.setLen(0)
-      return false
-
+      return err(hres.error)
     if header.index == uint64(field):
       if header.wire == ProtoFieldKind.Length:
-        let r = getValue(pb, header, output)
-        case r
-        of ProtoResult.NoError:
+        let vres = pb.getValue(header, output)
+        if vres.isOk():
           res = true
-        of ProtoResult.BufferOverflowError:
-          # Buffer overflow error is not critical error, we still can get
-          # field values with proper size.
-          discard
         else:
           output.setLen(0)
-          return false
+          return err(vres.error)
       else:
         # We are ignoring wire types different from ProtoFieldKind.Length,
         # because it is how `protoc` is working.
-        if not(skipValue(pb, header)):
+        let sres = pb.skipValue(header)
+        if sres.isErr():
           output.setLen(0)
-          return false
+          return err(sres.error)
     else:
-      if not(skipValue(pb, header)):
+      let sres = pb.skipValue(header)
+      if sres.isErr():
         output.setLen(0)
-        return false
-
-  res
-
-proc getField*(pb: ProtoBuffer, field: int, output: var ProtoBuffer): bool {.
-     inline.} =
-  var buffer: seq[byte]
-  if pb.getField(field, buffer):
-    output = initProtoBuffer(buffer)
-    true
+        return err(sres.error)
+  if res:
+    ok(true)
   else:
-    false
+    ok(false)
+
+proc getField*(pb: ProtoBuffer, field: int,
+               output: var ProtoBuffer): ProtoResult[bool] {.inline.} =
+  var buffer: seq[byte]
+  let res = pb.getField(field, buffer)
+  if res.isOk():
+    if res.get():
+      output = initProtoBuffer(buffer)
+      ok(true)
+    else:
+      ok(false)
+  else:
+    err(res.error)
 
 proc getRepeatedField*[T: seq[byte]|string](data: ProtoBuffer, field: int,
-                                            output: var seq[T]): bool =
+                                        output: var seq[T]): ProtoResult[bool] =
   checkFieldNumber(field)
   var pb = data
   output.setLen(0)
 
   while not(pb.isEmpty()):
     var header: ProtoHeader
-    if not(pb.getHeader(header)):
+    let hres = pb.getHeader(header)
+    if hres.isErr():
       output.setLen(0)
-      return false
-
+      return err(hres.error)
     if header.index == uint64(field):
       if header.wire == ProtoFieldKind.Length:
         var item: T
-        let r = getValue(pb, header, item)
-        case r
-        of ProtoResult.NoError:
+        let vres = pb.getValue(header, item)
+        if vres.isOk():
           output.add(item)
         else:
           output.setLen(0)
-          return false
+          return err(vres.error)
       else:
-        if not(skipValue(pb, header)):
+        let sres = pb.skipValue(header)
+        if sres.isErr():
           output.setLen(0)
-          return false
+          return err(sres.error)
     else:
-      if not(skipValue(pb, header)):
+      let sres = pb.skipValue(header)
+      if sres.isErr():
         output.setLen(0)
-        return false
+        return err(sres.error)
 
   if len(output) > 0:
-    true
+    ok(true)
   else:
-    false
+    ok(false)
 
-proc getRepeatedField*[T: uint64|float32|float64](data: ProtoBuffer,
-                                                  field: int,
-                                                  output: var seq[T]): bool =
+proc getRepeatedField*[T: ProtoScalar](data: ProtoBuffer, field: int,
+                                       output: var seq[T]): ProtoResult[bool] =
   checkFieldNumber(field)
   var pb = data
   output.setLen(0)
 
   while not(pb.isEmpty()):
     var header: ProtoHeader
-    if not(pb.getHeader(header)):
+    let hres = pb.getHeader(header)
+    if hres.isErr():
       output.setLen(0)
-      return false
+      return err(hres.error)
 
     if header.index == uint64(field):
       if header.wire in {ProtoFieldKind.Varint, ProtoFieldKind.Fixed32,
                          ProtoFieldKind.Fixed64}:
         var item: T
-        let r = getValue(pb, header, item)
-        case r
-        of ProtoResult.NoError:
+        let vres = getValue(pb, header, item)
+        if vres.isOk():
           output.add(item)
         else:
           output.setLen(0)
-          return false
+          return err(vres.error)
       else:
-        if not(skipValue(pb, header)):
+        let sres = skipValue(pb, header)
+        if sres.isErr():
           output.setLen(0)
-          return false
+          return err(sres.error)
     else:
-      if not(skipValue(pb, header)):
+      let sres = skipValue(pb, header)
+      if sres.isErr():
         output.setLen(0)
-        return false
+        return err(sres.error)
 
   if len(output) > 0:
-    true
+    ok(true)
   else:
-    false
+    ok(false)
 
 proc getPackedRepeatedField*[T: ProtoScalar](data: ProtoBuffer, field: int,
-                                             output: var seq[T]): bool =
+                                        output: var seq[T]): ProtoResult[bool] =
   checkFieldNumber(field)
   var pb = data
   output.setLen(0)
 
   while not(pb.isEmpty()):
     var header: ProtoHeader
-    if not(pb.getHeader(header)):
+    let hres = pb.getHeader(header)
+    if hres.isErr():
       output.setLen(0)
-      return false
+      return err(hres.error)
 
     if header.index == uint64(field):
       if header.wire == ProtoFieldKind.Length:
         var arritem: seq[byte]
-        let rarr = getValue(pb, header, arritem)
-        case rarr
-        of ProtoResult.NoError:
+        let ares = getValue(pb, header, arritem)
+        if ares.isOk():
           var pbarr = initProtoBuffer(arritem)
           let itemHeader =
             when (T is uint64) or (T is uint32) or (T is uint) or
@@ -751,29 +764,30 @@ proc getPackedRepeatedField*[T: ProtoScalar](data: ProtoBuffer, field: int,
               ProtoHeader(wire: ProtoFieldKind.Fixed64)
           while not(pbarr.isEmpty()):
             var item: T
-            let res = getValue(pbarr, itemHeader, item)
-            case res
-            of ProtoResult.NoError:
+            let vres = getValue(pbarr, itemHeader, item)
+            if vres.isOk():
               output.add(item)
             else:
               output.setLen(0)
-              return false
+              return err(vres.error)
         else:
           output.setLen(0)
-          return false
+          return err(ares.error)
       else:
-        if not(skipValue(pb, header)):
+        let sres = skipValue(pb, header)
+        if sres.isErr():
           output.setLen(0)
-          return false
+          return err(sres.error)
     else:
-      if not(skipValue(pb, header)):
+      let sres = skipValue(pb, header)
+      if sres.isErr():
         output.setLen(0)
-        return false
+        return err(sres.error)
 
   if len(output) > 0:
-    true
+    ok(true)
   else:
-    false
+    ok(false)
 
 proc getVarintValue*(data: var ProtoBuffer, field: int,
                      value: var SomeVarint): int {.deprecated.} =

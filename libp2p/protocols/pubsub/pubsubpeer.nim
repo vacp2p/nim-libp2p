@@ -43,7 +43,7 @@ type
 
   RPCHandler* = proc(peer: PubSubPeer, msg: seq[RPCMsg]): Future[void] {.gcsafe.}
 
-func hash*(p: PubSubPeer): Hash = 
+func hash*(p: PubSubPeer): Hash =
   # int is either 32/64, so intptr basically, pubsubpeer is a ref
   cast[pointer](p).hash
 
@@ -114,7 +114,13 @@ proc handle*(p: PubSubPeer, conn: Connection) {.async.} =
           trace "message already received, skipping", peer = p.id
           continue
 
-        var msg = decodeRpcMsg(data)
+        var rmsg = decodeRpcMsg(data)
+        if rmsg.isErr():
+          trace "failed to decode msg from peer", peer = p.id
+          break
+
+        var msg = rmsg.get()
+
         trace "decoded msg from peer", peer = p.id, msg = msg.shortLog
         # trigger hooks
         p.recvObservers(msg)
@@ -149,11 +155,11 @@ proc send*(p: PubSubPeer, msgs: seq[RPCMsg]) {.async.} =
     p.sendObservers(mm)
 
     let encoded = encodeRpcMsg(mm)
-    if encoded.buffer.len <= 0:
+    if encoded.len <= 0:
       trace "empty message, skipping", peer = p.id
       return
 
-    let digest = $(sha256.digest(encoded.buffer))
+    let digest = $(sha256.digest(encoded))
     if digest in p.sentRpcCache:
       trace "message already sent to peer, skipping", peer = p.id
       libp2p_pubsub_skipped_sent_messages.inc(labelValues = [p.id])
@@ -164,8 +170,8 @@ proc send*(p: PubSubPeer, msgs: seq[RPCMsg]) {.async.} =
                                      encoded = digest
       if p.connected: # this can happen if the remote disconnected
         trace "sending encoded msgs to peer", peer = p.id,
-                                              encoded = encoded.buffer.shortLog
-        await p.sendConn.writeLp(encoded.buffer)
+                                              encoded = encoded.shortLog
+        await p.sendConn.writeLp(encoded)
         p.sentRpcCache.put(digest)
 
         for m in msgs:

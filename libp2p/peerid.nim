@@ -219,16 +219,17 @@ proc write*(pb: var ProtoBuffer, field: int, pid: PeerID) =
   ## Write PeerID value ``peerid`` to object ``pb`` using ProtoBuf's encoding.
   write(pb, field, pid.data)
 
-proc getField*(pb: ProtoBuffer, field: int, pid: var PeerID): bool =
+proc getField*(pb: ProtoBuffer, field: int,
+               pid: var PeerID): ProtoResult[bool] {.inline.} =
   ## Read ``PeerID`` from ProtoBuf's message and validate it
   var buffer: seq[byte]
-  var peerId: PeerID
-  if not(getField(pb, field, buffer)):
-    return false
-  if len(buffer) == 0:
-    return false
-  if peerId.init(buffer):
-    pid = peerId
-    true
+  let res = ? pb.getField(field, buffer)
+  if not(res):
+    ok(false)
   else:
-    false
+    var peerId: PeerID
+    if peerId.init(buffer):
+      pid = peerId
+      ok(true)
+    else:
+      err(ProtoError.IncorrectBlob)

@@ -88,7 +88,7 @@ suite "MinProtobuf test suite":
     var value: uint64
     var pb = initProtoBuffer(data)
     let res = pb.getField(1, value)
-    doAssert(res)
+    doAssert(res.isOk() == true and res.get() == true)
     value
 
   proc getFixed32EncodedValue(value: float32): seq[byte] =
@@ -101,7 +101,7 @@ suite "MinProtobuf test suite":
     var value: float32
     var pb = initProtoBuffer(data)
     let res = pb.getField(1, value)
-    doAssert(res)
+    doAssert(res.isOk() == true and res.get() == true)
     cast[uint32](value)
 
   proc getFixed64EncodedValue(value: float64): seq[byte] =
@@ -114,7 +114,7 @@ suite "MinProtobuf test suite":
     var value: float64
     var pb = initProtoBuffer(data)
     let res = pb.getField(1, value)
-    doAssert(res)
+    doAssert(res.isOk() == true and res.get() == true)
     cast[uint64](value)
 
   proc getLengthEncodedValue(value: string): seq[byte] =
@@ -134,8 +134,7 @@ suite "MinProtobuf test suite":
     var valueLen = 0
     var pb = initProtoBuffer(data)
     let res = pb.getField(1, value, valueLen)
-
-    doAssert(res)
+    doAssert(res.isOk() == true and res.get() == true)
     value.setLen(valueLen)
     value
 
@@ -173,17 +172,19 @@ suite "MinProtobuf test suite":
       # corrupting
       data.setLen(len(data) - 1)
       var pb = initProtoBuffer(data)
+      let res = pb.getField(1, value)
       check:
-        pb.getField(1, value) == false
+        res.isErr() == true
 
   test "[varint] non-existent field test":
     for i in 0 ..< len(VarintValues):
       var value: uint64
       var data = getVarintEncodedValue(VarintValues[i])
       var pb = initProtoBuffer(data)
+      let res = pb.getField(2, value)
       check:
-        pb.getField(2, value) == false
-        value == 0'u64
+        res.isOk() == true
+        res.get() == false
 
   test "[varint] corrupted header test":
     for i in 0 ..< len(VarintValues):
@@ -192,15 +193,17 @@ suite "MinProtobuf test suite":
         var data = getVarintEncodedValue(VarintValues[i])
         data.corruptHeader(k)
         var pb = initProtoBuffer(data)
+        let res = pb.getField(1, value)
         check:
-          pb.getField(1, value) == false
+          res.isErr() == true
 
   test "[varint] empty buffer test":
     var value: uint64
     var pb = initProtoBuffer()
+    let res = pb.getField(1, value)
     check:
-      pb.getField(1, value) == false
-      value == 0'u64
+      res.isOk() == true
+      res.get() == false
 
   test "[varint] Repeated field test":
     var pb1 = initProtoBuffer()
@@ -218,9 +221,12 @@ suite "MinProtobuf test suite":
     let r2 = pb2.getRepeatedField(2, fieldarr2)
     let r3 = pb2.getRepeatedField(3, fieldarr3)
     check:
-      r1 == true
-      r2 == true
-      r3 == false
+      r1.isOk() == true
+      r2.isOk() == true
+      r3.isOk() == true
+      r1.get() == true
+      r2.get() == true
+      r3.get() == false
       len(fieldarr3) == 0
       len(fieldarr2) == 1
       len(fieldarr1) == 4
@@ -246,9 +252,12 @@ suite "MinProtobuf test suite":
     let r2 = pb2.getPackedRepeatedField(2, fieldarr2)
     let r3 = pb2.getPackedRepeatedField(3, fieldarr3)
     check:
-      r1 == true
-      r2 == true
-      r3 == false
+      r1.isOk() == true
+      r2.isOk() == true
+      r3.isOk() == true
+      r1.get() == true
+      r2.get() == true
+      r3.get() == false
       len(fieldarr3) == 0
       len(fieldarr2) == 2
       len(fieldarr1) == 6
@@ -284,17 +293,19 @@ suite "MinProtobuf test suite":
       # corrupting
       data.setLen(len(data) - 1)
       var pb = initProtoBuffer(data)
+      let res = pb.getField(1, value)
       check:
-        pb.getField(1, value) == false
+        res.isErr() == true
 
   test "[fixed32] non-existent field test":
     for i in 0 ..< len(Fixed32Values):
       var value: float32
       var data = getFixed32EncodedValue(float32(Fixed32Values[i]))
       var pb = initProtoBuffer(data)
+      let res = pb.getField(2, value)
       check:
-        pb.getField(2, value) == false
-        value == float32(0)
+        res.isOk() == true
+        res.get() == false
 
   test "[fixed32] corrupted header test":
     for i in 0 ..< len(Fixed32Values):
@@ -303,15 +314,17 @@ suite "MinProtobuf test suite":
         var data = getFixed32EncodedValue(float32(Fixed32Values[i]))
         data.corruptHeader(k)
         var pb = initProtoBuffer(data)
+        let res = pb.getField(1, value)
         check:
-          pb.getField(1, value) == false
+          res.isErr() == true
 
   test "[fixed32] empty buffer test":
     var value: float32
     var pb = initProtoBuffer()
+    let res = pb.getField(1, value)
     check:
-      pb.getField(1, value) == false
-      value == float32(0)
+      res.isOk() == true
+      res.get() == false
 
   test "[fixed32] Repeated field test":
     var pb1 = initProtoBuffer()
@@ -329,9 +342,12 @@ suite "MinProtobuf test suite":
     let r2 = pb2.getRepeatedField(2, fieldarr2)
     let r3 = pb2.getRepeatedField(3, fieldarr3)
     check:
-      r1 == true
-      r2 == true
-      r3 == false
+      r1.isOk() == true
+      r2.isOk() == true
+      r3.isOk() == true
+      r1.get() == true
+      r2.get() == true
+      r3.get() == false
       len(fieldarr3) == 0
       len(fieldarr2) == 1
       len(fieldarr1) == 4
@@ -360,9 +376,12 @@ suite "MinProtobuf test suite":
     let r2 = pb2.getPackedRepeatedField(2, fieldarr2)
     let r3 = pb2.getPackedRepeatedField(3, fieldarr3)
     check:
-      r1 == true
-      r2 == true
-      r3 == false
+      r1.isOk() == true
+      r2.isOk() == true
+      r3.isOk() == true
+      r1.get() == true
+      r2.get() == true
+      r3.get() == false
       len(fieldarr3) == 0
       len(fieldarr2) == 2
       len(fieldarr1) == 5
@@ -397,17 +416,19 @@ suite "MinProtobuf test suite":
       # corrupting
       data.setLen(len(data) - 1)
       var pb = initProtoBuffer(data)
+      let res = pb.getField(1, value)
       check:
-        pb.getField(1, value) == false
+        res.isErr() == true
 
   test "[fixed64] non-existent field test":
     for i in 0 ..< len(Fixed64Values):
       var value: float64
       var data = getFixed64EncodedValue(cast[float64](Fixed64Values[i]))
       var pb = initProtoBuffer(data)
+      let res = pb.getField(2, value)
       check:
-        pb.getField(2, value) == false
-        value == float64(0)
+        res.isOk() == true
+        res.get() == false
 
   test "[fixed64] corrupted header test":
     for i in 0 ..< len(Fixed64Values):
@@ -416,15 +437,17 @@ suite "MinProtobuf test suite":
         var data = getFixed64EncodedValue(cast[float64](Fixed64Values[i]))
         data.corruptHeader(k)
         var pb = initProtoBuffer(data)
+        let res = pb.getField(1, value)
         check:
-          pb.getField(1, value) == false
+          res.isErr() == true
 
   test "[fixed64] empty buffer test":
     var value: float64
     var pb = initProtoBuffer()
+    let res = pb.getField(1, value)
     check:
-      pb.getField(1, value) == false
-      value == float64(0)
+      res.isOk() == true
+      res.get() == false
 
   test "[fixed64] Repeated field test":
     var pb1 = initProtoBuffer()
@@ -442,9 +465,12 @@ suite "MinProtobuf test suite":
     let r2 = pb2.getRepeatedField(2, fieldarr2)
     let r3 = pb2.getRepeatedField(3, fieldarr3)
     check:
-      r1 == true
-      r2 == true
-      r3 == false
+      r1.isOk() == true
+      r2.isOk() == true
+      r3.isOk() == true
+      r1.get() == true
+      r2.get() == true
+      r3.get() == false
       len(fieldarr3) == 0
       len(fieldarr2) == 1
       len(fieldarr1) == 4
@@ -474,9 +500,12 @@ suite "MinProtobuf test suite":
     let r2 = pb2.getPackedRepeatedField(2, fieldarr2)
     let r3 = pb2.getPackedRepeatedField(3, fieldarr3)
     check:
-      r1 == true
-      r2 == true
-      r3 == false
+      r1.isOk() == true
+      r2.isOk() == true
+      r3.isOk() == true
+      r1.get() == true
+      r2.get() == true
+      r3.get() == false
       len(fieldarr3) == 0
       len(fieldarr2) == 2
       len(fieldarr1) == 8
@@ -523,8 +552,9 @@ suite "MinProtobuf test suite":
       # corrupting
       data.setLen(len(data) - 1)
       var pb = initProtoBuffer(data)
+      let res = pb.getField(1, value, valueLen)
       check:
-        pb.getField(1, value, valueLen) == false
+        res.isErr() == true
 
   test "[length] non-existent field test":
     for i in 0 ..< len(LengthValues):
@@ -532,8 +562,10 @@ suite "MinProtobuf test suite":
       var valueLen = 0
       var data = getLengthEncodedValue(LengthValues[i])
       var pb = initProtoBuffer(data)
+      let res = pb.getField(2, value, valueLen)
       check:
-        pb.getField(2, value, valueLen) == false
+        res.isOk() == true
+        res.get() == false
         valueLen == 0
 
   test "[length] corrupted header test":
@@ -544,15 +576,18 @@ suite "MinProtobuf test suite":
         var data = getLengthEncodedValue(LengthValues[i])
         data.corruptHeader(k)
         var pb = initProtoBuffer(data)
+        let res = pb.getField(1, value, valueLen)
         check:
-          pb.getField(1, value, valueLen) == false
+          res.isErr() == true
 
   test "[length] empty buffer test":
     var value = newSeq[byte](len(LengthValues[0]))
     var valueLen = 0
     var pb = initProtoBuffer()
+    let res = pb.getField(1, value, valueLen)
     check:
-      pb.getField(1, value, valueLen) == false
+      res.isOk() == true
+      res.get() == false
       valueLen == 0
 
   test "[length] buffer overflow test":
@@ -562,8 +597,10 @@ suite "MinProtobuf test suite":
       var value = newString(len(LengthValues[i]) - 1)
       var valueLen = 0
       var pb = initProtoBuffer(data)
+      let res = pb.getField(1, value, valueLen)
       check:
-        pb.getField(1, value, valueLen) == false
+        res.isOk() == true
+        res.get() == false
         valueLen == len(LengthValues[i])
         isFullZero(value) == true
 
@@ -578,8 +615,10 @@ suite "MinProtobuf test suite":
     var pb2 = initProtoBuffer(pb1.buffer)
     var value = newString(4)
     var valueLen = 0
+    let res = pb2.getField(1, value, valueLen)
     check:
-      pb2.getField(1, value, valueLen) == true
+      res.isOk() == true
+      res.get() == true
       value == "SOME"
 
   test "[length] too big message test":
@@ -593,8 +632,9 @@ suite "MinProtobuf test suite":
     var pb2 = initProtoBuffer(pb1.buffer)
     var value = newString(MaxMessageSize + 1)
     var valueLen = 0
+    let res = pb2.getField(1, value, valueLen)
     check:
-      pb2.getField(1, value, valueLen) == false
+      res.isErr() == true
 
   test "[length] Repeated field test":
     var pb1 = initProtoBuffer()
@@ -612,9 +652,12 @@ suite "MinProtobuf test suite":
     let r2 = pb2.getRepeatedField(2, fieldarr2)
     let r3 = pb2.getRepeatedField(3, fieldarr3)
     check:
-      r1 == true
-      r2 == true
-      r3 == false
+      r1.isOk() == true
+      r2.isOk() == true
+      r3.isOk() == true
+      r1.get() == true
+      r2.get() == true
+      r3.get() == false
       len(fieldarr3) == 0
       len(fieldarr2) == 1
       len(fieldarr1) == 4
@@ -662,11 +705,16 @@ suite "MinProtobuf test suite":
     var lengthValue = newString(10)
     var lengthSize: int
 
+    let r1 = pb.getField(1, varintValue)
+    let r2 = pb.getField(2, fixed32Value)
+    let r3 = pb.getField(3, fixed64Value)
+    let r4 = pb.getField(4, lengthValue, lengthSize)
+
     check:
-      pb.getField(1, varintValue) == true
-      pb.getField(2, fixed32Value) == true
-      pb.getField(3, fixed64Value) == true
-      pb.getField(4, lengthValue, lengthSize) == true
+      r1.isOk() == true
+      r2.isOk() == true
+      r3.isOk() == true
+      r4.isOk() == true
 
     lengthValue.setLen(lengthSize)
 
