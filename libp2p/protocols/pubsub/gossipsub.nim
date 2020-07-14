@@ -518,8 +518,9 @@ method publish*(g: GossipSub,
     # time
     g.lastFanoutPubSub[topic] = Moment.fromNow(GossipSubFanoutTTL)
 
+  inc g.msgSeqno
   let
-    msg = Message.init(g.peerInfo, data, topic, g.sign)
+    msg = Message.init(g.peerInfo, data, topic, g.msgSeqno, g.sign)
     msgId = g.msgIdProvider(msg)
 
   trace "created new message", msg

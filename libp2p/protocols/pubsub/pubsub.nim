@@ -58,6 +58,7 @@ type
     validators*: Table[string, HashSet[ValidatorHandler]]
     observers: ref seq[PubSubObserver] # ref as in smart_ptr
     msgIdProvider*: MsgIdProvider      # Turn message into message id (not nil)
+    msgSeqno*: uint64
 
 method handleDisconnect*(p: PubSub, peer: PubSubPeer) {.base.} =
   ## handle peer disconnects

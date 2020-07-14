@@ -11,8 +11,9 @@ let rng = newRng()
 
 suite "Message":
   test "signature":
+    var seqno = 11'u64
     let
       peer = PeerInfo.init(PrivateKey.random(ECDSA, rng[]).get())
-      msg = Message.init(peer, @[], "topic", sign = true)
+      msg = Message.init(peer, @[], "topic", seqno, sign = true)
 
     check verify(msg, peer)

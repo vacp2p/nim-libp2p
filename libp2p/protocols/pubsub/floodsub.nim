@@ -133,7 +133,8 @@ method publish*(f: FloodSub,
     return
 
   trace "publishing on topic", name = topic
-  let msg = Message.init(f.peerInfo, data, topic, f.sign)
+  inc f.msgSeqno
+  let msg = Message.init(f.peerInfo, data, topic, f.msgSeqno, f.sign)
   # start the future but do not wait yet
   let (published, failed) = await f.sendHelper(f.floodsub.getOrDefault(topic), @[msg])
   for p in failed:
