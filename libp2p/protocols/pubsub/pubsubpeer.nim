@@ -57,6 +57,35 @@ func score*(p: PubSubPeer): float64 =
   # TODO
   0.0
 
+func hash*(p: PubSubPeer): Hash = 
+  # int is either 32/64, so intptr basically, pubsubpeer is a ref
+  cast[pointer](p).hash
+
+func `==`*(a, b: PubSubPeer): bool =
+  # override equiality to support both nil and peerInfo comparisons
+  # this in the future will allow us to recycle refs
+  let
+    aptr = cast[pointer](a)
+    bptr = cast[pointer](b)
+  if aptr == nil:
+    if bptr == nil:
+      true
+    else:
+      false
+  elif bptr == nil:
+    false
+  else:
+    if a.peerInfo == nil:
+      if b.peerInfo == nil:
+        true
+      else:
+        false
+    else:
+      if b.peerInfo == nil:
+        false
+      else:
+        a.peerInfo.id == b.peerInfo.id
+
 proc id*(p: PubSubPeer): string = p.peerInfo.id
 
 proc connected*(p: PubSubPeer): bool =
@@ -176,14 +205,24 @@ proc sendMsg*(p: PubSubPeer,
   p.send(@[RPCMsg(messages: @[Message.init(p.peerInfo, data, topic, sign)])])
 
 proc sendGraft*(p: PubSubPeer, topics: seq[string]) {.async.} =
-  for topic in topics:
-    trace "sending graft msg to peer", peer = p.id, topicID = topic
-    await p.send(@[RPCMsg(control: some(ControlMessage(graft: @[ControlGraft(topicID: topic)])))])
+  try:
+    for topic in topics:
+      trace "sending graft msg to peer", peer = p.id, topicID = topic
+      await p.send(@[RPCMsg(control: some(ControlMessage(graft: @[ControlGraft(topicID: topic)])))])
+  except CancelledError as exc:
+    raise exc
+  except CatchableError as exc:
+    trace "Could not send graft", msg = exc.msg
 
-proc sendPrune*(p: PubSubPeer, topics: seq[string], peers: seq[PeerInfoMsg] = @[], backoff: uint64 = 0) {.async.} =
-  for topic in topics:
-    trace "sending prune msg to peer", peer = p.id, topicID = topic
-    await p.send(@[RPCMsg(control: some(ControlMessage(prune: @[ControlPrune(topicID: topic, peers: peers, backoff: backoff)])))])
+proc sendPrune*(p: PubSubPeer, topics: seq[string]) {.async.} =
+  try:
+    for topic in topics:
+      trace "sending prune msg to peer", peer = p.id, topicID = topic
+      await p.send(@[RPCMsg(control: some(ControlMessage(prune: @[ControlPrune(topicID: topic)])))])
+  except CancelledError as exc:
+    raise exc
+  except CatchableError as exc:
+    trace "Could not send prune", msg = exc.msg
 
 proc `$`*(p: PubSubPeer): string =
   p.id

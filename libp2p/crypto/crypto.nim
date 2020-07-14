@@ -222,8 +222,8 @@ proc toBytes*(key: PrivateKey, data: var openarray[byte]): CryptoResult[int] =
   ##
   ## Returns number of bytes (octets) needed to store private key ``key``.
   var msg = initProtoBuffer()
-  msg.write(initProtoField(1, cast[uint64](key.scheme)))
-  msg.write(initProtoField(2, ? key.getRawBytes()))
+  msg.write(1, uint64(key.scheme))
+  msg.write(2, ? key.getRawBytes())
   msg.finish()
   var blen = len(msg.buffer)
   if len(data) >= blen:
@@ -236,8 +236,8 @@ proc toBytes*(key: PublicKey, data: var openarray[byte]): CryptoResult[int] =
   ##
   ## Returns number of bytes (octets) needed to store public key ``key``.
   var msg = initProtoBuffer()
-  msg.write(initProtoField(1, cast[uint64](key.scheme)))
-  msg.write(initProtoField(2, ? key.getRawBytes()))
+  msg.write(1, uint64(key.scheme))
+  msg.write(2, ? key.getRawBytes())
   msg.finish()
   var blen = len(msg.buffer)
   if len(data) >= blen and blen > 0:
@@ -256,8 +256,8 @@ proc getBytes*(key: PrivateKey): CryptoResult[seq[byte]] =
   ## Return private key ``key`` in binary form (using libp2p's protobuf
   ## serialization).
   var msg = initProtoBuffer()
-  msg.write(initProtoField(1, cast[uint64](key.scheme)))
-  msg.write(initProtoField(2, ? key.getRawBytes()))
+  msg.write(1, uint64(key.scheme))
+  msg.write(2, ? key.getRawBytes())
   msg.finish()
   ok(msg.buffer)
 
@@ -265,8 +265,8 @@ proc getBytes*(key: PublicKey): CryptoResult[seq[byte]] =
   ## Return public key ``key`` in binary form (using libp2p's protobuf
   ## serialization).
   var msg = initProtoBuffer()
-  msg.write(initProtoField(1, cast[uint64](key.scheme)))
-  msg.write(initProtoField(2, ? key.getRawBytes()))
+  msg.write(1, uint64(key.scheme))
+  msg.write(2, ? key.getRawBytes())
   msg.finish()
   ok(msg.buffer)
 
@@ -283,33 +283,32 @@ proc init*[T: PrivateKey|PublicKey](key: var T, data: openarray[byte]): bool =
   var buffer: seq[byte]
   if len(data) > 0:
     var pb = initProtoBuffer(@data)
-    if pb.getVarintValue(1, id) != 0:
-      if pb.getBytes(2, buffer) != 0:
-        if cast[int8](id) in SupportedSchemesInt:
-          var scheme = cast[PKScheme](cast[int8](id))
-          when key is PrivateKey:
-            var nkey = PrivateKey(scheme: scheme)
-          else:
-            var nkey = PublicKey(scheme: scheme)
-          case scheme:
-          of PKScheme.RSA:
-            if init(nkey.rsakey, buffer).isOk:
-              key = nkey
-              return true
-          of PKScheme.Ed25519:
-            if init(nkey.edkey, buffer):
-              key = nkey
-              return true
-          of PKScheme.ECDSA:
-            if init(nkey.eckey, buffer).isOk:
-              key = nkey
-              return true
-          of PKScheme.Secp256k1:
-            if init(nkey.skkey, buffer).isOk:
-              key = nkey
-              return true
-          else:
-            return false
+    if pb.getField(1, id) and pb.getField(2, buffer):
+      if cast[int8](id) in SupportedSchemesInt and len(buffer) > 0:
+        var scheme = cast[PKScheme](cast[int8](id))
+        when key is PrivateKey:
+          var nkey = PrivateKey(scheme: scheme)
+        else:
+          var nkey = PublicKey(scheme: scheme)
+        case scheme:
+        of PKScheme.RSA:
+          if init(nkey.rsakey, buffer).isOk:
+            key = nkey
+            return true
+        of PKScheme.Ed25519:
+          if init(nkey.edkey, buffer):
+            key = nkey
+            return true
+        of PKScheme.ECDSA:
+          if init(nkey.eckey, buffer).isOk:
+            key = nkey
+            return true
+        of PKScheme.Secp256k1:
+          if init(nkey.skkey, buffer).isOk:
+            key = nkey
+            return true
+        else:
+          return false
 
 proc init*(sig: var Signature, data: openarray[byte]): bool =
   ## Initialize signature ``sig`` from raw binary form.
@@ -373,6 +372,24 @@ proc init*(t: typedesc[PrivateKey], data: string): CryptoResult[PrivateKey] =
     t.init(fromHex(data))
   except ValueError:
     err(KeyError)
+
+proc init*(t: typedesc[PrivateKey], key: rsa.RsaPrivateKey): PrivateKey =
+  PrivateKey(scheme: RSA, rsakey: key)
+proc init*(t: typedesc[PrivateKey], key: EdPrivateKey): PrivateKey =
+  PrivateKey(scheme: Ed25519, edkey: key)
+proc init*(t: typedesc[PrivateKey], key: SkPrivateKey): PrivateKey =
+  PrivateKey(scheme: Secp256k1, skkey: key)
+proc init*(t: typedesc[PrivateKey], key: ecnist.EcPrivateKey): PrivateKey =
+  PrivateKey(scheme: ECDSA, eckey: key)
+
+proc init*(t: typedesc[PublicKey], key: rsa.RsaPublicKey): PublicKey =
+  PublicKey(scheme: RSA, rsakey: key)
+proc init*(t: typedesc[PublicKey], key: EdPublicKey): PublicKey =
+  PublicKey(scheme: Ed25519, edkey: key)
+proc init*(t: typedesc[PublicKey], key: SkPublicKey): PublicKey =
+  PublicKey(scheme: Secp256k1, skkey: key)
+proc init*(t: typedesc[PublicKey], key: ecnist.EcPublicKey): PublicKey =
+  PublicKey(scheme: ECDSA, eckey: key)
 
 proc init*(t: typedesc[PublicKey], data: string): CryptoResult[PublicKey] =
   ## Create new public key from libp2p's protobuf serialized hexadecimal string
@@ -709,11 +726,11 @@ proc createProposal*(nonce, pubkey: openarray[byte],
   ## ``exchanges``, comma-delimeted list of supported ciphers ``ciphers`` and
   ## comma-delimeted list of supported hashes ``hashes``.
   var msg = initProtoBuffer({WithUint32BeLength})
-  msg.write(initProtoField(1, nonce))
-  msg.write(initProtoField(2, pubkey))
-  msg.write(initProtoField(3, exchanges))
-  msg.write(initProtoField(4, ciphers))
-  msg.write(initProtoField(5, hashes))
+  msg.write(1, nonce)
+  msg.write(2, pubkey)
+  msg.write(3, exchanges)
+  msg.write(4, ciphers)
+  msg.write(5, hashes)
   msg.finish()
   shallowCopy(result, msg.buffer)
 
@@ -726,19 +743,16 @@ proc decodeProposal*(message: seq[byte], nonce, pubkey: var seq[byte],
   ##
   ## Procedure returns ``true`` on success and ``false`` on error.
   var pb = initProtoBuffer(message)
-  if pb.getLengthValue(1, nonce) != -1 and
-     pb.getLengthValue(2, pubkey) != -1 and
-     pb.getLengthValue(3, exchanges) != -1 and
-     pb.getLengthValue(4, ciphers) != -1 and
-     pb.getLengthValue(5, hashes) != -1:
-    result = true
+  pb.getField(1, nonce) and pb.getField(2, pubkey) and
+  pb.getField(3, exchanges) and pb.getField(4, ciphers) and
+  pb.getField(5, hashes)
 
 proc createExchange*(epubkey, signature: openarray[byte]): seq[byte] =
   ## Create SecIO exchange message using ephemeral public key ``epubkey`` and
   ## signature of proposal blocks ``signature``.
   var msg = initProtoBuffer({WithUint32BeLength})
-  msg.write(initProtoField(1, epubkey))
-  msg.write(initProtoField(2, signature))
+  msg.write(1, epubkey)
+  msg.write(2, signature)
   msg.finish()
   shallowCopy(result, msg.buffer)
 
@@ -749,9 +763,7 @@ proc decodeExchange*(message: seq[byte],
   ##
   ## Procedure returns ``true`` on success and ``false`` on error.
   var pb = initProtoBuffer(message)
-  if pb.getLengthValue(1, pubkey) != -1 and
-     pb.getLengthValue(2, signature) != -1:
-    result = true
+  pb.getField(1, pubkey) and pb.getField(2, signature)
 
 ## Serialization/Deserialization helpers
 
@@ -770,22 +782,27 @@ proc write*(vb: var VBuffer, sig: PrivateKey) {.
   ## Write Signature value ``sig`` to buffer ``vb``.
   vb.writeSeq(sig.getBytes().tryGet())
 
-proc initProtoField*(index: int, pubkey: PublicKey): ProtoField {.
-     raises: [Defect, ResultError[CryptoError]].} =
-  ## Initialize ProtoField with PublicKey ``pubkey``.
-  result = initProtoField(index, pubkey.getBytes().tryGet())
+proc write*[T: PublicKey|PrivateKey](pb: var ProtoBuffer, field: int,
+                                     key: T) {.
+     inline, raises: [Defect, ResultError[CryptoError]].} =
+  write(pb, field, key.getBytes().tryGet())
 
-proc initProtoField*(index: int, seckey: PrivateKey): ProtoField {.
-     raises: [Defect, ResultError[CryptoError]].} =
-  ## Initialize ProtoField with PrivateKey ``seckey``.
-  result = initProtoField(index, seckey.getBytes().tryGet())
+proc write*(pb: var ProtoBuffer, field: int, sig: Signature) {.
+     inline, raises: [Defect, ResultError[CryptoError]].} =
+  write(pb, field, sig.getBytes())
 
-proc initProtoField*(index: int, sig: Signature): ProtoField =
+proc initProtoField*(index: int, key: PublicKey|PrivateKey): ProtoField {.
+     deprecated, raises: [Defect, ResultError[CryptoError]].} =
+  ## Initialize ProtoField with PublicKey/PrivateKey ``key``.
+  result = initProtoField(index, key.getBytes().tryGet())
+
+proc initProtoField*(index: int, sig: Signature): ProtoField {.deprecated.} =
   ## Initialize ProtoField with Signature ``sig``.
   result = initProtoField(index, sig.getBytes())
 
-proc getValue*(data: var ProtoBuffer, field: int, value: var PublicKey): int =
-  ## Read ``PublicKey`` from ProtoBuf's message and validate it.
+proc getValue*[T: PublicKey|PrivateKey](data: var ProtoBuffer, field: int,
+                                        value: var T): int {.deprecated.} =
+  ## Read PublicKey/PrivateKey from ProtoBuf's message and validate it.
   var buf: seq[byte]
   var key: PublicKey
   result = getLengthValue(data, field, buf)
@@ -795,18 +812,8 @@ proc getValue*(data: var ProtoBuffer, field: int, value: var PublicKey): int =
     else:
       value = key
 
-proc getValue*(data: var ProtoBuffer, field: int, value: var PrivateKey): int =
-  ## Read ``PrivateKey`` from ProtoBuf's message and validate it.
-  var buf: seq[byte]
-  var key: PrivateKey
-  result = getLengthValue(data, field, buf)
-  if result > 0:
-    if not key.init(buf):
-      result = -1
-    else:
-      value = key
-
-proc getValue*(data: var ProtoBuffer, field: int, value: var Signature): int =
+proc getValue*(data: var ProtoBuffer, field: int, value: var Signature): int {.
+     deprecated.} =
   ## Read ``Signature`` from ProtoBuf's message and validate it.
   var buf: seq[byte]
   var sig: Signature
@@ -816,3 +823,30 @@ proc getValue*(data: var ProtoBuffer, field: int, value: var Signature): int =
       result = -1
     else:
       value = sig
+
+proc getField*[T: PublicKey|PrivateKey](pb: ProtoBuffer, field: int,
+                                        value: var T): bool =
+  var buffer: seq[byte]
+  var key: T
+  if not(getField(pb, field, buffer)):
+    return false
+  if len(buffer) == 0:
+    return false
+  if key.init(buffer):
+    value = key
+    true
+  else:
+    false
+
+proc getField*(pb: ProtoBuffer, field: int, value: var Signature): bool =
+  var buffer: seq[byte]
+  var sig: Signature
+  if not(getField(pb, field, buffer)):
+    return false
+  if len(buffer) == 0:
+    return false
+  if sig.init(buffer):
+    value = sig
+    true
+  else:
+    false

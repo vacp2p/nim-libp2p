@@ -17,12 +17,15 @@ requires "nim >= 1.2.0",
          "stew >= 0.1.0"
 
 proc runTest(filename: string, verify: bool = true, sign: bool = true) =
-  var excstr = "nim c -r --opt:speed -d:debug --verbosity:0 --hints:off -d:chronicles_log_level=info"
+  var excstr = "nim c --opt:speed -d:debug --verbosity:0 --hints:off"
   excstr.add(" --warning[CaseTransition]:off --warning[ObservableStores]:off --warning[LockLevel]:off")
   excstr.add(" -d:libp2p_pubsub_sign=" & $sign)
   excstr.add(" -d:libp2p_pubsub_verify=" & $verify)
-  excstr.add(" tests/" & filename)
-  exec excstr
+  if verify and sign:
+    # build it with TRACE and JSON logs
+    exec excstr & " -d:chronicles_log_level=TRACE -d:chronicles_sinks:json" & " tests/" & filename
+  # build it again, to run it with less verbose logs
+  exec excstr & " -d:chronicles_log_level=INFO -r" & " tests/" & filename
   rmFile "tests/" & filename.toExe
 
 proc buildSample(filename: string) =

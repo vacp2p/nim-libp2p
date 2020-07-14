@@ -14,8 +14,6 @@ import types,
        nimcrypto/utils,
        ../../stream/connection,
        ../../stream/bufferstream,
-       ../../utility,
-       ../../errors,
        ../../peerinfo
 
 export connection
@@ -189,14 +187,11 @@ proc closeRemote*(s: LPChannel) {.async.} =
     # stack = getStackTrace()
 
   trace "got EOF, closing channel"
-
-  # wait for all data in the buffer to be consumed
-  while s.len > 0:
-    await s.dataReadEvent.wait()
-    s.dataReadEvent.clear()
+  await s.drainBuffer()
 
   s.isEof = true # set EOF immediately to prevent further reads
   await s.close() # close local end
+
   # call to avoid leaks
   await procCall BufferStream(s).close() # close parent bufferstream
   trace "channel closed on EOF"
@@ -227,7 +222,11 @@ method reset*(s: LPChannel) {.base, async, gcsafe.} =
   # might be dead already - reset is always
   # optimistic
   asyncCheck s.resetMessage()
+
+  # drain the buffer before closing
+  await s.drainBuffer()
   await procCall BufferStream(s).close()
+
   s.isEof = true
   s.closedLocal = true
 
@@ -254,11 +253,11 @@ method close*(s: LPChannel) {.async, gcsafe.} =
       if s.atEof: # already closed by remote close parent buffer immediately
         await procCall BufferStream(s).close()
     except CancelledError as exc:
-      await s.reset() # reset on timeout
+      await s.reset()
       raise exc
     except CatchableError as exc:
       trace "exception closing channel"
-      await s.reset() # reset on timeout
+      await s.reset()
 
     trace "lpchannel closed local"
 

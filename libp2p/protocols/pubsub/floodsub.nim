@@ -15,9 +15,7 @@ import pubsub,
        rpc/[messages, message],
        ../../stream/connection,
        ../../peerid,
-       ../../peerinfo,
-       ../../utility,
-       ../../errors
+       ../../peerinfo
 
 logScope:
   topics = "floodsub"
@@ -26,7 +24,7 @@ const FloodSubCodec* = "/floodsub/1.0.0"
 
 type
   FloodSub* = ref object of PubSub
-    floodsub*: Table[string, HashSet[string]] # topic to remote peer map
+    floodsub*: PeerTable # topic to remote peer map
     seen*: TimedCache[string]                 # list of messages forwarded to peers
 
 method subscribeTopic*(f: FloodSub,
@@ -35,23 +33,28 @@ method subscribeTopic*(f: FloodSub,
                        peerId: string) {.gcsafe, async.} =
   await procCall PubSub(f).subscribeTopic(topic, subscribe, peerId)
 
+  let peer = f.peers.getOrDefault(peerId)
+  if peer == nil:
+    debug "subscribeTopic on a nil peer!"
+    return
+
   if topic notin f.floodsub:
-    f.floodsub[topic] = initHashSet[string]()
+    f.floodsub[topic] = initHashSet[PubSubPeer]()
 
   if subscribe:
-    trace "adding subscription for topic", peer = peerId, name = topic
+    trace "adding subscription for topic", peer = peer.id, name = topic
     # subscribe the peer to the topic
-    f.floodsub[topic].incl(peerId)
+    f.floodsub[topic].incl(peer)
   else:
-    trace "removing subscription for topic", peer = peerId, name = topic
+    trace "removing subscription for topic", peer = peer.id, name = topic
     # unsubscribe the peer from the topic
-    f.floodsub[topic].excl(peerId)
+    f.floodsub[topic].excl(peer)
 
 method handleDisconnect*(f: FloodSub, peer: PubSubPeer) =
   ## handle peer disconnects
   for t in toSeq(f.floodsub.keys):
     if t in f.floodsub:
-      f.floodsub[t].excl(peer.id)
+      f.floodsub[t].excl(peer)
 
   procCall PubSub(f).handleDisconnect(peer)
 
@@ -62,7 +65,7 @@ method rpcHandler*(f: FloodSub,
 
   for m in rpcMsgs:                                  # for all RPC messages
     if m.messages.len > 0:                           # if there are any messages
-      var toSendPeers: HashSet[string] = initHashSet[string]()
+      var toSendPeers = initHashSet[PubSubPeer]()
       for msg in m.messages:                         # for every message
         let msgId = f.msgIdProvider(msg)
         logScope: msgId
@@ -138,7 +141,8 @@ method publish*(f: FloodSub,
   let (published, failed) = await f.sendHelper(f.floodsub.getOrDefault(topic), @[msg])
   for p in failed:
     let peer = f.peers.getOrDefault(p)
-    f.handleDisconnect(peer) # cleanup failed peers
+    if not isNil(peer):
+      f.handleDisconnect(peer) # cleanup failed peers
 
   libp2p_pubsub_messages_published.inc(labelValues = [topic])
 
@@ -157,6 +161,6 @@ method initPubSub*(f: FloodSub) =
   procCall PubSub(f).initPubSub()
   f.peers = initTable[string, PubSubPeer]()
   f.topics = initTable[string, Topic]()
-  f.floodsub = initTable[string, HashSet[string]]()
+  f.floodsub = initTable[string, HashSet[PubSubPeer]]()
   f.seen = newTimedCache[string](2.minutes)
   f.init()

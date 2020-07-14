@@ -9,7 +9,7 @@
 
 {.used.}
 
-import unittest, sequtils, options, tables, sets
+import unittest, sequtils, options, tables
 import chronos, stew/byteutils
 import utils,
        ../../libp2p/[errors,
@@ -18,8 +18,7 @@ import utils,
                      crypto/crypto,
                      protocols/pubsub/pubsub,
                      protocols/pubsub/floodsub,
-                     protocols/pubsub/rpc/messages,
-                     protocols/pubsub/rpc/message]
+                     protocols/pubsub/rpc/messages]
 
 import ../helpers
 
@@ -29,7 +28,7 @@ proc waitSub(sender, receiver: auto; key: string) {.async, gcsafe.} =
   var ceil = 15
   let fsub = cast[FloodSub](sender.pubSub.get())
   while not fsub.floodsub.hasKey(key) or
-        not fsub.floodsub[key].contains(receiver.peerInfo.id):
+        not fsub.floodsub.hasPeerID(key, receiver.peerInfo.id):
     await sleepAsync(100.millis)
     dec ceil
     doAssert(ceil > 0, "waitSub timeout!")

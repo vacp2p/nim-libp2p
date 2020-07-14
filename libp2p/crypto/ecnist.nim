@@ -39,11 +39,11 @@ const
 
 type
   EcPrivateKey* = ref object
-    buffer*: seq[byte]
+    buffer*: array[BR_EC_KBUF_PRIV_MAX_SIZE, byte]
     key*: BrEcPrivateKey
 
   EcPublicKey* = ref object
-    buffer*: seq[byte]
+    buffer*: array[BR_EC_KBUF_PUB_MAX_SIZE, byte]
     key*: BrEcPublicKey
 
   EcKeyPair* = object
@@ -237,7 +237,6 @@ proc random*(
   ## secp521r1).
   var ecimp = brEcGetDefault()
   var res = new EcPrivateKey
-  res.buffer = newSeq[byte](BR_EC_KBUF_PRIV_MAX_SIZE)
   if brEcKeygen(addr rng.vtable, ecimp,
                 addr res.key, addr res.buffer[0],
                 cast[cint](kind)) == 0:
@@ -254,7 +253,6 @@ proc getKey*(seckey: EcPrivateKey): EcResult[EcPublicKey] =
   if seckey.key.curve in EcSupportedCurvesCint:
     var length = getPublicKeyLength(cast[EcCurveKind](seckey.key.curve))
     var res = new EcPublicKey
-    res.buffer = newSeq[byte](length)
     if brEcComputePublicKey(ecimp, addr res.key,
                             addr res.buffer[0], unsafeAddr seckey.key) == 0:
       err(EcKeyIncorrectError)
@@ -621,7 +619,6 @@ proc init*(key: var EcPrivateKey, data: openarray[byte]): Result[void, Asn1Error
 
   if checkScalar(raw.toOpenArray(), curve) == 1'u32:
     key = new EcPrivateKey
-    key.buffer = newSeq[byte](raw.length)
     copyMem(addr key.buffer[0], addr raw.buffer[raw.offset], raw.length)
     key.key.x = cast[ptr cuchar](addr key.buffer[0])
     key.key.xlen = raw.length
@@ -681,7 +678,6 @@ proc init*(pubkey: var EcPublicKey, data: openarray[byte]): Result[void, Asn1Err
 
   if checkPublic(raw.toOpenArray(), curve) != 0:
     pubkey = new EcPublicKey
-    pubkey.buffer = newSeq[byte](raw.length)
     copyMem(addr pubkey.buffer[0], addr raw.buffer[raw.offset], raw.length)
     pubkey.key.q = cast[ptr cuchar](addr pubkey.buffer[0])
     pubkey.key.qlen = raw.length
@@ -769,7 +765,6 @@ proc initRaw*(key: var EcPrivateKey, data: openarray[byte]): bool =
     if checkScalar(data, curve) == 1'u32:
       let length = len(data)
       key = new EcPrivateKey
-      key.buffer = newSeq[byte](length)
       copyMem(addr key.buffer[0], unsafeAddr data[0], length)
       key.key.x = cast[ptr cuchar](addr key.buffer[0])
       key.key.xlen = length
@@ -801,7 +796,6 @@ proc initRaw*(pubkey: var EcPublicKey, data: openarray[byte]): bool =
     if checkPublic(data, curve) != 0:
       let length = len(data)
       pubkey = new EcPublicKey
-      pubkey.buffer = newSeq[byte](length)
       copyMem(addr pubkey.buffer[0], unsafeAddr data[0], length)
       pubkey.key.q = cast[ptr cuchar](addr pubkey.buffer[0])
       pubkey.key.qlen = length

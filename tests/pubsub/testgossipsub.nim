@@ -32,11 +32,11 @@ proc waitSub(sender, receiver: auto; key: string) {.async, gcsafe.} =
   var ceil = 15
   let fsub = GossipSub(sender.pubSub.get())
   while (not fsub.gossipsub.hasKey(key) or
-         not fsub.gossipsub[key].contains(receiver.peerInfo.id)) and
+         not fsub.gossipsub.hasPeerID(key, receiver.peerInfo.id)) and
         (not fsub.mesh.hasKey(key) or
-         not fsub.mesh[key].contains(receiver.peerInfo.id)) and
+         not fsub.mesh.hasPeerID(key, receiver.peerInfo.id)) and
         (not fsub.fanout.hasKey(key) or
-         not fsub.fanout[key].contains(receiver.peerInfo.id)):
+         not fsub.fanout.hasPeerID(key , receiver.peerInfo.id)):
     trace "waitSub sleeping..."
     await sleepAsync(1.seconds)
     dec ceil
@@ -192,7 +192,7 @@ suite "GossipSub":
       check:
         "foobar" in gossip2.topics
         "foobar" in gossip1.gossipsub
-        gossip2.peerInfo.id in gossip1.gossipsub["foobar"]
+        gossip1.gossipsub.hasPeerID("foobar", gossip2.peerInfo.id)
 
       await allFuturesThrowing(nodes.mapIt(it.stop()))
       await allFuturesThrowing(awaitters)
@@ -236,11 +236,11 @@ suite "GossipSub":
         "foobar" in gossip1.gossipsub
         "foobar" in gossip2.gossipsub
 
-        gossip2.peerInfo.id in gossip1.gossipsub["foobar"] or
-        gossip2.peerInfo.id in gossip1.mesh["foobar"]
+        gossip1.gossipsub.hasPeerID("foobar", gossip2.peerInfo.id) or
+        gossip1.mesh.hasPeerID("foobar", gossip2.peerInfo.id)
 
-        gossip1.peerInfo.id in gossip2.gossipsub["foobar"] or
-        gossip1.peerInfo.id in gossip2.mesh["foobar"]
+        gossip2.gossipsub.hasPeerID("foobar", gossip1.peerInfo.id) or
+        gossip2.mesh.hasPeerID("foobar", gossip1.peerInfo.id)
 
       await allFuturesThrowing(nodes.mapIt(it.stop()))
       await allFuturesThrowing(awaitters)

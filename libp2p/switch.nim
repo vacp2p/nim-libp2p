@@ -10,7 +10,6 @@
 import tables,
        sequtils,
        options,
-       strformat,
        sets,
        algorithm,
        oids
@@ -20,19 +19,17 @@ import chronos,
        metrics
 
 import stream/connection,
-       stream/chronosstream,
        transports/transport,
        multistream,
        multiaddress,
        protocols/protocol,
        protocols/secure/secure,
-       protocols/secure/plaintext, # for plain text
        peerinfo,
        protocols/identify,
        protocols/pubsub/pubsub,
        muxers/muxer,
-       errors,
-       peerid
+       peerid,
+       errors
 
 logScope:
   topics = "switch"
@@ -307,11 +304,10 @@ proc cleanupConn(s: Switch, conn: Connection) {.async, gcsafe.} =
         conn.peerInfo.close()
     finally:
       await conn.close()
+      libp2p_peers.set(s.connections.len.int64)
 
       if lock.locked():
         lock.release()
-
-      libp2p_peers.set(s.connections.len.int64)
 
 proc disconnect*(s: Switch, peer: PeerInfo) {.async, gcsafe.} =
   let connections = s.connections.getOrDefault(peer.id)
