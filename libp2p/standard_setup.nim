@@ -9,13 +9,8 @@ import
   crypto/crypto, transports/[transport, tcptransport],
   muxers/[muxer, mplex/mplex, mplex/types],
   protocols/[identify, secure/secure],
-  protocols/pubsub/[pubsub, floodsub],
+  protocols/pubsub/[pubsub, floodsub, gossipsub],
   protocols/pubsub/rpc/message
-
-when not defined(gossip11):
-  import protocols/pubsub/gossipsub
-else:
-  import protocols/pubsub/gossipsub11
 
 import
   protocols/secure/noise,

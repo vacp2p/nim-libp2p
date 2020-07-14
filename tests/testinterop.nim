@@ -26,12 +26,7 @@ import ../libp2p/[daemon/daemonapi,
                   transports/tcptransport,
                   protocols/secure/secure,
                   protocols/pubsub/pubsub,
-                  protocols/pubsub/floodsub]
-
-when not defined(gossip11):
-  import ../libp2p/protocols/pubsub/gossipsub
-else:
-  import ../libp2p/protocols/pubsub/gossipsub11
+                  protocols/pubsub/floodsub, gossipsub]
 
 type
   # TODO: Unify both PeerInfo structs

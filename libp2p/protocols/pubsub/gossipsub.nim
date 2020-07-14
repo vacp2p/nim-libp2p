@@ -7,7 +7,7 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import tables, sets, options, sequtils, random
+import tables, sets, options, sequtils, random, algorithm
 import chronos, chronicles, metrics
 import pubsub,
        floodsub,
@@ -25,29 +25,48 @@ import pubsub,
 logScope:
   topics = "gossipsub"
 
-const GossipSubCodec* = "/meshsub/1.0.0"
+const
+  GossipSubCodec* = "/meshsub/1.0.0"
+  GossipSubCodec_11* = "/meshsub/1.1.0"
 
 # overlay parameters
-const GossipSubD* = 6
-const GossipSubDlo* = 4
-const GossipSubDhi* = 12
+const
+  GossipSubD* = 6
+  GossipSubDlo* = 4
+  GossipSubDhi* = 12
 
 # gossip parameters
-const GossipSubHistoryLength* = 5
-const GossipSubHistoryGossip* = 3
+const
+  GossipSubHistoryLength* = 5
+  GossipSubHistoryGossip* = 3
+  GossipBackoffPeriod* = 1.minutes
 
 # heartbeat interval
-const GossipSubHeartbeatInitialDelay* = 100.millis
-const GossipSubHeartbeatInterval* = 1.seconds
+const
+  GossipSubHeartbeatInitialDelay* = 100.millis
+  GossipSubHeartbeatInterval* = 1.seconds
 
 # fanout ttl
-const GossipSubFanoutTTL* = 1.minutes
+const 
+  GossipSubFanoutTTL* = 1.minutes
 
 type
+  GossipSubParams* = object
+    pruneBackoff*: Duration
+    floodPublish*: bool
+    gossipFactor*: float
+    dScore*: int
+    dOut*: int
+
+    publishThreshold*: float
+
   GossipSub* = ref object of FloodSub
+    parameters*: GossipSubParams
     mesh*: Table[string, HashSet[string]]      # meshes - topic to peer
     fanout*: Table[string, HashSet[string]]    # fanout - topic to peer
     gossipsub*: Table[string, HashSet[string]] # topic to peer map of all gossipsub peers
+    explicit*: Table[string, HashSet[string]] # # topic to peer map of all explicit peers
+    explicitPeers*: HashSet[string] # explicit (always connected/forward) peers
     lastFanoutPubSub*: Table[string, Moment]   # last publish time for fanout topics
     gossip*: Table[string, seq[ControlIHave]]  # pending gossip
     control*: Table[string, ControlMessage]    # pending control messages
@@ -68,6 +87,16 @@ declareGauge(libp2p_gossipsub_peers_per_topic_gossipsub,
   "gossipsub peers per topic in gossipsub",
   labels = ["topic"])
 
+proc init*(_: type[GossipSubParams]): GossipSubParams =
+  GossipSubParams(
+      pruneBackoff: 1.minutes,
+      floodPublish: true,
+      gossipFactor: 0.25,
+      dScore: 4,
+      dOut: 2,
+      publishThreshold: 1.0,
+    )
+
 method init*(g: GossipSub) =
   proc handler(conn: Connection, proto: string) {.async.} =
     ## main protocol handler that gets triggered on every
@@ -75,10 +104,14 @@ method init*(g: GossipSub) =
     ## e.g. ``/floodsub/1.0.0``, etc...
     ##
 
+    if conn.peerInfo.maintain:
+      g.explicitPeers.incl(conn.peerInfo.id)
+
     await g.handleConn(conn, proto)
 
   g.handler = handler
-  g.codec = GossipSubCodec
+  g.codecs &= GossipSubCodec_11
+  g.codecs &= GossipSubCodec
 
 proc replenishFanout(g: GossipSub, topic: string) =
   ## get fanout peers for a topic
@@ -155,19 +188,34 @@ proc rebalanceMesh(g: GossipSub, topic: string) {.async.} =
 
     if g.mesh.getOrDefault(topic).len > GossipSubDhi:
       # prune peers if we've gone over
-      var mesh = toSeq(g.mesh.getOrDefault(topic))
-      shuffle(mesh)
 
-      trace "about to prune mesh", mesh = mesh.len
-      for id in mesh:
-        if g.mesh.getOrDefault(topic).len <= GossipSubD:
-          break
+      # ATTN possible perf bottleneck here... score is a "red" function
+      # and we call a lot of Table[] etc etc
 
+      # gather peers
+      var peers = toSeq(g.mesh[topic])
+      # sort peers by score
+      peers.sort(proc (x, y: string): int =
+        let
+          peerx = g.peers[x].score()
+          peery = g.peers[y].score()
+        if peerx < peery: -1
+        elif peerx == peery: 0
+        else: 1)
+      
+      while g.mesh[topic].len > GossipSubD:
         trace "pruning peers", peers = g.mesh[topic].len
-        let p = g.peers[id]
-        # send a graft message to the peer
-        await p.sendPrune(@[topic])
+
+        # pop a low score peer
+        let
+          id = peers.pop()
         g.mesh[topic].excl(id)
+
+        # send a prune message to the peer
+        let
+          p = g.peers[id]
+        # TODO send a set of other peers where the pruned peer can connect to reform its mesh
+        await p.sendPrune(@[topic])
 
     libp2p_gossipsub_peers_per_topic_gossipsub
       .set(g.gossipsub.getOrDefault(topic).len.int64,
@@ -298,10 +346,13 @@ method handleDisconnect*(g: GossipSub, peer: PubSubPeer) =
     libp2p_gossipsub_peers_per_topic_fanout
         .set(g.fanout[t].len.int64, labelValues = [t])
 
+  if peer.peerInfo.maintain:
+      g.explicitPeers.excl(peer.id)
+
 method subscribePeer*(p: GossipSub,
                         conn: Connection) =
   procCall PubSub(p).subscribePeer(conn)
-  asyncCheck p.handleConn(conn, GossipSubCodec)
+  asyncCheck p.handleConn(conn, GossipSubCodec_11)
 
 method subscribeTopic*(g: GossipSub,
                        topic: string,
@@ -316,10 +367,14 @@ method subscribeTopic*(g: GossipSub,
     trace "adding subscription for topic", peer = peerId, name = topic
     # subscribe remote peer to the topic
     g.gossipsub[topic].incl(peerId)
+    if peerId in g.explicitPeers:
+        g.explicit[topic].incl(peerId)
   else:
     trace "removing subscription for topic", peer = peerId, name = topic
     # unsubscribe remote peer from the topic
     g.gossipsub[topic].excl(peerId)
+    if peerId in g.explicitPeers:
+        g.explicit[topic].excl(peerId)
 
   libp2p_gossipsub_peers_per_topic_gossipsub
     .set(g.gossipsub[topic].len.int64, labelValues = [topic])
@@ -337,6 +392,14 @@ proc handleGraft(g: GossipSub,
   for graft in grafts:
     trace "processing graft message", peer = peer.id,
                                       topicID = graft.topicID
+
+    # It is an error to GRAFT on a explicit peer
+    if peer.peerInfo.maintain:
+      trace "attempt to graft an explicit peer",  peer=peer.id, 
+                                                  topicID=graft.topicID
+      # and such an attempt should be logged and rejected with a PRUNE
+      respControl.prune.add(ControlPrune(topicID: graft.topicID))
+      continue
 
     if graft.topicID in g.topics:
       if g.mesh.len < GossipSubD:
@@ -426,6 +489,9 @@ method rpcHandler*(g: GossipSub,
           if t in g.mesh:
             toSendPeers.incl(g.mesh[t])            # get all mesh peers for topic
 
+          if t in g.explicit:
+            toSendPeers.incl(g.explicit[t])        # always forward to explicit peers
+
           if t in g.topics:                        # if we're subscribed to the topic
             for h in g.topics[t].handler:
               trace "calling handler for message", topicId = t,
@@ -486,9 +552,17 @@ method publish*(g: GossipSub,
   discard await procCall PubSub(g).publish(topic, data)
   trace "about to publish message on topic", name = topic,
                                              data = data.shortLog
-  var peers: HashSet[string]
-  if topic.len <= 0: # data could be 0/empty
-    return 0
+  # directly copy explicit peers
+  # as we will always publish to those
+  var peers = g.explicitPeers
+
+  if topic.len > 0: # data could be 0/empty
+    if g.parameters.floodPublish:
+      for id, peer in g.peers:
+        if  topic in peer.topics and
+            peer.score() >= g.parameters.publishThreshold:
+          debug "publish: including flood/high score peer", peer = id
+          peers.incl(id)
 
   if topic in g.topics: # if we're subscribed use the mesh
     peers = g.mesh.getOrDefault(topic)

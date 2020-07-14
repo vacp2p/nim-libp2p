@@ -1,7 +1,4 @@
-when not defined(gossip11):
-  include ../../libp2p/protocols/pubsub/gossipsub
-else:
-  include ../../libp2p/protocols/pubsub/gossipsub11
+include ../../libp2p/protocols/pubsub/gossipsub
 
 {.used.}
 
