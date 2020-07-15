@@ -31,11 +31,6 @@ type
     ECDSA,
     NoSupport
 
-  CipherScheme* = enum
-    Aes128 = 0,
-    Aes256,
-    Blowfish
-
   DigestSheme* = enum
     Sha256,
     Sha512
@@ -283,7 +278,9 @@ proc init*[T: PrivateKey|PublicKey](key: var T, data: openarray[byte]): bool =
   var buffer: seq[byte]
   if len(data) > 0:
     var pb = initProtoBuffer(@data)
-    if pb.getField(1, id) and pb.getField(2, buffer):
+    let r1 = pb.getField(1, id)
+    let r2 = pb.getField(2, buffer)
+    if r1.isOk() and r1.get() and r2.isOk() and r2.get():
       if cast[int8](id) in SupportedSchemesInt and len(buffer) > 0:
         var scheme = cast[PKScheme](cast[int8](id))
         when key is PrivateKey:
@@ -743,9 +740,15 @@ proc decodeProposal*(message: seq[byte], nonce, pubkey: var seq[byte],
   ##
   ## Procedure returns ``true`` on success and ``false`` on error.
   var pb = initProtoBuffer(message)
-  pb.getField(1, nonce) and pb.getField(2, pubkey) and
-  pb.getField(3, exchanges) and pb.getField(4, ciphers) and
-  pb.getField(5, hashes)
+  let r1 = pb.getField(1, nonce)
+  let r2 = pb.getField(2, pubkey)
+  let r3 = pb.getField(3, exchanges)
+  let r4 = pb.getField(4, ciphers)
+  let r5 = pb.getField(5, hashes)
+
+  r1.isOk() and r1.get() and r2.isOk() and r2.get() and
+  r3.isOk() and r3.get() and r4.isOk() and r4.get() and
+  r5.isOk() and r5.get()
 
 proc createExchange*(epubkey, signature: openarray[byte]): seq[byte] =
   ## Create SecIO exchange message using ephemeral public key ``epubkey`` and
@@ -763,7 +766,9 @@ proc decodeExchange*(message: seq[byte],
   ##
   ## Procedure returns ``true`` on success and ``false`` on error.
   var pb = initProtoBuffer(message)
-  pb.getField(1, pubkey) and pb.getField(2, signature)
+  let r1 = pb.getField(1, pubkey)
+  let r2 = pb.getField(2, signature)
+  r1.isOk() and r1.get() and r2.isOk() and r2.get()
 
 ## Serialization/Deserialization helpers
 
@@ -825,28 +830,37 @@ proc getValue*(data: var ProtoBuffer, field: int, value: var Signature): int {.
       value = sig
 
 proc getField*[T: PublicKey|PrivateKey](pb: ProtoBuffer, field: int,
-                                        value: var T): bool =
+                                        value: var T): ProtoResult[bool] =
+  ## Deserialize public/private key from protobuf's message ``pb`` using field
+  ## index ``field``.
+  ##
+  ## On success deserialized key will be stored in ``value``.
   var buffer: seq[byte]
   var key: T
-  if not(getField(pb, field, buffer)):
-    return false
-  if len(buffer) == 0:
-    return false
-  if key.init(buffer):
-    value = key
-    true
+  let res = ? pb.getField(field, buffer)
+  if not(res):
+    ok(false)
   else:
-    false
+    if key.init(buffer):
+      value = key
+      ok(true)
+    else:
+      err(ProtoError.IncorrectBlob)
 
-proc getField*(pb: ProtoBuffer, field: int, value: var Signature): bool =
+proc getField*(pb: ProtoBuffer, field: int,
+               value: var Signature): ProtoResult[bool] =
+  ## Deserialize signature from protobuf's message ``pb`` using field index
+  ## ``field``.
+  ##
+  ## On success deserialized signature will be stored in ``value``.
   var buffer: seq[byte]
   var sig: Signature
-  if not(getField(pb, field, buffer)):
-    return false
-  if len(buffer) == 0:
-    return false
-  if sig.init(buffer):
-    value = sig
-    true
+  let res = ? pb.getField(field, buffer)
+  if not(res):
+    ok(false)
   else:
-    false
+    if sig.init(buffer):
+      value = sig
+      ok(true)
+    else:
+      err(ProtoError.IncorrectBlob)

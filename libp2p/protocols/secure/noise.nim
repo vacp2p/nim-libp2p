@@ -449,9 +449,11 @@ method handshake*(p: Noise, conn: Connection, initiator: bool): Future[SecureCon
       remoteSig: Signature
       remoteSigBytes: seq[byte]
 
-    if not(remoteProof.getField(1, remotePubKeyBytes)):
+    let r1 = remoteProof.getField(1, remotePubKeyBytes)
+    let r2 = remoteProof.getField(2, remoteSigBytes)
+    if r1.isErr() or not(r1.get()):
       raise newException(NoiseHandshakeError, "Failed to deserialize remote public key bytes. (initiator: " & $initiator & ", peer: " & $conn.peerInfo.peerId & ")")
-    if not(remoteProof.getField(2, remoteSigBytes)):
+    if r2.isErr() or not(r2.get()):
       raise newException(NoiseHandshakeError, "Failed to deserialize remote signature bytes. (initiator: " & $initiator & ", peer: " & $conn.peerInfo.peerId & ")")
 
     if not remotePubKey.init(remotePubKeyBytes):

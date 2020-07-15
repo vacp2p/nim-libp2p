@@ -23,11 +23,13 @@ import stew/results
 export results
 
 const
-  DefaultPublicExponent* = 3'u32
+  DefaultPublicExponent* = 65537'u32
     ## Default value for RSA public exponent.
-  MinKeySize* = 512
+    ## https://golang.org/src/crypto/rsa/rsa.go#226
+  MinKeySize* = 2048
     ## Minimal allowed RSA key size in bits.
-  DefaultKeySize* = 2048
+    ## https://github.com/libp2p/go-libp2p-core/blob/master/crypto/rsa_common.go#L13
+  DefaultKeySize* = 3072
     ## Default RSA key size in bits.
 
   RsaOidSha1* = [
@@ -78,7 +80,8 @@ type
   RsaError* = enum
     RsaGenError,
     RsaKeyIncorrectError,
-    RsaSignatureError
+    RsaSignatureError,
+    RsaLowSecurityError
 
   RsaResult*[T] = Result[T, RsaError]
 
@@ -118,9 +121,12 @@ proc random*[T: RsaKP](t: typedesc[T], rng: var BrHmacDrbgContext,
   ## algorithm.
   ##
   ## ``bits`` number of bits in RSA key, must be in
-  ## range [512, 4096] (default = 2048).
+  ## range [2048, 4096] (default = 3072).
   ##
   ## ``pubexp`` is RSA public exponent, which must be prime (default = 3).
+  if bits < MinKeySize:
+    return err(RsaLowSecurityError)
+
   let
     sko = 0
     pko = brRsaPrivateKeyBufferSize(bits)
