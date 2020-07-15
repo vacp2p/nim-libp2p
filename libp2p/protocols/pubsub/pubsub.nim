@@ -106,7 +106,7 @@ proc sendSubs*(p: PubSub,
       trace "awaiting send connection"
       await peer.onConnect.wait()
 
-    await peer.send(@[msg])
+    await peer.send(msg)
   except CancelledError as exc:
     p.handleDisconnect(peer)
     raise exc
@@ -269,7 +269,7 @@ proc sendHelper*(p: PubSub,
       continue
 
     trace "sending messages to peer", peer = sendPeer.id, msgs
-    sent.add((id: sendPeer.id, fut: sendPeer.send(@[RPCMsg(messages: msgs)])))
+    sent.add((id: sendPeer.id, fut: sendPeer.send(RPCMsg(messages: msgs))))
 
   var published: seq[string]
   var failed: seq[string]

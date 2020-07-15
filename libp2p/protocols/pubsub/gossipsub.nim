@@ -253,7 +253,7 @@ proc heartbeat(g: GossipSub) {.async.} =
       var sent: seq[Future[void]]
       for peer in peers.keys:
         if peer in g.peers:
-          sent &= g.peers[peer].send(@[RPCMsg(control: some(peers[peer]))])
+          sent &= g.peers[peer].send(RPCMsg(control: some(peers[peer])))
       checkFutures(await allFinished(sent))
 
       g.mcache.shift() # shift the cache
@@ -456,8 +456,8 @@ method rpcHandler*(g: GossipSub,
       if respControl.graft.len > 0 or respControl.prune.len > 0 or
          respControl.ihave.len > 0 or respControl.iwant.len > 0:
         await peer.send(
-          @[RPCMsg(control: some(respControl),
-                   messages: g.handleIWant(peer, control.iwant))])
+          RPCMsg(control: some(respControl),
+                   messages: g.handleIWant(peer, control.iwant)))
 
 method subscribe*(g: GossipSub,
                   topic: string,

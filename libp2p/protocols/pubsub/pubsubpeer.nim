@@ -142,52 +142,50 @@ proc handle*(p: PubSubPeer, conn: Connection) {.async.} =
     trace "Exception occurred in PubSubPeer.handle", exc = exc.msg
     raise exc
 
-proc send*(p: PubSubPeer, msgs: seq[RPCMsg]) {.async.} =
+proc send*(p: PubSubPeer, msg: RPCMsg) {.async.} =
   logScope:
     peer = p.id
-    msgs = $msgs
+    msgs = shortLog(msg)
 
-  for m in msgs.items:
-    trace "sending msgs to peer", toPeer = p.id, msgs = $msgs
+  trace "sending msg to peer"
 
-    # trigger send hooks
-    var mm = m # hooks can modify the message
-    p.sendObservers(mm)
+  # trigger send hooks
+  var mm = msg # hooks can modify the message
+  p.sendObservers(mm)
 
-    let encoded = encodeRpcMsg(mm)
-    if encoded.len <= 0:
-      trace "empty message, skipping", peer = p.id
-      return
+  let encoded = encodeRpcMsg(mm)
+  if encoded.len <= 0:
+    trace "empty message, skipping", peer = p.id
+    return
 
-    let digest = $(sha256.digest(encoded))
-    if digest in p.sentRpcCache:
-      trace "message already sent to peer, skipping", peer = p.id
-      libp2p_pubsub_skipped_sent_messages.inc(labelValues = [p.id])
-      continue
+  let digest = $(sha256.digest(encoded))
+  if digest in p.sentRpcCache:
+    trace "message already sent to peer, skipping", peer = p.id
+    libp2p_pubsub_skipped_sent_messages.inc(labelValues = [p.id])
+    return
 
-    try:
-      trace "about to send message", peer = p.id,
-                                     encoded = digest
-      if p.connected: # this can happen if the remote disconnected
-        trace "sending encoded msgs to peer", peer = p.id,
-                                              encoded = encoded.shortLog
-        await p.sendConn.writeLp(encoded)
-        p.sentRpcCache.put(digest)
+  try:
+    trace "about to send message", peer = p.id,
+                                    encoded = digest
+    if p.connected: # this can happen if the remote disconnected
+      trace "sending encoded msgs to peer", peer = p.id,
+                                            encoded = encoded.shortLog
+      await p.sendConn.writeLp(encoded)
+      p.sentRpcCache.put(digest)
 
-        for m in msgs:
-          for mm in m.messages:
-            for t in mm.topicIDs:
-              # metrics
-              libp2p_pubsub_sent_messages.inc(labelValues = [p.id, t])
+      for msg in mm.messages:
+        for t in msg.topicIDs:
+          # metrics
+          libp2p_pubsub_sent_messages.inc(labelValues = [p.id, t])
 
-    except CatchableError as exc:
-      trace "unable to send to remote", exc = exc.msg
-      if not(isNil(p.sendConn)):
-        await p.sendConn.close()
-        p.sendConn = nil
-        p.onConnect.clear()
+  except CatchableError as exc:
+    trace "unable to send to remote", exc = exc.msg
+    if not(isNil(p.sendConn)):
+      await p.sendConn.close()
+      p.sendConn = nil
+      p.onConnect.clear()
 
-      raise exc
+    raise exc
 
 proc sendMsg*(p: PubSubPeer,
               peerId: PeerID,
@@ -195,13 +193,13 @@ proc sendMsg*(p: PubSubPeer,
               data: seq[byte],
               seqno: uint64,
               sign: bool): Future[void] {.gcsafe.} =
-  p.send(@[RPCMsg(messages: @[Message.init(p.peerInfo, data, topic, seqno, sign)])])
+  p.send(RPCMsg(messages: @[Message.init(p.peerInfo, data, topic, seqno, sign)]))
 
 proc sendGraft*(p: PubSubPeer, topics: seq[string]) {.async.} =
   try:
     for topic in topics:
       trace "sending graft msg to peer", peer = p.id, topicID = topic
-      await p.send(@[RPCMsg(control: some(ControlMessage(graft: @[ControlGraft(topicID: topic)])))])
+      await p.send(RPCMsg(control: some(ControlMessage(graft: @[ControlGraft(topicID: topic)]))))
   except CancelledError as exc:
     raise exc
   except CatchableError as exc:
@@ -211,7 +209,7 @@ proc sendPrune*(p: PubSubPeer, topics: seq[string]) {.async.} =
   try:
     for topic in topics:
       trace "sending prune msg to peer", peer = p.id, topicID = topic
-      await p.send(@[RPCMsg(control: some(ControlMessage(prune: @[ControlPrune(topicID: topic)])))])
+      await p.send(RPCMsg(control: some(ControlMessage(prune: @[ControlPrune(topicID: topic)]))))
   except CancelledError as exc:
     raise exc
   except CatchableError as exc:
