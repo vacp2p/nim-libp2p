@@ -18,6 +18,8 @@ proc noop(data: seq[byte]) {.async, gcsafe.} = discard
 proc randomPeerInfo(): PeerInfo =
   PeerInfo.init(PrivateKey.random(ECDSA, rng[]).get())
 
+let params = GossipSubParams.init()
+
 suite "GossipSub internal":
   teardown:
     for tracker in testTrackers():
@@ -26,7 +28,7 @@ suite "GossipSub internal":
 
   test "`rebalanceMesh` Degree Lo":
     proc testRun(): Future[bool] {.async.} =
-      let gossipSub = newPubSub(TestGossipSub, randomPeerInfo())
+      let gossipSub = newPubSub(TestGossipSub, randomPeerInfo(), params = params)
 
       let topic = "foobar"
       gossipSub.mesh[topic] = initHashSet[PubSubPeer]()
@@ -56,7 +58,7 @@ suite "GossipSub internal":
 
   test "`rebalanceMesh` Degree Hi":
     proc testRun(): Future[bool] {.async.} =
-      let gossipSub = newPubSub(TestGossipSub, randomPeerInfo())
+      let gossipSub = newPubSub(TestGossipSub, randomPeerInfo(), params = params)
 
       let topic = "foobar"
       gossipSub.mesh[topic] = initHashSet[PubSubPeer]()
@@ -87,7 +89,7 @@ suite "GossipSub internal":
 
   test "`replenishFanout` Degree Lo":
     proc testRun(): Future[bool] {.async.} =
-      let gossipSub = newPubSub(TestGossipSub, randomPeerInfo())
+      let gossipSub = newPubSub(TestGossipSub, randomPeerInfo(), params = params)
 
       proc handler(peer: PubSubPeer, msg: seq[RPCMsg]) {.async.} =
         discard
@@ -118,7 +120,7 @@ suite "GossipSub internal":
 
   test "`dropFanoutPeers` drop expired fanout topics":
     proc testRun(): Future[bool] {.async.} =
-      let gossipSub = newPubSub(TestGossipSub, randomPeerInfo())
+      let gossipSub = newPubSub(TestGossipSub, randomPeerInfo(), params = params)
 
       proc handler(peer: PubSubPeer, msg: seq[RPCMsg]) {.async.} =
         discard
@@ -152,7 +154,7 @@ suite "GossipSub internal":
 
   test "`dropFanoutPeers` leave unexpired fanout topics":
     proc testRun(): Future[bool] {.async.} =
-      let gossipSub = newPubSub(TestGossipSub, randomPeerInfo())
+      let gossipSub = newPubSub(TestGossipSub, randomPeerInfo(), params = params)
 
       proc handler(peer: PubSubPeer, msg: seq[RPCMsg]) {.async.} =
         discard
@@ -192,7 +194,7 @@ suite "GossipSub internal":
 
   test "`getGossipPeers` - should gather up to degree D non intersecting peers":
     proc testRun(): Future[bool] {.async.} =
-      let gossipSub = newPubSub(TestGossipSub, randomPeerInfo())
+      let gossipSub = newPubSub(TestGossipSub, randomPeerInfo(), params = params)
 
       proc handler(peer: PubSubPeer, msg: seq[RPCMsg]) {.async.} =
         discard
@@ -254,7 +256,7 @@ suite "GossipSub internal":
 
   test "`getGossipPeers` - should not crash on missing topics in mesh":
     proc testRun(): Future[bool] {.async.} =
-      let gossipSub = newPubSub(TestGossipSub, randomPeerInfo())
+      let gossipSub = newPubSub(TestGossipSub, randomPeerInfo(), params = params)
 
       proc handler(peer: PubSubPeer, msg: seq[RPCMsg]) {.async.} =
         discard
@@ -296,7 +298,7 @@ suite "GossipSub internal":
 
   test "`getGossipPeers` - should not crash on missing topics in fanout":
     proc testRun(): Future[bool] {.async.} =
-      let gossipSub = newPubSub(TestGossipSub, randomPeerInfo())
+      let gossipSub = newPubSub(TestGossipSub, randomPeerInfo(), params = params)
 
       proc handler(peer: PubSubPeer, msg: seq[RPCMsg]) {.async.} =
         discard
@@ -338,7 +340,7 @@ suite "GossipSub internal":
 
   test "`getGossipPeers` - should not crash on missing topics in gossip":
     proc testRun(): Future[bool] {.async.} =
-      let gossipSub = newPubSub(TestGossipSub, randomPeerInfo())
+      let gossipSub = newPubSub(TestGossipSub, randomPeerInfo(), params = params)
 
       proc handler(peer: PubSubPeer, msg: seq[RPCMsg]) {.async.} =
         discard
