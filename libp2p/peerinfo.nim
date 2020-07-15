@@ -7,7 +7,7 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import options, sequtils
+import options, sequtils, hashes
 import chronos, chronicles
 import peerid, multiaddress, crypto/crypto
 
@@ -133,6 +133,9 @@ proc publicKey*(p: PeerInfo): Option[PublicKey] {.inline.} =
       result = p.key
   else:
     result = some(p.privateKey.getKey().tryGet())
+
+func hash*(p: PeerInfo): Hash =
+  cast[pointer](p).hash
 
 func `==`*(a, b: PeerInfo): bool =
   # override equiality to support both nil and peerInfo comparisons

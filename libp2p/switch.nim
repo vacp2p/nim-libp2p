@@ -28,6 +28,7 @@ import stream/connection,
        protocols/identify,
        protocols/pubsub/pubsub,
        muxers/muxer,
+       connmanager,
        peerid
 
 logScope:
@@ -39,33 +40,16 @@ logScope:
 # and only if the channel has been secured (i.e. if a secure manager has been
 # previously provided)
 
-declareGauge(libp2p_peers, "total connected peers")
 declareCounter(libp2p_dialed_peers, "dialed peers")
 declareCounter(libp2p_failed_dials, "failed dials")
 declareCounter(libp2p_failed_upgrade, "peers failed upgrade")
 
-const MaxConnectionsPerPeer = 5
-
 type
     NoPubSubException* = object of CatchableError
-    TooManyConnections* = object of CatchableError
-
-    Direction {.pure.} = enum
-      In, Out
-
-    ConnectionHolder = object
-      dir: Direction
-      conn: Connection
-
-    MuxerHolder = object
-      dir: Direction
-      muxer: Muxer
-      handle: Future[void]
 
     Switch* = ref object of RootObj
       peerInfo*: PeerInfo
-      connections*: Table[string, seq[ConnectionHolder]]
-      muxed*: Table[string, seq[MuxerHolder]]
+      connManager: ConnManager
       transports*: seq[Transport]
       protocols*: seq[LPProtocol]
       muxers*: Table[string, MuxerProvider]
@@ -75,90 +59,12 @@ type
       secureManagers*: seq[Secure]
       pubSub*: Option[PubSub]
       dialLock: Table[string, AsyncLock]
-      cleanUpLock: Table[string, AsyncLock]
 
 proc newNoPubSubException(): ref NoPubSubException {.inline.} =
   result = newException(NoPubSubException, "no pubsub provided!")
 
-proc newTooManyConnections(): ref TooManyConnections {.inline.} =
-  result = newException(TooManyConnections, "too many connections for peer")
-
 proc disconnect*(s: Switch, peer: PeerInfo) {.async, gcsafe.}
 proc subscribePeer*(s: Switch, peerInfo: PeerInfo) {.async, gcsafe.}
-
-proc selectConn(s: Switch, peerInfo: PeerInfo): Connection =
-  ## select the "best" connection according to some criteria
-  ##
-  ## Ideally when the connection's stats are available
-  ## we'd select the fastest, but for now we simply pick an outgoing
-  ## connection first if none is available, we pick the first outgoing
-  ##
-
-  if isNil(peerInfo):
-    return
-
-  let conns = s.connections
-    .getOrDefault(peerInfo.id)
-    # it should be OK to sort on each
-    # access as there should only be
-    # up to MaxConnectionsPerPeer entries
-    .sorted(
-      proc(a, b: ConnectionHolder): int =
-        if a.dir < b.dir: -1
-        elif a.dir == b.dir: 0
-        else: 1
-    , SortOrder.Descending)
-
-  if conns.len > 0:
-    return conns[0].conn
-
-proc selectMuxer(s: Switch, conn: Connection): Muxer =
-  ## select the muxer for the supplied connection
-  ##
-
-  if isNil(conn):
-    return
-
-  if not(isNil(conn.peerInfo)) and conn.peerInfo.id in s.muxed:
-    if s.muxed[conn.peerInfo.id].len > 0:
-      let muxers = s.muxed[conn.peerInfo.id]
-        .filterIt( it.muxer.connection == conn )
-      if muxers.len > 0:
-        return muxers[0].muxer
-
-proc storeConn(s: Switch,
-               muxer: Muxer,
-               dir: Direction,
-               handle: Future[void] = nil) {.async.} =
-  ## store the connection and muxer
-  ##
-  if isNil(muxer):
-    return
-
-  let conn = muxer.connection
-  if isNil(conn):
-    return
-
-  let id = conn.peerInfo.id
-  if s.connections.getOrDefault(id).len > MaxConnectionsPerPeer:
-    warn "disconnecting peer, too many connections", peer = $conn.peerInfo,
-                                                      conns = s.connections
-                                                      .getOrDefault(id).len
-    await s.disconnect(conn.peerInfo)
-    raise newTooManyConnections()
-
-  s.connections.mgetOrPut(
-    id,
-    newSeq[ConnectionHolder]())
-    .add(ConnectionHolder(conn: conn, dir: dir))
-
-  s.muxed.mgetOrPut(
-    muxer.connection.peerInfo.id,
-    newSeq[MuxerHolder]())
-    .add(MuxerHolder(muxer: muxer, handle: handle, dir: dir))
-
-  trace "storred connection", connections = s.connections.len
-  libp2p_peers.set(s.connections.len.int64)
 
 proc secure(s: Switch, conn: Connection): Future[Connection] {.async, gcsafe.} =
   if s.secureManagers.len <= 0:
@@ -218,6 +124,7 @@ proc mux(s: Switch, conn: Connection) {.async, gcsafe.} =
 
   # create new muxer for connection
   let muxer = s.muxers[muxerName].newMuxer(conn)
+  s.connManager.storeMuxer(muxer)
 
   trace "found a muxer", name = muxerName, peer = $conn
 
@@ -247,75 +154,10 @@ proc mux(s: Switch, conn: Connection) {.async, gcsafe.} =
 
   # store it in muxed connections if we have a peer for it
   trace "adding muxer for peer", peer = conn.peerInfo.id
-  await s.storeConn(muxer, Direction.Out, handlerFut)
-
-proc cleanupConn(s: Switch, conn: Connection) {.async, gcsafe.} =
-    if isNil(conn):
-      return
-
-    if isNil(conn.peerInfo):
-      return
-
-    let id = conn.peerInfo.id
-    let lock = s.cleanUpLock.mgetOrPut(id, newAsyncLock())
-
-    try:
-      await lock.acquire()
-      trace "cleaning up connection for peer", peerId = id
-      if id in s.muxed:
-        let muxerHolder = s.muxed[id]
-          .filterIt(
-            it.muxer.connection == conn
-          )
-
-        if muxerHolder.len > 0:
-          await muxerHolder[0].muxer.close()
-          if not(isNil(muxerHolder[0].handle)):
-            await muxerHolder[0].handle
-
-        if id in s.muxed:
-          s.muxed[id].keepItIf(
-            it.muxer.connection != conn
-          )
-
-          if s.muxed[id].len == 0:
-            s.muxed.del(id)
-
-      if s.pubSub.isSome:
-        await s.pubSub.get()
-          .unsubscribePeer(conn.peerInfo)
-
-      if id in s.connections:
-        s.connections[id].keepItIf(
-          it.conn != conn
-        )
-
-        if s.connections[id].len == 0:
-          s.connections.del(id)
-
-      # TODO: Investigate cleanupConn() always called twice for one peer.
-      if not(conn.peerInfo.isClosed()):
-        conn.peerInfo.close()
-    finally:
-      await conn.close()
-      libp2p_peers.set(s.connections.len.int64)
-
-      if lock.locked():
-        lock.release()
+  s.connManager.storeMuxer(muxer, handlerFut) # update muxer with handler
 
 proc disconnect*(s: Switch, peer: PeerInfo) {.async, gcsafe.} =
-  let connections = s.connections.getOrDefault(peer.id)
-  for connHolder in connections:
-    if not isNil(connHolder.conn):
-      await s.cleanupConn(connHolder.conn)
-
-proc getMuxedStream(s: Switch, peerInfo: PeerInfo): Future[Connection] {.async, gcsafe.} =
-  # if there is a muxer for the connection
-  # use it instead to create a muxed stream
-
-  let muxer = s.selectMuxer(s.selectConn(peerInfo)) # always get the first muxer here
-  if not(isNil(muxer)):
-    return await muxer.newStream()
+  await s.connManager.dropConns(peer)
 
 proc upgradeOutgoing(s: Switch, conn: Connection): Future[Connection] {.async, gcsafe.} =
   logScope:
@@ -394,15 +236,17 @@ proc internalConnect(s: Switch,
 
   await lock.acquire()
   trace "about to dial peer", peer = id
-  conn = s.selectConn(peer)
-  if conn.isNil or conn.closed:
+  conn = s.connManager.selectConn(peer)
+  if conn.isNil or (conn.closed or conn.atEof):
     trace "Dialing peer", peer = id
     for t in s.transports: # for each transport
       for a in peer.addrs: # for each address
         if t.handles(a):   # check if it can dial it
-          trace "Dialing address", address = $a
+          trace "Dialing address", address = $a, peer = id
           try:
             conn = await t.dial(a)
+            conn.dir = Direction.Out # tag connection with direction
+            s.connManager.storeConn(conn)
             libp2p_dialed_peers.inc()
           except CancelledError as exc:
             trace "dialing canceled", exc = exc.msg
@@ -426,10 +270,6 @@ proc internalConnect(s: Switch,
           if isNil(conn):
             libp2p_failed_upgrade.inc()
             continue
-
-          conn.closeEvent.wait()
-          .addCallback do(udata: pointer):
-            asyncCheck s.cleanupConn(conn)
           break
   else:
     trace "Reusing existing connection", oid = conn.oid
@@ -443,8 +283,8 @@ proc internalConnect(s: Switch,
     raise newException(CatchableError,
       "Connection dead on arrival")
 
-  doAssert(conn.peerInfo.id in s.connections,
-    "connection not tracked!")
+  # doAssert(conn.peerInfo.id in s.connections,
+  #   "connection not tracked!")
 
   trace "dial succesfull", oid = $conn.oid,
                            peer = $conn.peerInfo
@@ -460,7 +300,7 @@ proc dial*(s: Switch,
            proto: string):
            Future[Connection] {.async.} =
   let conn = await s.internalConnect(peer)
-  let stream = await s.getMuxedStream(peer)
+  let stream = await s.connManager.getMuxedStream(conn)
 
   proc cleanup() {.async.} =
     if not(isNil(stream)):
@@ -505,14 +345,15 @@ proc start*(s: Switch): Future[seq[Future[void]]] {.async, gcsafe.} =
 
   proc handle(conn: Connection): Future[void] {.async, closure, gcsafe.} =
     try:
-      defer:
-        await s.cleanupConn(conn)
-
+      conn.dir = Direction.In # tag connection with direction
+      s.connManager.storeConn(conn) # track connection
       await s.upgradeIncoming(conn) # perform upgrade on incoming connection
     except CancelledError as exc:
       raise exc
     except CatchableError as exc:
       trace "Exception occurred in Switch.start", exc = exc.msg
+    finally:
+      await conn.close()
 
   var startFuts: seq[Future[void]]
   for t in s.transports: # for each transport
@@ -537,14 +378,8 @@ proc stop*(s: Switch) {.async.} =
   if s.pubSub.isSome:
     await s.pubSub.get().stop()
 
-  for conns in toSeq(s.connections.values):
-    for conn in conns:
-      try:
-          await s.cleanupConn(conn.conn)
-      except CancelledError as exc:
-        raise exc
-      except CatchableError as exc:
-        warn "error cleaning up connections"
+  # close and cleanup all connections
+  await s.connManager.close()
 
   for t in s.transports:
     try:
@@ -562,7 +397,19 @@ proc subscribePeer*(s: Switch, peerInfo: PeerInfo) {.async, gcsafe.} =
     trace "about to subscribe to pubsub peer", peer = peerInfo.shortLog()
     var stream: Connection
     try:
-      stream = await s.getMuxedStream(peerInfo)
+      stream = await s.connManager.getMuxedStream(peerInfo, Direction.Out)
+
+      if isNil(stream):
+        trace "unable to subscribe to peer", peer = peerInfo.shortLog
+        return
+
+      if not await s.ms.select(stream, s.pubSub.get().codec):
+        if not(isNil(stream)):
+          await stream.close()
+        return
+
+      s.pubSub.get().subscribePeer(stream)
+
     except CancelledError as exc:
       if not(isNil(stream)):
         await stream.close()
@@ -573,17 +420,6 @@ proc subscribePeer*(s: Switch, peerInfo: PeerInfo) {.async, gcsafe.} =
                                               exc = exc.msg
       if not(isNil(stream)):
         await stream.close()
-
-    if isNil(stream):
-      trace "unable to subscribe to peer", peer = peerInfo.shortLog
-      return
-
-    if not await s.ms.select(stream, s.pubSub.get().codec):
-      if not(isNil(stream)):
-        await stream.close()
-      return
-
-    s.pubSub.get().subscribePeer(stream)
 
 proc subscribe*(s: Switch, topic: string,
                 handler: TopicHandler): Future[void] =
@@ -648,11 +484,7 @@ proc muxerHandler(s: Switch, muxer: Muxer) {.async, gcsafe.} =
     muxer.connection.peerInfo = stream.peerInfo
 
     # store muxer and muxed connection
-    await s.storeConn(muxer, Direction.In)
-
-    muxer.connection.closeEvent.wait()
-      .addCallback do(udata: pointer):
-        asyncCheck s.cleanupConn(muxer.connection)
+    s.connManager.storeMuxer(muxer)
 
     trace "got new muxer", peer = $muxer.connection.peerInfo
 
@@ -680,8 +512,7 @@ proc newSwitch*(peerInfo: PeerInfo,
     peerInfo: peerInfo,
     ms: newMultistream(),
     transports: transports,
-    connections: initTable[string, seq[ConnectionHolder]](),
-    muxed: initTable[string, seq[MuxerHolder]](),
+    connManager: ConnManager.init(),
     identity: identity,
     muxers: muxers,
     secureManagers: @secureManagers,

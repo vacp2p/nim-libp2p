@@ -7,6 +7,7 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
+import hashes
 import chronos, metrics
 import lpstream,
        ../multiaddress,
@@ -18,9 +19,13 @@ const
   ConnectionTrackerName* = "libp2p.connection"
 
 type
+  Direction* {.pure.} = enum
+    In, Out
+
   Connection* = ref object of LPStream
     peerInfo*: PeerInfo
     observedAddr*: Multiaddress
+    dir*: Direction
 
   ConnectionTracker* = ref object of TrackerBase
     opened*: uint64
@@ -50,7 +55,9 @@ proc setupConnectionTracker(): ConnectionTracker =
   result.isLeaked = leakTransport
   addTracker(ConnectionTrackerName, result)
 
-proc init*[T: Connection](self: var T, peerInfo: PeerInfo): T =
+proc init*(self: type Connection,
+           peerInfo: PeerInfo,
+           dir: Direction): Connection =
   new self
   self.initStream()
 
@@ -69,3 +76,22 @@ method close*(s: Connection) {.async.} =
 proc `$`*(conn: Connection): string =
   if not isNil(conn.peerInfo):
     result = conn.peerInfo.id
+
+func hash*(p: Connection): Hash =
+  cast[pointer](p).hash
+
+func `==`*(a, b: Connection): bool =
+  # override equiality to support both nil and peerInfo comparisons
+  # this in the future will allow us to recycle refs
+  let
+    aptr = cast[pointer](a)
+    bptr = cast[pointer](b)
+
+  if isNil(aptr) and isNil(bptr):
+    return true
+
+  if isNil(aptr) or isNil(bptr):
+    return false
+
+  if aptr == bptr and a.peerInfo == b.peerInfo:
+    return true
