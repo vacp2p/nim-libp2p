@@ -111,8 +111,18 @@ const RSA_PublicKey = """
   A5EC510C68CE66290203010001
 """
 
+const
+  RSATestMessage = "RSA " & (
+    when supported(PKScheme.RSA): "(enabled)" else: "(disabled)") & " test"
+  EcdsaTestMessage = "ECDSA " & (
+    when supported(PKScheme.ECDSA): "(enabled)" else: "(disabled)") & " test"
+  EdTestMessage = "ED25519 " & (
+    when supported(PKScheme.Ed25519): "(enabled)" else: "(disabled)") & " test"
+  SecpTestMessage = "SECP256k1 " & (
+    when supported(PKScheme.Secp256k1): "(enabled)" else: "(disabled)") & " test"
+
 suite "Public key infrastructure filtering test suite":
-  test "RSA test":
+  test RSATestMessage:
     when not(supported(PKScheme.RSA)):
       let sk2048 = PrivateKey.random(PKScheme.RSA, rng[], 2048)
       let sk3072 = PrivateKey.random(PKScheme.RSA, rng[], 3072)
@@ -150,7 +160,7 @@ suite "Public key infrastructure filtering test suite":
         sk.isOk() == true
         pk.isOk() == true
 
-  test "ECDSA test":
+  test EcdsaTestMessage:
     when not(supported(PKScheme.ECDSA)):
       let rsk = PrivateKey.random(PKScheme.ECDSA, rng[])
       let rkp = KeyPair.random(PKScheme.ECDSA, rng[])
@@ -176,7 +186,7 @@ suite "Public key infrastructure filtering test suite":
         sk.isOk() == true
         pk.isOk() == true
 
-  test "ED25519 test":
+  test EdTestMessage:
     when not(supported(PKScheme.Ed25519)):
       let rsk = PrivateKey.random(PKScheme.Ed25519, rng[])
       let rkp = KeyPair.random(PKScheme.Ed25519, rng[])
@@ -202,7 +212,7 @@ suite "Public key infrastructure filtering test suite":
         sk.isOk() == true
         pk.isOk() == true
 
-  test "SECP256k1 test":
+  test SecpTestMessage:
     when not(supported(PKScheme.Secp256k1)):
       let rsk = PrivateKey.random(PKScheme.Secp256k1, rng[])
       let rkp = KeyPair.random(PKScheme.Secp256k1, rng[])
