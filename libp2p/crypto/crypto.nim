@@ -11,7 +11,7 @@
 {.push raises: [Defect].}
 from strutils import split, strip, cmpIgnoreCase
 
-const libp2p_pkischeme* {.strdefine.} = "rsa,ed25519,secp256k1,ecnist"
+const libp2p_pki_schemes* {.strdefine.} = "rsa,ed25519,secp256k1,ecnist"
 
 type
   PKScheme* = enum
@@ -50,8 +50,9 @@ proc initSupportedSchemes(schemes: static set[PKScheme]): set[int8] =
   res
 
 const
-  SupportedSchemes* = initSupportedSchemes(libp2p_pkischeme)
+  SupportedSchemes* = initSupportedSchemes(libp2p_pki_schemes)
   SupportedSchemesInt* = initSupportedSchemes(SupportedSchemes)
+  RsaDefaultKeySize* = 3072
 
 template supported*(scheme: PKScheme): bool =
   ## Returns true if specified ``scheme`` is currently available.
@@ -63,6 +64,9 @@ when supported(PKScheme.Ed25519):
   import ed25519/ed25519
 when supported(PKScheme.Secp256k1):
   import secp
+
+# We are still importing `ecnist` because, it is used for SECIO handshake,
+# but it will be impossible to create ECNIST keys or import ECNIST keys.
 
 import ecnist, bearssl
 import ../protobuf/minprotobuf, ../vbuffer, ../multihash, ../multicodec
@@ -169,7 +173,7 @@ proc newRng*(): ref BrHmacDrbgContext =
 
 proc random*(T: typedesc[PrivateKey], scheme: PKScheme,
              rng: var BrHmacDrbgContext,
-             bits = DefaultKeySize): CryptoResult[PrivateKey] =
+             bits = RsaDefaultKeySize): CryptoResult[PrivateKey] =
   ## Generate random private key for scheme ``scheme``.
   ##
   ## ``bits`` is number of bits for RSA key, ``bits`` value must be in
@@ -201,7 +205,7 @@ proc random*(T: typedesc[PrivateKey], scheme: PKScheme,
       err(SchemeError)
 
 proc random*(T: typedesc[PrivateKey], rng: var BrHmacDrbgContext,
-             bits = DefaultKeySize): CryptoResult[PrivateKey] =
+             bits = RsaDefaultKeySize): CryptoResult[PrivateKey] =
   ## Generate random private key using default public-key cryptography scheme.
   ##
   ## Default public-key cryptography schemes are following order:
@@ -225,7 +229,7 @@ proc random*(T: typedesc[PrivateKey], rng: var BrHmacDrbgContext,
 
 proc random*(T: typedesc[KeyPair], scheme: PKScheme,
              rng: var BrHmacDrbgContext,
-             bits = DefaultKeySize): CryptoResult[KeyPair] =
+             bits = RsaDefaultKeySize): CryptoResult[KeyPair] =
   ## Generate random key pair for scheme ``scheme``.
   ##
   ## ``bits`` is number of bits for RSA key, ``bits`` value must be in
@@ -265,7 +269,7 @@ proc random*(T: typedesc[KeyPair], scheme: PKScheme,
       err(SchemeError)
 
 proc random*(T: typedesc[KeyPair], rng: var BrHmacDrbgContext,
-             bits = DefaultKeySize): CryptoResult[KeyPair] =
+             bits = RsaDefaultKeySize): CryptoResult[KeyPair] =
   ## Generate random private pair of keys using default public-key cryptography
   ## scheme.
   ##
@@ -372,7 +376,7 @@ proc getRawBytes*(key: PrivateKey | PublicKey): CryptoResult[seq[byte]] =
     else:
       err(SchemeError)
   of PKScheme.Secp256k1:
-    when supported(PKScheme.ECDSA):
+    when supported(PKScheme.Secp256k1):
       ok(key.skkey.getBytes())
     else:
       err(SchemeError)
@@ -867,7 +871,7 @@ proc mac*(secret: Secret, id: int): seq[byte] {.inline.} =
 
 proc ephemeral*(
     scheme: ECDHEScheme,
-    rng: var BrHmacDrbgContext): CryptoResult[KeyPair] =
+    rng: var BrHmacDrbgContext): CryptoResult[EcKeyPair] =
   ## Generate ephemeral keys used to perform ECDHE.
   var keypair: EcKeyPair
   if scheme == Secp256r1:
@@ -876,12 +880,10 @@ proc ephemeral*(
     keypair = ? EcKeyPair.random(Secp384r1, rng).orError(KeyError)
   elif scheme == Secp521r1:
     keypair = ? EcKeyPair.random(Secp521r1, rng).orError(KeyError)
-  ok(KeyPair(
-    seckey: PrivateKey(scheme: ECDSA, eckey: keypair.seckey),
-    pubkey: PublicKey(scheme: ECDSA, eckey: keypair.pubkey)))
+  ok(EcKeyPair(keypair))
 
 proc ephemeral*(
-    scheme: string, rng: var BrHmacDrbgContext): CryptoResult[KeyPair] =
+    scheme: string, rng: var BrHmacDrbgContext): CryptoResult[EcKeyPair] =
   ## Generate ephemeral keys used to perform ECDHE using string encoding.
   ##
   ## Currently supported encoding strings are P-256, P-384, P-521, if encoding
@@ -894,33 +896,6 @@ proc ephemeral*(
     ephemeral(Secp521r1, rng)
   else:
     ephemeral(Secp521r1, rng)
-
-proc makeSecret*(remoteEPublic: PublicKey, localEPrivate: PrivateKey,
-                 data: var openarray[byte]): int =
-  ## Calculate shared secret using remote ephemeral public key
-  ## ``remoteEPublic`` and local ephemeral private key ``localEPrivate`` and
-  ## store shared secret to ``data``.
-  ##
-  ## Note this procedure supports only ECDSA keys.
-  ##
-  ## Returns number of bytes (octets) used to store shared secret data, or
-  ## ``0`` on error.
-  if remoteEPublic.scheme == ECDSA:
-    if localEPrivate.scheme == remoteEPublic.scheme:
-      result = toSecret(remoteEPublic.eckey, localEPrivate.eckey, data)
-
-proc getSecret*(remoteEPublic: PublicKey,
-                localEPrivate: PrivateKey): seq[byte] =
-  ## Calculate shared secret using remote ephemeral public key
-  ## ``remoteEPublic`` and local ephemeral private key ``localEPrivate`` and
-  ## store shared secret to ``data``.
-  ##
-  ## Note this procedure supports only ECDSA keys.
-  ##
-  ## Returns shared secret on success.
-  if remoteEPublic.scheme == ECDSA:
-    if localEPrivate.scheme == remoteEPublic.scheme:
-      result = getSecret(remoteEPublic.eckey, localEPrivate.eckey)
 
 proc getOrder*(remotePubkey, localNonce: openarray[byte],
                localPubkey, remoteNonce: openarray[byte]): CryptoResult[int] =

@@ -16,11 +16,13 @@ requires "nim >= 1.2.0",
          "secp256k1",
          "stew >= 0.1.0"
 
-proc runTest(filename: string, verify: bool = true, sign: bool = true) =
+proc runTest(filename: string, verify: bool = true, sign: bool = true,
+             moreoptions: string = "") =
   var excstr = "nim c --opt:speed -d:debug --verbosity:0 --hints:off"
   excstr.add(" --warning[CaseTransition]:off --warning[ObservableStores]:off --warning[LockLevel]:off")
   excstr.add(" -d:libp2p_pubsub_sign=" & $sign)
   excstr.add(" -d:libp2p_pubsub_verify=" & $verify)
+  excstr.add(" " & moreoptions & " ")
   if verify and sign:
     # build it with TRACE and JSON logs
     exec excstr & " -d:chronicles_log_level=TRACE -d:chronicles_sinks:json" & " tests/" & filename
@@ -48,11 +50,22 @@ task testpubsub, "Runs pubsub tests":
   runTest("pubsub/testpubsub")
   runTest("pubsub/testpubsub", sign = false, verify = false)
 
+task testfilter, "Run PKI filter test":
+  runTest("testpkifilter",
+           moreoptions = "--d:libp2p_pki_schemes=secp256k1")
+  runTest("testpkifilter",
+           moreoptions = "--d:libp2p_pki_schemes=secp256k1;ed25519")
+  runTest("testpkifilter",
+           moreoptions = "--d:libp2p_pki_schemes=secp256k1;ed25519;ecnist")
+  runTest("testpkifilter",
+           moreoptions = "--d:libp2p_pki_schemes=")
+
 task test, "Runs the test suite":
   exec "nimble testnative"
   exec "nimble testpubsub"
   exec "nimble testdaemon"
   exec "nimble testinterop"
+  exec "nimble testfilter"
 
 task examples_build, "Build the samples":
   buildSample("directchat")
