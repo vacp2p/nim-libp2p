@@ -188,18 +188,18 @@ proc send*(p: PubSubPeer, msg: RPCMsg) {.async.} =
     raise exc
 
 proc sendSubOpts*(p: PubSubPeer, topics: seq[string], subscribe: bool): Future[void] =
-  trace "sending subscriptions", peer = p.id, subscribe, topics
+  trace "sending subscriptions", peer = p.id, subscribe, topicIDs = topics
 
   p.send(RPCMsg(
     subscriptions: topics.mapIt(SubOpts(subscribe: subscribe, topic: it))))
 
 proc sendGraft*(p: PubSubPeer, topics: seq[string]): Future[void] =
-  trace "sending graft msg to peer", peer = p.id, topics
+  trace "sending graft msg to peer", peer = p.id, topicIDs = topics
   p.send(RPCMsg(control: some(
     ControlMessage(graft: topics.mapIt(ControlGraft(topicID: it))))))
 
 proc sendPrune*(p: PubSubPeer, topics: seq[string]): Future[void] =
-  trace "sending prune msg to peer", peer = p.id, topics
+  trace "sending prune msg to peer", peer = p.id, topicIDs = topics
   p.send(RPCMsg(control: some(
     ControlMessage(prune: topics.mapIt(ControlPrune(topicID: it))))))
 
