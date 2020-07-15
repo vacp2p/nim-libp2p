@@ -580,7 +580,7 @@ proc maintainPeers(s: Switch) {.async.} =
         var conns = s.connections.getOrDefault(peer.id)
         if conns.len == 0:
           # attempt re-connect in this case
-          trace "explicit peering, trying to re-connect", peer
+          trace "explicit peering, trying to re-connect", peer = peer.id
           await s.connect(peer)
     
     s.maintainSleepFut = sleepAsync(5.minutes) # spec recommended 

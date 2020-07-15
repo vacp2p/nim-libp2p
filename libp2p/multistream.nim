@@ -159,17 +159,22 @@ proc addHandler*[T: LPProtocol](m: MultistreamSelect,
                                 codecs: seq[string],
                                 protocol: T,
                                 matcher: Matcher = nil) =
-  trace "registering protocol", protos = codecs
+  # trace "registering protocol", protos = codecs
   m.handlers.add(HandlerHolder(protos: codecs,
                                protocol: protocol,
                                match: matcher))
+
+proc addHandler*[T: LPProtocol](m: MultistreamSelect,
+                                codec: string,
+                                protocol: T,
+                                matcher: Matcher = nil) =
+  addHandler(m, @[codec], protocol, matcher)
 
 proc addHandler*[T: LPProtoHandler](m: MultistreamSelect,
                                     codec: string,
                                     handler: T,
                                     matcher: Matcher = nil) =
   ## helper to allow registering pure handlers
-
   trace "registering proto handler", proto = codec
   let protocol = new LPProtocol
   protocol.codec = codec
