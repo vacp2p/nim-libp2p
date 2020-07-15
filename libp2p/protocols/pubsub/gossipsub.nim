@@ -7,7 +7,7 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import tables, sets, options, sequtils, random
+import std/[tables, sets, options, sequtils, random]
 import chronos, chronicles, metrics
 import pubsub,
        floodsub,
