@@ -9,7 +9,7 @@
 
 ## This module implements Public Key and Private Key interface for libp2p.
 {.push raises: [Defect].}
-import strutils
+from strutils import split, strip, cmpIgnoreCase
 
 const libp2p_pkischeme* {.strdefine.} = "rsa,ed25519,secp256k1,ecnist"
 
@@ -53,7 +53,7 @@ const
   SupportedSchemes* = initSupportedSchemes(libp2p_pkischeme)
   SupportedSchemesInt* = initSupportedSchemes(SupportedSchemes)
 
-proc supported*(scheme: static PKScheme): bool =
+template supported*(scheme: PKScheme): bool =
   ## Returns true if specified ``scheme`` is currently available.
   scheme in SupportedSchemes
 
@@ -86,7 +86,7 @@ type
   PublicKey* = object
     case scheme*: PKScheme
     of PKScheme.RSA:
-      when supported(PKScheme.RSA):
+      when PKScheme.RSA in SupportedSchemes:
         rsakey*: rsa.RsaPublicKey
       else:
         discard
@@ -210,16 +210,16 @@ proc random*(T: typedesc[PrivateKey], rng: var BrHmacDrbgContext,
   ## So will be used first available (supported) method.
   when supported(PKScheme.Ed25519):
     let edkey = EdPrivateKey.random(rng)
-    ok(PrivateKey(scheme: scheme, edkey: edkey))
+    ok(PrivateKey(scheme: PKScheme.Ed25519, edkey: edkey))
   elif supported(PKScheme.Secp256k1):
     let skkey = SkPrivateKey.random(rng)
-    ok(PrivateKey(scheme: scheme, skkey: skkey))
+    ok(PrivateKey(scheme: PKScheme.Secp256k1, skkey: skkey))
   elif supported(PKScheme.RSA):
     let rsakey = ? RsaPrivateKey.random(rng, bits).orError(KeyError)
-    ok(PrivateKey(scheme: scheme, rsakey: rsakey))
+    ok(PrivateKey(scheme: PKScheme.RSA, rsakey: rsakey))
   elif supported(PKScheme.ECDSA):
     let eckey = ? ecnist.EcPrivateKey.random(Secp256r1, rng).orError(KeyError)
-    ok(PrivateKey(scheme: scheme, eckey: eckey))
+    ok(PrivateKey(scheme: PKScheme.ECDSA, eckey: eckey))
   else:
     err(SchemeError)
 
@@ -276,23 +276,23 @@ proc random*(T: typedesc[KeyPair], rng: var BrHmacDrbgContext,
   when supported(PKScheme.Ed25519):
     let pair = EdKeyPair.random(rng)
     ok(KeyPair(
-      seckey: PrivateKey(scheme: scheme, edkey: pair.seckey),
-      pubkey: PublicKey(scheme: scheme, edkey: pair.pubkey)))
+      seckey: PrivateKey(scheme: PKScheme.Ed25519, edkey: pair.seckey),
+      pubkey: PublicKey(scheme: PKScheme.Ed25519, edkey: pair.pubkey)))
   elif supported(PKScheme.Secp256k1):
     let pair = SkKeyPair.random(rng)
     ok(KeyPair(
-      seckey: PrivateKey(scheme: scheme, skkey: pair.seckey),
-      pubkey: PublicKey(scheme: scheme, skkey: pair.pubkey)))
+      seckey: PrivateKey(scheme: PKScheme.Secp256k1, skkey: pair.seckey),
+      pubkey: PublicKey(scheme: PKScheme.Secp256k1, skkey: pair.pubkey)))
   elif supported(PKScheme.RSA):
     let pair = ? RsaKeyPair.random(rng, bits).orError(KeyError)
     ok(KeyPair(
-      seckey: PrivateKey(scheme: scheme, rsakey: pair.seckey),
-      pubkey: PublicKey(scheme: scheme, rsakey: pair.pubkey)))
+      seckey: PrivateKey(scheme: PKScheme.RSA, rsakey: pair.seckey),
+      pubkey: PublicKey(scheme: PKScheme.RSA, rsakey: pair.pubkey)))
   elif supported(PKScheme.ECDSA):
     let pair = ? EcKeyPair.random(Secp256r1, rng).orError(KeyError)
     ok(KeyPair(
-      seckey: PrivateKey(scheme: scheme, eckey: pair.seckey),
-      pubkey: PublicKey(scheme: scheme, eckey: pair.pubkey)))
+      seckey: PrivateKey(scheme: PKScheme.ECDSA, eckey: pair.seckey),
+      pubkey: PublicKey(scheme: PKScheme.ECDSA, eckey: pair.pubkey)))
   else:
     err(SchemeError)
 
@@ -444,57 +444,58 @@ proc init*[T: PrivateKey|PublicKey](key: var T, data: openarray[byte]): bool =
   var buffer: seq[byte]
   if len(data) <= 0:
     false
-  var pb = initProtoBuffer(@data)
-  let r1 = pb.getField(1, id)
-  let r2 = pb.getField(2, buffer)
-  if not(r1.isOk() and r1.get() and r2.isOk() and r2.get()):
-    false
   else:
-    if cast[int8](id) notin SupportedSchemesInt or len(buffer) <= 0:
+    var pb = initProtoBuffer(@data)
+    let r1 = pb.getField(1, id)
+    let r2 = pb.getField(2, buffer)
+    if not(r1.isOk() and r1.get() and r2.isOk() and r2.get()):
       false
     else:
-      var scheme = cast[PKScheme](cast[int8](id))
-      when key is PrivateKey:
-        var nkey = PrivateKey(scheme: scheme)
+      if cast[int8](id) notin SupportedSchemesInt or len(buffer) <= 0:
+        false
       else:
-        var nkey = PublicKey(scheme: scheme)
-      case scheme:
-      of PKScheme.RSA:
-        when supported(PKScheme.RSA):
-          if init(nkey.rsakey, buffer).isOk:
-            key = nkey
-            true
+        var scheme = cast[PKScheme](cast[int8](id))
+        when key is PrivateKey:
+          var nkey = PrivateKey(scheme: scheme)
+        else:
+          var nkey = PublicKey(scheme: scheme)
+        case scheme:
+        of PKScheme.RSA:
+          when supported(PKScheme.RSA):
+            if init(nkey.rsakey, buffer).isOk:
+              key = nkey
+              true
+            else:
+              false
           else:
             false
-        else:
-          false
-      of PKScheme.Ed25519:
-        when supported(PKScheme.Ed25519):
-          if init(nkey.edkey, buffer):
-            key = nkey
-            true
+        of PKScheme.Ed25519:
+          when supported(PKScheme.Ed25519):
+            if init(nkey.edkey, buffer):
+              key = nkey
+              true
+            else:
+              false
           else:
             false
-        else:
-          false
-      of PKScheme.ECDSA:
-        when supported(PKScheme.ECDSA):
-          if init(nkey.eckey, buffer).isOk:
-            key = nkey
-            true
+        of PKScheme.ECDSA:
+          when supported(PKScheme.ECDSA):
+            if init(nkey.eckey, buffer).isOk:
+              key = nkey
+              true
+            else:
+              false
           else:
             false
-        else:
-          false
-      of PKScheme.Secp256k1:
-        when supported(PKScheme.Secp256k1):
-          if init(nkey.skkey, buffer).isOk:
-            key = nkey
-            true
+        of PKScheme.Secp256k1:
+          when supported(PKScheme.Secp256k1):
+            if init(nkey.skkey, buffer).isOk:
+              key = nkey
+              true
+            else:
+              false
           else:
             false
-        else:
-          false
 
 proc init*(sig: var Signature, data: openarray[byte]): bool =
   ## Initialize signature ``sig`` from raw binary form.
@@ -510,7 +511,7 @@ proc init*[T: PrivateKey|PublicKey](key: var T, data: string): bool =
   ##
   ## Returns ``true`` on success.
   try:
-    key.init(fromHex(data))
+    key.init(utils.fromHex(data))
   except ValueError:
     false
 
@@ -520,7 +521,7 @@ proc init*(sig: var Signature, data: string): bool =
   ##
   ## Returns ``true`` on success.
   try:
-    sig.init(fromHex(data))
+    sig.init(utils.fromHex(data))
   except ValueError:
     false
 
@@ -555,7 +556,7 @@ proc init*(t: typedesc[PrivateKey], data: string): CryptoResult[PrivateKey] =
   ## Create new private key from libp2p's protobuf serialized hexadecimal string
   ## form.
   try:
-    t.init(fromHex(data))
+    t.init(utils.fromHex(data))
   except ValueError:
     err(KeyError)
 
@@ -587,14 +588,14 @@ proc init*(t: typedesc[PublicKey], data: string): CryptoResult[PublicKey] =
   ## Create new public key from libp2p's protobuf serialized hexadecimal string
   ## form.
   try:
-    t.init(fromHex(data))
+    t.init(utils.fromHex(data))
   except ValueError:
     err(KeyError)
 
 proc init*(t: typedesc[Signature], data: string): CryptoResult[Signature] =
   ## Create new signature from serialized hexadecimal string form.
   try:
-    t.init(fromHex(data))
+    t.init(utils.fromHex(data))
   except ValueError:
     err(SigError)
 
@@ -720,7 +721,7 @@ proc sign*(key: PrivateKey,
     else:
       err(SchemeError)
   of PKScheme.Ed25519:
-    when supported(PKScheme.Ed25519)
+    when supported(PKScheme.Ed25519):
       let sig = key.edkey.sign(data)
       res.data = sig.getBytes()
       ok(res)
@@ -959,14 +960,12 @@ proc selectBest*(order: int, p1, p2: string): string =
     s = strutils.split(p2, ",")
   else:
     var p = strutils.split(p1, ",")
-    result = p[0]
-    return
+    return p[0]
 
   for felement in f:
     for selement in s:
       if felement == selement:
-        result = felement
-        return
+        return felement
 
 proc createProposal*(nonce, pubkey: openarray[byte],
                      exchanges, ciphers, hashes: string): seq[byte] =
