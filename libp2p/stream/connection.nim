@@ -55,11 +55,11 @@ proc setupConnectionTracker(): ConnectionTracker =
   result.isLeaked = leakTransport
   addTracker(ConnectionTrackerName, result)
 
-proc init*(self: type Connection,
+proc init*(C: type Connection,
            peerInfo: PeerInfo,
            dir: Direction): Connection =
-  new self
-  self.initStream()
+  result = C(peerInfo: peerInfo, dir: dir)
+  result.initStream()
 
 method initStream*(s: Connection) =
   if s.objName.len == 0:

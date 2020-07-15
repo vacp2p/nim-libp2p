@@ -11,7 +11,6 @@ import tables,
        sequtils,
        options,
        sets,
-       algorithm,
        oids
 
 import chronos,
