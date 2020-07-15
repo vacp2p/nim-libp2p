@@ -7,7 +7,7 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import options, hashes, strutils, tables, hashes
+import std/[hashes, options, sequtils, strutils, tables]
 import chronos, chronicles, nimcrypto/sha2, metrics
 import rpc/[messages, message, protobuf],
        timedcache,
@@ -187,33 +187,21 @@ proc send*(p: PubSubPeer, msg: RPCMsg) {.async.} =
 
     raise exc
 
-proc sendMsg*(p: PubSubPeer,
-              peerId: PeerID,
-              topic: string,
-              data: seq[byte],
-              seqno: uint64,
-              sign: bool): Future[void] {.gcsafe.} =
-  p.send(RPCMsg(messages: @[Message.init(p.peerInfo, data, topic, seqno, sign)]))
+proc sendSubOpts*(p: PubSubPeer, topics: seq[string], subscribe: bool): Future[void] =
+  trace "sending subscriptions", peer = p.id, subscribe, topics
 
-proc sendGraft*(p: PubSubPeer, topics: seq[string]) {.async.} =
-  try:
-    for topic in topics:
-      trace "sending graft msg to peer", peer = p.id, topicID = topic
-      await p.send(RPCMsg(control: some(ControlMessage(graft: @[ControlGraft(topicID: topic)]))))
-  except CancelledError as exc:
-    raise exc
-  except CatchableError as exc:
-    trace "Could not send graft", msg = exc.msg
+  p.send(RPCMsg(
+    subscriptions: topics.mapIt(SubOpts(subscribe: subscribe, topic: it))))
 
-proc sendPrune*(p: PubSubPeer, topics: seq[string]) {.async.} =
-  try:
-    for topic in topics:
-      trace "sending prune msg to peer", peer = p.id, topicID = topic
-      await p.send(RPCMsg(control: some(ControlMessage(prune: @[ControlPrune(topicID: topic)]))))
-  except CancelledError as exc:
-    raise exc
-  except CatchableError as exc:
-    trace "Could not send prune", msg = exc.msg
+proc sendGraft*(p: PubSubPeer, topics: seq[string]): Future[void] =
+  trace "sending graft msg to peer", peer = p.id, topics
+  p.send(RPCMsg(control: some(
+    ControlMessage(graft: topics.mapIt(ControlGraft(topicID: it))))))
+
+proc sendPrune*(p: PubSubPeer, topics: seq[string]): Future[void] =
+  trace "sending prune msg to peer", peer = p.id, topics
+  p.send(RPCMsg(control: some(
+    ControlMessage(prune: topics.mapIt(ControlPrune(topicID: it))))))
 
 proc `$`*(p: PubSubPeer): string =
   p.id
