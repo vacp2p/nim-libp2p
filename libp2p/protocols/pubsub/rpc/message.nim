@@ -19,6 +19,7 @@ import messages, protobuf,
        ../../../peerinfo,
        ../../../crypto/crypto,
        ../../../protobuf/minprotobuf
+import stew/endians2
 
 logScope:
   topics = "pubsubmessage"
@@ -56,15 +57,12 @@ proc init*(
     p: PeerInfo,
     data: seq[byte],
     topic: string,
+    seqno: uint64,
     sign: bool = true): Message {.gcsafe, raises: [CatchableError, Defect].} =
-  var seqno: seq[byte] = newSeq[byte](8)
-  if randomBytes(addr seqno[0], 8) <= 0:
-    raise (ref CatchableError)(msg: "Cannot get randomness for message")
-
   result = Message(
     fromPeer: p.peerId,
     data: data,
-    seqno: seqno,
+    seqno: @(seqno.toBytesBE), # unefficient, fine for now
     topicIDs: @[topic])
 
   if sign and p.publicKey.isSome:

@@ -227,12 +227,14 @@ suite "GossipSub internal":
         gossipSub.gossipsub[topic].incl(peer)
 
       # generate messages
+      var seqno = 0'u64
       for i in 0..5:
         let conn = newBufferStream(noop)
         conns &= conn
         let peerInfo = randomPeerInfo()
         conn.peerInfo = peerInfo
-        let msg = Message.init(peerInfo, ("HELLO" & $i).toBytes(), topic, false)
+        inc seqno
+        let msg = Message.init(peerInfo, ("HELLO" & $i).toBytes(), topic, seqno, false)
         gossipSub.mcache.put(gossipSub.msgIdProvider(msg), msg)
 
       check gossipSub.fanout[topic].len == 15
@@ -276,12 +278,14 @@ suite "GossipSub internal":
           gossipSub.gossipsub[topic].incl(peer)
 
       # generate messages
+      var seqno = 0'u64
       for i in 0..5:
         let conn = newBufferStream(noop)
         conns &= conn
         let peerInfo = randomPeerInfo()
         conn.peerInfo = peerInfo
-        let msg = Message.init(peerInfo, ("HELLO" & $i).toBytes(), topic, false)
+        inc seqno
+        let msg = Message.init(peerInfo, ("HELLO" & $i).toBytes(), topic, seqno, false)
         gossipSub.mcache.put(gossipSub.msgIdProvider(msg), msg)
 
       let peers = gossipSub.getGossipPeers()
@@ -318,12 +322,14 @@ suite "GossipSub internal":
           gossipSub.gossipsub[topic].incl(peer)
 
       # generate messages
+      var seqno = 0'u64
       for i in 0..5:
         let conn = newBufferStream(noop)
         conns &= conn
         let peerInfo = randomPeerInfo()
         conn.peerInfo = peerInfo
-        let msg = Message.init(peerInfo, ("HELLO" & $i).toBytes(), topic, false)
+        inc seqno
+        let msg = Message.init(peerInfo, ("HELLO" & $i).toBytes(), topic, seqno, false)
         gossipSub.mcache.put(gossipSub.msgIdProvider(msg), msg)
 
       let peers = gossipSub.getGossipPeers()
@@ -360,12 +366,14 @@ suite "GossipSub internal":
           gossipSub.fanout[topic].incl(peer)
 
       # generate messages
+      var seqno = 0'u64
       for i in 0..5:
         let conn = newBufferStream(noop)
         conns &= conn
         let peerInfo = randomPeerInfo()
         conn.peerInfo = peerInfo
-        let msg = Message.init(peerInfo, ("bar" & $i).toBytes(), topic, false)
+        inc seqno
+        let msg = Message.init(peerInfo, ("bar" & $i).toBytes(), topic, seqno, false)
         gossipSub.mcache.put(gossipSub.msgIdProvider(msg), msg)
 
       let peers = gossipSub.getGossipPeers()

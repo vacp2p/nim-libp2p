@@ -60,6 +60,7 @@ type
     validators*: Table[string, HashSet[ValidatorHandler]]
     observers: ref seq[PubSubObserver] # ref as in smart_ptr
     msgIdProvider*: MsgIdProvider      # Turn message into message id (not nil)
+    msgSeqno*: uint64
 
 proc hasPeerID*(t: PeerTable, topic, peerId: string): bool =
   # unefficient but used only in tests!
