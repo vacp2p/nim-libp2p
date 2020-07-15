@@ -19,6 +19,7 @@ import utils, ../../libp2p/[errors,
                             crypto/crypto,
                             protocols/pubsub/pubsub,
                             protocols/pubsub/gossipsub,
+                            protocols/pubsub/peertable,
                             protocols/pubsub/rpc/messages]
 
 import ../helpers

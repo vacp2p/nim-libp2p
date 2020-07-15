@@ -30,8 +30,6 @@ declareCounter(libp2p_pubsub_validation_failure, "pubsub failed validated messag
 declarePublicCounter(libp2p_pubsub_messages_published, "published messages", labels = ["topic"])
 
 type
-  PeerTable* = Table[string, HashSet[PubSubPeer]]
-
   SendRes = tuple[published: seq[string], failed: seq[string]] # keep private
 
   TopicHandler* = proc(topic: string,
@@ -62,20 +60,11 @@ type
     msgIdProvider*: MsgIdProvider      # Turn message into message id (not nil)
     msgSeqno*: uint64
 
-proc hasPeerID*(t: PeerTable, topic, peerId: string): bool =
-  # unefficient but used only in tests!
-  let peers = t.getOrDefault(topic)
-  if peers.len == 0:
-    false
-  else:
-    let ps = toSeq(peers)
-    ps.any do (peer: PubSubPeer) -> bool:
-      peer.id == peerId
-
 method handleDisconnect*(p: PubSub, peer: PubSubPeer) {.base.} =
   ## handle peer disconnects
   ##
-  if not isNil(peer.peerInfo) and peer.id in p.peers:
+  if not isNil(peer.peerInfo) and
+    peer.id in p.peers and not peer.inUse():
     trace "deleting peer", peer = peer.id
     p.peers.del(peer.id)
     trace "peer disconnected", peer = peer.id

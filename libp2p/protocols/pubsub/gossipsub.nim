@@ -12,6 +12,7 @@ import chronos, chronicles, metrics
 import pubsub,
        floodsub,
        pubsubpeer,
+       peertable,
        mcache,
        timedcache,
        rpc/[messages, message],
@@ -67,28 +68,6 @@ declareGauge(libp2p_gossipsub_peers_per_topic_fanout,
 declareGauge(libp2p_gossipsub_peers_per_topic_gossipsub,
   "gossipsub peers per topic in gossipsub",
   labels = ["topic"])
-
-func addPeer(table: var PeerTable, topic: string, peer: PubSubPeer): bool =
-  # returns true if the peer was added, false if it was already in the collection
-  not table.mgetOrPut(topic, initHashSet[PubSubPeer]()).containsOrIncl(peer)
-
-func removePeer(table: var PeerTable, topic: string, peer: PubSubPeer) =
-  table.withValue(topic, peers):
-    peers[].excl(peer)
-    if peers[].len == 0:
-      table.del(topic)
-
-func hasPeer(table: PeerTable, topic: string, peer: PubSubPeer): bool =
-  (topic in table) and (peer in table[topic])
-
-func peers(table: PeerTable, topic: string): int =
-  if topic in table:
-    table[topic].len
-  else:
-    0
-
-func getPeers(table: Table[string, HashSet[string]], topic: string): HashSet[string] =
-  table.getOrDefault(topic, initHashSet[string]())
 
 method init*(g: GossipSub) =
   proc handler(conn: Connection, proto: string) {.async.} =
@@ -147,7 +126,7 @@ proc rebalanceMesh(g: GossipSub, topic: string) {.async.} =
       # send a graft message to the peer
       grafts.add peer
       discard g.mesh.addPeer(topic, peer)
-      trace "got peer", peer = peer.id
+      trace "got peer", peer = $peer
 
   if g.mesh.peers(topic) > GossipSubDhi:
     # prune peers if we've gone over
@@ -331,7 +310,7 @@ proc handleGraft(g: GossipSub,
                  grafts: seq[ControlGraft]): seq[ControlPrune] =
   for graft in grafts:
     let topic = graft.topicID
-    trace "processing graft message", topic, peer = peer.id
+    trace "processing graft message", topic, peer = $peer
 
       # If they send us a graft before they send us a subscribe, what should
       # we do? For now, we add them to mesh but don't add them to gossipsub.
@@ -344,7 +323,7 @@ proc handleGraft(g: GossipSub,
         if g.mesh.addPeer(topic, peer):
           g.fanout.removePeer(topic, peer)
         else:
-          trace "Peer already in mesh", topic, peer = peer.id
+          trace "Peer already in mesh", topic, peer = $peer
       else:
         result.add(ControlPrune(topicID: topic))
     else:
@@ -355,7 +334,7 @@ proc handleGraft(g: GossipSub,
 
 proc handlePrune(g: GossipSub, peer: PubSubPeer, prunes: seq[ControlPrune]) =
   for prune in prunes:
-    trace "processing prune message", peer = peer.id,
+    trace "processing prune message", peer = $peer,
                                       topicID = prune.topicID
 
     g.mesh.removePeer(prune.topicID, peer)
@@ -366,7 +345,7 @@ proc handleIHave(g: GossipSub,
                  peer: PubSubPeer,
                  ihaves: seq[ControlIHave]): ControlIWant =
   for ihave in ihaves:
-    trace "processing ihave message", peer = peer.id,
+    trace "processing ihave message", peer = $peer,
                                       topicID = ihave.topicID,
                                       msgs = ihave.messageIDs
 
@@ -380,7 +359,7 @@ proc handleIWant(g: GossipSub,
                  iwants: seq[ControlIWant]): seq[Message] =
   for iwant in iwants:
     for mid in iwant.messageIDs:
-      trace "processing iwant message", peer = peer.id,
+      trace "processing iwant message", peer = $peer,
                                         messageID = mid
       let msg = g.mcache.get(mid)
       if msg.isSome:
@@ -452,12 +431,13 @@ method rpcHandler*(g: GossipSub,
 
       respControl.iwant.add(g.handleIHave(peer, control.ihave))
       respControl.prune.add(g.handleGraft(peer, control.graft))
+      let messages = g.handleIWant(peer, control.iwant)
 
       if respControl.graft.len > 0 or respControl.prune.len > 0 or
          respControl.ihave.len > 0 or respControl.iwant.len > 0:
         await peer.send(
           @[RPCMsg(control: some(respControl),
-                   messages: g.handleIWant(peer, control.iwant))])
+                   messages: messages)])
 
 method subscribe*(g: GossipSub,
                   topic: string,
@@ -511,8 +491,9 @@ method publish*(g: GossipSub,
     msg = Message.init(g.peerInfo, data, topic, g.msgSeqno, g.sign)
     msgId = g.msgIdProvider(msg)
 
-  trace "publishing on topic",
-    topic, peers = peers.len, msg = msg.shortLog()
+  trace "created new message", msg
+
+  trace "publishing on topic", topic, peers = peers.len
   if msgId notin g.mcache:
     g.mcache.put(msgId, msg)
 

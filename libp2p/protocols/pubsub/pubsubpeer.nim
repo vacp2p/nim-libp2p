@@ -32,14 +32,15 @@ type
     onSend*: proc(peer: PubSubPeer; msgs: var RPCMsg) {.gcsafe, raises: [Defect].}
 
   PubSubPeer* = ref object of RootObj
-    proto*: string # the protocol that this peer joined from
+    proto*: string                      # the protocol that this peer joined from
     sendConn: Connection
     peerInfo*: PeerInfo
     handler*: RPCHandler
-    sentRpcCache: TimedCache[string] # cache for already sent messages
-    recvdRpcCache: TimedCache[string] # cache for already received messages
+    sentRpcCache: TimedCache[string]    # cache for already sent messages
+    recvdRpcCache: TimedCache[string]   # cache for already received messages
     onConnect*: AsyncEvent
     observers*: ref seq[PubSubObserver] # ref as in smart_ptr
+    refs: int                           # how many active connections this peer has
 
   RPCHandler* = proc(peer: PubSubPeer, msg: seq[RPCMsg]): Future[void] {.gcsafe.}
 
@@ -53,26 +54,20 @@ func `==`*(a, b: PubSubPeer): bool =
   let
     aptr = cast[pointer](a)
     bptr = cast[pointer](b)
-  if aptr == nil:
-    if bptr == nil:
-      true
-    else:
-      false
-  elif bptr == nil:
-    false
-  else:
-    if a.peerInfo == nil:
-      if b.peerInfo == nil:
-        true
-      else:
-        false
-    else:
-      if b.peerInfo == nil:
-        false
-      else:
-        a.peerInfo.id == b.peerInfo.id
+
+  if isNil(aptr) and isNil(bptr):
+    return true
+
+  if isNil(aptr) or isNil(bptr):
+    return false
+
+  if aptr == bptr and a.peerInfo == b.peerInfo:
+    return true
 
 proc id*(p: PubSubPeer): string = p.peerInfo.id
+
+proc inUse*(p: PubSubPeer): bool =
+  p.refs > 0
 
 proc connected*(p: PubSubPeer): bool =
   not(isNil(p.sendConn))
@@ -82,6 +77,7 @@ proc `conn=`*(p: PubSubPeer, conn: Connection) =
     trace "attaching send connection for peer", peer = p.id
     p.sendConn = conn
     p.onConnect.fire()
+    p.refs.inc()
 
 proc conn*(p: PubSubPeer): Connection =
   p.sendConn
@@ -104,6 +100,7 @@ proc handle*(p: PubSubPeer, conn: Connection) {.async.} =
   trace "handling pubsub rpc", peer = p.id, closed = conn.closed
   try:
     try:
+      p.refs.inc()
       while not conn.closed:
         trace "waiting for data", peer = p.id, closed = conn.closed
         let data = await conn.readLp(64 * 1024)
@@ -141,6 +138,8 @@ proc handle*(p: PubSubPeer, conn: Connection) {.async.} =
   except CatchableError as exc:
     trace "Exception occurred in PubSubPeer.handle", exc = exc.msg
     raise exc
+  finally:
+    p.refs.dec()
 
 proc send*(p: PubSubPeer, msgs: seq[RPCMsg]) {.async.} =
   logScope:
@@ -187,6 +186,7 @@ proc send*(p: PubSubPeer, msgs: seq[RPCMsg]) {.async.} =
         p.sendConn = nil
         p.onConnect.clear()
 
+      p.refs.dec()
       raise exc
 
 proc sendMsg*(p: PubSubPeer,
