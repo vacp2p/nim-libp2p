@@ -8,29 +8,75 @@
 ## those terms.
 
 ## This module implements Public Key and Private Key interface for libp2p.
-
 {.push raises: [Defect].}
+import strutils
 
-import rsa, ecnist, ed25519/ed25519, secp, bearssl
-import ../protobuf/minprotobuf, ../vbuffer, ../multihash, ../multicodec
-import nimcrypto/[rijndael, blowfish, twofish, sha2, hash, hmac, utils]
-import ../utility
-import stew/results
-export results
-
-# This is workaround for Nim's `import` bug
-export rijndael, blowfish, twofish, sha2, hash, hmac, utils
-
-from strutils import split
+const libp2p_pkischeme* {.strdefine.} = "rsa,ed25519,secp256k1,ecnist"
 
 type
   PKScheme* = enum
     RSA = 0,
     Ed25519,
     Secp256k1,
-    ECDSA,
-    NoSupport
+    ECDSA
 
+proc initSupportedSchemes(list: static string): set[PKScheme] =
+  var res: set[PKScheme]
+
+  let schemes = split(list, {',', ';', '|'})
+  for item in schemes:
+    if cmpIgnoreCase(strip(item), "rsa") == 0:
+      res.incl(PKScheme.RSA)
+    elif cmpIgnoreCase(strip(item), "ed25519") == 0:
+      res.incl(PKScheme.Ed25519)
+    elif cmpIgnoreCase(strip(item), "secp256k1") == 0:
+      res.incl(PKScheme.Secp256k1)
+    elif cmpIgnoreCase(strip(item), "ecnist") == 0:
+      res.incl(PKScheme.ECDSA)
+  if len(res) == 0:
+    res = {PKScheme.RSA, PKScheme.Ed25519, PKScheme.Secp256k1, PKScheme.ECDSA}
+  res
+
+proc initSupportedSchemes(schemes: static set[PKScheme]): set[int8] =
+  var res: set[int8]
+  if PKScheme.RSA in schemes:
+    res.incl(int8(PKScheme.RSA))
+  if PKScheme.Ed25519 in schemes:
+    res.incl(int8(PKScheme.Ed25519))
+  if PKScheme.Secp256k1 in schemes:
+    res.incl(int8(PKScheme.Secp256k1))
+  if PKScheme.ECDSA in schemes:
+    res.incl(int8(PKScheme.ECDSA))
+  res
+
+const
+  SupportedSchemes* = initSupportedSchemes(libp2p_pkischeme)
+  SupportedSchemesInt* = initSupportedSchemes(SupportedSchemes)
+
+proc supported*(scheme: static PKScheme): bool =
+  ## Returns true if specified ``scheme`` is currently available.
+  scheme in SupportedSchemes
+
+when supported(PKScheme.RSA):
+  import rsa
+when supported(PKScheme.Ed25519):
+  import ed25519/ed25519
+when supported(PKScheme.Secp256k1):
+  import secp
+
+import ecnist, bearssl
+import ../protobuf/minprotobuf, ../vbuffer, ../multihash, ../multicodec
+import nimcrypto/[rijndael, twofish, sha2, hash, hmac, utils]
+import ../utility
+import stew/results
+export results
+
+# This is workaround for Nim's `import` bug
+export rijndael, twofish, sha2, hash, hmac, utils
+
+from strutils import split
+
+type
   DigestSheme* = enum
     Sha256,
     Sha512
@@ -39,29 +85,49 @@ type
 
   PublicKey* = object
     case scheme*: PKScheme
-    of RSA:
-      rsakey*: rsa.RsaPublicKey
-    of Ed25519:
-      edkey*: EdPublicKey
-    of Secp256k1:
-      skkey*: SkPublicKey
-    of ECDSA:
-      eckey*: ecnist.EcPublicKey
-    of NoSupport:
-      discard
+    of PKScheme.RSA:
+      when supported(PKScheme.RSA):
+        rsakey*: rsa.RsaPublicKey
+      else:
+        discard
+    of PKScheme.Ed25519:
+      when supported(PKScheme.Ed25519):
+        edkey*: EdPublicKey
+      else:
+        discard
+    of PKScheme.Secp256k1:
+      when supported(PKScheme.Secp256k1):
+        skkey*: SkPublicKey
+      else:
+        discard
+    of PKScheme.ECDSA:
+      when supported(PKScheme.ECDSA):
+        eckey*: ecnist.EcPublicKey
+      else:
+        discard
 
   PrivateKey* = object
     case scheme*: PKScheme
-    of RSA:
-      rsakey*: rsa.RsaPrivateKey
-    of Ed25519:
-      edkey*: EdPrivateKey
-    of Secp256k1:
-      skkey*: SkPrivateKey
-    of ECDSA:
-      eckey*: ecnist.EcPrivateKey
-    of NoSupport:
-      discard
+    of PKScheme.RSA:
+      when supported(PKScheme.RSA):
+        rsakey*: rsa.RsaPrivateKey
+      else:
+        discard
+    of PKScheme.Ed25519:
+      when supported(PKScheme.Ed25519):
+        edkey*: EdPrivateKey
+      else:
+        discard
+    of PKScheme.Secp256k1:
+      when supported(PKScheme.Secp256k1):
+        skkey*: SkPrivateKey
+      else:
+        discard
+    of PKSCheme.ECDSA:
+      when supported(PKSCheme.ECDSA):
+        eckey*: ecnist.EcPrivateKey
+      else:
+        discard
 
   KeyPair* = object
     seckey*: PrivateKey
@@ -84,11 +150,6 @@ type
 
   CryptoResult*[T] = Result[T, CryptoError]
 
-const
-  SupportedSchemes* = {RSA, Ed25519, Secp256k1, ECDSA}
-  SupportedSchemesInt* = {int8(RSA), int8(Ed25519), int8(Secp256k1),
-                          int8(ECDSA)}
-
 template orError*(exp: untyped, err: untyped): untyped =
   (exp.mapErr do (_: auto) -> auto: err)
 
@@ -106,77 +167,162 @@ proc newRng*(): ref BrHmacDrbgContext =
     return nil
   rng
 
-proc random*(
-    T: typedesc[PrivateKey], scheme: PKScheme,
-    rng: var BrHmacDrbgContext, bits = DefaultKeySize): CryptoResult[PrivateKey] =
+proc random*(T: typedesc[PrivateKey], scheme: PKScheme,
+             rng: var BrHmacDrbgContext,
+             bits = DefaultKeySize): CryptoResult[PrivateKey] =
   ## Generate random private key for scheme ``scheme``.
   ##
   ## ``bits`` is number of bits for RSA key, ``bits`` value must be in
-  ## [512, 4096], default value is 2048 bits.
+  ## [2048, 4096], default value is 3072 bits.
   case scheme
-  of RSA:
-    let rsakey = ? RsaPrivateKey.random(rng, bits).orError(KeyError)
-    ok(PrivateKey(scheme: scheme, rsakey: rsakey))
-  of Ed25519:
+  of PKScheme.RSA:
+    when supported(PKScheme.RSA):
+      let rsakey = ? RsaPrivateKey.random(rng, bits).orError(KeyError)
+      ok(PrivateKey(scheme: scheme, rsakey: rsakey))
+    else:
+      err(SchemeError)
+  of PKScheme.Ed25519:
+    when supported(PKScheme.Ed25519):
+      let edkey = EdPrivateKey.random(rng)
+      ok(PrivateKey(scheme: scheme, edkey: edkey))
+    else:
+      err(SchemeError)
+  of PKScheme.ECDSA:
+    when supported(PKScheme.ECDSA):
+      let eckey = ? ecnist.EcPrivateKey.random(Secp256r1, rng).orError(KeyError)
+      ok(PrivateKey(scheme: scheme, eckey: eckey))
+    else:
+      err(SchemeError)
+  of PKScheme.Secp256k1:
+    when supported(PKScheme.Secp256k1):
+      let skkey = SkPrivateKey.random(rng)
+      ok(PrivateKey(scheme: scheme, skkey: skkey))
+    else:
+      err(SchemeError)
+
+proc random*(T: typedesc[PrivateKey], rng: var BrHmacDrbgContext,
+             bits = DefaultKeySize): CryptoResult[PrivateKey] =
+  ## Generate random private key using default public-key cryptography scheme.
+  ##
+  ## Default public-key cryptography schemes are following order:
+  ## ed25519, secp256k1, RSA, secp256r1.
+  ##
+  ## So will be used first available (supported) method.
+  when supported(PKScheme.Ed25519):
     let edkey = EdPrivateKey.random(rng)
     ok(PrivateKey(scheme: scheme, edkey: edkey))
-  of ECDSA:
-    let eckey = ? ecnist.EcPrivateKey.random(Secp256r1, rng).orError(KeyError)
-    ok(PrivateKey(scheme: scheme, eckey: eckey))
-  of Secp256k1:
+  elif supported(PKScheme.Secp256k1):
     let skkey = SkPrivateKey.random(rng)
     ok(PrivateKey(scheme: scheme, skkey: skkey))
+  elif supported(PKScheme.RSA):
+    let rsakey = ? RsaPrivateKey.random(rng, bits).orError(KeyError)
+    ok(PrivateKey(scheme: scheme, rsakey: rsakey))
+  elif supported(PKScheme.ECDSA):
+    let eckey = ? ecnist.EcPrivateKey.random(Secp256r1, rng).orError(KeyError)
+    ok(PrivateKey(scheme: scheme, eckey: eckey))
   else:
     err(SchemeError)
 
-proc random*(
-    T: typedesc[KeyPair], scheme: PKScheme,
-    rng: var BrHmacDrbgContext, bits = DefaultKeySize): CryptoResult[KeyPair] =
+proc random*(T: typedesc[KeyPair], scheme: PKScheme,
+             rng: var BrHmacDrbgContext,
+             bits = DefaultKeySize): CryptoResult[KeyPair] =
   ## Generate random key pair for scheme ``scheme``.
   ##
   ## ``bits`` is number of bits for RSA key, ``bits`` value must be in
   ## [512, 4096], default value is 2048 bits.
   case scheme
-  of RSA:
-    let pair = ? RsaKeyPair.random(rng, bits).orError(KeyError)
-    ok(KeyPair(
-      seckey: PrivateKey(scheme: scheme, rsakey: pair.seckey),
-      pubkey: PublicKey(scheme: scheme, rsakey: pair.pubkey)))
-  of Ed25519:
+  of PKScheme.RSA:
+    when supported(PKScheme.RSA):
+      let pair = ? RsaKeyPair.random(rng, bits).orError(KeyError)
+      ok(KeyPair(
+        seckey: PrivateKey(scheme: scheme, rsakey: pair.seckey),
+        pubkey: PublicKey(scheme: scheme, rsakey: pair.pubkey)))
+    else:
+      err(SchemeError)
+  of PKScheme.Ed25519:
+    when supported(PKScheme.Ed25519):
+      let pair = EdKeyPair.random(rng)
+      ok(KeyPair(
+        seckey: PrivateKey(scheme: scheme, edkey: pair.seckey),
+        pubkey: PublicKey(scheme: scheme, edkey: pair.pubkey)))
+    else:
+      err(SchemeError)
+  of PKScheme.ECDSA:
+    when supported(PKScheme.ECDSA):
+      let pair = ? EcKeyPair.random(Secp256r1, rng).orError(KeyError)
+      ok(KeyPair(
+        seckey: PrivateKey(scheme: scheme, eckey: pair.seckey),
+        pubkey: PublicKey(scheme: scheme, eckey: pair.pubkey)))
+    else:
+      err(SchemeError)
+  of PKScheme.Secp256k1:
+    when supported(PKScheme.Secp256k1):
+      let pair = SkKeyPair.random(rng)
+      ok(KeyPair(
+        seckey: PrivateKey(scheme: scheme, skkey: pair.seckey),
+        pubkey: PublicKey(scheme: scheme, skkey: pair.pubkey)))
+    else:
+      err(SchemeError)
+
+proc random*(T: typedesc[KeyPair], rng: var BrHmacDrbgContext,
+             bits = DefaultKeySize): CryptoResult[KeyPair] =
+  ## Generate random private pair of keys using default public-key cryptography
+  ## scheme.
+  ##
+  ## Default public-key cryptography schemes are following order:
+  ## ed25519, secp256k1, RSA, secp256r1.
+  ##
+  ## So will be used first available (supported) method.
+  when supported(PKScheme.Ed25519):
     let pair = EdKeyPair.random(rng)
     ok(KeyPair(
       seckey: PrivateKey(scheme: scheme, edkey: pair.seckey),
       pubkey: PublicKey(scheme: scheme, edkey: pair.pubkey)))
-  of ECDSA:
-    let pair = ? EcKeyPair.random(Secp256r1, rng).orError(KeyError)
-    ok(KeyPair(
-      seckey: PrivateKey(scheme: scheme, eckey: pair.seckey),
-      pubkey: PublicKey(scheme: scheme, eckey: pair.pubkey)))
-  of Secp256k1:
+  elif supported(PKScheme.Secp256k1):
     let pair = SkKeyPair.random(rng)
     ok(KeyPair(
       seckey: PrivateKey(scheme: scheme, skkey: pair.seckey),
       pubkey: PublicKey(scheme: scheme, skkey: pair.pubkey)))
+  elif supported(PKScheme.RSA):
+    let pair = ? RsaKeyPair.random(rng, bits).orError(KeyError)
+    ok(KeyPair(
+      seckey: PrivateKey(scheme: scheme, rsakey: pair.seckey),
+      pubkey: PublicKey(scheme: scheme, rsakey: pair.pubkey)))
+  elif supported(PKScheme.ECDSA):
+    let pair = ? EcKeyPair.random(Secp256r1, rng).orError(KeyError)
+    ok(KeyPair(
+      seckey: PrivateKey(scheme: scheme, eckey: pair.seckey),
+      pubkey: PublicKey(scheme: scheme, eckey: pair.pubkey)))
   else:
     err(SchemeError)
 
 proc getKey*(key: PrivateKey): CryptoResult[PublicKey] =
   ## Get public key from corresponding private key ``key``.
   case key.scheme
-  of RSA:
-    let rsakey = key.rsakey.getKey()
-    ok(PublicKey(scheme: RSA, rsakey: rsakey))
-  of Ed25519:
-    let edkey = key.edkey.getKey()
-    ok(PublicKey(scheme: Ed25519, edkey: edkey))
-  of ECDSA:
-    let eckey = ? key.eckey.getKey().orError(KeyError)
-    ok(PublicKey(scheme: ECDSA, eckey: eckey))
-  of Secp256k1:
-    let skkey = key.skkey.getKey()
-    ok(PublicKey(scheme: Secp256k1, skkey: skkey))
-  else:
-    err(KeyError)
+  of PKScheme.RSA:
+    when supported(PKScheme.RSA):
+      let rsakey = key.rsakey.getKey()
+      ok(PublicKey(scheme: RSA, rsakey: rsakey))
+    else:
+      err(SchemeError)
+  of PKScheme.Ed25519:
+    when supported(PKScheme.Ed25519):
+      let edkey = key.edkey.getKey()
+      ok(PublicKey(scheme: Ed25519, edkey: edkey))
+    else:
+      err(SchemeError)
+  of PKScheme.ECDSA:
+    when supported(PKScheme.ECDSA):
+      let eckey = ? key.eckey.getKey().orError(KeyError)
+      ok(PublicKey(scheme: ECDSA, eckey: eckey))
+    else:
+      err(SchemeError)
+  of PKScheme.Secp256k1:
+    when supported(PKScheme.Secp256k1):
+      let skkey = key.skkey.getKey()
+      ok(PublicKey(scheme: Secp256k1, skkey: skkey))
+    else:
+      err(SchemeError)
 
 proc toRawBytes*(key: PrivateKey | PublicKey,
                  data: var openarray[byte]): CryptoResult[int] =
@@ -185,31 +331,51 @@ proc toRawBytes*(key: PrivateKey | PublicKey,
   ##
   ## Returns number of bytes (octets) needed to store private key ``key``.
   case key.scheme
-  of RSA:
-    key.rsakey.toBytes(data).orError(KeyError)
-  of Ed25519:
-    ok(key.edkey.toBytes(data))
-  of ECDSA:
-    key.eckey.toBytes(data).orError(KeyError)
-  of Secp256k1:
-    key.skkey.toBytes(data).orError(KeyError)
-  else:
-    err(KeyError)
+  of PKScheme.RSA:
+    when supported(PKScheme.RSA):
+      key.rsakey.toBytes(data).orError(KeyError)
+    else:
+      err(SchemeError)
+  of PKScheme.Ed25519:
+    when supported(PKScheme.Ed25519):
+      ok(key.edkey.toBytes(data))
+    else:
+      err(SchemeError)
+  of PKScheme.ECDSA:
+    when supported(PKScheme.ECDSA):
+      key.eckey.toBytes(data).orError(KeyError)
+    else:
+      err(SchemeError)
+  of PKScheme.Secp256k1:
+    when supported(PKScheme.Secp256k1):
+      key.skkey.toBytes(data).orError(KeyError)
+    else:
+      err(SchemeError)
 
 proc getRawBytes*(key: PrivateKey | PublicKey): CryptoResult[seq[byte]] =
   ## Return private key ``key`` in binary form (using scheme's own
   ## serialization).
   case key.scheme
-  of RSA:
-    key.rsakey.getBytes().orError(KeyError)
-  of Ed25519:
-    ok(key.edkey.getBytes())
-  of ECDSA:
-    key.eckey.getBytes().orError(KeyError)
-  of Secp256k1:
-    ok(key.skkey.getBytes())
-  else:
-    err(KeyError)
+  of PKScheme.RSA:
+    when supported(PKScheme.RSA):
+      key.rsakey.getBytes().orError(KeyError)
+    else:
+      err(SchemeError)
+  of PKScheme.Ed25519:
+    when supported(PKScheme.Ed25519):
+      ok(key.edkey.getBytes())
+    else:
+      err(SchemeError)
+  of PKScheme.ECDSA:
+    when supported(PKScheme.ECDSA):
+      key.eckey.getBytes().orError(KeyError)
+    else:
+      err(SchemeError)
+  of PKScheme.Secp256k1:
+    when supported(PKScheme.ECDSA):
+      ok(key.skkey.getBytes())
+    else:
+      err(SchemeError)
 
 proc toBytes*(key: PrivateKey, data: var openarray[byte]): CryptoResult[int] =
   ## Serialize private key ``key`` (using libp2p protobuf scheme) and store
@@ -276,36 +442,59 @@ proc init*[T: PrivateKey|PublicKey](key: var T, data: openarray[byte]): bool =
   ## Returns ``true`` on success.
   var id: uint64
   var buffer: seq[byte]
-  if len(data) > 0:
-    var pb = initProtoBuffer(@data)
-    let r1 = pb.getField(1, id)
-    let r2 = pb.getField(2, buffer)
-    if r1.isOk() and r1.get() and r2.isOk() and r2.get():
-      if cast[int8](id) in SupportedSchemesInt and len(buffer) > 0:
-        var scheme = cast[PKScheme](cast[int8](id))
-        when key is PrivateKey:
-          var nkey = PrivateKey(scheme: scheme)
-        else:
-          var nkey = PublicKey(scheme: scheme)
-        case scheme:
-        of PKScheme.RSA:
+  if len(data) <= 0:
+    false
+  var pb = initProtoBuffer(@data)
+  let r1 = pb.getField(1, id)
+  let r2 = pb.getField(2, buffer)
+  if not(r1.isOk() and r1.get() and r2.isOk() and r2.get()):
+    false
+  else:
+    if cast[int8](id) notin SupportedSchemesInt or len(buffer) <= 0:
+      false
+    else:
+      var scheme = cast[PKScheme](cast[int8](id))
+      when key is PrivateKey:
+        var nkey = PrivateKey(scheme: scheme)
+      else:
+        var nkey = PublicKey(scheme: scheme)
+      case scheme:
+      of PKScheme.RSA:
+        when supported(PKScheme.RSA):
           if init(nkey.rsakey, buffer).isOk:
             key = nkey
-            return true
-        of PKScheme.Ed25519:
+            true
+          else:
+            false
+        else:
+          false
+      of PKScheme.Ed25519:
+        when supported(PKScheme.Ed25519):
           if init(nkey.edkey, buffer):
             key = nkey
-            return true
-        of PKScheme.ECDSA:
+            true
+          else:
+            false
+        else:
+          false
+      of PKScheme.ECDSA:
+        when supported(PKScheme.ECDSA):
           if init(nkey.eckey, buffer).isOk:
             key = nkey
-            return true
-        of PKScheme.Secp256k1:
+            true
+          else:
+            false
+        else:
+          false
+      of PKScheme.Secp256k1:
+        when supported(PKScheme.Secp256k1):
           if init(nkey.skkey, buffer).isOk:
             key = nkey
-            return true
+            true
+          else:
+            false
         else:
-          return false
+          false
 
 proc init*(sig: var Signature, data: openarray[byte]): bool =
   ## Initialize signature ``sig`` from raw binary form.
@@ -370,23 +559,29 @@ proc init*(t: typedesc[PrivateKey], data: string): CryptoResult[PrivateKey] =
   except ValueError:
     err(KeyError)
 
-proc init*(t: typedesc[PrivateKey], key: rsa.RsaPrivateKey): PrivateKey =
-  PrivateKey(scheme: RSA, rsakey: key)
-proc init*(t: typedesc[PrivateKey], key: EdPrivateKey): PrivateKey =
-  PrivateKey(scheme: Ed25519, edkey: key)
-proc init*(t: typedesc[PrivateKey], key: SkPrivateKey): PrivateKey =
-  PrivateKey(scheme: Secp256k1, skkey: key)
-proc init*(t: typedesc[PrivateKey], key: ecnist.EcPrivateKey): PrivateKey =
-  PrivateKey(scheme: ECDSA, eckey: key)
+when supported(PKScheme.RSA):
+  proc init*(t: typedesc[PrivateKey], key: rsa.RsaPrivateKey): PrivateKey =
+    PrivateKey(scheme: RSA, rsakey: key)
+  proc init*(t: typedesc[PublicKey], key: rsa.RsaPublicKey): PublicKey =
+    PublicKey(scheme: RSA, rsakey: key)
 
-proc init*(t: typedesc[PublicKey], key: rsa.RsaPublicKey): PublicKey =
-  PublicKey(scheme: RSA, rsakey: key)
-proc init*(t: typedesc[PublicKey], key: EdPublicKey): PublicKey =
-  PublicKey(scheme: Ed25519, edkey: key)
-proc init*(t: typedesc[PublicKey], key: SkPublicKey): PublicKey =
-  PublicKey(scheme: Secp256k1, skkey: key)
-proc init*(t: typedesc[PublicKey], key: ecnist.EcPublicKey): PublicKey =
-  PublicKey(scheme: ECDSA, eckey: key)
+when supported(PKScheme.Ed25519):
+  proc init*(t: typedesc[PrivateKey], key: EdPrivateKey): PrivateKey =
+    PrivateKey(scheme: Ed25519, edkey: key)
+  proc init*(t: typedesc[PublicKey], key: EdPublicKey): PublicKey =
+    PublicKey(scheme: Ed25519, edkey: key)
+
+when supported(PKScheme.Secp256k1):
+  proc init*(t: typedesc[PrivateKey], key: SkPrivateKey): PrivateKey =
+    PrivateKey(scheme: Secp256k1, skkey: key)
+  proc init*(t: typedesc[PublicKey], key: SkPublicKey): PublicKey =
+    PublicKey(scheme: Secp256k1, skkey: key)
+
+when supported(PKScheme.ECDSA):
+  proc init*(t: typedesc[PrivateKey], key: ecnist.EcPrivateKey): PrivateKey =
+    PrivateKey(scheme: ECDSA, eckey: key)
+  proc init*(t: typedesc[PublicKey], key: ecnist.EcPublicKey): PublicKey =
+    PublicKey(scheme: ECDSA, eckey: key)
 
 proc init*(t: typedesc[PublicKey], data: string): CryptoResult[PublicKey] =
   ## Create new public key from libp2p's protobuf serialized hexadecimal string
@@ -409,15 +604,25 @@ proc `==`*(key1, key2: PublicKey): bool {.inline.} =
   if key1.scheme == key2.scheme:
     case key1.scheme
     of PKScheme.RSA:
-      (key1.rsakey == key2.rsakey)
+      when supported(PKScheme.RSA):
+        (key1.rsakey == key2.rsakey)
+      else:
+        false
     of PKScheme.Ed25519:
-      (key1.edkey == key2.edkey)
+      when supported(PKScheme.Ed25519):
+        (key1.edkey == key2.edkey)
+      else:
+        false
     of PKScheme.ECDSA:
-      (key1.eckey == key2.eckey)
+      when supported(PKScheme.ECDSA):
+        (key1.eckey == key2.eckey)
+      else:
+        false
     of PKScheme.Secp256k1:
-      (key1.skkey == key2.skkey)
-    of PKScheme.NoSupport:
-      false
+      when supported(PKScheme.Secp256k1):
+        (key1.skkey == key2.skkey)
+      else:
+        false
   else:
     false
 
@@ -427,15 +632,25 @@ proc `==`*(key1, key2: PrivateKey): bool =
   if key1.scheme == key2.scheme:
     case key1.scheme
     of PKScheme.RSA:
-      (key1.rsakey == key2.rsakey)
+      when supported(PKScheme.RSA):
+        (key1.rsakey == key2.rsakey)
+      else:
+        false
     of PKScheme.Ed25519:
-      (key1.edkey == key2.edkey)
+      when supported(PKScheme.Ed25519):
+        (key1.edkey == key2.edkey)
+      else:
+        false
     of PKScheme.ECDSA:
-      (key1.eckey == key2.eckey)
+      when supported(PKScheme.ECDSA):
+        (key1.eckey == key2.eckey)
+      else:
+        false
     of PKScheme.Secp256k1:
-      (key1.skkey == key2.skkey)
-    of PKScheme.NoSupport:
-      false
+      when supported(PKScheme.Secp256k1):
+        (key1.skkey == key2.skkey)
+      else:
+        false
   else:
     false
 
@@ -443,29 +658,49 @@ proc `$`*(key: PrivateKey|PublicKey): string =
   ## Get string representation of private/public key ``key``.
   case key.scheme:
   of PKScheme.RSA:
-    $(key.rsakey)
+    when supported(PKScheme.RSA):
+      $(key.rsakey)
+    else:
+      "unsupported RSA key"
   of PKScheme.Ed25519:
-    "ed25519 key (" & $key.edkey & ")"
+    when supported(PKScheme.Ed25519):
+      "ed25519 key (" & $key.edkey & ")"
+    else:
+      "unsupported ed25519 key"
   of PKScheme.ECDSA:
-    "secp256r1 key (" & $key.eckey & ")"
+    when supported(PKScheme.ECDSA):
+      "secp256r1 key (" & $key.eckey & ")"
+    else:
+      "unsupported secp256r1 key"
   of PKScheme.Secp256k1:
-    "secp256k1 key (" & $key.skkey & ")"
-  of PKScheme.NoSupport:
-    "not supported"
+    when supported(PKScheme.Secp256k1):
+      "secp256k1 key (" & $key.skkey & ")"
+    else:
+      "unsupported secp256k1 key"
 
 func shortLog*(key: PrivateKey|PublicKey): string =
   ## Get short string representation of private/public key ``key``.
   case key.scheme:
   of PKScheme.RSA:
-    ($key.rsakey).shortLog
+    when supported(PKScheme.RSA):
+      ($key.rsakey).shortLog
+    else:
+      "unsupported RSA key"
   of PKScheme.Ed25519:
-    "ed25519 key (" & ($key.edkey).shortLog & ")"
+    when supported(PKScheme.Ed25519):
+      "ed25519 key (" & ($key.edkey).shortLog & ")"
+    else:
+      "unsupported ed25519 key"
   of PKScheme.ECDSA:
-    "secp256r1 key (" & ($key.eckey).shortLog & ")"
+    when supported(PKScheme.ECDSA):
+      "secp256r1 key (" & ($key.eckey).shortLog & ")"
+    else:
+      "unsupported secp256r1 key"
   of PKScheme.Secp256k1:
-    "secp256k1 key (" & ($key.skkey).shortLog & ")"
-  of PKScheme.NoSupport:
-    "not supported"
+    when supported(PKScheme.Secp256k1):
+      "secp256k1 key (" & ($key.skkey).shortLog & ")"
+    else:
+      "unsupported secp256k1 key"
 
 proc `$`*(sig: Signature): string =
   ## Get string representation of signature ``sig``.
@@ -478,54 +713,74 @@ proc sign*(key: PrivateKey,
   var res: Signature
   case key.scheme:
   of PKScheme.RSA:
-    let sig = ? key.rsakey.sign(data).orError(SigError)
-    res.data = ? sig.getBytes().orError(SigError)
-    ok(res)
+    when supported(PKScheme.RSA):
+      let sig = ? key.rsakey.sign(data).orError(SigError)
+      res.data = ? sig.getBytes().orError(SigError)
+      ok(res)
+    else:
+      err(SchemeError)
   of PKScheme.Ed25519:
-    let sig = key.edkey.sign(data)
-    res.data = sig.getBytes()
-    ok(res)
+    when supported(PKScheme.Ed25519)
+      let sig = key.edkey.sign(data)
+      res.data = sig.getBytes()
+      ok(res)
+    else:
+      err(SchemeError)
   of PKScheme.ECDSA:
-    let sig = ? key.eckey.sign(data).orError(SigError)
-    res.data = ? sig.getBytes().orError(SigError)
-    ok(res)
+    when supported(PKScheme.ECDSA):
+      let sig = ? key.eckey.sign(data).orError(SigError)
+      res.data = ? sig.getBytes().orError(SigError)
+      ok(res)
+    else:
+      err(SchemeError)
   of PKScheme.Secp256k1:
-    let sig = key.skkey.sign(data)
-    res.data = sig.getBytes()
-    ok(res)
-  else:
-    err(SigError)
+    when supported(PKScheme.Secp256k1):
+      let sig = key.skkey.sign(data)
+      res.data = sig.getBytes()
+      ok(res)
+    else:
+      err(SchemeError)
 
 proc verify*(sig: Signature, message: openarray[byte], key: PublicKey): bool =
   ## Verify signature ``sig`` using message ``message`` and public key ``key``.
   ## Return ``true`` if message signature is valid.
   case key.scheme:
   of PKScheme.RSA:
-    var signature: RsaSignature
-    if signature.init(sig.data).isOk:
-      signature.verify(message, key.rsakey)
+    when supported(PKScheme.RSA):
+      var signature: RsaSignature
+      if signature.init(sig.data).isOk:
+        signature.verify(message, key.rsakey)
+      else:
+        false
     else:
       false
   of PKScheme.Ed25519:
-    var signature: EdSignature
-    if signature.init(sig.data):
-      signature.verify(message, key.edkey)
+    when supported(PKScheme.Ed25519):
+      var signature: EdSignature
+      if signature.init(sig.data):
+        signature.verify(message, key.edkey)
+      else:
+        false
     else:
       false
   of PKScheme.ECDSA:
-    var signature: EcSignature
-    if signature.init(sig.data).isOk:
-      signature.verify(message, key.eckey)
+    when supported(PKScheme.ECDSA):
+      var signature: EcSignature
+      if signature.init(sig.data).isOk:
+        signature.verify(message, key.eckey)
+      else:
+        false
     else:
       false
   of PKScheme.Secp256k1:
-    var signature: SkSignature
-    if signature.init(sig.data).isOk:
-      signature.verify(message, key.skkey)
+    when supported(PKScheme.Secp256k1):
+      var signature: SkSignature
+      if signature.init(sig.data).isOk:
+        signature.verify(message, key.skkey)
+      else:
+        false
     else:
       false
-  else:
-    false
 
 template makeSecret(buffer, hmactype, secret, seed: untyped) {.dirty.}=
   var ctx: hmactype
@@ -565,9 +820,6 @@ proc stretchKeys*(cipherType: string, hashType: string,
   elif cipherType == "TwofishCTR":
     result.ivsize = twofish256.sizeBlock
     result.keysize = twofish256.sizeKey
-  elif cipherType == "BLOWFISH":
-    result.ivsize = 8
-    result.keysize = 32
 
   var seed = "key expansion"
   result.macsize = 20
@@ -729,7 +981,7 @@ proc createProposal*(nonce, pubkey: openarray[byte],
   msg.write(4, ciphers)
   msg.write(5, hashes)
   msg.finish()
-  shallowCopy(result, msg.buffer)
+  msg.buffer
 
 proc decodeProposal*(message: seq[byte], nonce, pubkey: var seq[byte],
                      exchanges, ciphers, hashes: var string): bool =
@@ -757,7 +1009,7 @@ proc createExchange*(epubkey, signature: openarray[byte]): seq[byte] =
   msg.write(1, epubkey)
   msg.write(2, signature)
   msg.finish()
-  shallowCopy(result, msg.buffer)
+  msg.buffer
 
 proc decodeExchange*(message: seq[byte],
                      pubkey, signature: var seq[byte]): bool =
