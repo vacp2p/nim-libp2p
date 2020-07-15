@@ -230,49 +230,49 @@ proc internalConnect(s: Switch,
   var conn: Connection
   let lock = s.dialLock.mgetOrPut(id, newAsyncLock())
 
-  defer:
+  try:
+    await lock.acquire()
+    trace "about to dial peer", peer = id
+    conn = s.connManager.selectConn(peer)
+    if conn.isNil or (conn.closed or conn.atEof):
+      trace "Dialing peer", peer = id
+      for t in s.transports: # for each transport
+        for a in peer.addrs: # for each address
+          if t.handles(a):   # check if it can dial it
+            trace "Dialing address", address = $a, peer = id
+            try:
+              conn = await t.dial(a)
+              conn.dir = Direction.Out # tag connection with direction
+              libp2p_dialed_peers.inc()
+            except CancelledError as exc:
+              trace "dialing canceled", exc = exc.msg
+              raise
+            except CatchableError as exc:
+              trace "dialing failed", exc = exc.msg
+              libp2p_failed_dials.inc()
+              continue
+
+            # make sure to assign the peer to the connection
+            conn.peerInfo = peer
+            try:
+              conn = await s.upgradeOutgoing(conn)
+              s.connManager.storeConn(conn)
+            except CatchableError as exc:
+              if not(isNil(conn)):
+                await conn.close()
+
+              trace "Unable to establish outgoing link", exc = exc.msg
+              raise exc
+
+            if isNil(conn):
+              libp2p_failed_upgrade.inc()
+              continue
+            break
+    else:
+      trace "Reusing existing connection", oid = conn.oid
+  finally:
     if lock.locked():
       lock.release()
-
-  await lock.acquire()
-  trace "about to dial peer", peer = id
-  conn = s.connManager.selectConn(peer)
-  if conn.isNil or (conn.closed or conn.atEof):
-    trace "Dialing peer", peer = id
-    for t in s.transports: # for each transport
-      for a in peer.addrs: # for each address
-        if t.handles(a):   # check if it can dial it
-          trace "Dialing address", address = $a, peer = id
-          try:
-            conn = await t.dial(a)
-            conn.dir = Direction.Out # tag connection with direction
-            s.connManager.storeConn(conn)
-            libp2p_dialed_peers.inc()
-          except CancelledError as exc:
-            trace "dialing canceled", exc = exc.msg
-            raise
-          except CatchableError as exc:
-            trace "dialing failed", exc = exc.msg
-            libp2p_failed_dials.inc()
-            continue
-
-          # make sure to assign the peer to the connection
-          conn.peerInfo = peer
-          try:
-            conn = await s.upgradeOutgoing(conn)
-          except CatchableError as exc:
-            if not(isNil(conn)):
-              await conn.close()
-
-            trace "Unable to establish outgoing link", exc = exc.msg
-            raise exc
-
-          if isNil(conn):
-            libp2p_failed_upgrade.inc()
-            continue
-          break
-  else:
-    trace "Reusing existing connection", oid = conn.oid
 
   if isNil(conn):
     raise newException(CatchableError,
@@ -283,8 +283,7 @@ proc internalConnect(s: Switch,
     raise newException(CatchableError,
       "Connection dead on arrival")
 
-  # doAssert(conn.peerInfo.id in s.connections,
-  #   "connection not tracked!")
+  doAssert(conn in s.connManager, "connection not tracked!")
 
   trace "dial succesfull", oid = $conn.oid,
                            peer = $conn.peerInfo
@@ -346,7 +345,6 @@ proc start*(s: Switch): Future[seq[Future[void]]] {.async, gcsafe.} =
   proc handle(conn: Connection): Future[void] {.async, closure, gcsafe.} =
     try:
       conn.dir = Direction.In # tag connection with direction
-      s.connManager.storeConn(conn) # track connection
       await s.upgradeIncoming(conn) # perform upgrade on incoming connection
     except CancelledError as exc:
       raise exc
@@ -397,8 +395,7 @@ proc subscribePeer*(s: Switch, peerInfo: PeerInfo) {.async, gcsafe.} =
     trace "about to subscribe to pubsub peer", peer = peerInfo.shortLog()
     var stream: Connection
     try:
-      stream = await s.connManager.getMuxedStream(peerInfo, Direction.Out)
-
+      stream = await s.connManager.getMuxedStream(peerInfo)
       if isNil(stream):
         trace "unable to subscribe to peer", peer = peerInfo.shortLog
         return
@@ -482,6 +479,8 @@ proc muxerHandler(s: Switch, muxer: Muxer) {.async, gcsafe.} =
       return
 
     muxer.connection.peerInfo = stream.peerInfo
+
+    s.connManager.storeConn(muxer.connection) # track connection
 
     # store muxer and muxed connection
     s.connManager.storeMuxer(muxer)

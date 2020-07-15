@@ -37,6 +37,31 @@ proc init*(C: type ConnManager,
     conns: initTable[PeerInfo, HashSet[Connection]](),
     muxed: initTable[Connection, MuxerHolder]())
 
+proc contains*(c: ConnManager, conn: Connection): bool =
+  if isNil(conn):
+    return
+
+  if isNil(conn.peerInfo):
+    return
+
+  if conn.peerInfo notin c.conns:
+    return
+
+  return conn in c.conns[conn.peerInfo]
+
+proc contains*(c: ConnManager, muxer: Muxer): bool =
+  if isNil(muxer):
+    return
+
+  let conn = muxer.connection
+  if conn notin c:
+    return
+
+  if conn notin c.muxed:
+    return
+
+  return muxer == c.muxed[conn].muxer
+
 proc cleanupConn(c: ConnManager, conn: Connection) {.async.} =
     if isNil(conn):
       return
@@ -75,7 +100,7 @@ proc cleanupConn(c: ConnManager, conn: Connection) {.async.} =
         lock.release()
 
 proc onClose(c: ConnManager, conn: Connection) {.async.} =
-  # await for the connection to close
+  # connection close event handler
   await conn.closeEvent.wait()
   await c.cleanupConn(conn)
 
@@ -121,7 +146,10 @@ proc selectMuxer*(c: ConnManager, conn: Connection): Muxer =
 
 proc storeConn*(c: ConnManager, conn: Connection) =
   if isNil(conn):
-    return
+    raise newException(CatchableError, "connection cannot be nil")
+
+  if isNil(conn.peerInfo):
+    raise newException(CatchableError, "empty peer info")
 
   let peerInfo = conn.peerInfo
   if c.conns.getOrDefault(peerInfo).len > c.maxConns:
@@ -130,10 +158,10 @@ proc storeConn*(c: ConnManager, conn: Connection) =
                                                       .getOrDefault(peerInfo).len
     raise newTooManyConnections()
 
-  c.conns.mgetOrPut(
-    peerInfo,
-    initHashSet[Connection]())
-    .incl(conn)
+  if peerInfo notin c.conns:
+    c.conns[peerInfo] = initHashSet[Connection]()
+
+  c.conns[peerInfo].incl(conn)
 
   # launch on close listener
   asyncCheck c.onClose(conn)
@@ -144,8 +172,12 @@ proc storeMuxer*(c: ConnManager,
                  handle: Future[void] = nil) =
   ## store the connection and muxer
   ##
+
   if isNil(muxer):
-    return
+    raise newException(CatchableError, "muxer cannot be nil")
+
+  if isNil(muxer.connection):
+    raise newException(CatchableError, "muxer's connection cannot be nil")
 
   c.muxed[muxer.connection] = MuxerHolder(
     muxer: muxer,
@@ -160,6 +192,15 @@ proc getMuxedStream*(c: ConnManager,
   # use it instead to create a muxed stream
 
   let muxer = c.selectMuxer(c.selectConn(peerInfo, dir)) # always get the first muxer here
+  if not(isNil(muxer)):
+    return await muxer.newStream()
+
+proc getMuxedStream*(c: ConnManager,
+                     peerInfo: PeerInfo): Future[Connection] {.async, gcsafe.} =
+  # if there is a muxer for the connection
+  # use it instead to create a muxed stream
+
+  let muxer = c.selectMuxer(c.selectConn(peerInfo)) # always get the first muxer here
   if not(isNil(muxer)):
     return await muxer.newStream()
 
@@ -181,7 +222,7 @@ proc close*(c: ConnManager) {.async.} =
   for conns in toSeq(c.conns.values):
     for conn in conns:
       try:
-          await c.cleanupConn(conn)
+        await c.cleanupConn(conn)
       except CancelledError as exc:
         raise exc
       except CatchableError as exc:
