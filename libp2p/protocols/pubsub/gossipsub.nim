@@ -21,6 +21,8 @@ import pubsub,
        ../../peerid,
        ../../errors,
        ../../utility
+import stew/results
+export results
 
 logScope:
   topics = "gossipsub"
@@ -58,7 +60,11 @@ type
     dScore*: int
     dOut*: int
 
+    gossipThreshold*: float
     publishThreshold*: float
+    graylistThreshold*: float
+    acceptPXThreshold*: float
+    opportunisticGraftThreshold*: float
 
   GossipSub* = ref object of FloodSub
     parameters*: GossipSubParams
@@ -94,7 +100,10 @@ proc init*(_: type[GossipSubParams]): GossipSubParams =
       gossipFactor: 0.25,
       dScore: 4,
       dOut: 2,
-      publishThreshold: 1.0,
+      gossipThreshold: -10,
+      publishThreshold: -100,
+      graylistThreshold: -10000,
+      opportunisticGraftThreshold: 1
     )
 
 func addPeer(table: var PeerTable, topic: string, peer: PubSubPeer): bool =
@@ -186,6 +195,8 @@ proc rebalanceMesh(g: GossipSub, topic: string) {.async.} =
     # prune peers if we've gone over
     # gather peers
     var mesh = toSeq(g.mesh[topic])
+    # shuffle anyway, we might not use score
+    shuffle(mesh) 
     # sort peers by score
     mesh.sort(proc (x, y: PubSubPeer): int =
       let
@@ -625,8 +636,27 @@ method stop*(g: GossipSub) {.async.} =
       trace "awaiting last heartbeat"
       await g.heartbeatFut
 
+proc validateParameters(g: GossipSub): Result[void, cstring] =
+  if  (g.parameters.dOut >= GossipSubDlo) or 
+      (g.parameters.dOut > (GossipSubD div 2)):
+    err("gossipsub: dOut parameter error, Number of outbound connections to keep in the mesh. Must be less than D_lo and at most D/2")
+  elif g.parameters.gossipThreshold >= 0:
+    err("gossipsub: gossipThreshold parameter error, Must be < 0")
+  elif g.parameters.publishThreshold >= g.parameters.gossipThreshold:
+    err("gossipsub: publishThreshold parameter error, Must be < gossipThreshold")
+  elif g.parameters.graylistThreshold >= g.parameters.publishThreshold:
+    err("gossipsub: graylistThreshold parameter error, Must be < publishThreshold")
+  elif g.parameters.acceptPXThreshold < 0:
+    err("gossipsub: acceptPXThreshold parameter error, Must be >= 0")
+  elif g.parameters.opportunisticGraftThreshold < 0:
+    err("gossipsub: opportunisticGraftThreshold parameter error, Must be >= 0")
+  else:
+    ok()
+
 method initPubSub*(g: GossipSub) =
   procCall FloodSub(g).initPubSub()
+
+  g.validateParameters().tryGet()
 
   randomize()
   g.mcache = newMCache(GossipSubHistoryGossip, GossipSubHistoryLength)

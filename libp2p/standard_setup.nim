@@ -67,7 +67,8 @@ proc newStandardSwitch*(privKey = none(PrivateKey),
                             triggerSelf = triggerSelf,
                             verifySignature = verifySignature,
                             sign = sign,
-                            msgIdProvider = msgIdProvider).PubSub
+                            msgIdProvider = msgIdProvider,
+                            params = GossipSubParams.init()).PubSub
                else:
                   newPubSub(FloodSub,
                             peerInfo = peerInfo,
