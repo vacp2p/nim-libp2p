@@ -26,8 +26,8 @@ logScope:
   topics = "gossipsub"
 
 const
-  GossipSubCodec* = "/meshsub/1.0.0"
-  GossipSubCodec_11* = "/meshsub/1.1.0"
+  GossipSubCodec* = "/meshsub/1.1.0"
+  GossipSubCodec_10* = "/meshsub/1.0.0"
 
 # overlay parameters
 const
@@ -132,8 +132,8 @@ method init*(g: GossipSub) =
     await g.handleConn(conn, proto)
 
   g.handler = handler
-  g.codecs &= GossipSubCodec_11
   g.codecs &= GossipSubCodec
+  g.codecs &= GossipSubCodec_10
 
 proc replenishFanout(g: GossipSub, topic: string) =
   ## get fanout peers for a topic
@@ -336,7 +336,7 @@ method handleDisconnect*(g: GossipSub, peer: PubSubPeer) =
 method subscribePeer*(p: GossipSub,
                       conn: Connection) =
   procCall PubSub(p).subscribePeer(conn)
-  asyncCheck p.handleConn(conn, GossipSubCodec_11)
+  asyncCheck p.handleConn(conn, GossipSubCodec)
 
 method subscribeTopic*(g: GossipSub,
                        topic: string,

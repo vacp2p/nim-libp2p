@@ -26,7 +26,8 @@ import ../libp2p/[daemon/daemonapi,
                   transports/tcptransport,
                   protocols/secure/secure,
                   protocols/pubsub/pubsub,
-                  protocols/pubsub/floodsub, gossipsub]
+                  protocols/pubsub/floodsub,
+                  protocols/pubsub/gossipsub]
 
 type
   # TODO: Unify both PeerInfo structs
