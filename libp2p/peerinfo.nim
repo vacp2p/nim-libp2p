@@ -144,5 +144,8 @@ func `==`*(a, b: PeerInfo): bool =
   if isNil(aptr) and isNil(bptr):
     return true
 
+  if isNil(aptr) or isNil(bptr):
+    return false
+
   if aptr == bptr and a.peerId == b.peerId:
     return true

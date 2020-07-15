@@ -58,6 +58,9 @@ func `==`*(a, b: PubSubPeer): bool =
   if isNil(aptr) and isNil(bptr):
     return true
 
+  if isNil(aptr) or isNil(bptr):
+    return false
+
   if aptr == bptr and a.peerInfo == b.peerInfo:
     return true
 
