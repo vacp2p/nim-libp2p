@@ -52,13 +52,13 @@ task testpubsub, "Runs pubsub tests":
 
 task testfilter, "Run PKI filter test":
   runTest("testpkifilter",
-           moreoptions = "--d:libp2p_pki_schemes=secp256k1")
+           moreoptions = "-d:libp2p_pki_schemes=secp256k1")
   runTest("testpkifilter",
-           moreoptions = "--d:libp2p_pki_schemes=secp256k1;ed25519")
+           moreoptions = "-d:libp2p_pki_schemes=secp256k1|ed25519")
   runTest("testpkifilter",
-           moreoptions = "--d:libp2p_pki_schemes=secp256k1;ed25519;ecnist")
+           moreoptions = "-d:libp2p_pki_schemes=secp256k1|ed25519|ecnist")
   runTest("testpkifilter",
-           moreoptions = "--d:libp2p_pki_schemes=")
+           moreoptions = "-d:libp2p_pki_schemes=")
 
 task test, "Runs the test suite":
   exec "nimble testnative"
