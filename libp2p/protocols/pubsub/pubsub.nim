@@ -14,8 +14,8 @@ import pubsubpeer,
        ../protocol,
        ../../stream/connection,
        ../../peerid,
-       ../../peerinfo
-import metrics
+       ../../peerinfo,
+       ../../errors
 
 export PubSubPeer
 export PubSubObserver
@@ -233,8 +233,11 @@ method subscribe*(p: PubSub,
 
   p.topics[topic].handler.add(handler)
 
+  var sent: seq[Future[void]]
   for peer in toSeq(p.peers.values):
-    await p.sendSubs(peer, @[topic], true)
+    sent.add(p.sendSubs(peer, @[topic], true))
+
+  asyncCheck allFinished(sent)
 
   # metrics
   libp2p_pubsub_topics.inc()

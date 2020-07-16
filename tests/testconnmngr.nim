@@ -108,7 +108,7 @@ suite "Connection Manager":
 
     waitFor(test())
 
-  test "get stream from connection":
+  test "get stream from any connection":
     proc test() {.async.} =
       let connMngr = ConnManager.init()
       let peer = PeerInfo.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet())
@@ -125,6 +125,18 @@ suite "Connection Manager":
       check not(isNil((await connMngr.getMuxedStream(conn))))
 
     waitFor(test())
+
+  test "should raise on too many connections":
+    proc test() =
+      let connMngr = ConnManager.init(1)
+      let peer = PeerInfo.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet())
+
+      connMngr.storeConn(Connection.init(peer, Direction.In))
+      connMngr.storeConn(Connection.init(peer, Direction.In))
+      connMngr.storeConn(Connection.init(peer, Direction.In))
+
+    expect TooManyConnections:
+      test()
 
   test "cleanup on connection close":
     proc test() {.async.} =
@@ -154,7 +166,10 @@ suite "Connection Manager":
       let peer = PeerInfo.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet())
 
       for i in 0..<2:
-        let dir = if i mod 2 == 0: Direction.In else: Direction.Out
+        let dir = if i mod 2 == 0:
+          Direction.In else:
+          Direction.Out
+
         let conn = Connection.init(peer, dir)
         let muxer = new Muxer
         muxer.connection = conn
@@ -166,9 +181,12 @@ suite "Connection Manager":
         check muxer in connMngr
         check not(isNil(connMngr.selectConn(peer, dir)))
 
+      check peer in connMngr.peers
       await connMngr.dropPeer(peer)
 
+      check peer notin connMngr.peers
       check isNil(connMngr.selectConn(peer, Direction.In))
       check isNil(connMngr.selectConn(peer, Direction.Out))
+      check connMngr.peers.len == 0
 
     waitFor(test())

@@ -65,6 +65,16 @@ proc newNoPubSubException(): ref NoPubSubException {.inline.} =
 proc disconnect*(s: Switch, peer: PeerInfo) {.async, gcsafe.}
 proc subscribePeer*(s: Switch, peerInfo: PeerInfo) {.async, gcsafe.}
 
+proc cleanupPubSubPeer(s: Switch, conn: Connection) {.async.} =
+  await conn.closeEvent.wait()
+  if s.pubSub.isSome:
+    await s.pubSub.get().unsubscribePeer(conn.peerInfo)
+
+proc isConnected*(s: Switch, peer: PeerInfo): bool =
+  # always compare peerIds comparing references will not
+  # work for an external PeerInfo
+  s.connManager.peers.anyIt( it.peerId == peer.peerId )
+
 proc secure(s: Switch, conn: Connection): Future[Connection] {.async, gcsafe.} =
   if s.secureManagers.len <= 0:
     raise newException(CatchableError, "No secure managers registered!")
@@ -156,7 +166,15 @@ proc mux(s: Switch, conn: Connection) {.async, gcsafe.} =
   s.connManager.storeMuxer(muxer, handlerFut) # update muxer with handler
 
 proc disconnect*(s: Switch, peer: PeerInfo) {.async, gcsafe.} =
-  await s.connManager.dropPeer(peer)
+  # always compare peerIds comparing references will not
+  # work for an external PeerInfo
+
+  let peerInfos = s.connManager.peers.filterIt(
+    it.peerId == it.peerId
+  )
+
+  for p in peerInfos:
+    await s.connManager.dropPeer(p)
 
 proc upgradeOutgoing(s: Switch, conn: Connection): Future[Connection] {.async, gcsafe.} =
   logScope:
@@ -288,6 +306,8 @@ proc internalConnect(s: Switch,
                            peer = $conn.peerInfo
 
   await s.subscribePeer(peer)
+  asyncCheck s.cleanupPubSubPeer(conn)
+
   return conn
 
 proc connect*(s: Switch, peer: PeerInfo) {.async.} =
@@ -418,32 +438,26 @@ proc subscribePeer*(s: Switch, peerInfo: PeerInfo) {.async, gcsafe.} =
         await stream.close()
 
 proc subscribe*(s: Switch, topic: string,
-                handler: TopicHandler): Future[void] =
+                handler: TopicHandler) {.async.} =
   ## subscribe to a pubsub topic
   if s.pubSub.isNone:
-    var retFuture = newFuture[void]("Switch.subscribe")
-    retFuture.fail(newNoPubSubException())
-    return retFuture
+    raise newNoPubSubException()
 
-  return s.pubSub.get().subscribe(topic, handler)
+  await s.pubSub.get().subscribe(topic, handler)
 
-proc unsubscribe*(s: Switch, topics: seq[TopicPair]): Future[void] =
+proc unsubscribe*(s: Switch, topics: seq[TopicPair]) {.async.} =
   ## unsubscribe from topics
   if s.pubSub.isNone:
-    var retFuture = newFuture[void]("Switch.unsubscribe")
-    retFuture.fail(newNoPubSubException())
-    return retFuture
+    raise newNoPubSubException()
 
-  return s.pubSub.get().unsubscribe(topics)
+  await s.pubSub.get().unsubscribe(topics)
 
-proc publish*(s: Switch, topic: string, data: seq[byte]): Future[int] =
+proc publish*(s: Switch, topic: string, data: seq[byte]): Future[int] {.async.} =
   # pubslish to pubsub topic
   if s.pubSub.isNone:
-    var retFuture = newFuture[int]("Switch.publish")
-    retFuture.fail(newNoPubSubException())
-    return retFuture
+    raise newNoPubSubException()
 
-  return s.pubSub.get().publish(topic, data)
+  return await s.pubSub.get().publish(topic, data)
 
 proc addValidator*(s: Switch,
                    topics: varargs[string],
@@ -488,6 +502,7 @@ proc muxerHandler(s: Switch, muxer: Muxer) {.async, gcsafe.} =
 
     # try establishing a pubsub connection
     await s.subscribePeer(muxer.connection.peerInfo)
+    asyncCheck s.cleanupPubSubPeer(muxer.connection)
 
   except CancelledError as exc:
     await muxer.close()

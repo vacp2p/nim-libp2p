@@ -9,7 +9,9 @@
 
 import tables, sequtils, sets
 import chronos, chronicles, metrics
-import peerinfo, stream/connection, muxers/muxer
+import peerinfo,
+       stream/connection,
+       muxers/muxer
 
 declareGauge(libp2p_peers, "total connected peers")
 
@@ -70,6 +72,9 @@ proc contains*(c: ConnManager, muxer: Muxer): bool =
 
   return muxer == c.muxed[conn].muxer
 
+proc peers*(c: ConnManager): seq[PeerInfo] =
+  toSeq(c.conns.keys)
+
 proc cleanupConn(c: ConnManager, conn: Connection) {.async.} =
   ## clean connection's resources such as muxers and streams
   ##
@@ -105,7 +110,7 @@ proc cleanupConn(c: ConnManager, conn: Connection) {.async.} =
 
   finally:
     await conn.close()
-    libp2p_peers.set(c.conns.len.int64)
+    libp2p_peers.set(c.peers.len.int64)
 
     if lock.locked():
       lock.release()
@@ -174,9 +179,10 @@ proc storeConn*(c: ConnManager, conn: Connection) =
 
   let peerInfo = conn.peerInfo
   if c.conns.getOrDefault(peerInfo).len > c.maxConns:
-    warn "disconnecting peer, too many connections", peer = $conn.peerInfo,
-                                                      conns = c.conns
-                                                      .getOrDefault(peerInfo).len
+    trace "too many connections", peer = $conn.peerInfo,
+                                  conns = c.conns
+                                  .getOrDefault(peerInfo).len
+
     raise newTooManyConnections()
 
   if peerInfo notin c.conns:
@@ -186,7 +192,7 @@ proc storeConn*(c: ConnManager, conn: Connection) =
 
   # launch on close listener
   asyncCheck c.onClose(conn)
-  libp2p_peers.set(c.conns.len.int64)
+  libp2p_peers.set(c.peers.len.int64)
 
 proc storeMuxer*(c: ConnManager,
                  muxer: Muxer,

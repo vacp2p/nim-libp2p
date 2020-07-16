@@ -76,15 +76,6 @@ method initStream*(s: LPStream) {.base.} =
   libp2p_open_streams.inc(labelValues = [s.objName])
   trace "stream created", oid = $s.oid, name = s.objName
 
-  # TODO: debuging aid to troubleshoot streams open/close
-  # try:
-  #   echo "ChronosStream ", libp2p_open_streams.value(labelValues = ["ChronosStream"])
-  #   echo "SecureConn ", libp2p_open_streams.value(labelValues = ["SecureConn"])
-  #   # doAssert(libp2p_open_streams.value(labelValues = ["ChronosStream"]) >=
-  #   #   libp2p_open_streams.value(labelValues = ["SecureConn"]))
-  # except CatchableError:
-  #   discard
-
 proc join*(s: LPStream): Future[void] =
   s.closeEvent.wait()
 
@@ -207,12 +198,3 @@ method close*(s: LPStream) {.base, async.} =
     s.closeEvent.fire()
     libp2p_open_streams.dec(labelValues = [s.objName])
     trace "stream destroyed", oid = $s.oid, name = s.objName
-
-  # TODO: debuging aid to troubleshoot streams open/close
-  # try:
-  #   echo "ChronosStream ", libp2p_open_streams.value(labelValues = ["ChronosStream"])
-  #   echo "SecureConn ", libp2p_open_streams.value(labelValues = ["SecureConn"])
-  #   # doAssert(libp2p_open_streams.value(labelValues = ["ChronosStream"]) >=
-  #   #   libp2p_open_streams.value(labelValues = ["SecureConn"]))
-  # except CatchableError:
-  #   discard

@@ -70,8 +70,9 @@ method initStream*(s: Connection) =
   inc getConnectionTracker().opened
 
 method close*(s: Connection) {.async.} =
-  await procCall LPStream(s).close()
-  inc getConnectionTracker().closed
+  if not s.isClosed:
+    await procCall LPStream(s).close()
+    inc getConnectionTracker().closed
 
 proc `$`*(conn: Connection): string =
   if not isNil(conn.peerInfo):
