@@ -156,7 +156,7 @@ proc mux(s: Switch, conn: Connection) {.async, gcsafe.} =
   s.connManager.storeMuxer(muxer, handlerFut) # update muxer with handler
 
 proc disconnect*(s: Switch, peer: PeerInfo) {.async, gcsafe.} =
-  await s.connManager.dropConns(peer)
+  await s.connManager.dropPeer(peer)
 
 proc upgradeOutgoing(s: Switch, conn: Connection): Future[Connection] {.async, gcsafe.} =
   logScope:

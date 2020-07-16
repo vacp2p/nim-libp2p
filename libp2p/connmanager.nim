@@ -38,6 +38,10 @@ proc init*(C: type ConnManager,
     muxed: initTable[Connection, MuxerHolder]())
 
 proc contains*(c: ConnManager, conn: Connection): bool =
+  ## checks if a connection is being tracked by the
+  ## connection manager
+  ##
+
   if isNil(conn):
     return
 
@@ -50,6 +54,10 @@ proc contains*(c: ConnManager, conn: Connection): bool =
   return conn in c.conns[conn.peerInfo]
 
 proc contains*(c: ConnManager, muxer: Muxer): bool =
+  ## checks if a muxer is being tracked by the connection
+  ## manager
+  ##
+
   if isNil(muxer):
     return
 
@@ -63,45 +71,55 @@ proc contains*(c: ConnManager, muxer: Muxer): bool =
   return muxer == c.muxed[conn].muxer
 
 proc cleanupConn(c: ConnManager, conn: Connection) {.async.} =
-    if isNil(conn):
-      return
+  ## clean connection's resources such as muxers and streams
+  ##
 
-    if isNil(conn.peerInfo):
-      return
+  if isNil(conn):
+    return
 
-    let peerInfo = conn.peerInfo
-    let lock = c.cleanUpLock.mgetOrPut(peerInfo, newAsyncLock())
+  if isNil(conn.peerInfo):
+    return
 
-    try:
-      await lock.acquire()
-      trace "cleaning up connection for peer", peer = $peerInfo
-      if conn in c.muxed:
-        let muxerHolder = c.muxed[conn]
-        c.muxed.del(conn)
+  let peerInfo = conn.peerInfo
+  let lock = c.cleanUpLock.mgetOrPut(peerInfo, newAsyncLock())
 
-        await muxerHolder.muxer.close()
-        if not(isNil(muxerHolder.handle)):
-          await muxerHolder.handle
+  try:
+    await lock.acquire()
+    trace "cleaning up connection for peer", peer = $peerInfo
+    if conn in c.muxed:
+      let muxerHolder = c.muxed[conn]
+      c.muxed.del(conn)
 
-      if peerInfo in c.conns:
-        c.conns[peerInfo].excl(conn)
+      await muxerHolder.muxer.close()
+      if not(isNil(muxerHolder.handle)):
+        await muxerHolder.handle
 
-        if c.conns[peerInfo].len == 0:
-          c.conns.del(peerInfo)
+    if peerInfo in c.conns:
+      c.conns[peerInfo].excl(conn)
 
-      if not(conn.peerInfo.isClosed()):
-        conn.peerInfo.close()
+      if c.conns[peerInfo].len == 0:
+        c.conns.del(peerInfo)
 
-    finally:
-      await conn.close()
-      libp2p_peers.set(c.conns.len.int64)
+    if not(conn.peerInfo.isClosed()):
+      conn.peerInfo.close()
 
-      if lock.locked():
-        lock.release()
+  finally:
+    await conn.close()
+    libp2p_peers.set(c.conns.len.int64)
+
+    if lock.locked():
+      lock.release()
+
+    trace "connection cleaned up"
 
 proc onClose(c: ConnManager, conn: Connection) {.async.} =
-  # connection close event handler
+  ## connection close even handler
+  ##
+  ## triggers the connections resource cleanup
+  ##
+
   await conn.closeEvent.wait()
+  trace "triggering connection cleanup"
   await c.cleanupConn(conn)
 
 proc selectConn*(c: ConnManager,
@@ -135,7 +153,7 @@ proc selectConn*(c: ConnManager, peerInfo: PeerInfo): Connection =
   return conn
 
 proc selectMuxer*(c: ConnManager, conn: Connection): Muxer =
-  ## select the muxer for the supplied connection
+  ## select the muxer for the provided connection
   ##
 
   if isNil(conn):
@@ -145,6 +163,9 @@ proc selectMuxer*(c: ConnManager, conn: Connection): Muxer =
     return c.muxed[conn].muxer
 
 proc storeConn*(c: ConnManager, conn: Connection) =
+  ## store a connection
+  ##
+
   if isNil(conn):
     raise newException(CatchableError, "connection cannot be nil")
 
@@ -188,8 +209,9 @@ proc storeMuxer*(c: ConnManager,
 proc getMuxedStream*(c: ConnManager,
                      peerInfo: PeerInfo,
                      dir: Direction): Future[Connection] {.async, gcsafe.} =
-  # if there is a muxer for the connection
-  # use it instead to create a muxed stream
+  ## get a muxed stream for the provided peer
+  ## with the given direction
+  ##
 
   let muxer = c.selectMuxer(c.selectConn(peerInfo, dir)) # always get the first muxer here
   if not(isNil(muxer)):
@@ -197,8 +219,8 @@ proc getMuxedStream*(c: ConnManager,
 
 proc getMuxedStream*(c: ConnManager,
                      peerInfo: PeerInfo): Future[Connection] {.async, gcsafe.} =
-  # if there is a muxer for the connection
-  # use it instead to create a muxed stream
+  ## get a muxed stream for the passed peer from any connection
+  ##
 
   let muxer = c.selectMuxer(c.selectConn(peerInfo)) # always get the first muxer here
   if not(isNil(muxer)):
@@ -206,19 +228,26 @@ proc getMuxedStream*(c: ConnManager,
 
 proc getMuxedStream*(c: ConnManager,
                      conn: Connection): Future[Connection] {.async, gcsafe.} =
-  # if there is a muxer for the connection
-  # use it instead to create a muxed stream
+  ## get a muxed stream for the passed connection
+  ##
 
   let muxer = c.selectMuxer(conn) # always get the first muxer here
   if not(isNil(muxer)):
     return await muxer.newStream()
 
-proc dropConns*(c: ConnManager, peerInfo: PeerInfo) {.async.} =
+proc dropPeer*(c: ConnManager, peerInfo: PeerInfo) {.async.} =
+  ## drop connections and cleanup resources for peer
+  ##
+
   for conn in c.conns.getOrDefault(peerInfo):
     if not(isNil(conn)):
       await c.cleanupConn(conn)
 
 proc close*(c: ConnManager) {.async.} =
+  ## cleanup resources for the connection
+  ## manager
+  ##
+
   for conns in toSeq(c.conns.values):
     for conn in conns:
       try:
