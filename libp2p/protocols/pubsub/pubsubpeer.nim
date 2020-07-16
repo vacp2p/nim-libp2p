@@ -158,7 +158,7 @@ proc send*(p: PubSubPeer, msg: RPCMsg) {.async.} =
     return
 
   logScope:
-    encoded = shortLog(endoded)
+    encoded = shortLog(encoded)
 
   let digest = $(sha256.digest(encoded))
   if digest in p.sentRpcCache:
