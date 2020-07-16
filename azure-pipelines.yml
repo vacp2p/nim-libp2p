@@ -104,9 +104,8 @@ steps:
       export PATH="${GOPATH}/bin:${PATH}"
       echo "PATH=${PATH}"
 
-      curl -OLsS https://raw.githubusercontent.com/status-im/nimbus-build-system/master/scripts/build_p2pd.sh
       # we can't seem to be able to build a 32-bit p2pd
-      env PATH="/c/custom/mingw64/bin:${PATH}" bash build_p2pd.sh p2pdCache v0.2.4
+      env PATH="/c/custom/mingw64/bin:${PATH}" bash scripts/build_p2pd.sh p2pdCache update
 
       # install dependencies
       nimble refresh
