@@ -212,8 +212,9 @@ proc rebalanceMesh(g: GossipSub, topic: string) {.async.} =
 
     for peer in newPeers:
       # send a graft message to the peer
-      grafts.add peer
-      discard g.mesh.addPeer(topic, peer)
+      grafts.add(peer)
+      if g.mesh.addPeer(topic, peer):
+        peer.grafted(topic)
       trace "got peer", peer = $peer
 
   if g.mesh.peers(topic) > GossipSubDhi:
@@ -238,6 +239,7 @@ proc rebalanceMesh(g: GossipSub, topic: string) {.async.} =
 
       trace "pruning peers", peers = g.mesh.peers(topic)
       # send a graft message to the peer
+      peer.pruned(topic)
       g.mesh.removePeer(topic, peer)
       prunes.add(peer)
 
@@ -436,6 +438,7 @@ proc handleGraft(g: GossipSub,
         # peer will be removed from the mesh on next rebalance, so we don't want
         # this peer to push someone else out
         if g.mesh.addPeer(topic, peer):
+          peer.grafted(topic)
           g.fanout.removePeer(topic, peer)
         else:
           trace "Peer already in mesh", topic, peer = $peer
@@ -452,6 +455,7 @@ proc handlePrune(g: GossipSub, peer: PubSubPeer, prunes: seq[ControlPrune]) =
     trace "processing prune message", peer = $peer,
                                       topicID = prune.topicID
 
+    peer.pruned(prune.topicID)
     g.mesh.removePeer(prune.topicID, peer)
     libp2p_gossipsub_peers_per_topic_mesh
       .set(g.mesh.peers(prune.topicID).int64, labelValues = [prune.topicID])
@@ -560,6 +564,11 @@ method subscribe*(g: GossipSub,
                   topic: string,
                   handler: TopicHandler) {.async.} =
   await procCall PubSub(g).subscribe(topic, handler)
+  
+  # if we have a fanout on this topic break it
+  if topic in g.fanout:
+    g.fanout.del(topic)
+  
   await g.rebalanceMesh(topic)
 
 method unsubscribe*(g: GossipSub,
@@ -573,6 +582,7 @@ method unsubscribe*(g: GossipSub,
       g.mesh.del(topic)
 
       for peer in peers:
+        peer.pruned(topic)
         await peer.sendPrune(@[topic])
 
 method publish*(g: GossipSub,
