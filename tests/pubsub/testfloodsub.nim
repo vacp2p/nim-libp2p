@@ -18,7 +18,8 @@ import utils,
                      crypto/crypto,
                      protocols/pubsub/pubsub,
                      protocols/pubsub/floodsub,
-                     protocols/pubsub/rpc/messages]
+                     protocols/pubsub/rpc/messages,
+                     protocols/pubsub/peertable]
 
 import ../helpers
 

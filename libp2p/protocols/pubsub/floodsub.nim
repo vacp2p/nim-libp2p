@@ -12,6 +12,7 @@ import chronos, chronicles, metrics
 import pubsub,
        pubsubpeer,
        timedcache,
+       peertable,
        rpc/[messages, message],
        ../../stream/connection,
        ../../peerid,
@@ -24,8 +25,8 @@ const FloodSubCodec* = "/floodsub/1.0.0"
 
 type
   FloodSub* = ref object of PubSub
-    floodsub*: PeerTable # topic to remote peer map
-    seen*: TimedCache[string]                 # list of messages forwarded to peers
+    floodsub*: PeerTable      # topic to remote peer map
+    seen*: TimedCache[string] # list of messages forwarded to peers
 
 method subscribeTopic*(f: FloodSub,
                        topic: string,
