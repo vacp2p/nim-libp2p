@@ -59,6 +59,22 @@ type
     firstMessageDeliveriesDecay*: float
     firstMessageDeliveriesCap*: float
 
+    # p3
+    meshMessageDeliveriesWeight*: float
+    meshMessageDeliveriesDecay*: float
+    meshMessageDeliveriesThreshold*: float
+    meshMessageDeliveriesCap*: float
+    meshMessageDeliveriesActivation*: Duration
+    meshMessageDeliveriesWindow*: Duration
+
+    # p3b
+    meshFailurePenaltyWeight*: float
+    meshFailurePenaltyDecay*: float
+
+    # p4
+    invalidMessageDeliveriesWeight*: float
+    invalidMessageDeliveriesDecay*: float
+
   Topic* = object
     # make this a variant type if one day we have different Params structs
     name*: string
@@ -87,11 +103,37 @@ proc init*(_: type[TopicParams]): TopicParams =
     firstMessageDeliveriesWeight: 1.0,
     firstMessageDeliveriesDecay: 0.5,
     firstMessageDeliveriesCap: 10.0,
+    meshMessageDeliveriesWeight: -1.0,
+    meshMessageDeliveriesDecay: 0.5,
+    meshMessageDeliveriesCap: 10,
+    meshMessageDeliveriesThreshold: 5,
+    meshMessageDeliveriesWindow: 5.milliseconds,
+    meshMessageDeliveriesActivation: 1.seconds,
+    meshFailurePenaltyWeight: -1.0,
+    meshFailurePenaltyDecay: 0.5,
+    invalidMessageDeliveriesWeight: -1.0,
+    invalidMessageDeliveriesDecay: 0.5
   )
 
 proc validateParameters*(parameters: TopicParams): Result[void, cstring] =
   if parameters.timeInMeshWeight <= 0.0 or parameters.timeInMeshWeight > 1.0:
     err("gossipsub: timeInMeshWeight parameter error, Must be a small positive value")
+  elif parameters.timeInMeshCap <= 0.0:
+    err("gossipsub: timeInMeshCap parameter error, Should be a positive value")
+  elif parameters.firstMessageDeliveriesWeight <= 0.0:
+    err("gossipsub: firstMessageDeliveriesWeight parameter error, Should be a positive value")
+  elif parameters.meshMessageDeliveriesWeight >= 0.0:
+    err("gossipsub: meshMessageDeliveriesWeight parameter error, Should be a negative value")
+  elif parameters.meshMessageDeliveriesThreshold <= 0.0:
+    err("gossipsub: meshMessageDeliveriesThreshold parameter error, Should be a positive value")
+  elif parameters.meshMessageDeliveriesCap < parameters.meshMessageDeliveriesThreshold:
+    err("gossipsub: meshMessageDeliveriesCap parameter error, Should be >= meshMessageDeliveriesThreshold")
+  elif parameters.meshMessageDeliveriesWindow > 100.milliseconds:
+    err("gossipsub: meshMessageDeliveriesWindow parameter error, Should be small, 1-5ms")
+  elif parameters.meshFailurePenaltyWeight >= 0.0:
+    err("gossipsub: meshFailurePenaltyWeight parameter error, Should be a negative value")
+  elif parameters.invalidMessageDeliveriesWeight >= 0.0:
+    err("gossipsub: invalidMessageDeliveriesWeight parameter error, Should be a negative value")
   else:
     ok()
 

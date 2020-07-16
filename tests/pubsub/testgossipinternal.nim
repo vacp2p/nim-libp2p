@@ -25,6 +25,16 @@ suite "GossipSub internal":
     for tracker in testTrackers():
       # echo tracker.dump()
       check tracker.isLeaked() == false
+  
+  test "topic params":
+    proc testRun(): Future[bool] {.async.} =
+      let params = TopicParams.init()
+      params.validateParameters().tryGet()
+
+      return true
+
+    check:
+      waitFor(testRun()) == true
 
   test "`rebalanceMesh` Degree Lo":
     proc testRun(): Future[bool] {.async.} =
