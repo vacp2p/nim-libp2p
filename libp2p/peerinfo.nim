@@ -147,10 +147,10 @@ func `==`*(a, b: PeerInfo): bool =
     bptr = cast[pointer](b)
 
   if isNil(aptr) and isNil(bptr):
-    return true
-
-  if isNil(aptr) or isNil(bptr):
-    return false
-
-  if aptr == bptr and a.peerId == b.peerId:
-    return true
+    true
+  elif isNil(aptr) or isNil(bptr):
+    false
+  elif aptr == bptr and a.peerId == b.peerId:
+    true
+  else:
+    false

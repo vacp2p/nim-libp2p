@@ -65,7 +65,13 @@ func `==`*(a, b: PubSubPeer): bool =
     bptr = cast[pointer](b)
 
   if isNil(aptr) and isNil(bptr):
-    return true
+    true
+  elif isNil(aptr) or isNil(bptr):
+    false
+  elif aptr == bptr and a.peerInfo == b.peerInfo:
+    true
+  else:
+    false
 
 proc id*(p: PubSubPeer): string = p.peerInfo.id
 
