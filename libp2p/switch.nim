@@ -71,9 +71,7 @@ proc cleanupPubSubPeer(s: Switch, conn: Connection) {.async.} =
     await s.pubSub.get().unsubscribePeer(conn.peerInfo)
 
 proc isConnected*(s: Switch, peer: PeerInfo): bool =
-  # always compare peerIds comparing references will not
-  # work for an external PeerInfo
-  s.connManager.peers.anyIt( it.peerId == peer.peerId )
+  peer.peerId in s.connManager
 
 proc secure(s: Switch, conn: Connection): Future[Connection] {.async, gcsafe.} =
   if s.secureManagers.len <= 0:
@@ -85,9 +83,11 @@ proc secure(s: Switch, conn: Connection): Future[Connection] {.async, gcsafe.} =
 
   trace "securing connection", codec = manager
   let secureProtocol = s.secureManagers.filterIt(it.codec == manager)
+
   # ms.select should deal with the correctness of this
   # let's avoid duplicating checks but detect if it fails to do it properly
   doAssert(secureProtocol.len > 0)
+
   result = await secureProtocol[0].secure(conn, true)
 
 proc identify(s: Switch, conn: Connection) {.async, gcsafe.} =
@@ -166,15 +166,7 @@ proc mux(s: Switch, conn: Connection) {.async, gcsafe.} =
   s.connManager.storeMuxer(muxer, handlerFut) # update muxer with handler
 
 proc disconnect*(s: Switch, peer: PeerInfo) {.async, gcsafe.} =
-  # always compare peerIds comparing references will not
-  # work for an external PeerInfo
-
-  let peerInfos = s.connManager.peers.filterIt(
-    it.peerId == it.peerId
-  )
-
-  for p in peerInfos:
-    await s.connManager.dropPeer(p)
+  await s.connManager.dropPeer(peer)
 
 proc upgradeOutgoing(s: Switch, conn: Connection): Future[Connection] {.async, gcsafe.} =
   logScope:
@@ -259,7 +251,9 @@ proc internalConnect(s: Switch,
             trace "Dialing address", address = $a, peer = id
             try:
               conn = await t.dial(a)
-              conn.dir = Direction.Out # tag connection with direction
+              # make sure to assign the peer to the connection
+              conn.peerInfo = peer
+
               libp2p_dialed_peers.inc()
             except CancelledError as exc:
               trace "dialing canceled", exc = exc.msg
@@ -269,11 +263,10 @@ proc internalConnect(s: Switch,
               libp2p_failed_dials.inc()
               continue
 
-            # make sure to assign the peer to the connection
-            conn.peerInfo = peer
             try:
-              conn = await s.upgradeOutgoing(conn)
-              s.connManager.storeConn(conn)
+              let uconn = await s.upgradeOutgoing(conn)
+              s.connManager.storeOutgoing(uconn)
+              conn = uconn
             except CatchableError as exc:
               if not(isNil(conn)):
                 await conn.close()
@@ -493,7 +486,8 @@ proc muxerHandler(s: Switch, muxer: Muxer) {.async, gcsafe.} =
 
     muxer.connection.peerInfo = stream.peerInfo
 
-    s.connManager.storeConn(muxer.connection) # track connection
+    # store incoming connection
+    s.connManager.storeIncoming(muxer.connection)
 
     # store muxer and muxed connection
     s.connManager.storeMuxer(muxer)

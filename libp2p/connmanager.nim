@@ -25,7 +25,11 @@ type
     handle: Future[void]
 
   ConnManager* = ref object of RootObj
-    conns: Table[PeerInfo, HashSet[Connection]]
+    # NOTE: don't change to PeerInfo here
+    # the reference semantics on the PeerInfo
+    # object itself make it succeptible to
+    # copies and mangling by unrelated code.
+    conns: Table[PeerID, HashSet[Connection]]
     muxed: Table[Connection, MuxerHolder]
     cleanUpLock: Table[PeerInfo, AsyncLock]
     maxConns: int
@@ -36,7 +40,7 @@ proc newTooManyConnections(): ref TooManyConnections {.inline.} =
 proc init*(C: type ConnManager,
            maxConnsPerPeer: int = MaxConnectionsPerPeer): ConnManager =
   C(maxConns: maxConnsPerPeer,
-    conns: initTable[PeerInfo, HashSet[Connection]](),
+    conns: initTable[PeerID, HashSet[Connection]](),
     muxed: initTable[Connection, MuxerHolder]())
 
 proc contains*(c: ConnManager, conn: Connection): bool =
@@ -50,10 +54,13 @@ proc contains*(c: ConnManager, conn: Connection): bool =
   if isNil(conn.peerInfo):
     return
 
-  if conn.peerInfo notin c.conns:
+  if conn.peerInfo.peerId notin c.conns:
     return
 
-  return conn in c.conns[conn.peerInfo]
+  return conn in c.conns[conn.peerInfo.peerId]
+
+proc contains*(c: ConnManager, peerId: PeerID): bool =
+  peerId in c.conns
 
 proc contains*(c: ConnManager, muxer: Muxer): bool =
   ## checks if a muxer is being tracked by the connection
@@ -71,9 +78,6 @@ proc contains*(c: ConnManager, muxer: Muxer): bool =
     return
 
   return muxer == c.muxed[conn].muxer
-
-proc peers*(c: ConnManager): seq[PeerInfo] =
-  toSeq(c.conns.keys)
 
 proc cleanupConn(c: ConnManager, conn: Connection) {.async.} =
   ## clean connection's resources such as muxers and streams
@@ -99,18 +103,18 @@ proc cleanupConn(c: ConnManager, conn: Connection) {.async.} =
       if not(isNil(muxerHolder.handle)):
         await muxerHolder.handle
 
-    if peerInfo in c.conns:
-      c.conns[peerInfo].excl(conn)
+    if peerInfo.peerId in c.conns:
+      c.conns[peerInfo.peerId].excl(conn)
 
-      if c.conns[peerInfo].len == 0:
-        c.conns.del(peerInfo)
+      if c.conns[peerInfo.peerId].len == 0:
+        c.conns.del(peerInfo.peerId)
 
     if not(conn.peerInfo.isClosed()):
       conn.peerInfo.close()
 
   finally:
     await conn.close()
-    libp2p_peers.set(c.peers.len.int64)
+    libp2p_peers.set(c.conns.len.int64)
 
     if lock.locked():
       lock.release()
@@ -137,7 +141,7 @@ proc selectConn*(c: ConnManager,
     return
 
   let conns = toSeq(
-    c.conns.getOrDefault(peerInfo))
+    c.conns.getOrDefault(peerInfo.peerId))
     .filterIt( it.dir == dir )
 
   if conns.len > 0:
@@ -178,21 +182,29 @@ proc storeConn*(c: ConnManager, conn: Connection) =
     raise newException(CatchableError, "empty peer info")
 
   let peerInfo = conn.peerInfo
-  if c.conns.getOrDefault(peerInfo).len > c.maxConns:
+  if c.conns.getOrDefault(peerInfo.peerId).len > c.maxConns:
     trace "too many connections", peer = $conn.peerInfo,
                                   conns = c.conns
-                                  .getOrDefault(peerInfo).len
+                                  .getOrDefault(peerInfo.peerId).len
 
     raise newTooManyConnections()
 
-  if peerInfo notin c.conns:
-    c.conns[peerInfo] = initHashSet[Connection]()
+  if peerInfo.peerId notin c.conns:
+    c.conns[peerInfo.peerId] = initHashSet[Connection]()
 
-  c.conns[peerInfo].incl(conn)
+  c.conns[peerInfo.peerId].incl(conn)
 
   # launch on close listener
   asyncCheck c.onClose(conn)
-  libp2p_peers.set(c.peers.len.int64)
+  libp2p_peers.set(c.conns.len.int64)
+
+proc storeOutgoing*(c: ConnManager, conn: Connection) =
+  conn.dir = Direction.Out
+  c.storeConn(conn)
+
+proc storeIncoming*(c: ConnManager, conn: Connection) =
+  conn.dir = Direction.In
+  c.storeConn(conn)
 
 proc storeMuxer*(c: ConnManager,
                  muxer: Muxer,
@@ -245,7 +257,7 @@ proc dropPeer*(c: ConnManager, peerInfo: PeerInfo) {.async.} =
   ## drop connections and cleanup resources for peer
   ##
 
-  for conn in c.conns.getOrDefault(peerInfo):
+  for conn in c.conns.getOrDefault(peerInfo.peerId):
     if not(isNil(conn)):
       await c.cleanupConn(conn)
 
