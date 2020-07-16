@@ -8,7 +8,7 @@
 ## those terms.
 
 import std/[tables, sequtils, sets]
-import chronos, chronicles
+import chronos, chronicles, metrics
 import pubsubpeer,
        rpc/[message, messages],
        ../protocol,
@@ -237,7 +237,7 @@ method subscribe*(p: PubSub,
   for peer in toSeq(p.peers.values):
     sent.add(p.sendSubs(peer, @[topic], true))
 
-  asyncCheck allFinished(sent)
+  checkFutures(await allFinished(sent))
 
   # metrics
   libp2p_pubsub_topics.inc()

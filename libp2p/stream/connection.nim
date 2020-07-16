@@ -20,7 +20,7 @@ const
 
 type
   Direction* {.pure.} = enum
-    In, Out
+    None, In, Out
 
   Connection* = ref object of LPStream
     peerInfo*: PeerInfo
