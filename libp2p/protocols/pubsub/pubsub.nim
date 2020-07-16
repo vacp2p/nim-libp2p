@@ -7,7 +7,7 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import tables, sequtils, sets
+import std/[tables, sequtils, sets]
 import chronos, chronicles
 import pubsubpeer,
        rpc/[message, messages],
@@ -77,16 +77,6 @@ proc sendSubs*(p: PubSub,
                topics: seq[string],
                subscribe: bool) {.async.} =
   ## send subscriptions to remote peer
-  trace "sending subscriptions", peer = peer.id,
-                                 subscribe = subscribe,
-                                 topicIDs = topics
-
-  var msg: RPCMsg
-  for t in topics:
-    trace "sending topic", peer = peer.id,
-                           subscribe = subscribe,
-                           topicName = t
-    msg.subscriptions.add(SubOpts(topic: t, subscribe: subscribe))
 
   try:
     # wait for a connection before publishing
@@ -95,7 +85,7 @@ proc sendSubs*(p: PubSub,
       trace "awaiting send connection"
       await peer.onConnect.wait()
 
-    await peer.send(@[msg])
+    await peer.sendSubOpts(topics, subscribe)
   except CancelledError as exc:
     p.handleDisconnect(peer)
     raise exc
@@ -107,6 +97,7 @@ method subscribeTopic*(p: PubSub,
                        topic: string,
                        subscribe: bool,
                        peerId: string) {.base, async.} =
+  # called when remote peer subscribes to a topic
   discard
 
 method rpcHandler*(p: PubSub,
@@ -258,7 +249,7 @@ proc sendHelper*(p: PubSub,
       continue
 
     trace "sending messages to peer", peer = sendPeer.id, msgs
-    sent.add((id: sendPeer.id, fut: sendPeer.send(@[RPCMsg(messages: msgs)])))
+    sent.add((id: sendPeer.id, fut: sendPeer.send(RPCMsg(messages: msgs))))
 
   var published: seq[string]
   var failed: seq[string]

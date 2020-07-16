@@ -7,7 +7,7 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import tables, sets, options, sequtils, random
+import std/[tables, sets, options, sequtils, random]
 import chronos, chronicles, metrics
 import pubsub,
        floodsub,
@@ -232,7 +232,7 @@ proc heartbeat(g: GossipSub) {.async.} =
       var sent: seq[Future[void]]
       for peer in peers.keys:
         if peer in g.peers:
-          sent &= g.peers[peer].send(@[RPCMsg(control: some(peers[peer]))])
+          sent &= g.peers[peer].send(RPCMsg(control: some(peers[peer])))
       checkFutures(await allFinished(sent))
 
       g.mcache.shift() # shift the cache
@@ -436,8 +436,7 @@ method rpcHandler*(g: GossipSub,
       if respControl.graft.len > 0 or respControl.prune.len > 0 or
          respControl.ihave.len > 0 or respControl.iwant.len > 0:
         await peer.send(
-          @[RPCMsg(control: some(respControl),
-                   messages: messages)])
+          RPCMsg(control: some(respControl), messages: messages))
 
 method subscribe*(g: GossipSub,
                   topic: string,

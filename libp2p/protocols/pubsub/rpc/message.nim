@@ -9,17 +9,14 @@
 
 {.push raises: [Defect].}
 
-import options
-import chronicles, stew/byteutils
-import metrics
-import chronicles
-import nimcrypto/sysrand
-import messages, protobuf,
+import chronicles, metrics, stew/[byteutils, endians2]
+import ./messages, ./protobuf,
        ../../../peerid,
        ../../../peerinfo,
        ../../../crypto/crypto,
        ../../../protobuf/minprotobuf
-import stew/endians2
+
+export messages
 
 logScope:
   topics = "pubsubmessage"
@@ -32,8 +29,8 @@ declareCounter(libp2p_pubsub_sig_verify_failure, "pubsub failed validated messag
 func defaultMsgIdProvider*(m: Message): string =
   byteutils.toHex(m.seqno) & m.fromPeer.pretty
 
-proc sign*(msg: Message, p: PeerInfo): seq[byte] {.gcsafe, raises: [ResultError[CryptoError], Defect].} =
-  p.privateKey.sign(PubSubPrefix & encodeMessage(msg)).tryGet().getBytes()
+proc sign*(msg: Message, p: PeerInfo): CryptoResult[seq[byte]] =
+  ok((? p.privateKey.sign(PubSubPrefix & encodeMessage(msg))).getBytes())
 
 proc verify*(m: Message, p: PeerInfo): bool =
   if m.signature.len > 0 and m.key.len > 0:
@@ -66,5 +63,5 @@ proc init*(
     topicIDs: @[topic])
 
   if sign and p.publicKey.isSome:
-    result.signature = sign(result, p)
+    result.signature = sign(result, p).tryGet()
     result.key =  p.publicKey.get().getBytes().tryGet()
