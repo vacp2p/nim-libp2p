@@ -11,6 +11,8 @@ import options, sequtils
 import ../../../utility
 import ../../../peerid
 
+export options
+
 type
     PeerInfoMsg* = object
       peerID*: seq[byte]
