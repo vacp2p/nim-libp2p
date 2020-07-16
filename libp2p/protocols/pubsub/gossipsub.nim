@@ -66,6 +66,15 @@ type
     graylistThreshold*: float
     acceptPXThreshold*: float
     opportunisticGraftThreshold*: float
+    decayInterval*: Duration
+    decayToZero*: float
+    retainScore*: Duration
+
+    appSpecificWeight*: float
+    ipColocationFactorWeight*: float
+    ipColocationFactorThreshold*: float
+    behaviourPenaltyWeight*: float
+    behaviourPenaltyDecay*: float
 
   GossipSub* = ref object of FloodSub
     parameters*: GossipSubParams
@@ -104,8 +113,45 @@ proc init*(_: type[GossipSubParams]): GossipSubParams =
       gossipThreshold: -10,
       publishThreshold: -100,
       graylistThreshold: -10000,
-      opportunisticGraftThreshold: 1
+      opportunisticGraftThreshold: 1,
+      decayInterval: 1.seconds,
+      decayToZero: 0.01,
+      retainScore: 10.seconds,
+      appSpecificWeight: 1.0,
+      ipColocationFactorWeight: 0.0,
+      ipColocationFactorThreshold: 1.0,
+      behaviourPenaltyWeight: -1.0,
+      behaviourPenaltyDecay: 0.999,
     )
+
+proc validateParameters*(parameters: GossipSubParams): Result[void, cstring] =
+  if  (parameters.dOut >= GossipSubDlo) or 
+      (parameters.dOut > (GossipSubD div 2)):
+    err("gossipsub: dOut parameter error, Number of outbound connections to keep in the mesh. Must be less than D_lo and at most D/2")
+  elif parameters.gossipThreshold >= 0:
+    err("gossipsub: gossipThreshold parameter error, Must be < 0")
+  elif parameters.publishThreshold >= parameters.gossipThreshold:
+    err("gossipsub: publishThreshold parameter error, Must be < gossipThreshold")
+  elif parameters.graylistThreshold >= parameters.publishThreshold:
+    err("gossipsub: graylistThreshold parameter error, Must be < publishThreshold")
+  elif parameters.acceptPXThreshold < 0:
+    err("gossipsub: acceptPXThreshold parameter error, Must be >= 0")
+  elif parameters.opportunisticGraftThreshold < 0:
+    err("gossipsub: opportunisticGraftThreshold parameter error, Must be >= 0")
+  elif parameters.decayToZero > 0.5 or parameters.decayToZero <= 0.0:
+    err("gossipsub: decayToZero parameter error, Should be close to 0.0")
+  elif parameters.appSpecificWeight < 0:
+    err("gossipsub: appSpecificWeight parameter error, Must be positive")
+  elif parameters.ipColocationFactorWeight > 0:
+    err("gossipsub: ipColocationFactorWeight parameter error, Must be negative or 0")
+  elif parameters.ipColocationFactorThreshold < 1.0:
+    err("gossipsub: ipColocationFactorThreshold parameter error, Must be at least 1")
+  elif parameters.behaviourPenaltyWeight >= 0:
+    err("gossipsub: behaviourPenaltyWeight parameter error, Must be negative")
+  elif parameters.behaviourPenaltyDecay < 0 or parameters.behaviourPenaltyDecay >= 1:
+    err("gossipsub: behaviourPenaltyDecay parameter error, Must be between 0 and 1")
+  else:
+    ok()
 
 method init*(g: GossipSub) =
   proc handler(conn: Connection, proto: string) {.async.} =
@@ -618,27 +664,10 @@ method stop*(g: GossipSub) {.async.} =
       trace "awaiting last heartbeat"
       await g.heartbeatFut
 
-proc validateParameters(g: GossipSub): Result[void, cstring] =
-  if  (g.parameters.dOut >= GossipSubDlo) or 
-      (g.parameters.dOut > (GossipSubD div 2)):
-    err("gossipsub: dOut parameter error, Number of outbound connections to keep in the mesh. Must be less than D_lo and at most D/2")
-  elif g.parameters.gossipThreshold >= 0:
-    err("gossipsub: gossipThreshold parameter error, Must be < 0")
-  elif g.parameters.publishThreshold >= g.parameters.gossipThreshold:
-    err("gossipsub: publishThreshold parameter error, Must be < gossipThreshold")
-  elif g.parameters.graylistThreshold >= g.parameters.publishThreshold:
-    err("gossipsub: graylistThreshold parameter error, Must be < publishThreshold")
-  elif g.parameters.acceptPXThreshold < 0:
-    err("gossipsub: acceptPXThreshold parameter error, Must be >= 0")
-  elif g.parameters.opportunisticGraftThreshold < 0:
-    err("gossipsub: opportunisticGraftThreshold parameter error, Must be >= 0")
-  else:
-    ok()
-
 method initPubSub*(g: GossipSub) =
   procCall FloodSub(g).initPubSub()
 
-  g.validateParameters().tryGet()
+  g.parameters.validateParameters().tryGet()
 
   randomize()
   g.mcache = newMCache(GossipSubHistoryGossip, GossipSubHistoryLength)

@@ -16,6 +16,8 @@ import pubsubpeer,
        ../../peerid,
        ../../peerinfo
 import metrics
+import stew/results
+export results
 
 export PubSubPeer
 export PubSubObserver
@@ -44,9 +46,24 @@ type
   MsgIdProvider* =
     proc(m: Message): string {.noSideEffect, raises: [Defect], nimcall, gcsafe.}
 
+  TopicParams* = object
+    topicWeight*: float
+
+    # p1
+    timeInMeshWeight*: float
+    timeinMeshQuantum*: Duration
+    timeInMeshCap*: float
+
+    # p2
+    firstMessageDeliveriesWeight*: float
+    firstMessageDeliveriesDecay*: float
+    firstMessageDeliveriesCap*: float
+
   Topic* = object
+    # make this a variant type if one day we have different Params structs
     name*: string
     handler*: seq[TopicHandler]
+    parameters*: TopicParams
 
   PubSub* = ref object of LPProtocol
     peerInfo*: PeerInfo               # this peer's info
@@ -60,6 +77,23 @@ type
     observers: ref seq[PubSubObserver] # ref as in smart_ptr
     msgIdProvider*: MsgIdProvider      # Turn message into message id (not nil)
     msgSeqno*: uint64
+
+proc init*(_: type[TopicParams]): TopicParams =
+  TopicParams(
+    topicWeight: 1.0,
+    timeInMeshWeight: 0.01,
+    timeinMeshQuantum: 1.seconds,
+    timeInMeshCap: 10.0,
+    firstMessageDeliveriesWeight: 1.0,
+    firstMessageDeliveriesDecay: 0.5,
+    firstMessageDeliveriesCap: 10.0,
+  )
+
+proc validateParameters*(parameters: TopicParams): Result[void, cstring] =
+  if parameters.timeInMeshWeight <= 0.0 or parameters.timeInMeshWeight > 1.0:
+    err("gossipsub: timeInMeshWeight parameter error, Must be a small positive value")
+  else:
+    ok()
 
 method handleDisconnect*(p: PubSub, peer: PubSubPeer) {.base.} =
   ## handle peer disconnects
@@ -244,7 +278,7 @@ method subscribe*(p: PubSub,
   ##
   if topic notin p.topics:
     trace "subscribing to topic", name = topic
-    p.topics[topic] = Topic(name: topic)
+    p.topics[topic] = Topic(name: topic, parameters: TopicParams.init())
 
   p.topics[topic].handler.add(handler)
 
