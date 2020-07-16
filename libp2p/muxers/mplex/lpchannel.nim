@@ -274,11 +274,12 @@ proc init*(
     name: name,
     conn: conn,
     initiator: initiator,
+    isLazy: lazy,
+    timeout: timeout,
     msgCode: if initiator: MessageType.MsgOut else: MessageType.MsgIn,
     closeCode: if initiator: MessageType.CloseOut else: MessageType.CloseIn,
     resetCode: if initiator: MessageType.ResetOut else: MessageType.ResetIn,
-    isLazy: lazy,
-    timeout: timeout)
+    dir: if initiator: Direction.Out else: Direction.In)
 
   logScope:
     id = chann.id
