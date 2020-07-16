@@ -114,20 +114,20 @@ suite "Switch":
 
       await sleepAsync(2.seconds) # wait a little for cleanup to happen
       var bufferTracker = getTracker(BufferStreamTrackerName)
-      # echo bufferTracker.dump()
+      echo bufferTracker.dump()
 
-      # plus 2 for the pubsub streams
+      # plus 4 for the pubsub streams
       check (BufferStreamTracker(bufferTracker).opened ==
-        (BufferStreamTracker(bufferTracker).closed + 2.uint64))
+        (BufferStreamTracker(bufferTracker).closed + 4.uint64))
 
       var connTracker = getTracker(ConnectionTrackerName)
-      # echo connTracker.dump()
+      echo connTracker.dump()
 
-      # plus 6 is for the secured connection and the socket
+      # plus 8 is for the secured connection and the socket
       # and the pubsub streams that won't clean up until
       # `disconnect()` or `stop()`
       check (ConnectionTracker(connTracker).opened ==
-        (ConnectionTracker(connTracker).closed + 6.uint64))
+        (ConnectionTracker(connTracker).closed + 8.uint64))
 
       await allFuturesThrowing(
         done.wait(5.seconds),
