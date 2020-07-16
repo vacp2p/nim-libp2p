@@ -211,6 +211,21 @@ suite "Mplex":
     check:
       waitFor(testResetWrite()) == true
 
+    test "timeout, channel should reset":
+      proc testResetWrite(): Future[bool] {.async.} =
+        proc writeHandler(data: seq[byte]) {.async, gcsafe.} = discard
+        let
+          conn = newBufferStream(writeHandler)
+          chann = LPChannel.init(
+            1, conn, true, timeout = 100.millis)
+
+        await chann.closeEvent.wait()
+        await conn.close()
+        result = true
+
+      check:
+        waitFor(testResetWrite())
+
   test "e2e - read/write receiver":
     proc testNewStream() {.async.} =
       let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
