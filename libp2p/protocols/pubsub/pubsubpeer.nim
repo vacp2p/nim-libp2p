@@ -27,15 +27,6 @@ declareCounter(libp2p_pubsub_skipped_received_messages, "number of received skip
 declareCounter(libp2p_pubsub_skipped_sent_messages, "number of sent skipped messages", labels = ["id"])
 
 type
-  TopicScoreParams = object
-    topicWeight: float
-    timeInMeshWeight: float
-    timeInMeshQuantum: Duration
-    timeInMeshCap: float
-
-  PeerScoreParams = object
-    topics: Table[string, TopicScoreParams]
-
   PubSubObserver* = ref object
     onRecv*: proc(peer: PubSubPeer; msgs: var RPCMsg) {.gcsafe, raises: [Defect].}
     onSend*: proc(peer: PubSubPeer; msgs: var RPCMsg) {.gcsafe, raises: [Defect].}
@@ -51,6 +42,10 @@ type
     onConnect*: AsyncEvent
     observers*: ref seq[PubSubObserver] # ref as in smart_ptr
     refs: int                           # how many active connections this peer has
+
+    # gossip 1.1 related
+    graftTime*: Moment
+    meshTime*: Duration
 
   RPCHandler* = proc(peer: PubSubPeer, msg: seq[RPCMsg]): Future[void] {.gcsafe.}
 
