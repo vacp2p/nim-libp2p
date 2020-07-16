@@ -210,9 +210,9 @@ method unsubscribe*(p: PubSub,
       if p.topics[t.topic].handler.len <= 0:
         p.topics.del(t.topic)
 
-method unsubscribe*(p: PubSub,
+proc unsubscribe*(p: PubSub,
                     topic: string,
-                    handler: TopicHandler): Future[void] {.base.} =
+                    handler: TopicHandler): Future[void] =
   ## unsubscribe from a ``topic`` string
   p.unsubscribe(@[(topic, handler)])
 
