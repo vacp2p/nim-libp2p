@@ -11,6 +11,7 @@ import oids, deques
 import chronos, chronicles, metrics
 import types,
        coder,
+       ../muxer,
        nimcrypto/utils,
        ../../stream/connection,
        ../../stream/bufferstream,
@@ -45,6 +46,8 @@ logScope:
 type
   LPChannel* = ref object of BufferStream
     id*: uint64                   # channel id
+    timeout: Duration             # channel timeout if no activity
+    activity: bool                # reset every time data is sent or received
     name*: string                 # name of the channel (for debugging)
     conn*: Connection             # wrapped connection used to for writing
     initiator*: bool              # initiated remotely or locally flag
@@ -74,60 +77,6 @@ template withEOFExceptions(body: untyped): untyped =
     trace "muxed connection closed", exc = exc.msg
   except LPStreamIncompleteError as exc:
     trace "incomplete message", exc = exc.msg
-
-method reset*(s: LPChannel) {.base, async, gcsafe.}
-
-method initStream*(s: LPChannel) =
-  if s.objName.len == 0:
-    s.objName = "LPChannel"
-
-  procCall BufferStream(s).initStream()
-
-proc newChannel*(id: uint64,
-                 conn: Connection,
-                 initiator: bool,
-                 name: string = "",
-                 size: int = DefaultBufferSize,
-                 lazy: bool = false): LPChannel =
-  result = LPChannel(id: id,
-                     name: name,
-                     conn: conn,
-                     initiator: initiator,
-                     msgCode: if initiator: MessageType.MsgOut else: MessageType.MsgIn,
-                     closeCode: if initiator: MessageType.CloseOut else: MessageType.CloseIn,
-                     resetCode: if initiator: MessageType.ResetOut else: MessageType.ResetIn,
-                     isLazy: lazy)
-
-  let chan = result
-  logScope:
-    id = chan.id
-    initiator = chan.initiator
-    name = chan.name
-    oid = $chan.oid
-    peer = $chan.conn.peerInfo
-    # stack = getStackTrace()
-
-  proc writeHandler(data: seq[byte]): Future[void] {.async, gcsafe.} =
-    try:
-      if chan.isLazy and not(chan.isOpen):
-        await chan.open()
-
-      # writes should happen in sequence
-      trace "sending data"
-
-      await conn.writeMsg(chan.id,
-                          chan.msgCode,
-                          data).wait(2.minutes) # write header
-    except CatchableError as exc:
-      trace "exception in lpchannel write handler", exc = exc.msg
-      await chan.reset()
-      raise exc
-
-  result.initBufferStream(writeHandler, size)
-  when chronicles.enabledLogLevel == LogLevel.TRACE:
-    result.name = if result.name.len > 0: result.name else: $result.oid
-
-  trace "created new lpchannel"
 
 proc closeMessage(s: LPChannel) {.async.} =
   logScope:
@@ -263,3 +212,104 @@ method close*(s: LPChannel) {.async, gcsafe.} =
 
   s.closedLocal = true
   asyncCheck closeInternal()
+
+proc timeoutMonitor(s: LPChannel) {.async.} =
+  ## monitor the channel for innactivity
+  ##
+  ## if the timeout was hit, it means that
+  ## neither incoming nor outgoing activity
+  ## has been detected and the channel will
+  ## be reset
+  ##
+
+  try:
+    while true:
+      await sleepAsync(s.timeout)
+      if s.closed or s.atEof:
+        return
+
+      if s.activity:
+        s.activity = false
+        continue
+
+      break
+
+    # reset channel on innactivity timeout
+    trace "channel timed out, resetting"
+    await s.reset()
+  except CancelledError as exc:
+    raise exc
+  except CatchableError as exc:
+    trace "exception in timeout", exc = exc.msg
+
+method initStream*(s: LPChannel) =
+  if s.objName.len == 0:
+    s.objName = "LPChannel"
+
+  procCall BufferStream(s).initStream()
+
+method readOnce*(s: LPChannel,
+                 pbytes: pointer,
+                 nbytes: int):
+                 Future[int] =
+  s.activity = true
+  procCall BufferStream(s).readOnce(pbytes, nbytes)
+
+method write*(s: LPChannel, msg: seq[byte]): Future[void] =
+  s.activity = true
+  procCall BufferStream(s).write(msg)
+
+proc init*(
+  L: type LPChannel,
+  id: uint64,
+  conn: Connection,
+  initiator: bool,
+  name: string = "",
+  size: int = DefaultBufferSize,
+  lazy: bool = false,
+  timeout: Duration = DefaultChanTimeout): LPChannel =
+
+  let chann = L(
+    id: id,
+    name: name,
+    conn: conn,
+    initiator: initiator,
+    msgCode: if initiator: MessageType.MsgOut else: MessageType.MsgIn,
+    closeCode: if initiator: MessageType.CloseOut else: MessageType.CloseIn,
+    resetCode: if initiator: MessageType.ResetOut else: MessageType.ResetIn,
+    isLazy: lazy,
+    timeout: timeout)
+
+  logScope:
+    id = chann.id
+    initiator = chann.initiator
+    name = chann.name
+    oid = $chann.oid
+    peer = $chann.conn.peerInfo
+    # stack = getStackTrace()
+
+  proc writeHandler(data: seq[byte]) {.async, gcsafe.} =
+    try:
+      if chann.isLazy and not(chann.isOpen):
+        await chann.open()
+
+      # writes should happen in sequence
+      trace "sending data"
+
+      await conn.writeMsg(chann.id,
+                          chann.msgCode,
+                          data)
+
+    except CatchableError as exc:
+      trace "exception in lpchannel write handler", exc = exc.msg
+      await chann.reset()
+      raise exc
+
+  chann.initBufferStream(writeHandler, size)
+  when chronicles.enabledLogLevel == LogLevel.TRACE:
+    chann.name = if chann.name.len > 0: chann.name else: $chann.oid
+
+  asyncCheck chann.timeoutMonitor()
+  trace "created new lpchannel"
+
+  return chann

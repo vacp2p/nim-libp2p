@@ -18,6 +18,8 @@ import ../muxer,
        types,
        lpchannel
 
+export muxer
+
 logScope:
   topics = "mplex"
 
@@ -29,9 +31,10 @@ type
     local: Table[uint64, LPChannel]
     currentId*: uint64
     maxChannels*: uint64
+    inChannTimeout: Duration
+    outChannTimeout: Duration
     isClosed: bool
-    when chronicles.enabledLogLevel == LogLevel.TRACE:
-      oid*: Oid
+    oid*: Oid
 
 proc getChannelList(m: Mplex, initiator: bool): var Table[uint64, LPChannel] =
   if initiator:
@@ -45,7 +48,8 @@ proc newStreamInternal*(m: Mplex,
                         initiator: bool = true,
                         chanId: uint64 = 0,
                         name: string = "",
-                        lazy: bool = false):
+                        lazy: bool = false,
+                        timeout: Duration):
                         Future[LPChannel] {.async, gcsafe.} =
   ## create new channel/stream
   ##
@@ -57,11 +61,13 @@ proc newStreamInternal*(m: Mplex,
                                 initiator = initiator,
                                 name = name,
                                 oid = $m.oid
-  result = newChannel(id,
-                      m.connection,
-                      initiator,
-                      name,
-                      lazy = lazy)
+  result = LPChannel.init(
+    id,
+    m.connection,
+    initiator,
+    name,
+    lazy = lazy,
+    timeout = timeout)
 
   result.peerInfo = m.connection.peerInfo
   result.observedAddr = m.connection.observedAddr
@@ -142,7 +148,11 @@ method handle*(m: Mplex) {.async, gcsafe.} =
       case msgType:
         of MessageType.New:
           let name = string.fromBytes(data)
-          channel = await m.newStreamInternal(false, id, name)
+          channel = await m.newStreamInternal(
+            false,
+            id,
+            name,
+            timeout = m.outChannTimeout)
 
           trace "created channel", name = channel.name,
                                     oid = $channel.oid
@@ -189,21 +199,24 @@ method handle*(m: Mplex) {.async, gcsafe.} =
   except CatchableError as exc:
     trace "Exception occurred", exception = exc.msg, oid = $m.oid
 
-proc newMplex*(conn: Connection,
-               maxChanns: uint = MaxChannels): Mplex =
-  new result
-  result.connection = conn
-  result.maxChannels = maxChanns
-  result.remote = initTable[uint64, LPChannel]()
-  result.local = initTable[uint64, LPChannel]()
-
-  when chronicles.enabledLogLevel == LogLevel.TRACE:
-    result.oid = genOid()
+proc init*(M: type Mplex,
+           conn: Connection,
+           maxChanns: uint = MaxChannels,
+           inTimeout, outTimeout: Duration = DefaultChanTimeout): Mplex =
+  M(connection: conn,
+    maxChannels: maxChanns,
+    inChannTimeout: inTimeout,
+    outChannTimeout: outTimeout,
+    remote: initTable[uint64, LPChannel](),
+    local: initTable[uint64, LPChannel](),
+    oid: genOid())
 
 method newStream*(m: Mplex,
                   name: string = "",
                   lazy: bool = false): Future[Connection] {.async, gcsafe.} =
-  let channel = await m.newStreamInternal(lazy = lazy)
+  let channel = await m.newStreamInternal(
+    lazy = lazy, timeout = m.inChannTimeout)
+
   if not lazy:
     await channel.open()
 

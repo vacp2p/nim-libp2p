@@ -39,7 +39,10 @@ proc newStandardSwitch*(privKey = none(PrivateKey),
                         msgIdProvider: MsgIdProvider = defaultMsgIdProvider,
                         rng = newRng()): Switch =
   proc createMplex(conn: Connection): Muxer =
-    newMplex(conn)
+    Mplex.init(
+      conn,
+      inTimeout = 1.minutes,
+      outTimeout = 5.minutes)
 
   if rng == nil: # newRng could fail
     raise (ref CatchableError)(msg: "Cannot initialize RNG")

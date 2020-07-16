@@ -54,7 +54,7 @@ proc createSwitch(ma: MultiAddress; outgoing: bool): (Switch, PeerInfo) =
   let identify = newIdentify(peerInfo)
 
   proc createMplex(conn: Connection): Muxer =
-    result = newMplex(conn)
+    result = Mplex.init(conn)
 
   let mplexProvider = newMuxerProvider(createMplex, MplexCodec)
   let transports = @[Transport(TcpTransport.init())]
