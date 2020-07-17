@@ -71,7 +71,11 @@ proc testPubSubDaemonPublish(gossip: bool = false,
 
   let daemonNode = await newDaemonApi(flags)
   let daemonPeer = await daemonNode.identity()
-  let nativeNode = newStandardSwitch(gossip = gossip, secureManagers = [SecureProtocol.Noise])
+  let nativeNode = newStandardSwitch(
+    gossip = gossip,
+    secureManagers = [SecureProtocol.Noise],
+    outTimeout = 5.minutes)
+
   let awaiters = nativeNode.start()
   let nativePeer = nativeNode.peerInfo
 
@@ -122,7 +126,11 @@ proc testPubSubNodePublish(gossip: bool = false,
 
   let daemonNode = await newDaemonApi(flags)
   let daemonPeer = await daemonNode.identity()
-  let nativeNode = newStandardSwitch(gossip = gossip, secureManagers = [SecureProtocol.Secio])
+  let nativeNode = newStandardSwitch(
+    gossip = gossip,
+    secureManagers = [SecureProtocol.Secio],
+    outTimeout = 5.minutes)
+
   let awaiters = nativeNode.start()
   let nativePeer = nativeNode.peerInfo
 
@@ -175,7 +183,10 @@ suite "Interop":
     proc runTests(): Future[bool] {.async.} =
       var protos = @["/test-stream"]
 
-      let nativeNode = newStandardSwitch(secureManagers = [SecureProtocol.Noise])
+      let nativeNode = newStandardSwitch(
+        secureManagers = [SecureProtocol.Noise],
+        outTimeout = 5.minutes)
+
       let awaiters = await nativeNode.start()
       let daemonNode = await newDaemonApi()
       let daemonPeer = await daemonNode.identity()
@@ -228,7 +239,10 @@ suite "Interop":
       var expect = newString(len(buffer) - 2)
       copyMem(addr expect[0], addr buffer.buffer[0], len(expect))
 
-      let nativeNode = newStandardSwitch(secureManagers = [SecureProtocol.Secio])
+      let nativeNode = newStandardSwitch(
+        secureManagers = [SecureProtocol.Secio],
+        outTimeout = 5.minutes)
+
       let awaiters = await nativeNode.start()
 
       let daemonNode = await newDaemonApi()
@@ -275,7 +289,9 @@ suite "Interop":
       proto.handler = nativeHandler
       proto.codec = protos[0] # codec
 
-      let nativeNode = newStandardSwitch(secureManagers = [SecureProtocol.Noise])
+      let nativeNode = newStandardSwitch(
+        secureManagers = [SecureProtocol.Noise], outTimeout = 5.minutes)
+
       nativeNode.mount(proto)
 
       let awaiters = await nativeNode.start()
@@ -317,7 +333,9 @@ suite "Interop":
       proto.handler = nativeHandler
       proto.codec = protos[0] # codec
 
-      let nativeNode = newStandardSwitch(secureManagers = [SecureProtocol.Secio])
+      let nativeNode = newStandardSwitch(
+        secureManagers = [SecureProtocol.Secio], outTimeout = 5.minutes)
+
       nativeNode.mount(proto)
 
       let awaiters = await nativeNode.start()
@@ -366,7 +384,9 @@ suite "Interop":
       proto.handler = nativeHandler
       proto.codec = protos[0] # codec
 
-      let nativeNode = newStandardSwitch(secureManagers = [SecureProtocol.Noise])
+      let nativeNode = newStandardSwitch(
+        secureManagers = [SecureProtocol.Noise], outTimeout = 5.minutes)
+
       nativeNode.mount(proto)
 
       let awaiters = await nativeNode.start()

@@ -114,14 +114,14 @@ suite "Switch":
 
       await sleepAsync(2.seconds) # wait a little for cleanup to happen
       var bufferTracker = getTracker(BufferStreamTrackerName)
-      echo bufferTracker.dump()
+      # echo bufferTracker.dump()
 
       # plus 4 for the pubsub streams
       check (BufferStreamTracker(bufferTracker).opened ==
         (BufferStreamTracker(bufferTracker).closed + 4.uint64))
 
       var connTracker = getTracker(ConnectionTrackerName)
-      echo connTracker.dump()
+      # echo connTracker.dump()
 
       # plus 8 is for the secured connection and the socket
       # and the pubsub streams that won't clean up until

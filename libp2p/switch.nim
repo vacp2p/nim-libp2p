@@ -71,6 +71,10 @@ proc cleanupPubSubPeer(s: Switch, conn: Connection) {.async.} =
     await s.pubSub.get().unsubscribePeer(conn.peerInfo)
 
 proc isConnected*(s: Switch, peer: PeerInfo): bool =
+  ## returns true if the peer has one or more
+  ## associated connections (sockets)
+  ##
+
   peer.peerId in s.connManager
 
 proc secure(s: Switch, conn: Connection): Future[Connection] {.async, gcsafe.} =

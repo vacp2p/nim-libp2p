@@ -117,7 +117,7 @@ suite "Mplex":
       proc writeHandler(data: seq[byte]) {.async, gcsafe.} = discard
       let
         conn = newBufferStream(writeHandler)
-        chann = newChannel(1, conn, true)
+        chann = LPChannel.init(1, conn, true)
       await chann.close()
       try:
         await chann.write("Hello")
@@ -137,7 +137,7 @@ suite "Mplex":
           proc (data: seq[byte]) {.gcsafe, async.} =
             result = nil
         )
-        chann = newChannel(1, conn, true)
+        chann = LPChannel.init(1, conn, true)
 
       await chann.pushTo(("Hello!").toBytes)
       let closeFut = chann.closeRemote()
@@ -161,7 +161,7 @@ suite "Mplex":
       proc writeHandler(data: seq[byte]) {.async, gcsafe.} = discard
       let
         conn = newBufferStream(writeHandler)
-        chann = newChannel(1, conn, true)
+        chann = LPChannel.init(1, conn, true)
       await chann.closeRemote()
       try:
         await chann.pushTo(@[byte(1)])
@@ -179,7 +179,7 @@ suite "Mplex":
       proc writeHandler(data: seq[byte]) {.async, gcsafe.} = discard
       let
         conn = newBufferStream(writeHandler)
-        chann = newChannel(1, conn, true)
+        chann = LPChannel.init(1, conn, true)
 
       await chann.reset()
       var data = newSeq[byte](1)
@@ -199,7 +199,7 @@ suite "Mplex":
       proc writeHandler(data: seq[byte]) {.async, gcsafe.} = discard
       let
         conn = newBufferStream(writeHandler)
-        chann = newChannel(1, conn, true)
+        chann = LPChannel.init(1, conn, true)
       await chann.reset()
       try:
         await chann.write(("Hello!").toBytes)
@@ -211,13 +211,28 @@ suite "Mplex":
     check:
       waitFor(testResetWrite()) == true
 
+    test "timeout, channel should reset":
+      proc testResetWrite(): Future[bool] {.async.} =
+        proc writeHandler(data: seq[byte]) {.async, gcsafe.} = discard
+        let
+          conn = newBufferStream(writeHandler)
+          chann = LPChannel.init(
+            1, conn, true, timeout = 100.millis)
+
+        await chann.closeEvent.wait()
+        await conn.close()
+        result = true
+
+      check:
+        waitFor(testResetWrite())
+
   test "e2e - read/write receiver":
     proc testNewStream() {.async.} =
       let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
 
       var done = newFuture[void]()
       proc connHandler(conn: Connection) {.async, gcsafe.} =
-        let mplexListen = newMplex(conn)
+        let mplexListen = Mplex.init(conn)
         mplexListen.streamHandler = proc(stream: Connection)
           {.async, gcsafe.} =
           let msg = await stream.readLp(1024)
@@ -234,7 +249,7 @@ suite "Mplex":
       let transport2: TcpTransport = TcpTransport.init()
       let conn = await transport2.dial(transport1.ma)
 
-      let mplexDial = newMplex(conn)
+      let mplexDial = Mplex.init(conn)
       let mplexDialFut = mplexDial.handle()
       let stream = await mplexDial.newStream()
       await stream.writeLp("HELLO")
@@ -257,7 +272,7 @@ suite "Mplex":
 
       var done = newFuture[void]()
       proc connHandler(conn: Connection) {.async, gcsafe.} =
-        let mplexListen = newMplex(conn)
+        let mplexListen = Mplex.init(conn)
         mplexListen.streamHandler = proc(stream: Connection)
           {.async, gcsafe.} =
           let msg = await stream.readLp(1024)
@@ -274,7 +289,7 @@ suite "Mplex":
       let transport2: TcpTransport = TcpTransport.init()
       let conn = await transport2.dial(transport1.ma)
 
-      let mplexDial = newMplex(conn)
+      let mplexDial = Mplex.init(conn)
       let stream = await mplexDial.newStream(lazy = true)
       let mplexDialFut = mplexDial.handle()
       check not LPChannel(stream).isOpen # assert lazy
@@ -303,7 +318,7 @@ suite "Mplex":
         bigseq.add(uint8(rand(uint('A')..uint('z'))))
 
       proc connHandler(conn: Connection) {.async, gcsafe.} =
-        let mplexListen = newMplex(conn)
+        let mplexListen = Mplex.init(conn)
         mplexListen.streamHandler = proc(stream: Connection)
           {.async, gcsafe.} =
           let msg = await stream.readLp(MaxMsgSize)
@@ -321,7 +336,7 @@ suite "Mplex":
       let transport2: TcpTransport = TcpTransport.init()
       let conn = await transport2.dial(transport1.ma)
 
-      let mplexDial = newMplex(conn)
+      let mplexDial = Mplex.init(conn)
       let mplexDialFut = mplexDial.handle()
       let stream  = await mplexDial.newStream()
 
@@ -347,7 +362,7 @@ suite "Mplex":
 
       let done = newFuture[void]()
       proc connHandler(conn: Connection) {.async, gcsafe.} =
-        let mplexListen = newMplex(conn)
+        let mplexListen = Mplex.init(conn)
         mplexListen.streamHandler = proc(stream: Connection)
           {.async, gcsafe.} =
           await stream.writeLp("Hello from stream!")
@@ -363,7 +378,7 @@ suite "Mplex":
       let transport2: TcpTransport = TcpTransport.init()
       let conn = await transport2.dial(transport1.ma)
 
-      let mplexDial = newMplex(conn)
+      let mplexDial = Mplex.init(conn)
       let mplexDialFut = mplexDial.handle()
       let stream  = await mplexDial.newStream("DIALER")
       let msg = string.fromBytes(await stream.readLp(1024))
@@ -387,7 +402,7 @@ suite "Mplex":
       let done = newFuture[void]()
       proc connHandler(conn: Connection) {.async, gcsafe.} =
         var count = 1
-        let mplexListen = newMplex(conn)
+        let mplexListen = Mplex.init(conn)
         mplexListen.streamHandler = proc(stream: Connection)
           {.async, gcsafe.} =
           let msg = await stream.readLp(1024)
@@ -406,7 +421,7 @@ suite "Mplex":
       let transport2: TcpTransport = TcpTransport.init()
       let conn = await transport2.dial(transport1.ma)
 
-      let mplexDial = newMplex(conn)
+      let mplexDial = Mplex.init(conn)
       # TODO: Reenable once half-closed is working properly
       let mplexDialFut = mplexDial.handle()
       for i in 1..10:
@@ -431,7 +446,7 @@ suite "Mplex":
       let done = newFuture[void]()
       proc connHandler(conn: Connection) {.async, gcsafe.} =
         var count = 1
-        let mplexListen = newMplex(conn)
+        let mplexListen = Mplex.init(conn)
         mplexListen.streamHandler = proc(stream: Connection)
           {.async, gcsafe.} =
           let msg = await stream.readLp(1024)
@@ -451,7 +466,7 @@ suite "Mplex":
       let transport2: TcpTransport = TcpTransport.init()
       let conn = await transport2.dial(transport1.ma)
 
-      let mplexDial = newMplex(conn)
+      let mplexDial = Mplex.init(conn)
       let mplexDialFut = mplexDial.handle()
       for i in 1..10:
         let stream  = await mplexDial.newStream("dialer stream")
@@ -477,7 +492,7 @@ suite "Mplex":
       var complete = newFuture[void]()
       const MsgSize = 1024
       proc connHandler(conn: Connection) {.async, gcsafe.} =
-        let mplexListen = newMplex(conn)
+        let mplexListen = Mplex.init(conn)
         mplexListen.streamHandler = proc(stream: Connection)
           {.async, gcsafe.} =
           let msg = await stream.readLp(MsgSize)
@@ -494,7 +509,7 @@ suite "Mplex":
       let transport2: TcpTransport = TcpTransport.init()
       let conn = await transport2.dial(transport1.ma)
 
-      let mplexDial = newMplex(conn)
+      let mplexDial = Mplex.init(conn)
       let mplexDialFut = mplexDial.handle()
       let stream = await mplexDial.newStream()
       var bigseq = newSeqOfCap[uint8](MaxMsgSize + 1)
@@ -547,7 +562,7 @@ suite "Mplex":
       var complete = newFuture[void]()
       const MsgSize = 512
       proc connHandler(conn: Connection) {.async, gcsafe.} =
-        let mplexListen = newMplex(conn)
+        let mplexListen = Mplex.init(conn)
         mplexListen.streamHandler = proc(stream: Connection)
           {.async, gcsafe.} =
           let msg = await stream.readLp(MsgSize)
@@ -564,7 +579,7 @@ suite "Mplex":
       let transport2: TcpTransport = TcpTransport.init()
       let conn = await transport2.dial(transport1.ma)
 
-      let mplexDial = newMplex(conn)
+      let mplexDial = Mplex.init(conn)
       let stream = await mplexDial.newStream()
       let mplexDialFut = mplexDial.handle()
       var bigseq = newSeqOfCap[uint8](MsgSize + 1)
