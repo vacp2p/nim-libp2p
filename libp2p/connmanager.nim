@@ -206,6 +206,14 @@ proc storeIncoming*(c: ConnManager, conn: Connection) =
   conn.dir = Direction.In
   c.storeConn(conn)
 
+proc storeOutgoing*(c: ConnManager, conn: Connection) =
+  conn.dir = Direction.Out
+  c.storeConn(conn)
+
+proc storeIncoming*(c: ConnManager, conn: Connection) =
+  conn.dir = Direction.In
+  c.storeConn(conn)
+
 proc storeMuxer*(c: ConnManager,
                  muxer: Muxer,
                  handle: Future[void] = nil) =
@@ -232,6 +240,15 @@ proc getMuxedStream*(c: ConnManager,
   ##
 
   let muxer = c.selectMuxer(c.selectConn(peerInfo, dir))
+  if not(isNil(muxer)):
+    return await muxer.newStream()
+
+proc getMuxedStream*(c: ConnManager,
+                     peerInfo: PeerInfo): Future[Connection] {.async, gcsafe.} =
+  ## get a muxed stream for the passed peer from any connection
+  ##
+
+  let muxer = c.selectMuxer(c.selectConn(peerInfo))
   if not(isNil(muxer)):
     return await muxer.newStream()
 
