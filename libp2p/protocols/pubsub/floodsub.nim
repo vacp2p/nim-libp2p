@@ -97,13 +97,9 @@ method rpcHandler*(f: FloodSub,
                   trace "exception in message handler", exc = exc.msg
 
         # forward the message to all peers interested in it
-        let (published, failed) = await f.sendHelper(toSendPeers, m.messages)
-        for p in failed:
-          let peer = f.peers.getOrDefault(p)
-          if not(isNil(peer)):
-            f.handleDisconnect(peer) # cleanup failed peers
+        let published = await f.publishHelper(toSendPeers, m.messages)
 
-        trace "forwared message to peers", peers = published.len
+        trace "forwared message to peers", peers = published
 
 method init*(f: FloodSub) =
   proc handler(conn: Connection, proto: string) {.async.} =
@@ -139,18 +135,15 @@ method publish*(f: FloodSub,
   trace "publishing on topic", name = topic
   inc f.msgSeqno
   let msg = Message.init(f.peerInfo, data, topic, f.msgSeqno, f.sign)
+
   # start the future but do not wait yet
-  let (published, failed) = await f.sendHelper(f.floodsub.getOrDefault(topic), @[msg])
-  for p in failed:
-    let peer = f.peers.getOrDefault(p)
-    if not isNil(peer):
-      f.handleDisconnect(peer) # cleanup failed peers
+  let published = await f.publishHelper(f.floodsub.getOrDefault(topic), @[msg])
 
   libp2p_pubsub_messages_published.inc(labelValues = [topic])
 
-  trace "published message to peers", peers = published.len,
+  trace "published message to peers", peers = published,
                                       msg = msg.shortLog()
-  return published.len
+  return published
 
 method unsubscribe*(f: FloodSub,
                     topics: seq[TopicPair]) {.async.} =

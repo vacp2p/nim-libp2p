@@ -8,20 +8,22 @@
 ## those terms.
 
 import tables, sequtils, sets
-import pubsubpeer
+import pubsubpeer, ../../peerid
 
 type
-  PeerTable* = Table[string, HashSet[PubSubPeer]]
+  PeerTable* = Table[string, HashSet[PubSubPeer]] # topic string to peer map
 
 proc hasPeerID*(t: PeerTable, topic, peerId: string): bool =
-  # unefficient but used only in tests!
   let peers = toSeq(t.getOrDefault(topic))
   peers.any do (peer: PubSubPeer) -> bool:
     peer.id == peerId
 
 func addPeer*(table: var PeerTable, topic: string, peer: PubSubPeer): bool =
-  # returns true if the peer was added, false if it was already in the collection
-  not table.mgetOrPut(topic, initHashSet[PubSubPeer]()).containsOrIncl(peer)
+  # returns true if the peer was added,
+  # false if it was already in the collection
+  not table.mgetOrPut(topic,
+    initHashSet[PubSubPeer]())
+    .containsOrIncl(peer)
 
 func removePeer*(table: var PeerTable, topic: string, peer: PubSubPeer) =
   table.withValue(topic, peers):

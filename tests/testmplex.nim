@@ -211,7 +211,7 @@ suite "Mplex":
     check:
       waitFor(testResetWrite()) == true
 
-    test "timeout, channel should reset":
+    test "reset - channel should reset on timeout":
       proc testResetWrite(): Future[bool] {.async.} =
         proc writeHandler(data: seq[byte]) {.async, gcsafe.} = discard
         let
