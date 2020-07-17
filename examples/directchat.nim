@@ -172,7 +172,7 @@ proc processInput(rfd: AsyncFD, rng: ref BrHmacDrbgContext) {.async.} =
 
   # a constructor for building different multiplexers under various connections
   proc createMplex(conn: Connection): Muxer =
-    result = newMplex(conn)
+    result = Mplex.init(conn)
 
   let mplexProvider = newMuxerProvider(createMplex, MplexCodec)
   let transports = @[Transport(TcpTransport.init())]
