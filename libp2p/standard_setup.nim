@@ -39,7 +39,7 @@ proc newStandardSwitch*(privKey = none(PrivateKey),
                         msgIdProvider: MsgIdProvider = defaultMsgIdProvider,
                         rng = newRng(),
                         inTimeout: Duration = 1.minutes,
-                        outTimeout: Duration = 5.minutes): Switch =
+                        outTimeout: Duration = 1.minutes): Switch =
   proc createMplex(conn: Connection): Muxer =
     Mplex.init(
       conn,
