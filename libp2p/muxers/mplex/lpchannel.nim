@@ -250,10 +250,6 @@ proc timeoutMonitor(s: LPChannel) {.async.} =
   if not(isNil(s.timerFut)):
     return
 
-  # launch task to cancel and cleanup
-  # timer on stream close
-  asyncCheck s.cleanupOnClose()
-
   try:
     while true:
       s.timerFut = sleepAsync(s.timeout)
@@ -340,6 +336,10 @@ proc init*(
   chann.initBufferStream(writeHandler, size)
   when chronicles.enabledLogLevel == LogLevel.TRACE:
     chann.name = if chann.name.len > 0: chann.name else: $chann.oid
+
+  # launch task to cancel and cleanup
+  # timer on stream close
+  asyncCheck chann.cleanupOnClose()
 
   chann.timerTaskFut = chann.timeoutMonitor()
   trace "created new lpchannel"
