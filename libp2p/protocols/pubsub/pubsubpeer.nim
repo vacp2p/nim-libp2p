@@ -48,22 +48,6 @@ func hash*(p: PubSubPeer): Hash =
   # int is either 32/64, so intptr basically, pubsubpeer is a ref
   cast[pointer](p).hash
 
-func `==`*(a, b: PubSubPeer): bool =
-  # override equiality to support both nil and peerInfo comparisons
-  # this in the future will allow us to recycle refs
-  let
-    aptr = cast[pointer](a)
-    bptr = cast[pointer](b)
-
-  if isNil(aptr) and isNil(bptr):
-    return true
-
-  if isNil(aptr) or isNil(bptr):
-    return false
-
-  if aptr == bptr and a.peerInfo == b.peerInfo:
-    return true
-
 proc id*(p: PubSubPeer): string = p.peerInfo.id
 
 proc inUse*(p: PubSubPeer): bool =

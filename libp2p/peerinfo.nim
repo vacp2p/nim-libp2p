@@ -136,19 +136,3 @@ proc publicKey*(p: PeerInfo): Option[PublicKey] {.inline.} =
 
 func hash*(p: PeerInfo): Hash =
   cast[pointer](p).hash
-
-func `==`*(a, b: PeerInfo): bool =
-  # override equiality to support both nil and peerInfo comparisons
-  # this in the future will allow us to recycle refs
-  let
-    aptr = cast[pointer](a)
-    bptr = cast[pointer](b)
-
-  if isNil(aptr) and isNil(bptr):
-    return true
-
-  if isNil(aptr) or isNil(bptr):
-    return false
-
-  if aptr == bptr and a.peerId == b.peerId:
-    return true

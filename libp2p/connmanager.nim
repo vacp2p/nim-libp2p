@@ -231,7 +231,7 @@ proc getMuxedStream*(c: ConnManager,
   ## with the given direction
   ##
 
-  let muxer = c.selectMuxer(c.selectConn(peerInfo, dir)) # always get the first muxer here
+  let muxer = c.selectMuxer(c.selectConn(peerInfo, dir))
   if not(isNil(muxer)):
     return await muxer.newStream()
 
@@ -240,7 +240,7 @@ proc getMuxedStream*(c: ConnManager,
   ## get a muxed stream for the passed peer from any connection
   ##
 
-  let muxer = c.selectMuxer(c.selectConn(peerInfo)) # always get the first muxer here
+  let muxer = c.selectMuxer(c.selectConn(peerInfo))
   if not(isNil(muxer)):
     return await muxer.newStream()
 
@@ -249,7 +249,7 @@ proc getMuxedStream*(c: ConnManager,
   ## get a muxed stream for the passed connection
   ##
 
-  let muxer = c.selectMuxer(conn) # always get the first muxer here
+  let muxer = c.selectMuxer(conn)
   if not(isNil(muxer)):
     return await muxer.newStream()
 
