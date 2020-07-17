@@ -137,6 +137,9 @@ proc validateParameters*(parameters: TopicParams): Result[void, cstring] =
   else:
     ok()
 
+method handleConnect*(p: PubSub, peer: PubSubPeer) {.base.} =
+  discard
+
 method handleDisconnect*(p: PubSub, peer: PubSubPeer) {.base.} =
   ## handle peer disconnects
   ##
@@ -207,6 +210,8 @@ proc getOrCreatePeer(p: PubSub,
 
   p.peers[peer.id] = peer
   peer.observers = p.observers
+
+  handleConnect(p, peer)
 
     # metrics
   libp2p_pubsub_peers.set(p.peers.len.int64)

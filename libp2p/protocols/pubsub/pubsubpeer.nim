@@ -31,13 +31,6 @@ type
     onRecv*: proc(peer: PubSubPeer; msgs: var RPCMsg) {.gcsafe, raises: [Defect].}
     onSend*: proc(peer: PubSubPeer; msgs: var RPCMsg) {.gcsafe, raises: [Defect].}
 
-  TopicInfo* = object
-    # gossip 1.1 related
-    graftTime*: Moment
-    meshTime*: Duration
-    inMesh*: bool
-    meshMessageDeliveriesActive*: bool
-
   PubSubPeer* = ref object of RootObj
     proto*: string                      # the protocol that this peer joined from
     sendConn: Connection
@@ -49,7 +42,6 @@ type
     onConnect*: AsyncEvent
     observers*: ref seq[PubSubObserver] # ref as in smart_ptr
     refs: int                           # how many active connections this peer has
-    topicInfos*: Table[string, TopicInfo]
 
   RPCHandler* = proc(peer: PubSubPeer, msg: seq[RPCMsg]): Future[void] {.gcsafe.}
 
@@ -222,15 +214,6 @@ proc sendPrune*(p: PubSubPeer, topics: seq[string]): Future[void] =
 
 proc `$`*(p: PubSubPeer): string =
   p.id
-
-proc grafted*(p: PubSubPeer, topic: string) =
-  var info = p.topicInfos.mgetOrPut(topic, TopicInfo())
-  info.graftTime = Moment.now()
-  info.meshTime = 0.seconds
-
-proc pruned*(p: PubSubPeer, topic: string) =
-  var _ = p.topicInfos.mgetOrPut(topic, TopicInfo())
-  # TODO
 
 proc newPubSubPeer*(peerInfo: PeerInfo,
                     proto: string): PubSubPeer =
