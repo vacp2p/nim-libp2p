@@ -187,44 +187,32 @@ proc replenishFanout(g: GossipSub, topic: string) =
   trace "fanout replenished with peers", peers = g.fanout.peers(topic)
 
 proc rebalanceMesh(g: GossipSub, topic: string) {.async.} =
+  logScope:
+    topic
+
   trace "about to rebalance mesh"
+
   # create a mesh topic that we're subscribing to
 
   var
     grafts, prunes: seq[PubSubPeer]
 
   if g.mesh.peers(topic) < GossipSubDlo:
-    trace "replenishing mesh", topic, peers = g.mesh.peers(topic)
-    # replenish the mesh if we're below GossipSubDlo
-    var newPeers = toSeq(
+    trace "replenishing mesh", peers = g.mesh.peers(topic)
+    # replenish the mesh if we're below Dlo
+    grafts = toSeq(
       g.gossipsub.getOrDefault(topic, initHashSet[PubSubPeer]()) -
       g.mesh.getOrDefault(topic, initHashSet[PubSubPeer]())
     )
 
     logScope:
-      topic = topic
       meshPeers = g.mesh.peers(topic)
-      newPeers = newPeers.len
+      grafts = grafts.len
 
-    shuffle(newPeers)
+    shuffle(grafts)
 
-    trace "getting peers", topic, peers = newPeers.len
-
-    for peer in newPeers:
-      # send a graft message to the peer
-      grafts.add(peer)
-      if g.mesh.addPeer(topic, peer):
-        peer.grafted(topic)
-      trace "got peer", peer = $peer
-
-  if g.mesh.peers(topic) > GossipSubDhi:
-    # prune peers if we've gone over
-    # gather peers
-    var mesh = toSeq(g.mesh[topic])
-    # shuffle anyway, we might not use score
-    shuffle(mesh) 
     # sort peers by score
-    mesh.sort(proc (x, y: PubSubPeer): int =
+    grafts.sort(proc (x, y: PubSubPeer): int =
       let
         peerx = x.score()
         peery = y.score()
@@ -232,16 +220,26 @@ proc rebalanceMesh(g: GossipSub, topic: string) {.async.} =
       elif peerx == peery: 0
       else: 1)
 
-    trace "about to prune mesh", mesh = mesh.len
-    for peer in mesh:
-      if g.mesh.peers(topic) <= GossipSubD:
-        break
+    # Graft peers so we reach a count of D
+    grafts.setLen(min(grafts.len, GossipSubD - g.mesh.peers(topic)))
 
-      trace "pruning peers", peers = g.mesh.peers(topic)
-      # send a graft message to the peer
+    trace "getting peers", topic, peers = grafts.len
+
+    for peer in grafts:
+      if g.mesh.addPeer(topic, peer):
+        peer.grafted(topic)
+        g.fanout.removePeer(topic, peer)
+
+  if g.mesh.peers(topic) > GossipSubDhi:
+    # prune peers if we've gone over Dhi
+    prunes = toSeq(g.mesh[topic])
+    shuffle(prunes)
+    prunes.setLen(prunes.len - GossipSubD) # .. down to D peers
+
+    trace "about to prune mesh", prunes = prunes.len
+    for peer in prunes:
       peer.pruned(topic)
       g.mesh.removePeer(topic, peer)
-      prunes.add(peer)
 
   libp2p_gossipsub_peers_per_topic_gossipsub
     .set(g.gossipsub.peers(topic).int64, labelValues = [topic])
@@ -258,8 +256,7 @@ proc rebalanceMesh(g: GossipSub, topic: string) {.async.} =
   for p in prunes:
     await p.sendPrune(@[topic])
 
-  trace "mesh balanced, got peers", peers = g.mesh.peers(topic),
-                                    topicId = topic
+  trace "mesh balanced, got peers", peers = g.mesh.peers(topic)
 
 proc dropFanoutPeers(g: GossipSub) =
   # drop peers that we haven't published to in
@@ -404,19 +401,23 @@ method subscribeTopic*(g: GossipSub,
                        peerId: string) {.gcsafe, async.} =
   await procCall FloodSub(g).subscribeTopic(topic, subscribe, peerId)
 
+  logScope:
+    peer = peerId
+    topic
+
   let peer = g.peers.getOrDefault(peerId)
   if peer == nil:
     debug "subscribeTopic on a nil peer!"
     return
 
   if subscribe:
-    trace "adding subscription for topic", peer = peerId, name = topic
+    trace "peer subscribed to topic"
     # subscribe remote peer to the topic
     discard g.gossipsub.addPeer(topic, peer)
     if peerId in g.explicitPeers:
       discard g.explicit.addPeer(topic, peer)
   else:
-    trace "removing subscription for topic", peer = peerId, name = topic
+    trace "peer unsubscribed from topic"
     # unsubscribe remote peer from the topic
     g.gossipsub.removePeer(topic, peer)
     g.mesh.removePeer(topic, peer)
@@ -442,7 +443,11 @@ proc handleGraft(g: GossipSub,
                  grafts: seq[ControlGraft]): seq[ControlPrune] =
   for graft in grafts:
     let topic = graft.topicID
-    trace "processing graft message", topic, peer = $peer
+    logScope:
+      peer = peer.id
+      topic
+
+    trace "peer grafted topic"
 
     # It is an error to GRAFT on a explicit peer
     if peer.peerInfo.maintain:
@@ -463,19 +468,21 @@ proc handleGraft(g: GossipSub,
           peer.grafted(topic)
           g.fanout.removePeer(topic, peer)
         else:
-          trace "Peer already in mesh", topic, peer = $peer
+          trace "peer already in mesh"
       else:
         result.add(ControlPrune(topicID: topic))
     else:
+      debug "peer grafting topic we're not interested in"
       result.add(ControlPrune(topicID: topic))
 
     libp2p_gossipsub_peers_per_topic_mesh
       .set(g.mesh.peers(topic).int64, labelValues = [topic])
+    libp2p_gossipsub_peers_per_topic_fanout
+      .set(g.fanout.peers(topic).int64, labelValues = [topic])
 
 proc handlePrune(g: GossipSub, peer: PubSubPeer, prunes: seq[ControlPrune]) =
   for prune in prunes:
-    trace "processing prune message", peer = $peer,
-                                      topicID = prune.topicID
+    trace "peer pruned topic", peer = peer.id, topic = prune.topicID
 
     peer.pruned(prune.topicID)
     g.mesh.removePeer(prune.topicID, peer)
@@ -486,9 +493,8 @@ proc handleIHave(g: GossipSub,
                  peer: PubSubPeer,
                  ihaves: seq[ControlIHave]): ControlIWant =
   for ihave in ihaves:
-    trace "processing ihave message", peer = $peer,
-                                      topicID = ihave.topicID,
-                                      msgs = ihave.messageIDs
+    trace "peer sent ihave",
+      peer = peer.id, topic = ihave.topicID, msgs = ihave.messageIDs
 
     if ihave.topicID in g.mesh:
       for m in ihave.messageIDs:
@@ -500,8 +506,7 @@ proc handleIWant(g: GossipSub,
                  iwants: seq[ControlIWant]): seq[Message] =
   for iwant in iwants:
     for mid in iwant.messageIDs:
-      trace "processing iwant message", peer = $peer,
-                                        messageID = mid
+      trace "peer sent iwant", peer = peer.id, messageID = mid
       let msg = g.mcache.get(mid)
       if msg.isSome:
         result.add(msg.get())
@@ -612,11 +617,9 @@ method publish*(g: GossipSub,
                 data: seq[byte]): Future[int] {.async.} =
   # base returns always 0
   discard await procCall PubSub(g).publish(topic, data)
-  trace "about to publish message on topic", name = topic,
-                                             data = data.shortLog
-  # directly copy explicit peers
-  # as we will always publish to those
-  var peers = initHashSet[PubSubPeer]()
+  trace "publishing message on topic", topic, data = data.shortLog
+
+  var peers: HashSet[PubSubPeer]
   if topic.len <= 0: # data could be 0/empty
     return 0
 
@@ -652,9 +655,8 @@ method publish*(g: GossipSub,
     msg = Message.init(g.peerInfo, data, topic, g.msgSeqno, g.sign)
     msgId = g.msgIdProvider(msg)
 
-  trace "created new message", msg
+  trace "created new message", msg, topic, peers = peers.len
 
-  trace "publishing on topic", topic, peers = peers.len
   if msgId notin g.mcache:
     g.mcache.put(msgId, msg)
 

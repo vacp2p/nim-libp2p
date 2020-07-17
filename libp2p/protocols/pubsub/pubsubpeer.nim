@@ -110,28 +110,30 @@ proc sendObservers(p: PubSubPeer, msg: var RPCMsg) =
         obs.onSend(p, msg)
 
 proc handle*(p: PubSubPeer, conn: Connection) {.async.} =
-  trace "handling pubsub rpc", peer = p.id, closed = conn.closed
+  logScope:
+    peer = p.id
+  debug "starting pubsub read loop for peer", closed = conn.closed
   try:
     try:
       p.refs.inc()
       while not conn.closed:
-        trace "waiting for data", peer = p.id, closed = conn.closed
+        trace "waiting for data", closed = conn.closed
         let data = await conn.readLp(64 * 1024)
         let digest = $(sha256.digest(data))
-        trace "read data from peer", peer = p.id, data = data.shortLog
+        trace "read data from peer", data = data.shortLog
         if digest in p.recvdRpcCache:
           libp2p_pubsub_skipped_received_messages.inc(labelValues = [p.id])
-          trace "message already received, skipping", peer = p.id
+          trace "message already received, skipping"
           continue
 
         var rmsg = decodeRpcMsg(data)
         if rmsg.isErr():
-          notice "failed to decode msg from peer", peer = p.id
+          notice "failed to decode msg from peer"
           break
 
         var msg = rmsg.get()
 
-        trace "decoded msg from peer", peer = p.id, msg = msg.shortLog
+        trace "decoded msg from peer", msg = msg.shortLog
         # trigger hooks
         p.recvObservers(msg)
 
@@ -143,7 +145,7 @@ proc handle*(p: PubSubPeer, conn: Connection) {.async.} =
         await p.handler(p, @[msg])
         p.recvdRpcCache.put(digest)
     finally:
-      trace "exiting pubsub peer read loop", peer = p.id
+      debug "exiting pubsub peer read loop"
       await conn.close()
 
   except CancelledError as exc:
@@ -209,12 +211,12 @@ proc sendSubOpts*(p: PubSubPeer, topics: seq[string], subscribe: bool): Future[v
     subscriptions: topics.mapIt(SubOpts(subscribe: subscribe, topic: it))))
 
 proc sendGraft*(p: PubSubPeer, topics: seq[string]): Future[void] =
-  trace "sending graft msg to peer", peer = p.id, topicIDs = topics
+  trace "sending graft to peer", peer = p.id, topicIDs = topics
   p.send(RPCMsg(control: some(
     ControlMessage(graft: topics.mapIt(ControlGraft(topicID: it))))))
 
 proc sendPrune*(p: PubSubPeer, topics: seq[string]): Future[void] =
-  trace "sending prune msg to peer", peer = p.id, topicIDs = topics
+  trace "sending prune to peer", peer = p.id, topicIDs = topics
   p.send(RPCMsg(control: some(
     ControlMessage(prune: topics.mapIt(ControlPrune(topicID: it))))))
 
