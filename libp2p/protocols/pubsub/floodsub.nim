@@ -97,7 +97,7 @@ method rpcHandler*(f: FloodSub,
                   trace "exception in message handler", exc = exc.msg
 
         # forward the message to all peers interested in it
-        let published = await f.sendAndCleanup(toSendPeers, m.messages)
+        let published = await f.publishHelper(toSendPeers, m.messages)
 
         trace "forwared message to peers", peers = published
 
@@ -137,7 +137,7 @@ method publish*(f: FloodSub,
   let msg = Message.init(f.peerInfo, data, topic, f.msgSeqno, f.sign)
 
   # start the future but do not wait yet
-  let published = await f.sendAndCleanup(f.floodsub.getOrDefault(topic), @[msg])
+  let published = await f.publishHelper(f.floodsub.getOrDefault(topic), @[msg])
 
   libp2p_pubsub_messages_published.inc(labelValues = [topic])
 

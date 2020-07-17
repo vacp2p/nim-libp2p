@@ -303,7 +303,7 @@ proc sendHelper*(p: PubSub,
 
   return (published, failed)
 
-proc sendAndCleanup*(p: PubSub,
+proc publishHelper*(p: PubSub,
                      sendPeers: HashSet[PubSubPeer],
                      msgs: seq[Message]): Future[int] {.async.} =
   # send messages and cleanup failed peers

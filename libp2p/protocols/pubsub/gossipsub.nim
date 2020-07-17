@@ -422,7 +422,7 @@ method rpcHandler*(g: GossipSub,
                 trace "exception in message handler", exc = exc.msg
 
       # forward the message to all peers interested in it
-      let published = await g.sendAndCleanup(toSendPeers, m.messages)
+      let published = await g.publishHelper(toSendPeers, m.messages)
 
       trace "forwared message to peers", peers = published
 
@@ -497,7 +497,7 @@ method publish*(g: GossipSub,
   if msgId notin g.mcache:
     g.mcache.put(msgId, msg)
 
-  let published = await g.sendAndCleanup(peers, @[msg])
+  let published = await g.publishHelper(peers, @[msg])
   if published > 0:
     libp2p_pubsub_messages_published.inc(labelValues = [topic])
 
