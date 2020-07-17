@@ -1,6 +1,6 @@
 {.used.}
 
-import unittest, tables
+import unittest
 import chronos
 import stew/byteutils
 import nimcrypto/sysrand
@@ -56,6 +56,10 @@ suite "Switch":
       awaiters.add(await switch2.start())
 
       let conn = await switch2.dial(switch1.peerInfo, TestCodec)
+
+      check switch1.isConnected(switch2.peerInfo)
+      check switch2.isConnected(switch1.peerInfo)
+
       await conn.writeLp("Hello!")
       let msg = string.fromBytes(await conn.readLp(1024))
       check "Hello!" == msg
@@ -68,6 +72,9 @@ suite "Switch":
 
       # this needs to go at end
       await allFuturesThrowing(awaiters)
+
+      check not switch1.isConnected(switch2.peerInfo)
+      check not switch2.isConnected(switch1.peerInfo)
 
     waitFor(testSwitch())
 
@@ -96,6 +103,10 @@ suite "Switch":
       awaiters.add(await switch2.start())
 
       let conn = await switch2.dial(switch1.peerInfo, TestCodec)
+
+      check switch1.isConnected(switch2.peerInfo)
+      check switch2.isConnected(switch1.peerInfo)
+
       await conn.writeLp("Hello!")
       let msg = string.fromBytes(await conn.readLp(1024))
       check "Hello!" == msg
@@ -103,20 +114,20 @@ suite "Switch":
 
       await sleepAsync(2.seconds) # wait a little for cleanup to happen
       var bufferTracker = getTracker(BufferStreamTrackerName)
-      # echo bufferTracker.dump()
+      echo bufferTracker.dump()
 
       # plus 4 for the pubsub streams
       check (BufferStreamTracker(bufferTracker).opened ==
         (BufferStreamTracker(bufferTracker).closed + 4.uint64))
 
-      # var connTracker = getTracker(ConnectionTrackerName)
-      # echo connTracker.dump()
+      var connTracker = getTracker(ConnectionTrackerName)
+      echo connTracker.dump()
 
       # plus 8 is for the secured connection and the socket
       # and the pubsub streams that won't clean up until
       # `disconnect()` or `stop()`
-      # check (ConnectionTracker(connTracker).opened ==
-      #   (ConnectionTracker(connTracker).closed + 8.uint64))
+      check (ConnectionTracker(connTracker).opened ==
+        (ConnectionTracker(connTracker).closed + 8.uint64))
 
       await allFuturesThrowing(
         done.wait(5.seconds),
@@ -126,6 +137,9 @@ suite "Switch":
 
       # this needs to go at end
       await allFuturesThrowing(awaiters)
+
+      check not switch1.isConnected(switch2.peerInfo)
+      check not switch2.isConnected(switch1.peerInfo)
 
     waitFor(testSwitch())
 
@@ -153,9 +167,10 @@ suite "Switch":
       awaiters.add(await switch2.start())
 
       await switch2.connect(switch1.peerInfo)
-      check switch1.peerInfo.id in switch2.connections
-
       let conn = await switch2.dial(switch1.peerInfo, TestCodec)
+
+      check switch1.isConnected(switch2.peerInfo)
+      check switch2.isConnected(switch1.peerInfo)
 
       try:
         await conn.writeLp("Hello!")
@@ -172,6 +187,9 @@ suite "Switch":
       )
       await allFuturesThrowing(awaiters)
 
+      check not switch1.isConnected(switch2.peerInfo)
+      check not switch2.isConnected(switch1.peerInfo)
+
     check:
       waitFor(testSwitch()) == true
 
@@ -186,23 +204,23 @@ suite "Switch":
 
       await switch2.connect(switch1.peerInfo)
 
-      check switch1.connections[switch2.peerInfo.id].len > 0
-      check switch2.connections[switch1.peerInfo.id].len > 0
+      check switch1.isConnected(switch2.peerInfo)
+      check switch2.isConnected(switch1.peerInfo)
 
       await sleepAsync(100.millis)
       await switch2.disconnect(switch1.peerInfo)
-
       await sleepAsync(2.seconds)
+
+      check not switch1.isConnected(switch2.peerInfo)
+      check not switch2.isConnected(switch1.peerInfo)
+
       var bufferTracker = getTracker(BufferStreamTrackerName)
       # echo bufferTracker.dump()
       check bufferTracker.isLeaked() == false
 
-      # var connTracker = getTracker(ConnectionTrackerName)
+      var connTracker = getTracker(ConnectionTrackerName)
       # echo connTracker.dump()
-      # check connTracker.isLeaked() == false
-
-      check switch2.peerInfo.id notin switch1.connections
-      check switch1.peerInfo.id notin switch2.connections
+      check connTracker.isLeaked() == false
 
       await allFuturesThrowing(
         switch1.stop(),
@@ -210,47 +228,3 @@ suite "Switch":
       await allFuturesThrowing(awaiters)
 
     waitFor(testSwitch())
-
-  # test "e2e: handle read + secio fragmented":
-  #   proc testListenerDialer(): Future[bool] {.async.} =
-  #     let
-  #       server: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0")
-  #       serverInfo = PeerInfo.init(PrivateKey.random(ECDSA), [server])
-  #       serverNoise = newSecio(serverInfo.privateKey)
-  #       readTask = newFuture[void]()
-
-  #     var hugePayload = newSeq[byte](0x1200000)
-  #     check randomBytes(hugePayload) == hugePayload.len
-  #     trace "Sending huge payload", size = hugePayload.len
-
-  #     proc connHandler(conn: Connection) {.async, gcsafe.} =
-  #       let sconn = await serverNoise.secure(conn)
-  #       defer:
-  #         await sconn.close()
-  #       let msg = await sconn.read(0x1200000)
-  #       check msg == hugePayload
-  #       readTask.complete()
-
-  #     let
-  #       transport1: TcpTransport = TcpTransport.init()
-  #     asyncCheck await transport1.listen(server, connHandler)
-
-  #     let
-  #       transport2: TcpTransport = TcpTransport.init()
-  #       clientInfo = PeerInfo.init(PrivateKey.random(ECDSA), [transport1.ma])
-  #       clientNoise = newSecio(clientInfo.privateKey)
-  #       conn = await transport2.dial(transport1.ma)
-  #       sconn = await clientNoise.secure(conn)
-
-  #     await sconn.write(hugePayload)
-  #     await readTask
-
-  #     await sconn.close()
-  #     await conn.close()
-  #     await transport2.close()
-  #     await transport1.close()
-
-  #     result = true
-
-  #   check:
-  #     waitFor(testListenerDialer()) == true
