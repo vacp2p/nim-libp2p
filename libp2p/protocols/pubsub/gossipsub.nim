@@ -314,10 +314,32 @@ proc getGossipPeers(g: GossipSub): Table[string, ControlMessage] {.gcsafe.} =
 
       result[peer.id].ihave.add(ihave)
 
+proc updateScores(g: GossipSub) = # avoid async
+  debug "updating scores", peers = g.peers.len
+  
+  let now = Moment.now()
+
+  for id, peer in g.peers:
+    # TODO
+
+    # Per topic
+    for topic in peer.topics:
+      # Defect on purpose, no magic here please, this should not fail!
+      let topicParams = g.topics[topic].parameters
+      var info = peer.topicInfos[topic]
+      if info.inMesh:
+        info.meshTime = now - info.graftTime
+        if info.meshTime > topicParams.meshMessageDeliveriesActivation:
+          info.meshMessageDeliveriesActive = true
+      # debug assert to check nim compiler is doing what we are asking...
+      assert(peer.topicInfos[topic].meshTime == info.meshTime)
+
 proc heartbeat(g: GossipSub) {.async.} =
   while g.heartbeatRunning:
     try:
       trace "running heartbeat"
+
+      g.updateScores()
 
       for t in toSeq(g.topics.keys):
         await g.rebalanceMesh(t)
