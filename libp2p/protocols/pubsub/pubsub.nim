@@ -105,11 +105,14 @@ proc sendSubs*(p: PubSub,
 
     await peer.sendSubOpts(topics, subscribe)
   except CancelledError as exc:
-    await peer.conn.close()
+    if not(isNil(peer)) and not(isNil(peer.conn)):
+      await peer.conn.close()
+
     raise exc
   except CatchableError as exc:
     trace "unable to send subscriptions", exc = exc.msg
-    await peer.conn.close()
+    if not(isNil(peer)) and not(isNil(peer.conn)):
+      await peer.conn.close()
 
 method subscribeTopic*(p: PubSub,
                        topic: string,
@@ -168,6 +171,11 @@ method handleConn*(p: PubSub,
     await conn.close()
     return
 
+  # track connection
+  p.conns.mgetOrPut(conn.peerInfo,
+    initHashSet[Connection]())
+    .incl(conn)
+
   asyncCheck p.onConnClose(conn)
 
   proc handler(peer: PubSubPeer, msgs: seq[RPCMsg]) {.async.} =
@@ -175,11 +183,6 @@ method handleConn*(p: PubSub,
     await p.rpcHandler(peer, msgs)
 
   let peer = p.getOrCreatePeer(conn.peerInfo, proto)
-
-  # track connection
-  p.conns.mgetOrPut(conn.peerInfo,
-    initHashSet[Connection]())
-    .incl(conn)
 
   let topics = toSeq(p.topics.keys)
   if topics.len > 0:
@@ -200,15 +203,14 @@ method subscribePeer*(p: PubSub, conn: Connection) {.base.} =
   if not(isNil(conn)):
     trace "subscribing to peer", peerId = conn.peerInfo.id
 
-    asyncCheck p.onConnClose(conn)
-
-    let peer = p.getOrCreatePeer(conn.peerInfo, p.codec)
-
     # track connection
     p.conns.mgetOrPut(conn.peerInfo,
       initHashSet[Connection]())
       .incl(conn)
 
+    asyncCheck p.onConnClose(conn)
+
+    let peer = p.getOrCreatePeer(conn.peerInfo, p.codec)
     if not peer.connected:
       peer.conn = conn
 
@@ -217,7 +219,7 @@ method unsubscribePeer*(p: PubSub, peerInfo: PeerInfo) {.base, async.} =
     let peer = p.peers[peerInfo.id]
 
     trace "unsubscribing from peer", peerId = $peerInfo
-    if not(isNil(peer.conn)):
+    if not(isNil(peer)) and not(isNil(peer.conn)):
       await peer.conn.close()
 
 proc connected*(p: PubSub, peerInfo: PeerInfo): bool =
