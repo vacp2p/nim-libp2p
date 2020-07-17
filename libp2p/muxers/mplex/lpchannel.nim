@@ -57,6 +57,8 @@ type
     msgCode*: MessageType         # cached in/out message code
     closeCode*: MessageType       # cached in/out close code
     resetCode*: MessageType       # cached in/out reset code
+    timerFut: Future[void]        # the current timer instanse
+    timerTaskFut: Future[void]    # the current timer instanse
 
 proc open*(s: LPChannel) {.async, gcsafe.}
 
@@ -136,14 +138,19 @@ proc closeRemote*(s: LPChannel) {.async.} =
     # stack = getStackTrace()
 
   trace "got EOF, closing channel"
-  await s.drainBuffer()
+  try:
+    await s.drainBuffer()
 
-  s.isEof = true # set EOF immediately to prevent further reads
-  await s.close() # close local end
+    s.isEof = true # set EOF immediately to prevent further reads
+    await s.close() # close local end
 
-  # call to avoid leaks
-  await procCall BufferStream(s).close() # close parent bufferstream
-  trace "channel closed on EOF"
+    # call to avoid leaks
+    await procCall BufferStream(s).close() # close parent bufferstream
+    trace "channel closed on EOF"
+  except CancelledError as exc:
+    raise exc
+  except CatchableError as exc:
+    trace "exception closing remote channel", exc = exc.msg
 
 method closed*(s: LPChannel): bool =
   ## this emulates half-closed behavior
@@ -172,12 +179,18 @@ method reset*(s: LPChannel) {.base, async, gcsafe.} =
   # optimistic
   asyncCheck s.resetMessage()
 
-  # drain the buffer before closing
-  await s.drainBuffer()
-  await procCall BufferStream(s).close()
+  try:
+    # drain the buffer before closing
+    await s.drainBuffer()
+    await procCall BufferStream(s).close()
 
-  s.isEof = true
-  s.closedLocal = true
+    s.isEof = true
+    s.closedLocal = true
+
+  except CancelledError as exc:
+    raise exc
+  except CatchableError as exc:
+    trace "exception in reset", exc = exc.msg
 
   trace "channel reset"
 
@@ -213,6 +226,18 @@ method close*(s: LPChannel) {.async, gcsafe.} =
   s.closedLocal = true
   asyncCheck closeInternal()
 
+proc cleanupOnClose(s: LPChannel) {.async.} =
+  ## await this stream's close event
+  ## to cleanup timers and other resources
+  ##
+
+  await s.closeEvent.wait()
+
+  if not(isNil(s.timerFut)) and
+    not(s.timerFut.finished):
+    s.timerFut.cancel()
+    await s.timerTaskFut
+
 proc timeoutMonitor(s: LPChannel) {.async.} =
   ## monitor the channel for innactivity
   ##
@@ -222,9 +247,17 @@ proc timeoutMonitor(s: LPChannel) {.async.} =
   ## be reset
   ##
 
+  if not(isNil(s.timerFut)):
+    return
+
+  # launch task to cancel and cleanup
+  # timer on stream close
+  asyncCheck s.cleanupOnClose()
+
   try:
     while true:
-      await sleepAsync(s.timeout)
+      s.timerFut = sleepAsync(s.timeout)
+      await s.timerFut
       if s.closed or s.atEof:
         return
 
@@ -237,8 +270,6 @@ proc timeoutMonitor(s: LPChannel) {.async.} =
     # reset channel on innactivity timeout
     trace "channel timed out, resetting"
     await s.reset()
-  except CancelledError as exc:
-    raise exc
   except CatchableError as exc:
     trace "exception in timeout", exc = exc.msg
 
@@ -310,7 +341,7 @@ proc init*(
   when chronicles.enabledLogLevel == LogLevel.TRACE:
     chann.name = if chann.name.len > 0: chann.name else: $chann.oid
 
-  asyncCheck chann.timeoutMonitor()
+  chann.timerTaskFut = chann.timeoutMonitor()
   trace "created new lpchannel"
 
   return chann
