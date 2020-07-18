@@ -103,6 +103,9 @@ type
     heartbeatLock: AsyncLock                   # heartbeat lock to prevent two consecutive concurrent heartbeats
     peerStats: Table[PubSubPeer, PeerStats]
 
+    when not defined(release):
+      prunedPeers: HashSet[PubSubPeer]
+
 declareGauge(libp2p_gossipsub_peers_per_topic_mesh,
   "gossipsub peers per topic in mesh",
   labels = ["topic"])
@@ -191,14 +194,27 @@ method handleConnect*(g: GossipSub, peer: PubSubPeer) =
     discard
 
 proc grafted(g: GossipSub, p: PubSubPeer, topic: string) =
-  var stats = g.peerStats[p]
-  var info = stats.topicInfos.mgetOrPut(topic, TopicInfo())
-  info.graftTime = Moment.now()
-  info.meshTime = 0.seconds
+  g.peerStats.withValue(p, stats) do:
+    var info = stats.topicInfos.mgetOrPut(topic, TopicInfo())
+    info.graftTime = Moment.now()
+    info.meshTime = 0.seconds
+  do:
+    raise newException(CatchableError, "TopicInfo key not found for " & $p)
 
-proc pruned(g: GossipSub, p: PubSubPeer, topic: string) =
-  var stats = g.peerStats[p]
-  var _ = stats.topicInfos[topic]
+proc pruned(g: GossipSub, p: PubSubPeer, topic: string) {.gcsafe.} =
+  g.peerStats.withValue(p, stats) do:
+    when not defined(release):
+      g.prunedPeers.incl(p)
+
+    var _ = stats.topicInfos[topic]
+  do:
+    when not defined(release):
+      if p in g.prunedPeers:
+        raise newException(CatchableError, "Dupe prune " & $p)
+      else:
+        raise newException(CatchableError, "TopicInfo key not found for " & $p)
+    else:
+      raise newException(CatchableError, "TopicInfo key not found for " & $p)
 
 proc replenishFanout(g: GossipSub, topic: string) =
   ## get fanout peers for a topic

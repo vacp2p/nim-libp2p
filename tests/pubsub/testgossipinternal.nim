@@ -53,6 +53,8 @@ suite "GossipSub internal":
         let peer = newPubSubPeer(peerInfo, GossipSubCodec)
         peer.conn = conn
         gossipSub.peers[peerInfo.id] = peer
+        gossipSub.handleConnect(peer)
+        gossipSub.grafted(peer, topic)
         gossipSub.mesh[topic].incl(peer)
 
       check gossipSub.peers.len == 15
@@ -84,6 +86,8 @@ suite "GossipSub internal":
         let peer = newPubSubPeer(peerInfo, GossipSubCodec)
         peer.conn = conn
         gossipSub.peers[peerInfo.id] = peer
+        gossipSub.handleConnect(peer)
+        gossipSub.grafted(peer, topic)
         gossipSub.mesh[topic].incl(peer)
 
       check gossipSub.mesh[topic].len == 15
