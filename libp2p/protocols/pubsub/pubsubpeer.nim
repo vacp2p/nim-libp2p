@@ -44,6 +44,8 @@ type
 
   RPCHandler* = proc(peer: PubSubPeer, msg: seq[RPCMsg]): Future[void] {.gcsafe.}
 
+chronicles.formatIt(PubSubPeer): it.peerInfo.id
+
 func score*(p: PubSubPeer): float64 = 
   # TODO
   0.0

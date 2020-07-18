@@ -348,7 +348,7 @@ proc updateScores(g: GossipSub) = # avoid async
   let now = Moment.now()
 
   for peer, stats in g.peerStats:
-    debug "updating peer score", peer = peer.id, gossipTopics = peer.topics.len
+    debug "updating peer score", peer, gossipTopics = peer.topics.len
     # TODO
 
     if not peer.connected:
@@ -357,7 +357,7 @@ proc updateScores(g: GossipSub) = # avoid async
 
     # Per topic
     for topic in peer.topics:
-      debug "updating peer topic's scores", peer = peer.id, topic
+      debug "updating peer topic's scores", peer, topic
 
       # Defect on purpose, no magic here please, this should not fail!
       let topicParams = g.topics[topic].parameters
