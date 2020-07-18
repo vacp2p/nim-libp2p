@@ -15,6 +15,9 @@ import ../protocols/protocol,
 logScope:
   topics = "muxer"
 
+const
+  DefaultChanTimeout* = 1.minutes
+
 type
   StreamHandler* = proc(conn: Connection): Future[void] {.gcsafe.}
   MuxerHandler* = proc(muxer: Muxer): Future[void] {.gcsafe.}

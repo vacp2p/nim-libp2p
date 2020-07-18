@@ -43,8 +43,6 @@ type
     # https://github.com/libp2p/specs/blob/master/pubsub/gossipsub/gossipsub-v1.1.md#explicit-peering-agreements
     maintain*: bool 
 
-proc hash*(i: PeerInfo): Hash = cast[int](i).hash # cast ptr to int and hash
-
 proc id*(p: PeerInfo): string =
   if not(isNil(p)):
     return p.peerId.pretty()
@@ -139,18 +137,5 @@ proc publicKey*(p: PeerInfo): Option[PublicKey] {.inline.} =
   else:
     result = some(p.privateKey.getKey().tryGet())
 
-func `==`*(a, b: PeerInfo): bool =
-  # override equiality to support both nil and peerInfo comparisons
-  # this in the future will allow us to recycle refs
-  let
-    aptr = cast[pointer](a)
-    bptr = cast[pointer](b)
-
-  if isNil(aptr) and isNil(bptr):
-    true
-  elif isNil(aptr) or isNil(bptr):
-    false
-  elif aptr == bptr and a.peerId == b.peerId:
-    true
-  else:
-    false
+func hash*(p: PeerInfo): Hash =
+  cast[pointer](p).hash

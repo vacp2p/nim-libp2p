@@ -41,7 +41,6 @@ type
     recvdRpcCache: TimedCache[string]   # cache for already received messages
     onConnect*: AsyncEvent
     observers*: ref seq[PubSubObserver] # ref as in smart_ptr
-    refs: int                           # how many active connections this peer has
 
   RPCHandler* = proc(peer: PubSubPeer, msg: seq[RPCMsg]): Future[void] {.gcsafe.}
 
@@ -53,26 +52,7 @@ func hash*(p: PubSubPeer): Hash =
   # int is either 32/64, so intptr basically, pubsubpeer is a ref
   cast[pointer](p).hash
 
-func `==`*(a, b: PubSubPeer): bool =
-  # override equiality to support both nil and peerInfo comparisons
-  # this in the future will allow us to recycle refs
-  let
-    aptr = cast[pointer](a)
-    bptr = cast[pointer](b)
-
-  if isNil(aptr) and isNil(bptr):
-    true
-  elif isNil(aptr) or isNil(bptr):
-    false
-  elif aptr == bptr and a.peerInfo == b.peerInfo:
-    true
-  else:
-    false
-
 proc id*(p: PubSubPeer): string = p.peerInfo.id
-
-proc inUse*(p: PubSubPeer): bool =
-  p.refs > 0
 
 proc connected*(p: PubSubPeer): bool =
   not(isNil(p.sendConn))
@@ -82,7 +62,6 @@ proc `conn=`*(p: PubSubPeer, conn: Connection) =
     trace "attaching send connection for peer", peer = p.id
     p.sendConn = conn
     p.onConnect.fire()
-    p.refs.inc()
 
 proc conn*(p: PubSubPeer): Connection =
   p.sendConn
@@ -107,7 +86,6 @@ proc handle*(p: PubSubPeer, conn: Connection) {.async.} =
   debug "starting pubsub read loop for peer", closed = conn.closed
   try:
     try:
-      p.refs.inc()
       while not conn.closed:
         trace "waiting for data", closed = conn.closed
         let data = await conn.readLp(64 * 1024)
@@ -145,8 +123,6 @@ proc handle*(p: PubSubPeer, conn: Connection) {.async.} =
   except CatchableError as exc:
     trace "Exception occurred in PubSubPeer.handle", exc = exc.msg
     raise exc
-  finally:
-    p.refs.dec()
 
 proc send*(p: PubSubPeer, msg: RPCMsg) {.async.} =
   logScope:
@@ -193,7 +169,6 @@ proc send*(p: PubSubPeer, msg: RPCMsg) {.async.} =
       p.sendConn = nil
       p.onConnect.clear()
 
-    p.refs.dec()
     raise exc
 
 proc sendSubOpts*(p: PubSubPeer, topics: seq[string], subscribe: bool): Future[void] =
