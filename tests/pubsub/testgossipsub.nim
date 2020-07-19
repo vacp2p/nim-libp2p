@@ -308,6 +308,10 @@ suite "GossipSub":
         passed.complete(true)
 
       var nodes = generateNodes(2, true)
+      var gossipSub1: GossipSub = GossipSub(nodes[0].pubSub.get())
+      gossipSub1.parameters.floodPublish = false
+      var gossipSub2: GossipSub = GossipSub(nodes[1].pubSub.get())
+      gossipSub2.parameters.floodPublish = false
       var wait: seq[Future[void]]
       wait.add(await nodes[0].start())
       wait.add(await nodes[1].start())

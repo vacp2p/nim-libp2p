@@ -42,13 +42,11 @@ type
     onConnect*: AsyncEvent
     observers*: ref seq[PubSubObserver] # ref as in smart_ptr
 
+    score*: float64
+
   RPCHandler* = proc(peer: PubSubPeer, msg: seq[RPCMsg]): Future[void] {.gcsafe.}
 
 chronicles.formatIt(PubSubPeer): it.peerInfo.id
-
-func score*(p: PubSubPeer): float64 = 
-  # TODO
-  0.0
 
 func hash*(p: PubSubPeer): Hash = 
   # int is either 32/64, so intptr basically, pubsubpeer is a ref
