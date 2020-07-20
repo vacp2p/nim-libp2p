@@ -87,7 +87,15 @@ suite "GossipSub":
 
       nodes[1].addValidator("foobar", validator)
       tryPublish await nodes[0].publish("foobar", "Hello!".toBytes()), 1
+      
       result = (await validatorFut) and (await handlerFut)
+
+      let gossip1 = GossipSub(nodes[0].pubSub.get())
+      let gossip2 = GossipSub(nodes[1].pubSub.get())
+      check:
+        gossip1.mesh["foobar"].len == 1 and "foobar" notin gossip1.fanout
+        gossip2.mesh["foobar"].len == 1 and "foobar" notin gossip2.fanout
+
       await allFuturesThrowing(
         nodes[0].stop(),
         nodes[1].stop())
@@ -108,6 +116,7 @@ suite "GossipSub":
 
       await subscribeNodes(nodes)
 
+      await nodes[0].subscribe("foobar", handler)
       await nodes[1].subscribe("foobar", handler)
 
       var validatorFut = newFuture[bool]()
@@ -121,6 +130,13 @@ suite "GossipSub":
       tryPublish await nodes[0].publish("foobar", "Hello!".toBytes()), 1
 
       result = await validatorFut
+
+      let gossip1 = GossipSub(nodes[0].pubSub.get())
+      let gossip2 = GossipSub(nodes[1].pubSub.get())
+      check:
+        gossip1.mesh["foobar"].len == 1 and "foobar" notin gossip1.fanout
+        gossip2.mesh["foobar"].len == 1 and "foobar" notin gossip2.fanout
+
       await allFuturesThrowing(
         nodes[0].stop(),
         nodes[1].stop())
@@ -161,6 +177,15 @@ suite "GossipSub":
       tryPublish await nodes[0].publish("bar", "Hello!".toBytes()), 1
 
       result = ((await passed) and (await failed) and (await handlerFut))
+
+      let gossip1 = GossipSub(nodes[0].pubSub.get())
+      let gossip2 = GossipSub(nodes[1].pubSub.get())
+      check:
+        "foo" notin gossip1.mesh and gossip1.fanout["foo"].len == 1
+        "foo" notin gossip2.mesh and "foo" notin gossip2.fanout
+        "bar" notin gossip1.mesh and gossip1.fanout["bar"].len == 1
+        "bar" notin gossip2.mesh and "bar" notin gossip2.fanout
+
       await allFuturesThrowing(
         nodes[0].stop(),
         nodes[1].stop())
@@ -281,10 +306,13 @@ suite "GossipSub":
 
       tryPublish await nodes[0].publish("foobar", "Hello!".toBytes()), 1
 
-      var gossipSub1: GossipSub = GossipSub(nodes[0].pubSub.get())
+      var gossip1: GossipSub = GossipSub(nodes[0].pubSub.get())
+      var gossip2: GossipSub = GossipSub(nodes[1].pubSub.get())
 
       check:
-        "foobar" in gossipSub1.gossipsub
+        "foobar" in gossip1.gossipsub
+        gossip1.fanout.hasPeerID("foobar", gossip2.peerInfo.id)
+        not gossip1.mesh.hasPeerID("foobar", gossip2.peerInfo.id)
 
       await passed.wait(2.seconds)
 
@@ -318,12 +346,24 @@ suite "GossipSub":
 
       await subscribeNodes(nodes)
 
+      await nodes[0].subscribe("foobar", handler)
       await nodes[1].subscribe("foobar", handler)
       await waitSub(nodes[0], nodes[1], "foobar")
 
       tryPublish await nodes[0].publish("foobar", "Hello!".toBytes()), 1
 
       result = await passed
+
+      var gossip1: GossipSub = GossipSub(nodes[0].pubSub.get())
+      var gossip2: GossipSub = GossipSub(nodes[1].pubSub.get())
+
+      check:
+        "foobar" in gossip1.gossipsub
+        "foobar" in gossip2.gossipsub
+        gossip1.mesh.hasPeerID("foobar", gossip2.peerInfo.id)
+        not gossip1.fanout.hasPeerID("foobar", gossip2.peerInfo.id)
+        gossip2.mesh.hasPeerID("foobar", gossip1.peerInfo.id)
+        not gossip2.fanout.hasPeerID("foobar", gossip1.peerInfo.id)
 
       await nodes[0].stop()
       await nodes[1].stop()
@@ -375,6 +415,13 @@ suite "GossipSub":
       for k, v in seen.pairs:
         check: v >= 1
 
+      for node in nodes:
+        var gossip: GossipSub = GossipSub(node.pubSub.get())
+        check:
+          "foobar" in gossip.gossipsub
+          gossip.fanout.len == 0
+          gossip.mesh["foobar"].len > 0
+
       await allFuturesThrowing(nodes.mapIt(it.stop()))
       await allFuturesThrowing(awaitters)
       result = true
@@ -394,7 +441,7 @@ suite "GossipSub":
                                     secureManagers = [SecureProtocol.Secio])
         awaitters.add((await nodes[i].start()))
 
-      await subscribeSparseNodes(nodes, 1) # TODO: figure out better sparse mesh
+      await subscribeSparseNodes(nodes)
 
       var seen: Table[string, int]
       var subs: seq[Future[void]]
@@ -419,12 +466,19 @@ suite "GossipSub":
       tryPublish await wait(nodes[0].publish("foobar",
                                     cast[seq[byte]]("from node " &
                                     nodes[1].peerInfo.id)),
-                                    1.minutes), 3, 5.seconds
+                                    1.minutes), 2, 5.seconds
 
       await wait(seenFut, 5.minutes)
       check: seen.len >= runs
       for k, v in seen.pairs:
         check: v >= 1
+      
+      for node in nodes:
+        var gossip: GossipSub = GossipSub(node.pubSub.get())
+        check:
+          "foobar" in gossip.gossipsub
+          gossip.fanout.len == 0
+          gossip.mesh["foobar"].len > 0
 
       await allFuturesThrowing(nodes.mapIt(it.stop()))
       await allFuturesThrowing(awaitters)
