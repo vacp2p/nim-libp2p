@@ -56,10 +56,13 @@ const
 type
   TopicInfo* = object
     # gossip 1.1 related
-    graftTime*: Moment
-    meshTime*: Duration
-    inMesh*: bool
-    meshMessageDeliveriesActive*: bool
+    graftTime: Moment
+    meshTime: Duration
+    inMesh: bool
+    meshMessageDeliveriesActive: bool
+    firstMessageDeliveries: float64
+    meshMessageDeliveries: float64
+    meshFailurePenalty: float64
 
   TopicParams* = object
     topicWeight*: float64
@@ -273,6 +276,7 @@ proc grafted(g: GossipSub, p: PubSubPeer, topic: string) =
     info.graftTime = Moment.now()
     info.meshTime = 0.seconds
     info.inMesh = true
+    info.meshMessageDeliveriesActive = false
 
     # mgetOrPut does not work, so we gotta do this without referencing
     stats.topicInfos[topic] = info
@@ -288,6 +292,14 @@ proc pruned(g: GossipSub, p: PubSubPeer, topic: string) =
       g.prunedPeers.incl(p)
 
     var info = stats.topicInfos[topic]
+    let topicParams = g.topicParams.mgetOrPut(topic, TopicParams.init())
+
+    # penalize a peer that delivered no message
+    let threshold = topicParams.meshMessageDeliveriesThreshold
+    if info.inMesh and info.meshMessageDeliveriesActive and info.meshMessageDeliveries < threshold:
+      let deficit = threshold - info.meshMessageDeliveries
+      info.meshFailurePenalty += deficit * deficit
+
     info.inMesh = false
 
     # mgetOrPut does not work, so we gotta do this without referencing
@@ -469,8 +481,6 @@ proc updateScores(g: GossipSub) = # avoid async
       var topicParams = g.topicParams.mgetOrPut(topic, TopicParams.init())
       var info = stats.topicInfos.getOrDefault(topic)
       var topicScore = 0'f64
-
-      debug "updating peer topic's scores", peer, topic, info
       
       if info.inMesh:
         info.meshTime = now - info.graftTime
@@ -481,11 +491,28 @@ proc updateScores(g: GossipSub) = # avoid async
         var p1 = info.meshTime / topicParams.timeInMeshQuantum
         if p1 > topicParams.timeInMeshCap:
           p1 = topicParams.timeInMeshCap
-        topicScore = p1 * topicParams.timeInMeshWeight
+        debug "p1", peer, p1
+        topicScore += p1 * topicParams.timeInMeshWeight
+      else:
+        info.meshMessageDeliveriesActive = false
+
+      topicScore += info.firstMessageDeliveries * topicParams.firstMessageDeliveriesWeight
+      debug "p2", peer, p2 = info.firstMessageDeliveries
+      if info.meshMessageDeliveriesActive:
+        if info.meshMessageDeliveries < topicParams.meshMessageDeliveriesThreshold:
+          let deficit = topicParams.meshMessageDeliveriesThreshold - info.meshMessageDeliveries
+          let p3 = deficit * deficit
+          debug "p3", peer, p3
+          topicScore += p3 * topicParams.meshMessageDeliveriesWeight
+
+      topicScore += info.meshFailurePenalty * topicParams.meshFailurePenaltyWeight
+      debug "p3b", peer, p3b = info.meshFailurePenalty
       
-      # commit our changes, mgetOrPut does NOT work
+      # commit our changes, mgetOrPut does NOT work as wanted with value types (lent?)
       g.topicParams[topic] = topicParams
       stats.topicInfos[topic] = info
+
+      debug "updated peer topic's scores", peer, topic, info
 
       peer.score += topicScore * topicParams.topicWeight
 
@@ -537,6 +564,8 @@ method handleDisconnect*(g: GossipSub, peer: PubSubPeer) =
       .set(g.gossipsub.peers(t).int64, labelValues = [t])
 
   for t in toSeq(g.mesh.keys):
+    if peer in g.mesh[t]:
+      g.pruned(peer, t)
     g.mesh.removePeer(t, peer)
 
     libp2p_gossipsub_peers_per_topic_mesh
@@ -559,8 +588,9 @@ method handleDisconnect*(g: GossipSub, peer: PubSubPeer) =
     g.peerStats.del(peer)
     return
 
-  var stats = g.peerStats[peer]
-  stats.expire = Moment.now() + g.parameters.retainScore
+  g.peerStats[peer].expire = Moment.now() + g.parameters.retainScore
+  for topic, info in g.peerStats[peer].topicInfos.mpairs:
+    info.firstMessageDeliveries = 0
 
 method subscribePeer*(p: GossipSub,
                       conn: Connection) =
@@ -717,6 +747,23 @@ method rpcHandler*(g: GossipSub,
           continue
 
         for t in msg.topicIDs:                     # for every topic in the message
+          let topicParams = g.topicParams.mgetOrPut(t, TopicParams.init())
+
+                                                   # contribute to peer score first delivery
+          var stats = g.peerStats[peer].topicInfos.getOrDefault(t)
+          stats.firstMessageDeliveries += 1
+          if stats.firstMessageDeliveries > topicParams.firstMessageDeliveriesCap:
+            stats.firstMessageDeliveries = topicParams.firstMessageDeliveriesCap
+
+                                                   # if in mesh add more delivery score
+          if stats.inMesh:
+            stats.meshMessageDeliveries += 1
+            if stats.meshMessageDeliveries > topicParams.meshMessageDeliveriesCap:
+              stats.meshMessageDeliveries = topicParams.meshMessageDeliveriesCap
+
+                                                   # commit back to the table
+          g.peerStats[peer].topicInfos[t] = stats
+
           if t in g.floodsub:
             toSendPeers.incl(g.floodsub[t])        # get all floodsub peers for topic
 
