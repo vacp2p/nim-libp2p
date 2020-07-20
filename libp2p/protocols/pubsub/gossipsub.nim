@@ -457,8 +457,10 @@ method unsubscribe*(g: GossipSub,
         let peers = g.mesh.getOrDefault(topic)
         g.mesh.del(topic)
 
+        var pending = newSeq[Future[void]]()
         for peer in peers:
-          await peer.sendPrune(@[topic])
+          pending.add(peer.sendPrune(@[topic]))
+        checkFutures(await allFinished(pending))
 
 method unsubscribeAll*(g: GossipSub, topic: string) {.async.} =
   await procCall PubSub(g).unsubscribeAll(topic)
@@ -467,8 +469,10 @@ method unsubscribeAll*(g: GossipSub, topic: string) {.async.} =
     let peers = g.mesh.getOrDefault(topic)
     g.mesh.del(topic)
 
+    var pending = newSeq[Future[void]]()
     for peer in peers:
-      await peer.sendPrune(@[topic])
+      pending.add(peer.sendPrune(@[topic]))
+    checkFutures(await allFinished(pending))
 
 method publish*(g: GossipSub,
                 topic: string,
