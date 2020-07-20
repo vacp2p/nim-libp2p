@@ -450,14 +450,29 @@ method unsubscribe*(g: GossipSub,
                     topics: seq[TopicPair]) {.async.} =
   await procCall PubSub(g).unsubscribe(topics)
 
-  for pair in topics:
-    let topic = pair.topic
-    if topic in g.mesh:
-      let peers = g.mesh.getOrDefault(topic)
-      g.mesh.del(topic)
+  for (topic, handler) in topics:
+    # delete from mesh only if no handlers are left
+    if g.topics[topic].handler.len <= 0:
+      if topic in g.mesh:
+        let peers = g.mesh.getOrDefault(topic)
+        g.mesh.del(topic)
 
-      for peer in peers:
-        await peer.sendPrune(@[topic])
+        var pending = newSeq[Future[void]]()
+        for peer in peers:
+          pending.add(peer.sendPrune(@[topic]))
+        checkFutures(await allFinished(pending))
+
+method unsubscribeAll*(g: GossipSub, topic: string) {.async.} =
+  await procCall PubSub(g).unsubscribeAll(topic)
+
+  if topic in g.mesh:
+    let peers = g.mesh.getOrDefault(topic)
+    g.mesh.del(topic)
+
+    var pending = newSeq[Future[void]]()
+    for peer in peers:
+      pending.add(peer.sendPrune(@[topic]))
+    checkFutures(await allFinished(pending))
 
 method publish*(g: GossipSub,
                 topic: string,
