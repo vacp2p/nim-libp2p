@@ -269,11 +269,13 @@ method handleConnect*(g: GossipSub, peer: PubSubPeer) =
 
 proc grafted(g: GossipSub, p: PubSubPeer, topic: string) =
   g.peerStats.withValue(p, stats) do:
-    var info = stats.topicInfos.mgetOrPut(topic, TopicInfo())
+    var info = stats.topicInfos.getOrDefault(topic)
     info.graftTime = Moment.now()
     info.meshTime = 0.seconds
     info.inMesh = true
 
+    # mgetOrPut does not work, so we gotta do this without referencing
+    stats.topicInfos[topic] = info
     assert(g.peerStats[p].topicInfos[topic].inMesh == true)
 
     debug "grafted", p
@@ -287,6 +289,9 @@ proc pruned(g: GossipSub, p: PubSubPeer, topic: string) =
 
     var info = stats.topicInfos[topic]
     info.inMesh = false
+
+    # mgetOrPut does not work, so we gotta do this without referencing
+    stats.topicInfos[topic] = info
 
     debug "pruned", p
   do:
@@ -461,26 +466,31 @@ proc updateScores(g: GossipSub) = # avoid async
 
     # Per topic
     for topic in peer.topics:
-      debug "updating peer topic's scores", peer, topic
-
       var topicParams = g.topicParams.mgetOrPut(topic, TopicParams.init())
-      var info = stats.topicInfos.mgetOrPut(topic, TopicInfo())
+      var info = stats.topicInfos.getOrDefault(topic)
       var topicScore = 0'f64
+
+      debug "updating peer topic's scores", peer, topic, info
       
       if info.inMesh:
         info.meshTime = now - info.graftTime
         if info.meshTime > topicParams.meshMessageDeliveriesActivation:
           info.meshMessageDeliveriesActive = true
         
+        # TODO verify this `/` accuracy/correctnes
         var p1 = info.meshTime / topicParams.timeInMeshQuantum
         if p1 > topicParams.timeInMeshCap:
           p1 = topicParams.timeInMeshCap
         topicScore = p1 * topicParams.timeInMeshWeight
-        
+      
+      # commit our changes, mgetOrPut does NOT work
+      g.topicParams[topic] = topicParams
+      stats.topicInfos[topic] = info
+
       peer.score += topicScore * topicParams.topicWeight
 
       # debug assert to check nim compiler is doing what we are asking...
-      assert(stats.topicInfos[topic].meshTime == info.meshTime)
+      assert(g.peerStats[peer].topicInfos[topic].meshTime == info.meshTime)
     
     debug "updated peer's score", peer, score = peer.score
 
