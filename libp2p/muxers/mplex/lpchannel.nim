@@ -57,7 +57,6 @@ type
     msgCode*: MessageType         # cached in/out message code
     closeCode*: MessageType       # cached in/out close code
     resetCode*: MessageType       # cached in/out reset code
-    timerFut: Future[void]        # the current timer instanse
     timerTaskFut: Future[void]    # the current timer instanse
 
 proc open*(s: LPChannel) {.async, gcsafe.}
@@ -82,16 +81,8 @@ template withEOFExceptions(body: untyped): untyped =
 
 proc cleanupTimer(s: LPChannel) {.async.} =
   ## cleanup timers
-  ##
-  if not(isNil(s.timerFut)) and
-    not(s.timerFut.finished):
-    s.timerFut.cancel()
-    # ignore CancelledError here
-    let fut = awaitne s.timerTaskFut
-    if fut.failed:
-      let ex = fut.readError()
-      if not (ex of CancelledError):
-        raise ex
+  if not s.timerTaskFut.finished:
+    await s.timerTaskFut.cancelAndWait()
 
 proc closeMessage(s: LPChannel) {.async.} =
   logScope:
@@ -253,13 +244,10 @@ proc timeoutMonitor(s: LPChannel) {.async.} =
   ## be reset
   ##
 
-  if not(isNil(s.timerFut)):
-    return
-
   try:
     while true:
-      s.timerFut = sleepAsync(s.timeout)
-      await s.timerFut
+      await sleepAsync(s.timeout)
+
       if s.closed or s.atEof:
         return
 
