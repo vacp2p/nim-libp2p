@@ -9,8 +9,9 @@ randomize()
 proc generateNodes*(num: Natural, gossip: bool = false): seq[Switch] =
   for i in 0..<num:
     var switch = newStandardSwitch(gossip = gossip)
-    var gossip = GossipSub(switch.pubSub.get())
-    gossip.parameters.floodPublish = false
+    if gossip:
+      var gossipSub = GossipSub(switch.pubSub.get())
+      gossipSub.parameters.floodPublish = false
     result.add(switch)
 
 proc subscribeNodes*(nodes: seq[Switch]) {.async.} =
