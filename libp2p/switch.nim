@@ -482,6 +482,13 @@ proc unsubscribe*(s: Switch, topics: seq[TopicPair]) {.async.} =
 
   await s.pubSub.get().unsubscribe(topics)
 
+proc unsubscribeAll*(s: Switch, topic: string) {.async.} =
+  ## unsubscribe from topics
+  if s.pubSub.isNone:
+    raise newNoPubSubException()
+
+  await s.pubSub.get().unsubscribeAll(topic)
+
 proc publish*(s: Switch, topic: string, data: seq[byte]): Future[int] {.async.} =
   # pubslish to pubsub topic
   if s.pubSub.isNone:
