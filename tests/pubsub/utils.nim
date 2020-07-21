@@ -1,13 +1,17 @@
-import random
+import random, options
 import chronos
 import ../../libp2p/standard_setup
+import ../../libp2p/protocols/pubsub/gossipsub
 export standard_setup
 
 randomize()
 
 proc generateNodes*(num: Natural, gossip: bool = false): seq[Switch] =
   for i in 0..<num:
-    result.add(newStandardSwitch(gossip = gossip))
+    var switch = newStandardSwitch(gossip = gossip)
+    var gossip = GossipSub(switch.pubSub.get())
+    gossip.parameters.floodPublish = false
+    result.add(switch)
 
 proc subscribeNodes*(nodes: seq[Switch]) {.async.} =
   var dials: seq[Future[void]]

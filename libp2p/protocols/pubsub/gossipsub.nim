@@ -479,8 +479,7 @@ proc updateScores(g: GossipSub) = # avoid async
         continue
 
     # Per topic
-    for topic in peer.topics:
-      var topicParams = g.topicParams.mgetOrPut(topic, TopicParams.init())
+    for topic, topicParams in g.topicParams:
       var info = stats.topicInfos.getOrDefault(topic)
 
       # Scoring
@@ -734,6 +733,15 @@ proc handleIWant(g: GossipSub,
       if msg.isSome:
         result.add(msg.get())
 
+proc punishPeer(g: GossipSub, peer: PubSubPeer, msg: Message) =
+  for t in msg.topicIDs:
+    # ensure we init a new topic if unknown
+    let _ = g.topicParams.mgetOrPut(t, TopicParams.init())
+    # update stats
+    var tstats = g.peerStats[peer].topicInfos.getOrDefault(t)
+    tstats.invalidMessageDeliveries += 1
+    g.peerStats[peer].topicInfos[t] = tstats
+
 method rpcHandler*(g: GossipSub,
                   peer: PubSubPeer,
                   rpcMsgs: seq[RPCMsg]) {.async.} =
@@ -755,15 +763,13 @@ method rpcHandler*(g: GossipSub,
         g.seen.put(msgId)                        # add the message to the seen cache
 
         if g.verifySignature and not msg.verify(peer.peerInfo):
-          trace "dropping message due to failed signature verification"
+          trace "dropping message due to failed signature verification", peer
+          g.punishPeer(peer, msg)
           continue
 
         if not (await g.validate(msg)):
-          trace "dropping message due to failed validation"
-          for t in msg.topicIDs:
-            var tstats = g.peerStats[peer].topicInfos.getOrDefault(t)
-            tstats.invalidMessageDeliveries += 1
-            g.peerStats[peer].topicInfos[t] = tstats
+          trace "dropping message due to failed validation", peer
+          g.punishPeer(peer, msg)
           continue
 
         # this shouldn't happen
