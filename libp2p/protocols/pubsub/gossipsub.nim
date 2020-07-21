@@ -63,6 +63,7 @@ type
     firstMessageDeliveries: float64
     meshMessageDeliveries: float64
     meshFailurePenalty: float64
+    invalidMessageDeliveries: float64
 
   TopicParams* = object
     topicWeight*: float64
@@ -470,16 +471,19 @@ proc updateScores(g: GossipSub) = # avoid async
 
   for peer, stats in g.peerStats.mpairs:
     debug "updating peer score", peer, gossipTopics = peer.topics.len
-    # TODO
 
     if not peer.connected:
       if now > stats.expire:
-        discard # really cleanup peer
+        g.peerStats.del(peer)
+        debug "evicted peer from memory", peer
+        continue
 
     # Per topic
     for topic in peer.topics:
       var topicParams = g.topicParams.mgetOrPut(topic, TopicParams.init())
       var info = stats.topicInfos.getOrDefault(topic)
+
+      # Scoring
       var topicScore = 0'f64
       
       if info.inMesh:
@@ -507,18 +511,35 @@ proc updateScores(g: GossipSub) = # avoid async
 
       topicScore += info.meshFailurePenalty * topicParams.meshFailurePenaltyWeight
       debug "p3b", peer, p3b = info.meshFailurePenalty
-      
-      # commit our changes, mgetOrPut does NOT work as wanted with value types (lent?)
-      g.topicParams[topic] = topicParams
-      stats.topicInfos[topic] = info
+
+      topicScore += info.invalidMessageDeliveries * info.invalidMessageDeliveries * topicParams.invalidMessageDeliveriesWeight
+      debug "p4", p4 = info.invalidMessageDeliveries * info.invalidMessageDeliveries
 
       debug "updated peer topic's scores", peer, topic, info
 
       peer.score += topicScore * topicParams.topicWeight
 
-      # debug assert to check nim compiler is doing what we are asking...
-      assert(g.peerStats[peer].topicInfos[topic].meshTime == info.meshTime)
-    
+      # Score decay
+      info.firstMessageDeliveries *= topicParams.firstMessageDeliveriesDecay
+      if info.firstMessageDeliveries < g.parameters.decayToZero:
+        info.firstMessageDeliveries = 0
+
+      info.meshMessageDeliveries *= topicParams.meshMessageDeliveriesDecay
+      if info.meshMessageDeliveries < g.parameters.decayToZero:
+        info.meshMessageDeliveries = 0
+
+      info.meshFailurePenalty *= topicParams.meshFailurePenaltyDecay
+      if info.meshFailurePenalty < g.parameters.decayToZero:
+        info.meshFailurePenalty = 0
+
+      info.invalidMessageDeliveries *= topicParams.invalidMessageDeliveriesDecay
+      if info.invalidMessageDeliveries < g.parameters.decayToZero:
+        info.invalidMessageDeliveries = 0
+
+      # Wrap up
+      # commit our changes, mgetOrPut does NOT work as wanted with value types (lent?)
+      stats.topicInfos[topic] = info
+      
     debug "updated peer's score", peer, score = peer.score
 
 proc heartbeat(g: GossipSub) {.async.} =
@@ -739,6 +760,10 @@ method rpcHandler*(g: GossipSub,
 
         if not (await g.validate(msg)):
           trace "dropping message due to failed validation"
+          for t in msg.topicIDs:
+            var tstats = g.peerStats[peer].topicInfos.getOrDefault(t)
+            tstats.invalidMessageDeliveries += 1
+            g.peerStats[peer].topicInfos[t] = tstats
           continue
 
         # this shouldn't happen
