@@ -468,13 +468,14 @@ proc updateScores(g: GossipSub) = # avoid async
   debug "updating scores", peers = g.peers.len
   
   let now = Moment.now()
+  var evicting: seq[PubSubPeer]
 
   for peer, stats in g.peerStats.mpairs:
     debug "updating peer score", peer, gossipTopics = peer.topics.len
 
     if not peer.connected:
       if now > stats.expire:
-        g.peerStats.del(peer)
+        evicting.add(peer)
         debug "evicted peer from memory", peer
         continue
 
@@ -540,6 +541,9 @@ proc updateScores(g: GossipSub) = # avoid async
       stats.topicInfos[topic] = info
       
     debug "updated peer's score", peer, score = peer.score
+  
+  for peer in evicting:
+    g.peerStats.del(peer)
 
 proc heartbeat(g: GossipSub) {.async.} =
   while g.heartbeatRunning:
