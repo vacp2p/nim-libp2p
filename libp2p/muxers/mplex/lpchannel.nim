@@ -86,7 +86,12 @@ proc cleanupTimer(s: LPChannel) {.async.} =
   if not(isNil(s.timerFut)) and
     not(s.timerFut.finished):
     s.timerFut.cancel()
-    await s.timerTaskFut
+    # ignore CancelledError here
+    let fut = awaitne s.timerTaskFut
+    if fut.failed:
+      let ex = fut.readError()
+      if not (ex of CancelledError):
+        raise ex
 
 proc closeMessage(s: LPChannel) {.async.} =
   logScope:
@@ -267,6 +272,8 @@ proc timeoutMonitor(s: LPChannel) {.async.} =
     # reset channel on innactivity timeout
     trace "channel timed out, resetting"
     await s.reset()
+  except CancelledError as exc:
+    raise exc
   except CatchableError as exc:
     trace "exception in timeout", exc = exc.msg
 
@@ -328,7 +335,6 @@ proc init*(
       await conn.writeMsg(chann.id,
                           chann.msgCode,
                           data)
-
     except CatchableError as exc:
       trace "exception in lpchannel write handler", exc = exc.msg
       await chann.reset()
