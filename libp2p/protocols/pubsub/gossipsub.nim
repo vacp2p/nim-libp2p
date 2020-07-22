@@ -39,7 +39,7 @@ const GossipSubHistoryGossip* = 3
 
 # heartbeat interval
 const GossipSubHeartbeatInitialDelay* = 100.millis
-const GossipSubHeartbeatInterval* = 5.seconds # TODO: per the spec it should be 1 second
+const GossipSubHeartbeatInterval* = 1.seconds
 
 # fanout ttl
 const GossipSubFanoutTTL* = 1.minutes
