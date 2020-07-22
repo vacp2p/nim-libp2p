@@ -78,12 +78,17 @@ proc removeHook*(s: Switch, hook: Hook, cycle: Lifecycle) =
   s.hooks.mgetOrPut(cycle, initHashSet[Hook]()).excl(hook)
 
 proc triggerHooks(s: Switch, peer: PeerInfo, cycle: Lifecycle) {.async, gcsafe.} =
-  if cycle in s.hooks:
-    var hooks = newSeq[Future[void]]()
-    for h in s.hooks[cycle]:
-      hooks.add(h(peer, cycle))
+  try:
+    if cycle in s.hooks:
+      var hooks = newSeq[Future[void]]()
+      for h in s.hooks[cycle]:
+        hooks.add(h(peer, cycle))
 
-    checkFutures(await allFinished(hooks))
+      checkFutures(await allFinished(hooks))
+  except CancelledError as exc:
+    raise exc
+  except CatchableError as exc:
+    trace "exception in trigger hooks", exc = exc.msg
 
 proc disconnect*(s: Switch, peer: PeerInfo) {.async, gcsafe.}
 proc subscribePeer*(s: Switch, peerInfo: PeerInfo) {.async, gcsafe.}
