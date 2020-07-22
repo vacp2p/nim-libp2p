@@ -72,7 +72,7 @@ suite "GossipSub":
       awaiters.add((await nodes[0].start()))
       awaiters.add((await nodes[1].start()))
 
-      await subscribeNodes(nodes)
+      let subscribes = await subscribeNodes(nodes)
 
       await nodes[0].subscribe("foobar", handler)
       await nodes[1].subscribe("foobar", handler)
@@ -87,7 +87,7 @@ suite "GossipSub":
 
       nodes[1].addValidator("foobar", validator)
       tryPublish await nodes[0].publish("foobar", "Hello!".toBytes()), 1
-      
+
       result = (await validatorFut) and (await handlerFut)
 
       let gossip1 = GossipSub(nodes[0].pubSub.get())
@@ -99,6 +99,8 @@ suite "GossipSub":
       await allFuturesThrowing(
         nodes[0].stop(),
         nodes[1].stop())
+
+      await allFuturesThrowing(subscribes)
       await allFuturesThrowing(awaiters)
 
     check:
@@ -114,7 +116,7 @@ suite "GossipSub":
       awaiters.add((await nodes[0].start()))
       awaiters.add((await nodes[1].start()))
 
-      await subscribeNodes(nodes)
+      let subscribes = await subscribeNodes(nodes)
 
       await nodes[0].subscribe("foobar", handler)
       await nodes[1].subscribe("foobar", handler)
@@ -140,6 +142,8 @@ suite "GossipSub":
       await allFuturesThrowing(
         nodes[0].stop(),
         nodes[1].stop())
+
+      await allFuturesThrowing(subscribes)
       await allFuturesThrowing(awaiters)
 
     check:
@@ -157,7 +161,7 @@ suite "GossipSub":
       awaiters.add((await nodes[0].start()))
       awaiters.add((await nodes[1].start()))
 
-      await subscribeNodes(nodes)
+      let subscribes = await subscribeNodes(nodes)
       await nodes[1].subscribe("foo", handler)
       await nodes[1].subscribe("bar", handler)
 
@@ -189,6 +193,8 @@ suite "GossipSub":
       await allFuturesThrowing(
         nodes[0].stop(),
         nodes[1].stop())
+
+      await allFuturesThrowing(subscribes)
       await allFuturesThrowing(awaiters)
       result = true
     check:
@@ -208,7 +214,7 @@ suite "GossipSub":
       for node in nodes:
         awaitters.add(await node.start())
 
-      await subscribeNodes(nodes)
+      let subscribes = await subscribeNodes(nodes)
       await nodes[1].subscribe("foobar", handler)
       await sleepAsync(10.seconds)
 
@@ -221,6 +227,8 @@ suite "GossipSub":
         gossip1.gossipsub.hasPeerID("foobar", gossip2.peerInfo.id)
 
       await allFuturesThrowing(nodes.mapIt(it.stop()))
+
+      await allFuturesThrowing(subscribes)
       await allFuturesThrowing(awaitters)
 
       result = true
@@ -241,7 +249,7 @@ suite "GossipSub":
       for node in nodes:
         awaitters.add(await node.start())
 
-      await subscribeNodes(nodes)
+      let subscribes = await subscribeNodes(nodes)
 
       await nodes[0].subscribe("foobar", handler)
       await nodes[1].subscribe("foobar", handler)
@@ -249,6 +257,7 @@ suite "GossipSub":
       var subs: seq[Future[void]]
       subs &= waitSub(nodes[1], nodes[0], "foobar")
       subs &= waitSub(nodes[0], nodes[1], "foobar")
+
       await allFuturesThrowing(subs)
 
       let
@@ -269,6 +278,8 @@ suite "GossipSub":
         gossip2.mesh.hasPeerID("foobar", gossip1.peerInfo.id)
 
       await allFuturesThrowing(nodes.mapIt(it.stop()))
+
+      await allFuturesThrowing(subscribes)
       await allFuturesThrowing(awaitters)
 
       result = true
@@ -288,7 +299,7 @@ suite "GossipSub":
       wait.add(await nodes[0].start())
       wait.add(await nodes[1].start())
 
-      await subscribeNodes(nodes)
+      let subscribes = await subscribeNodes(nodes)
 
       await nodes[1].subscribe("foobar", handler)
       await waitSub(nodes[0], nodes[1], "foobar")
@@ -320,6 +331,8 @@ suite "GossipSub":
 
       await nodes[0].stop()
       await nodes[1].stop()
+
+      await allFuturesThrowing(subscribes)
       await allFuturesThrowing(wait)
 
       check observed == 2
@@ -340,7 +353,7 @@ suite "GossipSub":
       wait.add(await nodes[0].start())
       wait.add(await nodes[1].start())
 
-      await subscribeNodes(nodes)
+      let subscribes = await subscribeNodes(nodes)
 
       await nodes[0].subscribe("foobar", handler)
       await nodes[1].subscribe("foobar", handler)
@@ -363,6 +376,8 @@ suite "GossipSub":
 
       await nodes[0].stop()
       await nodes[1].stop()
+
+      await allFuturesThrowing(subscribes)
       await allFuturesThrowing(wait)
 
     check:
@@ -380,7 +395,7 @@ suite "GossipSub":
                                     secureManagers = [SecureProtocol.Noise])
         awaitters.add((await nodes[i].start()))
 
-      await subscribeRandom(nodes)
+      let subscribes = await subscribeRandom(nodes)
 
       var seen: Table[string, int]
       var subs: seq[Future[void]]
@@ -419,6 +434,8 @@ suite "GossipSub":
           gossip.mesh["foobar"].len > 0
 
       await allFuturesThrowing(nodes.mapIt(it.stop()))
+
+      await allFuturesThrowing(subscribes)
       await allFuturesThrowing(awaitters)
       result = true
 
@@ -437,7 +454,7 @@ suite "GossipSub":
                                     secureManagers = [SecureProtocol.Secio])
         awaitters.add((await nodes[i].start()))
 
-      await subscribeSparseNodes(nodes)
+      let subscribes = await subscribeSparseNodes(nodes, 1)
 
       var seen: Table[string, int]
       var subs: seq[Future[void]]
@@ -468,7 +485,7 @@ suite "GossipSub":
       check: seen.len >= runs
       for k, v in seen.pairs:
         check: v >= 1
-      
+
       for node in nodes:
         var gossip: GossipSub = GossipSub(node.pubSub.get())
         check:
@@ -477,6 +494,8 @@ suite "GossipSub":
           gossip.mesh["foobar"].len > 0
 
       await allFuturesThrowing(nodes.mapIt(it.stop()))
+
+      await allFuturesThrowing(subscribes)
       await allFuturesThrowing(awaitters)
       result = true
 
