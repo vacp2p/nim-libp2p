@@ -468,7 +468,7 @@ proc subscribePeer*(s: Switch, peerInfo: PeerInfo) {.async, gcsafe.} =
         return
 
       s.pubSub.get().subscribePeer(stream)
-
+      await stream.closeEvent.wait()
     except CancelledError as exc:
       if not(isNil(stream)):
         await stream.close()
