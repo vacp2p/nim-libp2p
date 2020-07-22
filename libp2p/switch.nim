@@ -322,7 +322,9 @@ proc internalConnect(s: Switch,
               continue
             break
     else:
-      trace "Reusing existing connection", oid = $conn.oid, direction = $conn.dir
+      trace "Reusing existing connection", oid = $conn.oid,
+                                           direction = $conn.dir,
+                                           peer = $conn.peerInfo
   finally:
     if lock.locked():
       lock.release()
