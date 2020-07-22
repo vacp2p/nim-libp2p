@@ -174,11 +174,11 @@ method reset*(s: LPChannel) {.base, async, gcsafe.} =
     peer = $s.conn.peerInfo
     # stack = getStackTrace()
 
-  trace "resetting channel"
-
   if s.closedLocal and s.isEof:
     trace "channel already closed or reset"
     return
+
+  trace "resetting channel"
 
   # we asyncCheck here because the other end
   # might be dead already - reset is always
