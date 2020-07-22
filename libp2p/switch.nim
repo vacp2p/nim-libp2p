@@ -338,10 +338,6 @@ proc internalConnect(s: Switch,
 
   doAssert(conn in s.connManager, "connection not tracked!")
 
-  trace "dial succesfull", oid = $conn.oid,
-                           peer = $conn.peerInfo
-
-  await s.subscribePeer(peer)
   asyncCheck s.cleanupPubSubPeer(conn)
 
   return conn
@@ -563,7 +559,6 @@ proc muxerHandler(s: Switch, muxer: Muxer) {.async, gcsafe.} =
     asyncCheck s.triggerHooks(muxer.connection.peerInfo, Lifecycle.Upgraded)
 
     # try establishing a pubsub connection
-    await s.subscribePeer(muxer.connection.peerInfo)
     asyncCheck s.cleanupPubSubPeer(muxer.connection)
 
   except CancelledError as exc:
