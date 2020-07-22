@@ -213,7 +213,7 @@ proc upgradeOutgoing(s: Switch, conn: Connection): Future[Connection] {.async, g
       "unable to identify connection, stopping upgrade")
 
   trace "succesfully upgraded outgoing connection", oid = sconn.oid
-  await s.triggerHooks(sconn.peerInfo, Lifecycle.Upgraded)
+  asyncCheck s.triggerHooks(sconn.peerInfo, Lifecycle.Upgraded)
 
   return sconn
 
@@ -283,7 +283,7 @@ proc internalConnect(s: Switch,
               # make sure to assign the peer to the connection
               conn.peerInfo = peer
 
-              await s.triggerHooks(conn.peerInfo, Lifecycle.Connected)
+              asyncCheck s.triggerHooks(conn.peerInfo, Lifecycle.Connected)
               libp2p_dialed_peers.inc()
             except CancelledError as exc:
               trace "dialing canceled", exc = exc.msg
@@ -383,7 +383,7 @@ proc start*(s: Switch): Future[seq[Future[void]]] {.async, gcsafe.} =
 
   proc handle(conn: Connection): Future[void] {.async, closure, gcsafe.} =
     try:
-      await s.triggerHooks(conn.peerInfo, Lifecycle.Connected)
+      asyncCheck s.triggerHooks(conn.peerInfo, Lifecycle.Connected)
       await s.upgradeIncoming(conn) # perform upgrade on incoming connection
     except CancelledError as exc:
       raise exc
