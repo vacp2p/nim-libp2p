@@ -28,7 +28,8 @@ import stream/connection,
        protocols/pubsub/pubsub,
        muxers/muxer,
        connmanager,
-       peerid
+       peerid,
+       errors
 
 logScope:
   topics = "switch"
@@ -46,6 +47,13 @@ declareCounter(libp2p_failed_upgrade, "peers failed upgrade")
 type
     NoPubSubException* = object of CatchableError
 
+    Lifecycle* {.pure.} = enum
+      Connected,
+      Upgraded,
+      Disconnected
+
+    Hook* = proc(peer: PeerInfo, cycle: Lifecycle): Future[void] {.gcsafe.}
+
     Switch* = ref object of RootObj
       peerInfo*: PeerInfo
       connManager: ConnManager
@@ -58,9 +66,24 @@ type
       secureManagers*: seq[Secure]
       pubSub*: Option[PubSub]
       dialLock: Table[string, AsyncLock]
+      hooks: Table[Lifecycle, HashSet[Hook]]
 
 proc newNoPubSubException(): ref NoPubSubException {.inline.} =
   result = newException(NoPubSubException, "no pubsub provided!")
+
+proc addHook*(s: Switch, hook: Hook, cycle: Lifecycle) =
+  s.hooks.mgetOrPut(cycle, initHashSet[Hook]()).incl(hook)
+
+proc removeHook*(s: Switch, hook: Hook, cycle: Lifecycle) =
+  s.hooks.mgetOrPut(cycle, initHashSet[Hook]()).excl(hook)
+
+proc triggerHooks(s: Switch, peer: PeerInfo, cycle: Lifecycle) {.async, gcsafe.} =
+  if cycle in s.hooks:
+    var hooks = newSeq[Future[void]]()
+    for h in s.hooks[cycle]:
+      hooks.add(h(peer, cycle))
+
+    checkFutures(await allFinished(hooks))
 
 proc disconnect*(s: Switch, peer: PeerInfo) {.async, gcsafe.}
 proc subscribePeer*(s: Switch, peerInfo: PeerInfo) {.async, gcsafe.}
@@ -187,9 +210,11 @@ proc upgradeOutgoing(s: Switch, conn: Connection): Future[Connection] {.async, g
   if isNil(sconn.peerInfo):
     await sconn.close()
     raise newException(CatchableError,
-      "unable to mux connection, stopping upgrade")
+      "unable to identify connection, stopping upgrade")
 
-  trace "succesfully upgraded outgoing connection", uoid = sconn.oid
+  trace "succesfully upgraded outgoing connection", oid = sconn.oid
+  await s.triggerHooks(sconn.peerInfo, Lifecycle.Upgraded)
+
   return sconn
 
 proc upgradeIncoming(s: Switch, conn: Connection) {.async, gcsafe.} =
@@ -258,6 +283,7 @@ proc internalConnect(s: Switch,
               # make sure to assign the peer to the connection
               conn.peerInfo = peer
 
+              await s.triggerHooks(conn.peerInfo, Lifecycle.Connected)
               libp2p_dialed_peers.inc()
             except CancelledError as exc:
               trace "dialing canceled", exc = exc.msg
@@ -271,6 +297,7 @@ proc internalConnect(s: Switch,
               let uconn = await s.upgradeOutgoing(conn)
               s.connManager.storeOutgoing(uconn)
               conn = uconn
+              trace "dial succesfull", oid = $conn.oid, peer = $conn.peerInfo
             except CatchableError as exc:
               if not(isNil(conn)):
                 await conn.close()
@@ -283,7 +310,7 @@ proc internalConnect(s: Switch,
               continue
             break
     else:
-      trace "Reusing existing connection", oid = conn.oid
+      trace "Reusing existing connection", oid = $conn.oid, direction = conn.dir
   finally:
     if lock.locked():
       lock.release()
@@ -299,10 +326,6 @@ proc internalConnect(s: Switch,
 
   doAssert(conn in s.connManager, "connection not tracked!")
 
-  trace "dial succesfull", oid = $conn.oid,
-                           peer = $conn.peerInfo
-
-  await s.subscribePeer(peer)
   asyncCheck s.cleanupPubSubPeer(conn)
 
   return conn
@@ -360,7 +383,7 @@ proc start*(s: Switch): Future[seq[Future[void]]] {.async, gcsafe.} =
 
   proc handle(conn: Connection): Future[void] {.async, closure, gcsafe.} =
     try:
-      conn.dir = Direction.In # tag connection with direction
+      await s.triggerHooks(conn.peerInfo, Lifecycle.Connected)
       await s.upgradeIncoming(conn) # perform upgrade on incoming connection
     except CancelledError as exc:
       raise exc
@@ -437,6 +460,8 @@ proc subscribePeer*(s: Switch, peerInfo: PeerInfo) {.async, gcsafe.} =
 proc subscribe*(s: Switch, topic: string,
                 handler: TopicHandler) {.async.} =
   ## subscribe to a pubsub topic
+  ##
+
   if s.pubSub.isNone:
     raise newNoPubSubException()
 
@@ -444,6 +469,8 @@ proc subscribe*(s: Switch, topic: string,
 
 proc unsubscribe*(s: Switch, topics: seq[TopicPair]) {.async.} =
   ## unsubscribe from topics
+  ##
+
   if s.pubSub.isNone:
     raise newNoPubSubException()
 
@@ -457,7 +484,9 @@ proc unsubscribeAll*(s: Switch, topic: string) {.async.} =
   await s.pubSub.get().unsubscribeAll(topic)
 
 proc publish*(s: Switch, topic: string, data: seq[byte]): Future[int] {.async.} =
-  # pubslish to pubsub topic
+  ## pubslish to pubsub topic
+  ##
+
   if s.pubSub.isNone:
     raise newNoPubSubException()
 
@@ -466,7 +495,9 @@ proc publish*(s: Switch, topic: string, data: seq[byte]): Future[int] {.async.} 
 proc addValidator*(s: Switch,
                    topics: varargs[string],
                    hook: ValidatorHandler) =
-  # add validator
+  ## add validator
+  ##
+
   if s.pubSub.isNone:
     raise newNoPubSubException()
 
@@ -475,7 +506,9 @@ proc addValidator*(s: Switch,
 proc removeValidator*(s: Switch,
                       topics: varargs[string],
                       hook: ValidatorHandler) =
-  # pubslish to pubsub topic
+  ## pubslish to pubsub topic
+  ##
+
   if s.pubSub.isNone:
     raise newNoPubSubException()
 
@@ -504,9 +537,9 @@ proc muxerHandler(s: Switch, muxer: Muxer) {.async, gcsafe.} =
     s.connManager.storeMuxer(muxer)
 
     trace "got new muxer", peer = $muxer.connection.peerInfo
+    await s.triggerHooks(muxer.connection.peerInfo, Lifecycle.Upgraded)
 
     # try establishing a pubsub connection
-    await s.subscribePeer(muxer.connection.peerInfo)
     asyncCheck s.cleanupPubSubPeer(muxer.connection)
 
   except CancelledError as exc:
