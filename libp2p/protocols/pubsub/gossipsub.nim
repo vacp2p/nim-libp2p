@@ -636,6 +636,8 @@ method subscribeTopic*(g: GossipSub,
     debug "subscribeTopic on a nil peer!"
     return
 
+  g.handleConnect(peer)
+
   if subscribe:
     trace "peer subscribed to topic"
     # subscribe remote peer to the topic
@@ -685,12 +687,9 @@ proc handleGraft(g: GossipSub,
 
     # If they send us a graft before they send us a subscribe, what should
     # we do? For now, we add them to mesh but don't add them to gossipsub.
-    
     if peer notin g.peerStats:
       g.peerStats[peer] = PeerStats()
-    
     if topic in g.topics:
-      discard g.gossipsub.addPeer(topic, peer)
       if g.mesh.peers(topic) < GossipSubDHi:
         # In the spec, there's no mention of DHi here, but implicitly, a
         # peer will be removed from the mesh on next rebalance, so we don't want
