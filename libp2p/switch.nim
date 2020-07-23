@@ -44,6 +44,9 @@ declareCounter(libp2p_dialed_peers, "dialed peers")
 declareCounter(libp2p_failed_dials, "failed dials")
 declareCounter(libp2p_failed_upgrade, "peers failed upgrade")
 
+const
+  MaxPubsubReconnectAttempts* = 10
+
 type
     NoPubSubException* = object of CatchableError
 
@@ -67,6 +70,7 @@ type
       pubSub*: Option[PubSub]
       dialLock: Table[string, AsyncLock]
       hooks: Table[Lifecycle, HashSet[Hook]]
+      pubsubMonitors: Table[PeerId, Future[void]]
 
 proc newNoPubSubException(): ref NoPubSubException {.inline.} =
   result = newException(NoPubSubException, "no pubsub provided!")
@@ -95,9 +99,18 @@ proc disconnect*(s: Switch, peer: PeerInfo) {.async, gcsafe.}
 proc subscribePeer*(s: Switch, peerInfo: PeerInfo) {.async, gcsafe.}
 
 proc cleanupPubSubPeer(s: Switch, conn: Connection) {.async.} =
-  await conn.closeEvent.wait()
-  if s.pubSub.isSome:
-    await s.pubSub.get().unsubscribePeer(conn.peerInfo)
+  try:
+    await conn.closeEvent.wait()
+    if s.pubSub.isSome:
+      let fut = s.pubsubMonitors.getOrDefault(conn.peerInfo.peerId)
+      if not(isNil(fut)) and not(fut.finished):
+        await fut.cancelAndWait()
+
+      await s.pubSub.get().unsubscribePeer(conn.peerInfo)
+  except CancelledError as exc:
+    raise exc
+  except CatchableError as exc:
+    trace "exception cleaning pubsub peer", exc = exc.msg
 
 proc isConnected*(s: Switch, peer: PeerInfo): bool =
   ## returns true if the peer has one or more
@@ -346,6 +359,9 @@ proc internalConnect(s: Switch,
   await s.subscribePeer(peer)
   asyncCheck s.cleanupPubSubPeer(conn)
 
+  trace "got connection", oid = $conn.oid,
+                          direction = $conn.dir,
+                          peer = $conn.peerInfo
   return conn
 
 proc connect*(s: Switch, peer: PeerInfo) {.async.} =
@@ -401,7 +417,6 @@ proc start*(s: Switch): Future[seq[Future[void]]] {.async, gcsafe.} =
 
   proc handle(conn: Connection): Future[void] {.async, closure, gcsafe.} =
     try:
-
       conn.closeEvent.wait()
         .addCallback do(udata: pointer):
           asyncCheck s.triggerHooks(
@@ -453,7 +468,7 @@ proc stop*(s: Switch) {.async.} =
 
   trace "switch stopped"
 
-proc subscribePeer*(s: Switch, peerInfo: PeerInfo) {.async, gcsafe.} =
+proc subscribePeerInternal(s: Switch, peerInfo: PeerInfo) {.async, gcsafe.} =
   ## Subscribe to pub sub peer
   if s.pubSub.isSome and not(s.pubSub.get().connected(peerInfo)):
     trace "about to subscribe to pubsub peer", peer = peerInfo.shortLog()
@@ -481,6 +496,35 @@ proc subscribePeer*(s: Switch, peerInfo: PeerInfo) {.async, gcsafe.} =
                                               exc = exc.msg
       if not(isNil(stream)):
         await stream.close()
+
+proc pubsubMonitor(switch: Switch, peer: PeerInfo) {.async.} =
+  ## while peer connected maintain a
+  ## pubsub connection as well
+  ##
+
+  var tries = 0
+  var backoffFactor = 5 # up to ~10 mins
+  var backoff = 1.seconds
+  while switch.isConnected(peer) and
+    tries < MaxPubsubReconnectAttempts:
+    try:
+        debug "subscribing to pubsub peer", peer = $peer
+        await switch.subscribePeerInternal(peer)
+    except CancelledError as exc:
+      raise exc
+    except CatchableError as exc:
+      trace "exception in pubsub monitor", peer = $peer, exc = exc.msg
+    finally:
+      debug "awaiting backoff period before reconnecting", peer = $peer, backoff, tries
+      await sleepAsync(backoff) # allow the peer to cooldown
+      backoff = backoff * backoffFactor
+      tries.inc()
+
+  trace "exiting pubsub monitor", peer = $peer
+
+proc subscribePeer*(s: Switch, peerInfo: PeerInfo) {.async, gcsafe.} =
+  if peerInfo.peerId notin s.pubsubMonitors:
+    s.pubsubMonitors[peerInfo.peerId] = s.pubsubMonitor(peerInfo)
 
 proc subscribe*(s: Switch, topic: string,
                 handler: TopicHandler) {.async.} =
