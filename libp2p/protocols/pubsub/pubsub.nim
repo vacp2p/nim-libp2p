@@ -8,7 +8,7 @@
 ## those terms.
 
 import std/[tables, sequtils, sets]
-import chronos, chronicles, metrics
+import chronos, chronicles, metrics, protobuf_serialization
 import pubsubpeer,
        rpc/[message, messages],
        ../protocol,
@@ -132,7 +132,7 @@ method rpcHandler*(p: PubSub,
     if m.subscriptions.len > 0:                    # if there are any subscriptions
       for s in m.subscriptions:                    # subscribe/unsubscribe the peer for each topic
         trace "about to subscribe to topic", topicId = s.topic
-        await p.subscribeTopic(s.topic, s.subscribe, peer.id)
+        await p.subscribeTopic(s.topic.get(), s.subscribe.get(), peer.id)
 
 proc getOrCreatePeer(p: PubSub,
                      peerInfo: PeerInfo,

@@ -230,7 +230,7 @@ proc heartbeat(g: GossipSub) {.async.} =
       var sent: seq[Future[void]]
       for peer in peers.keys:
         if peer in g.peers:
-          sent &= g.peers[peer].send(RPCMsg(control: some(peers[peer])))
+          sent &= g.peers[peer].send(RPCMsg(control: peers[peer]))
       checkFutures(await allFinished(sent))
 
       g.mcache.shift() # shift the cache
@@ -337,9 +337,9 @@ proc handleGraft(g: GossipSub,
       result.add(ControlPrune(topicID: topic))
 
     libp2p_gossipsub_peers_per_topic_mesh
-      .set(g.mesh.peers(topic).int64, labelValues = [topic])
+      .set(g.mesh.peers(topic).int64, labelValues = [topic.get()])
     libp2p_gossipsub_peers_per_topic_fanout
-      .set(g.fanout.peers(topic).int64, labelValues = [topic])
+      .set(g.fanout.peers(topic).int64, labelValues = [topic.get()])
 
 proc handlePrune(g: GossipSub, peer: PubSubPeer, prunes: seq[ControlPrune]) =
   for prune in prunes:
@@ -347,7 +347,7 @@ proc handlePrune(g: GossipSub, peer: PubSubPeer, prunes: seq[ControlPrune]) =
 
     g.mesh.removePeer(prune.topicID, peer)
     libp2p_gossipsub_peers_per_topic_mesh
-      .set(g.mesh.peers(prune.topicID).int64, labelValues = [prune.topicID])
+      .set(g.mesh.peers(prune.topicID).int64, labelValues = [prune.topicID.get()])
 
 proc handleIHave(g: GossipSub,
                  peer: PubSubPeer,
@@ -400,7 +400,7 @@ method rpcHandler*(g: GossipSub,
           continue
 
         # this shouldn't happen
-        if g.peerInfo.peerId == msg.fromPeer:
+        if g.peerInfo.peerId.data == msg.fromPeer:
           trace "skipping messages from self"
           continue
 
@@ -415,7 +415,7 @@ method rpcHandler*(g: GossipSub,
             for h in g.topics[t].handler:
               trace "calling handler for message", topicId = t,
                                                    localPeer = g.peerInfo.id,
-                                                   fromPeer = msg.fromPeer.pretty
+                                                   fromPeer = PeerID(data: msg.fromPeer).pretty
               try:
                 await h(t, msg.data)                 # trigger user provided handler
               except CatchableError as exc:
@@ -438,7 +438,7 @@ method rpcHandler*(g: GossipSub,
       if respControl.graft.len > 0 or respControl.prune.len > 0 or
          respControl.ihave.len > 0 or respControl.iwant.len > 0:
         await peer.send(
-          RPCMsg(control: some(respControl), messages: messages))
+          RPCMsg(control: respControl, messages: messages))
 
 method subscribe*(g: GossipSub,
                   topic: string,
