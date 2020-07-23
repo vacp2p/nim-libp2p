@@ -80,9 +80,10 @@ proc removeHook*(s: Switch, hook: Hook, cycle: Lifecycle) =
 proc triggerHooks(s: Switch, peer: PeerInfo, cycle: Lifecycle) {.async, gcsafe.} =
   try:
     if cycle in s.hooks:
-      var hooks = newSeq[Future[void]]()
+      var hooks: seq[Future[void]]
       for h in s.hooks[cycle]:
-        hooks.add(h(peer, cycle))
+        if not(isNil(h)):
+          hooks.add(h(peer, cycle))
 
       checkFutures(await allFinished(hooks))
   except CancelledError as exc:
@@ -287,6 +288,12 @@ proc internalConnect(s: Switch,
               # make sure to assign the peer to the connection
               conn.peerInfo = peer
 
+              conn.closeEvent.wait()
+                .addCallback do(udata: pointer):
+                  asyncCheck s.triggerHooks(
+                    conn.peerInfo,
+                    Lifecycle.Disconnected)
+
               asyncCheck s.triggerHooks(conn.peerInfo, Lifecycle.Connected)
               libp2p_dialed_peers.inc()
             except CancelledError as exc:
@@ -388,6 +395,13 @@ proc start*(s: Switch): Future[seq[Future[void]]] {.async, gcsafe.} =
 
   proc handle(conn: Connection): Future[void] {.async, closure, gcsafe.} =
     try:
+
+      conn.closeEvent.wait()
+        .addCallback do(udata: pointer):
+          asyncCheck s.triggerHooks(
+            conn.peerInfo,
+            Lifecycle.Disconnected)
+
       asyncCheck s.triggerHooks(conn.peerInfo, Lifecycle.Connected)
       await s.upgradeIncoming(conn) # perform upgrade on incoming connection
     except CancelledError as exc:

@@ -228,3 +228,81 @@ suite "Switch":
       await allFuturesThrowing(awaiters)
 
     waitFor(testSwitch())
+
+  test "e2e should trigger hooks":
+    proc testSwitch() {.async, gcsafe.} =
+      var awaiters: seq[Future[void]]
+
+      let switch1 = newStandardSwitch(secureManagers = [SecureProtocol.Secio])
+      let switch2 = newStandardSwitch(secureManagers = [SecureProtocol.Secio])
+
+      var step = 0
+      var cycles: set[Lifecycle]
+      proc hook(peer: PeerInfo, cycle: Lifecycle) {.async, gcsafe.} =
+        cycles = cycles + {cycle}
+        case step:
+        of 0:
+          check cycle == Lifecycle.Connected
+          check if not(isNil(peer)):
+                peer.peerId == switch2.peerInfo.peerId
+              else:
+                true
+        of 1:
+          assert(isNil(peer) == false)
+          check:
+            cycle == Lifecycle.Upgraded
+            peer.peerId == switch2.peerInfo.peerId
+        of 2:
+          check:
+            cycle == Lifecycle.Disconnected
+
+          check if not(isNil(peer)):
+              peer.peerId == switch2.peerInfo.peerId
+            else:
+              true
+        else:
+          echo "unkown cycle! ", $cycle
+          check false
+
+        step.inc()
+
+      switch1.addHook(hook, Lifecycle.Connected)
+      switch1.addHook(hook, Lifecycle.Upgraded)
+      switch1.addHook(hook, Lifecycle.Disconnected)
+
+      awaiters.add(await switch1.start())
+      awaiters.add(await switch2.start())
+
+      await switch2.connect(switch1.peerInfo)
+
+      check switch1.isConnected(switch2.peerInfo)
+      check switch2.isConnected(switch1.peerInfo)
+
+      await sleepAsync(100.millis)
+      await switch2.disconnect(switch1.peerInfo)
+      await sleepAsync(2.seconds)
+
+      check not switch1.isConnected(switch2.peerInfo)
+      check not switch2.isConnected(switch1.peerInfo)
+
+      var bufferTracker = getTracker(BufferStreamTrackerName)
+      # echo bufferTracker.dump()
+      check bufferTracker.isLeaked() == false
+
+      var connTracker = getTracker(ConnectionTrackerName)
+      # echo connTracker.dump()
+      check connTracker.isLeaked() == false
+
+      check:
+        cycles == {
+          Lifecycle.Connected,
+          Lifecycle.Upgraded,
+          Lifecycle.Disconnected
+        }
+
+      await allFuturesThrowing(
+        switch1.stop(),
+        switch2.stop())
+      await allFuturesThrowing(awaiters)
+
+    waitFor(testSwitch())
