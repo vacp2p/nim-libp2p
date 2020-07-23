@@ -218,7 +218,6 @@ proc upgradeOutgoing(s: Switch, conn: Connection): Future[Connection] {.async, g
       "unable to identify connection, stopping upgrade")
 
   trace "succesfully upgraded outgoing connection", oid = sconn.oid
-  asyncCheck s.triggerHooks(sconn.peerInfo, Lifecycle.Upgraded)
 
   return sconn
 
@@ -301,6 +300,7 @@ proc internalConnect(s: Switch,
             try:
               let uconn = await s.upgradeOutgoing(conn)
               s.connManager.storeOutgoing(uconn)
+              asyncCheck s.triggerHooks(uconn.peerInfo, Lifecycle.Upgraded)
               conn = uconn
               trace "dial succesfull", oid = $conn.oid, peer = $conn.peerInfo
             except CatchableError as exc:
@@ -542,7 +542,7 @@ proc muxerHandler(s: Switch, muxer: Muxer) {.async, gcsafe.} =
     s.connManager.storeMuxer(muxer)
 
     trace "got new muxer", peer = $muxer.connection.peerInfo
-    await s.triggerHooks(muxer.connection.peerInfo, Lifecycle.Upgraded)
+    asyncCheck s.triggerHooks(muxer.connection.peerInfo, Lifecycle.Upgraded)
 
     # try establishing a pubsub connection
     asyncCheck s.cleanupPubSubPeer(muxer.connection)
