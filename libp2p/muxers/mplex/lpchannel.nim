@@ -57,7 +57,6 @@ type
     msgCode*: MessageType         # cached in/out message code
     closeCode*: MessageType       # cached in/out close code
     resetCode*: MessageType       # cached in/out reset code
-    timerFut: Future[void]        # the current timer instanse
     timerTaskFut: Future[void]    # the current timer instanse
 
 proc open*(s: LPChannel) {.async, gcsafe.}
@@ -82,11 +81,8 @@ template withEOFExceptions(body: untyped): untyped =
 
 proc cleanupTimer(s: LPChannel) {.async.} =
   ## cleanup timers
-  ##
-  if not(isNil(s.timerFut)) and
-    not(s.timerFut.finished):
-    s.timerFut.cancel()
-    await s.timerTaskFut
+  if not s.timerTaskFut.finished:
+    await s.timerTaskFut.cancelAndWait()
 
 proc closeMessage(s: LPChannel) {.async.} =
   logScope:
@@ -248,13 +244,10 @@ proc timeoutMonitor(s: LPChannel) {.async.} =
   ## be reset
   ##
 
-  if not(isNil(s.timerFut)):
-    return
-
   try:
     while true:
-      s.timerFut = sleepAsync(s.timeout)
-      await s.timerFut
+      await sleepAsync(s.timeout)
+
       if s.closed or s.atEof:
         return
 
@@ -267,6 +260,8 @@ proc timeoutMonitor(s: LPChannel) {.async.} =
     # reset channel on innactivity timeout
     trace "channel timed out, resetting"
     await s.reset()
+  except CancelledError as exc:
+    raise exc
   except CatchableError as exc:
     trace "exception in timeout", exc = exc.msg
 
@@ -328,7 +323,6 @@ proc init*(
       await conn.writeMsg(chann.id,
                           chann.msgCode,
                           data)
-
     except CatchableError as exc:
       trace "exception in lpchannel write handler", exc = exc.msg
       await chann.reset()

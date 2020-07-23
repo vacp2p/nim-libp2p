@@ -50,7 +50,7 @@ proc newStandardSwitch*(privKey = none(PrivateKey),
     raise (ref CatchableError)(msg: "Cannot initialize RNG")
 
   let
-    seckey = privKey.get(otherwise = PrivateKey.random(ECDSA, rng[]).tryGet())
+    seckey = privKey.get(otherwise = PrivateKey.random(rng[]).tryGet())
     peerInfo = PeerInfo.init(seckey, [address])
     mplexProvider = newMuxerProvider(createMplex, MplexCodec)
     transports = @[Transport(TcpTransport.init(transportFlags))]

@@ -280,7 +280,7 @@ method handshake*(s: Secio, conn: Connection, initiator: bool = false): Future[S
     remoteEBytesPubkey: seq[byte]
     remoteEBytesSig: seq[byte]
     remotePubkey: PublicKey
-    remoteEPubkey: PublicKey = PublicKey(scheme: ECDSA)
+    remoteEPubkey: ecnist.EcPublicKey
     remoteESignature: Signature
     remoteExchanges: string
     remoteCiphers: string
@@ -317,7 +317,8 @@ method handshake*(s: Secio, conn: Connection, initiator: bool = false): Future[S
     raise (ref SecioError)(msg: "Remote proposal decoding failed")
 
   if not remotePubkey.init(remoteBytesPubkey):
-    trace "Remote public key incorrect or corrupted", pubkey = remoteBytesPubkey.shortLog
+    trace "Remote public key incorrect or corrupted",
+          pubkey = remoteBytesPubkey.shortLog
     raise (ref SecioError)(msg: "Remote public key incorrect or corrupted")
 
   remotePeerId = PeerID.init(remotePubkey).tryGet()
@@ -342,7 +343,7 @@ method handshake*(s: Secio, conn: Connection, initiator: bool = false): Future[S
 
   var ekeypair = ephemeral(scheme, s.rng[]).tryGet()
   # We need EC public key in raw binary form
-  var epubkey = ekeypair.pubkey.eckey.getRawBytes().tryGet()
+  var epubkey = ekeypair.pubkey.getRawBytes().tryGet()
   var localCorpus = request[4..^1] & answer & epubkey
   var signature = s.localPrivateKey.sign(localCorpus).tryGet()
 
@@ -370,16 +371,14 @@ method handshake*(s: Secio, conn: Connection, initiator: bool = false): Future[S
 
   trace "Signature verified", scheme = remotePubkey.scheme
 
-  if not remoteEPubkey.eckey.initRaw(remoteEBytesPubkey):
+  if not remoteEPubkey.initRaw(remoteEBytesPubkey):
     trace "Remote ephemeral public key incorrect or corrupted",
           pubkey = toHex(remoteEBytesPubkey)
     raise (ref SecioError)(msg: "Remote ephemeral public key incorrect or corrupted")
 
   var secret = getSecret(remoteEPubkey, ekeypair.seckey)
   if len(secret) == 0:
-    trace "Shared secret could not be created",
-          pubkeyScheme = remoteEPubkey.scheme,
-          seckeyScheme = ekeypair.seckey.scheme
+    trace "Shared secret could not be created"
     raise (ref SecioError)(msg: "Shared secret could not be created")
 
   trace "Shared secret calculated", secret = secret.shortLog
