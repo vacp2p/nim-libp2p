@@ -41,6 +41,12 @@ proc newMultistream*(): MultistreamSelect =
   new result
   result.codec = MSCodec
 
+template validateSuffix(str: string): untyped =
+    if str.endsWith("\n"):
+      str.removeSuffix("\n")
+    else:
+      raise newException(CatchableError, "MultistreamSelect failed, malformed message")
+
 proc select*(m: MultistreamSelect,
              conn: Connection,
              proto: seq[string]):
@@ -53,17 +59,20 @@ proc select*(m: MultistreamSelect,
     await conn.writeLp((proto[0] & "\n")) # select proto
 
   var s = string.fromBytes((await conn.readLp(1024))) # read ms header
-  s.removeSuffix("\n")
+  validateSuffix(s)
+
   if s != Codec:
     notice "handshake failed", codec = s.toHex()
-    return ""
+    raise newException(CatchableError, "MultistreamSelect handshake failed")
+  else:
+    trace "multistream handshake success"
 
   if proto.len() == 0: # no protocols, must be a handshake call
     return Codec
   else:
     s = string.fromBytes(await conn.readLp(1024)) # read the first proto
     trace "reading first requested proto"
-    s.removeSuffix("\n")
+    validateSuffix(s)
     if s == proto[0]:
       trace "successfully selected ", proto = proto[0]
       return proto[0]
@@ -75,7 +84,7 @@ proc select*(m: MultistreamSelect,
         trace "selecting proto", proto = p
         await conn.writeLp((p & "\n")) # select proto
         s = string.fromBytes(await conn.readLp(1024)) # read the first proto
-        s.removeSuffix("\n")
+        validateSuffix(s)
         if s == p:
           trace "selected protocol", protocol = s
           return s
@@ -116,7 +125,7 @@ proc handle*(m: MultistreamSelect, conn: Connection) {.async, gcsafe.} =
   try:
     while not conn.closed:
       var ms = string.fromBytes(await conn.readLp(1024))
-      ms.removeSuffix("\n")
+      validateSuffix(ms)
 
       trace "handle: got request for ", ms
       if ms.len() <= 0:
