@@ -366,7 +366,7 @@ proc upgradeIncoming(s: Switch, conn: Connection) {.async, gcsafe.} =
       for muxer in s.muxers.values:
         ms.addHandler(muxer.codec, muxer)
 
-      # handle subsequent requests
+      # handle subsequent secure requests
       await ms.handle(sconn)
 
     except CancelledError as exc:
@@ -379,8 +379,9 @@ proc upgradeIncoming(s: Switch, conn: Connection) {.async, gcsafe.} =
     for k in s.secureManagers:
       ms.addHandler(k.codec, securedHandler)
 
-    # handle secured connections
-  await ms.handle(conn)
+  # handle un-secured connections
+  # we handshaked above, set this ms handler as active
+  await ms.handle(conn, active = true)
 
 proc internalConnect(s: Switch,
                      peer: PeerInfo): Future[Connection] {.async.} =
