@@ -192,7 +192,7 @@ proc getGossipPeers(g: GossipSub): Table[string, ControlMessage] {.gcsafe.} =
     if mids.len <= 0:
       continue
 
-    let ihave = ControlIHave(topicID: topic,
+    let ihave = ControlIHave(topicID: pbSome(type(ControlIHave.topicID), topic),
                               messageIDs: toSeq(mids))
 
     if topic notin g.gossipsub:
@@ -230,7 +230,7 @@ proc heartbeat(g: GossipSub) {.async.} =
       var sent: seq[Future[void]]
       for peer in peers.keys:
         if peer in g.peers:
-          sent &= g.peers[peer].send(RPCMsg(control: peers[peer]))
+          sent &= g.peers[peer].send(RPCMsg(control: some(peers[peer])))
       checkFutures(await allFinished(sent))
 
       g.mcache.shift() # shift the cache
@@ -337,9 +337,9 @@ proc handleGraft(g: GossipSub,
       result.add(ControlPrune(topicID: topic))
 
     libp2p_gossipsub_peers_per_topic_mesh
-      .set(g.mesh.peers(topic).int64, labelValues = [topic.get()])
+      .set(g.mesh.peers(topic).int64, labelValues = [topic])
     libp2p_gossipsub_peers_per_topic_fanout
-      .set(g.fanout.peers(topic).int64, labelValues = [topic.get()])
+      .set(g.fanout.peers(topic).int64, labelValues = [topic])
 
 proc handlePrune(g: GossipSub, peer: PubSubPeer, prunes: seq[ControlPrune]) =
   for prune in prunes:
@@ -347,16 +347,16 @@ proc handlePrune(g: GossipSub, peer: PubSubPeer, prunes: seq[ControlPrune]) =
 
     g.mesh.removePeer(prune.topicID, peer)
     libp2p_gossipsub_peers_per_topic_mesh
-      .set(g.mesh.peers(prune.topicID).int64, labelValues = [prune.topicID.get()])
+      .set(g.mesh.peers(prune.topicID).int64, labelValues = [prune.topicID])
 
 proc handleIHave(g: GossipSub,
                  peer: PubSubPeer,
                  ihaves: seq[ControlIHave]): ControlIWant =
   for ihave in ihaves:
     trace "peer sent ihave",
-      peer = peer.id, topic = ihave.topicID, msgs = ihave.messageIDs
+      peer = peer.id, topic = ihave.topicID.get(), msgs = ihave.messageIDs
 
-    if ihave.topicID in g.mesh:
+    if ihave.topicID.get() in g.mesh:
       for m in ihave.messageIDs:
         if m notin g.seen:
           result.messageIDs.add(m)
@@ -438,7 +438,7 @@ method rpcHandler*(g: GossipSub,
       if respControl.graft.len > 0 or respControl.prune.len > 0 or
          respControl.ihave.len > 0 or respControl.iwant.len > 0:
         await peer.send(
-          RPCMsg(control: respControl, messages: messages))
+          RPCMsg(control: some(respControl), messages: messages))
 
 method subscribe*(g: GossipSub,
                   topic: string,

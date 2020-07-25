@@ -173,12 +173,12 @@ proc sendSubOpts*(p: PubSubPeer, topics: seq[string], subscribe: bool): Future[v
 
 proc sendGraft*(p: PubSubPeer, topics: seq[string]): Future[void] =
   trace "sending graft to peer", peer = p.id, topicIDs = topics
-  p.send(RPCMsg(control: pbSome(
+  p.send(RPCMsg(control: some(
     ControlMessage(graft: topics.mapIt(ControlGraft(topicID: it))))))
 
 proc sendPrune*(p: PubSubPeer, topics: seq[string]): Future[void] =
   trace "sending prune to peer", peer = p.id, topicIDs = topics
-  p.send(RPCMsg(control: pbSome(
+  p.send(RPCMsg(control: some(
     ControlMessage(prune: topics.mapIt(ControlPrune(topicID: it))))))
 
 proc `$`*(p: PubSubPeer): string =

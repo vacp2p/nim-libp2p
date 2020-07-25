@@ -35,7 +35,7 @@ type
       prune* {.fieldNumber: 4.}: seq[ControlPrune]
 
     ControlIHave* {.protobuf2.} = object
-      topicID* {.fieldNumber: 1, pbDefault: "".}: PBOption[string]
+      topicID* {.fieldNumber: 1.}: PBOption[""]
       messageIDs* {.fieldNumber: 2.}: seq[string]
 
     ControlIWant* {.protobuf2.} = object
@@ -50,11 +50,11 @@ type
     RPCMsg* {.protobuf2.} = object
       subscriptions* {.fieldNumber: 1.}: seq[SubOpts]
       messages* {.fieldNumber: 2.}: seq[Message]
-      control* {.fieldNumber: 3.}: PBOption[ControlMessage]
+      control* {.fieldNumber: 3.}: Option[ControlMessage]
 
 func shortLog*(s: ControlIHave): auto =
   (
-    topicID: s.topicID.shortLog,
+    topicID: s.topicID.get().shortLog,
     messageIDs: mapIt(s.messageIDs, it.shortLog)
   )
 

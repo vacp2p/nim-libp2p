@@ -126,7 +126,7 @@ type
     addresses*: seq[MultiAddress]
 
   SerializablePeerInfo {.protobuf2.} = object
-    id {.fieldNumber: 1.}: PBOption[PeerID]
+    id {.fieldNumber: 1.}: Option[PeerID]
     addresses {.fieldNumber: 2.}: seq[string]
 
   PubsubTicket* = ref object
@@ -154,40 +154,40 @@ type
   SerializableProperties {.protobuf2.} = object
     peerOrAddress {.fieldNumber: 1.}: seq[byte]
     protocolsOrAddresses {.fieldNumber: 2.}: seq[seq[byte]]
-    timeout {.fieldNumber: 3, pint, pbDefault: 0'i32.}: PBOption[int32]
+    timeout {.fieldNumber: 3, pint.}: PBOption[0'i32]
 
   SerializableDHTProperties {.protobuf2.} = object
     reqType {.fieldNumber: 1, required, pint.}: DHTRequestType
     peer {.fieldNumber: 2.}: seq[byte]
     cid {.fieldNumber: 3.}: seq[byte]
-    key {.fieldNumber: 4, pbDefault: "".}: PBOption[string]
+    key {.fieldNumber: 4.}: PBOption[""]
     value {.fieldNumber: 5.}: seq[byte]
     count {.fieldNumber: 6, pint, required.}: int32
-    timeout {.fieldNumber: 7, pint, pbDefault: 0'i32.}: PBOption[int32]
+    timeout {.fieldNumber: 7, pint.}: PBOption[0'i32]
 
   SerializableCMProperties {.protobuf2.} = object
     reqType {.fieldNumber: 1, required, pint.}: ConnManagerRequestType
     peer {.fieldNumber: 2.}: seq[byte]
-    tag {.fieldNumber: 3, pbDefault: "".}: PBOption[string]
-    weight {.fieldNumber: 4, pint, pbDefault: 0.}: PBOption[int64]
+    tag {.fieldNumber: 3.}: PBOption[""]
+    weight {.fieldNumber: 4, pint.}: PBOption[0'i64]
 
   SerializablePSProperties {.protobuf2.} = object
     reqType {.fieldNumber: 1, required, pint.}: PSRequestType
-    topic {.fieldNumber: 2, pbDefault: "".}: PBOption[string]
+    topic {.fieldNumber: 2.}: PBOption[""]
     data {.fieldNumber: 3.}: seq[byte]
 
   SerializableRequest {.protobuf2.} = object
     reqType {.fieldNumber: 1, required, pint.}: RequestType
-    connectProperties {.fieldNumber: 2.}: PBOption[SerializableProperties]
-    streamOpenProperties {.fieldNumber: 3.}: PBOption[SerializableProperties]
-    streamHandleProperties {.fieldNumber: 4.}: PBOption[SerializableProperties]
-    dhtProperties {.fieldNumber: 5.}: PBOption[SerializableDHTProperties]
-    cmProperties {.fieldNumber: 6.}: PBOption[SerializableCMProperties]
-    disconnectProperties {.fieldNumber: 7.}: PBOption[SerializableProperties]
-    psProperties {.fieldNumber: 8.}: PBOption[SerializablePSProperties]
+    connectProperties {.fieldNumber: 2.}: Option[SerializableProperties]
+    streamOpenProperties {.fieldNumber: 3.}: Option[SerializableProperties]
+    streamHandleProperties {.fieldNumber: 4.}: Option[SerializableProperties]
+    dhtProperties {.fieldNumber: 5.}: Option[SerializableDHTProperties]
+    cmProperties {.fieldNumber: 6.}: Option[SerializableCMProperties]
+    disconnectProperties {.fieldNumber: 7.}: Option[SerializableProperties]
+    psProperties {.fieldNumber: 8.}: Option[SerializablePSProperties]
 
   SerializableError {.protobuf2.} = object
-    msg {.fieldNumber: 1, pbDefault: "".}: PBOption[string]
+    msg {.fieldNumber: 1.}: PBOption[""]
 
   SerializableStreamResponse {.protobuf2.} = object
     peer {.fieldNumber: 1, required.}: seq[byte]
@@ -196,7 +196,7 @@ type
 
   SerializableDHTResponse {.protobuf2.} = object
     kind {.fieldNumber: 1, pint, required.}: DHTResponseType
-    peer {.fieldNumber: 2.}: PBOption[SerializableProperties]
+    peer {.fieldNumber: 2.}: Option[SerializableProperties]
     value {.fieldNumber: 3.}: seq[byte]
 
   SerializableTopicsResponse {.protobuf2.} = object
@@ -213,12 +213,12 @@ type
 
   SerializableResponse {.protobuf2.} = object
     kind {.fieldNumber: 1, required, pint.}: ResponseKind
-    error {.fieldNumber: 2.}: PBOption[SerializableError]
-    streamInfo {.fieldNumber: 3.}: PBOption[SerializableStreamResponse]
-    identify {.fieldNumber: 4.}: PBOption[SerializableProperties]
-    dht {.fieldNumber: 5.}: PBOption[SerializableDHTResponse]
+    error {.fieldNumber: 2.}: Option[SerializableError]
+    streamInfo {.fieldNumber: 3.}: Option[SerializableStreamResponse]
+    identify {.fieldNumber: 4.}: Option[SerializableProperties]
+    dht {.fieldNumber: 5.}: Option[SerializableDHTResponse]
     peers {.fieldNumber: 6.}: seq[SerializableProperties]
-    ps {.fieldNumber: 7.}: PBOption[SerializableTopicsResponse]
+    ps {.fieldNumber: 7.}: Option[SerializableTopicsResponse]
 
 var daemonsCount {.threadvar.}: int
 
@@ -240,11 +240,12 @@ proc requestConnect(peerid: PeerID,
 
   Protobuf.encode(SerializableRequest(
     reqType: RequestType.CONNECT,
-    connectProperties: SerializableProperties(
+    connectProperties: some(SerializableProperties(
       peerOrAddress: peerid.data,
       protocolsOrAddresses: byteAddresses,
-      timeout: if timeout > 0: int32(timeout) else: int32(0)
-    )
+      timeout: pbSome(type(SerializableProperties.timeout),
+                       if timeout > 0: int32(timeout) else: int32(0))
+    ))
   ), {VarIntLengthPrefix})
 
 proc requestDisconnect(peerid: PeerID): seq[byte] =
@@ -252,9 +253,9 @@ proc requestDisconnect(peerid: PeerID): seq[byte] =
   ## Processing function `doDisconnect(req *pb.Request)`.
   Protobuf.encode(SerializableRequest(
     reqType: RequestType.DISCONNECT,
-    disconnectProperties: SerializableProperties(
+    disconnectProperties: some(SerializableProperties(
       peerOrAddress: peerid.data,
-    )
+    ))
   ), {VarIntLengthPrefix})
 
 proc requestStreamOpen(peerid: PeerID,
@@ -264,11 +265,12 @@ proc requestStreamOpen(peerid: PeerID,
   ## Processing function `doStreamOpen(req *pb.Request)`.
   Protobuf.encode(SerializableRequest(
     reqType: RequestType.STREAM_OPEN,
-    streamOpenProperties: SerializableProperties(
+    streamOpenProperties: some(SerializableProperties(
       peerOrAddress: peerid.data,
       protocolsOrAddresses: cast[seq[seq[byte]]](@protocols),
-      timeout: if timeout > 0: int32(timeout) else: int32(0)
-    )
+      timeout: pbSome(type(SerializableProperties.timeout),
+                       if timeout > 0: int32(timeout) else: int32(0))
+    ))
   ), {VarIntLengthPrefix})
 
 proc requestStreamHandler(address: MultiAddress,
@@ -277,10 +279,10 @@ proc requestStreamHandler(address: MultiAddress,
   ## Processing function `doStreamHandler(req *pb.Request)`.
   Protobuf.encode(SerializableRequest(
     reqType: RequestType.STREAM_HANDLER,
-    streamHandleProperties: SerializableProperties(
+    streamHandleProperties: some(SerializableProperties(
       peerOrAddress: address.data.buffer,
       protocolsOrAddresses: cast[seq[seq[byte]]](@protocols)
-    )
+    ))
   ), {VarIntLengthPrefix})
 
 proc requestListPeers(): seq[byte] =
@@ -293,11 +295,12 @@ proc requestDHTFindPeer(peer: PeerID, timeout = 0): seq[byte] =
   ## Processing function `doDHTFindPeer(req *pb.DHTRequest)`.
   Protobuf.encode(SerializableRequest(
     reqType: RequestType.DHT,
-    dhtProperties: SerializableDHTProperties(
+    dhtProperties: some(SerializableDHTProperties(
         reqType: DHTRequestType.FIND_PEER,
         peer: peer.data,
-        timeout: if timeout > 0: int32(timeout) else: int32(0)
-    )
+        timeout: pbSome(type(SerializableDHTProperties.timeout),
+                         if timeout > 0: int32(timeout) else: int32(0))
+    ))
   ), {VarIntLengthPrefix})
 
 proc requestDHTFindPeersConnectedToPeer(peer: PeerID,
@@ -306,11 +309,12 @@ proc requestDHTFindPeersConnectedToPeer(peer: PeerID,
   ## Processing function `doDHTFindPeersConnectedToPeer(req *pb.DHTRequest)`.
   Protobuf.encode(SerializableRequest(
     reqType: RequestType.DHT,
-    dhtProperties: SerializableDHTProperties(
+    dhtProperties: some(SerializableDHTProperties(
         reqType: DHTRequestType.FIND_PEERS_CONNECTED_TO_PEER,
         peer: peer.data,
-        timeout: if timeout > 0: int32(timeout) else: int32(0)
-    )
+        timeout: pbSome(type(SerializableDHTProperties.timeout),
+                         if timeout > 0: int32(timeout) else: int32(0))
+    ))
   ), {VarIntLengthPrefix})
 
 proc requestDHTFindProviders(cid: Cid,
@@ -319,12 +323,13 @@ proc requestDHTFindProviders(cid: Cid,
   ## Processing function `doDHTFindProviders(req *pb.DHTRequest)`.
   Protobuf.encode(SerializableRequest(
     reqType: RequestType.DHT,
-    dhtProperties: SerializableDHTProperties(
+    dhtProperties: some(SerializableDHTProperties(
         reqType: DHTRequestType.FIND_PROVIDERS,
         cid: cid.data.buffer,
         count: int32(count),
-        timeout: if timeout > 0: int32(timeout) else: int32(0)
-    )
+        timeout: pbSome(type(SerializableDHTProperties.timeout),
+                         if timeout > 0: int32(timeout) else: int32(0))
+    ))
   ), {VarIntLengthPrefix})
 
 proc requestDHTGetClosestPeers(key: string, timeout = 0): seq[byte] =
@@ -332,11 +337,12 @@ proc requestDHTGetClosestPeers(key: string, timeout = 0): seq[byte] =
   ## Processing function `doDHTGetClosestPeers(req *pb.DHTRequest)`.
   Protobuf.encode(SerializableRequest(
     reqType: RequestType.DHT,
-    dhtProperties: SerializableDHTProperties(
+    dhtProperties: some(SerializableDHTProperties(
         reqType: DHTRequestType.GET_CLOSEST_PEERS,
-        key: key,
-        timeout: if timeout > 0: int32(timeout) else: int32(0)
-    )
+        key: pbSome(type(SerializableDHTProperties.key), key),
+        timeout: pbSome(type(SerializableDHTProperties.timeout),
+                         if timeout > 0: int32(timeout) else: int32(0))
+    ))
   ), {VarIntLengthPrefix})
 
 proc requestDHTGetPublicKey(peer: PeerID, timeout = 0): seq[byte] =
@@ -344,11 +350,12 @@ proc requestDHTGetPublicKey(peer: PeerID, timeout = 0): seq[byte] =
   ## Processing function `doDHTGetPublicKey(req *pb.DHTRequest)`.
   Protobuf.encode(SerializableRequest(
     reqType: RequestType.DHT,
-    dhtProperties: SerializableDHTProperties(
+    dhtProperties: some(SerializableDHTProperties(
         reqType: DHTRequestType.GET_PUBLIC_KEY,
         peer: peer.data,
-        timeout: if timeout > 0: int32(timeout) else: int32(0)
-    )
+        timeout: pbSome(type(SerializableDHTProperties.timeout),
+                         if timeout > 0: int32(timeout) else: int32(0))
+    ))
   ), {VarIntLengthPrefix})
 
 proc requestDHTGetValue(key: string, timeout = 0): seq[byte] =
@@ -356,11 +363,12 @@ proc requestDHTGetValue(key: string, timeout = 0): seq[byte] =
   ## Processing function `doDHTGetValue(req *pb.DHTRequest)`.
   Protobuf.encode(SerializableRequest(
     reqType: RequestType.DHT,
-    dhtProperties: SerializableDHTProperties(
+    dhtProperties: some(SerializableDHTProperties(
         reqType: DHTRequestType.GET_VALUE,
-        key: key,
-        timeout: if timeout > 0: int32(timeout) else: int32(0)
-    )
+        key: pbSome(type(SerializableDHTProperties.key), key),
+        timeout: pbSome(type(SerializableDHTProperties.timeout),
+                         if timeout > 0: int32(timeout) else: int32(0))
+    ))
   ))
 
 proc requestDHTSearchValue(key: string, timeout = 0): seq[byte] =
@@ -368,11 +376,12 @@ proc requestDHTSearchValue(key: string, timeout = 0): seq[byte] =
   ## Processing function `doDHTSearchValue(req *pb.DHTRequest)`.
   Protobuf.encode(SerializableRequest(
     reqType: RequestType.DHT,
-    dhtProperties: SerializableDHTProperties(
+    dhtProperties: some(SerializableDHTProperties(
         reqType: DHTRequestType.SEARCH_VALUE,
-        key: key,
-        timeout: if timeout > 0: int32(timeout) else: int32(0)
-    )
+        key: pbSome(type(SerializableDHTProperties.key), key),
+        timeout: pbSome(type(SerializableDHTProperties.timeout),
+                         if timeout > 0: int32(timeout) else: int32(0))
+    ))
   ), {VarIntLengthPrefix})
 
 proc requestDHTPutValue(key: string, value: openarray[byte],
@@ -381,12 +390,13 @@ proc requestDHTPutValue(key: string, value: openarray[byte],
   ## Processing function `doDHTPutValue(req *pb.DHTRequest)`.
   Protobuf.encode(SerializableRequest(
     reqType: RequestType.DHT,
-    dhtProperties: SerializableDHTProperties(
+    dhtProperties: some(SerializableDHTProperties(
         reqType: DHTRequestType.PUT_VALUE,
-        key: key,
+        key: pbSome(type(SerializableDHTProperties.key), key),
         value: @value,
-        timeout: if timeout > 0: int32(timeout) else: int32(0)
-    )
+        timeout: pbSome(type(SerializableDHTProperties.timeout),
+                         if timeout > 0: int32(timeout) else: int32(0))
+    ))
   ), {VarIntLengthPrefix})
 
 proc requestDHTProvide(cid: Cid, timeout = 0): seq[byte] =
@@ -394,43 +404,44 @@ proc requestDHTProvide(cid: Cid, timeout = 0): seq[byte] =
   ## Processing function `doDHTProvide(req *pb.DHTRequest)`.
   Protobuf.encode(SerializableRequest(
     reqType: RequestType.DHT,
-    dhtProperties: SerializableDHTProperties(
+    dhtProperties: some(SerializableDHTProperties(
         reqType: DHTRequestType.PROVIDE,
         cid: cid.data.buffer,
-        timeout: if timeout > 0: int32(timeout) else: int32(0)
-    )
+        timeout: pbSome(type(SerializableDHTProperties.timeout),
+                         if timeout > 0: int32(timeout) else: int32(0))
+    ))
   ), {VarIntLengthPrefix})
 
 proc requestCMTagPeer(peer: PeerID, tag: string, weight: int): seq[byte] =
   ## https://github.com/libp2p/go-libp2p-daemon/blob/master/connmgr.go#L18
   Protobuf.encode(SerializableRequest(
     reqType: RequestType.CONNMANAGER,
-    cmProperties: SerializableCMProperties(
+    cmProperties: some(SerializableCMProperties(
       reqType: ConnManagerRequestType.TAG_PEER,
       peer: peer.data,
-      tag: tag,
-      weight: int64(weight)
-    )
+      tag: pbSome(type(SerializableCMProperties.tag), tag),
+      weight: pbSome(type(SerializableCMProperties.weight), int64(weight))
+    ))
   ))
 
 proc requestCMUntagPeer(peer: PeerID, tag: string): seq[byte] =
   ## https://github.com/libp2p/go-libp2p-daemon/blob/master/connmgr.go#L33
   Protobuf.encode(SerializableRequest(
     reqType: RequestType.CONNMANAGER,
-    cmProperties: SerializableCMProperties(
+    cmProperties: some(SerializableCMProperties(
       reqType: ConnManagerRequestType.UNTAG_PEER,
       peer: peer.data,
-      tag: tag
-    )
+      tag: pbSome(type(SerializableCMProperties.tag), tag)
+    ))
   ), {VarIntLengthPrefix})
 
 proc requestCMTrim(): seq[byte] =
   ## https://github.com/libp2p/go-libp2p-daemon/blob/master/connmgr.go#L47
   Protobuf.encode(SerializableRequest(
     reqType: RequestType.CONNMANAGER,
-    cmProperties: SerializableCMProperties(
+    cmProperties: some(SerializableCMProperties(
       reqType: ConnManagerRequestType.TRIM
-    )
+    ))
   ), {VarIntLengthPrefix})
 
 proc requestPSGetTopics(): seq[byte] =
@@ -438,9 +449,9 @@ proc requestPSGetTopics(): seq[byte] =
   ## Processing function `doPubsubGetTopics(req *pb.PSRequest)`.
   Protobuf.encode(SerializableRequest(
     reqType: RequestType.PUBSUB,
-    psProperties: SerializablePSProperties(
+    psProperties: some(SerializablePSProperties(
       reqType: PSRequestType.GET_TOPICS
-    )
+    ))
   ), {VarIntLengthPrefix})
 
 proc requestPSListPeers(topic: string): seq[byte] =
@@ -448,10 +459,10 @@ proc requestPSListPeers(topic: string): seq[byte] =
   ## Processing function `doPubsubListPeers(req *pb.PSRequest)`.
   Protobuf.encode(SerializableRequest(
     reqType: RequestType.PUBSUB,
-    psProperties: SerializablePSProperties(
+    psProperties: some(SerializablePSProperties(
       reqType: PSRequestType.LIST_PEERS,
-      topic: topic
-    )
+      topic: pbSome(type(SerializablePSProperties.topic), topic)
+    ))
   ), {VarIntLengthPrefix})
 
 proc requestPSPublish(topic: string, data: openarray[byte]): seq[byte] =
@@ -459,11 +470,11 @@ proc requestPSPublish(topic: string, data: openarray[byte]): seq[byte] =
   ## Processing function `doPubsubPublish(req *pb.PSRequest)`.
   Protobuf.encode(SerializableRequest(
     reqType: RequestType.PUBSUB,
-    psProperties: SerializablePSProperties(
+    psProperties: some(SerializablePSProperties(
       reqType: PSRequestType.PUBLISH,
-      topic: topic,
+      topic: pbSome(type(SerializablePSProperties.topic), topic),
       data: @data
-    )
+    ))
   ), {VarIntLengthPrefix})
 
 proc requestPSSubscribe(topic: string): seq[byte] =
@@ -471,10 +482,10 @@ proc requestPSSubscribe(topic: string): seq[byte] =
   ## Processing function `doPubsubSubscribe(req *pb.PSRequest)`.
   Protobuf.encode(SerializableRequest(
     reqType: RequestType.PUBSUB,
-    psProperties: SerializablePSProperties(
+    psProperties: some(SerializablePSProperties(
       reqType: PSRequestType.SUBSCRIBE,
-      topic: topic
-    )
+      topic: pbSome(type(SerializablePSProperties.topic), topic)
+    ))
   ), {VarIntLengthPrefix})
 
 proc recvMessage(conn: StreamTransport): Future[seq[byte]] {.async.} =
