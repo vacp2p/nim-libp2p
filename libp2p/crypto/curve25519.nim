@@ -80,30 +80,33 @@ proc mul*(_: type[Curve25519], dst: var Curve25519Key, scalar: Curve25519Key, po
       EC_curve25519)
   assert res == 1
 
-proc mulgen*(_: type[Curve25519], dst: var Curve25519Key, point: Curve25519Key) =
+proc mulgen(_: type[Curve25519], dst: var Curve25519Key, point: Curve25519Key): bool =
   let defaultBrEc = brEcGetDefault()
 
   var
     rpoint = point
   rpoint.byteswap()
 
-  block iterate:
-    while true:
-      block derive:
-        let
-          size = defaultBrEc.mulgen(
-            cast[pcuchar](addr dst[0]),
-            cast[pcuchar](addr rpoint[0]),
-            Curve25519KeySize,
-            EC_curve25519)
-        assert size == Curve25519KeySize
-        for forbid in ForbiddenCurveValues:
-          if dst == forbid:
-            break derive
-        break iterate
+  let
+    size = defaultBrEc.mulgen(
+      cast[pcuchar](addr dst[0]),
+      cast[pcuchar](addr rpoint[0]),
+      Curve25519KeySize,
+      EC_curve25519)
+  
+  assert size == Curve25519KeySize
 
-proc public*(private: Curve25519Key): Curve25519Key =
-  Curve25519.mulgen(result, private)
+  if dst in ForbiddenCurveValues:
+    false
+  else:
+    true
+
+proc public*(private: Curve25519Key): Result[Curve25519Key, cstring] =
+  var res: Curve25519Key
+  if Curve25519.mulgen(res, private):
+    ok(res)
+  else:
+    err("mulgen produced a forbidden key")
 
 proc random*(_: type[Curve25519Key], rng: var BrHmacDrbgContext): Curve25519Key =
   var res: Curve25519Key
