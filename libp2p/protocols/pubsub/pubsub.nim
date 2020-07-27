@@ -242,17 +242,19 @@ method unsubscribe*(p: PubSub,
     if p.topics[t.topic].handler.len <= 0:
       p.topics.del(t.topic)
       # metrics
-      libp2p_pubsub_topics.dec()
+      libp2p_pubsub_topics.set(p.topics.len.int64)
 
 proc unsubscribe*(p: PubSub,
-                    topic: string,
-                    handler: TopicHandler): Future[void] =
+                  topic: string,
+                  handler: TopicHandler): Future[void] =
   ## unsubscribe from a ``topic`` string
+  ##
+
   p.unsubscribe(@[(topic, handler)])
 
 method unsubscribeAll*(p: PubSub, topic: string) {.base, async.} =
-  libp2p_pubsub_topics.dec()
   p.topics.del(topic)
+  libp2p_pubsub_topics.set(p.topics.len.int64)
 
 method subscribe*(p: PubSub,
                   topic: string,
@@ -278,7 +280,7 @@ method subscribe*(p: PubSub,
   checkFutures(await allFinished(sent))
 
   # metrics
-  libp2p_pubsub_topics.inc()
+  libp2p_pubsub_topics.set(p.topics.len.int64)
 
 proc sendHelper*(p: PubSub,
                  sendPeers: HashSet[PubSubPeer],
