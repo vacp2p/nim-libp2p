@@ -224,8 +224,8 @@ suite "GossipSub":
           await sleepAsync(10.seconds)
         , size = 0))
 
-      let in10millis = Moment.fromNow(100.millis)
-      let sent = await nodes[0].publish("foobar", "Hello!".toBytes(), 100.millis)
+      let in10millis = Moment.fromNow(10.millis)
+      let sent = await nodes[0].publish("foobar", "Hello!".toBytes(), 10.millis)
 
       check Moment.now() >= in10millis
       check sent == 0
