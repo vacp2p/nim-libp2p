@@ -397,7 +397,7 @@ proc dial*(s: Switch,
     await cleanup()
     raise exc
   except CatchableError as exc:
-    trace "error dialing"
+    trace "error dialing", exc = exc.msg
     await cleanup()
     raise exc
 
