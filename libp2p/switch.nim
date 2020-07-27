@@ -445,7 +445,7 @@ proc start*(s: Switch): Future[seq[Future[void]]] {.async, gcsafe.} =
   if s.pubSub.isSome:
     await s.pubSub.get().start()
 
-  info "started libp2p node", peer = $s.peerInfo, addrs = s.peerInfo.addrs
+  debug "started libp2p node", peer = $s.peerInfo, addrs = s.peerInfo.addrs
   result = startFuts # listen for incoming connections
 
 proc stop*(s: Switch) {.async.} =
@@ -554,14 +554,17 @@ proc unsubscribeAll*(s: Switch, topic: string) {.async.} =
 
   await s.pubSub.get().unsubscribeAll(topic)
 
-proc publish*(s: Switch, topic: string, data: seq[byte]): Future[int] {.async.} =
+proc publish*(s: Switch,
+              topic: string,
+              data: seq[byte],
+              timeout: Duration = InfiniteDuration): Future[int] {.async.} =
   ## pubslish to pubsub topic
   ##
 
   if s.pubSub.isNone:
     raise newNoPubSubException()
 
-  return await s.pubSub.get().publish(topic, data)
+  return await s.pubSub.get().publish(topic, data, timeout)
 
 proc addValidator*(s: Switch,
                    topics: varargs[string],

@@ -422,7 +422,7 @@ method rpcHandler*(g: GossipSub,
                 trace "exception in message handler", exc = exc.msg
 
       # forward the message to all peers interested in it
-      let published = await g.publishHelper(toSendPeers, m.messages)
+      let published = await g.publishHelper(toSendPeers, m.messages, DefaultSendTimeout)
 
       trace "forwared message to peers", peers = published
 
@@ -476,9 +476,10 @@ method unsubscribeAll*(g: GossipSub, topic: string) {.async.} =
 
 method publish*(g: GossipSub,
                 topic: string,
-                data: seq[byte]): Future[int] {.async.} =
+                data: seq[byte],
+                timeout: Duration = InfiniteDuration): Future[int] {.async.} =
   # base returns always 0
-  discard await procCall PubSub(g).publish(topic, data)
+  discard await procCall PubSub(g).publish(topic, data, timeout)
   trace "publishing message on topic", topic, data = data.shortLog
 
   var peers: HashSet[PubSubPeer]
@@ -512,7 +513,7 @@ method publish*(g: GossipSub,
   if msgId notin g.mcache:
     g.mcache.put(msgId, msg)
 
-  let published = await g.publishHelper(peers, @[msg])
+  let published = await g.publishHelper(peers, @[msg], timeout)
   if published > 0:
     libp2p_pubsub_messages_published.inc(labelValues = [topic])
 

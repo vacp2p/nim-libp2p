@@ -15,7 +15,9 @@ import utils,
        ../../libp2p/[errors,
                      switch,
                      stream/connection,
+                     stream/bufferstream,
                      crypto/crypto,
+                     protocols/pubsub/pubsubpeer,
                      protocols/pubsub/pubsub,
                      protocols/pubsub/floodsub,
                      protocols/pubsub/rpc/messages,
@@ -206,6 +208,45 @@ suite "FloodSub":
 
       check (await nodes[0].publish("foo", "Hello!".toBytes())) > 0
       check (await nodes[0].publish("bar", "Hello!".toBytes())) > 0
+
+      await allFuturesThrowing(
+        nodes[0].stop(),
+        nodes[1].stop())
+
+      await allFuturesThrowing(subscribes)
+      await allFuturesThrowing(awaiters)
+      result = true
+
+    check:
+      waitFor(runTests()) == true
+
+  test "FloodSub publish should fail on timeout":
+    proc runTests(): Future[bool] {.async.} =
+      proc handler(topic: string, data: seq[byte]) {.async, gcsafe.} =
+        discard
+
+      var nodes = generateNodes(2)
+      var awaiters: seq[Future[void]]
+      awaiters.add((await nodes[0].start()))
+      awaiters.add((await nodes[1].start()))
+
+      let subscribes = await subscribeNodes(nodes)
+      await nodes[1].subscribe("foobar", handler)
+      await waitSub(nodes[0], nodes[1], "foobar")
+
+      let pubsub = nodes[0].pubSub.get()
+      let peer = pubsub.peers[nodes[1].peerInfo.id]
+
+      peer.conn = Connection(newBufferStream(
+        proc (data: seq[byte]) {.async, gcsafe.} =
+          await sleepAsync(10.seconds)
+        ,size = 0))
+
+      let in10millis = Moment.fromNow(100.millis)
+      let sent = await nodes[0].publish("foobar", "Hello!".toBytes(), 100.millis)
+
+      check Moment.now() >= in10millis
+      check sent == 0
 
       await allFuturesThrowing(
         nodes[0].stop(),

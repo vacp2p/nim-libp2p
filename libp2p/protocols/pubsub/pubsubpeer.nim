@@ -26,6 +26,10 @@ declareCounter(libp2p_pubsub_received_messages, "number of messages received", l
 declareCounter(libp2p_pubsub_skipped_received_messages, "number of received skipped messages", labels = ["id"])
 declareCounter(libp2p_pubsub_skipped_sent_messages, "number of sent skipped messages", labels = ["id"])
 
+const
+  DefaultReadTimeout* = 1.minutes
+  DefaultSendTimeout* = 10.seconds
+
 type
   PubSubObserver* = ref object
     onRecv*: proc(peer: PubSubPeer; msgs: var RPCMsg) {.gcsafe, raises: [Defect].}
@@ -83,7 +87,7 @@ proc handle*(p: PubSubPeer, conn: Connection) {.async.} =
     try:
       while not conn.closed:
         trace "waiting for data", closed = conn.closed
-        let data = await conn.readLp(64 * 1024)
+        let data = await conn.readLp(64 * 1024).wait(DefaultReadTimeout)
         let digest = $(sha256.digest(data))
         trace "read data from peer", data = data.shortLog
         if digest in p.recvdRpcCache:
@@ -119,7 +123,10 @@ proc handle*(p: PubSubPeer, conn: Connection) {.async.} =
     trace "Exception occurred in PubSubPeer.handle", exc = exc.msg
     raise exc
 
-proc send*(p: PubSubPeer, msg: RPCMsg) {.async.} =
+proc send*(
+  p: PubSubPeer,
+  msg: RPCMsg,
+  timeout: Duration = DefaultSendTimeout) {.async.} =
   logScope:
     peer = p.id
     msg = shortLog(msg)
@@ -144,21 +151,36 @@ proc send*(p: PubSubPeer, msg: RPCMsg) {.async.} =
     libp2p_pubsub_skipped_sent_messages.inc(labelValues = [p.id])
     return
 
-  try:
+  proc sendToRemote() {.async.} =
+    logScope:
+      peer = p.id
+      msg = shortLog(msg)
+
     trace "about to send message"
+
+    if not p.onConnect.isSet:
+      await p.onConnect.wait()
+
     if p.connected: # this can happen if the remote disconnected
       trace "sending encoded msgs to peer"
 
       await p.sendConn.writeLp(encoded)
       p.sentRpcCache.put(digest)
+      trace "sent pubsub message to remote"
 
       for x in mm.messages:
         for t in x.topicIDs:
           # metrics
           libp2p_pubsub_sent_messages.inc(labelValues = [p.id, t])
 
+  let sendFut = sendToRemote()
+  try:
+    await sendFut.wait(timeout)
   except CatchableError as exc:
     trace "unable to send to remote", exc = exc.msg
+    if not sendFut.finished:
+      await sendFut.cancelAndWait()
+
     if not(isNil(p.sendConn)):
       await p.sendConn.close()
       p.sendConn = nil

@@ -30,8 +30,6 @@ declareCounter(libp2p_pubsub_validation_failure, "pubsub failed validated messag
 declarePublicCounter(libp2p_pubsub_messages_published, "published messages", labels = ["topic"])
 
 type
-  SendRes = tuple[published: seq[string], failed: seq[string]] # keep private
-
   TopicHandler* = proc(topic: string,
                        data: seq[byte]): Future[void] {.gcsafe.}
 
@@ -51,7 +49,7 @@ type
     peerInfo*: PeerInfo                             # this peer's info
     topics*: Table[string, Topic]                   # local topics
     peers*: Table[string, PubSubPeer]               # peerid to peer map
-    conns*: Table[PeerInfo, HashSet[Connection]]  # peers connections
+    conns*: Table[PeerInfo, HashSet[Connection]]    # peers connections
     triggerSelf*: bool                              # trigger own local handler on publish
     verifySignature*: bool                          # enable signature verification
     sign*: bool                                     # enable message signing
@@ -95,24 +93,7 @@ proc sendSubs*(p: PubSub,
                topics: seq[string],
                subscribe: bool) {.async.} =
   ## send subscriptions to remote peer
-
-  try:
-    # wait for a connection before publishing
-    # this happens when
-    if not peer.onConnect.isSet:
-      trace "awaiting send connection"
-      await peer.onConnect.wait()
-
-    await peer.sendSubOpts(topics, subscribe)
-  except CancelledError as exc:
-    if not(isNil(peer)) and not(isNil(peer.conn)):
-      await peer.conn.close()
-
-    raise exc
-  except CatchableError as exc:
-    trace "unable to send subscriptions", exc = exc.msg
-    if not(isNil(peer)) and not(isNil(peer.conn)):
-      await peer.conn.close()
+  await peer.sendSubOpts(topics, subscribe)
 
 method subscribeTopic*(p: PubSub,
                        topic: string,
@@ -281,9 +262,11 @@ method subscribe*(p: PubSub,
   # metrics
   libp2p_pubsub_topics.set(p.topics.len.int64)
 
-proc sendHelper*(p: PubSub,
-                 sendPeers: HashSet[PubSubPeer],
-                 msgs: seq[Message]): Future[SendRes] {.async.} =
+proc publishHelper*(p: PubSub,
+                     sendPeers: HashSet[PubSubPeer],
+                     msgs: seq[Message],
+                     timeout: Duration): Future[int] {.async.} =
+  # send messages and cleanup failed peers
   var sent: seq[tuple[id: string, fut: Future[void]]]
   for sendPeer in sendPeers:
     # avoid sending to self
@@ -291,7 +274,7 @@ proc sendHelper*(p: PubSub,
       continue
 
     trace "sending messages to peer", peer = sendPeer.id, msgs
-    sent.add((id: sendPeer.id, fut: sendPeer.send(RPCMsg(messages: msgs))))
+    sent.add((id: sendPeer.id, fut: sendPeer.send(RPCMsg(messages: msgs), timeout)))
 
   var published: seq[string]
   var failed: seq[string]
@@ -306,13 +289,6 @@ proc sendHelper*(p: PubSub,
         trace "sending messages to peer succeeded", peer = f[0].id
         published.add(f[0].id)
 
-  return (published, failed)
-
-proc publishHelper*(p: PubSub,
-                     sendPeers: HashSet[PubSubPeer],
-                     msgs: seq[Message]): Future[int] {.async.} =
-  # send messages and cleanup failed peers
-  let (published, failed) = await p.sendHelper(sendPeers, msgs)
   for f in failed:
     let peer = p.peers.getOrDefault(f)
     if not(isNil(peer)) and not(isNil(peer.conn)):
@@ -322,7 +298,8 @@ proc publishHelper*(p: PubSub,
 
 method publish*(p: PubSub,
                 topic: string,
-                data: seq[byte]): Future[int] {.base, async.} =
+                data: seq[byte],
+                timeout: Duration = InfiniteDuration): Future[int] {.base, async.} =
   ## publish to a ``topic``
   if p.triggerSelf and topic in p.topics:
     for h in p.topics[topic].handler:

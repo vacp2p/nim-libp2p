@@ -16,8 +16,10 @@ import utils, ../../libp2p/[errors,
                             peerid,
                             peerinfo,
                             stream/connection,
+                            stream/bufferstream,
                             crypto/crypto,
                             protocols/pubsub/pubsub,
+                            protocols/pubsub/pubsubpeer,
                             protocols/pubsub/gossipsub,
                             protocols/pubsub/peertable,
                             protocols/pubsub/rpc/messages]
@@ -197,6 +199,45 @@ suite "GossipSub":
       await allFuturesThrowing(subscribes)
       await allFuturesThrowing(awaiters)
       result = true
+    check:
+      waitFor(runTests()) == true
+
+  test "GossipSub publish should fail on timeout":
+    proc runTests(): Future[bool] {.async.} =
+      proc handler(topic: string, data: seq[byte]) {.async, gcsafe.} =
+        discard
+
+      var nodes = generateNodes(2, gossip = true)
+      var awaiters: seq[Future[void]]
+      awaiters.add((await nodes[0].start()))
+      awaiters.add((await nodes[1].start()))
+
+      let subscribes = await subscribeNodes(nodes)
+      await nodes[1].subscribe("foobar", handler)
+      await waitSub(nodes[0], nodes[1], "foobar")
+
+      let pubsub = nodes[0].pubSub.get()
+      let peer = pubsub.peers[nodes[1].peerInfo.id]
+
+      peer.conn = Connection(newBufferStream(
+        proc (data: seq[byte]) {.async, gcsafe.} =
+          await sleepAsync(10.seconds)
+        , size = 0))
+
+      let in10millis = Moment.fromNow(100.millis)
+      let sent = await nodes[0].publish("foobar", "Hello!".toBytes(), 100.millis)
+
+      check Moment.now() >= in10millis
+      check sent == 0
+
+      await allFuturesThrowing(
+        nodes[0].stop(),
+        nodes[1].stop())
+
+      await allFuturesThrowing(subscribes)
+      await allFuturesThrowing(awaiters)
+      result = true
+
     check:
       waitFor(runTests()) == true
 
