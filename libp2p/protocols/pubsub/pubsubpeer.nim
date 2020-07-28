@@ -27,8 +27,8 @@ declareCounter(libp2p_pubsub_skipped_received_messages, "number of received skip
 declareCounter(libp2p_pubsub_skipped_sent_messages, "number of sent skipped messages", labels = ["id"])
 
 const
-  DefaultReadTimeout* = 1.hours
-  DefaultSendTimeout* = 10.hours
+  DefaultReadTimeout* = 1.minutes
+  DefaultSendTimeout* = 10.seconds
 
 type
   PubSubObserver* = ref object
