@@ -88,8 +88,12 @@ proc testPubSubDaemonPublish(gossip: bool = false,
     if times >= count and not finished:
       finished = true
 
-  await nativeNode.connect(NativePeerInfo.init(daemonPeer.peer,
-                                               daemonPeer.addresses))
+  let peer = NativePeerInfo.init(
+    daemonPeer.peer,
+    daemonPeer.addresses)
+  await nativeNode.connect(peer)
+  let subscribeHanle = nativeNode.subscribePeer(peer)
+
   await sleepAsync(1.seconds)
   await daemonNode.connect(nativePeer.peerId, nativePeer.addrs)
 
@@ -113,6 +117,7 @@ proc testPubSubDaemonPublish(gossip: bool = false,
   await nativeNode.stop()
   await allFutures(awaiters)
   await daemonNode.close()
+  await subscribeHanle
 
 proc testPubSubNodePublish(gossip: bool = false,
                            count: int = 1): Future[bool] {.async.} =
@@ -134,8 +139,11 @@ proc testPubSubNodePublish(gossip: bool = false,
   let awaiters = nativeNode.start()
   let nativePeer = nativeNode.peerInfo
 
-  await nativeNode.connect(NativePeerInfo.init(daemonPeer.peer,
-                                               daemonPeer.addresses))
+  let peer = NativePeerInfo.init(
+    daemonPeer.peer,
+    daemonPeer.addresses)
+  await nativeNode.connect(peer)
+  let subscribeHandle = nativeNode.subscribePeer(peer)
 
   await sleepAsync(1.seconds)
   await daemonNode.connect(nativePeer.peerId, nativePeer.addrs)
@@ -168,6 +176,7 @@ proc testPubSubNodePublish(gossip: bool = false,
   await nativeNode.stop()
   await allFutures(awaiters)
   await daemonNode.close()
+  await subscribeHandle
 
 suite "Interop":
   # TODO: chronos transports are leaking,

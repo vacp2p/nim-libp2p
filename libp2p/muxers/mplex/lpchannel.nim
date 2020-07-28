@@ -174,11 +174,11 @@ method reset*(s: LPChannel) {.base, async, gcsafe.} =
     peer = $s.conn.peerInfo
     # stack = getStackTrace()
 
-  trace "resetting channel"
-
   if s.closedLocal and s.isEof:
     trace "channel already closed or reset"
     return
+
+  trace "resetting channel"
 
   # we asyncCheck here because the other end
   # might be dead already - reset is always
@@ -227,7 +227,7 @@ method close*(s: LPChannel) {.async, gcsafe.} =
       await s.reset()
       raise exc
     except CatchableError as exc:
-      trace "exception closing channel"
+      trace "exception closing channel", exc = exc.msg
       await s.reset()
 
     trace "lpchannel closed local"
@@ -243,6 +243,13 @@ proc timeoutMonitor(s: LPChannel) {.async.} =
   ## has been detected and the channel will
   ## be reset
   ##
+
+  logScope:
+    id = s.id
+    initiator = s.initiator
+    name = s.name
+    oid = $s.oid
+    peer = $s.conn.peerInfo
 
   try:
     while true:
