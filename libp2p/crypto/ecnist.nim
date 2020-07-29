@@ -20,7 +20,7 @@ import bearssl
 import nimcrypto/utils
 import minasn1
 export minasn1.Asn1Error
-import stew/results
+import stew/[results, ctops]
 export results
 
 const
@@ -540,8 +540,8 @@ proc `==`*(pubkey1, pubkey2: EcPublicKey): bool =
     let op2 = pubkey2.getOffset()
     if op1 == -1 or op2 == -1:
       return false
-    result = equalMem(unsafeAddr pubkey1.buffer[op1],
-                      unsafeAddr pubkey2.buffer[op2], pubkey1.key.qlen)
+    return CT.isEqual(pubkey1.buffer.toOpenArray(op1, pubkey1.key.qlen - 1),
+                      pubkey2.buffer.toOpenArray(op2, pubkey2.key.qlen - 1))
 
 proc `==`*(seckey1, seckey2: EcPrivateKey): bool =
   ## Returns ``true`` if both keys ``seckey1`` and ``seckey2`` are equal.
@@ -560,19 +560,30 @@ proc `==`*(seckey1, seckey2: EcPrivateKey): bool =
     let op2 = seckey2.getOffset()
     if op1 == -1 or op2 == -1:
       return false
-    result = equalMem(unsafeAddr seckey1.buffer[op1],
-                      unsafeAddr seckey2.buffer[op2], seckey1.key.xlen)
+    return CT.isEqual(seckey1.buffer.toOpenArray(op1, seckey1.key.xlen - 1),
+                      seckey2.buffer.toOpenArray(op2, seckey2.key.xlen - 1))
 
-proc `==`*(sig1, sig2: EcSignature): bool =
+proc `==`*(a, b: EcSignature): bool =
   ## Return ``true`` if both signatures ``sig1`` and ``sig2`` are equal.
-  if isNil(sig1) and isNil(sig2):
-    result = true
-  elif isNil(sig1) and (not isNil(sig2)):
-    result = false
-  elif isNil(sig2) and (not isNil(sig1)):
-    result = false
+  if isNil(a) and isNil(b):
+    true
+  elif isNil(a) and (not isNil(b)):
+    false
+  elif isNil(b) and (not isNil(a)):
+    false
   else:
-    result = (sig1.buffer == sig2.buffer)
+    # We need to cover all the cases because Signature initialization procedure
+    # do not perform any checks.
+    if len(a.buffer) == 0 and len(b.buffer) == 0:
+      true
+    elif len(a.buffer) == 0 and len(b.buffer) != 0:
+      false
+    elif len(b.buffer) == 0 and len(a.buffer) != 0:
+      false
+    elif len(a.buffer) != len(b.buffer):
+      false
+    else:
+      CT.isEqual(a.buffer, b.buffer)
 
 proc init*(key: var EcPrivateKey, data: openarray[byte]): Result[void, Asn1Error] =
   ## Initialize EC `private key` or `signature` ``key`` from ASN.1 DER binary
