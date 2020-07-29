@@ -138,6 +138,8 @@ type
     parameters*: GossipSubParams
     topicParams*: Table[string, TopicParams]
 
+    heartbeatEvents*: seq[AsyncEvent]
+
     when not defined(release):
       prunedPeers: HashSet[PubSubPeer]
 
@@ -549,7 +551,7 @@ proc updateScores(g: GossipSub) = # avoid async
 proc heartbeat(g: GossipSub) {.async.} =
   while g.heartbeatRunning:
     try:
-      trace "running heartbeat"
+      trace "running heartbeat", instance = cast[int](g)
 
       g.updateScores()
 
@@ -585,6 +587,10 @@ proc heartbeat(g: GossipSub) {.async.} =
     except CatchableError as exc:
       warn "exception ocurred in gossipsub heartbeat", exc = exc.msg, trace = exc.getStackTrace()
       assert(false, "exception ocurred in gossipsub heartbeat")
+
+    for trigger in g.heartbeatEvents:
+      trace "firing heartbeat event", instance = cast[int](g)
+      trigger.fire()
 
     await sleepAsync(GossipSubHeartbeatInterval)
 
