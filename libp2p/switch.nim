@@ -505,7 +505,7 @@ proc pubsubMonitor(s: Switch, peer: PeerInfo) {.async.} =
   ##
 
   var tries = 0
-  var backoffFactor = 5 # up to ~10 mins
+  # var backoffFactor = 5 # up to ~10 mins
   var backoff = 1.seconds
   while s.isConnected(peer) and
     tries < MaxPubsubReconnectAttempts:
@@ -519,7 +519,7 @@ proc pubsubMonitor(s: Switch, peer: PeerInfo) {.async.} =
     finally:
       debug "awaiting backoff period before reconnecting", peer = $peer, backoff, tries
       await sleepAsync(backoff) # allow the peer to cooldown
-      backoff = backoff * backoffFactor
+      # backoff = backoff * backoffFactor
       tries.inc()
 
   trace "exiting pubsub monitor", peer = $peer
