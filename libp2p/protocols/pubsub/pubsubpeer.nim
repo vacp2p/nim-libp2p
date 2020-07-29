@@ -27,8 +27,8 @@ declareCounter(libp2p_pubsub_skipped_received_messages, "number of received skip
 declareCounter(libp2p_pubsub_skipped_sent_messages, "number of sent skipped messages", labels = ["id"])
 
 const
-  DefaultReadTimeout* = 1.minutes
-  DefaultSendTimeout* = 10.seconds
+  DefaultReadTimeout* = 3.minutes
+  DefaultSendTimeout* = 30.seconds
 
 type
   PubSubObserver* = ref object
@@ -85,7 +85,7 @@ proc handle*(p: PubSubPeer, conn: Connection) {.async.} =
   debug "starting pubsub read loop for peer", closed = conn.closed
   try:
     try:
-      while not conn.closed:
+      while not conn.atEof:
         trace "waiting for data", closed = conn.closed
         let data = await conn.readLp(64 * 1024).wait(DefaultReadTimeout)
         let digest = $(sha256.digest(data))
