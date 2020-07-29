@@ -60,22 +60,18 @@ proc byteswap(buf: var Curve25519Key) {.inline.} =
     buf[i] = buf[31 - i]
     buf[31 - i] = x
 
-proc mul*(_: type[Curve25519], dst: var Curve25519Key, scalar: Curve25519Key, point: Curve25519Key) =
+proc mul*(_: type[Curve25519], point: var Curve25519Key, multiplier: Curve25519Key) =
   let defaultBrEc = brEcGetDefault()
 
-  # The source point is provided in array G (of size Glen bytes);
-  # the multiplication result is written over it.
-  dst = scalar
-
-  # point needs to be big-endian
+  # multiplier needs to be big-endian
   var
-    rpoint = point
-  rpoint.byteswap()
+    multiplierBs = multiplier
+  multiplierBs.byteswap()
   let
     res = defaultBrEc.mul(
-      cast[pcuchar](addr dst[0]),
+      cast[pcuchar](addr point[0]),
       Curve25519KeySize,
-      cast[pcuchar](addr rpoint[0]),
+      cast[pcuchar](addr multiplierBs[0]),
       Curve25519KeySize,
       EC_curve25519)
   assert res == 1

@@ -101,7 +101,8 @@ proc hashProtocol(name: string): MDigest[256] =
     result = sha256.digest(name)
 
 proc dh(priv: Curve25519Key, pub: Curve25519Key): Curve25519Key =
-  Curve25519.mul(result, pub, priv)
+  result = pub
+  Curve25519.mul(result, priv)
 
 # Cipherstate
 
