@@ -235,7 +235,7 @@ proc upgradeOutgoing(s: Switch, conn: Connection): Future[Connection] {.async, g
   return sconn
 
 proc upgradeIncoming(s: Switch, conn: Connection) {.async, gcsafe.} =
-  trace "upgrading incoming connection", conn = $conn, oid = conn.oid
+  trace "upgrading incoming connection", conn = $conn, oid = $conn.oid
   let ms = newMultistream()
 
   # secure incoming connections
@@ -244,7 +244,7 @@ proc upgradeIncoming(s: Switch, conn: Connection) {.async, gcsafe.} =
                        {.async, gcsafe, closure.} =
 
     var sconn: Connection
-    trace "Securing connection", oid = conn.oid
+    trace "Securing connection", oid = $conn.oid
     let secure = s.secureManagers.filterIt(it.codec == proto)[0]
 
     try:
@@ -356,7 +356,6 @@ proc internalConnect(s: Switch,
   trace "dial successful", oid = $conn.oid,
                            peer = $conn.peerInfo
 
-  await s.subscribePeer(peer)
   asyncCheck s.cleanupPubSubPeer(conn)
 
   trace "got connection", oid = $conn.oid,
@@ -614,7 +613,6 @@ proc muxerHandler(s: Switch, muxer: Muxer) {.async, gcsafe.} =
     asyncCheck s.triggerHooks(muxer.connection.peerInfo, Lifecycle.Upgraded)
 
     # try establishing a pubsub connection
-    await s.subscribePeer(muxer.connection.peerInfo)
     asyncCheck s.cleanupPubSubPeer(muxer.connection)
 
   except CancelledError as exc:
