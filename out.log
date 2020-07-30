@@ -1,0 +1,8 @@
+Hint: used config file '/Users/dryajov/.choosenim/toolchains/nim-1.2.2/config/nim.cfg' [Conf]
+Hint: used config file '/Users/dryajov/personal/projects/status/nim-beacon-chain/config.nims' [Conf]
+Hint: used config file '/Users/dryajov/personal/projects/status/nim-beacon-chain/vendor/nim-libp2p/tests/nim.cfg' [Conf]
+Hint: system [Processing]
+Hint: widestrs [Processing]
+Hint: io [Processing]
+Hint: testpubsub [Processing]
+/Users/dryajov/personal/projects/status/nim-beacon-chain/vendor/nim-libp2p/tests/pubsub/testpubsub.nim(1, 2) Error: cannot open file: ""

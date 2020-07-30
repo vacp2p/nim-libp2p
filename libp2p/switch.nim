@@ -390,7 +390,7 @@ proc dial*(s: Switch,
                                          oid = $conn.oid
     if not await s.ms.select(stream, proto):
       await stream.close()
-      raise newException(CatchableError, "Unable to select sub-protocol " & proto)
+      raise newException(CatchableError, "Unable to select sub-protocol" & proto)
 
     return stream
   except CancelledError as exc:
