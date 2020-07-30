@@ -116,18 +116,17 @@ suite "Switch":
       var bufferTracker = getTracker(BufferStreamTrackerName)
       # echo bufferTracker.dump()
 
-      # plus 4 for the pubsub streams
       check (BufferStreamTracker(bufferTracker).opened ==
-        (BufferStreamTracker(bufferTracker).closed + 4.uint64))
+        (BufferStreamTracker(bufferTracker).closed))
 
       var connTracker = getTracker(ConnectionTrackerName)
       # echo connTracker.dump()
 
-      # plus 8 is for the secured connection and the socket
+      # plus 4 is for the secured connection and the socket
       # and the pubsub streams that won't clean up until
       # `disconnect()` or `stop()`
       check (ConnectionTracker(connTracker).opened ==
-        (ConnectionTracker(connTracker).closed + 8.uint64))
+        (ConnectionTracker(connTracker).closed + 4.uint64))
 
       await allFuturesThrowing(
         done.wait(5.seconds),
