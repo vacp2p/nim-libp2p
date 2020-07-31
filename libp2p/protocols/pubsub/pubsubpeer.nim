@@ -27,8 +27,8 @@ declareCounter(libp2p_pubsub_skipped_received_messages, "number of received skip
 declareCounter(libp2p_pubsub_skipped_sent_messages, "number of sent skipped messages", labels = ["id"])
 
 const
-  DefaultReadTimeout* = 10.minutes
-  DefaultSendTimeout* = 10.minutes
+  DefaultReadTimeout* = 1.minutes
+  DefaultSendTimeout* = 10.seconds
 
 type
   PubSubObserver* = ref object
@@ -176,6 +176,7 @@ proc send*(
   let sendFut = sendToRemote()
   try:
     await sendFut.wait(timeout)
+    # asyncCheck sendFut
   except CatchableError as exc:
     trace "unable to send to remote", exc = exc.msg
     if not sendFut.finished:

@@ -471,6 +471,7 @@ proc stop*(s: Switch) {.async.} =
 
 proc subscribePeerInternal(s: Switch, peerInfo: PeerInfo) {.async, gcsafe.} =
   ## Subscribe to pub sub peer
+  ##
   if s.pubSub.isSome and not(s.pubSub.get().connected(peerInfo)):
     trace "about to subscribe to pubsub peer", peer = peerInfo.shortLog()
     var stream: Connection
