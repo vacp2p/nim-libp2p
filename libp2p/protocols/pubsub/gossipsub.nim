@@ -437,8 +437,13 @@ method rpcHandler*(g: GossipSub,
 
       if respControl.graft.len > 0 or respControl.prune.len > 0 or
          respControl.ihave.len > 0 or respControl.iwant.len > 0:
-        await peer.send(
-          RPCMsg(control: some(respControl), messages: messages))
+        try:
+          await peer.send(
+            RPCMsg(control: some(respControl), messages: messages))
+        except CancelledError as exc:
+          raise exc
+        except CatchableError as exc:
+          trace "exception forwarding control messages", exc = exc.msg
 
 method subscribe*(g: GossipSub,
                   topic: string,
