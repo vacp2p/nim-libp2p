@@ -120,7 +120,7 @@ proc list*(m: MultistreamSelect,
   result = list
 
 proc handle*(m: MultistreamSelect, conn: Connection, active: bool = false) {.async, gcsafe.} =
-  trace "handle: starting multistream handling"
+  trace "handle: starting multistream handling", handshaked = active
   var handshaked = active
   try:
     while not conn.closed:
@@ -154,7 +154,8 @@ proc handle*(m: MultistreamSelect, conn: Connection, active: bool = false) {.asy
           await conn.write(m.codec)
           handshaked = true
         else:
-          await conn.write(Na)  
+          trace "handle: sending `na` for duplicate handshake while handshaked"
+          await conn.write(Na)
       else:
         for h in m.handlers:
           if (not isNil(h.match) and h.match(ms)) or ms == h.proto:
