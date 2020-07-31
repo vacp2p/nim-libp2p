@@ -104,7 +104,7 @@ proc cleanupPubSubPeer(s: Switch, conn: Connection) {.async.} =
     if s.pubSub.isSome:
       let fut = s.pubsubMonitors.getOrDefault(conn.peerInfo.peerId)
       if not(isNil(fut)) and not(fut.finished):
-        await fut.cancelAndWait()
+        fut.cancel()
 
       await s.pubSub.get().unsubscribePeer(conn.peerInfo)
   except CancelledError as exc:
@@ -504,11 +504,7 @@ proc pubsubMonitor(s: Switch, peer: PeerInfo) {.async.} =
   ## pubsub connection as well
   ##
 
-  var tries = 0
-  # var backoffFactor = 5 # up to ~10 mins
-  var backoff = 1.seconds
-  while s.isConnected(peer) and
-    tries < MaxPubsubReconnectAttempts:
+  while s.isConnected(peer):
     try:
         debug "subscribing to pubsub peer", peer = $peer
         await s.subscribePeerInternal(peer)
@@ -517,10 +513,8 @@ proc pubsubMonitor(s: Switch, peer: PeerInfo) {.async.} =
     except CatchableError as exc:
       trace "exception in pubsub monitor", peer = $peer, exc = exc.msg
     finally:
-      debug "awaiting backoff period before reconnecting", peer = $peer, backoff, tries
-      await sleepAsync(backoff) # allow the peer to cooldown
-      # backoff = backoff * backoffFactor
-      tries.inc()
+      debug "sleeping before trying pubsub peer", peer = $peer
+      await sleepAsync(1.seconds) # allow the peer to cooldown
 
   trace "exiting pubsub monitor", peer = $peer
 
