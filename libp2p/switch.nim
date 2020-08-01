@@ -188,7 +188,6 @@ proc mux(s: Switch, conn: Connection) {.async, gcsafe.} =
 
   # new stream for identify
   var stream = await muxer.newStream()
-  var handlerFut: Future[void]
 
   defer:
     if not(isNil(stream)):
@@ -196,7 +195,7 @@ proc mux(s: Switch, conn: Connection) {.async, gcsafe.} =
 
   # call muxer handler, this should
   # not end until muxer ends
-  handlerFut = muxer.handle()
+  let handlerFut = muxer.handle()
 
   # do identify first, so that we have a
   # PeerInfo in case we didn't before
@@ -212,7 +211,8 @@ proc mux(s: Switch, conn: Connection) {.async, gcsafe.} =
   s.connManager.storeMuxer(muxer, handlerFut) # update muxer with handler
 
 proc disconnect*(s: Switch, peer: PeerInfo) {.async, gcsafe.} =
-  await s.connManager.dropPeer(peer)
+  if not peer.isNil:
+    await s.connManager.dropPeer(peer.peerId)
 
 proc upgradeOutgoing(s: Switch, conn: Connection): Future[Connection] {.async, gcsafe.} =
   logScope:
@@ -231,7 +231,7 @@ proc upgradeOutgoing(s: Switch, conn: Connection): Future[Connection] {.async, g
     raise newException(CatchableError,
       "unable to identify connection, stopping upgrade")
 
-  trace "succesfully upgraded outgoing connection", oid = sconn.oid
+  trace "successfully upgraded outgoing connection", oid = sconn.oid
 
   return sconn
 
@@ -290,7 +290,7 @@ proc internalConnect(s: Switch,
   try:
     await lock.acquire()
     trace "about to dial peer", peer = id
-    conn = s.connManager.selectConn(peer)
+    conn = s.connManager.selectConn(peer.peerId)
     if conn.isNil or (conn.closed or conn.atEof):
       trace "Dialing peer", peer = id
       for t in s.transports: # for each transport
@@ -323,7 +323,7 @@ proc internalConnect(s: Switch,
               s.connManager.storeOutgoing(uconn)
               asyncCheck s.triggerHooks(uconn.peerInfo, Lifecycle.Upgraded)
               conn = uconn
-              trace "dial succesfull", oid = $conn.oid, peer = $conn.peerInfo
+              trace "dial successful", oid = $conn.oid, peer = $conn.peerInfo
             except CatchableError as exc:
               if not(isNil(conn)):
                 await conn.close()
@@ -354,7 +354,7 @@ proc internalConnect(s: Switch,
 
   doAssert(conn in s.connManager, "connection not tracked!")
 
-  trace "dial succesfull", oid = $conn.oid,
+  trace "dial successful", oid = $conn.oid,
                            peer = $conn.peerInfo
 
   await s.subscribePeer(peer)
@@ -475,7 +475,7 @@ proc subscribePeerInternal(s: Switch, peerInfo: PeerInfo) {.async, gcsafe.} =
     trace "about to subscribe to pubsub peer", peer = peerInfo.shortLog()
     var stream: Connection
     try:
-      stream = await s.connManager.getMuxedStream(peerInfo)
+      stream = await s.connManager.getMuxedStream(peerInfo.peerId)
       if isNil(stream):
         trace "unable to subscribe to peer", peer = peerInfo.shortLog
         return
