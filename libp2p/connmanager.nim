@@ -53,9 +53,6 @@ proc contains*(c: ConnManager, conn: Connection): bool =
   if isNil(conn.peerInfo):
     return
 
-  if conn.peerInfo.peerId notin c.conns:
-    return
-
   return conn in c.conns[conn.peerInfo.peerId]
 
 proc contains*(c: ConnManager, peerId: PeerID): bool =
