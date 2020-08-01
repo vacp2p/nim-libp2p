@@ -211,7 +211,8 @@ proc mux(s: Switch, conn: Connection) {.async, gcsafe.} =
   s.connManager.storeMuxer(muxer, handlerFut) # update muxer with handler
 
 proc disconnect*(s: Switch, peer: PeerInfo) {.async, gcsafe.} =
-  await s.connManager.dropPeer(peer)
+  if not peer.isNil:
+    await s.connManager.dropPeer(peer.peerId)
 
 proc upgradeOutgoing(s: Switch, conn: Connection): Future[Connection] {.async, gcsafe.} =
   logScope:
@@ -289,7 +290,7 @@ proc internalConnect(s: Switch,
   try:
     await lock.acquire()
     trace "about to dial peer", peer = id
-    conn = s.connManager.selectConn(peer)
+    conn = s.connManager.selectConn(peer.peerId)
     if conn.isNil or (conn.closed or conn.atEof):
       trace "Dialing peer", peer = id
       for t in s.transports: # for each transport
@@ -474,7 +475,7 @@ proc subscribePeerInternal(s: Switch, peerInfo: PeerInfo) {.async, gcsafe.} =
     trace "about to subscribe to pubsub peer", peer = peerInfo.shortLog()
     var stream: Connection
     try:
-      stream = await s.connManager.getMuxedStream(peerInfo)
+      stream = await s.connManager.getMuxedStream(peerInfo.peerId)
       if isNil(stream):
         trace "unable to subscribe to peer", peer = peerInfo.shortLog
         return
