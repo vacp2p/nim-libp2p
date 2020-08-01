@@ -266,6 +266,9 @@ proc dropPeer*(c: ConnManager, peerInfo: PeerInfo) {.async.} =
   for muxer in muxers:
     await closeMuxerHolder(muxer)
 
+  for conn in conns:
+    await conn.close()
+
 proc close*(c: ConnManager) {.async.} =
   ## cleanup resources for the connection
   ## manager
