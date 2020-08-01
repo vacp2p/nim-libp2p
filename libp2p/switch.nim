@@ -97,10 +97,12 @@ proc triggerHooks(s: Switch, peer: PeerInfo, cycle: Lifecycle) {.async, gcsafe.}
 
 proc disconnect*(s: Switch, peer: PeerInfo) {.async, gcsafe.}
 proc subscribePeer*(s: Switch, peerInfo: PeerInfo) {.async, gcsafe.}
+proc subscribePeerInternal(s: Switch, peerInfo: PeerInfo) {.async, gcsafe.}
 
 proc cleanupPubSubPeer(s: Switch, conn: Connection) {.async.} =
   try:
     await conn.closeEvent.wait()
+    trace "about to cleanup pubsub peer"
     if s.pubSub.isSome:
       let fut = s.pubsubMonitors.getOrDefault(conn.peerInfo.peerId)
       if not(isNil(fut)) and not(fut.finished):
@@ -358,6 +360,7 @@ proc internalConnect(s: Switch,
 
   asyncCheck s.cleanupPubSubPeer(conn)
 
+  asyncCheck s.subscribePeer(conn.peerInfo)
   trace "got connection", oid = $conn.oid,
                           direction = $conn.dir,
                           peer = $conn.peerInfo
@@ -472,7 +475,8 @@ proc stop*(s: Switch) {.async.} =
 proc subscribePeerInternal(s: Switch, peerInfo: PeerInfo) {.async, gcsafe.} =
   ## Subscribe to pub sub peer
   ##
-  if s.pubSub.isSome and not(s.pubSub.get().connected(peerInfo)):
+
+  if s.pubSub.isSome and not s.pubSub.get().connected(peerInfo):
     trace "about to subscribe to pubsub peer", peer = peerInfo.shortLog()
     var stream: Connection
     try:
@@ -483,6 +487,7 @@ proc subscribePeerInternal(s: Switch, peerInfo: PeerInfo) {.async, gcsafe.} =
 
       if not await s.ms.select(stream, s.pubSub.get().codec):
         if not(isNil(stream)):
+          trace "couldn't select pubsub", codec = s.pubSub.get().codec
           await stream.close()
         return
 
@@ -506,8 +511,8 @@ proc pubsubMonitor(s: Switch, peer: PeerInfo) {.async.} =
 
   while s.isConnected(peer):
     try:
-        debug "subscribing to pubsub peer", peer = $peer
-        await s.subscribePeerInternal(peer)
+      debug "subscribing to pubsub peer", peer = $peer
+      await s.subscribePeerInternal(peer)
     except CancelledError as exc:
       raise exc
     except CatchableError as exc:
@@ -521,6 +526,8 @@ proc pubsubMonitor(s: Switch, peer: PeerInfo) {.async.} =
 proc subscribePeer*(s: Switch, peerInfo: PeerInfo) {.async, gcsafe.} =
   if peerInfo.peerId notin s.pubsubMonitors:
     s.pubsubMonitors[peerInfo.peerId] = s.pubsubMonitor(peerInfo)
+
+  result = s.pubsubMonitors.getOrDefault(peerInfo.peerId)
 
 proc subscribe*(s: Switch, topic: string,
                 handler: TopicHandler) {.async.} =
@@ -610,6 +617,7 @@ proc muxerHandler(s: Switch, muxer: Muxer) {.async, gcsafe.} =
     # try establishing a pubsub connection
     asyncCheck s.cleanupPubSubPeer(muxer.connection)
 
+    asyncCheck s.subscribePeer(muxer.connection.peerInfo)
   except CancelledError as exc:
     await muxer.close()
     raise exc

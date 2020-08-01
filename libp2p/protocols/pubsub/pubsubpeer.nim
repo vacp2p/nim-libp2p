@@ -139,7 +139,7 @@ proc send*(
 
   let encoded = encodeRpcMsg(mm)
   if encoded.len <= 0:
-    trace "empty message, skipping"
+    info "empty message, skipping"
     return
 
   logScope:
@@ -176,23 +176,27 @@ proc send*(
   let sendFut = sendToRemote()
   try:
     await sendFut.wait(timeout)
-    # asyncCheck sendFut
   except CatchableError as exc:
     trace "unable to send to remote", exc = exc.msg
     if not sendFut.finished:
-      await sendFut.cancelAndWait()
+      sendFut.cancel()
 
     if not(isNil(p.sendConn)):
       await p.sendConn.close()
       p.sendConn = nil
       p.onConnect.clear()
 
+    raise exc
+
 proc sendSubOpts*(p: PubSubPeer, topics: seq[string], subscribe: bool) {.async.} =
   trace "sending subscriptions", peer = p.id, subscribe, topicIDs = topics
 
   try:
     await p.send(RPCMsg(
-      subscriptions: topics.mapIt(SubOpts(subscribe: subscribe, topic: it))))
+      subscriptions: topics.mapIt(SubOpts(subscribe: subscribe, topic: it))),
+      # the long timeout is mostly for cases where
+      # the connection is flaky at the beggingin
+      timeout = 3.minutes)
   except CancelledError as exc:
     raise exc
   except CatchableError as exc:
