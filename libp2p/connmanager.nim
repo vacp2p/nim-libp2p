@@ -7,7 +7,7 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import tables, sequtils, sets
+import std/[options, tables, sequtils, sets]
 import chronos, chronicles, metrics
 import peerinfo,
        stream/connection,
@@ -31,7 +31,6 @@ type
     # copies and mangling by unrelated code.
     conns: Table[PeerID, HashSet[Connection]]
     muxed: Table[Connection, MuxerHolder]
-    cleanUpLock: Table[PeerInfo, AsyncLock]
     maxConns: int
 
 proc newTooManyConnections(): ref TooManyConnections {.inline.} =
@@ -79,9 +78,24 @@ proc contains*(c: ConnManager, muxer: Muxer): bool =
 
   return muxer == c.muxed[conn].muxer
 
+proc closeMuxerHolder(muxerHolder: MuxerHolder) {.async.} =
+  trace "cleaning up muxer for peer"
+
+  await muxerHolder.muxer.close()
+  if not(isNil(muxerHolder.handle)):
+    await muxerHolder.handle # TODO noraises?
+
+proc delConn(c: ConnManager, conn: Connection) =
+  let peerId = conn.peerInfo.peerId
+  if peerId in c.conns:
+    c.conns[peerId].excl(conn)
+
+    if c.conns[peerId].len == 0:
+      c.conns.del(peerId)
+      libp2p_peers.set(c.conns.len.int64)
+
 proc cleanupConn(c: ConnManager, conn: Connection) {.async.} =
   ## clean connection's resources such as muxers and streams
-  ##
 
   if isNil(conn):
     return
@@ -89,37 +103,20 @@ proc cleanupConn(c: ConnManager, conn: Connection) {.async.} =
   if isNil(conn.peerInfo):
     return
 
-  let peerInfo = conn.peerInfo
-  let lock = c.cleanUpLock.mgetOrPut(peerInfo, newAsyncLock())
+  # Remove connection from all tables without async breaks
+  var muxer = some(MuxerHolder())
+  if not c.muxed.pop(conn, muxer.get()):
+    muxer = none(MuxerHolder)
+
+  delConn(c, conn)
 
   try:
-    await lock.acquire()
-    trace "cleaning up connection for peer", peer = $peerInfo
-    if conn in c.muxed:
-      let muxerHolder = c.muxed[conn]
-      c.muxed.del(conn)
-
-      await muxerHolder.muxer.close()
-      if not(isNil(muxerHolder.handle)):
-        await muxerHolder.handle
-
-    if peerInfo.peerId in c.conns:
-      c.conns[peerInfo.peerId].excl(conn)
-
-      if c.conns[peerInfo.peerId].len == 0:
-        c.conns.del(peerInfo.peerId)
-
-    if not(conn.peerInfo.isClosed()):
-      conn.peerInfo.close()
-
+    if muxer.isSome:
+      await closeMuxerHolder(muxer.get())
   finally:
     await conn.close()
-    libp2p_peers.set(c.conns.len.int64)
 
-    if lock.locked():
-      lock.release()
-
-    trace "connection cleaned up"
+  trace "connection cleaned up", peer = $conn.peerInfo
 
 proc onClose(c: ConnManager, conn: Connection) {.async.} =
   ## connection close even handler
@@ -222,7 +219,7 @@ proc storeMuxer*(c: ConnManager,
     muxer: muxer,
     handle: handle)
 
-  trace "storred connection", connections = c.conns.len
+  trace "stored connection", connections = c.conns.len
 
 proc getMuxedStream*(c: ConnManager,
                      peerInfo: PeerInfo,
@@ -256,21 +253,32 @@ proc getMuxedStream*(c: ConnManager,
 proc dropPeer*(c: ConnManager, peerInfo: PeerInfo) {.async.} =
   ## drop connections and cleanup resources for peer
   ##
+  let conns = c.conns.getOrDefault(peerInfo.peerId)
+  for conn in conns:
+    delConn(c, conn)
 
-  for conn in c.conns.getOrDefault(peerInfo.peerId):
-    if not(isNil(conn)):
-      await c.cleanupConn(conn)
+  var muxers: seq[MuxerHolder]
+  for conn in conns:
+    if conn in c.muxed:
+      muxers.add c.muxed[conn]
+      c.muxed.del(conn)
+
+  for muxer in muxers:
+    await closeMuxerHolder(muxer)
 
 proc close*(c: ConnManager) {.async.} =
   ## cleanup resources for the connection
   ## manager
   ##
+  let conns = c.conns
+  c.conns.clear()
 
-  for conns in toSeq(c.conns.values):
-    for conn in conns:
-      try:
-        await c.cleanupConn(conn)
-      except CancelledError as exc:
-        raise exc
-      except CatchableError as exc:
-        warn "error cleaning up connections"
+  let muxed = c.muxed
+  c.muxed.clear()
+
+  for _, muxer in muxed:
+    await closeMuxerHolder(muxer)
+
+  for _, conns2 in conns:
+    for conn in conns2:
+      await conn.close()

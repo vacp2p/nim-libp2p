@@ -188,7 +188,6 @@ proc mux(s: Switch, conn: Connection) {.async, gcsafe.} =
 
   # new stream for identify
   var stream = await muxer.newStream()
-  var handlerFut: Future[void]
 
   defer:
     if not(isNil(stream)):
@@ -196,7 +195,7 @@ proc mux(s: Switch, conn: Connection) {.async, gcsafe.} =
 
   # call muxer handler, this should
   # not end until muxer ends
-  handlerFut = muxer.handle()
+  let handlerFut = muxer.handle()
 
   # do identify first, so that we have a
   # PeerInfo in case we didn't before
@@ -231,7 +230,7 @@ proc upgradeOutgoing(s: Switch, conn: Connection): Future[Connection] {.async, g
     raise newException(CatchableError,
       "unable to identify connection, stopping upgrade")
 
-  trace "succesfully upgraded outgoing connection", oid = sconn.oid
+  trace "successfully upgraded outgoing connection", oid = sconn.oid
 
   return sconn
 
@@ -323,7 +322,7 @@ proc internalConnect(s: Switch,
               s.connManager.storeOutgoing(uconn)
               asyncCheck s.triggerHooks(uconn.peerInfo, Lifecycle.Upgraded)
               conn = uconn
-              trace "dial succesfull", oid = $conn.oid, peer = $conn.peerInfo
+              trace "dial successful", oid = $conn.oid, peer = $conn.peerInfo
             except CatchableError as exc:
               if not(isNil(conn)):
                 await conn.close()
@@ -354,7 +353,7 @@ proc internalConnect(s: Switch,
 
   doAssert(conn in s.connManager, "connection not tracked!")
 
-  trace "dial succesfull", oid = $conn.oid,
+  trace "dial successful", oid = $conn.oid,
                            peer = $conn.peerInfo
 
   await s.subscribePeer(peer)
