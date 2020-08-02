@@ -360,7 +360,6 @@ proc internalConnect(s: Switch,
 
   asyncCheck s.cleanupPubSubPeer(conn)
 
-  asyncCheck s.subscribePeer(conn.peerInfo)
   trace "got connection", oid = $conn.oid,
                           direction = $conn.dir,
                           peer = $conn.peerInfo
@@ -617,7 +616,6 @@ proc muxerHandler(s: Switch, muxer: Muxer) {.async, gcsafe.} =
     # try establishing a pubsub connection
     asyncCheck s.cleanupPubSubPeer(muxer.connection)
 
-    asyncCheck s.subscribePeer(muxer.connection.peerInfo)
   except CancelledError as exc:
     await muxer.close()
     raise exc
