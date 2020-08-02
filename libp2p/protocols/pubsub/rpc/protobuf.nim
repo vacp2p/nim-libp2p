@@ -195,7 +195,7 @@ proc decodeMessage*(pb: ProtoBuffer): ProtoResult[Message] {.inline.} =
   else:
     trace "decodeMessage: data is missing"
   if ? pb.getField(3, msg.seqno):
-    trace "decodeMessage: read seqno", seqno = msg.data.shortLog()
+    trace "decodeMessage: read seqno", seqno = msg.seqno
   else:
     trace "decodeMessage: seqno is missing"
   if ? pb.getRepeatedField(4, msg.topicIDs):

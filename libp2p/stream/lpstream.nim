@@ -16,6 +16,9 @@ import ../varint,
 
 declareGauge(libp2p_open_streams, "open stream instances", labels = ["type"])
 
+logScope:
+  topics = "lpstream"
+
 type
   LPStream* = ref object of RootObj
     closeEvent*: AsyncEvent

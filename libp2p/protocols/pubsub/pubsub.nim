@@ -184,9 +184,8 @@ method handleConn*(p: PubSub,
 
   let peer = p.getOrCreatePeer(conn.peerInfo, proto)
 
-  let topics = toSeq(p.topics.keys)
-  if topics.len > 0:
-    await p.sendSubs(peer, topics, true)
+  if p.topics.len > 0:
+    await p.sendSubs(peer, toSeq(p.topics.keys), true)
 
   try:
     peer.handler = handler

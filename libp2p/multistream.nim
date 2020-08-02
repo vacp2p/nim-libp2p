@@ -129,16 +129,16 @@ proc handle*(m: MultistreamSelect, conn: Connection, active: bool = false) {.asy
 
       if not handshaked and ms != Codec:
         error "expected handshake message", instead=ms
-        raise newException(CatchableError, 
+        raise newException(CatchableError,
                            "MultistreamSelect handling failed, invalid first message")
 
-      trace "handle: got request for ", ms
+      trace "handle: got request", ms
       if ms.len() <= 0:
         trace "handle: invalid proto"
         await conn.write(Na)
 
       if m.handlers.len() == 0:
-        trace "handle: sending `na` for protocol ", protocol = ms
+        trace "handle: sending `na` for protocol", protocol = ms
         await conn.write(Na)
         continue
 
@@ -159,11 +159,11 @@ proc handle*(m: MultistreamSelect, conn: Connection, active: bool = false) {.asy
       else:
         for h in m.handlers:
           if (not isNil(h.match) and h.match(ms)) or ms == h.proto:
-            trace "found handler for", protocol = ms
+            trace "found handler", protocol = ms
             await conn.writeLp((h.proto & "\n"))
             await h.protocol.handler(conn, ms)
             return
-        debug "no handlers for ", protocol = ms
+        debug "no handlers", protocol = ms
         await conn.write(Na)
   except CancelledError as exc:
     await conn.close()

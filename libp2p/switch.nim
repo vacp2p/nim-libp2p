@@ -167,12 +167,11 @@ proc mux(s: Switch, conn: Connection) {.async, gcsafe.} =
   ## mux incoming connection
 
   trace "muxing connection", peer = $conn
-  let muxers = toSeq(s.muxers.keys)
-  if muxers.len == 0:
+  if s.muxers.len == 0:
     warn "no muxers registered, skipping upgrade flow"
     return
 
-  let muxerName = await s.ms.select(conn, muxers)
+  let muxerName = await s.ms.select(conn, toSeq(s.muxers.keys()))
   if muxerName.len == 0 or muxerName == "na":
     debug "no muxer available, early exit", peer = $conn
     return
@@ -387,7 +386,9 @@ proc dial*(s: Switch,
       await conn.close()
       raise newException(CatchableError, "Couldn't get muxed stream")
 
-    trace "Attempting to select remote", proto = proto, oid = conn.oid
+    trace "Attempting to select remote", proto = proto,
+                                         streamOid = $stream.oid,
+                                         oid = $conn.oid
     if not await s.ms.select(stream, proto):
       await stream.close()
       raise newException(CatchableError, "Unable to select sub-protocol " & proto)
@@ -498,7 +499,7 @@ proc subscribePeerInternal(s: Switch, peerInfo: PeerInfo) {.async, gcsafe.} =
       if not(isNil(stream)):
         await stream.close()
 
-proc pubsubMonitor(switch: Switch, peer: PeerInfo) {.async.} =
+proc pubsubMonitor(s: Switch, peer: PeerInfo) {.async.} =
   ## while peer connected maintain a
   ## pubsub connection as well
   ##
@@ -506,11 +507,11 @@ proc pubsubMonitor(switch: Switch, peer: PeerInfo) {.async.} =
   var tries = 0
   var backoffFactor = 5 # up to ~10 mins
   var backoff = 1.seconds
-  while switch.isConnected(peer) and
+  while s.isConnected(peer) and
     tries < MaxPubsubReconnectAttempts:
     try:
         debug "subscribing to pubsub peer", peer = $peer
-        await switch.subscribePeerInternal(peer)
+        await s.subscribePeerInternal(peer)
     except CancelledError as exc:
       raise exc
     except CatchableError as exc:
