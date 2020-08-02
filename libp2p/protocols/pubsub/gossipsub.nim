@@ -189,16 +189,14 @@ proc getGossipPeers(g: GossipSub): Table[string, ControlMessage] {.gcsafe.} =
 
     let gossipPeers = mesh + fanout
     let mids = g.mcache.window(topic)
-    if mids.len <= 0:
+    if not mids.len > 0:
       continue
-
-    let ihave = ControlIHave(topicID: topic,
-                              messageIDs: toSeq(mids))
 
     if topic notin g.gossipsub:
       trace "topic not in gossip array, skipping", topicID = topic
       continue
 
+    let ihave = ControlIHave(topicID: topic, messageIDs: toSeq(mids))
     for peer in allPeers:
       if result.len >= GossipSubD:
         trace "got gossip peers", peers = result.len
@@ -436,8 +434,9 @@ method rpcHandler*(g: GossipSub,
       let messages = g.handleIWant(peer, control.iwant)
 
       if respControl.graft.len > 0 or respControl.prune.len > 0 or
-         respControl.ihave.len > 0 or respControl.iwant.len > 0:
+        respControl.ihave.len > 0:
         try:
+          info "sending control message", msg = respControl
           await peer.send(
             RPCMsg(control: some(respControl), messages: messages))
         except CancelledError as exc:
