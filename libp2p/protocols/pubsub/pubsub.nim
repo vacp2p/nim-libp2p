@@ -64,6 +64,7 @@ method handleDisconnect*(p: PubSub, peer: PubSubPeer) {.base.} =
   ##
   if not(isNil(peer)) and peer.peerInfo notin p.conns:
     trace "deleting peer", peer = peer.id
+    peer.onConnect.fire() # Make sure all pending sends are unblocked
     p.peers.del(peer.id)
     trace "peer disconnected", peer = peer.id
 
@@ -93,7 +94,7 @@ proc sendSubs*(p: PubSub,
                topics: seq[string],
                subscribe: bool) {.async.} =
   ## send subscriptions to remote peer
-  await peer.sendSubOpts(topics, subscribe)
+  asyncCheck peer.sendSubOpts(topics, subscribe)
 
 method subscribeTopic*(p: PubSub,
                        topic: string,
