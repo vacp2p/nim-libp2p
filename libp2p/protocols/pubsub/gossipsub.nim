@@ -228,9 +228,9 @@ proc heartbeat(g: GossipSub) {.async.} =
 
       let peers = g.getGossipPeers()
       var sent: seq[Future[void]]
-      for peer in peers.keys:
-        if peer in g.peers:
-          sent &= g.peers[peer].send(RPCMsg(control: some(peers[peer])))
+      for peer, control in peers:
+        g.peers.withValue(peer, pubsubPeer) do:
+          sent &= pubsubPeer[].send(RPCMsg(control: some(control)))
       checkFutures(await allFinished(sent))
 
       g.mcache.shift() # shift the cache

@@ -7,6 +7,7 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
+import oids
 import chronos, chronicles, sequtils
 import transport,
        ../errors,
@@ -71,7 +72,7 @@ proc connHandler*(t: TcpTransport,
   proc cleanup() {.async.} =
     try:
       await client.join()
-      trace "cleaning up client", addrs = $client.remoteAddress, connoid = conn.oid
+      trace "cleaning up client", addrs = $client.remoteAddress, connoid = $conn.oid
       if not(isNil(conn)):
         await conn.close()
       t.clients.keepItIf(it != client)

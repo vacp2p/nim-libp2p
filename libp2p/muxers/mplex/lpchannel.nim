@@ -81,7 +81,7 @@ template withEOFExceptions(body: untyped): untyped =
 
 proc cleanupTimer(s: LPChannel) {.async.} =
   ## cleanup timers
-  if not s.timerTaskFut.finished:
+  if not isNil(s.timerTaskFut) and not s.timerTaskFut.finished:
     await s.timerTaskFut.cancelAndWait()
 
 proc closeMessage(s: LPChannel) {.async.} =
