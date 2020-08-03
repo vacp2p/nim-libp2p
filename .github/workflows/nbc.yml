@@ -1,18 +1,14 @@
 name: NBC Bump PR
 
-on: [push, pull_request]
+on:
+  push:
+    branches:
+      - master
 
 jobs:
   bumpNBC:
     runs-on: ubuntu-latest
     steps:
-      # - name: Clone nim-libp2p
-      #   uses: actions/checkout@v2
-      #   with:
-      #     path: nim-libp2p
-      #     submodules: true
-      #     fetch-depth: 0
-
       - uses: tibdex/github-app-token@v1
         name: Generate token
         id: generate-token
@@ -47,5 +43,6 @@ jobs:
           branch: nim-libp2p-auto-bump
           path: nbc
           token: ${{ steps.generate-token.outputs.token }}
+          title: nim-libp2p auto bump
 
 
