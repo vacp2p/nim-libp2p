@@ -189,16 +189,14 @@ proc getGossipPeers(g: GossipSub): Table[string, ControlMessage] {.gcsafe.} =
 
     let gossipPeers = mesh + fanout
     let mids = g.mcache.window(topic)
-    if mids.len <= 0:
+    if not mids.len > 0:
       continue
-
-    let ihave = ControlIHave(topicID: topic,
-                              messageIDs: toSeq(mids))
 
     if topic notin g.gossipsub:
       trace "topic not in gossip array, skipping", topicID = topic
       continue
 
+    let ihave = ControlIHave(topicID: topic, messageIDs: toSeq(mids))
     for peer in allPeers:
       if result.len >= GossipSubD:
         trace "got gossip peers", peers = result.len
@@ -422,7 +420,7 @@ method rpcHandler*(g: GossipSub,
                 trace "exception in message handler", exc = exc.msg
 
       # forward the message to all peers interested in it
-      let published = await g.publishHelper(toSendPeers, m.messages)
+      let published = await g.publishHelper(toSendPeers, m.messages, DefaultSendTimeout)
 
       trace "forwared message to peers", peers = published
 
@@ -436,9 +434,15 @@ method rpcHandler*(g: GossipSub,
       let messages = g.handleIWant(peer, control.iwant)
 
       if respControl.graft.len > 0 or respControl.prune.len > 0 or
-         respControl.ihave.len > 0 or respControl.iwant.len > 0:
-        await peer.send(
-          RPCMsg(control: some(respControl), messages: messages))
+        respControl.ihave.len > 0:
+        try:
+          info "sending control message", msg = respControl
+          await peer.send(
+            RPCMsg(control: some(respControl), messages: messages))
+        except CancelledError as exc:
+          raise exc
+        except CatchableError as exc:
+          trace "exception forwarding control messages", exc = exc.msg
 
 method subscribe*(g: GossipSub,
                   topic: string,
@@ -476,9 +480,10 @@ method unsubscribeAll*(g: GossipSub, topic: string) {.async.} =
 
 method publish*(g: GossipSub,
                 topic: string,
-                data: seq[byte]): Future[int] {.async.} =
+                data: seq[byte],
+                timeout: Duration = InfiniteDuration): Future[int] {.async.} =
   # base returns always 0
-  discard await procCall PubSub(g).publish(topic, data)
+  discard await procCall PubSub(g).publish(topic, data, timeout)
   trace "publishing message on topic", topic, data = data.shortLog
 
   var peers: HashSet[PubSubPeer]
@@ -512,7 +517,7 @@ method publish*(g: GossipSub,
   if msgId notin g.mcache:
     g.mcache.put(msgId, msg)
 
-  let published = await g.publishHelper(peers, @[msg])
+  let published = await g.publishHelper(peers, @[msg], timeout)
   if published > 0:
     libp2p_pubsub_messages_published.inc(labelValues = [topic])
 

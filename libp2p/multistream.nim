@@ -123,7 +123,7 @@ proc handle*(m: MultistreamSelect, conn: Connection, active: bool = false) {.asy
   trace "handle: starting multistream handling", handshaked = active
   var handshaked = active
   try:
-    while not conn.closed:
+    while not conn.atEof:
       var ms = string.fromBytes(await conn.readLp(1024))
       validateSuffix(ms)
 

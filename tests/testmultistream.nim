@@ -54,6 +54,7 @@ method write*(s: TestSelectStream, msg: seq[byte]) {.async, gcsafe.} = discard
 
 method close(s: TestSelectStream) {.async, gcsafe.} =
   s.isClosed = true
+  s.isEof = true
 
 proc newTestSelectStream(): TestSelectStream =
   new result
@@ -104,6 +105,7 @@ method write*(s: TestLsStream, msg: seq[byte]) {.async, gcsafe.} =
 
 method close(s: TestLsStream) {.async, gcsafe.} =
   s.isClosed = true
+  s.isEof = true
 
 proc newTestLsStream(ls: LsHandler): TestLsStream {.gcsafe.} =
   new result
@@ -157,6 +159,7 @@ method write*(s: TestNaStream, msg: seq[byte]) {.async, gcsafe.} =
 
 method close(s: TestNaStream) {.async, gcsafe.} =
   s.isClosed = true
+  s.isEof = true
 
 proc newTestNaStream(na: NaHandler): TestNaStream =
   new result
@@ -234,6 +237,7 @@ suite "Multistream select":
       let conn = newTestNaStream(testNaHandler)
 
       proc testNaHandler(msg: string): Future[void] {.async, gcsafe.} =
+        echo msg
         check msg == Na
         await conn.close()
 

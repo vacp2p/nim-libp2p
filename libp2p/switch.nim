@@ -97,14 +97,16 @@ proc triggerHooks(s: Switch, peer: PeerInfo, cycle: Lifecycle) {.async, gcsafe.}
 
 proc disconnect*(s: Switch, peer: PeerInfo) {.async, gcsafe.}
 proc subscribePeer*(s: Switch, peerInfo: PeerInfo) {.async, gcsafe.}
+proc subscribePeerInternal(s: Switch, peerInfo: PeerInfo) {.async, gcsafe.}
 
 proc cleanupPubSubPeer(s: Switch, conn: Connection) {.async.} =
   try:
     await conn.closeEvent.wait()
+    trace "about to cleanup pubsub peer"
     if s.pubSub.isSome:
       let fut = s.pubsubMonitors.getOrDefault(conn.peerInfo.peerId)
       if not(isNil(fut)) and not(fut.finished):
-        await fut.cancelAndWait()
+        fut.cancel()
 
       await s.pubSub.get().unsubscribePeer(conn.peerInfo)
   except CancelledError as exc:
@@ -235,7 +237,7 @@ proc upgradeOutgoing(s: Switch, conn: Connection): Future[Connection] {.async, g
   return sconn
 
 proc upgradeIncoming(s: Switch, conn: Connection) {.async, gcsafe.} =
-  trace "upgrading incoming connection", conn = $conn, oid = conn.oid
+  trace "upgrading incoming connection", conn = $conn, oid = $conn.oid
   let ms = newMultistream()
 
   # secure incoming connections
@@ -244,7 +246,7 @@ proc upgradeIncoming(s: Switch, conn: Connection) {.async, gcsafe.} =
                        {.async, gcsafe, closure.} =
 
     var sconn: Connection
-    trace "Securing connection", oid = conn.oid
+    trace "Securing connection", oid = $conn.oid
     let secure = s.secureManagers.filterIt(it.codec == proto)[0]
 
     try:
@@ -356,8 +358,8 @@ proc internalConnect(s: Switch,
   trace "dial successful", oid = $conn.oid,
                            peer = $conn.peerInfo
 
-  await s.subscribePeer(peer)
   asyncCheck s.cleanupPubSubPeer(conn)
+  asyncCheck s.subscribePeer(conn.peerInfo)
 
   trace "got connection", oid = $conn.oid,
                           direction = $conn.dir,
@@ -391,7 +393,7 @@ proc dial*(s: Switch,
                                          oid = $conn.oid
     if not await s.ms.select(stream, proto):
       await stream.close()
-      raise newException(CatchableError, "Unable to select sub-protocol " & proto)
+      raise newException(CatchableError, "Unable to select sub-protocol" & proto)
 
     return stream
   except CancelledError as exc:
@@ -445,7 +447,7 @@ proc start*(s: Switch): Future[seq[Future[void]]] {.async, gcsafe.} =
   if s.pubSub.isSome:
     await s.pubSub.get().start()
 
-  info "started libp2p node", peer = $s.peerInfo, addrs = s.peerInfo.addrs
+  debug "started libp2p node", peer = $s.peerInfo, addrs = s.peerInfo.addrs
   result = startFuts # listen for incoming connections
 
 proc stop*(s: Switch) {.async.} =
@@ -472,7 +474,9 @@ proc stop*(s: Switch) {.async.} =
 
 proc subscribePeerInternal(s: Switch, peerInfo: PeerInfo) {.async, gcsafe.} =
   ## Subscribe to pub sub peer
-  if s.pubSub.isSome and not(s.pubSub.get().connected(peerInfo)):
+  ##
+
+  if s.pubSub.isSome and not s.pubSub.get().connected(peerInfo):
     trace "about to subscribe to pubsub peer", peer = peerInfo.shortLog()
     var stream: Connection
     try:
@@ -483,6 +487,7 @@ proc subscribePeerInternal(s: Switch, peerInfo: PeerInfo) {.async, gcsafe.} =
 
       if not await s.ms.select(stream, s.pubSub.get().codec):
         if not(isNil(stream)):
+          trace "couldn't select pubsub", codec = s.pubSub.get().codec
           await stream.close()
         return
 
@@ -504,29 +509,25 @@ proc pubsubMonitor(s: Switch, peer: PeerInfo) {.async.} =
   ## pubsub connection as well
   ##
 
-  var tries = 0
-  var backoffFactor = 5 # up to ~10 mins
-  var backoff = 1.seconds
-  while s.isConnected(peer) and
-    tries < MaxPubsubReconnectAttempts:
+  while s.isConnected(peer):
     try:
-        debug "subscribing to pubsub peer", peer = $peer
-        await s.subscribePeerInternal(peer)
+      debug "subscribing to pubsub peer", peer = $peer
+      await s.subscribePeerInternal(peer)
     except CancelledError as exc:
       raise exc
     except CatchableError as exc:
       trace "exception in pubsub monitor", peer = $peer, exc = exc.msg
     finally:
-      debug "awaiting backoff period before reconnecting", peer = $peer, backoff, tries
-      await sleepAsync(backoff) # allow the peer to cooldown
-      backoff = backoff * backoffFactor
-      tries.inc()
+      debug "sleeping before trying pubsub peer", peer = $peer
+      await sleepAsync(1.seconds) # allow the peer to cooldown
 
   trace "exiting pubsub monitor", peer = $peer
 
 proc subscribePeer*(s: Switch, peerInfo: PeerInfo) {.async, gcsafe.} =
   if peerInfo.peerId notin s.pubsubMonitors:
     s.pubsubMonitors[peerInfo.peerId] = s.pubsubMonitor(peerInfo)
+
+  result = s.pubsubMonitors.getOrDefault(peerInfo.peerId)
 
 proc subscribe*(s: Switch, topic: string,
                 handler: TopicHandler) {.async.} =
@@ -554,14 +555,17 @@ proc unsubscribeAll*(s: Switch, topic: string) {.async.} =
 
   await s.pubSub.get().unsubscribeAll(topic)
 
-proc publish*(s: Switch, topic: string, data: seq[byte]): Future[int] {.async.} =
+proc publish*(s: Switch,
+              topic: string,
+              data: seq[byte],
+              timeout: Duration = InfiniteDuration): Future[int] {.async.} =
   ## pubslish to pubsub topic
   ##
 
   if s.pubSub.isNone:
     raise newNoPubSubException()
 
-  return await s.pubSub.get().publish(topic, data)
+  return await s.pubSub.get().publish(topic, data, timeout)
 
 proc addValidator*(s: Switch,
                    topics: varargs[string],
@@ -611,8 +615,8 @@ proc muxerHandler(s: Switch, muxer: Muxer) {.async, gcsafe.} =
     asyncCheck s.triggerHooks(muxer.connection.peerInfo, Lifecycle.Upgraded)
 
     # try establishing a pubsub connection
-    await s.subscribePeer(muxer.connection.peerInfo)
     asyncCheck s.cleanupPubSubPeer(muxer.connection)
+    asyncCheck s.subscribePeer(muxer.connection.peerInfo)
 
   except CancelledError as exc:
     await muxer.close()

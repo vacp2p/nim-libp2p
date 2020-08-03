@@ -117,7 +117,7 @@ method handle*(m: Mplex) {.async, gcsafe.} =
       trace "stopping mplex main loop", oid = $m.oid
       await m.close()
 
-    while not m.connection.closed:
+    while not m.connection.atEof:
       trace "waiting for data", oid = $m.oid
       let (id, msgType, data) = await m.connection.readMsg()
       trace "read message from connection", id = id,
@@ -169,7 +169,10 @@ method handle*(m: Mplex) {.async, gcsafe.} =
           trace "pushing data to channel"
 
           if data.len > MaxMsgSize:
+            warn "attempting to send a packet larger than allowed", allowed = MaxMsgSize,
+                                                                    sending = data.len
             raise newLPStreamLimitError()
+
           await channel.pushTo(data)
 
         of MessageType.CloseIn, MessageType.CloseOut:
