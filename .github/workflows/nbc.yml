@@ -17,8 +17,8 @@ jobs:
         name: Generate token
         id: generate-token
         with:
-          app_id: ${{ secrets.APP_ID }}
-          private_key: ${{ secrets.APP_PRIVATE_KEY }}
+          app_id: ${{ secrets.BUMP_BOT_APP_ID }}
+          private_key: ${{ secrets.BUMP_BOT_APP_PRIVATE_KEY }}
         
       - name: Clone NBC
         uses: actions/checkout@v2
