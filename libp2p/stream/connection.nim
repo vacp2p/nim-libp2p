@@ -20,12 +20,19 @@ logScope:
 
 const
   ConnectionTrackerName* = "libp2p.connection"
+  DefaultConnectionTimeout* = 1.minutes
 
 type
+  TimeoutHandler* = proc(): Future[void] {.gcsafe.}
+
   Direction* {.pure.} = enum
     None, In, Out
 
   Connection* = ref object of LPStream
+    activity*: bool                 # reset every time data is sent or received
+    timeout*: Duration              # channel timeout if no activity
+    timerTaskFut: Future[void]      # the current timer instanse
+    timeoutHandler*: TimeoutHandler # timeout handler
     peerInfo*: PeerInfo
     observedAddr*: Multiaddress
     dir*: Direction
@@ -35,6 +42,7 @@ type
     closed*: uint64
 
 proc setupConnectionTracker(): ConnectionTracker {.gcsafe.}
+proc timeoutMonitor(s: Connection) {.async, gcsafe.}
 
 proc getConnectionTracker*(): ConnectionTracker {.gcsafe.} =
   result = cast[ConnectionTracker](getTracker(ConnectionTrackerName))
@@ -58,21 +66,23 @@ proc setupConnectionTracker(): ConnectionTracker =
   result.isLeaked = leakTransport
   addTracker(ConnectionTrackerName, result)
 
-proc init*(C: type Connection,
-           peerInfo: PeerInfo,
-           dir: Direction): Connection =
-  result = C(peerInfo: peerInfo, dir: dir)
-  result.initStream()
-
 method initStream*(s: Connection) =
   if s.objName.len == 0:
     s.objName = "Connection"
 
   procCall LPStream(s).initStream()
   s.closeEvent = newAsyncEvent()
+
+  doAssert(isNil(s.timerTaskFut))
+  s.timerTaskFut = s.timeoutMonitor()
+
   inc getConnectionTracker().opened
 
 method close*(s: Connection) {.async.} =
+  ## cleanup timers
+  if not isNil(s.timerTaskFut) and not s.timerTaskFut.finished:
+    s.timerTaskFut.cancel()
+
   if not s.isClosed:
     await procCall LPStream(s).close()
     inc getConnectionTracker().closed
@@ -83,3 +93,50 @@ proc `$`*(conn: Connection): string =
 
 func hash*(p: Connection): Hash =
   cast[pointer](p).hash
+
+proc timeoutMonitor(s: Connection) {.async, gcsafe.} =
+  ## monitor the channel for innactivity
+  ##
+  ## if the timeout was hit, it means that
+  ## neither incoming nor outgoing activity
+  ## has been detected and the channel will
+  ## be reset
+  ##
+
+  logScope:
+    oid = $s.oid
+
+  try:
+    while true:
+      await sleepAsync(s.timeout)
+
+      if s.closed or s.atEof:
+        return
+
+      if s.activity:
+        s.activity = false
+        continue
+
+      break
+
+    # reset channel on innactivity timeout
+    trace "Connection timed out"
+    if not(isNil(s.timeoutHandler)):
+      await s.timeoutHandler()
+
+  except CancelledError as exc:
+    raise exc
+  except CatchableError as exc:
+    trace "exception in timeout", exc = exc.msg
+
+proc init*(C: type Connection,
+           peerInfo: PeerInfo,
+           dir: Direction,
+           timeout: Duration = DefaultConnectionTimeout,
+           timeoutHandler: TimeoutHandler = nil): Connection =
+  result = C(peerInfo: peerInfo,
+             dir: dir,
+             timeout: timeout,
+             timeoutHandler: timeoutHandler)
+
+  result.initStream()
