@@ -9,7 +9,7 @@ jobs:
   bumpNBC:
     runs-on: ubuntu-latest
     steps:
-      - uses: tibdex/github-app-token@v1
+      - uses: status-im/github-app-token@v1
         name: Generate token
         id: generate-token
         with:
@@ -38,7 +38,7 @@ jobs:
           git commit -a -m "auto-bump nim-libp2p"
       
       - name: Make PR
-        uses: peter-evans/create-pull-request@v3
+        uses: status-im/create-pull-request@v3
         with:
           branch: nim-libp2p-auto-bump
           path: nbc
