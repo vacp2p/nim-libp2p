@@ -511,14 +511,14 @@ proc pubsubMonitor(s: Switch, peer: PeerInfo) {.async.} =
 
   while s.isConnected(peer):
     try:
-      debug "subscribing to pubsub peer", peer = $peer
+      trace "subscribing to pubsub peer", peer = $peer
       await s.subscribePeerInternal(peer)
     except CancelledError as exc:
       raise exc
     except CatchableError as exc:
       trace "exception in pubsub monitor", peer = $peer, exc = exc.msg
     finally:
-      debug "sleeping before trying pubsub peer", peer = $peer
+      trace "sleeping before trying pubsub peer", peer = $peer
       await sleepAsync(1.seconds) # allow the peer to cooldown
 
   trace "exiting pubsub monitor", peer = $peer
