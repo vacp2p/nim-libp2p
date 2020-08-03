@@ -30,6 +30,8 @@ jobs:
       - name: Commit this bump
         run: |
           cd nbc
+          git config --global user.email "${{ github.actor }}@users.noreply.github.com"
+          git config --global user.name = "${{ github.actor }}""
           git commit -a -m "auto-bump nim-libp2p"
       
       - name: Make PR
