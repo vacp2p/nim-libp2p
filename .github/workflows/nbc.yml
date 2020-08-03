@@ -6,15 +6,30 @@ jobs:
   bumpNBC:
     runs-on: ubuntu-latest
     steps:
+      # - name: Clone nim-libp2p
+      #   uses: actions/checkout@v2
+      #   with:
+      #     path: nim-libp2p
+      #     submodules: true
+      #     fetch-depth: 0
+        
       - name: Clone NBC
         uses: actions/checkout@v2
         with:
           repository: status-im/nim-beacon-chain
           ref: devel
+          path: nbc
           submodules: true
           fetch-depth: 0
-      - name: Make PR
-        uses: peter-evans/create-pull-request@v3
-        with:
-          branch: nim-libp2p-auto-bump
+      
+      - name: checkout this ref
+        run: |
+          - cd nbc/vendor/nim-libp2p
+          - git checkout $GITHUB_SHA
+      
+      # - name: Make PR
+      #   uses: peter-evans/create-pull-request@v3
+      #   with:
+      #     branch: nim-libp2p-auto-bump
+
 
