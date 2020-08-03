@@ -1,0 +1,20 @@
+name: NBC Bump PR
+
+on: [push, pull_request]
+
+jobs:
+  bumpNBC:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clone NBC
+        uses: actions/checkout@v2
+        with:
+          repository: status-im/nim-beacon-chain
+          ref: devel
+          submodules: true
+          fetch-depth: 0
+      - name: Make PR
+        uses: peter-evans/create-pull-request@v3
+        with:
+          branch: nim-libp2p-auto-bump
+
