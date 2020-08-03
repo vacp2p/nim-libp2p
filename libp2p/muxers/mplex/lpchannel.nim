@@ -228,7 +228,7 @@ method initStream*(s: LPChannel) =
     s.objName = "LPChannel"
 
   s.timeoutHandler = proc() {.async, gcsafe.} =
-    trace "timeout, resetting LPChannel"
+    trace "idle timeout expired, resetting LPChannel"
     await s.reset()
 
   procCall BufferStream(s).initStream()
