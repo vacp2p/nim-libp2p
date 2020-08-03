@@ -207,7 +207,8 @@ proc sendGraft*(p: PubSubPeer, topics: seq[string]) {.async.} =
 
   try:
     await p.send(RPCMsg(control: some(
-      ControlMessage(graft: topics.mapIt(ControlGraft(topicID: it))))))
+      ControlMessage(graft: topics.mapIt(ControlGraft(topicID: it))))),
+      timeout = 1.minutes)
   except CancelledError as exc:
     raise exc
   except CatchableError as exc:
@@ -218,7 +219,8 @@ proc sendPrune*(p: PubSubPeer, topics: seq[string]) {.async.} =
 
   try:
     await p.send(RPCMsg(control: some(
-      ControlMessage(prune: topics.mapIt(ControlPrune(topicID: it))))))
+      ControlMessage(prune: topics.mapIt(ControlPrune(topicID: it))))),
+      timeout = 1.minutes)
   except CancelledError as exc:
     raise exc
   except CatchableError as exc:
