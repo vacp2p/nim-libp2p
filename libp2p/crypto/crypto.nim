@@ -70,13 +70,14 @@ when supported(PKScheme.Secp256k1):
 
 import ecnist, bearssl
 import ../protobuf/minprotobuf, ../vbuffer, ../multihash, ../multicodec
-import nimcrypto/[rijndael, twofish, sha2, hash, hmac, utils]
+import nimcrypto/[rijndael, twofish, sha2, hash, hmac]
+import nimcrypto/utils as ncrutils
 import ../utility
 import stew/results
 export results
 
 # This is workaround for Nim's `import` bug
-export rijndael, twofish, sha2, hash, hmac, utils
+export rijndael, twofish, sha2, hash, hmac, ncrutils
 
 from strutils import split
 
@@ -514,20 +515,14 @@ proc init*[T: PrivateKey|PublicKey](key: var T, data: string): bool =
   ## hexadecimal string representation.
   ##
   ## Returns ``true`` on success.
-  try:
-    key.init(utils.fromHex(data))
-  except ValueError:
-    false
+  key.init(ncrutils.fromHex(data))
 
 proc init*(sig: var Signature, data: string): bool =
   ## Initialize signature ``sig`` from serialized hexadecimal string
   ## representation.
   ##
   ## Returns ``true`` on success.
-  try:
-    sig.init(utils.fromHex(data))
-  except ValueError:
-    false
+  sig.init(ncrutils.fromHex(data))
 
 proc init*(t: typedesc[PrivateKey],
            data: openarray[byte]): CryptoResult[PrivateKey] =
@@ -559,10 +554,7 @@ proc init*(t: typedesc[Signature],
 proc init*(t: typedesc[PrivateKey], data: string): CryptoResult[PrivateKey] =
   ## Create new private key from libp2p's protobuf serialized hexadecimal string
   ## form.
-  try:
-    t.init(utils.fromHex(data))
-  except ValueError:
-    err(KeyError)
+  t.init(ncrutils.fromHex(data))
 
 when supported(PKScheme.RSA):
   proc init*(t: typedesc[PrivateKey], key: rsa.RsaPrivateKey): PrivateKey =
@@ -591,17 +583,11 @@ when supported(PKScheme.ECDSA):
 proc init*(t: typedesc[PublicKey], data: string): CryptoResult[PublicKey] =
   ## Create new public key from libp2p's protobuf serialized hexadecimal string
   ## form.
-  try:
-    t.init(utils.fromHex(data))
-  except ValueError:
-    err(KeyError)
+  t.init(ncrutils.fromHex(data))
 
 proc init*(t: typedesc[Signature], data: string): CryptoResult[Signature] =
   ## Create new signature from serialized hexadecimal string form.
-  try:
-    t.init(utils.fromHex(data))
-  except ValueError:
-    err(SigError)
+  t.init(ncrutils.fromHex(data))
 
 proc `==`*(key1, key2: PublicKey): bool {.inline.} =
   ## Return ``true`` if two public keys ``key1`` and ``key2`` of the same
@@ -709,7 +695,7 @@ func shortLog*(key: PrivateKey|PublicKey): string =
 
 proc `$`*(sig: Signature): string =
   ## Get string representation of signature ``sig``.
-  result = toHex(sig.data)
+  result = ncrutils.toHex(sig.data)
 
 proc sign*(key: PrivateKey,
            data: openarray[byte]): CryptoResult[Signature] {.gcsafe.} =

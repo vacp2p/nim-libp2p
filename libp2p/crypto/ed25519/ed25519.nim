@@ -14,7 +14,8 @@
 {.push raises: Defect.}
 
 import constants, bearssl
-import nimcrypto/[hash, sha2, utils]
+import nimcrypto/[hash, sha2]
+import nimcrypto/utils as ncrutils
 import stew/[results, ctops]
 export results
 
@@ -1735,14 +1736,17 @@ proc `==`*(eda, edb: EdSignature): bool =
   ## Compare ED25519 `signature` objects for equality.
   result = CT.isEqual(eda.data, edb.data)
 
-proc `$`*(key: EdPrivateKey): string = toHex(key.data)
+proc `$`*(key: EdPrivateKey): string =
   ## Return string representation of ED25519 `private key`.
+  ncrutils.toHex(key.data)
 
-proc `$`*(key: EdPublicKey): string = toHex(key.data)
+proc `$`*(key: EdPublicKey): string =
   ## Return string representation of ED25519 `private key`.
+  ncrutils.toHex(key.data)
 
-proc `$`*(sig: EdSignature): string = toHex(sig.data)
+proc `$`*(sig: EdSignature): string =
   ## Return string representation of ED25519 `signature`.
+  ncrutils.toHex(sig.data)
 
 proc init*(key: var EdPrivateKey, data: openarray[byte]): bool =
   ## Initialize ED25519 `private key` ``key`` from raw binary
@@ -1779,32 +1783,24 @@ proc init*(key: var EdPrivateKey, data: string): bool =
   ## representation ``data``.
   ##
   ## Procedure returns ``true`` on success.
-  try:
-    init(key, fromHex(data))
-  except ValueError:
-    false
+  init(key, ncrutils.fromHex(data))
 
 proc init*(key: var EdPublicKey, data: string): bool =
   ## Initialize ED25519 `public key` ``key`` from hexadecimal string
   ## representation ``data``.
   ##
   ## Procedure returns ``true`` on success.
-  try:
-    init(key, fromHex(data))
-  except ValueError:
-    false
+  init(key, ncrutils.fromHex(data))
 
 proc init*(sig: var EdSignature, data: string): bool =
   ## Initialize ED25519 `signature` ``sig`` from hexadecimal string
   ## representation ``data``.
   ##
   ## Procedure returns ``true`` on success.
-  try:
-    init(sig, fromHex(data))
-  except ValueError:
-    false
+  init(sig, ncrutils.fromHex(data))
 
-proc init*(t: typedesc[EdPrivateKey], data: openarray[byte]): Result[EdPrivateKey, EdError] =
+proc init*(t: typedesc[EdPrivateKey],
+           data: openarray[byte]): Result[EdPrivateKey, EdError] =
   ## Initialize ED25519 `private key` from raw binary representation ``data``
   ## and return constructed object.
   var res: t
@@ -1813,7 +1809,8 @@ proc init*(t: typedesc[EdPrivateKey], data: openarray[byte]): Result[EdPrivateKe
   else:
     ok(res)
 
-proc init*(t: typedesc[EdPublicKey], data: openarray[byte]): Result[EdPublicKey, EdError] =
+proc init*(t: typedesc[EdPublicKey],
+           data: openarray[byte]): Result[EdPublicKey, EdError] =
   ## Initialize ED25519 `public key` from raw binary representation ``data``
   ## and return constructed object.
   var res: t
@@ -1822,7 +1819,8 @@ proc init*(t: typedesc[EdPublicKey], data: openarray[byte]): Result[EdPublicKey,
   else:
     ok(res)
 
-proc init*(t: typedesc[EdSignature], data: openarray[byte]): Result[EdSignature, EdError] =
+proc init*(t: typedesc[EdSignature],
+           data: openarray[byte]): Result[EdSignature, EdError] =
   ## Initialize ED25519 `signature` from raw binary representation ``data``
   ## and return constructed object.
   var res: t
@@ -1831,7 +1829,8 @@ proc init*(t: typedesc[EdSignature], data: openarray[byte]): Result[EdSignature,
   else:
     ok(res)
 
-proc init*(t: typedesc[EdPrivateKey], data: string): Result[EdPrivateKey, EdError] =
+proc init*(t: typedesc[EdPrivateKey],
+           data: string): Result[EdPrivateKey, EdError] =
   ## Initialize ED25519 `private key` from hexadecimal string representation
   ## ``data`` and return constructed object.
   var res: t
@@ -1840,7 +1839,8 @@ proc init*(t: typedesc[EdPrivateKey], data: string): Result[EdPrivateKey, EdErro
   else:
     ok(res)
 
-proc init*(t: typedesc[EdPublicKey], data: string): Result[EdPublicKey, EdError] =
+proc init*(t: typedesc[EdPublicKey],
+           data: string): Result[EdPublicKey, EdError] =
   ## Initialize ED25519 `public key` from hexadecimal string representation
   ## ``data`` and return constructed object.
   var res: t
@@ -1849,7 +1849,8 @@ proc init*(t: typedesc[EdPublicKey], data: string): Result[EdPublicKey, EdError]
   else:
     ok(res)
 
-proc init*(t: typedesc[EdSignature], data: string): Result[EdSignature, EdError] =
+proc init*(t: typedesc[EdSignature],
+           data: string): Result[EdSignature, EdError] =
   ## Initialize ED25519 `signature` from hexadecimal string representation
   ## ``data`` and return constructed object.
   var res: t
