@@ -24,8 +24,8 @@ jobs:
       
       - name: checkout this ref
         run: |
-          - cd nbc/vendor/nim-libp2p
-          - git checkout $GITHUB_SHA
+          cd nbc/vendor/nim-libp2p
+          git checkout $GITHUB_SHA
       
       # - name: Make PR
       #   uses: peter-evans/create-pull-request@v3
