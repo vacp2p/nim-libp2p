@@ -26,7 +26,7 @@ method initStream*(s: ChronosStream) =
     s.objName = "ChronosStream"
 
   s.timeoutHandler = proc() {.async, gcsafe.} =
-    trace "timeout expired, closing ChronosStream"
+    trace "idle timeout expired, closing ChronosStream"
     await s.close()
 
   procCall Connection(s).initStream()
