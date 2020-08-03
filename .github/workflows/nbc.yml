@@ -22,13 +22,14 @@ jobs:
           submodules: true
           fetch-depth: 0
       
-      - name: checkout this ref
+      - name: Checkout this ref
         run: |
           cd nbc/vendor/nim-libp2p
           git checkout $GITHUB_SHA
 
-      - name: commit this bump
+      - name: Commit this bump
         run: |
+          cd nbc
           git commit -a -m "auto-bump nim-libp2p"
       
       - name: Make PR
