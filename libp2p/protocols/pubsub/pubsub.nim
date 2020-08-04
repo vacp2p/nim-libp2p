@@ -204,12 +204,9 @@ method unsubscribePeer*(p: PubSub, peerInfo: PeerInfo) {.base, async.} =
     if not(isNil(peer)) and not(isNil(peer.conn)):
       await peer.conn.close()
 
-proc connected*(p: PubSub, peerInfo: PeerInfo): bool =
-  if peerInfo.id in p.peers:
-    let peer = p.peers[peerInfo.id]
-
-    if not(isNil(peer)):
-      return peer.connected
+proc connected*(p: PubSub, peerId: PeerID): bool =
+  p.peers.withValue($peerId, peer):
+    return peer[] != nil and peer[].connected
 
 method unsubscribe*(p: PubSub,
                     topics: seq[TopicPair]) {.base, async.} =
@@ -388,3 +385,6 @@ proc removeObserver*(p: PubSub; observer: PubSubObserver) =
   let idx = p.observers[].find(observer)
   if idx != -1:
     p.observers[].del(idx)
+
+proc connected*(p: PubSub, peerInfo: PeerInfo): bool {.deprecated: "Use PeerID version".} =
+  peerInfo != nil and connected(p, peerInfo.peerId)
