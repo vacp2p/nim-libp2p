@@ -29,6 +29,7 @@ type
   PeerInfo* = ref object of RootObj
     peerId*: PeerID
     addrs*: seq[MultiAddress]
+    secureCodec*: string
     protocols*: seq[string]
     lifefut: Future[void]
     protoVersion*: string
@@ -49,6 +50,7 @@ proc `$`*(p: PeerInfo): string = p.id
 proc shortLog*(p: PeerInfo): auto =
   (
     id: p.id(),
+    secureCodec: p.secureCodec,
     addrs: mapIt(p.addrs, $it),
     protocols: mapIt(p.protocols, $it),
     protoVersion: p.protoVersion,
