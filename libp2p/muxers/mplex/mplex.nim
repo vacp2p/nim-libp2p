@@ -23,7 +23,8 @@ export muxer
 logScope:
   topics = "mplex"
 
-declareGauge(libp2p_mplex_channels, "mplex channels", labels = ["initiator", "peer"])
+when defined(libp2p_expensive_metrics):
+  declareGauge(libp2p_mplex_channels, "mplex channels", labels = ["initiator", "peer"])
 
 type
   Mplex* = ref object of Muxer
@@ -76,10 +77,11 @@ proc newStreamInternal*(m: Mplex,
     "channel slot already taken!")
 
   m.getChannelList(initiator)[id] = result
-  libp2p_mplex_channels.set(
-    m.getChannelList(initiator).len.int64,
-    labelValues = [$initiator,
-                   $m.connection.peerInfo])
+  when defined(libp2p_expensive_metrics):
+    libp2p_mplex_channels.set(
+      m.getChannelList(initiator).len.int64,
+      labelValues = [$initiator,
+                     $m.connection.peerInfo])
 
 proc cleanupChann(m: Mplex, chann: LPChannel) {.async, inline.} =
   ## remove the local channel from the internal tables
@@ -89,10 +91,11 @@ proc cleanupChann(m: Mplex, chann: LPChannel) {.async, inline.} =
     m.getChannelList(chann.initiator).del(chann.id)
     trace "cleaned up channel", id = chann.id
 
-  libp2p_mplex_channels.set(
-    m.getChannelList(chann.initiator).len.int64,
-    labelValues = [$chann.initiator,
-                    $m.connection.peerInfo])
+  when defined(libp2p_expensive_metrics):
+    libp2p_mplex_channels.set(
+      m.getChannelList(chann.initiator).len.int64,
+      labelValues = [$chann.initiator,
+                      $m.connection.peerInfo])
 
 proc handleStream(m: Mplex, chann: LPChannel) {.async.} =
   ## call the muxer stream handler for this channel
