@@ -15,7 +15,9 @@ import utils,
        ../../libp2p/[errors,
                      switch,
                      stream/connection,
+                     stream/bufferstream,
                      crypto/crypto,
+                     protocols/pubsub/pubsubpeer,
                      protocols/pubsub/pubsub,
                      protocols/pubsub/floodsub,
                      protocols/pubsub/rpc/messages,
@@ -54,7 +56,7 @@ suite "FloodSub":
           nodes[1].start()
         )
 
-      await subscribeNodes(nodes)
+      let subscribes = await subscribeNodes(nodes)
 
       await nodes[1].subscribe("foobar", handler)
       await waitSub(nodes[0], nodes[1], "foobar")
@@ -69,6 +71,7 @@ suite "FloodSub":
       )
 
       await allFuturesThrowing(nodesFut.concat())
+      await allFuturesThrowing(subscribes)
 
     check:
       waitFor(runTests()) == true
@@ -85,7 +88,7 @@ suite "FloodSub":
       awaiters.add((await nodes[0].start()))
       awaiters.add((await nodes[1].start()))
 
-      await subscribeNodes(nodes)
+      let subscribes = await subscribeNodes(nodes)
 
       await nodes[0].subscribe("foobar", handler)
       await waitSub(nodes[1], nodes[0], "foobar")
@@ -95,6 +98,8 @@ suite "FloodSub":
       result = await completionFut.wait(5.seconds)
 
       await allFuturesThrowing(nodes[0].stop(), nodes[1].stop())
+
+      await allFuturesThrowing(subscribes)
       await allFuturesThrowing(awaiters)
 
     check:
@@ -112,7 +117,7 @@ suite "FloodSub":
       awaiters.add((await nodes[0].start()))
       awaiters.add((await nodes[1].start()))
 
-      await subscribeNodes(nodes)
+      let subscribes = await subscribeNodes(nodes)
       await nodes[1].subscribe("foobar", handler)
       await waitSub(nodes[0], nodes[1], "foobar")
 
@@ -131,6 +136,8 @@ suite "FloodSub":
       await allFuturesThrowing(
         nodes[0].stop(),
         nodes[1].stop())
+
+      await allFuturesThrowing(subscribes)
       await allFuturesThrowing(awaiters)
       result = true
 
@@ -147,7 +154,7 @@ suite "FloodSub":
       awaiters.add((await nodes[0].start()))
       awaiters.add((await nodes[1].start()))
 
-      await subscribeNodes(nodes)
+      let subscribes = await subscribeNodes(nodes)
       await nodes[1].subscribe("foobar", handler)
       await waitSub(nodes[0], nodes[1], "foobar")
 
@@ -164,6 +171,8 @@ suite "FloodSub":
       await allFuturesThrowing(
         nodes[0].stop(),
         nodes[1].stop())
+
+      await allFuturesThrowing(subscribes)
       await allFuturesThrowing(awaiters)
       result = true
 
@@ -182,7 +191,7 @@ suite "FloodSub":
       awaiters.add((await nodes[0].start()))
       awaiters.add((await nodes[1].start()))
 
-      await subscribeNodes(nodes)
+      let subscribes = await subscribeNodes(nodes)
       await nodes[1].subscribe("foo", handler)
       await waitSub(nodes[0], nodes[1], "foo")
       await nodes[1].subscribe("bar", handler)
@@ -203,6 +212,47 @@ suite "FloodSub":
       await allFuturesThrowing(
         nodes[0].stop(),
         nodes[1].stop())
+
+      await allFuturesThrowing(subscribes)
+      await allFuturesThrowing(awaiters)
+      result = true
+
+    check:
+      waitFor(runTests()) == true
+
+  test "FloodSub publish should fail on timeout":
+    proc runTests(): Future[bool] {.async.} =
+      proc handler(topic: string, data: seq[byte]) {.async, gcsafe.} =
+        discard
+
+      var nodes = generateNodes(2)
+      var awaiters: seq[Future[void]]
+      awaiters.add((await nodes[0].start()))
+      awaiters.add((await nodes[1].start()))
+
+      let subscribes = await subscribeNodes(nodes)
+      await nodes[1].subscribe("foobar", handler)
+      await waitSub(nodes[0], nodes[1], "foobar")
+
+      let pubsub = nodes[0].pubSub.get()
+      let peer = pubsub.peers[nodes[1].peerInfo.id]
+
+      peer.conn = Connection(newBufferStream(
+        proc (data: seq[byte]) {.async, gcsafe.} =
+          await sleepAsync(10.seconds)
+        ,size = 0))
+
+      let in10millis = Moment.fromNow(10.millis)
+      let sent = await nodes[0].publish("foobar", "Hello!".toBytes(), 10.millis)
+
+      check Moment.now() >= in10millis
+      check sent == 0
+
+      await allFuturesThrowing(
+        nodes[0].stop(),
+        nodes[1].stop())
+
+      await allFuturesThrowing(subscribes)
       await allFuturesThrowing(awaiters)
       result = true
 
@@ -237,7 +287,7 @@ suite "FloodSub":
       for i in 0..<runs:
         awaitters.add(await nodes[i].start())
 
-      await subscribeNodes(nodes)
+      let subscribes = await subscribeNodes(nodes)
 
       for i in 0..<runs:
         await nodes[i].subscribe("foobar", futs[i][1])
@@ -256,6 +306,8 @@ suite "FloodSub":
 
       await allFuturesThrowing(futs.mapIt(it[0]))
       await allFuturesThrowing(nodes.mapIt(it.stop()))
+
+      await allFuturesThrowing(subscribes)
       await allFuturesThrowing(awaitters)
 
       result = true
@@ -291,7 +343,7 @@ suite "FloodSub":
       for i in 0..<runs:
         awaitters.add(await nodes[i].start())
 
-      await subscribeNodes(nodes)
+      let subscribes = await subscribeNodes(nodes)
 
       for i in 0..<runs:
         await nodes[i].subscribe("foobar", futs[i][1])
@@ -310,6 +362,8 @@ suite "FloodSub":
 
       await allFuturesThrowing(futs.mapIt(it[0]))
       await allFuturesThrowing(nodes.mapIt(it.stop()))
+
+      await allFuturesThrowing(subscribes)
       await allFuturesThrowing(awaitters)
 
       result = true

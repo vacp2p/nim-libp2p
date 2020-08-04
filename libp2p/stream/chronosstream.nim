@@ -7,6 +7,7 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
+import oids
 import chronos, chronicles
 import connection
 
@@ -73,7 +74,7 @@ method close*(s: ChronosStream) {.async.} =
   try:
     if not s.isClosed:
       trace "shutting down chronos stream", address = $s.client.remoteAddress(),
-                                            oid = s.oid
+                                            oid = $s.oid
       if not s.client.closed():
         await s.client.closeWait()
 

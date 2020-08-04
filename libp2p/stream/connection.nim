@@ -8,12 +8,15 @@
 ## those terms.
 
 import hashes
-import chronos, metrics
+import chronicles, chronos, metrics
 import lpstream,
        ../multiaddress,
        ../peerinfo
 
 export lpstream
+
+logScope:
+  topics = "connection"
 
 const
   ConnectionTrackerName* = "libp2p.connection"
