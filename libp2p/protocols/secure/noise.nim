@@ -455,14 +455,14 @@ method handshake*(p: Noise, conn: Connection, initiator: bool): Future[SecureCon
     let r1 = remoteProof.getField(1, remotePubKeyBytes)
     let r2 = remoteProof.getField(2, remoteSigBytes)
     if r1.isErr() or not(r1.get()):
-      raise newException(NoiseHandshakeError, "Failed to deserialize remote public key bytes. (initiator: " & $initiator & ", peer: " & $conn.peerInfo.peerId & ")")
+      raise newException(NoiseHandshakeError, "Failed to deserialize remote public key bytes. (initiator: " & $initiator & ")")
     if r2.isErr() or not(r2.get()):
-      raise newException(NoiseHandshakeError, "Failed to deserialize remote signature bytes. (initiator: " & $initiator & ", peer: " & $conn.peerInfo.peerId & ")")
+      raise newException(NoiseHandshakeError, "Failed to deserialize remote signature bytes. (initiator: " & $initiator & ")")
 
     if not remotePubKey.init(remotePubKeyBytes):
-      raise newException(NoiseHandshakeError, "Failed to decode remote public key. (initiator: " & $initiator & ", peer: " & $conn.peerInfo.peerId & ")")
+      raise newException(NoiseHandshakeError, "Failed to decode remote public key. (initiator: " & $initiator & ")")
     if not remoteSig.init(remoteSigBytes):
-      raise newException(NoiseHandshakeError, "Failed to decode remote signature. (initiator: " & $initiator & ", peer: " & $conn.peerInfo.peerId & ")")
+      raise newException(NoiseHandshakeError, "Failed to decode remote signature. (initiator: " & $initiator & ")")
 
     let verifyPayload = PayloadString.toBytes & handshakeRes.rs.getBytes
     if not remoteSig.verify(verifyPayload, remotePubKey):
@@ -478,11 +478,19 @@ method handshake*(p: Noise, conn: Connection, initiator: bool): Future[SecureCon
         var
           failedKey: PublicKey
         discard extractPublicKey(conn.peerInfo.peerId, failedKey)
-        debug "Noise handshake, peer infos don't match!", initiator, dealt_peer = $conn.peerInfo.id, dealt_key = $failedKey, received_peer = $pid, received_key = $remotePubKey
+        debug "Noise handshake, peer infos don't match!",
+          initiator, dealt_peer = $conn.peerInfo.id,
+          dealt_key = $failedKey, received_peer = $pid,
+          received_key = $remotePubKey
         raise newException(NoiseHandshakeError, "Noise handshake, peer infos don't match! " & $pid & " != " & $conn.peerInfo.peerId)
 
-    var tmp = NoiseConnection.init(
-      conn, PeerInfo.init(remotePubKey), conn.observedAddr)
+    let peerInfo =
+      if conn.peerInfo != nil: conn.peerInfo
+      else: PeerInfo.init(remotePubKey)
+
+    peerInfo.secureCodec = NoiseCodec
+
+    var tmp = NoiseConnection.init(conn, peerInfo, conn.observedAddr)
 
     if initiator:
       tmp.readCs = handshakeRes.cs2
@@ -494,7 +502,7 @@ method handshake*(p: Noise, conn: Connection, initiator: bool): Future[SecureCon
   finally:
     burnMem(handshakeRes)
 
-  trace "Noise handshake completed!", initiator, peer = $secure.peerInfo
+  trace "Noise handshake completed!", initiator, peer = shortLog(secure.peerInfo)
 
   return secure
 

@@ -246,9 +246,14 @@ proc newSecioConn(conn: Connection,
   ## Create new secure stream/lpstream, using specified hash algorithm ``hash``,
   ## cipher algorithm ``cipher``, stretched keys ``secrets`` and order
   ## ``order``.
-  result = SecioConn.init(conn,
-                          PeerInfo.init(remotePubKey),
-                          conn.observedAddr)
+
+  let peerInfo =
+    if conn.peerInfo != nil: conn.peerInfo
+    else: PeerInfo.init(remotePubKey)
+
+  peerInfo.secureCodec = SecioCodec  & "(" & cipher & ")"
+
+  result = SecioConn.init(conn, peerInfo, conn.observedAddr)
 
   let i0 = if order < 0: 1 else: 0
   let i1 = if order < 0: 0 else: 1
