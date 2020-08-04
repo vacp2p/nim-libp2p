@@ -16,7 +16,7 @@ logScope:
   topics = "muxer"
 
 const
-  DefaultChanTimeout* = 1.minutes
+  DefaultChanTimeout* = 5.minutes
 
 type
   StreamHandler* = proc(conn: Connection): Future[void] {.gcsafe.}

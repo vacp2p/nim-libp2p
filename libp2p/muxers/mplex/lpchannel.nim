@@ -46,8 +46,6 @@ logScope:
 type
   LPChannel* = ref object of BufferStream
     id*: uint64                   # channel id
-    timeout: Duration             # channel timeout if no activity
-    activity: bool                # reset every time data is sent or received
     name*: string                 # name of the channel (for debugging)
     conn*: Connection             # wrapped connection used to for writing
     initiator*: bool              # initiated remotely or locally flag
@@ -57,7 +55,6 @@ type
     msgCode*: MessageType         # cached in/out message code
     closeCode*: MessageType       # cached in/out close code
     resetCode*: MessageType       # cached in/out reset code
-    timerTaskFut: Future[void]    # the current timer instanse
 
 proc open*(s: LPChannel) {.async, gcsafe.}
 
@@ -78,11 +75,6 @@ template withEOFExceptions(body: untyped): untyped =
     trace "muxed connection closed", exc = exc.msg
   except LPStreamIncompleteError as exc:
     trace "incomplete message", exc = exc.msg
-
-proc cleanupTimer(s: LPChannel) {.async.} =
-  ## cleanup timers
-  if not isNil(s.timerTaskFut) and not s.timerTaskFut.finished:
-    s.timerTaskFut.cancel()
 
 proc closeMessage(s: LPChannel) {.async.} =
   logScope:
@@ -150,7 +142,6 @@ proc closeRemote*(s: LPChannel) {.async.} =
 
     # call to avoid leaks
     await procCall BufferStream(s).close() # close parent bufferstream
-    await s.cleanupTimer()
 
     trace "channel closed on EOF"
   except CancelledError as exc:
@@ -193,8 +184,6 @@ method reset*(s: LPChannel) {.base, async, gcsafe.} =
     s.isEof = true
     s.closedLocal = true
 
-    await s.cleanupTimer()
-
   except CancelledError as exc:
     raise exc
   except CatchableError as exc:
@@ -222,7 +211,6 @@ method close*(s: LPChannel) {.async, gcsafe.} =
       await s.closeMessage().wait(2.minutes)
       if s.atEof: # already closed by remote close parent buffer immediately
         await procCall BufferStream(s).close()
-        await s.cleanupTimer()
     except CancelledError as exc:
       await s.reset()
       raise exc
@@ -235,59 +223,15 @@ method close*(s: LPChannel) {.async, gcsafe.} =
   s.closedLocal = true
   asyncCheck closeInternal()
 
-proc timeoutMonitor(s: LPChannel) {.async.} =
-  ## monitor the channel for innactivity
-  ##
-  ## if the timeout was hit, it means that
-  ## neither incoming nor outgoing activity
-  ## has been detected and the channel will
-  ## be reset
-  ##
-
-  logScope:
-    id = s.id
-    initiator = s.initiator
-    name = s.name
-    oid = $s.oid
-    peer = $s.conn.peerInfo
-
-  try:
-    while true:
-      await sleepAsync(s.timeout)
-
-      if s.closed or s.atEof:
-        return
-
-      if s.activity:
-        s.activity = false
-        continue
-
-      break
-
-    # reset channel on innactivity timeout
-    trace "channel timed out, resetting"
-    await s.reset()
-  except CancelledError as exc:
-    raise exc
-  except CatchableError as exc:
-    trace "exception in timeout", exc = exc.msg
-
 method initStream*(s: LPChannel) =
   if s.objName.len == 0:
     s.objName = "LPChannel"
 
+  s.timeoutHandler = proc() {.async, gcsafe.} =
+    trace "idle timeout expired, resetting LPChannel"
+    await s.reset()
+
   procCall BufferStream(s).initStream()
-
-method readOnce*(s: LPChannel,
-                 pbytes: pointer,
-                 nbytes: int):
-                 Future[int] =
-  s.activity = true
-  procCall BufferStream(s).readOnce(pbytes, nbytes)
-
-method write*(s: LPChannel, msg: seq[byte]): Future[void] =
-  s.activity = true
-  procCall BufferStream(s).write(msg)
 
 proc init*(
   L: type LPChannel,
@@ -339,7 +283,6 @@ proc init*(
   when chronicles.enabledLogLevel == LogLevel.TRACE:
     chann.name = if chann.name.len > 0: chann.name else: $chann.oid
 
-  chann.timerTaskFut = chann.timeoutMonitor()
   trace "created new lpchannel"
 
   return chann

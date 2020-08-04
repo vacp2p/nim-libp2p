@@ -14,18 +14,28 @@ import connection
 logScope:
   topics = "chronosstream"
 
-type ChronosStream* = ref object of Connection
+const
+  DefaultChronosStreamTimeout = 10.minutes
+
+type
+  ChronosStream* = ref object of Connection
     client: StreamTransport
 
 method initStream*(s: ChronosStream) =
   if s.objName.len == 0:
     s.objName = "ChronosStream"
 
+  s.timeoutHandler = proc() {.async, gcsafe.} =
+    trace "idle timeout expired, closing ChronosStream"
+    await s.close()
+
   procCall Connection(s).initStream()
 
-proc newChronosStream*(client: StreamTransport): ChronosStream =
-  new result
-  result.client = client
+proc init*(C: type ChronosStream,
+           client: StreamTransport,
+           timeout = DefaultChronosStreamTimeout): ChronosStream =
+  result = C(client: client,
+             timeout: timeout)
   result.initStream()
 
 template withExceptions(body: untyped) =
@@ -48,6 +58,7 @@ method readOnce*(s: ChronosStream, pbytes: pointer, nbytes: int): Future[int] {.
 
   withExceptions:
     result = await s.client.readOnce(pbytes, nbytes)
+    s.activity = true # reset activity flag
 
 method write*(s: ChronosStream, msg: seq[byte]) {.async.} =
   if s.closed:
@@ -60,6 +71,7 @@ method write*(s: ChronosStream, msg: seq[byte]) {.async.} =
     var written = 0
     while not s.client.closed and written < msg.len:
       written += await s.client.write(msg[written..<msg.len])
+      s.activity = true # reset activity flag
 
     if written < msg.len:
       raise (ref LPStreamClosedError)(msg: "Write couldn't finish writing")
