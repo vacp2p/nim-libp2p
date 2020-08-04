@@ -37,6 +37,8 @@ const
   NoiseSize = 32
   MaxPlainSize = int(uint16.high - NoiseSize - ChaChaPolyTag.len)
 
+  HandshakeTimeout = 1.minutes
+
 type
   KeyPair = object
     privateKey: Curve25519Key
@@ -265,14 +267,14 @@ template read_s: untyped =
 
 proc receiveHSMessage(sconn: Connection): Future[seq[byte]] {.async.} =
   var besize: array[2, byte]
-  await sconn.readExactly(addr besize[0], besize.len)
+  await sconn.readExactly(addr besize[0], besize.len).wait(HandshakeTimeout)
   let size = uint16.fromBytesBE(besize).int
   trace "receiveHSMessage", size
   if size == 0:
     return
 
   var buffer = newSeq[byte](size)
-  await sconn.readExactly(addr buffer[0], buffer.len)
+  await sconn.readExactly(addr buffer[0], buffer.len).wait(HandshakeTimeout)
   return buffer
 
 proc sendHSMessage(sconn: Connection; buf: openArray[byte]): Future[void] =
