@@ -90,7 +90,7 @@ type
 
 proc genKeyPair(rng: var BrHmacDrbgContext): KeyPair =
   result.privateKey = Curve25519Key.random(rng)
-  result.publicKey = result.privateKey.public().tryGet()
+  result.publicKey = result.privateKey.public()
 
 proc hashProtocol(name: string): MDigest[256] =
   # If protocol_name is less than or equal to HASHLEN bytes in length,
@@ -103,7 +103,8 @@ proc hashProtocol(name: string): MDigest[256] =
     result = sha256.digest(name)
 
 proc dh(priv: Curve25519Key, pub: Curve25519Key): Curve25519Key =
-  Curve25519.mul(result, pub, priv)
+  result = pub
+  Curve25519.mul(result, priv)
 
 # Cipherstate
 
