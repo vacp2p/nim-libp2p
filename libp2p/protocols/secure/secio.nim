@@ -251,8 +251,6 @@ proc newSecioConn(conn: Connection,
     if conn.peerInfo != nil: conn.peerInfo
     else: PeerInfo.init(remotePubKey)
 
-  peerInfo.secureCodec = SecioCodec  & "(" & cipher & ")"
-
   result = SecioConn.init(conn, peerInfo, conn.observedAddr)
 
   let i0 = if order < 0: 1 else: 0

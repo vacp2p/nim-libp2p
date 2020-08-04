@@ -488,8 +488,6 @@ method handshake*(p: Noise, conn: Connection, initiator: bool): Future[SecureCon
       if conn.peerInfo != nil: conn.peerInfo
       else: PeerInfo.init(remotePubKey)
 
-    peerInfo.secureCodec = NoiseCodec
-
     var tmp = NoiseConnection.init(conn, peerInfo, conn.observedAddr)
 
     if initiator:
