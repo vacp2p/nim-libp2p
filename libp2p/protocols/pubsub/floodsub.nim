@@ -140,7 +140,8 @@ method publish*(f: FloodSub,
   # start the future but do not wait yet
   let published = await f.publishHelper(f.floodsub.getOrDefault(topic), @[msg], timeout)
 
-  libp2p_pubsub_messages_published.inc(labelValues = [topic])
+  when defined(libp2p_expensive_metrics):
+    libp2p_pubsub_messages_published.inc(labelValues = [topic])
 
   trace "published message to peers", peers = published,
                                       msg = msg.shortLog()

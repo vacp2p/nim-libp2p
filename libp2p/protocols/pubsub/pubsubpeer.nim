@@ -21,10 +21,11 @@ import rpc/[messages, message, protobuf],
 logScope:
   topics = "pubsubpeer"
 
-declareCounter(libp2p_pubsub_sent_messages, "number of messages sent", labels = ["id", "topic"])
-declareCounter(libp2p_pubsub_received_messages, "number of messages received", labels = ["id", "topic"])
-declareCounter(libp2p_pubsub_skipped_received_messages, "number of received skipped messages", labels = ["id"])
-declareCounter(libp2p_pubsub_skipped_sent_messages, "number of sent skipped messages", labels = ["id"])
+when defined(libp2p_expensive_metrics):
+  declareCounter(libp2p_pubsub_sent_messages, "number of messages sent", labels = ["id", "topic"])
+  declareCounter(libp2p_pubsub_received_messages, "number of messages received", labels = ["id", "topic"])
+  declareCounter(libp2p_pubsub_skipped_received_messages, "number of received skipped messages", labels = ["id"])
+  declareCounter(libp2p_pubsub_skipped_sent_messages, "number of sent skipped messages", labels = ["id"])
 
 const
   DefaultReadTimeout* = 1.minutes
@@ -91,7 +92,8 @@ proc handle*(p: PubSubPeer, conn: Connection) {.async.} =
         let digest = $(sha256.digest(data))
         trace "read data from peer", data = data.shortLog
         if digest in p.recvdRpcCache:
-          libp2p_pubsub_skipped_received_messages.inc(labelValues = [p.id])
+          when defined(libp2p_expensive_metrics):
+            libp2p_pubsub_skipped_received_messages.inc(labelValues = [p.id])
           trace "message already received, skipping"
           continue
 
@@ -106,10 +108,11 @@ proc handle*(p: PubSubPeer, conn: Connection) {.async.} =
         # trigger hooks
         p.recvObservers(msg)
 
-        for m in msg.messages:
-          for t in m.topicIDs:
-            # metrics
-            libp2p_pubsub_received_messages.inc(labelValues = [p.id, t])
+        when defined(libp2p_expensive_metrics):
+          for m in msg.messages:
+            for t in m.topicIDs:
+              # metrics
+              libp2p_pubsub_received_messages.inc(labelValues = [p.id, t])
 
         await p.handler(p, @[msg])
         p.recvdRpcCache.put(digest)
@@ -148,7 +151,8 @@ proc send*(
   let digest = $(sha256.digest(encoded))
   if digest in p.sentRpcCache:
     trace "message already sent to peer, skipping"
-    libp2p_pubsub_skipped_sent_messages.inc(labelValues = [p.id])
+    when defined(libp2p_expensive_metrics):
+      libp2p_pubsub_skipped_sent_messages.inc(labelValues = [p.id])
     return
 
   proc sendToRemote() {.async.} =
@@ -168,10 +172,11 @@ proc send*(
       p.sentRpcCache.put(digest)
       trace "sent pubsub message to remote"
 
-      for x in mm.messages:
-        for t in x.topicIDs:
-          # metrics
-          libp2p_pubsub_sent_messages.inc(labelValues = [p.id, t])
+      when defined(libp2p_expensive_metrics):
+        for x in mm.messages:
+          for t in x.topicIDs:
+            # metrics
+            libp2p_pubsub_sent_messages.inc(labelValues = [p.id, t])
 
   let sendFut = sendToRemote()
   try:

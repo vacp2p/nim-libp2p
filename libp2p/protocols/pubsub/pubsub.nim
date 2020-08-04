@@ -27,7 +27,8 @@ declareGauge(libp2p_pubsub_peers, "pubsub peer instances")
 declareGauge(libp2p_pubsub_topics, "pubsub subscribed topics")
 declareCounter(libp2p_pubsub_validation_success, "pubsub successfully validated messages")
 declareCounter(libp2p_pubsub_validation_failure, "pubsub failed validated messages")
-declarePublicCounter(libp2p_pubsub_messages_published, "published messages", labels = ["topic"])
+when defined(libp2p_expensive_metrics):
+  declarePublicCounter(libp2p_pubsub_messages_published, "published messages", labels = ["topic"])
 
 type
   TopicHandler* = proc(topic: string,

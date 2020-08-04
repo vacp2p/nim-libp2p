@@ -23,7 +23,7 @@ An implementation of [libp2p](https://libp2p.io/) in Nim. Also provides a Nim wr
 ## Project Status
 The current native Nim libp2p implementation support is experimental and shouldn't be relied on for production use. It is under active development and contributions are highly welcomed. :)
 
-Check our [examples folder](/examples) to get started! 
+Check our [examples folder](/examples) to get started!
 
 # Table of Contents
 - [Background](#background)
@@ -38,24 +38,24 @@ Check our [examples folder](/examples) to get started!
   - [Tests](#tests)
   - [Packages](#packages)
 - [Contribute](#contribute)
-  - [Core Developers](#core-developers) 
+  - [Core Developers](#core-developers)
 - [License](#license)
 
-## Background   
+## Background
 libp2p is a networking stack and library modularized out of [The IPFS Project](https://github.com/ipfs/ipfs), and bundled separately for other tools to use.
 
-libp2p is the product of a long and arduous quest of understanding; a deep dive into the internet's network stack and the peer-to-peer protocols from the past. Building large scale peer-to-peer systems has been complex and difficult in the last 15 years and libp2p is a way to fix that. It is a "network stack", a suite of networking protocols that cleanly separates concerns and enables sophisticated applications to only use the protocols they absolutely need, without giving up interoperability and upgradeability. 
+libp2p is the product of a long and arduous quest of understanding; a deep dive into the internet's network stack and the peer-to-peer protocols from the past. Building large scale peer-to-peer systems has been complex and difficult in the last 15 years and libp2p is a way to fix that. It is a "network stack", a suite of networking protocols that cleanly separates concerns and enables sophisticated applications to only use the protocols they absolutely need, without giving up interoperability and upgradeability.
 
 libp2p grew out of IPFS, but it is built so that lots of people can use it, for lots of different projects.
 
-- Learn more about libp2p at [**libp2p.io**](https://libp2p.io) and follow our evolving documentation efforts at [**docs.libp2p.io**](https://docs.libp2p.io). 
-- [Here](https://github.com/libp2p/libp2p#description) is an overview of libp2p and its implementations in other programming languages. 
+- Learn more about libp2p at [**libp2p.io**](https://libp2p.io) and follow our evolving documentation efforts at [**docs.libp2p.io**](https://docs.libp2p.io).
+- [Here](https://github.com/libp2p/libp2p#description) is an overview of libp2p and its implementations in other programming languages.
 
 ## Install
 ```
 nimble install libp2p
 ```
-### Prerequisite 
+### Prerequisite
 - [Nim](https://nim-lang.org/install.html)
 
 ## Usage
@@ -64,18 +64,19 @@ nimble install libp2p
 The specification is available in the [docs/api](docs/api) folder.
 
 ### Getting Started
-Please read the [GETTING_STARTED.md](docs/GETTING_STARTED.md) guide. 
+Please read the [GETTING_STARTED.md](docs/GETTING_STARTED.md) guide.
 
-### Tutorials and Examples 
+### Tutorials and Examples
 Example code can be found in the [examples folder](/examples).
+
 #### Direct Chat Tutorial
 - [Part I](https://our.status.im/nim-libp2p-tutorial-a-peer-to-peer-chat-example-1/): Set up the main function and use multi-thread for processing IO.
 - [Part II](https://our.status.im/nim-libp2p-tutorial-a-peer-to-peer-chat-example-2/): Dial remote peer and allow customized user input commands.
-- [Part III](https://our.status.im/nim-libp2p-tutorial-a-peer-to-peer-chat-example-3/): Configure and establish a libp2p node. 
+- [Part III](https://our.status.im/nim-libp2p-tutorial-a-peer-to-peer-chat-example-3/): Configure and establish a libp2p node.
 
 
 ### Using the Go Daemon
-Please find the installation and usage intructions in [daemonapi.md](docs/api/libp2p/daemonapi.md). 
+Please find the installation and usage intructions in [daemonapi.md](docs/api/libp2p/daemonapi.md).
 
 Examples can be found in the [examples/go-daemon folder](https://github.com/status-im/nim-libp2p/tree/readme/examples/go-daemon);
 
@@ -88,10 +89,10 @@ cd nim-libp2p
 nimble install
 ```
 
-### Tests 
+### Tests
 
 #### Prerequisite
-- [Go 1.12+](https://golang.org/dl/) 
+- [Go 1.12+](https://golang.org/dl/)
 
 #### Run unit tests
 ```sh
@@ -99,7 +100,7 @@ nimble install
 nimble test
 ```
 
-### Packages 
+### Packages
 
 List of packages currently in existence for nim-libp2p:
 
@@ -131,7 +132,7 @@ List of packages currently in existence for nim-libp2p:
 - [libp2p-gossipsub](https://github.com/status-im/nim-libp2p/blob/master/libp2p/protocols/pubsub/gossipsub.nim)
 
 
-Packages that exist in the original libp2p specs and are under active development: 
+Packages that exist in the original libp2p specs and are under active development:
 - libp2p-daemon
 - libp2p-webrtc-direct
 - libp2p-webrtc-star
@@ -146,16 +147,23 @@ Packages that exist in the original libp2p specs and are under active developmen
 - libp2p-nat-mgnr
 - libp2p-utils
 
-** Note that the current stack reflects the minimal requirements for the upcoming Eth2 implementation. 
+** Note that the current stack reflects the minimal requirements for the upcoming Eth2 implementation.
 
+### Tips and tricks
+
+- enable expensive metrics:
+
+```bash
+nim c -d:libp2p_expensive_metrics some_file.nim
+```
 
 ## Contribute
 The libp2p implementation in Nim is a work in progress. We welcome contributors to help out! Specifically, you can:
-- Go through the modules and **check out existing issues**. This would be especially useful for modules in active development. Some knowledge of IPFS/libp2p may be required, as well as the infrastructure behind it. 
-- **Perform code reviews**. Feel free to let us know if you found anything that can a) speed up the project development b) ensure better quality and c) reduce possible future bugs. 
+- Go through the modules and **check out existing issues**. This would be especially useful for modules in active development. Some knowledge of IPFS/libp2p may be required, as well as the infrastructure behind it.
+- **Perform code reviews**. Feel free to let us know if you found anything that can a) speed up the project development b) ensure better quality and c) reduce possible future bugs.
 - **Add tests**. Help nim-libp2p to be more robust by adding more tests to the [tests folder](https://github.com/status-im/nim-libp2p/tree/master/tests).
 
-### Core Developers 
+### Core Developers
 [@cheatfate](https://github.com/cheatfate), [Dmitriy Ryajov](https://github.com/dryajov), [Giovanni Petrantoni](https://github.com/sinkingsugar), [Zahary Karadjov](https://github.com/zah)
 
 ## License
@@ -168,4 +176,5 @@ or
 
 * Apache License, Version 2.0, ([LICENSE-APACHEv2](LICENSE-APACHEv2) or http://www.apache.org/licenses/LICENSE-2.0)
 
-at your option. This file may not be copied, modified, or distributed except according to those terms.
+at your option. These files may not be copied, modified, or distributed except according to those terms.
+

@@ -518,8 +518,9 @@ method publish*(g: GossipSub,
     g.mcache.put(msgId, msg)
 
   let published = await g.publishHelper(peers, @[msg], timeout)
-  if published > 0:
-    libp2p_pubsub_messages_published.inc(labelValues = [topic])
+  when defined(libp2p_expensive_metrics):
+    if published > 0:
+      libp2p_pubsub_messages_published.inc(labelValues = [topic])
 
   trace "published message to peers", peers = published,
                                       msg = msg.shortLog()
