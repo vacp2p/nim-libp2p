@@ -36,7 +36,7 @@ method subscribeTopic*(f: FloodSub,
 
   let peer = f.peers.getOrDefault(peerId)
   if peer == nil:
-    debug "subscribeTopic on a nil peer!"
+    debug "subscribeTopic on a nil peer!", peer = peerId
     return
 
   if topic notin f.floodsub:
