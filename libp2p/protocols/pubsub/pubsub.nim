@@ -63,6 +63,7 @@ type
 method handleDisconnect*(p: PubSub, peer: PubSubPeer) {.base.} =
   ## handle peer disconnects
   ##
+  
   if not(isNil(peer)) and peer.peerInfo notin p.conns:
     trace "deleting peer", peer = peer.id
     peer.onConnect.fire() # Make sure all pending sends are unblocked

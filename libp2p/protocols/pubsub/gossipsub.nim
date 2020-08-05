@@ -241,24 +241,28 @@ proc heartbeat(g: GossipSub) {.async.} =
 
 method handleDisconnect*(g: GossipSub, peer: PubSubPeer) =
   ## handle peer disconnects
+  ## 
+  
   procCall FloodSub(g).handleDisconnect(peer)
-  for t in toSeq(g.gossipsub.keys):
-    g.gossipsub.removePeer(t, peer)
 
-    libp2p_gossipsub_peers_per_topic_gossipsub
-      .set(g.gossipsub.peers(t).int64, labelValues = [t])
+  if not(isNil(peer)) and peer.peerInfo notin g.conns:
+    for t in toSeq(g.gossipsub.keys):
+      g.gossipsub.removePeer(t, peer)
 
-  for t in toSeq(g.mesh.keys):
-    g.mesh.removePeer(t, peer)
+      libp2p_gossipsub_peers_per_topic_gossipsub
+        .set(g.gossipsub.peers(t).int64, labelValues = [t])
 
-    libp2p_gossipsub_peers_per_topic_mesh
-      .set(g.mesh.peers(t).int64, labelValues = [t])
+    for t in toSeq(g.mesh.keys):
+      g.mesh.removePeer(t, peer)
 
-  for t in toSeq(g.fanout.keys):
-    g.fanout.removePeer(t, peer)
+      libp2p_gossipsub_peers_per_topic_mesh
+        .set(g.mesh.peers(t).int64, labelValues = [t])
 
-    libp2p_gossipsub_peers_per_topic_fanout
-      .set(g.fanout.peers(t).int64, labelValues = [t])
+    for t in toSeq(g.fanout.keys):
+      g.fanout.removePeer(t, peer)
+
+      libp2p_gossipsub_peers_per_topic_fanout
+        .set(g.fanout.peers(t).int64, labelValues = [t])
 
 method subscribePeer*(p: GossipSub,
                       conn: Connection) =
@@ -277,7 +281,7 @@ method subscribeTopic*(g: GossipSub,
 
   let peer = g.peers.getOrDefault(peerId)
   if peer == nil:
-    debug "subscribeTopic on a nil peer!"
+    # floodsub method logs a debug line already
     return
 
   if subscribe:
