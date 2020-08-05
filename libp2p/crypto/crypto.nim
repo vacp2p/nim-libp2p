@@ -71,6 +71,7 @@ when supported(PKScheme.Secp256k1):
 import ecnist, bearssl
 import ../protobuf/minprotobuf, ../vbuffer, ../multihash, ../multicodec
 import nimcrypto/[rijndael, twofish, sha2, hash, hmac]
+# We use `ncrutils` for constant-time hexadecimal encoding/decoding procedures.
 import nimcrypto/utils as ncrutils
 import ../utility
 import stew/results

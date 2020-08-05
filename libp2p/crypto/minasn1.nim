@@ -13,6 +13,7 @@
 
 import stew/[endians2, results]
 export results
+# We use `ncrutils` for constant-time hexadecimal encoding/decoding procedures.
 import nimcrypto/utils as ncrutils
 
 type

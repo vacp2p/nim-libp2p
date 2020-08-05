@@ -14,13 +14,13 @@
 ## Copyright(C) 2018 Thomas Pornin <pornin@bolet.org>.
 
 {.push raises: Defect.}
-
-import nimcrypto/utils as ncrutils
 import bearssl
 import minasn1
-export Asn1Error
 import stew/[results, ctops]
-export results
+# We use `ncrutils` for constant-time hexadecimal encoding/decoding procedures.
+import nimcrypto/utils as ncrutils
+
+export Asn1Error, results
 
 const
   DefaultPublicExponent* = 65537'u32
