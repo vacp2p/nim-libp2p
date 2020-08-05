@@ -1,12 +1,13 @@
 {.used.}
 
-import unittest
+import unittest, sequtils
 import chronos, stew/byteutils
 import ../libp2p/[stream/connection,
                   transports/transport,
                   transports/tcptransport,
                   multiaddress,
-                  wire]
+                  wire,
+                  errors]
 import ./helpers
 
 suite "TCP transport":
@@ -192,3 +193,51 @@ suite "TCP transport":
 
     check:
       waitFor(testListenerDialer()) == true
+
+  test "e2e: should limit incoming connections":
+    proc test() {.async.} =
+      let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
+      var times = 1
+      proc connHandler(conn: Connection) {.async, gcsafe.} =
+        times.inc()
+
+      var transports: seq[TcpTransport]
+      transports.add(TcpTransport.init(maxIncoming = 2))
+      asyncCheck transports[0].listen(ma, connHandler)
+
+      try:
+        for i in 0..10:
+          let transport = TcpTransport.init()
+          transports.add(transport)
+          discard await transport.dial(transports[0].ma).wait(10.millis)
+      except AsyncTimeoutError:
+        check times == 2
+
+      await allFuturesThrowing(
+        transports.mapIt(it.close()))
+
+    waitFor(test())
+
+  test "e2e: should limit outgoing connections":
+    proc test() {.async.} =
+      let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
+      var times = 1
+      proc connHandler(conn: Connection) {.async, gcsafe.} =
+        times.inc()
+
+      var transports: seq[TcpTransport]
+      transports.add(TcpTransport.init())
+      asyncCheck transports[0].listen(ma, connHandler)
+
+      try:
+        let transport = TcpTransport.init(maxOutgoing = 2)
+        transports.add(transport)
+        for i in 0..10:
+          discard await transport.dial(transports[0].ma)
+      except TooManyConnections:
+        check times == 2
+
+      await allFuturesThrowing(
+        transports.mapIt(it.close()))
+
+    waitFor(test())
