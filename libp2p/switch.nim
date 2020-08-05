@@ -520,7 +520,7 @@ proc pubsubMonitor(s: Switch, peerId: PeerID) {.async.} =
 
   trace "exiting pubsub monitor", peer = peerId
 
-proc subscribePeer*(s: Switch, peerId: PeerID): Future[void] {.async, gcsafe.} =
+proc subscribePeer*(s: Switch, peerId: PeerID): Future[void] {.gcsafe.} =
   if peerId notin s.pubsubMonitors:
     s.pubsubMonitors[peerId] = s.pubsubMonitor(peerId)
 
