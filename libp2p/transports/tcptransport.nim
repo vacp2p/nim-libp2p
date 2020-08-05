@@ -76,8 +76,8 @@ proc connHandler*(t: TcpTransport,
       if not(isNil(conn)):
         await conn.close()
       t.clients.keepItIf(it != client)
-    except CancelledError:
-      raise
+    except CancelledError as exc:
+      raise exc
     except CatchableError as exc:
       trace "error cleaning up client", exc = exc.msg
 
@@ -141,8 +141,8 @@ method close*(t: TcpTransport) {.async, gcsafe.} =
 
     trace "transport stopped"
     inc getTcpTransportTracker().closed
-  except CancelledError:
-    raise
+  except CancelledError as exc:
+    raise exc
   except CatchableError as exc:
     trace "error shutting down tcp transport", exc = exc.msg
 
