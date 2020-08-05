@@ -24,8 +24,11 @@ export transport
 
 const
   TcpTransportTrackerName* = "libp2p.tcptransport"
+  MaxTCPConnections* = 50
 
 type
+  TooManyConnections* = object of CatchableError
+
   TcpTransport* = ref object of Transport
     server*: StreamServer
     clients: array[Direction, seq[StreamTransport]]
@@ -58,6 +61,28 @@ proc setupTcpTransportTracker(): TcpTransportTracker =
   result.dump = dumpTracking
   result.isLeaked = leakTransport
   addTracker(TcpTransportTrackerName, result)
+
+proc newTooManyConnections(): ref TooManyConnections =
+  newException(TooManyConnections, "too many inbound connections")
+
+proc cleanup(t: TcpTransport, conn: ChronosStream) {.async.} =
+  try:
+    await conn.closeEvent.wait()
+    trace "cleaning up socket", addrs = $conn.client.remoteAddress,
+                                connoid = $conn.oid
+    if not(isNil(conn)):
+      await conn.close()
+
+    t.conns.excl(conn)
+
+    let inLen = toSeq(t.conns).filterIt( it.dir == Direction.In ).len
+    if  inLen < t.maxIncoming:
+      if not isNil(t.server):
+        trace "restarting accept loop", limit = inLen
+        t.server.start()
+
+  except CatchableError as exc:
+    trace "error cleaning up socket", exc = exc.msg
 
 proc connHandler*(t: TcpTransport,
                   client: StreamTransport,
