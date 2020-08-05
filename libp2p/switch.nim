@@ -523,11 +523,10 @@ proc pubsubMonitor(s: Switch, peer: PeerInfo) {.async.} =
 
   trace "exiting pubsub monitor", peer = $peer
 
-proc subscribePeer*(s: Switch, peerInfo: PeerInfo) {.async, gcsafe.} =
+proc subscribePeer*(s: Switch, peerInfo: PeerInfo): Future[void] =
   if peerInfo.peerId notin s.pubsubMonitors:
     s.pubsubMonitors[peerInfo.peerId] = s.pubsubMonitor(peerInfo)
-
-  result = s.pubsubMonitors.getOrDefault(peerInfo.peerId)
+  s.pubsubMonitors.getOrDefault(peerInfo.peerId)
 
 proc subscribe*(s: Switch, topic: string,
                 handler: TopicHandler) {.async.} =

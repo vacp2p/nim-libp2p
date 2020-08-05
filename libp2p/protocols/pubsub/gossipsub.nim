@@ -426,7 +426,9 @@ method rpcHandler*(g: GossipSub,
                                                    localPeer = g.peerInfo.id,
                                                    fromPeer = msg.fromPeer.pretty
               try:
-                await h(t, msg.data)                 # trigger user provided handler
+                await h(t, msg.data)               # trigger user provided handler
+              except CancelledError:
+                raise
               except CatchableError as exc:
                 trace "exception in message handler", exc = exc.msg
 
