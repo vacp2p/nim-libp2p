@@ -135,7 +135,7 @@ suite "Mplex":
       let
         conn = newBufferStream(
           proc (data: seq[byte]) {.gcsafe, async.} =
-            result = nil
+            discard
         )
         chann = LPChannel.init(1, conn, true)
 
