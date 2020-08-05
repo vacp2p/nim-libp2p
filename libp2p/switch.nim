@@ -684,9 +684,8 @@ proc newSwitch*(peerInfo: PeerInfo,
 proc isConnected*(s: Switch, peerInfo: PeerInfo): bool {.deprecated: "Use PeerID version".} =
   not isNil(peerInfo) and isConnected(s, peerInfo.peerId)
 
-proc disconnect*(s: Switch, peerInfo: PeerInfo) {.deprecated: "Use PeerID version", async, gcsafe.} =
-  if not isNil(peerInfo):
-    await disconnect(s, peerInfo.peerId)
+proc disconnect*(s: Switch, peerInfo: PeerInfo): Future[void] {.deprecated: "Use PeerID version", gcsafe.} =
+  disconnect(s, peerInfo.peerId)
 
 proc connect*(s: Switch, peerInfo: PeerInfo): Future[void] {.deprecated: "Use PeerID version".} =
   connect(s, peerInfo.peerId, peerInfo.addrs)
@@ -697,6 +696,5 @@ proc dial*(s: Switch,
            Future[Connection] {.deprecated: "Use PeerID version".} =
   dial(s, peerInfo.peerId, peerInfo.addrs, proto)
 
-proc subscribePeer*(s: Switch, peerInfo: PeerInfo): Future[void] {.deprecated: "Use PeerID version", async, gcsafe.} =
-  if not isNil(peerInfo):
-    await subscribePeer(s, peerInfo.peerId)
+proc subscribePeer*(s: Switch, peerInfo: PeerInfo): Future[void] {.deprecated: "Use PeerID version", gcsafe.} =
+  subscribePeer(s, peerInfo.peerId)
