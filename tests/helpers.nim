@@ -10,7 +10,7 @@ const
   StreamServerTrackerName = "stream.server"
 
   trackerNames = [
-    # ConnectionTrackerName,
+    ConnectionTrackerName,
     BufferStreamTrackerName,
     TcpTransportTrackerName,
     StreamTransportTrackerName,

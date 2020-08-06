@@ -100,20 +100,8 @@ proc connHandler*(t: TcpTransport,
     if not isNil(t.handler):
       t.handlers &= t.handler(conn)
 
-  proc cleanup() {.async.} =
-    try:
-      await client.join()
-      trace "cleaning up client", addrs = $client.remoteAddress, connoid = $conn.oid
-      if not(isNil(conn)):
-        await conn.close()
-      t.clients.keepItIf(it != client)
-    except CancelledError as exc:
-      raise exc
-    except CatchableError as exc:
-      trace "error cleaning up client", exc = exc.msg
-
-  t.clients.add(client)
-  asyncCheck cleanup()
+  t.conns.incl(stream)
+  asyncCheck t.cleanup(stream)
   result = conn
 
 proc connCb(server: StreamServer,
@@ -159,7 +147,7 @@ method close*(t: TcpTransport) {.async, gcsafe.} =
     await procCall Transport(t).close() # call base
 
     checkFutures(await allFinished(
-      toSeq(t.conns).mapIt(it.client.closeWait())))
+      toSeq(t.conns).mapIt(it.close())))
 
     # server can be nil
     if not isNil(t.server):

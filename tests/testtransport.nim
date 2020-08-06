@@ -205,13 +205,17 @@ suite "TCP transport":
       transports.add(TcpTransport.init(maxIncoming = 2))
       asyncCheck transports[0].listen(ma, connHandler)
 
+      var conns: seq[Connection]
       try:
         for i in 0..10:
           let transport = TcpTransport.init()
           transports.add(transport)
-          discard await transport.dial(transports[0].ma).wait(10.millis)
+          conns.add(await transport.dial(transports[0].ma).wait(10.millis))
       except AsyncTimeoutError:
         check times == 2
+
+      await allFuturesThrowing(
+        conns.mapIt(it.close()))
 
       await allFuturesThrowing(
         transports.mapIt(it.close()))
@@ -229,13 +233,17 @@ suite "TCP transport":
       transports.add(TcpTransport.init())
       asyncCheck transports[0].listen(ma, connHandler)
 
+      var conns: seq[Connection]
       try:
         let transport = TcpTransport.init(maxOutgoing = 2)
         transports.add(transport)
         for i in 0..10:
-          discard await transport.dial(transports[0].ma)
+          conns.add(await transport.dial(transports[0].ma))
       except TooManyConnections:
         check times == 2
+
+      await allFuturesThrowing(
+        conns.mapIt(it.close()))
 
       await allFuturesThrowing(
         transports.mapIt(it.close()))
