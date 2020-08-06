@@ -26,7 +26,7 @@ type
     HasPrivate,
     HasPublic
 
-  PeerInfo* = ref object of RootObj
+  PeerInfoObj* = object of RootObj
     peerId*: PeerID
     addrs*: seq[MultiAddress]
     protocols*: seq[string]
@@ -40,9 +40,21 @@ type
     of HasPublic:
       key: Option[PublicKey]
 
-proc id*(p: PeerInfo): string =
+  PeerInfo* = ref object of PeerInfoObj
+
+proc close*(p: var PeerInfoObj) {.inline.}
+
+proc `=destroy`(pi: var PeerInfoObj) =
+  pi.close()
+
+proc id*(p: var PeerInfoObj): string =
+  p.peerId.pretty()
+
+proc id*(p: PeerInfo): string = 
   if not(isNil(p)):
-    return p.peerId.pretty()
+    p[].id
+  else:
+    ""
 
 proc `$`*(p: PeerInfo): string = p.id
 
@@ -96,12 +108,11 @@ proc init*(p: typedesc[PeerInfo],
 
   result.postInit(addrs, protocols)
 
-proc close*(p: PeerInfo) {.inline.} =
+proc close*(p: var PeerInfoObj) {.inline.} =
   if not p.lifefut.finished:
     p.lifefut.complete()
-  else:
-    # TODO this should ideally not happen
-    notice "Closing closed peer", peer = p.id
+
+proc close*(p: PeerInfo) {.inline, deprecated: "PeerInfo is now using destructors".} = p[].close()
 
 proc join*(p: PeerInfo): Future[void] {.inline.} =
   var retFuture = newFuture[void]()
