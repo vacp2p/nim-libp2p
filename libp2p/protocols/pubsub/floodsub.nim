@@ -36,7 +36,7 @@ method subscribeTopic*(f: FloodSub,
 
   let peer = f.peers.getOrDefault(peerId)
   if peer == nil:
-    debug "subscribeTopic on a nil peer!"
+    debug "subscribeTopic on a nil peer!", peer = peerId
     return
 
   if topic notin f.floodsub:
@@ -53,11 +53,14 @@ method subscribeTopic*(f: FloodSub,
 
 method handleDisconnect*(f: FloodSub, peer: PubSubPeer) =
   ## handle peer disconnects
-  for t in toSeq(f.floodsub.keys):
-    if t in f.floodsub:
-      f.floodsub[t].excl(peer)
-
+  ##
+  
   procCall PubSub(f).handleDisconnect(peer)
+
+  if not(isNil(peer)) and peer.peerInfo notin f.conns:
+    for t in toSeq(f.floodsub.keys):
+      if t in f.floodsub:
+        f.floodsub[t].excl(peer)
 
 method rpcHandler*(f: FloodSub,
                    peer: PubSubPeer,
