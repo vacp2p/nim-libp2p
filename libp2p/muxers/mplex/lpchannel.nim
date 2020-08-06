@@ -69,8 +69,6 @@ template withWriteLock(lock: AsyncLock, body: untyped): untyped =
 template withEOFExceptions(body: untyped): untyped =
   try:
       body
-  except CancelledError as exc:
-    raise exc
   except LPStreamEOFError as exc:
     trace "muxed connection EOF", exc = exc.msg
   except LPStreamClosedError as exc:

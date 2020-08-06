@@ -41,8 +41,6 @@ proc init*(C: type ChronosStream,
 template withExceptions(body: untyped) =
   try:
     body
-  except CancelledError as exc:
-    raise exc
   except TransportIncompleteError:
     # for all intents and purposes this is an EOF
     raise newLPStreamEOFError()
