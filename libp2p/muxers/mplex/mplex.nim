@@ -115,9 +115,9 @@ proc handleStream(m: Mplex, chann: LPChannel) {.async.} =
     trace "finished handling stream"
     doAssert(chann.closed, "connection not closed by handler!")
   except CancelledError as exc:
-    trace "cancling stream handler", exc = exc.msg
+    trace "cancelling stream handler", exc = exc.msg
     await chann.reset()
-    raise
+    raise exc
   except CatchableError as exc:
     trace "exception in stream handler", exc = exc.msg
     await chann.reset()
