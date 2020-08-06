@@ -523,10 +523,28 @@ proc pubsubMonitor(s: Switch, peer: PeerInfo) {.async.} =
 
   trace "exiting pubsub monitor", peer = $peer
 
-proc subscribePeer*(s: Switch, peerInfo: PeerInfo): Future[void] =
-  if peerInfo.peerId notin s.pubsubMonitors:
-    s.pubsubMonitors[peerInfo.peerId] = s.pubsubMonitor(peerInfo)
-  s.pubsubMonitors.getOrDefault(peerInfo.peerId)
+proc subscribePeer*(s: Switch, peerInfo: PeerInfo): Future[void] {.gcsafe.} =
+  ## Waits until ``server`` is not closed.
+  ##
+
+  var retFuture = newFuture[void]("stream.transport.server.join")
+  let pubsubFut = s.pubsubMonitors.mgetOrPut(
+    peerInfo.peerId,
+    s.pubsubMonitor(peerInfo))
+
+  proc continuation(udata: pointer) {.gcsafe.} =
+    retFuture.complete()
+
+  proc cancel(udata: pointer) {.gcsafe.} =
+    pubsubFut.removeCallback(continuation, cast[pointer](retFuture))
+
+  if not(pubsubFut.finished()):
+    pubsubFut.addCallback(continuation, cast[pointer](retFuture))
+    retFuture.cancelCallback = cancel
+  else:
+    retFuture.complete()
+
+  return retFuture
 
 proc subscribe*(s: Switch, topic: string,
                 handler: TopicHandler) {.async.} =
