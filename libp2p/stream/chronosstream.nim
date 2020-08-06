@@ -145,7 +145,7 @@ method closeImpl*(s: ChronosStream) {.async.} =
     raise exc
   except CatchableError as exc:
     trace "Error closing chronosstream", s, msg = exc.msg
-  
+
   when defined(libp2p_agents_metrics):
     # do this after closing!
     s.untrackPeerIdentity()
