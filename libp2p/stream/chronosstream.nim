@@ -19,7 +19,7 @@ const
 
 type
   ChronosStream* = ref object of Connection
-    client: StreamTransport
+    client*: StreamTransport
 
 method initStream*(s: ChronosStream) =
   if s.objName.len == 0:
