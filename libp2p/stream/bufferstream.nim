@@ -306,6 +306,6 @@ method close*(s: BufferStream) {.async, gcsafe.} =
     else:
       trace "attempt to close an already closed bufferstream", trace = getStackTrace()
   except CancelledError as exc:
-    raise
+    raise exc
   except CatchableError as exc:
     trace "error closing buffer stream", exc = exc.msg

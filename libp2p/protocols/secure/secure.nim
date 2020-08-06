@@ -79,7 +79,7 @@ method init*(s: Secure) {.gcsafe.} =
     except CancelledError as exc:
       warn "securing connection canceled"
       await conn.close()
-      raise
+      raise exc
     except CatchableError as exc:
       warn "securing connection failed", msg = exc.msg
       await conn.close()
