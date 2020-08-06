@@ -68,7 +68,7 @@ type
       streamHandler*: StreamHandler
       secureManagers*: seq[Secure]
       pubSub*: Option[PubSub]
-      dialLock: Table[string, AsyncLock]
+      dialLock: Table[PeerID, AsyncLock]
       hooks: Table[Lifecycle, HashSet[Hook]]
       pubsubMonitors: Table[PeerId, Future[void]]
 
@@ -291,7 +291,7 @@ proc internalConnect(s: Switch,
 
     return conn
 
-  let lock = s.dialLock.mgetOrPut($peerId, newAsyncLock())
+  let lock = s.dialLock.mgetOrPut(peerId, newAsyncLock())
 
   try:
     await lock.acquire()
@@ -315,7 +315,7 @@ proc internalConnect(s: Switch,
             libp2p_dialed_peers.inc()
           except CancelledError as exc:
             trace "dialing canceled", exc = exc.msg, peer = peerId
-            raise
+            raise exc
           except CatchableError as exc:
             trace "dialing failed", exc = exc.msg, peer = peerId
             libp2p_failed_dials.inc()
