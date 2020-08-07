@@ -134,7 +134,7 @@ proc decryptWithAd(state: var CipherState, ad, data: openArray[byte]): seq[byte]
   ChaChaPoly.decrypt(state.k, nonce, tagOut, result, ad)
   trace "decryptWithAd", tagIn = tagIn.shortLog, tagOut = tagOut.shortLog, nonce = state.n
   if tagIn != tagOut:
-    error "decryptWithAd failed", data = byteutils.toHex(data)
+    debug "decryptWithAd failed", data = shortLog(data)
     raise newException(NoiseDecryptTagError, "decryptWithAd failed tag authentication.")
   inc state.n
   if state.n > NonceMax:
