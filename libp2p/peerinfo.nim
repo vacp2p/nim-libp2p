@@ -7,6 +7,8 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
+{.push raises: [Defect].}
+
 import options, sequtils, hashes
 import chronos, chronicles
 import peerid, multiaddress, crypto/crypto
@@ -30,7 +32,6 @@ type
     peerId*: PeerID
     addrs*: seq[MultiAddress]
     protocols*: seq[string]
-    lifefut: Future[void]
     protoVersion*: string
     agentVersion*: string
     secure*: string
@@ -62,12 +63,12 @@ template postInit(peerinfo: PeerInfo,
     peerinfo.addrs = @addrs
   if len(protocols) > 0:
     peerinfo.protocols = @protocols
-  peerinfo.lifefut = newFuture[void]("libp2p.peerinfo.lifetime")
 
 proc init*(p: typedesc[PeerInfo],
            key: PrivateKey,
            addrs: openarray[MultiAddress] = [],
-           protocols: openarray[string] = []): PeerInfo {.inline.} =
+           protocols: openarray[string] = []): PeerInfo {.
+           raises: [Defect, ResultError[cstring]].} =
   result = PeerInfo(keyType: HasPrivate, peerId: PeerID.init(key).tryGet(),
                     privateKey: key)
   result.postInit(addrs, protocols)
@@ -75,55 +76,31 @@ proc init*(p: typedesc[PeerInfo],
 proc init*(p: typedesc[PeerInfo],
            peerId: PeerID,
            addrs: openarray[MultiAddress] = [],
-           protocols: openarray[string] = []): PeerInfo {.inline.} =
+           protocols: openarray[string] = []): PeerInfo =
   result = PeerInfo(keyType: HasPublic, peerId: peerId)
   result.postInit(addrs, protocols)
 
 proc init*(p: typedesc[PeerInfo],
            peerId: string,
            addrs: openarray[MultiAddress] = [],
-           protocols: openarray[string] = []): PeerInfo {.inline.} =
+           protocols: openarray[string] = []): PeerInfo {.
+           raises: [Defect, ResultError[cstring]].} =
   result = PeerInfo(keyType: HasPublic, peerId: PeerID.init(peerId).tryGet())
   result.postInit(addrs, protocols)
 
 proc init*(p: typedesc[PeerInfo],
            key: PublicKey,
            addrs: openarray[MultiAddress] = [],
-           protocols: openarray[string] = []): PeerInfo {.inline.} =
+           protocols: openarray[string] = []): PeerInfo {.
+           raises: [Defect, ResultError[cstring]].}=
   result = PeerInfo(keyType: HasPublic,
                     peerId: PeerID.init(key).tryGet(),
                     key: some(key))
 
   result.postInit(addrs, protocols)
 
-proc close*(p: PeerInfo) {.inline.} =
-  if not p.lifefut.finished:
-    p.lifefut.complete()
-  else:
-    # TODO this should ideally not happen
-    notice "Closing closed peer", peer = p.id
-
-proc join*(p: PeerInfo): Future[void] {.inline.} =
-  var retFuture = newFuture[void]()
-  proc continuation(udata: pointer) {.gcsafe.} =
-    if not(retFuture.finished()):
-      retFuture.complete()
-  proc cancellation(udata: pointer) {.gcsafe.} =
-    p.lifefut.removeCallback(continuation)
-  if p.lifefut.finished:
-    retFuture.complete()
-  else:
-    p.lifefut.addCallback(continuation)
-    retFuture.cancelCallback = cancellation
-  return retFuture
-
-proc isClosed*(p: PeerInfo): bool {.inline.} =
-  result = p.lifefut.finished()
-
-proc lifeFuture*(p: PeerInfo): Future[void] {.inline.} =
-  result = p.lifefut
-
-proc publicKey*(p: PeerInfo): Option[PublicKey] {.inline.} =
+proc publicKey*(p: PeerInfo): Option[PublicKey] {.
+    raises: [Defect, ResultError[CryptoError]].} =
   if p.keyType == HasPublic:
     if p.peerId.hasPublicKey():
       var pubKey: PublicKey

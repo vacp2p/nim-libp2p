@@ -55,16 +55,3 @@ suite "PeerInfo":
   test "Should return some if pubkey is present in id":
     let peerInfo = PeerInfo.init(PeerID.init(PrivateKey.random(Ed25519, rng[]).get()).get())
     check peerInfo.publicKey.isSome
-
-  test "join() and isClosed() test":
-    proc testJoin(): Future[bool] {.async, gcsafe.} =
-      let peerInfo = PeerInfo.init(PeerID.init(PrivateKey.random(Ed25519, rng[]).get()).get())
-      check peerInfo.isClosed() == false
-      var joinFut = peerInfo.join()
-      check joinFut.finished() == false
-      peerInfo.close()
-      await wait(joinFut, 100.milliseconds)
-      check peerInfo.isClosed() == true
-      check (joinFut.finished() == true) and (joinFut.cancelled() == false)
-      result = true
-    check waitFor(testJoin()) == true
