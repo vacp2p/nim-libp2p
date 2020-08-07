@@ -132,7 +132,7 @@ proc send*(
   timeout: Duration = DefaultSendTimeout) {.async.} =
   logScope:
     peer = p.id
-    msg = shortLog(msg)
+    rpcMsg = shortLog(msg)
 
   trace "sending msg to peer"
 
@@ -158,7 +158,7 @@ proc send*(
   proc sendToRemote() {.async.} =
     logScope:
       peer = p.id
-      msg = shortLog(msg)
+      rpcMsg = shortLog(msg)
 
     trace "about to send message"
 
