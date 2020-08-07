@@ -51,8 +51,11 @@ type
     NoPubSubException* = object of CatchableError
 
     PeerEventKind* {.pure.} = enum
-      Upgraded, # Peer connected and went through secure upgrade
-      Disconnected # Peer disconnected after upgrade
+      Upgraded, # A connection was made and securely upgraded - there may be
+                # more than one concurrent connection thus more than one upgrade
+                # event per peer.
+      Disconnected # Peer disconnected - this event is fired once per upgrade
+                   # when the associated connection is terminated.
 
     PeerEvent* = object
       case kind*: PeerEventKind
