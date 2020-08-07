@@ -51,15 +51,15 @@ type
     NoPubSubException* = object of CatchableError
 
     PeerEventKind* {.pure.} = enum
-      Upgraded, # A connection was made and securely upgraded - there may be
-                # more than one concurrent connection thus more than one upgrade
-                # event per peer.
+      Connected, # A connection was made and securely upgraded - there may be
+                 # more than one concurrent connection thus more than one upgrade
+                 # event per peer.
       Disconnected # Peer disconnected - this event is fired once per upgrade
                    # when the associated connection is terminated.
 
     PeerEvent* = object
       case kind*: PeerEventKind
-      of PeerEventKind.Upgraded:
+      of PeerEventKind.Connected:
         incoming*: bool
       else:
         discard
@@ -374,7 +374,7 @@ proc internalConnect(s: Switch,
         peerId, PeerEvent(kind: PeerEventKind.Disconnected))
 
   await s.triggerPeerEvent(
-    peerId, PeerEvent(kind: PeerEventKind.Upgraded, incoming: false))
+    peerId, PeerEvent(kind: PeerEventKind.Connected, incoming: false))
 
   if conn.closed():
     # This can happen if one of the peer event handlers deems the peer
@@ -652,7 +652,7 @@ proc muxerHandler(s: Switch, muxer: Muxer) {.async, gcsafe.} =
           peerId, PeerEvent(kind: PeerEventKind.Disconnected))
 
     asyncCheck s.triggerPeerEvent(
-      peerId, PeerEvent(kind: PeerEventKind.Upgraded, incoming: true))
+      peerId, PeerEvent(kind: PeerEventKind.Connected, incoming: true))
 
     # try establishing a pubsub connection
     asyncCheck s.cleanupPubSubPeer(muxer.connection)

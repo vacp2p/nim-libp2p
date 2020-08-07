@@ -243,7 +243,7 @@ suite "Switch":
         case step:
         of 0:
           check:
-            event.kind == PeerEventKind.Upgraded
+            event.kind == PeerEventKind.Connected
             peerId == switch2.peerInfo.peerId
         of 1:
           check:
@@ -255,7 +255,7 @@ suite "Switch":
 
         step.inc()
 
-      switch1.addPeerEventHandler(hook, PeerEventKind.Upgraded)
+      switch1.addPeerEventHandler(hook, PeerEventKind.Connected)
       switch1.addPeerEventHandler(hook, PeerEventKind.Disconnected)
 
       awaiters.add(await switch1.start())
@@ -283,7 +283,7 @@ suite "Switch":
 
       check:
         kinds == {
-          PeerEventKind.Upgraded,
+          PeerEventKind.Connected,
           PeerEventKind.Disconnected
         }
 
