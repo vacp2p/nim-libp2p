@@ -237,17 +237,17 @@ suite "Switch":
       let switch2 = newStandardSwitch(secureManagers = [SecureProtocol.Secio])
 
       var step = 0
-      var kinds: set[PeerEventKind]
-      proc hook(peerId: PeerID, event: PeerEvent) {.async, gcsafe.} =
+      var kinds: set[ConnEventKind]
+      proc hook(peerId: PeerID, event: ConnEvent) {.async, gcsafe.} =
         kinds = kinds + {event.kind}
         case step:
         of 0:
           check:
-            event.kind == PeerEventKind.Connected
+            event.kind == ConnEventKind.Connected
             peerId == switch2.peerInfo.peerId
         of 1:
           check:
-            event.kind == PeerEventKind.Disconnected
+            event.kind == ConnEventKind.Disconnected
 
           check peerId == switch2.peerInfo.peerId
         else:
@@ -255,8 +255,8 @@ suite "Switch":
 
         step.inc()
 
-      switch1.addPeerEventHandler(hook, PeerEventKind.Connected)
-      switch1.addPeerEventHandler(hook, PeerEventKind.Disconnected)
+      switch1.addConnEventHandler(hook, ConnEventKind.Connected)
+      switch1.addConnEventHandler(hook, ConnEventKind.Disconnected)
 
       awaiters.add(await switch1.start())
       awaiters.add(await switch2.start())
@@ -283,8 +283,8 @@ suite "Switch":
 
       check:
         kinds == {
-          PeerEventKind.Connected,
-          PeerEventKind.Disconnected
+          ConnEventKind.Connected,
+          ConnEventKind.Disconnected
         }
 
       await allFuturesThrowing(

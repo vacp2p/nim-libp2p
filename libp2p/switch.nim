@@ -50,22 +50,22 @@ const
 type
     NoPubSubException* = object of CatchableError
 
-    PeerEventKind* {.pure.} = enum
+    ConnEventKind* {.pure.} = enum
       Connected, # A connection was made and securely upgraded - there may be
                  # more than one concurrent connection thus more than one upgrade
                  # event per peer.
       Disconnected # Peer disconnected - this event is fired once per upgrade
                    # when the associated connection is terminated.
 
-    PeerEvent* = object
-      case kind*: PeerEventKind
-      of PeerEventKind.Connected:
+    ConnEvent* = object
+      case kind*: ConnEventKind
+      of ConnEventKind.Connected:
         incoming*: bool
       else:
         discard
 
-    PeerEventHandler* =
-      proc(peerId: PeerID, event: PeerEvent): Future[void] {.gcsafe.}
+    ConnEventHandler* =
+      proc(peerId: PeerID, event: ConnEvent): Future[void] {.gcsafe.}
 
     Switch* = ref object of RootObj
       peerInfo*: PeerInfo
@@ -79,35 +79,35 @@ type
       secureManagers*: seq[Secure]
       pubSub*: Option[PubSub]
       dialLock: Table[PeerID, AsyncLock]
-      peerEvents: Table[PeerEventKind, HashSet[PeerEventHandler]]
+      ConnEvents: Table[ConnEventKind, HashSet[ConnEventHandler]]
       pubsubMonitors: Table[PeerId, Future[void]]
 
 proc newNoPubSubException(): ref NoPubSubException {.inline.} =
   result = newException(NoPubSubException, "no pubsub provided!")
 
-proc addPeerEventHandler*(s: Switch,
-                          handler: PeerEventHandler, kind: PeerEventKind) =
+proc addConnEventHandler*(s: Switch,
+                          handler: ConnEventHandler, kind: ConnEventKind) =
   ## Add peer event handler - handlers must not raise exceptions!
   if isNil(handler): return
-  s.peerEvents.mgetOrPut(kind, initHashSet[PeerEventHandler]()).incl(handler)
+  s.ConnEvents.mgetOrPut(kind, initHashSet[ConnEventHandler]()).incl(handler)
 
-proc removePeerEventHandler*(s: Switch,
-                             handler: PeerEventHandler, kind: PeerEventKind) =
-  s.peerEvents.withValue(kind, handlers) do:
+proc removeConnEventHandler*(s: Switch,
+                             handler: ConnEventHandler, kind: ConnEventKind) =
+  s.ConnEvents.withValue(kind, handlers) do:
     handlers[].excl(handler)
 
-proc triggerPeerEvent(s: Switch, peerId: PeerID, event: PeerEvent) {.async, gcsafe.} =
+proc triggerConnEvent(s: Switch, peerId: PeerID, event: ConnEvent) {.async, gcsafe.} =
   try:
-    if event.kind in s.peerEvents:
-      var peerEvents: seq[Future[void]]
-      for h in s.peerEvents[event.kind]:
-        peerEvents.add(h(peerId, event))
+    if event.kind in s.ConnEvents:
+      var ConnEvents: seq[Future[void]]
+      for h in s.ConnEvents[event.kind]:
+        ConnEvents.add(h(peerId, event))
 
-      checkFutures(await allFinished(peerEvents))
+      checkFutures(await allFinished(ConnEvents))
   except CancelledError as exc:
     raise exc
   except CatchableError as exc: # handlers should not raise!
-    warn "exception in trigger peerEvents", exc = exc.msg
+    warn "exception in trigger ConnEvents", exc = exc.msg
 
 proc disconnect*(s: Switch, peerId: PeerID) {.async, gcsafe.}
 proc subscribePeer*(s: Switch, peerId: PeerID) {.async, gcsafe.}
@@ -370,11 +370,11 @@ proc internalConnect(s: Switch,
 
   conn.closeEvent.wait()
     .addCallback do(udata: pointer):
-      asyncCheck s.triggerPeerEvent(
-        peerId, PeerEvent(kind: PeerEventKind.Disconnected))
+      asyncCheck s.triggerConnEvent(
+        peerId, ConnEvent(kind: ConnEventKind.Disconnected))
 
-  await s.triggerPeerEvent(
-    peerId, PeerEvent(kind: PeerEventKind.Connected, incoming: false))
+  await s.triggerConnEvent(
+    peerId, ConnEvent(kind: ConnEventKind.Connected, incoming: false))
 
   if conn.closed():
     # This can happen if one of the peer event handlers deems the peer
@@ -648,11 +648,11 @@ proc muxerHandler(s: Switch, muxer: Muxer) {.async, gcsafe.} =
 
     muxer.connection.closeEvent.wait()
       .addCallback do(udata: pointer):
-        asyncCheck s.triggerpeerEvent(
-          peerId, PeerEvent(kind: PeerEventKind.Disconnected))
+        asyncCheck s.triggerConnEvent(
+          peerId, ConnEvent(kind: ConnEventKind.Disconnected))
 
-    asyncCheck s.triggerPeerEvent(
-      peerId, PeerEvent(kind: PeerEventKind.Connected, incoming: true))
+    asyncCheck s.triggerConnEvent(
+      peerId, ConnEvent(kind: ConnEventKind.Connected, incoming: true))
 
     # try establishing a pubsub connection
     asyncCheck s.cleanupPubSubPeer(muxer.connection)
