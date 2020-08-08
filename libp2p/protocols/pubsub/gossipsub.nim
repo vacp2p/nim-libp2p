@@ -231,7 +231,7 @@ proc heartbeat(g: GossipSub) {.async.} =
       let peers = g.getGossipPeers()
       var sent: seq[Future[void]]
       for peer, control in peers:
-        g.peers.withValue(peer.peer, pubsubPeer) do:
+        g.peers.withValue(peer.peerId, pubsubPeer) do:
           sent &= pubsubPeer[].send(RPCMsg(control: some(control)))
       checkFutures(await allFinished(sent))
 
@@ -243,32 +243,37 @@ proc heartbeat(g: GossipSub) {.async.} =
 
     await sleepAsync(GossipSubHeartbeatInterval)
 
-method unsubscribePeer*(g: GossipSub, peer: PubSubPeer) =
+method unsubscribePeer*(g: GossipSub, peer: PeerID) =
   ## handle peer disconnects
   ##
 
-  procCall FloodSub(g).unsubscribePeer(peer)
+  trace "unsubscribing gossipsub peer", peer = $peer
+  let pubSubPeer = g.peers.getOrDefault(peer)
+  if pubSubPeer.isNil:
+    return
 
   for t in toSeq(g.gossipsub.keys):
-    g.gossipsub.removePeer(t, peer)
+    g.gossipsub.removePeer(t, pubSubPeer)
 
     when defined(libp2p_expensive_metrics):
       libp2p_gossipsub_peers_per_topic_gossipsub
         .set(g.gossipsub.peers(t).int64, labelValues = [t])
 
   for t in toSeq(g.mesh.keys):
-    g.mesh.removePeer(t, peer)
+    g.mesh.removePeer(t, pubSubPeer)
 
     when defined(libp2p_expensive_metrics):
       libp2p_gossipsub_peers_per_topic_mesh
         .set(g.mesh.peers(t).int64, labelValues = [t])
 
   for t in toSeq(g.fanout.keys):
-    g.fanout.removePeer(t, peer)
+    g.fanout.removePeer(t, pubSubPeer)
 
     when defined(libp2p_expensive_metrics):
       libp2p_gossipsub_peers_per_topic_fanout
         .set(g.fanout.peers(t).int64, labelValues = [t])
+
+  procCall FloodSub(g).unsubscribePeer(peer)
 
 method subscribeTopic*(g: GossipSub,
                        topic: string,
@@ -398,7 +403,7 @@ method rpcHandler*(g: GossipSub,
 
         g.seen.put(msgId)                        # add the message to the seen cache
 
-        if g.verifySignature and not msg.verify(peer.peer):
+        if g.verifySignature and not msg.verify(peer.peerId):
           trace "dropping message due to failed signature verification"
           continue
 

@@ -268,7 +268,8 @@ proc upgradeIncoming(s: Switch, conn: Connection) {.async, gcsafe.} =
 proc internalConnect(s: Switch,
                      peerId: PeerID,
                      addrs: seq[MultiAddress]): Future[Connection] {.async.} =
-  logScope: peer = peerId
+  logScope:
+    peer = peerId
 
   if s.peerInfo.peerId == peerId:
     raise newException(CatchableError, "can't dial self!")
@@ -326,11 +327,11 @@ proc internalConnect(s: Switch,
                 libp2p_failed_upgrade.inc()
               raise exc
 
-          doAssert not isNil(upgraded), "checked in upgradeOutgoing"
+          doAssert not isNil(upgraded), "connection died after upgradeOutgoing"
 
           s.connManager.storeOutgoing(upgraded)
           trace "dial successful",
-            oid = $conn.oid,
+            oid = $upgraded.oid,
             peerInfo = shortLog(upgraded.peerInfo)
 
           conn = upgraded
