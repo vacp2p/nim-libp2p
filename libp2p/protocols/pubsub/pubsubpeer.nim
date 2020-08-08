@@ -40,7 +40,7 @@ type
     switch*: Switch                     # switch instance to dial peers
     codec*: string                      # the protocol that this peer joined from
     sendConn: Connection
-    peer*: PeerID
+    peerId*: PeerID
     handler*: RPCHandler
     sentRpcCache: TimedCache[string]    # cache for already sent messages
     recvdRpcCache: TimedCache[string]   # cache for already received messages
@@ -54,10 +54,13 @@ func hash*(p: PubSubPeer): Hash =
   # int is either 32/64, so intptr basically, pubsubpeer is a ref
   cast[pointer](p).hash
 
-proc id*(p: PubSubPeer): string = p.peer.pretty
+proc id*(p: PubSubPeer): string =
+  doAssert(not p.isNil, "nil pubsubpeer")
+  p.peerId.pretty
 
 proc connected*(p: PubSubPeer): bool =
-  not(isNil(p.sendConn)) and not p.sendConn.closed
+  not(isNil(p.sendConn)) and not
+    (p.sendConn.closed or p.sendConn.atEof)
 
 proc recvObservers(p: PubSubPeer, msg: var RPCMsg) =
   # trigger hooks
@@ -155,16 +158,21 @@ proc send*(
       try:
         await p.sendLock.acquire()
         trace "no send connection, dialing peer"
+        # get a send connection if there is none
         p.sendConn = await p.switch.dial(
-          p.peer, p.codec)
-          .wait(DefaultSendTimeout) # get a send connection if there is none
-        asyncCheck p.handle(p.sendConn) # install a reader on the send connection
+          p.peerId, p.codec)
+
+        if not p.connected:
+          raise newException(CatchableError, "unable to get send pubsub stream")
+
+        # install a reader on the send connection
+        asyncCheck p.handle(p.sendConn)
       finally:
         if p.sendLock.locked:
           p.sendLock.release()
 
     trace "sending encoded msgs to peer"
-    await p.sendConn.writeLp(encoded).wait(DefaultSendTimeout)
+    await p.sendConn.writeLp(encoded).wait(timeout)
     p.sentRpcCache.put(digest)
     trace "sent pubsub message to remote"
 
@@ -218,13 +226,13 @@ proc sendPrune*(p: PubSubPeer, topics: seq[string]) {.async.} =
 proc `$`*(p: PubSubPeer): string =
   p.id
 
-proc newPubSubPeer*(peer: PeerID,
+proc newPubSubPeer*(peerId: PeerID,
                     switch: Switch,
                     codec: string): PubSubPeer =
   new result
   result.switch = switch
   result.codec = codec
-  result.peer = peer
+  result.peerId = peerId
   result.sentRpcCache = newTimedCache[string](2.minutes)
   result.recvdRpcCache = newTimedCache[string](2.minutes)
   result.sendLock = newAsyncLock()

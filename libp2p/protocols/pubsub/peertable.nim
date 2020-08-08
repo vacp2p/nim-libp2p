@@ -16,7 +16,7 @@ type
 proc hasPeerID*(t: PeerTable, topic: string, peerId: PeerID): bool =
   let peers = toSeq(t.getOrDefault(topic))
   peers.any do (peer: PubSubPeer) -> bool:
-    peer.peer == peerId
+    peerId == peerId
 
 func addPeer*(table: var PeerTable, topic: string, peer: PubSubPeer): bool =
   # returns true if the peer was added,

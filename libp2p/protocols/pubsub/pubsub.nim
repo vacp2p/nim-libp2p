@@ -57,15 +57,19 @@ type
     sign*: bool                                     # enable message signing
     cleanupLock: AsyncLock
     validators*: Table[string, HashSet[ValidatorHandler]]
-    observers: ref seq[PubSubObserver] # ref as in smart_ptr
-    msgIdProvider*: MsgIdProvider      # Turn message into message id (not nil)
+    observers: ref seq[PubSubObserver]              # ref as in smart_ptr
+    msgIdProvider*: MsgIdProvider                   # Turn message into message id (not nil)
     msgSeqno*: uint64
+    lifetimeFut*: Future[void]                      # pubsub liftime future
 
-method unsubscribePeer*(p: PubSub, peer: PubSubPeer) {.base.} =
+method unsubscribePeer*(p: PubSub, peerId: PeerID) {.base.} =
   ## handle peer disconnects
   ##
 
-  peer.subscribed = false
+  trace "unsubscribing pubsub peer", peer = $peerId
+  if peerId in p.peers:
+    p.peers.del(peerId)
+
   libp2p_pubsub_peers.set(p.peers.len.int64)
 
 proc sendSubs*(p: PubSub,
@@ -93,11 +97,12 @@ method rpcHandler*(p: PubSub,
     if m.subscriptions.len > 0:                    # if there are any subscriptions
       for s in m.subscriptions:                    # subscribe/unsubscribe the peer for each topic
         trace "about to subscribe to topic", topicId = s.topic
-        await p.subscribeTopic(s.topic, s.subscribe, peer.peer)
+        await p.subscribeTopic(s.topic, s.subscribe, peer.peerId)
 
-proc getOrCreatePeer(p: PubSub,
-                     peer: PeerID,
-                     proto: string): PubSubPeer =
+proc getOrCreatePeer*(
+  p: PubSub,
+  peer: PeerID,
+  proto: string): PubSubPeer =
   if peer in p.peers:
     return p.peers[peer]
 
@@ -109,7 +114,6 @@ proc getOrCreatePeer(p: PubSub,
   pubSubPeer.observers = p.observers
 
   libp2p_pubsub_peers.set(p.peers.len.int64)
-
   return pubSubPeer
 
 method handleConn*(p: PubSub,
@@ -136,7 +140,6 @@ method handleConn*(p: PubSub,
     await p.rpcHandler(peer, msgs)
 
   let peer = p.getOrCreatePeer(conn.peerInfo.peerId, proto)
-
   if p.topics.len > 0:
     await p.sendSubs(peer, toSeq(p.topics.keys), true)
 
@@ -222,12 +225,15 @@ proc publishHelper*(p: PubSub,
   # send messages and cleanup failed peers
   var sent: seq[tuple[id: PeerID, fut: Future[void]]]
   for sendPeer in sendPeers:
+    if sendPeer.isNil:
+      continue
+
     # avoid sending to self
-    if sendPeer.peer == p.peerInfo.peerId:
+    if sendPeer.peerId == p.peerInfo.peerId:
       continue
 
     trace "sending messages to peer", peer = sendPeer.id, msgs
-    sent.add((id: sendPeer.peer, fut: sendPeer.send(RPCMsg(messages: msgs), timeout)))
+    sent.add((id: sendPeer.peerId, fut: sendPeer.send(RPCMsg(messages: msgs), timeout)))
 
   var published: seq[PeerID]
   var failed: seq[PeerID]
@@ -237,6 +243,7 @@ proc publishHelper*(p: PubSub,
     if f.len > 0:
       if s.failed:
         trace "sending messages to peer failed", peer = f[0].id
+        p.unsubscribePeer(f[0].id)
         failed.add(f[0].id)
       else:
         trace "sending messages to peer succeeded", peer = f[0].id

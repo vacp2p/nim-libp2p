@@ -33,12 +33,7 @@ method subscribeTopic*(f: FloodSub,
                        subscribe: bool,
                        peerId: PeerID) {.gcsafe, async.} =
   await procCall PubSub(f).subscribeTopic(topic, subscribe, peerId)
-
   let peer = f.peers.getOrDefault(peerId)
-  if peer == nil:
-    debug "subscribeTopic on a nil peer!", peer = $peerId
-    return
-
   if topic notin f.floodsub:
     f.floodsub[topic] = initHashSet[PubSubPeer]()
 
@@ -51,15 +46,20 @@ method subscribeTopic*(f: FloodSub,
     # unsubscribe the peer from the topic
     f.floodsub[topic].excl(peer)
 
-method unsubscribePeer*(f: FloodSub, peer: PubSubPeer) =
+method unsubscribePeer*(f: FloodSub, peer: PeerID) =
   ## handle peer disconnects
   ##
 
-  procCall PubSub(f).unsubscribePeer(peer)
+  trace "unsubscribing floodsub peer", peer = $peer
+  let pubSubPeer = f.peers.getOrDefault(peer)
+  if pubSubPeer.isNil:
+    return
 
   for t in toSeq(f.floodsub.keys):
     if t in f.floodsub:
-      f.floodsub[t].excl(peer)
+      f.floodsub[t].excl(pubSubPeer)
+
+  procCall PubSub(f).unsubscribePeer(peer)
 
 method rpcHandler*(f: FloodSub,
                    peer: PubSubPeer,
@@ -76,7 +76,7 @@ method rpcHandler*(f: FloodSub,
         if msgId notin f.seen:
           f.seen.put(msgId)                          # add the message to the seen cache
 
-          if f.verifySignature and not msg.verify(peer.peer):
+          if f.verifySignature and not msg.verify(peer.peerId):
             trace "dropping message due to failed signature verification"
             continue
 
