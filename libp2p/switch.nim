@@ -355,11 +355,10 @@ proc internalConnect(s: Switch,
           doAssert not isNil(upgraded), "checked in upgradeOutgoing"
 
           s.connManager.storeOutgoing(upgraded)
+          conn = upgraded
           trace "dial successful",
             oid = $conn.oid,
             peerInfo = shortLog(upgraded.peerInfo)
-
-          conn = upgraded
           break
   finally:
     if lock.locked():
