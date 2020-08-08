@@ -50,12 +50,22 @@ const
 type
     NoPubSubException* = object of CatchableError
 
-    Lifecycle* {.pure.} = enum
-      Connected,
-      Upgraded,
-      Disconnected
+    ConnEventKind* {.pure.} = enum
+      Connected, # A connection was made and securely upgraded - there may be
+                 # more than one concurrent connection thus more than one upgrade
+                 # event per peer.
+      Disconnected # Peer disconnected - this event is fired once per upgrade
+                   # when the associated connection is terminated.
 
-    Hook* = proc(peer: PeerInfo, cycle: Lifecycle): Future[void] {.gcsafe.}
+    ConnEvent* = object
+      case kind*: ConnEventKind
+      of ConnEventKind.Connected:
+        incoming*: bool
+      else:
+        discard
+
+    ConnEventHandler* =
+      proc(peerId: PeerID, event: ConnEvent): Future[void] {.gcsafe.}
 
     Switch* = ref object of RootObj
       peerInfo*: PeerInfo
@@ -69,31 +79,35 @@ type
       secureManagers*: seq[Secure]
       pubSub*: Option[PubSub]
       dialLock: Table[PeerID, AsyncLock]
-      hooks: Table[Lifecycle, HashSet[Hook]]
+      ConnEvents: Table[ConnEventKind, HashSet[ConnEventHandler]]
       pubsubMonitors: Table[PeerId, Future[void]]
 
 proc newNoPubSubException(): ref NoPubSubException {.inline.} =
   result = newException(NoPubSubException, "no pubsub provided!")
 
-proc addHook*(s: Switch, hook: Hook, cycle: Lifecycle) =
-  s.hooks.mgetOrPut(cycle, initHashSet[Hook]()).incl(hook)
+proc addConnEventHandler*(s: Switch,
+                          handler: ConnEventHandler, kind: ConnEventKind) =
+  ## Add peer event handler - handlers must not raise exceptions!
+  if isNil(handler): return
+  s.ConnEvents.mgetOrPut(kind, initHashSet[ConnEventHandler]()).incl(handler)
 
-proc removeHook*(s: Switch, hook: Hook, cycle: Lifecycle) =
-  s.hooks.mgetOrPut(cycle, initHashSet[Hook]()).excl(hook)
+proc removeConnEventHandler*(s: Switch,
+                             handler: ConnEventHandler, kind: ConnEventKind) =
+  s.ConnEvents.withValue(kind, handlers) do:
+    handlers[].excl(handler)
 
-proc triggerHooks(s: Switch, peer: PeerInfo, cycle: Lifecycle) {.async, gcsafe.} =
+proc triggerConnEvent(s: Switch, peerId: PeerID, event: ConnEvent) {.async, gcsafe.} =
   try:
-    if cycle in s.hooks:
-      var hooks: seq[Future[void]]
-      for h in s.hooks[cycle]:
-        if not(isNil(h)):
-          hooks.add(h(peer, cycle))
+    if event.kind in s.ConnEvents:
+      var ConnEvents: seq[Future[void]]
+      for h in s.ConnEvents[event.kind]:
+        ConnEvents.add(h(peerId, event))
 
-      checkFutures(await allFinished(hooks))
+      checkFutures(await allFinished(ConnEvents))
   except CancelledError as exc:
     raise exc
-  except CatchableError as exc:
-    trace "exception in trigger hooks", exc = exc.msg
+  except CatchableError as exc: # handlers should not raise!
+    warn "exception in trigger ConnEvents", exc = exc.msg
 
 proc disconnect*(s: Switch, peerId: PeerID) {.async, gcsafe.}
 proc subscribePeer*(s: Switch, peerId: PeerID) {.async, gcsafe.}
@@ -280,86 +294,96 @@ proc upgradeIncoming(s: Switch, conn: Connection) {.async, gcsafe.} =
 proc internalConnect(s: Switch,
                      peerId: PeerID,
                      addrs: seq[MultiAddress]): Future[Connection] {.async.} =
+  logScope: peer = peerId
+
   if s.peerInfo.peerId == peerId:
     raise newException(CatchableError, "can't dial self!")
 
-  var conn = s.connManager.selectConn(peerId)
-  if conn != nil and not conn.atEof and not conn.closed:
-    trace "Reusing existing connection", oid = $conn.oid,
-                                         direction = $conn.dir,
-                                         peer = peerId
-
-    return conn
-
+  var conn: Connection
+  # Ensure there's only one in-flight attempt per peer
   let lock = s.dialLock.mgetOrPut(peerId, newAsyncLock())
-
   try:
     await lock.acquire()
-    trace "Dialing peer", peer = peerId
+
+    # Check if we have a connection already and try to reuse it
+    conn = s.connManager.selectConn(peerId)
+    if conn != nil:
+      if conn.atEof or conn.closed:
+        # This connection should already have been removed from the connection
+        # manager - it's essentially a bug that we end up here - we'll fail
+        # for now, hoping that this will clean themselves up later...
+        warn "dead connection in connection manager"
+        await conn.close()
+        raise newException(CatchableError, "Zombie connection encountered")
+
+      trace "Reusing existing connection", oid = $conn.oid,
+                                           direction = $conn.dir
+
+      return conn
+
+    trace "Dialing peer"
     for t in s.transports: # for each transport
       for a in addrs: # for each address
         if t.handles(a):   # check if it can dial it
-          trace "Dialing address", address = $a, peer = peerId
-          try:
-            conn = await t.dial(a)
-            # make sure to assign the peer to the connection
-            conn.peerInfo = PeerInfo.init(peerId, addrs)
+          trace "Dialing address", address = $a
+          let dialed = try:
+              await t.dial(a)
+            except CancelledError as exc:
+              trace "dialing canceled", exc = exc.msg
+              raise exc
+            except CatchableError as exc:
+              trace "dialing failed", exc = exc.msg
+              libp2p_failed_dials.inc()
+              continue # Try the next address
 
-            conn.closeEvent.wait()
-              .addCallback do(udata: pointer):
-                asyncCheck s.triggerHooks(
-                  conn.peerInfo,
-                  Lifecycle.Disconnected)
+          # make sure to assign the peer to the connection
+          dialed.peerInfo = PeerInfo.init(peerId, addrs)
 
-            asyncCheck s.triggerHooks(conn.peerInfo, Lifecycle.Connected)
-            libp2p_dialed_peers.inc()
-          except CancelledError as exc:
-            trace "dialing canceled", exc = exc.msg, peer = peerId
-            raise exc
-          except CatchableError as exc:
-            trace "dialing failed", exc = exc.msg, peer = peerId
-            libp2p_failed_dials.inc()
-            continue
+          libp2p_dialed_peers.inc()
 
-          try:
-            let uconn = await s.upgradeOutgoing(conn)
-            s.connManager.storeOutgoing(uconn)
-            asyncCheck s.triggerHooks(uconn.peerInfo, Lifecycle.Upgraded)
-            conn = uconn
-            trace "dial successful", oid = $conn.oid, peer = $conn.peerInfo
-          except CatchableError as exc:
-            if not(isNil(conn)):
-              await conn.close()
+          let upgraded = try:
+              await s.upgradeOutgoing(dialed)
+            except CatchableError as exc:
+              # If we failed to establish the connection through one transport,
+              # we won't succeeed through another - no use in trying again
+              await dialed.close()
+              debug "upgrade failed", exc = exc.msg
+              if exc isnot CancelledError:
+                libp2p_failed_upgrade.inc()
+              raise exc
 
-            trace "Unable to establish outgoing link", exc = exc.msg, peer = peerId
-            raise exc
+          doAssert not isNil(upgraded), "checked in upgradeOutgoing"
 
-          if isNil(conn):
-            libp2p_failed_upgrade.inc()
-            continue
+          s.connManager.storeOutgoing(upgraded)
+          trace "dial successful",
+            oid = $conn.oid,
+            peerInfo = shortLog(upgraded.peerInfo)
+
+          conn = upgraded
           break
   finally:
     if lock.locked():
       lock.release()
 
-  if isNil(conn):
+  if isNil(conn): # None of the addresses connected
     raise newException(CatchableError, "Unable to establish outgoing link")
 
-  if conn.closed or conn.atEof:
-    await conn.close()
-    raise newException(CatchableError, "Connection dead on arrival")
+  conn.closeEvent.wait()
+    .addCallback do(udata: pointer):
+      asyncCheck s.triggerConnEvent(
+        peerId, ConnEvent(kind: ConnEventKind.Disconnected))
 
-  doAssert(conn in s.connManager, "connection not tracked!")
+  await s.triggerConnEvent(
+    peerId, ConnEvent(kind: ConnEventKind.Connected, incoming: false))
 
-  trace "dial successful", oid = $conn.oid,
-                           peer = shortLog(conn.peerInfo)
+  if conn.closed():
+    # This can happen if one of the peer event handlers deems the peer
+    # unworthy and disconnects it
+    raise newException(CatchableError, "Connection closed during handshake")
 
   asyncCheck s.cleanupPubSubPeer(conn)
   asyncCheck s.subscribePeer(peerId)
 
-  trace "got connection", oid = $conn.oid,
-                          direction = $conn.dir,
-                          peer = shortLog(conn.peerInfo)
   return conn
 
 proc connect*(s: Switch, peerId: PeerID, addrs: seq[MultiAddress]) {.async.} =
@@ -418,13 +442,6 @@ proc start*(s: Switch): Future[seq[Future[void]]] {.async, gcsafe.} =
 
   proc handle(conn: Connection): Future[void] {.async, closure, gcsafe.} =
     try:
-      conn.closeEvent.wait()
-        .addCallback do(udata: pointer):
-          asyncCheck s.triggerHooks(
-            conn.peerInfo,
-            Lifecycle.Disconnected)
-
-      asyncCheck s.triggerHooks(conn.peerInfo, Lifecycle.Connected)
       await s.upgradeIncoming(conn) # perform upgrade on incoming connection
     except CancelledError as exc:
       raise exc
@@ -616,7 +633,10 @@ proc muxerHandler(s: Switch, muxer: Muxer) {.async, gcsafe.} =
       await muxer.close()
       return
 
-    muxer.connection.peerInfo = stream.peerInfo
+    let
+      peerInfo = stream.peerInfo
+      peerId = peerInfo.peerId
+    muxer.connection.peerInfo = peerInfo
 
     # store incoming connection
     s.connManager.storeIncoming(muxer.connection)
@@ -624,12 +644,19 @@ proc muxerHandler(s: Switch, muxer: Muxer) {.async, gcsafe.} =
     # store muxer and muxed connection
     s.connManager.storeMuxer(muxer)
 
-    trace "got new muxer", peer = $muxer.connection.peerInfo
-    asyncCheck s.triggerHooks(muxer.connection.peerInfo, Lifecycle.Upgraded)
+    trace "got new muxer", peer = shortLog(peerInfo)
+
+    muxer.connection.closeEvent.wait()
+      .addCallback do(udata: pointer):
+        asyncCheck s.triggerConnEvent(
+          peerId, ConnEvent(kind: ConnEventKind.Disconnected))
+
+    asyncCheck s.triggerConnEvent(
+      peerId, ConnEvent(kind: ConnEventKind.Connected, incoming: true))
 
     # try establishing a pubsub connection
     asyncCheck s.cleanupPubSubPeer(muxer.connection)
-    asyncCheck s.subscribePeer(muxer.connection.peerInfo.peerId)
+    asyncCheck s.subscribePeer(peerId)
 
   except CancelledError as exc:
     await muxer.close()
