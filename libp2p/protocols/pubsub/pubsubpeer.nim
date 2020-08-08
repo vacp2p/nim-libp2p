@@ -59,7 +59,7 @@ proc id*(p: PubSubPeer): string =
   p.peerId.pretty
 
 proc connected*(p: PubSubPeer): bool =
-  not(isNil(p.sendConn)) and not
+  not p.sendConn.isNil and not
     (p.sendConn.closed or p.sendConn.atEof)
 
 proc recvObservers(p: PubSubPeer, msg: var RPCMsg) =
