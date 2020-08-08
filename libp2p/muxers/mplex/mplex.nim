@@ -23,9 +23,16 @@ export muxer
 logScope:
   topics = "mplex"
 
-declareGauge(libp2p_mplex_channels, "mplex channels", labels = ["initiator", "peer"])
+const
+  MaxChannelCount = 200
+
+when defined(libp2p_expensive_metrics):
+  declareGauge(libp2p_mplex_channels,
+    "mplex channels", labels = ["initiator", "peer"])
 
 type
+  TooManyChannels* = object of CatchableError
+
   Mplex* = ref object of Muxer
     remote: Table[uint64, LPChannel]
     local: Table[uint64, LPChannel]
@@ -35,6 +42,10 @@ type
     outChannTimeout: Duration
     isClosed: bool
     oid*: Oid
+    maxChannCount: int
+
+proc newTooManyChannels(): ref TooManyChannels =
+  newException(TooManyChannels, "max allowed channel count exceeded")
 
 proc getChannelList(m: Mplex, initiator: bool): var Table[uint64, LPChannel] =
   if initiator:
@@ -76,10 +87,11 @@ proc newStreamInternal*(m: Mplex,
     "channel slot already taken!")
 
   m.getChannelList(initiator)[id] = result
-  libp2p_mplex_channels.set(
-    m.getChannelList(initiator).len.int64,
-    labelValues = [$initiator,
-                   $m.connection.peerInfo])
+  when defined(libp2p_expensive_metrics):
+    libp2p_mplex_channels.set(
+      m.getChannelList(initiator).len.int64,
+      labelValues = [$initiator,
+                     $m.connection.peerInfo])
 
 proc cleanupChann(m: Mplex, chann: LPChannel) {.async, inline.} =
   ## remove the local channel from the internal tables
@@ -89,10 +101,11 @@ proc cleanupChann(m: Mplex, chann: LPChannel) {.async, inline.} =
     m.getChannelList(chann.initiator).del(chann.id)
     trace "cleaned up channel", id = chann.id
 
-  libp2p_mplex_channels.set(
-    m.getChannelList(chann.initiator).len.int64,
-    labelValues = [$chann.initiator,
-                    $m.connection.peerInfo])
+  when defined(libp2p_expensive_metrics):
+    libp2p_mplex_channels.set(
+      m.getChannelList(chann.initiator).len.int64,
+      labelValues = [$chann.initiator,
+                      $m.connection.peerInfo])
 
 proc handleStream(m: Mplex, chann: LPChannel) {.async.} =
   ## call the muxer stream handler for this channel
@@ -102,9 +115,9 @@ proc handleStream(m: Mplex, chann: LPChannel) {.async.} =
     trace "finished handling stream"
     doAssert(chann.closed, "connection not closed by handler!")
   except CancelledError as exc:
-    trace "cancling stream handler", exc = exc.msg
+    trace "cancelling stream handler", exc = exc.msg
     await chann.reset()
-    raise
+    raise exc
   except CatchableError as exc:
     trace "exception in stream handler", exc = exc.msg
     await chann.reset()
@@ -117,7 +130,7 @@ method handle*(m: Mplex) {.async, gcsafe.} =
       trace "stopping mplex main loop", oid = $m.oid
       await m.close()
 
-    while not m.connection.closed:
+    while not m.connection.atEof:
       trace "waiting for data", oid = $m.oid
       let (id, msgType, data) = await m.connection.readMsg()
       trace "read message from connection", id = id,
@@ -148,6 +161,10 @@ method handle*(m: Mplex) {.async, gcsafe.} =
       case msgType:
         of MessageType.New:
           let name = string.fromBytes(data)
+          if m.getChannelList(false).len > m.maxChannCount - 1:
+            warn "too many channels created by remote peer", allowedMax = MaxChannelCount
+            raise newTooManyChannels()
+
           channel = await m.newStreamInternal(
             false,
             id,
@@ -169,7 +186,10 @@ method handle*(m: Mplex) {.async, gcsafe.} =
           trace "pushing data to channel"
 
           if data.len > MaxMsgSize:
+            warn "attempting to send a packet larger than allowed", allowed = MaxMsgSize,
+                                                                    sending = data.len
             raise newLPStreamLimitError()
+
           await channel.pushTo(data)
 
         of MessageType.CloseIn, MessageType.CloseOut:
@@ -202,14 +222,16 @@ method handle*(m: Mplex) {.async, gcsafe.} =
 proc init*(M: type Mplex,
            conn: Connection,
            maxChanns: uint = MaxChannels,
-           inTimeout, outTimeout: Duration = DefaultChanTimeout): Mplex =
+           inTimeout, outTimeout: Duration = DefaultChanTimeout,
+           maxChannCount: int = MaxChannelCount): Mplex =
   M(connection: conn,
     maxChannels: maxChanns,
     inChannTimeout: inTimeout,
     outChannTimeout: outTimeout,
     remote: initTable[uint64, LPChannel](),
     local: initTable[uint64, LPChannel](),
-    oid: genOid())
+    oid: genOid(),
+    maxChannCount: maxChannCount)
 
 method newStream*(m: Mplex,
                   name: string = "",

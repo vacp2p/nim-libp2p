@@ -237,38 +237,26 @@ suite "Switch":
       let switch2 = newStandardSwitch(secureManagers = [SecureProtocol.Secio])
 
       var step = 0
-      var cycles: set[Lifecycle]
-      proc hook(peer: PeerInfo, cycle: Lifecycle) {.async, gcsafe.} =
-        cycles = cycles + {cycle}
+      var kinds: set[ConnEventKind]
+      proc hook(peerId: PeerID, event: ConnEvent) {.async, gcsafe.} =
+        kinds = kinds + {event.kind}
         case step:
         of 0:
-          check cycle == Lifecycle.Connected
-          check if not(isNil(peer)):
-                peer.peerId == switch2.peerInfo.peerId
-              else:
-                true
+          check:
+            event.kind == ConnEventKind.Connected
+            peerId == switch2.peerInfo.peerId
         of 1:
-          assert(isNil(peer) == false)
           check:
-            cycle == Lifecycle.Upgraded
-            peer.peerId == switch2.peerInfo.peerId
-        of 2:
-          check:
-            cycle == Lifecycle.Disconnected
+            event.kind == ConnEventKind.Disconnected
 
-          check if not(isNil(peer)):
-              peer.peerId == switch2.peerInfo.peerId
-            else:
-              true
+          check peerId == switch2.peerInfo.peerId
         else:
-          echo "unkown cycle! ", $cycle
           check false
 
         step.inc()
 
-      switch1.addHook(hook, Lifecycle.Connected)
-      switch1.addHook(hook, Lifecycle.Upgraded)
-      switch1.addHook(hook, Lifecycle.Disconnected)
+      switch1.addConnEventHandler(hook, ConnEventKind.Connected)
+      switch1.addConnEventHandler(hook, ConnEventKind.Disconnected)
 
       awaiters.add(await switch1.start())
       awaiters.add(await switch2.start())
@@ -294,10 +282,9 @@ suite "Switch":
       check connTracker.isLeaked() == false
 
       check:
-        cycles == {
-          Lifecycle.Connected,
-          Lifecycle.Upgraded,
-          Lifecycle.Disconnected
+        kinds == {
+          ConnEventKind.Connected,
+          ConnEventKind.Disconnected
         }
 
       await allFuturesThrowing(

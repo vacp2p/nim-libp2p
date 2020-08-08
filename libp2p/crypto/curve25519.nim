@@ -37,22 +37,6 @@ proc intoCurve25519Key*(s: openarray[byte]): Curve25519Key =
 
 proc getBytes*(key: Curve25519Key): seq[byte] = @key
 
-const
-  ForbiddenCurveValues: array[12, Curve25519Key] = [
-                [0.byte, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-                [1.byte, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-                [224.byte, 235, 122, 124, 59, 65, 184, 174, 22, 86, 227, 250, 241, 159, 196, 106, 218, 9, 141, 235, 156, 50, 177, 253, 134, 98, 5, 22, 95, 73, 184, 0],
-                [95.byte, 156, 149, 188, 163, 80, 140, 36, 177, 208, 177, 85, 156, 131, 239, 91, 4, 68, 92, 196, 88, 28, 142, 134, 216, 34, 78, 221, 208, 159, 17, 87],
-                [236.byte, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 127],
-                [237.byte, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 127],
-                [238.byte, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 127],
-                [205.byte, 235, 122, 124, 59, 65, 184, 174, 22, 86, 227, 250, 241, 159, 196, 106, 218, 9, 141, 235, 156, 50, 177, 253, 134, 98, 5, 22, 95, 73, 184, 128],
-                [76.byte, 156, 149, 188, 163, 80, 140, 36, 177, 208, 177, 85, 156, 131, 239, 91, 4, 68, 92, 196, 88, 28, 142, 134, 216, 34, 78, 221, 208, 159, 17, 215],
-                [217.byte, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255],
-                [218.byte, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255],
-                [219.byte, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 25],
-        ]
-
 proc byteswap(buf: var Curve25519Key) {.inline.} =
   for i in 0..<16:
     let
@@ -60,47 +44,37 @@ proc byteswap(buf: var Curve25519Key) {.inline.} =
     buf[i] = buf[31 - i]
     buf[31 - i] = x
 
-proc mul*(_: type[Curve25519], dst: var Curve25519Key, scalar: Curve25519Key, point: Curve25519Key) =
+proc mul*(_: type[Curve25519], point: var Curve25519Key, multiplier: Curve25519Key) =
   let defaultBrEc = brEcGetDefault()
 
-  # The source point is provided in array G (of size Glen bytes);
-  # the multiplication result is written over it.
-  dst = scalar
-
-  # point needs to be big-endian
+  # multiplier needs to be big-endian
   var
-    rpoint = point
-  rpoint.byteswap()
+    multiplierBs = multiplier
+  multiplierBs.byteswap()
   let
     res = defaultBrEc.mul(
-      cast[pcuchar](addr dst[0]),
+      cast[pcuchar](addr point[0]),
       Curve25519KeySize,
-      cast[pcuchar](addr rpoint[0]),
+      cast[pcuchar](addr multiplierBs[0]),
       Curve25519KeySize,
       EC_curve25519)
   assert res == 1
 
-proc mulgen*(_: type[Curve25519], dst: var Curve25519Key, point: Curve25519Key) =
+proc mulgen(_: type[Curve25519], dst: var Curve25519Key, point: Curve25519Key) =
   let defaultBrEc = brEcGetDefault()
 
   var
     rpoint = point
   rpoint.byteswap()
 
-  block iterate:
-    while true:
-      block derive:
-        let
-          size = defaultBrEc.mulgen(
-            cast[pcuchar](addr dst[0]),
-            cast[pcuchar](addr rpoint[0]),
-            Curve25519KeySize,
-            EC_curve25519)
-        assert size == Curve25519KeySize
-        for forbid in ForbiddenCurveValues:
-          if dst == forbid:
-            break derive
-        break iterate
+  let
+    size = defaultBrEc.mulgen(
+      cast[pcuchar](addr dst[0]),
+      cast[pcuchar](addr rpoint[0]),
+      Curve25519KeySize,
+      EC_curve25519)
+  
+  assert size == Curve25519KeySize
 
 proc public*(private: Curve25519Key): Curve25519Key =
   Curve25519.mulgen(result, private)

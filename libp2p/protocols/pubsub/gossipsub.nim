@@ -143,17 +143,18 @@ type
     when not defined(release):
       prunedPeers: HashSet[PubSubPeer]
 
-declareGauge(libp2p_gossipsub_peers_per_topic_mesh,
-  "gossipsub peers per topic in mesh",
-  labels = ["topic"])
+when defined(libp2p_expensive_metrics):
+  declareGauge(libp2p_gossipsub_peers_per_topic_mesh,
+    "gossipsub peers per topic in mesh",
+    labels = ["topic"])
 
-declareGauge(libp2p_gossipsub_peers_per_topic_fanout,
-  "gossipsub peers per topic in fanout",
-  labels = ["topic"])
+  declareGauge(libp2p_gossipsub_peers_per_topic_fanout,
+    "gossipsub peers per topic in fanout",
+    labels = ["topic"])
 
-declareGauge(libp2p_gossipsub_peers_per_topic_gossipsub,
-  "gossipsub peers per topic in gossipsub",
-  labels = ["topic"])
+  declareGauge(libp2p_gossipsub_peers_per_topic_gossipsub,
+    "gossipsub peers per topic in gossipsub",
+    labels = ["topic"])
 
 proc init*(_: type[GossipSubParams]): GossipSubParams =
   GossipSubParams(
@@ -255,8 +256,9 @@ method init*(g: GossipSub) =
     ## e.g. ``/floodsub/1.0.0``, etc...
     ##
 
-    if conn.peerInfo.maintain:
-      g.explicitPeers.incl(conn.peerInfo.id)
+    # TODO
+    # if conn.peerInfo.maintain:
+    #   g.explicitPeers.incl(conn.peerInfo.id)
 
     await g.handleConn(conn, proto)
 
@@ -285,7 +287,7 @@ proc grafted(g: GossipSub, p: PubSubPeer, topic: string) =
     stats.topicInfos[topic] = info
     assert(g.peerStats[p].topicInfos[topic].inMesh == true)
 
-    debug "grafted", p
+    trace "grafted", p
   do:
     doAssert(false, "grafted: peerStats key not found for " & $p)
 
@@ -308,7 +310,7 @@ proc pruned(g: GossipSub, p: PubSubPeer, topic: string) =
     # mgetOrPut does not work, so we gotta do this without referencing
     stats.topicInfos[topic] = info
 
-    debug "pruned", p
+    trace "pruned", p
   do:
     when not defined(release):
       if p in g.prunedPeers:
@@ -330,8 +332,9 @@ proc replenishFanout(g: GossipSub, topic: string) =
           if g.fanout.peers(topic) == GossipSubD:
             break
 
-  libp2p_gossipsub_peers_per_topic_fanout
-    .set(g.fanout.peers(topic).int64, labelValues = [topic])
+  when defined(libp2p_expensive_metrics):
+    libp2p_gossipsub_peers_per_topic_fanout
+      .set(g.fanout.peers(topic).int64, labelValues = [topic])
 
   trace "fanout replenished with peers", peers = g.fanout.peers(topic)
 
@@ -390,14 +393,15 @@ proc rebalanceMesh(g: GossipSub, topic: string) {.async.} =
       g.pruned(peer, topic)
       g.mesh.removePeer(topic, peer)
 
-  libp2p_gossipsub_peers_per_topic_gossipsub
-    .set(g.gossipsub.peers(topic).int64, labelValues = [topic])
+  when defined(libp2p_expensive_metrics):
+    libp2p_gossipsub_peers_per_topic_gossipsub
+      .set(g.gossipsub.peers(topic).int64, labelValues = [topic])
 
-  libp2p_gossipsub_peers_per_topic_fanout
-    .set(g.fanout.peers(topic).int64, labelValues = [topic])
+    libp2p_gossipsub_peers_per_topic_fanout
+      .set(g.fanout.peers(topic).int64, labelValues = [topic])
 
-  libp2p_gossipsub_peers_per_topic_mesh
-    .set(g.mesh.peers(topic).int64, labelValues = [topic])
+    libp2p_gossipsub_peers_per_topic_mesh
+      .set(g.mesh.peers(topic).int64, labelValues = [topic])
 
   # Send changes to peers after table updates to avoid stale state
   for p in grafts:
@@ -418,8 +422,9 @@ proc dropFanoutPeers(g: GossipSub) =
       g.lastFanoutPubSub.del(topic)
       trace "dropping fanout topic", topic
 
-    libp2p_gossipsub_peers_per_topic_fanout
-      .set(g.fanout.peers(topic).int64, labelValues = [topic])
+    when defined(libp2p_expensive_metrics):
+      libp2p_gossipsub_peers_per_topic_fanout
+        .set(g.fanout.peers(topic).int64, labelValues = [topic])
 
 proc getGossipPeers(g: GossipSub): Table[string, ControlMessage] {.gcsafe.} =
   ## gossip iHave messages to peers
@@ -437,16 +442,14 @@ proc getGossipPeers(g: GossipSub): Table[string, ControlMessage] {.gcsafe.} =
 
     let gossipPeers = mesh + fanout
     let mids = g.mcache.window(topic)
-    if mids.len <= 0:
+    if not mids.len > 0:
       continue
-
-    let ihave = ControlIHave(topicID: topic,
-                              messageIDs: toSeq(mids))
 
     if topic notin g.gossipsub:
       trace "topic not in gossip array, skipping", topicID = topic
       continue
 
+    let ihave = ControlIHave(topicID: topic, messageIDs: toSeq(mids))
     for peer in allPeers:
       if result.len >= GossipSubD:
         trace "got gossip peers", peers = result.len
@@ -467,18 +470,18 @@ func `/`(a, b: Duration): float64 =
   fa / fb
 
 proc updateScores(g: GossipSub) = # avoid async
-  debug "updating scores", peers = g.peers.len
+  trace "updating scores", peers = g.peers.len
   
   let now = Moment.now()
   var evicting: seq[PubSubPeer]
 
   for peer, stats in g.peerStats.mpairs:
-    debug "updating peer score", peer, gossipTopics = peer.topics.len
+    trace "updating peer score", peer, gossipTopics = peer.topics.len
 
     if not peer.connected:
       if now > stats.expire:
         evicting.add(peer)
-        debug "evicted peer from memory", peer
+        trace "evicted peer from memory", peer
         continue
 
     # Per topic
@@ -497,28 +500,28 @@ proc updateScores(g: GossipSub) = # avoid async
         var p1 = info.meshTime / topicParams.timeInMeshQuantum
         if p1 > topicParams.timeInMeshCap:
           p1 = topicParams.timeInMeshCap
-        debug "p1", peer, p1
+        trace "p1", peer, p1
         topicScore += p1 * topicParams.timeInMeshWeight
       else:
         info.meshMessageDeliveriesActive = false
 
       topicScore += info.firstMessageDeliveries * topicParams.firstMessageDeliveriesWeight
-      debug "p2", peer, p2 = info.firstMessageDeliveries
+      trace "p2", peer, p2 = info.firstMessageDeliveries
 
       if info.meshMessageDeliveriesActive:
         if info.meshMessageDeliveries < topicParams.meshMessageDeliveriesThreshold:
           let deficit = topicParams.meshMessageDeliveriesThreshold - info.meshMessageDeliveries
           let p3 = deficit * deficit
-          debug "p3", peer, p3
+          trace "p3", peer, p3
           topicScore += p3 * topicParams.meshMessageDeliveriesWeight
 
       topicScore += info.meshFailurePenalty * topicParams.meshFailurePenaltyWeight
-      debug "p3b", peer, p3b = info.meshFailurePenalty
+      trace "p3b", peer, p3b = info.meshFailurePenalty
 
       topicScore += info.invalidMessageDeliveries * info.invalidMessageDeliveries * topicParams.invalidMessageDeliveriesWeight
-      debug "p4", p4 = info.invalidMessageDeliveries * info.invalidMessageDeliveries
+      trace "p4", p4 = info.invalidMessageDeliveries * info.invalidMessageDeliveries
 
-      debug "updated peer topic's scores", peer, topic, info, topicScore
+      trace "updated peer topic's scores", peer, topic, info, topicScore
 
       peer.score += topicScore * topicParams.topicWeight
 
@@ -543,7 +546,7 @@ proc updateScores(g: GossipSub) = # avoid async
       # commit our changes, mgetOrPut does NOT work as wanted with value types (lent?)
       stats.topicInfos[topic] = info
       
-    debug "updated peer's score", peer, score = peer.score
+    trace "updated peer's score", peer, score = peer.score
   
   for peer in evicting:
     g.peerStats.del(peer)
@@ -576,10 +579,10 @@ proc heartbeat(g: GossipSub) {.async.} =
 
       let peers = g.getGossipPeers()
       var sent: seq[Future[void]]
-      for peer in peers.keys:
-        if peer in g.peers:
-          sent &= g.peers[peer].send(RPCMsg(control: some(peers[peer])))
-      sent.allFinished.await.checkFutures()
+      for peer, control in peers:
+        g.peers.withValue(peer, pubsubPeer) do:
+          sent &= pubsubPeer[].send(RPCMsg(control: some(control)))
+      checkFutures(await allFinished(sent))
 
       g.mcache.shift() # shift the cache
     except CancelledError as exc:
@@ -596,31 +599,38 @@ proc heartbeat(g: GossipSub) {.async.} =
 
 method handleDisconnect*(g: GossipSub, peer: PubSubPeer) =
   ## handle peer disconnects
+  ## 
+  
   procCall FloodSub(g).handleDisconnect(peer)
 
-  for t in toSeq(g.gossipsub.keys):
-    g.gossipsub.removePeer(t, peer)
+  if not(isNil(peer)) and peer.peerInfo notin g.conns:
+    for t in toSeq(g.gossipsub.keys):
+      g.gossipsub.removePeer(t, peer)
+    
+    when defined(libp2p_expensive_metrics):
+        libp2p_gossipsub_peers_per_topic_gossipsub
+          .set(g.gossipsub.peers(t).int64, labelValues = [t])
 
-    libp2p_gossipsub_peers_per_topic_gossipsub
-      .set(g.gossipsub.peers(t).int64, labelValues = [t])
+    for t in toSeq(g.mesh.keys):
+      if peer in g.mesh[t]:
+        g.pruned(peer, t)
+      g.mesh.removePeer(t, peer)
 
-  for t in toSeq(g.mesh.keys):
-    if peer in g.mesh[t]:
-      g.pruned(peer, t)
-    g.mesh.removePeer(t, peer)
+      when defined(libp2p_expensive_metrics):
+        libp2p_gossipsub_peers_per_topic_mesh
+          .set(g.mesh.peers(t).int64, labelValues = [t])
 
-    libp2p_gossipsub_peers_per_topic_mesh
-      .set(g.mesh.peers(t).int64, labelValues = [t])
+    for t in toSeq(g.fanout.keys):
+      g.fanout.removePeer(t, peer)
 
-  for t in toSeq(g.fanout.keys):
-    g.fanout.removePeer(t, peer)
+      when defined(libp2p_expensive_metrics):
+        libp2p_gossipsub_peers_per_topic_fanout
+          .set(g.fanout.peers(t).int64, labelValues = [t])  
 
-    libp2p_gossipsub_peers_per_topic_fanout
-      .set(g.fanout.peers(t).int64, labelValues = [t])
-
-  if peer.peerInfo.maintain:
-    for t in toSeq(g.explicit.keys):
-      g.explicit.removePeer(t, peer)
+  # TODO
+  # if peer.peerInfo.maintain:
+  #   for t in toSeq(g.explicit.keys):
+  #     g.explicit.removePeer(t, peer)
     
     g.explicitPeers.excl(peer.id)
   
@@ -650,7 +660,7 @@ method subscribeTopic*(g: GossipSub,
 
   let peer = g.peers.getOrDefault(peerId)
   if peer == nil:
-    debug "subscribeTopic on a nil peer!"
+    # floodsub method logs a trace line already
     return
 
   g.handleConnect(peer)
@@ -670,12 +680,15 @@ method subscribeTopic*(g: GossipSub,
     if peerId in g.explicitPeers:
       g.explicit.removePeer(topic, peer)
 
-  libp2p_gossipsub_peers_per_topic_mesh
-    .set(g.mesh.peers(topic).int64, labelValues = [topic])
-  libp2p_gossipsub_peers_per_topic_fanout
-    .set(g.fanout.peers(topic).int64, labelValues = [topic])
-  libp2p_gossipsub_peers_per_topic_gossipsub
-    .set(g.gossipsub.peers(topic).int64, labelValues = [topic])
+    when defined(libp2p_expensive_metrics):
+      libp2p_gossipsub_peers_per_topic_mesh
+        .set(g.mesh.peers(topic).int64, labelValues = [topic])
+      libp2p_gossipsub_peers_per_topic_fanout
+        .set(g.fanout.peers(topic).int64, labelValues = [topic])
+
+  when defined(libp2p_expensive_metrics):
+    libp2p_gossipsub_peers_per_topic_gossipsub
+      .set(g.gossipsub.peers(topic).int64, labelValues = [topic])
 
   trace "gossip peers", peers = g.gossipsub.peers(topic), topic
 
@@ -694,13 +707,14 @@ proc handleGraft(g: GossipSub,
 
     trace "peer grafted topic"
 
-    # It is an error to GRAFT on a explicit peer
-    if peer.peerInfo.maintain:
-      trace "attempt to graft an explicit peer",  peer=peer.id, 
-                                                  topicID=graft.topicID
-      # and such an attempt should be logged and rejected with a PRUNE
-      result.add(ControlPrune(topicID: graft.topicID))
-      continue
+    # TODO
+    # # It is an error to GRAFT on a explicit peer
+    # if peer.peerInfo.maintain:
+    #   trace "attempt to graft an explicit peer",  peer=peer.id, 
+    #                                               topicID=graft.topicID
+    #   # and such an attempt should be logged and rejected with a PRUNE
+    #   result.add(ControlPrune(topicID: graft.topicID))
+    #   continue
 
     # If they send us a graft before they send us a subscribe, what should
     # we do? For now, we add them to mesh but don't add them to gossipsub.
@@ -719,13 +733,14 @@ proc handleGraft(g: GossipSub,
       else:
         result.add(ControlPrune(topicID: topic))
     else:
-      debug "peer grafting topic we're not interested in"
+      trace "peer grafting topic we're not interested in"
       result.add(ControlPrune(topicID: topic))
 
-    libp2p_gossipsub_peers_per_topic_mesh
-      .set(g.mesh.peers(topic).int64, labelValues = [topic])
-    libp2p_gossipsub_peers_per_topic_fanout
-      .set(g.fanout.peers(topic).int64, labelValues = [topic])
+    when defined(libp2p_expensive_metrics):
+      libp2p_gossipsub_peers_per_topic_mesh
+        .set(g.mesh.peers(topic).int64, labelValues = [topic])
+      libp2p_gossipsub_peers_per_topic_fanout
+        .set(g.fanout.peers(topic).int64, labelValues = [topic])
 
 proc handlePrune(g: GossipSub, peer: PubSubPeer, prunes: seq[ControlPrune]) =
   for prune in prunes:
@@ -733,8 +748,9 @@ proc handlePrune(g: GossipSub, peer: PubSubPeer, prunes: seq[ControlPrune]) =
 
     g.pruned(peer, prune.topicID)
     g.mesh.removePeer(prune.topicID, peer)
-    libp2p_gossipsub_peers_per_topic_mesh
-      .set(g.mesh.peers(prune.topicID).int64, labelValues = [prune.topicID])
+    when defined(libp2p_expensive_metrics):
+      libp2p_gossipsub_peers_per_topic_mesh
+        .set(g.mesh.peers(prune.topicID).int64, labelValues = [prune.topicID])
 
 proc handleIHave(g: GossipSub,
                  peer: PubSubPeer,
@@ -835,12 +851,14 @@ method rpcHandler*(g: GossipSub,
                                                    localPeer = g.peerInfo.id,
                                                    fromPeer = msg.fromPeer.pretty
               try:
-                await h(t, msg.data)                 # trigger user provided handler
+                await h(t, msg.data)               # trigger user provided handler
+              except CancelledError as exc:
+                raise exc
               except CatchableError as exc:
                 trace "exception in message handler", exc = exc.msg
 
       # forward the message to all peers interested in it
-      let published = await g.publishHelper(toSendPeers, m.messages)
+      let published = await g.publishHelper(toSendPeers, m.messages, DefaultSendTimeout)
 
       trace "forwared message to peers", peers = published
 
@@ -854,9 +872,15 @@ method rpcHandler*(g: GossipSub,
       let messages = g.handleIWant(peer, control.iwant)
 
       if respControl.graft.len > 0 or respControl.prune.len > 0 or
-         respControl.ihave.len > 0 or respControl.iwant.len > 0:
-        await peer.send(
-          RPCMsg(control: some(respControl), messages: messages))
+        respControl.ihave.len > 0:
+        try:
+          info "sending control message", msg = respControl
+          await peer.send(
+            RPCMsg(control: some(respControl), messages: messages))
+        except CancelledError as exc:
+          raise exc
+        except CatchableError as exc:
+          trace "exception forwarding control messages", exc = exc.msg
 
 method subscribe*(g: GossipSub,
                   topic: string,
@@ -901,9 +925,10 @@ method unsubscribeAll*(g: GossipSub, topic: string) {.async.} =
 
 method publish*(g: GossipSub,
                 topic: string,
-                data: seq[byte]): Future[int] {.async.} =
+                data: seq[byte],
+                timeout: Duration = InfiniteDuration): Future[int] {.async.} =
   # base returns always 0
-  discard await procCall PubSub(g).publish(topic, data)
+  discard await procCall PubSub(g).publish(topic, data, timeout)
   trace "publishing message on topic", topic, data = data.shortLog
 
   var peers: HashSet[PubSubPeer]
@@ -914,7 +939,7 @@ method publish*(g: GossipSub,
     for id, peer in g.peers:
       if  topic in peer.topics and
           peer.score >= g.parameters.publishThreshold:
-        debug "publish: including flood/high score peer", peer = id
+        trace "publish: including flood/high score peer", peer = id
         peers.incl(peer)
 
   # add always direct peers
@@ -947,9 +972,10 @@ method publish*(g: GossipSub,
   if msgId notin g.mcache:
     g.mcache.put(msgId, msg)
 
-  let published = await g.publishHelper(peers, @[msg])
-  if published > 0:
-    libp2p_pubsub_messages_published.inc(labelValues = [topic])
+  let published = await g.publishHelper(peers, @[msg], timeout)
+  when defined(libp2p_expensive_metrics):
+    if published > 0:
+      libp2p_pubsub_messages_published.inc(labelValues = [topic])
 
   trace "published message to peers", peers = published,
                                       msg = msg.shortLog()

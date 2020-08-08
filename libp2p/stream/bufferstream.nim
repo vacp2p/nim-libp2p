@@ -220,6 +220,8 @@ method readOnce*(s: BufferStream,
   var index = 0
   var size = min(nbytes, s.len)
   let output = cast[ptr UncheckedArray[byte]](pbytes)
+
+  s.activity = true # reset activity flag
   while s.len() > 0 and index < size:
     output[index] = s.popFirst()
     inc(index)
@@ -243,6 +245,7 @@ method write*(s: BufferStream, msg: seq[byte]) {.async.} =
   if isNil(s.writeHandler):
     raise newNotWritableError()
 
+  s.activity = true # reset activity flag
   await s.writeHandler(msg)
 
 # TODO: move pipe routines out
@@ -303,6 +306,6 @@ method close*(s: BufferStream) {.async, gcsafe.} =
     else:
       trace "attempt to close an already closed bufferstream", trace = getStackTrace()
   except CancelledError as exc:
-    raise
+    raise exc
   except CatchableError as exc:
     trace "error closing buffer stream", exc = exc.msg

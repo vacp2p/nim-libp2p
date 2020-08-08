@@ -19,7 +19,7 @@ import nimcrypto/utils
 import bearssl
 import minasn1
 export Asn1Error
-import stew/results
+import stew/[results, ctops]
 export results
 
 const
@@ -662,81 +662,78 @@ proc `$`*(sig: RsaSignature): string =
     result.add(toHex(sig.buffer))
     result.add(")")
 
-proc cmp(a: openarray[byte], b: openarray[byte]): bool =
-  let alen = len(a)
-  let blen = len(b)
-  if alen == blen:
-    if alen == 0:
-      true
-    else:
-      var n = alen
-      var res = 0
-      while n > 0:
-        dec(n)
-        res = res or int(a[n] xor b[n])
-      (res == 0)
-  else:
-    false
-
 proc `==`*(a, b: RsaPrivateKey): bool =
   ## Compare two RSA private keys for equality.
   ##
   ## Result is true if ``a`` and ``b`` are both ``nil`` or ``a`` and ``b`` are
   ## equal by value.
   if isNil(a) and isNil(b):
-    result = true
+    true
   elif isNil(a) and (not isNil(b)):
-    result = false
+    false
   elif isNil(b) and (not isNil(a)):
-    result = false
+    false
   else:
     if a.seck.nBitlen == b.seck.nBitlen:
       if cast[int](a.seck.nBitlen) > 0:
-        let r1 = cmp(getArray(a.buffer, a.seck.p, a.seck.plen),
-                     getArray(b.buffer, b.seck.p, b.seck.plen))
-        let r2 = cmp(getArray(a.buffer, a.seck.q, a.seck.qlen),
-                     getArray(b.buffer, b.seck.q, b.seck.qlen))
-        let r3 = cmp(getArray(a.buffer, a.seck.dp, a.seck.dplen),
-                     getArray(b.buffer, b.seck.dp, b.seck.dplen))
-        let r4 = cmp(getArray(a.buffer, a.seck.dq, a.seck.dqlen),
-                     getArray(b.buffer, b.seck.dq, b.seck.dqlen))
-        let r5 = cmp(getArray(a.buffer, a.seck.iq, a.seck.iqlen),
-                     getArray(b.buffer, b.seck.iq, b.seck.iqlen))
-        let r6 = cmp(getArray(a.buffer, a.pexp, a.pexplen),
-                     getArray(b.buffer, b.pexp, b.pexplen))
-        let r7 = cmp(getArray(a.buffer, a.pubk.n, a.pubk.nlen),
-                     getArray(b.buffer, b.pubk.n, b.pubk.nlen))
-        let r8 = cmp(getArray(a.buffer, a.pubk.e, a.pubk.elen),
-                     getArray(b.buffer, b.pubk.e, b.pubk.elen))
-        result = r1 and r2 and r3 and r4 and r5 and r6 and r7 and r8
+        let r1 = CT.isEqual(getArray(a.buffer, a.seck.p, a.seck.plen),
+                            getArray(b.buffer, b.seck.p, b.seck.plen))
+        let r2 = CT.isEqual(getArray(a.buffer, a.seck.q, a.seck.qlen),
+                            getArray(b.buffer, b.seck.q, b.seck.qlen))
+        let r3 = CT.isEqual(getArray(a.buffer, a.seck.dp, a.seck.dplen),
+                            getArray(b.buffer, b.seck.dp, b.seck.dplen))
+        let r4 = CT.isEqual(getArray(a.buffer, a.seck.dq, a.seck.dqlen),
+                            getArray(b.buffer, b.seck.dq, b.seck.dqlen))
+        let r5 = CT.isEqual(getArray(a.buffer, a.seck.iq, a.seck.iqlen),
+                            getArray(b.buffer, b.seck.iq, b.seck.iqlen))
+        let r6 = CT.isEqual(getArray(a.buffer, a.pexp, a.pexplen),
+                            getArray(b.buffer, b.pexp, b.pexplen))
+        let r7 = CT.isEqual(getArray(a.buffer, a.pubk.n, a.pubk.nlen),
+                            getArray(b.buffer, b.pubk.n, b.pubk.nlen))
+        let r8 = CT.isEqual(getArray(a.buffer, a.pubk.e, a.pubk.elen),
+                            getArray(b.buffer, b.pubk.e, b.pubk.elen))
+        r1 and r2 and r3 and r4 and r5 and r6 and r7 and r8
       else:
-        result = true
+        true
+    else:
+      false
 
 proc `==`*(a, b: RsaSignature): bool =
   ## Compare two RSA signatures for equality.
   if isNil(a) and isNil(b):
-    result = true
+    true
   elif isNil(a) and (not isNil(b)):
-    result = false
+    false
   elif isNil(b) and (not isNil(a)):
-    result = false
+    false
   else:
-    result = (a.buffer == b.buffer)
+    # We need to cover all the cases because Signature initialization procedure
+    # do not perform any checks.
+    if len(a.buffer) == 0 and len(b.buffer) == 0:
+      true
+    elif len(a.buffer) == 0 and len(b.buffer) != 0:
+      false
+    elif len(b.buffer) == 0 and len(a.buffer) != 0:
+      false
+    elif len(a.buffer) != len(b.buffer):
+      false
+    else:
+      CT.isEqual(a.buffer, b.buffer)
 
 proc `==`*(a, b: RsaPublicKey): bool =
   ## Compare two RSA public keys for equality.
   if isNil(a) and isNil(b):
-    result = true
+    true
   elif isNil(a) and (not isNil(b)):
-    result = false
+    false
   elif isNil(b) and (not isNil(a)):
-    result = false
+    false
   else:
-    let r1 = cmp(getArray(a.buffer, a.key.n, a.key.nlen),
-                 getArray(b.buffer, b.key.n, b.key.nlen))
-    let r2 = cmp(getArray(a.buffer, a.key.e, a.key.elen),
-                 getArray(b.buffer, b.key.e, b.key.elen))
-    result = r1 and r2
+    let r1 = CT.isEqual(getArray(a.buffer, a.key.n, a.key.nlen),
+                        getArray(b.buffer, b.key.n, b.key.nlen))
+    let r2 = CT.isEqual(getArray(a.buffer, a.key.e, a.key.elen),
+                        getArray(b.buffer, b.key.e, b.key.elen))
+    (r1 and r2)
 
 proc sign*[T: byte|char](key: RsaPrivateKey,
                          message: openarray[T]): RsaResult[RsaSignature] {.gcsafe.} =

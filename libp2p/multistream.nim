@@ -40,6 +40,12 @@ proc newMultistream*(): MultistreamSelect =
   new result
   result.codec = MSCodec
 
+template validateSuffix(str: string): untyped =
+    if str.endsWith("\n"):
+      str.removeSuffix("\n")
+    else:
+      raise newException(CatchableError, "MultistreamSelect failed, malformed message")
+
 proc select*(m: MultistreamSelect,
              conn: Connection,
              proto: seq[string]):
@@ -52,17 +58,20 @@ proc select*(m: MultistreamSelect,
     await conn.writeLp((proto[0] & "\n")) # select proto
 
   var s = string.fromBytes((await conn.readLp(1024))) # read ms header
-  s.removeSuffix("\n")
+  validateSuffix(s)
+
   if s != Codec:
-    notice "handshake failed", codec = s.toHex()
-    return ""
+    notice "handshake failed", codec = s
+    raise newException(CatchableError, "MultistreamSelect handshake failed")
+  else:
+    trace "multistream handshake success"
 
   if proto.len() == 0: # no protocols, must be a handshake call
     return Codec
   else:
     s = string.fromBytes(await conn.readLp(1024)) # read the first proto
+    validateSuffix(s)
     trace "reading first requested proto"
-    s.removeSuffix("\n")
     if s == proto[0]:
       trace "successfully selected ", proto = proto[0]
       return proto[0]
@@ -74,7 +83,7 @@ proc select*(m: MultistreamSelect,
         trace "selecting proto", proto = p
         await conn.writeLp((p & "\n")) # select proto
         s = string.fromBytes(await conn.readLp(1024)) # read the first proto
-        s.removeSuffix("\n")
+        validateSuffix(s)
         if s == p:
           trace "selected protocol", protocol = s
           return s
@@ -110,42 +119,53 @@ proc list*(m: MultistreamSelect,
 
   result = list
 
-proc handle*(m: MultistreamSelect, conn: Connection) {.async, gcsafe.} =
-  trace "handle: starting multistream handling"
+proc handle*(m: MultistreamSelect, conn: Connection, active: bool = false) {.async, gcsafe.} =
+  trace "handle: starting multistream handling", handshaked = active
+  var handshaked = active
   try:
-    while not conn.closed:
+    while not conn.atEof:
       var ms = string.fromBytes(await conn.readLp(1024))
-      ms.removeSuffix("\n")
+      validateSuffix(ms)
 
-      trace "handle: got request for ", ms
+      if not handshaked and ms != Codec:
+        error "expected handshake message", instead=ms
+        raise newException(CatchableError,
+                           "MultistreamSelect handling failed, invalid first message")
+
+      trace "handle: got request", ms
       if ms.len() <= 0:
         trace "handle: invalid proto"
         await conn.write(Na)
 
       if m.handlers.len() == 0:
-        trace "handle: sending `na` for protocol ", protocol = ms
+        trace "handle: sending `na` for protocol", protocol = ms
         await conn.write(Na)
         continue
 
       case ms:
-        of "ls":
-          trace "handle: listing protos"
-          var protos = ""
-          for h in m.handlers:
-            for proto in h.protos:
-              protos &= (proto & "\n")
-          await conn.writeLp(protos)
-        of Codec:
+      of "ls":
+        trace "handle: listing protos"
+        var protos = ""
+        for h in m.handlers:
+          for proto in h.protos:
+            protos &= (proto & "\n")
+        await conn.writeLp(protos)
+      of Codec:
+        if not handshaked:
           await conn.write(m.codec)
+          handshaked = true
         else:
-          for h in m.handlers:
-            if (not isNil(h.match) and h.match(ms)) or h.protos.contains(ms):
-              trace "found handler for", protocol = ms
-              await conn.writeLp((ms & "\n"))
-              await h.protocol.handler(conn, ms)
-              return
-          debug "no handlers for ", protocol = ms
+          trace "handle: sending `na` for duplicate handshake while handshaked"
           await conn.write(Na)
+      else:
+        for h in m.handlers:
+          if (not isNil(h.match) and h.match(ms)) or h.protos.contains(ms):
+            trace "found handler", protocol = ms
+            await conn.writeLp(ms & "\n")
+            await h.protocol.handler(conn, ms)
+            return
+        debug "no handlers", protocol = ms
+        await conn.write(Na)
   except CancelledError as exc:
     await conn.close()
     raise exc

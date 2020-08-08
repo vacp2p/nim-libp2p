@@ -37,6 +37,8 @@ const
   NoiseSize = 32
   MaxPlainSize = int(uint16.high - NoiseSize - ChaChaPolyTag.len)
 
+  HandshakeTimeout = 1.minutes
+
 type
   KeyPair = object
     privateKey: Curve25519Key
@@ -101,7 +103,8 @@ proc hashProtocol(name: string): MDigest[256] =
     result = sha256.digest(name)
 
 proc dh(priv: Curve25519Key, pub: Curve25519Key): Curve25519Key =
-  Curve25519.mul(result, pub, priv)
+  result = pub
+  Curve25519.mul(result, priv)
 
 # Cipherstate
 
@@ -131,7 +134,7 @@ proc decryptWithAd(state: var CipherState, ad, data: openArray[byte]): seq[byte]
   ChaChaPoly.decrypt(state.k, nonce, tagOut, result, ad)
   trace "decryptWithAd", tagIn = tagIn.shortLog, tagOut = tagOut.shortLog, nonce = state.n
   if tagIn != tagOut:
-    error "decryptWithAd failed", data = byteutils.toHex(data)
+    debug "decryptWithAd failed", data = shortLog(data)
     raise newException(NoiseDecryptTagError, "decryptWithAd failed tag authentication.")
   inc state.n
   if state.n > NonceMax:
@@ -265,14 +268,14 @@ template read_s: untyped =
 
 proc receiveHSMessage(sconn: Connection): Future[seq[byte]] {.async.} =
   var besize: array[2, byte]
-  await sconn.readExactly(addr besize[0], besize.len)
+  await sconn.readExactly(addr besize[0], besize.len).wait(HandshakeTimeout)
   let size = uint16.fromBytesBE(besize).int
   trace "receiveHSMessage", size
   if size == 0:
     return
 
   var buffer = newSeq[byte](size)
-  await sconn.readExactly(addr buffer[0], buffer.len)
+  await sconn.readExactly(addr buffer[0], buffer.len).wait(HandshakeTimeout)
   return buffer
 
 proc sendHSMessage(sconn: Connection; buf: openArray[byte]): Future[void] =
@@ -452,14 +455,14 @@ method handshake*(p: Noise, conn: Connection, initiator: bool): Future[SecureCon
     let r1 = remoteProof.getField(1, remotePubKeyBytes)
     let r2 = remoteProof.getField(2, remoteSigBytes)
     if r1.isErr() or not(r1.get()):
-      raise newException(NoiseHandshakeError, "Failed to deserialize remote public key bytes. (initiator: " & $initiator & ", peer: " & $conn.peerInfo.peerId & ")")
+      raise newException(NoiseHandshakeError, "Failed to deserialize remote public key bytes. (initiator: " & $initiator & ")")
     if r2.isErr() or not(r2.get()):
-      raise newException(NoiseHandshakeError, "Failed to deserialize remote signature bytes. (initiator: " & $initiator & ", peer: " & $conn.peerInfo.peerId & ")")
+      raise newException(NoiseHandshakeError, "Failed to deserialize remote signature bytes. (initiator: " & $initiator & ")")
 
     if not remotePubKey.init(remotePubKeyBytes):
-      raise newException(NoiseHandshakeError, "Failed to decode remote public key. (initiator: " & $initiator & ", peer: " & $conn.peerInfo.peerId & ")")
+      raise newException(NoiseHandshakeError, "Failed to decode remote public key. (initiator: " & $initiator & ")")
     if not remoteSig.init(remoteSigBytes):
-      raise newException(NoiseHandshakeError, "Failed to decode remote signature. (initiator: " & $initiator & ", peer: " & $conn.peerInfo.peerId & ")")
+      raise newException(NoiseHandshakeError, "Failed to decode remote signature. (initiator: " & $initiator & ")")
 
     let verifyPayload = PayloadString.toBytes & handshakeRes.rs.getBytes
     if not remoteSig.verify(verifyPayload, remotePubKey):
@@ -475,11 +478,17 @@ method handshake*(p: Noise, conn: Connection, initiator: bool): Future[SecureCon
         var
           failedKey: PublicKey
         discard extractPublicKey(conn.peerInfo.peerId, failedKey)
-        debug "Noise handshake, peer infos don't match!", initiator, dealt_peer = $conn.peerInfo.id, dealt_key = $failedKey, received_peer = $pid, received_key = $remotePubKey
+        debug "Noise handshake, peer infos don't match!",
+          initiator, dealt_peer = $conn.peerInfo.id,
+          dealt_key = $failedKey, received_peer = $pid,
+          received_key = $remotePubKey
         raise newException(NoiseHandshakeError, "Noise handshake, peer infos don't match! " & $pid & " != " & $conn.peerInfo.peerId)
 
-    var tmp = NoiseConnection.init(
-      conn, PeerInfo.init(remotePubKey), conn.observedAddr)
+    let peerInfo =
+      if conn.peerInfo != nil: conn.peerInfo
+      else: PeerInfo.init(remotePubKey)
+
+    var tmp = NoiseConnection.init(conn, peerInfo, conn.observedAddr)
 
     if initiator:
       tmp.readCs = handshakeRes.cs2
@@ -491,7 +500,7 @@ method handshake*(p: Noise, conn: Connection, initiator: bool): Future[SecureCon
   finally:
     burnMem(handshakeRes)
 
-  trace "Noise handshake completed!", initiator, peer = $secure.peerInfo
+  trace "Noise handshake completed!", initiator, peer = shortLog(secure.peerInfo)
 
   return secure
 

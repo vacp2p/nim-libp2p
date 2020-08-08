@@ -106,10 +106,10 @@ method init*(p: Identify) =
   proc handle(conn: Connection, proto: string) {.async, gcsafe, closure.} =
     try:
       defer:
-        trace "exiting identify handler", oid = conn.oid
+        trace "exiting identify handler", oid = $conn.oid
         await conn.close()
 
-      trace "handling identify request", oid = conn.oid
+      trace "handling identify request", oid = $conn.oid
       var pb = encodeMsg(p.peerInfo, conn.observedAddr)
       await conn.writeLp(pb.buffer)
     except CancelledError as exc:

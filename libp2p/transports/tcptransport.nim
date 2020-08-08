@@ -7,6 +7,7 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
+import oids
 import chronos, chronicles, sequtils
 import transport,
        ../errors,
@@ -62,7 +63,7 @@ proc connHandler*(t: TcpTransport,
                   client: StreamTransport,
                   initiator: bool): Connection =
   trace "handling connection", address = $client.remoteAddress
-  let conn: Connection = Connection(newChronosStream(client))
+  let conn: Connection = Connection(ChronosStream.init(client))
   conn.observedAddr = MultiAddress.init(client.remoteAddress).tryGet()
   if not initiator:
     if not isNil(t.handler):
@@ -71,10 +72,12 @@ proc connHandler*(t: TcpTransport,
   proc cleanup() {.async.} =
     try:
       await client.join()
-      trace "cleaning up client", addrs = $client.remoteAddress, connoid = conn.oid
+      trace "cleaning up client", addrs = $client.remoteAddress, connoid = $conn.oid
       if not(isNil(conn)):
         await conn.close()
       t.clients.keepItIf(it != client)
+    except CancelledError as exc:
+      raise exc
     except CatchableError as exc:
       trace "error cleaning up client", exc = exc.msg
 
@@ -138,6 +141,8 @@ method close*(t: TcpTransport) {.async, gcsafe.} =
 
     trace "transport stopped"
     inc getTcpTransportTracker().closed
+  except CancelledError as exc:
+    raise exc
   except CatchableError as exc:
     trace "error shutting down tcp transport", exc = exc.msg
 

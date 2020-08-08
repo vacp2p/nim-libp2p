@@ -19,8 +19,8 @@ macro checkFutures*[T](futs: seq[Future[T]], exclude: untyped = []): untyped =
         if res.failed:
           let exc = res.readError()
           # We still don't abort but warn
-          warn "A future has failed, enable trace logging for details", error=exc.name
-          trace "Exception message", msg=exc.msg
+          warn "A future has failed, enable trace logging for details", error = exc.name
+          trace "Exception message", msg= exc.msg, stack = getStackTrace()
   else:
     quote do:
       for res in `futs`:
@@ -48,6 +48,8 @@ proc allFuturesThrowing*[T](args: varargs[Future[T]]): Future[void] =
         if err of Defect:
           raise err
         else:
+          if err of CancelledError:
+            raise err
           if isNil(first):
             first = err
     if not isNil(first):

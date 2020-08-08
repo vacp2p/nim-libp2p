@@ -36,7 +36,7 @@ method subscribeTopic*(f: FloodSub,
 
   let peer = f.peers.getOrDefault(peerId)
   if peer == nil:
-    debug "subscribeTopic on a nil peer!"
+    debug "subscribeTopic on a nil peer!", peer = peerId
     return
 
   if topic notin f.floodsub:
@@ -53,11 +53,14 @@ method subscribeTopic*(f: FloodSub,
 
 method handleDisconnect*(f: FloodSub, peer: PubSubPeer) =
   ## handle peer disconnects
-  for t in toSeq(f.floodsub.keys):
-    if t in f.floodsub:
-      f.floodsub[t].excl(peer)
-
+  ##
+  
   procCall PubSub(f).handleDisconnect(peer)
+
+  if not(isNil(peer)) and peer.peerInfo notin f.conns:
+    for t in toSeq(f.floodsub.keys):
+      if t in f.floodsub:
+        f.floodsub[t].excl(peer)
 
 method rpcHandler*(f: FloodSub,
                    peer: PubSubPeer,
@@ -93,11 +96,13 @@ method rpcHandler*(f: FloodSub,
 
                 try:
                   await h(t, msg.data)                 # trigger user provided handler
+                except CancelledError as exc:
+                  raise exc
                 except CatchableError as exc:
                   trace "exception in message handler", exc = exc.msg
 
         # forward the message to all peers interested in it
-        let published = await f.publishHelper(toSendPeers, m.messages)
+        let published = await f.publishHelper(toSendPeers, m.messages, DefaultSendTimeout)
 
         trace "forwared message to peers", peers = published
 
@@ -120,9 +125,10 @@ method subscribePeer*(p: FloodSub,
 
 method publish*(f: FloodSub,
                 topic: string,
-                data: seq[byte]): Future[int] {.async.} =
+                data: seq[byte],
+                timeout: Duration = InfiniteDuration): Future[int] {.async.} =
   # base returns always 0
-  discard await procCall PubSub(f).publish(topic, data)
+  discard await procCall PubSub(f).publish(topic, data, timeout)
 
   if data.len <= 0 or topic.len <= 0:
     trace "topic or data missing, skipping publish"
@@ -137,9 +143,10 @@ method publish*(f: FloodSub,
   let msg = Message.init(f.peerInfo, data, topic, f.msgSeqno, f.sign)
 
   # start the future but do not wait yet
-  let published = await f.publishHelper(f.floodsub.getOrDefault(topic), @[msg])
+  let published = await f.publishHelper(f.floodsub.getOrDefault(topic), @[msg], timeout)
 
-  libp2p_pubsub_messages_published.inc(labelValues = [topic])
+  when defined(libp2p_expensive_metrics):
+    libp2p_pubsub_messages_published.inc(labelValues = [topic])
 
   trace "published message to peers", peers = published,
                                       msg = msg.shortLog()

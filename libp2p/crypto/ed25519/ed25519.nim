@@ -15,7 +15,7 @@
 
 import constants, bearssl
 import nimcrypto/[hash, sha2, utils]
-import stew/results
+import stew/[results, ctops]
 export results
 
 # This workaround needed because of some bugs in Nim Static[T].
@@ -1725,15 +1725,15 @@ proc getBytes*(sig: EdSignature): seq[byte] = @(sig.data)
 
 proc `==`*(eda, edb: EdPrivateKey): bool =
   ## Compare ED25519 `private key` objects for equality.
-  result = (eda.data == edb.data)
+  result = CT.isEqual(eda.data, edb.data)
 
 proc `==`*(eda, edb: EdPublicKey): bool =
   ## Compare ED25519 `public key` objects for equality.
-  result = (eda.data == edb.data)
+  result = CT.isEqual(eda.data, edb.data)
 
 proc `==`*(eda, edb: EdSignature): bool =
   ## Compare ED25519 `signature` objects for equality.
-  result = (eda.data == edb.data)
+  result = CT.isEqual(eda.data, edb.data)
 
 proc `$`*(key: EdPrivateKey): string = toHex(key.data)
   ## Return string representation of ED25519 `private key`.
