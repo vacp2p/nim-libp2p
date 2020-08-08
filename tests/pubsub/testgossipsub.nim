@@ -478,6 +478,8 @@ suite "GossipSub":
         nodes.add newStandardSwitch(triggerSelf = true,
                                     gossip = true,
                                     secureManagers = [SecureProtocol.Noise])
+        var gossipSub = GossipSub(nodes[i].pubSub.get())
+        gossipSub.parameters.floodPublish = false
         awaitters.add((await nodes[i].start()))
 
       let subscribes = await subscribeRandom(nodes)
@@ -537,6 +539,8 @@ suite "GossipSub":
         nodes.add newStandardSwitch(triggerSelf = true,
                                     gossip = true,
                                     secureManagers = [SecureProtocol.Secio])
+        var gossipSub = GossipSub(nodes[i].pubSub.get())
+        gossipSub.parameters.floodPublish = false
         awaitters.add((await nodes[i].start()))
 
       let subscribes = await subscribeSparseNodes(nodes, 1)
