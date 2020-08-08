@@ -31,12 +31,12 @@ type
 method subscribeTopic*(f: FloodSub,
                        topic: string,
                        subscribe: bool,
-                       peerId: string) {.gcsafe, async.} =
+                       peerId: PeerID) {.gcsafe, async.} =
   await procCall PubSub(f).subscribeTopic(topic, subscribe, peerId)
 
   let peer = f.peers.getOrDefault(peerId)
   if peer == nil:
-    debug "subscribeTopic on a nil peer!", peer = peerId
+    debug "subscribeTopic on a nil peer!", peer = $peerId
     return
 
   if topic notin f.floodsub:
@@ -51,16 +51,15 @@ method subscribeTopic*(f: FloodSub,
     # unsubscribe the peer from the topic
     f.floodsub[topic].excl(peer)
 
-method handleDisconnect*(f: FloodSub, peer: PubSubPeer) =
+method unsubscribePeer*(f: FloodSub, peer: PubSubPeer) =
   ## handle peer disconnects
   ##
-  
-  procCall PubSub(f).handleDisconnect(peer)
 
-  if not(isNil(peer)) and peer.peerInfo notin f.conns:
-    for t in toSeq(f.floodsub.keys):
-      if t in f.floodsub:
-        f.floodsub[t].excl(peer)
+  procCall PubSub(f).unsubscribePeer(peer)
+
+  for t in toSeq(f.floodsub.keys):
+    if t in f.floodsub:
+      f.floodsub[t].excl(peer)
 
 method rpcHandler*(f: FloodSub,
                    peer: PubSubPeer,
@@ -77,7 +76,7 @@ method rpcHandler*(f: FloodSub,
         if msgId notin f.seen:
           f.seen.put(msgId)                          # add the message to the seen cache
 
-          if f.verifySignature and not msg.verify(peer.peerInfo):
+          if f.verifySignature and not msg.verify(peer.peer):
             trace "dropping message due to failed signature verification"
             continue
 
@@ -117,11 +116,6 @@ method init*(f: FloodSub) =
 
   f.handler = handler
   f.codec = FloodSubCodec
-
-method subscribePeer*(p: FloodSub,
-                      conn: Connection) =
-  procCall PubSub(p).subscribePeer(conn)
-  asyncCheck p.handleConn(conn, FloodSubCodec)
 
 method publish*(f: FloodSub,
                 topic: string,
@@ -167,8 +161,6 @@ method unsubscribeAll*(f: FloodSub, topic: string) {.async.} =
 
 method initPubSub*(f: FloodSub) =
   procCall PubSub(f).initPubSub()
-  f.peers = initTable[string, PubSubPeer]()
-  f.topics = initTable[string, Topic]()
   f.floodsub = initTable[string, HashSet[PubSubPeer]]()
   f.seen = newTimedCache[string](2.minutes)
   f.init()

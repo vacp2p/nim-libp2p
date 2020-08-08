@@ -25,7 +25,6 @@ import stream/connection,
        protocols/secure/secure,
        peerinfo,
        protocols/identify,
-       protocols/pubsub/pubsub,
        muxers/muxer,
        connmanager,
        peerid,
@@ -43,9 +42,6 @@ logScope:
 declareCounter(libp2p_dialed_peers, "dialed peers")
 declareCounter(libp2p_failed_dials, "failed dials")
 declareCounter(libp2p_failed_upgrade, "peers failed upgrade")
-
-const
-  MaxPubsubReconnectAttempts* = 10
 
 type
     NoPubSubException* = object of CatchableError
@@ -77,13 +73,8 @@ type
       identity*: Identify
       streamHandler*: StreamHandler
       secureManagers*: seq[Secure]
-      pubSub*: Option[PubSub]
       dialLock: Table[PeerID, AsyncLock]
       ConnEvents: Table[ConnEventKind, HashSet[ConnEventHandler]]
-      pubsubMonitors: Table[PeerId, Future[void]]
-
-proc newNoPubSubException(): ref NoPubSubException {.inline.} =
-  result = newException(NoPubSubException, "no pubsub provided!")
 
 proc addConnEventHandler*(s: Switch,
                           handler: ConnEventHandler, kind: ConnEventKind) =
@@ -110,23 +101,6 @@ proc triggerConnEvent(s: Switch, peerId: PeerID, event: ConnEvent) {.async, gcsa
     warn "exception in trigger ConnEvents", exc = exc.msg
 
 proc disconnect*(s: Switch, peerId: PeerID) {.async, gcsafe.}
-proc subscribePeer*(s: Switch, peerId: PeerID) {.async, gcsafe.}
-proc subscribePeerInternal(s: Switch, peerId: PeerID) {.async, gcsafe.}
-
-proc cleanupPubSubPeer(s: Switch, conn: Connection) {.async.} =
-  try:
-    await conn.closeEvent.wait()
-    trace "about to cleanup pubsub peer"
-    if s.pubSub.isSome:
-      let fut = s.pubsubMonitors.getOrDefault(conn.peerInfo.peerId)
-      if not(isNil(fut)) and not(fut.finished):
-        fut.cancel()
-
-      await s.pubSub.get().unsubscribePeer(conn.peerInfo)
-  except CancelledError as exc:
-    raise exc
-  except CatchableError as exc:
-    trace "exception cleaning pubsub peer", exc = exc.msg
 
 proc isConnected*(s: Switch, peerId: PeerID): bool =
   ## returns true if the peer has one or more
@@ -380,13 +354,30 @@ proc internalConnect(s: Switch,
     # unworthy and disconnects it
     raise newException(CatchableError, "Connection closed during handshake")
 
-  asyncCheck s.cleanupPubSubPeer(conn)
-  asyncCheck s.subscribePeer(peerId)
-
   return conn
 
 proc connect*(s: Switch, peerId: PeerID, addrs: seq[MultiAddress]) {.async.} =
   discard await s.internalConnect(peerId, addrs)
+
+proc negotiateStream(s: Switch, stream: Connection, proto: string): Future[Connection] {.async.} =
+  trace "Attempting to select remote", proto = proto,
+                                       streamOid = $stream.oid,
+                                       oid = $stream.oid
+
+  if not await s.ms.select(stream, proto):
+    await stream.close()
+    raise newException(CatchableError, "Unable to select sub-protocol" & proto)
+
+  return stream
+
+proc dial*(s: Switch,
+           peerId: PeerID,
+           proto: string): Future[Connection] {.async.} =
+  let stream = await s.connmanager.getMuxedStream(peerId)
+  if stream.isNil:
+    raise newException(CatchableError, "Couldn't get muxed stream")
+
+  return await s.negotiateStream(stream, proto)
 
 proc dial*(s: Switch,
            peerId: PeerID,
@@ -408,14 +399,7 @@ proc dial*(s: Switch,
       await conn.close()
       raise newException(CatchableError, "Couldn't get muxed stream")
 
-    trace "Attempting to select remote", proto = proto,
-                                         streamOid = $stream.oid,
-                                         oid = $conn.oid
-    if not await s.ms.select(stream, proto):
-      await stream.close()
-      raise newException(CatchableError, "Unable to select sub-protocol" & proto)
-
-    return stream
+    return await s.negotiateStream(stream, proto)
   except CancelledError as exc:
     trace "dial canceled"
     await cleanup()
@@ -457,20 +441,11 @@ proc start*(s: Switch): Future[seq[Future[void]]] {.async, gcsafe.} =
         s.peerInfo.addrs[i] = t.ma # update peer's address
         startFuts.add(server)
 
-  if s.pubSub.isSome:
-    await s.pubSub.get().start()
-
   debug "started libp2p node", peer = $s.peerInfo, addrs = s.peerInfo.addrs
   result = startFuts # listen for incoming connections
 
 proc stop*(s: Switch) {.async.} =
   trace "stopping switch"
-
-  # we want to report errors but we do not want to fail
-  # or crash here, cos we need to clean possibly MANY items
-  # and any following conn/transport won't be cleaned up
-  if s.pubSub.isSome:
-    await s.pubSub.get().stop()
 
   # close and cleanup all connections
   await s.connManager.close()
@@ -484,139 +459,6 @@ proc stop*(s: Switch) {.async.} =
       warn "error cleaning up transports"
 
   trace "switch stopped"
-
-proc subscribePeerInternal(s: Switch, peerId: PeerID) {.async, gcsafe.} =
-  ## Subscribe to pub sub peer
-  ##
-
-  if s.pubSub.isSome and not s.pubSub.get().connected(peerId):
-    trace "about to subscribe to pubsub peer", peer = peerId
-    var stream: Connection
-    try:
-      stream = await s.connManager.getMuxedStream(peerId)
-      if isNil(stream):
-        trace "unable to subscribe to peer", peer = peerId
-        return
-
-      if not await s.ms.select(stream, s.pubSub.get().codec):
-        if not(isNil(stream)):
-          trace "couldn't select pubsub", codec = s.pubSub.get().codec
-          await stream.close()
-        return
-
-      s.pubSub.get().subscribePeer(stream)
-      await stream.closeEvent.wait()
-    except CancelledError as exc:
-      if not(isNil(stream)):
-        await stream.close()
-
-      raise exc
-    except CatchableError as exc:
-      trace "exception in subscribe to peer", peer = peerId,
-                                              exc = exc.msg
-      if not(isNil(stream)):
-        await stream.close()
-
-proc pubsubMonitor(s: Switch, peerId: PeerID) {.async.} =
-  ## while peer connected maintain a
-  ## pubsub connection as well
-  ##
-
-  while s.isConnected(peerId):
-    try:
-      trace "subscribing to pubsub peer", peer = peerId
-      await s.subscribePeerInternal(peerId)
-    except CancelledError as exc:
-      raise exc
-    except CatchableError as exc:
-      trace "exception in pubsub monitor", peer = peerId, exc = exc.msg
-    finally:
-      trace "sleeping before trying pubsub peer", peer = peerId
-      await sleepAsync(1.seconds) # allow the peer to cooldown
-
-  trace "exiting pubsub monitor", peer = peerId
-
-proc subscribePeer*(s: Switch, peerId: PeerID): Future[void] {.gcsafe.} =
-  ## Waits until ``server`` is not closed.
-  ##
-
-  var retFuture = newFuture[void]("stream.transport.server.join")
-  let pubsubFut = s.pubsubMonitors.mgetOrPut(
-    peerId, s.pubsubMonitor(peerId))
-
-  proc continuation(udata: pointer) {.gcsafe.} =
-    retFuture.complete()
-
-  proc cancel(udata: pointer) {.gcsafe.} =
-    pubsubFut.removeCallback(continuation, cast[pointer](retFuture))
-
-  if not(pubsubFut.finished()):
-    pubsubFut.addCallback(continuation, cast[pointer](retFuture))
-    retFuture.cancelCallback = cancel
-  else:
-    retFuture.complete()
-
-  return retFuture
-
-proc subscribe*(s: Switch, topic: string,
-                handler: TopicHandler) {.async.} =
-  ## subscribe to a pubsub topic
-  ##
-
-  if s.pubSub.isNone:
-    raise newNoPubSubException()
-
-  await s.pubSub.get().subscribe(topic, handler)
-
-proc unsubscribe*(s: Switch, topics: seq[TopicPair]) {.async.} =
-  ## unsubscribe from topics
-  ##
-
-  if s.pubSub.isNone:
-    raise newNoPubSubException()
-
-  await s.pubSub.get().unsubscribe(topics)
-
-proc unsubscribeAll*(s: Switch, topic: string) {.async.} =
-  ## unsubscribe from topics
-  if s.pubSub.isNone:
-    raise newNoPubSubException()
-
-  await s.pubSub.get().unsubscribeAll(topic)
-
-proc publish*(s: Switch,
-              topic: string,
-              data: seq[byte],
-              timeout: Duration = InfiniteDuration): Future[int] {.async.} =
-  ## pubslish to pubsub topic
-  ##
-
-  if s.pubSub.isNone:
-    raise newNoPubSubException()
-
-  return await s.pubSub.get().publish(topic, data, timeout)
-
-proc addValidator*(s: Switch,
-                   topics: varargs[string],
-                   hook: ValidatorHandler) =
-  ## add validator
-  ##
-
-  if s.pubSub.isNone:
-    raise newNoPubSubException()
-
-  s.pubSub.get().addValidator(topics, hook)
-
-proc removeValidator*(s: Switch,
-                      topics: varargs[string],
-                      hook: ValidatorHandler) =
-  ## pubslish to pubsub topic
-  ##
-
-  if s.pubSub.isNone:
-    raise newNoPubSubException()
-
-  s.pubSub.get().removeValidator(topics, hook)
 
 proc muxerHandler(s: Switch, muxer: Muxer) {.async, gcsafe.} =
   var stream = await muxer.newStream()
@@ -653,10 +495,6 @@ proc muxerHandler(s: Switch, muxer: Muxer) {.async, gcsafe.} =
     asyncCheck s.triggerConnEvent(
       peerId, ConnEvent(kind: ConnEventKind.Connected, incoming: true))
 
-    # try establishing a pubsub connection
-    asyncCheck s.cleanupPubSubPeer(muxer.connection)
-    asyncCheck s.subscribePeer(peerId)
-
   except CancelledError as exc:
     await muxer.close()
     raise exc
@@ -669,8 +507,7 @@ proc newSwitch*(peerInfo: PeerInfo,
                 transports: seq[Transport],
                 identity: Identify,
                 muxers: Table[string, MuxerProvider],
-                secureManagers: openarray[Secure] = [],
-                pubSub: Option[PubSub] = none(PubSub)): Switch =
+                secureManagers: openarray[Secure] = []): Switch =
   if secureManagers.len == 0:
     raise (ref CatchableError)(msg: "Provide at least one secure manager")
 
@@ -703,24 +540,21 @@ proc newSwitch*(peerInfo: PeerInfo,
     val.muxerHandler = proc(muxer: Muxer): Future[void] =
       s.muxerHandler(muxer)
 
-  if pubSub.isSome:
-    result.pubSub = pubSub
-    result.mount(pubSub.get())
-
-proc isConnected*(s: Switch, peerInfo: PeerInfo): bool {.deprecated: "Use PeerID version".} =
+proc isConnected*(s: Switch, peerInfo: PeerInfo): bool
+  {.deprecated: "Use PeerID version".} =
   not isNil(peerInfo) and isConnected(s, peerInfo.peerId)
 
-proc disconnect*(s: Switch, peerInfo: PeerInfo): Future[void] {.deprecated: "Use PeerID version", gcsafe.} =
+proc disconnect*(s: Switch, peerInfo: PeerInfo): Future[void]
+  {.deprecated: "Use PeerID version", gcsafe.} =
   disconnect(s, peerInfo.peerId)
 
-proc connect*(s: Switch, peerInfo: PeerInfo): Future[void] {.deprecated: "Use PeerID version".} =
+proc connect*(s: Switch, peerInfo: PeerInfo): Future[void]
+  {.deprecated: "Use PeerID version".} =
   connect(s, peerInfo.peerId, peerInfo.addrs)
 
 proc dial*(s: Switch,
            peerInfo: PeerInfo,
            proto: string):
-           Future[Connection] {.deprecated: "Use PeerID version".} =
+           Future[Connection]
+  {.deprecated: "Use PeerID version".} =
   dial(s, peerInfo.peerId, peerInfo.addrs, proto)
-
-proc subscribePeer*(s: Switch, peerInfo: PeerInfo): Future[void] {.deprecated: "Use PeerID version", gcsafe.} =
-  subscribePeer(s, peerInfo.peerId)

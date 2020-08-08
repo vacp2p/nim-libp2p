@@ -72,11 +72,20 @@ proc testPubSubDaemonPublish(gossip: bool = false,
   let daemonNode = await newDaemonApi(flags)
   let daemonPeer = await daemonNode.identity()
   let nativeNode = newStandardSwitch(
-    gossip = gossip,
     secureManagers = [SecureProtocol.Noise],
     outTimeout = 5.minutes)
 
+  let pubsub = if gossip:
+      GossipSub.init(
+        switch = nativeNode).PubSub
+    else:
+      FloodSub.init(
+        switch = nativeNode).PubSub
+
+  nativeNode.mount(pubsub)
+
   let awaiters = nativeNode.start()
+  await pubsub.start()
   let nativePeer = nativeNode.peerInfo
 
   var finished = false
@@ -91,8 +100,8 @@ proc testPubSubDaemonPublish(gossip: bool = false,
   let peer = NativePeerInfo.init(
     daemonPeer.peer,
     daemonPeer.addresses)
-  await nativeNode.connect(peer)
-  let subscribeHanle = nativeNode.subscribePeer(peer)
+  await nativeNode.connect(peer.peerId, peer.addrs)
+  pubsub.subscribePeer(peer.peerId)
 
   await sleepAsync(1.seconds)
   await daemonNode.connect(nativePeer.peerId, nativePeer.addrs)
@@ -103,7 +112,7 @@ proc testPubSubDaemonPublish(gossip: bool = false,
     result = true # don't cancel subscription
 
   asyncDiscard daemonNode.pubsubSubscribe(testTopic, pubsubHandler)
-  await nativeNode.subscribe(testTopic, nativeHandler)
+  await pubsub.subscribe(testTopic, nativeHandler)
   await sleepAsync(5.seconds)
 
   proc publisher() {.async.} =
@@ -115,9 +124,9 @@ proc testPubSubDaemonPublish(gossip: bool = false,
 
   result = true
   await nativeNode.stop()
+  await pubsub.stop()
   await allFutures(awaiters)
   await daemonNode.close()
-  await subscribeHanle
 
 proc testPubSubNodePublish(gossip: bool = false,
                            count: int = 1): Future[bool] {.async.} =
@@ -132,18 +141,27 @@ proc testPubSubNodePublish(gossip: bool = false,
   let daemonNode = await newDaemonApi(flags)
   let daemonPeer = await daemonNode.identity()
   let nativeNode = newStandardSwitch(
-    gossip = gossip,
     secureManagers = [SecureProtocol.Secio],
     outTimeout = 5.minutes)
 
+  let pubsub = if gossip:
+      GossipSub.init(
+        switch = nativeNode).PubSub
+    else:
+      FloodSub.init(
+        switch = nativeNode).PubSub
+
+  nativeNode.mount(pubsub)
+
   let awaiters = nativeNode.start()
+  await pubsub.start()
   let nativePeer = nativeNode.peerInfo
 
   let peer = NativePeerInfo.init(
     daemonPeer.peer,
     daemonPeer.addresses)
   await nativeNode.connect(peer)
-  let subscribeHandle = nativeNode.subscribePeer(peer)
+  pubsub.subscribePeer(peer.peerId)
 
   await sleepAsync(1.seconds)
   await daemonNode.connect(nativePeer.peerId, nativePeer.addrs)
@@ -162,21 +180,21 @@ proc testPubSubNodePublish(gossip: bool = false,
 
   discard await daemonNode.pubsubSubscribe(testTopic, pubsubHandler)
   proc nativeHandler(topic: string, data: seq[byte]) {.async.} = discard
-  await nativeNode.subscribe(testTopic, nativeHandler)
+  await pubsub.subscribe(testTopic, nativeHandler)
   await sleepAsync(5.seconds)
 
   proc publisher() {.async.} =
     while not finished:
-      discard await nativeNode.publish(testTopic, msgData)
+      discard await pubsub.publish(testTopic, msgData)
       await sleepAsync(500.millis)
 
   await wait(publisher(), 5.minutes) # should be plenty of time
 
   result = finished
   await nativeNode.stop()
+  await pubsub.stop()
   await allFutures(awaiters)
   await daemonNode.close()
-  await subscribeHandle
 
 suite "Interop":
   # TODO: chronos transports are leaking,
