@@ -11,6 +11,7 @@ import std/[hashes, options, sequtils, strutils, tables]
 import chronos, chronicles, nimcrypto/sha2, metrics
 import rpc/[messages, message, protobuf],
        timedcache,
+       ../../switch,
        ../../peerid,
        ../../peerinfo,
        ../../stream/connection,
@@ -28,7 +29,6 @@ when defined(libp2p_expensive_metrics):
   declareCounter(libp2p_pubsub_skipped_sent_messages, "number of sent skipped messages", labels = ["id"])
 
 const
-  DefaultReadTimeout* = 1.minutes
   DefaultSendTimeout* = 10.seconds
 
 type
@@ -37,14 +37,16 @@ type
     onSend*: proc(peer: PubSubPeer; msgs: var RPCMsg) {.gcsafe, raises: [Defect].}
 
   PubSubPeer* = ref object of RootObj
-    proto*: string                      # the protocol that this peer joined from
+    switch*: Switch                     # switch instance to dial peers
+    codec*: string                      # the protocol that this peer joined from
     sendConn: Connection
-    peerInfo*: PeerInfo
+    peer*: PeerID
     handler*: RPCHandler
     sentRpcCache: TimedCache[string]    # cache for already sent messages
     recvdRpcCache: TimedCache[string]   # cache for already received messages
-    onConnect*: AsyncEvent
     observers*: ref seq[PubSubObserver] # ref as in smart_ptr
+    subscribed*: bool                   # are we subscribed to this peer
+    sendLock*: AsyncLock                # send connection lock
 
   RPCHandler* = proc(peer: PubSubPeer, msg: seq[RPCMsg]): Future[void] {.gcsafe.}
 
@@ -52,19 +54,10 @@ func hash*(p: PubSubPeer): Hash =
   # int is either 32/64, so intptr basically, pubsubpeer is a ref
   cast[pointer](p).hash
 
-proc id*(p: PubSubPeer): string = p.peerInfo.id
+proc id*(p: PubSubPeer): string = p.peer.pretty
 
 proc connected*(p: PubSubPeer): bool =
-  not(isNil(p.sendConn))
-
-proc `conn=`*(p: PubSubPeer, conn: Connection) =
-  if not(isNil(conn)):
-    trace "attaching send connection for peer", peer = p.id
-    p.sendConn = conn
-    p.onConnect.fire()
-
-proc conn*(p: PubSubPeer): Connection =
-  p.sendConn
+  not(isNil(p.sendConn)) and not p.sendConn.closed
 
 proc recvObservers(p: PubSubPeer, msg: var RPCMsg) =
   # trigger hooks
@@ -83,12 +76,13 @@ proc sendObservers(p: PubSubPeer, msg: var RPCMsg) =
 proc handle*(p: PubSubPeer, conn: Connection) {.async.} =
   logScope:
     peer = p.id
+
   debug "starting pubsub read loop for peer", closed = conn.closed
   try:
     try:
       while not conn.atEof:
         trace "waiting for data", closed = conn.closed
-        let data = await conn.readLp(64 * 1024).wait(DefaultReadTimeout)
+        let data = await conn.readLp(64 * 1024)
         let digest = $(sha256.digest(data))
         trace "read data from peer", data = data.shortLog
         if digest in p.recvdRpcCache:
@@ -124,12 +118,12 @@ proc handle*(p: PubSubPeer, conn: Connection) {.async.} =
     raise exc
   except CatchableError as exc:
     trace "Exception occurred in PubSubPeer.handle", exc = exc.msg
-    raise exc
 
 proc send*(
   p: PubSubPeer,
   msg: RPCMsg,
   timeout: Duration = DefaultSendTimeout) {.async.} =
+
   logScope:
     peer = p.id
     rpcMsg = shortLog(msg)
@@ -155,41 +149,36 @@ proc send*(
       libp2p_pubsub_skipped_sent_messages.inc(labelValues = [p.id])
     return
 
-  proc sendToRemote() {.async.} =
-    logScope:
-      peer = p.id
-      rpcMsg = shortLog(msg)
-
-    trace "about to send message"
-
-    if not p.onConnect.isSet:
-      await p.onConnect.wait()
-
-    if p.connected: # this can happen if the remote disconnected
-      trace "sending encoded msgs to peer"
-
-      await p.sendConn.writeLp(encoded)
-      p.sentRpcCache.put(digest)
-      trace "sent pubsub message to remote"
-
-      when defined(libp2p_expensive_metrics):
-        for x in mm.messages:
-          for t in x.topicIDs:
-            # metrics
-            libp2p_pubsub_sent_messages.inc(labelValues = [p.id, t])
-
-  let sendFut = sendToRemote()
   try:
-    await sendFut.wait(timeout)
+    trace "about to send message"
+    if not p.connected:
+      try:
+        await p.sendLock.acquire()
+        trace "no send connection, dialing peer"
+        p.sendConn = await p.switch.dial(
+          p.peer, p.codec)
+          .wait(DefaultSendTimeout) # get a send connection if there is none
+        asyncCheck p.handle(p.sendConn) # install a reader on the send connection
+      finally:
+        if p.sendLock.locked:
+          p.sendLock.release()
+
+    trace "sending encoded msgs to peer"
+    await p.sendConn.writeLp(encoded).wait(DefaultSendTimeout)
+    p.sentRpcCache.put(digest)
+    trace "sent pubsub message to remote"
+
+    when defined(libp2p_expensive_metrics):
+      for x in mm.messages:
+        for t in x.topicIDs:
+          # metrics
+          libp2p_pubsub_sent_messages.inc(labelValues = [p.id, t])
+
   except CatchableError as exc:
     trace "unable to send to remote", exc = exc.msg
-    if not sendFut.finished:
-      sendFut.cancel()
-
     if not(isNil(p.sendConn)):
       await p.sendConn.close()
       p.sendConn = nil
-      p.onConnect.clear()
 
     raise exc
 
@@ -198,10 +187,7 @@ proc sendSubOpts*(p: PubSubPeer, topics: seq[string], subscribe: bool) {.async.}
 
   try:
     await p.send(RPCMsg(
-      subscriptions: topics.mapIt(SubOpts(subscribe: subscribe, topic: it))),
-      # the long timeout is mostly for cases where
-      # the connection is flaky at the beggingin
-      timeout = 3.minutes)
+      subscriptions: topics.mapIt(SubOpts(subscribe: subscribe, topic: it))))
   except CancelledError as exc:
     raise exc
   except CatchableError as exc:
@@ -212,8 +198,7 @@ proc sendGraft*(p: PubSubPeer, topics: seq[string]) {.async.} =
 
   try:
     await p.send(RPCMsg(control: some(
-      ControlMessage(graft: topics.mapIt(ControlGraft(topicID: it))))),
-      timeout = 1.minutes)
+      ControlMessage(graft: topics.mapIt(ControlGraft(topicID: it))))))
   except CancelledError as exc:
     raise exc
   except CatchableError as exc:
@@ -224,8 +209,7 @@ proc sendPrune*(p: PubSubPeer, topics: seq[string]) {.async.} =
 
   try:
     await p.send(RPCMsg(control: some(
-      ControlMessage(prune: topics.mapIt(ControlPrune(topicID: it))))),
-      timeout = 1.minutes)
+      ControlMessage(prune: topics.mapIt(ControlPrune(topicID: it))))))
   except CancelledError as exc:
     raise exc
   except CatchableError as exc:
@@ -234,11 +218,13 @@ proc sendPrune*(p: PubSubPeer, topics: seq[string]) {.async.} =
 proc `$`*(p: PubSubPeer): string =
   p.id
 
-proc newPubSubPeer*(peerInfo: PeerInfo,
-                    proto: string): PubSubPeer =
+proc newPubSubPeer*(peer: PeerID,
+                    switch: Switch,
+                    codec: string): PubSubPeer =
   new result
-  result.proto = proto
-  result.peerInfo = peerInfo
+  result.switch = switch
+  result.codec = codec
+  result.peer = peer
   result.sentRpcCache = newTimedCache[string](2.minutes)
   result.recvdRpcCache = newTimedCache[string](2.minutes)
-  result.onConnect = newAsyncEvent()
+  result.sendLock = newAsyncLock()

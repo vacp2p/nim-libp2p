@@ -177,7 +177,7 @@ proc dropFanoutPeers(g: GossipSub) =
       libp2p_gossipsub_peers_per_topic_fanout
         .set(g.fanout.peers(topic).int64, labelValues = [topic])
 
-proc getGossipPeers(g: GossipSub): Table[string, ControlMessage] {.gcsafe.} =
+proc getGossipPeers(g: GossipSub): Table[PubSubPeer, ControlMessage] {.gcsafe.} =
   ## gossip iHave messages to peers
   ##
 
@@ -209,10 +209,10 @@ proc getGossipPeers(g: GossipSub): Table[string, ControlMessage] {.gcsafe.} =
       if peer in gossipPeers:
         continue
 
-      if peer.id notin result:
-        result[peer.id] = controlMsg
+      if peer notin result:
+        result[peer] = controlMsg
 
-      result[peer.id].ihave.add(ihave)
+      result[peer].ihave.add(ihave)
 
 proc heartbeat(g: GossipSub) {.async.} =
   while g.heartbeatRunning:
@@ -231,7 +231,7 @@ proc heartbeat(g: GossipSub) {.async.} =
       let peers = g.getGossipPeers()
       var sent: seq[Future[void]]
       for peer, control in peers:
-        g.peers.withValue(peer, pubsubPeer) do:
+        g.peers.withValue(peer.peer, pubsubPeer) do:
           sent &= pubsubPeer[].send(RPCMsg(control: some(control)))
       checkFutures(await allFinished(sent))
 
@@ -243,47 +243,41 @@ proc heartbeat(g: GossipSub) {.async.} =
 
     await sleepAsync(GossipSubHeartbeatInterval)
 
-method handleDisconnect*(g: GossipSub, peer: PubSubPeer) =
+method unsubscribePeer*(g: GossipSub, peer: PubSubPeer) =
   ## handle peer disconnects
-  ## 
-  
-  procCall FloodSub(g).handleDisconnect(peer)
+  ##
 
-  if not(isNil(peer)) and peer.peerInfo notin g.conns:
-    for t in toSeq(g.gossipsub.keys):
-      g.gossipsub.removePeer(t, peer)
+  procCall FloodSub(g).unsubscribePeer(peer)
 
-      when defined(libp2p_expensive_metrics):
-        libp2p_gossipsub_peers_per_topic_gossipsub
-          .set(g.gossipsub.peers(t).int64, labelValues = [t])
+  for t in toSeq(g.gossipsub.keys):
+    g.gossipsub.removePeer(t, peer)
 
-    for t in toSeq(g.mesh.keys):
-      g.mesh.removePeer(t, peer)
+    when defined(libp2p_expensive_metrics):
+      libp2p_gossipsub_peers_per_topic_gossipsub
+        .set(g.gossipsub.peers(t).int64, labelValues = [t])
 
-      when defined(libp2p_expensive_metrics):
-        libp2p_gossipsub_peers_per_topic_mesh
-          .set(g.mesh.peers(t).int64, labelValues = [t])
+  for t in toSeq(g.mesh.keys):
+    g.mesh.removePeer(t, peer)
 
-    for t in toSeq(g.fanout.keys):
-      g.fanout.removePeer(t, peer)
+    when defined(libp2p_expensive_metrics):
+      libp2p_gossipsub_peers_per_topic_mesh
+        .set(g.mesh.peers(t).int64, labelValues = [t])
 
-      when defined(libp2p_expensive_metrics):
-        libp2p_gossipsub_peers_per_topic_fanout
-          .set(g.fanout.peers(t).int64, labelValues = [t])  
+  for t in toSeq(g.fanout.keys):
+    g.fanout.removePeer(t, peer)
 
-method subscribePeer*(p: GossipSub,
-                      conn: Connection) =
-  procCall PubSub(p).subscribePeer(conn)
-  asyncCheck p.handleConn(conn, GossipSubCodec)
+    when defined(libp2p_expensive_metrics):
+      libp2p_gossipsub_peers_per_topic_fanout
+        .set(g.fanout.peers(t).int64, labelValues = [t])
 
 method subscribeTopic*(g: GossipSub,
                        topic: string,
                        subscribe: bool,
-                       peerId: string) {.gcsafe, async.} =
+                       peerId: PeerID) {.gcsafe, async.} =
   await procCall FloodSub(g).subscribeTopic(topic, subscribe, peerId)
 
   logScope:
-    peer = peerId
+    peer = $peerId
     topic
 
   let peer = g.peers.getOrDefault(peerId)
@@ -404,7 +398,7 @@ method rpcHandler*(g: GossipSub,
 
         g.seen.put(msgId)                        # add the message to the seen cache
 
-        if g.verifySignature and not msg.verify(peer.peerInfo):
+        if g.verifySignature and not msg.verify(peer.peer):
           trace "dropping message due to failed signature verification"
           continue
 
