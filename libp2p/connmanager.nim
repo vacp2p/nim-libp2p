@@ -121,7 +121,7 @@ proc onClose(c: ConnManager, conn: Connection) {.async.} =
   ## triggers the connections resource cleanup
   ##
 
-  await conn.closeEvent.wait()
+  await conn.join()
   trace "triggering connection cleanup"
   await c.cleanupConn(conn)
 
