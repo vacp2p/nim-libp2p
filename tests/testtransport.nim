@@ -97,7 +97,7 @@ suite "TCP transport":
 
       server.stop()
       server.close()
-      await server.closeEvent.wait()
+      await server.join()
 
     check:
       waitFor(testDialer(initTAddress("0.0.0.0:0"))) == true
@@ -133,7 +133,7 @@ suite "TCP transport":
 
       server.stop()
       server.close()
-      await server.closeEvent.wait()
+      await server.join()
     check:
       waitFor(testDialer(initTAddress("0.0.0.0:0"))) == true
 
