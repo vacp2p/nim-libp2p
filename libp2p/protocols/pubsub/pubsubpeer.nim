@@ -190,39 +190,6 @@ proc send*(
 
     raise exc
 
-proc sendSubOpts*(p: PubSubPeer, topics: seq[string], subscribe: bool) {.async.} =
-  trace "sending subscriptions", peer = p.id, subscribe, topicIDs = topics
-
-  try:
-    await p.send(RPCMsg(
-      subscriptions: topics.mapIt(SubOpts(subscribe: subscribe, topic: it))))
-  except CancelledError as exc:
-    raise exc
-  except CatchableError as exc:
-    trace "exception sending subscriptions", exc = exc.msg
-
-proc sendGraft*(p: PubSubPeer, topics: seq[string]) {.async.} =
-  trace "sending graft to peer", peer = p.id, topicIDs = topics
-
-  try:
-    await p.send(RPCMsg(control: some(
-      ControlMessage(graft: topics.mapIt(ControlGraft(topicID: it))))))
-  except CancelledError as exc:
-    raise exc
-  except CatchableError as exc:
-    trace "exception sending grafts", exc = exc.msg
-
-proc sendPrune*(p: PubSubPeer, topics: seq[string]) {.async.} =
-  trace "sending prune to peer", peer = p.id, topicIDs = topics
-
-  try:
-    await p.send(RPCMsg(control: some(
-      ControlMessage(prune: topics.mapIt(ControlPrune(topicID: it))))))
-  except CancelledError as exc:
-    raise exc
-  except CatchableError as exc:
-    trace "exception sending prunes", exc = exc.msg
-
 proc `$`*(p: PubSubPeer): string =
   p.id
 
