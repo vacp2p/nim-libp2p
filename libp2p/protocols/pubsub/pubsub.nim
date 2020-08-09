@@ -72,12 +72,45 @@ method unsubscribePeer*(p: PubSub, peerId: PeerID) {.base.} =
 
   libp2p_pubsub_peers.set(p.peers.len.int64)
 
+proc broadcast*(p: PubSub,
+                sendPeers: HashSet[PubSubPeer] | seq[PubSubPeer] | array[1, PubSubPeer],
+                msg: RPCMsg,
+                timeout: Duration): Future[int] {.async.} =
+  # send messages and cleanup failed peers
+  var sent: seq[tuple[id: PeerID, fut: Future[void]]]
+  for sendPeer in sendPeers:
+    if sendPeer.isNil:
+      continue
+
+    # avoid sending to self
+    if sendPeer.peerId == p.peerInfo.peerId:
+      continue
+
+    trace "broadcast to peer", peer = sendPeer.id, message = msg
+    sent.add((id: sendPeer.peerId, fut: sendPeer.send(msg, timeout)))
+
+  var broadcasted: seq[PeerID]
+  var failed: seq[PeerID]
+  let futs = await allFinished(sent.mapIt(it.fut))
+  for s in futs:
+    let f = sent.filterIt(it.fut == s)
+    if f.len > 0:
+      if s.failed:
+        trace "broadcast to peer failed", peer = f[0].id
+        p.unsubscribePeer(f[0].id)
+        failed.add(f[0].id)
+      else:
+        trace "broadcast to peer succeeded", peer = f[0].id
+        broadcasted.add(f[0].id)
+
+  return broadcasted.len
+
 proc sendSubs*(p: PubSub,
                peer: PubSubPeer,
                topics: seq[string],
                subscribe: bool) {.async.} =
   ## send subscriptions to remote peer
-  await peer.sendSubOpts(topics, subscribe)
+  discard await p.broadcast([peer], RPCMsg(subscriptions: topics.mapIt(SubOpts(subscribe: subscribe, topic: it))), DefaultSendTimeout)
 
 method subscribeTopic*(p: PubSub,
                        topic: string,
@@ -217,39 +250,6 @@ method subscribe*(p: PubSub,
 
   # metrics
   libp2p_pubsub_topics.set(p.topics.len.int64)
-
-proc publishHelper*(p: PubSub,
-                    sendPeers: HashSet[PubSubPeer],
-                    msgs: seq[Message],
-                    timeout: Duration): Future[int] {.async.} =
-  # send messages and cleanup failed peers
-  var sent: seq[tuple[id: PeerID, fut: Future[void]]]
-  for sendPeer in sendPeers:
-    if sendPeer.isNil:
-      continue
-
-    # avoid sending to self
-    if sendPeer.peerId == p.peerInfo.peerId:
-      continue
-
-    trace "sending messages to peer", peer = sendPeer.id, msgs
-    sent.add((id: sendPeer.peerId, fut: sendPeer.send(RPCMsg(messages: msgs), timeout)))
-
-  var published: seq[PeerID]
-  var failed: seq[PeerID]
-  let futs = await allFinished(sent.mapIt(it.fut))
-  for s in futs:
-    let f = sent.filterIt(it.fut == s)
-    if f.len > 0:
-      if s.failed:
-        trace "sending messages to peer failed", peer = f[0].id
-        p.unsubscribePeer(f[0].id)
-        failed.add(f[0].id)
-      else:
-        trace "sending messages to peer succeeded", peer = f[0].id
-        published.add(f[0].id)
-
-  return published.len
 
 method publish*(p: PubSub,
                 topic: string,
