@@ -143,8 +143,10 @@ proc initBufferStream*(s: BufferStream,
   trace "created bufferstream", oid = $s.oid
 
 proc newBufferStream*(handler: WriteHandler = nil,
-                      size: int = DefaultBufferSize): BufferStream =
+                      size: int = DefaultBufferSize,
+                      timeout: Duration = DefaultConnectionTimeout): BufferStream =
   new result
+  result.timeout = timeout
   result.initBufferStream(handler, size)
 
 proc popFirst*(s: BufferStream): byte =

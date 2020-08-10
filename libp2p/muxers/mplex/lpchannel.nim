@@ -138,12 +138,9 @@ proc closeRemote*(s: LPChannel) {.async.} =
   trace "got EOF, closing channel"
   try:
     await s.drainBuffer()
-
     s.isEof = true # set EOF immediately to prevent further reads
-    await s.close() # close local end
-
-    # call to avoid leaks
-    await procCall BufferStream(s).close() # close parent bufferstream
+    # close parent bufferstream to prevent further reads
+    await procCall BufferStream(s).close()
 
     trace "channel closed on EOF"
   except CancelledError as exc:

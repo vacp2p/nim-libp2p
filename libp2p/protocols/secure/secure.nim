@@ -28,11 +28,13 @@ type
 proc init*[T: SecureConn](C: type T,
                           conn: Connection,
                           peerInfo: PeerInfo,
-                          observedAddr: Multiaddress): T =
+                          observedAddr: Multiaddress,
+                          timeout: Duration = DefaultConnectionTimeout): T =
   result = C(stream: conn,
              peerInfo: peerInfo,
              observedAddr: observedAddr,
-             closeEvent: conn.closeEvent)
+             closeEvent: conn.closeEvent,
+             timeout: timeout)
   result.initStream()
 
 method initStream*(s: SecureConn) =
