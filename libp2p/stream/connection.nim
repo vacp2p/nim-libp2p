@@ -7,7 +7,7 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import hashes
+import hashes, oids
 import chronicles, chronos, metrics
 import lpstream,
        ../multiaddress,
@@ -20,7 +20,7 @@ logScope:
 
 const
   ConnectionTrackerName* = "libp2p.connection"
-  DefaultConnectionTimeout* = 1.minutes
+  DefaultConnectionTimeout* = 5.minutes
 
 type
   TimeoutHandler* = proc(): Future[void] {.gcsafe.}
@@ -73,8 +73,15 @@ method initStream*(s: Connection) =
   procCall LPStream(s).initStream()
   s.closeEvent = newAsyncEvent()
 
+  if isNil(s.timeoutHandler):
+    s.timeoutHandler = proc() {.async.} =
+      await s.close()
+
+  trace "timeout", timeout = $s.timeout.millis
   doAssert(isNil(s.timerTaskFut))
-  s.timerTaskFut = s.timeoutMonitor()
+  # doAssert(s.timeout > 0.millis)
+  if s.timeout > 0.millis:
+    s.timerTaskFut = s.timeoutMonitor()
 
   inc getConnectionTracker().opened
 
