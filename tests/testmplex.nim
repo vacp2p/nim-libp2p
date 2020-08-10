@@ -135,18 +135,20 @@ suite "Mplex":
       let
         conn = newBufferStream(
           proc (data: seq[byte]) {.gcsafe, async.} =
-            discard
+            discard,
+          timeout = 5.minutes
         )
         chann = LPChannel.init(1, conn, true)
 
       await chann.pushTo(("Hello!").toBytes)
-      let closeFut = chann.closeRemote()
 
       var data = newSeq[byte](6)
-      await chann.readExactly(addr data[0], 6) # this should work, since there is data in the buffer
+      await chann.readExactly(addr data[0], 3) # this should work, since there is data in the buffer
+      let closeFut = chann.closeRemote() # closing channel
+      let readFut = chann.readExactly(addr data[3], 3) # this should work, since there is data in the buffer
+      await all(closeFut, readFut)
       try:
-        await chann.readExactly(addr data[0], 6) # this should throw
-        await closeFut
+        await chann.readExactly(addr data[0], 6) # this should fail now
       except LPStreamEOFError:
         result = true
       finally:
@@ -211,20 +213,20 @@ suite "Mplex":
     check:
       waitFor(testResetWrite()) == true
 
-    test "reset - channel should reset on timeout":
-      proc testResetWrite(): Future[bool] {.async.} =
-        proc writeHandler(data: seq[byte]) {.async, gcsafe.} = discard
-        let
-          conn = newBufferStream(writeHandler)
-          chann = LPChannel.init(
-            1, conn, true, timeout = 100.millis)
+  test "reset - channel should reset on timeout":
+    proc testResetWrite(): Future[bool] {.async.} =
+      proc writeHandler(data: seq[byte]) {.async, gcsafe.} = discard
+      let
+        conn = newBufferStream(writeHandler)
+        chann = LPChannel.init(
+          1, conn, true, timeout = 100.millis)
 
-        await chann.closeEvent.wait()
-        await conn.close()
-        result = true
+      await chann.closeEvent.wait()
+      await conn.close()
+      result = true
 
-      check:
-        waitFor(testResetWrite())
+    check:
+      waitFor(testResetWrite())
 
   test "e2e - read/write receiver":
     proc testNewStream() {.async.} =
@@ -318,17 +320,23 @@ suite "Mplex":
         bigseq.add(uint8(rand(uint('A')..uint('z'))))
 
       proc connHandler(conn: Connection) {.async, gcsafe.} =
-        let mplexListen = Mplex.init(conn)
-        mplexListen.streamHandler = proc(stream: Connection)
-          {.async, gcsafe.} =
-          let msg = await stream.readLp(MaxMsgSize)
-          check msg == bigseq
-          trace "Bigseq check passed!"
-          await stream.close()
-          listenJob.complete()
+        try:
+          let mplexListen = Mplex.init(conn)
+          mplexListen.streamHandler = proc(stream: Connection)
+            {.async, gcsafe.} =
+            let msg = await stream.readLp(MaxMsgSize)
+            check msg == bigseq
+            trace "Bigseq check passed!"
+            await stream.close()
+            listenJob.complete()
 
-        await mplexListen.handle()
-        await mplexListen.close()
+          await mplexListen.handle()
+          await sleepAsync(1.seconds) # give chronos some slack to process things
+          await mplexListen.close()
+        except CancelledError as exc:
+          raise exc
+        except CatchableError as exc:
+          check false
 
       let transport1: TcpTransport = TcpTransport.init()
       let listenFut = await transport1.listen(ma, connHandler)
