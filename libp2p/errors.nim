@@ -96,6 +96,34 @@ when defined(profiler_optick):
       defer:
         popEvent(ev)
 
+  proc getName(node: NimNode): string {.compileTime.} =
+    case node.kind
+    of nnkSym:
+      return $node
+    of nnkPostfix:
+      return node[1].strVal
+    of nnkIdent:
+      return node.strVal
+    of nnkEmpty:
+      return "anonymous"
+    else:
+      error("Unknown name.")
+
+  macro profiled*(p: untyped): untyped =
+    let name = p.name.getName()
+    var code = newStmtList()
+    var keySym = genSym(nskLet)
+    let prefix = quote do:
+      {.gcsafe.}:
+        const pos = instantiationInfo()
+        let event_desc {.global.} = createEvent(`name`.cstring, `name`.len.uint16, pos.filename.cstring, pos.filename.len.uint16, pos.line.uint32)
+        let `keySym` = pushEvent(event_desc)
+        defer:
+          popEvent(`keySym`)
+    # inject our code
+    p[6].insert(0, prefix)
+    p
+
   proc load() =
     var candidates: seq[string]
     libCandidates("OptickCore", candidates)
@@ -136,4 +164,5 @@ when defined(profiler_optick):
   asyncCheck frameTicker()
   # asyncCheck pollHook()
 else:
-   template profile*(name: string): untyped = discard
+   macro profiled*(p: untyped): untyped =
+    p

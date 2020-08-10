@@ -12,7 +12,8 @@ import chronicles, chronos, metrics
 import ../varint,
        ../vbuffer,
        ../peerinfo,
-       ../multiaddress
+       ../multiaddress,
+       ../errors
 
 declareGauge(libp2p_open_streams, "open stream instances", labels = ["type"])
 
@@ -98,7 +99,7 @@ method readOnce*(s: LPStream,
 proc readExactly*(s: LPStream,
                   pbytes: pointer,
                   nbytes: int):
-                  Future[void] {.async.} =
+                  Future[void] {.async, profiled.} =
 
   if s.atEof:
     raise newLPStreamEOFError()
@@ -146,7 +147,7 @@ proc readLine*(s: LPStream,
       if len(result) == lim:
         break
 
-proc readVarint*(conn: LPStream): Future[uint64] {.async, gcsafe.} =
+proc readVarint*(conn: LPStream): Future[uint64] {.async, gcsafe, profiled.} =
   var
     varint: uint64
     length: int
@@ -162,7 +163,7 @@ proc readVarint*(conn: LPStream): Future[uint64] {.async, gcsafe.} =
   if true: # can't end with a raise apparently
     raise (ref InvalidVarintError)(msg: "Cannot parse varint")
 
-proc readLp*(s: LPStream, maxSize: int): Future[seq[byte]] {.async, gcsafe.} =
+proc readLp*(s: LPStream, maxSize: int): Future[seq[byte]] {.async, gcsafe, profiled.} =
   ## read length prefixed msg, with the length encoded as a varint
   let
     length = await s.readVarint()
@@ -191,7 +192,7 @@ method write*(s: LPStream, msg: seq[byte]) {.base, async.} =
 proc write*(s: LPStream, pbytes: pointer, nbytes: int): Future[void] {.deprecated: "seq".} =
   s.write(@(toOpenArray(cast[ptr UncheckedArray[byte]](pbytes), 0, nbytes - 1)))
 
-proc write*(s: LPStream, msg: string): Future[void] =
+proc write*(s: LPStream, msg: string): Future[void] {.profiled.} =
   s.write(@(toOpenArrayByte(msg, 0, msg.high)))
 
 # TODO: split `close` into `close` and `dispose/destroy`

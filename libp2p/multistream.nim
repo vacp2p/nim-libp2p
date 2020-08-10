@@ -11,7 +11,8 @@ import strutils
 import chronos, chronicles, stew/byteutils
 import stream/connection,
        vbuffer,
-       protocols/protocol
+       protocols/protocol,
+       errors
 
 logScope:
   topics = "multistream"
@@ -49,7 +50,7 @@ template validateSuffix(str: string): untyped =
 proc select*(m: MultistreamSelect,
              conn: Connection,
              proto: seq[string]):
-             Future[string] {.async.} =
+             Future[string] {.async, profiled.} =
   trace "initiating handshake", codec = m.codec
   ## select a remote protocol
   await conn.write(m.codec) # write handshake

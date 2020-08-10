@@ -110,7 +110,7 @@ proc broadcast*(p: PubSub,
 proc sendSubs*(p: PubSub,
                peer: PubSubPeer,
                topics: seq[string],
-               subscribe: bool) {.async.} =
+               subscribe: bool) {.async, profiled.} =
   ## send subscriptions to remote peer
   discard await p.broadcast([peer], RPCMsg(subscriptions: topics.mapIt(SubOpts(subscribe: subscribe, topic: it))), DefaultSendTimeout)
 
@@ -137,7 +137,7 @@ method rpcHandler*(p: PubSub,
 proc getOrCreatePeer*(
   p: PubSub,
   peer: PeerID,
-  proto: string): PubSubPeer =
+  proto: string): PubSubPeer {.profiled.} =
   if peer in p.peers:
     return p.peers[peer]
 
@@ -289,7 +289,7 @@ method stop*(p: PubSub) {.async, base.} =
 
 method addValidator*(p: PubSub,
                      topic: varargs[string],
-                     hook: ValidatorHandler) {.base.} =
+                     hook: ValidatorHandler) {.base, profiled.} =
   for t in topic:
     if t notin p.validators:
       p.validators[t] = initHashSet[ValidatorHandler]()
@@ -299,12 +299,12 @@ method addValidator*(p: PubSub,
 
 method removeValidator*(p: PubSub,
                         topic: varargs[string],
-                        hook: ValidatorHandler) {.base.} =
+                        hook: ValidatorHandler) {.base, profiled.} =
   for t in topic:
     if t in p.validators:
       p.validators[t].excl(hook)
 
-method validate*(p: PubSub, message: Message): Future[bool] {.async, base.} =
+method validate*(p: PubSub, message: Message): Future[bool] {.async, base, profiled.} =
   var pending: seq[Future[bool]]
   trace "about to validate message"
   for topic in message.topicIDs:

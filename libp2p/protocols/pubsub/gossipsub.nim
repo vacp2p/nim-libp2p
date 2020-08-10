@@ -82,7 +82,7 @@ method init*(g: GossipSub) =
   g.handler = handler
   g.codec = GossipSubCodec
 
-proc replenishFanout(g: GossipSub, topic: string) =
+proc replenishFanout(g: GossipSub, topic: string) {.profiled.} =
   ## get fanout peers for a topic
   trace "about to replenish fanout"
 
@@ -100,9 +100,7 @@ proc replenishFanout(g: GossipSub, topic: string) =
 
   trace "fanout replenished with peers", peers = g.fanout.peers(topic)
 
-proc rebalanceMesh(g: GossipSub, topic: string) {.async.} =
-  profile "rebalanceMesh"
-  
+proc rebalanceMesh(g: GossipSub, topic: string) {.async, profiled.} =
   logScope:
     topic
 
@@ -164,7 +162,7 @@ proc rebalanceMesh(g: GossipSub, topic: string) {.async.} =
 
   trace "mesh balanced, got peers", peers = g.mesh.peers(topic)
 
-proc dropFanoutPeers(g: GossipSub) =
+proc dropFanoutPeers(g: GossipSub) {.profiled.} =
   # drop peers that we haven't published to in
   # GossipSubFanoutTTL seconds
   let now = Moment.now()
@@ -179,7 +177,7 @@ proc dropFanoutPeers(g: GossipSub) =
       libp2p_gossipsub_peers_per_topic_fanout
         .set(g.fanout.peers(topic).int64, labelValues = [topic])
 
-proc getGossipPeers(g: GossipSub): Table[PubSubPeer, ControlMessage] {.gcsafe.} =
+proc getGossipPeers(g: GossipSub): Table[PubSubPeer, ControlMessage] {.gcsafe, profiled.} =
   ## gossip iHave messages to peers
   ##
 
@@ -247,7 +245,7 @@ proc heartbeat(g: GossipSub) {.async.} =
 
     await sleepAsync(GossipSubHeartbeatInterval)
 
-method unsubscribePeer*(g: GossipSub, peer: PeerID) =
+method unsubscribePeer*(g: GossipSub, peer: PeerID) {.profiled.} =
   ## handle peer disconnects
   ##
 
@@ -282,7 +280,7 @@ method unsubscribePeer*(g: GossipSub, peer: PeerID) =
 method subscribeTopic*(g: GossipSub,
                        topic: string,
                        subscribe: bool,
-                       peerId: PeerID) {.gcsafe, async.} =
+                       peerId: PeerID) {.gcsafe, async, profiled.} =
   await procCall FloodSub(g).subscribeTopic(topic, subscribe, peerId)
 
   logScope:
@@ -323,7 +321,7 @@ method subscribeTopic*(g: GossipSub,
 
 proc handleGraft(g: GossipSub,
                  peer: PubSubPeer,
-                 grafts: seq[ControlGraft]): seq[ControlPrune] =
+                 grafts: seq[ControlGraft]): seq[ControlPrune] {.profiled.} =
   for graft in grafts:
     let topic = graft.topicID
     logScope:
@@ -356,7 +354,7 @@ proc handleGraft(g: GossipSub,
       libp2p_gossipsub_peers_per_topic_fanout
         .set(g.fanout.peers(topic).int64, labelValues = [topic])
 
-proc handlePrune(g: GossipSub, peer: PubSubPeer, prunes: seq[ControlPrune]) =
+proc handlePrune(g: GossipSub, peer: PubSubPeer, prunes: seq[ControlPrune]) {.profiled.} =
   for prune in prunes:
     trace "peer pruned topic", peer = peer.id, topic = prune.topicID
 
@@ -367,7 +365,7 @@ proc handlePrune(g: GossipSub, peer: PubSubPeer, prunes: seq[ControlPrune]) =
 
 proc handleIHave(g: GossipSub,
                  peer: PubSubPeer,
-                 ihaves: seq[ControlIHave]): ControlIWant =
+                 ihaves: seq[ControlIHave]): ControlIWant {.profiled.} =
   for ihave in ihaves:
     trace "peer sent ihave",
       peer = peer.id, topic = ihave.topicID, msgs = ihave.messageIDs
@@ -379,7 +377,7 @@ proc handleIHave(g: GossipSub,
 
 proc handleIWant(g: GossipSub,
                  peer: PubSubPeer,
-                 iwants: seq[ControlIWant]): seq[Message] =
+                 iwants: seq[ControlIWant]): seq[Message] {.profiled.} =
   for iwant in iwants:
     for mid in iwant.messageIDs:
       trace "peer sent iwant", peer = peer.id, messageID = mid
@@ -389,9 +387,7 @@ proc handleIWant(g: GossipSub,
 
 method rpcHandler*(g: GossipSub,
                   peer: PubSubPeer,
-                  rpcMsgs: seq[RPCMsg]) {.async.} =
-  profile "rpcHandler"
-  
+                  rpcMsgs: seq[RPCMsg]) {.async, profiled.} =  
   await procCall PubSub(g).rpcHandler(peer, rpcMsgs)
 
   for m in rpcMsgs:                                  # for all RPC messages
@@ -467,12 +463,12 @@ method rpcHandler*(g: GossipSub,
 
 method subscribe*(g: GossipSub,
                   topic: string,
-                  handler: TopicHandler) {.async.} =
+                  handler: TopicHandler) {.async, profiled.} =
   await procCall PubSub(g).subscribe(topic, handler)
   await g.rebalanceMesh(topic)
 
 method unsubscribe*(g: GossipSub,
-                    topics: seq[TopicPair]) {.async.} =
+                    topics: seq[TopicPair]) {.async, profiled.} =
   await procCall PubSub(g).unsubscribe(topics)
 
   for (topic, handler) in topics:
@@ -485,7 +481,7 @@ method unsubscribe*(g: GossipSub,
         let prune = RPCMsg(control: some(ControlMessage(prune: @[ControlPrune(topicID: topic)])))
         discard g.broadcast(peers, prune, DefaultSendTimeout)
 
-method unsubscribeAll*(g: GossipSub, topic: string) {.async.} =
+method unsubscribeAll*(g: GossipSub, topic: string) {.async, profiled.} =
   await procCall PubSub(g).unsubscribeAll(topic)
 
   if topic in g.mesh:
@@ -498,9 +494,7 @@ method unsubscribeAll*(g: GossipSub, topic: string) {.async.} =
 method publish*(g: GossipSub,
                 topic: string,
                 data: seq[byte],
-                timeout: Duration = InfiniteDuration): Future[int] {.async.} =
-  profile "publish"
-
+                timeout: Duration = InfiniteDuration): Future[int] {.async, profiled.} =
   # base returns always 0
   discard await procCall PubSub(g).publish(topic, data, timeout)
   trace "publishing message on topic", topic, data = data.shortLog
