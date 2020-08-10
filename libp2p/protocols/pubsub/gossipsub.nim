@@ -101,6 +101,8 @@ proc replenishFanout(g: GossipSub, topic: string) =
   trace "fanout replenished with peers", peers = g.fanout.peers(topic)
 
 proc rebalanceMesh(g: GossipSub, topic: string) {.async.} =
+  profile "rebalanceMesh"
+  
   logScope:
     topic
 
@@ -217,6 +219,8 @@ proc getGossipPeers(g: GossipSub): Table[PubSubPeer, ControlMessage] {.gcsafe.} 
 proc heartbeat(g: GossipSub) {.async.} =
   while g.heartbeatRunning:
     try:
+      profile "heartbeat"
+      
       trace "running heartbeat"
 
       for t in toSeq(g.topics.keys):
@@ -386,6 +390,8 @@ proc handleIWant(g: GossipSub,
 method rpcHandler*(g: GossipSub,
                   peer: PubSubPeer,
                   rpcMsgs: seq[RPCMsg]) {.async.} =
+  profile "rpcHandler"
+  
   await procCall PubSub(g).rpcHandler(peer, rpcMsgs)
 
   for m in rpcMsgs:                                  # for all RPC messages
@@ -493,6 +499,8 @@ method publish*(g: GossipSub,
                 topic: string,
                 data: seq[byte],
                 timeout: Duration = InfiniteDuration): Future[int] {.async.} =
+  profile "publish"
+
   # base returns always 0
   discard await procCall PubSub(g).publish(topic, data, timeout)
   trace "publishing message on topic", topic, data = data.shortLog

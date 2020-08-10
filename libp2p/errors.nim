@@ -65,3 +65,75 @@ template tryAndWarn*(message: static[string]; body: untyped): untyped =
   except CatchableError as exc:
     warn "An exception has ocurred, enable trace logging for details", name = exc.name, msg = message
     trace "Exception details", exc = exc.msg
+
+when defined(profiler_optick):
+  import dynlib
+
+  type
+    OptickEvent* = distinct uint64
+    OptickEventCtx* = distinct uint64
+
+    OptickCreateEvent* = proc(inFunctionName: cstring, inFunctionLength: uint16, inFileName: cstring, inFileNameLenght: uint16, inFileLine: uint32): OptickEvent {.cdecl.}
+    OptickPushEvent* = proc(event: OptickEvent): OptickEventCtx {.cdecl.}
+    OptickPopEvent* = proc(ctx: OptickEventCtx) {.cdecl.}
+    OptickStartCapture* = proc() {.cdecl.}
+    OptickStopCapture* = proc(filename: cstring, nameLen: uint16) {.cdecl.}
+    OptickNextFrame* = proc() {.cdecl.}
+
+  var
+    createEvent*: OptickCreateEvent
+    pushEvent*: OptickPushEvent
+    popEvent*: OptickPopEvent
+    startCapture*: OptickStartCapture
+    stopCapture*: OptickStopCapture
+    nextFrame*: OptickNextFrame
+
+  template profile*(name: string): untyped =
+    {.gcsafe.}:
+      const pos = instantiationInfo()
+      let event_desc {.global.} = createEvent(name.cstring, name.len.uint16, pos.filename.cstring, pos.filename.len.uint16, pos.line.uint32)
+      let ev = pushEvent(event_desc)
+      defer:
+        popEvent(ev)
+
+  proc load() =
+    var candidates: seq[string]
+    libCandidates("OptickCore", candidates)
+    for c in candidates:
+      let lib = loadLib("OptickCore")
+      if lib != nil:
+        createEvent = cast[OptickCreateEvent](lib.symAddr("OptickAPI_CreateEventDescription"))
+        pushEvent = cast[OptickPushEvent](lib.symAddr("OptickAPI_PushEvent"))
+        popEvent = cast[OptickPopEvent](lib.symAddr("OptickAPI_PopEvent"))
+        startCapture = cast[OptickStartCapture](lib.symAddr("OptickAPI_StartCapture"))
+        stopCapture = cast[OptickStopCapture](lib.symAddr("OptickAPI_StopCapture"))
+        nextFrame = cast[OptickNextFrame](lib.symAddr("OptickAPI_NextFrame"))
+        return
+    doAssert(false, "OptickCore failed to load")
+  
+  load()
+
+  startCapture()
+  addQuitProc(proc () {.noconv.} = 
+    stopCapture("profiled.opt", "profiled.opt".len))
+
+  proc frameTicker() {.async.} =
+    while true:
+      {.gcsafe.}:
+        nextFrame()
+      await sleepAsync(100.millis)
+  
+  # let poll_event = createEvent("poll", "poll".len, "", 0, 0)
+  # proc pollHook() {.async.} =
+  #   while true:
+  #     {.gcsafe.}:
+  #       let ev = pushEvent(poll_event)
+  #       await sleepAsync(0)
+  #       defer:
+  #         popEvent(ev)
+      
+  
+  asyncCheck frameTicker()
+  # asyncCheck pollHook()
+else:
+   template profile*(name: string): untyped = discard

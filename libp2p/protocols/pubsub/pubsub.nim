@@ -76,6 +76,8 @@ proc broadcast*(p: PubSub,
                 sendPeers: HashSet[PubSubPeer] | seq[PubSubPeer] | array[1, PubSubPeer],
                 msg: RPCMsg,
                 timeout: Duration): Future[int] {.async.} =
+  profile "broadcast"
+
   # send messages and cleanup failed peers
   var sent: seq[tuple[id: PeerID, fut: Future[void]]]
   for sendPeer in sendPeers:
