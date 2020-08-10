@@ -583,8 +583,8 @@ proc read*(ab: var Asn1Buffer): Asn1Result[Asn1Field] =
           else:
             # Positive integer with leading zero
             field = Asn1Field(kind: Asn1Tag.Integer, klass: aclass,
-                              index: ttag, offset: int(ab.offset),
-                              length: int(length))
+                              index: ttag, offset: int(ab.offset) + 1,
+                              length: int(length) - 1)
             shallowCopy(field.buffer, ab.buffer)
             if length <= 9:
               for i in 1 ..< int(length):
