@@ -2,7 +2,8 @@ import testvarint,
        testminprotobuf,
        teststreamseq
 
-import testrsa,
+import testminasn1,
+       testrsa,
        testecnist,
        tested25519,
        testsecp256k1,
