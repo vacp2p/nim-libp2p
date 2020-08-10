@@ -143,14 +143,37 @@ suite "Mplex":
       await chann.pushTo(("Hello!").toBytes)
 
       var data = newSeq[byte](6)
-      await chann.readExactly(addr data[0], 3) # this should work, since there is data in the buffer
+      await chann.readExactly(addr data[0], 3)
       let closeFut = chann.closeRemote() # closing channel
-      let readFut = chann.readExactly(addr data[3], 3) # this should work, since there is data in the buffer
+      let readFut = chann.readExactly(addr data[3], 3)
       await all(closeFut, readFut)
       try:
         await chann.readExactly(addr data[0], 6) # this should fail now
       except LPStreamEOFError:
         result = true
+      finally:
+        await chann.close()
+        await conn.close()
+
+    check:
+      waitFor(testClosedForRead()) == true
+
+  test "half closed - channel should allow writting on remote close":
+    proc testClosedForRead(): Future[bool] {.async.} =
+      let
+        testData = "Hello!".toBytes
+        conn = newBufferStream(
+          proc (data: seq[byte]) {.gcsafe, async.} =
+            discard
+          , timeout = 5.minutes
+        )
+        chann = LPChannel.init(1, conn, true)
+
+      var data = newSeq[byte](6)
+      await chann.closeRemote() # closing channel
+      try:
+        await chann.writeLp(testData)
+        return true
       finally:
         await chann.close()
         await conn.close()
