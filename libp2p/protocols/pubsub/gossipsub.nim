@@ -157,8 +157,8 @@ proc rebalanceMesh(g: GossipSub, topic: string) {.async.} =
   # Send changes to peers after table updates to avoid stale state
   let graft = RPCMsg(control: some(ControlMessage(graft: @[ControlGraft(topicID: topic)])))
   let prune = RPCMsg(control: some(ControlMessage(prune: @[ControlPrune(topicID: topic)])))
-  discard g.broadcast(grafts, graft, DefaultSendTimeout)
-  discard g.broadcast(prunes, prune, DefaultSendTimeout)
+  discard await g.broadcast(grafts, graft, DefaultSendTimeout)
+  discard await g.broadcast(prunes, prune, DefaultSendTimeout)
 
   trace "mesh balanced, got peers", peers = g.mesh.peers(topic)
 
@@ -229,10 +229,13 @@ proc heartbeat(g: GossipSub) {.async.} =
         g.replenishFanout(t)
 
       let peers = g.getGossipPeers()
-      var sent: seq[Future[int]]
+      var sent: seq[Future[void]]
       for peer, control in peers:
         g.peers.withValue(peer.peerId, pubsubPeer) do:
-          sent &= g.broadcast([pubsubPeer[]], RPCMsg(control: some(control)), DefaultSendTimeout)
+          sent &= g.send(
+            pubsubPeer[],
+            RPCMsg(control: some(control)),
+            DefaultSendTimeout)
       checkFutures(await allFinished(sent))
 
       g.mcache.shift() # shift the cache
@@ -436,7 +439,10 @@ method rpcHandler*(g: GossipSub,
                 trace "exception in message handler", exc = exc.msg
 
       # forward the message to all peers interested in it
-      let published = await g.broadcast(toSendPeers, RPCMsg(messages: m.messages), DefaultSendTimeout)
+      let published = await g.broadcast(
+        toSeq(toSendPeers),
+        RPCMsg(messages: m.messages),
+        DefaultSendTimeout)
 
       trace "forwared message to peers", peers = published
 
@@ -453,7 +459,10 @@ method rpcHandler*(g: GossipSub,
         respControl.ihave.len > 0:
         try:
           info "sending control message", msg = respControl
-          let _ = await g.broadcast([peer], RPCMsg(control: some(respControl), messages: messages), DefaultSendTimeout)
+          await g.send(
+            peer,
+            RPCMsg(control: some(respControl), messages: messages),
+            DefaultSendTimeout)
         except CancelledError as exc:
           raise exc
         except CatchableError as exc:
@@ -477,7 +486,7 @@ method unsubscribe*(g: GossipSub,
         g.mesh.del(topic)
 
         let prune = RPCMsg(control: some(ControlMessage(prune: @[ControlPrune(topicID: topic)])))
-        discard g.broadcast(peers, prune, DefaultSendTimeout)
+        discard await g.broadcast(toSeq(peers), prune, DefaultSendTimeout)
 
 method unsubscribeAll*(g: GossipSub, topic: string) {.async.} =
   await procCall PubSub(g).unsubscribeAll(topic)
@@ -487,7 +496,7 @@ method unsubscribeAll*(g: GossipSub, topic: string) {.async.} =
     g.mesh.del(topic)
 
     let prune = RPCMsg(control: some(ControlMessage(prune: @[ControlPrune(topicID: topic)])))
-    discard g.broadcast(peers, prune, DefaultSendTimeout)
+    discard await g.broadcast(toSeq(peers), prune, DefaultSendTimeout)
 
 method publish*(g: GossipSub,
                 topic: string,
@@ -528,7 +537,7 @@ method publish*(g: GossipSub,
   if msgId notin g.mcache:
     g.mcache.put(msgId, msg)
 
-  let published = await g.broadcast(peers, RPCMsg(messages: @[msg]), timeout)
+  let published = await g.broadcast(toSeq(peers), RPCMsg(messages: @[msg]), timeout)
   when defined(libp2p_expensive_metrics):
     if published > 0:
       libp2p_pubsub_messages_published.inc(labelValues = [topic])
