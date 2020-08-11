@@ -112,7 +112,7 @@ suite "Mplex":
 
     waitFor(testDecodeHeader())
 
-  test "half closed - channel should close for write":
+  test "half closed (local close) - should close for write":
     proc testClosedForWrite(): Future[bool] {.async.} =
       proc writeHandler(data: seq[byte]) {.async, gcsafe.} = discard
       let
@@ -130,7 +130,40 @@ suite "Mplex":
     check:
       waitFor(testClosedForWrite()) == true
 
-  test "half closed - channel should close for read by remote":
+  test "half closed (local close) - should allow reads until remote closes":
+    proc testOpenForRead(): Future[bool] {.async.} =
+      let
+        conn = newBufferStream(
+          proc (data: seq[byte]) {.gcsafe, async.} =
+            discard,
+          timeout = 5.minutes
+        )
+        chann = LPChannel.init(1, conn, true)
+
+      await chann.pushTo(("Hello!").toBytes)
+
+      var data = newSeq[byte](6)
+      await chann.close() # closing channel
+      # should be able to read on local clsoe
+      await chann.readExactly(addr data[0], 3)
+      # closing remote end
+      let closeFut = chann.closeRemote()
+      # should still allow reading until buffer EOF
+      await chann.readExactly(addr data[3], 3)
+      await closeFut
+      try:
+        # this should fail now
+        await chann.readExactly(addr data[0], 3)
+      except LPStreamEOFError:
+        result = true
+      finally:
+        await chann.close()
+        await conn.close()
+
+    check:
+      waitFor(testOpenForRead()) == true
+
+  test "half closed (remote close) - channel should close for reading by remote":
     proc testClosedForRead(): Future[bool] {.async.} =
       let
         conn = newBufferStream(
@@ -158,7 +191,7 @@ suite "Mplex":
     check:
       waitFor(testClosedForRead()) == true
 
-  test "half closed - channel should allow writting on remote close":
+  test "half closed (remote close) - channel should allow writting on remote close":
     proc testClosedForRead(): Future[bool] {.async.} =
       let
         testData = "Hello!".toBytes

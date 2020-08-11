@@ -77,7 +77,7 @@ method initStream*(s: Connection) =
     s.timeoutHandler = proc() {.async.} =
       await s.close()
 
-  trace "timeout", timeout = $s.timeout.millis
+  trace "timeout set at", timeout = $s.timeout.millis
   doAssert(isNil(s.timerTaskFut))
   # doAssert(s.timeout > 0.millis)
   if s.timeout > 0.millis:
