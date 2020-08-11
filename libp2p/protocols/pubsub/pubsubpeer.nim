@@ -127,6 +127,8 @@ proc send*(
   msg: RPCMsg,
   timeout: Duration = DefaultSendTimeout) {.async.} =
 
+  doAssert(not isNil(p), "pubsubpeer nil!")
+
   logScope:
     peer = p.id
     rpcMsg = shortLog(msg)

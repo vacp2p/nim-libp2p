@@ -109,8 +109,8 @@ proc sendSubs*(p: PubSub,
                topics: seq[string],
                subscribe: bool) {.async.} =
   ## send subscriptions to remote peer
-  discard await p.broadcast(
-    @[peer],
+  await p.send(
+    peer,
     RPCMsg(
       subscriptions: topics.mapIt(SubOpts(subscribe: subscribe, topic: it))),
     DefaultSendTimeout)
