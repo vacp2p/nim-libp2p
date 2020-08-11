@@ -30,6 +30,9 @@ import stream/connection,
        peerid,
        errors
 
+chronicles.formatIt(PeerInfo): $it
+chronicles.formatIt(PeerID): $it
+
 logScope:
   topics = "switch"
 
