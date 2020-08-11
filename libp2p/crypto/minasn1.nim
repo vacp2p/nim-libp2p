@@ -13,7 +13,8 @@
 
 import stew/[endians2, results]
 export results
-import nimcrypto/utils
+# We use `ncrutils` for constant-time hexadecimal encoding/decoding procedures.
+import nimcrypto/utils as ncrutils
 
 type
   Asn1Error* {.pure.} = enum
@@ -593,7 +594,7 @@ proc init*(t: typedesc[Asn1Buffer], data: openarray[byte]): Asn1Buffer =
 
 proc init*(t: typedesc[Asn1Buffer], data: string): Asn1Buffer =
   ## Initialize ``Asn1Buffer`` from hexadecimal string ``data``.
-  result.buffer = fromHex(data)
+  result.buffer = ncrutils.fromHex(data)
 
 proc init*(t: typedesc[Asn1Buffer]): Asn1Buffer =
   ## Initialize empty ``Asn1Buffer``.
@@ -612,7 +613,7 @@ proc init*(t: typedesc[Asn1Composite], idx: int): Asn1Composite =
 
 proc `$`*(buffer: Asn1Buffer): string =
   ## Return string representation of ``buffer``.
-  result = toHex(buffer.toOpenArray())
+  result = ncrutils.toHex(buffer.toOpenArray())
 
 proc `$`*(field: Asn1Field): string =
   ## Return string representation of ``field``.
@@ -621,7 +622,7 @@ proc `$`*(field: Asn1Field): string =
   result.add("]")
   if field.kind == Asn1Tag.NoSupport:
     result.add(" ")
-    result.add(toHex(field.toOpenArray()))
+    result.add(ncrutils.toHex(field.toOpenArray()))
   elif field.kind == Asn1Tag.Boolean:
     result.add(" ")
     result.add($field.vbool)
@@ -630,24 +631,24 @@ proc `$`*(field: Asn1Field): string =
     if field.length <= 8:
       result.add($field.vint)
     else:
-      result.add(toHex(field.toOpenArray()))
+      result.add(ncrutils.toHex(field.toOpenArray()))
   elif field.kind == Asn1Tag.BitString:
     result.add(" ")
     result.add("(")
     result.add($field.ubits)
     result.add(" bits) ")
-    result.add(toHex(field.toOpenArray()))
+    result.add(ncrutils.toHex(field.toOpenArray()))
   elif field.kind == Asn1Tag.OctetString:
     result.add(" ")
-    result.add(toHex(field.toOpenArray()))
+    result.add(ncrutils.toHex(field.toOpenArray()))
   elif field.kind == Asn1Tag.Null:
     result.add(" NULL")
   elif field.kind == Asn1Tag.Oid:
     result.add(" ")
-    result.add(toHex(field.toOpenArray()))
+    result.add(ncrutils.toHex(field.toOpenArray()))
   elif field.kind == Asn1Tag.Sequence:
     result.add(" ")
-    result.add(toHex(field.toOpenArray()))
+    result.add(ncrutils.toHex(field.toOpenArray()))
 
 proc write*[T: Asn1Buffer|Asn1Composite](abc: var T, tag: Asn1Tag) =
   ## Write empty value to buffer or composite with ``tag``.
