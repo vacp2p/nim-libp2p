@@ -566,8 +566,6 @@ suite "GossipSub":
 
         check:
           "foobar" in gossip.gossipsub
-          gossip.fanout.len == 0
-          gossip.mesh["foobar"].len > 0
 
       await allFuturesThrowing(
         nodes.mapIt(
