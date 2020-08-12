@@ -185,22 +185,6 @@ suite "GossipSub":
 
       check (await validatorFut) == true
 
-      # gossip 1.1, gossip1 peer with negative score will be pruned in gossip2, 
-      # and so mesh will be empty
-      # wait 2 heartbeats
-      let ev1 = newAsyncEvent()
-      gossip1.heartbeatEvents.add(ev1)
-      let ev2 = newAsyncEvent()
-      gossip2.heartbeatEvents.add(ev2)
-      for _ in 0..1:
-        await allFuturesThrowing(ev1.wait(), ev2.wait())
-        ev1.clear()
-        ev2.clear()
-
-      check:
-        gossip1.mesh["foobar"].len == 1 and "foobar" notin gossip1.fanout
-        "foobar" notin gossip2.mesh and "foobar" notin gossip2.fanout
-
       await allFuturesThrowing(
         nodes[0].switch.stop(),
         nodes[1].switch.stop()

@@ -99,6 +99,7 @@ type
     expire*: Moment # updated on disconnect, to retain scores until expire
 
   GossipSubParams* = object
+    explicit*: bool
     pruneBackoff*: Duration
     floodPublish*: bool
     gossipFactor*: float64
@@ -158,6 +159,7 @@ when defined(libp2p_expensive_metrics):
 
 proc init*(_: type[GossipSubParams]): GossipSubParams =
   GossipSubParams(
+      explicit: true,
       pruneBackoff: 1.minutes,
       floodPublish: true,
       gossipFactor: 0.25,
@@ -1026,6 +1028,9 @@ method stop*(g: GossipSub) {.async.} =
 method initPubSub*(g: GossipSub) =
   procCall FloodSub(g).initPubSub()
 
+  if not g.parameters.explicit:
+    g.parameters = GossipSubParams.init()
+  
   g.parameters.validateParameters().tryGet()
 
   randomize()

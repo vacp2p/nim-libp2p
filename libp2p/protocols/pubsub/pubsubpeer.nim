@@ -53,7 +53,7 @@ type
 
   RPCHandler* = proc(peer: PubSubPeer, msg: seq[RPCMsg]): Future[void] {.gcsafe.}
 
-chronicles.formatIt(PubSubPeer): it.peerInfo.id
+chronicles.formatIt(PubSubPeer): $it.peerId
 
 func hash*(p: PubSubPeer): Hash = 
   # int is either 32/64, so intptr basically, pubsubpeer is a ref
