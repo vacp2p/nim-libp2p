@@ -89,12 +89,14 @@ when defined(profiler_optick):
     nextFrame*: OptickNextFrame
 
   template profile*(name: string): untyped =
+    var ev {.inject.}: OptickEventCtx
+    defer:
+        {.gcsafe.}:
+          popEvent(ev)
     {.gcsafe.}:
       const pos = instantiationInfo()
       let event_desc {.global.} = createEvent(name.cstring, name.len.uint16, pos.filename.cstring, pos.filename.len.uint16, pos.line.uint32)
-      let ev = pushEvent(event_desc)
-      defer:
-        popEvent(ev)
+      ev = pushEvent(event_desc)
 
   proc getName(node: NimNode): string {.compileTime.} =
     case node.kind
@@ -113,15 +115,16 @@ when defined(profiler_optick):
     let name = p.name.getName()
     var code = newStmtList()
     var keySym = genSym(nskLet)
-    let prefix = quote do:
+    let body = p.body
+    let newBody = quote do:
       {.gcsafe.}:
         const pos = instantiationInfo()
         let event_desc {.global.} = createEvent(`name`.cstring, `name`.len.uint16, pos.filename.cstring, pos.filename.len.uint16, pos.line.uint32)
         let `keySym` = pushEvent(event_desc)
         defer:
           popEvent(`keySym`)
-    # inject our code
-    p[6].insert(0, prefix)
+        `body`
+    p.body = newBody
     p
 
   proc load() =
@@ -145,11 +148,11 @@ when defined(profiler_optick):
   addQuitProc(proc () {.noconv.} = 
     stopCapture("profiled.opt", "profiled.opt".len))
 
-  proc frameTicker() {.async.} =
-    while true:
-      {.gcsafe.}:
-        nextFrame()
-      await sleepAsync(100.millis)
+  # proc frameTicker() {.async.} =
+  #   while true:
+  #     {.gcsafe.}:
+  #       nextFrame()
+  #     await sleepAsync(100.millis)
   
   # let poll_event = createEvent("poll", "poll".len, "", 0, 0)
   # proc pollHook() {.async.} =
@@ -161,7 +164,7 @@ when defined(profiler_optick):
   #         popEvent(ev)
       
   
-  asyncCheck frameTicker()
+  # asyncCheck frameTicker()
   # asyncCheck pollHook()
 else:
    macro profiled*(p: untyped): untyped =

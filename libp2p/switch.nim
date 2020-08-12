@@ -386,7 +386,6 @@ proc dial*(s: Switch,
            addrs: seq[MultiAddress],
            proto: string):
            Future[Connection] {.async.} =
-  profile "dial"
   let conn = await s.internalConnect(peerId, addrs)
   let stream = await s.connManager.getMuxedStream(conn)
 
