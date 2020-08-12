@@ -17,7 +17,8 @@
 {.push raises: [Defect].}
 
 import bearssl
-import nimcrypto/utils
+# We use `ncrutils` for constant-time hexadecimal encoding/decoding procedures.
+import nimcrypto/utils as ncrutils
 import minasn1
 export minasn1.Asn1Error
 import stew/[results, ctops]
@@ -289,7 +290,7 @@ proc `$`*(seckey: EcPrivateKey): string =
         result = "Corrupted key"
       else:
         let e = offset + cast[int](seckey.key.xlen) - 1
-        result = toHex(seckey.buffer.toOpenArray(offset, e))
+        result = ncrutils.toHex(seckey.buffer.toOpenArray(offset, e))
 
 proc `$`*(pubkey: EcPublicKey): string =
   ## Return string representation of EC public key.
@@ -305,14 +306,14 @@ proc `$`*(pubkey: EcPublicKey): string =
         result = "Corrupted key"
       else:
         let e = offset + cast[int](pubkey.key.qlen) - 1
-        result = toHex(pubkey.buffer.toOpenArray(offset, e))
+        result = ncrutils.toHex(pubkey.buffer.toOpenArray(offset, e))
 
 proc `$`*(sig: EcSignature): string =
   ## Return hexadecimal string representation of EC signature.
   if isNil(sig) or len(sig.buffer) == 0:
     result = "Empty or uninitialized ECNIST signature"
   else:
-    result = toHex(sig.buffer)
+    result = ncrutils.toHex(sig.buffer)
 
 proc toRawBytes*(seckey: EcPrivateKey, data: var openarray[byte]): EcResult[int] =
   ## Serialize EC private key ``seckey`` to raw binary form and store it
@@ -708,14 +709,16 @@ proc init*(sig: var EcSignature, data: openarray[byte]): Result[void, Asn1Error]
   else:
     err(Asn1Error.Incorrect)
 
-proc init*[T: EcPKI](sospk: var T, data: string): Result[void, Asn1Error] {.inline.} =
+proc init*[T: EcPKI](sospk: var T,
+                     data: string): Result[void, Asn1Error] {.inline.} =
   ## Initialize EC `private key`, `public key` or `signature` ``sospk`` from
   ## ASN.1 DER hexadecimal string representation ``data``.
   ##
   ## Procedure returns ``Asn1Status``.
-  sospk.init(fromHex(data))
+  sospk.init(ncrutils.fromHex(data))
 
-proc init*(t: typedesc[EcPrivateKey], data: openarray[byte]): EcResult[EcPrivateKey] =
+proc init*(t: typedesc[EcPrivateKey],
+           data: openarray[byte]): EcResult[EcPrivateKey] =
   ## Initialize EC private key from ASN.1 DER binary representation ``data`` and
   ## return constructed object.
   var key: EcPrivateKey
@@ -725,7 +728,8 @@ proc init*(t: typedesc[EcPrivateKey], data: openarray[byte]): EcResult[EcPrivate
   else:
     ok(key)
 
-proc init*(t: typedesc[EcPublicKey], data: openarray[byte]): EcResult[EcPublicKey] =
+proc init*(t: typedesc[EcPublicKey],
+           data: openarray[byte]): EcResult[EcPublicKey] =
   ## Initialize EC public key from ASN.1 DER binary representation ``data`` and
   ## return constructed object.
   var key: EcPublicKey
@@ -735,7 +739,8 @@ proc init*(t: typedesc[EcPublicKey], data: openarray[byte]): EcResult[EcPublicKe
   else:
     ok(key)
 
-proc init*(t: typedesc[EcSignature], data: openarray[byte]): EcResult[EcSignature] =
+proc init*(t: typedesc[EcSignature],
+           data: openarray[byte]): EcResult[EcSignature] =
   ## Initialize EC signature from raw binary representation ``data`` and
   ## return constructed object.
   var sig: EcSignature
@@ -748,10 +753,7 @@ proc init*(t: typedesc[EcSignature], data: openarray[byte]): EcResult[EcSignatur
 proc init*[T: EcPKI](t: typedesc[T], data: string): EcResult[T] =
   ## Initialize EC `private key`, `public key` or `signature` from hexadecimal
   ## string representation ``data`` and return constructed object.
-  try:
-    t.init(fromHex(data))
-  except ValueError:
-    err(EcKeyIncorrectError)
+  t.init(ncrutils.fromHex(data))
 
 proc initRaw*(key: var EcPrivateKey, data: openarray[byte]): bool =
   ## Initialize EC `private key` or `scalar` ``key`` from raw binary
@@ -833,9 +835,10 @@ proc initRaw*[T: EcPKI](sospk: var T, data: string): bool {.inline.} =
   ## raw hexadecimal string representation ``data``.
   ##
   ## Procedure returns ``true`` on success, ``false`` otherwise.
-  result = sospk.initRaw(fromHex(data))
+  result = sospk.initRaw(ncrutils.fromHex(data))
 
-proc initRaw*(t: typedesc[EcPrivateKey], data: openarray[byte]): EcResult[EcPrivateKey] =
+proc initRaw*(t: typedesc[EcPrivateKey],
+              data: openarray[byte]): EcResult[EcPrivateKey] =
   ## Initialize EC private key from raw binary representation ``data`` and
   ## return constructed object.
   var res: EcPrivateKey
@@ -844,7 +847,8 @@ proc initRaw*(t: typedesc[EcPrivateKey], data: openarray[byte]): EcResult[EcPriv
   else:
     ok(res)
 
-proc initRaw*(t: typedesc[EcPublicKey], data: openarray[byte]): EcResult[EcPublicKey] =
+proc initRaw*(t: typedesc[EcPublicKey],
+              data: openarray[byte]): EcResult[EcPublicKey] =
   ## Initialize EC public key from raw binary representation ``data`` and
   ## return constructed object.
   var res: EcPublicKey
@@ -853,7 +857,8 @@ proc initRaw*(t: typedesc[EcPublicKey], data: openarray[byte]): EcResult[EcPubli
   else:
     ok(res)
 
-proc initRaw*(t: typedesc[EcSignature], data: openarray[byte]): EcResult[EcSignature] =
+proc initRaw*(t: typedesc[EcSignature],
+              data: openarray[byte]): EcResult[EcSignature] =
   ## Initialize EC signature from raw binary representation ``data`` and
   ## return constructed object.
   var res: EcSignature
@@ -865,7 +870,7 @@ proc initRaw*(t: typedesc[EcSignature], data: openarray[byte]): EcResult[EcSigna
 proc initRaw*[T: EcPKI](t: typedesc[T], data: string): T {.inline.} =
   ## Initialize EC `private key`, `public key` or `signature` from raw
   ## hexadecimal string representation ``data`` and return constructed object.
-  result = t.initRaw(fromHex(data))
+  result = t.initRaw(ncrutils.fromHex(data))
 
 proc scalarMul*(pub: EcPublicKey, sec: EcPrivateKey): EcPublicKey =
   ## Return scalar multiplication of ``pub`` and ``sec``.
@@ -926,7 +931,7 @@ proc getSecret*(pubkey: EcPublicKey, seckey: EcPrivateKey): seq[byte] =
     copyMem(addr result[0], addr data[0], res)
 
 proc sign*[T: byte|char](seckey: EcPrivateKey,
-                         message: openarray[T]): EcResult[EcSignature] {.gcsafe.} =
+                      message: openarray[T]): EcResult[EcSignature] {.gcsafe.} =
   ## Get ECDSA signature of data ``message`` using private key ``seckey``.
   if isNil(seckey):
     return err(EcKeyIncorrectError)

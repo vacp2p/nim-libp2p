@@ -31,14 +31,9 @@ type
 method subscribeTopic*(f: FloodSub,
                        topic: string,
                        subscribe: bool,
-                       peerId: string) {.gcsafe, async.} =
+                       peerId: PeerID) {.gcsafe, async.} =
   await procCall PubSub(f).subscribeTopic(topic, subscribe, peerId)
-
   let peer = f.peers.getOrDefault(peerId)
-  if peer == nil:
-    debug "subscribeTopic on a nil peer!", peer = peerId
-    return
-
   if topic notin f.floodsub:
     f.floodsub[topic] = initHashSet[PubSubPeer]()
 
@@ -51,16 +46,20 @@ method subscribeTopic*(f: FloodSub,
     # unsubscribe the peer from the topic
     f.floodsub[topic].excl(peer)
 
-method handleDisconnect*(f: FloodSub, peer: PubSubPeer) =
+method unsubscribePeer*(f: FloodSub, peer: PeerID) =
   ## handle peer disconnects
   ##
-  
-  procCall PubSub(f).handleDisconnect(peer)
 
-  if not(isNil(peer)) and peer.peerInfo notin f.conns:
-    for t in toSeq(f.floodsub.keys):
-      if t in f.floodsub:
-        f.floodsub[t].excl(peer)
+  trace "unsubscribing floodsub peer", peer = $peer
+  let pubSubPeer = f.peers.getOrDefault(peer)
+  if pubSubPeer.isNil:
+    return
+
+  for t in toSeq(f.floodsub.keys):
+    if t in f.floodsub:
+      f.floodsub[t].excl(pubSubPeer)
+
+  procCall PubSub(f).unsubscribePeer(peer)
 
 method rpcHandler*(f: FloodSub,
                    peer: PubSubPeer,
@@ -77,7 +76,7 @@ method rpcHandler*(f: FloodSub,
         if msgId notin f.seen:
           f.seen.put(msgId)                          # add the message to the seen cache
 
-          if f.verifySignature and not msg.verify(peer.peerInfo):
+          if f.verifySignature and not msg.verify(peer.peerId):
             trace "dropping message due to failed signature verification"
             continue
 
@@ -102,7 +101,10 @@ method rpcHandler*(f: FloodSub,
                   trace "exception in message handler", exc = exc.msg
 
         # forward the message to all peers interested in it
-        let published = await f.publishHelper(toSendPeers, m.messages, DefaultSendTimeout)
+        let published = await f.broadcast(
+          toSeq(toSendPeers),
+          RPCMsg(messages: m.messages),
+          DefaultSendTimeout)
 
         trace "forwared message to peers", peers = published
 
@@ -117,11 +119,6 @@ method init*(f: FloodSub) =
 
   f.handler = handler
   f.codec = FloodSubCodec
-
-method subscribePeer*(p: FloodSub,
-                      conn: Connection) =
-  procCall PubSub(p).subscribePeer(conn)
-  asyncCheck p.handleConn(conn, FloodSubCodec)
 
 method publish*(f: FloodSub,
                 topic: string,
@@ -143,7 +140,10 @@ method publish*(f: FloodSub,
   let msg = Message.init(f.peerInfo, data, topic, f.msgSeqno, f.sign)
 
   # start the future but do not wait yet
-  let published = await f.publishHelper(f.floodsub.getOrDefault(topic), @[msg], timeout)
+  let published = await f.broadcast(
+    toSeq(f.floodsub.getOrDefault(topic)),
+    RPCMsg(messages: @[msg]),
+    timeout)
 
   when defined(libp2p_expensive_metrics):
     libp2p_pubsub_messages_published.inc(labelValues = [topic])
@@ -167,8 +167,6 @@ method unsubscribeAll*(f: FloodSub, topic: string) {.async.} =
 
 method initPubSub*(f: FloodSub) =
   procCall PubSub(f).initPubSub()
-  f.peers = initTable[string, PubSubPeer]()
-  f.topics = initTable[string, Topic]()
   f.floodsub = initTable[string, HashSet[PubSubPeer]]()
   f.seen = newTimedCache[string](2.minutes)
   f.init()

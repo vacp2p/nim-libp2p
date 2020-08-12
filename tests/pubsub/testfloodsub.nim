@@ -29,9 +29,9 @@ proc waitSub(sender, receiver: auto; key: string) {.async, gcsafe.} =
   # turn things deterministic
   # this is for testing purposes only
   var ceil = 15
-  let fsub = cast[FloodSub](sender.pubSub.get())
+  let fsub = cast[FloodSub](sender)
   while not fsub.floodsub.hasKey(key) or
-        not fsub.floodsub.hasPeerID(key, receiver.peerInfo.id):
+        not fsub.floodsub.hasPeerID(key, receiver.peerInfo.peerId):
     await sleepAsync(100.millis)
     dec ceil
     doAssert(ceil > 0, "waitSub timeout!")
@@ -43,7 +43,7 @@ suite "FloodSub":
       check tracker.isLeaked() == false
 
   test "FloodSub basic publish/subscribe A -> B":
-    proc runTests(): Future[bool] {.async.} =
+    proc runTests() {.async.} =
       var completionFut = newFuture[bool]()
       proc handler(topic: string, data: seq[byte]) {.async, gcsafe.} =
         check topic == "foobar"
@@ -51,19 +51,32 @@ suite "FloodSub":
 
       let
         nodes = generateNodes(2)
+
+        # start switches
         nodesFut = await allFinished(
-          nodes[0].start(),
-          nodes[1].start()
+          nodes[0].switch.start(),
+          nodes[1].switch.start(),
         )
 
-      let subscribes = await subscribeNodes(nodes)
+      # start pubsub
+      await allFuturesThrowing(
+        allFinished(
+          nodes[0].start(),
+          nodes[1].start(),
+      ))
+
+      await subscribeNodes(nodes)
 
       await nodes[1].subscribe("foobar", handler)
       await waitSub(nodes[0], nodes[1], "foobar")
 
       check (await nodes[0].publish("foobar", "Hello!".toBytes())) > 0
+      check (await completionFut.wait(5.seconds)) == true
 
-      result = await completionFut.wait(5.seconds)
+      await allFuturesThrowing(
+        nodes[0].switch.stop(),
+        nodes[1].switch.stop()
+      )
 
       await allFuturesThrowing(
         nodes[0].stop(),
@@ -71,53 +84,80 @@ suite "FloodSub":
       )
 
       await allFuturesThrowing(nodesFut.concat())
-      await allFuturesThrowing(subscribes)
 
-    check:
-      waitFor(runTests()) == true
+    waitFor(runTests())
 
   test "FloodSub basic publish/subscribe B -> A":
-    proc runTests(): Future[bool] {.async.} =
+    proc runTests() {.async.} =
       var completionFut = newFuture[bool]()
       proc handler(topic: string, data: seq[byte]) {.async, gcsafe.} =
         check topic == "foobar"
         completionFut.complete(true)
 
-      var nodes = generateNodes(2)
-      var awaiters: seq[Future[void]]
-      awaiters.add((await nodes[0].start()))
-      awaiters.add((await nodes[1].start()))
+      let
+        nodes = generateNodes(2)
 
-      let subscribes = await subscribeNodes(nodes)
+        # start switches
+        nodesFut = await allFinished(
+          nodes[0].switch.start(),
+          nodes[1].switch.start(),
+        )
+
+      # start pubsubcon
+      await allFuturesThrowing(
+        allFinished(
+          nodes[0].start(),
+          nodes[1].start(),
+      ))
+
+      await subscribeNodes(nodes)
 
       await nodes[0].subscribe("foobar", handler)
       await waitSub(nodes[1], nodes[0], "foobar")
 
       check (await nodes[1].publish("foobar", "Hello!".toBytes())) > 0
 
-      result = await completionFut.wait(5.seconds)
+      check (await completionFut.wait(5.seconds)) == true
 
-      await allFuturesThrowing(nodes[0].stop(), nodes[1].stop())
+      await allFuturesThrowing(
+        nodes[0].switch.stop(),
+        nodes[1].switch.stop()
+      )
 
-      await allFuturesThrowing(subscribes)
-      await allFuturesThrowing(awaiters)
+      await allFuturesThrowing(
+        nodes[0].stop(),
+        nodes[1].stop()
+      )
 
-    check:
-      waitFor(runTests()) == true
+      await allFuturesThrowing(nodesFut)
+
+    waitFor(runTests())
 
   test "FloodSub validation should succeed":
-    proc runTests(): Future[bool] {.async.} =
+    proc runTests() {.async.} =
       var handlerFut = newFuture[bool]()
       proc handler(topic: string, data: seq[byte]) {.async, gcsafe.} =
         check topic == "foobar"
         handlerFut.complete(true)
 
-      var nodes = generateNodes(2)
-      var awaiters: seq[Future[void]]
-      awaiters.add((await nodes[0].start()))
-      awaiters.add((await nodes[1].start()))
+      let
+        nodes = generateNodes(2)
 
-      let subscribes = await subscribeNodes(nodes)
+        # start switches
+        nodesFut = await allFinished(
+          nodes[0].switch.start(),
+          nodes[1].switch.start(),
+        )
+
+      # start pubsubcon
+      await allFuturesThrowing(
+        allFinished(
+          nodes[0].start(),
+          nodes[1].start(),
+      ))
+
+      await subscribeNodes(nodes)
+
       await nodes[1].subscribe("foobar", handler)
       await waitSub(nodes[0], nodes[1], "foobar")
 
@@ -131,30 +171,44 @@ suite "FloodSub":
       nodes[1].addValidator("foobar", validator)
 
       check (await nodes[0].publish("foobar", "Hello!".toBytes())) > 0
-
       check (await handlerFut) == true
+
+      await allFuturesThrowing(
+          nodes[0].switch.stop(),
+          nodes[1].switch.stop()
+        )
+
       await allFuturesThrowing(
         nodes[0].stop(),
-        nodes[1].stop())
+        nodes[1].stop()
+      )
 
-      await allFuturesThrowing(subscribes)
-      await allFuturesThrowing(awaiters)
-      result = true
+      await allFuturesThrowing(nodesFut)
 
-    check:
-      waitFor(runTests()) == true
+    waitFor(runTests())
 
   test "FloodSub validation should fail":
-    proc runTests(): Future[bool] {.async.} =
+    proc runTests() {.async.} =
       proc handler(topic: string, data: seq[byte]) {.async, gcsafe.} =
         check false # if we get here, it should fail
 
-      var nodes = generateNodes(2)
-      var awaiters: seq[Future[void]]
-      awaiters.add((await nodes[0].start()))
-      awaiters.add((await nodes[1].start()))
+      let
+        nodes = generateNodes(2)
 
-      let subscribes = await subscribeNodes(nodes)
+        # start switches
+        nodesFut = await allFinished(
+          nodes[0].switch.start(),
+          nodes[1].switch.start(),
+        )
+
+      # start pubsubcon
+      await allFuturesThrowing(
+        allFinished(
+          nodes[0].start(),
+          nodes[1].start(),
+      ))
+
+      await subscribeNodes(nodes)
       await nodes[1].subscribe("foobar", handler)
       await waitSub(nodes[0], nodes[1], "foobar")
 
@@ -169,29 +223,43 @@ suite "FloodSub":
       discard await nodes[0].publish("foobar", "Hello!".toBytes())
 
       await allFuturesThrowing(
+          nodes[0].switch.stop(),
+          nodes[1].switch.stop()
+        )
+
+      await allFuturesThrowing(
         nodes[0].stop(),
-        nodes[1].stop())
+        nodes[1].stop()
+      )
 
-      await allFuturesThrowing(subscribes)
-      await allFuturesThrowing(awaiters)
-      result = true
+      await allFuturesThrowing(nodesFut)
 
-    check:
-      waitFor(runTests()) == true
+    waitFor(runTests())
 
   test "FloodSub validation one fails and one succeeds":
-    proc runTests(): Future[bool] {.async.} =
+    proc runTests() {.async.} =
       var handlerFut = newFuture[bool]()
       proc handler(topic: string, data: seq[byte]) {.async, gcsafe.} =
         check topic == "foo"
         handlerFut.complete(true)
 
-      var nodes = generateNodes(2)
-      var awaiters: seq[Future[void]]
-      awaiters.add((await nodes[0].start()))
-      awaiters.add((await nodes[1].start()))
+      let
+        nodes = generateNodes(2)
 
-      let subscribes = await subscribeNodes(nodes)
+        # start switches
+        nodesFut = await allFinished(
+          nodes[0].switch.start(),
+          nodes[1].switch.start(),
+        )
+
+      # start pubsubcon
+      await allFuturesThrowing(
+        allFinished(
+          nodes[0].start(),
+          nodes[1].start(),
+      ))
+
+      await subscribeNodes(nodes)
       await nodes[1].subscribe("foo", handler)
       await waitSub(nodes[0], nodes[1], "foo")
       await nodes[1].subscribe("bar", handler)
@@ -210,57 +278,21 @@ suite "FloodSub":
       check (await nodes[0].publish("bar", "Hello!".toBytes())) > 0
 
       await allFuturesThrowing(
-        nodes[0].stop(),
-        nodes[1].stop())
-
-      await allFuturesThrowing(subscribes)
-      await allFuturesThrowing(awaiters)
-      result = true
-
-    check:
-      waitFor(runTests()) == true
-
-  test "FloodSub publish should fail on timeout":
-    proc runTests(): Future[bool] {.async.} =
-      proc handler(topic: string, data: seq[byte]) {.async, gcsafe.} =
-        discard
-
-      var nodes = generateNodes(2)
-      var awaiters: seq[Future[void]]
-      awaiters.add((await nodes[0].start()))
-      awaiters.add((await nodes[1].start()))
-
-      let subscribes = await subscribeNodes(nodes)
-      await nodes[1].subscribe("foobar", handler)
-      await waitSub(nodes[0], nodes[1], "foobar")
-
-      let pubsub = nodes[0].pubSub.get()
-      let peer = pubsub.peers[nodes[1].peerInfo.id]
-
-      peer.conn = Connection(newBufferStream(
-        proc (data: seq[byte]) {.async, gcsafe.} =
-          await sleepAsync(10.seconds)
-        ,size = 0))
-
-      let in10millis = Moment.fromNow(10.millis)
-      let sent = await nodes[0].publish("foobar", "Hello!".toBytes(), 10.millis)
-
-      check Moment.now() >= in10millis
-      check sent == 0
+        nodes[0].switch.stop(),
+        nodes[1].switch.stop()
+      )
 
       await allFuturesThrowing(
         nodes[0].stop(),
-        nodes[1].stop())
+        nodes[1].stop()
+      )
 
-      await allFuturesThrowing(subscribes)
-      await allFuturesThrowing(awaiters)
-      result = true
+      await allFuturesThrowing(nodesFut)
 
-    check:
-      waitFor(runTests()) == true
+    waitFor(runTests())
 
   test "FloodSub multiple peers, no self trigger":
-    proc runTests(): Future[bool] {.async.} =
+    proc runTests() {.async.} =
       var runs = 10
 
       var futs = newSeq[(Future[void], TopicHandler, ref int)](runs)
@@ -279,15 +311,12 @@ suite "FloodSub":
             counter
           )
 
-      var nodes: seq[Switch] = newSeq[Switch]()
-      for i in 0..<runs:
-        nodes.add newStandardSwitch(secureManagers = [SecureProtocol.Noise])
+      let
+        nodes = generateNodes(runs, triggerSelf = false)
+        nodesFut = nodes.mapIt(it.switch.start())
 
-      var awaitters: seq[Future[void]]
-      for i in 0..<runs:
-        awaitters.add(await nodes[i].start())
-
-      let subscribes = await subscribeNodes(nodes)
+      await allFuturesThrowing(nodes.mapIt(it.start()))
+      await subscribeNodes(nodes)
 
       for i in 0..<runs:
         await nodes[i].subscribe("foobar", futs[i][1])
@@ -305,17 +334,18 @@ suite "FloodSub":
       await allFuturesThrowing(pubs)
 
       await allFuturesThrowing(futs.mapIt(it[0]))
-      await allFuturesThrowing(nodes.mapIt(it.stop()))
+      await allFuturesThrowing(
+        nodes.mapIt(
+          allFutures(
+            it.stop(),
+            it.switch.stop())))
 
-      await allFuturesThrowing(subscribes)
-      await allFuturesThrowing(awaitters)
+      await allFuturesThrowing(nodesFut)
 
-      result = true
-    check:
-      waitFor(runTests()) == true
+    waitFor(runTests())
 
   test "FloodSub multiple peers, with self trigger":
-    proc runTests(): Future[bool] {.async.} =
+    proc runTests() {.async.} =
       var runs = 10
 
       var futs = newSeq[(Future[void], TopicHandler, ref int)](runs)
@@ -329,21 +359,17 @@ suite "FloodSub":
             (proc(topic: string, data: seq[byte]) {.async, gcsafe.} =
               check topic == "foobar"
               inc counter[]
-              if counter[] == runs:
+              if counter[] == runs - 1:
                 fut.complete()),
             counter
           )
 
-      var nodes: seq[Switch] = newSeq[Switch]()
-      for i in 0..<runs:
-        nodes.add newStandardSwitch(triggerSelf = true, secureManagers = [SecureProtocol.Secio])
+      let
+        nodes = generateNodes(runs, triggerSelf = true)
+        nodesFut = nodes.mapIt(it.switch.start())
 
-
-      var awaitters: seq[Future[void]]
-      for i in 0..<runs:
-        awaitters.add(await nodes[i].start())
-
-      let subscribes = await subscribeNodes(nodes)
+      await allFuturesThrowing(nodes.mapIt(it.start()))
+      await subscribeNodes(nodes)
 
       for i in 0..<runs:
         await nodes[i].subscribe("foobar", futs[i][1])
@@ -361,12 +387,12 @@ suite "FloodSub":
       await allFuturesThrowing(pubs)
 
       await allFuturesThrowing(futs.mapIt(it[0]))
-      await allFuturesThrowing(nodes.mapIt(it.stop()))
+      await allFuturesThrowing(
+        nodes.mapIt(
+          allFutures(
+            it.stop(),
+            it.switch.stop())))
 
-      await allFuturesThrowing(subscribes)
-      await allFuturesThrowing(awaitters)
+      await allFuturesThrowing(nodesFut)
 
-      result = true
-
-    check:
-      waitFor(runTests()) == true
+    waitFor(runTests())

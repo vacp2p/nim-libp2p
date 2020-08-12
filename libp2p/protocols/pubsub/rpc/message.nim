@@ -10,7 +10,8 @@
 {.push raises: [Defect].}
 
 import chronicles, metrics, stew/[byteutils, endians2]
-import ./messages, ./protobuf,
+import ./messages,
+       ./protobuf,
        ../../../peerid,
        ../../../peerinfo,
        ../../../crypto/crypto,
@@ -32,7 +33,7 @@ func defaultMsgIdProvider*(m: Message): string =
 proc sign*(msg: Message, p: PeerInfo): CryptoResult[seq[byte]] =
   ok((? p.privateKey.sign(PubSubPrefix & encodeMessage(msg))).getBytes())
 
-proc verify*(m: Message, p: PeerInfo): bool =
+proc verify*(m: Message, p: PeerID): bool =
   if m.signature.len > 0 and m.key.len > 0:
     var msg = m
     msg.signature = @[]
@@ -51,17 +52,17 @@ proc verify*(m: Message, p: PeerInfo): bool =
 
 proc init*(
     T: type Message,
-    p: PeerInfo,
+    peer: PeerInfo,
     data: seq[byte],
     topic: string,
     seqno: uint64,
     sign: bool = true): Message {.gcsafe, raises: [CatchableError, Defect].} =
   result = Message(
-    fromPeer: p.peerId,
+    fromPeer: peer.peerId,
     data: data,
     seqno: @(seqno.toBytesBE), # unefficient, fine for now
     topicIDs: @[topic])
 
-  if sign and p.publicKey.isSome:
-    result.signature = sign(result, p).tryGet()
-    result.key =  p.publicKey.get().getBytes().tryGet()
+  if sign and peer.publicKey.isSome:
+    result.signature = sign(result, peer).tryGet()
+    result.key = peer.publicKey.get().getBytes().tryGet()

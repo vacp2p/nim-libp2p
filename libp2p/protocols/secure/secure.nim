@@ -30,11 +30,13 @@ type
 proc init*[T: SecureConn](C: type T,
                           conn: Connection,
                           peerInfo: PeerInfo,
-                          observedAddr: Multiaddress): T =
+                          observedAddr: Multiaddress,
+                          timeout: Duration = DefaultConnectionTimeout): T =
   result = C(stream: conn,
              peerInfo: peerInfo,
              observedAddr: observedAddr,
-             closeEvent: conn.closeEvent)
+             closeEvent: conn.closeEvent,
+             timeout: timeout)
   result.initStream()
 
 method initStream*(s: SecureConn) =
@@ -62,7 +64,7 @@ proc handleConn*(s: Secure,
                  initiator: bool): Future[Connection] {.async, gcsafe.} =
   var sconn = await s.handshake(conn, initiator)
   if not isNil(sconn):
-    conn.closeEvent.wait()
+    conn.join()
       .addCallback do(udata: pointer = nil):
         asyncCheck sconn.close()
 

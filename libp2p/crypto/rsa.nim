@@ -14,13 +14,13 @@
 ## Copyright(C) 2018 Thomas Pornin <pornin@bolet.org>.
 
 {.push raises: Defect.}
-
-import nimcrypto/utils
 import bearssl
 import minasn1
-export Asn1Error
 import stew/[results, ctops]
-export results
+# We use `ncrutils` for constant-time hexadecimal encoding/decoding procedures.
+import nimcrypto/utils as ncrutils
+
+export Asn1Error, results
 
 const
   DefaultPublicExponent* = 65537'u32
@@ -574,14 +574,16 @@ proc init*(sig: var RsaSignature, data: openarray[byte]): Result[void, Asn1Error
   else:
     err(Asn1Error.Incorrect)
 
-proc init*[T: RsaPKI](sospk: var T, data: string): Result[void, Asn1Error] {.inline.} =
+proc init*[T: RsaPKI](sospk: var T,
+                      data: string): Result[void, Asn1Error] {.inline.} =
   ## Initialize EC `private key`, `public key` or `scalar` ``sospk`` from
   ## hexadecimal string representation ``data``.
   ##
   ## Procedure returns ``Result[void, Asn1Status]``.
-  sospk.init(fromHex(data))
+  sospk.init(ncrutils.fromHex(data))
 
-proc init*(t: typedesc[RsaPrivateKey], data: openarray[byte]): RsaResult[RsaPrivateKey] =
+proc init*(t: typedesc[RsaPrivateKey],
+           data: openarray[byte]): RsaResult[RsaPrivateKey] =
   ## Initialize RSA private key from ASN.1 DER binary representation ``data``
   ## and return constructed object.
   var res: RsaPrivateKey
@@ -590,7 +592,8 @@ proc init*(t: typedesc[RsaPrivateKey], data: openarray[byte]): RsaResult[RsaPriv
   else:
     ok(res)
 
-proc init*(t: typedesc[RsaPublicKey], data: openarray[byte]): RsaResult[RsaPublicKey] =
+proc init*(t: typedesc[RsaPublicKey],
+           data: openarray[byte]): RsaResult[RsaPublicKey] =
   ## Initialize RSA public key from ASN.1 DER binary representation ``data``
   ## and return constructed object.
   var res: RsaPublicKey
@@ -599,7 +602,8 @@ proc init*(t: typedesc[RsaPublicKey], data: openarray[byte]): RsaResult[RsaPubli
   else:
     ok(res)
 
-proc init*(t: typedesc[RsaSignature], data: openarray[byte]): RsaResult[RsaSignature] =
+proc init*(t: typedesc[RsaSignature],
+           data: openarray[byte]): RsaResult[RsaSignature] =
   ## Initialize RSA signature from raw binary representation ``data`` and
   ## return constructed object.
   var res: RsaSignature
@@ -611,7 +615,7 @@ proc init*(t: typedesc[RsaSignature], data: openarray[byte]): RsaResult[RsaSigna
 proc init*[T: RsaPKI](t: typedesc[T], data: string): T {.inline.} =
   ## Initialize RSA `private key`, `public key` or `signature` from hexadecimal
   ## string representation ``data`` and return constructed object.
-  result = t.init(fromHex(data))
+  result = t.init(ncrutils.fromHex(data))
 
 proc `$`*(key: RsaPrivateKey): string =
   ## Return string representation of RSA private key.
@@ -622,21 +626,24 @@ proc `$`*(key: RsaPrivateKey): string =
     result.add($key.seck.nBitlen)
     result.add(" bits)\n")
     result.add("p   = ")
-    result.add(toHex(getArray(key.buffer, key.seck.p, key.seck.plen)))
+    result.add(ncrutils.toHex(getArray(key.buffer, key.seck.p, key.seck.plen)))
     result.add("\nq   = ")
-    result.add(toHex(getArray(key.buffer, key.seck.q, key.seck.qlen)))
+    result.add(ncrutils.toHex(getArray(key.buffer, key.seck.q, key.seck.qlen)))
     result.add("\ndp  = ")
-    result.add(toHex(getArray(key.buffer, key.seck.dp, key.seck.dplen)))
+    result.add(ncrutils.toHex(getArray(key.buffer, key.seck.dp,
+                                       key.seck.dplen)))
     result.add("\ndq  = ")
-    result.add(toHex(getArray(key.buffer, key.seck.dq, key.seck.dqlen)))
+    result.add(ncrutils.toHex(getArray(key.buffer, key.seck.dq,
+                                       key.seck.dqlen)))
     result.add("\niq  = ")
-    result.add(toHex(getArray(key.buffer, key.seck.iq, key.seck.iqlen)))
+    result.add(ncrutils.toHex(getArray(key.buffer, key.seck.iq,
+                                       key.seck.iqlen)))
     result.add("\npre = ")
-    result.add(toHex(getArray(key.buffer, key.pexp, key.pexplen)))
+    result.add(ncrutils.toHex(getArray(key.buffer, key.pexp, key.pexplen)))
     result.add("\nm   = ")
-    result.add(toHex(getArray(key.buffer, key.pubk.n, key.pubk.nlen)))
+    result.add(ncrutils.toHex(getArray(key.buffer, key.pubk.n, key.pubk.nlen)))
     result.add("\npue = ")
-    result.add(toHex(getArray(key.buffer, key.pubk.e, key.pubk.elen)))
+    result.add(ncrutils.toHex(getArray(key.buffer, key.pubk.e, key.pubk.elen)))
     result.add("\n")
 
 proc `$`*(key: RsaPublicKey): string =
@@ -648,9 +655,9 @@ proc `$`*(key: RsaPublicKey): string =
     result = "RSA key ("
     result.add($nbitlen)
     result.add(" bits)\nn = ")
-    result.add(toHex(getArray(key.buffer, key.key.n, key.key.nlen)))
+    result.add(ncrutils.toHex(getArray(key.buffer, key.key.n, key.key.nlen)))
     result.add("\ne = ")
-    result.add(toHex(getArray(key.buffer, key.key.e, key.key.elen)))
+    result.add(ncrutils.toHex(getArray(key.buffer, key.key.e, key.key.elen)))
     result.add("\n")
 
 proc `$`*(sig: RsaSignature): string =
@@ -659,7 +666,7 @@ proc `$`*(sig: RsaSignature): string =
     result = "Empty or uninitialized RSA signature"
   else:
     result = "RSA signature ("
-    result.add(toHex(sig.buffer))
+    result.add(ncrutils.toHex(sig.buffer))
     result.add(")")
 
 proc `==`*(a, b: RsaPrivateKey): bool =

@@ -96,7 +96,7 @@ proc newStreamInternal*(m: Mplex,
 proc cleanupChann(m: Mplex, chann: LPChannel) {.async, inline.} =
   ## remove the local channel from the internal tables
   ##
-  await chann.closeEvent.wait()
+  await chann.join()
   if not isNil(chann):
     m.getChannelList(chann.initiator).del(chann.id)
     trace "cleaned up channel", id = chann.id

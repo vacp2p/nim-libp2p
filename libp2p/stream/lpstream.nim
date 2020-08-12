@@ -115,8 +115,12 @@ proc readExactly*(s: LPStream,
     read += await s.readOnce(addr pbuffer[read], nbytes - read)
 
   if read < nbytes:
-    trace "incomplete data received", read
-    raise newLPStreamIncompleteError()
+    if s.atEof:
+      trace "couldn't read all bytes, stream EOF", expected = nbytes, read
+      raise newLPStreamEOFError()
+    else:
+      trace "couldn't read all bytes, incomplete data", expected = nbytes, read
+      raise newLPStreamIncompleteError()
 
 proc readLine*(s: LPStream,
                limit = 0,

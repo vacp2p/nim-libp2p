@@ -1,27 +1,65 @@
-import random, options
+# compile time options here
+const
+  libp2p_pubsub_sign {.booldefine.} = true
+  libp2p_pubsub_verify {.booldefine.} = true
+
+import random
 import chronos
-import ../../libp2p/standard_setup
-import ../../libp2p/protocols/pubsub/gossipsub
+import ../../libp2p/[standard_setup,
+                     protocols/pubsub/pubsub,
+                     protocols/pubsub/floodsub,
+                     protocols/pubsub/gossipsub,
+                     protocols/secure/secure]
+
 export standard_setup
 
 randomize()
 
-proc generateNodes*(num: Natural, gossip: bool = false): seq[Switch] =
-  for i in 0..<num:
-    var switch = newStandardSwitch(gossip = gossip)
-    if gossip:
-      var gossipSub = GossipSub(switch.pubSub.get())
-      gossipSub.parameters.floodPublish = false
-    result.add(switch)
+proc generateNodes*(
+  num: Natural,
+  secureManagers: openarray[SecureProtocol] = [
+    # array cos order matters
+    SecureProtocol.Secio,
+    SecureProtocol.Noise,
+  ],
+  msgIdProvider: MsgIdProvider = nil,
+  gossip: bool = false,
+  triggerSelf: bool = false,
+  verifySignature: bool = libp2p_pubsub_verify,
+  sign: bool = libp2p_pubsub_sign): seq[PubSub] =
 
-proc subscribeNodes*(nodes: seq[Switch]): Future[seq[Future[void]]] {.async.} =
+  for i in 0..<num:
+    let switch = newStandardSwitch(secureManagers = secureManagers)
+    let pubsub = if gossip:
+      GossipSub.init(
+        switch = switch,
+        triggerSelf = triggerSelf,
+        verifySignature = verifySignature,
+        sign = sign,
+        msgIdProvider = msgIdProvider,
+        parameters = (
+          let p = GossipSubParams.init()
+          p.floodPublish = false
+          p)).PubSub
+    else:
+      FloodSub.init(
+        switch = switch,
+        triggerSelf = triggerSelf,
+        verifySignature = verifySignature,
+        sign = sign,
+        msgIdProvider = msgIdProvider).PubSub
+
+    switch.mount(pubsub)
+    result.add(pubsub)
+
+proc subscribeNodes*(nodes: seq[PubSub]) {.async.} =
   for dialer in nodes:
     for node in nodes:
-      if dialer.peerInfo.peerId != node.peerInfo.peerId:
-        await dialer.connect(node.peerInfo)
-        result.add(dialer.subscribePeer(node.peerInfo))
+      if dialer.switch.peerInfo.peerId != node.switch.peerInfo.peerId:
+        await dialer.switch.connect(node.peerInfo.peerId, node.peerInfo.addrs)
+        dialer.subscribePeer(node.peerInfo.peerId)
 
-proc subscribeSparseNodes*(nodes: seq[Switch], degree: int = 2): Future[seq[Future[void]]] {.async.} =
+proc subscribeSparseNodes*(nodes: seq[PubSub], degree: int = 2) {.async.} =
   if nodes.len < degree:
     raise (ref CatchableError)(msg: "nodes count needs to be greater or equal to degree!")
 
@@ -30,17 +68,17 @@ proc subscribeSparseNodes*(nodes: seq[Switch], degree: int = 2): Future[seq[Futu
       continue
 
     for node in nodes:
-      if dialer.peerInfo.peerId != node.peerInfo.peerId:
-        await dialer.connect(node.peerInfo)
-        result.add(dialer.subscribePeer(node.peerInfo))
+      if dialer.switch.peerInfo.peerId != node.peerInfo.peerId:
+        await dialer.switch.connect(node.peerInfo.peerId, node.peerInfo.addrs)
+        dialer.subscribePeer(node.peerInfo.peerId)
 
-proc subscribeRandom*(nodes: seq[Switch]): Future[seq[Future[void]]] {.async.} =
+proc subscribeRandom*(nodes: seq[PubSub]) {.async.} =
   for dialer in nodes:
-    var dialed: seq[string]
+    var dialed: seq[PeerID]
     while dialed.len < nodes.len - 1:
       let node = sample(nodes)
-      if node.peerInfo.id notin dialed:
-        if dialer.peerInfo.id != node.peerInfo.id:
-          await dialer.connect(node.peerInfo)
-          result.add(dialer.subscribePeer(node.peerInfo))
-          dialed.add(node.peerInfo.id)
+      if node.peerInfo.peerId notin dialed:
+        if dialer.peerInfo.peerId != node.peerInfo.peerId:
+          await dialer.switch.connect(node.peerInfo.peerId, node.peerInfo.addrs)
+          dialer.subscribePeer(node.peerInfo.peerId)
+          dialed.add(node.peerInfo.peerId)
