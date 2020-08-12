@@ -42,7 +42,6 @@ type
     sendConn: Connection
     peerId*: PeerID
     handler*: RPCHandler
-    topics*: HashSet[string]
     sentRpcCache: TimedCache[string]    # cache for already sent messages
     recvdRpcCache: TimedCache[string]   # cache for already received messages
     observers*: ref seq[PubSubObserver] # ref as in smart_ptr
@@ -209,5 +208,4 @@ proc newPubSubPeer*(peerId: PeerID,
   result.peerId = peerId
   result.sentRpcCache = newTimedCache[string](2.minutes)
   result.recvdRpcCache = newTimedCache[string](2.minutes)
-  result.topics = initHashSet[string]()
   result.sendLock = newAsyncLock()

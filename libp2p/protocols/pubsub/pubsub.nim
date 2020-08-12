@@ -126,12 +126,7 @@ method subscribeTopic*(p: PubSub,
                        subscribe: bool,
                        peerId: PeerID) {.base, async.} =
   # called when remote peer subscribes to a topic
-  var peer = p.peers.getOrDefault(peerId)
-  if not isNil(peer):
-    if subscribe:
-      peer.topics.incl(topic)
-    else:
-      peer.topics.excl(topic)
+  discard
 
 method rpcHandler*(p: PubSub,
                    peer: PubSubPeer,
