@@ -37,10 +37,7 @@ proc generateNodes*(
         verifySignature = verifySignature,
         sign = sign,
         msgIdProvider = msgIdProvider,
-        parameters = (
-          let p = GossipSubParams.init()
-          p.floodPublish = false
-          p)).PubSub
+        parameters = (var p = GossipSubParams.init(); p.floodPublish = false; p)).PubSub
     else:
       FloodSub.init(
         switch = switch,

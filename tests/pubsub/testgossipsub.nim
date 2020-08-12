@@ -166,8 +166,8 @@ suite "GossipSub":
 
       await allFuturesThrowing(subs)
 
-      let gossip1 = GossipSub(nodes[0].pubSub.get())
-      let gossip2 = GossipSub(nodes[1].pubSub.get())
+      let gossip1 = GossipSub(nodes[0])
+      let gossip2 = GossipSub(nodes[1])
 
       check:
         gossip1.mesh["foobar"].len == 1 and "foobar" notin gossip1.fanout
@@ -184,9 +184,6 @@ suite "GossipSub":
       tryPublish await nodes[0].publish("foobar", "Hello!".toBytes()), 1
 
       check (await validatorFut) == true
-
-      let gossip1 = GossipSub(nodes[0])
-      let gossip2 = GossipSub(nodes[1])
 
       # gossip 1.1, gossip1 peer with negative score will be pruned in gossip2, 
       # and so mesh will be empty

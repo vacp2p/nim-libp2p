@@ -146,6 +146,8 @@ method rpcHandler*(p: PubSub,
         trace "about to subscribe to topic", topicId = s.topic
         await p.subscribeTopic(s.topic, s.subscribe, peer.peerId)
 
+method onNewPeer(p: PubSub, peer: PubSubPeer) {.base.} = discard
+
 proc getOrCreatePeer*(
   p: PubSub,
   peer: PeerID,
@@ -160,7 +162,7 @@ proc getOrCreatePeer*(
   p.peers[peer] = pubSubPeer
   pubSubPeer.observers = p.observers
 
-  handleConnect(p, peer)
+  onNewPeer(p, pubSubPeer)
 
   # metrics
   libp2p_pubsub_peers.set(p.peers.len.int64)

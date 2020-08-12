@@ -125,7 +125,7 @@ type
     fanout*: PeerTable                         # peers that we send messages to when we're not subscribed to the topic
     gossipsub*: PeerTable                      # peers that are subscribed to a topic
     explicit*: PeerTable                       # directpeers that we keep alive explicitly
-    explicitPeers*: HashSet[string]            # explicit (always connected/forward) peers
+    explicitPeers*: HashSet[PeerID]            # explicit (always connected/forward) peers
     lastFanoutPubSub*: Table[string, Moment]   # last publish time for fanout topics
     gossip*: Table[string, seq[ControlIHave]]  # pending gossip
     control*: Table[string, ControlMessage]    # pending control messages
@@ -266,7 +266,7 @@ method init*(g: GossipSub) =
   g.codecs &= GossipSubCodec
   g.codecs &= GossipSubCodec_10
 
-method handleConnect*(g: GossipSub, peer: PubSubPeer) =
+method onNewPeer(g: GossipSub, peer: PubSubPeer) =
   if peer notin g.peerStats:
     # new peer
     g.peerStats[peer] = PeerStats()
@@ -563,13 +563,14 @@ proc heartbeat(g: GossipSub) {.async.} =
         # do this before relance
         # in order to avoid grafted -> pruned in the same cycle
         let meshPeers = g.mesh.getOrDefault(t)
-        var prunes: seq[Future[void]]
+        var prunes: seq[PubSubPeer]
         for peer in meshPeers:
           if peer.score < 0.0:
             g.pruned(peer, t)
             g.mesh.removePeer(t, peer)
-            prunes.add(peer.sendPrune(@[t]))
-        prunes.allFinished.await.checkFutures()
+            prunes &= peer
+        let prune = RPCMsg(control: some(ControlMessage(prune: @[ControlPrune(topicID: t)])))
+        discard await g.broadcast(prunes, prune, DefaultSendTimeout)
 
         await g.rebalanceMesh(t)
 
@@ -619,8 +620,8 @@ method unsubscribePeer*(g: GossipSub, peer: PeerID) =
         .set(g.gossipsub.peers(t).int64, labelValues = [t])
 
   for t in toSeq(g.mesh.keys):
-    if peer in g.mesh[t]:
-        g.pruned(peer, t)
+    if pubSubPeer in g.mesh[t]:
+        g.pruned(pubSubPeer, t)
     g.mesh.removePeer(t, pubSubPeer)
 
     when defined(libp2p_expensive_metrics):
@@ -641,12 +642,12 @@ method unsubscribePeer*(g: GossipSub, peer: PeerID) =
     #   g.explicitPeers.excl(peer.id)
     
     # don't retain bad score peers
-    if peer.score < 0.0:
-      g.peerStats.del(peer)
+    if pubSubPeer.score < 0.0:
+      g.peerStats.del(pubSubPeer)
       return
 
-    g.peerStats[peer].expire = Moment.now() + g.parameters.retainScore
-    for topic, info in g.peerStats[peer].topicInfos.mpairs:
+    g.peerStats[pubSubPeer].expire = Moment.now() + g.parameters.retainScore
+    for topic, info in g.peerStats[pubSubPeer].topicInfos.mpairs:
       info.firstMessageDeliveries = 0
 
   procCall FloodSub(g).unsubscribePeer(peer)
@@ -666,7 +667,7 @@ method subscribeTopic*(g: GossipSub,
     # floodsub method logs a trace line already
     return
 
-  g.handleConnect(peer)
+  g.onNewPeer(peer)
 
   if subscribe:
     trace "peer subscribed to topic"
