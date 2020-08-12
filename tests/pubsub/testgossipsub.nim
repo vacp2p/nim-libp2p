@@ -33,13 +33,13 @@ proc waitSub(sender, receiver: auto; key: string) {.async, gcsafe.} =
   # this is for testing purposes only
   # peers can be inside `mesh` and `fanout`, not just `gossipsub`
   var ceil = 15
-  let fsub = GossipSub(sender.pubSub.get())
+  let fsub = GossipSub(sender)
   while (not fsub.gossipsub.hasKey(key) or
-         not fsub.gossipsub.hasPeerID(key, receiver.peerInfo.id)) and
+         not fsub.gossipsub.hasPeerID(key, receiver.peerInfo.peerId)) and
         (not fsub.mesh.hasKey(key) or
-         not fsub.mesh.hasPeerID(key, receiver.peerInfo.id)) and
+         not fsub.mesh.hasPeerID(key, receiver.peerInfo.peerId)) and
         (not fsub.fanout.hasKey(key) or
-         not fsub.fanout.hasPeerID(key , receiver.peerInfo.id)):
+         not fsub.fanout.hasPeerID(key , receiver.peerInfo.peerId)):
     trace "waitSub sleeping..."
     await sleepAsync(1.seconds)
     dec ceil
@@ -63,18 +63,29 @@ suite "GossipSub":
       check tracker.isLeaked() == false
 
   test "GossipSub validation should succeed":
-    proc runTests(): Future[bool] {.async.} =
+    proc runTests() {.async.} =
       var handlerFut = newFuture[bool]()
       proc handler(topic: string, data: seq[byte]) {.async, gcsafe.} =
         check topic == "foobar"
         handlerFut.complete(true)
 
-      var nodes = generateNodes(2, true)
-      var awaiters: seq[Future[void]]
-      awaiters.add((await nodes[0].start()))
-      awaiters.add((await nodes[1].start()))
+      let
+        nodes = generateNodes(2, gossip = true)
 
-      let subscribes = await subscribeNodes(nodes)
+        # start switches
+        nodesFut = await allFinished(
+          nodes[0].switch.start(),
+          nodes[1].switch.start(),
+        )
+
+      # start pubsub
+      await allFuturesThrowing(
+        allFinished(
+          nodes[0].start(),
+          nodes[1].start(),
+      ))
+
+      await subscribeNodes(nodes)
 
       await nodes[0].subscribe("foobar", handler)
       await nodes[1].subscribe("foobar", handler)
@@ -90,35 +101,44 @@ suite "GossipSub":
       nodes[1].addValidator("foobar", validator)
       tryPublish await nodes[0].publish("foobar", "Hello!".toBytes()), 1
 
-      result = (await validatorFut) and (await handlerFut)
+      check (await validatorFut) and (await handlerFut)
 
-      let gossip1 = GossipSub(nodes[0].pubSub.get())
-      let gossip2 = GossipSub(nodes[1].pubSub.get())
-      check:
-        gossip1.mesh["foobar"].len == 1 and "foobar" notin gossip1.fanout
-        gossip2.mesh["foobar"].len == 1 and "foobar" notin gossip2.fanout
+      await allFuturesThrowing(
+        nodes[0].switch.stop(),
+        nodes[1].switch.stop()
+      )
 
       await allFuturesThrowing(
         nodes[0].stop(),
-        nodes[1].stop())
+        nodes[1].stop()
+      )
 
-      await allFuturesThrowing(subscribes)
-      await allFuturesThrowing(awaiters)
+      await allFuturesThrowing(nodesFut.concat())
 
-    check:
-      waitFor(runTests()) == true
+    waitFor(runTests())
 
   test "GossipSub validation should fail":
-    proc runTests(): Future[bool] {.async.} =
+    proc runTests() {.async.} =
       proc handler(topic: string, data: seq[byte]) {.async, gcsafe.} =
         check false # if we get here, it should fail
 
-      var nodes = generateNodes(2, true)
-      var awaiters: seq[Future[void]]
-      awaiters.add((await nodes[0].start()))
-      awaiters.add((await nodes[1].start()))
+      let
+        nodes = generateNodes(2, gossip = true)
 
-      let subscribes = await subscribeNodes(nodes)
+        # start switches
+        nodesFut = await allFinished(
+          nodes[0].switch.start(),
+          nodes[1].switch.start(),
+        )
+
+      # start pubsub
+      await allFuturesThrowing(
+        allFinished(
+          nodes[0].start(),
+          nodes[1].start(),
+      ))
+
+      await subscribeNodes(nodes)
 
       await nodes[0].subscribe("foobar", handler)
       await nodes[1].subscribe("foobar", handler)
@@ -133,37 +153,54 @@ suite "GossipSub":
       nodes[1].addValidator("foobar", validator)
       tryPublish await nodes[0].publish("foobar", "Hello!".toBytes()), 1
 
-      result = await validatorFut
+      check (await validatorFut) == true
 
-      let gossip1 = GossipSub(nodes[0].pubSub.get())
-      let gossip2 = GossipSub(nodes[1].pubSub.get())
+      let gossip1 = GossipSub(nodes[0])
+      let gossip2 = GossipSub(nodes[1])
+
       check:
         gossip1.mesh["foobar"].len == 1 and "foobar" notin gossip1.fanout
         gossip2.mesh["foobar"].len == 1 and "foobar" notin gossip2.fanout
 
       await allFuturesThrowing(
+        nodes[0].switch.stop(),
+        nodes[1].switch.stop()
+      )
+
+      await allFuturesThrowing(
         nodes[0].stop(),
-        nodes[1].stop())
+        nodes[1].stop()
+      )
 
-      await allFuturesThrowing(subscribes)
-      await allFuturesThrowing(awaiters)
+      await allFuturesThrowing(nodesFut.concat())
 
-    check:
-      waitFor(runTests()) == true
+    waitFor(runTests())
 
   test "GossipSub validation one fails and one succeeds":
-    proc runTests(): Future[bool] {.async.} =
+    proc runTests() {.async.} =
       var handlerFut = newFuture[bool]()
       proc handler(topic: string, data: seq[byte]) {.async, gcsafe.} =
         check topic == "foo"
         handlerFut.complete(true)
 
-      var nodes = generateNodes(2, true)
-      var awaiters: seq[Future[void]]
-      awaiters.add((await nodes[0].start()))
-      awaiters.add((await nodes[1].start()))
+      let
+        nodes = generateNodes(2, gossip = true)
 
-      let subscribes = await subscribeNodes(nodes)
+        # start switches
+        nodesFut = await allFinished(
+          nodes[0].switch.start(),
+          nodes[1].switch.start(),
+        )
+
+      # start pubsub
+      await allFuturesThrowing(
+        allFinished(
+          nodes[0].start(),
+          nodes[1].start(),
+      ))
+
+      await subscribeNodes(nodes)
+
       await nodes[1].subscribe("foo", handler)
       await nodes[1].subscribe("bar", handler)
 
@@ -182,10 +219,11 @@ suite "GossipSub":
       tryPublish await nodes[0].publish("foo", "Hello!".toBytes()), 1
       tryPublish await nodes[0].publish("bar", "Hello!".toBytes()), 1
 
-      result = ((await passed) and (await failed) and (await handlerFut))
+      check ((await passed) and (await failed) and (await handlerFut))
 
-      let gossip1 = GossipSub(nodes[0].pubSub.get())
-      let gossip2 = GossipSub(nodes[1].pubSub.get())
+      let gossip1 = GossipSub(nodes[0])
+      let gossip2 = GossipSub(nodes[1])
+
       check:
         "foo" notin gossip1.mesh and gossip1.fanout["foo"].len == 1
         "foo" notin gossip2.mesh and "foo" notin gossip2.fanout
@@ -193,104 +231,95 @@ suite "GossipSub":
         "bar" notin gossip2.mesh and "bar" notin gossip2.fanout
 
       await allFuturesThrowing(
-        nodes[0].stop(),
-        nodes[1].stop())
-
-      await allFuturesThrowing(subscribes)
-      await allFuturesThrowing(awaiters)
-      result = true
-    check:
-      waitFor(runTests()) == true
-
-  test "GossipSub publish should fail on timeout":
-    proc runTests(): Future[bool] {.async.} =
-      proc handler(topic: string, data: seq[byte]) {.async, gcsafe.} =
-        discard
-
-      var nodes = generateNodes(2, gossip = true)
-      var awaiters: seq[Future[void]]
-      awaiters.add((await nodes[0].start()))
-      awaiters.add((await nodes[1].start()))
-
-      let subscribes = await subscribeNodes(nodes)
-      await nodes[1].subscribe("foobar", handler)
-      await waitSub(nodes[0], nodes[1], "foobar")
-
-      let pubsub = nodes[0].pubSub.get()
-      let peer = pubsub.peers[nodes[1].peerInfo.id]
-
-      peer.conn = Connection(newBufferStream(
-        proc (data: seq[byte]) {.async, gcsafe.} =
-          await sleepAsync(10.seconds)
-        , size = 0))
-
-      let in10millis = Moment.fromNow(10.millis)
-      let sent = await nodes[0].publish("foobar", "Hello!".toBytes(), 10.millis)
-
-      check Moment.now() >= in10millis
-      check sent == 0
+        nodes[0].switch.stop(),
+        nodes[1].switch.stop()
+      )
 
       await allFuturesThrowing(
         nodes[0].stop(),
-        nodes[1].stop())
+        nodes[1].stop()
+      )
 
-      await allFuturesThrowing(subscribes)
-      await allFuturesThrowing(awaiters)
-      result = true
+      await allFuturesThrowing(nodesFut.concat())
 
-    check:
-      waitFor(runTests()) == true
+    waitFor(runTests())
 
   test "e2e - GossipSub should add remote peer topic subscriptions":
-    proc testBasicGossipSub(): Future[bool] {.async.} =
+    proc testBasicGossipSub() {.async.} =
       proc handler(topic: string, data: seq[byte]) {.async, gcsafe.} =
         discard
 
-      var nodes: seq[Switch] = newSeq[Switch]()
-      for i in 0..<2:
-        nodes.add newStandardSwitch(gossip = true,
-                                    secureManagers = [SecureProtocol.Noise])
+      let
+        nodes = generateNodes(
+          2,
+          gossip = true,
+          secureManagers = [SecureProtocol.Noise])
 
-      var awaitters: seq[Future[void]]
-      for node in nodes:
-        awaitters.add(await node.start())
+        # start switches
+        nodesFut = await allFinished(
+          nodes[0].switch.start(),
+          nodes[1].switch.start(),
+        )
 
-      let subscribes = await subscribeNodes(nodes)
+      # start pubsub
+      await allFuturesThrowing(
+        allFinished(
+          nodes[0].start(),
+          nodes[1].start(),
+      ))
+
+      await subscribeNodes(nodes)
+
       await nodes[1].subscribe("foobar", handler)
       await sleepAsync(10.seconds)
 
-      let gossip1 = GossipSub(nodes[0].pubSub.get())
-      let gossip2 = GossipSub(nodes[1].pubSub.get())
+      let gossip1 = GossipSub(nodes[0])
+      let gossip2 = GossipSub(nodes[1])
 
       check:
         "foobar" in gossip2.topics
         "foobar" in gossip1.gossipsub
-        gossip1.gossipsub.hasPeerID("foobar", gossip2.peerInfo.id)
+        gossip1.gossipsub.hasPeerID("foobar", gossip2.peerInfo.peerId)
 
-      await allFuturesThrowing(nodes.mapIt(it.stop()))
+      await allFuturesThrowing(
+        nodes[0].switch.stop(),
+        nodes[1].switch.stop()
+      )
 
-      await allFuturesThrowing(subscribes)
-      await allFuturesThrowing(awaitters)
+      await allFuturesThrowing(
+        nodes[0].stop(),
+        nodes[1].stop()
+      )
 
-      result = true
+      await allFuturesThrowing(nodesFut.concat())
 
-    check:
-      waitFor(testBasicGossipSub()) == true
+    waitFor(testBasicGossipSub())
 
   test "e2e - GossipSub should add remote peer topic subscriptions if both peers are subscribed":
-    proc testBasicGossipSub(): Future[bool] {.async.} =
+    proc testBasicGossipSub() {.async.} =
       proc handler(topic: string, data: seq[byte]) {.async, gcsafe.} =
         discard
 
-      var nodes: seq[Switch] = newSeq[Switch]()
-      for i in 0..<2:
-        nodes.add newStandardSwitch(gossip = true, secureManagers = [SecureProtocol.Secio])
+      let
+        nodes = generateNodes(
+          2,
+          gossip = true,
+          secureManagers = [SecureProtocol.Secio])
 
-      var awaitters: seq[Future[void]]
-      for node in nodes:
-        awaitters.add(await node.start())
+        # start switches
+        nodesFut = await allFinished(
+          nodes[0].switch.start(),
+          nodes[1].switch.start(),
+        )
 
-      let subscribes = await subscribeNodes(nodes)
+      # start pubsub
+      await allFuturesThrowing(
+        allFinished(
+          nodes[0].start(),
+          nodes[1].start(),
+      ))
+
+      await subscribeNodes(nodes)
 
       await nodes[0].subscribe("foobar", handler)
       await nodes[1].subscribe("foobar", handler)
@@ -302,8 +331,8 @@ suite "GossipSub":
       await allFuturesThrowing(subs)
 
       let
-        gossip1 = GossipSub(nodes[0].pubSub.get())
-        gossip2 = GossipSub(nodes[1].pubSub.get())
+        gossip1 = GossipSub(nodes[0])
+        gossip2 = GossipSub(nodes[1])
 
       check:
         "foobar" in gossip1.topics
@@ -312,35 +341,53 @@ suite "GossipSub":
         "foobar" in gossip1.gossipsub
         "foobar" in gossip2.gossipsub
 
-        gossip1.gossipsub.hasPeerID("foobar", gossip2.peerInfo.id) or
-        gossip1.mesh.hasPeerID("foobar", gossip2.peerInfo.id)
+        gossip1.gossipsub.hasPeerID("foobar", gossip2.peerInfo.peerId) or
+        gossip1.mesh.hasPeerID("foobar", gossip2.peerInfo.peerId)
 
-        gossip2.gossipsub.hasPeerID("foobar", gossip1.peerInfo.id) or
-        gossip2.mesh.hasPeerID("foobar", gossip1.peerInfo.id)
+        gossip2.gossipsub.hasPeerID("foobar", gossip1.peerInfo.peerId) or
+        gossip2.mesh.hasPeerID("foobar", gossip1.peerInfo.peerId)
 
-      await allFuturesThrowing(nodes.mapIt(it.stop()))
+      await allFuturesThrowing(
+        nodes[0].switch.stop(),
+        nodes[1].switch.stop()
+      )
 
-      await allFuturesThrowing(subscribes)
-      await allFuturesThrowing(awaitters)
+      await allFuturesThrowing(
+        nodes[0].stop(),
+        nodes[1].stop()
+      )
 
-      result = true
+      await allFuturesThrowing(nodesFut.concat())
 
-    check:
-      waitFor(testBasicGossipSub()) == true
+    waitFor(testBasicGossipSub())
 
   test "e2e - GossipSub send over fanout A -> B":
-    proc runTests(): Future[bool] {.async.} =
+    proc runTests() {.async.} =
       var passed = newFuture[void]()
       proc handler(topic: string, data: seq[byte]) {.async, gcsafe.} =
         check topic == "foobar"
         passed.complete()
 
-      var nodes = generateNodes(2, true)
-      var wait = newSeq[Future[void]]()
-      wait.add(await nodes[0].start())
-      wait.add(await nodes[1].start())
+      let
+        nodes = generateNodes(
+          2,
+          gossip = true,
+          secureManagers = [SecureProtocol.Secio])
 
-      let subscribes = await subscribeNodes(nodes)
+        # start switches
+        nodesFut = await allFinished(
+          nodes[0].switch.start(),
+          nodes[1].switch.start(),
+        )
+
+      # start pubsub
+      await allFuturesThrowing(
+        allFinished(
+          nodes[0].start(),
+          nodes[1].start(),
+      ))
+
+      await subscribeNodes(nodes)
 
       await nodes[1].subscribe("foobar", handler)
       await waitSub(nodes[0], nodes[1], "foobar")
@@ -353,18 +400,19 @@ suite "GossipSub":
         obs2 = PubSubObserver(onSend: proc(peer: PubSubPeer; msgs: var RPCMsg) =
           inc observed
         )
-      nodes[1].pubsub.get().addObserver(obs1)
-      nodes[0].pubsub.get().addObserver(obs2)
+
+      # nodes[1].addObserver(obs1)
+      # nodes[0].addObserver(obs2)
 
       tryPublish await nodes[0].publish("foobar", "Hello!".toBytes()), 1
 
-      var gossip1: GossipSub = GossipSub(nodes[0].pubSub.get())
-      var gossip2: GossipSub = GossipSub(nodes[1].pubSub.get())
+      var gossip1: GossipSub = GossipSub(nodes[0])
+      var gossip2: GossipSub = GossipSub(nodes[1])
 
       check:
         "foobar" in gossip1.gossipsub
-        gossip1.fanout.hasPeerID("foobar", gossip2.peerInfo.id)
-        not gossip1.mesh.hasPeerID("foobar", gossip2.peerInfo.id)
+        gossip1.fanout.hasPeerID("foobar", gossip2.peerInfo.peerId)
+        not gossip1.mesh.hasPeerID("foobar", gossip2.peerInfo.peerId)
 
       await passed.wait(2.seconds)
 
@@ -373,14 +421,20 @@ suite "GossipSub":
       await nodes[0].stop()
       await nodes[1].stop()
 
-      await allFuturesThrowing(subscribes)
-      await allFuturesThrowing(wait)
+      await allFuturesThrowing(
+        nodes[0].switch.stop(),
+        nodes[1].switch.stop()
+      )
 
-      check observed == 2
-      result = true
+      await allFuturesThrowing(
+        nodes[0].stop(),
+        nodes[1].stop()
+      )
 
-    check:
-      waitFor(runTests()) == true
+      await allFuturesThrowing(nodesFut.concat())
+      # check observed == 2
+
+    waitFor(runTests())
 
   test "e2e - GossipSub send over mesh A -> B":
     proc runTests(): Future[bool] {.async.} =
@@ -389,12 +443,26 @@ suite "GossipSub":
         check topic == "foobar"
         passed.complete(true)
 
-      var nodes = generateNodes(2, true)
-      var wait: seq[Future[void]]
-      wait.add(await nodes[0].start())
-      wait.add(await nodes[1].start())
+      let
+        nodes = generateNodes(
+          2,
+          gossip = true,
+          secureManagers = [SecureProtocol.Secio])
 
-      let subscribes = await subscribeNodes(nodes)
+        # start switches
+        nodesFut = await allFinished(
+          nodes[0].switch.start(),
+          nodes[1].switch.start(),
+        )
+
+      # start pubsub
+      await allFuturesThrowing(
+        allFinished(
+          nodes[0].start(),
+          nodes[1].start(),
+      ))
+
+      await subscribeNodes(nodes)
 
       await nodes[0].subscribe("foobar", handler)
       await nodes[1].subscribe("foobar", handler)
@@ -404,39 +472,42 @@ suite "GossipSub":
 
       result = await passed
 
-      var gossip1: GossipSub = GossipSub(nodes[0].pubSub.get())
-      var gossip2: GossipSub = GossipSub(nodes[1].pubSub.get())
+      var gossip1: GossipSub = GossipSub(nodes[0])
+      var gossip2: GossipSub = GossipSub(nodes[1])
 
       check:
         "foobar" in gossip1.gossipsub
         "foobar" in gossip2.gossipsub
-        gossip1.mesh.hasPeerID("foobar", gossip2.peerInfo.id)
-        not gossip1.fanout.hasPeerID("foobar", gossip2.peerInfo.id)
-        gossip2.mesh.hasPeerID("foobar", gossip1.peerInfo.id)
-        not gossip2.fanout.hasPeerID("foobar", gossip1.peerInfo.id)
+        gossip1.mesh.hasPeerID("foobar", gossip2.peerInfo.peerId)
+        not gossip1.fanout.hasPeerID("foobar", gossip2.peerInfo.peerId)
+        gossip2.mesh.hasPeerID("foobar", gossip1.peerInfo.peerId)
+        not gossip2.fanout.hasPeerID("foobar", gossip1.peerInfo.peerId)
 
-      await nodes[0].stop()
-      await nodes[1].stop()
+      await allFuturesThrowing(
+        nodes[0].switch.stop(),
+        nodes[1].switch.stop()
+      )
 
-      await allFuturesThrowing(subscribes)
-      await allFuturesThrowing(wait)
+      await allFuturesThrowing(
+        nodes[0].stop(),
+        nodes[1].stop()
+      )
+
+      await allFuturesThrowing(nodesFut.concat())
 
     check:
       waitFor(runTests()) == true
 
   test "e2e - GossipSub with multiple peers":
-    proc runTests(): Future[bool] {.async.} =
-      var nodes: seq[Switch] = newSeq[Switch]()
-      var awaitters: seq[Future[void]]
+    proc runTests() {.async.} =
       var runs = 10
 
-      for i in 0..<runs:
-        nodes.add newStandardSwitch(triggerSelf = true,
-                                    gossip = true,
-                                    secureManagers = [SecureProtocol.Noise])
-        awaitters.add((await nodes[i].start()))
+      let
+        nodes = generateNodes(runs, gossip = true, triggerSelf = true)
+        nodesFut = nodes.mapIt(it.switch.start())
 
-      let subscribes = await subscribeRandom(nodes)
+      await allFuturesThrowing(nodes.mapIt(it.start()))
+      await subscribeNodes(nodes)
 
       var seen: Table[string, int]
       var subs: seq[Future[void]]
@@ -468,34 +539,33 @@ suite "GossipSub":
         check: v >= 1
 
       for node in nodes:
-        var gossip: GossipSub = GossipSub(node.pubSub.get())
+        var gossip = GossipSub(node)
+
         check:
           "foobar" in gossip.gossipsub
           gossip.fanout.len == 0
           gossip.mesh["foobar"].len > 0
 
-      await allFuturesThrowing(nodes.mapIt(it.stop()))
+      await allFuturesThrowing(
+        nodes.mapIt(
+          allFutures(
+            it.stop(),
+            it.switch.stop())))
 
-      await allFuturesThrowing(subscribes)
-      await allFuturesThrowing(awaitters)
-      result = true
+      await allFuturesThrowing(nodesFut)
 
-    check:
-      waitFor(runTests()) == true
+    waitFor(runTests())
 
   test "e2e - GossipSub with multiple peers (sparse)":
-    proc runTests(): Future[bool] {.async.} =
-      var nodes: seq[Switch] = newSeq[Switch]()
-      var awaitters: seq[Future[void]]
+    proc runTests() {.async.} =
       var runs = 10
 
-      for i in 0..<runs:
-        nodes.add newStandardSwitch(triggerSelf = true,
-                                    gossip = true,
-                                    secureManagers = [SecureProtocol.Secio])
-        awaitters.add((await nodes[i].start()))
+      let
+        nodes = generateNodes(runs, gossip = true, triggerSelf = true)
+        nodesFut = nodes.mapIt(it.switch.start())
 
-      let subscribes = await subscribeSparseNodes(nodes, 1)
+      await allFuturesThrowing(nodes.mapIt(it.start()))
+      await subscribeNodes(nodes)
 
       var seen: Table[string, int]
       var subs: seq[Future[void]]
@@ -528,17 +598,18 @@ suite "GossipSub":
         check: v >= 1
 
       for node in nodes:
-        var gossip: GossipSub = GossipSub(node.pubSub.get())
+        var gossip = GossipSub(node)
         check:
           "foobar" in gossip.gossipsub
           gossip.fanout.len == 0
           gossip.mesh["foobar"].len > 0
 
-      await allFuturesThrowing(nodes.mapIt(it.stop()))
+      await allFuturesThrowing(
+        nodes.mapIt(
+          allFutures(
+            it.stop(),
+            it.switch.stop())))
 
-      await allFuturesThrowing(subscribes)
-      await allFuturesThrowing(awaitters)
-      result = true
+      await allFuturesThrowing(nodesFut)
 
-    check:
-      waitFor(runTests()) == true
+    waitFor(runTests())

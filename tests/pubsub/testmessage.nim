@@ -16,4 +16,4 @@ suite "Message":
       peer = PeerInfo.init(PrivateKey.random(ECDSA, rng[]).get())
       msg = Message.init(peer, @[], "topic", seqno, sign = true)
 
-    check verify(msg, peer)
+    check verify(msg, peer.peerId)

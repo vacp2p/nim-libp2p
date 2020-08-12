@@ -4,6 +4,7 @@ include ../../libp2p/protocols/pubsub/gossipsub
 
 import unittest, bearssl
 import stew/byteutils
+import ../../libp2p/standard_setup
 import ../../libp2p/errors
 import ../../libp2p/crypto/crypto
 import ../../libp2p/stream/bufferstream
@@ -26,7 +27,7 @@ suite "GossipSub internal":
 
   test "`rebalanceMesh` Degree Lo":
     proc testRun(): Future[bool] {.async.} =
-      let gossipSub = newPubSub(TestGossipSub, randomPeerInfo())
+      let gossipSub = TestGossipSub.init(newStandardSwitch())
 
       let topic = "foobar"
       gossipSub.mesh[topic] = initHashSet[PubSubPeer]()
@@ -38,9 +39,8 @@ suite "GossipSub internal":
         conns &= conn
         let peerInfo = randomPeerInfo()
         conn.peerInfo = peerInfo
-        let peer = newPubSubPeer(peerInfo, GossipSubCodec)
-        peer.conn = conn
-        gossipSub.peers[peerInfo.id] = peer
+        let peer = newPubSubPeer(peerInfo.peerId, gossipSub.switch, GossipSubCodec)
+        gossipSub.peers[peerInfo.peerId] = peer
         gossipSub.mesh[topic].incl(peer)
 
       check gossipSub.peers.len == 15
@@ -48,7 +48,7 @@ suite "GossipSub internal":
       check gossipSub.mesh[topic].len == GossipSubD
 
       await allFuturesThrowing(conns.mapIt(it.close()))
-
+      await gossipSub.switch.stop()
       result = true
 
     check:
@@ -56,7 +56,7 @@ suite "GossipSub internal":
 
   test "`rebalanceMesh` Degree Hi":
     proc testRun(): Future[bool] {.async.} =
-      let gossipSub = newPubSub(TestGossipSub, randomPeerInfo())
+      let gossipSub = TestGossipSub.init(newStandardSwitch())
 
       let topic = "foobar"
       gossipSub.mesh[topic] = initHashSet[PubSubPeer]()
@@ -69,9 +69,8 @@ suite "GossipSub internal":
         conns &= conn
         let peerInfo = PeerInfo.init(PrivateKey.random(ECDSA, rng[]).get())
         conn.peerInfo = peerInfo
-        let peer = newPubSubPeer(peerInfo, GossipSubCodec)
-        peer.conn = conn
-        gossipSub.peers[peerInfo.id] = peer
+        let peer = newPubSubPeer(peerInfo.peerId, gossipsub.switch, GossipSubCodec)
+        gossipSub.peers[peerInfo.peerId] = peer
         gossipSub.mesh[topic].incl(peer)
 
       check gossipSub.mesh[topic].len == 15
@@ -79,6 +78,7 @@ suite "GossipSub internal":
       check gossipSub.mesh[topic].len == GossipSubD
 
       await allFuturesThrowing(conns.mapIt(it.close()))
+      await gossipSub.switch.stop()
 
       result = true
 
@@ -87,7 +87,7 @@ suite "GossipSub internal":
 
   test "`replenishFanout` Degree Lo":
     proc testRun(): Future[bool] {.async.} =
-      let gossipSub = newPubSub(TestGossipSub, randomPeerInfo())
+      let gossipSub = TestGossipSub.init(newStandardSwitch())
 
       proc handler(peer: PubSubPeer, msg: seq[RPCMsg]) {.async.} =
         discard
@@ -101,7 +101,7 @@ suite "GossipSub internal":
         conns &= conn
         var peerInfo = randomPeerInfo()
         conn.peerInfo = peerInfo
-        let peer = newPubSubPeer(peerInfo, GossipSubCodec)
+        let peer = newPubSubPeer(peerInfo.peerId, gossipsub.switch, GossipSubCodec)
         peer.handler = handler
         gossipSub.gossipsub[topic].incl(peer)
 
@@ -110,6 +110,7 @@ suite "GossipSub internal":
       check gossipSub.fanout[topic].len == GossipSubD
 
       await allFuturesThrowing(conns.mapIt(it.close()))
+      await gossipSub.switch.stop()
 
       result = true
 
@@ -118,7 +119,7 @@ suite "GossipSub internal":
 
   test "`dropFanoutPeers` drop expired fanout topics":
     proc testRun(): Future[bool] {.async.} =
-      let gossipSub = newPubSub(TestGossipSub, randomPeerInfo())
+      let gossipSub = TestGossipSub.init(newStandardSwitch())
 
       proc handler(peer: PubSubPeer, msg: seq[RPCMsg]) {.async.} =
         discard
@@ -134,7 +135,7 @@ suite "GossipSub internal":
         conns &= conn
         let peerInfo = PeerInfo.init(PrivateKey.random(ECDSA, rng[]).get())
         conn.peerInfo = peerInfo
-        let peer = newPubSubPeer(peerInfo, GossipSubCodec)
+        let peer = newPubSubPeer(peerInfo.peerId, gossipsub.switch, GossipSubCodec)
         peer.handler = handler
         gossipSub.fanout[topic].incl(peer)
 
@@ -144,6 +145,7 @@ suite "GossipSub internal":
       check topic notin gossipSub.fanout
 
       await allFuturesThrowing(conns.mapIt(it.close()))
+      await gossipSub.switch.stop()
 
       result = true
 
@@ -152,7 +154,7 @@ suite "GossipSub internal":
 
   test "`dropFanoutPeers` leave unexpired fanout topics":
     proc testRun(): Future[bool] {.async.} =
-      let gossipSub = newPubSub(TestGossipSub, randomPeerInfo())
+      let gossipSub = TestGossipSub.init(newStandardSwitch())
 
       proc handler(peer: PubSubPeer, msg: seq[RPCMsg]) {.async.} =
         discard
@@ -171,7 +173,7 @@ suite "GossipSub internal":
         conns &= conn
         let peerInfo = randomPeerInfo()
         conn.peerInfo = peerInfo
-        let peer = newPubSubPeer(peerInfo, GossipSubCodec)
+        let peer = newPubSubPeer(peerInfo.peerId, gossipsub.switch, GossipSubCodec)
         peer.handler = handler
         gossipSub.fanout[topic1].incl(peer)
         gossipSub.fanout[topic2].incl(peer)
@@ -184,6 +186,7 @@ suite "GossipSub internal":
       check topic2 in gossipSub.fanout
 
       await allFuturesThrowing(conns.mapIt(it.close()))
+      await gossipSub.switch.stop()
 
       result = true
 
@@ -192,7 +195,7 @@ suite "GossipSub internal":
 
   test "`getGossipPeers` - should gather up to degree D non intersecting peers":
     proc testRun(): Future[bool] {.async.} =
-      let gossipSub = newPubSub(TestGossipSub, randomPeerInfo())
+      let gossipSub = TestGossipSub.init(newStandardSwitch())
 
       proc handler(peer: PubSubPeer, msg: seq[RPCMsg]) {.async.} =
         discard
@@ -209,7 +212,7 @@ suite "GossipSub internal":
         conns &= conn
         let peerInfo = randomPeerInfo()
         conn.peerInfo = peerInfo
-        let peer = newPubSubPeer(peerInfo, GossipSubCodec)
+        let peer = newPubSubPeer(peerInfo.peerId, gossipsub.switch, GossipSubCodec)
         peer.handler = handler
         if i mod 2 == 0:
           gossipSub.fanout[topic].incl(peer)
@@ -222,7 +225,7 @@ suite "GossipSub internal":
         conns &= conn
         let peerInfo = randomPeerInfo()
         conn.peerInfo = peerInfo
-        let peer = newPubSubPeer(peerInfo, GossipSubCodec)
+        let peer = newPubSubPeer(peerInfo.peerId, gossipsub.switch, GossipSubCodec)
         peer.handler = handler
         gossipSub.gossipsub[topic].incl(peer)
 
@@ -244,10 +247,11 @@ suite "GossipSub internal":
       let peers = gossipSub.getGossipPeers()
       check peers.len == GossipSubD
       for p in peers.keys:
-        check not gossipSub.fanout.hasPeerID(topic, p)
-        check not gossipSub.mesh.hasPeerID(topic, p)
+        check not gossipSub.fanout.hasPeerID(topic, p.peerId)
+        check not gossipSub.mesh.hasPeerID(topic, p.peerId)
 
       await allFuturesThrowing(conns.mapIt(it.close()))
+      await gossipSub.switch.stop()
 
       result = true
 
@@ -256,7 +260,7 @@ suite "GossipSub internal":
 
   test "`getGossipPeers` - should not crash on missing topics in mesh":
     proc testRun(): Future[bool] {.async.} =
-      let gossipSub = newPubSub(TestGossipSub, randomPeerInfo())
+      let gossipSub = TestGossipSub.init(newStandardSwitch())
 
       proc handler(peer: PubSubPeer, msg: seq[RPCMsg]) {.async.} =
         discard
@@ -270,7 +274,7 @@ suite "GossipSub internal":
         conns &= conn
         let peerInfo = randomPeerInfo()
         conn.peerInfo = peerInfo
-        let peer = newPubSubPeer(peerInfo, GossipSubCodec)
+        let peer = newPubSubPeer(peerInfo.peerId, gossipsub.switch, GossipSubCodec)
         peer.handler = handler
         if i mod 2 == 0:
           gossipSub.fanout[topic].incl(peer)
@@ -292,6 +296,7 @@ suite "GossipSub internal":
       check peers.len == GossipSubD
 
       await allFuturesThrowing(conns.mapIt(it.close()))
+      await gossipSub.switch.stop()
 
       result = true
 
@@ -300,7 +305,7 @@ suite "GossipSub internal":
 
   test "`getGossipPeers` - should not crash on missing topics in fanout":
     proc testRun(): Future[bool] {.async.} =
-      let gossipSub = newPubSub(TestGossipSub, randomPeerInfo())
+      let gossipSub = TestGossipSub.init(newStandardSwitch())
 
       proc handler(peer: PubSubPeer, msg: seq[RPCMsg]) {.async.} =
         discard
@@ -314,7 +319,7 @@ suite "GossipSub internal":
         conns &= conn
         let peerInfo = randomPeerInfo()
         conn.peerInfo = peerInfo
-        let peer = newPubSubPeer(peerInfo, GossipSubCodec)
+        let peer = newPubSubPeer(peerInfo.peerId, gossipSub.switch, GossipSubCodec)
         peer.handler = handler
         if i mod 2 == 0:
           gossipSub.mesh[topic].incl(peer)
@@ -336,6 +341,7 @@ suite "GossipSub internal":
       check peers.len == GossipSubD
 
       await allFuturesThrowing(conns.mapIt(it.close()))
+      await gossipSub.switch.stop()
 
       result = true
 
@@ -344,7 +350,7 @@ suite "GossipSub internal":
 
   test "`getGossipPeers` - should not crash on missing topics in gossip":
     proc testRun(): Future[bool] {.async.} =
-      let gossipSub = newPubSub(TestGossipSub, randomPeerInfo())
+      let gossipSub = TestGossipSub.init(newStandardSwitch())
 
       proc handler(peer: PubSubPeer, msg: seq[RPCMsg]) {.async.} =
         discard
@@ -358,7 +364,7 @@ suite "GossipSub internal":
         conns &= conn
         let peerInfo = randomPeerInfo()
         conn.peerInfo = peerInfo
-        let peer = newPubSubPeer(peerInfo, GossipSubCodec)
+        let peer = newPubSubPeer(peerInfo.peerId, gossipSub.switch, GossipSubCodec)
         peer.handler = handler
         if i mod 2 == 0:
           gossipSub.mesh[topic].incl(peer)
@@ -380,6 +386,7 @@ suite "GossipSub internal":
       check peers.len == 0
 
       await allFuturesThrowing(conns.mapIt(it.close()))
+      await gossipSub.switch.stop()
 
       result = true
 

@@ -45,7 +45,7 @@ template withExceptions(body: untyped) =
     raise exc
   except TransportIncompleteError:
     # for all intents and purposes this is an EOF
-    raise newLPStreamEOFError()
+    raise newLPStreamIncompleteError()
   except TransportLimitError:
     raise newLPStreamLimitError()
   except TransportUseClosedError:
