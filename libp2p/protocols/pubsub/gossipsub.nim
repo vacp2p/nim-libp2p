@@ -330,6 +330,8 @@ proc peerExchangeList(g: GossipSub, topic: string): seq[PeerInfoMsg] =
   var peers = g.gossipsub.getOrDefault(topic, initHashSet[PubSubPeer]()).toSeq()
   peers.keepIf do (x: PubSubPeer) -> bool:
       x.score >= 0.0
+  # by spec, larger then Dhi, but let's put some hard caps
+  peers.setLen(min(peers.len, GossipSubDhi * 2))
   peers.map do (x: PubSubPeer) -> PeerInfoMsg:
     PeerInfoMsg(peerID: x.peerId.getBytes())
 
