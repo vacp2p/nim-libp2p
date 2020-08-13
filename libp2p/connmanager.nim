@@ -153,10 +153,13 @@ proc selectMuxer*(c: ConnManager, conn: Connection): Muxer =
   ##
 
   if isNil(conn):
+    trace "Nil connection in selectMuxer"
     return
 
   if conn in c.muxed:
     return c.muxed[conn].muxer
+  else:
+    trace "No entry in c.muxed"
 
 proc storeConn*(c: ConnManager, conn: Connection) =
   ## store a connection

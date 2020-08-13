@@ -76,7 +76,6 @@ method init*(g: GossipSub) =
     ## connection for a protocol string
     ## e.g. ``/floodsub/1.0.0``, etc...
     ##
-
     await g.handleConn(conn, proto)
 
   g.handler = handler
@@ -537,14 +536,18 @@ method publish*(g: GossipSub,
   if msgId notin g.mcache:
     g.mcache.put(msgId, msg)
 
-  let published = await g.broadcast(toSeq(peers), RPCMsg(messages: @[msg]), timeout)
-  when defined(libp2p_expensive_metrics):
-    if published > 0:
-      libp2p_pubsub_messages_published.inc(labelValues = [topic])
+  if peers.len > 0:
+    let published = await g.broadcast(toSeq(peers), RPCMsg(messages: @[msg]), timeout)
+    when defined(libp2p_expensive_metrics):
+      if published > 0:
+        libp2p_pubsub_messages_published.inc(labelValues = [topic])
 
-  trace "published message to peers", peers = published,
-                                      msg = msg.shortLog()
-  return published
+    debug "published message to peers", peers = published,
+                                        msg = msg.shortLog()
+    return published
+  else:
+    debug "No peers for gossip message", topic, msg
+    return 0
 
 method start*(g: GossipSub) {.async.} =
   trace "gossipsub start"

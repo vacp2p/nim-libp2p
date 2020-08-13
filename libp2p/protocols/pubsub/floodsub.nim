@@ -114,7 +114,6 @@ method init*(f: FloodSub) =
     ## connection for a protocol string
     ## e.g. ``/floodsub/1.0.0``, etc...
     ##
-
     await f.handleConn(conn, proto)
 
   f.handler = handler

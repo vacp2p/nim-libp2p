@@ -124,6 +124,15 @@ proc timeoutMonitor(s: Connection) {.async, gcsafe.} =
         s.activity = false
         continue
 
+      if true:
+        # TODO:
+        # The inactivity check is currently triggered even for
+        # active connection and leads to premature disconnects.
+        # ("active" here means "sending gossip traffic")
+        trace "Ignoring long inactivity"
+        s.activity = false
+        continue
+
       break
 
     # reset channel on innactivity timeout

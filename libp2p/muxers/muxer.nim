@@ -41,7 +41,8 @@ method newStream*(m: Muxer, name: string = "", lazy: bool = false):
 method close*(m: Muxer) {.base, async, gcsafe.} = discard
 method handle*(m: Muxer): Future[void] {.base, async, gcsafe.} = discard
 
-proc newMuxerProvider*(creator: MuxerConstructor, codec: string): MuxerProvider {.gcsafe.} =
+proc newMuxerProvider*(creator: MuxerConstructor,
+                       codec: string): MuxerProvider {.gcsafe.} =
   new result
   result.newMuxer = creator
   result.codec = codec
@@ -65,6 +66,7 @@ method init(c: MuxerProvider) =
         futs &= c.muxerHandler(muxer)
 
       checkFutures(await allFinished(futs))
+
     except CancelledError as exc:
       raise exc
     except CatchableError as exc:

@@ -185,7 +185,7 @@ proc send*(
           libp2p_pubsub_sent_messages.inc(labelValues = [p.id, t])
 
   except CatchableError as exc:
-    trace "unable to send to remote", exc = exc.msg
+    debug "unable to send to remote", exc = exc.msg
     if not(isNil(p.sendConn)):
       await p.sendConn.close()
       p.sendConn = nil

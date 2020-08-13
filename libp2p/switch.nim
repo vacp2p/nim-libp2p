@@ -465,6 +465,12 @@ proc stop*(s: Switch) {.async.} =
   trace "switch stopped"
 
 proc muxerHandler(s: Switch, muxer: Muxer) {.async, gcsafe.} =
+  # store incoming connection
+  s.connManager.storeIncoming(muxer.connection)
+
+  # store muxer and muxed connection
+  s.connManager.storeMuxer(muxer)
+
   var stream = await muxer.newStream()
   defer:
     if not(isNil(stream)):
@@ -474,6 +480,7 @@ proc muxerHandler(s: Switch, muxer: Muxer) {.async, gcsafe.} =
     # once we got a muxed connection, attempt to
     # identify it
     await s.identify(stream)
+
     if isNil(stream.peerInfo):
       await muxer.close()
       return
@@ -482,12 +489,6 @@ proc muxerHandler(s: Switch, muxer: Muxer) {.async, gcsafe.} =
       peerInfo = stream.peerInfo
       peerId = peerInfo.peerId
     muxer.connection.peerInfo = peerInfo
-
-    # store incoming connection
-    s.connManager.storeIncoming(muxer.connection)
-
-    # store muxer and muxed connection
-    s.connManager.storeMuxer(muxer)
 
     trace "got new muxer", peer = shortLog(peerInfo)
 
