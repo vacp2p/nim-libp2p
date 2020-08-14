@@ -30,9 +30,10 @@
 ## will suspend until either the amount of elements in the
 ## buffer goes below ``maxSize`` or more data becomes available.
 
-import deques, math
+import stew/byteutils
 import chronos, chronicles, metrics
 import ../stream/connection
+import ./streamseq
 
 when chronicles.enabledLogLevel == LogLevel.TRACE:
   import oids
@@ -78,34 +79,17 @@ proc setupBufferStreamTracker(): BufferStreamTracker =
   addTracker(BufferStreamTrackerName, result)
 
 type
-  # TODO: figure out how to make this generic to avoid casts
-  WriteHandler* = proc (data: seq[byte]): Future[void] {.gcsafe.}
-
   BufferStream* = ref object of Connection
-    maxSize*: int                     # buffer's max size in bytes
-    readBuf: Deque[byte]              # this is a ring buffer based dequeue
-    readReqs*: Deque[Future[void]]    # use dequeue to fire reads in order
-    dataReadEvent*: AsyncEvent        # event triggered when data has been consumed from the internal buffer
-    writeHandler*: WriteHandler       # user provided write callback
-    writeLock*: AsyncLock             # write lock to guarantee ordered writes
-    lock: AsyncLock                   # pushTo lock to guarantee ordered reads
-    piped: BufferStream               # a piped bufferstream instance
+    readQueue*: AsyncQueue[seq[byte]] # read queue for managing backpressure
+    readBuf: StreamSeq                # overflow buffer for readOnce
 
-  AlreadyPipedError* = object of CatchableError
   NotWritableError* = object of CatchableError
-
-proc newAlreadyPipedError*(): ref CatchableError {.inline.} =
-  result = newException(AlreadyPipedError, "stream already piped")
 
 proc newNotWritableError*(): ref CatchableError {.inline.} =
   result = newException(NotWritableError, "stream is not writable")
 
-proc requestReadBytes(s: BufferStream): Future[void] =
-  ## create a future that will complete when more
-  ## data becomes available in the read buffer
-  result = newFuture[void]()
-  s.readReqs.addLast(result)
-  # trace "requestReadBytes(): added a future to readReqs", oid = s.oid
+proc len*(s: BufferStream): int =
+  s.readBuf.len + (if s.readQueue.len > 0: s.readQueue[0].len() else: 0)
 
 method initStream*(s: BufferStream) =
   if s.objName.len == 0:
@@ -114,195 +98,84 @@ method initStream*(s: BufferStream) =
   procCall Connection(s).initStream()
   inc getBufferStreamTracker().opened
 
-proc initBufferStream*(s: BufferStream,
-                       handler: WriteHandler = nil,
-                       size: int = DefaultBufferSize) =
+proc initBufferStream*(s: BufferStream) =
+  s.readQueue = newAsyncQueue[seq[byte]](1)
+
   s.initStream()
-
-  s.maxSize = if isPowerOfTwo(size): size else: nextPowerOfTwo(size)
-  s.readBuf = initDeque[byte](s.maxSize)
-  s.readReqs = initDeque[Future[void]]()
-  s.dataReadEvent = newAsyncEvent()
-  s.lock = newAsyncLock()
-  s.writeLock = newAsyncLock()
-
-  if not(isNil(handler)):
-    s.writeHandler = proc (data: seq[byte]) {.async, gcsafe.} =
-      defer:
-        if s.writeLock.locked:
-          s.writeLock.release()
-
-      # Using a lock here to guarantee
-      # proper write ordering. This is
-      # specially important when
-      # implementing half-closed in mplex
-      # or other functionality that requires
-      # strict message ordering
-
-      await s.writeLock.acquire()
-      await handler(data)
 
   trace "created bufferstream", oid = $s.oid
 
-proc newBufferStream*(handler: WriteHandler = nil,
-                      size: int = DefaultBufferSize,
-                      timeout: Duration = DefaultConnectionTimeout): BufferStream =
+proc newBufferStream*(timeout: Duration = DefaultConnectionTimeout): BufferStream =
   new result
   result.timeout = timeout
-  result.initBufferStream(handler, size)
+  result.initBufferStream()
 
-proc popFirst*(s: BufferStream): byte =
-  result = s.readBuf.popFirst()
-  s.dataReadEvent.fire()
-
-proc popLast*(s: BufferStream): byte =
-  result = s.readBuf.popLast()
-  s.dataReadEvent.fire()
-
-proc shrink(s: BufferStream, fromFirst = 0, fromLast = 0) =
-  s.readBuf.shrink(fromFirst, fromLast)
-  s.dataReadEvent.fire()
-
-proc len*(s: BufferStream): int = s.readBuf.len
-
-method pushTo*(s: BufferStream, data: seq[byte]) {.base, async.} =
+proc pushTo*(s: BufferStream, data: seq[byte]) {.async.} =
   ## Write bytes to internal read buffer, use this to fill up the
   ## buffer with data.
   ##
-  ## This method is async and will wait until  all data has been
+  ## This method is async and will wait until all data has been
   ## written to the internal buffer; this is done so that backpressure
   ## is preserved.
   ##
 
-  if s.atEof:
+  if s.isClosed:
     raise newLPStreamEOFError()
 
-  defer:
-    # trace "ended", size = s.len
-    s.lock.release()
+  if data.len == 0:
+    return
 
-  await s.lock.acquire()
-  var index = 0
-  while not s.closed():
-    while index < data.len and s.readBuf.len < s.maxSize:
-      s.readBuf.addLast(data[index])
-      inc(index)
-    # trace "pushTo()", msg = "added " & $s.len & " bytes to readBuf", oid = s.oid
-
-    # resolve the next queued read request
-    if s.readReqs.len > 0:
-      s.readReqs.popFirst().complete()
-      # trace "pushTo(): completed a readReqs future", oid = s.oid
-
-    if index >= data.len:
-      return
-
-    # if we couldn't transfer all the data to the
-    # internal buf wait on a read event
-    await s.dataReadEvent.wait()
-    s.dataReadEvent.clear()
-
-proc drainBuffer*(s: BufferStream) {.async.} =
-  ## wait for all data in the buffer to be consumed
-  ##
-
-  trace "draining buffer", len = s.len, oid = $s.oid
-  while s.len > 0:
-    await s.dataReadEvent.wait()
-    s.dataReadEvent.clear()
+  # We will block here if there is already data queued, until it has been
+  # processed
+  await s.readQueue.addLast(data)
 
 method readOnce*(s: BufferStream,
                  pbytes: pointer,
                  nbytes: int):
                  Future[int] {.async.} =
-  if s.atEof:
+  logScope: oid = $s.oid
+
+  if s.isEof and s.readBuf.len() == 0:
     raise newLPStreamEOFError()
 
-  if s.len() == 0:
-    await s.requestReadBytes()
+  var
+    p = cast[ptr UncheckedArray[byte]](pbytes)
 
-  var index = 0
-  var size = min(nbytes, s.len)
-  let output = cast[ptr UncheckedArray[byte]](pbytes)
+  # First consume leftovers from previous read
+  var size = s.readBuf.consumeTo(toOpenArray(p, 0, nbytes - 1))
 
-  s.activity = true # reset activity flag
-  while s.len() > 0 and index < size:
-    output[index] = s.popFirst()
-    inc(index)
+  if size < nbytes:
+    # There's space in the buffer - consume some data from the read queue
+    trace "readQueue"
+    let buf = await s.readQueue.popFirst()
+    s.activity = true
+
+    if buf.len == 0:
+      # No more data will arrive on read queue
+      s.isEof = true
+    else:
+      let remaining = min(buf.len, nbytes - size)
+      toOpenArray(p, size, nbytes - 1)[0..<remaining] = buf[0..<remaining]
+      size += remaining
+
+      if remaining < buf.len:
+        trace "add leftovers", len = buf.len - remaining
+        s.readBuf.add(buf.toOpenArray(remaining, buf.high))
+
+  if s.isEof and s.readBuf.len() == 0:
+    # We can clear the readBuf memory since it won't be used any more
+    s.readBuf = StreamSeq()
 
   return size
-
-method write*(s: BufferStream, msg: seq[byte]) {.async.} =
-  ## Write sequence of bytes ``sbytes`` of length ``msglen`` to writer
-  ## stream ``wstream``.
-  ##
-  ## Sequence of bytes ``sbytes`` must not be zero-length.
-  ##
-  ## If ``msglen < 0`` whole sequence ``sbytes`` will be writen to stream.
-  ## If ``msglen > len(sbytes)`` only ``len(sbytes)`` bytes will be written to
-  ## stream.
-  ##
-
-  if s.closed:
-    raise newLPStreamClosedError()
-
-  if isNil(s.writeHandler):
-    raise newNotWritableError()
-
-  s.activity = true # reset activity flag
-  await s.writeHandler(msg)
-
-# TODO: move pipe routines out
-proc pipe*(s: BufferStream,
-           target: BufferStream): BufferStream =
-  ## pipe the write end of this stream to
-  ## be the source of the target stream
-  ##
-  ## Note that this only works with the LPStream
-  ## interface methods `read*` and `write` are
-  ## piped.
-  ##
-  if not(isNil(s.piped)):
-    raise newAlreadyPipedError()
-
-  s.piped = target
-  let oldHandler = target.writeHandler
-  proc handler(data: seq[byte]) {.async, closure, gcsafe.} =
-    if not isNil(oldHandler):
-      await oldHandler(data)
-
-    # if we're piping to self,
-    # then add the data to the
-    # buffer directly and fire
-    # the read event
-    if s == target:
-      for b in data:
-        s.readBuf.addLast(b)
-
-      # notify main loop of available
-      # data
-      s.dataReadEvent.fire()
-    else:
-      await target.pushTo(data)
-
-  s.writeHandler = handler
-  result = target
-
-proc `|`*(s: BufferStream, target: BufferStream): BufferStream =
-  ## pipe operator to make piping less verbose
-  pipe(s, target)
 
 method close*(s: BufferStream) {.async, gcsafe.} =
   try:
     ## close the stream and clear the buffer
     if not s.isClosed:
       trace "closing bufferstream", oid = $s.oid
-      s.isEof = true
-      for r in s.readReqs:
-        if not(isNil(r)) and not(r.finished()):
-          r.fail(newLPStreamEOFError())
-      s.dataReadEvent.fire()
-      s.readBuf.clear()
+
+      # Push empty block to signal close, but don't block
+      asyncCheck s.readQueue.addLast(@[])
 
       await procCall Connection(s).close()
       inc getBufferStreamTracker().closed

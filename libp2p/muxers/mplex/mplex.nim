@@ -121,7 +121,7 @@ method handle*(m: Mplex) {.async, gcsafe.} =
       trace "stopping mplex main loop"
       await m.close()
 
-    while not m.connection.atEof:
+    while true:
       trace "waiting for data"
       let
         (id, msgType, data) = await m.connection.readMsg()
@@ -182,8 +182,10 @@ method handle*(m: Mplex) {.async, gcsafe.} =
           trace "reset channel"
   except CancelledError as exc:
     raise exc
+  except LPStreamEOFError as exc:
+    trace "stream closed", msg = exc.msg
   except CatchableError as exc:
-    trace "Exception occurred", exception = exc.msg, oid = $m.oid
+    warn "Exception occurred", exception = exc.msg
 
 proc init*(M: type Mplex,
            conn: Connection,

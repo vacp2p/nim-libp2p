@@ -55,6 +55,7 @@ type
     msgCode*: MessageType         # cached in/out message code
     closeCode*: MessageType       # cached in/out close code
     resetCode*: MessageType       # cached in/out reset code
+    writeLock: AsyncLock
 
 proc open*(s: LPChannel) {.async, gcsafe.}
 
@@ -137,8 +138,6 @@ proc closeRemote*(s: LPChannel) {.async.} =
 
   trace "got EOF, closing channel"
   try:
-    await s.drainBuffer()
-    s.isEof = true # set EOF immediately to prevent further reads
     # close parent bufferstream to prevent further reads
     await procCall BufferStream(s).close()
 
@@ -176,8 +175,6 @@ method reset*(s: LPChannel) {.base, async, gcsafe.} =
   asyncCheck s.resetMessage()
 
   try:
-    # drain the buffer before closing
-    await s.drainBuffer()
     await procCall BufferStream(s).close()
 
     s.isEof = true
@@ -223,6 +220,8 @@ method close*(s: LPChannel) {.async, gcsafe.} =
   asyncCheck closeInternal()
 
 method initStream*(s: LPChannel) =
+  procCall BufferStream(s).initStream()
+
   if s.objName.len == 0:
     s.objName = "LPChannel"
 
@@ -230,7 +229,26 @@ method initStream*(s: LPChannel) =
     trace "idle timeout expired, resetting LPChannel"
     await s.reset()
 
-  procCall BufferStream(s).initStream()
+  s.writeLock = newAsyncLock()
+
+method write*(s: LPChannel, msg: seq[byte]): Future[void] {.async.} =
+  logScope: oid = $s.oid
+
+  if s.closedLocal:
+    raise newLPStreamClosedError()
+
+  try:
+    if s.isLazy and not(s.isOpen):
+      await s.open()
+
+    # writes should happen in sequence
+    trace "write msg", len = msg.len
+
+    await s.conn.writeMsg(s.id, s.msgCode, msg)
+  except CatchableError as exc:
+    trace "exception in lpchannel write handler", exc = exc.msg
+    await s.reset()
+    raise exc
 
 proc init*(
   L: type LPChannel,
@@ -262,23 +280,8 @@ proc init*(
     peer = $chann.conn.peerInfo
     # stack = getStackTrace()
 
-  proc writeHandler(data: seq[byte]) {.async, gcsafe.} =
-    try:
-      if chann.isLazy and not(chann.isOpen):
-        await chann.open()
+  chann.initBufferStream()
 
-      # writes should happen in sequence
-      trace "sending data", len = data.len
-
-      await conn.writeMsg(chann.id,
-                          chann.msgCode,
-                          data)
-    except CatchableError as exc:
-      trace "exception in lpchannel write handler", exc = exc.msg
-      await chann.reset()
-      raise exc
-
-  chann.initBufferStream(writeHandler, size)
   when chronicles.enabledLogLevel == LogLevel.TRACE:
     chann.name = if chann.name.len > 0: chann.name else: $chann.oid
 

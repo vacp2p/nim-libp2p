@@ -171,6 +171,9 @@ proc identify(s: Switch, muxer: Muxer) {.async, gcsafe.} =
 proc mux(s: Switch, conn: Connection): Future[Muxer] {.async, gcsafe.} =
   ## mux incoming connection
 
+  if conn.peerInfo.isNil:
+    raise (ref CatchableError)(msg: "need a peer identity, go away")
+
   trace "muxing connection", peer = $conn
   if s.muxers.len == 0:
     warn "no muxers registered, skipping upgrade flow"

@@ -1,4 +1,4 @@
-import unittest, strformat, strformat, random
+import unittest, strformat, strformat, random, oids
 import chronos, nimcrypto/utils, chronicles, stew/byteutils
 import ../libp2p/[errors,
                   stream/connection,
@@ -132,7 +132,6 @@ suite "Mplex":
         conn = newBufferStream(
           proc (data: seq[byte]) {.gcsafe, async.} =
             discard,
-          timeout = 5.minutes
         )
         chann = LPChannel.init(1, conn, true)
 
@@ -146,7 +145,6 @@ suite "Mplex":
       let closeFut = chann.closeRemote()
       # should still allow reading until buffer EOF
       await chann.readExactly(addr data[3], 3)
-      await closeFut
       try:
         # this should fail now
         await chann.readExactly(addr data[0], 3)
@@ -155,6 +153,7 @@ suite "Mplex":
       finally:
         await chann.close()
         await conn.close()
+      await closeFut
 
     check:
       waitFor(testOpenForRead()) == true
@@ -165,7 +164,6 @@ suite "Mplex":
         conn = newBufferStream(
           proc (data: seq[byte]) {.gcsafe, async.} =
             discard,
-          timeout = 5.minutes
         )
         chann = LPChannel.init(1, conn, true)
 
@@ -194,11 +192,9 @@ suite "Mplex":
         conn = newBufferStream(
           proc (data: seq[byte]) {.gcsafe, async.} =
             discard
-          , timeout = 5.minutes
         )
         chann = LPChannel.init(1, conn, true)
 
-      var data = newSeq[byte](6)
       await chann.closeRemote() # closing channel
       try:
         await chann.writeLp(testData)
@@ -273,7 +269,7 @@ suite "Mplex":
         chann = LPChannel.init(
           1, conn, true, timeout = 100.millis)
 
-      await chann.closeEvent.wait()
+      check await chann.closeEvent.wait().withTimeout(1.minutes)
       await conn.close()
       result = true
 
@@ -555,8 +551,11 @@ suite "Mplex":
         let mplexListen = Mplex.init(conn)
         mplexListen.streamHandler = proc(stream: Connection)
           {.async, gcsafe.} =
-          let msg = await stream.readLp(MsgSize)
-          check msg.len == MsgSize
+          try:
+            let msg = await stream.readLp(MsgSize)
+            check msg.len == MsgSize
+          except CatchableError as e:
+            echo e.msg
           await stream.close()
           complete.complete()
 
@@ -602,10 +601,11 @@ suite "Mplex":
           buf.buffer = buf.buffer[size..^1]
 
       await writer()
+      await complete.wait(1.seconds)
 
       await stream.close()
       await conn.close()
-      await complete.wait(1.seconds)
+
       await mplexDialFut
 
       await allFuturesThrowing(

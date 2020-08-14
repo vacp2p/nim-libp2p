@@ -41,3 +41,16 @@ proc getRng(): ref BrHmacDrbgContext =
 
 template rng*(): ref BrHmacDrbgContext =
   getRng()
+
+type
+  WriteHandler* = proc(data: seq[byte]): Future[void] {.gcsafe.}
+  TestBufferStream* = ref object of BufferStream
+    writeHandler*: WriteHandler
+
+method write*(s: TestBufferStream, msg: seq[byte]): Future[void] =
+  s.writeHandler(msg)
+
+proc newBufferStream*(writeHandler: WriteHandler): TestBufferStream =
+  new result
+  result.writeHandler = writeHandler
+  result.initBufferStream()
