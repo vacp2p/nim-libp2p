@@ -49,6 +49,7 @@ type
     sendLock*: AsyncLock                # send connection lock
 
     score*: float64
+    iWantBudget*: int
 
   RPCHandler* = proc(peer: PubSubPeer, msg: seq[RPCMsg]): Future[void] {.gcsafe.}
 

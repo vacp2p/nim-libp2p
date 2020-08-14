@@ -56,6 +56,7 @@ const
 
 const
   BackoffSlackTime = 2 # seconds
+  IWantPeerBudget = 25 # 25 messages per second ( reset every heartbeat )
 
 type
   TopicInfo* = object
@@ -279,6 +280,7 @@ method onNewPeer(g: GossipSub, peer: PubSubPeer) =
   if peer notin g.peerStats:
     # new peer
     g.peerStats[peer] = PeerStats()
+    peer.iWantBudget = IWantPeerBudget
     return
   else:
     # we knew this peer
@@ -627,6 +629,11 @@ proc heartbeat(g: GossipSub) {.async.} =
         for (peer, _) in expired:
           g.backingOff.del(peer)
 
+      # reset IWANT budget
+      block:
+        for peer in g.peers.values:
+          peer.iWantBudget = IWantPeerBudget
+
       g.updateScores()
 
       for t in toSeq(g.topics.keys):
@@ -803,11 +810,12 @@ proc handleGraft(g: GossipSub,
         peers: @[], # omitting heavy computation here as the remote did something illegal
         backoff: g.parameters.pruneBackoff.seconds.uint64))
       continue
-
-    # If they send us a graft before they send us a subscribe, what should
-    # we do? For now, we add them to mesh but don't add them to gossipsub.
+    
     if peer notin g.peerStats:
       g.peerStats[peer] = PeerStats()
+    
+    # If they send us a graft before they send us a subscribe, what should
+    # we do? For now, we add them to mesh but don't add them to gossipsub.
     if topic in g.topics:
       if g.mesh.peers(topic) < GossipSubDHi:
         # In the spec, there's no mention of DHi here, but implicitly, a
@@ -824,11 +832,8 @@ proc handleGraft(g: GossipSub,
           peers: g.peerExchangeList(topic),
           backoff: g.parameters.pruneBackoff.seconds.uint64))
     else:
-      trace "peer grafting topic we're not interested in"
-      result.add(ControlPrune(
-        topicID: topic, 
-        peers: g.peerExchangeList(topic),
-        backoff: g.parameters.pruneBackoff.seconds.uint64))
+      trace "peer grafting topic we're not interested in", topic
+      # gossip 1.1, we do not send a control message prune anymore
 
     when defined(libp2p_expensive_metrics):
       libp2p_gossipsub_peers_per_topic_mesh
@@ -874,7 +879,12 @@ proc handleIWant(g: GossipSub,
       trace "peer sent iwant", peer = peer.id, messageID = mid
       let msg = g.mcache.get(mid)
       if msg.isSome:
-        result.add(msg.get())
+        # avoid spam
+        if peer.iWantBudget > 0:
+          result.add(msg.get())
+          dec peer.iWantBudget
+        else:
+          return
 
 proc punishPeer(g: GossipSub, peer: PubSubPeer, msg: Message) =
   for t in msg.topicIDs:
@@ -889,6 +899,8 @@ method rpcHandler*(g: GossipSub,
                   peer: PubSubPeer,
                   rpcMsgs: seq[RPCMsg]) {.async.} =
   await procCall PubSub(g).rpcHandler(peer, rpcMsgs)
+
+  var userHandlers: seq[Future[void]]
 
   for m in rpcMsgs:                                  # for all RPC messages
     if m.messages.len > 0:                           # if there are any messages
@@ -965,12 +977,7 @@ method rpcHandler*(g: GossipSub,
               trace "calling handler for message", topicId = t,
                                                    localPeer = g.peerInfo.id,
                                                    fromPeer = msg.fromPeer.pretty
-              try:
-                await h(t, msg.data)               # trigger user provided handler
-              except CancelledError as exc:
-                raise exc
-              except CatchableError as exc:
-                trace "exception in message handler", exc = exc.msg
+              userHandlers &= h(t, msg.data)     # enqueue user provided handler
 
       # forward the message to all peers interested in it
       let published = await g.broadcast(
@@ -979,7 +986,7 @@ method rpcHandler*(g: GossipSub,
         DefaultSendTimeout)
 
       trace "forwared message to peers", peers = published
-
+    
     var respControl: ControlMessage
     if m.control.isSome:
       let control = m.control.get()
@@ -1001,6 +1008,9 @@ method rpcHandler*(g: GossipSub,
           raise exc
         except CatchableError as exc:
           trace "exception forwarding control messages", exc = exc.msg
+
+  # await user tasks at the very end
+  checkFutures(await allFinished(userHandlers));
 
 method subscribe*(g: GossipSub,
                   topic: string,
