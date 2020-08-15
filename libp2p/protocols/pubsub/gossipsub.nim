@@ -370,7 +370,8 @@ proc rebalanceMesh(g: GossipSub, topic: string) {.async.} =
   var
     grafts, prunes, grafting: seq[PubSubPeer]
 
-  if g.mesh.peers(topic) < GossipSubDlo:
+  let npeers = g.mesh.peers(topic)
+  if npeers  < GossipSubDlo:
     trace "replenishing mesh", peers = g.mesh.peers(topic)
     # replenish the mesh if we're below Dlo
     grafts = toSeq(
@@ -409,15 +410,44 @@ proc rebalanceMesh(g: GossipSub, topic: string) {.async.} =
         g.grafted(peer, topic)
         g.fanout.removePeer(topic, peer)
         grafting &= peer
+  elif npeers < g.parameters.dOut:
+    # TODO
+    discard 
 
   if g.mesh.peers(topic) > GossipSubDhi:
     # prune peers if we've gone over Dhi
     prunes = toSeq(g.mesh[topic])
-    shuffle(prunes)
-    prunes.setLen(prunes.len - GossipSubD) # .. down to D peers
 
-    trace "about to prune mesh", prunes = prunes.len
+    # we must try to keep outbound peers
+    # to keep an outbound mesh quota
+    # so we try to first prune inbound peers
+    # if none we add up some outbound
+
+    var outbound: seq[PubSubPeer]
+    var inbound: seq[PubSubPeer]
     for peer in prunes:
+      if peer.outbound:
+        outbound &= peer
+      else:
+        inbound &= peer
+    
+    let pruneLen = inbound.len - GossipSubD
+    if pruneLen > 0:
+      # Ok we got some peers to prune,
+      # for this heartbeat let's prune those
+      shuffle(inbound)
+      inbound.setLen(pruneLen)
+    else:
+      # We could not find any inbound to prune
+      # Yet we are on Hi, so we need to cull outbound peers
+      let keepDOutLen = outbound.len - g.parameters.dOut
+      if keepDOutLen > 0:
+        shuffle(outbound)
+        outbound.setLen(keepDOutLen)
+      inbound &= outbound
+
+    trace "about to prune mesh", prunes = inbound.len
+    for peer in inbound:
       g.pruned(peer, topic)
       g.mesh.removePeer(topic, peer)
 
@@ -822,7 +852,7 @@ proc handleGraft(g: GossipSub,
     # If they send us a graft before they send us a subscribe, what should
     # we do? For now, we add them to mesh but don't add them to gossipsub.
     if topic in g.topics:
-      if g.mesh.peers(topic) < GossipSubDHi:
+      if g.mesh.peers(topic) < GossipSubDHi or peer.outbound:
         # In the spec, there's no mention of DHi here, but implicitly, a
         # peer will be removed from the mesh on next rebalance, so we don't want
         # this peer to push someone else out

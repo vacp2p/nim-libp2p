@@ -50,6 +50,7 @@ type
 
     score*: float64
     iWantBudget*: int
+    outbound*: bool
 
   RPCHandler* = proc(peer: PubSubPeer, msg: seq[RPCMsg]): Future[void] {.gcsafe.}
 

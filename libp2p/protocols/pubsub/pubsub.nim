@@ -93,7 +93,8 @@ proc send*(
     raise exc
   except CatchableError as exc:
     trace "exception sending pubsub message to peer", peer = $peer, msg = msg
-    p.unsubscribePeer(peer.peerId)
+    when not defined(pubsub_internal_testing):
+      p.unsubscribePeer(peer.peerId)
     raise exc
 
 proc broadcast*(
@@ -207,6 +208,7 @@ method subscribePeer*(p: PubSub, peer: PeerID) {.base.} =
   ##
 
   let pubsubPeer = p.getOrCreatePeer(peer, p.codec)
+  pubsubPeer.outbound = true # flag as outbound
   if p.topics.len > 0:
     asyncCheck p.sendSubs(pubsubPeer, toSeq(p.topics.keys), true)
 

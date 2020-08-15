@@ -47,6 +47,7 @@ task testinterop, "Runs interop tests":
   runTest("testinterop")
 
 task testpubsub, "Runs pubsub tests":
+  runTest("pubsub/testgossipinternal", sign = false, verify = false, moreoptions = "-d:pubsub_internal_testing")
   runTest("pubsub/testpubsub")
   runTest("pubsub/testpubsub", sign = false, verify = false)
 
