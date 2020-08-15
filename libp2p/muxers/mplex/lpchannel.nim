@@ -268,7 +268,7 @@ proc init*(
         await chann.open()
 
       # writes should happen in sequence
-      trace "sending data"
+      trace "sending data", len = data.len
 
       await conn.writeMsg(chann.id,
                           chann.msgCode,
