@@ -52,13 +52,12 @@ suite "GossipSub internal":
         conn.peerInfo = peerInfo
         let peer = newPubSubPeer(peerInfo.peerId, gossipSub.switch, GossipSubCodec)
         gossipSub.onNewPeer(peer)
-        gossipSub.grafted(peer, topic)
         gossipSub.peers[peerInfo.peerId] = peer
-        gossipSub.mesh[topic].incl(peer)
+        gossipSub.gossipsub[topic].incl(peer)
 
       check gossipSub.peers.len == 15
       await gossipSub.rebalanceMesh(topic)
-      check gossipSub.mesh[topic].len == GossipSubD
+      check gossipSub.mesh[topic].len == GossipSubD + 2 # account opportunistic grafts
 
       await allFuturesThrowing(conns.mapIt(it.close()))
       await gossipSub.switch.stop()
@@ -73,11 +72,10 @@ suite "GossipSub internal":
 
       let topic = "foobar"
       gossipSub.mesh[topic] = initHashSet[PubSubPeer]()
-      gossipSub.topics[topic] = Topic() # has to be in topics to rebalance
       gossipSub.topicParams[topic] = TopicParams.init()
 
-      gossipSub.gossipsub[topic] = initHashSet[PubSubPeer]()
       var conns = newSeq[Connection]()
+      gossipSub.gossipsub[topic] = initHashSet[PubSubPeer]()
       for i in 0..<15:
         let conn = newBufferStream(noop)
         conns &= conn
@@ -91,7 +89,7 @@ suite "GossipSub internal":
 
       check gossipSub.mesh[topic].len == 15
       await gossipSub.rebalanceMesh(topic)
-      check gossipSub.mesh[topic].len == GossipSubD
+      check gossipSub.mesh[topic].len == GossipSubD + gossipSub.parameters.dScore
 
       await allFuturesThrowing(conns.mapIt(it.close()))
       await gossipSub.switch.stop()

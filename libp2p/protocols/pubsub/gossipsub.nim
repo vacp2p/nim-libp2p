@@ -403,7 +403,7 @@ proc rebalanceMesh(g: GossipSub, topic: string) {.async.} =
     # Graft peers so we reach a count of D
     grafts.setLen(min(grafts.len, GossipSubD - g.mesh.peers(topic)))
 
-    trace "getting peers", topic, peers = grafts.len
+    trace "grafting peers", topic
 
     for peer in grafts:
       if g.mesh.addPeer(topic, peer):
@@ -411,45 +411,91 @@ proc rebalanceMesh(g: GossipSub, topic: string) {.async.} =
         g.fanout.removePeer(topic, peer)
         grafting &= peer
   elif npeers < g.parameters.dOut:
-    # TODO
-    discard 
+    trace "replenishing mesh outbound quota", peers = g.mesh.peers(topic)
+    # replenish the mesh if we're below Dlo
+    grafts = toSeq(
+      g.gossipsub.getOrDefault(topic, initHashSet[PubSubPeer]()) -
+      g.mesh.getOrDefault(topic, initHashSet[PubSubPeer]())
+    )
+
+    grafts.keepIf do (x: PubSubPeer) -> bool:
+      # get only outbound ones
+      x.outbound and
+      # avoid negative score peers
+      x.score >= 0.0 and
+      # don't pick explicit peers
+      x.peerId notin g.parameters.directPeers and
+      # and avoid peers we are backing off
+      x.peerId notin g.backingOff
+
+    # sort peers by score
+    grafts.sort do (x, y: PubSubPeer) -> int:
+      let
+        peerx = x.score
+        peery = y.score
+      if peerx < peery: -1
+      elif peerx == peery: 0
+      else: 1
+
+    # Graft peers so we reach a count of D
+    grafts.setLen(min(grafts.len, g.parameters.dOut - g.mesh.peers(topic)))
+
+    trace "grafting outbound peers", topic, peers = grafts.len
+
+    for peer in grafts:
+      if g.mesh.addPeer(topic, peer):
+        g.grafted(peer, topic)
+        g.fanout.removePeer(topic, peer)
+        grafting &= peer
+    
 
   if g.mesh.peers(topic) > GossipSubDhi:
     # prune peers if we've gone over Dhi
     prunes = toSeq(g.mesh[topic])
 
-    # we must try to keep outbound peers
-    # to keep an outbound mesh quota
-    # so we try to first prune inbound peers
-    # if none we add up some outbound
+    # sort peers by score (inverted)
+    prunes.sort do (x, y: PubSubPeer) -> int:
+      let
+        peerx = x.score
+        peery = y.score
+      if peerx > peery: -1
+      elif peerx == peery: 0
+      else: 1
 
-    var outbound: seq[PubSubPeer]
-    var inbound: seq[PubSubPeer]
-    for peer in prunes:
-      if peer.outbound:
-        outbound &= peer
+    # keep high score peers
+    if prunes.len > g.parameters.dScore:
+      prunes.setLen(prunes.len - g.parameters.dScore)
+      # we must try to keep outbound peers
+      # to keep an outbound mesh quota
+      # so we try to first prune inbound peers
+      # if none we add up some outbound
+      var outbound: seq[PubSubPeer]
+      var inbound: seq[PubSubPeer]
+      for peer in prunes:
+        if peer.outbound:
+          outbound &= peer
+        else:
+          inbound &= peer
+      
+      let pruneLen = inbound.len - GossipSubD
+      if pruneLen > 0:
+        # Ok we got some peers to prune,
+        # for this heartbeat let's prune those
+        shuffle(inbound)
+        inbound.setLen(pruneLen)
       else:
-        inbound &= peer
-    
-    let pruneLen = inbound.len - GossipSubD
-    if pruneLen > 0:
-      # Ok we got some peers to prune,
-      # for this heartbeat let's prune those
-      shuffle(inbound)
-      inbound.setLen(pruneLen)
-    else:
-      # We could not find any inbound to prune
-      # Yet we are on Hi, so we need to cull outbound peers
-      let keepDOutLen = outbound.len - g.parameters.dOut
-      if keepDOutLen > 0:
-        shuffle(outbound)
-        outbound.setLen(keepDOutLen)
-      inbound &= outbound
+        # We could not find any inbound to prune
+        # Yet we are on Hi, so we need to cull outbound peers
+        let keepDOutLen = outbound.len - g.parameters.dOut
+        if keepDOutLen > 0:
+          shuffle(outbound)
+          outbound.setLen(keepDOutLen)
+        inbound &= outbound
 
-    trace "about to prune mesh", prunes = inbound.len
-    for peer in inbound:
-      g.pruned(peer, topic)
-      g.mesh.removePeer(topic, peer)
+      trace "about to prune mesh", prunes = inbound.len
+      for peer in inbound:
+        g.pruned(peer, topic)
+        g.mesh.removePeer(topic, peer)
 
   # opportunistic grafting, by spec mesh should not be empty...
   if g.mesh.peers(topic) > 1:
@@ -477,6 +523,10 @@ proc rebalanceMesh(g: GossipSub, topic: string) {.async.} =
         x.peerId notin g.parameters.directPeers and
         # and avoid peers we are backing off
         x.peerId notin g.backingOff
+      
+      # by spec, grab only 2
+      if avail.len > 2:
+        avail.setLen(2)
       
       for peer in avail:
         if g.mesh.addPeer(topic, peer):
