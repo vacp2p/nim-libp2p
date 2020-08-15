@@ -37,7 +37,6 @@ const
   GossipSubD* = 6
   GossipSubDlo* = 4
   GossipSubDhi* = 12
-  GossipSubDout* = 3
 
 # gossip parameters
 const
@@ -110,6 +109,7 @@ type
     gossipFactor*: float64
     dScore*: int
     dOut*: int
+    dLazy*: int
 
     gossipThreshold*: float64
     publishThreshold*: float64
@@ -172,7 +172,8 @@ proc init*(_: type[GossipSubParams]): GossipSubParams =
       floodPublish: true,
       gossipFactor: 0.25,
       dScore: 4,
-      dOut: 2,
+      dOut: GossipSubDlo - 1,
+      dLazy: GossipSubD,
       gossipThreshold: -10,
       publishThreshold: -100,
       graylistThreshold: -10000,
@@ -496,35 +497,39 @@ proc getGossipPeers(g: GossipSub): Table[PubSubPeer, ControlMessage] {.gcsafe.} 
 
   trace "getting gossip peers (iHave)"
   let topics = toHashSet(toSeq(g.mesh.keys)) + toHashSet(toSeq(g.fanout.keys))
-  let controlMsg = ControlMessage()
   for topic in topics:
-    var allPeers = toSeq(g.gossipsub.getOrDefault(topic))
-    shuffle(allPeers)
-
-    let mesh = g.mesh.getOrDefault(topic)
-    let fanout = g.fanout.getOrDefault(topic)
-
-    let gossipPeers = mesh + fanout
-    let mids = g.mcache.window(topic)
-    if not mids.len > 0:
-      continue
-
     if topic notin g.gossipsub:
       trace "topic not in gossip array, skipping", topicID = topic
       continue
 
+    let mids = g.mcache.window(topic)
+    if not mids.len > 0:
+      continue
+
     let ihave = ControlIHave(topicID: topic, messageIDs: toSeq(mids))
+
+    let mesh = g.mesh.getOrDefault(topic)
+    let fanout = g.fanout.getOrDefault(topic)
+    let gossipPeers = mesh + fanout
+    var allPeers = toSeq(g.gossipsub.getOrDefault(topic))
+
+    allPeers.keepIf do (x: PubSubPeer) -> bool:
+      x.peerId notin g.parameters.directPeers and
+      x notin gossipPeers and
+      x.score >= g.parameters.gossipThreshold
+
+    var target = g.parameters.dLazy
+    let factor = (g.parameters.gossipFactor.float * allPeers.len.float).int
+    if factor > target:
+      target = min(factor, allPeers.len)
+
+    if target < allPeers.len:
+      shuffle(allPeers)
+      allPeers.setLen(target)
+
     for peer in allPeers:
-      if result.len >= GossipSubD:
-        trace "got gossip peers", peers = result.len
-        break
-
-      if peer in gossipPeers:
-        continue
-
       if peer notin result:
-        result[peer] = controlMsg
-
+        result[peer] = ControlMessage()
       result[peer].ihave.add(ihave)
 
 func `/`(a, b: Duration): float64 =
