@@ -7,7 +7,8 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import oids
+import std/oids
+import stew/byteutils
 import chronicles, chronos, metrics
 import ../varint,
        ../vbuffer,
@@ -15,6 +16,8 @@ import ../varint,
        ../multiaddress
 
 declareGauge(libp2p_open_streams, "open stream instances", labels = ["type"])
+
+export oids
 
 logScope:
   topics = "lpstream"
@@ -182,6 +185,9 @@ proc readLp*(s: LPStream, maxSize: int): Future[seq[byte]] {.async, gcsafe.} =
   await s.readExactly(addr res[0], res.len)
   return res
 
+method write*(s: LPStream, msg: seq[byte]): Future[void] {.base.} =
+  doAssert(false, "not implemented!")
+
 proc writeLp*(s: LPStream, msg: string | seq[byte]): Future[void] {.gcsafe.} =
   ## write length prefixed
   var buf = initVBuffer()
@@ -189,14 +195,11 @@ proc writeLp*(s: LPStream, msg: string | seq[byte]): Future[void] {.gcsafe.} =
   buf.finish()
   s.write(buf.buffer)
 
-method write*(s: LPStream, msg: seq[byte]) {.base, async.} =
-  doAssert(false, "not implemented!")
-
 proc write*(s: LPStream, pbytes: pointer, nbytes: int): Future[void] {.deprecated: "seq".} =
   s.write(@(toOpenArray(cast[ptr UncheckedArray[byte]](pbytes), 0, nbytes - 1)))
 
 proc write*(s: LPStream, msg: string): Future[void] =
-  s.write(@(toOpenArrayByte(msg, 0, msg.high)))
+  s.write(msg.toBytes())
 
 # TODO: split `close` into `close` and `dispose/destroy`
 method close*(s: LPStream) {.base, async.} =

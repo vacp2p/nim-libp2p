@@ -15,7 +15,7 @@ import ../libp2p/[errors,
 
 import ./helpers
 
-when defined(nimHasUsed): {.used.}
+{.used.}
 
 suite "Mplex":
   teardown:
@@ -28,8 +28,7 @@ suite "Mplex":
       proc encHandler(msg: seq[byte]) {.async.} =
         check msg == fromHex("000873747265616d2031")
 
-      let stream = newBufferStream(encHandler)
-      let conn = stream
+      let conn = newBufferStream(encHandler)
       await conn.writeMsg(0, MessageType.New, ("stream 1").toBytes)
       await conn.close()
 
@@ -40,8 +39,7 @@ suite "Mplex":
       proc encHandler(msg: seq[byte]) {.async.} =
         check msg == fromHex("88010873747265616d2031")
 
-      let stream = newBufferStream(encHandler)
-      let conn = stream
+      let conn = newBufferStream(encHandler)
       await conn.writeMsg(17, MessageType.New, ("stream 1").toBytes)
       await conn.close()
 
@@ -52,8 +50,7 @@ suite "Mplex":
       proc encHandler(msg: seq[byte]) {.async.} =
         check msg == fromHex("020873747265616d2031")
 
-      let stream = newBufferStream(encHandler)
-      let conn = stream
+      let conn = newBufferStream(encHandler)
       await conn.writeMsg(0, MessageType.MsgOut, ("stream 1").toBytes)
       await conn.close()
 
@@ -64,8 +61,7 @@ suite "Mplex":
       proc encHandler(msg: seq[byte]) {.async.} =
         check msg == fromHex("8a010873747265616d2031")
 
-      let stream = newBufferStream(encHandler)
-      let conn = stream
+      let conn = newBufferStream(encHandler)
       await conn.writeMsg(17, MessageType.MsgOut, ("stream 1").toBytes)
       await conn.close()
 
