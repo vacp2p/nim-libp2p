@@ -174,25 +174,20 @@ proc handle*(m: MultistreamSelect, conn: Connection, active: bool = false) {.asy
   finally:
     trace "leaving multistream loop"
 
-proc addHandler*[T: LPProtocol](m: MultistreamSelect,
-                                codec: string,
-                                protocol: T,
-                                matcher: Matcher = nil) =
+proc addHandler*(m: MultistreamSelect,
+                 codec: string,
+                 protocol: LPProtocol,
+                 matcher: Matcher = nil) =
   ## register a protocol
-  # TODO: This is a bug in chronicles,
-  # it break if I uncomment this line.
-  # Which is almost the same as the
-  # one on the next override of addHandler
-  #
-  # trace "registering protocol", codec = codec
+  trace "registering protocol", codec = codec
   m.handlers.add(HandlerHolder(proto: codec,
                                protocol: protocol,
                                match: matcher))
 
-proc addHandler*[T: LPProtoHandler](m: MultistreamSelect,
-                                    codec: string,
-                                    handler: T,
-                                    matcher: Matcher = nil) =
+proc addHandler*(m: MultistreamSelect,
+                 codec: string,
+                 handler: LPProtoHandler,
+                 matcher: Matcher = nil) =
   ## helper to allow registering pure handlers
 
   trace "registering proto handler", codec = codec
