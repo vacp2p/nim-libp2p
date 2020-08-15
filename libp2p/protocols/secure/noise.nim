@@ -422,6 +422,7 @@ method write*(sconn: NoiseConnection, message: seq[byte]): Future[void] {.async.
     outbuf &= besize
     outbuf &= cipher
     await sconn.stream.write(outbuf)
+    sconn.activity = true
 
 method handshake*(p: Noise, conn: Connection, initiator: bool): Future[SecureConn] {.async.} =
   trace "Starting Noise handshake", initiator, peer = $conn

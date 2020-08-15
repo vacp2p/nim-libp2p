@@ -103,6 +103,7 @@ method readOnce*(s: SecureConn,
 
   if s.buf.data().len() == 0:
     let buf = await s.readMessage()
+    s.activity = true
     if buf.len == 0:
       raise newLPStreamIncompleteError()
     s.buf.add(buf)
