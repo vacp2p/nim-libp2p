@@ -281,17 +281,12 @@ method unsubscribePeer*(g: GossipSub, peer: PeerID) =
 method subscribeTopic*(g: GossipSub,
                        topic: string,
                        subscribe: bool,
-                       peerId: PeerID) {.gcsafe, async.} =
-  await procCall FloodSub(g).subscribeTopic(topic, subscribe, peerId)
+                       peer: PubSubPeer) {.gcsafe.} =
+  procCall FloodSub(g).subscribeTopic(topic, subscribe, peer)
 
   logScope:
-    peer = $peerId
+    peer = $peer.id
     topic
-
-  let peer = g.peers.getOrDefault(peerId)
-  if peer == nil:
-    # floodsub method logs a debug line already
-    return
 
   if subscribe:
     trace "peer subscribed to topic"
@@ -315,10 +310,6 @@ method subscribeTopic*(g: GossipSub,
       .set(g.gossipsub.peers(topic).int64, labelValues = [topic])
 
   trace "gossip peers", peers = g.gossipsub.peers(topic), topic
-
-  # also rebalance current topic if we are subbed to
-  if topic in g.topics:
-    await g.rebalanceMesh(topic)
 
 proc handleGraft(g: GossipSub,
                  peer: PubSubPeer,

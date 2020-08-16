@@ -119,7 +119,7 @@ proc sendSubs*(p: PubSub,
 method subscribeTopic*(p: PubSub,
                        topic: string,
                        subscribe: bool,
-                       peerId: PeerID) {.base, async.} =
+                       peer: PubSubPeer) {.base.} =
   # called when remote peer subscribes to a topic
   discard
 
@@ -134,7 +134,7 @@ method rpcHandler*(p: PubSub,
     if m.subscriptions.len > 0:                    # if there are any subscriptions
       for s in m.subscriptions:                    # subscribe/unsubscribe the peer for each topic
         trace "about to subscribe to topic", topicId = s.topic
-        await p.subscribeTopic(s.topic, s.subscribe, peer.peerId)
+        p.subscribeTopic(s.topic, s.subscribe, peer)
 
 proc getOrCreatePeer*(
   p: PubSub,
