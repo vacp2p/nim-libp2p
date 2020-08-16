@@ -56,6 +56,7 @@ const
 const
   BackoffSlackTime = 2 # seconds
   IWantPeerBudget = 25 # 25 messages per second ( reset every heartbeat )
+  IHavePeerBudget = 10
 
 type
   TopicInfo* = object
@@ -146,6 +147,7 @@ type
     parameters*: GossipSubParams
     topicParams*: Table[string, TopicParams]
     directPeersLoop: Future[void]
+    peersInIP: Table[MultiAddress, HashSet[PubSubPeer]]
 
     heartbeatEvents*: seq[AsyncEvent]
 
@@ -282,6 +284,7 @@ method onNewPeer(g: GossipSub, peer: PubSubPeer) =
     # new peer
     g.peerStats[peer] = PeerStats()
     peer.iWantBudget = IWantPeerBudget
+    peer.iHaveBudget = IHavePeerBudget
     return
   else:
     # we knew this peer
@@ -618,6 +621,24 @@ func `/`(a, b: Duration): float64 =
     fb = float64(b.nanoseconds) / 1000000000
   fa / fb
 
+proc colocationFactor(g: GossipSub, peer: PubSubPeer): float64 =
+  if peer.sendConn == nil:
+    0.0
+  else:
+    let
+      address = peer.sendConn.observedAddr
+      ipPeers = g.peersInIP.getOrDefault(address)
+      len = ipPeers.len.float64
+    if len > g.parameters.ipColocationFactorThreshold:
+      let over = len - g.parameters.ipColocationFactorThreshold
+      over * over
+    else:
+      # lazy update peersInIP
+      if address notin g.peersInIP:
+        g.peersInIP[address] = initHashSet[PubSubPeer]()
+      g.peersInIP[address].incl(peer)
+      0.0
+
 proc updateScores(g: GossipSub) = # avoid async
   trace "updating scores", peers = g.peers.len
   
@@ -694,7 +715,18 @@ proc updateScores(g: GossipSub) = # avoid async
       # Wrap up
       # commit our changes, mgetOrPut does NOT work as wanted with value types (lent?)
       stats.topicInfos[topic] = info
-      
+    
+    peer.score += peer.appScore * g.parameters.appSpecificWeight
+
+    peer.score += peer.behaviourPenalty * peer.behaviourPenalty * g.parameters.behaviourPenaltyWeight
+
+    peer.score += g.colocationFactor(peer) * g.parameters.ipColocationFactorWeight
+
+    # decay behaviourPenalty
+    peer.behaviourPenalty *= g.parameters.behaviourPenaltyDecay
+    if peer.behaviourPenalty < g.parameters.decayToZero:
+      peer.behaviourPenalty = 0
+
     trace "updated peer's score", peer, score = peer.score
   
   for peer in evicting:
@@ -715,9 +747,11 @@ proc heartbeat(g: GossipSub) {.async.} =
           g.backingOff.del(peer)
 
       # reset IWANT budget
+      # reset IHAVE cap
       block:
         for peer in g.peers.values:
           peer.iWantBudget = IWantPeerBudget
+          peer.iHaveBudget = IHavePeerBudget
 
       g.updateScores()
 
@@ -778,6 +812,11 @@ method unsubscribePeer*(g: GossipSub, peer: PeerID) =
   let pubSubPeer = g.peers.getOrDefault(peer)
   if pubSubPeer.isNil:
     return
+
+  # remove from peer IPs collection too
+  if pubSubPeer.sendConn != nil:
+    g.peersInIP.withValue(pubSubPeer.sendConn.observedAddr, s) do:
+      s[].excl(pubSubPeer)
 
   for t in toSeq(g.gossipsub.keys):
     g.gossipsub.removePeer(t, pubSubPeer)
@@ -947,29 +986,38 @@ proc handlePrune(g: GossipSub, peer: PubSubPeer, prunes: seq[ControlPrune]) =
 proc handleIHave(g: GossipSub,
                  peer: PubSubPeer,
                  ihaves: seq[ControlIHave]): ControlIWant =
-  for ihave in ihaves:
-    trace "peer sent ihave",
-      peer = peer.id, topic = ihave.topicID, msgs = ihave.messageIDs
+  if peer.score < g.parameters.gossipThreshold:
+    trace "ihave: ignoring low score peer", peer = $peer, score = peer.score
+  elif peer.iHaveBudget == 0:
+    trace "ihave: ignoring out of budget peer", peer = $peer, score = peer.score
+  else:
+    dec peer.iHaveBudget
+    for ihave in ihaves:
+      trace "peer sent ihave",
+        peer = peer.id, topic = ihave.topicID, msgs = ihave.messageIDs
 
-    if ihave.topicID in g.mesh:
-      for m in ihave.messageIDs:
-        if m notin g.seen:
-          result.messageIDs.add(m)
+      if ihave.topicID in g.mesh:
+        for m in ihave.messageIDs:
+          if m notin g.seen:
+            result.messageIDs.add(m)
 
 proc handleIWant(g: GossipSub,
                  peer: PubSubPeer,
                  iwants: seq[ControlIWant]): seq[Message] =
-  for iwant in iwants:
-    for mid in iwant.messageIDs:
-      trace "peer sent iwant", peer = peer.id, messageID = mid
-      let msg = g.mcache.get(mid)
-      if msg.isSome:
-        # avoid spam
-        if peer.iWantBudget > 0:
-          result.add(msg.get())
-          dec peer.iWantBudget
-        else:
-          return
+  if peer.score < g.parameters.gossipThreshold:
+    trace "iwant: ignoring low score peer", peer = $peer, score = peer.score
+  else:
+    for iwant in iwants:
+      for mid in iwant.messageIDs:
+        trace "peer sent iwant", peer = peer.id, messageID = mid
+        let msg = g.mcache.get(mid)
+        if msg.isSome:
+          # avoid spam
+          if peer.iWantBudget > 0:
+            result.add(msg.get())
+            dec peer.iWantBudget
+          else:
+            return
 
 proc punishPeer(g: GossipSub, peer: PubSubPeer, msg: Message) =
   for t in msg.topicIDs:

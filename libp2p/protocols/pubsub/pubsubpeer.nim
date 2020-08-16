@@ -39,7 +39,7 @@ type
   PubSubPeer* = ref object of RootObj
     switch*: Switch                     # switch instance to dial peers
     codec*: string                      # the protocol that this peer joined from
-    sendConn: Connection
+    sendConn*: Connection
     peerId*: PeerID
     handler*: RPCHandler
     sentRpcCache: TimedCache[string]    # cache for already sent messages
@@ -50,7 +50,10 @@ type
 
     score*: float64
     iWantBudget*: int
-    outbound*: bool
+    iHaveBudget*: int
+    outbound*: bool # if this is an outbound connection
+    appScore*: float64 # application specific score
+    behaviourPenalty*: float64 # the eventual penalty score
 
   RPCHandler* = proc(peer: PubSubPeer, msg: seq[RPCMsg]): Future[void] {.gcsafe.}
 

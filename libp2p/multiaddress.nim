@@ -11,7 +11,7 @@
 
 {.push raises: [Defect].}
 
-import nativesockets
+import nativesockets, hashes
 import tables, strutils, stew/shims/net
 import chronos
 import multicodec, multihash, multibase, transcoder, vbuffer, peerid,
@@ -55,6 +55,13 @@ const
   # some cint constants with the same name defined in the posix modules
   IPPROTO_TCP = Protocol.IPPROTO_TCP
   IPPROTO_UDP = Protocol.IPPROTO_UDP
+
+proc hash*(a: MultiAddress): Hash =
+  var h: Hash = 0
+  h = h !& hash(a.data.buffer)
+  h = h !& hash(a.data.offset)
+  h = h !& hash(a.data.length)
+  !$h
 
 proc ip4StB(s: string, vb: var VBuffer): bool =
   ## IPv4 stringToBuffer() implementation.
