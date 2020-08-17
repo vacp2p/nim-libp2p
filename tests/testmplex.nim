@@ -15,7 +15,7 @@ import ../libp2p/[errors,
 
 import ./helpers
 
-when defined(nimHasUsed): {.used.}
+{.used.}
 
 suite "Mplex":
   teardown:
@@ -28,8 +28,7 @@ suite "Mplex":
       proc encHandler(msg: seq[byte]) {.async.} =
         check msg == fromHex("000873747265616d2031")
 
-      let stream = newBufferStream(encHandler)
-      let conn = stream
+      let conn = newBufferStream(encHandler)
       await conn.writeMsg(0, MessageType.New, ("stream 1").toBytes)
       await conn.close()
 
@@ -40,8 +39,7 @@ suite "Mplex":
       proc encHandler(msg: seq[byte]) {.async.} =
         check msg == fromHex("88010873747265616d2031")
 
-      let stream = newBufferStream(encHandler)
-      let conn = stream
+      let conn = newBufferStream(encHandler)
       await conn.writeMsg(17, MessageType.New, ("stream 1").toBytes)
       await conn.close()
 
@@ -52,8 +50,7 @@ suite "Mplex":
       proc encHandler(msg: seq[byte]) {.async.} =
         check msg == fromHex("020873747265616d2031")
 
-      let stream = newBufferStream(encHandler)
-      let conn = stream
+      let conn = newBufferStream(encHandler)
       await conn.writeMsg(0, MessageType.MsgOut, ("stream 1").toBytes)
       await conn.close()
 
@@ -64,8 +61,7 @@ suite "Mplex":
       proc encHandler(msg: seq[byte]) {.async.} =
         check msg == fromHex("8a010873747265616d2031")
 
-      let stream = newBufferStream(encHandler)
-      let conn = stream
+      let conn = newBufferStream(encHandler)
       await conn.writeMsg(17, MessageType.MsgOut, ("stream 1").toBytes)
       await conn.close()
 
@@ -112,7 +108,7 @@ suite "Mplex":
 
     waitFor(testDecodeHeader())
 
-  test "half closed - channel should close for write":
+  test "half closed (local close) - should close for write":
     proc testClosedForWrite(): Future[bool] {.async.} =
       proc writeHandler(data: seq[byte]) {.async, gcsafe.} = discard
       let
@@ -130,7 +126,40 @@ suite "Mplex":
     check:
       waitFor(testClosedForWrite()) == true
 
-  test "half closed - channel should close for read by remote":
+  test "half closed (local close) - should allow reads until remote closes":
+    proc testOpenForRead(): Future[bool] {.async.} =
+      let
+        conn = newBufferStream(
+          proc (data: seq[byte]) {.gcsafe, async.} =
+            discard,
+          timeout = 5.minutes
+        )
+        chann = LPChannel.init(1, conn, true)
+
+      await chann.pushTo(("Hello!").toBytes)
+
+      var data = newSeq[byte](6)
+      await chann.close() # closing channel
+      # should be able to read on local clsoe
+      await chann.readExactly(addr data[0], 3)
+      # closing remote end
+      let closeFut = chann.closeRemote()
+      # should still allow reading until buffer EOF
+      await chann.readExactly(addr data[3], 3)
+      await closeFut
+      try:
+        # this should fail now
+        await chann.readExactly(addr data[0], 3)
+      except LPStreamEOFError:
+        result = true
+      finally:
+        await chann.close()
+        await conn.close()
+
+    check:
+      waitFor(testOpenForRead()) == true
+
+  test "half closed (remote close) - channel should close for reading by remote":
     proc testClosedForRead(): Future[bool] {.async.} =
       let
         conn = newBufferStream(
@@ -158,7 +187,7 @@ suite "Mplex":
     check:
       waitFor(testClosedForRead()) == true
 
-  test "half closed - channel should allow writting on remote close":
+  test "half closed (remote close) - channel should allow writting on remote close":
     proc testClosedForRead(): Future[bool] {.async.} =
       let
         testData = "Hello!".toBytes

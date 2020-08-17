@@ -122,7 +122,7 @@ proc onClose(c: ConnManager, conn: Connection) {.async.} =
   ##
 
   await conn.join()
-  trace "triggering connection cleanup"
+  trace "triggering connection cleanup", peer = $conn.peerInfo
   await c.cleanupConn(conn)
 
 proc selectConn*(c: ConnManager,
@@ -145,6 +145,8 @@ proc selectConn*(c: ConnManager, peerId: PeerID): Connection =
   var conn = c.selectConn(peerId, Direction.Out)
   if isNil(conn):
     conn = c.selectConn(peerId, Direction.In)
+  if isNil(conn):
+    trace "connection not found", peerId
 
   return conn
 
@@ -157,6 +159,8 @@ proc selectMuxer*(c: ConnManager, conn: Connection): Muxer =
 
   if conn in c.muxed:
     return c.muxed[conn].muxer
+  else:
+    debug "no muxer for connection", conn = $conn
 
 proc storeConn*(c: ConnManager, conn: Connection) =
   ## store a connection
@@ -171,8 +175,7 @@ proc storeConn*(c: ConnManager, conn: Connection) =
   let peerId = conn.peerInfo.peerId
   if c.conns.getOrDefault(peerId).len > c.maxConns:
     trace "too many connections", peer = $peerId,
-                                  conns = c.conns
-                                  .getOrDefault(peerId).len
+                                  conns = c.conns.getOrDefault(peerId).len
 
     raise newTooManyConnections()
 
@@ -184,6 +187,8 @@ proc storeConn*(c: ConnManager, conn: Connection) =
   # launch on close listener
   asyncCheck c.onClose(conn)
   libp2p_peers.set(c.conns.len.int64)
+
+  trace "stored connection", connections = c.conns.len, peer = peerId
 
 proc storeOutgoing*(c: ConnManager, conn: Connection) =
   conn.dir = Direction.Out
@@ -209,7 +214,7 @@ proc storeMuxer*(c: ConnManager,
     muxer: muxer,
     handle: handle)
 
-  trace "stored connection", connections = c.conns.len
+  trace "stored muxer", connections = c.conns.len
 
 proc getMuxedStream*(c: ConnManager,
                      peerId: PeerID,

@@ -86,14 +86,16 @@ proc send*(
   ## send to remote peer
   ##
 
-  trace "sending pubsub message to peer", peer = $peer, msg = msg
+  trace "sending pubsub message to peer", peer = $peer, msg = shortLog(msg)
   try:
     await peer.send(msg, timeout)
   except CancelledError as exc:
     raise exc
   except CatchableError as exc:
-    trace "exception sending pubsub message to peer", peer = $peer, msg = msg
-    when not defined(pubsub_internal_testing):
+    trace "exception sending pubsub message to peer",
+      peer = $peer, msg = shortLog(msg)
+    # do not unsub during internal testing (no networking)
+    when not defined(pubsub_internal_testing):      
       p.unsubscribePeer(peer.peerId)
     raise exc
 
@@ -105,11 +107,11 @@ proc broadcast*(
   ## send messages and cleanup failed peers
   ##
 
-  trace "broadcasting messages to peers", peers = sendPeers.len, message = msg
+  trace "broadcasting messages to peers",
+    peers = sendPeers.len, message = shortLog(msg)
   let sent = await allFinished(
     sendPeers.mapIt( p.send(it, msg, timeout) ))
   return sent.filterIt( it.finished and it.error.isNil ).len
-  trace "messages broadcasted to peers", peers = sent.len
 
 proc sendSubs*(p: PubSub,
                peer: PubSubPeer,

@@ -46,7 +46,8 @@ proc writeMsg*(conn: Connection,
                id: uint64,
                msgType: MessageType,
                data: seq[byte] = @[]) {.async, gcsafe.} =
-  trace "sending data over mplex", id,
+  trace "sending data over mplex", oid = $conn.oid,
+                                   id,
                                    msgType,
                                    data = data.len
   var
@@ -55,15 +56,14 @@ proc writeMsg*(conn: Connection,
   while left > 0 or data.len == 0:
     let
       chunkSize = if left > MaxMsgSize: MaxMsgSize - 64 else: left
-      chunk = if chunkSize > 0 : data[offset..(offset + chunkSize - 1)] else: data
     ## write length prefixed
     var buf = initVBuffer()
     buf.writePBVarint(id shl 3 or ord(msgType).uint64)
-    buf.writePBVarint(chunkSize.uint64) # size should be always sent
+    buf.writeSeq(data.toOpenArray(offset, offset + chunkSize - 1))
     buf.finish()
     left = left - chunkSize
     offset = offset + chunkSize
-    await conn.write(buf.buffer & chunk)
+    await conn.write(buf.buffer)
 
     if data.len == 0:
       return

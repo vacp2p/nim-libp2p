@@ -204,7 +204,7 @@ proc drainBuffer*(s: BufferStream) {.async.} =
   ## wait for all data in the buffer to be consumed
   ##
 
-  trace "draining buffer", len = s.len
+  trace "draining buffer", len = s.len, oid = $s.oid
   while s.len > 0:
     await s.dataReadEvent.wait()
     s.dataReadEvent.clear()
@@ -306,7 +306,8 @@ method close*(s: BufferStream) {.async, gcsafe.} =
       inc getBufferStreamTracker().closed
       trace "bufferstream closed", oid = $s.oid
     else:
-      trace "attempt to close an already closed bufferstream", trace = getStackTrace()
+      trace "attempt to close an already closed bufferstream",
+        trace = getStackTrace(), oid = $s.oid
   except CancelledError as exc:
     raise exc
   except CatchableError as exc:

@@ -236,6 +236,7 @@ method write*(sconn: SecioConn, message: seq[byte]) {.async.} =
 
     trace "Writing message", message = msg.shortLog, left, offset
     await sconn.stream.write(msg)
+    sconn.activity = true
 
 proc newSecioConn(conn: Connection,
                   hash: string,

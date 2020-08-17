@@ -365,8 +365,10 @@ proc replenishFanout(g: GossipSub, topic: string) =
 proc rebalanceMesh(g: GossipSub, topic: string) {.async.} =
   logScope:
     topic
+    mesh = g.mesh.peers(topic)
+    gossipsub = g.gossipsub.peers(topic)
 
-  trace "about to rebalance mesh"
+  trace "rebalancing mesh"
 
   # create a mesh topic that we're subscribing to
 
@@ -381,10 +383,6 @@ proc rebalanceMesh(g: GossipSub, topic: string) {.async.} =
       g.gossipsub.getOrDefault(topic, initHashSet[PubSubPeer]()) -
       g.mesh.getOrDefault(topic, initHashSet[PubSubPeer]())
     )
-
-    logScope:
-      meshPeers = g.mesh.peers(topic)
-      grafts = grafts.len
 
     grafts.keepIf do (x: PubSubPeer) -> bool:
       # avoid negative score peers
@@ -406,13 +404,13 @@ proc rebalanceMesh(g: GossipSub, topic: string) {.async.} =
     # Graft peers so we reach a count of D
     grafts.setLen(min(grafts.len, GossipSubD - g.mesh.peers(topic)))
 
-    trace "grafting peers", topic
-
+    trace "grafting", grafts = grafts.len
     for peer in grafts:
       if g.mesh.addPeer(topic, peer):
         g.grafted(peer, topic)
         g.fanout.removePeer(topic, peer)
         grafting &= peer
+    
   elif npeers < g.parameters.dOut:
     trace "replenishing mesh outbound quota", peers = g.mesh.peers(topic)
     # replenish the mesh if we're below Dlo
@@ -495,7 +493,7 @@ proc rebalanceMesh(g: GossipSub, topic: string) {.async.} =
           outbound.setLen(keepDOutLen)
         inbound &= outbound
 
-      trace "about to prune mesh", prunes = inbound.len
+      trace "pruning", prunes = inbound.len
       for peer in inbound:
         g.pruned(peer, topic)
         g.mesh.removePeer(topic, peer)
@@ -547,17 +545,19 @@ proc rebalanceMesh(g: GossipSub, topic: string) {.async.} =
     libp2p_gossipsub_peers_per_topic_mesh
       .set(g.mesh.peers(topic).int64, labelValues = [topic])
 
-  # Send changes to peers after table updates to avoid stale state
-  let graft = RPCMsg(control: some(ControlMessage(graft: @[ControlGraft(topicID: topic)])))
-  let prune = RPCMsg(control: some(ControlMessage(
-    prune: @[ControlPrune(
-      topicID: topic, 
-      peers: g.peerExchangeList(topic), 
-      backoff: g.parameters.pruneBackoff.seconds.uint64)])))
-  discard await g.broadcast(grafting, graft, DefaultSendTimeout)
-  discard await g.broadcast(prunes, prune, DefaultSendTimeout)
+  trace "mesh balanced"
 
-  trace "mesh balanced, got peers", peers = g.mesh.peers(topic)
+  # Send changes to peers after table updates to avoid stale state
+  if grafts.len > 0:
+    let graft = RPCMsg(control: some(ControlMessage(graft: @[ControlGraft(topicID: topic)])))
+    discard await g.broadcast(grafts, graft, DefaultSendTimeout)
+  if prunes.len > 0:
+    let prune = RPCMsg(control: some(ControlMessage(
+      prune: @[ControlPrune(
+        topicID: topic,
+        peers: g.peerExchangeList(topic), 
+        backoff: g.parameters.pruneBackoff.seconds.uint64)])))
+    discard await g.broadcast(prunes, prune, DefaultSendTimeout)
 
 proc dropFanoutPeers(g: GossipSub) =
   # drop peers that we haven't published to in
@@ -1198,9 +1198,10 @@ method publish*(g: GossipSub,
   discard await procCall PubSub(g).publish(topic, data, timeout)
   trace "publishing message on topic", topic, data = data.shortLog
 
-  var peers: HashSet[PubSubPeer]
   if topic.len <= 0: # data could be 0/empty
     return 0
+  
+  var peers: HashSet[PubSubPeer]
 
   if g.parameters.floodPublish:
     # With flood publishing enabled, the mesh is used when propagating messages from other peers, 
@@ -1240,14 +1241,18 @@ method publish*(g: GossipSub,
   if msgId notin g.mcache:
     g.mcache.put(msgId, msg)
 
-  let published = await g.broadcast(toSeq(peers), RPCMsg(messages: @[msg]), timeout)
-  when defined(libp2p_expensive_metrics):
-    if published > 0:
-      libp2p_pubsub_messages_published.inc(labelValues = [topic])
+  if peers.len > 0:
+    let published = await g.broadcast(toSeq(peers), RPCMsg(messages: @[msg]), timeout)
+    when defined(libp2p_expensive_metrics):
+      if published > 0:
+        libp2p_pubsub_messages_published.inc(labelValues = [topic])
 
-  trace "published message to peers", peers = published,
-                                      msg = msg.shortLog()
-  return published
+    trace "published message to peers", peers = published,
+                                        msg = msg.shortLog()
+    return published
+  else:
+    debug "No peers for gossip message", topic, msg = msg.shortLog()
+    return 0
 
 proc maintainDirectPeers(g: GossipSub) {.async.} =
   while g.heartbeatRunning:
