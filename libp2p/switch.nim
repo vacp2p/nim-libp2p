@@ -220,6 +220,10 @@ proc upgradeOutgoing(s: Switch, conn: Connection): Future[Connection] {.async, g
 
   trace "upgrading connection"
   let muxer = await s.mux(sconn) # mux it if possible
+  if muxer == nil:
+    # TODO this might be relaxed in the future
+    raise newException(CatchableError,
+      "a muxer is required for outgoing connections")
 
   await s.identify(muxer)
 
