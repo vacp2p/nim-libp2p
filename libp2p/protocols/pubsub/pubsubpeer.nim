@@ -132,6 +132,7 @@ proc getSendConn(p: PubSubPeer): Future[Connection] {.async.} =
     if not current.isNil:
       if not (current.closed() or current.atEof):
         # The existing send connection looks like it might work - reuse it
+        trace "Reusing existing connection", oid = $current.oid
         return current
 
       # Send connection is set but broken - get rid of it
@@ -155,9 +156,12 @@ proc getSendConn(p: PubSubPeer): Future[Connection] {.async.} =
     # Either the new or the old connection could potentially be closed - it's
     # slightly easier to sequence the closing of the new connection because the
     # old one might still be in use.
+    trace "Closing redundant connection",
+      oid = $current.oid, newConn = $newConn.oid
     await newConn.close()
     return current
 
+  trace "Caching new send connection", oid = $newConn.oid
   p.sendConn = newConn
   asyncCheck p.handle(newConn) # start a read loop on the new connection
 
