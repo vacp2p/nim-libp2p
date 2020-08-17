@@ -7,7 +7,7 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import std/[hashes, options, sequtils, strutils, tables]
+import std/[hashes, options, strutils, tables]
 import chronos, chronicles, nimcrypto/sha2, metrics
 import rpc/[messages, message, protobuf],
        timedcache,
@@ -125,34 +125,43 @@ proc handle*(p: PubSubPeer, conn: Connection) {.async.} =
     trace "Exception occurred in PubSubPeer.handle", exc = exc.msg
 
 proc getSendConn(p: PubSubPeer): Future[Connection] {.async.} =
-  # get a cached send connection or create a new one - need to call
-  # `putSendConn` after use! If one is not available, set up a new one
-  var res = p.sendConn
+  # get a cached send connection or create a new one
+  block: # check if there's an existing connection that can be reused
+    let current = p.sendConn
 
-  if not res.isNil:
-    if res.closed() or res.atEof:
+    if not current.isNil:
+      if not (current.closed() or current.atEof):
+        # The existing send connection looks like it might work - reuse it
+        return current
+
+      # Send connection is set but broken - get rid of it
       p.sendConn = nil
-      await res.close() # p.sendConn might change after here
-      res = nil
 
-  if res.isNil:
-    # get a send connection if there is none
-    res = await p.switch.dial(p.peerId, p.codec) # ...and here
-    if res == nil:
-      return nil
+      # Careful, p.sendConn might change after here!
+      await current.close() # TODO this might be unnecessary
 
-    # It so happens that there may be multiple dial attempts in-flight here - we
-    # also cannot take a lock because that might block mplex backpressure
-    # handling - thus we might redundantly create more send connections than
-    # would normally be needed - we'll cycle through them as we move along..
-    p.sendConn = res
-    asyncCheck p.handle(res)
+  # Grab a new send connection
+  let newConn = await p.switch.dial(p.peerId, p.codec) # ...and here
+  if newConn == nil:
+    return p.sendConn # A concurrent attempt perhaps succeeded?
 
-  return res
+  # Because of the awaits above, a concurrent `getSendConn` call might have
+  # set up a send connection already. We cannot take a lock here because
+  # it might block the reading of data from mplex which will cause its
+  # backpressure handling to stop reading from the socket and thus prevent the
+  # channel negotiation from finishing
+  if p.sendConn != nil and not(p.sendConn.closed or p.sendConn.atEof):
+    let current = p.sendConn
+    # Either the new or the old connection could potentially be closed - it's
+    # slightly easier to sequence the closing of the new connection because the
+    # old one might still be in use.
+    await newConn.close()
+    return current
 
-proc putSendConn(p: PubSubPeer, conn: Connection) {.async.} =
-  if conn != p.sendConn:
-    await conn.close()
+  p.sendConn = newConn
+  asyncCheck p.handle(newConn) # start a read loop on the new connection
+
+  return newConn
 
 proc send*(
   p: PubSubPeer,
@@ -196,7 +205,6 @@ proc send*(
       return
     trace "sending encoded msgs to peer"
     await conn.writeLp(encoded).wait(timeout)
-    await p.putSendConn(conn)
 
     p.sentRpcCache.put(digest)
     trace "sent pubsub message to remote"
