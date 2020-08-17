@@ -55,7 +55,6 @@ type
     triggerSelf*: bool                              # trigger own local handler on publish
     verifySignature*: bool                          # enable signature verification
     sign*: bool                                     # enable message signing
-    cleanupLock: AsyncLock
     validators*: Table[string, HashSet[ValidatorHandler]]
     observers: ref seq[PubSubObserver]              # ref as in smart_ptr
     msgIdProvider*: MsgIdProvider                   # Turn message into message id (not nil)
@@ -338,7 +337,6 @@ proc init*(
              sign: sign,
              peers: initTable[PeerID, PubSubPeer](),
              topics: initTable[string, Topic](),
-             cleanupLock: newAsyncLock(),
              msgIdProvider: msgIdProvider)
   result.initPubSub()
 
