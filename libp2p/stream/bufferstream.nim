@@ -43,7 +43,7 @@ logScope:
   topics = "bufferstream"
 
 const
-  DefaultBufferSize* = 1024
+  DefaultBufferSize* = 102400
 
 const
   BufferStreamTrackerName* = "libp2p.bufferstream"
