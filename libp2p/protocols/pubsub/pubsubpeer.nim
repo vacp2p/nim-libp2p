@@ -147,7 +147,19 @@ proc getSendConn(p: PubSubPeer): Future[Connection] {.async.} =
     # and later close one of them, other implementations such as rust-libp2p
     # become deaf to our messages (potentially due to the clean-up associated
     # with closing connections). To prevent this, we use a lock that ensures
-    # that only a single dial will be performed for each peer:
+    # that only a single dial will be performed for each peer.
+    #
+    # Nevertheless, this approach is still quite problematic because the gossip
+    # sends and their respective dials may be started from the mplex read loop.
+    # This may cause the read loop to get stuck which ultimately results in a
+    # deadlock when the other side tries to send us any other message that must
+    # be routed through mplex (it will be stuck on `pushTo`). Such messages
+    # naturally arise in the process of dialing itself.
+    #
+    # See https://github.com/status-im/nim-libp2p/issues/337
+    #
+    # One possible long-term solution is to avoid "blocking" the mplex read
+    # loop by making the gossip send non-blocking through the use of a queue.
     await p.dialLock.acquire()
 
     # Another concurrent dial may have populated p.sendConn
