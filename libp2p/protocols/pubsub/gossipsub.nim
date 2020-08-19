@@ -857,25 +857,20 @@ method unsubscribePeer*(g: GossipSub, peer: PeerID) =
 method subscribeTopic*(g: GossipSub,
                        topic: string,
                        subscribe: bool,
-                       peerId: PeerID) {.gcsafe, async.} =
-  await procCall FloodSub(g).subscribeTopic(topic, subscribe, peerId)
+                       peer: PubSubPeer) {.gcsafe.} =
+  procCall FloodSub(g).subscribeTopic(topic, subscribe, peer)
 
   logScope:
-    peer = $peerId
+    peer = $peer.id
     topic
-
-  let peer = g.peers.getOrDefault(peerId)
-  if peer == nil:
-    # floodsub method logs a trace line already
-    return
-
+  
   g.onNewPeer(peer)
 
   if subscribe:
     trace "peer subscribed to topic"
     # subscribe remote peer to the topic
     discard g.gossipsub.addPeer(topic, peer)
-    if peerId in g.parameters.directPeers:
+    if peer.peerId in g.parameters.directPeers:
       discard g.explicit.addPeer(topic, peer)
   else:
     trace "peer unsubscribed from topic"
@@ -883,7 +878,7 @@ method subscribeTopic*(g: GossipSub,
     g.gossipsub.removePeer(topic, peer)
     g.mesh.removePeer(topic, peer)
     g.fanout.removePeer(topic, peer)
-    if peerId in g.parameters.directPeers:
+    if peer.peerId in g.parameters.directPeers:
       g.explicit.removePeer(topic, peer)
 
     when defined(libp2p_expensive_metrics):
@@ -897,10 +892,6 @@ method subscribeTopic*(g: GossipSub,
       .set(g.gossipsub.peers(topic).int64, labelValues = [topic])
 
   trace "gossip peers", peers = g.gossipsub.peers(topic), topic
-
-  # also rebalance current topic if we are subbed to
-  if topic in g.topics:
-    await g.rebalanceMesh(topic)
 
 proc handleGraft(g: GossipSub,
                  peer: PubSubPeer,

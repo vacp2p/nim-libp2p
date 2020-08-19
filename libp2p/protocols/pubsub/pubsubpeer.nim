@@ -7,7 +7,7 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import std/[hashes, options, sequtils, strutils, tables, hashes, sets]
+import std/[sequtils, strutils, tables, hashes, sets]
 import chronos, chronicles, nimcrypto/sha2, metrics
 import rpc/[messages, message, protobuf],
        timedcache,
@@ -46,7 +46,7 @@ type
     recvdRpcCache: TimedCache[string]   # cache for already received messages
     observers*: ref seq[PubSubObserver] # ref as in smart_ptr
     subscribed*: bool                   # are we subscribed to this peer
-    sendLock*: AsyncLock                # send connection lock
+    dialLock: AsyncLock
 
     score*: float64
     iWantBudget*: int
@@ -126,10 +126,73 @@ proc handle*(p: PubSubPeer, conn: Connection) {.async.} =
       debug "exiting pubsub peer read loop"
       await conn.close()
 
+      if p.sendConn == conn:
+        p.sendConn = nil
+
   except CancelledError as exc:
     raise exc
   except CatchableError as exc:
     trace "Exception occurred in PubSubPeer.handle", exc = exc.msg
+
+proc getSendConn(p: PubSubPeer): Future[Connection] {.async.} =
+  # get a cached send connection or create a new one
+  block: # check if there's an existing connection that can be reused
+    let current = p.sendConn
+
+    if not current.isNil:
+      if not (current.closed() or current.atEof):
+        # The existing send connection looks like it might work - reuse it
+        trace "Reusing existing connection", oid = $current.oid
+        return current
+
+      # Send connection is set but broken - get rid of it
+      p.sendConn = nil
+
+      # Careful, p.sendConn might change after here!
+      await current.close() # TODO this might be unnecessary
+
+  try:
+    # Testing has demonstrated that when we perform concurrent meshsub dials
+    # and later close one of them, other implementations such as rust-libp2p
+    # become deaf to our messages (potentially due to the clean-up associated
+    # with closing connections). To prevent this, we use a lock that ensures
+    # that only a single dial will be performed for each peer.
+    #
+    # Nevertheless, this approach is still quite problematic because the gossip
+    # sends and their respective dials may be started from the mplex read loop.
+    # This may cause the read loop to get stuck which ultimately results in a
+    # deadlock when the other side tries to send us any other message that must
+    # be routed through mplex (it will be stuck on `pushTo`). Such messages
+    # naturally arise in the process of dialing itself.
+    #
+    # See https://github.com/status-im/nim-libp2p/issues/337
+    #
+    # One possible long-term solution is to avoid "blocking" the mplex read
+    # loop by making the gossip send non-blocking through the use of a queue.
+    await p.dialLock.acquire()
+
+    # Another concurrent dial may have populated p.sendConn
+    if p.sendConn != nil:
+      let current = p.sendConn
+      if not current.isNil:
+        if not (current.closed() or current.atEof):
+          # The existing send connection looks like it might work - reuse it
+          trace "Reusing existing connection", oid = $current.oid
+          return current
+
+    # Grab a new send connection
+    let newConn = await p.switch.dial(p.peerId, p.codec) # ...and here
+    if newConn.isNil:
+      return nil
+
+    trace "Caching new send connection", oid = $newConn.oid
+    p.sendConn = newConn
+    asyncCheck p.handle(newConn) # start a read loop on the new connection
+    return newConn
+
+  finally:
+    if p.dialLock.locked:
+      p.dialLock.release()
 
 proc send*(
   p: PubSubPeer,
@@ -163,29 +226,19 @@ proc send*(
       libp2p_pubsub_skipped_sent_messages.inc(labelValues = [p.id])
     return
 
+  var conn: Connection
   try:
     trace "about to send message"
-    if not p.connected:
-      try:
-        await p.sendLock.acquire()
-        trace "no send connection, dialing peer"
-        # get a send connection if there is none
-        p.sendConn = await p.switch.dial(
-          p.peerId, p.codec)
+    conn = await p.getSendConn()
 
-        if not p.connected:
-          raise newException(CatchableError, "unable to get send pubsub stream")
+    if conn == nil:
+      debug "Couldn't get send connection, dropping message"
+      return
+    trace "sending encoded msgs to peer", connId = $conn.oid
+    await conn.writeLp(encoded).wait(timeout)
 
-        # install a reader on the send connection
-        asyncCheck p.handle(p.sendConn)
-      finally:
-        if p.sendLock.locked:
-          p.sendLock.release()
-
-    trace "sending encoded msgs to peer"
-    await p.sendConn.writeLp(encoded).wait(timeout)
     p.sentRpcCache.put(digest)
-    trace "sent pubsub message to remote"
+    trace "sent pubsub message to remote", connId = $conn.oid
 
     when defined(libp2p_expensive_metrics):
       for x in mm.messages:
@@ -195,9 +248,10 @@ proc send*(
 
   except CatchableError as exc:
     trace "unable to send to remote", exc = exc.msg
-    if not(isNil(p.sendConn)):
-      await p.sendConn.close()
-      p.sendConn = nil
+    # Next time sendConn is used, it will be have its close flag set and thus
+    # will be recycled
+    if not isNil(conn):
+      await conn.close()
 
     raise exc
 
@@ -213,4 +267,4 @@ proc newPubSubPeer*(peerId: PeerID,
   result.peerId = peerId
   result.sentRpcCache = newTimedCache[string](2.minutes)
   result.recvdRpcCache = newTimedCache[string](2.minutes)
-  result.sendLock = newAsyncLock()
+  result.dialLock = newAsyncLock()
