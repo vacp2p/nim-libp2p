@@ -8,7 +8,7 @@
 ## those terms.
 
 import std/[tables, sequtils, sets]
-import chronos, chronicles, metrics
+import chronos, chronicles, chronicles/chronos_tools, metrics
 import pubsubpeer,
        rpc/[message, messages],
        ../../switch,
@@ -107,9 +107,9 @@ proc broadcast*(
 proc sendSubs*(p: PubSub,
                peer: PubSubPeer,
                topics: seq[string],
-               subscribe: bool) {.async.} =
+               subscribe: bool): Future[void] =
   ## send subscriptions to remote peer
-  await p.send(
+  p.send(
     peer,
     RPCMsg(
       subscriptions: topics.mapIt(SubOpts(subscribe: subscribe, topic: it))),
@@ -197,7 +197,11 @@ method subscribePeer*(p: PubSub, peer: PeerID) {.base.} =
 
   let pubsubPeer = p.getOrCreatePeer(peer, p.codec)
   if p.topics.len > 0:
-    asyncCheck p.sendSubs(pubsubPeer, toSeq(p.topics.keys), true)
+    # TODO sendSubs may raise, but doing asyncCheck here causes the exception
+    #      to escape to the poll loop.
+    #      With a bit of luck, it may be harmless to ignore exceptions here -
+    #      some cleanup is eventually done in PubSubPeer.send
+    traceAsyncErrors p.sendSubs(pubsubPeer, toSeq(p.topics.keys), true)
 
   pubsubPeer.subscribed = true
 
