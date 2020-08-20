@@ -51,8 +51,13 @@ proc select*(m: MultistreamSelect,
              proto: seq[string]):
              Future[string] {.async.} =
   trace "initiating handshake", codec = m.codec
+  
+  try:
+    await conn.write(m.codec) # write handshake
+  except LPStreamEOFError as ex:
+    trace "disconnected during handshake write", error = ex.msg, conn = $conn
+
   ## select a remote protocol
-  await conn.write(m.codec) # write handshake
   if proto.len() > 0:
     trace "selecting proto", proto = proto[0]
     await conn.writeLp((proto[0] & "\n")) # select proto
