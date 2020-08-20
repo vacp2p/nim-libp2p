@@ -19,7 +19,7 @@ macro checkFutures*[T](futs: seq[Future[T]], exclude: untyped = []): untyped =
         if res.failed:
           let exc = res.readError()
           # We still don't abort but warn
-          warn "A future has failed, enable trace logging for details", error = exc.name
+          debug "A future has failed, enable trace logging for details", error = exc.name
           trace "Exception message", msg= exc.msg, stack = getStackTrace()
   else:
     quote do:
@@ -32,7 +32,7 @@ macro checkFutures*[T](futs: seq[Future[T]], exclude: untyped = []): untyped =
                 trace "A future has failed", error=exc.name, msg=exc.msg
                 break check
             # We still don't abort but warn
-            warn "A future has failed, enable trace logging for details", error=exc.name
+            debug "A future has failed, enable trace logging for details", error=exc.name
             trace "Exception details", msg=exc.msg
 
 proc allFuturesThrowing*[T](args: varargs[Future[T]]): Future[void] =
@@ -63,5 +63,5 @@ template tryAndWarn*(message: static[string]; body: untyped): untyped =
   except CancelledError as exc:
     raise exc
   except CatchableError as exc:
-    warn "An exception has ocurred, enable trace logging for details", name = exc.name, msg = message
+    debug "An exception has ocurred, enable trace logging for details", name = exc.name, msg = message
     trace "Exception details", exc = exc.msg
