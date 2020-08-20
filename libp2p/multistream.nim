@@ -56,6 +56,7 @@ proc select*(m: MultistreamSelect,
     await conn.write(m.codec) # write handshake
   except LPStreamEOFError as ex:
     trace "disconnected during handshake write", error = ex.msg, conn = $conn
+    raise ex
 
   ## select a remote protocol
   if proto.len() > 0:
