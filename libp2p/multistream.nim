@@ -120,8 +120,12 @@ proc list*(m: MultistreamSelect,
   result = list
 
 proc handle*(m: MultistreamSelect, conn: Connection, active: bool = false) {.async, gcsafe.} =
+  logScope:
+    oid = $conn.oid
+
   trace "handle: starting multistream handling", handshaked = active
   var handshaked = active
+
   try:
     while not conn.atEof:
       var ms = string.fromBytes(await conn.readLp(1024))

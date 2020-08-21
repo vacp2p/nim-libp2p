@@ -79,12 +79,14 @@ proc sendObservers(p: PubSubPeer, msg: var RPCMsg) =
 proc handle*(p: PubSubPeer, conn: Connection) {.async.} =
   logScope:
     peer = p.id
+    connId = $conn.oid
+    closed = conn.closed
 
-  debug "starting pubsub read loop for peer", closed = conn.closed
+  debug "starting pubsub read loop for peer"
   try:
     try:
       while not conn.atEof:
-        trace "waiting for data", closed = conn.closed
+        trace "waiting for data"
         let data = await conn.readLp(64 * 1024)
         let digest = $(sha256.digest(data))
         trace "read data from peer", data = data.shortLog
