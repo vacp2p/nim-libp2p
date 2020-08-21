@@ -43,6 +43,10 @@ logScope:
 # more formal approach.
 #
 
+const
+  # DefaultChannelSize* = 1024 * 1024 # 1MB
+  DefaultChannelSize* = 1024 # TODO: for debugging only
+
 type
   LPChannel* = ref object of BufferStream
     id*: uint64                   # channel id
@@ -238,7 +242,7 @@ proc init*(
   conn: Connection,
   initiator: bool,
   name: string = "",
-  size: int = DefaultBufferSize,
+  size: int = DefaultChannelSize,
   lazy: bool = false,
   timeout: Duration = DefaultChanTimeout): LPChannel =
 
