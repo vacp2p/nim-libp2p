@@ -66,54 +66,42 @@ method unsubscribePeer*(p: PubSub, peerId: PeerID) {.base.} =
   ##
 
   trace "unsubscribing pubsub peer", peer = $peerId
-  if peerId in p.peers:
-    p.peers.del(peerId)
+  p.peers.del(peerId)
 
   libp2p_pubsub_peers.set(p.peers.len.int64)
 
 proc send*(
   p: PubSub,
   peer: PubSubPeer,
-  msg: RPCMsg,
-  timeout: Duration): Future[bool] {.async.} =
+  msg: RPCMsg) =
   ## send to remote peer
   ##
 
   trace "sending pubsub message to peer", peer = $peer, msg = shortLog(msg)
-  try:
-    await peer.send(msg, timeout)
-    return true
-  except CancelledError as exc:
-    raise exc
-  except CatchableError as exc:
-    trace "exception sending pubsub message to peer",
-      peer = $peer, msg = shortLog(msg)
-    p.unsubscribePeer(peer.peerId)
+  peer.send(msg)
 
 proc broadcast*(
   p: PubSub,
   sendPeers: seq[PubSubPeer],
-  msg: RPCMsg,
-  timeout: Duration): Future[int] {.async.} =
-  ## send messages and cleanup failed peers
+  msg: RPCMsg): int = # raises: [Defect]
+  ## send messages - returns number of send attempts made.
   ##
 
   trace "broadcasting messages to peers",
     peers = sendPeers.len, message = shortLog(msg)
-  let sent = await allFinished(
-    sendPeers.mapIt( p.send(it, msg, timeout) ))
-  return sent.filterIt( it.finished and it.read ).len
+  var sent = 0
+  for peer in sendPeers:
+    p.send(peer, msg)
+    sent.inc
+
+  return sent
 
 proc sendSubs*(p: PubSub,
                peer: PubSubPeer,
                topics: seq[string],
-               subscribe: bool): Future[bool] =
+               subscribe: bool) =
   ## send subscriptions to remote peer
-  p.send(
-    peer,
-    RPCMsg(
-      subscriptions: topics.mapIt(SubOpts(subscribe: subscribe, topic: it))),
-    DefaultSendTimeout)
+  p.send(peer, RPCMsg.withSubs(topics, subscribe))
 
 method subscribeTopic*(p: PubSub,
                        topic: string,
@@ -142,14 +130,21 @@ proc getOrCreatePeer*(
   if peer in p.peers:
     return p.peers[peer]
 
+  proc getConn(): Future[(Connection, RPCMsg)] {.async.} =
+    let conn =  await p.switch.dial(peer, proto)
+    return (conn, RPCMsg.withSubs(toSeq(p.topics.keys), true))
+
   # create new pubsub peer
-  let pubSubPeer = newPubSubPeer(peer, p.switch, proto)
+  let pubSubPeer = newPubSubPeer(peer, getConn, proto)
   trace "created new pubsub peer", peerId = $peer
 
   p.peers[peer] = pubSubPeer
   pubSubPeer.observers = p.observers
 
   libp2p_pubsub_peers.set(p.peers.len.int64)
+
+  pubsubPeer.connect()
+
   return pubSubPeer
 
 method handleConn*(p: PubSub,
@@ -175,11 +170,9 @@ method handleConn*(p: PubSub,
     # call pubsub rpc handler
     await p.rpcHandler(peer, msgs)
 
-  try:
-    let peer = p.getOrCreatePeer(conn.peerInfo.peerId, proto)
-    if p.topics.len > 0:
-      discard await p.sendSubs(peer, toSeq(p.topics.keys), true)
+  let peer = p.getOrCreatePeer(conn.peerInfo.peerId, proto)
 
+  try:
     peer.handler = handler
     await peer.handle(conn) # spawn peer read loop
     trace "pubsub peer handler ended", peer = peer.id
@@ -195,15 +188,7 @@ method subscribePeer*(p: PubSub, peer: PeerID) {.base.} =
   ## messages
   ##
 
-  let pubsubPeer = p.getOrCreatePeer(peer, p.codec)
-  if p.topics.len > 0:
-    # TODO sendSubs may raise, but doing asyncCheck here causes the exception
-    #      to escape to the poll loop.
-    #      With a bit of luck, it may be harmless to ignore exceptions here -
-    #      some cleanup is eventually done in PubSubPeer.send
-    asyncCheck p.sendSubs(pubsubPeer, toSeq(p.topics.keys), true)
-
-  pubsubPeer.subscribed = true
+  discard p.getOrCreatePeer(peer, p.codec)
 
 method unsubscribe*(p: PubSub,
                     topics: seq[TopicPair]) {.base, async.} =
@@ -249,11 +234,9 @@ method subscribe*(p: PubSub,
 
   p.topics[topic].handler.add(handler)
 
-  var sent: seq[Future[bool]]
-  for peer in toSeq(p.peers.values):
-    sent.add(p.sendSubs(peer, @[topic], true))
-
-  checkFutures(await allFinished(sent))
+  var sent: seq[Future[void]]
+  for _, peer in p.peers:
+    p.sendSubs(peer, @[topic], true)
 
   # metrics
   libp2p_pubsub_topics.set(p.topics.len.int64)

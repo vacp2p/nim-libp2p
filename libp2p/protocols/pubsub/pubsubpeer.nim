@@ -28,16 +28,15 @@ when defined(libp2p_expensive_metrics):
   declareCounter(libp2p_pubsub_skipped_received_messages, "number of received skipped messages", labels = ["id"])
   declareCounter(libp2p_pubsub_skipped_sent_messages, "number of sent skipped messages", labels = ["id"])
 
-const
-  DefaultSendTimeout* = 10.seconds
-
 type
   PubSubObserver* = ref object
     onRecv*: proc(peer: PubSubPeer; msgs: var RPCMsg) {.gcsafe, raises: [Defect].}
     onSend*: proc(peer: PubSubPeer; msgs: var RPCMsg) {.gcsafe, raises: [Defect].}
 
+  GetConn* = proc(): Future[(Connection, RPCMsg)] {.gcsafe.}
+
   PubSubPeer* = ref object of RootObj
-    switch*: Switch                     # switch instance to dial peers
+    getConn*: GetConn                   # callback to establish a new send connection
     codec*: string                      # the protocol that this peer joined from
     sendConn: Connection                # cached send connection
     peerId*: PeerID
@@ -45,7 +44,6 @@ type
     sentRpcCache: TimedCache[string]    # cache for already sent messages
     recvdRpcCache: TimedCache[string]   # cache for already received messages
     observers*: ref seq[PubSubObserver] # ref as in smart_ptr
-    subscribed*: bool                   # are we subscribed to this peer
     dialLock: AsyncLock
 
   RPCHandler* = proc(peer: PubSubPeer, msg: seq[RPCMsg]): Future[void] {.gcsafe.}
@@ -172,9 +170,12 @@ proc getSendConn(p: PubSubPeer): Future[Connection] {.async.} =
           return current
 
     # Grab a new send connection
-    let newConn = await p.switch.dial(p.peerId, p.codec) # ...and here
+    let (newConn, handshake) = await p.getConn() # ...and here
     if newConn.isNil:
       return nil
+
+    trace "Sending handshake", oid = $newConn.oid, handshake = shortLog(handshake)
+    await newConn.writeLp(encodeRpcMsg(handshake))
 
     trace "Caching new send connection", oid = $newConn.oid
     p.sendConn = newConn
@@ -185,11 +186,16 @@ proc getSendConn(p: PubSubPeer): Future[Connection] {.async.} =
     if p.dialLock.locked:
       p.dialLock.release()
 
-proc send*(
-  p: PubSubPeer,
-  msg: RPCMsg,
-  timeout: Duration = DefaultSendTimeout) {.async.} =
+proc connectImpl*(p: PubSubPeer) {.async.} =
+  try:
+    discard await getSendConn(p)
+  except CatchableError as exc:
+    debug "Could not connect to pubsub peer", err = exc.msg
 
+proc connect*(p: PubSubPeer) =
+  asyncCheck(connectImpl(p))
+
+proc sendImpl(p: PubSubPeer, msg: RPCMsg) {.async.} =
   doAssert(not isNil(p), "pubsubpeer nil!")
 
   logScope:
@@ -226,7 +232,7 @@ proc send*(
       debug "Couldn't get send connection, dropping message"
       return
     trace "sending encoded msgs to peer", connId = $conn.oid
-    await conn.writeLp(encoded).wait(timeout)
+    await conn.writeLp(encoded)
 
     p.sentRpcCache.put(digest)
     trace "sent pubsub message to remote", connId = $conn.oid
@@ -238,22 +244,30 @@ proc send*(
           libp2p_pubsub_sent_messages.inc(labelValues = [p.id, t])
 
   except CatchableError as exc:
+    # Because we detach the send call from the currently executing task using
+    # asyncCheck, no exceptions may leak out of it
     trace "unable to send to remote", exc = exc.msg
     # Next time sendConn is used, it will be have its close flag set and thus
     # will be recycled
     if not isNil(conn):
-      await conn.close()
+      await conn.close() # This will clean up the send connection
+    # TODO Cancellations stop here - where do they start?
 
-    raise exc
+    # We'll ask for a new send connection whenever possible
+    if p.sendConn == conn:
+      p.sendConn = nil
+
+proc send*(p: PubSubPeer, msg: RPCMsg) =
+  asyncCheck sendImpl(p, msg)
 
 proc `$`*(p: PubSubPeer): string =
-  p.id
+  $p.peerId
 
 proc newPubSubPeer*(peerId: PeerID,
-                    switch: Switch,
+                    getConn: GetConn,
                     codec: string): PubSubPeer =
   new result
-  result.switch = switch
+  result.getConn = getConn
   result.codec = codec
   result.peerId = peerId
   result.sentRpcCache = newTimedCache[string](2.minutes)

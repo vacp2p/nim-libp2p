@@ -101,10 +101,9 @@ method rpcHandler*(f: FloodSub,
                   trace "exception in message handler", exc = exc.msg
 
         # forward the message to all peers interested in it
-        let published = await f.broadcast(
+        let published = f.broadcast(
           toSeq(toSendPeers),
-          RPCMsg(messages: m.messages),
-          DefaultSendTimeout)
+          RPCMsg(messages: m.messages))
 
         trace "forwared message to peers", peers = published
 
@@ -140,10 +139,9 @@ method publish*(f: FloodSub,
   let msg = Message.init(f.peerInfo, data, topic, f.msgSeqno, f.sign)
 
   # start the future but do not wait yet
-  let published = await f.broadcast(
+  let published = f.broadcast(
     toSeq(f.floodsub.getOrDefault(topic)),
-    RPCMsg(messages: @[msg]),
-    timeout)
+    RPCMsg(messages: @[msg]))
 
   when defined(libp2p_expensive_metrics):
     libp2p_pubsub_messages_published.inc(labelValues = [topic])
@@ -157,13 +155,13 @@ method unsubscribe*(f: FloodSub,
   await procCall PubSub(f).unsubscribe(topics)
 
   for p in f.peers.values:
-    discard await f.sendSubs(p, topics.mapIt(it.topic).deduplicate(), false)
+    f.sendSubs(p, topics.mapIt(it.topic).deduplicate(), false)
 
 method unsubscribeAll*(f: FloodSub, topic: string) {.async.} =
   await procCall PubSub(f).unsubscribeAll(topic)
 
   for p in f.peers.values:
-    discard await f.sendSubs(p, @[topic], false)
+    f.sendSubs(p, @[topic], false)
 
 method initPubSub*(f: FloodSub) =
   procCall PubSub(f).initPubSub()
