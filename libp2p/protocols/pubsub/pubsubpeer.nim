@@ -47,6 +47,8 @@ type
     observers*: ref seq[PubSubObserver] # ref as in smart_ptr
     subscribed*: bool                   # are we subscribed to this peer
     dialLock: AsyncLock
+    dialling: bool
+    todo: seq[RPCMsg]
 
   RPCHandler* = proc(peer: PubSubPeer, msg: seq[RPCMsg]): Future[void] {.gcsafe.}
 
@@ -161,7 +163,7 @@ proc getSendConn(p: PubSubPeer): Future[Connection] {.async.} =
     # One possible long-term solution is to avoid "blocking" the mplex read
     # loop by making the gossip send non-blocking through the use of a queue.
     await p.dialLock.acquire()
-
+    p.dialling = true
     # Another concurrent dial may have populated p.sendConn
     if p.sendConn != nil:
       let current = p.sendConn
@@ -182,6 +184,7 @@ proc getSendConn(p: PubSubPeer): Future[Connection] {.async.} =
     return newConn
 
   finally:
+    p.dialling = false
     if p.dialLock.locked:
       p.dialLock.release()
 
@@ -220,6 +223,12 @@ proc send*(
   var conn: Connection
   try:
     trace "about to send message"
+    if p.dialling:
+      # to get a new send connection we need to be reading from mplex - instead
+      # of blocking, enqueue the message
+      p.todo.add msg
+      return
+
     conn = await p.getSendConn()
 
     if conn == nil:
@@ -227,7 +236,12 @@ proc send*(
       return
     trace "sending encoded msgs to peer", connId = $conn.oid
     await conn.writeLp(encoded).wait(timeout)
+    let msgs = p.todo
+    p.todo = @[]
 
+    for msg in msgs:
+      # TODO all the other stuff for sending a message
+      await conn.writeLp(encoded)
     p.sentRpcCache.put(digest)
     trace "sent pubsub message to remote", connId = $conn.oid
 
