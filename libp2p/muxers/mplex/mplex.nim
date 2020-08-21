@@ -25,6 +25,7 @@ logScope:
 
 const
   MaxChannelCount = 200
+  DefaultPushTimeout = 1.seconds
 
 when defined(libp2p_expensive_metrics):
   declareGauge(libp2p_mplex_channels,
@@ -38,9 +39,11 @@ type
     currentId: uint64
     inChannTimeout: Duration
     outChannTimeout: Duration
+    pushTimeout: Duration
     isClosed: bool
     oid*: Oid
-    maxChannCount: int
+    maxChanCount: int
+    chanSize: int
 
 proc newTooManyChannels(): ref TooManyChannels =
   newException(TooManyChannels, "max allowed channel count exceeded")
@@ -80,7 +83,8 @@ proc newStreamInternal*(m: Mplex,
     initiator,
     name,
     lazy = lazy,
-    timeout = timeout)
+    timeout = timeout,
+    size = m.chanSize)
 
   result.peerInfo = m.connection.peerInfo
   result.observedAddr = m.connection.observedAddr
@@ -113,7 +117,8 @@ proc handleStream(m: Mplex, chann: LPChannel) {.async.} =
     await chann.reset()
 
 method handle*(m: Mplex) {.async, gcsafe.} =
-  logScope: moid = $m.oid
+  logScope:
+    mplexOid = $m.oid
 
   trace "starting mplex main loop"
   try:
@@ -130,26 +135,25 @@ method handle*(m: Mplex) {.async, gcsafe.} =
       logScope:
         id = id
         initiator = initiator
-        msgType = msgType
+        msgType = $msgType
         size = data.len
 
       trace "read message from connection", data = data.shortLog
 
       var channel =
         if MessageType(msgType) != MessageType.New:
-          let tmp = m.channels[initiator].getOrDefault(id, nil)
-          if tmp == nil:
-            trace "Channel not found, skipping"
-            continue
-
-          tmp
+          m.channels[initiator].getOrDefault(id, nil)
         else:
-          if m.channels[false].len > m.maxChannCount - 1:
+          if m.channels[false].len > m.maxChanCount - 1:
             warn "too many channels created by remote peer", allowedMax = MaxChannelCount
             raise newTooManyChannels()
 
           let name = string.fromBytes(data)
           m.newStreamInternal(false, id, name, timeout = m.outChannTimeout)
+
+      if channel == nil:
+        trace "Channel not found, skipping"
+        continue
 
       logScope:
         name = channel.name
@@ -168,9 +172,18 @@ method handle*(m: Mplex) {.async, gcsafe.} =
             warn "attempting to send a packet larger than allowed", allowed = MaxMsgSize
             raise newLPStreamLimitError()
 
-          trace "pushing data to channel"
-          await channel.pushTo(data)
-          trace "pushed data to channel"
+          try:
+            trace "pushing data to channel"
+            # The timeout on the pushTo bellow is to
+            # prevent slow readers from blocking the
+            # read loop and thus other readers that
+            # are wating for data.
+            await channel.pushTo(data).wait(m.pushTimeout)
+            trace "pushed data to channel"
+          except AsyncTimeoutError:
+            debug "slow reader detected, resetting channel"
+            await channel.reset()
+            continue
 
         of MessageType.CloseIn, MessageType.CloseOut:
           trace "closing channel"
@@ -188,12 +201,16 @@ method handle*(m: Mplex) {.async, gcsafe.} =
 proc init*(M: type Mplex,
            conn: Connection,
            inTimeout, outTimeout: Duration = DefaultChanTimeout,
-           maxChannCount: int = MaxChannelCount): Mplex =
+           maxChanCount: int = MaxChannelCount,
+           chanSize: int = DefaultChannelSize,
+           pushTimeout: Duration = DefaultPushTimeout): Mplex =
   M(connection: conn,
     inChannTimeout: inTimeout,
     outChannTimeout: outTimeout,
+    pushTimeout: pushTimeout,
     oid: genOid(),
-    maxChannCount: maxChannCount)
+    maxChanCount: maxChanCount,
+    chanSize: chanSize)
 
 method newStream*(m: Mplex,
                   name: string = "",

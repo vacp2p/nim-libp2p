@@ -673,3 +673,68 @@ suite "Mplex":
       await listenFut
 
     waitFor(test())
+
+  test "e2e - slow channels should reset":
+    proc test() {.async.} =
+      let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
+      let hello = "HELLO".toBytes
+
+      var done = newFuture[void]()
+      var fast = false
+      proc reader(wait: Duration, stream: Connection) {.async.} =
+        try:
+          var read: seq[byte]
+          await sleepAsync(wait)
+          read.add((await stream.readLp(hello.len))) # read byte by byte
+          check read == hello
+        except CatchableError as exc:
+          # echo exc.msg
+          discard
+
+      proc writer(stream: Connection): Future[seq[byte]] {.async.} =
+        await stream.writeLp(hello)
+        return await stream.readLp(hello.len)
+
+      proc connHandler(conn: Connection) {.async, gcsafe.} =
+        let mplexListen = Mplex.init(conn, chanSize = 2, pushTimeout = 10.millis)
+        mplexListen.streamHandler = proc(stream: Connection)
+          {.async, gcsafe.} =
+
+          if not fast:
+            fast = true
+            await reader(2.seconds, stream)
+          else:
+            await reader(0.millis, stream)
+
+          await stream.writeLp(hello)
+          await stream.close()
+
+        await mplexListen.handle()
+        await mplexListen.close()
+
+      let transport1: TcpTransport = TcpTransport.init()
+      let listenFut = await transport1.listen(ma, connHandler)
+
+      let transport2: TcpTransport = TcpTransport.init()
+      let conn = await transport2.dial(transport1.ma)
+
+      let mplexDial = Mplex.init(conn, chanSize = 2)
+      let mplexDialFut = mplexDial.handle()
+      let streamSlow = await mplexDial.newStream()
+      let streamFast = await mplexDial.newStream()
+
+      let reads = await allFinished(
+        writer(streamSlow),
+        writer(streamFast))
+
+      check (not reads[0].error.isNil)
+      check reads[1].read == hello
+
+      await streamSlow.close()
+      await streamFast.close()
+
+      await allFuturesThrowing(
+        transport1.close(),
+        transport2.close())
+
+    waitFor(test())
