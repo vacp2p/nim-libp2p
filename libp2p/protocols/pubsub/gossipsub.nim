@@ -782,7 +782,7 @@ proc heartbeat(g: GossipSub) {.async.} =
         g.replenishFanout(t)
 
       let peers = g.getGossipPeers()
-      var sent: seq[Future[void]]
+      var sent: seq[Future[bool]]
       for peer, control in peers:
         g.peers.withValue(peer.peerId, pubsubPeer) do:
           sent &= g.send(
@@ -1124,10 +1124,14 @@ method rpcHandler*(g: GossipSub,
         respControl.ihave.len > 0:
         try:
           info "sending control message", msg = respControl
-          await g.send(
+          let sent = await g.send(
             peer,
             RPCMsg(control: some(respControl), messages: messages),
             DefaultSendTimeout)
+
+          if not sent:
+            g.unsubscribePeer(peer.peerId)
+
         except CancelledError as exc:
           raise exc
         except CatchableError as exc:

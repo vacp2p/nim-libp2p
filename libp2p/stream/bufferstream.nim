@@ -129,7 +129,8 @@ proc initBufferStream*(s: BufferStream,
   if not(isNil(handler)):
     s.writeHandler = proc (data: seq[byte]) {.async, gcsafe.} =
       defer:
-        s.writeLock.release()
+        if s.writeLock.locked:
+          s.writeLock.release()
 
       # Using a lock here to guarantee
       # proper write ordering. This is
@@ -137,6 +138,7 @@ proc initBufferStream*(s: BufferStream,
       # implementing half-closed in mplex
       # or other functionality that requires
       # strict message ordering
+
       await s.writeLock.acquire()
       await handler(data)
 

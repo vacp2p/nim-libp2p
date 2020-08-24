@@ -81,22 +81,22 @@ proc send*(
   p: PubSub,
   peer: PubSubPeer,
   msg: RPCMsg,
-  timeout: Duration) {.async.} =
+  timeout: Duration): Future[bool] {.async.} =
   ## send to remote peer
   ##
 
   trace "sending pubsub message to peer", peer = $peer, msg = shortLog(msg)
   try:
     await peer.send(msg, timeout)
+    return true
   except CancelledError as exc:
     raise exc
   except CatchableError as exc:
     trace "exception sending pubsub message to peer",
       peer = $peer, msg = shortLog(msg)
     # do not unsub during internal testing (no networking)
-    when not defined(pubsub_internal_testing):      
+    when not defined(pubsub_internal_testing):
       p.unsubscribePeer(peer.peerId)
-    raise exc
 
 proc broadcast*(
   p: PubSub,
@@ -110,14 +110,14 @@ proc broadcast*(
     peers = sendPeers.len, message = shortLog(msg)
   let sent = await allFinished(
     sendPeers.mapIt( p.send(it, msg, timeout) ))
-  return sent.filterIt( it.finished and it.error.isNil ).len
+  return sent.filterIt( it.finished and it.read ).len
 
 proc sendSubs*(p: PubSub,
                peer: PubSubPeer,
                topics: seq[string],
-               subscribe: bool) {.async.} =
+               subscribe: bool): Future[bool] =
   ## send subscriptions to remote peer
-  await p.send(
+  p.send(
     peer,
     RPCMsg(
       subscriptions: topics.mapIt(SubOpts(subscribe: subscribe, topic: it))),
@@ -188,11 +188,11 @@ method handleConn*(p: PubSub,
     # call pubsub rpc handler
     await p.rpcHandler(peer, msgs)
 
-  let peer = p.getOrCreatePeer(conn.peerInfo.peerId, proto)
-  if p.topics.len > 0:
-    await p.sendSubs(peer, toSeq(p.topics.keys), true)
-
   try:
+    let peer = p.getOrCreatePeer(conn.peerInfo.peerId, proto)
+    if p.topics.len > 0:
+      discard await p.sendSubs(peer, toSeq(p.topics.keys), true)
+
     peer.handler = handler
     await peer.handle(conn) # spawn peer read loop
     trace "pubsub peer handler ended", peer = peer.id
@@ -211,6 +211,10 @@ method subscribePeer*(p: PubSub, peer: PeerID) {.base.} =
   let pubsubPeer = p.getOrCreatePeer(peer, p.codec)
   pubsubPeer.outbound = true # flag as outbound
   if p.topics.len > 0:
+    # TODO sendSubs may raise, but doing asyncCheck here causes the exception
+    #      to escape to the poll loop.
+    #      With a bit of luck, it may be harmless to ignore exceptions here -
+    #      some cleanup is eventually done in PubSubPeer.send
     asyncCheck p.sendSubs(pubsubPeer, toSeq(p.topics.keys), true)
 
   pubsubPeer.subscribed = true
@@ -259,7 +263,7 @@ method subscribe*(p: PubSub,
 
   p.topics[topic].handler.add(handler)
 
-  var sent: seq[Future[void]]
+  var sent: seq[Future[bool]]
   for peer in toSeq(p.peers.values):
     sent.add(p.sendSubs(peer, @[topic], true))
 
