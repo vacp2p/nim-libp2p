@@ -96,7 +96,7 @@ suite "GossipSub internal":
     proc testRun(): Future[bool] {.async.} =
       let gossipSub = TestGossipSub.init(newStandardSwitch())
 
-      proc handler(peer: PubSubPeer, msg: seq[RPCMsg]) {.async.} =
+      proc handler(peer: PubSubPeer, msg: RPCMsg) {.async.} =
         discard
 
       let topic = "foobar"
@@ -128,7 +128,7 @@ suite "GossipSub internal":
     proc testRun(): Future[bool] {.async.} =
       let gossipSub = TestGossipSub.init(newStandardSwitch())
 
-      proc handler(peer: PubSubPeer, msg: seq[RPCMsg]) {.async.} =
+      proc handler(peer: PubSubPeer, msg: RPCMsg) {.async.} =
         discard
 
       let topic = "foobar"
@@ -163,7 +163,7 @@ suite "GossipSub internal":
     proc testRun(): Future[bool] {.async.} =
       let gossipSub = TestGossipSub.init(newStandardSwitch())
 
-      proc handler(peer: PubSubPeer, msg: seq[RPCMsg]) {.async.} =
+      proc handler(peer: PubSubPeer, msg: RPCMsg) {.async.} =
         discard
 
       let topic1 = "foobar1"
@@ -204,7 +204,7 @@ suite "GossipSub internal":
     proc testRun(): Future[bool] {.async.} =
       let gossipSub = TestGossipSub.init(newStandardSwitch())
 
-      proc handler(peer: PubSubPeer, msg: seq[RPCMsg]) {.async.} =
+      proc handler(peer: PubSubPeer, msg: RPCMsg) {.async.} =
         discard
 
       let topic = "foobar"
@@ -269,7 +269,7 @@ suite "GossipSub internal":
     proc testRun(): Future[bool] {.async.} =
       let gossipSub = TestGossipSub.init(newStandardSwitch())
 
-      proc handler(peer: PubSubPeer, msg: seq[RPCMsg]) {.async.} =
+      proc handler(peer: PubSubPeer, msg: RPCMsg) {.async.} =
         discard
 
       let topic = "foobar"
@@ -314,7 +314,7 @@ suite "GossipSub internal":
     proc testRun(): Future[bool] {.async.} =
       let gossipSub = TestGossipSub.init(newStandardSwitch())
 
-      proc handler(peer: PubSubPeer, msg: seq[RPCMsg]) {.async.} =
+      proc handler(peer: PubSubPeer, msg: RPCMsg) {.async.} =
         discard
 
       let topic = "foobar"
@@ -359,7 +359,7 @@ suite "GossipSub internal":
     proc testRun(): Future[bool] {.async.} =
       let gossipSub = TestGossipSub.init(newStandardSwitch())
 
-      proc handler(peer: PubSubPeer, msg: seq[RPCMsg]) {.async.} =
+      proc handler(peer: PubSubPeer, msg: RPCMsg) {.async.} =
         discard
 
       let topic = "foobar"

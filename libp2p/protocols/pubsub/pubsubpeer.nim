@@ -39,6 +39,7 @@ type
     getConn*: GetConn                   # callback to establish a new send connection
     codec*: string                      # the protocol that this peer joined from
     sendConn: Connection                # cached send connection
+    connections*: seq[Connection]       # connections to this peer
     peerId*: PeerID
     handler*: RPCHandler
     sentRpcCache: TimedCache[string]    # cache for already sent messages
@@ -46,7 +47,7 @@ type
     observers*: ref seq[PubSubObserver] # ref as in smart_ptr
     dialLock: AsyncLock
 
-  RPCHandler* = proc(peer: PubSubPeer, msg: seq[RPCMsg]): Future[void] {.gcsafe.}
+  RPCHandler* = proc(peer: PubSubPeer, msg: RPCMsg): Future[void] {.gcsafe.}
 
 func hash*(p: PubSubPeer): Hash =
   # int is either 32/64, so intptr basically, pubsubpeer is a ref
@@ -76,13 +77,15 @@ proc sendObservers(p: PubSubPeer, msg: var RPCMsg) =
 
 proc handle*(p: PubSubPeer, conn: Connection) {.async.} =
   logScope:
+    oid = $conn.oid
     peer = p.id
+    closed = conn.closed
 
-  debug "starting pubsub read loop for peer", closed = conn.closed
+  debug "starting pubsub read loop"
   try:
     try:
       while not conn.atEof:
-        trace "waiting for data", closed = conn.closed
+        trace "waiting for data"
         let data = await conn.readLp(64 * 1024)
         let digest = $(sha256.digest(data))
         trace "read data from peer", data = data.shortLog
@@ -109,10 +112,9 @@ proc handle*(p: PubSubPeer, conn: Connection) {.async.} =
               # metrics
               libp2p_pubsub_received_messages.inc(labelValues = [p.id, t])
 
-        await p.handler(p, @[msg])
+        await p.handler(p, msg)
         p.recvdRpcCache.put(digest)
     finally:
-      debug "exiting pubsub peer read loop"
       await conn.close()
 
       if p.sendConn == conn:
@@ -122,9 +124,14 @@ proc handle*(p: PubSubPeer, conn: Connection) {.async.} =
     raise exc
   except CatchableError as exc:
     trace "Exception occurred in PubSubPeer.handle", exc = exc.msg
+  finally:
+    debug "exiting pubsub read loop"
 
 proc getSendConn(p: PubSubPeer): Future[Connection] {.async.} =
-  # get a cached send connection or create a new one
+  ## get a cached send connection or create a new one - will return nil if
+  ## getting a new connection fails
+  ##
+
   block: # check if there's an existing connection that can be reused
     let current = p.sendConn
 
@@ -145,7 +152,8 @@ proc getSendConn(p: PubSubPeer): Future[Connection] {.async.} =
     # and later close one of them, other implementations such as rust-libp2p
     # become deaf to our messages (potentially due to the clean-up associated
     # with closing connections). To prevent this, we use a lock that ensures
-    # that only a single dial will be performed for each peer.
+    # that only a single dial will be performed for each peer and send the
+    # subscription table every time we reconnect.
     #
     # Nevertheless, this approach is still quite problematic because the gossip
     # sends and their respective dials may be started from the mplex read loop.
@@ -181,7 +189,10 @@ proc getSendConn(p: PubSubPeer): Future[Connection] {.async.} =
     p.sendConn = newConn
     asyncCheck p.handle(newConn) # start a read loop on the new connection
     return newConn
-
+  except CancelledError as exc:
+    raise exc
+  except CatchableError as exc:
+    return nil
   finally:
     if p.dialLock.locked:
       p.dialLock.release()
@@ -223,14 +234,13 @@ proc sendImpl(p: PubSubPeer, msg: RPCMsg) {.async.} =
       libp2p_pubsub_skipped_sent_messages.inc(labelValues = [p.id])
     return
 
-  var conn: Connection
+  var conn = await p.getSendConn()
   try:
     trace "about to send message"
-    conn = await p.getSendConn()
-
     if conn == nil:
       debug "Couldn't get send connection, dropping message"
       return
+
     trace "sending encoded msgs to peer", connId = $conn.oid
     await conn.writeLp(encoded)
 
@@ -251,7 +261,9 @@ proc sendImpl(p: PubSubPeer, msg: RPCMsg) {.async.} =
     # will be recycled
     if not isNil(conn):
       await conn.close() # This will clean up the send connection
-    # TODO Cancellations stop here - where do they start?
+
+    if exc is CancelledError: # TODO not handled
+      debug "Send cancelled"
 
     # We'll ask for a new send connection whenever possible
     if p.sendConn == conn:
