@@ -75,8 +75,14 @@ method init*(g: GossipSub) =
     ## connection for a protocol string
     ## e.g. ``/floodsub/1.0.0``, etc...
     ##
-
-    await g.handleConn(conn, proto)
+    try:
+      await g.handleConn(conn, proto)
+    except CancelledError:
+      # This is top-level procedure which will work as separate task, so it
+      # do not need to propogate CancelledError.
+      trace "Unexpected cancellation in gossipsub handler"
+    except CatchableError as exc:
+      trace "GossipSub handler leaks an error", exc = exc.msg
 
   g.handler = handler
   g.codec = GossipSubCodec

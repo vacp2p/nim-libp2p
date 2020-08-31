@@ -66,18 +66,6 @@ template withWriteLock(lock: AsyncLock, body: untyped): untyped =
     if not(isNil(lock)) and lock.locked:
       lock.release()
 
-template withEOFExceptions(body: untyped): untyped =
-  try:
-      body
-  except CancelledError as exc:
-    raise exc
-  except LPStreamEOFError as exc:
-    trace "muxed connection EOF", exc = exc.msg
-  except LPStreamClosedError as exc:
-    trace "muxed connection closed", exc = exc.msg
-  except LPStreamIncompleteError as exc:
-    trace "incomplete message", exc = exc.msg
-
 proc closeMessage(s: LPChannel) {.async.} =
   logScope:
     id = s.id
@@ -104,11 +92,22 @@ proc resetMessage(s: LPChannel) {.async.} =
     # stack = getStackTrace()
 
   ## send reset message - this will not raise
-  withEOFExceptions:
+  try:
     withWriteLock(s.writeLock):
       trace "sending reset message"
-
       await s.conn.writeMsg(s.id, s.resetCode) # write reset
+  except CancelledError:
+    # This procedure is called from one place and never awaited, so there no
+    # need to re-raise CancelledError.
+    trace "Unexpected cancellation while resetting channel"
+  except LPStreamEOFError as exc:
+    trace "muxed connection EOF", exc = exc.msg
+  except LPStreamClosedError as exc:
+    trace "muxed connection closed", exc = exc.msg
+  except LPStreamIncompleteError as exc:
+    trace "incomplete message", exc = exc.msg
+  except CatchableError as exc:
+    trace "Unhandled exception leak", exc = exc.msg
 
 proc open*(s: LPChannel) {.async, gcsafe.} =
   logScope:
@@ -170,10 +169,7 @@ method reset*(s: LPChannel) {.base, async, gcsafe.} =
 
   trace "resetting channel"
 
-  # we asyncCheck here because the other end
-  # might be dead already - reset is always
-  # optimistic
-  asyncCheck s.resetMessage()
+  discard s.resetMessage()
 
   try:
     # drain the buffer before closing
@@ -210,9 +206,11 @@ method close*(s: LPChannel) {.async, gcsafe.} =
       await s.closeMessage().wait(2.minutes)
       if s.atEof: # already closed by remote close parent buffer immediately
         await procCall BufferStream(s).close()
-    except CancelledError as exc:
+    except CancelledError:
+      trace "Unexpected cancellation while closing channel"
       await s.reset()
-      raise exc
+      # This is top-level procedure which will work as separate task, so it
+      # do not need to propogate CancelledError.
     except CatchableError as exc:
       trace "exception closing channel", exc = exc.msg
       await s.reset()
@@ -220,7 +218,8 @@ method close*(s: LPChannel) {.async, gcsafe.} =
     trace "lpchannel closed local"
 
   s.closedLocal = true
-  asyncCheck closeInternal()
+  # All the errors are handled inside `closeInternal()` procedure.
+  discard closeInternal()
 
 method initStream*(s: LPChannel) =
   if s.objName.len == 0:

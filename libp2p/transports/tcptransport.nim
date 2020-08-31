@@ -76,13 +76,16 @@ proc connHandler*(t: TcpTransport,
       if not(isNil(conn)):
         await conn.close()
       t.clients.keepItIf(it != client)
-    except CancelledError as exc:
-      raise exc
+    except CancelledError:
+      # This is top-level procedure which will work as separate task, so it
+      # do not need to propogate CancelledError.
+      trace "Unexpected cancellation in transport's cleanup"
     except CatchableError as exc:
       trace "error cleaning up client", exc = exc.msg
 
   t.clients.add(client)
-  asyncCheck cleanup()
+  # All the errors are handled inside `cleanup()` procedure.
+  discard cleanup()
   result = conn
 
 proc connCb(server: StreamServer,

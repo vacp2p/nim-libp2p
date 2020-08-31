@@ -354,10 +354,21 @@ proc internalConnect(s: Switch,
   if isNil(conn): # None of the addresses connected
     raise newException(CatchableError, "Unable to establish outgoing link")
 
-  conn.closeEvent.wait()
-    .addCallback do(udata: pointer):
-      asyncCheck s.triggerConnEvent(
-        peerId, ConnEvent(kind: ConnEventKind.Disconnected))
+  proc peerCleanup() {.async.} =
+    try:
+      await conn.closeEvent.wait()
+      await s.triggerConnEvent(peerId,
+                               ConnEvent(kind: ConnEventKind.Disconnected))
+    except CancelledError:
+      # This is top-level procedure which will work as separate task, so it
+      # do not need to propogate CancelledError.
+      trace "Unexpected cancellation in switch peer connect cleanup"
+    except CatchableError as exc:
+      trace "Unexpected exception in switch peer connect cleanup",
+            errMsg = exc.msg
+
+  # All the errors are handled inside `cleanup()` procedure.
+  discard peerCleanup()
 
   await s.triggerConnEvent(
     peerId, ConnEvent(kind: ConnEventKind.Connected, incoming: false))
@@ -489,13 +500,38 @@ proc muxerHandler(s: Switch, muxer: Muxer) {.async, gcsafe.} =
     await s.identify(muxer)
 
     let peerId = muxer.connection.peerInfo.peerId
-    muxer.connection.closeEvent.wait()
-      .addCallback do(udata: pointer):
-        asyncCheck s.triggerConnEvent(
-          peerId, ConnEvent(kind: ConnEventKind.Disconnected))
 
-    asyncCheck s.triggerConnEvent(
-      peerId, ConnEvent(kind: ConnEventKind.Connected, incoming: true))
+    proc peerCleanup() {.async.} =
+      try:
+        await muxer.connection.closeEvent.wait()
+        await s.triggerConnEvent(peerId,
+                                 ConnEvent(kind: ConnEventKind.Disconnected))
+      except CancelledError:
+        # This is top-level procedure which will work as separate task, so it
+        # do not need to propogate CancelledError.
+        trace "Unexpected cancellation in switch muxer cleanup"
+      except CatchableError as exc:
+        trace "Unexpected exception in switch muxer cleanup",
+              errMsg = exc.msg
+
+    proc peerStartup() {.async.} =
+      try:
+        await s.triggerConnEvent(peerId,
+                                 ConnEvent(kind: ConnEventKind.Connected,
+                                           incoming: true))
+      except CancelledError:
+        # This is top-level procedure which will work as separate task, so it
+        # do not need to propogate CancelledError.
+        trace "Unexpected cancellation in switch muxer startup"
+      except CatchableError as exc:
+        trace "Unexpected exception in switch muxer startup",
+              errMsg = exc.msg
+
+    # All the errors are handled inside `peerCleanup()` procedure.
+    discard peerCleanup()
+
+    # All the errors are handled inside `peerStartup()` procedure.
+    discard peerStartup()
 
   except CancelledError as exc:
     await muxer.close()

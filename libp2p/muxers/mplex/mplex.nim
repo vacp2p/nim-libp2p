@@ -48,14 +48,21 @@ proc newTooManyChannels(): ref TooManyChannels =
 proc cleanupChann(m: Mplex, chann: LPChannel) {.async, inline.} =
   ## remove the local channel from the internal tables
   ##
-  await chann.join()
-  m.channels[chann.initiator].del(chann.id)
-  trace "cleaned up channel", id = chann.id, oid = $chann.oid
+  try:
+    await chann.join()
+    m.channels[chann.initiator].del(chann.id)
+    trace "cleaned up channel", id = chann.id, oid = $chann.oid
 
-  when defined(libp2p_expensive_metrics):
-    libp2p_mplex_channels.set(
-      m.channels[chann.initiator].len.int64,
-      labelValues = [$chann.initiator, $m.connection.peerInfo])
+    when defined(libp2p_expensive_metrics):
+      libp2p_mplex_channels.set(
+        m.channels[chann.initiator].len.int64,
+        labelValues = [$chann.initiator, $m.connection.peerInfo])
+  except CancelledError:
+    # This is top-level procedure which will work as separate task, so it
+    # do not need to propogate CancelledError.
+    trace "Unexpected cancellation in mplex channel cleanup"
+  except CatchableError as exc:
+    trace "error cleaning up mplex channel", exc = exc.msg
 
 proc newStreamInternal*(m: Mplex,
                         initiator: bool = true,
@@ -90,7 +97,8 @@ proc newStreamInternal*(m: Mplex,
 
   m.channels[initiator][id] = result
 
-  asyncCheck m.cleanupChann(result)
+  # All the errors are handled inside `cleanupChann()` procedure.
+  discard m.cleanupChann(result)
 
   when defined(libp2p_expensive_metrics):
     libp2p_mplex_channels.set(
@@ -104,12 +112,13 @@ proc handleStream(m: Mplex, chann: LPChannel) {.async.} =
     await m.streamHandler(chann)
     trace "finished handling stream"
     doAssert(chann.closed, "connection not closed by handler!")
-  except CancelledError as exc:
-    trace "cancelling stream handler", exc = exc.msg
+  except CancelledError:
+    trace "Unexpected cancellation in stream handler"
     await chann.reset()
-    raise exc
+    # This is top-level procedure which will work as separate task, so it
+    # do not need to propogate CancelledError.
   except CatchableError as exc:
-    trace "exception in stream handler", exc = exc.msg
+    trace "Exception in mplex stream handler", exc = exc.msg
     await chann.reset()
 
 method handle*(m: Mplex) {.async, gcsafe.} =
@@ -145,7 +154,8 @@ method handle*(m: Mplex) {.async, gcsafe.} =
           tmp
         else:
           if m.channels[false].len > m.maxChannCount - 1:
-            warn "too many channels created by remote peer", allowedMax = MaxChannelCount
+            warn "too many channels created by remote peer",
+                  allowedMax = MaxChannelCount
             raise newTooManyChannels()
 
           let name = string.fromBytes(data)
@@ -160,12 +170,14 @@ method handle*(m: Mplex) {.async, gcsafe.} =
           trace "created channel"
 
           if not isNil(m.streamHandler):
-            # launch handler task
-            asyncCheck m.handleStream(channel)
+            # Launch handler task
+            # All the errors are handled inside `handleStream()` procedure.
+            discard m.handleStream(channel)
 
         of MessageType.MsgIn, MessageType.MsgOut:
           if data.len > MaxMsgSize:
-            warn "attempting to send a packet larger than allowed", allowed = MaxMsgSize
+            warn "attempting to send a packet larger than allowed",
+                 allowed = MaxMsgSize
             raise newLPStreamLimitError()
 
           trace "pushing data to channel"
@@ -180,8 +192,10 @@ method handle*(m: Mplex) {.async, gcsafe.} =
           trace "resetting channel"
           await channel.reset()
           trace "reset channel"
-  except CancelledError as exc:
-    raise exc
+  except CancelledError:
+    # This procedure is spawned as task and it is not part of public API, so
+    # there no way for this procedure to be cancelled implicitely.
+    trace "Unexpected cancellation in mplex handler"
   except CatchableError as exc:
     trace "Exception occurred", exception = exc.msg, oid = $m.oid
 

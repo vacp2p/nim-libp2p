@@ -120,10 +120,17 @@ proc onClose(c: ConnManager, conn: Connection) {.async.} =
   ##
   ## triggers the connections resource cleanup
   ##
-
-  await conn.join()
-  trace "triggering connection cleanup", peer = $conn.peerInfo
-  await c.cleanupConn(conn)
+  try:
+    await conn.join()
+    trace "triggering connection cleanup", peer = $conn.peerInfo
+    await c.cleanupConn(conn)
+  except CancelledError:
+    # This is top-level procedure which will work as separate task, so it
+    # do not need to propogate CancelledError.
+    trace "Unexpected cancellation in connection manager's cleanup"
+  except CatchableError as exc:
+    trace "Unexpected exception in connection manager's cleanup",
+          errMsg = exc.msg
 
 proc selectConn*(c: ConnManager,
                 peerId: PeerID,
@@ -184,8 +191,9 @@ proc storeConn*(c: ConnManager, conn: Connection) =
 
   c.conns[peerId].incl(conn)
 
-  # launch on close listener
-  asyncCheck c.onClose(conn)
+  # Launch on close listener
+  # All the errors are handled inside `onClose()` procedure.
+  discard c.onClose(conn)
   libp2p_peers.set(c.conns.len.int64)
 
   trace "stored connection", connections = c.conns.len, peer = peerId

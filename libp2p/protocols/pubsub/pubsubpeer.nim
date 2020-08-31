@@ -107,8 +107,10 @@ proc handle*(p: PubSubPeer, conn: Connection) {.async.} =
       if p.sendConn == conn:
         p.sendConn = nil
 
-  except CancelledError as exc:
-    raise exc
+  except CancelledError:
+    # This is top-level procedure which will work as separate task, so it
+    # do not need to propogate CancelledError.
+    trace "Unexpected cancellation in PubSubPeer.handle"
   except CatchableError as exc:
     trace "Exception occurred in PubSubPeer.handle", exc = exc.msg
   finally:
@@ -174,7 +176,9 @@ proc getSendConn(p: PubSubPeer): Future[Connection] {.async.} =
 
     trace "Caching new send connection", oid = $newConn.oid
     p.sendConn = newConn
-    asyncCheck p.handle(newConn) # start a read loop on the new connection
+    # Start a read loop on the new connection.
+    # All the errors are handled inside `handle()` procedure.
+    discard p.handle(newConn)
     return newConn
   except CancelledError as exc:
     raise exc
