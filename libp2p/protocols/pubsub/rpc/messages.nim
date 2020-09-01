@@ -50,6 +50,11 @@ type
       messages*: seq[Message]
       control*: Option[ControlMessage]
 
+func withSubs*(
+    T: type RPCMsg, topics: openArray[string], subscribe: bool): T =
+  T(
+    subscriptions: topics.mapIt(SubOpts(subscribe: subscribe, topic: it)))
+
 func shortLog*(s: ControlIHave): auto =
   (
     topicID: s.topicID.shortLog,

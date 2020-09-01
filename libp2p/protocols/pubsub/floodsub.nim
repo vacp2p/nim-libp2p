@@ -63,50 +63,38 @@ method unsubscribePeer*(f: FloodSub, peer: PeerID) =
 
 method rpcHandler*(f: FloodSub,
                    peer: PubSubPeer,
-                   rpcMsgs: seq[RPCMsg]) {.async.} =
-  await procCall PubSub(f).rpcHandler(peer, rpcMsgs)
+                   rpcMsg: RPCMsg) {.async.} =
+  await procCall PubSub(f).rpcHandler(peer, rpcMsg)
 
-  for m in rpcMsgs:                                  # for all RPC messages
-    if m.messages.len > 0:                           # if there are any messages
-      var toSendPeers = initHashSet[PubSubPeer]()
-      for msg in m.messages:                         # for every message
-        let msgId = f.msgIdProvider(msg)
-        logScope: msgId
+  if rpcMsg.messages.len > 0:                      # if there are any messages
+    var toSendPeers = initHashSet[PubSubPeer]()
+    for msg in rpcMsg.messages:                         # for every message
+      let msgId = f.msgIdProvider(msg)
+      logScope: msgId
 
-        if msgId notin f.seen:
-          f.seen.put(msgId)                          # add the message to the seen cache
+      if msgId notin f.seen:
+        f.seen.put(msgId)                          # add the message to the seen cache
 
-          if f.verifySignature and not msg.verify(peer.peerId):
-            trace "dropping message due to failed signature verification"
-            continue
+        if f.verifySignature and not msg.verify(peer.peerId):
+          trace "dropping message due to failed signature verification"
+          continue
 
-          if not (await f.validate(msg)):
-            trace "dropping message due to failed validation"
-            continue
+        if not (await f.validate(msg)):
+          trace "dropping message due to failed validation"
+          continue
 
-          for t in msg.topicIDs:                     # for every topic in the message
-            if t in f.floodsub:
-              toSendPeers.incl(f.floodsub[t])        # get all the peers interested in this topic
-            if t in f.topics:                        # check that we're subscribed to it
-              for h in f.topics[t].handler:
-                trace "calling handler for message", topicId = t,
-                                                     localPeer = f.peerInfo.id,
-                                                     fromPeer = msg.fromPeer.pretty
+        for t in msg.topicIDs:                     # for every topic in the message
+          if t in f.floodsub:
+            toSendPeers.incl(f.floodsub[t])        # get all the peers interested in this topic
 
-                try:
-                  await h(t, msg.data)                 # trigger user provided handler
-                except CancelledError as exc:
-                  raise exc
-                except CatchableError as exc:
-                  trace "exception in message handler", exc = exc.msg
+          await handleData(f, t, msg.data)
 
-        # forward the message to all peers interested in it
-        let published = await f.broadcast(
-          toSeq(toSendPeers),
-          RPCMsg(messages: m.messages),
-          DefaultSendTimeout)
+      # forward the message to all peers interested in it
+      f.broadcast(
+        toSeq(toSendPeers),
+        RPCMsg(messages: rpcMsg.messages))
 
-        trace "forwared message to peers", peers = published
+      trace "forwared message to peers", peers = toSendPeers.len
 
 method init*(f: FloodSub) =
   proc handler(conn: Connection, proto: string) {.async.} =
@@ -122,14 +110,13 @@ method init*(f: FloodSub) =
 
 method publish*(f: FloodSub,
                 topic: string,
-                data: seq[byte],
-                timeout: Duration = InfiniteDuration): Future[int] {.async.} =
+                data: seq[byte]): Future[int] {.async.} =
   # base returns always 0
-  discard await procCall PubSub(f).publish(topic, data, timeout)
+  discard await procCall PubSub(f).publish(topic, data)
 
   if data.len <= 0 or topic.len <= 0:
     trace "topic or data missing, skipping publish"
-    return
+    return 0
 
   if topic notin f.floodsub:
     trace "missing peers for topic, skipping publish"
@@ -137,33 +124,34 @@ method publish*(f: FloodSub,
 
   trace "publishing on topic", name = topic
   inc f.msgSeqno
-  let msg = Message.init(f.peerInfo, data, topic, f.msgSeqno, f.sign)
+  let
+    msg = Message.init(f.peerInfo, data, topic, f.msgSeqno, f.sign)
+    peers = toSeq(f.floodsub.getOrDefault(topic))
 
   # start the future but do not wait yet
-  let published = await f.broadcast(
-    toSeq(f.floodsub.getOrDefault(topic)),
-    RPCMsg(messages: @[msg]),
-    timeout)
+  f.broadcast(
+    peers,
+    RPCMsg(messages: @[msg]))
 
   when defined(libp2p_expensive_metrics):
     libp2p_pubsub_messages_published.inc(labelValues = [topic])
 
-  trace "published message to peers", peers = published,
+  trace "published message to peers", peers = peers.len,
                                       msg = msg.shortLog()
-  return published
+  return peers.len
 
 method unsubscribe*(f: FloodSub,
                     topics: seq[TopicPair]) {.async.} =
   await procCall PubSub(f).unsubscribe(topics)
 
   for p in f.peers.values:
-    discard await f.sendSubs(p, topics.mapIt(it.topic).deduplicate(), false)
+    f.sendSubs(p, topics.mapIt(it.topic).deduplicate(), false)
 
 method unsubscribeAll*(f: FloodSub, topic: string) {.async.} =
   await procCall PubSub(f).unsubscribeAll(topic)
 
   for p in f.peers.values:
-    discard await f.sendSubs(p, @[topic], false)
+    f.sendSubs(p, @[topic], false)
 
 method initPubSub*(f: FloodSub) =
   procCall PubSub(f).initPubSub()

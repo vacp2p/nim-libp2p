@@ -28,27 +28,26 @@ when defined(libp2p_expensive_metrics):
   declareCounter(libp2p_pubsub_skipped_received_messages, "number of received skipped messages", labels = ["id"])
   declareCounter(libp2p_pubsub_skipped_sent_messages, "number of sent skipped messages", labels = ["id"])
 
-const
-  DefaultSendTimeout* = 10.seconds
-
 type
   PubSubObserver* = ref object
     onRecv*: proc(peer: PubSubPeer; msgs: var RPCMsg) {.gcsafe, raises: [Defect].}
     onSend*: proc(peer: PubSubPeer; msgs: var RPCMsg) {.gcsafe, raises: [Defect].}
 
+  GetConn* = proc(): Future[(Connection, RPCMsg)] {.gcsafe.}
+
   PubSubPeer* = ref object of RootObj
-    switch*: Switch                     # switch instance to dial peers
+    getConn*: GetConn                   # callback to establish a new send connection
     codec*: string                      # the protocol that this peer joined from
     sendConn: Connection                # cached send connection
+    connections*: seq[Connection]       # connections to this peer
     peerId*: PeerID
     handler*: RPCHandler
     sentRpcCache: TimedCache[string]    # cache for already sent messages
     recvdRpcCache: TimedCache[string]   # cache for already received messages
     observers*: ref seq[PubSubObserver] # ref as in smart_ptr
-    subscribed*: bool                   # are we subscribed to this peer
     dialLock: AsyncLock
 
-  RPCHandler* = proc(peer: PubSubPeer, msg: seq[RPCMsg]): Future[void] {.gcsafe.}
+  RPCHandler* = proc(peer: PubSubPeer, msg: RPCMsg): Future[void] {.gcsafe.}
 
 func hash*(p: PubSubPeer): Hash =
   # int is either 32/64, so intptr basically, pubsubpeer is a ref
@@ -78,13 +77,15 @@ proc sendObservers(p: PubSubPeer, msg: var RPCMsg) =
 
 proc handle*(p: PubSubPeer, conn: Connection) {.async.} =
   logScope:
+    oid = $conn.oid
     peer = p.id
+    closed = conn.closed
 
-  debug "starting pubsub read loop for peer", closed = conn.closed
+  debug "starting pubsub read loop"
   try:
     try:
       while not conn.atEof:
-        trace "waiting for data", closed = conn.closed
+        trace "waiting for data"
         let data = await conn.readLp(64 * 1024)
         let digest = $(sha256.digest(data))
         trace "read data from peer", data = data.shortLog
@@ -111,10 +112,9 @@ proc handle*(p: PubSubPeer, conn: Connection) {.async.} =
               # metrics
               libp2p_pubsub_received_messages.inc(labelValues = [p.id, t])
 
-        await p.handler(p, @[msg])
+        await p.handler(p, msg)
         p.recvdRpcCache.put(digest)
     finally:
-      debug "exiting pubsub peer read loop"
       await conn.close()
 
       if p.sendConn == conn:
@@ -124,9 +124,14 @@ proc handle*(p: PubSubPeer, conn: Connection) {.async.} =
     raise exc
   except CatchableError as exc:
     trace "Exception occurred in PubSubPeer.handle", exc = exc.msg
+  finally:
+    debug "exiting pubsub read loop"
 
 proc getSendConn(p: PubSubPeer): Future[Connection] {.async.} =
-  # get a cached send connection or create a new one
+  ## get a cached send connection or create a new one - will return nil if
+  ## getting a new connection fails
+  ##
+
   block: # check if there's an existing connection that can be reused
     let current = p.sendConn
 
@@ -147,7 +152,8 @@ proc getSendConn(p: PubSubPeer): Future[Connection] {.async.} =
     # and later close one of them, other implementations such as rust-libp2p
     # become deaf to our messages (potentially due to the clean-up associated
     # with closing connections). To prevent this, we use a lock that ensures
-    # that only a single dial will be performed for each peer.
+    # that only a single dial will be performed for each peer and send the
+    # subscription table every time we reconnect.
     #
     # Nevertheless, this approach is still quite problematic because the gossip
     # sends and their respective dials may be started from the mplex read loop.
@@ -172,24 +178,35 @@ proc getSendConn(p: PubSubPeer): Future[Connection] {.async.} =
           return current
 
     # Grab a new send connection
-    let newConn = await p.switch.dial(p.peerId, p.codec) # ...and here
+    let (newConn, handshake) = await p.getConn() # ...and here
     if newConn.isNil:
       return nil
+
+    trace "Sending handshake", oid = $newConn.oid, handshake = shortLog(handshake)
+    await newConn.writeLp(encodeRpcMsg(handshake))
 
     trace "Caching new send connection", oid = $newConn.oid
     p.sendConn = newConn
     asyncCheck p.handle(newConn) # start a read loop on the new connection
     return newConn
-
+  except CancelledError as exc:
+    raise exc
+  except CatchableError as exc:
+    return nil
   finally:
     if p.dialLock.locked:
       p.dialLock.release()
 
-proc send*(
-  p: PubSubPeer,
-  msg: RPCMsg,
-  timeout: Duration = DefaultSendTimeout) {.async.} =
+proc connectImpl*(p: PubSubPeer) {.async.} =
+  try:
+    discard await getSendConn(p)
+  except CatchableError as exc:
+    debug "Could not connect to pubsub peer", err = exc.msg
 
+proc connect*(p: PubSubPeer) =
+  asyncCheck(connectImpl(p))
+
+proc sendImpl(p: PubSubPeer, msg: RPCMsg) {.async.} =
   doAssert(not isNil(p), "pubsubpeer nil!")
 
   logScope:
@@ -217,16 +234,15 @@ proc send*(
       libp2p_pubsub_skipped_sent_messages.inc(labelValues = [p.id])
     return
 
-  var conn: Connection
+  var conn = await p.getSendConn()
   try:
     trace "about to send message"
-    conn = await p.getSendConn()
-
     if conn == nil:
       debug "Couldn't get send connection, dropping message"
       return
+
     trace "sending encoded msgs to peer", connId = $conn.oid
-    await conn.writeLp(encoded).wait(timeout)
+    await conn.writeLp(encoded)
 
     p.sentRpcCache.put(digest)
     trace "sent pubsub message to remote", connId = $conn.oid
@@ -238,22 +254,32 @@ proc send*(
           libp2p_pubsub_sent_messages.inc(labelValues = [p.id, t])
 
   except CatchableError as exc:
+    # Because we detach the send call from the currently executing task using
+    # asyncCheck, no exceptions may leak out of it
     trace "unable to send to remote", exc = exc.msg
     # Next time sendConn is used, it will be have its close flag set and thus
     # will be recycled
     if not isNil(conn):
-      await conn.close()
+      await conn.close() # This will clean up the send connection
 
-    raise exc
+    if exc is CancelledError: # TODO not handled
+      debug "Send cancelled"
+
+    # We'll ask for a new send connection whenever possible
+    if p.sendConn == conn:
+      p.sendConn = nil
+
+proc send*(p: PubSubPeer, msg: RPCMsg) =
+  asyncCheck sendImpl(p, msg)
 
 proc `$`*(p: PubSubPeer): string =
-  p.id
+  $p.peerId
 
 proc newPubSubPeer*(peerId: PeerID,
-                    switch: Switch,
+                    getConn: GetConn,
                     codec: string): PubSubPeer =
   new result
-  result.switch = switch
+  result.getConn = getConn
   result.codec = codec
   result.peerId = peerId
   result.sentRpcCache = newTimedCache[string](2.minutes)

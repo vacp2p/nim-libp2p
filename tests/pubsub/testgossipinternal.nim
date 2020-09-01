@@ -16,6 +16,13 @@ type
 
 proc noop(data: seq[byte]) {.async, gcsafe.} = discard
 
+proc getPubSubPeer(p: TestGossipSub, peerId: PeerID): auto =
+  proc getConn(): Future[(Connection, RPCMsg)] {.async.} =
+    let conn =  await p.switch.dial(peerId, GossipSubCodec)
+    return (conn, RPCMsg.withSubs(toSeq(p.topics.keys), true))
+
+  newPubSubPeer(peerId, getConn, GossipSubCodec)
+
 proc randomPeerInfo(): PeerInfo =
   PeerInfo.init(PrivateKey.random(ECDSA, rng[]).get())
 
@@ -39,7 +46,7 @@ suite "GossipSub internal":
         conns &= conn
         let peerInfo = randomPeerInfo()
         conn.peerInfo = peerInfo
-        let peer = newPubSubPeer(peerInfo.peerId, gossipSub.switch, GossipSubCodec)
+        let peer = gossipSub.getPubSubPeer(peerInfo.peerId)
         gossipSub.peers[peerInfo.peerId] = peer
         gossipSub.mesh[topic].incl(peer)
 
@@ -69,7 +76,7 @@ suite "GossipSub internal":
         conns &= conn
         let peerInfo = PeerInfo.init(PrivateKey.random(ECDSA, rng[]).get())
         conn.peerInfo = peerInfo
-        let peer = newPubSubPeer(peerInfo.peerId, gossipsub.switch, GossipSubCodec)
+        let peer = gossipSub.getPubSubPeer(peerInfo.peerId)
         gossipSub.peers[peerInfo.peerId] = peer
         gossipSub.mesh[topic].incl(peer)
 
@@ -89,7 +96,7 @@ suite "GossipSub internal":
     proc testRun(): Future[bool] {.async.} =
       let gossipSub = TestGossipSub.init(newStandardSwitch())
 
-      proc handler(peer: PubSubPeer, msg: seq[RPCMsg]) {.async.} =
+      proc handler(peer: PubSubPeer, msg: RPCMsg) {.async.} =
         discard
 
       let topic = "foobar"
@@ -101,7 +108,7 @@ suite "GossipSub internal":
         conns &= conn
         var peerInfo = randomPeerInfo()
         conn.peerInfo = peerInfo
-        let peer = newPubSubPeer(peerInfo.peerId, gossipsub.switch, GossipSubCodec)
+        let peer = gossipSub.getPubSubPeer(peerInfo.peerId)
         peer.handler = handler
         gossipSub.gossipsub[topic].incl(peer)
 
@@ -121,7 +128,7 @@ suite "GossipSub internal":
     proc testRun(): Future[bool] {.async.} =
       let gossipSub = TestGossipSub.init(newStandardSwitch())
 
-      proc handler(peer: PubSubPeer, msg: seq[RPCMsg]) {.async.} =
+      proc handler(peer: PubSubPeer, msg: RPCMsg) {.async.} =
         discard
 
       let topic = "foobar"
@@ -135,7 +142,7 @@ suite "GossipSub internal":
         conns &= conn
         let peerInfo = PeerInfo.init(PrivateKey.random(ECDSA, rng[]).get())
         conn.peerInfo = peerInfo
-        let peer = newPubSubPeer(peerInfo.peerId, gossipsub.switch, GossipSubCodec)
+        let peer = gossipSub.getPubSubPeer(peerInfo.peerId)
         peer.handler = handler
         gossipSub.fanout[topic].incl(peer)
 
@@ -156,7 +163,7 @@ suite "GossipSub internal":
     proc testRun(): Future[bool] {.async.} =
       let gossipSub = TestGossipSub.init(newStandardSwitch())
 
-      proc handler(peer: PubSubPeer, msg: seq[RPCMsg]) {.async.} =
+      proc handler(peer: PubSubPeer, msg: RPCMsg) {.async.} =
         discard
 
       let topic1 = "foobar1"
@@ -173,7 +180,7 @@ suite "GossipSub internal":
         conns &= conn
         let peerInfo = randomPeerInfo()
         conn.peerInfo = peerInfo
-        let peer = newPubSubPeer(peerInfo.peerId, gossipsub.switch, GossipSubCodec)
+        let peer = gossipSub.getPubSubPeer(peerInfo.peerId)
         peer.handler = handler
         gossipSub.fanout[topic1].incl(peer)
         gossipSub.fanout[topic2].incl(peer)
@@ -197,7 +204,7 @@ suite "GossipSub internal":
     proc testRun(): Future[bool] {.async.} =
       let gossipSub = TestGossipSub.init(newStandardSwitch())
 
-      proc handler(peer: PubSubPeer, msg: seq[RPCMsg]) {.async.} =
+      proc handler(peer: PubSubPeer, msg: RPCMsg) {.async.} =
         discard
 
       let topic = "foobar"
@@ -212,7 +219,7 @@ suite "GossipSub internal":
         conns &= conn
         let peerInfo = randomPeerInfo()
         conn.peerInfo = peerInfo
-        let peer = newPubSubPeer(peerInfo.peerId, gossipsub.switch, GossipSubCodec)
+        let peer = gossipSub.getPubSubPeer(peerInfo.peerId)
         peer.handler = handler
         if i mod 2 == 0:
           gossipSub.fanout[topic].incl(peer)
@@ -225,7 +232,7 @@ suite "GossipSub internal":
         conns &= conn
         let peerInfo = randomPeerInfo()
         conn.peerInfo = peerInfo
-        let peer = newPubSubPeer(peerInfo.peerId, gossipsub.switch, GossipSubCodec)
+        let peer = gossipSub.getPubSubPeer(peerInfo.peerId)
         peer.handler = handler
         gossipSub.gossipsub[topic].incl(peer)
 
@@ -262,7 +269,7 @@ suite "GossipSub internal":
     proc testRun(): Future[bool] {.async.} =
       let gossipSub = TestGossipSub.init(newStandardSwitch())
 
-      proc handler(peer: PubSubPeer, msg: seq[RPCMsg]) {.async.} =
+      proc handler(peer: PubSubPeer, msg: RPCMsg) {.async.} =
         discard
 
       let topic = "foobar"
@@ -274,7 +281,7 @@ suite "GossipSub internal":
         conns &= conn
         let peerInfo = randomPeerInfo()
         conn.peerInfo = peerInfo
-        let peer = newPubSubPeer(peerInfo.peerId, gossipsub.switch, GossipSubCodec)
+        let peer = gossipSub.getPubSubPeer(peerInfo.peerId)
         peer.handler = handler
         if i mod 2 == 0:
           gossipSub.fanout[topic].incl(peer)
@@ -307,7 +314,7 @@ suite "GossipSub internal":
     proc testRun(): Future[bool] {.async.} =
       let gossipSub = TestGossipSub.init(newStandardSwitch())
 
-      proc handler(peer: PubSubPeer, msg: seq[RPCMsg]) {.async.} =
+      proc handler(peer: PubSubPeer, msg: RPCMsg) {.async.} =
         discard
 
       let topic = "foobar"
@@ -319,7 +326,7 @@ suite "GossipSub internal":
         conns &= conn
         let peerInfo = randomPeerInfo()
         conn.peerInfo = peerInfo
-        let peer = newPubSubPeer(peerInfo.peerId, gossipSub.switch, GossipSubCodec)
+        let peer = gossipSub.getPubSubPeer(peerInfo.peerId)
         peer.handler = handler
         if i mod 2 == 0:
           gossipSub.mesh[topic].incl(peer)
@@ -352,7 +359,7 @@ suite "GossipSub internal":
     proc testRun(): Future[bool] {.async.} =
       let gossipSub = TestGossipSub.init(newStandardSwitch())
 
-      proc handler(peer: PubSubPeer, msg: seq[RPCMsg]) {.async.} =
+      proc handler(peer: PubSubPeer, msg: RPCMsg) {.async.} =
         discard
 
       let topic = "foobar"
@@ -364,7 +371,7 @@ suite "GossipSub internal":
         conns &= conn
         let peerInfo = randomPeerInfo()
         conn.peerInfo = peerInfo
-        let peer = newPubSubPeer(peerInfo.peerId, gossipSub.switch, GossipSubCodec)
+        let peer = gossipSub.getPubSubPeer(peerInfo.peerId)
         peer.handler = handler
         if i mod 2 == 0:
           gossipSub.mesh[topic].incl(peer)
