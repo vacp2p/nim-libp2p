@@ -556,7 +556,7 @@ method initPubSub*(g: GossipSub) =
   procCall FloodSub(g).initPubSub()
 
   randomize()
-  g.mcache = newMCache(GossipSubHistoryGossip, GossipSubHistoryLength)
+  g.mcache = MCache.init(GossipSubHistoryGossip, GossipSubHistoryLength)
   g.mesh = initTable[string, HashSet[PubSubPeer]]()     # meshes - topic to peer
   g.fanout = initTable[string, HashSet[PubSubPeer]]()   # fanout - topic to peer
   g.gossipsub = initTable[string, HashSet[PubSubPeer]]()# topic to peer map of all gossipsub peers

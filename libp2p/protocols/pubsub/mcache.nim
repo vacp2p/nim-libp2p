@@ -7,17 +7,18 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import chronos, chronicles
-import tables, options, sets, sequtils
-import rpc/[messages], timedcache
+import std/[sets, tables, options]
+import rpc/[messages]
+
+export tables, messages, options
 
 type
   CacheEntry* = object
     mid*: string
-    msg*: Message
+    topicIDs*: seq[string]
 
-  MCache* = ref object of RootObj
-    msgs*: TimedCache[Message]
+  MCache* = object of RootObj
+    msgs*: Table[string, Message]
     history*: seq[seq[CacheEntry]]
     historySize*: Natural
     windowSize*: Natural
@@ -30,46 +31,38 @@ proc get*(c: MCache, mid: string): Option[Message] =
 proc contains*(c: MCache, mid: string): bool =
   c.get(mid).isSome
 
-proc put*(c: MCache, msgId: string, msg: Message) =
-  proc handler(key: string, val: Message) {.gcsafe.} =
-    ## make sure we remove the message from history
-    ## to keep things consisten
-    c.history.applyIt(
-      it.filterIt(it.mid != msgId)
-    )
-
+proc put*(c: var MCache, msgId: string, msg: Message) =
   if msgId notin c.msgs:
-    c.msgs.put(msgId, msg, handler = handler)
-    c.history[0].add(CacheEntry(mid: msgId, msg: msg))
+    c.msgs[msgId] = msg
+    c.history[0].add(CacheEntry(mid: msgId, topicIDs: msg.topicIDs))
 
 proc window*(c: MCache, topic: string): HashSet[string] =
   result = initHashSet[string]()
 
-  let len =
-    if c.windowSize > c.history.len:
-      c.history.len
-    else:
-      c.windowSize
+  let
+    len = min(c.windowSize, c.history.len)
 
-  if c.history.len > 0:
-    for slot in c.history[0..<len]:
-      for entry in slot:
-        for t in entry.msg.topicIDs:
-          if t == topic:
-            result.incl(entry.mid)
-            break
+  for i in 0..<len:
+    for entry in c.history[i]:
+      for t in entry.topicIDs:
+        if t == topic:
+          result.incl(entry.mid)
+          break
 
-proc shift*(c: MCache) =
+proc shift*(c: var MCache) =
   while c.history.len > c.historySize:
     for entry in c.history.pop():
       c.msgs.del(entry.mid)
 
   c.history.insert(@[])
 
-proc newMCache*(window: Natural, history: Natural): MCache =
-  new result
-  result.historySize = history
-  result.windowSize = window
-  result.history = newSeq[seq[CacheEntry]]()
-  result.history.add(@[]) # initialize with empty slot
-  result.msgs = newTimedCache[Message](2.minutes)
+proc init*(T: type MCache, window, history: Natural): T =
+  var res = T(
+    history: newSeqOfCap[seq[CacheEntry]](history),
+    historySize: history,
+    windowSize: window
+  )
+
+  res.history.add(newSeq[CacheEntry]())
+
+  res

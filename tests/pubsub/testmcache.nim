@@ -15,14 +15,14 @@ proc randomPeerID(): PeerID =
 
 suite "MCache":
   test "put/get":
-    var mCache = newMCache(3, 5)
+    var mCache = MCache.init(3, 5)
     var msg = Message(fromPeer: randomPeerID(), seqno: "12345".toBytes())
     let msgId = defaultMsgIdProvider(msg)
     mCache.put(msgId, msg)
     check mCache.get(msgId).isSome and mCache.get(msgId).get() == msg
 
   test "window":
-    var mCache = newMCache(3, 5)
+    var mCache = MCache.init(3, 5)
 
     for i in 0..<3:
       var msg = Message(fromPeer: randomPeerID(),
@@ -43,7 +43,7 @@ suite "MCache":
     check mCache.get(id).get().topicIDs[0] == "foo"
 
   test "shift - shift 1 window at a time":
-    var mCache = newMCache(1, 5)
+    var mCache = MCache.init(1, 5)
 
     for i in 0..<3:
       var msg = Message(fromPeer: randomPeerID(),
@@ -73,7 +73,7 @@ suite "MCache":
     check mCache.window("baz").len == 0
 
   test "shift - 2 windows at a time":
-    var mCache = newMCache(1, 5)
+    var mCache = MCache.init(1, 5)
 
     for i in 0..<3:
       var msg = Message(fromPeer: randomPeerID(),
