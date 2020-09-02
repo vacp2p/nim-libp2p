@@ -50,19 +50,14 @@ proc window*(c: MCache, topic: string): HashSet[string] =
           break
 
 proc shift*(c: var MCache) =
-  while c.history.len > c.historySize:
-    for entry in c.history.pop():
-      c.msgs.del(entry.mid)
+  for entry in c.history.pop():
+    c.msgs.del(entry.mid)
 
   c.history.insert(@[])
 
 proc init*(T: type MCache, window, history: Natural): T =
-  var res = T(
-    history: newSeqOfCap[seq[CacheEntry]](history),
+  T(
+    history: newSeq[seq[CacheEntry]](history),
     historySize: history,
     windowSize: window
   )
-
-  res.history.add(newSeq[CacheEntry]())
-
-  res
