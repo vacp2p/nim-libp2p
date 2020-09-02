@@ -193,7 +193,7 @@ proc storeConn*(c: ConnManager, conn: Connection) =
 
   # Launch on close listener
   # All the errors are handled inside `onClose()` procedure.
-  discard c.onClose(conn)
+  asyncSpawn c.onClose(conn)
   libp2p_peers.set(c.conns.len.int64)
 
   trace "stored connection", connections = c.conns.len, peer = peerId

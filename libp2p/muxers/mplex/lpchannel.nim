@@ -169,7 +169,7 @@ method reset*(s: LPChannel) {.base, async, gcsafe.} =
 
   trace "resetting channel"
 
-  discard s.resetMessage()
+  asyncSpawn s.resetMessage()
 
   try:
     # drain the buffer before closing
@@ -219,7 +219,7 @@ method close*(s: LPChannel) {.async, gcsafe.} =
 
   s.closedLocal = true
   # All the errors are handled inside `closeInternal()` procedure.
-  discard closeInternal()
+  asyncSpawn closeInternal()
 
 method initStream*(s: LPChannel) =
   if s.objName.len == 0:

@@ -178,7 +178,7 @@ proc getSendConn(p: PubSubPeer): Future[Connection] {.async.} =
     p.sendConn = newConn
     # Start a read loop on the new connection.
     # All the errors are handled inside `handle()` procedure.
-    discard p.handle(newConn)
+    asyncSpawn p.handle(newConn)
     return newConn
   except CancelledError as exc:
     raise exc

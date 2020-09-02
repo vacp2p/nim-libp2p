@@ -368,7 +368,7 @@ proc internalConnect(s: Switch,
             errMsg = exc.msg
 
   # All the errors are handled inside `cleanup()` procedure.
-  discard peerCleanup()
+  asyncSpawn peerCleanup()
 
   await s.triggerConnEvent(
     peerId, ConnEvent(kind: ConnEventKind.Connected, incoming: false))
@@ -528,10 +528,9 @@ proc muxerHandler(s: Switch, muxer: Muxer) {.async, gcsafe.} =
               errMsg = exc.msg
 
     # All the errors are handled inside `peerCleanup()` procedure.
-    discard peerCleanup()
-
+    asyncSpawn peerCleanup()
     # All the errors are handled inside `peerStartup()` procedure.
-    discard peerStartup()
+    asyncSpawn peerStartup()
 
   except CancelledError as exc:
     await muxer.close()

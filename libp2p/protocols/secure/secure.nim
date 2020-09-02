@@ -75,7 +75,7 @@ proc handleConn*(s: Secure,
 
   if not isNil(sconn):
     # All the errors are handled inside `cleanup()` procedure.
-    discard cleanup()
+    asyncSpawn cleanup()
 
   return sconn
 

@@ -85,7 +85,7 @@ proc connHandler*(t: TcpTransport,
 
   t.clients.add(client)
   # All the errors are handled inside `cleanup()` procedure.
-  discard cleanup()
+  asyncSpawn cleanup()
   result = conn
 
 proc connCb(server: StreamServer,
