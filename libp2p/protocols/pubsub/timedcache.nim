@@ -7,73 +7,59 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import tables
-import chronos, chronicles
+import std/[heapqueue, sets]
 
-logScope:
-  topics = "timedcache"
+import chronos/timer
 
 const Timeout* = 10.seconds # default timeout in ms
 
 type
-  ExpireHandler*[V] = proc(key: string, val: V) {.gcsafe.}
-  TimedEntry*[V] = object of RootObj
-    val: V
-    handler: ExpireHandler[V]
+  TimedEntry*[K] = ref object of RootObj
+    key: K
+    expiresAt: Moment
 
-  TimedCache*[V] = ref object of RootObj
-    cache*: Table[string, TimedEntry[V]]
-    onExpire*: ExpireHandler[V]
-    timeout*: Duration
+  TimedCache*[K] = object of RootObj
+    expiries: HeapQueue[TimedEntry[K]]
+    entries: HashSet[K]
+    timeout: Duration
 
-# TODO: This belong in chronos, temporary left here until chronos is updated
-proc addTimer*(at: Duration, cb: CallbackFunc, udata: pointer = nil) =
-  ## Arrange for the callback ``cb`` to be called at the given absolute
-  ## timestamp ``at``. You can also pass ``udata`` to callback.
-  addTimer(Moment.fromNow(at), cb, udata)
+func `<`*(a, b: TimedEntry): bool =
+  a.expiresAt < b.expiresAt
 
-proc put*[V](t: TimedCache[V],
-             key: string,
-             val: V = "",
-             timeout: Duration,
-             handler: ExpireHandler[V] = nil) =
-  trace "adding entry to timed cache", key = key
-  t.cache[key] = TimedEntry[V](val: val, handler: handler)
+func expire*(t: var TimedCache, now: Moment = Moment.now()) =
+  while t.expiries.len() > 0 and t.expiries[0].expiresAt < now:
+    t.entries.excl(t.expiries.pop().key)
 
-  addTimer(
-    timeout,
-    proc (arg: pointer = nil) {.gcsafe.} =
-      trace "deleting expired entry from timed cache", key = key
-      if key in t.cache:
-        let entry = t.cache[key]
-        t.cache.del(key)
-        if not isNil(entry.handler):
-          entry.handler(key, entry.val)
+func del*[K](t: var TimedCache[K], key: K): bool =
+  # Removes existing key from cache, returning false if it was not present
+  if not t.entries.missingOrExcl(key):
+    for i in 0..<t.expiries.len:
+      if t.expiries[i].key == key:
+        t.expiries.del(i)
+        break
+    true
+  else:
+    false
+
+func put*[K](t: var TimedCache[K], k: K, now = Moment.now()): bool =
+  # Puts k in cache, returning true if the item was already present and false
+  # otherwise. If the item was already present, its expiry timer will be
+  # refreshed.
+  t.expire(now)
+
+  var res = t.del(k) # Refresh existing item
+
+  t.entries.incl(k)
+  t.expiries.push(TimedEntry[K](key: k, expiresAt: now + t.timeout))
+
+  res
+
+func contains*[K](t: TimedCache[K], k: K): bool =
+  k in t.entries
+
+func init*[K](T: type TimedCache[K], timeout: Duration = Timeout): T =
+  T(
+    expiries: initHeapQueue[TimedEntry[K]](),
+    entries: initHashSet[K](),
+    timeout: timeout
   )
-
-proc put*[V](t: TimedCache[V],
-             key: string,
-             val: V = "",
-             handler: ExpireHandler[V] = nil) =
-  t.put(key, val, t.timeout, handler)
-
-proc contains*[V](t: TimedCache[V], key: string): bool =
-  t.cache.contains(key)
-
-proc del*[V](t: TimedCache[V], key: string) =
-  trace "deleting entry from timed cache", key = key
-  t.cache.del(key)
-
-proc get*[V](t: TimedCache[V], key: string): V =
-  t.cache[key].val
-
-proc `[]`*[V](t: TimedCache[V], key: string): V =
-  t.get(key)
-
-proc `[]=`*[V](t: TimedCache[V], key: string, val: V): V =
-  t.put(key, val)
-
-proc newTimedCache*[V](timeout: Duration = Timeout): TimedCache[V] =
-  new result
-  result.cache = initTable[string, TimedEntry[V]]()
-  result.timeout = timeout

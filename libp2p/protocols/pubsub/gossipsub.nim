@@ -7,20 +7,19 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import std/[tables, sets, options, sequtils, random]
+import std/[options, random, sequtils, sets, tables]
 import chronos, chronicles, metrics
-import pubsub,
-       floodsub,
-       pubsubpeer,
-       peertable,
-       mcache,
-       timedcache,
-       rpc/[messages, message],
+import ./pubsub,
+       ./floodsub,
+       ./pubsubpeer,
+       ./peertable,
+       ./mcache,
+       ./timedcache,
+       ./rpc/[messages, message],
        ../protocol,
-       ../../peerinfo,
        ../../stream/connection,
+       ../../peerinfo,
        ../../peerid,
-       ../../errors,
        ../../utility
 
 logScope:
@@ -379,47 +378,36 @@ method rpcHandler*(g: GossipSub,
                   rpcMsg: RPCMsg) {.async.} =
   await procCall PubSub(g).rpcHandler(peer, rpcMsg)
 
-  if rpcMsg.messages.len > 0:                           # if there are any messages
-    var toSendPeers: HashSet[PubSubPeer]
-    for msg in rpcMsg.messages:                         # for every message
-      let msgId = g.msgIdProvider(msg)
-      logScope: msgId
+  for msg in rpcMsg.messages:                         # for every message
+    let msgId = g.msgIdProvider(msg)
+    logScope:
+      msgId
+      peer = peer.id
 
-      if msgId in g.seen:
-        trace "message already processed, skipping"
-        continue
+    if g.seen.put(msgId):
+      trace "Dropping already-seen message"
+      continue
 
-      trace "processing message"
+    g.mcache.put(msgId, msg)
 
-      g.seen.put(msgId)                        # add the message to the seen cache
+    if g.verifySignature and not msg.verify(peer.peerId):
+      debug "Dropping message due to failed signature verification"
+      continue
 
-      if g.verifySignature and not msg.verify(peer.peerId):
-        trace "dropping message due to failed signature verification"
-        continue
+    if not (await g.validate(msg)):
+      trace "Dropping message due to failed validation"
+      continue
 
-      if not (await g.validate(msg)):
-        trace "dropping message due to failed validation"
-        continue
+    var toSendPeers = initHashSet[PubSubPeer]()
+    for t in msg.topicIDs:                     # for every topic in the message
+      g.floodsub.withValue(t, peers): toSendPeers.incl(peers[])
+      g.mesh.withValue(t, peers): toSendPeers.incl(peers[])
 
-      # this shouldn't happen
-      if g.peerInfo.peerId == msg.fromPeer:
-        trace "skipping messages from self"
-        continue
+      await handleData(g, t, msg.data)
 
-      for t in msg.topicIDs:                     # for every topic in the message
-        if t in g.floodsub:
-          toSendPeers.incl(g.floodsub[t])        # get all floodsub peers for topic
-
-        if t in g.mesh:
-          toSendPeers.incl(g.mesh[t])            # get all mesh peers for topic
-
-        await handleData(g, t, msg.data)
-
-    # forward the message to all peers interested in it
-    g.broadcast(
-      toSeq(toSendPeers),
-      RPCMsg(messages: rpcMsg.messages))
-
+    # In theory, if topics are the same in all messages, we could batch - we'd
+    # also have to be careful to only include validated messages
+    g.broadcast(toSeq(toSendPeers), RPCMsg(messages: @[msg]))
     trace "forwared message to peers", peers = toSendPeers.len
 
   if rpcMsg.control.isSome:
@@ -451,12 +439,13 @@ method unsubscribe*(g: GossipSub,
 
   for (topic, handler) in topics:
     # delete from mesh only if no handlers are left
-    if g.topics[topic].handler.len <= 0:
+    if topic notin g.topics:
       if topic in g.mesh:
-        let peers = g.mesh.getOrDefault(topic)
+        let peers = g.mesh[topic]
         g.mesh.del(topic)
 
-        let prune = RPCMsg(control: some(ControlMessage(prune: @[ControlPrune(topicID: topic)])))
+        let prune = RPCMsg(
+          control: some(ControlMessage(prune: @[ControlPrune(topicID: topic)])))
         g.broadcast(toSeq(peers), prune)
 
 method unsubscribeAll*(g: GossipSub, topic: string) {.async.} =
@@ -474,9 +463,12 @@ method publish*(g: GossipSub,
                 data: seq[byte]): Future[int] {.async.} =
   # base returns always 0
   discard await procCall PubSub(g).publish(topic, data)
-  trace "publishing message on topic", topic, data = data.shortLog
+
+  logScope: topic
+  trace "Publishing message on topic", data = data.shortLog
 
   if topic.len <= 0: # data could be 0/empty
+    debug "Empty topic, skipping publish"
     return 0
 
   var peers: HashSet[PubSubPeer]
@@ -497,28 +489,34 @@ method publish*(g: GossipSub,
     # time
     g.lastFanoutPubSub[topic] = Moment.fromNow(GossipSubFanoutTTL)
 
+  if peers.len == 0:
+    debug "No peers for topic, skipping publish"
+    return 0
+
   inc g.msgSeqno
   let
     msg = Message.init(g.peerInfo, data, topic, g.msgSeqno, g.sign)
     msgId = g.msgIdProvider(msg)
 
-  trace "created new message", msg, topic, peers = peers.len
+  logScope: msgId
 
-  if msgId notin g.mcache:
-    g.mcache.put(msgId, msg)
+  trace "Created new message", msg = shortLog(msg), peers = peers.len
 
-  if peers.len > 0:
-    g.broadcast(toSeq(peers), RPCMsg(messages: @[msg]))
-    when defined(libp2p_expensive_metrics):
-      if peers.len > 0:
-        libp2p_pubsub_messages_published.inc(labelValues = [topic])
-
-    trace "published message to peers", peers = peers.len,
-                                        msg = msg.shortLog()
-    return peers.len
-  else:
-    debug "No peers for gossip message", topic, msg = msg.shortLog()
+  if g.seen.put(msgId):
+    # custom msgid providers might cause this
+    trace "Dropping already-seen message"
     return 0
+
+  g.mcache.put(msgId, msg)
+
+  g.broadcast(toSeq(peers), RPCMsg(messages: @[msg]))
+  when defined(libp2p_expensive_metrics):
+    if peers.len > 0:
+      libp2p_pubsub_messages_published.inc(labelValues = [topic])
+
+  trace "Published message to peers"
+
+  return peers.len
 
 method start*(g: GossipSub) {.async.} =
   trace "gossipsub start"

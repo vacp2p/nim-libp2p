@@ -10,7 +10,7 @@
 import std/[sets, tables, options]
 import rpc/[messages]
 
-export tables, messages, options
+export sets, tables, messages, options
 
 type
   CacheEntry* = object
@@ -23,20 +23,20 @@ type
     historySize*: Natural
     windowSize*: Natural
 
-proc get*(c: MCache, mid: string): Option[Message] =
+func get*(c: MCache, mid: string): Option[Message] =
   result = none(Message)
   if mid in c.msgs:
     result = some(c.msgs[mid])
 
-proc contains*(c: MCache, mid: string): bool =
+func contains*(c: MCache, mid: string): bool =
   c.get(mid).isSome
 
-proc put*(c: var MCache, msgId: string, msg: Message) =
+func put*(c: var MCache, msgId: string, msg: Message) =
   if msgId notin c.msgs:
     c.msgs[msgId] = msg
     c.history[0].add(CacheEntry(mid: msgId, topicIDs: msg.topicIDs))
 
-proc window*(c: MCache, topic: string): HashSet[string] =
+func window*(c: MCache, topic: string): HashSet[string] =
   result = initHashSet[string]()
 
   let
@@ -49,13 +49,13 @@ proc window*(c: MCache, topic: string): HashSet[string] =
           result.incl(entry.mid)
           break
 
-proc shift*(c: var MCache) =
+func shift*(c: var MCache) =
   for entry in c.history.pop():
     c.msgs.del(entry.mid)
 
   c.history.insert(@[])
 
-proc init*(T: type MCache, window, history: Natural): T =
+func init*(T: type MCache, window, history: Natural): T =
   T(
     history: newSeq[seq[CacheEntry]](history),
     historySize: history,
