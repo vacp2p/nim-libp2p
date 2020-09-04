@@ -86,7 +86,7 @@ func shortLog*(c: ControlMessage): auto =
 
 func shortLog*(msg: Message): auto =
   (
-    fromPeer: msg.fromPeer,
+    fromPeer: msg.fromPeer.pretty,
     data: msg.data.shortLog,
     seqno: msg.seqno.shortLog,
     topicIDs: $msg.topicIDs,
