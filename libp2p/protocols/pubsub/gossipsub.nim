@@ -283,7 +283,8 @@ method subscribeTopic*(g: GossipSub,
                        topic: string,
                        subscribe: bool,
                        peer: PubSubPeer) {.gcsafe.} =
-  procCall FloodSub(g).subscribeTopic(topic, subscribe, peer)
+  # Skip floodsub - we don't want it to add the peer to `g.floodsub`
+  procCall PubSub(g).subscribeTopic(topic, subscribe, peer)
 
   logScope:
     peer = $peer.id
