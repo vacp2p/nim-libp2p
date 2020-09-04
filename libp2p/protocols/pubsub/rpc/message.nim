@@ -28,7 +28,7 @@ declareCounter(libp2p_pubsub_sig_verify_success, "pubsub successfully validated 
 declareCounter(libp2p_pubsub_sig_verify_failure, "pubsub failed validated messages")
 
 func defaultMsgIdProvider*(m: Message): string =
-  byteutils.toHex(m.seqno) & m.fromPeer.pretty
+  byteutils.toHex(m.seqno) & $m.fromPeer
 
 proc sign*(msg: Message, privateKey: PrivateKey): CryptoResult[seq[byte]] =
   ok((? privateKey.sign(PubSubPrefix & encodeMessage(msg))).getBytes())

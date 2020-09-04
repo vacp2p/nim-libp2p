@@ -39,18 +39,18 @@ method subscribeTopic*(f: FloodSub,
     f.floodsub[topic] = initHashSet[PubSubPeer]()
 
   if subscribe:
-    trace "adding subscription for topic", peer = peer.id, name = topic
+    trace "adding subscription for topic", peer, topic
     # subscribe the peer to the topic
     f.floodsub[topic].incl(peer)
   else:
-    trace "removing subscription for topic", peer = peer.id, name = topic
+    trace "removing subscription for topic", peer, topic
     # unsubscribe the peer from the topic
     f.floodsub[topic].excl(peer)
 
 method unsubscribePeer*(f: FloodSub, peer: PeerID) =
   ## handle peer disconnects
   ##
-  trace "unsubscribing floodsub peer", peer = $peer
+  trace "unsubscribing floodsub peer", peer
   let pubSubPeer = f.peers.getOrDefault(peer)
   if pubSubPeer.isNil:
     return
@@ -67,20 +67,17 @@ method rpcHandler*(f: FloodSub,
 
   for msg in rpcMsg.messages:                         # for every message
     let msgId = f.msgIdProvider(msg)
-    logScope:
-      msgId
-      peer = peer.id
 
     if f.seen.put(msgId):
-      trace "Dropping already-seen message"
+      trace "Dropping already-seen message", msgId, peer
       continue
 
     if f.verifySignature and not msg.verify(peer.peerId):
-      debug "Dropping message due to failed signature verification"
+      debug "Dropping message due to failed signature verification", msgId, peer
       continue
 
     if not (await f.validate(msg)):
-      trace "Dropping message due to failed validation"
+      trace "Dropping message due to failed validation", msgId, peer
       continue
 
     var toSendPeers = initHashSet[PubSubPeer]()
@@ -105,9 +102,9 @@ method init*(f: FloodSub) =
     except CancelledError:
       # This is top-level procedure which will work as separate task, so it
       # do not need to propogate CancelledError.
-      trace "Unexpected cancellation in floodsub handler"
+      trace "Unexpected cancellation in floodsub handler", conn
     except CatchableError as exc:
-      trace "FloodSub handler leaks an error", exc = exc.msg
+      trace "FloodSub handler leaks an error", exc = exc.msg, conn
 
   f.handler = handler
   f.codec = FloodSubCodec
@@ -118,17 +115,16 @@ method publish*(f: FloodSub,
   # base returns always 0
   discard await procCall PubSub(f).publish(topic, data)
 
-  logScope: topic
-  trace "Publishing message on topic", data = data.shortLog
+  trace "Publishing message on topic", data = data.shortLog, topic
 
   if topic.len <= 0: # data could be 0/empty
-    debug "Empty topic, skipping publish"
+    debug "Empty topic, skipping publish", topic
     return 0
 
   let peers = toSeq(f.floodsub.getOrDefault(topic))
 
   if peers.len == 0:
-    debug "No peers for topic, skipping publish"
+    debug "No peers for topic, skipping publish", topic
     return 0
 
   inc f.msgSeqno
@@ -136,13 +132,12 @@ method publish*(f: FloodSub,
     msg = Message.init(f.peerInfo, data, topic, f.msgSeqno, f.sign)
     msgId = f.msgIdProvider(msg)
 
-  logScope: msgId
-
-  trace "Created new message", msg = shortLog(msg), peers = peers.len
+  trace "Created new message",
+    msg = shortLog(msg), peers = peers.len, topic, msgId
 
   if f.seen.put(msgId):
     # custom msgid providers might cause this
-    trace "Dropping already-seen message"
+    trace "Dropping already-seen message", msgId, topic
     return 0
 
   # Try to send to all peers that are known to be interested
@@ -151,7 +146,7 @@ method publish*(f: FloodSub,
   when defined(libp2p_expensive_metrics):
     libp2p_pubsub_messages_published.inc(labelValues = [topic])
 
-  trace "Published message to peers"
+  trace "Published message to peers", msgId, topic
 
   return peers.len
 

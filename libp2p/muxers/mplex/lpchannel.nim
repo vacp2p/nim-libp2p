@@ -7,7 +7,7 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import oids, deques
+import std/[oids, strformat]
 import chronos, chronicles, metrics
 import types,
        coder,
@@ -66,86 +66,60 @@ template withWriteLock(lock: AsyncLock, body: untyped): untyped =
     if not(isNil(lock)) and lock.locked:
       lock.release()
 
-proc closeMessage(s: LPChannel) {.async.} =
-  logScope:
-    id = s.id
-    initiator = s.initiator
-    name = s.name
-    oid = $s.oid
-    peer = $s.conn.peerInfo
-    # stack = getStackTrace()
+func shortLog*(s: LPChannel): auto =
+  if s.isNil: "LPChannel(nil)"
+  elif s.conn.peerInfo.isNil: $s.oid
+  elif s.name != $s.oid: &"{shortLog(s.conn.peerInfo.peerId)}:{s.oid}:{s.name}"
+  else: &"{shortLog(s.conn.peerInfo.peerId)}:{s.oid}"
+chronicles.formatIt(LPChannel): shortLog(it)
 
+proc closeMessage(s: LPChannel) {.async.} =
   ## send close message - this will not raise
   ## on EOF or Closed
   withWriteLock(s.writeLock):
-    trace "sending close message"
+    trace "sending close message", s
 
     await s.conn.writeMsg(s.id, s.closeCode) # write close
 
 proc resetMessage(s: LPChannel) {.async.} =
-  logScope:
-    id = s.id
-    initiator = s.initiator
-    name = s.name
-    oid = $s.oid
-    peer = $s.conn.peerInfo
-    # stack = getStackTrace()
-
   ## send reset message - this will not raise
   try:
     withWriteLock(s.writeLock):
-      trace "sending reset message"
+      trace "sending reset message", s
       await s.conn.writeMsg(s.id, s.resetCode) # write reset
   except CancelledError:
     # This procedure is called from one place and never awaited, so there no
     # need to re-raise CancelledError.
     trace "Unexpected cancellation while resetting channel"
   except LPStreamEOFError as exc:
-    trace "muxed connection EOF", exc = exc.msg
+    trace "muxed connection EOF", exc = exc.msg, s
   except LPStreamClosedError as exc:
-    trace "muxed connection closed", exc = exc.msg
+    trace "muxed connection closed", exc = exc.msg, s
   except LPStreamIncompleteError as exc:
-    trace "incomplete message", exc = exc.msg
+    trace "incomplete message", exc = exc.msg, s
   except CatchableError as exc:
-    trace "Unhandled exception leak", exc = exc.msg
+    debug "Unhandled exception leak", exc = exc.msg, s
 
 proc open*(s: LPChannel) {.async, gcsafe.} =
-  logScope:
-    id = s.id
-    initiator = s.initiator
-    name = s.name
-    oid = $s.oid
-    peer = $s.conn.peerInfo
-    # stack = getStackTrace()
-
-  ## NOTE: Don't call withExcAndLock or withWriteLock,
-  ## because this already gets called from writeHandler
-  ## which is locked
   await s.conn.writeMsg(s.id, MessageType.New, s.name)
-  trace "opened channel"
+  trace "opened channel", s
   s.isOpen = true
 
 proc closeRemote*(s: LPChannel) {.async.} =
-  logScope:
-    id = s.id
-    initiator = s.initiator
-    name = s.name
-    oid = $s.oid
-    peer = $s.conn.peerInfo
-    # stack = getStackTrace()
-
-  trace "got EOF, closing channel"
+  trace "closing remote", s
   try:
     await s.drainBuffer()
     s.isEof = true # set EOF immediately to prevent further reads
     # close parent bufferstream to prevent further reads
     await procCall BufferStream(s).close()
 
-    trace "channel closed on EOF"
+    trace "channel closed on EOF", s
   except CancelledError as exc:
     raise exc
   except CatchableError as exc:
-    trace "exception closing remote channel", exc = exc.msg
+    trace "exception closing remote channel", exc = exc.msg, s
+
+  trace "closed remote", s
 
 method closed*(s: LPChannel): bool =
   ## this emulates half-closed behavior
@@ -155,19 +129,11 @@ method closed*(s: LPChannel): bool =
   s.closedLocal
 
 method reset*(s: LPChannel) {.base, async, gcsafe.} =
-  logScope:
-    id = s.id
-    initiator = s.initiator
-    name = s.name
-    oid = $s.oid
-    peer = $s.conn.peerInfo
-    # stack = getStackTrace()
-
   if s.closedLocal and s.isEof:
-    trace "channel already closed or reset"
+    trace "channel already closed or reset", s
     return
 
-  trace "resetting channel"
+  trace "resetting channel", s
 
   asyncSpawn s.resetMessage()
 
@@ -182,24 +148,16 @@ method reset*(s: LPChannel) {.base, async, gcsafe.} =
   except CancelledError as exc:
     raise exc
   except CatchableError as exc:
-    trace "exception in reset", exc = exc.msg
+    trace "exception in reset", exc = exc.msg, s
 
-  trace "channel reset"
+  trace "channel reset", s
 
 method close*(s: LPChannel) {.async, gcsafe.} =
-  logScope:
-    id = s.id
-    initiator = s.initiator
-    name = s.name
-    oid = $s.oid
-    peer = $s.conn.peerInfo
-    # stack = getStackTrace()
-
   if s.closedLocal:
-    trace "channel already closed"
+    trace "channel already closed", s
     return
 
-  trace "closing local lpchannel"
+  trace "closing local lpchannel", s
 
   proc closeInternal() {.async.} =
     try:
@@ -207,15 +165,15 @@ method close*(s: LPChannel) {.async, gcsafe.} =
       if s.atEof: # already closed by remote close parent buffer immediately
         await procCall BufferStream(s).close()
     except CancelledError:
-      trace "Unexpected cancellation while closing channel"
+      trace "Unexpected cancellation while closing channel", s
       await s.reset()
       # This is top-level procedure which will work as separate task, so it
       # do not need to propogate CancelledError.
     except CatchableError as exc:
-      trace "exception closing channel", exc = exc.msg
+      trace "exception closing channel", exc = exc.msg, s
       await s.reset()
 
-    trace "lpchannel closed local"
+    trace "lpchannel closed local", s
 
   s.closedLocal = true
   # All the errors are handled inside `closeInternal()` procedure.
@@ -226,7 +184,7 @@ method initStream*(s: LPChannel) =
     s.objName = "LPChannel"
 
   s.timeoutHandler = proc() {.async, gcsafe.} =
-    trace "idle timeout expired, resetting LPChannel"
+    trace "idle timeout expired, resetting LPChannel", s
     await s.reset()
 
   procCall BufferStream(s).initStream()
@@ -253,27 +211,19 @@ proc init*(
     resetCode: if initiator: MessageType.ResetOut else: MessageType.ResetIn,
     dir: if initiator: Direction.Out else: Direction.In)
 
-  logScope:
-    id = chann.id
-    initiator = chann.initiator
-    name = chann.name
-    oid = $chann.oid
-    peer = $chann.conn.peerInfo
-    # stack = getStackTrace()
-
   proc writeHandler(data: seq[byte]) {.async, gcsafe.} =
     try:
       if chann.isLazy and not(chann.isOpen):
         await chann.open()
 
       # writes should happen in sequence
-      trace "sending data", len = data.len
+      trace "sending data", len = data.len, chann
 
       await conn.writeMsg(chann.id,
                           chann.msgCode,
                           data)
     except CatchableError as exc:
-      trace "exception in lpchannel write handler", exc = exc.msg
+      trace "exception in lpchannel write handler", exc = exc.msg, chann
       await chann.reset()
       raise exc
 
@@ -281,6 +231,6 @@ proc init*(
   when chronicles.enabledLogLevel == LogLevel.TRACE:
     chann.name = if chann.name.len > 0: chann.name else: $chann.oid
 
-  trace "created new lpchannel"
+  trace "created new lpchannel", chann
 
   return chann

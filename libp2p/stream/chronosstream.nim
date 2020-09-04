@@ -7,7 +7,7 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import oids
+import std/[oids, strformat]
 import chronos, chronicles
 import connection
 
@@ -20,6 +20,12 @@ const
 type
   ChronosStream* = ref object of Connection
     client: StreamTransport
+
+func shortLog*(conn: ChronosStream): string =
+  if conn.isNil: "ChronosStream(nil)"
+  elif conn.peerInfo.isNil: $conn.oid
+  else: &"{shortLog(conn.peerInfo.peerId)}:{conn.oid}"
+chronicles.formatIt(ChronosStream): shortLog(it)
 
 method initStream*(s: ChronosStream) =
   if s.objName.len == 0:
@@ -88,7 +94,7 @@ method close*(s: ChronosStream) {.async.} =
   try:
     if not s.isClosed:
       trace "shutting down chronos stream", address = $s.client.remoteAddress(),
-                                            oid = $s.oid
+                                            s
       if not s.client.closed():
         await s.client.closeWait()
 
@@ -96,4 +102,4 @@ method close*(s: ChronosStream) {.async.} =
   except CancelledError as exc:
     raise exc
   except CatchableError as exc:
-    trace "error closing chronosstream", exc = exc.msg
+    trace "error closing chronosstream", exc = exc.msg, s

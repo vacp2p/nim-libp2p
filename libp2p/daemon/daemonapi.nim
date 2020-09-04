@@ -1304,20 +1304,3 @@ proc pubsubSubscribe*(api: DaemonAPI, topic: string,
   except Exception as exc:
     await api.closeConnection(transp)
     raise exc
-
-proc `$`*(pinfo: PeerInfo): string =
-  ## Get string representation of ``PeerInfo`` object.
-  result = newStringOfCap(128)
-  result.add("{PeerID: '")
-  result.add($pinfo.peer.pretty())
-  result.add("' Addresses: [")
-  let length = len(pinfo.addresses)
-  for i in 0..<length:
-    result.add("'")
-    result.add($pinfo.addresses[i])
-    result.add("'")
-    if i < length - 1:
-      result.add(", ")
-  result.add("]}")
-  if len(pinfo.addresses) > 0:
-    result = result

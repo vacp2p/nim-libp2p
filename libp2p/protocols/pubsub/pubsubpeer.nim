@@ -49,9 +49,10 @@ func hash*(p: PubSubPeer): Hash =
   # int is either 32/64, so intptr basically, pubsubpeer is a ref
   cast[pointer](p).hash
 
-proc id*(p: PubSubPeer): string =
-  doAssert(not p.isNil, "nil pubsubpeer")
-  p.peerId.pretty
+func shortLog*(p: PubSubPeer): string =
+  if p.isNil: "PubSubPeer(nil)"
+  else: shortLog(p.peerId)
+chronicles.formatIt(PubSubPeer): shortLog(it)
 
 proc connected*(p: PubSubPeer): bool =
   not p.sendConn.isNil and not
@@ -72,25 +73,29 @@ proc sendObservers(p: PubSubPeer, msg: var RPCMsg) =
         obs.onSend(p, msg)
 
 proc handle*(p: PubSubPeer, conn: Connection) {.async.} =
-  logScope:
-    oid = $conn.oid
-    peer = p.id
-    closed = conn.closed
 
-  debug "starting pubsub read loop"
+  debug "starting pubsub read loop",
+    conn, peer = p, closed = conn.closed
   try:
     try:
       while not conn.atEof:
-        trace "waiting for data"
+        trace "waiting for data", conn, peer = p, closed = conn.closed
+
         let data = await conn.readLp(64 * 1024)
-        trace "read data from peer", data = data.shortLog
+        trace "read data from peer",
+          conn, peer = p, closed = conn.closed,
+          data = data.shortLog
 
         var rmsg = decodeRpcMsg(data)
         if rmsg.isErr():
-          notice "failed to decode msg from peer"
+          notice "failed to decode msg from peer",
+            conn, peer = p, closed = conn.closed,
+            err = rmsg.error()
           break
 
-        trace "decoded msg from peer", msg = rmsg.get().shortLog
+        trace "decoded msg from peer",
+          conn, peer = p, closed = conn.closed,
+          msg = rmsg.get().shortLog
         # trigger hooks
         p.recvObservers(rmsg.get())
 
@@ -98,7 +103,7 @@ proc handle*(p: PubSubPeer, conn: Connection) {.async.} =
           for m in rmsg.get().messages:
             for t in m.topicIDs:
               # metrics
-              libp2p_pubsub_received_messages.inc(labelValues = [p.id, t])
+              libp2p_pubsub_received_messages.inc(labelValues = [$p.peerId, t])
 
         await p.handler(p, rmsg.get())
     finally:
@@ -112,9 +117,11 @@ proc handle*(p: PubSubPeer, conn: Connection) {.async.} =
     # do not need to propogate CancelledError.
     trace "Unexpected cancellation in PubSubPeer.handle"
   except CatchableError as exc:
-    trace "Exception occurred in PubSubPeer.handle", exc = exc.msg
+    trace "Exception occurred in PubSubPeer.handle",
+      conn, peer = p, closed = conn.closed, exc = exc.msg
   finally:
-    debug "exiting pubsub read loop"
+    debug "exiting pubsub read loop",
+      conn, peer = p, closed = conn.closed
 
 proc getSendConn(p: PubSubPeer): Future[Connection] {.async.} =
   ## get a cached send connection or create a new one - will return nil if
@@ -127,7 +134,7 @@ proc getSendConn(p: PubSubPeer): Future[Connection] {.async.} =
     if not current.isNil:
       if not (current.closed() or current.atEof):
         # The existing send connection looks like it might work - reuse it
-        trace "Reusing existing connection", oid = $current.oid
+        trace "Reusing existing connection", current
         return current
 
       # Send connection is set but broken - get rid of it
@@ -171,19 +178,15 @@ proc getSendConn(p: PubSubPeer): Future[Connection] {.async.} =
     if newConn.isNil:
       return nil
 
-    trace "Sending handshake", oid = $newConn.oid, handshake = shortLog(handshake)
+    trace "Sending handshake", newConn, handshake = shortLog(handshake)
     await newConn.writeLp(encodeRpcMsg(handshake))
 
-    trace "Caching new send connection", oid = $newConn.oid
+    trace "Caching new send connection", newConn
     p.sendConn = newConn
     # Start a read loop on the new connection.
     # All the errors are handled inside `handle()` procedure.
     asyncSpawn p.handle(newConn)
     return newConn
-  except CancelledError as exc:
-    raise exc
-  except CatchableError as exc:
-    return nil
   finally:
     if p.dialLock.locked:
       p.dialLock.release()
@@ -200,11 +203,7 @@ proc connect*(p: PubSubPeer) =
 proc sendImpl(p: PubSubPeer, msg: RPCMsg) {.async.} =
   doAssert(not isNil(p), "pubsubpeer nil!")
 
-  logScope:
-    peer = p.id
-    rpcMsg = shortLog(msg)
-
-  trace "sending msg to peer"
+  trace "sending msg to peer", peer = p, rpcMsg = shortLog(msg)
 
   # trigger send hooks
   var mm = msg # hooks can modify the message
@@ -215,37 +214,34 @@ proc sendImpl(p: PubSubPeer, msg: RPCMsg) {.async.} =
     info "empty message, skipping"
     return
 
-  logScope:
-    encoded = shortLog(encoded)
-
-  var conn = await p.getSendConn()
+  var conn: Connection
   try:
-    trace "about to send message"
+    conn = await p.getSendConn()
     if conn == nil:
-      debug "Couldn't get send connection, dropping message"
+      debug "Couldn't get send connection, dropping message", peer = p
       return
 
-    trace "sending encoded msgs to peer", connId = $conn.oid
+    trace "sending encoded msgs to peer", conn, encoded = shortLog(encoded)
     await conn.writeLp(encoded)
-    trace "sent pubsub message to remote", connId = $conn.oid
+    trace "sent pubsub message to remote", conn
 
     when defined(libp2p_expensive_metrics):
       for x in mm.messages:
         for t in x.topicIDs:
           # metrics
-          libp2p_pubsub_sent_messages.inc(labelValues = [p.id, t])
+          libp2p_pubsub_sent_messages.inc(labelValues = [$p.peerId, t])
 
   except CatchableError as exc:
     # Because we detach the send call from the currently executing task using
     # asyncCheck, no exceptions may leak out of it
-    trace "unable to send to remote", exc = exc.msg
+    debug "unable to send to remote", exc = exc.msg, peer = p
     # Next time sendConn is used, it will be have its close flag set and thus
     # will be recycled
     if not isNil(conn):
       await conn.close() # This will clean up the send connection
 
     if exc is CancelledError: # TODO not handled
-      debug "Send cancelled"
+      debug "Send cancelled", peer = p
 
     # We'll ask for a new send connection whenever possible
     if p.sendConn == conn:

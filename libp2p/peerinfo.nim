@@ -41,20 +41,15 @@ type
     of HasPublic:
       key: Option[PublicKey]
 
-proc id*(p: PeerInfo): string =
-  if not(isNil(p)):
-    return p.peerId.pretty()
-
-proc `$`*(p: PeerInfo): string = p.id
-
-proc shortLog*(p: PeerInfo): auto =
+func shortLog*(p: PeerInfo): auto =
   (
-    id: p.id(),
+    peerId: $p.peerId,
     addrs: mapIt(p.addrs, $it),
     protocols: mapIt(p.protocols, $it),
     protoVersion: p.protoVersion,
     agentVersion: p.agentVersion,
   )
+chronicles.formatIt(PeerInfo): shortLog(it)
 
 template postInit(peerinfo: PeerInfo,
                   addrs: openarray[MultiAddress],

@@ -517,9 +517,9 @@ suite "GossipSub":
         closureScope:
           var dialerNode = dialer
           handler = proc(topic: string, data: seq[byte]) {.async, gcsafe, closure.} =
-            if dialerNode.peerInfo.id notin seen:
-              seen[dialerNode.peerInfo.id] = 0
-            seen[dialerNode.peerInfo.id].inc
+            if $dialerNode.peerInfo.peerId notin seen:
+              seen[$dialerNode.peerInfo.peerId] = 0
+            seen[$dialerNode.peerInfo.peerId].inc
             check topic == "foobar"
             if not seenFut.finished() and seen.len >= runs:
               seenFut.complete()
@@ -529,8 +529,8 @@ suite "GossipSub":
       await allFuturesThrowing(subs)
 
       tryPublish await wait(nodes[0].publish("foobar",
-                                    cast[seq[byte]]("from node " &
-                                    nodes[1].peerInfo.id)),
+                                    toBytes("from node " &
+                                    $nodes[1].peerInfo.peerId)),
                                     1.minutes), runs, 5.seconds
 
       await wait(seenFut, 2.minutes)
@@ -567,7 +567,7 @@ suite "GossipSub":
       await allFuturesThrowing(nodes.mapIt(it.start()))
       await subscribeNodes(nodes)
 
-      var seen: Table[string, int]
+      var seen: Table[PeerID, int]
       var subs: seq[Future[void]]
       var seenFut = newFuture[void]()
       for dialer in nodes:
@@ -576,9 +576,9 @@ suite "GossipSub":
           var dialerNode = dialer
           handler = proc(topic: string, data: seq[byte])
             {.async, gcsafe, closure.} =
-            if dialerNode.peerInfo.id notin seen:
-              seen[dialerNode.peerInfo.id] = 0
-            seen[dialerNode.peerInfo.id].inc
+            if dialerNode.peerInfo.peerId notin seen:
+              seen[dialerNode.peerInfo.peerId] = 0
+            seen[dialerNode.peerInfo.peerId].inc
             check topic == "foobar"
             if not seenFut.finished() and seen.len >= runs:
               seenFut.complete()
@@ -588,8 +588,8 @@ suite "GossipSub":
       await allFuturesThrowing(subs)
 
       tryPublish await wait(nodes[0].publish("foobar",
-                                    cast[seq[byte]]("from node " &
-                                    nodes[1].peerInfo.id)),
+                                    toBytes("from node " &
+                                    $nodes[1].peerInfo.peerId)),
                                     1.minutes), 2, 5.seconds
 
       await wait(seenFut, 5.minutes)
