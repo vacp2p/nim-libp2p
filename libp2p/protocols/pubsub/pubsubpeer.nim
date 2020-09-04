@@ -10,8 +10,6 @@
 import std/[hashes, options, strutils, tables]
 import chronos, chronicles, nimcrypto/sha2, metrics
 import rpc/[messages, message, protobuf],
-       timedcache,
-       ../../switch,
        ../../peerid,
        ../../peerinfo,
        ../../stream/connection,
@@ -42,8 +40,6 @@ type
     connections*: seq[Connection]       # connections to this peer
     peerId*: PeerID
     handler*: RPCHandler
-    sentRpcCache: TimedCache[string]    # cache for already sent messages
-    recvdRpcCache: TimedCache[string]   # cache for already received messages
     observers*: ref seq[PubSubObserver] # ref as in smart_ptr
     dialLock: AsyncLock
 
@@ -87,33 +83,24 @@ proc handle*(p: PubSubPeer, conn: Connection) {.async.} =
       while not conn.atEof:
         trace "waiting for data"
         let data = await conn.readLp(64 * 1024)
-        let digest = $(sha256.digest(data))
         trace "read data from peer", data = data.shortLog
-        if digest in p.recvdRpcCache:
-          when defined(libp2p_expensive_metrics):
-            libp2p_pubsub_skipped_received_messages.inc(labelValues = [p.id])
-          trace "message already received, skipping"
-          continue
 
         var rmsg = decodeRpcMsg(data)
         if rmsg.isErr():
           notice "failed to decode msg from peer"
           break
 
-        var msg = rmsg.get()
-
-        trace "decoded msg from peer", msg = msg.shortLog
+        trace "decoded msg from peer", msg = rmsg.get().shortLog
         # trigger hooks
-        p.recvObservers(msg)
+        p.recvObservers(rmsg.get())
 
         when defined(libp2p_expensive_metrics):
-          for m in msg.messages:
+          for m in rmsg.get().messages:
             for t in m.topicIDs:
               # metrics
               libp2p_pubsub_received_messages.inc(labelValues = [p.id, t])
 
-        await p.handler(p, msg)
-        p.recvdRpcCache.put(digest)
+        await p.handler(p, rmsg.get())
     finally:
       await conn.close()
 
@@ -227,13 +214,6 @@ proc sendImpl(p: PubSubPeer, msg: RPCMsg) {.async.} =
   logScope:
     encoded = shortLog(encoded)
 
-  let digest = $(sha256.digest(encoded))
-  if digest in p.sentRpcCache:
-    trace "message already sent to peer, skipping"
-    when defined(libp2p_expensive_metrics):
-      libp2p_pubsub_skipped_sent_messages.inc(labelValues = [p.id])
-    return
-
   var conn = await p.getSendConn()
   try:
     trace "about to send message"
@@ -243,8 +223,6 @@ proc sendImpl(p: PubSubPeer, msg: RPCMsg) {.async.} =
 
     trace "sending encoded msgs to peer", connId = $conn.oid
     await conn.writeLp(encoded)
-
-    p.sentRpcCache.put(digest)
     trace "sent pubsub message to remote", connId = $conn.oid
 
     when defined(libp2p_expensive_metrics):
@@ -282,6 +260,4 @@ proc newPubSubPeer*(peerId: PeerID,
   result.getConn = getConn
   result.codec = codec
   result.peerId = peerId
-  result.sentRpcCache = newTimedCache[string](2.minutes)
-  result.recvdRpcCache = newTimedCache[string](2.minutes)
   result.dialLock = newAsyncLock()

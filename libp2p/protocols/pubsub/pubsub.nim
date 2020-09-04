@@ -201,16 +201,17 @@ method unsubscribe*(p: PubSub,
                     topics: seq[TopicPair]) {.base, async.} =
   ## unsubscribe from a list of ``topic`` strings
   for t in topics:
-    for i, h in p.topics[t.topic].handler:
-      if h == t.handler:
-        p.topics[t.topic].handler.del(i)
+    p.topics.withValue(t.topic, subs):
+      for i, h in subs[].handler:
+        if h == t.handler:
+          subs[].handler.del(i)
 
-    # make sure we delete the topic if
-    # no more handlers are left
-    if p.topics[t.topic].handler.len <= 0:
-      p.topics.del(t.topic)
-      # metrics
-      libp2p_pubsub_topics.set(p.topics.len.int64)
+      # make sure we delete the topic if
+      # no more handlers are left
+      if subs.handler.len <= 0:
+        p.topics.del(t.topic) # careful, invalidates subs
+        # metrics
+        libp2p_pubsub_topics.set(p.topics.len.int64)
 
 proc unsubscribe*(p: PubSub,
                   topic: string,
