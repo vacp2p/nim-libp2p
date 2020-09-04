@@ -54,7 +54,6 @@ type
     mcache*: MCache                            # messages cache
     heartbeatFut: Future[void]                 # cancellation future for heartbeat interval
     heartbeatRunning: bool
-    heartbeatLock: AsyncLock                   # heartbeat lock to prevent two consecutive concurrent heartbeats
 
 when defined(libp2p_expensive_metrics):
   declareGauge(libp2p_gossipsub_peers_per_topic_mesh,
@@ -244,7 +243,7 @@ proc heartbeat(g: GossipSub) {.async.} =
     except CancelledError as exc:
       raise exc
     except CatchableError as exc:
-      trace "exception ocurred in gossipsub heartbeat", exc = exc.msg
+      warn "exception ocurred in gossipsub heartbeat", exc = exc.msg
 
     await sleepAsync(GossipSubHeartbeatInterval)
 
@@ -527,25 +526,18 @@ method publish*(g: GossipSub,
 method start*(g: GossipSub) {.async.} =
   trace "gossipsub start"
 
-  ## start pubsub
-  ## start long running/repeating procedures
+  if not g.heartbeatFut.isNil:
+    warn "Starting gossipsub twice"
+    return
 
-  # interlock start to to avoid overlapping to stops
-  await g.heartbeatLock.acquire()
-
-  # setup the heartbeat interval
   g.heartbeatRunning = true
   g.heartbeatFut = g.heartbeat()
 
-  g.heartbeatLock.release()
-
 method stop*(g: GossipSub) {.async.} =
   trace "gossipsub stop"
-
-  ## stop pubsub
-  ## stop long running tasks
-
-  await g.heartbeatLock.acquire()
+  if g.heartbeatFut.isNil:
+    warn "Stopping gossipsub without starting it"
+    return
 
   # stop heartbeat interval
   g.heartbeatRunning = false
@@ -553,8 +545,8 @@ method stop*(g: GossipSub) {.async.} =
     trace "awaiting last heartbeat"
     await g.heartbeatFut
     trace "heartbeat stopped"
+    g.heartbeatFut = nil
 
-  g.heartbeatLock.release()
 
 method initPubSub*(g: GossipSub) =
   procCall FloodSub(g).initPubSub()
@@ -567,4 +559,3 @@ method initPubSub*(g: GossipSub) =
   g.lastFanoutPubSub = initTable[string, Moment]()  # last publish time for fanout topics
   g.gossip = initTable[string, seq[ControlIHave]]() # pending gossip
   g.control = initTable[string, ControlMessage]()   # pending control messages
-  g.heartbeatLock = newAsyncLock()

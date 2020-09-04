@@ -14,9 +14,11 @@ type
   PeerTable* = Table[string, HashSet[PubSubPeer]] # topic string to peer map
 
 proc hasPeerID*(t: PeerTable, topic: string, peerId: PeerID): bool =
-  let peers = toSeq(t.getOrDefault(topic))
-  peers.any do (peer: PubSubPeer) -> bool:
-    peer.peerId == peerId
+  if topic in t:
+    for peer in t[topic]:
+      if peer.peerId == peerId:
+        return true
+  false
 
 func addPeer*(table: var PeerTable, topic: string, peer: PubSubPeer): bool =
   # returns true if the peer was added,
