@@ -100,8 +100,14 @@ method init*(f: FloodSub) =
     ## connection for a protocol string
     ## e.g. ``/floodsub/1.0.0``, etc...
     ##
-
-    await f.handleConn(conn, proto)
+    try:
+      await f.handleConn(conn, proto)
+    except CancelledError:
+      # This is top-level procedure which will work as separate task, so it
+      # do not need to propogate CancelledError.
+      trace "Unexpected cancellation in floodsub handler"
+    except CatchableError as exc:
+      trace "FloodSub handler leaks an error", exc = exc.msg
 
   f.handler = handler
   f.codec = FloodSubCodec

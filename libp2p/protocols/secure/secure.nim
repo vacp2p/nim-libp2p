@@ -61,10 +61,21 @@ proc handleConn*(s: Secure,
                  conn: Connection,
                  initiator: bool): Future[Connection] {.async, gcsafe.} =
   var sconn = await s.handshake(conn, initiator)
+
+  proc cleanup() {.async.} =
+    try:
+      await conn.join()
+      await sconn.close()
+    except CancelledError:
+      # This is top-level procedure which will work as separate task, so it
+      # do not need to propogate CancelledError.
+      discard
+    except CatchableError as exc:
+      trace "error cleaning up secure connection", errMsg = exc.msg
+
   if not isNil(sconn):
-    conn.join()
-      .addCallback do(udata: pointer = nil):
-        asyncCheck sconn.close()
+    # All the errors are handled inside `cleanup()` procedure.
+    asyncSpawn cleanup()
 
   return sconn
 
