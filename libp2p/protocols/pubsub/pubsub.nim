@@ -70,11 +70,8 @@ method unsubscribePeer*(p: PubSub, peerId: PeerID) {.base.} =
 
   libp2p_pubsub_peers.set(p.peers.len.int64)
 
-proc send*(
-  p: PubSub,
-  peer: PubSubPeer,
-  msg: RPCMsg) =
-  ## send to remote peer
+proc send*(p: PubSub, peer: PubSubPeer, msg: RPCMsg) =
+  ## Attempt to send `msg` to remote peer
   ##
 
   trace "sending pubsub message to peer", peer = $peer, msg = shortLog(msg)
@@ -84,11 +81,10 @@ proc broadcast*(
   p: PubSub,
   sendPeers: openArray[PubSubPeer],
   msg: RPCMsg) = # raises: [Defect]
-  ## send messages - returns number of send attempts made.
-  ##
+  ## Attempt to send `msg` to the given peers
 
   trace "broadcasting messages to peers",
-    peers = sendPeers.len, message = shortLog(msg)
+    peers = sendPeers.len, msg = shortLog(msg)
   for peer in sendPeers:
     p.send(peer, msg)
 
@@ -201,16 +197,14 @@ method unsubscribe*(p: PubSub,
                     topics: seq[TopicPair]) {.base, async.} =
   ## unsubscribe from a list of ``topic`` strings
   for t in topics:
-    p.topics.withValue(t.topic, subs):
-      for i, h in subs[].handler:
-        if h == t.handler:
-          subs[].handler.del(i)
+    p.topics.withValue(t.topic, topic):
+      topic[].handler.keepIf(proc (x: auto): bool = x != t.handler)
 
-      # make sure we delete the topic if
-      # no more handlers are left
-      if subs.handler.len <= 0:
-        p.topics.del(t.topic) # careful, invalidates subs
-        # metrics
+      if topic[].handler.len == 0:
+        # make sure we delete the topic if
+        # no more handlers are left
+        p.topics.del(t.topic)
+
         libp2p_pubsub_topics.set(p.topics.len.int64)
 
 proc unsubscribe*(p: PubSub,
@@ -252,6 +246,10 @@ method publish*(p: PubSub,
                 topic: string,
                 data: seq[byte]): Future[int] {.base, async.} =
   ## publish to a ``topic``
+  ## The return value is the number of neighbours that we attempted to send the
+  ## message to, excluding self. Note that this is an optimistic number of
+  ## attempts - the number of peers that actually receive the message might
+  ## be lower.
   if p.triggerSelf:
     await handleData(p, topic, data)
 

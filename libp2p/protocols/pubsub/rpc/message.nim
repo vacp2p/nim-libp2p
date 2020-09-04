@@ -30,8 +30,8 @@ declareCounter(libp2p_pubsub_sig_verify_failure, "pubsub failed validated messag
 func defaultMsgIdProvider*(m: Message): string =
   byteutils.toHex(m.seqno) & m.fromPeer.pretty
 
-proc sign*(msg: Message, p: PeerInfo): CryptoResult[seq[byte]] =
-  ok((? p.privateKey.sign(PubSubPrefix & encodeMessage(msg))).getBytes())
+proc sign*(msg: Message, privateKey: PrivateKey): CryptoResult[seq[byte]] =
+  ok((? privateKey.sign(PubSubPrefix & encodeMessage(msg))).getBytes())
 
 proc verify*(m: Message, p: PeerID): bool =
   if m.signature.len > 0 and m.key.len > 0:
@@ -63,6 +63,9 @@ proc init*(
     seqno: @(seqno.toBytesBE), # unefficient, fine for now
     topicIDs: @[topic])
 
-  if sign and peer.publicKey.isSome:
-    result.signature = sign(result, peer).tryGet()
-    result.key = peer.publicKey.get().getBytes().tryGet()
+  if sign:
+    if peer.keyType != KeyType.HasPrivate:
+      raise (ref CatchableError)(msg: "Cannot sign message without private key")
+
+    result.signature = sign(result, peer.privateKey).tryGet()
+    result.key = peer.privateKey.getKey().tryGet().getBytes().tryGet()
