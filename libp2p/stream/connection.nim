@@ -7,13 +7,13 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import hashes, oids
+import std/[hashes, oids, strformat]
 import chronicles, chronos, metrics
 import lpstream,
        ../multiaddress,
        ../peerinfo
 
-export lpstream
+export lpstream, peerinfo
 
 logScope:
   topics = "connection"
@@ -66,6 +66,12 @@ proc setupConnectionTracker(): ConnectionTracker =
   result.isLeaked = leakTransport
   addTracker(ConnectionTrackerName, result)
 
+func shortLog*(conn: Connection): string =
+  if conn.isNil: "Connection(nil)"
+  elif conn.peerInfo.isNil: $conn.oid
+  else: &"{shortLog(conn.peerInfo.peerId)}:{conn.oid}"
+chronicles.formatIt(Connection): shortLog(it)
+
 method initStream*(s: Connection) =
   if s.objName.len == 0:
     s.objName = "Connection"
@@ -77,7 +83,7 @@ method initStream*(s: Connection) =
     s.timeoutHandler = proc() {.async.} =
       await s.close()
 
-  trace "timeout set at", timeout = s.timeout.millis
+  trace "timeout set at", timeout = s.timeout.millis, s
   doAssert(isNil(s.timerTaskFut))
   # doAssert(s.timeout > 0.millis)
   if s.timeout > 0.millis:
@@ -94,10 +100,6 @@ method close*(s: Connection) {.async.} =
     await procCall LPStream(s).close()
     inc getConnectionTracker().closed
 
-proc `$`*(conn: Connection): string =
-  if not isNil(conn.peerInfo):
-    result = conn.peerInfo.id
-
 func hash*(p: Connection): Hash =
   cast[pointer](p).hash
 
@@ -109,9 +111,6 @@ proc timeoutMonitor(s: Connection) {.async, gcsafe.} =
   ## has been detected and the channel will
   ## be reset
   ##
-
-  logScope:
-    oid = $s.oid
 
   try:
     while true:
@@ -127,14 +126,14 @@ proc timeoutMonitor(s: Connection) {.async, gcsafe.} =
       break
 
     # reset channel on innactivity timeout
-    trace "Connection timed out"
+    trace "Connection timed out", s
     if not(isNil(s.timeoutHandler)):
       await s.timeoutHandler()
 
   except CancelledError as exc:
     raise exc
   except CatchableError as exc:
-    trace "exception in timeout", exc = exc.msg
+    trace "exception in timeout", exc = exc.msg, s
 
 proc init*(C: type Connection,
            peerInfo: PeerInfo,

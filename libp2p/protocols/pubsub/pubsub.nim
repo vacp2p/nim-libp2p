@@ -106,11 +106,9 @@ method rpcHandler*(p: PubSub,
                    peer: PubSubPeer,
                    rpcMsg: RPCMsg) {.async, base.} =
   ## handle rpc messages
-  logScope: peer = peer.id
-
-  trace "processing RPC message", msg = rpcMsg.shortLog
+  trace "processing RPC message", msg = rpcMsg.shortLog, peer
   for s in rpcMsg.subscriptions: # subscribe/unsubscribe the peer for each topic
-    trace "about to subscribe to topic", topicId = s.topic
+    trace "about to subscribe to topic", topicId = s.topic, peer
     p.subscribeTopic(s.topic, s.subscribe, peer)
 
 proc getOrCreatePeer*(
@@ -178,11 +176,11 @@ method handleConn*(p: PubSub,
   try:
     peer.handler = handler
     await peer.handle(conn) # spawn peer read loop
-    trace "pubsub peer handler ended", peer = peer.id
+    trace "pubsub peer handler ended", conn
   except CancelledError as exc:
     raise exc
   except CatchableError as exc:
-    trace "exception ocurred in pubsub handle", exc = exc.msg
+    trace "exception ocurred in pubsub handle", exc = exc.msg, conn
   finally:
     await conn.close()
 

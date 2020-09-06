@@ -113,7 +113,7 @@ proc cleanupConn(c: ConnManager, conn: Connection) {.async.} =
   finally:
     await conn.close()
 
-  trace "connection cleaned up", peer = $conn.peerInfo
+  trace "connection cleaned up", conn
 
 proc onClose(c: ConnManager, conn: Connection) {.async.} =
   ## connection close even handler
@@ -122,7 +122,7 @@ proc onClose(c: ConnManager, conn: Connection) {.async.} =
   ##
   try:
     await conn.join()
-    trace "triggering connection cleanup", peer = $conn.peerInfo
+    trace "triggering connection cleanup", conn
     await c.cleanupConn(conn)
   except CancelledError:
     # This is top-level procedure which will work as separate task, so it
@@ -167,7 +167,7 @@ proc selectMuxer*(c: ConnManager, conn: Connection): Muxer =
   if conn in c.muxed:
     return c.muxed[conn].muxer
   else:
-    debug "no muxer for connection", conn = $conn
+    debug "no muxer for connection", conn
 
 proc storeConn*(c: ConnManager, conn: Connection) =
   ## store a connection
@@ -196,7 +196,7 @@ proc storeConn*(c: ConnManager, conn: Connection) =
   asyncSpawn c.onClose(conn)
   libp2p_peers.set(c.conns.len.int64)
 
-  trace "stored connection", connections = c.conns.len, peer = peerId
+  trace "stored connection", connections = c.conns.len, conn
 
 proc storeOutgoing*(c: ConnManager, conn: Connection) =
   conn.dir = Direction.Out
@@ -222,7 +222,7 @@ proc storeMuxer*(c: ConnManager,
     muxer: muxer,
     handle: handle)
 
-  trace "stored muxer", connections = c.conns.len
+  trace "stored muxer", connections = c.conns.len, muxer
 
 proc getMuxedStream*(c: ConnManager,
                      peerId: PeerID,

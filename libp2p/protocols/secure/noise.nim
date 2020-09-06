@@ -7,6 +7,7 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
+import std/[oids, strformat]
 import chronos
 import chronicles
 import bearssl
@@ -87,6 +88,12 @@ type
   NoiseNonceMaxError* = object of CatchableError # drop connection on purpose
 
 # Utility
+
+func shortLog*(conn: NoiseConnection): auto =
+  if conn.isNil: "NoiseConnection(nil)"
+  elif conn.peerInfo.isNil: $conn.oid
+  else: &"{shortLog(conn.peerInfo.peerId)}:{conn.oid}"
+chronicles.formatIt(NoiseConnection): shortLog(it)
 
 proc genKeyPair(rng: var BrHmacDrbgContext): KeyPair =
   result.privateKey = Curve25519Key.random(rng)
@@ -392,13 +399,13 @@ method readMessage*(sconn: NoiseConnection): Future[seq[byte]] {.async.} =
     var besize: array[2, byte]
     await sconn.stream.readExactly(addr besize[0], besize.len)
     let size = uint16.fromBytesBE(besize).int # Cannot overflow
-    trace "receiveEncryptedMessage", size, peer = $sconn
+    trace "receiveEncryptedMessage", size, sconn
     if size > 0:
       var buffer = newSeq[byte](size)
       await sconn.stream.readExactly(addr buffer[0], buffer.len)
       return sconn.readCs.decryptWithAd([], buffer)
     else:
-      trace "Received 0-length message", conn = $sconn
+      trace "Received 0-length message", sconn
 
 method write*(sconn: NoiseConnection, message: seq[byte]): Future[void] {.async.} =
   if message.len == 0:
@@ -418,14 +425,14 @@ method write*(sconn: NoiseConnection, message: seq[byte]): Future[void] {.async.
       lesize = cipher.len.uint16
       besize = lesize.toBytesBE
       outbuf = newSeqOfCap[byte](cipher.len + 2)
-    trace "sendEncryptedMessage", size = lesize, peer = $sconn, left, offset
+    trace "sendEncryptedMessage", sconn, size = lesize, left, offset
     outbuf &= besize
     outbuf &= cipher
     await sconn.stream.write(outbuf)
     sconn.activity = true
 
 method handshake*(p: Noise, conn: Connection, initiator: bool): Future[SecureConn] {.async.} =
-  trace "Starting Noise handshake", initiator, peer = $conn
+  trace "Starting Noise handshake", conn, initiator
 
   # https://github.com/libp2p/specs/tree/master/noise#libp2p-data-in-handshake-messages
   let
@@ -469,7 +476,7 @@ method handshake*(p: Noise, conn: Connection, initiator: bool): Future[SecureCon
     if not remoteSig.verify(verifyPayload, remotePubKey):
       raise newException(NoiseHandshakeError, "Noise handshake signature verify failed.")
     else:
-      trace "Remote signature verified", peer = $conn
+      trace "Remote signature verified", conn
 
     if initiator and not isNil(conn.peerInfo):
       let pid = PeerID.init(remotePubKey)
@@ -480,7 +487,7 @@ method handshake*(p: Noise, conn: Connection, initiator: bool): Future[SecureCon
           failedKey: PublicKey
         discard extractPublicKey(conn.peerInfo.peerId, failedKey)
         debug "Noise handshake, peer infos don't match!",
-          initiator, dealt_peer = $conn.peerInfo.id,
+          initiator, dealt_peer = conn,
           dealt_key = $failedKey, received_peer = $pid,
           received_key = $remotePubKey
         raise newException(NoiseHandshakeError, "Noise handshake, peer infos don't match! " & $pid & " != " & $conn.peerInfo.peerId)

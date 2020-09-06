@@ -79,15 +79,16 @@ method init*(g: GossipSub) =
     except CancelledError:
       # This is top-level procedure which will work as separate task, so it
       # do not need to propogate CancelledError.
-      trace "Unexpected cancellation in gossipsub handler"
+      trace "Unexpected cancellation in gossipsub handler", conn
     except CatchableError as exc:
-      trace "GossipSub handler leaks an error", exc = exc.msg
+      trace "GossipSub handler leaks an error", exc = exc.msg, conn
 
   g.handler = handler
   g.codec = GossipSubCodec
 
 proc replenishFanout(g: GossipSub, topic: string) =
   ## get fanout peers for a topic
+  logScope: topic
   trace "about to replenish fanout"
 
   if g.fanout.peers(topic) < GossipSubDLo:
@@ -201,7 +202,7 @@ proc getGossipPeers(g: GossipSub): Table[PubSubPeer, ControlMessage] {.gcsafe.} 
       continue
 
     if topic notin g.gossipsub:
-      trace "topic not in gossip array, skipping", topicID = topic
+      trace "topic not in gossip array, skipping", topic
       continue
 
     let ihave = ControlIHave(topicID: topic, messageIDs: toSeq(mids))
@@ -251,9 +252,10 @@ method unsubscribePeer*(g: GossipSub, peer: PeerID) =
   ## handle peer disconnects
   ##
 
-  trace "unsubscribing gossipsub peer", peer = $peer
+  trace "unsubscribing gossipsub peer", peer
   let pubSubPeer = g.peers.getOrDefault(peer)
   if pubSubPeer.isNil:
+    trace "no peer to unsubscribe", peer
     return
 
   for t in toSeq(g.gossipsub.keys):
@@ -287,7 +289,7 @@ method subscribeTopic*(g: GossipSub,
   procCall PubSub(g).subscribeTopic(topic, subscribe, peer)
 
   logScope:
-    peer = $peer.id
+    peer
     topic
 
   if subscribe:
@@ -319,7 +321,7 @@ proc handleGraft(g: GossipSub,
   for graft in grafts:
     let topic = graft.topicID
     logScope:
-      peer = peer.id
+      peer
       topic
 
     trace "peer grafted topic"
@@ -350,7 +352,7 @@ proc handleGraft(g: GossipSub,
 
 proc handlePrune(g: GossipSub, peer: PubSubPeer, prunes: seq[ControlPrune]) =
   for prune in prunes:
-    trace "peer pruned topic", peer = peer.id, topic = prune.topicID
+    trace "peer pruned topic", peer, topic = prune.topicID
 
     g.mesh.removePeer(prune.topicID, peer)
     when defined(libp2p_expensive_metrics):
@@ -362,7 +364,7 @@ proc handleIHave(g: GossipSub,
                  ihaves: seq[ControlIHave]): ControlIWant =
   for ihave in ihaves:
     trace "peer sent ihave",
-      peer = peer.id, topic = ihave.topicID, msgs = ihave.messageIDs
+      peer, topic = ihave.topicID, msgs = ihave.messageIDs
 
     if ihave.topicID in g.mesh:
       for m in ihave.messageIDs:
@@ -374,7 +376,7 @@ proc handleIWant(g: GossipSub,
                  iwants: seq[ControlIWant]): seq[Message] =
   for iwant in iwants:
     for mid in iwant.messageIDs:
-      trace "peer sent iwant", peer = peer.id, messageID = mid
+      trace "peer sent iwant", peer, messageID = mid
       let msg = g.mcache.get(mid)
       if msg.isSome:
         result.add(msg.get())
@@ -386,22 +388,19 @@ method rpcHandler*(g: GossipSub,
 
   for msg in rpcMsg.messages:                         # for every message
     let msgId = g.msgIdProvider(msg)
-    logScope:
-      msgId
-      peer = peer.id
 
     if g.seen.put(msgId):
-      trace "Dropping already-seen message"
+      trace "Dropping already-seen message", msgId, peer
       continue
 
     g.mcache.put(msgId, msg)
 
     if g.verifySignature and not msg.verify(peer.peerId):
-      debug "Dropping message due to failed signature verification"
+      debug "Dropping message due to failed signature verification", msgId, peer
       continue
 
     if not (await g.validate(msg)):
-      trace "Dropping message due to failed validation"
+      trace "Dropping message due to failed validation", msgId, peer
       continue
 
     var toSendPeers = initHashSet[PubSubPeer]()
@@ -414,7 +413,7 @@ method rpcHandler*(g: GossipSub,
     # In theory, if topics are the same in all messages, we could batch - we'd
     # also have to be careful to only include validated messages
     g.broadcast(toSeq(toSendPeers), RPCMsg(messages: @[msg]))
-    trace "forwared message to peers", peers = toSendPeers.len
+    trace "forwared message to peers", peers = toSendPeers.len, msgId, peer
 
   if rpcMsg.control.isSome:
     let control = rpcMsg.control.get()
@@ -428,7 +427,7 @@ method rpcHandler*(g: GossipSub,
     if respControl.graft.len > 0 or respControl.prune.len > 0 or
       respControl.ihave.len > 0 or messages.len > 0:
 
-      debug "sending control message", msg = shortLog(respControl)
+      debug "sending control message", msg = shortLog(respControl), peer
       g.send(
         peer,
         RPCMsg(control: some(respControl), messages: messages))

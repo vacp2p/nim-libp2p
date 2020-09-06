@@ -42,6 +42,9 @@ type
     oid*: Oid
     maxChannCount: int
 
+func shortLog*(m: MPlex): auto = shortLog(m.connection)
+chronicles.formatIt(Mplex): shortLog(it)
+
 proc newTooManyChannels(): ref TooManyChannels =
   newException(TooManyChannels, "max allowed channel count exceeded")
 
@@ -51,18 +54,19 @@ proc cleanupChann(m: Mplex, chann: LPChannel) {.async, inline.} =
   try:
     await chann.join()
     m.channels[chann.initiator].del(chann.id)
-    trace "cleaned up channel", id = chann.id, oid = $chann.oid
+    trace "cleaned up channel", m, chann
 
     when defined(libp2p_expensive_metrics):
       libp2p_mplex_channels.set(
         m.channels[chann.initiator].len.int64,
-        labelValues = [$chann.initiator, $m.connection.peerInfo])
+        labelValues = [$chann.initiator, $m.connection.peerInfo.peerId])
   except CancelledError:
     # This is top-level procedure which will work as separate task, so it
     # do not need to propogate CancelledError.
-    trace "Unexpected cancellation in mplex channel cleanup"
+    trace "Unexpected cancellation in mplex channel cleanup",
+      m, chann
   except CatchableError as exc:
-    trace "error cleaning up mplex channel", exc = exc.msg
+    trace "error cleaning up mplex channel", exc = exc.msg, m, chann
 
 proc newStreamInternal*(m: Mplex,
                         initiator: bool = true,
@@ -77,10 +81,10 @@ proc newStreamInternal*(m: Mplex,
     m.currentId.inc(); m.currentId
     else: chanId
 
-  trace "creating new channel", channelId = id,
-                                initiator = initiator,
-                                name = name,
-                                oid = $m.oid
+  trace "creating new channel", id,
+                                initiator,
+                                name,
+                                m
   result = LPChannel.init(
     id,
     m.connection,
@@ -103,35 +107,30 @@ proc newStreamInternal*(m: Mplex,
   when defined(libp2p_expensive_metrics):
     libp2p_mplex_channels.set(
       m.channels[initiator].len.int64,
-      labelValues = [$initiator, $m.connection.peerInfo])
+      labelValues = [$initiator, $m.connection.peerInfo.peerId])
 
 proc handleStream(m: Mplex, chann: LPChannel) {.async.} =
   ## call the muxer stream handler for this channel
   ##
   try:
     await m.streamHandler(chann)
-    trace "finished handling stream"
+    trace "finished handling stream", m, chann
     doAssert(chann.closed, "connection not closed by handler!")
   except CancelledError:
-    trace "Unexpected cancellation in stream handler"
+    trace "Unexpected cancellation in stream handler", m, chann
     await chann.reset()
     # This is top-level procedure which will work as separate task, so it
     # do not need to propogate CancelledError.
   except CatchableError as exc:
-    trace "Exception in mplex stream handler", exc = exc.msg
+    trace "Exception in mplex stream handler",
+      exc = exc.msg, m, chann
     await chann.reset()
 
 method handle*(m: Mplex) {.async, gcsafe.} =
-  logScope: moid = $m.oid
-
-  trace "starting mplex main loop"
+  trace "starting mplex main loop", m, peer = m.connection.peerInfo.peerId
   try:
-    defer:
-      trace "stopping mplex main loop"
-      await m.close()
-
     while not m.connection.atEof:
-      trace "waiting for data"
+      trace "waiting for data", m
       let
         (id, msgType, data) = await m.connection.readMsg()
         initiator = bool(ord(msgType) and 1)
@@ -142,32 +141,28 @@ method handle*(m: Mplex) {.async, gcsafe.} =
         msgType = msgType
         size = data.len
 
-      trace "read message from connection", data = data.shortLog
+      trace "read message from connection", m, data = data.shortLog
 
       var channel =
         if MessageType(msgType) != MessageType.New:
           let tmp = m.channels[initiator].getOrDefault(id, nil)
           if tmp == nil:
-            trace "Channel not found, skipping"
+            trace "Channel not found, skipping", m
             continue
 
           tmp
         else:
           if m.channels[false].len > m.maxChannCount - 1:
             warn "too many channels created by remote peer",
-                  allowedMax = MaxChannelCount
+                  allowedMax = MaxChannelCount, m
             raise newTooManyChannels()
 
           let name = string.fromBytes(data)
           m.newStreamInternal(false, id, name, timeout = m.outChannTimeout)
 
-      logScope:
-        name = channel.name
-        oid = $channel.oid
-
       case msgType:
         of MessageType.New:
-          trace "created channel"
+          trace "created channel", m, channel
 
           if not isNil(m.streamHandler):
             # Launch handler task
@@ -177,27 +172,26 @@ method handle*(m: Mplex) {.async, gcsafe.} =
         of MessageType.MsgIn, MessageType.MsgOut:
           if data.len > MaxMsgSize:
             warn "attempting to send a packet larger than allowed",
-                 allowed = MaxMsgSize
+                 allowed = MaxMsgSize, channel
             raise newLPStreamLimitError()
 
-          trace "pushing data to channel"
+          trace "pushing data to channel", m, channel
           await channel.pushTo(data)
-          trace "pushed data to channel"
+          trace "pushed data to channel", m, channel
 
         of MessageType.CloseIn, MessageType.CloseOut:
-          trace "closing channel"
           await channel.closeRemote()
-          trace "closed channel"
         of MessageType.ResetIn, MessageType.ResetOut:
-          trace "resetting channel"
           await channel.reset()
-          trace "reset channel"
   except CancelledError:
     # This procedure is spawned as task and it is not part of public API, so
     # there no way for this procedure to be cancelled implicitely.
     trace "Unexpected cancellation in mplex handler"
   except CatchableError as exc:
-    trace "Exception occurred", exception = exc.msg, oid = $m.oid
+    trace "Exception occurred", exception = exc.msg, m
+  finally:
+    trace "stopping mplex main loop", m
+    await m.close()
 
 proc init*(M: type Mplex,
            conn: Connection,
@@ -224,7 +218,7 @@ method close*(m: Mplex) {.async, gcsafe.} =
   if m.isClosed:
     return
 
-  trace "closing mplex muxer", moid = $m.oid
+  trace "closing mplex muxer", m
 
   m.isClosed = true
 

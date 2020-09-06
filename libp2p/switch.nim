@@ -30,9 +30,6 @@ import stream/connection,
        peerid,
        errors
 
-chronicles.formatIt(PeerInfo): $it
-chronicles.formatIt(PeerID): $it
-
 logScope:
   topics = "switch"
 
@@ -101,7 +98,7 @@ proc triggerConnEvent(s: Switch, peerId: PeerID, event: ConnEvent) {.async, gcsa
   except CancelledError as exc:
     raise exc
   except CatchableError as exc: # handlers should not raise!
-    warn "exception in trigger ConnEvents", exc = exc.msg
+    warn "exception in trigger ConnEvents", exc = exc.msg, peerId
 
 proc disconnect*(s: Switch, peerId: PeerID) {.async, gcsafe.}
 
@@ -120,7 +117,7 @@ proc secure(s: Switch, conn: Connection): Future[Connection] {.async, gcsafe.} =
   if manager.len == 0:
     raise newException(CatchableError, "Unable to negotiate a secure channel!")
 
-  trace "securing connection", codec = manager
+  trace "securing connection", codec = manager, conn
   let secureProtocol = s.secureManagers.filterIt(it.codec == manager)
 
   # ms.select should deal with the correctness of this
@@ -154,7 +151,7 @@ proc identify(s: Switch, conn: Connection) {.async, gcsafe.} =
     if info.protos.len > 0:
       conn.peerInfo.protocols = info.protos
 
-    trace "identify: identified remote peer", peer = $conn.peerInfo
+    trace "identify: identified remote peer", conn
 
 proc identify(s: Switch, muxer: Muxer) {.async, gcsafe.} =
   # new stream for identify
@@ -171,14 +168,14 @@ proc identify(s: Switch, muxer: Muxer) {.async, gcsafe.} =
 proc mux(s: Switch, conn: Connection): Future[Muxer] {.async, gcsafe.} =
   ## mux incoming connection
 
-  trace "muxing connection", peer = $conn
+  trace "muxing connection", conn
   if s.muxers.len == 0:
-    warn "no muxers registered, skipping upgrade flow"
+    warn "no muxers registered, skipping upgrade flow", conn
     return
 
   let muxerName = await s.ms.select(conn, toSeq(s.muxers.keys()))
   if muxerName.len == 0 or muxerName == "na":
-    debug "no muxer available, early exit", peer = $conn
+    debug "no muxer available, early exit", conn
     return
 
   # create new muxer for connection
@@ -190,13 +187,13 @@ proc mux(s: Switch, conn: Connection): Future[Muxer] {.async, gcsafe.} =
   s.connManager.storeOutgoing(muxer.connection)
   s.connManager.storeMuxer(muxer)
 
-  trace "found a muxer", name = muxerName, peer = $conn
+  trace "found a muxer", name = muxerName, conn
 
   # start muxer read loop - the future will complete when loop ends
   let handlerFut = muxer.handle()
 
   # store it in muxed connections if we have a peer for it
-  trace "adding muxer for peer", peer = conn.peerInfo.id
+  trace "adding muxer for peer", conn
   s.connManager.storeMuxer(muxer, handlerFut) # update muxer with handler
 
   return muxer
@@ -214,7 +211,7 @@ proc upgradeOutgoing(s: Switch, conn: Connection): Future[Connection] {.async, g
     raise newException(CatchableError,
       "current version of nim-libp2p requires that secure protocol negotiates peerid")
 
-  trace "upgrading connection", conn = $sconn, uoid = $conn.oid
+  trace "upgrading connection", conn
   let muxer = await s.mux(sconn) # mux it if possible
   if muxer == nil:
     # TODO this might be relaxed in the future
@@ -227,21 +224,19 @@ proc upgradeOutgoing(s: Switch, conn: Connection): Future[Connection] {.async, g
     # Identify is non-essential, though if it fails, it might indicate that
     # the connection was closed already - this will be picked up by the read
     # loop
-    debug "Could not identify connection",
-      err = exc.msg, conn = $conn, uoid = $conn.oid
+    debug "Could not identify connection", err = exc.msg, conn
 
   if isNil(sconn.peerInfo):
     await sconn.close()
     raise newException(CatchableError,
       "unable to identify connection, stopping upgrade")
 
-  trace "successfully upgraded outgoing connection",
-    conn = $sconn, uoid = $conn.oid, oid = $sconn.oid
+  trace "successfully upgraded outgoing connection", conn, sconn
 
   return sconn
 
 proc upgradeIncoming(s: Switch, conn: Connection) {.async, gcsafe.} =
-  trace "upgrading incoming connection", conn = $conn, oid = $conn.oid
+  trace "upgrading incoming connection", conn
   let ms = newMultistream()
 
   # secure incoming connections
@@ -250,7 +245,7 @@ proc upgradeIncoming(s: Switch, conn: Connection) {.async, gcsafe.} =
                        {.async, gcsafe, closure.} =
 
     var sconn: Connection
-    trace "Securing connection", oid = $conn.oid
+    trace "Securing connection", conn
     let secure = s.secureManagers.filterIt(it.codec == proto)[0]
 
     try:
@@ -271,8 +266,7 @@ proc upgradeIncoming(s: Switch, conn: Connection) {.async, gcsafe.} =
     except CancelledError as exc:
       raise exc
     except CatchableError as exc:
-      debug "ending secured handler",
-        err = exc.msg, conn = $conn, oid = $conn.oid
+      debug "ending secured handler", err = exc.msg, conn
 
   if (await ms.select(conn)): # just handshake
     # add the secure handlers
@@ -302,27 +296,25 @@ proc internalConnect(s: Switch,
         # This connection should already have been removed from the connection
         # manager - it's essentially a bug that we end up here - we'll fail
         # for now, hoping that this will clean themselves up later...
-        warn "dead connection in connection manager", peer = $peerId
+        warn "dead connection in connection manager", peerId
         await conn.close()
         raise newException(CatchableError, "Zombie connection encountered")
 
-      trace "Reusing existing connection",
-        oid = $conn.oid, direction = $conn.dir, peer = $peerId
-
+      trace "Reusing existing connection", conn
       return conn
 
-    trace "Dialing peer"
+    trace "Dialing peer", peerId
     for t in s.transports: # for each transport
       for a in addrs: # for each address
         if t.handles(a):   # check if it can dial it
-          trace "Dialing address", address = $a
+          trace "Dialing address", address = $a, peerId
           let dialed = try:
               await t.dial(a)
             except CancelledError as exc:
-              trace "dialing canceled", exc = exc.msg, peer = $peerId
+              trace "dialing canceled", exc = exc.msg, peerId
               raise exc
             except CatchableError as exc:
-              trace "dialing failed", exc = exc.msg, peer = $peerId
+              trace "dialing failed", exc = exc.msg, peerId
               libp2p_failed_dials.inc()
               continue # Try the next address
 
@@ -337,7 +329,7 @@ proc internalConnect(s: Switch,
               # If we failed to establish the connection through one transport,
               # we won't succeeed through another - no use in trying again
               await dialed.close()
-              debug "upgrade failed", exc = exc.msg
+              debug "Upgrade failed", exc = exc.msg, peerId
               if exc isnot CancelledError:
                 libp2p_failed_upgrade.inc()
               raise exc
@@ -345,10 +337,7 @@ proc internalConnect(s: Switch,
           doAssert not isNil(upgraded), "connection died after upgradeOutgoing"
 
           conn = upgraded
-          trace "dial successful",
-            peer = $peerId,
-            oid = $upgraded.oid,
-            peerInfo = shortLog(upgraded.peerInfo)
+          trace "dial successful", conn, peerInfo = upgraded.peerInfo
           break
   finally:
     if lock.locked():
@@ -374,10 +363,10 @@ proc internalConnect(s: Switch,
       # This is top-level procedure which will work as separate task, so it
       # do not need to propogate CancelledError.
       trace "Unexpected cancellation in switch peer connect cleanup",
-        peer = $peerId
+        conn
     except CatchableError as exc:
       trace "Unexpected exception in switch peer connect cleanup",
-            errMsg = exc.msg, peer = $peerId
+            errMsg = exc.msg, conn
 
   # All the errors are handled inside `cleanup()` procedure.
   asyncSpawn peerCleanup()
@@ -389,9 +378,7 @@ proc connect*(s: Switch, peerId: PeerID, addrs: seq[MultiAddress]) {.async.} =
   discard await s.internalConnect(peerId, addrs)
 
 proc negotiateStream(s: Switch, stream: Connection, proto: string): Future[Connection] {.async.} =
-  trace "Attempting to select remote", proto = proto,
-                                       streamOid = $stream.oid,
-                                       oid = $stream.oid
+  trace "Attempting to select remote", proto = proto, stream
 
   if not await s.ms.select(stream, proto):
     await stream.close()
@@ -430,11 +417,11 @@ proc dial*(s: Switch,
 
     return await s.negotiateStream(stream, proto)
   except CancelledError as exc:
-    trace "dial canceled"
+    trace "dial canceled", conn
     await cleanup()
     raise exc
   except CatchableError as exc:
-    trace "error dialing", exc = exc.msg
+    trace "error dialing", exc = exc.msg, conn
     await cleanup()
     raise exc
 
@@ -450,7 +437,7 @@ proc mount*[T: LPProtocol](s: Switch, proto: T) {.gcsafe.} =
   s.ms.addHandler(proto.codec, proto)
 
 proc start*(s: Switch): Future[seq[Future[void]]] {.async, gcsafe.} =
-  trace "starting switch for peer", peerInfo = shortLog(s.peerInfo)
+  trace "starting switch for peer", peerInfo = s.peerInfo
 
   proc handle(conn: Connection): Future[void] {.async, closure, gcsafe.} =
     try:
@@ -458,7 +445,7 @@ proc start*(s: Switch): Future[seq[Future[void]]] {.async, gcsafe.} =
     except CancelledError as exc:
       raise exc
     except CatchableError as exc:
-      trace "Exception occurred in Switch.start", exc = exc.msg
+      trace "Error in connection handler", exc = exc.msg, conn
     finally:
       await conn.close()
 
@@ -470,7 +457,7 @@ proc start*(s: Switch): Future[seq[Future[void]]] {.async, gcsafe.} =
         s.peerInfo.addrs[i] = t.ma # update peer's address
         startFuts.add(server)
 
-  debug "started libp2p node", peer = $s.peerInfo, addrs = s.peerInfo.addrs
+  debug "started libp2p node", peerInfo = s.peerInfo
   result = startFuts # listen for incoming connections
 
 proc stop*(s: Switch) {.async.} =
@@ -507,7 +494,7 @@ proc muxerHandler(s: Switch, muxer: Muxer) {.async, gcsafe.} =
     # Identify is non-essential, though if it fails, it might indicate that
     # the connection was closed already - this will be picked up by the read
     # loop
-    debug "Could not identify connection", err = exc.msg
+    debug "Could not identify connection", err = exc.msg, muxer
 
   try:
     let peerId = muxer.connection.peerInfo.peerId
@@ -523,7 +510,7 @@ proc muxerHandler(s: Switch, muxer: Muxer) {.async, gcsafe.} =
         debug "Unexpected cancellation in switch muxer cleanup"
       except CatchableError as exc:
         debug "Unexpected exception in switch muxer cleanup",
-              errMsg = exc.msg
+              errMsg = exc.msg, muxer
 
     proc peerStartup() {.async.} =
       try:
@@ -533,10 +520,10 @@ proc muxerHandler(s: Switch, muxer: Muxer) {.async, gcsafe.} =
       except CancelledError:
         # This is top-level procedure which will work as separate task, so it
         # do not need to propogate CancelledError.
-        debug "Unexpected cancellation in switch muxer startup"
+        debug "Unexpected cancellation in switch muxer startup", muxer
       except CatchableError as exc:
         debug "Unexpected exception in switch muxer startup",
-              errMsg = exc.msg
+              errMsg = exc.msg, muxer
 
     # All the errors are handled inside `peerStartup()` procedure.
     asyncSpawn peerStartup()
@@ -550,7 +537,7 @@ proc muxerHandler(s: Switch, muxer: Muxer) {.async, gcsafe.} =
   except CatchableError as exc:
     await muxer.close()
     libp2p_failed_upgrade.inc()
-    trace "exception in muxer handler", exc = exc.msg
+    trace "exception in muxer handler", exc = exc.msg, muxer
 
 proc newSwitch*(peerInfo: PeerInfo,
                 transports: seq[Transport],
@@ -573,7 +560,7 @@ proc newSwitch*(peerInfo: PeerInfo,
   let s = result # can't capture result
   result.streamHandler = proc(stream: Connection) {.async, gcsafe.} =
     try:
-      trace "handling connection for", peerInfo = $stream
+      trace "handling connection for", stream
       defer:
         if not(isNil(stream)):
           await stream.close()
@@ -581,7 +568,7 @@ proc newSwitch*(peerInfo: PeerInfo,
     except CancelledError as exc:
       raise exc
     except CatchableError as exc:
-      trace "exception in stream handler", exc = exc.msg
+      trace "exception in stream handler", exc = exc.msg, stream
 
   result.mount(identity)
   for key, val in muxers:

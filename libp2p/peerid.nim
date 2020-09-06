@@ -11,11 +11,13 @@
 
 {.push raises: [Defect].}
 
-import hashes
+import std/hashes
+import chronicles
 import nimcrypto/utils, stew/base58
 import crypto/crypto, multicodec, multihash, vbuffer
 import protobuf/minprotobuf
 import stew/results
+
 export results
 
 const
@@ -27,11 +29,24 @@ type
   PeerID* = object
     data*: seq[byte]
 
-  PeerIDError* = object of CatchableError
-
-proc pretty*(pid: PeerID): string {.inline.} =
+func `$`*(pid: PeerID): string =
   ## Return base58 encoded ``pid`` representation.
-  result = Base58.encode(pid.data)
+  Base58.encode(pid.data)
+
+func shortLog*(pid: PeerId): string =
+  ## Returns compact string representation of ``pid``.
+  var spid = $pid
+  if len(spid) <= 10:
+    result = spid
+  else:
+    result = newStringOfCap(10)
+    for i in 0..<2:
+      result.add(spid[i])
+    result.add("*")
+    for i in (len(spid) - 6)..spid.high:
+      result.add(spid[i])
+
+chronicles.formatIt(PeerID): shortLog(it)
 
 proc toBytes*(pid: PeerID, data: var openarray[byte]): int =
   ## Store PeerID ``pid`` to array of bytes ``data``.
@@ -111,19 +126,6 @@ proc extractPublicKey*(pid: PeerID, pubkey: var PublicKey): bool =
       if mh.mcodec == multiCodec("identity"):
         let length = len(mh.data.buffer)
         result = pubkey.init(mh.data.buffer.toOpenArray(mh.dpos, length - 1))
-
-proc `$`*(pid: PeerID): string =
-  ## Returns compact string representation of ``pid``.
-  var spid = pid.pretty()
-  if len(spid) <= 10:
-    result = spid
-  else:
-    result = newStringOfCap(10)
-    for i in 0..<2:
-      result.add(spid[i])
-    result.add("*")
-    for i in (len(spid) - 6)..spid.high:
-      result.add(spid[i])
 
 proc init*(pid: var PeerID, data: openarray[byte]): bool =
   ## Initialize peer id from raw binary representation ``data``.

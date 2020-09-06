@@ -7,7 +7,7 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import options
+import std/[options, strformat]
 import chronos, chronicles, bearssl
 import ../protocol,
        ../../stream/streamseq,
@@ -25,12 +25,18 @@ type
     stream*: Connection
     buf: StreamSeq
 
-proc init*[T: SecureConn](C: type T,
-                          conn: Connection,
-                          peerInfo: PeerInfo,
-                          observedAddr: Multiaddress,
-                          timeout: Duration = DefaultConnectionTimeout): T =
-  result = C(stream: conn,
+func shortLog*(conn: SecureConn): auto =
+  if conn.isNil: "SecureConn(nil)"
+  elif conn.peerInfo.isNil: $conn.oid
+  else: &"{shortLog(conn.peerInfo.peerId)}:{conn.oid}"
+chronicles.formatIt(SecureConn): shortLog(it)
+
+proc init*(T: type SecureConn,
+           conn: Connection,
+           peerInfo: PeerInfo,
+           observedAddr: Multiaddress,
+           timeout: Duration = DefaultConnectionTimeout): T =
+  result = T(stream: conn,
              peerInfo: peerInfo,
              observedAddr: observedAddr,
              closeEvent: conn.closeEvent,
@@ -71,7 +77,7 @@ proc handleConn*(s: Secure,
       # do not need to propogate CancelledError.
       discard
     except CatchableError as exc:
-      trace "error cleaning up secure connection", errMsg = exc.msg
+      trace "error cleaning up secure connection", err = exc.msg, sconn
 
   if not isNil(sconn):
     # All the errors are handled inside `cleanup()` procedure.
@@ -83,18 +89,18 @@ method init*(s: Secure) {.gcsafe.} =
   procCall LPProtocol(s).init()
 
   proc handle(conn: Connection, proto: string) {.async, gcsafe.} =
-    trace "handling connection upgrade", proto
+    trace "handling connection upgrade", proto, conn
     try:
       # We don't need the result but we
       # definitely need to await the handshake
       discard await s.handleConn(conn, false)
-      trace "connection secured"
+      trace "connection secured", conn
     except CancelledError as exc:
-      warn "securing connection canceled"
+      warn "securing connection canceled", conn
       await conn.close()
       raise exc
     except CatchableError as exc:
-      warn "securing connection failed", msg = exc.msg
+      warn "securing connection failed", err = exc.msg, conn
       await conn.close()
 
   s.handler = handle

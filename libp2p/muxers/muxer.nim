@@ -35,6 +35,9 @@ type
     streamHandler*: StreamHandler # triggered every time there is a new stream, called for any muxer instance
     muxerHandler*: MuxerHandler # triggered every time there is a new muxed connection created
 
+func shortLog*(m: Muxer): auto = shortLog(m.connection)
+chronicles.formatIt(Muxer): shortLog(it)
+
 # muxer interface
 method newStream*(m: Muxer, name: string = "", lazy: bool = false):
   Future[Connection] {.base, async, gcsafe.} = discard
@@ -49,7 +52,7 @@ proc newMuxerProvider*(creator: MuxerConstructor, codec: string): MuxerProvider 
 
 method init(c: MuxerProvider) =
   proc handler(conn: Connection, proto: string) {.async, gcsafe, closure.} =
-    trace "starting muxer handler", proto=proto, peer = $conn
+    trace "starting muxer handler", proto=proto, conn
     try:
       let
         muxer = c.newMuxer(conn)
@@ -68,11 +71,8 @@ method init(c: MuxerProvider) =
     except CancelledError as exc:
       raise exc
     except CatchableError as exc:
-      trace "exception in muxer handler", exc = exc.msg, peer = $conn, proto=proto
+      trace "exception in muxer handler", exc = exc.msg, conn, proto
     finally:
       await conn.close()
 
   c.handler = handler
-
-proc `$`*(m: Muxer): string =
-  $m.connection
