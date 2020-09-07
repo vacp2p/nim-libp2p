@@ -90,7 +90,7 @@ proc resetMessage(s: LPChannel) {.async.} =
   except CancelledError:
     # This procedure is called from one place and never awaited, so there no
     # need to re-raise CancelledError.
-    trace "Unexpected cancellation while resetting channel"
+    debug "Unexpected cancellation while resetting channel", s
   except LPStreamEOFError as exc:
     trace "muxed connection EOF", exc = exc.msg, s
   except LPStreamClosedError as exc:
@@ -217,14 +217,14 @@ proc init*(
         await chann.open()
 
       # writes should happen in sequence
-      trace "sending data", len = data.len, chann
+      trace "sending data", len = data.len, conn, chann
 
       await conn.writeMsg(chann.id,
                           chann.msgCode,
                           data)
     except CatchableError as exc:
       trace "exception in lpchannel write handler", exc = exc.msg, chann
-      await chann.reset()
+      asyncSpawn conn.close()
       raise exc
 
   chann.initBufferStream(writeHandler, size)

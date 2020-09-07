@@ -32,6 +32,7 @@ when defined(libp2p_expensive_metrics):
 
 type
   TooManyChannels* = object of CatchableError
+  InvalidChannelIdError* = object of CatchableError
 
   Mplex* = ref object of Muxer
     channels: array[bool, Table[uint64, LPChannel]]
@@ -48,13 +49,16 @@ chronicles.formatIt(Mplex): shortLog(it)
 proc newTooManyChannels(): ref TooManyChannels =
   newException(TooManyChannels, "max allowed channel count exceeded")
 
+proc newInvalidChannelIdError(): ref InvalidChannelIdError =
+  newException(InvalidChannelIdError, "max allowed channel count exceeded")
+
 proc cleanupChann(m: Mplex, chann: LPChannel) {.async, inline.} =
   ## remove the local channel from the internal tables
   ##
   try:
     await chann.join()
     m.channels[chann.initiator].del(chann.id)
-    trace "cleaned up channel", m, chann
+    debug "cleaned up channel", m, chann
 
     when defined(libp2p_expensive_metrics):
       libp2p_mplex_channels.set(
@@ -63,10 +67,10 @@ proc cleanupChann(m: Mplex, chann: LPChannel) {.async, inline.} =
   except CancelledError:
     # This is top-level procedure which will work as separate task, so it
     # do not need to propogate CancelledError.
-    trace "Unexpected cancellation in mplex channel cleanup",
+    debug "Unexpected cancellation in mplex channel cleanup",
       m, chann
   except CatchableError as exc:
-    trace "error cleaning up mplex channel", exc = exc.msg, m, chann
+    debug "error cleaning up mplex channel", exc = exc.msg, m, chann
 
 proc newStreamInternal*(m: Mplex,
                         initiator: bool = true,
@@ -81,10 +85,9 @@ proc newStreamInternal*(m: Mplex,
     m.currentId.inc(); m.currentId
     else: chanId
 
-  trace "creating new channel", id,
-                                initiator,
-                                name,
-                                m
+  if id in m.channels[initiator]:
+    raise newInvalidChannelIdError()
+
   result = LPChannel.init(
     id,
     m.connection,
@@ -96,8 +99,7 @@ proc newStreamInternal*(m: Mplex,
   result.peerInfo = m.connection.peerInfo
   result.observedAddr = m.connection.observedAddr
 
-  doAssert(id notin m.channels[initiator],
-    "channel slot already taken!")
+  trace "Creating new channel", id, initiator, name, m, channel = result
 
   m.channels[initiator][id] = result
 
@@ -127,7 +129,7 @@ proc handleStream(m: Mplex, chann: LPChannel) {.async.} =
     await chann.reset()
 
 method handle*(m: Mplex) {.async, gcsafe.} =
-  trace "starting mplex main loop", m, peer = m.connection.peerInfo.peerId
+  trace "Starting mplex main loop", m
   try:
     while not m.connection.atEof:
       trace "waiting for data", m
@@ -186,7 +188,7 @@ method handle*(m: Mplex) {.async, gcsafe.} =
   except CancelledError:
     # This procedure is spawned as task and it is not part of public API, so
     # there no way for this procedure to be cancelled implicitely.
-    trace "Unexpected cancellation in mplex handler"
+    debug "Unexpected cancellation in mplex handler", m
   except CatchableError as exc:
     trace "Exception occurred", exception = exc.msg, m
   finally:
