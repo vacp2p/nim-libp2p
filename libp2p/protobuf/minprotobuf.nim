@@ -168,7 +168,7 @@ proc initProtoBuffer*(data: openarray[byte], offset = 0,
 
 proc initProtoBuffer*(options: set[ProtoFlags] = {}): ProtoBuffer =
   ## Initialize ProtoBuffer with new sequence of capacity ``cap``.
-  result.buffer = newSeqOfCap[byte](128)
+  result.buffer = newSeq[byte]()
   result.options = options
   if WithVarintLength in options:
     # Our buffer will start from position 10, so we can store length of buffer
