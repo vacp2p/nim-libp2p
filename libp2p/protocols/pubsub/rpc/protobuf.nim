@@ -197,7 +197,7 @@ proc decodeMessage*(pb: ProtoBuffer): ProtoResult[Message] {.inline.} =
   trace "decodeMessage: decoding message"
   var msg: Message
   if ? pb.getField(1, msg.fromPeer):
-    trace "decodeMessage: read fromPeer", fromPeer = msg.fromPeer.pretty()
+    trace "decodeMessage: read fromPeer", fromPeer = msg.fromPeer
   else:
     trace "decodeMessage: fromPeer is missing"
   if ? pb.getField(2, msg.data):

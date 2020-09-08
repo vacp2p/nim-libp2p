@@ -88,6 +88,13 @@ steps:
       [[ -z "$ncpu" || $ncpu -le 0 ]] && ncpu=2
       echo "Found ${ncpu} cores"
 
+      if [[ $PLATFORM == "x86" ]]; then
+        choco --version
+        choco install --x86 openssl
+        export PATH="/c/Program Files (x86)/OpenSSL-Win32/bin:${PATH}"
+        echo "PATH=${PATH}"
+      fi
+
       # build nim from our own branch - this to avoid the day-to-day churn and
       # regressions of the fast-paced Nim development while maintaining the
       # flexibility to apply patches

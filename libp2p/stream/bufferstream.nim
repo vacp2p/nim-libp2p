@@ -30,7 +30,7 @@
 ## will suspend until either the amount of elements in the
 ## buffer goes below ``maxSize`` or more data becomes available.
 
-import deques, math
+import std/[deques, math, strformat]
 import chronos, chronicles, metrics
 import ../stream/connection
 
@@ -43,7 +43,7 @@ logScope:
   topics = "bufferstream"
 
 const
-  DefaultBufferSize* = 102400
+  DefaultBufferSize* = 128
 
 const
   BufferStreamTrackerName* = "libp2p.bufferstream"
@@ -100,6 +100,12 @@ proc newAlreadyPipedError*(): ref CatchableError {.inline.} =
 proc newNotWritableError*(): ref CatchableError {.inline.} =
   result = newException(NotWritableError, "stream is not writable")
 
+func shortLog*(s: BufferStream): auto =
+  if s.isNil: "BufferStream(nil)"
+  elif s.peerInfo.isNil: $s.oid
+  else: &"{shortLog(s.peerInfo.peerId)}:{s.oid}"
+chronicles.formatIt(BufferStream): shortLog(it)
+
 proc requestReadBytes(s: BufferStream): Future[void] =
   ## create a future that will complete when more
   ## data becomes available in the read buffer
@@ -142,7 +148,7 @@ proc initBufferStream*(s: BufferStream,
       await s.writeLock.acquire()
       await handler(data)
 
-  trace "created bufferstream", oid = $s.oid
+  trace "created bufferstream", s
 
 proc newBufferStream*(handler: WriteHandler = nil,
                       size: int = DefaultBufferSize,
@@ -206,7 +212,7 @@ proc drainBuffer*(s: BufferStream) {.async.} =
   ## wait for all data in the buffer to be consumed
   ##
 
-  trace "draining buffer", len = s.len, oid = $s.oid
+  trace "draining buffer", len = s.len, s
   while s.len > 0:
     await s.dataReadEvent.wait()
     s.dataReadEvent.clear()
@@ -296,7 +302,7 @@ method close*(s: BufferStream) {.async, gcsafe.} =
   try:
     ## close the stream and clear the buffer
     if not s.isClosed:
-      trace "closing bufferstream", oid = $s.oid
+      trace "closing bufferstream", s
       s.isEof = true
       for r in s.readReqs:
         if not(isNil(r)) and not(r.finished()):
@@ -306,11 +312,11 @@ method close*(s: BufferStream) {.async, gcsafe.} =
 
       await procCall Connection(s).close()
       inc getBufferStreamTracker().closed
-      trace "bufferstream closed", oid = $s.oid
+      trace "bufferstream closed", s
     else:
       trace "attempt to close an already closed bufferstream",
-        trace = getStackTrace(), oid = $s.oid
+        trace = getStackTrace(), s
   except CancelledError as exc:
     raise exc
   except CatchableError as exc:
-    trace "error closing buffer stream", exc = exc.msg
+    trace "error closing buffer stream", exc = exc.msg, s

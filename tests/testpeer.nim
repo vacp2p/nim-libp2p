@@ -200,10 +200,10 @@ suite "Peer testing suite":
         p1 == p2
         p1 == p4
         p2 == p4
-        p1.pretty() == PeerIDs[i]
-        p2.pretty() == PeerIDs[i]
-        p3.pretty() == PeerIDs[i]
-        p4.pretty() == PeerIDs[i]
+        $p1 == PeerIDs[i]
+        $p2 == PeerIDs[i]
+        $p3 == PeerIDs[i]
+        $p4 == PeerIDs[i]
         p1.match(seckey) == true
         p1.match(pubkey) == true
         p1.getBytes() == p2.getBytes()

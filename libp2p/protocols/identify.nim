@@ -106,16 +106,16 @@ method init*(p: Identify) =
   proc handle(conn: Connection, proto: string) {.async, gcsafe, closure.} =
     try:
       defer:
-        trace "exiting identify handler", oid = $conn.oid
+        trace "exiting identify handler", conn
         await conn.close()
 
-      trace "handling identify request", oid = $conn.oid
+      trace "handling identify request", conn
       var pb = encodeMsg(p.peerInfo, conn.observedAddr)
       await conn.writeLp(pb.buffer)
     except CancelledError as exc:
       raise exc
     except CatchableError as exc:
-      trace "exception in identify handler", exc = exc.msg
+      trace "exception in identify handler", exc = exc.msg, conn
 
   p.handler = handle
   p.codec = IdentifyCodec
@@ -123,10 +123,10 @@ method init*(p: Identify) =
 proc identify*(p: Identify,
                conn: Connection,
                remotePeerInfo: PeerInfo): Future[IdentifyInfo] {.async, gcsafe.} =
-  trace "initiating identify", peer = $conn
+  trace "initiating identify", conn
   var message = await conn.readLp(64*1024)
   if len(message) == 0:
-    trace "identify: Empty message received!"
+    trace "identify: Empty message received!", conn
     raise newException(IdentityInvalidMsgError, "Empty message received!")
 
   let infoOpt = decodeMsg(message)
@@ -144,8 +144,8 @@ proc identify*(p: Identify,
       # have in most cases
       if peer.get() != remotePeerInfo.peerId:
         trace "Peer ids don't match",
-              remote = peer.get().pretty(),
-              local = remotePeerInfo.id
+              remote = peer,
+              local = remotePeerInfo.peerId
 
         raise newException(IdentityNoMatchError, "Peer ids don't match")
 

@@ -6,7 +6,8 @@
 ## at your option.
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
-import chronos, chronicles, oids, stew/endians2, bearssl
+import std/[oids, strformat]
+import chronos, chronicles, stew/endians2, bearssl
 import nimcrypto/[hmac, sha2, sha, hash, rijndael, twofish, bcmode]
 import secure,
        ../../stream/connection,
@@ -68,6 +69,12 @@ type
     readerCoder: SecureCipher
 
   SecioError* = object of CatchableError
+
+func shortLog*(conn: SecioConn): auto =
+  if conn.isNil: "SecioConn(nil)"
+  elif conn.peerInfo.isNil: $conn.oid
+  else: &"{shortLog(conn.peerInfo.peerId)}:{conn.oid}"
+chronicles.formatIt(SecioConn): shortLog(it)
 
 proc init(mac: var SecureMac, hash: string, key: openarray[byte]) =
   if hash == "SHA256":
@@ -184,17 +191,17 @@ proc readRawMessage(conn: Connection): Future[seq[byte]] {.async.} =
     trace "Recieved message header", header = lengthBuf.shortLog, length = length
 
     if length > SecioMaxMessageSize: # Verify length before casting!
-      trace "Received size of message exceed limits", conn = $conn, length = length
+      trace "Received size of message exceed limits", conn, length = length
       raise (ref SecioError)(msg: "Message exceeds maximum length")
 
     if length > 0:
       var buf = newSeq[byte](int(length))
       await conn.readExactly(addr buf[0], buf.len)
       trace "Received message body",
-        conn = $conn, length = buf.len, buff = buf.shortLog
+        conn, length = buf.len, buff = buf.shortLog
       return buf
 
-    trace "Discarding 0-length payload", conn = $conn
+    trace "Discarding 0-length payload", conn
 
 method readMessage*(sconn: SecioConn): Future[seq[byte]] {.async.} =
   ## Read message from channel secure connection ``sconn``.
@@ -312,12 +319,12 @@ method handshake*(s: Secio, conn: Connection, initiator: bool = false): Future[S
   var answer = await transactMessage(conn, request)
 
   if len(answer) == 0:
-    trace "Proposal exchange failed", conn = $conn
+    trace "Proposal exchange failed", conn
     raise (ref SecioError)(msg: "Proposal exchange failed")
 
   if not decodeProposal(answer, remoteNonce, remoteBytesPubkey, remoteExchanges,
                         remoteCiphers, remoteHashes):
-    trace "Remote proposal decoding failed", conn = $conn
+    trace "Remote proposal decoding failed", conn
     raise (ref SecioError)(msg: "Remote proposal decoding failed")
 
   if not remotePubkey.init(remoteBytesPubkey):
@@ -354,11 +361,11 @@ method handshake*(s: Secio, conn: Connection, initiator: bool = false): Future[S
   var localExchange = createExchange(epubkey, signature.getBytes())
   var remoteExchange = await transactMessage(conn, localExchange)
   if len(remoteExchange) == 0:
-    trace "Corpus exchange failed", conn = $conn
+    trace "Corpus exchange failed", conn
     raise (ref SecioError)(msg: "Corpus exchange failed")
 
   if not decodeExchange(remoteExchange, remoteEBytesPubkey, remoteEBytesSig):
-    trace "Remote exchange decoding failed", conn = $conn
+    trace "Remote exchange decoding failed", conn
     raise (ref SecioError)(msg: "Remote exchange decoding failed")
 
   if not remoteESignature.init(remoteEBytesSig):

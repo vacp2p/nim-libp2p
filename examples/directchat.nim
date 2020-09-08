@@ -190,7 +190,7 @@ proc processInput(rfd: AsyncFD, rng: ref BrHmacDrbgContext) {.async.} =
   let libp2pFuts = await switch.start()
   chatProto.started = true
 
-  let id = peerInfo.peerId.pretty
+  let id = $peerInfo.peerId
   echo "PeerID: " & id
   echo "listening on: "
   for a in peerInfo.addrs:

@@ -31,10 +31,10 @@ proc newInvalidMplexMsgType*(): ref InvalidMplexMsgType =
 
 proc readMsg*(conn: Connection): Future[Msg] {.async, gcsafe.} =
   let header = await conn.readVarint()
-  trace "read header varint", varint = header
+  trace "read header varint", varint = header, conn
 
   let data = await conn.readLp(MaxMsgSize)
-  trace "read data", dataLen = data.len, data = shortLog(data)
+  trace "read data", dataLen = data.len, data = shortLog(data), conn
 
   let msgType = header and 0x7
   if msgType.int > ord(MessageType.ResetOut):
@@ -46,7 +46,7 @@ proc writeMsg*(conn: Connection,
                id: uint64,
                msgType: MessageType,
                data: seq[byte] = @[]) {.async, gcsafe.} =
-  trace "sending data over mplex", oid = $conn.oid,
+  trace "sending data over mplex", conn,
                                    id,
                                    msgType,
                                    data = data.len

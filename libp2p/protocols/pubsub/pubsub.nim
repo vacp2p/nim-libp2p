@@ -72,56 +72,34 @@ method unsubscribePeer*(p: PubSub, peerId: PeerID) {.base.} =
   ##
 
   trace "unsubscribing pubsub peer", peer = $peerId
-  if peerId in p.peers:
-    p.peers.del(peerId)
+  p.peers.del(peerId)
 
   libp2p_pubsub_peers.set(p.peers.len.int64)
 
-proc send*(
-  p: PubSub,
-  peer: PubSubPeer,
-  msg: RPCMsg,
-  timeout: Duration): Future[bool] {.async.} =
-  ## send to remote peer
+proc send*(p: PubSub, peer: PubSubPeer, msg: RPCMsg) =
+  ## Attempt to send `msg` to remote peer
   ##
 
   trace "sending pubsub message to peer", peer = $peer, msg = shortLog(msg)
-  try:
-    await peer.send(msg, timeout)
-    return true
-  except CancelledError as exc:
-    raise exc
-  except CatchableError as exc:
-    trace "exception sending pubsub message to peer",
-      peer = $peer, msg = shortLog(msg)
-    # do not unsub during internal testing (no networking)
-    when not defined(pubsub_internal_testing):
-      p.unsubscribePeer(peer.peerId)
+  peer.send(msg)
 
 proc broadcast*(
   p: PubSub,
-  sendPeers: seq[PubSubPeer],
-  msg: RPCMsg,
-  timeout: Duration): Future[int] {.async.} =
-  ## send messages and cleanup failed peers
-  ##
+  sendPeers: openArray[PubSubPeer],
+  msg: RPCMsg) = # raises: [Defect]
+  ## Attempt to send `msg` to the given peers
 
   trace "broadcasting messages to peers",
-    peers = sendPeers.len, message = shortLog(msg)
-  let sent = await allFinished(
-    sendPeers.mapIt( p.send(it, msg, timeout) ))
-  return sent.filterIt( it.finished and it.read ).len
+    peers = sendPeers.len, msg = shortLog(msg)
+  for peer in sendPeers:
+    p.send(peer, msg)
 
 proc sendSubs*(p: PubSub,
                peer: PubSubPeer,
                topics: seq[string],
-               subscribe: bool): Future[bool] =
+               subscribe: bool) =
   ## send subscriptions to remote peer
-  p.send(
-    peer,
-    RPCMsg(
-      subscriptions: topics.mapIt(SubOpts(subscribe: subscribe, topic: it))),
-    DefaultSendTimeout)
+  p.send(peer, RPCMsg.withSubs(topics, subscribe))
 
 method subscribeTopic*(p: PubSub,
                        topic: string,
@@ -132,16 +110,12 @@ method subscribeTopic*(p: PubSub,
 
 method rpcHandler*(p: PubSub,
                    peer: PubSubPeer,
-                   rpcMsgs: seq[RPCMsg]) {.async, base.} =
+                   rpcMsg: RPCMsg) {.async, base.} =
   ## handle rpc messages
-  trace "processing RPC message", peer = peer.id, msgs = rpcMsgs.len
-
-  for m in rpcMsgs:                                # for all RPC messages
-    trace "processing messages", msg = m.shortLog
-    if m.subscriptions.len > 0:                    # if there are any subscriptions
-      for s in m.subscriptions:                    # subscribe/unsubscribe the peer for each topic
-        trace "about to subscribe to topic", topicId = s.topic
-        p.subscribeTopic(s.topic, s.subscribe, peer)
+  trace "processing RPC message", msg = rpcMsg.shortLog, peer
+  for s in rpcMsg.subscriptions: # subscribe/unsubscribe the peer for each topic
+    trace "about to subscribe to topic", topicId = s.topic, peer
+    p.subscribeTopic(s.topic, s.subscribe, peer)
 
 method onNewPeer(p: PubSub, peer: PubSubPeer) {.base.} = discard
 
@@ -152,8 +126,12 @@ proc getOrCreatePeer*(
   if peer in p.peers:
     return p.peers[peer]
 
+  proc getConn(): Future[(Connection, RPCMsg)] {.async.} =
+    let conn = await p.switch.dial(peer, proto)
+    return (conn, RPCMsg.withSubs(toSeq(p.topics.keys), true))
+
   # create new pubsub peer
-  let pubSubPeer = newPubSubPeer(peer, p.switch, proto)
+  let pubSubPeer = newPubSubPeer(peer, getConn, proto)
   trace "created new pubsub peer", peerId = $peer
 
   p.peers[peer] = pubSubPeer
@@ -163,7 +141,23 @@ proc getOrCreatePeer*(
 
   # metrics
   libp2p_pubsub_peers.set(p.peers.len.int64)
+
+  pubsubPeer.connect()
+
   return pubSubPeer
+
+proc handleData*(p: PubSub, topic: string, data: seq[byte]): Future[void] {.async.} =
+  if topic notin p.topics: return # Not subscribed
+
+  for h in p.topics[topic].handler:
+    trace "triggering handler", topicID = topic
+    try:
+      await h(topic, data)
+    except CancelledError as exc:
+      raise exc
+    except CatchableError as exc:
+      # Handlers should never raise exceptions
+      warn "Error in topic handler", msg = exc.msg
 
 method handleConn*(p: PubSub,
                    conn: Connection,
@@ -184,22 +178,20 @@ method handleConn*(p: PubSub,
     await conn.close()
     return
 
-  proc handler(peer: PubSubPeer, msgs: seq[RPCMsg]) {.async.} =
+  proc handler(peer: PubSubPeer, msg: RPCMsg): Future[void] =
     # call pubsub rpc handler
-    await p.rpcHandler(peer, msgs)
+    p.rpcHandler(peer, msg)
+
+  let peer = p.getOrCreatePeer(conn.peerInfo.peerId, proto)
 
   try:
-    let peer = p.getOrCreatePeer(conn.peerInfo.peerId, proto)
-    if p.topics.len > 0:
-      discard await p.sendSubs(peer, toSeq(p.topics.keys), true)
-
     peer.handler = handler
     await peer.handle(conn) # spawn peer read loop
-    trace "pubsub peer handler ended", peer = peer.id
+    trace "pubsub peer handler ended", conn
   except CancelledError as exc:
     raise exc
   except CatchableError as exc:
-    trace "exception ocurred in pubsub handle", exc = exc.msg
+    trace "exception ocurred in pubsub handle", exc = exc.msg, conn
   finally:
     await conn.close()
 
@@ -208,31 +200,22 @@ method subscribePeer*(p: PubSub, peer: PeerID) {.base.} =
   ## messages
   ##
 
-  let pubsubPeer = p.getOrCreatePeer(peer, p.codec)
-  pubsubPeer.outbound = true # flag as outbound
-  if p.topics.len > 0:
-    # TODO sendSubs may raise, but doing asyncCheck here causes the exception
-    #      to escape to the poll loop.
-    #      With a bit of luck, it may be harmless to ignore exceptions here -
-    #      some cleanup is eventually done in PubSubPeer.send
-    asyncCheck p.sendSubs(pubsubPeer, toSeq(p.topics.keys), true)
-
-  pubsubPeer.subscribed = true
+  let peer = p.getOrCreatePeer(peer, p.codec)
+  peer.outbound = true # flag as outbound
 
 method unsubscribe*(p: PubSub,
                     topics: seq[TopicPair]) {.base, async.} =
   ## unsubscribe from a list of ``topic`` strings
   for t in topics:
-    for i, h in p.topics[t.topic].handler:
-      if h == t.handler:
-        p.topics[t.topic].handler.del(i)
+    p.topics.withValue(t.topic, topic):
+      topic[].handler.keepIf(proc (x: auto): bool = x != t.handler)
 
-    # make sure we delete the topic if
-    # no more handlers are left
-    if p.topics[t.topic].handler.len <= 0:
-      p.topics.del(t.topic)
-      # metrics
-      libp2p_pubsub_topics.set(p.topics.len.int64)
+      if topic[].handler.len == 0:
+        # make sure we delete the topic if
+        # no more handlers are left
+        p.topics.del(t.topic)
+
+        libp2p_pubsub_topics.set(p.topics.len.int64)
 
 proc unsubscribe*(p: PubSub,
                   topic: string,
@@ -263,32 +246,22 @@ method subscribe*(p: PubSub,
 
   p.topics[topic].handler.add(handler)
 
-  var sent: seq[Future[bool]]
-  for peer in toSeq(p.peers.values):
-    sent.add(p.sendSubs(peer, @[topic], true))
-
-  checkFutures(await allFinished(sent))
+  for _, peer in p.peers:
+    p.sendSubs(peer, @[topic], true)
 
   # metrics
   libp2p_pubsub_topics.set(p.topics.len.int64)
 
 method publish*(p: PubSub,
                 topic: string,
-                data: seq[byte],
-                timeout: Duration = InfiniteDuration): Future[int] {.base, async.} =
+                data: seq[byte]): Future[int] {.base, async.} =
   ## publish to a ``topic``
-  if p.triggerSelf and topic in p.topics:
-    for h in p.topics[topic].handler:
-      trace "triggering handler", topicID = topic
-      try:
-        await h(topic, data)
-      except CancelledError as exc:
-        raise exc
-      except CatchableError as exc:
-        # TODO these exceptions are ignored since it's likely that if writes are
-        #      are failing, the underlying connection is already closed - this needs
-        #      more cleanup though
-        debug "Could not write to pubsub connection", msg = exc.msg
+  ## The return value is the number of neighbours that we attempted to send the
+  ## message to, excluding self. Note that this is an optimistic number of
+  ## attempts - the number of peers that actually receive the message might
+  ## be lower.
+  if p.triggerSelf:
+    await handleData(p, topic, data)
 
   return 0
 
