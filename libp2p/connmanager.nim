@@ -30,7 +30,7 @@ type
   ConnManager* = ref object of RootObj
     # NOTE: don't change to PeerInfo here
     # the reference semantics on the PeerInfo
-    # object itself make it succeptible to
+    # object itself make it susceptible to
     # copies and mangling by unrelated code.
     conns: Table[PeerID, HashSet[Connection]]
     muxed: Table[Connection, MuxerHolder]
@@ -77,6 +77,9 @@ proc contains*(c: ConnManager, muxer: Muxer): bool =
     return
 
   return muxer == c.muxed[conn].muxer
+
+proc connCount*(c: ConnManager, peerId: PeerID): int =
+  c.conns.getOrDefault(peerId).len
 
 proc closeMuxerHolder(muxerHolder: MuxerHolder) {.async.} =
   trace "Cleaning up muxer", m = muxerHolder.muxer
@@ -267,6 +270,7 @@ proc dropPeer*(c: ConnManager, peerId: PeerID) {.async.} =
   trace "Dropping peer", peerId
   let conns = c.conns.getOrDefault(peerId)
   for conn in conns:
+    trace  "Removing connection", conn
     delConn(c, conn)
 
   var muxers: seq[MuxerHolder]
@@ -280,6 +284,7 @@ proc dropPeer*(c: ConnManager, peerId: PeerID) {.async.} =
 
   for conn in conns:
     await conn.close()
+  trace "Dropped peer", peerId
 
   trace "Dropped peer", peerId
 

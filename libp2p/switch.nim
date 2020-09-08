@@ -64,6 +64,13 @@ type
     ConnEventHandler* =
       proc(peerId: PeerID, event: ConnEvent): Future[void] {.gcsafe.}
 
+    PeerEvent* {.pure.} = enum
+      Joined,
+      Left
+
+    PeerEventHandler* =
+      proc(peerId: PeerID, event: PeerEvent): Future[void] {.gcsafe.}
+
     Switch* = ref object of RootObj
       peerInfo*: PeerInfo
       connManager: ConnManager
@@ -75,32 +82,67 @@ type
       streamHandler*: StreamHandler
       secureManagers*: seq[Secure]
       dialLock: Table[PeerID, AsyncLock]
-      ConnEvents: Table[ConnEventKind, HashSet[ConnEventHandler]]
+      connEvents: Table[ConnEventKind, HashSet[ConnEventHandler]]
+      peerEvents: Table[PeerEvent, HashSet[PeerEventHandler]]
 
 proc addConnEventHandler*(s: Switch,
                           handler: ConnEventHandler, kind: ConnEventKind) =
   ## Add peer event handler - handlers must not raise exceptions!
+  ##
+
   if isNil(handler): return
-  s.ConnEvents.mgetOrPut(kind, initHashSet[ConnEventHandler]()).incl(handler)
+  s.connEvents.mgetOrPut(kind,
+    initHashSet[ConnEventHandler]()).incl(handler)
 
 proc removeConnEventHandler*(s: Switch,
                              handler: ConnEventHandler, kind: ConnEventKind) =
-  s.ConnEvents.withValue(kind, handlers) do:
+  s.connEvents.withValue(kind, handlers) do:
     handlers[].excl(handler)
 
 proc triggerConnEvent(s: Switch, peerId: PeerID, event: ConnEvent) {.async, gcsafe.} =
   try:
-    if event.kind in s.ConnEvents:
-      var ConnEvents: seq[Future[void]]
-      for h in s.ConnEvents[event.kind]:
-        ConnEvents.add(h(peerId, event))
+    if event.kind in s.connEvents:
+      var connEvents: seq[Future[void]]
+      for h in s.connEvents[event.kind]:
+        connEvents.add(h(peerId, event))
 
-      checkFutures(await allFinished(ConnEvents))
+      checkFutures(await allFinished(connEvents))
   except CancelledError as exc:
     raise exc
   except CatchableError as exc: # handlers should not raise!
     warn "Exception in triggerConnEvents",
       msg = exc.msg, peerId, event = $event
+
+proc addPeerEventHandler*(s: Switch,
+                          handler: PeerEventHandler,
+                          kind: PeerEvent) =
+  ## Add peer event handler - handlers must not raise exceptions!
+  ##
+
+  if isNil(handler): return
+  s.peerEvents.mgetOrPut(kind,
+    initHashSet[PeerEventHandler]()).incl(handler)
+
+proc removePeerEventHandler*(s: Switch,
+                             handler: PeerEventHandler,
+                             kind: PeerEvent) =
+  s.peerEvents.withValue(kind, handlers) do:
+    handlers[].excl(handler)
+
+proc triggerPeerEvents(s: Switch, peerId: PeerID, event: PeerEvent) {.async, gcsafe.} =
+  try:
+    if event in s.peerEvents:
+      var peerEvents: seq[Future[void]]
+      for h in s.peerEvents[event]:
+        peerEvents.add(h(peerId, event))
+
+      checkFutures(await allFinished(peerEvents))
+  except CancelledError as exc:
+    raise exc
+  except CatchableError as exc: # handlers should not raise!
+    warn "exception in triggerPeerEvents", exc = exc.msg, peerId
+
+proc disconnect*(s: Switch, peerId: PeerID) {.async, gcsafe.}
 
 proc isConnected*(s: Switch, peerId: PeerID): bool =
   ## returns true if the peer has one or more
@@ -561,7 +603,7 @@ proc newSwitch*(peerInfo: PeerInfo,
   result.streamHandler = proc(conn: Connection) {.async, gcsafe.} = # noraises
     trace "Starting stream handler", conn
     try:
-      await s.ms.handle(conn) # handle incoming connection
+      await switch.ms.handle(conn) # handle incoming connection
     except CancelledError as exc:
       raise exc
     except CatchableError as exc:
@@ -570,11 +612,27 @@ proc newSwitch*(peerInfo: PeerInfo,
       await conn.close()
     trace "Stream handler done", conn
 
-  result.mount(identity)
+  switch.mount(identity)
   for key, val in muxers:
-    val.streamHandler = result.streamHandler
+    val.streamHandler = switch.streamHandler
     val.muxerHandler = proc(muxer: Muxer): Future[void] =
-      s.muxerHandler(muxer)
+      switch.muxerHandler(muxer)
+
+  proc peerEventHandler(peerId: PeerID, event: ConnEvent) {.async, gcsafe.} =
+    ## peer event handler
+    ##
+
+    if peerId notin switch.connManager:
+      trace "peer left", peerId
+      doAssert(event.kind == ConnEventKind.Disconnected)
+      await switch.triggerPeerEvents(peerId, PeerEvent.Left)
+    elif switch.connManager.connCount(peerId) == 1:
+      trace "peer joined", peerId
+      doAssert(event.kind == ConnEventKind.Connected)
+      await switch.triggerPeerEvents(peerId, PeerEvent.Joined)
+
+  switch.addConnEventHandler(peerEventHandler, ConnEventKind.Connected)
+  switch.addConnEventHandler(peerEventHandler, ConnEventKind.Disconnected)
 
 proc isConnected*(s: Switch, peerInfo: PeerInfo): bool
   {.deprecated: "Use PeerID version".} =

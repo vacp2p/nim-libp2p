@@ -309,15 +309,29 @@ proc init*(
   verifySignature: bool = true,
   sign: bool = true,
   msgIdProvider: MsgIdProvider = defaultMsgIdProvider): P =
-  result = P(switch: switch,
-             peerInfo: switch.peerInfo,
-             triggerSelf: triggerSelf,
-             verifySignature: verifySignature,
-             sign: sign,
-             peers: initTable[PeerID, PubSubPeer](),
-             topics: initTable[string, Topic](),
-             msgIdProvider: msgIdProvider)
-  result.initPubSub()
+
+  result = P(
+    switch: switch,
+    peerInfo: switch.peerInfo,
+    triggerSelf: triggerSelf,
+    verifySignature: verifySignature,
+    sign: sign,
+    peers: initTable[PeerID, PubSubPeer](),
+    topics: initTable[string, Topic](),
+    msgIdProvider: msgIdProvider)
+
+  let pubsub = result
+  proc peerEventHandler(peerId: PeerID, event: PeerEvent) {.async.} =
+    if event == PeerEvent.Joined:
+      pubsub.subscribePeer(peerId)
+    else:
+      pubsub.unsubscribePeer(peerId)
+
+  switch.addPeerEventHandler(peerEventHandler, PeerEvent.Joined)
+  switch.addPeerEventHandler(peerEventHandler, PeerEvent.Left)
+
+  pubsub.initPubSub()
+  return pubsub
 
 proc addObserver*(p: PubSub; observer: PubSubObserver) =
   p.observers[] &= observer
