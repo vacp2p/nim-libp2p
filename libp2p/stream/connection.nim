@@ -31,7 +31,7 @@ type
   Connection* = ref object of LPStream
     activity*: bool                 # reset every time data is sent or received
     timeout*: Duration              # channel timeout if no activity
-    timerTaskFut: Future[void]      # the current timer instanse
+    timerTaskFut: Future[void]      # the current timer instance
     timeoutHandler*: TimeoutHandler # timeout handler
     peerInfo*: PeerInfo
     observedAddr*: Multiaddress
@@ -83,10 +83,11 @@ method initStream*(s: Connection) =
     s.timeoutHandler = proc() {.async.} =
       await s.close()
 
-  trace "timeout set at", timeout = s.timeout.millis, s
   doAssert(isNil(s.timerTaskFut))
   # doAssert(s.timeout > 0.millis)
   if s.timeout > 0.millis:
+    trace "Monitoring for timeout", s, timeout = s.timeout
+
     s.timerTaskFut = s.timeoutMonitor()
 
   inc getConnectionTracker().opened

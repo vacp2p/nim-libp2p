@@ -1,5 +1,7 @@
 import stew/bitops2
 
+{.push raises: [Defect].}
+
 type
   StreamSeq* = object
     # Seq adapted to the stream use case where we add data at the back and

@@ -218,7 +218,7 @@ proc sendImpl(p: PubSubPeer, msg: RPCMsg) {.async.} =
   try:
     conn = await p.getSendConn()
     if conn == nil:
-      debug "Couldn't get send connection, dropping message", peer = p
+      trace "Couldn't get send connection, dropping message", peer = p
       return
 
     trace "sending encoded msgs to peer", conn, encoded = shortLog(encoded)
@@ -234,7 +234,7 @@ proc sendImpl(p: PubSubPeer, msg: RPCMsg) {.async.} =
   except CatchableError as exc:
     # Because we detach the send call from the currently executing task using
     # asyncCheck, no exceptions may leak out of it
-    debug "unable to send to remote", exc = exc.msg, peer = p
+    trace "Unable to send to remote", conn, exc = exc.msg
     # Next time sendConn is used, it will be have its close flag set and thus
     # will be recycled
     if not isNil(conn):

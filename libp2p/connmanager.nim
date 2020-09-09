@@ -184,8 +184,8 @@ proc storeConn*(c: ConnManager, conn: Connection) =
 
   let peerId = conn.peerInfo.peerId
   if c.conns.getOrDefault(peerId).len > c.maxConns:
-    debug "too many connections", peer = conn,
-                                  conns = c.conns.getOrDefault(peerId).len
+    debug "too many connections",
+      conn, conns = c.conns.getOrDefault(peerId).len
 
     raise newTooManyConnections()
 
@@ -200,7 +200,7 @@ proc storeConn*(c: ConnManager, conn: Connection) =
   libp2p_peers.set(c.conns.len.int64)
 
   trace "Stored connection",
-    connections = c.conns.len, conn, direction = $conn.dir
+    conn, direction = $conn.dir, connections = c.conns.len
 
 proc storeOutgoing*(c: ConnManager, conn: Connection) =
   conn.dir = Direction.Out
@@ -226,7 +226,8 @@ proc storeMuxer*(c: ConnManager,
     muxer: muxer,
     handle: handle)
 
-  trace "Stored muxer", connections = c.conns.len, muxer
+  trace "Stored muxer",
+    muxer, handle = not handle.isNil, connections = c.conns.len
 
 proc getMuxedStream*(c: ConnManager,
                      peerId: PeerID,
@@ -263,7 +264,6 @@ proc dropPeer*(c: ConnManager, peerId: PeerID) {.async.} =
   trace "Dropping peer", peerId
   let conns = c.conns.getOrDefault(peerId)
   for conn in conns:
-    trace  "Removing connection", conn
     delConn(c, conn)
 
   var muxers: seq[MuxerHolder]
@@ -277,12 +277,15 @@ proc dropPeer*(c: ConnManager, peerId: PeerID) {.async.} =
 
   for conn in conns:
     await conn.close()
+
   trace "Dropped peer", peerId
 
 proc close*(c: ConnManager) {.async.} =
   ## cleanup resources for the connection
   ## manager
   ##
+
+  trace "Closing ConnManager"
   let conns = c.conns
   c.conns.clear()
 
@@ -295,3 +298,5 @@ proc close*(c: ConnManager) {.async.} =
   for _, conns2 in conns:
     for conn in conns2:
       await conn.close()
+
+  trace "Closed ConnManager"
