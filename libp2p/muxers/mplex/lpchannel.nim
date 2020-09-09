@@ -133,7 +133,7 @@ method reset*(s: LPChannel) {.base, async, gcsafe.} =
     trace "channel already closed or reset", s
     return
 
-  trace "resetting channel", s
+  trace "Resetting channel", s
 
   asyncSpawn s.resetMessage()
 
@@ -148,9 +148,9 @@ method reset*(s: LPChannel) {.base, async, gcsafe.} =
   except CancelledError as exc:
     raise exc
   except CatchableError as exc:
-    trace "exception in reset", exc = exc.msg, s
+    trace "Exception in reset", exc = exc.msg, s
 
-  trace "channel reset", s
+  trace "Channel reset", s
 
 method close*(s: LPChannel) {.async, gcsafe.} =
   if s.closedLocal:
