@@ -65,8 +65,8 @@ type
       proc(peerId: PeerID, event: ConnEvent): Future[void] {.gcsafe.}
 
     PeerEvent* {.pure.} = enum
-      Joined,
-      Left
+      Left,
+      Joined
 
     PeerEventHandler* =
       proc(peerId: PeerID, event: PeerEvent): Future[void] {.gcsafe.}
@@ -129,14 +129,31 @@ proc removePeerEventHandler*(s: Switch,
   s.peerEvents.withValue(kind, handlers) do:
     handlers[].excl(handler)
 
-proc triggerPeerEvents(s: Switch, peerId: PeerID, event: PeerEvent) {.async, gcsafe.} =
-  try:
-    if event in s.peerEvents:
-      var peerEvents: seq[Future[void]]
-      for h in s.peerEvents[event]:
-        peerEvents.add(h(peerId, event))
+proc triggerPeerEvents(s: Switch,
+                       peerId: PeerID,
+                       event: PeerEvent) {.async, gcsafe.} =
+  logScope:
+    peerId = peerId
+    event = event
 
-      checkFutures(await allFinished(peerEvents))
+  if s.peerEvents.len <= 0 or event notin s.peerEvents:
+    return
+
+  try:
+    let count = s.connManager.connCount(peerId)
+    if event == PeerEvent.Joined and count != 1:
+      trace "peer already joined"
+      return
+    elif event == PeerEvent.Left and count != 0:
+      trace "peer already left"
+      return
+
+    trace "triggering peer events"
+    var peerEvents: seq[Future[void]]
+    for h in s.peerEvents[event]:
+      peerEvents.add(h(peerId, event))
+
+    checkFutures(await allFinished(peerEvents))
   except CancelledError as exc:
     raise exc
   except CatchableError as exc: # handlers should not raise!
@@ -394,6 +411,7 @@ proc internalConnect(s: Switch,
     # unworthy and disconnects it
     raise newLPStreamClosedError()
 
+  await s.triggerPeerEvents(peerId, PeerEvent.Joined)
   await s.triggerConnEvent(
     peerId, ConnEvent(kind: ConnEventKind.Connected, incoming: false))
 
@@ -402,6 +420,7 @@ proc internalConnect(s: Switch,
       await conn.closeEvent.wait()
       await s.triggerConnEvent(peerId,
                                ConnEvent(kind: ConnEventKind.Disconnected))
+      await s.triggerPeerEvents(peerId, PeerEvent.Left)
     except CatchableError as exc:
       # This is top-level procedure which will work as separate task, so it
       # do not need to propogate CancelledError and should handle other errors
@@ -547,9 +566,10 @@ proc muxerHandler(s: Switch, muxer: Muxer) {.async, gcsafe.} =
 
     proc peerCleanup() {.async.} =
       try:
-        await muxer.connection.closeEvent.wait()
+        await muxer.connection.join()
         await s.triggerConnEvent(peerId,
                                  ConnEvent(kind: ConnEventKind.Disconnected))
+        await s.triggerPeerEvents(peerId, PeerEvent.Left)
       except CatchableError as exc:
         # This is top-level procedure which will work as separate task, so it
         # do not need to propogate CancelledError and shouldn't leak others
@@ -558,6 +578,7 @@ proc muxerHandler(s: Switch, muxer: Muxer) {.async, gcsafe.} =
 
     proc peerStartup() {.async.} =
       try:
+        await s.triggerPeerEvents(peerId, PeerEvent.Joined)
         await s.triggerConnEvent(peerId,
                                  ConnEvent(kind: ConnEventKind.Connected,
                                            incoming: true))
@@ -617,22 +638,6 @@ proc newSwitch*(peerInfo: PeerInfo,
     val.streamHandler = switch.streamHandler
     val.muxerHandler = proc(muxer: Muxer): Future[void] =
       switch.muxerHandler(muxer)
-
-  proc peerEventHandler(peerId: PeerID, event: ConnEvent) {.async, gcsafe.} =
-    ## peer event handler
-    ##
-
-    if peerId notin switch.connManager:
-      trace "peer left", peerId
-      doAssert(event.kind == ConnEventKind.Disconnected)
-      await switch.triggerPeerEvents(peerId, PeerEvent.Left)
-    elif switch.connManager.connCount(peerId) == 1:
-      trace "peer joined", peerId
-      doAssert(event.kind == ConnEventKind.Connected)
-      await switch.triggerPeerEvents(peerId, PeerEvent.Joined)
-
-  switch.addConnEventHandler(peerEventHandler, ConnEventKind.Connected)
-  switch.addConnEventHandler(peerEventHandler, ConnEventKind.Disconnected)
 
 proc isConnected*(s: Switch, peerInfo: PeerInfo): bool
   {.deprecated: "Use PeerID version".} =

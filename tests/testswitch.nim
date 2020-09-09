@@ -229,7 +229,72 @@ suite "Switch":
 
     waitFor(testSwitch())
 
-  test "e2e should trigger hooks":
+  test "e2e should trigger connection events (remote)":
+    proc testSwitch() {.async, gcsafe.} =
+      var awaiters: seq[Future[void]]
+
+      let switch1 = newStandardSwitch(secureManagers = [SecureProtocol.Secio])
+      let switch2 = newStandardSwitch(secureManagers = [SecureProtocol.Secio])
+
+      var step = 0
+      var kinds: set[ConnEventKind]
+      proc hook(peerId: PeerID, event: ConnEvent) {.async, gcsafe.} =
+        kinds = kinds + {event.kind}
+        case step:
+        of 0:
+          check:
+            event.kind == ConnEventKind.Connected
+            peerId == switch1.peerInfo.peerId
+        of 1:
+          check:
+            event.kind == ConnEventKind.Disconnected
+
+          check peerId == switch1.peerInfo.peerId
+        else:
+          check false
+
+        step.inc()
+
+      switch2.addConnEventHandler(hook, ConnEventKind.Connected)
+      switch2.addConnEventHandler(hook, ConnEventKind.Disconnected)
+
+      awaiters.add(await switch1.start())
+      awaiters.add(await switch2.start())
+
+      await switch2.connect(switch1.peerInfo)
+
+      check switch1.isConnected(switch2.peerInfo)
+      check switch2.isConnected(switch1.peerInfo)
+
+      await sleepAsync(100.millis)
+      await switch2.disconnect(switch1.peerInfo)
+      await sleepAsync(2.seconds)
+
+      check not switch1.isConnected(switch2.peerInfo)
+      check not switch2.isConnected(switch1.peerInfo)
+
+      var bufferTracker = getTracker(BufferStreamTrackerName)
+      # echo bufferTracker.dump()
+      check bufferTracker.isLeaked() == false
+
+      var connTracker = getTracker(ConnectionTrackerName)
+      # echo connTracker.dump()
+      check connTracker.isLeaked() == false
+
+      check:
+        kinds == {
+          ConnEventKind.Connected,
+          ConnEventKind.Disconnected
+        }
+
+      await allFuturesThrowing(
+        switch1.stop(),
+        switch2.stop())
+      await allFuturesThrowing(awaiters)
+
+    waitFor(testSwitch())
+
+  test "e2e should trigger connection events (local)":
     proc testSwitch() {.async, gcsafe.} =
       var awaiters: seq[Future[void]]
 
@@ -285,6 +350,134 @@ suite "Switch":
         kinds == {
           ConnEventKind.Connected,
           ConnEventKind.Disconnected
+        }
+
+      await allFuturesThrowing(
+        switch1.stop(),
+        switch2.stop())
+      await allFuturesThrowing(awaiters)
+
+    waitFor(testSwitch())
+
+  test "e2e should trigger peer events (remote)":
+    proc testSwitch() {.async, gcsafe.} =
+      var awaiters: seq[Future[void]]
+
+      let switch1 = newStandardSwitch(secureManagers = [SecureProtocol.Secio])
+      let switch2 = newStandardSwitch(secureManagers = [SecureProtocol.Secio])
+
+      var step = 0
+      var kinds: set[PeerEvent]
+      proc handler(peerId: PeerID, event: PeerEvent) {.async, gcsafe.} =
+        kinds = kinds + {event}
+        case step:
+        of 0:
+          check:
+            event == PeerEvent.Joined
+            peerId == switch2.peerInfo.peerId
+        of 1:
+          check:
+            event == PeerEvent.Left
+            peerId == switch2.peerInfo.peerId
+        else:
+          check false
+
+        step.inc()
+
+      switch1.addPeerEventHandler(handler, PeerEvent.Joined)
+      switch1.addPeerEventHandler(handler, PeerEvent.Left)
+
+      awaiters.add(await switch1.start())
+      awaiters.add(await switch2.start())
+
+      await switch2.connect(switch1.peerInfo)
+
+      check switch1.isConnected(switch2.peerInfo)
+      check switch2.isConnected(switch1.peerInfo)
+
+      await sleepAsync(100.millis)
+      await switch2.disconnect(switch1.peerInfo)
+      await sleepAsync(2.seconds)
+
+      check not switch1.isConnected(switch2.peerInfo)
+      check not switch2.isConnected(switch1.peerInfo)
+
+      var bufferTracker = getTracker(BufferStreamTrackerName)
+      # echo bufferTracker.dump()
+      check bufferTracker.isLeaked() == false
+
+      var connTracker = getTracker(ConnectionTrackerName)
+      # echo connTracker.dump()
+      check connTracker.isLeaked() == false
+
+      check:
+        kinds == {
+          PeerEvent.Joined,
+          PeerEvent.Left
+        }
+
+      await allFuturesThrowing(
+        switch1.stop(),
+        switch2.stop())
+      await allFuturesThrowing(awaiters)
+
+    waitFor(testSwitch())
+
+  test "e2e should trigger peer events (local)":
+    proc testSwitch() {.async, gcsafe.} =
+      var awaiters: seq[Future[void]]
+
+      let switch1 = newStandardSwitch(secureManagers = [SecureProtocol.Secio])
+      let switch2 = newStandardSwitch(secureManagers = [SecureProtocol.Secio])
+
+      var step = 0
+      var kinds: set[PeerEvent]
+      proc handler(peerId: PeerID, event: PeerEvent) {.async, gcsafe.} =
+        kinds = kinds + {event}
+        case step:
+        of 0:
+          check:
+            event == PeerEvent.Joined
+            peerId == switch1.peerInfo.peerId
+        of 1:
+          check:
+            event == PeerEvent.Left
+            peerId == switch1.peerInfo.peerId
+        else:
+          check false
+
+        step.inc()
+
+      switch2.addPeerEventHandler(handler, PeerEvent.Joined)
+      switch2.addPeerEventHandler(handler, PeerEvent.Left)
+
+      awaiters.add(await switch1.start())
+      awaiters.add(await switch2.start())
+
+      await switch2.connect(switch1.peerInfo)
+
+      check switch1.isConnected(switch2.peerInfo)
+      check switch2.isConnected(switch1.peerInfo)
+
+      await sleepAsync(100.millis)
+      await switch2.disconnect(switch1.peerInfo)
+      await sleepAsync(2.seconds)
+
+      check not switch1.isConnected(switch2.peerInfo)
+      check not switch2.isConnected(switch1.peerInfo)
+
+      var bufferTracker = getTracker(BufferStreamTrackerName)
+      # echo bufferTracker.dump()
+      check bufferTracker.isLeaked() == false
+
+      var connTracker = getTracker(ConnectionTrackerName)
+      # echo connTracker.dump()
+      check connTracker.isLeaked() == false
+
+      check:
+        kinds == {
+          PeerEvent.Joined,
+          PeerEvent.Left
         }
 
       await allFuturesThrowing(
