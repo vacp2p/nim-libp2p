@@ -610,7 +610,7 @@ proc newSwitch*(peerInfo: PeerInfo,
   if secureManagers.len == 0:
     raise (ref CatchableError)(msg: "Provide at least one secure manager")
 
-  result = Switch(
+  let switch = Switch(
     peerInfo: peerInfo,
     ms: newMultistream(),
     transports: transports,
@@ -620,8 +620,7 @@ proc newSwitch*(peerInfo: PeerInfo,
     secureManagers: @secureManagers,
   )
 
-  let s = result # can't capture result
-  result.streamHandler = proc(conn: Connection) {.async, gcsafe.} = # noraises
+  switch.streamHandler = proc(conn: Connection) {.async, gcsafe.} = # noraises
     trace "Starting stream handler", conn
     try:
       await switch.ms.handle(conn) # handle incoming connection
@@ -638,6 +637,8 @@ proc newSwitch*(peerInfo: PeerInfo,
     val.streamHandler = switch.streamHandler
     val.muxerHandler = proc(muxer: Muxer): Future[void] =
       switch.muxerHandler(muxer)
+
+  return switch
 
 proc isConnected*(s: Switch, peerInfo: PeerInfo): bool
   {.deprecated: "Use PeerID version".} =

@@ -310,7 +310,7 @@ proc init*(
   sign: bool = true,
   msgIdProvider: MsgIdProvider = defaultMsgIdProvider): P =
 
-  result = P(
+  let pubsub = P(
     switch: switch,
     peerInfo: switch.peerInfo,
     triggerSelf: triggerSelf,
@@ -320,7 +320,6 @@ proc init*(
     topics: initTable[string, Topic](),
     msgIdProvider: msgIdProvider)
 
-  let pubsub = result
   proc peerEventHandler(peerId: PeerID, event: PeerEvent) {.async.} =
     if event == PeerEvent.Joined:
       pubsub.subscribePeer(peerId)
