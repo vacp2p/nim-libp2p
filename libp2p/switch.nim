@@ -142,13 +142,13 @@ proc triggerPeerEvents(s: Switch,
   try:
     let count = s.connManager.connCount(peerId)
     if event == PeerEvent.Joined and count != 1:
-      trace "peer already joined"
+      info "peer already joined"
       return
     elif event == PeerEvent.Left and count != 0:
-      trace "peer already left"
+      info "peer already left"
       return
 
-    trace "triggering peer events"
+    info "triggering peer events"
     var peerEvents: seq[Future[void]]
     for h in s.peerEvents[event]:
       peerEvents.add(h(peerId, event))
