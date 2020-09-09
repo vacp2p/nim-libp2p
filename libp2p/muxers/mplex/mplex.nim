@@ -129,7 +129,7 @@ proc handleStream(m: Mplex, chann: LPChannel) {.async.} =
     await chann.reset()
 
 method handle*(m: Mplex) {.async, gcsafe.} =
-  trace "Starting mplex main loop", m
+  trace "Starting mplex handler", m
   try:
     while not m.connection.atEof:
       trace "waiting for data", m
@@ -189,11 +189,13 @@ method handle*(m: Mplex) {.async, gcsafe.} =
     # This procedure is spawned as task and it is not part of public API, so
     # there no way for this procedure to be cancelled implicitely.
     debug "Unexpected cancellation in mplex handler", m
+  except LPStreamEOFError as exc:
+    trace "Stream EOF", msg = exc.msg, m
   except CatchableError as exc:
-    trace "Exception occurred", exception = exc.msg, m
+    warn "Unexpected exception in mplex read loop", msg = exc.msg, m
   finally:
-    trace "stopping mplex main loop", m
     await m.close()
+  trace "Stopped mplex handler", m
 
 proc init*(M: type Mplex,
            conn: Connection,
@@ -218,11 +220,11 @@ method newStream*(m: Mplex,
 
 method close*(m: Mplex) {.async, gcsafe.} =
   if m.isClosed:
+    trace "Already closed", m
     return
-
-  trace "closing mplex muxer", m
-
   m.isClosed = true
+
+  trace "Closing mplex", m
 
   let channs = toSeq(m.channels[false].values) & toSeq(m.channels[true].values)
 
@@ -235,3 +237,5 @@ method close*(m: Mplex) {.async, gcsafe.} =
   #      closed properly
   m.channels[false].clear()
   m.channels[true].clear()
+
+  trace "Closed mplex", m

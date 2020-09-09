@@ -74,13 +74,20 @@ proc newLPStreamEOFError*(): ref CatchableError =
 proc newLPStreamClosedError*(): ref Exception =
   result = newException(LPStreamClosedError, "Stream Closed!")
 
+func shortLog*(s: LPStream): auto =
+  if s.isNil: "LPStream(nil)"
+  else: $s.oid
+chronicles.formatIt(LPStream): shortLog(it)
+
 method initStream*(s: LPStream) {.base.} =
   if s.objName.len == 0:
     s.objName = "LPStream"
 
+  s.closeEvent = newAsyncEvent()
   s.oid = genOid()
+
   libp2p_open_streams.inc(labelValues = [s.objName])
-  trace "stream created", oid = $s.oid, name = s.objName
+  trace "Stream created", s, objName = s.objName
 
 proc join*(s: LPStream): Future[void] =
   s.closeEvent.wait()
@@ -102,15 +109,13 @@ proc readExactly*(s: LPStream,
                   pbytes: pointer,
                   nbytes: int):
                   Future[void] {.async.} =
-
   if s.atEof:
     raise newLPStreamEOFError()
 
   logScope:
+    s
     nbytes = nbytes
-    obName = s.objName
-    stack = getStackTrace()
-    oid = $s.oid
+    objName = s.objName
 
   var pbuffer = cast[ptr UncheckedArray[byte]](pbytes)
   var read = 0
@@ -202,9 +207,14 @@ proc write*(s: LPStream, msg: string): Future[void] =
   s.write(msg.toBytes())
 
 # TODO: split `close` into `close` and `dispose/destroy`
-method close*(s: LPStream) {.base, async.} =
-  if not s.isClosed:
-    s.isClosed = true
-    s.closeEvent.fire()
-    libp2p_open_streams.dec(labelValues = [s.objName])
-    trace "stream destroyed", oid = $s.oid, name = s.objName
+method close*(s: LPStream) {.base, async.} = # {.raises [Defect].}
+  ## close the stream - this may block, but will not raise exceptions
+  ##
+  if s.isClosed:
+    trace "Already closed", s
+    return
+
+  s.isClosed = true
+  s.closeEvent.fire()
+  libp2p_open_streams.dec(labelValues = [s.objName])
+  trace "Closed stream", s, objName = s.objName
