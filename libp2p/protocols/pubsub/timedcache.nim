@@ -7,7 +7,7 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import std/[heapqueue, sets]
+import std/[hashes, tables]
 
 import chronos/timer
 
@@ -17,26 +17,29 @@ type
   TimedEntry*[K] = ref object of RootObj
     key: K
     expiresAt: Moment
+    next, prev: TimedEntry[K]
 
   TimedCache*[K] = object of RootObj
-    expiries: HeapQueue[TimedEntry[K]]
-    entries: HashSet[K]
+    head, tail: TimedEntry[K] # nim linked list doesn't allow inserting at pos
+    entries: Table[K, TimedEntry[K]]
     timeout: Duration
 
-func `<`*(a, b: TimedEntry): bool =
-  a.expiresAt < b.expiresAt
-
 func expire*(t: var TimedCache, now: Moment = Moment.now()) =
-  while t.expiries.len() > 0 and t.expiries[0].expiresAt < now:
-    t.entries.excl(t.expiries.pop().key)
+  while t.head != nil and t.head.expiresAt < now:
+    t.entries.del(t.head.key)
+    t.head.prev = nil
+    t.head = t.head.next
+    if t.head == nil: t.tail = nil
 
 func del*[K](t: var TimedCache[K], key: K): bool =
   # Removes existing key from cache, returning false if it was not present
-  if not t.entries.missingOrExcl(key):
-    for i in 0..<t.expiries.len:
-      if t.expiries[i].key == key:
-        t.expiries.del(i)
-        break
+  var item: TimedEntry[K]
+  if t.entries.pop(key, item):
+    if t.head == item: t.head = item.next
+    if t.tail == item: t.tail = item.prev
+
+    if item.next != nil: item.next.prev = item.prev
+    if item.prev != nil: item.prev.next = item.next
     true
   else:
     false
@@ -49,8 +52,29 @@ func put*[K](t: var TimedCache[K], k: K, now = Moment.now()): bool =
 
   var res = t.del(k) # Refresh existing item
 
-  t.entries.incl(k)
-  t.expiries.push(TimedEntry[K](key: k, expiresAt: now + t.timeout))
+  let node = TimedEntry[K](key: k, expiresAt: now + t.timeout)
+
+  if t.head == nil:
+    t.tail = node
+    t.head = t.tail
+  else:
+    # search from tail because typically that's where we add when now grows
+    var cur = t.tail
+    while cur != nil and node.expiresAt < cur.expiresAt:
+      cur = cur.prev
+
+    if cur == nil:
+      node.next = t.head
+      t.head.prev = node
+      t.head = node
+    else:
+      node.prev = cur
+      node.next = cur.next
+      cur.next = node
+      if cur == t.tail:
+        t.tail = node
+
+  t.entries[k] = node
 
   res
 
@@ -59,7 +83,5 @@ func contains*[K](t: TimedCache[K], k: K): bool =
 
 func init*[K](T: type TimedCache[K], timeout: Duration = Timeout): T =
   T(
-    expiries: initHeapQueue[TimedEntry[K]](),
-    entries: initHashSet[K](),
     timeout: timeout
   )
