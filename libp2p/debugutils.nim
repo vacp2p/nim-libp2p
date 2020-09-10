@@ -33,6 +33,7 @@ import protobuf/minprotobuf, stream/connection, protocols/secure/secure,
 from times import getTime, toUnix, fromUnix, nanosecond, format, Time,
                   NanosecondRange
 from strutils import toHex, repeat
+export peerid, options, multiaddress
 
 type
   FlowDirection* = enum
@@ -89,7 +90,7 @@ proc dumpMessage*(conn: SecureConn, direction: FlowDirection,
     else:
       getHomeDir() / libp2p_dump_dir
 
-  let fileName = conn.peerInfo.peerId.pretty() & ".pbcap"
+  let fileName = $(conn.peerInfo.peerId) & ".pbcap"
 
   # This is debugging procedure so it should not generate any exceptions,
   # and we going to return at every possible OS error.
@@ -267,23 +268,5 @@ proc toString*(msg: ProtoMessage, dump = true): string =
     res.add(dumpHex(msg.message))
   else:
     res.add(utils.toHex(msg.message))
-  res
-
-proc parseFile*(pathName: string): string =
-  ## Parse `pbcap` file ``pathName``, and return decoded output as string dump.
-  ##
-  ## If ``pathName`` is relative path, then
-  ## ``getHomeDir() / libp2p_dump_dir / pathName`` will be used.
-  var res = ""
-  let path =
-    if isAbsolute(pathName):
-      pathName
-    else:
-      getHomeDir() / libp2p_dump_dir / pathName
-  var sdata = string(readFile(path))
-  var buffer = cast[seq[byte]](sdata)
-  for item in messages(buffer):
-    if item.isNone():
-      break
-    res = res & toString(item.get())
+    res.add("\p")
   res
