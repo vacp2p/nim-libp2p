@@ -14,17 +14,19 @@ import ../muxer,
        ../../stream/bufferstream,
        ../../utility,
        ../../peerinfo,
-       coder,
-       types,
-       lpchannel
+       ./coder,
+       ./lpchannel
 
 export muxer
 
 logScope:
   topics = "mplex"
 
+const MplexCodec* = "/mplex/6.7.0"
+
 const
   MaxChannelCount = 200
+
 
 when defined(libp2p_expensive_metrics):
   declareGauge(libp2p_mplex_channels,
@@ -58,19 +60,17 @@ proc cleanupChann(m: Mplex, chann: LPChannel) {.async, inline.} =
   try:
     await chann.join()
     m.channels[chann.initiator].del(chann.id)
-    debug "cleaned up channel", m, chann
+    trace "cleaned up channel", m, chann
 
     when defined(libp2p_expensive_metrics):
       libp2p_mplex_channels.set(
         m.channels[chann.initiator].len.int64,
         labelValues = [$chann.initiator, $m.connection.peerInfo.peerId])
-  except CancelledError:
-    # This is top-level procedure which will work as separate task, so it
-    # do not need to propogate CancelledError.
-    debug "Unexpected cancellation in mplex channel cleanup",
-      m, chann
   except CatchableError as exc:
-    debug "error cleaning up mplex channel", exc = exc.msg, m, chann
+    # This is top-level procedure which will work as separate task, so it
+    # do not need to propogate CancelledError, and no other exceptions should
+    # happen here
+    warn "Error cleaning up mplex channel", m, chann, msg = exc.msg
 
 proc newStreamInternal*(m: Mplex,
                         initiator: bool = true,
@@ -99,7 +99,7 @@ proc newStreamInternal*(m: Mplex,
   result.peerInfo = m.connection.peerInfo
   result.observedAddr = m.connection.observedAddr
 
-  trace "Creating new channel", id, initiator, name, m, channel = result
+  trace "Creating new channel", m, channel = result, id, initiator, name
 
   m.channels[initiator][id] = result
 
@@ -118,14 +118,10 @@ proc handleStream(m: Mplex, chann: LPChannel) {.async.} =
     await m.streamHandler(chann)
     trace "finished handling stream", m, chann
     doAssert(chann.closed, "connection not closed by handler!")
-  except CancelledError:
-    trace "Unexpected cancellation in stream handler", m, chann
-    await chann.reset()
+  except CatchableError as exc:
     # This is top-level procedure which will work as separate task, so it
     # do not need to propogate CancelledError.
-  except CatchableError as exc:
-    trace "Exception in mplex stream handler",
-      exc = exc.msg, m, chann
+    trace "Exception in mplex stream handler", m, chann, msg = exc.msg
     await chann.reset()
 
 method handle*(m: Mplex) {.async, gcsafe.} =
@@ -162,6 +158,8 @@ method handle*(m: Mplex) {.async, gcsafe.} =
           let name = string.fromBytes(data)
           m.newStreamInternal(false, id, name, timeout = m.outChannTimeout)
 
+      trace "Processing channel message", m, channel, data = data.shortLog
+
       case msgType:
         of MessageType.New:
           trace "created channel", m, channel
@@ -177,9 +175,9 @@ method handle*(m: Mplex) {.async, gcsafe.} =
                  allowed = MaxMsgSize, channel
             raise newLPStreamLimitError()
 
-          trace "pushing data to channel", m, channel
+          trace "pushing data to channel", m, channel, len = data.len
           await channel.pushTo(data)
-          trace "pushed data to channel", m, channel
+          trace "pushed data to channel", m, channel, len = data.len
 
         of MessageType.CloseIn, MessageType.CloseOut:
           await channel.closeRemote()
@@ -190,9 +188,9 @@ method handle*(m: Mplex) {.async, gcsafe.} =
     # there no way for this procedure to be cancelled implicitely.
     debug "Unexpected cancellation in mplex handler", m
   except LPStreamEOFError as exc:
-    trace "Stream EOF", msg = exc.msg, m
+    trace "Stream EOF", m, msg = exc.msg
   except CatchableError as exc:
-    warn "Unexpected exception in mplex read loop", msg = exc.msg, m
+    warn "Unexpected exception in mplex read loop", m, msg = exc.msg
   finally:
     await m.close()
   trace "Stopped mplex handler", m

@@ -9,8 +9,7 @@
 
 import chronos
 import nimcrypto/utils, chronicles, stew/byteutils
-import types,
-       ../../stream/connection,
+import ../../stream/connection,
        ../../utility,
        ../../varint,
        ../../vbuffer
@@ -19,12 +18,24 @@ logScope:
   topics = "mplexcoder"
 
 type
+  MessageType* {.pure.} = enum
+    New,
+    MsgIn,
+    MsgOut,
+    CloseIn,
+    CloseOut,
+    ResetIn,
+    ResetOut
+
   Msg* = tuple
     id: uint64
     msgType: MessageType
     data: seq[byte]
 
   InvalidMplexMsgType = object of CatchableError
+
+# https://github.com/libp2p/specs/tree/master/mplex#writing-to-a-stream
+const MaxMsgSize* = 1 shl 20 # 1mb
 
 proc newInvalidMplexMsgType*(): ref InvalidMplexMsgType =
   newException(InvalidMplexMsgType, "invalid message type")

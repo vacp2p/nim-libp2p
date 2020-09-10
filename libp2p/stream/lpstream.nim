@@ -112,6 +112,9 @@ proc readExactly*(s: LPStream,
   if s.atEof:
     raise newLPStreamEOFError()
 
+  if nbytes == 0:
+    return
+
   logScope:
     s
     nbytes = nbytes
@@ -122,13 +125,14 @@ proc readExactly*(s: LPStream,
   while read < nbytes and not(s.atEof()):
     read += await s.readOnce(addr pbuffer[read], nbytes - read)
 
+  if read == 0:
+    doAssert s.atEof()
+    trace "couldn't read all bytes, stream EOF", s, nbytes, read
+    raise newLPStreamEOFError()
+
   if read < nbytes:
-    if s.atEof:
-      trace "couldn't read all bytes, stream EOF", expected = nbytes, read
-      raise newLPStreamEOFError()
-    else:
-      trace "couldn't read all bytes, incomplete data", expected = nbytes, read
-      raise newLPStreamIncompleteError()
+    trace "couldn't read all bytes, incomplete data", s, nbytes, read
+    raise newLPStreamIncompleteError()
 
 proc readLine*(s: LPStream,
                limit = 0,
