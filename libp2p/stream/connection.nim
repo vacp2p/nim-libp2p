@@ -77,18 +77,15 @@ method initStream*(s: Connection) =
     s.objName = "Connection"
 
   procCall LPStream(s).initStream()
-  s.closeEvent = newAsyncEvent()
-
-  if isNil(s.timeoutHandler):
-    s.timeoutHandler = proc() {.async.} =
-      await s.close()
 
   doAssert(isNil(s.timerTaskFut))
-  # doAssert(s.timeout > 0.millis)
+
   if s.timeout > 0.millis:
     trace "Monitoring for timeout", s, timeout = s.timeout
 
     s.timerTaskFut = s.timeoutMonitor()
+    if isNil(s.timeoutHandler):
+      s.timeoutHandler = proc(): Future[void] = s.close()
 
   inc getConnectionTracker().opened
 
@@ -133,8 +130,10 @@ proc timeoutMonitor(s: Connection) {.async, gcsafe.} =
 
   except CancelledError as exc:
     raise exc
-  except CatchableError as exc:
-    trace "exception in timeout", exc = exc.msg, s
+  except CatchableError as exc: # Shouldn't happen
+    warn "exception in timeout", s, exc = exc.msg
+  finally:
+    s.timerTaskFut = nil
 
 proc init*(C: type Connection,
            peerInfo: PeerInfo,

@@ -167,11 +167,12 @@ proc getSendConn(p: PubSubPeer): Future[Connection] {.async.} =
     # Another concurrent dial may have populated p.sendConn
     if p.sendConn != nil:
       let current = p.sendConn
-      if not current.isNil:
-        if not (current.closed() or current.atEof):
-          # The existing send connection looks like it might work - reuse it
-          trace "Reusing existing connection", oid = $current.oid
-          return current
+      if not (current.closed() or current.atEof):
+        # The existing send connection looks like it might work - reuse it
+        debug "Reusing existing connection", current
+        return current
+      else:
+        p.sendConn = nil
 
     # Grab a new send connection
     let (newConn, handshake) = await p.getConn() # ...and here
