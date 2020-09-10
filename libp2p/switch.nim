@@ -82,8 +82,8 @@ type
       streamHandler*: StreamHandler
       secureManagers*: seq[Secure]
       dialLock: Table[PeerID, AsyncLock]
-      connEvents: Table[ConnEventKind, HashSet[ConnEventHandler]]
-      peerEvents: Table[PeerEvent, HashSet[PeerEventHandler]]
+      connEvents: Table[ConnEventKind, OrderedSet[ConnEventHandler]]
+      peerEvents: Table[PeerEvent, OrderedSet[PeerEventHandler]]
 
 proc addConnEventHandler*(s: Switch,
                           handler: ConnEventHandler, kind: ConnEventKind) =
@@ -92,7 +92,7 @@ proc addConnEventHandler*(s: Switch,
 
   if isNil(handler): return
   s.connEvents.mgetOrPut(kind,
-    initHashSet[ConnEventHandler]()).incl(handler)
+    initOrderedSet[ConnEventHandler]()).incl(handler)
 
 proc removeConnEventHandler*(s: Switch,
                              handler: ConnEventHandler, kind: ConnEventKind) =
@@ -121,7 +121,7 @@ proc addPeerEventHandler*(s: Switch,
 
   if isNil(handler): return
   s.peerEvents.mgetOrPut(kind,
-    initHashSet[PeerEventHandler]()).incl(handler)
+    initOrderedSet[PeerEventHandler]()).incl(handler)
 
 proc removePeerEventHandler*(s: Switch,
                              handler: PeerEventHandler,
@@ -132,9 +132,6 @@ proc removePeerEventHandler*(s: Switch,
 proc triggerPeerEvents(s: Switch,
                        peerId: PeerID,
                        event: PeerEvent) {.async, gcsafe.} =
-  logScope:
-    peerId = peerId
-    event = event
 
   if s.peerEvents.len <= 0 or event notin s.peerEvents:
     return
@@ -142,13 +139,16 @@ proc triggerPeerEvents(s: Switch,
   try:
     let count = s.connManager.connCount(peerId)
     if event == PeerEvent.Joined and count != 1:
-      info "peer already joined"
+      info "peer already joined", local = s.peerInfo.peerId,
+                                  remote = peerId, event
       return
     elif event == PeerEvent.Left and count != 0:
-      info "peer already left"
+      info "peer already left", local = s.peerInfo.peerId,
+                                remote = peerId, event
       return
 
-    info "triggering peer events"
+    info "triggering peer events", local = s.peerInfo.peerId,
+                                   remote = peerId, event
     var peerEvents: seq[Future[void]]
     for h in s.peerEvents[event]:
       peerEvents.add(h(peerId, event))
