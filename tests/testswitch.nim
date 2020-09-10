@@ -1,6 +1,6 @@
 {.used.}
 
-import unittest
+import unittest, options
 import chronos
 import stew/byteutils
 import nimcrypto/sysrand
@@ -483,6 +483,86 @@ suite "Switch":
       await allFuturesThrowing(
         switch1.stop(),
         switch2.stop())
+      await allFuturesThrowing(awaiters)
+
+    waitFor(testSwitch())
+
+  test "e2e should trigger peer events only once per peer":
+    proc testSwitch() {.async, gcsafe.} =
+      var awaiters: seq[Future[void]]
+
+      let switch1 = newStandardSwitch(secureManagers = [SecureProtocol.Secio])
+
+      let rng = newRng()
+      # use same private keys to emulate two connection from same peer
+      let privKey = PrivateKey.random(rng[]).tryGet()
+      let switch2 = newStandardSwitch(
+        privKey = some(privKey),
+        rng = rng,
+        secureManagers = [SecureProtocol.Secio])
+
+      let switch3 = newStandardSwitch(
+        privKey = some(privKey),
+        rng = rng,
+        secureManagers = [SecureProtocol.Secio])
+
+      var step = 0
+      var kinds: set[PeerEvent]
+      proc handler(peerId: PeerID, event: PeerEvent) {.async, gcsafe.} =
+        kinds = kinds + {event}
+        case step:
+        of 0:
+          check:
+            event == PeerEvent.Joined
+        of 1:
+          check:
+            event == PeerEvent.Left
+        else:
+          check false # should not trigger this
+
+        step.inc()
+
+      switch1.addPeerEventHandler(handler, PeerEvent.Joined)
+      switch1.addPeerEventHandler(handler, PeerEvent.Left)
+
+      awaiters.add(await switch1.start())
+      awaiters.add(await switch2.start())
+      awaiters.add(await switch3.start())
+
+      await switch2.connect(switch1.peerInfo) # should trigger 1st Join event
+      await switch3.connect(switch1.peerInfo) # should trigger 2nd Join event
+
+      check switch1.isConnected(switch2.peerInfo)
+      check switch2.isConnected(switch1.peerInfo)
+      check switch3.isConnected(switch1.peerInfo)
+
+      await sleepAsync(100.millis)
+      await switch2.disconnect(switch1.peerInfo) # should trigger 1st Left event
+      await switch3.disconnect(switch1.peerInfo) # should trigger 2nd Left event
+      await sleepAsync(2.seconds)
+
+      check not switch1.isConnected(switch2.peerInfo)
+      check not switch2.isConnected(switch1.peerInfo)
+      check not switch3.isConnected(switch1.peerInfo)
+
+      var bufferTracker = getTracker(BufferStreamTrackerName)
+      # echo bufferTracker.dump()
+      check bufferTracker.isLeaked() == false
+
+      var connTracker = getTracker(ConnectionTrackerName)
+      # echo connTracker.dump()
+      check connTracker.isLeaked() == false
+
+      check:
+        kinds == {
+          PeerEvent.Joined,
+          PeerEvent.Left
+        }
+
+      await allFuturesThrowing(
+        switch1.stop(),
+        switch2.stop(),
+        switch3.stop())
       await allFuturesThrowing(awaiters)
 
     waitFor(testSwitch())
