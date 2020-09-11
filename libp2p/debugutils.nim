@@ -28,10 +28,10 @@
 import os, options
 import nimcrypto/utils, stew/endians2
 import protobuf/minprotobuf, stream/connection, protocols/secure/secure,
-       multiaddress, peerid, varint
+       multiaddress, peerid, varint, muxers/mplex/types
 
 from times import getTime, toUnix, fromUnix, nanosecond, format, Time,
-                  NanosecondRange
+                  NanosecondRange, initTime
 from strutils import toHex, repeat
 export peerid, options, multiaddress
 
@@ -62,14 +62,7 @@ proc getTimestamp(): uint64 =
 proc getTimedate(value: uint64): string =
   ## This procedure is workaround for `stdlib.times` to just convert
   ## nanoseconds' timestamp to DateTime object.
-  type
-    TimeClone = object
-      seconds: int64
-      nanosecond: NanosecondRange
-
-  let timec = TimeClone(seconds: int64(value div 1_000_000_000),
-                        nanosecond: NanosecondRange(value mod 1_000_000_000))
-  let time = cast[Time](timec)
+  let time = initTime(int64(value div 1_000_000_000), value mod 1_000_000_000)
   time.format("yyyy-MM-dd HH:mm:ss'.'fffzzz")
 
 proc dumpMessage*(conn: SecureConn, direction: FlowDirection,
@@ -223,6 +216,20 @@ proc dumpHex*(pbytes: openarray[byte], groupBy = 1, ascii = true): string =
   res.add("\p")
   res
 
+proc mplexMessage*(data: seq[byte]): string =
+  var value = 0'u64
+  var size = 0
+  let res = PB.getUVarint(data, size, value)
+  if res.isOk():
+    if size < len(data) and data[size] == 0x00'u8:
+      let header = cast[MessageType](value and 0x07'u64)
+      let ident = (value shr 3)
+      "mplex: [" & $header & ", ident = " & $ident & "] "
+    else:
+      ""
+  else:
+    ""
+
 proc toString*(msg: ProtoMessage, dump = true): string =
   ## Convert message ``msg`` to its string representation.
   ## If ``dump`` is ``true`` (default) full hexadecimal dump with ascii will be
@@ -249,20 +256,21 @@ proc toString*(msg: ProtoMessage, dump = true): string =
       local & direction & remote
   let seqid =
     if msg.seqID.isSome():
-      "seqID = " & $(msg.seqID.get())
+      "seqID = " & $(msg.seqID.get()) & " "
     else:
       ""
   let mtype =
     if msg.mtype.isSome():
-      "type = " & $(msg.mtype.get())
+      "type = " & $(msg.mtype.get()) & " "
     else:
       ""
   res.add(" ")
   res.add(address)
   res.add(" ")
   res.add(mtype)
-  res.add(" ")
   res.add(seqid)
+  res.add(mplexMessage(msg.message))
+  res.add(" ")
   res.add("\p")
   if dump:
     res.add(dumpHex(msg.message))
