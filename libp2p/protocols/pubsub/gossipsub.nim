@@ -596,8 +596,8 @@ proc getGossipPeers(g: GossipSub): Table[PubSubPeer, ControlMessage] {.gcsafe.} 
 
 func `/`(a, b: Duration): float64 =
   let
-    fa = float64(a.nanoseconds) / 1000000000
-    fb = float64(b.nanoseconds) / 1000000000
+    fa = float64(a.nanoseconds)
+    fb = float64(b.nanoseconds)
   fa / fb
 
 proc colocationFactor(g: GossipSub, peer: PubSubPeer): float64 =
