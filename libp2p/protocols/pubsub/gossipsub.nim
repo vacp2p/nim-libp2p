@@ -260,6 +260,8 @@ proc validateParameters*(parameters: TopicParams): Result[void, cstring] =
   else:
     ok()
 
+func byScore(x,y: PubSubPeer): int = (x.score - y.score).int
+
 method init*(g: GossipSub) =
   proc handler(conn: Connection, proto: string) {.async.} =
     ## main protocol handler that gets triggered on every
@@ -394,13 +396,7 @@ proc rebalanceMesh(g: GossipSub, topic: string) {.async.} =
       x.peerId notin g.backingOff
 
     # sort peers by score
-    grafts.sort do (x, y: PubSubPeer) -> int:
-      let
-        peerx = x.score
-        peery = y.score
-      if peerx < peery: -1
-      elif peerx == peery: 0
-      else: 1
+    grafts.sort(byScore)
 
     # Graft peers so we reach a count of D
     grafts.setLen(min(grafts.len, GossipSubD - g.mesh.peers(topic)))
@@ -431,13 +427,7 @@ proc rebalanceMesh(g: GossipSub, topic: string) {.async.} =
       x.peerId notin g.backingOff
 
     # sort peers by score
-    grafts.sort do (x, y: PubSubPeer) -> int:
-      let
-        peerx = x.score
-        peery = y.score
-      if peerx < peery: -1
-      elif peerx == peery: 0
-      else: 1
+    grafts.sort(byScore)
 
     # Graft peers so we reach a count of D
     grafts.setLen(min(grafts.len, g.parameters.dOut - g.mesh.peers(topic)))
@@ -456,13 +446,7 @@ proc rebalanceMesh(g: GossipSub, topic: string) {.async.} =
     prunes = toSeq(g.mesh[topic])
 
     # sort peers by score (inverted)
-    prunes.sort do (x, y: PubSubPeer) -> int:
-      let
-        peerx = x.score
-        peery = y.score
-      if peerx > peery: -1
-      elif peerx == peery: 0
-      else: 1
+    prunes.sort(byScore)
 
     # keep high score peers
     if prunes.len > g.parameters.dScore:
@@ -502,13 +486,7 @@ proc rebalanceMesh(g: GossipSub, topic: string) {.async.} =
   # opportunistic grafting, by spec mesh should not be empty...
   if g.mesh.peers(topic) > 1:
     var peers = toSeq(g.mesh[topic])
-    peers.sort do (x, y: PubSubPeer) -> int:
-      let
-        peerx = x.score
-        peery = y.score
-      if peerx < peery: -1
-      elif peerx == peery: 0
-      else: 1
+    peers.sort(byScore)
     let medianIdx = peers.len div 2
     let median = peers[medianIdx]
     if median.score < g.parameters.opportunisticGraftThreshold:
