@@ -112,7 +112,7 @@ steps:
       echo "PATH=${PATH}"
 
       # we can't seem to be able to build a 32-bit p2pd
-      env PATH="/c/custom/mingw64/bin:${PATH}" bash scripts/build_p2pd.sh p2pdCache update
+      env PATH="/c/custom/mingw64/bin:${PATH}" bash scripts/build_p2pd.sh p2pdCache v0.3.0
 
       # install dependencies
       nimble refresh
