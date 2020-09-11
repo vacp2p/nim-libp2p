@@ -7,7 +7,7 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import strutils, tables
+import std/[strutils]
 import chronos, chronicles, stew/byteutils
 import stream/connection,
        vbuffer,
