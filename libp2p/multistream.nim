@@ -50,42 +50,42 @@ proc select*(m: MultistreamSelect,
              conn: Connection,
              proto: seq[string]):
              Future[string] {.async.} =
-  trace "initiating handshake", codec = m.codec
+  trace "initiating handshake", conn, codec = m.codec
   ## select a remote protocol
   await conn.write(m.codec) # write handshake
   if proto.len() > 0:
-    trace "selecting proto", proto = proto[0]
+    trace "selecting proto", conn, proto = proto[0]
     await conn.writeLp((proto[0] & "\n")) # select proto
 
-  var s = string.fromBytes((await conn.readLp(1024))) # read ms header
+  var s = string.fromBytes((await conn.readLp(MsgSize))) # read ms header
   validateSuffix(s)
 
   if s != Codec:
-    notice "handshake failed", codec = s
+    notice "handshake failed", conn, codec = s
     raise newException(CatchableError, "MultistreamSelect handshake failed")
   else:
-    trace "multistream handshake success"
+    trace "multistream handshake success", conn
 
   if proto.len() == 0: # no protocols, must be a handshake call
     return Codec
   else:
-    s = string.fromBytes(await conn.readLp(1024)) # read the first proto
+    s = string.fromBytes(await conn.readLp(MsgSize)) # read the first proto
     validateSuffix(s)
-    trace "reading first requested proto"
+    trace "reading first requested proto", conn
     if s == proto[0]:
-      trace "successfully selected ", proto = proto[0]
+      trace "successfully selected ", conn, proto = proto[0]
       return proto[0]
     elif proto.len > 1:
       # Try to negotiate alternatives
       let protos = proto[1..<proto.len()]
-      trace "selecting one of several protos", protos = protos
+      trace "selecting one of several protos", conn, protos = protos
       for p in protos:
-        trace "selecting proto", proto = p
+        trace "selecting proto", conn, proto = p
         await conn.writeLp((p & "\n")) # select proto
-        s = string.fromBytes(await conn.readLp(1024)) # read the first proto
+        s = string.fromBytes(await conn.readLp(MsgSize)) # read the first proto
         validateSuffix(s)
         if s == p:
-          trace "selected protocol", protocol = s
+          trace "selected protocol", conn, protocol = s
           return s
       return ""
     else:
@@ -112,7 +112,7 @@ proc list*(m: MultistreamSelect,
   await conn.write(Ls) # send ls
 
   var list = newSeq[string]()
-  let ms = string.fromBytes(await conn.readLp(1024))
+  let ms = string.fromBytes(await conn.readLp(MsgSize))
   for s in ms.split("\n"):
     if s.len() > 0:
       list.add(s)
@@ -120,31 +120,31 @@ proc list*(m: MultistreamSelect,
   result = list
 
 proc handle*(m: MultistreamSelect, conn: Connection, active: bool = false) {.async, gcsafe.} =
-  trace "handle: starting multistream handling", handshaked = active
+  trace "Starting multistream handler", conn, handshaked = active
   var handshaked = active
   try:
     while not conn.atEof:
-      var ms = string.fromBytes(await conn.readLp(1024))
+      var ms = string.fromBytes(await conn.readLp(MsgSize))
       validateSuffix(ms)
 
       if not handshaked and ms != Codec:
-        error "expected handshake message", instead=ms
+        notice "expected handshake message", conn, instead=ms
         raise newException(CatchableError,
                            "MultistreamSelect handling failed, invalid first message")
 
-      trace "handle: got request", ms
+      trace "handle: got request", conn, ms
       if ms.len() <= 0:
-        trace "handle: invalid proto"
+        trace "handle: invalid proto", conn
         await conn.write(Na)
 
       if m.handlers.len() == 0:
-        trace "handle: sending `na` for protocol", protocol = ms
+        trace "handle: sending `na` for protocol", conn, protocol = ms
         await conn.write(Na)
         continue
 
       case ms:
       of "ls":
-        trace "handle: listing protos"
+        trace "handle: listing protos", conn
         var protos = ""
         for h in m.handlers:
           for proto in h.protos:
@@ -155,25 +155,26 @@ proc handle*(m: MultistreamSelect, conn: Connection, active: bool = false) {.asy
           await conn.write(m.codec)
           handshaked = true
         else:
-          trace "handle: sending `na` for duplicate handshake while handshaked"
+          trace "handle: sending `na` for duplicate handshake while handshaked",
+            conn
           await conn.write(Na)
       else:
         for h in m.handlers:
           if (not isNil(h.match) and h.match(ms)) or h.protos.contains(ms):
-            trace "found handler", protocol = ms
+            trace "found handler", conn, protocol = ms
             await conn.writeLp(ms & "\n")
             await h.protocol.handler(conn, ms)
             return
-        debug "no handlers", protocol = ms
+        debug "no handlers", conn, protocol = ms
         await conn.write(Na)
   except CancelledError as exc:
-    await conn.close()
     raise exc
   except CatchableError as exc:
-    trace "exception in multistream", exc = exc.msg
-    await conn.close()
+    trace "Exception in multistream", conn, msg = exc.msg
   finally:
-    trace "leaving multistream loop"
+    await conn.close()
+
+  trace "Stopped multistream handler", conn
 
 proc addHandler*(m: MultistreamSelect,
                  codecs: seq[string],

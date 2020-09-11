@@ -13,8 +13,7 @@ import types,
        coder,
        ../muxer,
        nimcrypto/utils,
-       ../../stream/connection,
-       ../../stream/bufferstream,
+       ../../stream/[bufferstream, connection, streamseq],
        ../../peerinfo
 
 export connection
@@ -51,10 +50,13 @@ type
     initiator*: bool              # initiated remotely or locally flag
     isLazy*: bool                 # is channel lazy
     isOpen*: bool                 # has channel been opened (only used with isLazy)
+    isReset*: bool                # channel was reset, pushTo should drop data
+    pushing*: bool
     closedLocal*: bool            # has channel been closed locally
     msgCode*: MessageType         # cached in/out message code
     closeCode*: MessageType       # cached in/out close code
     resetCode*: MessageType       # cached in/out reset code
+    writeLock: AsyncLock
 
 proc open*(s: LPChannel) {.async, gcsafe.}
 
@@ -92,34 +94,30 @@ proc resetMessage(s: LPChannel) {.async.} =
     # need to re-raise CancelledError.
     debug "Unexpected cancellation while resetting channel", s
   except LPStreamEOFError as exc:
-    trace "muxed connection EOF", exc = exc.msg, s
+    trace "muxed connection EOF", s, exc = exc.msg
   except LPStreamClosedError as exc:
-    trace "muxed connection closed", exc = exc.msg, s
+    trace "muxed connection closed", s, exc = exc.msg
   except LPStreamIncompleteError as exc:
-    trace "incomplete message", exc = exc.msg, s
+    trace "incomplete message", s, exc = exc.msg
   except CatchableError as exc:
-    debug "Unhandled exception leak", exc = exc.msg, s
+    debug "Unhandled exception leak", s, exc = exc.msg
 
 proc open*(s: LPChannel) {.async, gcsafe.} =
   await s.conn.writeMsg(s.id, MessageType.New, s.name)
-  trace "opened channel", s
+  trace "Opened channel", s
   s.isOpen = true
 
 proc closeRemote*(s: LPChannel) {.async.} =
-  trace "closing remote", s
+  trace "Closing remote", s
   try:
-    await s.drainBuffer()
-    s.isEof = true # set EOF immediately to prevent further reads
     # close parent bufferstream to prevent further reads
     await procCall BufferStream(s).close()
-
-    trace "channel closed on EOF", s
   except CancelledError as exc:
     raise exc
   except CatchableError as exc:
-    trace "exception closing remote channel", exc = exc.msg, s
+    trace "exception closing remote channel", s, exc = exc.msg
 
-  trace "closed remote", s
+  trace "Closed remote", s
 
 method closed*(s: LPChannel): bool =
   ## this emulates half-closed behavior
@@ -128,36 +126,55 @@ method closed*(s: LPChannel): bool =
   ## header of the file
   s.closedLocal
 
+method pushTo*(s: LPChannel, data: seq[byte]) {.async.} =
+  if s.isReset:
+    raise newLPStreamClosedError() # Terminate mplex loop
+
+  try:
+    s.pushing = true
+    await procCall BufferStream(s).pushTo(data)
+  finally:
+    s.pushing = false
+
 method reset*(s: LPChannel) {.base, async, gcsafe.} =
   if s.closedLocal and s.isEof:
     trace "channel already closed or reset", s
     return
 
-  trace "resetting channel", s
+  trace "Resetting channel", s
+
+  # First, make sure any new calls to `readOnce` and `pushTo` will fail - there
+  # may already be such calls in the event queue
+  s.isEof = true
+  s.isReset = true
+
+  s.readBuf = StreamSeq()
+
+  s.closedLocal = true
 
   asyncSpawn s.resetMessage()
 
-  try:
-    # drain the buffer before closing
-    await s.drainBuffer()
-    await procCall BufferStream(s).close()
+  # This should wake up any readers by pushing an EOF marker at least
+  await procCall BufferStream(s).close() # noraises, nocancels
 
-    s.isEof = true
-    s.closedLocal = true
+  if s.pushing:
+    # When data is being pushed, there will be two items competing for the
+    # readQueue slot - the BufferStream.close EOF marker and the pushTo data.
+    # If the EOF wins, the pushTo call will get stuck because there will be no
+    # new readers to clear the data. It's worth noting that if there's a reader
+    # already waiting for data, this reader will be unblocked by the pushTo -
+    # this is necessary or it will get stuck
+    if s.readQueue.len > 0:
+      discard s.readQueue.popFirstNoWait()
 
-  except CancelledError as exc:
-    raise exc
-  except CatchableError as exc:
-    trace "exception in reset", exc = exc.msg, s
-
-  trace "channel reset", s
+  trace "Channel reset", s
 
 method close*(s: LPChannel) {.async, gcsafe.} =
   if s.closedLocal:
-    trace "channel already closed", s
+    trace "Already closed", s
     return
 
-  trace "closing local lpchannel", s
+  trace "Closing channel", s
 
   proc closeInternal() {.async.} =
     try:
@@ -165,15 +182,17 @@ method close*(s: LPChannel) {.async, gcsafe.} =
       if s.atEof: # already closed by remote close parent buffer immediately
         await procCall BufferStream(s).close()
     except CancelledError:
-      trace "Unexpected cancellation while closing channel", s
+      debug "Unexpected cancellation while closing channel", s
       await s.reset()
       # This is top-level procedure which will work as separate task, so it
       # do not need to propogate CancelledError.
-    except CatchableError as exc:
-      trace "exception closing channel", exc = exc.msg, s
+    except LPStreamClosedError, LPStreamEOFError:
+      trace "Connection already closed", s
+    except CatchableError as exc: # Shouldn't happen?
+      debug "Exception closing channel", s, exc = exc.msg
       await s.reset()
 
-    trace "lpchannel closed local", s
+    trace "Closed channel", s
 
   s.closedLocal = true
   # All the errors are handled inside `closeInternal()` procedure.
@@ -183,11 +202,31 @@ method initStream*(s: LPChannel) =
   if s.objName.len == 0:
     s.objName = "LPChannel"
 
-  s.timeoutHandler = proc() {.async, gcsafe.} =
-    trace "idle timeout expired, resetting LPChannel", s
-    await s.reset()
+  s.timeoutHandler = proc(): Future[void] {.gcsafe.} =
+    trace "Idle timeout expired, resetting LPChannel", s
+    s.reset()
 
   procCall BufferStream(s).initStream()
+
+  s.writeLock = newAsyncLock()
+
+method write*(s: LPChannel, msg: seq[byte]): Future[void] {.async.} =
+  if s.closedLocal:
+    raise newLPStreamClosedError()
+
+  try:
+    if s.isLazy and not(s.isOpen):
+      await s.open()
+
+    # writes should happen in sequence
+    trace "write msg", len = msg.len
+
+    await s.conn.writeMsg(s.id, s.msgCode, msg)
+    s.activity = true
+  except CatchableError as exc:
+    trace "exception in lpchannel write handler", s, exc = exc.msg
+    await s.conn.close()
+    raise exc
 
 proc init*(
   L: type LPChannel,
@@ -195,7 +234,6 @@ proc init*(
   conn: Connection,
   initiator: bool,
   name: string = "",
-  size: int = DefaultBufferSize,
   lazy: bool = false,
   timeout: Duration = DefaultChanTimeout): LPChannel =
 
@@ -211,26 +249,11 @@ proc init*(
     resetCode: if initiator: MessageType.ResetOut else: MessageType.ResetIn,
     dir: if initiator: Direction.Out else: Direction.In)
 
-  proc writeHandler(data: seq[byte]) {.async, gcsafe.} =
-    try:
-      if chann.isLazy and not(chann.isOpen):
-        await chann.open()
+  chann.initStream()
 
-      # writes should happen in sequence
-      trace "sending data", len = data.len, conn, chann
-
-      await conn.writeMsg(chann.id,
-                          chann.msgCode,
-                          data)
-    except CatchableError as exc:
-      trace "exception in lpchannel write handler", exc = exc.msg, chann
-      asyncSpawn conn.close()
-      raise exc
-
-  chann.initBufferStream(writeHandler, size)
   when chronicles.enabledLogLevel == LogLevel.TRACE:
     chann.name = if chann.name.len > 0: chann.name else: $chann.oid
 
-  trace "created new lpchannel", chann
+  trace "Created new lpchannel", chann
 
   return chann

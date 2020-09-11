@@ -32,3 +32,7 @@ suite "TimedCache":
       2 in cache
       3 notin cache
       4 in cache
+
+    check:
+      not cache.put(100, now + 100.seconds) # expires everything
+      100 in cache
