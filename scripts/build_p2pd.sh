@@ -17,7 +17,7 @@ if [[ ! -e "$SUBREPO_DIR" ]]; then
 	# we're probably in nim-libp2p's CI
 	SUBREPO_DIR="go-libp2p-daemon"
 	rm -rf "$SUBREPO_DIR"
-	git clone -q https://github.com/status-im/go-libp2p-daemon
+	git clone -q https://github.com/libp2p/go-libp2p-daemon
 	cd "$SUBREPO_DIR"
 	git checkout -q $LIBP2P_COMMIT
 	cd ..
