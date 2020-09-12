@@ -304,7 +304,7 @@ proc grafted(g: GossipSub, p: PubSubPeer, topic: string) =
     stats.topicInfos[topic] = info
     assert(g.peerStats[p].topicInfos[topic].inMesh == true)
 
-    debug "grafted", p
+    trace "grafted", p
   do:
     g.onNewPeer(p)
     g.grafted(p, topic)
@@ -329,7 +329,7 @@ proc pruned(g: GossipSub, p: PubSubPeer, topic: string) =
       # mgetOrPut does not work, so we gotta do this without referencing
       stats.topicInfos[topic] = info
 
-      debug "pruned", p
+      trace "pruned", p
 
 proc peerExchangeList(g: GossipSub, topic: string): seq[PeerInfoMsg] =
   var peers = g.gossipsub.getOrDefault(topic, initHashSet[PubSubPeer]()).toSeq()
@@ -705,6 +705,8 @@ proc updateScores(g: GossipSub) = # avoid async
   
   for peer in evicting:
     g.peerStats.del(peer)
+  
+  trace "updated scores", peers = g.peers.len
 
 proc heartbeat(g: GossipSub) {.async.} =
   while g.heartbeatRunning:
@@ -767,7 +769,6 @@ proc heartbeat(g: GossipSub) {.async.} =
       raise exc
     except CatchableError as exc:
       warn "exception ocurred in gossipsub heartbeat", exc = exc.msg, trace = exc.getStackTrace()
-      assert(false, "exception ocurred in gossipsub heartbeat")
 
     for trigger in g.heartbeatEvents:
       trace "firing heartbeat event", instance = cast[int](g)
@@ -1026,7 +1027,7 @@ method rpcHandler*(g: GossipSub,
       continue
 
     if not (await g.validate(msg)):
-      trace "Dropping message due to failed validation", msgId, peer
+      debug "Dropping message due to failed validation", msgId, peer
       g.punishPeer(peer, msg)
       continue
 
@@ -1071,7 +1072,7 @@ method rpcHandler*(g: GossipSub,
     if respControl.graft.len > 0 or respControl.prune.len > 0 or
       respControl.ihave.len > 0 or messages.len > 0:
 
-      debug "sending control message", msg = shortLog(respControl), peer
+      trace "sending control message", msg = shortLog(respControl), peer
       g.send(
         peer,
         RPCMsg(control: some(respControl), messages: messages))
