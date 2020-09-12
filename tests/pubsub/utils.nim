@@ -18,9 +18,7 @@ randomize()
 proc generateNodes*(
   num: Natural,
   secureManagers: openarray[SecureProtocol] = [
-    # array cos order matters
-    SecureProtocol.Secio,
-    SecureProtocol.Noise,
+    SecureProtocol.Noise
   ],
   msgIdProvider: MsgIdProvider = nil,
   gossip: bool = false,

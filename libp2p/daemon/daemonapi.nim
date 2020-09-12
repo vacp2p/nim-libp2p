@@ -8,8 +8,8 @@
 ## those terms.
 
 ## This module implementes API for `go-libp2p-daemon`.
-import os, osproc, strutils, tables, strtabs
-import chronos
+import std/[os, osproc, strutils, tables, strtabs]
+import chronos, chronicles
 import ../varint, ../multiaddress, ../multicodec, ../cid, ../peerid
 import ../wire, ../multihash, ../protobuf/minprotobuf
 import ../crypto/crypto
@@ -737,10 +737,12 @@ proc newDaemonApi*(flags: set[P2PDaemonFlags] = {},
       opt.add $address
     args.add(opt)
   args.add("-noise=true")
+  args.add("-quic=false")
   args.add("-listen=" & $api.address)
 
   # We are trying to get absolute daemon path.
   let cmd = findExe(daemon)
+  trace "p2pd cmd", cmd, args
   if len(cmd) == 0:
     raise newException(DaemonLocalError, "Could not find daemon executable!")
 
