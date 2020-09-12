@@ -379,30 +379,35 @@ proc internalConnect(s: Switch,
 proc connect*(s: Switch, peerId: PeerID, addrs: seq[MultiAddress]) {.async.} =
   discard await s.internalConnect(peerId, addrs)
 
-proc negotiateStream(s: Switch, conn: Connection, proto: string): Future[Connection] {.async.} =
-  trace "Negotiating stream", conn, proto
-  if not await s.ms.select(conn, proto):
+proc negotiateStream(s: Switch, conn: Connection, protos: seq[string]): Future[Connection] {.async.} =
+  trace "Negotiating stream", conn, protos
+  let selected = await s.ms.select(conn, protos)
+  if not protos.contains(selected):
     await conn.close()
-    raise newException(DialFailedError, "Unable to select sub-protocol " & proto)
+    raise newException(DialFailedError, "Unable to select sub-protocol " & $protos)
 
   return conn
 
 proc dial*(s: Switch,
            peerId: PeerID,
-           proto: string): Future[Connection] {.async.} =
-  trace "Dialling (existing)", peerId, proto
+           protos: seq[string]): Future[Connection] {.async.} =
+  trace "Dialling (existing)", peerId, protos
   let stream = await s.connManager.getMuxedStream(peerId)
   if stream.isNil:
     raise newException(DialFailedError, "Couldn't get muxed stream")
 
-  return await s.negotiateStream(stream, proto)
+  return await s.negotiateStream(stream, protos)
+
+proc dial*(s: Switch,
+           peerId: PeerID,
+           proto: string): Future[Connection] = dial(s, peerId, @[proto])
 
 proc dial*(s: Switch,
            peerId: PeerID,
            addrs: seq[MultiAddress],
-           proto: string):
+           protos: seq[string]):
            Future[Connection] {.async.} =
-  trace "Dialling (new)", peerId, proto
+  trace "Dialling (new)", peerId, protos
   let conn = await s.internalConnect(peerId, addrs)
   trace "Opening stream", conn
   let stream = await s.connManager.getMuxedStream(conn)
@@ -419,7 +424,7 @@ proc dial*(s: Switch,
       await conn.close()
       raise newException(DialFailedError, "Couldn't get muxed stream")
 
-    return await s.negotiateStream(stream, proto)
+    return await s.negotiateStream(stream, protos)
   except CancelledError as exc:
     trace "Dial canceled", conn
     await cleanup()
@@ -428,6 +433,12 @@ proc dial*(s: Switch,
     trace "Error dialing", conn, msg = exc.msg
     await cleanup()
     raise exc
+
+proc dial*(s: Switch,
+           peerId: PeerID,
+           addrs: seq[MultiAddress],
+           proto: string):
+           Future[Connection] = dial(s, peerId, addrs, @[proto])
 
 proc mount*[T: LPProtocol](s: Switch, proto: T) {.gcsafe.} =
   if isNil(proto.handler):

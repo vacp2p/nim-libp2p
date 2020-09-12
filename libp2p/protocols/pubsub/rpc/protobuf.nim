@@ -108,6 +108,7 @@ proc decodePrune*(pb: ProtoBuffer): ProtoResult[ControlPrune] {.
     trace "decodePrune: read topicId", topic_id = control.topicId
   else:
     trace "decodePrune: topicId is missing"
+  # TODO gossip 1.1 fields
   ok(control)
 
 proc decodeIHave*(pb: ProtoBuffer): ProtoResult[ControlIHave] {.

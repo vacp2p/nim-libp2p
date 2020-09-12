@@ -219,7 +219,7 @@ proc validateParameters*(parameters: GossipSubParams): Result[void, cstring] =
 
 proc init*(_: type[TopicParams]): TopicParams =
   TopicParams(
-    topicWeight: 1.0,
+    topicWeight: 0.0, # disable score
     timeInMeshWeight: 0.01,
     timeInMeshQuantum: 1.seconds,
     timeInMeshCap: 10.0,
@@ -304,38 +304,32 @@ proc grafted(g: GossipSub, p: PubSubPeer, topic: string) =
     stats.topicInfos[topic] = info
     assert(g.peerStats[p].topicInfos[topic].inMesh == true)
 
-    trace "grafted", p
+    debug "grafted", p
   do:
-    doAssert(false, "grafted: peerStats key not found for " & $p)
+    g.onNewPeer(p)
+    g.grafted(p, topic)
 
 proc pruned(g: GossipSub, p: PubSubPeer, topic: string) =
   g.peerStats.withValue(p, stats) do:
     when not defined(release):
       g.prunedPeers.incl(p)
 
-    var info = stats.topicInfos[topic]
-    let topicParams = g.topicParams.mgetOrPut(topic, TopicParams.init())
+    if topic in stats.topicInfos:
+      var info = stats.topicInfos[topic]
+      let topicParams = g.topicParams.mgetOrPut(topic, TopicParams.init())
 
-    # penalize a peer that delivered no message
-    let threshold = topicParams.meshMessageDeliveriesThreshold
-    if info.inMesh and info.meshMessageDeliveriesActive and info.meshMessageDeliveries < threshold:
-      let deficit = threshold - info.meshMessageDeliveries
-      info.meshFailurePenalty += deficit * deficit
+      # penalize a peer that delivered no message
+      let threshold = topicParams.meshMessageDeliveriesThreshold
+      if info.inMesh and info.meshMessageDeliveriesActive and info.meshMessageDeliveries < threshold:
+        let deficit = threshold - info.meshMessageDeliveries
+        info.meshFailurePenalty += deficit * deficit
 
-    info.inMesh = false
+      info.inMesh = false
 
-    # mgetOrPut does not work, so we gotta do this without referencing
-    stats.topicInfos[topic] = info
+      # mgetOrPut does not work, so we gotta do this without referencing
+      stats.topicInfos[topic] = info
 
-    trace "pruned", p
-  do:
-    when not defined(release):
-      if p in g.prunedPeers:
-        doAssert(false, "pruned: Dupe prune " & $p)
-      else:
-        doAssert(false, "pruned: TopicInfo key not found for " & $p)
-    else:
-      doAssert(false, "pruned: TopicInfo key not found for " & $p)
+      debug "pruned", p
 
 proc peerExchangeList(g: GossipSub, topic: string): seq[PeerInfoMsg] =
   var peers = g.gossipsub.getOrDefault(topic, initHashSet[PubSubPeer]()).toSeq()
@@ -807,8 +801,7 @@ method unsubscribePeer*(g: GossipSub, peer: PeerID) =
         .set(g.gossipsub.peers(t).int64, labelValues = [t])
 
   for t in toSeq(g.mesh.keys):
-    if pubSubPeer in g.mesh[t]:
-        g.pruned(pubSubPeer, t)
+    g.pruned(pubSubPeer, t)
     g.mesh.removePeer(t, pubSubPeer)
 
     when defined(libp2p_expensive_metrics):
@@ -1104,6 +1097,7 @@ method unsubscribe*(g: GossipSub,
       if topic in g.mesh:
         let peers = g.mesh[topic]
         g.mesh.del(topic)
+        g.topicParams.del(topic)
         for peer in peers:
           g.pruned(peer, topic)
         let prune = RPCMsg(control: some(ControlMessage(
@@ -1208,7 +1202,7 @@ proc maintainDirectPeers(g: GossipSub) {.async.} =
         # this creates a new peer and assigns the current switch to it
         # as a result the next time we try to Send we will as well try to open a connection
         # see pubsubpeer.nim send and such
-        discard g.getOrCreatePeer(id, g.codec)
+        discard g.getOrCreatePeer(id, g.codecs)
 
     await sleepAsync(1.minutes)
 

@@ -122,16 +122,16 @@ method onNewPeer(p: PubSub, peer: PubSubPeer) {.base.} = discard
 proc getOrCreatePeer*(
   p: PubSub,
   peer: PeerID,
-  proto: string): PubSubPeer =
+  protos: seq[string]): PubSubPeer =
   if peer in p.peers:
     return p.peers[peer]
 
   proc getConn(): Future[(Connection, RPCMsg)] {.async.} =
-    let conn = await p.switch.dial(peer, proto)
+    let conn = await p.switch.dial(peer, protos)
     return (conn, RPCMsg.withSubs(toSeq(p.topics.keys), true))
 
   # create new pubsub peer
-  let pubSubPeer = newPubSubPeer(peer, getConn, proto)
+  let pubSubPeer = newPubSubPeer(peer, getConn, protos[0])
   trace "created new pubsub peer", peerId = $peer
 
   p.peers[peer] = pubSubPeer
@@ -182,7 +182,7 @@ method handleConn*(p: PubSub,
     # call pubsub rpc handler
     p.rpcHandler(peer, msg)
 
-  let peer = p.getOrCreatePeer(conn.peerInfo.peerId, proto)
+  let peer = p.getOrCreatePeer(conn.peerInfo.peerId, @[proto])
 
   try:
     peer.handler = handler
@@ -200,7 +200,7 @@ method subscribePeer*(p: PubSub, peer: PeerID) {.base.} =
   ## messages
   ##
 
-  let peer = p.getOrCreatePeer(peer, p.codec)
+  let peer = p.getOrCreatePeer(peer, p.codecs)
   peer.outbound = true # flag as outbound
 
 method unsubscribe*(p: PubSub,
