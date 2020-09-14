@@ -386,7 +386,7 @@ proc negotiateStream(s: Switch, conn: Connection, protos: seq[string]): Future[C
 proc dial*(s: Switch,
            peerId: PeerID,
            protos: seq[string]): Future[Connection] {.async.} =
-  trace "Dialling (existing)", peerId, protos
+  trace "Dialing (existing)", peerId, protos
   let stream = await s.connManager.getMuxedStream(peerId)
   if stream.isNil:
     raise newException(DialFailedError, "Couldn't get muxed stream")
@@ -402,7 +402,7 @@ proc dial*(s: Switch,
            addrs: seq[MultiAddress],
            protos: seq[string]):
            Future[Connection] {.async.} =
-  trace "Dialling (new)", peerId, protos
+  trace "Dialing (new)", peerId, protos
   let conn = await s.internalConnect(peerId, addrs)
   trace "Opening stream", conn
   let stream = await s.connManager.getMuxedStream(conn)
