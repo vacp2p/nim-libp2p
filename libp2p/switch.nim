@@ -258,11 +258,6 @@ proc upgradeIncoming(s: Switch, conn: Connection) {.async, gcsafe.} =
       for muxer in s.muxers.values:
         ms.addHandler(muxer.codecs, muxer)
 
-      # add the mounted protocols
-      # notice this should be kept in sync ...
-      for handler in s.ms.handlers:
-        ms.handlers &= handler
-
       # handle subsequent secure requests
       await ms.handle(sconn)
 

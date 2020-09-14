@@ -87,7 +87,7 @@ proc decodeMsg*(buf: seq[byte]): Option[IdentifyInfo] =
       iinfo.protoVersion = some(protoVersion)
     if r6.get():
       iinfo.agentVersion = some(agentVersion)
-    trace "decodeMsg: decoded message", pubkey = ($pubKey).shortLog,
+    debug "decodeMsg: decoded message", pubkey = ($pubKey).shortLog,
           addresses = $iinfo.addrs, protocols = $iinfo.protos,
           observable_address = $iinfo.observedAddr,
           proto_version = $iinfo.protoVersion,

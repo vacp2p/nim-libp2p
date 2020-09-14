@@ -181,7 +181,7 @@ proc init*(_: type[GossipSubParams]): GossipSubParams =
       decayInterval: 1.seconds,
       decayToZero: 0.01,
       retainScore: 10.seconds,
-      appSpecificWeight: 1.0,
+      appSpecificWeight: 0.0,
       ipColocationFactorWeight: 0.0,
       ipColocationFactorThreshold: 1.0,
       behaviourPenaltyWeight: -1.0,
@@ -621,6 +621,8 @@ proc updateScores(g: GossipSub) = # avoid async
 
   for peer, stats in g.peerStats.mpairs:
     trace "updating peer score", peer
+    var n_topics = 0
+    var is_grafted = 0
 
     if not peer.connected:
       if now > stats.expire:
@@ -631,11 +633,13 @@ proc updateScores(g: GossipSub) = # avoid async
     # Per topic
     for topic, topicParams in g.topicParams:
       var info = stats.topicInfos.getOrDefault(topic)
+      inc n_topics
 
       # Scoring
       var topicScore = 0'f64
       
       if info.inMesh:
+        inc is_grafted
         info.meshTime = now - info.graftTime
         if info.meshTime > topicParams.meshMessageDeliveriesActivation:
           info.meshMessageDeliveriesActive = true
@@ -701,7 +705,7 @@ proc updateScores(g: GossipSub) = # avoid async
     if peer.behaviourPenalty < g.parameters.decayToZero:
       peer.behaviourPenalty = 0
 
-    trace "updated peer's score", peer, score = peer.score
+    debug "updated peer's score", peer, score = peer.score, n_topics, is_grafted
   
   for peer in evicting:
     g.peerStats.del(peer)
