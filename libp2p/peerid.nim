@@ -234,4 +234,5 @@ proc getField*(pb: ProtoBuffer, field: int,
       pid = peerId
       ok(true)
     else:
+      debug "incorrect blob", bt=getStackTrace(), len=buffer.len
       err(ProtoError.IncorrectBlob)

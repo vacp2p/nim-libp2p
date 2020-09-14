@@ -10,6 +10,7 @@
 ## This module implements Public Key and Private Key interface for libp2p.
 {.push raises: [Defect].}
 from strutils import split, strip, cmpIgnoreCase
+import chronicles
 
 const libp2p_pki_schemes* {.strdefine.} = "rsa,ed25519,secp256k1,ecnist"
 
@@ -1058,6 +1059,7 @@ proc getField*[T: PublicKey|PrivateKey](pb: ProtoBuffer, field: int,
       value = key
       ok(true)
     else:
+      debug "incorrect blob", bt=getStackTrace()
       err(ProtoError.IncorrectBlob)
 
 proc getField*(pb: ProtoBuffer, field: int,
@@ -1076,4 +1078,5 @@ proc getField*(pb: ProtoBuffer, field: int,
       value = sig
       ok(true)
     else:
+      debug "incorrect blob", bt=getStackTrace()
       err(ProtoError.IncorrectBlob)
