@@ -17,8 +17,7 @@ import ../libp2p/[switch,
                   protocols/secure/secure,
                   protocols/secure/secio,
                   muxers/muxer,
-                  muxers/mplex/mplex,
-                  muxers/mplex/types]
+                  muxers/mplex/mplex]
 
 const ChatCodec = "/nim-libp2p/chat/1.0.0"
 const DefaultAddr = "/ip4/127.0.0.1/tcp/55505"

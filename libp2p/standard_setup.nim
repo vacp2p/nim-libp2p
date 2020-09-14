@@ -2,7 +2,7 @@ import
   options, tables, chronos, bearssl,
   switch, peerid, peerinfo, stream/connection, multiaddress,
   crypto/crypto, transports/[transport, tcptransport],
-  muxers/[muxer, mplex/mplex, mplex/types],
+  muxers/[muxer, mplex/mplex],
   protocols/[identify, secure/secure]
 
 import
