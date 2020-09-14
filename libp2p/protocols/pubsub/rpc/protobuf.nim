@@ -15,6 +15,9 @@ import messages,
        ../../../protobuf/minprotobuf
 import stew/byteutils
 
+logScope:
+  topics = "gossipsubrpc"
+
 proc write*(pb: var ProtoBuffer, field: int, graft: ControlGraft) =
   var ipb = initProtoBuffer()
   ipb.write(1, graft.topicID)
