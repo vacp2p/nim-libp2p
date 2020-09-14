@@ -18,7 +18,6 @@ import multicodec, multihash, multibase, transcoder, vbuffer, peerid,
        protobuf/minprotobuf
 import stew/[base58, base32, endians2, results]
 export results, minprotobuf, vbuffer
-import chronicles
 
 type
   MAKind* = enum
@@ -1045,7 +1044,6 @@ proc getField*(pb: var ProtoBuffer, field: int,
       value = ma.get()
       ok(true)
     else:
-      debug "incorrect blob", bt=getStackTrace()
       err(ProtoError.IncorrectBlob)
 
 proc getRepeatedField*(pb: var ProtoBuffer, field: int,
@@ -1063,6 +1061,5 @@ proc getRepeatedField*(pb: var ProtoBuffer, field: int,
         value.add(ma.get())
       else:
         value.setLen(0)
-        debug "incorrect blob", bt=getStackTrace()
         return err(ProtoError.IncorrectBlob)
     ok(true)

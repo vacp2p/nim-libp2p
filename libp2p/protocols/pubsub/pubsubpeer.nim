@@ -100,7 +100,6 @@ proc handle*(p: PubSubPeer, conn: Connection) {.async.} =
           notice "failed to decode msg from peer",
             conn, peer = p, closed = conn.closed,
             err = rmsg.error()
-          trace "failed message", bytes=data.toHex()
           break
 
         trace "decoded msg from peer",

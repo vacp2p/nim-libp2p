@@ -13,7 +13,6 @@ import messages,
        ../../../peerid,
        ../../../utility,
        ../../../protobuf/minprotobuf
-import stew/byteutils
 
 logScope:
   topics = "gossipsubrpc"
@@ -80,11 +79,8 @@ proc write*(pb: var ProtoBuffer, field: int, subs: SubOpts) =
 proc encodeMessage*(msg: Message): seq[byte] =
   var pb = initProtoBuffer()
   pb.write(1, msg.fromPeer)
-  trace "encodeMessage: write fromPeer", fromPeer = msg.fromPeer
   pb.write(2, msg.data)
-  trace "encodeMessage: write data", data = msg.data.toHex
   pb.write(3, msg.seqno)
-  trace "encodeMessage: write seqno", seqno = msg.seqno
   for topic in msg.topicIDs:
     pb.write(4, topic)
   if len(msg.signature) > 0:
