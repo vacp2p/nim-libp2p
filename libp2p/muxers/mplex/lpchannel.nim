@@ -9,8 +9,7 @@
 
 import std/[oids, strformat]
 import chronos, chronicles, metrics
-import types,
-       coder,
+import ./coder,
        ../muxer,
        nimcrypto/utils,
        ../../stream/[bufferstream, connection, streamseq],
@@ -76,8 +75,7 @@ func shortLog*(s: LPChannel): auto =
 chronicles.formatIt(LPChannel): shortLog(it)
 
 proc closeMessage(s: LPChannel) {.async.} =
-  ## send close message - this will not raise
-  ## on EOF or Closed
+  ## send close message
   withWriteLock(s.writeLock):
     trace "sending close message", s
 
@@ -94,13 +92,13 @@ proc resetMessage(s: LPChannel) {.async.} =
     # need to re-raise CancelledError.
     debug "Unexpected cancellation while resetting channel", s
   except LPStreamEOFError as exc:
-    trace "muxed connection EOF", s, exc = exc.msg
+    trace "muxed connection EOF", s, msg = exc.msg
   except LPStreamClosedError as exc:
-    trace "muxed connection closed", s, exc = exc.msg
+    trace "muxed connection closed", s, msg = exc.msg
   except LPStreamIncompleteError as exc:
-    trace "incomplete message", s, exc = exc.msg
+    trace "incomplete message", s, msg = exc.msg
   except CatchableError as exc:
-    debug "Unhandled exception leak", s, exc = exc.msg
+    debug "Unhandled exception leak", s, msg = exc.msg
 
 proc open*(s: LPChannel) {.async, gcsafe.} =
   await s.conn.writeMsg(s.id, MessageType.New, s.name)
@@ -115,7 +113,7 @@ proc closeRemote*(s: LPChannel) {.async.} =
   except CancelledError as exc:
     raise exc
   except CatchableError as exc:
-    trace "exception closing remote channel", s, exc = exc.msg
+    trace "exception closing remote channel", s, msg = exc.msg
 
   trace "Closed remote", s
 
@@ -141,7 +139,7 @@ method reset*(s: LPChannel) {.base, async, gcsafe.} =
     trace "channel already closed or reset", s
     return
 
-  trace "Resetting channel", s
+  trace "Resetting channel", s, len = s.len
 
   # First, make sure any new calls to `readOnce` and `pushTo` will fail - there
   # may already be such calls in the event queue
@@ -174,7 +172,7 @@ method close*(s: LPChannel) {.async, gcsafe.} =
     trace "Already closed", s
     return
 
-  trace "Closing channel", s
+  trace "Closing channel", s, len = s.len
 
   proc closeInternal() {.async.} =
     try:
@@ -189,7 +187,7 @@ method close*(s: LPChannel) {.async, gcsafe.} =
     except LPStreamClosedError, LPStreamEOFError:
       trace "Connection already closed", s
     except CatchableError as exc: # Shouldn't happen?
-      debug "Exception closing channel", s, exc = exc.msg
+      warn "Exception closing channel", s, msg = exc.msg
       await s.reset()
 
     trace "Closed channel", s
@@ -221,10 +219,11 @@ method write*(s: LPChannel, msg: seq[byte]): Future[void] {.async.} =
     # writes should happen in sequence
     trace "write msg", len = msg.len
 
-    await s.conn.writeMsg(s.id, s.msgCode, msg)
+    withWriteLock(s.writeLock):
+      await s.conn.writeMsg(s.id, s.msgCode, msg)
     s.activity = true
   except CatchableError as exc:
-    trace "exception in lpchannel write handler", s, exc = exc.msg
+    trace "exception in lpchannel write handler", s, msg = exc.msg
     await s.conn.close()
     raise exc
 

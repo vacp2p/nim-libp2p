@@ -95,7 +95,7 @@ suite "BufferStream":
 
       try:
         await readFut
-      except LPStreamEOFError:
+      except LPStreamIncompleteError:
         result = true
 
     check:

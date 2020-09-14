@@ -8,7 +8,6 @@ import ../libp2p/[errors,
                   multiaddress,
                   muxers/mplex/mplex,
                   muxers/mplex/coder,
-                  muxers/mplex/types,
                   muxers/mplex/lpchannel,
                   vbuffer,
                   varint]

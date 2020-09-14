@@ -18,8 +18,7 @@ import ../libp2p/[switch,                   # manage transports, a single entry 
                   protocols/secure/secure,  # define the protocol of secure connection
                   protocols/secure/secio,   # define the protocol of secure input / output, allows encrypted communication that uses public keys to validate signed messages instead of a certificate authority like in TLS
                   muxers/muxer,             # define an interface for stream multiplexing, allowing peers to offer many protocols over a single connection
-                  muxers/mplex/mplex,       # implement stream multiplexing
-                  muxers/mplex/types]       # define some contants and message types for stream multiplexing
+                  muxers/mplex/mplex]       # define some contants and message types for stream multiplexing
 
 const ChatCodec = "/nim-libp2p/chat/1.0.0"
 const DefaultAddr = "/ip4/127.0.0.1/tcp/55505"

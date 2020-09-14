@@ -22,7 +22,6 @@ import ../libp2p/[switch,
                   protocols/protocol,
                   muxers/muxer,
                   muxers/mplex/mplex,
-                  muxers/mplex/types,
                   protocols/secure/secio,
                   protocols/secure/secure]
 
