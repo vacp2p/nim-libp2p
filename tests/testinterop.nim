@@ -100,7 +100,6 @@ proc testPubSubDaemonPublish(gossip: bool = false,
     daemonPeer.peer,
     daemonPeer.addresses)
   await nativeNode.connect(peer.peerId, peer.addrs)
-  pubsub.subscribePeer(peer.peerId)
 
   await sleepAsync(1.seconds)
   await daemonNode.connect(nativePeer.peerId, nativePeer.addrs)
@@ -160,7 +159,6 @@ proc testPubSubNodePublish(gossip: bool = false,
     daemonPeer.peer,
     daemonPeer.addresses)
   await nativeNode.connect(peer)
-  pubsub.subscribePeer(peer.peerId)
 
   await sleepAsync(1.seconds)
   await daemonNode.connect(nativePeer.peerId, nativePeer.addrs)
