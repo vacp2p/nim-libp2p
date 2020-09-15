@@ -423,6 +423,9 @@ proc rebalanceMesh(g: GossipSub, topic: string) {.async.} =
       # and avoid peers we are backing off
       x.peerId notin g.backingOff
 
+    # shuffle anyway, score might be not used
+    shuffle(grafts)
+
     # sort peers by score
     grafts.sort(byScore)
 
