@@ -13,6 +13,9 @@ import peerinfo,
        stream/connection,
        muxers/muxer
 
+logScope:
+  topics = "connmanager"
+
 declareGauge(libp2p_peers, "total connected peers")
 
 const MaxConnectionsPerPeer = 5
