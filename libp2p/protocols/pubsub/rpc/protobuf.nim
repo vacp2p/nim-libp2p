@@ -14,6 +14,9 @@ import messages,
        ../../../utility,
        ../../../protobuf/minprotobuf
 
+logScope:
+  topics = "pubsubprotobuf"
+
 proc write*(pb: var ProtoBuffer, field: int, graft: ControlGraft) =
   var ipb = initProtoBuffer()
   ipb.write(1, graft.topicID)
