@@ -133,7 +133,7 @@ proc triggerPeerEvents(s: Switch,
                        peerId: PeerID,
                        event: PeerEvent) {.async, gcsafe.} =
 
-  if s.peerEvents.len <= 0 or event notin s.peerEvents:
+  if event notin s.peerEvents:
     return
 
   try:

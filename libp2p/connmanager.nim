@@ -284,9 +284,7 @@ proc dropPeer*(c: ConnManager, peerId: PeerID) {.async.} =
 
   for conn in conns:
     await conn.close()
-  trace "Dropped peer", peerId
-
-  trace "Dropped peer", peerId
+    trace "Dropped peer", peerId
 
 proc close*(c: ConnManager) {.async.} =
   ## cleanup resources for the connection
