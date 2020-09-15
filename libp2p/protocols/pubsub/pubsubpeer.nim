@@ -180,6 +180,8 @@ proc getSendConn(p: PubSubPeer): Future[Connection] {.async.} =
         # The existing send connection looks like it might work - reuse it
         debug "Reusing existing connection", current
         return current
+      else:
+        p.sendConn = nil
 
     # Grab a new send connection
     let (newConn, handshake) = await p.getConn() # ...and here
