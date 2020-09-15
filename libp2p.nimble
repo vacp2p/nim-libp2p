@@ -5,7 +5,7 @@ version       = "0.0.2"
 author        = "Status Research & Development GmbH"
 description   = "LibP2P implementation"
 license       = "MIT"
-skipDirs      = @["tests", "examples", "Nim"]
+skipDirs      = @["tests", "examples", "Nim", "tools", "scripts", "docs"]
 
 requires "nim >= 1.2.0",
          "nimcrypto >= 0.4.1",
