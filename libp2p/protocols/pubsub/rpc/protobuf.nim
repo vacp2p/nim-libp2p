@@ -68,9 +68,11 @@ proc write*(pb: var ProtoBuffer, field: int, subs: SubOpts) =
 
 proc encodeMessage*(msg: Message): seq[byte] =
   var pb = initProtoBuffer()
-  pb.write(1, msg.fromPeer)
+  if len(msg.fromPeer) > 0:
+    pb.write(1, msg.fromPeer)
   pb.write(2, msg.data)
-  pb.write(3, msg.seqno)
+  if len(msg.seqno) > 0:
+    pb.write(3, msg.seqno)
   for topic in msg.topicIDs:
     pb.write(4, topic)
   if len(msg.signature) > 0:
