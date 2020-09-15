@@ -599,7 +599,6 @@ proc colocationFactor(g: GossipSub, peer: PubSubPeer): float64 =
     0.0
   else:
     let
-      # TODO, we are just using the first connections for now
       address = peer.connections[0].observedAddr
       ipPeers = g.peersInIP.getOrDefault(address)
       len = ipPeers.len.float64
@@ -644,7 +643,6 @@ proc updateScores(g: GossipSub) = # avoid async
         if info.meshTime > topicParams.meshMessageDeliveriesActivation:
           info.meshMessageDeliveriesActive = true
         
-        # TODO verify this `/` accuracy/correctnes
         var p1 = info.meshTime / topicParams.timeInMeshQuantum
         if p1 > topicParams.timeInMeshCap:
           p1 = topicParams.timeInMeshCap
@@ -792,7 +790,6 @@ method unsubscribePeer*(g: GossipSub, peer: PeerID) =
 
   # remove from peer IPs collection too
   if pubSubPeer.connections.len > 0:
-    # TODO, we are just using the first connections for now
     g.peersInIP.withValue(pubSubPeer.connections[0].observedAddr, s) do:
       s[].excl(pubSubPeer)
 
