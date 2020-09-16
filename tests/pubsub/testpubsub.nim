@@ -1,6 +1,7 @@
 {.used.}
 
-import testfloodsub,
+import testgossipinternal,
+       testfloodsub,
        testgossipsub,
        testmcache,
        testtimedcache,
