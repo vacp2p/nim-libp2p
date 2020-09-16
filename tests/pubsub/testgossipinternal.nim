@@ -1,4 +1,7 @@
-include ../../libp2p/protocols/pubsub/gossipsub
+when defined(fallback_gossipsub_10):
+  include ../../libp2p/protocols/pubsub/gossipsub10
+else:
+  include ../../libp2p/protocols/pubsub/gossipsub
 
 {.used.}
 

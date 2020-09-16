@@ -20,9 +20,13 @@ import utils, ../../libp2p/[errors,
                             crypto/crypto,
                             protocols/pubsub/pubsub,
                             protocols/pubsub/pubsubpeer,
-                            protocols/pubsub/gossipsub,
                             protocols/pubsub/peertable,
                             protocols/pubsub/rpc/messages]
+
+when defined(fallback_gossipsub_10):
+  import ../../libp2p/protocols/pubsub/gossipsub10
+else:
+  import ../../libp2p/protocols/pubsub/gossipsub
 
 import ../helpers
 

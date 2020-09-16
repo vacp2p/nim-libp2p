@@ -8,8 +8,12 @@ import chronos
 import ../../libp2p/[standard_setup,
                      protocols/pubsub/pubsub,
                      protocols/pubsub/floodsub,
-                     protocols/pubsub/gossipsub,
                      protocols/secure/secure]
+
+when defined(fallback_gossipsub_10):
+  import ../../libp2p/protocols/pubsub/gossipsub10
+else:
+  import ../../libp2p/protocols/pubsub/gossipsub
 
 export standard_setup
 
