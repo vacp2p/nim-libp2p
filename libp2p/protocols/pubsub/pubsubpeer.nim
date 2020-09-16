@@ -186,6 +186,7 @@ proc getSendConn(p: PubSubPeer): Future[Connection] {.async.} =
     # Grab a new send connection
     let (newConn, handshake) = await p.getConn() # ...and here
     if newConn.isNil:
+      debug "Failed to get a new send connection"
       return nil
 
     trace "Sending handshake", newConn, handshake = shortLog(handshake)
