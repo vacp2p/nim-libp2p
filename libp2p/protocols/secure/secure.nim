@@ -110,15 +110,14 @@ method init*(s: Secure) {.gcsafe.} =
 method secure*(s: Secure,
                conn: Connection,
                initiator: bool):
-               Future[Connection] {.async, base, gcsafe.} =
-  result = await s.handleConn(conn, initiator)
+               Future[Connection] {.base, gcsafe.} =
+  s.handleConn(conn, initiator)
 
 method readOnce*(s: SecureConn,
                  pbytes: pointer,
                  nbytes: int):
                  Future[int] {.async, gcsafe.} =
-  if nbytes == 0:
-    return 0
+  doAssert(nbytes > 0, "nbytes must be positive integer")
 
   if s.buf.data().len() == 0:
     let buf = await s.readMessage()
