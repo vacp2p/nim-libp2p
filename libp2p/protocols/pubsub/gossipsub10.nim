@@ -7,6 +7,11 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
+# TODO: this module is temporary to allow
+# for quick switchover fro 1.1 to 1.0.
+# This should be removed once 1.1 is stable
+# enough.
+
 import std/[options, random, sequtils, sets, tables]
 import chronos, chronicles, metrics
 import ./pubsub,
