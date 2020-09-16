@@ -128,6 +128,8 @@ method readOnce*(s: BufferStream,
                  pbytes: pointer,
                  nbytes: int):
                  Future[int] {.async.} =
+  doAssert(nbytes > 0, "nbytes must be positive integer")
+
   if s.isEof and s.readBuf.len() == 0:
     raise newLPStreamEOFError()
 
