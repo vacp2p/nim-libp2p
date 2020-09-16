@@ -52,7 +52,6 @@ proc subscribeNodes*(nodes: seq[PubSub]) {.async.} =
     for node in nodes:
       if dialer.switch.peerInfo.peerId != node.switch.peerInfo.peerId:
         await dialer.switch.connect(node.peerInfo.peerId, node.peerInfo.addrs)
-        dialer.subscribePeer(node.peerInfo.peerId)
 
 proc subscribeSparseNodes*(nodes: seq[PubSub], degree: int = 2) {.async.} =
   if nodes.len < degree:
@@ -65,7 +64,6 @@ proc subscribeSparseNodes*(nodes: seq[PubSub], degree: int = 2) {.async.} =
     for node in nodes:
       if dialer.switch.peerInfo.peerId != node.peerInfo.peerId:
         await dialer.switch.connect(node.peerInfo.peerId, node.peerInfo.addrs)
-        dialer.subscribePeer(node.peerInfo.peerId)
 
 proc subscribeRandom*(nodes: seq[PubSub]) {.async.} =
   for dialer in nodes:
@@ -75,5 +73,4 @@ proc subscribeRandom*(nodes: seq[PubSub]) {.async.} =
       if node.peerInfo.peerId notin dialed:
         if dialer.peerInfo.peerId != node.peerInfo.peerId:
           await dialer.switch.connect(node.peerInfo.peerId, node.peerInfo.addrs)
-          dialer.subscribePeer(node.peerInfo.peerId)
           dialed.add(node.peerInfo.peerId)

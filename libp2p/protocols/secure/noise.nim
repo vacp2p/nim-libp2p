@@ -21,6 +21,9 @@ import ../../utility
 import secure,
        ../../crypto/[crypto, chacha20poly1305, curve25519, hkdf]
 
+when defined(libp2p_dump):
+  import ../../debugutils
+
 logScope:
   topics = "noise"
 
@@ -403,8 +406,15 @@ method readMessage*(sconn: NoiseConnection): Future[seq[byte]] {.async.} =
     if size > 0:
       var buffer = newSeq[byte](size)
       await sconn.stream.readExactly(addr buffer[0], buffer.len)
-      return sconn.readCs.decryptWithAd([], buffer)
+      when defined(libp2p_dump):
+        let res = sconn.readCs.decryptWithAd([], buffer)
+        dumpMessage(sconn, FlowDirection.Incoming, res)
+        return res
+      else:
+        return sconn.readCs.decryptWithAd([], buffer)
     else:
+      when defined(libp2p_dump):
+        dumpMessage(sconn, FlowDirection.Incoming, [])
       trace "Received 0-length message", sconn
 
 method write*(sconn: NoiseConnection, message: seq[byte]): Future[void] {.async.} =
@@ -429,6 +439,10 @@ method write*(sconn: NoiseConnection, message: seq[byte]): Future[void] {.async.
     outbuf &= besize
     outbuf &= cipher
     await sconn.stream.write(outbuf)
+
+    when defined(libp2p_dump):
+      dumpMessage(sconn, FlowDirection.Outgoing, message)
+
     sconn.activity = true
 
 method handshake*(p: Noise, conn: Connection, initiator: bool): Future[SecureConn] {.async.} =
