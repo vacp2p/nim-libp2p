@@ -30,6 +30,7 @@ suite "Switch":
     for tracker in testTrackers():
       # echo tracker.dump()
       check tracker.isLeaked() == false
+    GC_fullCollect()
 
   test "e2e use switch dial proto string":
     proc testSwitch() {.async, gcsafe.} =

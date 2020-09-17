@@ -9,6 +9,7 @@ suite "BufferStream":
   teardown:
     # echo getTracker("libp2p.bufferstream").dump()
     check getTracker("libp2p.bufferstream").isLeaked() == false
+    GC_fullCollect()
 
   test "push data to buffer":
     proc testPushTo(): Future[bool] {.async.} =

@@ -31,6 +31,7 @@ suite "GossipSub internal":
     for tracker in testTrackers():
       # echo tracker.dump()
       check tracker.isLeaked() == false
+    GC_fullCollect()
 
   test "`rebalanceMesh` Degree Lo":
     proc testRun(): Future[bool] {.async.} =

@@ -18,6 +18,7 @@ suite "Identify":
     for tracker in testTrackers():
       # echo tracker.dump()
       check tracker.isLeaked() == false
+    GC_fullCollect()
 
   test "handle identify message":
     proc testHandle(): Future[bool] {.async.} =

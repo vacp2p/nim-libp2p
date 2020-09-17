@@ -171,6 +171,7 @@ suite "Multistream select":
     for tracker in testTrackers():
       # echo tracker.dump()
       check tracker.isLeaked() == false
+    GC_fullCollect()
 
   test "test select custom proto":
     proc testSelect(): Future[bool] {.async.} =

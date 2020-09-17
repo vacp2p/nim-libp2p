@@ -14,6 +14,7 @@ suite "TCP transport":
     for tracker in testTrackers():
       # echo tracker.dump()
       check tracker.isLeaked() == false
+    GC_fullCollect()
 
   test "test listener: handle write":
     proc testListener(): Future[bool] {.async, gcsafe.} =

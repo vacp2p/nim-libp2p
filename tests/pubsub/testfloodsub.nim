@@ -39,6 +39,7 @@ suite "FloodSub":
     for tracker in testTrackers():
       # echo tracker.dump()
       check tracker.isLeaked() == false
+    GC_fullCollect()
 
   test "FloodSub basic publish/subscribe A -> B":
     proc runTests() {.async.} =

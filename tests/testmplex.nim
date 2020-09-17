@@ -21,6 +21,7 @@ suite "Mplex":
     for tracker in testTrackers():
       # echo tracker.dump()
       check tracker.isLeaked() == false
+    GC_fullCollect()
 
   test "encode header with channel id 0":
     proc testEncodeHeader() {.async.} =

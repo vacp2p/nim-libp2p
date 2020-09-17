@@ -24,6 +24,7 @@ suite "Connection Manager":
     for tracker in testTrackers():
       # echo tracker.dump()
       check tracker.isLeaked() == false
+    GC_fullCollect()
 
   test "add and retrive a connection":
     let connMngr = ConnManager.init()
