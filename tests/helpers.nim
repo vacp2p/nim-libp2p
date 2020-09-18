@@ -1,3 +1,5 @@
+import std/unittest
+
 import chronos, bearssl
 
 import ../libp2p/transports/tcptransport
@@ -10,7 +12,7 @@ const
   StreamServerTrackerName = "stream.server"
 
   trackerNames = [
-    # ConnectionTrackerName,
+    ConnectionTrackerName,
     BufferStreamTrackerName,
     TcpTransportTrackerName,
     StreamTransportTrackerName,
@@ -24,6 +26,12 @@ iterator testTrackers*(extras: openArray[string] = []): TrackerBase =
   for name in extras:
     let t = getTracker(name)
     if not isNil(t): yield t
+
+template checkTrackers*() =
+  for tracker in testTrackers():
+    if tracker.isLeaked():
+      checkpoint tracker.dump()
+      fail()
 
 type RngWrap = object
   rng: ref BrHmacDrbgContext

@@ -18,9 +18,7 @@ import ./helpers
 
 suite "Mplex":
   teardown:
-    for tracker in testTrackers():
-      # echo tracker.dump()
-      check tracker.isLeaked() == false
+    checkTrackers()
 
   test "encode header with channel id 0":
     proc testEncodeHeader() {.async.} =
@@ -70,7 +68,7 @@ suite "Mplex":
     proc testDecodeHeader() {.async.} =
       let stream = newBufferStream()
       let conn = stream
-      await stream.pushTo(fromHex("000873747265616d2031"))
+      await stream.pushData(fromHex("000873747265616d2031"))
       let msg = await conn.readMsg()
 
       check msg.id == 0
@@ -83,7 +81,7 @@ suite "Mplex":
     proc testDecodeHeader() {.async.} =
       let stream = newBufferStream()
       let conn = stream
-      await stream.pushTo(fromHex("021668656C6C6F2066726F6D206368616E6E656C20302121"))
+      await stream.pushData(fromHex("021668656C6C6F2066726F6D206368616E6E656C20302121"))
       let msg = await conn.readMsg()
 
       check msg.id == 0
@@ -97,7 +95,7 @@ suite "Mplex":
     proc testDecodeHeader() {.async.} =
       let stream = newBufferStream()
       let conn = stream
-      await stream.pushTo(fromHex("8a011668656C6C6F2066726F6D206368616E6E656C20302121"))
+      await stream.pushData(fromHex("8a011668656C6C6F2066726F6D206368616E6E656C20302121"))
       let msg = await conn.readMsg()
 
       check msg.id == 17
@@ -134,14 +132,14 @@ suite "Mplex":
         )
         chann = LPChannel.init(1, conn, true)
 
-      await chann.pushTo(("Hello!").toBytes)
+      await chann.pushData(("Hello!").toBytes)
 
       var data = newSeq[byte](6)
       await chann.close() # closing channel
       # should be able to read on local clsoe
       await chann.readExactly(addr data[0], 3)
       # closing remote end
-      let closeFut = chann.closeRemote()
+      let closeFut = chann.pushEof()
       # should still allow reading until buffer EOF
       await chann.readExactly(addr data[3], 3)
       try:
@@ -166,11 +164,11 @@ suite "Mplex":
         )
         chann = LPChannel.init(1, conn, true)
 
-      await chann.pushTo(("Hello!").toBytes)
+      await chann.pushData(("Hello!").toBytes)
 
       var data = newSeq[byte](6)
       await chann.readExactly(addr data[0], 3)
-      let closeFut = chann.closeRemote() # closing channel
+      let closeFut = chann.pushEof() # closing channel
       let readFut = chann.readExactly(addr data[3], 3)
       await all(closeFut, readFut)
       try:
@@ -184,7 +182,7 @@ suite "Mplex":
     check:
       waitFor(testClosedForRead()) == true
 
-  test "half closed (remote close) - channel should allow writting on remote close":
+  test "half closed (remote close) - channel should allow writing on remote close":
     proc testClosedForRead(): Future[bool] {.async.} =
       let
         testData = "Hello!".toBytes
@@ -194,12 +192,12 @@ suite "Mplex":
         )
         chann = LPChannel.init(1, conn, true)
 
-      await chann.closeRemote() # closing channel
+      await chann.pushEof() # closing channel
       try:
         await chann.writeLp(testData)
         return true
       finally:
-        await chann.close()
+        await chann.reset() # there's nobody reading the EOF!
         await conn.close()
 
     check:
@@ -211,9 +209,11 @@ suite "Mplex":
       let
         conn = newBufferStream(writeHandler)
         chann = LPChannel.init(1, conn, true)
-      await chann.closeRemote()
+      await chann.pushEof()
+      var buf: array[1, byte]
+      check: (await chann.readOnce(addr buf[0], 1)) == 0 # EOF marker read
       try:
-        await chann.pushTo(@[byte(1)])
+        await chann.pushData(@[byte(1)])
       except LPStreamEOFError:
         result = true
       finally:
@@ -234,11 +234,64 @@ suite "Mplex":
       var data = newSeq[byte](1)
       try:
         await chann.readExactly(addr data[0], 1)
-        check data.len == 1
       except LPStreamEOFError:
         result = true
       finally:
         await conn.close()
+
+    check:
+      waitFor(testResetRead()) == true
+
+  test "reset - should complete read":
+    proc testResetRead(): Future[bool] {.async.} =
+      proc writeHandler(data: seq[byte]) {.async, gcsafe.} = discard
+      let
+        conn = newBufferStream(writeHandler)
+        chann = LPChannel.init(1, conn, true)
+
+      var data = newSeq[byte](1)
+      let fut = chann.readExactly(addr data[0], 1)
+      await chann.reset()
+      try:
+        await fut
+      except LPStreamEOFError:
+        result = true
+      finally:
+        await conn.close()
+
+    check:
+      waitFor(testResetRead()) == true
+
+  test "reset - should complete pushData":
+    proc testResetRead(): Future[bool] {.async.} =
+      proc writeHandler(data: seq[byte]) {.async, gcsafe.} = discard
+      let
+        conn = newBufferStream(writeHandler)
+        chann = LPChannel.init(1, conn, true)
+
+      await chann.pushData(@[0'u8])
+      let fut = chann.pushData(@[0'u8])
+      await chann.reset()
+      result = await fut.withTimeout(100.millis)
+      await conn.close()
+
+    check:
+      waitFor(testResetRead()) == true
+
+  test "reset - should complete both read and push":
+    proc testResetRead(): Future[bool] {.async.} =
+      proc writeHandler(data: seq[byte]) {.async, gcsafe.} = discard
+      let
+        conn = newBufferStream(writeHandler)
+        chann = LPChannel.init(1, conn, true)
+
+      var data = newSeq[byte](1)
+      let rfut = chann.readExactly(addr data[0], 1)
+      let wfut = chann.pushData(@[0'u8])
+      let wfut2 = chann.pushData(@[0'u8])
+      await chann.reset()
+      result = await allFutures(rfut, wfut, wfut2).withTimeout(100.millis)
+      await conn.close()
 
     check:
       waitFor(testResetRead()) == true
@@ -533,6 +586,7 @@ suite "Mplex":
       await done.wait(5.seconds)
       await conn.close()
       await mplexDialFut
+      await mplexDial.close()
       await allFuturesThrowing(
         transport1.close(),
         transport2.close())

@@ -79,7 +79,10 @@ proc setupBufferStreamTracker(): BufferStreamTracker =
 type
   BufferStream* = ref object of Connection
     readQueue*: AsyncQueue[seq[byte]] # read queue for managing backpressure
-    readBuf*: StreamSeq                # overflow buffer for readOnce
+    readBuf*: StreamSeq               # overflow buffer for readOnce
+    pushing*: int                     # number of ongoing push operations
+
+    pushedEof*: bool
 
 func shortLog*(s: BufferStream): auto =
   if s.isNil: "BufferStream(nil)"
@@ -106,14 +109,13 @@ proc newBufferStream*(timeout: Duration = DefaultConnectionTimeout): BufferStrea
   result.timeout = timeout
   result.initStream()
 
-method pushTo*(s: BufferStream, data: seq[byte]) {.base, async.} =
+method pushData*(s: BufferStream, data: seq[byte]) {.base, async.} =
   ## Write bytes to internal read buffer, use this to fill up the
   ## buffer with data.
   ##
   ## `pushTo` will block if the queue is full, thus maintaining backpressure.
   ##
-
-  if s.isClosed:
+  if s.isClosed or s.pushedEof:
     raise newLPStreamEOFError()
 
   if data.len == 0:
@@ -121,15 +123,32 @@ method pushTo*(s: BufferStream, data: seq[byte]) {.base, async.} =
 
   # We will block here if there is already data queued, until it has been
   # processed
-  trace "Pushing readQueue", s, len = data.len
-  await s.readQueue.addLast(data)
+  inc s.pushing
+  try:
+    trace "Pushing data", s, data = data.len
+    await s.readQueue.addLast(data)
+  finally:
+    dec s.pushing
+
+method pushEof*(s: BufferStream) {.base, async.} =
+  if s.pushedEof:
+    return
+  s.pushedEof = true
+
+  # We will block here if there is already data queued, until it has been
+  # processed
+  inc s.pushing
+  try:
+    trace "Pushing EOF", s
+    await s.readQueue.addLast(@[])
+  finally:
+    dec s.pushing
 
 method readOnce*(s: BufferStream,
                  pbytes: pointer,
                  nbytes: int):
                  Future[int] {.async.} =
   doAssert(nbytes > 0, "nbytes must be positive integer")
-
   if s.isEof and s.readBuf.len() == 0:
     raise newLPStreamEOFError()
 
@@ -144,7 +163,7 @@ method readOnce*(s: BufferStream,
     trace "popping readQueue", s, rbytes, nbytes
     let buf = await s.readQueue.popFirst()
 
-    if buf.len == 0:
+    if buf.len == 0 or s.isEof: # Another task might have set EOF!
       # No more data will arrive on read queue
       s.isEof = true
     else:
@@ -165,18 +184,14 @@ method readOnce*(s: BufferStream,
 
   return rbytes
 
-method close*(s: BufferStream) {.async, gcsafe.} =
+method closeImpl*(s: BufferStream): Future[void] =
   ## close the stream and clear the buffer
-  if s.isClosed:
-    trace "Already closed", s
-    return
+  trace "Closing BufferStream", s, len = s.len
 
-  trace "Closing BufferStream", s
-
-  # Push empty block to signal close, but don't block
-  asyncSpawn s.readQueue.addLast(@[])
-
-  await procCall Connection(s).close() # noraises, nocancels
+  if not s.pushedEof: # Potentially wake up reader
+    asyncSpawn s.pushEof()
 
   inc getBufferStreamTracker().closed
   trace "Closed BufferStream", s
+
+  procCall Connection(s).closeImpl() # noraises, nocancels

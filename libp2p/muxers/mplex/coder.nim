@@ -51,33 +51,47 @@ proc readMsg*(conn: Connection): Future[Msg] {.async, gcsafe.} =
   if msgType.int > ord(MessageType.ResetOut):
     raise newInvalidMplexMsgType()
 
-  result = (header shr 3, MessageType(msgType), data)
+  return (header shr 3, MessageType(msgType), data)
 
 proc writeMsg*(conn: Connection,
                id: uint64,
                msgType: MessageType,
                data: seq[byte] = @[]) {.async, gcsafe.} =
-  trace "sending data over mplex", conn,
-                                   id,
-                                   msgType,
-                                   data = data.len
+  if conn.closed:
+    return # No point in trying to write to an already-closed connection
+
   var
     left = data.len
     offset = 0
+    buf = initVBuffer()
+
+  # Split message into length-prefixed chunks
   while left > 0 or data.len == 0:
     let
       chunkSize = if left > MaxMsgSize: MaxMsgSize - 64 else: left
-    ## write length prefixed
-    var buf = initVBuffer()
+
     buf.writePBVarint(id shl 3 or ord(msgType).uint64)
     buf.writeSeq(data.toOpenArray(offset, offset + chunkSize - 1))
-    buf.finish()
     left = left - chunkSize
     offset = offset + chunkSize
-    await conn.write(buf.buffer)
 
     if data.len == 0:
-      return
+      break
+
+  trace "writing mplex message",
+    conn, id, msgType, data = data.len, encoded = buf.buffer.len
+
+  try:
+    # Write all chunks in a single write to avoid async races where a close
+    # message gets written before some of the chunks
+    await conn.write(buf.buffer)
+    trace "wrote mplex", conn, id, msgType
+  except CatchableError as exc:
+    # If the write to the underlying connection failed it should be closed so
+    # that the other channels are notified as well
+    trace "failed write", conn, id, msg = exc.msg
+    await conn.close()
+    raise exc
 
 proc writeMsg*(conn: Connection,
                id: uint64,

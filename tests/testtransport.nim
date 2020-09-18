@@ -11,9 +11,7 @@ import ./helpers
 
 suite "TCP transport":
   teardown:
-    for tracker in testTrackers():
-      # echo tracker.dump()
-      check tracker.isLeaked() == false
+    checkTrackers()
 
   test "test listener: handle write":
     proc testListener(): Future[bool] {.async, gcsafe.} =

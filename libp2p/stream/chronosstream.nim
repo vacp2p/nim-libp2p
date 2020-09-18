@@ -90,16 +90,15 @@ method closed*(s: ChronosStream): bool {.inline.} =
 method atEof*(s: ChronosStream): bool {.inline.} =
   s.client.atEof()
 
-method close*(s: ChronosStream) {.async.} =
+method closeImpl*(s: ChronosStream) {.async.} =
   try:
-    if not s.isClosed:
-      trace "shutting down chronos stream", address = $s.client.remoteAddress(),
-                                            s
-      if not s.client.closed():
-        await s.client.closeWait()
-
-      await procCall Connection(s).close()
+    trace "shutting down chronos stream", address = $s.client.remoteAddress(),
+                                          s
+    if not s.client.closed():
+      await s.client.closeWait()
   except CancelledError as exc:
     raise exc
   except CatchableError as exc:
-    trace "error closing chronosstream", exc = exc.msg, s
+    trace "error closing chronosstream", s, msg = exc.msg
+
+  await procCall Connection(s).closeImpl()

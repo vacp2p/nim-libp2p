@@ -76,7 +76,6 @@ proc newStreamInternal*(m: Mplex,
                         initiator: bool = true,
                         chanId: uint64 = 0,
                         name: string = "",
-                        lazy: bool = false,
                         timeout: Duration):
                         LPChannel {.gcsafe.} =
   ## create new channel/stream
@@ -93,7 +92,6 @@ proc newStreamInternal*(m: Mplex,
     m.connection,
     initiator,
     name,
-    lazy = lazy,
     timeout = timeout)
 
   result.peerInfo = m.connection.peerInfo
@@ -176,11 +174,11 @@ method handle*(m: Mplex) {.async, gcsafe.} =
             raise newLPStreamLimitError()
 
           trace "pushing data to channel", m, channel, len = data.len
-          await channel.pushTo(data)
+          await channel.pushData(data)
           trace "pushed data to channel", m, channel, len = data.len
 
         of MessageType.CloseIn, MessageType.CloseOut:
-          await channel.closeRemote()
+          await channel.pushEof()
         of MessageType.ResetIn, MessageType.ResetOut:
           await channel.reset()
   except CancelledError:
@@ -208,8 +206,7 @@ proc init*(M: type Mplex,
 method newStream*(m: Mplex,
                   name: string = "",
                   lazy: bool = false): Future[Connection] {.async, gcsafe.} =
-  let channel = m.newStreamInternal(
-    lazy = lazy, timeout = m.inChannTimeout)
+  let channel = m.newStreamInternal(timeout = m.inChannTimeout)
 
   if not lazy:
     await channel.open()
@@ -224,15 +221,21 @@ method close*(m: Mplex) {.async, gcsafe.} =
 
   trace "Closing mplex", m
 
-  let channs = toSeq(m.channels[false].values) & toSeq(m.channels[true].values)
+  var channs = toSeq(m.channels[false].values) & toSeq(m.channels[true].values)
 
   for chann in channs:
-    await chann.reset()
+    await chann.close()
 
   await m.connection.close()
 
   # TODO while we're resetting, new channels may be created that will not be
   #      closed properly
+
+  channs = toSeq(m.channels[false].values) & toSeq(m.channels[true].values)
+
+  for chann in channs:
+    await chann.reset()
+
   m.channels[false].clear()
   m.channels[true].clear()
 

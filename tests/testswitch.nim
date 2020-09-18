@@ -15,7 +15,6 @@ import ../libp2p/[errors,
                   crypto/crypto,
                   protocols/protocol,
                   muxers/muxer,
-                  muxers/mplex/mplex,
                   stream/lpstream]
 import ./helpers
 
@@ -27,9 +26,7 @@ type
 
 suite "Switch":
   teardown:
-    for tracker in testTrackers():
-      # echo tracker.dump()
-      check tracker.isLeaked() == false
+    checkTrackers()
 
   test "e2e use switch dial proto string":
     proc testSwitch() {.async, gcsafe.} =
@@ -111,23 +108,6 @@ suite "Switch":
       let msg = string.fromBytes(await conn.readLp(1024))
       check "Hello!" == msg
       await conn.close()
-
-      await sleepAsync(2.seconds) # wait a little for cleanup to happen
-      var bufferTracker = getTracker(BufferStreamTrackerName)
-      # echo bufferTracker.dump()
-
-      # plus 4 for the pubsub streams
-      check (BufferStreamTracker(bufferTracker).opened ==
-        (BufferStreamTracker(bufferTracker).closed))
-
-      var connTracker = getTracker(ConnectionTrackerName)
-      # echo connTracker.dump()
-
-      # plus 8 is for the secured connection and the socket
-      # and the pubsub streams that won't clean up until
-      # `disconnect()` or `stop()`
-      check (ConnectionTracker(connTracker).opened ==
-        (ConnectionTracker(connTracker).closed + 4.uint64))
 
       await allFuturesThrowing(
         done.wait(5.seconds),

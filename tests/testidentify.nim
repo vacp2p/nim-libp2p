@@ -15,9 +15,7 @@ when defined(nimHasUsed): {.used.}
 
 suite "Identify":
   teardown:
-    for tracker in testTrackers():
-      # echo tracker.dump()
-      check tracker.isLeaked() == false
+    checkTrackers()
 
   test "handle identify message":
     proc testHandle(): Future[bool] {.async.} =

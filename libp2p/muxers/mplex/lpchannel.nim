@@ -47,154 +47,103 @@ type
     name*: string                 # name of the channel (for debugging)
     conn*: Connection             # wrapped connection used to for writing
     initiator*: bool              # initiated remotely or locally flag
-    isLazy*: bool                 # is channel lazy
-    isOpen*: bool                 # has channel been opened (only used with isLazy)
-    isReset*: bool                # channel was reset, pushTo should drop data
-    pushing*: bool
+    isOpen*: bool                 # has channel been opened
     closedLocal*: bool            # has channel been closed locally
     msgCode*: MessageType         # cached in/out message code
     closeCode*: MessageType       # cached in/out close code
     resetCode*: MessageType       # cached in/out reset code
-    writeLock: AsyncLock
 
 proc open*(s: LPChannel) {.async, gcsafe.}
-
-template withWriteLock(lock: AsyncLock, body: untyped): untyped =
-  try:
-    await lock.acquire()
-    body
-  finally:
-    if not(isNil(lock)) and lock.locked:
-      lock.release()
 
 func shortLog*(s: LPChannel): auto =
   if s.isNil: "LPChannel(nil)"
   elif s.conn.peerInfo.isNil: $s.oid
-  elif s.name != $s.oid: &"{shortLog(s.conn.peerInfo.peerId)}:{s.oid}:{s.name}"
+  elif s.name != $s.oid and s.name.len > 0:
+    &"{shortLog(s.conn.peerInfo.peerId)}:{s.oid}:{s.name}"
   else: &"{shortLog(s.conn.peerInfo.peerId)}:{s.oid}"
 chronicles.formatIt(LPChannel): shortLog(it)
 
-proc closeMessage(s: LPChannel) {.async.} =
-  ## send close message
-  withWriteLock(s.writeLock):
-    trace "sending close message", s
-
-    await s.conn.writeMsg(s.id, s.closeCode) # write close
-
-proc resetMessage(s: LPChannel) {.async.} =
-  ## send reset message - this will not raise
-  try:
-    withWriteLock(s.writeLock):
-      trace "sending reset message", s
-      await s.conn.writeMsg(s.id, s.resetCode) # write reset
-  except CancelledError:
-    # This procedure is called from one place and never awaited, so there no
-    # need to re-raise CancelledError.
-    debug "Unexpected cancellation while resetting channel", s
-  except LPStreamEOFError as exc:
-    trace "muxed connection EOF", s, msg = exc.msg
-  except LPStreamClosedError as exc:
-    trace "muxed connection closed", s, msg = exc.msg
-  except LPStreamIncompleteError as exc:
-    trace "incomplete message", s, msg = exc.msg
-  except CatchableError as exc:
-    debug "Unhandled exception leak", s, msg = exc.msg
-
 proc open*(s: LPChannel) {.async, gcsafe.} =
+  trace "Opening channel", s, conn = s.conn
   await s.conn.writeMsg(s.id, MessageType.New, s.name)
-  trace "Opened channel", s
   s.isOpen = true
 
-proc closeRemote*(s: LPChannel) {.async.} =
-  trace "Closing remote", s
-  try:
-    # close parent bufferstream to prevent further reads
-    await procCall BufferStream(s).close()
-  except CancelledError as exc:
-    raise exc
-  except CatchableError as exc:
-    trace "exception closing remote channel", s, msg = exc.msg
-
-  trace "Closed remote", s
-
 method closed*(s: LPChannel): bool =
-  ## this emulates half-closed behavior
-  ## when closed locally writing is
-  ## disabled - see the table in the
-  ## header of the file
   s.closedLocal
 
-method pushTo*(s: LPChannel, data: seq[byte]) {.async.} =
-  if s.isReset:
-    raise newLPStreamClosedError() # Terminate mplex loop
-
-  try:
-    s.pushing = true
-    await procCall BufferStream(s).pushTo(data)
-  finally:
-    s.pushing = false
+proc closeUnderlying(s: LPChannel): Future[void] {.async.} =
+  ## Channels may be closed for reading and writing in any order - we'll close
+  ## the underlying bufferstream when both directions are closed
+  if s.closedLocal and s.isEof:
+    await procCall BufferStream(s).close()
 
 method reset*(s: LPChannel) {.base, async, gcsafe.} =
-  if s.closedLocal and s.isEof:
-    trace "channel already closed or reset", s
+  if s.isClosed:
+    trace "Already closed", s
     return
 
   trace "Resetting channel", s, len = s.len
 
-  # First, make sure any new calls to `readOnce` and `pushTo` will fail - there
-  # may already be such calls in the event queue
-  s.isEof = true
-  s.isReset = true
-
-  s.readBuf = StreamSeq()
-
+  # First, make sure any new calls to `readOnce` and `pushData` etc will fail -
+  # there may already be such calls in the event queue however
   s.closedLocal = true
+  s.isEof = true
+  s.readBuf = StreamSeq()
+  s.pushedEof = true
 
-  asyncSpawn s.resetMessage()
+  for i in 0..<s.pushing:
+    # Make sure to drain any ongoing pushes - there's already at least one item
+    # more in the queue already so any ongoing reads shouldn't interfere
+    # Notably, popFirst is not fair - which reader/writer gets woken up depends
+    discard await s.readQueue.popFirst()
+
+  if s.readQueue.len == 0 and s.pushing == 0:
+    # There is no push ongoing and nothing on the queue - let's place an
+    # EOF marker there so that any reader is woken up - we don't need to
+    # synchronize here
+    await s.readQueue.addLast(@[])
+
+  if not s.conn.isClosed:
+    # If the connection is still active, notify the other end
+    proc resetMessage() {.async.} =
+      try:
+          trace "sending reset message", s, conn = s.conn
+          await s.conn.writeMsg(s.id, s.resetCode) # write reset
+      except CatchableError as exc:
+        # No cancellations, errors handled in writeMsg
+        trace "Can't send reset message", s, conn = s.conn, msg = exc.msg
+
+    asyncSpawn resetMessage()
 
   # This should wake up any readers by pushing an EOF marker at least
   await procCall BufferStream(s).close() # noraises, nocancels
 
-  if s.pushing:
-    # When data is being pushed, there will be two items competing for the
-    # readQueue slot - the BufferStream.close EOF marker and the pushTo data.
-    # If the EOF wins, the pushTo call will get stuck because there will be no
-    # new readers to clear the data. It's worth noting that if there's a reader
-    # already waiting for data, this reader will be unblocked by the pushTo -
-    # this is necessary or it will get stuck
-    if s.readQueue.len > 0:
-      discard s.readQueue.popFirstNoWait()
-
   trace "Channel reset", s
 
 method close*(s: LPChannel) {.async, gcsafe.} =
+  ## Close channel for writing - a message will be sent to the other peer
+  ## informing them that the channel is closed and that we're waiting for
+  ## their acknowledgement.
   if s.closedLocal:
     trace "Already closed", s
     return
-
-  trace "Closing channel", s, len = s.len
-
-  proc closeInternal() {.async.} =
-    try:
-      await s.closeMessage().wait(2.minutes)
-      if s.atEof: # already closed by remote close parent buffer immediately
-        await procCall BufferStream(s).close()
-    except CancelledError:
-      debug "Unexpected cancellation while closing channel", s
-      await s.reset()
-      # This is top-level procedure which will work as separate task, so it
-      # do not need to propogate CancelledError.
-    except LPStreamClosedError, LPStreamEOFError:
-      trace "Connection already closed", s
-    except CatchableError as exc: # Shouldn't happen?
-      warn "Exception closing channel", s, msg = exc.msg
-      await s.reset()
-
-    trace "Closed channel", s
-
   s.closedLocal = true
-  # All the errors are handled inside `closeInternal()` procedure.
-  asyncSpawn closeInternal()
+
+  trace "Closing channel", s, conn = s.conn, len = s.len
+
+  if s.isOpen:
+    try:
+      await s.conn.writeMsg(s.id, s.closeCode) # write close
+    except CancelledError as exc:
+      raise exc
+    except CatchableError as exc:
+      # It's harmless that close message cannot be sent - the connection is
+      # likely down already
+      trace "Cannot send close message", s, id = s.id
+
+  await s.closeUnderlying() # maybe already eofed
+
+  trace "Closed channel", s, len = s.len
 
 method initStream*(s: LPChannel) =
   if s.objName.len == 0:
@@ -206,21 +155,33 @@ method initStream*(s: LPChannel) =
 
   procCall BufferStream(s).initStream()
 
-  s.writeLock = newAsyncLock()
+method readOnce*(s: LPChannel,
+                 pbytes: pointer,
+                 nbytes: int):
+                 Future[int] {.async.} =
+  try:
+    let bytes = await procCall BufferStream(s).readOnce(pbytes, nbytes)
+    trace "readOnce", s, bytes
+    if bytes == 0:
+      await s.closeUnderlying()
+    return bytes
+  except CatchableError as exc:
+    await s.closeUnderlying()
+    raise exc
 
 method write*(s: LPChannel, msg: seq[byte]): Future[void] {.async.} =
   if s.closedLocal:
     raise newLPStreamClosedError()
 
+  doAssert msg.len > 0
   try:
-    if s.isLazy and not(s.isOpen):
+    if not s.isOpen:
       await s.open()
 
     # writes should happen in sequence
-    trace "write msg", len = msg.len
+    trace "write msg", s, conn = s.conn, len = msg.len
 
-    withWriteLock(s.writeLock):
-      await s.conn.writeMsg(s.id, s.msgCode, msg)
+    await s.conn.writeMsg(s.id, s.msgCode, msg)
     s.activity = true
   except CatchableError as exc:
     trace "exception in lpchannel write handler", s, msg = exc.msg
@@ -233,7 +194,6 @@ proc init*(
   conn: Connection,
   initiator: bool,
   name: string = "",
-  lazy: bool = false,
   timeout: Duration = DefaultChanTimeout): LPChannel =
 
   let chann = L(
@@ -241,8 +201,8 @@ proc init*(
     name: name,
     conn: conn,
     initiator: initiator,
-    isLazy: lazy,
     timeout: timeout,
+    isOpen: if initiator: false else: true,
     msgCode: if initiator: MessageType.MsgOut else: MessageType.MsgIn,
     closeCode: if initiator: MessageType.CloseOut else: MessageType.CloseIn,
     resetCode: if initiator: MessageType.ResetOut else: MessageType.ResetIn,
@@ -253,6 +213,6 @@ proc init*(
   when chronicles.enabledLogLevel == LogLevel.TRACE:
     chann.name = if chann.name.len > 0: chann.name else: $chann.oid
 
-  trace "Created new lpchannel", chann
+  trace "Created new lpchannel", chann, id, initiator
 
   return chann

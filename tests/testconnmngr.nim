@@ -21,9 +21,7 @@ method newStream*(
 
 suite "Connection Manager":
   teardown:
-    for tracker in testTrackers():
-      # echo tracker.dump()
-      check tracker.isLeaked() == false
+    checkTrackers()
 
   test "add and retrive a connection":
     let connMngr = ConnManager.init()
