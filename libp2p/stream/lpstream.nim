@@ -210,15 +210,22 @@ proc write*(s: LPStream, pbytes: pointer, nbytes: int): Future[void] {.deprecate
 proc write*(s: LPStream, msg: string): Future[void] =
   s.write(msg.toBytes())
 
-# TODO: split `close` into `close` and `dispose/destroy`
-method close*(s: LPStream) {.base, async.} = # {.raises [Defect].}
+method closeImpl*(s: LPStream): Future[void] {.async, base.} =
+  ## Implementation of close - called only once
+  trace "Closing stream", s, objName = s.objName
+  s.closeEvent.fire()
+  libp2p_open_streams.dec(labelValues = [s.objName])
+  trace "Closed stream", s, objName = s.objName
+
+method close*(s: LPStream): Future[void] {.base, async.} = # {.raises [Defect].}
   ## close the stream - this may block, but will not raise exceptions
   ##
   if s.isClosed:
     trace "Already closed", s
     return
+  s.isClosed = true # Set flag before performing virtual close
 
-  s.isClosed = true
-  s.closeEvent.fire()
-  libp2p_open_streams.dec(labelValues = [s.objName])
-  trace "Closed stream", s, objName = s.objName
+  # An separate implementation method is used so that even when derived types
+  # override `closeImpl`, it is called only once - anyone overriding `close`
+  # itself must implement this - once-only check as well, with their own field
+  await closeImpl(s)

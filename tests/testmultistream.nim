@@ -168,9 +168,7 @@ proc newTestNaStream(na: NaHandler): TestNaStream =
 
 suite "Multistream select":
   teardown:
-    for tracker in testTrackers():
-      # echo tracker.dump()
-      check tracker.isLeaked() == false
+    checkTrackers()
 
   test "test select custom proto":
     proc testSelect(): Future[bool] {.async.} =

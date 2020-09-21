@@ -89,14 +89,16 @@ method initStream*(s: Connection) =
 
   inc getConnectionTracker().opened
 
-method close*(s: Connection) {.async.} =
-  ## cleanup timers
+method closeImpl*(s: Connection): Future[void] =
+  # Cleanup timeout timer
+  trace "Closing connection", s
   if not isNil(s.timerTaskFut) and not s.timerTaskFut.finished:
     s.timerTaskFut.cancel()
 
-  if not s.isClosed:
-    await procCall LPStream(s).close()
-    inc getConnectionTracker().closed
+  inc getConnectionTracker().closed
+  trace "Closed connection"
+
+  procCall LPStream(s).closeImpl()
 
 func hash*(p: Connection): Hash =
   cast[pointer](p).hash

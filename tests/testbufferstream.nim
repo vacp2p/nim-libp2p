@@ -11,26 +11,26 @@ suite "BufferStream":
     check getTracker("libp2p.bufferstream").isLeaked() == false
 
   test "push data to buffer":
-    proc testPushTo(): Future[bool] {.async.} =
+    proc testpushData(): Future[bool] {.async.} =
       let buff = newBufferStream()
       check buff.len == 0
       var data = "12345"
-      await buff.pushTo(data.toBytes())
+      await buff.pushData(data.toBytes())
       check buff.len == 5
       result = true
 
       await buff.close()
 
     check:
-      waitFor(testPushTo()) == true
+      waitFor(testpushData()) == true
 
   test "push and wait":
-    proc testPushTo(): Future[bool] {.async.} =
+    proc testpushData(): Future[bool] {.async.} =
       let buff = newBufferStream()
       check buff.len == 0
 
-      let fut0 = buff.pushTo("1234".toBytes())
-      let fut1 = buff.pushTo("5".toBytes())
+      let fut0 = buff.pushData("1234".toBytes())
+      let fut1 = buff.pushData("5".toBytes())
       check buff.len == 4 # the second write should not be visible yet
 
       var data: array[1, byte]
@@ -46,14 +46,14 @@ suite "BufferStream":
       await buff.close()
 
     check:
-      waitFor(testPushTo()) == true
+      waitFor(testpushData()) == true
 
   test "read with size":
     proc testRead(): Future[bool] {.async.} =
       let buff = newBufferStream()
       check buff.len == 0
 
-      await buff.pushTo("12345".toBytes())
+      await buff.pushData("12345".toBytes())
       var data: array[3, byte]
       await buff.readExactly(addr data[0], data.len)
       check ['1', '2', '3'] == string.fromBytes(data)
@@ -70,7 +70,7 @@ suite "BufferStream":
       let buff = newBufferStream()
       check buff.len == 0
 
-      await buff.pushTo("12345".toBytes())
+      await buff.pushData("12345".toBytes())
       check buff.len == 5
       var data: array[2, byte]
       await buff.readExactly(addr data[0], data.len)
@@ -88,7 +88,7 @@ suite "BufferStream":
       let buff = newBufferStream()
       check buff.len == 0
 
-      await buff.pushTo("123".toBytes())
+      await buff.pushData("123".toBytes())
       var data: array[5, byte]
       var readFut = buff.readExactly(addr data[0], data.len)
       await buff.close()
@@ -108,7 +108,7 @@ suite "BufferStream":
 
       var data: array[3, byte]
       let readFut = buff.readOnce(addr data[0], data.len)
-      await buff.pushTo("123".toBytes())
+      await buff.pushData("123".toBytes())
       check buff.len == 3
 
       check (await readFut) == 3
@@ -126,9 +126,9 @@ suite "BufferStream":
       let buff = newBufferStream()
       check buff.len == 0
 
-      let w1 = buff.pushTo("Msg 1".toBytes())
-      let w2 = buff.pushTo("Msg 2".toBytes())
-      let w3 = buff.pushTo("Msg 3".toBytes())
+      let w1 = buff.pushData("Msg 1".toBytes())
+      let w2 = buff.pushData("Msg 2".toBytes())
+      let w3 = buff.pushData("Msg 3".toBytes())
 
       var data: array[5, byte]
       await buff.readExactly(addr data[0], data.len)
@@ -143,9 +143,9 @@ suite "BufferStream":
 
       for f in [w1, w2, w3]: await f
 
-      let w4 = buff.pushTo("Msg 4".toBytes())
-      let w5 = buff.pushTo("Msg 5".toBytes())
-      let w6 = buff.pushTo("Msg 6".toBytes())
+      let w4 = buff.pushData("Msg 4".toBytes())
+      let w5 = buff.pushData("Msg 5".toBytes())
+      let w6 = buff.pushData("Msg 6".toBytes())
 
       await buff.close()
 
@@ -173,7 +173,7 @@ suite "BufferStream":
       var writes: seq[Future[void]]
       var str: string
       for i in 0..<10:
-        writes.add buff.pushTo("123".toBytes())
+        writes.add buff.pushData("123".toBytes())
         str &= "123"
       await buff.close() # all data should still be read after close
 
@@ -201,8 +201,8 @@ suite "BufferStream":
     proc closeTest(): Future[bool] {.async.} =
       var stream = newBufferStream()
       var
-        fut = stream.pushTo(toBytes("hello"))
-        fut2 = stream.pushTo(toBytes("again"))
+        fut = stream.pushData(toBytes("hello"))
+        fut2 = stream.pushData(toBytes("again"))
       await stream.close()
       try:
         await wait(fut, 100.milliseconds)
@@ -219,13 +219,13 @@ suite "BufferStream":
   test "no push after close":
     proc closeTest(): Future[bool] {.async.} =
       var stream = newBufferStream()
-      await stream.pushTo("123".toBytes())
+      await stream.pushData("123".toBytes())
       var data: array[3, byte]
       await stream.readExactly(addr data[0], data.len)
       await stream.close()
 
       try:
-        await stream.pushTo("123".toBytes())
+        await stream.pushData("123".toBytes())
       except LPStreamClosedError:
         result = true
 

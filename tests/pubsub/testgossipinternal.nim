@@ -28,9 +28,7 @@ proc randomPeerInfo(): PeerInfo =
 
 suite "GossipSub internal":
   teardown:
-    for tracker in testTrackers():
-      # echo tracker.dump()
-      check tracker.isLeaked() == false
+    checkTrackers()
 
   test "topic params":
     proc testRun(): Future[bool] {.async.} =

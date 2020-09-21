@@ -73,9 +73,7 @@ template tryPublish(call: untyped, require: int, wait: Duration = 1.seconds, tim
 
 suite "GossipSub":
   teardown:
-    for tracker in testTrackers():
-      # echo tracker.dump()
-      check tracker.isLeaked() == false
+    checkTrackers()
 
   test "GossipSub validation should succeed":
     proc runTests() {.async.} =
