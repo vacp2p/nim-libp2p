@@ -45,7 +45,7 @@ install:
   - export PATH="$PWD/Nim/bin:$GOPATH/bin:$PATH"
 
   # install and build go-libp2p-daemon
-  - bash scripts/build_p2pd.sh p2pdCache v0.2.4
+  - bash scripts/build_p2pd.sh p2pdCache v0.3.0
 
 script:
   - nimble install -y --depsOnly

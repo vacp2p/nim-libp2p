@@ -316,7 +316,7 @@ proc upgradeIncoming(s: Switch, conn: Connection) {.async, gcsafe.} =
 
       # add the muxer
       for muxer in s.muxers.values:
-        ms.addHandler(muxer.codec, muxer)
+        ms.addHandler(muxer.codecs, muxer)
 
       # handle subsequent secure requests
       await ms.handle(sconn)
@@ -436,30 +436,35 @@ proc internalConnect(s: Switch,
 proc connect*(s: Switch, peerId: PeerID, addrs: seq[MultiAddress]) {.async.} =
   discard await s.internalConnect(peerId, addrs)
 
-proc negotiateStream(s: Switch, conn: Connection, proto: string): Future[Connection] {.async.} =
-  trace "Negotiating stream", conn, proto
-  if not await s.ms.select(conn, proto):
+proc negotiateStream(s: Switch, conn: Connection, protos: seq[string]): Future[Connection] {.async.} =
+  trace "Negotiating stream", conn, protos
+  let selected = await s.ms.select(conn, protos)
+  if not protos.contains(selected):
     await conn.close()
-    raise newException(DialFailedError, "Unable to select sub-protocol " & proto)
+    raise newException(DialFailedError, "Unable to select sub-protocol " & $protos)
 
   return conn
 
 proc dial*(s: Switch,
            peerId: PeerID,
-           proto: string): Future[Connection] {.async.} =
-  trace "Dialling (existing)", peerId, proto
+           protos: seq[string]): Future[Connection] {.async.} =
+  trace "Dialing (existing)", peerId, protos
   let stream = await s.connManager.getMuxedStream(peerId)
   if stream.isNil:
     raise newException(DialFailedError, "Couldn't get muxed stream")
 
-  return await s.negotiateStream(stream, proto)
+  return await s.negotiateStream(stream, protos)
+
+proc dial*(s: Switch,
+           peerId: PeerID,
+           proto: string): Future[Connection] = dial(s, peerId, @[proto])
 
 proc dial*(s: Switch,
            peerId: PeerID,
            addrs: seq[MultiAddress],
-           proto: string):
+           protos: seq[string]):
            Future[Connection] {.async.} =
-  trace "Dialling (new)", peerId, proto
+  trace "Dialing (new)", peerId, protos
   let conn = await s.internalConnect(peerId, addrs)
   trace "Opening stream", conn
   let stream = await s.connManager.getMuxedStream(conn)
@@ -476,15 +481,21 @@ proc dial*(s: Switch,
       await conn.close()
       raise newException(DialFailedError, "Couldn't get muxed stream")
 
-    return await s.negotiateStream(stream, proto)
+    return await s.negotiateStream(stream, protos)
   except CancelledError as exc:
     trace "Dial canceled", conn
     await cleanup()
     raise exc
   except CatchableError as exc:
-    trace "Error dialing", conn, msg = exc.msg
+    debug "Error dialing", conn, msg = exc.msg
     await cleanup()
     raise exc
+
+proc dial*(s: Switch,
+           peerId: PeerID,
+           addrs: seq[MultiAddress],
+           proto: string):
+           Future[Connection] = dial(s, peerId, addrs, @[proto])
 
 proc mount*[T: LPProtocol](s: Switch, proto: T) {.gcsafe.} =
   if isNil(proto.handler):
@@ -495,7 +506,7 @@ proc mount*[T: LPProtocol](s: Switch, proto: T) {.gcsafe.} =
     raise newException(CatchableError,
       "Protocol has to define a codec string")
 
-  s.ms.addHandler(proto.codec, proto)
+  s.ms.addHandler(proto.codecs, proto)
 
 proc start*(s: Switch): Future[seq[Future[void]]] {.async, gcsafe.} =
   trace "starting switch for peer", peerInfo = s.peerInfo

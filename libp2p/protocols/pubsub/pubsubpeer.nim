@@ -7,7 +7,7 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import std/[hashes, options, strutils, tables]
+import std/[sequtils, strutils, tables, hashes, sets]
 import chronos, chronicles, nimcrypto/sha2, metrics
 import rpc/[messages, message, protobuf],
        ../../peerid,
@@ -43,9 +43,18 @@ type
     observers*: ref seq[PubSubObserver] # ref as in smart_ptr
     dialLock: AsyncLock
 
+    score*: float64
+    iWantBudget*: int
+    iHaveBudget*: int
+    outbound*: bool # if this is an outbound connection
+    appScore*: float64 # application specific score
+    behaviourPenalty*: float64 # the eventual penalty score
+
   RPCHandler* = proc(peer: PubSubPeer, msg: RPCMsg): Future[void] {.gcsafe.}
 
-func hash*(p: PubSubPeer): Hash =
+chronicles.formatIt(PubSubPeer): $it.peerId
+
+func hash*(p: PubSubPeer): Hash = 
   # int is either 32/64, so intptr basically, pubsubpeer is a ref
   cast[pointer](p).hash
 
@@ -177,6 +186,7 @@ proc getSendConn(p: PubSubPeer): Future[Connection] {.async.} =
     # Grab a new send connection
     let (newConn, handshake) = await p.getConn() # ...and here
     if newConn.isNil:
+      debug "Failed to get a new send connection"
       return nil
 
     trace "Sending handshake", newConn, handshake = shortLog(handshake)

@@ -15,6 +15,8 @@ import ../protocol,
        ../../multiaddress,
        ../../peerinfo
 
+export protocol
+
 logScope:
   topics = "secure"
 

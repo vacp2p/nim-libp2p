@@ -10,3 +10,5 @@ build/
 *.exe
 *.dll
 .vscode/
+.DS_Store
+tests/pubsub/testgossipsub

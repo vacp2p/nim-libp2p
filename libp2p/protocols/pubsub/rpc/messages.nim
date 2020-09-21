@@ -14,6 +14,10 @@ import ../../../peerid
 export options
 
 type
+    PeerInfoMsg* = object
+      peerID*: seq[byte]
+      signedPeerRecord*: seq[byte]
+    
     SubOpts* = object
       subscribe*: bool
       topic*: string
@@ -44,6 +48,8 @@ type
 
     ControlPrune* = object
       topicID*: string
+      peers*: seq[PeerInfoMsg]
+      backoff*: uint64
 
     RPCMsg* = object
       subscriptions*: seq[SubOpts]

@@ -18,8 +18,13 @@ import pubsubpeer,
        ../../peerinfo,
        ../../errors
 
+import metrics
+import stew/results
+export results
+
 export PubSubPeer
 export PubSubObserver
+export protocol
 
 logScope:
   topics = "pubsub"
@@ -44,6 +49,7 @@ type
     proc(m: Message): string {.noSideEffect, raises: [Defect], nimcall, gcsafe.}
 
   Topic* = object
+    # make this a variant type if one day we have different Params structs
     name*: string
     handler*: seq[TopicHandler]
 
@@ -111,24 +117,29 @@ method rpcHandler*(p: PubSub,
     trace "about to subscribe to topic", topicId = s.topic, peer
     p.subscribeTopic(s.topic, s.subscribe, peer)
 
+method onNewPeer(p: PubSub, peer: PubSubPeer) {.base.} = discard
+
 proc getOrCreatePeer*(
   p: PubSub,
   peer: PeerID,
-  proto: string): PubSubPeer =
+  protos: seq[string]): PubSubPeer =
   if peer in p.peers:
     return p.peers[peer]
 
   proc getConn(): Future[(Connection, RPCMsg)] {.async.} =
-    let conn = await p.switch.dial(peer, proto)
+    let conn = await p.switch.dial(peer, protos)
     return (conn, RPCMsg.withSubs(toSeq(p.topics.keys), true))
 
   # create new pubsub peer
-  let pubSubPeer = newPubSubPeer(peer, getConn, proto)
+  let pubSubPeer = newPubSubPeer(peer, getConn, protos[0])
   trace "created new pubsub peer", peerId = $peer
 
   p.peers[peer] = pubSubPeer
   pubSubPeer.observers = p.observers
 
+  onNewPeer(p, pubSubPeer)
+
+  # metrics
   libp2p_pubsub_peers.set(p.peers.len.int64)
 
   pubsubPeer.connect()
@@ -171,7 +182,7 @@ method handleConn*(p: PubSub,
     # call pubsub rpc handler
     p.rpcHandler(peer, msg)
 
-  let peer = p.getOrCreatePeer(conn.peerInfo.peerId, proto)
+  let peer = p.getOrCreatePeer(conn.peerInfo.peerId, @[proto])
 
   try:
     peer.handler = handler
@@ -189,7 +200,8 @@ method subscribePeer*(p: PubSub, peer: PeerID) {.base.} =
   ## messages
   ##
 
-  discard p.getOrCreatePeer(peer, p.codec)
+  let peer = p.getOrCreatePeer(peer, p.codecs)
+  peer.outbound = true # flag as outbound
 
 method unsubscribe*(p: PubSub,
                     topics: seq[TopicPair]) {.base, async.} =
@@ -302,23 +314,35 @@ method validate*(p: PubSub, message: Message): Future[bool] {.async, base.} =
   else:
     libp2p_pubsub_validation_failure.inc()
 
-proc init*(
+proc init*[PubParams: object | bool](
   P: typedesc[PubSub],
   switch: Switch,
   triggerSelf: bool = false,
   verifySignature: bool = true,
   sign: bool = true,
-  msgIdProvider: MsgIdProvider = defaultMsgIdProvider): P =
-
-  let pubsub = P(
-    switch: switch,
-    peerInfo: switch.peerInfo,
-    triggerSelf: triggerSelf,
-    verifySignature: verifySignature,
-    sign: sign,
-    peers: initTable[PeerID, PubSubPeer](),
-    topics: initTable[string, Topic](),
-    msgIdProvider: msgIdProvider)
+  msgIdProvider: MsgIdProvider = defaultMsgIdProvider,
+  parameters: PubParams = false): P =
+  let pubsub =
+    when PubParams is bool:
+      P(switch: switch,
+        peerInfo: switch.peerInfo,
+        triggerSelf: triggerSelf,
+        verifySignature: verifySignature,
+        sign: sign,
+        peers: initTable[PeerID, PubSubPeer](),
+        topics: initTable[string, Topic](),
+        msgIdProvider: msgIdProvider)
+    else:
+      P(switch: switch,
+        peerInfo: switch.peerInfo,
+        triggerSelf: triggerSelf,
+        verifySignature: verifySignature,
+        sign: sign,
+        peers: initTable[PeerID, PubSubPeer](),
+        topics: initTable[string, Topic](),
+        msgIdProvider: msgIdProvider,
+        parameters: parameters)
+  pubsub.initPubSub()
 
   proc peerEventHandler(peerId: PeerID, event: PeerEvent) {.async.} =
     if event == PeerEvent.Joined:
@@ -332,8 +356,8 @@ proc init*(
   pubsub.initPubSub()
   return pubsub
 
-proc addObserver*(p: PubSub; observer: PubSubObserver) =
-  p.observers[] &= observer
+
+proc addObserver*(p: PubSub; observer: PubSubObserver) = p.observers[] &= observer
 
 proc removeObserver*(p: PubSub; observer: PubSubObserver) =
   let idx = p.observers[].find(observer)

@@ -7,7 +7,7 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import strutils
+import std/[strutils]
 import chronos, chronicles, stew/byteutils
 import stream/connection,
        vbuffer,
@@ -28,7 +28,7 @@ type
   Matcher* = proc (proto: string): bool {.gcsafe.}
 
   HandlerHolder* = object
-    proto*: string
+    protos*: seq[string]
     protocol*: LPProtocol
     match*: Matcher
 
@@ -147,7 +147,8 @@ proc handle*(m: MultistreamSelect, conn: Connection, active: bool = false) {.asy
         trace "handle: listing protos", conn
         var protos = ""
         for h in m.handlers:
-          protos &= (h.proto & "\n")
+          for proto in h.protos:
+            protos &= (proto & "\n")
         await conn.writeLp(protos)
       of Codec:
         if not handshaked:
@@ -159,9 +160,9 @@ proc handle*(m: MultistreamSelect, conn: Connection, active: bool = false) {.asy
           await conn.write(Na)
       else:
         for h in m.handlers:
-          if (not isNil(h.match) and h.match(ms)) or ms == h.proto:
+          if (not isNil(h.match) and h.match(ms)) or h.protos.contains(ms):
             trace "found handler", conn, protocol = ms
-            await conn.writeLp((h.proto & "\n"))
+            await conn.writeLp(ms & "\n")
             await h.protocol.handler(conn, ms)
             return
         debug "no handlers", conn, protocol = ms
@@ -176,26 +177,30 @@ proc handle*(m: MultistreamSelect, conn: Connection, active: bool = false) {.asy
   trace "Stopped multistream handler", conn
 
 proc addHandler*(m: MultistreamSelect,
+                 codecs: seq[string],
+                 protocol: LPProtocol,
+                 matcher: Matcher = nil) =
+  trace "registering protocols", protos = codecs
+  m.handlers.add(HandlerHolder(protos: codecs,
+                               protocol: protocol,
+                               match: matcher))
+
+proc addHandler*(m: MultistreamSelect,
                  codec: string,
                  protocol: LPProtocol,
                  matcher: Matcher = nil) =
-  ## register a protocol
-  trace "registering protocol", codec = codec
-  m.handlers.add(HandlerHolder(proto: codec,
-                               protocol: protocol,
-                               match: matcher))
+  addHandler(m, @[codec], protocol, matcher)
 
 proc addHandler*(m: MultistreamSelect,
                  codec: string,
                  handler: LPProtoHandler,
                  matcher: Matcher = nil) =
   ## helper to allow registering pure handlers
-
-  trace "registering proto handler", codec = codec
+  trace "registering proto handler", proto = codec
   let protocol = new LPProtocol
   protocol.codec = codec
   protocol.handler = handler
 
-  m.handlers.add(HandlerHolder(proto: codec,
+  m.handlers.add(HandlerHolder(protos: @[codec],
                                protocol: protocol,
                                match: matcher))

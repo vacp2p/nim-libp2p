@@ -25,8 +25,8 @@ import ../libp2p/[daemon/daemonapi,
                   transports/tcptransport,
                   protocols/secure/secure,
                   protocols/pubsub/pubsub,
-                  protocols/pubsub/gossipsub,
-                  protocols/pubsub/floodsub]
+                  protocols/pubsub/floodsub,
+                  protocols/pubsub/gossipsub]
 
 type
   # TODO: Unify both PeerInfo structs
@@ -139,7 +139,7 @@ proc testPubSubNodePublish(gossip: bool = false,
   let daemonNode = await newDaemonApi(flags)
   let daemonPeer = await daemonNode.identity()
   let nativeNode = newStandardSwitch(
-    secureManagers = [SecureProtocol.Secio],
+    secureManagers = [SecureProtocol.Noise],
     outTimeout = 5.minutes)
 
   let pubsub = if gossip:
@@ -203,6 +203,8 @@ suite "Interop":
   #     # echo tracker.dump()
   #     # check tracker.isLeaked() == false
 
+  # TODO: this test is failing sometimes on windows
+  # For some reason we receive EOF before test 4 sometimes
   test "native -> daemon multiple reads and writes":
     proc runTests(): Future[bool] {.async.} =
       var protos = @["/test-stream"]
@@ -264,7 +266,7 @@ suite "Interop":
       copyMem(addr expect[0], addr buffer.buffer[0], len(expect))
 
       let nativeNode = newStandardSwitch(
-        secureManagers = [SecureProtocol.Secio],
+        secureManagers = [SecureProtocol.Noise],
         outTimeout = 5.minutes)
 
       let awaiters = await nativeNode.start()
@@ -358,7 +360,7 @@ suite "Interop":
       proto.codec = protos[0] # codec
 
       let nativeNode = newStandardSwitch(
-        secureManagers = [SecureProtocol.Secio], outTimeout = 5.minutes)
+        secureManagers = [SecureProtocol.Noise], outTimeout = 5.minutes)
 
       nativeNode.mount(proto)
 

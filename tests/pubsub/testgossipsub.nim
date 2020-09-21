@@ -20,9 +20,13 @@ import utils, ../../libp2p/[errors,
                             crypto/crypto,
                             protocols/pubsub/pubsub,
                             protocols/pubsub/pubsubpeer,
-                            protocols/pubsub/gossipsub,
                             protocols/pubsub/peertable,
                             protocols/pubsub/rpc/messages]
+
+when defined(fallback_gossipsub_10):
+  import ../../libp2p/protocols/pubsub/gossipsub10
+else:
+  import ../../libp2p/protocols/pubsub/gossipsub
 
 import ../helpers
 
@@ -34,6 +38,13 @@ proc waitSub(sender, receiver: auto; key: string) {.async, gcsafe.} =
   # peers can be inside `mesh` and `fanout`, not just `gossipsub`
   var ceil = 15
   let fsub = GossipSub(sender)
+  let ev = newAsyncEvent()
+  fsub.heartbeatEvents.add(ev)
+
+  # await first heartbeat
+  await ev.wait()
+  ev.clear()
+
   while (not fsub.gossipsub.hasKey(key) or
          not fsub.gossipsub.hasPeerID(key, receiver.peerInfo.peerId)) and
         (not fsub.mesh.hasKey(key) or
@@ -41,7 +52,11 @@ proc waitSub(sender, receiver: auto; key: string) {.async, gcsafe.} =
         (not fsub.fanout.hasKey(key) or
          not fsub.fanout.hasPeerID(key , receiver.peerInfo.peerId)):
     trace "waitSub sleeping..."
-    await sleepAsync(1.seconds)
+    
+    # await more heartbeats
+    await ev.wait()
+    ev.clear()
+
     dec ceil
     doAssert(ceil > 0, "waitSub timeout!")
 
@@ -89,6 +104,12 @@ suite "GossipSub":
 
       await nodes[0].subscribe("foobar", handler)
       await nodes[1].subscribe("foobar", handler)
+
+      var subs: seq[Future[void]]
+      subs &= waitSub(nodes[1], nodes[0], "foobar")
+      subs &= waitSub(nodes[0], nodes[1], "foobar")
+
+      await allFuturesThrowing(subs)
 
       var validatorFut = newFuture[bool]()
       proc validator(topic: string,
@@ -143,6 +164,19 @@ suite "GossipSub":
       await nodes[0].subscribe("foobar", handler)
       await nodes[1].subscribe("foobar", handler)
 
+      var subs: seq[Future[void]]
+      subs &= waitSub(nodes[1], nodes[0], "foobar")
+      subs &= waitSub(nodes[0], nodes[1], "foobar")
+
+      await allFuturesThrowing(subs)
+
+      let gossip1 = GossipSub(nodes[0])
+      let gossip2 = GossipSub(nodes[1])
+
+      check:
+        gossip1.mesh["foobar"].len == 1 and "foobar" notin gossip1.fanout
+        gossip2.mesh["foobar"].len == 1 and "foobar" notin gossip2.fanout
+
       var validatorFut = newFuture[bool]()
       proc validator(topic: string,
                      message: Message):
@@ -154,13 +188,6 @@ suite "GossipSub":
       tryPublish await nodes[0].publish("foobar", "Hello!".toBytes()), 1
 
       check (await validatorFut) == true
-
-      let gossip1 = GossipSub(nodes[0])
-      let gossip2 = GossipSub(nodes[1])
-
-      check:
-        gossip1.mesh["foobar"].len == 1 and "foobar" notin gossip1.fanout
-        gossip2.mesh["foobar"].len == 1 and "foobar" notin gossip2.fanout
 
       await allFuturesThrowing(
         nodes[0].switch.stop(),
@@ -526,7 +553,7 @@ suite "GossipSub":
 
         subs &= dialer.subscribe("foobar", handler)
 
-      await allFuturesThrowing(subs)
+      await allFuturesThrowing(subs).wait(30.seconds)
 
       tryPublish await wait(nodes[0].publish("foobar",
                                     toBytes("from node " &
@@ -543,8 +570,6 @@ suite "GossipSub":
 
         check:
           "foobar" in gossip.gossipsub
-          gossip.fanout.len == 0
-          gossip.mesh["foobar"].len > 0
 
       await allFuturesThrowing(
         nodes.mapIt(
@@ -584,9 +609,9 @@ suite "GossipSub":
               seenFut.complete()
 
         subs &= dialer.subscribe("foobar", handler)
+        subs &= waitSub(nodes[0], dialer, "foobar")
 
       await allFuturesThrowing(subs)
-
       tryPublish await wait(nodes[0].publish("foobar",
                                     toBytes("from node " &
                                     $nodes[1].peerInfo.peerId)),

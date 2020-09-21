@@ -47,8 +47,12 @@ task testinterop, "Runs interop tests":
   runTest("testinterop")
 
 task testpubsub, "Runs pubsub tests":
+  runTest("pubsub/testgossipinternal", sign = false, verify = false, moreoptions = "-d:pubsub_internal_testing")
   runTest("pubsub/testpubsub")
   runTest("pubsub/testpubsub", sign = false, verify = false)
+  runTest("pubsub/testgossipinternal10", sign = false, verify = false, moreoptions = "-d:pubsub_internal_testing")
+  runTest("pubsub/testpubsub", moreoptions = "-d:fallback_gossipsub_10")
+  runTest("pubsub/testpubsub", sign = false, verify = false, moreoptions = "-d:fallback_gossipsub_10")
 
 task testfilter, "Run PKI filter test":
   runTest("testpkifilter",

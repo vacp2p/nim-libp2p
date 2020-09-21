@@ -23,9 +23,19 @@ proc write*(pb: var ProtoBuffer, field: int, graft: ControlGraft) =
   ipb.finish()
   pb.write(field, ipb)
 
+proc write*(pb: var ProtoBuffer, field: int, infoMsg: PeerInfoMsg) =
+  var ipb = initProtoBuffer()
+  ipb.write(1, infoMsg.peerID)
+  ipb.write(2, infoMsg.signedPeerRecord)
+  ipb.finish()
+  pb.write(field, ipb)
+
 proc write*(pb: var ProtoBuffer, field: int, prune: ControlPrune) =
   var ipb = initProtoBuffer()
   ipb.write(1, prune.topicID)
+  for peer in prune.peers:
+    ipb.write(2, peer)
+  ipb.write(3, prune.backoff)
   ipb.finish()
   pb.write(field, ipb)
 
@@ -103,6 +113,7 @@ proc decodePrune*(pb: ProtoBuffer): ProtoResult[ControlPrune] {.
     trace "decodePrune: read topicId", topic_id = control.topicId
   else:
     trace "decodePrune: topicId is missing"
+  # TODO gossip 1.1 fields
   ok(control)
 
 proc decodeIHave*(pb: ProtoBuffer): ProtoResult[ControlIHave] {.

@@ -8,8 +8,12 @@ import chronos
 import ../../libp2p/[standard_setup,
                      protocols/pubsub/pubsub,
                      protocols/pubsub/floodsub,
-                     protocols/pubsub/gossipsub,
                      protocols/secure/secure]
+
+when defined(fallback_gossipsub_10):
+  import ../../libp2p/protocols/pubsub/gossipsub10
+else:
+  import ../../libp2p/protocols/pubsub/gossipsub
 
 export standard_setup
 
@@ -18,9 +22,7 @@ randomize()
 proc generateNodes*(
   num: Natural,
   secureManagers: openarray[SecureProtocol] = [
-    # array cos order matters
-    SecureProtocol.Secio,
-    SecureProtocol.Noise,
+    SecureProtocol.Noise
   ],
   msgIdProvider: MsgIdProvider = nil,
   gossip: bool = false,
@@ -36,7 +38,8 @@ proc generateNodes*(
         triggerSelf = triggerSelf,
         verifySignature = verifySignature,
         sign = sign,
-        msgIdProvider = msgIdProvider).PubSub
+        msgIdProvider = msgIdProvider,
+        parameters = (var p = GossipSubParams.init(); p.floodPublish = false; p)).PubSub
     else:
       FloodSub.init(
         switch = switch,

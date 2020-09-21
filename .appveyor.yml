@@ -39,7 +39,7 @@ install:
   - CD ..
 
   # install and build go-libp2p-daemon
-  - bash scripts/build_p2pd.sh p2pdCache v0.2.4
+  - bash scripts/build_p2pd.sh p2pdCache v0.3.0
 
 build_script:
   - nimble install -y --depsOnly

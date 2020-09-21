@@ -124,7 +124,7 @@ proc readWriteLoop(p: ChatProto) {.async.} =
   asyncCheck p.readAndPrint()
 
 proc newChatProto(switch: Switch, transp: StreamTransport): ChatProto =
-  var chatproto = ChatProto(switch: switch, transp: transp, codec: ChatCodec)
+  var chatproto = ChatProto(switch: switch, transp: transp, codecs: @[ChatCodec])
 
   # create handler for incoming connection
   proc handle(stream: Connection, proto: string) {.async.} =

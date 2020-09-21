@@ -185,7 +185,7 @@ method handle*(m: Mplex) {.async, gcsafe.} =
           await channel.reset()
   except CancelledError:
     # This procedure is spawned as task and it is not part of public API, so
-    # there no way for this procedure to be cancelled implicitely.
+    # there no way for this procedure to be cancelled implicitly.
     debug "Unexpected cancellation in mplex handler", m
   except LPStreamEOFError as exc:
     trace "Stream EOF", m, msg = exc.msg
