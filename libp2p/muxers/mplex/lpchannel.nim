@@ -27,19 +27,9 @@ logScope:
 ## | Read     | Yes (until EOF)   | No
 ## | Write    | No                | Yes
 ##
-
-# TODO: this is one place where we need to use
-# a proper state machine, but I've opted out of
-# it for now for two reasons:
-#
-# 1) we don't have that many states to manage
-# 2) I'm not sure if adding the state machine
-# would have simplified or complicated the code
-#
-# But now that this is in place, we should perhaps
-# reconsider reworking it again, this time with a
-# more formal approach.
-#
+## Channels are considered fully closed when both outgoing and incoming
+## directions are closed and when the reader of the channel has read the
+## EOF marker
 
 type
   LPChannel* = ref object of BufferStream
@@ -77,7 +67,7 @@ proc closeUnderlying(s: LPChannel): Future[void] {.async.} =
   if s.closedLocal and s.isEof:
     await procCall BufferStream(s).close()
 
-method reset*(s: LPChannel) {.base, async, gcsafe.} =
+proc reset*(s: LPChannel) {.async, gcsafe.} =
   if s.isClosed:
     trace "Already closed", s
     return
