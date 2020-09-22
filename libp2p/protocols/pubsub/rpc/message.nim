@@ -42,7 +42,7 @@ proc verify*(m: Message, p: PeerID): bool =
     var remote: Signature
     var key: PublicKey
     if remote.init(m.signature) and key.init(m.key):
-      trace "verifying signature", remoteSignature = remote
+      trace "verifying signature", remoteSignature = remote, key
       result = remote.verify(PubSubPrefix & encodeMessage(msg), key)
 
   if result:
@@ -59,6 +59,10 @@ proc init*(
     sign: bool = true): Message {.gcsafe, raises: [CatchableError, Defect].} =
   var msg = Message(data: data, topicIDs: @[topic])
 
+  # order matters, we want to include seqno in the signature
+  if seqno.isSome: 
+    msg.seqno = @(seqno.get().toBytesBE())
+
   if peer.isSome:
     let peer = peer.get()
     msg.fromPeer = peer.peerId
@@ -69,8 +73,5 @@ proc init*(
       msg.key = peer.privateKey.getKey().tryGet().getBytes().tryGet()
   elif sign:
     raise (ref CatchableError)(msg: "Cannot sign message without peer info")
-      
-  if seqno.isSome:
-    msg.seqno = @(seqno.get().toBytesBE())
 
   msg
