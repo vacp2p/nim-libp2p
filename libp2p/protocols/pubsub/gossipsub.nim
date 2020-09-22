@@ -49,7 +49,7 @@ const
   GossipSubHeartbeatInterval* = 1.seconds
 
 # fanout ttl
-const 
+const
   GossipSubFanoutTTL* = 1.minutes
 
 const
@@ -189,7 +189,7 @@ proc init*(_: type[GossipSubParams]): GossipSubParams =
     )
 
 proc validateParameters*(parameters: GossipSubParams): Result[void, cstring] =
-  if  (parameters.dOut >= GossipSubDlo) or 
+  if  (parameters.dOut >= GossipSubDlo) or
       (parameters.dOut > (GossipSubD div 2)):
     err("gossipsub: dOut parameter error, Number of outbound connections to keep in the mesh. Must be less than D_lo and at most D/2")
   elif parameters.gossipThreshold >= 0:
@@ -359,6 +359,21 @@ proc replenishFanout(g: GossipSub, topic: string) =
 
   trace "fanout replenished with peers", peers = g.fanout.peers(topic)
 
+method onPubSubPeerEvent*(p: GossipSub, peer: PubsubPeer, event: PubSubPeerEvent) {.gcsafe.} =
+  case event.kind
+  of PubSubPeerEventKind.Connected:
+    discard
+  of PubSubPeerEventKind.Disconnected:
+    # If a send connection is lost, it's better to remove peer from the mesh -
+    # if it gets reestablished, the peer will be readded to the mesh, and if it
+    # doesn't, well.. then we hope the peer is going away!
+    for _, peers in p.mesh.mpairs():
+      peers.excl(peer)
+    for _, peers in p.fanout.mpairs():
+      peers.excl(peer)
+
+  procCall FloodSub(p).onPubSubPeerEvent(peer, event)
+
 proc rebalanceMesh(g: GossipSub, topic: string) {.async.} =
   logScope:
     topic
@@ -379,7 +394,7 @@ proc rebalanceMesh(g: GossipSub, topic: string) {.async.} =
     grafts = toSeq(
       g.gossipsub.getOrDefault(topic, initHashSet[PubSubPeer]()) -
       g.mesh.getOrDefault(topic, initHashSet[PubSubPeer]())
-    )
+    ).filterIt(it.connected)
 
     grafts.keepIf do (x: PubSubPeer) -> bool:
       # avoid negative score peers
@@ -404,7 +419,7 @@ proc rebalanceMesh(g: GossipSub, topic: string) {.async.} =
         g.grafted(peer, topic)
         g.fanout.removePeer(topic, peer)
         grafting &= peer
-    
+
   elif npeers < g.parameters.dOut:
     trace "replenishing mesh outbound quota", peers = g.mesh.peers(topic)
     # replenish the mesh if we're below Dlo
@@ -439,7 +454,7 @@ proc rebalanceMesh(g: GossipSub, topic: string) {.async.} =
         g.grafted(peer, topic)
         g.fanout.removePeer(topic, peer)
         grafting &= peer
-    
+
 
   if g.mesh.peers(topic) > GossipSubDhi:
     # prune peers if we've gone over Dhi
@@ -465,7 +480,7 @@ proc rebalanceMesh(g: GossipSub, topic: string) {.async.} =
           outbound &= peer
         else:
           inbound &= peer
-      
+
       let pruneLen = inbound.len - GossipSubD
       if pruneLen > 0:
         # Ok we got some peers to prune,
@@ -506,17 +521,17 @@ proc rebalanceMesh(g: GossipSub, topic: string) {.async.} =
         x.peerId notin g.parameters.directPeers and
         # and avoid peers we are backing off
         x.peerId notin g.backingOff
-      
+
       # by spec, grab only 2
       if avail.len > 2:
         avail.setLen(2)
-      
+
       for peer in avail:
         if g.mesh.addPeer(topic, peer):
           g.grafted(peer, topic)
           grafting &= peer
           trace "opportunistic grafting", peer = $peer
-      
+
   when defined(libp2p_expensive_metrics):
     libp2p_gossipsub_peers_per_topic_gossipsub
       .set(g.gossipsub.peers(topic).int64, labelValues = [topic])
@@ -537,7 +552,7 @@ proc rebalanceMesh(g: GossipSub, topic: string) {.async.} =
     let prune = RPCMsg(control: some(ControlMessage(
       prune: @[ControlPrune(
         topicID: topic,
-        peers: g.peerExchangeList(topic), 
+        peers: g.peerExchangeList(topic),
         backoff: g.parameters.pruneBackoff.seconds.uint64)])))
     g.broadcast(prunes, prune)
 
@@ -623,7 +638,7 @@ proc colocationFactor(g: GossipSub, peer: PubSubPeer): float64 =
 
 proc updateScores(g: GossipSub) = # avoid async
   trace "updating scores", peers = g.peers.len
-  
+
   let now = Moment.now()
   var evicting: seq[PubSubPeer]
 
@@ -645,13 +660,13 @@ proc updateScores(g: GossipSub) = # avoid async
 
       # Scoring
       var topicScore = 0'f64
-      
+
       if info.inMesh:
         inc is_grafted
         info.meshTime = now - info.graftTime
         if info.meshTime > topicParams.meshMessageDeliveriesActivation:
           info.meshMessageDeliveriesActive = true
-        
+
         var p1 = info.meshTime / topicParams.timeInMeshQuantum
         if p1 > topicParams.timeInMeshCap:
           p1 = topicParams.timeInMeshCap
@@ -700,7 +715,7 @@ proc updateScores(g: GossipSub) = # avoid async
       # Wrap up
       # commit our changes, mgetOrPut does NOT work as wanted with value types (lent?)
       stats.topicInfos[topic] = info
-    
+
     peer.score += peer.appScore * g.parameters.appSpecificWeight
 
     peer.score += peer.behaviourPenalty * peer.behaviourPenalty * g.parameters.behaviourPenaltyWeight
@@ -713,10 +728,10 @@ proc updateScores(g: GossipSub) = # avoid async
       peer.behaviourPenalty = 0
 
     debug "updated peer's score", peer, score = peer.score, n_topics, is_grafted
-  
+
   for peer in evicting:
     g.peerStats.del(peer)
-  
+
   trace "updated scores", peers = g.peers.len
 
 proc heartbeat(g: GossipSub) {.async.} =
@@ -755,7 +770,7 @@ proc heartbeat(g: GossipSub) {.async.} =
             prunes &= peer
         let prune = RPCMsg(control: some(ControlMessage(
           prune: @[ControlPrune(
-            topicID: t, 
+            topicID: t,
             peers: g.peerExchangeList(t),
             backoff: g.parameters.pruneBackoff.seconds.uint64)])))
         g.broadcast(prunes, prune)
@@ -825,7 +840,7 @@ method unsubscribePeer*(g: GossipSub, peer: PeerID) =
     when defined(libp2p_expensive_metrics):
       libp2p_gossipsub_peers_per_topic_fanout
         .set(g.fanout.peers(t).int64, labelValues = [t])
-    
+
     # don't retain bad score peers
     if pubSubPeer.score < 0.0:
       g.peerStats.del(pubSubPeer)
@@ -847,7 +862,7 @@ method subscribeTopic*(g: GossipSub,
   logScope:
     peer
     topic
-  
+
   g.onNewPeer(peer)
 
   if subscribe:
@@ -890,7 +905,7 @@ proc handleGraft(g: GossipSub,
 
     # It is an error to GRAFT on a explicit peer
     if peer.peerId in g.parameters.directPeers:
-      trace "attempt to graft an explicit peer",  peer=peer.id, 
+      trace "attempt to graft an explicit peer",  peer=peer.id,
                                                   topicID=graft.topicID
       # and such an attempt should be logged and rejected with a PRUNE
       result.add(ControlPrune(
@@ -900,7 +915,7 @@ proc handleGraft(g: GossipSub,
       continue
 
     if peer.peerId in g.backingOff:
-      trace "attempt to graft an backingOff peer",  peer=peer.id, 
+      trace "attempt to graft an backingOff peer",  peer=peer.id,
                                                     topicID=graft.topicID,
                                                     expire=g.backingOff[peer.peerId]
       # and such an attempt should be logged and rejected with a PRUNE
@@ -909,10 +924,10 @@ proc handleGraft(g: GossipSub,
         peers: @[], # omitting heavy computation here as the remote did something illegal
         backoff: g.parameters.pruneBackoff.seconds.uint64))
       continue
-    
+
     if peer notin g.peerStats:
       g.peerStats[peer] = PeerStats()
-    
+
     # If they send us a graft before they send us a subscribe, what should
     # we do? For now, we add them to mesh but don't add them to gossipsub.
     if topic in g.topics:
@@ -927,7 +942,7 @@ proc handleGraft(g: GossipSub,
           trace "peer already in mesh"
       else:
         result.add(ControlPrune(
-          topicID: topic, 
+          topicID: topic,
           peers: g.peerExchangeList(topic),
           backoff: g.parameters.pruneBackoff.seconds.uint64))
     else:
@@ -950,10 +965,10 @@ proc handlePrune(g: GossipSub, peer: PubSubPeer, prunes: seq[ControlPrune]) =
       let current = g.backingOff.getOrDefault(peer.peerId)
       if backoff > current:
         g.backingOff[peer.peerId] = backoff
-    
+
     g.pruned(peer, prune.topicID)
     g.mesh.removePeer(prune.topicID, peer)
-  
+
     when defined(libp2p_expensive_metrics):
       libp2p_gossipsub_peers_per_topic_mesh
         .set(g.mesh.peers(prune.topicID).int64, labelValues = [prune.topicID])
@@ -1026,7 +1041,7 @@ method rpcHandler*(g: GossipSub,
 
                                                 # commit back to the table
         g.peerStats[peer].topicInfos[t] = stats
-      
+
       continue
 
     g.mcache.put(msgId, msg)
@@ -1091,11 +1106,11 @@ method subscribe*(g: GossipSub,
                   topic: string,
                   handler: TopicHandler) {.async.} =
   await procCall PubSub(g).subscribe(topic, handler)
-  
+
   # if we have a fanout on this topic break it
   if topic in g.fanout:
     g.fanout.del(topic)
-  
+
   await g.rebalanceMesh(topic)
 
 method unsubscribe*(g: GossipSub,
@@ -1113,7 +1128,7 @@ method unsubscribe*(g: GossipSub,
           g.pruned(peer, topic)
         let prune = RPCMsg(control: some(ControlMessage(
           prune: @[ControlPrune(
-            topicID: topic, 
+            topicID: topic,
             peers: g.peerExchangeList(topic),
             backoff: g.parameters.pruneBackoff.seconds.uint64)])))
         g.broadcast(toSeq(peers), prune)
@@ -1128,7 +1143,7 @@ method unsubscribeAll*(g: GossipSub, topic: string) {.async.} =
       g.pruned(peer, topic)
     let prune = RPCMsg(control: some(ControlMessage(
       prune: @[ControlPrune(
-        topicID: topic, 
+        topicID: topic,
         peers: g.peerExchangeList(topic),
         backoff: g.parameters.pruneBackoff.seconds.uint64)])))
     g.broadcast(toSeq(peers), prune)
@@ -1145,11 +1160,11 @@ method publish*(g: GossipSub,
   if topic.len <= 0: # data could be 0/empty
     debug "Empty topic, skipping publish"
     return 0
-  
+
   var peers: HashSet[PubSubPeer]
 
   if g.parameters.floodPublish:
-    # With flood publishing enabled, the mesh is used when propagating messages from other peers, 
+    # With flood publishing enabled, the mesh is used when propagating messages from other peers,
     # but a peer's own messages will always be published to all known peers in the topic.
     for peer in g.gossipsub.getOrDefault(topic):
       if peer.score >= g.parameters.publishThreshold:
@@ -1248,7 +1263,7 @@ method initPubSub*(g: GossipSub) =
 
   if not g.parameters.explicit:
     g.parameters = GossipSubParams.init()
-  
+
   g.parameters.validateParameters().tryGet()
 
   randomize()

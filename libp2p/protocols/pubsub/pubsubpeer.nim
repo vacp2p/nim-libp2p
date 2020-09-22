@@ -31,17 +31,25 @@ type
     onRecv*: proc(peer: PubSubPeer; msgs: var RPCMsg) {.gcsafe, raises: [Defect].}
     onSend*: proc(peer: PubSubPeer; msgs: var RPCMsg) {.gcsafe, raises: [Defect].}
 
-  GetConn* = proc(): Future[(Connection, RPCMsg)] {.gcsafe.}
+  PubSubPeerEventKind* {.pure.} = enum
+    Connected
+    Disconnected
+
+  PubsubPeerEvent* = object
+    kind*: PubSubPeerEventKind
+
+  GetConn* = proc(): Future[Connection] {.gcsafe.}
+  OnEvent* = proc(peer: PubSubPeer, event: PubsubPeerEvent) {.gcsafe.}
 
   PubSubPeer* = ref object of RootObj
     getConn*: GetConn                   # callback to establish a new send connection
+    onEvent*: OnEvent                   # Connectivity updates for peer
     codec*: string                      # the protocol that this peer joined from
-    sendConn: Connection                # cached send connection
+    sendConn*: Connection               # cached send connection
     connections*: seq[Connection]       # connections to this peer
     peerId*: PeerID
     handler*: RPCHandler
     observers*: ref seq[PubSubObserver] # ref as in smart_ptr
-    dialLock: AsyncLock
 
     score*: float64
     iWantBudget*: int
@@ -54,7 +62,7 @@ type
 
 chronicles.formatIt(PubSubPeer): $it.peerId
 
-func hash*(p: PubSubPeer): Hash = 
+func hash*(p: PubSubPeer): Hash =
   # int is either 32/64, so intptr basically, pubsubpeer is a ref
   cast[pointer](p).hash
 
@@ -117,10 +125,6 @@ proc handle*(p: PubSubPeer, conn: Connection) {.async.} =
         await p.handler(p, rmsg.get())
     finally:
       await conn.close()
-
-      if p.sendConn == conn:
-        p.sendConn = nil
-
   except CancelledError:
     # This is top-level procedure which will work as separate task, so it
     # do not need to propogate CancelledError.
@@ -132,87 +136,53 @@ proc handle*(p: PubSubPeer, conn: Connection) {.async.} =
     debug "exiting pubsub read loop",
       conn, peer = p, closed = conn.closed
 
-proc getSendConn(p: PubSubPeer): Future[Connection] {.async.} =
-  ## get a cached send connection or create a new one - will return nil if
-  ## getting a new connection fails
-  ##
-
-  block: # check if there's an existing connection that can be reused
-    let current = p.sendConn
-
-    if not current.isNil:
-      if not (current.closed() or current.atEof):
-        # The existing send connection looks like it might work - reuse it
-        trace "Reusing existing connection", current
-        return current
-
-      # Send connection is set but broken - get rid of it
-      p.sendConn = nil
-
-      # Careful, p.sendConn might change after here!
-      await current.close() # TODO this might be unnecessary
-
+proc connectOnce(p: PubSubPeer): Future[void] {.async.} =
   try:
-    # Testing has demonstrated that when we perform concurrent meshsub dials
-    # and later close one of them, other implementations such as rust-libp2p
-    # become deaf to our messages (potentially due to the clean-up associated
-    # with closing connections). To prevent this, we use a lock that ensures
-    # that only a single dial will be performed for each peer and send the
-    # subscription table every time we reconnect.
-    #
-    # Nevertheless, this approach is still quite problematic because the gossip
-    # sends and their respective dials may be started from the mplex read loop.
-    # This may cause the read loop to get stuck which ultimately results in a
-    # deadlock when the other side tries to send us any other message that must
-    # be routed through mplex (it will be stuck on `pushTo`). Such messages
-    # naturally arise in the process of dialing itself.
-    #
-    # See https://github.com/status-im/nim-libp2p/issues/337
-    #
-    # One possible long-term solution is to avoid "blocking" the mplex read
-    # loop by making the gossip send non-blocking through the use of a queue.
-    await p.dialLock.acquire()
-
-    # Another concurrent dial may have populated p.sendConn
-    if p.sendConn != nil:
-      let current = p.sendConn
-      if not (current.closed() or current.atEof):
-        # The existing send connection looks like it might work - reuse it
-        debug "Reusing existing connection", current
-        return current
-      else:
-        p.sendConn = nil
-
-    # Grab a new send connection
-    let (newConn, handshake) = await p.getConn() # ...and here
+    let newConn = await p.getConn()
     if newConn.isNil:
-      debug "Failed to get a new send connection"
-      return nil
+      raise (ref CatchableError)(msg: "Cannot establish send connection")
 
-    trace "Sending handshake", newConn, handshake = shortLog(handshake)
-    await newConn.writeLp(encodeRpcMsg(handshake))
+    # When the send channel goes up, subscriptions need to be sent to the
+    # remote peer - if we had multiple channels up and one goes down, all
+    # stop working so we make an effort to only keep a single channel alive
 
-    trace "Caching new send connection", newConn
+    trace "Get new send connection", p, newConn
     p.sendConn = newConn
-    # Start a read loop on the new connection.
-    # All the errors are handled inside `handle()` procedure.
-    asyncSpawn p.handle(newConn)
-    return newConn
-  finally:
-    if p.dialLock.locked:
-      p.dialLock.release()
 
-proc connectImpl*(p: PubSubPeer) {.async.} =
+    if p.onEvent != nil:
+      p.onEvent(p, PubsubPeerEvent(kind: PubSubPeerEventKind.Connected))
+
+    await handle(p, newConn)
+  finally:
+    if p.sendConn != nil:
+      trace "Removing send connection", p, conn = p.sendConn
+      await p.sendConn.close()
+
+      p.sendConn = nil
+      if p.onEvent != nil:
+        p.onEvent(p, PubsubPeerEvent(kind: PubSubPeerEventKind.Disconnected))
+
+proc connectImpl(p: PubSubPeer) {.async.} =
   try:
-    discard await getSendConn(p)
+    # Keep trying to establish a connection while it's possible to do so - the
+    # send connection might get disconnected due to a timeout or an unrelated
+    # issue so we try to get a new on
+    while true:
+      await connectOnce(p)
+
   except CatchableError as exc:
-    debug "Could not connect to pubsub peer", err = exc.msg
+    debug "Could not establish send connection", msg = exc.msg
 
 proc connect*(p: PubSubPeer) =
-  asyncCheck(connectImpl(p))
+  asyncSpawn connectImpl(p)
 
 proc sendImpl(p: PubSubPeer, msg: RPCMsg) {.async.} =
   doAssert(not isNil(p), "pubsubpeer nil!")
+
+  let conn = p.sendConn
+  if conn == nil:
+    trace "No send connection, skipping message", p, msg
+    return
 
   trace "sending msg to peer", peer = p, rpcMsg = shortLog(msg)
 
@@ -225,13 +195,7 @@ proc sendImpl(p: PubSubPeer, msg: RPCMsg) {.async.} =
     info "empty message, skipping"
     return
 
-  var conn: Connection
   try:
-    conn = await p.getSendConn()
-    if conn == nil:
-      trace "Couldn't get send connection, dropping message", peer = p
-      return
-
     trace "sending encoded msgs to peer", conn, encoded = shortLog(encoded)
     await conn.writeLp(encoded)
     trace "sent pubsub message to remote", conn
@@ -244,31 +208,26 @@ proc sendImpl(p: PubSubPeer, msg: RPCMsg) {.async.} =
 
   except CatchableError as exc:
     # Because we detach the send call from the currently executing task using
-    # asyncCheck, no exceptions may leak out of it
+    # asyncSpawn, no exceptions may leak out of it
     trace "Unable to send to remote", conn, exc = exc.msg
     # Next time sendConn is used, it will be have its close flag set and thus
     # will be recycled
-    if not isNil(conn):
-      await conn.close() # This will clean up the send connection
 
-    if exc is CancelledError: # TODO not handled
-      debug "Send cancelled", peer = p
-
-    # We'll ask for a new send connection whenever possible
-    if p.sendConn == conn:
-      p.sendConn = nil
+    await conn.close() # This will clean up the send connection
 
 proc send*(p: PubSubPeer, msg: RPCMsg) =
-  asyncCheck sendImpl(p, msg)
+  asyncSpawn sendImpl(p, msg)
 
 proc `$`*(p: PubSubPeer): string =
   $p.peerId
 
 proc newPubSubPeer*(peerId: PeerID,
                     getConn: GetConn,
+                    onEvent: OnEvent,
                     codec: string): PubSubPeer =
-  new result
-  result.getConn = getConn
-  result.codec = codec
-  result.peerId = peerId
-  result.dialLock = newAsyncLock()
+  PubSubPeer(
+    getConn: getConn,
+    onEvent: onEvent,
+    codec: codec,
+    peerId: peerId,
+  )
