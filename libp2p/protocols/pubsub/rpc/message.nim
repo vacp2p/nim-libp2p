@@ -52,20 +52,25 @@ proc verify*(m: Message, p: PeerID): bool =
 
 proc init*(
     T: type Message,
-    peer: PeerInfo,
+    peer: Option[PeerInfo],
     data: seq[byte],
     topic: string,
-    seqno: uint64,
+    seqno: Option[uint64],
     sign: bool = true): Message {.gcsafe, raises: [CatchableError, Defect].} =
-  result = Message(
-    fromPeer: peer.peerId,
-    data: data,
-    seqno: @(seqno.toBytesBE), # unefficient, fine for now
-    topicIDs: @[topic])
+  var msg = Message(data: data, topicIDs: @[topic])
 
-  if sign:
-    if peer.keyType != KeyType.HasPrivate:
-      raise (ref CatchableError)(msg: "Cannot sign message without private key")
+  if peer.isSome:
+    let peer = peer.get()
+    msg.fromPeer = peer.peerId
+    if sign:
+      if peer.keyType != KeyType.HasPrivate:
+        raise (ref CatchableError)(msg: "Cannot sign message without private key")
+      msg.signature = sign(msg, peer.privateKey).tryGet()
+      msg.key = peer.privateKey.getKey().tryGet().getBytes().tryGet()
+  elif sign:
+    raise (ref CatchableError)(msg: "Cannot sign message without peer info")
+      
+  if seqno.isSome:
+    msg.seqno = @(seqno.get().toBytesBE())
 
-    result.signature = sign(result, peer.privateKey).tryGet()
-    result.key = peer.privateKey.getKey().tryGet().getBytes().tryGet()
+  msg

@@ -1031,7 +1031,7 @@ method rpcHandler*(g: GossipSub,
 
     g.mcache.put(msgId, msg)
 
-    if g.verifySignature and not msg.verify(peer.peerId):
+    if not g.anonymize and g.verifySignature and not msg.verify(peer.peerId):
       debug "Dropping message due to failed signature verification", msgId, peer
       g.punishPeer(peer, msg)
       continue
@@ -1182,7 +1182,10 @@ method publish*(g: GossipSub,
 
   inc g.msgSeqno
   let
-    msg = Message.init(g.peerInfo, data, topic, g.msgSeqno, g.sign)
+    peerInfo = if g.anonymize: none(PeerInfo) else: some(g.peerInfo)
+    seqno = if g.anonymize: none(uint64) else: some(g.msgSeqno)
+    sign = if g.anonymize: false else: g.sign
+    msg = Message.init(peerInfo, data, topic, seqno, sign)
     msgId = g.msgIdProvider(msg)
 
   logScope: msgId

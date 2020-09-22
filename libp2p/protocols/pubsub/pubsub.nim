@@ -66,6 +66,7 @@ type
     msgIdProvider*: MsgIdProvider                   # Turn message into message id (not nil)
     msgSeqno*: uint64
     lifetimeFut*: Future[void]                      # pubsub liftime future
+    anonymize*: bool                                # if we omit fromPeer and seqno from RPC messages we send
 
 method unsubscribePeer*(p: PubSub, peerId: PeerID) {.base.} =
   ## handle peer disconnects
@@ -318,6 +319,7 @@ proc init*[PubParams: object | bool](
   P: typedesc[PubSub],
   switch: Switch,
   triggerSelf: bool = false,
+  anonymize: bool = false,
   verifySignature: bool = true,
   sign: bool = true,
   msgIdProvider: MsgIdProvider = defaultMsgIdProvider,
@@ -327,6 +329,7 @@ proc init*[PubParams: object | bool](
       P(switch: switch,
         peerInfo: switch.peerInfo,
         triggerSelf: triggerSelf,
+        anonymize: anonymize,
         verifySignature: verifySignature,
         sign: sign,
         peers: initTable[PeerID, PubSubPeer](),
@@ -336,6 +339,7 @@ proc init*[PubParams: object | bool](
       P(switch: switch,
         peerInfo: switch.peerInfo,
         triggerSelf: triggerSelf,
+        anonymize: anonymize,
         verifySignature: verifySignature,
         sign: sign,
         peers: initTable[PeerID, PubSubPeer](),

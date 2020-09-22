@@ -540,7 +540,10 @@ method publish*(g: GossipSub,
 
   inc g.msgSeqno
   let
-    msg = Message.init(g.peerInfo, data, topic, g.msgSeqno, g.sign)
+    peerInfo = if g.anonymize: none(PeerInfo) else: some(g.peerInfo)
+    seqno = if g.anonymize: none(uint64) else: some(g.msgSeqno)
+    sign = if g.anonymize: false else: g.sign
+    msg = Message.init(peerInfo, data, topic, seqno, sign)
     msgId = g.msgIdProvider(msg)
 
   logScope: msgId

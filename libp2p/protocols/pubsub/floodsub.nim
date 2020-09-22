@@ -72,7 +72,7 @@ method rpcHandler*(f: FloodSub,
       trace "Dropping already-seen message", msgId, peer
       continue
 
-    if f.verifySignature and not msg.verify(peer.peerId):
+    if not f.anonymize and f.verifySignature and not msg.verify(peer.peerId):
       debug "Dropping message due to failed signature verification", msgId, peer
       continue
 
@@ -129,7 +129,10 @@ method publish*(f: FloodSub,
 
   inc f.msgSeqno
   let
-    msg = Message.init(f.peerInfo, data, topic, f.msgSeqno, f.sign)
+    peerInfo = if f.anonymize: none(PeerInfo) else: some(f.peerInfo)
+    seqno = if f.anonymize: none(uint64) else: some(f.msgSeqno)
+    sign = if f.anonymize: false else: f.sign
+    msg = Message.init(peerInfo, data, topic, seqno, sign)
     msgId = f.msgIdProvider(msg)
 
   trace "Created new message",

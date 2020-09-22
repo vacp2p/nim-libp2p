@@ -2,6 +2,7 @@ import unittest
 
 {.used.}
 
+import options
 import ../../libp2p/[peerid, peerinfo,
                      crypto/crypto,
                      protocols/pubsub/rpc/message,
@@ -14,6 +15,6 @@ suite "Message":
     var seqno = 11'u64
     let
       peer = PeerInfo.init(PrivateKey.random(ECDSA, rng[]).get())
-      msg = Message.init(peer, @[], "topic", seqno, sign = true)
+      msg = Message.init(some(peer), @[], "topic", some(seqno), sign = true)
 
     check verify(msg, peer.peerId)
