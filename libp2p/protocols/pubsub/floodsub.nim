@@ -129,10 +129,11 @@ method publish*(f: FloodSub,
 
   inc f.msgSeqno
   let
-    peerInfo = if f.anonymize: none(PeerInfo) else: some(f.peerInfo)
-    seqno = if f.anonymize: none(uint64) else: some(f.msgSeqno)
-    sign = if f.anonymize: false else: f.sign
-    msg = Message.init(peerInfo, data, topic, seqno, sign)
+    msg =
+      if f.anonymize:
+        Message.init(none(PeerInfo), data, topic, none(uint64), false)
+      else:
+        Message.init(some(f.peerInfo), data, topic, some(f.msgSeqno), f.sign)
     msgId = f.msgIdProvider(msg)
 
   trace "Created new message",
