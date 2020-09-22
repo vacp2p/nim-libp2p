@@ -11,7 +11,8 @@ import std/[options, tables, sequtils, sets]
 import chronos, chronicles, metrics
 import peerinfo,
        stream/connection,
-       muxers/muxer
+       muxers/muxer,
+       errors
 
 logScope:
   topics = "connmanager"
@@ -23,18 +24,45 @@ const MaxConnectionsPerPeer = 5
 type
   TooManyConnections* = object of CatchableError
 
+  ConnEventKind* {.pure.} = enum
+    Connected,    # A connection was made and securely upgraded - there may be
+                  # more than one concurrent connection thus more than one upgrade
+                  # event per peer.
+
+    Disconnected  # Peer disconnected - this event is fired once per upgrade
+                  # when the associated connection is terminated.
+
+  ConnEvent* = object
+    case kind*: ConnEventKind
+    of ConnEventKind.Connected:
+      incoming*: bool
+    else:
+      discard
+
+  ConnEventHandler* =
+    proc(peerId: PeerID, event: ConnEvent): Future[void] {.gcsafe.}
+
+  PeerEvent* {.pure.} = enum
+    Left,
+    Joined
+
+  PeerEventHandler* =
+    proc(peerId: PeerID, event: PeerEvent): Future[void] {.gcsafe.}
+
   MuxerHolder = object
     muxer: Muxer
     handle: Future[void]
 
   ConnManager* = ref object of RootObj
+    maxConns: int
     # NOTE: don't change to PeerInfo here
     # the reference semantics on the PeerInfo
     # object itself make it susceptible to
     # copies and mangling by unrelated code.
     conns: Table[PeerID, HashSet[Connection]]
     muxed: Table[Connection, MuxerHolder]
-    maxConns: int
+    connEvents: Table[ConnEventKind, OrderedSet[ConnEventHandler]]
+    peerEvents: Table[PeerEvent, OrderedSet[PeerEventHandler]]
 
 proc newTooManyConnections(): ref TooManyConnections {.inline.} =
   result = newException(TooManyConnections, "too many connections for peer")
@@ -44,6 +72,81 @@ proc init*(C: type ConnManager,
   C(maxConns: maxConnsPerPeer,
     conns: initTable[PeerID, HashSet[Connection]](),
     muxed: initTable[Connection, MuxerHolder]())
+
+proc connCount*(c: ConnManager, peerId: PeerID): int =
+  c.conns.getOrDefault(peerId).len
+
+proc addConnEventHandler*(c: ConnManager,
+                          handler: ConnEventHandler, kind: ConnEventKind) =
+  ## Add peer event handler - handlers must not raise exceptions!
+  ##
+
+  if isNil(handler): return
+  c.connEvents.mgetOrPut(kind,
+    initOrderedSet[ConnEventHandler]()).incl(handler)
+
+proc removeConnEventHandler*(c: ConnManager,
+                             handler: ConnEventHandler, kind: ConnEventKind) =
+  c.connEvents.withValue(kind, handlers) do:
+    handlers[].excl(handler)
+
+proc triggerConnEvent*(c: ConnManager, peerId: PeerID, event: ConnEvent) {.async, gcsafe.} =
+  try:
+    if event.kind in c.connEvents:
+      var connEvents: seq[Future[void]]
+      for h in c.connEvents[event.kind]:
+        connEvents.add(h(peerId, event))
+
+      checkFutures(await allFinished(connEvents))
+  except CancelledError as exc:
+    raise exc
+  except CatchableError as exc: # handlers should not raise!
+    warn "Exception in triggerConnEvents",
+      msg = exc.msg, peerId, event = $event
+
+proc addPeerEventHandler*(c: ConnManager,
+                          handler: PeerEventHandler,
+                          kind: PeerEvent) =
+  ## Add peer event handler - handlers must not raise exceptions!
+  ##
+
+  if isNil(handler): return
+  c.peerEvents.mgetOrPut(kind,
+    initOrderedSet[PeerEventHandler]()).incl(handler)
+
+proc removePeerEventHandler*(c: ConnManager,
+                             handler: PeerEventHandler,
+                             kind: PeerEvent) =
+  c.peerEvents.withValue(kind, handlers) do:
+    handlers[].excl(handler)
+
+proc triggerPeerEvents*(c: ConnManager,
+                        peerId: PeerID,
+                        event: PeerEvent) {.async, gcsafe.} =
+
+  if event notin c.peerEvents:
+    return
+
+  try:
+    let count = c.connCount(peerId)
+    if event == PeerEvent.Joined and count != 1:
+      trace "peer already joined", peerId, event
+      return
+    elif event == PeerEvent.Left and count != 0:
+      trace "peer still connected or already left", peerId, event
+      return
+
+    trace "triggering peer events", peerId, event
+
+    var peerEvents: seq[Future[void]]
+    for h in c.peerEvents[event]:
+      peerEvents.add(h(peerId, event))
+
+    checkFutures(await allFinished(peerEvents))
+  except CancelledError as exc:
+    raise exc
+  except CatchableError as exc: # handlers should not raise!
+    warn "exception in triggerPeerEvents", exc = exc.msg, peerId
 
 proc contains*(c: ConnManager, conn: Connection): bool =
   ## checks if a connection is being tracked by the
@@ -77,9 +180,6 @@ proc contains*(c: ConnManager, muxer: Muxer): bool =
     return
 
   return muxer == c.muxed[conn].muxer
-
-proc connCount*(c: ConnManager, peerId: PeerID): int =
-  c.conns.getOrDefault(peerId).len
 
 proc closeMuxerHolder(muxerHolder: MuxerHolder) {.async.} =
   trace "Cleaning up muxer", m = muxerHolder.muxer
