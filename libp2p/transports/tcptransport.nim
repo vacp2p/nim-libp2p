@@ -15,11 +15,7 @@ import transport,
        ../multiaddress,
        ../multicodec,
        ../stream/connection,
-       ../stream/chronosstream,
-       ../utils/semaphore
-
-when chronicles.enabledLogLevel == LogLevel.TRACE:
-  import oids
+       ../stream/chronosstream
 
 logScope:
   topics = "libp2p tcptransport"
