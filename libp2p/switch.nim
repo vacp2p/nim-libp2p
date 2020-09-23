@@ -221,22 +221,12 @@ proc dial*(s: Switch,
     if not(isNil(stream)):
       await stream.closeWithEOF()
 
-    if not(isNil(conn)):
-      await conn.close()
-
-  try:
-    if isNil(stream):
-      await conn.close()
-      raise newException(DialFailedError, "Couldn't get muxed stream")
-
-    return await s.negotiateStream(stream, protos)
-  except CancelledError as exc:
-    trace "Dial canceled", conn
-    await cleanup()
     raise exc
   except CatchableError as exc:
-    debug "Error dialing", conn, msg = exc.msg
-    await cleanup()
+    debug "Error dialing", stream, msg = exc.msg
+    if not(isNil(stream)):
+      await stream.close()
+
     raise exc
 
 proc dial*(s: Switch,
