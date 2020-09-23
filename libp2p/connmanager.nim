@@ -14,6 +14,7 @@ import peerinfo,
        muxers/muxer,
        utils/semaphore,
        errors
+       utils/semaphore
 
 logScope:
   topics = "libp2p connmanager"
