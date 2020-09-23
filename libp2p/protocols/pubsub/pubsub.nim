@@ -204,7 +204,7 @@ method handleConn*(p: PubSub,
   except CatchableError as exc:
     trace "exception ocurred in pubsub handle", exc = exc.msg, conn
   finally:
-    await conn.close()
+    await conn.closeWithEOF()
 
 method subscribePeer*(p: PubSub, peer: PeerID) {.base.} =
   ## subscribe to remote peer to receive/send pubsub

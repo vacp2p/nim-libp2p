@@ -229,3 +229,22 @@ method close*(s: LPStream): Future[void] {.base, async.} = # {.raises [Defect].}
   # override `closeImpl`, it is called only once - anyone overriding `close`
   # itself must implement this - once-only check as well, with their own field
   await closeImpl(s)
+
+proc closeWithEOF*(s: LPStream): Future[void] {.async.} =
+  ## Close the stream and wait for EOF - use this with half-closed streams where
+  ## an EOF is expected to arrive from the other end.
+  await s.close()
+
+  if s.atEof():
+    return
+
+  try:
+    var buf: array[8, byte]
+    if (await readOnce(s, addr buf[0], buf.len)) != 0:
+      debug "Unexpected bytes while waiting for EOF", s
+  except LPStreamEOFError:
+    trace "Expected EOF came", s
+  except CancelledError as exc:
+    raise exc
+  except CatchableError as exc:
+    debug "Unexpected error while waiting for EOF", s, msg = exc.msg

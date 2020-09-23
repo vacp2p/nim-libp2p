@@ -216,14 +216,13 @@ proc identify(s: Switch, conn: Connection) {.async, gcsafe.} =
 proc identify(s: Switch, muxer: Muxer) {.async, gcsafe.} =
   # new stream for identify
   var stream = await muxer.newStream()
+  if stream == nil:
+    return
 
-  defer:
-    if not(isNil(stream)):
-      await stream.close() # close identify stream
-
-  # do identify first, so that we have a
-  # PeerInfo in case we didn't before
-  await s.identify(stream)
+  try:
+    await s.identify(stream)
+  finally:
+    await stream.closeWithEOF()
 
 proc mux(s: Switch, conn: Connection): Future[Muxer] {.async, gcsafe.} =
   ## mux incoming connection
@@ -440,7 +439,7 @@ proc negotiateStream(s: Switch, conn: Connection, protos: seq[string]): Future[C
   trace "Negotiating stream", conn, protos
   let selected = await s.ms.select(conn, protos)
   if not protos.contains(selected):
-    await conn.close()
+    await conn.closeWithEOF()
     raise newException(DialFailedError, "Unable to select sub-protocol " & $protos)
 
   return conn
@@ -471,7 +470,7 @@ proc dial*(s: Switch,
 
   proc cleanup() {.async.} =
     if not(isNil(stream)):
-      await stream.close()
+      await stream.closeWithEOF()
 
     if not(isNil(conn)):
       await conn.close()
@@ -641,7 +640,7 @@ proc newSwitch*(peerInfo: PeerInfo,
     except CatchableError as exc:
       trace "exception in stream handler", conn, msg = exc.msg
     finally:
-      await conn.close()
+      await conn.closeWithEOF()
     trace "Stream handler done", conn
 
   switch.mount(identity)

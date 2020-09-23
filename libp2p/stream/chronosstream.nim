@@ -76,13 +76,15 @@ method write*(s: ChronosStream, msg: seq[byte]) {.async.} =
     return
 
   withExceptions:
-    var written = 0
-    while not s.client.closed and written < msg.len:
-      written += await s.client.write(msg[written..<msg.len])
-      s.activity = true # reset activity flag
+    # StreamTransport will only return written < msg.len on fatal failures where
+    # further writing is not possible - in such cases, we'll raise here,
+    # since we don't return partial writes lengths
+    var written = await s.client.write(msg)
 
     if written < msg.len:
       raise (ref LPStreamClosedError)(msg: "Write couldn't finish writing")
+
+    s.activity = true # reset activity flag
 
 method closed*(s: ChronosStream): bool {.inline.} =
   result = s.client.closed
