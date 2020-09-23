@@ -72,9 +72,18 @@ method rpcHandler*(f: FloodSub,
       trace "Dropping already-seen message", msgId, peer
       continue
 
-    if f.verifySignature and not msg.verify(peer.peerId):
+    if (msg.signature.len > 0 or f.verifySignature) and not msg.verify():
+      # always validate if signature is present or required
       debug "Dropping message due to failed signature verification", msgId, peer
       continue
+
+    if msg.seqno.len > 0 and msg.seqno.len != 8:
+      # if we have seqno should be 8 bytes long
+      debug "Dropping message due to invalid seqno length", msgId, peer
+      continue
+
+    # g.anonymize needs no evaluation when receiving messages
+    # as we have a "lax" policy and allow signed messages
 
     if not (await f.validate(msg)):
       trace "Dropping message due to failed validation", msgId, peer
@@ -129,7 +138,11 @@ method publish*(f: FloodSub,
 
   inc f.msgSeqno
   let
-    msg = Message.init(f.peerInfo, data, topic, f.msgSeqno, f.sign)
+    msg =
+      if f.anonymize:
+        Message.init(none(PeerInfo), data, topic, none(uint64), false)
+      else:
+        Message.init(some(f.peerInfo), data, topic, some(f.msgSeqno), f.sign)
     msgId = f.msgIdProvider(msg)
 
   trace "Created new message",

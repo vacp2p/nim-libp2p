@@ -2,6 +2,7 @@ include ../../libp2p/protocols/pubsub/gossipsub10
 
 {.used.}
 
+import options
 import unittest, bearssl
 import stew/byteutils
 import ../../libp2p/standard_setup
@@ -244,7 +245,7 @@ suite "GossipSub internal":
         let peerInfo = randomPeerInfo()
         conn.peerInfo = peerInfo
         inc seqno
-        let msg = Message.init(peerInfo, ("HELLO" & $i).toBytes(), topic, seqno, false)
+        let msg = Message.init(some(peerInfo), ("HELLO" & $i).toBytes(), topic, some(seqno), false)
         gossipSub.mcache.put(gossipSub.msgIdProvider(msg), msg)
 
       check gossipSub.fanout[topic].len == 15
@@ -296,7 +297,7 @@ suite "GossipSub internal":
         let peerInfo = randomPeerInfo()
         conn.peerInfo = peerInfo
         inc seqno
-        let msg = Message.init(peerInfo, ("HELLO" & $i).toBytes(), topic, seqno, false)
+        let msg = Message.init(some(peerInfo), ("HELLO" & $i).toBytes(), topic, some(seqno), false)
         gossipSub.mcache.put(gossipSub.msgIdProvider(msg), msg)
 
       let peers = gossipSub.getGossipPeers()
@@ -341,7 +342,7 @@ suite "GossipSub internal":
         let peerInfo = randomPeerInfo()
         conn.peerInfo = peerInfo
         inc seqno
-        let msg = Message.init(peerInfo, ("HELLO" & $i).toBytes(), topic, seqno, false)
+        let msg = Message.init(some(peerInfo), ("HELLO" & $i).toBytes(), topic, some(seqno), false)
         gossipSub.mcache.put(gossipSub.msgIdProvider(msg), msg)
 
       let peers = gossipSub.getGossipPeers()
@@ -386,7 +387,7 @@ suite "GossipSub internal":
         let peerInfo = randomPeerInfo()
         conn.peerInfo = peerInfo
         inc seqno
-        let msg = Message.init(peerInfo, ("bar" & $i).toBytes(), topic, seqno, false)
+        let msg = Message.init(some(peerInfo), ("bar" & $i).toBytes(), topic, some(seqno), false)
         gossipSub.mcache.put(gossipSub.msgIdProvider(msg), msg)
 
       let peers = gossipSub.getGossipPeers()
