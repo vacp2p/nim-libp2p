@@ -52,6 +52,7 @@ declareCounter(libp2p_failed_upgrades_outgoing, "outgoing connections failed upg
 
 const
   ConcurrentUpgrades* = 4
+  MaxConnections* = 100
 
 type
     DialFailedError* = object of CatchableError
