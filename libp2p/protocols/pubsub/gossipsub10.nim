@@ -435,9 +435,20 @@ method rpcHandler*(g: GossipSub,
 
     g.mcache.put(msgId, msg)
 
-    if not g.anonymize and g.verifySignature and not msg.verify(peer.peerId):
+    if (msg.signature.len > 0 or g.verifySignature) and not msg.verify(peer.peerId):
+      # always validate if signature is present or required
       debug "Dropping message due to failed signature verification", msgId, peer
+      g.punishPeer(peer, msg)
       continue
+
+    if msg.seqno.len > 0 and msg.seqno.len != 8:
+      # if we have seqno should be 8 bytes long
+      debug "Dropping message due to invalid seqno length", msgId, peer
+      g.punishPeer(peer, msg)
+      continue
+
+    # g.anonymize needs no evaluation when receiving messages
+    # as we have a "lax" policy and allow signed messages
 
     if not (await g.validate(msg)):
       trace "Dropping message due to failed validation", msgId, peer
