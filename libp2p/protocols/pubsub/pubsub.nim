@@ -54,25 +54,26 @@ type
     handler*: seq[TopicHandler]
 
   PubSub* = ref object of LPProtocol
-    switch*: Switch                                 # the switch used to dial/connect to peers
-    peerInfo*: PeerInfo                             # this peer's info
-    topics*: Table[string, Topic]                   # local topics
-    peers*: Table[PeerID, PubSubPeer]               # peerid to peer map
-    triggerSelf*: bool                              # trigger own local handler on publish
-    verifySignature*: bool                          # enable signature verification
-    sign*: bool                                     # enable message signing
+    switch*: Switch                    # the switch used to dial/connect to peers
+    peerInfo*: PeerInfo                # this peer's info
+    topics*: Table[string, Topic]      # local topics
+    peers*: Table[PeerID, PubSubPeer]  ##\
+      ## Peers that we are interested to gossip with (but not necessarily
+      ## yet connected to)
+    triggerSelf*: bool                 # trigger own local handler on publish
+    verifySignature*: bool             # enable signature verification
+    sign*: bool                        # enable message signing
     validators*: Table[string, HashSet[ValidatorHandler]]
-    observers: ref seq[PubSubObserver]              # ref as in smart_ptr
-    msgIdProvider*: MsgIdProvider                   # Turn message into message id (not nil)
+    observers: ref seq[PubSubObserver] # ref as in smart_ptr
+    msgIdProvider*: MsgIdProvider      # Turn message into message id (not nil)
     msgSeqno*: uint64
-    lifetimeFut*: Future[void]                      # pubsub liftime future
-    anonymize*: bool                                # if we omit fromPeer and seqno from RPC messages we send
+    anonymize*: bool                   # if we omit fromPeer and seqno from RPC messages we send
 
 method unsubscribePeer*(p: PubSub, peerId: PeerID) {.base.} =
   ## handle peer disconnects
   ##
 
-  trace "unsubscribing pubsub peer", peer = $peerId
+  trace "unsubscribing pubsub peer", peerId
   p.peers.del(peerId)
 
   libp2p_pubsub_peers.set(p.peers.len.int64)
@@ -81,7 +82,7 @@ proc send*(p: PubSub, peer: PubSubPeer, msg: RPCMsg) =
   ## Attempt to send `msg` to remote peer
   ##
 
-  trace "sending pubsub message to peer", peer = $peer, msg = shortLog(msg)
+  trace "sending pubsub message to peer", peer, msg = shortLog(msg)
   peer.send(msg)
 
 proc broadcast*(
@@ -120,6 +121,14 @@ method rpcHandler*(p: PubSub,
 
 method onNewPeer(p: PubSub, peer: PubSubPeer) {.base.} = discard
 
+method onPubSubPeerEvent*(p: PubSub, peer: PubsubPeer, event: PubsubPeerEvent) {.base, gcsafe.} =
+  # Peer event is raised for the send connection in particular
+  case event.kind
+  of PubSubPeerEventKind.Connected:
+    p.sendSubs(peer, toSeq(p.topics.keys), true)
+  of PubSubPeerEventKind.Disconnected:
+    discard
+
 proc getOrCreatePeer*(
   p: PubSub,
   peer: PeerID,
@@ -127,13 +136,15 @@ proc getOrCreatePeer*(
   if peer in p.peers:
     return p.peers[peer]
 
-  proc getConn(): Future[(Connection, RPCMsg)] {.async.} =
-    let conn = await p.switch.dial(peer, protos)
-    return (conn, RPCMsg.withSubs(toSeq(p.topics.keys), true))
+  proc getConn(): Future[Connection] =
+    p.switch.dial(peer, protos)
+
+  proc onEvent(peer: PubsubPeer, event: PubsubPeerEvent) {.gcsafe.} =
+    p.onPubSubPeerEvent(peer, event)
 
   # create new pubsub peer
-  let pubSubPeer = newPubSubPeer(peer, getConn, protos[0])
-  trace "created new pubsub peer", peerId = $peer
+  let pubSubPeer = newPubSubPeer(peer, getConn, onEvent, protos[0])
+  trace "created new pubsub peer", peer
 
   p.peers[peer] = pubSubPeer
   pubSubPeer.observers = p.observers

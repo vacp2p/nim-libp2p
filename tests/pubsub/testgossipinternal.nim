@@ -18,11 +18,10 @@ type
 proc noop(data: seq[byte]) {.async, gcsafe.} = discard
 
 proc getPubSubPeer(p: TestGossipSub, peerId: PeerID): auto =
-  proc getConn(): Future[(Connection, RPCMsg)] {.async.} =
-    let conn =  await p.switch.dial(peerId, GossipSubCodec)
-    return (conn, RPCMsg.withSubs(toSeq(p.topics.keys), true))
+  proc getConn(): Future[Connection] =
+    p.switch.dial(peerId, GossipSubCodec)
 
-  newPubSubPeer(peerId, getConn, GossipSubCodec)
+  newPubSubPeer(peerId, getConn, nil, GossipSubCodec)
 
 proc randomPeerInfo(): PeerInfo =
   PeerInfo.init(PrivateKey.random(ECDSA, rng[]).get())
@@ -57,6 +56,7 @@ suite "GossipSub internal":
         let peerInfo = randomPeerInfo()
         conn.peerInfo = peerInfo
         let peer = gossipSub.getPubSubPeer(peerInfo.peerId)
+        peer.sendConn = conn
         gossipSub.onNewPeer(peer)
         gossipSub.peers[peerInfo.peerId] = peer
         gossipSub.gossipsub[topic].incl(peer)
