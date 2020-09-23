@@ -72,7 +72,7 @@ method rpcHandler*(f: FloodSub,
       trace "Dropping already-seen message", msgId, peer
       continue
 
-    if (msg.signature.len > 0 or f.verifySignature) and not msg.verify(peer.peerId):
+    if (msg.signature.len > 0 or f.verifySignature) and not msg.verify():
       # always validate if signature is present or required
       debug "Dropping message due to failed signature verification", msgId, peer
       continue

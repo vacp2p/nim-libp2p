@@ -33,7 +33,7 @@ func defaultMsgIdProvider*(m: Message): string =
 proc sign*(msg: Message, privateKey: PrivateKey): CryptoResult[seq[byte]] =
   ok((? privateKey.sign(PubSubPrefix & encodeMessage(msg))).getBytes())
 
-proc verify*(m: Message, p: PeerID): bool =
+proc verify*(m: Message): bool =
   if m.signature.len > 0 and m.key.len > 0:
     var msg = m
     msg.signature = @[]

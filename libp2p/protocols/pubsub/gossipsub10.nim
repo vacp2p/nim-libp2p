@@ -435,7 +435,7 @@ method rpcHandler*(g: GossipSub,
 
     g.mcache.put(msgId, msg)
 
-    if (msg.signature.len > 0 or g.verifySignature) and not msg.verify(peer.peerId):
+    if (msg.signature.len > 0 or g.verifySignature) and not msg.verify():
       # always validate if signature is present or required
       debug "Dropping message due to failed signature verification", msgId, peer
       g.punishPeer(peer, msg)
