@@ -42,7 +42,7 @@ proc verify*(m: Message): bool =
     var remote: Signature
     var key: PublicKey
     if remote.init(m.signature) and key.init(m.key):
-      trace "verifying signature", remoteSignature = remote, key
+      trace "verifying signature", remoteSignature = remote
       result = remote.verify(PubSubPrefix & encodeMessage(msg), key)
 
   if result:
