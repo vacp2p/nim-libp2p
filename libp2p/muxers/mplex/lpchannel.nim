@@ -31,6 +31,10 @@ logScope:
 ## directions are closed and when the reader of the channel has read the
 ## EOF marker
 
+const
+  MaxWrites = 1024 ##\
+    ## Maximum number of in-flight writes - after this, we disconnect the peer
+
 type
   LPChannel* = ref object of BufferStream
     id*: uint64                   # channel id
@@ -42,6 +46,7 @@ type
     msgCode*: MessageType         # cached in/out message code
     closeCode*: MessageType       # cached in/out close code
     resetCode*: MessageType       # cached in/out reset code
+    writes*: int                  # In-flight writes
 
 proc open*(s: LPChannel) {.async, gcsafe.}
 
@@ -149,6 +154,10 @@ method readOnce*(s: LPChannel,
                  pbytes: pointer,
                  nbytes: int):
                  Future[int] {.async.} =
+  ## Mplex relies on reading being done regularly from every channel, or all
+  ## channels are blocked - in particular, this means that reading from one
+  ## channel must not be done from within a callback / read handler of another
+  ## or the reads will lock each other.
   try:
     let bytes = await procCall BufferStream(s).readOnce(pbytes, nbytes)
     trace "readOnce", s, bytes
@@ -160,12 +169,21 @@ method readOnce*(s: LPChannel,
     raise exc
 
 method write*(s: LPChannel, msg: seq[byte]): Future[void] {.async.} =
+  ## Write to mplex channel - there may be up to MaxWrite concurrent writes
+  ## pending after which the peer is disconencted
   if s.closedLocal or s.conn.closed:
     raise newLPStreamClosedError()
 
   if msg.len == 0:
     return
 
+  if s.writes >= MaxWrites:
+    debug "Closing connection, too many in-flight writes on channel",
+      s, conn = s.conn, writes = s.writes
+    await s.conn.close()
+    return
+
+  s.writes += 1
   try:
     if not s.isOpen:
       await s.open()
@@ -179,6 +197,8 @@ method write*(s: LPChannel, msg: seq[byte]): Future[void] {.async.} =
     trace "exception in lpchannel write handler", s, msg = exc.msg
     await s.conn.close()
     raise exc
+  finally:
+    s.writes -= 1
 
 proc init*(
   L: type LPChannel,

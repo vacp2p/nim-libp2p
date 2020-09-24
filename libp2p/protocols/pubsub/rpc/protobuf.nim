@@ -14,6 +14,8 @@ import messages,
        ../../../utility,
        ../../../protobuf/minprotobuf
 
+{.push raises: [Defect].}
+
 logScope:
   topics = "pubsubprotobuf"
 

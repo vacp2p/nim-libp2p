@@ -7,7 +7,7 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import std/[sequtils, strutils, tables, hashes, sets]
+import std/[sequtils, strutils, tables, hashes]
 import chronos, chronicles, nimcrypto/sha2, metrics
 import rpc/[messages, message, protobuf],
        ../../peerid,
@@ -16,6 +16,8 @@ import rpc/[messages, message, protobuf],
        ../../crypto/crypto,
        ../../protobuf/minprotobuf,
        ../../utility
+
+export peerid, connection
 
 logScope:
   topics = "pubsubpeer"
@@ -60,8 +62,6 @@ type
 
   RPCHandler* = proc(peer: PubSubPeer, msg: RPCMsg): Future[void] {.gcsafe.}
 
-chronicles.formatIt(PubSubPeer): $it.peerId
-
 func hash*(p: PubSubPeer): Hash =
   # int is either 32/64, so intptr basically, pubsubpeer is a ref
   cast[pointer](p).hash
@@ -74,6 +74,9 @@ chronicles.formatIt(PubSubPeer): shortLog(it)
 proc connected*(p: PubSubPeer): bool =
   not p.sendConn.isNil and not
     (p.sendConn.closed or p.sendConn.atEof)
+
+proc hasObservers(p: PubSubPeer): bool =
+  p.observers != nil and anyIt(p.observers[], it != nil)
 
 proc recvObservers(p: PubSubPeer, msg: var RPCMsg) =
   # trigger hooks
@@ -90,7 +93,6 @@ proc sendObservers(p: PubSubPeer, msg: var RPCMsg) =
         obs.onSend(p, msg)
 
 proc handle*(p: PubSubPeer, conn: Connection) {.async.} =
-
   debug "starting pubsub read loop",
     conn, peer = p, closed = conn.closed
   try:
@@ -176,50 +178,54 @@ proc connectImpl(p: PubSubPeer) {.async.} =
 proc connect*(p: PubSubPeer) =
   asyncSpawn connectImpl(p)
 
-proc sendImpl(p: PubSubPeer, msg: RPCMsg) {.async.} =
-  doAssert(not isNil(p), "pubsubpeer nil!")
-
-  let conn = p.sendConn
-  if conn == nil:
-    trace "No send connection, skipping message", p, msg
-    return
-
-  trace "sending msg to peer", peer = p, rpcMsg = shortLog(msg)
-
-  # trigger send hooks
-  var mm = msg # hooks can modify the message
-  p.sendObservers(mm)
-
-  let encoded = encodeRpcMsg(mm)
-  if encoded.len <= 0:
-    info "empty message, skipping"
-    return
-
+proc sendImpl(conn: Connection, encoded: seq[byte]) {.async.} =
   try:
     trace "sending encoded msgs to peer", conn, encoded = shortLog(encoded)
     await conn.writeLp(encoded)
     trace "sent pubsub message to remote", conn
 
-    when defined(libp2p_expensive_metrics):
-      for x in mm.messages:
-        for t in x.topicIDs:
-          # metrics
-          libp2p_pubsub_sent_messages.inc(labelValues = [$p.peerId, t])
-
   except CatchableError as exc:
     # Because we detach the send call from the currently executing task using
     # asyncSpawn, no exceptions may leak out of it
-    trace "Unable to send to remote", conn, exc = exc.msg
+    trace "Unable to send to remote", conn, msg = exc.msg
     # Next time sendConn is used, it will be have its close flag set and thus
     # will be recycled
 
     await conn.close() # This will clean up the send connection
 
 proc send*(p: PubSubPeer, msg: RPCMsg) =
-  asyncSpawn sendImpl(p, msg)
+  doAssert(not isNil(p), "pubsubpeer nil!")
 
-proc `$`*(p: PubSubPeer): string =
-  $p.peerId
+  let conn = p.sendConn
+  if conn == nil or conn.closed():
+    trace "No send connection, skipping message", p, msg
+    return
+
+  trace "sending msg to peer", peer = p, rpcMsg = shortLog(msg)
+
+  let encoded = if p.hasObservers():
+    # trigger send hooks
+    var mm = msg # hooks can modify the message
+    p.sendObservers(mm)
+    encodeRpcMsg(mm)
+  else:
+    # If there are no send hooks, we redundantly re-encode the message to
+    # protobuf for every peer - this could easily be improved!
+    encodeRpcMsg(msg)
+
+  if encoded.len <= 0:
+    debug "empty message, skipping", p, msg
+    return
+
+  # To limit the size of the closure, we only pass the encoded message and
+  # connection to the spawned send task
+  asyncSpawn sendImpl(conn, encoded)
+
+  when defined(libp2p_expensive_metrics):
+    for x in mm.messages:
+      for t in x.topicIDs:
+        # metrics
+        libp2p_pubsub_sent_messages.inc(labelValues = [$p.peerId, t])
 
 proc newPubSubPeer*(peerId: PeerID,
                     getConn: GetConn,
