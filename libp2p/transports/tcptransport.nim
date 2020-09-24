@@ -24,7 +24,6 @@ export transport
 
 const
   TcpTransportTrackerName* = "libp2p.tcptransport"
-  MaxTCPConnections* = 50
 
 type
   TcpTransport* = ref object of Transport

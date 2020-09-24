@@ -360,6 +360,9 @@ proc selectMuxer*(c: ConnManager, peerId: PeerID): Muxer =
 
   return muxer
 
+proc acquireConnSlot*(c: ConnManager) {.async.} =
+  await c.connSemaphore.acquire()
+
 proc storeConn*(c: ConnManager, conn: Connection) {.async.} =
   ## store a connection
   ##
@@ -367,7 +370,6 @@ proc storeConn*(c: ConnManager, conn: Connection) {.async.} =
   if isNil(conn):
     raise newException(CatchableError, "connection cannot be nil")
 
-  await c.connSemaphore.acquire()
   c.conns.add(conn)
 
   # Launch on close listener
@@ -456,10 +458,13 @@ proc dropPeer*(c: ConnManager, peerId: PeerID) {.async.} =
     delConn(c, conn)
 
   var muxers: seq[MuxerHolder]
-  for conn in conns:
-    if conn in c.muxed:
-      muxers.add c.muxed[conn]
-      c.muxed.del(conn)
+  let muxedConns = toSeq(c.muxed.keys).filterIt(
+    it.peerInfo.peerId == peerId
+  )
+
+  for conn in muxedConns:
+    muxers.add c.muxed[conn]
+    c.muxed.del(conn)
 
   for muxer in muxers:
     await closeMuxerHolder(muxer)
