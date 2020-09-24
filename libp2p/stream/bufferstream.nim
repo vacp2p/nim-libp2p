@@ -165,6 +165,7 @@ method readOnce*(s: BufferStream,
 
     if buf.len == 0 or s.isEof: # Another task might have set EOF!
       # No more data will arrive on read queue
+      trace "EOF", s
       s.isEof = true
     else:
       let remaining = min(buf.len, nbytes - rbytes)

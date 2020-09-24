@@ -530,7 +530,7 @@ proc rebalanceMesh(g: GossipSub, topic: string) {.async.} =
         if g.mesh.addPeer(topic, peer):
           g.grafted(peer, topic)
           grafting &= peer
-          trace "opportunistic grafting", peer = $peer
+          trace "opportunistic grafting", peer
 
   when defined(libp2p_expensive_metrics):
     libp2p_gossipsub_peers_per_topic_gossipsub
@@ -977,9 +977,9 @@ proc handleIHave(g: GossipSub,
                  peer: PubSubPeer,
                  ihaves: seq[ControlIHave]): ControlIWant =
   if peer.score < g.parameters.gossipThreshold:
-    trace "ihave: ignoring low score peer", peer = $peer, score = peer.score
+    trace "ihave: ignoring low score peer", peer, score = peer.score
   elif peer.iHaveBudget == 0:
-    trace "ihave: ignoring out of budget peer", peer = $peer, score = peer.score
+    trace "ihave: ignoring out of budget peer", peer, score = peer.score
   else:
     dec peer.iHaveBudget
     for ihave in ihaves:
@@ -995,7 +995,7 @@ proc handleIWant(g: GossipSub,
                  peer: PubSubPeer,
                  iwants: seq[ControlIWant]): seq[Message] =
   if peer.score < g.parameters.gossipThreshold:
-    trace "iwant: ignoring low score peer", peer = $peer, score = peer.score
+    trace "iwant: ignoring low score peer", peer, score = peer.score
   else:
     for iwant in iwants:
       for mid in iwant.messageIDs:
@@ -1178,7 +1178,7 @@ method publish*(g: GossipSub,
     # but a peer's own messages will always be published to all known peers in the topic.
     for peer in g.gossipsub.getOrDefault(topic):
       if peer.score >= g.parameters.publishThreshold:
-        trace "publish: including flood/high score peer", peer = $peer
+        trace "publish: including flood/high score peer", peer
         peers.incl(peer)
 
   # add always direct peers
