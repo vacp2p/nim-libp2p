@@ -160,10 +160,12 @@ method readOnce*(s: LPChannel,
     raise exc
 
 method write*(s: LPChannel, msg: seq[byte]): Future[void] {.async.} =
-  if s.closedLocal:
+  if s.closedLocal or s.conn.closed:
     raise newLPStreamClosedError()
 
-  doAssert msg.len > 0
+  if msg.len == 0:
+    return
+
   try:
     if not s.isOpen:
       await s.open()
