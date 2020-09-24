@@ -14,7 +14,6 @@ import peerinfo,
        muxers/muxer,
        utils/semaphore,
        errors
-       utils/semaphore
 
 logScope:
   topics = "libp2p connmanager"
@@ -86,9 +85,6 @@ proc connCount*(c: ConnManager, peerId: PeerID): int =
     proc(conn: Connection): bool =
       (not isNil(conn.peerInfo) and conn.peerInfo.peerId == peerId)
   ).len
-
-proc connCount*(c: ConnManager, peerId: PeerID): int =
-  c.conns.getOrDefault(peerId).len
 
 proc addConnEventHandler*(c: ConnManager,
                           handler: ConnEventHandler,
