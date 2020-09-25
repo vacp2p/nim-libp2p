@@ -31,7 +31,7 @@ func defaultMsgIdProvider*(m: Message): string =
   byteutils.toHex(m.seqno) & $m.fromPeer
 
 proc sign*(msg: Message, privateKey: PrivateKey): CryptoResult[seq[byte]] =
-  ok((? privateKey.sign(PubSubPrefix & encodeMessage(msg))).getBytes())
+  ok((? privateKey.sign(PubSubPrefix & encodeMessage(msg, false))).getBytes())
 
 proc verify*(m: Message): bool =
   if m.signature.len > 0 and m.key.len > 0:
@@ -43,7 +43,7 @@ proc verify*(m: Message): bool =
     var key: PublicKey
     if remote.init(m.signature) and key.init(m.key):
       trace "verifying signature", remoteSignature = remote
-      result = remote.verify(PubSubPrefix & encodeMessage(msg), key)
+      result = remote.verify(PubSubPrefix & encodeMessage(msg, false), key)
 
   if result:
     libp2p_pubsub_sig_verify_success.inc()
@@ -60,7 +60,7 @@ proc init*(
   var msg = Message(data: data, topicIDs: @[topic])
 
   # order matters, we want to include seqno in the signature
-  if seqno.isSome: 
+  if seqno.isSome:
     msg.seqno = @(seqno.get().toBytesBE())
 
   if peer.isSome:

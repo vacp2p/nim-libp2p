@@ -193,7 +193,7 @@ proc sendImpl(conn: Connection, encoded: seq[byte]) {.async.} =
 
     await conn.close() # This will clean up the send connection
 
-proc send*(p: PubSubPeer, msg: RPCMsg) =
+proc send*(p: PubSubPeer, msg: RPCMsg, anonymize: bool) =
   doAssert(not isNil(p), "pubsubpeer nil!")
 
   let conn = p.sendConn
@@ -203,15 +203,20 @@ proc send*(p: PubSubPeer, msg: RPCMsg) =
 
   trace "sending msg to peer", peer = p, rpcMsg = shortLog(msg)
 
+  # When sending messages, we take care to re-encode them with the right
+  # anonymization flag to ensure that we're not penalized for sending invalid
+  # or malicious data on the wire - in particular, re-encoding protects against
+  # some forms of valid but redundantly encoded protobufs with unknown or
+  # duplicated fields
   let encoded = if p.hasObservers():
     # trigger send hooks
     var mm = msg # hooks can modify the message
     p.sendObservers(mm)
-    encodeRpcMsg(mm)
+    encodeRpcMsg(mm, anonymize)
   else:
     # If there are no send hooks, we redundantly re-encode the message to
     # protobuf for every peer - this could easily be improved!
-    encodeRpcMsg(msg)
+    encodeRpcMsg(msg, anonymize)
 
   if encoded.len <= 0:
     debug "empty message, skipping", p, msg
