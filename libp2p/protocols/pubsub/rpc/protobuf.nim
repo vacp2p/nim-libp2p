@@ -78,24 +78,24 @@ proc write*(pb: var ProtoBuffer, field: int, subs: SubOpts) =
   ipb.finish()
   pb.write(field, ipb)
 
-proc encodeMessage*(msg: Message): seq[byte] =
+proc encodeMessage*(msg: Message, anonymize: bool): seq[byte] =
   var pb = initProtoBuffer()
-  if len(msg.fromPeer) > 0:
+  if len(msg.fromPeer) > 0 and not anonymize:
     pb.write(1, msg.fromPeer)
   pb.write(2, msg.data)
-  if len(msg.seqno) > 0:
+  if len(msg.seqno) > 0 and not anonymize:
     pb.write(3, msg.seqno)
   for topic in msg.topicIDs:
     pb.write(4, topic)
-  if len(msg.signature) > 0:
+  if len(msg.signature) > 0 and not anonymize:
     pb.write(5, msg.signature)
-  if len(msg.key) > 0:
+  if len(msg.key) > 0 and not anonymize:
     pb.write(6, msg.key)
   pb.finish()
   pb.buffer
 
-proc write*(pb: var ProtoBuffer, field: int, msg: Message) =
-  pb.write(field, encodeMessage(msg))
+proc write*(pb: var ProtoBuffer, field: int, msg: Message, anonymize: bool) =
+  pb.write(field, encodeMessage(msg, anonymize))
 
 proc decodeGraft*(pb: ProtoBuffer): ProtoResult[ControlGraft] {.
      inline.} =
@@ -242,13 +242,13 @@ proc decodeMessages*(pb: ProtoBuffer): ProtoResult[seq[Message]] {.inline.} =
     trace "decodeMessages: no messages found"
   ok(msgs)
 
-proc encodeRpcMsg*(msg: RPCMsg): seq[byte] =
+proc encodeRpcMsg*(msg: RPCMsg, anonymize: bool): seq[byte] =
   trace "encodeRpcMsg: encoding message", msg = msg.shortLog()
   var pb = initProtoBuffer()
   for item in msg.subscriptions:
     pb.write(1, item)
   for item in msg.messages:
-    pb.write(2, item)
+    pb.write(2, item, anonymize)
   if msg.control.isSome():
     pb.write(3, msg.control.get())
   if len(pb.buffer) > 0:
