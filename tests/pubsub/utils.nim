@@ -2,6 +2,7 @@
 const
   libp2p_pubsub_sign {.booldefine.} = true
   libp2p_pubsub_verify {.booldefine.} = true
+  libp2p_pubsub_anonymize {.booldefine.} = false
 
 import random
 import chronos
@@ -28,6 +29,7 @@ proc generateNodes*(
   gossip: bool = false,
   triggerSelf: bool = false,
   verifySignature: bool = libp2p_pubsub_verify,
+  anonymize: bool = libp2p_pubsub_anonymize,
   sign: bool = libp2p_pubsub_sign): seq[PubSub] =
 
   for i in 0..<num:
@@ -39,6 +41,7 @@ proc generateNodes*(
         verifySignature = verifySignature,
         sign = sign,
         msgIdProvider = msgIdProvider,
+        anonymize = anonymize,
         parameters = (var p = GossipSubParams.init(); p.floodPublish = false; p)).PubSub
     else:
       FloodSub.init(
@@ -46,7 +49,8 @@ proc generateNodes*(
         triggerSelf = triggerSelf,
         verifySignature = verifySignature,
         sign = sign,
-        msgIdProvider = msgIdProvider).PubSub
+        msgIdProvider = msgIdProvider,
+        anonymize = anonymize).PubSub
 
     switch.mount(pubsub)
     result.add(pubsub)

@@ -9,6 +9,7 @@
 
 {.push raises: [Defect].}
 
+import hashes
 import chronicles, metrics, stew/[byteutils, endians2]
 import ./messages,
        ./protobuf,
@@ -28,7 +29,10 @@ declareCounter(libp2p_pubsub_sig_verify_success, "pubsub successfully validated 
 declareCounter(libp2p_pubsub_sig_verify_failure, "pubsub failed validated messages")
 
 func defaultMsgIdProvider*(m: Message): string =
-  byteutils.toHex(m.seqno) & $m.fromPeer
+  if m.seqno.len > 0 and m.fromPeer.data.len > 0:
+    byteutils.toHex(m.seqno) & $m.fromPeer
+  else:
+    $m.data.hash & $m.topicIDs.hash
 
 proc sign*(msg: Message, privateKey: PrivateKey): CryptoResult[seq[byte]] =
   ok((? privateKey.sign(PubSubPrefix & encodeMessage(msg, false))).getBytes())
