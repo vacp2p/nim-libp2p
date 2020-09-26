@@ -326,7 +326,7 @@ suite "FloodSub":
 
       var pubs: seq[Future[int]]
       for i in 0..<runs:
-        pubs &= nodes[i].publish("foobar", "Hello!".toBytes())
+        pubs &= nodes[i].publish("foobar", ("Hello!" & $i).toBytes())
       await allFuturesThrowing(pubs)
 
       await allFuturesThrowing(futs.mapIt(it[0]))
@@ -379,7 +379,7 @@ suite "FloodSub":
 
       var pubs: seq[Future[int]]
       for i in 0..<runs:
-        pubs &= nodes[i].publish("foobar", "Hello!".toBytes())
+        pubs &= nodes[i].publish("foobar", ("Hello!" & $i).toBytes())
       await allFuturesThrowing(pubs)
 
       await allFuturesThrowing(futs.mapIt(it[0]))
