@@ -358,7 +358,6 @@ proc init*[PubParams: object | bool](
         topics: initTable[string, Topic](),
         msgIdProvider: msgIdProvider,
         parameters: parameters)
-  pubsub.initPubSub()
 
   proc peerEventHandler(peerId: PeerID, event: PeerEvent) {.async.} =
     if event == PeerEvent.Joined:
@@ -370,6 +369,7 @@ proc init*[PubParams: object | bool](
   switch.addPeerEventHandler(peerEventHandler, PeerEvent.Left)
 
   pubsub.initPubSub()
+  
   return pubsub
 
 
