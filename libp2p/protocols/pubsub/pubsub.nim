@@ -125,7 +125,8 @@ method onPubSubPeerEvent*(p: PubSub, peer: PubsubPeer, event: PubsubPeerEvent) {
   # Peer event is raised for the send connection in particular
   case event.kind
   of PubSubPeerEventKind.Connected:
-    p.sendSubs(peer, toSeq(p.topics.keys), true)
+    if p.topics.len > 0:
+      p.sendSubs(peer, toSeq(p.topics.keys), true)
   of PubSubPeerEventKind.Disconnected:
     discard
 
