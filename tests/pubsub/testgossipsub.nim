@@ -426,8 +426,8 @@ suite "GossipSub":
           inc observed
         )
 
-      # nodes[1].addObserver(obs1)
-      # nodes[0].addObserver(obs2)
+      nodes[1].addObserver(obs1)
+      nodes[0].addObserver(obs2)
 
       tryPublish await nodes[0].publish("foobar", "Hello!".toBytes()), 1
 
@@ -457,7 +457,7 @@ suite "GossipSub":
       )
 
       await allFuturesThrowing(nodesFut.concat())
-      # check observed == 2
+      check observed == 2
 
     waitFor(runTests())
 
