@@ -426,8 +426,8 @@ suite "GossipSub":
           inc observed
         )
 
-      # nodes[1].addObserver(obs1)
-      # nodes[0].addObserver(obs2)
+      nodes[1].addObserver(obs1)
+      nodes[0].addObserver(obs2)
 
       tryPublish await nodes[0].publish("foobar", "Hello!".toBytes()), 1
 
@@ -457,7 +457,7 @@ suite "GossipSub":
       )
 
       await allFuturesThrowing(nodesFut.concat())
-      # check observed == 2
+      check observed == 2
 
     waitFor(runTests())
 
@@ -535,7 +535,6 @@ suite "GossipSub":
       await subscribeNodes(nodes)
 
       var seen: Table[string, int]
-      var subs: seq[Future[void]]
       var seenFut = newFuture[void]()
       for dialer in nodes:
         var handler: TopicHandler
@@ -549,14 +548,13 @@ suite "GossipSub":
             if not seenFut.finished() and seen.len >= runs:
               seenFut.complete()
 
-        subs &= dialer.subscribe("foobar", handler)
-
-      await allFuturesThrowing(subs).wait(30.seconds)
-
+        await dialer.subscribe("foobar", handler)
+        await waitSub(nodes[0], dialer, "foobar")
+  
       tryPublish await wait(nodes[0].publish("foobar",
                                     toBytes("from node " &
-                                    $nodes[1].peerInfo.peerId)),
-                                    1.minutes), runs, 5.seconds
+                                    $nodes[0].peerInfo.peerId)),
+                                    1.minutes), 1, 5.seconds
 
       await wait(seenFut, 2.minutes)
       check: seen.len >= runs
@@ -591,7 +589,6 @@ suite "GossipSub":
       await subscribeNodes(nodes)
 
       var seen: Table[PeerID, int]
-      var subs: seq[Future[void]]
       var seenFut = newFuture[void]()
       for dialer in nodes:
         var handler: TopicHandler
@@ -606,14 +603,13 @@ suite "GossipSub":
             if not seenFut.finished() and seen.len >= runs:
               seenFut.complete()
 
-        subs &= dialer.subscribe("foobar", handler)
-        subs &= waitSub(nodes[0], dialer, "foobar")
+        await dialer.subscribe("foobar", handler)
+        await waitSub(nodes[0], dialer, "foobar")
 
-      await allFuturesThrowing(subs)
       tryPublish await wait(nodes[0].publish("foobar",
                                     toBytes("from node " &
-                                    $nodes[1].peerInfo.peerId)),
-                                    1.minutes), 2, 5.seconds
+                                    $nodes[0].peerInfo.peerId)),
+                                    1.minutes), 1, 5.seconds
 
       await wait(seenFut, 5.minutes)
       check: seen.len >= runs

@@ -50,9 +50,17 @@ task testpubsub, "Runs pubsub tests":
   runTest("pubsub/testgossipinternal", sign = false, verify = false, moreoptions = "-d:pubsub_internal_testing")
   runTest("pubsub/testpubsub")
   runTest("pubsub/testpubsub", sign = false, verify = false)
+  runTest("pubsub/testpubsub", sign = false, verify = false, moreoptions = "-d:libp2p_pubsub_anonymize=true")
   runTest("pubsub/testgossipinternal10", sign = false, verify = false, moreoptions = "-d:pubsub_internal_testing")
   runTest("pubsub/testpubsub", moreoptions = "-d:fallback_gossipsub_10")
   runTest("pubsub/testpubsub", sign = false, verify = false, moreoptions = "-d:fallback_gossipsub_10")
+
+task testpubsub_slim, "Runs pubsub tests":
+  runTest("pubsub/testgossipinternal", sign = false, verify = false, moreoptions = "-d:pubsub_internal_testing")
+  runTest("pubsub/testpubsub")
+  runTest("pubsub/testpubsub", sign = false, verify = false, moreoptions = "-d:libp2p_pubsub_anonymize=true")
+  runTest("pubsub/testgossipinternal10", sign = false, verify = false, moreoptions = "-d:pubsub_internal_testing")
+  runTest("pubsub/testpubsub", moreoptions = "-d:fallback_gossipsub_10")
 
 task testfilter, "Run PKI filter test":
   runTest("testpkifilter",
@@ -67,6 +75,13 @@ task testfilter, "Run PKI filter test":
 task test, "Runs the test suite":
   exec "nimble testnative"
   exec "nimble testpubsub"
+  exec "nimble testdaemon"
+  exec "nimble testinterop"
+  exec "nimble testfilter"
+
+task test_slim, "Runs the test suite":
+  exec "nimble testnative"
+  exec "nimble testpubsub_slim"
   exec "nimble testdaemon"
   exec "nimble testinterop"
   exec "nimble testfilter"

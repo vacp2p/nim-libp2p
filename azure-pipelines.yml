@@ -119,7 +119,7 @@ steps:
       nimble install -y --depsOnly
 
       # run tests
-      nimble test
+      nimble test_slim
       nimble examples_build
     displayName: 'build and test'
 

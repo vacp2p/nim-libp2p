@@ -125,7 +125,8 @@ method onPubSubPeerEvent*(p: PubSub, peer: PubsubPeer, event: PubsubPeerEvent) {
   # Peer event is raised for the send connection in particular
   case event.kind
   of PubSubPeerEventKind.Connected:
-    p.sendSubs(peer, toSeq(p.topics.keys), true)
+    if p.topics.len > 0:
+      p.sendSubs(peer, toSeq(p.topics.keys), true)
   of PubSubPeerEventKind.Disconnected:
     discard
 
@@ -357,7 +358,6 @@ proc init*[PubParams: object | bool](
         topics: initTable[string, Topic](),
         msgIdProvider: msgIdProvider,
         parameters: parameters)
-  pubsub.initPubSub()
 
   proc peerEventHandler(peerId: PeerID, event: PeerEvent) {.async.} =
     if event == PeerEvent.Joined:
@@ -369,6 +369,7 @@ proc init*[PubParams: object | bool](
   switch.addPeerEventHandler(peerEventHandler, PeerEvent.Left)
 
   pubsub.initPubSub()
+  
   return pubsub
 
 
