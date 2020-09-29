@@ -492,7 +492,7 @@ method rpcHandler*(g: GossipSub,
     if respControl.graft.len > 0 or respControl.prune.len > 0 or
       respControl.ihave.len > 0 or messages.len > 0:
 
-      debug "sending control message", msg = shortLog(respControl), peer
+      trace "sending control message", msg = shortLog(respControl), peer
       g.send(
         peer,
         RPCMsg(control: some(respControl), messages: messages))
