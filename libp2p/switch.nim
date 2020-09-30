@@ -355,7 +355,8 @@ proc newSwitch*(peerInfo: PeerInfo,
                 identity: Identify,
                 muxers: Table[string, MuxerProvider],
                 secureManagers: openarray[Secure] = [],
-                maxConns = MaxConnections): Switch =
+                maxConns = MaxConnections,
+                maxPeerConns = MaxConnectionsPerPeer): Switch =
   if secureManagers.len == 0:
     raise (ref CatchableError)(msg: "Provide at least one secure manager")
 
