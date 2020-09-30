@@ -217,6 +217,7 @@ proc send*(p: PubSubPeer, msg: RPCMsg, anonymize: bool) =
   # or malicious data on the wire - in particular, re-encoding protects against
   # some forms of valid but redundantly encoded protobufs with unknown or
   # duplicated fields
+  var mm = msg # hooks can modify the message
   let encoded = if p.hasObservers():
     var mm = msg
     # trigger send hooks
