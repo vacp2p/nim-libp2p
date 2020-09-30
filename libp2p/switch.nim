@@ -7,11 +7,12 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import tables,
-       sequtils,
-       options,
-       sets,
-       oids
+import std/[tables,
+            sequtils,
+            options,
+            sets,
+            oids,
+            sugar]
 
 import chronos,
        chronicles,
