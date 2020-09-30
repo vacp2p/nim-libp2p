@@ -28,7 +28,7 @@ proc newStandardSwitch*(privKey = none(PrivateKey),
                         rng = newRng(),
                         inTimeout: Duration = 5.minutes,
                         outTimeout: Duration = 5.minutes,
-                        maxConns = MaxConnections): Switch =
+                        maxConns = 80): Switch =
   proc createMplex(conn: Connection): Muxer =
     Mplex.init(
       conn,
