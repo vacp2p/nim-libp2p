@@ -66,7 +66,7 @@ type
 
   ConnHolder = object
     conn: Connection
-    handle: Future[void]
+    evtHandle: Future[void]
 
   ConnManager* = ref object of RootObj
     maxConns: int
@@ -383,8 +383,8 @@ proc updateConn*(c: ConnManager, a, b: Connection) =
   for h in c.conns.mitems:
     if h.conn == a:
       h.conn = b
-      h.handle.cancel()
-      h.handle = c.onClose(b)
+      h.evtHandle.cancel()
+      h.evtHandle = c.onClose(b)
 
       debug "Updated connection", conn = h.conn
       if not isNil(b.peerInfo):
@@ -405,10 +405,9 @@ proc storeConn*(c: ConnManager, conn: Connection) =
     c.connCount(conn.peerInfo.peerId) > c.maxPeerConns:
     raise newTooManyConnections()
 
-  let holder = ConnHolder(
+  c.conns.add(ConnHolder(
     conn: conn,
-    handle: c.onClose(conn)) # handle for close event
-  c.conns.add(holder)
+    evtHandle: c.onClose(conn)))
 
   # All the errors are handled inside `onClose()` procedure.
   if not isNil(conn.peerInfo):
