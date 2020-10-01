@@ -420,9 +420,10 @@ proc storeConn*(c: ConnManager, conn: Connection) =
 proc trackConn*(c: ConnManager,
                 provider: ConnProvider,
                 dir: Direction): Future[Connection] {.async.} =
+  var conn: Connection
   try:
     await c.connSemaphore.acquire()
-    let conn = await provider()
+    conn = await provider()
 
     if isNil(conn):
       raise newException(CatchableError, "Connection cannot be nil")
@@ -434,6 +435,10 @@ proc trackConn*(c: ConnManager,
     return conn
   except CatchableError as exc:
     trace "Exception tracking connection", exc = exc.msg
+
+    if not isNil(conn):
+      await conn.close()
+
     c.connSemaphore.release()
     raise exc
 
