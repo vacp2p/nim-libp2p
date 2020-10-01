@@ -417,7 +417,7 @@ proc dial*(s: Switch,
            proto: string):
            Future[Connection] = dial(s, peerId, addrs, @[proto])
 
-proc mount*[T: LPProtocol](s: Switch, proto: T) {.gcsafe.} =
+proc mount*[T: LPProtocol](s: Switch, proto: T, matcher: Matcher = nil) {.gcsafe.} =
   if isNil(proto.handler):
     raise newException(CatchableError,
       "Protocol has to define a handle method or proc")
@@ -426,7 +426,7 @@ proc mount*[T: LPProtocol](s: Switch, proto: T) {.gcsafe.} =
     raise newException(CatchableError,
       "Protocol has to define a codec string")
 
-  s.ms.addHandler(proto.codecs, proto)
+  s.ms.addHandler(proto.codecs, proto, matcher)
 
 proc start*(s: Switch): Future[seq[Future[void]]] {.async, gcsafe.} =
   trace "starting switch for peer", peerInfo = s.peerInfo
