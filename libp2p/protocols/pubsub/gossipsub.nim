@@ -367,7 +367,8 @@ method onPubSubPeerEvent*(p: GossipSub, peer: PubsubPeer, event: PubSubPeerEvent
     # If a send connection is lost, it's better to remove peer from the mesh -
     # if it gets reestablished, the peer will be readded to the mesh, and if it
     # doesn't, well.. then we hope the peer is going away!
-    for _, peers in p.mesh.mpairs():
+    for topic, peers in p.mesh.mpairs():
+      p.pruned(peer, topic)
       peers.excl(peer)
     for _, peers in p.fanout.mpairs():
       peers.excl(peer)

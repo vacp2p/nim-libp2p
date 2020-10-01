@@ -227,7 +227,7 @@ proc send*(p: PubSubPeer, msg: RPCMsg, anonymize: bool) =
   asyncSpawn sendImpl(conn, encoded)
 
   when defined(libp2p_expensive_metrics):
-    for x in mm.messages:
+    for x in msg.messages:
       for t in x.topicIDs:
         # metrics
         libp2p_pubsub_sent_messages.inc(labelValues = [$p.peerId, t])
