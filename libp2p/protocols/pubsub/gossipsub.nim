@@ -304,7 +304,7 @@ proc grafted(g: GossipSub, p: PubSubPeer, topic: string) =
     stats.topicInfos[topic] = info
     assert(g.peerStats[p].topicInfos[topic].inMesh == true)
 
-    trace "grafted", p
+    trace "grafted", peer=p, topic
   do:
     g.onNewPeer(p)
     g.grafted(p, topic)
@@ -329,7 +329,7 @@ proc pruned(g: GossipSub, p: PubSubPeer, topic: string) =
       # mgetOrPut does not work, so we gotta do this without referencing
       stats.topicInfos[topic] = info
 
-      trace "pruned", p
+      trace "pruned", peer=p, topic
 
 proc peerExchangeList(g: GossipSub, topic: string): seq[PeerInfoMsg] =
   var peers = g.gossipsub.getOrDefault(topic, initHashSet[PubSubPeer]()).toSeq()
