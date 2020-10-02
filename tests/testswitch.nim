@@ -75,7 +75,7 @@ suite "Switch":
 
     waitFor(testSwitch())
 
-    test "e2e use switch dial proto string with custom matcher":
+  test "e2e use switch dial proto string with custom matcher":
     proc testSwitch() {.async, gcsafe.} =
       let done = newFuture[void]()
       proc handle(conn: Connection, proto: string) {.async, gcsafe.} =
