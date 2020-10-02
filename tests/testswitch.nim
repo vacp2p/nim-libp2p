@@ -91,7 +91,7 @@ suite "Switch":
       testProto.codec = TestCodec
       testProto.handler = handle
 
-      let callProto = TestCodec + "/pew"
+      let callProto = TestCodec & "/pew"
 
       proc match(proto: string): bool {.gcsafe.} =
         return proto == callProto
