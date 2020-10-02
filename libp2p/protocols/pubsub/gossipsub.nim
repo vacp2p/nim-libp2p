@@ -304,7 +304,7 @@ proc grafted(g: GossipSub, p: PubSubPeer, topic: string) =
     stats.topicInfos[topic] = info
     assert(g.peerStats[p].topicInfos[topic].inMesh == true)
 
-    trace "grafted", p
+    trace "grafted", peer=p, topic
   do:
     g.onNewPeer(p)
     g.grafted(p, topic)
@@ -329,7 +329,7 @@ proc pruned(g: GossipSub, p: PubSubPeer, topic: string) =
       # mgetOrPut does not work, so we gotta do this without referencing
       stats.topicInfos[topic] = info
 
-      trace "pruned", p
+      trace "pruned", peer=p, topic
 
 proc peerExchangeList(g: GossipSub, topic: string): seq[PeerInfoMsg] =
   var peers = g.gossipsub.getOrDefault(topic, initHashSet[PubSubPeer]()).toSeq()
@@ -367,7 +367,8 @@ method onPubSubPeerEvent*(p: GossipSub, peer: PubsubPeer, event: PubSubPeerEvent
     # If a send connection is lost, it's better to remove peer from the mesh -
     # if it gets reestablished, the peer will be readded to the mesh, and if it
     # doesn't, well.. then we hope the peer is going away!
-    for _, peers in p.mesh.mpairs():
+    for topic, peers in p.mesh.mpairs():
+      p.pruned(peer, topic)
       peers.excl(peer)
     for _, peers in p.fanout.mpairs():
       peers.excl(peer)
