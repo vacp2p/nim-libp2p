@@ -177,7 +177,7 @@ proc init*(_: type[GossipSubParams]): GossipSubParams =
       gossipThreshold: -10,
       publishThreshold: -100,
       graylistThreshold: -10000,
-      opportunisticGraftThreshold: 1,
+      opportunisticGraftThreshold: 0,
       decayInterval: 1.seconds,
       decayToZero: 0.01,
       retainScore: 10.seconds,
