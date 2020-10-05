@@ -207,7 +207,8 @@ proc dial*(s: Switch,
 
 proc dial*(s: Switch,
            peerId: PeerID,
-           proto: string): Future[Connection] = dial(s, peerId, @[proto])
+           proto: string): Future[Connection] =
+  dial(s, peerId, @[proto])
 
 proc dial*(s: Switch,
            peerId: PeerID,
