@@ -36,6 +36,9 @@ func defaultMsgIdProvider*(m: Message): MessageID =
   else:
     var
       h = m.data.hash !& m.topicIDs.hash
+    h = !$h # need to call it to finish hashing?
+    # hash is an int, reinterpret it as something that toOpenArray likes
+    let
       bh = cast[ptr UncheckedArray[byte]](addr h)
     res &= bh.toOpenArray(0, sizeof(Hash) - 1)
   res
