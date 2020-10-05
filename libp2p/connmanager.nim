@@ -311,7 +311,7 @@ proc onClose(c: ConnManager, conn: Connection) {.async.} =
     trace "Triggering peerCleanup", conn
     asyncSpawn c.peerCleanup(conn)
 
-proc selectConn*(c: ConnManager,
+proc selectConn(c: ConnManager,
                  peerId: PeerID,
                  dir: Direction): Connection =
   ## Select a connection for the provided peer and direction
@@ -326,7 +326,7 @@ proc selectConn*(c: ConnManager,
   if conns.len > 0:
     return conns[0].conn
 
-proc selectConn*(c: ConnManager, peerId: PeerID): Connection =
+proc selectConn(c: ConnManager, peerId: PeerID): Connection =
   ## Select a connection for the provided giving priority
   ## to outgoing connections
   ##
@@ -388,6 +388,9 @@ proc updateConn*(c: ConnManager, a, b: Connection) =
 
       debug "Updated connection", conn = h.conn
       if not isNil(b.peerInfo):
+        if c.connCount(b.peerInfo.peerId) > c.maxPeerConns:
+          raise newTooManyConnections()
+
         libp2p_peers.set(c.peerCount().int64)
 
       return
@@ -486,8 +489,7 @@ proc getStream*(c: ConnManager,
   if not(isNil(muxer)):
     return await muxer.newStream()
 
-proc getStream*(c: ConnManager,
-                     peerId: PeerID): Future[Connection] {.async, gcsafe.} =
+proc getStream*(c: ConnManager, peerId: PeerID): Future[Connection] {.async, gcsafe.} =
   ## get a muxed stream for the passed peer from any connection
   ##
 
@@ -495,8 +497,7 @@ proc getStream*(c: ConnManager,
   if not(isNil(muxer)):
     return await muxer.newStream()
 
-proc getStream*(c: ConnManager,
-                     conn: Connection): Future[Connection] {.async, gcsafe.} =
+proc getStream*(c: ConnManager, conn: Connection): Future[Connection] {.async, gcsafe.} =
   ## get a muxed stream for the passed connection
   ##
 
