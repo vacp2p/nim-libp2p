@@ -190,6 +190,8 @@ method accept*(t: TcpTransport): Future[Connection] {.async, gcsafe.} =
     warn "Unexpected error creating connection", exc = exc.msg
     raise exc
 
+  return nil
+
 method dial*(t: TcpTransport,
              address: MultiAddress):
              Future[Connection] {.async, gcsafe.} =
