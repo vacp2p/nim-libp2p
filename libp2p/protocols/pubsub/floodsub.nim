@@ -27,7 +27,7 @@ const FloodSubCodec* = "/floodsub/1.0.0"
 type
   FloodSub* = ref object of PubSub
     floodsub*: PeerTable      # topic to remote peer map
-    seen*: TimedCache[string] # list of messages forwarded to peers
+    seen*: TimedCache[MessageID] # list of messages forwarded to peers
 
 method subscribeTopic*(f: FloodSub,
                        topic: string,
@@ -179,5 +179,5 @@ method unsubscribeAll*(f: FloodSub, topic: string) {.async.} =
 method initPubSub*(f: FloodSub) =
   procCall PubSub(f).initPubSub()
   f.floodsub = initTable[string, HashSet[PubSubPeer]]()
-  f.seen = TimedCache[string].init(2.minutes)
+  f.seen = TimedCache[MessageID].init(2.minutes)
   f.init()

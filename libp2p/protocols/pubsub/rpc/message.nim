@@ -28,11 +28,20 @@ const PubSubPrefix = toBytes("libp2p-pubsub:")
 declareCounter(libp2p_pubsub_sig_verify_success, "pubsub successfully validated messages")
 declareCounter(libp2p_pubsub_sig_verify_failure, "pubsub failed validated messages")
 
-func defaultMsgIdProvider*(m: Message): string =
+func defaultMsgIdProvider*(m: Message): MessageID =
+  var res: seq[byte]
   if m.seqno.len > 0 and m.fromPeer.data.len > 0:
-    byteutils.toHex(m.seqno) & $m.fromPeer
+    res &= m.seqno
+    res &= m.fromPeer.data
   else:
-    $m.data.hash & $m.topicIDs.hash
+    var
+      dataHash = m.data.hash
+      topicHash = m.topicIDs.hash
+      bDataHash = cast[ptr UncheckedArray[byte]](addr dataHash)
+      bTopicHash = cast[ptr UncheckedArray[byte]](addr topicHash)
+    res &= bDataHash.toOpenArray(0, sizeof(Hash) - 1)
+    res &= bTopicHash.toOpenArray(0, sizeof(Hash) - 1)
+  res
 
 proc sign*(msg: Message, privateKey: PrivateKey): CryptoResult[seq[byte]] =
   ok((? privateKey.sign(PubSubPrefix & encodeMessage(msg, false))).getBytes())
