@@ -63,7 +63,7 @@ suite "GossipSub internal":
 
       check gossipSub.peers.len == 15
       await gossipSub.rebalanceMesh(topic)
-      check gossipSub.mesh[topic].len == GossipSubD + 2 # account opportunistic grafts
+      check gossipSub.mesh[topic].len == GossipSubD # + 2 # account opportunistic grafts
 
       await allFuturesThrowing(conns.mapIt(it.close()))
       await gossipSub.switch.stop()
