@@ -35,12 +35,9 @@ func defaultMsgIdProvider*(m: Message): MessageID =
     res &= m.fromPeer.data
   else:
     var
-      dataHash = m.data.hash
-      topicHash = m.topicIDs.hash
-      bDataHash = cast[ptr UncheckedArray[byte]](addr dataHash)
-      bTopicHash = cast[ptr UncheckedArray[byte]](addr topicHash)
-    res &= bDataHash.toOpenArray(0, sizeof(Hash) - 1)
-    res &= bTopicHash.toOpenArray(0, sizeof(Hash) - 1)
+      h = m.data.hash !& m.topicIDs.hash
+      bh = cast[ptr UncheckedArray[byte]](addr h)
+    res &= bh.toOpenArray(0, sizeof(Hash) - 1)
   res
 
 proc sign*(msg: Message, privateKey: PrivateKey): CryptoResult[seq[byte]] =
