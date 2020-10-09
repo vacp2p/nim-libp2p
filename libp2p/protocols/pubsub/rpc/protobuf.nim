@@ -107,6 +107,20 @@ proc decodeGraft*(pb: ProtoBuffer): ProtoResult[ControlGraft] {.
     trace "decodeGraft: topicId is missing"
   ok(control)
 
+proc decodePeerInfoMsg*(pb: ProtoBuffer): ProtoResult[PeerInfoMsg] {.
+     inline.} =
+  trace "decodePeerInfoMsg: decoding message"
+  var pi = PeerInfoMsg()
+  if ? pb.getField(1, pi.peerID):
+    trace "decodePeerInfoMsg: read peerID", peerID = pi.peerID
+  else:
+    trace "decodePeerInfoMsg: peerID is missing"
+  if ? pb.getField(2, pi.signedPeerRecord):
+    trace "decodePeerInfoMsg: read signedPeerRecord", signedPeerRecord = pi.signedPeerRecord
+  else:
+    trace "decodePeerInfoMsg: signedPeerRecord is missing"
+  ok(pi)
+
 proc decodePrune*(pb: ProtoBuffer): ProtoResult[ControlPrune] {.
      inline.} =
   trace "decodePrune: decoding message"
@@ -115,7 +129,12 @@ proc decodePrune*(pb: ProtoBuffer): ProtoResult[ControlPrune] {.
     trace "decodePrune: read topicId", topic_id = control.topicId
   else:
     trace "decodePrune: topicId is missing"
-  # TODO gossip 1.1 fields
+  var bpeers: seq[seq[byte]]
+  if ? pb.getRepeatedField(2, bpeers):
+    for bpeer in bpeers:
+      control.peers &= ? decodePeerInfoMsg(initProtoBuffer(bpeer))
+  if ? pb.getField(3, control.backoff):
+    trace "decodePrune: read backoff", backoff = control.backoff
   ok(control)
 
 proc decodeIHave*(pb: ProtoBuffer): ProtoResult[ControlIHave] {.
