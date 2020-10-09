@@ -112,10 +112,10 @@ suite "GossipSub":
       var validatorFut = newFuture[bool]()
       proc validator(topic: string,
                      message: Message):
-                     Future[bool] {.async.} =
+                     Future[ValidationResult] {.async.} =
         check topic == "foobar"
         validatorFut.complete(true)
-        result = true
+        result = ValidationResult.Accept
 
       nodes[1].addValidator("foobar", validator)
       tryPublish await nodes[0].publish("foobar", "Hello!".toBytes()), 1
@@ -178,8 +178,8 @@ suite "GossipSub":
       var validatorFut = newFuture[bool]()
       proc validator(topic: string,
                      message: Message):
-                     Future[bool] {.async.} =
-        result = false
+                     Future[ValidationResult] {.async.} =
+        result = ValidationResult.Reject
         validatorFut.complete(true)
 
       nodes[1].addValidator("foobar", validator)
@@ -232,13 +232,13 @@ suite "GossipSub":
       var passed, failed: Future[bool] = newFuture[bool]()
       proc validator(topic: string,
                      message: Message):
-                     Future[bool] {.async.} =
+                     Future[ValidationResult] {.async.} =
         result = if topic == "foo":
           passed.complete(true)
-          true
+          ValidationResult.Accept
         else:
           failed.complete(true)
-          false
+          ValidationResult.Reject
 
       nodes[1].addValidator("foo", "bar", validator)
       tryPublish await nodes[0].publish("foo", "Hello!".toBytes()), 1
