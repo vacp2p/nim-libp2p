@@ -37,7 +37,7 @@ type ChatProto = ref object of LPProtocol
   connected: bool         # if the node is connected to another peer
   started: bool           # if the node has started
 
-# copied from https://github.com/status-im/nim-beacon-chain/blob/0ed657e953740a92458f23033d47483ffa17ccb0/beacon_chain/eth2_network.nim#L109-L115
+# copied from https://github.com/status-im/nimbus-eth2/blob/0ed657e953740a92458f23033d47483ffa17ccb0/beacon_chain/eth2_network.nim#L109-L115
 proc initAddress(T: type MultiAddress, str: string): T =
   let address = MultiAddress.init(str)
   if IPFS.match(address) and matchPartial(multiaddress.TCP, address):
