@@ -159,10 +159,10 @@ suite "FloodSub":
 
       var validatorFut = newFuture[bool]()
       proc validator(topic: string,
-                     message: Message): Future[bool] {.async.} =
+                     message: Message): Future[ValidationResult] {.async.} =
         check topic == "foobar"
         validatorFut.complete(true)
-        result = true
+        result = ValidationResult.Accept
 
       nodes[1].addValidator("foobar", validator)
 
@@ -210,9 +210,9 @@ suite "FloodSub":
 
       var validatorFut = newFuture[bool]()
       proc validator(topic: string,
-                     message: Message): Future[bool] {.async.} =
+                     message: Message): Future[ValidationResult] {.async.} =
         validatorFut.complete(true)
-        result = false
+        result = ValidationResult.Reject
 
       nodes[1].addValidator("foobar", validator)
 
@@ -262,11 +262,11 @@ suite "FloodSub":
       await waitSub(nodes[0], nodes[1], "bar")
 
       proc validator(topic: string,
-                     message: Message): Future[bool] {.async.} =
+                     message: Message): Future[ValidationResult] {.async.} =
         if topic == "foo":
-          result = true
+          result = ValidationResult.Accept
         else:
-          result = false
+          result = ValidationResult.Reject
 
       nodes[1].addValidator("foo", "bar", validator)
 
