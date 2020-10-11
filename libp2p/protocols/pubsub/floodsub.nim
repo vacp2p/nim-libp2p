@@ -85,7 +85,7 @@ method rpcHandler*(f: FloodSub,
     # g.anonymize needs no evaluation when receiving messages
     # as we have a "lax" policy and allow signed messages
 
-    if f.validate(msg).await == ValidationResult.Reject:
+    if (await f.validate(msg)) == ValidationResult.Reject:
       trace "Dropping message due to failed validation", msgId, peer
       continue
 

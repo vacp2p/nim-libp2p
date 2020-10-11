@@ -1062,7 +1062,7 @@ method rpcHandler*(g: GossipSub,
     # g.anonymize needs no evaluation when receiving messages
     # as we have a "lax" policy and allow signed messages
 
-    if g.validate(msg).await == ValidationResult.Reject:
+    if (await g.validate(msg)) == ValidationResult.Reject:
       debug "Dropping message due to failed validation", msgId, peer
       g.punishPeer(peer, msg)
       continue
