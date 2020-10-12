@@ -33,6 +33,7 @@ declareGauge(libp2p_pubsub_peers, "pubsub peer instances")
 declareGauge(libp2p_pubsub_topics, "pubsub subscribed topics")
 declareCounter(libp2p_pubsub_validation_success, "pubsub successfully validated messages")
 declareCounter(libp2p_pubsub_validation_failure, "pubsub failed validated messages")
+declareCounter(libp2p_pubsub_validation_ignore, "pubsub ignore validated messages")
 when defined(libp2p_expensive_metrics):
   declarePublicCounter(libp2p_pubsub_messages_published, "published messages", labels = ["topic"])
 
@@ -40,8 +41,11 @@ type
   TopicHandler* = proc(topic: string,
                        data: seq[byte]): Future[void] {.gcsafe.}
 
+  ValidationResult* {.pure.} = enum
+    Accept, Reject, Ignore
+
   ValidatorHandler* = proc(topic: string,
-                           message: Message): Future[bool] {.gcsafe, closure.}
+                           message: Message): Future[ValidationResult] {.gcsafe, closure.}
 
   TopicPair* = tuple[topic: string, handler: TopicHandler]
 
@@ -309,8 +313,8 @@ method removeValidator*(p: PubSub,
     if t in p.validators:
       p.validators[t].excl(hook)
 
-method validate*(p: PubSub, message: Message): Future[bool] {.async, base.} =
-  var pending: seq[Future[bool]]
+method validate*(p: PubSub, message: Message): Future[ValidationResult] {.async, base.} =
+  var pending: seq[Future[ValidationResult]]
   trace "about to validate message"
   for topic in message.topicIDs:
     trace "looking for validators on topic", topicID = topic,
@@ -320,12 +324,24 @@ method validate*(p: PubSub, message: Message): Future[bool] {.async, base.} =
       # TODO: add timeout to validator
       pending.add(p.validators[topic].mapIt(it(topic, message)))
 
+  result = ValidationResult.Accept
   let futs = await allFinished(pending)
-  result = futs.allIt(not it.failed and it.read())
-  if result:
+  for fut in futs:
+    if fut.failed:
+      result = ValidationResult.Reject
+      break
+    let res = fut.read()
+    if res != ValidationResult.Accept:
+      result = res
+      break
+  
+  case result
+  of ValidationResult.Accept: 
     libp2p_pubsub_validation_success.inc()
-  else:
+  of ValidationResult.Reject:
     libp2p_pubsub_validation_failure.inc()
+  of ValidationResult.Ignore:
+    libp2p_pubsub_validation_ignore.inc()
 
 proc init*[PubParams: object | bool](
   P: typedesc[PubSub],
