@@ -220,13 +220,10 @@ suite "Interop":
       var testFuture = newFuture[void]("test.future")
       proc daemonHandler(api: DaemonAPI, stream: P2PStream) {.async.} =
         check string.fromBytes(await stream.transp.readLp()) == "test 1"
-        asyncDiscard stream.transp.writeLp("test 2")
-
-        await sleepAsync(10.millis)
+        discard await stream.transp.writeLp("test 2")
         check string.fromBytes(await stream.transp.readLp()) == "test 3"
-        asyncDiscard stream.transp.writeLp("test 4")
+        discard await stream.transp.writeLp("test 4")
         testFuture.complete()
-        await stream.close()
 
       await daemonNode.addHandler(protos, daemonHandler)
       let conn = await nativeNode.dial(NativePeerInfo.init(daemonPeer.peer,
@@ -234,27 +231,21 @@ suite "Interop":
                                                            protos[0])
       await conn.writeLp("test 1")
       check "test 2" == string.fromBytes((await conn.readLp(1024)))
-      await sleepAsync(10.millis)
-
+      
       await conn.writeLp("test 3")
       check "test 4" == string.fromBytes((await conn.readLp(1024)))
 
       await wait(testFuture, 10.secs)
-      await conn.close()
 
-      await daemonNode.close()
       await nativeNode.stop()
+      await daemonNode.close()
       await allFutures(awaiters)
 
       await sleepAsync(1.seconds)
       result = true
 
-    when defined(windows):
-      # TODO Repair this test on windows
-      skip()
-    else:
-      check:
-        waitFor(runTests()) == true
+    check:
+      waitFor(runTests()) == true
 
   test "native -> daemon connection":
     proc runTests(): Future[bool] {.async.} =
