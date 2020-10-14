@@ -125,7 +125,7 @@ method readOnce*(s: SecureConn,
       except CatchableError as exc:
         (@[], exc)
 
-    if err != nil:
+    if isNil(err):
       warn "error while reading message from secure connection, closing.",  error=err.name, 
                                                                             message=err.msg, 
                                                                             connection=s
