@@ -78,7 +78,7 @@ type
     peerEvents: Table[PeerEventKind, OrderedSet[PeerEventHandler]]
 
 proc newTooManyConnections(): ref TooManyConnections {.inline.} =
-  result = newException(TooManyConnections, "too many connections for peer")
+  result = newException(TooManyConnections, "too many connections")
 
 proc init*(C: type ConnManager,
            maxConns: int = MaxConnections,
@@ -421,10 +421,10 @@ proc storeConn*(c: ConnManager, conn: Connection) =
 
 proc trackConn*(c: ConnManager,
                 provider: ConnProvider,
-                dir: Direction): Future[Connection] {.async.} =
+                dir: Direction):
+                Future[Connection] {.async.} =
   var conn: Connection
   try:
-    await c.connSemaphore.acquire()
     conn = await provider()
 
     if isNil(conn):
@@ -445,14 +445,28 @@ proc trackConn*(c: ConnManager,
     raise exc
 
 proc trackIncomingConn*(c: ConnManager,
-                        provider: ConnProvider): Future[Connection] =
+                        provider: ConnProvider):
+                        Future[Connection] {.async.} =
+  ## await for a connection slot before attempting
+  ## to call the connection provider
+  ##
+
   trace "Tracking incoming connection"
-  c.trackConn(provider, Direction.In)
+  await c.connSemaphore.acquire()
+  return await c.trackConn(provider, Direction.In)
 
 proc trackOutgoingConn*(c: ConnManager,
                         provider: ConnProvider): Future[Connection] =
+  ## try acquiring a connection if all slots
+  ## are already taken, raise TooManyConnections
+  ## exception
+  ##
+
   trace "Tracking outgoing connection"
-  c.trackConn(provider, Direction.Out)
+  if not c.connSemaphore.tryAcquire():
+    raise newTooManyConnections()
+
+  return c.trackConn(provider, Direction.Out)
 
 proc storeMuxer*(c: ConnManager,
                  muxer: Muxer,
