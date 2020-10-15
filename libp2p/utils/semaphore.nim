@@ -48,8 +48,7 @@ proc acquire*(s: AsyncSemaphore): Future[void] =
   let fut = newFuture[void]("AsyncSemaphore.acquire")
   if s.tryAcquire():
     fut.complete()
-  else:
-    s.queue.addLast(fut)
+    return fut
 
   proc cancellation(udata: pointer) {.gcsafe.} =
     fut.cancelCallback = nil
@@ -64,16 +63,6 @@ proc acquire*(s: AsyncSemaphore): Future[void] =
 
   trace "Queued slot", available = s.count, queue = s.queue.len
   return fut
-
-proc tryAcquire*(s: AsyncSemaphore): bool =
-  ## Attempts to acquire a resource, if successful
-  ## returns true, otherwise false
-  ##
-
-  # acquire() will return finished
-  # futures if the resource count
-  # is less than `size`
-  return (s.acquire().finished)
 
 proc release*(s: AsyncSemaphore) =
   ## Release a resource from the semaphore,
