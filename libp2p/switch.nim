@@ -184,6 +184,13 @@ proc internalConnect(s: Switch,
       lock.release()
 
 proc connect*(s: Switch, peerId: PeerID, addrs: seq[MultiAddress]) {.async.} =
+  ## attempt to create establish a connection
+  ## with a remote peer
+  ##
+
+  if s.connManager.connCount(peerId) > 0:
+    return
+
   discard await s.internalConnect(peerId, addrs)
 
 proc negotiateStream(s: Switch, conn: Connection, protos: seq[string]): Future[Connection] {.async.} =
@@ -224,12 +231,22 @@ proc dial*(s: Switch,
     if not(isNil(stream)):
       await stream.closeWithEOF()
 
+    if not(isNil(conn)):
+      await conn.close()
+
+  try:
+    if isNil(stream):
+      await conn.close()
+      raise newException(DialFailedError, "Couldn't get muxed stream")
+
+    return await s.negotiateStream(stream, protos)
+  except CancelledError as exc:
+    trace "Dial canceled", conn
+    await cleanup()
     raise exc
   except CatchableError as exc:
-    debug "Error dialing", stream, msg = exc.msg
-    if not(isNil(stream)):
-      await stream.close()
-
+    debug "Error dialing", conn, msg = exc.msg
+    await cleanup()
     raise exc
 
 proc dial*(s: Switch,
