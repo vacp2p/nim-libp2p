@@ -24,7 +24,7 @@ const
   MaxConnectionsPerPeer = 5
 
 type
-  TooManyConnections* = object of CatchableError
+  TooManyConnectionsError* = object of CatchableError
 
   ConnProvider* = proc(): Future[Connection] {.gcsafe, closure.}
 
@@ -66,7 +66,7 @@ type
 
   ConnHolder = object
     conn: Connection
-    evtHandle: Future[void]
+    onCloseHandle: Future[void]
 
   ConnManager* = ref object of RootObj
     maxConns: int
@@ -77,8 +77,8 @@ type
     connEvents: Table[ConnEventKind, OrderedSet[ConnEventHandler]]
     peerEvents: Table[PeerEventKind, OrderedSet[PeerEventHandler]]
 
-proc newTooManyConnections(): ref TooManyConnections {.inline.} =
-  result = newException(TooManyConnections, "too many connections")
+proc newTooManyConnectionsError(): ref TooManyConnectionsError {.inline.} =
+  result = newException(TooManyConnectionsError, "too many connections")
 
 proc init*(C: type ConnManager,
            maxConns: int = MaxConnections,
@@ -384,13 +384,13 @@ proc updateConn*(c: ConnManager, a, b: Connection) =
   for h in c.conns.mitems:
     if h.conn == a:
       h.conn = b
-      h.evtHandle.cancel()
-      h.evtHandle = c.onClose(b)
+      h.onCloseHandle.cancel()
+      h.onCloseHandle = c.onClose(b)
 
       debug "Updated connection", conn = h.conn
       if not isNil(b.peerInfo):
         if c.connCount(b.peerInfo.peerId) > c.maxPeerConns:
-          raise newTooManyConnections()
+          raise newTooManyConnectionsError()
 
         libp2p_peers.set(c.peerCount().int64)
 
@@ -407,11 +407,11 @@ proc storeConn*(c: ConnManager, conn: Connection) =
 
   if not isNil(conn.peerInfo) and
     c.connCount(conn.peerInfo.peerId) > c.maxPeerConns:
-    raise newTooManyConnections()
+    raise newTooManyConnectionsError()
 
   c.conns.add(ConnHolder(
     conn: conn,
-    evtHandle: c.onClose(conn)))
+    onCloseHandle: c.onClose(conn)))
 
   # All the errors are handled inside `onClose()` procedure.
   if not isNil(conn.peerInfo):
@@ -459,13 +459,13 @@ proc trackIncomingConn*(c: ConnManager,
 proc trackOutgoingConn*(c: ConnManager,
                         provider: ConnProvider): Future[Connection] =
   ## try acquiring a connection if all slots
-  ## are already taken, raise TooManyConnections
+  ## are already taken, raise TooManyConnectionsError
   ## exception
   ##
 
   trace "Tracking outgoing connection"
   if not c.connSemaphore.tryAcquire():
-    raise newTooManyConnections()
+    raise newTooManyConnectionsError()
 
   return c.trackConn(provider, Direction.Out)
 
