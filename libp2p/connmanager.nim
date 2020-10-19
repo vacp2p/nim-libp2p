@@ -242,6 +242,7 @@ proc cleanupConn(c: ConnManager, conn: Connection) {.async.} =
     # Remove connection from all tables without async breaks
     muxer = some(MuxerHolder())
     if not c.muxed.pop(conn, muxer.get()):
+      trace "Couldn't find muxer for connection", conn
       muxer = none(MuxerHolder)
 
   delConn(c, conn)
