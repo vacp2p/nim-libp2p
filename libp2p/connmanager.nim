@@ -384,7 +384,9 @@ proc updateConn*(c: ConnManager, a, b: Connection) =
   for h in c.conns.mitems:
     if h.conn == a:
       h.conn = b
-      h.onCloseHandle.cancel()
+      if not isNil(h.onCloseHandle):
+        h.onCloseHandle.cancel()
+
       h.onCloseHandle = c.onClose(b)
 
       debug "Updated connection", conn = h.conn
