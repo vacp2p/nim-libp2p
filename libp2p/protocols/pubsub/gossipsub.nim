@@ -260,7 +260,7 @@ proc validateParameters*(parameters: TopicParams): Result[void, cstring] =
   else:
     ok()
 
-func byScore(x,y: PubSubPeer): int = (x.score - y.score).int
+func byScore(x,y: PubSubPeer): int = system.cmp(x.score, y.score)
 
 method init*(g: GossipSub) =
   proc handler(conn: Connection, proto: string) {.async.} =
@@ -409,7 +409,7 @@ proc rebalanceMesh(g: GossipSub, topic: string) {.async.} =
     shuffle(grafts)
 
     # sort peers by score
-    grafts.sort(byScore)
+    grafts.sort(byScore, SortOrder.Descending)
 
     # Graft peers so we reach a count of D
     grafts.setLen(min(grafts.len, GossipSubD - g.mesh.peers(topic)))
@@ -443,7 +443,7 @@ proc rebalanceMesh(g: GossipSub, topic: string) {.async.} =
     shuffle(grafts)
 
     # sort peers by score
-    grafts.sort(byScore)
+    grafts.sort(byScore, SortOrder.Descending)
 
     # Graft peers so we reach a count of D
     grafts.setLen(min(grafts.len, g.parameters.dOut - g.mesh.peers(topic)))
@@ -465,7 +465,7 @@ proc rebalanceMesh(g: GossipSub, topic: string) {.async.} =
     shuffle(prunes)
 
     # sort peers by score (inverted)
-    prunes.sort(byScore)
+    prunes.sort(byScore, SortOrder.Ascending)
 
     # keep high score peers
     if prunes.len > g.parameters.dScore:
@@ -505,7 +505,7 @@ proc rebalanceMesh(g: GossipSub, topic: string) {.async.} =
   # opportunistic grafting, by spec mesh should not be empty...
   if g.mesh.peers(topic) > 1:
     var peers = toSeq(g.mesh[topic])
-    peers.sort(byScore)
+    peers.sort(byScore, SortOrder.Descending)
     let medianIdx = peers.len div 2
     let median = peers[medianIdx]
     if median.score < g.parameters.opportunisticGraftThreshold:
