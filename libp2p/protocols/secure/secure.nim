@@ -120,10 +120,23 @@ method readOnce*(s: SecureConn,
   doAssert(nbytes > 0, "nbytes must be positive integer")
 
   if s.buf.data().len() == 0:
-    let buf = await s.readMessage()
+    let (buf, err) = try:
+        (await s.readMessage(), nil)
+      except CatchableError as exc:
+        (@[], exc)
+
+    if not isNil(err):
+      warn "error while reading message from secure connection, closing.",  error=err.name, 
+                                                                            message=err.msg, 
+                                                                            connection=s
+      await s.close()
+      raise err
+      
     s.activity = true
+
     if buf.len == 0:
       raise newLPStreamIncompleteError()
+  
     s.buf.add(buf)
 
   var p = cast[ptr UncheckedArray[byte]](pbytes)
