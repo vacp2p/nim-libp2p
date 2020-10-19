@@ -19,7 +19,7 @@ jobs:
       - name: Clone NBC
         uses: actions/checkout@v2
         with:
-          repository: status-im/nim-beacon-chain
+          repository: status-im/nimbus-eth2
           ref: devel
           path: nbc
           submodules: true
