@@ -67,6 +67,7 @@ type
   ConnHolder = object
     conn: Connection
     onCloseHandle: Future[void]
+    upgraded: bool
 
   ConnManager* = ref object of RootObj
     maxConns: int
@@ -312,7 +313,7 @@ proc onClose(c: ConnManager, conn: Connection) {.async.} =
     trace "Triggering peerCleanup", conn
     asyncSpawn c.peerCleanup(conn)
 
-proc selectConn(c: ConnManager,
+proc selectConn*(c: ConnManager,
                  peerId: PeerID,
                  dir: Direction): Connection =
   ## Select a connection for the provided peer and direction
@@ -322,12 +323,12 @@ proc selectConn(c: ConnManager,
     .filter((h) =>
       (not isNil(h.conn.peerInfo) and
         h.conn.peerInfo.peerId == peerId))
-    .filterIt( it.conn.dir == dir )
+    .filterIt( it.conn.dir == dir and it.upgraded )
 
   if conns.len > 0:
     return conns[0].conn
 
-proc selectConn(c: ConnManager, peerId: PeerID): Connection =
+proc selectConn*(c: ConnManager, peerId: PeerID): Connection =
   ## Select a connection for the provided giving priority
   ## to outgoing connections
   ##
@@ -380,16 +381,20 @@ proc selectMuxer*(c: ConnManager, peerId: PeerID): Muxer =
 
   return muxer
 
-proc updateConn*(c: ConnManager, a, b: Connection) =
+proc updateConn*(c: ConnManager, a, b: Connection, upgraded: bool) =
   for h in c.conns.mitems:
+    # if a connection matched,
+    # replace it with the newly
+    # provided one
     if h.conn == a:
       h.conn = b
       if not isNil(h.onCloseHandle):
         h.onCloseHandle.cancel()
 
       h.onCloseHandle = c.onClose(b)
+      h.upgraded = upgraded
 
-      debug "Updated connection", conn = h.conn
+      debug "Attached upgraded connection", conn = h.conn, upgraded = upgraded
       if not isNil(b.peerInfo):
         if c.connCount(b.peerInfo.peerId) > c.maxPeerConns:
           raise newTooManyConnectionsError()
@@ -400,7 +405,7 @@ proc updateConn*(c: ConnManager, a, b: Connection) =
 
   raise newException(CatchableError, "No connection to update!")
 
-proc storeConn*(c: ConnManager, conn: Connection) =
+proc storeConn(c: ConnManager, conn: Connection, upgraded: bool) =
   ## store a connection
   ##
 
@@ -413,18 +418,21 @@ proc storeConn*(c: ConnManager, conn: Connection) =
 
   c.conns.add(ConnHolder(
     conn: conn,
-    onCloseHandle: c.onClose(conn)))
+    onCloseHandle: c.onClose(conn),
+    upgraded: upgraded))
 
   # All the errors are handled inside `onClose()` procedure.
   if not isNil(conn.peerInfo):
     libp2p_peers.set(c.peerCount().int64)
 
   trace "Stored connection",
-    conn, direction = $conn.dir, connections = c.conns.len
+    conn, direction = $conn.dir, connections = c.conns.len,
+    upgraded
 
 proc trackConn*(c: ConnManager,
                 provider: ConnProvider,
-                dir: Direction):
+                dir: Direction,
+                upgraded: bool):
                 Future[Connection] {.async.} =
   var conn: Connection
   try:
@@ -436,7 +444,7 @@ proc trackConn*(c: ConnManager,
     conn.dir = dir
     trace "Got connection", conn, dir = $dir
 
-    c.storeConn(conn)
+    c.storeConn(conn, upgraded)
     return conn
   except CatchableError as exc:
     trace "Exception tracking connection", exc = exc.msg
@@ -448,7 +456,8 @@ proc trackConn*(c: ConnManager,
     raise exc
 
 proc trackIncomingConn*(c: ConnManager,
-                        provider: ConnProvider):
+                        provider: ConnProvider,
+                        upgraded: bool):
                         Future[Connection] {.async.} =
   ## await for a connection slot before attempting
   ## to call the connection provider
@@ -456,10 +465,11 @@ proc trackIncomingConn*(c: ConnManager,
 
   trace "Tracking incoming connection"
   await c.connSemaphore.acquire()
-  return await c.trackConn(provider, Direction.In)
+  return await c.trackConn(provider, Direction.In, upgraded)
 
 proc trackOutgoingConn*(c: ConnManager,
-                        provider: ConnProvider): Future[Connection] =
+                        provider: ConnProvider,
+                        upgraded: bool): Future[Connection] =
   ## try acquiring a connection if all slots
   ## are already taken, raise TooManyConnectionsError
   ## exception
@@ -469,7 +479,7 @@ proc trackOutgoingConn*(c: ConnManager,
   if not c.connSemaphore.tryAcquire():
     raise newTooManyConnectionsError()
 
-  return c.trackConn(provider, Direction.Out)
+  return c.trackConn(provider, Direction.Out, upgraded)
 
 proc storeMuxer*(c: ConnManager,
                  muxer: Muxer,
