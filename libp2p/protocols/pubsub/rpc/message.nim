@@ -29,19 +29,15 @@ declareCounter(libp2p_pubsub_sig_verify_success, "pubsub successfully validated 
 declareCounter(libp2p_pubsub_sig_verify_failure, "pubsub failed validated messages")
 
 func defaultMsgIdProvider*(m: Message): MessageID =
-  var res: seq[byte]
-  if m.seqno.len > 0 and m.fromPeer.data.len > 0:
-    res &= m.seqno
-    res &= m.fromPeer.data
-  else:
-    var
-      h = m.data.hash !& m.topicIDs.hash
-    h = !$h # need to call it to finish hashing?
-    # hash is an int, reinterpret it as something that toOpenArray likes
-    let
-      bh = cast[ptr UncheckedArray[byte]](addr h)
-    res &= bh.toOpenArray(0, sizeof(Hash) - 1)
-  res
+  let mid = 
+    if m.seqno.len > 0 and m.fromPeer.data.len > 0:
+      byteutils.toHex(m.seqno) & $m.fromPeer
+    else:
+      # This part is irrelevant because it's not standard,
+      # We use it exclusively for testing basically and users should 
+      # implement their own logic in the case they use anonymization
+      $m.data.hash & $m.topicIDs.hash
+  mid.toBytes()
 
 proc sign*(msg: Message, privateKey: PrivateKey): CryptoResult[seq[byte]] =
   ok((? privateKey.sign(PubSubPrefix & encodeMessage(msg, false))).getBytes())
