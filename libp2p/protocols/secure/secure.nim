@@ -126,9 +126,11 @@ method readOnce*(s: SecureConn,
         (@[], exc)
 
     if not isNil(err):
-      warn "error while reading message from secure connection, closing.",  error=err.name, 
-                                                                            message=err.msg, 
-                                                                            connection=s
+      if not (err of LPStreamEOFError):
+        warn "error while reading message from secure connection, closing.",  
+          error=err.name, 
+          message=err.msg, 
+          connection=s
       await s.close()
       raise err
       
