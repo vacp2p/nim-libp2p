@@ -50,7 +50,7 @@ type
   TopicPair* = tuple[topic: string, handler: TopicHandler]
 
   MsgIdProvider* =
-    proc(m: Message): string {.noSideEffect, raises: [Defect], nimcall, gcsafe.}
+    proc(m: Message): MessageID {.noSideEffect, raises: [Defect], nimcall, gcsafe.}
 
   Topic* = object
     # make this a variant type if one day we have different Params structs

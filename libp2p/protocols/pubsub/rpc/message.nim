@@ -28,11 +28,16 @@ const PubSubPrefix = toBytes("libp2p-pubsub:")
 declareCounter(libp2p_pubsub_sig_verify_success, "pubsub successfully validated messages")
 declareCounter(libp2p_pubsub_sig_verify_failure, "pubsub failed validated messages")
 
-func defaultMsgIdProvider*(m: Message): string =
-  if m.seqno.len > 0 and m.fromPeer.data.len > 0:
-    byteutils.toHex(m.seqno) & $m.fromPeer
-  else:
-    $m.data.hash & $m.topicIDs.hash
+func defaultMsgIdProvider*(m: Message): MessageID =
+  let mid = 
+    if m.seqno.len > 0 and m.fromPeer.data.len > 0:
+      byteutils.toHex(m.seqno) & $m.fromPeer
+    else:
+      # This part is irrelevant because it's not standard,
+      # We use it exclusively for testing basically and users should 
+      # implement their own logic in the case they use anonymization
+      $m.data.hash & $m.topicIDs.hash
+  mid.toBytes()
 
 proc sign*(msg: Message, privateKey: PrivateKey): CryptoResult[seq[byte]] =
   ok((? privateKey.sign(PubSubPrefix & encodeMessage(msg, false))).getBytes())

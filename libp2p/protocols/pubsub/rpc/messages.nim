@@ -22,6 +22,8 @@ type
       subscribe*: bool
       topic*: string
 
+    MessageID* = seq[byte]
+
     Message* = object
       fromPeer*: PeerId
       data*: seq[byte]
@@ -38,10 +40,10 @@ type
 
     ControlIHave* = object
       topicID*: string
-      messageIDs*: seq[string]
+      messageIDs*: seq[MessageID]
 
     ControlIWant* = object
-      messageIDs*: seq[string]
+      messageIDs*: seq[MessageID]
 
     ControlGraft* = object
       topicID*: string
