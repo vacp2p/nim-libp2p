@@ -855,11 +855,11 @@ proc init*(mtype: typedesc[MultiAddress],
   data.write(familyProto.mcodec)
   var written = familyProto.coder.stringToBuffer($address, data)
   doAssert written,
-           "Merely writing a string to a buffer should always be possible"
+           "Merely writing a string to a buffer should always be possible, address: " & $address
   data.write(protoProto.mcodec)
   written = protoProto.coder.stringToBuffer($port, data)
   doAssert written,
-           "Merely writing a string to a buffer should always be possible"
+           "Merely writing a string to a buffer should always be possible, port: " & $address
   data.finish()
 
   MultiAddress(data: data)
