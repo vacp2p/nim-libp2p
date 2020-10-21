@@ -58,7 +58,6 @@ task testpubsub, "Runs pubsub tests":
 task testpubsub_slim, "Runs pubsub tests":
   runTest("pubsub/testgossipinternal", sign = false, verify = false, moreoptions = "-d:pubsub_internal_testing")
   runTest("pubsub/testpubsub")
-  runTest("pubsub/testpubsub", sign = false, verify = false, moreoptions = "-d:libp2p_pubsub_anonymize=true")
 
 task testfilter, "Run PKI filter test":
   runTest("testpkifilter",
@@ -80,7 +79,6 @@ task test, "Runs the test suite":
 task test_slim, "Runs the test suite":
   exec "nimble testnative"
   exec "nimble testpubsub_slim"
-  exec "nimble testdaemon"
   exec "nimble testinterop"
   exec "nimble testfilter"
 
