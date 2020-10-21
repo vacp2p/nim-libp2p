@@ -27,7 +27,7 @@ const FloodSubCodec* = "/floodsub/1.0.0"
 type
   FloodSub* = ref object of PubSub
     floodsub*: PeerTable      # topic to remote peer map
-    seen*: TimedCache[string] # list of messages forwarded to peers
+    seen*: TimedCache[MessageID] # list of messages forwarded to peers
 
 method subscribeTopic*(f: FloodSub,
                        topic: string,
@@ -85,9 +85,13 @@ method rpcHandler*(f: FloodSub,
     # g.anonymize needs no evaluation when receiving messages
     # as we have a "lax" policy and allow signed messages
 
-    if (await f.validate(msg)) == ValidationResult.Reject:
-      trace "Dropping message due to failed validation", msgId, peer
+    let validation = await f.validate(msg)
+    case validation
+    of ValidationResult.Reject, ValidationResult.Ignore:
+      debug "Dropping message due to ignored validation", msgId, peer
       continue
+    of ValidationResult.Accept:
+      discard
 
     var toSendPeers = initHashSet[PubSubPeer]()
     for t in msg.topicIDs:                     # for every topic in the message
@@ -179,5 +183,5 @@ method unsubscribeAll*(f: FloodSub, topic: string) {.async.} =
 method initPubSub*(f: FloodSub) =
   procCall PubSub(f).initPubSub()
   f.floodsub = initTable[string, HashSet[PubSubPeer]]()
-  f.seen = TimedCache[string].init(2.minutes)
+  f.seen = TimedCache[MessageID].init(2.minutes)
   f.init()

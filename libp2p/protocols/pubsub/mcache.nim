@@ -14,30 +14,30 @@ export sets, tables, messages, options
 
 type
   CacheEntry* = object
-    mid*: string
+    mid*: MessageID
     topicIDs*: seq[string]
 
   MCache* = object of RootObj
-    msgs*: Table[string, Message]
+    msgs*: Table[MessageID, Message]
     history*: seq[seq[CacheEntry]]
     historySize*: Natural
     windowSize*: Natural
 
-func get*(c: MCache, mid: string): Option[Message] =
+func get*(c: MCache, mid: MessageID): Option[Message] =
   result = none(Message)
   if mid in c.msgs:
     result = some(c.msgs[mid])
 
-func contains*(c: MCache, mid: string): bool =
+func contains*(c: MCache, mid: MessageID): bool =
   c.get(mid).isSome
 
-func put*(c: var MCache, msgId: string, msg: Message) =
+func put*(c: var MCache, msgId: MessageID, msg: Message) =
   if msgId notin c.msgs:
     c.msgs[msgId] = msg
     c.history[0].add(CacheEntry(mid: msgId, topicIDs: msg.topicIDs))
 
-func window*(c: MCache, topic: string): HashSet[string] =
-  result = initHashSet[string]()
+func window*(c: MCache, topic: string): HashSet[MessageID] =
+  result = initHashSet[MessageID]()
 
   let
     len = min(c.windowSize, c.history.len)

@@ -464,9 +464,13 @@ method rpcHandler*(g: GossipSub,
     # g.anonymize needs no evaluation when receiving messages
     # as we have a "lax" policy and allow signed messages
 
-    if (await g.validate(msg)) == ValidationResult.Reject:
-      trace "Dropping message due to failed validation", msgId, peer
+    let validation = await g.validate(msg)
+    case validation
+    of ValidationResult.Reject, ValidationResult.Ignore:
+      debug "Dropping message due to ignored validation", msgId, peer
       continue
+    of ValidationResult.Accept:
+      discard
 
     var toSendPeers = initHashSet[PubSubPeer]()
     for t in msg.topicIDs:                     # for every topic in the message
