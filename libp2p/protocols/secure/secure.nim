@@ -60,7 +60,7 @@ method initStream*(s: SecureConn) =
 method closeImpl*(s: SecureConn) {.async.} =
   trace "Closing secure conn", s, dir = s.dir
   if not(isNil(s.stream)):
-    await s.stream.close()
+    await s.stream.closeWithEOF()
 
   await procCall Connection(s).closeImpl()
 
