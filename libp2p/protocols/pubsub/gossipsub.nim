@@ -421,40 +421,43 @@ proc rebalanceMesh(g: GossipSub, topic: string) {.async.} =
         g.fanout.removePeer(topic, peer)
         grafting &= peer
 
-  elif npeers < g.parameters.dOut:
-    trace "replenishing mesh outbound quota", peers = g.mesh.peers(topic)
-    # replenish the mesh if we're below Dlo
-    grafts = toSeq(
-      g.gossipsub.getOrDefault(topic, initHashSet[PubSubPeer]()) -
-      g.mesh.getOrDefault(topic, initHashSet[PubSubPeer]())
-    )
+  else:
+    var meshPeers = toSeq(g.mesh.getOrDefault(topic, initHashSet[PubSubPeer]()))
+    meshPeers.keepIf do (x: PubSubPeer) -> bool: x.outbound
+    if meshPeers.len < g.parameters.dOut:
+      trace "replenishing mesh outbound quota", peers = g.mesh.peers(topic)
+      
+      grafts = toSeq(
+        g.gossipsub.getOrDefault(topic, initHashSet[PubSubPeer]()) -
+        g.mesh.getOrDefault(topic, initHashSet[PubSubPeer]())
+      )
 
-    grafts.keepIf do (x: PubSubPeer) -> bool:
-      # get only outbound ones
-      x.outbound and
-      # avoid negative score peers
-      x.score >= 0.0 and
-      # don't pick explicit peers
-      x.peerId notin g.parameters.directPeers and
-      # and avoid peers we are backing off
-      x.peerId notin g.backingOff
+      grafts.keepIf do (x: PubSubPeer) -> bool:
+        # get only outbound ones
+        x.outbound and
+        # avoid negative score peers
+        x.score >= 0.0 and
+        # don't pick explicit peers
+        x.peerId notin g.parameters.directPeers and
+        # and avoid peers we are backing off
+        x.peerId notin g.backingOff
 
-    # shuffle anyway, score might be not used
-    shuffle(grafts)
+      # shuffle anyway, score might be not used
+      shuffle(grafts)
 
-    # sort peers by score, high score first, we are grafting
-    grafts.sort(byScore, SortOrder.Descending)
+      # sort peers by score, high score first, we are grafting
+      grafts.sort(byScore, SortOrder.Descending)
 
-    # Graft peers so we reach a count of D
-    grafts.setLen(min(grafts.len, g.parameters.dOut - g.mesh.peers(topic)))
+      # Graft peers so we reach a count of D
+      grafts.setLen(min(grafts.len, g.parameters.dOut - g.mesh.peers(topic)))
 
-    trace "grafting outbound peers", topic, peers = grafts.len
+      trace "grafting outbound peers", topic, peers = grafts.len
 
-    for peer in grafts:
-      if g.mesh.addPeer(topic, peer):
-        g.grafted(peer, topic)
-        g.fanout.removePeer(topic, peer)
-        grafting &= peer
+      for peer in grafts:
+        if g.mesh.addPeer(topic, peer):
+          g.grafted(peer, topic)
+          g.fanout.removePeer(topic, peer)
+          grafting &= peer
 
 
   if g.mesh.peers(topic) > GossipSubDhi:
@@ -729,7 +732,7 @@ proc updateScores(g: GossipSub) = # avoid async
     if peer.behaviourPenalty < g.parameters.decayToZero:
       peer.behaviourPenalty = 0
 
-    debug "updated peer's score", peer, score = peer.score, n_topics, is_grafted
+    trace "updated peer's score", peer, score = peer.score, n_topics, is_grafted
 
   for peer in evicting:
     g.peerStats.del(peer)
