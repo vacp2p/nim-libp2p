@@ -408,7 +408,7 @@ proc rebalanceMesh(g: GossipSub, topic: string) {.async.} =
     # shuffle anyway, score might be not used
     shuffle(grafts)
 
-    # sort peers by score
+    # sort peers by score, high score first since we graft
     grafts.sort(byScore, SortOrder.Descending)
 
     # Graft peers so we reach a count of D
@@ -442,7 +442,7 @@ proc rebalanceMesh(g: GossipSub, topic: string) {.async.} =
     # shuffle anyway, score might be not used
     shuffle(grafts)
 
-    # sort peers by score
+    # sort peers by score, high score first, we are grafting
     grafts.sort(byScore, SortOrder.Descending)
 
     # Graft peers so we reach a count of D
@@ -464,7 +464,7 @@ proc rebalanceMesh(g: GossipSub, topic: string) {.async.} =
     # shuffle anyway, score might be not used
     shuffle(prunes)
 
-    # sort peers by score (inverted)
+    # sort peers by score (inverted), pruning, so low score peers are on top
     prunes.sort(byScore, SortOrder.Ascending)
 
     # keep high score peers
@@ -505,6 +505,7 @@ proc rebalanceMesh(g: GossipSub, topic: string) {.async.} =
   # opportunistic grafting, by spec mesh should not be empty...
   if g.mesh.peers(topic) > 1:
     var peers = toSeq(g.mesh[topic])
+    # grafting so high score has priority
     peers.sort(byScore, SortOrder.Descending)
     let medianIdx = peers.len div 2
     let median = peers[medianIdx]
