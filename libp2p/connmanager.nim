@@ -74,7 +74,7 @@ type
     peerEvents: Table[PeerEventKind, OrderedSet[PeerEventHandler]]
 
 proc newTooManyConnectionsError(): ref TooManyConnectionsError {.inline.} =
-  result = newException(TooManyConnectionsError, "too many connections")
+  result = newException(TooManyConnectionsError, "Too many connections")
 
 proc init*(C: type ConnManager,
            maxConns: int = MaxConnections,
@@ -339,7 +339,7 @@ proc storeConn*(c: ConnManager, conn: Connection) =
 
   let peerId = conn.peerInfo.peerId
   if c.conns.getOrDefault(peerId).len > c.maxConns:
-    debug "too many connections",
+    debug "Too many connections",
       conn, conns = c.conns.getOrDefault(peerId).len
 
     raise newTooManyConnectionsError()
