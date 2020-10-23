@@ -538,8 +538,8 @@ suite "GossipSub":
       var seenFut = newFuture[void]()
       for dialer in nodes:
         var handler: TopicHandler
+        var dialerNode = dialer
         closureScope:
-          var dialerNode = dialer
           handler = proc(topic: string, data: seq[byte]) {.async, gcsafe, closure.} =
             if $dialerNode.peerInfo.peerId notin seen:
               seen[$dialerNode.peerInfo.peerId] = 0
@@ -592,8 +592,8 @@ suite "GossipSub":
       var seenFut = newFuture[void]()
       for dialer in nodes:
         var handler: TopicHandler
+        var dialerNode = dialer
         closureScope:
-          var dialerNode = dialer
           handler = proc(topic: string, data: seq[byte])
             {.async, gcsafe, closure.} =
             if dialerNode.peerInfo.peerId notin seen:

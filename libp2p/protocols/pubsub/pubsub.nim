@@ -224,15 +224,19 @@ method unsubscribe*(p: PubSub,
                     topics: seq[TopicPair]) {.base, async.} =
   ## unsubscribe from a list of ``topic`` strings
   for t in topics:
-    p.topics.withValue(t.topic, topic):
-      topic[].handler.keepIf(proc (x: auto): bool = x != t.handler)
+    let 
+      handler = t.handler
+      ttopic = t.topic
+    closureScope:
+      p.topics.withValue(ttopic, topic):
+        topic[].handler.keepIf(proc (x: auto): bool = x != handler)
 
-      if topic[].handler.len == 0:
-        # make sure we delete the topic if
-        # no more handlers are left
-        p.topics.del(t.topic)
+        if topic[].handler.len == 0:
+          # make sure we delete the topic if
+          # no more handlers are left
+          p.topics.del(ttopic)
 
-        libp2p_pubsub_topics.set(p.topics.len.int64)
+          libp2p_pubsub_topics.set(p.topics.len.int64)
 
 proc unsubscribe*(p: PubSub,
                   topic: string,
