@@ -292,10 +292,10 @@ proc internalConnect(s: Switch,
           let dialed = try:
               await t.dial(a)
             except CancelledError as exc:
-              trace "Dialing canceled", msg = exc.msg, peerId
+              trace "Dialing canceled", msg = exc.msg, peerId, address = $a
               raise exc
             except CatchableError as exc:
-              trace "Dialing failed", msg = exc.msg, peerId
+              trace "Dialing failed", msg = exc.msg, peerId, address = $a
               libp2p_failed_dials.inc()
               continue # Try the next address
 
