@@ -66,12 +66,6 @@ proc open*(s: LPChannel) {.async, gcsafe.} =
 method closed*(s: LPChannel): bool =
   s.closedLocal
 
-proc closeUnderlying(s: LPChannel): Future[void] {.async.} =
-  ## Channels may be closed for reading and writing in any order - we'll close
-  ## the underlying bufferstream when both directions are closed
-  if s.closedLocal and s.isEof:
-    await procCall BufferStream(s).close()
-
 proc reset*(s: LPChannel) {.async, gcsafe.} =
   if s.isClosed:
     trace "Already closed", s
@@ -115,30 +109,61 @@ proc reset*(s: LPChannel) {.async, gcsafe.} =
 
   trace "Channel reset", s
 
+proc closeUnderlying*(s: LPChannel): Future[void] {.async.} =
+  ## Channels may be closed for reading and writing in any order - we'll close
+  ## the underlying bufferstream when both directions are closed
+  if s.closedLocal and s.isEof:
+    trace "Closing underlying", s, conn = s.conn
+    await procCall BufferStream(s).close()
+
 method close*(s: LPChannel) {.async, gcsafe.} =
   ## Close channel for writing - a message will be sent to the other peer
   ## informing them that the channel is closed and that we're waiting for
   ## their acknowledgement.
-  if s.closedLocal:
-    trace "Already closed", s
-    return
-  s.closedLocal = true
+  ##
 
-  trace "Closing channel", s, conn = s.conn, len = s.len
+  try:
+    if s.closedLocal:
+      trace "Already closed", s
+      return
+    s.closedLocal = true
 
-  if s.isOpen:
-    try:
-      await s.conn.writeMsg(s.id, s.closeCode) # write close
-    except CancelledError as exc:
-      raise exc
-    except CatchableError as exc:
-      # It's harmless that close message cannot be sent - the connection is
-      # likely down already
-      trace "Cannot send close message", s, id = s.id
+    trace "Closing channel", s, conn = s.conn, len = s.len
 
-  await s.closeUnderlying() # maybe already eofed
+    if s.isOpen:
+      trace "Sending close msg", s, conn = s.conn
+      await s.conn.writeMsg(s.id, s.closeCode).wait(10.seconds) # write close
+      await s.closeUnderlying() # maybe already eofed
+      proc closeMonitor() {.async.} =
+        try:
+          var buf: array[8, byte]
+          let res = await readOnce(s, addr buf[0], buf.len).wait(30.seconds)
+          if res != 0:
+            debug "Unexpected bytes while waiting for EOF", s
+        except LPStreamEOFError:
+          trace "Expected EOF came", s
+          await s.reset()
+        except CancelledError as exc:
+          await s.reset()
+          raise exc
+        except CatchableError as exc:
+          debug "Unexpected error while waiting for EOF", s, msg = exc.msg
+          await s.reset()
 
-  trace "Closed channel", s, len = s.len
+        # asyncSpawn closeMonitor()
+
+      trace "Closed channel", s, len = s.len
+  except CancelledError as exc:
+    trace "Cancelling close", s, conn = s.conn
+    # need to reset here otherwise the close sequence doesn't complete and
+    # the channel leaks since none of it's `onClose` events trigger
+    await s.reset()
+    raise exc
+  except CatchableError as exc:
+    # need to reset here otherwise the close sequence doesn't complete and
+    # the channel leaks since none of it's `onClose` events trigger
+    await s.reset()
+    trace "Cannot send close message", s, conn = s.conn
 
 method initStream*(s: LPChannel) =
   if s.objName.len == 0:

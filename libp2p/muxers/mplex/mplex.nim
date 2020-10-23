@@ -60,7 +60,7 @@ proc cleanupChann(m: Mplex, chann: LPChannel) {.async, inline.} =
   try:
     await chann.join()
     m.channels[chann.initiator].del(chann.id)
-    trace "cleaned up channel", m, chann
+    trace "cleaned up channel", m, s = chann
 
     when defined(libp2p_expensive_metrics):
       libp2p_mplex_channels.set(
@@ -68,7 +68,7 @@ proc cleanupChann(m: Mplex, chann: LPChannel) {.async, inline.} =
         labelValues = [$chann.initiator, $m.connection.peerInfo.peerId])
   except CatchableError as exc:
     # This is top-level procedure which will work as separate task, so it
-    # do not need to propogate CancelledError, and no other exceptions should
+    # do not need to propagate CancelledError, and no other exceptions should
     # happen here
     warn "Error cleaning up mplex channel", m, chann, msg = exc.msg
 
@@ -118,7 +118,7 @@ proc handleStream(m: Mplex, chann: LPChannel) {.async.} =
     doAssert(chann.closed, "connection not closed by handler!")
   except CatchableError as exc:
     # This is top-level procedure which will work as separate task, so it
-    # do not need to propogate CancelledError.
+    # do not need to propagate CancelledError.
     trace "Exception in mplex stream handler", m, chann, msg = exc.msg
     await chann.reset()
 
@@ -184,11 +184,13 @@ method handle*(m: Mplex) {.async, gcsafe.} =
   except CancelledError:
     # This procedure is spawned as task and it is not part of public API, so
     # there no way for this procedure to be cancelled implicitly.
-    debug "Unexpected cancellation in mplex handler", m
+    debug "Cancellation in mplex handler", m
+  except LPStreamClosedError as exc:
+    trace "Stream Closed", m, msg = exc.msg
   except LPStreamEOFError as exc:
     trace "Stream EOF", m, msg = exc.msg
   except CatchableError as exc:
-    warn "Unexpected exception in mplex read loop", m, msg = exc.msg
+    warn "Exception in mplex read loop", m, msg = exc.msg
   finally:
     await m.close()
   trace "Stopped mplex handler", m
