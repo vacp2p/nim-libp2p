@@ -449,7 +449,7 @@ proc rebalanceMesh(g: GossipSub, topic: string) {.async.} =
       grafts.sort(byScore, SortOrder.Descending)
 
       # Graft peers so we reach a count of D
-      grafts.setLen(min(grafts.len, g.parameters.dOut - g.mesh.peers(topic)))
+      grafts.setLen(min(grafts.len, g.parameters.dOut))
 
       trace "grafting outbound peers", topic, peers = grafts.len
 
