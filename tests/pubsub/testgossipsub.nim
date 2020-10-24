@@ -592,13 +592,12 @@ suite "GossipSub":
       var seenFut = newFuture[void]()
       for dialer in nodes:
         var handler: TopicHandler
-        var dialerNode = dialer
         closureScope:
           handler = proc(topic: string, data: seq[byte])
             {.async, gcsafe, closure.} =
-            if dialerNode.peerInfo.peerId notin seen:
-              seen[dialerNode.peerInfo.peerId] = 0
-            seen[dialerNode.peerInfo.peerId].inc
+            if dialer.peerInfo.peerId notin seen:
+              seen[dialer.peerInfo.peerId] = 0
+            seen[dialer.peerInfo.peerId].inc
             check topic == "foobar"
             if not seenFut.finished() and seen.len >= runs:
               seenFut.complete()
