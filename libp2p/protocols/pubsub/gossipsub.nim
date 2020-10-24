@@ -463,6 +463,9 @@ proc rebalanceMesh(g: GossipSub, topic: string) {.async.} =
   if g.mesh.peers(topic) > GossipSubDhi:
     # prune peers if we've gone over Dhi
     prunes = toSeq(g.mesh[topic])
+    # avoid pruning peers we are currently grafting in this heartbeat
+    prunes.keepIf do (x: PubSubPeer) -> bool: x notin grafting
+    let mesh = prunes
 
     # shuffle anyway, score might be not used
     shuffle(prunes)
@@ -473,10 +476,8 @@ proc rebalanceMesh(g: GossipSub, topic: string) {.async.} =
     # keep high score peers
     if prunes.len > g.parameters.dScore:
       prunes.setLen(prunes.len - g.parameters.dScore)
-      # we must try to keep outbound peers
-      # to keep an outbound mesh quota
-      # so we try to first prune inbound peers
-      # if none we add up some outbound
+
+      # collect inbound/outbound info
       var outbound: seq[PubSubPeer]
       var inbound: seq[PubSubPeer]
       for peer in prunes:
@@ -485,20 +486,25 @@ proc rebalanceMesh(g: GossipSub, topic: string) {.async.} =
         else:
           inbound &= peer
 
+      # ensure that there are at least D_out peers first and rebalance to GossipSubD after that
+      let maxOutboundPrunes = 
+        block:
+          var count = 0
+          for peer in mesh:
+            if peer.outbound:
+              inc count
+          count - g.parameters.dOut
+      outbound.setLen(min(outbound.len, maxOutboundPrunes))
+
+      # concat remaining outbound peers
+      inbound &= outbound
+
       let pruneLen = inbound.len - GossipSubD
       if pruneLen > 0:
         # Ok we got some peers to prune,
         # for this heartbeat let's prune those
         shuffle(inbound)
         inbound.setLen(pruneLen)
-      else:
-        # We could not find any inbound to prune
-        # Yet we are on Hi, so we need to cull outbound peers
-        let keepDOutLen = outbound.len - g.parameters.dOut
-        if keepDOutLen > 0:
-          shuffle(outbound)
-          outbound.setLen(keepDOutLen)
-        inbound &= outbound
 
       trace "pruning", prunes = inbound.len
       for peer in inbound:
