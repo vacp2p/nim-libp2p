@@ -494,7 +494,7 @@ proc rebalanceMesh(g: GossipSub, topic: string) {.async.} =
             if peer.outbound:
               inc count
           count - g.parameters.dOut
-      outbound.setLen(min(outbound.len, maxOutboundPrunes))
+      outbound.setLen(min(outbound.len, max(0, maxOutboundPrunes)))
 
       # concat remaining outbound peers
       inbound &= outbound
