@@ -852,11 +852,6 @@ method unsubscribePeer*(g: GossipSub, peer: PeerID) =
       libp2p_gossipsub_peers_per_topic_fanout
         .set(g.fanout.peers(t).int64, labelValues = [t])
 
-    # don't retain bad score peers
-    if pubSubPeer.score < 0.0:
-      g.peerStats.del(pubSubPeer)
-      return
-
     g.peerStats[pubSubPeer].expire = Moment.now() + g.parameters.retainScore
     for topic, info in g.peerStats[pubSubPeer].topicInfos.mpairs:
       info.firstMessageDeliveries = 0
