@@ -898,6 +898,15 @@ method subscribeTopic*(g: GossipSub,
 
   trace "gossip peers", peers = g.gossipsub.peers(topic), topic
 
+proc punishPeer(g: GossipSub, peer: PubSubPeer, topics: seq[string]) =
+  for t in topics:
+    # ensure we init a new topic if unknown
+    let _ = g.topicParams.mgetOrPut(t, TopicParams.init())
+    # update stats
+    var tstats = g.peerStats[peer].topicInfos.getOrDefault(t)
+    tstats.invalidMessageDeliveries += 1
+    g.peerStats[peer].topicInfos[t] = tstats
+
 proc handleGraft(g: GossipSub,
                  peer: PubSubPeer,
                  grafts: seq[ControlGraft]): seq[ControlPrune] =
@@ -911,17 +920,21 @@ proc handleGraft(g: GossipSub,
 
     # It is an error to GRAFT on a explicit peer
     if peer.peerId in g.parameters.directPeers:
-      trace "attempt to graft an explicit peer",  peer=peer.id,
+      # receiving a graft from a direct peer should yield a more prominent warning (protocol violation)
+      warn "attempt to graft an explicit peer",  peer=peer.id,
                                                   topicID=graft.topicID
       # and such an attempt should be logged and rejected with a PRUNE
       result.add(ControlPrune(
         topicID: graft.topicID,
         peers: @[], # omitting heavy computation here as the remote did something illegal
         backoff: g.parameters.pruneBackoff.seconds.uint64))
+
+      g.punishPeer(peer, @[topic])
+      
       continue
 
-    if peer.peerId in g.backingOff:
-      trace "attempt to graft an backingOff peer",  peer=peer.id,
+    if peer.peerId in g.backingOff and g.backingOff[peer.peerId] > Moment.now():
+      trace "attempt to graft a backingOff peer",  peer=peer.id,
                                                     topicID=graft.topicID,
                                                     expire=g.backingOff[peer.peerId]
       # and such an attempt should be logged and rejected with a PRUNE
@@ -929,10 +942,18 @@ proc handleGraft(g: GossipSub,
         topicID: graft.topicID,
         peers: @[], # omitting heavy computation here as the remote did something illegal
         backoff: g.parameters.pruneBackoff.seconds.uint64))
+      
+      g.punishPeer(peer, @[topic])
+      
       continue
 
     if peer notin g.peerStats:
-      g.peerStats[peer] = PeerStats()
+      g.onNewPeer(peer)
+
+    # not in the spec exactly, but let's avoid way too low score peers
+    # other clients do it too also was an audit recommendation
+    if peer.score < g.parameters.publishThreshold:
+      continue
 
     # If they send us a graft before they send us a subscribe, what should
     # we do? For now, we add them to mesh but don't add them to gossipsub.
@@ -1015,15 +1036,6 @@ proc handleIWant(g: GossipSub,
           else:
             return
 
-proc punishPeer(g: GossipSub, peer: PubSubPeer, msg: Message) =
-  for t in msg.topicIDs:
-    # ensure we init a new topic if unknown
-    let _ = g.topicParams.mgetOrPut(t, TopicParams.init())
-    # update stats
-    var tstats = g.peerStats[peer].topicInfos.getOrDefault(t)
-    tstats.invalidMessageDeliveries += 1
-    g.peerStats[peer].topicInfos[t] = tstats
-
 method rpcHandler*(g: GossipSub,
                   peer: PubSubPeer,
                   rpcMsg: RPCMsg) {.async.} =
@@ -1055,13 +1067,13 @@ method rpcHandler*(g: GossipSub,
     if (msg.signature.len > 0 or g.verifySignature) and not msg.verify():
       # always validate if signature is present or required
       debug "Dropping message due to failed signature verification", msgId, peer
-      g.punishPeer(peer, msg)
+      g.punishPeer(peer, msg.topicIDs)
       continue
 
     if msg.seqno.len > 0 and msg.seqno.len != 8:
       # if we have seqno should be 8 bytes long
       debug "Dropping message due to invalid seqno length", msgId, peer
-      g.punishPeer(peer, msg)
+      g.punishPeer(peer, msg.topicIDs)
       continue
 
     # g.anonymize needs no evaluation when receiving messages
@@ -1071,7 +1083,7 @@ method rpcHandler*(g: GossipSub,
     case validation
     of ValidationResult.Reject:
       debug "Dropping message due to failed validation", msgId, peer
-      g.punishPeer(peer, msg)
+      g.punishPeer(peer, msg.topicIDs)
       continue
     of ValidationResult.Ignore:
       debug "Dropping message due to ignored validation", msgId, peer
