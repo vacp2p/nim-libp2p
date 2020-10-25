@@ -1005,26 +1005,36 @@ proc handleIHave(g: GossipSub,
                  ihaves: seq[ControlIHave]): ControlIWant =
   if peer.score < g.parameters.gossipThreshold:
     trace "ihave: ignoring low score peer", peer, score = peer.score
-  elif peer.iHaveBudget == 0:
+  elif peer.iHaveBudget <= 0:
     trace "ihave: ignoring out of budget peer", peer, score = peer.score
   else:
-    dec peer.iHaveBudget
-    for ihave in ihaves:
+    var deIhaves = ihaves.deduplicate()
+    for ihave in deIhaves.mitems:
       trace "peer sent ihave",
         peer, topic = ihave.topicID, msgs = ihave.messageIDs
-
       if ihave.topicID in g.mesh:
         for m in ihave.messageIDs:
           if m notin g.seen:
-            result.messageIDs.add(m)
+            if peer.iHaveBudget > 0:
+              result.messageIDs.add(m)
+              dec peer.iHaveBudget
+            else:
+              return
+    
+    # shuffling result.messageIDs before sending it out to increase the likelihood 
+    # of getting an answer if the peer truncates the list due to internal size restrictions.
+    shuffle(result.messageIDs)
 
 proc handleIWant(g: GossipSub,
                  peer: PubSubPeer,
                  iwants: seq[ControlIWant]): seq[Message] =
   if peer.score < g.parameters.gossipThreshold:
     trace "iwant: ignoring low score peer", peer, score = peer.score
+  elif peer.iWantBudget <= 0:
+    trace "iwant: ignoring out of budget peer", peer, score = peer.score
   else:
-    for iwant in iwants:
+    var deIwants = iwants.deduplicate()
+    for iwant in deIwants:
       for mid in iwant.messageIDs:
         trace "peer sent iwant", peer, messageID = mid
         let msg = g.mcache.get(mid)
