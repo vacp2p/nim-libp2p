@@ -133,24 +133,17 @@ method close*(s: LPChannel) {.async, gcsafe.} =
     if s.isOpen:
       trace "Sending close msg", s, conn = s.conn
       await s.conn.writeMsg(s.id, s.closeCode).wait(10.seconds) # write close
-      await s.closeUnderlying() # maybe already eofed
       proc closeMonitor() {.async.} =
         try:
-          var buf: array[8, byte]
-          let res = await readOnce(s, addr buf[0], buf.len).wait(30.seconds)
-          if res != 0:
-            debug "Unexpected bytes while waiting for EOF", s
-        except LPStreamEOFError:
-          trace "Expected EOF came", s
-          await s.reset()
-        except CancelledError as exc:
-          await s.reset()
-          raise exc
+          await sleepAsync(30.seconds)
         except CatchableError as exc:
-          debug "Unexpected error while waiting for EOF", s, msg = exc.msg
-          await s.reset()
+          debug "Unexpected error in close monitor", s, msg = exc.msg
+        finally:
+          if not(s.closedLocal and s.isEof):
+            trace "resetting channel after timeout", s
+            await s.reset()
 
-        # asyncSpawn closeMonitor()
+        asyncSpawn closeMonitor()
 
       trace "Closed channel", s, len = s.len
   except CancelledError as exc:
@@ -164,6 +157,8 @@ method close*(s: LPChannel) {.async, gcsafe.} =
     # the channel leaks since none of it's `onClose` events trigger
     await s.reset()
     trace "Cannot send close message", s, conn = s.conn
+  finally:
+    await s.closeUnderlying() # maybe already eofed
 
 method initStream*(s: LPChannel) =
   if s.objName.len == 0:
