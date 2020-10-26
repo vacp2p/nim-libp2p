@@ -996,6 +996,10 @@ proc handlePrune(g: GossipSub, peer: PubSubPeer, prunes: seq[ControlPrune]) =
     g.pruned(peer, prune.topicID)
     g.mesh.removePeer(prune.topicID, peer)
 
+    # TODO peer exchange, we miss ambient peer discovery in libp2p, so we are blocked by that
+    # another option could be to implement signed peer records
+    ## if peer.score > g.parameters.gossipThreshold and prunes.peers.len > 0:
+
     when defined(libp2p_expensive_metrics):
       libp2p_gossipsub_peers_per_topic_mesh
         .set(g.mesh.peers(prune.topicID).int64, labelValues = [prune.topicID])
