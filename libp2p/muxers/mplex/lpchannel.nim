@@ -133,18 +133,6 @@ method close*(s: LPChannel) {.async, gcsafe.} =
     if s.isOpen:
       trace "Sending close msg", s, conn = s.conn
       await s.conn.writeMsg(s.id, s.closeCode).wait(10.seconds) # write close
-      proc closeMonitor() {.async.} =
-        try:
-          await sleepAsync(30.seconds)
-        except CatchableError as exc:
-          debug "Unexpected error in close monitor", s, msg = exc.msg
-        finally:
-          if not(s.closedLocal and s.isEof):
-            trace "resetting channel after timeout", s
-            await s.reset()
-
-        asyncSpawn closeMonitor()
-
       trace "Closed channel", s, len = s.len
   except CancelledError as exc:
     trace "Cancelling close", s, conn = s.conn
@@ -155,8 +143,8 @@ method close*(s: LPChannel) {.async, gcsafe.} =
   except CatchableError as exc:
     # need to reset here otherwise the close sequence doesn't complete and
     # the channel leaks since none of it's `onClose` events trigger
+    trace "Cannot send close message", exc = exc.msg, s, conn = s.conn
     await s.reset()
-    trace "Cannot send close message", s, conn = s.conn
   finally:
     await s.closeUnderlying() # maybe already eofed
 
