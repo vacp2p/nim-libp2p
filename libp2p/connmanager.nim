@@ -115,7 +115,7 @@ proc triggerConnEvent*(c: ConnManager,
       checkFutures(await allFinished(connEvents))
   except CancelledError as exc:
     raise exc
-  except CatchableError as exc: # handlers should not raise!
+  except CatchableError as exc:
     warn "Exception in triggerConnEvents",
       msg = exc.msg, peerId, event = $event
 
