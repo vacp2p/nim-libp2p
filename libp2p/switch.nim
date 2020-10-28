@@ -222,10 +222,9 @@ proc dial*(s: Switch,
            addrs: seq[MultiAddress],
            protos: seq[string]):
            Future[Connection] {.async.} =
-  trace "Dialing (new)", peerId, protos
-  let conn = await s.internalConnect(peerId, addrs)
-  trace "Opening stream", conn
-  let stream = await s.connManager.getStream(conn)
+  var
+    conn: Connection
+    stream: Connection
 
   proc cleanup() {.async.} =
     if not(isNil(stream)):
@@ -235,9 +234,15 @@ proc dial*(s: Switch,
       await conn.close()
 
   try:
+    trace "Dialing (new)", peerId, protos
+    conn = await s.internalConnect(peerId, addrs)
+    trace "Opening stream", conn
+    stream = await s.connManager.getStream(conn)
+
     if isNil(stream):
       await conn.close()
-      raise newException(DialFailedError, "Couldn't get muxed stream")
+      raise newException(DialFailedError,
+        "Couldn't get muxed stream")
 
     return await s.negotiateStream(stream, protos)
   except CancelledError as exc:
@@ -374,7 +379,8 @@ proc newSwitch*(peerInfo: PeerInfo,
                 identity: Identify,
                 muxers: Table[string, MuxerProvider],
                 secureManagers: openarray[Secure] = [],
-                maxConns = MaxConnections,
+                maxIn = MaxConnections,
+                maxOut = MaxConnections,
                 maxPeerConns = MaxConnectionsPerPeer): Switch =
   if secureManagers.len == 0:
     raise (ref CatchableError)(msg: "Provide at least one secure manager")
