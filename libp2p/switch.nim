@@ -140,7 +140,8 @@ proc dialAndUpgrade(s: Switch,
 
 proc internalConnect(s: Switch,
                      peerId: PeerID,
-                     addrs: seq[MultiAddress]): Future[Connection] {.async.} =
+                     addrs: seq[MultiAddress]):
+                     Future[Connection] {.async.} =
   if s.peerInfo.peerId == peerId:
     raise newException(CatchableError, "can't dial self!")
 

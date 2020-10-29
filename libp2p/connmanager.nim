@@ -68,8 +68,8 @@ type
   ConnManager* = ref object of RootObj
     maxPeerConns: int
     maxOutgoing: int
-    maxOutgoingCount: int
     inConnSemaphore*: AsyncSemaphore
+    outConnSemaphore*: AsyncSemaphore
     conns: Table[PeerID, HashSet[Connection]]
     muxed: Table[Connection, MuxerHolder]
     connEvents: Table[ConnEventKind, OrderedSet[ConnEventHandler]]
@@ -85,7 +85,7 @@ proc init*(C: type ConnManager,
   C(maxPeerConns: maxConnsPerPeer,
     conns: initTable[PeerID, HashSet[Connection]](),
     muxed: initTable[Connection, MuxerHolder](),
-    maxOutgoing: maxOutgoing,
+    outConnSemaphore: AsyncSemaphore.init(maxOutgoing),
     inConnSemaphore: AsyncSemaphore.init(maxIncoming))
 
 proc connCount*(c: ConnManager, peerId: PeerID): int =
@@ -385,7 +385,7 @@ proc trackConn(c: ConnManager,
         if conn.dir == Direction.In:
           c.inConnSemaphore.release()
         else:
-          c.maxOutgoingCount.dec
+          c.outConnSemaphore.release()
 
     asyncSpawn semaphoreMonitor()
   except CatchableError as exc:
@@ -404,17 +404,14 @@ proc trackIncomingConn*(c: ConnManager,
   ## to call the connection provider
   ##
 
-  var conn: Connection
   try:
     trace "Tracking incoming connection"
     await c.inConnSemaphore.acquire()
-    conn = await c.trackConn(provider, Direction.In)
+    return await c.trackConn(provider, Direction.In)
   except CatchableError as exc:
     trace "Exception tracking connection", exc = exc.msg
     c.inConnSemaphore.release()
     raise exc
-
-  return conn
 
 proc trackOutgoingConn*(c: ConnManager,
                         provider: ConnProvider):
@@ -424,20 +421,20 @@ proc trackOutgoingConn*(c: ConnManager,
   ## exception
   ##
 
-  var conn: Connection
-  try:
-    trace "Tracking outgoing connection"
-    if c.maxOutgoingCount >= c.maxOutgoing:
-      raise newTooManyConnectionsError()
+  trace "Tracking outgoing connection", count = c.outConnSemaphore.count,
+                                        max = c.outConnSemaphore.size
 
-    c.maxOutgoingCount.inc
-    conn = await c.trackConn(provider, Direction.Out)
+  if not c.outConnSemaphore.tryAcquire():
+    trace "Too many outgoing connections!", count = c.outConnSemaphore.count,
+                                            max = c.outConnSemaphore.size
+    raise newTooManyConnectionsError()
+
+  try:
+    return await c.trackConn(provider, Direction.Out)
   except CatchableError as exc:
     trace "Exception tracking connection", exc = exc.msg
-    c.maxOutgoingCount.dec
+    c.outConnSemaphore.release()
     raise exc
-
-  return conn
 
 proc storeOutgoing*(c: ConnManager, conn: Connection) =
   conn.dir = Direction.Out
