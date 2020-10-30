@@ -539,11 +539,11 @@ suite "GossipSub":
       for dialer in nodes:
         var handler: TopicHandler
         closureScope:
-          var dialerNode = dialer
+          var peerName = $dialer.peerInfo.peerId
           handler = proc(topic: string, data: seq[byte]) {.async, gcsafe, closure.} =
-            if $dialerNode.peerInfo.peerId notin seen:
-              seen[$dialerNode.peerInfo.peerId] = 0
-            seen[$dialerNode.peerInfo.peerId].inc
+            if peerName notin seen:
+              seen[peerName] = 0
+            seen[peerName].inc
             check topic == "foobar"
             if not seenFut.finished() and seen.len >= runs:
               seenFut.complete()
@@ -588,17 +588,16 @@ suite "GossipSub":
       await allFuturesThrowing(nodes.mapIt(it.start()))
       await subscribeNodes(nodes)
 
-      var seen: Table[PeerID, int]
+      var seen: Table[string, int]
       var seenFut = newFuture[void]()
       for dialer in nodes:
         var handler: TopicHandler
         closureScope:
-          var dialerNode = dialer
-          handler = proc(topic: string, data: seq[byte])
-            {.async, gcsafe, closure.} =
-            if dialerNode.peerInfo.peerId notin seen:
-              seen[dialerNode.peerInfo.peerId] = 0
-            seen[dialerNode.peerInfo.peerId].inc
+          var peerName = $dialer.peerInfo.peerId
+          handler = proc(topic: string, data: seq[byte]) {.async, gcsafe, closure.} =
+            if peerName notin seen:
+              seen[peerName] = 0
+            seen[peerName].inc
             check topic == "foobar"
             if not seenFut.finished() and seen.len >= runs:
               seenFut.complete()

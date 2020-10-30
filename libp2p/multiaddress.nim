@@ -873,7 +873,9 @@ proc init*(mtype: typedesc[MultiAddress], address: TransportAddress,
   let protoProto = case protocol
                    of IPPROTO_TCP: getProtocol("tcp")
                    of IPPROTO_UDP: getProtocol("udp")
-                   else: return err("multiaddress: protocol should be either TCP or UDP")
+                   else: default(MAProtocol)
+  if protoProto.size == 0:
+    return err("multiaddress: protocol should be either TCP or UDP")
   if address.family == AddressFamily.IPv4:
     res.data.write(getProtocol("ip4").mcodec)
     res.data.writeArray(address.address_v4)

@@ -510,7 +510,7 @@ proc getRawBytes*(pubkey: EcPublicKey): EcResult[seq[byte]] =
     let length = ? pubkey.toRawBytes(res)
     res.setLen(length)
     discard ? pubkey.toRawBytes(res)
-    ok(res)
+    return ok(res)
   else:
     return err(EcKeyIncorrectError)
 
