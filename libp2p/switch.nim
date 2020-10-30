@@ -241,7 +241,6 @@ proc dial*(s: Switch,
     stream = await s.connManager.getStream(conn)
 
     if isNil(stream):
-      await conn.close()
       raise newException(DialFailedError,
         "Couldn't get muxed stream")
 
