@@ -112,6 +112,7 @@ proc triggerConnEvent*(c: ConnManager,
                        event: ConnEvent) {.async, gcsafe.} =
   try:
     if event.kind in c.connEvents:
+      trace "triggering connection events", peer = peerId, event = $event.kind
       var connEvents: seq[Future[void]]
       for h in c.connEvents[event.kind]:
         connEvents.add(h(peerId, event))
@@ -336,10 +337,17 @@ proc storeConn*(c: ConnManager, conn: Connection) =
   ##
 
   if isNil(conn):
-    raise newException(CatchableError, "connection cannot be nil")
+    raise newException(CatchableError, "Connection cannot be nil")
+
+  if conn.closed or conn.atEof:
+    raise newException(CatchableError, "Connection closed or EOF")
 
   if isNil(conn.peerInfo):
-    raise newException(CatchableError, "empty peer info")
+    raise newException(CatchableError, "Empty peer info")
+
+  # Launch on close listener
+  # All the errors are handled inside `onClose()` procedure.
+  asyncSpawn c.onClose(conn)
 
   let peerId = conn.peerInfo.peerId
   if c.conns.getOrDefault(peerId).len > c.maxPeerConns:
@@ -352,10 +360,6 @@ proc storeConn*(c: ConnManager, conn: Connection) =
     c.conns[peerId] = initHashSet[Connection]()
 
   c.conns[peerId].incl(conn)
-
-  # Launch on close listener
-  # All the errors are handled inside `onClose()` procedure.
-  asyncSpawn c.onClose(conn)
   libp2p_peers.set(c.conns.len.int64)
 
   trace "Stored connection",
@@ -469,8 +473,8 @@ proc storeMuxer*(c: ConnManager,
   asyncSpawn c.onConnUpgraded(muxer.connection)
 
 proc getStream*(c: ConnManager,
-                     peerId: PeerID,
-                     dir: Direction): Future[Connection] {.async, gcsafe.} =
+                peerId: PeerID,
+                dir: Direction): Future[Connection] {.async, gcsafe.} =
   ## get a muxed stream for the provided peer
   ## with the given direction
   ##
