@@ -838,33 +838,27 @@ proc init*(mtype: typedesc[MultiAddress]): MultiAddress =
   ## Initialize empty MultiAddress.
   result.data = initVBuffer()
 
-proc init*(mtype: typedesc[MultiAddress],
-           address: ValidIpAddress,
-           protocol: IpTransportProtocol,
-           port: Port): MaResult[MultiAddress] =
+proc init*(mtype: typedesc[MultiAddress], address: ValidIpAddress,
+           protocol: IpTransportProtocol, port: Port): MultiAddress =
+  var res: MultiAddress
+  res.data = initVBuffer()
   let
-    familyProto = case address.family
+    networkProto = case address.family
       of IpAddressFamily.IPv4: getProtocol("ip4")
       of IpAddressFamily.IPv6: getProtocol("ip6")
 
-    protoProto = case protocol
+    transportProto = case protocol
       of tcpProtocol: getProtocol("tcp")
       of udpProtocol: getProtocol("udp")
 
-  var data = initVBuffer()
-  data.write(familyProto.mcodec)
-  var written = familyProto.coder.stringToBuffer($address, data)
-  if not written:
-    return err("multiaddress: Merely writing a string to a buffer should always be possible, address")
-  
-  data.write(protoProto.mcodec)
-  written = protoProto.coder.stringToBuffer($port, data)
-  if not written:
-    return err("multiaddress: Merely writing a string to a buffer should always be possible, port")
-
-  data.finish()
-
-  ok(MultiAddress(data: data))
+  res.data.write(networkProto.mcodec)
+  case address.family
+    of IpAddressFamily.IPv4: res.data.writeArray(address.address_v4)
+    of IpAddressFamily.IPv6: res.data.writeArray(address.address_v6)
+  res.data.write(transportProto.mcodec)
+  res.data.write(toBytesBE(uint16(port)))
+  res.data.finish()
+  ok(res)
 
 proc init*(mtype: typedesc[MultiAddress], address: TransportAddress,
            protocol = IPPROTO_TCP): MaResult[MultiAddress] =
