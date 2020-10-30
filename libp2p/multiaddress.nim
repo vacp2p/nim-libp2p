@@ -841,7 +841,7 @@ proc init*(mtype: typedesc[MultiAddress]): MultiAddress =
 proc init*(mtype: typedesc[MultiAddress],
            address: ValidIpAddress,
            protocol: IpTransportProtocol,
-           port: Port): MultiAddress =
+           port: Port): MaResult[MultiAddress] =
   let
     familyProto = case address.family
       of IpAddressFamily.IPv4: getProtocol("ip4")
@@ -854,15 +854,17 @@ proc init*(mtype: typedesc[MultiAddress],
   var data = initVBuffer()
   data.write(familyProto.mcodec)
   var written = familyProto.coder.stringToBuffer($address, data)
-  doAssert written,
-           "Merely writing a string to a buffer should always be possible, address: " & $address
+  if not written:
+    return err("multiaddress: Merely writing a string to a buffer should always be possible, address")
+  
   data.write(protoProto.mcodec)
   written = protoProto.coder.stringToBuffer($port, data)
-  doAssert written,
-           "Merely writing a string to a buffer should always be possible, port: " & $address
+  if not written:
+    return err("multiaddress: Merely writing a string to a buffer should always be possible, port")
+
   data.finish()
 
-  MultiAddress(data: data)
+  ok(MultiAddress(data: data))
 
 proc init*(mtype: typedesc[MultiAddress], address: TransportAddress,
            protocol = IPPROTO_TCP): MaResult[MultiAddress] =
