@@ -858,7 +858,7 @@ proc init*(mtype: typedesc[MultiAddress], address: ValidIpAddress,
   res.data.write(transportProto.mcodec)
   res.data.writeArray(toBytesBE(uint16(port)))
   res.data.finish()
-  ok(res)
+  res
 
 proc init*(mtype: typedesc[MultiAddress], address: TransportAddress,
            protocol = IPPROTO_TCP): MaResult[MultiAddress] =
