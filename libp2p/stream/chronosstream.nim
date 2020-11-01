@@ -32,23 +32,23 @@ method initStream*(s: ChronosStream) =
     s.objName = "ChronosStream"
 
   s.timeoutHandler = proc() {.async, gcsafe.} =
-    trace "Idle timeout expired, closing ChronosStream", s
+    trace "idle timeout expired, closing ChronosStream"
     await s.close()
 
   procCall Connection(s).initStream()
 
 proc init*(C: type ChronosStream,
            client: StreamTransport,
-           dir: Direction,
            timeout = DefaultChronosStreamTimeout): ChronosStream =
   result = C(client: client,
-             timeout: timeout,
-             dir: dir)
+             timeout: timeout)
   result.initStream()
 
 template withExceptions(body: untyped) =
   try:
     body
+  except CancelledError as exc:
+    raise exc
   except TransportIncompleteError:
     # for all intents and purposes this is an EOF
     raise newLPStreamIncompleteError()

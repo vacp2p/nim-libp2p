@@ -15,8 +15,7 @@ import ../varint,
        ../peerinfo,
        ../multiaddress
 
-declareGauge(libp2p_open_streams,
-  "open stream instances", labels = ["type", "dir"])
+declareGauge(libp2p_open_streams, "open stream instances", labels = ["type"])
 
 export oids
 
@@ -24,16 +23,12 @@ logScope:
   topics = "lpstream"
 
 type
-  Direction* {.pure.} = enum
-    In, Out
-
   LPStream* = ref object of RootObj
     closeEvent*: AsyncEvent
     isClosed*: bool
     isEof*: bool
     objName*: string
     oid*: Oid
-    dir*: Direction
 
   LPStreamError* = object of CatchableError
   LPStreamIncompleteError* = object of LPStreamError
@@ -91,8 +86,8 @@ method initStream*(s: LPStream) {.base.} =
   s.closeEvent = newAsyncEvent()
   s.oid = genOid()
 
-  libp2p_open_streams.inc(labelValues = [s.objName, $s.dir])
-  trace "Stream created", s, objName = s.objName, dir = $s.dir
+  libp2p_open_streams.inc(labelValues = [s.objName])
+  trace "Stream created", s, objName = s.objName
 
 proc join*(s: LPStream): Future[void] =
   s.closeEvent.wait()
@@ -219,8 +214,8 @@ method closeImpl*(s: LPStream): Future[void] {.async, base.} =
   ## Implementation of close - called only once
   trace "Closing stream", s, objName = s.objName
   s.closeEvent.fire()
-  libp2p_open_streams.dec(labelValues = [s.objName, $s.dir])
-  trace "Closed stream", s, objName = s.objName, dir = $s.dir
+  libp2p_open_streams.dec(labelValues = [s.objName])
+  trace "Closed stream", s, objName = s.objName
 
 method close*(s: LPStream): Future[void] {.base, async.} = # {.raises [Defect].}
   ## close the stream - this may block, but will not raise exceptions
@@ -228,7 +223,6 @@ method close*(s: LPStream): Future[void] {.base, async.} = # {.raises [Defect].}
   if s.isClosed:
     trace "Already closed", s
     return
-
   s.isClosed = true # Set flag before performing virtual close
 
   # An separate implementation method is used so that even when derived types

@@ -73,12 +73,12 @@ type
     msgSeqno*: uint64
     anonymize*: bool                   # if we omit fromPeer and seqno from RPC messages we send
 
-method unsubscribePeer*(p: PubSub, peer: PeerID) {.base.} =
+method unsubscribePeer*(p: PubSub, peerId: PeerID) {.base.} =
   ## handle peer disconnects
   ##
 
-  trace "Unsubscribing pubsub peer", peer
-  p.peers.del(peer)
+  trace "unsubscribing pubsub peer", peerId
+  p.peers.del(peerId)
 
   libp2p_pubsub_peers.set(p.peers.len.int64)
 
@@ -217,7 +217,6 @@ method subscribePeer*(p: PubSub, peer: PeerID) {.base.} =
   ## messages
   ##
 
-  trace "Subscribing peer", peer
   let peer = p.getOrCreatePeer(peer, p.codecs)
   peer.outbound = true # flag as outbound
 
@@ -339,9 +338,9 @@ method validate*(p: PubSub, message: Message): Future[ValidationResult] {.async,
     if res != ValidationResult.Accept:
       result = res
       break
-
+  
   case result
-  of ValidationResult.Accept:
+  of ValidationResult.Accept: 
     libp2p_pubsub_validation_success.inc()
   of ValidationResult.Reject:
     libp2p_pubsub_validation_failure.inc()
@@ -390,7 +389,7 @@ proc init*[PubParams: object | bool](
   switch.addPeerEventHandler(peerEventHandler, PeerEvent.Left)
 
   pubsub.initPubSub()
-
+  
   return pubsub
 
 
