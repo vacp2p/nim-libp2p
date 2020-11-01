@@ -32,16 +32,18 @@ method initStream*(s: ChronosStream) =
     s.objName = "ChronosStream"
 
   s.timeoutHandler = proc() {.async, gcsafe.} =
-    trace "idle timeout expired, closing ChronosStream"
+    trace "Idle timeout expired, closing ChronosStream", s
     await s.close()
 
   procCall Connection(s).initStream()
 
 proc init*(C: type ChronosStream,
            client: StreamTransport,
+           dir: Direction,
            timeout = DefaultChronosStreamTimeout): ChronosStream =
   result = C(client: client,
-             timeout: timeout)
+             timeout: timeout,
+             dir: dir)
   result.initStream()
 
 template withExceptions(body: untyped) =
@@ -94,13 +96,17 @@ method atEof*(s: ChronosStream): bool {.inline.} =
 
 method closeImpl*(s: ChronosStream) {.async.} =
   try:
-    trace "shutting down chronos stream", address = $s.client.remoteAddress(),
+    trace "Shutting down chronos stream", address = $s.client.remoteAddress(),
                                           s
     if not s.client.closed():
       await s.client.closeWait()
+
+    trace "Shutdown chronos stream", address = $s.client.remoteAddress(),
+                                     s
+
   except CancelledError as exc:
     raise exc
   except CatchableError as exc:
-    trace "error closing chronosstream", s, msg = exc.msg
+    trace "Error closing chronosstream", s, msg = exc.msg
 
   await procCall Connection(s).closeImpl()
