@@ -111,6 +111,7 @@ proc triggerConnEvent*(c: ConnManager,
                        peerId: PeerID,
                        event: ConnEvent) {.async, gcsafe.} =
   try:
+    trace "About to trigger connection events", peer = peerId
     if event.kind in c.connEvents:
       trace "triggering connection events", peer = peerId, event = $event.kind
       var connEvents: seq[Future[void]]
@@ -207,7 +208,10 @@ proc closeMuxerHolder(muxerHolder: MuxerHolder) {.async.} =
 
   await muxerHolder.muxer.close()
   if not(isNil(muxerHolder.handle)):
-    await muxerHolder.handle # TODO noraises?
+    try:
+      await muxerHolder.handle # TODO noraises?
+    except CatchableError as exc:
+      trace "Exception in close muxer handler", exc = exc.msg
   trace "Cleaned up muxer", m = muxerHolder.muxer
 
 proc delConn(c: ConnManager, conn: Connection) =
@@ -225,9 +229,11 @@ proc cleanupConn(c: ConnManager, conn: Connection) {.async.} =
   ## clean connection's resources such as muxers and streams
 
   if isNil(conn):
+    trace "Wont cleanup a nil connection"
     return
 
   if isNil(conn.peerInfo):
+    trace "No peer info for connection"
     return
 
   # Remove connection from all tables without async breaks
@@ -286,7 +292,7 @@ proc onClose(c: ConnManager, conn: Connection) {.async.} =
     await c.cleanupConn(conn)
   except CancelledError:
     # This is top-level procedure which will work as separate task, so it
-    # do not need to propogate CancelledError.
+    # do not need to propagate CancelledError.
     debug "Unexpected cancellation in connection manager's cleanup", conn
   except CatchableError as exc:
     debug "Unexpected exception in connection manager's cleanup",
