@@ -7,7 +7,7 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import std/[hashes, oids, strformat, sugar]
+import std/[hashes, oids, strformat]
 import chronicles, chronos, metrics
 import lpstream,
        ../multiaddress,
@@ -25,6 +25,9 @@ const
 type
   TimeoutHandler* = proc(): Future[void] {.gcsafe.}
 
+  Direction* {.pure.} = enum
+    None, In, Out
+
   Connection* = ref object of LPStream
     activity*: bool                 # reset every time data is sent or received
     timeout*: Duration              # channel timeout if no activity
@@ -32,6 +35,7 @@ type
     timeoutHandler*: TimeoutHandler # timeout handler
     peerInfo*: PeerInfo
     observedAddr*: Multiaddress
+    dir*: Direction
 
   ConnectionTracker* = ref object of TrackerBase
     opened*: uint64
@@ -81,9 +85,7 @@ method initStream*(s: Connection) =
 
     s.timerTaskFut = s.timeoutMonitor()
     if isNil(s.timeoutHandler):
-      s.timeoutHandler = proc(): Future[void] =
-        trace "Idle timeout expired, closing connection", s
-        s.close()
+      s.timeoutHandler = proc(): Future[void] = s.close()
 
   inc getConnectionTracker().opened
 
@@ -102,7 +104,7 @@ func hash*(p: Connection): Hash =
   cast[pointer](p).hash
 
 proc timeoutMonitor(s: Connection) {.async, gcsafe.} =
-  ## monitor the channel for inactivity
+  ## monitor the channel for innactivity
   ##
   ## if the timeout was hit, it means that
   ## neither incoming nor outgoing activity
@@ -123,10 +125,9 @@ proc timeoutMonitor(s: Connection) {.async, gcsafe.} =
 
       break
 
-    # reset channel on inactivity timeout
+    # reset channel on innactivity timeout
     trace "Connection timed out", s
     if not(isNil(s.timeoutHandler)):
-      trace "Calling timeout handler", s
       await s.timeoutHandler()
 
   except CancelledError as exc:
