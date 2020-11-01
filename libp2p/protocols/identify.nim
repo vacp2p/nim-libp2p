@@ -30,8 +30,9 @@ const
 #TODO: implement push identify, leaving out for now as it is not essential
 
 type
-  IdentityNoMatchError* = object of CatchableError
-  IdentityInvalidMsgError* = object of CatchableError
+  IdentifyError* = object of CatchableError
+  IdentityNoMatchError* = object of IdentifyError
+  IdentityInvalidMsgError* = object of IdentifyError
 
   IdentifyInfo* = object
     pubKey*: Option[PublicKey]
@@ -138,9 +139,6 @@ proc identify*(p: Identify,
     if peer.isErr:
       raise newException(IdentityInvalidMsgError, $peer.error)
     else:
-      # do a string comaprison of the ids,
-      # because that is the only thing we
-      # have in most cases
       if peer.get() != remotePeerInfo.peerId:
         trace "Peer ids don't match",
               remote = peer,
