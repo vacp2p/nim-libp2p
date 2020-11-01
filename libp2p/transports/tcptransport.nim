@@ -63,7 +63,15 @@ proc connHandler*(t: TcpTransport,
                   client: StreamTransport,
                   initiator: bool): Connection =
   trace "handling connection", address = $client.remoteAddress
-  let conn: Connection = Connection(ChronosStream.init(client))
+
+  let conn = Connection(
+    ChronosStream.init(
+      client,
+      dir = if initiator:
+        Direction.Out
+      else:
+        Direction.In))
+
   conn.observedAddr = MultiAddress.init(client.remoteAddress).tryGet()
   if not initiator:
     if not isNil(t.handler):

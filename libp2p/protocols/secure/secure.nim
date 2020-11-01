@@ -42,7 +42,8 @@ proc init*(T: type SecureConn,
              peerInfo: peerInfo,
              observedAddr: observedAddr,
              closeEvent: conn.closeEvent,
-             timeout: timeout)
+             timeout: timeout,
+             dir: conn.dir)
   result.initStream()
 
 method initStream*(s: SecureConn) =
@@ -52,6 +53,7 @@ method initStream*(s: SecureConn) =
   procCall Connection(s).initStream()
 
 method close*(s: SecureConn) {.async.} =
+  trace "Closing secure conn", s, dir = s.dir
   if not(isNil(s.stream)):
     await s.stream.close()
 
@@ -76,7 +78,7 @@ proc handleConn*(s: Secure,
       await sconn.close()
     except CancelledError:
       # This is top-level procedure which will work as separate task, so it
-      # do not need to propogate CancelledError.
+      # do not need to propagate CancelledError.
       discard
     except CatchableError as exc:
       trace "error cleaning up secure connection", err = exc.msg, sconn
@@ -127,18 +129,18 @@ method readOnce*(s: SecureConn,
 
     if not isNil(err):
       if not (err of LPStreamEOFError):
-        warn "error while reading message from secure connection, closing.",  
-          error=err.name, 
-          message=err.msg, 
+        warn "Error while reading message from secure connection, closing.",
+          error=err.name,
+          message=err.msg,
           connection=s
       await s.close()
       raise err
-      
+
     s.activity = true
 
     if buf.len == 0:
       raise newLPStreamIncompleteError()
-  
+
     s.buf.add(buf)
 
   var p = cast[ptr UncheckedArray[byte]](pbytes)
