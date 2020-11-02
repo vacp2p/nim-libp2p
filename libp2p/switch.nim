@@ -212,14 +212,14 @@ proc upgradeOutgoing(s: Switch, conn: Connection): Future[Connection] {.async, g
 
   return sconn
 
-proc upgradeIncoming(s: Switch, conn: Connection) {.async, gcsafe.} =
-  trace "Upgrading incoming connection", conn
+proc upgradeIncoming(s: Switch, incomingConn: Connection) {.async, gcsafe.} = # noraises
+  trace "Upgrading incoming connection", incomingConn
   let ms = newMultistream()
 
   # secure incoming connections
-  proc securedHandler (conn: Connection,
-                       proto: string)
-                       {.async, gcsafe, closure.} =
+  proc securedHandler(conn: Connection,
+                      proto: string)
+                      {.async, gcsafe, closure.} =
     trace "Starting secure handler", conn
     let secure = s.secureManagers.filterIt(it.codec == proto)[0]
 
@@ -239,20 +239,26 @@ proc upgradeIncoming(s: Switch, conn: Connection) {.async, gcsafe.} =
       await ms.handle(sconn)
 
     except CancelledError as exc:
+      trace "Canceling secure handler for incoming connection", conn
       raise exc
     except CatchableError as exc:
-      debug "Exception in secure handler", msg = exc.msg, conn
+      debug "Exception in secure handler during incoming upgrade", msg = exc.msg, conn
 
     trace "Stopped secure handler", conn
 
-  if (await ms.select(conn)): # just handshake
-    # add the secure handlers
-    for k in s.secureManagers:
-      ms.addHandler(k.codec, securedHandler)
+  try:
+    if (await ms.select(incomingConn)): # just handshake
+      # add the secure handlers
+      for k in s.secureManagers:
+        ms.addHandler(k.codec, securedHandler)
 
-  # handle un-secured connections
-  # we handshaked above, set this ms handler as active
-  await ms.handle(conn, active = true)
+    # handle un-secured connections
+    # we handshaked above, set this ms handler as active
+    await ms.handle(incomingConn, active = true)
+  except CatchableError as exc:
+    debug "Exception upgrading incoming", exc = exc.msg
+  finally:
+    await incomingConn.close()
 
 proc internalConnect(s: Switch,
                      peerId: PeerID,
