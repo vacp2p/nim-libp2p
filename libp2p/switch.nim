@@ -60,6 +60,7 @@ type
       streamHandler*: StreamHandler
       secureManagers*: seq[Secure]
       dialLock: Table[PeerID, AsyncLock]
+      acceptFuts: seq[Future[void]]
 
 proc addConnEventHandler*(s: Switch,
                           handler: ConnEventHandler,
@@ -407,41 +408,55 @@ proc mount*[T: LPProtocol](s: Switch, proto: T, matcher: Matcher = nil) {.gcsafe
 
   s.ms.addHandler(proto.codecs, proto, matcher)
 
+proc accept(s: Switch, transport: Transport) {.async.} = # noraises
+  ## transport's accept loop
+  ##
+
+  while transport.running:
+    try:
+      trace "About to accept incoming connection"
+      let conn = await transport.accept()
+      trace "Accepted an incoming connection", conn
+      asyncSpawn s.upgradeIncoming(conn) # perform upgrade on incoming connection
+    except TransportClosedError as exc:
+      debug "Transport closed", exc = exc.msg
+      return
+    except CancelledError as exc:
+      trace "Canceling accept loop"
+      return
+    except CatchableError as exc:
+      trace "Exception in accept loop", exc = exc.msg
+
 proc start*(s: Switch): Future[seq[Future[void]]] {.async, gcsafe.} =
   trace "starting switch for peer", peerInfo = s.peerInfo
-
-  proc handle(conn: Connection): Future[void] {.async, closure, gcsafe.} =
-    trace "Incoming connection", conn
-    try:
-      await s.upgradeIncoming(conn) # perform upgrade on incoming connection
-    except CancelledError as exc:
-      raise exc
-    except CatchableError as exc:
-      trace "Exception occurred in incoming handler", conn, msg = exc.msg
-    finally:
-      await conn.close()
-    trace "Connection handler done", conn
-
   var startFuts: seq[Future[void]]
   for t in s.transports: # for each transport
     for i, a in s.peerInfo.addrs:
       if t.handles(a): # check if it handles the multiaddr
-        var server = await t.listen(a, handle)
+        var server = t.start(a)
         s.peerInfo.addrs[i] = t.ma # update peer's address
+        s.acceptFuts.add(s.accept(t))
         startFuts.add(server)
 
   debug "Started libp2p node", peer = s.peerInfo
-  result = startFuts # listen for incoming connections
+  return startFuts # listen for incoming connections
 
 proc stop*(s: Switch) {.async.} =
   trace "Stopping switch"
+
+  for a in s.acceptFuts:
+    if not a.finished:
+      a.cancel()
+
+  checkFutures(
+    await allFinished(s.acceptFuts))
 
   # close and cleanup all connections
   await s.connManager.close()
 
   for t in s.transports:
     try:
-        await t.close()
+      await t.stop()
     except CancelledError as exc:
       raise exc
     except CatchableError as exc:
