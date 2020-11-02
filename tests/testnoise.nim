@@ -28,6 +28,7 @@ import ../libp2p/[switch,
                   muxers/muxer,
                   muxers/mplex/mplex,
                   protocols/secure/noise,
+                  protocols/secure/secio,
                   protocols/secure/secure]
 import ./helpers
 
@@ -47,7 +48,7 @@ method init(p: TestProto) {.gcsafe.} =
   p.codec = TestCodec
   p.handler = handle
 
-proc createSwitch(ma: MultiAddress; outgoing: bool): (Switch, PeerInfo) =
+proc createSwitch(ma: MultiAddress; outgoing: bool, secio: bool = false): (Switch, PeerInfo) =
   var peerInfo: PeerInfo = PeerInfo.init(PrivateKey.random(ECDSA, rng[]).get())
   peerInfo.addrs.add(ma)
   let identify = newIdentify(peerInfo)
@@ -58,7 +59,10 @@ proc createSwitch(ma: MultiAddress; outgoing: bool): (Switch, PeerInfo) =
   let mplexProvider = newMuxerProvider(createMplex, MplexCodec)
   let transports = @[Transport(TcpTransport.init())]
   let muxers = [(MplexCodec, mplexProvider)].toTable()
-  let secureManagers = [Secure(newNoise(rng, peerInfo.privateKey, outgoing = outgoing))]
+  let secureManagers = if secio:
+      [Secure(newSecio(rng, peerInfo.privateKey))]
+    else:
+      [Secure(newNoise(rng, peerInfo.privateKey, outgoing = outgoing))]
   let switch = newSwitch(peerInfo,
                          transports,
                          identify,
@@ -223,6 +227,38 @@ suite "Noise":
         switch1.stop(),
         switch2.stop())
       await allFuturesThrowing(awaiters)
+      result = true
+
+    check:
+      waitFor(testSwitch()) == true
+
+  test "e2e test wrong secure negotiation":
+    proc testSwitch(): Future[bool] {.async, gcsafe.} =
+      let ma1: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
+      let ma2: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
+
+      var peerInfo1, peerInfo2: PeerInfo
+      var switch1, switch2: Switch
+      var awaiters: seq[Future[void]]
+
+      (switch1, peerInfo1) = createSwitch(ma1, false)
+
+      let testProto = new TestProto
+      testProto.init()
+      testProto.codec = TestCodec
+      switch1.mount(testProto)
+      (switch2, peerInfo2) = createSwitch(ma2, true, true) # secio, we want to fail
+      awaiters.add(await switch1.start())
+      awaiters.add(await switch2.start())
+      expect(UpgradeFailedError):
+        let conn = await switch2.dial(switch1.peerInfo, TestCodec)
+      
+      await allFuturesThrowing(
+        switch1.stop(),
+        switch2.stop())
+      
+      await allFuturesThrowing(awaiters)
+      
       result = true
 
     check:
