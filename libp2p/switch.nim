@@ -465,12 +465,17 @@ proc muxerHandler(s: Switch, muxer: Muxer) {.async, gcsafe.} =
   s.connManager.storeMuxer(muxer)
 
   try:
-    await s.identify(muxer)
-  except IdentifyError as exc:
-    # Identify is non-essential, though if it fails, it might indicate that
-    # the connection was closed already - this will be picked up by the read
-    # loop
-    debug "Could not identify connection", conn, msg = exc.msg
+    try:
+      await s.identify(muxer)
+    except IdentifyError as exc:
+      # Identify is non-essential, though if it fails, it might indicate that
+      # the connection was closed already - this will be picked up by the read
+      # loop
+      debug "Could not identify connection", conn, msg = exc.msg
+    except LPStreamClosedError as exc:
+      debug "Identify stream closed", conn, msg = exc.msg
+    except LPStreamEOFError as exc:
+      debug "Identify stream EOF", conn, msg = exc.msg
   except CancelledError as exc:
     await muxer.close()
     raise exc
