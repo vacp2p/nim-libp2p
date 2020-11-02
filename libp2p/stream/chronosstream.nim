@@ -99,7 +99,7 @@ method closeImpl*(s: ChronosStream) {.async.} =
     trace "Shutting down chronos stream", address = $s.client.remoteAddress(),
                                           s
     if not s.client.closed():
-      s.client.close()
+      await s.client.closeWait()
 
     trace "Shutdown chronos stream", address = $s.client.remoteAddress(),
                                      s
