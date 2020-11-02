@@ -269,7 +269,7 @@ proc onClose(c: ConnManager, conn: Connection) {.async.} =
           errMsg = exc.msg, conn
   finally:
     trace "Triggering peerCleanup", conn
-    await c.peerCleanup(conn)
+    asyncSpawn c.peerCleanup(conn)
 
 proc selectConn*(c: ConnManager,
                 peerId: PeerID,
