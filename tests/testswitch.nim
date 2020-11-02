@@ -598,3 +598,16 @@ suite "Switch":
       await allFuturesThrowing(awaiters)
 
     waitFor(testSwitch())
+
+  test "connect to inexistent peer":
+    proc testSwitch() {.async, gcsafe.} =
+      let switch2 = newStandardSwitch(secureManagers = [SecureProtocol.Noise])
+      let sfut = await switch2.start()
+      let someAddr = MultiAddress.init("/ip4/127.128.0.99").get()
+      let seckey = PrivateKey.random(ECDSA, rng[]).get()
+      let somePeer = PeerInfo.init(secKey, [someAddr])
+      expect(DialFailedError):
+        let conn = await switch2.dial(somePeer, TestCodec)
+      await switch2.stop()
+
+    waitFor(testSwitch())

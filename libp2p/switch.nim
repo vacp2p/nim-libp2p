@@ -325,7 +325,7 @@ proc internalConnect(s: Switch,
       lock.release()
 
   if isNil(conn): # None of the addresses connected
-    raise newException(CatchableError, "Unable to establish outgoing link")
+    raise newException(DialFailedError, "Unable to establish outgoing link")
 
   if conn.closed():
     # This can happen if one of the peer event handlers deems the peer
