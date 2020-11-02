@@ -167,13 +167,9 @@ proc mux(s: Switch, conn: Connection): Future[Muxer] {.async, gcsafe.} =
   muxer.streamHandler = s.streamHandler
 
   s.connManager.storeOutgoing(conn)
-  s.connManager.storeMuxer(muxer)
-
-  # start muxer read loop - the future will complete when loop ends
-  let handlerFut = muxer.handle()
 
   # store it in muxed connections if we have a peer for it
-  s.connManager.storeMuxer(muxer, handlerFut) # update muxer with handler
+  s.connManager.storeMuxer(muxer, muxer.handle()) # store muxer and start read loop
 
   return muxer
 
@@ -308,7 +304,7 @@ proc internalConnect(s: Switch,
               await s.upgradeOutgoing(dialed)
             except CatchableError as exc:
               # If we failed to establish the connection through one transport,
-              # we won't succeeed through another - no use in trying again
+              # we won't succeeded through another - no use in trying again
               await dialed.close()
               debug "Upgrade failed", msg = exc.msg, peerId
               if exc isnot CancelledError:
@@ -327,29 +323,12 @@ proc internalConnect(s: Switch,
   if isNil(conn): # None of the addresses connected
     raise newException(CatchableError, "Unable to establish outgoing link")
 
-  if conn.closed():
-    # This can happen if one of the peer event handlers deems the peer
-    # unworthy and disconnects it
+  if conn.closed() or conn.atEof():
+    # This can happen when the other ends drops us
+    # before we get a chance to return the connection
+    # back to the dialer.
+    trace "Connection dead on arrival", conn
     raise newLPStreamClosedError()
-
-  await s.connManager.triggerPeerEvents(peerId, PeerEvent.Joined)
-  await s.connManager.triggerConnEvent(
-    peerId, ConnEvent(kind: ConnEventKind.Connected, incoming: false))
-
-  proc peerCleanup() {.async.} =
-    try:
-      await conn.closeEvent.wait()
-      await s.connManager.triggerConnEvent(
-        peerId, ConnEvent(kind: ConnEventKind.Disconnected))
-      await s.connManager.triggerPeerEvents(peerId, PeerEvent.Left)
-    except CatchableError as exc:
-      # This is top-level procedure which will work as separate task, so it
-      # do not need to propogate CancelledError and should handle other errors
-      warn "Unexpected exception in switch peer connect cleanup",
-        conn, msg = exc.msg
-
-  # All the errors are handled inside `cleanup()` procedure.
-  asyncSpawn peerCleanup()
 
   return conn
 
@@ -486,45 +465,17 @@ proc muxerHandler(s: Switch, muxer: Muxer) {.async, gcsafe.} =
   s.connManager.storeMuxer(muxer)
 
   try:
-    await s.identify(muxer)
-  except CatchableError as exc:
-    # Identify is non-essential, though if it fails, it might indicate that
-    # the connection was closed already - this will be picked up by the read
-    # loop
-    debug "Could not identify connection", conn, msg = exc.msg
-
-  try:
-    let peerId = conn.peerInfo.peerId
-
-    proc peerCleanup() {.async.} =
-      try:
-        await muxer.connection.join()
-        await s.connManager.triggerConnEvent(
-          peerId, ConnEvent(kind: ConnEventKind.Disconnected))
-        await s.connManager.triggerPeerEvents(peerId, PeerEvent.Left)
-      except CatchableError as exc:
-        # This is top-level procedure which will work as separate task, so it
-        # do not need to propogate CancelledError and shouldn't leak others
-        debug "Unexpected exception in switch muxer cleanup",
-          conn, msg = exc.msg
-
-    proc peerStartup() {.async.} =
-      try:
-        await s.connManager.triggerPeerEvents(peerId, PeerEvent.Joined)
-        await s.connManager.triggerConnEvent(peerId,
-          ConnEvent(kind: ConnEventKind.Connected, incoming: true))
-      except CatchableError as exc:
-        # This is top-level procedure which will work as separate task, so it
-        # do not need to propogate CancelledError and shouldn't leak others
-        debug "Unexpected exception in switch muxer startup",
-          conn, msg = exc.msg
-
-    # All the errors are handled inside `peerStartup()` procedure.
-    asyncSpawn peerStartup()
-
-    # All the errors are handled inside `peerCleanup()` procedure.
-    asyncSpawn peerCleanup()
-
+    try:
+      await s.identify(muxer)
+    except IdentifyError as exc:
+      # Identify is non-essential, though if it fails, it might indicate that
+      # the connection was closed already - this will be picked up by the read
+      # loop
+      debug "Could not identify connection", conn, msg = exc.msg
+    except LPStreamClosedError as exc:
+      debug "Identify stream closed", conn, msg = exc.msg
+    except LPStreamEOFError as exc:
+      debug "Identify stream EOF", conn, msg = exc.msg
   except CancelledError as exc:
     await muxer.close()
     raise exc

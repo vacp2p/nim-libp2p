@@ -72,7 +72,6 @@ proc connHandler*(t: TcpTransport,
       else:
         Direction.In))
 
-  conn.observedAddr = MultiAddress.init(client.remoteAddress).tryGet()
   if not initiator:
     if not isNil(t.handler):
       t.handlers &= t.handler(conn)
@@ -94,7 +93,15 @@ proc connHandler*(t: TcpTransport,
   t.clients.add(client)
   # All the errors are handled inside `cleanup()` procedure.
   asyncSpawn cleanup()
-  result = conn
+
+  try:
+    conn.observedAddr = MultiAddress.init(client.remoteAddress).tryGet()
+  except CatchableError as exc:
+    trace "Connection setup failed", exc = exc.msg
+    if not(isNil(client)):
+      client.close()
+
+  return conn
 
 proc connCb(server: StreamServer,
             client: StreamTransport) {.async, gcsafe.} =

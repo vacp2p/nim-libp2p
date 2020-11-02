@@ -124,19 +124,20 @@ proc triggerPeerEvents*(c: ConnManager,
                         peerId: PeerID,
                         event: PeerEvent) {.async, gcsafe.} =
 
+  trace "About to trigger peer events", peer = peerId
   if event notin c.peerEvents:
     return
 
   try:
     let count = c.connCount(peerId)
     if event == PeerEvent.Joined and count != 1:
-      trace "peer already joined", peerId, event
+      trace "peer already joined", peerId, event = $event
       return
     elif event == PeerEvent.Left and count != 0:
-      trace "peer still connected or already left", peerId, event
+      trace "peer still connected or already left", peerId, event = $event
       return
 
-    trace "triggering peer events", peerId, event
+    trace "triggering peer events", peerId, event = $event
 
     var peerEvents: seq[Future[void]]
     for h in c.peerEvents[event]:
@@ -146,7 +147,7 @@ proc triggerPeerEvents*(c: ConnManager,
   except CancelledError as exc:
     raise exc
   except CatchableError as exc: # handlers should not raise!
-    warn "exception in triggerPeerEvents", exc = exc.msg, peerId
+    warn "Exception in triggerPeerEvents", exc = exc.msg, peerId
 
 proc contains*(c: ConnManager, conn: Connection): bool =
   ## checks if a connection is being tracked by the
@@ -224,6 +225,32 @@ proc cleanupConn(c: ConnManager, conn: Connection) {.async.} =
 
   trace "Connection cleaned up", conn
 
+proc peerStartup(c: ConnManager, conn: Connection) {.async.} =
+  try:
+    trace "Triggering peer and connection events on connect", conn
+    let peerId = conn.peerInfo.peerId
+    await c.triggerPeerEvents(peerId, PeerEvent.Joined)
+    await c.triggerConnEvent(
+      peerId, ConnEvent(kind: ConnEventKind.Connected, incoming: conn.dir == Direction.In))
+  except CatchableError as exc:
+    # This is top-level procedure which will work as separate task, so it
+    # do not need to propagate CancelledError and should handle other errors
+    warn "Unexpected exception in switch peer connection cleanup",
+      conn, msg = exc.msg
+
+proc peerCleanup(c: ConnManager, conn: Connection) {.async.} =
+  try:
+    trace "Triggering peer and connection events on disconnect", conn
+    let peerId = conn.peerInfo.peerId
+    await c.triggerConnEvent(
+      peerId, ConnEvent(kind: ConnEventKind.Disconnected))
+    await c.triggerPeerEvents(peerId, PeerEvent.Left)
+  except CatchableError as exc:
+    # This is top-level procedure which will work as separate task, so it
+    # do not need to propagate CancelledError and should handle other errors
+    warn "Unexpected exception peer cleanup handler",
+      conn, msg = exc.msg
+
 proc onClose(c: ConnManager, conn: Connection) {.async.} =
   ## connection close even handler
   ##
@@ -235,11 +262,14 @@ proc onClose(c: ConnManager, conn: Connection) {.async.} =
     await c.cleanupConn(conn)
   except CancelledError:
     # This is top-level procedure which will work as separate task, so it
-    # do not need to propogate CancelledError.
+    # do not need to propagate CancelledError.
     debug "Unexpected cancellation in connection manager's cleanup", conn
   except CatchableError as exc:
     debug "Unexpected exception in connection manager's cleanup",
           errMsg = exc.msg, conn
+  finally:
+    trace "Triggering peerCleanup", conn
+    asyncSpawn c.peerCleanup(conn)
 
 proc selectConn*(c: ConnManager,
                 peerId: PeerID,
@@ -334,6 +364,8 @@ proc storeMuxer*(c: ConnManager,
 
   trace "Stored muxer",
     muxer, handle = not handle.isNil, connections = c.conns.len
+
+  asyncSpawn c.peerStartup(muxer.connection)
 
 proc getMuxedStream*(c: ConnManager,
                      peerId: PeerID,
