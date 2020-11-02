@@ -1,12 +1,14 @@
 {.used.}
 
-import unittest
+import unittest, sequtils
 import chronos, stew/byteutils
 import ../libp2p/[stream/connection,
                   transports/transport,
                   transports/tcptransport,
                   multiaddress,
+                  errors,
                   wire]
+
 import ./helpers
 
 suite "TCP transport":
