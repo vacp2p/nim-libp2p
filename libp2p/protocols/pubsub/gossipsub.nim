@@ -779,7 +779,7 @@ proc heartbeat(g: GossipSub) {.async.} =
         # do this before relance
         # in order to avoid grafted -> pruned in the same cycle
         let meshPeers = g.mesh.getOrDefault(t)
-        let gossipPeers = g.gossip.getOrDefault(t)
+        let gossipPeers = g.gossipsub.getOrDefault(t)
         # this will be changed by rebalance but does not matter
         totalMeshPeers += meshPeers.len
         totalGossipPeers += gossipPeers.len
