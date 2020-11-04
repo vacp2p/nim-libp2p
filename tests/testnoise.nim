@@ -113,6 +113,43 @@ suite "Noise":
     check:
       waitFor(testListenerDialer()) == true
 
+  test "e2e: handle write + noise (wrong prologue)":
+    proc testListenerDialer(): Future[bool] {.async.} =
+      let
+        server = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
+        serverInfo = PeerInfo.init(PrivateKey.random(ECDSA, rng[]).get(), [server])
+        serverNoise = newNoise(rng, serverInfo.privateKey, outgoing = false)
+
+      proc connHandler(conn: Connection) {.async, gcsafe.} =
+        let sconn = await serverNoise.secure(conn, false)
+        try:
+          await sconn.write("Hello!")
+        finally:
+          await sconn.close()
+          await conn.close()
+
+      let
+        transport1: TcpTransport = TcpTransport.init()
+      asyncCheck await transport1.listen(server, connHandler)
+
+      let
+        transport2: TcpTransport = TcpTransport.init()
+        clientInfo = PeerInfo.init(PrivateKey.random(ECDSA, rng[]).get(), [transport1.ma])
+        clientNoise = newNoise(rng, clientInfo.privateKey, outgoing = true, commonPrologue = @[1'u8, 2'u8, 3'u8])
+        conn = await transport2.dial(transport1.ma)
+      var sconn: Connection = nil
+      expect(NoiseDecryptTagError):
+        sconn = await clientNoise.secure(conn, true)
+
+      await conn.close()
+      await transport1.close()
+      await transport2.close()
+
+      result = true
+
+    check:
+      waitFor(testListenerDialer()) == true
+
   test "e2e: handle read + noise":
     proc testListenerDialer(): Future[bool] {.async.} =
       let
