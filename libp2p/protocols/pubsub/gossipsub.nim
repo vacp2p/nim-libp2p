@@ -165,6 +165,9 @@ when defined(libp2p_expensive_metrics):
     "gossipsub peers per topic in gossipsub",
     labels = ["topic"])
 
+declareGauge(libp2p_gossipsub_peers_mesh_sum, "pubsub peers in mesh table summed")
+declareGauge(libp2p_gossipsub_peers_gossipsub_sum, "pubsub peers in gossipsub table summed")
+
 proc init*(_: type[GossipSubParams]): GossipSubParams =
   GossipSubParams(
       explicit: true,
@@ -768,11 +771,18 @@ proc heartbeat(g: GossipSub) {.async.} =
 
       g.updateScores()
 
+      var
+        totalMeshPeers = 0
+        totalGossipPeers = 0
       for t in toSeq(g.topics.keys):
         # prune every negative score peer
         # do this before relance
         # in order to avoid grafted -> pruned in the same cycle
         let meshPeers = g.mesh.getOrDefault(t)
+        let gossipPeers = g.gossipsub.getOrDefault(t)
+        # this will be changed by rebalance but does not matter
+        totalMeshPeers += meshPeers.len
+        totalGossipPeers += gossipPeers.len
         var prunes: seq[PubSubPeer]
         for peer in meshPeers:
           if peer.score < 0.0:
@@ -787,6 +797,9 @@ proc heartbeat(g: GossipSub) {.async.} =
         g.broadcast(prunes, prune)
 
         await g.rebalanceMesh(t)
+      
+      libp2p_gossipsub_peers_mesh_sum.set(totalMeshPeers.int64)
+      libp2p_gossipsub_peers_gossipsub_sum.set(totalGossipPeers.int64)
 
       g.dropFanoutPeers()
 
