@@ -36,7 +36,7 @@ proc runTest(filename: string, verify: bool = true, sign: bool = true,
   rmFile "tests/" & filename.toExe
   
   if getenv("CODE_COVERAGE") == "1":
-    if exists("coverage/coverage.info"):
+    if fileExists("coverage/coverage.info"):
       exec "lcov --capture --directory nimcache --output-file coverage/coverage-tmp.info"
       exec "lcov --add-tracefile coverage/coverage.info -a coverage/coverage-tmp.info -o coverage/coverage.info"
     else:
