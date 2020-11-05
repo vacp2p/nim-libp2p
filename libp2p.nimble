@@ -16,14 +16,14 @@ requires "nim >= 1.2.0",
          "secp256k1",
          "stew >= 0.1.0"
 
-var codeCovIdx = 0
-
 proc runTest(filename: string, verify: bool = true, sign: bool = true,
              moreoptions: string = "") =
   var excstr = "nim c --opt:speed -d:debug --verbosity:0 --hints:off"
+
   if getenv("CODE_COVERAGE") == "1":
     rmDir "nimcache" # sadly we have to do this
     excstr &= " --nimcache:nimcache --passC:-fprofile-arcs --passC:-ftest-coverage --passL:-fprofile-arcs --passL:-ftest-coverage"
+  
   excstr.add(" --warning[CaseTransition]:off --warning[ObservableStores]:off --warning[LockLevel]:off")
   excstr.add(" -d:libp2p_pubsub_sign=" & $sign)
   excstr.add(" -d:libp2p_pubsub_verify=" & $verify)
@@ -34,9 +34,13 @@ proc runTest(filename: string, verify: bool = true, sign: bool = true,
   # build it again, to run it with less verbose logs
   exec excstr & " -d:chronicles_log_level=INFO -r" & " tests/" & filename
   rmFile "tests/" & filename.toExe
+  
   if getenv("CODE_COVERAGE") == "1":
-    exec "lcov --capture --directory nimcache --output-file coverage/coverage-" & $codeCovIdx & ".info"
-    inc codeCovIdx
+    if exists("coverage/coverage.info"):
+      exec "lcov --capture --directory nimcache --output-file coverage/coverage-tmp.info"
+      exec "lcov --add-tracefile coverage/coverage.info -a coverage/coverage-tmp.info -o coverage/coverage.info"
+    else:
+      exec "lcov --capture --directory nimcache --output-file coverage/coverage.info"
 
 proc buildSample(filename: string) =
   var excstr = "nim c --opt:speed --threads:on -d:debug --verbosity:0 --hints:off"
@@ -83,15 +87,6 @@ task test, "Runs the test suite":
   exec "nimble testdaemon"
   exec "nimble testinterop"
   exec "nimble testfilter"
-  if getenv("CODE_COVERAGE") == "1":
-    var cmd = "lcov --add-tracefile"
-    for i in 0..codeCovIdx:
-      if i == 0:
-        cmd &= " coverage/coverage-" & $i
-      else:
-        cmd &= " -a coverage/coverage-" & $i
-    cmd &= " -o coverage/coverage.info"
-    exec(cmd)
 
 task test_slim, "Runs the test suite":
   exec "nimble testnative"
