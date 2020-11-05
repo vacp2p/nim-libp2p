@@ -22,36 +22,7 @@ logScope:
   topics = "bufferstream"
 
 const
-  BufferStreamTrackerName* = "libp2p.bufferstream"
-
-type
-  BufferStreamTracker* = ref object of TrackerBase
-    opened*: uint64
-    closed*: uint64
-
-proc setupBufferStreamTracker(): BufferStreamTracker {.gcsafe.}
-
-proc getBufferStreamTracker(): BufferStreamTracker {.gcsafe.} =
-  result = cast[BufferStreamTracker](getTracker(BufferStreamTrackerName))
-  if isNil(result):
-    result = setupBufferStreamTracker()
-
-proc dumpTracking(): string {.gcsafe.} =
-  var tracker = getBufferStreamTracker()
-  result = "Opened buffers: " & $tracker.opened & "\n" &
-           "Closed buffers: " & $tracker.closed
-
-proc leakTransport(): bool {.gcsafe.} =
-  var tracker = getBufferStreamTracker()
-  result = (tracker.opened != tracker.closed)
-
-proc setupBufferStreamTracker(): BufferStreamTracker =
-  result = new BufferStreamTracker
-  result.opened = 0
-  result.closed = 0
-  result.dump = dumpTracking
-  result.isLeaked = leakTransport
-  addTracker(BufferStreamTrackerName, result)
+  BufferStreamTrackerName* = "BufferStream"
 
 type
   BufferStream* = ref object of Connection
@@ -79,7 +50,6 @@ method initStream*(s: BufferStream) =
   s.readQueue = newAsyncQueue[seq[byte]](1)
 
   trace "BufferStream created", s
-  inc getBufferStreamTracker().opened
 
 proc newBufferStream*(timeout: Duration = DefaultConnectionTimeout): BufferStream =
   new result
@@ -169,7 +139,6 @@ method closeImpl*(s: BufferStream): Future[void] =
   if not s.pushedEof: # Potentially wake up reader
     asyncSpawn s.pushEof()
 
-  inc getBufferStreamTracker().closed
   trace "Closed BufferStream", s
 
   procCall Connection(s).closeImpl() # noraises, nocancels

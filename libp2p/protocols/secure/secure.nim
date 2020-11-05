@@ -20,6 +20,9 @@ export protocol
 logScope:
   topics = "secure"
 
+const
+  SecureConnTrackerName* = "SecureConn"
+
 type
   Secure* = ref object of LPProtocol # base type for secure managers
 
