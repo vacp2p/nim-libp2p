@@ -28,7 +28,7 @@
 import os, options
 import nimcrypto/utils, stew/endians2
 import protobuf/minprotobuf, stream/connection, protocols/secure/secure,
-       multiaddress, peerid, varint, muxers/mplex/types
+       multiaddress, peerid, varint, muxers/mplex/coder
 
 from times import getTime, toUnix, fromUnix, nanosecond, format, Time,
                   NanosecondRange, initTime
