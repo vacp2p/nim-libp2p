@@ -7,6 +7,10 @@ import ../libp2p/stream/bufferstream
 import ../libp2p/crypto/crypto
 import ../libp2p/stream/lpstream
 
+when defined(linux):
+  {.passC: "-fprofile-arcs -ftest-coverage".}
+  {.passL: "-fprofile-arcs -ftest-coverage".}
+
 const
   StreamTransportTrackerName = "stream.transport"
   StreamServerTrackerName = "stream.server"
