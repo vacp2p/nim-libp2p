@@ -18,7 +18,7 @@ requires "nim >= 1.2.0",
 
 proc runTest(filename: string, verify: bool = true, sign: bool = true,
              moreoptions: string = "") =
-  var excstr = "nim c --opt:speed -d:debug --verbosity:0 --hints:off"
+  var excstr = "nim c --opt:speed -d:debug --verbosity:0 --hints:off --nimcache:nimcache"
   excstr.add(" --warning[CaseTransition]:off --warning[ObservableStores]:off --warning[LockLevel]:off")
   excstr.add(" -d:libp2p_pubsub_sign=" & $sign)
   excstr.add(" -d:libp2p_pubsub_verify=" & $verify)

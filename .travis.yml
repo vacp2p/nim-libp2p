@@ -22,6 +22,10 @@ matrix:
         - NPROC=2
       before_install:
         - export GOPATH=$HOME/go
+      after_script:
+        - apt-get install -y lcov
+        - mkdir coverage
+        - lcov --capture --directory nimcache --output-file coverage/coverage.info && genhtml coverage/coverage.info --output-directory coverage/output
     ## arm64 is very unreliable and slow, disabled for now
     # - os: linux
     #   arch: arm64
