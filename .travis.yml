@@ -26,7 +26,8 @@ matrix:
         - sudo apt-get update
         - sudo apt-get install -y lcov
         - mkdir coverage
-        - lcov --capture --directory nimcache --output-file coverage/coverage.info && genhtml coverage/coverage.info --output-directory coverage/output
+        - lcov --capture --directory nimcache --output-file coverage/coverage.info
+        - bash <(curl -s https://codecov.io/bash) -f coverage/coverage.info || echo "Codecov did not collect coverage reports"
     ## arm64 is very unreliable and slow, disabled for now
     # - os: linux
     #   arch: arm64
