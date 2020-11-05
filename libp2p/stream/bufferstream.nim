@@ -110,7 +110,7 @@ method readOnce*(s: BufferStream,
     trace "popping readQueue", s, rbytes, nbytes
     let buf = await s.readQueue.popFirst()
 
-    if buf.len == 0: # Another task might have set EOF!
+    if buf.len == 0 or s.isEof: # Another task might have set EOF!
       # No more data will arrive on read queue
       trace "EOF", s
       s.isEof = true
