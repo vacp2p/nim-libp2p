@@ -14,7 +14,9 @@ import ../libp2p/[errors,
                   peerinfo,
                   crypto/crypto,
                   protocols/protocol,
+                  protocols/secure/secure,
                   muxers/muxer,
+                  muxers/mplex/lpchannel,
                   stream/lpstream]
 import ./helpers
 
@@ -246,11 +248,12 @@ suite "Switch":
       check not switch1.isConnected(switch2.peerInfo)
       check not switch2.isConnected(switch1.peerInfo)
 
-      var bufferTracker = getTracker(BufferStreamTrackerName)
-      # echo bufferTracker.dump()
-      check bufferTracker.isLeaked() == false
+      var channelTracker = getTracker(LPChannelTrackerName)
+      # echo channelTracker.dump()
+      check channelTracker.isLeaked() == false
 
-      var connTracker = getTracker(ConnectionTrackerName)
+      var connTracker = getTracker(SecureConnTrackerName)
+      doAssert(not isNil(connTracker))
       # echo connTracker.dump()
       check connTracker.isLeaked() == false
 
@@ -305,11 +308,11 @@ suite "Switch":
       check not switch1.isConnected(switch2.peerInfo)
       check not switch2.isConnected(switch1.peerInfo)
 
-      var bufferTracker = getTracker(BufferStreamTrackerName)
+      var bufferTracker = getTracker(LPChannelTrackerName)
       # echo bufferTracker.dump()
       check bufferTracker.isLeaked() == false
 
-      var connTracker = getTracker(ConnectionTrackerName)
+      var connTracker = getTracker(SecureConnTrackerName)
       # echo connTracker.dump()
       check connTracker.isLeaked() == false
 
@@ -370,11 +373,11 @@ suite "Switch":
       check not switch1.isConnected(switch2.peerInfo)
       check not switch2.isConnected(switch1.peerInfo)
 
-      var bufferTracker = getTracker(BufferStreamTrackerName)
+      var bufferTracker = getTracker(LPChannelTrackerName)
       # echo bufferTracker.dump()
       check bufferTracker.isLeaked() == false
 
-      var connTracker = getTracker(ConnectionTrackerName)
+      var connTracker = getTracker(SecureConnTrackerName)
       # echo connTracker.dump()
       check connTracker.isLeaked() == false
 
@@ -434,11 +437,11 @@ suite "Switch":
       check not switch1.isConnected(switch2.peerInfo)
       check not switch2.isConnected(switch1.peerInfo)
 
-      var bufferTracker = getTracker(BufferStreamTrackerName)
+      var bufferTracker = getTracker(LPChannelTrackerName)
       # echo bufferTracker.dump()
       check bufferTracker.isLeaked() == false
 
-      var connTracker = getTracker(ConnectionTrackerName)
+      var connTracker = getTracker(SecureConnTrackerName)
       # echo connTracker.dump()
       check connTracker.isLeaked() == false
 
@@ -498,11 +501,11 @@ suite "Switch":
       check not switch1.isConnected(switch2.peerInfo)
       check not switch2.isConnected(switch1.peerInfo)
 
-      var bufferTracker = getTracker(BufferStreamTrackerName)
+      var bufferTracker = getTracker(LPChannelTrackerName)
       # echo bufferTracker.dump()
       check bufferTracker.isLeaked() == false
 
-      var connTracker = getTracker(ConnectionTrackerName)
+      var connTracker = getTracker(SecureConnTrackerName)
       # echo connTracker.dump()
       check connTracker.isLeaked() == false
 
@@ -577,11 +580,11 @@ suite "Switch":
       check not switch2.isConnected(switch1.peerInfo)
       check not switch3.isConnected(switch1.peerInfo)
 
-      var bufferTracker = getTracker(BufferStreamTrackerName)
+      var bufferTracker = getTracker(LPChannelTrackerName)
       # echo bufferTracker.dump()
       check bufferTracker.isLeaked() == false
 
-      var connTracker = getTracker(ConnectionTrackerName)
+      var connTracker = getTracker(SecureConnTrackerName)
       # echo connTracker.dump()
       check connTracker.isLeaked() == false
 

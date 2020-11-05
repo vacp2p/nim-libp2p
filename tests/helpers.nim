@@ -6,13 +6,18 @@ import ../libp2p/transports/tcptransport
 import ../libp2p/stream/bufferstream
 import ../libp2p/crypto/crypto
 import ../libp2p/stream/lpstream
+import ../libp2p/muxers/mplex/lpchannel
+import ../libp2p/protocols/secure/secure
 
 const
   StreamTransportTrackerName = "stream.transport"
   StreamServerTrackerName = "stream.server"
 
   trackerNames = [
+    LPStreamTrackerName,
     ConnectionTrackerName,
+    LPChannelTrackerName,
+    SecureConnTrackerName,
     BufferStreamTrackerName,
     TcpTransportTrackerName,
     StreamTransportTrackerName,

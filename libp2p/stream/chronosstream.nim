@@ -16,6 +16,7 @@ logScope:
 
 const
   DefaultChronosStreamTimeout = 10.minutes
+  ChronosStreamTrackerName* = "ChronosStream"
 
 type
   ChronosStream* = ref object of Connection

@@ -7,8 +7,8 @@ import ../libp2p/stream/bufferstream,
 
 suite "BufferStream":
   teardown:
-    # echo getTracker("libp2p.bufferstream").dump()
-    check getTracker("libp2p.bufferstream").isLeaked() == false
+    # echo getTracker(BufferStreamTrackerName).dump()
+    check getTracker(BufferStreamTrackerName).isLeaked() == false
 
   test "push data to buffer":
     proc testpushData(): Future[bool] {.async.} =

@@ -35,6 +35,8 @@ const
   MaxWrites = 1024 ##\
     ## Maximum number of in-flight writes - after this, we disconnect the peer
 
+  LPChannelTrackerName* = "LPChannel"
+
 type
   LPChannel* = ref object of BufferStream
     id*: uint64                   # channel id

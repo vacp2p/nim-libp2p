@@ -19,7 +19,7 @@ logScope:
   topics = "connection"
 
 const
-  ConnectionTrackerName* = "libp2p.connection"
+  ConnectionTrackerName* = "Connection"
   DefaultConnectionTimeout* = 5.minutes
 
 type
@@ -33,34 +33,7 @@ type
     peerInfo*: PeerInfo
     observedAddr*: Multiaddress
 
-  ConnectionTracker* = ref object of TrackerBase
-    opened*: uint64
-    closed*: uint64
-
-proc setupConnectionTracker(): ConnectionTracker {.gcsafe.}
 proc timeoutMonitor(s: Connection) {.async, gcsafe.}
-
-proc getConnectionTracker*(): ConnectionTracker {.gcsafe.} =
-  result = cast[ConnectionTracker](getTracker(ConnectionTrackerName))
-  if isNil(result):
-    result = setupConnectionTracker()
-
-proc dumpTracking(): string {.gcsafe.} =
-  var tracker = getConnectionTracker()
-  result = "Opened conns: " & $tracker.opened & "\n" &
-           "Closed conns: " & $tracker.closed
-
-proc leakTransport(): bool {.gcsafe.} =
-  var tracker = getConnectionTracker()
-  result = (tracker.opened != tracker.closed)
-
-proc setupConnectionTracker(): ConnectionTracker =
-  result = new ConnectionTracker
-  result.opened = 0
-  result.closed = 0
-  result.dump = dumpTracking
-  result.isLeaked = leakTransport
-  addTracker(ConnectionTrackerName, result)
 
 func shortLog*(conn: Connection): string =
   if conn.isNil: "Connection(nil)"
@@ -85,15 +58,12 @@ method initStream*(s: Connection) =
         trace "Idle timeout expired, closing connection", s
         s.close()
 
-  inc getConnectionTracker().opened
-
 method closeImpl*(s: Connection): Future[void] =
   # Cleanup timeout timer
   trace "Closing connection", s
   if not isNil(s.timerTaskFut) and not s.timerTaskFut.finished:
     s.timerTaskFut.cancel()
 
-  inc getConnectionTracker().closed
   trace "Closed connection", s
 
   procCall LPStream(s).closeImpl()

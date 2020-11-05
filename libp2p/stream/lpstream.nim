@@ -23,6 +23,9 @@ export oids
 logScope:
   topics = "lpstream"
 
+const
+  LPStreamTrackerName* = "LPStream"
+
 type
   Direction* {.pure.} = enum
     In, Out
@@ -48,6 +51,34 @@ type
 
   InvalidVarintError* = object of LPStreamError
   MaxSizeError* = object of LPStreamError
+
+  StreamTracker* = ref object of TrackerBase
+    opened*: uint64
+    closed*: uint64
+
+proc setupStreamTracker(name: string): StreamTracker =
+  let tracker = new StreamTracker
+
+  proc dumpTracking(): string {.gcsafe.} =
+    return "Opened " & tracker.id & " :" & $tracker.opened & "\n" &
+            "Closed " & tracker.id & " :" & $tracker.closed
+
+  proc leakTransport(): bool {.gcsafe.} =
+    return (tracker.opened != tracker.closed)
+
+  tracker.id = name
+  tracker.opened = 0
+  tracker.closed = 0
+  tracker.dump = dumpTracking
+  tracker.isLeaked = leakTransport
+  addTracker(name, tracker)
+
+  return tracker
+
+proc getStreamTracker(name: string): StreamTracker {.gcsafe.} =
+  result = cast[StreamTracker](getTracker(name))
+  if isNil(result):
+    result = setupStreamTracker(name)
 
 proc newLPStreamReadError*(p: ref CatchableError): ref CatchableError =
   var w = newException(LPStreamReadError, "Read stream failed")
@@ -92,6 +123,7 @@ method initStream*(s: LPStream) {.base.} =
   s.oid = genOid()
 
   libp2p_open_streams.inc(labelValues = [s.objName, $s.dir])
+  inc getStreamTracker(s.objName).opened
   trace "Stream created", s, objName = s.objName, dir = $s.dir
 
 proc join*(s: LPStream): Future[void] =
@@ -220,6 +252,7 @@ method closeImpl*(s: LPStream): Future[void] {.async, base.} =
   trace "Closing stream", s, objName = s.objName, dir = $s.dir
   s.closeEvent.fire()
   libp2p_open_streams.dec(labelValues = [s.objName, $s.dir])
+  inc getStreamTracker(s.objName).closed
   trace "Closed stream", s, objName = s.objName, dir = $s.dir
 
 method close*(s: LPStream): Future[void] {.base, async.} = # {.raises [Defect].}
