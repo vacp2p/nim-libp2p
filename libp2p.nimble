@@ -18,7 +18,9 @@ requires "nim >= 1.2.0",
 
 proc runTest(filename: string, verify: bool = true, sign: bool = true,
              moreoptions: string = "") =
-  var excstr = "nim c --opt:speed -d:debug --verbosity:0 --hints:off --nimcache:nimcache"
+  var excstr = "nim c --opt:speed -d:debug --verbosity:0 --hints:off"
+  when defined(linux):
+    excstr &= "--nimcache:nimcache --passC:-fprofile-arcs --passC:-ftest-coverage --passL:-fprofile-arcs --passL:-ftest-coverage"
   excstr.add(" --warning[CaseTransition]:off --warning[ObservableStores]:off --warning[LockLevel]:off")
   excstr.add(" -d:libp2p_pubsub_sign=" & $sign)
   excstr.add(" -d:libp2p_pubsub_verify=" & $verify)
@@ -32,6 +34,8 @@ proc runTest(filename: string, verify: bool = true, sign: bool = true,
 
 proc buildSample(filename: string) =
   var excstr = "nim c --opt:speed --threads:on -d:debug --verbosity:0 --hints:off"
+  when defined(linux):
+    excstr &= "--nimcache:nimcache --passC:-fprofile-arcs --passC:-ftest-coverage --passL:-fprofile-arcs --passL:-ftest-coverage"
   excstr.add(" --warning[CaseTransition]:off --warning[ObservableStores]:off --warning[LockLevel]:off")
   excstr.add(" examples/" & filename)
   exec excstr
