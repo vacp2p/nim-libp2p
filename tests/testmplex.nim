@@ -582,9 +582,12 @@ suite "Mplex":
     asyncTest "channel closes listener with EOF":
       let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
 
+      let transport1 = TcpTransport.init()
       var listenStreams: seq[Connection]
-      proc connHandler(conn: Connection) {.async, gcsafe.} =
+      proc acceptHandler() {.async, gcsafe.} =
+        let conn = await transport1.accept()
         let mplexListen = Mplex.init(conn)
+
         mplexListen.streamHandler = proc(stream: Connection)
           {.async, gcsafe.} =
           listenStreams.add(stream)
@@ -599,9 +602,8 @@ suite "Mplex":
         await mplexListen.handle()
         await mplexListen.close()
 
-      let transport1 = TcpTransport.init()
-      let listenFut = await transport1.listen(ma, connHandler)
-
+      await transport1.start(ma)
+      let acceptFut = acceptHandler()
       let transport2: TcpTransport = TcpTransport.init()
       let conn = await transport2.dial(transport1.ma)
 
@@ -621,17 +623,19 @@ suite "Mplex":
       await conn.close()
       await mplexDialFut
       await allFuturesThrowing(
-        transport1.close(),
-        transport2.close())
-      await listenFut
+        transport1.stop(),
+        transport2.stop())
+      await acceptFut
 
     asyncTest "channel closes dialer with EOF":
       let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
+      let transport1 = TcpTransport.init()
 
-      var listenStreams: seq[Connection]
       var count = 0
       var done = newFuture[void]()
-      proc connHandler(conn: Connection) {.async, gcsafe.} =
+      var listenStreams: seq[Connection]
+      proc acceptHandler() {.async, gcsafe.} =
+        let conn = await transport1.accept()
         let mplexListen = Mplex.init(conn)
         mplexListen.streamHandler = proc(stream: Connection)
           {.async, gcsafe.} =
@@ -645,8 +649,8 @@ suite "Mplex":
         await mplexListen.handle()
         await mplexListen.close()
 
-      let transport1 = TcpTransport.init()
-      let listenFut = await transport1.listen(ma, connHandler)
+      await transport1.start(ma)
+      let acceptFut = acceptHandler()
 
       let transport2: TcpTransport = TcpTransport.init()
       let conn = await transport2.dial(transport1.ma)
@@ -684,15 +688,17 @@ suite "Mplex":
       await conn.close()
       await mplexDialFut
       await allFuturesThrowing(
-        transport1.close(),
-        transport2.close())
-      await listenFut
+        transport1.stop(),
+        transport2.stop())
+      await acceptFut
 
     asyncTest "dialing mplex closes both ends":
       let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
+      let transport1 = TcpTransport.init()
 
       var listenStreams: seq[Connection]
-      proc connHandler(conn: Connection) {.async, gcsafe.} =
+      proc acceptHandler() {.async, gcsafe.} =
+        let conn = await transport1.accept()
         let mplexListen = Mplex.init(conn)
         mplexListen.streamHandler = proc(stream: Connection)
           {.async, gcsafe.} =
@@ -702,8 +708,8 @@ suite "Mplex":
         await mplexListen.handle()
         await mplexListen.close()
 
-      let transport1 = TcpTransport.init()
-      let listenFut = await transport1.listen(ma, connHandler)
+      await transport1.start(ma)
+      let acceptFut = acceptHandler()
 
       let transport2: TcpTransport = TcpTransport.init()
       let conn = await transport2.dial(transport1.ma)
@@ -724,16 +730,18 @@ suite "Mplex":
       await conn.close()
       await mplexDialFut
       await allFuturesThrowing(
-        transport1.close(),
-        transport2.close())
-      await listenFut
+        transport1.stop(),
+        transport2.stop())
+      await acceptFut
 
     asyncTest "listening mplex closes both ends":
       let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
+      let transport1 = TcpTransport.init()
 
       var mplexListen: Mplex
       var listenStreams: seq[Connection]
-      proc connHandler(conn: Connection) {.async, gcsafe.} =
+      proc acceptHandler() {.async, gcsafe.} =
+        let conn = await transport1.accept()
         mplexListen = Mplex.init(conn)
         mplexListen.streamHandler = proc(stream: Connection)
           {.async, gcsafe.} =
@@ -743,8 +751,8 @@ suite "Mplex":
         await mplexListen.handle()
         await mplexListen.close()
 
-      let transport1 = TcpTransport.init()
-      let listenFut = await transport1.listen(ma, connHandler)
+      await transport1.start(ma)
+      let acceptFut = acceptHandler()
 
       let transport2: TcpTransport = TcpTransport.init()
       let conn = await transport2.dial(transport1.ma)
@@ -765,16 +773,18 @@ suite "Mplex":
       await conn.close()
       await mplexDialFut
       await allFuturesThrowing(
-        transport1.close(),
-        transport2.close())
-      await listenFut
+        transport1.stop(),
+        transport2.stop())
+      await acceptFut
 
     asyncTest "canceling mplex handler closes both ends":
       let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
+      let transport1 = TcpTransport.init()
 
       var mplexHandle: Future[void]
       var listenStreams: seq[Connection]
-      proc connHandler(conn: Connection) {.async, gcsafe.} =
+      proc acceptHandler() {.async, gcsafe.} =
+        let conn = await transport1.accept()
         let mplexListen = Mplex.init(conn)
         mplexListen.streamHandler = proc(stream: Connection)
           {.async, gcsafe.} =
@@ -785,8 +795,8 @@ suite "Mplex":
         await mplexHandle
         await mplexListen.close()
 
-      let transport1 = TcpTransport.init()
-      let listenFut = await transport1.listen(ma, connHandler)
+      await transport1.start(ma)
+      let acceptFut = acceptHandler()
 
       let transport2: TcpTransport = TcpTransport.init()
       let conn = await transport2.dial(transport1.ma)
@@ -807,15 +817,23 @@ suite "Mplex":
       await conn.close()
       await mplexDialFut
       await allFuturesThrowing(
-        transport1.close(),
-        transport2.close())
-      await listenFut
+        transport1.stop(),
+        transport2.stop())
+
+      try:
+        await acceptFut
+      except CatchableError:
+        return
+
+      check false # should not get here
 
     asyncTest "closing dialing connection should close both ends":
       let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
+      let transport1 = TcpTransport.init()
 
       var listenStreams: seq[Connection]
-      proc connHandler(conn: Connection) {.async, gcsafe.} =
+      proc acceptHandler() {.async, gcsafe.} =
+        let conn = await transport1.accept()
         let mplexListen = Mplex.init(conn)
         mplexListen.streamHandler = proc(stream: Connection)
           {.async, gcsafe.} =
@@ -825,8 +843,8 @@ suite "Mplex":
         await mplexListen.handle()
         await mplexListen.close()
 
-      let transport1 = TcpTransport.init()
-      let listenFut = await transport1.listen(ma, connHandler)
+      await transport1.start(ma)
+      let acceptFut = acceptHandler()
 
       let transport2: TcpTransport = TcpTransport.init()
       let conn = await transport2.dial(transport1.ma)
@@ -847,18 +865,19 @@ suite "Mplex":
       await conn.close()
       await mplexDialFut
       await allFuturesThrowing(
-        transport1.close(),
-        transport2.close())
-      await listenFut
+        transport1.stop(),
+        transport2.stop())
+      await acceptFut
 
     asyncTest "canceling listening connection should close both ends":
       let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
+      let transport1 = TcpTransport.init()
 
       var listenConn: Connection
       var listenStreams: seq[Connection]
-      proc connHandler(conn: Connection) {.async, gcsafe.} =
-        listenConn = conn
-        let mplexListen = Mplex.init(conn)
+      proc acceptHandler() {.async, gcsafe.} =
+        listenConn = await transport1.accept()
+        let mplexListen = Mplex.init(listenConn)
         mplexListen.streamHandler = proc(stream: Connection)
           {.async, gcsafe.} =
             listenStreams.add(stream)
@@ -867,8 +886,8 @@ suite "Mplex":
         await mplexListen.handle()
         await mplexListen.close()
 
-      let transport1 = TcpTransport.init()
-      let listenFut = await transport1.listen(ma, connHandler)
+      await transport1.start(ma)
+      let acceptFut = acceptHandler()
 
       let transport2: TcpTransport = TcpTransport.init()
       let conn = await transport2.dial(transport1.ma)
@@ -889,9 +908,9 @@ suite "Mplex":
       await conn.close()
       await mplexDialFut
       await allFuturesThrowing(
-        transport1.close(),
-        transport2.close())
-      await listenFut
+        transport1.stop(),
+        transport2.stop())
+      await acceptFut
 
     suite "jitter":
       asyncTest "channel should be able to handle erratic read/writes":
