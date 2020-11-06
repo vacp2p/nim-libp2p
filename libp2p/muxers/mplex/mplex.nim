@@ -27,7 +27,6 @@ const MplexCodec* = "/mplex/6.7.0"
 const
   MaxChannelCount = 200
 
-
 when defined(libp2p_expensive_metrics):
   declareGauge(libp2p_mplex_channels,
     "mplex channels", labels = ["initiator", "peer"])

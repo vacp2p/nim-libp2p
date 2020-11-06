@@ -1,4 +1,4 @@
-import unittest, strformat, strformat, random, oids
+import unittest, strformat, strformat, random, oids, sequtils
 import chronos, nimcrypto/utils, chronicles, stew/byteutils
 import ../libp2p/[errors,
                   stream/connection,
@@ -594,6 +594,347 @@ suite "Mplex":
 
     waitFor(testNewStream())
 
+  test "e2e - channel closes listener with EOF":
+    proc testNewStream() {.async.} =
+      let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
+
+      var listenStreams: seq[Connection]
+      proc connHandler(conn: Connection) {.async, gcsafe.} =
+        let mplexListen = Mplex.init(conn)
+        mplexListen.streamHandler = proc(stream: Connection)
+          {.async, gcsafe.} =
+          listenStreams.add(stream)
+          try:
+            discard await stream.readLp(1024)
+          except LPStreamEOFError:
+            await stream.close()
+            return
+
+          check false
+
+        await mplexListen.handle()
+        await mplexListen.close()
+
+      let transport1 = TcpTransport.init()
+      let listenFut = await transport1.listen(ma, connHandler)
+
+      let transport2: TcpTransport = TcpTransport.init()
+      let conn = await transport2.dial(transport1.ma)
+
+      let mplexDial = Mplex.init(conn)
+      let mplexDialFut = mplexDial.handle()
+      var dialStreams: seq[Connection]
+      for i in 0..9:
+        dialStreams.add((await mplexDial.newStream()))
+
+      for i, s in dialStreams:
+        await s.closeWithEOF()
+        check listenStreams[i].closed
+        check s.closed
+
+      checkTracker(LPChannelTrackerName)
+
+      await conn.close()
+      await mplexDialFut
+      await allFuturesThrowing(
+        transport1.close(),
+        transport2.close())
+      await listenFut
+
+    waitFor(testNewStream())
+
+  test "e2e - channel closes dialer with EOF":
+    proc testNewStream() {.async.} =
+      let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
+
+      var listenStreams: seq[Connection]
+      var count = 0
+      var done = newFuture[void]()
+      proc connHandler(conn: Connection) {.async, gcsafe.} =
+        let mplexListen = Mplex.init(conn)
+        mplexListen.streamHandler = proc(stream: Connection)
+          {.async, gcsafe.} =
+          listenStreams.add(stream)
+          count.inc()
+          if count == 10:
+            done.complete()
+
+          await stream.join()
+
+        await mplexListen.handle()
+        await mplexListen.close()
+
+      let transport1 = TcpTransport.init()
+      let listenFut = await transport1.listen(ma, connHandler)
+
+      let transport2: TcpTransport = TcpTransport.init()
+      let conn = await transport2.dial(transport1.ma)
+
+      let mplexDial = Mplex.init(conn)
+      let mplexDialFut = mplexDial.handle()
+      var dialStreams: seq[Connection]
+      for i in 0..9:
+        dialStreams.add((await mplexDial.newStream()))
+
+      proc dialReadLoop() {.async.} =
+        for s in dialStreams:
+          try:
+            discard await s.readLp(1024)
+            check false
+          except LPStreamEOFError:
+            await s.close()
+            continue
+
+          check false
+
+      await done
+      let readLoop = dialReadLoop()
+      for s in listenStreams:
+        await s.closeWithEOF()
+        check s.closed
+
+      await readLoop
+      await allFuturesThrowing(
+        allFinished(
+          (dialStreams & listenStreams)
+          .mapIt( it.join() )))
+
+      checkTracker(LPChannelTrackerName)
+
+      await conn.close()
+      await mplexDialFut
+      await allFuturesThrowing(
+        transport1.close(),
+        transport2.close())
+      await listenFut
+
+    waitFor(testNewStream())
+
+  test "e2e - dialing mplex closes both ends":
+    proc testNewStream() {.async.} =
+      let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
+
+      var listenStreams: seq[Connection]
+      proc connHandler(conn: Connection) {.async, gcsafe.} =
+        let mplexListen = Mplex.init(conn)
+        mplexListen.streamHandler = proc(stream: Connection)
+          {.async, gcsafe.} =
+            listenStreams.add(stream)
+            await stream.join()
+
+        await mplexListen.handle()
+        await mplexListen.close()
+
+      let transport1 = TcpTransport.init()
+      let listenFut = await transport1.listen(ma, connHandler)
+
+      let transport2: TcpTransport = TcpTransport.init()
+      let conn = await transport2.dial(transport1.ma)
+
+      let mplexDial = Mplex.init(conn)
+      let mplexDialFut = mplexDial.handle()
+      var dialStreams: seq[Connection]
+      for i in 0..9:
+        dialStreams.add((await mplexDial.newStream()))
+
+      await mplexDial.close()
+      await allFuturesThrowing(
+        allFinished(
+          (dialStreams & listenStreams)
+          .mapIt( it.join() )))
+
+      checkTracker(LPChannelTrackerName)
+
+      await conn.close()
+      await mplexDialFut
+      await allFuturesThrowing(
+        transport1.close(),
+        transport2.close())
+      await listenFut
+
+    waitFor(testNewStream())
+
+  test "e2e - listening mplex closes both ends":
+    proc testNewStream() {.async.} =
+      let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
+
+      var mplexListen: Mplex
+      var listenStreams: seq[Connection]
+      proc connHandler(conn: Connection) {.async, gcsafe.} =
+        mplexListen = Mplex.init(conn)
+        mplexListen.streamHandler = proc(stream: Connection)
+          {.async, gcsafe.} =
+            listenStreams.add(stream)
+            await stream.join()
+
+        await mplexListen.handle()
+        await mplexListen.close()
+
+      let transport1 = TcpTransport.init()
+      let listenFut = await transport1.listen(ma, connHandler)
+
+      let transport2: TcpTransport = TcpTransport.init()
+      let conn = await transport2.dial(transport1.ma)
+
+      let mplexDial = Mplex.init(conn)
+      let mplexDialFut = mplexDial.handle()
+      var dialStreams: seq[Connection]
+      for i in 0..9:
+        dialStreams.add((await mplexDial.newStream()))
+
+      await mplexListen.close()
+      await allFuturesThrowing(
+        allFinished(
+          (dialStreams & listenStreams)
+          .mapIt( it.join() )))
+
+      checkTracker(LPChannelTrackerName)
+
+      await conn.close()
+      await mplexDialFut
+      await allFuturesThrowing(
+        transport1.close(),
+        transport2.close())
+      await listenFut
+
+    waitFor(testNewStream())
+
+  test "e2e - canceling mplex handler closes both ends":
+    proc testNewStream() {.async.} =
+      let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
+
+      var mplexHandle: Future[void]
+      var listenStreams: seq[Connection]
+      proc connHandler(conn: Connection) {.async, gcsafe.} =
+        let mplexListen = Mplex.init(conn)
+        mplexListen.streamHandler = proc(stream: Connection)
+          {.async, gcsafe.} =
+            listenStreams.add(stream)
+            await stream.join()
+
+        mplexHandle = mplexListen.handle()
+        await mplexHandle
+        await mplexListen.close()
+
+      let transport1 = TcpTransport.init()
+      let listenFut = await transport1.listen(ma, connHandler)
+
+      let transport2: TcpTransport = TcpTransport.init()
+      let conn = await transport2.dial(transport1.ma)
+
+      let mplexDial = Mplex.init(conn)
+      let mplexDialFut = mplexDial.handle()
+      var dialStreams: seq[Connection]
+      for i in 0..9:
+        dialStreams.add((await mplexDial.newStream()))
+
+      mplexHandle.cancel()
+      await allFuturesThrowing(
+        allFinished(
+          (dialStreams & listenStreams)
+          .mapIt( it.join() )))
+
+      checkTracker(LPChannelTrackerName)
+
+      await conn.close()
+      await mplexDialFut
+      await allFuturesThrowing(
+        transport1.close(),
+        transport2.close())
+      await listenFut
+
+    waitFor(testNewStream())
+
+  test "e2e - closing dialing connection should close both ends":
+    proc testNewStream() {.async.} =
+      let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
+
+      var listenStreams: seq[Connection]
+      proc connHandler(conn: Connection) {.async, gcsafe.} =
+        let mplexListen = Mplex.init(conn)
+        mplexListen.streamHandler = proc(stream: Connection)
+          {.async, gcsafe.} =
+            listenStreams.add(stream)
+            await stream.join()
+
+        await mplexListen.handle()
+        await mplexListen.close()
+
+      let transport1 = TcpTransport.init()
+      let listenFut = await transport1.listen(ma, connHandler)
+
+      let transport2: TcpTransport = TcpTransport.init()
+      let conn = await transport2.dial(transport1.ma)
+
+      let mplexDial = Mplex.init(conn)
+      let mplexDialFut = mplexDial.handle()
+      var dialStreams: seq[Connection]
+      for i in 0..9:
+        dialStreams.add((await mplexDial.newStream()))
+
+      await conn.close()
+      await allFuturesThrowing(
+        allFinished(
+          (dialStreams & listenStreams)
+          .mapIt( it.join() )))
+
+      checkTracker(LPChannelTrackerName)
+
+      await conn.close()
+      await mplexDialFut
+      await allFuturesThrowing(
+        transport1.close(),
+        transport2.close())
+      await listenFut
+
+    waitFor(testNewStream())
+
+  test "e2e - canceling listening connection should close both ends":
+    proc testNewStream() {.async.} =
+      let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
+
+      var listenConn: Connection
+      var listenStreams: seq[Connection]
+      proc connHandler(conn: Connection) {.async, gcsafe.} =
+        listenConn = conn
+        let mplexListen = Mplex.init(conn)
+        mplexListen.streamHandler = proc(stream: Connection)
+          {.async, gcsafe.} =
+            listenStreams.add(stream)
+            await stream.join()
+
+        await mplexListen.handle()
+        await mplexListen.close()
+
+      let transport1 = TcpTransport.init()
+      let listenFut = await transport1.listen(ma, connHandler)
+
+      let transport2: TcpTransport = TcpTransport.init()
+      let conn = await transport2.dial(transport1.ma)
+
+      let mplexDial = Mplex.init(conn)
+      let mplexDialFut = mplexDial.handle()
+      var dialStreams: seq[Connection]
+      for i in 0..9:
+        dialStreams.add((await mplexDial.newStream()))
+
+      await listenConn.close()
+      await allFuturesThrowing(
+        allFinished(
+          (dialStreams & listenStreams)
+          .mapIt( it.join() )))
+
+      checkTracker(LPChannelTrackerName)
+
+      await conn.close()
+      await mplexDialFut
+      await allFuturesThrowing(
+        transport1.close(),
+        transport2.close())
+      await listenFut
+
+    waitFor(testNewStream())
+
   test "jitter - channel should be able to handle erratic read/writes":
     proc test() {.async.} =
       let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
@@ -628,7 +969,7 @@ suite "Mplex":
       for _ in 0..<MsgSize: # write one less than max size
         bigseq.add(uint8(rand(uint('A')..uint('z'))))
 
-      ## create lenght prefixed libp2p frame
+      ## create length prefixed libp2p frame
       var buf = initVBuffer()
       buf.writeSeq(bigseq)
       buf.finish()
@@ -699,7 +1040,7 @@ suite "Mplex":
       for _ in 0..<MsgSize: # write one less than max size
         bigseq.add(uint8(rand(uint('A')..uint('z'))))
 
-      ## create lenght prefixed libp2p frame
+      ## create length prefixed libp2p frame
       var buf = initVBuffer()
       buf.writeSeq(bigseq)
       buf.finish()

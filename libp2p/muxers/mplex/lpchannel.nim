@@ -172,7 +172,7 @@ method readOnce*(s: LPChannel,
 
 method write*(s: LPChannel, msg: seq[byte]): Future[void] {.async.} =
   ## Write to mplex channel - there may be up to MaxWrite concurrent writes
-  ## pending after which the peer is disconencted
+  ## pending after which the peer is disconnected
   if s.closedLocal or s.conn.closed:
     raise newLPStreamClosedError()
 
@@ -182,6 +182,7 @@ method write*(s: LPChannel, msg: seq[byte]): Future[void] {.async.} =
   if s.writes >= MaxWrites:
     debug "Closing connection, too many in-flight writes on channel",
       s, conn = s.conn, writes = s.writes
+    await s.reset()
     await s.conn.close()
     return
 
@@ -197,6 +198,7 @@ method write*(s: LPChannel, msg: seq[byte]): Future[void] {.async.} =
     s.activity = true
   except CatchableError as exc:
     trace "exception in lpchannel write handler", s, msg = exc.msg
+    await s.reset()
     await s.conn.close()
     raise exc
   finally:
