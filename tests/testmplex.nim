@@ -695,9 +695,8 @@ suite "Mplex":
 
       await readLoop
       await allFuturesThrowing(
-        allFinished(
           (dialStreams & listenStreams)
-          .mapIt( it.join() )))
+          .mapIt( it.join() ))
 
       checkTracker(LPChannelTrackerName)
 
@@ -739,9 +738,8 @@ suite "Mplex":
 
       await mplexDial.close()
       await allFuturesThrowing(
-        allFinished(
           (dialStreams & listenStreams)
-          .mapIt( it.join() )))
+          .mapIt( it.join() ))
 
       checkTracker(LPChannelTrackerName)
 
@@ -784,9 +782,8 @@ suite "Mplex":
 
       await mplexListen.close()
       await allFuturesThrowing(
-        allFinished(
           (dialStreams & listenStreams)
-          .mapIt( it.join() )))
+          .mapIt( it.join() ))
 
       checkTracker(LPChannelTrackerName)
 
@@ -830,9 +827,8 @@ suite "Mplex":
 
       mplexHandle.cancel()
       await allFuturesThrowing(
-        allFinished(
           (dialStreams & listenStreams)
-          .mapIt( it.join() )))
+          .mapIt( it.join() ))
 
       checkTracker(LPChannelTrackerName)
 
@@ -874,9 +870,8 @@ suite "Mplex":
 
       await conn.close()
       await allFuturesThrowing(
-        allFinished(
           (dialStreams & listenStreams)
-          .mapIt( it.join() )))
+          .mapIt( it.join() ))
 
       checkTracker(LPChannelTrackerName)
 
@@ -920,9 +915,8 @@ suite "Mplex":
 
       await listenConn.close()
       await allFuturesThrowing(
-        allFinished(
           (dialStreams & listenStreams)
-          .mapIt( it.join() )))
+          .mapIt( it.join() ))
 
       checkTracker(LPChannelTrackerName)
 
