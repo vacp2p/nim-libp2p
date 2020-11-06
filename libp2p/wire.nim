@@ -72,7 +72,7 @@ proc connect*(ma: MultiAddress, bufferSize = DefaultStreamBufferSize,
   ## new transport object ``StreamTransport`` for established connection.
   ## ``bufferSize`` is size of internal buffer for transport.
   if not(RTRANSPMA.match(ma)):
-    raise newException(TransportAddressError, "Incorrect address type!")
+    raise newException(MaInvalidAddress, "Incorrect or unsupported address!")
 
   let address = initTAddress(ma).tryGet()
   result = await connect(address, bufferSize, child)
@@ -88,7 +88,7 @@ proc createStreamServer*[T](ma: MultiAddress,
                             init: TransportInitCallback = nil): StreamServer =
   ## Create new TCP stream server which bounds to ``ma`` address.
   if not(RTRANSPMA.match(ma)):
-    raise newException(TransportAddressError, "Incorrect address type!")
+    raise newException(MaInvalidAddress, "Incorrect or unsupported address!")
 
   let address = initTAddress(ma)
   result = createStreamServer(address.tryGet(), cbproc, flags, udata, sock,
@@ -104,7 +104,7 @@ proc createStreamServer*[T](ma: MultiAddress,
                             init: TransportInitCallback = nil): StreamServer =
   ## Create new TCP stream server which bounds to ``ma`` address.
   if not(RTRANSPMA.match(ma)):
-    raise newException(TransportAddressError, "Incorrect address type!")
+    raise newException(MaInvalidAddress, "Incorrect or unsupported address!")
 
   let address = initTAddress(ma)
   result = createStreamServer(address.tryGet(), flags, udata, sock, backlog,
