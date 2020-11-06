@@ -61,8 +61,8 @@ proc setupStreamTracker(name: string): StreamTracker =
   let tracker = new StreamTracker
 
   proc dumpTracking(): string {.gcsafe.} =
-    return "Opened " & tracker.id & ": " & $tracker.opened & "\n" &
-            "Closed " & tracker.id & ": " & $tracker.closed
+    return "Opened " & tracker.id & " :" & $tracker.opened & "\n" &
+            "Closed " & tracker.id & " :" & $tracker.closed
 
   proc leakTransport(): bool {.gcsafe.} =
     return (tracker.opened != tracker.closed)
