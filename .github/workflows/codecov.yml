@@ -40,7 +40,7 @@ jobs:
           bash <(curl -s https://codecov.io/bash) -f coverage/coverage.f.info || echo "Codecov did not collect coverage reports"
       - uses: actions/upload-artifact@master
         with:
-          name: coverage
+          name: coverage-$GITHUB_RUN_ID
           path: coverage/output
 
   Tests:
@@ -73,7 +73,7 @@ jobs:
           bash <(curl -s https://codecov.io/bash) -f coverage/coverage.f.info || echo "Codecov did not collect coverage reports"
       - uses: actions/upload-artifact@master
         with:
-          name: coverage
+          name: coverage-$GITHUB_RUN_ID
           path: coverage/output
 
   Filter:
@@ -109,7 +109,7 @@ jobs:
           bash <(curl -s https://codecov.io/bash) -f coverage/coverage.f.info || echo "Codecov did not collect coverage reports"
       - uses: actions/upload-artifact@master
         with:
-          name: coverage
+          name: coverage-$GITHUB_RUN_ID
           path: coverage/output
 
 
