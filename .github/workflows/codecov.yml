@@ -9,11 +9,11 @@ jobs:
       matrix:
         nim-options: [
           "", 
-          " -d:libp2p_pubsub_anonymize=true -d:libp2p_pubsub_sign=false -d:libp2p_pubsub_verify=false", 
-          " -d:libp2p_pubsub_sign=true -d:libp2p_pubsub_verify=true",
-          " -d:fallback_gossipsub_10", 
-          " -d:fallback_gossipsub_10 -d:libp2p_pubsub_anonymize=true -d:libp2p_pubsub_sign=false -d:libp2p_pubsub_verify=false", 
-          " -d:fallback_gossipsub_10 -d:libp2p_pubsub_sign=true -d:libp2p_pubsub_verify=true"
+          "-d:libp2p_pubsub_anonymize=true -d:libp2p_pubsub_sign=false -d:libp2p_pubsub_verify=false", 
+          "-d:libp2p_pubsub_sign=true -d:libp2p_pubsub_verify=true",
+          "-d:fallback_gossipsub_10", 
+          "-d:fallback_gossipsub_10 -d:libp2p_pubsub_anonymize=true -d:libp2p_pubsub_sign=false -d:libp2p_pubsub_verify=false", 
+          "-d:fallback_gossipsub_10 -d:libp2p_pubsub_sign=true -d:libp2p_pubsub_verify=true"
         ]
         test-program: [
           "tests/pubsub/testpubsub",
@@ -29,6 +29,7 @@ jobs:
           curl -O -L -s -S https://raw.githubusercontent.com/status-im/nimbus-build-system/master/scripts/build_nim.sh
           env MAKE="make -j${NPROC}" bash build_nim.sh Nim csources dist/nimble NimBinaries
           export PATH="$PWD/Nim/bin"
+          nimble install -y --depsOnly
           export NIM_OPTIONS="--opt:speed -d:debug --verbosity:0 --hints:off -d:chronicles_log_level=INFO --warning[CaseTransition]:off --warning[ObservableStores]:off --warning[LockLevel]:off --nimcache:nimcache --passC:-fprofile-arcs --passC:-ftest-coverage --passL:-fprofile-arcs --passL:-ftest-coverage ${{ matrix.options }}"
           nim c $NIM_OPTIONS ${{ matrix.test-program }}
 
