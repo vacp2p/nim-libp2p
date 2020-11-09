@@ -24,7 +24,7 @@ jobs:
       - name: Setup
         run: |
           sudo apt-get update
-          sudo apt-get install -y lcov
+          sudo apt-get install -y lcov build-essential git curl
           mkdir coverage
           curl -O -L -s -S https://raw.githubusercontent.com/status-im/nimbus-build-system/master/scripts/build_nim.sh
           env MAKE="make -j${NPROC}" bash build_nim.sh Nim csources dist/nimble NimBinaries
