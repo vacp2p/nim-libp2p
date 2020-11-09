@@ -30,11 +30,12 @@ jobs:
           env MAKE="make -j${NPROC}" bash build_nim.sh Nim csources dist/nimble NimBinaries
           export PATH="$PATH:$PWD/Nim/bin"
           nimble install -y --depsOnly
-          export NIM_OPTIONS="--opt:speed -d:debug --verbosity:0 --hints:off -d:chronicles_log_level=INFO --warning[CaseTransition]:off --warning[ObservableStores]:off --warning[LockLevel]:off --nimcache:nimcache --passC:-fprofile-arcs --passC:-ftest-coverage --passL:-fprofile-arcs --passL:-ftest-coverage ${{ matrix.options }}"
+          export NIM_OPTIONS="--lineDir:on --opt:speed -d:debug --verbosity:0 --hints:off -d:chronicles_log_level=INFO --warning[CaseTransition]:off --warning[ObservableStores]:off --warning[LockLevel]:off --nimcache:nimcache --passC:-fprofile-arcs --passC:-ftest-coverage --passL:-fprofile-arcs --passL:-ftest-coverage ${{ matrix.options }}"
           nim c $NIM_OPTIONS -r ${{ matrix.test-program }}
           lcov --capture --directory nimcache --output-file coverage/coverage.info
-          genhtml coverage/coverage.info --output-directory coverage/output
-          bash <(curl -s https://codecov.io/bash) -f coverage/coverage.info || echo "Codecov did not collect coverage reports"
+          lcov --extract coverage/coverage.info /mnt/e/develop/status/nim-libp2p/libp2p/* /mnt/e/develop/status/nim-libp2p/libp2p/**/* /mnt/e/develop/status/nim-libp2p/libp2p/**/**/* --output-file coverage/coverage.f.info
+          genhtml coverage/coverage.f.info --output-directory coverage/output
+          bash <(curl -s https://codecov.io/bash) -f coverage/coverage.f.info || echo "Codecov did not collect coverage reports"
       - uses: actions/upload-artifact@master
         with:
           name: coverage
