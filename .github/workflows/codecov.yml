@@ -35,12 +35,7 @@ jobs:
           cd nimcache; rm *.c; cd ..
           lcov --capture --directory nimcache --output-file coverage/coverage.info
           lcov --extract coverage/coverage.info  `pwd`/libp2p/* `pwd`/libp2p/**/* `pwd`/libp2p/**/**/* --output-file coverage/coverage.f.info
-          genhtml coverage/coverage.f.info --output-directory coverage/output
           bash <(curl -s https://codecov.io/bash) -f coverage/coverage.f.info || echo "Codecov did not collect coverage reports"
-      - uses: actions/upload-artifact@master
-        with:
-          name: coverage
-          path: coverage/output
 
 
 
