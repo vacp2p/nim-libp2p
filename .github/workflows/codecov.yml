@@ -41,7 +41,7 @@ jobs:
       - uses: actions/upload-artifact@master
         with:
           name: coverage
-          path: coverage/output-$GITHUB_RUN_ID
+          path: coverage/output-${{ env.GITHUB_RUN_ID }}
 
   Tests:
     runs-on: ubuntu-20.04
@@ -74,7 +74,7 @@ jobs:
       - uses: actions/upload-artifact@master
         with:
           name: coverage
-          path: coverage/output-$GITHUB_RUN_ID
+          path: coverage/output-${{ env.GITHUB_RUN_ID }}
 
   Filter:
     runs-on: ubuntu-20.04
@@ -110,7 +110,7 @@ jobs:
       - uses: actions/upload-artifact@master
         with:
           name: coverage
-          path: coverage/output-$GITHUB_RUN_ID
+          path: coverage/output-${{ env.GITHUB_RUN_ID }}
 
 
 
