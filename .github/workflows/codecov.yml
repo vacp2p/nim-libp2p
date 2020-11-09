@@ -1,0 +1,36 @@
+name: nim-libp2p codecov builds
+
+on: [push, pull_request]
+
+jobs:
+  Tests:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        nim-options: [
+          "", 
+          " -d:libp2p_pubsub_anonymize=true -d:libp2p_pubsub_sign=false -d:libp2p_pubsub_verify=false", 
+          " -d:libp2p_pubsub_sign=true -d:libp2p_pubsub_verify=true",
+          " -d:fallback_gossipsub_10", 
+          " -d:fallback_gossipsub_10 -d:libp2p_pubsub_anonymize=true -d:libp2p_pubsub_sign=false -d:libp2p_pubsub_verify=false", 
+          " -d:fallback_gossipsub_10 -d:libp2p_pubsub_sign=true -d:libp2p_pubsub_verify=true"
+        ]
+        test-program: [
+          "tests/pubsub/testpubsub",
+          "tests/pubsub/testgossipinternal"
+        ]
+    steps:
+      - uses: actions/checkout@v2
+      - name: Setup
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y lcov
+          mkdir coverage
+          curl -O -L -s -S https://raw.githubusercontent.com/status-im/nimbus-build-system/master/scripts/build_nim.sh
+          env MAKE="make -j${NPROC}" bash build_nim.sh Nim csources dist/nimble NimBinaries
+          export PATH="$PWD/Nim/bin"
+          export NIM_OPTIONS="--opt:speed -d:debug --verbosity:0 --hints:off -d:chronicles_log_level=INFO --warning[CaseTransition]:off --warning[ObservableStores]:off --warning[LockLevel]:off --nimcache:nimcache --passC:-fprofile-arcs --passC:-ftest-coverage --passL:-fprofile-arcs --passL:-ftest-coverage ${{ matrix.options }}"
+          nim c $NIM_OPTIONS ${{ matrix.test-program }}
+
+
+
