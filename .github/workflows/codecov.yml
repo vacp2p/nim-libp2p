@@ -30,8 +30,9 @@ jobs:
           env MAKE="make -j${NPROC}" bash build_nim.sh Nim csources dist/nimble NimBinaries
           export PATH="$PATH:$PWD/Nim/bin"
           nimble install -y --depsOnly
-          export NIM_OPTIONS="--opt:speed -d:debug --verbosity:0 --hints:off -d:chronicles_log_level=INFO --warning[CaseTransition]:off --warning[ObservableStores]:off --warning[LockLevel]:off --nimcache:nimcache --passC:-fprofile-arcs --passC:-ftest-coverage --passL:-fprofile-arcs --passL:-ftest-coverage ${{ matrix.options }}"
-          nim c $NIM_OPTIONS ${{ matrix.test-program }}
+          export NIM_OPTIONS="--debugger:native --opt:speed -d:debug --verbosity:0 --hints:off -d:chronicles_log_level=INFO --warning[CaseTransition]:off --warning[ObservableStores]:off --warning[LockLevel]:off --nimcache:nimcache --passC:-fprofile-arcs --passC:-ftest-coverage --passL:-fprofile-arcs --passL:-ftest-coverage ${{ matrix.options }}"
+          nim c $NIM_OPTIONS -r ${{ matrix.test-program }}
+          bash <(curl -s https://codecov.io/bash) -f coverage/coverage.info || echo "Codecov did not collect coverage reports"
 
 
 
