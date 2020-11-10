@@ -124,7 +124,7 @@ method initStream*(s: LPStream) {.base.} =
 
   libp2p_open_streams.inc(labelValues = [s.objName, $s.dir])
   inc getStreamTracker(s.objName).opened
-  trace "Stream created", s, objName = s.objName, dir = $s.dir
+  debug "Stream created", s, objName = s.objName, dir = $s.dir
 
 proc join*(s: LPStream): Future[void] =
   s.closeEvent.wait()
@@ -253,7 +253,7 @@ method closeImpl*(s: LPStream): Future[void] {.async, base.} =
   s.closeEvent.fire()
   libp2p_open_streams.dec(labelValues = [s.objName, $s.dir])
   inc getStreamTracker(s.objName).closed
-  trace "Closed stream", s, objName = s.objName, dir = $s.dir
+  debug "Closed stream", s, objName = s.objName, dir = $s.dir
 
 method close*(s: LPStream): Future[void] {.base, async.} = # {.raises [Defect].}
   ## close the stream - this may block, but will not raise exceptions

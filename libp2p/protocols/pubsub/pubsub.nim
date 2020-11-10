@@ -77,7 +77,7 @@ method unsubscribePeer*(p: PubSub, peerId: PeerID) {.base.} =
   ## handle peer disconnects
   ##
 
-  trace "unsubscribing pubsub peer", peerId
+  debug "unsubscribing pubsub peer", peerId
   p.peers.del(peerId)
 
   libp2p_pubsub_peers.set(p.peers.len.int64)
@@ -149,7 +149,7 @@ proc getOrCreatePeer*(
 
   # create new pubsub peer
   let pubSubPeer = newPubSubPeer(peer, getConn, onEvent, protos[0])
-  trace "created new pubsub peer", peer
+  debug "created new pubsub peer", peer
 
   p.peers[peer] = pubSubPeer
   pubSubPeer.observers = p.observers
@@ -224,7 +224,7 @@ method unsubscribe*(p: PubSub,
                     topics: seq[TopicPair]) {.base, async.} =
   ## unsubscribe from a list of ``topic`` strings
   for t in topics:
-    let 
+    let
       handler = t.handler
       ttopic = t.topic
     closureScope:
@@ -338,9 +338,9 @@ method validate*(p: PubSub, message: Message): Future[ValidationResult] {.async,
     if res != ValidationResult.Accept:
       result = res
       break
-  
+
   case result
-  of ValidationResult.Accept: 
+  of ValidationResult.Accept:
     libp2p_pubsub_validation_success.inc()
   of ValidationResult.Reject:
     libp2p_pubsub_validation_failure.inc()
@@ -389,7 +389,7 @@ proc init*[PubParams: object | bool](
   switch.addPeerEventHandler(peerEventHandler, PeerEvent.Left)
 
   pubsub.initPubSub()
-  
+
   return pubsub
 
 
