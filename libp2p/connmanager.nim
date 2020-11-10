@@ -227,7 +227,7 @@ proc cleanupConn(c: ConnManager, conn: Connection) {.async.} =
 
 proc peerStartup(c: ConnManager, conn: Connection) {.async.} =
   try:
-    trace "Triggering peer and connection events on connect", conn
+    trace "Triggering connect events", conn
     let peerId = conn.peerInfo.peerId
     await c.triggerPeerEvents(peerId, PeerEvent.Joined)
     await c.triggerConnEvent(
@@ -240,7 +240,7 @@ proc peerStartup(c: ConnManager, conn: Connection) {.async.} =
 
 proc peerCleanup(c: ConnManager, conn: Connection) {.async.} =
   try:
-    trace "Triggering peer and connection events on disconnect", conn
+    trace "Triggering disconnect events", conn
     let peerId = conn.peerInfo.peerId
     await c.triggerConnEvent(
       peerId, ConnEvent(kind: ConnEventKind.Disconnected))
@@ -417,6 +417,8 @@ proc dropPeer*(c: ConnManager, peerId: PeerID) {.async.} =
   for conn in conns:
     await conn.close()
     trace "Dropped peer", peerId
+
+  trace "Peer dropped", peerId
 
 proc close*(c: ConnManager) {.async.} =
   ## cleanup resources for the connection
