@@ -1,6 +1,6 @@
 language: go
 
-dist: focal
+dist: bionic
 
 # https://docs.travis-ci.com/user/caching/
 cache:
@@ -20,15 +20,8 @@ matrix:
       arch: amd64
       env:
         - NPROC=2
-        - CODE_COVERAGE=1
       before_install:
         - export GOPATH=$HOME/go
-      before_script:
-        - sudo apt-get update
-        - sudo apt-get install -y lcov
-        - mkdir coverage
-      after_script:
-        - bash <(curl -s https://codecov.io/bash) -f coverage/coverage.info || echo "Codecov did not collect coverage reports"
     ## arm64 is very unreliable and slow, disabled for now
     # - os: linux
     #   arch: arm64

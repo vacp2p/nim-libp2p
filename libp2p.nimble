@@ -19,11 +19,6 @@ requires "nim >= 1.2.0",
 proc runTest(filename: string, verify: bool = true, sign: bool = true,
              moreoptions: string = "") =
   var excstr = "nim c --opt:speed -d:debug --verbosity:0 --hints:off"
-
-  if getenv("CODE_COVERAGE") == "1":
-    rmDir "nimcache" # sadly we have to do this
-    excstr &= " --nimcache:nimcache --passC:-fprofile-arcs --passC:-ftest-coverage --passL:-fprofile-arcs --passL:-ftest-coverage"
-  
   excstr.add(" --warning[CaseTransition]:off --warning[ObservableStores]:off --warning[LockLevel]:off")
   excstr.add(" -d:libp2p_pubsub_sign=" & $sign)
   excstr.add(" -d:libp2p_pubsub_verify=" & $verify)
@@ -34,13 +29,6 @@ proc runTest(filename: string, verify: bool = true, sign: bool = true,
   # build it again, to run it with less verbose logs
   exec excstr & " -d:chronicles_log_level=INFO -r" & " tests/" & filename
   rmFile "tests/" & filename.toExe
-  
-  if getenv("CODE_COVERAGE") == "1":
-    if fileExists("coverage/coverage.info"):
-      exec "lcov --capture --directory nimcache --output-file coverage/coverage-tmp.info"
-      exec "lcov --add-tracefile coverage/coverage.info -a coverage/coverage-tmp.info -o coverage/coverage.info"
-    else:
-      exec "lcov --capture --directory nimcache --output-file coverage/coverage.info"
 
 proc buildSample(filename: string) =
   var excstr = "nim c --opt:speed --threads:on -d:debug --verbosity:0 --hints:off"
