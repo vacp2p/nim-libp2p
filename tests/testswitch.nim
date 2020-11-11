@@ -579,6 +579,52 @@ suite "Switch":
       # use same private keys to emulate two connection from same peer
       let peerInfo = PeerInfo.init(PrivateKey.random(rng[]).tryGet())
 
+      var switches: seq[Switch]
+      var done = newFuture[void]()
+      var onConnect: Future[void]
+      proc hook(peerId: PeerID, event: ConnEvent) {.async, gcsafe.} =
+        case event.kind:
+        of ConnEventKind.Connected:
+          await onConnect
+          await switches[0].disconnect(peerInfo.peerId) # trigger disconnect
+        of ConnEventKind.Disconnected:
+          check not switches[0].isConnected(peerInfo.peerId)
+          await sleepAsync(1.millis)
+          done.complete()
+
+      switches.add(newStandardSwitch(
+          rng = rng,
+          secureManagers = [SecureProtocol.Secio]))
+
+      switches[0].addConnEventHandler(hook, ConnEventKind.Connected)
+      switches[0].addConnEventHandler(hook, ConnEventKind.Disconnected)
+      awaiters.add(await switches[0].start())
+
+      switches.add(newStandardSwitch(
+        privKey = some(peerInfo.privateKey),
+        rng = rng,
+        secureManagers = [SecureProtocol.Secio]))
+      onConnect = switches[1].connect(switches[0].peerInfo)
+      await onConnect
+
+      await done
+      checkTracker(LPChannelTrackerName)
+      checkTracker(SecureConnTrackerName)
+
+      await allFuturesThrowing(
+        switches.mapIt( it.stop() ))
+      await allFuturesThrowing(awaiters)
+
+    waitFor(testSwitch())
+
+  test "e2e should allow dropping multiple connections for peer from connection events":
+    proc testSwitch() {.async, gcsafe.} =
+      var awaiters: seq[Future[void]]
+
+      let rng = newRng()
+      # use same private keys to emulate two connection from same peer
+      let peerInfo = PeerInfo.init(PrivateKey.random(rng[]).tryGet())
+
       var conns = 1
       var switches: seq[Switch]
       var done = newFuture[void]()
