@@ -1,6 +1,6 @@
 {.used.}
 
-import unittest, options
+import unittest, options, sequtils
 import chronos
 import stew/byteutils
 import nimcrypto/sysrand
@@ -248,14 +248,8 @@ suite "Switch":
       check not switch1.isConnected(switch2.peerInfo)
       check not switch2.isConnected(switch1.peerInfo)
 
-      var channelTracker = getTracker(LPChannelTrackerName)
-      # echo channelTracker.dump()
-      check channelTracker.isLeaked() == false
-
-      var connTracker = getTracker(SecureConnTrackerName)
-      doAssert(not isNil(connTracker))
-      # echo connTracker.dump()
-      check connTracker.isLeaked() == false
+      checkTracker(LPChannelTrackerName)
+      checkTracker(SecureConnTrackerName)
 
       await allFuturesThrowing(
         switch1.stop(),
@@ -308,13 +302,8 @@ suite "Switch":
       check not switch1.isConnected(switch2.peerInfo)
       check not switch2.isConnected(switch1.peerInfo)
 
-      var bufferTracker = getTracker(LPChannelTrackerName)
-      # echo bufferTracker.dump()
-      check bufferTracker.isLeaked() == false
-
-      var connTracker = getTracker(SecureConnTrackerName)
-      # echo connTracker.dump()
-      check connTracker.isLeaked() == false
+      checkTracker(LPChannelTrackerName)
+      checkTracker(SecureConnTrackerName)
 
       check:
         kinds == {
@@ -373,13 +362,8 @@ suite "Switch":
       check not switch1.isConnected(switch2.peerInfo)
       check not switch2.isConnected(switch1.peerInfo)
 
-      var bufferTracker = getTracker(LPChannelTrackerName)
-      # echo bufferTracker.dump()
-      check bufferTracker.isLeaked() == false
-
-      var connTracker = getTracker(SecureConnTrackerName)
-      # echo connTracker.dump()
-      check connTracker.isLeaked() == false
+      checkTracker(LPChannelTrackerName)
+      checkTracker(SecureConnTrackerName)
 
       check:
         kinds == {
@@ -437,13 +421,8 @@ suite "Switch":
       check not switch1.isConnected(switch2.peerInfo)
       check not switch2.isConnected(switch1.peerInfo)
 
-      var bufferTracker = getTracker(LPChannelTrackerName)
-      # echo bufferTracker.dump()
-      check bufferTracker.isLeaked() == false
-
-      var connTracker = getTracker(SecureConnTrackerName)
-      # echo connTracker.dump()
-      check connTracker.isLeaked() == false
+      checkTracker(LPChannelTrackerName)
+      checkTracker(SecureConnTrackerName)
 
       check:
         kinds == {
@@ -501,13 +480,8 @@ suite "Switch":
       check not switch1.isConnected(switch2.peerInfo)
       check not switch2.isConnected(switch1.peerInfo)
 
-      var bufferTracker = getTracker(LPChannelTrackerName)
-      # echo bufferTracker.dump()
-      check bufferTracker.isLeaked() == false
-
-      var connTracker = getTracker(SecureConnTrackerName)
-      # echo connTracker.dump()
-      check connTracker.isLeaked() == false
+      checkTracker(LPChannelTrackerName)
+      checkTracker(SecureConnTrackerName)
 
       check:
         kinds == {
@@ -580,13 +554,8 @@ suite "Switch":
       check not switch2.isConnected(switch1.peerInfo)
       check not switch3.isConnected(switch1.peerInfo)
 
-      var bufferTracker = getTracker(LPChannelTrackerName)
-      # echo bufferTracker.dump()
-      check bufferTracker.isLeaked() == false
-
-      var connTracker = getTracker(SecureConnTrackerName)
-      # echo connTracker.dump()
-      check connTracker.isLeaked() == false
+      checkTracker(LPChannelTrackerName)
+      checkTracker(SecureConnTrackerName)
 
       check:
         kinds == {
@@ -598,6 +567,105 @@ suite "Switch":
         switch1.stop(),
         switch2.stop(),
         switch3.stop())
+      await allFuturesThrowing(awaiters)
+
+    waitFor(testSwitch())
+
+  test "e2e should allow dropping peer from connection events":
+    proc testSwitch() {.async, gcsafe.} =
+      var awaiters: seq[Future[void]]
+
+      let rng = newRng()
+      # use same private keys to emulate two connection from same peer
+      let peerInfo = PeerInfo.init(PrivateKey.random(rng[]).tryGet())
+
+      var switches: seq[Switch]
+      var done = newFuture[void]()
+      var onConnect: Future[void]
+      proc hook(peerId: PeerID, event: ConnEvent) {.async, gcsafe.} =
+        case event.kind:
+        of ConnEventKind.Connected:
+          await onConnect
+          await switches[0].disconnect(peerInfo.peerId) # trigger disconnect
+        of ConnEventKind.Disconnected:
+          check not switches[0].isConnected(peerInfo.peerId)
+          await sleepAsync(1.millis)
+          done.complete()
+
+      switches.add(newStandardSwitch(
+          rng = rng,
+          secureManagers = [SecureProtocol.Secio]))
+
+      switches[0].addConnEventHandler(hook, ConnEventKind.Connected)
+      switches[0].addConnEventHandler(hook, ConnEventKind.Disconnected)
+      awaiters.add(await switches[0].start())
+
+      switches.add(newStandardSwitch(
+        privKey = some(peerInfo.privateKey),
+        rng = rng,
+        secureManagers = [SecureProtocol.Secio]))
+      onConnect = switches[1].connect(switches[0].peerInfo)
+      await onConnect
+
+      await done
+      checkTracker(LPChannelTrackerName)
+      checkTracker(SecureConnTrackerName)
+
+      await allFuturesThrowing(
+        switches.mapIt( it.stop() ))
+      await allFuturesThrowing(awaiters)
+
+    waitFor(testSwitch())
+
+  test "e2e should allow dropping multiple connections for peer from connection events":
+    proc testSwitch() {.async, gcsafe.} =
+      var awaiters: seq[Future[void]]
+
+      let rng = newRng()
+      # use same private keys to emulate two connection from same peer
+      let peerInfo = PeerInfo.init(PrivateKey.random(rng[]).tryGet())
+
+      var conns = 1
+      var switches: seq[Switch]
+      var done = newFuture[void]()
+      var onConnect: Future[void]
+      proc hook(peerId: PeerID, event: ConnEvent) {.async, gcsafe.} =
+        case event.kind:
+        of ConnEventKind.Connected:
+          if conns == 5:
+            await onConnect
+            await switches[0].disconnect(peerInfo.peerId) # trigger disconnect
+            return
+
+          conns.inc
+        of ConnEventKind.Disconnected:
+          if conns == 1:
+            check not switches[0].isConnected(peerInfo.peerId)
+            done.complete()
+          conns.dec
+
+      switches.add(newStandardSwitch(
+          rng = rng,
+          secureManagers = [SecureProtocol.Secio]))
+
+      switches[0].addConnEventHandler(hook, ConnEventKind.Connected)
+      switches[0].addConnEventHandler(hook, ConnEventKind.Disconnected)
+      awaiters.add(await switches[0].start())
+
+      for i in 1..5:
+        switches.add(newStandardSwitch(
+          privKey = some(peerInfo.privateKey),
+          rng = rng,
+          secureManagers = [SecureProtocol.Secio]))
+        onConnect = switches[i].connect(switches[0].peerInfo)
+        await onConnect
+
+      await done
+      checkTracker(LPChannelTrackerName)
+      checkTracker(SecureConnTrackerName)
+
+      await allFuturesThrowing(
+        switches.mapIt( it.stop() ))
       await allFuturesThrowing(awaiters)
 
     waitFor(testSwitch())
