@@ -36,12 +36,14 @@ jobs:
           cd nimcache; rm *.c; cd ..
           lcov --capture --directory nimcache --output-file coverage/coverage.info
           lcov --extract coverage/coverage.info  `pwd`/libp2p/* `pwd`/libp2p/**/* `pwd`/libp2p/**/**/* --output-file coverage/coverage.f.info
-          genhtml coverage/coverage.f.info --output-directory coverage/output-$GITHUB_RUN_ID
+          genhtml coverage/coverage.f.info --output-directory coverage/$GITHUB_RUN_ID-output
+          echo ${{ matrix.test-program }} > coverage/$GITHUB_RUN_ID-nim_options.txt
+          echo $NIM_OPTIONS >> coverage/$GITHUB_RUN_ID-nim_options.txt
           bash <(curl -s https://codecov.io/bash) -f coverage/coverage.f.info || echo "Codecov did not collect coverage reports"
       - uses: actions/upload-artifact@master
         with:
           name: coverage
-          path: coverage/output-${{ github.run_id }}
+          path: coverage
 
   Tests:
     runs-on: ubuntu-20.04
@@ -70,11 +72,13 @@ jobs:
           lcov --capture --directory nimcache --output-file coverage/coverage.info
           lcov --extract coverage/coverage.info  `pwd`/libp2p/* `pwd`/libp2p/**/* `pwd`/libp2p/**/**/* --output-file coverage/coverage.f.info
           genhtml coverage/coverage.f.info --output-directory coverage/output-$GITHUB_RUN_ID
+          echo ${{ matrix.test-program }} > coverage/$GITHUB_RUN_ID-nim_options.txt
+          echo $NIM_OPTIONS >> coverage/$GITHUB_RUN_ID-nim_options.txt
           bash <(curl -s https://codecov.io/bash) -f coverage/coverage.f.info || echo "Codecov did not collect coverage reports"
       - uses: actions/upload-artifact@master
         with:
           name: coverage
-          path: coverage/output-${{ github.run_id }}
+          path: coverage
 
   Filter:
     runs-on: ubuntu-20.04
@@ -106,11 +110,13 @@ jobs:
           lcov --capture --directory nimcache --output-file coverage/coverage.info
           lcov --extract coverage/coverage.info  `pwd`/libp2p/* `pwd`/libp2p/**/* `pwd`/libp2p/**/**/* --output-file coverage/coverage.f.info
           genhtml coverage/coverage.f.info --output-directory coverage/output-$GITHUB_RUN_ID
+          echo ${{ matrix.test-program }} > coverage/$GITHUB_RUN_ID-nim_options.txt
+          echo $NIM_OPTIONS >> coverage/$GITHUB_RUN_ID-nim_options.txt
           bash <(curl -s https://codecov.io/bash) -f coverage/coverage.f.info || echo "Codecov did not collect coverage reports"
       - uses: actions/upload-artifact@master
         with:
           name: coverage
-          path: coverage/output-${{ github.run_id }}
+          path: coverage
 
 
 
