@@ -87,8 +87,11 @@ method rpcHandler*(f: FloodSub,
 
     let validation = await f.validate(msg)
     case validation
-    of ValidationResult.Reject, ValidationResult.Ignore:
-      debug "Dropping message due to ignored validation", msgId, peer
+    of ValidationResult.Reject:
+      debug "Dropping message after validation, reason: reject", msgId, peer
+      continue
+    of ValidationResult.Ignore:
+      debug "Dropping message after validation, reason: ignore", msgId, peer
       continue
     of ValidationResult.Accept:
       discard

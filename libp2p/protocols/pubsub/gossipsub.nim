@@ -1109,11 +1109,11 @@ method rpcHandler*(g: GossipSub,
     let validation = await g.validate(msg)
     case validation
     of ValidationResult.Reject:
-      debug "Dropping message due to failed validation", msgId, peer
+      debug "Dropping message after validation, reason: reject", msgId, peer
       g.punishPeer(peer, msg.topicIDs)
       continue
     of ValidationResult.Ignore:
-      debug "Dropping message due to ignored validation", msgId, peer
+      debug "Dropping message after validation, reason: ignore", msgId, peer
       continue
     of ValidationResult.Accept:
       discard
