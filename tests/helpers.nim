@@ -48,24 +48,24 @@ template checkTrackers*() =
 
 template asyncTeardown*(body: untyped): untyped =
   teardown:
-    proc tearItDown() {.async.} =
-      body
-
-    waitFor(tearItDown())
+    waitFor((
+      proc() {.async.} =
+        body
+    )())
 
 template asyncSetup*(body: untyped): untyped =
   setup:
-    proc setupItUp() {.async.} =
-      body
-
-    waitFor(setupItUp())
+    waitFor((
+      proc() {.async.} =
+        body
+    )())
 
 template asyncTest*(name: string, body: untyped): untyped =
   test name:
-    proc testIt() {.async.} =
-      body
-
-    waitFor(testIt())
+    waitFor((
+      proc() {.async.} =
+        body
+    )())
 
 type RngWrap = object
   rng: ref BrHmacDrbgContext
