@@ -74,232 +74,199 @@ suite "Noise":
   teardown:
     checkTrackers()
 
-  test "e2e: handle write + noise":
-    proc testListenerDialer(): Future[bool] {.async.} =
-      let
-        server = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
-        serverInfo = PeerInfo.init(PrivateKey.random(ECDSA, rng[]).get(), [server])
-        serverNoise = newNoise(rng, serverInfo.privateKey, outgoing = false)
+  asyncTest "e2e: handle write + noise":
+    let
+      server = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
+      serverInfo = PeerInfo.init(PrivateKey.random(ECDSA, rng[]).get(), [server])
+      serverNoise = newNoise(rng, serverInfo.privateKey, outgoing = false)
 
-      proc connHandler(conn: Connection) {.async, gcsafe.} =
-        let sconn = await serverNoise.secure(conn, false)
-        try:
-          await sconn.write("Hello!")
-        finally:
-          await sconn.close()
-          await conn.close()
+    proc connHandler(conn: Connection) {.async, gcsafe.} =
+      let sconn = await serverNoise.secure(conn, false)
+      try:
+        await sconn.write("Hello!")
+      finally:
+        await sconn.close()
+        await conn.close()
 
-      let
-        transport1: TcpTransport = TcpTransport.init()
-      asyncCheck await transport1.listen(server, connHandler)
+    let
+      transport1: TcpTransport = TcpTransport.init()
+    asyncCheck await transport1.listen(server, connHandler)
 
-      let
-        transport2: TcpTransport = TcpTransport.init()
-        clientInfo = PeerInfo.init(PrivateKey.random(ECDSA, rng[]).get(), [transport1.ma])
-        clientNoise = newNoise(rng, clientInfo.privateKey, outgoing = true)
-        conn = await transport2.dial(transport1.ma)
-        sconn = await clientNoise.secure(conn, true)
+    let
+      transport2: TcpTransport = TcpTransport.init()
+      clientInfo = PeerInfo.init(PrivateKey.random(ECDSA, rng[]).get(), [transport1.ma])
+      clientNoise = newNoise(rng, clientInfo.privateKey, outgoing = true)
+      conn = await transport2.dial(transport1.ma)
+      sconn = await clientNoise.secure(conn, true)
 
+    var msg = newSeq[byte](6)
+    await sconn.readExactly(addr msg[0], 6)
+
+    await sconn.close()
+    await conn.close()
+    await transport1.close()
+    await transport2.close()
+
+    check string.fromBytes(msg) == "Hello!"
+
+  asyncTest "e2e: handle write + noise (wrong prologue)":
+    let
+      server = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
+      serverInfo = PeerInfo.init(PrivateKey.random(ECDSA, rng[]).get(), [server])
+      serverNoise = newNoise(rng, serverInfo.privateKey, outgoing = false)
+
+    proc connHandler(conn: Connection) {.async, gcsafe.} =
+      let sconn = await serverNoise.secure(conn, false)
+      try:
+        await sconn.write("Hello!")
+      finally:
+        await sconn.close()
+        await conn.close()
+
+    let
+      transport1: TcpTransport = TcpTransport.init()
+    asyncCheck await transport1.listen(server, connHandler)
+
+    let
+      transport2: TcpTransport = TcpTransport.init()
+      clientInfo = PeerInfo.init(PrivateKey.random(ECDSA, rng[]).get(), [transport1.ma])
+      clientNoise = newNoise(rng, clientInfo.privateKey, outgoing = true, commonPrologue = @[1'u8, 2'u8, 3'u8])
+      conn = await transport2.dial(transport1.ma)
+    var sconn: Connection = nil
+    expect(NoiseDecryptTagError):
+      sconn = await clientNoise.secure(conn, true)
+
+    await conn.close()
+    await transport1.close()
+    await transport2.close()
+
+  asyncTest "e2e: handle read + noise":
+    let
+      server = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
+      serverInfo = PeerInfo.init(PrivateKey.random(ECDSA, rng[]).get(), [server])
+      serverNoise = newNoise(rng, serverInfo.privateKey, outgoing = false)
+      readTask = newFuture[void]()
+
+    proc connHandler(conn: Connection) {.async, gcsafe.} =
+      let sconn = await serverNoise.secure(conn, false)
+      defer:
+        await sconn.close()
+        await conn.close()
       var msg = newSeq[byte](6)
       await sconn.readExactly(addr msg[0], 6)
+      check string.fromBytes(msg) == "Hello!"
+      readTask.complete()
 
-      await sconn.close()
-      await conn.close()
-      await transport1.close()
-      await transport2.close()
+    let
+      transport1: TcpTransport = TcpTransport.init()
+    asyncCheck await transport1.listen(server, connHandler)
 
-      result = string.fromBytes(msg) == "Hello!"
+    let
+      transport2: TcpTransport = TcpTransport.init()
+      clientInfo = PeerInfo.init(PrivateKey.random(ECDSA, rng[]).get(), [transport1.ma])
+      clientNoise = newNoise(rng, clientInfo.privateKey, outgoing = true)
+      conn = await transport2.dial(transport1.ma)
+      sconn = await clientNoise.secure(conn, true)
 
-    check:
-      waitFor(testListenerDialer()) == true
+    await sconn.write("Hello!")
+    await readTask
+    await sconn.close()
+    await conn.close()
+    await transport1.close()
+    await transport2.close()
 
-  test "e2e: handle write + noise (wrong prologue)":
-    proc testListenerDialer(): Future[bool] {.async.} =
-      let
-        server = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
-        serverInfo = PeerInfo.init(PrivateKey.random(ECDSA, rng[]).get(), [server])
-        serverNoise = newNoise(rng, serverInfo.privateKey, outgoing = false)
+  asyncTest "e2e: handle read + noise fragmented":
+    let
+      server = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
+      serverInfo = PeerInfo.init(PrivateKey.random(ECDSA, rng[]).get(), [server])
+      serverNoise = newNoise(rng, serverInfo.privateKey, outgoing = false)
+      readTask = newFuture[void]()
 
-      proc connHandler(conn: Connection) {.async, gcsafe.} =
-        let sconn = await serverNoise.secure(conn, false)
-        try:
-          await sconn.write("Hello!")
-        finally:
-          await sconn.close()
-          await conn.close()
+    var hugePayload = newSeq[byte](0xFFFFF)
+    brHmacDrbgGenerate(rng[], hugePayload)
+    trace "Sending huge payload", size = hugePayload.len
 
-      let
-        transport1: TcpTransport = TcpTransport.init()
-      asyncCheck await transport1.listen(server, connHandler)
+    proc connHandler(conn: Connection) {.async, gcsafe.} =
+      let sconn = await serverNoise.secure(conn, false)
+      defer:
+        await sconn.close()
+      let msg = await sconn.readLp(1024*1024)
+      check msg == hugePayload
+      readTask.complete()
 
-      let
-        transport2: TcpTransport = TcpTransport.init()
-        clientInfo = PeerInfo.init(PrivateKey.random(ECDSA, rng[]).get(), [transport1.ma])
-        clientNoise = newNoise(rng, clientInfo.privateKey, outgoing = true, commonPrologue = @[1'u8, 2'u8, 3'u8])
-        conn = await transport2.dial(transport1.ma)
-      var sconn: Connection = nil
-      expect(NoiseDecryptTagError):
-        sconn = await clientNoise.secure(conn, true)
+    let
+      transport1: TcpTransport = TcpTransport.init()
+      listenFut = await transport1.listen(server, connHandler)
 
-      await conn.close()
-      await transport1.close()
-      await transport2.close()
+    let
+      transport2: TcpTransport = TcpTransport.init()
+      clientInfo = PeerInfo.init(PrivateKey.random(ECDSA, rng[]).get(), [transport1.ma])
+      clientNoise = newNoise(rng, clientInfo.privateKey, outgoing = true)
+      conn = await transport2.dial(transport1.ma)
+      sconn = await clientNoise.secure(conn, true)
 
-      result = true
+    await sconn.writeLp(hugePayload)
+    await readTask
 
-    check:
-      waitFor(testListenerDialer()) == true
+    await sconn.close()
+    await conn.close()
+    await transport2.close()
+    await transport1.close()
+    await listenFut
 
-  test "e2e: handle read + noise":
-    proc testListenerDialer(): Future[bool] {.async.} =
-      let
-        server = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
-        serverInfo = PeerInfo.init(PrivateKey.random(ECDSA, rng[]).get(), [server])
-        serverNoise = newNoise(rng, serverInfo.privateKey, outgoing = false)
-        readTask = newFuture[void]()
+  asyncTest "e2e use switch dial proto string":
+    let ma1: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
+    let ma2: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
 
-      proc connHandler(conn: Connection) {.async, gcsafe.} =
-        let sconn = await serverNoise.secure(conn, false)
-        defer:
-          await sconn.close()
-          await conn.close()
-        var msg = newSeq[byte](6)
-        await sconn.readExactly(addr msg[0], 6)
-        check string.fromBytes(msg) == "Hello!"
-        readTask.complete()
+    var peerInfo1, peerInfo2: PeerInfo
+    var switch1, switch2: Switch
+    var awaiters: seq[Future[void]]
 
-      let
-        transport1: TcpTransport = TcpTransport.init()
-      asyncCheck await transport1.listen(server, connHandler)
+    (switch1, peerInfo1) = createSwitch(ma1, false)
 
-      let
-        transport2: TcpTransport = TcpTransport.init()
-        clientInfo = PeerInfo.init(PrivateKey.random(ECDSA, rng[]).get(), [transport1.ma])
-        clientNoise = newNoise(rng, clientInfo.privateKey, outgoing = true)
-        conn = await transport2.dial(transport1.ma)
-        sconn = await clientNoise.secure(conn, true)
+    let testProto = new TestProto
+    testProto.init()
+    testProto.codec = TestCodec
+    switch1.mount(testProto)
+    (switch2, peerInfo2) = createSwitch(ma2, true)
+    awaiters.add(await switch1.start())
+    awaiters.add(await switch2.start())
+    let conn = await switch2.dial(switch1.peerInfo, TestCodec)
+    await conn.writeLp("Hello!")
+    let msg = string.fromBytes(await conn.readLp(1024))
+    check "Hello!" == msg
+    await conn.close()
 
-      await sconn.write("Hello!")
-      await readTask
-      await sconn.close()
-      await conn.close()
-      await transport1.close()
-      await transport2.close()
+    await allFuturesThrowing(
+      switch1.stop(),
+      switch2.stop())
+    await allFuturesThrowing(awaiters)
 
-      result = true
+  asyncTest "e2e test wrong secure negotiation":
+    let ma1: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
+    let ma2: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
 
-    check:
-      waitFor(testListenerDialer()) == true
+    var peerInfo1, peerInfo2: PeerInfo
+    var switch1, switch2: Switch
+    var awaiters: seq[Future[void]]
 
-  test "e2e: handle read + noise fragmented":
-    proc testListenerDialer(): Future[bool] {.async.} =
-      let
-        server = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
-        serverInfo = PeerInfo.init(PrivateKey.random(ECDSA, rng[]).get(), [server])
-        serverNoise = newNoise(rng, serverInfo.privateKey, outgoing = false)
-        readTask = newFuture[void]()
+    (switch1, peerInfo1) = createSwitch(ma1, false)
 
-      var hugePayload = newSeq[byte](0xFFFFF)
-      brHmacDrbgGenerate(rng[], hugePayload)
-      trace "Sending huge payload", size = hugePayload.len
-
-      proc connHandler(conn: Connection) {.async, gcsafe.} =
-        let sconn = await serverNoise.secure(conn, false)
-        defer:
-          await sconn.close()
-        let msg = await sconn.readLp(1024*1024)
-        check msg == hugePayload
-        readTask.complete()
-
-      let
-        transport1: TcpTransport = TcpTransport.init()
-        listenFut = await transport1.listen(server, connHandler)
-
-      let
-        transport2: TcpTransport = TcpTransport.init()
-        clientInfo = PeerInfo.init(PrivateKey.random(ECDSA, rng[]).get(), [transport1.ma])
-        clientNoise = newNoise(rng, clientInfo.privateKey, outgoing = true)
-        conn = await transport2.dial(transport1.ma)
-        sconn = await clientNoise.secure(conn, true)
-
-      await sconn.writeLp(hugePayload)
-      await readTask
-
-      await sconn.close()
-      await conn.close()
-      await transport2.close()
-      await transport1.close()
-      await listenFut
-
-      result = true
-
-    check:
-      waitFor(testListenerDialer()) == true
-
-  test "e2e use switch dial proto string":
-    proc testSwitch(): Future[bool] {.async, gcsafe.} =
-      let ma1: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
-      let ma2: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
-
-      var peerInfo1, peerInfo2: PeerInfo
-      var switch1, switch2: Switch
-      var awaiters: seq[Future[void]]
-
-      (switch1, peerInfo1) = createSwitch(ma1, false)
-
-      let testProto = new TestProto
-      testProto.init()
-      testProto.codec = TestCodec
-      switch1.mount(testProto)
-      (switch2, peerInfo2) = createSwitch(ma2, true)
-      awaiters.add(await switch1.start())
-      awaiters.add(await switch2.start())
+    let testProto = new TestProto
+    testProto.init()
+    testProto.codec = TestCodec
+    switch1.mount(testProto)
+    (switch2, peerInfo2) = createSwitch(ma2, true, true) # secio, we want to fail
+    awaiters.add(await switch1.start())
+    awaiters.add(await switch2.start())
+    expect(UpgradeFailedError):
       let conn = await switch2.dial(switch1.peerInfo, TestCodec)
-      await conn.writeLp("Hello!")
-      let msg = string.fromBytes(await conn.readLp(1024))
-      check "Hello!" == msg
-      await conn.close()
 
-      await allFuturesThrowing(
-        switch1.stop(),
-        switch2.stop())
-      await allFuturesThrowing(awaiters)
-      result = true
+    await allFuturesThrowing(
+      switch1.stop(),
+      switch2.stop())
 
-    check:
-      waitFor(testSwitch()) == true
-
-  test "e2e test wrong secure negotiation":
-    proc testSwitch(): Future[bool] {.async, gcsafe.} =
-      let ma1: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
-      let ma2: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
-
-      var peerInfo1, peerInfo2: PeerInfo
-      var switch1, switch2: Switch
-      var awaiters: seq[Future[void]]
-
-      (switch1, peerInfo1) = createSwitch(ma1, false)
-
-      let testProto = new TestProto
-      testProto.init()
-      testProto.codec = TestCodec
-      switch1.mount(testProto)
-      (switch2, peerInfo2) = createSwitch(ma2, true, true) # secio, we want to fail
-      awaiters.add(await switch1.start())
-      awaiters.add(await switch2.start())
-      expect(UpgradeFailedError):
-        let conn = await switch2.dial(switch1.peerInfo, TestCodec)
-      
-      await allFuturesThrowing(
-        switch1.stop(),
-        switch2.stop())
-      
-      await allFuturesThrowing(awaiters)
-      
-      result = true
-
-    check:
-      waitFor(testSwitch()) == true
+    await allFuturesThrowing(awaiters)
 
   # test "interop with rust noise":
   #   when true: # disable cos in CI we got no interop server/client
