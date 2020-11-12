@@ -241,12 +241,11 @@ suite "Switch":
       check switch1.isConnected(switch2.peerInfo)
       check switch2.isConnected(switch1.peerInfo)
 
-      await sleepAsync(100.millis)
       await switch2.disconnect(switch1.peerInfo)
-      await sleepAsync(2.seconds)
 
-      check not switch1.isConnected(switch2.peerInfo)
       check not switch2.isConnected(switch1.peerInfo)
+      await sleepAsync(1.millis)
+      check not switch1.isConnected(switch2.peerInfo)
 
       checkTracker(LPChannelTrackerName)
       checkTracker(SecureConnTrackerName)
@@ -295,12 +294,11 @@ suite "Switch":
       check switch1.isConnected(switch2.peerInfo)
       check switch2.isConnected(switch1.peerInfo)
 
-      await sleepAsync(100.millis)
       await switch2.disconnect(switch1.peerInfo)
-      await sleepAsync(2.seconds)
 
-      check not switch1.isConnected(switch2.peerInfo)
       check not switch2.isConnected(switch1.peerInfo)
+      await sleepAsync(1.millis)
+      check not switch1.isConnected(switch2.peerInfo)
 
       checkTracker(LPChannelTrackerName)
       checkTracker(SecureConnTrackerName)
@@ -355,12 +353,11 @@ suite "Switch":
       check switch1.isConnected(switch2.peerInfo)
       check switch2.isConnected(switch1.peerInfo)
 
-      await sleepAsync(100.millis)
       await switch2.disconnect(switch1.peerInfo)
-      await sleepAsync(2.seconds)
 
-      check not switch1.isConnected(switch2.peerInfo)
       check not switch2.isConnected(switch1.peerInfo)
+      await sleepAsync(1.millis)
+      check not switch1.isConnected(switch2.peerInfo)
 
       checkTracker(LPChannelTrackerName)
       checkTracker(SecureConnTrackerName)
@@ -414,12 +411,11 @@ suite "Switch":
       check switch1.isConnected(switch2.peerInfo)
       check switch2.isConnected(switch1.peerInfo)
 
-      await sleepAsync(100.millis)
       await switch2.disconnect(switch1.peerInfo)
-      await sleepAsync(2.seconds)
 
-      check not switch1.isConnected(switch2.peerInfo)
       check not switch2.isConnected(switch1.peerInfo)
+      await sleepAsync(1.millis)
+      check not switch1.isConnected(switch2.peerInfo)
 
       checkTracker(LPChannelTrackerName)
       checkTracker(SecureConnTrackerName)
@@ -473,12 +469,11 @@ suite "Switch":
       check switch1.isConnected(switch2.peerInfo)
       check switch2.isConnected(switch1.peerInfo)
 
-      await sleepAsync(100.millis)
       await switch2.disconnect(switch1.peerInfo)
-      await sleepAsync(2.seconds)
 
-      check not switch1.isConnected(switch2.peerInfo)
       check not switch2.isConnected(switch1.peerInfo)
+      await sleepAsync(1.millis)
+      check not switch1.isConnected(switch2.peerInfo)
 
       checkTracker(LPChannelTrackerName)
       checkTracker(SecureConnTrackerName)
@@ -545,14 +540,13 @@ suite "Switch":
       check switch2.isConnected(switch1.peerInfo)
       check switch3.isConnected(switch1.peerInfo)
 
-      await sleepAsync(100.millis)
       await switch2.disconnect(switch1.peerInfo) # should trigger 1st Left event
       await switch3.disconnect(switch1.peerInfo) # should trigger 2nd Left event
-      await sleepAsync(2.seconds)
 
-      check not switch1.isConnected(switch2.peerInfo)
       check not switch2.isConnected(switch1.peerInfo)
       check not switch3.isConnected(switch1.peerInfo)
+      await sleepAsync(1.millis)
+      check not switch1.isConnected(switch2.peerInfo)
 
       checkTracker(LPChannelTrackerName)
       checkTracker(SecureConnTrackerName)
