@@ -46,6 +46,27 @@ template checkTrackers*() =
   # Also test the GC is not fooling with us
   GC_fullCollect()
 
+template asyncTeardown*(body: untyped): untyped =
+  teardown:
+    proc tearItDown() {.async.} =
+      body
+
+    waitFor(tearItDown())
+
+template asyncSetup*(body: untyped): untyped =
+  setup:
+    proc setupItUp() {.async.} =
+      body
+
+    waitFor(setupItUp())
+
+template asyncTest*(name: string, body: untyped): untyped =
+  test name:
+    proc testIt() {.async.} =
+      body
+
+    waitFor(testIt())
+
 type RngWrap = object
   rng: ref BrHmacDrbgContext
 
