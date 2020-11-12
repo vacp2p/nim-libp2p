@@ -223,13 +223,11 @@ proc upgradeIncoming(s: Switch, incomingConn: Connection) {.async, gcsafe.} = # 
     trace "Starting secure handler", conn
     let secure = s.secureManagers.filterIt(it.codec == proto)[0]
 
+    var sconn: Connection
     try:
-      var sconn = await secure.secure(conn, false)
+      sconn = await secure.secure(conn, false)
       if isNil(sconn):
         return
-
-      defer:
-        await sconn.close()
 
       # add the muxer
       for muxer in s.muxers.values:
@@ -243,6 +241,9 @@ proc upgradeIncoming(s: Switch, incomingConn: Connection) {.async, gcsafe.} = # 
       raise exc
     except CatchableError as exc:
       debug "Exception in secure handler during incoming upgrade", msg = exc.msg, conn
+
+    if not isNil(sconn):
+      await sconn.close()
 
     trace "Stopped secure handler", conn
 
@@ -418,20 +419,24 @@ proc accept(s: Switch, transport: Transport) {.async.} = # noraises
   ## transport's accept loop
   ##
 
+  var conn: Connection
   while transport.running:
     try:
       trace "About to accept incoming connection"
-      let conn = await transport.accept()
+      conn = await transport.accept()
       trace "Accepted an incoming connection", conn
       asyncSpawn s.upgradeIncoming(conn) # perform upgrade on incoming connection
     except TransportClosedError as exc:
       debug "Transport closed", exc = exc.msg
-      return
+      break
     except CancelledError as exc:
       trace "Canceling accept loop"
-      return
+      break
     except CatchableError as exc:
       trace "Exception in accept loop", exc = exc.msg
+
+  if not isNil(conn):
+    await conn.close()
 
 proc start*(s: Switch): Future[seq[Future[void]]] {.async, gcsafe.} =
   trace "starting switch for peer", peerInfo = s.peerInfo
