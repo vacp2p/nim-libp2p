@@ -314,6 +314,9 @@ proc accept(s: Switch, transport: Transport) {.async.} = # noraises
         await conn.close()
       return
 
+  if not isNil(conn):
+    await conn.close()
+
 proc start*(s: Switch): Future[seq[Future[void]]] {.async, gcsafe.} =
   trace "starting switch for peer", peerInfo = s.peerInfo
   var startFuts: seq[Future[void]]
