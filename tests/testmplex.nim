@@ -235,7 +235,7 @@ suite "Mplex":
       check await allFutures(rfut, wfut, wfut2).withTimeout(100.millis)
       await conn.close()
 
-    asyncTest "should complete both read and push 2":
+    asyncTest "should complete both read and push after cancel":
       proc writeHandler(data: seq[byte]) {.async, gcsafe.} = discard
       let
         conn = newBufferStream(writeHandler)
@@ -244,6 +244,24 @@ suite "Mplex":
       var data = newSeq[byte](1)
       let rfut = chann.readExactly(addr data[0], 1)
       rfut.cancel()
+
+      let wfut = chann.pushData(@[0'u8])
+      let wfut2 = chann.pushData(@[0'u8])
+      await chann.reset()
+      check await allFutures(rfut, wfut, wfut2).withTimeout(100.millis)
+      await conn.close()
+
+    asyncTest "should complete both read and push after reset":
+      proc writeHandler(data: seq[byte]) {.async, gcsafe.} = discard
+      let
+        conn = newBufferStream(writeHandler)
+        chann = LPChannel.init(1, conn, true)
+
+      var data = newSeq[byte](1)
+      let rfut = chann.readExactly(addr data[0], 1)
+      let fut2 = sleepAsync(1.millis) or rfut
+
+      await sleepAsync(5.millis)
 
       let wfut = chann.pushData(@[0'u8])
       let wfut2 = chann.pushData(@[0'u8])
