@@ -170,263 +170,217 @@ suite "Multistream select":
   teardown:
     checkTrackers()
 
-  test "test select custom proto":
-    proc testSelect(): Future[bool] {.async.} =
-      let ms = newMultistream()
-      let conn = newTestSelectStream()
-      result = (await ms.select(conn, @["/test/proto/1.0.0"])) == "/test/proto/1.0.0"
+  asyncTest "test select custom proto":
+    let ms = newMultistream()
+    let conn = newTestSelectStream()
+    check (await ms.select(conn, @["/test/proto/1.0.0"])) == "/test/proto/1.0.0"
+    await conn.close()
+
+  asyncTest "test handle custom proto":
+    let ms = newMultistream()
+    let conn = newTestSelectStream()
+
+    var protocol: LPProtocol = new LPProtocol
+    proc testHandler(conn: Connection,
+                      proto: string):
+                      Future[void] {.async, gcsafe.} =
+      check proto == "/test/proto/1.0.0"
       await conn.close()
 
-    check:
-      waitFor(testSelect()) == true
+    protocol.handler = testHandler
+    ms.addHandler("/test/proto/1.0.0", protocol)
+    await ms.handle(conn)
 
-  test "test handle custom proto":
-    proc testHandle(): Future[bool] {.async.} =
-      let ms = newMultistream()
-      let conn = newTestSelectStream()
+  asyncTest "test handle `ls`":
+    let ms = newMultistream()
 
-      var protocol: LPProtocol = new LPProtocol
-      proc testHandler(conn: Connection,
-                       proto: string):
-                       Future[void] {.async, gcsafe.} =
-        check proto == "/test/proto/1.0.0"
-        await conn.close()
+    proc testLsHandler(proto: seq[byte]) {.async, gcsafe.} # forward declaration
+    let conn = Connection(newTestLsStream(testLsHandler))
+    let done = newFuture[void]()
+    proc testLsHandler(proto: seq[byte]) {.async, gcsafe.} =
+      var strProto: string = string.fromBytes(proto)
+      check strProto == "\x26/test/proto1/1.0.0\n/test/proto2/1.0.0\n"
+      await conn.close()
+      done.complete()
 
-      protocol.handler = testHandler
-      ms.addHandler("/test/proto/1.0.0", protocol)
-      await ms.handle(conn)
-      result = true
+    proc testHandler(conn: Connection, proto: string): Future[void]
+      {.async, gcsafe.} = discard
+    var protocol: LPProtocol = new LPProtocol
+    protocol.handler = testHandler
+    ms.addHandler("/test/proto1/1.0.0", protocol)
+    ms.addHandler("/test/proto2/1.0.0", protocol)
+    await ms.handle(conn)
+    await done.wait(5.seconds)
 
-    check:
-      waitFor(testHandle()) == true
+  asyncTest "test handle `na`":
+    let ms = newMultistream()
 
-  test "test handle `ls`":
-    proc testLs(): Future[bool] {.async.} =
-      let ms = newMultistream()
+    proc testNaHandler(msg: string): Future[void] {.async, gcsafe.}
+    let conn = newTestNaStream(testNaHandler)
 
-      proc testLsHandler(proto: seq[byte]) {.async, gcsafe.} # forward declaration
-      let conn = Connection(newTestLsStream(testLsHandler))
-      let done = newFuture[void]()
-      proc testLsHandler(proto: seq[byte]) {.async, gcsafe.} =
-        var strProto: string = string.fromBytes(proto)
-        check strProto == "\x26/test/proto1/1.0.0\n/test/proto2/1.0.0\n"
-        await conn.close()
-        done.complete()
-
-      proc testHandler(conn: Connection, proto: string): Future[void]
-        {.async, gcsafe.} = discard
-      var protocol: LPProtocol = new LPProtocol
-      protocol.handler = testHandler
-      ms.addHandler("/test/proto1/1.0.0", protocol)
-      ms.addHandler("/test/proto2/1.0.0", protocol)
-      await ms.handle(conn)
-      result = true
-
-      await done.wait(5.seconds)
-
-    check:
-      waitFor(testLs()) == true
-
-  test "test handle `na`":
-    proc testNa(): Future[bool] {.async.} =
-      let ms = newMultistream()
-
-      proc testNaHandler(msg: string): Future[void] {.async, gcsafe.}
-      let conn = newTestNaStream(testNaHandler)
-
-      proc testNaHandler(msg: string): Future[void] {.async, gcsafe.} =
-        echo msg
-        check msg == Na
-        await conn.close()
-
-      var protocol: LPProtocol = new LPProtocol
-      proc testHandler(conn: Connection,
-                       proto: string):
-                       Future[void] {.async, gcsafe.} = discard
-      protocol.handler = testHandler
-      ms.addHandler("/unabvailable/proto/1.0.0", protocol)
-
-      await ms.handle(conn)
-      result = true
-
-    check:
-      waitFor(testNa()) == true
-
-  test "e2e - handle":
-    proc endToEnd(): Future[bool] {.async.} =
-      let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
-
-      let
-        handlerWait1 = newFuture[void]()
-        handlerWait2 = newFuture[void]()
-
-      var protocol: LPProtocol = new LPProtocol
-      proc testHandler(conn: Connection,
-                       proto: string):
-                       Future[void] {.async, gcsafe.} =
-        check proto == "/test/proto/1.0.0"
-        await conn.writeLp("Hello!")
-        await conn.close()
-        handlerWait1.complete()
-
-      protocol.handler = testHandler
-      let msListen = newMultistream()
-      msListen.addHandler("/test/proto/1.0.0", protocol)
-
-      proc connHandler(conn: Connection): Future[void] {.async, gcsafe.} =
-        await msListen.handle(conn)
-        await conn.close()
-        handlerWait2.complete()
-
-      let transport1: TcpTransport = TcpTransport.init()
-      asyncCheck transport1.listen(ma, connHandler)
-
-      let msDial = newMultistream()
-      let transport2: TcpTransport = TcpTransport.init()
-      let conn = await transport2.dial(transport1.ma)
-
-      check (await msDial.select(conn, "/test/proto/1.0.0")) == true
-
-      let hello = string.fromBytes(await conn.readLp(1024))
-      result = hello == "Hello!"
+    proc testNaHandler(msg: string): Future[void] {.async, gcsafe.} =
+      echo msg
+      check msg == Na
       await conn.close()
 
-      await transport2.close()
-      await transport1.close()
+    var protocol: LPProtocol = new LPProtocol
+    proc testHandler(conn: Connection,
+                      proto: string):
+                      Future[void] {.async, gcsafe.} = discard
+    protocol.handler = testHandler
+    ms.addHandler("/unabvailable/proto/1.0.0", protocol)
 
-      await allFuturesThrowing(
-        handlerWait1.wait(30.seconds),
-        handlerWait2.wait(30.seconds))
+    await ms.handle(conn)
 
-    check:
-      waitFor(endToEnd()) == true
+  asyncTest "e2e - handle":
+    let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
 
-  test "e2e - ls":
-    proc endToEnd(): Future[bool] {.async.} =
-      let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
+    let
+      handlerWait1 = newFuture[void]()
+      handlerWait2 = newFuture[void]()
 
-      let
-        handlerWait = newFuture[void]()
-
-      let msListen = newMultistream()
-      var protocol: LPProtocol = new LPProtocol
-      protocol.handler = proc(conn: Connection, proto: string) {.async, gcsafe.} =
-        # never reached
-        discard
-
-      proc testHandler(conn: Connection,
-                       proto: string):
-                       Future[void] {.async.} =
-        # never reached
-        discard
-
-      protocol.handler = testHandler
-      msListen.addHandler("/test/proto1/1.0.0", protocol)
-      msListen.addHandler("/test/proto2/1.0.0", protocol)
-
-      let transport1: TcpTransport = TcpTransport.init()
-      proc connHandler(conn: Connection): Future[void] {.async, gcsafe.} =
-        try:
-          await msListen.handle(conn)
-        except LPStreamEOFError:
-          discard
-        except LPStreamClosedError:
-          discard
-        finally:
-          await conn.close()
-
-      let listenFut = transport1.listen(ma, connHandler)
-
-      let msDial = newMultistream()
-      let transport2: TcpTransport = TcpTransport.init()
-      let conn = await transport2.dial(transport1.ma)
-
-      let ls = await msDial.list(conn)
-      let protos: seq[string] = @["/test/proto1/1.0.0", "/test/proto2/1.0.0"]
-
-      result = ls == protos
-
+    var protocol: LPProtocol = new LPProtocol
+    proc testHandler(conn: Connection,
+                      proto: string):
+                      Future[void] {.async, gcsafe.} =
+      check proto == "/test/proto/1.0.0"
+      await conn.writeLp("Hello!")
       await conn.close()
-      await transport2.close()
-      await transport1.close()
-      discard await listenFut.wait(5.seconds)
+      handlerWait1.complete()
 
-    check:
-      waitFor(endToEnd()) == true
+    protocol.handler = testHandler
+    let msListen = newMultistream()
+    msListen.addHandler("/test/proto/1.0.0", protocol)
 
-  test "e2e - select one from a list with unsupported protos":
-    proc endToEnd(): Future[bool] {.async.} =
-      let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
-
-      var protocol: LPProtocol = new LPProtocol
-      proc testHandler(conn: Connection,
-                       proto: string):
-                       Future[void] {.async, gcsafe.} =
-        check proto == "/test/proto/1.0.0"
-        await conn.writeLp("Hello!")
-        await conn.close()
-
-      protocol.handler = testHandler
-      let msListen = newMultistream()
-      msListen.addHandler("/test/proto/1.0.0", protocol)
-
-      proc connHandler(conn: Connection): Future[void] {.async, gcsafe.} =
-        await msListen.handle(conn)
-
-      let transport1: TcpTransport = TcpTransport.init()
-      asyncCheck transport1.listen(ma, connHandler)
-
-      let msDial = newMultistream()
-      let transport2: TcpTransport = TcpTransport.init()
-      let conn = await transport2.dial(transport1.ma)
-
-      check (await msDial.select(conn,
-        @["/test/proto/1.0.0", "/test/no/proto/1.0.0"])) == "/test/proto/1.0.0"
-
-      let hello = string.fromBytes(await conn.readLp(1024))
-      result = hello == "Hello!"
-
+    proc connHandler(conn: Connection): Future[void] {.async, gcsafe.} =
+      await msListen.handle(conn)
       await conn.close()
-      await transport2.close()
-      await transport1.close()
+      handlerWait2.complete()
 
+    let transport1: TcpTransport = TcpTransport.init()
+    asyncCheck transport1.listen(ma, connHandler)
 
-    check:
-      waitFor(endToEnd()) == true
+    let msDial = newMultistream()
+    let transport2: TcpTransport = TcpTransport.init()
+    let conn = await transport2.dial(transport1.ma)
 
-  test "e2e - select one with both valid":
-    proc endToEnd(): Future[bool] {.async.} =
-      let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
+    check (await msDial.select(conn, "/test/proto/1.0.0")) == true
 
-      var protocol: LPProtocol = new LPProtocol
-      proc testHandler(conn: Connection,
-                       proto: string):
-                       Future[void] {.async, gcsafe.} =
-        await conn.writeLp(&"Hello from {proto}!")
-        await conn.close()
+    let hello = string.fromBytes(await conn.readLp(1024))
+    check hello == "Hello!"
+    await conn.close()
 
-      protocol.handler = testHandler
-      let msListen = newMultistream()
-      msListen.addHandler("/test/proto1/1.0.0", protocol)
-      msListen.addHandler("/test/proto2/1.0.0", protocol)
+    await transport2.close()
+    await transport1.close()
 
-      proc connHandler(conn: Connection): Future[void] {.async, gcsafe.} =
-        await msListen.handle(conn)
+    await allFuturesThrowing(
+      handlerWait1.wait(30.seconds),
+      handlerWait2.wait(30.seconds))
 
-      let transport1: TcpTransport = TcpTransport.init()
-      asyncCheck transport1.listen(ma, connHandler)
+  asyncTest "e2e - ls":
+    let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
 
-      let msDial = newMultistream()
-      let transport2: TcpTransport = TcpTransport.init()
-      let conn = await transport2.dial(transport1.ma)
+    let
+      handlerWait = newFuture[void]()
 
-      check (await msDial.select(conn, @["/test/proto2/1.0.0", "/test/proto1/1.0.0"])) == "/test/proto2/1.0.0"
+    let msListen = newMultistream()
+    var protocol: LPProtocol = new LPProtocol
+    protocol.handler = proc(conn: Connection, proto: string) {.async, gcsafe.} =
+      # never reached
+      discard
 
-      result = string.fromBytes(await conn.readLp(1024)) == "Hello from /test/proto2/1.0.0!"
+    proc testHandler(conn: Connection,
+                      proto: string):
+                      Future[void] {.async.} =
+      # never reached
+      discard
 
+    protocol.handler = testHandler
+    msListen.addHandler("/test/proto1/1.0.0", protocol)
+    msListen.addHandler("/test/proto2/1.0.0", protocol)
+
+    let transport1: TcpTransport = TcpTransport.init()
+    proc connHandler(conn: Connection): Future[void] {.async, gcsafe.} =
+      await msListen.handle(conn)
       await conn.close()
-      await transport2.close()
-      await transport1.close()
 
-    check:
-      waitFor(endToEnd()) == true
+    let listenFut = transport1.listen(ma, connHandler)
+    let msDial = newMultistream()
+    let transport2: TcpTransport = TcpTransport.init()
+    let conn = await transport2.dial(transport1.ma)
+
+    let ls = await msDial.list(conn)
+    let protos: seq[string] = @["/test/proto1/1.0.0", "/test/proto2/1.0.0"]
+
+    check ls == protos
+
+    await conn.close()
+    await transport2.close()
+    await transport1.close()
+    discard await listenFut.wait(5.seconds)
+
+  asyncTest "e2e - select one from a list with unsupported protos":
+    let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
+    var protocol: LPProtocol = new LPProtocol
+    proc testHandler(conn: Connection,
+                      proto: string):
+                      Future[void] {.async, gcsafe.} =
+      check proto == "/test/proto/1.0.0"
+      await conn.writeLp("Hello!")
+      await conn.close()
+
+    protocol.handler = testHandler
+    let msListen = newMultistream()
+    msListen.addHandler("/test/proto/1.0.0", protocol)
+
+    proc connHandler(conn: Connection): Future[void] {.async, gcsafe.} =
+      await msListen.handle(conn)
+
+    let transport1: TcpTransport = TcpTransport.init()
+    asyncCheck transport1.listen(ma, connHandler)
+
+    let msDial = newMultistream()
+    let transport2: TcpTransport = TcpTransport.init()
+    let conn = await transport2.dial(transport1.ma)
+
+    check (await msDial.select(conn,
+      @["/test/proto/1.0.0", "/test/no/proto/1.0.0"])) == "/test/proto/1.0.0"
+
+    let hello = string.fromBytes(await conn.readLp(1024))
+    check hello == "Hello!"
+
+    await conn.close()
+    await transport2.close()
+    await transport1.close()
+
+  asyncTest "e2e - select one with both valid":
+    let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
+
+    var protocol: LPProtocol = new LPProtocol
+    proc testHandler(conn: Connection,
+                      proto: string):
+                      Future[void] {.async, gcsafe.} =
+      await conn.writeLp(&"Hello from {proto}!")
+      await conn.close()
+
+    protocol.handler = testHandler
+    let msListen = newMultistream()
+    msListen.addHandler("/test/proto1/1.0.0", protocol)
+    msListen.addHandler("/test/proto2/1.0.0", protocol)
+
+    proc connHandler(conn: Connection): Future[void] {.async, gcsafe.} =
+      await msListen.handle(conn)
+
+    let transport1: TcpTransport = TcpTransport.init()
+    asyncCheck transport1.listen(ma, connHandler)
+
+    let msDial = newMultistream()
+    let transport2: TcpTransport = TcpTransport.init()
+    let conn = await transport2.dial(transport1.ma)
+
+    check (await msDial.select(conn, @["/test/proto2/1.0.0", "/test/proto1/1.0.0"])) == "/test/proto2/1.0.0"
+    check string.fromBytes(await conn.readLp(1024)) == "Hello from /test/proto2/1.0.0!"
+
+    await conn.close()
+    await transport2.close()
+    await transport1.close()

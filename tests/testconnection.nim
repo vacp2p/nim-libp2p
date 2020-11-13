@@ -3,47 +3,29 @@ import chronos, nimcrypto/utils
 import ../libp2p/[stream/connection,
                   stream/bufferstream]
 
+import ./helpers
+
 suite "Connection":
-  test "close":
-    proc test(): Future[bool] {.async.} =
-      var conn = newBufferStream()
-      await conn.close()
-      check:
-        conn.closed == true
-
-      result = true
-
+  asyncTest "close":
+    var conn = newBufferStream()
+    await conn.close()
     check:
-      waitFor(test()) == true
+      conn.closed == true
 
-  test "parent close":
-    proc test(): Future[bool] {.async.} =
-      var buf = newBufferStream()
-      var conn = buf
+  asyncTest "parent close":
+    var buf = newBufferStream()
+    var conn = buf
 
-      await conn.close()
-      check:
-        conn.closed == true
-        buf.closed == true
-
-      await sleepAsync(1.seconds)
-      result = true
-
+    await conn.close()
     check:
-      waitFor(test()) == true
+      conn.closed == true
+      buf.closed == true
 
-  test "child close":
-    proc test(): Future[bool] {.async.} =
-      var buf = newBufferStream()
-      var conn = buf
+  asyncTest "child close":
+    var buf = newBufferStream()
+    var conn = buf
 
-      await buf.close()
-      check:
-        conn.closed == true
-        buf.closed == true
-
-      await sleepAsync(1.seconds)
-      result = true
-
+    await buf.close()
     check:
-      waitFor(test()) == true
+      conn.closed == true
+      buf.closed == true

@@ -58,8 +58,7 @@ proc readLp*(s: StreamTransport): Future[seq[byte]] {.async, gcsafe.} =
   if size > 0.uint:
     await s.readExactly(addr result[0], int(size))
 
-proc testPubSubDaemonPublish(gossip: bool = false,
-                             count: int = 1): Future[bool] {.async.} =
+proc testPubSubDaemonPublish(gossip: bool = false, count: int = 1) {.async.} =
   var pubsubData = "TEST MESSAGE"
   var testTopic = "test-topic"
   var msgData = pubsubData.toBytes()
@@ -120,14 +119,12 @@ proc testPubSubDaemonPublish(gossip: bool = false,
 
   await wait(publisher(), 5.minutes) # should be plenty of time
 
-  result = true
   await nativeNode.stop()
   await pubsub.stop()
   await allFutures(awaiters)
   await daemonNode.close()
 
-proc testPubSubNodePublish(gossip: bool = false,
-                           count: int = 1): Future[bool] {.async.} =
+proc testPubSubNodePublish(gossip: bool = false, count: int = 1) {.async.} =
   var pubsubData = "TEST MESSAGE"
   var testTopic = "test-topic"
   var msgData = pubsubData.toBytes()
@@ -187,7 +184,7 @@ proc testPubSubNodePublish(gossip: bool = false,
 
   await wait(publisher(), 5.minutes) # should be plenty of time
 
-  result = finished
+  check finished
   await nativeNode.stop()
   await pubsub.stop()
   await allFutures(awaiters)
@@ -199,268 +196,236 @@ suite "Interop":
   # and libp2p, so not sure which one it is,
   # need to investigate more
   # teardown:
-  #   for tracker in testTrackers():
-  #     # echo tracker.dump()
-  #     # check tracker.isLeaked() == false
+  #   checkTrackers()
 
   # TODO: this test is failing sometimes on windows
   # For some reason we receive EOF before test 4 sometimes
-  test "native -> daemon multiple reads and writes":
-    proc runTests(): Future[bool] {.async.} =
-      var protos = @["/test-stream"]
+  asyncTest "native -> daemon multiple reads and writes":
+    var protos = @["/test-stream"]
 
-      let nativeNode = newStandardSwitch(
-        secureManagers = [SecureProtocol.Noise],
-        outTimeout = 5.minutes)
+    let nativeNode = newStandardSwitch(
+      secureManagers = [SecureProtocol.Noise],
+      outTimeout = 5.minutes)
 
-      let awaiters = await nativeNode.start()
-      let daemonNode = await newDaemonApi()
-      let daemonPeer = await daemonNode.identity()
+    let awaiters = await nativeNode.start()
+    let daemonNode = await newDaemonApi()
+    let daemonPeer = await daemonNode.identity()
 
-      var testFuture = newFuture[void]("test.future")
-      proc daemonHandler(api: DaemonAPI, stream: P2PStream) {.async.} =
-        check string.fromBytes(await stream.transp.readLp()) == "test 1"
-        discard await stream.transp.writeLp("test 2")
-        check string.fromBytes(await stream.transp.readLp()) == "test 3"
-        discard await stream.transp.writeLp("test 4")
-        testFuture.complete()
+    var testFuture = newFuture[void]("test.future")
+    proc daemonHandler(api: DaemonAPI, stream: P2PStream) {.async.} =
+      check string.fromBytes(await stream.transp.readLp()) == "test 1"
+      discard await stream.transp.writeLp("test 2")
+      check string.fromBytes(await stream.transp.readLp()) == "test 3"
+      discard await stream.transp.writeLp("test 4")
+      testFuture.complete()
 
-      await daemonNode.addHandler(protos, daemonHandler)
-      let conn = await nativeNode.dial(NativePeerInfo.init(daemonPeer.peer,
-                                                           daemonPeer.addresses),
-                                                           protos[0])
-      await conn.writeLp("test 1")
-      check "test 2" == string.fromBytes((await conn.readLp(1024)))
-      
-      await conn.writeLp("test 3")
-      check "test 4" == string.fromBytes((await conn.readLp(1024)))
+    await daemonNode.addHandler(protos, daemonHandler)
+    let conn = await nativeNode.dial(NativePeerInfo.init(daemonPeer.peer,
+                                                          daemonPeer.addresses),
+                                                          protos[0])
+    await conn.writeLp("test 1")
+    check "test 2" == string.fromBytes((await conn.readLp(1024)))
 
-      await wait(testFuture, 10.secs)
+    await conn.writeLp("test 3")
+    check "test 4" == string.fromBytes((await conn.readLp(1024)))
 
-      await nativeNode.stop()
-      await daemonNode.close()
-      await allFutures(awaiters)
+    await wait(testFuture, 10.secs)
 
-      await sleepAsync(1.seconds)
-      result = true
+    await nativeNode.stop()
+    await daemonNode.close()
+    await allFutures(awaiters)
 
-    check:
-      waitFor(runTests()) == true
+    await sleepAsync(1.seconds)
 
-  test "native -> daemon connection":
-    proc runTests(): Future[bool] {.async.} =
-      var protos = @["/test-stream"]
-      var test = "TEST STRING"
-      # We are preparing expect string, which should be prefixed with varint
-      # length and do not have `\r\n` suffix, because we going to use
-      # readLine().
-      var buffer = initVBuffer()
-      buffer.writeSeq(test & "\r\n")
-      buffer.finish()
-      var expect = newString(len(buffer) - 2)
-      copyMem(addr expect[0], addr buffer.buffer[0], len(expect))
+  asyncTest "native -> daemon connection":
+    var protos = @["/test-stream"]
+    var test = "TEST STRING"
+    # We are preparing expect string, which should be prefixed with varint
+    # length and do not have `\r\n` suffix, because we going to use
+    # readLine().
+    var buffer = initVBuffer()
+    buffer.writeSeq(test & "\r\n")
+    buffer.finish()
+    var expect = newString(len(buffer) - 2)
+    copyMem(addr expect[0], addr buffer.buffer[0], len(expect))
 
-      let nativeNode = newStandardSwitch(
-        secureManagers = [SecureProtocol.Noise],
-        outTimeout = 5.minutes)
+    let nativeNode = newStandardSwitch(
+      secureManagers = [SecureProtocol.Noise],
+      outTimeout = 5.minutes)
 
-      let awaiters = await nativeNode.start()
+    let awaiters = await nativeNode.start()
 
-      let daemonNode = await newDaemonApi()
-      let daemonPeer = await daemonNode.identity()
+    let daemonNode = await newDaemonApi()
+    let daemonPeer = await daemonNode.identity()
 
-      var testFuture = newFuture[string]("test.future")
-      proc daemonHandler(api: DaemonAPI, stream: P2PStream) {.async.} =
-        # We should perform `readLp()` instead of `readLine()`. `readLine()`
-        # here reads actually length prefixed string.
-        var line = await stream.transp.readLine()
-        check line == expect
-        testFuture.complete(line)
-        await stream.close()
+    var testFuture = newFuture[string]("test.future")
+    proc daemonHandler(api: DaemonAPI, stream: P2PStream) {.async.} =
+      # We should perform `readLp()` instead of `readLine()`. `readLine()`
+      # here reads actually length prefixed string.
+      var line = await stream.transp.readLine()
+      check line == expect
+      testFuture.complete(line)
+      await stream.close()
 
-      await daemonNode.addHandler(protos, daemonHandler)
-      let conn = await nativeNode.dial(NativePeerInfo.init(daemonPeer.peer,
-                                                           daemonPeer.addresses),
-                                                           protos[0])
-      await conn.writeLp(test & "\r\n")
-      result = expect == (await wait(testFuture, 10.secs))
+    await daemonNode.addHandler(protos, daemonHandler)
+    let conn = await nativeNode.dial(NativePeerInfo.init(daemonPeer.peer,
+                                                          daemonPeer.addresses),
+                                                          protos[0])
+    await conn.writeLp(test & "\r\n")
+    check expect == (await wait(testFuture, 10.secs))
 
+    await conn.close()
+    await nativeNode.stop()
+    await allFutures(awaiters)
+    await daemonNode.close()
+
+  asyncTest "daemon -> native connection":
+    var protos = @["/test-stream"]
+    var test = "TEST STRING"
+
+    var testFuture = newFuture[string]("test.future")
+    proc nativeHandler(conn: Connection, proto: string) {.async.} =
+      var line = string.fromBytes(await conn.readLp(1024))
+      check line == test
+      testFuture.complete(line)
       await conn.close()
-      await nativeNode.stop()
-      await allFutures(awaiters)
-      await daemonNode.close()
 
-    check:
-      waitFor(runTests()) == true
+    # custom proto
+    var proto = new LPProtocol
+    proto.handler = nativeHandler
+    proto.codec = protos[0] # codec
 
-  test "daemon -> native connection":
-    proc runTests(): Future[bool] {.async.} =
-      var protos = @["/test-stream"]
-      var test = "TEST STRING"
+    let nativeNode = newStandardSwitch(
+      secureManagers = [SecureProtocol.Noise], outTimeout = 5.minutes)
 
-      var testFuture = newFuture[string]("test.future")
-      proc nativeHandler(conn: Connection, proto: string) {.async.} =
+    nativeNode.mount(proto)
+
+    let awaiters = await nativeNode.start()
+    let nativePeer = nativeNode.peerInfo
+
+    let daemonNode = await newDaemonApi()
+    await daemonNode.connect(nativePeer.peerId, nativePeer.addrs)
+    var stream = await daemonNode.openStream(nativePeer.peerId, protos)
+    discard await stream.transp.writeLp(test)
+
+    check test == (await wait(testFuture, 10.secs))
+
+    await stream.close()
+    await nativeNode.stop()
+    await allFutures(awaiters)
+    await daemonNode.close()
+    await sleepAsync(1.seconds)
+
+  asyncTest "daemon -> multiple reads and writes":
+    var protos = @["/test-stream"]
+
+    var testFuture = newFuture[void]("test.future")
+    proc nativeHandler(conn: Connection, proto: string) {.async.} =
+      check "test 1" == string.fromBytes(await conn.readLp(1024))
+      await conn.writeLp("test 2".toBytes())
+
+      check "test 3" == string.fromBytes(await conn.readLp(1024))
+      await conn.writeLp("test 4".toBytes())
+
+      testFuture.complete()
+      await conn.close()
+
+    # custom proto
+    var proto = new LPProtocol
+    proto.handler = nativeHandler
+    proto.codec = protos[0] # codec
+
+    let nativeNode = newStandardSwitch(
+      secureManagers = [SecureProtocol.Noise], outTimeout = 5.minutes)
+
+    nativeNode.mount(proto)
+
+    let awaiters = await nativeNode.start()
+    let nativePeer = nativeNode.peerInfo
+
+    let daemonNode = await newDaemonApi()
+    await daemonNode.connect(nativePeer.peerId, nativePeer.addrs)
+    var stream = await daemonNode.openStream(nativePeer.peerId, protos)
+
+    asyncDiscard stream.transp.writeLp("test 1")
+    check "test 2" == string.fromBytes(await stream.transp.readLp())
+
+    asyncDiscard stream.transp.writeLp("test 3")
+    check "test 4" == string.fromBytes(await stream.transp.readLp())
+
+    await wait(testFuture, 10.secs)
+
+    await stream.close()
+    await nativeNode.stop()
+    await allFutures(awaiters)
+    await daemonNode.close()
+
+  asyncTest "read write multiple":
+    var protos = @["/test-stream"]
+    var test = "TEST STRING"
+
+    var count = 0
+    var testFuture = newFuture[int]("test.future")
+    proc nativeHandler(conn: Connection, proto: string) {.async.} =
+      while count < 10:
         var line = string.fromBytes(await conn.readLp(1024))
         check line == test
-        testFuture.complete(line)
-        await conn.close()
+        await conn.writeLp(test.toBytes())
+        count.inc()
 
-      # custom proto
-      var proto = new LPProtocol
-      proto.handler = nativeHandler
-      proto.codec = protos[0] # codec
+      testFuture.complete(count)
+      await conn.close()
 
-      let nativeNode = newStandardSwitch(
-        secureManagers = [SecureProtocol.Noise], outTimeout = 5.minutes)
+    # custom proto
+    var proto = new LPProtocol
+    proto.handler = nativeHandler
+    proto.codec = protos[0] # codec
 
-      nativeNode.mount(proto)
+    let nativeNode = newStandardSwitch(
+      secureManagers = [SecureProtocol.Noise], outTimeout = 5.minutes)
 
-      let awaiters = await nativeNode.start()
-      let nativePeer = nativeNode.peerInfo
+    nativeNode.mount(proto)
 
-      let daemonNode = await newDaemonApi()
-      await daemonNode.connect(nativePeer.peerId, nativePeer.addrs)
-      var stream = await daemonNode.openStream(nativePeer.peerId, protos)
+    let awaiters = await nativeNode.start()
+    let nativePeer = nativeNode.peerInfo
+
+    let daemonNode = await newDaemonApi()
+    await daemonNode.connect(nativePeer.peerId, nativePeer.addrs)
+    var stream = await daemonNode.openStream(nativePeer.peerId, protos)
+
+    var count2 = 0
+    while count2 < 10:
       discard await stream.transp.writeLp(test)
+      let line = await stream.transp.readLp()
+      check test == string.fromBytes(line)
+      inc(count2)
 
-      result = test == (await wait(testFuture, 10.secs))
+    check 10 == (await wait(testFuture, 1.minutes))
+    await stream.close()
+    await nativeNode.stop()
+    await allFutures(awaiters)
+    await daemonNode.close()
 
-      await stream.close()
-      await nativeNode.stop()
-      await allFutures(awaiters)
-      await daemonNode.close()
-      await sleepAsync(1.seconds)
+  asyncTest "floodsub: daemon publish one":
+    await testPubSubDaemonPublish()
 
-    check:
-      waitFor(runTests()) == true
+  asyncTest "floodsub: daemon publish many":
+    await testPubSubDaemonPublish(count = 10)
 
-  test "daemon -> multiple reads and writes":
-    proc runTests(): Future[bool] {.async.} =
-      var protos = @["/test-stream"]
+  asyncTest "gossipsub: daemon publish one":
+    await testPubSubDaemonPublish(gossip = true)
 
-      var testFuture = newFuture[void]("test.future")
-      proc nativeHandler(conn: Connection, proto: string) {.async.} =
-        check "test 1" == string.fromBytes(await conn.readLp(1024))
-        await conn.writeLp("test 2".toBytes())
+  asyncTest "gossipsub: daemon publish many":
+    await testPubSubDaemonPublish(gossip = true, count = 10)
 
-        check "test 3" == string.fromBytes(await conn.readLp(1024))
-        await conn.writeLp("test 4".toBytes())
+  asyncTest "floodsub: node publish one":
+    await testPubSubNodePublish()
 
-        testFuture.complete()
-        await conn.close()
+  asyncTest "floodsub: node publish many":
+    await testPubSubNodePublish(count = 10)
 
-      # custom proto
-      var proto = new LPProtocol
-      proto.handler = nativeHandler
-      proto.codec = protos[0] # codec
+  asyncTest "gossipsub: node publish one":
+    await testPubSubNodePublish(gossip = true)
 
-      let nativeNode = newStandardSwitch(
-        secureManagers = [SecureProtocol.Noise], outTimeout = 5.minutes)
-
-      nativeNode.mount(proto)
-
-      let awaiters = await nativeNode.start()
-      let nativePeer = nativeNode.peerInfo
-
-      let daemonNode = await newDaemonApi()
-      await daemonNode.connect(nativePeer.peerId, nativePeer.addrs)
-      var stream = await daemonNode.openStream(nativePeer.peerId, protos)
-
-      asyncDiscard stream.transp.writeLp("test 1")
-      check "test 2" == string.fromBytes(await stream.transp.readLp())
-
-      asyncDiscard stream.transp.writeLp("test 3")
-      check "test 4" == string.fromBytes(await stream.transp.readLp())
-
-      await wait(testFuture, 10.secs)
-
-      result = true
-      await stream.close()
-      await nativeNode.stop()
-      await allFutures(awaiters)
-      await daemonNode.close()
-
-    check:
-      waitFor(runTests()) == true
-
-  test "read write multiple":
-    proc runTests(): Future[bool] {.async.} =
-      var protos = @["/test-stream"]
-      var test = "TEST STRING"
-
-      var count = 0
-      var testFuture = newFuture[int]("test.future")
-      proc nativeHandler(conn: Connection, proto: string) {.async.} =
-        while count < 10:
-          var line = string.fromBytes(await conn.readLp(1024))
-          check line == test
-          await conn.writeLp(test.toBytes())
-          count.inc()
-
-        testFuture.complete(count)
-        await conn.close()
-
-      # custom proto
-      var proto = new LPProtocol
-      proto.handler = nativeHandler
-      proto.codec = protos[0] # codec
-
-      let nativeNode = newStandardSwitch(
-        secureManagers = [SecureProtocol.Noise], outTimeout = 5.minutes)
-
-      nativeNode.mount(proto)
-
-      let awaiters = await nativeNode.start()
-      let nativePeer = nativeNode.peerInfo
-
-      let daemonNode = await newDaemonApi()
-      await daemonNode.connect(nativePeer.peerId, nativePeer.addrs)
-      var stream = await daemonNode.openStream(nativePeer.peerId, protos)
-
-      var count2 = 0
-      while count2 < 10:
-        discard await stream.transp.writeLp(test)
-        let line = await stream.transp.readLp()
-        check test == string.fromBytes(line)
-        inc(count2)
-
-      result = 10 == (await wait(testFuture, 1.minutes))
-      await stream.close()
-      await nativeNode.stop()
-      await allFutures(awaiters)
-      await daemonNode.close()
-
-    check:
-      waitFor(runTests()) == true
-
-  test "floodsub: daemon publish one":
-    check:
-      waitFor(testPubSubDaemonPublish()) == true
-
-  test "floodsub: daemon publish many":
-    check:
-      waitFor(testPubSubDaemonPublish(count = 10)) == true
-
-  test "gossipsub: daemon publish one":
-    check:
-      waitFor(testPubSubDaemonPublish(gossip = true)) == true
-
-  test "gossipsub: daemon publish many":
-    check:
-      waitFor(testPubSubDaemonPublish(gossip = true, count = 10)) == true
-
-  test "floodsub: node publish one":
-    check:
-      waitFor(testPubSubNodePublish()) == true
-
-  test "floodsub: node publish many":
-    check:
-      waitFor(testPubSubNodePublish(count = 10)) == true
-
-  test "gossipsub: node publish one":
-    check:
-      waitFor(testPubSubNodePublish(gossip = true)) == true
-
-  test "gossipsub: node publish many":
-    check:
-      waitFor(testPubSubNodePublish(gossip = true, count = 10)) == true
+  asyncTest "gossipsub: node publish many":
+    await testPubSubNodePublish(gossip = true, count = 10)
