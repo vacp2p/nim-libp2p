@@ -356,9 +356,8 @@ suite "Mplex":
       await acceptFut.wait(1.seconds)
       await mplexDialFut.wait(1.seconds)
       await allFuturesThrowing(
-        transport1.close(),
-        transport2.close())
-
+        transport1.stop(),
+        transport2.stop())
       await listenFut
 
     asyncTest "read/write receiver lazy":
@@ -447,8 +446,8 @@ suite "Mplex":
       await acceptFut
       await mplexDialFut
       await allFuturesThrowing(
-        transport1.close(),
-        transport2.close())
+        transport1.stop(),
+        transport2.stop())
 
       await listenFut
 
@@ -916,9 +915,13 @@ suite "Mplex":
       asyncTest "channel should be able to handle erratic read/writes":
         let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
 
+        let transport1: TcpTransport = TcpTransport.init()
+        let listenFut = transport1.start(ma)
+
         var complete = newFuture[void]()
         const MsgSize = 1024
-        proc connHandler(conn: Connection) {.async, gcsafe.} =
+        proc acceptHandler() {.async, gcsafe.} =
+          let conn = await transport1.accept()
           let mplexListen = Mplex.init(conn)
           mplexListen.streamHandler = proc(stream: Connection)
             {.async, gcsafe.} =
@@ -933,12 +936,10 @@ suite "Mplex":
           await mplexListen.handle()
           await mplexListen.close()
 
-        let transport1: TcpTransport = TcpTransport.init()
-        let listenFut = await transport1.listen(ma, connHandler)
-
         let transport2: TcpTransport = TcpTransport.init()
         let conn = await transport2.dial(transport1.ma)
 
+        let acceptFut = acceptHandler()
         let mplexDial = Mplex.init(conn)
         let mplexDialFut = mplexDial.handle()
         let stream = await mplexDial.newStream()
@@ -973,23 +974,26 @@ suite "Mplex":
 
         await writer()
         await complete.wait(1.seconds)
-
         await stream.close()
         await conn.close()
-
+        await acceptFut
         await mplexDialFut
 
         await allFuturesThrowing(
-          transport1.close(),
-          transport2.close())
+          transport1.stop(),
+          transport2.stop())
         await listenFut
 
       asyncTest "channel should handle 1 byte read/write":
         let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
 
+        let transport1: TcpTransport = TcpTransport.init()
+        let listenFut = transport1.start(ma)
+
         var complete = newFuture[void]()
         const MsgSize = 512
-        proc connHandler(conn: Connection) {.async, gcsafe.} =
+        proc acceptHandler() {.async, gcsafe.} =
+          let conn = await transport1.accept()
           let mplexListen = Mplex.init(conn)
           mplexListen.streamHandler = proc(stream: Connection)
             {.async, gcsafe.} =
@@ -1001,12 +1005,10 @@ suite "Mplex":
           await mplexListen.handle()
           await mplexListen.close()
 
-        let transport1: TcpTransport = TcpTransport.init()
-        let listenFut = await transport1.listen(ma, connHandler)
-
         let transport2: TcpTransport = TcpTransport.init()
         let conn = await transport2.dial(transport1.ma)
 
+        let acceptFut = acceptHandler()
         let mplexDial = Mplex.init(conn)
         let stream = await mplexDial.newStream()
         let mplexDialFut = mplexDial.handle()
@@ -1034,8 +1036,9 @@ suite "Mplex":
         await complete.wait(5.seconds)
         await stream.close()
         await conn.close()
+        await acceptFut
         await mplexDialFut
         await allFuturesThrowing(
-          transport1.close(),
-          transport2.close())
+          transport1.stop(),
+          transport2.stop())
         await listenFut

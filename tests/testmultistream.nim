@@ -235,10 +235,6 @@ suite "Multistream select":
   asyncTest "e2e - handle":
     let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
 
-    let
-      handlerWait1 = newFuture[void]()
-      handlerWait2 = newFuture[void]()
-
     var protocol: LPProtocol = new LPProtocol
     proc testHandler(conn: Connection,
                       proto: string):
@@ -246,19 +242,20 @@ suite "Multistream select":
       check proto == "/test/proto/1.0.0"
       await conn.writeLp("Hello!")
       await conn.close()
-      handlerWait1.complete()
 
     protocol.handler = testHandler
     let msListen = newMultistream()
     msListen.addHandler("/test/proto/1.0.0", protocol)
 
-    proc connHandler(conn: Connection): Future[void] {.async, gcsafe.} =
+    let transport1: TcpTransport = TcpTransport.init()
+    asyncCheck transport1.start(ma)
+
+    proc acceptHandler(): Future[void] {.async, gcsafe.} =
+      let conn = await transport1.accept()
       await msListen.handle(conn)
       await conn.close()
-      handlerWait2.complete()
 
-    let transport1: TcpTransport = TcpTransport.init()
-    asyncCheck transport1.listen(ma, connHandler)
+    let handlerWait = acceptHandler()
 
     let msDial = newMultistream()
     let transport2: TcpTransport = TcpTransport.init()
@@ -270,12 +267,10 @@ suite "Multistream select":
     check hello == "Hello!"
     await conn.close()
 
-    await transport2.close()
-    await transport1.close()
+    await transport2.stop()
+    await transport1.stop()
 
-    await allFuturesThrowing(
-      handlerWait1.wait(30.seconds),
-      handlerWait2.wait(30.seconds))
+    await handlerWait.wait(30.seconds)
 
   asyncTest "e2e - ls":
     let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
@@ -300,11 +295,20 @@ suite "Multistream select":
     msListen.addHandler("/test/proto2/1.0.0", protocol)
 
     let transport1: TcpTransport = TcpTransport.init()
-    proc connHandler(conn: Connection): Future[void] {.async, gcsafe.} =
-      await msListen.handle(conn)
-      await conn.close()
+    let listenFut = transport1.start(ma)
 
-    let listenFut = transport1.listen(ma, connHandler)
+    proc acceptHandler(): Future[void] {.async, gcsafe.} =
+      let conn = await transport1.accept()
+      try:
+        await msListen.handle(conn)
+      except LPStreamEOFError:
+        discard
+      except LPStreamClosedError:
+        discard
+      finally:
+        await conn.close()
+
+    let acceptFut = acceptHandler()
     let msDial = newMultistream()
     let transport2: TcpTransport = TcpTransport.init()
     let conn = await transport2.dial(transport1.ma)
@@ -315,12 +319,14 @@ suite "Multistream select":
     check ls == protos
 
     await conn.close()
-    await transport2.close()
-    await transport1.close()
-    discard await listenFut.wait(5.seconds)
+    await acceptFut
+    await transport2.stop()
+    await transport1.stop()
+    await listenFut.wait(5.seconds)
 
   asyncTest "e2e - select one from a list with unsupported protos":
     let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
+
     var protocol: LPProtocol = new LPProtocol
     proc testHandler(conn: Connection,
                       proto: string):
@@ -333,12 +339,14 @@ suite "Multistream select":
     let msListen = newMultistream()
     msListen.addHandler("/test/proto/1.0.0", protocol)
 
-    proc connHandler(conn: Connection): Future[void] {.async, gcsafe.} =
+    let transport1: TcpTransport = TcpTransport.init()
+    asyncCheck transport1.start(ma)
+
+    proc acceptHandler(): Future[void] {.async, gcsafe.} =
+      let conn = await transport1.accept()
       await msListen.handle(conn)
 
-    let transport1: TcpTransport = TcpTransport.init()
-    asyncCheck transport1.listen(ma, connHandler)
-
+    let acceptFut = acceptHandler()
     let msDial = newMultistream()
     let transport2: TcpTransport = TcpTransport.init()
     let conn = await transport2.dial(transport1.ma)
@@ -350,8 +358,9 @@ suite "Multistream select":
     check hello == "Hello!"
 
     await conn.close()
-    await transport2.close()
-    await transport1.close()
+    await acceptFut
+    await transport2.stop()
+    await transport1.stop()
 
   asyncTest "e2e - select one with both valid":
     let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
@@ -368,19 +377,27 @@ suite "Multistream select":
     msListen.addHandler("/test/proto1/1.0.0", protocol)
     msListen.addHandler("/test/proto2/1.0.0", protocol)
 
-    proc connHandler(conn: Connection): Future[void] {.async, gcsafe.} =
+    let transport1: TcpTransport = TcpTransport.init()
+    asyncCheck transport1.start(ma)
+
+    proc acceptHandler(): Future[void] {.async, gcsafe.} =
+      let conn = await transport1.accept()
       await msListen.handle(conn)
 
-    let transport1: TcpTransport = TcpTransport.init()
-    asyncCheck transport1.listen(ma, connHandler)
-
+    let acceptFut = acceptHandler()
     let msDial = newMultistream()
     let transport2: TcpTransport = TcpTransport.init()
     let conn = await transport2.dial(transport1.ma)
 
-    check (await msDial.select(conn, @["/test/proto2/1.0.0", "/test/proto1/1.0.0"])) == "/test/proto2/1.0.0"
+    check (await msDial.select(conn,
+      @[
+        "/test/proto2/1.0.0",
+        "/test/proto1/1.0.0"
+      ])) == "/test/proto2/1.0.0"
+
     check string.fromBytes(await conn.readLp(1024)) == "Hello from /test/proto2/1.0.0!"
 
     await conn.close()
-    await transport2.close()
-    await transport1.close()
+    await acceptFut
+    await transport2.stop()
+    await transport1.stop()

@@ -80,7 +80,11 @@ suite "Noise":
       serverInfo = PeerInfo.init(PrivateKey.random(ECDSA, rng[]).get(), [server])
       serverNoise = newNoise(rng, serverInfo.privateKey, outgoing = false)
 
-    proc connHandler(conn: Connection) {.async, gcsafe.} =
+    let transport1: TcpTransport = TcpTransport.init()
+    asyncCheck transport1.start(server)
+
+    proc acceptHandler() {.async.} =
+      let conn = await transport1.accept()
       let sconn = await serverNoise.secure(conn, false)
       try:
         await sconn.write("Hello!")
@@ -89,10 +93,7 @@ suite "Noise":
         await conn.close()
 
     let
-      transport1: TcpTransport = TcpTransport.init()
-    asyncCheck await transport1.listen(server, connHandler)
-
-    let
+      acceptFut = acceptHandler()
       transport2: TcpTransport = TcpTransport.init()
       clientInfo = PeerInfo.init(PrivateKey.random(ECDSA, rng[]).get(), [transport1.ma])
       clientNoise = newNoise(rng, clientInfo.privateKey, outgoing = true)
@@ -104,8 +105,9 @@ suite "Noise":
 
     await sconn.close()
     await conn.close()
-    await transport1.close()
-    await transport2.close()
+    await acceptFut
+    await transport1.stop()
+    await transport2.stop()
 
     check string.fromBytes(msg) == "Hello!"
 
@@ -115,19 +117,23 @@ suite "Noise":
       serverInfo = PeerInfo.init(PrivateKey.random(ECDSA, rng[]).get(), [server])
       serverNoise = newNoise(rng, serverInfo.privateKey, outgoing = false)
 
-    proc connHandler(conn: Connection) {.async, gcsafe.} =
-      let sconn = await serverNoise.secure(conn, false)
+    let
+      transport1: TcpTransport = TcpTransport.init()
+
+    asyncCheck transport1.start(server)
+
+    proc acceptHandler() {.async, gcsafe.} =
+      var conn: Connection
       try:
-        await sconn.write("Hello!")
+        conn = await transport1.accept()
+        discard await serverNoise.secure(conn, false)
+      except CatchableError:
+        discard
       finally:
-        await sconn.close()
         await conn.close()
 
     let
-      transport1: TcpTransport = TcpTransport.init()
-    asyncCheck await transport1.listen(server, connHandler)
-
-    let
+      handlerWait = acceptHandler()
       transport2: TcpTransport = TcpTransport.init()
       clientInfo = PeerInfo.init(PrivateKey.random(ECDSA, rng[]).get(), [transport1.ma])
       clientNoise = newNoise(rng, clientInfo.privateKey, outgoing = true, commonPrologue = @[1'u8, 2'u8, 3'u8])
@@ -137,8 +143,9 @@ suite "Noise":
       sconn = await clientNoise.secure(conn, true)
 
     await conn.close()
-    await transport1.close()
-    await transport2.close()
+    await handlerWait
+    await transport1.stop()
+    await transport2.stop()
 
   asyncTest "e2e: handle read + noise":
     let
@@ -147,21 +154,22 @@ suite "Noise":
       serverNoise = newNoise(rng, serverInfo.privateKey, outgoing = false)
       readTask = newFuture[void]()
 
-    proc connHandler(conn: Connection) {.async, gcsafe.} =
+    let transport1: TcpTransport = TcpTransport.init()
+    asyncCheck transport1.start(server)
+
+    proc acceptHandler() {.async, gcsafe.} =
+      let conn = await transport1.accept()
       let sconn = await serverNoise.secure(conn, false)
       defer:
         await sconn.close()
         await conn.close()
+
       var msg = newSeq[byte](6)
       await sconn.readExactly(addr msg[0], 6)
       check string.fromBytes(msg) == "Hello!"
-      readTask.complete()
 
     let
-      transport1: TcpTransport = TcpTransport.init()
-    asyncCheck await transport1.listen(server, connHandler)
-
-    let
+      acceptFut = acceptHandler()
       transport2: TcpTransport = TcpTransport.init()
       clientInfo = PeerInfo.init(PrivateKey.random(ECDSA, rng[]).get(), [transport1.ma])
       clientNoise = newNoise(rng, clientInfo.privateKey, outgoing = true)
@@ -169,11 +177,11 @@ suite "Noise":
       sconn = await clientNoise.secure(conn, true)
 
     await sconn.write("Hello!")
-    await readTask
+    await acceptFut
     await sconn.close()
     await conn.close()
-    await transport1.close()
-    await transport2.close()
+    await transport1.stop()
+    await transport2.stop()
 
   asyncTest "e2e: handle read + noise fragmented":
     let
@@ -186,7 +194,12 @@ suite "Noise":
     brHmacDrbgGenerate(rng[], hugePayload)
     trace "Sending huge payload", size = hugePayload.len
 
-    proc connHandler(conn: Connection) {.async, gcsafe.} =
+    let
+      transport1: TcpTransport = TcpTransport.init()
+      listenFut = transport1.start(server)
+
+    proc acceptHandler() {.async, gcsafe.} =
+      let conn = await transport1.accept()
       let sconn = await serverNoise.secure(conn, false)
       defer:
         await sconn.close()
@@ -195,10 +208,7 @@ suite "Noise":
       readTask.complete()
 
     let
-      transport1: TcpTransport = TcpTransport.init()
-      listenFut = await transport1.listen(server, connHandler)
-
-    let
+      acceptFut = acceptHandler()
       transport2: TcpTransport = TcpTransport.init()
       clientInfo = PeerInfo.init(PrivateKey.random(ECDSA, rng[]).get(), [transport1.ma])
       clientNoise = newNoise(rng, clientInfo.privateKey, outgoing = true)
@@ -210,8 +220,9 @@ suite "Noise":
 
     await sconn.close()
     await conn.close()
-    await transport2.close()
-    await transport1.close()
+    await acceptFut
+    await transport2.stop()
+    await transport1.stop()
     await listenFut
 
   asyncTest "e2e use switch dial proto string":
