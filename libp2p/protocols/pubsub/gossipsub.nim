@@ -33,17 +33,7 @@ const
 
 # gossip parameters
 const
-  GossipSubHistoryLength* = 5
-  GossipSubHistoryGossip* = 3
   GossipBackoffPeriod* = 1.minutes
-
-# heartbeat interval
-const
-  GossipSubHeartbeatInterval* = 1.seconds
-
-# fanout ttl
-const
-  GossipSubFanoutTTL* = 1.minutes
 
 const
   BackoffSlackTime = 2 # seconds
@@ -106,6 +96,13 @@ type
     dScore*: int
     dOut*: int
     dLazy*: int
+
+    heartbeatInterval*: Duration
+
+    historyLength*: int
+    historyGossip*: int
+
+    fanoutTTL*: Duration
 
     gossipThreshold*: float64
     publishThreshold*: float64
@@ -176,6 +173,10 @@ proc init*(_: type[GossipSubParams]): GossipSubParams =
       dScore: 4,
       dOut: 4 - 1, # DLow - 1
       dLazy: 6, # Like D
+      heartbeatInterval: 1.seconds,
+      historyLength: 5,
+      historyGossip: 3,
+      fanoutTTL: 1.minutes,
       gossipThreshold: -10,
       publishThreshold: -100,
       graylistThreshold: -10000,
@@ -823,7 +824,7 @@ proc heartbeat(g: GossipSub) {.async.} =
       trace "firing heartbeat event", instance = cast[int](g)
       trigger.fire()
 
-    await sleepAsync(GossipSubHeartbeatInterval)
+    await sleepAsync(g.parameters.heartbeatInterval)
 
 method unsubscribePeer*(g: GossipSub, peer: PeerID) =
   ## handle peer disconnects
@@ -1250,7 +1251,7 @@ method publish*(g: GossipSub,
     # on the topic, so it makes sense
     # to update the last topic publish
     # time
-    g.lastFanoutPubSub[topic] = Moment.fromNow(GossipSubFanoutTTL)
+    g.lastFanoutPubSub[topic] = Moment.fromNow(g.parameters.fanoutTTL)
 
   if peers.len == 0:
     debug "No peers for topic, skipping publish"
@@ -1332,7 +1333,7 @@ method initPubSub*(g: GossipSub) =
   g.parameters.validateParameters().tryGet()
 
   randomize()
-  g.mcache = MCache.init(GossipSubHistoryGossip, GossipSubHistoryLength)
+  g.mcache = MCache.init(g.parameters.historyGossip, g.parameters.historyLength)
   g.mesh = initTable[string, HashSet[PubSubPeer]]()     # meshes - topic to peer
   g.fanout = initTable[string, HashSet[PubSubPeer]]()   # fanout - topic to peer
   g.gossipsub = initTable[string, HashSet[PubSubPeer]]()# topic to peer map of all gossipsub peers
