@@ -190,10 +190,6 @@ method accept*(t: TcpTransport): Future[Connection] {.async, gcsafe.} =
     warn "Unexpected error creating connection", exc = exc.msg
     raise exc
 
-  withTransportErrors:
-    let transp = await t.server.accept()
-    return await t.connHandler(transp, initiator = false)
-
 method dial*(t: TcpTransport,
              address: MultiAddress):
              Future[Connection] {.async, gcsafe.} =
