@@ -235,10 +235,6 @@ proc upgradeIncoming(s: Switch, incomingConn: Connection) {.async, gcsafe.} = # 
 
       # handle subsequent secure requests
       await ms.handle(sconn)
-
-    except CancelledError as exc:
-      trace "Canceling secure handler for incoming connection", conn
-      raise exc
     except CatchableError as exc:
       debug "Exception in secure handler during incoming upgrade", msg = exc.msg, conn
 
@@ -424,13 +420,20 @@ proc accept(s: Switch, transport: Transport) {.async.} = # noraises
     try:
       trace "About to accept incoming connection"
       conn = await transport.accept()
+      if isNil(conn):
+        # TODO: make the cooldown period configurable?
+        await sleepAsync(100.millis) # allow the network to cooldown
+        continue
+
       trace "Accepted an incoming connection", conn
       asyncSpawn s.upgradeIncoming(conn) # perform upgrade on incoming connection
     except TransportClosedError as exc:
       debug "Transport closed", exc = exc.msg
+      # TODO: closing should stop accept
       break
     except CancelledError as exc:
       trace "Canceling accept loop"
+      # TODO: cancellation should stop accept
       break
     except CatchableError as exc:
       trace "Exception in accept loop", exc = exc.msg

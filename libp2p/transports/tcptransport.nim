@@ -165,8 +165,6 @@ template withTransportErrors(body: untyped): untyped =
     body
   except TransportTooManyError as exc:
     warn "Could not create new connection, too many files opened", exc = exc.msg
-    # TODO: make the cooldown period configurable?
-    await sleepAsync(100.millis) # allow the network to cooldown
   except TransportUseClosedError as exc:
     info "Server was closed", exc = exc.msg
     raise newTransportClosedError(exc)
