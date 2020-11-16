@@ -819,13 +819,6 @@ suite "Mplex":
         transport1.stop(),
         transport2.stop())
 
-      try:
-        await acceptFut
-      except CatchableError:
-        return
-
-      check false # should not get here
-
     asyncTest "closing dialing connection should close both ends":
       let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
       let transport1 = TcpTransport.init()
