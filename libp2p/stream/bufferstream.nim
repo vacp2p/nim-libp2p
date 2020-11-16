@@ -29,7 +29,7 @@ type
     readQueue*: AsyncQueue[seq[byte]] # read queue for managing backpressure
     readBuf*: StreamSeq               # overflow buffer for readOnce
     pushing*: int                     # number of ongoing push operations
-
+    reading*: bool                    # is there an ongoing read? (only allow one)
     pushedEof*: bool
 
 func shortLog*(s: BufferStream): auto =
@@ -96,6 +96,8 @@ method readOnce*(s: BufferStream,
                  nbytes: int):
                  Future[int] {.async.} =
   doAssert(nbytes > 0, "nbytes must be positive integer")
+  doAssert(not s.reading, "Only one concurrent read allowed")
+
   if s.isEof and s.readBuf.len() == 0:
     raise newLPStreamEOFError()
 
@@ -107,10 +109,14 @@ method readOnce*(s: BufferStream,
 
   if rbytes < nbytes:
     # There's space in the buffer - consume some data from the read queue
-    trace "popping readQueue", s, rbytes, nbytes
-    let buf = await s.readQueue.popFirst()
+    s.reading = true
+    let buf =
+      try:
+        await s.readQueue.popFirst()
+      finally:
+        s.reading = false
 
-    if buf.len == 0 or s.isEof: # Another task might have set EOF!
+    if buf.len == 0:
       # No more data will arrive on read queue
       trace "EOF", s
       s.isEof = true

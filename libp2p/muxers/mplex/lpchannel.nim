@@ -88,17 +88,20 @@ proc reset*(s: LPChannel) {.async, gcsafe.} =
   s.readBuf = StreamSeq()
   s.pushedEof = true
 
-  for i in 0..<s.pushing:
+  let pushing = s.pushing # s.pushing changes while iterating
+  for i in 0..<pushing:
     # Make sure to drain any ongoing pushes - there's already at least one item
     # more in the queue already so any ongoing reads shouldn't interfere
     # Notably, popFirst is not fair - which reader/writer gets woken up depends
     discard await s.readQueue.popFirst()
 
-  if s.readQueue.len == 0 and s.pushing == 0:
-    # There is no push ongoing and nothing on the queue - let's place an
-    # EOF marker there so that any reader is woken up - we don't need to
-    # synchronize here
-    await s.readQueue.addLast(@[])
+  if s.readQueue.len == 0 and s.reading:
+    # There is an active reader - we just grabbed all pushes so we need to push
+    # an EOF marker to wake it up
+    try:
+      s.readQueue.addLastNoWait(@[])
+    except CatchableError:
+      raiseAssert "We just checked the queue is empty"
 
   if not s.conn.isClosed:
     # If the connection is still active, notify the other end

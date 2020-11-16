@@ -142,6 +142,21 @@ suite "BufferStream":
     check str == str2
     await buff.close()
 
+  asyncTest "read all data after eof":
+    let buff = newBufferStream()
+    check buff.len == 0
+
+    await buff.pushData("12345".toBytes())
+    var data: array[2, byte]
+    check: (await buff.readOnce(addr data[0], data.len)) == 2
+
+    await buff.pushEof()
+
+    check: (await buff.readOnce(addr data[0], data.len)) == 2
+    check: (await buff.readOnce(addr data[0], data.len)) == 1
+
+    await buff.close() # all data should still be read after close
+
   asyncTest "shouldn't get stuck on close":
     var stream = newBufferStream()
     var
