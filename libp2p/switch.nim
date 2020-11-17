@@ -420,26 +420,27 @@ proc accept(s: Switch, transport: Transport) {.async.} = # noraises
     try:
       trace "About to accept incoming connection"
       conn = await transport.accept()
-      if isNil(conn):
-        # TODO: make the cooldown period configurable?
-        await sleepAsync(100.millis) # allow the network to cooldown
-        continue
+      if not isNil(conn):
+        trace "Accepted an incoming connection", conn
+        asyncSpawn s.upgradeIncoming(conn) # perform upgrade on incoming connection
 
-      trace "Accepted an incoming connection", conn
-      asyncSpawn s.upgradeIncoming(conn) # perform upgrade on incoming connection
     except TransportClosedError as exc:
       debug "Transport closed", exc = exc.msg
-      # TODO: closing should stop accept
-      break
+      if not isNil(conn):
+        await conn.close()
+
+      return
     except CancelledError as exc:
       trace "Canceling accept loop"
-      # TODO: cancellation should stop accept
-      break
+      if not isNil(conn):
+        await conn.close()
+
+      return
     except CatchableError as exc:
       trace "Exception in accept loop", exc = exc.msg
 
-  if not isNil(conn):
-    await conn.close()
+    if isNil(conn):
+      await sleepAsync(100.millis) # avoid event loop starvation
 
 proc start*(s: Switch): Future[seq[Future[void]]] {.async, gcsafe.} =
   trace "starting switch for peer", peerInfo = s.peerInfo
@@ -494,17 +495,16 @@ proc muxerHandler(s: Switch, muxer: Muxer) {.async, gcsafe.} =
   s.connManager.storeMuxer(muxer)
 
   try:
-    try:
-      await s.identify(muxer)
-    except IdentifyError as exc:
-      # Identify is non-essential, though if it fails, it might indicate that
-      # the connection was closed already - this will be picked up by the read
-      # loop
-      debug "Could not identify connection", conn, msg = exc.msg
-    except LPStreamClosedError as exc:
-      debug "Identify stream closed", conn, msg = exc.msg
-    except LPStreamEOFError as exc:
-      debug "Identify stream EOF", conn, msg = exc.msg
+    await s.identify(muxer)
+  except IdentifyError as exc:
+    # Identify is non-essential, though if it fails, it might indicate that
+    # the connection was closed already - this will be picked up by the read
+    # loop
+    debug "Could not identify connection", conn, msg = exc.msg
+  except LPStreamClosedError as exc:
+    debug "Identify stream closed", conn, msg = exc.msg
+  except LPStreamEOFError as exc:
+    debug "Identify stream EOF", conn, msg = exc.msg
   except CancelledError as exc:
     await muxer.close()
     raise exc
