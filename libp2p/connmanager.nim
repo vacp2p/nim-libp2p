@@ -160,7 +160,7 @@ proc contains*(c: ConnManager, conn: Connection): bool =
   if isNil(conn.peerInfo):
     return
 
-  return conn in c.conns[conn.peerInfo.peerId]
+  return conn in c.conns.getOrDefault(conn.peerInfo.peerId)
 
 proc contains*(c: ConnManager, peerId: PeerID): bool =
   peerId in c.conns
