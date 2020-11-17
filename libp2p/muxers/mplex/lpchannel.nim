@@ -71,13 +71,15 @@ method closed*(s: LPChannel): bool =
 proc closeUnderlying(s: LPChannel): Future[void] {.async.} =
   ## Channels may be closed for reading and writing in any order - we'll close
   ## the underlying bufferstream when both directions are closed
-  if s.closedLocal and s.isEof:
+  if s.closedLocal and s.atEof():
     await procCall BufferStream(s).close()
 
 proc reset*(s: LPChannel) {.async, gcsafe.} =
   if s.isClosed:
     trace "Already closed", s
     return
+
+  s.isClosed = true
 
   trace "Resetting channel", s, len = s.len
 
@@ -116,7 +118,7 @@ proc reset*(s: LPChannel) {.async, gcsafe.} =
     asyncSpawn resetMessage()
 
   # This should wake up any readers by pushing an EOF marker at least
-  await procCall BufferStream(s).close() # noraises, nocancels
+  await s.closeImpl() # noraises, nocancels
 
   trace "Channel reset", s
 
@@ -139,7 +141,7 @@ method close*(s: LPChannel) {.async, gcsafe.} =
     except CatchableError as exc:
       # It's harmless that close message cannot be sent - the connection is
       # likely down already
-      trace "Cannot send close message", s, id = s.id
+      trace "Cannot send close message", s, id = s.id, msg = exc.msg
 
   await s.closeUnderlying() # maybe already eofed
 
@@ -170,7 +172,11 @@ method readOnce*(s: LPChannel,
       await s.closeUnderlying()
     return bytes
   except CatchableError as exc:
-    await s.closeUnderlying()
+    # readOnce in BufferStream generally raises on EOF or cancellation - for
+    # the former, resetting is harmless, for the latter it's necessary because
+    # data has been lost in s.readBuf and there's no way to gracefully recover /
+    # use the channel any more
+    await s.reset()
     raise exc
 
 method write*(s: LPChannel, msg: seq[byte]): Future[void] {.async.} =

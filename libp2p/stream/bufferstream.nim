@@ -30,7 +30,8 @@ type
     readBuf*: StreamSeq               # overflow buffer for readOnce
     pushing*: int                     # number of ongoing push operations
     reading*: bool                    # is there an ongoing read? (only allow one)
-    pushedEof*: bool
+    pushedEof*: bool                  # eof marker has been put on readQueue
+    returnedEof*: bool                # 0-byte readOnce has been completed
 
 func shortLog*(s: BufferStream): auto =
   if s.isNil: "BufferStream(nil)"
@@ -91,6 +92,9 @@ method pushEof*(s: BufferStream) {.base, async.} =
   finally:
     dec s.pushing
 
+method atEof*(s: BufferStream): bool =
+  s.isEof and s.readBuf.len == 0
+
 method readOnce*(s: BufferStream,
                  pbytes: pointer,
                  nbytes: int):
@@ -98,7 +102,7 @@ method readOnce*(s: BufferStream,
   doAssert(nbytes > 0, "nbytes must be positive integer")
   doAssert(not s.reading, "Only one concurrent read allowed")
 
-  if s.isEof and s.readBuf.len() == 0:
+  if s.returnedEof:
     raise newLPStreamEOFError()
 
   var
@@ -107,12 +111,19 @@ method readOnce*(s: BufferStream,
   # First consume leftovers from previous read
   var rbytes = s.readBuf.consumeTo(toOpenArray(p, 0, nbytes - 1))
 
-  if rbytes < nbytes:
+  if rbytes < nbytes and not s.isEof:
     # There's space in the buffer - consume some data from the read queue
     s.reading = true
     let buf =
       try:
         await s.readQueue.popFirst()
+      except CatchableError as exc:
+        # When an exception happens here, the Bufferstream is effectively
+        # broken and no more reads will be valid - for now, return EOF if it's
+        # called again, though this is not completely true - EOF represents an
+        # "orderly" shutdown and that's not what happened here..
+        s.returnedEof = true
+        raise exc
       finally:
         s.reading = false
 
@@ -135,6 +146,12 @@ method readOnce*(s: BufferStream,
     s.readBuf = StreamSeq()
 
   s.activity = true
+
+  # We want to return 0 exactly once - after that, we'll start raising instead -
+  # this is a bit nuts in a mixed exception / return value world, but allows the
+  # consumer of the stream to rely on the 0-byte read as a "regular" EOF marker
+  # (instead of _sometimes_ getting an exception).
+  s.returnedEof = rbytes == 0
 
   return rbytes
 

@@ -129,10 +129,10 @@ method initStream*(s: LPStream) {.base.} =
 proc join*(s: LPStream): Future[void] =
   s.closeEvent.wait()
 
-method closed*(s: LPStream): bool {.base, inline.} =
+method closed*(s: LPStream): bool {.base.} =
   s.isClosed
 
-method atEof*(s: LPStream): bool {.base, inline.} =
+method atEof*(s: LPStream): bool {.base.} =
   s.isEof
 
 method readOnce*(s: LPStream,
@@ -272,6 +272,13 @@ method close*(s: LPStream): Future[void] {.base, async.} = # {.raises [Defect].}
 proc closeWithEOF*(s: LPStream): Future[void] {.async.} =
   ## Close the stream and wait for EOF - use this with half-closed streams where
   ## an EOF is expected to arrive from the other end.
+  ##
+  ## Note - this should only be used when there has been an in-protocol
+  ## notification that no more data will arrive and that the only thing left
+  ## for the other end to do is to close the stream gracefully.
+  ##
+  ## In particular, it must not be used when there is another concurrent read
+  ## ongoing (which may be the case during cancellations)!
   await s.close()
 
   if s.atEof():

@@ -152,8 +152,41 @@ suite "BufferStream":
 
     await buff.pushEof()
 
-    check: (await buff.readOnce(addr data[0], data.len)) == 2
-    check: (await buff.readOnce(addr data[0], data.len)) == 1
+    check:
+      not buff.atEof()
+      (await buff.readOnce(addr data[0], data.len)) == 2
+      not buff.atEof()
+      (await buff.readOnce(addr data[0], data.len)) == 1
+      buff.atEof()
+      # exactly one 0-byte read
+      (await buff.readOnce(addr data[0], data.len)) == 0
+
+    expect LPStreamEOFError:
+      discard (await buff.readOnce(addr data[0], data.len))
+
+    await buff.close() # all data should still be read after close
+
+  asyncTest "read more data after eof":
+    let buff = newBufferStream()
+    check buff.len == 0
+
+    await buff.pushData("12345".toBytes())
+    var data: array[5, byte]
+    check: (await buff.readOnce(addr data[0], 1)) == 1 # 4 bytes in readBuf
+
+    await buff.pushEof()
+
+    check:
+      not buff.atEof()
+      (await buff.readOnce(addr data[0], 1)) == 1 # 3 bytes in readBuf, eof marker processed
+      not buff.atEof()
+      (await buff.readOnce(addr data[0], data.len)) == 3 # 0 bytes in readBuf
+      buff.atEof()
+      # exactly one 0-byte read
+      (await buff.readOnce(addr data[0], data.len)) == 0
+
+    expect LPStreamEOFError:
+      discard (await buff.readOnce(addr data[0], data.len))
 
     await buff.close() # all data should still be read after close
 
