@@ -84,7 +84,7 @@ proc timeoutMonitor(s: Connection) {.async, gcsafe.} =
     while true:
       await sleepAsync(s.timeout)
 
-      if s.closed or s.atEof:
+      if s.closed and s.atEof:
         return
 
       if s.activity:
