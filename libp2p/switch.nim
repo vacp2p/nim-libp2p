@@ -237,9 +237,9 @@ proc upgradeIncoming(s: Switch, incomingConn: Connection) {.async, gcsafe.} = # 
       await ms.handle(sconn)
     except CatchableError as exc:
       debug "Exception in secure handler during incoming upgrade", msg = exc.msg, conn
-
-    if not isNil(sconn):
-      await sconn.close()
+    finally:
+      if not isNil(sconn):
+        await sconn.closeWithEOF()
 
     trace "Stopped secure handler", conn
 
@@ -255,7 +255,7 @@ proc upgradeIncoming(s: Switch, incomingConn: Connection) {.async, gcsafe.} = # 
   except CatchableError as exc:
     debug "Exception upgrading incoming", exc = exc.msg
   finally:
-    await incomingConn.close()
+    await incomingConn.closeWithEOF()
 
 proc internalConnect(s: Switch,
                      peerId: PeerID,
@@ -415,32 +415,28 @@ proc accept(s: Switch, transport: Transport) {.async.} = # noraises
   ## transport's accept loop
   ##
 
-  var conn: Connection
   while transport.running:
+    var conn: Connection
     try:
-      trace "About to accept incoming connection"
+      info "About to accept incoming connection"
       conn = await transport.accept()
       if not isNil(conn):
-        trace "Accepted an incoming connection", conn
+        info "Accepted an incoming connection", conn
         asyncSpawn s.upgradeIncoming(conn) # perform upgrade on incoming connection
-
-    except TransportClosedError as exc:
-      debug "Transport closed", exc = exc.msg
-      if not isNil(conn):
-        await conn.close()
-
-      return
-    except CancelledError as exc:
-      trace "Canceling accept loop"
-      if not isNil(conn):
-        await conn.close()
-
-      return
+      else:
+        # A nil connection means that we might have hit a
+        # file-handle limit (or another non-fatal error),
+        # we can get one on the next try, but we should
+        # be careful to not end up in a thigh loop that
+        # will starve the main event loop, thus we sleep
+        # here before retrying.
+        await sleepAsync(100.millis) # TODO: should be configurable?
     except CatchableError as exc:
-      trace "Exception in accept loop", exc = exc.msg
+      info "Exception in accept loop, exiting", exc = exc.msg
+      if not isNil(conn):
+        await conn.closeWithEOF()
 
-    if isNil(conn):
-      await sleepAsync(100.millis) # avoid event loop starvation
+      return
 
 proc start*(s: Switch): Future[seq[Future[void]]] {.async, gcsafe.} =
   trace "starting switch for peer", peerInfo = s.peerInfo

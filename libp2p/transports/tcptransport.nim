@@ -168,11 +168,8 @@ template withTransportErrors(body: untyped): untyped =
   except TransportUseClosedError as exc:
     info "Server was closed", exc = exc.msg
     raise newTransportClosedError(exc)
-  except CancelledError as exc:
-    trace "Connection setup canceled", exc = exc.msg
-    raise exc
   except CatchableError as exc:
-    warn "Could not create new connection, unexpected error", exc = exc.msg
+    trace "Unexpected error creating connection", exc = exc.msg
     raise exc
 
 method accept*(t: TcpTransport): Future[Connection] {.async, gcsafe.} =
@@ -200,6 +197,7 @@ method dial*(t: TcpTransport,
 
 method handles*(t: TcpTransport, address: MultiAddress): bool {.gcsafe.} =
   if procCall Transport(t).handles(address):
-    address.protocols.tryGet().filterIt( it == multiCodec("tcp") ).len > 0
-  else:
-    false
+    return address.protocols
+      .tryGet()
+      .filterIt( it == multiCodec("tcp") )
+      .len > 0
