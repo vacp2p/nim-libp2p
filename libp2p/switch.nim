@@ -239,7 +239,7 @@ proc upgradeIncoming(s: Switch, incomingConn: Connection) {.async, gcsafe.} = # 
       debug "Exception in secure handler during incoming upgrade", msg = exc.msg, conn
     finally:
       if not isNil(sconn):
-        await sconn.closeWithEOF()
+        await sconn.close()
 
     trace "Stopped secure handler", conn
 
@@ -255,7 +255,7 @@ proc upgradeIncoming(s: Switch, incomingConn: Connection) {.async, gcsafe.} = # 
   except CatchableError as exc:
     debug "Exception upgrading incoming", exc = exc.msg
   finally:
-    await incomingConn.closeWithEOF()
+    await incomingConn.close()
 
 proc internalConnect(s: Switch,
                      peerId: PeerID,
@@ -434,7 +434,7 @@ proc accept(s: Switch, transport: Transport) {.async.} = # noraises
     except CatchableError as exc:
       debug "Exception in accept loop, exiting", exc = exc.msg
       if not isNil(conn):
-        await conn.closeWithEOF()
+        await conn.close()
 
       return
 
