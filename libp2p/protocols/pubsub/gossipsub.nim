@@ -31,6 +31,24 @@ const
   GossipSubCodec* = "/meshsub/1.1.0"
   GossipSubCodec_10* = "/meshsub/1.0.0"
 
+# overlay parameters
+const 
+  GossipSubD* = 6
+  GossipSubDlo* = 4
+  GossipSubDhi* = 12
+
+# gossip parameters
+const
+  GossipSubHistoryLength* = 5
+  GossipSubHistoryGossip* = 3
+
+# heartbeat interval
+  GossipSubHeartbeatInterval* = 1.seconds
+
+# fanout ttl
+const
+  GossipSubFanoutTTL* = 1.minutes
+
 # gossip parameters
 const
   GossipBackoffPeriod* = 1.minutes
@@ -167,16 +185,16 @@ proc init*(_: type[GossipSubParams]): GossipSubParams =
       pruneBackoff: 1.minutes,
       floodPublish: true,
       gossipFactor: 0.25,
-      d: 6,
-      dLow: 4,
-      dHigh: 12,
+      d: GossipSubD,
+      dLow: GossipSubDlo,
+      dHigh: GossipSubDhi,
       dScore: 4,
       dOut: 4 - 1, # DLow - 1
       dLazy: 6, # Like D
-      heartbeatInterval: 1.seconds,
-      historyLength: 5,
-      historyGossip: 3,
-      fanoutTTL: 1.minutes,
+      heartbeatInterval: GossipSubHeartbeatInterval,
+      historyLength: GossipSubHistoryLength,
+      historyGossip: GossipSubHistoryGossip,
+      fanoutTTL: GossipSubFanoutTTL,
       gossipThreshold: -10,
       publishThreshold: -100,
       graylistThreshold: -10000,
