@@ -164,7 +164,7 @@ template withTransportErrors(body: untyped): untyped =
   try:
     body
   except TransportTooManyError as exc:
-    warn "Could not create new connection, too many files opened", exc = exc.msg
+    warn "Too many files opened", exc = exc.msg
   except TransportUseClosedError as exc:
     info "Server was closed", exc = exc.msg
     raise newTransportClosedError(exc)

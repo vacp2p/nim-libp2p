@@ -284,7 +284,7 @@ proc internalConnect(s: Switch,
 
       return conn
 
-    trace "Dialing peer", peerId
+    debug "Dialing peer", peerId
     for t in s.transports: # for each transport
       for a in addrs: # for each address
         if t.handles(a):   # check if it can dial it
@@ -292,10 +292,10 @@ proc internalConnect(s: Switch,
           let dialed = try:
               await t.dial(a)
             except CancelledError as exc:
-              trace "Dialing canceled", msg = exc.msg, peerId
+              debug "Dialing canceled", msg = exc.msg, peerId
               raise exc
             except CatchableError as exc:
-              trace "Dialing failed", msg = exc.msg, peerId
+              debug "Dialing failed", msg = exc.msg, peerId
               libp2p_failed_dials.inc()
               continue # Try the next address
 
@@ -318,7 +318,7 @@ proc internalConnect(s: Switch,
           doAssert not isNil(upgraded), "connection died after upgradeOutgoing"
 
           conn = upgraded
-          trace "Dial successful", conn, peerInfo = conn.peerInfo
+          debug "Dial successful", conn, peerInfo = conn.peerInfo
           break
   finally:
     if lock.locked():
@@ -418,10 +418,10 @@ proc accept(s: Switch, transport: Transport) {.async.} = # noraises
   while transport.running:
     var conn: Connection
     try:
-      info "About to accept incoming connection"
+      debug "About to accept incoming connection"
       conn = await transport.accept()
       if not isNil(conn):
-        info "Accepted an incoming connection", conn
+        debug "Accepted an incoming connection", conn
         asyncSpawn s.upgradeIncoming(conn) # perform upgrade on incoming connection
       else:
         # A nil connection means that we might have hit a
@@ -432,7 +432,7 @@ proc accept(s: Switch, transport: Transport) {.async.} = # noraises
         # here before retrying.
         await sleepAsync(100.millis) # TODO: should be configurable?
     except CatchableError as exc:
-      info "Exception in accept loop, exiting", exc = exc.msg
+      debug "Exception in accept loop, exiting", exc = exc.msg
       if not isNil(conn):
         await conn.closeWithEOF()
 
