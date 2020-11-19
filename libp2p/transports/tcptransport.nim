@@ -159,9 +159,21 @@ method stop*(t: TcpTransport) {.async, gcsafe.} =
   finally:
     t.running = false
 
-template withTransportErrors(body: untyped): untyped =
+method accept*(t: TcpTransport): Future[Connection] {.async, gcsafe.} =
+  ## accept a new TCP connection
+  ##
+
+  if not t.running:
+    raise newTransportClosedError()
+
   try:
-    body
+    let transp = await t.server.accept()
+    return await t.connHandler(transp, Direction.In)
+  except TransportOsError as exc:
+    # TODO: it doesn't sound like all OS errors
+    # can  be ignored, we should re-raise those
+    # that can't.
+    debug "OS Error", exc = exc.msg
   except TransportTooManyError as exc:
     warn "Too many files opened", exc = exc.msg
   except TransportUseClosedError as exc:
@@ -171,17 +183,6 @@ template withTransportErrors(body: untyped): untyped =
     trace "Unexpected error creating connection", exc = exc.msg
     raise exc
 
-method accept*(t: TcpTransport): Future[Connection] {.async, gcsafe.} =
-  ## accept a new TCP connection
-  ##
-
-  if not t.running:
-    raise newTransportClosedError()
-
-  withTransportErrors:
-    let transp = await t.server.accept()
-    return await t.connHandler(transp, Direction.In)
-
 method dial*(t: TcpTransport,
              address: MultiAddress):
              Future[Connection] {.async, gcsafe.} =
@@ -190,9 +191,8 @@ method dial*(t: TcpTransport,
 
   trace "Dialing remote peer", address = $address
 
-  withTransportErrors:
-    let transp = await connect(address)
-    return await t.connHandler(transp, Direction.Out)
+  let transp = await connect(address)
+  return await t.connHandler(transp, Direction.Out)
 
 method handles*(t: TcpTransport, address: MultiAddress): bool {.gcsafe.} =
   if procCall Transport(t).handles(address):
