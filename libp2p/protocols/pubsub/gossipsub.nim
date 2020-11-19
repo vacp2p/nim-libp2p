@@ -188,9 +188,9 @@ proc init*(_: type[GossipSubParams]): GossipSubParams =
       d: GossipSubD,
       dLow: GossipSubDlo,
       dHigh: GossipSubDhi,
-      dScore: 4,
-      dOut: 4 - 1, # DLow - 1
-      dLazy: 6, # Like D
+      dScore: GossipSubDlo,
+      dOut: GossipSubDlo - 1, # DLow - 1
+      dLazy: GossipSubD, # Like D
       heartbeatInterval: GossipSubHeartbeatInterval,
       historyLength: GossipSubHistoryLength,
       historyGossip: GossipSubHistoryGossip,
