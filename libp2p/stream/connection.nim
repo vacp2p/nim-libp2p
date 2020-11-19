@@ -7,7 +7,7 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import std/[hashes, oids, strformat, sugar]
+import std/[hashes, oids, strformat]
 import chronicles, chronos, metrics
 import lpstream,
        ../multiaddress,

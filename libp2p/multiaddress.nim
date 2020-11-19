@@ -46,6 +46,9 @@ type
 
   MaResult*[T] = Result[T, string]
 
+  MaError* = object of CatchableError
+  MaInvalidAddress* = object of MaError
+
   IpTransportProtocol* = enum
     tcpProtocol
     udpProtocol

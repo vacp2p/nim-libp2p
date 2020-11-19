@@ -7,8 +7,8 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import oids
-import chronos, chronicles, sequtils
+import std/[oids, sequtils]
+import chronos, chronicles
 import transport,
        ../errors,
        ../wire,
@@ -26,10 +26,8 @@ const
 type
   TcpTransport* = ref object of Transport
     server*: StreamServer
-    clients: seq[StreamTransport]
+    clients: array[Direction, seq[StreamTransport]]
     flags: set[ServerFlags]
-    cleanups*: seq[Future[void]]
-    handlers*: seq[Future[void]]
 
   TcpTransportTracker* = ref object of TrackerBase
     opened*: uint64
@@ -61,132 +59,144 @@ proc setupTcpTransportTracker(): TcpTransportTracker =
 
 proc connHandler*(t: TcpTransport,
                   client: StreamTransport,
-                  initiator: bool): Connection =
-  trace "handling connection", address = $client.remoteAddress
+                  dir: Direction): Future[Connection] {.async.} =
+  debug "Handling tcp connection", address = $client.remoteAddress,
+                                   dir = $dir,
+                                   clients = t.clients[Direction.In].len +
+                                   t.clients[Direction.Out].len
 
   let conn = Connection(
     ChronosStream.init(
       client,
-      dir = if initiator:
-        Direction.Out
-      else:
-        Direction.In))
+      dir
+    ))
 
-  if not initiator:
-    if not isNil(t.handler):
-      t.handlers &= t.handler(conn)
-
-  proc cleanup() {.async.} =
+  proc onClose() {.async.} =
     try:
-      await client.join()
-      trace "cleaning up client", addrs = $client.remoteAddress, connoid = $conn.oid
-      if not(isNil(conn)):
-        await conn.close()
-      t.clients.keepItIf(it != client)
-    except CancelledError:
-      # This is top-level procedure which will work as separate task, so it
-      # do not need to propogate CancelledError.
-      trace "Unexpected cancellation in transport's cleanup"
-    except CatchableError as exc:
-      trace "error cleaning up client", exc = exc.msg
+      await client.join() or conn.join()
+      trace "Cleaning up client", addrs = $client.remoteAddress,
+                                  conn
 
-  t.clients.add(client)
-  # All the errors are handled inside `cleanup()` procedure.
-  asyncSpawn cleanup()
+      if not(isNil(conn) and conn.closed()):
+        await conn.close()
+
+      t.clients[dir].keepItIf( it != client )
+      if not(isNil(client) and client.closed()):
+        await client.closeWait()
+
+      trace "Cleaned up client", addrs = $client.remoteAddress,
+                                 conn
+
+    except CatchableError as exc:
+      let useExc {.used.} = exc
+      debug "Error cleaning up client", errMsg = exc.msg, conn
+
+  t.clients[dir].add(client)
+  asyncSpawn onClose()
 
   try:
     conn.observedAddr = MultiAddress.init(client.remoteAddress).tryGet()
   except CatchableError as exc:
-    trace "Connection setup failed", exc = exc.msg
-    if not(isNil(client)):
-      client.close()
+    trace "Connection setup failed", exc = exc.msg, conn
+    if not(isNil(client) and client.closed):
+      await client.closeWait()
+
+    raise exc
 
   return conn
 
-proc connCb(server: StreamServer,
-            client: StreamTransport) {.async, gcsafe.} =
-  trace "incoming connection", address = $client.remoteAddress
-  try:
-    let t = cast[TcpTransport](server.udata)
-    # we don't need result connection in this case
-    # as it's added inside connHandler
-    discard t.connHandler(client, false)
-  except CancelledError as exc:
-    raise exc
-  except CatchableError as err:
-    debug "Connection setup failed", err = err.msg
-    client.close()
-
-proc init*(T: type TcpTransport, flags: set[ServerFlags] = {}): T =
+proc init*(T: type TcpTransport,
+           flags: set[ServerFlags] = {}): T =
   result = T(flags: flags)
+
   result.initTransport()
 
 method initTransport*(t: TcpTransport) =
   t.multicodec = multiCodec("tcp")
   inc getTcpTransportTracker().opened
 
-method close*(t: TcpTransport) {.async, gcsafe.} =
-  try:
-    ## start the transport
-    trace "stopping transport"
-    await procCall Transport(t).close() # call base
-
-    checkFutures(await allFinished(
-      t.clients.mapIt(it.closeWait())))
-
-    # server can be nil
-    if not isNil(t.server):
-      t.server.stop()
-      await t.server.closeWait()
-
-    t.server = nil
-
-    for fut in t.handlers:
-      if not fut.finished:
-        fut.cancel()
-
-    checkFutures(
-      await allFinished(t.handlers))
-    t.handlers = @[]
-
-    for fut in t.cleanups:
-      if not fut.finished:
-        fut.cancel()
-
-    checkFutures(
-      await allFinished(t.cleanups))
-    t.cleanups = @[]
-
-    trace "transport stopped"
-    inc getTcpTransportTracker().closed
-  except CancelledError as exc:
-    raise exc
-  except CatchableError as exc:
-    trace "error shutting down tcp transport", exc = exc.msg
-
-method listen*(t: TcpTransport,
-               ma: MultiAddress,
-               handler: ConnHandler):
-               Future[Future[void]] {.async, gcsafe.} =
-  discard await procCall Transport(t).listen(ma, handler) # call base
-
+method start*(t: TcpTransport, ma: MultiAddress) {.async.} =
   ## listen on the transport
-  t.server = createStreamServer(t.ma, connCb, t.flags, t)
-  t.server.start()
+  ##
+
+  if t.running:
+    trace "TCP transport already running"
+    return
+
+  await procCall Transport(t).start(ma)
+  trace "Starting TCP transport"
+
+  t.server = createStreamServer(t.ma, t.flags, t)
 
   # always get the resolved address in case we're bound to 0.0.0.0:0
   t.ma = MultiAddress.init(t.server.sock.getLocalAddress()).tryGet()
-  result = t.server.join()
-  trace "started node on", address = t.ma
+  t.running = true
+
+  trace "Listening on", address = t.ma
+
+method stop*(t: TcpTransport) {.async, gcsafe.} =
+  ## stop the transport
+  ##
+
+  try:
+    trace "Stopping TCP transport"
+    await procCall Transport(t).stop() # call base
+
+    checkFutures(
+      await allFinished(
+        t.clients[Direction.In].mapIt(it.closeWait()) &
+        t.clients[Direction.Out].mapIt(it.closeWait())))
+
+    # server can be nil
+    if not isNil(t.server):
+      await t.server.closeWait()
+
+    t.server = nil
+    trace "Transport stopped"
+    inc getTcpTransportTracker().closed
+  except CatchableError as exc:
+    trace "Error shutting down tcp transport", exc = exc.msg
+  finally:
+    t.running = false
+
+template withTransportErrors(body: untyped): untyped =
+  try:
+    body
+  except TransportTooManyError as exc:
+    warn "Too many files opened", exc = exc.msg
+  except TransportUseClosedError as exc:
+    info "Server was closed", exc = exc.msg
+    raise newTransportClosedError(exc)
+  except CatchableError as exc:
+    trace "Unexpected error creating connection", exc = exc.msg
+    raise exc
+
+method accept*(t: TcpTransport): Future[Connection] {.async, gcsafe.} =
+  ## accept a new TCP connection
+  ##
+
+  if not t.running:
+    raise newTransportClosedError()
+
+  withTransportErrors:
+    let transp = await t.server.accept()
+    return await t.connHandler(transp, Direction.In)
 
 method dial*(t: TcpTransport,
              address: MultiAddress):
              Future[Connection] {.async, gcsafe.} =
-  trace "dialing remote peer", address = $address
   ## dial a peer
-  let client: StreamTransport = await connect(address)
-  result = t.connHandler(client, true)
+  ##
+
+  trace "Dialing remote peer", address = $address
+
+  withTransportErrors:
+    let transp = await connect(address)
+    return await t.connHandler(transp, Direction.Out)
 
 method handles*(t: TcpTransport, address: MultiAddress): bool {.gcsafe.} =
   if procCall Transport(t).handles(address):
-    result = address.protocols.tryGet().filterIt( it == multiCodec("tcp") ).len > 0
+    return address.protocols
+      .tryGet()
+      .filterIt( it == multiCodec("tcp") )
+      .len > 0

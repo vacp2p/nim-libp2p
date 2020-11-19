@@ -20,21 +20,22 @@ suite "Identify":
   asyncTest "handle identify message":
     let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
     let remoteSecKey = PrivateKey.random(ECDSA, rng[]).get()
-    let remotePeerInfo = PeerInfo.init(remoteSecKey,
-                                      [ma],
-                                      ["/test/proto1/1.0.0",
-                                        "/test/proto2/1.0.0"])
+    let remotePeerInfo = PeerInfo.init(
+      remoteSecKey, [ma], ["/test/proto1/1.0.0", "/test/proto2/1.0.0"])
     var serverFut: Future[void]
     let identifyProto1 = newIdentify(remotePeerInfo)
     let msListen = newMultistream()
 
     msListen.addHandler(IdentifyCodec, identifyProto1)
-    proc connHandler(conn: Connection): Future[void] {.async, gcsafe.} =
-      await msListen.handle(conn)
 
     var transport1 = TcpTransport.init()
-    serverFut = await transport1.listen(ma, connHandler)
+    serverFut = transport1.start(ma)
 
+    proc acceptHandler(): Future[void] {.async, gcsafe.} =
+      let conn = await transport1.accept()
+      await msListen.handle(conn)
+
+    let acceptFut = acceptHandler()
     let msDial = newMultistream()
     let transport2: TcpTransport = TcpTransport.init()
     let conn = await transport2.dial(transport1.ma)
@@ -51,9 +52,10 @@ suite "Identify":
     check id.protos == @["/test/proto1/1.0.0", "/test/proto2/1.0.0"]
 
     await conn.close()
-    await transport1.close()
+    await acceptFut
+    await transport1.stop()
     await serverFut
-    await transport2.close()
+    await transport2.stop()
 
   asyncTest "handle failed identify":
     let ma = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
@@ -61,17 +63,22 @@ suite "Identify":
     let identifyProto1 = newIdentify(remotePeerInfo)
     let msListen = newMultistream()
 
-    let done = newFuture[void]()
-
     msListen.addHandler(IdentifyCodec, identifyProto1)
-    proc connHandler(conn: Connection): Future[void] {.async, gcsafe.} =
-      await msListen.handle(conn)
-      await conn.close()
-      done.complete()
 
     let transport1: TcpTransport = TcpTransport.init()
-    asyncCheck transport1.listen(ma, connHandler)
+    asyncCheck transport1.start(ma)
 
+    proc acceptHandler() {.async.} =
+      var conn: Connection
+      try:
+        conn = await transport1.accept()
+        await msListen.handle(conn)
+      except CatchableError:
+        discard
+      finally:
+        await conn.close()
+
+    let acceptFut = acceptHandler()
     let msDial = newMultistream()
     let transport2: TcpTransport = TcpTransport.init()
     let conn = await transport2.dial(transport1.ma)
@@ -79,12 +86,11 @@ suite "Identify":
     let identifyProto2 = newIdentify(localPeerInfo)
 
     expect IdentityNoMatchError:
-      try:
-        let pi2 = PeerInfo.init(PrivateKey.random(ECDSA, rng[]).get())
-        discard await msDial.select(conn, IdentifyCodec)
-        discard await identifyProto2.identify(conn, pi2)
-      finally:
-        await done.wait(5000.millis) # when no issues will not wait that long!
-        await conn.close()
-        await transport2.close()
-        await transport1.close()
+      let pi2 = PeerInfo.init(PrivateKey.random(ECDSA, rng[]).get())
+      discard await msDial.select(conn, IdentifyCodec)
+      discard await identifyProto2.identify(conn, pi2)
+
+    await conn.close()
+    await acceptFut.wait(5000.millis) # when no issues will not wait that long!
+    await transport2.stop()
+    await transport1.stop()

@@ -1,12 +1,14 @@
 {.used.}
 
-import unittest
+import unittest, sequtils
 import chronos, stew/byteutils
 import ../libp2p/[stream/connection,
                   transports/transport,
                   transports/tcptransport,
                   multiaddress,
+                  errors,
                   wire]
+
 import ./helpers
 
 suite "TCP transport":
@@ -15,15 +17,15 @@ suite "TCP transport":
 
   asyncTest "test listener: handle write":
     let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
-    let handlerWait = newFuture[void]()
-    proc connHandler(conn: Connection) {.async, gcsafe.} =
-      await conn.write(cstring("Hello!"), 6)
-      await conn.close()
-      handlerWait.complete()
-
     let transport: TcpTransport = TcpTransport.init()
+    asyncCheck transport.start(ma)
 
-    asyncCheck transport.listen(ma, connHandler)
+    proc acceptHandler() {.async, gcsafe.} =
+      let conn = await transport.accept()
+      await conn.write("Hello!")
+      await conn.close()
+
+    let handlerWait = acceptHandler()
 
     let streamTransport = await connect(transport.ma)
 
@@ -31,28 +33,29 @@ suite "TCP transport":
 
     await handlerWait.wait(5000.millis) # when no issues will not wait that long!
     await streamTransport.closeWait()
-    await transport.close()
-
+    await transport.stop()
     check string.fromBytes(msg) == "Hello!"
 
   asyncTest "test listener: handle read":
     let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
-    let handlerWait = newFuture[void]()
-    proc connHandler(conn: Connection) {.async, gcsafe.} =
+
+    let transport: TcpTransport = TcpTransport.init()
+    asyncCheck transport.start(ma)
+
+    proc acceptHandler() {.async, gcsafe.} =
       var msg = newSeq[byte](6)
+      let conn = await transport.accept()
       await conn.readExactly(addr msg[0], 6)
       check string.fromBytes(msg) == "Hello!"
       await conn.close()
-      handlerWait.complete()
 
-    let transport: TcpTransport = TcpTransport.init()
-    asyncCheck await transport.listen(ma, connHandler)
+    let handlerWait = acceptHandler()
     let streamTransport: StreamTransport = await connect(transport.ma)
-    let sent = await streamTransport.write("Hello!", 6)
+    let sent = await streamTransport.write("Hello!")
 
     await handlerWait.wait(5000.millis) # when no issues will not wait that long!
     await streamTransport.closeWait()
-    await transport.close()
+    await transport.stop()
 
     check sent == 6
 
@@ -83,7 +86,7 @@ suite "TCP transport":
     await handlerWait.wait(5000.millis) # when no issues will not wait that long!
 
     await conn.close()
-    await transport.close()
+    await transport.stop()
 
     server.stop()
     server.close()
@@ -110,11 +113,12 @@ suite "TCP transport":
     let ma: MultiAddress = MultiAddress.init(server.sock.getLocalAddress()).tryGet()
     let transport: TcpTransport = TcpTransport.init()
     let conn = await transport.dial(ma)
-    await conn.write(cstring("Hello!"), 6)
+    await conn.write("Hello!")
 
     await handlerWait.wait(5000.millis) # when no issues will not wait that long!
+
     await conn.close()
-    await transport.close()
+    await transport.stop()
 
     server.stop()
     server.close()
@@ -122,14 +126,16 @@ suite "TCP transport":
 
   asyncTest "e2e: handle write":
     let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
-    let handlerWait = newFuture[void]()
-    proc connHandler(conn: Connection) {.async, gcsafe.} =
-      await conn.write(cstring("Hello!"), 6)
-      await conn.close()
-      handlerWait.complete()
 
     let transport1: TcpTransport = TcpTransport.init()
-    asyncCheck transport1.listen(ma, connHandler)
+    await transport1.start(ma)
+
+    proc acceptHandler() {.async, gcsafe.} =
+      let conn = await transport1.accept()
+      await conn.write("Hello!")
+      await conn.close()
+
+    let handlerWait = acceptHandler()
 
     let transport2: TcpTransport = TcpTransport.init()
     let conn = await transport2.dial(transport1.ma)
@@ -139,30 +145,69 @@ suite "TCP transport":
     await handlerWait.wait(5000.millis) # when no issues will not wait that long!
 
     await conn.close()
-    await transport2.close()
-    await transport1.close()
+    await transport2.stop()
+    await transport1.stop()
 
     check string.fromBytes(msg) == "Hello!"
 
   asyncTest "e2e: handle read":
     let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
-    let handlerWait = newFuture[void]()
-    proc connHandler(conn: Connection) {.async, gcsafe.} =
+    let transport1: TcpTransport = TcpTransport.init()
+    asyncCheck transport1.start(ma)
+
+    proc acceptHandler() {.async, gcsafe.} =
+      let conn = await transport1.accept()
       var msg = newSeq[byte](6)
       await conn.readExactly(addr msg[0], 6)
       check string.fromBytes(msg) == "Hello!"
       await conn.close()
-      handlerWait.complete()
 
-    let transport1: TcpTransport = TcpTransport.init()
-    asyncCheck transport1.listen(ma, connHandler)
+    let handlerWait = acceptHandler()
 
     let transport2: TcpTransport = TcpTransport.init()
     let conn = await transport2.dial(transport1.ma)
-    await conn.write(cstring("Hello!"), 6)
+    await conn.write("Hello!")
 
     await handlerWait.wait(5000.millis) # when no issues will not wait that long!
 
     await conn.close()
-    await transport2.close()
-    await transport1.close()
+    await transport2.stop()
+    await transport1.stop()
+
+  asyncTest "e2e: handle dial cancellation":
+    let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
+
+    let transport1: TcpTransport = TcpTransport.init()
+    await transport1.start(ma)
+
+    let transport2: TcpTransport = TcpTransport.init()
+    let cancellation = transport2.dial(transport1.ma)
+
+    try:
+      cancellation.cancel()
+    except CancelledError as exc:
+      await sleepAsync(100.millis)
+      check cancellation.cancelled
+
+    await transport2.stop()
+    await transport1.stop()
+
+  asyncTest "e2e: handle accept cancellation":
+    let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
+
+    let transport1: TcpTransport = TcpTransport.init()
+    await transport1.start(ma)
+
+    let transport2: TcpTransport = TcpTransport.init()
+    let connFut = transport2.dial(transport1.ma)
+
+    let acceptHandler = transport1.accept()
+    try:
+      acceptHandler.cancel()
+    except CancelledError as exc:
+      await sleepAsync(100.millis)
+      check acceptHandler.cancelled
+      check isNil((await connFut))
+
+    await transport1.stop()
+    await transport2.stop()

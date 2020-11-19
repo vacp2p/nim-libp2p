@@ -157,6 +157,8 @@ type
 
 var daemonsCount {.threadvar.}: int
 
+chronicles.formatIt(PeerInfo): shortLog(it)
+
 proc requestIdentity(): ProtoBuffer =
   ## https://github.com/libp2p/go-libp2p-daemon/blob/master/conn.go
   ## Processing function `doIdentify(req *pb.Request)`.
@@ -789,7 +791,7 @@ proc close*(api: DaemonAPI) {.async.} =
       pending.add(server.server.join())
     await allFutures(pending)
     for server in api.servers:
-      let address = initTAddress(server.address)
+      let address = initTAddress(server.address).tryGet()
       discard tryRemoveFile($address)
     api.servers.setLen(0)
   # Closing daemon's process.
@@ -800,7 +802,7 @@ proc close*(api: DaemonAPI) {.async.} =
       api.process.terminate()
     discard api.process.waitForExit()
   # Attempt to delete unix socket endpoint.
-  let address = initTAddress(api.address)
+  let address = initTAddress(api.address).tryGet()
   if address.family == AddressFamily.Unix:
     discard tryRemoveFile($address)
 
@@ -1306,3 +1308,20 @@ proc pubsubSubscribe*(api: DaemonAPI, topic: string,
   except Exception as exc:
     await api.closeConnection(transp)
     raise exc
+
+proc shortLog*(pinfo: PeerInfo): string =
+  ## Get string representation of ``PeerInfo`` object.
+  result = newStringOfCap(128)
+  result.add("{PeerID: '")
+  result.add($pinfo.peer.shortLog())
+  result.add("' Addresses: [")
+  let length = len(pinfo.addresses)
+  for i in 0..<length:
+    result.add("'")
+    result.add($pinfo.addresses[i])
+    result.add("'")
+    if i < length - 1:
+      result.add(", ")
+  result.add("]}")
+  if len(pinfo.addresses) > 0:
+    result = result
