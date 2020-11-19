@@ -56,7 +56,7 @@ suite "GossipSub internal":
 
     check gossipSub.peers.len == 15
     await gossipSub.rebalanceMesh(topic)
-    check gossipSub.mesh[topic].len == GossipSubD # + 2 # account opportunistic grafts
+    check gossipSub.mesh[topic].len == gossipSub.parameters.d # + 2 # account opportunistic grafts
 
     await allFuturesThrowing(conns.mapIt(it.close()))
     await gossipSub.switch.stop()
@@ -83,7 +83,7 @@ suite "GossipSub internal":
 
     check gossipSub.mesh[topic].len == 15
     await gossipSub.rebalanceMesh(topic)
-    check gossipSub.mesh[topic].len == GossipSubD + gossipSub.parameters.dScore
+    check gossipSub.mesh[topic].len == gossipSub.parameters.d + gossipSub.parameters.dScore
 
     await allFuturesThrowing(conns.mapIt(it.close()))
     await gossipSub.switch.stop()
@@ -111,7 +111,7 @@ suite "GossipSub internal":
 
     check gossipSub.gossipsub[topic].len == 15
     gossipSub.replenishFanout(topic)
-    check gossipSub.fanout[topic].len == GossipSubD
+    check gossipSub.fanout[topic].len == gossipSub.parameters.d
 
     await allFuturesThrowing(conns.mapIt(it.close()))
     await gossipSub.switch.stop()
@@ -139,7 +139,7 @@ suite "GossipSub internal":
       peer.handler = handler
       gossipSub.fanout[topic].incl(peer)
 
-    check gossipSub.fanout[topic].len == GossipSubD
+    check gossipSub.fanout[topic].len == gossipSub.parameters.d
 
     gossipSub.dropFanoutPeers()
     check topic notin gossipSub.fanout
@@ -175,8 +175,8 @@ suite "GossipSub internal":
       gossipSub.fanout[topic1].incl(peer)
       gossipSub.fanout[topic2].incl(peer)
 
-    check gossipSub.fanout[topic1].len == GossipSubD
-    check gossipSub.fanout[topic2].len == GossipSubD
+    check gossipSub.fanout[topic1].len == gossipSub.parameters.d
+    check gossipSub.fanout[topic2].len == gossipSub.parameters.d
 
     gossipSub.dropFanoutPeers()
     check topic1 notin gossipSub.fanout
@@ -240,7 +240,7 @@ suite "GossipSub internal":
     check gossipSub.gossipsub[topic].len == 15
 
     let peers = gossipSub.getGossipPeers()
-    check peers.len == GossipSubD
+    check peers.len == gossipSub.parameters.d
     for p in peers.keys:
       check not gossipSub.fanout.hasPeerID(topic, p.peerId)
       check not gossipSub.mesh.hasPeerID(topic, p.peerId)
@@ -284,7 +284,7 @@ suite "GossipSub internal":
       gossipSub.mcache.put(gossipSub.msgIdProvider(msg), msg)
 
     let peers = gossipSub.getGossipPeers()
-    check peers.len == GossipSubD
+    check peers.len == gossipSub.parameters.d
 
     await allFuturesThrowing(conns.mapIt(it.close()))
     await gossipSub.switch.stop()
@@ -326,7 +326,7 @@ suite "GossipSub internal":
       gossipSub.mcache.put(gossipSub.msgIdProvider(msg), msg)
 
     let peers = gossipSub.getGossipPeers()
-    check peers.len == GossipSubD
+    check peers.len == gossipSub.parameters.d
 
     await allFuturesThrowing(conns.mapIt(it.close()))
     await gossipSub.switch.stop()
