@@ -1,7 +1,8 @@
 import unittest
 import chronos, stew/byteutils
 import ../libp2p/stream/bufferstream,
-       ../libp2p/stream/lpstream
+       ../libp2p/stream/lpstream,
+       ../libp2p/errors
 
 import ./helpers
 
@@ -87,10 +88,12 @@ suite "BufferStream":
     let buff = newBufferStream()
     check buff.len == 0
 
-    let w1 = buff.pushData("Msg 1".toBytes())
-    let w2 = buff.pushData("Msg 2".toBytes())
-    let w3 = buff.pushData("Msg 3".toBytes())
+    proc writer1() {.async.} =
+      await buff.pushData("Msg 1".toBytes())
+      await buff.pushData("Msg 2".toBytes())
+      await buff.pushData("Msg 3".toBytes())
 
+    let writerFut1 = writer1()
     var data: array[5, byte]
     await buff.readExactly(addr data[0], data.len)
 
@@ -102,13 +105,14 @@ suite "BufferStream":
     await buff.readExactly(addr data[0], data.len)
     check string.fromBytes(data) == "Msg 3"
 
-    for f in [w1, w2, w3]: await f
+    await writerFut1
 
-    let w4 = buff.pushData("Msg 4".toBytes())
-    let w5 = buff.pushData("Msg 5".toBytes())
-    let w6 = buff.pushData("Msg 6".toBytes())
+    proc writer2() {.async.} =
+      await buff.pushData("Msg 4".toBytes())
+      await buff.pushData("Msg 5".toBytes())
+      await buff.pushData("Msg 6".toBytes())
 
-    await buff.close()
+    let writerFut2 = writer2()
 
     await buff.readExactly(addr data[0], data.len)
     check string.fromBytes(data) == "Msg 4"
@@ -118,27 +122,33 @@ suite "BufferStream":
 
     await buff.readExactly(addr data[0], data.len)
     check string.fromBytes(data) == "Msg 6"
-    for f in [w4, w5, w6]: await f
+
+    await buff.close()
+    await writerFut2
 
   asyncTest "small reads":
     let buff = newBufferStream()
     check buff.len == 0
 
-    var writes: seq[Future[void]]
     var str: string
-    for i in 0..<10:
-      writes.add buff.pushData("123".toBytes())
-      str &= "123"
-    await buff.close() # all data should still be read after close
+    proc writer() {.async.} =
+      for i in 0..<10:
+        await buff.pushData("123".toBytes())
+        str &= "123"
+      await buff.close() # all data should still be read after close
 
     var str2: string
-    var data: array[2, byte]
-    expect LPStreamEOFError:
-      while true:
-        let x = await buff.readOnce(addr data[0], data.len)
-        str2 &= string.fromBytes(data[0..<x])
 
-    for f in writes: await f
+    proc reader() {.async.} =
+      var data: array[2, byte]
+      expect LPStreamEOFError:
+        while true:
+          let x = await buff.readOnce(addr data[0], data.len)
+          str2 &= string.fromBytes(data[0..<x])
+
+
+    await allFuturesThrowing(
+      allFinished(reader(), writer()))
     check str == str2
     await buff.close()
 
@@ -211,3 +221,14 @@ suite "BufferStream":
 
     expect LPStreamEOFError:
       await stream.pushData("123".toBytes())
+
+  asyncTest "no concurrent pushes":
+    var stream = newBufferStream()
+    await stream.pushData("123".toBytes())
+    let push = stream.pushData("123".toBytes())
+
+    expect AssertionError:
+      await stream.pushData("123".toBytes())
+
+    await stream.closeWithEOF()
+    await push

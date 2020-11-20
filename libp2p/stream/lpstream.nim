@@ -25,6 +25,7 @@ logScope:
 
 const
   LPStreamTrackerName* = "LPStream"
+  Eof* = @[]
 
 type
   Direction* {.pure.} = enum

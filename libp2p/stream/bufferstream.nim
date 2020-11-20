@@ -28,7 +28,7 @@ type
   BufferStream* = ref object of Connection
     readQueue*: AsyncQueue[seq[byte]] # read queue for managing backpressure
     readBuf*: StreamSeq               # overflow buffer for readOnce
-    pushing*: int                     # number of ongoing push operations
+    pushing*: bool                    # number of ongoing push operations
     reading*: bool                    # is there an ongoing read? (only allow one)
     pushedEof*: bool                  # eof marker has been put on readQueue
     returnedEof*: bool                # 0-byte readOnce has been completed
@@ -63,6 +63,8 @@ method pushData*(s: BufferStream, data: seq[byte]) {.base, async.} =
   ##
   ## `pushTo` will block if the queue is full, thus maintaining backpressure.
   ##
+
+  doAssert(not s.pushing, "Only one concurrent push allowed")
   if s.isClosed or s.pushedEof:
     raise newLPStreamEOFError()
 
@@ -71,12 +73,12 @@ method pushData*(s: BufferStream, data: seq[byte]) {.base, async.} =
 
   # We will block here if there is already data queued, until it has been
   # processed
-  inc s.pushing
   try:
+    s.pushing = true
     trace "Pushing data", s, data = data.len
     await s.readQueue.addLast(data)
   finally:
-    dec s.pushing
+    s.pushing = false
 
 method pushEof*(s: BufferStream) {.base, async.} =
   if s.pushedEof:
@@ -85,12 +87,12 @@ method pushEof*(s: BufferStream) {.base, async.} =
 
   # We will block here if there is already data queued, until it has been
   # processed
-  inc s.pushing
   try:
+    s.pushing = true
     trace "Pushing EOF", s
-    await s.readQueue.addLast(@[])
+    await s.readQueue.addLast(Eof)
   finally:
-    dec s.pushing
+    s.pushing = false
 
 method atEof*(s: BufferStream): bool =
   s.isEof and s.readBuf.len == 0
