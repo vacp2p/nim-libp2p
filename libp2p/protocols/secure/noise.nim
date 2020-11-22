@@ -89,7 +89,6 @@ type
   NoiseDecryptTagError* = object of CatchableError
   NoiseOversizedPayloadError* = object of CatchableError
   NoiseNonceMaxError* = object of CatchableError # drop connection on purpose
-  NoisePeerIdMismatchError* = object of CatchableError
 
 # Utility
 
