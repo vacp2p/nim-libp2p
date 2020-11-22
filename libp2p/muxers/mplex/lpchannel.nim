@@ -90,16 +90,23 @@ proc reset*(s: LPChannel) {.async, gcsafe.} =
   s.readBuf = StreamSeq()
   s.pushedEof = true
 
-  # Took me some time to get this right.
-  # I'll leave this here in case we stumble
-  # on it again.
+  # Essentially we need to handle the following cases
+  #
+  # - If a push was in progress but no reader is
+  # attached we need to pop the queue
+  # - If a read was in progress without without a
+  # push/data we need to push the Eof marker to
+  # notify the reader that the channel closed
+  #
+  # In all other cases, there should be a data to complete
+  # a read or enough room in the queue/buffer to complete a
+  # push.
   #
   # State       | Q Empty  | Q Full
   # ------------|----------|-------
   # Reading     | Push Eof | Na
   # Pushing     | Na       | Pop
-  #
-  if not(s.reading and s.pushing): # if either a reader or pusher is missing
+  if not(s.reading and s.pushing):
     if s.reading:
       if s.readQueue.empty():
         # There is an active reader
