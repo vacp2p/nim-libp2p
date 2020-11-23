@@ -255,11 +255,15 @@ proc newSecioConn(conn: Connection,
   ## cipher algorithm ``cipher``, stretched keys ``secrets`` and order
   ## ``order``.
 
-  let peerInfo =
-    if conn.peerInfo != nil: conn.peerInfo
-    else: PeerInfo.init(remotePubKey)
+  let peerId = PeerID.init(remotePubKey).tryGet()
 
-  result = SecioConn.init(conn, peerInfo, conn.observedAddr)
+  conn.peerInfo =
+    if conn.peerInfo != nil:
+      conn.peerInfo
+    else:
+      PeerInfo.init(peerId)
+
+  result = SecioConn.init(conn, conn.peerInfo, conn.observedAddr)
 
   let i0 = if order < 0: 1 else: 0
   let i1 = if order < 0: 0 else: 1
