@@ -83,6 +83,9 @@ method pushData*(s: BufferStream, data: seq[byte]) {.base, async.} =
 method pushEof*(s: BufferStream) {.base, async.} =
   if s.pushedEof:
     return
+
+  doAssert(not s.pushing, "Only one concurrent push allowed")
+
   s.pushedEof = true
 
   # We will block here if there is already data queued, until it has been
