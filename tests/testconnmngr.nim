@@ -87,7 +87,7 @@ suite "Connection Manager":
     connMngr.storeMuxer(muxer)
     check muxer in connMngr
 
-    let stream = await connMngr.getMuxedStream(peer.peerId)
+    let stream = await connMngr.getStream(peer.peerId)
     check not(isNil(stream))
     check stream.peerInfo == peer
 
@@ -107,9 +107,9 @@ suite "Connection Manager":
     connMngr.storeMuxer(muxer)
     check muxer in connMngr
 
-    let stream1 = await connMngr.getMuxedStream(peer.peerId, Direction.In)
+    let stream1 = await connMngr.getStream(peer.peerId, Direction.In)
     check not(isNil(stream1))
-    let stream2 = await connMngr.getMuxedStream(peer.peerId, Direction.Out)
+    let stream2 = await connMngr.getStream(peer.peerId, Direction.Out)
     check isNil(stream2)
 
     await connMngr.close()
@@ -128,7 +128,7 @@ suite "Connection Manager":
     connMngr.storeMuxer(muxer)
     check muxer in connMngr
 
-    let stream = await connMngr.getMuxedStream(conn)
+    let stream = await connMngr.getStream(conn)
     check not(isNil(stream))
 
     await connMngr.close()

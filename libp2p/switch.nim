@@ -352,7 +352,7 @@ proc dial*(s: Switch,
            peerId: PeerID,
            protos: seq[string]): Future[Connection] {.async.} =
   trace "Dialing (existing)", peerId, protos
-  let stream = await s.connManager.getMuxedStream(peerId)
+  let stream = await s.connManager.getStream(peerId)
   if stream.isNil:
     raise newException(DialFailedError, "Couldn't get muxed stream")
 
@@ -370,7 +370,7 @@ proc dial*(s: Switch,
   trace "Dialing (new)", peerId, protos
   let conn = await s.internalConnect(peerId, addrs)
   trace "Opening stream", conn
-  let stream = await s.connManager.getMuxedStream(conn)
+  let stream = await s.connManager.getStream(conn)
 
   proc cleanup() {.async.} =
     if not(isNil(stream)):
