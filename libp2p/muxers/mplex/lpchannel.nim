@@ -216,6 +216,6 @@ proc init*(
   when chronicles.enabledLogLevel == LogLevel.TRACE:
     chann.name = if chann.name.len > 0: chann.name else: $chann.oid
 
-  trace "Created new lpchannel", chann, id, initiator
+  trace "Created new lpchannel", s = chann, id, initiator
 
   return chann
