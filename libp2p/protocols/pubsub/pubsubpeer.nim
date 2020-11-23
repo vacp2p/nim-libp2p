@@ -129,7 +129,7 @@ proc handle*(p: PubSubPeer, conn: Connection) {.async.} =
       await conn.close()
   except CancelledError:
     # This is top-level procedure which will work as separate task, so it
-    # do not need to propogate CancelledError.
+    # do not need to propagate CancelledError.
     trace "Unexpected cancellation in PubSubPeer.handle"
   except CatchableError as exc:
     trace "Exception occurred in PubSubPeer.handle",
@@ -193,6 +193,13 @@ proc sendImpl(conn: Connection, encoded: seq[byte]) {.async.} =
 
     await conn.close() # This will clean up the send connection
 
+template sendMetrics(msg: RPCMsg): untyped =
+  when defined(libp2p_expensive_metrics):
+    for x in msg.messages:
+      for t in x.topicIDs:
+        # metrics
+        libp2p_pubsub_sent_messages.inc(labelValues = [$p.peerId, t])
+
 proc send*(p: PubSubPeer, msg: RPCMsg, anonymize: bool) =
   doAssert(not isNil(p), "pubsubpeer nil!")
 
@@ -209,13 +216,15 @@ proc send*(p: PubSubPeer, msg: RPCMsg, anonymize: bool) =
   # some forms of valid but redundantly encoded protobufs with unknown or
   # duplicated fields
   let encoded = if p.hasObservers():
+    var mm = msg
     # trigger send hooks
-    var mm = msg # hooks can modify the message
     p.sendObservers(mm)
+    sendMetrics(mm)
     encodeRpcMsg(mm, anonymize)
   else:
     # If there are no send hooks, we redundantly re-encode the message to
     # protobuf for every peer - this could easily be improved!
+    sendMetrics(msg)
     encodeRpcMsg(msg, anonymize)
 
   if encoded.len <= 0:
@@ -225,12 +234,6 @@ proc send*(p: PubSubPeer, msg: RPCMsg, anonymize: bool) =
   # To limit the size of the closure, we only pass the encoded message and
   # connection to the spawned send task
   asyncSpawn sendImpl(conn, encoded)
-
-  when defined(libp2p_expensive_metrics):
-    for x in msg.messages:
-      for t in x.topicIDs:
-        # metrics
-        libp2p_pubsub_sent_messages.inc(labelValues = [$p.peerId, t])
 
 proc newPubSubPeer*(peerId: PeerID,
                     getConn: GetConn,

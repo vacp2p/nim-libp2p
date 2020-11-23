@@ -117,7 +117,7 @@ method init*(f: FloodSub) =
       await f.handleConn(conn, proto)
     except CancelledError:
       # This is top-level procedure which will work as separate task, so it
-      # do not need to propogate CancelledError.
+      # do not need to propagate CancelledError.
       trace "Unexpected cancellation in floodsub handler", conn
     except CatchableError as exc:
       trace "FloodSub handler leaks an error", exc = exc.msg, conn

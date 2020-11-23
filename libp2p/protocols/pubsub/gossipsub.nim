@@ -32,7 +32,7 @@ const
   GossipSubCodec_10* = "/meshsub/1.0.0"
 
 # overlay parameters
-const 
+const
   GossipSubD* = 6
   GossipSubDlo* = 4
   GossipSubDhi* = 12
@@ -447,7 +447,7 @@ proc rebalanceMesh(g: GossipSub, topic: string) {.async.} =
     meshPeers.keepIf do (x: PubSubPeer) -> bool: x.outbound
     if meshPeers.len < g.parameters.dOut:
       trace "replenishing mesh outbound quota", peers = g.mesh.peers(topic)
-      
+
       grafts = toSeq(
         g.gossipsub.getOrDefault(topic, initHashSet[PubSubPeer]()) -
         g.mesh.getOrDefault(topic, initHashSet[PubSubPeer]())
@@ -508,7 +508,7 @@ proc rebalanceMesh(g: GossipSub, topic: string) {.async.} =
           inbound &= peer
 
       # ensure that there are at least D_out peers first and rebalance to g.d after that
-      let maxOutboundPrunes = 
+      let maxOutboundPrunes =
         block:
           var count = 0
           for peer in mesh:
@@ -815,7 +815,7 @@ proc heartbeat(g: GossipSub) {.async.} =
         g.broadcast(prunes, prune)
 
         await g.rebalanceMesh(t)
-      
+
       libp2p_gossipsub_peers_mesh_sum.set(totalMeshPeers.int64)
       libp2p_gossipsub_peers_gossipsub_sum.set(totalGossipPeers.int64)
 
@@ -836,7 +836,8 @@ proc heartbeat(g: GossipSub) {.async.} =
     except CancelledError as exc:
       raise exc
     except CatchableError as exc:
-      warn "exception ocurred in gossipsub heartbeat", exc = exc.msg, trace = exc.getStackTrace()
+      warn "exception ocurred in gossipsub heartbeat", exc = exc.msg,
+                                                       trace = exc.getStackTrace()
 
     for trigger in g.heartbeatEvents:
       trace "firing heartbeat event", instance = cast[int](g)
@@ -961,7 +962,7 @@ proc handleGraft(g: GossipSub,
         backoff: g.parameters.pruneBackoff.seconds.uint64))
 
       g.punishPeer(peer, @[topic])
-      
+
       continue
 
     if peer.peerId in g.backingOff and g.backingOff[peer.peerId] > Moment.now():
@@ -973,9 +974,9 @@ proc handleGraft(g: GossipSub,
         topicID: graft.topicID,
         peers: @[], # omitting heavy computation here as the remote did something illegal
         backoff: g.parameters.pruneBackoff.seconds.uint64))
-      
+
       g.punishPeer(peer, @[topic])
-      
+
       continue
 
     if peer notin g.peerStats:
@@ -1055,8 +1056,8 @@ proc handleIHave(g: GossipSub,
               dec peer.iHaveBudget
             else:
               return
-    
-    # shuffling result.messageIDs before sending it out to increase the likelihood 
+
+    # shuffling result.messageIDs before sending it out to increase the likelihood
     # of getting an answer if the peer truncates the list due to internal size restrictions.
     shuffle(result.messageIDs)
 
