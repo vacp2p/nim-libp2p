@@ -80,32 +80,11 @@ proc reset*(s: LPChannel) {.async, gcsafe.} =
     return
 
   s.isClosed = true
+  s.closedLocal = true
 
   trace "Resetting channel", s, len = s.len
 
-  # First, make sure any new calls to `readOnce` and `pushData` etc will fail -
-  # there may already be such calls in the event queue however
-  s.closedLocal = true
-  s.isEof = true
-  s.readBuf = StreamSeq()
-  s.pushedEof = true
-
-  let pushing = s.pushing # s.pushing changes while iterating
-  for i in 0..<pushing:
-    # Make sure to drain any ongoing pushes - there's already at least one item
-    # more in the queue already so any ongoing reads shouldn't interfere
-    # Notably, popFirst is not fair - which reader/writer gets woken up depends
-    discard await s.readQueue.popFirst()
-
-  if s.readQueue.len == 0 and s.reading:
-    # There is an active reader - we just grabbed all pushes so we need to push
-    # an EOF marker to wake it up
-    try:
-      s.readQueue.addLastNoWait(@[])
-    except CatchableError:
-      raiseAssert "We just checked the queue is empty"
-
-  if not s.conn.isClosed:
+  if s.isOpen and not s.conn.isClosed:
     # If the connection is still active, notify the other end
     proc resetMessage() {.async.} =
       try:
@@ -117,7 +96,6 @@ proc reset*(s: LPChannel) {.async, gcsafe.} =
 
     asyncSpawn resetMessage()
 
-  # This should wake up any readers by pushing an EOF marker at least
   await s.closeImpl() # noraises, nocancels
 
   trace "Channel reset", s
@@ -133,7 +111,7 @@ method close*(s: LPChannel) {.async, gcsafe.} =
 
   trace "Closing channel", s, conn = s.conn, len = s.len
 
-  if s.isOpen:
+  if s.isOpen and not s.conn.isClosed:
     try:
       await s.conn.writeMsg(s.id, s.closeCode) # write close
     except CancelledError as exc:

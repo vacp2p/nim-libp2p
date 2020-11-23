@@ -215,16 +215,17 @@ suite "Mplex":
         conn = newBufferStream(writeHandler)
         chann = LPChannel.init(1, conn, true)
 
-      let futs = @[
-        chann.pushData(@[0'u8]),
-        chann.pushData(@[0'u8]),
-        chann.pushData(@[0'u8]),
-        chann.pushData(@[0'u8]),
-        chann.pushData(@[0'u8]),
-        chann.pushData(@[0'u8]),
-      ]
+      proc pushes() {.async.} = # pushes don't hang on reset
+        await chann.pushData(@[0'u8])
+        await chann.pushData(@[0'u8])
+        await chann.pushData(@[0'u8])
+        await chann.pushData(@[0'u8])
+        await chann.pushData(@[0'u8])
+        await chann.pushData(@[0'u8])
+
+      let push = pushes()
       await chann.reset()
-      check await allFutures(futs).withTimeout(100.millis)
+      check await allFutures(push).withTimeout(100.millis)
       await conn.close()
 
     asyncTest "reset should complete both read and push":
@@ -249,23 +250,22 @@ suite "Mplex":
         chann = LPChannel.init(1, conn, true)
 
       var data = newSeq[byte](1)
-      let futs = [
-        chann.readExactly(addr data[0], 1),
-        chann.pushData(@[0'u8]),
-        chann.pushData(@[0'u8]),
-        chann.pushData(@[0'u8]),
-        chann.pushData(@[0'u8]),
-        chann.pushData(@[0'u8]),
-        chann.pushData(@[0'u8]),
-        chann.pushData(@[0'u8]),
-        chann.pushData(@[0'u8]),
-        chann.pushData(@[0'u8]),
-        chann.pushData(@[0'u8]),
-        chann.pushData(@[0'u8]),
-      ]
+      let read = chann.readExactly(addr data[0], 1)
+      proc pushes() {.async.} =
+        await chann.pushData(@[0'u8])
+        await chann.pushData(@[0'u8])
+        await chann.pushData(@[0'u8])
+        await chann.pushData(@[0'u8])
+        await chann.pushData(@[0'u8])
+        await chann.pushData(@[0'u8])
+        await chann.pushData(@[0'u8])
+        await chann.pushData(@[0'u8])
+        await chann.pushData(@[0'u8])
+        await chann.pushData(@[0'u8])
+        await chann.pushData(@[0'u8])
+
       await chann.reset()
-      check await allFutures(futs).withTimeout(100.millis)
-      await futs[0]
+      check await allFutures(read, pushes()).withTimeout(100.millis)
       await conn.close()
 
     asyncTest "reset should complete both read and push with cancel":
@@ -298,6 +298,59 @@ suite "Mplex":
       let wfut2 = chann.pushData(@[0'u8])
       await chann.reset()
       check await allFutures(rfut, rfut2, wfut, wfut2).withTimeout(100.millis)
+      await conn.close()
+
+    asyncTest "reset should complete ongoing push without reader":
+      proc writeHandler(data: seq[byte]) {.async, gcsafe.} = discard
+      let
+        conn = newBufferStream(writeHandler)
+        chann = LPChannel.init(1, conn, true)
+
+      await chann.pushData(@[0'u8])
+      let push1 = chann.pushData(@[0'u8])
+      await chann.reset()
+      check await allFutures(push1).withTimeout(100.millis)
+      await conn.close()
+
+    asyncTest "reset should complete ongoing read without a push":
+      proc writeHandler(data: seq[byte]) {.async, gcsafe.} = discard
+      let
+        conn = newBufferStream(writeHandler)
+        chann = LPChannel.init(1, conn, true)
+
+      var data = newSeq[byte](1)
+      let rfut = chann.readExactly(addr data[0], 1)
+      await chann.reset()
+      check await allFutures(rfut).withTimeout(100.millis)
+      await conn.close()
+
+    asyncTest "reset should allow all reads and pushes to complete":
+      proc writeHandler(data: seq[byte]) {.async, gcsafe.} = discard
+      let
+        conn = newBufferStream(writeHandler)
+        chann = LPChannel.init(1, conn, true)
+
+      var data = newSeq[byte](1)
+      proc writer() {.async.} =
+        await chann.pushData(@[0'u8])
+        await chann.pushData(@[0'u8])
+        await chann.pushData(@[0'u8])
+
+      proc reader() {.async.} =
+        await chann.readExactly(addr data[0], 1)
+        await chann.readExactly(addr data[0], 1)
+        await chann.readExactly(addr data[0], 1)
+
+      let rw = @[writer(), reader()]
+
+      await chann.close()
+      check await chann.reset() # this would hang
+      .withTimeout(100.millis)
+
+      check await allFuturesThrowing(
+        allFinished(rw))
+        .withTimeout(100.millis)
+
       await conn.close()
 
     asyncTest "channel should fail writing":
