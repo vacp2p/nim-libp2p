@@ -505,11 +505,13 @@ method handshake*(p: Noise, conn: Connection, initiator: bool): Future[SecureCon
           received_key = $remotePubKey
         raise newException(NoiseHandshakeError, "Noise handshake, peer infos don't match! " & $pid & " != " & $conn.peerInfo.peerId)
 
-    let peerInfo =
-      if conn.peerInfo != nil: conn.peerInfo
-      else: PeerInfo.init(remotePubKey)
+    conn.peerInfo =
+      if conn.peerInfo != nil:
+        conn.peerInfo
+      else:
+        PeerInfo.init(PeerID.init(remotePubKey).tryGet())
 
-    var tmp = NoiseConnection.init(conn, peerInfo, conn.observedAddr)
+    var tmp = NoiseConnection.init(conn, conn.peerInfo, conn.observedAddr)
 
     if initiator:
       tmp.readCs = handshakeRes.cs2
