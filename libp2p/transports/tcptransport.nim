@@ -79,7 +79,7 @@ proc connHandler*(t: TcpTransport,
 
       t.clients[dir].keepItIf( it != client )
       await allFuturesThrowing(
-        allFinished(conn.close(), client.closeWait()))
+        conn.close(), client.closeWait())
 
       trace "Cleaned up client", addrs = $client.remoteAddress,
                                  conn

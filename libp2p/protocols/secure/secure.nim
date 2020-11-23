@@ -79,8 +79,7 @@ proc handleConn*(s: Secure,
   proc cleanup() {.async.} =
     try:
       await conn.join() or sconn.join()
-      await allFuturesThrowing(
-        allFinished(sconn.close(), conn.close()))
+      await allFuturesThrowing(sconn.close(), conn.close())
     except CancelledError:
       # This is top-level procedure which will work as separate task, so it
       # do not need to propagate CancelledError.
