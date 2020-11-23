@@ -80,42 +80,11 @@ proc reset*(s: LPChannel) {.async, gcsafe.} =
     return
 
   s.isClosed = true
+  s.closedLocal = true
 
   trace "Resetting channel", s, len = s.len
 
-  # First, make sure any new calls to `readOnce` and `pushData` etc will fail -
-  # there may already be such calls in the event queue however
-  s.closedLocal = true
-  s.isEof = true
-  s.readBuf = StreamSeq()
-  s.pushedEof = true
-
-  # Essentially we need to handle the following cases
-  #
-  # - If a push was in progress but no reader is
-  # attached we need to pop the queue
-  # - If a read was in progress without without a
-  # push/data we need to push the Eof marker to
-  # notify the reader that the channel closed
-  #
-  # In all other cases, there should be a data to complete
-  # a read or enough room in the queue/buffer to complete a
-  # push.
-  #
-  # State       | Q Empty  | Q Full
-  # ------------|----------|-------
-  # Reading     | Push Eof | Na
-  # Pushing     | Na       | Pop
-  if not(s.reading and s.pushing):
-    if s.reading:
-      if s.readQueue.empty():
-        # There is an active reader
-        s.readQueue.addLastNoWait(Eof)
-    elif s.pushing:
-      if not s.readQueue.empty():
-        discard s.readQueue.popFirstNoWait()
-
-  if not s.conn.isClosed:
+  if s.isOpen and not s.conn.isClosed:
     # If the connection is still active, notify the other end
     proc resetMessage() {.async.} =
       try:
@@ -127,7 +96,6 @@ proc reset*(s: LPChannel) {.async, gcsafe.} =
 
     asyncSpawn resetMessage()
 
-  # This should wake up any readers by pushing an EOF marker at least
   await s.closeImpl() # noraises, nocancels
 
   trace "Channel reset", s
@@ -143,7 +111,7 @@ method close*(s: LPChannel) {.async, gcsafe.} =
 
   trace "Closing channel", s, conn = s.conn, len = s.len
 
-  if s.isOpen:
+  if s.isOpen and not s.conn.isClosed:
     try:
       await s.conn.writeMsg(s.id, s.closeCode) # write close
     except CancelledError as exc:

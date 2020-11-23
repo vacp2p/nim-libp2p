@@ -206,9 +206,11 @@ suite "BufferStream":
       fut = stream.pushData(toBytes("hello"))
       fut2 = stream.pushData(toBytes("again"))
     await stream.close()
-    expect AsyncTimeoutError:
-      await wait(fut, 100.milliseconds)
-      await wait(fut2, 100.milliseconds)
+
+    # Both writes should be completed on close (technically, the should maybe
+    # be cancelled, at least the second one...
+    check await fut.withTimeout(100.milliseconds)
+    check await fut2.withTimeout(100.milliseconds)
 
     await stream.close()
 

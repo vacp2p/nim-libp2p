@@ -164,8 +164,36 @@ method closeImpl*(s: BufferStream): Future[void] =
   ## close the stream and clear the buffer
   trace "Closing BufferStream", s, len = s.len
 
-  if not s.pushedEof: # Potentially wake up reader
-    asyncSpawn s.pushEof()
+  # First, make sure any new calls to `readOnce` and `pushData` etc will fail -
+  # there may already be such calls in the event queue however
+  s.isEof = true
+  s.readBuf = StreamSeq()
+  s.pushedEof = true
+
+  # Essentially we need to handle the following cases
+  #
+  # - If a push was in progress but no reader is
+  # attached we need to pop the queue
+  # - If a read was in progress without without a
+  # push/data we need to push the Eof marker to
+  # notify the reader that the channel closed
+  #
+  # In all other cases, there should be a data to complete
+  # a read or enough room in the queue/buffer to complete a
+  # push.
+  #
+  # State       | Q Empty  | Q Full
+  # ------------|----------|-------
+  # Reading     | Push Eof | Na
+  # Pushing     | Na       | Pop
+  if not(s.reading and s.pushing):
+    if s.reading:
+      if s.readQueue.empty():
+        # There is an active reader
+        s.readQueue.addLastNoWait(Eof)
+    elif s.pushing:
+      if not s.readQueue.empty():
+        discard s.readQueue.popFirstNoWait()
 
   trace "Closed BufferStream", s
 
