@@ -421,7 +421,7 @@ proc trackIncomingConn*(c: ConnManager,
     trace "Tracking incoming connection"
     await c.inConnSemaphore.acquire()
     return await c.trackConn(provider, Direction.In)
-  except NilConnectionError as exc:
+  except NilConnectionError as exc: # should not be propagated
     trace "Nil connection", exc = exc.msg
     c.inConnSemaphore.release()
   except CatchableError as exc:
