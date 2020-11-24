@@ -77,12 +77,9 @@ proc connHandler*(t: TcpTransport,
       trace "Cleaning up client", addrs = $client.remoteAddress,
                                   conn
 
-      if not(isNil(conn) and conn.closed()):
-        await conn.close()
-
       t.clients[dir].keepItIf( it != client )
-      if not(isNil(client) and client.closed()):
-        await client.closeWait()
+      await allFuturesThrowing(
+        conn.close(), client.closeWait())
 
       trace "Cleaned up client", addrs = $client.remoteAddress,
                                  conn

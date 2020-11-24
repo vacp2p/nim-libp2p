@@ -13,7 +13,8 @@ import ../protocol,
        ../../stream/streamseq,
        ../../stream/connection,
        ../../multiaddress,
-       ../../peerinfo
+       ../../peerinfo,
+       ../../errors
 
 export protocol
 
@@ -77,8 +78,8 @@ proc handleConn*(s: Secure,
 
   proc cleanup() {.async.} =
     try:
-      await conn.join()
-      await sconn.close()
+      await conn.join() or sconn.join()
+      await allFuturesThrowing(sconn.close(), conn.close())
     except CancelledError:
       # This is top-level procedure which will work as separate task, so it
       # do not need to propagate CancelledError.
