@@ -78,8 +78,13 @@ proc handleConn*(s: Secure,
 
   proc cleanup() {.async.} =
     try:
-      await conn.join() or sconn.join()
-      await allFuturesThrowing(sconn.close(), conn.close())
+      let futs = @[conn.join(), sconn.join()]
+      await futs[0] or futs[1]
+      for f in futs:
+        if not f.finished: f.cancel # cancel outstanding join()
+
+      await allFuturesThrowing(
+        sconn.close(), conn.close())
     except CancelledError:
       # This is top-level procedure which will work as separate task, so it
       # do not need to propagate CancelledError.
