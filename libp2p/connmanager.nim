@@ -367,7 +367,7 @@ proc storeMuxer*(c: ConnManager,
 
   asyncSpawn c.peerStartup(muxer.connection)
 
-proc getMuxedStream*(c: ConnManager,
+proc getStream*(c: ConnManager,
                      peerId: PeerID,
                      dir: Direction): Future[Connection] {.async, gcsafe.} =
   ## get a muxed stream for the provided peer
@@ -378,7 +378,7 @@ proc getMuxedStream*(c: ConnManager,
   if not(isNil(muxer)):
     return await muxer.newStream()
 
-proc getMuxedStream*(c: ConnManager,
+proc getStream*(c: ConnManager,
                      peerId: PeerID): Future[Connection] {.async, gcsafe.} =
   ## get a muxed stream for the passed peer from any connection
   ##
@@ -387,7 +387,7 @@ proc getMuxedStream*(c: ConnManager,
   if not(isNil(muxer)):
     return await muxer.newStream()
 
-proc getMuxedStream*(c: ConnManager,
+proc getStream*(c: ConnManager,
                      conn: Connection): Future[Connection] {.async, gcsafe.} =
   ## get a muxed stream for the passed connection
   ##
