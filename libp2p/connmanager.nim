@@ -26,6 +26,7 @@ const
 
 type
   TooManyConnectionsError* = object of CatchableError
+  NilConnectionError* = object of CatchableError
 
   ConnProvider* = proc(): Future[Connection] {.gcsafe, closure.}
 
@@ -77,6 +78,9 @@ type
 
 proc newTooManyConnectionsError(): ref TooManyConnectionsError {.inline.} =
   result = newException(TooManyConnectionsError, "Too many connections")
+
+proc newNilConnectionError(): ref NilConnectionError {.inline.} =
+  result = newException(NilConnectionError, "Can't track nil connection")
 
 proc init*(C: type ConnManager,
            maxIncoming = MaxConnections,
@@ -380,8 +384,7 @@ proc trackConn(c: ConnManager,
     conn = await provider()
 
     if isNil(conn):
-      raise newException(CatchableError,
-        "Connection cannot be nil")
+      raise newNilConnectionError()
 
     conn.dir = dir
     trace "Got connection", conn, dir = $dir
@@ -418,6 +421,9 @@ proc trackIncomingConn*(c: ConnManager,
     trace "Tracking incoming connection"
     await c.inConnSemaphore.acquire()
     return await c.trackConn(provider, Direction.In)
+  except NilConnectionError as exc:
+    trace "Nil connection", exc = exc.msg
+    c.inConnSemaphore.release()
   except CatchableError as exc:
     trace "Exception tracking connection", exc = exc.msg
     c.inConnSemaphore.release()
