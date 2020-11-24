@@ -187,7 +187,7 @@ method handle*(m: Mplex) {.async, gcsafe.} =
   except LPStreamEOFError as exc:
     trace "Stream EOF", m, msg = exc.msg
   except CatchableError as exc:
-    warn "Unexpected exception in mplex read loop", m, msg = exc.msg
+    debug "Unexpected exception in mplex read loop", m, msg = exc.msg
   finally:
     await m.close()
   trace "Stopped mplex handler", m

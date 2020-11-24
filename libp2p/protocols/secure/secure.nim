@@ -133,7 +133,7 @@ method readOnce*(s: SecureConn,
 
     if not isNil(err):
       if not (err of LPStreamEOFError):
-        warn "Error while reading message from secure connection, closing.",
+        debug "Error while reading message from secure connection, closing.",
           error=err.name,
           message=err.msg,
           connection=s
