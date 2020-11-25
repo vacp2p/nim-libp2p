@@ -26,7 +26,6 @@ const
 
 type
   TooManyConnectionsError* = object of CatchableError
-  NilConnectionError* = object of CatchableError
 
   ConnProvider* = proc(): Future[Connection] {.gcsafe, closure.}
 
@@ -78,9 +77,6 @@ type
 
 proc newTooManyConnectionsError(): ref TooManyConnectionsError {.inline.} =
   result = newException(TooManyConnectionsError, "Too many connections")
-
-proc newNilConnectionError(): ref NilConnectionError {.inline.} =
-  result = newException(NilConnectionError, "Can't track nil connection")
 
 proc init*(C: type ConnManager,
            maxIncoming = MaxConnections,
@@ -384,7 +380,7 @@ proc trackConn(c: ConnManager,
     conn = await provider()
 
     if isNil(conn):
-      raise newNilConnectionError()
+      return
 
     conn.dir = dir
     trace "Got connection", conn, dir = $dir
@@ -417,17 +413,20 @@ proc trackIncomingConn*(c: ConnManager,
   ## to call the connection provider
   ##
 
+  var conn: Connection
   try:
     trace "Tracking incoming connection"
     await c.inConnSemaphore.acquire()
-    return await c.trackConn(provider, Direction.In)
-  except NilConnectionError as exc: # should not be propagated
-    trace "Nil connection", exc = exc.msg
-    c.inConnSemaphore.release()
+    conn = await c.trackConn(provider, Direction.In)
+    if isNil(conn):
+      trace "Couldn't acquire connection, releasing semaphore slot", dir = $Direction.In
+      c.inConnSemaphore.release()
   except CatchableError as exc:
     trace "Exception tracking connection", exc = exc.msg
     c.inConnSemaphore.release()
     raise exc
+
+  return conn
 
 proc trackOutgoingConn*(c: ConnManager,
                         provider: ConnProvider):
@@ -445,12 +444,18 @@ proc trackOutgoingConn*(c: ConnManager,
                                             max = c.outConnSemaphore.size
     raise newTooManyConnectionsError()
 
+  var conn: Connection
   try:
-    return await c.trackConn(provider, Direction.Out)
+    conn = await c.trackConn(provider, Direction.Out)
+    if isNil(conn):
+      trace "Couldn't acquire connection, releasing semaphore slot", dir = $Direction.Out
+      c.outConnSemaphore.release()
   except CatchableError as exc:
     trace "Exception tracking connection", exc = exc.msg
     c.outConnSemaphore.release()
     raise exc
+
+  return conn
 
 proc storeOutgoing*(c: ConnManager, conn: Connection) =
   conn.dir = Direction.Out
