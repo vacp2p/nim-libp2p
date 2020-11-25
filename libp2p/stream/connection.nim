@@ -110,10 +110,12 @@ proc init*(C: type Connection,
            peerInfo: PeerInfo,
            dir: Direction,
            timeout: Duration = DefaultConnectionTimeout,
-           timeoutHandler: TimeoutHandler = nil): Connection =
+           timeoutHandler: TimeoutHandler = nil,
+           observedAddr: MultiAddress = MultiAddress()): Connection =
   result = C(peerInfo: peerInfo,
              dir: dir,
              timeout: timeout,
-             timeoutHandler: timeoutHandler)
+             timeoutHandler: timeoutHandler,
+             observedAddr: observedAddr)
 
   result.initStream()
