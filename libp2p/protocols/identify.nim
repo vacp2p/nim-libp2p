@@ -55,7 +55,10 @@ proc encodeMsg*(peerInfo: PeerInfo, observedAddr: Multiaddress): ProtoBuffer =
   result.write(4, observedAddr.data.buffer)
   let protoVersion = ProtoVersion
   result.write(5, protoVersion)
-  let agentVersion = AgentVersion
+  let agentVersion = if peerInfo.agentVersion.len <= 0:
+    AgentVersion
+  else:
+    peerInfo.agentVersion
   result.write(6, agentVersion)
   result.finish()
 

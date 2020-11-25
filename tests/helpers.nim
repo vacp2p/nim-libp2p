@@ -49,21 +49,21 @@ template checkTrackers*() =
 template asyncTeardown*(body: untyped): untyped =
   teardown:
     waitFor((
-      proc() {.async.} =
+      proc() {.async, gcsafe.} =
         body
     )())
 
 template asyncSetup*(body: untyped): untyped =
   setup:
     waitFor((
-      proc() {.async.} =
+      proc() {.async, gcsafe.} =
         body
     )())
 
 template asyncTest*(name: string, body: untyped): untyped =
   test name:
     waitFor((
-      proc() {.async.} =
+      proc() {.async, gcsafe.} =
         body
     )())
 

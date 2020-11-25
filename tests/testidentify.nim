@@ -17,80 +17,103 @@ suite "Identify":
   teardown:
     checkTrackers()
 
-  asyncTest "handle identify message":
-    let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
-    let remoteSecKey = PrivateKey.random(ECDSA, rng[]).get()
-    let remotePeerInfo = PeerInfo.init(
-      remoteSecKey, [ma], ["/test/proto1/1.0.0", "/test/proto2/1.0.0"])
-    var serverFut: Future[void]
-    let identifyProto1 = newIdentify(remotePeerInfo)
-    let msListen = newMultistream()
+  suite "handle identify message":
+    var
+      ma {.threadvar.}: MultiAddress
+      remoteSecKey {.threadvar.}: PrivateKey
+      remotePeerInfo {.threadvar.}: PeerInfo
+      serverFut {.threadvar.}: Future[void]
+      acceptFut {.threadvar.}: Future[void]
+      identifyProto1 {.threadvar.}: Identify
+      identifyProto2 {.threadvar.}: Identify
+      transport1 {.threadvar.}: Transport
+      transport2 {.threadvar.}: Transport
+      msListen {.threadvar.}: MultistreamSelect
+      msDial {.threadvar.}: MultistreamSelect
+      conn {.threadvar.}: Connection
 
-    msListen.addHandler(IdentifyCodec, identifyProto1)
+    asyncSetup:
+      ma = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
+      remoteSecKey = PrivateKey.random(ECDSA, rng[]).get()
+      remotePeerInfo = PeerInfo.init(
+        remoteSecKey, [ma], ["/test/proto1/1.0.0", "/test/proto2/1.0.0"])
 
-    var transport1 = TcpTransport.init()
-    serverFut = transport1.start(ma)
+      transport1 = TcpTransport.init()
+      transport2 = TcpTransport.init()
 
-    proc acceptHandler(): Future[void] {.async, gcsafe.} =
-      let conn = await transport1.accept()
-      await msListen.handle(conn)
+      identifyProto1 = newIdentify(remotePeerInfo)
+      identifyProto2 = newIdentify(remotePeerInfo)
 
-    let acceptFut = acceptHandler()
-    let msDial = newMultistream()
-    let transport2: TcpTransport = TcpTransport.init()
-    let conn = await transport2.dial(transport1.ma)
+      msListen = newMultistream()
+      msDial = newMultistream()
 
-    var peerInfo = PeerInfo.init(PrivateKey.random(ECDSA, rng[]).get(), [ma])
-    let identifyProto2 = newIdentify(peerInfo)
-    discard await msDial.select(conn, IdentifyCodec)
-    let id = await identifyProto2.identify(conn, remotePeerInfo)
+    asyncTeardown:
+      await conn.close()
+      await acceptFut
+      await transport1.stop()
+      await serverFut
+      await transport2.stop()
 
-    check id.pubKey.get() == remoteSecKey.getKey().get()
-    check id.addrs[0] == ma
-    check id.protoVersion.get() == ProtoVersion
-    # check id.agentVersion.get() == AgentVersion
-    check id.protos == @["/test/proto1/1.0.0", "/test/proto2/1.0.0"]
+    asyncTest "default agent version":
+      msListen.addHandler(IdentifyCodec, identifyProto1)
+      serverFut = transport1.start(ma)
+      proc acceptHandler(): Future[void] {.async, gcsafe.} =
+        let c = await transport1.accept()
+        await msListen.handle(c)
 
-    await conn.close()
-    await acceptFut
-    await transport1.stop()
-    await serverFut
-    await transport2.stop()
+      acceptFut = acceptHandler()
+      conn = await transport2.dial(transport1.ma)
 
-  asyncTest "handle failed identify":
-    let ma = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
-    var remotePeerInfo = PeerInfo.init(PrivateKey.random(ECDSA, rng[]).get(), [ma])
-    let identifyProto1 = newIdentify(remotePeerInfo)
-    let msListen = newMultistream()
-
-    msListen.addHandler(IdentifyCodec, identifyProto1)
-
-    let transport1: TcpTransport = TcpTransport.init()
-    asyncCheck transport1.start(ma)
-
-    proc acceptHandler() {.async.} =
-      var conn: Connection
-      try:
-        conn = await transport1.accept()
-        await msListen.handle(conn)
-      except CatchableError:
-        discard
-      finally:
-        await conn.close()
-
-    let acceptFut = acceptHandler()
-    let msDial = newMultistream()
-    let transport2: TcpTransport = TcpTransport.init()
-    let conn = await transport2.dial(transport1.ma)
-    var localPeerInfo = PeerInfo.init(PrivateKey.random(ECDSA, rng[]).get(), [ma])
-    let identifyProto2 = newIdentify(localPeerInfo)
-
-    expect IdentityNoMatchError:
-      let pi2 = PeerInfo.init(PrivateKey.random(ECDSA, rng[]).get())
       discard await msDial.select(conn, IdentifyCodec)
-      discard await identifyProto2.identify(conn, pi2)
+      let id = await identifyProto2.identify(conn, remotePeerInfo)
 
-    await conn.close()
-    await acceptFut.wait(5000.millis) # when no issues will not wait that long!
-    await transport2.stop()
-    await transport1.stop()
+      check id.pubKey.get() == remoteSecKey.getKey().get()
+      check id.addrs[0] == ma
+      check id.protoVersion.get() == ProtoVersion
+      check id.agentVersion.get() == AgentVersion
+      check id.protos == @["/test/proto1/1.0.0", "/test/proto2/1.0.0"]
+
+    asyncTest "custom agent version":
+      const customAgentVersion = "MY CUSTOM AGENT STRING"
+      remotePeerInfo.agentVersion = customAgentVersion
+      msListen.addHandler(IdentifyCodec, identifyProto1)
+
+      serverFut = transport1.start(ma)
+
+      proc acceptHandler(): Future[void] {.async, gcsafe.} =
+        let c = await transport1.accept()
+        await msListen.handle(c)
+
+      acceptFut = acceptHandler()
+      conn = await transport2.dial(transport1.ma)
+
+      discard await msDial.select(conn, IdentifyCodec)
+      let id = await identifyProto2.identify(conn, remotePeerInfo)
+
+      check id.pubKey.get() == remoteSecKey.getKey().get()
+      check id.addrs[0] == ma
+      check id.protoVersion.get() == ProtoVersion
+      check id.agentVersion.get() == customAgentVersion
+      check id.protos == @["/test/proto1/1.0.0", "/test/proto2/1.0.0"]
+
+    asyncTest "handle failed identify":
+      msListen.addHandler(IdentifyCodec, identifyProto1)
+      asyncCheck transport1.start(ma)
+
+      proc acceptHandler() {.async.} =
+        var conn: Connection
+        try:
+          conn = await transport1.accept()
+          await msListen.handle(conn)
+        except CatchableError:
+          discard
+        finally:
+          await conn.close()
+
+      acceptFut = acceptHandler()
+      conn = await transport2.dial(transport1.ma)
+
+      expect IdentityNoMatchError:
+        let pi2 = PeerInfo.init(PrivateKey.random(ECDSA, rng[]).get())
+        discard await msDial.select(conn, IdentifyCodec)
+        discard await identifyProto2.identify(conn, pi2)
