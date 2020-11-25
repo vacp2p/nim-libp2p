@@ -60,15 +60,25 @@ proc setupTcpTransportTracker(): TcpTransportTracker =
 proc connHandler*(t: TcpTransport,
                   client: StreamTransport,
                   dir: Direction): Future[Connection] {.async.} =
-  debug "Handling tcp connection", address = $client.remoteAddress,
+  var observedAddr: MultiAddress = MultiAddress()
+  try:
+    observedAddr = MultiAddress.init(client.remoteAddress).tryGet()
+  except CatchableError as exc:
+    trace "Connection setup failed", exc = exc.msg
+    if not(isNil(client) and client.closed):
+      await client.closeWait()
+      raise exc
+
+  debug "Handling tcp connection", address = $observedAddr,
                                    dir = $dir,
                                    clients = t.clients[Direction.In].len +
                                    t.clients[Direction.Out].len
 
   let conn = Connection(
     ChronosStream.init(
-      client,
-      dir
+      client = client,
+      dir = dir,
+      observedAddr = observedAddr
     ))
 
   proc onClose() {.async.} =
@@ -94,15 +104,6 @@ proc connHandler*(t: TcpTransport,
 
   t.clients[dir].add(client)
   asyncSpawn onClose()
-
-  try:
-    conn.observedAddr = MultiAddress.init(client.remoteAddress).tryGet()
-  except CatchableError as exc:
-    trace "Connection setup failed", exc = exc.msg, conn
-    if not(isNil(client) and client.closed):
-      await client.closeWait()
-
-    raise exc
 
   return conn
 

@@ -41,10 +41,12 @@ method initStream*(s: ChronosStream) =
 proc init*(C: type ChronosStream,
            client: StreamTransport,
            dir: Direction,
-           timeout = DefaultChronosStreamTimeout): ChronosStream =
+           timeout = DefaultChronosStreamTimeout,
+           observedAddr: MultiAddress = MultiAddress()): ChronosStream =
   result = C(client: client,
              timeout: timeout,
-             dir: dir)
+             dir: dir,
+             observedAddr: observedAddr)
   result.initStream()
 
 template withExceptions(body: untyped) =
