@@ -36,6 +36,9 @@ declareCounter(libp2p_pubsub_validation_failure, "pubsub failed validated messag
 declareCounter(libp2p_pubsub_validation_ignore, "pubsub ignore validated messages")
 when defined(libp2p_expensive_metrics):
   declarePublicCounter(libp2p_pubsub_messages_published, "published messages", labels = ["topic"])
+else:
+  declarePublicCounter(libp2p_pubsub_messages_published, "published messages")
+declarePublicCounter(libp2p_pubsub_messages_rebroadcasted, "re-broadcasted messages")
 
 type
   TopicHandler* = proc(topic: string,

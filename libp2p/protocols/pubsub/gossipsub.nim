@@ -1167,6 +1167,7 @@ method rpcHandler*(g: GossipSub,
     # also have to be careful to only include validated messages
     g.broadcast(toSeq(toSendPeers), RPCMsg(messages: @[msg]))
     trace "forwared message to peers", peers = toSendPeers.len, msgId, peer
+    libp2p_pubsub_messages_rebroadcasted.inc()
 
   if rpcMsg.control.isSome:
     let control = rpcMsg.control.get()
@@ -1302,6 +1303,9 @@ method publish*(g: GossipSub,
   when defined(libp2p_expensive_metrics):
     if peers.len > 0:
       libp2p_pubsub_messages_published.inc(labelValues = [topic])
+  else:
+    if peers.len > 0:
+      libp2p_pubsub_messages_published.inc()
 
   trace "Published message to peers"
 
