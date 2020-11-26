@@ -241,7 +241,7 @@ proc peerStartup(c: ConnManager, conn: Connection) {.async.} =
     trace "Triggering connect events", conn
     let peerId = conn.peerInfo.peerId
     await c.triggerPeerEvents(
-      peerId, PeerEvent(kind: PeerEventKind.Joined, initiator: conn.dir == Direction.In))
+      peerId, PeerEvent(kind: PeerEventKind.Joined, initiator: conn.dir == Direction.Out))
     await c.triggerConnEvent(
       peerId, ConnEvent(kind: ConnEventKind.Connected, incoming: conn.dir == Direction.In))
   except CatchableError as exc:
