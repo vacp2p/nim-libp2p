@@ -390,11 +390,11 @@ proc trackConn(c: ConnManager,
         await conn.join()
       except CatchableError as exc:
         trace "Exception in semaphore monitor, ignoring", exc = exc.msg
-      finally:
-        if conn.dir == Direction.In:
-          c.inConnSemaphore.release()
-        else:
-          c.outConnSemaphore.release()
+
+      if conn.dir == Direction.In:
+        c.inConnSemaphore.release()
+      else:
+        c.outConnSemaphore.release()
 
     asyncSpawn semaphoreMonitor()
   except CatchableError as exc:
