@@ -121,6 +121,7 @@ type
     historyGossip*: int
 
     fanoutTTL*: Duration
+    seenTTL*: Duration
 
     gossipThreshold*: float64
     publishThreshold*: float64
@@ -195,6 +196,7 @@ proc init*(_: type[GossipSubParams]): GossipSubParams =
       historyLength: GossipSubHistoryLength,
       historyGossip: GossipSubHistoryGossip,
       fanoutTTL: GossipSubFanoutTTL,
+      seenTTL: 2.minutes,
       gossipThreshold: -10,
       publishThreshold: -100,
       graylistThreshold: -10000,
@@ -1352,6 +1354,12 @@ method initPubSub*(g: GossipSub) =
   g.parameters.validateParameters().tryGet()
 
   randomize()
+
+  # init the floodsub stuff here, we customize timedcache in gossip!
+  g.floodsub = initTable[string, HashSet[PubSubPeer]]()
+  g.seen = TimedCache[MessageID].init(g.parameters.seenTTL)
+
+  # init gossip stuff
   g.mcache = MCache.init(g.parameters.historyGossip, g.parameters.historyLength)
   g.mesh = initTable[string, HashSet[PubSubPeer]]()     # meshes - topic to peer
   g.fanout = initTable[string, HashSet[PubSubPeer]]()   # fanout - topic to peer
