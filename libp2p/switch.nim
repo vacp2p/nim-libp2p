@@ -74,12 +74,12 @@ proc removeConnEventHandler*(s: Switch,
 
 proc addPeerEventHandler*(s: Switch,
                           handler: PeerEventHandler,
-                          kind: PeerEvent) =
+                          kind: PeerEventKind) =
   s.connManager.addPeerEventHandler(handler, kind)
 
 proc removePeerEventHandler*(s: Switch,
                              handler: PeerEventHandler,
-                             kind: PeerEvent) =
+                             kind: PeerEventKind) =
   s.connManager.removePeerEventHandler(handler, kind)
 
 proc disconnect*(s: Switch, peerId: PeerID) {.async, gcsafe.}

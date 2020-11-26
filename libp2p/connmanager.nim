@@ -42,9 +42,16 @@ type
   ConnEventHandler* =
     proc(peerId: PeerID, event: ConnEvent): Future[void] {.gcsafe.}
 
-  PeerEvent* {.pure.} = enum
+  PeerEventKind* {.pure.} = enum
     Left,
     Joined
+
+  PeerEvent* = object
+    case kind*: PeerEventKind
+      of PeerEventKind.Joined:
+        initiator*: bool
+      else:
+        discard
 
   PeerEventHandler* =
     proc(peerId: PeerID, event: PeerEvent): Future[void] {.gcsafe.}
@@ -62,7 +69,7 @@ type
     conns: Table[PeerID, HashSet[Connection]]
     muxed: Table[Connection, MuxerHolder]
     connEvents: Table[ConnEventKind, OrderedSet[ConnEventHandler]]
-    peerEvents: Table[PeerEvent, OrderedSet[PeerEventHandler]]
+    peerEvents: Table[PeerEventKind, OrderedSet[PeerEventHandler]]
 
 proc newTooManyConnections(): ref TooManyConnections {.inline.} =
   result = newException(TooManyConnections, "too many connections for peer")
@@ -77,7 +84,8 @@ proc connCount*(c: ConnManager, peerId: PeerID): int =
   c.conns.getOrDefault(peerId).len
 
 proc addConnEventHandler*(c: ConnManager,
-                          handler: ConnEventHandler, kind: ConnEventKind) =
+                          handler: ConnEventHandler,
+                          kind: ConnEventKind) =
   ## Add peer event handler - handlers must not raise exceptions!
   ##
 
@@ -86,11 +94,14 @@ proc addConnEventHandler*(c: ConnManager,
     initOrderedSet[ConnEventHandler]()).incl(handler)
 
 proc removeConnEventHandler*(c: ConnManager,
-                             handler: ConnEventHandler, kind: ConnEventKind) =
+                             handler: ConnEventHandler,
+                             kind: ConnEventKind) =
   c.connEvents.withValue(kind, handlers) do:
     handlers[].excl(handler)
 
-proc triggerConnEvent*(c: ConnManager, peerId: PeerID, event: ConnEvent) {.async, gcsafe.} =
+proc triggerConnEvent*(c: ConnManager,
+                       peerId: PeerID,
+                       event: ConnEvent) {.async, gcsafe.} =
   try:
     if event.kind in c.connEvents:
       var connEvents: seq[Future[void]]
@@ -106,7 +117,7 @@ proc triggerConnEvent*(c: ConnManager, peerId: PeerID, event: ConnEvent) {.async
 
 proc addPeerEventHandler*(c: ConnManager,
                           handler: PeerEventHandler,
-                          kind: PeerEvent) =
+                          kind: PeerEventKind) =
   ## Add peer event handler - handlers must not raise exceptions!
   ##
 
@@ -116,7 +127,7 @@ proc addPeerEventHandler*(c: ConnManager,
 
 proc removePeerEventHandler*(c: ConnManager,
                              handler: PeerEventHandler,
-                             kind: PeerEvent) =
+                             kind: PeerEventKind) =
   c.peerEvents.withValue(kind, handlers) do:
     handlers[].excl(handler)
 
@@ -125,22 +136,22 @@ proc triggerPeerEvents*(c: ConnManager,
                         event: PeerEvent) {.async, gcsafe.} =
 
   trace "About to trigger peer events", peer = peerId
-  if event notin c.peerEvents:
+  if event.kind notin c.peerEvents:
     return
 
   try:
     let count = c.connCount(peerId)
-    if event == PeerEvent.Joined and count != 1:
+    if event.kind == PeerEventKind.Joined and count != 1:
       trace "peer already joined", peerId, event = $event
       return
-    elif event == PeerEvent.Left and count != 0:
+    elif event.kind == PeerEventKind.Left and count != 0:
       trace "peer still connected or already left", peerId, event = $event
       return
 
     trace "triggering peer events", peerId, event = $event
 
     var peerEvents: seq[Future[void]]
-    for h in c.peerEvents[event]:
+    for h in c.peerEvents[event.kind]:
       peerEvents.add(h(peerId, event))
 
     checkFutures(await allFinished(peerEvents))
@@ -229,7 +240,8 @@ proc peerStartup(c: ConnManager, conn: Connection) {.async.} =
   try:
     trace "Triggering connect events", conn
     let peerId = conn.peerInfo.peerId
-    await c.triggerPeerEvents(peerId, PeerEvent.Joined)
+    await c.triggerPeerEvents(
+      peerId, PeerEvent(kind: PeerEventKind.Joined, initiator: conn.dir == Direction.In))
     await c.triggerConnEvent(
       peerId, ConnEvent(kind: ConnEventKind.Connected, incoming: conn.dir == Direction.In))
   except CatchableError as exc:
@@ -244,7 +256,7 @@ proc peerCleanup(c: ConnManager, conn: Connection) {.async.} =
     let peerId = conn.peerInfo.peerId
     await c.triggerConnEvent(
       peerId, ConnEvent(kind: ConnEventKind.Disconnected))
-    await c.triggerPeerEvents(peerId, PeerEvent.Left)
+    await c.triggerPeerEvents(peerId, PeerEvent(kind: PeerEventKind.Left))
   except CatchableError as exc:
     # This is top-level procedure which will work as separate task, so it
     # do not need to propagate CancelledError and should handle other errors
