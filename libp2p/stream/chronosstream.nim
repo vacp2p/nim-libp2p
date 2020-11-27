@@ -23,7 +23,7 @@ type
     client: StreamTransport
     tracked: bool
 
-declarePublicCounter(libp2p_peers_identity, "peers identities", labels = ["agent"])
+declareGauge(libp2p_peers_identity, "peers identities", labels = ["agent"])
 
 func shortLog*(conn: ChronosStream): string =
   if conn.isNil: "ChronosStream(nil)"
