@@ -8,7 +8,7 @@
 ## those terms.
 
 import std/[oids, strformat]
-import chronos, chronicles
+import chronos, chronicles, metrics
 import connection
 
 logScope:
@@ -21,6 +21,9 @@ const
 type
   ChronosStream* = ref object of Connection
     client: StreamTransport
+    tracked: bool
+
+declarePublicCounter(libp2p_peers_identity, "peers identities", labels = ["agent"])
 
 func shortLog*(conn: ChronosStream): string =
   if conn.isNil: "ChronosStream(nil)"
@@ -65,11 +68,24 @@ template withExceptions(body: untyped) =
     # TODO https://github.com/status-im/nim-chronos/pull/99
     raise newLPStreamEOFError()
 
+proc trackPeerIdentity(s: ChronosStream) =
+  if not s.tracked:
+    if not isNil(s.peerInfo) and s.peerInfo.agentVersion.len > 0:
+      libp2p_peers_identity.inc(labelValues = [s.peerInfo.agentVersion])
+      s.tracked = true
+
+proc untrackPeerIdentity(s: ChronosStream) =
+  if s.tracked:
+    libp2p_peers_identity.dec(labelValues = [s.peerInfo.agentVersion])
+    s.tracked = false
+
 method readOnce*(s: ChronosStream, pbytes: pointer, nbytes: int): Future[int] {.async.} =
   if s.atEof:
     raise newLPStreamEOFError()
 
   withExceptions:
+    s.trackPeerIdentity()
+    
     result = await s.client.readOnce(pbytes, nbytes)
     s.activity = true # reset activity flag
 
@@ -81,6 +97,8 @@ method write*(s: ChronosStream, msg: seq[byte]) {.async.} =
     return
 
   withExceptions:
+    s.trackPeerIdentity()
+
     # StreamTransport will only return written < msg.len on fatal failures where
     # further writing is not possible - in such cases, we'll raise here,
     # since we don't return partial writes lengths
@@ -99,8 +117,10 @@ method atEof*(s: ChronosStream): bool {.inline.} =
 
 method closeImpl*(s: ChronosStream) {.async.} =
   try:
-    trace "Shutting down chronos stream", address = $s.client.remoteAddress(),
-                                          s
+    trace "Shutting down chronos stream", address = $s.client.remoteAddress(), s
+    
+    s.untrackPeerIdentity()
+
     if not s.client.closed():
       await s.client.closeWait()
 
