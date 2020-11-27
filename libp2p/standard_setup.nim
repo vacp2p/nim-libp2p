@@ -28,8 +28,9 @@ proc newStandardSwitch*(privKey = none(PrivateKey),
                         rng = newRng(),
                         inTimeout: Duration = 5.minutes,
                         outTimeout: Duration = 5.minutes,
-                        maxInConns = MaxConnections,
-                        maxOutConns = MaxConnections,
+                        maxConnections = MaxConnections,
+                        maxIn = -1,
+                        maxOut = -1,
                         maxPeerConns = MaxConnectionsPerPeer): Switch =
   proc createMplex(conn: Connection): Muxer =
     Mplex.init(
@@ -63,7 +64,8 @@ proc newStandardSwitch*(privKey = none(PrivateKey),
     identify,
     muxers,
     secureManagers = secureManagerInstances,
-    maxIn = maxInConns,
-    maxOut = maxOutConns)
+    maxConnections = maxConnections,
+    maxIn = maxIn,
+    maxOut = maxOut)
 
   return switch

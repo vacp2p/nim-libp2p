@@ -12,7 +12,8 @@ import std/[tables,
             options,
             sets,
             oids,
-            sugar]
+            sugar,
+            math]
 
 import chronos,
        chronicles,
@@ -379,8 +380,9 @@ proc newSwitch*(peerInfo: PeerInfo,
                 identity: Identify,
                 muxers: Table[string, MuxerProvider],
                 secureManagers: openarray[Secure] = [],
-                maxIn = MaxConnections,
-                maxOut = MaxConnections,
+                maxConnections = MaxConnections,
+                maxIn = -1,
+                maxOut = -1,
                 maxPeerConns = MaxConnectionsPerPeer): Switch =
   if secureManagers.len == 0:
     raise (ref CatchableError)(msg: "Provide at least one secure manager")
