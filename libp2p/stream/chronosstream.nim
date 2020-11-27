@@ -71,14 +71,15 @@ template withExceptions(body: untyped) =
 proc trackPeerIdentity(s: ChronosStream) =
   if not s.tracked:
     if not isNil(s.peerInfo) and s.peerInfo.agentVersion.len > 0:
-      let name = s.peerInfo.agentVersion.split(" ")[0]
+      # / seems a weak "standard" so for now it's reliable
+      let name = s.peerInfo.agentVersion.split("/")[0]
       libp2p_peers_identity.inc(labelValues = [name])
       s.tracked = true
 
 proc untrackPeerIdentity(s: ChronosStream) =
   if s.tracked:
     if not isNil(s.peerInfo) and s.peerInfo.agentVersion.len > 0:
-      let name = s.peerInfo.agentVersion.split(" ")[0]
+      let name = s.peerInfo.agentVersion.split("/")[0]
       libp2p_peers_identity.dec(labelValues = [name])
       s.tracked = false
 
