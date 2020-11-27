@@ -22,8 +22,11 @@ type
   ChronosStream* = ref object of Connection
     client: StreamTransport
     tracked: bool
+    shortAgent: string
 
 declareGauge(libp2p_peers_identity, "peers identities", labels = ["agent"])
+declareGauge(libp2p_peers_traffic_read, "incoming traffic", labels = ["agent"])
+declareGauge(libp2p_peers_traffic_write, "outgoing traffic", labels = ["agent"])
 
 func shortLog*(conn: ChronosStream): string =
   if conn.isNil: "ChronosStream(nil)"
@@ -72,26 +75,25 @@ proc trackPeerIdentity(s: ChronosStream) =
   if not s.tracked:
     if not isNil(s.peerInfo) and s.peerInfo.agentVersion.len > 0:
       # / seems a weak "standard" so for now it's reliable
-      let name = s.peerInfo.agentVersion.split("/")[0]
-      libp2p_peers_identity.inc(labelValues = [name])
+      s.shortAgent = s.peerInfo.agentVersion.split("/")[0]
+      libp2p_peers_identity.inc(labelValues = [s.shortAgent])
       s.tracked = true
 
 proc untrackPeerIdentity(s: ChronosStream) =
   if s.tracked:
-    if not isNil(s.peerInfo) and s.peerInfo.agentVersion.len > 0:
-      let name = s.peerInfo.agentVersion.split("/")[0]
-      libp2p_peers_identity.dec(labelValues = [name])
-      s.tracked = false
+    libp2p_peers_identity.dec(labelValues = [s.shortAgent])
+    s.tracked = false
 
 method readOnce*(s: ChronosStream, pbytes: pointer, nbytes: int): Future[int] {.async.} =
   if s.atEof:
     raise newLPStreamEOFError()
 
   withExceptions:
-    s.trackPeerIdentity()
-    
     result = await s.client.readOnce(pbytes, nbytes)
     s.activity = true # reset activity flag
+    s.trackPeerIdentity()
+    if s.tracked:
+      libp2p_peers_traffic_read.inc(nbytes.int64, labelValues = [s.shortAgent])
 
 method write*(s: ChronosStream, msg: seq[byte]) {.async.} =
   if s.closed:
@@ -101,8 +103,6 @@ method write*(s: ChronosStream, msg: seq[byte]) {.async.} =
     return
 
   withExceptions:
-    s.trackPeerIdentity()
-
     # StreamTransport will only return written < msg.len on fatal failures where
     # further writing is not possible - in such cases, we'll raise here,
     # since we don't return partial writes lengths
@@ -112,6 +112,9 @@ method write*(s: ChronosStream, msg: seq[byte]) {.async.} =
       raise (ref LPStreamClosedError)(msg: "Write couldn't finish writing")
 
     s.activity = true # reset activity flag
+    s.trackPeerIdentity()
+    if s.tracked:
+      libp2p_peers_traffic_write.inc(msg.len.int64, labelValues = [s.shortAgent])
 
 method closed*(s: ChronosStream): bool {.inline.} =
   result = s.client.closed
