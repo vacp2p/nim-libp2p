@@ -263,8 +263,8 @@ proc dialAndUpgrade(s: Switch,
                     Future[Connection] {.async.} =
   debug "Dialing peer", peerId
   for t in s.transports: # for each transport
-    for a in addrs: # for each address
-      if t.handles(a): # check if it can dial it
+    for a in addrs:      # for each address
+      if t.handles(a):   # check if it can dial it
         trace "Dialing address", address = $a, peerId
         let dialed = try:
             await t.dial(a)
