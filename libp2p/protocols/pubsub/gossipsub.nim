@@ -274,8 +274,6 @@ proc validateParameters*(parameters: TopicParams): Result[void, cstring] =
     err("gossipsub: meshMessageDeliveriesThreshold parameter error, Should be a positive value")
   elif parameters.meshMessageDeliveriesCap < parameters.meshMessageDeliveriesThreshold:
     err("gossipsub: meshMessageDeliveriesCap parameter error, Should be >= meshMessageDeliveriesThreshold")
-  elif parameters.meshMessageDeliveriesWindow > 100.milliseconds:
-    err("gossipsub: meshMessageDeliveriesWindow parameter error, Should be small, 1-5ms")
   elif parameters.meshFailurePenaltyWeight >= 0.0:
     err("gossipsub: meshFailurePenaltyWeight parameter error, Should be a negative value")
   elif parameters.invalidMessageDeliveriesWeight >= 0.0:
