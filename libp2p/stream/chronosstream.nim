@@ -7,7 +7,7 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import std/[oids, strformat]
+import std/[oids, strformat, strutils]
 import chronos, chronicles, metrics
 import connection
 
@@ -71,13 +71,16 @@ template withExceptions(body: untyped) =
 proc trackPeerIdentity(s: ChronosStream) =
   if not s.tracked:
     if not isNil(s.peerInfo) and s.peerInfo.agentVersion.len > 0:
-      libp2p_peers_identity.inc(labelValues = [s.peerInfo.agentVersion])
+      let name = s.peerInfo.agentVersion.split(" ")[0]
+      libp2p_peers_identity.inc(labelValues = [name])
       s.tracked = true
 
 proc untrackPeerIdentity(s: ChronosStream) =
   if s.tracked:
-    libp2p_peers_identity.dec(labelValues = [s.peerInfo.agentVersion])
-    s.tracked = false
+    if not isNil(s.peerInfo) and s.peerInfo.agentVersion.len > 0:
+      let name = s.peerInfo.agentVersion.split(" ")[0]
+      libp2p_peers_identity.dec(labelValues = [name])
+      s.tracked = false
 
 method readOnce*(s: ChronosStream, pbytes: pointer, nbytes: int): Future[int] {.async.} =
   if s.atEof:
