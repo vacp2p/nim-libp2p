@@ -630,7 +630,6 @@ suite "Switch":
   # for most of the steps in the upgrade flow -
   # this is just a basic test for dials
   asyncTest "e2e canceling dial should not leak":
-    let done = newFuture[void]()
     let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
 
     let transport = TcpTransport.init()
@@ -653,6 +652,39 @@ suite "Switch":
     let connectFut = switch.connect(peerId, @[transport.ma])
     await sleepAsync(500.millis)
     connectFut.cancel()
+    await handlerWait
+
+    checkTracker(LPChannelTrackerName)
+    checkTracker(SecureConnTrackerName)
+    checkTracker(ChronosStreamTrackerName)
+
+    await allFuturesThrowing(
+      transport.stop(),
+      switch.stop())
+
+    # this needs to go at end
+    await allFuturesThrowing(awaiters)
+
+  asyncTest "e2e closing remote conn should not leak":
+    let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
+
+    let transport = TcpTransport.init()
+    await transport.start(ma)
+
+    proc acceptHandler() {.async, gcsafe.} =
+      let conn = await transport.accept()
+      await conn.close()
+
+    let handlerWait = acceptHandler()
+    let switch = newStandardSwitch(secureManagers = [SecureProtocol.Noise])
+
+    var awaiters: seq[Future[void]]
+    awaiters.add(await switch.start())
+
+    var peerId = PeerID.init(PrivateKey.random(ECDSA, rng[]).get()).get()
+    expect LPStreamClosedError:
+      await switch.connect(peerId, @[transport.ma])
+
     await handlerWait
 
     checkTracker(LPChannelTrackerName)
