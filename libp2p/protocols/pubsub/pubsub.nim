@@ -40,6 +40,13 @@ else:
   declarePublicCounter(libp2p_pubsub_messages_published, "published messages")
 declarePublicCounter(libp2p_pubsub_messages_rebroadcasted, "re-broadcasted messages")
 
+declareGauge(libp2p_pubsub_broadcast_subscriptions, "pubsub broadcast subscriptions")
+declareGauge(libp2p_pubsub_broadcast_messages, "pubsub broadcast messages")
+declareGauge(libp2p_pubsub_broadcast_ihave, "pubsub broadcast ihave")
+declareGauge(libp2p_pubsub_broadcast_iwant, "pubsub broadcast iwant")
+declareGauge(libp2p_pubsub_broadcast_graft, "pubsub broadcast graft")
+declareGauge(libp2p_pubsub_broadcast_prune, "pubsub broadcast prune")
+
 type
   TopicHandler* = proc(topic: string,
                        data: seq[byte]): Future[void] {.gcsafe.}
@@ -97,6 +104,14 @@ proc broadcast*(
   sendPeers: openArray[PubSubPeer],
   msg: RPCMsg) = # raises: [Defect]
   ## Attempt to send `msg` to the given peers
+
+  libp2p_pubsub_broadcast_subscriptions.inc(msg.subscriptions.len.int64)
+  libp2p_pubsub_broadcast_messages.inc(msg.messages.len.int64)
+  if msg.control.isSome():
+    libp2p_pubsub_broadcast_ihave.inc(msg.control.get().ihave.len.int64)
+    libp2p_pubsub_broadcast_iwant.inc(msg.control.get().iwant.len.int64)
+    libp2p_pubsub_broadcast_graft.inc(msg.control.get().graft.len.int64)
+    libp2p_pubsub_broadcast_prune.inc(msg.control.get().prune.len.int64)
 
   trace "broadcasting messages to peers",
     peers = sendPeers.len, msg = shortLog(msg)
