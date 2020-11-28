@@ -621,7 +621,9 @@ proc getGossipPeers(g: GossipSub): Table[PubSubPeer, ControlMessage] {.gcsafe.} 
       continue
 
     var midsSeq = toSeq(mids)
-    midsSeq.setLen(min(midsSeq.len, IHaveMaxLength))
+    if midsSeq.len > IHaveMaxLength:
+      shuffle(midsSeq)
+      midsSeq.setLen(IHaveMaxLength)
     let ihave = ControlIHave(topicID: topic, messageIDs: midsSeq)
 
     let mesh = g.mesh.getOrDefault(topic)
