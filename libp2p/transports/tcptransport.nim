@@ -88,7 +88,7 @@ proc connHandler*(t: TcpTransport,
       let futs = @[client.join(), conn.join()]
       await futs[0] or futs[1]
       for f in futs:
-        if not f.finished: f.cancel # cancel outstanding join()
+        if not f.finished: await f.cancelAndWait() # cancel outstanding join()
 
       trace "Cleaning up client", addrs = $client.remoteAddress,
                                   conn
