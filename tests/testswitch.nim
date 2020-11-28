@@ -359,25 +359,25 @@ suite "Switch":
     let switch2 = newStandardSwitch(secureManagers = [SecureProtocol.Secio])
 
     var step = 0
-    var kinds: set[PeerEvent]
+    var kinds: set[PeerEventKind]
     proc handler(peerId: PeerID, event: PeerEvent) {.async, gcsafe.} =
-      kinds = kinds + {event}
+      kinds = kinds + {event.kind}
       case step:
       of 0:
         check:
-          event == PeerEvent.Joined
+          event.kind == PeerEventKind.Joined
           peerId == switch2.peerInfo.peerId
       of 1:
         check:
-          event == PeerEvent.Left
+          event.kind == PeerEventKind.Left
           peerId == switch2.peerInfo.peerId
       else:
         check false
 
       step.inc()
 
-    switch1.addPeerEventHandler(handler, PeerEvent.Joined)
-    switch1.addPeerEventHandler(handler, PeerEvent.Left)
+    switch1.addPeerEventHandler(handler, PeerEventKind.Joined)
+    switch1.addPeerEventHandler(handler, PeerEventKind.Left)
 
     awaiters.add(await switch1.start())
     awaiters.add(await switch2.start())
@@ -398,8 +398,8 @@ suite "Switch":
 
     check:
       kinds == {
-        PeerEvent.Joined,
-        PeerEvent.Left
+        PeerEventKind.Joined,
+        PeerEventKind.Left
       }
 
     await allFuturesThrowing(
@@ -414,25 +414,25 @@ suite "Switch":
     let switch2 = newStandardSwitch(secureManagers = [SecureProtocol.Secio])
 
     var step = 0
-    var kinds: set[PeerEvent]
+    var kinds: set[PeerEventKind]
     proc handler(peerId: PeerID, event: PeerEvent) {.async, gcsafe.} =
-      kinds = kinds + {event}
+      kinds = kinds + {event.kind}
       case step:
       of 0:
         check:
-          event == PeerEvent.Joined
+          event.kind == PeerEventKind.Joined
           peerId == switch1.peerInfo.peerId
       of 1:
         check:
-          event == PeerEvent.Left
+          event.kind == PeerEventKind.Left
           peerId == switch1.peerInfo.peerId
       else:
         check false
 
       step.inc()
 
-    switch2.addPeerEventHandler(handler, PeerEvent.Joined)
-    switch2.addPeerEventHandler(handler, PeerEvent.Left)
+    switch2.addPeerEventHandler(handler, PeerEventKind.Joined)
+    switch2.addPeerEventHandler(handler, PeerEventKind.Left)
 
     awaiters.add(await switch1.start())
     awaiters.add(await switch2.start())
@@ -453,8 +453,8 @@ suite "Switch":
 
     check:
       kinds == {
-        PeerEvent.Joined,
-        PeerEvent.Left
+        PeerEventKind.Joined,
+        PeerEventKind.Left
       }
 
     await allFuturesThrowing(
@@ -481,23 +481,23 @@ suite "Switch":
       secureManagers = [SecureProtocol.Secio])
 
     var step = 0
-    var kinds: set[PeerEvent]
+    var kinds: set[PeerEventKind]
     proc handler(peerId: PeerID, event: PeerEvent) {.async, gcsafe.} =
-      kinds = kinds + {event}
+      kinds = kinds + {event.kind}
       case step:
       of 0:
         check:
-          event == PeerEvent.Joined
+          event.kind == PeerEventKind.Joined
       of 1:
         check:
-          event == PeerEvent.Left
+          event.kind == PeerEventKind.Left
       else:
         check false # should not trigger this
 
       step.inc()
 
-    switch1.addPeerEventHandler(handler, PeerEvent.Joined)
-    switch1.addPeerEventHandler(handler, PeerEvent.Left)
+    switch1.addPeerEventHandler(handler, PeerEventKind.Joined)
+    switch1.addPeerEventHandler(handler, PeerEventKind.Left)
 
     awaiters.add(await switch1.start())
     awaiters.add(await switch2.start())
@@ -523,8 +523,8 @@ suite "Switch":
 
     check:
       kinds == {
-        PeerEvent.Joined,
-        PeerEvent.Left
+        PeerEventKind.Joined,
+        PeerEventKind.Left
       }
 
     await allFuturesThrowing(
