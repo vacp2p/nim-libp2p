@@ -57,6 +57,8 @@ const
   BackoffSlackTime = 2 # seconds
   IWantPeerBudget = 25 # 25 messages per second ( reset every heartbeat )
   IHavePeerBudget = 10
+  # the max amount of IHave to expose, not by spec, but go as example
+  IHaveMaxLength = 5000
 
 type
   TopicInfo* = object
@@ -618,7 +620,9 @@ proc getGossipPeers(g: GossipSub): Table[PubSubPeer, ControlMessage] {.gcsafe.} 
     if not mids.len > 0:
       continue
 
-    let ihave = ControlIHave(topicID: topic, messageIDs: toSeq(mids))
+    var midsSeq = toSeq(mids)
+    midsSeq.setLen(min(midsSeq.len, IHaveMaxLength))
+    let ihave = ControlIHave(topicID: topic, messageIDs: midsSeq)
 
     let mesh = g.mesh.getOrDefault(topic)
     let fanout = g.fanout.getOrDefault(topic)
