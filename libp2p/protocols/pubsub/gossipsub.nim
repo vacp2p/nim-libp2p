@@ -830,6 +830,8 @@ proc heartbeat(g: GossipSub) {.async.} =
       let peers = g.getGossipPeers()
       for peer, control in peers:
         g.peers.withValue(peer.peerId, pubsubPeer) do:
+          # only ihave from here
+          libp2p_pubsub_broadcast_ihave.inc(control.ihave.len.int64)
           g.send(
             pubsubPeer[],
             RPCMsg(control: some(control)))
@@ -1180,7 +1182,10 @@ method rpcHandler*(g: GossipSub,
 
     if respControl.graft.len > 0 or respControl.prune.len > 0 or
       respControl.ihave.len > 0 or messages.len > 0:
-
+      # iwant and prunes from here, also messages
+      libp2p_pubsub_broadcast_messages.inc(messages.len.int64)
+      libp2p_pubsub_broadcast_iwant.inc(respControl.iwant.len.int64)
+      libp2p_pubsub_broadcast_prune.inc(respControl.prune.len.int64)
       trace "sending control message", msg = shortLog(respControl), peer
       g.send(
         peer,

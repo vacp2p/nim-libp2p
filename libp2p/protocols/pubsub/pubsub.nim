@@ -40,12 +40,12 @@ else:
   declarePublicCounter(libp2p_pubsub_messages_published, "published messages")
 declarePublicCounter(libp2p_pubsub_messages_rebroadcasted, "re-broadcasted messages")
 
-declareGauge(libp2p_pubsub_broadcast_subscriptions, "pubsub broadcast subscriptions")
-declareGauge(libp2p_pubsub_broadcast_messages, "pubsub broadcast messages")
-declareGauge(libp2p_pubsub_broadcast_ihave, "pubsub broadcast ihave")
-declareGauge(libp2p_pubsub_broadcast_iwant, "pubsub broadcast iwant")
-declareGauge(libp2p_pubsub_broadcast_graft, "pubsub broadcast graft")
-declareGauge(libp2p_pubsub_broadcast_prune, "pubsub broadcast prune")
+declarePublicGauge(libp2p_pubsub_broadcast_subscriptions, "pubsub broadcast subscriptions")
+declarePublicGauge(libp2p_pubsub_broadcast_messages, "pubsub broadcast messages")
+declarePublicGauge(libp2p_pubsub_broadcast_ihave, "pubsub broadcast ihave")
+declarePublicGauge(libp2p_pubsub_broadcast_iwant, "pubsub broadcast iwant")
+declarePublicGauge(libp2p_pubsub_broadcast_graft, "pubsub broadcast graft")
+declarePublicGauge(libp2p_pubsub_broadcast_prune, "pubsub broadcast prune")
 
 type
   TopicHandler* = proc(topic: string,
