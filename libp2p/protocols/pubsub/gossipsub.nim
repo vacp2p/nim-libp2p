@@ -58,6 +58,8 @@ const
   IWantPeerBudget = 25 # 25 messages per second ( reset every heartbeat )
   IHavePeerBudget = 10
   # the max amount of IHave to expose, not by spec, but go as example
+  # rust sigp: https://github.com/sigp/rust-libp2p/blob/f53d02bc873fef2bf52cd31e3d5ce366a41d8a8c/protocols/gossipsub/src/config.rs#L572
+  # go: https://github.com/libp2p/go-libp2p-pubsub/blob/08c17398fb11b2ab06ca141dddc8ec97272eb772/gossipsub.go#L155
   IHaveMaxLength = 5000
 
 type
@@ -621,6 +623,9 @@ proc getGossipPeers(g: GossipSub): Table[PubSubPeer, ControlMessage] {.gcsafe.} 
       continue
 
     var midsSeq = toSeq(mids)
+    # not in spec
+    # similar to rust: https://github.com/sigp/rust-libp2p/blob/f53d02bc873fef2bf52cd31e3d5ce366a41d8a8c/protocols/gossipsub/src/behaviour.rs#L2101
+    # and go https://github.com/libp2p/go-libp2p-pubsub/blob/08c17398fb11b2ab06ca141dddc8ec97272eb772/gossipsub.go#L582
     if midsSeq.len > IHaveMaxLength:
       shuffle(midsSeq)
       midsSeq.setLen(IHaveMaxLength)
