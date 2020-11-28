@@ -110,7 +110,14 @@ proc dialAndUpgrade(s: Switch,
         trace "Dialing address", address = $a, peerId
         let dialed = try:
             libp2p_total_dial_attempts.inc()
-            await t.dial(a)
+            # await a connection slot when the total
+            # connection count is equal to `maxConns`
+            await s.connManager.trackOutgoingConn(
+              () => t.dial(a)
+            )
+          except TooManyConnectionsError as exc:
+            trace "Connection limit reached!"
+            raise exc
           except CancelledError as exc:
             debug "Dialing canceled", msg = exc.msg, peerId
             raise exc
