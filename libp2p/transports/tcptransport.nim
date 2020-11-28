@@ -20,6 +20,8 @@ import transport,
 logScope:
   topics = "tcptransport"
 
+export transport
+
 const
   TcpTransportTrackerName* = "libp2p.tcptransport"
 
