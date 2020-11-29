@@ -208,8 +208,8 @@ proc delConn(c: ConnManager, conn: Connection) =
 
     if c.conns[peerId].len == 0:
       c.conns.del(peerId)
-      libp2p_peers.set(c.conns.len.int64)
 
+    libp2p_peers.set(c.conns.len.int64)
     trace "Removed connection", conn
 
 proc cleanupConn(c: ConnManager, conn: Connection) {.async.} =
