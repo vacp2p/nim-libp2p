@@ -89,9 +89,9 @@ proc pollActivity(s: Connection): Future[bool] {.async.} =
     try:
       await s.timeoutHandler()
     except CancelledError:
-      # This shouldn't normally happen, but if it does, we don't
-      # want to warn about it - if cancellation happened, we should
-      # simply stop iterating
+      # timeoutHandler is expected to be fast, but it's still possible that
+      # cancellation will happen here - no need to warn about it - we do want to
+      # stop the polling however
       debug "Timeout handler cancelled", s
     except CatchableError as exc: # Shouldn't happen
       warn "exception in timeout handler", s, exc = exc.msg
