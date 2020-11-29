@@ -179,6 +179,7 @@ when defined(libp2p_expensive_metrics):
 
 declareGauge(libp2p_gossipsub_peers_mesh_sum, "pubsub peers in mesh table summed")
 declareGauge(libp2p_gossipsub_peers_gossipsub_sum, "pubsub peers in gossipsub table summed")
+declareCounter(libp2p_gossipsub_failed_publish, "number of failed publish")
 
 proc init*(_: type[GossipSubParams]): GossipSubParams =
   GossipSubParams(
@@ -1289,6 +1290,8 @@ method publish*(g: GossipSub,
 
   if peers.len == 0:
     debug "No peers for topic, skipping publish"
+    # skipping topic as our metrics finds that heavy
+    libp2p_gossipsub_failed_publish.inc()
     return 0
 
   inc g.msgSeqno
