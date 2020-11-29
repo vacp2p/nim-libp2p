@@ -326,6 +326,10 @@ proc internalConnect(s: Switch,
     if isNil(conn): # None of the addresses connected
       raise newException(DialFailedError, "Unable to establish outgoing link")
 
+    # We already check for this in Connection manager
+    # but a disconnect could have happened right after
+    # we've added the connection so we check again
+    # to prevent a races due to that.
     if conn.closed() or conn.atEof():
       # This can happen when the other ends drops us
       # before we get a chance to return the connection
