@@ -38,6 +38,17 @@ suite "Connection Manager":
 
     await connMngr.close()
 
+  asyncTest "shouldn't allow a closed connection":
+    let connMngr = ConnManager.init()
+    let peer = PeerInfo.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet())
+    let conn = Connection.init(peer, Direction.In)
+    await conn.close()
+
+    expect CatchableError:
+      connMngr.storeConn(conn)
+
+    await connMngr.close()
+
   asyncTest "add and retrieve a muxer":
     let connMngr = ConnManager.init()
     let peer = PeerInfo.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet())
@@ -52,6 +63,20 @@ suite "Connection Manager":
     let peerMuxer = connMngr.selectMuxer(conn)
     check peerMuxer == muxer
 
+    await connMngr.close()
+
+  asyncTest "shouldn't allow a muxer for an untracked connection":
+    let connMngr = ConnManager.init()
+    let peer = PeerInfo.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet())
+    let conn = Connection.init(peer, Direction.In)
+    let muxer = new Muxer
+    muxer.connection = conn
+
+    expect CatchableError:
+      connMngr.storeMuxer(muxer)
+
+    await conn.close()
+    await muxer.close()
     await connMngr.close()
 
   asyncTest "get conn with direction":
