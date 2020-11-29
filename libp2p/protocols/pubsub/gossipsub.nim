@@ -1169,7 +1169,10 @@ method rpcHandler*(g: GossipSub,
     # also have to be careful to only include validated messages
     g.broadcast(toSeq(toSendPeers), RPCMsg(messages: @[msg]))
     trace "forwared message to peers", peers = toSendPeers.len, msgId, peer
-    libp2p_pubsub_messages_rebroadcasted.inc()
+    when defined(libp2p_expensive_metrics):
+      libp2p_pubsub_messages_rebroadcasted.inc(labelValues = msg.topicIDs)
+    else:
+      libp2p_pubsub_messages_rebroadcasted.inc()
 
   if rpcMsg.control.isSome:
     let control = rpcMsg.control.get()
@@ -1183,7 +1186,11 @@ method rpcHandler*(g: GossipSub,
     if respControl.graft.len > 0 or respControl.prune.len > 0 or
       respControl.ihave.len > 0 or messages.len > 0:
       # iwant and prunes from here, also messages
-      libp2p_pubsub_broadcast_messages.inc(messages.len.int64)
+      when defined(libp2p_expensive_metrics):
+        for smsg in messages:
+          libp2p_pubsub_broadcast_messages.inc(labelValues = smsg.topicIDs)
+      else:
+        libp2p_pubsub_broadcast_messages.inc(messages.len.int64)
       libp2p_pubsub_broadcast_iwant.inc(respControl.iwant.len.int64)
       libp2p_pubsub_broadcast_prune.inc(respControl.prune.len.int64)
       trace "sending control message", msg = shortLog(respControl), peer

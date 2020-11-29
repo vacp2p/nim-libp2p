@@ -25,8 +25,8 @@ type
     shortAgent: string
 
 declareGauge(libp2p_peers_identity, "peers identities", labels = ["agent"])
-declareGauge(libp2p_peers_traffic_read, "incoming traffic", labels = ["agent"])
-declareGauge(libp2p_peers_traffic_write, "outgoing traffic", labels = ["agent"])
+declareCounter(libp2p_peers_traffic_read, "incoming traffic", labels = ["agent"])
+declareCounter(libp2p_peers_traffic_write, "outgoing traffic", labels = ["agent"])
 
 func shortLog*(conn: ChronosStream): string =
   if conn.isNil: "ChronosStream(nil)"

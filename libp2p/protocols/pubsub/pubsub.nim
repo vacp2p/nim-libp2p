@@ -36,16 +36,18 @@ declareCounter(libp2p_pubsub_validation_failure, "pubsub failed validated messag
 declareCounter(libp2p_pubsub_validation_ignore, "pubsub ignore validated messages")
 when defined(libp2p_expensive_metrics):
   declarePublicCounter(libp2p_pubsub_messages_published, "published messages", labels = ["topic"])
+  declarePublicCounter(libp2p_pubsub_messages_rebroadcasted, "re-broadcasted messages", labels = ["topic"])
+  declarePublicCounter(libp2p_pubsub_broadcast_subscriptions, "pubsub broadcast subscriptions", labels = ["topic"])
+  declarePublicCounter(libp2p_pubsub_broadcast_messages, "pubsub broadcast messages", labels = ["topic"])
 else:
   declarePublicCounter(libp2p_pubsub_messages_published, "published messages")
-declarePublicCounter(libp2p_pubsub_messages_rebroadcasted, "re-broadcasted messages")
-
-declarePublicGauge(libp2p_pubsub_broadcast_subscriptions, "pubsub broadcast subscriptions")
-declarePublicGauge(libp2p_pubsub_broadcast_messages, "pubsub broadcast messages")
-declarePublicGauge(libp2p_pubsub_broadcast_ihave, "pubsub broadcast ihave")
-declarePublicGauge(libp2p_pubsub_broadcast_iwant, "pubsub broadcast iwant")
-declarePublicGauge(libp2p_pubsub_broadcast_graft, "pubsub broadcast graft")
-declarePublicGauge(libp2p_pubsub_broadcast_prune, "pubsub broadcast prune")
+  declarePublicCounter(libp2p_pubsub_messages_rebroadcasted, "re-broadcasted messages")
+  declarePublicCounter(libp2p_pubsub_broadcast_subscriptions, "pubsub broadcast subscriptions")
+  declarePublicCounter(libp2p_pubsub_broadcast_messages, "pubsub broadcast messages")
+declarePublicCounter(libp2p_pubsub_broadcast_ihave, "pubsub broadcast ihave")
+declarePublicCounter(libp2p_pubsub_broadcast_iwant, "pubsub broadcast iwant")
+declarePublicCounter(libp2p_pubsub_broadcast_graft, "pubsub broadcast graft")
+declarePublicCounter(libp2p_pubsub_broadcast_prune, "pubsub broadcast prune")
 
 type
   TopicHandler* = proc(topic: string,
@@ -105,8 +107,14 @@ proc broadcast*(
   msg: RPCMsg) = # raises: [Defect]
   ## Attempt to send `msg` to the given peers
 
-  libp2p_pubsub_broadcast_subscriptions.inc(msg.subscriptions.len.int64)
-  libp2p_pubsub_broadcast_messages.inc(msg.messages.len.int64)
+  when defined(libp2p_expensive_metrics):
+    for sub in msg.subscriptions:
+      libp2p_pubsub_broadcast_subscriptions.inc(labelValues = [sub.topic])
+    for smsg in msg.messages:
+      libp2p_pubsub_broadcast_messages.inc(labelValues = smsg.topicIDs)
+  else:
+    libp2p_pubsub_broadcast_subscriptions.inc(msg.subscriptions.len.int64)
+    libp2p_pubsub_broadcast_messages.inc(msg.messages.len.int64)
   if msg.control.isSome():
     libp2p_pubsub_broadcast_ihave.inc(msg.control.get().ihave.len.int64)
     libp2p_pubsub_broadcast_iwant.inc(msg.control.get().iwant.len.int64)
