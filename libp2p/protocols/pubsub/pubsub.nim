@@ -125,17 +125,17 @@ proc broadcast*(
 
   when defined(libp2p_expensive_metrics):
     for sub in msg.subscriptions:
-      libp2p_pubsub_received_subscriptions.inc(labelValues = [sub.topic])
+      libp2p_pubsub_broadcast_subscriptions.inc(labelValues = [sub.topic])
     for smsg in msg.messages:
-      libp2p_pubsub_received_messages.inc(labelValues = smsg.topicIDs)
+      libp2p_pubsub_broadcast_messages.inc(labelValues = smsg.topicIDs)
   else:
-    libp2p_pubsub_received_subscriptions.inc(msg.subscriptions.len.int64)
-    libp2p_pubsub_received_messages.inc(msg.messages.len.int64)
+    libp2p_pubsub_broadcast_subscriptions.inc(msg.subscriptions.len.int64)
+    libp2p_pubsub_broadcast_messages.inc(msg.messages.len.int64)
   if msg.control.isSome():
-    libp2p_pubsub_received_ihave.inc(msg.control.get().ihave.len.int64)
-    libp2p_pubsub_received_iwant.inc(msg.control.get().iwant.len.int64)
-    libp2p_pubsub_received_graft.inc(msg.control.get().graft.len.int64)
-    libp2p_pubsub_received_prune.inc(msg.control.get().prune.len.int64)
+    libp2p_pubsub_broadcast_ihave.inc(msg.control.get().ihave.len.int64)
+    libp2p_pubsub_broadcast_iwant.inc(msg.control.get().iwant.len.int64)
+    libp2p_pubsub_broadcast_graft.inc(msg.control.get().graft.len.int64)
+    libp2p_pubsub_broadcast_prune.inc(msg.control.get().prune.len.int64)
 
   trace "broadcasting messages to peers",
     peers = sendPeers.len, msg = shortLog(msg)
@@ -167,17 +167,17 @@ method rpcHandler*(p: PubSub,
 
   when defined(libp2p_expensive_metrics):
     for sub in rpcMsg.subscriptions:
-      libp2p_pubsub_broadcast_subscriptions.inc(labelValues = [sub.topic])
+      libp2p_pubsub_received_subscriptions.inc(labelValues = [sub.topic])
     for smsg in rpcMsg.messages:
-      libp2p_pubsub_broadcast_messages.inc(labelValues = smsg.topicIDs)
+      libp2p_pubsub_received_messages.inc(labelValues = smsg.topicIDs)
   else:
-    libp2p_pubsub_broadcast_subscriptions.inc(rpcMsg.subscriptions.len.int64)
-    libp2p_pubsub_broadcast_messages.inc(rpcMsg.messages.len.int64)
+    libp2p_pubsub_received_subscriptions.inc(rpcMsg.subscriptions.len.int64)
+    libp2p_pubsub_received_messages.inc(rpcMsg.messages.len.int64)
   if rpcMsg.control.isSome():
-    libp2p_pubsub_broadcast_ihave.inc(rpcMsg.control.get().ihave.len.int64)
-    libp2p_pubsub_broadcast_iwant.inc(rpcMsg.control.get().iwant.len.int64)
-    libp2p_pubsub_broadcast_graft.inc(rpcMsg.control.get().graft.len.int64)
-    libp2p_pubsub_broadcast_prune.inc(rpcMsg.control.get().prune.len.int64)
+    libp2p_pubsub_received_ihave.inc(rpcMsg.control.get().ihave.len.int64)
+    libp2p_pubsub_received_iwant.inc(rpcMsg.control.get().iwant.len.int64)
+    libp2p_pubsub_received_graft.inc(rpcMsg.control.get().graft.len.int64)
+    libp2p_pubsub_received_prune.inc(rpcMsg.control.get().prune.len.int64)
 
 method onNewPeer(p: PubSub, peer: PubSubPeer) {.base.} = discard
 
