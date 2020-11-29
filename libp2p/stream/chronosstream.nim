@@ -17,6 +17,8 @@ logScope:
 const
   DefaultChronosStreamTimeout = 10.minutes
   ChronosStreamTrackerName* = "ChronosStream"
+  KnownLibP2PAgents* {.strdefine.} = ""
+  KnownLibP2PAgentsSeq = KnownLibP2PAgents.split(",")
 
 type
   ChronosStream* = ref object of Connection
@@ -76,12 +78,18 @@ proc trackPeerIdentity(s: ChronosStream) =
     if not isNil(s.peerInfo) and s.peerInfo.agentVersion.len > 0:
       # / seems a weak "standard" so for now it's reliable
       s.shortAgent = s.peerInfo.agentVersion.split("/")[0]
-      libp2p_peers_identity.inc(labelValues = [s.shortAgent])
+      if KnownLibP2PAgentsSeq.contains(s.shortAgent):
+        libp2p_peers_identity.inc(labelValues = [s.shortAgent])
+      else:
+        libp2p_peers_identity.inc(labelValues = ["unknown"])
       s.tracked = true
 
 proc untrackPeerIdentity(s: ChronosStream) =
   if s.tracked:
-    libp2p_peers_identity.dec(labelValues = [s.shortAgent])
+    if KnownLibP2PAgentsSeq.contains(s.shortAgent):
+      libp2p_peers_identity.dec(labelValues = [s.shortAgent])
+    else:
+      libp2p_peers_identity.dec(labelValues = ["unknown"])
     s.tracked = false
 
 method readOnce*(s: ChronosStream, pbytes: pointer, nbytes: int): Future[int] {.async.} =
