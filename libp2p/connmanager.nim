@@ -327,6 +327,10 @@ proc storeConn*(c: ConnManager, conn: Connection) =
   if isNil(conn):
     raise newException(CatchableError, "connection cannot be nil")
 
+  if conn.closed() or conn.atEof():
+    trace "Connection dead on arrival", conn
+    raise newLPStreamClosedError()
+
   if isNil(conn.peerInfo):
     raise newException(CatchableError, "empty peer info")
 
@@ -369,6 +373,9 @@ proc storeMuxer*(c: ConnManager,
 
   if isNil(muxer.connection):
     raise newException(CatchableError, "muxer's connection cannot be nil")
+
+  if muxer.connection notin c:
+    raise newException(CatchableError, "cant add muxer for untracked connection")
 
   c.muxed[muxer.connection] = MuxerHolder(
     muxer: muxer,
