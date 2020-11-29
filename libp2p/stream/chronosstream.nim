@@ -18,7 +18,7 @@ const
   DefaultChronosStreamTimeout = 10.minutes
   ChronosStreamTrackerName* = "ChronosStream"
   KnownLibP2PAgents* {.strdefine.} = ""
-  KnownLibP2PAgentsSeq = KnownLibP2PAgents.split(",")
+  KnownLibP2PAgentsSeq = KnownLibP2PAgents.toLowerAscii().split(",")
 
 type
   ChronosStream* = ref object of Connection
@@ -77,7 +77,7 @@ proc trackPeerIdentity(s: ChronosStream) =
   if not s.tracked:
     if not isNil(s.peerInfo) and s.peerInfo.agentVersion.len > 0:
       # / seems a weak "standard" so for now it's reliable
-      s.shortAgent = s.peerInfo.agentVersion.split("/")[0]
+      s.shortAgent = s.peerInfo.agentVersion.split("/")[0].toLowerAscii()
       if KnownLibP2PAgentsSeq.contains(s.shortAgent):
         libp2p_peers_identity.inc(labelValues = [s.shortAgent])
       else:
