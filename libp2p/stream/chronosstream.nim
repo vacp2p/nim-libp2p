@@ -77,19 +77,17 @@ proc trackPeerIdentity(s: ChronosStream) =
   if not s.tracked:
     if not isNil(s.peerInfo) and s.peerInfo.agentVersion.len > 0:
       # / seems a weak "standard" so for now it's reliable
-      s.shortAgent = s.peerInfo.agentVersion.split("/")[0].toLowerAscii()
-      if KnownLibP2PAgentsSeq.contains(s.shortAgent):
-        libp2p_peers_identity.inc(labelValues = [s.shortAgent])
+      let shortAgent = s.peerInfo.agentVersion.split("/")[0].toLowerAscii()
+      if KnownLibP2PAgentsSeq.contains(shortAgent):
+        s.shortAgent = shortAgent
       else:
-        libp2p_peers_identity.inc(labelValues = ["unknown"])
+        s.shortAgent = "unknown"
+      libp2p_peers_identity.inc(labelValues = [s.shortAgent])
       s.tracked = true
 
 proc untrackPeerIdentity(s: ChronosStream) =
   if s.tracked:
-    if KnownLibP2PAgentsSeq.contains(s.shortAgent):
-      libp2p_peers_identity.dec(labelValues = [s.shortAgent])
-    else:
-      libp2p_peers_identity.dec(labelValues = ["unknown"])
+    libp2p_peers_identity.dec(labelValues = [s.shortAgent])
     s.tracked = false
 
 method readOnce*(s: ChronosStream, pbytes: pointer, nbytes: int): Future[int] {.async.} =
