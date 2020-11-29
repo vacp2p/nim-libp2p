@@ -328,8 +328,8 @@ proc storeConn*(c: ConnManager, conn: Connection) =
     raise newException(CatchableError, "connection cannot be nil")
 
   if conn.closed() or conn.atEof():
-    trace "Connection dead on arrival", conn
-    raise newLPStreamClosedError()
+    trace "Can't store dead connection", conn
+    raise newException(CatchableError, "can't store dead connection")
 
   if isNil(conn.peerInfo):
     raise newException(CatchableError, "empty peer info")
