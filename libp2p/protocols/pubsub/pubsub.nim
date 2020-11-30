@@ -49,15 +49,17 @@ declarePublicCounter(libp2p_pubsub_broadcast_messages, "pubsub broadcast message
 declarePublicCounter(libp2p_pubsub_received_subscriptions, "pubsub broadcast subscriptions", labels = ["topic"])
 declarePublicCounter(libp2p_pubsub_received_messages, "pubsub broadcast messages", labels = ["topic"])
 
-declarePublicCounter(libp2p_pubsub_broadcast_ihave, "pubsub broadcast ihave")
 declarePublicCounter(libp2p_pubsub_broadcast_iwant, "pubsub broadcast iwant")
-declarePublicCounter(libp2p_pubsub_broadcast_graft, "pubsub broadcast graft")
-declarePublicCounter(libp2p_pubsub_broadcast_prune, "pubsub broadcast prune")
 
-declarePublicCounter(libp2p_pubsub_received_ihave, "pubsub broadcast ihave")
+declarePublicCounter(libp2p_pubsub_broadcast_ihave, "pubsub broadcast ihave", labels = ["topic"])
+declarePublicCounter(libp2p_pubsub_broadcast_graft, "pubsub broadcast graft", labels = ["topic"])
+declarePublicCounter(libp2p_pubsub_broadcast_prune, "pubsub broadcast prune", labels = ["topic"])
+
 declarePublicCounter(libp2p_pubsub_received_iwant, "pubsub broadcast iwant")
-declarePublicCounter(libp2p_pubsub_received_graft, "pubsub broadcast graft")
-declarePublicCounter(libp2p_pubsub_received_prune, "pubsub broadcast prune")
+
+declarePublicCounter(libp2p_pubsub_received_ihave, "pubsub broadcast ihave", labels = ["topic"])
+declarePublicCounter(libp2p_pubsub_received_graft, "pubsub broadcast graft", labels = ["topic"])
+declarePublicCounter(libp2p_pubsub_received_prune, "pubsub broadcast prune", labels = ["topic"])
 
 type
   TopicHandler* = proc(topic: string,
@@ -117,7 +119,6 @@ proc broadcast*(
   msg: RPCMsg) = # raises: [Defect]
   ## Attempt to send `msg` to the given peers
 
-  
   for sub in msg.subscriptions:
     if KnownLibP2PTopicsSeq.contains(sub.topic):
       libp2p_pubsub_broadcast_subscriptions.inc(labelValues = [sub.topic])
@@ -132,10 +133,24 @@ proc broadcast*(
         libp2p_pubsub_broadcast_messages.inc(labelValues = ["generic"])
   
   if msg.control.isSome():
-    libp2p_pubsub_broadcast_ihave.inc(msg.control.get().ihave.len.int64)
     libp2p_pubsub_broadcast_iwant.inc(msg.control.get().iwant.len.int64)
-    libp2p_pubsub_broadcast_graft.inc(msg.control.get().graft.len.int64)
-    libp2p_pubsub_broadcast_prune.inc(msg.control.get().prune.len.int64)
+
+    let control = msg.control.get()
+    for ihave in control.ihave:
+      if KnownLibP2PTopicsSeq.contains(ihave.topicID):
+        libp2p_pubsub_broadcast_ihave.inc(labelValues = [ihave.topicID])
+      else:
+        libp2p_pubsub_broadcast_ihave.inc(labelValues = ["generic"])
+    for graft in control.graft:
+      if KnownLibP2PTopicsSeq.contains(graft.topicID):
+        libp2p_pubsub_broadcast_graft.inc(labelValues = [graft.topicID])
+      else:
+        libp2p_pubsub_broadcast_graft.inc(labelValues = ["generic"])
+    for prune in control.prune:
+      if KnownLibP2PTopicsSeq.contains(prune.topicID):
+        libp2p_pubsub_broadcast_prune.inc(labelValues = [prune.topicID])
+      else:
+        libp2p_pubsub_broadcast_prune.inc(labelValues = ["generic"])
 
   trace "broadcasting messages to peers",
     peers = sendPeers.len, msg = shortLog(msg)
@@ -179,10 +194,24 @@ method rpcHandler*(p: PubSub,
         libp2p_pubsub_received_messages.inc(labelValues = ["generic"])
 
   if rpcMsg.control.isSome():
-    libp2p_pubsub_received_ihave.inc(rpcMsg.control.get().ihave.len.int64)
     libp2p_pubsub_received_iwant.inc(rpcMsg.control.get().iwant.len.int64)
-    libp2p_pubsub_received_graft.inc(rpcMsg.control.get().graft.len.int64)
-    libp2p_pubsub_received_prune.inc(rpcMsg.control.get().prune.len.int64)
+
+    let control = rpcMsg.control.get()
+    for ihave in control.ihave:
+      if KnownLibP2PTopicsSeq.contains(ihave.topicID):
+        libp2p_pubsub_received_ihave.inc(labelValues = [ihave.topicID])
+      else:
+        libp2p_pubsub_received_ihave.inc(labelValues = ["generic"])
+    for graft in control.graft:
+      if KnownLibP2PTopicsSeq.contains(graft.topicID):
+        libp2p_pubsub_received_graft.inc(labelValues = [graft.topicID])
+      else:
+        libp2p_pubsub_received_graft.inc(labelValues = ["generic"])
+    for prune in control.prune:
+      if KnownLibP2PTopicsSeq.contains(prune.topicID):
+        libp2p_pubsub_received_prune.inc(labelValues = [prune.topicID])
+      else:
+        libp2p_pubsub_received_prune.inc(labelValues = ["generic"])
 
 method onNewPeer(p: PubSub, peer: PubSubPeer) {.base.} = discard
 

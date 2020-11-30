@@ -863,7 +863,11 @@ proc heartbeat(g: GossipSub) {.async.} =
       let peers = g.getGossipPeers()
       for peer, control in peers:
         # only ihave from here
-        libp2p_pubsub_broadcast_ihave.inc(control.ihave.len.int64)
+        for ihave in control.ihave:
+          if KnownLibP2PTopicsSeq.contains(ihave.topicID):
+            libp2p_pubsub_broadcast_ihave.inc(labelValues = [ihave.topicID])
+          else:
+            libp2p_pubsub_broadcast_ihave.inc(labelValues = ["generic"])
         g.send(peer, RPCMsg(control: some(control)))
 
       g.mcache.shift() # shift the cache
@@ -1250,7 +1254,11 @@ method rpcHandler*(g: GossipSub,
           else:
             libp2p_pubsub_broadcast_messages.inc(labelValues = ["generic"])
       libp2p_pubsub_broadcast_iwant.inc(respControl.iwant.len.int64)
-      libp2p_pubsub_broadcast_prune.inc(respControl.prune.len.int64)
+      for prune in respControl.prune:
+        if KnownLibP2PTopicsSeq.contains(prune.topicID):
+          libp2p_pubsub_broadcast_prune.inc(labelValues = [prune.topicID])
+        else:
+          libp2p_pubsub_broadcast_prune.inc(labelValues = ["generic"])
       trace "sending control message", msg = shortLog(respControl), peer
       g.send(
         peer,
