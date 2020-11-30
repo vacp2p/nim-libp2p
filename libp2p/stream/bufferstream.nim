@@ -64,7 +64,9 @@ method pushData*(s: BufferStream, data: seq[byte]) {.base, async.} =
   ## `pushTo` will block if the queue is full, thus maintaining backpressure.
   ##
 
-  doAssert(not s.pushing, "Only one concurrent push allowed")
+  doAssert(not s.pushing,
+    &"Only one concurrent push allowed for stream {s.shortLog()}")
+
   if s.isClosed or s.pushedEof:
     raise newLPStreamEOFError()
 
@@ -84,7 +86,8 @@ method pushEof*(s: BufferStream) {.base, async.} =
   if s.pushedEof:
     return
 
-  doAssert(not s.pushing, "Only one concurrent push allowed")
+  doAssert(not s.pushing,
+    &"Only one concurrent push allowed for stream {s.shortLog()}")
 
   s.pushedEof = true
 
@@ -105,7 +108,8 @@ method readOnce*(s: BufferStream,
                  nbytes: int):
                  Future[int] {.async.} =
   doAssert(nbytes > 0, "nbytes must be positive integer")
-  doAssert(not s.reading, "Only one concurrent read allowed")
+  doAssert(not s.reading,
+    &"Only one concurrent read allowed for stream {s.shortLog()}")
 
   if s.returnedEof:
     raise newLPStreamEOFError()
