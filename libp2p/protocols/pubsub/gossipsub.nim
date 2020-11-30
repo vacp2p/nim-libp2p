@@ -168,18 +168,17 @@ type
     when not defined(release):
       prunedPeers: HashSet[PubSubPeer]
 
-when defined(libp2p_expensive_metrics):
-  declareGauge(libp2p_gossipsub_peers_per_topic_mesh,
-    "gossipsub peers per topic in mesh",
-    labels = ["topic"])
+declareGauge(libp2p_gossipsub_peers_per_topic_mesh,
+  "gossipsub peers per topic in mesh",
+  labels = ["topic"])
 
-  declareGauge(libp2p_gossipsub_peers_per_topic_fanout,
-    "gossipsub peers per topic in fanout",
-    labels = ["topic"])
+declareGauge(libp2p_gossipsub_peers_per_topic_fanout,
+  "gossipsub peers per topic in fanout",
+  labels = ["topic"])
 
-  declareGauge(libp2p_gossipsub_peers_per_topic_gossipsub,
-    "gossipsub peers per topic in gossipsub",
-    labels = ["topic"])
+declareGauge(libp2p_gossipsub_peers_per_topic_gossipsub,
+  "gossipsub peers per topic in gossipsub",
+  labels = ["topic"])
 
 declareGauge(libp2p_gossipsub_peers_mesh_sum, "pubsub peers in mesh table summed")
 declareGauge(libp2p_gossipsub_peers_gossipsub_sum, "pubsub peers in gossipsub table summed")
@@ -379,10 +378,13 @@ proc replenishFanout(g: GossipSub, topic: string) =
         if g.fanout.addPeer(topic, peer):
           if g.fanout.peers(topic) == g.parameters.d:
             break
-
-  when defined(libp2p_expensive_metrics):
+  
+  if KnownLibP2PTopicsSeq.contains(topic):
     libp2p_gossipsub_peers_per_topic_fanout
       .set(g.fanout.peers(topic).int64, labelValues = [topic])
+  else:
+    libp2p_gossipsub_peers_per_topic_fanout
+      .set(g.fanout.peers(topic).int64, labelValues = ["generic"])
 
   trace "fanout replenished with peers", peers = g.fanout.peers(topic)
 
@@ -570,7 +572,7 @@ proc rebalanceMesh(g: GossipSub, topic: string) {.async.} =
           grafting &= peer
           trace "opportunistic grafting", peer
 
-  when defined(libp2p_expensive_metrics):
+  if KnownLibP2PTopicsSeq.contains(topic):
     libp2p_gossipsub_peers_per_topic_gossipsub
       .set(g.gossipsub.peers(topic).int64, labelValues = [topic])
 
@@ -579,6 +581,17 @@ proc rebalanceMesh(g: GossipSub, topic: string) {.async.} =
 
     libp2p_gossipsub_peers_per_topic_mesh
       .set(g.mesh.peers(topic).int64, labelValues = [topic])
+  else:
+    libp2p_gossipsub_peers_per_topic_gossipsub
+      .set(g.gossipsub.peers(topic).int64, labelValues = ["generic"])
+
+    libp2p_gossipsub_peers_per_topic_fanout
+      .set(g.fanout.peers(topic).int64, labelValues = ["generic"])
+
+    libp2p_gossipsub_peers_per_topic_mesh
+      .set(g.mesh.peers(topic).int64, labelValues = ["generic"])
+
+    
 
   trace "mesh balanced"
 
@@ -604,10 +617,13 @@ proc dropFanoutPeers(g: GossipSub) =
       g.fanout.del(topic)
       g.lastFanoutPubSub.del(topic)
       trace "dropping fanout topic", topic
-
-    when defined(libp2p_expensive_metrics):
+  
+    if KnownLibP2PTopicsSeq.contains(topic):
       libp2p_gossipsub_peers_per_topic_fanout
         .set(g.fanout.peers(topic).int64, labelValues = [topic])
+    else:
+      libp2p_gossipsub_peers_per_topic_fanout
+        .set(g.fanout.peers(topic).int64, labelValues = ["generic"])
 
 proc getGossipPeers(g: GossipSub): Table[PubSubPeer, ControlMessage] {.gcsafe.} =
   ## gossip iHave messages to peers
@@ -883,24 +899,33 @@ method unsubscribePeer*(g: GossipSub, peer: PeerID) =
     # also try to remove from explicit table here
     g.explicit.removePeer(t, pubSubPeer)
 
-    when defined(libp2p_expensive_metrics):
+    if KnownLibP2PTopicsSeq.contains(t):
       libp2p_gossipsub_peers_per_topic_gossipsub
         .set(g.gossipsub.peers(t).int64, labelValues = [t])
+    else:
+      libp2p_gossipsub_peers_per_topic_gossipsub
+        .set(g.gossipsub.peers(t).int64, labelValues = ["generic"])
 
   for t in toSeq(g.mesh.keys):
     g.pruned(pubSubPeer, t)
     g.mesh.removePeer(t, pubSubPeer)
 
-    when defined(libp2p_expensive_metrics):
+    if KnownLibP2PTopicsSeq.contains(t):
       libp2p_gossipsub_peers_per_topic_mesh
         .set(g.mesh.peers(t).int64, labelValues = [t])
+    else:
+      libp2p_gossipsub_peers_per_topic_mesh
+        .set(g.mesh.peers(t).int64, labelValues = ["generic"])
 
   for t in toSeq(g.fanout.keys):
     g.fanout.removePeer(t, pubSubPeer)
 
-    when defined(libp2p_expensive_metrics):
+    if KnownLibP2PTopicsSeq.contains(t):
       libp2p_gossipsub_peers_per_topic_fanout
         .set(g.fanout.peers(t).int64, labelValues = [t])
+    else:
+      libp2p_gossipsub_peers_per_topic_fanout
+        .set(g.fanout.peers(t).int64, labelValues = ["generic"])
 
     g.peerStats[pubSubPeer].expire = Moment.now() + g.parameters.retainScore
     for topic, info in g.peerStats[pubSubPeer].topicInfos.mpairs:
@@ -936,15 +961,23 @@ method subscribeTopic*(g: GossipSub,
     if peer.peerId in g.parameters.directPeers:
       g.explicit.removePeer(topic, peer)
 
-    when defined(libp2p_expensive_metrics):
+    if KnownLibP2PTopicsSeq.contains(topic):
       libp2p_gossipsub_peers_per_topic_mesh
         .set(g.mesh.peers(topic).int64, labelValues = [topic])
       libp2p_gossipsub_peers_per_topic_fanout
         .set(g.fanout.peers(topic).int64, labelValues = [topic])
+    else:
+      libp2p_gossipsub_peers_per_topic_mesh
+        .set(g.mesh.peers(topic).int64, labelValues = ["generic"])
+      libp2p_gossipsub_peers_per_topic_fanout
+        .set(g.fanout.peers(topic).int64, labelValues = ["generic"])
 
-  when defined(libp2p_expensive_metrics):
+  if KnownLibP2PTopicsSeq.contains(topic):
     libp2p_gossipsub_peers_per_topic_gossipsub
       .set(g.gossipsub.peers(topic).int64, labelValues = [topic])
+  else:
+    libp2p_gossipsub_peers_per_topic_gossipsub
+      .set(g.gossipsub.peers(topic).int64, labelValues = ["generic"])
 
   trace "gossip peers", peers = g.gossipsub.peers(topic), topic
 
@@ -1026,11 +1059,16 @@ proc handleGraft(g: GossipSub,
       trace "peer grafting topic we're not interested in", topic
       # gossip 1.1, we do not send a control message prune anymore
 
-    when defined(libp2p_expensive_metrics):
+    if KnownLibP2PTopicsSeq.contains(topic):
       libp2p_gossipsub_peers_per_topic_mesh
         .set(g.mesh.peers(topic).int64, labelValues = [topic])
       libp2p_gossipsub_peers_per_topic_fanout
         .set(g.fanout.peers(topic).int64, labelValues = [topic])
+    else:
+      libp2p_gossipsub_peers_per_topic_mesh
+        .set(g.mesh.peers(topic).int64, labelValues = ["generic"])
+      libp2p_gossipsub_peers_per_topic_fanout
+        .set(g.fanout.peers(topic).int64, labelValues = ["generic"])
 
 proc handlePrune(g: GossipSub, peer: PubSubPeer, prunes: seq[ControlPrune]) =
   for prune in prunes:
@@ -1050,9 +1088,12 @@ proc handlePrune(g: GossipSub, peer: PubSubPeer, prunes: seq[ControlPrune]) =
     # another option could be to implement signed peer records
     ## if peer.score > g.parameters.gossipThreshold and prunes.peers.len > 0:
 
-    when defined(libp2p_expensive_metrics):
+    if KnownLibP2PTopicsSeq.contains(prune.topicID):
       libp2p_gossipsub_peers_per_topic_mesh
         .set(g.mesh.peers(prune.topicID).int64, labelValues = [prune.topicID])
+    else:
+      libp2p_gossipsub_peers_per_topic_mesh
+        .set(g.mesh.peers(prune.topicID).int64, labelValues = ["generic"])
 
 proc handleIHave(g: GossipSub,
                  peer: PubSubPeer,
@@ -1183,10 +1224,11 @@ method rpcHandler*(g: GossipSub,
     # also have to be careful to only include validated messages
     g.broadcast(toSeq(toSendPeers), RPCMsg(messages: @[msg]))
     trace "forwared message to peers", peers = toSendPeers.len, msgId, peer
-    when defined(libp2p_expensive_metrics):
-      libp2p_pubsub_messages_rebroadcasted.inc(labelValues = msg.topicIDs)
-    else:
-      libp2p_pubsub_messages_rebroadcasted.inc()
+    for topic in msg.topicIDs:
+      if KnownLibP2PTopicsSeq.contains(topic):
+        libp2p_pubsub_messages_rebroadcasted.inc(labelValues = [topic])
+      else:
+        libp2p_pubsub_messages_rebroadcasted.inc(labelValues = ["generic"])
 
   if rpcMsg.control.isSome:
     let control = rpcMsg.control.get()
@@ -1200,11 +1242,13 @@ method rpcHandler*(g: GossipSub,
     if respControl.graft.len > 0 or respControl.prune.len > 0 or
       respControl.ihave.len > 0 or messages.len > 0:
       # iwant and prunes from here, also messages
-      when defined(libp2p_expensive_metrics):
-        for smsg in messages:
-          libp2p_pubsub_broadcast_messages.inc(labelValues = smsg.topicIDs)
-      else:
-        libp2p_pubsub_broadcast_messages.inc(messages.len.int64)
+      
+      for smsg in messages:
+        for topic in smsg.topicIDs:
+          if KnownLibP2PTopicsSeq.contains(topic):
+            libp2p_pubsub_broadcast_messages.inc(labelValues = [topic])
+          else:
+            libp2p_pubsub_broadcast_messages.inc(labelValues = ["generic"])
       libp2p_pubsub_broadcast_iwant.inc(respControl.iwant.len.int64)
       libp2p_pubsub_broadcast_prune.inc(respControl.prune.len.int64)
       trace "sending control message", msg = shortLog(respControl), peer
@@ -1328,12 +1372,11 @@ method publish*(g: GossipSub,
   g.mcache.put(msgId, msg)
 
   g.broadcast(toSeq(peers), RPCMsg(messages: @[msg]))
-  when defined(libp2p_expensive_metrics):
-    if peers.len > 0:
-      libp2p_pubsub_messages_published.inc(labelValues = [topic])
+  if KnownLibP2PTopicsSeq.contains(topic):
+    libp2p_pubsub_messages_published.inc(labelValues = [topic])
   else:
-    if peers.len > 0:
-      libp2p_pubsub_messages_published.inc()
+    libp2p_pubsub_messages_published.inc(labelValues = ["generic"])
+  
 
   trace "Published message to peers"
 

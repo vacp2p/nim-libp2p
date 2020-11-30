@@ -7,7 +7,7 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import std/[tables, sequtils, sets]
+import std/[tables, sequtils, sets, strutils]
 import chronos, chronicles, metrics
 import pubsubpeer,
        rpc/[message, messages],
@@ -29,6 +29,10 @@ export protocol
 logScope:
   topics = "pubsub"
 
+const
+  KnownLibP2PTopics* {.strdefine.} = ""
+  KnownLibP2PTopicsSeq* = KnownLibP2PTopics.toLowerAscii().split(",")
+
 declareGauge(libp2p_pubsub_peers, "pubsub peer instances")
 declareGauge(libp2p_pubsub_topics, "pubsub subscribed topics")
 
@@ -36,24 +40,14 @@ declareCounter(libp2p_pubsub_validation_success, "pubsub successfully validated 
 declareCounter(libp2p_pubsub_validation_failure, "pubsub failed validated messages")
 declareCounter(libp2p_pubsub_validation_ignore, "pubsub ignore validated messages")
 
-when defined(libp2p_expensive_metrics):
-  declarePublicCounter(libp2p_pubsub_messages_published, "published messages", labels = ["topic"])
-  declarePublicCounter(libp2p_pubsub_messages_rebroadcasted, "re-broadcasted messages", labels = ["topic"])
-  
-  declarePublicCounter(libp2p_pubsub_broadcast_subscriptions, "pubsub broadcast subscriptions", labels = ["topic"])
-  declarePublicCounter(libp2p_pubsub_broadcast_messages, "pubsub broadcast messages", labels = ["topic"])
-  
-  declarePublicCounter(libp2p_pubsub_received_subscriptions, "pubsub broadcast subscriptions", labels = ["topic"])
-  declarePublicCounter(libp2p_pubsub_received_messages, "pubsub broadcast messages", labels = ["topic"])
-else:
-  declarePublicCounter(libp2p_pubsub_messages_published, "published messages")
-  declarePublicCounter(libp2p_pubsub_messages_rebroadcasted, "re-broadcasted messages")
-  
-  declarePublicCounter(libp2p_pubsub_broadcast_subscriptions, "pubsub broadcast subscriptions")
-  declarePublicCounter(libp2p_pubsub_broadcast_messages, "pubsub broadcast messages")
-  
-  declarePublicCounter(libp2p_pubsub_received_subscriptions, "pubsub broadcast subscriptions")
-  declarePublicCounter(libp2p_pubsub_received_messages, "pubsub broadcast messages")
+declarePublicCounter(libp2p_pubsub_messages_published, "published messages", labels = ["topic"])
+declarePublicCounter(libp2p_pubsub_messages_rebroadcasted, "re-broadcasted messages", labels = ["topic"])
+
+declarePublicCounter(libp2p_pubsub_broadcast_subscriptions, "pubsub broadcast subscriptions", labels = ["topic"])
+declarePublicCounter(libp2p_pubsub_broadcast_messages, "pubsub broadcast messages", labels = ["topic"])
+
+declarePublicCounter(libp2p_pubsub_received_subscriptions, "pubsub broadcast subscriptions", labels = ["topic"])
+declarePublicCounter(libp2p_pubsub_received_messages, "pubsub broadcast messages", labels = ["topic"])
 
 declarePublicCounter(libp2p_pubsub_broadcast_ihave, "pubsub broadcast ihave")
 declarePublicCounter(libp2p_pubsub_broadcast_iwant, "pubsub broadcast iwant")
@@ -123,14 +117,20 @@ proc broadcast*(
   msg: RPCMsg) = # raises: [Defect]
   ## Attempt to send `msg` to the given peers
 
-  when defined(libp2p_expensive_metrics):
-    for sub in msg.subscriptions:
+  
+  for sub in msg.subscriptions:
+    if KnownLibP2PTopicsSeq.contains(sub.topic):
       libp2p_pubsub_broadcast_subscriptions.inc(labelValues = [sub.topic])
-    for smsg in msg.messages:
-      libp2p_pubsub_broadcast_messages.inc(labelValues = smsg.topicIDs)
-  else:
-    libp2p_pubsub_broadcast_subscriptions.inc(msg.subscriptions.len.int64)
-    libp2p_pubsub_broadcast_messages.inc(msg.messages.len.int64)
+    else:
+      libp2p_pubsub_broadcast_subscriptions.inc(labelValues = ["generic"])
+
+  for smsg in msg.messages:
+    for topic in smsg.topicIDs:
+      if KnownLibP2PTopicsSeq.contains(topic):
+        libp2p_pubsub_broadcast_messages.inc(labelValues = [topic])
+      else:
+        libp2p_pubsub_broadcast_messages.inc(labelValues = ["generic"])
+  
   if msg.control.isSome():
     libp2p_pubsub_broadcast_ihave.inc(msg.control.get().ihave.len.int64)
     libp2p_pubsub_broadcast_iwant.inc(msg.control.get().iwant.len.int64)
@@ -165,14 +165,19 @@ method rpcHandler*(p: PubSub,
     trace "about to subscribe to topic", topicId = s.topic, peer
     p.subscribeTopic(s.topic, s.subscribe, peer)
 
-  when defined(libp2p_expensive_metrics):
-    for sub in rpcMsg.subscriptions:
+  for sub in rpcMsg.subscriptions:
+    if KnownLibP2PTopicsSeq.contains(sub.topic):
       libp2p_pubsub_received_subscriptions.inc(labelValues = [sub.topic])
-    for smsg in rpcMsg.messages:
-      libp2p_pubsub_received_messages.inc(labelValues = smsg.topicIDs)
-  else:
-    libp2p_pubsub_received_subscriptions.inc(rpcMsg.subscriptions.len.int64)
-    libp2p_pubsub_received_messages.inc(rpcMsg.messages.len.int64)
+    else:
+      libp2p_pubsub_received_subscriptions.inc(labelValues = ["generic"])
+
+  for smsg in rpcMsg.messages:
+    for topic in smsg.topicIDs:
+      if KnownLibP2PTopicsSeq.contains(topic):
+        libp2p_pubsub_received_messages.inc(labelValues = [topic])
+      else:
+        libp2p_pubsub_received_messages.inc(labelValues = ["generic"])
+
   if rpcMsg.control.isSome():
     libp2p_pubsub_received_ihave.inc(rpcMsg.control.get().ihave.len.int64)
     libp2p_pubsub_received_iwant.inc(rpcMsg.control.get().iwant.len.int64)
