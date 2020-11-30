@@ -184,6 +184,7 @@ when defined(libp2p_expensive_metrics):
 declareGauge(libp2p_gossipsub_peers_mesh_sum, "pubsub peers in mesh table summed")
 declareGauge(libp2p_gossipsub_peers_gossipsub_sum, "pubsub peers in gossipsub table summed")
 declareCounter(libp2p_gossipsub_failed_publish, "number of failed publish")
+declareGauge(libp2p_gossipsub_cache_window_size, "the number of messages in the cache")
 
 proc init*(_: type[GossipSubParams]): GossipSubParams =
   GossipSubParams(
@@ -624,17 +625,20 @@ proc getGossipPeers(g: GossipSub): Table[PubSubPeer, ControlMessage] {.gcsafe.} 
       continue
 
     var midsSeq = toSeq(mids)
+    libp2p_gossipsub_cache_window_size.set(midsSeq.len.int64)
+
     # not in spec
     # similar to rust: https://github.com/sigp/rust-libp2p/blob/f53d02bc873fef2bf52cd31e3d5ce366a41d8a8c/protocols/gossipsub/src/behaviour.rs#L2101
     # and go https://github.com/libp2p/go-libp2p-pubsub/blob/08c17398fb11b2ab06ca141dddc8ec97272eb772/gossipsub.go#L582
     if midsSeq.len > IHaveMaxLength:
       shuffle(midsSeq)
       midsSeq.setLen(IHaveMaxLength)
-    let ihave = ControlIHave(topicID: topic, messageIDs: midsSeq)
 
-    let mesh = g.mesh.getOrDefault(topic)
-    let fanout = g.fanout.getOrDefault(topic)
-    let gossipPeers = mesh + fanout
+    let
+      ihave = ControlIHave(topicID: topic, messageIDs: midsSeq)
+      mesh = g.mesh.getOrDefault(topic)
+      fanout = g.fanout.getOrDefault(topic)
+      gossipPeers = mesh + fanout
     var allPeers = toSeq(g.gossipsub.getOrDefault(topic))
 
     allPeers.keepIf do (x: PubSubPeer) -> bool:
