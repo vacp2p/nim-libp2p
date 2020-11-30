@@ -613,6 +613,8 @@ proc getGossipPeers(g: GossipSub): Table[PubSubPeer, ControlMessage] {.gcsafe.} 
   ## gossip iHave messages to peers
   ##
 
+  libp2p_gossipsub_cache_window_size.set(0)
+
   trace "getting gossip peers (iHave)"
   let topics = toHashSet(toSeq(g.mesh.keys)) + toHashSet(toSeq(g.fanout.keys))
   for topic in topics:
@@ -625,7 +627,8 @@ proc getGossipPeers(g: GossipSub): Table[PubSubPeer, ControlMessage] {.gcsafe.} 
       continue
 
     var midsSeq = toSeq(mids)
-    libp2p_gossipsub_cache_window_size.set(midsSeq.len.int64)
+    
+    libp2p_gossipsub_cache_window_size.inc(midsSeq.len.int64)
 
     # not in spec
     # similar to rust: https://github.com/sigp/rust-libp2p/blob/f53d02bc873fef2bf52cd31e3d5ce366a41d8a8c/protocols/gossipsub/src/behaviour.rs#L2101
@@ -843,12 +846,9 @@ proc heartbeat(g: GossipSub) {.async.} =
 
       let peers = g.getGossipPeers()
       for peer, control in peers:
-        g.peers.withValue(peer.peerId, pubsubPeer) do:
-          # only ihave from here
-          libp2p_pubsub_broadcast_ihave.inc(control.ihave.len.int64)
-          g.send(
-            pubsubPeer[],
-            RPCMsg(control: some(control)))
+        # only ihave from here
+        libp2p_pubsub_broadcast_ihave.inc(control.ihave.len.int64)
+        g.send(peer, RPCMsg(control: some(control)))
 
       g.mcache.shift() # shift the cache
     except CancelledError as exc:
