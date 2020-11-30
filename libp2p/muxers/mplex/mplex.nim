@@ -20,7 +20,7 @@ import ../muxer,
 export muxer
 
 logScope:
-  topics = "mplex"
+  topics = "libp2p mplex"
 
 const MplexCodec* = "/mplex/6.7.0"
 

@@ -15,7 +15,7 @@ import ../../stream/connection,
        ../../vbuffer
 
 logScope:
-  topics = "mplexcoder"
+  topics = "libp2p mplexcoder"
 
 type
   MessageType* {.pure.} = enum

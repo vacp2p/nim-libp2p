@@ -19,7 +19,7 @@ import ../protobuf/minprotobuf,
        ../utility
 
 logScope:
-  topics = "identify"
+  topics = "libp2p identify"
 
 const
   IdentifyCodec* = "/ipfs/id/1.0.0"

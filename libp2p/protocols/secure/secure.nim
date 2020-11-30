@@ -19,7 +19,7 @@ import ../protocol,
 export protocol
 
 logScope:
-  topics = "secure"
+  topics = "libp2p secure"
 
 const
   SecureConnTrackerName* = "SecureConn"

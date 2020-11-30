@@ -20,7 +20,7 @@ import rpc/[messages, message, protobuf],
 export peerid, connection
 
 logScope:
-  topics = "pubsubpeer"
+  topics = "libp2p pubsubpeer"
 
 when defined(libp2p_expensive_metrics):
   declareCounter(libp2p_pubsub_sent_messages, "number of messages sent", labels = ["id", "topic"])

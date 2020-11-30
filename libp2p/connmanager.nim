@@ -15,7 +15,7 @@ import peerinfo,
        errors
 
 logScope:
-  topics = "connmanager"
+  topics = "libp2p connmanager"
 
 declareGauge(libp2p_peers, "total connected peers")
 

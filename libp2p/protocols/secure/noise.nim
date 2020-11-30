@@ -25,7 +25,7 @@ when defined(libp2p_dump):
   import ../../debugutils
 
 logScope:
-  topics = "noise"
+  topics = "libp2p noise"
 
 const
   # https://godoc.org/github.com/libp2p/go-libp2p-noise#pkg-constants
