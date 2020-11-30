@@ -17,7 +17,9 @@ import ../libp2p/[errors,
                   protocols/secure/secure,
                   muxers/muxer,
                   muxers/mplex/lpchannel,
-                  stream/lpstream]
+                  stream/lpstream,
+                  stream/chronosstream,
+                  transports/tcptransport]
 import ./helpers
 
 const
@@ -357,25 +359,25 @@ suite "Switch":
     let switch2 = newStandardSwitch(secureManagers = [SecureProtocol.Secio])
 
     var step = 0
-    var kinds: set[PeerEvent]
+    var kinds: set[PeerEventKind]
     proc handler(peerId: PeerID, event: PeerEvent) {.async, gcsafe.} =
-      kinds = kinds + {event}
+      kinds = kinds + {event.kind}
       case step:
       of 0:
         check:
-          event == PeerEvent.Joined
+          event.kind == PeerEventKind.Joined
           peerId == switch2.peerInfo.peerId
       of 1:
         check:
-          event == PeerEvent.Left
+          event.kind == PeerEventKind.Left
           peerId == switch2.peerInfo.peerId
       else:
         check false
 
       step.inc()
 
-    switch1.addPeerEventHandler(handler, PeerEvent.Joined)
-    switch1.addPeerEventHandler(handler, PeerEvent.Left)
+    switch1.addPeerEventHandler(handler, PeerEventKind.Joined)
+    switch1.addPeerEventHandler(handler, PeerEventKind.Left)
 
     awaiters.add(await switch1.start())
     awaiters.add(await switch2.start())
@@ -396,8 +398,8 @@ suite "Switch":
 
     check:
       kinds == {
-        PeerEvent.Joined,
-        PeerEvent.Left
+        PeerEventKind.Joined,
+        PeerEventKind.Left
       }
 
     await allFuturesThrowing(
@@ -412,25 +414,25 @@ suite "Switch":
     let switch2 = newStandardSwitch(secureManagers = [SecureProtocol.Secio])
 
     var step = 0
-    var kinds: set[PeerEvent]
+    var kinds: set[PeerEventKind]
     proc handler(peerId: PeerID, event: PeerEvent) {.async, gcsafe.} =
-      kinds = kinds + {event}
+      kinds = kinds + {event.kind}
       case step:
       of 0:
         check:
-          event == PeerEvent.Joined
+          event.kind == PeerEventKind.Joined
           peerId == switch1.peerInfo.peerId
       of 1:
         check:
-          event == PeerEvent.Left
+          event.kind == PeerEventKind.Left
           peerId == switch1.peerInfo.peerId
       else:
         check false
 
       step.inc()
 
-    switch2.addPeerEventHandler(handler, PeerEvent.Joined)
-    switch2.addPeerEventHandler(handler, PeerEvent.Left)
+    switch2.addPeerEventHandler(handler, PeerEventKind.Joined)
+    switch2.addPeerEventHandler(handler, PeerEventKind.Left)
 
     awaiters.add(await switch1.start())
     awaiters.add(await switch2.start())
@@ -451,8 +453,8 @@ suite "Switch":
 
     check:
       kinds == {
-        PeerEvent.Joined,
-        PeerEvent.Left
+        PeerEventKind.Joined,
+        PeerEventKind.Left
       }
 
     await allFuturesThrowing(
@@ -479,23 +481,23 @@ suite "Switch":
       secureManagers = [SecureProtocol.Secio])
 
     var step = 0
-    var kinds: set[PeerEvent]
+    var kinds: set[PeerEventKind]
     proc handler(peerId: PeerID, event: PeerEvent) {.async, gcsafe.} =
-      kinds = kinds + {event}
+      kinds = kinds + {event.kind}
       case step:
       of 0:
         check:
-          event == PeerEvent.Joined
+          event.kind == PeerEventKind.Joined
       of 1:
         check:
-          event == PeerEvent.Left
+          event.kind == PeerEventKind.Left
       else:
         check false # should not trigger this
 
       step.inc()
 
-    switch1.addPeerEventHandler(handler, PeerEvent.Joined)
-    switch1.addPeerEventHandler(handler, PeerEvent.Left)
+    switch1.addPeerEventHandler(handler, PeerEventKind.Joined)
+    switch1.addPeerEventHandler(handler, PeerEventKind.Left)
 
     awaiters.add(await switch1.start())
     awaiters.add(await switch2.start())
@@ -521,8 +523,8 @@ suite "Switch":
 
     check:
       kinds == {
-        PeerEvent.Joined,
-        PeerEvent.Left
+        PeerEventKind.Joined,
+        PeerEventKind.Left
       }
 
     await allFuturesThrowing(
@@ -622,6 +624,78 @@ suite "Switch":
 
     await allFuturesThrowing(
       switches.mapIt( it.stop() ))
+    await allFuturesThrowing(awaiters)
+
+  # TODO: we should be able to test cancellation
+  # for most of the steps in the upgrade flow -
+  # this is just a basic test for dials
+  asyncTest "e2e canceling dial should not leak":
+    let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
+
+    let transport = TcpTransport.init()
+    await transport.start(ma)
+
+    proc acceptHandler() {.async, gcsafe.} =
+      try:
+        let conn = await transport.accept()
+        discard await conn.readLp(100)
+      except CatchableError as exc:
+        discard
+
+    let handlerWait = acceptHandler()
+    let switch = newStandardSwitch(secureManagers = [SecureProtocol.Noise])
+
+    var awaiters: seq[Future[void]]
+    awaiters.add(await switch.start())
+
+    var peerId = PeerID.init(PrivateKey.random(ECDSA, rng[]).get()).get()
+    let connectFut = switch.connect(peerId, @[transport.ma])
+    await sleepAsync(500.millis)
+    connectFut.cancel()
+    await handlerWait
+
+    checkTracker(LPChannelTrackerName)
+    checkTracker(SecureConnTrackerName)
+    checkTracker(ChronosStreamTrackerName)
+
+    await allFuturesThrowing(
+      transport.stop(),
+      switch.stop())
+
+    # this needs to go at end
+    await allFuturesThrowing(awaiters)
+
+  asyncTest "e2e closing remote conn should not leak":
+    let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
+
+    let transport = TcpTransport.init()
+    await transport.start(ma)
+
+    proc acceptHandler() {.async, gcsafe.} =
+      let conn = await transport.accept()
+      await conn.close()
+
+    let handlerWait = acceptHandler()
+    let switch = newStandardSwitch(secureManagers = [SecureProtocol.Noise])
+
+    var awaiters: seq[Future[void]]
+    awaiters.add(await switch.start())
+
+    var peerId = PeerID.init(PrivateKey.random(ECDSA, rng[]).get()).get()
+    expect LPStreamClosedError:
+      await switch.connect(peerId, @[transport.ma])
+
+    await handlerWait
+
+    checkTracker(LPChannelTrackerName)
+    checkTracker(SecureConnTrackerName)
+    checkTracker(ChronosStreamTrackerName)
+
+    await allFuturesThrowing(
+      transport.stop(),
+      switch.stop())
+
+    # this needs to go at end
     await allFuturesThrowing(awaiters)
 
   asyncTest "connect to inexistent peer":

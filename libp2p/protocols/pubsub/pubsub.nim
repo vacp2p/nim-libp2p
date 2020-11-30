@@ -436,18 +436,17 @@ proc init*[PubParams: object | bool](
         parameters: parameters)
 
   proc peerEventHandler(peerId: PeerID, event: PeerEvent) {.async.} =
-    if event == PeerEvent.Joined:
+    if event.kind == PeerEventKind.Joined:
       pubsub.subscribePeer(peerId)
     else:
       pubsub.unsubscribePeer(peerId)
 
-  switch.addPeerEventHandler(peerEventHandler, PeerEvent.Joined)
-  switch.addPeerEventHandler(peerEventHandler, PeerEvent.Left)
+  switch.addPeerEventHandler(peerEventHandler, PeerEventKind.Joined)
+  switch.addPeerEventHandler(peerEventHandler, PeerEventKind.Left)
 
   pubsub.initPubSub()
 
   return pubsub
-
 
 proc addObserver*(p: PubSub; observer: PubSubObserver) = p.observers[] &= observer
 

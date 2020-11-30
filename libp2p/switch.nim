@@ -74,12 +74,12 @@ proc removeConnEventHandler*(s: Switch,
 
 proc addPeerEventHandler*(s: Switch,
                           handler: PeerEventHandler,
-                          kind: PeerEvent) =
+                          kind: PeerEventKind) =
   s.connManager.addPeerEventHandler(handler, kind)
 
 proc removePeerEventHandler*(s: Switch,
                              handler: PeerEventHandler,
-                             kind: PeerEvent) =
+                             kind: PeerEventKind) =
   s.connManager.removePeerEventHandler(handler, kind)
 
 proc disconnect*(s: Switch, peerId: PeerID) {.async, gcsafe.}
@@ -257,6 +257,45 @@ proc upgradeIncoming(s: Switch, incomingConn: Connection) {.async, gcsafe.} = # 
   finally:
     await incomingConn.close()
 
+proc dialAndUpgrade(s: Switch,
+                    peerId: PeerID,
+                    addrs: seq[MultiAddress]):
+                    Future[Connection] {.async.} =
+  debug "Dialing peer", peerId
+  for t in s.transports: # for each transport
+    for a in addrs:      # for each address
+      if t.handles(a):   # check if it can dial it
+        trace "Dialing address", address = $a, peerId
+        let dialed = try:
+            await t.dial(a)
+          except CancelledError as exc:
+            debug "Dialing canceled", msg = exc.msg, peerId
+            raise exc
+          except CatchableError as exc:
+            debug "Dialing failed", msg = exc.msg, peerId
+            libp2p_failed_dials.inc()
+            continue # Try the next address
+
+        # make sure to assign the peer to the connection
+        dialed.peerInfo = PeerInfo.init(peerId, addrs)
+
+        libp2p_dialed_peers.inc()
+
+        let conn = try:
+            await s.upgradeOutgoing(dialed)
+          except CatchableError as exc:
+            # If we failed to establish the connection through one transport,
+            # we won't succeeded through another - no use in trying again
+            await dialed.close()
+            debug "Upgrade failed", msg = exc.msg, peerId
+            if exc isnot CancelledError:
+              libp2p_failed_upgrade.inc()
+            raise exc
+
+        doAssert not isNil(conn), "connection died after upgradeOutgoing"
+        debug "Dial successful", conn, peerInfo = conn.peerInfo
+        return conn
+
 proc internalConnect(s: Switch,
                      peerId: PeerID,
                      addrs: seq[MultiAddress]): Future[Connection] {.async.} =
@@ -281,45 +320,9 @@ proc internalConnect(s: Switch,
         raise newException(DialFailedError, "Zombie connection encountered")
 
       trace "Reusing existing connection", conn, direction = $conn.dir
-
       return conn
 
-    debug "Dialing peer", peerId
-    for t in s.transports: # for each transport
-      for a in addrs: # for each address
-        if t.handles(a):   # check if it can dial it
-          trace "Dialing address", address = $a, peerId
-          let dialed = try:
-              await t.dial(a)
-            except CancelledError as exc:
-              debug "Dialing canceled", msg = exc.msg, peerId
-              raise exc
-            except CatchableError as exc:
-              debug "Dialing failed", msg = exc.msg, peerId
-              libp2p_failed_dials.inc()
-              continue # Try the next address
-
-          # make sure to assign the peer to the connection
-          dialed.peerInfo = PeerInfo.init(peerId, addrs)
-
-          libp2p_dialed_peers.inc()
-
-          let upgraded = try:
-              await s.upgradeOutgoing(dialed)
-            except CatchableError as exc:
-              # If we failed to establish the connection through one transport,
-              # we won't succeeded through another - no use in trying again
-              await dialed.close()
-              debug "Upgrade failed", msg = exc.msg, peerId
-              if exc isnot CancelledError:
-                libp2p_failed_upgrade.inc()
-              raise exc
-
-          doAssert not isNil(upgraded), "connection died after upgradeOutgoing"
-
-          conn = upgraded
-          debug "Dial successful", conn, peerInfo = conn.peerInfo
-          break
+    conn = await s.dialAndUpgrade(peerId, addrs)
   finally:
     if lock.locked():
       lock.release()

@@ -81,7 +81,7 @@ proc handleConn*(s: Secure,
       let futs = @[conn.join(), sconn.join()]
       await futs[0] or futs[1]
       for f in futs:
-        if not f.finished: f.cancel # cancel outstanding join()
+        if not f.finished: await f.cancelAndWait() # cancel outstanding join()
 
       await allFuturesThrowing(
         sconn.close(), conn.close())
