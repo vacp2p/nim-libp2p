@@ -943,6 +943,7 @@ suite "Mplex":
       for i in 0..9:
         dialStreams.add((await mplexDial.newStream()))
 
+      await sleepAsync(100.millis)
       await listenConn.closeWithEOF()
       await allFuturesThrowing(
           (dialStreams & listenStreams)
