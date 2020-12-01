@@ -415,20 +415,20 @@ proc rebalanceMesh(g: GossipSub, topic: string) {.async.} =
 
   let npeers = g.mesh.peers(topic)
   if npeers  < g.parameters.dLow:
-    trace "replenishing mesh", peers = g.mesh.peers(topic)
+    trace "replenishing mesh", peers = npeers
     # replenish the mesh if we're below Dlo
     var candidates = toSeq(
       g.gossipsub.getOrDefault(topic, initHashSet[PubSubPeer]()) -
       g.mesh.getOrDefault(topic, initHashSet[PubSubPeer]())
-    ).filterIt(it.connected)
-
-    candidates.keepIf do (x: PubSubPeer) -> bool:
+    ).filterIt(
+      it.connected and
       # avoid negative score peers
-      x.score >= 0.0 and
+      it.score >= 0.0 and
       # don't pick explicit peers
-      x.peerId notin g.parameters.directPeers and
+      it.peerId notin g.parameters.directPeers and
       # and avoid peers we are backing off
-      x.peerId notin g.backingOff
+      it.peerId notin g.backingOff
+    )
 
     # shuffle anyway, score might be not used
     shuffle(candidates)
@@ -437,7 +437,7 @@ proc rebalanceMesh(g: GossipSub, topic: string) {.async.} =
     candidates.sort(byScore, SortOrder.Descending)
 
     # Graft peers so we reach a count of D
-    candidates.setLen(min(candidates.len, g.parameters.d - g.mesh.peers(topic)))
+    candidates.setLen(min(candidates.len, g.parameters.d - npeers))
 
     trace "grafting", grafting = candidates.len
     for peer in candidates:
@@ -455,17 +455,17 @@ proc rebalanceMesh(g: GossipSub, topic: string) {.async.} =
       var candidates = toSeq(
         g.gossipsub.getOrDefault(topic, initHashSet[PubSubPeer]()) -
         g.mesh.getOrDefault(topic, initHashSet[PubSubPeer]())
-      )
-
-      candidates.keepIf do (x: PubSubPeer) -> bool:
+      ).filterIt(
+        it.connected and
         # get only outbound ones
-        x.outbound and
+        it.outbound and
         # avoid negative score peers
-        x.score >= 0.0 and
+        it.score >= 0.0 and
         # don't pick explicit peers
-        x.peerId notin g.parameters.directPeers and
+        it.peerId notin g.parameters.directPeers and
         # and avoid peers we are backing off
-        x.peerId notin g.backingOff
+        it.peerId notin g.backingOff
+      )
 
       # shuffle anyway, score might be not used
       shuffle(candidates)
@@ -490,8 +490,7 @@ proc rebalanceMesh(g: GossipSub, topic: string) {.async.} =
     prunes = toSeq(g.mesh[topic])
     # avoid pruning peers we are currently grafting in this heartbeat
     prunes.keepIf do (x: PubSubPeer) -> bool: x notin grafts
-    let mesh = prunes
-
+      
     # shuffle anyway, score might be not used
     shuffle(prunes)
 
@@ -511,14 +510,11 @@ proc rebalanceMesh(g: GossipSub, topic: string) {.async.} =
         else:
           inbound &= peer
 
+      let
+        meshOutbound = prunes.countIt(it.outbound)
+        maxOutboundPrunes = meshOutbound - g.parameters.dOut
+
       # ensure that there are at least D_out peers first and rebalance to g.d after that
-      let maxOutboundPrunes =
-        block:
-          var count = 0
-          for peer in mesh:
-            if peer.outbound:
-              inc count
-          count - g.parameters.dOut
       outbound.setLen(min(outbound.len, max(0, maxOutboundPrunes)))
 
       # concat remaining outbound peers
