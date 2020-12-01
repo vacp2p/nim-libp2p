@@ -411,18 +411,18 @@ proc rebalanceMesh(g: GossipSub, topic: string) {.async.} =
   # create a mesh topic that we're subscribing to
 
   var
-    grafts, prunes, grafting: seq[PubSubPeer]
+    prunes, grafts: seq[PubSubPeer]
 
   let npeers = g.mesh.peers(topic)
   if npeers  < g.parameters.dLow:
     trace "replenishing mesh", peers = g.mesh.peers(topic)
     # replenish the mesh if we're below Dlo
-    grafts = toSeq(
+    var candidates = toSeq(
       g.gossipsub.getOrDefault(topic, initHashSet[PubSubPeer]()) -
       g.mesh.getOrDefault(topic, initHashSet[PubSubPeer]())
     ).filterIt(it.connected)
 
-    grafts.keepIf do (x: PubSubPeer) -> bool:
+    candidates.keepIf do (x: PubSubPeer) -> bool:
       # avoid negative score peers
       x.score >= 0.0 and
       # don't pick explicit peers
@@ -431,20 +431,20 @@ proc rebalanceMesh(g: GossipSub, topic: string) {.async.} =
       x.peerId notin g.backingOff
 
     # shuffle anyway, score might be not used
-    shuffle(grafts)
+    shuffle(candidates)
 
     # sort peers by score, high score first since we graft
-    grafts.sort(byScore, SortOrder.Descending)
+    candidates.sort(byScore, SortOrder.Descending)
 
     # Graft peers so we reach a count of D
-    grafts.setLen(min(grafts.len, g.parameters.d - g.mesh.peers(topic)))
+    candidates.setLen(min(candidates.len, g.parameters.d - g.mesh.peers(topic)))
 
-    trace "grafting", grafts = grafts.len
-    for peer in grafts:
+    trace "grafting", grafting = candidates.len
+    for peer in candidates:
       if g.mesh.addPeer(topic, peer):
         g.grafted(peer, topic)
         g.fanout.removePeer(topic, peer)
-        grafting &= peer
+        grafts &= peer
 
   else:
     var meshPeers = toSeq(g.mesh.getOrDefault(topic, initHashSet[PubSubPeer]()))
@@ -452,12 +452,12 @@ proc rebalanceMesh(g: GossipSub, topic: string) {.async.} =
     if meshPeers.len < g.parameters.dOut:
       trace "replenishing mesh outbound quota", peers = g.mesh.peers(topic)
 
-      grafts = toSeq(
+      var candidates = toSeq(
         g.gossipsub.getOrDefault(topic, initHashSet[PubSubPeer]()) -
         g.mesh.getOrDefault(topic, initHashSet[PubSubPeer]())
       )
 
-      grafts.keepIf do (x: PubSubPeer) -> bool:
+      candidates.keepIf do (x: PubSubPeer) -> bool:
         # get only outbound ones
         x.outbound and
         # avoid negative score peers
@@ -468,28 +468,28 @@ proc rebalanceMesh(g: GossipSub, topic: string) {.async.} =
         x.peerId notin g.backingOff
 
       # shuffle anyway, score might be not used
-      shuffle(grafts)
+      shuffle(candidates)
 
       # sort peers by score, high score first, we are grafting
-      grafts.sort(byScore, SortOrder.Descending)
+      candidates.sort(byScore, SortOrder.Descending)
 
       # Graft peers so we reach a count of D
-      grafts.setLen(min(grafts.len, g.parameters.dOut))
+      candidates.setLen(min(candidates.len, g.parameters.dOut))
 
-      trace "grafting outbound peers", topic, peers = grafts.len
+      trace "grafting outbound peers", topic, peers = candidates.len
 
-      for peer in grafts:
+      for peer in candidates:
         if g.mesh.addPeer(topic, peer):
           g.grafted(peer, topic)
           g.fanout.removePeer(topic, peer)
-          grafting &= peer
+          grafts &= peer
 
 
   if g.mesh.peers(topic) > g.parameters.dHigh:
     # prune peers if we've gone over Dhi
     prunes = toSeq(g.mesh[topic])
     # avoid pruning peers we are currently grafting in this heartbeat
-    prunes.keepIf do (x: PubSubPeer) -> bool: x notin grafting
+    prunes.keepIf do (x: PubSubPeer) -> bool: x notin grafts
     let mesh = prunes
 
     # shuffle anyway, score might be not used
@@ -565,7 +565,7 @@ proc rebalanceMesh(g: GossipSub, topic: string) {.async.} =
       for peer in avail:
         if g.mesh.addPeer(topic, peer):
           g.grafted(peer, topic)
-          grafting &= peer
+          grafts &= peer
           trace "opportunistic grafting", peer
 
   when defined(libp2p_expensive_metrics):
@@ -581,9 +581,9 @@ proc rebalanceMesh(g: GossipSub, topic: string) {.async.} =
   trace "mesh balanced"
 
   # Send changes to peers after table updates to avoid stale state
-  if grafting.len > 0:
+  if grafts.len > 0:
     let graft = RPCMsg(control: some(ControlMessage(graft: @[ControlGraft(topicID: topic)])))
-    g.broadcast(grafting, graft)
+    g.broadcast(grafts, graft)
   if prunes.len > 0:
     let prune = RPCMsg(control: some(ControlMessage(
       prune: @[ControlPrune(
