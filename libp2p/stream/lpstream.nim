@@ -38,6 +38,7 @@ type
     objName*: string
     oid*: Oid
     dir*: Direction
+    closedWithEOF: bool # prevent concurrent calls
 
   LPStreamError* = object of CatchableError
   LPStreamIncompleteError* = object of LPStreamError
@@ -280,6 +281,16 @@ proc closeWithEOF*(s: LPStream): Future[void] {.async.} =
   ##
   ## In particular, it must not be used when there is another concurrent read
   ## ongoing (which may be the case during cancellations)!
+  ##
+
+  trace "Closing with EOF", s
+  if s.closedWithEOF:
+    trace "Already closed"
+    return
+
+  # prevent any further calls to avoid triggering
+  # reading the stream twice (which should assert)
+  s.closedWithEOF = true
   await s.close()
 
   if s.atEof():
