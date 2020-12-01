@@ -25,7 +25,7 @@ import stew/results
 export results
 
 logScope:
-  topics = "gossipsub"
+  topics = "libp2p gossipsub"
 
 const
   GossipSubCodec* = "/meshsub/1.1.0"

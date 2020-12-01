@@ -28,7 +28,7 @@ import ./pubsub,
        ../../utility
 
 logScope:
-  topics = "gossipsub"
+  topics = "libp2p gossipsub"
 
 const GossipSubCodec* = "/meshsub/1.0.0"
 

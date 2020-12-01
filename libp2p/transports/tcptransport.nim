@@ -18,7 +18,7 @@ import transport,
        ../stream/chronosstream
 
 logScope:
-  topics = "tcptransport"
+  topics = "libp2p tcptransport"
 
 export transport
 

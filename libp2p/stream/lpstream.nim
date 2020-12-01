@@ -21,7 +21,7 @@ declareGauge(libp2p_open_streams,
 export oids
 
 logScope:
-  topics = "lpstream"
+  topics = "libp2p lpstream"
 
 const
   LPStreamTrackerName* = "LPStream"

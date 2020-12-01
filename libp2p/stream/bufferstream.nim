@@ -19,7 +19,7 @@ when chronicles.enabledLogLevel == LogLevel.TRACE:
 export connection
 
 logScope:
-  topics = "bufferstream"
+  topics = "libp2p bufferstream"
 
 const
   BufferStreamTrackerName* = "BufferStream"

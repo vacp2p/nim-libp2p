@@ -16,7 +16,7 @@ import lpstream,
 export lpstream, peerinfo
 
 logScope:
-  topics = "connection"
+  topics = "libp2p connection"
 
 const
   ConnectionTrackerName* = "Connection"
