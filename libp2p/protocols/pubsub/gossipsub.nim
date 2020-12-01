@@ -382,9 +382,6 @@ proc replenishFanout(g: GossipSub, topic: string) =
   if KnownLibP2PTopicsSeq.contains(topic):
     libp2p_gossipsub_peers_per_topic_fanout
       .set(g.fanout.peers(topic).int64, labelValues = [topic])
-  else:
-    libp2p_gossipsub_peers_per_topic_fanout
-      .set(g.fanout.peers(topic).int64, labelValues = ["generic"])
 
   trace "fanout replenished with peers", peers = g.fanout.peers(topic)
 
@@ -581,17 +578,6 @@ proc rebalanceMesh(g: GossipSub, topic: string) {.async.} =
 
     libp2p_gossipsub_peers_per_topic_mesh
       .set(g.mesh.peers(topic).int64, labelValues = [topic])
-  else:
-    libp2p_gossipsub_peers_per_topic_gossipsub
-      .set(g.gossipsub.peers(topic).int64, labelValues = ["generic"])
-
-    libp2p_gossipsub_peers_per_topic_fanout
-      .set(g.fanout.peers(topic).int64, labelValues = ["generic"])
-
-    libp2p_gossipsub_peers_per_topic_mesh
-      .set(g.mesh.peers(topic).int64, labelValues = ["generic"])
-
-    
 
   trace "mesh balanced"
 
@@ -621,9 +607,6 @@ proc dropFanoutPeers(g: GossipSub) =
     if KnownLibP2PTopicsSeq.contains(topic):
       libp2p_gossipsub_peers_per_topic_fanout
         .set(g.fanout.peers(topic).int64, labelValues = [topic])
-    else:
-      libp2p_gossipsub_peers_per_topic_fanout
-        .set(g.fanout.peers(topic).int64, labelValues = ["generic"])
 
 proc getGossipPeers(g: GossipSub): Table[PubSubPeer, ControlMessage] {.gcsafe.} =
   ## gossip iHave messages to peers
@@ -906,9 +889,6 @@ method unsubscribePeer*(g: GossipSub, peer: PeerID) =
     if KnownLibP2PTopicsSeq.contains(t):
       libp2p_gossipsub_peers_per_topic_gossipsub
         .set(g.gossipsub.peers(t).int64, labelValues = [t])
-    else:
-      libp2p_gossipsub_peers_per_topic_gossipsub
-        .set(g.gossipsub.peers(t).int64, labelValues = ["generic"])
 
   for t in toSeq(g.mesh.keys):
     g.pruned(pubSubPeer, t)
@@ -917,9 +897,6 @@ method unsubscribePeer*(g: GossipSub, peer: PeerID) =
     if KnownLibP2PTopicsSeq.contains(t):
       libp2p_gossipsub_peers_per_topic_mesh
         .set(g.mesh.peers(t).int64, labelValues = [t])
-    else:
-      libp2p_gossipsub_peers_per_topic_mesh
-        .set(g.mesh.peers(t).int64, labelValues = ["generic"])
 
   for t in toSeq(g.fanout.keys):
     g.fanout.removePeer(t, pubSubPeer)
@@ -927,9 +904,6 @@ method unsubscribePeer*(g: GossipSub, peer: PeerID) =
     if KnownLibP2PTopicsSeq.contains(t):
       libp2p_gossipsub_peers_per_topic_fanout
         .set(g.fanout.peers(t).int64, labelValues = [t])
-    else:
-      libp2p_gossipsub_peers_per_topic_fanout
-        .set(g.fanout.peers(t).int64, labelValues = ["generic"])
 
     g.peerStats[pubSubPeer].expire = Moment.now() + g.parameters.retainScore
     for topic, info in g.peerStats[pubSubPeer].topicInfos.mpairs:
@@ -970,18 +944,10 @@ method subscribeTopic*(g: GossipSub,
         .set(g.mesh.peers(topic).int64, labelValues = [topic])
       libp2p_gossipsub_peers_per_topic_fanout
         .set(g.fanout.peers(topic).int64, labelValues = [topic])
-    else:
-      libp2p_gossipsub_peers_per_topic_mesh
-        .set(g.mesh.peers(topic).int64, labelValues = ["generic"])
-      libp2p_gossipsub_peers_per_topic_fanout
-        .set(g.fanout.peers(topic).int64, labelValues = ["generic"])
 
   if KnownLibP2PTopicsSeq.contains(topic):
     libp2p_gossipsub_peers_per_topic_gossipsub
       .set(g.gossipsub.peers(topic).int64, labelValues = [topic])
-  else:
-    libp2p_gossipsub_peers_per_topic_gossipsub
-      .set(g.gossipsub.peers(topic).int64, labelValues = ["generic"])
 
   trace "gossip peers", peers = g.gossipsub.peers(topic), topic
 
@@ -1068,11 +1034,6 @@ proc handleGraft(g: GossipSub,
         .set(g.mesh.peers(topic).int64, labelValues = [topic])
       libp2p_gossipsub_peers_per_topic_fanout
         .set(g.fanout.peers(topic).int64, labelValues = [topic])
-    else:
-      libp2p_gossipsub_peers_per_topic_mesh
-        .set(g.mesh.peers(topic).int64, labelValues = ["generic"])
-      libp2p_gossipsub_peers_per_topic_fanout
-        .set(g.fanout.peers(topic).int64, labelValues = ["generic"])
 
 proc handlePrune(g: GossipSub, peer: PubSubPeer, prunes: seq[ControlPrune]) =
   for prune in prunes:
@@ -1095,9 +1056,6 @@ proc handlePrune(g: GossipSub, peer: PubSubPeer, prunes: seq[ControlPrune]) =
     if KnownLibP2PTopicsSeq.contains(prune.topicID):
       libp2p_gossipsub_peers_per_topic_mesh
         .set(g.mesh.peers(prune.topicID).int64, labelValues = [prune.topicID])
-    else:
-      libp2p_gossipsub_peers_per_topic_mesh
-        .set(g.mesh.peers(prune.topicID).int64, labelValues = ["generic"])
 
 proc handleIHave(g: GossipSub,
                  peer: PubSubPeer,
