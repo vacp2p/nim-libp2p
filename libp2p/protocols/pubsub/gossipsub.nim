@@ -615,7 +615,7 @@ proc getGossipPeers(g: GossipSub): Table[PubSubPeer, ControlMessage] {.gcsafe.} 
       continue
 
     let mids = g.mcache.window(topic)
-    if not mids.len > 0:
+    if not(mids.len > 0):
       continue
 
     var midsSeq = toSeq(mids)
