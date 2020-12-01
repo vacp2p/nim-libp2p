@@ -522,17 +522,17 @@ proc rebalanceMesh(g: GossipSub, topic: string) {.async.} =
       outbound.setLen(min(outbound.len, max(0, maxOutboundPrunes)))
 
       # concat remaining outbound peers
-      inbound &= outbound
+      prunes = inbound & outbound
 
-      let pruneLen = inbound.len - g.parameters.d
+      let pruneLen = prunes.len - g.parameters.d
       if pruneLen > 0:
         # Ok we got some peers to prune,
         # for this heartbeat let's prune those
-        shuffle(inbound)
-        inbound.setLen(pruneLen)
+        shuffle(prunes)
+        prunes.setLen(pruneLen)
 
-      trace "pruning", prunes = inbound.len
-      for peer in inbound:
+      trace "pruning", prunes = prunes.len
+      for peer in prunes:
         g.pruned(peer, topic)
         g.mesh.removePeer(topic, peer)
 
@@ -581,9 +581,9 @@ proc rebalanceMesh(g: GossipSub, topic: string) {.async.} =
   trace "mesh balanced"
 
   # Send changes to peers after table updates to avoid stale state
-  if grafts.len > 0:
+  if grafting.len > 0:
     let graft = RPCMsg(control: some(ControlMessage(graft: @[ControlGraft(topicID: topic)])))
-    g.broadcast(grafts, graft)
+    g.broadcast(grafting, graft)
   if prunes.len > 0:
     let prune = RPCMsg(control: some(ControlMessage(
       prune: @[ControlPrune(
