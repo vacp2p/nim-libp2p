@@ -13,7 +13,7 @@ import ../protocols/protocol,
        ../errors
 
 logScope:
-  topics = "muxer"
+  topics = "libp2p muxer"
 
 const
   DefaultChanTimeout* = 5.minutes

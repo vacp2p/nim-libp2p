@@ -212,7 +212,6 @@ suite "Switch":
     check not switch1.isConnected(switch2.peerInfo)
     check not switch2.isConnected(switch1.peerInfo)
 
-
   asyncTest "e2e should not leak on peer disconnect":
     var awaiters: seq[Future[void]]
 
@@ -694,6 +693,46 @@ suite "Switch":
     await allFuturesThrowing(
       transport.stop(),
       switch.stop())
+
+    # this needs to go at end
+    await allFuturesThrowing(awaiters)
+
+  asyncTest "e2e calling closeWithEOF on the same stream should not assert":
+    let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
+
+    proc handle(conn: Connection, proto: string) {.async, gcsafe.} =
+      discard await conn.readLp(100)
+
+    let testProto = new TestProto
+    testProto.codec = TestCodec
+    testProto.handler = handle
+
+    let switch1 = newStandardSwitch(secureManagers = [SecureProtocol.Noise])
+    switch1.mount(testProto)
+
+    let switch2 = newStandardSwitch(secureManagers = [SecureProtocol.Noise])
+
+    var awaiters: seq[Future[void]]
+    awaiters.add(await switch1.start())
+
+    var peerId = PeerID.init(PrivateKey.random(ECDSA, rng[]).get()).get()
+    let conn = await switch2.dial(switch1.peerInfo, TestCodec)
+
+    proc closeReader() {.async.} =
+      await conn.closeWithEOF()
+
+    var readers: seq[Future[void]]
+    for i in 0..10:
+      readers.add(closeReader())
+
+    await allFuturesThrowing(readers)
+    checkTracker(LPChannelTrackerName)
+    checkTracker(SecureConnTrackerName)
+    checkTracker(ChronosStreamTrackerName)
+
+    await allFuturesThrowing(
+      switch1.stop(),
+      switch2.stop())
 
     # this needs to go at end
     await allFuturesThrowing(awaiters)

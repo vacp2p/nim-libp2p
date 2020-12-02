@@ -14,6 +14,9 @@ import ../stream/connection,
        ../multiaddress,
        ../multicodec
 
+logScope:
+  topics = "libp2p transport"
+
 type
   TransportClosedError* = object of CatchableError
 

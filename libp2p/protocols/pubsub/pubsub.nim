@@ -27,7 +27,7 @@ export PubSubObserver
 export protocol
 
 logScope:
-  topics = "pubsub"
+  topics = "libp2p pubsub"
 
 const
   KnownLibP2PTopics* {.strdefine.} = ""

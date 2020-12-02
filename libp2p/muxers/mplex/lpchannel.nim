@@ -18,7 +18,7 @@ import ./coder,
 export connection
 
 logScope:
-  topics = "mplexchannel"
+  topics = "libp2p mplexchannel"
 
 ## Channel half-closed states
 ##

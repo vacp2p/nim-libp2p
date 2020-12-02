@@ -12,7 +12,7 @@ import chronos, chronicles, metrics
 import connection
 
 logScope:
-  topics = "chronosstream"
+  topics = "libp2p chronosstream"
 
 const
   DefaultChronosStreamTimeout = 10.minutes

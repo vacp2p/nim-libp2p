@@ -14,7 +14,7 @@ import stream/connection,
        protocols/protocol
 
 logScope:
-  topics = "multistream"
+  topics = "libp2p multistream"
 
 const
   MsgSize* = 64*1024

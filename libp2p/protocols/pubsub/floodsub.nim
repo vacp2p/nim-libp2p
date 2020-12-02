@@ -20,7 +20,7 @@ import ./pubsub,
        ../../utility
 
 logScope:
-  topics = "floodsub"
+  topics = "libp2p floodsub"
 
 const FloodSubCodec* = "/floodsub/1.0.0"
 
