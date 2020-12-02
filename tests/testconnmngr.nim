@@ -49,6 +49,18 @@ suite "Connection Manager":
 
     await connMngr.close()
 
+  asyncTest "shouldn't allow an EOFed connection":
+    let connMngr = ConnManager.init()
+    let peer = PeerInfo.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet())
+    let conn = Connection.init(peer, Direction.In)
+    conn.isEof = true
+
+    expect CatchableError:
+      connMngr.storeConn(conn)
+
+    await conn.close()
+    await connMngr.close()
+
   asyncTest "add and retrieve a muxer":
     let connMngr = ConnManager.init()
     let peer = PeerInfo.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet())
