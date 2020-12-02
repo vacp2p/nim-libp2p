@@ -8,6 +8,7 @@ import ../libp2p/crypto/crypto
 import ../libp2p/stream/lpstream
 import ../libp2p/muxers/mplex/lpchannel
 import ../libp2p/protocols/secure/secure
+import ../libp2p/utility
 
 const
   StreamTransportTrackerName = "stream.transport"
@@ -62,6 +63,7 @@ template asyncSetup*(body: untyped): untyped =
 
 template asyncTest*(name: string, body: untyped): untyped =
   test name:
+    resetDebugCounters()
     waitFor((
       proc() {.async, gcsafe.} =
         body

@@ -75,7 +75,6 @@ template tryPublish(call: untyped, require: int, wait: Duration = 1.seconds, tim
 suite "GossipSub":
   teardown:
     checkTrackers()
-    resetDebugCounters()
 
   asyncTest "GossipSub validation should succeed":
     var handlerFut = newFuture[bool]()
