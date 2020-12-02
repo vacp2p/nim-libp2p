@@ -13,6 +13,7 @@ import unittest, sequtils, options, tables, sets
 import chronos, stew/byteutils
 import chronicles
 import utils, ../../libp2p/[errors,
+                            utility,
                             peerid,
                             peerinfo,
                             stream/connection,
@@ -74,6 +75,7 @@ template tryPublish(call: untyped, require: int, wait: Duration = 1.seconds, tim
 suite "GossipSub":
   teardown:
     checkTrackers()
+    resetDebugCounters()
 
   asyncTest "GossipSub validation should succeed":
     var handlerFut = newFuture[bool]()
@@ -132,6 +134,19 @@ suite "GossipSub":
     )
 
     await allFuturesThrowing(nodesFut.concat())
+
+    check:
+      getDebugCounter("pubsub_broadcast_messages") == 2
+      getDebugCounter("pubsub_broadcast_graft") == 2
+      getDebugCounter("pubsub_broadcast_subscriptions") == 2
+      getDebugCounter("pubsub_broadcast_prune") == 0
+      getDebugCounter("pubsub_broadcast_ihave") == 0 # peers are in the mesh!
+
+      getDebugCounter("pubsub_received_messages") == 2
+      getDebugCounter("pubsub_received_graft") == 2
+      getDebugCounter("pubsub_received_subscriptions") == 2
+      getDebugCounter("pubsub_received_prune") == 0
+      getDebugCounter("pubsub_received_ihave") == 0 # peers are in the mesh!
 
   asyncTest "GossipSub validation should fail":
     proc handler(topic: string, data: seq[byte]) {.async, gcsafe.} =
@@ -195,6 +210,19 @@ suite "GossipSub":
 
     await allFuturesThrowing(nodesFut.concat())
 
+    check:
+      getDebugCounter("pubsub_broadcast_messages") == 1
+      getDebugCounter("pubsub_broadcast_graft") == 2
+      getDebugCounter("pubsub_broadcast_subscriptions") == 2
+      getDebugCounter("pubsub_broadcast_prune") == 0
+      getDebugCounter("pubsub_broadcast_ihave") == 0 # peers are in the mesh!
+
+      getDebugCounter("pubsub_received_messages") == 1
+      getDebugCounter("pubsub_received_graft") == 2
+      getDebugCounter("pubsub_received_subscriptions") == 2
+      getDebugCounter("pubsub_received_prune") == 0
+      getDebugCounter("pubsub_received_ihave") == 0 # peers are in the mesh!
+
   asyncTest "GossipSub validation one fails and one succeeds":
     var handlerFut = newFuture[bool]()
     proc handler(topic: string, data: seq[byte]) {.async, gcsafe.} =
@@ -221,6 +249,12 @@ suite "GossipSub":
 
     await nodes[1].subscribe("foo", handler)
     await nodes[1].subscribe("bar", handler)
+
+    var subs: seq[Future[void]]
+    subs &= waitSub(nodes[0], nodes[1], "foo")
+    subs &= waitSub(nodes[0], nodes[1], "bar")
+
+    await allFuturesThrowing(subs)
 
     var passed, failed: Future[bool] = newFuture[bool]()
     proc validator(topic: string,
@@ -259,6 +293,19 @@ suite "GossipSub":
     )
 
     await allFuturesThrowing(nodesFut.concat())
+
+    check:
+      getDebugCounter("pubsub_broadcast_messages") == 2
+      getDebugCounter("pubsub_broadcast_graft") == 0 # we are using the fanout!
+      getDebugCounter("pubsub_broadcast_subscriptions") == 2
+      getDebugCounter("pubsub_broadcast_prune") == 0
+      getDebugCounter("pubsub_broadcast_ihave") == 0 # peers are in the mesh!
+
+      getDebugCounter("pubsub_received_messages") == 2
+      getDebugCounter("pubsub_received_graft") == 0 # we are using the fanout
+      getDebugCounter("pubsub_received_subscriptions") == 2
+      getDebugCounter("pubsub_received_prune") == 0
+      getDebugCounter("pubsub_received_ihave") == 0 # peers are in the mesh!
 
   asyncTest "e2e - GossipSub should add remote peer topic subscriptions":
     proc handler(topic: string, data: seq[byte]) {.async, gcsafe.} =
@@ -307,6 +354,19 @@ suite "GossipSub":
     )
 
     await allFuturesThrowing(nodesFut.concat())
+
+    check:
+      getDebugCounter("pubsub_broadcast_messages") == 0
+      getDebugCounter("pubsub_broadcast_graft") == 0
+      getDebugCounter("pubsub_broadcast_subscriptions") == 1
+      getDebugCounter("pubsub_broadcast_prune") == 0
+      getDebugCounter("pubsub_broadcast_ihave") == 0
+
+      getDebugCounter("pubsub_received_messages") == 0
+      getDebugCounter("pubsub_received_graft") == 0
+      getDebugCounter("pubsub_received_subscriptions") == 1
+      getDebugCounter("pubsub_received_prune") == 0
+      getDebugCounter("pubsub_received_ihave") == 0
 
   asyncTest "e2e - GossipSub should add remote peer topic subscriptions if both peers are subscribed":
     proc handler(topic: string, data: seq[byte]) {.async, gcsafe.} =
@@ -370,6 +430,19 @@ suite "GossipSub":
     )
 
     await allFuturesThrowing(nodesFut.concat())
+
+    check:
+      getDebugCounter("pubsub_broadcast_messages") == 0
+      getDebugCounter("pubsub_broadcast_graft") == 2
+      getDebugCounter("pubsub_broadcast_subscriptions") == 2
+      getDebugCounter("pubsub_broadcast_prune") == 0
+      getDebugCounter("pubsub_broadcast_ihave") == 0
+
+      getDebugCounter("pubsub_received_messages") == 0
+      getDebugCounter("pubsub_received_graft") == 2
+      getDebugCounter("pubsub_received_subscriptions") == 2
+      getDebugCounter("pubsub_received_prune") == 0
+      getDebugCounter("pubsub_received_ihave") == 0
 
   asyncTest "e2e - GossipSub send over fanout A -> B":
     var passed = newFuture[void]()
