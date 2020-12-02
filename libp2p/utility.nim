@@ -60,8 +60,13 @@ when defined(internal_testing):
     {.gcsafe.}: # this is a lie but threading is also a lie in this context
       if Counters.contains(item):
         Counters[item].clear()
+
+  template resetDebugCounters*() =
+    {.gcsafe.}: # this is a lie but threading is also a lie in this context
+      Counters.clear()
 else:
   template incDebugCounter*(item: string, increase: auto = 1) = discard
   template decDebugCounter*(item: string, increase: auto = 1) = discard
   template getDebugCounter*(item: string): int64 = 0
   template resetDebugCounter*(item: string) = discard
+  template resetDebugCounters*() = discard

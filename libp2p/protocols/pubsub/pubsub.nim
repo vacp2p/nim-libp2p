@@ -171,6 +171,12 @@ proc sendSubs*(p: PubSub,
                subscribe: bool) =
   ## send subscriptions to remote peer
   p.send(peer, RPCMsg.withSubs(topics, subscribe))
+  for topic in topics:
+    if KnownLibP2PTopicsSeq.contains(topic):
+      libp2p_pubsub_broadcast_subscriptions.inc(labelValues = [topic])
+    else:
+      libp2p_pubsub_broadcast_subscriptions.inc(labelValues = ["generic"])
+    incDebugCounter("pubsub_broadcast_subscriptions")
 
 method subscribeTopic*(p: PubSub,
                        topic: string,
