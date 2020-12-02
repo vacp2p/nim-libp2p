@@ -848,6 +848,7 @@ proc heartbeat(g: GossipSub) {.async.} =
           else:
             libp2p_pubsub_broadcast_ihave.inc(labelValues = ["generic"])
         g.send(peer, RPCMsg(control: some(control)))
+        incDebugCounter("pubsub_broadcast_ihave")
 
       g.mcache.shift() # shift the cache
     except CancelledError as exc:
@@ -1187,6 +1188,7 @@ method rpcHandler*(g: GossipSub,
         libp2p_pubsub_messages_rebroadcasted.inc(labelValues = [topic])
       else:
         libp2p_pubsub_messages_rebroadcasted.inc(labelValues = ["generic"])
+      incDebugCounter("pubsub_messages_rebroadcasted")
 
   if rpcMsg.control.isSome:
     let control = rpcMsg.control.get()
@@ -1207,12 +1209,15 @@ method rpcHandler*(g: GossipSub,
             libp2p_pubsub_broadcast_messages.inc(labelValues = [topic])
           else:
             libp2p_pubsub_broadcast_messages.inc(labelValues = ["generic"])
+          incDebugCounter("pubsub_broadcast_messages")
       libp2p_pubsub_broadcast_iwant.inc(respControl.iwant.len.int64)
+      incDebugCounter("pubsub_broadcast_iwant", respControl.iwant.len)
       for prune in respControl.prune:
         if KnownLibP2PTopicsSeq.contains(prune.topicID):
           libp2p_pubsub_broadcast_prune.inc(labelValues = [prune.topicID])
         else:
           libp2p_pubsub_broadcast_prune.inc(labelValues = ["generic"])
+        incDebugCounter("pubsub_broadcast_prune")
       trace "sending control message", msg = shortLog(respControl), peer
       g.send(
         peer,
@@ -1333,13 +1338,14 @@ method publish*(g: GossipSub,
 
   g.mcache.put(msgId, msg)
 
-  g.broadcast(toSeq(peers), RPCMsg(messages: @[msg]))
+  let peerSeq = toSeq(peers)
+  g.broadcast(peerSeq, RPCMsg(messages: @[msg]))
   if KnownLibP2PTopicsSeq.contains(topic):
-    libp2p_pubsub_messages_published.inc(labelValues = [topic])
+    libp2p_pubsub_messages_published.inc(peerSeq.len.int64, labelValues = [topic])
   else:
-    libp2p_pubsub_messages_published.inc(labelValues = ["generic"])
+    libp2p_pubsub_messages_published.inc(peerSeq.len.int64, labelValues = ["generic"])
+  incDebugCounter("pubsub_messages_published", peerSeq.len)
   
-
   trace "Published message to peers"
 
   return peers.len
