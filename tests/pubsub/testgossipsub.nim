@@ -135,6 +135,7 @@ suite "GossipSub":
     await allFuturesThrowing(nodesFut.concat())
 
     check:
+      getDebugCounter("pubsub_messages_published") >= 1
       getDebugCounter("pubsub_broadcast_messages") == 2
       getDebugCounter("pubsub_broadcast_graft") == 2
       getDebugCounter("pubsub_broadcast_subscriptions") == 2
@@ -210,6 +211,7 @@ suite "GossipSub":
     await allFuturesThrowing(nodesFut.concat())
 
     check:
+      getDebugCounter("pubsub_messages_published") >= 1
       getDebugCounter("pubsub_broadcast_messages") == 1
       getDebugCounter("pubsub_broadcast_graft") == 2
       getDebugCounter("pubsub_broadcast_subscriptions") == 2
@@ -294,6 +296,7 @@ suite "GossipSub":
     await allFuturesThrowing(nodesFut.concat())
 
     check:
+      getDebugCounter("pubsub_messages_published") >= 2
       getDebugCounter("pubsub_broadcast_messages") == 2
       getDebugCounter("pubsub_broadcast_graft") == 0 # we are using the fanout!
       getDebugCounter("pubsub_broadcast_subscriptions") == 2
@@ -355,6 +358,7 @@ suite "GossipSub":
     await allFuturesThrowing(nodesFut.concat())
 
     check:
+      getDebugCounter("pubsub_messages_published") == 0
       getDebugCounter("pubsub_broadcast_messages") == 0
       getDebugCounter("pubsub_broadcast_graft") == 0
       getDebugCounter("pubsub_broadcast_subscriptions") == 1
@@ -431,6 +435,7 @@ suite "GossipSub":
     await allFuturesThrowing(nodesFut.concat())
 
     check:
+      getDebugCounter("pubsub_messages_published") == 0
       getDebugCounter("pubsub_broadcast_messages") == 0
       getDebugCounter("pubsub_broadcast_graft") == 2
       getDebugCounter("pubsub_broadcast_subscriptions") == 2
