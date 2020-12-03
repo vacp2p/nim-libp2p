@@ -208,8 +208,8 @@ proc delConn(c: ConnManager, conn: Connection) =
 
     if c.conns[peerId].len == 0:
       c.conns.del(peerId)
-      libp2p_peers.set(c.conns.len.int64)
 
+    libp2p_peers.set(c.conns.len.int64)
     trace "Removed connection", conn
 
 proc cleanupConn(c: ConnManager, conn: Connection) {.async.} =
@@ -327,6 +327,10 @@ proc storeConn*(c: ConnManager, conn: Connection) =
   if isNil(conn):
     raise newException(CatchableError, "connection cannot be nil")
 
+  if conn.closed() or conn.atEof():
+    trace "Can't store dead connection", conn
+    raise newException(CatchableError, "can't store dead connection")
+
   if isNil(conn.peerInfo):
     raise newException(CatchableError, "empty peer info")
 
@@ -369,6 +373,9 @@ proc storeMuxer*(c: ConnManager,
 
   if isNil(muxer.connection):
     raise newException(CatchableError, "muxer's connection cannot be nil")
+
+  if muxer.connection notin c:
+    raise newException(CatchableError, "cant add muxer for untracked connection")
 
   c.muxed[muxer.connection] = MuxerHolder(
     muxer: muxer,

@@ -672,7 +672,7 @@ suite "Switch":
 
     proc acceptHandler() {.async, gcsafe.} =
       let conn = await transport.accept()
-      await conn.close()
+      await conn.closeWithEOF()
 
     let handlerWait = acceptHandler()
     let switch = newStandardSwitch(secureManagers = [SecureProtocol.Noise])
