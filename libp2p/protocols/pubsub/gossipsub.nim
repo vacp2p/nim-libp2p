@@ -1180,14 +1180,14 @@ method rpcHandler*(g: GossipSub,
 
     # In theory, if topics are the same in all messages, we could batch - we'd
     # also have to be careful to only include validated messages
-    let toSendPeers = toSeq(toSendPeers)
-    g.broadcast(toSendPeers, RPCMsg(messages: @[msg]))
-    trace "forwared message to peers", peers = toSendPeers.len, msgId, peer
+    let sendingTo = toSeq(toSendPeers)
+    g.broadcast(sendingTo, RPCMsg(messages: @[msg]))
+    trace "forwared message to peers", peers = sendingTo.len, msgId, peer
     for topic in msg.topicIDs:
       if KnownLibP2PTopicsSeq.contains(topic):
-        libp2p_pubsub_messages_rebroadcasted.inc(toSendPeers.len, labelValues = [topic])
+        libp2p_pubsub_messages_rebroadcasted.inc(sendingTo.len.int64, labelValues = [topic])
       else:
-        libp2p_pubsub_messages_rebroadcasted.inc(toSendPeers.len, labelValues = ["generic"])
+        libp2p_pubsub_messages_rebroadcasted.inc(sendingTo.len.int64, labelValues = ["generic"])
 
   if rpcMsg.control.isSome:
     let control = rpcMsg.control.get()
