@@ -907,7 +907,7 @@ suite "Mplex":
 
       checkTracker(LPChannelTrackerName)
 
-      await conn.close()
+      await conn.closeWithEOF()
       await mplexDialFut
       await allFuturesThrowing(
         transport1.stop(),
@@ -943,7 +943,8 @@ suite "Mplex":
       for i in 0..9:
         dialStreams.add((await mplexDial.newStream()))
 
-      await listenConn.close()
+      await sleepAsync(100.millis)
+      await listenConn.closeWithEOF()
       await allFuturesThrowing(
           (dialStreams & listenStreams)
           .mapIt( it.join() ))

@@ -172,6 +172,14 @@ proc mux(s: Switch, conn: Connection): Future[Muxer] {.async, gcsafe.} =
   # store it in muxed connections if we have a peer for it
   s.connManager.storeMuxer(muxer, muxer.handle()) # store muxer and start read loop
 
+  try:
+    await s.identify(muxer)
+  except CatchableError as exc:
+    # Identify is non-essential, though if it fails, it might indicate that
+    # the connection was closed already - this will be picked up by the read
+    # loop
+    debug "Could not identify connection", conn, msg = exc.msg
+
   return muxer
 
 proc disconnect*(s: Switch, peerId: PeerID): Future[void] {.gcsafe.} =
@@ -195,18 +203,10 @@ proc upgradeOutgoing(s: Switch, conn: Connection): Future[Connection] {.async, g
     raise newException(UpgradeFailedError,
       "a muxer is required for outgoing connections")
 
-  try:
-    await s.identify(muxer)
-  except CatchableError as exc:
-    # Identify is non-essential, though if it fails, it might indicate that
-    # the connection was closed already - this will be picked up by the read
-    # loop
-    debug "Could not identify connection", conn, msg = exc.msg
-
-  if isNil(sconn.peerInfo):
+  if sconn.closed() or isNil(sconn.peerInfo):
     await sconn.close()
     raise newException(UpgradeFailedError,
-      "No peerInfo for connection, stopping upgrade")
+      "Connection closed or missing peer info, stopping upgrade")
 
   trace "Upgraded outgoing connection", conn, sconn
 
@@ -302,14 +302,13 @@ proc internalConnect(s: Switch,
   if s.peerInfo.peerId == peerId:
     raise newException(CatchableError, "can't dial self!")
 
-  var conn: Connection
   # Ensure there's only one in-flight attempt per peer
   let lock = s.dialLock.mgetOrPut(peerId, newAsyncLock())
   try:
     await lock.acquire()
 
     # Check if we have a connection already and try to reuse it
-    conn = s.connManager.selectConn(peerId)
+    var conn = s.connManager.selectConn(peerId)
     if conn != nil:
       if conn.atEof or conn.closed:
         # This connection should already have been removed from the connection
@@ -323,21 +322,24 @@ proc internalConnect(s: Switch,
       return conn
 
     conn = await s.dialAndUpgrade(peerId, addrs)
+    if isNil(conn): # None of the addresses connected
+      raise newException(DialFailedError, "Unable to establish outgoing link")
+
+    # We already check for this in Connection manager
+    # but a disconnect could have happened right after
+    # we've added the connection so we check again
+    # to prevent races due to that.
+    if conn.closed() or conn.atEof():
+      # This can happen when the other ends drops us
+      # before we get a chance to return the connection
+      # back to the dialer.
+      trace "Connection dead on arrival", conn
+      raise newLPStreamClosedError()
+
+    return conn
   finally:
     if lock.locked():
       lock.release()
-
-  if isNil(conn): # None of the addresses connected
-    raise newException(DialFailedError, "Unable to establish outgoing link")
-
-  if conn.closed() or conn.atEof():
-    # This can happen when the other ends drops us
-    # before we get a chance to return the connection
-    # back to the dialer.
-    trace "Connection dead on arrival", conn
-    raise newLPStreamClosedError()
-
-  return conn
 
 proc connect*(s: Switch, peerId: PeerID, addrs: seq[MultiAddress]) {.async.} =
   discard await s.internalConnect(peerId, addrs)
