@@ -35,38 +35,3 @@ func shortLog*(item: string): string =
     result &= item[0..<split]
     result &= "..."
     result &= item[(item.len - split)..item.high]
-
-when defined(internal_testing):
-  import tables
-
-  var
-    Counters = initTable[string, int64]()
-
-  template incDebugCounter*(item: string, increase: auto = 1) =
-    {.gcsafe.}: # this is a lie but threading is also a lie in this context
-      let current = Counters.getOrDefault(item)
-      Counters[item] = current + increase
-  
-  template decDebugCounter*(item: string, increase: auto = 1) =
-    {.gcsafe.}: # this is a lie but threading is also a lie in this context
-      let current = Counters.getOrDefault(item)
-      Counters[item] = current - increase
-
-  template getDebugCounter*(item: string): int64 = 
-    {.gcsafe.}: # this is a lie but threading is also a lie in this context
-      Counters.getOrDefault(item)
-  
-  template resetDebugCounter*(item: string) =
-    {.gcsafe.}: # this is a lie but threading is also a lie in this context
-      if Counters.contains(item):
-        Counters[item].clear()
-
-  template resetDebugCounters*() =
-    {.gcsafe.}: # this is a lie but threading is also a lie in this context
-      Counters.clear()
-else:
-  template incDebugCounter*(item: string, increase: auto = 1) = discard
-  template decDebugCounter*(item: string, increase: auto = 1) = discard
-  template getDebugCounter*(item: string): int64 = 0
-  template resetDebugCounter*(item: string) = discard
-  template resetDebugCounters*() = discard

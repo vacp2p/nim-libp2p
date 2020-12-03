@@ -126,7 +126,6 @@ proc broadcast*(
       libp2p_pubsub_broadcast_subscriptions.inc(npeers, labelValues = [sub.topic])
     else:
       libp2p_pubsub_broadcast_subscriptions.inc(npeers, labelValues = ["generic"])
-    incDebugCounter("pubsub_broadcast_subscriptions", npeers)
 
   for smsg in msg.messages:
     for topic in smsg.topicIDs:
@@ -134,11 +133,9 @@ proc broadcast*(
         libp2p_pubsub_broadcast_messages.inc(npeers, labelValues = [topic])
       else:
         libp2p_pubsub_broadcast_messages.inc(npeers, labelValues = ["generic"])
-      incDebugCounter("pubsub_broadcast_messages", npeers)
   
   if msg.control.isSome():
     libp2p_pubsub_broadcast_iwant.inc(npeers * msg.control.get().iwant.len.int64)
-    incDebugCounter("pubsub_broadcast_ihave", npeers * msg.control.get().iwant.len)
 
     let control = msg.control.get()
     for ihave in control.ihave:
@@ -146,19 +143,16 @@ proc broadcast*(
         libp2p_pubsub_broadcast_ihave.inc(npeers, labelValues = [ihave.topicID])
       else:
         libp2p_pubsub_broadcast_ihave.inc(npeers, labelValues = ["generic"])
-      incDebugCounter("pubsub_broadcast_ihave", npeers)
     for graft in control.graft:
       if KnownLibP2PTopicsSeq.contains(graft.topicID):
         libp2p_pubsub_broadcast_graft.inc(npeers, labelValues = [graft.topicID])
       else:
         libp2p_pubsub_broadcast_graft.inc(npeers, labelValues = ["generic"])
-      incDebugCounter("pubsub_broadcast_graft", npeers)
     for prune in control.prune:
       if KnownLibP2PTopicsSeq.contains(prune.topicID):
         libp2p_pubsub_broadcast_prune.inc(npeers, labelValues = [prune.topicID])
       else:
         libp2p_pubsub_broadcast_prune.inc(npeers, labelValues = ["generic"])
-      incDebugCounter("pubsub_broadcast_prune", npeers)
 
   trace "broadcasting messages to peers",
     peers = sendPeers.len, msg = shortLog(msg)
@@ -176,7 +170,6 @@ proc sendSubs*(p: PubSub,
       libp2p_pubsub_broadcast_subscriptions.inc(labelValues = [topic])
     else:
       libp2p_pubsub_broadcast_subscriptions.inc(labelValues = ["generic"])
-    incDebugCounter("pubsub_broadcast_subscriptions")
 
 method subscribeTopic*(p: PubSub,
                        topic: string,
@@ -199,7 +192,6 @@ method rpcHandler*(p: PubSub,
       libp2p_pubsub_received_subscriptions.inc(labelValues = [sub.topic])
     else:
       libp2p_pubsub_received_subscriptions.inc(labelValues = ["generic"])
-    incDebugCounter("pubsub_received_subscriptions")
 
   for smsg in rpcMsg.messages:
     for topic in smsg.topicIDs:
@@ -207,7 +199,6 @@ method rpcHandler*(p: PubSub,
         libp2p_pubsub_received_messages.inc(labelValues = [topic])
       else:
         libp2p_pubsub_received_messages.inc(labelValues = ["generic"])
-      incDebugCounter("pubsub_received_messages")
 
   if rpcMsg.control.isSome():
     libp2p_pubsub_received_iwant.inc(rpcMsg.control.get().iwant.len.int64)
@@ -218,19 +209,16 @@ method rpcHandler*(p: PubSub,
         libp2p_pubsub_received_ihave.inc(labelValues = [ihave.topicID])
       else:
         libp2p_pubsub_received_ihave.inc(labelValues = ["generic"])
-      incDebugCounter("pubsub_received_ihave")
     for graft in control.graft:
       if KnownLibP2PTopicsSeq.contains(graft.topicID):
         libp2p_pubsub_received_graft.inc(labelValues = [graft.topicID])
       else:
         libp2p_pubsub_received_graft.inc(labelValues = ["generic"])
-      incDebugCounter("pubsub_received_graft")
     for prune in control.prune:
       if KnownLibP2PTopicsSeq.contains(prune.topicID):
         libp2p_pubsub_received_prune.inc(labelValues = [prune.topicID])
       else:
         libp2p_pubsub_received_prune.inc(labelValues = ["generic"])
-      incDebugCounter("pubsub_received_prune")
 
 method onNewPeer(p: PubSub, peer: PubSubPeer) {.base.} = discard
 
