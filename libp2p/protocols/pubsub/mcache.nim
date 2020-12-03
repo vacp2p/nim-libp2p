@@ -20,20 +20,20 @@ type
   MCache* = object of RootObj
     msgs*: Table[MessageID, Message]
     history*: seq[seq[CacheEntry]]
-    historySize*: Natural
     windowSize*: Natural
 
 func get*(c: MCache, mid: MessageID): Option[Message] =
-  result = none(Message)
   if mid in c.msgs:
-    result = some(c.msgs[mid])
+    some(c.msgs[mid])
+  else:
+    none(Message)
 
 func contains*(c: MCache, mid: MessageID): bool =
   c.get(mid).isSome
 
 func put*(c: var MCache, msgId: MessageID, msg: Message) =
-  if msgId notin c.msgs:
-    c.msgs[msgId] = msg
+  if not c.msgs.hasKeyOrPut(msgId, msg):
+    # Only add cache entry if the message was not already in the cache
     c.history[0].add(CacheEntry(mid: msgId, topicIDs: msg.topicIDs))
 
 func window*(c: MCache, topic: string): HashSet[MessageID] =
@@ -58,6 +58,5 @@ func shift*(c: var MCache) =
 func init*(T: type MCache, window, history: Natural): T =
   T(
     history: newSeq[seq[CacheEntry]](history),
-    historySize: history,
     windowSize: window
   )
