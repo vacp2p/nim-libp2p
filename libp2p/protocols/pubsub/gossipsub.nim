@@ -7,7 +7,7 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import std/[tables, sets, options, sequtils, random, algorithm]
+import std/[tables, sets, options, sequtils, strutils, random, algorithm]
 import chronos, chronicles, metrics
 import ./pubsub,
        ./floodsub,
@@ -184,6 +184,8 @@ declareGauge(libp2p_gossipsub_peers_mesh_sum, "pubsub peers in mesh table summed
 declareGauge(libp2p_gossipsub_peers_gossipsub_sum, "pubsub peers in gossipsub table summed")
 declareCounter(libp2p_gossipsub_failed_publish, "number of failed publish")
 declareGauge(libp2p_gossipsub_cache_window_size, "the number of messages in the cache")
+when defined(libp2p_agents_metrics):
+  declareGauge(libp2p_gossipsub_peers_scores, "the scores of the peers in gossipsub", labels = ["agent"])
 
 proc init*(_: type[GossipSubParams]): GossipSubParams =
   GossipSubParams(
@@ -774,6 +776,27 @@ proc updateScores(g: GossipSub) = # avoid async
       peer.behaviourPenalty = 0
 
     trace "updated peer's score", peer, score = peer.score, n_topics, is_grafted
+
+    when defined(libp2p_agents_metrics):
+      let agent =
+        block:
+          if peer.shortAgent.len > 0:
+            peer.shortAgent
+          else:
+            let connections = peer.connections.filterIt(
+              not isNil(it.peerInfo) and 
+              it.peerInfo.agentVersion.len > 0
+            )
+            if connections.len > 0:
+              let shortAgent = connections[0].peerInfo.agentVersion.split("/")[0].toLowerAscii()
+              if KnownLibP2PAgentsSeq.contains(shortAgent):
+                peer.shortAgent = shortAgent
+              else:
+                peer.shortAgent = "unknown"
+              peer.shortAgent
+            else:
+              "unknown"
+      libp2p_gossipsub_peers_scores.inc(peer.score, labelValues = [agent])
 
   for peer in evicting:
     g.peerStats.del(peer)

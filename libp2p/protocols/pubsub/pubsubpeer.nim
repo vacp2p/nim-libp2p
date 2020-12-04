@@ -59,6 +59,9 @@ type
     outbound*: bool # if this is an outbound connection
     appScore*: float64 # application specific score
     behaviourPenalty*: float64 # the eventual penalty score
+    
+    when defined(libp2p_agents_metrics):
+      shortAgent*: string
 
   RPCHandler* = proc(peer: PubSubPeer, msg: RPCMsg): Future[void] {.gcsafe.}
 

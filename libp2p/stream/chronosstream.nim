@@ -10,6 +10,7 @@
 import std/[oids, strformat, strutils]
 import chronos, chronicles, metrics
 import connection
+import ../utility
 
 logScope:
   topics = "libp2p chronosstream"
@@ -17,11 +18,6 @@ logScope:
 const
   DefaultChronosStreamTimeout = 10.minutes
   ChronosStreamTrackerName* = "ChronosStream"
-
-when defined(libp2p_agents_metrics):
-  const
-    KnownLibP2PAgents* {.strdefine.} = ""
-    KnownLibP2PAgentsSeq = KnownLibP2PAgents.toLowerAscii().split(",")
 
 type
   ChronosStream* = ref object of Connection
