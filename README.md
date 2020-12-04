@@ -151,10 +151,22 @@ Packages that exist in the original libp2p specs and are under active developmen
 
 ### Tips and tricks
 
-- enable expensive metrics:
+#### enable expensive metrics:
 
 ```bash
 nim c -d:libp2p_expensive_metrics some_file.nim
+```
+
+#### use identify metrics
+
+```bash
+nim c -d:libp2p_agents_metrics -d:KnownLibP2PAgents=nimbus,lighthouse,prysm,teku some_file.nim
+```
+
+### specify gossipsub specific topics to measure
+
+```bash
+nim c -d:KnownLibP2PTopics=topic1,topic2,topic3 some_file.nim
 ```
 
 ## Contribute
