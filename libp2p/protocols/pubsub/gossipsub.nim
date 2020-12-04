@@ -619,17 +619,25 @@ proc getGossipPeers(g: GossipSub): Table[PubSubPeer, ControlMessage] {.gcsafe.} 
       continue
 
     var midsSeq = toSeq(mids)
-    # not in spec
-    # similar to rust: https://github.com/sigp/rust-libp2p/blob/f53d02bc873fef2bf52cd31e3d5ce366a41d8a8c/protocols/gossipsub/src/behaviour.rs#L2101
-    # and go https://github.com/libp2p/go-libp2p-pubsub/blob/08c17398fb11b2ab06ca141dddc8ec97272eb772/gossipsub.go#L582
-    if midsSeq.len > IHaveMaxLength:
-      shuffle(midsSeq)
-      midsSeq.setLen(IHaveMaxLength)
-    let ihave = ControlIHave(topicID: topic, messageIDs: midsSeq)
 
-    let mesh = g.mesh.getOrDefault(topic)
-    let fanout = g.fanout.getOrDefault(topic)
-    let gossipPeers = mesh + fanout
+    ## not in spec
+    ## similar to rust: https://github.com/sigp/rust-libp2p/blob/f53d02bc873fef2bf52cd31e3d5ce366a41d8a8c/protocols/gossipsub/src/behaviour.rs#L2101
+    ## and go https://github.com/libp2p/go-libp2p-pubsub/blob/08c17398fb11b2ab06ca141dddc8ec97272eb772/gossipsub.go#L582
+    ## if midsSeq.len > IHaveMaxLength:
+    # we don't do like other clients actually
+    # there is no point advertising more messages then the budget we will send
+    # as this is risky due to https://github.com/libp2p/specs/blob/master/pubsub/gossipsub/gossipsub-v1.1.md#spam-protection-measures
+    # and remotes might score us badly
+    if midsSeq.len > IWantPeerBudget:
+      shuffle(midsSeq)
+      midsSeq.setLen(IWantPeerBudget)
+    
+    let
+      ihave = ControlIHave(topicID: topic, messageIDs: midsSeq)
+      mesh = g.mesh.getOrDefault(topic)
+      fanout = g.fanout.getOrDefault(topic)
+      gossipPeers = mesh + fanout
+    
     var allPeers = toSeq(g.gossipsub.getOrDefault(topic))
 
     allPeers.keepIf do (x: PubSubPeer) -> bool:
