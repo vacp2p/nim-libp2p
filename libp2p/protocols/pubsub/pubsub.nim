@@ -169,10 +169,13 @@ proc getOrCreatePeer*(
 proc handleData*(p: PubSub, topic: string, data: seq[byte]): Future[void] {.async.} =
   if topic notin p.topics: return # Not subscribed
 
-  for h in p.topics[topic].handler:
+  # gather all futures without yielding to scheduler
+  let futures = p.topics[topic].handler.mapIt(it(topic, data))
+  # await each future and check for errors
+  for fut in futures:
     trace "triggering handler", topicID = topic
     try:
-      await h(topic, data)
+      await fut
     except CancelledError as exc:
       raise exc
     except CatchableError as exc:
