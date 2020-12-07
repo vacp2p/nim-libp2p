@@ -170,17 +170,12 @@ proc handleData*(p: PubSub, topic: string, data: seq[byte]): Future[void] {.asyn
   if topic notin p.topics: return # Not subscribed
 
   # gather all futures without yielding to scheduler
-  let futures = p.topics[topic].handler.mapIt(it(topic, data))
-  # await each future and check for errors
-  for fut in futures:
-    trace "triggering handler", topicID = topic
-    try:
-      await fut
-    except CancelledError as exc:
-      raise exc
-    except CatchableError as exc:
-      # Handlers should never raise exceptions
-      warn "Error in topic handler", msg = exc.msg
+  var futs = p.topics[topic].handler.mapIt(it(topic, data))
+  futs = await allFinished(futs)
+  for fut in futs:
+    if fut.failed:
+      let err = fut.readError()
+      warn "Error in topic handler", msg = err.msg
 
 method handleConn*(p: PubSub,
                    conn: Connection,
