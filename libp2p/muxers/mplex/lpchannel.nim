@@ -50,8 +50,6 @@ type
     resetCode*: MessageType       # cached in/out reset code
     writes*: int                  # In-flight writes
 
-proc open*(s: LPChannel) {.async, gcsafe.}
-
 func shortLog*(s: LPChannel): auto =
   if s.isNil: "LPChannel(nil)"
   elif s.conn.peerInfo.isNil: $s.oid
@@ -62,8 +60,14 @@ chronicles.formatIt(LPChannel): shortLog(it)
 
 proc open*(s: LPChannel) {.async, gcsafe.} =
   trace "Opening channel", s, conn = s.conn
-  await s.conn.writeMsg(s.id, MessageType.New, s.name)
-  s.isOpen = true
+  if s.conn.isClosed:
+    return
+  try:
+    await s.conn.writeMsg(s.id, MessageType.New, s.name)
+    s.isOpen = true
+  except CatchableError as exc:
+    await s.conn.close()
+    raise exc
 
 method closed*(s: LPChannel): bool =
   s.closedLocal
@@ -88,10 +92,11 @@ proc reset*(s: LPChannel) {.async, gcsafe.} =
     # If the connection is still active, notify the other end
     proc resetMessage() {.async.} =
       try:
-          trace "sending reset message", s, conn = s.conn
-          await s.conn.writeMsg(s.id, s.resetCode) # write reset
+        trace "sending reset message", s, conn = s.conn
+        await s.conn.writeMsg(s.id, s.resetCode) # write reset
       except CatchableError as exc:
-        # No cancellations, errors handled in writeMsg
+        # No cancellations
+        await s.conn.close()
         trace "Can't send reset message", s, conn = s.conn, msg = exc.msg
 
     asyncSpawn resetMessage()
@@ -115,10 +120,12 @@ method close*(s: LPChannel) {.async, gcsafe.} =
     try:
       await s.conn.writeMsg(s.id, s.closeCode) # write close
     except CancelledError as exc:
+      await s.conn.close()
       raise exc
     except CatchableError as exc:
       # It's harmless that close message cannot be sent - the connection is
       # likely down already
+      await s.conn.close()
       trace "Cannot send close message", s, id = s.id, msg = exc.msg
 
   await s.closeUnderlying() # maybe already eofed

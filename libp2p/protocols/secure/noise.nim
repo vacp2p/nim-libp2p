@@ -121,18 +121,28 @@ proc dh(priv: Curve25519Key, pub: Curve25519Key): Curve25519Key =
 proc hasKey(cs: CipherState): bool =
   cs.k != EmptyKey
 
-proc encryptWithAd(state: var CipherState, ad, data: openArray[byte]): seq[byte] =
-  var
-    tag: ChaChaPolyTag
-    nonce: ChaChaPolyNonce
+proc encrypt(
+    state: var CipherState, data: var openArray[byte],
+    ad: openArray[byte]): ChaChaPolyTag {.noinit.} =
+  var nonce: ChaChaPolyNonce
   nonce[4..<12] = toBytesLE(state.n)
-  result = @data
-  ChaChaPoly.encrypt(state.k, nonce, tag, result, ad)
+
+  ChaChaPoly.encrypt(state.k, nonce, result, data, ad)
+
   inc state.n
   if state.n > NonceMax:
     raise newException(NoiseNonceMaxError, "Noise max nonce value reached")
-  result &= tag
-  trace "encryptWithAd", tag = byteutils.toHex(tag), data = result.shortLog, nonce = state.n - 1
+
+proc encryptWithAd(state: var CipherState, ad, data: openArray[byte]): seq[byte] =
+  result = newSeqOfCap[byte](data.len + sizeof(ChachaPolyTag))
+  result.add(data)
+
+  let tag = encrypt(state, result, ad)
+
+  result.add(tag)
+
+  trace "encryptWithAd",
+    tag = byteutils.toHex(tag), data = result.shortLog, nonce = state.n - 1
 
 proc decryptWithAd(state: var CipherState, ad, data: openArray[byte]): seq[byte] =
   var
@@ -427,10 +437,24 @@ method write*(sconn: NoiseConnection, message: seq[byte]): Future[void] {.async.
   while left > 0:
     let
       chunkSize = min(MaxPlainSize, left)
-      cipher = sconn.writeCs.encryptWithAd(
-        [], message.toOpenArray(offset, offset + chunkSize - 1))
 
-    await sconn.stream.writeFrame(cipher)
+    var
+      cipherFrame =
+        newSeqUninitialized[byte](2 + chunkSize + sizeof(ChaChaPolyTag))
+
+    # Frame consists of length + cipher data + tag
+    cipherFrame[0..<2] = toBytesBE(uint16(chunkSize + sizeof(ChaChaPolyTag)))
+
+    copyMem(addr cipherFrame[2], unsafeAddr message[offset], chunkSize)
+
+    let tag = encrypt(
+      sconn.writeCs, cipherFrame.toOpenArray(2, 2 + chunkSize - 1), [])
+
+    copyMem(
+      addr cipherFrame[cipherFrame.len - sizeof(tag)], unsafeAddr tag[0],
+      sizeof(tag))
+
+    await sconn.stream.write(cipherFrame)
 
     when defined(libp2p_dump):
       dumpMessage(

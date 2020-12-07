@@ -130,27 +130,25 @@ method readOnce*(s: SecureConn,
                  Future[int] {.async, gcsafe.} =
   doAssert(nbytes > 0, "nbytes must be positive integer")
 
-  if s.buf.data().len() == 0:
-    let (buf, err) = try:
-        (await s.readMessage(), nil)
-      except CatchableError as exc:
-        (@[], exc)
+  if s.isEof:
+    raise newLPStreamEOFError()
 
-    if not isNil(err):
-      if not (err of LPStreamEOFError):
-        debug "Error while reading message from secure connection, closing.",
-          error=err.name,
-          message=err.msg,
-          connection=s
+  if s.buf.data().len() == 0:
+    try:
+      let buf = await s.readMessage() # Always returns >0 bytes or raises
+      s.activity = true
+      s.buf.add(buf)
+    except LPStreamEOFError as err:
+      s.isEof = true
       await s.close()
       raise err
-
-    s.activity = true
-
-    if buf.len == 0:
-      raise newLPStreamIncompleteError()
-
-    s.buf.add(buf)
+    except CatchableError as err:
+      debug "Error while reading message from secure connection, closing.",
+        error = err.name,
+        message = err.msg,
+        connection = s
+      await s.close()
+      raise err
 
   var p = cast[ptr UncheckedArray[byte]](pbytes)
   return s.buf.consumeTo(toOpenArray(p, 0, nbytes - 1))

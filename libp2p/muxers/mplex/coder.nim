@@ -56,10 +56,7 @@ proc readMsg*(conn: Connection): Future[Msg] {.async, gcsafe.} =
 proc writeMsg*(conn: Connection,
                id: uint64,
                msgType: MessageType,
-               data: seq[byte] = @[]) {.async, gcsafe.} =
-  if conn.closed:
-    return # No point in trying to write to an already-closed connection
-
+               data: seq[byte] = @[]): Future[void] =
   var
     left = data.len
     offset = 0
@@ -81,17 +78,9 @@ proc writeMsg*(conn: Connection,
   trace "writing mplex message",
     conn, id, msgType, data = data.len, encoded = buf.buffer.len
 
-  try:
-    # Write all chunks in a single write to avoid async races where a close
-    # message gets written before some of the chunks
-    await conn.write(buf.buffer)
-    trace "wrote mplex", conn, id, msgType
-  except CatchableError as exc:
-    # If the write to the underlying connection failed it should be closed so
-    # that the other channels are notified as well
-    trace "failed write", conn, id, msg = exc.msg
-    await conn.close()
-    raise exc
+  # Write all chunks in a single write to avoid async races where a close
+  # message gets written before some of the chunks
+  conn.write(buf.buffer)
 
 proc writeMsg*(conn: Connection,
                id: uint64,
