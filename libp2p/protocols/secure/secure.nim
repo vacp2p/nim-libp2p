@@ -56,29 +56,29 @@ method initStream*(s: SecureConn) =
 
   procCall Connection(s).initStream()
 
-method close*(s: SecureConn) {.async.} =
+method closeImpl*(s: SecureConn) {.async.} =
   trace "Closing secure conn", s, dir = s.dir
   if not(isNil(s.stream)):
     await s.stream.close()
 
-  await procCall Connection(s).close()
+  await procCall Connection(s).closeImpl()
 
 method readMessage*(c: SecureConn): Future[seq[byte]] {.async, base.} =
   doAssert(false, "Not implemented!")
 
-method handshake(s: Secure,
-                 conn: Connection,
-                 initiator: bool): Future[SecureConn] {.async, base.} =
+method handshake*(s: Secure,
+                  conn: Connection,
+                  initiator: bool): Future[SecureConn] {.async, base.} =
   doAssert(false, "Not implemented!")
 
-proc handleConn*(s: Secure,
+proc handleConn(s: Secure,
                  conn: Connection,
-                 initiator: bool): Future[Connection] {.async, gcsafe.} =
+                 initiator: bool): Future[Connection] {.async.} =
   var sconn = await s.handshake(conn, initiator)
 
   proc cleanup() {.async.} =
     try:
-      let futs = @[conn.join(), sconn.join()]
+      let futs = [conn.join(), sconn.join()]
       await futs[0] or futs[1]
       for f in futs:
         if not f.finished: await f.cancelAndWait() # cancel outstanding join()
@@ -90,7 +90,7 @@ proc handleConn*(s: Secure,
       # do not need to propagate CancelledError.
       discard
     except CatchableError as exc:
-      trace "error cleaning up secure connection", err = exc.msg, sconn
+      debug "error cleaning up secure connection", err = exc.msg, sconn
 
   if not isNil(sconn):
     # All the errors are handled inside `cleanup()` procedure.
@@ -98,10 +98,10 @@ proc handleConn*(s: Secure,
 
   return sconn
 
-method init*(s: Secure) {.gcsafe.} =
+method init*(s: Secure) =
   procCall LPProtocol(s).init()
 
-  proc handle(conn: Connection, proto: string) {.async, gcsafe.} =
+  proc handle(conn: Connection, proto: string) {.async.} =
     trace "handling connection upgrade", proto, conn
     try:
       # We don't need the result but we
@@ -121,13 +121,13 @@ method init*(s: Secure) {.gcsafe.} =
 method secure*(s: Secure,
                conn: Connection,
                initiator: bool):
-               Future[Connection] {.base, gcsafe.} =
+               Future[Connection] {.base.} =
   s.handleConn(conn, initiator)
 
 method readOnce*(s: SecureConn,
                  pbytes: pointer,
                  nbytes: int):
-                 Future[int] {.async, gcsafe.} =
+                 Future[int] {.async.} =
   doAssert(nbytes > 0, "nbytes must be positive integer")
 
   if s.isEof:

@@ -427,34 +427,47 @@ method readMessage*(sconn: NoiseConnection): Future[seq[byte]] {.async.} =
       dumpMessage(sconn, FlowDirection.Incoming, [])
     trace "Received 0-length message", sconn
 
+
+proc encryptFrame(
+    sconn: NoiseConnection, cipherFrame: var openArray[byte], src: openArray[byte]) =
+  # Frame consists of length + cipher data + tag
+  doAssert src.len <= MaxPlainSize
+  doAssert cipherFrame.len == 2 + src.len + sizeof(ChaChaPolyTag)
+
+  cipherFrame[0..<2] = toBytesBE(uint16(src.len + sizeof(ChaChaPolyTag)))
+
+  copyMem(addr cipherFrame[2], unsafeAddr src[0], src.len())
+
+  let tag = encrypt(
+    sconn.writeCs, cipherFrame.toOpenArray(2, 2 + src.len() - 1), [])
+
+  copyMem(
+    addr cipherFrame[cipherFrame.len - sizeof(tag)], unsafeAddr tag[0],
+    sizeof(tag))
+
 method write*(sconn: NoiseConnection, message: seq[byte]): Future[void] {.async.} =
   if message.len == 0:
     return
 
+  const FramingSize = 2 + sizeof(ChaChaPolyTag)
+
+  let
+    frames = (message.len + MaxPlainSize - 1) div MaxPlainSize
+
   var
+    cipherFrames = newSeqUninitialized[byte](message.len + frames * FramingSize)
     left = message.len
     offset = 0
+    woffset = 0
+
   while left > 0:
     let
       chunkSize = min(MaxPlainSize, left)
 
-    var
-      cipherFrame =
-        newSeqUninitialized[byte](2 + chunkSize + sizeof(ChaChaPolyTag))
-
-    # Frame consists of length + cipher data + tag
-    cipherFrame[0..<2] = toBytesBE(uint16(chunkSize + sizeof(ChaChaPolyTag)))
-
-    copyMem(addr cipherFrame[2], unsafeAddr message[offset], chunkSize)
-
-    let tag = encrypt(
-      sconn.writeCs, cipherFrame.toOpenArray(2, 2 + chunkSize - 1), [])
-
-    copyMem(
-      addr cipherFrame[cipherFrame.len - sizeof(tag)], unsafeAddr tag[0],
-      sizeof(tag))
-
-    await sconn.stream.write(cipherFrame)
+    encryptFrame(
+      sconn,
+      cipherFrames.toOpenArray(woffset, woffset + chunkSize + FramingSize - 1),
+      message.toOpenArray(offset, offset + chunkSize - 1))
 
     when defined(libp2p_dump):
       dumpMessage(
@@ -462,8 +475,11 @@ method write*(sconn: NoiseConnection, message: seq[byte]): Future[void] {.async.
         message.toOpenArray(offset, offset + chunkSize - 1))
 
     left = left - chunkSize
-    offset = offset + chunkSize
+    offset += chunkSize
+    woffset += chunkSize + FramingSize
     sconn.activity = true
+
+  await sconn.stream.write(cipherFrames)
 
 method handshake*(p: Noise, conn: Connection, initiator: bool): Future[SecureConn] {.async.} =
   trace "Starting Noise handshake", conn, initiator
@@ -553,8 +569,8 @@ method handshake*(p: Noise, conn: Connection, initiator: bool): Future[SecureCon
 
   return secure
 
-method close*(s: NoiseConnection) {.async.} =
-  await procCall SecureConn(s).close()
+method closeImpl*(s: NoiseConnection) {.async.} =
+  await procCall SecureConn(s).closeImpl()
 
   burnMem(s.readCs)
   burnMem(s.writeCs)
