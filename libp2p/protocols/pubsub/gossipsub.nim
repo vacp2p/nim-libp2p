@@ -1010,6 +1010,7 @@ proc handleGraft(g: GossipSub,
         else:
           trace "peer already in mesh"
       else:
+        trace "pruning grafting peer, mesh full", peer, score = peer.score, mesh = g.mesh.peers(topic)
         result.add(ControlPrune(
           topicID: topic,
           peers: g.peerExchangeList(topic),
