@@ -698,42 +698,44 @@ proc updateScores(g: GossipSub) = # avoid async
       var info = stats.topicInfos.getOrDefault(topic)
       inc n_topics
 
-      # Scoring
-      var topicScore = 0'f64
+      # if weight is 0.0 avoid wasting time
+      if topicParams.topicWeight != 0.0:
+        # Scoring
+        var topicScore = 0'f64
 
-      if info.inMesh:
-        inc is_grafted
-        info.meshTime = now - info.graftTime
-        if info.meshTime > topicParams.meshMessageDeliveriesActivation:
-          info.meshMessageDeliveriesActive = true
+        if info.inMesh:
+          inc is_grafted
+          info.meshTime = now - info.graftTime
+          if info.meshTime > topicParams.meshMessageDeliveriesActivation:
+            info.meshMessageDeliveriesActive = true
 
-        var p1 = info.meshTime / topicParams.timeInMeshQuantum
-        if p1 > topicParams.timeInMeshCap:
-          p1 = topicParams.timeInMeshCap
-        trace "p1", peer, p1
-        topicScore += p1 * topicParams.timeInMeshWeight
-      else:
-        info.meshMessageDeliveriesActive = false
+          var p1 = info.meshTime / topicParams.timeInMeshQuantum
+          if p1 > topicParams.timeInMeshCap:
+            p1 = topicParams.timeInMeshCap
+          trace "p1", peer, p1, topic, topicScore
+          topicScore += p1 * topicParams.timeInMeshWeight
+        else:
+          info.meshMessageDeliveriesActive = false
 
-      topicScore += info.firstMessageDeliveries * topicParams.firstMessageDeliveriesWeight
-      trace "p2", peer, p2 = info.firstMessageDeliveries
+        topicScore += info.firstMessageDeliveries * topicParams.firstMessageDeliveriesWeight
+        trace "p2", peer, p2 = info.firstMessageDeliveries, topic, topicScore
 
-      if info.meshMessageDeliveriesActive:
-        if info.meshMessageDeliveries < topicParams.meshMessageDeliveriesThreshold:
-          let deficit = topicParams.meshMessageDeliveriesThreshold - info.meshMessageDeliveries
-          let p3 = deficit * deficit
-          trace "p3", peer, p3
-          topicScore += p3 * topicParams.meshMessageDeliveriesWeight
+        if info.meshMessageDeliveriesActive:
+          if info.meshMessageDeliveries < topicParams.meshMessageDeliveriesThreshold:
+            let deficit = topicParams.meshMessageDeliveriesThreshold - info.meshMessageDeliveries
+            let p3 = deficit * deficit
+            trace "p3", peer, p3, topic, topicScore
+            topicScore += p3 * topicParams.meshMessageDeliveriesWeight
 
-      topicScore += info.meshFailurePenalty * topicParams.meshFailurePenaltyWeight
-      trace "p3b", peer, p3b = info.meshFailurePenalty
+        topicScore += info.meshFailurePenalty * topicParams.meshFailurePenaltyWeight
+        trace "p3b", peer, p3b = info.meshFailurePenalty, topic, topicScore
 
-      topicScore += info.invalidMessageDeliveries * info.invalidMessageDeliveries * topicParams.invalidMessageDeliveriesWeight
-      trace "p4", p4 = info.invalidMessageDeliveries * info.invalidMessageDeliveries
+        topicScore += info.invalidMessageDeliveries * info.invalidMessageDeliveries * topicParams.invalidMessageDeliveriesWeight
+        trace "p4", p4 = info.invalidMessageDeliveries * info.invalidMessageDeliveries, topic, topicScore
 
-      trace "updated peer topic's scores", peer, topic, info, topicScore
+        trace "updated peer topic's scores", peer, topic, info, topicScore
 
-      peer.score += topicScore * topicParams.topicWeight
+        peer.score += topicScore * topicParams.topicWeight
 
       # Score decay
       info.firstMessageDeliveries *= topicParams.firstMessageDeliveriesDecay
@@ -1010,6 +1012,7 @@ proc handleGraft(g: GossipSub,
         else:
           trace "peer already in mesh"
       else:
+        trace "pruning grafting peer, mesh full", peer, score = peer.score, mesh = g.mesh.peers(topic)
         result.add(ControlPrune(
           topicID: topic,
           peers: g.peerExchangeList(topic),
@@ -1110,6 +1113,8 @@ method rpcHandler*(g: GossipSub,
                                                 # if in mesh add more delivery score
         var stats = g.peerStats[peer].topicInfos.getOrDefault(t)
         if stats.inMesh:
+          # TODO: take into account meshMessageDeliveriesWindow
+          # score only if messages are not too old.
           stats.meshMessageDeliveries += 1
           if stats.meshMessageDeliveries > topicParams.meshMessageDeliveriesCap:
             stats.meshMessageDeliveries = topicParams.meshMessageDeliveriesCap
