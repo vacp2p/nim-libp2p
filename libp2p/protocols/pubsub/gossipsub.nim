@@ -400,7 +400,7 @@ method onPubSubPeerEvent*(p: GossipSub, peer: PubsubPeer, event: PubSubPeerEvent
 
   procCall FloodSub(p).onPubSubPeerEvent(peer, event)
 
-proc rebalanceMesh(g: GossipSub, topic: string) {.async.} =
+proc rebalanceMesh(g: GossipSub, topic: string) =
   logScope:
     topic
     mesh = g.mesh.peers(topic)
@@ -529,6 +529,7 @@ proc rebalanceMesh(g: GossipSub, topic: string) {.async.} =
 
       trace "pruning", prunes = prunes.len
       for peer in prunes:
+        trace "pruning peer on rabalance", peer, score = peer.score
         g.pruned(peer, topic)
         g.mesh.removePeer(topic, peer)
 
@@ -811,6 +812,7 @@ proc heartbeat(g: GossipSub) {.async.} =
         var prunes: seq[PubSubPeer]
         for peer in meshPeers:
           if peer.score < 0.0:
+            trace "pruning negative score peer", peer, score = peer.score
             g.pruned(peer, t)
             g.mesh.removePeer(t, peer)
             prunes &= peer
@@ -821,7 +823,7 @@ proc heartbeat(g: GossipSub) {.async.} =
             backoff: g.parameters.pruneBackoff.seconds.uint64)])))
         g.broadcast(prunes, prune)
 
-        await g.rebalanceMesh(t)
+        g.rebalanceMesh(t)
 
       libp2p_gossipsub_peers_mesh_sum.set(totalMeshPeers.int64)
       libp2p_gossipsub_peers_gossipsub_sum.set(totalGossipPeers.int64)
@@ -877,6 +879,7 @@ method unsubscribePeer*(g: GossipSub, peer: PeerID) =
         .set(g.gossipsub.peers(t).int64, labelValues = [t])
 
   for t in toSeq(g.mesh.keys):
+    trace "pruning unsubscribing peer", pubSubPeer, score = pubSubPeer.score
     g.pruned(pubSubPeer, t)
     g.mesh.removePeer(t, pubSubPeer)
 
@@ -1032,6 +1035,7 @@ proc handlePrune(g: GossipSub, peer: PubSubPeer, prunes: seq[ControlPrune]) =
       if backoff > current:
         g.backingOff[peer.peerId] = backoff
 
+    trace "pruning rpc received peer", peer, score = peer.score
     g.pruned(peer, prune.topicID)
     g.mesh.removePeer(prune.topicID, peer)
 
@@ -1200,7 +1204,7 @@ method subscribe*(g: GossipSub,
   if topic in g.fanout:
     g.fanout.del(topic)
 
-  await g.rebalanceMesh(topic)
+  g.rebalanceMesh(topic)
 
 method unsubscribe*(g: GossipSub,
                     topics: seq[TopicPair]) {.async.} =
@@ -1214,6 +1218,7 @@ method unsubscribe*(g: GossipSub,
         g.mesh.del(topic)
         g.topicParams.del(topic)
         for peer in peers:
+          trace "pruning unsubscribe call peer", peer, score = peer.score
           g.pruned(peer, topic)
         let prune = RPCMsg(control: some(ControlMessage(
           prune: @[ControlPrune(
@@ -1229,6 +1234,7 @@ method unsubscribeAll*(g: GossipSub, topic: string) {.async.} =
     let peers = g.mesh.getOrDefault(topic)
     g.mesh.del(topic)
     for peer in peers:
+      trace "pruning unsubscribeAll call peer", peer, score = peer.score
       g.pruned(peer, topic)
     let prune = RPCMsg(control: some(ControlMessage(
       prune: @[ControlPrune(
