@@ -304,7 +304,6 @@ proc accept(s: Switch, transport: Transport) {.async.} = # noraises
 
   let upgrades = newAsyncSemaphore(ConcurrentUpgrades)
   while transport.running:
-    var conn: Connection
     try:
       debug "About to accept incoming connection"
       # remember to always release the slot when
