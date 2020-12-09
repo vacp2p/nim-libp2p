@@ -66,6 +66,7 @@ proc newStandardSwitch*(privKey = none(PrivateKey),
     secureManagers = secureManagerInstances,
     maxConnections = maxConnections,
     maxIn = maxIn,
-    maxOut = maxOut)
+    maxOut = maxOut,
+    maxPeerConns = maxPeerConns)
 
   return switch
