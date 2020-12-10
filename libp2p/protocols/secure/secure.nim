@@ -46,6 +46,7 @@ proc init*(T: type SecureConn,
              peerInfo: peerInfo,
              observedAddr: observedAddr,
              closeEvent: conn.closeEvent,
+             upgraded: conn.upgraded,
              timeout: timeout,
              dir: conn.dir)
   result.initStream()
