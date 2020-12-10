@@ -142,6 +142,8 @@ method stop*(t: TcpTransport) {.async, gcsafe.} =
   ## stop the transport
   ##
 
+  t.running = false # mark stopped as soon as possible
+
   try:
     trace "Stopping TCP transport"
     await procCall Transport(t).stop() # call base
@@ -160,8 +162,6 @@ method stop*(t: TcpTransport) {.async, gcsafe.} =
     inc getTcpTransportTracker().closed
   except CatchableError as exc:
     trace "Error shutting down tcp transport", exc = exc.msg
-  finally:
-    t.running = false
 
 method accept*(t: TcpTransport): Future[Connection] {.async, gcsafe.} =
   ## accept a new TCP connection
