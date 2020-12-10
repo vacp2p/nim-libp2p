@@ -19,7 +19,8 @@ logScope:
 
 declareGauge(libp2p_peers, "total connected peers")
 
-const MaxConnectionsPerPeer = 5
+const
+  MaxConnectionsPerPeer = 5
 
 type
   TooManyConnections* = object of CatchableError
@@ -236,14 +237,17 @@ proc cleanupConn(c: ConnManager, conn: Connection) {.async.} =
 
   trace "Connection cleaned up", conn
 
-proc peerStartup(c: ConnManager, conn: Connection) {.async.} =
+proc onConnUpgraded(c: ConnManager, conn: Connection) {.async.} =
   try:
     trace "Triggering connect events", conn
     let peerId = conn.peerInfo.peerId
     await c.triggerPeerEvents(
       peerId, PeerEvent(kind: PeerEventKind.Joined, initiator: conn.dir == Direction.Out))
+
     await c.triggerConnEvent(
       peerId, ConnEvent(kind: ConnEventKind.Connected, incoming: conn.dir == Direction.In))
+
+    conn.upgraded.complete()
   except CatchableError as exc:
     # This is top-level procedure which will work as separate task, so it
     # do not need to propagate CancelledError and should handle other errors
@@ -384,7 +388,7 @@ proc storeMuxer*(c: ConnManager,
   trace "Stored muxer",
     muxer, handle = not handle.isNil, connections = c.conns.len
 
-  asyncSpawn c.peerStartup(muxer.connection)
+  asyncSpawn c.onConnUpgraded(muxer.connection)
 
 proc getStream*(c: ConnManager,
                      peerId: PeerID,
