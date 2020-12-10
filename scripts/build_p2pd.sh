@@ -7,7 +7,7 @@
 # at your option. This file may not be copied, modified, or distributed except
 # according to those terms.
 
-set -e
+set -ex
 
 CACHE_DIR="$1" # optional parameter pointing to a CI cache dir.
 LIBP2P_COMMIT="v0.2.1" # tags work too, only used in nim-libp2p CI for now
@@ -38,6 +38,7 @@ else
 	GIT_TIMESTAMP_ARG="--date=format-local:%s" # available since Git 2.7.0
 fi
 
+GOPATH=$(go env GOPATH)
 TARGET_DIR="${GOPATH%:*}/bin" # if multiple paths are specified, use the first one
 TARGET_BINARY="${TARGET_DIR}/p2pd${EXE_SUFFIX}"
 
