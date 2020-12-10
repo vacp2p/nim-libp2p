@@ -45,6 +45,9 @@ declareCounter(libp2p_dialed_peers, "dialed peers")
 declareCounter(libp2p_failed_dials, "failed dials")
 declareCounter(libp2p_failed_upgrade, "peers failed upgrade")
 
+const
+  ConcurrentAccepts* = 10
+
 type
     UpgradeFailedError* = object of CatchableError
     DialFailedError* = object of CatchableError
@@ -425,10 +428,7 @@ proc accept(s: Switch, transport: Transport) {.async.} = # noraises
     try:
       debug "About to accept incoming connection"
       conn = await transport.accept()
-      if not isNil(conn):
-        debug "Accepted an incoming connection", conn
-        asyncSpawn s.upgradeIncoming(conn) # perform upgrade on incoming connection
-      else:
+      if isNil(conn):
         # A nil connection means that we might have hit a
         # file-handle limit (or another non-fatal error),
         # we can get one on the next try, but we should
@@ -436,6 +436,10 @@ proc accept(s: Switch, transport: Transport) {.async.} = # noraises
         # will starve the main event loop, thus we sleep
         # here before retrying.
         await sleepAsync(100.millis) # TODO: should be configurable?
+        continue
+
+      debug "Accepted an incoming connection", conn
+      await s.upgradeIncoming(conn) or conn.upgraded # wait for connection to by upgraded
     except CatchableError as exc:
       debug "Exception in accept loop, exiting", exc = exc.msg
       if not isNil(conn):
@@ -451,7 +455,9 @@ proc start*(s: Switch): Future[seq[Future[void]]] {.async, gcsafe.} =
       if t.handles(a): # check if it handles the multiaddr
         var server = t.start(a)
         s.peerInfo.addrs[i] = t.ma # update peer's address
-        s.acceptFuts.add(s.accept(t))
+        for _ in 0..<ConcurrentAccepts:
+          s.acceptFuts.add(s.accept(t))
+
         startFuts.add(server)
 
   debug "Started libp2p node", peer = s.peerInfo
