@@ -19,11 +19,20 @@ import messages,
 logScope:
   topics = "pubsubprotobuf"
 
+when defined(libp2p_protobuf_metrics):
+  import metrics
+
+  declareCounter(libp2p_pubsub_rpc_bytes_read, "pubsub rpc bytes read", labels = ["kind"])
+  declareCounter(libp2p_pubsub_rpc_bytes_write, "pubsub rpc bytes write", labels = ["kind"])
+
 proc write*(pb: var ProtoBuffer, field: int, graft: ControlGraft) =
   var ipb = initProtoBuffer()
   ipb.write(1, graft.topicID)
   ipb.finish()
   pb.write(field, ipb)
+
+  when defined(libp2p_protobuf_metrics):
+    libp2p_pubsub_rpc_bytes_write.inc(ipb.getLen().int64, labelValues = ["graft"])
 
 proc write*(pb: var ProtoBuffer, field: int, infoMsg: PeerInfoMsg) =
   var ipb = initProtoBuffer()
@@ -41,6 +50,9 @@ proc write*(pb: var ProtoBuffer, field: int, prune: ControlPrune) =
   ipb.finish()
   pb.write(field, ipb)
 
+  when defined(libp2p_protobuf_metrics):
+    libp2p_pubsub_rpc_bytes_write.inc(ipb.getLen().int64, labelValues = ["prune"])
+
 proc write*(pb: var ProtoBuffer, field: int, ihave: ControlIHave) =
   var ipb = initProtoBuffer()
   ipb.write(1, ihave.topicID)
@@ -49,6 +61,9 @@ proc write*(pb: var ProtoBuffer, field: int, ihave: ControlIHave) =
   ipb.finish()
   pb.write(field, ipb)
 
+  when defined(libp2p_protobuf_metrics):
+    libp2p_pubsub_rpc_bytes_write.inc(ipb.getLen().int64, labelValues = ["ihave"])
+
 proc write*(pb: var ProtoBuffer, field: int, iwant: ControlIWant) =
   var ipb = initProtoBuffer()
   for mid in iwant.messageIDs:
@@ -56,6 +71,9 @@ proc write*(pb: var ProtoBuffer, field: int, iwant: ControlIWant) =
   if len(ipb.buffer) > 0:
     ipb.finish()
     pb.write(field, ipb)
+
+  when defined(libp2p_protobuf_metrics):
+    libp2p_pubsub_rpc_bytes_write.inc(ipb.getLen().int64, labelValues = ["iwant"])
 
 proc write*(pb: var ProtoBuffer, field: int, control: ControlMessage) =
   var ipb = initProtoBuffer()
@@ -78,6 +96,9 @@ proc write*(pb: var ProtoBuffer, field: int, subs: SubOpts) =
   ipb.finish()
   pb.write(field, ipb)
 
+  when defined(libp2p_protobuf_metrics):
+    libp2p_pubsub_rpc_bytes_write.inc(ipb.getLen().int64, labelValues = ["subs"])
+
 proc encodeMessage*(msg: Message, anonymize: bool): seq[byte] =
   var pb = initProtoBuffer()
   if len(msg.fromPeer) > 0 and not anonymize:
@@ -92,6 +113,10 @@ proc encodeMessage*(msg: Message, anonymize: bool): seq[byte] =
   if len(msg.key) > 0 and not anonymize:
     pb.write(6, msg.key)
   pb.finish()
+
+  when defined(libp2p_protobuf_metrics):
+    libp2p_pubsub_rpc_bytes_write.inc(pb.getLen().int64, labelValues = ["message"])
+  
   pb.buffer
 
 proc write*(pb: var ProtoBuffer, field: int, msg: Message, anonymize: bool) =
@@ -99,6 +124,9 @@ proc write*(pb: var ProtoBuffer, field: int, msg: Message, anonymize: bool) =
 
 proc decodeGraft*(pb: ProtoBuffer): ProtoResult[ControlGraft] {.
      inline.} =
+  when defined(libp2p_protobuf_metrics):
+    libp2p_pubsub_rpc_bytes_read.inc(pb.getLen().int64, labelValues = ["graft"])
+
   trace "decodeGraft: decoding message"
   var control = ControlGraft()
   if ? pb.getField(1, control.topicId):
@@ -123,6 +151,9 @@ proc decodePeerInfoMsg*(pb: ProtoBuffer): ProtoResult[PeerInfoMsg] {.
 
 proc decodePrune*(pb: ProtoBuffer): ProtoResult[ControlPrune] {.
      inline.} =
+  when defined(libp2p_protobuf_metrics):
+    libp2p_pubsub_rpc_bytes_read.inc(pb.getLen().int64, labelValues = ["prune"])
+
   trace "decodePrune: decoding message"
   var control = ControlPrune()
   if ? pb.getField(1, control.topicId):
@@ -139,6 +170,9 @@ proc decodePrune*(pb: ProtoBuffer): ProtoResult[ControlPrune] {.
 
 proc decodeIHave*(pb: ProtoBuffer): ProtoResult[ControlIHave] {.
      inline.} =
+  when defined(libp2p_protobuf_metrics):
+    libp2p_pubsub_rpc_bytes_read.inc(pb.getLen().int64, labelValues = ["ihave"])
+
   trace "decodeIHave: decoding message"
   var control = ControlIHave()
   if ? pb.getField(1, control.topicId):
@@ -152,6 +186,9 @@ proc decodeIHave*(pb: ProtoBuffer): ProtoResult[ControlIHave] {.
   ok(control)
 
 proc decodeIWant*(pb: ProtoBuffer): ProtoResult[ControlIWant] {.inline.} =
+  when defined(libp2p_protobuf_metrics):
+    libp2p_pubsub_rpc_bytes_read.inc(pb.getLen().int64, labelValues = ["iwant"])
+
   trace "decodeIWant: decoding message"
   var control = ControlIWant()
   if ? pb.getRepeatedField(1, control.messageIDs):
@@ -192,6 +229,9 @@ proc decodeControl*(pb: ProtoBuffer): ProtoResult[Option[ControlMessage]] {.
     ok(none[ControlMessage]())
 
 proc decodeSubscription*(pb: ProtoBuffer): ProtoResult[SubOpts] {.inline.} =
+  when defined(libp2p_protobuf_metrics):
+    libp2p_pubsub_rpc_bytes_read.inc(pb.getLen().int64, labelValues = ["subs"])
+
   trace "decodeSubscription: decoding message"
   var subflag: uint64
   var sub = SubOpts()
@@ -221,6 +261,9 @@ proc decodeSubscriptions*(pb: ProtoBuffer): ProtoResult[seq[SubOpts]] {.
   ok(subs)
 
 proc decodeMessage*(pb: ProtoBuffer): ProtoResult[Message] {.inline.} =
+  when defined(libp2p_protobuf_metrics):
+    libp2p_pubsub_rpc_bytes_read.inc(pb.getLen().int64, labelValues = ["message"])
+
   trace "decodeMessage: decoding message"
   var msg: Message
   if ? pb.getField(1, msg.fromPeer):
