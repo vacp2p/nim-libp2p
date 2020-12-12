@@ -660,6 +660,7 @@ func `/`(a, b: Duration): float64 =
 
 proc colocationFactor(g: GossipSub, peer: PubSubPeer): float64 =
   if peer.connections.len == 0:
+    debug "colocationFactor, no connections", peer
     0.0
   else:
     let
@@ -667,6 +668,7 @@ proc colocationFactor(g: GossipSub, peer: PubSubPeer): float64 =
       ipPeers = g.peersInIP.getOrDefault(address)
       len = ipPeers.len.float64
     if len > g.parameters.ipColocationFactorThreshold:
+      debug "colocationFactor over threshold", peer, address, len
       let over = len - g.parameters.ipColocationFactorThreshold
       over * over
     else:
@@ -894,9 +896,9 @@ method unsubscribePeer*(g: GossipSub, peer: PeerID) =
       libp2p_gossipsub_peers_per_topic_fanout
         .set(g.fanout.peers(t).int64, labelValues = [t])
 
-    g.peerStats[pubSubPeer].expire = Moment.now() + g.parameters.retainScore
-    for topic, info in g.peerStats[pubSubPeer].topicInfos.mpairs:
-      info.firstMessageDeliveries = 0
+  g.peerStats[pubSubPeer].expire = Moment.now() + g.parameters.retainScore
+  for topic, info in g.peerStats[pubSubPeer].topicInfos.mpairs:
+    info.firstMessageDeliveries = 0
 
   procCall FloodSub(g).unsubscribePeer(peer)
 
