@@ -318,7 +318,7 @@ method onNewPeer(g: GossipSub, peer: PubSubPeer) =
     discard
 
 proc grafted(g: GossipSub, p: PubSubPeer, topic: string) =
-  g.peerStats.withValue(p, stats) do:
+  g.peerStats.withValue(p, stats):
     var info = stats.topicInfos.getOrDefault(topic)
     info.graftTime = Moment.now()
     info.meshTime = 0.seconds
@@ -335,7 +335,7 @@ proc grafted(g: GossipSub, p: PubSubPeer, topic: string) =
     g.grafted(p, topic)
 
 proc pruned(g: GossipSub, p: PubSubPeer, topic: string) =
-  g.peerStats.withValue(p, stats) do:
+  g.peerStats.withValue(p, stats):
     when not defined(release):
       g.prunedPeers.incl(p)
 
@@ -840,7 +840,7 @@ proc heartbeat(g: GossipSub) {.async.} =
 
       let peers = g.getGossipPeers()
       for peer, control in peers:
-        g.peers.withValue(peer.peerId, pubsubPeer) do:
+        g.peers.withValue(peer.peerId, pubsubPeer):
           g.send(
             pubsubPeer[],
             RPCMsg(control: some(control)))
@@ -870,7 +870,7 @@ method unsubscribePeer*(g: GossipSub, peer: PeerID) =
 
   # remove from peer IPs collection too
   if pubSubPeer.connections.len > 0:
-    g.peersInIP.withValue(pubSubPeer.connections[0].observedAddr, s) do:
+    g.peersInIP.withValue(pubSubPeer.connections[0].observedAddr, s):
       s[].excl(pubSubPeer)
 
   for t in toSeq(g.gossipsub.keys):
@@ -898,9 +898,10 @@ method unsubscribePeer*(g: GossipSub, peer: PeerID) =
       libp2p_gossipsub_peers_per_topic_fanout
         .set(g.fanout.peers(t).int64, labelValues = [t])
 
-  g.peerStats[pubSubPeer].expire = Moment.now() + g.parameters.retainScore
-  for topic, info in g.peerStats[pubSubPeer].topicInfos.mpairs:
-    info.firstMessageDeliveries = 0
+  g.peerStats.withValue(pubSubPeer, stats):
+    stats[].expire = Moment.now() + g.parameters.retainScore
+    for topic, info in stats[].topicInfos.mpairs:
+      info.firstMessageDeliveries = 0
 
   procCall FloodSub(g).unsubscribePeer(peer)
 
@@ -949,9 +950,9 @@ proc punishPeer(g: GossipSub, peer: PubSubPeer, topics: seq[string]) =
     # ensure we init a new topic if unknown
     let _ = g.topicParams.mgetOrPut(t, TopicParams.init())
     # update stats
-    var tstats = g.peerStats[peer].topicInfos.getOrDefault(t)
-    tstats.invalidMessageDeliveries += 1
-    g.peerStats[peer].topicInfos[t] = tstats
+    g.peerStats.withValue(peer, stats):
+      stats[].topicInfos.withValue(t, tstats):
+        tstats[].invalidMessageDeliveries += 1
 
 proc handleGraft(g: GossipSub,
                  peer: PubSubPeer,
@@ -1113,17 +1114,16 @@ method rpcHandler*(g: GossipSub,
       for t in msg.topicIDs:                     # for every topic in the message
         let topicParams = g.topicParams.mgetOrPut(t, TopicParams.init())
                                                 # if in mesh add more delivery score
-        var stats = g.peerStats[peer].topicInfos.getOrDefault(t)
-        if stats.inMesh:
-          # TODO: take into account meshMessageDeliveriesWindow
-          # score only if messages are not too old.
-          stats.meshMessageDeliveries += 1
-          if stats.meshMessageDeliveries > topicParams.meshMessageDeliveriesCap:
-            stats.meshMessageDeliveries = topicParams.meshMessageDeliveriesCap
-
-                                                # commit back to the table
-        g.peerStats[peer].topicInfos[t] = stats
-
+        g.peerStats.withValue(peer, pstats):
+          pstats[].topicInfos.withValue(t, stats):
+            if stats[].inMesh:
+              # TODO: take into account meshMessageDeliveriesWindow
+              # score only if messages are not too old.
+              stats[].meshMessageDeliveries += 1
+              if stats[].meshMessageDeliveries > topicParams.meshMessageDeliveriesCap:
+                stats[].meshMessageDeliveries = topicParams.meshMessageDeliveriesCap
+  
+      # onto the next message
       continue
 
     if (msg.signature.len > 0 or g.verifySignature) and not msg.verify():
@@ -1160,20 +1160,18 @@ method rpcHandler*(g: GossipSub,
     for t in msg.topicIDs:                      # for every topic in the message
       let topicParams = g.topicParams.mgetOrPut(t, TopicParams.init())
 
-                                                # contribute to peer score first delivery
-      var stats = g.peerStats[peer].topicInfos.getOrDefault(t)
-      stats.firstMessageDeliveries += 1
-      if stats.firstMessageDeliveries > topicParams.firstMessageDeliveriesCap:
-        stats.firstMessageDeliveries = topicParams.firstMessageDeliveriesCap
+      g.peerStats.withValue(peer, pstats):
+        pstats[].topicInfos.withValue(t, stats):
+                                                    # contribute to peer score first delivery
+          stats[].firstMessageDeliveries += 1
+          if stats[].firstMessageDeliveries > topicParams.firstMessageDeliveriesCap:
+            stats[].firstMessageDeliveries = topicParams.firstMessageDeliveriesCap
 
-                                                # if in mesh add more delivery score
-      if stats.inMesh:
-        stats.meshMessageDeliveries += 1
-        if stats.meshMessageDeliveries > topicParams.meshMessageDeliveriesCap:
-          stats.meshMessageDeliveries = topicParams.meshMessageDeliveriesCap
-
-                                                # commit back to the table
-      g.peerStats[peer].topicInfos[t] = stats
+                                                    # if in mesh add more delivery score
+          if stats[].inMesh:
+            stats[].meshMessageDeliveries += 1
+            if stats[].meshMessageDeliveries > topicParams.meshMessageDeliveriesCap:
+              stats[].meshMessageDeliveries = topicParams.meshMessageDeliveriesCap
 
       g.floodsub.withValue(t, peers): toSendPeers.incl(peers[])
       g.mesh.withValue(t, peers): toSendPeers.incl(peers[])
