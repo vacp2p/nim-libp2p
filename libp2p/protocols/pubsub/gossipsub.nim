@@ -953,6 +953,15 @@ proc punishPeer(g: GossipSub, peer: PubSubPeer, topics: seq[string]) =
     g.peerStats.withValue(peer, stats):
       stats[].topicInfos.withValue(t, tstats):
         tstats[].invalidMessageDeliveries += 1
+      do: # if we have no stats populate!
+        stats[].topicInfos[t] = TopicInfo(invalidMessageDeliveries: 1)
+    do: # if we have no stats populate!
+      g.peerStats[peer] =
+        block:
+          var stats = PeerStats()
+          stats.topicInfos[t] = TopicInfo(invalidMessageDeliveries: 1)
+          stats
+
 
 proc handleGraft(g: GossipSub,
                  peer: PubSubPeer,
@@ -1122,6 +1131,14 @@ method rpcHandler*(g: GossipSub,
               stats[].meshMessageDeliveries += 1
               if stats[].meshMessageDeliveries > topicParams.meshMessageDeliveriesCap:
                 stats[].meshMessageDeliveries = topicParams.meshMessageDeliveriesCap
+          do: # make sure we don't loose this information
+            pstats[].topicInfos[t] = TopicInfo(meshMessageDeliveries: 1) 
+        do: # make sure we don't loose this information
+          g.peerStats[peer] =
+            block:
+              var stats = PeerStats()
+              stats.topicInfos[t] = TopicInfo(meshMessageDeliveries: 1)
+              stats
   
       # onto the next message
       continue
@@ -1172,6 +1189,14 @@ method rpcHandler*(g: GossipSub,
             stats[].meshMessageDeliveries += 1
             if stats[].meshMessageDeliveries > topicParams.meshMessageDeliveriesCap:
               stats[].meshMessageDeliveries = topicParams.meshMessageDeliveriesCap
+        do: # make sure we don't loose this information
+          pstats[].topicInfos[t] = TopicInfo(firstMessageDeliveries: 1, meshMessageDeliveries: 1) 
+      do: # make sure we don't loose this information
+        g.peerStats[peer] =
+          block:
+            var stats = PeerStats()
+            stats.topicInfos[t] = TopicInfo(firstMessageDeliveries: 1, meshMessageDeliveries: 1) 
+            stats
 
       g.floodsub.withValue(t, peers): toSendPeers.incl(peers[])
       g.mesh.withValue(t, peers): toSendPeers.incl(peers[])
