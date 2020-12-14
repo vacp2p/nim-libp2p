@@ -63,7 +63,6 @@ proc hash*(a: MultiAddress): Hash =
   var h: Hash = 0
   h = h !& hash(a.data.buffer)
   h = h !& hash(a.data.offset)
-  h = h !& hash(a.data.length)
   !$h
 
 proc ip4StB(s: string, vb: var VBuffer): bool =
@@ -458,7 +457,6 @@ proc trimRight(s: string, ch: char): string =
 proc shcopy*(m1: var MultiAddress, m2: MultiAddress) =
   shallowCopy(m1.data.buffer, m2.data.buffer)
   m1.data.offset = m2.data.offset
-  m1.data.length = m2.data.length
 
 proc protoCode*(ma: MultiAddress): MaResult[MultiCodec] =
   ## Returns MultiAddress ``ma`` protocol code.

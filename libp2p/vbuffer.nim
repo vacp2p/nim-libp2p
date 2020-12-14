@@ -17,7 +17,6 @@ type
   VBuffer* = object
     buffer*: seq[byte]
     offset*: int
-    length*: int
 
 template isEmpty*(vb: VBuffer): bool =
   ## Returns ``true`` if buffer ``vb`` is empty.
