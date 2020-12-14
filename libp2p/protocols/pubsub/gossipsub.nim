@@ -1126,8 +1126,6 @@ method rpcHandler*(g: GossipSub,
 
       continue
 
-    g.mcache.put(msgId, msg)
-
     if (msg.signature.len > 0 or g.verifySignature) and not msg.verify():
       # always validate if signature is present or required
       debug "Dropping message due to failed signature verification", msgId, peer
@@ -1154,6 +1152,9 @@ method rpcHandler*(g: GossipSub,
       continue
     of ValidationResult.Accept:
       discard
+
+    # store in cache only after validation
+    g.mcache.put(msgId, msg)
 
     var toSendPeers = initHashSet[PubSubPeer]()
     for t in msg.topicIDs:                      # for every topic in the message
