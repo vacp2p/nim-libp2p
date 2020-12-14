@@ -529,7 +529,7 @@ proc rebalanceMesh(g: GossipSub, topic: string) =
 
       trace "pruning", prunes = prunes.len
       for peer in prunes:
-        trace "pruning peer on rabalance", peer, score = peer.score
+        trace "pruning peer on rebalance", peer, score = peer.score
         g.pruned(peer, topic)
         g.mesh.removePeer(topic, peer)
 
