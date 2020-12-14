@@ -127,6 +127,8 @@ method start*(t: TcpTransport, ma: MultiAddress) {.async.} =
     trace "TCP transport already running"
     return
 
+  t.running = true
+
   await procCall Transport(t).start(ma)
   trace "Starting TCP transport"
 
@@ -134,7 +136,6 @@ method start*(t: TcpTransport, ma: MultiAddress) {.async.} =
 
   # always get the resolved address in case we're bound to 0.0.0.0:0
   t.ma = MultiAddress.init(t.server.sock.getLocalAddress()).tryGet()
-  t.running = true
 
   trace "Listening on", address = t.ma
 
@@ -142,7 +143,7 @@ method stop*(t: TcpTransport) {.async, gcsafe.} =
   ## stop the transport
   ##
 
-  if t.running:
+  if not t.running:
     return
 
   t.running = false # mark stopped as soon as possible
