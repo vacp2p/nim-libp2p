@@ -18,7 +18,7 @@ suite "TCP transport":
   asyncTest "test listener: handle write":
     let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
     let transport: TcpTransport = TcpTransport.init()
-    asyncCheck transport.start(ma)
+    await transport.start(ma)
 
     proc acceptHandler() {.async, gcsafe.} =
       let conn = await transport.accept()
@@ -78,6 +78,7 @@ suite "TCP transport":
 
     let ma: MultiAddress = MultiAddress.init(server.sock.getLocalAddress()).tryGet()
     let transport: TcpTransport = TcpTransport.init()
+    await transport.start(Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet())
     let conn = await transport.dial(ma)
     var msg = newSeq[byte](6)
     await conn.readExactly(addr msg[0], 6)
@@ -112,6 +113,7 @@ suite "TCP transport":
 
     let ma: MultiAddress = MultiAddress.init(server.sock.getLocalAddress()).tryGet()
     let transport: TcpTransport = TcpTransport.init()
+    await transport.start(Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet())
     let conn = await transport.dial(ma)
     await conn.write("Hello!")
 
@@ -138,6 +140,7 @@ suite "TCP transport":
     let handlerWait = acceptHandler()
 
     let transport2: TcpTransport = TcpTransport.init()
+    await transport2.start(Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet())
     let conn = await transport2.dial(transport1.ma)
     var msg = newSeq[byte](6)
     await conn.readExactly(addr msg[0], 6)
@@ -165,6 +168,7 @@ suite "TCP transport":
     let handlerWait = acceptHandler()
 
     let transport2: TcpTransport = TcpTransport.init()
+    await transport2.start(Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet())
     let conn = await transport2.dial(transport1.ma)
     await conn.write("Hello!")
 
@@ -181,6 +185,7 @@ suite "TCP transport":
     await transport1.start(ma)
 
     let transport2: TcpTransport = TcpTransport.init()
+    await transport2.start(Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet())
     let cancellation = transport2.dial(transport1.ma)
 
     try:
@@ -199,6 +204,7 @@ suite "TCP transport":
     await transport1.start(ma)
 
     let transport2: TcpTransport = TcpTransport.init()
+    await transport2.start(Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet())
     let connFut = transport2.dial(transport1.ma)
 
     let acceptHandler = transport1.accept()
