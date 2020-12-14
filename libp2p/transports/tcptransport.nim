@@ -142,6 +142,9 @@ method stop*(t: TcpTransport) {.async, gcsafe.} =
   ## stop the transport
   ##
 
+  if t.running:
+    return
+
   t.running = false # mark stopped as soon as possible
 
   try:
