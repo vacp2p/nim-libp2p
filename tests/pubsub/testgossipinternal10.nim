@@ -49,7 +49,7 @@ suite "GossipSub internal":
       gossipSub.mesh[topic].incl(peer)
 
     check gossipSub.peers.len == 15
-    await gossipSub.rebalanceMesh(topic)
+    gossipSub.rebalanceMesh(topic)
     check gossipSub.mesh[topic].len == GossipSubD
 
     await allFuturesThrowing(conns.mapIt(it.close()))
@@ -74,7 +74,7 @@ suite "GossipSub internal":
       gossipSub.mesh[topic].incl(peer)
 
     check gossipSub.mesh[topic].len == 15
-    await gossipSub.rebalanceMesh(topic)
+    gossipSub.rebalanceMesh(topic)
     check gossipSub.mesh[topic].len == GossipSubD
 
     await allFuturesThrowing(conns.mapIt(it.close()))
