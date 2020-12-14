@@ -513,7 +513,8 @@ suite "GossipSub":
 
     var seen: Table[string, int]
     var seenFut = newFuture[void]()
-    for dialer in nodes:
+    for i in 0..<nodes.len:
+      let dialer = nodes[i]
       var handler: TopicHandler
       closureScope:
         var peerName = $dialer.peerInfo.peerId
@@ -564,7 +565,8 @@ suite "GossipSub":
 
     var seen: Table[string, int]
     var seenFut = newFuture[void]()
-    for dialer in nodes:
+    for i in 0..<nodes.len:
+      let dialer = nodes[i]
       var handler: TopicHandler
       closureScope:
         var peerName = $dialer.peerInfo.peerId
