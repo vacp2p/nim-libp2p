@@ -72,14 +72,14 @@ const
 template orError*(exp: untyped, err: untyped): untyped =
   (exp.mapErr do (_: auto) -> auto: err)
 
-proc decode(data: openarray[byte], cid: var Cid): Result[void, CidError] =
+proc decode(data: openarray[byte]): Result[Cid, CidError] =
   if len(data) == 34 and data[0] == 0x12'u8 and data[1] == 0x20'u8:
-    cid.cidver = CIDv0
-    cid.mcodec = multiCodec("dag-pb")
-    cid.hpos = 0
-    cid.data = initVBuffer(data)
-    ok()
-  elif cid.cidver == CIDvIncorrect:
+    ok(Cid(
+        cidver: CIDv0,
+        mcodec: multiCodec("dag-pb"),
+        hpos: 0,
+        data: initVBuffer(data)))
+  else:
     var version, codec: uint64
     var res, offset: int
     var vb = initVBuffer(data)
@@ -109,15 +109,13 @@ proc decode(data: openarray[byte], cid: var Cid): Result[void, CidError] =
                 err(CidError.Incorrect)
               else:
                 vb.finish()
-                cid.cidver = CIDv1
-                cid.mcodec = mcodec
-                cid.hpos = offset
-                cid.data = vb
-                ok()
-  else:
-    err(CidError.Incorrect)
+                ok(Cid(
+                    cidver: CIDv1,
+                    mcodec: mcodec,
+                    hpos: offset,
+                    data: vb))
 
-proc decode(data: openarray[char], cid: var Cid): Result[void, CidError] =
+proc decode(data: openarray[char]): Result[Cid, CidError] =
   var buffer: seq[byte]
   var plen = 0
   if len(data) < 2:
@@ -138,7 +136,7 @@ proc decode(data: openarray[char], cid: var Cid): Result[void, CidError] =
     buffer.setLen(plen)
     if buffer[0] == 0x12'u8:
       return err(CidError.Incorrect)
-  decode(buffer, cid)
+  decode(buffer)
 
 proc validate*(ctype: typedesc[Cid], data: openarray[byte]): bool =
   ## Returns ``true`` is data has valid binary CID representation.
@@ -190,9 +188,7 @@ proc version*(cid: Cid): CidVersion =
 
 proc init*[T: char|byte](ctype: typedesc[Cid], data: openarray[T]): Result[Cid, CidError] =
   ## Create new content identifier using array of bytes or string ``data``.
-  var res: Cid
-  ? decode(data, res)
-  ok(res)
+  decode(data)
 
 proc init*(ctype: typedesc[Cid], version: CidVersion, content: MultiCodec,
            hash: MultiHash): Result[Cid, CidError] =
