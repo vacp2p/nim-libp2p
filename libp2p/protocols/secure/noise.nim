@@ -121,18 +121,28 @@ proc dh(priv: Curve25519Key, pub: Curve25519Key): Curve25519Key =
 proc hasKey(cs: CipherState): bool =
   cs.k != EmptyKey
 
-proc encryptWithAd(state: var CipherState, ad, data: openArray[byte]): seq[byte] =
-  var
-    tag: ChaChaPolyTag
-    nonce: ChaChaPolyNonce
+proc encrypt(
+    state: var CipherState, data: var openArray[byte],
+    ad: openArray[byte]): ChaChaPolyTag {.noinit.} =
+  var nonce: ChaChaPolyNonce
   nonce[4..<12] = toBytesLE(state.n)
-  result = @data
-  ChaChaPoly.encrypt(state.k, nonce, tag, result, ad)
+
+  ChaChaPoly.encrypt(state.k, nonce, result, data, ad)
+
   inc state.n
   if state.n > NonceMax:
     raise newException(NoiseNonceMaxError, "Noise max nonce value reached")
-  result &= tag
-  trace "encryptWithAd", tag = byteutils.toHex(tag), data = result.shortLog, nonce = state.n - 1
+
+proc encryptWithAd(state: var CipherState, ad, data: openArray[byte]): seq[byte] =
+  result = newSeqOfCap[byte](data.len + sizeof(ChachaPolyTag))
+  result.add(data)
+
+  let tag = encrypt(state, result, ad)
+
+  result.add(tag)
+
+  trace "encryptWithAd",
+    tag = byteutils.toHex(tag), data = result.shortLog, nonce = state.n - 1
 
 proc decryptWithAd(state: var CipherState, ad, data: openArray[byte]): seq[byte] =
   var
@@ -417,20 +427,47 @@ method readMessage*(sconn: NoiseConnection): Future[seq[byte]] {.async.} =
       dumpMessage(sconn, FlowDirection.Incoming, [])
     trace "Received 0-length message", sconn
 
+
+proc encryptFrame(
+    sconn: NoiseConnection, cipherFrame: var openArray[byte], src: openArray[byte]) =
+  # Frame consists of length + cipher data + tag
+  doAssert src.len <= MaxPlainSize
+  doAssert cipherFrame.len == 2 + src.len + sizeof(ChaChaPolyTag)
+
+  cipherFrame[0..<2] = toBytesBE(uint16(src.len + sizeof(ChaChaPolyTag)))
+
+  copyMem(addr cipherFrame[2], unsafeAddr src[0], src.len())
+
+  let tag = encrypt(
+    sconn.writeCs, cipherFrame.toOpenArray(2, 2 + src.len() - 1), [])
+
+  copyMem(
+    addr cipherFrame[cipherFrame.len - sizeof(tag)], unsafeAddr tag[0],
+    sizeof(tag))
+
 method write*(sconn: NoiseConnection, message: seq[byte]): Future[void] {.async.} =
   if message.len == 0:
     return
 
+  const FramingSize = 2 + sizeof(ChaChaPolyTag)
+
+  let
+    frames = (message.len + MaxPlainSize - 1) div MaxPlainSize
+
   var
+    cipherFrames = newSeqUninitialized[byte](message.len + frames * FramingSize)
     left = message.len
     offset = 0
+    woffset = 0
+
   while left > 0:
     let
       chunkSize = min(MaxPlainSize, left)
-      cipher = sconn.writeCs.encryptWithAd(
-        [], message.toOpenArray(offset, offset + chunkSize - 1))
 
-    await sconn.stream.writeFrame(cipher)
+    encryptFrame(
+      sconn,
+      cipherFrames.toOpenArray(woffset, woffset + chunkSize + FramingSize - 1),
+      message.toOpenArray(offset, offset + chunkSize - 1))
 
     when defined(libp2p_dump):
       dumpMessage(
@@ -438,8 +475,11 @@ method write*(sconn: NoiseConnection, message: seq[byte]): Future[void] {.async.
         message.toOpenArray(offset, offset + chunkSize - 1))
 
     left = left - chunkSize
-    offset = offset + chunkSize
+    offset += chunkSize
+    woffset += chunkSize + FramingSize
     sconn.activity = true
+
+  await sconn.stream.write(cipherFrames)
 
 method handshake*(p: Noise, conn: Connection, initiator: bool): Future[SecureConn] {.async.} =
   trace "Starting Noise handshake", conn, initiator
@@ -529,8 +569,8 @@ method handshake*(p: Noise, conn: Connection, initiator: bool): Future[SecureCon
 
   return secure
 
-method close*(s: NoiseConnection) {.async.} =
-  await procCall SecureConn(s).close()
+method closeImpl*(s: NoiseConnection) {.async.} =
+  await procCall SecureConn(s).closeImpl()
 
   burnMem(s.readCs)
   burnMem(s.writeCs)
