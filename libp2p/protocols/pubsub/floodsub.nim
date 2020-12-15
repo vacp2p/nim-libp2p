@@ -33,6 +33,18 @@ method subscribeTopic*(f: FloodSub,
                        topic: string,
                        subscribe: bool,
                        peer: PubsubPeer) {.gcsafe.} =
+  logScope:
+    peer
+    topic
+
+  # this is a workaround for a race condition 
+  # that can happen if we disconnect the peer very early
+  # in the future we might use this as a test case 
+  # and eventually remove this workaround
+  if subscribe and peer.peerId notin f.peers:
+    trace "ignoring unknown peer"
+    return
+
   procCall PubSub(f).subscribeTopic(topic, subscribe, peer)
 
   if topic notin f.floodsub:

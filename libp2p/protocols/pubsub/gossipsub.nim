@@ -909,17 +909,25 @@ method subscribeTopic*(g: GossipSub,
                        topic: string,
                        subscribe: bool,
                        peer: PubSubPeer) {.gcsafe.} =
-  # Skip floodsub - we don't want it to add the peer to `g.floodsub`
-  procCall PubSub(g).subscribeTopic(topic, subscribe, peer)
-
   logScope:
     peer
     topic
 
-  g.onNewPeer(peer)
+  # this is a workaround for a race condition 
+  # that can happen if we disconnect the peer very early
+  # in the future we might use this as a test case 
+  # and eventually remove this workaround
+  if subscribe and peer.peerId notin g.peers:
+    trace "ignoring unknown peer"
+    return
+  
+  # Skip floodsub - we don't want it to add the peer to `g.floodsub`
+  procCall PubSub(g).subscribeTopic(topic, subscribe, peer)
 
   if subscribe:
     trace "peer subscribed to topic"
+    # populate scoring structs and such
+    g.onNewPeer(peer)
     # subscribe remote peer to the topic
     discard g.gossipsub.addPeer(topic, peer)
     if peer.peerId in g.parameters.directPeers:
