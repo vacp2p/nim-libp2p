@@ -157,7 +157,7 @@ method onPubSubPeerEvent*(p: GossipSub, peer: PubsubPeer, event: PubSubPeerEvent
   procCall FloodSub(p).onPubSubPeerEvent(peer, event)
 
 
-proc rebalanceMesh(g: GossipSub, topic: string) {.async.} =
+proc rebalanceMesh(g: GossipSub, topic: string) =
   logScope:
     topic
     mesh = g.mesh.peers(topic)
@@ -277,7 +277,7 @@ proc heartbeat(g: GossipSub) {.async.} =
       trace "running heartbeat"
 
       for t in toSeq(g.topics.keys):
-        await g.rebalanceMesh(t)
+        g.rebalanceMesh(t)
 
       g.dropFanoutPeers()
 
@@ -508,7 +508,7 @@ method subscribe*(g: GossipSub,
                   topic: string,
                   handler: TopicHandler) {.async.} =
   await procCall PubSub(g).subscribe(topic, handler)
-  await g.rebalanceMesh(topic)
+  g.rebalanceMesh(topic)
 
 method unsubscribe*(g: GossipSub,
                     topics: seq[TopicPair]) {.async.} =
