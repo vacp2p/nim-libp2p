@@ -490,7 +490,7 @@ proc rebalanceMesh(g: GossipSub, topic: string) =
     prunes = toSeq(g.mesh[topic])
     # avoid pruning peers we are currently grafting in this heartbeat
     prunes.keepIf do (x: PubSubPeer) -> bool: x notin grafts
-      
+
     # shuffle anyway, score might be not used
     shuffle(prunes)
 
@@ -812,7 +812,7 @@ proc heartbeat(g: GossipSub) {.async.} =
         let gossipPeers = g.gossipsub.getOrDefault(t)
         # this will be changed by rebalance but does not matter
         totalMeshPeers += meshPeers.len
-        totalGossipPeers += gossipPeers.len
+        totalGossipPeers += g.gossipsub.peers(t)
         var prunes: seq[PubSubPeer]
         for peer in meshPeers:
           if peer.score < 0.0:
@@ -820,12 +820,13 @@ proc heartbeat(g: GossipSub) {.async.} =
             g.pruned(peer, t)
             g.mesh.removePeer(t, peer)
             prunes &= peer
-        let prune = RPCMsg(control: some(ControlMessage(
-          prune: @[ControlPrune(
-            topicID: t,
-            peers: g.peerExchangeList(t),
-            backoff: g.parameters.pruneBackoff.seconds.uint64)])))
-        g.broadcast(prunes, prune)
+        if prunes.len > 0:
+          let prune = RPCMsg(control: some(ControlMessage(
+            prune: @[ControlPrune(
+              topicID: t,
+              peers: g.peerExchangeList(t),
+              backoff: g.parameters.pruneBackoff.seconds.uint64)])))
+          g.broadcast(prunes, prune)
 
         g.rebalanceMesh(t)
 
@@ -1132,14 +1133,14 @@ method rpcHandler*(g: GossipSub,
               if stats[].meshMessageDeliveries > topicParams.meshMessageDeliveriesCap:
                 stats[].meshMessageDeliveries = topicParams.meshMessageDeliveriesCap
           do: # make sure we don't loose this information
-            pstats[].topicInfos[t] = TopicInfo(meshMessageDeliveries: 1) 
+            pstats[].topicInfos[t] = TopicInfo(meshMessageDeliveries: 1)
         do: # make sure we don't loose this information
           g.peerStats[peer] =
             block:
               var stats = PeerStats()
               stats.topicInfos[t] = TopicInfo(meshMessageDeliveries: 1)
               stats
-  
+
       # onto the next message
       continue
 
@@ -1190,12 +1191,12 @@ method rpcHandler*(g: GossipSub,
             if stats[].meshMessageDeliveries > topicParams.meshMessageDeliveriesCap:
               stats[].meshMessageDeliveries = topicParams.meshMessageDeliveriesCap
         do: # make sure we don't loose this information
-          pstats[].topicInfos[t] = TopicInfo(firstMessageDeliveries: 1, meshMessageDeliveries: 1) 
+          pstats[].topicInfos[t] = TopicInfo(firstMessageDeliveries: 1, meshMessageDeliveries: 1)
       do: # make sure we don't loose this information
         g.peerStats[peer] =
           block:
             var stats = PeerStats()
-            stats.topicInfos[t] = TopicInfo(firstMessageDeliveries: 1, meshMessageDeliveries: 1) 
+            stats.topicInfos[t] = TopicInfo(firstMessageDeliveries: 1, meshMessageDeliveries: 1)
             stats
 
       g.floodsub.withValue(t, peers): toSendPeers.incl(peers[])
