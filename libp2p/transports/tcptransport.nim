@@ -117,7 +117,6 @@ proc init*(T: type TcpTransport,
 
 method initTransport*(t: TcpTransport) =
   t.multicodec = multiCodec("tcp")
-  inc getTcpTransportTracker().opened
 
 method start*(t: TcpTransport, ma: MultiAddress) {.async.} =
   ## listen on the transport
@@ -128,6 +127,7 @@ method start*(t: TcpTransport, ma: MultiAddress) {.async.} =
     return
 
   t.running = true
+  inc getTcpTransportTracker().opened
 
   await procCall Transport(t).start(ma)
   trace "Starting TCP transport"
