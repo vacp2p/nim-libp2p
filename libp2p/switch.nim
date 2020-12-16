@@ -26,6 +26,7 @@ import stream/connection,
        peerinfo,
        protocols/identify,
        muxers/muxer,
+       utils/semaphore,
        connmanager,
        peerid,
        errors
@@ -46,7 +47,7 @@ declareCounter(libp2p_failed_dials, "failed dials")
 declareCounter(libp2p_failed_upgrade, "peers failed upgrade")
 
 const
-  ConcurrentAccepts* = 10
+  ConcurrentUpgrades* = 10
 
 type
     UpgradeFailedError* = object of CatchableError
@@ -226,23 +227,26 @@ proc upgradeIncoming(s: Switch, incomingConn: Connection) {.async, gcsafe.} = # 
     trace "Starting secure handler", conn
     let secure = s.secureManagers.filterIt(it.codec == proto)[0]
 
-    var sconn: Connection
+    var cconn = conn
     try:
-      sconn = await secure.secure(conn, false)
+      var sconn = await secure.secure(cconn, false)
       if isNil(sconn):
         return
 
+      cconn = sconn
       # add the muxer
       for muxer in s.muxers.values:
         ms.addHandler(muxer.codecs, muxer)
 
       # handle subsequent secure requests
-      await ms.handle(sconn)
+      await ms.handle(cconn)
     except CatchableError as exc:
       debug "Exception in secure handler during incoming upgrade", msg = exc.msg, conn
+      if not cconn.upgraded.finished:
+        cconn.upgraded.fail(exc)
     finally:
-      if not isNil(sconn):
-        await sconn.close()
+      if not isNil(cconn):
+        await cconn.close()
 
     trace "Stopped secure handler", conn
 
@@ -257,6 +261,8 @@ proc upgradeIncoming(s: Switch, incomingConn: Connection) {.async, gcsafe.} = # 
     await ms.handle(incomingConn, active = true)
   except CatchableError as exc:
     debug "Exception upgrading incoming", exc = exc.msg
+    if not incomingConn.upgraded.finished:
+      incomingConn.upgraded.fail(exc)
   finally:
     await incomingConn.close()
 
@@ -423,8 +429,10 @@ proc accept(s: Switch, transport: Transport) {.async.} = # noraises
   ## transport's accept loop
   ##
 
+  let upgrades = AsyncSemaphore.init(ConcurrentUpgrades)
   while transport.running:
     var conn: Connection
+    await upgrades.acquire()
     try:
       debug "About to accept incoming connection"
       conn = await transport.accept()
@@ -439,13 +447,18 @@ proc accept(s: Switch, transport: Transport) {.async.} = # noraises
         continue
 
       debug "Accepted an incoming connection", conn
-      await s.upgradeIncoming(conn) or conn.upgraded # wait for connection to by upgraded
+      asyncSpawn s.upgradeIncoming(conn)
+      try:
+        await conn.upgraded # wait for connection to by upgraded
+      except CatchableError as exc:
+        trace "Exception awaiting connection upgrade", exc = exc.msg
     except CatchableError as exc:
       debug "Exception in accept loop, exiting", exc = exc.msg
       if not isNil(conn):
         await conn.close()
-
       return
+
+    upgrades.release()
 
 proc start*(s: Switch): Future[seq[Future[void]]] {.async, gcsafe.} =
   trace "starting switch for peer", peerInfo = s.peerInfo
@@ -455,9 +468,7 @@ proc start*(s: Switch): Future[seq[Future[void]]] {.async, gcsafe.} =
       if t.handles(a): # check if it handles the multiaddr
         var server = t.start(a)
         s.peerInfo.addrs[i] = t.ma # update peer's address
-        for _ in 0..<ConcurrentAccepts:
-          s.acceptFuts.add(s.accept(t))
-
+        s.acceptFuts.add(s.accept(t))
         startFuts.add(server)
 
   debug "Started libp2p node", peer = s.peerInfo
@@ -465,13 +476,6 @@ proc start*(s: Switch): Future[seq[Future[void]]] {.async, gcsafe.} =
 
 proc stop*(s: Switch) {.async.} =
   trace "Stopping switch"
-
-  for a in s.acceptFuts:
-    if not a.finished:
-      a.cancel()
-
-  checkFutures(
-    await allFinished(s.acceptFuts))
 
   # close and cleanup all connections
   await s.connManager.close()
@@ -483,6 +487,14 @@ proc stop*(s: Switch) {.async.} =
       raise exc
     except CatchableError as exc:
       warn "error cleaning up transports", msg = exc.msg
+
+  let stopped = await allFuturesThrowing(s.acceptFuts)
+    .withTimeout(1.seconds)
+
+  if not stopped:
+    for a in s.acceptFuts:
+      if not a.finished:
+        a.cancel()
 
   trace "Switch stopped"
 
