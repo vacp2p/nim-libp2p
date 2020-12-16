@@ -1,6 +1,7 @@
 import testvarint,
        testminprotobuf,
-       teststreamseq
+       teststreamseq,
+       testsemaphore
 
 import testminasn1,
        testrsa,
