@@ -13,7 +13,7 @@ import testmultibase,
        testmultihash,
        testmultiaddress,
        testcid,
-       testpeer
+       testpeerid
 
 import testtransport,
        testmultistream,

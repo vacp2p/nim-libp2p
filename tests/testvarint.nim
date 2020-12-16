@@ -191,9 +191,9 @@ suite "Variable integer test suite":
 
     for i in 0 ..< len(PBNegativeSignedEdgeValues):
       check:
-        vsizeof(hint64(PBNegativeSignedEdgeValues[i])) ==
+        vsizeof(cast[hint64](PBNegativeSignedEdgeValues[i])) ==
           PBEdgeSignedNegativeSizes[i]
-        vsizeof(zint64(PBNegativeSignedEdgeValues[i])) ==
+        vsizeof(cast[zint64](PBNegativeSignedEdgeValues[i])) ==
           PBEdgeSignedNegativeZigZagSizes[i]
 
   test "[ProtoBuf] Success edge cases test":
@@ -231,18 +231,18 @@ suite "Variable integer test suite":
       buffer.setLen(PBEdgeSignedNegativeSizes[i])
       check:
         putSVarint(buffer, length,
-                  hint64(PBNegativeSignedEdgeValues[i])).isOk()
+                  cast[hint64](PBNegativeSignedEdgeValues[i])).isOk()
         getSVarint(buffer, length, ivalue).isOk()
-        int64(ivalue) == int64(PBNegativeSignedEdgeValues[i])
+        int64(ivalue) == cast[int64](PBNegativeSignedEdgeValues[i])
         toHex(buffer) == PBNegativeSignedEdgeExpects[i]
 
       buffer.setLen(PBEdgeSignedNegativeZigZagSizes[i])
       check:
         putSVarint(buffer, length,
-                   zint64(PBNegativeSignedEdgeValues[i])).isOk()
+                   cast[zint64](PBNegativeSignedEdgeValues[i])).isOk()
         getSVarint(buffer, length, svalue).isOk()
 
-        int64(svalue) == int64(PBNegativeSignedEdgeValues[i])
+        int64(svalue) == cast[int64](PBNegativeSignedEdgeValues[i])
         toHex(buffer) == PBNegativeSignedZigZagEdgeExpects[i]
 
   test "[ProtoBuf] Buffer Overrun edge cases test":

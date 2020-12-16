@@ -321,7 +321,7 @@ method onNewPeer(g: GossipSub, peer: PubSubPeer) =
     discard
 
 proc grafted(g: GossipSub, p: PubSubPeer, topic: string) =
-  g.peerStats.withValue(p, stats) do:
+  g.peerStats.withValue(p, stats):
     var info = stats.topicInfos.getOrDefault(topic)
     info.graftTime = Moment.now()
     info.meshTime = 0.seconds
@@ -338,7 +338,7 @@ proc grafted(g: GossipSub, p: PubSubPeer, topic: string) =
     g.grafted(p, topic)
 
 proc pruned(g: GossipSub, p: PubSubPeer, topic: string) =
-  g.peerStats.withValue(p, stats) do:
+  g.peerStats.withValue(p, stats):
     when not defined(release):
       g.prunedPeers.incl(p)
 
@@ -403,7 +403,7 @@ method onPubSubPeerEvent*(p: GossipSub, peer: PubsubPeer, event: PubSubPeerEvent
 
   procCall FloodSub(p).onPubSubPeerEvent(peer, event)
 
-proc rebalanceMesh(g: GossipSub, topic: string) {.async.} =
+proc rebalanceMesh(g: GossipSub, topic: string) =
   logScope:
     topic
     mesh = g.mesh.peers(topic)
@@ -493,7 +493,7 @@ proc rebalanceMesh(g: GossipSub, topic: string) {.async.} =
     prunes = toSeq(g.mesh[topic])
     # avoid pruning peers we are currently grafting in this heartbeat
     prunes.keepIf do (x: PubSubPeer) -> bool: x notin grafts
-      
+
     # shuffle anyway, score might be not used
     shuffle(prunes)
 
@@ -532,6 +532,7 @@ proc rebalanceMesh(g: GossipSub, topic: string) {.async.} =
 
       trace "pruning", prunes = prunes.len
       for peer in prunes:
+        trace "pruning peer on rebalance", peer, score = peer.score
         g.pruned(peer, topic)
         g.mesh.removePeer(topic, peer)
 
@@ -668,6 +669,7 @@ func `/`(a, b: Duration): float64 =
 
 proc colocationFactor(g: GossipSub, peer: PubSubPeer): float64 =
   if peer.connections.len == 0:
+    debug "colocationFactor, no connections", peer
     0.0
   else:
     let
@@ -675,6 +677,7 @@ proc colocationFactor(g: GossipSub, peer: PubSubPeer): float64 =
       ipPeers = g.peersInIP.getOrDefault(address)
       len = ipPeers.len.float64
     if len > g.parameters.ipColocationFactorThreshold:
+      debug "colocationFactor over threshold", peer, address, len
       let over = len - g.parameters.ipColocationFactorThreshold
       over * over
     else:
@@ -706,42 +709,44 @@ proc updateScores(g: GossipSub) = # avoid async
       var info = stats.topicInfos.getOrDefault(topic)
       inc n_topics
 
-      # Scoring
-      var topicScore = 0'f64
+      # if weight is 0.0 avoid wasting time
+      if topicParams.topicWeight != 0.0:
+        # Scoring
+        var topicScore = 0'f64
 
-      if info.inMesh:
-        inc is_grafted
-        info.meshTime = now - info.graftTime
-        if info.meshTime > topicParams.meshMessageDeliveriesActivation:
-          info.meshMessageDeliveriesActive = true
+        if info.inMesh:
+          inc is_grafted
+          info.meshTime = now - info.graftTime
+          if info.meshTime > topicParams.meshMessageDeliveriesActivation:
+            info.meshMessageDeliveriesActive = true
 
-        var p1 = info.meshTime / topicParams.timeInMeshQuantum
-        if p1 > topicParams.timeInMeshCap:
-          p1 = topicParams.timeInMeshCap
-        trace "p1", peer, p1
-        topicScore += p1 * topicParams.timeInMeshWeight
-      else:
-        info.meshMessageDeliveriesActive = false
+          var p1 = info.meshTime / topicParams.timeInMeshQuantum
+          if p1 > topicParams.timeInMeshCap:
+            p1 = topicParams.timeInMeshCap
+          trace "p1", peer, p1, topic, topicScore
+          topicScore += p1 * topicParams.timeInMeshWeight
+        else:
+          info.meshMessageDeliveriesActive = false
 
-      topicScore += info.firstMessageDeliveries * topicParams.firstMessageDeliveriesWeight
-      trace "p2", peer, p2 = info.firstMessageDeliveries
+        topicScore += info.firstMessageDeliveries * topicParams.firstMessageDeliveriesWeight
+        trace "p2", peer, p2 = info.firstMessageDeliveries, topic, topicScore
 
-      if info.meshMessageDeliveriesActive:
-        if info.meshMessageDeliveries < topicParams.meshMessageDeliveriesThreshold:
-          let deficit = topicParams.meshMessageDeliveriesThreshold - info.meshMessageDeliveries
-          let p3 = deficit * deficit
-          trace "p3", peer, p3
-          topicScore += p3 * topicParams.meshMessageDeliveriesWeight
+        if info.meshMessageDeliveriesActive:
+          if info.meshMessageDeliveries < topicParams.meshMessageDeliveriesThreshold:
+            let deficit = topicParams.meshMessageDeliveriesThreshold - info.meshMessageDeliveries
+            let p3 = deficit * deficit
+            trace "p3", peer, p3, topic, topicScore
+            topicScore += p3 * topicParams.meshMessageDeliveriesWeight
 
-      topicScore += info.meshFailurePenalty * topicParams.meshFailurePenaltyWeight
-      trace "p3b", peer, p3b = info.meshFailurePenalty
+        topicScore += info.meshFailurePenalty * topicParams.meshFailurePenaltyWeight
+        trace "p3b", peer, p3b = info.meshFailurePenalty, topic, topicScore
 
-      topicScore += info.invalidMessageDeliveries * info.invalidMessageDeliveries * topicParams.invalidMessageDeliveriesWeight
-      trace "p4", p4 = info.invalidMessageDeliveries * info.invalidMessageDeliveries
+        topicScore += info.invalidMessageDeliveries * info.invalidMessageDeliveries * topicParams.invalidMessageDeliveriesWeight
+        trace "p4", p4 = info.invalidMessageDeliveries * info.invalidMessageDeliveries, topic, topicScore
 
-      trace "updated peer topic's scores", peer, topic, info, topicScore
+        trace "updated peer topic's scores", peer, topic, info, topicScore
 
-      peer.score += topicScore * topicParams.topicWeight
+        peer.score += topicScore * topicParams.topicWeight
 
       # Score decay
       info.firstMessageDeliveries *= topicParams.firstMessageDeliveriesDecay
@@ -837,21 +842,23 @@ proc heartbeat(g: GossipSub) {.async.} =
         let gossipPeers = g.gossipsub.getOrDefault(t)
         # this will be changed by rebalance but does not matter
         totalMeshPeers += meshPeers.len
-        totalGossipPeers += gossipPeers.len
+        totalGossipPeers += g.gossipsub.peers(t)
         var prunes: seq[PubSubPeer]
         for peer in meshPeers:
           if peer.score < 0.0:
+            trace "pruning negative score peer", peer, score = peer.score
             g.pruned(peer, t)
             g.mesh.removePeer(t, peer)
             prunes &= peer
-        let prune = RPCMsg(control: some(ControlMessage(
-          prune: @[ControlPrune(
-            topicID: t,
-            peers: g.peerExchangeList(t),
-            backoff: g.parameters.pruneBackoff.seconds.uint64)])))
-        g.broadcast(prunes, prune)
+        if prunes.len > 0:
+          let prune = RPCMsg(control: some(ControlMessage(
+            prune: @[ControlPrune(
+              topicID: t,
+              peers: g.peerExchangeList(t),
+              backoff: g.parameters.pruneBackoff.seconds.uint64)])))
+          g.broadcast(prunes, prune)
 
-        await g.rebalanceMesh(t)
+        g.rebalanceMesh(t)
 
       libp2p_gossipsub_peers_mesh_sum.set(totalMeshPeers.int64)
       libp2p_gossipsub_peers_gossipsub_sum.set(totalGossipPeers.int64)
@@ -897,7 +904,7 @@ method unsubscribePeer*(g: GossipSub, peer: PeerID) =
 
   # remove from peer IPs collection too
   if pubSubPeer.connections.len > 0:
-    g.peersInIP.withValue(pubSubPeer.connections[0].observedAddr, s) do:
+    g.peersInIP.withValue(pubSubPeer.connections[0].observedAddr, s):
       s[].excl(pubSubPeer)
 
   for t in toSeq(g.gossipsub.keys):
@@ -910,6 +917,7 @@ method unsubscribePeer*(g: GossipSub, peer: PeerID) =
         .set(g.gossipsub.peers(t).int64, labelValues = [t])
 
   for t in toSeq(g.mesh.keys):
+    trace "pruning unsubscribing peer", pubSubPeer, score = pubSubPeer.score
     g.pruned(pubSubPeer, t)
     g.mesh.removePeer(t, pubSubPeer)
 
@@ -924,8 +932,9 @@ method unsubscribePeer*(g: GossipSub, peer: PeerID) =
       libp2p_gossipsub_peers_per_topic_fanout
         .set(g.fanout.peers(t).int64, labelValues = [t])
 
-    g.peerStats[pubSubPeer].expire = Moment.now() + g.parameters.retainScore
-    for topic, info in g.peerStats[pubSubPeer].topicInfos.mpairs:
+  g.peerStats.withValue(pubSubPeer, stats):
+    stats[].expire = Moment.now() + g.parameters.retainScore
+    for topic, info in stats[].topicInfos.mpairs:
       info.firstMessageDeliveries = 0
 
   procCall FloodSub(g).unsubscribePeer(peer)
@@ -934,17 +943,25 @@ method subscribeTopic*(g: GossipSub,
                        topic: string,
                        subscribe: bool,
                        peer: PubSubPeer) {.gcsafe.} =
-  # Skip floodsub - we don't want it to add the peer to `g.floodsub`
-  procCall PubSub(g).subscribeTopic(topic, subscribe, peer)
-
   logScope:
     peer
     topic
 
-  g.onNewPeer(peer)
+  # this is a workaround for a race condition 
+  # that can happen if we disconnect the peer very early
+  # in the future we might use this as a test case 
+  # and eventually remove this workaround
+  if subscribe and peer.peerId notin g.peers:
+    trace "ignoring unknown peer"
+    return
+  
+  # Skip floodsub - we don't want it to add the peer to `g.floodsub`
+  procCall PubSub(g).subscribeTopic(topic, subscribe, peer)
 
   if subscribe:
     trace "peer subscribed to topic"
+    # populate scoring structs and such
+    g.onNewPeer(peer)
     # subscribe remote peer to the topic
     discard g.gossipsub.addPeer(topic, peer)
     if peer.peerId in g.parameters.directPeers:
@@ -975,9 +992,18 @@ proc punishPeer(g: GossipSub, peer: PubSubPeer, topics: seq[string]) =
     # ensure we init a new topic if unknown
     let _ = g.topicParams.mgetOrPut(t, TopicParams.init())
     # update stats
-    var tstats = g.peerStats[peer].topicInfos.getOrDefault(t)
-    tstats.invalidMessageDeliveries += 1
-    g.peerStats[peer].topicInfos[t] = tstats
+    g.peerStats.withValue(peer, stats):
+      stats[].topicInfos.withValue(t, tstats):
+        tstats[].invalidMessageDeliveries += 1
+      do: # if we have no stats populate!
+        stats[].topicInfos[t] = TopicInfo(invalidMessageDeliveries: 1)
+    do: # if we have no stats populate!
+      g.peerStats[peer] =
+        block:
+          var stats = PeerStats()
+          stats.topicInfos[t] = TopicInfo(invalidMessageDeliveries: 1)
+          stats
+
 
 proc handleGraft(g: GossipSub,
                  peer: PubSubPeer,
@@ -1040,6 +1066,7 @@ proc handleGraft(g: GossipSub,
         else:
           trace "peer already in mesh"
       else:
+        trace "pruning grafting peer, mesh full", peer, score = peer.score, mesh = g.mesh.peers(topic)
         result.add(ControlPrune(
           topicID: topic,
           peers: g.peerExchangeList(topic),
@@ -1065,6 +1092,7 @@ proc handlePrune(g: GossipSub, peer: PubSubPeer, prunes: seq[ControlPrune]) =
       if backoff > current:
         g.backingOff[peer.peerId] = backoff
 
+    trace "pruning rpc received peer", peer, score = peer.score
     g.pruned(peer, prune.topicID)
     g.mesh.removePeer(prune.topicID, peer)
 
@@ -1137,18 +1165,25 @@ method rpcHandler*(g: GossipSub,
       for t in msg.topicIDs:                     # for every topic in the message
         let topicParams = g.topicParams.mgetOrPut(t, TopicParams.init())
                                                 # if in mesh add more delivery score
-        var stats = g.peerStats[peer].topicInfos.getOrDefault(t)
-        if stats.inMesh:
-          stats.meshMessageDeliveries += 1
-          if stats.meshMessageDeliveries > topicParams.meshMessageDeliveriesCap:
-            stats.meshMessageDeliveries = topicParams.meshMessageDeliveriesCap
+        g.peerStats.withValue(peer, pstats):
+          pstats[].topicInfos.withValue(t, stats):
+            if stats[].inMesh:
+              # TODO: take into account meshMessageDeliveriesWindow
+              # score only if messages are not too old.
+              stats[].meshMessageDeliveries += 1
+              if stats[].meshMessageDeliveries > topicParams.meshMessageDeliveriesCap:
+                stats[].meshMessageDeliveries = topicParams.meshMessageDeliveriesCap
+          do: # make sure we don't loose this information
+            pstats[].topicInfos[t] = TopicInfo(meshMessageDeliveries: 1)
+        do: # make sure we don't loose this information
+          g.peerStats[peer] =
+            block:
+              var stats = PeerStats()
+              stats.topicInfos[t] = TopicInfo(meshMessageDeliveries: 1)
+              stats
 
-                                                # commit back to the table
-        g.peerStats[peer].topicInfos[t] = stats
-
+      # onto the next message
       continue
-
-    g.mcache.put(msgId, msg)
 
     if (msg.signature.len > 0 or g.verifySignature) and not msg.verify():
       # always validate if signature is present or required
@@ -1177,24 +1212,33 @@ method rpcHandler*(g: GossipSub,
     of ValidationResult.Accept:
       discard
 
+    # store in cache only after validation
+    g.mcache.put(msgId, msg)
+
     var toSendPeers = initHashSet[PubSubPeer]()
     for t in msg.topicIDs:                      # for every topic in the message
       let topicParams = g.topicParams.mgetOrPut(t, TopicParams.init())
 
-                                                # contribute to peer score first delivery
-      var stats = g.peerStats[peer].topicInfos.getOrDefault(t)
-      stats.firstMessageDeliveries += 1
-      if stats.firstMessageDeliveries > topicParams.firstMessageDeliveriesCap:
-        stats.firstMessageDeliveries = topicParams.firstMessageDeliveriesCap
+      g.peerStats.withValue(peer, pstats):
+        pstats[].topicInfos.withValue(t, stats):
+                                                    # contribute to peer score first delivery
+          stats[].firstMessageDeliveries += 1
+          if stats[].firstMessageDeliveries > topicParams.firstMessageDeliveriesCap:
+            stats[].firstMessageDeliveries = topicParams.firstMessageDeliveriesCap
 
-                                                # if in mesh add more delivery score
-      if stats.inMesh:
-        stats.meshMessageDeliveries += 1
-        if stats.meshMessageDeliveries > topicParams.meshMessageDeliveriesCap:
-          stats.meshMessageDeliveries = topicParams.meshMessageDeliveriesCap
-
-                                                # commit back to the table
-      g.peerStats[peer].topicInfos[t] = stats
+                                                    # if in mesh add more delivery score
+          if stats[].inMesh:
+            stats[].meshMessageDeliveries += 1
+            if stats[].meshMessageDeliveries > topicParams.meshMessageDeliveriesCap:
+              stats[].meshMessageDeliveries = topicParams.meshMessageDeliveriesCap
+        do: # make sure we don't loose this information
+          pstats[].topicInfos[t] = TopicInfo(firstMessageDeliveries: 1, meshMessageDeliveries: 1)
+      do: # make sure we don't loose this information
+        g.peerStats[peer] =
+          block:
+            var stats = PeerStats()
+            stats.topicInfos[t] = TopicInfo(firstMessageDeliveries: 1, meshMessageDeliveries: 1)
+            stats
 
       g.floodsub.withValue(t, peers): toSendPeers.incl(peers[])
       g.mesh.withValue(t, peers): toSendPeers.incl(peers[])
@@ -1251,7 +1295,7 @@ method subscribe*(g: GossipSub,
   if topic in g.fanout:
     g.fanout.del(topic)
 
-  await g.rebalanceMesh(topic)
+  g.rebalanceMesh(topic)
 
 method unsubscribe*(g: GossipSub,
                     topics: seq[TopicPair]) {.async.} =
@@ -1265,6 +1309,7 @@ method unsubscribe*(g: GossipSub,
         g.mesh.del(topic)
         g.topicParams.del(topic)
         for peer in peers:
+          trace "pruning unsubscribe call peer", peer, score = peer.score
           g.pruned(peer, topic)
         let prune = RPCMsg(control: some(ControlMessage(
           prune: @[ControlPrune(
@@ -1280,6 +1325,7 @@ method unsubscribeAll*(g: GossipSub, topic: string) {.async.} =
     let peers = g.mesh.getOrDefault(topic)
     g.mesh.del(topic)
     for peer in peers:
+      trace "pruning unsubscribeAll call peer", peer, score = peer.score
       g.pruned(peer, topic)
     let prune = RPCMsg(control: some(ControlMessage(
       prune: @[ControlPrune(

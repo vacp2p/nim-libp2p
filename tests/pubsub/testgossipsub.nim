@@ -133,7 +133,7 @@ suite "GossipSub":
 
     await allFuturesThrowing(nodesFut.concat())
 
-  asyncTest "GossipSub validation should fail":
+  asyncTest "GossipSub validation should fail (reject)":
     proc handler(topic: string, data: seq[byte]) {.async, gcsafe.} =
       check false # if we get here, it should fail
 
@@ -176,6 +176,68 @@ suite "GossipSub":
                     message: Message):
                     Future[ValidationResult] {.async.} =
       result = ValidationResult.Reject
+      validatorFut.complete(true)
+
+    nodes[1].addValidator("foobar", validator)
+    tryPublish await nodes[0].publish("foobar", "Hello!".toBytes()), 1
+
+    check (await validatorFut) == true
+
+    await allFuturesThrowing(
+      nodes[0].switch.stop(),
+      nodes[1].switch.stop()
+    )
+
+    await allFuturesThrowing(
+      nodes[0].stop(),
+      nodes[1].stop()
+    )
+
+    await allFuturesThrowing(nodesFut.concat())
+
+  asyncTest "GossipSub validation should fail (ignore)":
+    proc handler(topic: string, data: seq[byte]) {.async, gcsafe.} =
+      check false # if we get here, it should fail
+
+    let
+      nodes = generateNodes(2, gossip = true)
+
+      # start switches
+      nodesFut = await allFinished(
+        nodes[0].switch.start(),
+        nodes[1].switch.start(),
+      )
+
+    # start pubsub
+    await allFuturesThrowing(
+      allFinished(
+        nodes[0].start(),
+        nodes[1].start(),
+    ))
+
+    await subscribeNodes(nodes)
+
+    await nodes[0].subscribe("foobar", handler)
+    await nodes[1].subscribe("foobar", handler)
+
+    var subs: seq[Future[void]]
+    subs &= waitSub(nodes[1], nodes[0], "foobar")
+    subs &= waitSub(nodes[0], nodes[1], "foobar")
+
+    await allFuturesThrowing(subs)
+
+    let gossip1 = GossipSub(nodes[0])
+    let gossip2 = GossipSub(nodes[1])
+
+    check:
+      gossip1.mesh["foobar"].len == 1 and "foobar" notin gossip1.fanout
+      gossip2.mesh["foobar"].len == 1 and "foobar" notin gossip2.fanout
+
+    var validatorFut = newFuture[bool]()
+    proc validator(topic: string,
+                    message: Message):
+                    Future[ValidationResult] {.async.} =
+      result = ValidationResult.Ignore
       validatorFut.complete(true)
 
     nodes[1].addValidator("foobar", validator)
@@ -513,7 +575,8 @@ suite "GossipSub":
 
     var seen: Table[string, int]
     var seenFut = newFuture[void]()
-    for dialer in nodes:
+    for i in 0..<nodes.len:
+      let dialer = nodes[i]
       var handler: TopicHandler
       closureScope:
         var peerName = $dialer.peerInfo.peerId
@@ -564,7 +627,8 @@ suite "GossipSub":
 
     var seen: Table[string, int]
     var seenFut = newFuture[void]()
-    for dialer in nodes:
+    for i in 0..<nodes.len:
+      let dialer = nodes[i]
       var handler: TopicHandler
       closureScope:
         var peerName = $dialer.peerInfo.peerId
