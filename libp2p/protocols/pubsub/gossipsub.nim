@@ -598,7 +598,6 @@ proc dropFanoutPeers(g: GossipSub) =
   for topic in toSeq(g.lastFanoutPubSub.keys):
     let val = g.lastFanoutPubSub[topic]
     if now > val:
-      let npeers = g.fanout.peers(topic)
       g.fanout.del(topic)
       g.lastFanoutPubSub.del(topic)
       trace "dropping fanout topic", topic
