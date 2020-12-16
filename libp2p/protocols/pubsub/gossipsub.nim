@@ -168,20 +168,18 @@ type
     when not defined(release):
       prunedPeers: HashSet[PubSubPeer]
 
+# the following 3 metrics are updated only inside rebalanceMesh
+# this is the most reliable place and rebalance anyway happens every heartbeat
 declareGauge(libp2p_gossipsub_peers_per_topic_mesh,
   "gossipsub peers per topic in mesh",
   labels = ["topic"])
-
 declareGauge(libp2p_gossipsub_peers_per_topic_fanout,
   "gossipsub peers per topic in fanout",
   labels = ["topic"])
-
 declareGauge(libp2p_gossipsub_peers_per_topic_gossipsub,
   "gossipsub peers per topic in gossipsub",
   labels = ["topic"])
 
-declareGauge(libp2p_gossipsub_peers_mesh_sum, "pubsub peers in mesh table summed")
-declareGauge(libp2p_gossipsub_peers_gossipsub_sum, "pubsub peers in gossipsub table summed")
 declareCounter(libp2p_gossipsub_failed_publish, "number of failed publish")
 declareGauge(libp2p_gossipsub_cache_window_size, "the number of messages in the cache")
 when defined(libp2p_agents_metrics):
@@ -380,10 +378,6 @@ proc replenishFanout(g: GossipSub, topic: string) =
         if g.fanout.addPeer(topic, peer):
           if g.fanout.peers(topic) == g.parameters.d:
             break
-  
-  if KnownLibP2PTopicsSeq.contains(topic):
-    libp2p_gossipsub_peers_per_topic_fanout
-      .set(g.fanout.peers(topic).int64, labelValues = [topic])
 
   trace "fanout replenished with peers", peers = g.fanout.peers(topic)
 
@@ -571,12 +565,17 @@ proc rebalanceMesh(g: GossipSub, topic: string) =
   if KnownLibP2PTopicsSeq.contains(topic):
     libp2p_gossipsub_peers_per_topic_gossipsub
       .set(g.gossipsub.peers(topic).int64, labelValues = [topic])
-
     libp2p_gossipsub_peers_per_topic_fanout
       .set(g.fanout.peers(topic).int64, labelValues = [topic])
-
     libp2p_gossipsub_peers_per_topic_mesh
       .set(g.mesh.peers(topic).int64, labelValues = [topic])
+  else:
+    libp2p_gossipsub_peers_per_topic_gossipsub
+      .inc(g.gossipsub.peers(topic).int64, labelValues = ["other"])
+    libp2p_gossipsub_peers_per_topic_fanout
+      .inc(g.fanout.peers(topic).int64, labelValues = ["other"])
+    libp2p_gossipsub_peers_per_topic_mesh
+      .inc(g.mesh.peers(topic).int64, labelValues = ["other"])
 
   trace "mesh balanced"
 
@@ -599,13 +598,10 @@ proc dropFanoutPeers(g: GossipSub) =
   for topic in toSeq(g.lastFanoutPubSub.keys):
     let val = g.lastFanoutPubSub[topic]
     if now > val:
+      let npeers = g.fanout.peers(topic)
       g.fanout.del(topic)
       g.lastFanoutPubSub.del(topic)
       trace "dropping fanout topic", topic
-  
-    if KnownLibP2PTopicsSeq.contains(topic):
-      libp2p_gossipsub_peers_per_topic_fanout
-        .set(g.fanout.peers(topic).int64, labelValues = [topic])
 
 proc getGossipPeers(g: GossipSub): Table[PubSubPeer, ControlMessage] {.gcsafe.} =
   ## gossip iHave messages to peers
@@ -831,18 +827,18 @@ proc heartbeat(g: GossipSub) {.async.} =
 
       g.updateScores()
 
-      var
-        totalMeshPeers = 0
-        totalGossipPeers = 0
+      # if a topic is not in the known list we need to reset the generic label here
+      # as we are going to use .inc inside rebalanceMesh()
+      libp2p_gossipsub_peers_per_topic_gossipsub.set(0, labelValues = ["other"])
+      libp2p_gossipsub_peers_per_topic_fanout.set(0, labelValues = ["other"])
+      libp2p_gossipsub_peers_per_topic_mesh.set(0, labelValues = ["other"])
+
       for t in toSeq(g.topics.keys):
         # prune every negative score peer
         # do this before relance
         # in order to avoid grafted -> pruned in the same cycle
         let meshPeers = g.mesh.getOrDefault(t)
         let gossipPeers = g.gossipsub.getOrDefault(t)
-        # this will be changed by rebalance but does not matter
-        totalMeshPeers += meshPeers.len
-        totalGossipPeers += g.gossipsub.peers(t)
         var prunes: seq[PubSubPeer]
         for peer in meshPeers:
           if peer.score < 0.0:
@@ -859,9 +855,6 @@ proc heartbeat(g: GossipSub) {.async.} =
           g.broadcast(prunes, prune)
 
         g.rebalanceMesh(t)
-
-      libp2p_gossipsub_peers_mesh_sum.set(totalMeshPeers.int64)
-      libp2p_gossipsub_peers_gossipsub_sum.set(totalGossipPeers.int64)
 
       g.dropFanoutPeers()
 
@@ -912,25 +905,13 @@ method unsubscribePeer*(g: GossipSub, peer: PeerID) =
     # also try to remove from explicit table here
     g.explicit.removePeer(t, pubSubPeer)
 
-    if KnownLibP2PTopicsSeq.contains(t):
-      libp2p_gossipsub_peers_per_topic_gossipsub
-        .set(g.gossipsub.peers(t).int64, labelValues = [t])
-
   for t in toSeq(g.mesh.keys):
     trace "pruning unsubscribing peer", pubSubPeer, score = pubSubPeer.score
     g.pruned(pubSubPeer, t)
     g.mesh.removePeer(t, pubSubPeer)
 
-    if KnownLibP2PTopicsSeq.contains(t):
-      libp2p_gossipsub_peers_per_topic_mesh
-        .set(g.mesh.peers(t).int64, labelValues = [t])
-
   for t in toSeq(g.fanout.keys):
     g.fanout.removePeer(t, pubSubPeer)
-
-    if KnownLibP2PTopicsSeq.contains(t):
-      libp2p_gossipsub_peers_per_topic_fanout
-        .set(g.fanout.peers(t).int64, labelValues = [t])
 
   g.peerStats.withValue(pubSubPeer, stats):
     stats[].expire = Moment.now() + g.parameters.retainScore
@@ -974,16 +955,6 @@ method subscribeTopic*(g: GossipSub,
     g.fanout.removePeer(topic, peer)
     if peer.peerId in g.parameters.directPeers:
       g.explicit.removePeer(topic, peer)
-
-    if KnownLibP2PTopicsSeq.contains(topic):
-      libp2p_gossipsub_peers_per_topic_mesh
-        .set(g.mesh.peers(topic).int64, labelValues = [topic])
-      libp2p_gossipsub_peers_per_topic_fanout
-        .set(g.fanout.peers(topic).int64, labelValues = [topic])
-
-  if KnownLibP2PTopicsSeq.contains(topic):
-    libp2p_gossipsub_peers_per_topic_gossipsub
-      .set(g.gossipsub.peers(topic).int64, labelValues = [topic])
 
   trace "gossip peers", peers = g.gossipsub.peers(topic), topic
 
@@ -1075,12 +1046,6 @@ proc handleGraft(g: GossipSub,
       trace "peer grafting topic we're not interested in", topic
       # gossip 1.1, we do not send a control message prune anymore
 
-    if KnownLibP2PTopicsSeq.contains(topic):
-      libp2p_gossipsub_peers_per_topic_mesh
-        .set(g.mesh.peers(topic).int64, labelValues = [topic])
-      libp2p_gossipsub_peers_per_topic_fanout
-        .set(g.fanout.peers(topic).int64, labelValues = [topic])
-
 proc handlePrune(g: GossipSub, peer: PubSubPeer, prunes: seq[ControlPrune]) =
   for prune in prunes:
     trace "peer pruned topic", peer, topic = prune.topicID
@@ -1099,10 +1064,6 @@ proc handlePrune(g: GossipSub, peer: PubSubPeer, prunes: seq[ControlPrune]) =
     # TODO peer exchange, we miss ambient peer discovery in libp2p, so we are blocked by that
     # another option could be to implement signed peer records
     ## if peer.score > g.parameters.gossipThreshold and prunes.peers.len > 0:
-
-    if KnownLibP2PTopicsSeq.contains(prune.topicID):
-      libp2p_gossipsub_peers_per_topic_mesh
-        .set(g.mesh.peers(prune.topicID).int64, labelValues = [prune.topicID])
 
 proc handleIHave(g: GossipSub,
                  peer: PubSubPeer,
