@@ -71,7 +71,7 @@ proc connHandler*(t: TcpTransport,
       await client.closeWait()
       raise exc
 
-  debug "Handling tcp connection", address = $observedAddr,
+  trace "Handling tcp connection", address = $observedAddr,
                                    dir = $dir,
                                    clients = t.clients[Direction.In].len +
                                    t.clients[Direction.Out].len
@@ -182,12 +182,12 @@ method accept*(t: TcpTransport): Future[Connection] {.async, gcsafe.} =
     # that can't.
     debug "OS Error", exc = exc.msg
   except TransportTooManyError as exc:
-    warn "Too many files opened", exc = exc.msg
+    debug "Too many files opened", exc = exc.msg
   except TransportUseClosedError as exc:
-    info "Server was closed", exc = exc.msg
+    debug "Server was closed", exc = exc.msg
     raise newTransportClosedError(exc)
   except CatchableError as exc:
-    trace "Unexpected error creating connection", exc = exc.msg
+    warn "Unexpected error creating connection", exc = exc.msg
     raise exc
 
 method dial*(t: TcpTransport,
