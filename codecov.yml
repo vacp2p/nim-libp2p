@@ -1,11 +1,12 @@
 codecov:
   notify:
     require_ci_to_pass: true
-    # wait until at all test runners have uploaded a report (see the test job's build matrix)
-    # otherwise, coverage failures may be shown while some reports are still missing
-    after_n_builds: 45 # must be the number of coverage report builds
+    # must be the number of coverage report builds
+    # notice that this number is for PRs;
+    # like this we disabled notify on pure branches report
+    # which is fine I guess
+    after_n_builds: 45
 comment:
-  # this also configures the layout of PR check summaries / comments
   layout: "reach, diff, flags, files"
   after_n_builds: 45 # must be the number of coverage report builds
 coverage:
