@@ -130,7 +130,10 @@ method start*(t: TcpTransport, ma: MultiAddress) {.async.} =
   await procCall Transport(t).start(ma)
   trace "Starting TCP transport"
 
-  t.server = createStreamServer(t.ma, t.flags, t)
+  t.server = createStreamServer(
+    ma = t.ma,
+    flags = t.flags,
+    udata = t)
 
   # always get the resolved address in case we're bound to 0.0.0.0:0
   t.ma = MultiAddress.init(t.server.sock.getLocalAddress()).tryGet()
