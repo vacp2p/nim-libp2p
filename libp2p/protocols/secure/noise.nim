@@ -435,15 +435,12 @@ proc encryptFrame(
   doAssert cipherFrame.len == 2 + src.len + sizeof(ChaChaPolyTag)
 
   cipherFrame[0..<2] = toBytesBE(uint16(src.len + sizeof(ChaChaPolyTag)))
-
-  copyMem(addr cipherFrame[2], unsafeAddr src[0], src.len())
+  cipherFrame[2..<2 + src.len()] = src
 
   let tag = encrypt(
     sconn.writeCs, cipherFrame.toOpenArray(2, 2 + src.len() - 1), [])
 
-  copyMem(
-    addr cipherFrame[cipherFrame.len - sizeof(tag)], unsafeAddr tag[0],
-    sizeof(tag))
+  cipherFrame[2 + src.len()..<cipherFrame.len] = tag
 
 method write*(sconn: NoiseConnection, message: seq[byte]): Future[void] {.async.} =
   if message.len == 0:
