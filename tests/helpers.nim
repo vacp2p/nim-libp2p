@@ -9,6 +9,8 @@ import ../libp2p/stream/lpstream
 import ../libp2p/muxers/mplex/lpchannel
 import ../libp2p/protocols/secure/secure
 
+export unittest
+
 const
   StreamTransportTrackerName = "stream.transport"
   StreamServerTrackerName = "stream.server"
