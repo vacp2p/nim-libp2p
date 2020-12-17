@@ -443,7 +443,9 @@ proc accept(s: Switch, transport: Transport) {.async.} = # noraises
         # be careful to not end up in a thigh loop that
         # will starve the main event loop, thus we sleep
         # here before retrying.
+        trace "Unable to get a connection, sleeping"
         await sleepAsync(100.millis) # TODO: should be configurable?
+        upgrades.release()
         continue
 
       debug "Accepted an incoming connection", conn
@@ -454,7 +456,7 @@ proc accept(s: Switch, transport: Transport) {.async.} = # noraises
           await conn.upgraded.wait(30.seconds) # wait for connection to by upgraded
           trace "Connection upgrade succeeded"
         except CatchableError as exc:
-          trace "Exception awaiting connection upgrade", exc = exc.msg
+          trace "Exception awaiting connection upgrade", exc = exc.msg, conn
           if not(isNil(conn)) and not(conn.closed):
             await conn.close()
         finally:
