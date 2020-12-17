@@ -240,14 +240,16 @@ proc cleanupConn(c: ConnManager, conn: Connection) {.async.} =
 proc onConnUpgraded(c: ConnManager, conn: Connection) {.async.} =
   try:
     trace "Triggering connect events", conn
+    # NOTE: make sure the upgrade event
+    # happens *before* any other events
+    # are triggered
+    conn.upgraded.complete()
     let peerId = conn.peerInfo.peerId
     await c.triggerPeerEvents(
       peerId, PeerEvent(kind: PeerEventKind.Joined, initiator: conn.dir == Direction.Out))
 
     await c.triggerConnEvent(
       peerId, ConnEvent(kind: ConnEventKind.Connected, incoming: conn.dir == Direction.In))
-
-    conn.upgraded.complete()
   except CatchableError as exc:
     # This is top-level procedure which will work as separate task, so it
     # do not need to propagate CancelledError and should handle other errors
