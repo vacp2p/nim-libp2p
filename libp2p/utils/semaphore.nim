@@ -72,5 +72,4 @@ proc release*(s: AsyncSemaphore) =
     s.count.inc # increment the resource count
     trace "Released slot", available = s.count,
                            queue = s.queue.len
-                          #  stack = getStackTrace()
     return
