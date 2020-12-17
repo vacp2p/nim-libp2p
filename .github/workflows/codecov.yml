@@ -14,8 +14,7 @@ jobs:
         ]
         test-program: [
           "tests/pubsub/testpubsub",
-          "tests/pubsub/testgossipinternal",
-          "tests/pubsub/testgossipinternal10"
+          "tests/pubsub/testgossipinternal"
         ]
     steps:
       - uses: actions/checkout@v2
