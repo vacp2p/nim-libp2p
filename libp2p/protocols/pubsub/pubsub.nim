@@ -171,7 +171,16 @@ proc handleData*(p: PubSub, topic: string, data: seq[byte]): Future[void] {.asyn
 
   # gather all futures without yielding to scheduler
   var futs = p.topics[topic].handler.mapIt(it(topic, data))
-  futs = await allFinished(futs)
+  
+  try:
+    futs = await allFinished(futs)
+  except CancelledError:
+    # propagate cancellation
+    for fut in futs:
+      if not(fut.finished):
+        fut.cancel()
+  
+  # check for errors in futures
   for fut in futs:
     if fut.failed:
       let err = fut.readError()
