@@ -13,7 +13,7 @@ import chronos, chronicles
 # TODO: this should probably go in chronos
 
 logScope:
-  topics = "semaphore"
+  topics = "libp2p semaphore"
 
 type
   AsyncSemaphore* = ref object of RootObj
