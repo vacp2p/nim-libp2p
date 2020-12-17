@@ -47,7 +47,7 @@ declareCounter(libp2p_failed_dials, "failed dials")
 declareCounter(libp2p_failed_upgrade, "peers failed upgrade")
 
 const
-  ConcurrentUpgrades* = 10
+  ConcurrentUpgrades* = 4
 
 type
     UpgradeFailedError* = object of CatchableError
@@ -426,15 +426,15 @@ proc mount*[T: LPProtocol](s: Switch, proto: T, matcher: Matcher = nil) {.gcsafe
   s.ms.addHandler(proto.codecs, proto, matcher)
 
 proc accept(s: Switch, transport: Transport) {.async.} = # noraises
-  ## transport's accept loop
+  ## switch accept loop, ran for every transport
   ##
 
   let upgrades = AsyncSemaphore.init(ConcurrentUpgrades)
   while transport.running:
     var conn: Connection
-    await upgrades.acquire()
     try:
       debug "About to accept incoming connection"
+      await upgrades.acquire()
       conn = await transport.accept()
       if isNil(conn):
         # A nil connection means that we might have hit a
@@ -447,18 +447,27 @@ proc accept(s: Switch, transport: Transport) {.async.} = # noraises
         continue
 
       debug "Accepted an incoming connection", conn
+      proc upgradeMonitor() {.async.} =
+        ## monitor connection for upgrades
+        ##
+        try:
+          await conn.upgraded.wait(30.seconds) # wait for connection to by upgraded
+          trace "Connection upgrade succeeded"
+        except CatchableError as exc:
+          trace "Exception awaiting connection upgrade", exc = exc.msg
+
+          if not(isNil(conn)) and not(conn.closed):
+            await conn.close()
+
+        upgrades.release()
+
+      asyncSpawn upgradeMonitor()
       asyncSpawn s.upgradeIncoming(conn)
-      try:
-        await conn.upgraded # wait for connection to by upgraded
-      except CatchableError as exc:
-        trace "Exception awaiting connection upgrade", exc = exc.msg
     except CatchableError as exc:
       debug "Exception in accept loop, exiting", exc = exc.msg
       if not isNil(conn):
         await conn.close()
       return
-
-    upgrades.release()
 
 proc start*(s: Switch): Future[seq[Future[void]]] {.async, gcsafe.} =
   trace "starting switch for peer", peerInfo = s.peerInfo
