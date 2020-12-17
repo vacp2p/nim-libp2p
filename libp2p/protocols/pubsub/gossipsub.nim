@@ -660,7 +660,7 @@ func `/`(a, b: Duration): float64 =
 
 proc colocationFactor(g: GossipSub, peer: PubSubPeer): float64 =
   if peer.connections.len == 0:
-    debug "colocationFactor, no connections", peer
+    trace "colocationFactor, no connections", peer
     0.0
   else:
     let
@@ -668,7 +668,7 @@ proc colocationFactor(g: GossipSub, peer: PubSubPeer): float64 =
       ipPeers = g.peersInIP.getOrDefault(address)
       len = ipPeers.len.float64
     if len > g.parameters.ipColocationFactorThreshold:
-      debug "colocationFactor over threshold", peer, address, len
+      trace "colocationFactor over threshold", peer, address, len
       let over = len - g.parameters.ipColocationFactorThreshold
       over * over
     else:
