@@ -65,9 +65,14 @@ method initStream*(s: Connection) =
 method closeImpl*(s: Connection): Future[void] =
   # Cleanup timeout timer
   trace "Closing connection", s
+
   if not isNil(s.timerTaskFut) and not s.timerTaskFut.finished:
     s.timerTaskFut.cancel()
     s.timerTaskFut = nil
+
+  if not isNil(s.upgraded) and not s.upgraded.finished:
+    s.upgraded.cancel()
+    s.upgraded = nil
 
   trace "Closed connection", s
 
