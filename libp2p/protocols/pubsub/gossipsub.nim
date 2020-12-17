@@ -316,7 +316,8 @@ method onNewPeer(g: GossipSub, peer: PubSubPeer) =
     return
   else:
     # we knew this peer
-    discard
+    # restore previously stored score
+    peer.score = g.peerStats[peer.peerId].score
 
 proc grafted(g: GossipSub, p: PubSubPeer, topic: string) =
   g.peerStats.withValue(p.peerId, stats):
