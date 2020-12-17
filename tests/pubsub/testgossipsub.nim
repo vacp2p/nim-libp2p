@@ -19,15 +19,10 @@ import utils, ../../libp2p/[errors,
                             stream/bufferstream,
                             crypto/crypto,
                             protocols/pubsub/pubsub,
+                            protocols/pubsub/gossipsub,
                             protocols/pubsub/pubsubpeer,
                             protocols/pubsub/peertable,
                             protocols/pubsub/rpc/messages]
-
-when defined(fallback_gossipsub_10):
-  import ../../libp2p/protocols/pubsub/gossipsub10
-else:
-  import ../../libp2p/protocols/pubsub/gossipsub
-
 import ../helpers
 
 proc waitSub(sender, receiver: auto; key: string) {.async, gcsafe.} =
