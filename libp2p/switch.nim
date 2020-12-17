@@ -455,11 +455,10 @@ proc accept(s: Switch, transport: Transport) {.async.} = # noraises
           trace "Connection upgrade succeeded"
         except CatchableError as exc:
           trace "Exception awaiting connection upgrade", exc = exc.msg
-
           if not(isNil(conn)) and not(conn.closed):
             await conn.close()
-
-        upgrades.release()
+        finally:
+          upgrades.release()
 
       asyncSpawn upgradeMonitor()
       asyncSpawn s.upgradeIncoming(conn)
