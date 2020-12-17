@@ -11,7 +11,6 @@ import std/oids
 import stew/byteutils
 import chronicles, chronos, metrics
 import ../varint,
-       ../vbuffer,
        ../peerinfo,
        ../multiaddress
 
@@ -236,12 +235,16 @@ proc readLp*(s: LPStream, maxSize: int): Future[seq[byte]] {.async, gcsafe.} =
 method write*(s: LPStream, msg: seq[byte]): Future[void] {.base.} =
   doAssert(false, "not implemented!")
 
-proc writeLp*(s: LPStream, msg: string | seq[byte]): Future[void] {.gcsafe.} =
-  ## write length prefixed
-  var buf = initVBuffer()
-  buf.writeSeq(msg)
-  buf.finish()
-  s.write(buf.buffer)
+proc writeLp*(s: LPStream, msg: openArray[byte]): Future[void] =
+  ## Write `msg` with a varint-encoded length prefix
+  let vbytes = PB.toBytes(msg.len().uint64)
+  var buf = newSeqUninitialized[byte](msg.len() + vbytes.len)
+  buf[0..<vbytes.len] = vbytes.toOpenArray()
+  buf[vbytes.len..<buf.len] = msg
+  s.write(buf)
+
+proc writeLp*(s: LPStream, msg: string): Future[void] =
+  writeLp(s, msg.toOpenArrayByte(0, msg.high))
 
 proc write*(s: LPStream, pbytes: pointer, nbytes: int): Future[void] {.deprecated: "seq".} =
   s.write(@(toOpenArray(cast[ptr UncheckedArray[byte]](pbytes), 0, nbytes - 1)))
