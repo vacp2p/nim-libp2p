@@ -1282,6 +1282,9 @@ method unsubscribeAll*(g: GossipSub, topic: string) =
   else:
     g.broadcast(toSeq(gpeers), msg)
 
+  # finally let's remove from g.topics, do that by calling PubSub
+  procCall PubSub(g).unsubscribeAll(topic)
+
 method unsubscribe*(g: GossipSub,
                     topics: seq[TopicPair]) =
   procCall PubSub(g).unsubscribe(topics)
