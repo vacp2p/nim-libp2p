@@ -307,13 +307,14 @@ method init*(g: GossipSub) =
   g.codecs &= GossipSubCodec
   g.codecs &= GossipSubCodec_10
 
+proc initPeerStats(g: GossipSub, peer: PubSubPeer) =
+  g.peerStats[peer.peerId] = PeerStats()
+  peer.iWantBudget = IWantPeerBudget
+  peer.iHaveBudget = IHavePeerBudget
+
 method onNewPeer(g: GossipSub, peer: PubSubPeer) =
   if peer.peerId notin g.peerStats:
-    # new peer
-    g.peerStats[peer.peerId] = PeerStats()
-    peer.iWantBudget = IWantPeerBudget
-    peer.iHaveBudget = IHavePeerBudget
-    return
+    g.initPeerStats(peer)
   else:
     # we knew this peer
     # restore previously stored score
@@ -333,7 +334,7 @@ proc grafted(g: GossipSub, p: PubSubPeer, topic: string) =
 
     trace "grafted", peer=p, topic
   do:
-    g.onNewPeer(p)
+    g.initPeerStats(p)
     g.grafted(p, topic)
 
 proc pruned(g: GossipSub, p: PubSubPeer, topic: string) =
@@ -688,18 +689,17 @@ proc updateScores(g: GossipSub) = # avoid async
 
   for peerId, stats in g.peerStats.mpairs:
     let peer = g.peers.getOrDefault(peerId)
-    if isNil(peer):
-      continue
-
-    trace "updating peer score", peer
-    var n_topics = 0
-    var is_grafted = 0
-
-    if not peer.connected:
+    if isNil(peer) or not(peer.connected):
       if now > stats.expire:
         evicting.add(peerId)
         trace "evicted peer from memory", peer
-        continue
+      continue
+
+    trace "updating peer score", peer
+
+    var
+      n_topics = 0
+      is_grafted = 0
 
     # Per topic
     for topic, topicParams in g.topicParams:
@@ -936,8 +936,6 @@ method subscribeTopic*(g: GossipSub,
 
   if subscribe:
     trace "peer subscribed to topic"
-    # populate scoring structs and such
-    g.onNewPeer(peer)
     # subscribe remote peer to the topic
     discard g.gossipsub.addPeer(topic, peer)
     if peer.peerId in g.parameters.directPeers:
@@ -1022,7 +1020,7 @@ proc handleGraft(g: GossipSub,
       continue
 
     if peer.peerId notin g.peerStats:
-      g.onNewPeer(peer)
+      g.initPeerStats(peer)
 
     # not in the spec exactly, but let's avoid way too low score peers
     # other clients do it too also was an audit recommendation
