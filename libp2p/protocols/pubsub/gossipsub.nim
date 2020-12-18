@@ -1277,7 +1277,7 @@ method unsubscribe*(g: GossipSub,
         g.broadcast(toSeq(peers), prune)
 
 method unsubscribeAll*(g: GossipSub, topic: string) {.async.} =
-  await procCall PubSub(g).unsubscribeAll(topic)
+  await procCall FloodSub(g).unsubscribeAll(topic)
 
   if topic in g.mesh:
     let peers = g.mesh.getOrDefault(topic)
