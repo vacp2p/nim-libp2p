@@ -437,8 +437,8 @@ proc accept(s: Switch, transport: Transport) {.async.} = # noraises
       # remember to always release the slot when
       # the upgrade succeeds or fails, this is
       # currently done by the `upgradeMonitor`
-      await upgrades.acquire()
-      conn = await transport.accept()
+      await upgrades.acquire()        # first wait for an upgrade slot to become available
+      conn = await transport.accept() # next attempt to get a connection
       if isNil(conn):
         # A nil connection means that we might have hit a
         # file-handle limit (or another non-fatal error),
@@ -456,14 +456,17 @@ proc accept(s: Switch, transport: Transport) {.async.} = # noraises
         ## monitor connection for upgrades
         ##
         try:
-          # NOTE Since we don't control the flow of the
-          # upgrade, this timeout guarantees that a "hanged"
-          # remote doesn't hold the upgrade forever
-          await conn.upgraded.wait(30.seconds) # wait for connection to by upgraded
+          # Since we don't control the flow of the
+          # upgrade, this timeout guarantees that a
+          # "hanged" remote doesn't hold the upgrade
+          # forever
+          await conn.upgraded.wait(30.seconds) # wait for connection to be upgraded
           trace "Connection upgrade succeeded"
         except CatchableError as exc:
+          if not isNil(conn): # for some reason, this can be nil
+            await conn.close()
+
           trace "Exception awaiting connection upgrade", exc = exc.msg, conn
-          await conn.close()
         finally:
           upgrades.release() # don't forget to release the slot!
 
