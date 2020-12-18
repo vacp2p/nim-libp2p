@@ -247,7 +247,7 @@ proc validateParameters*(parameters: GossipSubParams): Result[void, cstring] =
 
 proc init*(_: type[TopicParams]): TopicParams =
   TopicParams(
-    topicWeight: 1.0,
+    topicWeight: 0.0, # disabled by default
     timeInMeshWeight: 0.01,
     timeInMeshQuantum: 1.seconds,
     timeInMeshCap: 10.0,
