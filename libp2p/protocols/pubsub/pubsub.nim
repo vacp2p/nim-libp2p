@@ -224,7 +224,7 @@ method subscribePeer*(p: PubSub, peer: PeerID) {.base.} =
   peer.outbound = true # flag as outbound
 
 method unsubscribe*(p: PubSub,
-                    topics: seq[TopicPair]) {.base, async.} =
+                    topics: seq[TopicPair]) {.base.} =
   ## unsubscribe from a list of ``topic`` strings
   for t in topics:
     let
@@ -243,19 +243,18 @@ method unsubscribe*(p: PubSub,
 
 proc unsubscribe*(p: PubSub,
                   topic: string,
-                  handler: TopicHandler): Future[void] =
+                  handler: TopicHandler) =
   ## unsubscribe from a ``topic`` string
   ##
-
   p.unsubscribe(@[(topic, handler)])
 
-method unsubscribeAll*(p: PubSub, topic: string) {.base, async.} =
+method unsubscribeAll*(p: PubSub, topic: string) {.base.} =
   p.topics.del(topic)
   libp2p_pubsub_topics.set(p.topics.len.int64)
 
 method subscribe*(p: PubSub,
                   topic: string,
-                  handler: TopicHandler) {.base, async.} =
+                  handler: TopicHandler) {.base.} =
   ## subscribe to a topic
   ##
   ## ``topic``   - a string topic to subscribe to

@@ -55,7 +55,7 @@ suite "GossipSub internal":
       gossipSub.gossipsub[topic].incl(peer)
 
     check gossipSub.peers.len == 15
-    gossipSub.rebalanceMesh(topic)
+    gossipSub.rebalanceMesh(topic, true)
     check gossipSub.mesh[topic].len == gossipSub.parameters.d # + 2 # account opportunistic grafts
 
     await allFuturesThrowing(conns.mapIt(it.close()))
@@ -82,7 +82,7 @@ suite "GossipSub internal":
       gossipSub.mesh[topic].incl(peer)
 
     check gossipSub.mesh[topic].len == 15
-    gossipSub.rebalanceMesh(topic)
+    gossipSub.rebalanceMesh(topic, true)
     check gossipSub.mesh[topic].len == gossipSub.parameters.d + gossipSub.parameters.dScore
 
     await allFuturesThrowing(conns.mapIt(it.close()))

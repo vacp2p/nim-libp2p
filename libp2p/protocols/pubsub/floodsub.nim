@@ -37,9 +37,9 @@ method subscribeTopic*(f: FloodSub,
     peer
     topic
 
-  # this is a workaround for a race condition 
+  # this is a workaround for a race condition
   # that can happen if we disconnect the peer very early
-  # in the future we might use this as a test case 
+  # in the future we might use this as a test case
   # and eventually remove this workaround
   if subscribe and peer.peerId notin f.peers:
     trace "ignoring unknown peer"
@@ -183,14 +183,14 @@ method publish*(f: FloodSub,
   return peers.len
 
 method unsubscribe*(f: FloodSub,
-                    topics: seq[TopicPair]) {.async.} =
-  await procCall PubSub(f).unsubscribe(topics)
+                    topics: seq[TopicPair]) =
+  procCall PubSub(f).unsubscribe(topics)
 
   for p in f.peers.values:
     f.sendSubs(p, topics.mapIt(it.topic).deduplicate(), false)
 
 method unsubscribeAll*(f: FloodSub, topic: string) {.async.} =
-  await procCall PubSub(f).unsubscribeAll(topic)
+  procCall PubSub(f).unsubscribeAll(topic)
 
   for p in f.peers.values:
     f.sendSubs(p, @[topic], false)
