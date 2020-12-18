@@ -434,6 +434,9 @@ proc accept(s: Switch, transport: Transport) {.async.} = # noraises
     var conn: Connection
     try:
       debug "About to accept incoming connection"
+      # remember to always release the slot when
+      # the upgrade succeeds or fails, this is
+      # currently done by the `upgradeMonitor`
       await upgrades.acquire()
       conn = await transport.accept()
       if isNil(conn):
@@ -453,19 +456,25 @@ proc accept(s: Switch, transport: Transport) {.async.} = # noraises
         ## monitor connection for upgrades
         ##
         try:
+          # NOTE Since we don't control the flow of the
+          # upgrade, this timeout guarantees that a "hanged"
+          # remote doesn't hold the upgrade forever
           await conn.upgraded.wait(30.seconds) # wait for connection to by upgraded
           trace "Connection upgrade succeeded"
         except CatchableError as exc:
           trace "Exception awaiting connection upgrade", exc = exc.msg, conn
-          if not(isNil(conn)) and not(conn.closed):
-            await conn.close()
+          await conn.close()
         finally:
-          upgrades.release()
+          upgrades.release() # don't forget to release the slot!
 
       asyncSpawn upgradeMonitor()
       asyncSpawn s.upgradeIncoming(conn)
+    except CancelledError as exc:
+      trace "releasing semaphore on cancellation"
+      upgrades.release() # always release the slot
     except CatchableError as exc:
       debug "Exception in accept loop, exiting", exc = exc.msg
+      upgrades.release() # always release the slot
       if not isNil(conn):
         await conn.close()
       return
