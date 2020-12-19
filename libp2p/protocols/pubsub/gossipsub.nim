@@ -1291,7 +1291,7 @@ method unsubscribe*(g: GossipSub,
 
   for (topic, handler) in topics:
     # delete from mesh only if no handlers are left
-    # (handlers are remove in pubsub unsubscribe)
+    # (handlers are removed in pubsub unsubscribe above)
     if topic notin g.topics:
       g.unsubscribeAll(topic)
 
