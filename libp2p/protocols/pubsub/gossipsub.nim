@@ -1127,7 +1127,7 @@ method rpcHandler*(g: GossipSub,
     let msgId = g.msgIdProvider(msg)
 
     if g.seen.put(msgId):
-      trace "Dropping already-seen message", msgId, peer
+      trace "Dropping already-seen message", msgId = shortLog(msgId), peer
 
       # make sure to update score tho before continuing
       for t in msg.topicIDs:                     # for every topic in the message
@@ -1155,13 +1155,15 @@ method rpcHandler*(g: GossipSub,
 
     if (msg.signature.len > 0 or g.verifySignature) and not msg.verify():
       # always validate if signature is present or required
-      debug "Dropping message due to failed signature verification", msgId, peer
+      debug "Dropping message due to failed signature verification",
+        msgId = shortLog(msgId), peer
       g.punishPeer(peer, msg.topicIDs)
       continue
 
     if msg.seqno.len > 0 and msg.seqno.len != 8:
       # if we have seqno should be 8 bytes long
-      debug "Dropping message due to invalid seqno length", msgId, peer
+      debug "Dropping message due to invalid seqno length",
+        msgId = shortLog(msgId), peer
       g.punishPeer(peer, msg.topicIDs)
       continue
 
@@ -1171,11 +1173,13 @@ method rpcHandler*(g: GossipSub,
     let validation = await g.validate(msg)
     case validation
     of ValidationResult.Reject:
-      debug "Dropping message after validation, reason: reject", msgId, peer
+      debug "Dropping message after validation, reason: reject",
+        msgId = shortLog(msgId), peer
       g.punishPeer(peer, msg.topicIDs)
       continue
     of ValidationResult.Ignore:
-      debug "Dropping message after validation, reason: ignore", msgId, peer
+      debug "Dropping message after validation, reason: ignore",
+        msgId = shortLog(msgId), peer
       continue
     of ValidationResult.Accept:
       discard
@@ -1216,7 +1220,8 @@ method rpcHandler*(g: GossipSub,
     # In theory, if topics are the same in all messages, we could batch - we'd
     # also have to be careful to only include validated messages
     g.broadcast(toSeq(toSendPeers), RPCMsg(messages: @[msg]))
-    trace "forwared message to peers", peers = toSendPeers.len, msgId, peer
+    trace "forwared message to peers", peers = toSendPeers.len,
+      msgId = shortLog(msgId), peer
     libp2p_pubsub_messages_rebroadcasted.inc()
 
   if rpcMsg.control.isSome:
@@ -1345,7 +1350,7 @@ method publish*(g: GossipSub,
         Message.init(some(g.peerInfo), data, topic, some(g.msgSeqno), g.sign)
     msgId = g.msgIdProvider(msg)
 
-  logScope: msgId
+  logScope: msgId = shortLog(msgId)
 
   trace "Created new message", msg = shortLog(msg), peers = peers.len
 
