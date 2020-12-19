@@ -44,7 +44,8 @@ declareCounter(libp2p_pubsub_validation_ignore, "pubsub ignore validated message
 declarePublicCounter(libp2p_pubsub_messages_published, "published messages", labels = ["topic"])
 declarePublicCounter(libp2p_pubsub_messages_rebroadcasted, "re-broadcasted messages", labels = ["topic"])
 
-declarePublicCounter(libp2p_pubsub_broadcast_subscriptions, "pubsub broadcast subscriptions", labels = ["topic"])
+declarePublicCounter(libp2p_pubsub_broadcast_subscription, "pubsub broadcast subscriptions", labels = ["topic"])
+declarePublicCounter(libp2p_pubsub_broadcast_unsubscription, "pubsub broadcast unsubscriptions", labels = ["topic"])
 declarePublicCounter(libp2p_pubsub_broadcast_messages, "pubsub broadcast messages", labels = ["topic"])
 
 declarePublicCounter(libp2p_pubsub_received_subscriptions, "pubsub broadcast subscriptions", labels = ["topic"])
@@ -119,13 +120,19 @@ proc broadcast*(
   sendPeers: openArray[PubSubPeer],
   msg: RPCMsg) = # raises: [Defect]
   ## Attempt to send `msg` to the given peers
-  
+
   let npeers = sendPeers.len.int64
   for sub in msg.subscriptions:
-    if KnownLibP2PTopicsSeq.contains(sub.topic):
-      libp2p_pubsub_broadcast_subscriptions.inc(npeers, labelValues = [sub.topic])
+    if sub.subscribe:
+      if KnownLibP2PTopicsSeq.contains(sub.topic):
+        libp2p_pubsub_broadcast_subscription.inc(npeers, labelValues = [sub.topic])
+      else:
+        libp2p_pubsub_broadcast_subscription.inc(npeers, labelValues = ["generic"])
     else:
-      libp2p_pubsub_broadcast_subscriptions.inc(npeers, labelValues = ["generic"])
+      if KnownLibP2PTopicsSeq.contains(sub.topic):
+        libp2p_pubsub_broadcast_unsubscription.inc(npeers, labelValues = [sub.topic])
+      else:
+        libp2p_pubsub_broadcast_unsubscription.inc(npeers, labelValues = ["generic"])
 
   for smsg in msg.messages:
     for topic in smsg.topicIDs:
@@ -133,7 +140,7 @@ proc broadcast*(
         libp2p_pubsub_broadcast_messages.inc(npeers, labelValues = [topic])
       else:
         libp2p_pubsub_broadcast_messages.inc(npeers, labelValues = ["generic"])
-  
+
   if msg.control.isSome():
     libp2p_pubsub_broadcast_iwant.inc(npeers * msg.control.get().iwant.len.int64)
 
@@ -166,10 +173,16 @@ proc sendSubs*(p: PubSub,
   ## send subscriptions to remote peer
   p.send(peer, RPCMsg.withSubs(topics, subscribe))
   for topic in topics:
-    if KnownLibP2PTopicsSeq.contains(topic):
-      libp2p_pubsub_broadcast_subscriptions.inc(labelValues = [topic])
+    if subscribe:
+      if KnownLibP2PTopicsSeq.contains(topic):
+        libp2p_pubsub_broadcast_subscription.inc(labelValues = [topic])
+      else:
+        libp2p_pubsub_broadcast_subscription.inc(labelValues = ["generic"])
     else:
-      libp2p_pubsub_broadcast_subscriptions.inc(labelValues = ["generic"])
+      if KnownLibP2PTopicsSeq.contains(topic):
+        libp2p_pubsub_broadcast_unsubscription.inc(labelValues = [topic])
+      else:
+        libp2p_pubsub_broadcast_unsubscription.inc(labelValues = ["generic"])
 
 method subscribeTopic*(p: PubSub,
                        topic: string,
