@@ -44,12 +44,13 @@ declareCounter(libp2p_pubsub_validation_ignore, "pubsub ignore validated message
 declarePublicCounter(libp2p_pubsub_messages_published, "published messages", labels = ["topic"])
 declarePublicCounter(libp2p_pubsub_messages_rebroadcasted, "re-broadcasted messages", labels = ["topic"])
 
-declarePublicCounter(libp2p_pubsub_broadcast_subscription, "pubsub broadcast subscriptions", labels = ["topic"])
-declarePublicCounter(libp2p_pubsub_broadcast_unsubscription, "pubsub broadcast unsubscriptions", labels = ["topic"])
+declarePublicCounter(libp2p_pubsub_broadcast_subscriptions, "pubsub broadcast subscriptions", labels = ["topic"])
+declarePublicCounter(libp2p_pubsub_broadcast_unsubscriptions, "pubsub broadcast unsubscriptions", labels = ["topic"])
 declarePublicCounter(libp2p_pubsub_broadcast_messages, "pubsub broadcast messages", labels = ["topic"])
 
-declarePublicCounter(libp2p_pubsub_received_subscriptions, "pubsub broadcast subscriptions", labels = ["topic"])
-declarePublicCounter(libp2p_pubsub_received_messages, "pubsub broadcast messages", labels = ["topic"])
+declarePublicCounter(libp2p_pubsub_received_subscriptions, "pubsub received subscriptions", labels = ["topic"])
+declarePublicCounter(libp2p_pubsub_received_unsubscriptions, "pubsub received subscriptions", labels = ["topic"])
+declarePublicCounter(libp2p_pubsub_received_messages, "pubsub received messages", labels = ["topic"])
 
 declarePublicCounter(libp2p_pubsub_broadcast_iwant, "pubsub broadcast iwant")
 
@@ -125,14 +126,14 @@ proc broadcast*(
   for sub in msg.subscriptions:
     if sub.subscribe:
       if KnownLibP2PTopicsSeq.contains(sub.topic):
-        libp2p_pubsub_broadcast_subscription.inc(npeers, labelValues = [sub.topic])
+        libp2p_pubsub_broadcast_subscriptions.inc(npeers, labelValues = [sub.topic])
       else:
-        libp2p_pubsub_broadcast_subscription.inc(npeers, labelValues = ["generic"])
+        libp2p_pubsub_broadcast_subscriptions.inc(npeers, labelValues = ["generic"])
     else:
       if KnownLibP2PTopicsSeq.contains(sub.topic):
-        libp2p_pubsub_broadcast_unsubscription.inc(npeers, labelValues = [sub.topic])
+        libp2p_pubsub_broadcast_unsubscriptions.inc(npeers, labelValues = [sub.topic])
       else:
-        libp2p_pubsub_broadcast_unsubscription.inc(npeers, labelValues = ["generic"])
+        libp2p_pubsub_broadcast_unsubscriptions.inc(npeers, labelValues = ["generic"])
 
   for smsg in msg.messages:
     for topic in smsg.topicIDs:
@@ -175,14 +176,14 @@ proc sendSubs*(p: PubSub,
   for topic in topics:
     if subscribe:
       if KnownLibP2PTopicsSeq.contains(topic):
-        libp2p_pubsub_broadcast_subscription.inc(labelValues = [topic])
+        libp2p_pubsub_broadcast_subscriptions.inc(labelValues = [topic])
       else:
-        libp2p_pubsub_broadcast_subscription.inc(labelValues = ["generic"])
+        libp2p_pubsub_broadcast_subscriptions.inc(labelValues = ["generic"])
     else:
       if KnownLibP2PTopicsSeq.contains(topic):
-        libp2p_pubsub_broadcast_unsubscription.inc(labelValues = [topic])
+        libp2p_pubsub_broadcast_unsubscriptions.inc(labelValues = [topic])
       else:
-        libp2p_pubsub_broadcast_unsubscription.inc(labelValues = ["generic"])
+        libp2p_pubsub_broadcast_unsubscriptions.inc(labelValues = ["generic"])
 
 method subscribeTopic*(p: PubSub,
                        topic: string,
@@ -201,10 +202,16 @@ method rpcHandler*(p: PubSub,
     p.subscribeTopic(s.topic, s.subscribe, peer)
 
   for sub in rpcMsg.subscriptions:
-    if KnownLibP2PTopicsSeq.contains(sub.topic):
-      libp2p_pubsub_received_subscriptions.inc(labelValues = [sub.topic])
+    if sub.subscribe:
+      if KnownLibP2PTopicsSeq.contains(sub.topic):
+        libp2p_pubsub_received_subscriptions.inc(labelValues = [sub.topic])
+      else:
+        libp2p_pubsub_received_subscriptions.inc(labelValues = ["generic"])
     else:
-      libp2p_pubsub_received_subscriptions.inc(labelValues = ["generic"])
+      if KnownLibP2PTopicsSeq.contains(sub.topic):
+        libp2p_pubsub_received_unsubscriptions.inc(labelValues = [sub.topic])
+      else:
+        libp2p_pubsub_received_unsubscriptions.inc(labelValues = ["generic"])
 
   for smsg in rpcMsg.messages:
     for topic in smsg.topicIDs:
