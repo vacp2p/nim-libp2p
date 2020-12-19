@@ -166,9 +166,6 @@ type
 
     heartbeatEvents*: seq[AsyncEvent]
 
-    when not defined(release):
-      prunedPeers: HashSet[PubSubPeer]
-
 when defined(libp2p_expensive_metrics):
   declareGauge(libp2p_gossipsub_peers_per_topic_mesh,
     "gossipsub peers per topic in mesh",
@@ -339,9 +336,6 @@ proc grafted(g: GossipSub, p: PubSubPeer, topic: string) =
 
 proc pruned(g: GossipSub, p: PubSubPeer, topic: string) =
   g.peerStats.withValue(p.peerId, stats):
-    when not defined(release):
-      g.prunedPeers.incl(p)
-
     if topic in stats.topicInfos:
       var info = stats.topicInfos[topic]
       let topicParams = g.topicParams.mgetOrPut(topic, TopicParams.init())
@@ -1270,11 +1264,11 @@ method unsubscribeAll*(g: GossipSub, topic: string) =
     # send to peers NOT in mesh first
     g.broadcast(toSeq(gpeers), msg)
 
-    g.mesh.del(topic)
-
     for peer in mpeers:
       trace "pruning unsubscribeAll call peer", peer, score = peer.score
       g.pruned(peer, topic)
+
+    g.mesh.del(topic)
 
     msg.control =
       some(ControlMessage(prune:
