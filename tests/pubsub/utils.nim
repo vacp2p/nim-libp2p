@@ -4,17 +4,13 @@ const
   libp2p_pubsub_verify {.booldefine.} = true
   libp2p_pubsub_anonymize {.booldefine.} = false
 
-import random
+import random, tables
 import chronos
 import ../../libp2p/[standard_setup,
                      protocols/pubsub/pubsub,
+                     protocols/pubsub/gossipsub,
                      protocols/pubsub/floodsub,
                      protocols/secure/secure]
-
-when defined(fallback_gossipsub_10):
-  import ../../libp2p/protocols/pubsub/gossipsub10
-else:
-  import ../../libp2p/protocols/pubsub/gossipsub
 
 export standard_setup
 
@@ -35,14 +31,19 @@ proc generateNodes*(
   for i in 0..<num:
     let switch = newStandardSwitch(secureManagers = secureManagers)
     let pubsub = if gossip:
-      GossipSub.init(
+      let g = GossipSub.init(
         switch = switch,
         triggerSelf = triggerSelf,
         verifySignature = verifySignature,
         sign = sign,
         msgIdProvider = msgIdProvider,
         anonymize = anonymize,
-        parameters = (var p = GossipSubParams.init(); p.floodPublish = false; p)).PubSub
+        parameters = (var p = GossipSubParams.init(); p.floodPublish = false; p))
+      # set some testing params, to enable scores
+      g.topicParams.mgetOrPut("foobar", TopicParams.init()).topicWeight = 1.0
+      g.topicParams.mgetOrPut("foo", TopicParams.init()).topicWeight = 1.0
+      g.topicParams.mgetOrPut("bar", TopicParams.init()).topicWeight = 1.0
+      g.PubSub
     else:
       FloodSub.init(
         switch = switch,

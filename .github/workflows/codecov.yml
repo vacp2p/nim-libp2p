@@ -10,15 +10,11 @@ jobs:
         nim-options: [
           "", 
           "-d:libp2p_pubsub_anonymize=true -d:libp2p_pubsub_sign=false -d:libp2p_pubsub_verify=false", 
-          "-d:libp2p_pubsub_sign=true -d:libp2p_pubsub_verify=true",
-          "-d:fallback_gossipsub_10", 
-          "-d:fallback_gossipsub_10 -d:libp2p_pubsub_anonymize=true -d:libp2p_pubsub_sign=false -d:libp2p_pubsub_verify=false", 
-          "-d:fallback_gossipsub_10 -d:libp2p_pubsub_sign=true -d:libp2p_pubsub_verify=true"
+          "-d:libp2p_pubsub_sign=true -d:libp2p_pubsub_verify=true"
         ]
         test-program: [
           "tests/pubsub/testpubsub",
-          "tests/pubsub/testgossipinternal",
-          "tests/pubsub/testgossipinternal10"
+          "tests/pubsub/testgossipinternal"
         ]
     steps:
       - uses: actions/checkout@v2

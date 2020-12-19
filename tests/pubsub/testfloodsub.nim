@@ -62,7 +62,7 @@ suite "FloodSub":
 
     await subscribeNodes(nodes)
 
-    await nodes[1].subscribe("foobar", handler)
+    nodes[1].subscribe("foobar", handler)
     await waitSub(nodes[0], nodes[1], "foobar")
 
     check (await nodes[0].publish("foobar", "Hello!".toBytes())) > 0
@@ -104,7 +104,7 @@ suite "FloodSub":
 
     await subscribeNodes(nodes)
 
-    await nodes[0].subscribe("foobar", handler)
+    nodes[0].subscribe("foobar", handler)
     await waitSub(nodes[1], nodes[0], "foobar")
 
     check (await nodes[1].publish("foobar", "Hello!".toBytes())) > 0
@@ -147,7 +147,7 @@ suite "FloodSub":
 
     await subscribeNodes(nodes)
 
-    await nodes[1].subscribe("foobar", handler)
+    nodes[1].subscribe("foobar", handler)
     await waitSub(nodes[0], nodes[1], "foobar")
 
     var validatorFut = newFuture[bool]()
@@ -195,7 +195,7 @@ suite "FloodSub":
     ))
 
     await subscribeNodes(nodes)
-    await nodes[1].subscribe("foobar", handler)
+    nodes[1].subscribe("foobar", handler)
     await waitSub(nodes[0], nodes[1], "foobar")
 
     var validatorFut = newFuture[bool]()
@@ -243,9 +243,9 @@ suite "FloodSub":
     ))
 
     await subscribeNodes(nodes)
-    await nodes[1].subscribe("foo", handler)
+    nodes[1].subscribe("foo", handler)
     await waitSub(nodes[0], nodes[1], "foo")
-    await nodes[1].subscribe("bar", handler)
+    nodes[1].subscribe("bar", handler)
     await waitSub(nodes[0], nodes[1], "bar")
 
     proc validator(topic: string,
@@ -299,7 +299,7 @@ suite "FloodSub":
     await subscribeNodes(nodes)
 
     for i in 0..<runs:
-      await nodes[i].subscribe("foobar", futs[i][1])
+      nodes[i].subscribe("foobar", futs[i][1])
 
     var subs: seq[Future[void]]
     for i in 0..<runs:
@@ -349,7 +349,7 @@ suite "FloodSub":
     await subscribeNodes(nodes)
 
     for i in 0..<runs:
-      await nodes[i].subscribe("foobar", futs[i][1])
+      nodes[i].subscribe("foobar", futs[i][1])
 
     var subs: seq[Future[void]]
     for i in 0..<runs:

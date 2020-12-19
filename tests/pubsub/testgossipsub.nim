@@ -19,15 +19,10 @@ import utils, ../../libp2p/[errors,
                             stream/bufferstream,
                             crypto/crypto,
                             protocols/pubsub/pubsub,
+                            protocols/pubsub/gossipsub,
                             protocols/pubsub/pubsubpeer,
                             protocols/pubsub/peertable,
                             protocols/pubsub/rpc/messages]
-
-when defined(fallback_gossipsub_10):
-  import ../../libp2p/protocols/pubsub/gossipsub10
-else:
-  import ../../libp2p/protocols/pubsub/gossipsub
-
 import ../helpers
 
 proc waitSub(sender, receiver: auto; key: string) {.async, gcsafe.} =
@@ -99,8 +94,8 @@ suite "GossipSub":
 
     await subscribeNodes(nodes)
 
-    await nodes[0].subscribe("foobar", handler)
-    await nodes[1].subscribe("foobar", handler)
+    nodes[0].subscribe("foobar", handler)
+    nodes[1].subscribe("foobar", handler)
 
     var subs: seq[Future[void]]
     subs &= waitSub(nodes[1], nodes[0], "foobar")
@@ -155,8 +150,8 @@ suite "GossipSub":
 
     await subscribeNodes(nodes)
 
-    await nodes[0].subscribe("foobar", handler)
-    await nodes[1].subscribe("foobar", handler)
+    nodes[0].subscribe("foobar", handler)
+    nodes[1].subscribe("foobar", handler)
 
     var subs: seq[Future[void]]
     subs &= waitSub(nodes[1], nodes[0], "foobar")
@@ -217,8 +212,8 @@ suite "GossipSub":
 
     await subscribeNodes(nodes)
 
-    await nodes[0].subscribe("foobar", handler)
-    await nodes[1].subscribe("foobar", handler)
+    nodes[0].subscribe("foobar", handler)
+    nodes[1].subscribe("foobar", handler)
 
     var subs: seq[Future[void]]
     subs &= waitSub(nodes[1], nodes[0], "foobar")
@@ -281,8 +276,8 @@ suite "GossipSub":
 
     await subscribeNodes(nodes)
 
-    await nodes[1].subscribe("foo", handler)
-    await nodes[1].subscribe("bar", handler)
+    nodes[1].subscribe("foo", handler)
+    nodes[1].subscribe("bar", handler)
 
     var passed, failed: Future[bool] = newFuture[bool]()
     proc validator(topic: string,
@@ -347,7 +342,7 @@ suite "GossipSub":
 
     await subscribeNodes(nodes)
 
-    await nodes[1].subscribe("foobar", handler)
+    nodes[1].subscribe("foobar", handler)
     await sleepAsync(10.seconds)
 
     let gossip1 = GossipSub(nodes[0])
@@ -395,8 +390,8 @@ suite "GossipSub":
 
     await subscribeNodes(nodes)
 
-    await nodes[0].subscribe("foobar", handler)
-    await nodes[1].subscribe("foobar", handler)
+    nodes[0].subscribe("foobar", handler)
+    nodes[1].subscribe("foobar", handler)
 
     var subs: seq[Future[void]]
     subs &= waitSub(nodes[1], nodes[0], "foobar")
@@ -460,7 +455,7 @@ suite "GossipSub":
 
     await subscribeNodes(nodes)
 
-    await nodes[1].subscribe("foobar", handler)
+    nodes[1].subscribe("foobar", handler)
     await waitSub(nodes[0], nodes[1], "foobar")
 
     var observed = 0
@@ -532,8 +527,8 @@ suite "GossipSub":
 
     await subscribeNodes(nodes)
 
-    await nodes[0].subscribe("foobar", handler)
-    await nodes[1].subscribe("foobar", handler)
+    nodes[0].subscribe("foobar", handler)
+    nodes[1].subscribe("foobar", handler)
     await waitSub(nodes[0], nodes[1], "foobar")
 
     tryPublish await nodes[0].publish("foobar", "Hello!".toBytes()), 1
@@ -588,7 +583,7 @@ suite "GossipSub":
           if not seenFut.finished() and seen.len >= runs:
             seenFut.complete()
 
-      await dialer.subscribe("foobar", handler)
+      dialer.subscribe("foobar", handler)
       await waitSub(nodes[0], dialer, "foobar")
 
     tryPublish await wait(nodes[0].publish("foobar",
@@ -640,7 +635,7 @@ suite "GossipSub":
           if not seenFut.finished() and seen.len >= runs:
             seenFut.complete()
 
-      await dialer.subscribe("foobar", handler)
+      dialer.subscribe("foobar", handler)
       await waitSub(nodes[0], dialer, "foobar")
 
     tryPublish await wait(nodes[0].publish("foobar",

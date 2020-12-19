@@ -109,7 +109,7 @@ proc testPubSubDaemonPublish(gossip: bool = false, count: int = 1) {.async.} =
     result = true # don't cancel subscription
 
   asyncDiscard daemonNode.pubsubSubscribe(testTopic, pubsubHandler)
-  await pubsub.subscribe(testTopic, nativeHandler)
+  pubsub.subscribe(testTopic, nativeHandler)
   await sleepAsync(5.seconds)
 
   proc publisher() {.async.} =
@@ -174,7 +174,7 @@ proc testPubSubNodePublish(gossip: bool = false, count: int = 1) {.async.} =
 
   discard await daemonNode.pubsubSubscribe(testTopic, pubsubHandler)
   proc nativeHandler(topic: string, data: seq[byte]) {.async.} = discard
-  await pubsub.subscribe(testTopic, nativeHandler)
+  pubsub.subscribe(testTopic, nativeHandler)
   await sleepAsync(5.seconds)
 
   proc publisher() {.async.} =
