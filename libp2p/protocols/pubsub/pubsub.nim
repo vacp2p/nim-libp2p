@@ -36,6 +36,8 @@ const
 
 declareGauge(libp2p_pubsub_peers, "pubsub peer instances")
 declareGauge(libp2p_pubsub_topics, "pubsub subscribed topics")
+declareCounter(libp2p_pubsub_subscriptions, "pubsub subscription operations")
+declareCounter(libp2p_pubsub_unsubscriptions, "pubsub unsubscription operations")
 declareGauge(libp2p_pubsub_topic_handlers, "pubsub subscribed topics handlers count", labels = ["topic"])
 
 declareCounter(libp2p_pubsub_validation_success, "pubsub successfully validated messages")
@@ -374,6 +376,8 @@ method unsubscribe*(p: PubSub,
 
           p.updateTopicMetrics(ttopic)
 
+        libp2p_pubsub_unsubscriptions.inc()
+
 proc unsubscribe*(p: PubSub,
                   topic: string,
                   handler: TopicHandler) =
@@ -386,6 +390,7 @@ method unsubscribeAll*(p: PubSub, topic: string) {.base.} =
 
   p.updateTopicMetrics(topic)
 
+  libp2p_pubsub_unsubscriptions.inc()
 
 method subscribe*(p: PubSub,
                   topic: string,
@@ -408,6 +413,8 @@ method subscribe*(p: PubSub,
     p.sendSubs(peer, @[topic], true)
 
   p.updateTopicMetrics(topic)
+
+  libp2p_pubsub_subscriptions.inc()
 
 method publish*(p: PubSub,
                 topic: string,
