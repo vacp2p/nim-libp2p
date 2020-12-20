@@ -1309,7 +1309,7 @@ method subscribe*(g: GossipSub,
   # rebalance but don't update metrics here, we do that only in the heartbeat
   g.rebalanceMesh(topic, metrics = nil)
 
-method unsubscribeAll*(g: GossipSub, topic: string) =
+proc unsubscribe*(g: GossipSub, topic: string) =
   var
     msg = RPCMsg.withSubs(@[topic], subscribe = false)
     gpeers = g.gossipsub.getOrDefault(topic)
@@ -1339,6 +1339,8 @@ method unsubscribeAll*(g: GossipSub, topic: string) =
   else:
     g.broadcast(toSeq(gpeers), msg)
 
+method unsubscribeAll*(g: GossipSub, topic: string) =
+  g.unsubscribe(topic)
   # finally let's remove from g.topics, do that by calling PubSub
   procCall PubSub(g).unsubscribeAll(topic)
 
@@ -1350,7 +1352,7 @@ method unsubscribe*(g: GossipSub,
     # delete from mesh only if no handlers are left
     # (handlers are removed in pubsub unsubscribe above)
     if topic notin g.topics:
-      g.unsubscribeAll(topic)
+      g.unsubscribe(topic)
 
 method publish*(g: GossipSub,
                 topic: string,
