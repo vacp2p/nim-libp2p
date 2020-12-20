@@ -386,11 +386,14 @@ proc unsubscribe*(p: PubSub,
   p.unsubscribe(@[(topic, handler)])
 
 method unsubscribeAll*(p: PubSub, topic: string) {.base.} =
-  p.topics.del(topic)
+  if topic notin p.topics:
+    debug "unsubscribeAll called for an unknown topic", topic
+  else:
+    p.topics.del(topic)
 
-  p.updateTopicMetrics(topic)
+    p.updateTopicMetrics(topic)
 
-  libp2p_pubsub_unsubscriptions.inc()
+    libp2p_pubsub_unsubscriptions.inc()
 
 method subscribe*(p: PubSub,
                   topic: string,
