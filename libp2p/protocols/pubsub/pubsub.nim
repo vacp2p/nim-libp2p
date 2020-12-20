@@ -36,6 +36,7 @@ const
 
 declareGauge(libp2p_pubsub_peers, "pubsub peer instances")
 declareGauge(libp2p_pubsub_topics, "pubsub subscribed topics")
+declareGauge(libp2p_pubsub_topic_handlers, "pubsub subscribed topics handlers count", labels = ["topic"])
 
 declareCounter(libp2p_pubsub_validation_success, "pubsub successfully validated messages")
 declareCounter(libp2p_pubsub_validation_failure, "pubsub failed validated messages")
@@ -285,7 +286,7 @@ proc handleData*(p: PubSub, topic: string, data: seq[byte]): Future[void] {.asyn
 
   # gather all futures without yielding to scheduler
   var futs = p.topics[topic].handler.mapIt(it(topic, data))
-  
+
   try:
     futs = await allFinished(futs)
   except CancelledError:
@@ -293,7 +294,7 @@ proc handleData*(p: PubSub, topic: string, data: seq[byte]): Future[void] {.asyn
     for fut in futs:
       if not(fut.finished):
         fut.cancel()
-  
+
   # check for errors in futures
   for fut in futs:
     if fut.failed:
@@ -344,6 +345,17 @@ method subscribePeer*(p: PubSub, peer: PeerID) {.base.} =
   let peer = p.getOrCreatePeer(peer, p.codecs)
   peer.outbound = true # flag as outbound
 
+proc updateTopicMetrics(p: PubSub, topic: string) =
+  # metrics
+  libp2p_pubsub_topics.set(p.topics.len.int64)
+  if KnownLibP2PTopicsSeq.contains(topic):
+    libp2p_pubsub_topic_handlers.set(p.topics[topic].handler.len.int64, labelValues = [topic])
+  else:
+    libp2p_pubsub_topic_handlers.set(0, labelValues = ["other"])
+    for key, val in p.topics:
+      if not KnownLibP2PTopicsSeq.contains(key):
+        libp2p_pubsub_topic_handlers.inc(val.handler.len.int64, labelValues = ["other"])
+
 method unsubscribe*(p: PubSub,
                     topics: seq[TopicPair]) {.base.} =
   ## unsubscribe from a list of ``topic`` strings
@@ -360,7 +372,7 @@ method unsubscribe*(p: PubSub,
           # no more handlers are left
           p.topics.del(ttopic)
 
-          libp2p_pubsub_topics.set(p.topics.len.int64)
+          p.updateTopicMetrics(ttopic)
 
 proc unsubscribe*(p: PubSub,
                   topic: string,
@@ -371,7 +383,9 @@ proc unsubscribe*(p: PubSub,
 
 method unsubscribeAll*(p: PubSub, topic: string) {.base.} =
   p.topics.del(topic)
-  libp2p_pubsub_topics.set(p.topics.len.int64)
+
+  p.updateTopicMetrics(topic)
+
 
 method subscribe*(p: PubSub,
                   topic: string,
@@ -393,8 +407,7 @@ method subscribe*(p: PubSub,
   for _, peer in p.peers:
     p.sendSubs(peer, @[topic], true)
 
-  # metrics
-  libp2p_pubsub_topics.set(p.topics.len.int64)
+  p.updateTopicMetrics(topic)
 
 method publish*(p: PubSub,
                 topic: string,
