@@ -15,16 +15,16 @@ jobs:
         with:
           app_id: ${{ secrets.BUMP_BOT_APP_ID }}
           private_key: ${{ secrets.BUMP_BOT_APP_PRIVATE_KEY }}
-        
+
       - name: Clone NBC
         uses: actions/checkout@v2
         with:
           repository: status-im/nimbus-eth2
-          ref: devel
+          ref: unstable
           path: nbc
           submodules: true
           fetch-depth: 0
-      
+
       - name: Checkout this ref
         run: |
           cd nbc/vendor/nim-libp2p
@@ -36,7 +36,7 @@ jobs:
           git config --global user.email "${{ github.actor }}@users.noreply.github.com"
           git config --global user.name = "${{ github.actor }}"
           git commit -a -m "auto-bump nim-libp2p"
-      
+
       - name: Make PR
         uses: peter-evans/create-pull-request@v3.5.0
         with:
