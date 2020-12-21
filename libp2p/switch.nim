@@ -425,6 +425,24 @@ proc mount*[T: LPProtocol](s: Switch, proto: T, matcher: Matcher = nil) {.gcsafe
 
   s.ms.addHandler(proto.codecs, proto, matcher)
 
+proc upgradeMonitor(conn: Connection, upgrades: AsyncSemaphore) {.async.} =
+  ## monitor connection for upgrades
+  ##
+  try:
+    # Since we don't control the flow of the
+    # upgrade, this timeout guarantees that a
+    # "hanged" remote doesn't hold the upgrade
+    # forever
+    await conn.upgraded.wait(30.seconds) # wait for connection to be upgraded
+    trace "Connection upgrade succeeded"
+  except CatchableError as exc:
+    # if not isNil(conn): # for some reason, this can be nil
+    await conn.close()
+
+    trace "Exception awaiting connection upgrade", exc = exc.msg, conn
+  finally:
+    upgrades.release() # don't forget to release the slot!
+
 proc accept(s: Switch, transport: Transport) {.async.} = # noraises
   ## switch accept loop, ran for every transport
   ##
@@ -452,25 +470,7 @@ proc accept(s: Switch, transport: Transport) {.async.} = # noraises
         continue
 
       debug "Accepted an incoming connection", conn
-      proc upgradeMonitor() {.async.} =
-        ## monitor connection for upgrades
-        ##
-        try:
-          # Since we don't control the flow of the
-          # upgrade, this timeout guarantees that a
-          # "hanged" remote doesn't hold the upgrade
-          # forever
-          await conn.upgraded.wait(30.seconds) # wait for connection to be upgraded
-          trace "Connection upgrade succeeded"
-        except CatchableError as exc:
-          if not isNil(conn): # for some reason, this can be nil
-            await conn.close()
-
-          trace "Exception awaiting connection upgrade", exc = exc.msg, conn
-        finally:
-          upgrades.release() # don't forget to release the slot!
-
-      asyncSpawn upgradeMonitor()
+      asyncSpawn upgradeMonitor(conn, upgrades)
       asyncSpawn s.upgradeIncoming(conn)
     except CancelledError as exc:
       trace "releasing semaphore on cancellation"
