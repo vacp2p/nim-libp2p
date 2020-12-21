@@ -240,9 +240,6 @@ proc cleanupConn(c: ConnManager, conn: Connection) {.async.} =
 proc onConnUpgraded(c: ConnManager, conn: Connection) {.async.} =
   try:
     trace "Triggering connect events", conn
-    # NOTE: make sure the upgrade event
-    # happens *before* any other events
-    # are triggered
     conn.upgraded.complete()
     let peerId = conn.peerInfo.peerId
     await c.triggerPeerEvents(
