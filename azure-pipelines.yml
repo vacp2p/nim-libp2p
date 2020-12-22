@@ -1,0 +1,125 @@
+strategy:
+  maxParallel: 10
+  matrix:
+    # Nim requires enforcing ARCH="x86" and UCPU
+    # for 32-bit targets as it seems like Azure machines are 64-bit
+    # TEST_LANG env variable support TODO
+    Windows_32bit:
+      VM: 'windows-latest'
+      ARCH: x86
+      PLATFORM: x86
+      TEST_LANG: c
+    Windows_64bit:
+      VM: 'windows-latest'
+      PLATFORM: x64
+      TEST_LANG: c
+
+pool:
+  vmImage: $(VM)
+
+variables:
+  V: 0 # Scripts verbosity, 1 for debugging build scripts
+
+steps:
+  - task: CacheBeta@1
+    displayName: 'cache Nim binaries'
+    inputs:
+      key: NimBinaries | $(Agent.OS) | $(PLATFORM) | "$(Build.SourceBranchName)" | "v5"
+      path: NimBinaries
+
+  - task: CacheBeta@1
+    displayName: 'cache Go libp2p daemon'
+    inputs:
+      key: p2pdCache | $(Agent.OS) | $(PLATFORM) | "v3"
+      path: p2pdCache
+
+  - task: CacheBeta@1
+    displayName: 'cache MinGW-w64'
+    inputs:
+      key: mingwCache | 8_1_0 | $(PLATFORM) | "v2"
+      path: mingwCache
+
+  - powershell: |
+      Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem' -Name 'LongPathsEnabled' -Value 1
+    displayName: 'long path support'
+
+  - bash: |
+      set -e
+
+      # custom MinGW-w64 versions for both 32-bit and 64-bit, since we need a 64-bit build of p2pd
+      echo "Installing MinGW-w64"
+
+      install_mingw() {
+        mkdir -p mingwCache
+        cd mingwCache
+        if [[ ! -e "$MINGW_FILE" ]]; then
+          curl -OLsS "$MINGW_URL"
+        fi
+        7z x -y -bd "$MINGW_FILE" >/dev/null
+        mkdir -p /c/custom
+        mv "$MINGW_DIR" /c/custom/
+        cd ..
+      }
+
+      # 32-bit
+      MINGW_FILE="i686-8.1.0-release-posix-dwarf-rt_v6-rev0.7z"
+      MINGW_URL="https://sourceforge.net/projects/mingw-w64/files/Toolchains%20targetting%20Win32/Personal%20Builds/mingw-builds/8.1.0/threads-posix/dwarf/${MINGW_FILE}"
+      MINGW_DIR="mingw32"
+      install_mingw
+
+      # 64-bit
+      MINGW_FILE="x86_64-8.1.0-release-posix-seh-rt_v6-rev0.7z"
+      MINGW_URL="https://sourceforge.net/projects/mingw-w64/files/Toolchains%20targetting%20Win64/Personal%20Builds/mingw-builds/8.1.0/threads-posix/seh/${MINGW_FILE}"
+      MINGW_DIR="mingw64"
+      install_mingw
+
+      if [[ $PLATFORM == "x86" ]]; then
+        MINGW_DIR="mingw32"
+      else
+        MINGW_DIR="mingw64"
+      fi
+      export PATH="/c/custom/${MINGW_DIR}/bin:${PATH}"
+      echo "PATH=${PATH}"
+      which gcc
+      gcc -v
+
+      # detect number of cores
+      export ncpu="$NUMBER_OF_PROCESSORS"
+      [[ -z "$ncpu" || $ncpu -le 0 ]] && ncpu=2
+      echo "Found ${ncpu} cores"
+
+      if [[ $PLATFORM == "x86" ]]; then
+        choco --version
+        choco install --x86 openssl
+        export PATH="/c/Program Files (x86)/OpenSSL-Win32/bin:${PATH}"
+        echo "PATH=${PATH}"
+      fi
+
+      # build nim from our own branch - this to avoid the day-to-day churn and
+      # regressions of the fast-paced Nim development while maintaining the
+      # flexibility to apply patches
+      curl -OLsS https://raw.githubusercontent.com/status-im/nimbus-build-system/master/scripts/build_nim.sh
+      env MAKE="mingw32-make -j${ncpu}" ARCH_OVERRIDE=$(PLATFORM) bash build_nim.sh Nim csources dist/nimble NimBinaries
+
+      export PATH="${PWD}/Nim/bin:${PATH}"
+      echo "PATH=${PATH}"
+
+      # install and build go-libp2p-daemon
+      go version
+
+      export GOPATH="${PWD}/go"
+      export PATH="${GOPATH}/bin:${PATH}"
+      echo "PATH=${PATH}"
+
+      # we can't seem to be able to build a 32-bit p2pd
+      env PATH="/c/custom/mingw64/bin:${PATH}" bash scripts/build_p2pd.sh p2pdCache v0.3.0
+
+      # install dependencies
+      nimble refresh
+      nimble install -y --depsOnly
+
+      # run tests
+      nimble test_slim
+      nimble examples_build
+    displayName: 'build and test'
+
