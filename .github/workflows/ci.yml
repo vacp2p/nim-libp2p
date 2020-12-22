@@ -19,12 +19,12 @@ jobs:
           - os: macos
             cpu: amd64
             TEST_KIND: unit-tests
-          # - os: windows
-          #   cpu: i386
-          #   TEST_KIND: unit-tests
-          # - os: windows
-          #   cpu: amd64
-          #   TEST_KIND: unit-tests
+          - os: windows
+            cpu: i386
+            TEST_KIND: unit-tests
+          - os: windows
+            cpu: amd64
+            TEST_KIND: unit-tests
         include:
           - target:
               os: linux
@@ -32,9 +32,9 @@ jobs:
           - target:
               os: macos
             builder: macos-10.15
-          # - target:
-          #     os: windows
-          #   builder: windows-2019
+          - target:
+              os: windows
+            builder: windows-2019
     name: '${{ matrix.target.os }}-${{ matrix.target.cpu }} (${{ matrix.branch }})'
     runs-on: ${{ matrix.builder }}
     steps:
