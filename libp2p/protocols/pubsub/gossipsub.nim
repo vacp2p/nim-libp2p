@@ -8,7 +8,7 @@
 ## those terms.
 
 import std/[tables, sets, options, sequtils, random, algorithm]
-import chronos, chronicles, metrics
+import chronos, chronicles, metrics, bearssl
 import ./pubsub,
        ./floodsub,
        ./pubsubpeer,
@@ -20,7 +20,8 @@ import ./pubsub,
        ../../stream/connection,
        ../../peerinfo,
        ../../peerid,
-       ../../utility
+       ../../utility,
+       ../../crypto/curve25519
 import stew/results
 export results
 
@@ -165,6 +166,8 @@ type
     peersInIP: Table[MultiAddress, HashSet[PubSubPeer]]
 
     heartbeatEvents*: seq[AsyncEvent]
+
+    randomBytes: seq[byte]
 
 when defined(libp2p_expensive_metrics):
   declareGauge(libp2p_gossipsub_peers_per_topic_mesh,
@@ -1126,7 +1129,7 @@ method rpcHandler*(g: GossipSub,
   for msg in rpcMsg.messages:                         # for every message
     let msgId = g.msgIdProvider(msg)
 
-    if g.seen.put(msgId):
+    if g.seen.put(msgId & g.randomBytes):
       trace "Dropping already-seen message", msgId = shortLog(msgId), peer
 
       # make sure to update score tho before continuing
@@ -1356,7 +1359,7 @@ method publish*(g: GossipSub,
 
   trace "Created new message", msg = shortLog(msg), peers = peers.len
 
-  if g.seen.put(msgId):
+  if g.seen.put(msgId & g.randomBytes):
     # custom msgid providers might cause this
     trace "Dropping already-seen message"
     return 0
@@ -1435,3 +1438,5 @@ method initPubSub*(g: GossipSub) =
   g.lastFanoutPubSub = initTable[string, Moment]()  # last publish time for fanout topics
   g.gossip = initTable[string, seq[ControlIHave]]() # pending gossip
   g.control = initTable[string, ControlMessage]()   # pending control messages
+  var rng = newRng()
+  g.randomBytes = Curve25519Key.random(rng[]).getBytes()
