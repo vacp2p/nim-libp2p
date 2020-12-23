@@ -44,5 +44,3 @@ jobs:
           path: nbc
           token: ${{ steps.generate-token.outputs.token }}
           title: nim-libp2p auto bump
-
-
