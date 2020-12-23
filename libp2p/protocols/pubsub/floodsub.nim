@@ -45,6 +45,11 @@ method subscribeTopic*(f: FloodSub,
     trace "ignoring unknown peer"
     return
 
+  if not(isNil(f.subscriptionValidator)) and not(f.subscriptionValidator(topic)):
+    # this is a violation, so warn should be in order
+    warn "ignoring invalid topic subscription"
+    return
+
   procCall PubSub(f).subscribeTopic(topic, subscribe, peer)
 
   if topic notin f.floodsub:

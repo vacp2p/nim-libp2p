@@ -107,7 +107,10 @@ type
   PeerStats* = object
     topicInfos*: Table[string, TopicInfo]
     expire*: Moment # updated on disconnect, to retain scores until expire
+    # the following are copies from PubSubPeer, in order to restore them on re-connection
     score*: float64 # a copy of the score to keep in case the peer is disconnected
+    appScore*: float64 # application specific score
+    behaviourPenalty*: float64 # the eventual penalty score
 
   GossipSubParams* = object
     explicit: bool
@@ -318,7 +321,10 @@ method onNewPeer(g: GossipSub, peer: PubSubPeer) =
   else:
     # we knew this peer
     # restore previously stored score
-    peer.score = g.peerStats[peer.peerId].score
+    let stats = g.peerStats[peer.peerId]
+    peer.score = stats.score
+    peer.appScore = stats.appScore
+    peer.behaviourPenalty = stats.behaviourPenalty
 
 proc grafted(g: GossipSub, p: PubSubPeer, topic: string) =
   g.peerStats.withValue(p.peerId, stats):
@@ -776,6 +782,8 @@ proc updateScores(g: GossipSub) = # avoid async
 
     # copy into stats the score to keep until expired
     stats.score = peer.score
+    stats.appScore = peer.appScore
+    stats.behaviourPenalty = peer.behaviourPenalty
     assert(g.peerStats[peer.peerId].score == peer.score) # nim sanity check
     trace "updated peer's score", peer, score = peer.score, n_topics, is_grafted
 
@@ -926,6 +934,11 @@ method subscribeTopic*(g: GossipSub,
   # and eventually remove this workaround
   if subscribe and peer.peerId notin g.peers:
     trace "ignoring unknown peer"
+    return
+
+  if not(isNil(g.subscriptionValidator)) and not(g.subscriptionValidator(topic)):
+    # this is a violation, so warn should be in order
+    warn "ignoring invalid topic subscription"
     return
 
   # Skip floodsub - we don't want it to add the peer to `g.floodsub`
@@ -1156,76 +1169,84 @@ method rpcHandler*(g: GossipSub,
       # onto the next message
       continue
 
-    if (msg.signature.len > 0 or g.verifySignature) and not msg.verify():
-      # always validate if signature is present or required
-      debug "Dropping message due to failed signature verification",
-        msgId = shortLog(msgId), peer
-      g.punishPeer(peer, msg.topicIDs)
+    # avoid processing messages we are not interested in
+    # as well score negatively the peer if they send us things we don't want
+    let interested = msg.topicIDs.anyIt(it in g.topics)
+    if not interested:
+      trace "Dropping message of topic without subscription", msgId = shortLog(msgId), peer
+      peer.behaviourPenalty += 1
       continue
+    else:
+      if (msg.signature.len > 0 or g.verifySignature) and not msg.verify():
+        # always validate if signature is present or required
+        debug "Dropping message due to failed signature verification",
+          msgId = shortLog(msgId), peer
+        g.punishPeer(peer, msg.topicIDs)
+        continue
 
-    if msg.seqno.len > 0 and msg.seqno.len != 8:
-      # if we have seqno should be 8 bytes long
-      debug "Dropping message due to invalid seqno length",
-        msgId = shortLog(msgId), peer
-      g.punishPeer(peer, msg.topicIDs)
-      continue
+      if msg.seqno.len > 0 and msg.seqno.len != 8:
+        # if we have seqno should be 8 bytes long
+        debug "Dropping message due to invalid seqno length",
+          msgId = shortLog(msgId), peer
+        g.punishPeer(peer, msg.topicIDs)
+        continue
 
-    # g.anonymize needs no evaluation when receiving messages
-    # as we have a "lax" policy and allow signed messages
+      # g.anonymize needs no evaluation when receiving messages
+      # as we have a "lax" policy and allow signed messages
 
-    let validation = await g.validate(msg)
-    case validation
-    of ValidationResult.Reject:
-      debug "Dropping message after validation, reason: reject",
-        msgId = shortLog(msgId), peer
-      g.punishPeer(peer, msg.topicIDs)
-      continue
-    of ValidationResult.Ignore:
-      debug "Dropping message after validation, reason: ignore",
-        msgId = shortLog(msgId), peer
-      continue
-    of ValidationResult.Accept:
-      discard
+      let validation = await g.validate(msg)
+      case validation
+      of ValidationResult.Reject:
+        debug "Dropping message after validation, reason: reject",
+          msgId = shortLog(msgId), peer
+        g.punishPeer(peer, msg.topicIDs)
+        continue
+      of ValidationResult.Ignore:
+        debug "Dropping message after validation, reason: ignore",
+          msgId = shortLog(msgId), peer
+        continue
+      of ValidationResult.Accept:
+        discard
 
-    # store in cache only after validation
-    g.mcache.put(msgId, msg)
+      # store in cache only after validation
+      g.mcache.put(msgId, msg)
 
-    var toSendPeers = initHashSet[PubSubPeer]()
-    for t in msg.topicIDs:                      # for every topic in the message
-      let topicParams = g.topicParams.mgetOrPut(t, TopicParams.init())
+      var toSendPeers = initHashSet[PubSubPeer]()
+      for t in msg.topicIDs:                      # for every topic in the message
+        let topicParams = g.topicParams.mgetOrPut(t, TopicParams.init())
 
-      g.peerStats.withValue(peer.peerId, pstats):
-        pstats[].topicInfos.withValue(t, stats):
-                                                    # contribute to peer score first delivery
-          stats[].firstMessageDeliveries += 1
-          if stats[].firstMessageDeliveries > topicParams.firstMessageDeliveriesCap:
-            stats[].firstMessageDeliveries = topicParams.firstMessageDeliveriesCap
+        g.peerStats.withValue(peer.peerId, pstats):
+          pstats[].topicInfos.withValue(t, stats):
+                                                      # contribute to peer score first delivery
+            stats[].firstMessageDeliveries += 1
+            if stats[].firstMessageDeliveries > topicParams.firstMessageDeliveriesCap:
+              stats[].firstMessageDeliveries = topicParams.firstMessageDeliveriesCap
 
-                                                    # if in mesh add more delivery score
-          if stats[].inMesh:
-            stats[].meshMessageDeliveries += 1
-            if stats[].meshMessageDeliveries > topicParams.meshMessageDeliveriesCap:
-              stats[].meshMessageDeliveries = topicParams.meshMessageDeliveriesCap
+                                                      # if in mesh add more delivery score
+            if stats[].inMesh:
+              stats[].meshMessageDeliveries += 1
+              if stats[].meshMessageDeliveries > topicParams.meshMessageDeliveriesCap:
+                stats[].meshMessageDeliveries = topicParams.meshMessageDeliveriesCap
+          do: # make sure we don't loose this information
+            pstats[].topicInfos[t] = TopicInfo(firstMessageDeliveries: 1, meshMessageDeliveries: 1)
         do: # make sure we don't loose this information
-          pstats[].topicInfos[t] = TopicInfo(firstMessageDeliveries: 1, meshMessageDeliveries: 1)
-      do: # make sure we don't loose this information
-        g.peerStats[peer.peerId] =
-          block:
-            var stats = PeerStats()
-            stats.topicInfos[t] = TopicInfo(firstMessageDeliveries: 1, meshMessageDeliveries: 1)
-            stats
+          g.peerStats[peer.peerId] =
+            block:
+              var stats = PeerStats()
+              stats.topicInfos[t] = TopicInfo(firstMessageDeliveries: 1, meshMessageDeliveries: 1)
+              stats
 
-      g.floodsub.withValue(t, peers): toSendPeers.incl(peers[])
-      g.mesh.withValue(t, peers): toSendPeers.incl(peers[])
+        g.floodsub.withValue(t, peers): toSendPeers.incl(peers[])
+        g.mesh.withValue(t, peers): toSendPeers.incl(peers[])
 
-      await handleData(g, t, msg.data)
+        await handleData(g, t, msg.data)
 
-    # In theory, if topics are the same in all messages, we could batch - we'd
-    # also have to be careful to only include validated messages
-    g.broadcast(toSeq(toSendPeers), RPCMsg(messages: @[msg]))
-    trace "forwared message to peers", peers = toSendPeers.len,
-      msgId = shortLog(msgId), peer
-    libp2p_pubsub_messages_rebroadcasted.inc()
+      # In theory, if topics are the same in all messages, we could batch - we'd
+      # also have to be careful to only include validated messages
+      g.broadcast(toSeq(toSendPeers), RPCMsg(messages: @[msg]))
+      trace "forwared message to peers", peers = toSendPeers.len,
+        msgId = shortLog(msgId), peer
+      libp2p_pubsub_messages_rebroadcasted.inc()
 
   if rpcMsg.control.isSome:
     let control = rpcMsg.control.get()
