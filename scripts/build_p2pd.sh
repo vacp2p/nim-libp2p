@@ -38,7 +38,7 @@ else
 	GIT_TIMESTAMP_ARG="--date=format-local:%s" # available since Git 2.7.0
 fi
 
-TARGET_DIR="${GOPATH%:*}/bin" # if multiple paths are specified, use the first one
+TARGET_DIR="$(go env GOPATH)/bin"
 TARGET_BINARY="${TARGET_DIR}/p2pd${EXE_SUFFIX}"
 
 target_needs_rebuilding() {
