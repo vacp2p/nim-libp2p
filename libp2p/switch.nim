@@ -510,8 +510,12 @@ proc stop*(s: Switch) {.async.} =
     except CatchableError as exc:
       warn "error cleaning up transports", msg = exc.msg
 
-  let stopped = await allFuturesThrowing(s.acceptFuts)
-    .withTimeout(1.seconds)
+  var stopped: bool
+  try:
+    stopped = await allFuturesThrowing(s.acceptFuts)
+      .withTimeout(1.seconds)
+  except CatchableError as exc:
+    trace "error waiting for accept loops to stop"
 
   if not stopped:
     for a in s.acceptFuts:
