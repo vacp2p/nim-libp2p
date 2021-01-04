@@ -53,7 +53,6 @@ declareCounter(libp2p_failed_upgrades_outgoing, "outgoing connections failed upg
 
 const
   ConcurrentUpgrades* = 4
-  MaxConnections* = 100
 
 type
     DialFailedError* = object of CatchableError
@@ -302,15 +301,19 @@ proc accept(s: Switch, transport: Transport) {.async.} = # noraises
   ## switch accept loop, ran for every transport
   ##
 
-  let upgrades = newAsyncSemaphore(ConcurrentUpgrades)
+  let upgrades = AsyncSemaphore.init(ConcurrentUpgrades)
+  var conn: Connection
   while transport.running:
     try:
       debug "About to accept incoming connection"
       # remember to always release the slot when
       # the upgrade succeeds or fails, this is
       # currently done by the `upgradeMonitor`
-      await upgrades.acquire()        # first wait for an upgrade slot to become available
-      conn = await transport.accept() # next attempt to get a connection
+      await upgrades.acquire()    # first wait for an upgrade slot to become available
+      conn = await s.connManager  # next attempt to get an incoming connection
+      .trackIncomingConn(
+        () => transport.accept()
+      )
       if isNil(conn):
         # A nil connection means that we might have hit a
         # file-handle limit (or another non-fatal error),

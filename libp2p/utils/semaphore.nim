@@ -15,8 +15,6 @@ import chronos, chronicles
 logScope:
   topics = "libp2p semaphore"
 
-# TODO: this should probably go in chronos
-
 type
   AsyncSemaphore* = ref object of RootObj
     size*: int
