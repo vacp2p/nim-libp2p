@@ -32,6 +32,7 @@ type
     timeoutHandler*: TimeoutHandler # timeout handler
     peerInfo*: PeerInfo
     observedAddr*: Multiaddress
+    upgraded*: Future[void]
 
 proc timeoutMonitor(s: Connection) {.async, gcsafe.}
 
@@ -49,6 +50,9 @@ method initStream*(s: Connection) =
 
   doAssert(isNil(s.timerTaskFut))
 
+  if isNil(s.upgraded):
+    s.upgraded = newFuture[void]()
+
   if s.timeout > 0.millis:
     trace "Monitoring for timeout", s, timeout = s.timeout
 
@@ -61,9 +65,14 @@ method initStream*(s: Connection) =
 method closeImpl*(s: Connection): Future[void] =
   # Cleanup timeout timer
   trace "Closing connection", s
+
   if not isNil(s.timerTaskFut) and not s.timerTaskFut.finished:
     s.timerTaskFut.cancel()
     s.timerTaskFut = nil
+
+  if not isNil(s.upgraded) and not s.upgraded.finished:
+    s.upgraded.cancel()
+    s.upgraded = nil
 
   trace "Closed connection", s
 

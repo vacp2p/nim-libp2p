@@ -19,7 +19,8 @@ logScope:
 
 declareGauge(libp2p_peers, "total connected peers")
 
-const MaxConnectionsPerPeer = 5
+const
+  MaxConnectionsPerPeer = 5
 
 type
   TooManyConnections* = object of CatchableError
@@ -236,12 +237,17 @@ proc cleanupConn(c: ConnManager, conn: Connection) {.async.} =
 
   trace "Connection cleaned up", conn
 
-proc peerStartup(c: ConnManager, conn: Connection) {.async.} =
+proc onConnUpgraded(c: ConnManager, conn: Connection) {.async.} =
   try:
     trace "Triggering connect events", conn
+    doAssert(not isNil(conn.upgraded),
+      "The `upgraded` event hasn't been properly initialized!")
+    conn.upgraded.complete()
+
     let peerId = conn.peerInfo.peerId
     await c.triggerPeerEvents(
       peerId, PeerEvent(kind: PeerEventKind.Joined, initiator: conn.dir == Direction.Out))
+
     await c.triggerConnEvent(
       peerId, ConnEvent(kind: ConnEventKind.Connected, incoming: conn.dir == Direction.In))
   except CatchableError as exc:
@@ -384,7 +390,7 @@ proc storeMuxer*(c: ConnManager,
   trace "Stored muxer",
     muxer, handle = not handle.isNil, connections = c.conns.len
 
-  asyncSpawn c.peerStartup(muxer.connection)
+  asyncSpawn c.onConnUpgraded(muxer.connection)
 
 proc getStream*(c: ConnManager,
                      peerId: PeerID,
