@@ -1104,7 +1104,8 @@ proc handleIHave(g: GossipSub,
         peer, topic = ihave.topicID, msgs = ihave.messageIDs
       if ihave.topicID in g.mesh:
         for m in ihave.messageIDs:
-          if m notin g.seen:
+          let msgId = m & g.randomBytes
+          if msgId notin g.seen:
             if peer.iHaveBudget > 0:
               result.messageIDs.add(m)
               dec peer.iHaveBudget
