@@ -42,9 +42,11 @@ logScope:
 # and only if the channel has been secured (i.e. if a secure manager has been
 # previously provided)
 
-declareCounter(libp2p_dialed_peers, "dialed peers")
+declareCounter(libp2p_total_dial_attempts, "total attempted dials")
+declareCounter(libp2p_successful_dials, "dialed successful peers")
 declareCounter(libp2p_failed_dials, "failed dials")
-declareCounter(libp2p_failed_upgrade, "peers failed upgrade")
+declareCounter(libp2p_failed_upgrades_incoming, "incoming connections failed upgrades")
+declareCounter(libp2p_failed_upgrades_outgoing, "outgoing connections failed upgrades")
 
 const
   ConcurrentUpgrades* = 4
@@ -276,6 +278,7 @@ proc dialAndUpgrade(s: Switch,
       if t.handles(a):   # check if it can dial it
         trace "Dialing address", address = $a, peerId
         let dialed = try:
+            libp2p_total_dial_attempts.inc()
             await t.dial(a)
           except CancelledError as exc:
             debug "Dialing canceled", msg = exc.msg, peerId
@@ -288,7 +291,7 @@ proc dialAndUpgrade(s: Switch,
         # make sure to assign the peer to the connection
         dialed.peerInfo = PeerInfo.init(peerId, addrs)
 
-        libp2p_dialed_peers.inc()
+        libp2p_successful_dials.inc()
 
         let conn = try:
             await s.upgradeOutgoing(dialed)
@@ -298,7 +301,7 @@ proc dialAndUpgrade(s: Switch,
             await dialed.close()
             debug "Upgrade failed", msg = exc.msg, peerId
             if exc isnot CancelledError:
-              libp2p_failed_upgrade.inc()
+              libp2p_failed_upgrades_outgoing.inc()
             raise exc
 
         doAssert not isNil(conn), "connection died after upgradeOutgoing"
@@ -436,8 +439,9 @@ proc upgradeMonitor(conn: Connection, upgrades: AsyncSemaphore) {.async.} =
     await conn.upgraded.wait(30.seconds) # wait for connection to be upgraded
     trace "Connection upgrade succeeded"
   except CatchableError as exc:
-    # if not isNil(conn): # for some reason, this can be nil
-    await conn.close()
+    libp2p_failed_upgrades_incoming.inc()
+    if not isNil(conn):
+      await conn.close()
 
     trace "Exception awaiting connection upgrade", exc = exc.msg, conn
   finally:
@@ -555,7 +559,6 @@ proc muxerHandler(s: Switch, muxer: Muxer) {.async, gcsafe.} =
     raise exc
   except CatchableError as exc:
     await muxer.close()
-    libp2p_failed_upgrade.inc()
     trace "Exception in muxer handler", conn, msg = exc.msg
 
 proc newSwitch*(peerInfo: PeerInfo,
