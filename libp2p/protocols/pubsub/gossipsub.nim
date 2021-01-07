@@ -1145,6 +1145,9 @@ method rpcHandler*(g: GossipSub,
   for msg in rpcMsg.messages:                         # for every message
     let msgId = g.msgIdProvider(msg)
 
+    # avoid the remote peer from controlling the seen table hashing
+    # by adding random bytes to the ID we ensure we randomize the IDs
+    # we do only for seen as this is the great filter from the external world
     if g.seen.put(msgId & g.randomBytes):
       trace "Dropping already-seen message", msgId = shortLog(msgId), peer
 
@@ -1174,82 +1177,81 @@ method rpcHandler*(g: GossipSub,
 
     # avoid processing messages we are not interested in
     # as well score negatively the peer if they send us things we don't want
-    let interested = msg.topicIDs.anyIt(it in g.topics)
-    if not interested:
+    if not msg.topicIDs.anyIt(it in g.topics):
       trace "Dropping message of topic without subscription", msgId = shortLog(msgId), peer
       peer.behaviourPenalty += 1
       continue
-    else:
-      if (msg.signature.len > 0 or g.verifySignature) and not msg.verify():
-        # always validate if signature is present or required
-        debug "Dropping message due to failed signature verification",
-          msgId = shortLog(msgId), peer
-        g.punishPeer(peer, msg.topicIDs)
-        continue
 
-      if msg.seqno.len > 0 and msg.seqno.len != 8:
-        # if we have seqno should be 8 bytes long
-        debug "Dropping message due to invalid seqno length",
-          msgId = shortLog(msgId), peer
-        g.punishPeer(peer, msg.topicIDs)
-        continue
-
-      # g.anonymize needs no evaluation when receiving messages
-      # as we have a "lax" policy and allow signed messages
-
-      let validation = await g.validate(msg)
-      case validation
-      of ValidationResult.Reject:
-        debug "Dropping message after validation, reason: reject",
-          msgId = shortLog(msgId), peer
-        g.punishPeer(peer, msg.topicIDs)
-        continue
-      of ValidationResult.Ignore:
-        debug "Dropping message after validation, reason: ignore",
-          msgId = shortLog(msgId), peer
-        continue
-      of ValidationResult.Accept:
-        discard
-
-      # store in cache only after validation
-      g.mcache.put(msgId, msg)
-
-      var toSendPeers = initHashSet[PubSubPeer]()
-      for t in msg.topicIDs:                      # for every topic in the message
-        let topicParams = g.topicParams.mgetOrPut(t, TopicParams.init())
-
-        g.peerStats.withValue(peer.peerId, pstats):
-          pstats[].topicInfos.withValue(t, stats):
-                                                      # contribute to peer score first delivery
-            stats[].firstMessageDeliveries += 1
-            if stats[].firstMessageDeliveries > topicParams.firstMessageDeliveriesCap:
-              stats[].firstMessageDeliveries = topicParams.firstMessageDeliveriesCap
-
-                                                      # if in mesh add more delivery score
-            if stats[].inMesh:
-              stats[].meshMessageDeliveries += 1
-              if stats[].meshMessageDeliveries > topicParams.meshMessageDeliveriesCap:
-                stats[].meshMessageDeliveries = topicParams.meshMessageDeliveriesCap
-          do: # make sure we don't loose this information
-            pstats[].topicInfos[t] = TopicInfo(firstMessageDeliveries: 1, meshMessageDeliveries: 1)
-        do: # make sure we don't loose this information
-          g.peerStats[peer.peerId] =
-            block:
-              var stats = PeerStats()
-              stats.topicInfos[t] = TopicInfo(firstMessageDeliveries: 1, meshMessageDeliveries: 1)
-              stats
-
-        g.floodsub.withValue(t, peers): toSendPeers.incl(peers[])
-        g.mesh.withValue(t, peers): toSendPeers.incl(peers[])
-
-        await handleData(g, t, msg.data)
-
-      # In theory, if topics are the same in all messages, we could batch - we'd
-      # also have to be careful to only include validated messages
-      g.broadcast(toSeq(toSendPeers), RPCMsg(messages: @[msg]))
-      trace "forwared message to peers", peers = toSendPeers.len,
+    if (msg.signature.len > 0 or g.verifySignature) and not msg.verify():
+      # always validate if signature is present or required
+      debug "Dropping message due to failed signature verification",
         msgId = shortLog(msgId), peer
-      libp2p_pubsub_messages_rebroadcasted.inc()
+      g.punishPeer(peer, msg.topicIDs)
+      continue
+
+    if msg.seqno.len > 0 and msg.seqno.len != 8:
+      # if we have seqno should be 8 bytes long
+      debug "Dropping message due to invalid seqno length",
+        msgId = shortLog(msgId), peer
+      g.punishPeer(peer, msg.topicIDs)
+      continue
+
+    # g.anonymize needs no evaluation when receiving messages
+    # as we have a "lax" policy and allow signed messages
+
+    let validation = await g.validate(msg)
+    case validation
+    of ValidationResult.Reject:
+      debug "Dropping message after validation, reason: reject",
+        msgId = shortLog(msgId), peer
+      g.punishPeer(peer, msg.topicIDs)
+      continue
+    of ValidationResult.Ignore:
+      debug "Dropping message after validation, reason: ignore",
+        msgId = shortLog(msgId), peer
+      continue
+    of ValidationResult.Accept:
+      discard
+
+    # store in cache only after validation
+    g.mcache.put(msgId, msg)
+
+    var toSendPeers = initHashSet[PubSubPeer]()
+    for t in msg.topicIDs:                      # for every topic in the message
+      let topicParams = g.topicParams.mgetOrPut(t, TopicParams.init())
+
+      g.peerStats.withValue(peer.peerId, pstats):
+        pstats[].topicInfos.withValue(t, stats):
+                                                    # contribute to peer score first delivery
+          stats[].firstMessageDeliveries += 1
+          if stats[].firstMessageDeliveries > topicParams.firstMessageDeliveriesCap:
+            stats[].firstMessageDeliveries = topicParams.firstMessageDeliveriesCap
+
+                                                    # if in mesh add more delivery score
+          if stats[].inMesh:
+            stats[].meshMessageDeliveries += 1
+            if stats[].meshMessageDeliveries > topicParams.meshMessageDeliveriesCap:
+              stats[].meshMessageDeliveries = topicParams.meshMessageDeliveriesCap
+        do: # make sure we don't loose this information
+          pstats[].topicInfos[t] = TopicInfo(firstMessageDeliveries: 1, meshMessageDeliveries: 1)
+      do: # make sure we don't loose this information
+        g.peerStats[peer.peerId] =
+          block:
+            var stats = PeerStats()
+            stats.topicInfos[t] = TopicInfo(firstMessageDeliveries: 1, meshMessageDeliveries: 1)
+            stats
+
+      g.floodsub.withValue(t, peers): toSendPeers.incl(peers[])
+      g.mesh.withValue(t, peers): toSendPeers.incl(peers[])
+
+      await handleData(g, t, msg.data)
+
+    # In theory, if topics are the same in all messages, we could batch - we'd
+    # also have to be careful to only include validated messages
+    g.broadcast(toSeq(toSendPeers), RPCMsg(messages: @[msg]))
+    trace "forwared message to peers", peers = toSendPeers.len,
+      msgId = shortLog(msgId), peer
+    libp2p_pubsub_messages_rebroadcasted.inc()
 
   if rpcMsg.control.isSome:
     let control = rpcMsg.control.get()
