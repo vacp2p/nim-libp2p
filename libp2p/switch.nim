@@ -26,6 +26,7 @@ import stream/connection,
        peerinfo,
        protocols/identify,
        muxers/muxer,
+       utils/semaphore,
        connmanager,
        peerid,
        errors
@@ -44,6 +45,9 @@ logScope:
 declareCounter(libp2p_dialed_peers, "dialed peers")
 declareCounter(libp2p_failed_dials, "failed dials")
 declareCounter(libp2p_failed_upgrade, "peers failed upgrade")
+
+const
+  ConcurrentUpgrades* = 4
 
 type
     UpgradeFailedError* = object of CatchableError
@@ -223,23 +227,26 @@ proc upgradeIncoming(s: Switch, incomingConn: Connection) {.async, gcsafe.} = # 
     trace "Starting secure handler", conn
     let secure = s.secureManagers.filterIt(it.codec == proto)[0]
 
-    var sconn: Connection
+    var cconn = conn
     try:
-      sconn = await secure.secure(conn, false)
+      var sconn = await secure.secure(cconn, false)
       if isNil(sconn):
         return
 
+      cconn = sconn
       # add the muxer
       for muxer in s.muxers.values:
         ms.addHandler(muxer.codecs, muxer)
 
       # handle subsequent secure requests
-      await ms.handle(sconn)
+      await ms.handle(cconn)
     except CatchableError as exc:
       debug "Exception in secure handler during incoming upgrade", msg = exc.msg, conn
+      if not cconn.upgraded.finished:
+        cconn.upgraded.fail(exc)
     finally:
-      if not isNil(sconn):
-        await sconn.close()
+      if not isNil(cconn):
+        await cconn.close()
 
     trace "Stopped secure handler", conn
 
@@ -254,6 +261,8 @@ proc upgradeIncoming(s: Switch, incomingConn: Connection) {.async, gcsafe.} = # 
     await ms.handle(incomingConn, active = true)
   except CatchableError as exc:
     debug "Exception upgrading incoming", exc = exc.msg
+    if not incomingConn.upgraded.finished:
+      incomingConn.upgraded.fail(exc)
   finally:
     await incomingConn.close()
 
@@ -416,31 +425,61 @@ proc mount*[T: LPProtocol](s: Switch, proto: T, matcher: Matcher = nil) {.gcsafe
 
   s.ms.addHandler(proto.codecs, proto, matcher)
 
+proc upgradeMonitor(conn: Connection, upgrades: AsyncSemaphore) {.async.} =
+  ## monitor connection for upgrades
+  ##
+  try:
+    # Since we don't control the flow of the
+    # upgrade, this timeout guarantees that a
+    # "hanged" remote doesn't hold the upgrade
+    # forever
+    await conn.upgraded.wait(30.seconds) # wait for connection to be upgraded
+    trace "Connection upgrade succeeded"
+  except CatchableError as exc:
+    # if not isNil(conn): # for some reason, this can be nil
+    await conn.close()
+
+    trace "Exception awaiting connection upgrade", exc = exc.msg, conn
+  finally:
+    upgrades.release() # don't forget to release the slot!
+
 proc accept(s: Switch, transport: Transport) {.async.} = # noraises
-  ## transport's accept loop
+  ## switch accept loop, ran for every transport
   ##
 
+  let upgrades = AsyncSemaphore.init(ConcurrentUpgrades)
   while transport.running:
     var conn: Connection
     try:
       debug "About to accept incoming connection"
-      conn = await transport.accept()
-      if not isNil(conn):
-        debug "Accepted an incoming connection", conn
-        asyncSpawn s.upgradeIncoming(conn) # perform upgrade on incoming connection
-      else:
+      # remember to always release the slot when
+      # the upgrade succeeds or fails, this is
+      # currently done by the `upgradeMonitor`
+      await upgrades.acquire()        # first wait for an upgrade slot to become available
+      conn = await transport.accept() # next attempt to get a connection
+      if isNil(conn):
         # A nil connection means that we might have hit a
         # file-handle limit (or another non-fatal error),
         # we can get one on the next try, but we should
         # be careful to not end up in a thigh loop that
         # will starve the main event loop, thus we sleep
         # here before retrying.
+        trace "Unable to get a connection, sleeping"
         await sleepAsync(100.millis) # TODO: should be configurable?
+        upgrades.release()
+        continue
+
+      debug "Accepted an incoming connection", conn
+      asyncSpawn upgradeMonitor(conn, upgrades)
+      asyncSpawn s.upgradeIncoming(conn)
+    except CancelledError as exc:
+      trace "releasing semaphore on cancellation"
+      upgrades.release() # always release the slot
     except CatchableError as exc:
       debug "Exception in accept loop, exiting", exc = exc.msg
+      upgrades.release() # always release the slot
       if not isNil(conn):
         await conn.close()
-
       return
 
 proc start*(s: Switch): Future[seq[Future[void]]] {.async, gcsafe.} =
@@ -460,13 +499,6 @@ proc start*(s: Switch): Future[seq[Future[void]]] {.async, gcsafe.} =
 proc stop*(s: Switch) {.async.} =
   trace "Stopping switch"
 
-  for a in s.acceptFuts:
-    if not a.finished:
-      a.cancel()
-
-  checkFutures(
-    await allFinished(s.acceptFuts))
-
   # close and cleanup all connections
   await s.connManager.close()
 
@@ -477,6 +509,18 @@ proc stop*(s: Switch) {.async.} =
       raise exc
     except CatchableError as exc:
       warn "error cleaning up transports", msg = exc.msg
+
+  try:
+    await allFutures(s.acceptFuts)
+      .wait(1.seconds)
+  except CatchableError as exc:
+    trace "Exception while stopping accept loops", exc = exc.msg
+
+  # check that all futures were properly
+  # stopped and otherwise cancel them
+  for a in s.acceptFuts:
+    if not a.finished:
+      a.cancel()
 
   trace "Switch stopped"
 
