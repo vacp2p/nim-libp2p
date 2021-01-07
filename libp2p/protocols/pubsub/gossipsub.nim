@@ -521,7 +521,7 @@ proc rebalanceMesh(g: GossipSub, topic: string, metrics: ptr MeshMetrics = nil) 
   npeers = g.mesh.peers(topic)
   if npeers > g.parameters.dHigh:
     if not isNil(metrics):
-      if KnownLibP2PTopicsSeq.contains(topic):
+      if g.knownTopics.contains(topic):
         libp2p_gossipsub_above_dhigh_condition.inc(labelValues = [topic])
       else:
         libp2p_gossipsub_above_dhigh_condition.inc(labelValues = ["other"])
@@ -608,7 +608,7 @@ proc rebalanceMesh(g: GossipSub, topic: string, metrics: ptr MeshMetrics = nil) 
           trace "opportunistic grafting", peer
 
   if not isNil(metrics):
-    if KnownLibP2PTopicsSeq.contains(topic):
+    if g.knownTopics.contains(topic):
       libp2p_gossipsub_peers_per_topic_gossipsub
         .set(g.gossipsub.peers(topic).int64, labelValues = [topic])
       libp2p_gossipsub_peers_per_topic_fanout
@@ -914,7 +914,7 @@ proc heartbeat(g: GossipSub) {.async.} =
       for peer, control in peers:
         # only ihave from here
         for ihave in control.ihave:
-          if KnownLibP2PTopicsSeq.contains(ihave.topicID):
+          if g.knownTopics.contains(ihave.topicID):
             libp2p_pubsub_broadcast_ihave.inc(labelValues = [ihave.topicID])
           else:
             libp2p_pubsub_broadcast_ihave.inc(labelValues = ["generic"])
@@ -1262,7 +1262,7 @@ method rpcHandler*(g: GossipSub,
     g.broadcast(sendingTo, RPCMsg(messages: @[msg]))
     trace "forwared message to peers", peers = sendingTo.len, msgId, peer
     for topic in msg.topicIDs:
-      if KnownLibP2PTopicsSeq.contains(topic):
+      if g.knownTopics.contains(topic):
         libp2p_pubsub_messages_rebroadcasted.inc(sendingTo.len.int64, labelValues = [topic])
       else:
         libp2p_pubsub_messages_rebroadcasted.inc(sendingTo.len.int64, labelValues = ["generic"])
@@ -1282,13 +1282,13 @@ method rpcHandler*(g: GossipSub,
 
       for smsg in messages:
         for topic in smsg.topicIDs:
-          if KnownLibP2PTopicsSeq.contains(topic):
+          if g.knownTopics.contains(topic):
             libp2p_pubsub_broadcast_messages.inc(labelValues = [topic])
           else:
             libp2p_pubsub_broadcast_messages.inc(labelValues = ["generic"])
       libp2p_pubsub_broadcast_iwant.inc(respControl.iwant.len.int64)
       for prune in respControl.prune:
-        if KnownLibP2PTopicsSeq.contains(prune.topicID):
+        if g.knownTopics.contains(prune.topicID):
           libp2p_pubsub_broadcast_prune.inc(labelValues = [prune.topicID])
         else:
           libp2p_pubsub_broadcast_prune.inc(labelValues = ["generic"])
@@ -1425,7 +1425,7 @@ method publish*(g: GossipSub,
 
   let peerSeq = toSeq(peers)
   g.broadcast(peerSeq, RPCMsg(messages: @[msg]))
-  if KnownLibP2PTopicsSeq.contains(topic):
+  if g.knownTopics.contains(topic):
     libp2p_pubsub_messages_published.inc(peerSeq.len.int64, labelValues = [topic])
   else:
     libp2p_pubsub_messages_published.inc(peerSeq.len.int64, labelValues = ["generic"])
