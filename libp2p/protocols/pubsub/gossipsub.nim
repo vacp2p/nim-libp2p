@@ -1465,4 +1465,5 @@ method initPubSub*(g: GossipSub) =
   g.gossip = initTable[string, seq[ControlIHave]]() # pending gossip
   g.control = initTable[string, ControlMessage]()   # pending control messages
   var rng = newRng()
-  g.randomBytes = Curve25519Key.random(rng[]).getBytes()
+  g.randomBytes = newSeqUninitialized[byte](32)
+  brHmacDrbgGenerate(rng[], g.randomBytes)
