@@ -7,9 +7,10 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import std/[oids, strformat]
-import chronos, chronicles
+import std/[oids, strformat, strutils]
+import chronos, chronicles, metrics
 import connection
+import ../utility
 
 logScope:
   topics = "libp2p chronosstream"
@@ -21,6 +22,14 @@ const
 type
   ChronosStream* = ref object of Connection
     client: StreamTransport
+    when defined(libp2p_agents_metrics):
+      tracked: bool
+      shortAgent: string
+
+when defined(libp2p_agents_metrics):
+  declareGauge(libp2p_peers_identity, "peers identities", labels = ["agent"])
+  declareCounter(libp2p_peers_traffic_read, "incoming traffic", labels = ["agent"])
+  declareCounter(libp2p_peers_traffic_write, "outgoing traffic", labels = ["agent"])
 
 func shortLog*(conn: ChronosStream): string =
   if conn.isNil: "ChronosStream(nil)"
@@ -65,6 +74,24 @@ template withExceptions(body: untyped) =
     # TODO https://github.com/status-im/nim-chronos/pull/99
     raise newLPStreamEOFError()
 
+when defined(libp2p_agents_metrics):
+  proc trackPeerIdentity(s: ChronosStream) =
+    if not s.tracked:
+      if not isNil(s.peerInfo) and s.peerInfo.agentVersion.len > 0:
+        # / seems a weak "standard" so for now it's reliable
+        let shortAgent = s.peerInfo.agentVersion.split("/")[0].toLowerAscii()
+        if KnownLibP2PAgentsSeq.contains(shortAgent):
+          s.shortAgent = shortAgent
+        else:
+          s.shortAgent = "unknown"
+        libp2p_peers_identity.inc(labelValues = [s.shortAgent])
+        s.tracked = true
+
+  proc untrackPeerIdentity(s: ChronosStream) =
+    if s.tracked:
+      libp2p_peers_identity.dec(labelValues = [s.shortAgent])
+      s.tracked = false
+
 method readOnce*(s: ChronosStream, pbytes: pointer, nbytes: int): Future[int] {.async.} =
   if s.atEof:
     raise newLPStreamEOFError()
@@ -72,6 +99,10 @@ method readOnce*(s: ChronosStream, pbytes: pointer, nbytes: int): Future[int] {.
   withExceptions:
     result = await s.client.readOnce(pbytes, nbytes)
     s.activity = true # reset activity flag
+    when defined(libp2p_agents_metrics):
+      s.trackPeerIdentity()
+      if s.tracked:
+        libp2p_peers_traffic_read.inc(nbytes.int64, labelValues = [s.shortAgent])
 
 method write*(s: ChronosStream, msg: seq[byte]) {.async.} =
   if s.closed:
@@ -90,6 +121,10 @@ method write*(s: ChronosStream, msg: seq[byte]) {.async.} =
       raise (ref LPStreamClosedError)(msg: "Write couldn't finish writing")
 
     s.activity = true # reset activity flag
+    when defined(libp2p_agents_metrics):
+      s.trackPeerIdentity()
+      if s.tracked:
+        libp2p_peers_traffic_write.inc(msg.len.int64, labelValues = [s.shortAgent])
 
 method closed*(s: ChronosStream): bool {.inline.} =
   result = s.client.closed
@@ -99,17 +134,20 @@ method atEof*(s: ChronosStream): bool {.inline.} =
 
 method closeImpl*(s: ChronosStream) {.async.} =
   try:
-    trace "Shutting down chronos stream", address = $s.client.remoteAddress(),
-                                          s
+    trace "Shutting down chronos stream", address = $s.client.remoteAddress(), s
+
     if not s.client.closed():
       await s.client.closeWait()
 
-    trace "Shutdown chronos stream", address = $s.client.remoteAddress(),
-                                     s
+    trace "Shutdown chronos stream", address = $s.client.remoteAddress(), s
 
   except CancelledError as exc:
     raise exc
   except CatchableError as exc:
     trace "Error closing chronosstream", s, msg = exc.msg
+  
+  when defined(libp2p_agents_metrics):
+    # do this after closing!
+    s.untrackPeerIdentity()
 
   await procCall Connection(s).closeImpl()
