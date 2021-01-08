@@ -39,7 +39,7 @@ type
 
   PeerStore* = ref object of RootObj
     addressBook*: AddressBook
-    listeners: ref seq[EventListener]
+    listeners: seq[EventListener]
   
   StoredInfo* = object
     # Collates stored info about a peer
@@ -51,19 +51,21 @@ proc init(T: type AddressBook, addrChange: AddrChangeHandler): AddressBook =
   T(book: initTable[PeerId, HashSet[MultiAddress]](),
     addrChange: addrChange)
 
-proc init*(T: type PeerStore): PeerStore =
-  var listeners: ref seq[EventListener]
-  new(listeners)
-
-  listeners[] = newSeq[EventListener]()
+proc init*(p: PeerStore) =
+  p.listeners = newSeq[EventListener]()
 
   proc addrChange(peerId: PeerID, multiaddrs: HashSet[MultiAddress]) =
     # Notify all listeners of change in multiaddr
-    for listener in listeners[]:
+    for listener in p.listeners:
       listener.addrChange(peerId, multiaddrs)
   
-  T(addressBook: AddressBook.init(addrChange),
-    listeners: listeners)
+  p.addressBook = AddressBook.init(addrChange)
+
+proc init*(T: type PeerStore): PeerStore =
+  var p: PeerStore
+  new(p)
+  p.init()
+  return p
 
 ####################
 # Address Book API #
@@ -115,7 +117,7 @@ proc addListener*(peerStore: PeerStore,
                   listener: EventListener) =
   ## Register event listener to notify clients of changes in the peer store
   
-  peerStore.listeners[].add(listener)
+  peerStore.listeners.add(listener)
 
 proc delete*(peerStore: PeerStore,
              peerId: PeerID): bool =
