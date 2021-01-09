@@ -1176,10 +1176,8 @@ method rpcHandler*(g: GossipSub,
       continue
 
     # avoid processing messages we are not interested in
-    # as well score negatively the peer if they send us things we don't want
     if not msg.topicIDs.anyIt(it in g.topics):
       trace "Dropping message of topic without subscription", msgId = shortLog(msgId), peer
-      peer.behaviourPenalty += 1
       continue
 
     if (msg.signature.len > 0 or g.verifySignature) and not msg.verify():
