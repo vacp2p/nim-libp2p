@@ -8,6 +8,7 @@
 ## those terms.
 
 import stew/byteutils
+import strutils
 
 const
   ShortDumpMax = 12
@@ -35,3 +36,8 @@ func shortLog*(item: string): string =
     result &= item[0..<split]
     result &= "..."
     result &= item[(item.len - split)..item.high]
+
+when defined(libp2p_agents_metrics):
+  const
+    KnownLibP2PAgents* {.strdefine.} = ""
+    KnownLibP2PAgentsSeq* = KnownLibP2PAgents.toLowerAscii().split(",")
