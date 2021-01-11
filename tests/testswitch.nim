@@ -228,8 +228,7 @@ suite "Switch":
     await switch2.disconnect(switch1.peerInfo)
 
     check not switch2.isConnected(switch1.peerInfo)
-    await sleepAsync(1.millis)
-    check not switch1.isConnected(switch2.peerInfo)
+    check await(checkExpiring((not switch1.isConnected(switch2.peerInfo))))
 
     checkTracker(LPChannelTrackerName)
     checkTracker(SecureConnTrackerName)
@@ -278,8 +277,7 @@ suite "Switch":
     await switch2.disconnect(switch1.peerInfo)
 
     check not switch2.isConnected(switch1.peerInfo)
-    await sleepAsync(1.millis)
-    check not switch1.isConnected(switch2.peerInfo)
+    check await(checkExpiring((not switch1.isConnected(switch2.peerInfo))))
 
     checkTracker(LPChannelTrackerName)
     checkTracker(SecureConnTrackerName)
@@ -334,8 +332,7 @@ suite "Switch":
     await switch2.disconnect(switch1.peerInfo)
 
     check not switch2.isConnected(switch1.peerInfo)
-    await sleepAsync(1.millis)
-    check not switch1.isConnected(switch2.peerInfo)
+    check await(checkExpiring((not switch1.isConnected(switch2.peerInfo))))
 
     checkTracker(LPChannelTrackerName)
     checkTracker(SecureConnTrackerName)
@@ -389,8 +386,7 @@ suite "Switch":
     await switch2.disconnect(switch1.peerInfo)
 
     check not switch2.isConnected(switch1.peerInfo)
-    await sleepAsync(1.millis)
-    check not switch1.isConnected(switch2.peerInfo)
+    check await(checkExpiring((not switch1.isConnected(switch2.peerInfo))))
 
     checkTracker(LPChannelTrackerName)
     checkTracker(SecureConnTrackerName)
@@ -444,8 +440,7 @@ suite "Switch":
     await switch2.disconnect(switch1.peerInfo)
 
     check not switch2.isConnected(switch1.peerInfo)
-    await sleepAsync(1.millis)
-    check not switch1.isConnected(switch2.peerInfo)
+    check await(checkExpiring((not switch1.isConnected(switch2.peerInfo))))
 
     checkTracker(LPChannelTrackerName)
     checkTracker(SecureConnTrackerName)
@@ -514,8 +509,8 @@ suite "Switch":
 
     check not switch2.isConnected(switch1.peerInfo)
     check not switch3.isConnected(switch1.peerInfo)
-    await sleepAsync(1.millis)
-    check not switch1.isConnected(switch2.peerInfo)
+    check await(checkExpiring((not switch1.isConnected(switch2.peerInfo))))
+    check await(checkExpiring((not switch1.isConnected(switch3.peerInfo))))
 
     checkTracker(LPChannelTrackerName)
     checkTracker(SecureConnTrackerName)
