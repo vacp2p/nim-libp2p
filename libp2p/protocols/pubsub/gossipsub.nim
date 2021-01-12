@@ -145,6 +145,8 @@ type
 
     directPeers*: seq[PeerId]
 
+    disconnectBadPeers*: bool
+
   GossipSub* = ref object of FloodSub
     mesh*: PeerTable                           # peers that we send messages to when we are subscribed to the topic
     fanout*: PeerTable                         # peers that we send messages to when we're not subscribed to the topic
@@ -230,6 +232,7 @@ proc init*(_: type[GossipSubParams]): GossipSubParams =
       ipColocationFactorThreshold: 1.0,
       behaviourPenaltyWeight: -1.0,
       behaviourPenaltyDecay: 0.999,
+      disconnectBadPeers: false
     )
 
 proc validateParameters*(parameters: GossipSubParams): Result[void, cstring] =
@@ -705,13 +708,17 @@ func `/`(a, b: Duration): float64 =
     fb = float64(b.nanoseconds)
   fa / fb
 
+proc disconnectPeer(peer: PubSubPeer) {.async.} =
+  if peer.sendConn != nil:
+    await peer.sendConn.close()
+
 proc colocationFactor(g: GossipSub, peer: PubSubPeer): float64 =
-  if peer.connections.len == 0:
-    trace "colocationFactor, no connections", peer
+  if peer.sendConn != nil:
+    trace "colocationFactor, no connection", peer
     0.0
   else:
     let
-      address = peer.connections[0].observedAddr
+      address = peer.sendConn.observedAddr
       ipPeers = g.peersInIP.getOrDefault(address)
       len = ipPeers.len.float64
     if len > g.parameters.ipColocationFactorThreshold:
@@ -826,18 +833,18 @@ proc updateScores(g: GossipSub) = # avoid async
     assert(g.peerStats[peer.peerId].score == peer.score) # nim sanity check
     trace "updated peer's score", peer, score = peer.score, n_topics, is_grafted
 
+    if g.parameters.disconnectBadPeers and stats.score < g.parameters.graylistThreshold:
+      debug "disconnecting bad score peer", peer
+      asyncSpawn(disconnectPeer(peer))
+
     when defined(libp2p_agents_metrics):
       let agent =
         block:
           if peer.shortAgent.len > 0:
             peer.shortAgent
           else:
-            let connections = peer.connections.filterIt(
-              not isNil(it.peerInfo) and
-              it.peerInfo.agentVersion.len > 0
-            )
-            if connections.len > 0:
-              let shortAgent = connections[0].peerInfo.agentVersion.split("/")[0].toLowerAscii()
+            if peer.sendConn != nil:
+              let shortAgent = peer.sendConn.peerInfo.agentVersion.split("/")[0].toLowerAscii()
               if KnownLibP2PAgentsSeq.contains(shortAgent):
                 peer.shortAgent = shortAgent
               else:
@@ -944,8 +951,8 @@ method unsubscribePeer*(g: GossipSub, peer: PeerID) =
     return
 
   # remove from peer IPs collection too
-  if pubSubPeer.connections.len > 0:
-    g.peersInIP.withValue(pubSubPeer.connections[0].observedAddr, s):
+  if pubSubPeer.sendConn != nil:
+    g.peersInIP.withValue(pubSubPeer.sendConn.observedAddr, s):
       s[].excl(pubSubPeer)
 
   for t in toSeq(g.gossipsub.keys):
