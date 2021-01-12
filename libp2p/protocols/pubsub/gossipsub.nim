@@ -710,7 +710,12 @@ func `/`(a, b: Duration): float64 =
 
 proc disconnectPeer(peer: PubSubPeer) {.async.} =
   if peer.sendConn != nil:
-    await peer.sendConn.close()
+    try:
+      await peer.sendConn.close()
+    except CancelledError:
+      raise
+    except CatchableError as exc:
+      trace "Failed to close connection", peer, error = exc.name, msg = exc.msg
 
 proc colocationFactor(g: GossipSub, peer: PubSubPeer): float64 =
   if peer.sendConn != nil:
