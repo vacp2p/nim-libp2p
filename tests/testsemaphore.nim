@@ -1,6 +1,7 @@
 import random
 import chronos
-import ../libp2p/utils/semaphore
+
+include ../libp2p/utils/semaphore # include to avoid exposing private members
 
 import ./helpers
 
@@ -101,3 +102,25 @@ suite "AsyncSemaphore":
       tasks.add(task())
 
     await allFutures(tasks)
+
+  asyncTest "should cancel sequential semaphore slot":
+    let sema = AsyncSemaphore.init(1)
+
+    await sema.acquire()
+
+    let tmp = sema.acquire()
+    check not tmp.finished()
+
+    tmp.cancel()
+    sema.release()
+
+    check await sema.acquire().withTimeout(10.millis)
+
+  asyncTest "should properly handle timeouts and cancellations":
+    let sema = AsyncSemaphore.init(1)
+
+    await sema.acquire()
+    check not(await sema.acquire().withTimeout(10.millis)) # should not not acquire but cancel
+    sema.release()
+
+    check await sema.acquire().withTimeout(10.millis)
