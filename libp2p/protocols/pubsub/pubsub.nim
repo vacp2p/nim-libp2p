@@ -75,15 +75,15 @@ type
     Accept, Reject, Ignore
 
   ValidatorHandler* = proc(topic: string,
-                           message: Message): Future[ValidationResult] {.gcsafe, closure.}
+                           message: Message): Future[ValidationResult] {.gcsafe.}
 
   TopicPair* = tuple[topic: string, handler: TopicHandler]
 
   MsgIdProvider* =
-    proc(m: Message): MessageID {.noSideEffect, raises: [Defect], nimcall, gcsafe.}
+    proc(m: Message): MessageID {.noSideEffect, raises: [Defect], gcsafe.}
 
   SubscriptionValidator* =
-    proc(topic: string): bool {.noSideEffect, raises: [Defect], nimcall, gcsafe.}
+    proc(topic: string): bool {.raises: [Defect], gcsafe.}
 
   Topic* = object
     # make this a variant type if one day we have different Params structs

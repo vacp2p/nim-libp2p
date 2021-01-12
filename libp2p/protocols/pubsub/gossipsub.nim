@@ -893,7 +893,6 @@ proc heartbeat(g: GossipSub) {.async.} =
         # do this before relance
         # in order to avoid grafted -> pruned in the same cycle
         let meshPeers = g.mesh.getOrDefault(t)
-        let gossipPeers = g.gossipsub.getOrDefault(t)
         var prunes: seq[PubSubPeer]
         for peer in meshPeers:
           if peer.score < 0.0:
@@ -997,7 +996,7 @@ method subscribeTopic*(g: GossipSub,
 
   if not(isNil(g.subscriptionValidator)) and not(g.subscriptionValidator(topic)):
     # this is a violation, so warn should be in order
-    warn "ignoring invalid topic subscription"
+    warn "ignoring invalid topic subscription", subscribing = subscribe
     # also punish
     peer.behaviourPenalty += 1
     return
@@ -1024,6 +1023,9 @@ method subscribeTopic*(g: GossipSub,
 
 proc punishPeer(g: GossipSub, peer: PubSubPeer, topics: seq[string]) =
   for t in topics:
+    if t notin g.topics:
+      continue
+
     # ensure we init a new topic if unknown
     let _ = g.topicParams.mgetOrPut(t, TopicParams.init())
     # update stats
@@ -1191,7 +1193,10 @@ method rpcHandler*(g: GossipSub,
       trace "Dropping already-seen message", msgId = shortLog(msgId), peer
 
       # make sure to update score tho before continuing
-      for t in msg.topicIDs:                     # for every topic in the message
+      for t in msg.topicIDs:
+        if t notin g.topics:
+          continue
+                         # for every topic in the message
         let topicParams = g.topicParams.mgetOrPut(t, TopicParams.init())
                                                 # if in mesh add more delivery score
         g.peerStats.withValue(peer.peerId, pstats):
@@ -1215,8 +1220,8 @@ method rpcHandler*(g: GossipSub,
       continue
 
     # avoid processing messages we are not interested in
-    if not msg.topicIDs.anyIt(it in g.topics):
-      trace "Dropping message of topic without subscription", msgId = shortLog(msgId), peer
+    if msg.topicIDs.allIt(it notin g.topics):
+      debug "Dropping message of topic without subscription", msgId = shortLog(msgId), peer
       continue
 
     if (msg.signature.len > 0 or g.verifySignature) and not msg.verify():
@@ -1255,6 +1260,9 @@ method rpcHandler*(g: GossipSub,
 
     var toSendPeers = initHashSet[PubSubPeer]()
     for t in msg.topicIDs:                      # for every topic in the message
+      if t notin g.topics:
+        continue
+
       let topicParams = g.topicParams.mgetOrPut(t, TopicParams.init())
 
       g.peerStats.withValue(peer.peerId, pstats):
