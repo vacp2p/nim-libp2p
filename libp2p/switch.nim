@@ -392,7 +392,7 @@ proc newSwitch*(peerInfo: PeerInfo,
                 maxConnections = MaxConnections,
                 maxIn = -1,
                 maxOut = -1,
-                maxPeerConns = MaxConnectionsPerPeer): Switch =
+                maxConnsPerPeer = MaxConnectionsPerPeer): Switch =
   if secureManagers.len == 0:
     raise (ref CatchableError)(msg: "Provide at least one secure manager")
 

@@ -31,7 +31,7 @@ proc newStandardSwitch*(privKey = none(PrivateKey),
                         maxConnections = MaxConnections,
                         maxIn = -1,
                         maxOut = -1,
-                        maxPeerConns = MaxConnectionsPerPeer): Switch =
+                        maxConnsPerPeer = MaxConnectionsPerPeer): Switch =
   proc createMplex(conn: Connection): Muxer =
     Mplex.init(
       conn,
@@ -67,6 +67,6 @@ proc newStandardSwitch*(privKey = none(PrivateKey),
     maxConnections = maxConnections,
     maxIn = maxIn,
     maxOut = maxOut,
-    maxPeerConns = maxPeerConns)
+    maxConnsPerPeer = maxConnsPerPeer)
 
   return switch
