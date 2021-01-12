@@ -61,7 +61,7 @@ proc acquire*(s: AsyncSemaphore): Future[void] =
   ## Acquire a resource and decrement the resource
   ## counter. If no more resources are available,
   ## the returned future will not complete until
-  ## the resource count goes above 0 again.
+  ## the resource count goes above 0.
   ##
 
   let fut = newFuture[void]("AsyncSemaphore.acquire")
@@ -71,11 +71,14 @@ proc acquire*(s: AsyncSemaphore): Future[void] =
 
   proc cancellation(udata: pointer) {.gcsafe.} =
     fut.cancelCallback = nil
-    s.release() # release the next slot
+    if not fut.finished:
+      s.queue.keepItIf( it != fut )
+      s.count.inc
 
   fut.cancelCallback = cancellation
 
   s.queue.add(fut)
   s.count.dec
+
   trace "Queued slot", available = s.count, queue = s.queue.len
   return fut
