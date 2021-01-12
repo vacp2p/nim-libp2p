@@ -116,11 +116,36 @@ suite "AsyncSemaphore":
 
     check await sema.acquire().withTimeout(10.millis)
 
+  asyncTest "should handle out of order cancellations":
+    let sema = AsyncSemaphore.init(1)
+
+    await sema.acquire()      # 1st acquire
+    let tmp1 = sema.acquire() # 2nd acquire
+    check not tmp1.finished()
+
+    let tmp2 = sema.acquire() # 3rd acquire
+    check not tmp2.finished()
+
+    let tmp3 = sema.acquire() # 4th acquire
+    check not tmp3.finished()
+
+    # up to this point, we've called acquire 4 times
+    tmp1.cancel() # 1st release (implicit)
+    tmp2.cancel() # 2nd release (implicit)
+
+    check not tmp3.finished() # check that we didn't release the wrong slot
+
+    sema.release() # 3rd release (explicit)
+    check tmp3.finished()
+
+    sema.release() # 4th release
+    check await sema.acquire().withTimeout(10.millis)
+
   asyncTest "should properly handle timeouts and cancellations":
     let sema = AsyncSemaphore.init(1)
 
     await sema.acquire()
-    check not(await sema.acquire().withTimeout(10.millis)) # should not not acquire but cancel
+    check not(await sema.acquire().withTimeout(1.millis)) # should not acquire but cancel
     sema.release()
 
     check await sema.acquire().withTimeout(10.millis)
