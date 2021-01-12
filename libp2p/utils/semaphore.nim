@@ -18,7 +18,7 @@ logScope:
 type
   AsyncSemaphore* = ref object of RootObj
     size*: int
-    count: int
+    count*: int
     queue: seq[Future[void]]
 
 proc init*(T: type AsyncSemaphore, size: int): T =
