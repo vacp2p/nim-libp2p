@@ -718,7 +718,7 @@ proc disconnectPeer(peer: PubSubPeer) {.async.} =
       trace "Failed to close connection", peer, error = exc.name, msg = exc.msg
 
 proc colocationFactor(g: GossipSub, peer: PubSubPeer): float64 =
-  if peer.sendConn != nil:
+  if peer.sendConn == nil:
     trace "colocationFactor, no connection", peer
     0.0
   else:
