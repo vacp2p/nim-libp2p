@@ -9,7 +9,7 @@ randomize()
 
 suite "AsyncSemaphore":
   asyncTest "should acquire":
-    let sema = AsyncSemaphore.init(3)
+    let sema = newAsyncSemaphore(3)
 
     await sema.acquire()
     await sema.acquire()
@@ -18,7 +18,7 @@ suite "AsyncSemaphore":
     check sema.count == 0
 
   asyncTest "should release":
-    let sema = AsyncSemaphore.init(3)
+    let sema = newAsyncSemaphore(3)
 
     await sema.acquire()
     await sema.acquire()
@@ -31,7 +31,7 @@ suite "AsyncSemaphore":
     check sema.count == 3
 
   asyncTest "should queue acquire":
-    let sema = AsyncSemaphore.init(1)
+    let sema = newAsyncSemaphore(1)
 
     await sema.acquire()
     let fut = sema.acquire()
@@ -46,19 +46,19 @@ suite "AsyncSemaphore":
     check fut.finished()
 
   asyncTest "should keep count == size":
-    let sema = AsyncSemaphore.init(1)
+    let sema = newAsyncSemaphore(1)
     sema.release()
     sema.release()
     sema.release()
     check sema.count == 1
 
   asyncTest "should tryAcquire":
-    let sema = AsyncSemaphore.init(1)
+    let sema = newAsyncSemaphore(1)
     await sema.acquire()
     check sema.tryAcquire() == false
 
   asyncTest "should tryAcquire and acquire":
-    let sema = AsyncSemaphore.init(4)
+    let sema = newAsyncSemaphore(4)
     check sema.tryAcquire() == true
     check sema.tryAcquire() == true
     check sema.tryAcquire() == true
@@ -82,7 +82,7 @@ suite "AsyncSemaphore":
     check sema.queue.len == 0
 
   asyncTest "should restrict resource access":
-    let sema = AsyncSemaphore.init(3)
+    let sema = newAsyncSemaphore(3)
     var resource = 0
 
     proc task() {.async.} =
@@ -104,7 +104,7 @@ suite "AsyncSemaphore":
     await allFutures(tasks)
 
   asyncTest "should cancel sequential semaphore slot":
-    let sema = AsyncSemaphore.init(1)
+    let sema = newAsyncSemaphore(1)
 
     await sema.acquire()
 
@@ -117,7 +117,7 @@ suite "AsyncSemaphore":
     check await sema.acquire().withTimeout(10.millis)
 
   asyncTest "should handle out of order cancellations":
-    let sema = AsyncSemaphore.init(1)
+    let sema = newAsyncSemaphore(1)
 
     await sema.acquire()      # 1st acquire
     let tmp1 = sema.acquire() # 2nd acquire
@@ -142,7 +142,7 @@ suite "AsyncSemaphore":
     check await sema.acquire().withTimeout(10.millis)
 
   asyncTest "should properly handle timeouts and cancellations":
-    let sema = AsyncSemaphore.init(1)
+    let sema = newAsyncSemaphore(1)
 
     await sema.acquire()
     check not(await sema.acquire().withTimeout(1.millis)) # should not acquire but cancel

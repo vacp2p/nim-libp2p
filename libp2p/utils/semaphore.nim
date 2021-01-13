@@ -21,8 +21,8 @@ type
     count*: int
     queue: seq[Future[void]]
 
-proc init*(T: type AsyncSemaphore, size: int): T =
-  T(size: size, count: size)
+proc newAsyncSemaphore*(size: int): AsyncSemaphore =
+  AsyncSemaphore(size: size, count: size)
 
 proc tryAcquire*(s: AsyncSemaphore): bool =
   ## Attempts to acquire a resource, if successful
