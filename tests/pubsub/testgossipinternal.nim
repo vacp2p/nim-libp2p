@@ -414,3 +414,40 @@ suite "GossipSub internal":
 
     await allFuturesThrowing(conns.mapIt(it.close()))
     await gossipSub.switch.stop()
+
+  asyncTest "Drop messages of topics without subscription":
+    let gossipSub = TestGossipSub.init(newStandardSwitch())
+
+    proc handler(peer: PubSubPeer, msg: RPCMsg) {.async.} =
+      check false
+
+    let topic = "foobar"
+    # gossipSub.topicParams[topic] = TopicParams.init()
+    # gossipSub.mesh[topic] = initHashSet[PubSubPeer]()
+    # gossipSub.fanout[topic] = initHashSet[PubSubPeer]()
+    var conns = newSeq[Connection]()
+    for i in 0..<30:
+      let conn = newBufferStream(noop)
+      conns &= conn
+      let peerInfo = randomPeerInfo()
+      conn.peerInfo = peerInfo
+      let peer = gossipSub.getPubSubPeer(peerInfo.peerId)
+      gossipSub.onNewPeer(peer)
+      peer.handler = handler
+
+    # generate messages
+    var seqno = 0'u64
+    for i in 0..5:
+      let conn = newBufferStream(noop)
+      conns &= conn
+      let peerInfo = randomPeerInfo()
+      conn.peerInfo = peerInfo
+      let peer = gossipSub.getPubSubPeer(peerInfo.peerId)
+      inc seqno
+      let msg = Message.init(some(peerInfo), ("bar" & $i).toBytes(), topic, some(seqno), false)
+      await gossipSub.rpcHandler(peer, RPCMsg(messages: @[msg]))
+
+    check gossipSub.mcache.msgs.len == 0
+
+    await allFuturesThrowing(conns.mapIt(it.close()))
+    await gossipSub.switch.stop()

@@ -45,17 +45,25 @@ method subscribeTopic*(f: FloodSub,
     trace "ignoring unknown peer"
     return
 
-  procCall PubSub(f).subscribeTopic(topic, subscribe, peer)
-
-  if topic notin f.floodsub:
-    f.floodsub[topic] = initHashSet[PubSubPeer]()
+  if subscribe and not(isNil(f.subscriptionValidator)) and not(f.subscriptionValidator(topic)):
+    # this is a violation, so warn should be in order
+    warn "ignoring invalid topic subscription", topic, peer
+    return
 
   if subscribe:
+    if topic notin f.floodsub:
+      f.floodsub[topic] = initHashSet[PubSubPeer]()
+
     trace "adding subscription for topic", peer, topic
+
     # subscribe the peer to the topic
     f.floodsub[topic].incl(peer)
   else:
+    if topic notin f.floodsub:
+      return
+
     trace "removing subscription for topic", peer, topic
+
     # unsubscribe the peer from the topic
     f.floodsub[topic].excl(peer)
 
