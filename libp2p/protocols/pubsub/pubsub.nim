@@ -75,12 +75,15 @@ type
     Accept, Reject, Ignore
 
   ValidatorHandler* = proc(topic: string,
-                           message: Message): Future[ValidationResult] {.gcsafe, closure.}
+                           message: Message): Future[ValidationResult] {.gcsafe.}
 
   TopicPair* = tuple[topic: string, handler: TopicHandler]
 
   MsgIdProvider* =
-    proc(m: Message): MessageID {.noSideEffect, raises: [Defect], nimcall, gcsafe.}
+    proc(m: Message): MessageID {.noSideEffect, raises: [Defect], gcsafe.}
+
+  SubscriptionValidator* =
+    proc(topic: string): bool {.raises: [Defect], gcsafe.}
 
   Topic* = object
     # make this a variant type if one day we have different Params structs
@@ -102,6 +105,7 @@ type
     msgIdProvider*: MsgIdProvider      # Turn message into message id (not nil)
     msgSeqno*: uint64
     anonymize*: bool                   # if we omit fromPeer and seqno from RPC messages we send
+    subscriptionValidator*: SubscriptionValidator # callback used to validate subscriptions
 
     knownTopics*: HashSet[string]
 
@@ -194,8 +198,9 @@ method subscribeTopic*(p: PubSub,
                        topic: string,
                        subscribe: bool,
                        peer: PubSubPeer) {.base.} =
-  # called when remote peer subscribes to a topic
-  discard
+  # both gossipsub and floodsub diverge, and this super call is not necessary right now
+  # if necessary remove the assertion
+  doAssert(false, "unexpected call to pubsub.subscribeTopic")
 
 method rpcHandler*(p: PubSub,
                    peer: PubSubPeer,
@@ -503,6 +508,7 @@ proc init*[PubParams: object | bool](
   verifySignature: bool = true,
   sign: bool = true,
   msgIdProvider: MsgIdProvider = defaultMsgIdProvider,
+  subscriptionValidator: SubscriptionValidator = nil,
   parameters: PubParams = false): P =
   let pubsub =
     when PubParams is bool:
@@ -514,7 +520,8 @@ proc init*[PubParams: object | bool](
         sign: sign,
         peers: initTable[PeerID, PubSubPeer](),
         topics: initTable[string, Topic](),
-        msgIdProvider: msgIdProvider)
+        msgIdProvider: msgIdProvider,
+        subscriptionValidator: subscriptionValidator)
     else:
       P(switch: switch,
         peerInfo: switch.peerInfo,
@@ -525,6 +532,7 @@ proc init*[PubParams: object | bool](
         peers: initTable[PeerID, PubSubPeer](),
         topics: initTable[string, Topic](),
         msgIdProvider: msgIdProvider,
+        subscriptionValidator: subscriptionValidator,
         parameters: parameters)
 
   proc peerEventHandler(peerId: PeerID, event: PeerEvent) {.async.} =
