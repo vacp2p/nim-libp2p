@@ -1394,7 +1394,9 @@ method publish*(g: GossipSub,
   # base returns always 0
   discard await procCall PubSub(g).publish(topic, data)
 
-  logScope: topic
+  logScope:
+    topic
+
   trace "Publishing message on topic", data = data.shortLog
 
   if topic.len <= 0: # data could be 0/empty
@@ -1432,7 +1434,7 @@ method publish*(g: GossipSub,
     g.lastFanoutPubSub[topic] = Moment.fromNow(g.parameters.fanoutTTL)
 
   if peers.len == 0:
-    debug "No peers for topic, skipping publish"
+    notice "No peers for topic, skipping publish"
     # skipping topic as our metrics finds that heavy
     libp2p_gossipsub_failed_publish.inc()
     return 0
