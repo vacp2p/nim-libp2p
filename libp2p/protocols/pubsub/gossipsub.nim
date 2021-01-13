@@ -994,24 +994,23 @@ method subscribeTopic*(g: GossipSub,
     trace "ignoring unknown peer"
     return
 
-  if not(isNil(g.subscriptionValidator)) and not(g.subscriptionValidator(topic)):
+  if subscribe and not(isNil(g.subscriptionValidator)) and not(g.subscriptionValidator(topic)):
     # this is a violation, so warn should be in order
-    warn "ignoring invalid topic subscription", subscribing = subscribe
+    warn "ignoring invalid topic subscription", topic, peer
     # also punish
     peer.behaviourPenalty += 1
     return
 
-  # Skip floodsub - we don't want it to add the peer to `g.floodsub`
-  procCall PubSub(g).subscribeTopic(topic, subscribe, peer)
-
   if subscribe:
     trace "peer subscribed to topic"
+
     # subscribe remote peer to the topic
     discard g.gossipsub.addPeer(topic, peer)
     if peer.peerId in g.parameters.directPeers:
       discard g.explicit.addPeer(topic, peer)
   else:
     trace "peer unsubscribed from topic"
+
     # unsubscribe remote peer from the topic
     g.gossipsub.removePeer(topic, peer)
     g.mesh.removePeer(topic, peer)

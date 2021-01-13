@@ -198,8 +198,9 @@ method subscribeTopic*(p: PubSub,
                        topic: string,
                        subscribe: bool,
                        peer: PubSubPeer) {.base.} =
-  # called when remote peer subscribes to a topic
-  discard
+  # both gossipsub and floodsub diverge, and this super call is not necessary right now
+  # if necessary remove the assertion
+  doAssert(false, "unexpected call to pubsub.subscribeTopic")
 
 method rpcHandler*(p: PubSub,
                    peer: PubSubPeer,
