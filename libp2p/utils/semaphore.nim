@@ -77,7 +77,7 @@ proc release*(s: AsyncSemaphore) =
 
     if s.queue.len > 0:
       var fut = s.queue[0]
-      s.queue.del(0)
+      s.queue.delete(0)
       if not fut.finished():
         fut.complete()
 
