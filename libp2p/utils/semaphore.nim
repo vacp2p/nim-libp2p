@@ -18,11 +18,13 @@ logScope:
 type
   AsyncSemaphore* = ref object of RootObj
     size*: int
-    count*: int
+    count: int
     queue: seq[Future[void]]
 
 proc newAsyncSemaphore*(size: int): AsyncSemaphore =
   AsyncSemaphore(size: size, count: size)
+
+proc `count`*(s: AsyncSemaphore): int = s.count
 
 proc tryAcquire*(s: AsyncSemaphore): bool =
   ## Attempts to acquire a resource, if successful
