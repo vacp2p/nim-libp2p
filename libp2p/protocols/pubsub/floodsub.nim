@@ -50,8 +50,6 @@ method subscribeTopic*(f: FloodSub,
     warn "ignoring invalid topic subscription", topic, peer
     return
 
-  procCall PubSub(f).subscribeTopic(topic, subscribe, peer)
-
   if subscribe:
     if topic notin f.floodsub:
       f.floodsub[topic] = initHashSet[PubSubPeer]()
