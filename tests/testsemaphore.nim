@@ -1,7 +1,7 @@
 import random
 import chronos
 
-include ../libp2p/utils/semaphore # include to avoid exposing private members
+import ../libp2p/utils/semaphore
 
 import ./helpers
 
@@ -37,7 +37,6 @@ suite "AsyncSemaphore":
     let fut = sema.acquire()
 
     check sema.count == -1
-    check sema.queue.len == 1
     sema.release()
     sema.release()
     check sema.count == 1
@@ -68,8 +67,6 @@ suite "AsyncSemaphore":
     let fut = sema.acquire()
     check fut.finished == false
     check sema.count == -1
-    # queue is only used when count is < 0
-    check sema.queue.len == 1
 
     sema.release()
     sema.release()
@@ -79,7 +76,6 @@ suite "AsyncSemaphore":
 
     check fut.finished == true
     check sema.count == 4
-    check sema.queue.len == 0
 
   asyncTest "should restrict resource access":
     let sema = newAsyncSemaphore(3)
