@@ -270,7 +270,7 @@ proc upgradeIncoming(s: Switch, incomingConn: Connection) {.async, gcsafe.} = # 
         not(incomingConn.upgraded.finished):
       incomingConn.upgraded.fail(exc)
   finally:
-    if incomingConn != nil:
+    if not isNil(incomingConn):
       await incomingConn.close()
 
 proc dialAndUpgrade(s: Switch,
