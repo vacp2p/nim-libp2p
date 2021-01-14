@@ -147,7 +147,7 @@ type
     behaviourPenaltyWeight*: float64
     behaviourPenaltyDecay*: float64
 
-    directPeers*: seq[PeerId]
+    directPeers*: Table[PeerId, seq[MultiAddress]]
 
     disconnectBadPeers*: bool
 
@@ -1510,13 +1510,20 @@ method publish*(g: GossipSub,
 
 proc maintainDirectPeers(g: GossipSub) {.async.} =
   while g.heartbeatRunning:
-    for id in g.parameters.directPeers:
+    for id, addrs in g.parameters.directPeers:
       let peer = g.peers.getOrDefault(id)
-      if peer == nil:
-        # this creates a new peer and assigns the current switch to it
-        # as a result the next time we try to Send we will as well try to open a connection
-        # see pubsubpeer.nim send and such
-        discard g.getOrCreatePeer(id, g.codecs)
+      if isNil(peer):
+        trace "Attempting to dial a direct peer", peer = id
+        try:
+          # dial, internally connection will be stored
+          let _ = await g.switch.dial(id, addrs, g.codecs)
+          # populate the peer after it's connected
+          discard g.getOrCreatePeer(id, g.codecs)
+        except CancelledError:
+          trace "Direct peer dial canceled"
+          raise
+        except CatchableError as exc:
+          debug "Direct peer error dialing", msg = exc.msg
 
     await sleepAsync(1.minutes)
 
