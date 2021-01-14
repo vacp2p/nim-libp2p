@@ -301,7 +301,7 @@ proc accept(s: Switch, transport: Transport) {.async.} = # noraises
   ## switch accept loop, ran for every transport
   ##
 
-  let upgrades = AsyncSemaphore.init(ConcurrentUpgrades)
+  let upgrades = newAsyncSemaphore(ConcurrentUpgrades)
   var conn: Connection
   while transport.running:
     try:

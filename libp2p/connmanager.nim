@@ -84,10 +84,10 @@ proc init*(C: type ConnManager,
            maxOut = -1): ConnManager =
   var inSema, outSema: AsyncSemaphore
   if maxIn > 0 and maxOut > 0:
-    inSema = AsyncSemaphore.init(maxIn)
-    outSema = AsyncSemaphore.init(maxOut)
+    inSema = newAsyncSemaphore(maxIn)
+    outSema = newAsyncSemaphore(maxOut)
   elif maxConnections > 0:
-    inSema = AsyncSemaphore.init(maxConnections)
+    inSema = newAsyncSemaphore(maxConnections)
     outSema = inSema
   else:
     raiseAssert "Invalid connection counts!"
@@ -466,14 +466,6 @@ proc trackOutgoingConn*(c: ConnManager,
     trace "Exception tracking connection", exc = exc.msg
     c.outSema.release()
     raise exc
-
-proc storeOutgoing*(c: ConnManager, conn: Connection) =
-  conn.dir = Direction.Out
-  c.storeConn(conn)
-
-proc storeIncoming*(c: ConnManager, conn: Connection) =
-  conn.dir = Direction.In
-  c.storeConn(conn)
 
 proc storeMuxer*(c: ConnManager,
                  muxer: Muxer,
