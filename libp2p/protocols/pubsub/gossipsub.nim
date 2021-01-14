@@ -21,7 +21,7 @@ import ./pubsub,
        ../../peerinfo,
        ../../peerid,
        ../../utility,
-       ../../crypto/curve25519
+       ../../switch
 import stew/results
 export results
 
@@ -717,10 +717,10 @@ func `/`(a, b: Duration): float64 =
     fb = float64(b.nanoseconds)
   fa / fb
 
-proc disconnectPeer(peer: PubSubPeer) {.async.} =
+proc disconnectPeer(g: GossipSub, peer: PubSubPeer) {.async.} =
   if peer.sendConn != nil:
     try:
-      await peer.sendConn.close()
+      await g.switch.disconnect(peer.peerId)
     except CancelledError:
       raise
     except CatchableError as exc:
@@ -851,7 +851,7 @@ proc updateScores(g: GossipSub) = # avoid async
 
     if g.parameters.disconnectBadPeers and stats.score < g.parameters.graylistThreshold:
       debug "disconnecting bad score peer", peer
-      asyncSpawn(disconnectPeer(peer))
+      asyncSpawn g.disconnectPeer(peer)
 
     when defined(libp2p_agents_metrics):
       let agent =
