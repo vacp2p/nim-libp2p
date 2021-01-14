@@ -18,11 +18,13 @@ logScope:
 type
   AsyncSemaphore* = ref object of RootObj
     size*: int
-    count*: int
-    queue*: seq[Future[void]]
+    count: int
+    queue: seq[Future[void]]
 
-proc init*(T: type AsyncSemaphore, size: int): T =
-  T(size: size, count: size)
+proc newAsyncSemaphore*(size: int): AsyncSemaphore =
+  AsyncSemaphore(size: size, count: size)
+
+proc `count`*(s: AsyncSemaphore): int = s.count
 
 proc tryAcquire*(s: AsyncSemaphore): bool =
   ## Attempts to acquire a resource, if successful
@@ -38,7 +40,7 @@ proc acquire*(s: AsyncSemaphore): Future[void] =
   ## Acquire a resource and decrement the resource
   ## counter. If no more resources are available,
   ## the returned future will not complete until
-  ## the resource count goes above 0 again.
+  ## the resource count goes above 0.
   ##
 
   let fut = newFuture[void]("AsyncSemaphore.acquire")
@@ -46,8 +48,17 @@ proc acquire*(s: AsyncSemaphore): Future[void] =
     fut.complete()
     return fut
 
+  proc cancellation(udata: pointer) {.gcsafe.} =
+    fut.cancelCallback = nil
+    if not fut.finished:
+      s.queue.keepItIf( it != fut )
+      s.count.inc
+
+  fut.cancelCallback = cancellation
+
   s.queue.add(fut)
   s.count.dec
+
   trace "Queued slot", available = s.count, queue = s.queue.len
   return fut
 
@@ -65,7 +76,8 @@ proc release*(s: AsyncSemaphore) =
                             queue = s.queue.len
 
     if s.queue.len > 0:
-      var fut = s.queue.pop()
+      var fut = s.queue[0]
+      s.queue.delete(0)
       if not fut.finished():
         fut.complete()
 
