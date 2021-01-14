@@ -9,6 +9,7 @@ import ../../libp2p/standard_setup
 import ../../libp2p/errors
 import ../../libp2p/crypto/crypto
 import ../../libp2p/stream/bufferstream
+import ../../libp2p/switch
 
 import ../helpers
 
@@ -422,9 +423,6 @@ suite "GossipSub internal":
       check false
 
     let topic = "foobar"
-    # gossipSub.topicParams[topic] = TopicParams.init()
-    # gossipSub.mesh[topic] = initHashSet[PubSubPeer]()
-    # gossipSub.fanout[topic] = initHashSet[PubSubPeer]()
     var conns = newSeq[Connection]()
     for i in 0..<30:
       let conn = newBufferStream(noop)
@@ -448,6 +446,42 @@ suite "GossipSub internal":
       await gossipSub.rpcHandler(peer, RPCMsg(messages: @[msg]))
 
     check gossipSub.mcache.msgs.len == 0
+
+    await allFuturesThrowing(conns.mapIt(it.close()))
+    await gossipSub.switch.stop()
+
+  asyncTest "Disconnect bad peers":
+    let gossipSub = TestGossipSub.init(newStandardSwitch())
+    gossipSub.parameters.disconnectBadPeers = true
+
+    proc handler(peer: PubSubPeer, msg: RPCMsg) {.async.} =
+      check false
+
+    let topic = "foobar"
+    var conns = newSeq[Connection]()
+    for i in 0..<30:
+      let conn = newBufferStream(noop)
+      conns &= conn
+      let peerInfo = randomPeerInfo()
+      conn.peerInfo = peerInfo
+      let peer = gossipSub.getPubSubPeer(peerInfo.peerId)
+      gossipSub.onNewPeer(peer)
+      peer.sendConn = conn
+      peer.handler = handler
+      peer.score = gossipSub.parameters.graylistThreshold - 1
+      gossipSub.gossipsub.mgetOrPut(topic, initHashSet[PubSubPeer]()).incl(peer)
+      gossipSub.peers[peerInfo.peerId] = peer
+      gossipSub.switch.connManager.storeIncoming(conn)
+
+    gossipSub.updateScores()
+
+    await sleepAsync(100.millis)
+
+    check:
+      # test our disconnect mechanics
+      gossipSub.gossipsub.peers(topic) == 0
+      # also ensure we cleanup properly the peersInIP table
+      gossipSub.peersInIP.len == 0
 
     await allFuturesThrowing(conns.mapIt(it.close()))
     await gossipSub.switch.stop()

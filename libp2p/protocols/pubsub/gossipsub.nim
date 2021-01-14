@@ -199,9 +199,8 @@ declareGauge(libp2p_gossipsub_peers_per_topic_gossipsub,
 
 declareCounter(libp2p_gossipsub_failed_publish, "number of failed publish")
 declareGauge(libp2p_gossipsub_cache_window_size, "the number of messages in the cache")
-when defined(libp2p_agents_metrics):
-  declareGauge(libp2p_gossipsub_peers_scores, "the scores of the peers in gossipsub", labels = ["agent"])
-
+declareGauge(libp2p_gossipsub_peers_scores, "the scores of the peers in gossipsub", labels = ["agent"])
+declareCounter(libp2p_gossipsub_bad_score_disconnection, "the number of peers disconnected by gossipsub", labels = ["agent"])
 declareGauge(libp2p_gossipsub_under_dlow_topics, "number of topics below dlow")
 declareGauge(libp2p_gossipsub_under_dout_topics, "number of topics below dout")
 declareGauge(libp2p_gossipsub_under_dhigh_above_dlow_topics, "number of topics below dhigh but above dlow")
@@ -718,6 +717,25 @@ func `/`(a, b: Duration): float64 =
   fa / fb
 
 proc disconnectPeer(g: GossipSub, peer: PubSubPeer) {.async.} =
+  when defined(libp2p_agents_metrics):
+    let agent =
+      block:
+        if peer.shortAgent.len > 0:
+          peer.shortAgent
+        else:
+          if peer.sendConn != nil:
+            let shortAgent = peer.sendConn.peerInfo.agentVersion.split("/")[0].toLowerAscii()
+            if KnownLibP2PAgentsSeq.contains(shortAgent):
+              peer.shortAgent = shortAgent
+            else:
+              peer.shortAgent = "unknown"
+            peer.shortAgent
+          else:
+            "unknown"
+    libp2p_gossipsub_bad_score_disconnection.inc(labelValues = [agent])
+  else:
+    libp2p_gossipsub_bad_score_disconnection.inc(labelValues = ["unknown"])
+
   if peer.sendConn != nil:
     try:
       await g.switch.disconnect(peer.peerId)
@@ -733,17 +751,21 @@ proc colocationFactor(g: GossipSub, peer: PubSubPeer): float64 =
   else:
     let
       address = peer.sendConn.observedAddr
-      ipPeers = g.peersInIP.getOrDefault(address)
+
+    g.peersInIP.mgetOrPut(address, initHashSet[PubSubPeer]()).incl(peer)
+    if address notin g.peersInIP:
+      g.peersInIP[address] = initHashSet[PubSubPeer]()
+    g.peersInIP[address].incl(peer)
+
+    let
+      ipPeers = g.peersInIP[address]
       len = ipPeers.len.float64
+
     if len > g.parameters.ipColocationFactorThreshold:
       trace "colocationFactor over threshold", peer, address, len
       let over = len - g.parameters.ipColocationFactorThreshold
       over * over
     else:
-      # lazy update peersInIP
-      if address notin g.peersInIP:
-        g.peersInIP[address] = initHashSet[PubSubPeer]()
-      g.peersInIP[address].incl(peer)
       0.0
 
 proc updateScores(g: GossipSub) = # avoid async
@@ -850,7 +872,7 @@ proc updateScores(g: GossipSub) = # avoid async
     trace "updated peer's score", peer, score = peer.score, n_topics, is_grafted
 
     if g.parameters.disconnectBadPeers and stats.score < g.parameters.graylistThreshold:
-      debug "disconnecting bad score peer", peer
+      debug "disconnecting bad score peer", peer, score = peer.score
       asyncSpawn g.disconnectPeer(peer)
 
     when defined(libp2p_agents_metrics):
@@ -869,6 +891,8 @@ proc updateScores(g: GossipSub) = # avoid async
             else:
               "unknown"
       libp2p_gossipsub_peers_scores.inc(peer.score, labelValues = [agent])
+    else:
+      libp2p_gossipsub_peers_scores.inc(peer.score, labelValues = ["unknown"])
 
   for peer in evicting:
     g.peerStats.del(peer)
@@ -969,6 +993,8 @@ method unsubscribePeer*(g: GossipSub, peer: PeerID) =
   if pubSubPeer.sendConn != nil:
     g.peersInIP.withValue(pubSubPeer.sendConn.observedAddr, s):
       s[].excl(pubSubPeer)
+      if s[].len == 0:
+        g.peersInIP.del(pubSubPeer.sendConn.observedAddr)
 
   for t in toSeq(g.gossipsub.keys):
     g.gossipsub.removePeer(t, pubSubPeer)

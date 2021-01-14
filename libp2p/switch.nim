@@ -57,7 +57,7 @@ type
 
     Switch* = ref object of RootObj
       peerInfo*: PeerInfo
-      connManager: ConnManager
+      connManager*: ConnManager
       transports*: seq[Transport]
       protocols*: seq[LPProtocol]
       muxers*: Table[string, MuxerProvider]
