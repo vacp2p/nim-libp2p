@@ -206,6 +206,7 @@ declareGauge(libp2p_gossipsub_under_dout_topics, "number of topics below dout")
 declareGauge(libp2p_gossipsub_under_dhigh_above_dlow_topics, "number of topics below dhigh but above dlow")
 declareGauge(libp2p_gossipsub_no_peers_topics, "number of topics without peers available")
 declareCounter(libp2p_gossipsub_above_dhigh_condition, "number of above dhigh pruning branches ran", labels = ["topic"])
+declareCounter(libp2p_gossipsub_invalid_topic_subscription, "number of invalid topic subscriptions that happened")
 
 proc init*(_: type[GossipSubParams]): GossipSubParams =
   GossipSubParams(
@@ -1034,6 +1035,7 @@ method subscribeTopic*(g: GossipSub,
   if subscribe and not(isNil(g.subscriptionValidator)) and not(g.subscriptionValidator(topic)):
     # this is a violation, so warn should be in order
     trace "ignoring invalid topic subscription", topic, peer
+    libp2p_gossipsub_invalid_topic_subscription.inc()
     return
 
   if subscribe:
