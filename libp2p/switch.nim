@@ -57,7 +57,7 @@ type
 
     Switch* = ref object of RootObj
       peerInfo*: PeerInfo
-      connManager: ConnManager
+      connManager*: ConnManager
       transports*: seq[Transport]
       protocols*: seq[LPProtocol]
       muxers*: Table[string, MuxerProvider]
@@ -244,7 +244,9 @@ proc upgradeIncoming(s: Switch, incomingConn: Connection) {.async, gcsafe.} = # 
       await ms.handle(cconn)
     except CatchableError as exc:
       debug "Exception in secure handler during incoming upgrade", msg = exc.msg, conn
-      if not cconn.upgraded.finished:
+      if  not isNil(cconn) and
+          not isNil(cconn.upgraded) and
+          not(cconn.upgraded.finished):
         cconn.upgraded.fail(exc)
     finally:
       if not isNil(cconn):
@@ -263,10 +265,13 @@ proc upgradeIncoming(s: Switch, incomingConn: Connection) {.async, gcsafe.} = # 
     await ms.handle(incomingConn, active = true)
   except CatchableError as exc:
     debug "Exception upgrading incoming", exc = exc.msg
-    if not incomingConn.upgraded.finished:
+    if  not isNil(incomingConn) and
+        not isNil(incomingConn.upgraded) and
+        not(incomingConn.upgraded.finished):
       incomingConn.upgraded.fail(exc)
   finally:
-    await incomingConn.close()
+    if not isNil(incomingConn):
+      await incomingConn.close()
 
 proc dialAndUpgrade(s: Switch,
                     peerId: PeerID,

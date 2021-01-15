@@ -21,7 +21,7 @@ import ./pubsub,
        ../../peerinfo,
        ../../peerid,
        ../../utility,
-       ../../crypto/curve25519
+       ../../switch
 import stew/results
 export results
 
@@ -147,7 +147,9 @@ type
     behaviourPenaltyWeight*: float64
     behaviourPenaltyDecay*: float64
 
-    directPeers*: seq[PeerId]
+    directPeers*: Table[PeerId, seq[MultiAddress]]
+
+    disconnectBadPeers*: bool
 
   GossipSub* = ref object of FloodSub
     mesh*: PeerTable                           # peers that we send messages to when we are subscribed to the topic
@@ -197,9 +199,8 @@ declareGauge(libp2p_gossipsub_peers_per_topic_gossipsub,
 
 declareCounter(libp2p_gossipsub_failed_publish, "number of failed publish")
 declareGauge(libp2p_gossipsub_cache_window_size, "the number of messages in the cache")
-when defined(libp2p_agents_metrics):
-  declareGauge(libp2p_gossipsub_peers_scores, "the scores of the peers in gossipsub", labels = ["agent"])
-
+declareGauge(libp2p_gossipsub_peers_scores, "the scores of the peers in gossipsub", labels = ["agent"])
+declareCounter(libp2p_gossipsub_bad_score_disconnection, "the number of peers disconnected by gossipsub", labels = ["agent"])
 declareGauge(libp2p_gossipsub_under_dlow_topics, "number of topics below dlow")
 declareGauge(libp2p_gossipsub_under_dout_topics, "number of topics below dout")
 declareGauge(libp2p_gossipsub_under_dhigh_above_dlow_topics, "number of topics below dhigh but above dlow")
@@ -236,6 +237,7 @@ proc init*(_: type[GossipSubParams]): GossipSubParams =
       ipColocationFactorThreshold: 1.0,
       behaviourPenaltyWeight: -1.0,
       behaviourPenaltyDecay: 0.999,
+      disconnectBadPeers: false
     )
 
 proc validateParameters*(parameters: GossipSubParams): Result[void, cstring] =
@@ -714,24 +716,56 @@ func `/`(a, b: Duration): float64 =
     fb = float64(b.nanoseconds)
   fa / fb
 
+proc disconnectPeer(g: GossipSub, peer: PubSubPeer) {.async.} =
+  when defined(libp2p_agents_metrics):
+    let agent =
+      block:
+        if peer.shortAgent.len > 0:
+          peer.shortAgent
+        else:
+          if peer.sendConn != nil:
+            let shortAgent = peer.sendConn.peerInfo.agentVersion.split("/")[0].toLowerAscii()
+            if KnownLibP2PAgentsSeq.contains(shortAgent):
+              peer.shortAgent = shortAgent
+            else:
+              peer.shortAgent = "unknown"
+            peer.shortAgent
+          else:
+            "unknown"
+    libp2p_gossipsub_bad_score_disconnection.inc(labelValues = [agent])
+  else:
+    libp2p_gossipsub_bad_score_disconnection.inc(labelValues = ["unknown"])
+
+  if peer.sendConn != nil:
+    try:
+      await g.switch.disconnect(peer.peerId)
+    except CancelledError:
+      raise
+    except CatchableError as exc:
+      trace "Failed to close connection", peer, error = exc.name, msg = exc.msg
+
 proc colocationFactor(g: GossipSub, peer: PubSubPeer): float64 =
-  if peer.connections.len == 0:
-    trace "colocationFactor, no connections", peer
+  if peer.sendConn == nil:
+    trace "colocationFactor, no connection", peer
     0.0
   else:
     let
-      address = peer.connections[0].observedAddr
-      ipPeers = g.peersInIP.getOrDefault(address)
+      address = peer.sendConn.observedAddr
+
+    g.peersInIP.mgetOrPut(address, initHashSet[PubSubPeer]()).incl(peer)
+    if address notin g.peersInIP:
+      g.peersInIP[address] = initHashSet[PubSubPeer]()
+    g.peersInIP[address].incl(peer)
+
+    let
+      ipPeers = g.peersInIP[address]
       len = ipPeers.len.float64
+
     if len > g.parameters.ipColocationFactorThreshold:
       trace "colocationFactor over threshold", peer, address, len
       let over = len - g.parameters.ipColocationFactorThreshold
       over * over
     else:
-      # lazy update peersInIP
-      if address notin g.peersInIP:
-        g.peersInIP[address] = initHashSet[PubSubPeer]()
-      g.peersInIP[address].incl(peer)
       0.0
 
 proc updateScores(g: GossipSub) = # avoid async
@@ -837,18 +871,18 @@ proc updateScores(g: GossipSub) = # avoid async
     assert(g.peerStats[peer.peerId].score == peer.score) # nim sanity check
     trace "updated peer's score", peer, score = peer.score, n_topics, is_grafted
 
+    if g.parameters.disconnectBadPeers and stats.score < g.parameters.graylistThreshold:
+      debug "disconnecting bad score peer", peer, score = peer.score
+      asyncSpawn g.disconnectPeer(peer)
+
     when defined(libp2p_agents_metrics):
       let agent =
         block:
           if peer.shortAgent.len > 0:
             peer.shortAgent
           else:
-            let connections = peer.connections.filterIt(
-              not isNil(it.peerInfo) and
-              it.peerInfo.agentVersion.len > 0
-            )
-            if connections.len > 0:
-              let shortAgent = connections[0].peerInfo.agentVersion.split("/")[0].toLowerAscii()
+            if peer.sendConn != nil:
+              let shortAgent = peer.sendConn.peerInfo.agentVersion.split("/")[0].toLowerAscii()
               if KnownLibP2PAgentsSeq.contains(shortAgent):
                 peer.shortAgent = shortAgent
               else:
@@ -857,6 +891,8 @@ proc updateScores(g: GossipSub) = # avoid async
             else:
               "unknown"
       libp2p_gossipsub_peers_scores.inc(peer.score, labelValues = [agent])
+    else:
+      libp2p_gossipsub_peers_scores.inc(peer.score, labelValues = ["unknown"])
 
   for peer in evicting:
     g.peerStats.del(peer)
@@ -954,9 +990,11 @@ method unsubscribePeer*(g: GossipSub, peer: PeerID) =
     return
 
   # remove from peer IPs collection too
-  if pubSubPeer.connections.len > 0:
-    g.peersInIP.withValue(pubSubPeer.connections[0].observedAddr, s):
+  if pubSubPeer.sendConn != nil:
+    g.peersInIP.withValue(pubSubPeer.sendConn.observedAddr, s):
       s[].excl(pubSubPeer)
+      if s[].len == 0:
+        g.peersInIP.del(pubSubPeer.sendConn.observedAddr)
 
   for t in toSeq(g.gossipsub.keys):
     g.gossipsub.removePeer(t, pubSubPeer)
@@ -1472,13 +1510,20 @@ method publish*(g: GossipSub,
 
 proc maintainDirectPeers(g: GossipSub) {.async.} =
   while g.heartbeatRunning:
-    for id in g.parameters.directPeers:
+    for id, addrs in g.parameters.directPeers:
       let peer = g.peers.getOrDefault(id)
-      if peer == nil:
-        # this creates a new peer and assigns the current switch to it
-        # as a result the next time we try to Send we will as well try to open a connection
-        # see pubsubpeer.nim send and such
-        discard g.getOrCreatePeer(id, g.codecs)
+      if isNil(peer):
+        trace "Attempting to dial a direct peer", peer = id
+        try:
+          # dial, internally connection will be stored
+          let _ = await g.switch.dial(id, addrs, g.codecs)
+          # populate the peer after it's connected
+          discard g.getOrCreatePeer(id, g.codecs)
+        except CancelledError:
+          trace "Direct peer dial canceled"
+          raise
+        except CatchableError as exc:
+          debug "Direct peer error dialing", msg = exc.msg
 
     await sleepAsync(1.minutes)
 
