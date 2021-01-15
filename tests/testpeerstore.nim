@@ -100,13 +100,11 @@ suite "PeerStore":
     
     proc metadataChange(peerId: PeerID, metadata: Table[string, seq[byte]]) =
       metadataChanged = true
-    
-    let listener = EventListener(addrChange: addrChange,
-                                 protoChange: protoChange,
-                                 keyChange: keyChange,
-                                 metadataChange: metadataChange)
 
-    peerStore.addListener(listener)
+    peerStore.addHandlers(addrChangeHandler = addrChange,
+                          protoChangeHandler = protoChange,
+                          keyChangeHandler = keyChange,
+                          metadataChangeHandler = metadataChange)
 
     # Test listener triggered on adding multiaddr
     peerStore.addressBook.add(peerId1, multiaddr1)

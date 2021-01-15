@@ -14,21 +14,14 @@ import
   ./multiaddress
 
 type
-  ##############################
-  # Listener and handler types #
-  ##############################
+  #################
+  # Handler types #
+  #################
   
   AddrChangeHandler* = proc(peerId: PeerID, multiaddrs: HashSet[MultiAddress])
   ProtoChangeHandler* = proc(peerId: PeerID, protos: HashSet[string])
   KeyChangeHandler* = proc(peerId: PeerID, publicKey: PublicKey)
   MetadataChangeHandler* = proc(peerId: PeerID, metadata: Table[string, seq[byte]])
-
-  EventListener* = object
-    # Listener object with client-defined handlers for peer store events
-    addrChange*: AddrChangeHandler
-    protoChange*: ProtoChangeHandler
-    keyChange*: KeyChangeHandler
-    metadataChange*: MetadataChangeHandler
   
   #########
   # Books #
@@ -60,7 +53,10 @@ type
     protoBook*: ProtoBook
     keyBook*: KeyBook
     metadataBook*: MetadataBook
-    listeners: seq[EventListener]
+    addrChangeHandlers*: seq[AddrChangeHandler]
+    protoChangeHandlers*: seq[ProtoChangeHandler]
+    keyChangeHandlers*: seq[KeyChangeHandler]
+    metadataChangeHandlers*: seq[MetadataChangeHandler]
   
   StoredInfo* = object
     # Collates stored info about a peer
@@ -87,27 +83,30 @@ proc init(T: type MetadataBook, metadataChange: MetadataChangeHandler): Metadata
     metadataChange: metadataChange)
 
 proc init*(p: PeerStore) =
-  p.listeners = newSeq[EventListener]()
+  p.addrChangeHandlers = newSeq[AddrChangeHandler]()
+  p.protoChangeHandlers = newSeq[ProtoChangeHandler]()
+  p.keyChangeHandlers = newSeq[KeyChangeHandler]()
+  p.metadataChangeHandlers = newSeq[MetadataChangeHandler]()
 
   proc addrChange(peerId: PeerID, multiaddrs: HashSet[MultiAddress]) =
     # Notify all listeners of change in multiaddr
-    for listener in p.listeners:
-      listener.addrChange(peerId, multiaddrs)
+    for handler in p.addrChangeHandlers:
+      handler(peerId, multiaddrs)
   
   proc protoChange(peerId: PeerID, protos: HashSet[string]) =
     # Notify all listeners of change in proto
-    for listener in p.listeners:
-      listener.protoChange(peerId, protos)
+    for handler in p.protoChangeHandlers:
+      handler(peerId, protos)
   
   proc keyChange(peerId: PeerID, publicKey: PublicKey) =
     # Notify all listeners of change in public key
-    for listener in p.listeners:
-      listener.keyChange(peerId, publicKey)
+    for handler in p.keyChangeHandlers:
+      handler(peerId, publicKey)
   
   proc metadataChange(peerId: PeerID, metadata: Table[string, seq[byte]]) =
     # Notify all listeners of change in public key
-    for listener in p.listeners:
-      listener.metadataChange(peerId, metadata)
+    for handler in p.metadataChangeHandlers:
+      handler(peerId, metadata)
   
   p.addressBook = AddressBook.init(addrChange)
   p.protoBook = ProtoBook.init(protoChange)
@@ -299,11 +298,17 @@ proc deleteValue*(metadataBook: var MetadataBook,
 # Peer Store API #
 ##################
 
-proc addListener*(peerStore: PeerStore,
-                  listener: EventListener) =
-  ## Register event listener to notify clients of changes in the peer store
+proc addHandlers*(peerStore: PeerStore,
+                  addrChangeHandler: AddrChangeHandler,
+                  protoChangeHandler: ProtoChangeHandler,
+                  keyChangeHandler: KeyChangeHandler,
+                  metadataChangeHandler: MetadataChangeHandler) =
+  ## Register event handlers to notify clients of changes in the peer store
   
-  peerStore.listeners.add(listener)
+  peerStore.addrChangeHandlers.add(addrChangeHandler)
+  peerStore.protoChangeHandlers.add(protoChangeHandler)
+  peerStore.keyChangeHandlers.add(keyChangeHandler)
+  peerStore.metadataChangeHandlers.add(metadataChangeHandler)
 
 proc delete*(peerStore: PeerStore,
              peerId: PeerID): bool =
