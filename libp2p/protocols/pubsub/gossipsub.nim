@@ -1034,8 +1034,6 @@ method subscribeTopic*(g: GossipSub,
   if subscribe and not(isNil(g.subscriptionValidator)) and not(g.subscriptionValidator(topic)):
     # this is a violation, so warn should be in order
     trace "ignoring invalid topic subscription", topic, peer
-    # also punish
-    peer.behaviourPenalty += 1
     return
 
   if subscribe:
