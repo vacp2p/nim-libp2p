@@ -21,11 +21,11 @@ type
 
 method init*(p: LPProtocol) {.base, gcsafe.} = discard
 
-func codec*(p: LPProtocol): string = 
+func codec*(p: LPProtocol): string =
   assert(p.codecs.len > 0, "Codecs sequence was empty!")
   p.codecs[0]
 
 func `codec=`*(p: LPProtocol, codec: string) =
-  # always insert as first codec 
+  # always insert as first codec
   # if we use this abstraction
   p.codecs.insert(codec, 0)
