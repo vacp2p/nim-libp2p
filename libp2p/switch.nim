@@ -437,7 +437,7 @@ proc upgradeMonitor(conn: Connection, upgrades: AsyncSemaphore) {.async.} =
     # upgrade, this timeout guarantees that a
     # "hanged" remote doesn't hold the upgrade
     # forever
-    await conn.upgraded.wait(30.seconds) # wait for connection to be upgraded
+    await conn.onUpgrade.wait(30.seconds) # wait for connection to be upgraded
     trace "Connection upgrade succeeded"
   except CatchableError as exc:
     libp2p_failed_upgrades_incoming.inc()
