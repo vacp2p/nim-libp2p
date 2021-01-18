@@ -36,6 +36,17 @@ type
 
 proc timeoutMonitor(s: Connection) {.async, gcsafe.}
 
+proc isUpgraded*(s: Connection): bool =
+  if not isNil(s.upgraded):
+    return s.upgraded.finished
+
+proc upgrade*(s: Connection, failed: ref Exception = nil) =
+  if not isNil(failed):
+    s.upgraded.fail(failed)
+    return
+
+  s.upgraded.complete()
+
 func shortLog*(conn: Connection): string =
   if conn.isNil: "Connection(nil)"
   elif conn.peerInfo.isNil: $conn.oid
