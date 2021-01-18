@@ -244,10 +244,8 @@ proc upgradeIncoming(s: Switch, incomingConn: Connection) {.async, gcsafe.} = # 
       await ms.handle(cconn)
     except CatchableError as exc:
       debug "Exception in secure handler during incoming upgrade", msg = exc.msg, conn
-      if  not isNil(cconn) and
-          not isNil(cconn.upgraded) and
-          not(cconn.upgraded.finished):
-        cconn.upgraded.fail(exc)
+      if not cconn.isUpgraded:
+        cconn.upgrade(exc)
     finally:
       if not isNil(cconn):
         await cconn.close()
@@ -265,10 +263,8 @@ proc upgradeIncoming(s: Switch, incomingConn: Connection) {.async, gcsafe.} = # 
     await ms.handle(incomingConn, active = true)
   except CatchableError as exc:
     debug "Exception upgrading incoming", exc = exc.msg
-    if  not isNil(incomingConn) and
-        not isNil(incomingConn.upgraded) and
-        not(incomingConn.upgraded.finished):
-      incomingConn.upgraded.fail(exc)
+    if not incomingConn.isUpgraded:
+      incomingConn.upgrade(exc)
   finally:
     if not isNil(incomingConn):
       await incomingConn.close()
@@ -441,7 +437,7 @@ proc upgradeMonitor(conn: Connection, upgrades: AsyncSemaphore) {.async.} =
     # upgrade, this timeout guarantees that a
     # "hanged" remote doesn't hold the upgrade
     # forever
-    await conn.upgraded.wait(30.seconds) # wait for connection to be upgraded
+    await conn.onUpgrade.wait(30.seconds) # wait for connection to be upgraded
     trace "Connection upgrade succeeded"
   except CatchableError as exc:
     libp2p_failed_upgrades_incoming.inc()
