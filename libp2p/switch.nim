@@ -302,8 +302,8 @@ proc accept(s: Switch, transport: Transport) {.async.} = # noraises
   ##
 
   let upgrades = newAsyncSemaphore(ConcurrentUpgrades)
-  var conn: Connection
   while transport.running:
+    var conn: Connection
     try:
       debug "About to accept incoming connection"
       # remember to always release the slot when
@@ -338,9 +338,6 @@ proc accept(s: Switch, transport: Transport) {.async.} = # noraises
       if not isNil(conn):
         await conn.close()
       return
-
-  if not isNil(conn):
-    await conn.close()
 
 proc start*(s: Switch): Future[seq[Future[void]]] {.async, gcsafe.} =
   trace "starting switch for peer", peerInfo = s.peerInfo
