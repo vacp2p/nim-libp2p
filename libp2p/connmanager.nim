@@ -383,7 +383,7 @@ proc storeConn*(c: ConnManager, conn: Connection) =
 
 proc trackConn(c: ConnManager,
                provider: ConnProvider,
-               dir: Direction):
+               sema: AsyncSemaphore):
                Future[Connection] {.async.} =
   var conn: Connection
   try:
@@ -392,8 +392,7 @@ proc trackConn(c: ConnManager,
     if isNil(conn):
       return
 
-    conn.dir = dir
-    trace "Got connection", conn, dir = $dir
+    trace "Got connection", conn
 
     proc semaphoreMonitor() {.async.} =
       try:
@@ -401,10 +400,7 @@ proc trackConn(c: ConnManager,
       except CatchableError as exc:
         trace "Exception in semaphore monitor, ignoring", exc = exc.msg
 
-      if conn.dir == Direction.In:
-        c.inSema.release()
-      else:
-        c.outSema.release()
+      sema.release()
 
     asyncSpawn semaphoreMonitor()
   except CatchableError as exc:
@@ -427,7 +423,7 @@ proc trackIncomingConn*(c: ConnManager,
   try:
     trace "Tracking incoming connection"
     await c.inSema.acquire()
-    conn = await c.trackConn(provider, Direction.In)
+    conn = await c.trackConn(provider, c.inSema)
     if isNil(conn):
       trace "Couldn't acquire connection, releasing semaphore slot", dir = $Direction.In
       c.inSema.release()
@@ -456,7 +452,7 @@ proc trackOutgoingConn*(c: ConnManager,
 
   var conn: Connection
   try:
-    conn = await c.trackConn(provider, Direction.Out)
+    conn = await c.trackConn(provider, c.outSema)
     if isNil(conn):
       trace "Couldn't acquire connection, releasing semaphore slot", dir = $Direction.Out
       c.outSema.release()
