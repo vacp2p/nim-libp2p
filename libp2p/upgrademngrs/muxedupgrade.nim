@@ -26,14 +26,13 @@ type
 proc identify(u: MuxedUpgrade, muxer: Muxer) {.async, gcsafe.} =
   # new stream for identify
   var stream = await muxer.newStream()
+  if stream == nil:
+    return
 
-  defer:
-    if not(isNil(stream)):
-      await stream.close() # close identify stream
-
-  # do identify first, so that we have a
-  # PeerInfo in case we didn't before
-  await u.identify(stream)
+  try:
+    await u.identify(stream)
+  finally:
+    await stream.closeWithEOF()
 
 proc muxerHandler(u: MuxedUpgrade, muxer: Muxer) {.async, gcsafe.} =
   let
@@ -157,10 +156,8 @@ method upgradeIncoming(u: MuxedUpgrade, incomingConn: Connection) {.async, gcsaf
       await ms.handle(cconn)
     except CatchableError as exc:
       debug "Exception in secure handler during incoming upgrade", msg = exc.msg, conn
-      if  not isNil(cconn) and
-          not isNil(cconn.upgraded) and
-          not(cconn.upgraded.finished):
-        cconn.upgraded.fail(exc)
+      if not cconn.isUpgraded:
+        cconn.upgrade(exc)
     finally:
       if not isNil(cconn):
         await cconn.close()
@@ -178,10 +175,8 @@ method upgradeIncoming(u: MuxedUpgrade, incomingConn: Connection) {.async, gcsaf
     await ms.handle(incomingConn, active = true)
   except CatchableError as exc:
     debug "Exception upgrading incoming", exc = exc.msg
-    if  not isNil(incomingConn) and
-        not isNil(incomingConn.upgraded) and
-        not(incomingConn.upgraded.finished):
-      incomingConn.upgraded.fail(exc)
+    if not incomingConn.isUpgraded:
+      incomingConn.upgrade(exc)
   finally:
     if not isNil(incomingConn):
       await incomingConn.close()
@@ -213,7 +208,7 @@ proc init*(
       await conn.close()
     trace "Stream handler done", conn
 
-  for key, val in muxers:
+  for _, val in muxers:
     val.streamHandler = upgrader.streamHandler
     val.muxerHandler = proc(muxer: Muxer): Future[void] =
       upgrader.muxerHandler(muxer)

@@ -40,13 +40,11 @@ method upgradeOutgoing*(u: Upgrade, conn: Connection): Future[Connection] {.base
 
 proc secure*(u: Upgrade, conn: Connection): Future[Connection] {.async, gcsafe.} =
   if u.secureManagers.len <= 0:
-    raise newException(UpgradeFailedError,
-      "No secure managers registered!")
+    raise newException(UpgradeFailedError, "No secure managers registered!")
 
   let codec = await u.ms.select(conn, u.secureManagers.mapIt(it.codec))
   if codec.len == 0:
-    raise newException(UpgradeFailedError,
-      "Unable to negotiate a secure channel!")
+    raise newException(UpgradeFailedError, "Unable to negotiate a secure channel!")
 
   trace "Securing connection", conn, codec
   let secureProtocol = u.secureManagers.filterIt(it.codec == codec)
