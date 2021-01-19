@@ -63,20 +63,16 @@ type
     metadata*: Table[string, seq[byte]]
 
 proc init(T: type AddressBook): AddressBook =
-  T(book: initTable[PeerId, HashSet[MultiAddress]](),
-    changeHandlers: newSeq[AddrChangeHandler]())
+  T(book: initTable[PeerId, HashSet[MultiAddress]]())
 
 proc init(T: type ProtoBook): ProtoBook =
-  T(book: initTable[PeerId, HashSet[string]](),
-    changeHandlers: newSeq[ProtoChangeHandler]())
+  T(book: initTable[PeerId, HashSet[string]]())
 
 proc init(T: type KeyBook): KeyBook =
-  T(book: initTable[PeerId, PublicKey](),
-    changeHandlers: newSeq[KeyChangeHandler]())
+  T(book: initTable[PeerId, PublicKey]())
 
 proc init(T: type MetadataBook): MetadataBook =
-  T(book: initTable[PeerId, Table[string, seq[byte]]](),
-    changeHandlers: newSeq[MetadataChangeHandler]())
+  T(book: initTable[PeerId, Table[string, seq[byte]]]())
 
 proc init*(p: PeerStore) =
   p.addressBook = AddressBook.init()
