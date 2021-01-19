@@ -32,7 +32,7 @@ import stream/connection,
        peerid,
        errors
 
-export connmanager
+export connmanager, upgrade
 
 logScope:
   topics = "libp2p switch"
