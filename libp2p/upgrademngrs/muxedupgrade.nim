@@ -23,7 +23,7 @@ type
     muxers*: Table[string, MuxerProvider]
     streamHandler*: StreamHandler
 
-proc identify(u: MuxedUpgrade, muxer: Muxer) {.async, gcsafe.} =
+proc identify*(u: MuxedUpgrade, muxer: Muxer) {.async, gcsafe.} =
   # new stream for identify
   var stream = await muxer.newStream()
   if stream == nil:
@@ -34,40 +34,7 @@ proc identify(u: MuxedUpgrade, muxer: Muxer) {.async, gcsafe.} =
   finally:
     await stream.closeWithEOF()
 
-proc muxerHandler(u: MuxedUpgrade, muxer: Muxer) {.async, gcsafe.} =
-  let
-    conn = muxer.connection
-
-  if conn.peerInfo.isNil:
-    warn "This version of nim-libp2p requires secure protocol to negotiate peerid"
-    await muxer.close()
-    return
-
-  # store incoming connection
-  u.connManager.storeIncoming(conn)
-
-  # store muxer and muxed connection
-  u.connManager.storeMuxer(muxer)
-
-  try:
-    await u.identify(muxer)
-  except IdentifyError as exc:
-    # Identify is non-essential, though if it fails, it might indicate that
-    # the connection was closed already - this will be picked up by the read
-    # loop
-    debug "Could not identify connection", conn, msg = exc.msg
-  except LPStreamClosedError as exc:
-    debug "Identify stream closed", conn, msg = exc.msg
-  except LPStreamEOFError as exc:
-    debug "Identify stream EOF", conn, msg = exc.msg
-  except CancelledError as exc:
-    await muxer.close()
-    raise exc
-  except CatchableError as exc:
-    await muxer.close()
-    trace "Exception in muxer handler", conn, msg = exc.msg
-
-proc mux(u: MuxedUpgrade, conn: Connection): Future[Muxer] {.async, gcsafe.} =
+proc mux*(u: MuxedUpgrade, conn: Connection): Future[Muxer] {.async, gcsafe.} =
   ## mux incoming connection
 
   trace "Muxing connection", conn
@@ -103,7 +70,7 @@ proc mux(u: MuxedUpgrade, conn: Connection): Future[Muxer] {.async, gcsafe.} =
 
   return muxer
 
-method upgradeOutgoing(u: MuxedUpgrade, conn: Connection): Future[Connection] {.async, gcsafe.} =
+method upgradeOutgoing*(u: MuxedUpgrade, conn: Connection): Future[Connection] {.async, gcsafe.} =
   trace "Upgrading outgoing connection", conn
 
   let sconn = await u.secure(conn) # secure the connection
@@ -130,7 +97,7 @@ method upgradeOutgoing(u: MuxedUpgrade, conn: Connection): Future[Connection] {.
 
   return sconn
 
-method upgradeIncoming(u: MuxedUpgrade, incomingConn: Connection) {.async, gcsafe.} = # noraises
+method upgradeIncoming*(u: MuxedUpgrade, incomingConn: Connection) {.async, gcsafe.} = # noraises
   trace "Upgrading incoming connection", incomingConn
   let ms = newMultistream()
 
@@ -181,6 +148,39 @@ method upgradeIncoming(u: MuxedUpgrade, incomingConn: Connection) {.async, gcsaf
     if not isNil(incomingConn):
       await incomingConn.close()
 
+proc muxerHandler(u: MuxedUpgrade, muxer: Muxer) {.async, gcsafe.} =
+  let
+    conn = muxer.connection
+
+  if conn.peerInfo.isNil:
+    warn "This version of nim-libp2p requires secure protocol to negotiate peerid"
+    await muxer.close()
+    return
+
+  # store incoming connection
+  u.connManager.storeIncoming(conn)
+
+  # store muxer and muxed connection
+  u.connManager.storeMuxer(muxer)
+
+  try:
+    await u.identify(muxer)
+  except IdentifyError as exc:
+    # Identify is non-essential, though if it fails, it might indicate that
+    # the connection was closed already - this will be picked up by the read
+    # loop
+    debug "Could not identify connection", conn, msg = exc.msg
+  except LPStreamClosedError as exc:
+    debug "Identify stream closed", conn, msg = exc.msg
+  except LPStreamEOFError as exc:
+    debug "Identify stream EOF", conn, msg = exc.msg
+  except CancelledError as exc:
+    await muxer.close()
+    raise exc
+  except CatchableError as exc:
+    await muxer.close()
+    trace "Exception in muxer handler", conn, msg = exc.msg
+
 proc init*(
   T: type MuxedUpgrade,
   identity: Identify,
@@ -205,7 +205,7 @@ proc init*(
     except CatchableError as exc:
       trace "exception in stream handler", conn, msg = exc.msg
     finally:
-      await conn.close()
+      await conn.closeWithEOF()
     trace "Stream handler done", conn
 
   for _, val in muxers:
