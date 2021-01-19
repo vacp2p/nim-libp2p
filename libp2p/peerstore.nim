@@ -30,19 +30,19 @@ type
   # Each book contains a book (map) and event handler(s)
   AddressBook* = object
     book*: Table[PeerID, HashSet[MultiAddress]]
-    addrChange: AddrChangeHandler
+    changeHandlers: seq[AddrChangeHandler]
   
   ProtoBook* = object
     book*: Table[PeerID, HashSet[string]]
-    protoChange: ProtoChangeHandler
+    changeHandlers: seq[ProtoChangeHandler]
   
   KeyBook* = object
     book*: Table[PeerID, PublicKey]
-    keyChange: KeyChangeHandler
+    changeHandlers: seq[KeyChangeHandler]
   
   MetadataBook* = object
     book*: Table[PeerID, Table[string, seq[byte]]]
-    metadataChange: MetadataChangeHandler
+    changeHandlers: seq[MetadataChangeHandler]
   
   ####################
   # Peer store types #
@@ -53,10 +53,6 @@ type
     protoBook*: ProtoBook
     keyBook*: KeyBook
     metadataBook*: MetadataBook
-    addrChangeHandlers*: seq[AddrChangeHandler]
-    protoChangeHandlers*: seq[ProtoChangeHandler]
-    keyChangeHandlers*: seq[KeyChangeHandler]
-    metadataChangeHandlers*: seq[MetadataChangeHandler]
   
   StoredInfo* = object
     # Collates stored info about a peer
@@ -66,52 +62,27 @@ type
     publicKey*: PublicKey
     metadata*: Table[string, seq[byte]]
 
-proc init(T: type AddressBook, addrChange: AddrChangeHandler): AddressBook =
+proc init(T: type AddressBook): AddressBook =
   T(book: initTable[PeerId, HashSet[MultiAddress]](),
-    addrChange: addrChange)
+    changeHandlers: newSeq[AddrChangeHandler]())
 
-proc init(T: type ProtoBook, protoChange: ProtoChangeHandler): ProtoBook =
+proc init(T: type ProtoBook): ProtoBook =
   T(book: initTable[PeerId, HashSet[string]](),
-    protoChange: protoChange)
+    changeHandlers: newSeq[ProtoChangeHandler]())
 
-proc init(T: type KeyBook, keyChange: KeyChangeHandler): KeyBook =
+proc init(T: type KeyBook): KeyBook =
   T(book: initTable[PeerId, PublicKey](),
-    keyChange: keyChange)
+    changeHandlers: newSeq[KeyChangeHandler]())
 
-proc init(T: type MetadataBook, metadataChange: MetadataChangeHandler): MetadataBook =
+proc init(T: type MetadataBook): MetadataBook =
   T(book: initTable[PeerId, Table[string, seq[byte]]](),
-    metadataChange: metadataChange)
+    changeHandlers: newSeq[MetadataChangeHandler]())
 
 proc init*(p: PeerStore) =
-  p.addrChangeHandlers = newSeq[AddrChangeHandler]()
-  p.protoChangeHandlers = newSeq[ProtoChangeHandler]()
-  p.keyChangeHandlers = newSeq[KeyChangeHandler]()
-  p.metadataChangeHandlers = newSeq[MetadataChangeHandler]()
-
-  proc addrChange(peerId: PeerID, multiaddrs: HashSet[MultiAddress]) =
-    # Notify all listeners of change in multiaddr
-    for handler in p.addrChangeHandlers:
-      handler(peerId, multiaddrs)
-  
-  proc protoChange(peerId: PeerID, protos: HashSet[string]) =
-    # Notify all listeners of change in proto
-    for handler in p.protoChangeHandlers:
-      handler(peerId, protos)
-  
-  proc keyChange(peerId: PeerID, publicKey: PublicKey) =
-    # Notify all listeners of change in public key
-    for handler in p.keyChangeHandlers:
-      handler(peerId, publicKey)
-  
-  proc metadataChange(peerId: PeerID, metadata: Table[string, seq[byte]]) =
-    # Notify all listeners of change in public key
-    for handler in p.metadataChangeHandlers:
-      handler(peerId, metadata)
-  
-  p.addressBook = AddressBook.init(addrChange)
-  p.protoBook = ProtoBook.init(protoChange)
-  p.keyBook = KeyBook.init(keyChange)
-  p.metadataBook = MetadataBook.init(metadataChange)
+  p.addressBook = AddressBook.init()
+  p.protoBook = ProtoBook.init()
+  p.keyBook = KeyBook.init()
+  p.metadataBook = MetadataBook.init()
 
 proc init*(T: type PeerStore): PeerStore =
   var p: PeerStore
@@ -138,7 +109,10 @@ proc add*(addressBook: var AddressBook,
   
   addressBook.book.mgetOrPut(peerId,
                              initHashSet[MultiAddress]()).incl(multiaddr)
-  addressBook.addrChange(peerId, addressBook.get(peerId)) # Notify clients
+  
+  # Notify clients
+  for handler in addressBook.changeHandlers:
+    handler(peerId, addressBook.get(peerId))
   
 proc delete*(addressBook: var AddressBook,
              peerId: PeerID): bool =
@@ -159,7 +133,10 @@ proc set*(addressBook: var AddressBook,
   ## Consider using addressBook.add() as alternative.
   
   addressBook.book[peerId] = addrs
-  addressBook.addrChange(peerId, addressBook.get(peerId)) # Notify clients
+
+  # Notify clients
+  for handler in addressBook.changeHandlers:
+    handler(peerId, addressBook.get(peerId))
 
 #####################
 # Protocol Book API #
@@ -180,7 +157,10 @@ proc add*(protoBook: var ProtoBook,
   
   protoBook.book.mgetOrPut(peerId,
                            initHashSet[string]()).incl(protocol)
-  protoBook.protoChange(peerId, protoBook.get(peerId)) # Notify clients
+  
+  # Notify clients
+  for handler in protoBook.changeHandlers:
+    handler(peerId, protoBook.get(peerId))
   
 proc delete*(protoBook: var ProtoBook,
              peerId: PeerID): bool =
@@ -199,7 +179,10 @@ proc set*(protoBook: var ProtoBook,
   ## stored protocols.
   
   protoBook.book[peerId] = protocols
-  protoBook.protoChange(peerId, protoBook.get(peerId)) # Notify clients
+  
+  # Notify clients
+  for handler in protoBook.changeHandlers:
+    handler(peerId, protoBook.get(peerId))
 
 ################
 # Key Book API #
@@ -229,7 +212,10 @@ proc set*(keyBook: var KeyBook,
   ## previously stored keys.
   
   keyBook.book[peerId] = publicKey
-  keyBook.keyChange(peerId, keyBook.get(peerId)) # Notify clients
+
+  # Notify clients
+  for handler in keyBook.changeHandlers:
+    handler(peerId, keyBook.get(peerId))
 
 #####################
 # Metadata Book API #
@@ -259,7 +245,10 @@ proc set*(metadataBook: var MetadataBook,
   ## previously stored metadata.
   
   metadataBook.book[peerId] = metadata
-  metadataBook.metadataChange(peerId, metadataBook.get(peerId))
+
+  # Notify clients
+  for handler in metadataBook.changeHandlers:
+    handler(peerId, metadataBook.get(peerId))
 
 proc setValue*(metadataBook: var MetadataBook,
                peerId: PeerID,
@@ -270,7 +259,10 @@ proc setValue*(metadataBook: var MetadataBook,
   
   metadataBook.book.mgetOrPut(peerId,
                               initTable[string, seq[byte]]())[key] = value
-  metadataBook.metadataChange(peerId, metadataBook.get(peerId))
+  
+  # Notify clients
+  for handler in metadataBook.changeHandlers:
+    handler(peerId, metadataBook.get(peerId))
 
 proc delete*(metadataBook: var MetadataBook,
              peerId: PeerID): bool =
@@ -291,7 +283,11 @@ proc deleteValue*(metadataBook: var MetadataBook,
     return false
   else:
     metadataBook.book[peerId].del(key)
-    metadataBook.metadataChange(peerId, metadataBook.get(peerId))
+    
+    # Notify clients
+    for handler in metadataBook.changeHandlers:
+      handler(peerId, metadataBook.get(peerId))
+    
     return true    
 
 ##################  
@@ -305,10 +301,10 @@ proc addHandlers*(peerStore: PeerStore,
                   metadataChangeHandler: MetadataChangeHandler) =
   ## Register event handlers to notify clients of changes in the peer store
   
-  peerStore.addrChangeHandlers.add(addrChangeHandler)
-  peerStore.protoChangeHandlers.add(protoChangeHandler)
-  peerStore.keyChangeHandlers.add(keyChangeHandler)
-  peerStore.metadataChangeHandlers.add(metadataChangeHandler)
+  peerStore.addressBook.changeHandlers.add(addrChangeHandler)
+  peerStore.protoBook.changeHandlers.add(protoChangeHandler)
+  peerStore.keyBook.changeHandlers.add(keyChangeHandler)
+  peerStore.metadataBook.changeHandlers.add(metadataChangeHandler)
 
 proc delete*(peerStore: PeerStore,
              peerId: PeerID): bool =
