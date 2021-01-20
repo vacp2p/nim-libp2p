@@ -394,7 +394,7 @@ proc newSwitch*(peerInfo: PeerInfo,
     raise (ref CatchableError)(msg: "Provide at least one secure manager")
 
   let ms = newMultistream()
-  let connManager = ConnManager.init()
+  let connManager = ConnManager.init(maxConnsPerPeer, maxConnections, maxIn, maxOut)
   let upgrade = MuxedUpgrade.init(identity, muxers, secureManagers, connManager, ms)
 
   let switch = Switch(
