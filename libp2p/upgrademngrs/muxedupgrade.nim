@@ -1,5 +1,5 @@
 ## Nim-LibP2P
-## Copyright (c) 2019 Status Research & Development GmbH
+## Copyright (c) 2021 Status Research & Development GmbH
 ## Licensed under either of
 ##  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
 ##  * MIT license ([LICENSE-MIT](LICENSE-MIT))
@@ -7,11 +7,8 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import tables, sequtils
-
-import chronos,
-       chronicles,
-       metrics
+import std/[tables, sequtils]
+import pkg/[chronos, chronicles, metrics]
 
 import ../upgrademngrs/upgrade,
        ../muxers/muxer
