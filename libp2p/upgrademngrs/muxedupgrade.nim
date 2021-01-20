@@ -52,7 +52,7 @@ proc mux*(u: MuxedUpgrade, conn: Connection): Future[Muxer] {.async, gcsafe.} =
   # install stream handler
   muxer.streamHandler = u.streamHandler
 
-  u.connManager.storeOutgoing(conn)
+  u.connManager.storeConn(conn)
 
   # store it in muxed connections if we have a peer for it
   u.connManager.storeMuxer(muxer, muxer.handle()) # store muxer and start read loop
@@ -155,7 +155,7 @@ proc muxerHandler(u: MuxedUpgrade, muxer: Muxer) {.async, gcsafe.} =
     return
 
   # store incoming connection
-  u.connManager.storeIncoming(conn)
+  u.connManager.storeConn(conn)
 
   # store muxer and muxed connection
   u.connManager.storeMuxer(muxer)
