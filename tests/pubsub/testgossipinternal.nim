@@ -471,7 +471,7 @@ suite "GossipSub internal":
       peer.score = gossipSub.parameters.graylistThreshold - 1
       gossipSub.gossipsub.mgetOrPut(topic, initHashSet[PubSubPeer]()).incl(peer)
       gossipSub.peers[peerInfo.peerId] = peer
-      gossipSub.switch.connManager.storeIncoming(conn)
+      gossipSub.switch.connManager.storeConn(conn)
 
     gossipSub.updateScores()
 

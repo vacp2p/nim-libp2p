@@ -7,11 +7,13 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import tables,
-       sequtils,
-       options,
-       sets,
-       oids
+import std/[tables,
+            sequtils,
+            options,
+            sets,
+            oids,
+            sugar,
+            math]
 
 import chronos,
        chronicles,
@@ -107,7 +109,14 @@ proc dialAndUpgrade(s: Switch,
         trace "Dialing address", address = $a, peerId
         let dialed = try:
             libp2p_total_dial_attempts.inc()
-            await t.dial(a)
+            # await a connection slot when the total
+            # connection count is equal to `maxConns`
+            await s.connManager.trackOutgoingConn(
+              () => t.dial(a)
+            )
+          except TooManyConnectionsError as exc:
+            trace "Connection limit reached!"
+            raise exc
           except CancelledError as exc:
             debug "Dialing canceled", msg = exc.msg, peerId
             raise exc
@@ -138,7 +147,8 @@ proc dialAndUpgrade(s: Switch,
 
 proc internalConnect(s: Switch,
                      peerId: PeerID,
-                     addrs: seq[MultiAddress]): Future[Connection] {.async.} =
+                     addrs: seq[MultiAddress]):
+                     Future[Connection] {.async.} =
   if s.peerInfo.peerId == peerId:
     raise newException(CatchableError, "can't dial self!")
 
@@ -182,6 +192,13 @@ proc internalConnect(s: Switch,
       lock.release()
 
 proc connect*(s: Switch, peerId: PeerID, addrs: seq[MultiAddress]) {.async.} =
+  ## attempt to create establish a connection
+  ## with a remote peer
+  ##
+
+  if s.connManager.connCount(peerId) > 0:
+    return
+
   discard await s.internalConnect(peerId, addrs)
 
 proc negotiateStream(s: Switch, conn: Connection, protos: seq[string]): Future[Connection] {.async.} =
@@ -205,17 +222,17 @@ proc dial*(s: Switch,
 
 proc dial*(s: Switch,
            peerId: PeerID,
-           proto: string): Future[Connection] = dial(s, peerId, @[proto])
+           proto: string): Future[Connection] =
+  dial(s, peerId, @[proto])
 
 proc dial*(s: Switch,
            peerId: PeerID,
            addrs: seq[MultiAddress],
            protos: seq[string]):
            Future[Connection] {.async.} =
-  trace "Dialing (new)", peerId, protos
-  let conn = await s.internalConnect(peerId, addrs)
-  trace "Opening stream", conn
-  let stream = await s.connManager.getStream(conn)
+  var
+    conn: Connection
+    stream: Connection
 
   proc cleanup() {.async.} =
     if not(isNil(stream)):
@@ -225,9 +242,14 @@ proc dial*(s: Switch,
       await conn.close()
 
   try:
+    trace "Dialing (new)", peerId, protos
+    conn = await s.internalConnect(peerId, addrs)
+    trace "Opening stream", conn
+    stream = await s.connManager.getStream(conn)
+
     if isNil(stream):
-      await conn.close()
-      raise newException(DialFailedError, "Couldn't get muxed stream")
+      raise newException(DialFailedError,
+        "Couldn't get muxed stream")
 
     return await s.negotiateStream(stream, protos)
   except CancelledError as exc:
@@ -287,8 +309,11 @@ proc accept(s: Switch, transport: Transport) {.async.} = # noraises
       # remember to always release the slot when
       # the upgrade succeeds or fails, this is
       # currently done by the `upgradeMonitor`
-      await upgrades.acquire()        # first wait for an upgrade slot to become available
-      conn = await transport.accept() # next attempt to get a connection
+      await upgrades.acquire()    # first wait for an upgrade slot to become available
+      conn = await s.connManager  # next attempt to get an incoming connection
+      .trackIncomingConn(
+        () => transport.accept()
+      )
       if isNil(conn):
         # A nil connection means that we might have hit a
         # file-handle limit (or another non-fatal error),
@@ -360,12 +385,16 @@ proc newSwitch*(peerInfo: PeerInfo,
                 transports: seq[Transport],
                 identity: Identify,
                 muxers: Table[string, MuxerProvider],
-                secureManagers: openarray[Secure] = []): Switch =
+                secureManagers: openarray[Secure] = [],
+                maxConnections = MaxConnections,
+                maxIn = -1,
+                maxOut = -1,
+                maxConnsPerPeer = MaxConnectionsPerPeer): Switch =
   if secureManagers.len == 0:
     raise (ref CatchableError)(msg: "Provide at least one secure manager")
 
   let ms = newMultistream()
-  let connManager = ConnManager.init()
+  let connManager = ConnManager.init(maxConnsPerPeer, maxConnections, maxIn, maxOut)
   let upgrade = MuxedUpgrade.init(identity, muxers, secureManagers, connManager, ms)
 
   let switch = Switch(
