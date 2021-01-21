@@ -12,6 +12,7 @@ import chronos, chronicles, metrics
 import peerinfo,
        stream/connection,
        muxers/muxer,
+       utils/semaphore,
        errors
 
 logScope:
@@ -20,10 +21,13 @@ logScope:
 declareGauge(libp2p_peers, "total connected peers")
 
 const
-  MaxConnectionsPerPeer = 5
+  MaxConnections* = 50
+  MaxConnectionsPerPeer* = 5
 
 type
-  TooManyConnections* = object of CatchableError
+  TooManyConnectionsError* = object of CatchableError
+
+  ConnProvider* = proc(): Future[Connection] {.gcsafe, closure.}
 
   ConnEventKind* {.pure.} = enum
     Connected,    # A connection was made and securely upgraded - there may be
@@ -62,24 +66,37 @@ type
     handle: Future[void]
 
   ConnManager* = ref object of RootObj
-    maxConns: int
-    # NOTE: don't change to PeerInfo here
-    # the reference semantics on the PeerInfo
-    # object itself make it susceptible to
-    # copies and mangling by unrelated code.
+    maxConnsPerPeer: int
+    inSema*: AsyncSemaphore
+    outSema*: AsyncSemaphore
     conns: Table[PeerID, HashSet[Connection]]
     muxed: Table[Connection, MuxerHolder]
     connEvents: Table[ConnEventKind, OrderedSet[ConnEventHandler]]
     peerEvents: Table[PeerEventKind, OrderedSet[PeerEventHandler]]
 
-proc newTooManyConnections(): ref TooManyConnections {.inline.} =
-  result = newException(TooManyConnections, "too many connections for peer")
+proc newTooManyConnectionsError(): ref TooManyConnectionsError {.inline.} =
+  result = newException(TooManyConnectionsError, "Too many connections")
 
 proc init*(C: type ConnManager,
-           maxConnsPerPeer: int = MaxConnectionsPerPeer): ConnManager =
-  C(maxConns: maxConnsPerPeer,
+           maxConnsPerPeer = MaxConnectionsPerPeer,
+           maxConnections = MaxConnections,
+           maxIn = -1,
+           maxOut = -1): ConnManager =
+  var inSema, outSema: AsyncSemaphore
+  if maxIn > 0 and maxOut > 0:
+    inSema = newAsyncSemaphore(maxIn)
+    outSema = newAsyncSemaphore(maxOut)
+  elif maxConnections > 0:
+    inSema = newAsyncSemaphore(maxConnections)
+    outSema = inSema
+  else:
+    raiseAssert "Invalid connection counts!"
+
+  C(maxConnsPerPeer: maxConnsPerPeer,
     conns: initTable[PeerID, HashSet[Connection]](),
-    muxed: initTable[Connection, MuxerHolder]())
+    muxed: initTable[Connection, MuxerHolder](),
+    inSema: inSema,
+    outSema: outSema)
 
 proc connCount*(c: ConnManager, peerId: PeerID): int =
   c.conns.getOrDefault(peerId).len
@@ -104,7 +121,9 @@ proc triggerConnEvent*(c: ConnManager,
                        peerId: PeerID,
                        event: ConnEvent) {.async, gcsafe.} =
   try:
+    trace "About to trigger connection events", peer = peerId
     if event.kind in c.connEvents:
+      trace "triggering connection events", peer = peerId, event = $event.kind
       var connEvents: seq[Future[void]]
       for h in c.connEvents[event.kind]:
         connEvents.add(h(peerId, event))
@@ -112,7 +131,7 @@ proc triggerConnEvent*(c: ConnManager,
       checkFutures(await allFinished(connEvents))
   except CancelledError as exc:
     raise exc
-  except CatchableError as exc: # handlers should not raise!
+  except CatchableError as exc:
     warn "Exception in triggerConnEvents",
       msg = exc.msg, peerId, event = $event
 
@@ -199,7 +218,10 @@ proc closeMuxerHolder(muxerHolder: MuxerHolder) {.async.} =
 
   await muxerHolder.muxer.close()
   if not(isNil(muxerHolder.handle)):
-    await muxerHolder.handle # TODO noraises?
+    try:
+      await muxerHolder.handle # TODO noraises?
+    except CatchableError as exc:
+      trace "Exception in close muxer handler", exc = exc.msg
   trace "Cleaned up muxer", m = muxerHolder.muxer
 
 proc delConn(c: ConnManager, conn: Connection) =
@@ -217,9 +239,11 @@ proc cleanupConn(c: ConnManager, conn: Connection) {.async.} =
   ## clean connection's resources such as muxers and streams
 
   if isNil(conn):
+    trace "Wont cleanup a nil connection"
     return
 
   if isNil(conn.peerInfo):
+    trace "No peer info for connection"
     return
 
   # Remove connection from all tables without async breaks
@@ -329,42 +353,115 @@ proc storeConn*(c: ConnManager, conn: Connection) =
   ##
 
   if isNil(conn):
-    raise newException(CatchableError, "connection cannot be nil")
+    raise newException(CatchableError, "Connection cannot be nil")
 
-  if conn.closed() or conn.atEof():
-    trace "Can't store dead connection", conn
-    raise newException(CatchableError, "can't store dead connection")
+  if conn.closed or conn.atEof:
+    raise newException(CatchableError, "Connection closed or EOF")
 
   if isNil(conn.peerInfo):
-    raise newException(CatchableError, "empty peer info")
+    raise newException(CatchableError, "Empty peer info")
 
   let peerId = conn.peerInfo.peerId
-  if c.conns.getOrDefault(peerId).len > c.maxConns:
-    debug "too many connections",
+  if c.conns.getOrDefault(peerId).len > c.maxConnsPerPeer:
+    debug "Too many connections for peer",
       conn, conns = c.conns.getOrDefault(peerId).len
 
-    raise newTooManyConnections()
+    raise newTooManyConnectionsError()
 
   if peerId notin c.conns:
     c.conns[peerId] = initHashSet[Connection]()
 
   c.conns[peerId].incl(conn)
+  libp2p_peers.set(c.conns.len.int64)
 
   # Launch on close listener
   # All the errors are handled inside `onClose()` procedure.
   asyncSpawn c.onClose(conn)
-  libp2p_peers.set(c.conns.len.int64)
 
   trace "Stored connection",
     conn, direction = $conn.dir, connections = c.conns.len
 
-proc storeOutgoing*(c: ConnManager, conn: Connection) =
-  conn.dir = Direction.Out
-  c.storeConn(conn)
+proc trackConn(c: ConnManager,
+               provider: ConnProvider,
+               sema: AsyncSemaphore):
+               Future[Connection] {.async.} =
+  var conn: Connection
+  try:
+    conn = await provider()
 
-proc storeIncoming*(c: ConnManager, conn: Connection) =
-  conn.dir = Direction.In
-  c.storeConn(conn)
+    if isNil(conn):
+      return
+
+    trace "Got connection", conn
+
+    proc semaphoreMonitor() {.async.} =
+      try:
+        await conn.join()
+      except CatchableError as exc:
+        trace "Exception in semaphore monitor, ignoring", exc = exc.msg
+
+      sema.release()
+
+    asyncSpawn semaphoreMonitor()
+  except CatchableError as exc:
+    trace "Exception tracking connection", exc = exc.msg
+    if not isNil(conn):
+      await conn.close()
+
+    raise exc
+
+  return conn
+
+proc trackIncomingConn*(c: ConnManager,
+                        provider: ConnProvider):
+                        Future[Connection] {.async.} =
+  ## await for a connection slot before attempting
+  ## to call the connection provider
+  ##
+
+  var conn: Connection
+  try:
+    trace "Tracking incoming connection"
+    await c.inSema.acquire()
+    conn = await c.trackConn(provider, c.inSema)
+    if isNil(conn):
+      trace "Couldn't acquire connection, releasing semaphore slot", dir = $Direction.In
+      c.inSema.release()
+
+    return conn
+  except CatchableError as exc:
+    trace "Exception tracking connection", exc = exc.msg
+    c.inSema.release()
+    raise exc
+
+proc trackOutgoingConn*(c: ConnManager,
+                        provider: ConnProvider):
+                        Future[Connection] {.async.} =
+  ## try acquiring a connection if all slots
+  ## are already taken, raise TooManyConnectionsError
+  ## exception
+  ##
+
+  trace "Tracking outgoing connection", count = c.outSema.count,
+                                        max = c.outSema.size
+
+  if not c.outSema.tryAcquire():
+    trace "Too many outgoing connections!", count = c.outSema.count,
+                                            max = c.outSema.size
+    raise newTooManyConnectionsError()
+
+  var conn: Connection
+  try:
+    conn = await c.trackConn(provider, c.outSema)
+    if isNil(conn):
+      trace "Couldn't acquire connection, releasing semaphore slot", dir = $Direction.Out
+      c.outSema.release()
+
+    return conn
+  except CatchableError as exc:
+    trace "Exception tracking connection", exc = exc.msg
+    c.outSema.release()
+    raise exc
 
 proc storeMuxer*(c: ConnManager,
                  muxer: Muxer,
@@ -391,8 +488,8 @@ proc storeMuxer*(c: ConnManager,
   asyncSpawn c.onConnUpgraded(muxer.connection)
 
 proc getStream*(c: ConnManager,
-                     peerId: PeerID,
-                     dir: Direction): Future[Connection] {.async, gcsafe.} =
+                peerId: PeerID,
+                dir: Direction): Future[Connection] {.async, gcsafe.} =
   ## get a muxed stream for the provided peer
   ## with the given direction
   ##
@@ -402,7 +499,7 @@ proc getStream*(c: ConnManager,
     return await muxer.newStream()
 
 proc getStream*(c: ConnManager,
-                     peerId: PeerID): Future[Connection] {.async, gcsafe.} =
+                peerId: PeerID): Future[Connection] {.async, gcsafe.} =
   ## get a muxed stream for the passed peer from any connection
   ##
 
@@ -411,7 +508,7 @@ proc getStream*(c: ConnManager,
     return await muxer.newStream()
 
 proc getStream*(c: ConnManager,
-                     conn: Connection): Future[Connection] {.async, gcsafe.} =
+                conn: Connection): Future[Connection] {.async, gcsafe.} =
   ## get a muxed stream for the passed connection
   ##
 

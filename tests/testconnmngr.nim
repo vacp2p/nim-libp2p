@@ -172,7 +172,7 @@ suite "Connection Manager":
     await stream.close()
 
   asyncTest "should raise on too many connections":
-    let connMngr = ConnManager.init(1)
+    let connMngr = ConnManager.init(maxConnsPerPeer = 1)
     let peer = PeerInfo.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet())
 
     connMngr.storeConn(Connection.init(peer, Direction.In))
@@ -181,7 +181,7 @@ suite "Connection Manager":
         Connection.init(peer, Direction.In),
         Connection.init(peer, Direction.In)]
 
-    expect TooManyConnections:
+    expect TooManyConnectionsError:
       connMngr.storeConn(conns[0])
       connMngr.storeConn(conns[1])
 
