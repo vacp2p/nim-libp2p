@@ -200,6 +200,13 @@ declareGauge(libp2p_gossipsub_peers_per_topic_gossipsub,
 declareCounter(libp2p_gossipsub_failed_publish, "number of failed publish")
 declareGauge(libp2p_gossipsub_cache_window_size, "the number of messages in the cache")
 declareGauge(libp2p_gossipsub_peers_scores, "the scores of the peers in gossipsub", labels = ["agent"])
+declareGauge(libp2p_gossipsub_peers_score_firstMessageDeliveries, "Detailed gossipsub scoring metric", labels = ["agent"])
+declareGauge(libp2p_gossipsub_peers_score_meshMessageDeliveries, "Detailed gossipsub scoring metric", labels = ["agent"])
+declareGauge(libp2p_gossipsub_peers_score_meshFailurePenalty, "Detailed gossipsub scoring metric", labels = ["agent"])
+declareGauge(libp2p_gossipsub_peers_score_invalidMessageDeliveries, "Detailed gossipsub scoring metric", labels = ["agent"])
+declareGauge(libp2p_gossipsub_peers_score_appScore, "Detailed gossipsub scoring metric", labels = ["agent"])
+declareGauge(libp2p_gossipsub_peers_score_behaviourPenalty, "Detailed gossipsub scoring metric", labels = ["agent"])
+declareGauge(libp2p_gossipsub_peers_score_colocationFactor, "Detailed gossipsub scoring metric", labels = ["agent"])
 declareCounter(libp2p_gossipsub_bad_score_disconnection, "the number of peers disconnected by gossipsub", labels = ["agent"])
 declareGauge(libp2p_gossipsub_under_dlow_topics, "number of topics below dlow")
 declareGauge(libp2p_gossipsub_under_dout_topics, "number of topics below dout")
@@ -368,13 +375,13 @@ proc pruned(g: GossipSub, p: PubSubPeer, topic: string) =
   g.peerStats.withValue(p.peerId, stats):
     if topic in stats.topicInfos:
       var info = stats.topicInfos[topic]
-      let topicParams = g.topicParams.mgetOrPut(topic, TopicParams.init())
-
-      # penalize a peer that delivered no message
-      let threshold = topicParams.meshMessageDeliveriesThreshold
-      if info.inMesh and info.meshMessageDeliveriesActive and info.meshMessageDeliveries < threshold:
-        let deficit = threshold - info.meshMessageDeliveries
-        info.meshFailurePenalty += deficit * deficit
+      if topic in g.topicParams:
+        let topicParams = g.topicParams[topic]
+        # penalize a peer that delivered no message
+        let threshold = topicParams.meshMessageDeliveriesThreshold
+        if info.inMesh and info.meshMessageDeliveriesActive and info.meshMessageDeliveries < threshold:
+          let deficit = threshold - info.meshMessageDeliveries
+          info.meshFailurePenalty += deficit * deficit
 
       info.inMesh = false
 
@@ -832,6 +839,32 @@ proc updateScores(g: GossipSub) = # avoid async
 
         peer.score += topicScore * topicParams.topicWeight
 
+      # Score metrics
+      when defined(libp2p_agents_metrics):
+        let agent =
+          block:
+            if peer.shortAgent.len > 0:
+              peer.shortAgent
+            else:
+              if peer.sendConn != nil:
+                let shortAgent = peer.sendConn.peerInfo.agentVersion.split("/")[0].toLowerAscii()
+                if KnownLibP2PAgentsSeq.contains(shortAgent):
+                  peer.shortAgent = shortAgent
+                else:
+                  peer.shortAgent = "unknown"
+                peer.shortAgent
+              else:
+                "unknown"
+        libp2p_gossipsub_peers_score_firstMessageDeliveries.inc(info.firstMessageDeliveries, labelValues = [agent])
+        libp2p_gossipsub_peers_score_meshMessageDeliveries.inc(info.meshMessageDeliveries, labelValues = [agent])
+        libp2p_gossipsub_peers_score_meshFailurePenalty.inc(info.meshFailurePenalty, labelValues = [agent])
+        libp2p_gossipsub_peers_score_invalidMessageDeliveries.inc(info.invalidMessageDeliveries, labelValues = [agent])
+      else:
+        libp2p_gossipsub_peers_score_firstMessageDeliveries.inc(info.firstMessageDeliveries, labelValues = ["unknown"])
+        libp2p_gossipsub_peers_score_meshMessageDeliveries.inc(info.meshMessageDeliveries, labelValues = ["unknown"])
+        libp2p_gossipsub_peers_score_meshFailurePenalty.inc(info.meshFailurePenalty, labelValues = ["unknown"])
+        libp2p_gossipsub_peers_score_invalidMessageDeliveries.inc(info.invalidMessageDeliveries, labelValues = ["unknown"])
+
       # Score decay
       info.firstMessageDeliveries *= topicParams.firstMessageDeliveriesDecay
       if info.firstMessageDeliveries < g.parameters.decayToZero:
@@ -857,7 +890,32 @@ proc updateScores(g: GossipSub) = # avoid async
 
     peer.score += peer.behaviourPenalty * peer.behaviourPenalty * g.parameters.behaviourPenaltyWeight
 
-    peer.score += g.colocationFactor(peer) * g.parameters.ipColocationFactorWeight
+    let colocationFactor = g.colocationFactor(peer)
+    peer.score += colocationFactor * g.parameters.ipColocationFactorWeight
+
+    # Score metrics
+    when defined(libp2p_agents_metrics):
+      let agent =
+        block:
+          if peer.shortAgent.len > 0:
+            peer.shortAgent
+          else:
+            if peer.sendConn != nil:
+              let shortAgent = peer.sendConn.peerInfo.agentVersion.split("/")[0].toLowerAscii()
+              if KnownLibP2PAgentsSeq.contains(shortAgent):
+                peer.shortAgent = shortAgent
+              else:
+                peer.shortAgent = "unknown"
+              peer.shortAgent
+            else:
+              "unknown"
+      libp2p_gossipsub_peers_score_appScore.inc(peer.appScore, labelValues = [agent])
+      libp2p_gossipsub_peers_score_behaviourPenalty.inc(peer.behaviourPenalty, labelValues = [agent])
+      libp2p_gossipsub_peers_score_colocationFactor.inc(colocationFactor, labelValues = [agent])
+    else:
+      libp2p_gossipsub_peers_score_appScore.inc(peer.appScore, labelValues = ["unknown"])
+      libp2p_gossipsub_peers_score_behaviourPenalty.inc(peer.behaviourPenalty, labelValues = ["unknown"])
+      libp2p_gossipsub_peers_score_colocationFactor.inc(colocationFactor, labelValues = ["unknown"])
 
     # decay behaviourPenalty
     peer.behaviourPenalty *= g.parameters.behaviourPenaltyDecay
@@ -876,20 +934,6 @@ proc updateScores(g: GossipSub) = # avoid async
       asyncSpawn g.disconnectPeer(peer)
 
     when defined(libp2p_agents_metrics):
-      let agent =
-        block:
-          if peer.shortAgent.len > 0:
-            peer.shortAgent
-          else:
-            if peer.sendConn != nil:
-              let shortAgent = peer.sendConn.peerInfo.agentVersion.split("/")[0].toLowerAscii()
-              if KnownLibP2PAgentsSeq.contains(shortAgent):
-                peer.shortAgent = shortAgent
-              else:
-                peer.shortAgent = "unknown"
-              peer.shortAgent
-            else:
-              "unknown"
       libp2p_gossipsub_peers_scores.inc(peer.score, labelValues = [agent])
     else:
       libp2p_gossipsub_peers_scores.inc(peer.score, labelValues = ["unknown"])
@@ -1057,13 +1101,11 @@ method subscribeTopic*(g: GossipSub,
 
   trace "gossip peers", peers = g.gossipsub.peers(topic), topic
 
-proc punishPeer(g: GossipSub, peer: PubSubPeer, topics: seq[string]) =
+proc punishInvalidMessage(g: GossipSub, peer: PubSubPeer, topics: seq[string]) =
   for t in topics:
     if t notin g.topics:
       continue
 
-    # ensure we init a new topic if unknown
-    let _ = g.topicParams.mgetOrPut(t, TopicParams.init())
     # update stats
     g.peerStats.withValue(peer.peerId, stats):
       stats[].topicInfos.withValue(t, tstats):
@@ -1100,7 +1142,7 @@ proc handleGraft(g: GossipSub,
         peers: @[], # omitting heavy computation here as the remote did something illegal
         backoff: g.parameters.pruneBackoff.seconds.uint64))
 
-      g.punishPeer(peer, @[topic])
+      peer.behaviourPenalty += 0.1
 
       continue
 
@@ -1114,7 +1156,7 @@ proc handleGraft(g: GossipSub,
         peers: @[], # omitting heavy computation here as the remote did something illegal
         backoff: g.parameters.pruneBackoff.seconds.uint64))
 
-      g.punishPeer(peer, @[topic])
+      peer.behaviourPenalty += 0.1
 
       continue
 
@@ -1264,14 +1306,14 @@ method rpcHandler*(g: GossipSub,
       # always validate if signature is present or required
       debug "Dropping message due to failed signature verification",
         msgId = shortLog(msgId), peer
-      g.punishPeer(peer, msg.topicIDs)
+      g.punishInvalidMessage(peer, msg.topicIDs)
       continue
 
     if msg.seqno.len > 0 and msg.seqno.len != 8:
       # if we have seqno should be 8 bytes long
       debug "Dropping message due to invalid seqno length",
         msgId = shortLog(msgId), peer
-      g.punishPeer(peer, msg.topicIDs)
+      g.punishInvalidMessage(peer, msg.topicIDs)
       continue
 
     # g.anonymize needs no evaluation when receiving messages
@@ -1282,7 +1324,7 @@ method rpcHandler*(g: GossipSub,
     of ValidationResult.Reject:
       debug "Dropping message after validation, reason: reject",
         msgId = shortLog(msgId), peer
-      g.punishPeer(peer, msg.topicIDs)
+      g.punishInvalidMessage(peer, msg.topicIDs)
       continue
     of ValidationResult.Ignore:
       debug "Dropping message after validation, reason: ignore",
@@ -1409,6 +1451,8 @@ proc unsubscribe*(g: GossipSub, topic: string) =
     g.broadcast(toSeq(mpeers), msg)
   else:
     g.broadcast(toSeq(gpeers), msg)
+
+  g.topicParams.del(topic)
 
 method unsubscribeAll*(g: GossipSub, topic: string) =
   g.unsubscribe(topic)
