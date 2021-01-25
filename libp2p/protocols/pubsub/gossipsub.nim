@@ -151,12 +151,14 @@ type
 
     disconnectBadPeers*: bool
 
+  BackoffTable = Table[string, Table[PeerID, Moment]]
+
   GossipSub* = ref object of FloodSub
     mesh*: PeerTable                           # peers that we send messages to when we are subscribed to the topic
     fanout*: PeerTable                         # peers that we send messages to when we're not subscribed to the topic
     gossipsub*: PeerTable                      # peers that are subscribed to a topic
     explicit*: PeerTable                       # directpeers that we keep alive explicitly
-    backingOff*: Table[PeerID, Moment]         # explicit (always connected/forward) peers
+    backingOff*: BackoffTable                  # peers to backoff from when replenishing the mesh
     lastFanoutPubSub*: Table[string, Moment]   # last publish time for fanout topics
     gossip*: Table[string, seq[ControlIHave]]  # pending gossip
     control*: Table[string, ControlMessage]    # pending control messages
@@ -372,6 +374,11 @@ proc grafted(g: GossipSub, p: PubSubPeer, topic: string) =
     g.grafted(p, topic)
 
 proc pruned(g: GossipSub, p: PubSubPeer, topic: string) =
+  let backoff = Moment.fromNow(g.parameters.pruneBackoff)
+  g.backingOff
+    .mgetOrPut(topic, initTable[PeerID, Moment]())
+    .mgetOrPut(p.peerId, backoff) = backoff
+
   g.peerStats.withValue(p.peerId, stats):
     if topic in stats.topicInfos:
       var info = stats.topicInfos[topic]
@@ -469,7 +476,7 @@ proc rebalanceMesh(g: GossipSub, topic: string, metrics: ptr MeshMetrics = nil) 
       # don't pick explicit peers
       it.peerId notin g.parameters.directPeers and
       # and avoid peers we are backing off
-      it.peerId notin g.backingOff
+      it.peerId notin g.backingOff.getOrDefault(topic)
     )
 
     # shuffle anyway, score might be not used
@@ -514,7 +521,7 @@ proc rebalanceMesh(g: GossipSub, topic: string, metrics: ptr MeshMetrics = nil) 
         # don't pick explicit peers
         it.peerId notin g.parameters.directPeers and
         # and avoid peers we are backing off
-        it.peerId notin g.backingOff
+        it.peerId notin g.backingOff.getOrDefault(topic)
       )
 
       # shuffle anyway, score might be not used
@@ -613,7 +620,7 @@ proc rebalanceMesh(g: GossipSub, topic: string, metrics: ptr MeshMetrics = nil) 
         # don't pick explicit peers
         x.peerId notin g.parameters.directPeers and
         # and avoid peers we are backing off
-        x.peerId notin g.backingOff
+        x.peerId notin g.backingOff.getOrDefault(topic)
 
       # by spec, grab only 2
       if avail.len > 2:
@@ -943,19 +950,18 @@ proc updateScores(g: GossipSub) = # avoid async
 
   trace "updated scores", peers = g.peers.len
 
+proc handleBackingOff(t: var BackoffTable, topic: string) =
+  let now = Moment.now()
+  var expired = toSeq(t.getOrDefault(topic).pairs())
+  expired.keepIf do (pair: tuple[peer: PeerID, expire: Moment]) -> bool:
+    now >= pair.expire
+  for (peer, _) in expired:
+    t.mgetOrPut(topic, initTable[PeerID, Moment]()).del(peer)
+
 proc heartbeat(g: GossipSub) {.async.} =
   while g.heartbeatRunning:
     try:
       trace "running heartbeat", instance = cast[int](g)
-
-      # remove expired backoffs
-      block:
-        let now = Moment.now()
-        var expired = toSeq(g.backingOff.pairs())
-        expired.keepIf do (pair: tuple[peer: PeerID, expire: Moment]) -> bool:
-          now >= pair.expire
-        for (peer, _) in expired:
-          g.backingOff.del(peer)
 
       # reset IWANT budget
       # reset IHAVE cap
@@ -969,6 +975,10 @@ proc heartbeat(g: GossipSub) {.async.} =
       var meshMetrics = MeshMetrics()
 
       for t in toSeq(g.topics.keys):
+        # remove expired backoffs
+        block:
+          handleBackingOff(g.backingOff, t)
+
         # prune every negative score peer
         # do this before relance
         # in order to avoid grafted -> pruned in the same cycle
@@ -1134,27 +1144,38 @@ proc handleGraft(g: GossipSub,
     # It is an error to GRAFT on a explicit peer
     if peer.peerId in g.parameters.directPeers:
       # receiving a graft from a direct peer should yield a more prominent warning (protocol violation)
-      warn "attempt to graft an explicit peer",  peer=peer.id,
-                                                  topicID=graft.topicID
+      warn "attempt to graft an explicit peer", peer=peer.peerId,
+                                                topic
       # and such an attempt should be logged and rejected with a PRUNE
       result.add(ControlPrune(
-        topicID: graft.topicID,
+        topicID: topic,
         peers: @[], # omitting heavy computation here as the remote did something illegal
         backoff: g.parameters.pruneBackoff.seconds.uint64))
+
+      let backoff = Moment.fromNow(g.parameters.pruneBackoff)
+      g.backingOff
+        .mgetOrPut(topic, initTable[PeerID, Moment]())
+        .mgetOrPut(peer.peerId, backoff) = backoff
 
       peer.behaviourPenalty += 0.1
 
       continue
 
-    if peer.peerId in g.backingOff and g.backingOff[peer.peerId] > Moment.now():
-      trace "attempt to graft a backingOff peer",  peer=peer.id,
-                                                    topicID=graft.topicID,
-                                                    expire=g.backingOff[peer.peerId]
+    if  g.backingOff
+          .getOrDefault(topic)
+          .getOrDefault(peer.peerId) > Moment.now():
+      warn "attempt to graft a backingOff peer",  peer=peer.peerId,
+                                                  topic
       # and such an attempt should be logged and rejected with a PRUNE
       result.add(ControlPrune(
-        topicID: graft.topicID,
+        topicID: topic,
         peers: @[], # omitting heavy computation here as the remote did something illegal
         backoff: g.parameters.pruneBackoff.seconds.uint64))
+
+      let backoff = Moment.fromNow(g.parameters.pruneBackoff)
+      g.backingOff
+        .mgetOrPut(topic, initTable[PeerID, Moment]())
+        .mgetOrPut(peer.peerId, backoff) = backoff
 
       peer.behaviourPenalty += 0.1
 
@@ -1192,18 +1213,23 @@ proc handleGraft(g: GossipSub,
 
 proc handlePrune(g: GossipSub, peer: PubSubPeer, prunes: seq[ControlPrune]) =
   for prune in prunes:
-    trace "peer pruned topic", peer, topic = prune.topicID
+    let topic = prune.topicID
+
+    trace "peer pruned topic", peer, topic
 
     # add peer backoff
     if prune.backoff > 0:
-      let backoff = Moment.fromNow((prune.backoff + BackoffSlackTime).int64.seconds)
-      let current = g.backingOff.getOrDefault(peer.peerId)
+      let
+        backoff = Moment.fromNow((prune.backoff + BackoffSlackTime).int64.seconds)
+        current = g.backingOff.getOrDefault(topic).getOrDefault(peer.peerId)
       if backoff > current:
-        g.backingOff[peer.peerId] = backoff
+        g.backingOff
+          .mgetOrPut(topic, initTable[PeerID, Moment]())
+          .mgetOrPut(peer.peerId, backoff) = backoff
 
     trace "pruning rpc received peer", peer, score = peer.score
-    g.pruned(peer, prune.topicID)
-    g.mesh.removePeer(prune.topicID, peer)
+    g.pruned(peer, topic)
+    g.mesh.removePeer(topic, peer)
 
     # TODO peer exchange, we miss ambient peer discovery in libp2p, so we are blocked by that
     # another option could be to implement signed peer records
