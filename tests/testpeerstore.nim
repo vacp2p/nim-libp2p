@@ -16,7 +16,7 @@ suite "PeerStore":
     multiaddr1 = MultiAddress.init(multiaddrStr1).get()
     testcodec1 = "/nim/libp2p/test/0.0.1-beta1"
     metadataKey1 = "key1"
-    metadataValue1 = cast[seq[byte]]("value1")
+    metadataValue1 = "value1"
     # Peer 2
     keyPair2 = KeyPair.random(ECDSA, rng[]).get()
     peerId2 = PeerID.init(keyPair2.secKey).get()
@@ -24,12 +24,14 @@ suite "PeerStore":
     multiaddr2 = MultiAddress.init(multiaddrStr2).get()
     testcodec2 = "/nim/libp2p/test/0.0.2-beta1"
     metadataKey2 = "key2"
-    metadataValue2 = cast[seq[byte]]("value2")
+    metadataValue2 = "value2"
+  var
+    metadataType: typedesc[Table[string,string]]
   
   test "PeerStore API":
     # Set up peer store
     var
-      peerStore = PeerStore.init()
+      peerStore = PeerStore.new(metadataType)
     
     peerStore.addressBook.add(peerId1, multiaddr1)
     peerStore.addressBook.add(peerId2, multiaddr2)
@@ -83,7 +85,7 @@ suite "PeerStore":
   test "PeerStore listeners":
     # Set up peer store with listener
     var
-      peerStore = PeerStore.init()
+      peerStore = PeerStore.new(metadataType)
       addrChanged = false
       protoChanged = false
       keyChanged = false
@@ -98,7 +100,7 @@ suite "PeerStore":
     proc keyChange(peerId: PeerID, publicKey: PublicKey) =
       keyChanged = true
     
-    proc metadataChange(peerId: PeerID, metadata: Table[string, seq[byte]]) =
+    proc metadataChange(peerId: PeerID, metadata: Table[string, string]) =
       metadataChanged = true
 
     peerStore.addHandlers(addrChangeHandler = addrChange,
@@ -142,32 +144,18 @@ suite "PeerStore":
                           keyPair2.pubkey)
     check:
       keyChanged == true
-    
-    # Test listener triggered on setting metadata value
-    peerStore.metadataBook.setValue(peerId1,
-                                    metadataKey1,
-                                    metadataValue1)
-    check:
-      metadataChanged == true
-    
+      
     # Test listener triggered on setting metadata
     metadataChanged = false
     peerStore.metadataBook.set(peerId1,
                                {metadataKey1: metadataValue1, metadataKey2: metadataValue2}.toTable)
     check:
       metadataChanged == true
-    
-    # Test listener triggered on deleting metadata value
-    metadataChanged = false
-    check:
-      peerStore.metadataBook.deleteValue(peerId1,
-                                         metadataKey1) == true
-      metadataChanged == true
 
   test "AddressBook API":
     # Set up address book
     var
-      addressBook = PeerStore.init().addressBook
+      addressBook = PeerStore.new(metadataType).addressBook
     
     # Test AddressBook::add
     addressBook.add(peerId1, multiaddr1)
@@ -201,7 +189,7 @@ suite "PeerStore":
   test "ProtoBook API":
     # Set up protocol book
     var
-      protoBook = PeerStore.init().protoBook
+      protoBook = PeerStore.new(metadataType).protoBook
     
     # Test ProtoBook::add
     protoBook.add(peerId1, testcodec1)
@@ -235,7 +223,7 @@ suite "PeerStore":
   test "KeyBook API":
     # Set up key book
     var
-      keyBook = PeerStore.init().keyBook
+      keyBook = PeerStore.new(metadataType).keyBook
     
     # Test KeyBook::set
     keyBook.set(peerId1,
@@ -261,28 +249,7 @@ suite "PeerStore":
   test "MetadataBook API":
     # Set up metadata book
     var
-      metadataBook = PeerStore.init().metadataBook
-    
-    # Test MetadataBook::setValue
-    metadataBook.setValue(peerId1, metadataKey1, metadataValue1)
-    
-    check:
-      toSeq(keys(metadataBook.book))[0] == peerId1
-      toSeq(values(metadataBook.book))[0] == {metadataKey1: metadataValue1}.toTable
-    
-    # Test MetadataBook::getValue
-    check:
-      metadataBook.getValue(peerId1, metadataKey1) == metadataValue1
-    
-    # Test MetadataBook::deleteValue
-    check:
-      # Try to delete key-value pair that does not exist
-      metadataBook.deleteValue(peerId1, metadataKey2) == false
-
-      # Delete existing key-value pair
-      metadataBook.book[peerId1].len == 1 # sanity
-      metadataBook.deleteValue(peerId1, metadataKey1) == true
-      metadataBook.book[peerId1].len == 0
+      metadataBook = PeerStore.new(metadataType).metadataBook
 
     # Test MetadataBook::set
     # Set peerId1 with multiple metadata key-value pairs
