@@ -741,3 +741,115 @@ suite "Switch":
     expect(DialFailedError):
       let conn = await switch2.dial(somePeer, TestCodec)
     await switch2.stop()
+
+  asyncTest "e2e total connection limits on incoming connections":
+    var awaiters: seq[Future[void]]
+
+    var switches: seq[Switch]
+    let destSwitch = newStandardSwitch(maxConnections = 3)
+    switches.add(destSwitch)
+    awaiters.add(await destSwitch.start())
+
+    let destPeerInfo = destSwitch.peerInfo
+    for i in 0..<3:
+      let switch = newStandardSwitch()
+      switches.add(switch)
+      awaiters.add(await switch.start())
+
+      check await switch.connect(destPeerInfo)
+        .withTimeout(100.millis)
+
+    let switchFail = newStandardSwitch()
+    switches.add(switchFail)
+    awaiters.add(await switchFail.start())
+
+    check not(await switchFail.connect(destPeerInfo)
+      .withTimeout(100.millis))
+
+    await allFuturesThrowing(
+      allFutures(switches.mapIt( it.stop() )))
+    await allFuturesThrowing(awaiters)
+
+  asyncTest "e2e total connection limits on incoming connections":
+    var awaiters: seq[Future[void]]
+
+    var switches: seq[Switch]
+    for i in 0..<3:
+      switches.add(newStandardSwitch())
+      awaiters.add(await switches[i].start())
+
+    let srcSwitch = newStandardSwitch(maxConnections = 3)
+    awaiters.add(await srcSwitch.start())
+
+    let dstSwitch = newStandardSwitch()
+    awaiters.add(await dstSwitch.start())
+
+    for s in switches:
+      check await srcSwitch.connect(s.peerInfo)
+      .withTimeout(100.millis)
+
+    expect TooManyConnectionsError:
+      await srcSwitch.connect(dstSwitch.peerInfo)
+
+    switches.add(srcSwitch)
+    switches.add(dstSwitch)
+
+    await allFuturesThrowing(
+      allFutures(switches.mapIt( it.stop() )))
+    await allFuturesThrowing(awaiters)
+
+  asyncTest "e2e max incoming  connection limits":
+    var awaiters: seq[Future[void]]
+
+    var switches: seq[Switch]
+    let destSwitch = newStandardSwitch(maxIn = 3)
+    switches.add(destSwitch)
+    awaiters.add(await destSwitch.start())
+
+    let destPeerInfo = destSwitch.peerInfo
+    for i in 0..<3:
+      let switch = newStandardSwitch()
+      switches.add(switch)
+      awaiters.add(await switch.start())
+
+      check await switch.connect(destPeerInfo)
+        .withTimeout(100.millis)
+
+    let switchFail = newStandardSwitch()
+    switches.add(switchFail)
+    awaiters.add(await switchFail.start())
+
+    check not(await switchFail.connect(destPeerInfo)
+      .withTimeout(100.millis))
+
+    await allFuturesThrowing(
+      allFutures(switches.mapIt( it.stop() )))
+    await allFuturesThrowing(awaiters)
+
+  asyncTest "e2e max outgoing connection limits":
+    var awaiters: seq[Future[void]]
+
+    var switches: seq[Switch]
+    for i in 0..<3:
+      switches.add(newStandardSwitch())
+      awaiters.add(await switches[i].start())
+
+    let srcSwitch = newStandardSwitch(maxOut = 3)
+    awaiters.add(await srcSwitch.start())
+
+    let dstSwitch = newStandardSwitch()
+    awaiters.add(await dstSwitch.start())
+
+    for s in switches:
+      check await srcSwitch.connect(s.peerInfo)
+      .withTimeout(100.millis)
+
+    expect TooManyConnectionsError:
+      await srcSwitch.connect(dstSwitch.peerInfo)
+
+    switches.add(srcSwitch)
+    switches.add(dstSwitch)
+
+    await allFuturesThrowing(
+      allFutures(switches.mapIt( it.stop() )))
+    await allFuturesThrowing(awaiters)
