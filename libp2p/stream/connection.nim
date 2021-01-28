@@ -41,11 +41,12 @@ proc isUpgraded*(s: Connection): bool =
     return s.upgraded.finished
 
 proc upgrade*(s: Connection, failed: ref Exception = nil) =
-  if not isNil(failed):
-    s.upgraded.fail(failed)
-    return
+  if not isNil(s.upgraded):
+    if not isNil(failed):
+      s.upgraded.fail(failed)
+      return
 
-  s.upgraded.complete()
+    s.upgraded.complete()
 
 proc onUpgrade*(s: Connection) {.async.} =
   if not isNil(s.upgraded):
