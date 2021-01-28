@@ -83,7 +83,7 @@ proc init*(C: type ConnManager,
            maxIn = -1,
            maxOut = -1): ConnManager =
   var inSema, outSema: AsyncSemaphore
-  if maxIn > 0 and maxOut > 0:
+  if maxIn > 0 or maxOut > 0:
     inSema = newAsyncSemaphore(maxIn)
     outSema = newAsyncSemaphore(maxOut)
   elif maxConnections > 0:

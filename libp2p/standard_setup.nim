@@ -20,8 +20,6 @@ type
 proc newStandardSwitch*(privKey = none(PrivateKey),
                         address = MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet(),
                         secureManagers: openarray[SecureProtocol] = [
-                            # array cos order matters
-                            SecureProtocol.Secio,
                             SecureProtocol.Noise,
                           ],
                         transportFlags: set[ServerFlags] = {},
