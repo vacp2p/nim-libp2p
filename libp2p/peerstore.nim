@@ -43,25 +43,21 @@ type
   # Peer store types #
   ####################
 
-  PeerStore*[T] = ref object of RootObj
+  PeerStore* = ref object of RootObj
     addressBook*: AddressBook
     protoBook*: ProtoBook
     keyBook*: KeyBook
-    # The metadataBook serves as an any-purpose PeerBook to collect
-    # client-defined peer metadata
-    metadataBook*: PeerBook[T]
   
-  StoredInfo*[T] = object
+  StoredInfo* = object
     # Collates stored info about a peer
     peerId*: PeerID    
     addrs*: HashSet[MultiAddress]
     protos*: HashSet[string]
     publicKey*: PublicKey
-    metadata*: T
 
 ## Constructs a new PeerStore with metadata of type M
-proc new*(T: type PeerStore, M: typedesc): PeerStore[M] =
-  var p: PeerStore[M]
+proc new*(T: type PeerStore): PeerStore =
+  var p: PeerStore
   new(p)
   return p
 
@@ -135,17 +131,15 @@ proc add*(protoBook: var ProtoBook,
 # Peer Store API #
 ##################
 
-proc addHandlers*[T](peerStore: PeerStore[T],
-                     addrChangeHandler: AddrChangeHandler,
-                     protoChangeHandler: ProtoChangeHandler,
-                     keyChangeHandler: KeyChangeHandler,
-                     metadataChangeHandler: PeerBookChangeHandler[T]) =
+proc addHandlers*(peerStore: PeerStore,
+                  addrChangeHandler: AddrChangeHandler,
+                  protoChangeHandler: ProtoChangeHandler,
+                  keyChangeHandler: KeyChangeHandler) =
   ## Register event handlers to notify clients of changes in the peer store
   
   peerStore.addressBook.changeHandlers.add(addrChangeHandler)
   peerStore.protoBook.changeHandlers.add(protoChangeHandler)
   peerStore.keyBook.changeHandlers.add(keyChangeHandler)
-  peerStore.metadataBook.changeHandlers.add(metadataChangeHandler)
 
 proc delete*(peerStore: PeerStore,
              peerId: PeerID): bool =
@@ -153,27 +147,24 @@ proc delete*(peerStore: PeerStore,
   
   peerStore.addressBook.delete(peerId) and
   peerStore.protoBook.delete(peerId) and
-  peerStore.keyBook.delete(peerId) and
-  peerStore.metadataBook.delete(peerId)
+  peerStore.keyBook.delete(peerId)
 
-proc get*[T](peerStore: PeerStore[T],
-             peerId: PeerID): StoredInfo[T] =
+proc get*(peerStore: PeerStore,
+          peerId: PeerID): StoredInfo =
   ## Get the stored information of a given peer.
   
-  StoredInfo[T](
+  StoredInfo(
     peerId: peerId,
     addrs: peerStore.addressBook.get(peerId),
     protos: peerStore.protoBook.get(peerId),
-    publicKey: peerStore.keyBook.get(peerId),
-    metadata: peerStore.metadataBook.get(peerId)
+    publicKey: peerStore.keyBook.get(peerId)
   )
 
-proc peers*[T](peerStore: PeerStore[T]): seq[StoredInfo[T]] =
+proc peers*(peerStore: PeerStore): seq[StoredInfo] =
   ## Get all the stored information of every peer.
   
   let allKeys = concat(toSeq(keys(peerStore.addressBook.book)),
                        toSeq(keys(peerStore.protoBook.book)),
-                       toSeq(keys(peerStore.keyBook.book)),
-                       toSeq(keys(peerStore.metadataBook.book))).toHashSet()
+                       toSeq(keys(peerStore.keyBook.book))).toHashSet()
 
   return allKeys.mapIt(peerStore.get(it))
