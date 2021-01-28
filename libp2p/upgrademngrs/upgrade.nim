@@ -24,7 +24,7 @@ logScope:
   topics = "libp2p upgrade"
 
 type
-  UpgradeFailedError* = object of CatchableError
+  UpgradeFailedError* = object of LPError
 
   Upgrade* = ref object of RootObj
     ms*: MultistreamSelect
