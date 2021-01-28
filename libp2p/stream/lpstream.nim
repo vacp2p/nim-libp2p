@@ -17,6 +17,8 @@ import ../varint,
        ../multiaddress,
        ../errors
 
+export errors
+
 declareGauge(libp2p_open_streams,
   "open stream instances", labels = ["type", "dir"])
 

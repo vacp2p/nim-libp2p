@@ -13,8 +13,8 @@
 import std/[os, osproc, strutils, tables, strtabs]
 import pkg/[chronos, chronicles]
 import ../varint, ../multiaddress, ../multicodec, ../cid, ../peerid
-import ../wire, ../multihash, ../protobuf/minprotobuf
-import ../crypto/crypto, ../errors
+import ../wire, ../multihash, ../protobuf/minprotobuf, ../errors
+import ../crypto/crypto
 
 export
   peerid, multiaddress, multicodec, multihash, cid, crypto, wire, errors
@@ -155,11 +155,9 @@ type
                             ticket: PubsubTicket,
                             message: PubSubMessage): Future[bool] {.gcsafe.}
 
-  # TODO: would be nice to be able to map other errors to
-  # this types with `Result.toException`, but it doesn't work
-  # in this module
-  DaemonRemoteError* = object of CatchableError
-  DaemonLocalError* = object of CatchableError
+  DaemonError* = object of LPError
+  DaemonRemoteError* = object of DaemonError
+  DaemonLocalError* = object of DaemonError
 
 var daemonsCount {.threadvar.}: int
 
