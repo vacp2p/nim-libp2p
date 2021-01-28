@@ -8,8 +8,6 @@ import macros
 type
   # Base exception type for libp2p
   LPError* = object of CatchableError
-  LPAllFuturesError* = object of LPError
-    errors*: seq[ref CatchableError]
 
 # could not figure how to make it with a simple template
 # sadly nim needs more love for hygienic templates
