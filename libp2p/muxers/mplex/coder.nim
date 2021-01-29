@@ -40,7 +40,7 @@ type
 # https://github.com/libp2p/specs/tree/master/mplex#writing-to-a-stream
 const MaxMsgSize* = 1 shl 20 # 1mb
 
-proc newInvalidMplexMsgType*(): ref InvalidMplexMsgType =
+proc newInvalidMplexMsgType(): ref InvalidMplexMsgType =
   newException(InvalidMplexMsgType, "invalid message type")
 
 proc readMsg*(conn: Connection): Future[Msg] {.async, gcsafe.} =
