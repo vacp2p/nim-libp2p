@@ -7,31 +7,37 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
+{.push raises: [Defect].}
+
 import
   std/[tables, sets, sequtils],
+  ./crypto/crypto,
   ./peerid,
   ./multiaddress
 
 type
-  ##############################
-  # Listener and handler types #
-  ##############################
-  
-  AddrChangeHandler* = proc(peerId: PeerID, multiaddrs: HashSet[MultiAddress])
+  #################
+  # Handler types #
+  #################
 
-  EventListener* = object
-    # Listener object with client-defined handlers for peer store events
-    addrChange*: AddrChangeHandler
-    # @TODO add handlers for other event types
+  PeerBookChangeHandler*[T] = proc(peerId: PeerID, entry: T)
+
+  AddrChangeHandler* = PeerBookChangeHandler[HashSet[MultiAddress]]
+  ProtoChangeHandler* = PeerBookChangeHandler[HashSet[string]]
+  KeyChangeHandler* = PeerBookChangeHandler[PublicKey]
   
   #########
   # Books #
   #########
 
   # Each book contains a book (map) and event handler(s)
-  AddressBook* = object
-    book*: Table[PeerID, HashSet[MultiAddress]]
-    addrChange: AddrChangeHandler
+  PeerBook*[T] = object of RootObj
+    book*: Table[PeerID, T]
+    changeHandlers: seq[PeerBookChangeHandler[T]]
+  
+  AddressBook* = object of PeerBook[HashSet[MultiAddress]]
+  ProtoBook* = object of PeerBook[HashSet[string]]
+  KeyBook* = object of PeerBook[PublicKey]
   
   ####################
   # Peer store types #
@@ -39,44 +45,57 @@ type
 
   PeerStore* = ref object of RootObj
     addressBook*: AddressBook
-    listeners: seq[EventListener]
+    protoBook*: ProtoBook
+    keyBook*: KeyBook
   
   StoredInfo* = object
     # Collates stored info about a peer
-    ## @TODO include data from other stores once added
-    peerId*: PeerID
+    peerId*: PeerID    
     addrs*: HashSet[MultiAddress]
+    protos*: HashSet[string]
+    publicKey*: PublicKey
 
-proc init(T: type AddressBook, addrChange: AddrChangeHandler): AddressBook =
-  T(book: initTable[PeerId, HashSet[MultiAddress]](),
-    addrChange: addrChange)
-
-proc init*(p: PeerStore) =
-  p.listeners = newSeq[EventListener]()
-
-  proc addrChange(peerId: PeerID, multiaddrs: HashSet[MultiAddress]) =
-    # Notify all listeners of change in multiaddr
-    for listener in p.listeners:
-      listener.addrChange(peerId, multiaddrs)
-  
-  p.addressBook = AddressBook.init(addrChange)
-
-proc init*(T: type PeerStore): PeerStore =
+## Constructs a new PeerStore with metadata of type M
+proc new*(T: type PeerStore): PeerStore =
   var p: PeerStore
   new(p)
-  p.init()
   return p
+
+#########################
+# Generic Peer Book API #
+#########################
+
+proc get*[T](peerBook: PeerBook[T],
+             peerId: PeerID): T =
+  ## Get all the known metadata of a provided peer.
+  
+  peerBook.book.getOrDefault(peerId)
+
+proc set*[T](peerBook: var PeerBook[T],
+             peerId: PeerID,
+             entry: T) =
+  ## Set metadata for a given peerId. This will replace any
+  ## previously stored metadata.
+  
+  peerBook.book[peerId] = entry
+
+  # Notify clients
+  for handler in peerBook.changeHandlers:
+    handler(peerId, peerBook.get(peerId))
+
+proc delete*[T](peerBook: var PeerBook[T],
+                peerId: PeerID): bool =
+  ## Delete the provided peer from the book.
+  
+  if not peerBook.book.hasKey(peerId):
+    return false
+  else:
+    peerBook.book.del(peerId)
+    return true
 
 ####################
 # Address Book API #
 ####################
-
-proc get*(addressBook: AddressBook,
-          peerId: PeerID): HashSet[MultiAddress] =
-  ## Get the known addresses of a provided peer.
-  
-  addressBook.book.getOrDefault(peerId,
-                                initHashSet[MultiAddress]())
 
 proc add*(addressBook: var AddressBook,
           peerId: PeerID,
@@ -86,44 +105,49 @@ proc add*(addressBook: var AddressBook,
   
   addressBook.book.mgetOrPut(peerId,
                              initHashSet[MultiAddress]()).incl(multiaddr)
-  addressBook.addrChange(peerId, addressBook.get(peerId)) # Notify clients
   
-proc delete*(addressBook: var AddressBook,
-             peerId: PeerID): bool =
-  ## Delete the provided peer from the book.
-  
-  if not addressBook.book.hasKey(peerId):
-    return false
-  else:
-    addressBook.book.del(peerId)
-    return true
+  # Notify clients
+  for handler in addressBook.changeHandlers:
+    handler(peerId, addressBook.get(peerId))
 
-proc set*(addressBook: var AddressBook,
+#####################
+# Protocol Book API #
+#####################
+
+proc add*(protoBook: var ProtoBook,
           peerId: PeerID,
-          addrs: HashSet[MultiAddress]) =
-  ## Set known multiaddresses for a given peer. This will replace previously
-  ## stored addresses. Replacing stored multiaddresses might
-  ## result in losing obtained certified addresses, which is not desirable.
-  ## Consider using addressBook.add() as alternative.
+          protocol: string) = 
+  ## Adds known protocol codec for a given peer. If the peer is not known, 
+  ## it will be set with the provided protocol.
   
-  addressBook.book[peerId] = addrs
-  addressBook.addrChange(peerId, addressBook.get(peerId)) # Notify clients
+  protoBook.book.mgetOrPut(peerId,
+                           initHashSet[string]()).incl(protocol)
+  
+  # Notify clients
+  for handler in protoBook.changeHandlers:
+    handler(peerId, protoBook.get(peerId))
 
 ##################  
 # Peer Store API #
 ##################
 
-proc addListener*(peerStore: PeerStore,
-                  listener: EventListener) =
-  ## Register event listener to notify clients of changes in the peer store
+proc addHandlers*(peerStore: PeerStore,
+                  addrChangeHandler: AddrChangeHandler,
+                  protoChangeHandler: ProtoChangeHandler,
+                  keyChangeHandler: KeyChangeHandler) =
+  ## Register event handlers to notify clients of changes in the peer store
   
-  peerStore.listeners.add(listener)
+  peerStore.addressBook.changeHandlers.add(addrChangeHandler)
+  peerStore.protoBook.changeHandlers.add(protoChangeHandler)
+  peerStore.keyBook.changeHandlers.add(keyChangeHandler)
 
 proc delete*(peerStore: PeerStore,
              peerId: PeerID): bool =
   ## Delete the provided peer from every book.
   
-  peerStore.addressBook.delete(peerId)
+  peerStore.addressBook.delete(peerId) and
+  peerStore.protoBook.delete(peerId) and
+  peerStore.keyBook.delete(peerId)
 
 proc get*(peerStore: PeerStore,
           peerId: PeerID): StoredInfo =
@@ -131,12 +155,16 @@ proc get*(peerStore: PeerStore,
   
   StoredInfo(
     peerId: peerId,
-    addrs: peerStore.addressBook.get(peerId)
+    addrs: peerStore.addressBook.get(peerId),
+    protos: peerStore.protoBook.get(peerId),
+    publicKey: peerStore.keyBook.get(peerId)
   )
 
 proc peers*(peerStore: PeerStore): seq[StoredInfo] =
   ## Get all the stored information of every peer.
   
-  let allKeys = toSeq(keys(peerStore.addressBook.book)) # @TODO concat keys from other books
+  let allKeys = concat(toSeq(keys(peerStore.addressBook.book)),
+                       toSeq(keys(peerStore.protoBook.book)),
+                       toSeq(keys(peerStore.keyBook.book))).toHashSet()
 
   return allKeys.mapIt(peerStore.get(it))
