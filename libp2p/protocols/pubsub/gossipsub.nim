@@ -340,8 +340,10 @@ method init*(g: GossipSub) =
   g.codecs &= GossipSubCodec
   g.codecs &= GossipSubCodec_10
 
-proc initPeerStats(g: GossipSub, peer: PubSubPeer) =
-  g.peerStats[peer.peerId] = PeerStats()
+proc initPeerStats(g: GossipSub, peer: PubSubPeer, stats: PeerStats = PeerStats()) =
+  var initialStats = stats
+  initialStats.expire = Moment.now() + g.parameters.retainScore
+  g.peerStats[peer.peerId] = initialStats
   peer.iWantBudget = IWantPeerBudget
   peer.iHaveBudget = IHavePeerBudget
 
@@ -793,7 +795,7 @@ proc updateScores(g: GossipSub) = # avoid async
     if isNil(peer) or not(peer.connected):
       if now > stats.expire:
         evicting.add(peerId)
-        trace "evicted peer from memory", peer
+        trace "evicted peer from memory", peer = peerId
       continue
 
     trace "updating peer score", peer
@@ -933,6 +935,7 @@ proc updateScores(g: GossipSub) = # avoid async
     stats.score = peer.score
     stats.appScore = peer.appScore
     stats.behaviourPenalty = peer.behaviourPenalty
+    stats.expire = Moment.now() + g.parameters.retainScore # refresh expiration
     assert(g.peerStats[peer.peerId].score == peer.score) # nim sanity check
     trace "updated peer's score", peer, score = peer.score, n_topics, is_grafted
 
@@ -1123,11 +1126,10 @@ proc punishInvalidMessage(g: GossipSub, peer: PubSubPeer, topics: seq[string]) =
       do: # if we have no stats populate!
         stats[].topicInfos[t] = TopicInfo(invalidMessageDeliveries: 1)
     do: # if we have no stats populate!
-      g.peerStats[peer.peerId] =
-        block:
-          var stats = PeerStats()
-          stats.topicInfos[t] = TopicInfo(invalidMessageDeliveries: 1)
-          stats
+      g.initPeerStats(peer) do:
+        var stats = PeerStats()
+        stats.topicInfos[t] = TopicInfo(invalidMessageDeliveries: 1)
+        stats
 
 
 proc handleGraft(g: GossipSub,
@@ -1314,11 +1316,10 @@ method rpcHandler*(g: GossipSub,
           do: # make sure we don't loose this information
             pstats[].topicInfos[t] = TopicInfo(meshMessageDeliveries: 1)
         do: # make sure we don't loose this information
-          g.peerStats[peer.peerId] =
-            block:
-              var stats = PeerStats()
-              stats.topicInfos[t] = TopicInfo(meshMessageDeliveries: 1)
-              stats
+          g.initPeerStats(peer) do:
+            var stats = PeerStats()
+            stats.topicInfos[t] = TopicInfo(meshMessageDeliveries: 1)
+            stats
 
       # onto the next message
       continue
@@ -1384,11 +1385,10 @@ method rpcHandler*(g: GossipSub,
         do: # make sure we don't loose this information
           pstats[].topicInfos[t] = TopicInfo(firstMessageDeliveries: 1, meshMessageDeliveries: 1)
       do: # make sure we don't loose this information
-        g.peerStats[peer.peerId] =
-          block:
-            var stats = PeerStats()
-            stats.topicInfos[t] = TopicInfo(firstMessageDeliveries: 1, meshMessageDeliveries: 1)
-            stats
+        g.initPeerStats(peer) do:
+          var stats = PeerStats()
+          stats.topicInfos[t] = TopicInfo(firstMessageDeliveries: 1, meshMessageDeliveries: 1)
+          stats
 
       g.floodsub.withValue(t, peers): toSendPeers.incl(peers[])
       g.mesh.withValue(t, peers): toSendPeers.incl(peers[])
