@@ -10,10 +10,9 @@
 {.push raises: [Defect].}
 
 import std/[oids, strformat]
-import chronos, chronicles, metrics
+import pkg/[chronos, chronicles, metrics, nimcrypto/utils]
 import ./coder,
        ../muxer,
-       nimcrypto/utils,
        ../../stream/[bufferstream, connection, streamseq],
        ../../peerinfo
 
