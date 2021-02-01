@@ -59,22 +59,22 @@ type
       acceptFuts: seq[Future[void]]
       dialer*: Dial
 
-proc addConnEventHandler*(s: Switch,
+template addConnEventHandler*(s: Switch,
                           handler: ConnEventHandler,
                           kind: ConnEventKind) =
   s.connManager.addConnEventHandler(handler, kind)
 
-proc removeConnEventHandler*(s: Switch,
+template removeConnEventHandler*(s: Switch,
                              handler: ConnEventHandler,
                              kind: ConnEventKind) =
   s.connManager.removeConnEventHandler(handler, kind)
 
-proc addPeerEventHandler*(s: Switch,
+template addPeerEventHandler*(s: Switch,
                           handler: PeerEventHandler,
                           kind: PeerEventKind) =
   s.connManager.addPeerEventHandler(handler, kind)
 
-proc removePeerEventHandler*(s: Switch,
+template removePeerEventHandler*(s: Switch,
                              handler: PeerEventHandler,
                              kind: PeerEventKind) =
   s.connManager.removePeerEventHandler(handler, kind)

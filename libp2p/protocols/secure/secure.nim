@@ -120,6 +120,7 @@ method init*(s: Secure) =
     except CatchableError as exc:
       warn "securing connection failed", err = exc.msg, conn
       await conn.close()
+      raise exc
 
   s.handler = handle
 
