@@ -120,6 +120,19 @@ proc handle*(p: PubSubPeer, conn: Connection) {.async.} =
         # trigger hooks
         p.recvObservers(rmsg.get())
 
+        # check if message is not fully empty, in such case punish a bit
+        if  rmsg.get().subscriptions.len == 0 and
+            rmsg.get().messages.len == 0 and
+            (rmsg.get().control.isNone() or
+            (rmsg.get().control.get().ihave.len == 0 and
+            rmsg.get().control.get().iwant.len == 0 and
+            rmsg.get().control.get().graft.len == 0 and
+            rmsg.get().control.get().prune.len == 0)):
+          p.behaviourPenalty += 0.5
+          debug "decoded an empty message", peer = p
+          # also do not trigger anything here
+          continue
+
         when defined(libp2p_expensive_metrics):
           for m in rmsg.get().messages:
             for t in m.topicIDs:
