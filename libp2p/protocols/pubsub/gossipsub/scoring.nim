@@ -7,7 +7,7 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import std/[tables, strutils, sets]
+import std/[tables, strutils, sets, algorithm]
 import chronos, chronicles, metrics
 import "."/[types]
 import ".."/[pubsubpeer]
@@ -35,6 +35,8 @@ func `/`(a, b: Duration): float64 =
     fa = float64(a.nanoseconds)
     fb = float64(b.nanoseconds)
   fa / fb
+
+func byScore*(x,y: PubSubPeer): int = system.cmp(x.score, y.score)
 
 proc colocationFactor(g: GossipSub, peer: PubSubPeer): float64 =
   if peer.sendConn == nil:
