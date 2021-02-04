@@ -28,6 +28,8 @@ export results
 
 import gossipsub/[types, scoring, behavior]
 export types
+export scoring
+export behavior
 
 logScope:
   topics = "libp2p gossipsub"

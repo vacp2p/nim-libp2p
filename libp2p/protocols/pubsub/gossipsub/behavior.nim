@@ -457,7 +457,7 @@ proc rebalanceMesh*(g: GossipSub, topic: string, metrics: ptr MeshMetrics = nil)
         backoff: g.parameters.pruneBackoff.seconds.uint64)])))
     g.broadcast(prunes, prune)
 
-proc dropFanoutPeers(g: GossipSub) =
+proc dropFanoutPeers*(g: GossipSub) =
   # drop peers that we haven't published to in
   # GossipSubFanoutTTL seconds
   let now = Moment.now()
@@ -483,7 +483,7 @@ proc replenishFanout*(g: GossipSub, topic: string) =
 
   trace "fanout replenished with peers", peers = g.fanout.peers(topic)
 
-proc getGossipPeers(g: GossipSub): Table[PubSubPeer, ControlMessage] {.gcsafe.} =
+proc getGossipPeers*(g: GossipSub): Table[PubSubPeer, ControlMessage] {.gcsafe.} =
   ## gossip iHave messages to peers
   ##
 
