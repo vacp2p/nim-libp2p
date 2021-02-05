@@ -351,7 +351,7 @@ method subscribePeer*(p: PubSub, peer: PeerID) {.base.} =
   ## messages
   ##
 
-  let _ = p.getOrCreatePeer(peer, p.codecs)
+  discard p.getOrCreatePeer(peer, p.codecs)
 
 proc updateTopicMetrics(p: PubSub, topic: string) =
   # metrics
