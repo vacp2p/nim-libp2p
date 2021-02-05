@@ -11,7 +11,7 @@
 
 {.push raises: [Defect].}
 
-import tables
+import tables, hashes
 import multibase, multicodec, multihash, vbuffer, varint
 import stew/[base58, results]
 
@@ -199,10 +199,10 @@ proc init*(ctype: typedesc[Cid], version: CidVersion, content: MultiCodec,
   ## Cid.init(CIDv0, multiCodec("dag-pb"), MultiHash.digest("sha2-256", data))
   ##
   ## All other encodings and hashes are not supported by CIDv0.
-  
+
   var res: Cid
   res.cidver = version
-  
+
   if version == CIDv0:
     if content != multiCodec("dag-pb"):
       return err(CidError.Unsupported)
@@ -267,6 +267,9 @@ proc encode*(mbtype: typedesc[MultiBase], encoding: string,
   ## Get MultiBase encoded representation of ``cid`` using encoding
   ## ``encoding``.
   result = MultiBase.encode(encoding, cid.data.buffer).tryGet()
+
+proc hash*(cid: Cid): Hash {.inline.} =
+  hash(cid.data.buffer)
 
 proc `$`*(cid: Cid): string =
   ## Return official string representation of content identifier ``cid``.
