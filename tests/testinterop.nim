@@ -69,9 +69,7 @@ proc testPubSubDaemonPublish(gossip: bool = false, count: int = 1) {.async.} =
 
   let daemonNode = await newDaemonApi(flags)
   let daemonPeer = await daemonNode.identity()
-  let nativeNode = newStandardSwitch(
-    secureManagers = [SecureProtocol.Noise],
-    outTimeout = 5.minutes)
+  let nativeNode = newStandardSwitch(outTimeout = 5.minutes)
 
   let pubsub = if gossip:
       GossipSub.init(
@@ -135,9 +133,7 @@ proc testPubSubNodePublish(gossip: bool = false, count: int = 1) {.async.} =
 
   let daemonNode = await newDaemonApi(flags)
   let daemonPeer = await daemonNode.identity()
-  let nativeNode = newStandardSwitch(
-    secureManagers = [SecureProtocol.Noise],
-    outTimeout = 5.minutes)
+  let nativeNode = newStandardSwitch(outTimeout = 5.minutes)
 
   let pubsub = if gossip:
       GossipSub.init(
