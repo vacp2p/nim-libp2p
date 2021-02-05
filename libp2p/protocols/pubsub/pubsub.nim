@@ -351,8 +351,7 @@ method subscribePeer*(p: PubSub, peer: PeerID) {.base.} =
   ## messages
   ##
 
-  let peer = p.getOrCreatePeer(peer, p.codecs)
-  peer.outbound = true # flag as outbound
+  let _ = p.getOrCreatePeer(peer, p.codecs)
 
 proc updateTopicMetrics(p: PubSub, topic: string) =
   # metrics
