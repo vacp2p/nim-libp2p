@@ -1,10 +1,10 @@
 import options, tables
 import chronos
-import libp2p
-
-import connmanager
+import ../libp2p
 
 export libp2p
+
+import connmanager
 
 type
   SecureProtocol* {.pure.} = enum
