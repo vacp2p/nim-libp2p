@@ -8,10 +8,20 @@
 ## those terms.
 
 import
-  libp2p/daemon/[daemonapi, transpool],
-  libp2p/protobuf/minprotobuf,
-  libp2p/varint
+  libp2p/[daemon/daemonapi,
+          daemon/transpool,
+          protobuf/minprotobuf,
+          varint,
+          switch,
+          peerid,
+          peerinfo,
+          stream/lpstream,
+          stream/bufferstream,
+          stream/connection,
+          multiaddress,
+          crypto/crypto]
 
 export
-  daemonapi, transpool, minprotobuf, varint
-
+  daemonapi, transpool, minprotobuf, varint,
+  switch, peerid, peerinfo, connection,
+  multiaddress, crypto, lpstream, bufferstream
