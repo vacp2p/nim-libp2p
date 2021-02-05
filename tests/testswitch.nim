@@ -466,13 +466,11 @@ suite "Switch":
     let privKey = PrivateKey.random(rng[]).tryGet()
     let switch2 = newStandardSwitch(
       privKey = some(privKey),
-      rng = rng,
-      )
+      rng = rng)
 
     let switch3 = newStandardSwitch(
       privKey = some(privKey),
-      rng = rng,
-      )
+      rng = rng)
 
     var step = 0
     var kinds: set[PeerEventKind]
@@ -548,8 +546,7 @@ suite "Switch":
         done.complete()
 
     switches.add(newStandardSwitch(
-        rng = rng,
-        ))
+        rng = rng))
 
     switches[0].addConnEventHandler(hook, ConnEventKind.Connected)
     switches[0].addConnEventHandler(hook, ConnEventKind.Disconnected)
@@ -557,8 +554,7 @@ suite "Switch":
 
     switches.add(newStandardSwitch(
       privKey = some(peerInfo.privateKey),
-      rng = rng,
-      ))
+      rng = rng))
     onConnect = switches[1].connect(switches[0].peerInfo)
     await onConnect
 
@@ -597,8 +593,7 @@ suite "Switch":
         conns.dec
 
     switches.add(newStandardSwitch(
-        rng = rng,
-        ))
+        rng = rng))
 
     switches[0].addConnEventHandler(hook, ConnEventKind.Connected)
     switches[0].addConnEventHandler(hook, ConnEventKind.Disconnected)
@@ -607,8 +602,7 @@ suite "Switch":
     for i in 1..5:
       switches.add(newStandardSwitch(
         privKey = some(peerInfo.privateKey),
-        rng = rng,
-        ))
+        rng = rng))
       onConnect = switches[i].connect(switches[0].peerInfo)
       await onConnect
 
