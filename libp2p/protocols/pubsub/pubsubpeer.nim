@@ -55,7 +55,6 @@ type
     score*: float64
     iWantBudget*: int
     iHaveBudget*: int
-    outbound*: bool # if this is an outbound connection
     appScore*: float64 # application specific score
     behaviourPenalty*: float64 # the eventual penalty score
 
@@ -79,6 +78,12 @@ proc connected*(p: PubSubPeer): bool =
 
 proc hasObservers(p: PubSubPeer): bool =
   p.observers != nil and anyIt(p.observers[], it != nil)
+
+func outbound*(p: PubSubPeer): bool =
+  if p.connected and p.sendConn.dir == Direction.Out:
+    true
+  else:
+    false
 
 proc recvObservers(p: PubSubPeer, msg: var RPCMsg) =
   # trigger hooks
