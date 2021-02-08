@@ -17,6 +17,7 @@ import
           transports/transport,
           transports/tcptransport,
           protocols/secure/noise,
+          errors,
           switch,
           peerid,
           peerinfo,
@@ -26,7 +27,7 @@ import
 import bearssl
 
 export
-  minprotobuf,switch, peerid, peerinfo,
+  minprotobuf, switch, peerid, peerinfo,
   connection, multiaddress, crypto, lpstream,
   bufferstream, bearssl, muxer, mplex, transport,
-  tcptransport, noise
+  tcptransport, noise, errors
