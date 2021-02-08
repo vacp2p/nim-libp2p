@@ -9,7 +9,7 @@ import connmanager
 type
   SecureProtocol* {.pure.} = enum
     Noise,
-    Secio # deprecated
+    Secio {.deprecated.} # deprecated
 
 proc newStandardSwitch*(privKey = none(PrivateKey),
                         address = MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet(),
