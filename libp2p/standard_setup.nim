@@ -1,21 +1,15 @@
-import
-  options, tables, chronos, bearssl,
-  switch, peerid, peerinfo, stream/connection, multiaddress,
-  crypto/crypto, transports/[transport, tcptransport],
-  muxers/[muxer, mplex/mplex],
-  protocols/[identify, secure/secure]
+import options, tables
+import chronos
+import ../libp2p
 
-import
-  protocols/secure/noise,
-  protocols/secure/secio
+export libp2p
 
-export
-  switch, peerid, peerinfo, connection, multiaddress, crypto
+import connmanager
 
 type
   SecureProtocol* {.pure.} = enum
     Noise,
-    Secio
+    Secio # deprecated
 
 proc newStandardSwitch*(privKey = none(PrivateKey),
                         address = MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet(),
@@ -54,7 +48,7 @@ proc newStandardSwitch*(privKey = none(PrivateKey),
     of SecureProtocol.Noise:
       secureManagerInstances &= newNoise(rng, seckey).Secure
     of SecureProtocol.Secio:
-      secureManagerInstances &= newSecio(rng, seckey).Secure
+      quit("Secio is deprecated!") # use of secio is unsafe
 
   let switch = newSwitch(
     peerInfo,

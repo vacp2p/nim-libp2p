@@ -140,10 +140,10 @@ suite "Switch":
     testProto.codec = TestCodec
     testProto.handler = handle
 
-    let switch1 = newStandardSwitch(secureManagers = [SecureProtocol.Secio])
+    let switch1 = newStandardSwitch()
     switch1.mount(testProto)
 
-    let switch2 = newStandardSwitch(secureManagers = [SecureProtocol.Secio])
+    let switch2 = newStandardSwitch()
     var awaiters: seq[Future[void]]
     awaiters.add(await switch1.start())
     awaiters.add(await switch2.start())
@@ -215,8 +215,8 @@ suite "Switch":
   asyncTest "e2e should not leak on peer disconnect":
     var awaiters: seq[Future[void]]
 
-    let switch1 = newStandardSwitch(secureManagers = [SecureProtocol.Secio])
-    let switch2 = newStandardSwitch(secureManagers = [SecureProtocol.Secio])
+    let switch1 = newStandardSwitch()
+    let switch2 = newStandardSwitch()
     awaiters.add(await switch1.start())
     awaiters.add(await switch2.start())
 
@@ -241,8 +241,8 @@ suite "Switch":
   asyncTest "e2e should trigger connection events (remote)":
     var awaiters: seq[Future[void]]
 
-    let switch1 = newStandardSwitch(secureManagers = [SecureProtocol.Secio])
-    let switch2 = newStandardSwitch(secureManagers = [SecureProtocol.Secio])
+    let switch1 = newStandardSwitch()
+    let switch2 = newStandardSwitch()
 
     var step = 0
     var kinds: set[ConnEventKind]
@@ -296,8 +296,8 @@ suite "Switch":
   asyncTest "e2e should trigger connection events (local)":
     var awaiters: seq[Future[void]]
 
-    let switch1 = newStandardSwitch(secureManagers = [SecureProtocol.Secio])
-    let switch2 = newStandardSwitch(secureManagers = [SecureProtocol.Secio])
+    let switch1 = newStandardSwitch()
+    let switch2 = newStandardSwitch()
 
     var step = 0
     var kinds: set[ConnEventKind]
@@ -351,8 +351,8 @@ suite "Switch":
   asyncTest "e2e should trigger peer events (remote)":
     var awaiters: seq[Future[void]]
 
-    let switch1 = newStandardSwitch(secureManagers = [SecureProtocol.Secio])
-    let switch2 = newStandardSwitch(secureManagers = [SecureProtocol.Secio])
+    let switch1 = newStandardSwitch()
+    let switch2 = newStandardSwitch()
 
     var step = 0
     var kinds: set[PeerEventKind]
@@ -405,8 +405,8 @@ suite "Switch":
   asyncTest "e2e should trigger peer events (local)":
     var awaiters: seq[Future[void]]
 
-    let switch1 = newStandardSwitch(secureManagers = [SecureProtocol.Secio])
-    let switch2 = newStandardSwitch(secureManagers = [SecureProtocol.Secio])
+    let switch1 = newStandardSwitch()
+    let switch2 = newStandardSwitch()
 
     var step = 0
     var kinds: set[PeerEventKind]
@@ -459,20 +459,18 @@ suite "Switch":
   asyncTest "e2e should trigger peer events only once per peer":
     var awaiters: seq[Future[void]]
 
-    let switch1 = newStandardSwitch(secureManagers = [SecureProtocol.Secio])
+    let switch1 = newStandardSwitch()
 
     let rng = newRng()
     # use same private keys to emulate two connection from same peer
     let privKey = PrivateKey.random(rng[]).tryGet()
     let switch2 = newStandardSwitch(
       privKey = some(privKey),
-      rng = rng,
-      secureManagers = [SecureProtocol.Secio])
+      rng = rng)
 
     let switch3 = newStandardSwitch(
       privKey = some(privKey),
-      rng = rng,
-      secureManagers = [SecureProtocol.Secio])
+      rng = rng)
 
     var step = 0
     var kinds: set[PeerEventKind]
@@ -548,8 +546,7 @@ suite "Switch":
         done.complete()
 
     switches.add(newStandardSwitch(
-        rng = rng,
-        secureManagers = [SecureProtocol.Secio]))
+        rng = rng))
 
     switches[0].addConnEventHandler(hook, ConnEventKind.Connected)
     switches[0].addConnEventHandler(hook, ConnEventKind.Disconnected)
@@ -557,8 +554,7 @@ suite "Switch":
 
     switches.add(newStandardSwitch(
       privKey = some(peerInfo.privateKey),
-      rng = rng,
-      secureManagers = [SecureProtocol.Secio]))
+      rng = rng))
     onConnect = switches[1].connect(switches[0].peerInfo)
     await onConnect
 
@@ -597,8 +593,7 @@ suite "Switch":
         conns.dec
 
     switches.add(newStandardSwitch(
-        rng = rng,
-        secureManagers = [SecureProtocol.Secio]))
+        rng = rng))
 
     switches[0].addConnEventHandler(hook, ConnEventKind.Connected)
     switches[0].addConnEventHandler(hook, ConnEventKind.Disconnected)
@@ -607,8 +602,7 @@ suite "Switch":
     for i in 1..5:
       switches.add(newStandardSwitch(
         privKey = some(peerInfo.privateKey),
-        rng = rng,
-        secureManagers = [SecureProtocol.Secio]))
+        rng = rng))
       onConnect = switches[i].connect(switches[0].peerInfo)
       await onConnect
 

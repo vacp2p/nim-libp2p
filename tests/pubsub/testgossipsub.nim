@@ -324,8 +324,7 @@ suite "GossipSub":
     let
       nodes = generateNodes(
         2,
-        gossip = true,
-        secureManagers = [SecureProtocol.Noise])
+        gossip = true)
 
       # start switches
       nodesFut = await allFinished(
@@ -372,8 +371,7 @@ suite "GossipSub":
     let
       nodes = generateNodes(
         2,
-        gossip = true,
-        secureManagers = [SecureProtocol.Secio])
+        gossip = true)
 
       # start switches
       nodesFut = await allFinished(
@@ -437,8 +435,7 @@ suite "GossipSub":
     let
       nodes = generateNodes(
         2,
-        gossip = true,
-        secureManagers = [SecureProtocol.Secio])
+        gossip = true)
 
       # start switches
       nodesFut = await allFinished(
@@ -509,8 +506,7 @@ suite "GossipSub":
     let
       nodes = generateNodes(
         2,
-        gossip = true,
-        secureManagers = [SecureProtocol.Secio])
+        gossip = true)
 
       # start switches
       nodesFut = await allFinished(
