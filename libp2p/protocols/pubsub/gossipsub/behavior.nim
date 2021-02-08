@@ -97,7 +97,7 @@ proc handleGraft*(g: GossipSub,
     # It is an error to GRAFT on a explicit peer
     if peer.peerId in g.parameters.directPeers:
       # receiving a graft from a direct peer should yield a more prominent warning (protocol violation)
-      warn "attempt to graft an explicit peer", peer=peer.peerId,
+      debug "attempt to graft an explicit peer", peer=peer.peerId,
                                                 topic
       # and such an attempt should be logged and rejected with a PRUNE
       result.add(ControlPrune(
@@ -117,7 +117,7 @@ proc handleGraft*(g: GossipSub,
     if  g.backingOff
           .getOrDefault(topic)
           .getOrDefault(peer.peerId) > Moment.now():
-      warn "attempt to graft a backingOff peer",  peer=peer.peerId,
+      debug "attempt to graft a backingOff peer",  peer=peer.peerId,
                                                   topic
       # and such an attempt should be logged and rejected with a PRUNE
       result.add(ControlPrune(
