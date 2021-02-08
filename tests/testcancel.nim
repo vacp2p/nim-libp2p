@@ -71,7 +71,7 @@ suite "Cancellation test suite":
         await stepsAsync(testIteration)
         if connFut.finished():
           notice "=== Future was finished after waiting number of poll calls",
-                 count = testIteration, state = $connFut.state
+                 count = (testIteration + 1), state = $connFut.state
           # Future was finished, so our test is finished.
           if connFut.done():
             await connFut.read().close()
@@ -83,17 +83,24 @@ suite "Cancellation test suite":
       if not(connFut.finished()):
         notice "=== Future was not finished right after cancellation",
                state = $connFut.state
-        discard await connFut.withTimeout(1.seconds)
+        let wres = await connFut.withTimeout(1.seconds)
         notice "=== Future state after waiting for completion",
-               state = $connFut.state
-        if connFut.done():
+               state = $connFut.state, increment = int(connFut.state)
+        case connFut.state
+        of FutureState.Finished:
+          notice "=== Future finished with result",
+                 place = $(connFut.location[LocCompleteIndex])
           await connFut.read().close()
-        else:
-          if connFut.failed():
-            let exc = connFut.error
-            notice "=== Future finished with exception", name = $exc.name,
-                   msg = $exc.msg,
-                   place = $(connFut.location[LocCompleteIndex])
+        of FutureState.Failed:
+          let exc = connFut.error
+          notice "=== Future finished with an exception", name = $exc.name,
+                 msg = $exc.msg,
+                 place = $(connFut.location[LocCompleteIndex])
+        of FutureState.Cancelled:
+          notice "=== Future was cancelled"
+        of FutureState.Pending:
+          notice "=== Future is still pending after cancellation," &
+                 "it could stuck or timeout is too small for this Future"
       else:
         notice "=== Future was finished right after cancellation",
                state = $connFut.state
