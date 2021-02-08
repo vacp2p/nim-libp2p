@@ -85,7 +85,7 @@ suite "Cancellation test suite":
                state = $connFut.state
         let wres = await connFut.withTimeout(1.seconds)
         notice "=== Future state after waiting for completion",
-               state = $connFut.state, increment = int(connFut.state)
+               state = $connFut.state
         case connFut.state
         of FutureState.Finished:
           notice "=== Future finished with result",
