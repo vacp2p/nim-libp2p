@@ -103,8 +103,16 @@ proc dialAndUpgrade(s: Switch,
                     addrs: seq[MultiAddress]):
                     Future[Connection] {.async.} =
   debug "Dialing peer", peerId
+
+  # Avoid "cannot be captured as it would violate memory safety" errors in Nim-1.4.x.
+  var
+    transport: Transport
+    address: MultiAddress
+
   for t in s.transports: # for each transport
+    transport = t
     for a in addrs:      # for each address
+      address = a
       if t.handles(a):   # check if it can dial it
         trace "Dialing address", address = $a, peerId
         let dialed = try:
@@ -112,7 +120,7 @@ proc dialAndUpgrade(s: Switch,
             # await a connection slot when the total
             # connection count is equal to `maxConns`
             await s.connManager.trackOutgoingConn(
-              () => t.dial(a)
+              () => transport.dial(address)
             )
           except TooManyConnectionsError as exc:
             trace "Connection limit reached!"
