@@ -17,6 +17,10 @@ import
           transports/transport,
           transports/tcptransport,
           protocols/secure/noise,
+          cid,
+          multihash,
+          multibase,
+          multicodec,
           errors,
           switch,
           peerid,
@@ -30,4 +34,5 @@ export
   minprotobuf, switch, peerid, peerinfo,
   connection, multiaddress, crypto, lpstream,
   bufferstream, bearssl, muxer, mplex, transport,
-  tcptransport, noise, errors
+  tcptransport, noise, errors, cid, multihash,
+  multicodec
