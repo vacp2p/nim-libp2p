@@ -1,10 +1,13 @@
-import options, tables
-import chronos
-import ../libp2p
+import
+  options, tables, chronos, bearssl,
+  switch, peerid, peerinfo, stream/connection, multiaddress,
+  crypto/crypto, transports/[transport, tcptransport],
+  muxers/[muxer, mplex/mplex],
+  protocols/[identify, secure/secure, secure/noise],
+  connmanager
 
-export libp2p
-
-import connmanager
+export
+  switch, peerid, peerinfo, connection, multiaddress, crypto
 
 type
   SecureProtocol* {.pure.} = enum
