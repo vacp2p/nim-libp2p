@@ -97,8 +97,7 @@ proc handleGraft*(g: GossipSub,
     # It is an error to GRAFT on a explicit peer
     if peer.peerId in g.parameters.directPeers:
       # receiving a graft from a direct peer should yield a more prominent warning (protocol violation)
-      debug "attempt to graft an explicit peer", peer=peer.peerId,
-                                                topic
+      warn "attempt to graft an explicit peer, peering agreements should be reciprocal", peer=peer.peerId, topic
       # and such an attempt should be logged and rejected with a PRUNE
       result.add(ControlPrune(
         topicID: topic,
@@ -117,8 +116,8 @@ proc handleGraft*(g: GossipSub,
     if  g.backingOff
           .getOrDefault(topic)
           .getOrDefault(peer.peerId) > Moment.now():
-      debug "attempt to graft a backingOff peer",  peer=peer.peerId,
-                                                  topic
+      debug "attempt to graft a backingOff peer",   peer=peer.peerId,
+                                                    topic
       # and such an attempt should be logged and rejected with a PRUNE
       result.add(ControlPrune(
         topicID: topic,
@@ -134,6 +133,7 @@ proc handleGraft*(g: GossipSub,
 
       continue
 
+    # Notice this might not be necessary anymore
     if peer.peerId notin g.peerStats:
       g.initPeerStats(peer)
 
@@ -196,6 +196,9 @@ proc handleIHave*(g: GossipSub,
   elif peer.iHaveBudget <= 0:
     trace "ihave: ignoring out of budget peer", peer, score = peer.score
   else:
+    # TODO review deduplicate algorithm
+    # * https://github.com/nim-lang/Nim/blob/5f46474555ee93306cce55342e81130c1da79a42/lib/pure/collections/sequtils.nim#L184
+    # * it's probably not efficient and might give preference to the first dupe
     var deIhaves = ihaves.deduplicate()
     for ihave in deIhaves.mitems:
       trace "peer sent ihave",

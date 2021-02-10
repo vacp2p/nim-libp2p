@@ -106,6 +106,7 @@ type
     msgSeqno*: uint64
     anonymize*: bool                   # if we omit fromPeer and seqno from RPC messages we send
     subscriptionValidator*: SubscriptionValidator # callback used to validate subscriptions
+    topicsHigh*: int                  # the maximum number of topics we allow in a subscription message (application specific, defaults to int max)
 
     knownTopics*: HashSet[string]
 
@@ -207,11 +208,13 @@ method rpcHandler*(p: PubSub,
                    rpcMsg: RPCMsg) {.async, base.} =
   ## handle rpc messages
   trace "processing RPC message", msg = rpcMsg.shortLog, peer
-  for s in rpcMsg.subscriptions: # subscribe/unsubscribe the peer for each topic
-    trace "about to subscribe to topic", topicId = s.topic, peer
+  for i in 0..<min(rpcMsg.subscriptions.len, p.topicsHigh):
+    let s = rpcMsg.subscriptions[i]
+    trace "about to subscribe to topic", topicId = s.topic, peer, subscribe = s.subscribe
     p.subscribeTopic(s.topic, s.subscribe, peer)
 
-  for sub in rpcMsg.subscriptions:
+  for i in 0..<min(rpcMsg.subscriptions.len, p.topicsHigh):
+    let sub = rpcMsg.subscriptions[i]
     if sub.subscribe:
       if p.knownTopics.contains(sub.topic):
         libp2p_pubsub_received_subscriptions.inc(labelValues = [sub.topic])
@@ -520,7 +523,8 @@ proc init*[PubParams: object | bool](
         peers: initTable[PeerID, PubSubPeer](),
         topics: initTable[string, Topic](),
         msgIdProvider: msgIdProvider,
-        subscriptionValidator: subscriptionValidator)
+        subscriptionValidator: subscriptionValidator,
+        topicsHigh: int.high)
     else:
       P(switch: switch,
         peerInfo: switch.peerInfo,
@@ -532,7 +536,8 @@ proc init*[PubParams: object | bool](
         topics: initTable[string, Topic](),
         msgIdProvider: msgIdProvider,
         subscriptionValidator: subscriptionValidator,
-        parameters: parameters)
+        parameters: parameters,
+        topicsHigh: int.high)
 
   proc peerEventHandler(peerId: PeerID, event: PeerEvent) {.async.} =
     if event.kind == PeerEventKind.Joined:
