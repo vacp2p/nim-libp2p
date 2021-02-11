@@ -485,3 +485,27 @@ suite "GossipSub internal":
 
     await allFuturesThrowing(conns.mapIt(it.close()))
     await gossipSub.switch.stop()
+
+  asyncTest "subscription limits":
+    let gossipSub = TestGossipSub.init(newStandardSwitch())
+    gossipSub.topicsHigh = 10
+
+    var tooManyTopics: seq[string]
+    for i in 0..gossipSub.topicsHigh + 10:
+      tooManyTopics &= "topic" & $i
+    let lotOfSubs = RPCMsg.withSubs(tooManyTopics, true)
+
+    let conn = newBufferStream(noop)
+    let peerInfo = randomPeerInfo()
+    conn.peerInfo = peerInfo
+    let peer = gossipSub.getPubSubPeer(peerInfo.peerId)
+    gossipSub.peers[peerInfo.peerId] = peer
+
+    await gossipSub.rpcHandler(peer, lotOfSubs)
+
+    check:
+      gossipSub.gossipSub.len == gossipSub.topicsHigh
+      peer.behaviourPenalty > 0.0
+
+    await conn.close()
+    await gossipSub.switch.stop()
