@@ -41,6 +41,3 @@ func peers*(table: PeerTable, topic: string): int =
     table[topic].len
   else:
     0
-
-func getPeers*(table: Table[string, HashSet[string]], topic: string): HashSet[string] =
-  table.getOrDefault(topic, initHashSet[string]())
