@@ -509,3 +509,37 @@ suite "GossipSub internal":
 
     await conn.close()
     await gossipSub.switch.stop()
+
+  asyncTest "rebalanceMesh fail due to backoff":
+    let gossipSub = TestGossipSub.init(newStandardSwitch())
+
+    let topic = "foobar"
+    gossipSub.mesh[topic] = initHashSet[PubSubPeer]()
+    gossipSub.topicParams[topic] = TopicParams.init()
+
+    var conns = newSeq[Connection]()
+    gossipSub.gossipsub[topic] = initHashSet[PubSubPeer]()
+    for i in 0..<15:
+      let conn = newBufferStream(noop)
+      conns &= conn
+      let peerInfo = randomPeerInfo()
+      conn.peerInfo = peerInfo
+      let peer = gossipSub.getPubSubPeer(peerInfo.peerId)
+      peer.sendConn = conn
+      gossipSub.onNewPeer(peer)
+      gossipSub.peers[peerInfo.peerId] = peer
+      gossipSub.gossipsub[topic].incl(peer)
+      gossipSub.backingOff
+        .mgetOrPut(topic, initTable[PeerID, Moment]())
+        .add(peerInfo.peerId, Moment.now() + 1.hours)
+      let prunes = gossipSub.handleGraft(peer, @[ControlGraft(topicID: topic)])
+      # there must be a control prune due to violation of backoff
+      check prunes.len != 0
+
+    check gossipSub.peers.len == 15
+    gossipSub.rebalanceMesh(topic)
+    # expect 0 since they are all backing off
+    check gossipSub.mesh[topic].len == 0
+
+    await allFuturesThrowing(conns.mapIt(it.close()))
+    await gossipSub.switch.stop()
