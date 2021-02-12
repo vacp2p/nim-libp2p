@@ -54,13 +54,13 @@ proc init*(_: type[GossipSubParams]): GossipSubParams =
       historyGossip: GossipSubHistoryGossip,
       fanoutTTL: GossipSubFanoutTTL,
       seenTTL: 2.minutes,
-      gossipThreshold: -10,
-      publishThreshold: -100,
+      gossipThreshold: -100,
+      publishThreshold: -1000,
       graylistThreshold: -10000,
       opportunisticGraftThreshold: 0,
       decayInterval: 1.seconds,
       decayToZero: 0.01,
-      retainScore: 10.seconds,
+      retainScore: 2.minutes,
       appSpecificWeight: 0.0,
       ipColocationFactorWeight: 0.0,
       ipColocationFactorThreshold: 1.0,
@@ -266,7 +266,17 @@ method subscribeTopic*(g: GossipSub,
 method rpcHandler*(g: GossipSub,
                   peer: PubSubPeer,
                   rpcMsg: RPCMsg) {.async.} =
+  # base will check the amount of subscriptions and process subscriptions
+  # also will update some metrics
   await procCall PubSub(g).rpcHandler(peer, rpcMsg)
+
+  # the above call applied limtis to subs number
+  # in gossipsub we want to apply scoring as well
+  if rpcMsg.subscriptions.len > g.topicsHigh:
+    debug "received an rpc message with an oversized amount of subscriptions",  peer,
+                                                                                size = rpcMsg.subscriptions.len,
+                                                                                limit = g.topicsHigh
+    peer.behaviourPenalty += 0.1
 
   for msg in rpcMsg.messages:                         # for every message
     let msgId = g.msgIdProvider(msg)
