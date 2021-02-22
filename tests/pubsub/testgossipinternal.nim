@@ -99,7 +99,40 @@ suite "GossipSub internal":
 
     check gossipSub.peers.len == 15
     gossipSub.rebalanceMesh(topic)
-    check gossipSub.mesh[topic].len == gossipSub.parameters.d # + 2 # account opportunistic grafts
+    check gossipSub.mesh[topic].len == gossipSub.parameters.d
+
+    await allFuturesThrowing(conns.mapIt(it.close()))
+    await gossipSub.switch.stop()
+
+  asyncTest "rebalanceMesh - bad peers":
+    let gossipSub = TestGossipSub.init(newStandardSwitch())
+
+    let topic = "foobar"
+    gossipSub.mesh[topic] = initHashSet[PubSubPeer]()
+    gossipSub.topicParams[topic] = TopicParams.init()
+
+    var conns = newSeq[Connection]()
+    gossipSub.gossipsub[topic] = initHashSet[PubSubPeer]()
+    var scoreLow = -11'f64
+    for i in 0..<15:
+      let conn = newBufferStream(noop)
+      conns &= conn
+      let peerInfo = randomPeerInfo()
+      conn.peerInfo = peerInfo
+      let peer = gossipSub.getPubSubPeer(peerInfo.peerId)
+      peer.sendConn = conn
+      peer.score = scoreLow
+      gossipSub.onNewPeer(peer)
+      gossipSub.peers[peerInfo.peerId] = peer
+      gossipSub.gossipsub[topic].incl(peer)
+      scoreLow += 1.0
+
+    check gossipSub.peers.len == 15
+    gossipSub.rebalanceMesh(topic)
+    # low score peers should not be in mesh, that's why the count must be 4
+    check gossipSub.mesh[topic].len == 4
+    for peer in gossipSub.mesh[topic]:
+      check peer.score >= 0.0
 
     await allFuturesThrowing(conns.mapIt(it.close()))
     await gossipSub.switch.stop()
