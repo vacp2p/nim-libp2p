@@ -82,13 +82,12 @@ proc disconnectPeer(g: GossipSub, peer: PubSubPeer) {.async.} =
   else:
     libp2p_gossipsub_bad_score_disconnection.inc(labelValues = ["unknown"])
 
-  if peer.sendConn != nil:
-    try:
-      await g.switch.disconnect(peer.peerId)
-    except CancelledError:
-      raise
-    except CatchableError as exc:
-      trace "Failed to close connection", peer, error = exc.name, msg = exc.msg
+  try:
+    await g.switch.disconnect(peer.peerId)
+  except CancelledError:
+    raise
+  except CatchableError as exc:
+    trace "Failed to close connection", peer, error = exc.name, msg = exc.msg
 
 proc updateScores*(g: GossipSub) = # avoid async
   trace "updating scores", peers = g.peers.len
