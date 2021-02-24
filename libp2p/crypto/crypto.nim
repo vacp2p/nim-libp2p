@@ -9,6 +9,7 @@
 
 ## This module implements Public Key and Private Key interface for libp2p.
 {.push raises: [Defect].}
+
 from strutils import split, strip, cmpIgnoreCase
 
 const libp2p_pki_schemes* {.strdefine.} = "rsa,ed25519,secp256k1,ecnist"
@@ -867,7 +868,7 @@ proc ephemeral*(
     keypair = ? EcKeyPair.random(Secp384r1, rng).orError(KeyError)
   elif scheme == Secp521r1:
     keypair = ? EcKeyPair.random(Secp521r1, rng).orError(KeyError)
-  ok(EcKeyPair(keypair))
+  ok(keypair)
 
 proc ephemeral*(
     scheme: string, rng: var BrHmacDrbgContext): CryptoResult[EcKeyPair] =
@@ -1006,7 +1007,7 @@ proc write*[T: PublicKey|PrivateKey](pb: var ProtoBuffer, field: int,
   write(pb, field, key.getBytes().tryGet())
 
 proc write*(pb: var ProtoBuffer, field: int, sig: Signature) {.
-     inline, raises: [Defect, ResultError[CryptoError]].} =
+     inline, raises: [Defect].} =
   write(pb, field, sig.getBytes())
 
 proc initProtoField*(index: int, key: PublicKey|PrivateKey): ProtoField {.
