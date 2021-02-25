@@ -55,10 +55,10 @@ suite "Switch":
     awaiters.add(await switch1.start())
     awaiters.add(await switch2.start())
 
-    let conn = await switch2.dial(switch1.peerInfo, TestCodec)
+    let conn = await switch2.dial(switch1.peerInfo.peerId, switch1.peerInfo.addrs, TestCodec)
 
-    check switch1.isConnected(switch2.peerInfo)
-    check switch2.isConnected(switch1.peerInfo)
+    check switch1.isConnected(switch2.peerInfo.peerId)
+    check switch2.isConnected(switch1.peerInfo.peerId)
 
     await conn.writeLp("Hello!")
     let msg = string.fromBytes(await conn.readLp(1024))
@@ -73,8 +73,8 @@ suite "Switch":
     # this needs to go at end
     await allFuturesThrowing(awaiters)
 
-    check not switch1.isConnected(switch2.peerInfo)
-    check not switch2.isConnected(switch1.peerInfo)
+    check not switch1.isConnected(switch2.peerInfo.peerId)
+    check not switch2.isConnected(switch1.peerInfo.peerId)
 
   asyncTest "e2e use switch dial proto string with custom matcher":
     let done = newFuture[void]()
@@ -104,10 +104,10 @@ suite "Switch":
     awaiters.add(await switch1.start())
     awaiters.add(await switch2.start())
 
-    let conn = await switch2.dial(switch1.peerInfo, callProto)
+    let conn = await switch2.dial(switch1.peerInfo.peerId, switch1.peerInfo.addrs, callProto)
 
-    check switch1.isConnected(switch2.peerInfo)
-    check switch2.isConnected(switch1.peerInfo)
+    check switch1.isConnected(switch2.peerInfo.peerId)
+    check switch2.isConnected(switch1.peerInfo.peerId)
 
     await conn.writeLp("Hello!")
     let msg = string.fromBytes(await conn.readLp(1024))
@@ -122,8 +122,8 @@ suite "Switch":
     # this needs to go at end
     await allFuturesThrowing(awaiters)
 
-    check not switch1.isConnected(switch2.peerInfo)
-    check not switch2.isConnected(switch1.peerInfo)
+    check not switch1.isConnected(switch2.peerInfo.peerId)
+    check not switch2.isConnected(switch1.peerInfo.peerId)
 
   asyncTest "e2e should not leak bufferstreams and connections on channel close":
     let done = newFuture[void]()
@@ -148,10 +148,10 @@ suite "Switch":
     awaiters.add(await switch1.start())
     awaiters.add(await switch2.start())
 
-    let conn = await switch2.dial(switch1.peerInfo, TestCodec)
+    let conn = await switch2.dial(switch1.peerInfo.peerId, switch1.peerInfo.addrs, TestCodec)
 
-    check switch1.isConnected(switch2.peerInfo)
-    check switch2.isConnected(switch1.peerInfo)
+    check switch1.isConnected(switch2.peerInfo.peerId)
+    check switch2.isConnected(switch1.peerInfo.peerId)
 
     await conn.writeLp("Hello!")
     let msg = string.fromBytes(await conn.readLp(1024))
@@ -167,8 +167,8 @@ suite "Switch":
     # this needs to go at end
     await allFuturesThrowing(awaiters)
 
-    check not switch1.isConnected(switch2.peerInfo)
-    check not switch2.isConnected(switch1.peerInfo)
+    check not switch1.isConnected(switch2.peerInfo.peerId)
+    check not switch2.isConnected(switch1.peerInfo.peerId)
 
   asyncTest "e2e use connect then dial":
     var awaiters: seq[Future[void]]
@@ -192,11 +192,11 @@ suite "Switch":
     awaiters.add(await switch1.start())
     awaiters.add(await switch2.start())
 
-    await switch2.connect(switch1.peerInfo)
-    let conn = await switch2.dial(switch1.peerInfo, TestCodec)
+    await switch2.connect(switch1.peerInfo.peerId, switch1.peerInfo.addrs)
+    let conn = await switch2.dial(switch1.peerInfo.peerId, switch1.peerInfo.addrs, TestCodec)
 
-    check switch1.isConnected(switch2.peerInfo)
-    check switch2.isConnected(switch1.peerInfo)
+    check switch1.isConnected(switch2.peerInfo.peerId)
+    check switch2.isConnected(switch1.peerInfo.peerId)
 
     await conn.writeLp("Hello!")
     let msg = string.fromBytes(await conn.readLp(1024))
@@ -209,8 +209,8 @@ suite "Switch":
     )
     await allFuturesThrowing(awaiters)
 
-    check not switch1.isConnected(switch2.peerInfo)
-    check not switch2.isConnected(switch1.peerInfo)
+    check not switch1.isConnected(switch2.peerInfo.peerId)
+    check not switch2.isConnected(switch1.peerInfo.peerId)
 
   asyncTest "e2e should not leak on peer disconnect":
     var awaiters: seq[Future[void]]
@@ -220,15 +220,15 @@ suite "Switch":
     awaiters.add(await switch1.start())
     awaiters.add(await switch2.start())
 
-    await switch2.connect(switch1.peerInfo)
+    await switch2.connect(switch1.peerInfo.peerId, switch1.peerInfo.addrs)
 
-    check switch1.isConnected(switch2.peerInfo)
-    check switch2.isConnected(switch1.peerInfo)
+    check switch1.isConnected(switch2.peerInfo.peerId)
+    check switch2.isConnected(switch1.peerInfo.peerId)
 
-    await switch2.disconnect(switch1.peerInfo)
+    await switch2.disconnect(switch1.peerInfo.peerId)
 
-    check not switch2.isConnected(switch1.peerInfo)
-    check await(checkExpiring((not switch1.isConnected(switch2.peerInfo))))
+    check not switch2.isConnected(switch1.peerInfo.peerId)
+    check await(checkExpiring((not switch1.isConnected(switch2.peerInfo.peerId))))
 
     checkTracker(LPChannelTrackerName)
     checkTracker(SecureConnTrackerName)
@@ -269,15 +269,15 @@ suite "Switch":
     awaiters.add(await switch1.start())
     awaiters.add(await switch2.start())
 
-    await switch2.connect(switch1.peerInfo)
+    await switch2.connect(switch1.peerInfo.peerId, switch1.peerInfo.addrs)
 
-    check switch1.isConnected(switch2.peerInfo)
-    check switch2.isConnected(switch1.peerInfo)
+    check switch1.isConnected(switch2.peerInfo.peerId)
+    check switch2.isConnected(switch1.peerInfo.peerId)
 
-    await switch2.disconnect(switch1.peerInfo)
+    await switch2.disconnect(switch1.peerInfo.peerId)
 
-    check not switch2.isConnected(switch1.peerInfo)
-    check await(checkExpiring((not switch1.isConnected(switch2.peerInfo))))
+    check not switch2.isConnected(switch1.peerInfo.peerId)
+    check await(checkExpiring((not switch1.isConnected(switch2.peerInfo.peerId))))
 
     checkTracker(LPChannelTrackerName)
     checkTracker(SecureConnTrackerName)
@@ -324,15 +324,15 @@ suite "Switch":
     awaiters.add(await switch1.start())
     awaiters.add(await switch2.start())
 
-    await switch2.connect(switch1.peerInfo)
+    await switch2.connect(switch1.peerInfo.peerId, switch1.peerInfo.addrs)
 
-    check switch1.isConnected(switch2.peerInfo)
-    check switch2.isConnected(switch1.peerInfo)
+    check switch1.isConnected(switch2.peerInfo.peerId)
+    check switch2.isConnected(switch1.peerInfo.peerId)
 
-    await switch2.disconnect(switch1.peerInfo)
+    await switch2.disconnect(switch1.peerInfo.peerId)
 
-    check not switch2.isConnected(switch1.peerInfo)
-    check await(checkExpiring((not switch1.isConnected(switch2.peerInfo))))
+    check not switch2.isConnected(switch1.peerInfo.peerId)
+    check await(checkExpiring((not switch1.isConnected(switch2.peerInfo.peerId))))
 
     checkTracker(LPChannelTrackerName)
     checkTracker(SecureConnTrackerName)
@@ -378,15 +378,15 @@ suite "Switch":
     awaiters.add(await switch1.start())
     awaiters.add(await switch2.start())
 
-    await switch2.connect(switch1.peerInfo)
+    await switch2.connect(switch1.peerInfo.peerId, switch1.peerInfo.addrs)
 
-    check switch1.isConnected(switch2.peerInfo)
-    check switch2.isConnected(switch1.peerInfo)
+    check switch1.isConnected(switch2.peerInfo.peerId)
+    check switch2.isConnected(switch1.peerInfo.peerId)
 
-    await switch2.disconnect(switch1.peerInfo)
+    await switch2.disconnect(switch1.peerInfo.peerId)
 
-    check not switch2.isConnected(switch1.peerInfo)
-    check await(checkExpiring((not switch1.isConnected(switch2.peerInfo))))
+    check not switch2.isConnected(switch1.peerInfo.peerId)
+    check await(checkExpiring((not switch1.isConnected(switch2.peerInfo.peerId))))
 
     checkTracker(LPChannelTrackerName)
     checkTracker(SecureConnTrackerName)
@@ -432,15 +432,15 @@ suite "Switch":
     awaiters.add(await switch1.start())
     awaiters.add(await switch2.start())
 
-    await switch2.connect(switch1.peerInfo)
+    await switch2.connect(switch1.peerInfo.peerId, switch1.peerInfo.addrs)
 
-    check switch1.isConnected(switch2.peerInfo)
-    check switch2.isConnected(switch1.peerInfo)
+    check switch1.isConnected(switch2.peerInfo.peerId)
+    check switch2.isConnected(switch1.peerInfo.peerId)
 
-    await switch2.disconnect(switch1.peerInfo)
+    await switch2.disconnect(switch1.peerInfo.peerId)
 
-    check not switch2.isConnected(switch1.peerInfo)
-    check await(checkExpiring((not switch1.isConnected(switch2.peerInfo))))
+    check not switch2.isConnected(switch1.peerInfo.peerId)
+    check await(checkExpiring((not switch1.isConnected(switch2.peerInfo.peerId))))
 
     checkTracker(LPChannelTrackerName)
     checkTracker(SecureConnTrackerName)
@@ -495,20 +495,20 @@ suite "Switch":
     awaiters.add(await switch2.start())
     awaiters.add(await switch3.start())
 
-    await switch2.connect(switch1.peerInfo) # should trigger 1st Join event
-    await switch3.connect(switch1.peerInfo) # should trigger 2nd Join event
+    await switch2.connect(switch1.peerInfo.peerId, switch1.peerInfo.addrs) # should trigger 1st Join event
+    await switch3.connect(switch1.peerInfo.peerId, switch1.peerInfo.addrs) # should trigger 2nd Join event
 
-    check switch1.isConnected(switch2.peerInfo)
-    check switch2.isConnected(switch1.peerInfo)
-    check switch3.isConnected(switch1.peerInfo)
+    check switch1.isConnected(switch2.peerInfo.peerId)
+    check switch2.isConnected(switch1.peerInfo.peerId)
+    check switch3.isConnected(switch1.peerInfo.peerId)
 
-    await switch2.disconnect(switch1.peerInfo) # should trigger 1st Left event
-    await switch3.disconnect(switch1.peerInfo) # should trigger 2nd Left event
+    await switch2.disconnect(switch1.peerInfo.peerId) # should trigger 1st Left event
+    await switch3.disconnect(switch1.peerInfo.peerId) # should trigger 2nd Left event
 
-    check not switch2.isConnected(switch1.peerInfo)
-    check not switch3.isConnected(switch1.peerInfo)
-    check await(checkExpiring((not switch1.isConnected(switch2.peerInfo))))
-    check await(checkExpiring((not switch1.isConnected(switch3.peerInfo))))
+    check not switch2.isConnected(switch1.peerInfo.peerId)
+    check not switch3.isConnected(switch1.peerInfo.peerId)
+    check await(checkExpiring((not switch1.isConnected(switch2.peerInfo.peerId))))
+    check await(checkExpiring((not switch1.isConnected(switch3.peerInfo.peerId))))
 
     checkTracker(LPChannelTrackerName)
     checkTracker(SecureConnTrackerName)
@@ -555,7 +555,7 @@ suite "Switch":
     switches.add(newStandardSwitch(
       privKey = some(peerInfo.privateKey),
       rng = rng))
-    onConnect = switches[1].connect(switches[0].peerInfo)
+    onConnect = switches[1].connect(switches[0].peerInfo.peerId, switches[0].peerInfo.addrs)
     await onConnect
 
     await done
@@ -603,7 +603,7 @@ suite "Switch":
       switches.add(newStandardSwitch(
         privKey = some(peerInfo.privateKey),
         rng = rng))
-      onConnect = switches[i].connect(switches[0].peerInfo)
+      onConnect = switches[i].connect(switches[0].peerInfo.peerId, switches[0].peerInfo.addrs)
       await onConnect
 
     await done
@@ -627,7 +627,7 @@ suite "Switch":
       try:
         let conn = await transport.accept()
         discard await conn.readLp(100)
-      except CatchableError as exc:
+      except CatchableError:
         discard
 
     let handlerWait = acceptHandler()
@@ -687,8 +687,6 @@ suite "Switch":
     await allFuturesThrowing(awaiters)
 
   asyncTest "e2e calling closeWithEOF on the same stream should not assert":
-    let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
-
     proc handle(conn: Connection, proto: string) {.async, gcsafe.} =
       discard await conn.readLp(100)
 
@@ -704,8 +702,7 @@ suite "Switch":
     var awaiters: seq[Future[void]]
     awaiters.add(await switch1.start())
 
-    var peerId = PeerID.init(PrivateKey.random(ECDSA, rng[]).get()).get()
-    let conn = await switch2.dial(switch1.peerInfo, TestCodec)
+    let conn = await switch2.dial(switch1.peerInfo.peerId, switch1.peerInfo.addrs, TestCodec)
 
     proc closeReader() {.async.} =
       await conn.closeWithEOF()
@@ -728,12 +725,12 @@ suite "Switch":
 
   asyncTest "connect to inexistent peer":
     let switch2 = newStandardSwitch(secureManagers = [SecureProtocol.Noise])
-    let sfut = await switch2.start()
+    discard await switch2.start()
     let someAddr = MultiAddress.init("/ip4/127.128.0.99").get()
     let seckey = PrivateKey.random(ECDSA, rng[]).get()
     let somePeer = PeerInfo.init(secKey, [someAddr])
     expect(DialFailedError):
-      let conn = await switch2.dial(somePeer, TestCodec)
+      discard await switch2.dial(somePeer.peerId, somePeer.addrs, TestCodec)
     await switch2.stop()
 
   asyncTest "e2e total connection limits on incoming connections":
@@ -750,15 +747,15 @@ suite "Switch":
       switches.add(switch)
       awaiters.add(await switch.start())
 
-      check await switch.connect(destPeerInfo)
-        .withTimeout(100.millis)
+      check await switch.connect(destPeerInfo.peerId, destPeerInfo.addrs)
+        .withTimeout(1000.millis)
 
     let switchFail = newStandardSwitch()
     switches.add(switchFail)
     awaiters.add(await switchFail.start())
 
-    check not(await switchFail.connect(destPeerInfo)
-      .withTimeout(100.millis))
+    check not(await switchFail.connect(destPeerInfo.peerId, destPeerInfo.addrs)
+      .withTimeout(1000.millis))
 
     await allFuturesThrowing(
       allFutures(switches.mapIt( it.stop() )))
@@ -779,11 +776,11 @@ suite "Switch":
     awaiters.add(await dstSwitch.start())
 
     for s in switches:
-      check await srcSwitch.connect(s.peerInfo)
-      .withTimeout(100.millis)
+      check await srcSwitch.connect(s.peerInfo.peerId, s.peerInfo.addrs)
+      .withTimeout(1000.millis)
 
     expect TooManyConnectionsError:
-      await srcSwitch.connect(dstSwitch.peerInfo)
+      await srcSwitch.connect(dstSwitch.peerInfo.peerId, dstSwitch.peerInfo.addrs)
 
     switches.add(srcSwitch)
     switches.add(dstSwitch)
@@ -792,7 +789,7 @@ suite "Switch":
       allFutures(switches.mapIt( it.stop() )))
     await allFuturesThrowing(awaiters)
 
-  asyncTest "e2e max incoming  connection limits":
+  asyncTest "e2e max incoming connection limits":
     var awaiters: seq[Future[void]]
 
     var switches: seq[Switch]
@@ -806,15 +803,15 @@ suite "Switch":
       switches.add(switch)
       awaiters.add(await switch.start())
 
-      check await switch.connect(destPeerInfo)
-        .withTimeout(100.millis)
+      check await switch.connect(destPeerInfo.peerId, destPeerInfo.addrs)
+        .withTimeout(1000.millis)
 
     let switchFail = newStandardSwitch()
     switches.add(switchFail)
     awaiters.add(await switchFail.start())
 
-    check not(await switchFail.connect(destPeerInfo)
-      .withTimeout(100.millis))
+    check not(await switchFail.connect(destPeerInfo.peerId, destPeerInfo.addrs)
+      .withTimeout(1000.millis))
 
     await allFuturesThrowing(
       allFutures(switches.mapIt( it.stop() )))
@@ -835,11 +832,11 @@ suite "Switch":
     awaiters.add(await dstSwitch.start())
 
     for s in switches:
-      check await srcSwitch.connect(s.peerInfo)
-      .withTimeout(100.millis)
+      check await srcSwitch.connect(s.peerInfo.peerId, s.peerInfo.addrs)
+      .withTimeout(1000.millis)
 
     expect TooManyConnectionsError:
-      await srcSwitch.connect(dstSwitch.peerInfo)
+      await srcSwitch.connect(dstSwitch.peerInfo.peerId, dstSwitch.peerInfo.addrs)
 
     switches.add(srcSwitch)
     switches.add(dstSwitch)
