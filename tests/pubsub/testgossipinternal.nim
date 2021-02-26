@@ -630,3 +630,78 @@ suite "GossipSub internal":
 
     await allFuturesThrowing(conns.mapIt(it.close()))
     await gossipSub.switch.stop()
+
+  asyncTest "handleIHave/Iwant tests":
+    let gossipSub = TestGossipSub.init(newStandardSwitch())
+
+    proc handler(peer: PubSubPeer, msg: RPCMsg) {.async.} =
+      check false
+
+    let topic = "foobar"
+    var conns = newSeq[Connection]()
+    gossipSub.gossipsub[topic] = initHashSet[PubSubPeer]()
+    gossipSub.mesh[topic] = initHashSet[PubSubPeer]()
+    for i in 0..<30:
+      let conn = newBufferStream(noop)
+      conns &= conn
+      let peerInfo = randomPeerInfo()
+      conn.peerInfo = peerInfo
+      let peer = gossipSub.getPubSubPeer(peerInfo.peerId)
+      gossipSub.onNewPeer(peer)
+      peer.handler = handler
+      gossipSub.grafted(peer, topic)
+      gossipSub.peers[peerInfo.peerId] = peer
+      gossipSub.mesh[topic].incl(peer)
+
+    block:
+      # should ignore no budget peer
+      let conn = newBufferStream(noop)
+      conns &= conn
+      let peerInfo = randomPeerInfo()
+      conn.peerInfo = peerInfo
+      let peer = gossipSub.getPubSubPeer(peerInfo.peerId)
+      let id = @[0'u8, 1, 2, 3]
+      let msg = ControlIHave(
+        topicID: topic,
+        messageIDs: @[id, id, id]
+      )
+      # gossipSub.initPeerStats(peer)
+      let iwants = gossipSub.handleIHave(peer, @[msg])
+      check: iwants.messageIDs.len == 0
+
+    block:
+      # given duplicate ihave should generate only one iwant
+      let conn = newBufferStream(noop)
+      conns &= conn
+      let peerInfo = randomPeerInfo()
+      conn.peerInfo = peerInfo
+      let peer = gossipSub.getPubSubPeer(peerInfo.peerId)
+      let id = @[0'u8, 1, 2, 3]
+      let msg = ControlIHave(
+        topicID: topic,
+        messageIDs: @[id, id, id]
+      )
+      gossipSub.initPeerStats(peer)
+      let iwants = gossipSub.handleIHave(peer, @[msg])
+      check: iwants.messageIDs.len == 1
+
+    block:
+      # given duplicate iwant should generate only one message
+      let conn = newBufferStream(noop)
+      conns &= conn
+      let peerInfo = randomPeerInfo()
+      conn.peerInfo = peerInfo
+      let peer = gossipSub.getPubSubPeer(peerInfo.peerId)
+      let id = @[0'u8, 1, 2, 3]
+      gossipSub.mcache.put(id, Message())
+      let msg = ControlIWant(
+        messageIDs: @[id, id, id]
+      )
+      gossipSub.initPeerStats(peer)
+      let genmsg = gossipSub.handleIWant(peer, @[msg])
+      check: genmsg.len == 1
+
+    check gossipSub.mcache.msgs.len == 1
+
+    await allFuturesThrowing(conns.mapIt(it.close()))
+    await gossipSub.switch.stop()

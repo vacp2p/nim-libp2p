@@ -199,12 +199,14 @@ proc handleIHave*(g: GossipSub,
     # TODO review deduplicate algorithm
     # * https://github.com/nim-lang/Nim/blob/5f46474555ee93306cce55342e81130c1da79a42/lib/pure/collections/sequtils.nim#L184
     # * it's probably not efficient and might give preference to the first dupe
-    var deIhaves = ihaves.deduplicate()
-    for ihave in deIhaves.mitems:
+    let deIhaves = ihaves.deduplicate()
+    for ihave in deIhaves:
       trace "peer sent ihave",
         peer, topic = ihave.topicID, msgs = ihave.messageIDs
       if ihave.topicID in g.mesh:
-        for m in ihave.messageIDs:
+        # also avoid duplicates here!
+        let deIhavesMsgs = ihave.messageIDs.deduplicate()
+        for m in deIhavesMsgs:
           let msgId = m & g.randomBytes
           if msgId notin g.seen:
             if peer.iHaveBudget > 0:
@@ -225,9 +227,10 @@ proc handleIWant*(g: GossipSub,
   elif peer.iWantBudget <= 0:
     trace "iwant: ignoring out of budget peer", peer, score = peer.score
   else:
-    var deIwants = iwants.deduplicate()
+    let deIwants = iwants.deduplicate()
     for iwant in deIwants:
-      for mid in iwant.messageIDs:
+      let deIwantsMsgs = iwant.messageIDs.deduplicate()
+      for mid in deIwantsMsgs:
         trace "peer sent iwant", peer, messageID = mid
         let msg = g.mcache.get(mid)
         if msg.isSome:
