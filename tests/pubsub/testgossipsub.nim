@@ -819,15 +819,14 @@ suite "GossipSub":
         gossip.fanout.len == 0
         gossip.mesh["foobar"].len > 0
 
-    debug "Removing some subscriptions"
+    # Removing some subscriptions
 
     for i in 0..<runs:
       if i mod 3 != 0:
         nodes[i].unsubscribeAll("foobar")
 
-    debug "Waiting 2 heartbeats"
+    # Waiting 2 heartbeats
 
-    # wait for 2 heartbeats
     for _ in 0..1:
       for i in 0..<runs:
         if i mod 3 == 0:
@@ -839,7 +838,7 @@ suite "GossipSub":
     check:
       GossipSub(nodes[0]).peerStats.len == runs - 1 # minus self
 
-    debug "Adding again subscriptions"
+    # Adding again subscriptions
 
     proc handler(topic: string, data: seq[byte]) {.async, gcsafe.} =
       check topic == "foobar"
@@ -848,9 +847,8 @@ suite "GossipSub":
       if i mod 3 != 0:
         nodes[i].subscribe("foobar", handler)
 
-    debug "Waiting 2 heartbeats"
+    # Waiting 2 heartbeats
 
-    # wait for 2 heartbeats
     for _ in 0..1:
       for i in 0..<runs:
         if i mod 3 == 0:
