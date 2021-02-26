@@ -64,8 +64,10 @@ type
   RPCHandler* = proc(peer: PubSubPeer, msg: RPCMsg): Future[void] {.gcsafe.}
 
 func hash*(p: PubSubPeer): Hash =
-  # int is either 32/64, so intptr basically, pubsubpeer is a ref
-  cast[pointer](p).hash
+  p.peerId.hash
+
+func `==`*(a, b: PubSubPeer): bool =
+  a.peerId == b.peerId
 
 func shortLog*(p: PubSubPeer): string =
   if p.isNil: "PubSubPeer(nil)"
