@@ -146,7 +146,7 @@ type
     parameters*: GossipSubParams
     topicParams*: Table[string, TopicParams]
     directPeersLoop*: Future[void]
-    peersInIP*: Table[MultiAddress, HashSet[PubSubPeer]]
+    peersInIP*: Table[MultiAddress, HashSet[PeerID]]
 
     heartbeatEvents*: seq[AsyncEvent]
 

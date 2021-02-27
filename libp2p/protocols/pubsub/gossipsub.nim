@@ -198,7 +198,7 @@ method unsubscribePeer*(g: GossipSub, peer: PeerID) =
   # remove from peer IPs collection too
   if pubSubPeer.sendConn != nil:
     g.peersInIP.withValue(pubSubPeer.sendConn.observedAddr, s):
-      s[].excl(pubSubPeer)
+      s[].excl(pubSubPeer.peerId)
       if s[].len == 0:
         g.peersInIP.del(pubSubPeer.sendConn.observedAddr)
 

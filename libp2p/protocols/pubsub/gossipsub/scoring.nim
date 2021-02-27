@@ -46,7 +46,7 @@ proc colocationFactor(g: GossipSub, peer: PubSubPeer): float64 =
     let
       address = peer.sendConn.observedAddr
 
-    g.peersInIP.mgetOrPut(address, initHashSet[PubSubPeer]()).incl(peer)
+    g.peersInIP.mgetOrPut(address, initHashSet[PeerID]()).incl(peer.peerId)
     let
       ipPeers = g.peersInIP[address]
       len = ipPeers.len.float64
