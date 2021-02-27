@@ -48,6 +48,7 @@ type
     onEvent*: OnEvent                   # Connectivity updates for peer
     codec*: string                      # the protocol that this peer joined from
     sendConn*: Connection               # cached send connection
+    address*: Option[MultiAddress]
     peerId*: PeerID
     handler*: RPCHandler
     observers*: ref seq[PubSubObserver] # ref as in smart_ptr
@@ -159,6 +160,7 @@ proc connectOnce(p: PubSubPeer): Future[void] {.async.} =
 
     trace "Get new send connection", p, newConn
     p.sendConn = newConn
+    p.address = some(p.sendConn.observedAddr)
 
     if p.onEvent != nil:
       p.onEvent(p, PubsubPeerEvent(kind: PubSubPeerEventKind.Connected))
@@ -170,6 +172,7 @@ proc connectOnce(p: PubSubPeer): Future[void] {.async.} =
       await p.sendConn.close()
 
       p.sendConn = nil
+      p.address = none(MultiAddress)
       if p.onEvent != nil:
         p.onEvent(p, PubsubPeerEvent(kind: PubSubPeerEventKind.Disconnected))
 

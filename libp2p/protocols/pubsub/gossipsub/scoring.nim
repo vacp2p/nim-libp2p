@@ -7,7 +7,7 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import std/[tables, strutils, sets, algorithm]
+import std/[tables, strutils, sets, algorithm, options]
 import chronos, chronicles, metrics
 import "."/[types]
 import ".."/[pubsubpeer]
@@ -39,18 +39,15 @@ func `/`(a, b: Duration): float64 =
 func byScore*(x,y: PubSubPeer): int = system.cmp(x.score, y.score)
 
 proc colocationFactor(g: GossipSub, peer: PubSubPeer): float64 =
-  if peer.sendConn == nil:
-    trace "colocationFactor, no connection", peer
+  if peer.address.isNone():
     0.0
   else:
     let
-      address = peer.sendConn.observedAddr
-
+      address = peer.address.get()
     g.peersInIP.mgetOrPut(address, initHashSet[PeerID]()).incl(peer.peerId)
     let
       ipPeers = g.peersInIP[address]
       len = ipPeers.len.float64
-
     if len > g.parameters.ipColocationFactorThreshold:
       trace "colocationFactor over threshold", peer, address, len
       let over = len - g.parameters.ipColocationFactorThreshold
