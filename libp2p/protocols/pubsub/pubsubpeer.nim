@@ -169,12 +169,18 @@ proc connectOnce(p: PubSubPeer): Future[void] {.async.} =
   finally:
     if p.sendConn != nil:
       trace "Removing send connection", p, conn = p.sendConn
+
       await p.sendConn.close()
 
+      try:
+        if p.onEvent != nil:
+          p.onEvent(p, PubsubPeerEvent(kind: PubSubPeerEventKind.Disconnected))
+      except CancelledError as exc:
+        debug "Errors during diconnection events", error = exc.msg
+
+      # clean up at the end
       p.sendConn = nil
-      p.address = none(MultiAddress)
-      if p.onEvent != nil:
-        p.onEvent(p, PubsubPeerEvent(kind: PubSubPeerEventKind.Disconnected))
+      # don't cleanup p.address else we leak some gossip stat table
 
 proc connectImpl(p: PubSubPeer) {.async.} =
   try:
