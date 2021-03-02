@@ -22,7 +22,10 @@ proc getPubSubPeer(p: TestGossipSub, peerId: PeerID): auto =
   proc getConn(): Future[Connection] =
     p.switch.dial(peerId, GossipSubCodec)
 
-  newPubSubPeer(peerId, getConn, nil, GossipSubCodec)
+  proc dropConn(peer: PubSubPeer) =
+    discard # we don't care about it here yet
+
+  newPubSubPeer(peerId, getConn, dropConn, nil, GossipSubCodec)
 
 proc randomPeerInfo(): PeerInfo =
   PeerInfo.init(PrivateKey.random(ECDSA, rng[]).get())
@@ -591,7 +594,7 @@ suite "GossipSub internal":
     gossipSub.gossipsub[topic] = initHashSet[PubSubPeer]()
     for i in 0..<6:
       let conn = newBufferStream(noop)
-      conn.dir = Direction.In
+      conn.transportDir = Direction.In
       conns &= conn
       let peerInfo = PeerInfo.init(PrivateKey.random(ECDSA, rng[]).get())
       conn.peerInfo = peerInfo
@@ -605,7 +608,7 @@ suite "GossipSub internal":
 
     for i in 0..<7:
       let conn = newBufferStream(noop)
-      conn.dir = Direction.Out
+      conn.transportDir = Direction.Out
       conns &= conn
       let peerInfo = PeerInfo.init(PrivateKey.random(ECDSA, rng[]).get())
       conn.peerInfo = peerInfo
@@ -623,7 +626,7 @@ suite "GossipSub internal":
     check gossipSub.mesh[topic].len > gossipSub.parameters.dLow
     var outbound = 0
     for peer in gossipSub.mesh[topic]:
-      if peer.sendConn.dir == Direction.Out:
+      if peer.sendConn.transportDir == Direction.Out:
         inc outbound
     # ensure we give priority and keep at least dOut outbound peers
     check outbound >= gossipSub.parameters.dOut

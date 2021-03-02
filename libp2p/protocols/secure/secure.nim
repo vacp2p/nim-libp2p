@@ -76,6 +76,10 @@ proc handleConn(s: Secure,
                  conn: Connection,
                  initiator: bool): Future[Connection] {.async.} =
   var sconn = await s.handshake(conn, initiator)
+  # mark connection bottom level transport direction
+  # this is the safest place to do this
+  # we require this information in for example gossipsub
+  sconn.transportDir = if initiator: Direction.Out else: Direction.In
 
   proc cleanup() {.async.} =
     try:

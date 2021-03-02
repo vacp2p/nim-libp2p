@@ -274,11 +274,21 @@ proc getOrCreatePeer*(
   proc getConn(): Future[Connection] =
     p.switch.dial(peer, protos)
 
+  proc dropConn(peer: PubSubPeer) =
+    proc dropConnAsync(peer: PubsubPeer) {.async.} =
+      try:
+        await p.switch.disconnect(peer.peerId)
+      except CancelledError:
+        raise
+      except CatchableError as exc:
+        trace "Failed to close connection", peer, error = exc.name, msg = exc.msg
+    asyncSpawn dropConnAsync(peer)
+
   proc onEvent(peer: PubsubPeer, event: PubsubPeerEvent) {.gcsafe.} =
     p.onPubSubPeerEvent(peer, event)
 
   # create new pubsub peer
-  let pubSubPeer = newPubSubPeer(peer, getConn, onEvent, protos[0])
+  let pubSubPeer = newPubSubPeer(peer, getConn, dropConn, onEvent, protos[0])
   debug "created new pubsub peer", peer
 
   p.peers[peer] = pubSubPeer

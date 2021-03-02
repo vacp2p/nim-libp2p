@@ -41,10 +41,12 @@ type
     kind*: PubSubPeerEventKind
 
   GetConn* = proc(): Future[Connection] {.gcsafe.}
+  DropConn* = proc(peer: PubsubPeer) {.gcsafe.} # have to pass peer as it's unknown during init
   OnEvent* = proc(peer: PubSubPeer, event: PubsubPeerEvent) {.gcsafe.}
 
   PubSubPeer* = ref object of RootObj
     getConn*: GetConn                   # callback to establish a new send connection
+    dropConn*: DropConn                 # Function pointer to use to drop connections
     onEvent*: OnEvent                   # Connectivity updates for peer
     codec*: string                      # the protocol that this peer joined from
     sendConn*: Connection               # cached send connection
@@ -83,7 +85,11 @@ proc hasObservers(p: PubSubPeer): bool =
   p.observers != nil and anyIt(p.observers[], it != nil)
 
 func outbound*(p: PubSubPeer): bool =
-  if p.connected and p.sendConn.dir == Direction.Out:
+  # gossipsub 1.1 spec requires us to know if the transport is outgoing
+  # in order to give priotity to connections we make
+  # https://github.com/libp2p/specs/blob/master/pubsub/gossipsub/gossipsub-v1.1.md#outbound-mesh-quotas
+  # This behaviour is presrcibed to counter sybil attacks and ensures that a coordinated inbound attack can never fully take over the mesh
+  if not p.sendConn.isNil and p.sendConn.transportDir == Direction.Out:
     true
   else:
     false
@@ -169,18 +175,18 @@ proc connectOnce(p: PubSubPeer): Future[void] {.async.} =
   finally:
     if p.sendConn != nil:
       trace "Removing send connection", p, conn = p.sendConn
-
       await p.sendConn.close()
-
-      try:
-        if p.onEvent != nil:
-          p.onEvent(p, PubsubPeerEvent(kind: PubSubPeerEventKind.Disconnected))
-      except CancelledError as exc:
-        debug "Errors during diconnection events", error = exc.msg
-
-      # clean up at the end
       p.sendConn = nil
-      # don't cleanup p.address else we leak some gossip stat table
+
+    try:
+      if p.onEvent != nil:
+        p.onEvent(p, PubsubPeerEvent(kind: PubSubPeerEventKind.Disconnected))
+    except CancelledError:
+      raise
+    except CatchableError as exc:
+      debug "Errors during diconnection events", error = exc.msg
+
+    # don't cleanup p.address else we leak some gossip stat table
 
 proc connectImpl(p: PubSubPeer) {.async.} =
   try:
@@ -189,9 +195,13 @@ proc connectImpl(p: PubSubPeer) {.async.} =
     # issue so we try to get a new on
     while true:
       await connectOnce(p)
-
+  except CancelledError:
+    raise
   except CatchableError as exc:
     debug "Could not establish send connection", msg = exc.msg
+  finally:
+    # drop the connection, else we end up with ghost peers
+    if p.dropConn != nil: p.dropConn(p)
 
 proc connect*(p: PubSubPeer) =
   asyncSpawn connectImpl(p)
@@ -255,10 +265,12 @@ proc send*(p: PubSubPeer, msg: RPCMsg, anonymize: bool) =
 
 proc newPubSubPeer*(peerId: PeerID,
                     getConn: GetConn,
+                    dropConn: DropConn,
                     onEvent: OnEvent,
                     codec: string): PubSubPeer =
   PubSubPeer(
     getConn: getConn,
+    dropConn: dropConn,
     onEvent: onEvent,
     codec: codec,
     peerId: peerId,
