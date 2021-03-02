@@ -41,14 +41,17 @@ type
     kind*: PubSubPeerEventKind
 
   GetConn* = proc(): Future[Connection] {.gcsafe.}
+  DropConn* = proc(peer: PubsubPeer) {.gcsafe.} # have to pass peer as it's unknown during init
   OnEvent* = proc(peer: PubSubPeer, event: PubsubPeerEvent) {.gcsafe.}
 
   PubSubPeer* = ref object of RootObj
     getConn*: GetConn                   # callback to establish a new send connection
+    dropConn*: DropConn                 # Function pointer to use to drop connections
     onEvent*: OnEvent                   # Connectivity updates for peer
     codec*: string                      # the protocol that this peer joined from
     sendConn*: Connection               # cached send connection
     address*: Option[MultiAddress]
+    failedConnection*: bool
     peerId*: PeerID
     handler*: RPCHandler
     observers*: ref seq[PubSubObserver] # ref as in smart_ptr
@@ -148,7 +151,11 @@ proc handle*(p: PubSubPeer, conn: Connection) {.async.} =
     debug "exiting pubsub read loop",
       conn, peer = p, closed = conn.closed
 
-proc connectOnce(p: PubSubPeer): Future[void] {.async.} =
+proc connectOnce(p: PubSubPeer): Future[bool] {.async.} =
+  # I hate using result but return would fail with
+  # compiler error: Error: unhandled exception: closureiters.nim(828, 11) `ctx.nearestFinally != 0`  [AssertionError]
+  result = false
+
   try:
     let newConn = await p.getConn()
     if newConn.isNil:
@@ -166,32 +173,42 @@ proc connectOnce(p: PubSubPeer): Future[void] {.async.} =
       p.onEvent(p, PubsubPeerEvent(kind: PubSubPeerEventKind.Connected))
 
     await handle(p, newConn)
+    # mark as complete
+    result = true
   finally:
     if p.sendConn != nil:
       trace "Removing send connection", p, conn = p.sendConn
-
       await p.sendConn.close()
-
-      try:
-        if p.onEvent != nil:
-          p.onEvent(p, PubsubPeerEvent(kind: PubSubPeerEventKind.Disconnected))
-      except CancelledError as exc:
-        debug "Errors during diconnection events", error = exc.msg
-
-      # clean up at the end
       p.sendConn = nil
-      # don't cleanup p.address else we leak some gossip stat table
+
+    try:
+      if p.onEvent != nil:
+        p.onEvent(p, PubsubPeerEvent(kind: PubSubPeerEventKind.Disconnected))
+    except CancelledError as exc:
+      debug "Errors during diconnection events", error = exc.msg
+
+    # don't cleanup p.address else we leak some gossip stat table
 
 proc connectImpl(p: PubSubPeer) {.async.} =
-  try:
-    # Keep trying to establish a connection while it's possible to do so - the
-    # send connection might get disconnected due to a timeout or an unrelated
-    # issue so we try to get a new on
-    while true:
-      await connectOnce(p)
+  # try 5 times
+  var tries = 5
 
-  except CatchableError as exc:
-    debug "Could not establish send connection", msg = exc.msg
+  # Keep trying to establish a connection while it's possible to do so - the
+  # send connection might get disconnected due to a timeout or an unrelated
+  # issue so we try to get a new on
+  while tries > 0:
+    try:
+      if await connectOnce(p):
+        return
+    except CatchableError as exc:
+      info "Could not establish send connection", msg = exc.msg, peer=p.peerId
+
+    await sleepAsync(2.seconds)
+    dec tries
+
+  info "Could not establish send connection, tried few times without success", peer=p.peerId
+  # drop the connection
+  if p.dropConn != nil: p.dropConn(p)
 
 proc connect*(p: PubSubPeer) =
   asyncSpawn connectImpl(p)
@@ -255,10 +272,12 @@ proc send*(p: PubSubPeer, msg: RPCMsg, anonymize: bool) =
 
 proc newPubSubPeer*(peerId: PeerID,
                     getConn: GetConn,
+                    dropConn: DropConn,
                     onEvent: OnEvent,
                     codec: string): PubSubPeer =
   PubSubPeer(
     getConn: getConn,
+    dropConn: dropConn,
     onEvent: onEvent,
     codec: codec,
     peerId: peerId,
