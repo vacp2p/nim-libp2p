@@ -151,11 +151,7 @@ proc handle*(p: PubSubPeer, conn: Connection) {.async.} =
     debug "exiting pubsub read loop",
       conn, peer = p, closed = conn.closed
 
-proc connectOnce(p: PubSubPeer): Future[bool] {.async.} =
-  # I hate using result but return would fail with
-  # compiler error: Error: unhandled exception: closureiters.nim(828, 11) `ctx.nearestFinally != 0`  [AssertionError]
-  result = false
-
+proc connectOnce(p: PubSubPeer): Future[void] {.async.} =
   try:
     let newConn = await p.getConn()
     if newConn.isNil:
@@ -173,8 +169,6 @@ proc connectOnce(p: PubSubPeer): Future[bool] {.async.} =
       p.onEvent(p, PubsubPeerEvent(kind: PubSubPeerEventKind.Connected))
 
     await handle(p, newConn)
-    # mark as complete
-    result = true
   finally:
     if p.sendConn != nil:
       trace "Removing send connection", p, conn = p.sendConn
@@ -190,25 +184,16 @@ proc connectOnce(p: PubSubPeer): Future[bool] {.async.} =
     # don't cleanup p.address else we leak some gossip stat table
 
 proc connectImpl(p: PubSubPeer) {.async.} =
-  # try 5 times
-  var tries = 5
-
-  # Keep trying to establish a connection while it's possible to do so - the
-  # send connection might get disconnected due to a timeout or an unrelated
-  # issue so we try to get a new on
-  while tries > 0:
-    try:
-      if await connectOnce(p):
-        return
-    except CatchableError as exc:
-      info "Could not establish send connection", msg = exc.msg, peer=p.peerId
-
-    await sleepAsync(2.seconds)
-    dec tries
-
-  info "Could not establish send connection, tried few times without success", peer=p.peerId
-  # drop the connection
-  if p.dropConn != nil: p.dropConn(p)
+  try:
+    # Keep trying to establish a connection while it's possible to do so - the
+    # send connection might get disconnected due to a timeout or an unrelated
+    # issue so we try to get a new on
+    while true:
+      await connectOnce(p)
+  except CatchableError as exc:
+    debug "Could not establish send connection", msg = exc.msg
+    # drop the connection, else we end up with ghost peers
+    if p.dropConn != nil: p.dropConn(p)
 
 proc connect*(p: PubSubPeer) =
   asyncSpawn connectImpl(p)
