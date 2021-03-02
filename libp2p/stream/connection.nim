@@ -33,6 +33,7 @@ type
     peerInfo*: PeerInfo
     observedAddr*: Multiaddress
     upgraded*: Future[void]
+    initiator*: bool
 
 proc timeoutMonitor(s: Connection) {.async, gcsafe.}
 

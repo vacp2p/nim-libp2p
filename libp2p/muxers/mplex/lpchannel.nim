@@ -42,7 +42,6 @@ type
     id*: uint64                   # channel id
     name*: string                 # name of the channel (for debugging)
     conn*: Connection             # wrapped connection used to for writing
-    initiator*: bool              # initiated remotely or locally flag
     isOpen*: bool                 # has channel been opened
     closedLocal*: bool            # has channel been closed locally
     msgCode*: MessageType         # cached in/out message code

@@ -76,6 +76,9 @@ proc handleConn(s: Secure,
                  conn: Connection,
                  initiator: bool): Future[Connection] {.async.} =
   var sconn = await s.handshake(conn, initiator)
+  # mark connection initator state
+  # this is the safest place to do this
+  sconn.initiator = initiator
 
   proc cleanup() {.async.} =
     try:

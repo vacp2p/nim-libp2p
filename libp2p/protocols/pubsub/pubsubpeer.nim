@@ -83,7 +83,7 @@ proc hasObservers(p: PubSubPeer): bool =
   p.observers != nil and anyIt(p.observers[], it != nil)
 
 func outbound*(p: PubSubPeer): bool =
-  if p.connected and p.sendConn.dir == Direction.Out:
+  if not p.sendConn.isNil and not p.sendConn.initiator:
     true
   else:
     false

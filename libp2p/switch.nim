@@ -136,6 +136,10 @@ proc dialAndUpgrade(s: Switch,
         # make sure to assign the peer to the connection
         dialed.peerInfo = PeerInfo.init(peerId, addrs)
 
+        # also mark this connection as initiator
+        dialed.initiator = true
+        # notice we never mark initiator to false, we infer that from here
+
         libp2p_successful_dials.inc()
 
         let conn = try:
