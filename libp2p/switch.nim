@@ -137,7 +137,7 @@ proc dialAndUpgrade(s: Switch,
         dialed.peerInfo = PeerInfo.init(peerId, addrs)
 
         # also mark this connection as initiator
-        dialed.initiator = true
+        dialed.outbound = true
         # notice we never mark initiator to false, we infer that from here
 
         libp2p_successful_dials.inc()

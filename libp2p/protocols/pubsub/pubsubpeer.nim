@@ -51,7 +51,6 @@ type
     codec*: string                      # the protocol that this peer joined from
     sendConn*: Connection               # cached send connection
     address*: Option[MultiAddress]
-    failedConnection*: bool
     peerId*: PeerID
     handler*: RPCHandler
     observers*: ref seq[PubSubObserver] # ref as in smart_ptr
@@ -86,7 +85,7 @@ proc hasObservers(p: PubSubPeer): bool =
   p.observers != nil and anyIt(p.observers[], it != nil)
 
 func outbound*(p: PubSubPeer): bool =
-  if not p.sendConn.isNil and not p.sendConn.initiator:
+  if not p.sendConn.isNil and not p.sendConn.outbound:
     true
   else:
     false
@@ -178,7 +177,9 @@ proc connectOnce(p: PubSubPeer): Future[void] {.async.} =
     try:
       if p.onEvent != nil:
         p.onEvent(p, PubsubPeerEvent(kind: PubSubPeerEventKind.Disconnected))
-    except CancelledError as exc:
+    except CancelledError:
+      raise
+    except CatchableError as exc:
       debug "Errors during diconnection events", error = exc.msg
 
     # don't cleanup p.address else we leak some gossip stat table
@@ -190,6 +191,8 @@ proc connectImpl(p: PubSubPeer) {.async.} =
     # issue so we try to get a new on
     while true:
       await connectOnce(p)
+  except CancelledError:
+      raise
   except CatchableError as exc:
     debug "Could not establish send connection", msg = exc.msg
     # drop the connection, else we end up with ghost peers

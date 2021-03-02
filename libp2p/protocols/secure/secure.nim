@@ -78,7 +78,7 @@ proc handleConn(s: Secure,
   var sconn = await s.handshake(conn, initiator)
   # mark connection initator state
   # this is the safest place to do this
-  sconn.initiator = initiator
+  sconn.outbound = initiator
 
   proc cleanup() {.async.} =
     try:
