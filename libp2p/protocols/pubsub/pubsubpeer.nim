@@ -196,9 +196,10 @@ proc connectImpl(p: PubSubPeer) {.async.} =
     while true:
       await connectOnce(p)
   except CancelledError:
-      raise
+    raise
   except CatchableError as exc:
     debug "Could not establish send connection", msg = exc.msg
+  finally:
     # drop the connection, else we end up with ghost peers
     if p.dropConn != nil: p.dropConn(p)
 

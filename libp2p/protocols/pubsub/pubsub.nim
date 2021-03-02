@@ -262,7 +262,7 @@ method onPubSubPeerEvent*(p: PubSub, peer: PubsubPeer, event: PubsubPeerEvent) {
     if p.topics.len > 0:
       p.sendSubs(peer, toSeq(p.topics.keys), true)
   of PubSubPeerEventKind.Disconnected:
-    p.unsubscribePeer(peer.peerId)
+    discard
 
 proc getOrCreatePeer*(
   p: PubSub,
