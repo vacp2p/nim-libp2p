@@ -95,7 +95,7 @@ proc newStreamInternal*(m: Mplex,
 
   result.peerInfo = m.connection.peerInfo
   result.observedAddr = m.connection.observedAddr
-  result.outbound = m.connection.outbound
+  result.transportDir = m.connection.transportDir
 
   trace "Creating new channel", m, channel = result, id, initiator, name
 

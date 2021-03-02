@@ -136,9 +136,9 @@ proc dialAndUpgrade(s: Switch,
         # make sure to assign the peer to the connection
         dialed.peerInfo = PeerInfo.init(peerId, addrs)
 
-        # also mark this connection as initiator
-        dialed.outbound = true
-        # notice we never mark initiator to false, we infer that from here
+        # also keep track of the connection's bottom unsafe transport direction
+        # required by gossipsub scoring
+        dialed.transportDir = Direction.Out
 
         libp2p_successful_dials.inc()
 
@@ -337,6 +337,11 @@ proc accept(s: Switch, transport: Transport) {.async.} = # noraises
         await sleepAsync(100.millis) # TODO: should be configurable?
         upgrades.release()
         continue
+
+      # set the direction of this bottom level transport
+      # in order to be able to consume this information in gossipsub if required
+      # gossipsub gives priority to connections we make
+      conn.transportDir = Direction.In
 
       debug "Accepted an incoming connection", conn
       asyncSpawn upgradeMonitor(conn, upgrades)

@@ -33,7 +33,7 @@ type
     peerInfo*: PeerInfo
     observedAddr*: Multiaddress
     upgraded*: Future[void]
-    outbound*: bool
+    transportDir*: Direction        # The bottom level transport (generally the socket) direction
 
 proc timeoutMonitor(s: Connection) {.async, gcsafe.}
 

@@ -85,7 +85,11 @@ proc hasObservers(p: PubSubPeer): bool =
   p.observers != nil and anyIt(p.observers[], it != nil)
 
 func outbound*(p: PubSubPeer): bool =
-  if not p.sendConn.isNil and not p.sendConn.outbound:
+  # gossipsub 1.1 spec requires us to know if the transport is outgoing
+  # in order to give priotity to connections we make
+  # https://github.com/libp2p/specs/blob/master/pubsub/gossipsub/gossipsub-v1.1.md#outbound-mesh-quotas
+  # This behaviour is presrcibed to counter sybil attacks and ensures that a coordinated inbound attack can never fully take over the mesh
+  if not p.sendConn.isNil and p.sendConn.transportDir == Direction.Out:
     true
   else:
     false

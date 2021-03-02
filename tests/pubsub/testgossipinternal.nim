@@ -594,7 +594,7 @@ suite "GossipSub internal":
     gossipSub.gossipsub[topic] = initHashSet[PubSubPeer]()
     for i in 0..<6:
       let conn = newBufferStream(noop)
-      conn.outbound = false
+      conn.transportDir = Direction.In
       conns &= conn
       let peerInfo = PeerInfo.init(PrivateKey.random(ECDSA, rng[]).get())
       conn.peerInfo = peerInfo
@@ -608,7 +608,7 @@ suite "GossipSub internal":
 
     for i in 0..<7:
       let conn = newBufferStream(noop)
-      conn.outbound = true
+      conn.transportDir = Direction.Out
       conns &= conn
       let peerInfo = PeerInfo.init(PrivateKey.random(ECDSA, rng[]).get())
       conn.peerInfo = peerInfo
@@ -626,7 +626,7 @@ suite "GossipSub internal":
     check gossipSub.mesh[topic].len > gossipSub.parameters.dLow
     var outbound = 0
     for peer in gossipSub.mesh[topic]:
-      if peer.sendConn.outbound:
+      if peer.sendConn.transportDir == Direction.Out:
         inc outbound
     # ensure we give priority and keep at least dOut outbound peers
     check outbound >= gossipSub.parameters.dOut
