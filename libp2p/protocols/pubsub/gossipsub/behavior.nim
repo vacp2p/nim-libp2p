@@ -21,7 +21,7 @@ declareGauge(libp2p_gossipsub_peers_per_topic_fanout, "gossipsub peers per topic
 declareGauge(libp2p_gossipsub_peers_per_topic_gossipsub, "gossipsub peers per topic in gossipsub", labels = ["topic"])
 declareGauge(libp2p_gossipsub_under_dlow_topics, "number of topics below dlow")
 declareGauge(libp2p_gossipsub_under_dout_topics, "number of topics below dout")
-declareGauge(libp2p_gossipsub_under_dhigh_above_dlow_topics, "number of topics below dhigh but above dlow")
+declareGauge(libp2p_gossipsub_under_dhigh_above_eq_dlow_topics, "number of topics below dhigh but above or equal dlow")
 declareGauge(libp2p_gossipsub_no_peers_topics, "number of topics without peers available")
 declareCounter(libp2p_gossipsub_above_dhigh_condition, "number of above dhigh pruning branches ran", labels = ["topic"])
 
@@ -253,7 +253,7 @@ proc commitMetrics(metrics: var MeshMetrics) =
   libp2p_gossipsub_under_dlow_topics.set(metrics.underDlowTopics)
   libp2p_gossipsub_no_peers_topics.set(metrics.noPeersTopics)
   libp2p_gossipsub_under_dout_topics.set(metrics.underDoutTopics)
-  libp2p_gossipsub_under_dhigh_above_dlow_topics.set(metrics.underDhighAboveDlowTopics)
+  libp2p_gossipsub_under_dhigh_above_eq_dlow_topics.set(metrics.underDhighAboveEqDlowTopics)
   libp2p_gossipsub_peers_per_topic_gossipsub.set(metrics.otherPeersPerTopicGossipsub, labelValues = ["other"])
   libp2p_gossipsub_peers_per_topic_fanout.set(metrics.otherPeersPerTopicFanout, labelValues = ["other"])
   libp2p_gossipsub_peers_per_topic_mesh.set(metrics.otherPeersPerTopicMesh, labelValues = ["other"])
@@ -273,9 +273,6 @@ proc rebalanceMesh*(g: GossipSub, topic: string, metrics: ptr MeshMetrics = nil)
     npeers = g.mesh.peers(topic)
 
   if npeers  < g.parameters.dLow:
-    if not isNil(metrics):
-      inc metrics[].underDlowTopics
-
     trace "replenishing mesh", peers = npeers
     # replenish the mesh if we're below Dlo
     var candidates = toSeq(
@@ -309,16 +306,7 @@ proc rebalanceMesh*(g: GossipSub, topic: string, metrics: ptr MeshMetrics = nil)
           g.fanout.removePeer(topic, peer)
           grafts &= peer
 
-    if not isNil(metrics) and g.mesh.peers(topic) == 0:
-      inc metrics[].noPeersTopics
-
   else:
-    var meshPeers = toSeq(g.mesh.getOrDefault(topic, initHashSet[PubSubPeer]()))
-    meshPeers.keepIf do (x: PubSubPeer) -> bool: x.outbound
-    if meshPeers.len < g.parameters.dOut:
-      if not isNil(metrics):
-        inc metrics[].underDoutTopics
-
       trace "replenishing mesh outbound quota", peers = g.mesh.peers(topic)
 
       var candidates = toSeq(
@@ -409,8 +397,6 @@ proc rebalanceMesh*(g: GossipSub, topic: string, metrics: ptr MeshMetrics = nil)
         trace "pruning peer on rebalance", peer, score = peer.score
         g.pruned(peer, topic)
         g.mesh.removePeer(topic, peer)
-  elif npeers > g.parameters.dLow and not isNil(metrics):
-    inc metrics[].underDhighAboveDlowTopics
 
   # opportunistic grafting, by spec mesh should not be empty...
   if g.mesh.peers(topic) > 1:
@@ -445,6 +431,20 @@ proc rebalanceMesh*(g: GossipSub, topic: string, metrics: ptr MeshMetrics = nil)
           trace "opportunistic grafting", peer
 
   if not isNil(metrics):
+    npeers = g.mesh.peers(topic)
+    if npeers >= g.parameters.dLow:
+      inc metrics[].underDhighAboveEqDlowTopics
+    else:
+      if npeers  < g.parameters.dLow:
+        inc metrics[].underDlowTopics
+      if npeers == 0:
+        inc metrics[].noPeersTopics
+
+    var meshPeers = toSeq(g.mesh.getOrDefault(topic, initHashSet[PubSubPeer]()))
+    meshPeers.keepIf do (x: PubSubPeer) -> bool: x.outbound
+    if meshPeers.len < g.parameters.dOut:
+      inc metrics[].underDoutTopics
+
     if g.knownTopics.contains(topic):
       libp2p_gossipsub_peers_per_topic_gossipsub
         .set(g.gossipsub.peers(topic).int64, labelValues = [topic])

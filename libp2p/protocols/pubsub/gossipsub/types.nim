@@ -159,5 +159,5 @@ type
     otherPeersPerTopicGossipsub*: int64
     underDlowTopics*: int64
     underDoutTopics*: int64
-    underDhighAboveDlowTopics*: int64
+    underDhighAboveEqDlowTopics*: int64
     noPeersTopics*: int64
