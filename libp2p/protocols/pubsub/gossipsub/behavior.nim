@@ -19,10 +19,10 @@ declareGauge(libp2p_gossipsub_cache_window_size, "the number of messages in the 
 declareGauge(libp2p_gossipsub_peers_per_topic_mesh, "gossipsub peers per topic in mesh", labels = ["topic"])
 declareGauge(libp2p_gossipsub_peers_per_topic_fanout, "gossipsub peers per topic in fanout", labels = ["topic"])
 declareGauge(libp2p_gossipsub_peers_per_topic_gossipsub, "gossipsub peers per topic in gossipsub", labels = ["topic"])
-declareGauge(libp2p_gossipsub_under_dlow_topics, "number of topics below dlow")
 declareGauge(libp2p_gossipsub_under_dout_topics, "number of topics below dout")
-declareGauge(libp2p_gossipsub_under_dhigh_above_eq_dlow_topics, "number of topics below dhigh but above or equal dlow")
-declareGauge(libp2p_gossipsub_no_peers_topics, "number of topics without peers available")
+declareGauge(libp2p_gossipsub_no_peers_topics, "number of topics in mesh without peers available")
+declareGauge(libp2p_gossipsub_low_peers_topics, "number of topics in mesh below dlow")
+declareGauge(libp2p_gossipsub_healthy_peers_topics, "number of topics in mesh below dhigh but above or equal dlow")
 declareCounter(libp2p_gossipsub_above_dhigh_condition, "number of above dhigh pruning branches ran", labels = ["topic"])
 
 proc grafted*(g: GossipSub, p: PubSubPeer, topic: string) =
@@ -250,10 +250,10 @@ proc handleIWant*(g: GossipSub,
             return
 
 proc commitMetrics(metrics: var MeshMetrics) =
-  libp2p_gossipsub_under_dlow_topics.set(metrics.underDlowTopics)
+  libp2p_gossipsub_low_peers_topics.set(metrics.lowPeersTopics)
   libp2p_gossipsub_no_peers_topics.set(metrics.noPeersTopics)
   libp2p_gossipsub_under_dout_topics.set(metrics.underDoutTopics)
-  libp2p_gossipsub_under_dhigh_above_eq_dlow_topics.set(metrics.underDhighAboveEqDlowTopics)
+  libp2p_gossipsub_healthy_peers_topics.set(metrics.healthyPeersTopics)
   libp2p_gossipsub_peers_per_topic_gossipsub.set(metrics.otherPeersPerTopicGossipsub, labelValues = ["other"])
   libp2p_gossipsub_peers_per_topic_fanout.set(metrics.otherPeersPerTopicFanout, labelValues = ["other"])
   libp2p_gossipsub_peers_per_topic_mesh.set(metrics.otherPeersPerTopicMesh, labelValues = ["other"])
@@ -434,10 +434,10 @@ proc rebalanceMesh*(g: GossipSub, topic: string, metrics: ptr MeshMetrics = nil)
     npeers = g.mesh.peers(topic)
     if npeers == 0:
       inc metrics[].noPeersTopics
-    elif npeers >= g.parameters.dLow:
-      inc metrics[].underDhighAboveEqDlowTopics
+    elif npeers < g.parameters.dLow:
+      inc metrics[].lowPeersTopics
     else:
-      inc metrics[].underDlowTopics
+      inc metrics[].healthyPeersTopics
 
     var meshPeers = toSeq(g.mesh.getOrDefault(topic, initHashSet[PubSubPeer]()))
     meshPeers.keepIf do (x: PubSubPeer) -> bool: x.outbound
