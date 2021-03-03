@@ -22,7 +22,7 @@ declareGauge(libp2p_gossipsub_peers_per_topic_gossipsub, "gossipsub peers per to
 declareGauge(libp2p_gossipsub_under_dout_topics, "number of topics below dout")
 declareGauge(libp2p_gossipsub_no_peers_topics, "number of topics in mesh with no peers")
 declareGauge(libp2p_gossipsub_low_peers_topics, "number of topics in mesh with at least one but below dlow peers")
-declareGauge(libp2p_gossipsub_healthy_peers_topics, "number of topics in mesh below dhigh but above or equal dlow")
+declareGauge(libp2p_gossipsub_healthy_peers_topics, "number of topics in mesh with at least dlow peers (but below dhigh)")
 declareCounter(libp2p_gossipsub_above_dhigh_condition, "number of above dhigh pruning branches ran", labels = ["topic"])
 
 proc grafted*(g: GossipSub, p: PubSubPeer, topic: string) =
