@@ -302,15 +302,15 @@ proc rebalanceMesh*(g: GossipSub, topic: string, metrics: ptr MeshMetrics = nil)
 
     trace "grafting", grafting = candidates.len
 
-    if candidates.len == 0:
-      if not isNil(metrics):
-        inc metrics[].noPeersTopics
-    else:
+    if candidates.len > 0:
       for peer in candidates:
         if g.mesh.addPeer(topic, peer):
           g.grafted(peer, topic)
           g.fanout.removePeer(topic, peer)
           grafts &= peer
+
+    if not isNil(metrics) and g.mesh.peers(topic) == 0:
+      inc metrics[].noPeersTopics
 
   else:
     var meshPeers = toSeq(g.mesh.getOrDefault(topic, initHashSet[PubSubPeer]()))
