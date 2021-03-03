@@ -432,13 +432,12 @@ proc rebalanceMesh*(g: GossipSub, topic: string, metrics: ptr MeshMetrics = nil)
 
   if not isNil(metrics):
     npeers = g.mesh.peers(topic)
-    if npeers >= g.parameters.dLow:
+    if npeers == 0:
+      inc metrics[].noPeersTopics
+    elif npeers >= g.parameters.dLow:
       inc metrics[].underDhighAboveEqDlowTopics
     else:
-      if npeers  < g.parameters.dLow:
-        inc metrics[].underDlowTopics
-      if npeers == 0:
-        inc metrics[].noPeersTopics
+      inc metrics[].underDlowTopics
 
     var meshPeers = toSeq(g.mesh.getOrDefault(topic, initHashSet[PubSubPeer]()))
     meshPeers.keepIf do (x: PubSubPeer) -> bool: x.outbound
