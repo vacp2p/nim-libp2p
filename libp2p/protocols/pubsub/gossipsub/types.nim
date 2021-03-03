@@ -157,7 +157,7 @@ type
     otherPeersPerTopicMesh*: int64
     otherPeersPerTopicFanout*: int64
     otherPeersPerTopicGossipsub*: int64
-    underDlowTopics*: int64
+    noPeersTopics*: int64 # npeers == 0
+    lowPeersTopics*: int64 # npeers < dlow
+    healthyPeersTopics*: int64 # npeers >= dlow
     underDoutTopics*: int64
-    underDhighAboveDlowTopics*: int64
-    noPeersTopics*: int64
