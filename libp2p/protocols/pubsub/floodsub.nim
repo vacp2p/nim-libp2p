@@ -205,6 +205,5 @@ method unsubscribeAll*(f: FloodSub, topic: string) =
 
 method initPubSub*(f: FloodSub) =
   procCall PubSub(f).initPubSub()
-  f.floodsub = initTable[string, HashSet[PubSubPeer]]()
   f.seen = TimedCache[MessageID].init(2.minutes)
   f.init()

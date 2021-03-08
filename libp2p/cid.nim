@@ -62,7 +62,6 @@ const
   ]
 
 proc initCidCodeTable(): Table[int, MultiCodec] {.compileTime.} =
-  result = initTable[int, MultiCodec]()
   for item in ContentIdsList:
     result[int(item)] = item
 

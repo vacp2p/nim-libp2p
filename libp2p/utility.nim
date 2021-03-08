@@ -7,8 +7,9 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
+{.push raises: [Defect].}
+
 import stew/byteutils
-import strutils
 
 const
   ShortDumpMax = 12

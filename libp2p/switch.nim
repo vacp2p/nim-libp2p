@@ -8,7 +8,6 @@
 ## those terms.
 
 import std/[tables,
-            sequtils,
             options,
             sets,
             oids,

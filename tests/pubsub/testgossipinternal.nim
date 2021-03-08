@@ -18,14 +18,20 @@ type
 
 proc noop(data: seq[byte]) {.async, gcsafe.} = discard
 
-proc getPubSubPeer(p: TestGossipSub, peerId: PeerID): auto =
+proc getPubSubPeer(p: TestGossipSub, peerId: PeerID): PubSubPeer =
   proc getConn(): Future[Connection] =
     p.switch.dial(peerId, GossipSubCodec)
 
   proc dropConn(peer: PubSubPeer) =
     discard # we don't care about it here yet
 
-  newPubSubPeer(peerId, getConn, dropConn, nil, GossipSubCodec)
+  let pubSubPeer = newPubSubPeer(peerId, getConn, dropConn, nil, GossipSubCodec)
+  debug "created new pubsub peer", peerId
+
+  p.peers[peerId] = pubSubPeer
+
+  onNewPeer(p, pubSubPeer)
+  pubSubPeer
 
 proc randomPeerInfo(): PeerInfo =
   PeerInfo.init(PrivateKey.random(ECDSA, rng[]).get())
@@ -53,8 +59,6 @@ suite "GossipSub internal":
       conn.peerInfo = peerInfo
       let peer = gossipSub.getPubSubPeer(peerInfo.peerId)
       peer.sendConn = conn
-      gossipSub.onNewPeer(peer)
-      gossipSub.peers[peerInfo.peerId] = peer
       gossipSub.gossipsub[topic].incl(peer)
 
     # test via dynamic dispatch
@@ -96,8 +100,6 @@ suite "GossipSub internal":
       conn.peerInfo = peerInfo
       let peer = gossipSub.getPubSubPeer(peerInfo.peerId)
       peer.sendConn = conn
-      gossipSub.onNewPeer(peer)
-      gossipSub.peers[peerInfo.peerId] = peer
       gossipSub.gossipsub[topic].incl(peer)
 
     check gossipSub.peers.len == 15
@@ -125,8 +127,6 @@ suite "GossipSub internal":
       let peer = gossipSub.getPubSubPeer(peerInfo.peerId)
       peer.sendConn = conn
       peer.score = scoreLow
-      gossipSub.onNewPeer(peer)
-      gossipSub.peers[peerInfo.peerId] = peer
       gossipSub.gossipsub[topic].incl(peer)
       scoreLow += 1.0
 
@@ -155,9 +155,7 @@ suite "GossipSub internal":
       let peerInfo = PeerInfo.init(PrivateKey.random(ECDSA, rng[]).get())
       conn.peerInfo = peerInfo
       let peer = gossipSub.getPubSubPeer(peerInfo.peerId)
-      gossipSub.onNewPeer(peer)
       gossipSub.grafted(peer, topic)
-      gossipSub.peers[peerInfo.peerId] = peer
       gossipSub.mesh[topic].incl(peer)
 
     check gossipSub.mesh[topic].len == 15
@@ -184,7 +182,6 @@ suite "GossipSub internal":
       var peerInfo = randomPeerInfo()
       conn.peerInfo = peerInfo
       let peer = gossipSub.getPubSubPeer(peerInfo.peerId)
-      gossipSub.onNewPeer(peer)
       peer.handler = handler
       gossipSub.gossipsub[topic].incl(peer)
 
@@ -214,7 +211,6 @@ suite "GossipSub internal":
       let peerInfo = PeerInfo.init(PrivateKey.random(ECDSA, rng[]).get())
       conn.peerInfo = peerInfo
       let peer = gossipSub.getPubSubPeer(peerInfo.peerId)
-      gossipSub.onNewPeer(peer)
       peer.handler = handler
       gossipSub.fanout[topic].incl(peer)
 
@@ -249,7 +245,6 @@ suite "GossipSub internal":
       let peerInfo = randomPeerInfo()
       conn.peerInfo = peerInfo
       let peer = gossipSub.getPubSubPeer(peerInfo.peerId)
-      gossipSub.onNewPeer(peer)
       peer.handler = handler
       gossipSub.fanout[topic1].incl(peer)
       gossipSub.fanout[topic2].incl(peer)
@@ -284,7 +279,6 @@ suite "GossipSub internal":
       let peerInfo = randomPeerInfo()
       conn.peerInfo = peerInfo
       let peer = gossipSub.getPubSubPeer(peerInfo.peerId)
-      gossipSub.onNewPeer(peer)
       peer.handler = handler
       if i mod 2 == 0:
         gossipSub.fanout[topic].incl(peer)
@@ -299,7 +293,6 @@ suite "GossipSub internal":
       let peerInfo = randomPeerInfo()
       conn.peerInfo = peerInfo
       let peer = gossipSub.getPubSubPeer(peerInfo.peerId)
-      gossipSub.onNewPeer(peer)
       peer.handler = handler
       gossipSub.gossipsub[topic].incl(peer)
 
@@ -344,7 +337,6 @@ suite "GossipSub internal":
       let peerInfo = randomPeerInfo()
       conn.peerInfo = peerInfo
       let peer = gossipSub.getPubSubPeer(peerInfo.peerId)
-      gossipSub.onNewPeer(peer)
       peer.handler = handler
       if i mod 2 == 0:
         gossipSub.fanout[topic].incl(peer)
@@ -385,7 +377,6 @@ suite "GossipSub internal":
       let peerInfo = randomPeerInfo()
       conn.peerInfo = peerInfo
       let peer = gossipSub.getPubSubPeer(peerInfo.peerId)
-      gossipSub.onNewPeer(peer)
       peer.handler = handler
       if i mod 2 == 0:
         gossipSub.mesh[topic].incl(peer)
@@ -427,7 +418,6 @@ suite "GossipSub internal":
       let peerInfo = randomPeerInfo()
       conn.peerInfo = peerInfo
       let peer = gossipSub.getPubSubPeer(peerInfo.peerId)
-      gossipSub.onNewPeer(peer)
       peer.handler = handler
       if i mod 2 == 0:
         gossipSub.mesh[topic].incl(peer)
@@ -466,7 +456,6 @@ suite "GossipSub internal":
       let peerInfo = randomPeerInfo()
       conn.peerInfo = peerInfo
       let peer = gossipSub.getPubSubPeer(peerInfo.peerId)
-      gossipSub.onNewPeer(peer)
       peer.handler = handler
 
     # generate messages
@@ -489,7 +478,7 @@ suite "GossipSub internal":
   asyncTest "Disconnect bad peers":
     let gossipSub = TestGossipSub.init(newStandardSwitch())
     gossipSub.parameters.disconnectBadPeers = true
-
+    gossipSub.parameters.appSpecificWeight = 1.0
     proc handler(peer: PubSubPeer, msg: RPCMsg) {.async.} =
       check false
 
@@ -501,12 +490,10 @@ suite "GossipSub internal":
       let peerInfo = randomPeerInfo()
       conn.peerInfo = peerInfo
       let peer = gossipSub.getPubSubPeer(peerInfo.peerId)
-      gossipSub.onNewPeer(peer)
       peer.sendConn = conn
       peer.handler = handler
-      peer.score = gossipSub.parameters.graylistThreshold - 1
+      peer.appScore = gossipSub.parameters.graylistThreshold - 1
       gossipSub.gossipsub.mgetOrPut(topic, initHashSet[PubSubPeer]()).incl(peer)
-      gossipSub.peers[peerInfo.peerId] = peer
       gossipSub.switch.connManager.storeConn(conn)
 
     gossipSub.updateScores()
@@ -535,7 +522,6 @@ suite "GossipSub internal":
     let peerInfo = randomPeerInfo()
     conn.peerInfo = peerInfo
     let peer = gossipSub.getPubSubPeer(peerInfo.peerId)
-    gossipSub.peers[peerInfo.peerId] = peer
 
     await gossipSub.rpcHandler(peer, lotOfSubs)
 
@@ -561,8 +547,6 @@ suite "GossipSub internal":
       conn.peerInfo = peerInfo
       let peer = gossipSub.getPubSubPeer(peerInfo.peerId)
       peer.sendConn = conn
-      gossipSub.onNewPeer(peer)
-      gossipSub.peers[peerInfo.peerId] = peer
       gossipSub.gossipsub[topic].incl(peer)
       gossipSub.backingOff
         .mgetOrPut(topic, initTable[PeerID, Moment]())
@@ -601,9 +585,7 @@ suite "GossipSub internal":
       let peer = gossipSub.getPubSubPeer(peerInfo.peerId)
       peer.score = 40.0
       peer.sendConn = conn
-      gossipSub.onNewPeer(peer)
       gossipSub.grafted(peer, topic)
-      gossipSub.peers[peerInfo.peerId] = peer
       gossipSub.mesh[topic].incl(peer)
 
     for i in 0..<7:
@@ -615,9 +597,7 @@ suite "GossipSub internal":
       let peer = gossipSub.getPubSubPeer(peerInfo.peerId)
       peer.score = 10.0
       peer.sendConn = conn
-      gossipSub.onNewPeer(peer)
       gossipSub.grafted(peer, topic)
-      gossipSub.peers[peerInfo.peerId] = peer
       gossipSub.mesh[topic].incl(peer)
 
     check gossipSub.mesh[topic].len == 13
@@ -650,10 +630,8 @@ suite "GossipSub internal":
       let peerInfo = randomPeerInfo()
       conn.peerInfo = peerInfo
       let peer = gossipSub.getPubSubPeer(peerInfo.peerId)
-      gossipSub.onNewPeer(peer)
       peer.handler = handler
       gossipSub.grafted(peer, topic)
-      gossipSub.peers[peerInfo.peerId] = peer
       gossipSub.mesh[topic].incl(peer)
 
     block:
@@ -668,7 +646,7 @@ suite "GossipSub internal":
         topicID: topic,
         messageIDs: @[id, id, id]
       )
-      # gossipSub.initPeerStats(peer)
+      peer.iHaveBudget = 0
       let iwants = gossipSub.handleIHave(peer, @[msg])
       check: iwants.messageIDs.len == 0
 
@@ -684,7 +662,6 @@ suite "GossipSub internal":
         topicID: topic,
         messageIDs: @[id, id, id]
       )
-      gossipSub.initPeerStats(peer)
       let iwants = gossipSub.handleIHave(peer, @[msg])
       check: iwants.messageIDs.len == 1
 
@@ -700,7 +677,6 @@ suite "GossipSub internal":
       let msg = ControlIWant(
         messageIDs: @[id, id, id]
       )
-      gossipSub.initPeerStats(peer)
       let genmsg = gossipSub.handleIWant(peer, @[msg])
       check: genmsg.len == 1
 

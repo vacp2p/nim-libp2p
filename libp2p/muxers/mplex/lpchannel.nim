@@ -69,7 +69,7 @@ proc open*(s: LPChannel) {.async, gcsafe.} =
     await s.conn.close()
     raise exc
 
-method closed*(s: LPChannel): bool =
+method closed*(s: LPChannel): bool {.raises: [Defect].} =
   s.closedLocal
 
 proc closeUnderlying(s: LPChannel): Future[void] {.async.} =

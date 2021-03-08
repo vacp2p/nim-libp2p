@@ -7,6 +7,8 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
+{.push raises: [Defect].}
+
 import std/[sets, tables, options]
 import rpc/[messages]
 
@@ -24,12 +26,13 @@ type
 
 func get*(c: MCache, mid: MessageID): Option[Message] =
   if mid in c.msgs:
-    some(c.msgs[mid])
+    try: some(c.msgs[mid])
+    except KeyError: raiseAssert "checked"
   else:
     none(Message)
 
 func contains*(c: MCache, mid: MessageID): bool =
-  c.get(mid).isSome
+  mid in c.msgs
 
 func put*(c: var MCache, msgId: MessageID, msg: Message) =
   if not c.msgs.hasKeyOrPut(msgId, msg):
@@ -37,8 +40,6 @@ func put*(c: var MCache, msgId: MessageID, msg: Message) =
     c.history[0].add(CacheEntry(mid: msgId, topicIDs: msg.topicIDs))
 
 func window*(c: MCache, topic: string): HashSet[MessageID] =
-  result = initHashSet[MessageID]()
-
   let
     len = min(c.windowSize, c.history.len)
 

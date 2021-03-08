@@ -242,12 +242,10 @@ const
   InvalidMultiCodec* = MultiCodec(-1)
 
 proc initMultiCodecNameTable(): Table[string, int] {.compileTime.} =
-  result = initTable[string, int]()
   for item in MultiCodecList:
     result[item[0]] = item[1]
 
 proc initMultiCodecCodeTable(): Table[int, string] {.compileTime.} =
-  result = initTable[int, string]()
   for item in MultiCodecList:
     result[item[1]] = item[0]
 
@@ -271,7 +269,7 @@ proc `$`*(mc: MultiCodec): string =
   ## Returns string representation of MultiCodec ``mc``.
   let name = CodeCodecs.getOrDefault(int(mc), "")
   doAssert(name != "")
-  name  
+  name
 
 proc `==`*(mc: MultiCodec, name: string): bool {.inline.} =
   ## Compares MultiCodec ``mc`` with string ``name``.

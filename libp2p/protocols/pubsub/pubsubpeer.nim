@@ -195,9 +195,7 @@ proc connectImpl(p: PubSubPeer) {.async.} =
     # issue so we try to get a new on
     while true:
       await connectOnce(p)
-  except CancelledError:
-    raise
-  except CatchableError as exc:
+  except CatchableError as exc: # never cancelled
     debug "Could not establish send connection", msg = exc.msg
   finally:
     # drop the connection, else we end up with ghost peers
@@ -212,7 +210,7 @@ proc sendImpl(conn: Connection, encoded: seq[byte]) {.async.} =
     await conn.writeLp(encoded)
     trace "sent pubsub message to remote", conn
 
-  except CatchableError as exc:
+  except CatchableError as exc: # never cancelled
     # Because we detach the send call from the currently executing task using
     # asyncSpawn, no exceptions may leak out of it
     trace "Unable to send to remote", conn, msg = exc.msg
@@ -228,7 +226,7 @@ template sendMetrics(msg: RPCMsg): untyped =
         # metrics
         libp2p_pubsub_sent_messages.inc(labelValues = [$p.peerId, t])
 
-proc send*(p: PubSubPeer, msg: RPCMsg, anonymize: bool) =
+proc send*(p: PubSubPeer, msg: RPCMsg, anonymize: bool) {.raises: [Defect].} =
   doAssert(not isNil(p), "pubsubpeer nil!")
 
   let conn = p.sendConn
@@ -261,7 +259,10 @@ proc send*(p: PubSubPeer, msg: RPCMsg, anonymize: bool) =
 
   # To limit the size of the closure, we only pass the encoded message and
   # connection to the spawned send task
-  asyncSpawn sendImpl(conn, encoded)
+  asyncSpawn(try:
+    sendImpl(conn, encoded)
+  except Exception as exc: # TODO chronos Exception
+    raiseAssert exc.msg)
 
 proc newPubSubPeer*(peerId: PeerID,
                     getConn: GetConn,

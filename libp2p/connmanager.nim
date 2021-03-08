@@ -93,8 +93,6 @@ proc init*(C: type ConnManager,
     raiseAssert "Invalid connection counts!"
 
   C(maxConnsPerPeer: maxConnsPerPeer,
-    conns: initTable[PeerID, HashSet[Connection]](),
-    muxed: initTable[Connection, MuxerHolder](),
     inSema: inSema,
     outSema: outSema)
 

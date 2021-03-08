@@ -645,7 +645,6 @@ proc newDaemonApi*(flags: set[P2PDaemonFlags] = {},
   api.servers = newSeq[P2PServer]()
   api.pattern = patternForChild
   api.ucounter = 1
-  api.handlers = initTable[string, P2PStreamCallback]()
 
   if len(sockpath) == 0:
     api.flags.excl(NoProcessCtrl)
