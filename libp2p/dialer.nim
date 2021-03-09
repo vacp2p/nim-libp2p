@@ -152,8 +152,8 @@ method connect*(
   self: Dialer,
   peerId: PeerID,
   addrs: seq[MultiAddress]) {.async.} =
-  ## attempt to create establish a connection
-  ## with a remote peer
+  ## connect remote peer without negotiating
+  ## a protocol
   ##
 
   if self.connManager.connCount(peerId) > 0:
@@ -177,6 +177,10 @@ method dial*(
   self: Dialer,
   peerId: PeerID,
   protos: seq[string]): Future[Connection] {.async.} =
+  ## create a protocol stream over an
+  ## existing connection
+  ##
+
   trace "Dialing (existing)", peerId, protos
   let stream = await self.connManager.getStream(peerId)
   if stream.isNil:
@@ -189,6 +193,10 @@ method dial*(
   peerId: PeerID,
   addrs: seq[MultiAddress],
   protos: seq[string]): Future[Connection] {.async.} =
+  ## create a protocol stream and establish
+  ## a connection if one doesn't exist already
+  ##
+
   var
     conn: Connection
     stream: Connection

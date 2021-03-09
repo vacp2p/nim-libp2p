@@ -18,8 +18,8 @@ method connect*(
   self: Dial,
   peerId: PeerID,
   addrs: seq[MultiAddress]) {.async, base.} =
-  ## attempt to create establish a connection
-  ## with a remote peer
+  ## connect remote peer without negotiating
+  ## a protocol
   ##
 
   doAssert(false, "Not implemented!")
@@ -28,6 +28,10 @@ method dial*(
   self: Dial,
   peerId: PeerID,
   protos: seq[string]): Future[Connection] {.async, base.} =
+  ## create a protocol stream over an
+  ## existing connection
+  ##
+
   doAssert(false, "Not implemented!")
 
 method dial*(
@@ -35,4 +39,8 @@ method dial*(
   peerId: PeerID,
   addrs: seq[MultiAddress],
   protos: seq[string]): Future[Connection] {.async, base.} =
+  ## create a protocol stream and establish
+  ## a connection if one doesn't exist already
+  ##
+
   doAssert(false, "Not implemented!")
