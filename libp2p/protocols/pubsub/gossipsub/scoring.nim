@@ -91,6 +91,8 @@ proc disconnectPeer(g: GossipSub, peer: PubSubPeer) {.async.} =
 {.push raises: [Defect].}
 
 proc updateScores*(g: GossipSub) = # avoid async
+  ## https://github.com/libp2p/specs/blob/master/pubsub/gossipsub/gossipsub-v1.1.md#the-score-function
+  ##
   trace "updating scores", peers = g.peers.len
 
   let now = Moment.now()
@@ -204,7 +206,9 @@ proc updateScores*(g: GossipSub) = # avoid async
 
     score += peer.appScore * g.parameters.appSpecificWeight
 
-    score += peer.behaviourPenalty * g.parameters.behaviourPenaltyWeight
+
+    # The value of the parameter is the square of the counter and is mixed with a negative weight.
+    score += peer.behaviourPenalty * peer.behaviourPenalty * g.parameters.behaviourPenaltyWeight
 
     let colocationFactor = g.colocationFactor(peer)
     score += colocationFactor * g.parameters.ipColocationFactorWeight
