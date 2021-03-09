@@ -437,7 +437,6 @@ const
 
 proc initMultiAddressCodeTable(): Table[MultiCodec,
                                         MAProtocol] {.compileTime.} =
-  result = initTable[MultiCodec, MAProtocol]()
   for item in ProtocolsList:
     result[item.mcodec] = item
 

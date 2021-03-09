@@ -319,7 +319,6 @@ const
   ]
 
 proc initMultiHashCodeTable(): Table[MultiCodec, MHash] {.compileTime.} =
-  result = initTable[MultiCodec, MHash]()
   for item in HashesList:
     result[item.mcodec] = item
 

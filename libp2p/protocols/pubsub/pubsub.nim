@@ -119,7 +119,7 @@ method unsubscribePeer*(p: PubSub, peerId: PeerID) {.base.} =
 
   libp2p_pubsub_peers.set(p.peers.len.int64)
 
-proc send*(p: PubSub, peer: PubSubPeer, msg: RPCMsg) =
+proc send*(p: PubSub, peer: PubSubPeer, msg: RPCMsg) {.raises: [Defect].} =
   ## Attempt to send `msg` to remote peer
   ##
 
@@ -129,7 +129,7 @@ proc send*(p: PubSub, peer: PubSubPeer, msg: RPCMsg) =
 proc broadcast*(
   p: PubSub,
   sendPeers: openArray[PubSubPeer],
-  msg: RPCMsg) = # raises: [Defect]
+  msg: RPCMsg) {.raises: [Defect].} =
   ## Attempt to send `msg` to the given peers
 
   let npeers = sendPeers.len.int64
@@ -278,9 +278,7 @@ proc getOrCreatePeer*(
     proc dropConnAsync(peer: PubsubPeer) {.async.} =
       try:
         await p.switch.disconnect(peer.peerId)
-      except CancelledError:
-        raise
-      except CatchableError as exc:
+      except CatchableError as exc: # never cancelled
         trace "Failed to close connection", peer, error = exc.name, msg = exc.msg
     asyncSpawn dropConnAsync(peer)
 
@@ -530,8 +528,6 @@ proc init*[PubParams: object | bool](
         anonymize: anonymize,
         verifySignature: verifySignature,
         sign: sign,
-        peers: initTable[PeerID, PubSubPeer](),
-        topics: initTable[string, Topic](),
         msgIdProvider: msgIdProvider,
         subscriptionValidator: subscriptionValidator,
         topicsHigh: int.high)
@@ -542,8 +538,6 @@ proc init*[PubParams: object | bool](
         anonymize: anonymize,
         verifySignature: verifySignature,
         sign: sign,
-        peers: initTable[PeerID, PubSubPeer](),
-        topics: initTable[string, Topic](),
         msgIdProvider: msgIdProvider,
         subscriptionValidator: subscriptionValidator,
         parameters: parameters,

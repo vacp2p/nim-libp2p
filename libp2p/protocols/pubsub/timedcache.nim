@@ -7,7 +7,7 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import std/[hashes, tables]
+import std/[tables]
 
 import chronos/timer
 

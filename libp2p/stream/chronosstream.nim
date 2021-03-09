@@ -7,7 +7,7 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import std/[oids, strformat, strutils]
+import std/[oids, strformat]
 import chronos, chronicles, metrics
 import connection
 import ../utility
@@ -126,10 +126,10 @@ method write*(s: ChronosStream, msg: seq[byte]) {.async.} =
       if s.tracked:
         libp2p_peers_traffic_write.inc(msg.len.int64, labelValues = [s.shortAgent])
 
-method closed*(s: ChronosStream): bool {.inline.} =
+method closed*(s: ChronosStream): bool {.raises: [Defect].} =
   result = s.client.closed
 
-method atEof*(s: ChronosStream): bool {.inline.} =
+method atEof*(s: ChronosStream): bool {.raises: [Defect].} =
   s.client.atEof()
 
 method closeImpl*(s: ChronosStream) {.async.} =

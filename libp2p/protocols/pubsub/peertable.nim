@@ -7,17 +7,21 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import tables, sequtils, sets
-import pubsubpeer, ../../peerid
+{.push raises: [Defect].}
+
+import std/[tables, sets]
+import ./pubsubpeer, ../../peerid
 
 type
   PeerTable* = Table[string, HashSet[PubSubPeer]] # topic string to peer map
 
 proc hasPeerID*(t: PeerTable, topic: string, peerId: PeerID): bool =
   if topic in t:
-    for peer in t[topic]:
-      if peer.peerId == peerId:
-        return true
+    try:
+      for peer in t[topic]:
+        if peer.peerId == peerId:
+          return true
+    except KeyError: raiseAssert "checked with in"
   false
 
 func addPeer*(table: var PeerTable, topic: string, peer: PubSubPeer): bool =
@@ -34,10 +38,13 @@ func removePeer*(table: var PeerTable, topic: string, peer: PubSubPeer) =
       table.del(topic)
 
 func hasPeer*(table: PeerTable, topic: string, peer: PubSubPeer): bool =
-  (topic in table) and (peer in table[topic])
+  try:
+    (topic in table) and (peer in table[topic])
+  except KeyError: raiseAssert "checked with in"
 
 func peers*(table: PeerTable, topic: string): int =
   if topic in table:
-    table[topic].len
+    try: table[topic].len
+    except KeyError: raiseAssert "checked with in"
   else:
     0

@@ -7,7 +7,9 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import std/[tables, strutils, sets, algorithm, options]
+{.push raises: [Defect].}
+
+import std/[tables, sets, options]
 import chronos, chronicles, metrics
 import "."/[types]
 import ".."/[pubsubpeer]
@@ -23,12 +25,17 @@ declareGauge(libp2p_gossipsub_peers_score_appScore, "Detailed gossipsub scoring 
 declareGauge(libp2p_gossipsub_peers_score_behaviourPenalty, "Detailed gossipsub scoring metric", labels = ["agent"])
 declareGauge(libp2p_gossipsub_peers_score_colocationFactor, "Detailed gossipsub scoring metric", labels = ["agent"])
 
-proc initPeerStats*(g: GossipSub, peer: PubSubPeer, stats: PeerStats = PeerStats()) =
-  var initialStats = stats
-  initialStats.expire = Moment.now() + g.parameters.retainScore
-  g.peerStats[peer.peerId] = initialStats
-  peer.iWantBudget = IWantPeerBudget
-  peer.iHaveBudget = IHavePeerBudget
+proc withPeerStats*(
+    g: GossipSub, peerId: PeerId,
+    action: proc (stats: var PeerStats) {.gcsafe, raises: [Defect].}) =
+  ## Add or update peer statistics for a particular peer id - the statistics
+  ## are retained across multiple connections until they expire
+  g.peerStats.withValue(peerId, stats) do:
+    action(stats[])
+  do:
+    action(g.peerStats.mgetOrPut(peerId, PeerStats(
+      expire: Moment.now() + g.parameters.retainScore
+    )))
 
 func `/`(a, b: Duration): float64 =
   let
@@ -46,14 +53,15 @@ proc colocationFactor(g: GossipSub, peer: PubSubPeer): float64 =
       address = peer.address.get()
     g.peersInIP.mgetOrPut(address, initHashSet[PeerID]()).incl(peer.peerId)
     let
-      ipPeers = g.peersInIP[address]
-      len = ipPeers.len.float64
-    if len > g.parameters.ipColocationFactorThreshold:
-      trace "colocationFactor over threshold", peer, address, len
-      let over = len - g.parameters.ipColocationFactorThreshold
+      ipPeers = g.peersInIP.getOrDefault(address).len().float64
+    if ipPeers > g.parameters.ipColocationFactorThreshold:
+      trace "colocationFactor over threshold", peer, address, ipPeers
+      let over = ipPeers - g.parameters.ipColocationFactorThreshold
       over * over
     else:
       0.0
+
+{.pop.}
 
 proc disconnectPeer(g: GossipSub, peer: PubSubPeer) {.async.} =
   when defined(libp2p_agents_metrics):
@@ -77,12 +85,14 @@ proc disconnectPeer(g: GossipSub, peer: PubSubPeer) {.async.} =
 
   try:
     await g.switch.disconnect(peer.peerId)
-  except CancelledError:
-    raise
-  except CatchableError as exc:
+  except CatchableError as exc: # Never cancelled
     trace "Failed to close connection", peer, error = exc.name, msg = exc.msg
 
+{.push raises: [Defect].}
+
 proc updateScores*(g: GossipSub) = # avoid async
+  ## https://github.com/libp2p/specs/blob/master/pubsub/gossipsub/gossipsub-v1.1.md#the-score-function
+  ##
   trace "updating scores", peers = g.peers.len
 
   let now = Moment.now()
@@ -101,6 +111,7 @@ proc updateScores*(g: GossipSub) = # avoid async
     var
       n_topics = 0
       is_grafted = 0
+      score = 0.0
 
     # Per topic
     for topic, topicParams in g.topicParams:
@@ -144,7 +155,7 @@ proc updateScores*(g: GossipSub) = # avoid async
 
         trace "updated peer topic's scores", peer, topic, info, topicScore
 
-        peer.score += topicScore * topicParams.topicWeight
+        score += topicScore * topicParams.topicWeight
 
       # Score metrics
       when defined(libp2p_agents_metrics):
@@ -193,12 +204,14 @@ proc updateScores*(g: GossipSub) = # avoid async
       # commit our changes, mgetOrPut does NOT work as wanted with value types (lent?)
       stats.topicInfos[topic] = info
 
-    peer.score += peer.appScore * g.parameters.appSpecificWeight
+    score += peer.appScore * g.parameters.appSpecificWeight
 
-    peer.score += peer.behaviourPenalty * peer.behaviourPenalty * g.parameters.behaviourPenaltyWeight
+
+    # The value of the parameter is the square of the counter and is mixed with a negative weight.
+    score += peer.behaviourPenalty * peer.behaviourPenalty * g.parameters.behaviourPenaltyWeight
 
     let colocationFactor = g.colocationFactor(peer)
-    peer.score += colocationFactor * g.parameters.ipColocationFactorWeight
+    score += colocationFactor * g.parameters.ipColocationFactorWeight
 
     # Score metrics
     when defined(libp2p_agents_metrics):
@@ -229,17 +242,19 @@ proc updateScores*(g: GossipSub) = # avoid async
     if peer.behaviourPenalty < g.parameters.decayToZero:
       peer.behaviourPenalty = 0
 
+    peer.score = score
+
     # copy into stats the score to keep until expired
     stats.score = peer.score
     stats.appScore = peer.appScore
     stats.behaviourPenalty = peer.behaviourPenalty
-    stats.expire = Moment.now() + g.parameters.retainScore # refresh expiration
-    assert(g.peerStats[peer.peerId].score == peer.score) # nim sanity check
+    stats.expire = now + g.parameters.retainScore # refresh expiration
+
     trace "updated peer's score", peer, score = peer.score, n_topics, is_grafted
 
     if g.parameters.disconnectBadPeers and stats.score < g.parameters.graylistThreshold:
       debug "disconnecting bad score peer", peer, score = peer.score
-      asyncSpawn g.disconnectPeer(peer)
+      asyncSpawn(try: g.disconnectPeer(peer) except Exception as exc: raiseAssert exc.msg)
 
     when defined(libp2p_agents_metrics):
       libp2p_gossipsub_peers_scores.inc(peer.score, labelValues = [agent])
@@ -257,13 +272,5 @@ proc punishInvalidMessage*(g: GossipSub, peer: PubSubPeer, topics: seq[string]) 
       continue
 
     # update stats
-    g.peerStats.withValue(peer.peerId, stats):
-      stats[].topicInfos.withValue(t, tstats):
-        tstats[].invalidMessageDeliveries += 1
-      do: # if we have no stats populate!
-        stats[].topicInfos[t] = TopicInfo(invalidMessageDeliveries: 1)
-    do: # if we have no stats populate!
-      g.initPeerStats(peer) do:
-        var stats = PeerStats()
-        stats.topicInfos[t] = TopicInfo(invalidMessageDeliveries: 1)
-        stats
+    g.withPeerStats(peer.peerId) do (stats: var PeerStats):
+      stats.topicInfos.mgetOrPut(t, TopicInfo()).invalidMessageDeliveries += 1

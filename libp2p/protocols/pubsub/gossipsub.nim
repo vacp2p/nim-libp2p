@@ -7,7 +7,7 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import std/[tables, sets, options, sequtils, strutils, random, algorithm]
+import std/[tables, sets, options, sequtils, random]
 import chronos, chronicles, metrics, bearssl
 import ./pubsub,
        ./floodsub,
@@ -159,15 +159,15 @@ method init*(g: GossipSub) =
   g.codecs &= GossipSubCodec_10
 
 method onNewPeer(g: GossipSub, peer: PubSubPeer) =
-  if peer.peerId notin g.peerStats:
-    g.initPeerStats(peer)
-  else:
-    # we knew this peer
-    # restore previously stored score
-    let stats = g.peerStats[peer.peerId]
+  g.withPeerStats(peer.peerId) do (stats: var PeerStats):
+    # Make sure stats and peer information match, even when reloading peer stats
+    # from a previous connection
     peer.score = stats.score
     peer.appScore = stats.appScore
     peer.behaviourPenalty = stats.behaviourPenalty
+
+    peer.iWantBudget = IWantPeerBudget
+    peer.iHaveBudget = IHavePeerBudget
 
 method onPubSubPeerEvent*(p: GossipSub, peer: PubsubPeer, event: PubSubPeerEvent) {.gcsafe.} =
   case event.kind
@@ -216,7 +216,6 @@ method unsubscribePeer*(g: GossipSub, peer: PeerID) =
     g.fanout.removePeer(t, pubSubPeer)
 
   g.peerStats.withValue(peer, stats):
-    stats[].expire = Moment.now() + g.parameters.retainScore
     for topic, info in stats[].topicInfos.mpairs:
       info.firstMessageDeliveries = 0
 
@@ -294,21 +293,16 @@ method rpcHandler*(g: GossipSub,
                          # for every topic in the message
         let topicParams = g.topicParams.mgetOrPut(t, TopicParams.init())
                                                 # if in mesh add more delivery score
-        g.peerStats.withValue(peer.peerId, pstats):
-          pstats[].topicInfos.withValue(t, stats):
-            if stats[].inMesh:
+        g.withPeerStats(peer.peerId) do (stats: var PeerStats):
+          stats.topicInfos.withValue(t, tstats):
+            if tstats[].inMesh:
               # TODO: take into account meshMessageDeliveriesWindow
               # score only if messages are not too old.
-              stats[].meshMessageDeliveries += 1
-              if stats[].meshMessageDeliveries > topicParams.meshMessageDeliveriesCap:
-                stats[].meshMessageDeliveries = topicParams.meshMessageDeliveriesCap
+              tstats[].meshMessageDeliveries += 1
+              if tstats[].meshMessageDeliveries > topicParams.meshMessageDeliveriesCap:
+                tstats[].meshMessageDeliveries = topicParams.meshMessageDeliveriesCap
           do: # make sure we don't loose this information
-            pstats[].topicInfos[t] = TopicInfo(meshMessageDeliveries: 1)
-        do: # make sure we don't loose this information
-          g.initPeerStats(peer) do:
-            var stats = PeerStats()
             stats.topicInfos[t] = TopicInfo(meshMessageDeliveries: 1)
-            stats
 
       # onto the next message
       continue
@@ -359,25 +353,20 @@ method rpcHandler*(g: GossipSub,
 
       let topicParams = g.topicParams.mgetOrPut(t, TopicParams.init())
 
-      g.peerStats.withValue(peer.peerId, pstats):
-        pstats[].topicInfos.withValue(t, stats):
+      g.withPeerStats(peer.peerId) do(stats: var PeerStats):
+        stats.topicInfos.withValue(t, tstats):
                                                     # contribute to peer score first delivery
-          stats[].firstMessageDeliveries += 1
-          if stats[].firstMessageDeliveries > topicParams.firstMessageDeliveriesCap:
-            stats[].firstMessageDeliveries = topicParams.firstMessageDeliveriesCap
+          tstats[].firstMessageDeliveries += 1
+          if tstats[].firstMessageDeliveries > topicParams.firstMessageDeliveriesCap:
+            tstats[].firstMessageDeliveries = topicParams.firstMessageDeliveriesCap
 
                                                     # if in mesh add more delivery score
-          if stats[].inMesh:
-            stats[].meshMessageDeliveries += 1
-            if stats[].meshMessageDeliveries > topicParams.meshMessageDeliveriesCap:
-              stats[].meshMessageDeliveries = topicParams.meshMessageDeliveriesCap
+          if tstats[].inMesh:
+            tstats[].meshMessageDeliveries += 1
+            if tstats[].meshMessageDeliveries > topicParams.meshMessageDeliveriesCap:
+              tstats[].meshMessageDeliveries = topicParams.meshMessageDeliveriesCap
         do: # make sure we don't loose this information
-          pstats[].topicInfos[t] = TopicInfo(firstMessageDeliveries: 1, meshMessageDeliveries: 1)
-      do: # make sure we don't loose this information
-        g.initPeerStats(peer) do:
-          var stats = PeerStats()
           stats.topicInfos[t] = TopicInfo(firstMessageDeliveries: 1, meshMessageDeliveries: 1)
-          stats
 
       g.floodsub.withValue(t, peers): toSendPeers.incl(peers[])
       g.mesh.withValue(t, peers): toSendPeers.incl(peers[])
@@ -625,17 +614,10 @@ method initPubSub*(g: GossipSub) =
   randomize()
 
   # init the floodsub stuff here, we customize timedcache in gossip!
-  g.floodsub = initTable[string, HashSet[PubSubPeer]]()
   g.seen = TimedCache[MessageID].init(g.parameters.seenTTL)
 
   # init gossip stuff
   g.mcache = MCache.init(g.parameters.historyGossip, g.parameters.historyLength)
-  g.mesh = initTable[string, HashSet[PubSubPeer]]()     # meshes - topic to peer
-  g.fanout = initTable[string, HashSet[PubSubPeer]]()   # fanout - topic to peer
-  g.gossipsub = initTable[string, HashSet[PubSubPeer]]()# topic to peer map of all gossipsub peers
-  g.lastFanoutPubSub = initTable[string, Moment]()  # last publish time for fanout topics
-  g.gossip = initTable[string, seq[ControlIHave]]() # pending gossip
-  g.control = initTable[string, ControlMessage]()   # pending control messages
   var rng = newRng()
   g.randomBytes = newSeqUninitialized[byte](32)
   brHmacDrbgGenerate(rng[], g.randomBytes)

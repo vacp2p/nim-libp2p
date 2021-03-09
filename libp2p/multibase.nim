@@ -328,12 +328,10 @@ const
   ]
 
 proc initMultiBaseCodeTable(): Table[char, MBCodec] {.compileTime.} =
-  result = initTable[char, MBCodec]()
   for item in MultibaseCodecs:
     result[item.code] = item
 
 proc initMultiBaseNameTable(): Table[string, MBCodec] {.compileTime.} =
-  result = initTable[string, MBCodec]()
   for item in MultibaseCodecs:
     result[item.name] = item
 

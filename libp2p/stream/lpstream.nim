@@ -130,10 +130,10 @@ method initStream*(s: LPStream) {.base.} =
 proc join*(s: LPStream): Future[void] =
   s.closeEvent.wait()
 
-method closed*(s: LPStream): bool {.base.} =
+method closed*(s: LPStream): bool {.base, raises: [Defect].} =
   s.isClosed
 
-method atEof*(s: LPStream): bool {.base.} =
+method atEof*(s: LPStream): bool {.base, raises: [Defect].} =
   s.isEof
 
 method readOnce*(s: LPStream,
