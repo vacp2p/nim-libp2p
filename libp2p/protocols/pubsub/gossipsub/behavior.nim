@@ -79,7 +79,7 @@ proc peerExchangeList*(g: GossipSub, topic: string): seq[PeerInfoMsg] {.raises: 
 
 proc handleGraft*(g: GossipSub,
                  peer: PubSubPeer,
-                 grafts: seq[ControlGraft]): seq[ControlPrune] {.raises: [Defect].} =
+                 grafts: seq[ControlGraft]): seq[ControlPrune] = # {.raises: [Defect].} TODO chronicles exception on windows
   for graft in grafts:
     let topic = graft.topicID
     trace "peer grafted topic", peer, topic
