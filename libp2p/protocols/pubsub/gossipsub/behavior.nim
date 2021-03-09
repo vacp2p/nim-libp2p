@@ -82,16 +82,13 @@ proc handleGraft*(g: GossipSub,
                  grafts: seq[ControlGraft]): seq[ControlPrune] =
   for graft in grafts:
     let topic = graft.topicID
-    logScope:
-      peer
-      topic
-
-    trace "peer grafted topic"
+    trace "peer grafted topic", peer, topic
 
     # It is an error to GRAFT on a explicit peer
     if peer.peerId in g.parameters.directPeers:
       # receiving a graft from a direct peer should yield a more prominent warning (protocol violation)
-      warn "attempt to graft an explicit peer, peering agreements should be reciprocal", peer=peer.peerId, topic
+      warn "attempt to graft an explicit peer, peering agreements should be reciprocal",
+        peer, topic
       # and such an attempt should be logged and rejected with a PRUNE
       result.add(ControlPrune(
         topicID: topic,
@@ -109,8 +106,7 @@ proc handleGraft*(g: GossipSub,
     if  g.backingOff
           .getOrDefault(topic)
           .getOrDefault(peer.peerId) > Moment.now():
-      debug "attempt to graft a backingOff peer",   peer=peer.peerId,
-                                                    topic
+      debug "attempt to graft a backingOff peer", peer, topic
       # and such an attempt should be logged and rejected with a PRUNE
       result.add(ControlPrune(
         topicID: topic,
@@ -141,15 +137,16 @@ proc handleGraft*(g: GossipSub,
           g.grafted(peer, topic)
           g.fanout.removePeer(topic, peer)
         else:
-          trace "peer already in mesh"
+          trace "peer already in mesh", peer, topic
       else:
-        trace "pruning grafting peer, mesh full", peer, score = peer.score, mesh = g.mesh.peers(topic)
+        trace "pruning grafting peer, mesh full",
+          peer, topic, score = peer.score, mesh = g.mesh.peers(topic)
         result.add(ControlPrune(
           topicID: topic,
           peers: g.peerExchangeList(topic),
           backoff: g.parameters.pruneBackoff.seconds.uint64))
     else:
-      trace "peer grafting topic we're not interested in", topic
+      trace "peer grafting topic we're not interested in", peer, topic
       # gossip 1.1, we do not send a control message prune anymore
 
 proc handlePrune*(g: GossipSub, peer: PubSubPeer, prunes: seq[ControlPrune]) =
