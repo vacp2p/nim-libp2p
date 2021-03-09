@@ -31,9 +31,10 @@ import stream/connection,
        utils/semaphore,
        connmanager,
        peerid,
-       errors
+       errors,
+       dialer
 
-export connmanager, upgrade
+export connmanager, upgrade, dialer
 
 logScope:
   topics = "libp2p switch"
@@ -44,26 +45,19 @@ logScope:
 # and only if the channel has been secured (i.e. if a secure manager has been
 # previously provided)
 
-declareCounter(libp2p_total_dial_attempts, "total attempted dials")
-declareCounter(libp2p_successful_dials, "dialed successful peers")
-declareCounter(libp2p_failed_dials, "failed dials")
 declareCounter(libp2p_failed_upgrades_incoming, "incoming connections failed upgrades")
-declareCounter(libp2p_failed_upgrades_outgoing, "outgoing connections failed upgrades")
 
 const
   ConcurrentUpgrades* = 4
 
 type
-    DialFailedError* = object of CatchableError
-
-    Switch* = ref object of RootObj
+    Switch* = ref object of Dial
       peerInfo*: PeerInfo
       connManager*: ConnManager
       transports*: seq[Transport]
       ms*: MultistreamSelect
-      dialLock: Table[PeerID, AsyncLock]
       acceptFuts: seq[Future[void]]
-      upgrade: Upgrade
+      dialer*: Dial
 
 proc addConnEventHandler*(s: Switch,
                           handler: ConnEventHandler,
@@ -97,186 +91,36 @@ proc isConnected*(s: Switch, peerId: PeerID): bool =
 proc disconnect*(s: Switch, peerId: PeerID): Future[void] {.gcsafe.} =
   s.connManager.dropPeer(peerId)
 
-proc dialAndUpgrade(s: Switch,
-                    peerId: PeerID,
-                    addrs: seq[MultiAddress]):
-                    Future[Connection] {.async.} =
-  debug "Dialing peer", peerId
+method connect*(
+  s: Switch,
+  peerId: PeerID,
+  addrs: seq[MultiAddress]): Future[void] =
+  s.dialer.connect(peerId, addrs)
 
-  # Avoid "cannot be captured as it would violate memory safety" errors in Nim-1.4.x.
-  var
-    transport: Transport
-    address: MultiAddress
-
-  for t in s.transports: # for each transport
-    transport = t
-    for a in addrs:      # for each address
-      address = a
-      if t.handles(a):   # check if it can dial it
-        trace "Dialing address", address = $a, peerId
-        let dialed = try:
-            libp2p_total_dial_attempts.inc()
-            # await a connection slot when the total
-            # connection count is equal to `maxConns`
-            await s.connManager.trackOutgoingConn(
-              () => transport.dial(address)
-            )
-          except TooManyConnectionsError as exc:
-            trace "Connection limit reached!"
-            raise exc
-          except CancelledError as exc:
-            debug "Dialing canceled", msg = exc.msg, peerId
-            raise exc
-          except CatchableError as exc:
-            debug "Dialing failed", msg = exc.msg, peerId
-            libp2p_failed_dials.inc()
-            continue # Try the next address
-
-        # make sure to assign the peer to the connection
-        dialed.peerInfo = PeerInfo.init(peerId, addrs)
-
-        # also keep track of the connection's bottom unsafe transport direction
-        # required by gossipsub scoring
-        dialed.transportDir = Direction.Out
-
-        libp2p_successful_dials.inc()
-
-        let conn = try:
-            await s.upgrade.upgradeOutgoing(dialed)
-          except CatchableError as exc:
-            # If we failed to establish the connection through one transport,
-            # we won't succeeded through another - no use in trying again
-            await dialed.close()
-            debug "Upgrade failed", msg = exc.msg, peerId
-            if exc isnot CancelledError:
-              libp2p_failed_upgrades_outgoing.inc()
-            raise exc
-
-        doAssert not isNil(conn), "connection died after upgradeOutgoing"
-        debug "Dial successful", conn, peerInfo = conn.peerInfo
-        return conn
-
-proc internalConnect(s: Switch,
-                     peerId: PeerID,
-                     addrs: seq[MultiAddress]):
-                     Future[Connection] {.async.} =
-  if s.peerInfo.peerId == peerId:
-    raise newException(CatchableError, "can't dial self!")
-
-  # Ensure there's only one in-flight attempt per peer
-  let lock = s.dialLock.mgetOrPut(peerId, newAsyncLock())
-  try:
-    await lock.acquire()
-
-    # Check if we have a connection already and try to reuse it
-    var conn = s.connManager.selectConn(peerId)
-    if conn != nil:
-      if conn.atEof or conn.closed:
-        # This connection should already have been removed from the connection
-        # manager - it's essentially a bug that we end up here - we'll fail
-        # for now, hoping that this will clean themselves up later...
-        warn "dead connection in connection manager", conn
-        await conn.close()
-        raise newException(DialFailedError, "Zombie connection encountered")
-
-      trace "Reusing existing connection", conn, direction = $conn.dir
-      return conn
-
-    conn = await s.dialAndUpgrade(peerId, addrs)
-    if isNil(conn): # None of the addresses connected
-      raise newException(DialFailedError, "Unable to establish outgoing link")
-
-    # We already check for this in Connection manager
-    # but a disconnect could have happened right after
-    # we've added the connection so we check again
-    # to prevent races due to that.
-    if conn.closed() or conn.atEof():
-      # This can happen when the other ends drops us
-      # before we get a chance to return the connection
-      # back to the dialer.
-      trace "Connection dead on arrival", conn
-      raise newLPStreamClosedError()
-
-    return conn
-  finally:
-    if lock.locked():
-      lock.release()
-
-proc connect*(s: Switch, peerId: PeerID, addrs: seq[MultiAddress]) {.async.} =
-  ## attempt to create establish a connection
-  ## with a remote peer
-  ##
-
-  if s.connManager.connCount(peerId) > 0:
-    return
-
-  discard await s.internalConnect(peerId, addrs)
-
-proc negotiateStream(s: Switch, conn: Connection, protos: seq[string]): Future[Connection] {.async.} =
-  trace "Negotiating stream", conn, protos
-  let selected = await s.ms.select(conn, protos)
-  if not protos.contains(selected):
-    await conn.closeWithEOF()
-    raise newException(DialFailedError, "Unable to select sub-protocol " & $protos)
-
-  return conn
-
-proc dial*(s: Switch,
-           peerId: PeerID,
-           protos: seq[string]): Future[Connection] {.async.} =
-  trace "Dialing (existing)", peerId, protos
-  let stream = await s.connManager.getStream(peerId)
-  if stream.isNil:
-    raise newException(DialFailedError, "Couldn't get muxed stream")
-
-  return await s.negotiateStream(stream, protos)
+method dial*(
+  s: Switch,
+  peerId: PeerID,
+  protos: seq[string]): Future[Connection] =
+  s.dialer.dial(peerId, protos)
 
 proc dial*(s: Switch,
            peerId: PeerID,
            proto: string): Future[Connection] =
   dial(s, peerId, @[proto])
 
-proc dial*(s: Switch,
-           peerId: PeerID,
-           addrs: seq[MultiAddress],
-           protos: seq[string]):
-           Future[Connection] {.async.} =
-  var
-    conn: Connection
-    stream: Connection
+method dial*(
+  s: Switch,
+  peerId: PeerID,
+  addrs: seq[MultiAddress],
+  protos: seq[string]): Future[Connection] =
+  s.dialer.dial(peerId, addrs, protos)
 
-  proc cleanup() {.async.} =
-    if not(isNil(stream)):
-      await stream.closeWithEOF()
-
-    if not(isNil(conn)):
-      await conn.close()
-
-  try:
-    trace "Dialing (new)", peerId, protos
-    conn = await s.internalConnect(peerId, addrs)
-    trace "Opening stream", conn
-    stream = await s.connManager.getStream(conn)
-
-    if isNil(stream):
-      raise newException(DialFailedError,
-        "Couldn't get muxed stream")
-
-    return await s.negotiateStream(stream, protos)
-  except CancelledError as exc:
-    trace "Dial canceled", conn
-    await cleanup()
-    raise exc
-  except CatchableError as exc:
-    debug "Error dialing", conn, msg = exc.msg
-    await cleanup()
-    raise exc
-
-proc dial*(s: Switch,
-           peerId: PeerID,
-           addrs: seq[MultiAddress],
-           proto: string):
-           Future[Connection] = dial(s, peerId, addrs, @[proto])
+proc dial*(
+  s: Switch,
+  peerId: PeerID,
+  addrs: seq[MultiAddress],
+  proto: string): Future[Connection] =
+  dial(s, peerId, addrs, @[proto])
 
 proc mount*[T: LPProtocol](s: Switch, proto: T, matcher: Matcher = nil) {.gcsafe.} =
   if isNil(proto.handler):
@@ -344,7 +188,7 @@ proc accept(s: Switch, transport: Transport) {.async.} = # noraises
 
       debug "Accepted an incoming connection", conn
       asyncSpawn upgradeMonitor(conn, upgrades)
-      asyncSpawn s.upgrade.upgradeIncoming(conn)
+      asyncSpawn transport.upgradeIncoming(conn)
     except CancelledError as exc:
       trace "releasing semaphore on cancellation"
       upgrades.release() # always release the slot
@@ -402,24 +246,17 @@ proc newSwitch*(peerInfo: PeerInfo,
                 identity: Identify,
                 muxers: Table[string, MuxerProvider],
                 secureManagers: openarray[Secure] = [],
-                maxConnections = MaxConnections,
-                maxIn = -1,
-                maxOut = -1,
-                maxConnsPerPeer = MaxConnectionsPerPeer): Switch =
+                connManager: ConnManager,
+                ms: MultistreamSelect): Switch =
   if secureManagers.len == 0:
     raise (ref CatchableError)(msg: "Provide at least one secure manager")
-
-  let ms = newMultistream()
-  let connManager = ConnManager.init(maxConnsPerPeer, maxConnections, maxIn, maxOut)
-  let upgrade = MuxedUpgrade.init(identity, muxers, secureManagers, connManager, ms)
 
   let switch = Switch(
     peerInfo: peerInfo,
     ms: ms,
     transports: transports,
     connManager: connManager,
-    upgrade: upgrade,
-  )
+    dialer: Dialer.new(peerInfo, connManager, transports, ms))
 
   switch.mount(identity)
   return switch
