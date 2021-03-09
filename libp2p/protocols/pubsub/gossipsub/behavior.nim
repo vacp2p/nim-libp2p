@@ -7,7 +7,7 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-{.push raises: [Defect].}
+# {.push raises: [Defect].} TODO compile error on windows due to chronicles?
 
 import std/[tables, sequtils, sets, algorithm]
 import random # for shuffle
