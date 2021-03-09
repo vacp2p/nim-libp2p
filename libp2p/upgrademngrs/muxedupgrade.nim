@@ -15,31 +15,38 @@ import ../upgrademngrs/upgrade,
 
 export Upgrade
 
+logScope:
+  topics = "libp2p muxedupgrade"
+
 type
   MuxedUpgrade* = ref object of Upgrade
     muxers*: Table[string, MuxerProvider]
     streamHandler*: StreamHandler
 
-proc identify*(u: MuxedUpgrade, muxer: Muxer) {.async, gcsafe.} =
+proc identify*(
+  self: MuxedUpgrade,
+  muxer: Muxer) {.async, gcsafe.} =
   # new stream for identify
   var stream = await muxer.newStream()
   if stream == nil:
     return
 
   try:
-    await u.identify(stream)
+    await self.identify(stream)
   finally:
     await stream.closeWithEOF()
 
-proc mux*(u: MuxedUpgrade, conn: Connection): Future[Muxer] {.async, gcsafe.} =
+proc mux*(
+  self: MuxedUpgrade,
+  conn: Connection): Future[Muxer] {.async, gcsafe.} =
   ## mux incoming connection
 
   trace "Muxing connection", conn
-  if u.muxers.len == 0:
+  if self.muxers.len == 0:
     warn "no muxers registered, skipping upgrade flow", conn
     return
 
-  let muxerName = await u.ms.select(conn, toSeq(u.muxers.keys()))
+  let muxerName = await self.ms.select(conn, toSeq(self.muxers.keys()))
   if muxerName.len == 0 or muxerName == "na":
     debug "no muxer available, early exit", conn
     return
@@ -47,18 +54,18 @@ proc mux*(u: MuxedUpgrade, conn: Connection): Future[Muxer] {.async, gcsafe.} =
   trace "Found a muxer", conn, muxerName
 
   # create new muxer for connection
-  let muxer = u.muxers[muxerName].newMuxer(conn)
+  let muxer = self.muxers[muxerName].newMuxer(conn)
 
   # install stream handler
-  muxer.streamHandler = u.streamHandler
+  muxer.streamHandler = self.streamHandler
 
-  u.connManager.storeConn(conn)
+  self.connManager.storeConn(conn)
 
   # store it in muxed connections if we have a peer for it
-  u.connManager.storeMuxer(muxer, muxer.handle()) # store muxer and start read loop
+  self.connManager.storeMuxer(muxer, muxer.handle()) # store muxer and start read loop
 
   try:
-    await u.identify(muxer)
+    await self.identify(muxer)
   except CatchableError as exc:
     # Identify is non-essential, though if it fails, it might indicate that
     # the connection was closed already - this will be picked up by the read
@@ -67,10 +74,12 @@ proc mux*(u: MuxedUpgrade, conn: Connection): Future[Muxer] {.async, gcsafe.} =
 
   return muxer
 
-method upgradeOutgoing*(u: MuxedUpgrade, conn: Connection): Future[Connection] {.async, gcsafe.} =
+method upgradeOutgoing*(
+  self: MuxedUpgrade,
+  conn: Connection): Future[Connection] {.async, gcsafe.} =
   trace "Upgrading outgoing connection", conn
 
-  let sconn = await u.secure(conn) # secure the connection
+  let sconn = await self.secure(conn) # secure the connection
   if isNil(sconn):
     raise newException(UpgradeFailedError,
       "unable to secure connection, stopping upgrade")
@@ -79,7 +88,7 @@ method upgradeOutgoing*(u: MuxedUpgrade, conn: Connection): Future[Connection] {
     raise newException(UpgradeFailedError,
       "current version of nim-libp2p requires that secure protocol negotiates peerid")
 
-  let muxer = await u.mux(sconn) # mux it if possible
+  let muxer = await self.mux(sconn) # mux it if possible
   if muxer == nil:
     # TODO this might be relaxed in the future
     raise newException(UpgradeFailedError,
@@ -94,7 +103,9 @@ method upgradeOutgoing*(u: MuxedUpgrade, conn: Connection): Future[Connection] {
 
   return sconn
 
-method upgradeIncoming*(u: MuxedUpgrade, incomingConn: Connection) {.async, gcsafe.} = # noraises
+method upgradeIncoming*(
+  self: MuxedUpgrade,
+  incomingConn: Connection): Future[void] {.async, gcsafe.} = # noraises
   trace "Upgrading incoming connection", incomingConn
   let ms = newMultistream()
 
@@ -103,7 +114,7 @@ method upgradeIncoming*(u: MuxedUpgrade, incomingConn: Connection) {.async, gcsa
                       proto: string)
                       {.async, gcsafe, closure.} =
     trace "Starting secure handler", conn
-    let secure = u.secureManagers.filterIt(it.codec == proto)[0]
+    let secure = self.secureManagers.filterIt(it.codec == proto)[0]
 
     var cconn = conn
     try:
@@ -113,7 +124,7 @@ method upgradeIncoming*(u: MuxedUpgrade, incomingConn: Connection) {.async, gcsa
 
       cconn = sconn
       # add the muxer
-      for muxer in u.muxers.values:
+      for muxer in self.muxers.values:
         ms.addHandler(muxer.codecs, muxer)
 
       # handle subsequent secure requests
@@ -131,7 +142,7 @@ method upgradeIncoming*(u: MuxedUpgrade, incomingConn: Connection) {.async, gcsa
   try:
     if (await ms.select(incomingConn)): # just handshake
       # add the secure handlers
-      for k in u.secureManagers:
+      for k in self.secureManagers:
         ms.addHandler(k.codec, securedHandler)
 
     # handle un-secured connections
@@ -145,7 +156,9 @@ method upgradeIncoming*(u: MuxedUpgrade, incomingConn: Connection) {.async, gcsa
     if not isNil(incomingConn):
       await incomingConn.close()
 
-proc muxerHandler(u: MuxedUpgrade, muxer: Muxer) {.async, gcsafe.} =
+proc muxerHandler(
+  self: MuxedUpgrade,
+  muxer: Muxer) {.async, gcsafe.} =
   let
     conn = muxer.connection
 
@@ -155,13 +168,13 @@ proc muxerHandler(u: MuxedUpgrade, muxer: Muxer) {.async, gcsafe.} =
     return
 
   # store incoming connection
-  u.connManager.storeConn(conn)
+  self.connManager.storeConn(conn)
 
   # store muxer and muxed connection
-  u.connManager.storeMuxer(muxer)
+  self.connManager.storeMuxer(muxer)
 
   try:
-    await u.identify(muxer)
+    await self.identify(muxer)
   except IdentifyError as exc:
     # Identify is non-essential, though if it fails, it might indicate that
     # the connection was closed already - this will be picked up by the read
@@ -193,17 +206,20 @@ proc init*(
     connManager: connManager,
     ms: ms)
 
-  upgrader.streamHandler = proc(conn: Connection) {.async, gcsafe.} = # noraises
-    trace "Starting stream handler", conn
-    try:
-      await upgrader.ms.handle(conn) # handle incoming connection
-    except CancelledError as exc:
-      raise exc
-    except CatchableError as exc:
-      trace "exception in stream handler", conn, msg = exc.msg
-    finally:
-      await conn.closeWithEOF()
-    trace "Stream handler done", conn
+  proc streamHandler(conn: Connection) {.async, gcsafe.} = # noraises
+      # trace "Starting stream handler", conn
+      try:
+        await upgrader.ms.handle(conn) # handle incoming connection
+      except CancelledError as exc:
+        raise exc
+      except CatchableError as exc:
+        # trace "exception in stream handler", conn, msg = exc.msg
+        discard
+      finally:
+        await conn.closeWithEOF()
+      # trace "Stream handler done", conn
+
+  upgrader.streamHandler = streamHandler
 
   for _, val in muxers:
     val.streamHandler = upgrader.streamHandler
