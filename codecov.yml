@@ -5,10 +5,10 @@ codecov:
     # notice that this number is for PRs;
     # like this we disabled notify on pure branches report
     # which is fine I guess
-    after_n_builds: 25
+    after_n_builds: 28
 comment:
   layout: "reach, diff, flags, files"
-  after_n_builds: 25 # must be the number of coverage report builds
+  after_n_builds: 28 # must be the number of coverage report builds
 coverage:
   status:
     project:
@@ -16,4 +16,4 @@ coverage:
         # basic settings
         target: auto
         threshold: 5%
-        base: auto 
+        base: auto
