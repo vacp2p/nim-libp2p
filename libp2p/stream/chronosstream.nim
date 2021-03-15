@@ -79,9 +79,9 @@ when defined(libp2p_agents_metrics):
     if not s.tracked:
       if not isNil(s.peerInfo) and s.peerInfo.agentVersion.len > 0:
         # / seems a weak "standard" so for now it's reliable
-        let shortAgent = s.peerInfo.agentVersion.split("/")[0].toLowerAscii()
-        if KnownLibP2PAgentsSeq.contains(shortAgent):
-          s.shortAgent = shortAgent
+        let shortAgent = s.peerInfo.agentVersion.split("/")[0].safeToLowerAscii()
+        if shortAgent.isOk() and KnownLibP2PAgentsSeq.contains(shortAgent.get()):
+          s.shortAgent = shortAgent.get()
         else:
           s.shortAgent = "unknown"
         libp2p_peers_identity.inc(labelValues = [s.shortAgent])

@@ -71,9 +71,9 @@ proc disconnectPeer(g: GossipSub, peer: PubSubPeer) {.async.} =
           peer.shortAgent
         else:
           if peer.sendConn != nil:
-            let shortAgent = peer.sendConn.peerInfo.agentVersion.split("/")[0].toLowerAscii()
-            if KnownLibP2PAgentsSeq.contains(shortAgent):
-              peer.shortAgent = shortAgent
+            let shortAgent = peer.sendConn.peerInfo.agentVersion.split("/")[0].safeToLowerAscii()
+            if shortAgent.isOk() and KnownLibP2PAgentsSeq.contains(shortAgent.get()):
+              peer.shortAgent = shortAgent.get()
             else:
               peer.shortAgent = "unknown"
             peer.shortAgent
@@ -165,9 +165,9 @@ proc updateScores*(g: GossipSub) = # avoid async
               peer.shortAgent
             else:
               if peer.sendConn != nil:
-                let shortAgent = peer.sendConn.peerInfo.agentVersion.split("/")[0].toLowerAscii()
-                if KnownLibP2PAgentsSeq.contains(shortAgent):
-                  peer.shortAgent = shortAgent
+                let shortAgent = peer.sendConn.peerInfo.agentVersion.split("/")[0].safeToLowerAscii()
+                if shortAgent.isOk() and KnownLibP2PAgentsSeq.contains(shortAgent.get()):
+                  peer.shortAgent = shortAgent.get()
                 else:
                   peer.shortAgent = "unknown"
                 peer.shortAgent
@@ -221,9 +221,9 @@ proc updateScores*(g: GossipSub) = # avoid async
             peer.shortAgent
           else:
             if peer.sendConn != nil:
-              let shortAgent = peer.sendConn.peerInfo.agentVersion.split("/")[0].toLowerAscii()
-              if KnownLibP2PAgentsSeq.contains(shortAgent):
-                peer.shortAgent = shortAgent
+              let shortAgent = peer.sendConn.peerInfo.agentVersion.split("/")[0].safeToLowerAscii()
+              if shortAgent.isOk() and KnownLibP2PAgentsSeq.contains(shortAgent.get()):
+                peer.shortAgent = shortAgent.get()
               else:
                 peer.shortAgent = "unknown"
               peer.shortAgent
