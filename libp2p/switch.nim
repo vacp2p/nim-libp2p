@@ -132,6 +132,7 @@ proc mount*[T: LPProtocol](s: Switch, proto: T, matcher: Matcher = nil) {.gcsafe
       "Protocol has to define a codec string")
 
   s.ms.addHandler(proto.codecs, proto, matcher)
+  s.peerInfo.protocols.add(proto.codec)
 
 proc upgradeMonitor(conn: Connection, upgrades: AsyncSemaphore) {.async.} =
   ## monitor connection for upgrades
