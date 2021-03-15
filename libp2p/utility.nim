@@ -48,7 +48,7 @@ when defined(libp2p_agents_metrics):
   proc safeToLowerAscii*(s: string): Result[string, cstring] =
     try:
       ok(s.toLowerAscii())
-    except:
+    except CatchableError:
       err("toLowerAscii failed")
 
   const
