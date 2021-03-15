@@ -9,7 +9,7 @@
 
 {.used.}
 
-import unittest, sequtils, options, tables
+import unittest, sequtils, options, tables, sets
 import chronos, stew/byteutils
 import utils,
        ../../libp2p/[errors,
@@ -363,7 +363,18 @@ suite "FloodSub":
       pubs &= nodes[i].publish("foobar", ("Hello!" & $i).toBytes())
     await allFuturesThrowing(pubs)
 
+    # wait the test task
     await allFuturesThrowing(futs.mapIt(it[0]))
+
+    # test calling unsubscribeAll for coverage
+    for node in nodes:
+      node.unsubscribeAll("foobar")
+      check:
+        # we keep the peers in table
+        FloodSub(node).floodsub["foobar"].len == 9
+        # remove the topic tho
+        node.topics.len == 0
+
     await allFuturesThrowing(
       nodes.mapIt(
         allFutures(
