@@ -1,4 +1,3 @@
-import unittest
 import chronos, stew/byteutils
 import ../libp2p/stream/bufferstream,
        ../libp2p/stream/lpstream,

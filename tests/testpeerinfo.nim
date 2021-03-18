@@ -1,13 +1,12 @@
 {.used.}
 
-import unittest, options, bearssl
+import options, bearssl
 import chronos
 import ../libp2p/crypto/crypto,
        ../libp2p/peerinfo,
        ../libp2p/peerid
 
 import ./helpers
-import ./asyncunit
 
 suite "PeerInfo":
   test "Should init with private key":

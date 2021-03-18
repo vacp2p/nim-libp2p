@@ -1,5 +1,6 @@
-import std/unittest
-export unittest
+import ./unittest2
+
+export unittest2
 
 template asyncTeardown*(body: untyped): untyped =
   teardown:
@@ -18,6 +19,6 @@ template asyncSetup*(body: untyped): untyped =
 template asyncTest*(name: string, body: untyped): untyped =
   test name:
     waitFor((
-      proc() {.async, gcsafe, raises: [Exception].} =
+      proc() {.async, gcsafe.} =
         body
     )())

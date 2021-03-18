@@ -1,4 +1,4 @@
-import unittest, options, bearssl
+import options, bearssl
 import chronos, strutils
 import ../libp2p/[protocols/identify,
                   multiaddress,
@@ -12,7 +12,6 @@ import ../libp2p/[protocols/identify,
                   upgrademngrs/upgrade]
 
 import ./helpers
-import ./asyncunit
 
 when defined(nimHasUsed): {.used.}
 

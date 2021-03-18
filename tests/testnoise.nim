@@ -9,7 +9,7 @@
 
 {.used.}
 
-import unittest, tables, bearssl
+import tables, bearssl
 import chronos, stew/byteutils
 import chronicles
 import ../libp2p/crypto/crypto
@@ -34,7 +34,6 @@ import ../libp2p/[switch,
                   connmanager]
 
 import ./helpers
-import ./asyncunit
 
 const
   TestCodec = "/test/proto/1.0.0"

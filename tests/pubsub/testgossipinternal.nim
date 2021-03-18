@@ -3,7 +3,7 @@ include ../../libp2p/protocols/pubsub/gossipsub
 {.used.}
 
 import options
-import unittest, bearssl
+import bearssl
 import stew/byteutils
 import ../../libp2p/builders
 import ../../libp2p/errors
