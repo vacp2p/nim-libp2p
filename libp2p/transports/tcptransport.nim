@@ -14,10 +14,13 @@ import chronos, chronicles
 import transport,
        ../errors,
        ../wire,
-       ../multiaddress,
        ../multicodec,
+       ../multistream,
+       ../connmanager,
+       ../multiaddress,
        ../stream/connection,
-       ../stream/chronosstream
+       ../stream/chronosstream,
+       ../upgrademngrs/upgrade
 
 logScope:
   topics = "libp2p tcptransport"
@@ -61,7 +64,7 @@ proc setupTcpTransportTracker(): TcpTransportTracker =
   result.isLeaked = leakTransport
   addTracker(TcpTransportTrackerName, result)
 
-proc connHandler*(t: TcpTransport,
+proc connHandler*(self: TcpTransport,
                   client: StreamTransport,
                   dir: Direction): Future[Connection] {.async.} =
   var observedAddr: MultiAddress = MultiAddress()
@@ -75,8 +78,8 @@ proc connHandler*(t: TcpTransport,
 
   trace "Handling tcp connection", address = $observedAddr,
                                    dir = $dir,
-                                   clients = t.clients[Direction.In].len +
-                                   t.clients[Direction.Out].len
+                                   clients = self.clients[Direction.In].len +
+                                   self.clients[Direction.Out].len
 
   let conn = Connection(
     ChronosStream.init(
@@ -95,7 +98,7 @@ proc connHandler*(t: TcpTransport,
       trace "Cleaning up client", addrs = $client.remoteAddress,
                                   conn
 
-      t.clients[dir].keepItIf( it != client )
+      self.clients[dir].keepItIf( it != client )
       await allFuturesThrowing(
         conn.close(), client.closeWait())
 
@@ -106,82 +109,108 @@ proc connHandler*(t: TcpTransport,
       let useExc {.used.} = exc
       debug "Error cleaning up client", errMsg = exc.msg, conn
 
-  t.clients[dir].add(client)
+  self.clients[dir].add(client)
   asyncSpawn onClose()
 
   return conn
 
-proc init*(T: type TcpTransport,
-           flags: set[ServerFlags] = {}): T =
-  result = T(flags: flags)
+func init*(
+  T: type TcpTransport,
+  flags: set[ServerFlags] = {},
+  upgrade: Upgrade): T =
+
+  result = T(
+    flags: flags,
+    upgrader: upgrade
+  )
 
   result.initTransport()
 
-method initTransport*(t: TcpTransport) =
-  t.multicodec = multiCodec("tcp")
+method initTransport*(self: TcpTransport) =
+  self.multicodec = multiCodec("tcp")
   inc getTcpTransportTracker().opened
 
-method start*(t: TcpTransport, ma: MultiAddress) {.async.} =
+method start*(
+  self: TcpTransport,
+  ma: MultiAddress) {.async.} =
   ## listen on the transport
   ##
 
-  if t.running:
+  if self.running:
     trace "TCP transport already running"
     return
 
-  await procCall Transport(t).start(ma)
+  await procCall Transport(self).start(ma)
   trace "Starting TCP transport"
 
-  t.server = createStreamServer(
-    ma = t.ma,
-    flags = t.flags,
-    udata = t)
+  self.server = createStreamServer(
+    ma = self.ma,
+    flags = self.flags,
+    udata = self)
 
   # always get the resolved address in case we're bound to 0.0.0.0:0
-  t.ma = MultiAddress.init(t.server.sock.getLocalAddress()).tryGet()
-  t.running = true
+  self.ma = MultiAddress.init(self.server.sock.getLocalAddress()).tryGet()
+  self.running = true
 
-  trace "Listening on", address = t.ma
+  trace "Listening on", address = self.ma
 
-method stop*(t: TcpTransport) {.async, gcsafe.} =
+method stop*(self: TcpTransport) {.async, gcsafe.} =
   ## stop the transport
   ##
 
-  t.running = false # mark stopped as soon as possible
+  self.running = false # mark stopped as soon as possible
 
   try:
     trace "Stopping TCP transport"
-    await procCall Transport(t).stop() # call base
+    await procCall Transport(self).stop() # call base
 
     checkFutures(
       await allFinished(
-        t.clients[Direction.In].mapIt(it.closeWait()) &
-        t.clients[Direction.Out].mapIt(it.closeWait())))
+        self.clients[Direction.In].mapIt(it.closeWait()) &
+        self.clients[Direction.Out].mapIt(it.closeWait())))
 
     # server can be nil
-    if not isNil(t.server):
-      await t.server.closeWait()
+    if not isNil(self.server):
+      await self.server.closeWait()
 
-    t.server = nil
+    self.server = nil
     trace "Transport stopped"
     inc getTcpTransportTracker().closed
   except CatchableError as exc:
     trace "Error shutting down tcp transport", exc = exc.msg
 
-method accept*(t: TcpTransport): Future[Connection] {.async, gcsafe.} =
+method upgradeIncoming*(
+  self: TcpTransport,
+  conn: Connection): Future[void] {.gcsafe.} =
+  ## base upgrade method that the transport uses to perform
+  ## transport specific upgrades
+  ##
+
+  self.upgrader.upgradeIncoming(conn)
+
+method upgradeOutgoing*(
+  self: TcpTransport,
+  conn: Connection): Future[Connection] {.gcsafe.} =
+  ## base upgrade method that the transport uses to perform
+  ## transport specific upgrades
+  ##
+
+  self.upgrader.upgradeOutgoing(conn)
+
+method accept*(self: TcpTransport): Future[Connection] {.async, gcsafe.} =
   ## accept a new TCP connection
   ##
 
-  if not t.running:
+  if not self.running:
     raise newTransportClosedError()
 
   try:
-    let transp = await t.server.accept()
-    return await t.connHandler(transp, Direction.In)
+    let transp = await self.server.accept()
+    return await self.connHandler(transp, Direction.In)
   except TransportOsError as exc:
     # TODO: it doesn't sound like all OS errors
     # can  be ignored, we should re-raise those
-    # that can't.
+    # that can'self.
     debug "OS Error", exc = exc.msg
   except TransportTooManyError as exc:
     debug "Too many files opened", exc = exc.msg
@@ -192,16 +221,16 @@ method accept*(t: TcpTransport): Future[Connection] {.async, gcsafe.} =
     warn "Unexpected error creating connection", exc = exc.msg
     raise exc
 
-method dial*(t: TcpTransport,
-             address: MultiAddress):
-             Future[Connection] {.async, gcsafe.} =
+method dial*(
+  self: TcpTransport,
+  address: MultiAddress): Future[Connection] {.async, gcsafe.} =
   ## dial a peer
   ##
 
   trace "Dialing remote peer", address = $address
 
   let transp = await connect(address)
-  return await t.connHandler(transp, Direction.Out)
+  return await self.connHandler(transp, Direction.Out)
 
 method handles*(t: TcpTransport, address: MultiAddress): bool {.gcsafe.} =
   if procCall Transport(t).handles(address):
