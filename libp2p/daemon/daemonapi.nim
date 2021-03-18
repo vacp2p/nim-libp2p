@@ -496,6 +496,8 @@ proc recvMessage(conn: StreamTransport): Future[seq[byte]] {.async.} =
     await conn.readExactly(addr buffer[0], int(size))
   except TransportIncompleteError:
     buffer.setLen(0)
+  except IOSelectorsException:
+    buffer.setLen(0)
 
   result = buffer
 
@@ -912,9 +914,9 @@ proc openStream*(api: DaemonAPI, peer: PeerID,
         stream.flags.incl(Outbound)
         stream.transp = transp
         result = stream
-  except Exception as exc:
+  except CatchableError as exc:
     await api.closeConnection(transp)
-    raiseAssert exc.msg
+    raise exc
 
 proc streamHandler(server: StreamServer, transp: StreamTransport) {.async.} =
   var api = getUserData[DaemonAPI](server)
@@ -951,13 +953,14 @@ proc addHandler*(api: DaemonAPI, protocols: seq[string],
                                                                protocols))
     pb.withMessage() do:
       api.servers.add(P2PServer(server: server, address: maddress))
-  finally:
+  except CatchableError as exc:
     for item in protocols:
       api.handlers.del(item)
     server.stop()
     server.close()
     await server.join()
-
+    raise exc
+  finally:
     await api.closeConnection(transp)
 
 proc listPeers*(api: DaemonAPI): Future[seq[PeerInfo]] {.async.} =
@@ -1325,9 +1328,9 @@ proc pubsubSubscribe*(
       ticket.transp = transp
       asyncSpawn pubsubLoop(api, ticket)
       result = ticket
-  except Exception as exc:
+  except CatchableError as exc:
     await api.closeConnection(transp)
-    raiseAssert exc.msg
+    raise exc
 
 proc shortLog*(pinfo: PeerInfo): string =
   ## Get string representation of ``PeerInfo`` object.

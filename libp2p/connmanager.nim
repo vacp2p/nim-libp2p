@@ -150,9 +150,7 @@ proc triggerConnEvent*(c: ConnManager,
         connEvents.add(h(peerId, event))
 
       checkFutures(await allFinished(connEvents))
-  except CancelledError as exc:
-    raise exc
-  except CatchableError as exc:
+  except LPError as exc:
     warn "Exception in triggerConnEvents",
       msg = exc.msg, peerId, event = $event
 
@@ -217,9 +215,7 @@ proc triggerPeerEvents*(c: ConnManager,
       raiseAssert exc.msg
 
     checkFutures(await allFinished(peerEvents))
-  except CancelledError as exc:
-    raise exc
-  except CatchableError as exc: # handlers should not raise!
+  except LPError as exc: # handlers should not raise!
     warn "Exception in triggerPeerEvents", exc = exc.msg, peerId
 
 proc contains*(c: ConnManager, conn: Connection): bool =
@@ -316,8 +312,6 @@ proc onConnUpgraded(c: ConnManager, conn: Connection) {.async.} =
     await c.triggerConnEvent(
       peerId, ConnEvent(kind: ConnEventKind.Connected, incoming: conn.dir == Direction.In))
   except CatchableError as exc:
-    # This is top-level procedure which will work as separate task, so it
-    # do not need to propagate CancelledError and should handle other errors
     warn "Unexpected exception in switch peer connection cleanup",
       conn, msg = exc.msg
 
@@ -329,8 +323,6 @@ proc peerCleanup(c: ConnManager, conn: Connection) {.async.} =
       peerId, ConnEvent(kind: ConnEventKind.Disconnected))
     await c.triggerPeerEvents(peerId, PeerEvent(kind: PeerEventKind.Left))
   except CatchableError as exc:
-    # This is top-level procedure which will work as separate task, so it
-    # do not need to propagate CancelledError and should handle other errors
     warn "Unexpected exception peer cleanup handler",
       conn, msg = exc.msg
 
@@ -343,12 +335,8 @@ proc onClose(c: ConnManager, conn: Connection) {.async.} =
     await conn.join()
     trace "Connection closed, cleaning up", conn
     await c.cleanupConn(conn)
-  except CancelledError:
-    # This is top-level procedure which will work as separate task, so it
-    # do not need to propagate CancelledError.
-    debug "Unexpected cancellation in connection manager's cleanup", conn
   except CatchableError as exc:
-    debug "Unexpected exception in connection manager's cleanup",
+    debug "Exception in connection manager's cleanup",
           errMsg = exc.msg, conn
   finally:
     trace "Triggering peerCleanup", conn

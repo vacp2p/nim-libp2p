@@ -11,7 +11,7 @@ requires "nim >= 1.2.0",
          "nimcrypto >= 0.4.1",
          "bearssl >= 0.1.4",
          "chronicles >= 0.7.2",
-         "chronos >= 2.5.2",
+         "chronos#eh-tracking",
          "metrics",
          "secp256k1",
          "stew#head"

@@ -70,9 +70,6 @@ proc cleanupChann(m: Mplex, chann: LPChannel) {.async, inline.} =
         m.channels[chann.initiator].len.int64,
         labelValues = [$chann.initiator, $m.connection.peerInfo.peerId])
   except CatchableError as exc:
-    # This is top-level procedure which will work as separate task, so it
-    # do not need to propogate CancelledError, and no other exceptions should
-    # happen here
     warn "Error cleaning up mplex channel", m, chann, msg = exc.msg
 
 proc newStreamInternal*(
@@ -123,8 +120,6 @@ proc handleStream(m: Mplex, chann: LPChannel) {.async.} =
     trace "finished handling stream", m, chann
     doAssert(chann.closed, "connection not closed by handler!")
   except CatchableError as exc:
-    # This is top-level procedure which will work as separate task, so it
-    # do not need to propogate CancelledError.
     trace "Exception in mplex stream handler", m, chann, msg = exc.msg
     await chann.reset()
 
@@ -187,14 +182,11 @@ method handle*(m: Mplex) {.async, gcsafe.} =
           await channel.pushEof()
         of MessageType.ResetIn, MessageType.ResetOut:
           await channel.reset()
-  except CancelledError:
-    # This procedure is spawned as task and it is not part of public API, so
-    # there no way for this procedure to be cancelled implicitly.
-    debug "Unexpected cancellation in mplex handler", m
   except LPStreamEOFError as exc:
+    # mostly here to avoid scary EOF messages in debug
     trace "Stream EOF", m, msg = exc.msg
   except CatchableError as exc:
-    debug "Unexpected exception in mplex read loop", m, msg = exc.msg
+    debug "Exception in mplex read loop", m, msg = exc.msg
   finally:
     await m.close()
   trace "Stopped mplex handler", m

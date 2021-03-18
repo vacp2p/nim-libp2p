@@ -234,8 +234,8 @@ proc stop*(s: Switch) {.async.} =
       warn "error cleaning up transports", msg = exc.msg
 
   try:
-    await allFutures(s.acceptFuts)
-      .wait(1.seconds)
+    await allFuturesThrowing(
+      allFinished(s.acceptFuts)).wait(1.seconds)
   except CatchableError as exc:
     trace "Exception while stopping accept loops", exc = exc.msg
 
