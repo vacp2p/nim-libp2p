@@ -7,7 +7,8 @@ import ../libp2p/errors,
        ../libp2p/multiaddress,
        ../libp2p/transports/transport,
        ../libp2p/transports/tcptransport,
-       ../libp2p/protocols/protocol
+       ../libp2p/protocols/protocol,
+       ../libp2p/upgrademngrs/upgrade
 
 import ./helpers
 
@@ -247,7 +248,7 @@ suite "Multistream select":
     let msListen = newMultistream()
     msListen.addHandler("/test/proto/1.0.0", protocol)
 
-    let transport1: TcpTransport = TcpTransport.init()
+    let transport1 = TcpTransport.init(upgrade = Upgrade())
     asyncCheck transport1.start(ma)
 
     proc acceptHandler(): Future[void] {.async, gcsafe.} =
@@ -258,7 +259,7 @@ suite "Multistream select":
     let handlerWait = acceptHandler()
 
     let msDial = newMultistream()
-    let transport2: TcpTransport = TcpTransport.init()
+    let transport2 = TcpTransport.init(upgrade = Upgrade())
     let conn = await transport2.dial(transport1.ma)
 
     check (await msDial.select(conn, "/test/proto/1.0.0")) == true
@@ -294,7 +295,7 @@ suite "Multistream select":
     msListen.addHandler("/test/proto1/1.0.0", protocol)
     msListen.addHandler("/test/proto2/1.0.0", protocol)
 
-    let transport1: TcpTransport = TcpTransport.init()
+    let transport1: TcpTransport = TcpTransport.init(upgrade = Upgrade())
     let listenFut = transport1.start(ma)
 
     proc acceptHandler(): Future[void] {.async, gcsafe.} =
@@ -310,7 +311,7 @@ suite "Multistream select":
 
     let acceptFut = acceptHandler()
     let msDial = newMultistream()
-    let transport2: TcpTransport = TcpTransport.init()
+    let transport2: TcpTransport = TcpTransport.init(upgrade = Upgrade())
     let conn = await transport2.dial(transport1.ma)
 
     let ls = await msDial.list(conn)
@@ -339,7 +340,7 @@ suite "Multistream select":
     let msListen = newMultistream()
     msListen.addHandler("/test/proto/1.0.0", protocol)
 
-    let transport1: TcpTransport = TcpTransport.init()
+    let transport1: TcpTransport = TcpTransport.init(upgrade = Upgrade())
     asyncCheck transport1.start(ma)
 
     proc acceptHandler(): Future[void] {.async, gcsafe.} =
@@ -348,7 +349,7 @@ suite "Multistream select":
 
     let acceptFut = acceptHandler()
     let msDial = newMultistream()
-    let transport2: TcpTransport = TcpTransport.init()
+    let transport2: TcpTransport = TcpTransport.init(upgrade = Upgrade())
     let conn = await transport2.dial(transport1.ma)
 
     check (await msDial.select(conn,
@@ -377,7 +378,7 @@ suite "Multistream select":
     msListen.addHandler("/test/proto1/1.0.0", protocol)
     msListen.addHandler("/test/proto2/1.0.0", protocol)
 
-    let transport1: TcpTransport = TcpTransport.init()
+    let transport1: TcpTransport = TcpTransport.init(upgrade = Upgrade())
     asyncCheck transport1.start(ma)
 
     proc acceptHandler(): Future[void] {.async, gcsafe.} =
@@ -386,7 +387,7 @@ suite "Multistream select":
 
     let acceptFut = acceptHandler()
     let msDial = newMultistream()
-    let transport2: TcpTransport = TcpTransport.init()
+    let transport2: TcpTransport = TcpTransport.init(upgrade = Upgrade())
     let conn = await transport2.dial(transport1.ma)
 
     check (await msDial.select(conn,
