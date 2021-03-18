@@ -16,6 +16,8 @@ import ../protocol,
        ../../peerinfo,
        ../../errors
 
+{.push raises: [Defect].}
+
 export protocol
 
 logScope:
@@ -31,7 +33,7 @@ type
     stream*: Connection
     buf: StreamSeq
 
-func shortLog*(conn: SecureConn): auto =
+func shortLog*(conn: SecureConn): auto {.raises: [Defect, ValueError].} =
   if conn.isNil: "SecureConn(nil)"
   elif conn.peerInfo.isNil: $conn.oid
   else: &"{shortLog(conn.peerInfo.peerId)}:{conn.oid}"

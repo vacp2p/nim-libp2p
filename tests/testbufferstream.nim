@@ -5,6 +5,7 @@ import ../libp2p/stream/bufferstream,
        ../libp2p/errors
 
 import ./helpers
+import ./asyncunit
 
 {.used.}
 

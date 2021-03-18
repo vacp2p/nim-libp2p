@@ -7,6 +7,8 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
+{.push raises: [Defect].}
+
 import std/[oids, strformat]
 import pkg/[chronos, chronicles, metrics, nimcrypto/utils]
 import ./coder,
@@ -49,7 +51,8 @@ type
     resetCode*: MessageType       # cached in/out reset code
     writes*: int                  # In-flight writes
 
-func shortLog*(s: LPChannel): auto =
+func shortLog*(s: LPChannel): auto
+  {.raises: [Defect, ValueError].} =
   if s.isNil: "LPChannel(nil)"
   elif s.conn.peerInfo.isNil: $s.oid
   elif s.name != $s.oid and s.name.len > 0:
@@ -89,7 +92,7 @@ proc reset*(s: LPChannel) {.async, gcsafe.} =
 
   if s.isOpen and not s.conn.isClosed:
     # If the connection is still active, notify the other end
-    proc resetMessage() {.async.} =
+    proc resetMessage() {.async, raises: [Defect].} =
       try:
         trace "sending reset message", s, conn = s.conn
         await s.conn.writeMsg(s.id, s.resetCode) # write reset
@@ -135,7 +138,7 @@ method initStream*(s: LPChannel) =
   if s.objName.len == 0:
     s.objName = "LPChannel"
 
-  s.timeoutHandler = proc(): Future[void] {.gcsafe.} =
+  s.timeoutHandler = proc(): Future[void] {.gcsafe, raises: [Defect].} =
     trace "Idle timeout expired, resetting LPChannel", s
     s.reset()
 

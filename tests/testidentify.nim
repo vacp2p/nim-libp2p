@@ -10,7 +10,9 @@ import ../libp2p/[protocols/identify,
                   transports/tcptransport,
                   crypto/crypto,
                   upgrademngrs/upgrade]
+
 import ./helpers
+import ./asyncunit
 
 when defined(nimHasUsed): {.used.}
 

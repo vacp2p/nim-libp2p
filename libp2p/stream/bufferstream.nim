@@ -7,6 +7,8 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
+{.push raises: [Defect].}
+
 import std/strformat
 import stew/byteutils
 import chronos, chronicles, metrics
@@ -33,7 +35,8 @@ type
     pushedEof*: bool                  # eof marker has been put on readQueue
     returnedEof*: bool                # 0-byte readOnce has been completed
 
-func shortLog*(s: BufferStream): auto =
+func shortLog*(s: BufferStream): auto
+  {.raises: [Defect, ValueError].} =
   if s.isNil: "BufferStream(nil)"
   elif s.peerInfo.isNil: $s.oid
   else: &"{shortLog(s.peerInfo.peerId)}:{s.oid}"
@@ -190,14 +193,19 @@ method closeImpl*(s: BufferStream): Future[void] =
   # ------------|----------|-------
   # Reading     | Push Eof | Na
   # Pushing     | Na       | Pop
-  if not(s.reading and s.pushing):
-    if s.reading:
-      if s.readQueue.empty():
-        # There is an active reader
-        s.readQueue.addLastNoWait(Eof)
-    elif s.pushing:
-      if not s.readQueue.empty():
-        discard s.readQueue.popFirstNoWait()
+  try:
+    if not(s.reading and s.pushing):
+      if s.reading:
+        if s.readQueue.empty():
+          # There is an active reader
+          s.readQueue.addLastNoWait(Eof)
+      elif s.pushing:
+        if not s.readQueue.empty():
+          discard s.readQueue.popFirstNoWait()
+  except AsyncQueueFullError as exc:
+    raiseAssert("Fatal, could not pop from read queue")
+  except AsyncQueueEmptyError as exc:
+    raiseAssert("Fatal, could not push to read queue")
 
   trace "Closed BufferStream", s
 

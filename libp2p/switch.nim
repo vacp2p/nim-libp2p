@@ -7,6 +7,8 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
+{.push raises: [Defect].}
+
 import std/[tables,
             options,
             sets,
@@ -92,41 +94,46 @@ proc disconnect*(s: Switch, peerId: PeerID): Future[void] {.gcsafe.} =
 method connect*(
   s: Switch,
   peerId: PeerID,
-  addrs: seq[MultiAddress]): Future[void] =
+  addrs: seq[MultiAddress]): Future[void]
+  {.raises: [Defect, DialFailedError].} =
   s.dialer.connect(peerId, addrs)
 
 method dial*(
   s: Switch,
   peerId: PeerID,
-  protos: seq[string]): Future[Connection] =
+  protos: seq[string]): Future[Connection]
+  {.raises: [Defect, DialFailedError].} =
   s.dialer.dial(peerId, protos)
 
 proc dial*(s: Switch,
            peerId: PeerID,
-           proto: string): Future[Connection] =
+           proto: string): Future[Connection]
+  {.raises: [Defect, DialFailedError].} =
   dial(s, peerId, @[proto])
 
 method dial*(
   s: Switch,
   peerId: PeerID,
   addrs: seq[MultiAddress],
-  protos: seq[string]): Future[Connection] =
+  protos: seq[string]): Future[Connection]
+  {.raises: [Defect, DialFailedError].} =
   s.dialer.dial(peerId, addrs, protos)
 
 proc dial*(
   s: Switch,
   peerId: PeerID,
   addrs: seq[MultiAddress],
-  proto: string): Future[Connection] =
+  proto: string): Future[Connection]
+  {.raises: [Defect, DialFailedError].} =
   dial(s, peerId, addrs, @[proto])
 
-proc mount*[T: LPProtocol](s: Switch, proto: T, matcher: Matcher = nil) {.gcsafe.} =
+proc mount*[T: LPProtocol](s: Switch, proto: T, matcher: Matcher = nil) {.gcsafe, raises: [Defect, LPError].} =
   if isNil(proto.handler):
-    raise newException(CatchableError,
+    raise newException(LPError,
       "Protocol has to define a handle method or proc")
 
   if proto.codec.len == 0:
-    raise newException(CatchableError,
+    raise newException(LPError,
       "Protocol has to define a codec string")
 
   s.ms.addHandler(proto.codecs, proto, matcher)
@@ -246,9 +253,10 @@ proc newSwitch*(peerInfo: PeerInfo,
                 muxers: Table[string, MuxerProvider],
                 secureManagers: openarray[Secure] = [],
                 connManager: ConnManager,
-                ms: MultistreamSelect): Switch =
+                ms: MultistreamSelect): Switch
+                {.raises: [Defect, LPError].} =
   if secureManagers.len == 0:
-    raise (ref CatchableError)(msg: "Provide at least one secure manager")
+    raise newException(LPError, "Provide at least one secure manager")
 
   let switch = Switch(
     peerInfo: peerInfo,
@@ -260,21 +268,21 @@ proc newSwitch*(peerInfo: PeerInfo,
   switch.mount(identity)
   return switch
 
-proc isConnected*(s: Switch, peerInfo: PeerInfo): bool
-  {.deprecated: "Use PeerID version".} =
-  not isNil(peerInfo) and isConnected(s, peerInfo.peerId)
+# proc isConnected*(s: Switch, peerInfo: PeerInfo): bool
+#   {.deprecated: "Use PeerID version".} =
+#   not isNil(peerInfo) and isConnected(s, peerInfo.peerId)
 
-proc disconnect*(s: Switch, peerInfo: PeerInfo): Future[void]
-  {.deprecated: "Use PeerID version", gcsafe.} =
-  disconnect(s, peerInfo.peerId)
+# proc disconnect*(s: Switch, peerInfo: PeerInfo): Future[void]
+#   {.deprecated: "Use PeerID version", gcsafe.} =
+#   disconnect(s, peerInfo.peerId)
 
-proc connect*(s: Switch, peerInfo: PeerInfo): Future[void]
-  {.deprecated: "Use PeerID version".} =
-  connect(s, peerInfo.peerId, peerInfo.addrs)
+# proc connect*(s: Switch, peerInfo: PeerInfo): Future[void]
+#   {.deprecated: "Use PeerID version".} =
+#   connect(s, peerInfo.peerId, peerInfo.addrs)
 
-proc dial*(s: Switch,
-           peerInfo: PeerInfo,
-           proto: string):
-           Future[Connection]
-  {.deprecated: "Use PeerID version".} =
-  dial(s, peerInfo.peerId, peerInfo.addrs, proto)
+# proc dial*(s: Switch,
+#            peerInfo: PeerInfo,
+#            proto: string):
+#            Future[Connection]
+#   {.deprecated: "Use PeerID version".} =
+#   dial(s, peerInfo.peerId, peerInfo.addrs, proto)

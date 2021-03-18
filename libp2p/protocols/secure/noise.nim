@@ -7,6 +7,8 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
+{.push raises: [Defect].}
+
 import std/[oids, strformat]
 import chronos
 import chronicles
@@ -93,7 +95,8 @@ type
 
 # Utility
 
-func shortLog*(conn: NoiseConnection): auto =
+func shortLog*(conn: NoiseConnection): auto
+  {.raises: [Defect, ValueError].} =
   if conn.isNil: "NoiseConnection(nil)"
   elif conn.peerInfo.isNil: $conn.oid
   else: &"{shortLog(conn.peerInfo.peerId)}:{conn.oid}"
@@ -124,7 +127,8 @@ proc hasKey(cs: CipherState): bool =
 
 proc encrypt(
     state: var CipherState, data: var openArray[byte],
-    ad: openArray[byte]): ChaChaPolyTag {.noinit.} =
+    ad: openArray[byte]): ChaChaPolyTag
+    {.noinit, raises: [Defect, NoiseNonceMaxError].} =
   var nonce: ChaChaPolyNonce
   nonce[4..<12] = toBytesLE(state.n)
 
@@ -134,7 +138,8 @@ proc encrypt(
   if state.n > NonceMax:
     raise newException(NoiseNonceMaxError, "Noise max nonce value reached")
 
-proc encryptWithAd(state: var CipherState, ad, data: openArray[byte]): seq[byte] =
+proc encryptWithAd(state: var CipherState, ad, data: openArray[byte]): seq[byte]
+  {.raises: [Defect, NoiseNonceMaxError].} =
   result = newSeqOfCap[byte](data.len + sizeof(ChachaPolyTag))
   result.add(data)
 
@@ -145,7 +150,8 @@ proc encryptWithAd(state: var CipherState, ad, data: openArray[byte]): seq[byte]
   trace "encryptWithAd",
     tag = byteutils.toHex(tag), data = result.shortLog, nonce = state.n - 1
 
-proc decryptWithAd(state: var CipherState, ad, data: openArray[byte]): seq[byte] =
+proc decryptWithAd(state: var CipherState, ad, data: openArray[byte]): seq[byte]
+  {.raises: [Defect, NoiseDecryptTagError, NoiseNonceMaxError].} =
   var
     tagIn = data.toOpenArray(data.len - ChaChaPolyTag.len, data.high).intoChaChaPolyTag
     tagOut: ChaChaPolyTag
@@ -193,7 +199,8 @@ proc mixKeyAndHash(ss: var SymmetricState; ikm: openArray[byte]) {.used.} =
   ss.mixHash(temp_keys[1])
   ss.cs = CipherState(k: temp_keys[2])
 
-proc encryptAndHash(ss: var SymmetricState, data: openArray[byte]): seq[byte] =
+proc encryptAndHash(ss: var SymmetricState, data: openArray[byte]): seq[byte]
+  {.raises: [Defect, NoiseNonceMaxError].}=
   # according to spec if key is empty leave plaintext
   if ss.cs.hasKey:
     result = ss.cs.encryptWithAd(ss.h.data, data)
@@ -201,7 +208,8 @@ proc encryptAndHash(ss: var SymmetricState, data: openArray[byte]): seq[byte] =
     result = @data
   ss.mixHash(result)
 
-proc decryptAndHash(ss: var SymmetricState, data: openArray[byte]): seq[byte] =
+proc decryptAndHash(ss: var SymmetricState, data: openArray[byte]): seq[byte]
+  {.raises: [Defect, NoiseDecryptTagError, NoiseNonceMaxError].} =
   # according to spec if key is empty leave plaintext
   if ss.cs.hasKey:
     result = ss.cs.decryptWithAd(ss.h.data, data)
@@ -299,7 +307,8 @@ proc readFrame(sconn: Connection): Future[seq[byte]] {.async.} =
   await sconn.readExactly(addr buffer[0], buffer.len)
   return buffer
 
-proc writeFrame(sconn: Connection, buf: openArray[byte]): Future[void] =
+proc writeFrame(sconn: Connection, buf: openArray[byte]): Future[void]
+  {.raises: [Defect, LPStreamClosedError].} =
   doAssert buf.len <= uint16.high.int
   var
     lesize = buf.len.uint16
@@ -311,7 +320,8 @@ proc writeFrame(sconn: Connection, buf: openArray[byte]): Future[void] =
   sconn.write(outbuf)
 
 proc receiveHSMessage(sconn: Connection): Future[seq[byte]] = readFrame(sconn)
-proc sendHSMessage(sconn: Connection, buf: openArray[byte]): Future[void] =
+proc sendHSMessage(sconn: Connection, buf: openArray[byte]): Future[void]
+  {.raises: [Defect, LPStreamClosedError].} =
   writeFrame(sconn, buf)
 
 proc handshakeXXOutbound(
@@ -430,7 +440,9 @@ method readMessage*(sconn: NoiseConnection): Future[seq[byte]] {.async.} =
 
 
 proc encryptFrame(
-    sconn: NoiseConnection, cipherFrame: var openArray[byte], src: openArray[byte]) =
+    sconn: NoiseConnection,
+    cipherFrame: var openArray[byte],
+    src: openArray[byte]) {.raises: [Defect, NoiseNonceMaxError].} =
   # Frame consists of length + cipher data + tag
   doAssert src.len <= MaxPlainSize
   doAssert cipherFrame.len == 2 + src.len + sizeof(ChaChaPolyTag)

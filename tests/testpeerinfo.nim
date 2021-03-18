@@ -7,6 +7,7 @@ import ../libp2p/crypto/crypto,
        ../libp2p/peerid
 
 import ./helpers
+import ./asyncunit
 
 suite "PeerInfo":
   test "Should init with private key":

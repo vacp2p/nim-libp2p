@@ -8,6 +8,7 @@ import ../libp2p/[connmanager,
                   errors]
 
 import helpers
+import ./asyncunit
 
 type
   TestMuxer = ref object of Muxer

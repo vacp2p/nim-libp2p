@@ -7,6 +7,8 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
+{.push raises: [Defect, DialFailedError].}
+
 import std/[sugar, tables]
 
 import pkg/[chronos,
@@ -32,8 +34,6 @@ declareCounter(libp2p_failed_dials, "failed dials")
 declareCounter(libp2p_failed_upgrades_outgoing, "outgoing connections failed upgrades")
 
 type
-  DialFailedError* = object of CatchableError
-
   Dialer* = ref object of Dial
     peerInfo*: PeerInfo
     ms: MultistreamSelect

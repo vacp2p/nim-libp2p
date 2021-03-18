@@ -7,6 +7,8 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
+{.push raises: [Defect].}
+
 import tables, sequtils, oids
 import chronos, chronicles, stew/byteutils, metrics
 import ../muxer,
@@ -44,7 +46,9 @@ type
     oid*: Oid
     maxChannCount: int
 
-func shortLog*(m: MPlex): auto = shortLog(m.connection)
+func shortLog*(m: MPlex): auto
+  {.raises: [Defect, ValueError].} =
+  shortLog(m.connection)
 chronicles.formatIt(Mplex): shortLog(it)
 
 proc newTooManyChannels(): ref TooManyChannels =
@@ -71,12 +75,14 @@ proc cleanupChann(m: Mplex, chann: LPChannel) {.async, inline.} =
     # happen here
     warn "Error cleaning up mplex channel", m, chann, msg = exc.msg
 
-proc newStreamInternal*(m: Mplex,
-                        initiator: bool = true,
-                        chanId: uint64 = 0,
-                        name: string = "",
-                        timeout: Duration):
-                        LPChannel {.gcsafe.} =
+proc newStreamInternal*(
+  m: Mplex,
+  initiator: bool = true,
+  chanId: uint64 = 0,
+  name: string = "",
+  timeout: Duration):
+  LPChannel
+  {.gcsafe, raises: [Defect, InvalidChannelIdError].} =
   ## create new channel/stream
   ##
   let id = if initiator:

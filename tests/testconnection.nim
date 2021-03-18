@@ -4,6 +4,7 @@ import ../libp2p/[stream/connection,
                   stream/bufferstream]
 
 import ./helpers
+import ./asyncunit
 
 suite "Connection":
   asyncTest "close":

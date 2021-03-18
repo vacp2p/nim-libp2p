@@ -11,6 +11,7 @@ import ../libp2p/[stream/connection,
                   wire]
 
 import ./helpers
+import ./asyncunit
 
 suite "TCP transport":
   teardown:
