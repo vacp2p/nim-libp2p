@@ -47,10 +47,10 @@ suite "Switch":
     testProto.codec = TestCodec
     testProto.handler = handle
 
-    let switch1 = newStandardSwitch(secureManagers = [SecureProtocol.Noise])
+    let switch1 = newStandardSwitch()
     switch1.mount(testProto)
 
-    let switch2 = newStandardSwitch(secureManagers = [SecureProtocol.Noise])
+    let switch2 = newStandardSwitch()
     var awaiters: seq[Future[void]]
     awaiters.add(await switch1.start())
     awaiters.add(await switch2.start())
@@ -620,7 +620,7 @@ suite "Switch":
   asyncTest "e2e canceling dial should not leak":
     let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
 
-    let transport = TcpTransport.init()
+    let transport = TcpTransport.init(upgrade = Upgrade())
     await transport.start(ma)
 
     proc acceptHandler() {.async, gcsafe.} =
@@ -656,7 +656,7 @@ suite "Switch":
   asyncTest "e2e closing remote conn should not leak":
     let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
 
-    let transport = TcpTransport.init()
+    let transport = TcpTransport.init(upgrade = Upgrade())
     await transport.start(ma)
 
     proc acceptHandler() {.async, gcsafe.} =
