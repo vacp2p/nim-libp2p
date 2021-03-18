@@ -35,22 +35,28 @@ type
     connManager*: ConnManager
     secureManagers*: seq[Secure]
 
-method upgradeIncoming*(u: Upgrade, conn: Connection): Future[void] {.base.} =
+method upgradeIncoming*(
+  self: Upgrade,
+  conn: Connection): Future[void] {.base.} =
   doAssert(false, "Not implemented!")
 
-method upgradeOutgoing*(u: Upgrade, conn: Connection): Future[Connection] {.base.} =
+method upgradeOutgoing*(
+  self: Upgrade,
+  conn: Connection): Future[Connection] {.base.} =
   doAssert(false, "Not implemented!")
 
-proc secure*(u: Upgrade, conn: Connection): Future[Connection] {.async, gcsafe.} =
-  if u.secureManagers.len <= 0:
+proc secure*(
+  self: Upgrade,
+  conn: Connection): Future[Connection] {.async, gcsafe.} =
+  if self.secureManagers.len <= 0:
     raise newException(UpgradeFailedError, "No secure managers registered!")
 
-  let codec = await u.ms.select(conn, u.secureManagers.mapIt(it.codec))
+  let codec = await self.ms.select(conn, self.secureManagers.mapIt(it.codec))
   if codec.len == 0:
     raise newException(UpgradeFailedError, "Unable to negotiate a secure channel!")
 
   trace "Securing connection", conn, codec
-  let secureProtocol = u.secureManagers.filterIt(it.codec == codec)
+  let secureProtocol = self.secureManagers.filterIt(it.codec == codec)
 
   # ms.select should deal with the correctness of this
   # let's avoid duplicating checks but detect if it fails to do it properly
@@ -58,11 +64,13 @@ proc secure*(u: Upgrade, conn: Connection): Future[Connection] {.async, gcsafe.}
 
   return await secureProtocol[0].secure(conn, true)
 
-proc identify*(u: Upgrade, conn: Connection) {.async, gcsafe.} =
+proc identify*(
+  self: Upgrade,
+  conn: Connection) {.async, gcsafe.} =
   ## identify the connection
 
-  if (await u.ms.select(conn, u.identity.codec)):
-    let info = await u.identity.identify(conn, conn.peerInfo)
+  if (await self.ms.select(conn, self.identity.codec)):
+    let info = await self.identity.identify(conn, conn.peerInfo)
 
     if info.pubKey.isNone and isNil(conn):
       raise newException(UpgradeFailedError,

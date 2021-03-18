@@ -14,7 +14,8 @@ import sequtils
 import chronos, chronicles
 import ../stream/connection,
        ../multiaddress,
-       ../multicodec
+       ../multicodec,
+       ../upgrademngrs/upgrade
 
 logScope:
   topics = "libp2p transport"
@@ -25,56 +26,72 @@ type
 
   Transport* = ref object of RootObj
     ma*: Multiaddress
-    multicodec*: MultiCodec
     running*: bool
+    upgrader*: Upgrade
+    multicodec*: MultiCodec
 
 proc newTransportClosedError*(parent: ref Exception = nil): ref LPError =
   newException(TransportClosedError,
     "Transport closed, no more connections!", parent)
 
-method initTransport*(t: Transport) {.base, gcsafe, locks: "unknown".} =
+method initTransport*(self: Transport) {.base, gcsafe, locks: "unknown".} =
   ## perform protocol initialization
   ##
 
   discard
 
-method start*(t: Transport, ma: MultiAddress) {.base, async.} =
+method start*(
+  self: Transport,
+  ma: MultiAddress): Future[void] {.base, async.} =
   ## start the transport
   ##
 
-  t.ma = ma
+  self.ma = ma
   trace "starting transport", address = $ma
 
-method stop*(t: Transport) {.base, async.} =
+method stop*(self: Transport): Future[void] {.base, async.} =
   ## stop and cleanup the transport
   ## including all outstanding connections
   ##
 
   discard
 
-method accept*(t: Transport): Future[Connection]
-               {.base, async, gcsafe.} =
+method accept*(self: Transport): Future[Connection]
+               {.base, gcsafe.} =
   ## accept incoming connections
   ##
 
   discard
 
-method dial*(t: Transport,
-             address: MultiAddress): Future[Connection]
-             {.base, async, gcsafe.} =
+method dial*(
+  self: Transport,
+  address: MultiAddress): Future[Connection] {.base, gcsafe.} =
   ## dial a peer
   ##
 
   discard
 
-method upgrade*(t: Transport) {.base, async, gcsafe.} =
+method upgradeIncoming*(
+  self: Transport,
+  conn: Connection): Future[void] {.base, gcsafe.} =
   ## base upgrade method that the transport uses to perform
   ## transport specific upgrades
   ##
 
-  discard
+  doAssert(false, "Not implemented!")
 
-method handles*(t: Transport, address: MultiAddress): bool {.base, gcsafe.} =
+method upgradeOutgoing*(
+  self: Transport,
+  conn: Connection): Future[Connection] {.base, gcsafe.} =
+  ## base upgrade method that the transport uses to perform
+  ## transport specific upgrades
+  ##
+
+  doAssert(false, "Not implemented!")
+
+method handles*(
+  self: Transport,
+  address: MultiAddress): bool {.base, gcsafe.} =
   ## check if transport supports the multiaddress
   ##
 
@@ -83,7 +100,7 @@ method handles*(t: Transport, address: MultiAddress): bool {.base, gcsafe.} =
   if address.protocols.isOk:
     return address.protocols.get().filterIt( it == multiCodec("p2p-circuit") ).len == 0
 
-method localAddress*(t: Transport): MultiAddress {.base, gcsafe.} =
+method localAddress*(self: Transport): MultiAddress {.base, gcsafe.} =
   ## get the local address of the transport in case started with 0.0.0.0:0
   ##
 
