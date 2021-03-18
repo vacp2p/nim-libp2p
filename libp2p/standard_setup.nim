@@ -4,7 +4,7 @@ import
   crypto/crypto, transports/[transport, tcptransport],
   muxers/[muxer, mplex/mplex],
   protocols/[identify, secure/secure, secure/noise],
-  connmanager
+  upgrademngrs/[upgrade, muxedupgrade], connmanager
 
 export
   switch, peerid, peerinfo, connection, multiaddress, crypto
@@ -39,13 +39,10 @@ proc newStandardSwitch*(privKey = none(PrivateKey),
   let
     seckey = privKey.get(otherwise = PrivateKey.random(rng[]).tryGet())
     peerInfo = PeerInfo.init(seckey, [address])
-    mplexProvider = newMuxerProvider(createMplex, MplexCodec)
-    transports = @[Transport(TcpTransport.init(transportFlags))]
-    muxers = {MplexCodec: mplexProvider}.toTable
-    identify = newIdentify(peerInfo)
 
   var
     secureManagerInstances: seq[Secure]
+
   for sec in secureManagers:
     case sec
     of SecureProtocol.Noise:
@@ -53,15 +50,22 @@ proc newStandardSwitch*(privKey = none(PrivateKey),
     of SecureProtocol.Secio:
       quit("Secio is deprecated!") # use of secio is unsafe
 
+  let
+    mplexProvider = newMuxerProvider(createMplex, MplexCodec)
+    ms = newMultistream()
+    identify = newIdentify(peerInfo)
+    muxers = {MplexCodec: mplexProvider}.toTable
+    connManager = ConnManager.init(maxConnsPerPeer, maxConnections, maxIn, maxOut)
+    muxedUpgrade = MuxedUpgrade.init(identify, muxers, secureManagerInstances, connManager, ms)
+    transports = @[Transport(TcpTransport.init(transportFlags, muxedUpgrade))]
+
   let switch = newSwitch(
     peerInfo,
     transports,
     identify,
     muxers,
     secureManagers = secureManagerInstances,
-    maxConnections = maxConnections,
-    maxIn = maxIn,
-    maxOut = maxOut,
-    maxConnsPerPeer = maxConnsPerPeer)
+    connManager = connManager,
+    ms = ms)
 
   return switch
