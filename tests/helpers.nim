@@ -76,6 +76,7 @@ template asyncCancelTest*(name: string, body: untyped): untyped =
       let res = waitFor((
         proc(n: int): Future[bool] {.async, gcsafe.} =
           var testIteration {.inject.} = n
+          checkTrackers()
           body
       )(counter))
       if res:

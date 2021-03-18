@@ -33,8 +33,12 @@ suite "Cancellation test suite":
     checkTrackers()
 
   asyncCancelTest "e2e switch dial cancellation test":
-    var res = false
-    var awaiters: seq[Future[void]]
+    var
+      res = false
+      awaiters: seq[Future[void]]
+      abnormalFailures = 0
+      abnormalFinishes = 0
+
 
     proc handle(conn: Connection, proto: string) {.async, gcsafe.} =
       try:
@@ -51,7 +55,7 @@ suite "Cancellation test suite":
     awaiters.add(await switch1.start())
     awaiters.add(await switch2.start())
 
-    # We testing `switch.dial` procedure.
+    # We are testing `switch.dial` procedure.
     notice "=== Test iteration ", iteration = testIteration
     let connFut = switch2.dial(switch1.peerInfo, TestCodec)
     if connFut.finished():
@@ -75,6 +79,8 @@ suite "Cancellation test suite":
           # Future was finished, so our test is finished.
           if connFut.done():
             await connFut.read().close()
+          else:
+            assert(false)
           res = true
         else:
           connFut.cancel()
@@ -83,7 +89,7 @@ suite "Cancellation test suite":
       if not(connFut.finished()):
         notice "=== Future was not finished right after cancellation",
                state = $connFut.state
-        let wres = await connFut.withTimeout(1.seconds)
+        check: await connFut.withTimeout(1.seconds)
         notice "=== Future state after waiting for completion",
                state = $connFut.state
         case connFut.state
@@ -91,11 +97,13 @@ suite "Cancellation test suite":
           notice "=== Future finished with result",
                  place = $(connFut.location[LocCompleteIndex])
           await connFut.read().close()
+          inc abnormalFinishes
         of FutureState.Failed:
           let exc = connFut.error
           notice "=== Future finished with an exception", name = $exc.name,
                  msg = $exc.msg,
                  place = $(connFut.location[LocCompleteIndex])
+          inc abnormalFailures
         of FutureState.Cancelled:
           notice "=== Future was cancelled"
         of FutureState.Pending:
@@ -107,6 +115,11 @@ suite "Cancellation test suite":
         if connFut.done():
           await connFut.read().close()
 
+    # if any of those happened cancellation was not properly propagated to chronos
+    check:
+      abnormalFailures == 0
+      abnormalFinishes == 0
+
     await allFuturesThrowing(
       switch1.stop(),
       switch2.stop()
@@ -114,4 +127,5 @@ suite "Cancellation test suite":
 
     # this needs to go at end
     await allFuturesThrowing(awaiters)
+
     return res
