@@ -133,24 +133,24 @@ method initStream*(s: LPStream) {.base.} =
 proc join*(s: LPStream): Future[void] =
   s.closeEvent.wait()
 
-method closed*(s: LPStream): bool {.base, raises: [Defect].} =
+method closed*(s: LPStream): bool {.base.} =
   s.isClosed
 
-method atEof*(s: LPStream): bool {.base, raises: [Defect].} =
+method atEof*(s: LPStream): bool {.base.} =
   s.isEof
 
-method readOnce*(s: LPStream,
-                 pbytes: pointer,
-                 nbytes: int):
-                 Future[int]
+method readOnce*(
+  s: LPStream,
+  pbytes: pointer,
+  nbytes: int): Future[int]
   {.base, async, raises: [Defect, LPStreamEOFError].} =
-  doAssert(false, "not implemented!")
+  # doAssert(false, "not implemented!")
+  discard
 
 proc readExactly*(
   s: LPStream,
   pbytes: pointer,
-  nbytes: int):
-  Future[void]
+  nbytes: int): Future[void]
   {.async, raises: [Defect, LPStreamEOFError, LPStreamIncompleteError].} =
 
   if s.atEof:
