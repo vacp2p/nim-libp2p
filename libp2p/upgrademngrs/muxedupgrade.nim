@@ -103,47 +103,67 @@ method upgradeOutgoing*(
 
   return sconn
 
+proc securedMuxableConnection*(
+  self: MuxedUpgrade,
+  conn: Connection,
+  proto: string,
+  ms: MultistreamSelect) {.async, gcsafe.} =
+  ## Secure and handle a muxable incoming
+  ## connection.
+  ##
+  ## This means that the incoming
+  ## connection should be "securable" and
+  ## "muxable".
+  ##
+  ## This is also closely related
+  ## to transports, some could potentially
+  ## not require neither securing nor muxing,
+  ## some might require either one of this.
+  ##
+
+  trace "Starting secure handler", conn
+  let secure = self.secureManagers.filterIt(it.codec == proto)[0]
+  var cconn = conn
+  try:
+    var sconn = await secure.secure(cconn, false)
+    if isNil(sconn):
+      return
+
+    cconn = sconn
+    # add the muxer
+    for muxer in self.muxers.values:
+      ms.addHandler(muxer.codecs, muxer)
+
+    # handle subsequent secure requests
+    await ms.handle(cconn)
+  except CatchableError as exc:
+    debug "Exception in secure handler during incoming upgrade", msg = exc.msg, conn
+    if not cconn.isUpgraded:
+      cconn.upgradeFail(exc)
+  finally:
+    if not isNil(cconn):
+      await cconn.close()
+
+  trace "Stopped secure handler", conn
+
 method upgradeIncoming*(
   self: MuxedUpgrade,
   incomingConn: Connection): Future[void] {.async, gcsafe.} = # noraises
+  ## This is the upgrade flow to handle muxed
+  ## connections
+  ##
   trace "Upgrading incoming connection", incomingConn
   let ms = newMultistream()
-
-  # secure incoming connections
-  proc securedHandler(conn: Connection,
-                      proto: string)
-                      {.async, gcsafe, closure.} =
-    trace "Starting secure handler", conn
-    let secure = self.secureManagers.filterIt(it.codec == proto)[0]
-
-    var cconn = conn
-    try:
-      var sconn = await secure.secure(cconn, false)
-      if isNil(sconn):
-        return
-
-      cconn = sconn
-      # add the muxer
-      for muxer in self.muxers.values:
-        ms.addHandler(muxer.codecs, muxer)
-
-      # handle subsequent secure requests
-      await ms.handle(cconn)
-    except CatchableError as exc:
-      debug "Exception in secure handler during incoming upgrade", msg = exc.msg, conn
-      if not cconn.isUpgraded:
-        cconn.upgrade(exc)
-    finally:
-      if not isNil(cconn):
-        await cconn.close()
-
-    trace "Stopped secure handler", conn
 
   try:
     if (await ms.select(incomingConn)): # just handshake
       # add the secure handlers
       for k in self.secureManagers:
-        ms.addHandler(k.codec, securedHandler)
+        ms.addHandler(
+          k.codec,
+          proc(conn: Connection, proto: string): Future[void] =
+            self.securedMuxableConnection(conn, proto, ms)
+        )
 
     # handle un-secured connections
     # we handshaked above, set this ms handler as active
@@ -151,7 +171,7 @@ method upgradeIncoming*(
   except CatchableError as exc:
     debug "Exception upgrading incoming", exc = exc.msg
     if not incomingConn.isUpgraded:
-      incomingConn.upgrade(exc)
+      incomingConn.upgradeFail(exc)
   finally:
     if not isNil(incomingConn):
       await incomingConn.close()

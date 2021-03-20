@@ -42,13 +42,13 @@ proc isUpgraded*(s: Connection): bool =
   if not isNil(s.upgraded):
     return s.upgraded.finished
 
-proc upgrade*(s: Connection, failed: ref Exception = nil) =
+proc upgradeComplete*(s: Connection) =
   if not isNil(s.upgraded):
-    if not isNil(failed):
-      s.upgraded.fail(failed)
-      return
-
     s.upgraded.complete()
+
+proc upgradeFail*(s: Connection, failed: ref Exception) =
+  if not isNil(s.upgraded) and not isNil(failed):
+    s.upgraded.fail(failed)
 
 proc onUpgrade*(s: Connection) {.async.} =
   if not isNil(s.upgraded):

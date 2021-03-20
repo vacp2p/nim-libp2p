@@ -178,7 +178,7 @@ method closeImpl*(s: BufferStream): Future[void] =
   #
   # - If a push was in progress but no reader is
   # attached we need to pop the queue
-  # - If a read was in progress without without a
+  # - If a read was in progress without a
   # push/data we need to push the Eof marker to
   # notify the reader that the channel closed
   #

@@ -112,7 +112,7 @@ suite "Mplex":
 
       var data = newSeq[byte](6)
       await chann.close() # closing channel
-      # should be able to read on local clsoe
+      # should be able to read on local close
       await chann.readExactly(addr data[0], 3)
       # closing remote end
       let closeFut = chann.pushEof()
