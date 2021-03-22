@@ -41,16 +41,6 @@ const
 type
   TestProto = ref object of LPProtocol
 
-method init(p: TestProto) {.gcsafe, raises: [Defect].} =
-  proc handle(conn: Connection, proto: string) {.async, gcsafe, raises: [Defect].} =
-    let msg = string.fromBytes(await conn.readLp(1024))
-    check "Hello!" == msg
-    await conn.writeLp("Hello!")
-    await conn.close()
-
-  p.codec = TestCodec
-  p.handler = handle
-
 proc createSwitch(ma: MultiAddress; outgoing: bool, secio: bool = false): (Switch, PeerInfo) =
   var peerInfo: PeerInfo = PeerInfo.init(PrivateKey.random(ECDSA, rng[]).get())
   peerInfo.addrs.add(ma)
@@ -237,6 +227,12 @@ suite "Noise":
     await listenFut
 
   asyncTest "e2e use switch dial proto string":
+    proc handle(conn: Connection, proto: string) {.async, gcsafe, raises: [Defect].} =
+      let msg = string.fromBytes(await conn.readLp(1024))
+      check "Hello!" == msg
+      await conn.writeLp("Hello!")
+      await conn.close()
+
     let ma1: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
     let ma2: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
 
@@ -247,8 +243,9 @@ suite "Noise":
     (switch1, peerInfo1) = createSwitch(ma1, false)
 
     let testProto = new TestProto
-    testProto.init()
     testProto.codec = TestCodec
+    testProto.handler = handle
+
     switch1.mount(testProto)
     (switch2, peerInfo2) = createSwitch(ma2, true)
     awaiters.add(await switch1.start())
@@ -265,6 +262,12 @@ suite "Noise":
     await allFuturesThrowing(awaiters)
 
   asyncTest "e2e test wrong secure negotiation":
+    proc handle(conn: Connection, proto: string) {.async, gcsafe, raises: [Defect].} =
+      let msg = string.fromBytes(await conn.readLp(1024))
+      check "Hello!" == msg
+      await conn.writeLp("Hello!")
+      await conn.close()
+
     let ma1: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
     let ma2: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
 
@@ -275,8 +278,8 @@ suite "Noise":
     (switch1, peerInfo1) = createSwitch(ma1, false)
 
     let testProto = new TestProto
-    testProto.init()
     testProto.codec = TestCodec
+    testProto.handler = handle
     switch1.mount(testProto)
     (switch2, peerInfo2) = createSwitch(ma2, true, true) # secio, we want to fail
     awaiters.add(await switch1.start())

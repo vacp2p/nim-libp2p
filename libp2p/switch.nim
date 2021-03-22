@@ -61,24 +61,28 @@ type
       acceptFuts: seq[Future[void]]
       dialer*: Dial
 
-template addConnEventHandler*(s: Switch,
-                          handler: ConnEventHandler,
-                          kind: ConnEventKind) =
+template addConnEventHandler*(
+  s: Switch,
+  handler: ConnEventHandler,
+  kind: ConnEventKind) =
   s.connManager.addConnEventHandler(handler, kind)
 
-template removeConnEventHandler*(s: Switch,
-                             handler: ConnEventHandler,
-                             kind: ConnEventKind) =
+template removeConnEventHandler*(
+  s: Switch,
+  handler: ConnEventHandler,
+  kind: ConnEventKind) =
   s.connManager.removeConnEventHandler(handler, kind)
 
-template addPeerEventHandler*(s: Switch,
-                          handler: PeerEventHandler,
-                          kind: PeerEventKind) =
+template addPeerEventHandler*(
+  s: Switch,
+  handler: PeerEventHandler,
+  kind: PeerEventKind) =
   s.connManager.addPeerEventHandler(handler, kind)
 
-template removePeerEventHandler*(s: Switch,
-                             handler: PeerEventHandler,
-                             kind: PeerEventKind) =
+template removePeerEventHandler*(
+  s: Switch,
+  handler: PeerEventHandler,
+  kind: PeerEventKind) =
   s.connManager.removePeerEventHandler(handler, kind)
 
 proc isConnected*(s: Switch, peerId: PeerID): bool =
