@@ -85,8 +85,6 @@ proc removePeerEventHandler*(s: Switch,
                              kind: PeerEventKind) =
   s.connManager.removePeerEventHandler(handler, kind)
 
-proc disconnect*(s: Switch, peerId: PeerID) {.async, gcsafe.}
-
 proc isConnected*(s: Switch, peerId: PeerID): bool =
   ## returns true if the peer has one or more
   ## associated connections (sockets)

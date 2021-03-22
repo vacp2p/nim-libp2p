@@ -35,7 +35,7 @@ type
     opened*: uint64
     closed*: uint64
 
-proc setupTcpTransportTracker(): TcpTransportTracker {.gcsafe.}
+proc setupTcpTransportTracker(): TcpTransportTracker {.gcsafe, raises: [Defect].}
 
 proc getTcpTransportTracker(): TcpTransportTracker {.gcsafe.} =
   result = cast[TcpTransportTracker](getTracker(TcpTransportTrackerName))
