@@ -207,6 +207,7 @@ jobs:
           nimble test
 
   bumpNBC-stable:
+    if: github.ref == 'refs/heads/master'
     needs: build
     runs-on: ubuntu-latest
     steps:
@@ -246,6 +247,7 @@ jobs:
           title: nim-libp2p auto bump
 
   bumpNBC-unstable:
+    if: github.ref == 'refs/heads/unstable'
     needs: build
     runs-on: ubuntu-latest
     steps:
