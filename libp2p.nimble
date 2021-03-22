@@ -14,7 +14,8 @@ requires "nim >= 1.2.0",
          "chronos#eh-tracking",
          "metrics",
          "secp256k1",
-         "stew#head"
+         "stew#head",
+         "unittest2"
 
 proc runTest(filename: string, verify: bool = true, sign: bool = true,
              moreoptions: string = "") =
