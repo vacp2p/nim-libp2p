@@ -43,6 +43,15 @@ jobs:
         with:
           path: nim-libp2p
           submodules: true
+
+      # TODO: TEMP WORKAROUND UNTIL eh-tracking is merged
+      - name: Checkout nim-chronos
+        uses: actions/checkout@v2
+        with:
+          path: nim-chronos
+          submodules: true
+          branch: eh-tracking
+
       - name: Install build dependencies (Linux i386)
         if: runner.os == 'Linux' && matrix.target.cpu == 'i386'
         run: |
@@ -197,6 +206,13 @@ jobs:
         run: |
           cd nim-libp2p
           V=1 bash scripts/build_p2pd.sh p2pdCache v0.3.0
+
+      - name: nimble devel eh-tracking
+        shell: bash
+        run: |
+          export UCPU="$cpu"
+          cd nim-chronos
+          nimble develop
 
       - name: Run nim-libp2p tests
         shell: bash
