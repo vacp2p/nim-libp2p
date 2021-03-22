@@ -207,18 +207,15 @@ jobs:
           cd nim-libp2p
           V=1 bash scripts/build_p2pd.sh p2pdCache v0.3.0
 
-      - name: nimble devel eh-tracking
+      - name: Run nim-libp2p tests
         shell: bash
         run: |
           export UCPU="$cpu"
           cd nim-chronos
           nimble develop -y
           nimble install -y --depsOnly
+          cd ..
 
-      - name: Run nim-libp2p tests
-        shell: bash
-        run: |
-          export UCPU="$cpu"
           cd nim-libp2p
           nimble install -y --depsOnly
           nimble test
