@@ -212,7 +212,8 @@ jobs:
         run: |
           export UCPU="$cpu"
           cd nim-chronos
-          nimble develop
+          nimble develop -y
+          nimble install -y --depsOnly
 
       - name: Run nim-libp2p tests
         shell: bash
