@@ -1,4 +1,4 @@
-import ./unittest2
+import unittest2
 
 export unittest2
 

@@ -144,8 +144,7 @@ method readOnce*(
   pbytes: pointer,
   nbytes: int): Future[int]
   {.base, async, raises: [Defect, LPStreamEOFError].} =
-  # doAssert(false, "not implemented!")
-  discard
+  doAssert(false, "not implemented!")
 
 proc readExactly*(
   s: LPStream,
