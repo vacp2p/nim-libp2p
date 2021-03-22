@@ -211,13 +211,16 @@ jobs:
         shell: bash
         run: |
           export UCPU="$cpu"
+          cd nim-libp2p
+          nimble install -y --depsOnly
+          cd ..
+
           cd nim-chronos
           nimble develop -y
           nimble install -y --depsOnly
           cd ..
 
           cd nim-libp2p
-          nimble install -y --depsOnly
           nimble test
 
   bumpNBC-stable:
