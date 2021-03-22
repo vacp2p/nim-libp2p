@@ -12,6 +12,7 @@
 ## This module implementes API for `go-libp2p-daemon`.
 import std/[os, osproc, strutils, tables, strtabs]
 import chronos, chronicles
+import chronos/selectors2 # TODO: workaround for missing `IOSelectorsException`
 import ../varint, ../multiaddress, ../multicodec, ../cid, ../peerid
 import ../wire, ../multihash, ../protobuf/minprotobuf, ../errors
 import ../crypto/crypto
