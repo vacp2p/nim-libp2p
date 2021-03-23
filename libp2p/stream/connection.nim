@@ -41,7 +41,7 @@ proc isUpgraded*(s: Connection): bool =
   if not isNil(s.upgraded):
     return s.upgraded.finished
 
-proc upgrade*(s: Connection, failed: ref Exception = nil) =
+proc upgrade*(s: Connection, failed: ref CatchableError = nil) =
   if not isNil(s.upgraded):
     if not isNil(failed):
       s.upgraded.fail(failed)
