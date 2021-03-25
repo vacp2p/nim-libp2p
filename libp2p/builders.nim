@@ -15,112 +15,114 @@ type
     Secio {.deprecated.}
 
   SwitchBuilder* {.byref.} = object
-    bprivKey: Option[PrivateKey]
-    baddress: MultiAddress
-    bsecureManagers: seq[SecureProtocol]
-    btransportFlags: set[ServerFlags]
-    brng: ref BrHmacDrbgContext
-    binTimeout: Duration
-    boutTimeout: Duration
-    bmaxConnections: int
-    bmaxIn: int
-    bmaxOut: int
-    bmaxConnsPerPeer: int
-    bprotoVersion: Option[string]
-    bagentVersion: Option[string]
+    privKey: Option[PrivateKey]
+    address: MultiAddress
+    secureManagers: seq[SecureProtocol]
+    tcpTransportFlags: Option[set[ServerFlags]]
+    rng: ref BrHmacDrbgContext
+    inTimeout: Duration
+    outTimeout: Duration
+    maxConnections: int
+    maxIn: int
+    maxOut: int
+    maxConnsPerPeer: int
+    protoVersion: Option[string]
+    agentVersion: Option[string]
 
 proc init*(_: type[SwitchBuilder]): SwitchBuilder =
   SwitchBuilder(
-    bprivKey: none(PrivateKey),
-    baddress: MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet(),
-    bsecureManagers: @[],
-    btransportFlags: {},
-    brng: newRng(),
-    binTimeout: 5.minutes,
-    boutTimeout: 5.minutes,
-    bmaxConnections: MaxConnections,
-    bmaxIn: -1,
-    bmaxOut: -1,
-    bmaxConnsPerPeer: MaxConnectionsPerPeer,
-    bprotoVersion: none(string),
-    bagentVersion: none(string))
+    privKey: none(PrivateKey),
+    address: MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet(),
+    secureManagers: @[],
+    tcpTransportFlags: block:
+      let flags: set[ServerFlags] = {}
+      some(flags),
+    rng: newRng(),
+    inTimeout: 5.minutes,
+    outTimeout: 5.minutes,
+    maxConnections: MaxConnections,
+    maxIn: -1,
+    maxOut: -1,
+    maxConnsPerPeer: MaxConnectionsPerPeer,
+    protoVersion: none(string),
+    agentVersion: none(string))
 
 # so I tried using var inpit and return but did not work...
 # as in proc privateKey*(builder: var SwitchBuilder, privateKey: PrivateKey): var SwitchBuilder =
 # so in nim we are stuck with this hardly efficient way and hopey compiler figures it out.. heh
 # maybe {.byref.} works.... I would not bet on it but let's use it.
 
-proc privateKey*(builder: SwitchBuilder, privateKey: PrivateKey): SwitchBuilder =
+proc withPrivateKey*(builder: SwitchBuilder, privateKey: PrivateKey): SwitchBuilder =
   var b = builder
-  b.bprivKey = some(privateKey)
+  b.privKey = some(privateKey)
   b
 
-proc address*(builder: SwitchBuilder, address: MultiAddress): SwitchBuilder =
+proc withAddress*(builder: SwitchBuilder, address: MultiAddress): SwitchBuilder =
   var b = builder
-  b.baddress = address
+  b.address = address
   b
 
-proc secureManager*(builder: SwitchBuilder, secureManager: SecureProtocol): SwitchBuilder =
+proc withSecureManager*(builder: SwitchBuilder, secureManager: SecureProtocol): SwitchBuilder =
   var b = builder
-  b.bsecureManagers &= secureManager
+  b.secureManagers &= secureManager
   b
 
-proc transportFlag*(builder: SwitchBuilder, flag: ServerFlags): SwitchBuilder =
+proc withTcpTransport*(builder: SwitchBuilder, flags: set[ServerFlags] = {}): SwitchBuilder =
   var b = builder
-  b.btransportFlags = b.btransportFlags + {flag}
+  b.tcpTransportFlags = some(flags)
   b
 
-proc rng*(builder: SwitchBuilder, rng: ref BrHmacDrbgContext): SwitchBuilder =
+proc withRng*(builder: SwitchBuilder, rng: ref BrHmacDrbgContext): SwitchBuilder =
   var b = builder
-  b.brng = rng
+  b.rng = rng
   b
 
-proc inTimeout*(builder: SwitchBuilder, inTimeout: Duration): SwitchBuilder =
+proc withInTimeout*(builder: SwitchBuilder, inTimeout: Duration): SwitchBuilder =
   var b = builder
-  b.binTimeout = inTimeout
+  b.inTimeout = inTimeout
   b
 
-proc outTimeout*(builder: SwitchBuilder, outTimeout: Duration): SwitchBuilder =
+proc withOutTimeout*(builder: SwitchBuilder, outTimeout: Duration): SwitchBuilder =
   var b = builder
-  b.boutTimeout = outTimeout
+  b.outTimeout = outTimeout
   b
 
-proc maxConnections*(builder: SwitchBuilder, maxConnections: int): SwitchBuilder =
+proc withMaxConnections*(builder: SwitchBuilder, maxConnections: int): SwitchBuilder =
   var b = builder
-  b.bmaxConnections = maxConnections
+  b.maxConnections = maxConnections
   b
 
-proc maxIn*(builder: SwitchBuilder, maxIn: int): SwitchBuilder =
+proc withMaxIn*(builder: SwitchBuilder, maxIn: int): SwitchBuilder =
   var b = builder
-  b.bmaxIn = maxIn
+  b.maxIn = maxIn
   b
 
-proc maxOut*(builder: SwitchBuilder, maxOut: int): SwitchBuilder =
+proc withMaxOut*(builder: SwitchBuilder, maxOut: int): SwitchBuilder =
   var b = builder
-  b.bmaxOut = maxOut
+  b.maxOut = maxOut
   b
 
-proc maxConnsPerPeer*(builder: SwitchBuilder, maxConnsPerPeer: int): SwitchBuilder =
+proc withMaxConnsPerPeer*(builder: SwitchBuilder, maxConnsPerPeer: int): SwitchBuilder =
   var b = builder
-  b.bmaxConnsPerPeer = maxConnsPerPeer
+  b.maxConnsPerPeer = maxConnsPerPeer
   b
 
-proc protoVersion*(builder: SwitchBuilder, protoVersion: string): SwitchBuilder =
+proc withProtoVersion*(builder: SwitchBuilder, protoVersion: string): SwitchBuilder =
   var b = builder
-  b.bprotoVersion = some(protoVersion)
+  b.protoVersion = some(protoVersion)
   b
 
-proc agentVersion*(builder: SwitchBuilder, agentVersion: string): SwitchBuilder =
+proc withAgentVersion*(builder: SwitchBuilder, agentVersion: string): SwitchBuilder =
   var b = builder
-  b.bagentVersion = some(agentVersion)
+  b.agentVersion = some(agentVersion)
   b
 
 proc build*(builder: SwitchBuilder): Switch =
   var b = builder
 
   let
-    inTimeout = b.binTimeout
-    outTimeout = b.boutTimeout
+    inTimeout = b.inTimeout
+    outTimeout = b.outTimeout
 
   proc createMplex(conn: Connection): Muxer =
     Mplex.init(
@@ -128,32 +130,36 @@ proc build*(builder: SwitchBuilder): Switch =
       inTimeout = inTimeout,
       outTimeout = outTimeout)
 
-  if b.brng == nil: # newRng could fail
+  if b.rng == nil: # newRng could fail
     raise (ref CatchableError)(msg: "Cannot initialize RNG")
 
   let
-    seckey = b.bprivKey.get(otherwise = PrivateKey.random(b.brng[]).tryGet())
+    seckey = b.privKey.get(otherwise = PrivateKey.random(b.rng[]).tryGet())
     peerInfo = block:
-      let info = PeerInfo.init(seckey, [b.baddress])
-      if b.bprotoVersion.isSome():
-        info.protoVersion = b.bprotoVersion.get()
-      if b.bagentVersion.isSome():
-        info.agentVersion = b.bagentVersion.get()
+      let info = PeerInfo.init(seckey, [b.address])
+      if b.protoVersion.isSome():
+        info.protoVersion = b.protoVersion.get()
+      if b.agentVersion.isSome():
+        info.agentVersion = b.agentVersion.get()
       info
     mplexProvider = newMuxerProvider(createMplex, MplexCodec)
-    transports = @[Transport(TcpTransport.init(b.btransportFlags))]
+    transports = block:
+      var transports: seq[Transport]
+      if b.tcpTransportFlags.isSome():
+        transports &= Transport(TcpTransport.init(b.tcpTransportFlags.get()))
+      transports
     muxers = {MplexCodec: mplexProvider}.toTable
     identify = newIdentify(peerInfo)
 
-  if b.bsecureManagers.len == 0:
-    b.bsecureManagers &= SecureProtocol.Noise
+  if b.secureManagers.len == 0:
+    b.secureManagers &= SecureProtocol.Noise
 
   var
     secureManagerInstances: seq[Secure]
-  for sec in b.bsecureManagers:
+  for sec in b.secureManagers:
     case sec
     of SecureProtocol.Noise:
-      secureManagerInstances &= newNoise(b.brng, seckey).Secure
+      secureManagerInstances &= newNoise(b.rng, seckey).Secure
     of SecureProtocol.Secio:
       quit("Secio is deprecated!") # use of secio is unsafe
 
@@ -163,10 +169,10 @@ proc build*(builder: SwitchBuilder): Switch =
     identify,
     muxers,
     secureManagers = secureManagerInstances,
-    maxConnections = b.bmaxConnections,
-    maxIn = b.bmaxIn,
-    maxOut = b.bmaxOut,
-    maxConnsPerPeer = b.bmaxConnsPerPeer)
+    maxConnections = b.maxConnections,
+    maxIn = b.maxIn,
+    maxOut = b.maxOut,
+    maxConnsPerPeer = b.maxConnsPerPeer)
 
   return switch
 
@@ -185,22 +191,20 @@ proc newStandardSwitch*(privKey = none(PrivateKey),
                         maxConnsPerPeer = MaxConnectionsPerPeer): Switch =
   var b = SwitchBuilder
     .init()
-    .address(address)
-    .rng(rng)
-    .inTimeout(inTimeout)
-    .outTimeout(outTimeout)
-    .maxConnections(maxConnections)
-    .maxIn(maxIn)
-    .maxOut(maxOut)
-    .maxConnsPerPeer(maxConnsPerPeer)
+    .withAddress(address)
+    .withRng(rng)
+    .withInTimeout(inTimeout)
+    .withOutTimeout(outTimeout)
+    .withMaxConnections(maxConnections)
+    .withMaxIn(maxIn)
+    .withMaxOut(maxOut)
+    .withMaxConnsPerPeer(maxConnsPerPeer)
+    .withTcpTransport(transportFlags)
 
   if privKey.isSome():
-    b = b.privateKey(privKey.get())
+    b = b.withPrivateKey(privKey.get())
 
   for sm in secureManagers:
-    b = b.secureManager(sm)
-
-  for flag in transportFlags:
-    b = b.transportFlag(flag)
+    b = b.withSecureManager(sm)
 
   b.build()
