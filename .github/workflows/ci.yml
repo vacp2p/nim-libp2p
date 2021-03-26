@@ -207,6 +207,7 @@ jobs:
           nimble test
 
   bumpNBC-stable:
+    if: github.ref == 'refs/heads/master'
     needs: build
     runs-on: ubuntu-latest
     steps:
@@ -221,6 +222,7 @@ jobs:
         uses: actions/checkout@v2
         with:
           repository: status-im/nimbus-eth2
+          ref: unstable
           path: nbc
           submodules: true
           fetch-depth: 0
@@ -246,6 +248,7 @@ jobs:
           title: nim-libp2p auto bump
 
   bumpNBC-unstable:
+    if: github.ref == 'refs/heads/unstable'
     needs: build
     runs-on: ubuntu-latest
     steps:
