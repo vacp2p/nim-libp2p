@@ -14,7 +14,7 @@ type
     Noise,
     Secio {.deprecated.}
 
-  SwitchBuilder* {.byref.} = object
+  SwitchBuilder* = ref object
     privKey: Option[PrivateKey]
     address: MultiAddress
     secureManagers: seq[SecureProtocol]
@@ -52,74 +52,59 @@ proc init*(_: type[SwitchBuilder]): SwitchBuilder =
 # so in nim we are stuck with this hardly efficient way and hopey compiler figures it out.. heh
 # maybe {.byref.} works.... I would not bet on it but let's use it.
 
-proc withPrivateKey*(builder: SwitchBuilder, privateKey: PrivateKey): SwitchBuilder =
-  var b = builder
+proc withPrivateKey*(b: SwitchBuilder, privateKey: PrivateKey): SwitchBuilder =
   b.privKey = some(privateKey)
   b
 
-proc withAddress*(builder: SwitchBuilder, address: MultiAddress): SwitchBuilder =
-  var b = builder
+proc withAddress*(b: SwitchBuilder, address: MultiAddress): SwitchBuilder =
   b.address = address
   b
 
-proc withSecureManager*(builder: SwitchBuilder, secureManager: SecureProtocol): SwitchBuilder =
-  var b = builder
+proc withSecureManager*(b: SwitchBuilder, secureManager: SecureProtocol): SwitchBuilder =
   b.secureManagers &= secureManager
   b
 
-proc withTcpTransport*(builder: SwitchBuilder, flags: set[ServerFlags] = {}): SwitchBuilder =
-  var b = builder
+proc withTcpTransport*(b: SwitchBuilder, flags: set[ServerFlags] = {}): SwitchBuilder =
   b.tcpTransportFlags = some(flags)
   b
 
-proc withRng*(builder: SwitchBuilder, rng: ref BrHmacDrbgContext): SwitchBuilder =
-  var b = builder
+proc withRng*(b: SwitchBuilder, rng: ref BrHmacDrbgContext): SwitchBuilder =
   b.rng = rng
   b
 
-proc withInTimeout*(builder: SwitchBuilder, inTimeout: Duration): SwitchBuilder =
-  var b = builder
+proc withInTimeout*(b: SwitchBuilder, inTimeout: Duration): SwitchBuilder =
   b.inTimeout = inTimeout
   b
 
-proc withOutTimeout*(builder: SwitchBuilder, outTimeout: Duration): SwitchBuilder =
-  var b = builder
+proc withOutTimeout*(b: SwitchBuilder, outTimeout: Duration): SwitchBuilder =
   b.outTimeout = outTimeout
   b
 
-proc withMaxConnections*(builder: SwitchBuilder, maxConnections: int): SwitchBuilder =
-  var b = builder
+proc withMaxConnections*(b: SwitchBuilder, maxConnections: int): SwitchBuilder =
   b.maxConnections = maxConnections
   b
 
-proc withMaxIn*(builder: SwitchBuilder, maxIn: int): SwitchBuilder =
-  var b = builder
+proc withMaxIn*(b: SwitchBuilder, maxIn: int): SwitchBuilder =
   b.maxIn = maxIn
   b
 
-proc withMaxOut*(builder: SwitchBuilder, maxOut: int): SwitchBuilder =
-  var b = builder
+proc withMaxOut*(b: SwitchBuilder, maxOut: int): SwitchBuilder =
   b.maxOut = maxOut
   b
 
-proc withMaxConnsPerPeer*(builder: SwitchBuilder, maxConnsPerPeer: int): SwitchBuilder =
-  var b = builder
+proc withMaxConnsPerPeer*(b: SwitchBuilder, maxConnsPerPeer: int): SwitchBuilder =
   b.maxConnsPerPeer = maxConnsPerPeer
   b
 
-proc withProtoVersion*(builder: SwitchBuilder, protoVersion: string): SwitchBuilder =
-  var b = builder
+proc withProtoVersion*(b: SwitchBuilder, protoVersion: string): SwitchBuilder =
   b.protoVersion = some(protoVersion)
   b
 
-proc withAgentVersion*(builder: SwitchBuilder, agentVersion: string): SwitchBuilder =
-  var b = builder
+proc withAgentVersion*(b: SwitchBuilder, agentVersion: string): SwitchBuilder =
   b.agentVersion = some(agentVersion)
   b
 
-proc build*(builder: SwitchBuilder): Switch =
-  var b = builder
-
+proc build*(b: SwitchBuilder): Switch =
   let
     inTimeout = b.inTimeout
     outTimeout = b.outTimeout
