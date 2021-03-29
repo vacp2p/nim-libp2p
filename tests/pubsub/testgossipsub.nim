@@ -554,6 +554,63 @@ suite "GossipSub":
 
     await allFuturesThrowing(nodesFut.concat())
 
+  asyncTest "e2e - GossipSub send over floodPublish A -> B":
+    var passed: Future[bool] = newFuture[bool]()
+    proc handler(topic: string, data: seq[byte]) {.async, gcsafe.} =
+      check topic == "foobar"
+      passed.complete(true)
+
+    let
+      nodes = generateNodes(
+        2,
+        gossip = true)
+
+      # start switches
+      nodesFut = await allFinished(
+        nodes[0].switch.start(),
+        nodes[1].switch.start(),
+      )
+
+    # start pubsub
+    await allFuturesThrowing(
+      allFinished(
+        nodes[0].start(),
+        nodes[1].start(),
+    ))
+
+    var gossip1: GossipSub = GossipSub(nodes[0])
+    gossip1.parameters.floodPublish = true
+    var gossip2: GossipSub = GossipSub(nodes[1])
+    gossip2.parameters.floodPublish = true
+
+    await subscribeNodes(nodes)
+
+    # nodes[0].subscribe("foobar", handler)
+    nodes[1].subscribe("foobar", handler)
+    await waitSub(nodes[0], nodes[1], "foobar")
+
+    tryPublish await nodes[0].publish("foobar", "Hello!".toBytes()), 1
+
+    check await passed
+
+    check:
+      "foobar" in gossip1.gossipsub
+      "foobar" notin gossip2.gossipsub
+      not gossip1.mesh.hasPeerID("foobar", gossip2.peerInfo.peerId)
+      not gossip1.fanout.hasPeerID("foobar", gossip2.peerInfo.peerId)
+
+    await allFuturesThrowing(
+      nodes[0].switch.stop(),
+      nodes[1].switch.stop()
+    )
+
+    await allFuturesThrowing(
+      nodes[0].stop(),
+      nodes[1].stop()
+    )
+
+    await allFuturesThrowing(nodesFut.concat())
+
   asyncTest "e2e - GossipSub with multiple peers":
     var runs = 10
 
