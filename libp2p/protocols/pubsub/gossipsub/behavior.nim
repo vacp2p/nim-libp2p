@@ -80,6 +80,7 @@ proc peerExchangeList*(g: GossipSub, topic: string): seq[PeerInfoMsg] {.raises: 
 proc handleGraft*(g: GossipSub,
                  peer: PubSubPeer,
                  grafts: seq[ControlGraft]): seq[ControlPrune] = # {.raises: [Defect].} TODO chronicles exception on windows
+  var prunes: seq[ControlPrune]
   for graft in grafts:
     let topic = graft.topicID
     trace "peer grafted topic", peer, topic
@@ -90,7 +91,7 @@ proc handleGraft*(g: GossipSub,
       warn "attempt to graft an explicit peer, peering agreements should be reciprocal",
         peer, topic
       # and such an attempt should be logged and rejected with a PRUNE
-      result.add(ControlPrune(
+      prunes.add(ControlPrune(
         topicID: topic,
         peers: @[], # omitting heavy computation here as the remote did something illegal
         backoff: g.parameters.pruneBackoff.seconds.uint64))
@@ -108,7 +109,7 @@ proc handleGraft*(g: GossipSub,
           .getOrDefault(peer.peerId) > Moment.now():
       debug "attempt to graft a backingOff peer", peer, topic
       # and such an attempt should be logged and rejected with a PRUNE
-      result.add(ControlPrune(
+      prunes.add(ControlPrune(
         topicID: topic,
         peers: @[], # omitting heavy computation here as the remote did something illegal
         backoff: g.parameters.pruneBackoff.seconds.uint64))
@@ -141,13 +142,15 @@ proc handleGraft*(g: GossipSub,
       else:
         trace "pruning grafting peer, mesh full",
           peer, topic, score = peer.score, mesh = g.mesh.peers(topic)
-        result.add(ControlPrune(
+        prunes.add(ControlPrune(
           topicID: topic,
           peers: g.peerExchangeList(topic),
           backoff: g.parameters.pruneBackoff.seconds.uint64))
     else:
       trace "peer grafting topic we're not interested in", peer, topic
       # gossip 1.1, we do not send a control message prune anymore
+
+  return prunes
 
 proc handlePrune*(g: GossipSub, peer: PubSubPeer, prunes: seq[ControlPrune]) {.raises: [Defect].} =
   for prune in prunes:
@@ -183,6 +186,7 @@ proc handlePrune*(g: GossipSub, peer: PubSubPeer, prunes: seq[ControlPrune]) {.r
 proc handleIHave*(g: GossipSub,
                  peer: PubSubPeer,
                  ihaves: seq[ControlIHave]): ControlIWant {.raises: [Defect].} =
+  var res: ControlIWant
   if peer.score < g.parameters.gossipThreshold:
     trace "ihave: ignoring low score peer", peer, score = peer.score
   elif peer.iHaveBudget <= 0:
@@ -202,18 +206,20 @@ proc handleIHave*(g: GossipSub,
           let msgId = m & g.randomBytes
           if msgId notin g.seen:
             if peer.iHaveBudget > 0:
-              result.messageIDs.add(m)
+              res.messageIDs.add(m)
               dec peer.iHaveBudget
+              trace "requested message via ihave", messageID=msgId
             else:
-              return
-
-    # shuffling result.messageIDs before sending it out to increase the likelihood
+              break
+    # shuffling res.messageIDs before sending it out to increase the likelihood
     # of getting an answer if the peer truncates the list due to internal size restrictions.
-    shuffle(result.messageIDs)
+    shuffle(res.messageIDs)
+    return res
 
 proc handleIWant*(g: GossipSub,
                  peer: PubSubPeer,
                  iwants: seq[ControlIWant]): seq[Message] {.raises: [Defect].} =
+  var messages: seq[Message]
   if peer.score < g.parameters.gossipThreshold:
     trace "iwant: ignoring low score peer", peer, score = peer.score
   elif peer.iWantBudget <= 0:
@@ -228,10 +234,11 @@ proc handleIWant*(g: GossipSub,
         if msg.isSome:
           # avoid spam
           if peer.iWantBudget > 0:
-            result.add(msg.get())
+            messages.add(msg.get())
             dec peer.iWantBudget
           else:
-            return
+            break
+  return messages
 
 proc commitMetrics(metrics: var MeshMetrics) {.raises: [Defect].} =
   libp2p_gossipsub_low_peers_topics.set(metrics.lowPeersTopics)
@@ -486,9 +493,10 @@ proc getGossipPeers*(g: GossipSub): Table[PubSubPeer, ControlMessage] {.raises: 
   ##
 
   var cacheWindowSize = 0
+  var control: Table[PubSubPeer, ControlMessage]
 
-  trace "getting gossip peers (iHave)"
   let topics = toHashSet(toSeq(g.mesh.keys)) + toHashSet(toSeq(g.fanout.keys))
+  trace "getting gossip peers (iHave)", ntopics=topics.len
   for topic in topics:
     if topic notin g.gossipsub:
       trace "topic not in gossip array, skipping", topicID = topic
@@ -496,11 +504,14 @@ proc getGossipPeers*(g: GossipSub): Table[PubSubPeer, ControlMessage] {.raises: 
 
     let mids = g.mcache.window(topic)
     if not(mids.len > 0):
+      trace "no messages to emit"
       continue
 
     var midsSeq = toSeq(mids)
 
     cacheWindowSize += midsSeq.len
+
+    trace "got messages to emit", size=midsSeq.len
 
     # not in spec
     # similar to rust: https://github.com/sigp/rust-libp2p/blob/f53d02bc873fef2bf52cd31e3d5ce366a41d8a8c/protocols/gossipsub/src/behaviour.rs#L2101
@@ -531,9 +542,11 @@ proc getGossipPeers*(g: GossipSub): Table[PubSubPeer, ControlMessage] {.raises: 
       allPeers.setLen(target)
 
     for peer in allPeers:
-      result.mGetOrPut(peer, ControlMessage()).ihave.add(ihave)
+      control.mGetOrPut(peer, ControlMessage()).ihave.add(ihave)
 
   libp2p_gossipsub_cache_window_size.set(cacheWindowSize.int64)
+
+  return control
 
 proc onHeartbeat(g: GossipSub) {.raises: [Defect].} =
     # reset IWANT budget

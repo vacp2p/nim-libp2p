@@ -38,7 +38,7 @@ proc generateNodes*(
         sign = sign,
         msgIdProvider = msgIdProvider,
         anonymize = anonymize,
-        parameters = (var p = GossipSubParams.init(); p.floodPublish = false; p))
+        parameters = (var p = GossipSubParams.init(); p.floodPublish = false; p.historyLength = 20; p.historyGossip = 20; p))
       # set some testing params, to enable scores
       g.topicParams.mgetOrPut("foobar", TopicParams.init()).topicWeight = 1.0
       g.topicParams.mgetOrPut("foo", TopicParams.init()).topicWeight = 1.0

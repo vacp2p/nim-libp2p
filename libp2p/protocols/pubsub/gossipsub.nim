@@ -377,7 +377,7 @@ method rpcHandler*(g: GossipSub,
     # also have to be careful to only include validated messages
     let sendingTo = toSeq(toSendPeers)
     g.broadcast(sendingTo, RPCMsg(messages: @[msg]))
-    trace "forwared message to peers", peers = sendingTo.len, msgId, peer
+    trace "forwarded message to peers", peers = sendingTo.len, msgId, peer
     for topic in msg.topicIDs:
       if g.knownTopics.contains(topic):
         libp2p_pubsub_messages_rebroadcasted.inc(sendingTo.len.int64, labelValues = [topic])
@@ -393,8 +393,10 @@ method rpcHandler*(g: GossipSub,
     respControl.prune.add(g.handleGraft(peer, control.graft))
     let messages = g.handleIWant(peer, control.iwant)
 
-    if respControl.graft.len > 0 or respControl.prune.len > 0 or
-      respControl.ihave.len > 0 or messages.len > 0:
+    if respControl.graft.len > 0 or
+      respControl.prune.len > 0 or
+      respControl.iwant.len > 0 or
+      messages.len > 0:
       # iwant and prunes from here, also messages
 
       for smsg in messages:
@@ -554,7 +556,7 @@ method publish*(g: GossipSub,
   else:
     libp2p_pubsub_messages_published.inc(peerSeq.len.int64, labelValues = ["generic"])
 
-  trace "Published message to peers"
+  trace "Published message to peers", peers=peers.len
 
   return peers.len
 
