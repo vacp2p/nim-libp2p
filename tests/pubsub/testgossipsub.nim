@@ -716,6 +716,68 @@ suite "GossipSub":
 
     await allFuturesThrowing(nodesFut)
 
+  asyncTest "e2e - GossipSub with multiple peers - control deliver (sparse)":
+    var runs = 10
+
+    let
+      nodes = generateNodes(runs, gossip = true, triggerSelf = true)
+      nodesFut = nodes.mapIt(it.switch.start())
+
+    await allFuturesThrowing(nodes.mapIt(it.start()))
+    await subscribeSparseNodes(nodes)
+
+    var seen: Table[string, int]
+    var seenFut = newFuture[void]()
+    for i in 0..<nodes.len:
+      let dialer = nodes[i]
+      var handler: TopicHandler
+      closureScope:
+        var peerName = $dialer.peerInfo.peerId
+        handler = proc(topic: string, data: seq[byte]) {.async, gcsafe, closure.} =
+          if peerName notin seen:
+            seen[peerName] = 0
+          seen[peerName].inc
+          check topic == "foobar"
+          if not seenFut.finished() and seen.len >= runs:
+            seenFut.complete()
+
+      dialer.subscribe("foobar", handler)
+      await waitSub(nodes[0], dialer, "foobar")
+
+    let dgossip = GossipSub(nodes[0])
+    dgossip.parameters.dHigh = 4
+    dgossip.parameters.dLow = 2
+    dgossip.parameters.d = 3
+    dgossip.rebalanceMesh("foobar")
+
+    # we want to test ping pong deliveries via control Iwant/Ihave, so we publish just in a tap
+    let publishedTo = nodes[0]
+      .publish("foobar", toBytes("from node " & $nodes[0].peerInfo.peerId))
+      .await
+    check:
+      publishedTo != 0
+      publishedTo != runs
+
+    await wait(seenFut, 5.minutes)
+    check: seen.len >= runs
+    for k, v in seen.pairs:
+      check: v >= 1
+
+    for node in nodes:
+      var gossip = GossipSub(node)
+      check:
+        "foobar" in gossip.gossipsub
+        gossip.fanout.len == 0
+        gossip.mesh["foobar"].len > 0
+
+    await allFuturesThrowing(
+      nodes.mapIt(
+        allFutures(
+          it.stop(),
+          it.switch.stop())))
+
+    await allFuturesThrowing(nodesFut)
+
   asyncTest "GossipSub invalid topic subscription":
     var handlerFut = newFuture[bool]()
     proc handler(topic: string, data: seq[byte]) {.async, gcsafe.} =
