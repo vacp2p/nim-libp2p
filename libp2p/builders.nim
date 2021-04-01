@@ -28,6 +28,8 @@ type
     maxConnsPerPeer: int
     protoVersion: Option[string]
     agentVersion: Option[string]
+    externalAddress: Option[MultiAddress]
+    addressProvider: Option[CurrentAddressProvider]
 
 proc init*(_: type[SwitchBuilder]): SwitchBuilder =
   SwitchBuilder(
@@ -104,6 +106,14 @@ proc withAgentVersion*(b: SwitchBuilder, agentVersion: string): SwitchBuilder =
   b.agentVersion = some(agentVersion)
   b
 
+proc withExternalAddress*(b: SwitchBuilder, address: MultiAddress): SwitchBuilder =
+  b.externalAddress = some(address)
+  b
+
+proc withAddressProvider*(b: SwitchBuilder, provider: CurrentAddressProvider): SwitchBuilder =
+  b.addressProvider = some(provider)
+  b
+
 proc build*(b: SwitchBuilder): Switch =
   let
     inTimeout = b.inTimeout
@@ -134,8 +144,13 @@ proc build*(b: SwitchBuilder): Switch =
         transports &= Transport(TcpTransport.init(b.tcpTransportFlags.get()))
       transports
     muxers = {MplexCodec: mplexProvider}.toTable
-    identify = newIdentify(peerInfo)
-
+    identify = block:
+      if b.addressProvider.isSome():
+        newIdentify(peerInfo, b.addressProvider.get())
+      elif b.externalAddress.isSome():
+        newIdentify(peerInfo, proc(): MultiAddress = b.externalAddress.get())
+      else:
+        newIdentify(peerInfo)
   if b.secureManagers.len == 0:
     b.secureManagers &= SecureProtocol.Noise
 
