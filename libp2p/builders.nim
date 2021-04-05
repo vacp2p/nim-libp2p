@@ -29,8 +29,6 @@ type
     mplexOpts: MplexOpts
     tcpTransportOpts: TcpTransportOpts
     rng: ref BrHmacDrbgContext
-    inTimeout: Duration
-    outTimeout: Duration
     maxConnections: int
     maxIn: int
     maxOut: int
