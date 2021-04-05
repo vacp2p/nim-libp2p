@@ -18,7 +18,9 @@
 
 ## Introduction
 
-An implementation of [libp2p](https://libp2p.io/) in Nim. Also provides a Nim wrapper of the [Libp2p Go daemon](https://github.com/libp2p/go-libp2p).
+An implementation of [libp2p](https://libp2p.io/) in Nim.
+
+Also optionally provides a Nim wrapper of the [Libp2p Go daemon](https://github.com/libp2p/go-libp2p).
 
 ## Project Status
 The current native Nim libp2p implementation support is experimental and shouldn't be relied on for production use. It is under active development and contributions are highly welcomed. :)
@@ -88,12 +90,6 @@ git clone https://github.com/status-im/nim-libp2p
 cd nim-libp2p
 nimble install
 ```
-
-### Tests
-
-#### Prerequisite
-- [Go 1.12+](https://golang.org/dl/)
-
 #### Run unit tests
 ```sh
 # run all the unit tests
