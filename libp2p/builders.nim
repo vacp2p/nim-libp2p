@@ -14,43 +14,41 @@ type
     Noise,
     Secio {.deprecated.}
 
+  TcpTransportOpts = object
+    enable: bool
+    flags: set[ServerFlags]
+
+  MplexOpts = object
+    enable: bool
+    newMuxer: MuxerConstructor
+
   SwitchBuilder* = ref object
     privKey: Option[PrivateKey]
     address: MultiAddress
     secureManagers: seq[SecureProtocol]
-    tcpTransportFlags: Option[set[ServerFlags]]
+    mplexOpts: MplexOpts
+    tcpTransportOpts: TcpTransportOpts
     rng: ref BrHmacDrbgContext
-    inTimeout: Duration
-    outTimeout: Duration
     maxConnections: int
     maxIn: int
     maxOut: int
     maxConnsPerPeer: int
-    protoVersion: Option[string]
-    agentVersion: Option[string]
+    protoVersion: string
+    agentVersion: string
 
-proc init*(_: type[SwitchBuilder]): SwitchBuilder =
+proc init*(T: type[SwitchBuilder]): T =
   SwitchBuilder(
     privKey: none(PrivateKey),
     address: MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet(),
     secureManagers: @[],
-    tcpTransportFlags: block:
-      let flags: set[ServerFlags] = {}
-      some(flags),
+    tcpTransportOpts: TcpTransportOpts(),
     rng: newRng(),
-    inTimeout: 5.minutes,
-    outTimeout: 5.minutes,
     maxConnections: MaxConnections,
     maxIn: -1,
     maxOut: -1,
     maxConnsPerPeer: MaxConnectionsPerPeer,
-    protoVersion: none(string),
-    agentVersion: none(string))
-
-# so I tried using var inpit and return but did not work...
-# as in proc privateKey*(builder: var SwitchBuilder, privateKey: PrivateKey): var SwitchBuilder =
-# so in nim we are stuck with this hardly efficient way and hopey compiler figures it out.. heh
-# maybe {.byref.} works.... I would not bet on it but let's use it.
+    protoVersion: ProtoVersion,
+    agentVersion: AgentVersion)
 
 proc withPrivateKey*(b: SwitchBuilder, privateKey: PrivateKey): SwitchBuilder =
   b.privKey = some(privateKey)
@@ -60,24 +58,31 @@ proc withAddress*(b: SwitchBuilder, address: MultiAddress): SwitchBuilder =
   b.address = address
   b
 
-proc withSecureManager*(b: SwitchBuilder, secureManager: SecureProtocol): SwitchBuilder =
-  b.secureManagers &= secureManager
+proc withMplex*(b: SwitchBuilder, inTimeout = 5.minutes, outTimeout = 5.minutes): SwitchBuilder =
+  proc newMuxer(conn: Connection): Muxer =
+    Mplex.init(
+      conn,
+      inTimeout = inTimeout,
+      outTimeout = outTimeout)
+
+  b.mplexOpts = MplexOpts(
+    enable: true,
+    newMuxer: newMuxer,
+  )
+
+  b
+
+proc withNoise*(b: SwitchBuilder): SwitchBuilder =
+  b.secureManagers.add(SecureProtocol.Noise)
   b
 
 proc withTcpTransport*(b: SwitchBuilder, flags: set[ServerFlags] = {}): SwitchBuilder =
-  b.tcpTransportFlags = some(flags)
+  b.tcpTransportOpts.enable = true
+  b.tcpTransportOpts.flags = flags
   b
 
 proc withRng*(b: SwitchBuilder, rng: ref BrHmacDrbgContext): SwitchBuilder =
   b.rng = rng
-  b
-
-proc withInTimeout*(b: SwitchBuilder, inTimeout: Duration): SwitchBuilder =
-  b.inTimeout = inTimeout
-  b
-
-proc withOutTimeout*(b: SwitchBuilder, outTimeout: Duration): SwitchBuilder =
-  b.outTimeout = outTimeout
   b
 
 proc withMaxConnections*(b: SwitchBuilder, maxConnections: int): SwitchBuilder =
@@ -97,62 +102,58 @@ proc withMaxConnsPerPeer*(b: SwitchBuilder, maxConnsPerPeer: int): SwitchBuilder
   b
 
 proc withProtoVersion*(b: SwitchBuilder, protoVersion: string): SwitchBuilder =
-  b.protoVersion = some(protoVersion)
+  b.protoVersion = protoVersion
   b
 
 proc withAgentVersion*(b: SwitchBuilder, agentVersion: string): SwitchBuilder =
-  b.agentVersion = some(agentVersion)
+  b.agentVersion = agentVersion
   b
 
 proc build*(b: SwitchBuilder): Switch =
-  let
-    inTimeout = b.inTimeout
-    outTimeout = b.outTimeout
-
-  proc createMplex(conn: Connection): Muxer =
-    Mplex.init(
-      conn,
-      inTimeout = inTimeout,
-      outTimeout = outTimeout)
-
   if b.rng == nil: # newRng could fail
     raise (ref CatchableError)(msg: "Cannot initialize RNG")
 
   let
     seckey = b.privKey.get(otherwise = PrivateKey.random(b.rng[]).tryGet())
+
+  var
+    secureManagerInstances: seq[Secure]
+  if SecureProtocol.Noise in b.secureManagers:
+    secureManagerInstances.add(newNoise(b.rng, seckey).Secure)
+
+  let
     peerInfo = block:
-      let info = PeerInfo.init(seckey, [b.address])
-      if b.protoVersion.isSome():
-        info.protoVersion = b.protoVersion.get()
-      if b.agentVersion.isSome():
-        info.agentVersion = b.agentVersion.get()
+      var info = PeerInfo.init(seckey, [b.address])
+      info.protoVersion = b.protoVersion
+      info.agentVersion = b.agentVersion
       info
-    mplexProvider = newMuxerProvider(createMplex, MplexCodec)
+
+  let
+    muxers = block:
+      var muxers: Table[string, MuxerProvider]
+      if b.mplexOpts.enable:
+        muxers.add(MplexCodec, newMuxerProvider(b.mplexOpts.newMuxer, MplexCodec))
+      muxers
+
+  let
+    identify = newIdentify(peerInfo)
+    connManager = ConnManager.init(b.maxConnsPerPeer, b.maxConnections, b.maxIn, b.maxOut)
+
+  let
     transports = block:
       var transports: seq[Transport]
-      if b.tcpTransportFlags.isSome():
-        transports &= Transport(TcpTransport.init(b.tcpTransportFlags.get()))
+      if b.tcpTransportOpts.enable:
+        transports.add(Transport(TcpTransport.init(b.tcpTransportOpts.flags)))
       transports
-    muxers = {MplexCodec: mplexProvider}.toTable
-    identify = newIdentify(peerInfo)
 
   if b.secureManagers.len == 0:
     b.secureManagers &= SecureProtocol.Noise
 
-  var
-    secureManagerInstances: seq[Secure]
-  for sec in b.secureManagers:
-    case sec
-    of SecureProtocol.Noise:
-      secureManagerInstances &= newNoise(b.rng, seckey).Secure
-    of SecureProtocol.Secio:
-      quit("Secio is deprecated!") # use of secio is unsafe
-
   let switch = newSwitch(
-    peerInfo,
-    transports,
-    identify,
-    muxers,
+    peerInfo = peerInfo,
+    transports = transports,
+    identity = identify,
+    muxers = muxers,
     secureManagers = secureManagerInstances,
     maxConnections = b.maxConnections,
     maxIn = b.maxIn,
@@ -174,22 +175,22 @@ proc newStandardSwitch*(privKey = none(PrivateKey),
                         maxIn = -1,
                         maxOut = -1,
                         maxConnsPerPeer = MaxConnectionsPerPeer): Switch =
+  if SecureProtocol.Secio in secureManagers:
+      quit("Secio is deprecated!") # use of secio is unsafe
+
   var b = SwitchBuilder
     .init()
     .withAddress(address)
     .withRng(rng)
-    .withInTimeout(inTimeout)
-    .withOutTimeout(outTimeout)
     .withMaxConnections(maxConnections)
     .withMaxIn(maxIn)
     .withMaxOut(maxOut)
     .withMaxConnsPerPeer(maxConnsPerPeer)
+    .withMplex(inTimeout, outTimeout)
     .withTcpTransport(transportFlags)
+    .withNoise()
 
   if privKey.isSome():
     b = b.withPrivateKey(privKey.get())
-
-  for sm in secureManagers:
-    b = b.withSecureManager(sm)
 
   b.build()
