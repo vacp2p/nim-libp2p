@@ -3,7 +3,8 @@ import
   switch, peerid, peerinfo, stream/connection, multiaddress,
   crypto/crypto, transports/[transport, tcptransport],
   muxers/[muxer, mplex/mplex],
-  protocols/[identify, secure/secure, secure/noise]
+  protocols/[identify, secure/secure, secure/noise],
+  connmanager, upgrademngrs/muxedupgrade
 
 export
   switch, peerid, peerinfo, connection, multiaddress, crypto
@@ -135,12 +136,15 @@ proc build*(b: SwitchBuilder): Switch =
 
   let
     identify = newIdentify(peerInfo)
+    connManager = ConnManager.init(b.maxConnsPerPeer, b.maxConnections, b.maxIn, b.maxOut)
+    ms = newMultistream()
+    muxedUpgrade = MuxedUpgrade.init(identify, muxers, secureManagerInstances, connManager, ms)
 
   let
     transports = block:
       var transports: seq[Transport]
       if b.tcpTransportOpts.enable:
-        transports.add(Transport(TcpTransport.init(b.tcpTransportOpts.flags)))
+        transports.add(Transport(TcpTransport.init(b.tcpTransportOpts.flags, muxedUpgrade)))
       transports
 
   if b.secureManagers.len == 0:
@@ -155,10 +159,8 @@ proc build*(b: SwitchBuilder): Switch =
     identity = identify,
     muxers = muxers,
     secureManagers = secureManagerInstances,
-    maxConnections = b.maxConnections,
-    maxIn = b.maxIn,
-    maxOut = b.maxOut,
-    maxConnsPerPeer = b.maxConnsPerPeer)
+    connManager = connManager,
+    ms = ms)
 
   return switch
 
