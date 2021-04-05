@@ -14,15 +14,20 @@ type
     Noise,
     Secio {.deprecated.}
 
-  EnableTcpTransport = object
+  TcpTransportOpts = object
     enable: bool
     flags: set[ServerFlags]
+
+  MplexOpts = object
+    enable: bool
+    newMuxer: MuxerConstructor
 
   SwitchBuilder* = ref object
     privKey: Option[PrivateKey]
     address: MultiAddress
     secureManagers: seq[SecureProtocol]
-    enableTcpTransport: EnableTcpTransport
+    mplexOpts: MplexOpts
+    tcpTransportOpts: TcpTransportOpts
     rng: ref BrHmacDrbgContext
     inTimeout: Duration
     outTimeout: Duration
@@ -38,10 +43,8 @@ proc init*(T: type[SwitchBuilder]): T =
     privKey: none(PrivateKey),
     address: MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet(),
     secureManagers: @[],
-    enableTcpTransport: EnableTcpTransport(),
+    tcpTransportOpts: TcpTransportOpts(),
     rng: newRng(),
-    inTimeout: 5.minutes,
-    outTimeout: 5.minutes,
     maxConnections: MaxConnections,
     maxIn: -1,
     maxOut: -1,
@@ -57,25 +60,31 @@ proc withAddress*(b: SwitchBuilder, address: MultiAddress): SwitchBuilder =
   b.address = address
   b
 
-proc withSecureManager*(b: SwitchBuilder, secureManager: SecureProtocol): SwitchBuilder =
-  b.secureManagers &= secureManager
+proc withMplex*(b: SwitchBuilder, inTimeout = 5.minutes, outTimeout = 5.minutes): SwitchBuilder =
+  proc newMuxer(conn: Connection): Muxer =
+    Mplex.init(
+      conn,
+      inTimeout = inTimeout,
+      outTimeout = outTimeout)
+
+  b.mplexOpts = MplexOpts(
+    enable: true,
+    newMuxer: newMuxer,
+  )
+
+  b
+
+proc withNoise*(b: SwitchBuilder): SwitchBuilder =
+  b.secureManagers.add(Noise)
   b
 
 proc withTcpTransport*(b: SwitchBuilder, flags: set[ServerFlags] = {}): SwitchBuilder =
-  b.enableTcpTransport.enable = true
-  b.enableTcpTransport.flags = flags
+  b.tcpTransportOpts.enable = true
+  b.tcpTransportOpts.flags = flags
   b
 
 proc withRng*(b: SwitchBuilder, rng: ref BrHmacDrbgContext): SwitchBuilder =
   b.rng = rng
-  b
-
-proc withInTimeout*(b: SwitchBuilder, inTimeout: Duration): SwitchBuilder =
-  b.inTimeout = inTimeout
-  b
-
-proc withOutTimeout*(b: SwitchBuilder, outTimeout: Duration): SwitchBuilder =
-  b.outTimeout = outTimeout
   b
 
 proc withMaxConnections*(b: SwitchBuilder, maxConnections: int): SwitchBuilder =
@@ -103,16 +112,6 @@ proc withAgentVersion*(b: SwitchBuilder, agentVersion: string): SwitchBuilder =
   b
 
 proc build*(b: SwitchBuilder): Switch =
-  let
-    inTimeout = b.inTimeout
-    outTimeout = b.outTimeout
-
-  proc createMplex(conn: Connection): Muxer =
-    Mplex.init(
-      conn,
-      inTimeout = inTimeout,
-      outTimeout = outTimeout)
-
   if b.rng == nil: # newRng could fail
     raise (ref CatchableError)(msg: "Cannot initialize RNG")
 
@@ -134,18 +133,25 @@ proc build*(b: SwitchBuilder): Switch =
       info.protoVersion = b.protoVersion
       info.agentVersion = b.agentVersion
       info
-    mplexProvider = newMuxerProvider(createMplex, MplexCodec)
+
+  let
+    muxers = block:
+      var muxers: Table[string, MuxerProvider]
+      if b.mplexOpts.enable:
+        muxers.add(MplexCodec, newMuxerProvider(b.mplexOpts.newMuxer, MplexCodec))
+      muxers
+
+  let
     identify = newIdentify(peerInfo)
     connManager = ConnManager.init(b.maxConnsPerPeer, b.maxConnections, b.maxIn, b.maxOut)
     ms = newMultistream()
-    muxers = {MplexCodec: mplexProvider}.toTable
     muxedUpgrade = MuxedUpgrade.init(identify, muxers, secureManagerInstances, connManager, ms)
 
   let
     transports = block:
       var transports: seq[Transport]
-      if b.enableTcpTransport.enable:
-        transports.add(Transport(TcpTransport.init(b.enableTcpTransport.flags, muxedUpgrade)))
+      if b.tcpTransportOpts.enable:
+        transports.add(Transport(TcpTransport.init(b.tcpTransportOpts.flags, muxedUpgrade)))
       transports
 
   if b.secureManagers.len == 0:
@@ -179,12 +185,11 @@ proc newStandardSwitch*(privKey = none(PrivateKey),
     .init()
     .withAddress(address)
     .withRng(rng)
-    .withInTimeout(inTimeout)
-    .withOutTimeout(outTimeout)
     .withMaxConnections(maxConnections)
     .withMaxIn(maxIn)
     .withMaxOut(maxOut)
     .withMaxConnsPerPeer(maxConnsPerPeer)
+    .withMplex(inTimeout, outTimeout)
     .withTcpTransport(transportFlags)
 
   if privKey.isSome():
