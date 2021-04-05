@@ -4,7 +4,7 @@ import
   crypto/crypto, transports/[transport, tcptransport],
   muxers/[muxer, mplex/mplex],
   protocols/[identify, secure/secure, secure/noise],
-  connmanager
+  connmanager, upgrademngrs/muxedupgrade
 
 export
   switch, peerid, peerinfo, connection, multiaddress, crypto
@@ -14,11 +14,15 @@ type
     Noise,
     Secio {.deprecated.}
 
+  EnableTcpTransport = object
+    enable: bool
+    flags: set[ServerFlags]
+
   SwitchBuilder* = ref object
     privKey: Option[PrivateKey]
     address: MultiAddress
     secureManagers: seq[SecureProtocol]
-    tcpTransportFlags: Option[set[ServerFlags]]
+    enableTcpTransport: EnableTcpTransport
     rng: ref BrHmacDrbgContext
     inTimeout: Duration
     outTimeout: Duration
@@ -26,17 +30,15 @@ type
     maxIn: int
     maxOut: int
     maxConnsPerPeer: int
-    protoVersion: Option[string]
-    agentVersion: Option[string]
+    protoVersion: string
+    agentVersion: string
 
-proc init*(_: type[SwitchBuilder]): SwitchBuilder =
+proc init*(T: type[SwitchBuilder]): T =
   SwitchBuilder(
     privKey: none(PrivateKey),
     address: MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet(),
     secureManagers: @[],
-    tcpTransportFlags: block:
-      let flags: set[ServerFlags] = {}
-      some(flags),
+    enableTcpTransport: EnableTcpTransport(),
     rng: newRng(),
     inTimeout: 5.minutes,
     outTimeout: 5.minutes,
@@ -44,13 +46,8 @@ proc init*(_: type[SwitchBuilder]): SwitchBuilder =
     maxIn: -1,
     maxOut: -1,
     maxConnsPerPeer: MaxConnectionsPerPeer,
-    protoVersion: none(string),
-    agentVersion: none(string))
-
-# so I tried using var inpit and return but did not work...
-# as in proc privateKey*(builder: var SwitchBuilder, privateKey: PrivateKey): var SwitchBuilder =
-# so in nim we are stuck with this hardly efficient way and hopey compiler figures it out.. heh
-# maybe {.byref.} works.... I would not bet on it but let's use it.
+    protoVersion: ProtoVersion,
+    agentVersion: AgentVersion)
 
 proc withPrivateKey*(b: SwitchBuilder, privateKey: PrivateKey): SwitchBuilder =
   b.privKey = some(privateKey)
@@ -65,7 +62,8 @@ proc withSecureManager*(b: SwitchBuilder, secureManager: SecureProtocol): Switch
   b
 
 proc withTcpTransport*(b: SwitchBuilder, flags: set[ServerFlags] = {}): SwitchBuilder =
-  b.tcpTransportFlags = some(flags)
+  b.enableTcpTransport.enable = true
+  b.enableTcpTransport.flags = flags
   b
 
 proc withRng*(b: SwitchBuilder, rng: ref BrHmacDrbgContext): SwitchBuilder =
@@ -97,11 +95,11 @@ proc withMaxConnsPerPeer*(b: SwitchBuilder, maxConnsPerPeer: int): SwitchBuilder
   b
 
 proc withProtoVersion*(b: SwitchBuilder, protoVersion: string): SwitchBuilder =
-  b.protoVersion = some(protoVersion)
+  b.protoVersion = protoVersion
   b
 
 proc withAgentVersion*(b: SwitchBuilder, agentVersion: string): SwitchBuilder =
-  b.agentVersion = some(agentVersion)
+  b.agentVersion = agentVersion
   b
 
 proc build*(b: SwitchBuilder): Switch =
@@ -120,24 +118,6 @@ proc build*(b: SwitchBuilder): Switch =
 
   let
     seckey = b.privKey.get(otherwise = PrivateKey.random(b.rng[]).tryGet())
-    peerInfo = block:
-      let info = PeerInfo.init(seckey, [b.address])
-      if b.protoVersion.isSome():
-        info.protoVersion = b.protoVersion.get()
-      if b.agentVersion.isSome():
-        info.agentVersion = b.agentVersion.get()
-      info
-    mplexProvider = newMuxerProvider(createMplex, MplexCodec)
-    transports = block:
-      var transports: seq[Transport]
-      if b.tcpTransportFlags.isSome():
-        transports &= Transport(TcpTransport.init(b.tcpTransportFlags.get()))
-      transports
-    muxers = {MplexCodec: mplexProvider}.toTable
-    identify = newIdentify(peerInfo)
-
-  if b.secureManagers.len == 0:
-    b.secureManagers &= SecureProtocol.Noise
 
   var
     secureManagerInstances: seq[Secure]
@@ -148,16 +128,37 @@ proc build*(b: SwitchBuilder): Switch =
     of SecureProtocol.Secio:
       quit("Secio is deprecated!") # use of secio is unsafe
 
+  let
+    peerInfo = block:
+      var info = PeerInfo.init(seckey, [b.address])
+      info.protoVersion = b.protoVersion
+      info.agentVersion = b.agentVersion
+      info
+    mplexProvider = newMuxerProvider(createMplex, MplexCodec)
+    identify = newIdentify(peerInfo)
+    connManager = ConnManager.init(b.maxConnsPerPeer, b.maxConnections, b.maxIn, b.maxOut)
+    ms = newMultistream()
+    muxers = {MplexCodec: mplexProvider}.toTable
+    muxedUpgrade = MuxedUpgrade.init(identify, muxers, secureManagerInstances, connManager, ms)
+
+  let
+    transports = block:
+      var transports: seq[Transport]
+      if b.enableTcpTransport.enable:
+        transports.add(Transport(TcpTransport.init(b.enableTcpTransport.flags, muxedUpgrade)))
+      transports
+
+  if b.secureManagers.len == 0:
+    b.secureManagers &= SecureProtocol.Noise
+
   let switch = newSwitch(
-    peerInfo,
-    transports,
-    identify,
-    muxers,
+    peerInfo = peerInfo,
+    transports = transports,
+    identity = identify,
+    muxers = muxers,
     secureManagers = secureManagerInstances,
-    maxConnections = b.maxConnections,
-    maxIn = b.maxIn,
-    maxOut = b.maxOut,
-    maxConnsPerPeer = b.maxConnsPerPeer)
+    connManager = connManager,
+    ms = ms)
 
   return switch
 
