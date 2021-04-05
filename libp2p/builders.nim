@@ -75,7 +75,7 @@ proc withMplex*(b: SwitchBuilder, inTimeout = 5.minutes, outTimeout = 5.minutes)
   b
 
 proc withNoise*(b: SwitchBuilder): SwitchBuilder =
-  b.secureManagers.add(Noise)
+  b.secureManagers.add(SecureProtocol.Noise)
   b
 
 proc withTcpTransport*(b: SwitchBuilder, flags: set[ServerFlags] = {}): SwitchBuilder =
@@ -120,12 +120,8 @@ proc build*(b: SwitchBuilder): Switch =
 
   var
     secureManagerInstances: seq[Secure]
-  for sec in b.secureManagers:
-    case sec
-    of SecureProtocol.Noise:
-      secureManagerInstances &= newNoise(b.rng, seckey).Secure
-    of SecureProtocol.Secio:
-      quit("Secio is deprecated!") # use of secio is unsafe
+  if SecureProtocol.Noise in b.secureManagers:
+    secureManagerInstances.add(newNoise(b.rng, seckey).Secure)
 
   let
     peerInfo = block:
@@ -181,6 +177,9 @@ proc newStandardSwitch*(privKey = none(PrivateKey),
                         maxIn = -1,
                         maxOut = -1,
                         maxConnsPerPeer = MaxConnectionsPerPeer): Switch =
+  if SecureProtocol.Secio in secureManagers:
+      quit("Secio is deprecated!") # use of secio is unsafe
+
   var b = SwitchBuilder
     .init()
     .withAddress(address)
@@ -191,11 +190,9 @@ proc newStandardSwitch*(privKey = none(PrivateKey),
     .withMaxConnsPerPeer(maxConnsPerPeer)
     .withMplex(inTimeout, outTimeout)
     .withTcpTransport(transportFlags)
+    .withNoise()
 
   if privKey.isSome():
     b = b.withPrivateKey(privKey.get())
-
-  for sm in secureManagers:
-    b = b.withSecureManager(sm)
 
   b.build()
