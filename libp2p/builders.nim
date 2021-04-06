@@ -3,8 +3,7 @@ import
   switch, peerid, peerinfo, stream/connection, multiaddress,
   crypto/crypto, transports/[transport, tcptransport],
   muxers/[muxer, mplex/mplex],
-  protocols/[identify, secure/secure, secure/noise],
-  connmanager
+  protocols/[identify, secure/secure, secure/noise]
 
 export
   switch, peerid, peerinfo, connection, multiaddress, crypto
@@ -36,13 +35,12 @@ type
     protoVersion: string
     agentVersion: string
 
-proc init*(T: type[SwitchBuilder]): T =
+proc new*(T: type[SwitchBuilder]): T =
   SwitchBuilder(
     privKey: none(PrivateKey),
     address: MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet(),
     secureManagers: @[],
     tcpTransportOpts: TcpTransportOpts(),
-    rng: newRng(),
     maxConnections: MaxConnections,
     maxIn: -1,
     maxOut: -1,
@@ -137,7 +135,6 @@ proc build*(b: SwitchBuilder): Switch =
 
   let
     identify = newIdentify(peerInfo)
-    connManager = ConnManager.init(b.maxConnsPerPeer, b.maxConnections, b.maxIn, b.maxOut)
 
   let
     transports = block:
@@ -148,6 +145,9 @@ proc build*(b: SwitchBuilder): Switch =
 
   if b.secureManagers.len == 0:
     b.secureManagers &= SecureProtocol.Noise
+
+  if isNil(b.rng):
+    b.rng = newRng()
 
   let switch = newSwitch(
     peerInfo = peerInfo,
@@ -179,7 +179,7 @@ proc newStandardSwitch*(privKey = none(PrivateKey),
       quit("Secio is deprecated!") # use of secio is unsafe
 
   var b = SwitchBuilder
-    .init()
+    .new()
     .withAddress(address)
     .withRng(rng)
     .withMaxConnections(maxConnections)
