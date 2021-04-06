@@ -56,11 +56,14 @@ proc onUpgrade*(s: Connection) {.async.} =
   if not isNil(s.upgraded):
     await s.upgraded
 
-func shortLog*(conn: Connection): string
-  {.raises: [Defect, ValueError].} =
-  if conn.isNil: "Connection(nil)"
-  elif conn.peerInfo.isNil: $conn.oid
-  else: &"{shortLog(conn.peerInfo.peerId)}:{conn.oid}"
+func shortLog*(conn: Connection): string =
+  try:
+    if conn.isNil: "Connection(nil)"
+    elif conn.peerInfo.isNil: $conn.oid
+    else: &"{shortLog(conn.peerInfo.peerId)}:{conn.oid}"
+  except ValueError as exc:
+    raise newException(Defect, exc.msg)
+
 chronicles.formatIt(Connection): shortLog(it)
 
 method initStream*(s: Connection) =

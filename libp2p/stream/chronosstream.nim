@@ -33,11 +33,14 @@ when defined(libp2p_agents_metrics):
   declareCounter(libp2p_peers_traffic_read, "incoming traffic", labels = ["agent"])
   declareCounter(libp2p_peers_traffic_write, "outgoing traffic", labels = ["agent"])
 
-func shortLog*(conn: ChronosStream): string
-  {.raises: [Defect, ValueError].} =
-  if conn.isNil: "ChronosStream(nil)"
-  elif conn.peerInfo.isNil: $conn.oid
-  else: &"{shortLog(conn.peerInfo.peerId)}:{conn.oid}"
+func shortLog*(conn: ChronosStream): auto =
+  try:
+    if conn.isNil: "ChronosStream(nil)"
+    elif conn.peerInfo.isNil: $conn.oid
+    else: &"{shortLog(conn.peerInfo.peerId)}:{conn.oid}"
+  except ValueError as exc:
+    raise newException(Defect, exc.msg)
+
 chronicles.formatIt(ChronosStream): shortLog(it)
 
 method initStream*(s: ChronosStream) =

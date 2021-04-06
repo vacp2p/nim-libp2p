@@ -46,9 +46,9 @@ type
     oid*: Oid
     maxChannCount: int
 
-func shortLog*(m: MPlex): auto
-  {.raises: [Defect, ValueError].} =
+func shortLog*(m: MPlex): auto =
   shortLog(m.connection)
+
 chronicles.formatIt(Mplex): shortLog(it)
 
 proc newTooManyChannels(): ref TooManyChannels =

@@ -51,13 +51,16 @@ type
     resetCode*: MessageType       # cached in/out reset code
     writes*: int                  # In-flight writes
 
-func shortLog*(s: LPChannel): auto
-  {.raises: [Defect, ValueError].} =
-  if s.isNil: "LPChannel(nil)"
-  elif s.conn.peerInfo.isNil: $s.oid
-  elif s.name != $s.oid and s.name.len > 0:
-    &"{shortLog(s.conn.peerInfo.peerId)}:{s.oid}:{s.name}"
-  else: &"{shortLog(s.conn.peerInfo.peerId)}:{s.oid}"
+func shortLog*(s: LPChannel): auto =
+  try:
+    if s.isNil: "LPChannel(nil)"
+    elif s.conn.peerInfo.isNil: $s.oid
+    elif s.name != $s.oid and s.name.len > 0:
+      &"{shortLog(s.conn.peerInfo.peerId)}:{s.oid}:{s.name}"
+    else: &"{shortLog(s.conn.peerInfo.peerId)}:{s.oid}"
+  except ValueError as exc:
+    raise newException(Defect, exc.msg)
+
 chronicles.formatIt(LPChannel): shortLog(it)
 
 proc open*(s: LPChannel) {.async, gcsafe.} =

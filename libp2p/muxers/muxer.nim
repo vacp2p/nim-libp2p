@@ -39,8 +39,12 @@ type
     streamHandler*: StreamHandler # triggered every time there is a new stream, called for any muxer instance
     muxerHandler*: MuxerHandler # triggered every time there is a new muxed connection created
 
-func shortLog*(m: Muxer): auto {.raises: [Defect, ValueError].} =
-  shortLog(m.connection)
+func shortLog*(m: Muxer): auto =
+  try:
+    shortLog(m.connection)
+  except ValueError as exc:
+    raise newException(Defect, exc.msg)
+
 chronicles.formatIt(Muxer): shortLog(it)
 
 # muxer interface

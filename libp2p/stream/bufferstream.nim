@@ -35,11 +35,14 @@ type
     pushedEof*: bool                  # eof marker has been put on readQueue
     returnedEof*: bool                # 0-byte readOnce has been completed
 
-func shortLog*(s: BufferStream): auto
-  {.raises: [Defect, ValueError].} =
-  if s.isNil: "BufferStream(nil)"
-  elif s.peerInfo.isNil: $s.oid
-  else: &"{shortLog(s.peerInfo.peerId)}:{s.oid}"
+func shortLog*(s: BufferStream): auto =
+  try:
+    if s.isNil: "BufferStream(nil)"
+    elif s.peerInfo.isNil: $s.oid
+    else: &"{shortLog(s.peerInfo.peerId)}:{s.oid}"
+  except ValueError as exc:
+    raise newException(Defect, exc.msg)
+
 chronicles.formatIt(BufferStream): shortLog(it)
 
 proc len*(s: BufferStream): int =

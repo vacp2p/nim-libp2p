@@ -95,11 +95,14 @@ type
 
 # Utility
 
-func shortLog*(conn: NoiseConnection): auto
-  {.raises: [Defect, ValueError].} =
-  if conn.isNil: "NoiseConnection(nil)"
-  elif conn.peerInfo.isNil: $conn.oid
-  else: &"{shortLog(conn.peerInfo.peerId)}:{conn.oid}"
+func shortLog*(conn: NoiseConnection): auto =
+  try:
+    if conn.isNil: "NoiseConnection(nil)"
+    elif conn.peerInfo.isNil: $conn.oid
+    else: &"{shortLog(conn.peerInfo.peerId)}:{conn.oid}"
+  except ValueError as exc:
+    raise newException(Defect, exc.msg)
+
 chronicles.formatIt(NoiseConnection): shortLog(it)
 
 proc genKeyPair(rng: var BrHmacDrbgContext): KeyPair =
@@ -591,9 +594,10 @@ method init*(p: Noise) {.gcsafe.} =
 
 proc newNoise*(
     rng: ref BrHmacDrbgContext,
-    privateKey: PrivateKey;
-    outgoing: bool = true;
-    commonPrologue: seq[byte] = @[]): Noise =
+    privateKey: PrivateKey,
+    outgoing: bool = true,
+    commonPrologue: seq[byte] = @[]): Noise
+    {.raises: [Defect, ResultError[CryptoError]].} =
   result = Noise(
     rng: rng,
     outgoing: outgoing,

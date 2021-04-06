@@ -73,10 +73,14 @@ type
 
   SecioError* = object of LPError
 
-func shortLog*(conn: SecioConn): auto {.raises: [Defect, ValueError].} =
-  if conn.isNil: "SecioConn(nil)"
-  elif conn.peerInfo.isNil: $conn.oid
-  else: &"{shortLog(conn.peerInfo.peerId)}:{conn.oid}"
+func shortLog*(conn: SecioConn): auto =
+  try:
+    if conn.isNil: "SecioConn(nil)"
+    elif conn.peerInfo.isNil: $conn.oid
+    else: &"{shortLog(conn.peerInfo.peerId)}:{conn.oid}"
+  except ValueError as exc:
+    raise newException(Defect, exc.msg)
+
 chronicles.formatIt(SecioConn): shortLog(it)
 
 proc init(mac: var SecureMac, hash: string, key: openarray[byte]) =
