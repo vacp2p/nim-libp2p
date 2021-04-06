@@ -44,14 +44,6 @@ jobs:
           path: nim-libp2p
           submodules: true
 
-      # TODO: TEMP WORKAROUND UNTIL eh-tracking is merged
-      - name: Checkout nim-chronos
-        uses: actions/checkout@v2
-        with:
-          path: nim-chronos
-          submodules: true
-          branch: eh-tracking
-
       - name: Install build dependencies (Linux i386)
         if: runner.os == 'Linux' && matrix.target.cpu == 'i386'
         run: |
@@ -213,14 +205,6 @@ jobs:
           export UCPU="$cpu"
           cd nim-libp2p
           nimble install -y --depsOnly
-          cd ..
-
-          cd nim-chronos
-          nimble develop -y
-          nimble install -y --depsOnly
-          cd ..
-
-          cd nim-libp2p
           nimble test
 
   bumpNBC-stable:
