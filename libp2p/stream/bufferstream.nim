@@ -41,7 +41,7 @@ func shortLog*(s: BufferStream): auto =
     elif s.peerInfo.isNil: $s.oid
     else: &"{shortLog(s.peerInfo.peerId)}:{s.oid}"
   except ValueError as exc:
-    raise newException(Defect, exc.msg)
+    raiseAssert(exc.msg)
 
 chronicles.formatIt(BufferStream): shortLog(it)
 
