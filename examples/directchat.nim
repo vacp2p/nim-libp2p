@@ -4,6 +4,7 @@ when not(compileOption("threads")):
 import tables, strformat, strutils, bearssl
 import chronos                              # an efficient library for async
 import ../libp2p/[switch,                   # manage transports, a single entry point for dialing and listening
+                  builders,                 # helper to build the switch object
                   multistream,              # tag stream with short header to identify it
                   crypto/crypto,            # cryptographic functions
                   errors,                   # error handling utilities
@@ -54,7 +55,7 @@ proc dialPeer(p: ChatProto, address: string) {.async.} =
                                  [multiAddr])
 
   echo &"dialing peer: {multiAddr}"
-  p.conn = await p.switch.dial(remotePeer, ChatCodec)
+  p.conn = await p.switch.dial(remotePeer.peerId, @[multiAddr], ChatCodec)
   p.connected = true
 
 proc readAndPrint(p: ChatProto) {.async.} =
@@ -121,7 +122,7 @@ proc writeAndPrint(p: ChatProto) {.async.} =
 
 proc readWriteLoop(p: ChatProto) {.async.} =
   asyncCheck p.writeAndPrint() # execute the async function but does not block
-  asyncCheck p.readAndPrint()
+  await p.readAndPrint()
 
 proc newChatProto(switch: Switch, transp: StreamTransport): ChatProto =
   var chatproto = ChatProto(switch: switch, transp: transp, codecs: @[ChatCodec])
@@ -152,47 +153,37 @@ proc processInput(rfd: AsyncFD, rng: ref BrHmacDrbgContext) {.async.} =
   let transp = fromPipe(rfd)
 
   let seckey = PrivateKey.random(RSA, rng[]).get()
-  let peerInfo = PeerInfo.init(seckey)
   var localAddress = DefaultAddr
   while true:
     echo &"Type an address to bind to or Enter to use the default {DefaultAddr}"
     let a = await transp.readLine()
     try:
       if a.len > 0:
-        peerInfo.addrs.add(Multiaddress.init(a).tryGet())
+        localAddress = a
         break
-
-      peerInfo.addrs.add(Multiaddress.init(localAddress).tryGet())
+      # uise default
       break
     except:
       echo "invalid address"
       localAddress = DefaultAddr
       continue
 
-  # a constructor for building different multiplexers under various connections
-  proc createMplex(conn: Connection): Muxer =
-    result = Mplex.init(conn)
-
-  let mplexProvider = newMuxerProvider(createMplex, MplexCodec)
-  let transports = @[Transport(TcpTransport.init())]
-  let muxers = [(MplexCodec, mplexProvider)].toTable()
-  let identify = newIdentify(peerInfo)
-  let secureManagers = [Secure(newSecio(rng, seckey))]
-  let switch = newSwitch(peerInfo,
-                         transports,
-                         identify,
-                         muxers,
-                         secureManagers)
+  var switch = SwitchBuilder
+    .init()
+    .withRng(rng)
+    .withPrivateKey(seckey)
+    .withAddress(MultiAddress.init(localAddress).tryGet())
+    .build()
 
   let chatProto = newChatProto(switch, transp)
   switch.mount(chatProto)
   let libp2pFuts = await switch.start()
   chatProto.started = true
 
-  let id = $peerInfo.peerId
+  let id = $switch.peerInfo.peerId
   echo "PeerID: " & id
   echo "listening on: "
-  for a in peerInfo.addrs:
+  for a in switch.peerInfo.addrs:
     echo &"{a}/ipfs/{id}"
 
   await chatProto.readWriteLoop()
