@@ -33,7 +33,7 @@ proc initTAddress*(ma: MultiAddress): MaResult[TransportAddress] {.
   ## Initialize ``TransportAddress`` with MultiAddress ``ma``.
   ##
   ## MultiAddress must be wire address, e.g. ``{IP4, IP6, UNIX}/{TCP, UDP}``.
-  if TRANSPMA.match(ma):
+  if TRANSPMA.matchPartial(ma):
     var pbuf: array[2, byte]
     let code = ma[0].tryGet().protoCode().tryGet()
     if code == multiCodec("unix"):
@@ -71,7 +71,7 @@ proc connect*(ma: MultiAddress, bufferSize = DefaultStreamBufferSize,
   ## Open new connection to remote peer with address ``ma`` and create
   ## new transport object ``StreamTransport`` for established connection.
   ## ``bufferSize`` is size of internal buffer for transport.
-  if not(RTRANSPMA.match(ma)):
+  if not(RTRANSPMA.matchPartial(ma)):
     raise newException(MaInvalidAddress, "Incorrect or unsupported address!")
 
   let address = initTAddress(ma).tryGet()
