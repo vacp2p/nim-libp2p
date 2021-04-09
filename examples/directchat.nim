@@ -48,6 +48,11 @@ proc initAddress(T: type MultiAddress, str: string): T =
     raise newException(ValueError,
                          "Invalid bootstrap node multi-address")
 
+proc readAndPrint(p: ChatProto) {.async.} =
+  while true:
+    echo $p.switch.peerInfo.peerId & ": " & cast[string](await p.conn.readLp(1024))
+    await sleepAsync(100.millis)
+
 proc dialPeer(p: ChatProto, address: string) {.async.} =
   let multiAddr = MultiAddress.initAddress(address);
   let parts = address.split("/")
@@ -57,14 +62,7 @@ proc dialPeer(p: ChatProto, address: string) {.async.} =
   echo &"dialing peer: {multiAddr}"
   p.conn = await p.switch.dial(remotePeer.peerId, @[multiAddr], ChatCodec)
   p.connected = true
-
-proc readAndPrint(p: ChatProto) {.async.} =
-  while true:
-    while p.connected:
-      # TODO: echo &"{p.id} -> "
-
-      echo cast[string](await p.conn.readLp(1024))
-    await sleepAsync(100.millis)
+  asyncSpawn p.readAndPrint()
 
 proc writeAndPrint(p: ChatProto) {.async.} =
   while true:
@@ -121,8 +119,7 @@ proc writeAndPrint(p: ChatProto) {.async.} =
           echo getCurrentExceptionMsg()
 
 proc readWriteLoop(p: ChatProto) {.async.} =
-  asyncCheck p.writeAndPrint() # execute the async function but does not block
-  await p.readAndPrint()
+  await p.writeAndPrint() # execute the async function but does not block
 
 proc newChatProto(switch: Switch, transp: StreamTransport): ChatProto =
   var chatproto = ChatProto(switch: switch, transp: transp, codecs: @[ChatCodec])
@@ -135,6 +132,7 @@ proc newChatProto(switch: Switch, transp: StreamTransport): ChatProto =
     else:
       chatproto.conn = stream
       chatproto.connected = true
+      await chatproto.readAndPrint()
 
   # assign the new handler
   chatproto.handler = handle
