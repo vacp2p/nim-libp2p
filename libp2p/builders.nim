@@ -40,8 +40,6 @@ type
     mplexOpts: MplexOpts
     tcpTransportOpts: TcpTransportOpts
     rng: ref BrHmacDrbgContext
-    inTimeout: Duration
-    outTimeout: Duration
     maxConnections: int
     maxIn: int
     maxOut: int
@@ -170,6 +168,9 @@ proc build*(b: SwitchBuilder): Switch
 
   if b.secureManagers.len == 0:
     b.secureManagers &= SecureProtocol.Noise
+
+  if isNil(b.rng):
+    b.rng = newRng()
 
   let switch = newSwitch(
     peerInfo = peerInfo,
