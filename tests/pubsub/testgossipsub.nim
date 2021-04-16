@@ -25,6 +25,8 @@ import utils, ../../libp2p/[errors,
                             protocols/pubsub/rpc/messages]
 import ../helpers
 
+proc `$`(peer: PubSubPeer): string = shortLog(peer)
+
 proc waitSub(sender, receiver: auto; key: string) {.async, gcsafe.} =
   if sender == receiver:
     return
