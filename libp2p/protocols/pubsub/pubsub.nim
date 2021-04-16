@@ -502,8 +502,8 @@ method validate*(p: PubSub, message: Message): Future[ValidationResult] {.async,
                                              registered = toSeq(p.validators.keys)
     if topic in p.validators:
       trace "running validators for topic", topicID = topic
-      # TODO: add timeout to validator
-      pending.add(p.validators[topic].mapIt(it(topic, message)))
+      for validator in p.validators[topic]:
+        pending.add(validator(topic, message))
 
   result = ValidationResult.Accept
   let futs = await allFinished(pending)
