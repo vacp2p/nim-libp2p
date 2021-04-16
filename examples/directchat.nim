@@ -122,7 +122,7 @@ proc writeAndPrint(p: ChatProto) {.async.} =
           echo getCurrentExceptionMsg()
 
 proc readWriteLoop(p: ChatProto) {.async.} =
-  await p.writeAndPrint() # execute the async function but does not block
+  await p.writeAndPrint()
 
 proc newChatProto(switch: Switch, transp: StreamTransport): ChatProto =
   var chatproto = ChatProto(switch: switch, transp: transp, codecs: @[ChatCodec])
