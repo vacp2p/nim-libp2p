@@ -13,7 +13,7 @@ import std/[tables, sequtils, sets, algorithm]
 import random # for shuffle
 import chronos, chronicles, metrics
 import "."/[types, scoring]
-import ".."/[pubsubpeer, peertable, timedcache, mcache, pubsub]
+import ".."/[pubsubpeer, peertable, timedcache, mcache, floodsub, pubsub]
 import "../rpc"/[messages]
 import "../../.."/[peerid, multiaddress, utility, switch]
 
@@ -198,11 +198,10 @@ proc handleIHave*(g: GossipSub,
       if ihave.topicID in g.mesh:
         # also avoid duplicates here!
         let deIhavesMsgs = ihave.messageIDs.deduplicate()
-        for m in deIhavesMsgs:
-          let msgId = m & g.randomBytes
-          if msgId notin g.seen:
+        for msgId in deIhavesMsgs:
+          if not g.hasSeen(msgId):
             if peer.iHaveBudget > 0:
-              result.messageIDs.add(m)
+              result.messageIDs.add(msgId)
               dec peer.iHaveBudget
             else:
               return

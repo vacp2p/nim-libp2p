@@ -25,6 +25,27 @@ declareGauge(libp2p_gossipsub_peers_score_appScore, "Detailed gossipsub scoring 
 declareGauge(libp2p_gossipsub_peers_score_behaviourPenalty, "Detailed gossipsub scoring metric", labels = ["agent"])
 declareGauge(libp2p_gossipsub_peers_score_colocationFactor, "Detailed gossipsub scoring metric", labels = ["agent"])
 
+proc init*(_: type[TopicParams]): TopicParams =
+  TopicParams(
+    topicWeight: 0.0, # disabled by default
+    timeInMeshWeight: 0.01,
+    timeInMeshQuantum: 1.seconds,
+    timeInMeshCap: 10.0,
+    firstMessageDeliveriesWeight: 1.0,
+    firstMessageDeliveriesDecay: 0.5,
+    firstMessageDeliveriesCap: 10.0,
+    meshMessageDeliveriesWeight: -1.0,
+    meshMessageDeliveriesDecay: 0.5,
+    meshMessageDeliveriesCap: 10,
+    meshMessageDeliveriesThreshold: 1,
+    meshMessageDeliveriesWindow: 5.milliseconds,
+    meshMessageDeliveriesActivation: 10.seconds,
+    meshFailurePenaltyWeight: -1.0,
+    meshFailurePenaltyDecay: 0.5,
+    invalidMessageDeliveriesWeight: -1.0,
+    invalidMessageDeliveriesDecay: 0.5
+  )
+
 proc withPeerStats*(
     g: GossipSub, peerId: PeerId,
     action: proc (stats: var PeerStats) {.gcsafe, raises: [Defect].}) =
@@ -274,3 +295,26 @@ proc punishInvalidMessage*(g: GossipSub, peer: PubSubPeer, topics: seq[string]) 
     # update stats
     g.withPeerStats(peer.peerId) do (stats: var PeerStats):
       stats.topicInfos.mgetOrPut(t, TopicInfo()).invalidMessageDeliveries += 1
+
+proc addCapped*[T](stat: var T, diff, cap: T) =
+  stat += min(diff, cap - stat)
+
+proc rewardDelivered*(
+    g: GossipSub, peer: PubSubPeer, topics: openArray[string], first: bool) =
+  for t in topics:
+    if t notin g.topics:
+      continue
+    let topicParams = g.topicParams.mgetOrPut(t, TopicParams.init())
+                                            # if in mesh add more delivery score
+
+    g.withPeerStats(peer.peerId) do (stats: var PeerStats):
+      stats.topicInfos.withValue(t, tstats):
+        if tstats[].inMesh:
+          if first:
+            tstats[].firstMessageDeliveries.addCapped(
+              1, topicParams.firstMessageDeliveriesCap)
+
+          tstats[].meshMessageDeliveries.addCapped(
+            1, topicParams.meshMessageDeliveriesCap)
+      do: # make sure we don't loose this information
+        stats.topicInfos[t] = TopicInfo(meshMessageDeliveries: 1)

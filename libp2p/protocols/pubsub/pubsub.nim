@@ -9,8 +9,8 @@
 
 import std/[tables, sequtils, sets, strutils]
 import chronos, chronicles, metrics
-import pubsubpeer,
-       rpc/[message, messages],
+import ./pubsubpeer,
+       ./rpc/[message, messages, protobuf],
        ../../switch,
        ../protocol,
        ../../stream/connection,
@@ -128,7 +128,7 @@ proc send*(p: PubSub, peer: PubSubPeer, msg: RPCMsg) {.raises: [Defect].} =
 
 proc broadcast*(
   p: PubSub,
-  sendPeers: openArray[PubSubPeer],
+  sendPeers: auto, # Iteratble[PubSubPeer]
   msg: RPCMsg) {.raises: [Defect].} =
   ## Attempt to send `msg` to the given peers
 
@@ -174,8 +174,15 @@ proc broadcast*(
 
   trace "broadcasting messages to peers",
     peers = sendPeers.len, msg = shortLog(msg)
-  for peer in sendPeers:
-    p.send(peer, msg)
+
+  if anyIt(sendPeers, it.hasObservers):
+    for peer in sendPeers:
+      p.send(peer, msg)
+  else:
+    # Fast path that only encodes message once
+    let encoded = encodeRpcMsg(msg, p.anonymize)
+    for peer in sendPeers:
+      peer.sendEncoded(encoded)
 
 proc sendSubs*(p: PubSub,
                peer: PubSubPeer,
@@ -205,7 +212,7 @@ method subscribeTopic*(p: PubSub,
 
 method rpcHandler*(p: PubSub,
                    peer: PubSubPeer,
-                   rpcMsg: RPCMsg) {.async, base.} =
+                   rpcMsg: RPCMsg): Future[void] {.base.} =
   ## handle rpc messages
   trace "processing RPC message", msg = rpcMsg.shortLog, peer
   for i in 0..<min(rpcMsg.subscriptions.len, p.topicsHigh):
@@ -252,6 +259,12 @@ method rpcHandler*(p: PubSub,
         libp2p_pubsub_received_prune.inc(labelValues = [prune.topicID])
       else:
         libp2p_pubsub_received_prune.inc(labelValues = ["generic"])
+
+  # Avoid async transformation to avoid copying of rpcMsg into closure - this
+  # is an unnecessary hotspot in gossip
+  var res = newFuture[void]("PubSub.rpcHandler")
+  res.complete()
+  return res
 
 method onNewPeer(p: PubSub, peer: PubSubPeer) {.base.} = discard
 
@@ -306,6 +319,7 @@ proc handleData*(p: PubSub, topic: string, data: seq[byte]): Future[void] {.asyn
 
   # gather all futures without yielding to scheduler
   var futs = p.topics[topic].handler.mapIt(it(topic, data))
+  if futs.len() == 0: return # No handlers
 
   try:
     futs = await allFinished(futs)
@@ -488,8 +502,8 @@ method validate*(p: PubSub, message: Message): Future[ValidationResult] {.async,
                                              registered = toSeq(p.validators.keys)
     if topic in p.validators:
       trace "running validators for topic", topicID = topic
-      # TODO: add timeout to validator
-      pending.add(p.validators[topic].mapIt(it(topic, message)))
+      for validator in p.validators[topic]:
+        pending.add(validator(topic, message))
 
   result = ValidationResult.Accept
   let futs = await allFinished(pending)
@@ -500,7 +514,8 @@ method validate*(p: PubSub, message: Message): Future[ValidationResult] {.async,
     let res = fut.read()
     if res != ValidationResult.Accept:
       result = res
-      break
+      if res == ValidationResult.Reject:
+        break
 
   case result
   of ValidationResult.Accept:
