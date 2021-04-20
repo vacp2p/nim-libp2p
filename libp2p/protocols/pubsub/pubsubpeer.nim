@@ -81,7 +81,7 @@ proc connected*(p: PubSubPeer): bool =
   not p.sendConn.isNil and not
     (p.sendConn.closed or p.sendConn.atEof)
 
-proc hasObservers(p: PubSubPeer): bool =
+proc hasObservers*(p: PubSubPeer): bool =
   p.observers != nil and anyIt(p.observers[], it != nil)
 
 func outbound*(p: PubSubPeer): bool =
@@ -226,14 +226,26 @@ template sendMetrics(msg: RPCMsg): untyped =
         # metrics
         libp2p_pubsub_sent_messages.inc(labelValues = [$p.peerId, t])
 
-proc send*(p: PubSubPeer, msg: RPCMsg, anonymize: bool) {.raises: [Defect].} =
+proc sendEncoded*(p: PubSubPeer, msg: seq[byte]) {.raises: [Defect].} =
   doAssert(not isNil(p), "pubsubpeer nil!")
+
+  if msg.len <= 0:
+    debug "empty message, skipping", p, msg = shortLog(msg)
+    return
 
   let conn = p.sendConn
   if conn == nil or conn.closed():
-    trace "No send connection, skipping message", p, msg
+    trace "No send connection, skipping message", p, msg = shortLog(msg)
     return
 
+  # To limit the size of the closure, we only pass the encoded message and
+  # connection to the spawned send task
+  asyncSpawn(try:
+    sendImpl(conn, msg)
+  except Exception as exc: # TODO chronos Exception
+    raiseAssert exc.msg)
+
+proc send*(p: PubSubPeer, msg: RPCMsg, anonymize: bool) {.raises: [Defect].} =
   trace "sending msg to peer", peer = p, rpcMsg = shortLog(msg)
 
   # When sending messages, we take care to re-encode them with the right
@@ -253,16 +265,7 @@ proc send*(p: PubSubPeer, msg: RPCMsg, anonymize: bool) {.raises: [Defect].} =
     sendMetrics(msg)
     encodeRpcMsg(msg, anonymize)
 
-  if encoded.len <= 0:
-    debug "empty message, skipping", p, msg
-    return
-
-  # To limit the size of the closure, we only pass the encoded message and
-  # connection to the spawned send task
-  asyncSpawn(try:
-    sendImpl(conn, encoded)
-  except Exception as exc: # TODO chronos Exception
-    raiseAssert exc.msg)
+  p.sendEncoded(encoded)
 
 proc newPubSubPeer*(peerId: PeerID,
                     getConn: GetConn,

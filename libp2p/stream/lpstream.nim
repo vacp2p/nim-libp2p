@@ -182,7 +182,8 @@ proc readLine*(s: LPStream,
 
   while true:
     var ch: char
-    await readExactly(s, addr ch, 1)
+    if (await readOnce(s, addr ch, 1)) == 0:
+      raise newLPStreamEOFError()
 
     if sep[state] == ch:
       inc(state)
@@ -202,12 +203,15 @@ proc readLine*(s: LPStream,
 
 proc readVarint*(conn: LPStream): Future[uint64] {.async, gcsafe.} =
   var
-    varint: uint64
-    length: int
     buffer: array[10, byte]
 
   for i in 0..<len(buffer):
-    await conn.readExactly(addr buffer[i], 1)
+    if (await conn.readOnce(addr buffer[i], 1)) == 0:
+      raise newLPStreamEOFError()
+
+    var
+      varint: uint64
+      length: int
     let res = PB.getUVarint(buffer.toOpenArray(0, i), length, varint)
     if res.isOk():
       return varint

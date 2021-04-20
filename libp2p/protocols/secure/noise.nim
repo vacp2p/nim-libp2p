@@ -577,8 +577,10 @@ method init*(p: Noise) {.gcsafe.} =
   p.codec = NoiseCodec
 
 proc newNoise*(
-    rng: ref BrHmacDrbgContext, privateKey: PrivateKey;
-    outgoing: bool = true; commonPrologue: seq[byte] = @[]): Noise =
+    rng: ref BrHmacDrbgContext,
+    privateKey: PrivateKey;
+    outgoing: bool = true;
+    commonPrologue: seq[byte] = @[]): Noise =
   result = Noise(
     rng: rng,
     outgoing: outgoing,

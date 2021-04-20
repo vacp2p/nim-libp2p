@@ -150,8 +150,6 @@ type
 
     heartbeatEvents*: seq[AsyncEvent]
 
-    randomBytes*: seq[byte]
-
   MeshMetrics* = object
     # scratch buffers for metrics
     otherPeersPerTopicMesh*: int64

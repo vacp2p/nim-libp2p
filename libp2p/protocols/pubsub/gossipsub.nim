@@ -8,7 +8,7 @@
 ## those terms.
 
 import std/[tables, sets, options, sequtils, random]
-import chronos, chronicles, metrics, bearssl
+import chronos, chronicles, metrics
 import ./pubsub,
        ./floodsub,
        ./pubsubpeer,
@@ -97,27 +97,6 @@ proc validateParameters*(parameters: GossipSubParams): Result[void, cstring] =
     err("gossipsub: behaviourPenaltyDecay parameter error, Must be between 0 and 1")
   else:
     ok()
-
-proc init*(_: type[TopicParams]): TopicParams =
-  TopicParams(
-    topicWeight: 0.0, # disabled by default
-    timeInMeshWeight: 0.01,
-    timeInMeshQuantum: 1.seconds,
-    timeInMeshCap: 10.0,
-    firstMessageDeliveriesWeight: 1.0,
-    firstMessageDeliveriesDecay: 0.5,
-    firstMessageDeliveriesCap: 10.0,
-    meshMessageDeliveriesWeight: -1.0,
-    meshMessageDeliveriesDecay: 0.5,
-    meshMessageDeliveriesCap: 10,
-    meshMessageDeliveriesThreshold: 1,
-    meshMessageDeliveriesWindow: 5.milliseconds,
-    meshMessageDeliveriesActivation: 10.seconds,
-    meshFailurePenaltyWeight: -1.0,
-    meshFailurePenaltyDecay: 0.5,
-    invalidMessageDeliveriesWeight: -1.0,
-    invalidMessageDeliveriesDecay: 0.5
-  )
 
 proc validateParameters*(parameters: TopicParams): Result[void, cstring] =
   if parameters.timeInMeshWeight <= 0.0 or parameters.timeInMeshWeight > 1.0:
@@ -262,6 +241,40 @@ method subscribeTopic*(g: GossipSub,
 
   trace "gossip peers", peers = g.gossipsub.peers(topic), topic
 
+proc handleControl(g: GossipSub, peer: PubSubPeer, rpcMsg: RPCMsg) =
+  if rpcMsg.control.isSome:
+    let control = rpcMsg.control.get()
+    g.handlePrune(peer, control.prune)
+
+    var respControl: ControlMessage
+    respControl.iwant.add(g.handleIHave(peer, control.ihave))
+    respControl.prune.add(g.handleGraft(peer, control.graft))
+    let messages = g.handleIWant(peer, control.iwant)
+
+    if
+      respControl.graft.len > 0 or
+      respControl.prune.len > 0 or
+      respControl.iwant.len > 0 or
+      messages.len > 0:
+      # iwant and prunes from here, also messages
+
+      for smsg in messages:
+        for topic in smsg.topicIDs:
+          if g.knownTopics.contains(topic):
+            libp2p_pubsub_broadcast_messages.inc(labelValues = [topic])
+          else:
+            libp2p_pubsub_broadcast_messages.inc(labelValues = ["generic"])
+      libp2p_pubsub_broadcast_iwant.inc(respControl.iwant.len.int64)
+      for prune in respControl.prune:
+        if g.knownTopics.contains(prune.topicID):
+          libp2p_pubsub_broadcast_prune.inc(labelValues = [prune.topicID])
+        else:
+          libp2p_pubsub_broadcast_prune.inc(labelValues = ["generic"])
+      trace "sending control message", msg = shortLog(respControl), peer
+      g.send(
+        peer,
+        RPCMsg(control: some(respControl), messages: messages))
+
 method rpcHandler*(g: GossipSub,
                   peer: PubSubPeer,
                   rpcMsg: RPCMsg) {.async.} =
@@ -283,26 +296,12 @@ method rpcHandler*(g: GossipSub,
     # avoid the remote peer from controlling the seen table hashing
     # by adding random bytes to the ID we ensure we randomize the IDs
     # we do only for seen as this is the great filter from the external world
-    if g.seen.put(msgId & g.randomBytes):
+    if g.addSeen(msgId):
       trace "Dropping already-seen message", msgId = shortLog(msgId), peer
-
       # make sure to update score tho before continuing
-      for t in msg.topicIDs:
-        if t notin g.topics:
-          continue
-                         # for every topic in the message
-        let topicParams = g.topicParams.mgetOrPut(t, TopicParams.init())
-                                                # if in mesh add more delivery score
-        g.withPeerStats(peer.peerId) do (stats: var PeerStats):
-          stats.topicInfos.withValue(t, tstats):
-            if tstats[].inMesh:
-              # TODO: take into account meshMessageDeliveriesWindow
-              # score only if messages are not too old.
-              tstats[].meshMessageDeliveries += 1
-              if tstats[].meshMessageDeliveries > topicParams.meshMessageDeliveriesCap:
-                tstats[].meshMessageDeliveries = topicParams.meshMessageDeliveriesCap
-          do: # make sure we don't loose this information
-            stats.topicInfos[t] = TopicInfo(meshMessageDeliveries: 1)
+      # TODO: take into account meshMessageDeliveriesWindow
+      # score only if messages are not too old.
+      g.rewardDelivered(peer, msg.topicIDs, false)
 
       # onto the next message
       continue
@@ -346,27 +345,12 @@ method rpcHandler*(g: GossipSub,
     # store in cache only after validation
     g.mcache.put(msgId, msg)
 
+    g.rewardDelivered(peer, msg.topicIDs, true)
+
     var toSendPeers = initHashSet[PubSubPeer]()
     for t in msg.topicIDs:                      # for every topic in the message
       if t notin g.topics:
         continue
-
-      let topicParams = g.topicParams.mgetOrPut(t, TopicParams.init())
-
-      g.withPeerStats(peer.peerId) do(stats: var PeerStats):
-        stats.topicInfos.withValue(t, tstats):
-                                                    # contribute to peer score first delivery
-          tstats[].firstMessageDeliveries += 1
-          if tstats[].firstMessageDeliveries > topicParams.firstMessageDeliveriesCap:
-            tstats[].firstMessageDeliveries = topicParams.firstMessageDeliveriesCap
-
-                                                    # if in mesh add more delivery score
-          if tstats[].inMesh:
-            tstats[].meshMessageDeliveries += 1
-            if tstats[].meshMessageDeliveries > topicParams.meshMessageDeliveriesCap:
-              tstats[].meshMessageDeliveries = topicParams.meshMessageDeliveriesCap
-        do: # make sure we don't loose this information
-          stats.topicInfos[t] = TopicInfo(firstMessageDeliveries: 1, meshMessageDeliveries: 1)
 
       g.floodsub.withValue(t, peers): toSendPeers.incl(peers[])
       g.mesh.withValue(t, peers): toSendPeers.incl(peers[])
@@ -375,46 +359,15 @@ method rpcHandler*(g: GossipSub,
 
     # In theory, if topics are the same in all messages, we could batch - we'd
     # also have to be careful to only include validated messages
-    let sendingTo = toSeq(toSendPeers)
-    g.broadcast(sendingTo, RPCMsg(messages: @[msg]))
-    trace "forwarded message to peers", peers = sendingTo.len, msgId, peer
+    g.broadcast(toSendPeers, RPCMsg(messages: @[msg]))
+    trace "forwared message to peers", peers = toSendPeers.len, msgId, peer
     for topic in msg.topicIDs:
       if g.knownTopics.contains(topic):
-        libp2p_pubsub_messages_rebroadcasted.inc(sendingTo.len.int64, labelValues = [topic])
+        libp2p_pubsub_messages_rebroadcasted.inc(toSendPeers.len.int64, labelValues = [topic])
       else:
-        libp2p_pubsub_messages_rebroadcasted.inc(sendingTo.len.int64, labelValues = ["generic"])
+        libp2p_pubsub_messages_rebroadcasted.inc(toSendPeers.len.int64, labelValues = ["generic"])
 
-  if rpcMsg.control.isSome:
-    let control = rpcMsg.control.get()
-    g.handlePrune(peer, control.prune)
-
-    var respControl: ControlMessage
-    respControl.iwant.add(g.handleIHave(peer, control.ihave))
-    respControl.prune.add(g.handleGraft(peer, control.graft))
-    let messages = g.handleIWant(peer, control.iwant)
-
-    if respControl.graft.len > 0 or
-      respControl.prune.len > 0 or
-      respControl.iwant.len > 0 or
-      messages.len > 0:
-      # iwant and prunes from here, also messages
-
-      for smsg in messages:
-        for topic in smsg.topicIDs:
-          if g.knownTopics.contains(topic):
-            libp2p_pubsub_broadcast_messages.inc(labelValues = [topic])
-          else:
-            libp2p_pubsub_broadcast_messages.inc(labelValues = ["generic"])
-      libp2p_pubsub_broadcast_iwant.inc(respControl.iwant.len.int64)
-      for prune in respControl.prune:
-        if g.knownTopics.contains(prune.topicID):
-          libp2p_pubsub_broadcast_prune.inc(labelValues = [prune.topicID])
-        else:
-          libp2p_pubsub_broadcast_prune.inc(labelValues = ["generic"])
-      trace "sending control message", msg = shortLog(respControl), peer
-      g.send(
-        peer,
-        RPCMsg(control: some(respControl), messages: messages))
+  g.handleControl(peer, rpcMsg)
 
 method subscribe*(g: GossipSub,
                   topic: string,
@@ -439,7 +392,7 @@ proc unsubscribe*(g: GossipSub, topic: string) =
     # remove mesh peers from gpeers, we send 2 different messages
     gpeers = gpeers - mpeers
     # send to peers NOT in mesh first
-    g.broadcast(toSeq(gpeers), msg)
+    g.broadcast(gpeers, msg)
 
     for peer in mpeers:
       trace "pruning unsubscribeAll call peer", peer, score = peer.score
@@ -454,9 +407,9 @@ proc unsubscribe*(g: GossipSub, topic: string) =
           backoff: g.parameters.pruneBackoff.seconds.uint64)]))
 
     # send to peers IN mesh now
-    g.broadcast(toSeq(mpeers), msg)
+    g.broadcast(mpeers, msg)
   else:
-    g.broadcast(toSeq(gpeers), msg)
+    g.broadcast(gpeers, msg)
 
   g.topicParams.del(topic)
 
@@ -542,19 +495,19 @@ method publish*(g: GossipSub,
 
   trace "Created new message", msg = shortLog(msg), peers = peers.len
 
-  if g.seen.put(msgId & g.randomBytes):
+  if g.addSeen(msgId):
     # custom msgid providers might cause this
     trace "Dropping already-seen message"
     return 0
 
   g.mcache.put(msgId, msg)
 
-  let peerSeq = toSeq(peers)
-  g.broadcast(peerSeq, RPCMsg(messages: @[msg]))
+  g.broadcast(peers, RPCMsg(messages: @[msg]))
+
   if g.knownTopics.contains(topic):
-    libp2p_pubsub_messages_published.inc(peerSeq.len.int64, labelValues = [topic])
+    libp2p_pubsub_messages_published.inc(peers.len.int64, labelValues = [topic])
   else:
-    libp2p_pubsub_messages_published.inc(peerSeq.len.int64, labelValues = ["generic"])
+    libp2p_pubsub_messages_published.inc(peers.len.int64, labelValues = ["generic"])
 
   trace "Published message to peers", peers=peers.len
 
@@ -620,6 +573,3 @@ method initPubSub*(g: GossipSub) =
 
   # init gossip stuff
   g.mcache = MCache.init(g.parameters.historyGossip, g.parameters.historyLength)
-  var rng = newRng()
-  g.randomBytes = newSeqUninitialized[byte](32)
-  brHmacDrbgGenerate(rng[], g.randomBytes)
