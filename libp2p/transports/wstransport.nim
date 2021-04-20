@@ -159,9 +159,8 @@ method accept*(self: WsTransport): Future[Session] {.async, gcsafe.} =
     warn "Unexpected error accepting connection", exc = exc.msg
     raise exc
 
-method dialStream*(
-  self: WsTransport,
-  address: MultiAddress): Future[Connection] {.async, gcsafe.} =
+method dial*(self: WsTransport,
+             address: MultiAddress): Future[Session] {.async, gcsafe.} =
   ## dial a peer
   ##
 
@@ -174,10 +173,10 @@ method dialStream*(
       "",
       secure = secure,
       flags = self.tlsFlags)
-    stream = WsStream.init(transp, Direction.Out)
+    session = WsTransportSession.new(transp, Direction.Out)
 
-  self.trackConnection(stream, Direction.Out)
-  return stream
+  self.trackSession(session, Direction.Out)
+  return session
 
 method handles*(t: WsTransport, address: MultiAddress): bool {.gcsafe.} =
   if procCall Transport(t).handles(address):

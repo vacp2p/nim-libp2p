@@ -254,16 +254,12 @@ method accept*(self: TcpTransport): Future[Session] {.async.} =
     debug "Unexpected error accepting connection", exc = exc.msg
     raise exc
 
-method dialStream*(
-  self: TcpTransport,
-  address: MultiAddress): Future[Connection] {.async, gcsafe.} =
-  ## dial a peer
-  ##
-
+method dial*(self: TcpTransport,
+             address: MultiAddress): Future[Session] {.async.} =
   trace "Dialing remote peer", address = $address
 
   let transp = await connect(address)
-  return await self.connHandler(transp, Direction.Out)
+  return await self.sessionHandler(transp, Direction.Out)
 
 method handles*(t: TcpTransport, address: MultiAddress): bool {.gcsafe.} =
   if procCall Transport(t).handles(address):
