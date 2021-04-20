@@ -103,6 +103,11 @@ method stop*(self: WsTransport) {.async, gcsafe.} =
         self.connections[Direction.In].mapIt(it.close()) &
         self.connections[Direction.Out].mapIt(it.close())))
 
+    checkFutures(
+      await allFinished(
+        self.sessions[Direction.In].mapIt(it.close()) &
+        self.sessions[Direction.Out].mapIt(it.close())))
+
     # server can be nil
     if not isNil(self.httpserver):
       self.httpserver.stop()
@@ -143,32 +148,6 @@ method accept*(self: WsTransport): Future[Session] {.async, gcsafe.} =
 
     self.trackSession(session, Direction.In)
     return session
-  except TransportOsError as exc:
-    debug "OS Error", exc = exc.msg
-  except TransportTooManyError as exc:
-    debug "Too many files opened", exc = exc.msg
-  except TransportUseClosedError as exc:
-    debug "Server was closed", exc = exc.msg
-    raise newTransportClosedError(exc)
-  except CatchableError as exc:
-    warn "Unexpected error accepting connection", exc = exc.msg
-    raise exc
-
-method acceptStream*(self: WsTransport): Future[Connection] {.async, gcsafe.} =
-  ## accept a new WS connection
-  ##
-
-  if not self.running:
-    raise newTransportClosedError()
-
-  try:
-    let
-      req = await self.httpserver.accept()
-      wstransp = await self.wsserver.handleRequest(req)
-      stream = WsStream.init(wstransp, Direction.In)
-
-    self.trackConnection(stream, Direction.In)
-    return stream
   except TransportOsError as exc:
     debug "OS Error", exc = exc.msg
   except TransportTooManyError as exc:
