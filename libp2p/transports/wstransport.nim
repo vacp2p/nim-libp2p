@@ -158,7 +158,7 @@ proc trackConnection(self: WsTransport, conn: WsStream, dir: Direction) =
     trace "Cleaned up client"
   asyncSpawn onClose()
 
-method accept*(self: WsTransport): Future[Connection] {.async, gcsafe.} =
+method acceptStream*(self: WsTransport): Future[Connection] {.async, gcsafe.} =
   ## accept a new WS connection
   ##
 

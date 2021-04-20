@@ -180,7 +180,7 @@ method stop*(self: TcpTransport) {.async, gcsafe.} =
   except CatchableError as exc:
     trace "Error shutting down tcp transport", exc = exc.msg
 
-method accept*(self: TcpTransport): Future[Connection] {.async, gcsafe.} =
+method acceptStream*(self: TcpTransport): Future[Connection] {.async, gcsafe.} =
   ## accept a new TCP connection
   ##
 

@@ -22,7 +22,7 @@ suite "TCP transport":
     asyncSpawn transport.start(ma)
 
     proc acceptHandler() {.async, gcsafe.} =
-      let conn = await transport.accept()
+      let conn = await transport.acceptStream()
       await conn.write("Hello!")
       await conn.close()
 
@@ -45,7 +45,7 @@ suite "TCP transport":
 
     proc acceptHandler() {.async, gcsafe.} =
       var msg = newSeq[byte](6)
-      let conn = await transport.accept()
+      let conn = await transport.acceptStream()
       await conn.readExactly(addr msg[0], 6)
       check string.fromBytes(msg) == "Hello!"
       await conn.close()

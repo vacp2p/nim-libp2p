@@ -32,7 +32,7 @@ proc commonTransportTest*(name: string, prov: TransportProvider, ma: string) =
       await transport1.start(ma)
 
       proc acceptHandler() {.async, gcsafe.} =
-        let conn = await transport1.accept()
+        let conn = await transport1.acceptStream()
         await conn.write("Hello!")
         await conn.close()
 
@@ -59,7 +59,7 @@ proc commonTransportTest*(name: string, prov: TransportProvider, ma: string) =
       await transport1.start(ma)
 
       proc acceptHandler() {.async, gcsafe.} =
-        let conn = await transport1.accept()
+        let conn = await transport1.acceptStream()
         var msg = newSeq[byte](6)
         await conn.readExactly(addr msg[0], 6)
         check string.fromBytes(msg) == "Hello!"
@@ -102,7 +102,7 @@ proc commonTransportTest*(name: string, prov: TransportProvider, ma: string) =
       let transport1 = prov()
       await transport1.start(ma)
 
-      let acceptHandler = transport1.accept()
+      let acceptHandler = transport1.acceptStream()
       await acceptHandler.cancelAndWait()
       check acceptHandler.cancelled
 
@@ -116,7 +116,7 @@ proc commonTransportTest*(name: string, prov: TransportProvider, ma: string) =
 
       let transport2 = prov()
 
-      let acceptHandler = transport1.accept()
+      let acceptHandler = transport1.acceptStream()
       let conn = await transport2.dial(transport1.ma)
       let serverConn = await acceptHandler
 
@@ -134,7 +134,7 @@ proc commonTransportTest*(name: string, prov: TransportProvider, ma: string) =
       await transport1.start(ma)
 
       proc acceptHandler() {.async, gcsafe.} =
-        let conn = await transport1.accept()
+        let conn = await transport1.acceptStream()
         await conn.close()
 
       let handlerWait = acceptHandler()
