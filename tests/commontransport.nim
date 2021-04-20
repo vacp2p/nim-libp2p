@@ -39,7 +39,7 @@ proc commonTransportTest*(name: string, prov: TransportProvider, ma: string) =
       let handlerWait = acceptHandler()
 
       let transport2 = prov()
-      let conn = await transport2.dial(transport1.ma)
+      let conn = await transport2.dialStream(transport1.ma)
       var msg = newSeq[byte](6)
       await conn.readExactly(addr msg[0], 6)
 
@@ -68,7 +68,7 @@ proc commonTransportTest*(name: string, prov: TransportProvider, ma: string) =
       let handlerWait = acceptHandler()
 
       let transport2 = prov()
-      let conn = await transport2.dial(transport1.ma)
+      let conn = await transport2.dialStream(transport1.ma)
       await conn.write("Hello!")
 
       await conn.close() #for some protocols, closing requires actively reading, so we must close here
@@ -86,7 +86,7 @@ proc commonTransportTest*(name: string, prov: TransportProvider, ma: string) =
       await transport1.start(ma)
 
       let transport2 = prov()
-      let cancellation = transport2.dial(transport1.ma)
+      let cancellation = transport2.dialStream(transport1.ma)
 
       await cancellation.cancelAndWait()
       check cancellation.cancelled
@@ -117,7 +117,7 @@ proc commonTransportTest*(name: string, prov: TransportProvider, ma: string) =
       let transport2 = prov()
 
       let acceptHandler = transport1.acceptStream()
-      let conn = await transport2.dial(transport1.ma)
+      let conn = await transport2.dialStream(transport1.ma)
       let serverConn = await acceptHandler
 
       await allFuturesThrowing(
@@ -139,7 +139,7 @@ proc commonTransportTest*(name: string, prov: TransportProvider, ma: string) =
 
       let handlerWait = acceptHandler()
 
-      let conn = await transport1.dial(transport1.ma)
+      let conn = await transport1.dialStream(transport1.ma)
 
       var msg = newSeq[byte](6)
       try:

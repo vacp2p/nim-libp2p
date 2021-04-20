@@ -62,7 +62,7 @@ suite "Ping":
       await msListen.handle(c)
 
     acceptFut = acceptHandler()
-    conn = await transport2.dial(transport1.ma)
+    conn = await transport2.dialStream(transport1.ma)
 
     discard await msDial.select(conn, PingCodec)
     let time = await pingProto2.ping(conn)
@@ -78,7 +78,7 @@ suite "Ping":
       discard await pingProto1.ping(c)
 
     acceptFut = acceptHandler()
-    conn = await transport2.dial(transport1.ma)
+    conn = await transport2.dialStream(transport1.ma)
 
     await msDial.handle(conn)
     check pingReceivedCount == 1
@@ -102,7 +102,7 @@ suite "Ping":
       await msListen.handle(c)
 
     acceptFut = acceptHandler()
-    conn = await transport2.dial(transport1.ma)
+    conn = await transport2.dialStream(transport1.ma)
 
     discard await msDial.select(conn, PingCodec)
     let p = pingProto2.ping(conn)

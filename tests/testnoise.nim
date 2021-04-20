@@ -111,7 +111,7 @@ suite "Noise":
       clientPrivKey = PrivateKey.random(ECDSA, rng[]).get()
       clientInfo = PeerInfo.init(clientPrivKey, [transport1.ma])
       clientNoise = Noise.new(rng, clientPrivKey, outgoing = true)
-      conn = await transport2.dial(transport1.ma)
+      conn = await transport2.dialStream(transport1.ma)
 
     conn.peerId = serverInfo.peerId
     let sconn = await clientNoise.secure(conn, true)
@@ -155,7 +155,7 @@ suite "Noise":
       clientPrivKey = PrivateKey.random(ECDSA, rng[]).get()
       clientInfo = PeerInfo.init(clientPrivKey, [transport1.ma])
       clientNoise = Noise.new(rng, clientPrivKey, outgoing = true, commonPrologue = @[1'u8, 2'u8, 3'u8])
-      conn = await transport2.dial(transport1.ma)
+      conn = await transport2.dialStream(transport1.ma)
     conn.peerId = serverInfo.peerId
 
     var sconn: Connection = nil
@@ -195,7 +195,7 @@ suite "Noise":
       clientPrivKey = PrivateKey.random(ECDSA, rng[]).get()
       clientInfo = PeerInfo.init(clientPrivKey, [transport1.ma])
       clientNoise = Noise.new(rng, clientPrivKey, outgoing = true)
-      conn = await transport2.dial(transport1.ma)
+      conn = await transport2.dialStream(transport1.ma)
     conn.peerId = serverInfo.peerId
     let sconn = await clientNoise.secure(conn, true)
 
@@ -237,7 +237,7 @@ suite "Noise":
       clientPrivKey = PrivateKey.random(ECDSA, rng[]).get()
       clientInfo = PeerInfo.init(clientPrivKey, [transport1.ma])
       clientNoise = Noise.new(rng, clientPrivKey, outgoing = true)
-      conn = await transport2.dial(transport1.ma)
+      conn = await transport2.dialStream(transport1.ma)
     conn.peerId = serverInfo.peerId
     let sconn = await clientNoise.secure(conn, true)
 

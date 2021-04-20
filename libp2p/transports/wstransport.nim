@@ -159,7 +159,7 @@ method accept*(self: WsTransport): Future[Session] {.async, gcsafe.} =
     warn "Unexpected error accepting connection", exc = exc.msg
     raise exc
 
-method dial*(
+method dialStream*(
   self: WsTransport,
   address: MultiAddress): Future[Connection] {.async, gcsafe.} =
   ## dial a peer
