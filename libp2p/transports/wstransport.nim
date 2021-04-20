@@ -36,7 +36,6 @@ type
   WsTransport* = ref object of Transport
     httpserver: HttpServer
     wsserver: WSServer
-    connections: array[Direction, seq[WsStream]]
     sessions: array[Direction, seq[WsTransportSession]]
 
     tlsPrivateKey: TLSPrivateKey
@@ -100,11 +99,6 @@ method stop*(self: WsTransport) {.async, gcsafe.} =
 
     checkFutures(
       await allFinished(
-        self.connections[Direction.In].mapIt(it.close()) &
-        self.connections[Direction.Out].mapIt(it.close())))
-
-    checkFutures(
-      await allFinished(
         self.sessions[Direction.In].mapIt(it.close()) &
         self.sessions[Direction.Out].mapIt(it.close())))
 
@@ -125,14 +119,6 @@ proc trackSession(self: WsTransport,
   proc onClose() {.async.} =
     await session.join()
     self.sessions[dir].keepItIf(it != session)
-    trace "Cleaned up client"
-  asyncSpawn onClose()
-
-proc trackConnection(self: WsTransport, conn: WsStream, dir: Direction) =
-  self.connections[dir].add(conn)
-  proc onClose() {.async.} =
-    await conn.session.stream.reader.join()
-    self.connections[dir].keepItIf(it != conn)
     trace "Cleaned up client"
   asyncSpawn onClose()
 
