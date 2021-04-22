@@ -39,10 +39,11 @@ proc grafted*(g: GossipSub, p: PubSubPeer, topic: string) {.raises: [Defect].} =
 
     trace "grafted", peer=p, topic
 
-proc pruned*(g: GossipSub, p: PubSubPeer, topic: string) {.raises: [Defect].} =
-  let backoff = Moment.fromNow(g.parameters.pruneBackoff)
-  g.backingOff
-    .mgetOrPut(topic, initTable[PeerID, Moment]())[p.peerId] = backoff
+proc pruned*(g: GossipSub, p: PubSubPeer, topic: string, setBackoff: bool = true) {.raises: [Defect].} =
+  if setBackoff:
+    let backoff = Moment.fromNow(g.parameters.pruneBackoff)
+    g.backingOff
+      .mgetOrPut(topic, initTable[PeerID, Moment]())[p.peerId] = backoff
 
   g.peerStats.withValue(p.peerId, stats):
     stats.topicInfos.withValue(topic, info):
@@ -176,7 +177,7 @@ proc handlePrune*(g: GossipSub, peer: PubSubPeer, prunes: seq[ControlPrune]) {.r
           .mgetOrPut(topic, initTable[PeerID, Moment]())[peer.peerId] = backoff
 
     trace "pruning rpc received peer", peer, score = peer.score
-    g.pruned(peer, topic)
+    g.pruned(peer, topic, setBackoff = false)
     g.mesh.removePeer(topic, peer)
 
     # TODO peer exchange, we miss ambient peer discovery in libp2p, so we are blocked by that
