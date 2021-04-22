@@ -251,8 +251,11 @@ proc handleControl(g: GossipSub, peer: PubSubPeer, rpcMsg: RPCMsg) =
     respControl.prune.add(g.handleGraft(peer, control.graft))
     let messages = g.handleIWant(peer, control.iwant)
 
-    if respControl.graft.len > 0 or respControl.prune.len > 0 or
-      respControl.ihave.len > 0 or messages.len > 0:
+    if
+      respControl.graft.len > 0 or
+      respControl.prune.len > 0 or
+      respControl.iwant.len > 0 or
+      messages.len > 0:
       # iwant and prunes from here, also messages
 
       for smsg in messages:
@@ -506,7 +509,7 @@ method publish*(g: GossipSub,
   else:
     libp2p_pubsub_messages_published.inc(peers.len.int64, labelValues = ["generic"])
 
-  trace "Published message to peers"
+  trace "Published message to peers", peers=peers.len
 
   return peers.len
 

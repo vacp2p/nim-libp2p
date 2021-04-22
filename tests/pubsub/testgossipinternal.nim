@@ -563,6 +563,43 @@ suite "GossipSub internal":
     await allFuturesThrowing(conns.mapIt(it.close()))
     await gossipSub.switch.stop()
 
+  asyncTest "rebalanceMesh fail due to backoff - remote":
+    let gossipSub = TestGossipSub.init(newStandardSwitch())
+    let topic = "foobar"
+    gossipSub.mesh[topic] = initHashSet[PubSubPeer]()
+    gossipSub.topicParams[topic] = TopicParams.init()
+
+    var conns = newSeq[Connection]()
+    gossipSub.gossipsub[topic] = initHashSet[PubSubPeer]()
+    for i in 0..<15:
+      let conn = newBufferStream(noop)
+      conns &= conn
+      let peerInfo = randomPeerInfo()
+      conn.peerInfo = peerInfo
+      let peer = gossipSub.getPubSubPeer(peerInfo.peerId)
+      peer.sendConn = conn
+      gossipSub.gossipsub[topic].incl(peer)
+      gossipSub.mesh[topic].incl(peer)
+
+    check gossipSub.peers.len == 15
+    gossipSub.rebalanceMesh(topic)
+    check gossipSub.mesh[topic].len != 0
+
+    for i in 0..<15:
+      let peerInfo = conns[i].peerInfo
+      let peer = gossipSub.getPubSubPeer(peerInfo.peerId)
+      gossipSub.handlePrune(peer, @[ControlPrune(
+        topicID: topic,
+        peers: @[],
+        backoff: gossipSub.parameters.pruneBackoff.seconds.uint64
+      )])
+
+    # expect topic cleaned up since they are all pruned
+    check topic notin gossipSub.mesh
+
+    await allFuturesThrowing(conns.mapIt(it.close()))
+    await gossipSub.switch.stop()
+
   asyncTest "rebalanceMesh Degree Hi - audit scenario":
     let gossipSub = TestGossipSub.init(newStandardSwitch())
     let topic = "foobar"
