@@ -252,7 +252,6 @@ proc handleControl(g: GossipSub, peer: PubSubPeer, rpcMsg: RPCMsg) =
     let messages = g.handleIWant(peer, control.iwant)
 
     if
-      respControl.graft.len > 0 or
       respControl.prune.len > 0 or
       respControl.iwant.len > 0 or
       messages.len > 0:
@@ -264,12 +263,15 @@ proc handleControl(g: GossipSub, peer: PubSubPeer, rpcMsg: RPCMsg) =
             libp2p_pubsub_broadcast_messages.inc(labelValues = [topic])
           else:
             libp2p_pubsub_broadcast_messages.inc(labelValues = ["generic"])
+
       libp2p_pubsub_broadcast_iwant.inc(respControl.iwant.len.int64)
+
       for prune in respControl.prune:
         if g.knownTopics.contains(prune.topicID):
           libp2p_pubsub_broadcast_prune.inc(labelValues = [prune.topicID])
         else:
           libp2p_pubsub_broadcast_prune.inc(labelValues = ["generic"])
+
       trace "sending control message", msg = shortLog(respControl), peer
       g.send(
         peer,
