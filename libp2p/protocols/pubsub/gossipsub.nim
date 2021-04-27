@@ -247,7 +247,9 @@ proc handleControl(g: GossipSub, peer: PubSubPeer, rpcMsg: RPCMsg) =
     g.handlePrune(peer, control.prune)
 
     var respControl: ControlMessage
-    respControl.iwant.add(g.handleIHave(peer, control.ihave))
+    let iwant = g.handleIHave(peer, control.ihave)
+    if iwant.messageIDs.len > 0:
+      respControl.iwant.add(iwant)
     respControl.prune.add(g.handleGraft(peer, control.graft))
     let messages = g.handleIWant(peer, control.iwant)
 
