@@ -273,6 +273,7 @@ proc handleControl(g: GossipSub, peer: PubSubPeer, rpcMsg: RPCMsg) =
           libp2p_pubsub_broadcast_prune.inc(labelValues = [prune.topicID])
         else:
           libp2p_pubsub_broadcast_prune.inc(labelValues = ["generic"])
+
       trace "sending control message", msg = shortLog(respControl), peer
       g.send(
         peer,
