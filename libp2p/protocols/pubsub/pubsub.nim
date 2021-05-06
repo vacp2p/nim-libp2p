@@ -69,13 +69,13 @@ declarePublicCounter(libp2p_pubsub_received_prune, "pubsub broadcast prune", lab
 
 type
   TopicHandler* = proc(topic: string,
-                       data: seq[byte]): Future[void] {.gcsafe.}
+                       data: seq[byte]): Future[void] {.gcsafe, raises: [Defect].}
 
   ValidationResult* {.pure.} = enum
     Accept, Reject, Ignore
 
   ValidatorHandler* = proc(topic: string,
-                           message: Message): Future[ValidationResult] {.gcsafe.}
+                           message: Message): Future[ValidationResult] {.gcsafe, raises: [Defect].}
 
   TopicPair* = tuple[topic: string, handler: TopicHandler]
 
@@ -85,15 +85,10 @@ type
   SubscriptionValidator* =
     proc(topic: string): bool {.raises: [Defect], gcsafe.}
 
-  Topic* = object
-    # make this a variant type if one day we have different Params structs
-    name*: string
-    handler*: seq[TopicHandler]
-
   PubSub* = ref object of LPProtocol
     switch*: Switch                    # the switch used to dial/connect to peers
     peerInfo*: PeerInfo                # this peer's info
-    topics*: Table[string, Topic]      # local topics
+    topics*: Table[string, seq[TopicHandler]]      # the topics that _we_ are interested in
     peers*: Table[PeerID, PubSubPeer]  ##\
       ## Peers that we are interested to gossip with (but not necessarily
       ## yet connected to)
@@ -106,7 +101,7 @@ type
     msgSeqno*: uint64
     anonymize*: bool                   # if we omit fromPeer and seqno from RPC messages we send
     subscriptionValidator*: SubscriptionValidator # callback used to validate subscriptions
-    topicsHigh*: int                  # the maximum number of topics we allow in a subscription message (application specific, defaults to int max)
+    topicsHigh*: int                  # the maximum number of topics a peer is allowed to subscribe to
 
     knownTopics*: HashSet[string]
 
@@ -186,10 +181,11 @@ proc broadcast*(
 
 proc sendSubs*(p: PubSub,
                peer: PubSubPeer,
-               topics: seq[string],
+               topics: openArray[string],
                subscribe: bool) =
   ## send subscriptions to remote peer
   p.send(peer, RPCMsg.withSubs(topics, subscribe))
+
   for topic in topics:
     if subscribe:
       if p.knownTopics.contains(topic):
@@ -202,26 +198,9 @@ proc sendSubs*(p: PubSub,
       else:
         libp2p_pubsub_broadcast_unsubscriptions.inc(labelValues = ["generic"])
 
-method subscribeTopic*(p: PubSub,
-                       topic: string,
-                       subscribe: bool,
-                       peer: PubSubPeer) {.base.} =
-  # both gossipsub and floodsub diverge, and this super call is not necessary right now
-  # if necessary remove the assertion
-  doAssert(false, "unexpected call to pubsub.subscribeTopic")
-
-method rpcHandler*(p: PubSub,
-                   peer: PubSubPeer,
-                   rpcMsg: RPCMsg): Future[void] {.base.} =
-  ## handle rpc messages
-  trace "processing RPC message", msg = rpcMsg.shortLog, peer
+proc updateMetrics*(p: PubSub, rpcMsg: RPCMsg) =
   for i in 0..<min(rpcMsg.subscriptions.len, p.topicsHigh):
-    let s = rpcMsg.subscriptions[i]
-    trace "about to subscribe to topic", topicId = s.topic, peer, subscribe = s.subscribe
-    p.subscribeTopic(s.topic, s.subscribe, peer)
-
-  for i in 0..<min(rpcMsg.subscriptions.len, p.topicsHigh):
-    let sub = rpcMsg.subscriptions[i]
+    template sub(): untyped = rpcMsg.subscriptions[i]
     if sub.subscribe:
       if p.knownTopics.contains(sub.topic):
         libp2p_pubsub_received_subscriptions.inc(labelValues = [sub.topic])
@@ -233,8 +212,10 @@ method rpcHandler*(p: PubSub,
       else:
         libp2p_pubsub_received_unsubscriptions.inc(labelValues = ["generic"])
 
-  for smsg in rpcMsg.messages:
-    for topic in smsg.topicIDs:
+  for i in 0..<rpcMsg.messages.len():
+    template smsg: untyped = rpcMsg.messages[i]
+    for j in 0..<smsg.topicIDs.len():
+      template topic: untyped = smsg.topicIDs[j]
       if p.knownTopics.contains(topic):
         libp2p_pubsub_received_messages.inc(labelValues = [topic])
       else:
@@ -242,8 +223,7 @@ method rpcHandler*(p: PubSub,
 
   if rpcMsg.control.isSome():
     libp2p_pubsub_received_iwant.inc(rpcMsg.control.get().iwant.len.int64)
-
-    let control = rpcMsg.control.get()
+    template control: untyped = rpcMsg.control.unsafeGet()
     for ihave in control.ihave:
       if p.knownTopics.contains(ihave.topicID):
         libp2p_pubsub_received_ihave.inc(labelValues = [ihave.topicID])
@@ -260,11 +240,11 @@ method rpcHandler*(p: PubSub,
       else:
         libp2p_pubsub_received_prune.inc(labelValues = ["generic"])
 
-  # Avoid async transformation to avoid copying of rpcMsg into closure - this
-  # is an unnecessary hotspot in gossip
-  var res = newFuture[void]("PubSub.rpcHandler")
-  res.complete()
-  return res
+method rpcHandler*(p: PubSub,
+                   peer: PubSubPeer,
+                   rpcMsg: RPCMsg): Future[void] {.base.} =
+  ## Handler that must be overridden by concrete implementation
+  raiseAssert "Unimplemented"
 
 method onNewPeer(p: PubSub, peer: PubSubPeer) {.base.} = discard
 
@@ -278,14 +258,14 @@ method onPubSubPeerEvent*(p: PubSub, peer: PubsubPeer, event: PubsubPeerEvent) {
     discard
 
 proc getOrCreatePeer*(
-  p: PubSub,
-  peer: PeerID,
-  protos: seq[string]): PubSubPeer =
-  if peer in p.peers:
-    return p.peers[peer]
+    p: PubSub,
+    peerId: PeerID,
+    protos: seq[string]): PubSubPeer =
+  p.peers.withValue(peerId, peer):
+    return peer[]
 
   proc getConn(): Future[Connection] =
-    p.switch.dial(peer, protos)
+    p.switch.dial(peerId, protos)
 
   proc dropConn(peer: PubSubPeer) =
     proc dropConnAsync(peer: PubsubPeer) {.async.} =
@@ -299,10 +279,10 @@ proc getOrCreatePeer*(
     p.onPubSubPeerEvent(peer, event)
 
   # create new pubsub peer
-  let pubSubPeer = newPubSubPeer(peer, getConn, dropConn, onEvent, protos[0])
-  debug "created new pubsub peer", peer
+  let pubSubPeer = newPubSubPeer(peerId, getConn, dropConn, onEvent, protos[0])
+  debug "created new pubsub peer", peerId
 
-  p.peers[peer] = pubSubPeer
+  p.peers[peerId] = pubSubPeer
   pubSubPeer.observers = p.observers
 
   onNewPeer(p, pubSubPeer)
@@ -314,26 +294,40 @@ proc getOrCreatePeer*(
 
   return pubSubPeer
 
-proc handleData*(p: PubSub, topic: string, data: seq[byte]): Future[void] {.async.} =
-  if topic notin p.topics: return # Not subscribed
+proc handleData*(p: PubSub, topic: string, data: seq[byte]): Future[void] =
+  # Start work on all data handlers without copying data into closure like
+  # happens on {.async.} transformation
+  p.topics.withValue(topic, handlers) do:
+    var futs = newSeq[Future[void]]()
 
-  # gather all futures without yielding to scheduler
-  var futs = p.topics[topic].handler.mapIt(it(topic, data))
-  if futs.len() == 0: return # No handlers
+    for handler in handlers[]:
+      if handler != nil: # allow nil handlers
+        let fut = handler(topic, data)
+        if not fut.completed(): # Fast path for successful sync handlers
+          futs.add(fut)
 
-  try:
-    futs = await allFinished(futs)
-  except CancelledError:
-    # propagate cancellation
-    for fut in futs:
-      if not(fut.finished):
-        fut.cancel()
+    if futs.len() > 0:
+      proc waiter(): Future[void] {.async.} =
+        # slow path - we have to wait for the handlers to complete
+        try:
+          futs = await allFinished(futs)
+        except CancelledError:
+          # propagate cancellation
+          for fut in futs:
+            if not(fut.finished):
+              fut.cancel()
 
-  # check for errors in futures
-  for fut in futs:
-    if fut.failed:
-      let err = fut.readError()
-      warn "Error in topic handler", msg = err.msg
+        # check for errors in futures
+        for fut in futs:
+          if fut.failed:
+            let err = fut.readError()
+            warn "Error in topic handler", msg = err.msg
+      return waiter()
+
+  # Fast path - futures finished synchronously or nobody cared about data
+  var res = newFuture[void]()
+  res.complete()
+  return res
 
 method handleConn*(p: PubSub,
                    conn: Connection,
@@ -381,54 +375,65 @@ method subscribePeer*(p: PubSub, peer: PeerID) {.base.} =
 proc updateTopicMetrics(p: PubSub, topic: string) =
   # metrics
   libp2p_pubsub_topics.set(p.topics.len.int64)
+
   if p.knownTopics.contains(topic):
-    libp2p_pubsub_topic_handlers.set(p.topics[topic].handler.len.int64, labelValues = [topic])
+    p.topics.withValue(topic, handlers) do:
+      libp2p_pubsub_topic_handlers.set(handlers[].len.int64, labelValues = [topic])
+    do:
+      libp2p_pubsub_topic_handlers.set(0, labelValues = [topic])
   else:
-    libp2p_pubsub_topic_handlers.set(0, labelValues = ["other"])
+    var others: int64 = 0
     for key, val in p.topics:
-      if not p.knownTopics.contains(key):
-        libp2p_pubsub_topic_handlers.inc(val.handler.len.int64, labelValues = ["other"])
+      if key notin p.knownTopics: others += 1
 
-method unsubscribe*(p: PubSub,
-                    topics: seq[TopicPair]) {.base.} =
-  ## unsubscribe from a list of ``topic`` strings
-  for t in topics:
-    let
-      handler = t.handler
-      ttopic = t.topic
-    closureScope:
-      p.topics.withValue(ttopic, topic):
-        topic[].handler.keepIf(proc (x: auto): bool = x != handler)
+    libp2p_pubsub_topic_handlers.set(others, labelValues = ["other"])
 
-        if topic[].handler.len == 0:
-          # make sure we delete the topic if
-          # no more handlers are left
-          p.topics.del(ttopic)
+method onTopicSubscription*(p: PubSub, topic: string, subscribed: bool) {.base.} =
+  # Called when subscribe is called the first time for a topic or unsubscribe
+  # removes the last handler
 
-          p.updateTopicMetrics(ttopic)
+  # Notify others that we are no longer interested in the topic
+  for _, peer in p.peers:
+    p.sendSubs(peer, [topic], subscribed)
 
-        libp2p_pubsub_unsubscriptions.inc()
+  if subscribed:
+    libp2p_pubsub_subscriptions.inc()
+  else:
+    libp2p_pubsub_unsubscriptions.inc()
 
 proc unsubscribe*(p: PubSub,
                   topic: string,
                   handler: TopicHandler) =
   ## unsubscribe from a ``topic`` string
   ##
-  p.unsubscribe(@[(topic, handler)])
+  p.topics.withValue(topic, handlers):
+    handlers[].keepItIf(it != handler)
 
-method unsubscribeAll*(p: PubSub, topic: string) {.base.} =
+    if handlers[].len() == 0:
+      p.topics.del(topic)
+
+      p.onTopicSubscription(topic, false)
+
+    p.updateTopicMetrics(topic)
+
+proc unsubscribe*(p: PubSub, topics: openArray[TopicPair]) =
+  ## unsubscribe from a list of ``topic`` handlers
+  for t in topics:
+    p.unsubscribe(t.topic, t.handler)
+
+proc unsubscribeAll*(p: PubSub, topic: string) =
   if topic notin p.topics:
     debug "unsubscribeAll called for an unknown topic", topic
   else:
     p.topics.del(topic)
 
+    p.onTopicSubscription(topic, false)
+
     p.updateTopicMetrics(topic)
 
-    libp2p_pubsub_unsubscriptions.inc()
-
-method subscribe*(p: PubSub,
-                  topic: string,
-                  handler: TopicHandler) {.base.} =
+proc subscribe*(p: PubSub,
+                topic: string,
+                handler: TopicHandler) =
   ## subscribe to a topic
   ##
   ## ``topic``   - a string topic to subscribe to
@@ -437,18 +442,18 @@ method subscribe*(p: PubSub,
   ##               that will be triggered
   ##               on every received message
   ##
-  if topic notin p.topics:
+
+  p.topics.withValue(topic, handlers) do:
+    # Already subscribed, just adding another handler
+    handlers[].add(handler)
+  do:
     trace "subscribing to topic", name = topic
-    p.topics[topic] = Topic(name: topic)
+    p.topics[topic] = @[handler]
 
-  p.topics[topic].handler.add(handler)
-
-  for _, peer in p.peers:
-    p.sendSubs(peer, @[topic], true)
+    # Notify on first handler
+    p.onTopicSubscription(topic, true)
 
   p.updateTopicMetrics(topic)
-
-  libp2p_pubsub_subscriptions.inc()
 
 method publish*(p: PubSub,
                 topic: string,
@@ -481,18 +486,17 @@ method addValidator*(p: PubSub,
                      topic: varargs[string],
                      hook: ValidatorHandler) {.base.} =
   for t in topic:
-    if t notin p.validators:
-      p.validators[t] = initHashSet[ValidatorHandler]()
-
     trace "adding validator for topic", topicId = t
-    p.validators[t].incl(hook)
+    p.validators.mgetOrPut(t, HashSet[ValidatorHandler]()).incl(hook)
 
 method removeValidator*(p: PubSub,
                         topic: varargs[string],
                         hook: ValidatorHandler) {.base.} =
   for t in topic:
-    if t in p.validators:
-      p.validators[t].excl(hook)
+    p.validators.withValue(t, validators):
+      validators[].excl(hook)
+      if validators[].len() == 0:
+        p.validators.del(t)
 
 method validate*(p: PubSub, message: Message): Future[ValidationResult] {.async, base.} =
   var pending: seq[Future[ValidationResult]]
