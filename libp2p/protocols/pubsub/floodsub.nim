@@ -39,10 +39,10 @@ proc addSeen*(f: FloodSub, msgId: MessageID): bool =
   # Return true if the message has already been seen
   f.seen.put(f.seenSalt & msgId)
 
-method subscribeTopic*(f: FloodSub,
-                       topic: string,
-                       subscribe: bool,
-                       peer: PubsubPeer) {.gcsafe.} =
+proc handleSubscribe*(f: FloodSub,
+                      peer: PubsubPeer,
+                      topic: string,
+                      subscribe: bool) =
   logScope:
     peer
     topic
@@ -61,21 +61,16 @@ method subscribeTopic*(f: FloodSub,
     return
 
   if subscribe:
-    if topic notin f.floodsub:
-      f.floodsub[topic] = initHashSet[PubSubPeer]()
-
     trace "adding subscription for topic", peer, topic
 
     # subscribe the peer to the topic
-    f.floodsub[topic].incl(peer)
+    f.floodsub.mgetOrPut(topic, HashSet[PubSubPeer]()).incl(peer)
   else:
-    if topic notin f.floodsub:
-      return
+    f.floodsub.withValue(topic, peers):
+      trace "removing subscription for topic", peer, topic
 
-    trace "removing subscription for topic", peer, topic
-
-    # unsubscribe the peer from the topic
-    f.floodsub[topic].excl(peer)
+      # unsubscribe the peer from the topic
+      peers[].excl(peer)
 
 method unsubscribePeer*(f: FloodSub, peer: PeerID) =
   ## handle peer disconnects
@@ -94,6 +89,10 @@ method rpcHandler*(f: FloodSub,
                    peer: PubSubPeer,
                    rpcMsg: RPCMsg) {.async.} =
   await procCall PubSub(f).rpcHandler(peer, rpcMsg)
+
+  for i in 0..<min(f.topicsHigh, rpcMsg.subscriptions.len):
+    template sub: untyped = rpcMsg.subscriptions[i]
+    f.handleSubscribe(peer, sub.topic, sub.subscribe)
 
   for msg in rpcMsg.messages:                         # for every message
     let msgId = f.msgIdProvider(msg)
@@ -138,6 +137,8 @@ method rpcHandler*(f: FloodSub,
     # also have to be careful to only include validated messages
     f.broadcast(toSendPeers, RPCMsg(messages: @[msg]))
     trace "Forwared message to peers", peers = toSendPeers.len
+
+  f.updateMetrics(rpcMsg)
 
 method init*(f: FloodSub) =
   proc handler(conn: Connection, proto: string) {.async.} =
@@ -201,19 +202,6 @@ method publish*(f: FloodSub,
   trace "Published message to peers", msgId, topic
 
   return peers.len
-
-method unsubscribe*(f: FloodSub,
-                    topics: seq[TopicPair]) =
-  procCall PubSub(f).unsubscribe(topics)
-
-  for p in f.peers.values:
-    f.sendSubs(p, topics.mapIt(it.topic).deduplicate(), false)
-
-method unsubscribeAll*(f: FloodSub, topic: string) =
-  procCall PubSub(f).unsubscribeAll(topic)
-
-  for p in f.peers.values:
-    f.sendSubs(p, @[topic], false)
 
 method initPubSub*(f: FloodSub) =
   procCall PubSub(f).initPubSub()
