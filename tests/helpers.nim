@@ -87,7 +87,7 @@ template rng*(): ref BrHmacDrbgContext =
   getRng()
 
 type
-  WriteHandler* = proc(data: seq[byte]): Future[void] {.gcsafe.}
+  WriteHandler* = proc(data: seq[byte]): Future[void] {.gcsafe, raises: [Defect].}
   TestBufferStream* = ref object of BufferStream
     writeHandler*: WriteHandler
 
