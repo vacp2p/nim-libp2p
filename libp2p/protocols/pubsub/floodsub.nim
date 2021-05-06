@@ -88,8 +88,6 @@ method unsubscribePeer*(f: FloodSub, peer: PeerID) =
 method rpcHandler*(f: FloodSub,
                    peer: PubSubPeer,
                    rpcMsg: RPCMsg) {.async.} =
-  await procCall PubSub(f).rpcHandler(peer, rpcMsg)
-
   for i in 0..<min(f.topicsHigh, rpcMsg.subscriptions.len):
     template sub: untyped = rpcMsg.subscriptions[i]
     f.handleSubscribe(peer, sub.topic, sub.subscribe)
