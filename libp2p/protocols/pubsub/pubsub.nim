@@ -252,19 +252,11 @@ method rpcHandler*(p: PubSub,
 
 method onNewPeer(p: PubSub, peer: PubSubPeer) {.base.} = discard
 
-method onPubSubPeerEvent*(p: PubSub, peer: PubsubPeer, event: PubsubPeerEvent) {.base, gcsafe.} =
   # Peer event is raised for the send connection in particular
   case event.kind
   of PubSubPeerEventKind.Connected:
     if p.topics.len > 0:
       p.sendSubs(peer, toSeq(p.topics.keys), true)
-  of PubSubPeerEventKind.Disconnected:
-    discard
-
-proc getOrCreatePeer*(
-    p: PubSub,
-    peerId: PeerID,
-    protos: seq[string]): PubSubPeer =
   p.peers.withValue(peerId, peer):
     return peer[]
 
