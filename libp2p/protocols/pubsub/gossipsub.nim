@@ -417,24 +417,10 @@ method publish*(g: GossipSub,
     topic
 
   trace "Publishing message on topic", data = data.shortLog
-
-  if topic.len <= 0: # data could be 0/empty
     debug "Empty topic, skipping publish"
     return 0
 
-  var peers: HashSet[PubSubPeer]
-
-  if g.parameters.floodPublish:
-    # With flood publishing enabled, the mesh is used when propagating messages from other peers,
-    # but a peer's own messages will always be published to all known peers in the topic.
-    for peer in g.gossipsub.getOrDefault(topic):
       if peer.score >= g.parameters.publishThreshold:
-        trace "publish: including flood/high score peer", peer
-        peers.incl(peer)
-
-  # add always direct peers
-  peers.incl(g.explicit.getOrDefault(topic))
-
   if topic in g.topics: # if we're subscribed use the mesh
     peers.incl(g.mesh.getOrDefault(topic))
   else: # not subscribed, send to fanout peers
