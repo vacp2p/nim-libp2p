@@ -62,11 +62,20 @@ template postInit(peerinfo: PeerInfo,
 proc init*(p: typedesc[PeerInfo],
            key: PrivateKey,
            addrs: openarray[MultiAddress] = [],
-           protocols: openarray[string] = []): PeerInfo {.
-           raises: [Defect, ResultError[cstring]].} =
-  result = PeerInfo(keyType: HasPrivate, peerId: PeerID.init(key).tryGet(),
-                    privateKey: key)
-  result.postInit(addrs, protocols)
+           protocols: openarray[string] = []): PeerInfo
+           {.raises: [Defect, CatchableError].} =
+
+  let idRes = PeerID.init(key)
+  if idRes.isErr:
+    raise newException(CatchableError, "Unable to create peer id " & $idRes.error)
+
+  let peerInfo = PeerInfo(
+    keyType: HasPrivate,
+    peerId: idRes.get(),
+    privateKey: key)
+
+  peerInfo.postInit(addrs, protocols)
+  return peerInfo
 
 proc init*(p: typedesc[PeerInfo],
            peerId: PeerID,
@@ -78,33 +87,52 @@ proc init*(p: typedesc[PeerInfo],
 proc init*(p: typedesc[PeerInfo],
            peerId: string,
            addrs: openarray[MultiAddress] = [],
-           protocols: openarray[string] = []): PeerInfo {.
-           raises: [Defect, ResultError[cstring]].} =
-  result = PeerInfo(keyType: HasPublic, peerId: PeerID.init(peerId).tryGet())
-  result.postInit(addrs, protocols)
+           protocols: openarray[string] = []): PeerInfo
+           {.raises: [Defect, CatchableError].} =
+
+  let idRes = PeerID.init(peerId)
+  if idRes.isErr:
+    raise newException(CatchableError, "Unable to create peer id " & $idRes.error)
+
+  let peerInfo = PeerInfo(keyType: HasPublic, peerId: idRes.get())
+  peerInfo.postInit(addrs, protocols)
+
+  return peerInfo
 
 proc init*(p: typedesc[PeerInfo],
            key: PublicKey,
            addrs: openarray[MultiAddress] = [],
-           protocols: openarray[string] = []): PeerInfo {.
-           raises: [Defect, ResultError[cstring]].}=
-  result = PeerInfo(keyType: HasPublic,
-                    peerId: PeerID.init(key).tryGet(),
-                    key: some(key))
+           protocols: openarray[string] = []): PeerInfo
+           {.raises: [Defect, CatchableError].} =
 
-  result.postInit(addrs, protocols)
+  let idRes = PeerID.init(key)
+  if idRes.isErr:
+    raise newException(CatchableError, "Unable to create peer id " & $idRes.error)
 
-proc publicKey*(p: PeerInfo): Option[PublicKey] {.
-    raises: [Defect, ResultError[CryptoError]].} =
+  let peerInfo = PeerInfo(
+    keyType: HasPublic,
+    peerId: idRes.get(),
+    key: some(key))
+
+  peerInfo.postInit(addrs, protocols)
+
+  return peerInfo
+
+proc publicKey*(p: PeerInfo): Option[PublicKey] =
+  var res = none(PublicKey)
   if p.keyType == HasPublic:
     if p.peerId.hasPublicKey():
       var pubKey: PublicKey
       if p.peerId.extractPublicKey(pubKey):
-        result = some(pubKey)
+        res = some(pubKey)
     elif p.key.isSome:
-      result = p.key
+      res = p.key
   else:
-    result = some(p.privateKey.getKey().tryGet())
+    let pkeyRes = p.privateKey.getKey()
+    if pkeyRes.isOk:
+      res = some(pkeyRes.get())
+
+  return res
 
 func hash*(p: PeerInfo): Hash =
   cast[pointer](p).hash

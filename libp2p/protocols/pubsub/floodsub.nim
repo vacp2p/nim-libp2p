@@ -7,6 +7,8 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
+{.push raises: [Defect].}
+
 import std/[sequtils, sets, hashes, tables]
 import chronos, chronicles, metrics, bearssl
 import ./pubsub,
@@ -201,7 +203,8 @@ method publish*(f: FloodSub,
 
   return peers.len
 
-method initPubSub*(f: FloodSub) =
+method initPubSub*(f: FloodSub)
+  {.raises: [Defect, InitializationError].} =
   procCall PubSub(f).initPubSub()
   f.seen = TimedCache[MessageID].init(2.minutes)
   var rng = newRng()

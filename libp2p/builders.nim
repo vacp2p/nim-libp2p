@@ -1,3 +1,14 @@
+## Nim-Libp2p
+## Copyright (c) 2020 Status Research & Development GmbH
+## Licensed under either of
+##  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+##  * MIT license ([LICENSE-MIT](LICENSE-MIT))
+## at your option.
+## This file may not be copied, modified, or distributed except according to
+## those terms.
+
+{.push raises: [Defect].}
+
 import
   options, tables, chronos, bearssl,
   switch, peerid, peerinfo, stream/connection, multiaddress,
@@ -36,9 +47,14 @@ type
     agentVersion: string
 
 proc new*(T: type[SwitchBuilder]): T =
+
+  let addrRes = MultiAddress.init("/ip4/127.0.0.1/tcp/0")
+  if addrRes.isErr:
+    raise newException(Defect, addrRes.error)
+
   SwitchBuilder(
     privKey: none(PrivateKey),
-    address: MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet(),
+    address: addrRes.get,
     secureManagers: @[],
     tcpTransportOpts: TcpTransportOpts(),
     maxConnections: MaxConnections,
@@ -109,10 +125,14 @@ proc withAgentVersion*(b: SwitchBuilder, agentVersion: string): SwitchBuilder =
 
 proc build*(b: SwitchBuilder): Switch =
   if b.rng == nil: # newRng could fail
-    raise (ref CatchableError)(msg: "Cannot initialize RNG")
+    raise newException(Defect, "Cannot initialize RNG")
+
+  let pkRes = PrivateKey.random(b.rng[])
+  if pkRes.isErr:
+    raise newException(Defect, "No RNG supplied!")
 
   let
-    seckey = b.privKey.get(otherwise = PrivateKey.random(b.rng[]).tryGet())
+    seckey = b.privKey.get(otherwise = pkRes.get())
 
   var
     secureManagerInstances: seq[Secure]
@@ -120,11 +140,13 @@ proc build*(b: SwitchBuilder): Switch =
     secureManagerInstances.add(newNoise(b.rng, seckey).Secure)
 
   let
-    peerInfo = block:
+    peerInfo = try:
       var info = PeerInfo.init(seckey, [b.address])
       info.protoVersion = b.protoVersion
       info.agentVersion = b.agentVersion
       info
+    except CatchableError as exc:
+      raise newException(Defect, exc.msg)
 
   let
     muxers = block:
@@ -149,16 +171,19 @@ proc build*(b: SwitchBuilder): Switch =
   if isNil(b.rng):
     b.rng = newRng()
 
-  let switch = newSwitch(
-    peerInfo = peerInfo,
-    transports = transports,
-    identity = identify,
-    muxers = muxers,
-    secureManagers = secureManagerInstances,
-    maxConnections = b.maxConnections,
-    maxIn = b.maxIn,
-    maxOut = b.maxOut,
-    maxConnsPerPeer = b.maxConnsPerPeer)
+  let switch = try:
+    newSwitch(
+      peerInfo = peerInfo,
+      transports = transports,
+      identity = identify,
+      muxers = muxers,
+      secureManagers = secureManagerInstances,
+      maxConnections = b.maxConnections,
+      maxIn = b.maxIn,
+      maxOut = b.maxOut,
+      maxConnsPerPeer = b.maxConnsPerPeer)
+  except CatchableError as exc:
+    raise newException(Defect, exc.msg)
 
   return switch
 

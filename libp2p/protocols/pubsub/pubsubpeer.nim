@@ -7,6 +7,8 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
+{.push raises: [Defect].}
+
 import std/[sequtils, strutils, tables, hashes]
 import chronos, chronicles, nimcrypto/sha2, metrics
 import rpc/[messages, message, protobuf],
@@ -40,9 +42,9 @@ type
   PubsubPeerEvent* = object
     kind*: PubSubPeerEventKind
 
-  GetConn* = proc(): Future[Connection] {.gcsafe.}
-  DropConn* = proc(peer: PubsubPeer) {.gcsafe.} # have to pass peer as it's unknown during init
-  OnEvent* = proc(peer: PubSubPeer, event: PubsubPeerEvent) {.gcsafe.}
+  GetConn* = proc(): Future[Connection] {.gcsafe, raises: [Defect].}
+  DropConn* = proc(peer: PubsubPeer) {.gcsafe, raises: [Defect].} # have to pass peer as it's unknown during init
+  OnEvent* = proc(peer: PubSubPeer, event: PubsubPeerEvent) {.gcsafe, raises: [Defect].}
 
   PubSubPeer* = ref object of RootObj
     getConn*: GetConn                   # callback to establish a new send connection
@@ -64,7 +66,8 @@ type
     when defined(libp2p_agents_metrics):
       shortAgent*: string
 
-  RPCHandler* = proc(peer: PubSubPeer, msg: RPCMsg): Future[void] {.gcsafe.}
+  RPCHandler* = proc(peer: PubSubPeer, msg: RPCMsg): Future[void]
+    {.gcsafe, raises: [Defect].}
 
 func hash*(p: PubSubPeer): Hash =
   p.peerId.hash

@@ -9,7 +9,7 @@
 
 {.used.}
 
-import unittest, tables, bearssl
+import tables, bearssl
 import chronos, stew/byteutils
 import chronicles
 import ../libp2p/crypto/crypto

@@ -7,6 +7,8 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
+{.push raises: [Defect].}
+
 import std/[options, tables, sequtils, sets]
 import chronos, chronicles, metrics
 import peerinfo,
@@ -25,9 +27,10 @@ const
   MaxConnectionsPerPeer* = 5
 
 type
-  TooManyConnectionsError* = object of CatchableError
+  TooManyConnectionsError* = object of LPError
 
-  ConnProvider* = proc(): Future[Connection] {.gcsafe, closure.}
+  ConnProvider* = proc(): Future[Connection]
+    {.gcsafe, closure, raises: [Defect].}
 
   ConnEventKind* {.pure.} = enum
     Connected,    # A connection was made and securely upgraded - there may be
@@ -45,7 +48,8 @@ type
       discard
 
   ConnEventHandler* =
-    proc(peerId: PeerID, event: ConnEvent): Future[void] {.gcsafe.}
+    proc(peerId: PeerID, event: ConnEvent): Future[void]
+      {.gcsafe, raises: [Defect].}
 
   PeerEventKind* {.pure.} = enum
     Left,
@@ -205,7 +209,7 @@ proc contains*(c: ConnManager, muxer: Muxer): bool =
   if conn notin c.muxed:
     return
 
-  return muxer == c.muxed[conn].muxer
+  return muxer == c.muxed.getOrDefault(conn).muxer
 
 proc closeMuxerHolder(muxerHolder: MuxerHolder) {.async.} =
   trace "Cleaning up muxer", m = muxerHolder.muxer
@@ -338,11 +342,12 @@ proc selectMuxer*(c: ConnManager, conn: Connection): Muxer =
     return
 
   if conn in c.muxed:
-    return c.muxed[conn].muxer
+    return c.muxed.getOrDefault(conn).muxer
   else:
     debug "no muxer for connection", conn
 
-proc storeConn*(c: ConnManager, conn: Connection) =
+proc storeConn*(c: ConnManager, conn: Connection)
+  {.raises: [Defect, CatchableError].} =
   ## store a connection
   ##
 
@@ -456,7 +461,8 @@ proc trackOutgoingConn*(c: ConnManager,
 
 proc storeMuxer*(c: ConnManager,
                  muxer: Muxer,
-                 handle: Future[void] = nil) =
+                 handle: Future[void] = nil)
+                 {.raises: [Defect, CatchableError].} =
   ## store the connection and muxer
   ##
 

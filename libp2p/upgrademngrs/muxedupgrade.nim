@@ -7,6 +7,8 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
+{.push raises: [Defect].}
+
 import std/[tables, sequtils]
 import pkg/[chronos, chronicles, metrics]
 
@@ -14,6 +16,9 @@ import ../upgrademngrs/upgrade,
        ../muxers/muxer
 
 export Upgrade
+
+logScope:
+  topics = "libp2p muxedupgrade"
 
 type
   MuxedUpgrade* = ref object of Upgrade

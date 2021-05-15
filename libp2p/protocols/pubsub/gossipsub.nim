@@ -7,6 +7,8 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
+{.push raises: [Defect].}
+
 import std/[tables, sets, options, sequtils, random]
 import chronos, chronicles, metrics
 import ./pubsub,
@@ -26,10 +28,9 @@ import ./pubsub,
 import stew/results
 export results
 
-import gossipsub/[types, scoring, behavior]
-export types
-export scoring
-export behavior
+import ./gossipsub/[types, scoring, behavior]
+
+export types, scoring, behavior, pubsub
 
 logScope:
   topics = "libp2p gossipsub"
@@ -536,13 +537,16 @@ method stop*(g: GossipSub) {.async.} =
     trace "heartbeat stopped"
     g.heartbeatFut = nil
 
-method initPubSub*(g: GossipSub) =
+method initPubSub*(g: GossipSub)
+  {.raises: [Defect, InitializationError].} =
   procCall FloodSub(g).initPubSub()
 
   if not g.parameters.explicit:
     g.parameters = GossipSubParams.init()
 
-  g.parameters.validateParameters().tryGet()
+  let validationRes = g.parameters.validateParameters()
+  if validationRes.isErr:
+    raise newException(InitializationError, $validationRes.error)
 
   randomize()
 

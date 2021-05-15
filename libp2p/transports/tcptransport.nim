@@ -7,6 +7,8 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
+{.push raises: [Defect].}
+
 import std/[oids, sequtils]
 import chronos, chronicles
 import transport,
@@ -203,7 +205,9 @@ method dial*(t: TcpTransport,
 
 method handles*(t: TcpTransport, address: MultiAddress): bool {.gcsafe.} =
   if procCall Transport(t).handles(address):
-    return address.protocols
-      .tryGet()
-      .filterIt( it == multiCodec("tcp") )
-      .len > 0
+    if address.protocols.isOk:
+      return address.protocols
+        .get()
+        .filterIt(
+          it == multiCodec("tcp")
+        ).len > 0

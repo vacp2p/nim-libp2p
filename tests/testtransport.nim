@@ -1,6 +1,6 @@
 {.used.}
 
-import unittest, sequtils
+import sequtils
 import chronos, stew/byteutils
 import ../libp2p/[stream/connection,
                   transports/transport,
