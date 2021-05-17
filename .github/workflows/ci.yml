@@ -86,7 +86,7 @@ jobs:
         shell: bash
         run: |
           mkdir -p external
-          curl -L "https://nim-lang.org/download/mingw$ARCH.7z" -o "external/mingw-${{ matrix.target.cpu }}.7z"
+          curl -L "https://nim-lang.org/download/mingw${{ ARCH }}.7z" -o "external/mingw-${{ matrix.target.cpu }}.7z"
           7z x -y "external/mingw-${{ matrix.target.cpu }}.7z" -oexternal/
           mv external/mingw$ARCH external/mingw-${{ matrix.target.cpu }}
 
