@@ -1,4 +1,4 @@
-import unittest
+import unittest2
 import ../libp2p/[multicodec, multiaddress]
 
 when defined(nimHasUsed): {.used.}

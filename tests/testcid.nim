@@ -1,4 +1,4 @@
-import unittest
+import unittest2
 import ../libp2p/[cid, multihash, multicodec]
 
 when defined(nimHasUsed): {.used.}
