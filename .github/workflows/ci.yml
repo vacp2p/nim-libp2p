@@ -43,6 +43,37 @@ jobs:
         with:
           path: nim-libp2p
           submodules: true
+
+      - name: Derive environment variables
+        shell: bash
+        run: |
+          if [[ '${{ matrix.target.cpu }}' == 'amd64' ]]; then
+            ARCH=64
+            PLATFORM=x64
+          else
+            ARCH=32
+            PLATFORM=x86
+          fi
+          echo "ARCH=$ARCH" >> $GITHUB_ENV
+          echo "PLATFORM=$PLATFORM" >> $GITHUB_ENV
+
+          ncpu=
+          ext=
+          case '${{ runner.os }}' in
+          'Linux')
+            ncpu=$(nproc)
+            ;;
+          'macOS')
+            ncpu=$(sysctl -n hw.ncpu)
+            ;;
+          'Windows')
+            ncpu=$NUMBER_OF_PROCESSORS
+            ext=.exe
+            ;;
+          esac
+          [[ -z "$ncpu" || $ncpu -le 0 ]] && ncpu=1
+          echo "ncpu=$ncpu" >> $GITHUB_ENV
+
       - name: Install build dependencies (Linux i386)
         if: runner.os == 'Linux' && matrix.target.cpu == 'i386'
         run: |
@@ -86,7 +117,7 @@ jobs:
         shell: bash
         run: |
           mkdir -p external
-          curl -L "https://nim-lang.org/download/mingw${{ ARCH }}.7z" -o "external/mingw-${{ matrix.target.cpu }}.7z"
+          curl -L "https://nim-lang.org/download/mingw$ARCH.7z" -o "external/mingw-${{ matrix.target.cpu }}.7z"
           7z x -y "external/mingw-${{ matrix.target.cpu }}.7z" -oexternal/
           mv external/mingw$ARCH external/mingw-${{ matrix.target.cpu }}
 
@@ -161,20 +192,6 @@ jobs:
         if: steps.nim-cache.outputs.cache-hit != 'true'
         shell: bash
         run: |
-          ncpu=
-          ext=
-          case '${{ runner.os }}' in
-          'Linux')
-            ncpu=$(nproc)
-            ;;
-          'macOS')
-            ncpu=$(sysctl -n hw.ncpu)
-            ;;
-          'Windows')
-            ncpu=$NUMBER_OF_PROCESSORS
-            ext=.exe
-            ;;
-          esac
           [[ -z "$ncpu" || $ncpu -le 0 ]] && ncpu=1
           if [[ ! -e csources/bin/nim$ext ]]; then
             make -C csources -j $ncpu CC=gcc ucpu='${{ matrix.target.cpu }}'
@@ -191,29 +208,6 @@ jobs:
           rm -rf nimcache
           rm -rf dist
           rm -rf .git
-
-      # - name: Install library dependencies (Linux amd64)
-      #   if: runner.os == 'Linux' && matrix.target.cpu == 'amd64'
-      #   run: |
-      #     sudo DEBIAN_FRONTEND='noninteractive' apt-get install \
-      #       --no-install-recommends -yq libgmp-dev
-      #
-      # - name: Install library dependencies (Linux i386)
-      #   if: runner.os == 'Linux' && matrix.target.cpu == 'i386'
-      #   run: |
-      #     sudo DEBIAN_FRONTEND='noninteractive' apt-get install \
-      #       libgmp-dev:i386
-      #
-      # - name: Install library dependencies (macOS)
-      #   if: runner.os == 'macOS'
-      #   run: brew install gmp
-      #
-      # - name: Install library dependencies (Windows)
-      #   if: runner.os == 'Windows'
-      #   shell: bash
-      #   run: |
-      #       choco install msys2
-      #       pacman -S mingw-w64-x86_64-gmp
 
       - name: Setup Go
         uses: actions/setup-go@v2
