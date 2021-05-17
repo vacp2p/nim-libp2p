@@ -146,7 +146,7 @@ proc build*(b: SwitchBuilder): Switch =
       info.agentVersion = b.agentVersion
       info
     except CatchableError as exc:
-      raise newException(Defect, exc.msg)
+      raiseAssert exc.msg
 
   let
     muxers = block:
