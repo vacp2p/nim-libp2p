@@ -268,10 +268,7 @@ proc newSecioConn(conn: Connection,
     if conn.peerInfo != nil:
       conn.peerInfo
     else:
-      try:
-        PeerInfo.init(remotePubKey)
-      except CatchableError as exc:
-        raise newException(SecioError, exc.msg)
+      PeerInfo.init(remotePubKey)
 
   result = SecioConn.init(conn, conn.peerInfo, conn.observedAddr)
 

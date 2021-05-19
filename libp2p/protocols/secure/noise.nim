@@ -601,19 +601,15 @@ proc newNoise*(
     outgoing: bool = true;
     commonPrologue: seq[byte] = @[]): Noise =
 
-  let pkRes = privateKey.getKey()
-  if pkRes.isErr:
-    raise newException(Defect, "Error in private key: " & $pkRes.error)
-
-  let pkByteRes = pkRes.get().getBytes()
-  if pkByteRes.isErr:
-    raise newException(Defect, "Error getting PK bytes " & $pkByteRes.error)
-
+  let pkBytes = privateKey.getKey()
+  .expect("Expected valid private key")
+  .getBytes()
+  .expect("Couldn't get key bytes")
   var noise = Noise(
     rng: rng,
     outgoing: outgoing,
     localPrivateKey: privateKey,
-    localPublicKey: pkByteRes.get(),
+    localPublicKey: pkBytes,
     noiseKeys: genKeyPair(rng[]),
     commonPrologue: commonPrologue,
   )

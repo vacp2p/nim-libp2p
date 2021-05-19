@@ -48,13 +48,13 @@ type
 
 proc new*(T: type[SwitchBuilder]): T =
 
-  let addrRes = MultiAddress.init("/ip4/127.0.0.1/tcp/0")
-  if addrRes.isErr:
-    raise newException(Defect, addrRes.error)
+  let address = MultiAddress
+  .init("/ip4/127.0.0.1/tcp/0")
+  .expect("address should initialize to default")
 
   SwitchBuilder(
     privKey: none(PrivateKey),
-    address: addrRes.get,
+    address: address,
     secureManagers: @[],
     tcpTransportOpts: TcpTransportOpts(),
     maxConnections: MaxConnections,
@@ -128,11 +128,8 @@ proc build*(b: SwitchBuilder): Switch =
     raise newException(Defect, "Cannot initialize RNG")
 
   let pkRes = PrivateKey.random(b.rng[])
-  if pkRes.isErr:
-    raise newException(Defect, "No RNG supplied!")
-
   let
-    seckey = b.privKey.get(otherwise = pkRes.expect("pk was just set"))
+    seckey = b.privKey.get(otherwise = pkRes.expect("Should supply a valid RNG"))
 
   var
     secureManagerInstances: seq[Secure]
@@ -140,13 +137,11 @@ proc build*(b: SwitchBuilder): Switch =
     secureManagerInstances.add(newNoise(b.rng, seckey).Secure)
 
   let
-    peerInfo = try:
-      var info = PeerInfo.init(seckey, [b.address])
-      info.protoVersion = b.protoVersion
-      info.agentVersion = b.agentVersion
-      info
-    except CatchableError as exc:
-      raiseAssert exc.msg
+    peerInfo = PeerInfo.init(
+      seckey,
+      [b.address],
+      protoVersion = b.protoVersion,
+      agentVersion = b.agentVersion)
 
   let
     muxers = block:
