@@ -132,7 +132,7 @@ proc build*(b: SwitchBuilder): Switch =
     raise newException(Defect, "No RNG supplied!")
 
   let
-    seckey = b.privKey.get(otherwise = pkRes.get())
+    seckey = b.privKey.get(otherwise = pkRes.expect("pk was just set"))
 
   var
     secureManagerInstances: seq[Secure]

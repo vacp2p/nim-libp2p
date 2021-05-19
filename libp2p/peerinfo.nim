@@ -66,12 +66,9 @@ proc init*(p: typedesc[PeerInfo],
            {.raises: [Defect, CatchableError].} =
 
   let idRes = PeerID.init(key)
-  if idRes.isErr:
-    raise newException(CatchableError, "Unable to create peer id " & $idRes.error)
-
   let peerInfo = PeerInfo(
     keyType: HasPrivate,
-    peerId: idRes.get(),
+    peerId: idRes.expect("Unable to create peer id from key"),
     privateKey: key)
 
   peerInfo.postInit(addrs, protocols)
@@ -91,10 +88,9 @@ proc init*(p: typedesc[PeerInfo],
            {.raises: [Defect, CatchableError].} =
 
   let idRes = PeerID.init(peerId)
-  if idRes.isErr:
-    raise newException(CatchableError, "Unable to create peer id " & $idRes.error)
-
-  let peerInfo = PeerInfo(keyType: HasPublic, peerId: idRes.get())
+  let peerInfo = PeerInfo(
+    keyType: HasPublic,
+    peerId: idRes.expect("Unable to create peer id from string"))
   peerInfo.postInit(addrs, protocols)
 
   return peerInfo
@@ -106,12 +102,9 @@ proc init*(p: typedesc[PeerInfo],
            {.raises: [Defect, CatchableError].} =
 
   let idRes = PeerID.init(key)
-  if idRes.isErr:
-    raise newException(CatchableError, "Unable to create peer id " & $idRes.error)
-
   let peerInfo = PeerInfo(
     keyType: HasPublic,
-    peerId: idRes.get(),
+    peerId: idRes.expect("Unable to create peer id from public key"),
     key: some(key))
 
   peerInfo.postInit(addrs, protocols)
