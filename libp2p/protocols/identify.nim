@@ -36,6 +36,7 @@ type
   IdentifyError* = object of LPError
   IdentityNoMatchError* = object of IdentifyError
   IdentityInvalidMsgError* = object of IdentifyError
+  IdentifyNoPubKeyError* = object of IdentifyError
 
   IdentifyInfo* = object
     pubKey*: Option[PublicKey]
@@ -48,27 +49,26 @@ type
   Identify* = ref object of LPProtocol
     peerInfo*: PeerInfo
 
-proc encodeMsg*(peerInfo: PeerInfo, observedAddr: Multiaddress): ProtoBuffer =
+proc encodeMsg*(peerInfo: PeerInfo, observedAddr: Multiaddress): ProtoBuffer
+  {.raises: [Defect, IdentifyNoPubKeyError].} =
   result = initProtoBuffer()
-  if peerInfo.publicKey.isSome:
-    let bytesRes = peerInfo.publicKey.get().getBytes()
-    if bytesRes.isErr:
-      return
+  if peerInfo.publicKey.isNone:
+    raise newException(IdentifyNoPubKeyError, "No public key found for peer!")
 
-    result.write(1, bytesRes.get())
-    for ma in peerInfo.addrs:
-      result.write(2, ma.data.buffer)
-    for proto in peerInfo.protocols:
-      result.write(3, proto)
-    result.write(4, observedAddr.data.buffer)
-    let protoVersion = ProtoVersion
-    result.write(5, protoVersion)
-    let agentVersion = if peerInfo.agentVersion.len <= 0:
-      AgentVersion
-    else:
-      peerInfo.agentVersion
-    result.write(6, agentVersion)
-    result.finish()
+  result.write(1, peerInfo.publicKey.get().getBytes().get())
+  for ma in peerInfo.addrs:
+    result.write(2, ma.data.buffer)
+  for proto in peerInfo.protocols:
+    result.write(3, proto)
+  result.write(4, observedAddr.data.buffer)
+  let protoVersion = ProtoVersion
+  result.write(5, protoVersion)
+  let agentVersion = if peerInfo.agentVersion.len <= 0:
+    AgentVersion
+  else:
+    peerInfo.agentVersion
+  result.write(6, agentVersion)
+  result.finish()
 
 proc decodeMsg*(buf: seq[byte]): Option[IdentifyInfo] =
   var
