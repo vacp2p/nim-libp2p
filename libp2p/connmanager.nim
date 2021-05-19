@@ -71,8 +71,8 @@ type
     outSema*: AsyncSemaphore
     conns: Table[PeerID, HashSet[Connection]]
     muxed: Table[Connection, MuxerHolder]
-    connEvents: Table[ConnEventKind, OrderedSet[ConnEventHandler]]
-    peerEvents: Table[PeerEventKind, OrderedSet[PeerEventHandler]]
+    connEvents: array[ConnEventKind, OrderedSet[ConnEventHandler]]
+    peerEvents: array[PeerEventKind, OrderedSet[PeerEventHandler]]
 
 proc newTooManyConnectionsError(): ref TooManyConnectionsError {.inline.} =
   result = newException(TooManyConnectionsError, "Too many connections")
@@ -106,21 +106,19 @@ proc addConnEventHandler*(c: ConnManager,
   ##
 
   if isNil(handler): return
-  c.connEvents.mgetOrPut(kind,
-    initOrderedSet[ConnEventHandler]()).incl(handler)
+  c.connEvents[kind].incl(handler)
 
 proc removeConnEventHandler*(c: ConnManager,
                              handler: ConnEventHandler,
                              kind: ConnEventKind) =
-  c.connEvents.withValue(kind, handlers) do:
-    handlers[].excl(handler)
+  c.connEvents[kind].excl(handler)
 
 proc triggerConnEvent*(c: ConnManager,
                        peerId: PeerID,
                        event: ConnEvent) {.async, gcsafe.} =
   try:
     trace "About to trigger connection events", peer = peerId
-    if event.kind in c.connEvents:
+    if c.connEvents[event.kind].len() > 0:
       trace "triggering connection events", peer = peerId, event = $event.kind
       var connEvents: seq[Future[void]]
       for h in c.connEvents[event.kind]:
@@ -140,21 +138,19 @@ proc addPeerEventHandler*(c: ConnManager,
   ##
 
   if isNil(handler): return
-  c.peerEvents.mgetOrPut(kind,
-    initOrderedSet[PeerEventHandler]()).incl(handler)
+  c.peerEvents[kind].incl(handler)
 
 proc removePeerEventHandler*(c: ConnManager,
                              handler: PeerEventHandler,
                              kind: PeerEventKind) =
-  c.peerEvents.withValue(kind, handlers) do:
-    handlers[].excl(handler)
+  c.peerEvents[kind].excl(handler)
 
 proc triggerPeerEvents*(c: ConnManager,
                         peerId: PeerID,
                         event: PeerEvent) {.async, gcsafe.} =
 
   trace "About to trigger peer events", peer = peerId
-  if event.kind notin c.peerEvents:
+  if c.peerEvents[event.kind].len == 0:
     return
 
   try:
@@ -224,11 +220,11 @@ proc closeMuxerHolder(muxerHolder: MuxerHolder) {.async.} =
 
 proc delConn(c: ConnManager, conn: Connection) =
   let peerId = conn.peerInfo.peerId
-  if peerId in c.conns:
-    c.conns[peerId].excl(conn)
+  c.conns.withValue(peerId, peerConns):
+    peerConns[].excl(conn)
 
-    if c.conns[peerId].len == 0:
-      c.conns.del(peerId)
+    if peerConns[].len == 0:
+      c.conns.del(peerId) # invalidates `peerConns`
 
     libp2p_peers.set(c.conns.len.int64)
     trace "Removed connection", conn
@@ -366,10 +362,7 @@ proc storeConn*(c: ConnManager, conn: Connection) =
 
     raise newTooManyConnectionsError()
 
-  if peerId notin c.conns:
-    c.conns[peerId] = initHashSet[Connection]()
-
-  c.conns[peerId].incl(conn)
+  c.conns.mgetOrPut(peerId, HashSet[Connection]()).incl(conn)
   libp2p_peers.set(c.conns.len.int64)
 
   # Launch on close listener
