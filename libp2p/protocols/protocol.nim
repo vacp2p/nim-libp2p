@@ -17,7 +17,7 @@ type
     conn: Connection,
     proto: string):
     Future[void]
-    {.gcsafe, closure, raises: [Defect].}
+    {.gcsafe, raises: [Defect].}
 
   LPProtocol* = ref object of RootObj
     codecs*: seq[string]
