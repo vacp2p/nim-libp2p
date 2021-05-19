@@ -59,56 +59,72 @@ template postInit(peerinfo: PeerInfo,
   if len(protocols) > 0:
     peerinfo.protocols = @protocols
 
-proc init*(p: typedesc[PeerInfo],
-           key: PrivateKey,
-           addrs: openarray[MultiAddress] = [],
-           protocols: openarray[string] = []): PeerInfo
-           {.raises: [Defect, CatchableError].} =
-
-  let idRes = PeerID.init(key)
+proc init*(
+  p: typedesc[PeerInfo],
+  key: PrivateKey,
+  addrs: openarray[MultiAddress] = [],
+  protocols: openarray[string] = [],
+  protoVersion: string = "",
+  agentVersion: string = ""): PeerInfo =
   let peerInfo = PeerInfo(
     keyType: HasPrivate,
-    peerId: idRes.expect("Unable to create peer id from key"),
-    privateKey: key)
+    peerId: PeerID.init(key).expect("Unable to create peer id from key"),
+    privateKey: key,
+    protoVersion: protoVersion,
+    agentVersion: agentVersion)
 
   peerInfo.postInit(addrs, protocols)
   return peerInfo
 
-proc init*(p: typedesc[PeerInfo],
-           peerId: PeerID,
-           addrs: openarray[MultiAddress] = [],
-           protocols: openarray[string] = []): PeerInfo =
-  result = PeerInfo(keyType: HasPublic, peerId: peerId)
-  result.postInit(addrs, protocols)
-
-proc init*(p: typedesc[PeerInfo],
-           peerId: string,
-           addrs: openarray[MultiAddress] = [],
-           protocols: openarray[string] = []): PeerInfo
-           {.raises: [Defect, CatchableError].} =
-
-  let idRes = PeerID.init(peerId)
+proc init*(
+  p: typedesc[PeerInfo],
+  peerId: PeerID,
+  addrs: openarray[MultiAddress] = [],
+  protocols: openarray[string] = [],
+  protoVersion: string = "",
+  agentVersion: string = ""): PeerInfo =
   let peerInfo = PeerInfo(
     keyType: HasPublic,
-    peerId: idRes.expect("Unable to create peer id from string"))
-  peerInfo.postInit(addrs, protocols)
+    peerId: peerId,
+    protoVersion: protoVersion,
+    agentVersion: agentVersion)
 
+  peerInfo.postInit(addrs, protocols)
   return peerInfo
 
-proc init*(p: typedesc[PeerInfo],
-           key: PublicKey,
-           addrs: openarray[MultiAddress] = [],
-           protocols: openarray[string] = []): PeerInfo
-           {.raises: [Defect, CatchableError].} =
+proc init*(
+  p: typedesc[PeerInfo],
+  peerId: string,
+  addrs: openarray[MultiAddress] = [],
+  protocols: openarray[string] = [],
+  protoVersion: string = "",
+  agentVersion: string = ""): PeerInfo =
 
-  let idRes = PeerID.init(key)
   let peerInfo = PeerInfo(
     keyType: HasPublic,
-    peerId: idRes.expect("Unable to create peer id from public key"),
-    key: some(key))
+    peerId: PeerID.init(peerId).expect("Unable to create peer id from string"),
+    protoVersion: protoVersion,
+    agentVersion: agentVersion)
 
   peerInfo.postInit(addrs, protocols)
+  return peerInfo
 
+proc init*(
+  p: typedesc[PeerInfo],
+  key: PublicKey,
+  addrs: openarray[MultiAddress] = [],
+  protocols: openarray[string] = [],
+  protoVersion: string = "",
+  agentVersion: string = ""): PeerInfo =
+
+  let peerInfo = PeerInfo(
+    keyType: HasPublic,
+    peerId: PeerID.init(key).expect("Unable to create peer id from public key"),
+    key: some(key),
+    protoVersion: protoVersion,
+    agentVersion: agentVersion)
+
+  peerInfo.postInit(addrs, protocols)
   return peerInfo
 
 proc publicKey*(p: PeerInfo): Option[PublicKey] =
