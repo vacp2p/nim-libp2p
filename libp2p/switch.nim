@@ -7,6 +7,8 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
+{.push raises: [Defect].}
+
 import std/[tables,
             options,
             sets,
@@ -54,7 +56,7 @@ const
   ConcurrentUpgrades* = 4
 
 type
-    DialFailedError* = object of CatchableError
+    DialFailedError* = object of LPError
 
     Switch* = ref object of RootObj
       peerInfo*: PeerInfo
@@ -276,7 +278,8 @@ proc dial*(s: Switch,
            proto: string):
            Future[Connection] = dial(s, peerId, addrs, @[proto])
 
-proc mount*[T: LPProtocol](s: Switch, proto: T, matcher: Matcher = nil) {.gcsafe.} =
+proc mount*[T: LPProtocol](s: Switch, proto: T, matcher: Matcher = nil)
+  {.gcsafe, raises: [Defect, CatchableError].} =
   if isNil(proto.handler):
     raise newException(CatchableError,
       "Protocol has to define a handle method or proc")
@@ -404,7 +407,9 @@ proc newSwitch*(peerInfo: PeerInfo,
                 maxConnections = MaxConnections,
                 maxIn = -1,
                 maxOut = -1,
-                maxConnsPerPeer = MaxConnectionsPerPeer): Switch =
+                maxConnsPerPeer = MaxConnectionsPerPeer): Switch
+                {.raises: [Defect, CatchableError].} =
+
   if secureManagers.len == 0:
     raise (ref CatchableError)(msg: "Provide at least one secure manager")
 

@@ -7,6 +7,8 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
+{.push raises: [Defect].}
+
 import std/[options, tables, sequtils, sets]
 import chronos, chronicles, metrics
 import peerinfo,
@@ -25,9 +27,10 @@ const
   MaxConnectionsPerPeer* = 5
 
 type
-  TooManyConnectionsError* = object of CatchableError
+  TooManyConnectionsError* = object of LPError
 
-  ConnProvider* = proc(): Future[Connection] {.gcsafe, closure.}
+  ConnProvider* = proc(): Future[Connection]
+    {.gcsafe, closure, raises: [Defect].}
 
   ConnEventKind* {.pure.} = enum
     Connected,    # A connection was made and securely upgraded - there may be
@@ -45,7 +48,8 @@ type
       discard
 
   ConnEventHandler* =
-    proc(peerId: PeerID, event: ConnEvent): Future[void] {.gcsafe.}
+    proc(peerId: PeerID, event: ConnEvent): Future[void]
+      {.gcsafe, raises: [Defect].}
 
   PeerEventKind* {.pure.} = enum
     Left,
@@ -105,13 +109,27 @@ proc addConnEventHandler*(c: ConnManager,
   ## Add peer event handler - handlers must not raise exceptions!
   ##
 
-  if isNil(handler): return
-  c.connEvents[kind].incl(handler)
+  try:
+    if isNil(handler): return
+    c.connEvents[kind].incl(handler)
+  except Exception as exc:
+    # TODO: there is an Exception being raised
+    # somewhere in the depths of the std.
+    # Might be related to https://github.com/nim-lang/Nim/issues/17382
+
+    raiseAssert exc.msg
 
 proc removeConnEventHandler*(c: ConnManager,
                              handler: ConnEventHandler,
                              kind: ConnEventKind) =
-  c.connEvents[kind].excl(handler)
+  try:
+    c.connEvents[kind].excl(handler)
+  except Exception as exc:
+    # TODO: there is an Exception being raised
+    # somewhere in the depths of the std.
+    # Might be related to https://github.com/nim-lang/Nim/issues/17382
+
+    raiseAssert exc.msg
 
 proc triggerConnEvent*(c: ConnManager,
                        peerId: PeerID,
@@ -138,12 +156,26 @@ proc addPeerEventHandler*(c: ConnManager,
   ##
 
   if isNil(handler): return
-  c.peerEvents[kind].incl(handler)
+  try:
+    c.peerEvents[kind].incl(handler)
+  except Exception as exc:
+    # TODO: there is an Exception being raised
+    # somewhere in the depths of the std.
+    # Might be related to https://github.com/nim-lang/Nim/issues/17382
+
+    raiseAssert exc.msg
 
 proc removePeerEventHandler*(c: ConnManager,
                              handler: PeerEventHandler,
                              kind: PeerEventKind) =
-  c.peerEvents[kind].excl(handler)
+  try:
+    c.peerEvents[kind].excl(handler)
+  except Exception as exc:
+    # TODO: there is an Exception being raised
+    # somewhere in the depths of the std.
+    # Might be related to https://github.com/nim-lang/Nim/issues/17382
+
+    raiseAssert exc.msg
 
 proc triggerPeerEvents*(c: ConnManager,
                         peerId: PeerID,
@@ -205,7 +237,7 @@ proc contains*(c: ConnManager, muxer: Muxer): bool =
   if conn notin c.muxed:
     return
 
-  return muxer == c.muxed[conn].muxer
+  return muxer == c.muxed.getOrDefault(conn).muxer
 
 proc closeMuxerHolder(muxerHolder: MuxerHolder) {.async.} =
   trace "Cleaning up muxer", m = muxerHolder.muxer
@@ -338,11 +370,12 @@ proc selectMuxer*(c: ConnManager, conn: Connection): Muxer =
     return
 
   if conn in c.muxed:
-    return c.muxed[conn].muxer
+    return c.muxed.getOrDefault(conn).muxer
   else:
     debug "no muxer for connection", conn
 
-proc storeConn*(c: ConnManager, conn: Connection) =
+proc storeConn*(c: ConnManager, conn: Connection)
+  {.raises: [Defect, CatchableError].} =
   ## store a connection
   ##
 
@@ -456,7 +489,8 @@ proc trackOutgoingConn*(c: ConnManager,
 
 proc storeMuxer*(c: ConnManager,
                  muxer: Muxer,
-                 handle: Future[void] = nil) =
+                 handle: Future[void] = nil)
+                 {.raises: [Defect, CatchableError].} =
   ## store the connection and muxer
   ##
 

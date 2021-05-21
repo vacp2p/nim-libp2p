@@ -7,12 +7,15 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
+{.push raises: [Defect].}
+
 import std/oids
 import stew/byteutils
 import chronicles, chronos, metrics
 import ../varint,
        ../peerinfo,
-       ../multiaddress
+       ../multiaddress,
+       ../errors
 
 declareGauge(libp2p_open_streams,
   "open stream instances", labels = ["type", "dir"])
@@ -39,7 +42,7 @@ type
     dir*: Direction
     closedWithEOF: bool # prevent concurrent calls
 
-  LPStreamError* = object of CatchableError
+  LPStreamError* = object of LPError
   LPStreamIncompleteError* = object of LPStreamError
   LPStreamIncorrectDefect* = object of Defect
   LPStreamLimitError* = object of LPStreamError
@@ -96,19 +99,19 @@ proc newLPStreamWriteError*(p: ref CatchableError): ref CatchableError =
   w.par = p
   result = w
 
-proc newLPStreamIncompleteError*(): ref CatchableError =
+proc newLPStreamIncompleteError*(): ref LPStreamIncompleteError =
   result = newException(LPStreamIncompleteError, "Incomplete data received")
 
-proc newLPStreamLimitError*(): ref CatchableError =
+proc newLPStreamLimitError*(): ref LPStreamLimitError =
   result = newException(LPStreamLimitError, "Buffer limit reached")
 
-proc newLPStreamIncorrectDefect*(m: string): ref Defect =
+proc newLPStreamIncorrectDefect*(m: string): ref LPStreamIncorrectDefect =
   result = newException(LPStreamIncorrectDefect, m)
 
-proc newLPStreamEOFError*(): ref CatchableError =
+proc newLPStreamEOFError*(): ref LPStreamEOFError =
   result = newException(LPStreamEOFError, "Stream EOF!")
 
-proc newLPStreamClosedError*(): ref Exception =
+proc newLPStreamClosedError*(): ref LPStreamClosedError =
   result = newException(LPStreamClosedError, "Stream Closed!")
 
 func shortLog*(s: LPStream): auto =
@@ -130,17 +133,17 @@ method initStream*(s: LPStream) {.base.} =
 proc join*(s: LPStream): Future[void] =
   s.closeEvent.wait()
 
-method closed*(s: LPStream): bool {.base, raises: [Defect].} =
+method closed*(s: LPStream): bool {.base.} =
   s.isClosed
 
-method atEof*(s: LPStream): bool {.base, raises: [Defect].} =
+method atEof*(s: LPStream): bool {.base.} =
   s.isEof
 
-method readOnce*(s: LPStream,
-                 pbytes: pointer,
-                 nbytes: int):
-                 Future[int]
-  {.base, async.} =
+method readOnce*(
+  s: LPStream,
+  pbytes: pointer,
+  nbytes: int):
+  Future[int] {.base, async.} =
   doAssert(false, "not implemented!")
 
 proc readExactly*(s: LPStream,
@@ -236,7 +239,7 @@ proc readLp*(s: LPStream, maxSize: int): Future[seq[byte]] {.async, gcsafe.} =
   await s.readExactly(addr res[0], res.len)
   return res
 
-method write*(s: LPStream, msg: seq[byte]): Future[void] {.base, raises: [Defect].} =
+method write*(s: LPStream, msg: seq[byte]): Future[void] {.base.} =
   doAssert(false, "not implemented!")
 
 proc writeLp*(s: LPStream, msg: openArray[byte]): Future[void] =

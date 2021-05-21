@@ -9,7 +9,7 @@
 
 ## Test vectors was made using Go implementation
 ## https://github.com/libp2p/go-libp2p-crypto/blob/master/key.go
-import unittest
+import unittest2
 import nimcrypto/[utils, sysrand]
 import ../libp2p/crypto/[crypto, chacha20poly1305, curve25519, hkdf]
 

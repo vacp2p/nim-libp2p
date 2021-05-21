@@ -5,8 +5,14 @@ import chronos
 import chronicles
 import macros
 
+type
+  # Base exception type for libp2p
+  LPError* = object of CatchableError
+  LPAllFuturesError* = object of LPError
+    errors*: seq[ref CatchableError]
+
 # could not figure how to make it with a simple template
-# sadly nim needs more love for hygenic templates
+# sadly nim needs more love for hygienic templates
 # so here goes the macro, its based on the proc/template version
 # and uses quote do so it's quite readable
 

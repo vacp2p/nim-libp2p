@@ -7,6 +7,8 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
+{.push raises: [Defect].}
+
 import options
 import chronos, chronicles
 import ../protobuf/minprotobuf,
@@ -16,7 +18,8 @@ import ../protobuf/minprotobuf,
        ../crypto/crypto,
        ../multiaddress,
        ../protocols/protocol,
-       ../utility
+       ../utility,
+       ../errors
 
 logScope:
   topics = "libp2p identify"
@@ -30,9 +33,10 @@ const
 #TODO: implement push identify, leaving out for now as it is not essential
 
 type
-  IdentifyError* = object of CatchableError
+  IdentifyError* = object of LPError
   IdentityNoMatchError* = object of IdentifyError
   IdentityInvalidMsgError* = object of IdentifyError
+  IdentifyNoPubKeyError* = object of IdentifyError
 
   IdentifyInfo* = object
     pubKey*: Option[PublicKey]
@@ -45,9 +49,13 @@ type
   Identify* = ref object of LPProtocol
     peerInfo*: PeerInfo
 
-proc encodeMsg*(peerInfo: PeerInfo, observedAddr: Multiaddress): ProtoBuffer =
+proc encodeMsg*(peerInfo: PeerInfo, observedAddr: Multiaddress): ProtoBuffer
+  {.raises: [Defect, IdentifyNoPubKeyError].} =
   result = initProtoBuffer()
-  result.write(1, peerInfo.publicKey.get().getBytes().tryGet())
+  if peerInfo.publicKey.isNone:
+    raise newException(IdentifyNoPubKeyError, "No public key found for peer!")
+
+  result.write(1, peerInfo.publicKey.get().getBytes().get())
   for ma in peerInfo.addrs:
     result.write(2, ma.data.buffer)
   for proto in peerInfo.protocols:

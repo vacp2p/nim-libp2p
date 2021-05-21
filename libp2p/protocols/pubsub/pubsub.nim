@@ -7,6 +7,8 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
+{.push raises: [Defect].}
+
 import std/[tables, sequtils, sets, strutils]
 import chronos, chronicles, metrics
 import ./pubsubpeer,
@@ -68,6 +70,8 @@ declarePublicCounter(libp2p_pubsub_received_graft, "pubsub broadcast graft", lab
 declarePublicCounter(libp2p_pubsub_received_prune, "pubsub broadcast prune", labels = ["topic"])
 
 type
+  InitializationError* = object of LPError
+
   TopicHandler* = proc(topic: string,
                        data: seq[byte]): Future[void] {.gcsafe, raises: [Defect].}
 
@@ -468,7 +472,8 @@ method publish*(p: PubSub,
 
   return 0
 
-method initPubSub*(p: PubSub) {.base.} =
+method initPubSub*(p: PubSub)
+  {.base, raises: [Defect, InitializationError].} =
   ## perform pubsub initialization
   p.observers = new(seq[PubSubObserver])
   if p.msgIdProvider == nil:
@@ -538,7 +543,8 @@ proc init*[PubParams: object | bool](
   sign: bool = true,
   msgIdProvider: MsgIdProvider = defaultMsgIdProvider,
   subscriptionValidator: SubscriptionValidator = nil,
-  parameters: PubParams = false): P =
+  parameters: PubParams = false): P
+  {.raises: [Defect, InitializationError].} =
   let pubsub =
     when PubParams is bool:
       P(switch: switch,

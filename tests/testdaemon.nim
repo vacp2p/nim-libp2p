@@ -1,5 +1,4 @@
-import unittest
-import chronos
+import chronos, unittest2
 import ../libp2p/daemon/daemonapi, ../libp2p/multiaddress, ../libp2p/multicodec,
        ../libp2p/cid, ../libp2p/multihash, ../libp2p/peerid
 

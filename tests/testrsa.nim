@@ -6,7 +6,7 @@
 ## at your option.
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
-import unittest
+import unittest2
 import nimcrypto/utils
 import ../libp2p/crypto/[crypto, rsa]
 
