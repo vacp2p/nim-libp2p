@@ -432,13 +432,11 @@ method init(s: Secio) {.gcsafe.} =
   s.codec = SecioCodec
 
 proc newSecio*(rng: ref BrHmacDrbgContext, localPrivateKey: PrivateKey): Secio =
-  let pkRes = localPrivateKey.getKey()
-  if pkRes.isErr:
-    raise newException(Defect, "Can't fetch local private key")
-
   result = Secio(
     rng: rng,
     localPrivateKey: localPrivateKey,
-    localPublicKey: localPrivateKey.getKey().get(),
+    localPublicKey: localPrivateKey
+      .getKey()
+      .expect("Can't fetch local private key"),
   )
   result.init()
