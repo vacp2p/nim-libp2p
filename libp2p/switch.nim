@@ -126,11 +126,6 @@ proc mount*[T: LPProtocol](s: Switch, proto: T, matcher: Matcher = nil)
   {.gcsafe, raises: [Defect, LPError].} =
 
   if isNil(proto.handler):
-    raise newException(LPError,
-      "Protocol has to define a `handle` method or proc")
-
-  if proto.codec.len == 0:
-    raise newException(LPError,
       "Protocol has to define a `codec` string")
 
   s.ms.addHandler(proto.codecs, proto, matcher)
