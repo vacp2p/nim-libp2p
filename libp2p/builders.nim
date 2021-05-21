@@ -15,10 +15,11 @@ import
   crypto/crypto, transports/[transport, tcptransport],
   muxers/[muxer, mplex/mplex],
   protocols/[identify, secure/secure, secure/noise],
-  connmanager, upgrademngrs/muxedupgrade
+  connmanager, upgrademngrs/muxedupgrade,
+  errors
 
 export
-  switch, peerid, peerinfo, connection, multiaddress, crypto
+  switch, peerid, peerinfo, connection, multiaddress, crypto, errors
 
 type
   SecureProtocol* {.pure.} = enum
@@ -124,7 +125,9 @@ proc withAgentVersion*(b: SwitchBuilder, agentVersion: string): SwitchBuilder =
   b.agentVersion = agentVersion
   b
 
-proc build*(b: SwitchBuilder): Switch =
+proc build*(b: SwitchBuilder): Switch
+  {.raises: [Defect, LPError].} =
+
   if b.rng == nil: # newRng could fail
     raise newException(Defect, "Cannot initialize RNG")
 
@@ -182,7 +185,7 @@ proc build*(b: SwitchBuilder): Switch =
   return switch
 
 proc newStandardSwitch*(privKey = none(PrivateKey),
-                        address = MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet(),
+                        address = MultiAddress.init("/ip4/127.0.0.1/tcp/0"),
                         secureManagers: openarray[SecureProtocol] = [
                             SecureProtocol.Noise,
                           ],
@@ -193,13 +196,14 @@ proc newStandardSwitch*(privKey = none(PrivateKey),
                         maxConnections = MaxConnections,
                         maxIn = -1,
                         maxOut = -1,
-                        maxConnsPerPeer = MaxConnectionsPerPeer): Switch =
+                        maxConnsPerPeer = MaxConnectionsPerPeer): Switch
+                        {.raises: [Defect, LPError].} =
   if SecureProtocol.Secio in secureManagers:
       quit("Secio is deprecated!") # use of secio is unsafe
 
   var b = SwitchBuilder
     .new()
-    .withAddress(address)
+    .withAddress(address.expect("Should have been initialized with default"))
     .withRng(rng)
     .withMaxConnections(maxConnections)
     .withMaxIn(maxIn)

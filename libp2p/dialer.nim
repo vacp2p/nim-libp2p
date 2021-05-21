@@ -19,9 +19,10 @@ import dial,
        multistream,
        connmanager,
        stream/connection,
-       transports/transport
+       transports/transport,
+       errors
 
-export dial
+export dial, errors
 
 logScope:
   topics = "libp2p dialer"
@@ -32,7 +33,7 @@ declareCounter(libp2p_failed_dials, "failed dials")
 declareCounter(libp2p_failed_upgrades_outgoing, "outgoing connections failed upgrades")
 
 type
-  DialFailedError* = object of CatchableError
+  DialFailedError* = object of LPError
 
   Dialer* = ref object of Dial
     peerInfo*: PeerInfo
