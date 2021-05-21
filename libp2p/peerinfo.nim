@@ -9,11 +9,11 @@
 
 {.push raises: [Defect].}
 
-import options, sequtils, hashes
-import chronos, chronicles
-import peerid, multiaddress, crypto/crypto
+import std/[options, sequtils, hashes]
+import pkg/[chronos, chronicles, stew/results]
+import peerid, multiaddress, crypto/crypto, errors
 
-export peerid, multiaddress, crypto
+export peerid, multiaddress, crypto, errors, results
 
 ## A peer can be constructed in one of tree ways:
 ## 1) A local peer with a private key
@@ -27,6 +27,8 @@ type
   KeyType* = enum
     HasPrivate,
     HasPublic
+
+  PeerInfoError* = LPError
 
   PeerInfo* = ref object of RootObj
     peerId*: PeerID
@@ -51,6 +53,12 @@ func shortLog*(p: PeerInfo): auto =
   )
 chronicles.formatIt(PeerInfo): shortLog(it)
 
+func toException*(e: string): ref PeerInfoError =
+  (ref PeerInfoError)(msg: e)
+
+func toException*(e: cstring): ref PeerInfoError =
+  (ref PeerInfoError)(msg: $e)
+
 template postInit(peerinfo: PeerInfo,
                   addrs: openarray[MultiAddress],
                   protocols: openarray[string]) =
@@ -65,10 +73,12 @@ proc init*(
   addrs: openarray[MultiAddress] = [],
   protocols: openarray[string] = [],
   protoVersion: string = "",
-  agentVersion: string = ""): PeerInfo =
+  agentVersion: string = ""): PeerInfo
+  {.raises: [Defect, PeerInfoError].} =
+
   let peerInfo = PeerInfo(
     keyType: HasPrivate,
-    peerId: PeerID.init(key).expect("Unable to create peer id from key"),
+    peerId: PeerID.init(key).tryGet(),
     privateKey: key,
     protoVersion: protoVersion,
     agentVersion: agentVersion)
@@ -98,11 +108,12 @@ proc init*(
   addrs: openarray[MultiAddress] = [],
   protocols: openarray[string] = [],
   protoVersion: string = "",
-  agentVersion: string = ""): PeerInfo =
+  agentVersion: string = ""): PeerInfo
+  {.raises: [Defect, PeerInfoError].} =
 
   let peerInfo = PeerInfo(
     keyType: HasPublic,
-    peerId: PeerID.init(peerId).expect("Unable to create peer id from string"),
+    peerId: PeerID.init(peerId).tryGet(),
     protoVersion: protoVersion,
     agentVersion: agentVersion)
 
@@ -115,11 +126,12 @@ proc init*(
   addrs: openarray[MultiAddress] = [],
   protocols: openarray[string] = [],
   protoVersion: string = "",
-  agentVersion: string = ""): PeerInfo =
+  agentVersion: string = ""): PeerInfo
+  {.raises: [Defect, PeerInfoError].} =
 
   let peerInfo = PeerInfo(
     keyType: HasPublic,
-    peerId: PeerID.init(key).expect("Unable to create peer id from public key"),
+    peerId: PeerID.init(key).tryGet(),
     key: some(key),
     protoVersion: protoVersion,
     agentVersion: agentVersion)
