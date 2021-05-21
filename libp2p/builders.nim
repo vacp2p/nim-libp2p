@@ -50,7 +50,7 @@ proc new*(T: type[SwitchBuilder]): T =
 
   let address = MultiAddress
   .init("/ip4/127.0.0.1/tcp/0")
-  .expect("address should initialize to default")
+  .expect("Should initialize to default")
 
   SwitchBuilder(
     privKey: none(PrivateKey),
@@ -123,13 +123,15 @@ proc withAgentVersion*(b: SwitchBuilder, agentVersion: string): SwitchBuilder =
   b.agentVersion = agentVersion
   b
 
-proc build*(b: SwitchBuilder): Switch =
+proc build*(b: SwitchBuilder): Switch
+  {.raises: [Defect, LPError].} =
+
   if b.rng == nil: # newRng could fail
     raise newException(Defect, "Cannot initialize RNG")
 
   let pkRes = PrivateKey.random(b.rng[])
   let
-    seckey = b.privKey.get(otherwise = pkRes.expect("Should supply a valid RNG"))
+    seckey = b.privKey.get(otherwise = pkRes.expect("Expected default Private Key"))
 
   var
     secureManagerInstances: seq[Secure]
@@ -183,7 +185,7 @@ proc build*(b: SwitchBuilder): Switch =
   return switch
 
 proc newStandardSwitch*(privKey = none(PrivateKey),
-                        address = MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet(),
+                        address = MultiAddress.init("/ip4/127.0.0.1/tcp/0"),
                         secureManagers: openarray[SecureProtocol] = [
                             SecureProtocol.Noise,
                           ],
@@ -194,13 +196,14 @@ proc newStandardSwitch*(privKey = none(PrivateKey),
                         maxConnections = MaxConnections,
                         maxIn = -1,
                         maxOut = -1,
-                        maxConnsPerPeer = MaxConnectionsPerPeer): Switch =
+                        maxConnsPerPeer = MaxConnectionsPerPeer): Switch
+                        {.raises: [Defect, LPError].} =
   if SecureProtocol.Secio in secureManagers:
       quit("Secio is deprecated!") # use of secio is unsafe
 
   var b = SwitchBuilder
     .new()
-    .withAddress(address)
+    .withAddress(address.expect("Should have been initialized with default"))
     .withRng(rng)
     .withMaxConnections(maxConnections)
     .withMaxIn(maxIn)
