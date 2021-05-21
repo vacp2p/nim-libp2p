@@ -1,4 +1,4 @@
-import unittest
+import unittest2
 import nimcrypto/utils
 import ../libp2p/multihash
 

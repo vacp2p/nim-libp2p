@@ -1,3 +1,14 @@
+## Nim-Libp2p
+## Copyright (c) 2020 Status Research & Development GmbH
+## Licensed under either of
+##  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+##  * MIT license ([LICENSE-MIT](LICENSE-MIT))
+## at your option.
+## This file may not be copied, modified, or distributed except according to
+## those terms.
+
+{.push raises: [Defect].}
+
 import
   options, tables, chronos, bearssl,
   switch, peerid, peerinfo, stream/connection, multiaddress,
@@ -37,9 +48,14 @@ type
     agentVersion: string
 
 proc new*(T: type[SwitchBuilder]): T =
+
+  let address = MultiAddress
+  .init("/ip4/127.0.0.1/tcp/0")
+  .expect("address should initialize to default")
+
   SwitchBuilder(
     privKey: none(PrivateKey),
-    address: MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet(),
+    address: address,
     secureManagers: @[],
     tcpTransportOpts: TcpTransportOpts(),
     maxConnections: MaxConnections,
@@ -110,10 +126,11 @@ proc withAgentVersion*(b: SwitchBuilder, agentVersion: string): SwitchBuilder =
 
 proc build*(b: SwitchBuilder): Switch =
   if b.rng == nil: # newRng could fail
-    raise (ref CatchableError)(msg: "Cannot initialize RNG")
+    raise newException(Defect, "Cannot initialize RNG")
 
+  let pkRes = PrivateKey.random(b.rng[])
   let
-    seckey = b.privKey.get(otherwise = PrivateKey.random(b.rng[]).tryGet())
+    seckey = b.privKey.get(otherwise = pkRes.expect("Should supply a valid RNG"))
 
   var
     secureManagerInstances: seq[Secure]
@@ -121,11 +138,11 @@ proc build*(b: SwitchBuilder): Switch =
     secureManagerInstances.add(newNoise(b.rng, seckey).Secure)
 
   let
-    peerInfo = block:
-      var info = PeerInfo.init(seckey, [b.address])
-      info.protoVersion = b.protoVersion
-      info.agentVersion = b.agentVersion
-      info
+    peerInfo = PeerInfo.init(
+      seckey,
+      [b.address],
+      protoVersion = b.protoVersion,
+      agentVersion = b.agentVersion)
 
   let
     muxers = block:

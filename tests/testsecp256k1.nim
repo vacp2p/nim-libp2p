@@ -6,7 +6,7 @@
 ## at your option.
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
-import unittest, bearssl
+import unittest2, bearssl
 import ../libp2p/crypto/[crypto, secp]
 import nimcrypto/utils
 

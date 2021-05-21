@@ -7,6 +7,8 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
+{.push raises: [Defect].}
+
 ## This module implementes API for `go-libp2p-daemon`.
 import std/[os, osproc, strutils, tables, strtabs]
 import chronos, chronicles
@@ -468,7 +470,7 @@ proc checkResponse(pb: var ProtoBuffer): ResponseKind {.inline.} =
     else:
       result = ResponseKind.Error
 
-proc getErrorMessage(pb: var ProtoBuffer): string {.inline.} =
+proc getErrorMessage(pb: var ProtoBuffer): string {.inline, raises: [Defect, DaemonLocalError].} =
   if pb.enterSubmessage() == cast[int](ResponseType.ERROR):
     if pb.getString(1, result) == -1:
       raise newException(DaemonLocalError, "Error message is missing!")
@@ -826,7 +828,8 @@ proc transactMessage(transp: StreamTransport,
     raise newException(DaemonLocalError, "Incorrect or empty message received!")
   result = initProtoBuffer(message)
 
-proc getPeerInfo(pb: var ProtoBuffer): PeerInfo =
+proc getPeerInfo(pb: var ProtoBuffer): PeerInfo
+  {.raises: [Defect, DaemonLocalError].} =
   ## Get PeerInfo object from ``pb``.
   result.addresses = newSeq[MultiAddress]()
   if pb.getValue(1, result.peer) == -1:
@@ -835,7 +838,11 @@ proc getPeerInfo(pb: var ProtoBuffer): PeerInfo =
   while pb.getBytes(2, address) != -1:
     if len(address) != 0:
       var copyaddr = address
-      result.addresses.add(MultiAddress.init(copyaddr).tryGet())
+      let addrRes = MultiAddress.init(copyaddr)
+      if addrRes.isErr:
+        raise newException(DaemonLocalError, addrRes.error)
+
+      result.addresses.add(MultiAddress.init(copyaddr).get())
       address.setLen(0)
 
 proc identity*(api: DaemonAPI): Future[PeerInfo] {.async.} =
@@ -997,26 +1004,31 @@ proc cmTrimPeers*(api: DaemonAPI) {.async.} =
   finally:
     await api.closeConnection(transp)
 
-proc dhtGetSinglePeerInfo(pb: var ProtoBuffer): PeerInfo =
+proc dhtGetSinglePeerInfo(pb: var ProtoBuffer): PeerInfo
+  {.raises: [Defect, DaemonLocalError].} =
   if pb.enterSubmessage() == 2:
     result = pb.getPeerInfo()
   else:
     raise newException(DaemonLocalError, "Missing required field `peer`!")
 
-proc dhtGetSingleValue(pb: var ProtoBuffer): seq[byte] =
+proc dhtGetSingleValue(pb: var ProtoBuffer): seq[byte]
+  {.raises: [Defect, DaemonLocalError].} =
   result = newSeq[byte]()
   if pb.getLengthValue(3, result) == -1:
     raise newException(DaemonLocalError, "Missing field `value`!")
 
-proc dhtGetSinglePublicKey(pb: var ProtoBuffer): PublicKey =
+proc dhtGetSinglePublicKey(pb: var ProtoBuffer): PublicKey
+  {.raises: [Defect, DaemonLocalError].} =
   if pb.getValue(3, result) == -1:
     raise newException(DaemonLocalError, "Missing field `value`!")
 
-proc dhtGetSinglePeerID(pb: var ProtoBuffer): PeerID =
+proc dhtGetSinglePeerID(pb: var ProtoBuffer): PeerID
+  {.raises: [Defect, DaemonLocalError].} =
   if pb.getValue(3, result) == -1:
     raise newException(DaemonLocalError, "Missing field `value`!")
 
-proc enterDhtMessage(pb: var ProtoBuffer, rt: DHTResponseType) {.inline.} =
+proc enterDhtMessage(pb: var ProtoBuffer, rt: DHTResponseType)
+  {.inline, raises: [Defect, DaemonLocalError].} =
   var dtype: uint
   var res = pb.enterSubmessage()
   if res == cast[int](ResponseType.DHT):
@@ -1027,12 +1039,14 @@ proc enterDhtMessage(pb: var ProtoBuffer, rt: DHTResponseType) {.inline.} =
   else:
     raise newException(DaemonLocalError, "Wrong message type!")
 
-proc enterPsMessage(pb: var ProtoBuffer) {.inline.} =
+proc enterPsMessage(pb: var ProtoBuffer)
+  {.inline, raises: [Defect, DaemonLocalError].} =
   var res = pb.enterSubmessage()
   if res != cast[int](ResponseType.PUBSUB):
     raise newException(DaemonLocalError, "Wrong message type!")
 
-proc getDhtMessageType(pb: var ProtoBuffer): DHTResponseType {.inline.} =
+proc getDhtMessageType(pb: var ProtoBuffer): DHTResponseType
+  {.inline, raises: [Defect, DaemonLocalError].} =
   var dtype: uint
   if pb.getVarintValue(1, dtype) == 0:
     raise newException(DaemonLocalError, "Missing required DHT field `type`!")

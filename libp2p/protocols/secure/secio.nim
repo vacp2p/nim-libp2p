@@ -6,6 +6,9 @@
 ## at your option.
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
+
+{.push raises: [Defect].}
+
 import std/[oids, strformat]
 import chronos, chronicles, stew/endians2, bearssl
 import nimcrypto/[hmac, sha2, sha, hash, rijndael, twofish, bcmode]
@@ -15,7 +18,8 @@ import secure,
        ../../crypto/crypto,
        ../../crypto/ecnist,
        ../../peerid,
-       ../../utility
+       ../../utility,
+       ../../errors
 
 export hmac, sha2, sha, hash, rijndael, bcmode
 
@@ -71,9 +75,13 @@ type
   SecioError* = object of LPError
 
 func shortLog*(conn: SecioConn): auto =
-  if conn.isNil: "SecioConn(nil)"
-  elif conn.peerInfo.isNil: $conn.oid
-  else: &"{shortLog(conn.peerInfo.peerId)}:{conn.oid}"
+  try:
+    if conn.isNil: "SecioConn(nil)"
+    elif conn.peerInfo.isNil: $conn.oid
+    else: &"{shortLog(conn.peerInfo.peerId)}:{conn.oid}"
+  except ValueError as exc:
+    raise newException(Defect, exc.msg)
+
 chronicles.formatIt(SecioConn): shortLog(it)
 
 proc init(mac: var SecureMac, hash: string, key: openarray[byte]) =
@@ -250,7 +258,8 @@ proc newSecioConn(conn: Connection,
                   cipher: string,
                   secrets: Secret,
                   order: int,
-                  remotePubKey: PublicKey): SecioConn =
+                  remotePubKey: PublicKey): SecioConn
+                  {.raises: [Defect, SecioError].} =
   ## Create new secure stream/lpstream, using specified hash algorithm ``hash``,
   ## cipher algorithm ``cipher``, stretched keys ``secrets`` and order
   ## ``order``.
@@ -259,7 +268,7 @@ proc newSecioConn(conn: Connection,
     if conn.peerInfo != nil:
       conn.peerInfo
     else:
-      PeerInfo.init(PeerID.init(remotePubKey).tryGet())
+      PeerInfo.init(remotePubKey)
 
   result = SecioConn.init(conn, conn.peerInfo, conn.observedAddr)
 
@@ -423,9 +432,13 @@ method init(s: Secio) {.gcsafe.} =
   s.codec = SecioCodec
 
 proc newSecio*(rng: ref BrHmacDrbgContext, localPrivateKey: PrivateKey): Secio =
+  let pkRes = localPrivateKey.getKey()
+  if pkRes.isErr:
+    raise newException(Defect, "Can't fetch local private key")
+
   result = Secio(
     rng: rng,
     localPrivateKey: localPrivateKey,
-    localPublicKey: localPrivateKey.getKey().tryGet(),
+    localPublicKey: localPrivateKey.getKey().get(),
   )
   result.init()

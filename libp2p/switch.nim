@@ -7,6 +7,8 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
+{.push raises: [Defect].}
+
 import std/[tables,
             options,
             sets,
@@ -120,7 +122,8 @@ proc dial*(
   proto: string): Future[Connection] =
   dial(s, peerId, addrs, @[proto])
 
-proc mount*[T: LPProtocol](s: Switch, proto: T, matcher: Matcher = nil) {.gcsafe.} =
+proc mount*[T: LPProtocol](s: Switch, proto: T, matcher: Matcher = nil)
+  {.gcsafe, raises: [Defect, CatchableError].} =
   if isNil(proto.handler):
     raise newException(CatchableError,
       "Protocol has to define a handle method or proc")

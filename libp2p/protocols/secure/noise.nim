@@ -7,6 +7,8 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
+{.push raises: [Defect].}
+
 import std/[oids, strformat]
 import chronos
 import chronicles
@@ -18,8 +20,10 @@ import ../../peerid
 import ../../peerinfo
 import ../../protobuf/minprotobuf
 import ../../utility
+import ../../errors
+
 import secure,
-       ../../crypto/[crypto, chacha20poly1305, curve25519, hkdf]
+      ../../crypto/[crypto, chacha20poly1305, curve25519, hkdf]
 
 when defined(libp2p_dump):
   import ../../debugutils
@@ -94,9 +98,13 @@ type
 # Utility
 
 func shortLog*(conn: NoiseConnection): auto =
-  if conn.isNil: "NoiseConnection(nil)"
-  elif conn.peerInfo.isNil: $conn.oid
-  else: &"{shortLog(conn.peerInfo.peerId)}:{conn.oid}"
+  try:
+    if conn.isNil: "NoiseConnection(nil)"
+    elif conn.peerInfo.isNil: $conn.oid
+    else: &"{shortLog(conn.peerInfo.peerId)}:{conn.oid}"
+  except ValueError as exc:
+    raise newException(Defect, exc.msg)
+
 chronicles.formatIt(NoiseConnection): shortLog(it)
 
 proc genKeyPair(rng: var BrHmacDrbgContext): KeyPair =
@@ -123,8 +131,11 @@ proc hasKey(cs: CipherState): bool =
   cs.k != EmptyKey
 
 proc encrypt(
-    state: var CipherState, data: var openArray[byte],
-    ad: openArray[byte]): ChaChaPolyTag {.noinit.} =
+    state: var CipherState,
+    data: var openArray[byte],
+    ad: openArray[byte]): ChaChaPolyTag
+    {.noinit, raises: [Defect, NoiseNonceMaxError].} =
+
   var nonce: ChaChaPolyNonce
   nonce[4..<12] = toBytesLE(state.n)
 
@@ -134,7 +145,8 @@ proc encrypt(
   if state.n > NonceMax:
     raise newException(NoiseNonceMaxError, "Noise max nonce value reached")
 
-proc encryptWithAd(state: var CipherState, ad, data: openArray[byte]): seq[byte] =
+proc encryptWithAd(state: var CipherState, ad, data: openArray[byte]): seq[byte]
+  {.raises: [Defect, NoiseNonceMaxError].} =
   result = newSeqOfCap[byte](data.len + sizeof(ChachaPolyTag))
   result.add(data)
 
@@ -145,7 +157,8 @@ proc encryptWithAd(state: var CipherState, ad, data: openArray[byte]): seq[byte]
   trace "encryptWithAd",
     tag = byteutils.toHex(tag), data = result.shortLog, nonce = state.n - 1
 
-proc decryptWithAd(state: var CipherState, ad, data: openArray[byte]): seq[byte] =
+proc decryptWithAd(state: var CipherState, ad, data: openArray[byte]): seq[byte]
+  {.raises: [Defect, NoiseDecryptTagError, NoiseNonceMaxError].} =
   var
     tagIn = data.toOpenArray(data.len - ChaChaPolyTag.len, data.high).intoChaChaPolyTag
     tagOut: ChaChaPolyTag
@@ -193,7 +206,8 @@ proc mixKeyAndHash(ss: var SymmetricState; ikm: openArray[byte]) {.used.} =
   ss.mixHash(temp_keys[1])
   ss.cs = CipherState(k: temp_keys[2])
 
-proc encryptAndHash(ss: var SymmetricState, data: openArray[byte]): seq[byte] =
+proc encryptAndHash(ss: var SymmetricState, data: openArray[byte]): seq[byte]
+  {.raises: [Defect, NoiseNonceMaxError].} =
   # according to spec if key is empty leave plaintext
   if ss.cs.hasKey:
     result = ss.cs.encryptWithAd(ss.h.data, data)
@@ -201,7 +215,8 @@ proc encryptAndHash(ss: var SymmetricState, data: openArray[byte]): seq[byte] =
     result = @data
   ss.mixHash(result)
 
-proc decryptAndHash(ss: var SymmetricState, data: openArray[byte]): seq[byte] =
+proc decryptAndHash(ss: var SymmetricState, data: openArray[byte]): seq[byte]
+  {.raises: [Defect, NoiseDecryptTagError, NoiseNonceMaxError].} =
   # according to spec if key is empty leave plaintext
   if ss.cs.hasKey:
     result = ss.cs.decryptWithAd(ss.h.data, data)
@@ -430,7 +445,10 @@ method readMessage*(sconn: NoiseConnection): Future[seq[byte]] {.async.} =
 
 
 proc encryptFrame(
-    sconn: NoiseConnection, cipherFrame: var openArray[byte], src: openArray[byte]) =
+    sconn: NoiseConnection,
+    cipherFrame: var openArray[byte],
+    src: openArray[byte])
+    {.raises: [Defect, NoiseNonceMaxError].} =
   # Frame consists of length + cipher data + tag
   doAssert src.len <= MaxPlainSize
   doAssert cipherFrame.len == 2 + src.len + sizeof(ChaChaPolyTag)
@@ -582,12 +600,19 @@ proc newNoise*(
     privateKey: PrivateKey;
     outgoing: bool = true;
     commonPrologue: seq[byte] = @[]): Noise =
-  result = Noise(
+
+  let pkBytes = privateKey.getKey()
+  .expect("Expected valid private key")
+  .getBytes()
+  .expect("Couldn't get key bytes")
+  var noise = Noise(
     rng: rng,
     outgoing: outgoing,
     localPrivateKey: privateKey,
-    localPublicKey: privateKey.getKey().tryGet().getBytes().tryGet(),
+    localPublicKey: pkBytes,
     noiseKeys: genKeyPair(rng[]),
     commonPrologue: commonPrologue,
   )
-  result.init()
+
+  noise.init()
+  return noise

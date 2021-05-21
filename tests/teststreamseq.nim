@@ -1,6 +1,6 @@
 {.used.}
 
-import unittest
+import unittest2
 import stew/byteutils
 import ../libp2p/stream/streamseq
 

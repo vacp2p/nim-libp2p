@@ -7,7 +7,7 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import unittest
+import unittest2
 import ../libp2p/protobuf/minprotobuf
 import stew/byteutils, strutils
 

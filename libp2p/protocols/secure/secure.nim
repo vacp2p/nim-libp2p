@@ -7,6 +7,8 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
+{.push raises: [Defect].}
+
 import std/[options, strformat]
 import chronos, chronicles, bearssl
 import ../protocol,
@@ -32,9 +34,13 @@ type
     buf: StreamSeq
 
 func shortLog*(conn: SecureConn): auto =
-  if conn.isNil: "SecureConn(nil)"
-  elif conn.peerInfo.isNil: $conn.oid
-  else: &"{shortLog(conn.peerInfo.peerId)}:{conn.oid}"
+  try:
+    if conn.isNil: "SecureConn(nil)"
+    elif conn.peerInfo.isNil: $conn.oid
+    else: &"{shortLog(conn.peerInfo.peerId)}:{conn.oid}"
+  except ValueError as exc:
+    raise newException(Defect, exc.msg)
+
 chronicles.formatIt(SecureConn): shortLog(it)
 
 proc init*(T: type SecureConn,

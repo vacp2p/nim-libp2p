@@ -1,4 +1,4 @@
-import unittest, options, bearssl
+import options, bearssl
 import chronos, strutils
 import ../libp2p/[protocols/identify,
                   multiaddress,

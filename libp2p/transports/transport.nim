@@ -8,6 +8,8 @@
 ## those terms.
 ##
 
+{.push raises: [Defect].}
+
 import sequtils
 import chronos, chronicles
 import ../stream/connection,
@@ -95,7 +97,8 @@ method handles*(
 
   # by default we skip circuit addresses to avoid
   # having to repeat the check in every transport
-  address.protocols.tryGet().filterIt( it == multiCodec("p2p-circuit") ).len == 0
+  if address.protocols.isOk:
+    return address.protocols.get().filterIt( it == multiCodec("p2p-circuit") ).len == 0
 
 method localAddress*(self: Transport): MultiAddress {.base, gcsafe.} =
   ## get the local address of the transport in case started with 0.0.0.0:0
