@@ -838,11 +838,10 @@ proc getPeerInfo(pb: var ProtoBuffer): PeerInfo
   while pb.getBytes(2, address) != -1:
     if len(address) != 0:
       var copyaddr = address
-      let addrRes = MultiAddress.init(copyaddr)
-      if addrRes.isErr:
-        raise newException(DaemonLocalError, addrRes.error)
-
-      result.addresses.add(MultiAddress.init(copyaddr).get())
+      result.addresses.add(
+        MultiAddress
+        .init(copyaddr)
+        .expect("Expected valid multiaddr"))
       address.setLen(0)
 
 proc identity*(api: DaemonAPI): Future[PeerInfo] {.async.} =
