@@ -259,7 +259,7 @@ proc newSecioConn(conn: Connection,
                   secrets: Secret,
                   order: int,
                   remotePubKey: PublicKey): SecioConn
-                  {.raises: [Defect, SecioError].} =
+                  {.raises: [Defect, LPError].} =
   ## Create new secure stream/lpstream, using specified hash algorithm ``hash``,
   ## cipher algorithm ``cipher``, stretched keys ``secrets`` and order
   ## ``order``.
