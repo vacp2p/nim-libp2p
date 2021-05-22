@@ -11,12 +11,13 @@
 
 ## This module implementes API for `go-libp2p-daemon`.
 import std/[os, osproc, strutils, tables, strtabs]
-import chronos, chronicles
+import pkg/[chronos, chronicles]
 import ../varint, ../multiaddress, ../multicodec, ../cid, ../peerid
 import ../wire, ../multihash, ../protobuf/minprotobuf, ../errors
 import ../crypto/crypto
 
-export peerid, multiaddress, multicodec, multihash, cid, crypto, wire
+export
+  peerid, multiaddress, multicodec, multihash, cid, crypto, wire
 
 when not defined(windows):
   import posix
@@ -834,15 +835,19 @@ proc getPeerInfo(pb: var ProtoBuffer): PeerInfo
   result.addresses = newSeq[MultiAddress]()
   if pb.getValue(1, result.peer) == -1:
     raise newException(DaemonLocalError, "Missing required field `peer`!")
+
   var address = newSeq[byte]()
   while pb.getBytes(2, address) != -1:
     if len(address) != 0:
       var copyaddr = address
       let addrRes = MultiAddress.init(copyaddr)
+
+      # TODO: for some reason `toException` doesn't
+      # work for this module
       if addrRes.isErr:
         raise newException(DaemonLocalError, addrRes.error)
 
-      result.addresses.add(MultiAddress.init(copyaddr).get())
+      result.addresses.add(addrRes.get())
       address.setLen(0)
 
 proc identity*(api: DaemonAPI): Future[PeerInfo] {.async.} =

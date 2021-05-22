@@ -52,7 +52,7 @@ proc new*(T: type[SwitchBuilder]): T =
 
   let address = MultiAddress
   .init("/ip4/127.0.0.1/tcp/0")
-  .expect("address should initialize to default")
+  .expect("Should initialize to default")
 
   SwitchBuilder(
     privKey: none(PrivateKey),
@@ -133,7 +133,7 @@ proc build*(b: SwitchBuilder): Switch
 
   let pkRes = PrivateKey.random(b.rng[])
   let
-    seckey = b.privKey.get(otherwise = pkRes.expect("Should supply a valid RNG"))
+    seckey = b.privKey.get(otherwise = pkRes.expect("Expected default Private Key"))
 
   var
     secureManagerInstances: seq[Secure]

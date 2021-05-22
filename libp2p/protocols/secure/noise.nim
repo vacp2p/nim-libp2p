@@ -189,7 +189,7 @@ proc mixKey(ss: var SymmetricState, ikm: ChaChaPolyKey) =
   ss.cs = CipherState(k: temp_keys[1])
   trace "mixKey", key = ss.cs.k.shortLog
 
-proc mixHash(ss: var SymmetricState; data: openArray[byte]) =
+proc mixHash(ss: var SymmetricState, data: openArray[byte]) =
   var ctx: sha256
   ctx.init()
   ctx.update(ss.h.data)
@@ -198,7 +198,7 @@ proc mixHash(ss: var SymmetricState; data: openArray[byte]) =
   trace "mixHash", hash = ss.h.data.shortLog
 
 # We might use this for other handshake patterns/tokens
-proc mixKeyAndHash(ss: var SymmetricState; ikm: openArray[byte]) {.used.} =
+proc mixKeyAndHash(ss: var SymmetricState, ikm: openArray[byte]) {.used.} =
   var
     temp_keys: array[3, ChaChaPolyKey]
   sha256.hkdf(ss.ck, ikm, [], temp_keys)
@@ -597,14 +597,16 @@ method init*(p: Noise) {.gcsafe.} =
 
 proc newNoise*(
     rng: ref BrHmacDrbgContext,
-    privateKey: PrivateKey;
-    outgoing: bool = true;
+    privateKey: PrivateKey,
+    outgoing: bool = true,
     commonPrologue: seq[byte] = @[]): Noise =
 
-  let pkBytes = privateKey.getKey()
-  .expect("Expected valid private key")
+  let pkBytes = privateKey
+  .getKey()
+  .expect("Expected valid Private Key")
   .getBytes()
-  .expect("Couldn't get key bytes")
+  .expect("Couldn't get Private Key bytes")
+
   var noise = Noise(
     rng: rng,
     outgoing: outgoing,
