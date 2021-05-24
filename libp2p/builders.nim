@@ -184,26 +184,27 @@ proc build*(b: SwitchBuilder): Switch
 
   return switch
 
-proc newStandardSwitch*(privKey = none(PrivateKey),
-                        address = MultiAddress.init("/ip4/127.0.0.1/tcp/0"),
-                        secureManagers: openarray[SecureProtocol] = [
-                            SecureProtocol.Noise,
-                          ],
-                        transportFlags: set[ServerFlags] = {},
-                        rng = newRng(),
-                        inTimeout: Duration = 5.minutes,
-                        outTimeout: Duration = 5.minutes,
-                        maxConnections = MaxConnections,
-                        maxIn = -1,
-                        maxOut = -1,
-                        maxConnsPerPeer = MaxConnectionsPerPeer): Switch
-                        {.raises: [Defect, LPError].} =
+proc newStandardSwitch*(
+  privKey = none(PrivateKey),
+  address = MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet(),
+  secureManagers: openarray[SecureProtocol] = [
+      SecureProtocol.Noise,
+    ],
+  transportFlags: set[ServerFlags] = {},
+  rng = newRng(),
+  inTimeout: Duration = 5.minutes,
+  outTimeout: Duration = 5.minutes,
+  maxConnections = MaxConnections,
+  maxIn = -1,
+  maxOut = -1,
+  maxConnsPerPeer = MaxConnectionsPerPeer): Switch
+  {.raises: [Defect, LPError].} =
   if SecureProtocol.Secio in secureManagers:
       quit("Secio is deprecated!") # use of secio is unsafe
 
   var b = SwitchBuilder
     .new()
-    .withAddress(address.expect("Should have been initialized with default"))
+    .withAddress(address)
     .withRng(rng)
     .withMaxConnections(maxConnections)
     .withMaxIn(maxIn)
