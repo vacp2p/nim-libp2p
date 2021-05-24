@@ -249,9 +249,10 @@ proc newSwitch*(peerInfo: PeerInfo,
                 muxers: Table[string, MuxerProvider],
                 secureManagers: openarray[Secure] = [],
                 connManager: ConnManager,
-                ms: MultistreamSelect): Switch =
+                ms: MultistreamSelect): Switch
+                {.raises: [Defect, LPError].} =
   if secureManagers.len == 0:
-    raise (ref LPError)(msg: "Provide at least one secure manager")
+    raise newException(LPError, "Provide at least one secure manager")
 
   let switch = Switch(
     peerInfo: peerInfo,
