@@ -7,6 +7,8 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
+{.push raises: [Defect].}
+
 import std/[options, sequtils]
 import pkg/[chronos, chronicles, metrics]
 
@@ -14,7 +16,8 @@ import ../stream/connection,
        ../protocols/secure/secure,
        ../protocols/identify,
        ../multistream,
-       ../connmanager
+       ../connmanager,
+       ../errors
 
 export connmanager, connection, identify, secure, multistream
 

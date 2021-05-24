@@ -7,6 +7,8 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
+{.push raises: [Defect].}
+
 import std/oids
 import stew/byteutils
 import chronicles, chronos, metrics
@@ -99,19 +101,19 @@ proc newLPStreamWriteError*(p: ref CatchableError): ref CatchableError =
   w.par = p
   result = w
 
-proc newLPStreamIncompleteError*(): ref CatchableError =
+proc newLPStreamIncompleteError*(): ref LPStreamIncompleteError =
   result = newException(LPStreamIncompleteError, "Incomplete data received")
 
-proc newLPStreamLimitError*(): ref CatchableError =
+proc newLPStreamLimitError*(): ref LPStreamLimitError =
   result = newException(LPStreamLimitError, "Buffer limit reached")
 
-proc newLPStreamIncorrectDefect*(m: string): ref Defect =
+proc newLPStreamIncorrectDefect*(m: string): ref LPStreamIncorrectDefect =
   result = newException(LPStreamIncorrectDefect, m)
 
-proc newLPStreamEOFError*(): ref CatchableError =
+proc newLPStreamEOFError*(): ref LPStreamEOFError =
   result = newException(LPStreamEOFError, "Stream EOF!")
 
-proc newLPStreamClosedError*(): ref Exception =
+proc newLPStreamClosedError*(): ref LPStreamClosedError =
   result = newException(LPStreamClosedError, "Stream Closed!")
 
 func shortLog*(s: LPStream): auto =
@@ -133,17 +135,17 @@ method initStream*(s: LPStream) {.base.} =
 proc join*(s: LPStream): Future[void] =
   s.closeEvent.wait()
 
-method closed*(s: LPStream): bool {.base, raises: [Defect].} =
+method closed*(s: LPStream): bool {.base.} =
   s.isClosed
 
-method atEof*(s: LPStream): bool {.base, raises: [Defect].} =
+method atEof*(s: LPStream): bool {.base.} =
   s.isEof
 
-method readOnce*(s: LPStream,
-                 pbytes: pointer,
-                 nbytes: int):
-                 Future[int]
-  {.base, async.} =
+method readOnce*(
+  s: LPStream,
+  pbytes: pointer,
+  nbytes: int):
+  Future[int] {.base, async.} =
   doAssert(false, "not implemented!")
 
 proc readExactly*(s: LPStream,

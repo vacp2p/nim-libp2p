@@ -1,4 +1,4 @@
-import unittest, strutils, strformat, stew/byteutils
+import strutils, strformat, stew/byteutils
 import chronos
 import ../libp2p/errors,
        ../libp2p/multistream,

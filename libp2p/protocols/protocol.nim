@@ -7,13 +7,17 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
+{.push raises: [Defect].}
+
 import chronos
 import ../stream/connection
 
 type
-  LPProtoHandler* = proc (conn: Connection,
-                          proto: string):
-                          Future[void] {.gcsafe, closure.}
+  LPProtoHandler* = proc (
+    conn: Connection,
+    proto: string):
+    Future[void]
+    {.gcsafe, raises: [Defect].}
 
   LPProtocol* = ref object of RootObj
     codecs*: seq[string]

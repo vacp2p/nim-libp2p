@@ -1,6 +1,6 @@
 {.used.}
 
-import unittest, options, sequtils
+import options, sequtils
 import chronos
 import stew/byteutils
 import nimcrypto/sysrand

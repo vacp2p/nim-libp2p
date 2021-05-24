@@ -1,6 +1,6 @@
 {.used.}
 
-import unittest, options, bearssl
+import options, bearssl
 import chronos
 import ../libp2p/crypto/crypto,
        ../libp2p/peerinfo,
@@ -35,7 +35,11 @@ suite "PeerInfo":
     check seckey.getKey.get() == peerInfo.publicKey.get()
 
   test "Should init from CIDv0 string":
-    var peerInfo = PeerInfo.init("QmYyQSo1c1Ym7orWxLYvCrM2EmxFTANf8wXmmE7DWjhx5N")
+    var peerInfo: PeerInfo
+    try:
+      peerInfo = PeerInfo.init("QmYyQSo1c1Ym7orWxLYvCrM2EmxFTANf8wXmmE7DWjhx5N")
+    except CatchableError:
+      check false
 
     check:
       PeerID.init("QmYyQSo1c1Ym7orWxLYvCrM2EmxFTANf8wXmmE7DWjhx5N").get() == peerInfo.peerId

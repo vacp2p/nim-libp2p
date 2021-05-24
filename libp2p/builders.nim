@@ -1,13 +1,25 @@
+## Nim-Libp2p
+## Copyright (c) 2020 Status Research & Development GmbH
+## Licensed under either of
+##  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+##  * MIT license ([LICENSE-MIT](LICENSE-MIT))
+## at your option.
+## This file may not be copied, modified, or distributed except according to
+## those terms.
+
+{.push raises: [Defect].}
+
 import
   options, tables, chronos, bearssl,
   switch, peerid, peerinfo, stream/connection, multiaddress,
   crypto/crypto, transports/[transport, tcptransport],
   muxers/[muxer, mplex/mplex],
   protocols/[identify, secure/secure, secure/noise],
-  connmanager, upgrademngrs/muxedupgrade
+  connmanager, upgrademngrs/muxedupgrade,
+  errors
 
 export
-  switch, peerid, peerinfo, connection, multiaddress, crypto
+  switch, peerid, peerinfo, connection, multiaddress, crypto, errors
 
 type
   SecureProtocol* {.pure.} = enum
@@ -37,9 +49,14 @@ type
     agentVersion: string
 
 proc new*(T: type[SwitchBuilder]): T =
+
+  let address = MultiAddress
+  .init("/ip4/127.0.0.1/tcp/0")
+  .expect("address should initialize to default")
+
   SwitchBuilder(
     privKey: none(PrivateKey),
-    address: MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet(),
+    address: address,
     secureManagers: @[],
     tcpTransportOpts: TcpTransportOpts(),
     maxConnections: MaxConnections,
@@ -108,12 +125,15 @@ proc withAgentVersion*(b: SwitchBuilder, agentVersion: string): SwitchBuilder =
   b.agentVersion = agentVersion
   b
 
-proc build*(b: SwitchBuilder): Switch =
-  if b.rng == nil: # newRng could fail
-    raise (ref CatchableError)(msg: "Cannot initialize RNG")
+proc build*(b: SwitchBuilder): Switch
+  {.raises: [Defect, LPError].} =
 
+  if b.rng == nil: # newRng could fail
+    raise newException(Defect, "Cannot initialize RNG")
+
+  let pkRes = PrivateKey.random(b.rng[])
   let
-    seckey = b.privKey.get(otherwise = PrivateKey.random(b.rng[]).tryGet())
+    seckey = b.privKey.get(otherwise = pkRes.expect("Should supply a valid RNG"))
 
   var
     secureManagerInstances: seq[Secure]
@@ -121,11 +141,11 @@ proc build*(b: SwitchBuilder): Switch =
     secureManagerInstances.add(newNoise(b.rng, seckey).Secure)
 
   let
-    peerInfo = block:
-      var info = PeerInfo.init(seckey, [b.address])
-      info.protoVersion = b.protoVersion
-      info.agentVersion = b.agentVersion
-      info
+    peerInfo = PeerInfo.init(
+      seckey,
+      [b.address],
+      protoVersion = b.protoVersion,
+      agentVersion = b.agentVersion)
 
   let
     muxers = block:
@@ -165,7 +185,7 @@ proc build*(b: SwitchBuilder): Switch =
   return switch
 
 proc newStandardSwitch*(privKey = none(PrivateKey),
-                        address = MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet(),
+                        address = MultiAddress.init("/ip4/127.0.0.1/tcp/0"),
                         secureManagers: openarray[SecureProtocol] = [
                             SecureProtocol.Noise,
                           ],
@@ -176,13 +196,14 @@ proc newStandardSwitch*(privKey = none(PrivateKey),
                         maxConnections = MaxConnections,
                         maxIn = -1,
                         maxOut = -1,
-                        maxConnsPerPeer = MaxConnectionsPerPeer): Switch =
+                        maxConnsPerPeer = MaxConnectionsPerPeer): Switch
+                        {.raises: [Defect, LPError].} =
   if SecureProtocol.Secio in secureManagers:
       quit("Secio is deprecated!") # use of secio is unsafe
 
   var b = SwitchBuilder
     .new()
-    .withAddress(address)
+    .withAddress(address.expect("Should have been initialized with default"))
     .withRng(rng)
     .withMaxConnections(maxConnections)
     .withMaxIn(maxIn)

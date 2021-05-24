@@ -8,7 +8,7 @@
 ## those terms.
 when defined(nimHasUsed): {.used.}
 
-import unittest
+import unittest2
 import ../libp2p/crypto/crypto
 import nimcrypto/utils
 

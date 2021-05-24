@@ -1,6 +1,6 @@
 {.used.}
 
-import unittest, options, sets, sequtils, bearssl
+import unittest2, options, sets, sequtils, bearssl
 import stew/byteutils
 import ../../libp2p/[peerid,
                      crypto/crypto,

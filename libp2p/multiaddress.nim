@@ -11,9 +11,9 @@
 
 {.push raises: [Defect].}
 
-import nativesockets, hashes
+import pkg/chronos
+import std/[nativesockets, hashes]
 import tables, strutils, stew/shims/net
-import chronos
 import multicodec, multihash, multibase, transcoder, vbuffer, peerid,
        protobuf/minprotobuf, errors
 import stew/[base58, base32, endians2, results]

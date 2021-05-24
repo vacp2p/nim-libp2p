@@ -7,6 +7,8 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
+{.push raises: [Defect].}
+
 import pkg/[chronos, nimcrypto/utils, chronicles, stew/byteutils]
 import ../../stream/connection,
        ../../utility,

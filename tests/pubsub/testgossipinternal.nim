@@ -3,7 +3,7 @@ include ../../libp2p/protocols/pubsub/gossipsub
 {.used.}
 
 import options
-import unittest, bearssl
+import bearssl
 import stew/byteutils
 import ../../libp2p/builders
 import ../../libp2p/errors
@@ -34,7 +34,10 @@ proc getPubSubPeer(p: TestGossipSub, peerId: PeerID): PubSubPeer =
   pubSubPeer
 
 proc randomPeerInfo(): PeerInfo =
-  PeerInfo.init(PrivateKey.random(ECDSA, rng[]).get())
+  try:
+    PeerInfo.init(PrivateKey.random(ECDSA, rng[]).get())
+  except CatchableError as exc:
+    raise newException(Defect, exc.msg)
 
 suite "GossipSub internal":
   teardown:
