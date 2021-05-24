@@ -439,6 +439,8 @@ proc newSecio*(rng: ref BrHmacDrbgContext, localPrivateKey: PrivateKey): Secio =
   result = Secio(
     rng: rng,
     localPrivateKey: localPrivateKey,
-    localPublicKey: localPrivateKey.getKey().get(),
+    localPublicKey: localPrivateKey
+      .getKey()
+      .expect("Can't fetch local private key"),
   )
   result.init()

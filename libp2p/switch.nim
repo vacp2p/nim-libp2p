@@ -123,14 +123,15 @@ proc dial*(
   dial(s, peerId, addrs, @[proto])
 
 proc mount*[T: LPProtocol](s: Switch, proto: T, matcher: Matcher = nil)
-  {.gcsafe, raises: [Defect, CatchableError].} =
+  {.gcsafe, raises: [Defect, LPError].} =
+
   if isNil(proto.handler):
-    raise newException(CatchableError,
-      "Protocol has to define a handle method or proc")
+    raise newException(LPError,
+      "Protocol has to define a `handle` method or proc")
 
   if proto.codec.len == 0:
-    raise newException(CatchableError,
-      "Protocol has to define a codec string")
+    raise newException(LPError,
+      "Protocol has to define a `codec` string")
 
   s.ms.addHandler(proto.codecs, proto, matcher)
   s.peerInfo.protocols.add(proto.codec)
@@ -249,9 +250,10 @@ proc newSwitch*(peerInfo: PeerInfo,
                 muxers: Table[string, MuxerProvider],
                 secureManagers: openarray[Secure] = [],
                 connManager: ConnManager,
-                ms: MultistreamSelect): Switch =
+                ms: MultistreamSelect): Switch
+                {.raises: [Defect, LPError].} =
   if secureManagers.len == 0:
-    raise (ref CatchableError)(msg: "Provide at least one secure manager")
+    raise newException(LPError, "Provide at least one secure manager")
 
   let switch = Switch(
     peerInfo: peerInfo,

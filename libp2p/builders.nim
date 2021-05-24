@@ -15,10 +15,11 @@ import
   crypto/crypto, transports/[transport, tcptransport],
   muxers/[muxer, mplex/mplex],
   protocols/[identify, secure/secure, secure/noise],
-  connmanager, upgrademngrs/muxedupgrade
+  connmanager, upgrademngrs/muxedupgrade,
+  errors
 
 export
-  switch, peerid, peerinfo, connection, multiaddress, crypto
+  switch, peerid, peerinfo, connection, multiaddress, crypto, errors
 
 type
   SecureProtocol* {.pure.} = enum
