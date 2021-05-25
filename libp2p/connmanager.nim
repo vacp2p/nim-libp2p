@@ -10,7 +10,7 @@
 {.push raises: [Defect].}
 
 import std/[options, tables, sequtils, sets]
-import chronos, chronicles, metrics
+import pkg/[chronos, chronicles, metrics]
 import peerinfo,
        stream/connection,
        muxers/muxer,
