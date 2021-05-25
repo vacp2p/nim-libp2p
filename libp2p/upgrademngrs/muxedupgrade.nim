@@ -107,7 +107,7 @@ method upgradeOutgoing*(
 
 method upgradeIncoming*(
   self: MuxedUpgrade,
-  incomingConn: Connection): Future[void] {.async, gcsafe.} = # noraises
+  incomingConn: Connection) {.async, gcsafe.} = # noraises
   trace "Upgrading incoming connection", incomingConn
   let ms = newMultistream()
 
@@ -208,24 +208,23 @@ proc init*(
     connManager: connManager,
     ms: ms)
 
-  proc streamHandler(conn: Connection) {.async, gcsafe.} = # noraises
-      # trace "Starting stream handler", conn
-      try:
-        await upgrader.ms.handle(conn) # handle incoming connection
-      except CancelledError as exc:
-        raise exc
-      except CatchableError as exc:
-        # trace "exception in stream handler", conn, msg = exc.msg
-        discard
-      finally:
-        await conn.closeWithEOF()
-      # trace "Stream handler done", conn
-
-  upgrader.streamHandler = streamHandler
+  upgrader.streamHandler = proc(conn: Connection)
+    {.async, gcsafe, raises: [Defect].} =
+    trace "Starting stream handler", conn
+    try:
+      await upgrader.ms.handle(conn) # handle incoming connection
+    except CancelledError as exc:
+      raise exc
+    except CatchableError as exc:
+      trace "exception in stream handler", conn, msg = exc.msg
+    finally:
+      await conn.closeWithEOF()
+    trace "Stream handler done", conn
 
   for _, val in muxers:
     val.streamHandler = upgrader.streamHandler
-    val.muxerHandler = proc(muxer: Muxer): Future[void] =
+    val.muxerHandler = proc(muxer: Muxer): Future[void]
+      {.raises: [Defect].} =
       upgrader.muxerHandler(muxer)
 
   return upgrader
