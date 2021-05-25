@@ -47,7 +47,8 @@ proc init*(_: type[TopicParams]): TopicParams =
   )
 
 proc withPeerStats*(
-    g: GossipSub, peerId: PeerId,
+    g: GossipSub,
+    peerId: PeerId,
     action: proc (stats: var PeerStats) {.gcsafe, raises: [Defect].}) =
   ## Add or update peer statistics for a particular peer id - the statistics
   ## are retained across multiple connections until they expire
@@ -293,9 +294,10 @@ proc punishInvalidMessage*(g: GossipSub, peer: PubSubPeer, topics: seq[string]) 
     if t notin g.topics:
       continue
 
+    let tt = t
     # update stats
     g.withPeerStats(peer.peerId) do (stats: var PeerStats):
-      stats.topicInfos.mgetOrPut(t, TopicInfo()).invalidMessageDeliveries += 1
+      stats.topicInfos.mgetOrPut(tt, TopicInfo()).invalidMessageDeliveries += 1
 
 proc addCapped*[T](stat: var T, diff, cap: T) =
   stat += min(diff, cap - stat)
@@ -306,11 +308,13 @@ proc rewardDelivered*(
     let t = tt
     if t notin g.topics:
       continue
+
+    let tt = t
     let topicParams = g.topicParams.mgetOrPut(t, TopicParams.init())
                                             # if in mesh add more delivery score
 
     g.withPeerStats(peer.peerId) do (stats: var PeerStats):
-      stats.topicInfos.withValue(t, tstats):
+      stats.topicInfos.withValue(tt, tstats):
         if tstats[].inMesh:
           if first:
             tstats[].firstMessageDeliveries.addCapped(
@@ -319,4 +323,4 @@ proc rewardDelivered*(
           tstats[].meshMessageDeliveries.addCapped(
             1, topicParams.meshMessageDeliveriesCap)
       do: # make sure we don't loose this information
-        stats.topicInfos[t] = TopicInfo(meshMessageDeliveries: 1)
+        stats.topicInfos[tt] = TopicInfo(meshMessageDeliveries: 1)
