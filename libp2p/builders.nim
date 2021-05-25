@@ -10,7 +10,7 @@
 {.push raises: [Defect].}
 
 import
-  options, tables, chronos, bearssl,
+  options, tables, chronos, chronicles, bearssl,
   switch, peerid, peerinfo, stream/connection, multiaddress,
   crypto/crypto, transports/[transport, tcptransport],
   muxers/[muxer, mplex/mplex],
@@ -151,7 +151,7 @@ proc build*(b: SwitchBuilder): Switch
     muxers = block:
       var muxers: Table[string, MuxerProvider]
       if b.mplexOpts.enable:
-        muxers.add(MplexCodec, newMuxerProvider(b.mplexOpts.newMuxer, MplexCodec))
+        muxers[MplexCodec] = newMuxerProvider(b.mplexOpts.newMuxer, MplexCodec)
       muxers
 
   let
