@@ -1,4 +1,4 @@
-name: nim-libp2p CI
+name: CI
 on: [push, pull_request]
 
 jobs:
@@ -7,24 +7,18 @@ jobs:
       fail-fast: false
       max-parallel: 20
       matrix:
-        branch: [v1.2.6]
         target:
           # Unit tests
           - os: linux
             cpu: amd64
-            TEST_KIND: unit-tests
           - os: linux
             cpu: i386
-            TEST_KIND: unit-tests
           - os: macos
             cpu: amd64
-            TEST_KIND: unit-tests
           - os: windows
             cpu: i386
-            TEST_KIND: unit-tests
           - os: windows
             cpu: amd64
-            TEST_KIND: unit-tests
         include:
           - target:
               os: linux
@@ -35,17 +29,20 @@ jobs:
           - target:
               os: windows
             builder: windows-2019
-    name: '${{ matrix.target.os }}-${{ matrix.target.cpu }} (${{ matrix.branch }})'
+
+    defaults:
+      run:
+        shell: bash
+
+    name: '${{ matrix.target.os }}-${{ matrix.target.cpu }}'
     runs-on: ${{ matrix.builder }}
     steps:
       - name: Checkout nim-libp2p
         uses: actions/checkout@v2
         with:
-          path: nim-libp2p
           submodules: true
 
       - name: Derive environment variables
-        shell: bash
         run: |
           if [[ '${{ matrix.target.cpu }}' == 'amd64' ]]; then
             ARCH=64
@@ -59,6 +56,7 @@ jobs:
 
           ncpu=
           ext=
+          MAKE_CMD="make"
           case '${{ runner.os }}' in
           'Linux')
             ncpu=$(nproc)
@@ -69,11 +67,13 @@ jobs:
           'Windows')
             ncpu=$NUMBER_OF_PROCESSORS
             ext=.exe
+            MAKE_CMD="mingw32-make"
             ;;
           esac
           [[ -z "$ncpu" || $ncpu -le 0 ]] && ncpu=1
           echo "ncpu=$ncpu" >> $GITHUB_ENV
           echo "ext=$ext" >> $GITHUB_ENV
+          echo "MAKE_CMD=${MAKE_CMD}" >> $GITHUB_ENV
 
       - name: Install build dependencies (Linux i386)
         if: runner.os == 'Linux' && matrix.target.cpu == 'i386'
@@ -115,7 +115,6 @@ jobs:
         if: >
           steps.windows-mingw-cache.outputs.cache-hit != 'true' &&
           runner.os == 'Windows'
-        shell: bash
         run: |
           mkdir -p external
           curl -L "https://nim-lang.org/download/mingw$ARCH.7z" -o "external/mingw-${{ matrix.target.cpu }}.7z"
@@ -126,7 +125,6 @@ jobs:
         if: >
           steps.windows-dlls-cache.outputs.cache-hit != 'true' &&
           runner.os == 'Windows'
-        shell: bash
         run: |
           mkdir -p external
           curl -L "https://nim-lang.org/download/windeps.zip" -o external/windeps.zip
@@ -135,80 +133,31 @@ jobs:
       - name: Path to cached dependencies (Windows)
         if: >
           runner.os == 'Windows'
-        shell: bash
         run: |
           echo "${{ github.workspace }}/external/mingw-${{ matrix.target.cpu }}/bin" >> $GITHUB_PATH
           echo "${{ github.workspace }}/external/dlls-${{ matrix.target.cpu }}" >> $GITHUB_PATH
 
-      - name: Setup environment
-        shell: bash
-        run: echo '${{ github.workspace }}/nim/bin' >> $GITHUB_PATH
-
       - name: Get latest Nim commit hash
         id: versions
-        shell: bash
         run: |
           getHash() {
             git ls-remote "https://github.com/$1" "${2:-HEAD}" | cut -f 1
           }
-          nimHash=$(getHash nim-lang/Nim '${{ matrix.branch }}')
-          csourcesHash=$(getHash nim-lang/csources)
-          echo "::set-output name=nim::$nimHash"
-          echo "::set-output name=csources::$csourcesHash"
+          nbsHash=$(getHash status-im/nimbus-build-system)
+          echo "::set-output name=nimbus_build_system::$nbsHash"
 
       - name: Restore prebuilt Nim from cache
         id: nim-cache
-        uses: actions/cache@v1
+        uses: actions/cache@v2
         with:
-          path: nim
-          key: "nim-${{ matrix.target.os }}-${{ matrix.target.cpu }}-${{ steps.versions.outputs.nim }}"
-
-      - name: Restore prebuilt csources from cache
-        if: steps.nim-cache.outputs.cache-hit != 'true'
-        id: csources-cache
-        uses: actions/cache@v1
-        with:
-          path: csources/bin
-          key: "csources-${{ matrix.target.os }}-${{ matrix.target.cpu }}-${{ steps.versions.outputs.csources }}"
-
-      - name: Checkout Nim csources
-        if: >
-          steps.csources-cache.outputs.cache-hit != 'true' &&
-          steps.nim-cache.outputs.cache-hit != 'true'
-        uses: actions/checkout@v2
-        with:
-          repository: nim-lang/csources
-          path: csources
-          ref: ${{ steps.versions.outputs.csources }}
-
-      - name: Checkout Nim
-        if: steps.nim-cache.outputs.cache-hit != 'true'
-        uses: actions/checkout@v2
-        with:
-          repository: nim-lang/Nim
-          path: nim
-          ref: ${{ steps.versions.outputs.nim }}
+          path: NimBinaries
+          key: 'NimBinaries-${{ matrix.target.os }}-${{ matrix.target.cpu }}-${{ steps.versions.outputs.nimbus_build_system }}'
 
       - name: Build Nim and associated tools
-        if: steps.nim-cache.outputs.cache-hit != 'true'
-        shell: bash
         run: |
-          [[ -z "$ncpu" || $ncpu -le 0 ]] && ncpu=1
-          if [[ ! -e csources/bin/nim$ext ]]; then
-            make -C csources -j $ncpu CC=gcc ucpu='${{ matrix.target.cpu }}'
-          else
-            echo 'Using prebuilt csources'
-          fi
-          cp -v csources/bin/nim$ext nim/bin
-          cd nim
-          nim c koch
-          ./koch boot -d:release
-          ./koch tools -d:release
-          # clean up to save cache space
-          rm koch
-          rm -rf nimcache
-          rm -rf dist
-          rm -rf .git
+          curl -O -L -s -S https://raw.githubusercontent.com/status-im/nimbus-build-system/master/scripts/build_nim.sh
+          env MAKE="${MAKE_CMD} -j${ncpu}" ARCH_OVERRIDE=${PLATFORM} CC=gcc bash build_nim.sh nim csources dist/nimble NimBinaries
+          echo '${{ github.workspace }}/nim/bin' >> $GITHUB_PATH
 
       - name: Setup Go
         uses: actions/setup-go@v2
@@ -216,16 +165,11 @@ jobs:
           go-version: '^1.15.5'
 
       - name: Install p2pd
-        shell: bash
         run: |
-          cd nim-libp2p
           V=1 bash scripts/build_p2pd.sh p2pdCache v0.3.0
 
       - name: Run nim-libp2p tests
-        shell: bash
         run: |
-          export UCPU="$cpu"
-          cd nim-libp2p
           nimble install -y --depsOnly
           nimble test
 
