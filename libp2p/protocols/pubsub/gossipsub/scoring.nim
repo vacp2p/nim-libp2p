@@ -288,7 +288,8 @@ proc updateScores*(g: GossipSub) = # avoid async
   trace "updated scores", peers = g.peers.len
 
 proc punishInvalidMessage*(g: GossipSub, peer: PubSubPeer, topics: seq[string]) =
-  for t in topics:
+  for tt in topics:
+    let t = tt
     if t notin g.topics:
       continue
 
@@ -301,7 +302,8 @@ proc addCapped*[T](stat: var T, diff, cap: T) =
 
 proc rewardDelivered*(
     g: GossipSub, peer: PubSubPeer, topics: openArray[string], first: bool) =
-  for t in topics:
+  for tt in topics:
+    let t = tt
     if t notin g.topics:
       continue
     let topicParams = g.topicParams.mgetOrPut(t, TopicParams.init())
