@@ -168,19 +168,16 @@ proc build*(b: SwitchBuilder): Switch
   if isNil(b.rng):
     b.rng = newRng()
 
-  let switch = try:
-    newSwitch(
-      peerInfo = peerInfo,
-      transports = transports,
-      identity = identify,
-      muxers = muxers,
-      secureManagers = secureManagerInstances,
-      maxConnections = b.maxConnections,
-      maxIn = b.maxIn,
-      maxOut = b.maxOut,
-      maxConnsPerPeer = b.maxConnsPerPeer)
-  except CatchableError as exc:
-    raise newException(Defect, exc.msg)
+  let switch = newSwitch(
+    peerInfo = peerInfo,
+    transports = transports,
+    identity = identify,
+    muxers = muxers,
+    secureManagers = secureManagerInstances,
+    maxConnections = b.maxConnections,
+    maxIn = b.maxIn,
+    maxOut = b.maxOut,
+    maxConnsPerPeer = b.maxConnsPerPeer)
 
   return switch
 

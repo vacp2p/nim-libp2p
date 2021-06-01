@@ -375,18 +375,18 @@ proc selectMuxer*(c: ConnManager, conn: Connection): Muxer =
     debug "no muxer for connection", conn
 
 proc storeConn*(c: ConnManager, conn: Connection)
-  {.raises: [Defect, CatchableError].} =
+  {.raises: [Defect, LPError].} =
   ## store a connection
   ##
 
   if isNil(conn):
-    raise newException(CatchableError, "Connection cannot be nil")
+    raise newException(LPError, "Connection cannot be nil")
 
   if conn.closed or conn.atEof:
-    raise newException(CatchableError, "Connection closed or EOF")
+    raise newException(LPError, "Connection closed or EOF")
 
   if isNil(conn.peerInfo):
-    raise newException(CatchableError, "Empty peer info")
+    raise newException(LPError, "Empty peer info")
 
   let peerId = conn.peerInfo.peerId
   if c.conns.getOrDefault(peerId).len > c.maxConnsPerPeer:

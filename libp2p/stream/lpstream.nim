@@ -47,9 +47,9 @@ type
   LPStreamIncorrectDefect* = object of Defect
   LPStreamLimitError* = object of LPStreamError
   LPStreamReadError* = object of LPStreamError
-    par*: ref CatchableError
+    par*: ref Exception
   LPStreamWriteError* = object of LPStreamError
-    par*: ref CatchableError
+    par*: ref Exception
   LPStreamEOFError* = object of LPStreamError
   LPStreamClosedError* = object of LPStreamError
 
@@ -84,16 +84,16 @@ proc getStreamTracker(name: string): StreamTracker {.gcsafe.} =
   if isNil(result):
     result = setupStreamTracker(name)
 
-proc newLPStreamReadError*(p: ref CatchableError): ref CatchableError =
+proc newLPStreamReadError*(p: ref Exception): ref LPStreamReadError =
   var w = newException(LPStreamReadError, "Read stream failed")
   w.msg = w.msg & ", originated from [" & $p.name & "] " & p.msg
   w.par = p
   result = w
 
-proc newLPStreamReadError*(msg: string): ref CatchableError =
+proc newLPStreamReadError*(msg: string): ref LPStreamReadError =
   newException(LPStreamReadError, msg)
 
-proc newLPStreamWriteError*(p: ref CatchableError): ref CatchableError =
+proc newLPStreamWriteError*(p: ref Exception): ref LPStreamWriteError =
   var w = newException(LPStreamWriteError, "Write stream failed")
   w.msg = w.msg & ", originated from [" & $p.name & "] " & p.msg
   w.par = p

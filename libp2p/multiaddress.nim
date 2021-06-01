@@ -909,12 +909,12 @@ proc append*(m1: var MultiAddress, m2: MultiAddress): MaResult[void] =
     ok()
 
 proc `&`*(m1, m2: MultiAddress): MultiAddress {.
-     raises: [Defect, ResultError[string]].} =
+     raises: [Defect, LPError].} =
   ## Concatenates two addresses ``m1`` and ``m2``, and returns result.
   ##
   ## This procedure performs validation of concatenated result and can raise
   ## exception on error.
-  concat(m1, m2).tryGet()
+  concat(m1, m2).expect("Invalid multiaddress after concatenation!")
 
 proc `&=`*(m1: var MultiAddress, m2: MultiAddress) {.
      raises: [Defect, ResultError[string]].} =
@@ -923,7 +923,7 @@ proc `&=`*(m1: var MultiAddress, m2: MultiAddress) {.
   ## This procedure performs validation of concatenated result and can raise
   ## exception on error.
   ##
-  m1.append(m2).tryGet()
+  m1.append(m2).expect("Invalid address after append!")
 
 proc isWire*(ma: MultiAddress): bool =
   ## Returns ``true`` if MultiAddress ``ma`` is one of:

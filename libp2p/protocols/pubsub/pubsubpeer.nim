@@ -163,7 +163,7 @@ proc connectOnce(p: PubSubPeer): Future[void] {.async.} =
   try:
     let newConn = await p.getConn()
     if newConn.isNil:
-      raise (ref CatchableError)(msg: "Cannot establish send connection")
+      raise (ref LPError)(msg: "Cannot establish send connection")
 
     # When the send channel goes up, subscriptions need to be sent to the
     # remote peer - if we had multiple channels up and one goes down, all

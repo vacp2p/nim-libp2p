@@ -11,7 +11,7 @@
 
 ## This module implements wire network connection procedures.
 import chronos, stew/endians2
-import multiaddress, multicodec
+import multiaddress, multicodec, errors
 
 when defined(windows):
   import winlean
@@ -31,7 +31,7 @@ const
   )
 
 proc initTAddress*(ma: MultiAddress): MaResult[TransportAddress]
-  {.raises: [Defect, ResultError[string]].} =
+  {.raises: [Defect, LPError].} =
   ## Initialize ``TransportAddress`` with MultiAddress ``ma``.
   ##
   ## MultiAddress must be wire address, e.g. ``{IP4, IP6, UNIX}/{TCP, UDP}``.
@@ -39,30 +39,30 @@ proc initTAddress*(ma: MultiAddress): MaResult[TransportAddress]
 
   if TRANSPMA.match(ma):
     var pbuf: array[2, byte]
-    let code = ma[0].tryGet().protoCode().tryGet()
+    let code = ma[0].get().protoCode().get()
     if code == multiCodec("unix"):
       var res = TransportAddress(family: AddressFamily.Unix)
-      if ma[0].tryGet().protoArgument(res.address_un).tryGet() == 0:
+      if ma[0].get().protoArgument(res.address_un).get() == 0:
         err("Incorrect Unix domain address")
       else:
         res.port = Port(1)
         ok(res)
     elif code == multiCodec("ip4"):
       var res = TransportAddress(family: AddressFamily.IPv4)
-      if ma[0].tryGet().protoArgument(res.address_v4).tryGet() == 0:
+      if ma[0].get().protoArgument(res.address_v4).get() == 0:
         err("Incorrect IPv4 address")
       else:
-        if ma[1].tryGet().protoArgument(pbuf).tryGet() == 0:
+        if ma[1].get().protoArgument(pbuf).get() == 0:
           err("Incorrect port number")
         else:
           res.port = Port(fromBytesBE(uint16, pbuf))
           ok(res)
     else:
       var res = TransportAddress(family: AddressFamily.IPv6)
-      if ma[0].tryGet().protoArgument(res.address_v6).tryGet() == 0:
+      if ma[0].get().protoArgument(res.address_v6).get() == 0:
         err("Incorrect IPv6 address")
       else:
-        if ma[1].tryGet().protoArgument(pbuf).tryGet() == 0:
+        if ma[1].get().protoArgument(pbuf).get() == 0:
           err("Incorrect port number")
         else:
           res.port = Port(fromBytesBE(uint16, pbuf))
@@ -78,7 +78,7 @@ proc connect*(ma: MultiAddress, bufferSize = DefaultStreamBufferSize,
   if not(RTRANSPMA.match(ma)):
     raise newException(MaInvalidAddress, "Incorrect or unsupported address!")
 
-  let address = initTAddress(ma).tryGet()
+  let address = initTAddress(ma).get()
   result = await connect(address, bufferSize, child)
 
 proc createStreamServer*[T](ma: MultiAddress,
@@ -90,24 +90,19 @@ proc createStreamServer*[T](ma: MultiAddress,
                             bufferSize: int = DefaultStreamBufferSize,
                             child: StreamServer = nil,
                             init: TransportInitCallback = nil): StreamServer
-                            {.raises: [Defect, MaInvalidAddress].} =
+                            {.raises: [Defect, LPError].} =
   ## Create new TCP stream server which bounds to ``ma`` address.
   if not(RTRANSPMA.match(ma)):
     raise newException(MaInvalidAddress, "Incorrect or unsupported address!")
 
-  let address = try:
-    initTAddress(ma)
-  except ResultError[string] as exc:
-    raise newException(Defect, exc.msg)
-
-  if address.isErr:
-    raise newException(MaInvalidAddress, address.error)
+  let address = initTAddress(ma)
 
   try:
-    return createStreamServer(address.get(), cbproc, flags, udata, sock,
-                                backlog, bufferSize, child, init)
+    return createStreamServer(
+      address.expect("Expected a valid address"),
+      cbproc, flags, udata, sock, backlog, bufferSize, child, init)
   except CatchableError as exc:
-    raise newException(Defect, exc.msg)
+    raise newException(LPError, exc.msg)
 
 proc createStreamServer*[T](ma: MultiAddress,
                             flags: set[ServerFlags] = {},
@@ -117,26 +112,25 @@ proc createStreamServer*[T](ma: MultiAddress,
                             bufferSize: int = DefaultStreamBufferSize,
                             child: StreamServer = nil,
                             init: TransportInitCallback = nil): StreamServer
-                            {.raises: [Defect, MaInvalidAddress].} =
+                            {.raises: [Defect, LPError].} =
   ## Create new TCP stream server which bounds to ``ma`` address.
   ##
 
   if not(RTRANSPMA.match(ma)):
-    raise newException(MaInvalidAddress, "Incorrect or unsupported address!")
+    raise newException(MaInvalidAddress,
+      "Incorrect or unsupported address!")
 
-  let address = try:
-    initTAddress(ma)
-  except ResultError[string] as exc:
-    raise newException(Defect, exc.msg)
+  let address = initTAddress(ma)
 
   try:
-    return createStreamServer(address.get(), flags, udata, sock, backlog,
-                                bufferSize, child, init)
+    return createStreamServer(
+      address.expect("Expected a valid address"),
+      flags, udata, sock, backlog, bufferSize, child, init)
   except CatchableError as exc:
-    raise newException(Defect, exc.msg)
+    raise newException(LPError, exc.msg)
 
 proc createAsyncSocket*(ma: MultiAddress): AsyncFD
-  {.raises: [Defect, ResultError[string]].} =
+  {.raises: [Defect, LPError].} =
   ## Create new asynchronous socket using MultiAddress' ``ma`` socket type and
   ## protocol information.
   ##
@@ -148,15 +142,13 @@ proc createAsyncSocket*(ma: MultiAddress): AsyncFD
     protocol: Protocol = Protocol.IPPROTO_TCP
 
   let maddr = initTAddress(ma)
-  if maddr.isErr():
-    return asyncInvalidSocket
 
-  let address = maddr.tryGet()
+  let address = maddr.expect("Expected valid address")
   if address.family in {AddressFamily.IPv4, AddressFamily.IPv6}:
-    if ma[1].tryGet().protoCode().tryGet() == multiCodec("udp"):
+    if ma[1].get().protoCode().get() == multiCodec("udp"):
       socktype = SockType.SOCK_DGRAM
       protocol = Protocol.IPPROTO_UDP
-    elif ma[1].tryGet().protoCode().tryGet() == multiCodec("tcp"):
+    elif ma[1].get().protoCode().get() == multiCodec("tcp"):
       socktype = SockType.SOCK_STREAM
       protocol = Protocol.IPPROTO_TCP
   elif address.family in {AddressFamily.Unix}:
@@ -168,10 +160,10 @@ proc createAsyncSocket*(ma: MultiAddress): AsyncFD
   try:
     createAsyncSocket(address.getDomain(), socktype, protocol)
   except CatchableError as exc:
-    raise newException(Defect, exc.msg)
+    raise newException(LPError, exc.msg)
 
 proc bindAsyncSocket*(sock: AsyncFD, ma: MultiAddress): bool
-  {.raises: [Defect, ResultError[string]].} =
+  {.raises: [Defect, LPError].} =
   ## Bind socket ``sock`` to MultiAddress ``ma``.
   ##
   ## Note: This procedure only used in `go-libp2p-daemon` wrapper.
