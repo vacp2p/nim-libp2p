@@ -46,7 +46,7 @@ proc resolveDns(ma: MultiAddress, domain: Domain = Domain.AF_UNSPEC, prefix: str
         err("Incorrect port number")
       else:
         let port = Port(fromBytesBE(uint16, pbuf))
-        let resolvedAddresses = resolveTAddress(prefix & dnsval, port, Domain.AF_INET)
+        let resolvedAddresses = resolveTAddress(prefix & dnsval, port, domain)
         if resolvedAddresses.len > 0:
           ok(resolvedAddresses[0])
         else:
