@@ -20,20 +20,44 @@ else:
 
 const
   TRANSPMA* = mapOr(
-    mapAnd(IP, mapEq("udp")),
-    mapAnd(IP, mapEq("tcp")),
-    mapAnd(mapEq("unix"))
+    UDP,
+    TCP,
+    UNIX,
   )
 
   RTRANSPMA* = mapOr(
-    mapAnd(IP, mapEq("tcp")),
-    mapAnd(mapEq("unix"))
+    TCP,
+    UNIX
   )
+
+proc resolveDns(ma: MultiAddress, domain: Domain = Domain.AF_UNSPEC, prefix: string = ""): MaResult[TransportAddress]
+  {.raises: [Defect, ResultError[string]]} =
+  try:
+    var
+      dnsbuf: array[256, byte]
+      dnsval: string
+      pbuf: array[2, byte]
+    if ma[0].tryGet().protoArgument(dnsbuf).tryGet() == 0:
+      err("Invalid DNS argument")
+    else:
+      dnsval.setLen(dnsbuf.len)
+      copyMem(addr dnsval[0], addr dnsbuf[0], dnsbuf.len)
+      if ma[1].tryGet().protoArgument(pbuf).tryGet() == 0:
+        err("Incorrect port number")
+      else:
+        let port = Port(fromBytesBE(uint16, pbuf))
+        let resolvedAddresses = resolveTAddress(prefix & dnsval, port, Domain.AF_INET)
+        if resolvedAddresses.len > 0:
+          ok(resolvedAddresses[0])
+        else:
+          err("No IP for DNS")
+  except TransportAddressError:
+    err("Fail to resolve DNS")
 
 proc initTAddress*(ma: MultiAddress): MaResult[TransportAddress] =
   ## Initialize ``TransportAddress`` with MultiAddress ``ma``.
   ##
-  ## MultiAddress must be wire address, e.g. ``{IP4, IP6, UNIX}/{TCP, UDP}``.
+  ## MultiAddress must be wire address, e.g. ``{DNS, IP4, IP6, UNIX}/{TCP, UDP}``.
   ##
 
   if TRANSPMA.match(ma):
@@ -56,7 +80,7 @@ proc initTAddress*(ma: MultiAddress): MaResult[TransportAddress] =
         else:
           res.port = Port(fromBytesBE(uint16, pbuf))
           ok(res)
-    else:
+    elif code == multiCodec("ip6"):
       var res = TransportAddress(family: AddressFamily.IPv6)
       if (?(?ma[0]).protoArgument(res.address_v6)) == 0:
         err("Incorrect IPv6 address")
@@ -66,6 +90,16 @@ proc initTAddress*(ma: MultiAddress): MaResult[TransportAddress] =
         else:
           res.port = Port(fromBytesBE(uint16, pbuf))
           ok(res)
+    elif code == multiCodec("dns"):
+      resolveDns(ma)
+    elif code == multiCodec("dns4"):
+      resolveDns(ma, Domain.AF_INET)
+    elif code == multiCodec("dns6"):
+      resolveDns(ma, Domain.AF_INET6)
+    elif code == multiCodec("dnsaddr"):
+      resolveDns(ma, prefix="_dnsaddr.")
+    else:
+      err("MultiAddress must be wire address (tcp, udp or unix)")
   else:
     err("MultiAddress must be wire address (tcp, udp or unix)")
 
