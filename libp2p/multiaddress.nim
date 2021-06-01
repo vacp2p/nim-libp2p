@@ -375,6 +375,10 @@ const
       coder: TranscoderUnix
     ),
     MAProtocol(
+      mcodec: multiCodec("dns"), kind: Length, size: 0,
+      coder: TranscoderDNS
+    ),
+    MAProtocol(
       mcodec: multiCodec("dns4"), kind: Length, size: 0,
       coder: TranscoderDNS
     ),
@@ -400,11 +404,12 @@ const
     )
   ]
 
+  DNSANY* = mapEq("dns")
   DNS4* = mapEq("dns4")
   DNS6* = mapEq("dns6")
   IP4* = mapEq("ip4")
   IP6* = mapEq("ip6")
-  DNS* = mapOr(mapEq("dnsaddr"), DNS4, DNS6)
+  DNS* = mapOr(mapEq("dnsaddr"), DNSANY, DNS4, DNS6)
   IP* = mapOr(IP4, IP6)
   TCP* = mapOr(mapAnd(DNS, mapEq("tcp")), mapAnd(IP, mapEq("tcp")))
   UDP* = mapOr(mapAnd(DNS, mapEq("udp")), mapAnd(IP, mapEq("udp")))
