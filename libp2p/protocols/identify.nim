@@ -49,6 +49,8 @@ type
   Identify* = ref object of LPProtocol
     peerInfo*: PeerInfo
 
+  IdentifyPush* = ref object of LPProtocol
+
 proc encodeMsg*(peerInfo: PeerInfo, observedAddr: Multiaddress): ProtoBuffer
   {.raises: [Defect, IdentifyNoPubKeyError].} =
   result = initProtoBuffer()
@@ -160,7 +162,23 @@ proc identify*(p: Identify,
 
         raise newException(IdentityNoMatchError, "Peer ids don't match")
 
-proc push*(p: Identify, conn: Connection) {.async.} =
+proc init*(p: IdentifyPush) =
+  proc handle(conn: Connection, proto: string) {.async, gcsafe, closure.} =
+    trace "handling identify push", conn
+    var message = await conn.readLp(64*1024)
+
+    let infoOpt = decodeMsg(message)
+    if infoOpt.isNone():
+      raise newException(IdentityInvalidMsgError, "Incorrect message received!")
+
+    let indentInfo = infoOpt.get()
+    echo indentInfo
+    #TODO do something
+
+  p.handler = handle
+  p.codec = IdentifyPushCodec
+
+proc push*(p: PeerInfo, conn: Connection) {.async.} =
   await conn.write(IdentifyPushCodec)
-  var pb = encodeMsg(p.peerInfo, conn.observedAddr)
+  var pb = encodeMsg(p, conn.observedAddr)
   await conn.writeLp(pb.buffer)
