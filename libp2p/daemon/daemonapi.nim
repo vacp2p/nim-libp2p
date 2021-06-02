@@ -501,7 +501,8 @@ proc recvMessage(conn: StreamTransport): Future[seq[byte]] {.async.} =
 
   result = buffer
 
-proc newConnection*(api: DaemonAPI): Future[StreamTransport] =
+proc newConnection*(api: DaemonAPI): Future[StreamTransport]
+  {.raises: [Defect, LPError].} =
   result = connect(api.address)
 
 proc closeConnection*(api: DaemonAPI, transp: StreamTransport): Future[void] =
