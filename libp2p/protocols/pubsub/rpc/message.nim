@@ -79,6 +79,7 @@ proc init*(
     if sign:
       if peer.keyType != KeyType.HasPrivate:
         raise (ref LPError)(msg: "Cannot sign message without private key")
+
       msg.signature = sign(msg, peer.privateKey).expect("Couldn't sign message!")
       msg.key = peer.privateKey
         .getKey()
