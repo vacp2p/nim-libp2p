@@ -20,14 +20,15 @@ logScope:
   topics = "libp2p transport"
 
 type
-  TransportClosedError* = object of CatchableError
+  TransportError* = object of LPError
+  TransportClosedError* = object of TransportError
 
   Transport* = ref object of RootObj
     ma*: Multiaddress
     multicodec*: MultiCodec
     running*: bool
 
-proc newTransportClosedError*(parent: ref Exception = nil): ref CatchableError =
+proc newTransportClosedError*(parent: ref Exception = nil): ref LPError =
   newException(TransportClosedError,
     "Transport closed, no more connections!", parent)
 

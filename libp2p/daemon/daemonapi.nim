@@ -14,10 +14,10 @@ import std/[os, osproc, strutils, tables, strtabs]
 import pkg/[chronos, chronicles]
 import ../varint, ../multiaddress, ../multicodec, ../cid, ../peerid
 import ../wire, ../multihash, ../protobuf/minprotobuf
-import ../crypto/crypto
+import ../crypto/crypto, ../errors
 
 export
-  peerid, multiaddress, multicodec, multihash, cid, crypto, wire
+  peerid, multiaddress, multicodec, multihash, cid, crypto, wire, errors
 
 when not defined(windows):
   import posix
@@ -501,7 +501,8 @@ proc recvMessage(conn: StreamTransport): Future[seq[byte]] {.async.} =
 
   result = buffer
 
-proc newConnection*(api: DaemonAPI): Future[StreamTransport] =
+proc newConnection*(api: DaemonAPI): Future[StreamTransport]
+  {.raises: [Defect, LPError].} =
   result = connect(api.address)
 
 proc closeConnection*(api: DaemonAPI, transp: StreamTransport): Future[void] =
@@ -936,10 +937,10 @@ proc streamHandler(server: StreamServer, transp: StreamTransport) {.async.} =
   if len(stream.protocol) > 0:
     var handler = api.handlers.getOrDefault(stream.protocol)
     if not isNil(handler):
-      asyncCheck handler(api, stream)
+      asyncSpawn handler(api, stream)
 
 proc addHandler*(api: DaemonAPI, protocols: seq[string],
-                 handler: P2PStreamCallback) {.async.} =
+                 handler: P2PStreamCallback) {.async, raises: [Defect, LPError].} =
   ## Add stream handler ``handler`` for set of protocols ``protocols``.
   var transp = await api.newConnection()
   let maddress = await getSocket(api.pattern, addr api.ucounter)
@@ -1324,7 +1325,7 @@ proc pubsubSubscribe*(api: DaemonAPI, topic: string,
       ticket.topic = topic
       ticket.handler = handler
       ticket.transp = transp
-      asyncCheck pubsubLoop(api, ticket)
+      asyncSpawn pubsubLoop(api, ticket)
       result = ticket
   except Exception as exc:
     await api.closeConnection(transp)

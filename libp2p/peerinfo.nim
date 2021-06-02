@@ -53,12 +53,6 @@ func shortLog*(p: PeerInfo): auto =
   )
 chronicles.formatIt(PeerInfo): shortLog(it)
 
-func toException*(e: string): ref PeerInfoError =
-  (ref PeerInfoError)(msg: e)
-
-func toException*(e: cstring): ref PeerInfoError =
-  (ref PeerInfoError)(msg: $e)
-
 template postInit(peerinfo: PeerInfo,
                   addrs: openarray[MultiAddress],
                   protocols: openarray[string]) =
