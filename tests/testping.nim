@@ -4,6 +4,7 @@ import ../libp2p/[protocols/identify,
                   protocols/ping,
                   multiaddress,
                   peerinfo,
+                  wire,
                   peerid,
                   stream/connection,
                   multistream,
@@ -71,6 +72,28 @@ suite "Ping":
 
       check not time.isZero()
 
+    asyncTest "networked cancel ping":
+      let baseMa = Multiaddress.init("/ip4/127.0.0.1/tcp/0").tryGet()
+
+      let transport: TcpTransport = TcpTransport.init(upgrade = Upgrade())
+      let transportdialer: TcpTransport = TcpTransport.init(upgrade = Upgrade())
+      asyncCheck transport.start(baseMa)
+
+      proc acceptHandler() {.async, gcsafe.} =
+        let conn = await transport.accept()
+        #await conn.write("Hello dns!")
+        var buf: array[32, byte]
+        await conn.readExactly(addr buf[0], 32)
+        await conn.write(addr buf[0], 32)
+
+      let handlerWait = acceptHandler()
+
+      let streamTransport = await transportdialer.dial(transport.ma)
+
+      let p = pingProto2.ping(streamTransport)
+      await p.cancelAndWait()
+      check p.cancelled
+
     asyncTest "ping callback":
       msDial.addHandler(PingCodec, pingProto2)
       serverFut = transport1.start(ma)
@@ -84,3 +107,34 @@ suite "Ping":
 
       await msDial.handle(conn)
       check pingReceivedCount == 1
+
+    asyncTest "bad ping data ack":
+      type FakePing = ref object of LPProtocol
+      let fakePingProto = FakePing()
+      proc fakeHandle(conn: Connection, proto: string) {.async, gcsafe, closure.} =
+        var
+          buf: array[32, byte]
+          fakebuf: array[32, byte]
+        await conn.readExactly(addr buf[0], 32)
+        await conn.write(addr fakebuf[0], 32)
+      fakePingProto.codec = PingCodec
+      fakePingProto.handler = fakeHandle
+
+      msListen.addHandler(PingCodec, fakePingProto)
+      serverFut = transport1.start(ma)
+      proc acceptHandler(): Future[void] {.async, gcsafe.} =
+        let c = await transport1.accept()
+        await msListen.handle(c)
+
+      acceptFut = acceptHandler()
+      conn = await transport2.dial(transport1.ma)
+
+      discard await msDial.select(conn, PingCodec)
+      let p = pingProto2.ping(conn)
+      var raised = false
+      try:
+        discard await p
+        check false #should have raised
+      except WrongPingAckError:
+        raised = true
+      check raised

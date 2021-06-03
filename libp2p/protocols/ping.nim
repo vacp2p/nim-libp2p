@@ -7,7 +7,7 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import options, random
+import std/random
 import chronos, chronicles
 import ../protobuf/minprotobuf,
        ../peerinfo,
@@ -38,9 +38,9 @@ type
     pingHandler*: PingHandler
 
 proc newPing*(handler: PingHandler = nil): Ping =
-  new result
-  result.pingHandler = handler
-  result.init()
+  let ping = Ping(pinghandler: handler)
+  ping.init()
+  ping
 
 method init*(p: Ping) =
   proc handle(conn: Connection, proto: string) {.async, gcsafe, closure.} =
@@ -83,13 +83,13 @@ proc ping*(
 
   await conn.readExactly(addr resultBuf[0], PingSize)
 
-  let responseTime = Moment.now() - startTime
+  let responseDur = Moment.now() - startTime
 
-  trace "got ping response", conn, responseTime
+  trace "got ping response", conn, responseDur
 
   for i in 0..<randomBuf.len:
     if randomBuf[i] != resultBuf[i]:
       raise newException(WrongPingAckError, "Incorrect ping data from peer!")
 
   trace "valid ping response", conn
-  return responseTime
+  return responseDur
