@@ -54,3 +54,19 @@ suite "DNS resolve":
 
   asyncTest "test dnsaddr resolve":
     waitFor testDns("dnsaddr")
+
+  asyncTest "test manual dns resolve":
+    var dns = await resolveMAddresses(@[Multiaddress.init("/dns/localhost/tcp/0").tryGet()])
+    assert dns.len >= 2
+    assert Multiaddress.init("/ip4/127.0.0.1/tcp/0").get() in dns
+    assert Multiaddress.init("/ip6/::1/tcp/0").get() in dns
+
+    dns = await resolveMAddresses(@[Multiaddress.init("/dns4/localhost/tcp/0").tryGet()])
+    assert dns.len >= 1
+    assert Multiaddress.init("/ip4/127.0.0.1/tcp/0").get() in dns
+    assert Multiaddress.init("/ip6/::1/tcp/0").get() notin dns
+
+    dns = await resolveMAddresses(@[Multiaddress.init("/dns6/localhost/tcp/0").tryGet()])
+    assert dns.len >= 1
+    assert Multiaddress.init("/ip4/127.0.0.1/tcp/0").get() notin dns
+    assert Multiaddress.init("/ip6/::1/tcp/0").get() in dns
