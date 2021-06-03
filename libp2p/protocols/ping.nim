@@ -7,8 +7,7 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import std/random
-import chronos, chronicles
+import chronos, chronicles, bearssl
 import ../protobuf/minprotobuf,
        ../peerinfo,
        ../stream/connection,
@@ -36,9 +35,10 @@ type
 
   Ping* = ref object of LPProtocol
     pingHandler*: PingHandler
+    rng: ref BrHmacDrbgContext
 
 proc newPing*(handler: PingHandler = nil): Ping =
-  let ping = Ping(pinghandler: handler)
+  let ping = Ping(pinghandler: handler, rng: newRng())
   ping.init()
   ping
 
@@ -73,8 +73,7 @@ proc ping*(
     randomBuf: array[PingSize, byte]
     resultBuf: array[PingSize, byte]
 
-  for i in 0..<PingSize:
-    randomBuf[i] = byte.rand()
+  p.rng[].brHmacDrbgGenerate(randomBuf)
 
   let startTime = Moment.now()
 
