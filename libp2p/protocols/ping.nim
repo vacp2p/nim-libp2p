@@ -29,10 +29,17 @@ type
   PingError* = object of LPError
   WrongPingAckError* = object of LPError
 
-  Ping* = ref object of LPProtocol
+  PingHandler* = proc (
+    peer: PeerInfo):
+    Future[void]
+    {.gcsafe, raises: [Defect].}
 
-proc newPing*(): Ping =
+  Ping* = ref object of LPProtocol
+    pingHandler*: PingHandler
+
+proc newPing*(handler: PingHandler = nil): Ping =
   new result
+  result.pingHandler = handler
   result.init()
 
 method init*(p: Ping) =
@@ -42,6 +49,8 @@ method init*(p: Ping) =
       var buf: array[PingSize, byte]
       await conn.readExactly(addr buf[0], PingSize)
       await conn.write(addr buf[0], PingSize)
+      if not isNil(p.pingHandler):
+        await p.pingHandler(conn.peerInfo)
     except CancelledError as exc:
       raise exc
     except CatchableError as exc:

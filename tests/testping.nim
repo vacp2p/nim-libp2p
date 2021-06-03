@@ -22,8 +22,6 @@ suite "Ping":
   suite "handle ping message":
     var
       ma {.threadvar.}: MultiAddress
-      remoteSecKey {.threadvar.}: PrivateKey
-      remotePeerInfo {.threadvar.}: PeerInfo
       serverFut {.threadvar.}: Future[void]
       acceptFut {.threadvar.}: Future[void]
       pingProto1 {.threadvar.}: Ping
@@ -33,21 +31,23 @@ suite "Ping":
       msListen {.threadvar.}: MultistreamSelect
       msDial {.threadvar.}: MultistreamSelect
       conn {.threadvar.}: Connection
+      pingReceivedCount {.threadvar.}: int
 
     asyncSetup:
       ma = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
-      remoteSecKey = PrivateKey.random(ECDSA, rng[]).get()
-      remotePeerInfo = PeerInfo.init(
-        remoteSecKey, [ma], ["/test/proto1/1.0.0", "/test/proto2/1.0.0"])
 
       transport1 = TcpTransport.init(upgrade = Upgrade())
       transport2 = TcpTransport.init(upgrade = Upgrade())
 
+      proc handlePing(peer: PeerInfo) {.async, gcsafe, closure.} =
+        inc pingReceivedCount
       pingProto1 = newPing()
-      pingProto2 = newPing()
+      pingProto2 = newPing(handlePing)
 
       msListen = newMultistream()
       msDial = newMultistream()
+
+      pingReceivedCount = 0
 
     asyncTeardown:
       await conn.close()
@@ -70,3 +70,17 @@ suite "Ping":
       let time = await pingProto2.ping(conn)
 
       check not time.isZero()
+
+    asyncTest "ping callback":
+      msDial.addHandler(PingCodec, pingProto2)
+      serverFut = transport1.start(ma)
+      proc acceptHandler(): Future[void] {.async, gcsafe.} =
+        let c = await transport1.accept()
+        discard await msListen.select(c, PingCodec)
+        discard await pingProto1.ping(c)
+
+      acceptFut = acceptHandler()
+      conn = await transport2.dial(transport1.ma)
+
+      await msDial.handle(conn)
+      check pingReceivedCount == 1
