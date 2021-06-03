@@ -10,7 +10,7 @@
 {.push raises: [Defect].}
 
 ## This module implements wire network connection procedures.
-import chronos, stew/endians2
+import chronos, stew/endians2, stew/byteutils
 import multiaddress, multicodec, errors
 
 when defined(windows):
@@ -30,19 +30,17 @@ const
     UNIX
   )
 
-proc resolveDns(ma: MultiAddress, domain: Domain = Domain.AF_UNSPEC, prefix: string = ""): MaResult[TransportAddress]
-  {.raises: [Defect, ResultError[string]]} =
+proc resolveDns(ma: MultiAddress, domain: Domain = Domain.AF_UNSPEC, prefix: string = ""): MaResult[TransportAddress] =
   try:
     var
       dnsbuf: array[256, byte]
-      dnsval: string
       pbuf: array[2, byte]
-    if ma[0].tryGet().protoArgument(dnsbuf).tryGet() == 0:
+
+    if ma[0].`?`.protoArgument(dnsbuf).`?` == 0:
       err("Invalid DNS argument")
     else:
-      dnsval.setLen(dnsbuf.len)
-      copyMem(addr dnsval[0], addr dnsbuf[0], dnsbuf.len)
-      if ma[1].tryGet().protoArgument(pbuf).tryGet() == 0:
+      let dnsval = string.fromBytes(dnsbuf)
+      if ma[1].`?`.protoArgument(pbuf).`?` == 0:
         err("Incorrect port number")
       else:
         let port = Port(fromBytesBE(uint16, pbuf))
