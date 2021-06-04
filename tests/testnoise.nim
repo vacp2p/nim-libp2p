@@ -64,7 +64,7 @@ proc createSwitch(ma: MultiAddress; outgoing: bool, secio: bool = false): (Switc
     secureManagers = if secio:
       [Secure(Secio.new(rng, peerInfo.privateKey))]
     else:
-      [Secure(newNoise(rng, peerInfo.privateKey, outgoing = outgoing))]
+      [Secure(Noise.new(rng, peerInfo.privateKey, outgoing = outgoing))]
     connManager = ConnManager.init()
     ms = MultistreamSelect.new()
     muxedUpgrade = MuxedUpgrade.init(identify, muxers, secureManagers, connManager, ms)
@@ -88,7 +88,7 @@ suite "Noise":
     let
       server = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
       serverInfo = PeerInfo.init(PrivateKey.random(ECDSA, rng[]).get(), [server])
-      serverNoise = newNoise(rng, serverInfo.privateKey, outgoing = false)
+      serverNoise = Noise.new(rng, serverInfo.privateKey, outgoing = false)
 
     let transport1: TcpTransport = TcpTransport.init(upgrade = Upgrade())
     asyncCheck transport1.start(server)
@@ -106,7 +106,7 @@ suite "Noise":
       acceptFut = acceptHandler()
       transport2: TcpTransport = TcpTransport.init(upgrade = Upgrade())
       clientInfo = PeerInfo.init(PrivateKey.random(ECDSA, rng[]).get(), [transport1.ma])
-      clientNoise = newNoise(rng, clientInfo.privateKey, outgoing = true)
+      clientNoise = Noise.new(rng, clientInfo.privateKey, outgoing = true)
       conn = await transport2.dial(transport1.ma)
       sconn = await clientNoise.secure(conn, true)
 
@@ -125,7 +125,7 @@ suite "Noise":
     let
       server = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
       serverInfo = PeerInfo.init(PrivateKey.random(ECDSA, rng[]).get(), [server])
-      serverNoise = newNoise(rng, serverInfo.privateKey, outgoing = false)
+      serverNoise = Noise.new(rng, serverInfo.privateKey, outgoing = false)
 
     let
       transport1: TcpTransport = TcpTransport.init(upgrade = Upgrade())
@@ -146,7 +146,7 @@ suite "Noise":
       handlerWait = acceptHandler()
       transport2: TcpTransport = TcpTransport.init(upgrade = Upgrade())
       clientInfo = PeerInfo.init(PrivateKey.random(ECDSA, rng[]).get(), [transport1.ma])
-      clientNoise = newNoise(rng, clientInfo.privateKey, outgoing = true, commonPrologue = @[1'u8, 2'u8, 3'u8])
+      clientNoise = Noise.new(rng, clientInfo.privateKey, outgoing = true, commonPrologue = @[1'u8, 2'u8, 3'u8])
       conn = await transport2.dial(transport1.ma)
     var sconn: Connection = nil
     expect(NoiseDecryptTagError):
@@ -161,7 +161,7 @@ suite "Noise":
     let
       server = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
       serverInfo = PeerInfo.init(PrivateKey.random(ECDSA, rng[]).get(), [server])
-      serverNoise = newNoise(rng, serverInfo.privateKey, outgoing = false)
+      serverNoise = Noise.new(rng, serverInfo.privateKey, outgoing = false)
       readTask = newFuture[void]()
 
     let transport1: TcpTransport = TcpTransport.init(upgrade = Upgrade())
@@ -182,7 +182,7 @@ suite "Noise":
       acceptFut = acceptHandler()
       transport2: TcpTransport = TcpTransport.init(upgrade = Upgrade())
       clientInfo = PeerInfo.init(PrivateKey.random(ECDSA, rng[]).get(), [transport1.ma])
-      clientNoise = newNoise(rng, clientInfo.privateKey, outgoing = true)
+      clientNoise = Noise.new(rng, clientInfo.privateKey, outgoing = true)
       conn = await transport2.dial(transport1.ma)
       sconn = await clientNoise.secure(conn, true)
 
@@ -197,7 +197,7 @@ suite "Noise":
     let
       server = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
       serverInfo = PeerInfo.init(PrivateKey.random(ECDSA, rng[]).get(), [server])
-      serverNoise = newNoise(rng, serverInfo.privateKey, outgoing = false)
+      serverNoise = Noise.new(rng, serverInfo.privateKey, outgoing = false)
       readTask = newFuture[void]()
 
     var hugePayload = newSeq[byte](0xFFFFF)
@@ -221,7 +221,7 @@ suite "Noise":
       acceptFut = acceptHandler()
       transport2: TcpTransport = TcpTransport.init(upgrade = Upgrade())
       clientInfo = PeerInfo.init(PrivateKey.random(ECDSA, rng[]).get(), [transport1.ma])
-      clientNoise = newNoise(rng, clientInfo.privateKey, outgoing = true)
+      clientNoise = Noise.new(rng, clientInfo.privateKey, outgoing = true)
       conn = await transport2.dial(transport1.ma)
       sconn = await clientNoise.secure(conn, true)
 

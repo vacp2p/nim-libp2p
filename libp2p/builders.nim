@@ -138,7 +138,7 @@ proc build*(b: SwitchBuilder): Switch
   var
     secureManagerInstances: seq[Secure]
   if SecureProtocol.Noise in b.secureManagers:
-    secureManagerInstances.add(newNoise(b.rng, seckey).Secure)
+    secureManagerInstances.add(Noise.new(b.rng, seckey).Secure)
 
   let
     peerInfo = PeerInfo.init(
