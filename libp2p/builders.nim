@@ -15,11 +15,11 @@ import
   crypto/crypto, transports/[transport, tcptransport],
   muxers/[muxer, mplex/mplex],
   protocols/[identify, secure/secure, secure/noise],
-  connmanager, upgrademngrs/muxedupgrade,
+  connmanager, upgrademngrs/muxedupgrade, peerstore,
   errors
 
 export
-  switch, peerid, peerinfo, connection, multiaddress, crypto, errors
+  switch, peerid, peerinfo, connection, multiaddress, crypto, errors, peerstore
 
 type
   SecureProtocol* {.pure.} = enum
@@ -47,6 +47,7 @@ type
     maxConnsPerPeer: int
     protoVersion: string
     agentVersion: string
+    peerStore: PeerStore
 
 proc new*(T: type[SwitchBuilder]): T =
 
@@ -64,7 +65,9 @@ proc new*(T: type[SwitchBuilder]): T =
     maxOut: -1,
     maxConnsPerPeer: MaxConnectionsPerPeer,
     protoVersion: ProtoVersion,
-    agentVersion: AgentVersion)
+    agentVersion: AgentVersion,
+    peerStore: PeerStore.new()
+  )
 
 proc withPrivateKey*(b: SwitchBuilder, privateKey: PrivateKey): SwitchBuilder =
   b.privKey = some(privateKey)
@@ -125,6 +128,10 @@ proc withAgentVersion*(b: SwitchBuilder, agentVersion: string): SwitchBuilder =
   b.agentVersion = agentVersion
   b
 
+proc withPeerStore(b: SwitchBuilder, peerStore: PeerStore): SwitchBuilder =
+  b.peerStore = peerStore
+  b
+
 proc build*(b: SwitchBuilder): Switch
   {.raises: [Defect, LPError].} =
 
@@ -180,7 +187,9 @@ proc build*(b: SwitchBuilder): Switch
     muxers = muxers,
     secureManagers = secureManagerInstances,
     connManager = connManager,
-    ms = ms)
+    ms = ms,
+    peerStore = b.peerStore
+  )
 
   return switch
 
@@ -197,7 +206,8 @@ proc newStandardSwitch*(
   maxConnections = MaxConnections,
   maxIn = -1,
   maxOut = -1,
-  maxConnsPerPeer = MaxConnectionsPerPeer): Switch
+  maxConnsPerPeer = MaxConnectionsPerPeer,
+  peerStore = PeerStore.new()): Switch
   {.raises: [Defect, LPError].} =
   if SecureProtocol.Secio in secureManagers:
       quit("Secio is deprecated!") # use of secio is unsafe
@@ -212,6 +222,7 @@ proc newStandardSwitch*(
     .withMaxConnsPerPeer(maxConnsPerPeer)
     .withMplex(inTimeout, outTimeout)
     .withTcpTransport(transportFlags)
+    .withPeerStore(peerStore)
     .withNoise()
 
   if privKey.isSome():

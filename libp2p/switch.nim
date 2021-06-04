@@ -33,6 +33,7 @@ import stream/connection,
        utils/semaphore,
        connmanager,
        peerid,
+       peerstore,
        errors,
        dialer
 
@@ -60,6 +61,7 @@ type
       ms*: MultistreamSelect
       acceptFuts: seq[Future[void]]
       dialer*: Dial
+      peerStore*: PeerStore
 
 proc addConnEventHandler*(s: Switch,
                           handler: ConnEventHandler,
@@ -212,6 +214,12 @@ proc start*(s: Switch): Future[seq[Future[void]]] {.async, gcsafe.} =
         s.acceptFuts.add(s.accept(t))
         startFuts.add(server)
 
+  if not isNil(s.peerStore):
+    proc peerIdentifiedHandler(peerInfo: PeerInfo, event: PeerEvent) {.async.} =
+      s.peerStore.replace(peerInfo)
+
+    s.connManager.addPeerEventHandler(peerIdentifiedHandler, PeerEventKind.Identified)
+
   debug "Started libp2p node", peer = s.peerInfo
   return startFuts # listen for incoming connections
 
@@ -249,7 +257,8 @@ proc newSwitch*(peerInfo: PeerInfo,
                 muxers: Table[string, MuxerProvider],
                 secureManagers: openarray[Secure] = [],
                 connManager: ConnManager,
-                ms: MultistreamSelect): Switch
+                ms: MultistreamSelect,
+                peerStore: PeerStore = PeerStore.new()): Switch
                 {.raises: [Defect, LPError].} =
   if secureManagers.len == 0:
     raise newException(LPError, "Provide at least one secure manager")
@@ -259,6 +268,7 @@ proc newSwitch*(peerInfo: PeerInfo,
     ms: ms,
     transports: transports,
     connManager: connManager,
+    peerStore: peerStore,
     dialer: Dialer.new(peerInfo, connManager, transports, ms))
 
   switch.mount(identity)

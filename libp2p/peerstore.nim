@@ -10,9 +10,9 @@
 {.push raises: [Defect].}
 
 import
-  std/[tables, sets, sequtils],
+  std/[tables, sets, sequtils, options],
   ./crypto/crypto,
-  ./peerid,
+  ./peerid, ./peerinfo,
   ./multiaddress
 
 type
@@ -145,6 +145,21 @@ proc get*(peerStore: PeerStore,
     protos: peerStore.protoBook.get(peerId),
     publicKey: peerStore.keyBook.get(peerId)
   )
+
+proc update*(peerStore: PeerStore, peerInfo: PeerInfo) =
+  for address in peerInfo.addrs:
+    peerStore.addressBook.add(peerInfo.peerId, address)
+  for proto in peerInfo.protocols:
+    peerStore.protoBook.add(peerInfo.peerId, proto)
+  let pKey = peerInfo.publicKey()
+  if pKey.isSome:
+    peerStore.keyBook.set(peerInfo.peerId, pKey.get())
+
+proc replace*(peerStore: PeerStore, peerInfo: PeerInfo) =
+  discard peerStore.addressBook.delete(peerInfo.peerId)
+  discard peerStore.protoBook.delete(peerInfo.peerId)
+  discard peerStore.keyBook.delete(peerInfo.peerId)
+  peerStore.update(peerInfo)
 
 proc peers*(peerStore: PeerStore): seq[StoredInfo] =
   ## Get all the stored information of every peer.

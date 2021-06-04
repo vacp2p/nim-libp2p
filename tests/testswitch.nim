@@ -1,6 +1,6 @@
 {.used.}
 
-import options, sequtils
+import options, sequtils, sets
 import chronos
 import stew/byteutils
 import nimcrypto/sysrand
@@ -844,3 +844,60 @@ suite "Switch":
     await allFuturesThrowing(
       allFutures(switches.mapIt( it.stop() )))
     await allFuturesThrowing(awaiters)
+
+  asyncTest "e2e peer store":
+    let done = newFuture[void]()
+    proc handle(conn: Connection, proto: string) {.async, gcsafe.} =
+      try:
+        let msg = string.fromBytes(await conn.readLp(1024))
+        check "Hello!" == msg
+        await conn.writeLp("Hello!")
+      finally:
+        await conn.close()
+        done.complete()
+
+    let testProto = new TestProto
+    testProto.codec = TestCodec
+    testProto.handler = handle
+
+    let switch1 = newStandardSwitch()
+    switch1.mount(testProto)
+
+    let switch2 = newStandardSwitch()
+    var awaiters: seq[Future[void]]
+    awaiters.add(await switch1.start())
+    awaiters.add(await switch2.start())
+
+    let conn = await switch2.dial(switch1.peerInfo.peerId, switch1.peerInfo.addrs, TestCodec)
+
+    check switch1.isConnected(switch2.peerInfo.peerId)
+    check switch2.isConnected(switch1.peerInfo.peerId)
+
+    await conn.writeLp("Hello!")
+    let msg = string.fromBytes(await conn.readLp(1024))
+    check "Hello!" == msg
+    await conn.close()
+
+    await allFuturesThrowing(
+      done.wait(5.seconds),
+      switch1.stop(),
+      switch2.stop())
+
+    # this needs to go at end
+    await allFuturesThrowing(awaiters)
+
+    check not switch1.isConnected(switch2.peerInfo.peerId)
+    check not switch2.isConnected(switch1.peerInfo.peerId)
+
+    let storedInfo1 = switch1.peerStore.get(switch2.peerInfo.peerId)
+    let storedInfo2 = switch2.peerStore.get(switch1.peerInfo.peerId)
+
+    check:
+      storedInfo1.peerId == switch2.peerInfo.peerId
+      storedInfo2.peerId == switch1.peerInfo.peerId
+
+      storedInfo1.addrs.toSeq() == switch2.peerInfo.addrs
+      storedInfo2.addrs.toSeq() == switch1.peerInfo.addrs
+
+      storedInfo1.protos.toSeq() == switch2.peerInfo.protocols
+      storedInfo2.protos.toSeq() == switch1.peerInfo.protocols
