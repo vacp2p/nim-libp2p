@@ -42,8 +42,8 @@ suite "Identify":
       transport1 = TcpTransport.init(upgrade = Upgrade())
       transport2 = TcpTransport.init(upgrade = Upgrade())
 
-      identifyProto1 = newIdentify(remotePeerInfo)
-      identifyProto2 = newIdentify(remotePeerInfo)
+      identifyProto1 = Identify.new(remotePeerInfo)
+      identifyProto2 = Identify.new(remotePeerInfo)
 
       msListen = MultistreamSelect.new()
       msDial = MultistreamSelect.new()
