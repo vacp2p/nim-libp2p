@@ -25,7 +25,7 @@ proc getPubSubPeer(p: TestGossipSub, peerId: PeerID): PubSubPeer =
   proc dropConn(peer: PubSubPeer) =
     discard # we don't care about it here yet
 
-  let pubSubPeer = newPubSubPeer(peerId, getConn, dropConn, nil, GossipSubCodec)
+  let pubSubPeer = PubSubPeer.new(peerId, getConn, dropConn, nil, GossipSubCodec)
   debug "created new pubsub peer", peerId
 
   p.peers[peerId] = pubSubPeer
