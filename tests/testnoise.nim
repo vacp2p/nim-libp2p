@@ -59,7 +59,7 @@ proc createSwitch(ma: MultiAddress; outgoing: bool, secio: bool = false): (Switc
 
   let
     identify = Identify.new(peerInfo)
-    mplexProvider = newMuxerProvider(createMplex, MplexCodec)
+    mplexProvider = MuxerProvider.new(createMplex, MplexCodec)
     muxers = [(MplexCodec, mplexProvider)].toTable()
     secureManagers = if secio:
       [Secure(Secio.new(rng, peerInfo.privateKey))]

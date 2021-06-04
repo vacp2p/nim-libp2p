@@ -151,7 +151,7 @@ proc build*(b: SwitchBuilder): Switch
     muxers = block:
       var muxers: Table[string, MuxerProvider]
       if b.mplexOpts.enable:
-        muxers[MplexCodec] = newMuxerProvider(b.mplexOpts.newMuxer, MplexCodec)
+        muxers[MplexCodec] = MuxerProvider.new(b.mplexOpts.newMuxer, MplexCodec)
       muxers
 
   let
