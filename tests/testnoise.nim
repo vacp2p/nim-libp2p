@@ -62,7 +62,7 @@ proc createSwitch(ma: MultiAddress; outgoing: bool, secio: bool = false): (Switc
     mplexProvider = newMuxerProvider(createMplex, MplexCodec)
     muxers = [(MplexCodec, mplexProvider)].toTable()
     secureManagers = if secio:
-      [Secure(newSecio(rng, peerInfo.privateKey))]
+      [Secure(Secio.new(rng, peerInfo.privateKey))]
     else:
       [Secure(newNoise(rng, peerInfo.privateKey, outgoing = outgoing))]
     connManager = ConnManager.init()
