@@ -157,7 +157,7 @@ proc build*(b: SwitchBuilder): Switch
   let
     identify = newIdentify(peerInfo)
     connManager = ConnManager.init(b.maxConnsPerPeer, b.maxConnections, b.maxIn, b.maxOut)
-    ms = newMultistream()
+    ms = MultistreamSelect.new()
     muxedUpgrade = MuxedUpgrade.init(identify, muxers, secureManagerInstances, connManager, ms)
 
   let

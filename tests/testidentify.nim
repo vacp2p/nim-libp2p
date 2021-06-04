@@ -45,8 +45,8 @@ suite "Identify":
       identifyProto1 = newIdentify(remotePeerInfo)
       identifyProto2 = newIdentify(remotePeerInfo)
 
-      msListen = newMultistream()
-      msDial = newMultistream()
+      msListen = MultistreamSelect.new()
+      msDial = MultistreamSelect.new()
 
     asyncTeardown:
       await conn.close()

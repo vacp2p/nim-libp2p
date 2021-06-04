@@ -66,7 +66,7 @@ proc createSwitch(ma: MultiAddress; outgoing: bool, secio: bool = false): (Switc
     else:
       [Secure(newNoise(rng, peerInfo.privateKey, outgoing = outgoing))]
     connManager = ConnManager.init()
-    ms = newMultistream()
+    ms = MultistreamSelect.new()
     muxedUpgrade = MuxedUpgrade.init(identify, muxers, secureManagers, connManager, ms)
     transports = @[Transport(TcpTransport.init(upgrade = muxedUpgrade))]
 
