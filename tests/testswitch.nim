@@ -246,18 +246,18 @@ suite "Switch":
 
     var step = 0
     var kinds: set[ConnEventKind]
-    proc hook(peerId: PeerID, event: ConnEvent) {.async, gcsafe.} =
+    proc hook(peerInfo: PeerInfo, event: ConnEvent) {.async, gcsafe.} =
       kinds = kinds + {event.kind}
       case step:
       of 0:
         check:
           event.kind == ConnEventKind.Connected
-          peerId == switch1.peerInfo.peerId
+          peerInfo.peerId == switch1.peerInfo.peerId
       of 1:
         check:
           event.kind == ConnEventKind.Disconnected
 
-        check peerId == switch1.peerInfo.peerId
+        check peerInfo.peerId == switch1.peerInfo.peerId
       else:
         check false
 
@@ -301,18 +301,18 @@ suite "Switch":
 
     var step = 0
     var kinds: set[ConnEventKind]
-    proc hook(peerId: PeerID, event: ConnEvent) {.async, gcsafe.} =
+    proc hook(peerInfo: PeerInfo, event: ConnEvent) {.async, gcsafe.} =
       kinds = kinds + {event.kind}
       case step:
       of 0:
         check:
           event.kind == ConnEventKind.Connected
-          peerId == switch2.peerInfo.peerId
+          peerInfo.peerId == switch2.peerInfo.peerId
       of 1:
         check:
           event.kind == ConnEventKind.Disconnected
 
-        check peerId == switch2.peerInfo.peerId
+        check peerInfo.peerId == switch2.peerInfo.peerId
       else:
         check false
 
@@ -356,17 +356,17 @@ suite "Switch":
 
     var step = 0
     var kinds: set[PeerEventKind]
-    proc handler(peerId: PeerID, event: PeerEvent) {.async, gcsafe.} =
+    proc handler(peerInfo: PeerInfo, event: PeerEvent) {.async, gcsafe.} =
       kinds = kinds + {event.kind}
       case step:
       of 0:
         check:
           event.kind == PeerEventKind.Joined
-          peerId == switch2.peerInfo.peerId
+          peerInfo.peerId == switch2.peerInfo.peerId
       of 1:
         check:
           event.kind == PeerEventKind.Left
-          peerId == switch2.peerInfo.peerId
+          peerInfo.peerId == switch2.peerInfo.peerId
       else:
         check false
 
@@ -410,17 +410,17 @@ suite "Switch":
 
     var step = 0
     var kinds: set[PeerEventKind]
-    proc handler(peerId: PeerID, event: PeerEvent) {.async, gcsafe.} =
+    proc handler(peerInfo: PeerInfo, event: PeerEvent) {.async, gcsafe.} =
       kinds = kinds + {event.kind}
       case step:
       of 0:
         check:
           event.kind == PeerEventKind.Joined
-          peerId == switch1.peerInfo.peerId
+          peerInfo.peerId == switch1.peerInfo.peerId
       of 1:
         check:
           event.kind == PeerEventKind.Left
-          peerId == switch1.peerInfo.peerId
+          peerInfo.peerId == switch1.peerInfo.peerId
       else:
         check false
 
@@ -474,7 +474,7 @@ suite "Switch":
 
     var step = 0
     var kinds: set[PeerEventKind]
-    proc handler(peerId: PeerID, event: PeerEvent) {.async, gcsafe.} =
+    proc handler(peerInfo: PeerInfo, event: PeerEvent) {.async, gcsafe.} =
       kinds = kinds + {event.kind}
       case step:
       of 0:
@@ -535,7 +535,7 @@ suite "Switch":
     var switches: seq[Switch]
     var done = newFuture[void]()
     var onConnect: Future[void]
-    proc hook(peerId: PeerID, event: ConnEvent) {.async, gcsafe.} =
+    proc hook(peerInfo: PeerInfo, event: ConnEvent) {.async, gcsafe.} =
       case event.kind:
       of ConnEventKind.Connected:
         await onConnect
@@ -577,7 +577,7 @@ suite "Switch":
     var switches: seq[Switch]
     var done = newFuture[void]()
     var onConnect: Future[void]
-    proc hook(peerId: PeerID, event: ConnEvent) {.async, gcsafe.} =
+    proc hook(peerInfo2: PeerInfo, event: ConnEvent) {.async, gcsafe.} =
       case event.kind:
       of ConnEventKind.Connected:
         if conns == 5:

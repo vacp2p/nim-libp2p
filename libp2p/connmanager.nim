@@ -48,11 +48,12 @@ type
       discard
 
   ConnEventHandler* =
-    proc(peerId: PeerID, event: ConnEvent): Future[void]
+    proc(peerInfo: PeerInfo, event: ConnEvent): Future[void]
       {.gcsafe, raises: [Defect].}
 
   PeerEventKind* {.pure.} = enum
     Left,
+    Identified,
     Joined
 
   PeerEvent* = object
@@ -63,7 +64,7 @@ type
         discard
 
   PeerEventHandler* =
-    proc(peerId: PeerID, event: PeerEvent): Future[void] {.gcsafe.}
+    proc(peerInfo: PeerInfo, event: PeerEvent): Future[void] {.gcsafe.}
 
   MuxerHolder = object
     muxer: Muxer
@@ -132,22 +133,22 @@ proc removeConnEventHandler*(c: ConnManager,
     raiseAssert exc.msg
 
 proc triggerConnEvent*(c: ConnManager,
-                       peerId: PeerID,
+                       peerInfo: PeerInfo,
                        event: ConnEvent) {.async, gcsafe.} =
   try:
-    trace "About to trigger connection events", peer = peerId
+    trace "About to trigger connection events", peer = peerInfo.peerId
     if c.connEvents[event.kind].len() > 0:
-      trace "triggering connection events", peer = peerId, event = $event.kind
+      trace "triggering connection events", peer = peerInfo.peerId, event = $event.kind
       var connEvents: seq[Future[void]]
       for h in c.connEvents[event.kind]:
-        connEvents.add(h(peerId, event))
+        connEvents.add(h(peerInfo, event))
 
       checkFutures(await allFinished(connEvents))
   except CancelledError as exc:
     raise exc
   except CatchableError as exc:
     warn "Exception in triggerConnEvents",
-      msg = exc.msg, peerId, event = $event
+      msg = exc.msg, peer = peerInfo.peerId, event = $event
 
 proc addPeerEventHandler*(c: ConnManager,
                           handler: PeerEventHandler,
@@ -178,33 +179,33 @@ proc removePeerEventHandler*(c: ConnManager,
     raiseAssert exc.msg
 
 proc triggerPeerEvents*(c: ConnManager,
-                        peerId: PeerID,
+                        peerInfo: PeerInfo,
                         event: PeerEvent) {.async, gcsafe.} =
 
-  trace "About to trigger peer events", peer = peerId
+  trace "About to trigger peer events", peer = peerInfo.peerId
   if c.peerEvents[event.kind].len == 0:
     return
 
   try:
-    let count = c.connCount(peerId)
+    let count = c.connCount(peerInfo.peerId)
     if event.kind == PeerEventKind.Joined and count != 1:
-      trace "peer already joined", peerId, event = $event
+      trace "peer already joined", peer = peerInfo.peerId, event = $event
       return
     elif event.kind == PeerEventKind.Left and count != 0:
-      trace "peer still connected or already left", peerId, event = $event
+      trace "peer still connected or already left", peer = peerInfo.peerId, event = $event
       return
 
-    trace "triggering peer events", peerId, event = $event
+    trace "triggering peer events", peer = peerInfo.peerId, event = $event
 
     var peerEvents: seq[Future[void]]
     for h in c.peerEvents[event.kind]:
-      peerEvents.add(h(peerId, event))
+      peerEvents.add(h(peerInfo, event))
 
     checkFutures(await allFinished(peerEvents))
   except CancelledError as exc:
     raise exc
   except CatchableError as exc: # handlers should not raise!
-    warn "Exception in triggerPeerEvents", exc = exc.msg, peerId
+    warn "Exception in triggerPeerEvents", exc = exc.msg, peer = peerInfo.peerId
 
 proc contains*(c: ConnManager, conn: Connection): bool =
   ## checks if a connection is being tracked by the
@@ -292,12 +293,12 @@ proc onConnUpgraded(c: ConnManager, conn: Connection) {.async.} =
     trace "Triggering connect events", conn
     conn.upgrade()
 
-    let peerId = conn.peerInfo.peerId
+    let peerInfo = conn.peerInfo
     await c.triggerPeerEvents(
-      peerId, PeerEvent(kind: PeerEventKind.Joined, initiator: conn.dir == Direction.Out))
+      peerInfo, PeerEvent(kind: PeerEventKind.Joined, initiator: conn.dir == Direction.Out))
 
     await c.triggerConnEvent(
-      peerId, ConnEvent(kind: ConnEventKind.Connected, incoming: conn.dir == Direction.In))
+      peerInfo, ConnEvent(kind: ConnEventKind.Connected, incoming: conn.dir == Direction.In))
   except CatchableError as exc:
     # This is top-level procedure which will work as separate task, so it
     # do not need to propagate CancelledError and should handle other errors
@@ -307,10 +308,10 @@ proc onConnUpgraded(c: ConnManager, conn: Connection) {.async.} =
 proc peerCleanup(c: ConnManager, conn: Connection) {.async.} =
   try:
     trace "Triggering disconnect events", conn
-    let peerId = conn.peerInfo.peerId
+    let peerInfo = conn.peerInfo
     await c.triggerConnEvent(
-      peerId, ConnEvent(kind: ConnEventKind.Disconnected))
-    await c.triggerPeerEvents(peerId, PeerEvent(kind: PeerEventKind.Left))
+      peerInfo, ConnEvent(kind: ConnEventKind.Disconnected))
+    await c.triggerPeerEvents(peerInfo, PeerEvent(kind: PeerEventKind.Left))
   except CatchableError as exc:
     # This is top-level procedure which will work as separate task, so it
     # do not need to propagate CancelledError and should handle other errors
