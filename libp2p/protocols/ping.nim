@@ -37,8 +37,8 @@ type
     pingHandler*: PingHandler
     rng: ref BrHmacDrbgContext
 
-proc newPing*(handler: PingHandler = nil): Ping =
-  let ping = Ping(pinghandler: handler, rng: newRng())
+proc init*(T: typedesc[Ping], handler: PingHandler = nil, rng: ref BrHmacDrbgContext = newRng()): T =
+  let ping = Ping(pinghandler: handler, rng: rng)
   ping.init()
   ping
 

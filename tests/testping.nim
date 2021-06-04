@@ -42,8 +42,8 @@ suite "Ping":
 
       proc handlePing(peer: PeerInfo) {.async, gcsafe, closure.} =
         inc pingReceivedCount
-      pingProto1 = newPing()
-      pingProto2 = newPing(handlePing)
+      pingProto1 = Ping.init()
+      pingProto2 = Ping.init(handlePing)
 
       msListen = newMultistream()
       msDial = newMultistream()
