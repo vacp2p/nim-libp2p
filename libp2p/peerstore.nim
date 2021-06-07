@@ -45,7 +45,7 @@ type
   # Peer store types #
   ####################
 
-  PeerStore* = ref object of RootObj
+  PeerStore* = ref object
     addressBook*: AddressBook
     protoBook*: ProtoBook
     keyBook*: KeyBook

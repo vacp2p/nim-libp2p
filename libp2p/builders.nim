@@ -15,11 +15,11 @@ import
   crypto/crypto, transports/[transport, tcptransport],
   muxers/[muxer, mplex/mplex],
   protocols/[identify, secure/secure, secure/noise],
-  connmanager, upgrademngrs/muxedupgrade, peerstore,
+  connmanager, upgrademngrs/muxedupgrade,
   errors
 
 export
-  switch, peerid, peerinfo, connection, multiaddress, crypto, errors, peerstore
+  switch, peerid, peerinfo, connection, multiaddress, crypto, errors
 
 type
   SecureProtocol* {.pure.} = enum
@@ -47,7 +47,6 @@ type
     maxConnsPerPeer: int
     protoVersion: string
     agentVersion: string
-    peerStore: PeerStore
 
 proc new*(T: type[SwitchBuilder]): T =
 
@@ -66,7 +65,6 @@ proc new*(T: type[SwitchBuilder]): T =
     maxConnsPerPeer: MaxConnectionsPerPeer,
     protoVersion: ProtoVersion,
     agentVersion: AgentVersion,
-    peerStore: PeerStore.new()
   )
 
 proc withPrivateKey*(b: SwitchBuilder, privateKey: PrivateKey): SwitchBuilder =
@@ -128,10 +126,6 @@ proc withAgentVersion*(b: SwitchBuilder, agentVersion: string): SwitchBuilder =
   b.agentVersion = agentVersion
   b
 
-proc withPeerStore(b: SwitchBuilder, peerStore: PeerStore): SwitchBuilder =
-  b.peerStore = peerStore
-  b
-
 proc build*(b: SwitchBuilder): Switch
   {.raises: [Defect, LPError].} =
 
@@ -187,8 +181,7 @@ proc build*(b: SwitchBuilder): Switch
     muxers = muxers,
     secureManagers = secureManagerInstances,
     connManager = connManager,
-    ms = ms,
-    peerStore = b.peerStore
+    ms = ms
   )
 
   return switch
@@ -206,8 +199,7 @@ proc newStandardSwitch*(
   maxConnections = MaxConnections,
   maxIn = -1,
   maxOut = -1,
-  maxConnsPerPeer = MaxConnectionsPerPeer,
-  peerStore = PeerStore.new()): Switch
+  maxConnsPerPeer = MaxConnectionsPerPeer): Switch
   {.raises: [Defect, LPError].} =
   if SecureProtocol.Secio in secureManagers:
       quit("Secio is deprecated!") # use of secio is unsafe
@@ -222,7 +214,6 @@ proc newStandardSwitch*(
     .withMaxConnsPerPeer(maxConnsPerPeer)
     .withMplex(inTimeout, outTimeout)
     .withTcpTransport(transportFlags)
-    .withPeerStore(peerStore)
     .withNoise()
 
   if privKey.isSome():
