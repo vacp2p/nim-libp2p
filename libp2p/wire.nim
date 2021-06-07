@@ -34,16 +34,16 @@ const
     UNIX
   )
 
-proc resolveDnsAddress(ma: MultiAddress, domain: Domain = Domain.AF_UNSPEC, prefix = ""): Future[seq[MultiAddress]] {.async, raises: [MaError, TransportAddressError].} =
+proc resolveDnsAddress(ma: MultiAddress, domain: Domain = Domain.AF_UNSPEC, prefix = ""): Future[seq[MultiAddress]] {.async, raises: [Defect, MaError, TransportAddressError].} =
   var
     dnsbuf: array[256, byte]
     pbuf: array[2, byte]
 
-  if ma[0].get().protoArgument(dnsbuf).get() == 0:
+  if ma[0].tryGet().protoArgument(dnsbuf).tryGet() == 0:
     raise newException(MaError, "Invalid DNS format")
   let dnsval = string.fromBytes(dnsbuf)
 
-  if ma[1].get().protoArgument(pbuf).get() == 0:
+  if ma[1].tryGet().protoArgument(pbuf).tryGet() == 0:
     raise newException(MaError, "Incorrect port number")
   let
     port = Port(fromBytesBE(uint16, pbuf))
@@ -52,10 +52,10 @@ proc resolveDnsAddress(ma: MultiAddress, domain: Domain = Domain.AF_UNSPEC, pref
   var addressSuffix = ma
   return collect(newSeqOfCap(4)):
     for address in resolvedAddresses:
-      var createdAddress = MultiAddress.init(address).get()[0].get()
+      var createdAddress = MultiAddress.init(address).tryGet()[0].tryGet()
       for part in ma:
         if DNS.match(part.get()): continue
-        createdAddress &= part.get()
+        createdAddress &= part.tryGet()
       createdAddress
 
 proc resolveMAddresses*(addrs: seq[MultiAddress]): Future[seq[MultiAddress]] {.async.} =
