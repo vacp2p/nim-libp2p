@@ -80,7 +80,8 @@ proc questionToBuf(address: string, kind: QKind): seq[byte] =
     var buf = newSeq[byte](dataLen)
     discard requestStream.readData(addr buf[0], dataLen)
     return buf
-  except IOError, ValueError, OSError:
+  except Exception as exc:
+    info "Failed to created DNS buffer", msg = exc.msg
     return newSeq[byte](0)
 
 proc getDnsResponse(
@@ -102,6 +103,9 @@ proc getDnsResponse(
 
 
   var sendBuf = questionToBuf(address, kind)
+
+  if sendBuf.len == 0:
+    raise newException(ValueError, "Incorrect DNS query")
 
   await sock.sendTo(dnsServer, addr sendBuf[0], sendBuf.len)
   await receivedDataFuture

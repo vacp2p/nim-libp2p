@@ -12,7 +12,7 @@
 ## This module implements wire network connection procedures.
 import std/[sugar, sets, sequtils]
 import chronos, stew/endians2, stew/byteutils, chronicles
-import multiaddress, multicodec, errors
+import multiaddress, multicodec, errors, nameresolving/dnsresolver
 
 when defined(windows):
   import winlean
@@ -34,20 +34,28 @@ const
     UNIX
   )
 
-proc resolveDnsAddress(ma: MultiAddress, domain: Domain = Domain.AF_UNSPEC, prefix = ""): Future[seq[MultiAddress]] {.async, raises: [Defect, MaError, TransportAddressError].} =
+proc resolveDnsAddress(
+  ma: MultiAddress,
+  domain: Domain = Domain.AF_UNSPEC,
+  prefix = ""): Future[seq[MultiAddress]]
+  {.async, raises: [Defect, MaError, TransportAddressError].} =
+  #Resolve a single address
   var
-    dnsbuf: array[256, byte]
+    dnsbuf = newSeq[byte](256)
     pbuf: array[2, byte]
 
-  if ma[0].tryGet().protoArgument(dnsbuf).tryGet() == 0:
+  let dnsLen = ma[0].tryGet().protoArgument(dnsbuf).tryGet()
+  if dnsLen == 0:
     raise newException(MaError, "Invalid DNS format")
-  let dnsval = string.fromBytes(dnsbuf)
+  dnsbuf.setLen(dnsLen)
+  var dnsval = string.fromBytes(dnsbuf)
 
   if ma[1].tryGet().protoArgument(pbuf).tryGet() == 0:
     raise newException(MaError, "Incorrect port number")
   let
     port = Port(fromBytesBE(uint16, pbuf))
-    resolvedAddresses = resolveTAddress(prefix & dnsval, port, domain)
+    resolvedAddresses = await DnsResolver.new().resolveIp(prefix & dnsval, port, domain)
+    #TODO get the NameResolver from somewhere
  
   var addressSuffix = ma
   return collect(newSeqOfCap(4)):
