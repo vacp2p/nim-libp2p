@@ -64,8 +64,7 @@ proc new*(T: type[SwitchBuilder]): T =
     maxOut: -1,
     maxConnsPerPeer: MaxConnectionsPerPeer,
     protoVersion: ProtoVersion,
-    agentVersion: AgentVersion,
-  )
+    agentVersion: AgentVersion)
 
 proc withPrivateKey*(b: SwitchBuilder, privateKey: PrivateKey): SwitchBuilder =
   b.privKey = some(privateKey)
@@ -181,8 +180,7 @@ proc build*(b: SwitchBuilder): Switch
     muxers = muxers,
     secureManagers = secureManagerInstances,
     connManager = connManager,
-    ms = ms
-  )
+    ms = ms)
 
   return switch
 
