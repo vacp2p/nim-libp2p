@@ -109,10 +109,13 @@ proc decodeMsg*(buf: seq[byte]): Option[IdentifyInfo] =
     trace "decodeMsg: failed to decode received message"
     none[IdentifyInfo]()
 
-proc newIdentify*(peerInfo: PeerInfo): Identify =
-  new result
-  result.peerInfo = peerInfo
-  result.init()
+proc new*(T: typedesc[Identify], peerInfo: PeerInfo): T =
+  let identify = T(peerInfo: peerInfo)
+  identify.init()
+  identify
+
+proc newIdentify*(peerInfo: PeerInfo): Identify {.deprecated: "use Identify.new".} =
+  Identify.new(peerInfo)
 
 method init*(p: Identify) =
   proc handle(conn: Connection, proto: string) {.async, gcsafe, closure.} =

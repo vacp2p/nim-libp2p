@@ -595,11 +595,12 @@ method init*(p: Noise) {.gcsafe.} =
   procCall Secure(p).init()
   p.codec = NoiseCodec
 
-proc newNoise*(
-    rng: ref BrHmacDrbgContext,
-    privateKey: PrivateKey,
-    outgoing: bool = true,
-    commonPrologue: seq[byte] = @[]): Noise =
+proc new*(
+  T: typedesc[Noise],
+  rng: ref BrHmacDrbgContext,
+  privateKey: PrivateKey,
+  outgoing: bool = true,
+  commonPrologue: seq[byte] = @[]): T =
 
   let pkBytes = privateKey
   .getKey()
@@ -617,4 +618,11 @@ proc newNoise*(
   )
 
   noise.init()
-  return noise
+  noise
+
+proc newNoise*(
+  rng: ref BrHmacDrbgContext,
+  privateKey: PrivateKey,
+  outgoing: bool = true,
+  commonPrologue: seq[byte] = @[]): Noise {.deprecated: "use Noise.new".}=
+  Noise.new(rng, privateKey, outgoing, commonPrologue)

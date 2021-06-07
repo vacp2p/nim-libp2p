@@ -74,10 +74,13 @@ type
 method write*(s: TestBufferStream, msg: seq[byte]): Future[void] =
   s.writeHandler(msg)
 
-proc newBufferStream*(writeHandler: WriteHandler): TestBufferStream =
-  new result
-  result.writeHandler = writeHandler
-  result.initStream()
+proc new*(T: typedesc[TestBufferStream], writeHandler: WriteHandler): T =
+  let testBufferStream = T(writeHandler: writeHandler)
+  testBufferStream.initStream()
+  testBufferStream
+
+proc newBufferStream*(writeHandler: WriteHandler): TestBufferStream {.deprecated: "use TestBufferStream.new".}=
+  TestBufferStream.new(writeHandler)
 
 proc checkExpiringInternal(cond: proc(): bool {.raises: [Defect].} ): Future[bool] {.async, gcsafe.} =
   {.gcsafe.}:

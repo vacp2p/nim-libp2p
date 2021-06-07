@@ -109,7 +109,7 @@ method upgradeIncoming*(
   self: MuxedUpgrade,
   incomingConn: Connection) {.async, gcsafe.} = # noraises
   trace "Upgrading incoming connection", incomingConn
-  let ms = newMultistream()
+  let ms = MultistreamSelect.new()
 
   # secure incoming connections
   proc securedHandler(conn: Connection,
