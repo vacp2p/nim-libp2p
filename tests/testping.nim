@@ -42,8 +42,8 @@ suite "Ping":
 
       proc handlePing(peer: PeerInfo) {.async, gcsafe, closure.} =
         inc pingReceivedCount
-      pingProto1 = Ping.init()
-      pingProto2 = Ping.init(handlePing)
+      pingProto1 = Ping.new()
+      pingProto2 = Ping.new(handlePing)
 
       msListen = newMultistream()
       msDial = newMultistream()
@@ -73,26 +73,33 @@ suite "Ping":
       check not time.isZero()
 
     asyncTest "networked cancel ping":
-      let baseMa = Multiaddress.init("/ip4/127.0.0.1/tcp/0").tryGet()
+      proc testPing(): Future[void] {.async.} =
+        let baseMa = Multiaddress.init("/ip4/127.0.0.1/tcp/0").tryGet()
 
-      let transport: TcpTransport = TcpTransport.init(upgrade = Upgrade())
-      let transportdialer: TcpTransport = TcpTransport.init(upgrade = Upgrade())
-      asyncCheck transport.start(baseMa)
+        let transport: TcpTransport = TcpTransport.init(upgrade = Upgrade())
+        let transportdialer: TcpTransport = TcpTransport.init(upgrade = Upgrade())
+        asyncCheck transport.start(baseMa)
 
-      proc acceptHandler() {.async, gcsafe.} =
-        let conn = await transport.accept()
-        #await conn.write("Hello dns!")
-        var buf: array[32, byte]
-        await conn.readExactly(addr buf[0], 32)
-        await conn.write(addr buf[0], 32)
+        proc acceptHandler() {.async, gcsafe.} =
+          let handler = Ping.new().handler
+          let conn = await transport.accept()
+          await handler(conn, "na")
 
-      let handlerWait = acceptHandler()
+        let handlerWait = acceptHandler()
 
-      let streamTransport = await transportdialer.dial(transport.ma)
+        let streamTransport = await transportdialer.dial(transport.ma)
 
-      let p = pingProto2.ping(streamTransport)
-      await p.cancelAndWait()
-      check p.cancelled
+        discard await pingProto2.ping(streamTransport)
+
+      for pollCount in 0..20:
+        #echo "Polling ", pollCount, " times"
+        let p = testPing()
+        for _ in 0..<pollCount:
+          if p.finished: break
+          poll()
+        if p.finished: break #We actually finished the sequence
+        await p.cancelAndWait()
+        check p.cancelled
 
     asyncTest "ping callback":
       msDial.addHandler(PingCodec, pingProto2)

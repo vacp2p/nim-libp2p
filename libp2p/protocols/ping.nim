@@ -37,7 +37,7 @@ type
     pingHandler*: PingHandler
     rng: ref BrHmacDrbgContext
 
-proc init*(T: typedesc[Ping], handler: PingHandler = nil, rng: ref BrHmacDrbgContext = newRng()): T =
+proc new*(T: typedesc[Ping], handler: PingHandler = nil, rng: ref BrHmacDrbgContext = newRng()): T =
   let ping = Ping(pinghandler: handler, rng: rng)
   ping.init()
   ping
@@ -48,6 +48,7 @@ method init*(p: Ping) =
       trace "handling ping", conn
       var buf: array[PingSize, byte]
       await conn.readExactly(addr buf[0], PingSize)
+      trace "echoing ping", conn
       await conn.write(addr buf[0], PingSize)
       if not isNil(p.pingHandler):
         await p.pingHandler(conn.peerInfo)
