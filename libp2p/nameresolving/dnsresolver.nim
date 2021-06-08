@@ -124,7 +124,7 @@ method resolveIp*(
   domain: Domain = Domain.AF_UNSPEC): Future[seq[TransportAddress]] {.async.} =
 
   let nameservers = getNameServers(self)
-  trace "Resolving IP using DNS", address, nameservers, domain
+  trace "Resolving IP using DNS", address, servers = nameservers.mapIt($it), domain
   for server in nameservers:
     var responseFutures: seq[Future[Response]]
     if domain == Domain.AF_INET or domain == Domain.AF_UNSPEC:
@@ -133,7 +133,7 @@ method resolveIp*(
     if domain == Domain.AF_INET6 or domain == Domain.AF_UNSPEC:
       let fut = getDnsResponse(server, address, AAAA)
       if server.family == AddressFamily.IPv6:
-        trace "IPv6 DNS server, puting AAAA records first", server
+        trace "IPv6 DNS server, puting AAAA records first", server = $server
         responseFutures.insert(fut)
       else:
         responseFutures.add(fut)
@@ -144,7 +144,7 @@ method resolveIp*(
       for answer in resp.answers:
         resolvedAddresses.incl(answer.toString())
     if resolvedAddresses.len > 0:
-      trace "Got IPs from DNS server", resolvedAddresses, server
+      trace "Got IPs from DNS server", resolvedAddresses, server = $server
       return resolvedAddresses.toSeq().mapIt(initTAddress(it, port))
 
   debug "Failed to resolve address, returning empty set"
@@ -155,11 +155,11 @@ method resolveTxt*(
   address: string): Future[seq[string]] {.async.} =
 
   let nameservers = getNameServers(self)
-  trace "Resolving TXT using DNS", address, nameservers
+  trace "Resolving TXT using DNS", address, servers = nameservers.mapIt($it)
   for server in nameservers:
     let response = await getDnsResponse(server, address, TXT)
     if response.answers.len > 0:
-      trace "Got TXT response", server, answer=response.answers.mapIt(it.toString())
+      trace "Got TXT response", server = $server, answer=response.answers.mapIt(it.toString())
       return response.answers.mapIt(it.toString())
   debug "Failed to resolve TXT, returning empty set"
   return @[]

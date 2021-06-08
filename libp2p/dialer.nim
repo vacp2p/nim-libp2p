@@ -55,7 +55,7 @@ proc dialAndUpgrade(
     transport: Transport
     address: MultiAddress
 
-  let resolvedAddrs = resolveMAddresses(addrs)
+  let resolvedAddrs = await resolveMAddresses(addrs)
   for t in self.transports: # for each transport
     transport = t
     for a in resolvedAddrs:      # for each address
