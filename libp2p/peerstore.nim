@@ -10,9 +10,9 @@
 {.push raises: [Defect].}
 
 import
-  std/[tables, sets, sequtils],
+  std/[tables, sets, sequtils, options],
   ./crypto/crypto,
-  ./peerid,
+  ./peerid, ./peerinfo,
   ./multiaddress
 
 type
@@ -34,23 +34,25 @@ type
   PeerBook*[T] = object of RootObj
     book*: Table[PeerID, T]
     changeHandlers: seq[PeerBookChangeHandler[T]]
+
+  SetPeerBook*[T] = object of PeerBook[HashSet[T]]
   
-  AddressBook* = object of PeerBook[HashSet[MultiAddress]]
-  ProtoBook* = object of PeerBook[HashSet[string]]
+  AddressBook* = object of SetPeerBook[MultiAddress]
+  ProtoBook* = object of SetPeerBook[string]
   KeyBook* = object of PeerBook[PublicKey]
   
   ####################
   # Peer store types #
   ####################
 
-  PeerStore* = ref object of RootObj
+  PeerStore* = ref object
     addressBook*: AddressBook
     protoBook*: ProtoBook
     keyBook*: KeyBook
   
   StoredInfo* = object
     # Collates stored info about a peer
-    peerId*: PeerID    
+    peerId*: PeerID
     addrs*: HashSet[MultiAddress]
     protos*: HashSet[string]
     publicKey*: PublicKey
@@ -93,39 +95,23 @@ proc delete*[T](peerBook: var PeerBook[T],
     peerBook.book.del(peerId)
     return true
 
-####################
-# Address Book API #
-####################
+################
+# Set Book API #
+################
 
-proc add*(addressBook: var AddressBook,
-          peerId: PeerID,
-          multiaddr: MultiAddress) = 
-  ## Add known multiaddr of a given peer. If the peer is not known, 
-  ## it will be set with the provided multiaddr.
+proc add*[T](
+  peerBook: var SetPeerBook[T],
+  peerId: PeerID,
+  entry: T) =
+  ## Add entry to a given peer. If the peer is not known,
+  ## it will be set with the provided entry.
   
-  addressBook.book.mgetOrPut(peerId,
-                             initHashSet[MultiAddress]()).incl(multiaddr)
+  peerBook.book.mgetOrPut(peerId,
+                          initHashSet[T]()).incl(entry)
   
   # Notify clients
-  for handler in addressBook.changeHandlers:
-    handler(peerId, addressBook.get(peerId))
-
-#####################
-# Protocol Book API #
-#####################
-
-proc add*(protoBook: var ProtoBook,
-          peerId: PeerID,
-          protocol: string) = 
-  ## Adds known protocol codec for a given peer. If the peer is not known, 
-  ## it will be set with the provided protocol.
-  
-  protoBook.book.mgetOrPut(peerId,
-                           initHashSet[string]()).incl(protocol)
-  
-  # Notify clients
-  for handler in protoBook.changeHandlers:
-    handler(peerId, protoBook.get(peerId))
+  for handler in peerBook.changeHandlers:
+    handler(peerId, peerBook.get(peerId))
 
 ##################  
 # Peer Store API #
@@ -159,6 +145,21 @@ proc get*(peerStore: PeerStore,
     protos: peerStore.protoBook.get(peerId),
     publicKey: peerStore.keyBook.get(peerId)
   )
+
+proc update*(peerStore: PeerStore, peerInfo: PeerInfo) =
+  for address in peerInfo.addrs:
+    peerStore.addressBook.add(peerInfo.peerId, address)
+  for proto in peerInfo.protocols:
+    peerStore.protoBook.add(peerInfo.peerId, proto)
+  let pKey = peerInfo.publicKey()
+  if pKey.isSome:
+    peerStore.keyBook.set(peerInfo.peerId, pKey.get())
+
+proc replace*(peerStore: PeerStore, peerInfo: PeerInfo) =
+  discard peerStore.addressBook.delete(peerInfo.peerId)
+  discard peerStore.protoBook.delete(peerInfo.peerId)
+  discard peerStore.keyBook.delete(peerInfo.peerId)
+  peerStore.update(peerInfo)
 
 proc peers*(peerStore: PeerStore): seq[StoredInfo] =
   ## Get all the stored information of every peer.

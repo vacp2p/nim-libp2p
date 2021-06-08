@@ -568,11 +568,11 @@ proc init*[PubParams: object | bool](
         parameters: parameters,
         topicsHigh: int.high)
 
-  proc peerEventHandler(peerId: PeerID, event: PeerEvent) {.async.} =
+  proc peerEventHandler(peerInfo: PeerInfo, event: PeerEvent) {.async.} =
     if event.kind == PeerEventKind.Joined:
-      pubsub.subscribePeer(peerId)
+      pubsub.subscribePeer(peerInfo.peerId)
     else:
-      pubsub.unsubscribePeer(peerId)
+      pubsub.unsubscribePeer(peerInfo.peerId)
 
   switch.addPeerEventHandler(peerEventHandler, PeerEventKind.Joined)
   switch.addPeerEventHandler(peerEventHandler, PeerEventKind.Left)
