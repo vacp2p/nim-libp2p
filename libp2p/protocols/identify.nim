@@ -202,7 +202,8 @@ proc init*(p: IdentifyPush) =
       if indentInfo.protos.len > 0:
         conn.peerInfo.protocols = indentInfo.protos
 
-      await p.connManager.triggerPeerEvents(conn.peerInfo, PeerEvent(kind: PeerEventKind.Identified)) 
+      trace "triggering peer event", peerInfo = conn.peerInfo
+      await p.connManager.triggerPeerEvents(conn.peerInfo, PeerEvent(kind: PeerEventKind.Identified))
     except CancelledError as exc:
       raise exc
     except CatchableError as exc:
@@ -214,7 +215,6 @@ proc init*(p: IdentifyPush) =
   p.handler = handle
   p.codec = IdentifyPushCodec
 
-proc push*(p: PeerInfo, conn: Connection) {.async.} =
-  await conn.write(IdentifyPushCodec)
-  var pb = encodeMsg(p, conn.observedAddr)
+proc push*(p: IdentifyPush, peerInfo: PeerInfo, conn: Connection) {.async.} =
+  var pb = encodeMsg(peerInfo, conn.observedAddr)
   await conn.writeLp(pb.buffer)
