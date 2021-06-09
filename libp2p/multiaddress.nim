@@ -407,9 +407,10 @@ const
   DNSANY* = mapEq("dns")
   DNS4* = mapEq("dns4")
   DNS6* = mapEq("dns6")
+  DNSADDR* = mapEq("dnsaddr")
   IP4* = mapEq("ip4")
   IP6* = mapEq("ip6")
-  DNS* = mapOr(mapEq("dnsaddr"), DNSANY, DNS4, DNS6)
+  DNS* = mapOr(DNSANY, DNS4, DNS6, DNSADDR)
   IP* = mapOr(IP4, IP6)
   TCP* = mapOr(mapAnd(DNS, mapEq("tcp")), mapAnd(IP, mapEq("tcp")))
   UDP* = mapOr(mapAnd(DNS, mapEq("udp")), mapAnd(IP, mapEq("udp")))
@@ -932,6 +933,10 @@ proc `&=`*(m1: var MultiAddress, m2: MultiAddress) {.
   ##
 
   m1.append(m2).tryGet()
+
+proc `==`*(m1: var MultiAddress, m2: MultiAddress): bool =
+  ## Check of two MultiAddress are equal
+  m1.data == m2.data
 
 proc isWire*(ma: MultiAddress): bool =
   ## Returns ``true`` if MultiAddress ``ma`` is one of:

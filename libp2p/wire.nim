@@ -10,89 +10,30 @@
 {.push raises: [Defect].}
 
 ## This module implements wire network connection procedures.
-import std/[sugar, sets, sequtils]
-import chronos, stew/endians2, stew/byteutils, chronicles
-import multiaddress, multicodec, errors, nameresolving/dnsresolver
+import chronos, stew/endians2
+import multiaddress, multicodec, errors
 
 when defined(windows):
   import winlean
 else:
   import posix
 
-logScope:
-  topics = "libp2p wire"
-
 const
   TRANSPMA* = mapOr(
-    UDP,
-    TCP,
-    UNIX,
+    mapAnd(IP, mapEq("udp")),
+    mapAnd(IP, mapEq("tcp")),
+    mapAnd(mapEq("unix"))
   )
 
   RTRANSPMA* = mapOr(
-    TCP,
-    UNIX
+    mapAnd(IP, mapEq("tcp")),
+    mapAnd(mapEq("unix"))
   )
-
-proc resolveDnsAddress(
-  ma: MultiAddress,
-  domain: Domain = Domain.AF_UNSPEC,
-  prefix = ""): Future[seq[MultiAddress]]
-  {.async, raises: [Defect, MaError, TransportAddressError].} =
-  #Resolve a single address
-  var
-    dnsbuf = newSeq[byte](256)
-    pbuf: array[2, byte]
-
-  let dnsLen = ma[0].tryGet().protoArgument(dnsbuf).tryGet()
-  if dnsLen == 0:
-    raise newException(MaError, "Invalid DNS format")
-  dnsbuf.setLen(dnsLen)
-  var dnsval = string.fromBytes(dnsbuf)
-
-  if ma[1].tryGet().protoArgument(pbuf).tryGet() == 0:
-    raise newException(MaError, "Incorrect port number")
-  let
-    port = Port(fromBytesBE(uint16, pbuf))
-    resolvedAddresses = await DnsResolver.new().resolveIp(prefix & dnsval, port, domain)
-    #TODO get the NameResolver from somewhere
- 
-  var addressSuffix = ma
-  return collect(newSeqOfCap(4)):
-    for address in resolvedAddresses:
-      var createdAddress = MultiAddress.init(address).tryGet()[0].tryGet()
-      for part in ma:
-        if DNS.match(part.get()): continue
-        createdAddress &= part.tryGet()
-      createdAddress
-
-proc resolveMAddresses*(addrs: seq[MultiAddress]): Future[seq[MultiAddress]] {.async.} =
-  var res = initOrderedSet[MultiAddress](addrs.len)
-
-  for address in addrs:
-    if not DNS.matchPartial(address):
-      res.incl(address)
-    else:
-      let code = address[0].get().protoCode().get()
-      let seq = case code:
-        of multiCodec("dns"):
-          await resolveDnsAddress(address)
-        of multiCodec("dns4"):
-          await resolveDnsAddress(address, Domain.AF_INET)
-        of multiCodec("dns6"):
-          await resolveDnsAddress(address, Domain.AF_INET6)
-        of multiCodec("dnsaddr"):
-          await resolveDnsAddress(address, prefix="_dnsaddr.")
-        else:
-          @[address]
-      for ad in seq:
-        res.incl(ad)
-  return res.toSeq
 
 proc initTAddress*(ma: MultiAddress): MaResult[TransportAddress] =
   ## Initialize ``TransportAddress`` with MultiAddress ``ma``.
   ##
-  ## MultiAddress must be wire address, e.g. ``{DNS, IP4, IP6, UNIX}/{TCP, UDP}``.
+  ## MultiAddress must be wire address, e.g. ``{IP4, IP6, UNIX}/{TCP, UDP}``.
   ##
 
   if TRANSPMA.match(ma):
@@ -115,7 +56,7 @@ proc initTAddress*(ma: MultiAddress): MaResult[TransportAddress] =
         else:
           res.port = Port(fromBytesBE(uint16, pbuf))
           ok(res)
-    elif code == multiCodec("ip6"):
+    else:
       var res = TransportAddress(family: AddressFamily.IPv6)
       if (?(?ma[0]).protoArgument(res.address_v6)) == 0:
         err("Incorrect IPv6 address")
@@ -125,8 +66,6 @@ proc initTAddress*(ma: MultiAddress): MaResult[TransportAddress] =
         else:
           res.port = Port(fromBytesBE(uint16, pbuf))
           ok(res)
-    else:
-      err("MultiAddress must be wire address (tcp, udp or unix)")
   else:
     err("MultiAddress must be wire address (tcp, udp or unix)")
 
@@ -134,7 +73,7 @@ proc connect*(
   ma: MultiAddress,
   bufferSize = DefaultStreamBufferSize,
   child: StreamTransport = nil): Future[StreamTransport]
-  {.raises: [Defect, LPError, MaInvalidAddress], async.} =
+  {.raises: [Defect, LPError, MaInvalidAddress].} =
   ## Open new connection to remote peer with address ``ma`` and create
   ## new transport object ``StreamTransport`` for established connection.
   ## ``bufferSize`` is size of internal buffer for transport.
@@ -143,16 +82,7 @@ proc connect*(
   if not(RTRANSPMA.match(ma)):
     raise newException(MaInvalidAddress, "Incorrect or unsupported address!")
 
-  let addressesResolved = await resolveMAddresses(@[ma])
-  var lastException: ref CatchableError = newException(MaInvalidAddress, "No address resolved")
-  for address in addressesResolved:
-    try:
-      return await connect(initTAddress(address).tryGet(), bufferSize, child)
-    except CatchableError as exc:
-      debug "Connect failed", msg = exc.msg
-      lastException = exc
-      continue #try next
-  raise lastException
+  return connect(initTAddress(ma).tryGet(), bufferSize, child)
 
 proc createStreamServer*[T](ma: MultiAddress,
                             cbproc: StreamCallback,
@@ -163,30 +93,24 @@ proc createStreamServer*[T](ma: MultiAddress,
                             bufferSize: int = DefaultStreamBufferSize,
                             child: StreamServer = nil,
                             init: TransportInitCallback = nil): StreamServer
-                            {.raises: [Defect, LPError, MaInvalidAddress, CatchableError].} =
+                            {.raises: [Defect, LPError, MaInvalidAddress].} =
   ## Create new TCP stream server which bounds to ``ma`` address.
   if not(RTRANSPMA.match(ma)):
     raise newException(MaInvalidAddress, "Incorrect or unsupported address!")
 
-  let addressesResolved = waitFor resolveMAddresses(@[ma])
-  var lastException: ref CatchableError = newException(MaInvalidAddress, "No address resolved")
-  for address in addressesResolved:
-    try:
-      return createStreamServer(
-        initTAddress(address).tryGet(),
-        cbproc,
-        flags,
-        udata,
-        sock,
-        backlog,
-        bufferSize,
-        child,
-        init)
-    except CatchableError as exc:
-      debug "Connect failed", msg = exc.msg
-      lastException = exc
-      continue #try next
-  raise lastException
+  try:
+    return createStreamServer(
+      initTAddress(ma).tryGet(),
+      cbproc,
+      flags,
+      udata,
+      sock,
+      backlog,
+      bufferSize,
+      child,
+      init)
+  except CatchableError as exc:
+    raise newException(LPError, exc.msg)
 
 proc createStreamServer*[T](ma: MultiAddress,
                             flags: set[ServerFlags] = {},
@@ -196,31 +120,25 @@ proc createStreamServer*[T](ma: MultiAddress,
                             bufferSize: int = DefaultStreamBufferSize,
                             child: StreamServer = nil,
                             init: TransportInitCallback = nil): StreamServer
-                            {.raises: [Defect, LPError, MaInvalidAddress, CatchableError].} =
+                            {.raises: [Defect, LPError, MaInvalidAddress].} =
   ## Create new TCP stream server which bounds to ``ma`` address.
   ##
 
   if not(RTRANSPMA.match(ma)):
     raise newException(MaInvalidAddress, "Incorrect or unsupported address!")
 
-  let addressesResolved = waitFor resolveMAddresses(@[ma])
-  var lastException: ref CatchableError = newException(MaInvalidAddress, "No address resolved")
-  for address in addressesResolved:
-    try:
-      return createStreamServer(
-        initTAddress(address).tryGet(),
-        flags,
-        udata,
-        sock,
-        backlog,
-        bufferSize,
-        child,
-        init)
-    except CatchableError as exc:
-      debug "Connect failed", msg = exc.msg
-      lastException = exc
-      continue #try next
-  raise lastException
+  try:
+    return createStreamServer(
+      initTAddress(ma).tryGet(),
+      flags,
+      udata,
+      sock,
+      backlog,
+      bufferSize,
+      child,
+      init)
+  except CatchableError as exc:
+    raise newException(LPError, exc.msg)
 
 proc createAsyncSocket*(ma: MultiAddress): AsyncFD
   {.raises: [Defect, LPError].} =

@@ -24,47 +24,6 @@ type
   DnsResolver* = ref object of NameResolver
     nameServers*: seq[TransportAddress]
 
-const unixPlatform = defined(linux) or defined(solaris) or
-                     defined(macosx) or defined(freebsd) or
-                     defined(netbsd) or defined(openbsd) or
-                     defined(dragonfly)
-
-#Cloudflare
-const fallbackDnsServers = @[
-  initTAddress("1.1.1.1:53"),
-  initTAddress("1.0.0.1:53"),
-  initTAddress("[2606:4700:4700::1111]:53")
-]
-
-proc getNameServers(self: DnsResolver): seq[TransportAddress] =
-  if self.nameServers.len > 0: return self.nameServers
-
-  trace "Getting nameservers"
-  when unixPlatform:
-    var resultSeq = newSeqOfCap[TransportAddress](3)
-    try:
-      for l in lines("/etc/resolv.conf"):
-        let lineParsed = l.strip().split(maxsplit = 2)
-        if lineParsed.len < 2: continue
-        if lineParsed[0].startsWith('#'): continue
-
-        if lineParsed[0] == "nameserver":
-          resultSeq.add(initTAddress(lineParsed[1], Port(53)))
-
-          if resultSeq.len > 2: break #3 nameserver max on linux
-    except Exception as e:
-      debug "Failed to get unix nameservers", error=e.msg
-    finally:
-      if resultSeq.len > 0:
-        return resultSeq
-      return fallbackDnsServers
-  elif defined(windows):
-    #TODO
-    return fallbackDnsServers
-  else:
-    return fallbackDnsServers
-
-
 proc questionToBuf(address: string, kind: QKind): seq[byte] =
   try:
     var
@@ -108,7 +67,11 @@ proc getDnsResponse(
     raise newException(ValueError, "Incorrect DNS query")
 
   await sock.sendTo(dnsServer, addr sendBuf[0], sendBuf.len)
-  await receivedDataFuture
+
+  await receivedDataFuture or sleepAsync(5.seconds) #unix default
+
+  if not receivedDataFuture.finished:
+    raise newException(ValueError, "DNS server timeout")
 
   var
     rawResponse = sock.getMessage()
@@ -123,7 +86,7 @@ method resolveIp*(
   port: Port,
   domain: Domain = Domain.AF_UNSPEC): Future[seq[TransportAddress]] {.async.} =
 
-  let nameservers = getNameServers(self)
+  let nameservers = self.nameServers
   trace "Resolving IP using DNS", address, servers = nameservers.mapIt($it), domain
   for server in nameservers:
     var responseFutures: seq[Future[Response]]
@@ -140,9 +103,14 @@ method resolveIp*(
 
     var resolvedAddresses: OrderedSet[string]
     for fut in responseFutures:
-      let resp = await fut
-      for answer in resp.answers:
-        resolvedAddresses.incl(answer.toString())
+      try:
+        let resp = await fut
+        for answer in resp.answers:
+          resolvedAddresses.incl(answer.toString())
+      except ValueError as e:
+        info "Failed to query DNS", address, error=e.msg
+      except TransportOsError as e:
+        info "Failed to query DNS", address, error=e.msg
     if resolvedAddresses.len > 0:
       trace "Got IPs from DNS server", resolvedAddresses, server = $server
       return resolvedAddresses.toSeq().mapIt(initTAddress(it, port))
@@ -154,7 +122,7 @@ method resolveTxt*(
   self: DnsResolver,
   address: string): Future[seq[string]] {.async.} =
 
-  let nameservers = getNameServers(self)
+  let nameservers = self.nameServers
   trace "Resolving TXT using DNS", address, servers = nameservers.mapIt($it)
   for server in nameservers:
     let response = await getDnsResponse(server, address, TXT)
@@ -164,5 +132,7 @@ method resolveTxt*(
   debug "Failed to resolve TXT, returning empty set"
   return @[]
 
-proc new*(T: typedesc[DnsResolver]): T =
-  T()
+proc new*(
+  T: typedesc[DnsResolver],
+  nameServers: seq[TransportAddress]): T =
+  T(nameServers: nameServers)

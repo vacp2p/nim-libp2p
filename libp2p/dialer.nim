@@ -20,6 +20,7 @@ import dial,
        connmanager,
        stream/connection,
        transports/transport,
+       nameresolving/nameresolver,
        wire,
        errors
 
@@ -42,6 +43,7 @@ type
     connManager: ConnManager
     dialLock: Table[PeerID, AsyncLock]
     transports: seq[Transport]
+    resolver*: NameResolver
 
 proc dialAndUpgrade(
   self: Dialer,
@@ -55,7 +57,12 @@ proc dialAndUpgrade(
     transport: Transport
     address: MultiAddress
 
-  let resolvedAddrs = await resolveMAddresses(addrs)
+  let resolvedAddrs = 
+    if isNil(self.resolver):
+      addrs
+    else:
+      await self.resolver.resolveMAddresses(addrs)
+
   for t in self.transports: # for each transport
     transport = t
     for a in resolvedAddrs:      # for each address
