@@ -13,6 +13,7 @@ import options
 import chronos, chronicles
 import ../protobuf/minprotobuf,
        ../peerinfo,
+       ../connmanager,
        ../stream/connection,
        ../peerid,
        ../crypto/crypto,
@@ -29,8 +30,6 @@ const
   IdentifyPushCodec* = "/ipfs/id/push/1.0.0"
   ProtoVersion* = "ipfs/0.1.0"
   AgentVersion* = "nim-libp2p/0.0.1"
-
-#TODO: implement push identify, leaving out for now as it is not essential
 
 type
   IdentifyError* = object of LPError
@@ -50,6 +49,7 @@ type
     peerInfo*: PeerInfo
 
   IdentifyPush* = ref object of LPProtocol
+    connManager: ConnManager
 
 proc encodeMsg*(peerInfo: PeerInfo, observedAddr: Multiaddress): ProtoBuffer
   {.raises: [Defect, IdentifyNoPubKeyError].} =
@@ -162,18 +162,54 @@ proc identify*(p: Identify,
 
         raise newException(IdentityNoMatchError, "Peer ids don't match")
 
+proc new*(T: typedesc[IdentifyPush], connManager: ConnManager): T =
+  let identifypush = T(connManager: connManager)
+  identifypush.init()
+  identifypush
+
+
 proc init*(p: IdentifyPush) =
   proc handle(conn: Connection, proto: string) {.async, gcsafe, closure.} =
     trace "handling identify push", conn
-    var message = await conn.readLp(64*1024)
+    try:
+      var message = await conn.readLp(64*1024)
 
-    let infoOpt = decodeMsg(message)
-    if infoOpt.isNone():
-      raise newException(IdentityInvalidMsgError, "Incorrect message received!")
+      let infoOpt = decodeMsg(message)
+      if infoOpt.isNone():
+        raise newException(IdentityInvalidMsgError, "Incorrect message received!")
 
-    let indentInfo = infoOpt.get()
-    echo indentInfo
-    #TODO do something
+      let indentInfo = infoOpt.get()
+
+      if not indentInfo.pubKey.isSome:
+        raise newException(IdentityInvalidMsgError, "No public key received")
+
+      if isNil(conn.peerInfo):
+        raise newException(IdentityInvalidMsgError, "Connection got no peerInfo")
+
+      let receivedPeerId = PeerID.init(indentInfo.pubKey.get()).tryGet()
+      if receivedPeerId != conn.peerInfo.peerId:
+        raise newException(IdentityNoMatchError, "Peer ids don't match")
+
+      if indentInfo.addrs.len > 0:
+        conn.peerInfo.addrs = indentInfo.addrs
+
+      if indentInfo.agentVersion.isSome:
+        conn.peerInfo.agentVersion = indentInfo.agentVersion.get()
+
+      if indentInfo.protoVersion.isSome:
+        conn.peerInfo.protoVersion = indentInfo.protoVersion.get()
+
+      if indentInfo.protos.len > 0:
+        conn.peerInfo.protocols = indentInfo.protos
+
+      await p.connManager.triggerPeerEvents(conn.peerInfo, PeerEvent(kind: PeerEventKind.Identified)) 
+    except CancelledError as exc:
+      raise exc
+    except CatchableError as exc:
+      info "exception in identify push handler", exc = exc.msg, conn
+    finally:
+      trace "exiting identify push handler", conn
+      await conn.closeWithEOF()
 
   p.handler = handle
   p.codec = IdentifyPushCodec
