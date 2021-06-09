@@ -59,7 +59,7 @@ proc createSwitch(ma: MultiAddress): (Switch, PeerInfo) =
   let mplexProvider = newMuxerProvider(createMplex, MplexCodec) # create multiplexer
   let transports = @[Transport(newTransport(TcpTransport))] # add all transports (tcp only for now, but can be anything in the future)
   let muxers = {MplexCodec: mplexProvider}.toTable() # add all muxers
-  let secureManagers = {SecioCodec: Secure(newSecio(seckey))}.toTable() # setup the secio and any other secure provider
+  let secureManagers = {SecioCodec: Secure(Secio.new(seckey))}.toTable() # setup the secio and any other secure provider
 
   # create the switch
   let switch = newSwitch(peerInfo,

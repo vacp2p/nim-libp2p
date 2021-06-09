@@ -6,13 +6,13 @@ import ./helpers
 
 suite "Connection":
   asyncTest "close":
-    var conn = newBufferStream()
+    var conn = BufferStream.new()
     await conn.close()
     check:
       conn.closed == true
 
   asyncTest "parent close":
-    var buf = newBufferStream()
+    var buf = BufferStream.new()
     var conn = buf
 
     await conn.close()
@@ -21,7 +21,7 @@ suite "Connection":
       buf.closed == true
 
   asyncTest "child close":
-    var buf = newBufferStream()
+    var buf = BufferStream.new()
     var conn = buf
 
     await buf.close()

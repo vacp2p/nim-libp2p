@@ -144,7 +144,7 @@ proc build*(b: SwitchBuilder): Switch
   var
     secureManagerInstances: seq[Secure]
   if SecureProtocol.Noise in b.secureManagers:
-    secureManagerInstances.add(newNoise(b.rng, seckey).Secure)
+    secureManagerInstances.add(Noise.new(b.rng, seckey).Secure)
 
   let
     peerInfo = PeerInfo.init(
@@ -157,13 +157,13 @@ proc build*(b: SwitchBuilder): Switch
     muxers = block:
       var muxers: Table[string, MuxerProvider]
       if b.mplexOpts.enable:
-        muxers[MplexCodec] = newMuxerProvider(b.mplexOpts.newMuxer, MplexCodec)
+        muxers[MplexCodec] = MuxerProvider.new(b.mplexOpts.newMuxer, MplexCodec)
       muxers
 
   let
-    identify = newIdentify(peerInfo)
+    identify = Identify.new(peerInfo)
     connManager = ConnManager.init(b.maxConnsPerPeer, b.maxConnections, b.maxIn, b.maxOut)
-    ms = newMultistream()
+    ms = MultistreamSelect.new()
     muxedUpgrade = MuxedUpgrade.init(identify, muxers, secureManagerInstances, connManager, ms)
 
   let

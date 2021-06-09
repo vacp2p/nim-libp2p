@@ -34,10 +34,11 @@ import stream/connection,
        connmanager,
        nameresolving/nameresolver,
        peerid,
+       peerstore,
        errors,
        dialer
 
-export connmanager, upgrade, dialer
+export connmanager, upgrade, dialer, peerstore
 
 logScope:
   topics = "libp2p switch"
@@ -61,6 +62,7 @@ type
       ms*: MultistreamSelect
       acceptFuts: seq[Future[void]]
       dialer*: Dial
+      peerStore*: PeerStore
 
 proc addConnEventHandler*(s: Switch,
                           handler: ConnEventHandler,
@@ -213,6 +215,11 @@ proc start*(s: Switch): Future[seq[Future[void]]] {.async, gcsafe.} =
         s.acceptFuts.add(s.accept(t))
         startFuts.add(server)
 
+  proc peerIdentifiedHandler(peerInfo: PeerInfo, event: PeerEvent) {.async.} =
+    s.peerStore.replace(peerInfo)
+
+  s.connManager.addPeerEventHandler(peerIdentifiedHandler, PeerEventKind.Identified)
+
   debug "Started libp2p node", peer = s.peerInfo
   return startFuts # listen for incoming connections
 
@@ -261,6 +268,7 @@ proc newSwitch*(peerInfo: PeerInfo,
     ms: ms,
     transports: transports,
     connManager: connManager,
+    peerStore: PeerStore.new(),
     dialer: Dialer.new(peerInfo, connManager, transports, ms, nameResolver))
 
   switch.mount(identity)

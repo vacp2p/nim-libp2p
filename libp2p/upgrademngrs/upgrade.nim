@@ -91,4 +91,5 @@ proc identify*(
     if info.protos.len > 0:
       conn.peerInfo.protocols = info.protos
 
+    await self.connManager.triggerPeerEvents(conn.peerInfo, PeerEvent(kind: PeerEventKind.Identified))
     trace "identified remote peer", conn, peerInfo = shortLog(conn.peerInfo)

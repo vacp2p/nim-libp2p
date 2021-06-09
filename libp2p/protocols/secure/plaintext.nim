@@ -25,6 +25,10 @@ method init(p: PlainText) {.gcsafe.} =
   p.codec = PlainTextCodec
   p.handler = handle
 
-proc newPlainText*(): PlainText =
-  new result
-  result.init()
+proc new*(T: typedesc[PlainText]): T =
+  let plainText = T()
+  plainText.init()
+  plainText
+
+proc newPlainText*(): PlainText {.deprecated: "use PlainText.new".} =
+  PlainText.new()

@@ -36,7 +36,7 @@ const
   SecioHashes = "SHA256,SHA512"
 
 type
-  Secio = ref object of Secure
+  Secio* = ref object of Secure
     rng: ref BrHmacDrbgContext
     localPrivateKey: PrivateKey
     localPublicKey: PublicKey
@@ -431,16 +431,23 @@ method init(s: Secio) {.gcsafe.} =
   procCall Secure(s).init()
   s.codec = SecioCodec
 
-proc newSecio*(rng: ref BrHmacDrbgContext, localPrivateKey: PrivateKey): Secio =
+proc new*(
+  T: typedesc[Secio],
+  rng: ref BrHmacDrbgContext,
+  localPrivateKey: PrivateKey): T =
   let pkRes = localPrivateKey.getKey()
   if pkRes.isErr:
     raise newException(Defect, "Can't fetch local private key")
 
-  result = Secio(
+  let secio = Secio(
     rng: rng,
     localPrivateKey: localPrivateKey,
     localPublicKey: localPrivateKey
       .getKey()
       .expect("Can't fetch local private key"),
   )
-  result.init()
+  secio.init()
+  secio
+
+proc newSecio*(rng: ref BrHmacDrbgContext, localPrivateKey: PrivateKey): Secio {.deprecated: "use Secio.new".} =
+  Secio.new(rng, localPrivateKey)

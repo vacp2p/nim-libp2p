@@ -26,7 +26,7 @@ suite "Mplex":
       proc encHandler(msg: seq[byte]) {.async.} =
         check msg == fromHex("000873747265616d2031")
 
-      let conn = newBufferStream(encHandler)
+      let conn = TestBufferStream.new(encHandler)
       await conn.writeMsg(0, MessageType.New, ("stream 1").toBytes)
       await conn.close()
 
@@ -34,7 +34,7 @@ suite "Mplex":
       proc encHandler(msg: seq[byte]) {.async.} =
         check msg == fromHex("88010873747265616d2031")
 
-      let conn = newBufferStream(encHandler)
+      let conn = TestBufferStream.new(encHandler)
       await conn.writeMsg(17, MessageType.New, ("stream 1").toBytes)
       await conn.close()
 
@@ -42,7 +42,7 @@ suite "Mplex":
       proc encHandler(msg: seq[byte]) {.async.} =
         check msg == fromHex("020873747265616d2031")
 
-      let conn = newBufferStream(encHandler)
+      let conn = TestBufferStream.new(encHandler)
       await conn.writeMsg(0, MessageType.MsgOut, ("stream 1").toBytes)
       await conn.close()
 
@@ -50,12 +50,12 @@ suite "Mplex":
       proc encHandler(msg: seq[byte]) {.async.} =
         check msg == fromHex("8a010873747265616d2031")
 
-      let conn = newBufferStream(encHandler)
+      let conn = TestBufferStream.new(encHandler)
       await conn.writeMsg(17, MessageType.MsgOut, ("stream 1").toBytes)
       await conn.close()
 
     asyncTest "decode header with channel id 0":
-      let stream = newBufferStream()
+      let stream = BufferStream.new()
       let conn = stream
       await stream.pushData(fromHex("000873747265616d2031"))
       let msg = await conn.readMsg()
@@ -65,7 +65,7 @@ suite "Mplex":
       await conn.close()
 
     asyncTest "decode header and body with channel id 0":
-      let stream = newBufferStream()
+      let stream = BufferStream.new()
       let conn = stream
       await stream.pushData(fromHex("021668656C6C6F2066726F6D206368616E6E656C20302121"))
       let msg = await conn.readMsg()
@@ -76,7 +76,7 @@ suite "Mplex":
       await conn.close()
 
     asyncTest "decode header and body with channel id other than 0":
-      let stream = newBufferStream()
+      let stream = BufferStream.new()
       let conn = stream
       await stream.pushData(fromHex("8a011668656C6C6F2066726F6D206368616E6E656C20302121"))
       let msg = await conn.readMsg()
@@ -90,7 +90,7 @@ suite "Mplex":
     asyncTest "(local close) - should close for write":
       proc writeHandler(data: seq[byte]) {.async, gcsafe.} = discard
       let
-        conn = newBufferStream(writeHandler)
+        conn = TestBufferStream.new(writeHandler)
         chann = LPChannel.init(1, conn, true)
 
       await chann.close()
@@ -102,7 +102,7 @@ suite "Mplex":
 
     asyncTest "(local close) - should allow reads until remote closes":
       let
-        conn = newBufferStream(
+        conn = TestBufferStream.new(
           proc (data: seq[byte]) {.gcsafe, async.} =
             discard,
         )
@@ -129,7 +129,7 @@ suite "Mplex":
 
     asyncTest "(remote close) - channel should close for reading by remote":
       let
-        conn = newBufferStream(
+        conn = TestBufferStream.new(
           proc (data: seq[byte]) {.gcsafe, async.} =
             discard,
         )
@@ -152,7 +152,7 @@ suite "Mplex":
     asyncTest "(remote close) - channel should allow writing on remote close":
       let
         testData = "Hello!".toBytes
-        conn = newBufferStream(
+        conn = TestBufferStream.new(
           proc (data: seq[byte]) {.gcsafe, async.} =
             discard
         )
@@ -168,7 +168,7 @@ suite "Mplex":
     asyncTest "should not allow pushing data to channel when remote end closed":
       proc writeHandler(data: seq[byte]) {.async, gcsafe.} = discard
       let
-        conn = newBufferStream(writeHandler)
+        conn = TestBufferStream.new(writeHandler)
         chann = LPChannel.init(1, conn, true)
       await chann.pushEof()
       var buf: array[1, byte]
@@ -185,7 +185,7 @@ suite "Mplex":
     asyncTest "channel should fail reading":
       proc writeHandler(data: seq[byte]) {.async, gcsafe.} = discard
       let
-        conn = newBufferStream(writeHandler)
+        conn = TestBufferStream.new(writeHandler)
         chann = LPChannel.init(1, conn, true)
 
       await chann.reset()
@@ -198,7 +198,7 @@ suite "Mplex":
     asyncTest "reset should complete read":
       proc writeHandler(data: seq[byte]) {.async, gcsafe.} = discard
       let
-        conn = newBufferStream(writeHandler)
+        conn = TestBufferStream.new(writeHandler)
         chann = LPChannel.init(1, conn, true)
 
       var data = newSeq[byte](1)
@@ -213,7 +213,7 @@ suite "Mplex":
     asyncTest "reset should complete pushData":
       proc writeHandler(data: seq[byte]) {.async, gcsafe.} = discard
       let
-        conn = newBufferStream(writeHandler)
+        conn = TestBufferStream.new(writeHandler)
         chann = LPChannel.init(1, conn, true)
 
       proc pushes() {.async.} = # pushes don't hang on reset
@@ -232,7 +232,7 @@ suite "Mplex":
     asyncTest "reset should complete both read and push":
       proc writeHandler(data: seq[byte]) {.async, gcsafe.} = discard
       let
-        conn = newBufferStream(writeHandler)
+        conn = TestBufferStream.new(writeHandler)
         chann = LPChannel.init(1, conn, true)
 
       var data = newSeq[byte](1)
@@ -247,7 +247,7 @@ suite "Mplex":
     asyncTest "reset should complete both read and pushes":
       proc writeHandler(data: seq[byte]) {.async, gcsafe.} = discard
       let
-        conn = newBufferStream(writeHandler)
+        conn = TestBufferStream.new(writeHandler)
         chann = LPChannel.init(1, conn, true)
 
       var data = newSeq[byte](1)
@@ -272,7 +272,7 @@ suite "Mplex":
     asyncTest "reset should complete both read and push with cancel":
       proc writeHandler(data: seq[byte]) {.async, gcsafe.} = discard
       let
-        conn = newBufferStream(writeHandler)
+        conn = TestBufferStream.new(writeHandler)
         chann = LPChannel.init(1, conn, true)
 
       var data = newSeq[byte](1)
@@ -286,7 +286,7 @@ suite "Mplex":
     asyncTest "should complete both read and push after reset":
       proc writeHandler(data: seq[byte]) {.async, gcsafe.} = discard
       let
-        conn = newBufferStream(writeHandler)
+        conn = TestBufferStream.new(writeHandler)
         chann = LPChannel.init(1, conn, true)
 
       var data = newSeq[byte](1)
@@ -304,7 +304,7 @@ suite "Mplex":
     asyncTest "reset should complete ongoing push without reader":
       proc writeHandler(data: seq[byte]) {.async, gcsafe.} = discard
       let
-        conn = newBufferStream(writeHandler)
+        conn = TestBufferStream.new(writeHandler)
         chann = LPChannel.init(1, conn, true)
 
       await chann.pushData(@[0'u8])
@@ -316,7 +316,7 @@ suite "Mplex":
     asyncTest "reset should complete ongoing read without a push":
       proc writeHandler(data: seq[byte]) {.async, gcsafe.} = discard
       let
-        conn = newBufferStream(writeHandler)
+        conn = TestBufferStream.new(writeHandler)
         chann = LPChannel.init(1, conn, true)
 
       var data = newSeq[byte](1)
@@ -328,7 +328,7 @@ suite "Mplex":
     asyncTest "reset should allow all reads and pushes to complete":
       proc writeHandler(data: seq[byte]) {.async, gcsafe.} = discard
       let
-        conn = newBufferStream(writeHandler)
+        conn = TestBufferStream.new(writeHandler)
         chann = LPChannel.init(1, conn, true)
 
       var data = newSeq[byte](1)
@@ -357,7 +357,7 @@ suite "Mplex":
     asyncTest "channel should fail writing":
       proc writeHandler(data: seq[byte]) {.async, gcsafe.} = discard
       let
-        conn = newBufferStream(writeHandler)
+        conn = TestBufferStream.new(writeHandler)
         chann = LPChannel.init(1, conn, true)
       await chann.reset()
 
@@ -369,7 +369,7 @@ suite "Mplex":
     asyncTest "channel should reset on timeout":
       proc writeHandler(data: seq[byte]) {.async, gcsafe.} = discard
       let
-        conn = newBufferStream(writeHandler)
+        conn = TestBufferStream.new(writeHandler)
         chann = LPChannel.init(
           1, conn, true, timeout = 100.millis)
 

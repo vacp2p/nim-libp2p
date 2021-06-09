@@ -58,10 +58,17 @@ method initStream*(s: BufferStream) =
 
   trace "BufferStream created", s
 
-proc newBufferStream*(timeout: Duration = DefaultConnectionTimeout): BufferStream =
-  new result
-  result.timeout = timeout
-  result.initStream()
+proc new*(
+  T: typedesc[BufferStream],
+  timeout: Duration = DefaultConnectionTimeout): T =
+
+  let bufferStream = T(timeout: timeout)
+  bufferStream.initStream()
+  bufferStream
+
+proc newBufferStream*(
+  timeout: Duration = DefaultConnectionTimeout): BufferStream {.deprecated: "use BufferStream.new".} =
+  return BufferStream.new(timeout)
 
 method pushData*(s: BufferStream, data: seq[byte]) {.base, async.} =
   ## Write bytes to internal read buffer, use this to fill up the

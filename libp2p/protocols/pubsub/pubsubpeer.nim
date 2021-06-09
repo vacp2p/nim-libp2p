@@ -274,15 +274,33 @@ proc send*(p: PubSubPeer, msg: RPCMsg, anonymize: bool) {.raises: [Defect].} =
 
   p.sendEncoded(encoded)
 
-proc newPubSubPeer*(peerId: PeerID,
-                    getConn: GetConn,
-                    dropConn: DropConn,
-                    onEvent: OnEvent,
-                    codec: string): PubSubPeer =
-  PubSubPeer(
+proc new*(
+  T: typedesc[PubSubPeer],
+  peerId: PeerID,
+  getConn: GetConn,
+  dropConn: DropConn,
+  onEvent: OnEvent,
+  codec: string): T =
+
+  T(
     getConn: getConn,
     dropConn: dropConn,
     onEvent: onEvent,
     codec: codec,
     peerId: peerId,
+  )
+
+proc newPubSubPeer*(
+  peerId: PeerID,
+  getConn: GetConn,
+  dropConn: DropConn,
+  onEvent: OnEvent,
+  codec: string): PubSubPeer {.deprecated: "use PubSubPeer.new".} =
+
+  PubSubPeer.new(
+    peerId,
+    getConn,
+    dropConn,
+    onEvent,
+    codec
   )

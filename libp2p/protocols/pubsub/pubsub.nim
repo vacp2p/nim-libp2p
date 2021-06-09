@@ -283,7 +283,7 @@ proc getOrCreatePeer*(
     p.onPubSubPeerEvent(peer, event)
 
   # create new pubsub peer
-  let pubSubPeer = newPubSubPeer(peerId, getConn, dropConn, onEvent, protos[0])
+  let pubSubPeer = PubSubPeer.new(peerId, getConn, dropConn, onEvent, protos[0])
   debug "created new pubsub peer", peerId
 
   p.peers[peerId] = pubSubPeer
@@ -568,11 +568,11 @@ proc init*[PubParams: object | bool](
         parameters: parameters,
         topicsHigh: int.high)
 
-  proc peerEventHandler(peerId: PeerID, event: PeerEvent) {.async.} =
+  proc peerEventHandler(peerInfo: PeerInfo, event: PeerEvent) {.async.} =
     if event.kind == PeerEventKind.Joined:
-      pubsub.subscribePeer(peerId)
+      pubsub.subscribePeer(peerInfo.peerId)
     else:
-      pubsub.unsubscribePeer(peerId)
+      pubsub.unsubscribePeer(peerInfo.peerId)
 
   switch.addPeerEventHandler(peerEventHandler, PeerEventKind.Joined)
   switch.addPeerEventHandler(peerEventHandler, PeerEventKind.Left)

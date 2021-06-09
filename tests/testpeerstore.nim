@@ -1,5 +1,6 @@
 import
-  std/[unittest2, tables, sequtils, sets],
+  unittest2,
+  std/[tables, sequtils, sets],
   ../libp2p/crypto/crypto,
   ../libp2p/multiaddress,
   ../libp2p/peerid,

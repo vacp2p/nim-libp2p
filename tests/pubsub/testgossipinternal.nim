@@ -25,7 +25,7 @@ proc getPubSubPeer(p: TestGossipSub, peerId: PeerID): PubSubPeer =
   proc dropConn(peer: PubSubPeer) =
     discard # we don't care about it here yet
 
-  let pubSubPeer = newPubSubPeer(peerId, getConn, dropConn, nil, GossipSubCodec)
+  let pubSubPeer = PubSubPeer.new(peerId, getConn, dropConn, nil, GossipSubCodec)
   debug "created new pubsub peer", peerId
 
   p.peers[peerId] = pubSubPeer
@@ -56,7 +56,7 @@ suite "GossipSub internal":
     var conns = newSeq[Connection]()
     gossipSub.gossipsub[topic] = initHashSet[PubSubPeer]()
     for i in 0..<15:
-      let conn = newBufferStream(noop)
+      let conn = TestBufferStream.new(noop)
       conns &= conn
       let peerInfo = randomPeerInfo()
       conn.peerInfo = peerInfo
@@ -97,7 +97,7 @@ suite "GossipSub internal":
     var conns = newSeq[Connection]()
     gossipSub.gossipsub[topic] = initHashSet[PubSubPeer]()
     for i in 0..<15:
-      let conn = newBufferStream(noop)
+      let conn = TestBufferStream.new(noop)
       conns &= conn
       let peerInfo = randomPeerInfo()
       conn.peerInfo = peerInfo
@@ -123,7 +123,7 @@ suite "GossipSub internal":
     gossipSub.gossipsub[topic] = initHashSet[PubSubPeer]()
     var scoreLow = -11'f64
     for i in 0..<15:
-      let conn = newBufferStream(noop)
+      let conn = TestBufferStream.new(noop)
       conns &= conn
       let peerInfo = randomPeerInfo()
       conn.peerInfo = peerInfo
@@ -153,7 +153,7 @@ suite "GossipSub internal":
     var conns = newSeq[Connection]()
     gossipSub.gossipsub[topic] = initHashSet[PubSubPeer]()
     for i in 0..<15:
-      let conn = newBufferStream(noop)
+      let conn = TestBufferStream.new(noop)
       conns &= conn
       let peerInfo = PeerInfo.init(PrivateKey.random(ECDSA, rng[]).get())
       conn.peerInfo = peerInfo
@@ -180,7 +180,7 @@ suite "GossipSub internal":
 
     var conns = newSeq[Connection]()
     for i in 0..<15:
-      let conn = newBufferStream(noop)
+      let conn = TestBufferStream.new(noop)
       conns &= conn
       var peerInfo = randomPeerInfo()
       conn.peerInfo = peerInfo
@@ -209,7 +209,7 @@ suite "GossipSub internal":
 
     var conns = newSeq[Connection]()
     for i in 0..<6:
-      let conn = newBufferStream(noop)
+      let conn = TestBufferStream.new(noop)
       conns &= conn
       let peerInfo = PeerInfo.init(PrivateKey.random(ECDSA, rng[]).get())
       conn.peerInfo = peerInfo
@@ -243,7 +243,7 @@ suite "GossipSub internal":
 
     var conns = newSeq[Connection]()
     for i in 0..<6:
-      let conn = newBufferStream(noop)
+      let conn = TestBufferStream.new(noop)
       conns &= conn
       let peerInfo = randomPeerInfo()
       conn.peerInfo = peerInfo
@@ -277,7 +277,7 @@ suite "GossipSub internal":
 
     # generate mesh and fanout peers
     for i in 0..<30:
-      let conn = newBufferStream(noop)
+      let conn = TestBufferStream.new(noop)
       conns &= conn
       let peerInfo = randomPeerInfo()
       conn.peerInfo = peerInfo
@@ -291,7 +291,7 @@ suite "GossipSub internal":
 
     # generate gossipsub (free standing) peers
     for i in 0..<15:
-      let conn = newBufferStream(noop)
+      let conn = TestBufferStream.new(noop)
       conns &= conn
       let peerInfo = randomPeerInfo()
       conn.peerInfo = peerInfo
@@ -302,7 +302,7 @@ suite "GossipSub internal":
     # generate messages
     var seqno = 0'u64
     for i in 0..5:
-      let conn = newBufferStream(noop)
+      let conn = TestBufferStream.new(noop)
       conns &= conn
       let peerInfo = randomPeerInfo()
       conn.peerInfo = peerInfo
@@ -335,7 +335,7 @@ suite "GossipSub internal":
     gossipSub.gossipsub[topic] = initHashSet[PubSubPeer]()
     var conns = newSeq[Connection]()
     for i in 0..<30:
-      let conn = newBufferStream(noop)
+      let conn = TestBufferStream.new(noop)
       conns &= conn
       let peerInfo = randomPeerInfo()
       conn.peerInfo = peerInfo
@@ -349,7 +349,7 @@ suite "GossipSub internal":
     # generate messages
     var seqno = 0'u64
     for i in 0..5:
-      let conn = newBufferStream(noop)
+      let conn = TestBufferStream.new(noop)
       conns &= conn
       let peerInfo = randomPeerInfo()
       conn.peerInfo = peerInfo
@@ -375,7 +375,7 @@ suite "GossipSub internal":
     gossipSub.gossipsub[topic] = initHashSet[PubSubPeer]()
     var conns = newSeq[Connection]()
     for i in 0..<30:
-      let conn = newBufferStream(noop)
+      let conn = TestBufferStream.new(noop)
       conns &= conn
       let peerInfo = randomPeerInfo()
       conn.peerInfo = peerInfo
@@ -390,7 +390,7 @@ suite "GossipSub internal":
     # generate messages
     var seqno = 0'u64
     for i in 0..5:
-      let conn = newBufferStream(noop)
+      let conn = TestBufferStream.new(noop)
       conns &= conn
       let peerInfo = randomPeerInfo()
       conn.peerInfo = peerInfo
@@ -416,7 +416,7 @@ suite "GossipSub internal":
     gossipSub.fanout[topic] = initHashSet[PubSubPeer]()
     var conns = newSeq[Connection]()
     for i in 0..<30:
-      let conn = newBufferStream(noop)
+      let conn = TestBufferStream.new(noop)
       conns &= conn
       let peerInfo = randomPeerInfo()
       conn.peerInfo = peerInfo
@@ -431,7 +431,7 @@ suite "GossipSub internal":
     # generate messages
     var seqno = 0'u64
     for i in 0..5:
-      let conn = newBufferStream(noop)
+      let conn = TestBufferStream.new(noop)
       conns &= conn
       let peerInfo = randomPeerInfo()
       conn.peerInfo = peerInfo
@@ -454,7 +454,7 @@ suite "GossipSub internal":
     let topic = "foobar"
     var conns = newSeq[Connection]()
     for i in 0..<30:
-      let conn = newBufferStream(noop)
+      let conn = TestBufferStream.new(noop)
       conns &= conn
       let peerInfo = randomPeerInfo()
       conn.peerInfo = peerInfo
@@ -464,7 +464,7 @@ suite "GossipSub internal":
     # generate messages
     var seqno = 0'u64
     for i in 0..5:
-      let conn = newBufferStream(noop)
+      let conn = TestBufferStream.new(noop)
       conns &= conn
       let peerInfo = randomPeerInfo()
       conn.peerInfo = peerInfo
@@ -488,7 +488,7 @@ suite "GossipSub internal":
     let topic = "foobar"
     var conns = newSeq[Connection]()
     for i in 0..<30:
-      let conn = newBufferStream(noop)
+      let conn = TestBufferStream.new(noop)
       conns &= conn
       let peerInfo = randomPeerInfo()
       conn.peerInfo = peerInfo
@@ -521,7 +521,7 @@ suite "GossipSub internal":
       tooManyTopics &= "topic" & $i
     let lotOfSubs = RPCMsg.withSubs(tooManyTopics, true)
 
-    let conn = newBufferStream(noop)
+    let conn = TestBufferStream.new(noop)
     let peerInfo = randomPeerInfo()
     conn.peerInfo = peerInfo
     let peer = gossipSub.getPubSubPeer(peerInfo.peerId)
@@ -544,7 +544,7 @@ suite "GossipSub internal":
     var conns = newSeq[Connection]()
     gossipSub.gossipsub[topic] = initHashSet[PubSubPeer]()
     for i in 0..<15:
-      let conn = newBufferStream(noop)
+      let conn = TestBufferStream.new(noop)
       conns &= conn
       let peerInfo = randomPeerInfo()
       conn.peerInfo = peerInfo
@@ -575,7 +575,7 @@ suite "GossipSub internal":
     var conns = newSeq[Connection]()
     gossipSub.gossipsub[topic] = initHashSet[PubSubPeer]()
     for i in 0..<15:
-      let conn = newBufferStream(noop)
+      let conn = TestBufferStream.new(noop)
       conns &= conn
       let peerInfo = randomPeerInfo()
       conn.peerInfo = peerInfo
@@ -617,7 +617,7 @@ suite "GossipSub internal":
     var conns = newSeq[Connection]()
     gossipSub.gossipsub[topic] = initHashSet[PubSubPeer]()
     for i in 0..<6:
-      let conn = newBufferStream(noop)
+      let conn = TestBufferStream.new(noop)
       conn.transportDir = Direction.In
       conns &= conn
       let peerInfo = PeerInfo.init(PrivateKey.random(ECDSA, rng[]).get())
@@ -629,7 +629,7 @@ suite "GossipSub internal":
       gossipSub.mesh[topic].incl(peer)
 
     for i in 0..<7:
-      let conn = newBufferStream(noop)
+      let conn = TestBufferStream.new(noop)
       conn.transportDir = Direction.Out
       conns &= conn
       let peerInfo = PeerInfo.init(PrivateKey.random(ECDSA, rng[]).get())
@@ -665,7 +665,7 @@ suite "GossipSub internal":
     gossipSub.gossipsub[topic] = initHashSet[PubSubPeer]()
     gossipSub.mesh[topic] = initHashSet[PubSubPeer]()
     for i in 0..<30:
-      let conn = newBufferStream(noop)
+      let conn = TestBufferStream.new(noop)
       conns &= conn
       let peerInfo = randomPeerInfo()
       conn.peerInfo = peerInfo
@@ -676,7 +676,7 @@ suite "GossipSub internal":
 
     block:
       # should ignore no budget peer
-      let conn = newBufferStream(noop)
+      let conn = TestBufferStream.new(noop)
       conns &= conn
       let peerInfo = randomPeerInfo()
       conn.peerInfo = peerInfo
@@ -692,7 +692,7 @@ suite "GossipSub internal":
 
     block:
       # given duplicate ihave should generate only one iwant
-      let conn = newBufferStream(noop)
+      let conn = TestBufferStream.new(noop)
       conns &= conn
       let peerInfo = randomPeerInfo()
       conn.peerInfo = peerInfo
@@ -707,7 +707,7 @@ suite "GossipSub internal":
 
     block:
       # given duplicate iwant should generate only one message
-      let conn = newBufferStream(noop)
+      let conn = TestBufferStream.new(noop)
       conns &= conn
       let peerInfo = randomPeerInfo()
       conn.peerInfo = peerInfo

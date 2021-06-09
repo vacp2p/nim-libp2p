@@ -40,9 +40,11 @@ type
     handlers*: seq[HandlerHolder]
     codec*: string
 
-proc newMultistream*(): MultistreamSelect =
-  new result
-  result.codec = MSCodec
+proc new*(T: typedesc[MultistreamSelect]): T =
+  T(codec: MSCodec)
+
+proc newMultistream*(): MultistreamSelect {.deprecated: "use MultistreamSelect.new".} =
+  MultistreamSelect.new()
 
 template validateSuffix(str: string): untyped =
     if str.endsWith("\n"):

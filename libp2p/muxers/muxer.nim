@@ -48,11 +48,18 @@ method newStream*(m: Muxer, name: string = "", lazy: bool = false):
 method close*(m: Muxer) {.base, async, gcsafe.} = discard
 method handle*(m: Muxer): Future[void] {.base, async, gcsafe.} = discard
 
-proc newMuxerProvider*(creator: MuxerConstructor, codec: string): MuxerProvider {.gcsafe.} =
-  new result
-  result.newMuxer = creator
-  result.codec = codec
-  result.init()
+proc new*(
+  T: typedesc[MuxerProvider],
+  creator: MuxerConstructor,
+  codec: string): T {.gcsafe.} =
+
+  let muxerProvider = T(newMuxer: creator)
+  muxerProvider.codec = codec
+  muxerProvider.init()
+  muxerProvider
+
+proc newMuxerProvider*(creator: MuxerConstructor, codec: string): MuxerProvider {.gcsafe, deprecated: "use MuxerProvider.new".} =
+  MuxerProvider.new(creator, codec)
 
 method init(c: MuxerProvider) =
   proc handler(conn: Connection, proto: string) {.async, gcsafe, closure.} =
