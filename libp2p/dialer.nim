@@ -243,9 +243,11 @@ proc new*(
   peerInfo: PeerInfo,
   connManager: ConnManager,
   transports: seq[Transport],
-  ms: MultistreamSelect): Dialer =
+  ms: MultistreamSelect,
+  resolver: NameResolver=nil): Dialer =
 
   T(peerInfo: peerInfo,
     connManager: connManager,
     transports: transports,
-    ms: ms)
+    ms: ms,
+    resolver: resolver)
