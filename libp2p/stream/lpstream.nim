@@ -123,7 +123,7 @@ chronicles.formatIt(LPStream): shortLog(it)
 
 method initStream*(s: LPStream) {.base.} =
   if s.objName.len == 0:
-    s.objName = "LPStream"
+    s.objName = LPStreamTrackerName
 
   s.closeEvent = newAsyncEvent()
   s.oid = genOid()

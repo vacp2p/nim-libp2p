@@ -68,7 +68,7 @@ chronicles.formatIt(Connection): shortLog(it)
 
 method initStream*(s: Connection) =
   if s.objName.len == 0:
-    s.objName = "Connection"
+    s.objName = ConnectionTrackerName
 
   procCall LPStream(s).initStream()
 
