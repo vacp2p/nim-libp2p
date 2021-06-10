@@ -36,7 +36,7 @@ iterator testTrackers*(extras: openArray[string] = []): TrackerBase =
     if not isNil(t): yield t
 
 template checkTracker*(name: string) =
-  var tracker = getTracker(LPChannelTrackerName)
+  var tracker = getTracker(name)
   if tracker.isLeaked():
     checkpoint tracker.dump()
     fail()
