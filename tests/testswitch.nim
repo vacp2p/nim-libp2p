@@ -718,8 +718,7 @@ suite "Switch":
     checkTracker(SecureConnTrackerName)
     checkTracker(ChronosStreamTrackerName)
 
-    await allFuturesThrowing(
-      switch1.stop())
+    await switch1.stop()
 
     # this needs to go at end
     await allFuturesThrowing(awaiters)
