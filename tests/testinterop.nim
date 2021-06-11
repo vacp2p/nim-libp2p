@@ -1,35 +1,12 @@
 import options, tables
 import chronos, chronicles, stew/byteutils
 import helpers
-import ../libp2p/[daemon/daemonapi,
-                  protobuf/minprotobuf,
-                  vbuffer,
-                  multiaddress,
-                  multicodec,
-                  cid,
-                  varint,
-                  multihash,
-                  builders,
-                  peerid,
-                  peerinfo,
-                  switch,
-                  stream/connection,
-                  muxers/muxer,
-                  crypto/crypto,
-                  muxers/mplex/mplex,
-                  muxers/muxer,
-                  protocols/protocol,
-                  protocols/identify,
-                  transports/transport,
-                  transports/tcptransport,
-                  protocols/secure/secure,
-                  protocols/pubsub/pubsub,
-                  protocols/pubsub/floodsub,
-                  protocols/pubsub/gossipsub]
+import ../libp2p
+import ../libp2p/[daemon/daemonapi, varint]
 
 type
   # TODO: Unify both PeerInfo structs
-  NativePeerInfo = peerinfo.PeerInfo
+  NativePeerInfo = libp2p.PeerInfo
   DaemonPeerInfo = daemonapi.PeerInfo
 
 proc writeLp*(s: StreamTransport, msg: string | seq[byte]): Future[int] {.gcsafe.} =
