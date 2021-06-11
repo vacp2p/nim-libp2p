@@ -180,15 +180,13 @@ proc init*(p: IdentifyPush) =
 
       let indentInfo = infoOpt.get()
 
-      if not indentInfo.pubKey.isSome:
-        raise newException(IdentityInvalidMsgError, "No public key received")
-
       if isNil(conn.peerInfo):
         raise newException(IdentityInvalidMsgError, "Connection got no peerInfo")
 
-      let receivedPeerId = PeerID.init(indentInfo.pubKey.get()).tryGet()
-      if receivedPeerId != conn.peerInfo.peerId:
-        raise newException(IdentityNoMatchError, "Peer ids don't match")
+      if indentInfo.pubKey.isSome:
+        let receivedPeerId = PeerID.init(indentInfo.pubKey.get()).tryGet()
+        if receivedPeerId != conn.peerInfo.peerId:
+          raise newException(IdentityNoMatchError, "Peer ids don't match")
 
       if indentInfo.addrs.len > 0:
         conn.peerInfo.addrs = indentInfo.addrs
