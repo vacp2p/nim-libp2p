@@ -19,7 +19,7 @@ suite "TCP transport":
   asyncTest "test listener: handle write":
     let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
     let transport: TcpTransport = TcpTransport.init(upgrade = Upgrade())
-    asyncCheck transport.start(ma)
+    asyncSpawn transport.start(ma)
 
     proc acceptHandler() {.async, gcsafe.} =
       let conn = await transport.accept()
@@ -32,7 +32,7 @@ suite "TCP transport":
 
     let msg = await streamTransport.read(6)
 
-    await handlerWait.wait(5000.millis) # when no issues will not wait that long!
+    await handlerWait.wait(1.seconds) # when no issues will not wait that long!
     await streamTransport.closeWait()
     await transport.stop()
     check string.fromBytes(msg) == "Hello!"
@@ -41,7 +41,7 @@ suite "TCP transport":
     let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
 
     let transport: TcpTransport = TcpTransport.init(upgrade = Upgrade())
-    asyncCheck transport.start(ma)
+    asyncSpawn transport.start(ma)
 
     proc acceptHandler() {.async, gcsafe.} =
       var msg = newSeq[byte](6)
@@ -54,7 +54,7 @@ suite "TCP transport":
     let streamTransport: StreamTransport = await connect(transport.ma)
     let sent = await streamTransport.write("Hello!")
 
-    await handlerWait.wait(5000.millis) # when no issues will not wait that long!
+    await handlerWait.wait(1.seconds) # when no issues will not wait that long!
     await streamTransport.closeWait()
     await transport.stop()
 
@@ -84,7 +84,7 @@ suite "TCP transport":
     await conn.readExactly(addr msg[0], 6)
     check string.fromBytes(msg) == "Hello!"
 
-    await handlerWait.wait(5000.millis) # when no issues will not wait that long!
+    await handlerWait.wait(1.seconds) # when no issues will not wait that long!
 
     await conn.close()
     await transport.stop()
@@ -116,7 +116,7 @@ suite "TCP transport":
     let conn = await transport.dial(ma)
     await conn.write("Hello!")
 
-    await handlerWait.wait(5000.millis) # when no issues will not wait that long!
+    await handlerWait.wait(1.seconds) # when no issues will not wait that long!
 
     await conn.close()
     await transport.stop()
@@ -143,7 +143,7 @@ suite "TCP transport":
     var msg = newSeq[byte](6)
     await conn.readExactly(addr msg[0], 6)
 
-    await handlerWait.wait(5000.millis) # when no issues will not wait that long!
+    await handlerWait.wait(1.seconds) # when no issues will not wait that long!
 
     await conn.close()
     await transport2.stop()
@@ -154,7 +154,7 @@ suite "TCP transport":
   asyncTest "e2e: handle read":
     let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
     let transport1: TcpTransport = TcpTransport.init(upgrade = Upgrade())
-    asyncCheck transport1.start(ma)
+    asyncSpawn transport1.start(ma)
 
     proc acceptHandler() {.async, gcsafe.} =
       let conn = await transport1.accept()
@@ -169,7 +169,7 @@ suite "TCP transport":
     let conn = await transport2.dial(transport1.ma)
     await conn.write("Hello!")
 
-    await handlerWait.wait(5000.millis) # when no issues will not wait that long!
+    await handlerWait.wait(1.seconds) # when no issues will not wait that long!
 
     await conn.close()
     await transport2.stop()

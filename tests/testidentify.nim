@@ -101,7 +101,7 @@ suite "Identify":
 
     asyncTest "handle failed identify":
       msListen.addHandler(IdentifyCodec, identifyProto1)
-      asyncCheck transport1.start(ma)
+      asyncSpawn transport1.start(ma)
 
       proc acceptHandler() {.async.} =
         var conn: Connection

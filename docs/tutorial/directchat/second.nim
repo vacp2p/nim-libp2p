@@ -117,8 +117,8 @@ proc writeAndPrint(p: ChatProto) {.async.} =
           echo getCurrentExceptionMsg()
 
 proc readWriteLoop(p: ChatProto) {.async.} =
-  asyncCheck p.writeAndPrint() # execute the async function but does not block
-  asyncCheck p.readAndPrint()
+  asyncSpawn p.writeAndPrint() # execute the async function but does not block
+  asyncSpawn p.readAndPrint()
 
 proc processInput(rfd: AsyncFD) {.async.} =
   let transp = fromPipe(rfd)

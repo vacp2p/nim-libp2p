@@ -249,7 +249,7 @@ suite "Multistream select":
     msListen.addHandler("/test/proto/1.0.0", protocol)
 
     let transport1 = TcpTransport.init(upgrade = Upgrade())
-    asyncCheck transport1.start(ma)
+    asyncSpawn transport1.start(ma)
 
     proc acceptHandler(): Future[void] {.async, gcsafe.} =
       let conn = await transport1.accept()
@@ -341,7 +341,7 @@ suite "Multistream select":
     msListen.addHandler("/test/proto/1.0.0", protocol)
 
     let transport1: TcpTransport = TcpTransport.init(upgrade = Upgrade())
-    asyncCheck transport1.start(ma)
+    asyncSpawn transport1.start(ma)
 
     proc acceptHandler(): Future[void] {.async, gcsafe.} =
       let conn = await transport1.accept()
@@ -379,7 +379,7 @@ suite "Multistream select":
     msListen.addHandler("/test/proto2/1.0.0", protocol)
 
     let transport1: TcpTransport = TcpTransport.init(upgrade = Upgrade())
-    asyncCheck transport1.start(ma)
+    asyncSpawn transport1.start(ma)
 
     proc acceptHandler(): Future[void] {.async, gcsafe.} =
       let conn = await transport1.accept()
