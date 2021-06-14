@@ -91,7 +91,7 @@ suite "Noise":
       serverNoise = Noise.new(rng, serverInfo.privateKey, outgoing = false)
 
     let transport1: TcpTransport = TcpTransport.init(upgrade = Upgrade())
-    asyncCheck transport1.start(server)
+    asyncSpawn transport1.start(server)
 
     proc acceptHandler() {.async.} =
       let conn = await transport1.accept()
@@ -130,7 +130,7 @@ suite "Noise":
     let
       transport1: TcpTransport = TcpTransport.init(upgrade = Upgrade())
 
-    asyncCheck transport1.start(server)
+    asyncSpawn transport1.start(server)
 
     proc acceptHandler() {.async, gcsafe.} =
       var conn: Connection
@@ -165,7 +165,7 @@ suite "Noise":
       readTask = newFuture[void]()
 
     let transport1: TcpTransport = TcpTransport.init(upgrade = Upgrade())
-    asyncCheck transport1.start(server)
+    asyncSpawn transport1.start(server)
 
     proc acceptHandler() {.async, gcsafe.} =
       let conn = await transport1.accept()

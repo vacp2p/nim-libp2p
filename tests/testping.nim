@@ -78,7 +78,7 @@ suite "Ping":
 
         let transport: TcpTransport = TcpTransport.init(upgrade = Upgrade())
         let transportdialer: TcpTransport = TcpTransport.init(upgrade = Upgrade())
-        asyncCheck transport.start(baseMa)
+        asyncSpawn transport.start(baseMa)
 
         proc acceptHandler() {.async, gcsafe.} =
           let handler = Ping.new().handler

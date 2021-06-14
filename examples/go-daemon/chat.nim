@@ -19,7 +19,7 @@ proc threadMain(wfd: AsyncFD) {.thread.} =
   ## This procedure performs reading from `stdin` and sends data over
   ## pipe to main thread.
   var transp = fromPipe(wfd)
- 
+
   while true:
     var line = stdin.readLine()
     let res = waitFor transp.write(line & "\r\n")
@@ -55,7 +55,7 @@ proc serveThread(udata: CustomData) {.async.} =
           var stream = await udata.api.openStream(peerId, ServerProtocols)
           udata.remotes.add(stream.transp)
           echo "= Connected to peer chat ", parts[1]
-          asyncCheck remoteReader(stream.transp)
+          asyncSpawn remoteReader(stream.transp)
       elif line.startsWith("/search"):
         var parts = line.split(" ")
         if len(parts) == 2:
