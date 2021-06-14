@@ -59,7 +59,7 @@ proc init*(T: type SecureConn,
 
 method initStream*(s: SecureConn) =
   if s.objName.len == 0:
-    s.objName = "SecureConn"
+    s.objName = SecureConnTrackerName
 
   procCall Connection(s).initStream()
 
