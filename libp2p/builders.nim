@@ -36,7 +36,7 @@ type
 
   SwitchBuilder* = ref object
     privKey: Option[PrivateKey]
-    address: MultiAddress
+    addresses: seq[MultiAddress]
     secureManagers: seq[SecureProtocol]
     mplexOpts: MplexOpts
     tcpTransportOpts: TcpTransportOpts
@@ -56,7 +56,7 @@ proc new*(T: type[SwitchBuilder]): T =
 
   SwitchBuilder(
     privKey: none(PrivateKey),
-    address: address,
+    addresses: @[address],
     secureManagers: @[],
     tcpTransportOpts: TcpTransportOpts(),
     maxConnections: MaxConnections,
@@ -71,8 +71,13 @@ proc withPrivateKey*(b: SwitchBuilder, privateKey: PrivateKey): SwitchBuilder =
   b
 
 proc withAddress*(b: SwitchBuilder, address: MultiAddress): SwitchBuilder =
-  b.address = address
+  b.addresses = @[address]
   b
+
+proc withAddresses*(b: SwitchBuilder, addresses: seq[MultiAddress]): SwitchBuilder =
+  b.addresses = addresses
+  b
+
 
 proc withMplex*(b: SwitchBuilder, inTimeout = 5.minutes, outTimeout = 5.minutes): SwitchBuilder =
   proc newMuxer(conn: Connection): Muxer =
@@ -143,7 +148,7 @@ proc build*(b: SwitchBuilder): Switch
   let
     peerInfo = PeerInfo.init(
       seckey,
-      [b.address],
+      b.addresses,
       protoVersion = b.protoVersion,
       agentVersion = b.agentVersion)
 
