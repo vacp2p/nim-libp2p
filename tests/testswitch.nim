@@ -713,7 +713,9 @@ suite "Switch":
       readers.add(closeReader())
 
     await allFuturesThrowing(readers)
-    await switch2.stop() #Otherwise this leeks
+    await switch2.stop() #Otherwise this leaks
+    check await checkExpiring(not switch1.isConnected(switch2.peerInfo.peerID))
+
     checkTracker(LPChannelTrackerName)
     checkTracker(SecureConnTrackerName)
     checkTracker(ChronosStreamTrackerName)
