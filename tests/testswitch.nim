@@ -714,7 +714,7 @@ suite "Switch":
 
     await allFuturesThrowing(readers)
     await switch2.stop() #Otherwise this leaks
-    await sleepAsync(500.millis)
+    check await checkExpiring(not switch1.isConnected(switch2.peerInfo.peerID))
 
     checkTracker(LPChannelTrackerName)
     checkTracker(SecureConnTrackerName)
