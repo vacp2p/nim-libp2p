@@ -36,7 +36,7 @@ proc initTAddress*(ma: MultiAddress): MaResult[TransportAddress] =
   ## MultiAddress must be wire address, e.g. ``{IP4, IP6, UNIX}/{TCP, UDP}``.
   ##
 
-  if TRANSPMA.match(ma):
+  if TRANSPMA.matchPartial(ma):
     var pbuf: array[2, byte]
     let code = (?(?ma[0]).protoCode())
     if code == multiCodec("unix"):

@@ -14,7 +14,8 @@ requires "nim >= 1.2.0",
          "chronos >= 2.5.2",
          "metrics",
          "secp256k1",
-         "stew#head"
+         "stew#head",
+         "https://github.com/status-im/nim-ws == 0.1.0"
 
 proc runTest(filename: string, verify: bool = true, sign: bool = true,
              moreoptions: string = "") =

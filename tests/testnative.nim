@@ -17,6 +17,7 @@ import testmultibase,
        testpeerid
 
 import testtcptransport,
+       testwebsocket,
        testmultistream,
        testbufferstream,
        testidentify,
