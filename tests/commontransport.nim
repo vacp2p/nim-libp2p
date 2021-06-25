@@ -33,9 +33,9 @@ proc commonTransportTest*(transportType: typedesc[Transport], ma: string) =
       var msg = newSeq[byte](6)
       await conn.readExactly(addr msg[0], 6)
 
+      await conn.close() #for some protocols, closing requires actively, so we must close here
       await handlerWait.wait(1.seconds) # when no issues will not wait that long!
 
-      await conn.close()
       await transport2.stop()
       await transport1.stop()
 
@@ -59,9 +59,9 @@ proc commonTransportTest*(transportType: typedesc[Transport], ma: string) =
       let conn = await transport2.dial(transport1.ma)
       await conn.write("Hello!")
 
+      await conn.close() #for some protocols, closing requires actively, so we must close here
       await handlerWait.wait(1.seconds) # when no issues will not wait that long!
 
-      await conn.close()
       await transport2.stop()
       await transport1.stop()
 
