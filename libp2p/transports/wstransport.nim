@@ -66,6 +66,10 @@ method write*(s: WsStream, msg: seq[byte]):
   except WSClosedError:
     raise newLPStreamEOFError()
 
+method closeImpl*(s: WsStream): Future[void] {.async.} =
+  await s.session.close()
+  await procCall Connection(s).closeImpl()
+
 type
   WsTransport* = ref object of Transport
     httpserver: HttpServer
