@@ -95,9 +95,3 @@ method handles*(
   # having to repeat the check in every transport
   if address.protocols.isOk:
     return address.protocols.get().filterIt( it == multiCodec("p2p-circuit") ).len == 0
-
-method localAddress*(self: Transport): MultiAddress {.base, gcsafe.} =
-  ## get the local address of the transport in case started with 0.0.0.0:0
-  ##
-
-  doAssert(false, "Not implemented!")
