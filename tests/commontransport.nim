@@ -13,6 +13,8 @@ import ./helpers
 
 proc commonTransportTest*(transportType: typedesc[Transport], ma: string) =
   suite $transportType & " common":
+    teardown:
+      checkTrackers()
     asyncTest "e2e: handle write":
       let ma: MultiAddress = Multiaddress.init(ma).tryGet()
 
