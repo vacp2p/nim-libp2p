@@ -18,7 +18,7 @@ suite "TCP transport":
 
   asyncTest "test listener: handle write":
     let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
-    let transport: TcpTransport = TcpTransport.init(upgrade = Upgrade())
+    let transport: TcpTransport = TcpTransport.new(upgrade = Upgrade())
     asyncSpawn transport.start(ma)
 
     proc acceptHandler() {.async, gcsafe.} =
@@ -40,7 +40,7 @@ suite "TCP transport":
   asyncTest "test listener: handle read":
     let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
 
-    let transport: TcpTransport = TcpTransport.init(upgrade = Upgrade())
+    let transport: TcpTransport = TcpTransport.new(upgrade = Upgrade())
     asyncSpawn transport.start(ma)
 
     proc acceptHandler() {.async, gcsafe.} =
@@ -78,7 +78,7 @@ suite "TCP transport":
     server.start()
 
     let ma: MultiAddress = MultiAddress.init(server.sock.getLocalAddress()).tryGet()
-    let transport: TcpTransport = TcpTransport.init(upgrade = Upgrade())
+    let transport: TcpTransport = TcpTransport.new(upgrade = Upgrade())
     let conn = await transport.dial(ma)
     var msg = newSeq[byte](6)
     await conn.readExactly(addr msg[0], 6)
@@ -112,7 +112,7 @@ suite "TCP transport":
     server.start()
 
     let ma: MultiAddress = MultiAddress.init(server.sock.getLocalAddress()).tryGet()
-    let transport: TcpTransport = TcpTransport.init(upgrade = Upgrade())
+    let transport: TcpTransport = TcpTransport.new(upgrade = Upgrade())
     let conn = await transport.dial(ma)
     await conn.write("Hello!")
 
@@ -128,7 +128,7 @@ suite "TCP transport":
   asyncTest "e2e: handle write":
     let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
 
-    let transport1: TcpTransport = TcpTransport.init(upgrade = Upgrade())
+    let transport1: TcpTransport = TcpTransport.new(upgrade = Upgrade())
     await transport1.start(ma)
 
     proc acceptHandler() {.async, gcsafe.} =
@@ -138,7 +138,7 @@ suite "TCP transport":
 
     let handlerWait = acceptHandler()
 
-    let transport2: TcpTransport = TcpTransport.init(upgrade = Upgrade())
+    let transport2: TcpTransport = TcpTransport.new(upgrade = Upgrade())
     let conn = await transport2.dial(transport1.ma)
     var msg = newSeq[byte](6)
     await conn.readExactly(addr msg[0], 6)
@@ -153,7 +153,7 @@ suite "TCP transport":
 
   asyncTest "e2e: handle read":
     let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
-    let transport1: TcpTransport = TcpTransport.init(upgrade = Upgrade())
+    let transport1: TcpTransport = TcpTransport.new(upgrade = Upgrade())
     asyncSpawn transport1.start(ma)
 
     proc acceptHandler() {.async, gcsafe.} =
@@ -165,7 +165,7 @@ suite "TCP transport":
 
     let handlerWait = acceptHandler()
 
-    let transport2: TcpTransport = TcpTransport.init(upgrade = Upgrade())
+    let transport2: TcpTransport = TcpTransport.new(upgrade = Upgrade())
     let conn = await transport2.dial(transport1.ma)
     await conn.write("Hello!")
 
@@ -178,10 +178,10 @@ suite "TCP transport":
   asyncTest "e2e: handle dial cancellation":
     let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
 
-    let transport1: TcpTransport = TcpTransport.init(upgrade = Upgrade())
+    let transport1: TcpTransport = TcpTransport.new(upgrade = Upgrade())
     await transport1.start(ma)
 
-    let transport2: TcpTransport = TcpTransport.init(upgrade = Upgrade())
+    let transport2: TcpTransport = TcpTransport.new(upgrade = Upgrade())
     let cancellation = transport2.dial(transport1.ma)
 
     await cancellation.cancelAndWait()
@@ -193,7 +193,7 @@ suite "TCP transport":
   asyncTest "e2e: handle accept cancellation":
     let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
 
-    let transport1: TcpTransport = TcpTransport.init(upgrade = Upgrade())
+    let transport1: TcpTransport = TcpTransport.new(upgrade = Upgrade())
     await transport1.start(ma)
 
     let acceptHandler = transport1.accept()
