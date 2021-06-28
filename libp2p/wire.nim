@@ -19,16 +19,17 @@ else:
   import posix
 
 const
-  TRANSPMA* = mapOr(
-    mapAnd(IP, mapEq("udp")),
-    mapAnd(IP, mapEq("tcp")),
-    mapAnd(mapEq("unix"))
+  RTRANSPMA* = mapOr(
+    TCP,
+    WebSockets,
+    UNIX
   )
 
-  RTRANSPMA* = mapOr(
-    mapAnd(IP, mapEq("tcp")),
-    mapAnd(mapEq("unix"))
+  TRANSPMA* = mapOr(
+    RTRANSPMA,
+    UDP
   )
+
 
 proc initTAddress*(ma: MultiAddress): MaResult[TransportAddress] =
   ## Initialize ``TransportAddress`` with MultiAddress ``ma``.
@@ -36,7 +37,7 @@ proc initTAddress*(ma: MultiAddress): MaResult[TransportAddress] =
   ## MultiAddress must be wire address, e.g. ``{IP4, IP6, UNIX}/{TCP, UDP}``.
   ##
 
-  if TRANSPMA.matchPartial(ma):
+  if TRANSPMA.match(ma):
     var pbuf: array[2, byte]
     let code = (?(?ma[0]).protoCode())
     if code == multiCodec("unix"):

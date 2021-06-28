@@ -92,12 +92,13 @@ method start*(
   await procCall Transport(self).start(ma)
   trace "Starting WS transport"
 
-  self.httpserver = if isNil(self.tlsPrivateKey):
-     HttpServer.create(self.ma.initTAddress().tryGet())
-  else:
-    TlsHttpServer.create(self.ma.initTAddress().tryGet(),
-    self.tlsPrivateKey,
-    self.tlsCertificate)
+  self.httpserver =
+    if isNil(self.tlsPrivateKey):
+      HttpServer.create(self.ma.initTAddress().tryGet())
+    else:
+      TlsHttpServer.create(self.ma.initTAddress().tryGet(),
+        self.tlsPrivateKey,
+        self.tlsCertificate)
 
   self.wsserver = WSServer.new()
 
@@ -135,10 +136,9 @@ method accept*(self: WsTransport): Future[Connection] {.async, gcsafe.} =
     raise newTransportClosedError()
 
   try:
-    let transp = await self.httpserver.accept()
-    #TODO could this be blocking? If so, someone could stuck our accept loop
-    # by being slow to upgrade, and we should make something clever here
-    let wstransp = await self.wsserver.handleRequest(transp)
+    let
+      transp = await self.httpserver.accept()
+      wstransp = await self.wsserver.handleRequest(transp)
     return WsStream.init(wstransp, Direction.In)
   except TransportOsError as exc:
     debug "OS Error", exc = exc.msg
@@ -165,17 +165,11 @@ method dial*(
 method handles*(t: WsTransport, address: MultiAddress): bool {.gcsafe.} =
   if procCall Transport(t).handles(address):
     if address.protocols.isOk:
-      return address.protocols
-        .get()
-        .filterIt(
-          it == t.multicodec
-        ).len > 0
+      return WebSockets.match(address)
 
 proc new*(T: typedesc[WsTransport], upgrade: Upgrade): T =
-  ## Standard WsTransport
 
-  #TODO the other transports init function are called "init"
-  #but that "new" is the right one
+  ## Standard WsTransport
   T(
     upgrader: upgrade,
     multicodec: multiCodec("ws"))
@@ -184,10 +178,10 @@ proc new*(T: typedesc[WsTransport],
   tlsPrivateKey: TLSPrivateKey,
   tlsCertificate: TLSCertificate,
   upgrade: Upgrade): T =
+
   ## Secure WsTransport
   T(
     upgrader: upgrade,
     multicodec: multiCodec("wss"),
     tlsPrivateKey: tlsPrivateKey,
-    tlsCertificate: tlsCertificate
-  )
+    tlsCertificate: tlsCertificate)
