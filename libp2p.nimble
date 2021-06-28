@@ -10,12 +10,12 @@ skipDirs      = @["tests", "examples", "Nim", "tools", "scripts", "docs"]
 requires "nim >= 1.2.0",
          "nimcrypto >= 0.4.1",
          "bearssl >= 0.1.4",
-         "chronicles >= 0.7.2",
+         "chronicles#ba2817f1",
          "chronos >= 2.5.2",
          "metrics",
          "secp256k1",
          "stew#head",
-         "https://github.com/status-im/nim-ws == 0.1.0"
+         "https://github.com/status-im/nim-ws#cb5255ea"
 
 proc runTest(filename: string, verify: bool = true, sign: bool = true,
              moreoptions: string = "") =
