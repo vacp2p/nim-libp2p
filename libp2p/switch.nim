@@ -128,7 +128,7 @@ proc dialAndUpgrade(s: Switch,
             debug "Dialing canceled", msg = exc.msg, peerId
             raise exc
           except CatchableError as exc:
-            debug "Dialing failed", msg = exc.msg, peerId
+            debug "Dialing failed", msg = exc.msg, peerId, address = $a
             libp2p_failed_dials.inc()
             continue # Try the next address
 
