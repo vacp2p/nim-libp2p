@@ -52,7 +52,7 @@ method readOnce*(
   pbytes: pointer,
   nbytes: int):
   Future[int] =
-  return s.session.recv(pbytes, nbytes) 
+  return s.session.recv(pbytes, nbytes)
 
 method write*(s: WsStream, msg: seq[byte]):
   Future[void] {.async.} =
@@ -171,8 +171,7 @@ proc new*(T: typedesc[WsTransport], upgrade: Upgrade): T =
 
   ## Standard WsTransport
   T(
-    upgrader: upgrade,
-    multicodec: multiCodec("ws"))
+    upgrader: upgrade)
 
 proc new*(T: typedesc[WsTransport],
   tlsPrivateKey: TLSPrivateKey,
@@ -182,6 +181,5 @@ proc new*(T: typedesc[WsTransport],
   ## Secure WsTransport
   T(
     upgrader: upgrade,
-    multicodec: multiCodec("wss"),
     tlsPrivateKey: tlsPrivateKey,
     tlsCertificate: tlsCertificate)
