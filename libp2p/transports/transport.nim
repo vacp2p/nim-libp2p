@@ -28,7 +28,6 @@ type
     ma*: Multiaddress
     running*: bool
     upgrader*: Upgrade
-    multicodec*: MultiCodec
 
 proc newTransportClosedError*(parent: ref Exception = nil): ref LPError =
   newException(TransportClosedError,

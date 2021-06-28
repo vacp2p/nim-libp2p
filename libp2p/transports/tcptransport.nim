@@ -130,7 +130,6 @@ proc new*(
     upgrader: upgrade
   )
 
-  transport.multicodec = multiCodec("tcp")
   inc getTcpTransportTracker().opened
   return transport
 
