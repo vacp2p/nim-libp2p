@@ -903,3 +903,54 @@ suite "Switch":
 
       storedInfo1.protos.toSeq() == switch2.peerInfo.protocols
       storedInfo2.protos.toSeq() == switch1.peerInfo.protocols
+
+  asyncTest "e2e should allow multiple local addresses":
+    proc handle(conn: Connection, proto: string) {.async, gcsafe.} =
+      try:
+        let msg = string.fromBytes(await conn.readLp(1024))
+        check "Hello!" == msg
+        await conn.writeLp("Hello!")
+      finally:
+        await conn.close()
+
+    let testProto = new TestProto
+    testProto.codec = TestCodec
+    testProto.handler = handle
+
+    let switch1 = newStandardSwitch(addresses = @[MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet(),
+                                                  MultiAddress.init("/ip6/::1/tcp/0").tryGet()])
+    switch1.mount(testProto)
+
+    let switch2 = newStandardSwitch()
+    let switch3 = newStandardSwitch(address = MultiAddress.init("/ip6/::1/tcp/0").tryGet())
+
+    await allFuturesThrowing(
+      switch1.start(),
+      switch2.start(),
+      switch3.start())
+
+    let conn = await switch2.dial(switch1.peerInfo.peerId, @[switch1.peerInfo.addrs[0]], TestCodec)
+
+    check switch1.isConnected(switch2.peerInfo.peerId)
+    check switch2.isConnected(switch1.peerInfo.peerId)
+
+    await conn.writeLp("Hello!")
+    check "Hello!" == string.fromBytes(await conn.readLp(1024))
+    await conn.close()
+
+    let connv6 = await switch3.dial(switch1.peerInfo.peerId, @[switch1.peerInfo.addrs[1]], TestCodec)
+
+    check switch1.isConnected(switch3.peerInfo.peerId)
+    check switch3.isConnected(switch1.peerInfo.peerId)
+
+    await connv6.writeLp("Hello!")
+    check "Hello!" == string.fromBytes(await connv6.readLp(1024))
+    await connv6.close()
+
+    await allFuturesThrowing(
+      switch1.stop(),
+      switch2.stop(),
+      switch3.stop())
+
+    check not switch1.isConnected(switch2.peerInfo.peerId)
+    check not switch2.isConnected(switch1.peerInfo.peerId)

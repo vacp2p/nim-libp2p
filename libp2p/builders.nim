@@ -192,6 +192,7 @@ proc build*(b: SwitchBuilder): Switch
 proc newStandardSwitch*(
   privKey = none(PrivateKey),
   address = MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet(),
+  addresses = @[address],
   secureManagers: openarray[SecureProtocol] = [
       SecureProtocol.Noise,
     ],
@@ -209,7 +210,7 @@ proc newStandardSwitch*(
 
   var b = SwitchBuilder
     .new()
-    .withAddress(address)
+    .withAddresses(addresses)
     .withRng(rng)
     .withMaxConnections(maxConnections)
     .withMaxIn(maxIn)

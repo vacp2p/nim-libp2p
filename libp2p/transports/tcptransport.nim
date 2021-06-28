@@ -141,7 +141,7 @@ method start*(
   ##
 
   if self.running:
-    trace "TCP transport already running"
+    warn "TCP transport already running"
     return
 
   await procCall Transport(self).start(ma)
@@ -173,8 +173,8 @@ method stop*(self: TcpTransport) {.async, gcsafe.} =
     # server can be nil
     if not isNil(self.server):
       await self.server.closeWait()
+      self.server = nil
 
-    self.server = nil
     trace "Transport stopped"
     inc getTcpTransportTracker().closed
   except CatchableError as exc:
