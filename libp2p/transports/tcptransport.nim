@@ -36,6 +36,7 @@ type
     clients: array[Direction, seq[StreamTransport]]
     flags: set[ServerFlags]
     acceptFuts: seq[Future[StreamTransport]]
+    acceptedPeers: seq[Future[StreamTransport]]
 
   TcpTransportTracker* = ref object of TrackerBase
     opened*: uint64
@@ -213,13 +214,15 @@ method accept*(self: TcpTransport): Future[Connection] {.async, gcsafe.} =
     if self.acceptFuts.len <= 0:
       return
 
-    let
-      finished = await one(self.acceptFuts)
-      finishedIndex = self.acceptFuts.find(finished)
+    if self.acceptedPeers.len == 0:
+      discard await one(self.acceptFuts)
 
-    self.acceptFuts[finishedIndex] = self.servers[finishedIndex].accept()
+    for index, fut in self.acceptFuts:
+      if fut.done:
+        self.acceptedPeers.insert(fut, 0)
+        self.acceptFuts[index] = self.servers[index].accept()
 
-    let transp = await finished
+    let transp = await self.acceptedPeers.pop()
     return await self.connHandler(transp, Direction.In)
   except TransportOsError as exc:
     # TODO: it doesn't sound like all OS errors
