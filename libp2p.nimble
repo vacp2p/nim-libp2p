@@ -15,7 +15,7 @@ requires "nim >= 1.2.0",
          "metrics",
          "secp256k1",
          "stew#head",
-         "https://github.com/status-im/nim-ws#cb5255ea"
+         "https://github.com/status-im/nim-websock"
 
 proc runTest(filename: string, verify: bool = true, sign: bool = true,
              moreoptions: string = "") =
