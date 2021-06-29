@@ -180,14 +180,18 @@ method stop*(self: TcpTransport) {.async, gcsafe.} =
         self.clients[Direction.In].mapIt(it.closeWait()) &
         self.clients[Direction.Out].mapIt(it.closeWait())))
 
+    var toWait: seq[Future[void]]
     for fut in self.acceptFuts:
-      if fut.finished:
-        (await fut).close()
-      else:
-        await fut.cancelAndWait()
+      if not fut.finished:
+        toWait.add(fut.cancelAndWait())
+      elif fut.done:
+        toWait.add(fut.read().closeWait())
 
     for server in self.servers:
-      await server.closeWait()
+      server.close()
+      toWait.add(server.join())
+
+    discard await allFinished(toWait)
 
     self.servers = @[]
 
