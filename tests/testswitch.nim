@@ -917,8 +917,8 @@ suite "Switch":
     testProto.codec = TestCodec
     testProto.handler = handle
 
-    let addrs = @[MultiAddress.init("/ip4/127.0.0.1/tcp/55505").tryGet(),
-                  MultiAddress.init("/ip4/127.0.0.1/tcp/55506").tryGet()]
+    let addrs = @[MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet(),
+                  MultiAddress.init("/ip6/::1/tcp/0").tryGet()]
 
     let switch1 = newStandardSwitch(
       addrs = addrs,
