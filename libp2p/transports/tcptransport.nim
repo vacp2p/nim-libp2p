@@ -163,10 +163,7 @@ method start*(
     ).tryGet()
 
     self.servers &= server
-
-    self.acceptFuts = self.servers.mapIt(
-      it.accept()
-    )
+    self.acceptFuts &= server.accept()
 
     trace "Listening on", address = ma
 
@@ -183,16 +180,16 @@ method stop*(self: TcpTransport) {.async, gcsafe.} =
         self.clients[Direction.In].mapIt(it.closeWait()) &
         self.clients[Direction.Out].mapIt(it.closeWait())))
 
+    for fut in self.acceptFuts:
+      if fut.finished:
+        (await fut).close()
+      else:
+        await fut.cancelAndWait()
+
     for server in self.servers:
       await server.closeWait()
 
     self.servers = @[]
-
-    for fut in self.acceptFuts:
-      fut.cancel()
-
-    checkFutures(
-      await allFinished(self.acceptFuts))
 
     trace "Transport stopped"
     inc getTcpTransportTracker().closed
