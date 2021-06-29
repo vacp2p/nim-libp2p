@@ -225,8 +225,10 @@ method accept*(self: TcpTransport): Future[Connection] {.async, gcsafe.} =
   except TransportUseClosedError as exc:
     debug "Server was closed", exc = exc.msg
     raise newTransportClosedError(exc)
+  except CancelledError as exc:
+    raise
   except CatchableError as exc:
-    warn "Unexpected error creating connection", exc = exc.msg
+    warn "Unexpected error accepting connection", exc = exc.msg
     raise exc
 
 method dial*(
