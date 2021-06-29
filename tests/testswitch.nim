@@ -936,6 +936,9 @@ suite "Switch":
       switch2.start(),
       switch3.start())
 
+    check IP4.matchPartial(switch1.peerInfo.addrs[0])
+    check IP6.matchPartial(switch1.peerInfo.addrs[1])
+
     let conn = await switch2.dial(
       switch1.peerInfo.peerId,
       @[switch1.peerInfo.addrs[0]],
