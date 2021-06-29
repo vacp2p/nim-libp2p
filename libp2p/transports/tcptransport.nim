@@ -163,7 +163,6 @@ method start*(
     ).tryGet()
 
     self.servers &= server
-    self.acceptFuts &= server.accept()
 
     trace "Listening on", address = ma
 
@@ -208,6 +207,9 @@ method accept*(self: TcpTransport): Future[Connection] {.async, gcsafe.} =
     raise newTransportClosedError()
 
   try:
+    if self.acceptFuts.len <= 0:
+      self.acceptFuts = self.servers.mapIt(it.accept())
+
     if self.acceptFuts.len <= 0:
       return
 
