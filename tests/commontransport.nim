@@ -16,7 +16,7 @@ proc commonTransportTest*(transportType: typedesc[Transport], ma: string) =
     teardown:
       checkTrackers()
     asyncTest "e2e: handle write":
-      let ma: MultiAddress = Multiaddress.init(ma).tryGet()
+      let ma = @[Multiaddress.init(ma).tryGet()]
 
       let transport1: transportType = transportType.new(upgrade = Upgrade())
       await transport1.start(ma)
@@ -29,7 +29,7 @@ proc commonTransportTest*(transportType: typedesc[Transport], ma: string) =
       let handlerWait = acceptHandler()
 
       let transport2: transportType = transportType.new(upgrade = Upgrade())
-      let conn = await transport2.dial(transport1.ma)
+      let conn = await transport2.dial(transport1.addrs[0])
       var msg = newSeq[byte](6)
       await conn.readExactly(addr msg[0], 6)
 
@@ -42,7 +42,7 @@ proc commonTransportTest*(transportType: typedesc[Transport], ma: string) =
       check string.fromBytes(msg) == "Hello!"
 
     asyncTest "e2e: handle read":
-      let ma: MultiAddress = Multiaddress.init(ma).tryGet()
+      let ma = @[Multiaddress.init(ma).tryGet()]
       let transport1: transportType = transportType.new(upgrade = Upgrade())
       asyncSpawn transport1.start(ma)
 
@@ -56,7 +56,7 @@ proc commonTransportTest*(transportType: typedesc[Transport], ma: string) =
       let handlerWait = acceptHandler()
 
       let transport2: transportType = transportType.new(upgrade = Upgrade())
-      let conn = await transport2.dial(transport1.ma)
+      let conn = await transport2.dial(transport1.addrs[0])
       await conn.write("Hello!")
 
       await conn.close() #for some protocols, closing requires actively, so we must close here
@@ -66,13 +66,13 @@ proc commonTransportTest*(transportType: typedesc[Transport], ma: string) =
       await transport1.stop()
 
     asyncTest "e2e: handle dial cancellation":
-      let ma: MultiAddress = Multiaddress.init(ma).tryGet()
+      let ma = @[Multiaddress.init(ma).tryGet()]
 
       let transport1: transportType = transportType.new(upgrade = Upgrade())
       await transport1.start(ma)
 
       let transport2: transportType = transportType.new(upgrade = Upgrade())
-      let cancellation = transport2.dial(transport1.ma)
+      let cancellation = transport2.dial(transport1.addrs[0])
 
       await cancellation.cancelAndWait()
       check cancellation.cancelled
@@ -81,7 +81,7 @@ proc commonTransportTest*(transportType: typedesc[Transport], ma: string) =
       await transport1.stop()
 
     asyncTest "e2e: handle accept cancellation":
-      let ma: MultiAddress = Multiaddress.init(ma).tryGet()
+      let ma = @[Multiaddress.init(ma).tryGet()]
 
       let transport1: transportType = transportType.new(upgrade = Upgrade())
       await transport1.start(ma)
