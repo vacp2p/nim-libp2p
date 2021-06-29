@@ -20,7 +20,7 @@ import transport,
        ../multiaddress,
        ../stream/connection,
        ../upgrademngrs/upgrade,
-       ws/ws
+       websock/websock
 
 logScope:
   topics = "libp2p wstransport"
