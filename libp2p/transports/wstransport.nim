@@ -74,6 +74,7 @@ type
   WsTransport* = ref object of Transport
     httpserver: HttpServer
     wsserver: WSServer
+    outconnections: seq[WsStream]
 
     tlsPrivateKey: TLSPrivateKey
     tlsCertificate: TLSCertificate
@@ -123,6 +124,9 @@ method stop*(self: WsTransport) {.async, gcsafe.} =
       self.httpserver.stop()
       await self.httpserver.closeWait()
 
+    for conn in self.outconnections:
+      await conn.close()
+
     self.httpserver = nil
     trace "Transport stopped"
   except CatchableError as exc:
@@ -159,8 +163,18 @@ method dial*(
 
   trace "Dialing remote peer", address = $address
 
-  let transp = await WebSocket.connect(address.initTAddress().tryGet(), "")
-  return WsStream.init(transp, Direction.Out)
+  let
+    transp = await WebSocket.connect(address.initTAddress().tryGet(), "")
+    stream = WsStream.init(transp, Direction.Out)
+
+  self.outconnections.add(stream)
+  proc onClose() {.async.} =
+    await transp.stream.reader.join()
+    self.outconnections.keepItIf( it != stream )
+    trace "Cleaned up client", stream
+
+  asyncSpawn onClose()
+  return stream
 
 method handles*(t: WsTransport, address: MultiAddress): bool {.gcsafe.} =
   if procCall Transport(t).handles(address):
