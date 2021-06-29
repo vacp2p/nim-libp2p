@@ -171,7 +171,7 @@ method dial*(
   proc onClose() {.async.} =
     await transp.stream.reader.join()
     self.outconnections.keepItIf( it != stream )
-    trace "Cleaned up client", stream
+    trace "Cleaned up client"
 
   asyncSpawn onClose()
   return stream
