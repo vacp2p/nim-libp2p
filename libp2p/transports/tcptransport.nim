@@ -163,6 +163,11 @@ method start*(
     ).tryGet()
 
     self.servers &= server
+
+    self.acceptFuts = self.servers.mapIt(
+      it.accept()
+    )
+
     trace "Listening on", address = ma
 
 method stop*(self: TcpTransport) {.async, gcsafe.} =
@@ -178,10 +183,8 @@ method stop*(self: TcpTransport) {.async, gcsafe.} =
         self.clients[Direction.In].mapIt(it.closeWait()) &
         self.clients[Direction.Out].mapIt(it.closeWait())))
 
-    # server can be nil
     for server in self.servers:
-      if not isNil(server):
-        await server.closeWait()
+      await server.closeWait()
 
     self.servers = @[]
 
@@ -205,17 +208,13 @@ method accept*(self: TcpTransport): Future[Connection] {.async, gcsafe.} =
 
   try:
     if self.acceptFuts.len <= 0:
-      self.acceptFuts = self.servers.mapIt(
-        it.accept()
-      )
-
-    if self.acceptFuts.len <= 0:
       return
 
-    let finished = await one(self.acceptFuts)
-    self.acceptFuts.keepItIf(
-      it != finished
-    )
+    let
+      finished = await one(self.acceptFuts)
+      finishedIndex = self.acceptFuts.find(finished)
+
+    self.acceptFuts[finishedIndex] = self.servers[finishedIndex].accept()
 
     let transp = await finished
     return await self.connHandler(transp, Direction.In)
