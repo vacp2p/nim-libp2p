@@ -222,6 +222,11 @@ method accept*(self: TcpTransport): Future[Connection] {.async, gcsafe.} =
         self.acceptedPeers.insert(fut, 0)
         self.acceptFuts[index] = self.servers[index].accept()
 
+    if self.acceptedPeers.len == 0:
+      # the acceptFuts have been cancelled,
+      # we're probably shutting down
+      return nil
+
     let transp = await self.acceptedPeers.pop()
     return await self.connHandler(transp, Direction.In)
   except TransportOsError as exc:
