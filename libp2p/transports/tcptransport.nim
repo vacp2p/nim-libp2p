@@ -118,6 +118,7 @@ proc init*(
   T: typedesc[TcpTransport],
   flags: set[ServerFlags] = {},
   upgrade: Upgrade): T {.deprecated: "use .new".} =
+
   T.new(flags, upgrade)
 
 proc new*(
@@ -125,7 +126,7 @@ proc new*(
   flags: set[ServerFlags] = {},
   upgrade: Upgrade): T =
 
-  var transport = T(
+  let transport = T(
     flags: flags,
     upgrader: upgrade
   )
