@@ -12,7 +12,6 @@ import ../libp2p/[switch,                   # manage transports, a single entry 
                   protocols/identify,       # identify the peer info of a peer
                   stream/connection,        # create and close stream read / write connections
                   transports/transport,     # listen and dial to other peers using p2p protocol
-                  transports/tcptransport,  # listen and dial to other peers using client-server protocol
                   multiaddress,             # encode different addressing schemes. For example, /ip4/7.7.7.7/tcp/6543 means it is using IPv4 protocol and TCP
                   peerinfo,                 # manage the information of a peer, such as peer ID and public / private key
                   peerid,                   # Implement how peers interact
@@ -170,10 +169,12 @@ proc processInput(rfd: AsyncFD, rng: ref BrHmacDrbgContext) {.async.} =
       continue
 
   var switch = SwitchBuilder
-    .init()
-    .withRng(rng)
-    .withPrivateKey(seckey)
+    .new()
+    .withRng(rng)       # Give the application RNG
     .withAddress(MultiAddress.init(localAddress).tryGet())
+    .withTcpTransport() # Use TCP as transport
+    .withMplex()        # Use Mplex as muxer
+    .withNoise()        # Use Noise as secure manager
     .build()
 
   let chatProto = newChatProto(switch, transp)

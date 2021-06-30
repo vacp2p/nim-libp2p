@@ -30,12 +30,14 @@ proc runTest(filename: string, verify: bool = true, sign: bool = true,
   exec excstr & " -d:chronicles_log_level=INFO -r" & " tests/" & filename
   rmFile "tests/" & filename.toExe
 
-proc buildSample(filename: string) =
+proc buildSample(filename: string, run = false) =
   var excstr = "nim c --opt:speed --threads:on -d:debug --verbosity:0 --hints:off"
   excstr.add(" --warning[CaseTransition]:off --warning[ObservableStores]:off --warning[LockLevel]:off")
   excstr.add(" examples/" & filename)
   exec excstr
-  rmFile "examples" & filename.toExe
+  if run:
+    exec "./examples/" & filename.toExe
+  rmFile "examples/" & filename.toExe
 
 task testnative, "Runs libp2p native tests":
   runTest("testnative")
@@ -72,6 +74,7 @@ task test, "Runs the test suite":
   exec "nimble testdaemon"
   exec "nimble testinterop"
   exec "nimble testfilter"
+  exec "nimble examples_build"
 
 task test_slim, "Runs the test suite":
   exec "nimble testnative"
@@ -81,3 +84,4 @@ task test_slim, "Runs the test suite":
 
 task examples_build, "Build the samples":
   buildSample("directchat")
+  buildSample("helloworld", true)
