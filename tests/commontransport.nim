@@ -91,3 +91,30 @@ proc commonTransportTest*(transportType: typedesc[Transport], ma: string) =
       check acceptHandler.cancelled
 
       await transport1.stop()
+
+    asyncTest "e2e: stopping transport kills connections":
+      let ma: MultiAddress = Multiaddress.init(ma).tryGet()
+
+      let transport1: transportType = transportType.new(upgrade = Upgrade())
+      await transport1.start(ma)
+
+      let transport2: transportType = transportType.new(upgrade = Upgrade())
+
+      let acceptHandler = transport1.accept()
+      let conn = await transport2.dial(transport1.ma)
+      let serverConn = await acceptHandler
+
+      #For user-space protocols, we need to read to allow
+      #the other party to disconnect
+      let clientRead = conn.readLp(1024)
+      let serverRead = serverConn.readLp(1024)
+
+      await transport1.stop()
+      check serverConn.closed()
+
+      await transport2.stop()
+      check conn.closed()
+
+      #will throw EOF
+      try: discard await clientRead: except: discard
+      try: discard await serverRead: except: discard
