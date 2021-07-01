@@ -56,11 +56,6 @@ method readOnce*(
 
 method write*(s: WsStream, msg: seq[byte]):
   Future[void] {.async.} =
-  #TODO the write procs can raise LPStreamEOF
-  # BUT this is not indicated in .raises. bc of async
-  # So this function can't just return the Future of ws.send
-  # We should add {.raises.} to every write, but this will probably
-  # break many things
   try:
     await s.session.send(msg, Opcode.Binary)
   except WSClosedError:
