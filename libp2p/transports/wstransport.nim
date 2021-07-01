@@ -74,7 +74,7 @@ type
   WsTransport* = ref object of Transport
     httpserver: HttpServer
     wsserver: WSServer
-    outconnections: seq[WsStream]
+    connections: seq[WsStream]
 
     tlsPrivateKey: TLSPrivateKey
     tlsCertificate: TLSCertificate
@@ -119,18 +119,28 @@ method stop*(self: WsTransport) {.async, gcsafe.} =
     trace "Stopping WS transport"
     await procCall Transport(self).stop() # call base
 
+    var toWait: seq[Future[void]]
     # server can be nil
     if not isNil(self.httpserver):
       self.httpserver.stop()
-      await self.httpserver.closeWait()
+      toWait.add(self.httpserver.closeWait())
 
-    for conn in self.outconnections:
-      await conn.close()
+    for conn in self.connections:
+      toWait.add(conn.close())
 
+    await allFutures(toWait)
     self.httpserver = nil
     trace "Transport stopped"
   except CatchableError as exc:
     trace "Error shutting down ws transport", exc = exc.msg
+
+proc trackConnection(self: WsTransport, conn: WsStream) =
+  self.connections.add(conn)
+  proc onClose() {.async.} =
+    await conn.session.stream.reader.join()
+    self.connections.keepItIf(it != conn)
+    trace "Cleaned up client"
+  asyncSpawn onClose()
 
 method accept*(self: WsTransport): Future[Connection] {.async, gcsafe.} =
   ## accept a new WS connection
@@ -143,7 +153,9 @@ method accept*(self: WsTransport): Future[Connection] {.async, gcsafe.} =
     let
       transp = await self.httpserver.accept()
       wstransp = await self.wsserver.handleRequest(transp)
-    return WsStream.init(wstransp, Direction.In)
+      stream = WsStream.init(wstransp, Direction.In)
+    self.trackConnection(stream)
+    return stream
   except TransportOsError as exc:
     debug "OS Error", exc = exc.msg
   except TransportTooManyError as exc:
@@ -167,13 +179,7 @@ method dial*(
     transp = await WebSocket.connect(address.initTAddress().tryGet(), "")
     stream = WsStream.init(transp, Direction.Out)
 
-  self.outconnections.add(stream)
-  proc onClose() {.async.} =
-    await transp.stream.reader.join()
-    self.outconnections.keepItIf( it != stream )
-    trace "Cleaned up client"
-
-  asyncSpawn onClose()
+  self.trackConnection(stream)
   return stream
 
 method handles*(t: WsTransport, address: MultiAddress): bool {.gcsafe.} =
