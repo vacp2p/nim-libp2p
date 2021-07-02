@@ -254,7 +254,11 @@ method dial*(
   trace "Dialing remote peer", address = $address
 
   let transp = await connect(address)
-  return await self.connHandler(transp, Direction.Out)
+  try:
+    return await self.connHandler(transp, Direction.Out)
+  except:
+    transp.close()
+    raise
 
 method handles*(t: TcpTransport, address: MultiAddress): bool {.gcsafe.} =
   if procCall Transport(t).handles(address):
