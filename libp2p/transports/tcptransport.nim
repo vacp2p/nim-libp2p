@@ -181,7 +181,18 @@ method stop*(self: TcpTransport) {.async, gcsafe.} =
         self.clients[Direction.Out].mapIt(it.closeWait())))
 
     var toWait: seq[Future[void]]
-    for fut in self.acceptFuts & self.acceptedPeers:
+    #TODO do this more cleanly
+    for fut in self.acceptFuts:
+      if not fut.finished:
+        toWait.add(fut.cancelAndWait())
+      elif fut.done:
+        toWait.add(fut.read().closeWait())
+
+    discard await allFinished(toWait)
+
+    toWait = newSeq[Future[void]]()
+
+    for fut in self.acceptedPeers:
       if not fut.finished:
         toWait.add(fut.cancelAndWait())
       elif fut.done:
