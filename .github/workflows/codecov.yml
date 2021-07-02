@@ -1,6 +1,6 @@
 name: nim-libp2p codecov builds
 
-on: [push, pull_request]
+on: [pull_request]
 
 jobs:
   GossipSub:
