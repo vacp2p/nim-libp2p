@@ -69,7 +69,7 @@ type
   WsTransport* = ref object of Transport
     httpserver: HttpServer
     wsserver: WSServer
-    connections: seq[WsStream]
+    connections: array[Direction, seq[WsStream]]
 
     tlsPrivateKey: TLSPrivateKey
     tlsCertificate: TLSCertificate
@@ -120,7 +120,8 @@ method stop*(self: WsTransport) {.async, gcsafe.} =
       self.httpserver.stop()
       toWait.add(self.httpserver.closeWait())
 
-    for conn in self.connections:
+    for conn in self.connections[Direction.In] &
+                self.connections[Direction.Out]:
       toWait.add(conn.close())
 
     await allFutures(toWait)
@@ -129,11 +130,11 @@ method stop*(self: WsTransport) {.async, gcsafe.} =
   except CatchableError as exc:
     trace "Error shutting down ws transport", exc = exc.msg
 
-proc trackConnection(self: WsTransport, conn: WsStream) =
-  self.connections.add(conn)
+proc trackConnection(self: WsTransport, conn: WsStream, dir: Direction) =
+  self.connections[dir].add(conn)
   proc onClose() {.async.} =
     await conn.session.stream.reader.join()
-    self.connections.keepItIf(it != conn)
+    self.connections[dir].keepItIf(it != conn)
     trace "Cleaned up client"
   asyncSpawn onClose()
 
@@ -149,7 +150,7 @@ method accept*(self: WsTransport): Future[Connection] {.async, gcsafe.} =
       transp = await self.httpserver.accept()
       wstransp = await self.wsserver.handleRequest(transp)
       stream = WsStream.init(wstransp, Direction.In)
-    self.trackConnection(stream)
+    self.trackConnection(stream, Direction.In)
     return stream
   except TransportOsError as exc:
     debug "OS Error", exc = exc.msg
@@ -174,7 +175,7 @@ method dial*(
     transp = await WebSocket.connect(address.initTAddress().tryGet(), "")
     stream = WsStream.init(transp, Direction.Out)
 
-  self.trackConnection(stream)
+  self.trackConnection(stream, Direction.Out)
   return stream
 
 method handles*(t: WsTransport, address: MultiAddress): bool {.gcsafe.} =
