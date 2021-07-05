@@ -1,40 +1,48 @@
-import tables, bearssl
-import chronos                              # an efficient library for async
-import ../libp2p/[switch,                   # manage transports, a single entry point for dialing and listening
-                  builders,                 # helper to build the switch object
-                  multistream,              # tag stream with short header to identify it
-                  multicodec,               # multicodec utilities
-                  crypto/crypto,            # cryptographic functions
-                  errors,                   # error handling utilities
-                  protocols/identify,       # identify the peer info of a peer
-                  stream/connection,        # create and close stream read / write connections
-                  transports/transport,     # listen and dial to other peers using p2p protocol
-                  multiaddress,             # encode different addressing schemes. For example, /ip4/7.7.7.7/tcp/6543 means it is using IPv4 protocol and TCP
-                  peerinfo,                 # manage the information of a peer, such as peer ID and public / private key
-                  peerid,                   # Implement how peers interact
-                  protocols/protocol,       # define the protocol base type
-                  protocols/secure/secure,  # define the protocol of secure connection
-                  protocols/secure/secio,   # define the protocol of secure input / output, allows encrypted communication that uses public keys to validate signed messages instead of a certificate authority like in TLS
-                  muxers/muxer,             # define an interface for stream multiplexing, allowing peers to offer many protocols over a single connection
-                  muxers/mplex/mplex]       # define some contants and message types for stream multiplexing
+import bearssl
+import chronos                        # an efficient library for async
+import stew/byteutils                 # various utils
+import ../libp2p/[                    # when installed through nimble, just use `import libp2p/[`
+            switch,                   # manage transports, a single entry point for dialing and listening
+            builders,                 # helper to build the switch object
+            multistream,              # tag stream with short header to identify it
+            multicodec,               # multicodec utilities
+            crypto/crypto,            # cryptographic functions
+            errors,                   # error handling utilities
+            protocols/identify,       # identify the peer info of a peer
+            stream/connection,        # create and close stream read / write connections
+            transports/transport,     # listen and dial to other peers using p2p protocol
+            multiaddress,             # encode different addressing schemes. For example, /ip4/7.7.7.7/tcp/6543 means it is using IPv4 protocol and TCP
+            peerinfo,                 # manage the information of a peer, such as peer ID and public / private key
+            peerid,                   # Implement how peers interact
+            protocols/protocol,       # define the protocol base type
+            protocols/secure/secure,  # define the protocol of secure connection
+            muxers/muxer,             # define an interface for stream multiplexing, allowing peers to offer many protocols over a single connection
+            muxers/mplex/mplex]       # define some contants and message types for stream multiplexing
 
-const TestCodec = "/test/proto/1.0.0" # custom protocol string
+##
+# Create our custom protocol
+##
+const TestCodec = "/test/proto/1.0.0" # custom protocol string identifier
 
 type
   TestProto = ref object of LPProtocol # declare a custom protocol
 
-method init(p: TestProto) {.gcsafe.} =
-  # handle incoming connections in closure
+proc new(T: typedesc[TestProto]): T =
+
+  # every incoming connections will in handled in this closure
   proc handle(conn: Connection, proto: string) {.async, gcsafe.} =
-    echo "Got from remote - ", cast[string](await conn.readLp(1024))
+    echo "Got from remote - ", string.fromBytes(await conn.readLp(1024))
     await conn.writeLp("Roger p2p!")
+
+    # We must close the connections ourselves when we're done with it
     await conn.close()
 
-  p.codec = TestCodec # init proto with the correct string id
-  p.handler = handle # set proto handler
+  return T(codecs: @[TestCodec], handler: handle)
 
-proc createSwitch(ma: MultiAddress, rng: ref BrHmacDrbgContext): (Switch, PeerInfo) =
-  ## Helper to create a switch
+##
+# Helper to create a switch/node
+##
+proc createSwitch(ma: MultiAddress, rng: ref BrHmacDrbgContext): Switch =
   var switch = SwitchBuilder
     .new()
     .withRng(rng)       # Give the application RNG
@@ -44,34 +52,55 @@ proc createSwitch(ma: MultiAddress, rng: ref BrHmacDrbgContext): (Switch, PeerIn
     .withNoise()        # Use Noise as secure manager
     .build()
 
-  result = (switch, switch.peerInfo)
+  result = switch
 
+##
+# The actual application
+##
 proc main() {.async, gcsafe.} =
   let
-    rng = newRng() # Singe random number source for the whole application
-    ma1: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
-    ma2: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
+    rng = newRng() # Single random number source for the whole application
+    # port 0 will take a random available port
+    # `tryGet` will throw an exception if the Multiaddress failed
+    # (for instance, if the address is not well formatted)
+    ma1 = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
+    ma2 = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
 
   # setup the custom proto
-  let testProto = new TestProto
-  testProto.init() # run it's init method to perform any required initialization
+  let testProto = TestProto.new()
 
   # setup the two nodes
-  var peerInfo1, peerInfo2: PeerInfo
-  var switch1, switch2: Switch
-  (switch1, peerInfo1) = createSwitch(ma1, rng) # create node 1
-  switch1.mount(testProto) # mount the proto
-  var switch1Fut = await switch1.start() # start the node
+  let
+    switch1 = createSwitch(ma1, rng) #Create the two switches
+    switch2 = createSwitch(ma2, rng)
 
-  (switch2, peerInfo2) = createSwitch(ma2, rng) # create node 2
-  var switch2Fut = await switch2.start() # start second node
+  # mount the proto on switch1
+  # the node will now listen for this proto
+  # and call the handler everytime a client request it
+  switch1.mount(testProto)
 
-  # dial the first node
-  let conn = await switch2.dial(switch1.peerInfo, TestCodec)
+  # Start the nodes. This will start the transports
+  # and listen on each local addresses
+  let
+    switch1Fut = await switch1.start()
+    switch2Fut = await switch2.start()
 
+  # the node addrs is populated with it's
+  # actual port during the start
+
+  # use the second node to dial the first node
+  # using the first node peerid and address
+  # and specify our custom protocol codec
+  let conn = await switch2.dial(switch1.peerInfo.peerId, switch1.peerInfo.addrs, TestCodec)
+
+  # conn is now a fully setup connection, we talk directly to the node1 custom protocol handler
   await conn.writeLp("Hello p2p!") # writeLp send a length prefixed buffer over the wire
+
   # readLp reads length prefixed bytes and returns a buffer without the prefix
-  echo "Remote responded with - ", cast[string](await conn.readLp(1024))
+  echo "Remote responded with - ", string.fromBytes(await conn.readLp(1024))
+
+  # We must close the connection ourselves when we're done with it
+  await conn.close()
 
   await allFutures(switch1.stop(), switch2.stop()) # close connections and shutdown all transports
   await allFutures(switch1Fut & switch2Fut) # wait for all transports to shutdown
