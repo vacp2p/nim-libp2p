@@ -138,3 +138,5 @@ proc commonTransportTest*(transportType: typedesc[Transport], ma: string) =
 
       await handlerWait.cancelAndWait()
       await transport1.stop()
+
+      await sleepAsync(500.milliseconds)
