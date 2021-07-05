@@ -36,7 +36,6 @@ type
     clients: array[Direction, seq[StreamTransport]]
     flags: set[ServerFlags]
     acceptFuts: seq[Future[StreamTransport]]
-    acceptedPeers: seq[Future[StreamTransport]]
 
   TcpTransportTracker* = ref object of TrackerBase
     opened*: uint64
@@ -181,18 +180,7 @@ method stop*(self: TcpTransport) {.async, gcsafe.} =
         self.clients[Direction.Out].mapIt(it.closeWait())))
 
     var toWait: seq[Future[void]]
-    #TODO do this more cleanly
     for fut in self.acceptFuts:
-      if not fut.finished:
-        toWait.add(fut.cancelAndWait())
-      elif fut.done:
-        toWait.add(fut.read().closeWait())
-
-    discard await allFinished(toWait)
-
-    toWait = newSeq[Future[void]]()
-
-    for fut in self.acceptedPeers:
       if not fut.finished:
         toWait.add(fut.cancelAndWait())
       elif fut.done:
@@ -225,20 +213,13 @@ method accept*(self: TcpTransport): Future[Connection] {.async, gcsafe.} =
     if self.acceptFuts.len <= 0:
       return
 
-    if self.acceptedPeers.len == 0:
-      discard await one(self.acceptFuts)
+    let
+      finished = await one(self.acceptFuts)
+      index = self.acceptFuts.find(finished)
 
-    for index, fut in self.acceptFuts:
-      if fut.done:
-        self.acceptedPeers.insert(fut, 0)
-        self.acceptFuts[index] = self.servers[index].accept()
+    self.acceptFuts[index] = self.servers[index].accept()
 
-    if self.acceptedPeers.len == 0:
-      # the acceptFuts have been cancelled,
-      # we're probably shutting down
-      return nil
-
-    let transp = await self.acceptedPeers.pop()
+    let transp = await finished
     return await self.connHandler(transp, Direction.In)
   except TransportOsError as exc:
     # TODO: it doesn't sound like all OS errors
