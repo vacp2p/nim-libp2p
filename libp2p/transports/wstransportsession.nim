@@ -15,7 +15,8 @@ proc new*(_: type WsTransportSession,
           dir: Direction): WsTransportSession =
   WsTransportSession(session: session, stream: WsStream.init(session, dir))
 
-method getStream*(session: WsTransportSession): Future[Connection] {.async.} =
+method getStream*(session: WsTransportSession,
+                  direction = Direction.In): Future[Connection] {.async.} =
   result = session.stream
 
 method close*(session: WsTransportSession) {.async.} =
