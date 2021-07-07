@@ -1,4 +1,4 @@
-import pkg/asynctest
+import pkg/asynctest/unittest2
 import pkg/chronos
 import ../libp2p/wire
 import ../libp2p/multiaddress

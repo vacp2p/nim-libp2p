@@ -1,4 +1,4 @@
-import pkg/asynctest
+import pkg/asynctest/unittest2
 import pkg/chronos
 import pkg/quic
 import pkg/stew/byteutils
