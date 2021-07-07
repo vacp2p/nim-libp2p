@@ -1,25 +1,11 @@
 when not(compileOption("threads")):
   {.fatal: "Please, compile this program with the --threads:on option!".}
 
-import strformat, strutils, bearssl
-import stew/byteutils
-import chronos                              # an efficient library for async
-import ../libp2p/[switch,                   # manage transports, a single entry point for dialing and listening
-                  builders,                 # helper to build the switch object
-                  multistream,              # tag stream with short header to identify it
-                  multicodec,               # multicodec utilities
-                  crypto/crypto,            # cryptographic functions
-                  errors,                   # error handling utilities
-                  protocols/identify,       # identify the peer info of a peer
-                  stream/connection,        # create and close stream read / write connections
-                  transports/transport,     # listen and dial to other peers using p2p protocol
-                  multiaddress,             # encode different addressing schemes. For example, /ip4/7.7.7.7/tcp/6543 means it is using IPv4 protocol and TCP
-                  peerinfo,                 # manage the information of a peer, such as peer ID and public / private key
-                  peerid,                   # Implement how peers interact
-                  protocols/protocol,       # define the protocol base type
-                  protocols/secure/secure,  # define the protocol of secure connection
-                  muxers/muxer,             # define an interface for stream multiplexing, allowing peers to offer many protocols over a single connection
-                  muxers/mplex/mplex]       # define some contants and message types for stream multiplexing
+import
+  strformat, strutils, bearssl,
+  stew/byteutils,
+  chronos,
+  ../libp2p
 
 const DefaultAddr = "/ip4/127.0.0.1/tcp/0"
 

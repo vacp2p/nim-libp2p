@@ -1,31 +1,15 @@
+# Simple ping
+
+Hi, let's make a ping. First we need to import libp2p
+```nim
 import bearssl
-import chronos         # an efficient library for async
-import stew/byteutils  # various utils
-import ../libp2p       # when installed through nimble, just use `import libp2p`
+import chronos
+import libp2p
+import libp2p/protocols/ping
+```
 
-##
-# Create our custom protocol
-##
-const TestCodec = "/test/proto/1.0.0" # custom protocol string identifier
-
-type
-  TestProto = ref object of LPProtocol # declare a custom protocol
-
-proc new(T: typedesc[TestProto]): T =
-
-  # every incoming connections will in handled in this closure
-  proc handle(conn: Connection, proto: string) {.async, gcsafe.} =
-    echo "Got from remote - ", string.fromBytes(await conn.readLp(1024))
-    await conn.writeLp("Roger p2p!")
-
-    # We must close the connections ourselves when we're done with it
-    await conn.close()
-
-  return T(codecs: @[TestCodec], handler: handle)
-
-##
-# Helper to create a switch/node
-##
+Then we need to create a switch etc
+```nim
 proc createSwitch(ma: MultiAddress, rng: ref BrHmacDrbgContext): Switch =
   var switch = SwitchBuilder
     .new()
@@ -38,9 +22,10 @@ proc createSwitch(ma: MultiAddress, rng: ref BrHmacDrbgContext): Switch =
 
   result = switch
 
-##
-# The actual application
-##
+```
+
+We can then create our actual program..
+```nim
 proc main() {.async, gcsafe.} =
   let
     rng = newRng() # Single random number source for the whole application
@@ -50,18 +35,16 @@ proc main() {.async, gcsafe.} =
     ma1 = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
     ma2 = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
 
-  # setup the custom proto
-  let testProto = TestProto.new()
-
   # setup the two nodes
   let
     switch1 = createSwitch(ma1, rng) #Create the two switches
     switch2 = createSwitch(ma2, rng)
 
-  # mount the proto on switch1
+    pingProtocol = Ping.new(rng=rng)
+
+  # mount the ping proto on switch1
   # the node will now listen for this proto
-  # and call the handler everytime a client request it
-  switch1.mount(testProto)
+  switch1.mount(pingProtocol)
 
   # Start the nodes. This will start the transports
   # and listen on each local addresses
@@ -74,14 +57,11 @@ proc main() {.async, gcsafe.} =
 
   # use the second node to dial the first node
   # using the first node peerid and address
-  # and specify our custom protocol codec
-  let conn = await switch2.dial(switch1.peerInfo.peerId, switch1.peerInfo.addrs, TestCodec)
+  # and specify the ping protocol codec
+  let conn = await switch2.dial(switch1.peerInfo.peerId, switch1.peerInfo.addrs, PingCodec)
 
-  # conn is now a fully setup connection, we talk directly to the node1 custom protocol handler
-  await conn.writeLp("Hello p2p!") # writeLp send a length prefixed buffer over the wire
-
-  # readLp reads length prefixed bytes and returns a buffer without the prefix
-  echo "Remote responded with - ", string.fromBytes(await conn.readLp(1024))
+  # ping the other node and echo the ping duration
+  echo "ping: ", await pingProtocol.ping(conn)
 
   # We must close the connection ourselves when we're done with it
   await conn.close()
@@ -90,3 +70,11 @@ proc main() {.async, gcsafe.} =
   await allFutures(switch1Fut & switch2Fut) # wait for all transports to shutdown
 
 waitFor(main())
+```
+
+# Custom protocol
+```nim
+import libp2p
+
+echo "second tutorial!"
+```

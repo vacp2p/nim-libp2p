@@ -39,6 +39,9 @@ proc buildSample(filename: string, run = false) =
     exec "./examples/" & filename.toExe
   rmFile "examples/" & filename.toExe
 
+proc buildTutorial(filename: string) =
+  exec "nim c -r tools/markdown_runner.nim " & filename
+
 task testnative, "Runs libp2p native tests":
   runTest("testnative")
 
@@ -85,3 +88,4 @@ task test_slim, "Runs the test suite":
 task examples_build, "Build the samples":
   buildSample("directchat")
   buildSample("helloworld", true)
+  buildTutorial("examples/tutorial_1_connect.md")
