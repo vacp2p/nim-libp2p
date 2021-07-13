@@ -103,4 +103,4 @@ waitFor(main())
 
 You can now run this program using `nim c -r part1.nim`, and you should see the dialing sequence, ending with a ping output.
 
-In the [next tutorial](), we'll look at how to create our own custom protocol.
+In the [next tutorial](tutorial_2_customproto.md), we'll look at how to create our own custom protocol.

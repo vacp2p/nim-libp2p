@@ -89,3 +89,4 @@ task examples_build, "Build the samples":
   buildSample("directchat")
   buildSample("helloworld", true)
   buildTutorial("examples/tutorial_1_connect.md")
+  buildTutorial("examples/tutorial_2_customproto.md")
