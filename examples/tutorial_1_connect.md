@@ -29,7 +29,8 @@ import chronos
 [chronos](https://github.com/status-im/nim-chronos) the asynchronous framework used by `nim-libp2p`
 
 We can now import `libp2p` itself, and the `ping` protocol:
-```nim samefile
+```nim
+
 import libp2p
 import libp2p/protocols/ping
 ```
