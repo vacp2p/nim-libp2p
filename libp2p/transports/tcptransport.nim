@@ -245,15 +245,11 @@ method dial*(
 
   trace "Dialing remote peer", address = $address
 
-  let transpFut = connect(address)
+  let transp = await connect(address)
   try:
-    let transp = await transpFut
     return await self.connHandler(transp, Direction.Out)
   except CatchableError as err:
-    if transpFut.done:
-      await transpFut.read().closeWait()
-    else:
-      await transpFut.cancelAndWait()
+    await transp.closeWait()
     raise err
 
 method handles*(t: TcpTransport, address: MultiAddress): bool {.gcsafe.} =
