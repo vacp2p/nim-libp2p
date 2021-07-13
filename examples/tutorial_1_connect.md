@@ -1,14 +1,40 @@
-# Simple ping
+Hi all, welcome to the first article of the nim-libp2p's tutorial series!
 
-Hi, let's make a ping. First we need to import libp2p
+_This tutorial is for everyone who is interested in building peer-to-peer chatting applications. No Nim programming experience is needed._
+
+To give you a quick overview, **Nim** is the programming language we are using and **nim-libp2p** is the Nim implementation of [libp2p](https://libp2p.io/), a modular library that enables the development of peer-to-peer network applications.
+
+Hope you'll find it helpful in your journey of learning. Happy coding! ;)
+
+# Before you start
+The only prerequisite here is [Nim](https://nim-lang.org/), the programming language with a Python-like syntax and a performance similar to C. Detailed information can be found [here](https://nim-lang.org/docs/tut1.html).
+
+Install Nim via their official website: [https://nim-lang.org/install.html](https://nim-lang.org/install.html)
+Check Nim's installation via `nim --version` and its package manager Nimble via `nimble --version`.
+
+You can now install the latest version of `nim-libp2p`:
+```bash
+nimble install libp2p@#master
+```
+
+# A simple ping application
+We'll start by creating a simple application, which is starting two libp2p [switch](https://docs.libp2p.io/concepts/stream-multiplexing/#switch-swarm), and pinging each other using the [Ping](https://docs.libp2p.io/concepts/protocols/#ping) protocol.
+
+Let's create a `part1.nim`, and import our dependencies:
 ```nim
 import bearssl
 import chronos
+```
+[bearssl](https://github.com/status-im/nim-bearssl) is used as a [cryptographic pseudorandom number generator](https://en.wikipedia.org/wiki/Cryptographically-secure_pseudorandom_number_generator)
+[chronos](https://github.com/status-im/nim-chronos) the asynchronous framework used by `nim-libp2p`
+
+We can now import `libp2p` itself, and the `ping` protocol:
+```nim samefile
 import libp2p
 import libp2p/protocols/ping
 ```
 
-Then we need to create a switch etc
+Next, we'll create an helper procedure to create our switches. A switch needs a bit of configuration, and it will be easier to do this configuration only once:
 ```nim
 proc createSwitch(ma: MultiAddress, rng: ref BrHmacDrbgContext): Switch =
   var switch = SwitchBuilder
@@ -20,61 +46,69 @@ proc createSwitch(ma: MultiAddress, rng: ref BrHmacDrbgContext): Switch =
     .withNoise()        # Use Noise as secure manager
     .build()
 
-  result = switch
-
+  return switch
 ```
+This will create a switch using [Mplex](https://docs.libp2p.io/concepts/stream-multiplexing/) as a multiplexer, Noise to secure the communication, and TCP as an underlying transport.
 
-We can then create our actual program..
+You can of course tweak this, to use a different or multiple transport, or tweak the configuration of Mplex and Noise, but this is some sane defaults that we'll use going forward.
+
+
+Let's now create our main procedure:
 ```nim
 proc main() {.async, gcsafe.} =
   let
-    rng = newRng() # Single random number source for the whole application
-    # port 0 will take a random available port
-    # `tryGet` will throw an exception if the Multiaddress failed
-    # (for instance, if the address is not well formatted)
-    ma1 = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
-    ma2 = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
-
-  # setup the two nodes
-  let
-    switch1 = createSwitch(ma1, rng) #Create the two switches
-    switch2 = createSwitch(ma2, rng)
-
+    rng = newRng()
+    localAddress = MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
     pingProtocol = Ping.new(rng=rng)
+```
+We start by creating some variables that we'll need for the rest of the application: the global `rng` instance, our localAddress, and an instance of the `Ping` protocol. The address is in the [MultiAddress](https://github.com/multiformats/multiaddr) format. The port `0` means "take any port available".
 
-  # mount the ping proto on switch1
-  # the node will now listen for this proto
+`tryGet` is procedure which is part of the [nim-result](https://github.com/arnetheduck/nim-result/), that will throw an exception if the supplied MultiAddress is not valid.
+
+We can now creates our two switches:
+```nim
+  let
+    switch1 = createSwitch(localAddress, rng)
+    switch2 = createSwitch(localAddress, rng)
+    
   switch1.mount(pingProtocol)
+```
 
-  # Start the nodes. This will start the transports
-  # and listen on each local addresses
+We've **mounted** the pingProtocol on our first switch. This means that the first switch will actually listen for any ping requests coming in, and handle them accordingly.
+
+Now, we're going to start the nodes, which will make them listen for incoming peers:
+```nim
   let
     switch1Fut = await switch1.start()
     switch2Fut = await switch2.start()
+```
 
-  # the node addrs is populated with it's
-  # actual port during the start
+We can find out which port was attributed, and the resulting local addresses, by using `switch1.peerInfo.addrs`.
 
-  # use the second node to dial the first node
-  # using the first node peerid and address
-  # and specify the ping protocol codec
+We'll **dial** the first switch from the second one, specifying the `Ping` protocol codec:
+```nim
   let conn = await switch2.dial(switch1.peerInfo.peerId, switch1.peerInfo.addrs, PingCodec)
-
+```
+We now have a `Ping` connection setup between the second and the first switch, we can use it to actualy ping the node:
+```nim
   # ping the other node and echo the ping duration
   echo "ping: ", await pingProtocol.ping(conn)
+```
 
+And that's it! Just a little bit of cleanup, shutting down the switches and waiting for them to stop:
+```nim
   # We must close the connection ourselves when we're done with it
   await conn.close()
 
   await allFutures(switch1.stop(), switch2.stop()) # close connections and shutdown all transports
   await allFutures(switch1Fut & switch2Fut) # wait for all transports to shutdown
+```
 
+And our main procedure is finished. We'll call it with `waitFor`:
+```nim
 waitFor(main())
 ```
 
-# Custom protocol
-```nim
-import libp2p
+You can now run this program using `nim c -r part1.nim`, and you should see the dialing sequence, ending with a ping output.
 
-echo "second tutorial!"
-```
+In the next tutorial, we'll look at how to create your own protocol.
