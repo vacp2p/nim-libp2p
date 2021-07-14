@@ -11,14 +11,24 @@ import ../libp2p/[stream/connection,
 
 import ./helpers
 
-proc commonTransportTest*(transportType: typedesc[Transport], ma: string) =
-  suite $transportType & " common":
+type TransportProvider* = proc(): Transport {.gcsafe.}
+
+proc commonTransportTest*(name: string, prov: TransportProvider, ma: string) =
+  suite name & " common tests":
     teardown:
       checkTrackers()
+
+    asyncTest "can handle local address":
+      let ma: MultiAddress = Multiaddress.init(ma).tryGet()
+      let transport1 = prov()
+      await transport1.start(ma)
+      check transport1.handles(transport1.ma)
+      await transport1.stop()
+
     asyncTest "e2e: handle write":
       let ma: MultiAddress = Multiaddress.init(ma).tryGet()
 
-      let transport1: transportType = transportType.new(upgrade = Upgrade())
+      let transport1 = prov()
       await transport1.start(ma)
 
       proc acceptHandler() {.async, gcsafe.} =
@@ -28,12 +38,12 @@ proc commonTransportTest*(transportType: typedesc[Transport], ma: string) =
 
       let handlerWait = acceptHandler()
 
-      let transport2: transportType = transportType.new(upgrade = Upgrade())
+      let transport2 = prov()
       let conn = await transport2.dial(transport1.ma)
       var msg = newSeq[byte](6)
       await conn.readExactly(addr msg[0], 6)
 
-      await conn.close() #for some protocols, closing requires actively, so we must close here
+      await conn.close() #for some protocols, closing requires actively reading, so we must close here
       await handlerWait.wait(1.seconds) # when no issues will not wait that long!
 
       await transport2.stop()
@@ -43,7 +53,7 @@ proc commonTransportTest*(transportType: typedesc[Transport], ma: string) =
 
     asyncTest "e2e: handle read":
       let ma: MultiAddress = Multiaddress.init(ma).tryGet()
-      let transport1: transportType = transportType.new(upgrade = Upgrade())
+      let transport1 = prov()
       asyncSpawn transport1.start(ma)
 
       proc acceptHandler() {.async, gcsafe.} =
@@ -55,11 +65,11 @@ proc commonTransportTest*(transportType: typedesc[Transport], ma: string) =
 
       let handlerWait = acceptHandler()
 
-      let transport2: transportType = transportType.new(upgrade = Upgrade())
+      let transport2 = prov()
       let conn = await transport2.dial(transport1.ma)
       await conn.write("Hello!")
 
-      await conn.close() #for some protocols, closing requires actively, so we must close here
+      await conn.close() #for some protocols, closing requires actively reading, so we must close here
       await handlerWait.wait(1.seconds) # when no issues will not wait that long!
 
       await transport2.stop()
@@ -68,10 +78,10 @@ proc commonTransportTest*(transportType: typedesc[Transport], ma: string) =
     asyncTest "e2e: handle dial cancellation":
       let ma: MultiAddress = Multiaddress.init(ma).tryGet()
 
-      let transport1: transportType = transportType.new(upgrade = Upgrade())
+      let transport1 = prov()
       await transport1.start(ma)
 
-      let transport2: transportType = transportType.new(upgrade = Upgrade())
+      let transport2 = prov()
       let cancellation = transport2.dial(transport1.ma)
 
       await cancellation.cancelAndWait()
@@ -83,7 +93,7 @@ proc commonTransportTest*(transportType: typedesc[Transport], ma: string) =
     asyncTest "e2e: handle accept cancellation":
       let ma: MultiAddress = Multiaddress.init(ma).tryGet()
 
-      let transport1: transportType = transportType.new(upgrade = Upgrade())
+      let transport1 = prov()
       await transport1.start(ma)
 
       let acceptHandler = transport1.accept()
@@ -95,10 +105,10 @@ proc commonTransportTest*(transportType: typedesc[Transport], ma: string) =
     asyncTest "e2e: stopping transport kills connections":
       let ma: MultiAddress = Multiaddress.init(ma).tryGet()
 
-      let transport1: transportType = transportType.new(upgrade = Upgrade())
+      let transport1 = prov()
       await transport1.start(ma)
 
-      let transport2: transportType = transportType.new(upgrade = Upgrade())
+      let transport2 = prov()
 
       let acceptHandler = transport1.accept()
       let conn = await transport2.dial(transport1.ma)

@@ -25,7 +25,7 @@ import transport,
 logScope:
   topics = "libp2p wstransport"
 
-export transport
+export transport, websock
 
 const
   WsTransportTrackerName* = "libp2p.wstransport"
@@ -73,6 +73,7 @@ type
 
     tlsPrivateKey: TLSPrivateKey
     tlsCertificate: TLSCertificate
+    tlsFlags: set[TLSFlags]
 
 
 method start*(
@@ -98,8 +99,12 @@ method start*(
 
   self.wsserver = WSServer.new()
 
+  let codec = if isNil(self.tlsPrivateKey):
+      MultiAddress.init("/ws")
+    else:
+      MultiAddress.init("/wss")
   # always get the resolved address in case we're bound to 0.0.0.0:0
-  self.ma = MultiAddress.init(self.httpserver.sock.getLocalAddress()).tryGet()
+  self.ma = MultiAddress.init(self.httpserver.sock.getLocalAddress()).tryGet() & codec.tryGet()
   self.running = true
 
   trace "Listening on", address = self.ma
@@ -172,7 +177,8 @@ method dial*(
   trace "Dialing remote peer", address = $address
 
   let
-    transp = await WebSocket.connect(address.initTAddress().tryGet(), "")
+    secure = WSS.match(address)
+    transp = await WebSocket.connect(address.initTAddress().tryGet(), "", secure=secure, flags=self.tlsFlags)
     stream = WsStream.init(transp, Direction.Out)
 
   self.trackConnection(stream, Direction.Out)
@@ -192,10 +198,12 @@ proc new*(T: typedesc[WsTransport], upgrade: Upgrade): T =
 proc new*(T: typedesc[WsTransport],
   tlsPrivateKey: TLSPrivateKey,
   tlsCertificate: TLSCertificate,
-  upgrade: Upgrade): T =
+  upgrade: Upgrade,
+  tlsFlags: set[TLSFlags] = {}): T =
 
   ## Secure WsTransport
   T(
     upgrader: upgrade,
     tlsPrivateKey: tlsPrivateKey,
-    tlsCertificate: tlsCertificate)
+    tlsCertificate: tlsCertificate,
+    tlsFlags: tlsFlags)
