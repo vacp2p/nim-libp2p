@@ -192,26 +192,16 @@ suite "Name resolving":
 
       # The test
       var dnsresolver = DnsResolver.new(@[server.localAddress])
-      proc dnsResolving(address: string, domain: Domain): Future[bool] {.async.} =
-        var
-          output = await dnsresolver.resolveIp(address, 0.Port, domain)
-          expected = resolveTAddress(address, 0.Port, domain)
-
-        var ok = true
-        if output.len != expected.len: ok = false
-        for o in output:
-          if o notin expected: ok = false
-        for o in expected:
-          if o notin output: ok = false
-        if not ok:
-          echo "Expected ", expected
-          echo "Got ", output
-          return false
-        return true
         
-      check await dnsResolving("status.im", Domain.AF_UNSPEC)
-      check await dnsResolving("status.im", Domain.AF_INET)
-      check await dnsResolving("status.im", Domain.AF_INET6)
+      check await(dnsresolver.resolveIp("status.im", 0.Port, Domain.AF_UNSPEC)) ==
+        mapIt(
+          @["104.22.24.181:0", "172.67.10.161:0", "104.22.25.181:0",
+          "[2606:4700:10::6816:19b5]:0", "[2606:4700:10::6816:18b5]:0", "[2606:4700:10::ac43:aa1]:0"
+        ], initTAddress(it))
+      check await(dnsresolver.resolveIp("status.im", 0.Port, Domain.AF_INET)) ==
+        mapIt(@["104.22.24.181:0", "172.67.10.161:0", "104.22.25.181:0"], initTAddress(it))
+      check await(dnsresolver.resolveIp("status.im", 0.Port, Domain.AF_INET6)) ==
+        mapIt(@["[2606:4700:10::6816:19b5]:0", "[2606:4700:10::6816:18b5]:0", "[2606:4700:10::ac43:aa1]:0"], initTAddress(it))
 
       await server.closeWait()
 
