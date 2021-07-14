@@ -596,13 +596,13 @@ suite "Switch":
         rng = rng))
 
     switches[0].addConnEventHandler(hook, ConnEventKind.Connected)
-    switches[0].addConnEventHandler(hook, ConnEventKind.Disconnected)
     awaiters.add(await switches[0].start())
 
     for i in 1..5:
       switches.add(newStandardSwitch(
         privKey = some(peerInfo.privateKey),
         rng = rng))
+      switches[i].addConnEventHandler(hook, ConnEventKind.Disconnected)
       onConnect = switches[i].connect(switches[0].peerInfo.peerId, switches[0].peerInfo.addrs)
       await onConnect
 
@@ -620,13 +620,14 @@ suite "Switch":
   asyncTest "e2e canceling dial should not leak":
     let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
 
-    let transport = TcpTransport.init(upgrade = Upgrade())
+    let transport = TcpTransport.new(upgrade = Upgrade())
     await transport.start(ma)
 
     proc acceptHandler() {.async, gcsafe.} =
       try:
         let conn = await transport.accept()
         discard await conn.readLp(100)
+        await conn.close()
       except CatchableError:
         discard
 
@@ -656,7 +657,7 @@ suite "Switch":
   asyncTest "e2e closing remote conn should not leak":
     let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
 
-    let transport = TcpTransport.init(upgrade = Upgrade())
+    let transport = TcpTransport.new(upgrade = Upgrade())
     await transport.start(ma)
 
     proc acceptHandler() {.async, gcsafe.} =
@@ -712,13 +713,14 @@ suite "Switch":
       readers.add(closeReader())
 
     await allFuturesThrowing(readers)
+    await switch2.stop() #Otherwise this leaks
+    check await checkExpiring(not switch1.isConnected(switch2.peerInfo.peerID))
+
     checkTracker(LPChannelTrackerName)
     checkTracker(SecureConnTrackerName)
     checkTracker(ChronosStreamTrackerName)
 
-    await allFuturesThrowing(
-      switch1.stop(),
-      switch2.stop())
+    await switch1.stop()
 
     # this needs to go at end
     await allFuturesThrowing(awaiters)

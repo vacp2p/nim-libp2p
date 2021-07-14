@@ -50,7 +50,7 @@ proc len*(s: BufferStream): int =
 
 method initStream*(s: BufferStream) =
   if s.objName.len == 0:
-    s.objName = "BufferStream"
+    s.objName = BufferStreamTrackerName
 
   procCall Connection(s).initStream()
 

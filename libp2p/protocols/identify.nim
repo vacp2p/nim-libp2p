@@ -13,6 +13,7 @@ import options
 import chronos, chronicles
 import ../protobuf/minprotobuf,
        ../peerinfo,
+       ../connmanager,
        ../stream/connection,
        ../peerid,
        ../crypto/crypto,
@@ -30,8 +31,6 @@ const
   ProtoVersion* = "ipfs/0.1.0"
   AgentVersion* = "nim-libp2p/0.0.1"
 
-#TODO: implement push identify, leaving out for now as it is not essential
-
 type
   IdentifyError* = object of LPError
   IdentityNoMatchError* = object of IdentifyError
@@ -48,6 +47,9 @@ type
 
   Identify* = ref object of LPProtocol
     peerInfo*: PeerInfo
+
+  IdentifyPush* = ref object of LPProtocol
+    connManager: ConnManager
 
 proc encodeMsg*(peerInfo: PeerInfo, observedAddr: Multiaddress): ProtoBuffer
   {.raises: [Defect, IdentifyNoPubKeyError].} =
@@ -160,7 +162,57 @@ proc identify*(p: Identify,
 
         raise newException(IdentityNoMatchError, "Peer ids don't match")
 
-proc push*(p: Identify, conn: Connection) {.async.} =
-  await conn.write(IdentifyPushCodec)
-  var pb = encodeMsg(p.peerInfo, conn.observedAddr)
+proc new*(T: typedesc[IdentifyPush], connManager: ConnManager): T =
+  let identifypush = T(connManager: connManager)
+  identifypush.init()
+  identifypush
+
+
+proc init*(p: IdentifyPush) =
+  proc handle(conn: Connection, proto: string) {.async, gcsafe, closure.} =
+    trace "handling identify push", conn
+    try:
+      var message = await conn.readLp(64*1024)
+
+      let infoOpt = decodeMsg(message)
+      if infoOpt.isNone():
+        raise newException(IdentityInvalidMsgError, "Incorrect message received!")
+
+      let indentInfo = infoOpt.get()
+
+      if isNil(conn.peerInfo):
+        raise newException(IdentityInvalidMsgError, "Connection got no peerInfo")
+
+      if indentInfo.pubKey.isSome:
+        let receivedPeerId = PeerID.init(indentInfo.pubKey.get()).tryGet()
+        if receivedPeerId != conn.peerInfo.peerId:
+          raise newException(IdentityNoMatchError, "Peer ids don't match")
+
+      if indentInfo.addrs.len > 0:
+        conn.peerInfo.addrs = indentInfo.addrs
+
+      if indentInfo.agentVersion.isSome:
+        conn.peerInfo.agentVersion = indentInfo.agentVersion.get()
+
+      if indentInfo.protoVersion.isSome:
+        conn.peerInfo.protoVersion = indentInfo.protoVersion.get()
+
+      if indentInfo.protos.len > 0:
+        conn.peerInfo.protocols = indentInfo.protos
+
+      trace "triggering peer event", peerInfo = conn.peerInfo
+      await p.connManager.triggerPeerEvents(conn.peerInfo, PeerEvent(kind: PeerEventKind.Identified))
+    except CancelledError as exc:
+      raise exc
+    except CatchableError as exc:
+      info "exception in identify push handler", exc = exc.msg, conn
+    finally:
+      trace "exiting identify push handler", conn
+      await conn.closeWithEOF()
+
+  p.handler = handle
+  p.codec = IdentifyPushCodec
+
+proc push*(p: IdentifyPush, peerInfo: PeerInfo, conn: Connection) {.async.} =
+  var pb = encodeMsg(peerInfo, conn.observedAddr)
   await conn.writeLp(pb.buffer)

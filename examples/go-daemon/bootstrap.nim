@@ -35,7 +35,7 @@ proc main() {.async.} =
     if item.protoCode() == mcip4 or item.protoCode() == mcip6:
       echo $item & "/ipfs/" & id.peer.pretty()
 
-  asyncCheck monitor(api)
+  asyncSpawn monitor(api)
 
   proc pubsubLogger(api: DaemonAPI,
                     ticket: PubsubTicket,

@@ -123,7 +123,7 @@ chronicles.formatIt(LPStream): shortLog(it)
 
 method initStream*(s: LPStream) {.base.} =
   if s.objName.len == 0:
-    s.objName = "LPStream"
+    s.objName = LPStreamTrackerName
 
   s.closeEvent = newAsyncEvent()
   s.oid = genOid()
@@ -264,9 +264,9 @@ proc write*(s: LPStream, msg: string): Future[void] =
 method closeImpl*(s: LPStream): Future[void] {.async, base.} =
   ## Implementation of close - called only once
   trace "Closing stream", s, objName = s.objName, dir = $s.dir
-  s.closeEvent.fire()
   libp2p_open_streams.dec(labelValues = [s.objName, $s.dir])
   inc getStreamTracker(s.objName).closed
+  s.closeEvent.fire()
   trace "Closed stream", s, objName = s.objName, dir = $s.dir
 
 method close*(s: LPStream): Future[void] {.base, async.} = # {.raises [Defect].}
