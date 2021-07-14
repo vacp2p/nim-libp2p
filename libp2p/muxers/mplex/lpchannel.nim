@@ -21,6 +21,8 @@ export connection
 logScope:
   topics = "libp2p mplexchannel"
 
+declareCounter libp2p_muxer_bytes, "total sent or received bytes", ["protocol"]
+
 ## Channel half-closed states
 ##
 ## | State    | Closed local      | Closed remote

@@ -21,8 +21,6 @@ export lpstream, peerinfo, errors
 logScope:
   topics = "libp2p connection"
 
-declarePublicCounter libp2p_total_bytes, "total sent or received bytes", ["connTag"]
-
 const
   ConnectionTrackerName* = "Connection"
   DefaultConnectionTimeout* = 5.minutes
