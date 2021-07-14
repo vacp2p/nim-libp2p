@@ -157,6 +157,10 @@ method readOnce*(s: LPChannel,
   ## or the reads will lock each other.
   try:
     let bytes = await procCall BufferStream(s).readOnce(pbytes, nbytes)
+    libp2p_total_bytes.inc(bytes.int64, labelValues=["in"])
+    if s.tag.len > 0:
+      libp2p_total_bytes.inc(bytes.int64, labelValues=[s.tag])
+
     trace "readOnce", s, bytes
     if bytes == 0:
       await s.closeUnderlying()
@@ -194,6 +198,11 @@ method write*(s: LPChannel, msg: seq[byte]): Future[void] {.async.} =
     trace "write msg", s, conn = s.conn, len = msg.len
 
     await s.conn.writeMsg(s.id, s.msgCode, msg)
+
+    libp2p_total_bytes.inc(msg.len.int64, labelValues=["out"])
+    if s.tag.len > 0:
+      libp2p_total_bytes.inc(msg.len.int64, labelValues=[s.tag])
+
     s.activity = true
   except CatchableError as exc:
     trace "exception in lpchannel write handler", s, msg = exc.msg

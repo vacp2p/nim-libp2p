@@ -21,6 +21,8 @@ export lpstream, peerinfo, errors
 logScope:
   topics = "libp2p connection"
 
+declarePublicCounter libp2p_total_bytes, "total sent or received bytes", ["connTag"]
+
 const
   ConnectionTrackerName* = "Connection"
   DefaultConnectionTimeout* = 5.minutes
@@ -36,6 +38,7 @@ type
     peerInfo*: PeerInfo
     observedAddr*: Multiaddress
     upgraded*: Future[void]
+    tag*: string                    # debug tag for metrics (generally ms protocol)
     transportDir*: Direction        # The bottom level transport (generally the socket) direction
 
 proc timeoutMonitor(s: Connection) {.async, gcsafe.}
