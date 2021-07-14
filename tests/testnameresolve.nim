@@ -8,7 +8,7 @@ import ../libp2p/[stream/connection,
                   upgrademngrs/upgrade,
                   multiaddress,
                   errors,
-                  nameresolving/nameresolver, 
+                  nameresolving/nameresolver,
                   nameresolving/dnsresolver,
                   wire]
 
@@ -167,7 +167,31 @@ suite "Name resolving":
       checkTrackers()
 
     asyncTest "test manual dns ip resolve":
-      var dnsresolver = DnsResolver.new(guessOsNameServers())
+      ## DNS mock server
+      proc clientMark1(transp: DatagramTransport,
+                       raddr: TransportAddress): Future[void] {.async.} =
+        var msg = transp.getMessage()
+        let
+          resp = if msg[24] == 1: #AAAA or A
+              "\xae\xbf\x81\x80\x00\x01\x00\x03\x00\x00\x00\x00\x06\x73\x74\x61" &
+              "\x74\x75\x73\x02\x69\x6d\x00\x00\x01\x00\x01\xc0\x0c\x00\x01\x00" &
+              "\x01\x00\x00\x00\x4f\x00\x04\x68\x16\x18\xb5\xc0\x0c\x00\x01\x00" &
+              "\x01\x00\x00\x00\x4f\x00\x04\xac\x43\x0a\xa1\xc0\x0c\x00\x01\x00" &
+              "\x01\x00\x00\x00\x4f\x00\x04\x68\x16\x19\xb5"
+            else:
+              "\xe8\xc5\x81\x80\x00\x01\x00\x03\x00\x00\x00\x00\x06\x73\x74\x61" &
+              "\x74\x75\x73\x02\x69\x6d\x00\x00\x1c\x00\x01\xc0\x0c\x00\x1c\x00" &
+              "\x01\x00\x00\x00\x4f\x00\x10\x26\x06\x47\x00\x00\x10\x00\x00\x00" &
+              "\x00\x00\x00\x68\x16\x19\xb5\xc0\x0c\x00\x1c\x00\x01\x00\x00\x00" &
+              "\x4f\x00\x10\x26\x06\x47\x00\x00\x10\x00\x00\x00\x00\x00\x00\x68" &
+              "\x16\x18\xb5\xc0\x0c\x00\x1c\x00\x01\x00\x00\x00\x4f\x00\x10\x26" &
+              "\x06\x47\x00\x00\x10\x00\x00\x00\x00\x00\x00\xac\x43\x0a\xa1"
+        await transp.sendTo(raddr, resp)
+
+      let server = newDatagramTransport(clientMark1)
+
+      # The test
+      var dnsresolver = DnsResolver.new(@[server.localAddress])
       proc dnsResolving(address: string, domain: Domain): Future[bool] {.async.} =
         var
           output = await dnsresolver.resolveIp(address, 0.Port, domain)
@@ -188,6 +212,8 @@ suite "Name resolving":
       check await dnsResolving("status.im", Domain.AF_UNSPEC)
       check await dnsResolving("status.im", Domain.AF_INET)
       check await dnsResolving("status.im", Domain.AF_INET6)
+
+      await server.closeWait()
 
     asyncTest "inexisting domain resolving":
       var dnsresolver = DnsResolver.new(guessOsNameServers())
