@@ -15,6 +15,7 @@ export asyncunit
 const
   StreamTransportTrackerName = "stream.transport"
   StreamServerTrackerName = "stream.server"
+  DgramTransportTrackerName = "datagram.transport"
 
   trackerNames = [
     LPStreamTrackerName,
@@ -24,7 +25,8 @@ const
     BufferStreamTrackerName,
     TcpTransportTrackerName,
     StreamTransportTrackerName,
-    StreamServerTrackerName
+    StreamServerTrackerName,
+    DgramTransportTrackerName
   ]
 
 iterator testTrackers*(extras: openArray[string] = []): TrackerBase =

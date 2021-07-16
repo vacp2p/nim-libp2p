@@ -48,37 +48,39 @@ proc getDnsResponse(
   address: string,
   kind: QKind): Future[Response] {.async.} =
 
+  var sendBuf = questionToBuf(address, kind)
+
+  if sendBuf.len == 0:
+    raise newException(ValueError, "Incorrect DNS query")
+
   let receivedDataFuture = newFuture[void]()
 
   proc datagramDataReceived(transp: DatagramTransport,
                   raddr: TransportAddress): Future[void] {.async, closure.} =
       receivedDataFuture.complete()
 
-  let sock = 
+  let sock =
     if dnsServer.family == AddressFamily.IPv6:
       newDatagramTransport6(datagramDataReceived)
     else:
       newDatagramTransport(datagramDataReceived)
 
+  try:
+    await sock.sendTo(dnsServer, addr sendBuf[0], sendBuf.len)
 
-  var sendBuf = questionToBuf(address, kind)
+    await receivedDataFuture or sleepAsync(5.seconds) #unix default
 
-  if sendBuf.len == 0:
-    raise newException(ValueError, "Incorrect DNS query")
+    if not receivedDataFuture.finished:
+      raise newException(ValueError, "DNS server timeout")
 
-  await sock.sendTo(dnsServer, addr sendBuf[0], sendBuf.len)
-
-  await receivedDataFuture or sleepAsync(5.seconds) #unix default
-
-  if not receivedDataFuture.finished:
-    raise newException(ValueError, "DNS server timeout")
-
-  var
-    rawResponse = sock.getMessage()
-    dataStream = newStringStream()
-  dataStream.writeData(addr rawResponse[0], rawResponse.len)
-  dataStream.setPosition(0)
-  return parseResponse(dataStream)
+    var
+      rawResponse = sock.getMessage()
+      dataStream = newStringStream()
+    dataStream.writeData(addr rawResponse[0], rawResponse.len)
+    dataStream.setPosition(0)
+    return parseResponse(dataStream)
+  finally:
+    await sock.closeWait()
 
 method resolveIp*(
   self: DnsResolver,
@@ -107,10 +109,11 @@ method resolveIp*(
         let resp = await fut
         for answer in resp.answers:
           resolvedAddresses.incl(answer.toString())
-      except ValueError as e:
+      except CancelledError as e:
+        raise
+      except CatchableError as e:
         info "Failed to query DNS", address, error=e.msg
-      except TransportOsError as e:
-        info "Failed to query DNS", address, error=e.msg
+
     if resolvedAddresses.len > 0:
       trace "Got IPs from DNS server", resolvedAddresses, server = $server
       return resolvedAddresses.toSeq().mapIt(initTAddress(it, port))
@@ -125,10 +128,16 @@ method resolveTxt*(
   let nameservers = self.nameServers
   trace "Resolving TXT using DNS", address, servers = nameservers.mapIt($it)
   for server in nameservers:
-    let response = await getDnsResponse(server, address, TXT)
-    if response.answers.len > 0:
-      trace "Got TXT response", server = $server, answer=response.answers.mapIt(it.toString())
-      return response.answers.mapIt(it.toString())
+    try:
+      let response = await getDnsResponse(server, address, TXT)
+      if response.answers.len > 0:
+        trace "Got TXT response", server = $server, answer=response.answers.mapIt(it.toString())
+        return response.answers.mapIt(it.toString())
+    except CancelledError as e:
+      raise
+    except CatchableError as e:
+      info "Failed to query DNS", address, error=e.msg
+
   debug "Failed to resolve TXT, returning empty set"
   return @[]
 
