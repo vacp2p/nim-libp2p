@@ -110,7 +110,7 @@ method resolveIp*(
         for answer in resp.answers:
           resolvedAddresses.incl(answer.toString())
       except CancelledError as e:
-        raise
+        raise e
       except CatchableError as e:
         info "Failed to query DNS", address, error=e.msg
 
@@ -134,7 +134,7 @@ method resolveTxt*(
         trace "Got TXT response", server = $server, answer=response.answers.mapIt(it.toString())
         return response.answers.mapIt(it.toString())
     except CancelledError as e:
-      raise
+      raise e
     except CatchableError as e:
       info "Failed to query DNS", address, error=e.msg
 
