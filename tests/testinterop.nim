@@ -2,7 +2,7 @@ import options, tables
 import chronos, chronicles, stew/byteutils
 import helpers
 import ../libp2p
-import ../libp2p/[daemon/daemonapi, varint]
+import ../libp2p/[daemon/daemonapi, varint, transports/wstransport, crypto/crypto]
 
 type
   # TODO: Unify both PeerInfo structs
@@ -269,6 +269,49 @@ suite "Interop":
 
     let nativeNode = newStandardSwitch(
       secureManagers = [SecureProtocol.Noise], outTimeout = 5.minutes)
+
+    nativeNode.mount(proto)
+
+    let awaiters = await nativeNode.start()
+    let nativePeer = nativeNode.peerInfo
+
+    let daemonNode = await newDaemonApi()
+    await daemonNode.connect(nativePeer.peerId, nativePeer.addrs)
+    var stream = await daemonNode.openStream(nativePeer.peerId, protos)
+    discard await stream.transp.writeLp(test)
+
+    check test == (await wait(testFuture, 10.secs))
+
+    await stream.close()
+    await nativeNode.stop()
+    await allFutures(awaiters)
+    await daemonNode.close()
+    await sleepAsync(1.seconds)
+
+  asyncTest "daemon -> websocket connection":
+    var protos = @["/test-stream"]
+    var test = "TEST STRING"
+
+    var testFuture = newFuture[string]("test.future")
+    proc nativeHandler(conn: Connection, proto: string) {.async.} =
+      var line = string.fromBytes(await conn.readLp(1024))
+      check line == test
+      testFuture.complete(line)
+      await conn.close()
+
+    # custom proto
+    var proto = new LPProtocol
+    proto.handler = nativeHandler
+    proto.codec = protos[0] # codec
+
+    let nativeNode = SwitchBuilder
+      .new()
+      .withAddress(MultiAddress.init("/ip4/127.0.0.1/tcp/7777/ws").tryGet())
+      .withRng(crypto.newRng())
+      .withMplex()
+      .withTransport(proc (upgr: Upgrade): Transport = WsTransport.new(upgr))
+      .withNoise()
+      .build()
 
     nativeNode.mount(proto)
 
