@@ -209,9 +209,17 @@ proc start*(s: Switch): Future[seq[Future[void]]] {.async, gcsafe.} =
   for t in s.transports: # for each transport
     for i, a in s.peerInfo.addrs:
       if t.handles(a): # check if it handles the multiaddr
-        await t.start(a)
-        s.peerInfo.addrs[i] = t.ma # update peer's address
-        s.acceptFuts.add(s.accept(t))
+        let transpStart = t.start(a)
+        startFuts.add(transpStart)
+        try:
+          await transpStart
+          s.peerInfo.addrs[i] = t.ma # update peer's address
+          s.acceptFuts.add(s.accept(t))
+        except CancelledError:
+          raise
+        except CatchableError as exc:
+          debug "Failed to start one transport", address = $a, err = exc.msg
+          continue
 
   proc peerIdentifiedHandler(peerInfo: PeerInfo, event: PeerEvent) {.async.} =
     s.peerStore.replace(peerInfo)
