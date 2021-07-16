@@ -10,6 +10,7 @@ import ../libp2p/[stream/connection,
                   errors,
                   nameresolving/nameresolver,
                   nameresolving/dnsresolver,
+                  nameresolving/mockresolver,
                   wire]
 
 import ./helpers
@@ -53,28 +54,9 @@ proc guessOsNameServers(): seq[TransportAddress] =
     return fallbackDnsServers
 
 
-type MockResolver = ref object of NameResolver
-
-method resolveIp*(
-  self: MockResolver,
-  address: string,
-  port: Port,
-  domain: Domain = Domain.AF_UNSPEC): Future[seq[TransportAddress]] {.async.} =
-  if domain == Domain.AF_INET or domain == Domain.AF_UNSPEC:
-    result.add(initTAddress("127.0.0.1:53"))
-  if domain == Domain.AF_INET6 or domain == Domain.AF_UNSPEC:
-    result.add(initTAddress("[::1]:53"))
-
-var txtResponses {.threadvar.}: Table[string, seq[string]]
-
-method resolveTxt*(
-  self: MockResolver,
-  address: string): Future[seq[string]] {.async.} =
-  return txtResponses.getOrDefault(address)
-
 suite "Name resolving":
   suite "Generic Resolving":
-    var resolver {.threadvar.}: NameResolver
+    var resolver {.threadvar.}: MockResolver
 
     proc testOne(input: string, output: seq[Multiaddress]): bool =
       let resolved = waitFor resolver.resolveMAddresses(@[Multiaddress.init(input).tryGet()])
@@ -91,18 +73,27 @@ suite "Name resolving":
       testOne(input, @[Multiaddress.init(output).tryGet()])
 
     asyncSetup:
-      resolver = MockResolver()
+      resolver = MockResolver.new()
 
     asyncTest "test multi address dns resolve":
+      resolver.ipResponses[("localhost", false)] = @["127.0.0.1"]
+      resolver.ipResponses[("localhost", true)] = @["::1"]
+
       check testOne("/dns/localhost/udp/0", @["/ip4/127.0.0.1/udp/0", "/ip6/::1/udp/0"])
       check testOne("/dns4/localhost/tcp/0", "/ip4/127.0.0.1/tcp/0")
       check testOne("/dns6/localhost/tcp/0", "/ip6/::1/tcp/0")
       check testOne("/dns6/localhost/tcp/4001/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN", "/ip6/::1/tcp/4001/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN")
 
     asyncTest "test non dns resolve":
+      resolver.ipResponses[("localhost", false)] = @["127.0.0.1"]
+      resolver.ipResponses[("localhost", true)] = @["::1"]
+
       check testOne("/ip6/::1/tcp/0", "/ip6/::1/tcp/0")
 
     asyncTest "test multiple resolve":
+      resolver.ipResponses[("localhost", false)] = @["127.0.0.1"]
+      resolver.ipResponses[("localhost", true)] = @["::1"]
+
       let resolved = waitFor resolver.resolveMAddresses(@[
         Multiaddress.init("/dns/localhost/udp/0").tryGet(),
         Multiaddress.init("/dns4/localhost/udp/0").tryGet(),
@@ -112,17 +103,17 @@ suite "Name resolving":
       check resolved == @[Multiaddress.init("/ip4/127.0.0.1/udp/0").tryGet(), Multiaddress.init("/ip6/::1/udp/0").tryGet()]
 
     asyncTest "dnsaddr recursive test":
-      txtResponses["_dnsaddr.bootstrap.libp2p.io"] = @[
+      resolver.txtResponses["_dnsaddr.bootstrap.libp2p.io"] = @[
         "dnsaddr=/dnsaddr/sjc-1.bootstrap.libp2p.io/tcp/4001/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN",
         "dnsaddr=/dnsaddr/ams-2.bootstrap.libp2p.io/tcp/4001/p2p/QmbLHAnMoJPWSCR5Zhtx6BHJX9KiKNN6tpvbUcqanj75Nb"
       ]
 
-      txtResponses["_dnsaddr.sjc-1.bootstrap.libp2p.io"] = @[
+      resolver.txtResponses["_dnsaddr.sjc-1.bootstrap.libp2p.io"] = @[
         "dnsaddr=/ip6/2604:1380:1000:6000::1/tcp/4001/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN",
         "dnsaddr=/ip4/147.75.69.143/tcp/4001/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN"
       ]
 
-      txtResponses["_dnsaddr.ams-2.bootstrap.libp2p.io"] = @[
+      resolver.txtResponses["_dnsaddr.ams-2.bootstrap.libp2p.io"] = @[
         "dnsaddr=/ip4/147.75.83.83/tcp/4001/p2p/QmbLHAnMoJPWSCR5Zhtx6BHJX9KiKNN6tpvbUcqanj75Nb",
         "dnsaddr=/ip6/2604:1380:2000:7a00::1/tcp/4001/p2p/QmbLHAnMoJPWSCR5Zhtx6BHJX9KiKNN6tpvbUcqanj75Nb"
       ]
@@ -135,19 +126,19 @@ suite "Name resolving":
       ])
 
     asyncTest "dnsaddr suffix matching test":
-      txtResponses["_dnsaddr.bootstrap.libp2p.io"] = @[
+      resolver.txtResponses["_dnsaddr.bootstrap.libp2p.io"] = @[
         "dnsaddr=/dnsaddr/ams-2.bootstrap.libp2p.io/tcp/4001/p2p/QmbLHAnMoJPWSCR5Zhtx6BHJX9KiKNN6tpvbUcqanj75Nb",
         "dnsaddr=/dnsaddr/sjc-1.bootstrap.libp2p.io/tcp/4001/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN",
         "dnsaddr=/dnsaddr/nrt-1.bootstrap.libp2p.io/tcp/4001/p2p/QmcZf59bWwK5XFi76CZX8cbJ4BhTzzA3gU1ZjYZcYW3dwt",
         "dnsaddr=/dnsaddr/ewr-1.bootstrap.libp2p.io/tcp/4001/p2p/QmQCU2EcMqAqQPR2i9bChDtGNJchTbq5TbXJJ16u19uLTa",
       ]
 
-      txtResponses["_dnsaddr.sjc-1.bootstrap.libp2p.io"] = @[
+      resolver.txtResponses["_dnsaddr.sjc-1.bootstrap.libp2p.io"] = @[
         "dnsaddr=/ip4/147.75.69.143/tcp/4001/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN",
         "dnsaddr=/ip6/2604:1380:1000:6000::1/tcp/4001/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN",
       ]
 
-      txtResponses["_dnsaddr.ams-1.bootstrap.libp2p.io"] = @[
+      resolver.txtResponses["_dnsaddr.ams-1.bootstrap.libp2p.io"] = @[
         "dnsaddr=/ip4/147.75.69.143/tcp/4001/p2p/shouldbefiltered",
         "dnsaddr=/ip6/2604:1380:1000:6000::1/tcp/4001/p2p/shouldbefiltered",
       ]
@@ -158,7 +149,7 @@ suite "Name resolving":
       ])
 
     asyncTest "dnsaddr infinite recursion":
-      txtResponses["_dnsaddr.bootstrap.libp2p.io"] = @["dnsaddr=/dnsaddr/bootstrap.libp2p.io"]
+      resolver.txtResponses["_dnsaddr.bootstrap.libp2p.io"] = @["dnsaddr=/dnsaddr/bootstrap.libp2p.io"]
 
       check testOne("/dnsaddr/bootstrap.libp2p.io/", "/dnsaddr/bootstrap.libp2p.io/")
 
