@@ -209,7 +209,8 @@ proc newStandardSwitch*(
   maxConnections = MaxConnections,
   maxIn = -1,
   maxOut = -1,
-  maxConnsPerPeer = MaxConnectionsPerPeer): Switch
+  maxConnsPerPeer = MaxConnectionsPerPeer,
+  nameResolver: NameResolver = nil): Switch
   {.raises: [Defect, LPError].} =
   if SecureProtocol.Secio in secureManagers:
       quit("Secio is deprecated!") # use of secio is unsafe
@@ -224,6 +225,7 @@ proc newStandardSwitch*(
     .withMaxConnsPerPeer(maxConnsPerPeer)
     .withMplex(inTimeout, outTimeout)
     .withTcpTransport(transportFlags)
+    .withNameResolver(nameResolver)
     .withNoise()
 
   if privKey.isSome():

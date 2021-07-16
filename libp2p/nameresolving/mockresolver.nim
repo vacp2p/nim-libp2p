@@ -15,6 +15,8 @@ import
 
 import nameresolver
 
+export tables
+
 logScope:
   topics = "libp2p mockresolver"
 

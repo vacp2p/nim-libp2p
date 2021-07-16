@@ -204,10 +204,6 @@ const
     "/ip6/::/tcp/65535",
     "/ip6/::/udp/65535",
     "/ip6/::/udp/65535",
-    "/dns/example.io/tcp/65535",
-    "/dns4/example.io/tcp/65535",
-    "/dns6/example.io/tcp/65535",
-    "/dnsaddr/example.io/tcp/65535",
     "/unix/tmp/test.socket"
   ]
 
