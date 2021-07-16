@@ -203,32 +203,6 @@ proc accept(s: Switch, transport: Transport) {.async.} = # noraises
         await conn.close()
       return
 
-proc start*(s: Switch): Future[seq[Future[void]]] {.async, gcsafe.} =
-  trace "starting switch for peer", peerInfo = s.peerInfo
-  var startFuts: seq[Future[void]]
-  for t in s.transports: # for each transport
-    for i, a in s.peerInfo.addrs:
-      if t.handles(a): # check if it handles the multiaddr
-        let transpStart = t.start(a)
-        startFuts.add(transpStart)
-        try:
-          await transpStart
-          s.peerInfo.addrs[i] = t.ma # update peer's address
-          s.acceptFuts.add(s.accept(t))
-        except CancelledError:
-          raise
-        except CatchableError as exc:
-          debug "Failed to start one transport", address = $a, err = exc.msg
-          continue
-
-  proc peerIdentifiedHandler(peerInfo: PeerInfo, event: PeerEvent) {.async.} =
-    s.peerStore.replace(peerInfo)
-
-  s.connManager.addPeerEventHandler(peerIdentifiedHandler, PeerEventKind.Identified)
-
-  debug "Started libp2p node", peer = s.peerInfo
-  return startFuts # listen for incoming connections
-
 proc stop*(s: Switch) {.async.} =
   trace "Stopping switch"
 
@@ -256,6 +230,33 @@ proc stop*(s: Switch) {.async.} =
       a.cancel()
 
   trace "Switch stopped"
+
+proc start*(s: Switch): Future[seq[Future[void]]] {.async, gcsafe.} =
+  trace "starting switch for peer", peerInfo = s.peerInfo
+  var startFuts: seq[Future[void]]
+  for t in s.transports: # for each transport
+    for i, a in s.peerInfo.addrs:
+      if t.handles(a): # check if it handles the multiaddr
+        let transpStart = t.start(a)
+        startFuts.add(transpStart)
+        try:
+          await transpStart
+          s.peerInfo.addrs[i] = t.ma # update peer's address
+          s.acceptFuts.add(s.accept(t))
+        except CancelledError:
+          await s.stop()
+          raise
+        except CatchableError as exc:
+          debug "Failed to start one transport", address = $a, err = exc.msg
+          continue
+
+  proc peerIdentifiedHandler(peerInfo: PeerInfo, event: PeerEvent) {.async.} =
+    s.peerStore.replace(peerInfo)
+
+  s.connManager.addPeerEventHandler(peerIdentifiedHandler, PeerEventKind.Identified)
+
+  debug "Started libp2p node", peer = s.peerInfo
+  return startFuts # listen for incoming connections
 
 proc newSwitch*(peerInfo: PeerInfo,
                 transports: seq[Transport],
