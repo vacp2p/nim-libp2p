@@ -942,15 +942,12 @@ proc isWire*(ma: MultiAddress): bool =
   ## Returns ``true`` if MultiAddress ``ma`` is one of:
   ## - {IP4}/{TCP, UDP}
   ## - {IP6}/{TCP, UDP}
-  ## - {DNS,DNS4,DNS6,DNSADDR}/{TCP, UDP}
   ## - {UNIX}/{PATH}
 
   var state = 0
   const
     wireProtocols = toHashSet([
                         multiCodec("ip4"), multiCodec("ip6"),
-                        multiCodec("dns"), multiCodec("dns4"),
-                        multiCodec("dns6"), multiCodec("dnsaddr")
                       ])
     wireTransports = toHashSet([
                         multiCodec("tcp"), multiCodec("udp")
