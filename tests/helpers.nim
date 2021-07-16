@@ -6,6 +6,7 @@ import ../libp2p/transports/tcptransport
 import ../libp2p/stream/bufferstream
 import ../libp2p/crypto/crypto
 import ../libp2p/stream/lpstream
+import ../libp2p/stream/chronosstream
 import ../libp2p/muxers/mplex/lpchannel
 import ../libp2p/protocols/secure/secure
 
@@ -26,7 +27,8 @@ const
     TcpTransportTrackerName,
     StreamTransportTrackerName,
     StreamServerTrackerName,
-    DgramTransportTrackerName
+    DgramTransportTrackerName,
+    ChronosStreamTrackerName
   ]
 
 iterator testTrackers*(extras: openArray[string] = []): TrackerBase =
