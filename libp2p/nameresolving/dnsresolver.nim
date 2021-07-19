@@ -39,7 +39,7 @@ proc questionToBuf(address: string, kind: QKind): seq[byte] =
     var buf = newSeq[byte](dataLen)
     discard requestStream.readData(addr buf[0], dataLen)
     return buf
-  except Exception as exc:
+  except CatchableError as exc:
     info "Failed to created DNS buffer", msg = exc.msg
     return newSeq[byte](0)
 
