@@ -243,9 +243,9 @@ proc start*(s: Switch): Future[seq[Future[void]]] {.async, gcsafe.} =
           await transpStart
           s.peerInfo.addrs[i] = t.ma # update peer's address
           s.acceptFuts.add(s.accept(t))
-        except CancelledError:
+        except CancelledError as exc:
           await s.stop()
-          raise
+          raise exc
         except CatchableError as exc:
           debug "Failed to start one transport", address = $a, err = exc.msg
           continue
