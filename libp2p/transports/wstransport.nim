@@ -52,8 +52,11 @@ proc init*(T: type WsStream,
 method readOnce*(
   s: WsStream,
   pbytes: pointer,
-  nbytes: int): Future[int] =
-  return s.session.recv(pbytes, nbytes)
+  nbytes: int): Future[int] {.async.} =
+  let res = await s.session.recv(pbytes, nbytes)
+  if res == 0:
+    raise newLPStreamEOFError()
+  return res
 
 method write*(
   s: WsStream,

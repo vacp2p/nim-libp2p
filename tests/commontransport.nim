@@ -56,7 +56,7 @@ proc commonTransportTest*(name: string, prov: TransportProvider, ma: string) =
     asyncTest "e2e: handle read":
       let ma: MultiAddress = Multiaddress.init(ma).tryGet()
       let transport1 = prov()
-      asyncSpawn transport1.start(ma)
+      await transport1.start(ma)
 
       proc acceptHandler() {.async, gcsafe.} =
         let conn = await transport1.accept()
@@ -127,3 +127,35 @@ proc commonTransportTest*(name: string, prov: TransportProvider, ma: string) =
 
       check serverConn.closed()
       check conn.closed()
+
+    asyncTest "read or write on closed connection":
+      let ma: MultiAddress = Multiaddress.init(ma).tryGet()
+      let transport1 = prov()
+      await transport1.start(ma)
+
+      proc acceptHandler() {.async, gcsafe.} =
+        let conn = await transport1.accept()
+        await conn.close()
+
+      let handlerWait = acceptHandler()
+
+      let conn = await transport1.dial(transport1.ma)
+
+      var msg = newSeq[byte](6)
+      try:
+        await conn.readExactly(addr msg[0], 6)
+        check false
+      except CatchableError as exc:
+        check true
+
+      # we don't HAVE to throw on write on EOF
+      # (at least TCP doesn't)
+      try:
+        await conn.write(msg)
+      except CatchableError as exc:
+        check true
+
+      await conn.close() #for some protocols, closing requires actively reading, so we must close here
+      await handlerWait.wait(1.seconds) # when no issues will not wait that long!
+
+      await transport1.stop()
