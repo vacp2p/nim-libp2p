@@ -54,7 +54,7 @@ method readOnce*(
   pbytes: pointer,
   nbytes: int): Future[int] {.async.} =
   let res = await s.session.recv(pbytes, nbytes)
-  if res == 0:
+  if res == 0 and s.session.readyState == ReadyState.Closed:
     raise newLPStreamEOFError()
   return res
 
