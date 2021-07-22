@@ -33,7 +33,6 @@ type
     timeout*: Duration              # channel timeout if no activity
     timerTaskFut: Future[void]      # the current timer instance
     timeoutHandler*: TimeoutHandler # timeout handler
-    #peerInfo*: PeerInfo
     peerId*: PeerId
     observedAddr*: Multiaddress
     upgraded*: Future[void]

@@ -68,7 +68,7 @@ suite "Identify":
       conn = await transport2.dial(transport1.ma)
 
       discard await msDial.select(conn, IdentifyCodec)
-      let id = await identifyProto2.identify(conn, remotePeerInfo)
+      let id = await identifyProto2.identify(conn, remotePeerInfo.peerId)
 
       check id.pubKey.get() == remoteSecKey.getKey().get()
       check id.addrs[0] == ma
@@ -91,7 +91,7 @@ suite "Identify":
       conn = await transport2.dial(transport1.ma)
 
       discard await msDial.select(conn, IdentifyCodec)
-      let id = await identifyProto2.identify(conn, remotePeerInfo)
+      let id = await identifyProto2.identify(conn, remotePeerInfo.peerId)
 
       check id.pubKey.get() == remoteSecKey.getKey().get()
       check id.addrs[0] == ma
@@ -119,7 +119,7 @@ suite "Identify":
       expect IdentityNoMatchError:
         let pi2 = PeerInfo.init(PrivateKey.random(ECDSA, rng[]).get())
         discard await msDial.select(conn, IdentifyCodec)
-        discard await identifyProto2.identify(conn, pi2)
+        discard await identifyProto2.identify(conn, pi2.peerId)
 
   suite "handle push identify message":
     var
