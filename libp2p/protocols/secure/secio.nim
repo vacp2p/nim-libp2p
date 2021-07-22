@@ -339,6 +339,8 @@ method handshake*(s: Secio, conn: Connection, initiator: bool = false): Future[S
   remotePeerId = PeerID.init(remotePubkey).tryGet()
 
   # TODO: PeerID check against supplied PeerID
+  if not initiator:
+    conn.peerId = remotePeerId
   let order = getOrder(remoteBytesPubkey, localNonce, localBytesPubkey,
                        remoteNonce).tryGet()
   trace "Remote proposal", schemes = remoteExchanges, ciphers = remoteCiphers,
