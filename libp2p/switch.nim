@@ -245,6 +245,18 @@ proc stop*(s: Switch) {.async.} =
 
   trace "Switch stopped"
 
+proc updatePeerInfo*(
+  switch: Switch,
+  info: IdentifyInfo) =
+  if info.addrs.len > 0:
+    switch.peerStore.addressBook.set(info.peerId, info.addrs)
+
+  if info.agentVersion.isSome:
+    switch.peerStore.agentBook.set(info.peerId, info.agentVersion.get().string)
+
+  if info.protos.len > 0:
+    switch.peerStore.protoBook.set(info.peerId, info.protos)
+
 proc newSwitch*(peerInfo: PeerInfo,
                 transports: seq[Transport],
                 identity: Identify,

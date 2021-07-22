@@ -49,8 +49,14 @@ type
   Identify* = ref object of LPProtocol
     peerInfo*: PeerInfo
 
+  IdentifyPushHandler* = proc (
+    peer: PeerId,
+    newInfo: IdentifyInfo):
+    Future[void]
+    {.gcsafe, raises: [Defect].}
+
   IdentifyPush* = ref object of LPProtocol
-    connManager: ConnManager
+    identifyHandler: IdentifyPushHandler
 
 proc encodeMsg*(peerInfo: PeerInfo, observedAddr: Multiaddress): ProtoBuffer
   {.raises: [Defect, IdentifyNoPubKeyError].} =
@@ -166,11 +172,10 @@ proc identify*(p: Identify,
   else:
     raise newException(IdentityInvalidMsgError, "No pubkey in identify")
 
-proc new*(T: typedesc[IdentifyPush], connManager: ConnManager): T =
-  let identifypush = T(connManager: connManager)
+proc new*(T: typedesc[IdentifyPush], handler: IdentifyPushHandler = nil): T =
+  let identifypush = T(identifyHandler: handler)
   identifypush.init()
   identifypush
-
 
 proc init*(p: IdentifyPush) =
   proc handle(conn: Connection, proto: string) {.async, gcsafe, closure.} =
@@ -182,28 +187,17 @@ proc init*(p: IdentifyPush) =
       if infoOpt.isNone():
         raise newException(IdentityInvalidMsgError, "Incorrect message received!")
 
-      #TODO
-      #let indentInfo = infoOpt.get()
+      var indentInfo = infoOpt.get()
 
-      #if indentInfo.pubKey.isSome:
-      #  let receivedPeerId = PeerID.init(indentInfo.pubKey.get()).tryGet()
-      #  if receivedPeerId != conn.peerInfo.peerId:
-      #    raise newException(IdentityNoMatchError, "Peer ids don't match")
+      if indentInfo.pubKey.isSome:
+        let receivedPeerId = PeerID.init(indentInfo.pubKey.get()).tryGet()
+        if receivedPeerId != conn.peerId:
+          raise newException(IdentityNoMatchError, "Peer ids don't match")
+        indentInfo.peerId = receivedPeerId
 
-      #if indentInfo.addrs.len > 0:
-      #  conn.peerInfo.addrs = indentInfo.addrs
-
-      #if indentInfo.agentVersion.isSome:
-      #  conn.peerInfo.agentVersion = indentInfo.agentVersion.get()
-
-      #if indentInfo.protoVersion.isSome:
-      #  conn.peerInfo.protoVersion = indentInfo.protoVersion.get()
-
-      #if indentInfo.protos.len > 0:
-      #  conn.peerInfo.protocols = indentInfo.protos
-
-      #trace "triggering peer event", peerInfo = conn.peerInfo
-      #await p.connManager.triggerPeerEvents(conn.peerInfo, PeerEvent(kind: PeerEventKind.Identified))
+      trace "triggering peer event", peerInfo = conn.peerId
+      if not isNil(p.identifyHandler):
+        await p.identifyHandler(conn.peerId, indentInfo)
     except CancelledError as exc:
       raise exc
     except CatchableError as exc:
