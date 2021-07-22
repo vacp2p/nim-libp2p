@@ -214,11 +214,6 @@ proc start*(s: Switch): Future[seq[Future[void]]] {.async, gcsafe.} =
         s.acceptFuts.add(s.accept(t))
         startFuts.add(server)
 
-  proc peerIdentifiedHandler(peerInfo: PeerInfo, event: PeerEvent) {.async.} =
-    s.peerStore.replace(peerInfo)
-
-  s.connManager.addPeerEventHandler(peerIdentifiedHandler, PeerEventKind.Identified)
-
   debug "Started libp2p node", peer = s.peerInfo
   return startFuts # listen for incoming connections
 
@@ -269,6 +264,7 @@ proc newSwitch*(peerInfo: PeerInfo,
     peerStore: PeerStore.new(),
     dialer: Dialer.new(peerInfo, connManager, transports, ms))
 
+  switch.connManager.peerStore = switch.peerStore
   switch.mount(identity)
   return switch
 

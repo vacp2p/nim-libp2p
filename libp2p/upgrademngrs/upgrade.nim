@@ -16,6 +16,7 @@ import ../stream/connection,
        ../protocols/secure/secure,
        ../protocols/identify,
        ../multistream,
+       ../peerstore,
        ../connmanager,
        ../errors
 
@@ -70,26 +71,26 @@ proc identify*(
   ## identify the connection
 
   if (await self.ms.select(conn, self.identity.codec)):
-    let info = await self.identity.identify(conn, conn.peerInfo)
+    let
+      info = await self.identity.identify(conn, conn.peerId)
+      peerStore = self.connManager.peerStore
 
     if info.pubKey.isNone and isNil(conn):
       raise newException(UpgradeFailedError,
         "no public key provided and no existing peer identity found")
 
-    if isNil(conn.peerInfo):
-      conn.peerInfo = PeerInfo.init(info.pubKey.get())
+    conn.peerId = info.peerId
 
     if info.addrs.len > 0:
-      conn.peerInfo.addrs = info.addrs
+      peerStore.addressBook.set(conn.peerId, info.addrs)
 
     if info.agentVersion.isSome:
-      conn.peerInfo.agentVersion = info.agentVersion.get()
+      peerStore.agentBook.set(conn.peerId, info.agentVersion.get().string)
 
-    if info.protoVersion.isSome:
-      conn.peerInfo.protoVersion = info.protoVersion.get()
+    #if info.protoVersion.isSome:
+    #  conn.peerInfo.protoVersion = info.protoVersion.get()
 
     if info.protos.len > 0:
-      conn.peerInfo.protocols = info.protos
+      peerStore.protoBook.set(conn.peerId, info.protos)
 
-    await self.connManager.triggerPeerEvents(conn.peerInfo, PeerEvent(kind: PeerEventKind.Identified))
-    trace "identified remote peer", conn, peerInfo = shortLog(conn.peerInfo)
+    trace "identified remote peer", conn, peerInfo = shortLog(conn.peerId)

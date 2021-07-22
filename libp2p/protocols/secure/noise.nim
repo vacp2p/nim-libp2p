@@ -100,8 +100,7 @@ type
 func shortLog*(conn: NoiseConnection): auto =
   try:
     if conn.isNil: "NoiseConnection(nil)"
-    elif conn.peerInfo.isNil: $conn.oid
-    else: &"{shortLog(conn.peerInfo.peerId)}:{conn.oid}"
+    else: &"{shortLog(conn.peerId)}:{conn.oid}"
   except ValueError as exc:
     raise newException(Defect, exc.msg)
 
@@ -547,27 +546,21 @@ method handshake*(p: Noise, conn: Connection, initiator: bool): Future[SecureCon
     else:
       trace "Remote signature verified", conn
 
-    if initiator and not isNil(conn.peerInfo):
+    if initiator:
       let pid = PeerID.init(remotePubKey)
-      if not conn.peerInfo.peerId.validate():
+      if not conn.peerId.validate():
         raise newException(NoiseHandshakeError, "Failed to validate peerId.")
-      if pid.isErr or pid.get() != conn.peerInfo.peerId:
+      if pid.isErr or pid.get() != conn.peerId:
         var
           failedKey: PublicKey
-        discard extractPublicKey(conn.peerInfo.peerId, failedKey)
+        discard extractPublicKey(conn.peerId, failedKey)
         debug "Noise handshake, peer infos don't match!",
           initiator, dealt_peer = conn,
           dealt_key = $failedKey, received_peer = $pid,
           received_key = $remotePubKey
-        raise newException(NoiseHandshakeError, "Noise handshake, peer infos don't match! " & $pid & " != " & $conn.peerInfo.peerId)
+        raise newException(NoiseHandshakeError, "Noise handshake, peer infos don't match! " & $pid & " != " & $conn.peerId)
 
-    conn.peerInfo =
-      if conn.peerInfo != nil:
-        conn.peerInfo
-      else:
-        PeerInfo.init(PeerID.init(remotePubKey).tryGet())
-
-    var tmp = NoiseConnection.init(conn, conn.peerInfo, conn.observedAddr)
+    var tmp = NoiseConnection.init(conn, conn.peerId, conn.observedAddr)
 
     if initiator:
       tmp.readCs = handshakeRes.cs2
@@ -579,7 +572,7 @@ method handshake*(p: Noise, conn: Connection, initiator: bool): Future[SecureCon
   finally:
     burnMem(handshakeRes)
 
-  trace "Noise handshake completed!", initiator, peer = shortLog(secure.peerInfo)
+  trace "Noise handshake completed!", initiator, peer = shortLog(secure.peerId)
 
   conn.timeout = timeout
 

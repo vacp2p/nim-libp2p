@@ -38,8 +38,7 @@ type
 func shortLog*(s: BufferStream): auto =
   try:
     if s.isNil: "BufferStream(nil)"
-    elif s.peerInfo.isNil: $s.oid
-    else: &"{shortLog(s.peerInfo.peerId)}:{s.oid}"
+    else: &"{shortLog(s.peerId)}:{s.oid}"
   except ValueError as exc:
     raise newException(Defect, exc.msg)
 

@@ -86,17 +86,13 @@ method upgradeOutgoing*(
     raise newException(UpgradeFailedError,
       "unable to secure connection, stopping upgrade")
 
-  if sconn.peerInfo.isNil:
-    raise newException(UpgradeFailedError,
-      "current version of nim-libp2p requires that secure protocol negotiates peerid")
-
   let muxer = await self.mux(sconn) # mux it if possible
   if muxer == nil:
     # TODO this might be relaxed in the future
     raise newException(UpgradeFailedError,
       "a muxer is required for outgoing connections")
 
-  if sconn.closed() or isNil(sconn.peerInfo):
+  if sconn.closed():
     await sconn.close()
     raise newException(UpgradeFailedError,
       "Connection closed or missing peer info, stopping upgrade")
@@ -163,11 +159,6 @@ proc muxerHandler(
   muxer: Muxer) {.async, gcsafe.} =
   let
     conn = muxer.connection
-
-  if conn.peerInfo.isNil:
-    warn "This version of nim-libp2p requires secure protocol to negotiate peerid"
-    await muxer.close()
-    return
 
   # store incoming connection
   self.connManager.storeConn(conn)

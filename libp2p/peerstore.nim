@@ -49,6 +49,8 @@ type
     addressBook*: AddressBook
     protoBook*: ProtoBook
     keyBook*: KeyBook
+
+    agentBook*: PeerBook[string]
   
   StoredInfo* = object
     # Collates stored info about a peer
@@ -112,6 +114,16 @@ proc add*[T](
   # Notify clients
   for handler in peerBook.changeHandlers:
     handler(peerId, peerBook.get(peerId))
+
+# Helper for seq
+proc set*[T](
+  peerBook: var SetPeerBook[T],
+  peerId: PeerID,
+  entry: seq[T]) =
+  ## Add entry to a given peer. If the peer is not known,
+  ## it will be set with the provided entry.
+  peerBook.set(peerId, entry.toHashSet())
+  
 
 ##################  
 # Peer Store API #
