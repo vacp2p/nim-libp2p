@@ -22,3 +22,19 @@ template asyncTest*(name: string, body: untyped): untyped =
       proc() {.async, gcsafe.} =
         body
     )())
+
+template cancelTest*(name: string, body: untyped): untyped =
+  test name:
+    proc cancelledTest() {.async, gcsafe.} =
+      body
+    for i in 0..1000:
+      echo "polling ", i ," times"
+      let testFuture = cancelledTest()
+      for _ in 0..<i:
+        if testFuture.finished: break
+        poll()
+      if testFuture.finished: break #We actually finished the sequence
+      waitFor(testFuture.cancelAndWait())
+      waitFor(sleepAsync(1.seconds))
+      #check testFuture.cancelled
+      checkTrackers()

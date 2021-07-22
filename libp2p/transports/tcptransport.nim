@@ -161,9 +161,13 @@ method stop*(self: TcpTransport) {.async, gcsafe.} =
   ## stop the transport
   ##
 
+  echo getStackTrace()
+  if not self.running:
+    trace "Transport not started"
+    return
+
   try:
     trace "Stopping TCP transport"
-    await procCall Transport(self).stop() # call base
 
     checkFutures(
       await allFinished(
@@ -172,11 +176,14 @@ method stop*(self: TcpTransport) {.async, gcsafe.} =
 
     # server can be nil
     if not isNil(self.server):
+      trace "Stopping server"
       await self.server.closeWait()
 
     self.server = nil
     trace "Transport stopped"
     inc getTcpTransportTracker().closed
+    await procCall Transport(self).stop() # call base
+
   except CatchableError as exc:
     trace "Error shutting down tcp transport", exc = exc.msg
 

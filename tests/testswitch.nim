@@ -903,3 +903,9 @@ suite "Switch":
 
       storedInfo1.protos.toSeq() == switch2.peerInfo.protocols
       storedInfo2.protos.toSeq() == switch1.peerInfo.protocols
+  cancelTest "e2e start top":
+
+    let switch1 = newStandardSwitch()
+    let toWait = await switch1.start()
+    await allFuturesThrowing(toWait)
+    await switch1.stop()
