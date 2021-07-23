@@ -15,7 +15,6 @@ import chronos, chronicles
 import ../stream/connection,
        ../multiaddress,
        ../multicodec,
-       ../nameresolving/nameresolver,
        ../upgrademngrs/upgrade
 
 logScope:
@@ -29,7 +28,6 @@ type
     ma*: Multiaddress
     running*: bool
     upgrader*: Upgrade
-    nameResolver*: NameResolver
 
 proc newTransportClosedError*(parent: ref Exception = nil): ref LPError =
   newException(TransportClosedError,
@@ -37,14 +35,12 @@ proc newTransportClosedError*(parent: ref Exception = nil): ref LPError =
 
 method start*(
   self: Transport,
-  ma: MultiAddress,
-  nameResolver: NameResolver = nil): Future[void] {.base, async.} =
+  ma: MultiAddress): Future[void] {.base, async.} =
   ## start the transport
   ##
 
   trace "starting transport", address = $ma
   self.ma = ma
-  self.nameResolver = nameResolver
   self.running = true
 
 method stop*(self: Transport): Future[void] {.base, async.} =

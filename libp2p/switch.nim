@@ -211,7 +211,7 @@ proc start*(s: Switch): Future[seq[Future[void]]] {.async, gcsafe.} =
   for t in s.transports: # for each transport
     for i, a in s.peerInfo.addrs:
       if t.handles(a): # check if it handles the multiaddr
-        var server = t.start(a, s.nameResolver)
+        var server = t.start(a)
         s.peerInfo.addrs[i] = t.ma # update peer's address
         s.acceptFuts.add(s.accept(t))
         startFuts.add(server)
@@ -270,7 +270,7 @@ proc newSwitch*(peerInfo: PeerInfo,
     transports: transports,
     connManager: connManager,
     peerStore: PeerStore.new(),
-    dialer: Dialer.new(peerInfo, connManager, transports, ms),
+    dialer: Dialer.new(peerInfo, connManager, transports, ms, nameResolver),
     nameResolver: nameResolver)
 
   switch.mount(identity)

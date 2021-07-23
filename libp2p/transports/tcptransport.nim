@@ -18,7 +18,6 @@ import transport,
        ../multistream,
        ../connmanager,
        ../multiaddress,
-       ../nameresolving/nameresolver,
        ../stream/connection,
        ../stream/chronosstream,
        ../upgrademngrs/upgrade
@@ -137,8 +136,7 @@ proc new*(
 
 method start*(
   self: TcpTransport,
-  ma: MultiAddress,
-  nameResolver: NameResolver = nil) {.async.} =
+  ma: MultiAddress) {.async.} =
   ## listen on the transport
   ##
 
@@ -146,7 +144,7 @@ method start*(
     trace "TCP transport already running"
     return
 
-  await procCall Transport(self).start(ma, nameResolver)
+  await procCall Transport(self).start(ma)
   trace "Starting TCP transport"
 
   self.server = createStreamServer(
@@ -214,30 +212,8 @@ method dial*(
 
   trace "Dialing remote peer", address = $address
 
-  let resolvedAddrs =
-    if isNil(self.nameResolver):
-      @[address]
-    else:
-      await self.nameResolver.resolveMAddresses(@[address])
-
-  for raddr in resolvedAddrs:
-    let transp =
-      try:
-        await connect(raddr)
-      except TooManyConnectionsError as exc:
-        trace "Connection limit reached!"
-        raise exc
-      except CancelledError as exc:
-        debug "Dialing canceled", msg = exc.msg
-        raise exc
-      except CatchableError as exc:
-        debug "Dialing failed", msg = exc.msg, address = $address
-        continue # Try the next address
-    try:
-      return await self.connHandler(transp, Direction.Out)
-    except CatchableError as exc:
-      await transp.closeWait()
-      raise
+  let transp = await connect(address)
+  return await self.connHandler(transp, Direction.Out)
 
 method handles*(t: TcpTransport, address: MultiAddress): bool {.gcsafe.} =
   if procCall Transport(t).handles(address):

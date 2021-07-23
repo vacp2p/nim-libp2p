@@ -88,7 +88,7 @@ method resolveIp*(
   port: Port,
   domain: Domain = Domain.AF_UNSPEC): Future[seq[TransportAddress]] {.async.} =
 
-  trace "Resolving IP using DNS", address, servers = nameservers.mapIt($it), domain
+  trace "Resolving IP using DNS", address, servers = self.nameservers.mapIt($it), domain
   for _ in 0 ..< self.nameservers.len:
     let server = self.nameservers[0]
     var responseFutures: seq[Future[Response]]
