@@ -37,6 +37,8 @@ type
     observedAddr*: Multiaddress
     upgraded*: Future[void]
     transportDir*: Direction        # The bottom level transport (generally the socket) direction
+    when defined(libp2p_agents_metrics):
+      shortAgent*: string
 
 proc timeoutMonitor(s: Connection) {.async, gcsafe.}
 

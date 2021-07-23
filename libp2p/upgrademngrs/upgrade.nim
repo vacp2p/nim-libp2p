@@ -9,7 +9,7 @@
 
 {.push raises: [Defect].}
 
-import std/[options, sequtils]
+import std/[options, sequtils, strutils]
 import pkg/[chronos, chronicles, metrics]
 
 import ../stream/connection,
@@ -18,7 +18,8 @@ import ../stream/connection,
        ../multistream,
        ../peerstore,
        ../connmanager,
-       ../errors
+       ../errors,
+       ../utility
 
 export connmanager, connection, identify, secure, multistream
 
@@ -80,6 +81,13 @@ proc identify*(
         "no public key provided and no existing peer identity found")
 
     conn.peerId = info.peerId
+
+    when defined(libp2p_agents_metrics):
+      conn.shortAgent = "unknown"
+      if info.agentVersion.isSome and info.agentVersion.get().len > 0:
+        let shortAgent = info.agentVersion.get().split("/")[0].safeToLowerAscii()
+        if shortAgent.isOk() and KnownLibP2PAgentsSeq.contains(shortAgent.get()):
+          conn.shortAgent = shortAgent.get()
 
     if info.addrs.len > 0:
       peerStore.addressBook.set(conn.peerId, info.addrs)

@@ -26,7 +26,6 @@ type
     client: StreamTransport
     when defined(libp2p_agents_metrics):
       tracked: bool
-      shortAgent: string
 
 when defined(libp2p_agents_metrics):
   declareGauge(libp2p_peers_identity, "peers identities", labels = ["agent"])
@@ -81,18 +80,9 @@ template withExceptions(body: untyped) =
 
 when defined(libp2p_agents_metrics):
   proc trackPeerIdentity(s: ChronosStream) =
-    discard
-    #TODO
-    #if not s.tracked:
-    #  if not isNil(s.peerInfo) and s.peerInfo.agentVersion.len > 0:
-    #    # / seems a weak "standard" so for now it's reliable
-    #    let shortAgent = s.peerInfo.agentVersion.split("/")[0].safeToLowerAscii()
-    #    if shortAgent.isOk() and KnownLibP2PAgentsSeq.contains(shortAgent.get()):
-    #      s.shortAgent = shortAgent.get()
-    #    else:
-    #      s.shortAgent = "unknown"
-    #    libp2p_peers_identity.inc(labelValues = [s.shortAgent])
-    #    s.tracked = true
+    if not s.tracked and s.shortAgent.len > 0:
+      libp2p_peers_identity.inc(labelValues = [s.shortAgent])
+      s.tracked = true
 
   proc untrackPeerIdentity(s: ChronosStream) =
     if s.tracked:
