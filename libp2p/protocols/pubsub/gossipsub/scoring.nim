@@ -88,19 +88,20 @@ proc colocationFactor(g: GossipSub, peer: PubSubPeer): float64 =
 proc disconnectPeer(g: GossipSub, peer: PubSubPeer) {.async.} =
   when defined(libp2p_agents_metrics):
     let agent =
-      block:
-        if peer.shortAgent.len > 0:
-          peer.shortAgent
-        else:
-          if peer.sendConn != nil:
-            let shortAgent = peer.sendConn.peerInfo.agentVersion.split("/")[0].safeToLowerAscii()
-            if shortAgent.isOk() and KnownLibP2PAgentsSeq.contains(shortAgent.get()):
-              peer.shortAgent = shortAgent.get()
-            else:
-              peer.shortAgent = "unknown"
-            peer.shortAgent
-          else:
-            "unknown"
+      "unknown"
+      #block:
+      #  if peer.shortAgent.len > 0:
+      #    peer.shortAgent
+      #  else:
+      #    if peer.sendConn != nil:
+      #      let shortAgent = peer.sendConn.peerInfo.agentVersion.split("/")[0].safeToLowerAscii()
+      #      if shortAgent.isOk() and KnownLibP2PAgentsSeq.contains(shortAgent.get()):
+      #        peer.shortAgent = shortAgent.get()
+      #      else:
+      #        peer.shortAgent = "unknown"
+      #      peer.shortAgent
+      #    else:
+      #      "unknown"
     libp2p_gossipsub_bad_score_disconnection.inc(labelValues = [agent])
   else:
     libp2p_gossipsub_bad_score_disconnection.inc(labelValues = ["unknown"])
@@ -182,19 +183,20 @@ proc updateScores*(g: GossipSub) = # avoid async
       # Score metrics
       when defined(libp2p_agents_metrics):
         let agent =
-          block:
-            if peer.shortAgent.len > 0:
-              peer.shortAgent
-            else:
-              if peer.sendConn != nil:
-                let shortAgent = peer.sendConn.peerInfo.agentVersion.split("/")[0].safeToLowerAscii()
-                if shortAgent.isOk() and KnownLibP2PAgentsSeq.contains(shortAgent.get()):
-                  peer.shortAgent = shortAgent.get()
-                else:
-                  peer.shortAgent = "unknown"
-                peer.shortAgent
-              else:
-                "unknown"
+          "unknown"
+          #block:
+          #  if peer.shortAgent.len > 0:
+          #    peer.shortAgent
+          #  else:
+          #    if peer.sendConn != nil:
+          #      let shortAgent = peer.sendConn.peerInfo.agentVersion.split("/")[0].safeToLowerAscii()
+          #      if shortAgent.isOk() and KnownLibP2PAgentsSeq.contains(shortAgent.get()):
+          #        peer.shortAgent = shortAgent.get()
+          #      else:
+          #        peer.shortAgent = "unknown"
+          #      peer.shortAgent
+          #    else:
+          #      "unknown"
         libp2p_gossipsub_peers_score_firstMessageDeliveries.inc(info.firstMessageDeliveries, labelValues = [agent])
         libp2p_gossipsub_peers_score_meshMessageDeliveries.inc(info.meshMessageDeliveries, labelValues = [agent])
         libp2p_gossipsub_peers_score_meshFailurePenalty.inc(info.meshFailurePenalty, labelValues = [agent])
@@ -239,18 +241,19 @@ proc updateScores*(g: GossipSub) = # avoid async
     when defined(libp2p_agents_metrics):
       let agent =
         block:
-          if peer.shortAgent.len > 0:
-            peer.shortAgent
-          else:
-            if peer.sendConn != nil:
-              let shortAgent = peer.sendConn.peerInfo.agentVersion.split("/")[0].safeToLowerAscii()
-              if shortAgent.isOk() and KnownLibP2PAgentsSeq.contains(shortAgent.get()):
-                peer.shortAgent = shortAgent.get()
-              else:
-                peer.shortAgent = "unknown"
-              peer.shortAgent
-            else:
-              "unknown"
+          "unknown"
+          #if peer.shortAgent.len > 0:
+          #  peer.shortAgent
+          #else:
+          #  if peer.sendConn != nil:
+          #    let shortAgent = peer.sendConn.peerInfo.agentVersion.split("/")[0].safeToLowerAscii()
+          #    if shortAgent.isOk() and KnownLibP2PAgentsSeq.contains(shortAgent.get()):
+          #      peer.shortAgent = shortAgent.get()
+          #    else:
+          #      peer.shortAgent = "unknown"
+          #    peer.shortAgent
+          #  else:
+          #    "unknown"
       libp2p_gossipsub_peers_score_appScore.inc(peer.appScore, labelValues = [agent])
       libp2p_gossipsub_peers_score_behaviourPenalty.inc(peer.behaviourPenalty, labelValues = [agent])
       libp2p_gossipsub_peers_score_colocationFactor.inc(colocationFactor, labelValues = [agent])

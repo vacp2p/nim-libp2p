@@ -90,3 +90,18 @@ proc init*(
     raise (ref LPError)(msg: "Cannot sign message without peer info")
 
   msg
+
+proc init*(
+    T: type Message,
+    peerId: PeerId,
+    data: seq[byte],
+    topic: string,
+    seqno: Option[uint64]): Message
+    {.gcsafe, raises: [Defect, LPError].} =
+  var msg = Message(data: data, topicIDs: @[topic])
+  msg.fromPeer = peerId
+
+  if seqno.isSome:
+    msg.seqno = @(seqno.get().toBytesBE())
+
+  msg
