@@ -77,9 +77,6 @@ proc init*(
     let peer = peer.get()
     msg.fromPeer = peer.peerId
     if sign:
-      if peer.keyType != KeyType.HasPrivate:
-        raise (ref LPError)(msg: "Cannot sign message without private key")
-
       msg.signature = sign(msg, peer.privateKey).expect("Couldn't sign message!")
       msg.key = peer.privateKey
         .getKey()
@@ -103,5 +100,4 @@ proc init*(
 
   if seqno.isSome:
     msg.seqno = @(seqno.get().toBytesBE())
-
   msg

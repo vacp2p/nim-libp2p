@@ -279,22 +279,3 @@ proc newSwitch*(peerInfo: PeerInfo,
   switch.connManager.peerStore = switch.peerStore
   switch.mount(identity)
   return switch
-
-proc isConnected*(s: Switch, peerInfo: PeerInfo): bool
-  {.deprecated: "Use PeerID version".} =
-  not isNil(peerInfo) and isConnected(s, peerInfo.peerId)
-
-proc disconnect*(s: Switch, peerInfo: PeerInfo): Future[void]
-  {.deprecated: "Use PeerID version", gcsafe.} =
-  disconnect(s, peerInfo.peerId)
-
-proc connect*(s: Switch, peerInfo: PeerInfo): Future[void]
-  {.deprecated: "Use PeerID version".} =
-  connect(s, peerInfo.peerId, peerInfo.addrs)
-
-proc dial*(s: Switch,
-           peerInfo: PeerInfo,
-           proto: string):
-           Future[Connection]
-  {.deprecated: "Use PeerID version".} =
-  dial(s, peerInfo.peerId, peerInfo.addrs, proto)

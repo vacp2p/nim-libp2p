@@ -258,7 +258,7 @@ suite "Noise":
     (switch2, peerInfo2) = createSwitch(ma2, true)
     awaiters.add(await switch1.start())
     awaiters.add(await switch2.start())
-    let conn = await switch2.dial(switch1.peerInfo, TestCodec)
+    let conn = await switch2.dial(switch1.peerInfo.peerId, switch1.peerInfo.addrs, TestCodec)
     await conn.writeLp("Hello!")
     let msg = string.fromBytes(await conn.readLp(1024))
     check "Hello!" == msg
@@ -287,7 +287,7 @@ suite "Noise":
     awaiters.add(await switch1.start())
     awaiters.add(await switch2.start())
     expect(UpgradeFailedError):
-      let conn = await switch2.dial(switch1.peerInfo, TestCodec)
+      let conn = await switch2.dial(switch1.peerInfo.peerId, switch1.peerInfo.addrs, TestCodec)
 
     await allFuturesThrowing(
       switch1.stop(),
