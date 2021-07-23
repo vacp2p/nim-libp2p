@@ -71,7 +71,7 @@ proc getDnsResponse(
     await receivedDataFuture or sleepAsync(5.seconds) #unix default
 
     if not receivedDataFuture.finished:
-      raise newException(ValueError, "DNS server timeout")
+      raise newException(IOError, "DNS server timeout")
 
     var
       rawResponse = sock.getMessage()
@@ -88,9 +88,9 @@ method resolveIp*(
   port: Port,
   domain: Domain = Domain.AF_UNSPEC): Future[seq[TransportAddress]] {.async.} =
 
-  let nameservers = self.nameServers
   trace "Resolving IP using DNS", address, servers = nameservers.mapIt($it), domain
-  for server in nameservers:
+  for _ in 0 ..< self.nameservers.len:
+    let server = self.nameservers[0]
     var responseFutures: seq[Future[Response]]
     if domain == Domain.AF_INET or domain == Domain.AF_UNSPEC:
       responseFutures.add(getDnsResponse(server, address, A))
@@ -103,7 +103,9 @@ method resolveIp*(
       else:
         responseFutures.add(fut)
 
-    var resolvedAddresses: OrderedSet[string]
+    var
+      resolvedAddresses: OrderedSet[string]
+      resolveFailed = false
     for fut in responseFutures:
       try:
         let resp = await fut
@@ -111,12 +113,21 @@ method resolveIp*(
           resolvedAddresses.incl(answer.toString())
       except CancelledError as e:
         raise e
+      except ValueError as e:
+        info "Invalid DNS query", address, error=e.msg
+        return @[]
       except CatchableError as e:
         info "Failed to query DNS", address, error=e.msg
+        resolveFailed = true
+        break
 
-    if resolvedAddresses.len > 0:
-      trace "Got IPs from DNS server", resolvedAddresses, server = $server
-      return resolvedAddresses.toSeq().mapIt(initTAddress(it, port))
+    if resolveFailed:
+      self.nameservers.add(self.nameservers[0])
+      self.nameservers.delete(0)
+      continue
+
+    trace "Got IPs from DNS server", resolvedAddresses, server = $server
+    return resolvedAddresses.toSeq().mapIt(initTAddress(it, port))
 
   debug "Failed to resolve address, returning empty set"
   return @[]
@@ -125,18 +136,20 @@ method resolveTxt*(
   self: DnsResolver,
   address: string): Future[seq[string]] {.async.} =
 
-  let nameservers = self.nameServers
-  trace "Resolving TXT using DNS", address, servers = nameservers.mapIt($it)
-  for server in nameservers:
+  trace "Resolving TXT using DNS", address, servers = self.nameservers.mapIt($it)
+  for _ in 0 ..< self.nameservers.len:
+    let server = self.nameservers[0]
     try:
       let response = await getDnsResponse(server, address, TXT)
-      if response.answers.len > 0:
-        trace "Got TXT response", server = $server, answer=response.answers.mapIt(it.toString())
-        return response.answers.mapIt(it.toString())
+      trace "Got TXT response", server = $server, answer=response.answers.mapIt(it.toString())
+      return response.answers.mapIt(it.toString())
     except CancelledError as e:
       raise e
     except CatchableError as e:
       info "Failed to query DNS", address, error=e.msg
+      self.nameservers.add(self.nameservers[0])
+      self.nameservers.delete(0)
+      continue
 
   debug "Failed to resolve TXT, returning empty set"
   return @[]

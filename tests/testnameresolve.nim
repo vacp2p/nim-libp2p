@@ -33,7 +33,7 @@ proc guessOsNameServers(): seq[TransportAddress] =
     var resultSeq = newSeqOfCap[TransportAddress](3)
     try:
       for l in lines("/etc/resolv.conf"):
-        let lineParsed = l.strip().split(maxsplit = 2)
+        let lineParsed = l.strip().split(seps = Whitespace + {'%'}, maxsplit = 2)
         if lineParsed.len < 2: continue
         if lineParsed[0].startsWith('#'): continue
 
@@ -195,6 +195,41 @@ suite "Name resolving":
         mapIt(@["[2606:4700:10::6816:19b5]:0", "[2606:4700:10::6816:18b5]:0", "[2606:4700:10::ac43:aa1]:0"], initTAddress(it))
 
       await server.closeWait()
+
+    asyncTest "test unresponsive dns server":
+      var unresponsiveTentatives = 0
+      ## DNS mock server
+      proc clientMark1(transp: DatagramTransport,
+                       raddr: TransportAddress): Future[void] {.async.} =
+        unresponsiveTentatives.inc()
+        check unresponsiveTentatives == 1
+
+      proc clientMark2(transp: DatagramTransport,
+                       raddr: TransportAddress): Future[void] {.async.} =
+        var msg = transp.getMessage()
+        let resp =
+              "\xae\xbf\x81\x80\x00\x01\x00\x03\x00\x00\x00\x00\x06\x73\x74\x61" &
+              "\x74\x75\x73\x02\x69\x6d\x00\x00\x01\x00\x01\xc0\x0c\x00\x01\x00" &
+              "\x01\x00\x00\x00\x4f\x00\x04\x68\x16\x18\xb5\xc0\x0c\x00\x01\x00" &
+              "\x01\x00\x00\x00\x4f\x00\x04\xac\x43\x0a\xa1\xc0\x0c\x00\x01\x00" &
+              "\x01\x00\x00\x00\x4f\x00\x04\x68\x16\x19\xb5"
+        await transp.sendTo(raddr, resp)
+
+      let
+        unresponsiveServer = newDatagramTransport(clientMark1)
+        server = newDatagramTransport(clientMark2)
+
+      # The test
+      var dnsresolver = DnsResolver.new(@[unresponsiveServer.localAddress, server.localAddress])
+        
+      check await(dnsresolver.resolveIp("status.im", 0.Port, Domain.AF_INET)) ==
+        mapIt(@["104.22.24.181:0", "172.67.10.161:0", "104.22.25.181:0"], initTAddress(it))
+
+      check await(dnsresolver.resolveIp("status.im", 0.Port, Domain.AF_INET)) ==
+        mapIt(@["104.22.24.181:0", "172.67.10.161:0", "104.22.25.181:0"], initTAddress(it))
+
+      await server.closeWait()
+      await unresponsiveServer.closeWait()
 
     asyncTest "inexisting domain resolving":
       var dnsresolver = DnsResolver.new(guessOsNameServers())
