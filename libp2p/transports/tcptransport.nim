@@ -20,7 +20,8 @@ import transport,
        ../multiaddress,
        ../stream/connection,
        ../stream/chronosstream,
-       ../upgrademngrs/upgrade
+       ../upgrademngrs/upgrade,
+       ../utility
 
 logScope:
   topics = "libp2p tcptransport"
@@ -163,16 +164,16 @@ method stop*(self: TcpTransport) {.async, gcsafe.} =
 
   try:
     trace "Stopping TCP transport"
-    await procCall Transport(self).stop() # call base
+    awaitrc procCall Transport(self).stop() # call base
 
     checkFutures(
-      await allFinished(
+      awaitrc allFinished(
         self.clients[Direction.In].mapIt(it.closeWait()) &
         self.clients[Direction.Out].mapIt(it.closeWait())))
 
     # server can be nil
     if not isNil(self.server):
-      await self.server.closeWait()
+      awaitrc self.server.closeWait()
 
     self.server = nil
     trace "Transport stopped"
