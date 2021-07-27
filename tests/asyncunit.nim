@@ -34,7 +34,7 @@ template cancelTest*(name: string, body: untyped): untyped =
         if testFuture.finished: break
         poll()
       if testFuture.finished: break #We actually finished the sequence
+      echo "cancelling"
       waitFor(testFuture.cancelAndWait())
-      waitFor(sleepAsync(1.seconds))
-      #check testFuture.cancelled
+      #waitFor(sleepAsync(100.milliseconds))
       checkTrackers()

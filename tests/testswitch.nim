@@ -19,7 +19,8 @@ import ../libp2p/[errors,
                   muxers/mplex/lpchannel,
                   stream/lpstream,
                   stream/chronosstream,
-                  transports/tcptransport]
+                  transports/tcptransport,
+                  utility]
 import ./helpers
 
 const
@@ -903,9 +904,18 @@ suite "Switch":
 
       storedInfo1.protos.toSeq() == switch2.peerInfo.protocols
       storedInfo2.protos.toSeq() == switch1.peerInfo.protocols
-  cancelTest "e2e start top":
 
-    let switch1 = newStandardSwitch()
-    let toWait = await switch1.start()
-    await allFuturesThrowing(toWait)
-    await switch1.stop()
+  cancelTest "cancel start stop":
+    let
+      switch1 = newStandardSwitch()
+      switch2 = newStandardSwitch()
+      toWait1 = await switch1.start()
+      toWait2 = await switch2.start()
+    defer: awaitrc switch1.stop()
+    defer: awaitrc switch2.stop()
+    await allFuturesThrowing(toWait1)
+    await allFuturesThrowing(toWait2)
+
+    await switch1.connect(switch2.peerInfo.peerId, switch2.peerInfo.addrs)
+
+    defer: awaitrc switch1.disconnect(switch2.peerInfo.peerId)

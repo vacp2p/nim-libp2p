@@ -35,7 +35,8 @@ import stream/connection,
        peerid,
        peerstore,
        errors,
-       dialer
+       dialer,
+       utility
 
 export connmanager, upgrade, dialer, peerstore
 
@@ -226,18 +227,18 @@ proc stop*(s: Switch) {.async.} =
   trace "Stopping switch"
 
   # close and cleanup all connections
-  await s.connManager.close()
+  awaitrc s.connManager.close()
 
   for t in s.transports:
     try:
-      await t.stop()
+      awaitrc t.stop()
     except CancelledError as exc:
       raise exc
     except CatchableError as exc:
       warn "error cleaning up transports", msg = exc.msg
 
   try:
-    await allFutures(s.acceptFuts)
+    awaitrc allFutures(s.acceptFuts)
       .wait(1.seconds)
   except CatchableError as exc:
     trace "Exception while stopping accept loops", exc = exc.msg
