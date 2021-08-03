@@ -5,6 +5,7 @@ import pkg/stew/byteutils
 import ../libp2p/transports/quictransport
 import ../libp2p/multiaddress
 import ../libp2p/wire
+import ./commontransport
 
 suite "QUIC transport":
 
@@ -88,3 +89,5 @@ suite "QUIC transport":
     await session.join()
 
     await reading
+
+QuicTransport.commonTransportTest("/ip4/127.0.0.1/udp/45894/quic")

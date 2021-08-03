@@ -4,6 +4,7 @@ import ../multiaddress
 import ../multicodec
 import ../stream/connection
 import ../wire
+import ../upgrademngrs/upgrade
 import ./transport
 
 export multiaddress
@@ -27,6 +28,9 @@ type
 func new*(_: type QuicTransport): QuicTransport =
   QuicTransport()
 
+func new*(_: type QuicTransport, upgrade: Upgrade): QuicTransport =
+  QuicTransport(upgrader: upgrade)
+
 proc new(_: type QuicStream, stream: Stream): QuicStream =
   let quicstream = QuicStream(stream: stream)
   procCall P2PConnection(quicstream).initStream()
@@ -43,8 +47,9 @@ method start*(transport: QuicTransport, address: MultiAddress) {.async.} =
   await procCall Transport(transport).start(address)
 
 method stop*(transport: QuicTransport) {.async.} =
-  await procCall Transport(transport).stop()
-  await transport.listener.stop()
+  if transport.running:
+    await procCall Transport(transport).stop()
+    await transport.listener.stop()
 
 method accept*(transport: QuicTransport): Future[Session] {.async.} =
   doAssert not transport.listener.isNil, "call start() before calling accept()"
@@ -64,6 +69,7 @@ method getStream*(session: QuicSession,
       stream = await session.connection.incomingStream()
     of Direction.Out:
       stream = await session.connection.openStream()
+      await stream.write(@[]) # QUIC streams do not exist until data is sent
   return QuicStream.new(stream)
 
 method readOnce*(stream: QuicStream,
