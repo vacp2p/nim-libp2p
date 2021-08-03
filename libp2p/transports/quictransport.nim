@@ -100,3 +100,6 @@ method close*(session: QuicSession) {.async.} =
 
 method join*(session: QuicSession) {.async.} =
   await session.connection.waitClosed()
+
+when not defined(libp2p_experimental_quic):
+  {.fatal: "QUIC must be explicitly enabled  '-d:libp2p_experimental_quic'".}

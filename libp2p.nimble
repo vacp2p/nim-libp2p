@@ -70,12 +70,16 @@ task testfilter, "Run PKI filter test":
   runTest("testpkifilter",
            moreoptions = "-d:libp2p_pki_schemes=")
 
+task testquic, "Runs QUIC tests":
+  runTest("testquic", moreoptions = "-d:libp2p_experimental_quic")
+
 task test, "Runs the test suite":
   exec "nimble testnative"
   exec "nimble testpubsub"
   exec "nimble testdaemon"
   exec "nimble testinterop"
   exec "nimble testfilter"
+  exec "nimble testquic"
 
 task test_slim, "Runs the test suite":
   exec "nimble testnative"
@@ -85,6 +89,7 @@ task test_slim, "Runs the test suite":
 
 task test_fast, "Relatively quick sanity checks":
   exec "nim c -r ./tests/testnative"
+  exec "nim c -r -d:libp2p_experimental_quic ./tests/testquic"
 
 task examples_build, "Build the samples":
   buildSample("directchat")
