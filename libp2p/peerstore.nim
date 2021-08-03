@@ -52,12 +52,7 @@ type
 
     agentBook*: PeerBook[string]
   
-  StoredInfo* = object
-    # Collates stored info about a peer
-    peerId*: PeerID
-    addrs*: HashSet[MultiAddress]
-    protos*: HashSet[string]
-    publicKey*: PublicKey
+  StoredInfo* {.deprecated: "use PeerInfo".} = PeerInfo
 
 ## Constructs a new PeerStore with metadata of type M
 proc new*(T: type PeerStore): PeerStore =
@@ -148,32 +143,17 @@ proc delete*(peerStore: PeerStore,
   peerStore.keyBook.delete(peerId)
 
 proc get*(peerStore: PeerStore,
-          peerId: PeerID): StoredInfo =
+          peerId: PeerID): PeerInfo =
   ## Get the stored information of a given peer.
   
-  StoredInfo(
+  PeerInfo(
     peerId: peerId,
-    addrs: peerStore.addressBook.get(peerId),
-    protos: peerStore.protoBook.get(peerId),
+    addrs: peerStore.addressBook.get(peerId).toSeq,
+    protocols: peerStore.protoBook.get(peerId).toSeq,
     publicKey: peerStore.keyBook.get(peerId)
   )
 
-proc update*(peerStore: PeerStore, peerInfo: PeerInfo) =
-  for address in peerInfo.addrs:
-    peerStore.addressBook.add(peerInfo.peerId, address)
-  for proto in peerInfo.protocols:
-    peerStore.protoBook.add(peerInfo.peerId, proto)
-  let pKey = peerInfo.publicKey()
-  if pKey.isSome:
-    peerStore.keyBook.set(peerInfo.peerId, pKey.get())
-
-proc replace*(peerStore: PeerStore, peerInfo: PeerInfo) =
-  discard peerStore.addressBook.delete(peerInfo.peerId)
-  discard peerStore.protoBook.delete(peerInfo.peerId)
-  discard peerStore.keyBook.delete(peerInfo.peerId)
-  peerStore.update(peerInfo)
-
-proc peers*(peerStore: PeerStore): seq[StoredInfo] =
+proc peers*(peerStore: PeerStore): seq[PeerInfo] =
   ## Get all the stored information of every peer.
   
   let allKeys = concat(toSeq(keys(peerStore.addressBook.book)),

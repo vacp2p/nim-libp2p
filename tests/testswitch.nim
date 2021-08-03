@@ -530,7 +530,9 @@ suite "Switch":
 
     let rng = newRng()
     # use same private keys to emulate two connection from same peer
-    let peerInfo = PeerInfo.init(PrivateKey.random(rng[]).tryGet())
+    let
+      privateKey = PrivateKey.random(rng[]).tryGet()
+      peerInfo = PeerInfo.init(privateKey)
 
     var switches: seq[Switch]
     var done = newFuture[void]()
@@ -553,7 +555,7 @@ suite "Switch":
     awaiters.add(await switches[0].start())
 
     switches.add(newStandardSwitch(
-      privKey = some(peerInfo.privateKey),
+      privKey = some(privateKey),
       rng = rng))
     onConnect = switches[1].connect(switches[0].peerInfo.peerId, switches[0].peerInfo.addrs)
     await onConnect
@@ -571,7 +573,9 @@ suite "Switch":
 
     let rng = newRng()
     # use same private keys to emulate two connection from same peer
-    let peerInfo = PeerInfo.init(PrivateKey.random(rng[]).tryGet())
+    let
+      privateKey = PrivateKey.random(rng[]).tryGet()
+      peerInfo = PeerInfo.init(privateKey)
 
     var conns = 1
     var switches: seq[Switch]
@@ -600,7 +604,7 @@ suite "Switch":
 
     for i in 1..5:
       switches.add(newStandardSwitch(
-        privKey = some(peerInfo.privateKey),
+        privKey = some(privateKey),
         rng = rng))
       switches[i].addConnEventHandler(hook, ConnEventKind.Disconnected)
       onConnect = switches[i].connect(switches[0].peerInfo.peerId, switches[0].peerInfo.addrs)
@@ -901,5 +905,5 @@ suite "Switch":
       storedInfo1.addrs.toSeq() == switch2.peerInfo.addrs
       storedInfo2.addrs.toSeq() == switch1.peerInfo.addrs
 
-      storedInfo1.protos.toSeq() == switch2.peerInfo.protocols
-      storedInfo2.protos.toSeq() == switch1.peerInfo.protocols
+      storedInfo1.protocols.toSeq() == switch2.peerInfo.protocols
+      storedInfo2.protocols.toSeq() == switch1.peerInfo.protocols

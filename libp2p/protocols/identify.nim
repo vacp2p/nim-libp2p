@@ -61,10 +61,10 @@ type
 proc encodeMsg*(peerInfo: PeerInfo, observedAddr: Multiaddress): ProtoBuffer
   {.raises: [Defect, IdentifyNoPubKeyError].} =
   result = initProtoBuffer()
-  if peerInfo.publicKey.isNone:
-    raise newException(IdentifyNoPubKeyError, "No public key found for peer!")
 
-  result.write(1, peerInfo.publicKey.get().getBytes().get())
+  let pkey = peerInfo.publicKey
+
+  result.write(1, pkey.getBytes().get())
   for ma in peerInfo.addrs:
     result.write(2, ma.data.buffer)
   for proto in peerInfo.protocols:

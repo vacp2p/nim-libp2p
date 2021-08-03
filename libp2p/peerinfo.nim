@@ -26,8 +26,7 @@ type
     protocols*: seq[string]
     protoVersion*: string
     agentVersion*: string
-    secure*: string
-    privateKey*: PrivateKey
+    publicKey*: PublicKey
 
 func shortLog*(p: PeerInfo): auto =
   (
@@ -56,19 +55,16 @@ proc init*(
   agentVersion: string = ""): PeerInfo
   {.raises: [Defect, PeerInfoError].} =
 
+  let pubkey = try:
+      key.getKey().tryGet()
+    except CatchableError:
+      raise newException(PeerInfoError, "invalid private key")
+
   let peerInfo = PeerInfo(
     peerId: PeerID.init(key).tryGet(),
-    privateKey: key,
+    publicKey: pubkey,
     protoVersion: protoVersion,
     agentVersion: agentVersion)
 
   peerInfo.postInit(addrs, protocols)
   return peerInfo
-
-proc publicKey*(p: PeerInfo): Option[PublicKey] =
-  var res = none(PublicKey)
-  let pkeyRes = p.privateKey.getKey()
-  if pkeyRes.isOk:
-    res = some(pkeyRes.get())
-
-  return res
