@@ -902,8 +902,8 @@ suite "Switch":
       storedInfo1.peerId == switch2.peerInfo.peerId
       storedInfo2.peerId == switch1.peerInfo.peerId
 
-      storedInfo1.addrs.toSeq() == switch2.peerInfo.addrs
-      storedInfo2.addrs.toSeq() == switch1.peerInfo.addrs
+      storedInfo1.addrs.toHashSet() == switch2.peerInfo.addrs.toHashSet()
+      storedInfo2.addrs.toHashSet() == switch1.peerInfo.addrs.toHashSet()
 
-      storedInfo1.protocols.toSeq() == switch2.peerInfo.protocols
-      storedInfo2.protocols.toSeq() == switch1.peerInfo.protocols
+      storedInfo1.protocols.toHashSet() == switch2.peerInfo.protocols.toHashSet()
+      storedInfo2.protocols.toHashSet() == switch1.peerInfo.protocols.toHashSet()

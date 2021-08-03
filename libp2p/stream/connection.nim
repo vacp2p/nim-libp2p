@@ -36,6 +36,7 @@ type
     peerId*: PeerId
     observedAddr*: Multiaddress
     upgraded*: Future[void]
+    tag*: string                    # debug tag for metrics (generally ms protocol)
     transportDir*: Direction        # The bottom level transport (generally the socket) direction
     when defined(libp2p_agents_metrics):
       shortAgent*: string
