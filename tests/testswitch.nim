@@ -905,3 +905,26 @@ suite "Switch":
 
       storedInfo1.protos == switch2.peerInfo.protocols.toHashSet()
       storedInfo2.protos == switch1.peerInfo.protocols.toHashSet()
+
+  asyncTest "e2e dial dns address":
+    var awaiters: seq[Future[void]]
+    let resolver = MockResolver.new()
+    resolver.ipResponses[("localhost", false)] = @["127.0.0.1"]
+    resolver.ipResponses[("localhost", true)] = @["::1"]
+
+    let
+      srcSwitch = newStandardSwitch(nameResolver = resolver)
+      destSwitch = newStandardSwitch()
+
+    awaiters.add(await destSwitch.start())
+    awaiters.add(await srcSwitch.start())
+    await allFuturesThrowing(awaiters)
+
+    let testAddr = MultiAddress.init("/dns4/localhost/").tryGet() &
+                    destSwitch.peerInfo.addrs[0][1].tryGet()
+
+    await srcSwitch.connect(destSwitch.peerInfo.peerId, @[testAddr])
+    check srcSwitch.isConnected(destSwitch.peerInfo.peerId)
+
+    await destSwitch.stop()
+    await srcSwitch.stop()

@@ -270,7 +270,7 @@ proc newSwitch*(peerInfo: PeerInfo,
     transports: transports,
     connManager: connManager,
     peerStore: PeerStore.new(),
-    dialer: Dialer.new(peerInfo, connManager, transports, ms),
+    dialer: Dialer.new(peerInfo, connManager, transports, ms, nameResolver),
     nameResolver: nameResolver)
 
   switch.mount(identity)
