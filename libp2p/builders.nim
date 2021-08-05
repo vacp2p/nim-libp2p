@@ -23,13 +23,11 @@ export
   switch, peerid, peerinfo, connection, multiaddress, crypto, errors
 
 type
+  TransportProvider* = proc(upgr: Upgrade): Transport {.gcsafe, raises: [Defect].}
+
   SecureProtocol* {.pure.} = enum
     Noise,
     Secio {.deprecated.}
-
-  TcpTransportOpts = object
-    enable: bool
-    flags: set[ServerFlags]
 
   MplexOpts = object
     enable: bool
@@ -40,7 +38,7 @@ type
     addresses: seq[MultiAddress]
     secureManagers: seq[SecureProtocol]
     mplexOpts: MplexOpts
-    tcpTransportOpts: TcpTransportOpts
+    transports: seq[TransportProvider]
     rng: ref BrHmacDrbgContext
     maxConnections: int
     maxIn: int
@@ -60,7 +58,6 @@ proc new*(T: type[SwitchBuilder]): T =
     privKey: none(PrivateKey),
     addresses: @[address],
     secureManagers: @[],
-    tcpTransportOpts: TcpTransportOpts(),
     maxConnections: MaxConnections,
     maxIn: -1,
     maxOut: -1,
@@ -99,10 +96,12 @@ proc withNoise*(b: SwitchBuilder): SwitchBuilder =
   b.secureManagers.add(SecureProtocol.Noise)
   b
 
-proc withTcpTransport*(b: SwitchBuilder, flags: set[ServerFlags] = {}): SwitchBuilder =
-  b.tcpTransportOpts.enable = true
-  b.tcpTransportOpts.flags = flags
+proc withTransport*(b: SwitchBuilder, prov: TransportProvider): SwitchBuilder =
+  b.transports.add(prov)
   b
+
+proc withTcpTransport*(b: SwitchBuilder, flags: set[ServerFlags] = {}): SwitchBuilder =
+  b.withTransport(proc(upgr: Upgrade): Transport = TcpTransport.new(flags, upgr))
 
 proc withRng*(b: SwitchBuilder, rng: ref BrHmacDrbgContext): SwitchBuilder =
   b.rng = rng
@@ -174,8 +173,8 @@ proc build*(b: SwitchBuilder): Switch
   let
     transports = block:
       var transports: seq[Transport]
-      if b.tcpTransportOpts.enable:
-        transports.add(Transport(TcpTransport.new(b.tcpTransportOpts.flags, muxedUpgrade)))
+      for tProvider in b.transports:
+        transports.add(tProvider(muxedUpgrade))
       transports
 
   if b.secureManagers.len == 0:

@@ -18,6 +18,7 @@ import testmultibase,
 
 import testtcptransport,
        testnameresolve,
+       testwstransport,
        testmultistream,
        testbufferstream,
        testidentify,
