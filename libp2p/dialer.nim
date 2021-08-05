@@ -20,7 +20,6 @@ import dial,
        connmanager,
        stream/connection,
        transports/transport,
-       nameresolving/nameresolver,
        errors
 
 export dial, errors
@@ -42,7 +41,6 @@ type
     connManager: ConnManager
     dialLock: Table[PeerID, AsyncLock]
     transports: seq[Transport]
-    nameResolver: NameResolver
 
 proc dialAndUpgrade(
   self: Dialer,
@@ -56,15 +54,9 @@ proc dialAndUpgrade(
     transport: Transport
     address: MultiAddress
 
-  let resolvedAddresses =
-    if not isNil(self.nameResolver):
-      await self.nameResolver.resolveMAddresses(addrs)
-    else:
-      addrs
-
   for t in self.transports: # for each transport
     transport = t
-    for a in resolvedAddresses:      # for each address
+    for a in addrs:      # for each address
       address = a
       if t.handles(a):   # check if it can dial it
         trace "Dialing address", address = $a, peerId
@@ -242,11 +234,9 @@ proc new*(
   peerInfo: PeerInfo,
   connManager: ConnManager,
   transports: seq[Transport],
-  ms: MultistreamSelect,
-  nameResolver: NameResolver = nil): Dialer =
+  ms: MultistreamSelect): Dialer =
 
   T(peerInfo: peerInfo,
     connManager: connManager,
     transports: transports,
-    ms: ms,
-    nameResolver: nameResolver)
+    ms: ms)
