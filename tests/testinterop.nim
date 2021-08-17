@@ -358,9 +358,7 @@ suite "Interop":
       await stream.close()
 
     await daemonNode.addHandler(protos, daemonHandler)
-    let conn = await nativeNode.dial(NativePeerInfo.init(daemonPeer.peer,
-                                                          daemonPeer.addresses),
-                                                          protos[0])
+    let conn = await nativeNode.dial(daemonPeer.peer, daemonPeer.addresses, protos[0])
     await conn.writeLp(test & "\r\n")
     check expect == (await wait(testFuture, 10.secs))
 
