@@ -3,6 +3,7 @@ on:
   push:
     branches:
       - master
+      - unstable
   pull_request:
   workflow_dispatch:
 
