@@ -72,9 +72,7 @@ proc dumpMessage*(conn: SecureConn, direction: FlowDirection,
   var pb = initProtoBuffer(options = {WithVarintLength})
   pb.write(2, getTimestamp())
   pb.write(4, uint64(direction))
-  #TODO
-  #if len(conn.addrs) > 0:
-  #  pb.write(6, conn.addrs[0])
+  pb.write(6, conn.observedAddr)
   pb.write(7, data)
   pb.finish()
 
