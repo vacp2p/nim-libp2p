@@ -20,7 +20,7 @@ export peerid, multiaddress, crypto, errors, results
 type
   PeerInfoError* = LPError
 
-  PeerInfo* = object
+  PeerInfo* = ref object
     peerId*: PeerID
     addrs*: seq[MultiAddress]
     protocols*: seq[string]
