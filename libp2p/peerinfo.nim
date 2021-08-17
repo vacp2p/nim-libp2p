@@ -20,7 +20,7 @@ export peerid, multiaddress, crypto, errors, results
 type
   PeerInfoError* = LPError
 
-  PeerInfo* = ref object of RootObj
+  PeerInfo* = object
     peerId*: PeerID
     addrs*: seq[MultiAddress]
     protocols*: seq[string]
@@ -38,14 +38,6 @@ func shortLog*(p: PeerInfo): auto =
     agentVersion: p.agentVersion,
   )
 chronicles.formatIt(PeerInfo): shortLog(it)
-
-template postInit(peerinfo: PeerInfo,
-                  addrs: openarray[MultiAddress],
-                  protocols: openarray[string]) =
-  if len(addrs) > 0:
-    peerinfo.addrs = @addrs
-  if len(protocols) > 0:
-    peerinfo.protocols = @protocols
 
 proc init*(
   p: typedesc[PeerInfo],
@@ -66,7 +58,8 @@ proc init*(
     publicKey: pubkey,
     privateKey: key,
     protoVersion: protoVersion,
-    agentVersion: agentVersion)
+    agentVersion: agentVersion,
+    addrs: @addrs,
+    protocols: @protocols)
 
-  peerInfo.postInit(addrs, protocols)
   return peerInfo

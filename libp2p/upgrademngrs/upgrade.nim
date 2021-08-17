@@ -101,4 +101,4 @@ proc identify*(
     if info.protos.len > 0:
       peerStore.protoBook.set(conn.peerId, info.protos)
 
-    trace "identified remote peer", conn, peerInfo = shortLog(conn.peerId)
+    trace "identified remote peer", conn, peerId = shortLog(conn.peerId)
