@@ -51,6 +51,7 @@ type
     keyBook*: KeyBook
 
     agentBook*: PeerBook[string]
+    protoVersionBook*: PeerBook[string]
   
 ## Constructs a new PeerStore with metadata of type M
 proc new*(T: type PeerStore): PeerStore =

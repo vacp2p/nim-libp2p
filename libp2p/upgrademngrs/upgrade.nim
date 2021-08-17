@@ -95,8 +95,8 @@ proc identify*(
     if info.agentVersion.isSome:
       peerStore.agentBook.set(conn.peerId, info.agentVersion.get().string)
 
-    #if info.protoVersion.isSome:
-    #  conn.peerInfo.protoVersion = info.protoVersion.get()
+    if info.protoVersion.isSome:
+      peerStore.protoVersionBook.set(conn.peerId, info.protoVersion.get())
 
     if info.protos.len > 0:
       peerStore.protoBook.set(conn.peerId, info.protos)

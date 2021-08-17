@@ -254,6 +254,9 @@ proc updatePeerInfo*(
   if info.agentVersion.isSome:
     switch.peerStore.agentBook.set(info.peerId, info.agentVersion.get().string)
 
+  if info.protoVersion.isSome:
+    switch.peerStore.protoVersionBook.set(info.peerId, info.protoVersion.get().string)
+
   if info.protos.len > 0:
     switch.peerStore.protoBook.set(info.peerId, info.protos)
 
