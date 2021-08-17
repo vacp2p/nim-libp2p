@@ -26,6 +26,7 @@ type
     protocols*: seq[string]
     protoVersion*: string
     agentVersion*: string
+    privateKey*: PrivateKey
     publicKey*: PublicKey
 
 func shortLog*(p: PeerInfo): auto =
@@ -63,6 +64,7 @@ proc init*(
   let peerInfo = PeerInfo(
     peerId: PeerID.init(key).tryGet(),
     publicKey: pubkey,
+    privateKey: key,
     protoVersion: protoVersion,
     agentVersion: agentVersion)
 

@@ -52,8 +52,6 @@ type
 
     agentBook*: PeerBook[string]
   
-  StoredInfo* {.deprecated: "use PeerInfo".} = PeerInfo
-
 ## Constructs a new PeerStore with metadata of type M
 proc new*(T: type PeerStore): PeerStore =
   var p: PeerStore
@@ -141,23 +139,3 @@ proc delete*(peerStore: PeerStore,
   peerStore.addressBook.delete(peerId) and
   peerStore.protoBook.delete(peerId) and
   peerStore.keyBook.delete(peerId)
-
-proc get*(peerStore: PeerStore,
-          peerId: PeerID): PeerInfo =
-  ## Get the stored information of a given peer.
-  
-  PeerInfo(
-    peerId: peerId,
-    addrs: peerStore.addressBook.get(peerId).toSeq,
-    protocols: peerStore.protoBook.get(peerId).toSeq,
-    publicKey: peerStore.keyBook.get(peerId)
-  )
-
-proc peers*(peerStore: PeerStore): seq[PeerInfo] =
-  ## Get all the stored information of every peer.
-  
-  let allKeys = concat(toSeq(keys(peerStore.addressBook.book)),
-                       toSeq(keys(peerStore.protoBook.book)),
-                       toSeq(keys(peerStore.keyBook.book))).toHashSet()
-
-  return allKeys.mapIt(peerStore.get(it))

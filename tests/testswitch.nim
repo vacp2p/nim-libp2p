@@ -895,15 +895,9 @@ suite "Switch":
     check not switch1.isConnected(switch2.peerInfo.peerId)
     check not switch2.isConnected(switch1.peerInfo.peerId)
 
-    let storedInfo1 = switch1.peerStore.get(switch2.peerInfo.peerId)
-    let storedInfo2 = switch2.peerStore.get(switch1.peerInfo.peerId)
-
     check:
-      storedInfo1.peerId == switch2.peerInfo.peerId
-      storedInfo2.peerId == switch1.peerInfo.peerId
+      switch1.peerStore.addressBook.get(switch2.peerInfo.peerId) == switch2.peerInfo.addrs.toHashSet()
+      switch2.peerStore.addressBook.get(switch1.peerInfo.peerId) == switch1.peerInfo.addrs.toHashSet()
 
-      storedInfo1.addrs.toHashSet() == switch2.peerInfo.addrs.toHashSet()
-      storedInfo2.addrs.toHashSet() == switch1.peerInfo.addrs.toHashSet()
-
-      storedInfo1.protocols.toHashSet() == switch2.peerInfo.protocols.toHashSet()
-      storedInfo2.protocols.toHashSet() == switch1.peerInfo.protocols.toHashSet()
+      switch1.peerStore.addressBook.get(switch2.peerInfo.peerId) == switch2.peerInfo.addrs.toHashSet()
+      switch2.peerStore.addressBook.get(switch1.peerInfo.peerId) == switch1.peerInfo.addrs.toHashSet()
