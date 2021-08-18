@@ -32,6 +32,7 @@ import stream/connection,
        muxers/muxer,
        utils/semaphore,
        connmanager,
+       nameresolving/nameresolver,
        peerid,
        peerstore,
        errors,
@@ -62,6 +63,7 @@ type
       acceptFuts: seq[Future[void]]
       dialer*: Dial
       peerStore*: PeerStore
+      nameResolver*: NameResolver
 
 proc addConnEventHandler*(s: Switch,
                           handler: ConnEventHandler,
@@ -256,7 +258,8 @@ proc newSwitch*(peerInfo: PeerInfo,
                 muxers: Table[string, MuxerProvider],
                 secureManagers: openarray[Secure] = [],
                 connManager: ConnManager,
-                ms: MultistreamSelect): Switch
+                ms: MultistreamSelect,
+                nameResolver: NameResolver = nil): Switch
                 {.raises: [Defect, LPError].} =
   if secureManagers.len == 0:
     raise newException(LPError, "Provide at least one secure manager")
@@ -267,7 +270,8 @@ proc newSwitch*(peerInfo: PeerInfo,
     transports: transports,
     connManager: connManager,
     peerStore: PeerStore.new(),
-    dialer: Dialer.new(peerInfo, connManager, transports, ms))
+    dialer: Dialer.new(peerInfo, connManager, transports, ms),
+    nameResolver: nameResolver)
 
   switch.mount(identity)
   return switch
