@@ -105,9 +105,13 @@ proc handleGraft*(g: GossipSub,
 
       continue
 
+    # Check backingOff
+    # Ignore BackoffSlackTime here, since this only for outbound activity
+    # and subtract a second time to avoid race conditions
+    # (peers may wait to graft us as the exact instant they're allowed to)
     if  g.backingOff
           .getOrDefault(topic)
-          .getOrDefault(peer.peerId) > Moment.now():
+          .getOrDefault(peer.peerId) - (BackoffSlackTime * 2).seconds > Moment.now():
       debug "attempt to graft a backingOff peer", peer, topic
       # and such an attempt should be logged and rejected with a PRUNE
       prunes.add(ControlPrune(
