@@ -16,6 +16,7 @@ import
   muxers/[muxer, mplex/mplex],
   protocols/[identify, secure/secure, secure/noise],
   connmanager, upgrademngrs/muxedupgrade,
+  nameresolving/nameresolver,
   errors
 
 export
@@ -45,6 +46,7 @@ type
     maxConnsPerPeer: int
     protoVersion: string
     agentVersion: string
+    nameResolver: NameResolver
 
 proc new*(T: type[SwitchBuilder]): T =
 
@@ -129,6 +131,10 @@ proc withAgentVersion*(b: SwitchBuilder, agentVersion: string): SwitchBuilder =
   b.agentVersion = agentVersion
   b
 
+proc withNameResolver*(b: SwitchBuilder, nameResolver: NameResolver): SwitchBuilder =
+  b.nameResolver = nameResolver
+  b
+
 proc build*(b: SwitchBuilder): Switch
   {.raises: [Defect, LPError].} =
 
@@ -184,7 +190,8 @@ proc build*(b: SwitchBuilder): Switch
     muxers = muxers,
     secureManagers = secureManagerInstances,
     connManager = connManager,
-    ms = ms)
+    ms = ms,
+    nameResolver = b.nameResolver)
 
   return switch
 
@@ -201,7 +208,8 @@ proc newStandardSwitch*(
   maxConnections = MaxConnections,
   maxIn = -1,
   maxOut = -1,
-  maxConnsPerPeer = MaxConnectionsPerPeer): Switch
+  maxConnsPerPeer = MaxConnectionsPerPeer,
+  nameResolver: NameResolver = nil): Switch
   {.raises: [Defect, LPError].} =
   if SecureProtocol.Secio in secureManagers:
       quit("Secio is deprecated!") # use of secio is unsafe
@@ -216,6 +224,7 @@ proc newStandardSwitch*(
     .withMaxConnsPerPeer(maxConnsPerPeer)
     .withMplex(inTimeout, outTimeout)
     .withTcpTransport(transportFlags)
+    .withNameResolver(nameResolver)
     .withNoise()
 
   if privKey.isSome():
