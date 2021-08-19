@@ -12,6 +12,7 @@
 import
   std/[tables, sets, sequtils, options],
   ./crypto/crypto,
+  ./protocols/identify,
   ./peerid, ./peerinfo,
   ./multiaddress
 
@@ -140,3 +141,19 @@ proc delete*(peerStore: PeerStore,
   peerStore.addressBook.delete(peerId) and
   peerStore.protoBook.delete(peerId) and
   peerStore.keyBook.delete(peerId)
+
+proc updatePeerInfo*(
+  peerStore: PeerStore,
+  info: IdentifyInfo) =
+
+  if info.addrs.len > 0:
+    peerStore.addressBook.set(info.peerId, info.addrs)
+
+  if info.agentVersion.isSome:
+    peerStore.agentBook.set(info.peerId, info.agentVersion.get().string)
+
+  if info.protoVersion.isSome:
+    peerStore.protoVersionBook.set(info.peerId, info.protoVersion.get().string)
+
+  if info.protos.len > 0:
+    peerStore.protoBook.set(info.peerId, info.protos)

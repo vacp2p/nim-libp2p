@@ -134,9 +134,9 @@ suite "Identify":
       switch2 = newStandardSwitch()
 
       proc updateStore1(peerId: PeerId, info: IdentifyInfo) {.async.} =
-        switch1.updatePeerInfo(info)
+        switch1.peerStore.updatePeerInfo(info)
       proc updateStore2(peerId: PeerId, info: IdentifyInfo) {.async.} =
-        switch2.updatePeerInfo(info)
+        switch2.peerStore.updatePeerInfo(info)
 
       identifyPush1 = IdentifyPush.new(updateStore1)
       identifyPush2 = IdentifyPush.new(updateStore2)

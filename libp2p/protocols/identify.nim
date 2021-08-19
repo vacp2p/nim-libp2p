@@ -13,7 +13,6 @@ import options
 import chronos, chronicles
 import ../protobuf/minprotobuf,
        ../peerinfo,
-       ../connmanager,
        ../stream/connection,
        ../peerid,
        ../crypto/crypto,

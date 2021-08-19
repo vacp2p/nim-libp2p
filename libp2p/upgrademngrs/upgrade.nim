@@ -89,16 +89,5 @@ proc identify*(
         if shortAgent.isOk() and KnownLibP2PAgentsSeq.contains(shortAgent.get()):
           conn.shortAgent = shortAgent.get()
 
-    if info.addrs.len > 0:
-      peerStore.addressBook.set(conn.peerId, info.addrs)
-
-    if info.agentVersion.isSome:
-      peerStore.agentBook.set(conn.peerId, info.agentVersion.get().string)
-
-    if info.protoVersion.isSome:
-      peerStore.protoVersionBook.set(conn.peerId, info.protoVersion.get())
-
-    if info.protos.len > 0:
-      peerStore.protoBook.set(conn.peerId, info.protos)
-
+    peerStore.updatePeerInfo(info)
     trace "identified remote peer", conn, peerId = shortLog(conn.peerId)
