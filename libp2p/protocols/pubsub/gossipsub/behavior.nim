@@ -166,13 +166,11 @@ proc handlePrune*(g: GossipSub, peer: PubSubPeer, prunes: seq[ControlPrune]) {.r
     # add peer backoff
     if prune.backoff > 0:
       let
-        # avoid overflows and follow params
-        # worst case if the remote thinks we are wrong we get penalized
-        # but we won't end up with ghost peers
+        # avoid overflows and clamp to reasonable value
         backoffSeconds = clamp(
           prune.backoff + BackoffSlackTime,
           0'u64,
-          g.parameters.pruneBackoff.seconds.uint64 + BackoffSlackTime
+          1.days.seconds.uint64
         )
         backoff = Moment.fromNow(backoffSeconds.int64.seconds)
         current = g.backingOff.getOrDefault(topic).getOrDefault(peer.peerId)
