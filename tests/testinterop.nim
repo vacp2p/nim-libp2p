@@ -2,7 +2,7 @@ import options, tables
 import chronos, chronicles, stew/byteutils
 import helpers
 import ../libp2p
-import ../libp2p/[daemon/daemonapi, varint]
+import ../libp2p/[daemon/daemonapi, varint, transports/wstransport, crypto/crypto]
 
 type
   # TODO: Unify both PeerInfo structs
@@ -287,6 +287,99 @@ suite "Interop":
     await allFutures(awaiters)
     await daemonNode.close()
     await sleepAsync(1.seconds)
+
+  asyncTest "native -> daemon websocket connection":
+    var protos = @["/test-stream"]
+    var test = "TEST STRING"
+
+    var testFuture = newFuture[string]("test.future")
+    proc nativeHandler(conn: Connection, proto: string) {.async.} =
+      var line = string.fromBytes(await conn.readLp(1024))
+      check line == test
+      testFuture.complete(line)
+      await conn.close()
+
+    # custom proto
+    var proto = new LPProtocol
+    proto.handler = nativeHandler
+    proto.codec = protos[0] # codec
+
+    let wsAddress = MultiAddress.init("/ip4/127.0.0.1/tcp/0/ws").tryGet()
+
+    let nativeNode = SwitchBuilder
+      .new()
+      .withAddress(wsAddress)
+      .withRng(crypto.newRng())
+      .withMplex()
+      .withTransport(proc (upgr: Upgrade): Transport = WsTransport.new(upgr))
+      .withNoise()
+      .build()
+
+    nativeNode.mount(proto)
+
+    let awaiters = await nativeNode.start()
+    let nativePeer = nativeNode.peerInfo
+
+    let daemonNode = await newDaemonApi(hostAddresses = @[wsAddress])
+    await daemonNode.connect(nativePeer.peerId, nativePeer.addrs)
+    var stream = await daemonNode.openStream(nativePeer.peerId, protos)
+    discard await stream.transp.writeLp(test)
+
+    check test == (await wait(testFuture, 10.secs))
+
+    await stream.close()
+    await nativeNode.stop()
+    await allFutures(awaiters)
+    await daemonNode.close()
+    await sleepAsync(1.seconds)
+
+  asyncTest "daemon -> native websocket connection":
+    var protos = @["/test-stream"]
+    var test = "TEST STRING"
+    # We are preparing expect string, which should be prefixed with varint
+    # length and do not have `\r\n` suffix, because we going to use
+    # readLine().
+    var buffer = initVBuffer()
+    buffer.writeSeq(test & "\r\n")
+    buffer.finish()
+    var expect = newString(len(buffer) - 2)
+    copyMem(addr expect[0], addr buffer.buffer[0], len(expect))
+
+    let wsAddress = MultiAddress.init("/ip4/127.0.0.1/tcp/0/ws").tryGet()
+    let nativeNode = SwitchBuilder
+      .new()
+      .withAddress(wsAddress)
+      .withRng(crypto.newRng())
+      .withMplex()
+      .withTransport(proc (upgr: Upgrade): Transport = WsTransport.new(upgr))
+      .withNoise()
+      .build()
+
+    let awaiters = await nativeNode.start()
+
+    let daemonNode = await newDaemonApi(hostAddresses = @[wsAddress])
+    let daemonPeer = await daemonNode.identity()
+
+    var testFuture = newFuture[string]("test.future")
+    proc daemonHandler(api: DaemonAPI, stream: P2PStream) {.async.} =
+      # We should perform `readLp()` instead of `readLine()`. `readLine()`
+      # here reads actually length prefixed string.
+      var line = await stream.transp.readLine()
+      check line == expect
+      testFuture.complete(line)
+      await stream.close()
+
+    await daemonNode.addHandler(protos, daemonHandler)
+    let conn = await nativeNode.dial(NativePeerInfo.init(daemonPeer.peer,
+                                                          daemonPeer.addresses),
+                                                          protos[0])
+    await conn.writeLp(test & "\r\n")
+    check expect == (await wait(testFuture, 10.secs))
+
+    await conn.close()
+    await nativeNode.stop()
+    await allFutures(awaiters)
+    await daemonNode.close()
 
   asyncTest "daemon -> multiple reads and writes":
     var protos = @["/test-stream"]

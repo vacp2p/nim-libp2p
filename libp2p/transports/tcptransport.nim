@@ -234,7 +234,7 @@ method accept*(self: TcpTransport): Future[Connection] {.async, gcsafe.} =
   except CancelledError as exc:
     raise
   except CatchableError as exc:
-    warn "Unexpected error accepting connection", exc = exc.msg
+    debug "Unexpected error accepting connection", exc = exc.msg
     raise exc
 
 method dial*(
@@ -255,8 +255,4 @@ method dial*(
 method handles*(t: TcpTransport, address: MultiAddress): bool {.gcsafe.} =
   if procCall Transport(t).handles(address):
     if address.protocols.isOk:
-      return address.protocols
-        .get()
-        .filterIt(
-          it == multiCodec("tcp")
-        ).len > 0
+      return TCP.match(address)
