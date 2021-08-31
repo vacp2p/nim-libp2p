@@ -154,6 +154,8 @@ proc commonTransportTest*(name: string, prov: TransportProvider, ma: string) =
 
       await handlerWait.cancelAndWait()
 
+      await transport1.stop()
+
     asyncTest "e2e: stopping transport kills connections":
       let ma = @[Multiaddress.init(ma).tryGet()]
 
