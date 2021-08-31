@@ -106,7 +106,7 @@ method start*(
     rng = self.rng)
 
   
-  for ma in addrs:
+  for i, ma in addrs:
     let httpserver =
       if self.secure:
         TlsHttpServer.create(
@@ -125,7 +125,7 @@ method start*(
         MultiAddress.init("/ws")
 
     # always get the resolved address in case we're bound to 0.0.0.0:0
-    self.addrs &= MultiAddress.init(
+    self.addrs[i] = MultiAddress.init(
       httpserver.localAddress()).tryGet() & codec.tryGet()
 
   trace "Listening on", addresses = self.addrs
@@ -193,13 +193,18 @@ method accept*(self: WsTransport): Future[Connection] {.async, gcsafe.} =
 
     self.acceptFuts[index] = self.httpservers[index].accept()
 
-    let
-      req = await finished
-      wstransp = await self.wsserver.handleRequest(req)
-      stream = WsStream.init(wstransp, Direction.In)
+    let req = await finished
 
-    self.trackConnection(stream, Direction.In)
-    return stream
+    try:
+      let
+        wstransp = await self.wsserver.handleRequest(req)
+        stream = WsStream.init(wstransp, Direction.In)
+
+      self.trackConnection(stream, Direction.In)
+      return stream
+    except CatchableError as exc:
+      await req.stream.closeWait()
+      raise exc
   except TransportOsError as exc:
     debug "OS Error", exc = exc.msg
   except TransportTooManyError as exc:
@@ -226,10 +231,15 @@ method dial*(
       "",
       secure = secure,
       flags = self.tlsFlags)
-    stream = WsStream.init(transp, Direction.Out)
 
-  self.trackConnection(stream, Direction.Out)
-  return stream
+  try:
+    let stream = WsStream.init(transp, Direction.Out)
+
+    self.trackConnection(stream, Direction.Out)
+    return stream
+  except CatchableError as exc:
+    await transp.close()
+    raise exc
 
 method handles*(t: WsTransport, address: MultiAddress): bool {.gcsafe.} =
   if procCall Transport(t).handles(address):
