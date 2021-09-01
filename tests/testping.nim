@@ -56,13 +56,13 @@ suite "Ping":
 
   asyncTest "simple ping":
     msListen.addHandler(PingCodec, pingProto1)
-    serverFut = transport1.start(ma)
+    serverFut = transport1.start(@[ma])
     proc acceptHandler(): Future[void] {.async, gcsafe.} =
       let c = await transport1.accept()
       await msListen.handle(c)
 
     acceptFut = acceptHandler()
-    conn = await transport2.dial(transport1.ma)
+    conn = await transport2.dial(transport1.addrs[0])
 
     discard await msDial.select(conn, PingCodec)
     let time = await pingProto2.ping(conn)
@@ -71,14 +71,14 @@ suite "Ping":
 
   asyncTest "ping callback":
     msDial.addHandler(PingCodec, pingProto2)
-    serverFut = transport1.start(ma)
+    serverFut = transport1.start(@[ma])
     proc acceptHandler(): Future[void] {.async, gcsafe.} =
       let c = await transport1.accept()
       discard await msListen.select(c, PingCodec)
       discard await pingProto1.ping(c)
 
     acceptFut = acceptHandler()
-    conn = await transport2.dial(transport1.ma)
+    conn = await transport2.dial(transport1.addrs[0])
 
     await msDial.handle(conn)
     check pingReceivedCount == 1
@@ -96,13 +96,13 @@ suite "Ping":
     fakePingProto.handler = fakeHandle
 
     msListen.addHandler(PingCodec, fakePingProto)
-    serverFut = transport1.start(ma)
+    serverFut = transport1.start(@[ma])
     proc acceptHandler(): Future[void] {.async, gcsafe.} =
       let c = await transport1.accept()
       await msListen.handle(c)
 
     acceptFut = acceptHandler()
-    conn = await transport2.dial(transport1.ma)
+    conn = await transport2.dial(transport1.addrs[0])
 
     discard await msDial.select(conn, PingCodec)
     let p = pingProto2.ping(conn)
