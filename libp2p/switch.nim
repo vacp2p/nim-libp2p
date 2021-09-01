@@ -209,7 +209,7 @@ proc accept(s: Switch, transport: Transport) {.async.} = # noraises
 proc start*(s: Switch): Future[seq[Future[void]]] {.async, gcsafe.} =
   trace "starting switch for peer", peerInfo = s.peerInfo
   var startFuts: seq[Future[void]]
-  for t in s.transports: # for each transport
+  for t in s.transports:
     let addrs = s.peerInfo.addrs.filterIt(
       t.handles(it)
     )
@@ -219,10 +219,18 @@ proc start*(s: Switch): Future[seq[Future[void]]] {.async, gcsafe.} =
     )
 
     if addrs.len > 0:
-      let server = t.start(addrs)
-      s.peerInfo.addrs &= t.addrs
+      startFuts.add(t.start(addrs))
+
+  await allFutures(startFuts)
+
+  for s in startFuts:
+    if s.failed:
+      info "Failed to start a transport", error=s.error.msg
+
+  for t in s.transports: # for each transport
+    if t.addrs.len > 0:
       s.acceptFuts.add(s.accept(t))
-      startFuts.add(server)
+      s.peerInfo.addrs &= t.addrs
 
   proc peerIdentifiedHandler(
     peerInfo: PeerInfo,
