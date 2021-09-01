@@ -225,7 +225,7 @@ proc copy*[T: RsaPKI](key: T): T =
       result = new RsaSignature
       result.buffer = key.buffer
 
-proc getKey*(key: RsaPrivateKey): RsaPublicKey =
+proc getPublicKey*(key: RsaPrivateKey): RsaPublicKey =
   ## Get RSA public key from RSA private key.
   doAssert(not isNil(key))
   let length = key.pubk.nlen + key.pubk.elen
@@ -245,7 +245,7 @@ proc seckey*(pair: RsaKeyPair): RsaPrivateKey {.inline.} =
 
 proc pubkey*(pair: RsaKeyPair): RsaPublicKey {.inline.} =
   ## Get RSA public key from pair ``pair``.
-  result = cast[RsaPrivateKey](pair).getKey()
+  result = cast[RsaPrivateKey](pair).getPublicKey()
 
 proc clear*[T: RsaPKI|RsaKeyPair](pki: var T) =
   ## Wipe and clear EC private key, public key or scalar object.

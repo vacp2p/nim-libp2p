@@ -603,7 +603,7 @@ proc new*(
   commonPrologue: seq[byte] = @[]): T =
 
   let pkBytes = privateKey
-  .getKey()
+  .getPublicKey()
   .expect("Expected valid Private Key")
   .getBytes()
   .expect("Couldn't get Private Key bytes")

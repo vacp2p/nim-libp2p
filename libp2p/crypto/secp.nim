@@ -141,7 +141,7 @@ proc init*(t: typedesc[SkSignature], data: string): SkResult[SkSignature] =
   var sig: SkSignature
   sig.init(data) and ok(sig)
 
-proc getKey*(key: SkPrivateKey): SkPublicKey =
+proc getPublicKey*(key: SkPrivateKey): SkPublicKey =
   ## Calculate and return Secp256k1 `public key` from `private key` ``key``.
   SkPublicKey(SkSecretKey(key).toPublicKey())
 

@@ -435,16 +435,14 @@ proc new*(
   T: typedesc[Secio],
   rng: ref BrHmacDrbgContext,
   localPrivateKey: PrivateKey): T =
-  let pkRes = localPrivateKey.getKey()
+  let pkRes = localPrivateKey.getPublicKey()
   if pkRes.isErr:
     raise newException(Defect, "Can't fetch local private key")
 
   let secio = Secio(
     rng: rng,
     localPrivateKey: localPrivateKey,
-    localPublicKey: localPrivateKey
-      .getKey()
-      .expect("Can't fetch local private key"),
+    localPublicKey: localPrivateKey.getPublicKey().expect("Can't fetch local private key"),
   )
   secio.init()
   secio

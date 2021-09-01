@@ -82,7 +82,7 @@ proc init*(
 
       msg.signature = sign(msg, peer.privateKey).expect("Couldn't sign message!")
       msg.key = peer.privateKey
-        .getKey()
+        .getPublicKey()
         .expect("Expected a Private Key!")
         .getBytes()
         .expect("Couldn't get Private Key bytes!")

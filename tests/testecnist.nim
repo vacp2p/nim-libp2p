@@ -351,8 +351,8 @@ suite "EC NIST-P256/384/521 test suite":
       var key2 = fromHex(stripSpaces(ECDHEPrivateKeys[i * 2 + 1]))
       var seckey1 = EcPrivateKey.initRaw(key1).expect("initRaw key")
       var seckey2 = EcPrivateKey.initRaw(key2).expect("initRaw key")
-      var pubkey1 = seckey1.getKey().expect("public key")
-      var pubkey2 = seckey2.getKey().expect("public key")
+      var pubkey1 = seckey1.getPublicKey().expect("public key")
+      var pubkey2 = seckey2.getPublicKey().expect("public key")
       var secret1 = getSecret(pubkey2, seckey1)
       var secret2 = getSecret(pubkey1, seckey2)
       var expsecret = fromHex(stripSpaces(ECDHESecrets[i]))
@@ -364,7 +364,7 @@ suite "EC NIST-P256/384/521 test suite":
     for i in 0..<2:
       var sk = EcPrivateKey.init(stripSpaces(SignatureSecKeys[i])).expect("private key")
       var expectpk = EcPublicKey.init(stripSpaces(SignaturePubKeys[i])).expect("private key")
-      var checkpk = sk.getKey().expect("public key")
+      var checkpk = sk.getPublicKey().expect("public key")
       check expectpk == checkpk
       var checksig = sk.sign(SignatureMessages[i]).expect("signature")
       var expectsig = EcSignature.init(stripSpaces(SignatureVectors[i])).expect("signature")
@@ -378,7 +378,7 @@ suite "EC NIST-P256/384/521 test suite":
   test "[secp256r1] ECDSA non-deterministic test vectors":
     var sk = EcPrivateKey.init(stripSpaces(NDPrivateKeys[0])).expect("private key")
     var pk = EcPublicKey.init(stripSpaces(NDPublicKeys[0])).expect("public key")
-    var checkpk = sk.getKey().expect("public key")
+    var checkpk = sk.getPublicKey().expect("public key")
     check pk == checkpk
     for i in 0..<6:
       var message = NDMessages[i]
@@ -458,8 +458,8 @@ suite "EC NIST-P256/384/521 test suite":
       var key2 = fromHex(stripSpaces(ECDHEPrivateKeys[i * 2 + 1]))
       var seckey1 = EcPrivateKey.initRaw(key1).expect("private key")
       var seckey2 = EcPrivateKey.initRaw(key2).expect("private key")
-      var pubkey1 = seckey1.getKey().expect("public key")
-      var pubkey2 = seckey2.getKey().expect("public key")
+      var pubkey1 = seckey1.getPublicKey().expect("public key")
+      var pubkey2 = seckey2.getPublicKey().expect("public key")
       var secret1 = getSecret(pubkey2, seckey1)
       var secret2 = getSecret(pubkey1, seckey2)
       var expsecret = fromHex(stripSpaces(ECDHESecrets[i]))
@@ -471,7 +471,7 @@ suite "EC NIST-P256/384/521 test suite":
     for i in 2..<4:
       var sk = EcPrivateKey.init(stripSpaces(SignatureSecKeys[i])).expect("private key")
       var expectpk = EcPublicKey.init(stripSpaces(SignaturePubKeys[i])).expect("public key")
-      var checkpk = sk.getKey().expect("public key")
+      var checkpk = sk.getPublicKey().expect("public key")
       check expectpk == checkpk
       var checksig = sk.sign(SignatureMessages[i]).expect("signature")
       var expectsig = EcSignature.init(stripSpaces(SignatureVectors[i])).expect("signature")
@@ -485,7 +485,7 @@ suite "EC NIST-P256/384/521 test suite":
   test "[secp384r1] ECDSA non-deterministic test vectors":
     var sk = EcPrivateKey.init(stripSpaces(NDPrivateKeys[1])).expect("private key")
     var pk = EcPublicKey.init(stripSpaces(NDPublicKeys[1])).expect("public key")
-    var checkpk = sk.getKey().expect("public key")
+    var checkpk = sk.getPublicKey().expect("public key")
     check pk == checkpk
     for i in 6..<12:
       var message = NDMessages[i]
@@ -565,8 +565,8 @@ suite "EC NIST-P256/384/521 test suite":
       var key2 = fromHex(stripSpaces(ECDHEPrivateKeys[i * 2 + 1]))
       var seckey1 = EcPrivateKey.initRaw(key1).expect("private key")
       var seckey2 = EcPrivateKey.initRaw(key2).expect("private key")
-      var pubkey1 = seckey1.getKey().expect("public key")
-      var pubkey2 = seckey2.getKey().expect("public key")
+      var pubkey1 = seckey1.getPublicKey().expect("public key")
+      var pubkey2 = seckey2.getPublicKey().expect("public key")
       var secret1 = getSecret(pubkey2, seckey1)
       var secret2 = getSecret(pubkey1, seckey2)
       var expsecret = fromHex(stripSpaces(ECDHESecrets[i]))
@@ -578,7 +578,7 @@ suite "EC NIST-P256/384/521 test suite":
     for i in 4..<6:
       var sk = EcPrivateKey.init(stripSpaces(SignatureSecKeys[i])).expect("private key")
       var expectpk = EcPublicKey.init(stripSpaces(SignaturePubKeys[i])).expect("public key")
-      var checkpk = sk.getKey().expect("public key")
+      var checkpk = sk.getPublicKey().expect("public key")
       check expectpk == checkpk
       var checksig = sk.sign(SignatureMessages[i]).expect("signature")
       var expectsig = EcSignature.init(stripSpaces(SignatureVectors[i])).expect("signature")
@@ -592,7 +592,7 @@ suite "EC NIST-P256/384/521 test suite":
   test "[secp521r1] ECDSA non-deterministic test vectors":
     var sk = EcPrivateKey.init(stripSpaces(NDPrivateKeys[2])).expect("private key")
     var pk = EcPublicKey.init(stripSpaces(NDPublicKeys[2])).expect("public key")
-    var checkpk = sk.getKey().expect("public key")
+    var checkpk = sk.getPublicKey().expect("public key")
     check pk == checkpk
     for i in 12..<18:
       var message = NDMessages[i]
