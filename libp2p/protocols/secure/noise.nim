@@ -604,7 +604,7 @@ proc new*(
 
   let pkBytes = privateKey.getPublicKey()
   .expect("Expected valid Private Key")
-  .getBytes().expect("Couldn't get Private Key bytes")
+  .getBytes().expect("Couldn't get public Key bytes")
 
   var noise = Noise(
     rng: rng,
