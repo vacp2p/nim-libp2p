@@ -303,33 +303,36 @@ proc random*(T: typedesc[KeyPair], rng: var BrHmacDrbgContext,
   else:
     err(SchemeError)
 
-proc getKey*(key: PrivateKey): CryptoResult[PublicKey] =
+proc getPublicKey*(key: PrivateKey): CryptoResult[PublicKey] =
   ## Get public key from corresponding private key ``key``.
   case key.scheme
   of PKScheme.RSA:
     when supported(PKScheme.RSA):
-      let rsakey = key.rsakey.getKey()
+      let rsakey = key.rsakey.getPublicKey()
       ok(PublicKey(scheme: RSA, rsakey: rsakey))
     else:
       err(SchemeError)
   of PKScheme.Ed25519:
     when supported(PKScheme.Ed25519):
-      let edkey = key.edkey.getKey()
+      let edkey = key.edkey.getPublicKey()
       ok(PublicKey(scheme: Ed25519, edkey: edkey))
     else:
       err(SchemeError)
   of PKScheme.ECDSA:
     when supported(PKScheme.ECDSA):
-      let eckey = ? key.eckey.getKey().orError(KeyError)
+      let eckey = ? key.eckey.getPublicKey().orError(KeyError)
       ok(PublicKey(scheme: ECDSA, eckey: eckey))
     else:
       err(SchemeError)
   of PKScheme.Secp256k1:
     when supported(PKScheme.Secp256k1):
-      let skkey = key.skkey.getKey()
+      let skkey = key.skkey.getPublicKey()
       ok(PublicKey(scheme: Secp256k1, skkey: skkey))
     else:
       err(SchemeError)
+
+proc getKey*(key: PrivateKey): CryptoResult[PublicKey] {.deprecated: "use getPublicKey".} =
+  key.getPublicKey()
 
 proc toRawBytes*(key: PrivateKey | PublicKey,
                  data: var openarray[byte]): CryptoResult[int] =

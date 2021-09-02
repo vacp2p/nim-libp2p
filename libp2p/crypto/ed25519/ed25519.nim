@@ -1682,7 +1682,7 @@ proc random*(t: typedesc[EdKeyPair], rng: var BrHmacDrbgContext): EdKeyPair =
 
   res
 
-proc getKey*(key: EdPrivateKey): EdPublicKey =
+proc getPublicKey*(key: EdPrivateKey): EdPublicKey =
   ## Calculate and return ED25519 public key from private key ``key``.
   copyMem(addr result.data[0], unsafeAddr key.data[32], 32)
 

@@ -15,4 +15,4 @@ suite "PeerInfo":
     var peerId = PeerID.init(seckey).get()
 
     check peerId == peerInfo.peerId
-    check seckey.getKey().get() == peerInfo.publicKey
+    check seckey.getPublicKey().get() == peerInfo.publicKey

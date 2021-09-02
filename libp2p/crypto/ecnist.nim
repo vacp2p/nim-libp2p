@@ -245,7 +245,7 @@ proc random*(
   else:
     ok(res)
 
-proc getKey*(seckey: EcPrivateKey): EcResult[EcPublicKey] =
+proc getPublicKey*(seckey: EcPrivateKey): EcResult[EcPublicKey] =
   ## Calculate and return EC public key from private key ``seckey``.
   if isNil(seckey):
     return err(EcKeyIncorrectError)
@@ -272,7 +272,7 @@ proc random*(
   ## secp521r1).
   let
     seckey = ? EcPrivateKey.random(kind, rng)
-    pubkey = ? seckey.getKey()
+    pubkey = ? seckey.getPublicKey()
     key = EcKeyPair(seckey: seckey, pubkey: pubkey)
   ok(key)
 
@@ -368,7 +368,7 @@ proc toBytes*(seckey: EcPrivateKey, data: var openarray[byte]): EcResult[int] =
     return err(EcKeyIncorrectError)
   if seckey.key.curve in EcSupportedCurvesCint:
     var offset, length: int
-    var pubkey = ? seckey.getKey()
+    var pubkey = ? seckey.getPublicKey()
     var b = Asn1Buffer.init()
     var p = Asn1Composite.init(Asn1Tag.Sequence)
     var c0 = Asn1Composite.init(0)

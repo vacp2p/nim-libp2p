@@ -92,6 +92,9 @@ proc delete*[T](peerBook: var PeerBook[T],
     peerBook.book.del(peerId)
     return true
 
+proc contains*[T](peerBook: PeerBook[T], peerId: PeerID): bool =
+  peerId in peerBook.book
+
 ################
 # Set Book API #
 ################

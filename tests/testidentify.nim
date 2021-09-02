@@ -70,7 +70,7 @@ suite "Identify":
       discard await msDial.select(conn, IdentifyCodec)
       let id = await identifyProto2.identify(conn, remotePeerInfo.peerId)
 
-      check id.pubKey.get() == remoteSecKey.getKey().get()
+      check id.pubKey.get() == remoteSecKey.getPublicKey().get()
       check id.addrs[0] == ma
       check id.protoVersion.get() == ProtoVersion
       check id.agentVersion.get() == AgentVersion
@@ -93,7 +93,7 @@ suite "Identify":
       discard await msDial.select(conn, IdentifyCodec)
       let id = await identifyProto2.identify(conn, remotePeerInfo.peerId)
 
-      check id.pubKey.get() == remoteSecKey.getKey().get()
+      check id.pubKey.get() == remoteSecKey.getPublicKey().get()
       check id.addrs[0] == ma
       check id.protoVersion.get() == ProtoVersion
       check id.agentVersion.get() == customAgentVersion

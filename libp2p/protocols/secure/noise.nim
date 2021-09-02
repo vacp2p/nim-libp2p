@@ -600,11 +600,9 @@ proc new*(
   outgoing: bool = true,
   commonPrologue: seq[byte] = @[]): T =
 
-  let pkBytes = privateKey
-  .getKey()
+  let pkBytes = privateKey.getPublicKey()
   .expect("Expected valid Private Key")
-  .getBytes()
-  .expect("Couldn't get Private Key bytes")
+  .getBytes().expect("Couldn't get public Key bytes")
 
   var noise = Noise(
     rng: rng,
