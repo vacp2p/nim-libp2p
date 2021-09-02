@@ -143,7 +143,7 @@ proc publicKey*(p: PeerInfo): Option[PublicKey] =
     elif p.key.isSome:
       res = p.key
   else:
-    let pkeyRes = p.privateKey.getKey()
+    let pkeyRes = p.privateKey.getPublicKey()
     if pkeyRes.isOk:
       res = some(pkeyRes.get())
 

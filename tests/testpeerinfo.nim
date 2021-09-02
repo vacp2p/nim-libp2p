@@ -16,23 +16,23 @@ suite "PeerInfo":
 
     check peerId == peerInfo.peerId
     check seckey == peerInfo.privateKey
-    check seckey.getKey().get() == peerInfo.publicKey.get()
+    check seckey.getPublicKey().get() == peerInfo.publicKey.get()
 
   test "Should init with public key":
     let seckey = PrivateKey.random(ECDSA, rng[]).get()
-    var peerInfo = PeerInfo.init(seckey.getKey().get())
-    var peerId = PeerID.init(seckey.getKey().get()).get()
+    var peerInfo = PeerInfo.init(seckey.getPublicKey().get())
+    var peerId = PeerID.init(seckey.getPublicKey().get()).get()
 
     check peerId == peerInfo.peerId
-    check seckey.getKey.get() == peerInfo.publicKey.get()
+    check seckey.getPublicKey.get() == peerInfo.publicKey.get()
 
   test "Should init from PeerId with public key":
     let seckey = PrivateKey.random(Ed25519, rng[]).get()
-    var peerInfo = PeerInfo.init(PeerID.init(seckey.getKey.get()).get())
-    var peerId = PeerID.init(seckey.getKey.get()).get()
+    var peerInfo = PeerInfo.init(PeerID.init(seckey.getPublicKey.get()).get())
+    var peerId = PeerID.init(seckey.getPublicKey.get()).get()
 
     check peerId == peerInfo.peerId
-    check seckey.getKey.get() == peerInfo.publicKey.get()
+    check seckey.getPublicKey.get() == peerInfo.publicKey.get()
 
   test "Should init from CIDv0 string":
     var peerInfo: PeerInfo

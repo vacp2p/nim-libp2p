@@ -524,7 +524,7 @@ suite "RSA 2048/3072/4096 test suite":
     var pubkey = RsaPublicKey.init(pubser).expect("key initialization")
     check:
       seckey.getBytes().expect("bytes") == prvser
-    var cpubkey = seckey.getKey()
+    var cpubkey = seckey.getPublicKey()
     check:
       pubkey == cpubkey
       pubkey.getBytes().expect("bytes") == cpubkey.getBytes().expect("bytes")
@@ -547,7 +547,7 @@ suite "RSA 2048/3072/4096 test suite":
     var pubkey = RsaPublicKey.init(pubser).expect("key initialization")
     check:
       seckey.getBytes().expect("bytes") == prvser
-    var cpubkey = seckey.getKey()
+    var cpubkey = seckey.getPublicKey()
     check:
       pubkey == cpubkey
       pubkey.getBytes().expect("bytes") == cpubkey.getBytes().expect("bytes")
@@ -570,7 +570,7 @@ suite "RSA 2048/3072/4096 test suite":
     var pubkey = RsaPublicKey.init(pubser).expect("key initialization")
     check:
       seckey.getBytes().expect("bytes") == prvser
-    var cpubkey = seckey.getKey()
+    var cpubkey = seckey.getPublicKey()
     check:
       pubkey == cpubkey
       pubkey.getBytes().expect("bytes") == cpubkey.getBytes().expect("bytes")

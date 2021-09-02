@@ -372,7 +372,7 @@ suite "Key interface test suite":
     for i in 0..<len(PrivateKeys):
       var seckey = PrivateKey.init(fromHex(stripSpaces(PrivateKeys[i]))).expect("private key")
       var pubkey = PublicKey.init(fromHex(stripSpaces(PublicKeys[i]))).expect("public key")
-      var calckey = seckey.getKey().expect("public key")
+      var calckey = seckey.getPublicKey().expect("public key")
       check:
         pubkey == calckey
       var checkseckey = seckey.getBytes().expect("private key")
@@ -387,7 +387,7 @@ suite "Key interface test suite":
 
     for i in 0..<5:
       var seckey = PrivateKey.random(ECDSA, rng[]).get()
-      var pubkey = seckey.getKey().get()
+      var pubkey = seckey.getPublicKey().get()
       var pair = KeyPair.random(ECDSA, rng[]).get()
       var sig1 = pair.seckey.sign(bmsg).get()
       var sig2 = seckey.sign(bmsg).get()
@@ -407,7 +407,7 @@ suite "Key interface test suite":
 
     for i in 0..<5:
       var seckey = PrivateKey.random(Ed25519, rng[]).get()
-      var pubkey = seckey.getKey().get()
+      var pubkey = seckey.getPublicKey().get()
       var pair = KeyPair.random(Ed25519, rng[]).get()
       var sig1 = pair.seckey.sign(bmsg).get()
       var sig2 = seckey.sign(bmsg).get()
@@ -427,7 +427,7 @@ suite "Key interface test suite":
 
     for i in 0 ..< 2:
       var seckey = PrivateKey.random(RSA, rng[], 2048).get()
-      var pubkey = seckey.getKey().get()
+      var pubkey = seckey.getPublicKey().get()
       var pair = KeyPair.random(RSA, rng[], 2048).get()
       var sig1 = pair.seckey.sign(bmsg).get()
       var sig2 = seckey.sign(bmsg).get()
