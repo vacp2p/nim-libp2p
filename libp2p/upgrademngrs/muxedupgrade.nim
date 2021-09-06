@@ -35,13 +35,15 @@ proc identify*(
 
   try:
     await self.identify(stream)
+    when defined(libp2p_agents_metrics):
+      muxer.connection.shortAgent = stream.shortAgent
   finally:
     await stream.closeWithEOF()
 
 proc mux*(
   self: MuxedUpgrade,
   conn: Connection): Future[Muxer] {.async, gcsafe.} =
-  ## mux incoming connection
+  ## mux outgoing connection
 
   trace "Muxing connection", conn
   if self.muxers.len == 0:
@@ -91,6 +93,9 @@ method upgradeOutgoing*(
     # TODO this might be relaxed in the future
     raise newException(UpgradeFailedError,
       "a muxer is required for outgoing connections")
+
+  when defined(libp2p_agents_metrics):
+    conn.shortAgent = muxer.connection.shortAgent
 
   if sconn.closed():
     await sconn.close()
