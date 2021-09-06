@@ -158,7 +158,7 @@ method stop*(self: WsTransport) {.async, gcsafe.} =
       server.stop()
       toWait.add(server.closeWait())
 
-    discard await allFinished(toWait)
+    await allFutures(toWait)
 
     self.httpservers = @[]
     trace "Transport stopped"

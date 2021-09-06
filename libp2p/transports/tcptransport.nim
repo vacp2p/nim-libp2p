@@ -187,10 +187,10 @@ method stop*(self: TcpTransport) {.async, gcsafe.} =
         toWait.add(fut.read().closeWait())
 
     for server in self.servers:
-      server.close()
-      toWait.add(server.join())
+      server.stop()
+      toWait.add(server.closeWait())
 
-    discard await allFinished(toWait)
+    await allFutures(toWait)
 
     self.servers = @[]
 
