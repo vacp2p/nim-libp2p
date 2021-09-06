@@ -172,7 +172,7 @@ func init*(t: typedesc[PeerID], pubkey: PublicKey): Result[PeerID, cstring] =
 
 func init*(t: typedesc[PeerID], seckey: PrivateKey): Result[PeerID, cstring] =
   ## Create new peer id from private key ``seckey``.
-  PeerID.init(? seckey.getKey().orError(cstring("invalid private key")))
+  PeerID.init(? seckey.getPublicKey().orError(cstring("invalid private key")))
 
 func match*(pid: PeerID, pubkey: PublicKey): bool =
   ## Returns ``true`` if ``pid`` matches public key ``pubkey``.

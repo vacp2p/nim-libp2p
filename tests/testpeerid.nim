@@ -183,7 +183,7 @@ suite "Peer testing suite":
   test "Go PeerID test vectors":
     for i in 0..<len(PrivateKeys):
       var seckey = PrivateKey.init(stripSpaces(PrivateKeys[i])).get()
-      var pubkey = seckey.getKey().get()
+      var pubkey = seckey.getPublicKey().get()
       var p1 = PeerID.init(seckey).get()
       var p2 = PeerID.init(pubkey).get()
       var p3 = PeerID.init(PeerIDs[i]).get()
