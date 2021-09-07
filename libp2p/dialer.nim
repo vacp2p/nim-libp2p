@@ -56,59 +56,61 @@ proc dialAndUpgrade(
     transport: Transport
     address: MultiAddress
 
-  let resolvedAddresses =
-    if not isNil(self.nameResolver):
-      await self.nameResolver.resolveMAddresses(addrs)
-    else:
-      addrs
+  for rawAddress in addrs:      # for each address
+    address = rawAddress
+    let
+      hostname = address.getHostname()
+      resolvedAddresses =
+        if isNil(self.nameResolver): @[address]
+        else: await self.nameResolver.resolveMAddress(address)
 
-  for t in self.transports: # for each transport
-    transport = t
-    for a in resolvedAddresses:      # for each address
-      address = a
-      if t.handles(a):   # check if it can dial it
-        trace "Dialing address", address = $a, peerId
-        let dialed = try:
-            libp2p_total_dial_attempts.inc()
-            # await a connection slot when the total
-            # connection count is equal to `maxConns`
-            await self.connManager.trackOutgoingConn(
-              () => transport.dial(address)
-            )
-          except TooManyConnectionsError as exc:
-            trace "Connection limit reached!"
-            raise exc
-          except CancelledError as exc:
-            debug "Dialing canceled", msg = exc.msg, peerId
-            raise exc
-          except CatchableError as exc:
-            debug "Dialing failed", msg = exc.msg, peerId
-            libp2p_failed_dials.inc()
-            continue # Try the next address
+    for a in resolvedAddresses:      # for each resolved address
+      for t in self.transports: # for each transport
+        transport = t
 
-        # make sure to assign the peer to the connection
-        dialed.peerInfo = PeerInfo.init(peerId, addrs)
+        if t.handles(a):   # check if it can dial it
+          trace "Dialing address", address = $a, peerId, hostname
+          let dialed = try:
+              libp2p_total_dial_attempts.inc()
+              # await a connection slot when the total
+              # connection count is equal to `maxConns`
+              await self.connManager.trackOutgoingConn(
+                () => transport.dial(hostname, a)
+              )
+            except TooManyConnectionsError as exc:
+              trace "Connection limit reached!"
+              raise exc
+            except CancelledError as exc:
+              debug "Dialing canceled", msg = exc.msg, peerId
+              raise exc
+            except CatchableError as exc:
+              debug "Dialing failed", msg = exc.msg, peerId
+              libp2p_failed_dials.inc()
+              continue # Try the next address
 
-        # also keep track of the connection's bottom unsafe transport direction
-        # required by gossipsub scoring
-        dialed.transportDir = Direction.Out
+          # make sure to assign the peer to the connection
+          dialed.peerInfo = PeerInfo.init(peerId, addrs)
 
-        libp2p_successful_dials.inc()
+          # also keep track of the connection's bottom unsafe transport direction
+          # required by gossipsub scoring
+          dialed.transportDir = Direction.Out
 
-        let conn = try:
-            await transport.upgradeOutgoing(dialed)
-          except CatchableError as exc:
-            # If we failed to establish the connection through one transport,
-            # we won't succeeded through another - no use in trying again
-            await dialed.close()
-            debug "Upgrade failed", msg = exc.msg, peerId
-            if exc isnot CancelledError:
-              libp2p_failed_upgrades_outgoing.inc()
-            raise exc
+          libp2p_successful_dials.inc()
 
-        doAssert not isNil(conn), "connection died after upgradeOutgoing"
-        debug "Dial successful", conn, peerInfo = conn.peerInfo
-        return conn
+          let conn = try:
+              await transport.upgradeOutgoing(dialed)
+            except CatchableError as exc:
+              # If we failed to establish the connection through one transport,
+              # we won't succeeded through another - no use in trying again
+              await dialed.close()
+              debug "Upgrade failed", msg = exc.msg, peerId
+              if exc isnot CancelledError:
+                libp2p_failed_upgrades_outgoing.inc()
+              raise exc
+
+          doAssert not isNil(conn), "connection died after upgradeOutgoing"
+          debug "Dial successful", conn, peerInfo = conn.peerInfo
+          return conn
 
 proc internalConnect(
   self: Dialer,

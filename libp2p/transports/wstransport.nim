@@ -186,6 +186,7 @@ method accept*(self: WsTransport): Future[Connection] {.async, gcsafe.} =
 
 method dial*(
   self: WsTransport,
+  hostname: string,
   address: MultiAddress): Future[Connection] {.async, gcsafe.} =
   ## dial a peer
   ##
@@ -198,6 +199,7 @@ method dial*(
       address.initTAddress().tryGet(),
       "",
       secure = secure,
+      hostName = hostname,
       flags = self.tlsFlags)
     stream = WsStream.init(transp, Direction.Out)
 
