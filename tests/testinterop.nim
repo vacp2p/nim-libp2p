@@ -5,8 +5,6 @@ import ../libp2p
 import ../libp2p/[daemon/daemonapi, varint, transports/wstransport, crypto/crypto]
 
 type
-  # TODO: Unify both PeerInfo structs
-  NativePeerInfo = libp2p.PeerInfo
   DaemonPeerInfo = daemonapi.PeerInfo
 
 proc writeLp*(s: StreamTransport, msg: string | seq[byte]): Future[int] {.gcsafe.} =
@@ -69,10 +67,7 @@ proc testPubSubDaemonPublish(gossip: bool = false, count: int = 1) {.async.} =
     if times >= count and not finished:
       finished = true
 
-  let peer = NativePeerInfo.init(
-    daemonPeer.peer,
-    daemonPeer.addresses)
-  await nativeNode.connect(peer.peerId, peer.addrs)
+  await nativeNode.connect(daemonPeer.peer, daemonPeer.addresses)
 
   await sleepAsync(1.seconds)
   await daemonNode.connect(nativePeer.peerId, nativePeer.addrs)
@@ -124,10 +119,7 @@ proc testPubSubNodePublish(gossip: bool = false, count: int = 1) {.async.} =
   await pubsub.start()
   let nativePeer = nativeNode.peerInfo
 
-  let peer = NativePeerInfo.init(
-    daemonPeer.peer,
-    daemonPeer.addresses)
-  await nativeNode.connect(peer)
+  await nativeNode.connect(daemonPeer.peer, daemonPeer.addresses)
 
   await sleepAsync(1.seconds)
   await daemonNode.connect(nativePeer.peerId, nativePeer.addrs)
@@ -192,9 +184,7 @@ suite "Interop":
       testFuture.complete()
 
     await daemonNode.addHandler(protos, daemonHandler)
-    let conn = await nativeNode.dial(NativePeerInfo.init(daemonPeer.peer,
-                                                          daemonPeer.addresses),
-                                                          protos[0])
+    let conn = await nativeNode.dial(daemonPeer.peer, daemonPeer.addresses, protos[0])
     await conn.writeLp("test 1")
     check "test 2" == string.fromBytes((await conn.readLp(1024)))
 
@@ -240,9 +230,7 @@ suite "Interop":
       await stream.close()
 
     await daemonNode.addHandler(protos, daemonHandler)
-    let conn = await nativeNode.dial(NativePeerInfo.init(daemonPeer.peer,
-                                                          daemonPeer.addresses),
-                                                          protos[0])
+    let conn = await nativeNode.dial(daemonPeer.peer, daemonPeer.addresses, protos[0])
     await conn.writeLp(test & "\r\n")
     check expect == (await wait(testFuture, 10.secs))
 
@@ -370,9 +358,7 @@ suite "Interop":
       await stream.close()
 
     await daemonNode.addHandler(protos, daemonHandler)
-    let conn = await nativeNode.dial(NativePeerInfo.init(daemonPeer.peer,
-                                                          daemonPeer.addresses),
-                                                          protos[0])
+    let conn = await nativeNode.dial(daemonPeer.peer, daemonPeer.addresses, protos[0])
     await conn.writeLp(test & "\r\n")
     check expect == (await wait(testFuture, 10.secs))
 

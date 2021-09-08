@@ -77,8 +77,7 @@ type
 func shortLog*(conn: SecioConn): auto =
   try:
     if conn.isNil: "SecioConn(nil)"
-    elif conn.peerInfo.isNil: $conn.oid
-    else: &"{shortLog(conn.peerInfo.peerId)}:{conn.oid}"
+    else: &"{shortLog(conn.peerId)}:{conn.oid}"
   except ValueError as exc:
     raise newException(Defect, exc.msg)
 
@@ -264,13 +263,7 @@ proc newSecioConn(conn: Connection,
   ## cipher algorithm ``cipher``, stretched keys ``secrets`` and order
   ## ``order``.
 
-  conn.peerInfo =
-    if conn.peerInfo != nil:
-      conn.peerInfo
-    else:
-      PeerInfo.init(remotePubKey)
-
-  result = SecioConn.init(conn, conn.peerInfo, conn.observedAddr)
+  result = SecioConn.init(conn, conn.peerId, conn.observedAddr)
 
   let i0 = if order < 0: 1 else: 0
   let i1 = if order < 0: 0 else: 1
@@ -346,6 +339,8 @@ method handshake*(s: Secio, conn: Connection, initiator: bool = false): Future[S
   remotePeerId = PeerID.init(remotePubkey).tryGet()
 
   # TODO: PeerID check against supplied PeerID
+  if not initiator:
+    conn.peerId = remotePeerId
   let order = getOrder(remoteBytesPubkey, localNonce, localBytesPubkey,
                        remoteNonce).tryGet()
   trace "Remote proposal", schemes = remoteExchanges, ciphers = remoteCiphers,
@@ -435,16 +430,14 @@ proc new*(
   T: typedesc[Secio],
   rng: ref BrHmacDrbgContext,
   localPrivateKey: PrivateKey): T =
-  let pkRes = localPrivateKey.getKey()
+  let pkRes = localPrivateKey.getPublicKey()
   if pkRes.isErr:
-    raise newException(Defect, "Can't fetch local private key")
+    raise newException(Defect, "Invalid private key")
 
   let secio = Secio(
     rng: rng,
     localPrivateKey: localPrivateKey,
-    localPublicKey: localPrivateKey
-      .getKey()
-      .expect("Can't fetch local private key"),
+    localPublicKey: pkRes.get(),
   )
   secio.init()
   secio

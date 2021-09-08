@@ -37,7 +37,7 @@ type
   DialFailedError* = object of LPError
 
   Dialer* = ref object of Dial
-    peerInfo*: PeerInfo
+    localPeerId*: PeerId
     ms: MultistreamSelect
     connManager: ConnManager
     dialLock: Table[PeerID, AsyncLock]
@@ -89,7 +89,7 @@ proc dialAndUpgrade(
               continue # Try the next address
 
           # make sure to assign the peer to the connection
-          dialed.peerInfo = PeerInfo.init(peerId, addrs)
+          dialed.peerId = peerId
 
           # also keep track of the connection's bottom unsafe transport direction
           # required by gossipsub scoring
@@ -109,7 +109,7 @@ proc dialAndUpgrade(
               raise exc
 
           doAssert not isNil(conn), "connection died after upgradeOutgoing"
-          debug "Dial successful", conn, peerInfo = conn.peerInfo
+          debug "Dial successful", conn, peerId = conn.peerId
           return conn
 
 proc internalConnect(
@@ -117,7 +117,7 @@ proc internalConnect(
   peerId: PeerID,
   addrs: seq[MultiAddress]):
   Future[Connection] {.async.} =
-  if self.peerInfo.peerId == peerId:
+  if self.localPeerId == peerId:
     raise newException(CatchableError, "can't dial self!")
 
   # Ensure there's only one in-flight attempt per peer
@@ -241,13 +241,13 @@ method dial*(
 
 proc new*(
   T: type Dialer,
-  peerInfo: PeerInfo,
+  localPeerId: PeerId,
   connManager: ConnManager,
   transports: seq[Transport],
   ms: MultistreamSelect,
   nameResolver: NameResolver = nil): Dialer =
 
-  T(peerInfo: peerInfo,
+  T(localPeerId: localPeerId,
     connManager: connManager,
     transports: transports,
     ms: ms,

@@ -72,8 +72,7 @@ proc dumpMessage*(conn: SecureConn, direction: FlowDirection,
   var pb = initProtoBuffer(options = {WithVarintLength})
   pb.write(2, getTimestamp())
   pb.write(4, uint64(direction))
-  if len(conn.peerInfo.addrs) > 0:
-    pb.write(6, conn.peerInfo.addrs[0])
+  pb.write(6, conn.observedAddr)
   pb.write(7, data)
   pb.finish()
 
@@ -83,7 +82,7 @@ proc dumpMessage*(conn: SecureConn, direction: FlowDirection,
     else:
       getHomeDir() / libp2p_dump_dir
 
-  let fileName = $(conn.peerInfo.peerId) & ".pbcap"
+  let fileName = $(conn.peerId) & ".pbcap"
 
   # This is debugging procedure so it should not generate any exceptions,
   # and we going to return at every possible OS error.
