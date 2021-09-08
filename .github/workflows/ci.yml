@@ -172,7 +172,7 @@ jobs:
 
       - name: Install p2pd
         run: |
-          V=1 bash scripts/build_p2pd.sh p2pdCache v0.3.0
+          V=1 bash scripts/build_p2pd.sh p2pdCache 124530a3
 
       - name: Run nim-libp2p tests
         run: |
