@@ -347,16 +347,11 @@ method handleConn*(p: PubSub,
   ##    that we're interested in
   ##
 
-  if isNil(conn.peerInfo):
-    trace "no valid PeerId for peer"
-    await conn.close()
-    return
-
   proc handler(peer: PubSubPeer, msg: RPCMsg): Future[void] =
     # call pubsub rpc handler
     p.rpcHandler(peer, msg)
 
-  let peer = p.getOrCreatePeer(conn.peerInfo.peerId, @[proto])
+  let peer = p.getOrCreatePeer(conn.peerId, @[proto])
 
   try:
     peer.handler = handler
@@ -568,11 +563,11 @@ proc init*[PubParams: object | bool](
         parameters: parameters,
         topicsHigh: int.high)
 
-  proc peerEventHandler(peerInfo: PeerInfo, event: PeerEvent) {.async.} =
+  proc peerEventHandler(peerId: PeerId, event: PeerEvent) {.async.} =
     if event.kind == PeerEventKind.Joined:
-      pubsub.subscribePeer(peerInfo.peerId)
+      pubsub.subscribePeer(peerId)
     else:
-      pubsub.unsubscribePeer(peerInfo.peerId)
+      pubsub.unsubscribePeer(peerId)
 
   switch.addPeerEventHandler(peerEventHandler, PeerEventKind.Joined)
   switch.addPeerEventHandler(peerEventHandler, PeerEventKind.Left)

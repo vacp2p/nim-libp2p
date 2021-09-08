@@ -12,6 +12,7 @@
 import
   std/[tables, sets, sequtils, options],
   ./crypto/crypto,
+  ./protocols/identify,
   ./peerid, ./peerinfo,
   ./multiaddress
 
@@ -49,14 +50,10 @@ type
     addressBook*: AddressBook
     protoBook*: ProtoBook
     keyBook*: KeyBook
-  
-  StoredInfo* = object
-    # Collates stored info about a peer
-    peerId*: PeerID
-    addrs*: HashSet[MultiAddress]
-    protos*: HashSet[string]
-    publicKey*: PublicKey
 
+    agentBook*: PeerBook[string]
+    protoVersionBook*: PeerBook[string]
+  
 ## Constructs a new PeerStore with metadata of type M
 proc new*(T: type PeerStore): PeerStore =
   var p: PeerStore
@@ -95,6 +92,9 @@ proc delete*[T](peerBook: var PeerBook[T],
     peerBook.book.del(peerId)
     return true
 
+proc contains*[T](peerBook: PeerBook[T], peerId: PeerID): bool =
+  peerId in peerBook.book
+
 ################
 # Set Book API #
 ################
@@ -112,6 +112,16 @@ proc add*[T](
   # Notify clients
   for handler in peerBook.changeHandlers:
     handler(peerId, peerBook.get(peerId))
+
+# Helper for seq
+proc set*[T](
+  peerBook: var SetPeerBook[T],
+  peerId: PeerID,
+  entry: seq[T]) =
+  ## Add entry to a given peer. If the peer is not known,
+  ## it will be set with the provided entry.
+  peerBook.set(peerId, entry.toHashSet())
+  
 
 ##################  
 # Peer Store API #
@@ -135,37 +145,18 @@ proc delete*(peerStore: PeerStore,
   peerStore.protoBook.delete(peerId) and
   peerStore.keyBook.delete(peerId)
 
-proc get*(peerStore: PeerStore,
-          peerId: PeerID): StoredInfo =
-  ## Get the stored information of a given peer.
-  
-  StoredInfo(
-    peerId: peerId,
-    addrs: peerStore.addressBook.get(peerId),
-    protos: peerStore.protoBook.get(peerId),
-    publicKey: peerStore.keyBook.get(peerId)
-  )
+proc updatePeerInfo*(
+  peerStore: PeerStore,
+  info: IdentifyInfo) =
 
-proc update*(peerStore: PeerStore, peerInfo: PeerInfo) =
-  for address in peerInfo.addrs:
-    peerStore.addressBook.add(peerInfo.peerId, address)
-  for proto in peerInfo.protocols:
-    peerStore.protoBook.add(peerInfo.peerId, proto)
-  let pKey = peerInfo.publicKey()
-  if pKey.isSome:
-    peerStore.keyBook.set(peerInfo.peerId, pKey.get())
+  if info.addrs.len > 0:
+    peerStore.addressBook.set(info.peerId, info.addrs)
 
-proc replace*(peerStore: PeerStore, peerInfo: PeerInfo) =
-  discard peerStore.addressBook.delete(peerInfo.peerId)
-  discard peerStore.protoBook.delete(peerInfo.peerId)
-  discard peerStore.keyBook.delete(peerInfo.peerId)
-  peerStore.update(peerInfo)
+  if info.agentVersion.isSome:
+    peerStore.agentBook.set(info.peerId, info.agentVersion.get().string)
 
-proc peers*(peerStore: PeerStore): seq[StoredInfo] =
-  ## Get all the stored information of every peer.
-  
-  let allKeys = concat(toSeq(keys(peerStore.addressBook.book)),
-                       toSeq(keys(peerStore.protoBook.book)),
-                       toSeq(keys(peerStore.keyBook.book))).toHashSet()
+  if info.protoVersion.isSome:
+    peerStore.protoVersionBook.set(info.peerId, info.protoVersion.get().string)
 
-  return allKeys.mapIt(peerStore.get(it))
+  if info.protos.len > 0:
+    peerStore.protoBook.set(info.peerId, info.protos)

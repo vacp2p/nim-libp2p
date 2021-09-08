@@ -232,15 +232,6 @@ proc start*(s: Switch): Future[seq[Future[void]]] {.async, gcsafe.} =
       s.acceptFuts.add(s.accept(t))
       s.peerInfo.addrs &= t.addrs
 
-  proc peerIdentifiedHandler(
-    peerInfo: PeerInfo,
-    event: PeerEvent) {.async.} =
-    s.peerStore.replace(peerInfo)
-
-  s.connManager.addPeerEventHandler(
-    peerIdentifiedHandler,
-    PeerEventKind.Identified)
-
   debug "Started libp2p node", peer = s.peerInfo
   return startFuts # listen for incoming connections
 
@@ -290,27 +281,9 @@ proc newSwitch*(peerInfo: PeerInfo,
     transports: transports,
     connManager: connManager,
     peerStore: PeerStore.new(),
-    dialer: Dialer.new(peerInfo, connManager, transports, ms),
+    dialer: Dialer.new(peerInfo.peerId, connManager, transports, ms),
     nameResolver: nameResolver)
 
+  switch.connManager.peerStore = switch.peerStore
   switch.mount(identity)
   return switch
-
-proc isConnected*(s: Switch, peerInfo: PeerInfo): bool
-  {.deprecated: "Use PeerID version".} =
-  not isNil(peerInfo) and isConnected(s, peerInfo.peerId)
-
-proc disconnect*(s: Switch, peerInfo: PeerInfo): Future[void]
-  {.deprecated: "Use PeerID version", gcsafe.} =
-  disconnect(s, peerInfo.peerId)
-
-proc connect*(s: Switch, peerInfo: PeerInfo): Future[void]
-  {.deprecated: "Use PeerID version".} =
-  connect(s, peerInfo.peerId, peerInfo.addrs)
-
-proc dial*(s: Switch,
-           peerInfo: PeerInfo,
-           proto: string):
-           Future[Connection]
-  {.deprecated: "Use PeerID version".} =
-  dial(s, peerInfo.peerId, peerInfo.addrs, proto)

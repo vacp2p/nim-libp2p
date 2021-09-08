@@ -36,7 +36,7 @@ suite "Ping":
     transport1 = TcpTransport.new(upgrade = Upgrade())
     transport2 = TcpTransport.new(upgrade = Upgrade())
 
-    proc handlePing(peer: PeerInfo) {.async, gcsafe, closure.} =
+    proc handlePing(peer: PeerId) {.async, gcsafe, closure.} =
       inc pingReceivedCount
     pingProto1 = Ping.new()
     pingProto2 = Ping.new(handlePing)

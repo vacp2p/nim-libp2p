@@ -36,8 +36,7 @@ type
 func shortLog*(conn: SecureConn): auto =
   try:
     if conn.isNil: "SecureConn(nil)"
-    elif conn.peerInfo.isNil: $conn.oid
-    else: &"{shortLog(conn.peerInfo.peerId)}:{conn.oid}"
+    else: &"{shortLog(conn.peerId)}:{conn.oid}"
   except ValueError as exc:
     raise newException(Defect, exc.msg)
 
@@ -45,11 +44,11 @@ chronicles.formatIt(SecureConn): shortLog(it)
 
 proc init*(T: type SecureConn,
            conn: Connection,
-           peerInfo: PeerInfo,
+           peerId: PeerId,
            observedAddr: Multiaddress,
            timeout: Duration = DefaultConnectionTimeout): T =
   result = T(stream: conn,
-             peerInfo: peerInfo,
+             peerId: peerId,
              observedAddr: observedAddr,
              closeEvent: conn.closeEvent,
              upgraded: conn.upgraded,

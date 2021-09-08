@@ -29,7 +29,7 @@ type
   WrongPingAckError* = object of LPError
 
   PingHandler* = proc (
-    peer: PeerInfo):
+    peer: PeerId):
     Future[void]
     {.gcsafe, raises: [Defect].}
 
@@ -51,7 +51,7 @@ method init*(p: Ping) =
       trace "echoing ping", conn
       await conn.write(addr buf[0], PingSize)
       if not isNil(p.pingHandler):
-        await p.pingHandler(conn.peerInfo)
+        await p.pingHandler(conn.peerId)
     except CancelledError as exc:
       raise exc
     except CatchableError as exc:
