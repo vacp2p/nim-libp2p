@@ -57,10 +57,9 @@ type
 func shortLog*(s: LPChannel): auto =
   try:
     if s.isNil: "LPChannel(nil)"
-    elif s.conn.peerInfo.isNil: $s.oid
     elif s.name != $s.oid and s.name.len > 0:
-      &"{shortLog(s.conn.peerInfo.peerId)}:{s.oid}:{s.name}"
-    else: &"{shortLog(s.conn.peerInfo.peerId)}:{s.oid}"
+      &"{shortLog(s.conn.peerId)}:{s.oid}:{s.name}"
+    else: &"{shortLog(s.conn.peerId)}:{s.oid}"
   except ValueError as exc:
     raise newException(Defect, exc.msg)
 

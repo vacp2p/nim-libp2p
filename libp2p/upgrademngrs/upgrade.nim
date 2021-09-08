@@ -9,15 +9,17 @@
 
 {.push raises: [Defect].}
 
-import std/[options, sequtils]
+import std/[options, sequtils, strutils]
 import pkg/[chronos, chronicles, metrics]
 
 import ../stream/connection,
        ../protocols/secure/secure,
        ../protocols/identify,
        ../multistream,
+       ../peerstore,
        ../connmanager,
-       ../errors
+       ../errors,
+       ../utility
 
 export connmanager, connection, identify, secure, multistream
 
@@ -70,26 +72,22 @@ proc identify*(
   ## identify the connection
 
   if (await self.ms.select(conn, self.identity.codec)):
-    let info = await self.identity.identify(conn, conn.peerInfo)
+    let
+      info = await self.identity.identify(conn, conn.peerId)
+      peerStore = self.connManager.peerStore
 
     if info.pubKey.isNone and isNil(conn):
       raise newException(UpgradeFailedError,
         "no public key provided and no existing peer identity found")
 
-    if isNil(conn.peerInfo):
-      conn.peerInfo = PeerInfo.init(info.pubKey.get())
+    conn.peerId = info.peerId
 
-    if info.addrs.len > 0:
-      conn.peerInfo.addrs = info.addrs
+    when defined(libp2p_agents_metrics):
+      conn.shortAgent = "unknown"
+      if info.agentVersion.isSome and info.agentVersion.get().len > 0:
+        let shortAgent = info.agentVersion.get().split("/")[0].safeToLowerAscii()
+        if shortAgent.isOk() and KnownLibP2PAgentsSeq.contains(shortAgent.get()):
+          conn.shortAgent = shortAgent.get()
 
-    if info.agentVersion.isSome:
-      conn.peerInfo.agentVersion = info.agentVersion.get()
-
-    if info.protoVersion.isSome:
-      conn.peerInfo.protoVersion = info.protoVersion.get()
-
-    if info.protos.len > 0:
-      conn.peerInfo.protocols = info.protos
-
-    await self.connManager.triggerPeerEvents(conn.peerInfo, PeerEvent(kind: PeerEventKind.Identified))
-    trace "identified remote peer", conn, peerInfo = shortLog(conn.peerInfo)
+    peerStore.updatePeerInfo(info)
+    trace "identified remote peer", conn, peerId = shortLog(conn.peerId)

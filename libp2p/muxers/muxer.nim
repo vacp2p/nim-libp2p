@@ -76,7 +76,9 @@ method init(c: MuxerProvider) =
 
       # finally await both the futures
       if not isNil(c.muxerHandler):
-        futs &= c.muxerHandler(muxer)
+        await c.muxerHandler(muxer)
+        when defined(libp2p_agents_metrics):
+          conn.shortAgent = muxer.connection.shortAgent
 
       checkFutures(await allFinished(futs))
     except CancelledError as exc:

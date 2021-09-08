@@ -35,13 +35,15 @@ proc identify*(
 
   try:
     await self.identify(stream)
+    when defined(libp2p_agents_metrics):
+      muxer.connection.shortAgent = stream.shortAgent
   finally:
     await stream.closeWithEOF()
 
 proc mux*(
   self: MuxedUpgrade,
   conn: Connection): Future[Muxer] {.async, gcsafe.} =
-  ## mux incoming connection
+  ## mux outgoing connection
 
   trace "Muxing connection", conn
   if self.muxers.len == 0:
@@ -86,17 +88,16 @@ method upgradeOutgoing*(
     raise newException(UpgradeFailedError,
       "unable to secure connection, stopping upgrade")
 
-  if sconn.peerInfo.isNil:
-    raise newException(UpgradeFailedError,
-      "current version of nim-libp2p requires that secure protocol negotiates peerid")
-
   let muxer = await self.mux(sconn) # mux it if possible
   if muxer == nil:
     # TODO this might be relaxed in the future
     raise newException(UpgradeFailedError,
       "a muxer is required for outgoing connections")
 
-  if sconn.closed() or isNil(sconn.peerInfo):
+  when defined(libp2p_agents_metrics):
+    conn.shortAgent = muxer.connection.shortAgent
+
+  if sconn.closed():
     await sconn.close()
     raise newException(UpgradeFailedError,
       "Connection closed or missing peer info, stopping upgrade")
@@ -163,11 +164,6 @@ proc muxerHandler(
   muxer: Muxer) {.async, gcsafe.} =
   let
     conn = muxer.connection
-
-  if conn.peerInfo.isNil:
-    warn "This version of nim-libp2p requires secure protocol to negotiate peerid"
-    await muxer.close()
-    return
 
   # store incoming connection
   self.connManager.storeConn(conn)

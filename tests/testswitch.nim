@@ -248,18 +248,18 @@ suite "Switch":
 
     var step = 0
     var kinds: set[ConnEventKind]
-    proc hook(peerInfo: PeerInfo, event: ConnEvent) {.async, gcsafe.} =
+    proc hook(peerId: PeerId, event: ConnEvent) {.async, gcsafe.} =
       kinds = kinds + {event.kind}
       case step:
       of 0:
         check:
           event.kind == ConnEventKind.Connected
-          peerInfo.peerId == switch1.peerInfo.peerId
+          peerId == switch1.peerInfo.peerId
       of 1:
         check:
           event.kind == ConnEventKind.Disconnected
 
-        check peerInfo.peerId == switch1.peerInfo.peerId
+        check peerId == switch1.peerInfo.peerId
       else:
         check false
 
@@ -303,18 +303,18 @@ suite "Switch":
 
     var step = 0
     var kinds: set[ConnEventKind]
-    proc hook(peerInfo: PeerInfo, event: ConnEvent) {.async, gcsafe.} =
+    proc hook(peerId: PeerId, event: ConnEvent) {.async, gcsafe.} =
       kinds = kinds + {event.kind}
       case step:
       of 0:
         check:
           event.kind == ConnEventKind.Connected
-          peerInfo.peerId == switch2.peerInfo.peerId
+          peerId == switch2.peerInfo.peerId
       of 1:
         check:
           event.kind == ConnEventKind.Disconnected
 
-        check peerInfo.peerId == switch2.peerInfo.peerId
+        check peerId == switch2.peerInfo.peerId
       else:
         check false
 
@@ -358,17 +358,17 @@ suite "Switch":
 
     var step = 0
     var kinds: set[PeerEventKind]
-    proc handler(peerInfo: PeerInfo, event: PeerEvent) {.async, gcsafe.} =
+    proc handler(peerId: PeerId, event: PeerEvent) {.async, gcsafe.} =
       kinds = kinds + {event.kind}
       case step:
       of 0:
         check:
           event.kind == PeerEventKind.Joined
-          peerInfo.peerId == switch2.peerInfo.peerId
+          peerId == switch2.peerInfo.peerId
       of 1:
         check:
           event.kind == PeerEventKind.Left
-          peerInfo.peerId == switch2.peerInfo.peerId
+          peerId == switch2.peerInfo.peerId
       else:
         check false
 
@@ -412,17 +412,17 @@ suite "Switch":
 
     var step = 0
     var kinds: set[PeerEventKind]
-    proc handler(peerInfo: PeerInfo, event: PeerEvent) {.async, gcsafe.} =
+    proc handler(peerId: PeerId, event: PeerEvent) {.async, gcsafe.} =
       kinds = kinds + {event.kind}
       case step:
       of 0:
         check:
           event.kind == PeerEventKind.Joined
-          peerInfo.peerId == switch1.peerInfo.peerId
+          peerId == switch1.peerInfo.peerId
       of 1:
         check:
           event.kind == PeerEventKind.Left
-          peerInfo.peerId == switch1.peerInfo.peerId
+          peerId == switch1.peerInfo.peerId
       else:
         check false
 
@@ -476,7 +476,7 @@ suite "Switch":
 
     var step = 0
     var kinds: set[PeerEventKind]
-    proc handler(peerInfo: PeerInfo, event: PeerEvent) {.async, gcsafe.} =
+    proc handler(peerId: PeerId, event: PeerEvent) {.async, gcsafe.} =
       kinds = kinds + {event.kind}
       case step:
       of 0:
@@ -532,12 +532,14 @@ suite "Switch":
 
     let rng = newRng()
     # use same private keys to emulate two connection from same peer
-    let peerInfo = PeerInfo.init(PrivateKey.random(rng[]).tryGet())
+    let
+      privateKey = PrivateKey.random(rng[]).tryGet()
+      peerInfo = PeerInfo.init(privateKey)
 
     var switches: seq[Switch]
     var done = newFuture[void]()
     var onConnect: Future[void]
-    proc hook(peerInfo: PeerInfo, event: ConnEvent) {.async, gcsafe.} =
+    proc hook(peerId: PeerId, event: ConnEvent) {.async, gcsafe.} =
       case event.kind:
       of ConnEventKind.Connected:
         await onConnect
@@ -555,7 +557,7 @@ suite "Switch":
     awaiters.add(await switches[0].start())
 
     switches.add(newStandardSwitch(
-      privKey = some(peerInfo.privateKey),
+      privKey = some(privateKey),
       rng = rng))
     onConnect = switches[1].connect(switches[0].peerInfo.peerId, switches[0].peerInfo.addrs)
     await onConnect
@@ -573,13 +575,15 @@ suite "Switch":
 
     let rng = newRng()
     # use same private keys to emulate two connection from same peer
-    let peerInfo = PeerInfo.init(PrivateKey.random(rng[]).tryGet())
+    let
+      privateKey = PrivateKey.random(rng[]).tryGet()
+      peerInfo = PeerInfo.init(privateKey)
 
     var conns = 1
     var switches: seq[Switch]
     var done = newFuture[void]()
     var onConnect: Future[void]
-    proc hook(peerInfo2: PeerInfo, event: ConnEvent) {.async, gcsafe.} =
+    proc hook(peerId2: PeerId, event: ConnEvent) {.async, gcsafe.} =
       case event.kind:
       of ConnEventKind.Connected:
         if conns == 5:
@@ -602,7 +606,7 @@ suite "Switch":
 
     for i in 1..5:
       switches.add(newStandardSwitch(
-        privKey = some(peerInfo.privateKey),
+        privKey = some(privateKey),
         rng = rng))
       switches[i].addConnEventHandler(hook, ConnEventKind.Disconnected)
       onConnect = switches[i].connect(switches[0].peerInfo.peerId, switches[0].peerInfo.addrs)
@@ -893,15 +897,9 @@ suite "Switch":
     check not switch1.isConnected(switch2.peerInfo.peerId)
     check not switch2.isConnected(switch1.peerInfo.peerId)
 
-    let storedInfo1 = switch1.peerStore.get(switch2.peerInfo.peerId)
-    let storedInfo2 = switch2.peerStore.get(switch1.peerInfo.peerId)
-
     check:
-      storedInfo1.peerId == switch2.peerInfo.peerId
-      storedInfo2.peerId == switch1.peerInfo.peerId
+      switch1.peerStore.addressBook.get(switch2.peerInfo.peerId) == switch2.peerInfo.addrs.toHashSet()
+      switch2.peerStore.addressBook.get(switch1.peerInfo.peerId) == switch1.peerInfo.addrs.toHashSet()
 
-      storedInfo1.addrs == switch2.peerInfo.addrs.toHashSet()
-      storedInfo2.addrs == switch1.peerInfo.addrs.toHashSet()
-
-      storedInfo1.protos == switch2.peerInfo.protocols.toHashSet()
-      storedInfo2.protos == switch1.peerInfo.protocols.toHashSet()
+      switch1.peerStore.addressBook.get(switch2.peerInfo.peerId) == switch2.peerInfo.addrs.toHashSet()
+      switch2.peerStore.addressBook.get(switch1.peerInfo.peerId) == switch1.peerInfo.addrs.toHashSet()
