@@ -25,6 +25,7 @@ jobs:
             cpu: i386
           - os: windows
             cpu: amd64
+        branch: [version-1-2, version-1-4, version-1-6, devel]
         include:
           - target:
               os: linux
@@ -40,8 +41,9 @@ jobs:
       run:
         shell: bash
 
-    name: '${{ matrix.target.os }}-${{ matrix.target.cpu }}'
+    name: '${{ matrix.target.os }}-${{ matrix.target.cpu }} (Nim ${{ matrix.branch }})'
     runs-on: ${{ matrix.builder }}
+    continue-on-error: ${{ matrix.branch == 'devel' }}
     steps:
       - name: Checkout nim-libp2p
         uses: actions/checkout@v2
@@ -143,26 +145,12 @@ jobs:
           echo "${{ github.workspace }}/external/mingw-${{ matrix.target.cpu }}/bin" >> $GITHUB_PATH
           echo "${{ github.workspace }}/external/dlls-${{ matrix.target.cpu }}" >> $GITHUB_PATH
 
-      - name: Get latest Nim commit hash
-        id: versions
-        run: |
-          getHash() {
-            git ls-remote "https://github.com/$1" "${2:-HEAD}" | cut -f 1
-          }
-          nbsHash=$(getHash status-im/nimbus-build-system)
-          echo "::set-output name=nimbus_build_system::$nbsHash"
-
-      - name: Restore prebuilt Nim from cache
-        id: nim-cache
-        uses: actions/cache@v2
-        with:
-          path: NimBinaries
-          key: 'NimBinaries-${{ matrix.target.os }}-${{ matrix.target.cpu }}-${{ steps.versions.outputs.nimbus_build_system }}'
-
-      - name: Build Nim and associated tools
+      - name: Build Nim and Nimble
         run: |
           curl -O -L -s -S https://raw.githubusercontent.com/status-im/nimbus-build-system/master/scripts/build_nim.sh
-          env MAKE="${MAKE_CMD} -j${ncpu}" ARCH_OVERRIDE=${PLATFORM} CC=gcc bash build_nim.sh nim csources dist/nimble NimBinaries
+          env MAKE="${MAKE_CMD} -j${ncpu}" ARCH_OVERRIDE=${PLATFORM} NIM_COMMIT=${{ matrix.branch }} \
+            QUICK_AND_DIRTY_COMPILER=1 QUICK_AND_DIRTY_NIMBLE=1 CC=gcc \
+            bash build_nim.sh nim csources dist/nimble NimBinaries
           echo '${{ github.workspace }}/nim/bin' >> $GITHUB_PATH
 
       - name: Setup Go
@@ -178,6 +166,11 @@ jobs:
         run: |
           nimble install -y --depsOnly
           nimble test
+          if [[ "${{ matrix.branch }}" == "version-1-6" || "${{ matrix.branch }}" == "devel" ]]; then
+            echo -e "\nTesting with '--gc:orc':\n"
+            export NIMFLAGS="--gc:orc"
+            nimble test
+          fi
 
   bumpNBC-stable:
     if: github.ref == 'refs/heads/master'
