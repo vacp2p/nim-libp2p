@@ -89,7 +89,7 @@ proc handleGraft*(g: GossipSub,
     # It is an error to GRAFT on a explicit peer
     if peer.peerId in g.parameters.directPeers:
       # receiving a graft from a direct peer should yield a more prominent warning (protocol violation)
-      warn "attempt to graft an explicit peer, peering agreements should be reciprocal",
+      warn "an explicit peer attempted to graft us, peering agreements should be reciprocal",
         peer, topic
       # and such an attempt should be logged and rejected with a PRUNE
       prunes.add(ControlPrune(
@@ -105,10 +105,14 @@ proc handleGraft*(g: GossipSub,
 
       continue
 
+    # Check backingOff
+    # Ignore BackoffSlackTime here, since this only for outbound activity
+    # and subtract a second time to avoid race conditions
+    # (peers may wait to graft us as the exact instant they're allowed to)
     if  g.backingOff
           .getOrDefault(topic)
-          .getOrDefault(peer.peerId) > Moment.now():
-      debug "attempt to graft a backingOff peer", peer, topic
+          .getOrDefault(peer.peerId) - (BackoffSlackTime * 2).seconds > Moment.now():
+      debug "a backingOff peer attempted to graft us", peer, topic
       # and such an attempt should be logged and rejected with a PRUNE
       prunes.add(ControlPrune(
         topicID: topic,
@@ -162,13 +166,11 @@ proc handlePrune*(g: GossipSub, peer: PubSubPeer, prunes: seq[ControlPrune]) {.r
     # add peer backoff
     if prune.backoff > 0:
       let
-        # avoid overflows and follow params
-        # worst case if the remote thinks we are wrong we get penalized
-        # but we won't end up with ghost peers
+        # avoid overflows and clamp to reasonable value
         backoffSeconds = clamp(
           prune.backoff + BackoffSlackTime,
           0'u64,
-          g.parameters.pruneBackoff.seconds.uint64 + BackoffSlackTime
+          1.days.seconds.uint64
         )
         backoff = Moment.fromNow(backoffSeconds.int64.seconds)
         current = g.backingOff.getOrDefault(topic).getOrDefault(peer.peerId)
