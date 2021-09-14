@@ -41,7 +41,9 @@ method resolveIp*(
   doAssert(false, "Not implemented!")
 
 proc getHostname*(ma: MultiAddress): string =
-  ($ma[0].get()).split('/')[2]
+  let firstPart = ($ma[0].get()).split('/')
+  if firstPart.len > 1: firstPart[2]
+  else: ""
 
 proc resolveDnsAddress(
   self: NameResolver,
