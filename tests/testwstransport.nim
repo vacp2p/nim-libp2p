@@ -78,7 +78,8 @@ suite "WebSocket transport":
     proc acceptHandler() {.async, gcsafe.} =
       while true:
         let conn = await transport1.accept()
-        await conn.close()
+        if not isNil(conn):
+          await conn.close()
 
     let handlerWait = acceptHandler()
 
