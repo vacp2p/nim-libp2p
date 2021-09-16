@@ -88,7 +88,6 @@ suite "WebSocket transport":
 
     await conn.close()
 
-    let acceptHandler2 = transport1.accept()
     try:
       let conn = await transport1.dial("ws.wronghostname", transport1.ma)
       check false
