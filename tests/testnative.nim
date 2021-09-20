@@ -29,4 +29,7 @@ import testtcptransport,
        testpeerinfo,
        testpeerstore,
        testping,
-       testmplex
+       testmplex,
+       testwire
+
+{.warning[UnusedImport]: off.}
