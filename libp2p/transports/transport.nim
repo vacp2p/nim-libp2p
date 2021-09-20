@@ -57,12 +57,19 @@ method accept*(self: Transport): Future[Session] {.base, async.} =
 
   doAssert false # not implemented
 
+proc handleClose(session: Session, stream: Connection) =
+  proc close {.async.} =
+    await stream.join()
+    await session.close()
+  asyncSpawn close()
+
 proc acceptStream*(self: Transport): Future[Connection] {.async.} =
   ## accept incoming session, and its first stream
   ##
 
   let session = await self.accept()
   result = await session.getStream(Direction.In)
+  session.handleClose(result)
 
 method dial*(self: Transport,
              address: MultiAddress): Future[Session] {.base, async.} =
@@ -77,6 +84,7 @@ proc dialStream*(self: Transport,
 
   let session = await self.dial(address)
   result = await session.getStream(Direction.Out)
+  session.handleClose(result)
 
 method upgradeIncoming*(
   self: Transport,
