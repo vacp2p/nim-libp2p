@@ -21,6 +21,8 @@ import transport,
        ../stream/connection,
        ../upgrademngrs/upgrade,
        websock/websock
+import ./wsstream
+import ./wstransportsession
 
 logScope:
   topics = "libp2p wstransport"
@@ -31,50 +33,11 @@ const
   WsTransportTrackerName* = "libp2p.wstransport"
 
 type
-  WsStream = ref object of Connection
-    session: WSSession
-
-proc init*(T: type WsStream,
-           session: WSSession,
-           dir: Direction,
-           timeout = 10.minutes,
-           observedAddr: MultiAddress = MultiAddress()): T =
-
-  let stream = T(
-    session: session,
-    timeout: timeout,
-    dir: dir,
-    observedAddr: observedAddr)
-
-  stream.initStream()
-  return stream
-
-method readOnce*(
-  s: WsStream,
-  pbytes: pointer,
-  nbytes: int): Future[int] {.async.} =
-  let res = await s.session.recv(pbytes, nbytes)
-  if res == 0 and s.session.readyState == ReadyState.Closed:
-    raise newLPStreamEOFError()
-  return res
-
-method write*(
-  s: WsStream,
-  msg: seq[byte]): Future[void] {.async.} =
-  try:
-    await s.session.send(msg, Opcode.Binary)
-  except WSClosedError:
-    raise newLPStreamEOFError()
-
-method closeImpl*(s: WsStream): Future[void] {.async.} =
-  await s.session.close()
-  await procCall Connection(s).closeImpl()
-
-type
   WsTransport* = ref object of Transport
     httpserver: HttpServer
     wsserver: WSServer
     connections: array[Direction, seq[WsStream]]
+    sessions: array[Direction, seq[WsTransportSession]]
 
     tlsPrivateKey: TLSPrivateKey
     tlsCertificate: TLSCertificate
@@ -150,6 +113,16 @@ method stop*(self: WsTransport) {.async, gcsafe.} =
   except CatchableError as exc:
     trace "Error shutting down ws transport", exc = exc.msg
 
+proc trackSession(self: WsTransport,
+                  session: WsTransportSession,
+                  dir: Direction) =
+  self.sessions[dir].add(session)
+  proc onClose() {.async.} =
+    await session.join()
+    self.sessions[dir].keepItIf(it != session)
+    trace "Cleaned up client"
+  asyncSpawn onClose()
+
 proc trackConnection(self: WsTransport, conn: WsStream, dir: Direction) =
   self.connections[dir].add(conn)
   proc onClose() {.async.} =
@@ -157,6 +130,29 @@ proc trackConnection(self: WsTransport, conn: WsStream, dir: Direction) =
     self.connections[dir].keepItIf(it != conn)
     trace "Cleaned up client"
   asyncSpawn onClose()
+
+method accept*(self: WsTransport): Future[Session] {.async, gcsafe.} =
+  if not self.running:
+    raise newTransportClosedError()
+
+  try:
+    let
+      req = await self.httpserver.accept()
+      wstransp = await self.wsserver.handleRequest(req)
+      session = WsTransportSession.new(wstransp, Direction.In)
+
+    self.trackSession(session, Direction.In)
+    return session
+  except TransportOsError as exc:
+    debug "OS Error", exc = exc.msg
+  except TransportTooManyError as exc:
+    debug "Too many files opened", exc = exc.msg
+  except TransportUseClosedError as exc:
+    debug "Server was closed", exc = exc.msg
+    raise newTransportClosedError(exc)
+  except CatchableError as exc:
+    warn "Unexpected error accepting connection", exc = exc.msg
+    raise exc
 
 method acceptStream*(self: WsTransport): Future[Connection] {.async, gcsafe.} =
   ## accept a new WS connection
