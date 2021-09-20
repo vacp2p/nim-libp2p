@@ -51,7 +51,7 @@ proc commonTransportTest*(name: string, prov: TransportProvider, ma: string) =
           transport2.stop()))
 
       check string.fromBytes(msg) == "Hello!"
-      await handlerWait.wait(1.seconds) # when no issues will not wait that long!
+      await handlerWait.wait(30.seconds) # when no issues will not wait that long!
 
     asyncTest "e2e: handle read":
       let ma: MultiAddress = Multiaddress.init(ma).tryGet()
@@ -72,7 +72,7 @@ proc commonTransportTest*(name: string, prov: TransportProvider, ma: string) =
       await conn.write("Hello!")
 
       await conn.close() #for some protocols, closing requires actively reading, so we must close here
-      await handlerWait.wait(1.seconds) # when no issues will not wait that long!
+      await handlerWait.wait(30.seconds) # when no issues will not wait that long!
 
       await allFuturesThrowing(
         allFinished(
