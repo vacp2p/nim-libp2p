@@ -361,6 +361,9 @@ method rpcHandler*(g: GossipSub,
 
       await handleData(g, t, msg.data)
 
+    # Don't send to the source peer
+    toSendPeers.excl(peer)
+
     # In theory, if topics are the same in all messages, we could batch - we'd
     # also have to be careful to only include validated messages
     g.broadcast(toSendPeers, RPCMsg(messages: @[msg]))
