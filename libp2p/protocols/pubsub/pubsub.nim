@@ -391,6 +391,10 @@ method onTopicSubscription*(p: PubSub, topic: string, subscribed: bool) {.base.}
   # Called when subscribe is called the first time for a topic or unsubscribe
   # removes the last handler
 
+  # Check that this is an allowed topic
+  if p.subscriptionValidator != nil and p.subscriptionValidator(topic) == false:
+    warn "Trying to subscribe to a topic not passing validation!", topic
+
   # Notify others that we are no longer interested in the topic
   for _, peer in p.peers:
     p.sendSubs(peer, [topic], subscribed)
