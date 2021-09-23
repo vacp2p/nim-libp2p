@@ -147,6 +147,9 @@ suite "GossipSub":
         nodes[1].start(),
     ))
 
+    # We must subscribe before setting the validator
+    nodes[0].subscribe("foobar", handler)
+
     var gossip = GossipSub(nodes[0])
     let invalidDetected = newFuture[void]()
     gossip.subscriptionValidator =
@@ -162,7 +165,6 @@ suite "GossipSub":
 
     await subscribeNodes(nodes)
 
-    nodes[0].subscribe("foobar", handler)
     nodes[1].subscribe("foobar", handler)
 
     await invalidDetected.wait(10.seconds)
