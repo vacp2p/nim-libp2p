@@ -20,7 +20,8 @@ import dial,
        connmanager,
        stream/connection,
        transports/transport,
-       errors
+       errors,
+       utils/semaphore
 
 export dial, errors
 
@@ -63,7 +64,7 @@ proc dialAndUpgrade(
         let dialed = try:
             libp2p_total_dial_attempts.inc()
             # await a connection slot when the total
-            # connection count is equal to `maxConns`
+            # connection count is equal to `maxConnections`
             await self.connManager.trackOutgoingConn(
               () => transport.dial(address)
             )

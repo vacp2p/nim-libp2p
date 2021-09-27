@@ -41,9 +41,8 @@ type
     transports: seq[TransportProvider]
     rng: ref BrHmacDrbgContext
     maxConnections: int
-    maxIn: int
-    maxOut: int
     maxConnsPerPeer: int
+    maxIncoming: int
     protoVersion: string
     agentVersion: string
     nameResolver: NameResolver
@@ -59,8 +58,7 @@ proc new*(T: type[SwitchBuilder]): T =
     addresses: @[address],
     secureManagers: @[],
     maxConnections: MaxConnections,
-    maxIn: -1,
-    maxOut: -1,
+    maxIncoming: MaxIncoming,
     maxConnsPerPeer: MaxConnectionsPerPeer,
     protoVersion: ProtoVersion,
     agentVersion: AgentVersion)
@@ -76,7 +74,6 @@ proc withAddress*(b: SwitchBuilder, address: MultiAddress): SwitchBuilder =
 proc withAddresses*(b: SwitchBuilder, addresses: seq[MultiAddress]): SwitchBuilder =
   b.addresses = addresses
   b
-
 
 proc withMplex*(b: SwitchBuilder, inTimeout = 5.minutes, outTimeout = 5.minutes): SwitchBuilder =
   proc newMuxer(conn: Connection): Muxer =
@@ -107,16 +104,12 @@ proc withRng*(b: SwitchBuilder, rng: ref BrHmacDrbgContext): SwitchBuilder =
   b.rng = rng
   b
 
-proc withMaxConnections*(b: SwitchBuilder, maxConnections: int): SwitchBuilder =
-  b.maxConnections = maxConnections
+proc withMaxConnections*(b: SwitchBuilder, max: int): SwitchBuilder =
+  b.maxConnections = max
   b
 
-proc withMaxIn*(b: SwitchBuilder, maxIn: int): SwitchBuilder =
-  b.maxIn = maxIn
-  b
-
-proc withMaxOut*(b: SwitchBuilder, maxOut: int): SwitchBuilder =
-  b.maxOut = maxOut
+proc withMaxIncomming*(b: SwitchBuilder, max: int): SwitchBuilder =
+  b.maxIncoming = max
   b
 
 proc withMaxConnsPerPeer*(b: SwitchBuilder, maxConnsPerPeer: int): SwitchBuilder =
@@ -166,7 +159,14 @@ proc build*(b: SwitchBuilder): Switch
 
   let
     identify = Identify.new(peerInfo)
-    connManager = ConnManager.new(b.maxConnsPerPeer, b.maxConnections, b.maxIn, b.maxOut)
+    connManager = try:
+      ConnManager.init(
+        b.maxConnsPerPeer,
+        maxConnections = b.maxConnections,
+        maxIncoming = b.maxIncoming)
+    except CatchableError as exc:
+      raise newException(Defect, exc.msg)
+
     ms = MultistreamSelect.new()
     muxedUpgrade = MuxedUpgrade.new(identify, muxers, secureManagerInstances, connManager, ms)
 
@@ -206,8 +206,7 @@ proc newStandardSwitch*(
   inTimeout: Duration = 5.minutes,
   outTimeout: Duration = 5.minutes,
   maxConnections = MaxConnections,
-  maxIn = -1,
-  maxOut = -1,
+  maxIncoming = MaxIncoming, # set the incoming to half the amount of total connections
   maxConnsPerPeer = MaxConnectionsPerPeer,
   nameResolver: NameResolver = nil): Switch
   {.raises: [Defect, LPError].} =
@@ -216,11 +215,10 @@ proc newStandardSwitch*(
 
   var b = SwitchBuilder
     .new()
-    .withAddress(address)
     .withRng(rng)
+    .withAddress(address)
     .withMaxConnections(maxConnections)
-    .withMaxIn(maxIn)
-    .withMaxOut(maxOut)
+    .withMaxIncomming(maxIncoming)
     .withMaxConnsPerPeer(maxConnsPerPeer)
     .withMplex(inTimeout, outTimeout)
     .withTcpTransport(transportFlags)

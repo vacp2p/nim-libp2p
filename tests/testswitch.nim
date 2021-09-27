@@ -745,7 +745,7 @@ suite "Switch":
     var awaiters: seq[Future[void]]
 
     var switches: seq[Switch]
-    let destSwitch = newStandardSwitch(maxConnections = 3)
+    let destSwitch = newStandardSwitch(maxIncoming = 3)
     switches.add(destSwitch)
     awaiters.add(await destSwitch.start())
 
@@ -769,7 +769,7 @@ suite "Switch":
       allFutures(switches.mapIt( it.stop() )))
     await allFuturesThrowing(awaiters)
 
-  asyncTest "e2e total connection limits on incoming connections":
+  asyncTest "e2e total connection limits on outgoing connections":
     var awaiters: seq[Future[void]]
 
     var switches: seq[Switch]
@@ -801,7 +801,7 @@ suite "Switch":
     var awaiters: seq[Future[void]]
 
     var switches: seq[Switch]
-    let destSwitch = newStandardSwitch(maxIn = 3)
+    let destSwitch = newStandardSwitch(maxIncoming = 3)
     switches.add(destSwitch)
     awaiters.add(await destSwitch.start())
 
@@ -833,7 +833,7 @@ suite "Switch":
       switches.add(newStandardSwitch())
       awaiters.add(await switches[i].start())
 
-    let srcSwitch = newStandardSwitch(maxOut = 3)
+    let srcSwitch = newStandardSwitch(maxConnections = 3)
     awaiters.add(await srcSwitch.start())
 
     let dstSwitch = newStandardSwitch()

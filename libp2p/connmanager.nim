@@ -25,6 +25,7 @@ declareGauge(libp2p_peers, "total connected peers")
 
 const
   MaxConnections* = 50
+  MaxIncoming* = 25
   MaxConnectionsPerPeer* = 5
 
 type
@@ -72,9 +73,9 @@ type
     handle: Future[void]
 
   ConnManager* = ref object of RootObj
+    maxConnections: int
     maxConnsPerPeer: int
-    inSema*: AsyncSemaphore
-    outSema*: AsyncSemaphore
+    connSema*: AsyncSemaphore
     conns: Table[PeerID, HashSet[Connection]]
     muxed: Table[Connection, MuxerHolder]
     connEvents: array[ConnEventKind, OrderedSet[ConnEventHandler]]
@@ -87,21 +88,12 @@ proc newTooManyConnectionsError(): ref TooManyConnectionsError {.inline.} =
 proc new*(C: type ConnManager,
            maxConnsPerPeer = MaxConnectionsPerPeer,
            maxConnections = MaxConnections,
-           maxIn = -1,
-           maxOut = -1): ConnManager =
-  var inSema, outSema: AsyncSemaphore
-  if maxIn > 0 or maxOut > 0:
-    inSema = newAsyncSemaphore(maxIn)
-    outSema = newAsyncSemaphore(maxOut)
-  elif maxConnections > 0:
-    inSema = newAsyncSemaphore(maxConnections)
-    outSema = inSema
-  else:
-    raiseAssert "Invalid connection counts!"
+           maxIncoming = MaxIncoming): ConnManager {.raises: [CatchableError].} =
 
   C(maxConnsPerPeer: maxConnsPerPeer,
-    inSema: inSema,
-    outSema: outSema)
+    connSema: newAsyncSemaphore(
+      if maxIncoming > maxConnections: maxConnections else: maxIncoming),
+    maxConnections: maxConnections)
 
 proc connCount*(c: ConnManager, peerId: PeerID): int =
   c.conns.getOrDefault(peerId).len
@@ -439,16 +431,16 @@ proc trackIncomingConn*(c: ConnManager,
   var conn: Connection
   try:
     trace "Tracking incoming connection"
-    await c.inSema.acquire()
-    conn = await c.trackConn(provider, c.inSema)
+    await c.connSema.acquire()
+    conn = await c.trackConn(provider, c.connSema)
     if isNil(conn):
       trace "Couldn't acquire connection, releasing semaphore slot", dir = $Direction.In
-      c.inSema.release()
+      c.connSema.release()
 
     return conn
   except CatchableError as exc:
     trace "Exception tracking connection", exc = exc.msg
-    c.inSema.release()
+    c.connSema.release()
     raise exc
 
 proc trackOutgoingConn*(c: ConnManager,
@@ -459,25 +451,28 @@ proc trackOutgoingConn*(c: ConnManager,
   ## exception
   ##
 
-  trace "Tracking outgoing connection", count = c.outSema.count,
-                                        max = c.outSema.size
+  trace "Tracking outgoing connection", count = c.connSema.count,
+                                        max = c.connSema.size
 
-  if not c.outSema.tryAcquire():
-    trace "Too many outgoing connections!", count = c.outSema.count,
-                                            max = c.outSema.size
+  if c.maxConnections > 0 and c.conns.len >= c.maxConnections:
+    trace "Too many outgoing connections!", count = c.connSema.count,
+                                            max = c.connSema.size
     raise newTooManyConnectionsError()
 
+  # always count against the semaphore regardless
+  # if the semaphore limit has been reached
+  asyncSpawn c.connSema.acquire()
   var conn: Connection
   try:
-    conn = await c.trackConn(provider, c.outSema)
+    conn = await c.trackConn(provider, c.connSema)
     if isNil(conn):
       trace "Couldn't acquire connection, releasing semaphore slot", dir = $Direction.Out
-      c.outSema.release()
+      c.connSema.release()
 
     return conn
   except CatchableError as exc:
     trace "Exception tracking connection", exc = exc.msg
-    c.outSema.release()
+    c.connSema.release()
     raise exc
 
 proc storeMuxer*(c: ConnManager,
