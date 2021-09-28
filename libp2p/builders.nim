@@ -160,7 +160,7 @@ proc build*(b: SwitchBuilder): Switch
   let
     identify = Identify.new(peerInfo)
     connManager = try:
-      ConnManager.init(
+      ConnManager.new(
         b.maxConnsPerPeer,
         maxConnections = b.maxConnections,
         maxIncoming = b.maxIncoming)

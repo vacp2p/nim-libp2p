@@ -241,7 +241,7 @@ suite "Connection Manager":
     await connMngr.close()
 
   asyncTest "track max incoming connections":
-    let connMngr = ConnManager.init(maxIncoming = 3)
+    let connMngr = ConnManager.new(maxIncoming = 3)
 
     for i in 0..<3:
       let conn = connMngr.trackIncomingConn(
@@ -267,7 +267,7 @@ suite "Connection Manager":
     await connMngr.close()
 
   asyncTest "track max outgoing connections":
-    let connMngr = ConnManager.init(maxConnections = 3, maxIncoming = 0)
+    let connMngr = ConnManager.new(maxConnections = 3, maxIncoming = 0)
 
     for i in 0..<3:
       let conn = connMngr.trackOutgoingConn(
@@ -292,7 +292,7 @@ suite "Connection Manager":
     await connMngr.close()
 
   asyncTest "track global limit for incoming":
-    let connMngr = ConnManager.init(maxConnections = 3)
+    let connMngr = ConnManager.new(maxConnections = 3)
 
     for i in 0..<3:
       let conn = connMngr.trackOutgoingConn(
@@ -318,7 +318,7 @@ suite "Connection Manager":
     await connMngr.close()
 
   asyncTest "track global limit for outgoing":
-    let connMngr = ConnManager.init(maxConnections = 3)
+    let connMngr = ConnManager.new(maxConnections = 3)
 
     for i in 0..<3:
       let conn = connMngr.trackIncomingConn(
@@ -343,7 +343,7 @@ suite "Connection Manager":
     await connMngr.close()
 
   asyncTest "dissable incoming connections":
-    let connMngr = ConnManager.init(maxIncoming = 0)
+    let connMngr = ConnManager.new(maxIncoming = 0)
 
     # should timeout adding a connection over the limit
     let conn = connMngr.trackIncomingConn(
@@ -358,7 +358,7 @@ suite "Connection Manager":
     await connMngr.close()
 
   asyncTest "dissable global limits - only for outgoing":
-    let connMngr = ConnManager.init(maxConnections = 0)
+    let connMngr = ConnManager.new(maxConnections = 0)
 
     for i in 0..<30:
       let conn = connMngr.trackOutgoingConn(
@@ -374,7 +374,7 @@ suite "Connection Manager":
     await connMngr.close()
 
   asyncTest "dissable global limits - should not allow incoming":
-    let connMngr = ConnManager.init(maxConnections = 0)
+    let connMngr = ConnManager.new(maxConnections = 0)
 
     for i in 0..<30:
       let conn = connMngr.trackOutgoingConn(
