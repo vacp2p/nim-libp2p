@@ -1,13 +1,7 @@
-name: CI+
+name: Daily
 on:
-  push:
-    branches:
-      - master
-      - unstable
-  pull_request:
-    branches:
-      - master
-      - unstable
+  schedule:
+    - cron: "30 6 * * *"
   workflow_dispatch:
 
 jobs:
@@ -26,7 +20,7 @@ jobs:
             #cpu: i386
           - os: windows
             cpu: amd64
-        branch: [version-1-4, version-1-6, devel]
+        branch: [version-1-2, version-1-4, version-1-6, devel]
         include:
           - target:
               os: linux
@@ -49,6 +43,7 @@ jobs:
       - name: Checkout nim-libp2p
         uses: actions/checkout@v2
         with:
+          ref: master
           submodules: true
 
       - name: Derive environment variables
