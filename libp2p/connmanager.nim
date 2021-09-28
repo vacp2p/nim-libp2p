@@ -88,7 +88,7 @@ proc newTooManyConnectionsError(): ref TooManyConnectionsError {.inline.} =
 proc new*(C: type ConnManager,
            maxConnsPerPeer = MaxConnectionsPerPeer,
            maxConnections = MaxConnections,
-           maxIncoming = MaxIncoming): ConnManager {.raises: [CatchableError].} =
+           maxIncoming = MaxIncoming): ConnManager =
   ## Initialize the connection manager
   ##
   ## maxConnsPerPeer  - the maximum connections we should allow for any one peer
