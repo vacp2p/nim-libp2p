@@ -32,6 +32,7 @@ import stream/connection,
        muxers/muxer,
        utils/semaphore,
        connmanager,
+       nameresolving/nameresolver,
        peerid,
        peerstore,
        errors,
@@ -62,6 +63,7 @@ type
       acceptFuts: seq[Future[void]]
       dialer*: Dial
       peerStore*: PeerStore
+      nameResolver*: NameResolver
 
 proc addConnEventHandler*(s: Switch,
                           handler: ConnEventHandler,
@@ -203,25 +205,6 @@ proc accept(s: Switch, transport: Transport) {.async.} = # noraises
         await conn.close()
       return
 
-proc start*(s: Switch): Future[seq[Future[void]]] {.async, gcsafe.} =
-  trace "starting switch for peer", peerInfo = s.peerInfo
-  var startFuts: seq[Future[void]]
-  for t in s.transports: # for each transport
-    for i, a in s.peerInfo.addrs:
-      if t.handles(a): # check if it handles the multiaddr
-        var server = t.start(a)
-        s.peerInfo.addrs[i] = t.ma # update peer's address
-        s.acceptFuts.add(s.accept(t))
-        startFuts.add(server)
-
-  proc peerIdentifiedHandler(peerInfo: PeerInfo, event: PeerEvent) {.async.} =
-    s.peerStore.replace(peerInfo)
-
-  s.connManager.addPeerEventHandler(peerIdentifiedHandler, PeerEventKind.Identified)
-
-  debug "Started libp2p node", peer = s.peerInfo
-  return startFuts # listen for incoming connections
-
 proc stop*(s: Switch) {.async.} =
   trace "Stopping switch"
 
@@ -250,13 +233,36 @@ proc stop*(s: Switch) {.async.} =
 
   trace "Switch stopped"
 
+proc start*(s: Switch): Future[seq[Future[void]]] {.async, gcsafe.} =
+  trace "starting switch for peer", peerInfo = s.peerInfo
+  var startFuts: seq[Future[void]]
+  for t in s.transports: # for each transport
+    for i, a in s.peerInfo.addrs:
+      if t.handles(a): # check if it handles the multiaddr
+        let transpStart = t.start(a)
+        startFuts.add(transpStart)
+        try:
+          await transpStart
+          s.peerInfo.addrs[i] = t.ma # update peer's address
+          s.acceptFuts.add(s.accept(t))
+        except CancelledError as exc:
+          await s.stop()
+          raise exc
+        except CatchableError as exc:
+          debug "Failed to start one transport", address = $a, err = exc.msg
+          continue
+
+  debug "Started libp2p node", peer = s.peerInfo
+  return startFuts # listen for incoming connections
+
 proc newSwitch*(peerInfo: PeerInfo,
                 transports: seq[Transport],
                 identity: Identify,
                 muxers: Table[string, MuxerProvider],
                 secureManagers: openarray[Secure] = [],
                 connManager: ConnManager,
-                ms: MultistreamSelect): Switch
+                ms: MultistreamSelect,
+                nameResolver: NameResolver = nil): Switch
                 {.raises: [Defect, LPError].} =
   if secureManagers.len == 0:
     raise newException(LPError, "Provide at least one secure manager")
@@ -267,26 +273,9 @@ proc newSwitch*(peerInfo: PeerInfo,
     transports: transports,
     connManager: connManager,
     peerStore: PeerStore.new(),
-    dialer: Dialer.new(peerInfo, connManager, transports, ms))
+    dialer: Dialer.new(peerInfo.peerId, connManager, transports, ms),
+    nameResolver: nameResolver)
 
+  switch.connManager.peerStore = switch.peerStore
   switch.mount(identity)
   return switch
-
-proc isConnected*(s: Switch, peerInfo: PeerInfo): bool
-  {.deprecated: "Use PeerID version".} =
-  not isNil(peerInfo) and isConnected(s, peerInfo.peerId)
-
-proc disconnect*(s: Switch, peerInfo: PeerInfo): Future[void]
-  {.deprecated: "Use PeerID version", gcsafe.} =
-  disconnect(s, peerInfo.peerId)
-
-proc connect*(s: Switch, peerInfo: PeerInfo): Future[void]
-  {.deprecated: "Use PeerID version".} =
-  connect(s, peerInfo.peerId, peerInfo.addrs)
-
-proc dial*(s: Switch,
-           peerInfo: PeerInfo,
-           proto: string):
-           Future[Connection]
-  {.deprecated: "Use PeerID version".} =
-  dial(s, peerInfo.peerId, peerInfo.addrs, proto)

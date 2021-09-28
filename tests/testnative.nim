@@ -1,4 +1,5 @@
 import testvarint,
+       testconnection,
        testminprotobuf,
        teststreamseq,
        testsemaphore
@@ -17,6 +18,8 @@ import testmultibase,
        testpeerid
 
 import testtcptransport,
+       testnameresolve,
+       testwstransport,
        testmultistream,
        testbufferstream,
        testidentify,
@@ -24,4 +27,6 @@ import testtcptransport,
        testswitch,
        testnoise,
        testpeerinfo,
+       testpeerstore,
+       testping,
        testmplex

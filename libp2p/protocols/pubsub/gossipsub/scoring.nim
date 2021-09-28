@@ -86,24 +86,15 @@ proc colocationFactor(g: GossipSub, peer: PubSubPeer): float64 =
 {.pop.}
 
 proc disconnectPeer(g: GossipSub, peer: PubSubPeer) {.async.} =
-  when defined(libp2p_agents_metrics):
-    let agent =
-      block:
-        if peer.shortAgent.len > 0:
-          peer.shortAgent
-        else:
-          if peer.sendConn != nil:
-            let shortAgent = peer.sendConn.peerInfo.agentVersion.split("/")[0].safeToLowerAscii()
-            if shortAgent.isOk() and KnownLibP2PAgentsSeq.contains(shortAgent.get()):
-              peer.shortAgent = shortAgent.get()
-            else:
-              peer.shortAgent = "unknown"
-            peer.shortAgent
-          else:
-            "unknown"
-    libp2p_gossipsub_bad_score_disconnection.inc(labelValues = [agent])
-  else:
-    libp2p_gossipsub_bad_score_disconnection.inc(labelValues = ["unknown"])
+  let agent =
+    when defined(libp2p_agents_metrics):
+      if peer.shortAgent.len > 0:
+        peer.shortAgent
+      else:
+        "unknown"
+    else:
+      "unknown"
+  libp2p_gossipsub_bad_score_disconnection.inc(labelValues = [agent])
 
   try:
     await g.switch.disconnect(peer.peerId)
@@ -180,30 +171,18 @@ proc updateScores*(g: GossipSub) = # avoid async
         score += topicScore * topicParams.topicWeight
 
       # Score metrics
-      when defined(libp2p_agents_metrics):
-        let agent =
-          block:
-            if peer.shortAgent.len > 0:
-              peer.shortAgent
-            else:
-              if peer.sendConn != nil:
-                let shortAgent = peer.sendConn.peerInfo.agentVersion.split("/")[0].safeToLowerAscii()
-                if shortAgent.isOk() and KnownLibP2PAgentsSeq.contains(shortAgent.get()):
-                  peer.shortAgent = shortAgent.get()
-                else:
-                  peer.shortAgent = "unknown"
-                peer.shortAgent
-              else:
-                "unknown"
-        libp2p_gossipsub_peers_score_firstMessageDeliveries.inc(info.firstMessageDeliveries, labelValues = [agent])
-        libp2p_gossipsub_peers_score_meshMessageDeliveries.inc(info.meshMessageDeliveries, labelValues = [agent])
-        libp2p_gossipsub_peers_score_meshFailurePenalty.inc(info.meshFailurePenalty, labelValues = [agent])
-        libp2p_gossipsub_peers_score_invalidMessageDeliveries.inc(info.invalidMessageDeliveries, labelValues = [agent])
-      else:
-        libp2p_gossipsub_peers_score_firstMessageDeliveries.inc(info.firstMessageDeliveries, labelValues = ["unknown"])
-        libp2p_gossipsub_peers_score_meshMessageDeliveries.inc(info.meshMessageDeliveries, labelValues = ["unknown"])
-        libp2p_gossipsub_peers_score_meshFailurePenalty.inc(info.meshFailurePenalty, labelValues = ["unknown"])
-        libp2p_gossipsub_peers_score_invalidMessageDeliveries.inc(info.invalidMessageDeliveries, labelValues = ["unknown"])
+      let agent =
+        when defined(libp2p_agents_metrics):
+          if peer.shortAgent.len > 0:
+            peer.shortAgent
+          else:
+            "unknown"
+        else:
+          "unknown"
+      libp2p_gossipsub_peers_score_firstMessageDeliveries.inc(info.firstMessageDeliveries, labelValues = [agent])
+      libp2p_gossipsub_peers_score_meshMessageDeliveries.inc(info.meshMessageDeliveries, labelValues = [agent])
+      libp2p_gossipsub_peers_score_meshFailurePenalty.inc(info.meshFailurePenalty, labelValues = [agent])
+      libp2p_gossipsub_peers_score_invalidMessageDeliveries.inc(info.invalidMessageDeliveries, labelValues = [agent])
 
       # Score decay
       info.firstMessageDeliveries *= topicParams.firstMessageDeliveriesDecay
@@ -236,28 +215,17 @@ proc updateScores*(g: GossipSub) = # avoid async
     score += colocationFactor * g.parameters.ipColocationFactorWeight
 
     # Score metrics
-    when defined(libp2p_agents_metrics):
-      let agent =
-        block:
-          if peer.shortAgent.len > 0:
-            peer.shortAgent
-          else:
-            if peer.sendConn != nil:
-              let shortAgent = peer.sendConn.peerInfo.agentVersion.split("/")[0].safeToLowerAscii()
-              if shortAgent.isOk() and KnownLibP2PAgentsSeq.contains(shortAgent.get()):
-                peer.shortAgent = shortAgent.get()
-              else:
-                peer.shortAgent = "unknown"
-              peer.shortAgent
-            else:
-              "unknown"
-      libp2p_gossipsub_peers_score_appScore.inc(peer.appScore, labelValues = [agent])
-      libp2p_gossipsub_peers_score_behaviourPenalty.inc(peer.behaviourPenalty, labelValues = [agent])
-      libp2p_gossipsub_peers_score_colocationFactor.inc(colocationFactor, labelValues = [agent])
-    else:
-      libp2p_gossipsub_peers_score_appScore.inc(peer.appScore, labelValues = ["unknown"])
-      libp2p_gossipsub_peers_score_behaviourPenalty.inc(peer.behaviourPenalty, labelValues = ["unknown"])
-      libp2p_gossipsub_peers_score_colocationFactor.inc(colocationFactor, labelValues = ["unknown"])
+    let agent =
+      when defined(libp2p_agents_metrics):
+        if peer.shortAgent.len > 0:
+          peer.shortAgent
+        else:
+          "unknown"
+      else:
+        "unknown"
+    libp2p_gossipsub_peers_score_appScore.inc(peer.appScore, labelValues = [agent])
+    libp2p_gossipsub_peers_score_behaviourPenalty.inc(peer.behaviourPenalty, labelValues = [agent])
+    libp2p_gossipsub_peers_score_colocationFactor.inc(colocationFactor, labelValues = [agent])
 
     # decay behaviourPenalty
     peer.behaviourPenalty *= g.parameters.behaviourPenaltyDecay
@@ -278,10 +246,7 @@ proc updateScores*(g: GossipSub) = # avoid async
       debug "disconnecting bad score peer", peer, score = peer.score
       asyncSpawn(try: g.disconnectPeer(peer) except Exception as exc: raiseAssert exc.msg)
 
-    when defined(libp2p_agents_metrics):
-      libp2p_gossipsub_peers_scores.inc(peer.score, labelValues = [agent])
-    else:
-      libp2p_gossipsub_peers_scores.inc(peer.score, labelValues = ["unknown"])
+    libp2p_gossipsub_peers_scores.inc(peer.score, labelValues = [agent])
 
   for peer in evicting:
     g.peerStats.del(peer)

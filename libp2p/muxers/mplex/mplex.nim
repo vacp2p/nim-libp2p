@@ -68,7 +68,7 @@ proc cleanupChann(m: Mplex, chann: LPChannel) {.async, inline.} =
     when defined(libp2p_expensive_metrics):
       libp2p_mplex_channels.set(
         m.channels[chann.initiator].len.int64,
-        labelValues = [$chann.initiator, $m.connection.peerInfo.peerId])
+        labelValues = [$chann.initiator, $m.connection.peerId])
   except CatchableError as exc:
     warn "Error cleaning up mplex channel", m, chann, msg = exc.msg
 
@@ -94,7 +94,7 @@ proc newStreamInternal*(m: Mplex,
     name,
     timeout = timeout)
 
-  result.peerInfo = m.connection.peerInfo
+  result.peerId = m.connection.peerId
   result.observedAddr = m.connection.observedAddr
   result.transportDir = m.connection.transportDir
 
@@ -108,7 +108,7 @@ proc newStreamInternal*(m: Mplex,
   when defined(libp2p_expensive_metrics):
     libp2p_mplex_channels.set(
       m.channels[initiator].len.int64,
-      labelValues = [$initiator, $m.connection.peerInfo.peerId])
+      labelValues = [$initiator, $m.connection.peerId])
 
 proc handleStream(m: Mplex, chann: LPChannel) {.async.} =
   ## call the muxer stream handler for this channel

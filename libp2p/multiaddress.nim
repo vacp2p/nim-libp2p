@@ -13,7 +13,7 @@
 
 import pkg/chronos
 import std/[nativesockets, hashes]
-import tables, strutils, stew/shims/net
+import tables, strutils, sets, stew/shims/net
 import multicodec, multihash, multibase, transcoder, vbuffer, peerid,
        protobuf/minprotobuf, errors
 import stew/[base58, base32, endians2, results]
@@ -363,6 +363,9 @@ const
       mcodec: multiCodec("ws"), kind: Marker, size: 0
     ),
     MAProtocol(
+      mcodec: multiCodec("wss"), kind: Marker, size: 0
+    ),
+    MAProtocol(
       mcodec: multiCodec("ipfs"), kind: Length, size: 0,
       coder: TranscoderP2P
     ),
@@ -373,6 +376,10 @@ const
     MAProtocol(
       mcodec: multiCodec("unix"), kind: Path, size: 0,
       coder: TranscoderUnix
+    ),
+    MAProtocol(
+      mcodec: multiCodec("dns"), kind: Length, size: 0,
+      coder: TranscoderDNS
     ),
     MAProtocol(
       mcodec: multiCodec("dns4"), kind: Length, size: 0,
@@ -400,17 +407,22 @@ const
     )
   ]
 
+  DNSANY* = mapEq("dns")
   DNS4* = mapEq("dns4")
   DNS6* = mapEq("dns6")
+  DNSADDR* = mapEq("dnsaddr")
   IP4* = mapEq("ip4")
   IP6* = mapEq("ip6")
-  DNS* = mapOr(mapEq("dnsaddr"), DNS4, DNS6)
+  DNS* = mapOr(DNSANY, DNS4, DNS6, DNSADDR)
   IP* = mapOr(IP4, IP6)
   TCP* = mapOr(mapAnd(DNS, mapEq("tcp")), mapAnd(IP, mapEq("tcp")))
   UDP* = mapOr(mapAnd(DNS, mapEq("udp")), mapAnd(IP, mapEq("udp")))
   UTP* = mapAnd(UDP, mapEq("utp"))
   QUIC* = mapAnd(UDP, mapEq("quic"))
   UNIX* = mapEq("unix")
+  WS* = mapAnd(TCP, mapEq("ws"))
+  WSS* = mapAnd(TCP, mapEq("wss"))
+  WebSockets* = mapOr(WS, WSS)
 
   Unreliable* = mapOr(UDP)
 
@@ -928,13 +940,24 @@ proc `&=`*(m1: var MultiAddress, m2: MultiAddress) {.
 
   m1.append(m2).tryGet()
 
+proc `==`*(m1: var MultiAddress, m2: MultiAddress): bool =
+  ## Check of two MultiAddress are equal
+  m1.data == m2.data
+
 proc isWire*(ma: MultiAddress): bool =
   ## Returns ``true`` if MultiAddress ``ma`` is one of:
   ## - {IP4}/{TCP, UDP}
   ## - {IP6}/{TCP, UDP}
   ## - {UNIX}/{PATH}
-  var
-    state = 0
+
+  var state = 0
+  const
+    wireProtocols = toHashSet([
+                        multiCodec("ip4"), multiCodec("ip6"),
+                      ])
+    wireTransports = toHashSet([
+                        multiCodec("tcp"), multiCodec("udp")
+                      ])
   try:
     for rpart in ma.items():
       if rpart.isErr():
@@ -947,7 +970,7 @@ proc isWire*(ma: MultiAddress): bool =
           return false
         let code = rcode.get()
 
-        if code == multiCodec("ip4") or code == multiCodec("ip6"):
+        if code in wireProtocols:
           inc(state)
           continue
         elif code == multiCodec("unix"):
@@ -962,7 +985,7 @@ proc isWire*(ma: MultiAddress): bool =
           return false
         let code = rcode.get()
 
-        if code == multiCodec("tcp") or code == multiCodec("udp"):
+        if code in wireTransports:
           inc(state)
           result = true
         else:
@@ -978,11 +1001,14 @@ proc matchPart(pat: MaPattern, protos: seq[MultiCodec]): MaPatResult =
   var empty: seq[MultiCodec]
   var pcs = protos
   if pat.operator == Or:
+    result = MaPatResult(flag: false, rem: empty)
     for a in pat.args:
       let res = a.matchPart(pcs)
       if res.flag:
-        return MaPatResult(flag: true, rem: res.rem)
-    result = MaPatResult(flag: false, rem: empty)
+        #Greedy Or
+        if result.flag == false or
+             result.rem.len > res.rem.len:
+          result = res
   elif pat.operator == And:
     if len(pcs) < len(pat.args):
       return MaPatResult(flag: false, rem: empty)

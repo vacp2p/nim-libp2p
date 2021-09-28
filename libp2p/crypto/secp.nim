@@ -141,7 +141,7 @@ proc init*(t: typedesc[SkSignature], data: string): SkResult[SkSignature] =
   var sig: SkSignature
   sig.init(data) and ok(sig)
 
-proc getKey*(key: SkPrivateKey): SkPublicKey =
+proc getPublicKey*(key: SkPrivateKey): SkPublicKey =
   ## Calculate and return Secp256k1 `public key` from `private key` ``key``.
   SkPublicKey(SkSecretKey(key).toPublicKey())
 
@@ -201,14 +201,18 @@ proc verify*[T: byte|char](sig: SkSignature, msg: openarray[T],
   let h = sha256.digest(msg)
   verify(secp256k1.SkSignature(sig), SkMessage(h.data), secp256k1.SkPublicKey(key))
 
-func clear*(key: var SkPrivateKey) {.borrow.}
+func clear*(key: var SkPrivateKey) = clear(secp256k1.SkSecretKey(key))
 
-proc `$`*(key: SkPrivateKey): string {.borrow.}
-proc `$`*(key: SkPublicKey): string {.borrow.}
-proc `$`*(key: SkSignature): string {.borrow.}
-proc `$`*(key: SkKeyPair): string {.borrow.}
+func `$`*(key: SkPrivateKey): string = $secp256k1.SkSecretKey(key)
+func `$`*(key: SkPublicKey): string = $secp256k1.SkPublicKey(key)
+func `$`*(key: SkSignature): string = $secp256k1.SkSignature(key)
+func `$`*(key: SkKeyPair): string = $secp256k1.SkKeyPair(key)
 
-proc `==`*(a, b: SkPrivateKey): bool {.borrow.}
-proc `==`*(a, b: SkPublicKey): bool {.borrow.}
-proc `==`*(a, b: SkSignature): bool {.borrow.}
-proc `==`*(a, b: SkKeyPair): bool {.borrow.}
+func `==`*(a, b: SkPrivateKey): bool =
+  secp256k1.SkSecretKey(a) == secp256k1.SkSecretKey(b)
+func `==`*(a, b: SkPublicKey): bool =
+  secp256k1.SkPublicKey(a) == secp256k1.SkPublicKey(b)
+func `==`*(a, b: SkSignature): bool =
+  secp256k1.SkSignature(a) == secp256k1.SkSignature(b)
+func `==`*(a, b: SkKeyPair): bool =
+  secp256k1.SkKeyPair(a) == secp256k1.SkKeyPair(b)

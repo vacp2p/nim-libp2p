@@ -35,38 +35,11 @@ suite "PeerStore":
     peerStore.keyBook.set(peerId1, keyPair1.pubKey)
     peerStore.keyBook.set(peerId2, keyPair2.pubKey)
 
-    # Test PeerStore::get
-    let
-      peer1Stored = peerStore.get(peerId1)
-      peer2Stored = peerStore.get(peerId2)
-    check:
-      peer1Stored.peerId == peerId1
-      peer1Stored.addrs == toHashSet([multiaddr1])
-      peer1Stored.protos == toHashSet([testcodec1])
-      peer1Stored.publicKey == keyPair1.pubkey
-      peer2Stored.peerId == peerId2
-      peer2Stored.addrs == toHashSet([multiaddr2])
-      peer2Stored.protos == toHashSet([testcodec2])
-      peer2Stored.publicKey == keyPair2.pubkey
-
-    # Test PeerStore::peers
-    let peers = peerStore.peers()
-    check:
-      peers.len == 2
-      peers.anyIt(it.peerId == peerId1 and
-                  it.addrs == toHashSet([multiaddr1]) and
-                  it.protos == toHashSet([testcodec1]) and
-                  it.publicKey == keyPair1.pubkey)
-      peers.anyIt(it.peerId == peerId2 and
-                  it.addrs == toHashSet([multiaddr2]) and
-                  it.protos == toHashSet([testcodec2]) and
-                  it.publicKey == keyPair2.pubkey)
-
     # Test PeerStore::delete
     check:
       # Delete existing peerId
       peerStore.delete(peerId1) == true
-      peerStore.peers().anyIt(it.peerId == peerId1) == false
+      peerId1 notin peerStore.addressBook
 
       # Now try and delete it again
       peerStore.delete(peerId1) == false

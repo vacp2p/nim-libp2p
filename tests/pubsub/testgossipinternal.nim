@@ -33,9 +33,9 @@ proc getPubSubPeer(p: TestGossipSub, peerId: PeerID): PubSubPeer =
   onNewPeer(p, pubSubPeer)
   pubSubPeer
 
-proc randomPeerInfo(): PeerInfo =
+proc randomPeerId(): PeerId =
   try:
-    PeerInfo.init(PrivateKey.random(ECDSA, rng[]).get())
+    PeerId.init(PrivateKey.random(ECDSA, rng[]).get()).tryGet()
   except CatchableError as exc:
     raise newException(Defect, exc.msg)
 
@@ -58,9 +58,9 @@ suite "GossipSub internal":
     for i in 0..<15:
       let conn = TestBufferStream.new(noop)
       conns &= conn
-      let peerInfo = randomPeerInfo()
-      conn.peerInfo = peerInfo
-      let peer = gossipSub.getPubSubPeer(peerInfo.peerId)
+      let peerId = randomPeerId()
+      conn.peerId = peerId
+      let peer = gossipSub.getPubSubPeer(peerId)
       peer.sendConn = conn
       gossipSub.gossipsub[topic].incl(peer)
 
@@ -99,9 +99,9 @@ suite "GossipSub internal":
     for i in 0..<15:
       let conn = TestBufferStream.new(noop)
       conns &= conn
-      let peerInfo = randomPeerInfo()
-      conn.peerInfo = peerInfo
-      let peer = gossipSub.getPubSubPeer(peerInfo.peerId)
+      let peerId = randomPeerId()
+      conn.peerId = peerId
+      let peer = gossipSub.getPubSubPeer(peerId)
       peer.sendConn = conn
       gossipSub.gossipsub[topic].incl(peer)
 
@@ -125,9 +125,9 @@ suite "GossipSub internal":
     for i in 0..<15:
       let conn = TestBufferStream.new(noop)
       conns &= conn
-      let peerInfo = randomPeerInfo()
-      conn.peerInfo = peerInfo
-      let peer = gossipSub.getPubSubPeer(peerInfo.peerId)
+      let peerId = randomPeerId()
+      conn.peerId = peerId
+      let peer = gossipSub.getPubSubPeer(peerId)
       peer.sendConn = conn
       peer.score = scoreLow
       gossipSub.gossipsub[topic].incl(peer)
@@ -155,9 +155,9 @@ suite "GossipSub internal":
     for i in 0..<15:
       let conn = TestBufferStream.new(noop)
       conns &= conn
-      let peerInfo = PeerInfo.init(PrivateKey.random(ECDSA, rng[]).get())
-      conn.peerInfo = peerInfo
-      let peer = gossipSub.getPubSubPeer(peerInfo.peerId)
+      let peerId = PeerId.init(PrivateKey.random(ECDSA, rng[]).get()).tryGet()
+      conn.peerId = peerId
+      let peer = gossipSub.getPubSubPeer(peerId)
       gossipSub.grafted(peer, topic)
       gossipSub.mesh[topic].incl(peer)
 
@@ -182,9 +182,9 @@ suite "GossipSub internal":
     for i in 0..<15:
       let conn = TestBufferStream.new(noop)
       conns &= conn
-      var peerInfo = randomPeerInfo()
-      conn.peerInfo = peerInfo
-      let peer = gossipSub.getPubSubPeer(peerInfo.peerId)
+      var peerId = randomPeerId()
+      conn.peerId = peerId
+      let peer = gossipSub.getPubSubPeer(peerId)
       peer.handler = handler
       gossipSub.gossipsub[topic].incl(peer)
 
@@ -211,9 +211,9 @@ suite "GossipSub internal":
     for i in 0..<6:
       let conn = TestBufferStream.new(noop)
       conns &= conn
-      let peerInfo = PeerInfo.init(PrivateKey.random(ECDSA, rng[]).get())
-      conn.peerInfo = peerInfo
-      let peer = gossipSub.getPubSubPeer(peerInfo.peerId)
+      let peerId = PeerId.init(PrivateKey.random(ECDSA, rng[]).get()).tryGet()
+      conn.peerId = peerId
+      let peer = gossipSub.getPubSubPeer(peerId)
       peer.handler = handler
       gossipSub.fanout[topic].incl(peer)
 
@@ -245,9 +245,9 @@ suite "GossipSub internal":
     for i in 0..<6:
       let conn = TestBufferStream.new(noop)
       conns &= conn
-      let peerInfo = randomPeerInfo()
-      conn.peerInfo = peerInfo
-      let peer = gossipSub.getPubSubPeer(peerInfo.peerId)
+      let peerId = randomPeerId()
+      conn.peerId = peerId
+      let peer = gossipSub.getPubSubPeer(peerId)
       peer.handler = handler
       gossipSub.fanout[topic1].incl(peer)
       gossipSub.fanout[topic2].incl(peer)
@@ -279,9 +279,9 @@ suite "GossipSub internal":
     for i in 0..<30:
       let conn = TestBufferStream.new(noop)
       conns &= conn
-      let peerInfo = randomPeerInfo()
-      conn.peerInfo = peerInfo
-      let peer = gossipSub.getPubSubPeer(peerInfo.peerId)
+      let peerId = randomPeerId()
+      conn.peerId = peerId
+      let peer = gossipSub.getPubSubPeer(peerId)
       peer.handler = handler
       if i mod 2 == 0:
         gossipSub.fanout[topic].incl(peer)
@@ -293,9 +293,9 @@ suite "GossipSub internal":
     for i in 0..<15:
       let conn = TestBufferStream.new(noop)
       conns &= conn
-      let peerInfo = randomPeerInfo()
-      conn.peerInfo = peerInfo
-      let peer = gossipSub.getPubSubPeer(peerInfo.peerId)
+      let peerId = randomPeerId()
+      conn.peerId = peerId
+      let peer = gossipSub.getPubSubPeer(peerId)
       peer.handler = handler
       gossipSub.gossipsub[topic].incl(peer)
 
@@ -304,10 +304,10 @@ suite "GossipSub internal":
     for i in 0..5:
       let conn = TestBufferStream.new(noop)
       conns &= conn
-      let peerInfo = randomPeerInfo()
-      conn.peerInfo = peerInfo
+      let peerId = randomPeerId()
+      conn.peerId = peerId
       inc seqno
-      let msg = Message.init(some(peerInfo), ("HELLO" & $i).toBytes(), topic, some(seqno), false)
+      let msg = Message.init(peerId, ("HELLO" & $i).toBytes(), topic, some(seqno))
       gossipSub.mcache.put(gossipSub.msgIdProvider(msg), msg)
 
     check gossipSub.fanout[topic].len == 15
@@ -337,9 +337,9 @@ suite "GossipSub internal":
     for i in 0..<30:
       let conn = TestBufferStream.new(noop)
       conns &= conn
-      let peerInfo = randomPeerInfo()
-      conn.peerInfo = peerInfo
-      let peer = gossipSub.getPubSubPeer(peerInfo.peerId)
+      let peerId = randomPeerId()
+      conn.peerId = peerId
+      let peer = gossipSub.getPubSubPeer(peerId)
       peer.handler = handler
       if i mod 2 == 0:
         gossipSub.fanout[topic].incl(peer)
@@ -351,10 +351,10 @@ suite "GossipSub internal":
     for i in 0..5:
       let conn = TestBufferStream.new(noop)
       conns &= conn
-      let peerInfo = randomPeerInfo()
-      conn.peerInfo = peerInfo
+      let peerId = randomPeerId()
+      conn.peerId = peerId
       inc seqno
-      let msg = Message.init(some(peerInfo), ("HELLO" & $i).toBytes(), topic, some(seqno), false)
+      let msg = Message.init(peerId, ("HELLO" & $i).toBytes(), topic, some(seqno))
       gossipSub.mcache.put(gossipSub.msgIdProvider(msg), msg)
 
     let peers = gossipSub.getGossipPeers()
@@ -377,9 +377,9 @@ suite "GossipSub internal":
     for i in 0..<30:
       let conn = TestBufferStream.new(noop)
       conns &= conn
-      let peerInfo = randomPeerInfo()
-      conn.peerInfo = peerInfo
-      let peer = gossipSub.getPubSubPeer(peerInfo.peerId)
+      let peerId = randomPeerId()
+      conn.peerId = peerId
+      let peer = gossipSub.getPubSubPeer(peerId)
       peer.handler = handler
       if i mod 2 == 0:
         gossipSub.mesh[topic].incl(peer)
@@ -392,10 +392,10 @@ suite "GossipSub internal":
     for i in 0..5:
       let conn = TestBufferStream.new(noop)
       conns &= conn
-      let peerInfo = randomPeerInfo()
-      conn.peerInfo = peerInfo
+      let peerId = randomPeerId()
+      conn.peerId = peerId
       inc seqno
-      let msg = Message.init(some(peerInfo), ("HELLO" & $i).toBytes(), topic, some(seqno), false)
+      let msg = Message.init(peerId, ("HELLO" & $i).toBytes(), topic, some(seqno))
       gossipSub.mcache.put(gossipSub.msgIdProvider(msg), msg)
 
     let peers = gossipSub.getGossipPeers()
@@ -418,9 +418,9 @@ suite "GossipSub internal":
     for i in 0..<30:
       let conn = TestBufferStream.new(noop)
       conns &= conn
-      let peerInfo = randomPeerInfo()
-      conn.peerInfo = peerInfo
-      let peer = gossipSub.getPubSubPeer(peerInfo.peerId)
+      let peerId = randomPeerId()
+      conn.peerId = peerId
+      let peer = gossipSub.getPubSubPeer(peerId)
       peer.handler = handler
       if i mod 2 == 0:
         gossipSub.mesh[topic].incl(peer)
@@ -433,10 +433,10 @@ suite "GossipSub internal":
     for i in 0..5:
       let conn = TestBufferStream.new(noop)
       conns &= conn
-      let peerInfo = randomPeerInfo()
-      conn.peerInfo = peerInfo
+      let peerId = randomPeerId()
+      conn.peerId = peerId
       inc seqno
-      let msg = Message.init(some(peerInfo), ("bar" & $i).toBytes(), topic, some(seqno), false)
+      let msg = Message.init(peerId, ("bar" & $i).toBytes(), topic, some(seqno))
       gossipSub.mcache.put(gossipSub.msgIdProvider(msg), msg)
 
     let peers = gossipSub.getGossipPeers()
@@ -456,9 +456,9 @@ suite "GossipSub internal":
     for i in 0..<30:
       let conn = TestBufferStream.new(noop)
       conns &= conn
-      let peerInfo = randomPeerInfo()
-      conn.peerInfo = peerInfo
-      let peer = gossipSub.getPubSubPeer(peerInfo.peerId)
+      let peerId = randomPeerId()
+      conn.peerId = peerId
+      let peer = gossipSub.getPubSubPeer(peerId)
       peer.handler = handler
 
     # generate messages
@@ -466,11 +466,11 @@ suite "GossipSub internal":
     for i in 0..5:
       let conn = TestBufferStream.new(noop)
       conns &= conn
-      let peerInfo = randomPeerInfo()
-      conn.peerInfo = peerInfo
-      let peer = gossipSub.getPubSubPeer(peerInfo.peerId)
+      let peerId = randomPeerId()
+      conn.peerId = peerId
+      let peer = gossipSub.getPubSubPeer(peerId)
       inc seqno
-      let msg = Message.init(some(peerInfo), ("bar" & $i).toBytes(), topic, some(seqno), false)
+      let msg = Message.init(peerId, ("bar" & $i).toBytes(), topic, some(seqno))
       await gossipSub.rpcHandler(peer, RPCMsg(messages: @[msg]))
 
     check gossipSub.mcache.msgs.len == 0
@@ -490,9 +490,9 @@ suite "GossipSub internal":
     for i in 0..<30:
       let conn = TestBufferStream.new(noop)
       conns &= conn
-      let peerInfo = randomPeerInfo()
-      conn.peerInfo = peerInfo
-      let peer = gossipSub.getPubSubPeer(peerInfo.peerId)
+      let peerId = randomPeerId()
+      conn.peerId = peerId
+      let peer = gossipSub.getPubSubPeer(peerId)
       peer.sendConn = conn
       peer.handler = handler
       peer.appScore = gossipSub.parameters.graylistThreshold - 1
@@ -522,9 +522,9 @@ suite "GossipSub internal":
     let lotOfSubs = RPCMsg.withSubs(tooManyTopics, true)
 
     let conn = TestBufferStream.new(noop)
-    let peerInfo = randomPeerInfo()
-    conn.peerInfo = peerInfo
-    let peer = gossipSub.getPubSubPeer(peerInfo.peerId)
+    let peerId = randomPeerId()
+    conn.peerId = peerId
+    let peer = gossipSub.getPubSubPeer(peerId)
 
     await gossipSub.rpcHandler(peer, lotOfSubs)
 
@@ -546,14 +546,14 @@ suite "GossipSub internal":
     for i in 0..<15:
       let conn = TestBufferStream.new(noop)
       conns &= conn
-      let peerInfo = randomPeerInfo()
-      conn.peerInfo = peerInfo
-      let peer = gossipSub.getPubSubPeer(peerInfo.peerId)
+      let peerId = randomPeerId()
+      conn.peerId = peerId
+      let peer = gossipSub.getPubSubPeer(peerId)
       peer.sendConn = conn
       gossipSub.gossipsub[topic].incl(peer)
       gossipSub.backingOff
         .mgetOrPut(topic, initTable[PeerID, Moment]())
-        .add(peerInfo.peerId, Moment.now() + 1.hours)
+        .add(peerId, Moment.now() + 1.hours)
       let prunes = gossipSub.handleGraft(peer, @[ControlGraft(topicID: topic)])
       # there must be a control prune due to violation of backoff
       check prunes.len != 0
@@ -577,9 +577,9 @@ suite "GossipSub internal":
     for i in 0..<15:
       let conn = TestBufferStream.new(noop)
       conns &= conn
-      let peerInfo = randomPeerInfo()
-      conn.peerInfo = peerInfo
-      let peer = gossipSub.getPubSubPeer(peerInfo.peerId)
+      let peerId = randomPeerId()
+      conn.peerId = peerId
+      let peer = gossipSub.getPubSubPeer(peerId)
       peer.sendConn = conn
       gossipSub.gossipsub[topic].incl(peer)
       gossipSub.mesh[topic].incl(peer)
@@ -589,8 +589,8 @@ suite "GossipSub internal":
     check gossipSub.mesh[topic].len != 0
 
     for i in 0..<15:
-      let peerInfo = conns[i].peerInfo
-      let peer = gossipSub.getPubSubPeer(peerInfo.peerId)
+      let peerId = conns[i].peerId
+      let peer = gossipSub.getPubSubPeer(peerId)
       gossipSub.handlePrune(peer, @[ControlPrune(
         topicID: topic,
         peers: @[],
@@ -620,9 +620,9 @@ suite "GossipSub internal":
       let conn = TestBufferStream.new(noop)
       conn.transportDir = Direction.In
       conns &= conn
-      let peerInfo = PeerInfo.init(PrivateKey.random(ECDSA, rng[]).get())
-      conn.peerInfo = peerInfo
-      let peer = gossipSub.getPubSubPeer(peerInfo.peerId)
+      let peerId = PeerId.init(PrivateKey.random(ECDSA, rng[]).get()).tryGet()
+      conn.peerId = peerId
+      let peer = gossipSub.getPubSubPeer(peerId)
       peer.score = 40.0
       peer.sendConn = conn
       gossipSub.grafted(peer, topic)
@@ -632,9 +632,9 @@ suite "GossipSub internal":
       let conn = TestBufferStream.new(noop)
       conn.transportDir = Direction.Out
       conns &= conn
-      let peerInfo = PeerInfo.init(PrivateKey.random(ECDSA, rng[]).get())
-      conn.peerInfo = peerInfo
-      let peer = gossipSub.getPubSubPeer(peerInfo.peerId)
+      let peerId = PeerId.init(PrivateKey.random(ECDSA, rng[]).get()).tryGet()
+      conn.peerId = peerId
+      let peer = gossipSub.getPubSubPeer(peerId)
       peer.score = 10.0
       peer.sendConn = conn
       gossipSub.grafted(peer, topic)
@@ -667,9 +667,9 @@ suite "GossipSub internal":
     for i in 0..<30:
       let conn = TestBufferStream.new(noop)
       conns &= conn
-      let peerInfo = randomPeerInfo()
-      conn.peerInfo = peerInfo
-      let peer = gossipSub.getPubSubPeer(peerInfo.peerId)
+      let peerId = randomPeerId()
+      conn.peerId = peerId
+      let peer = gossipSub.getPubSubPeer(peerId)
       peer.handler = handler
       gossipSub.grafted(peer, topic)
       gossipSub.mesh[topic].incl(peer)
@@ -678,9 +678,9 @@ suite "GossipSub internal":
       # should ignore no budget peer
       let conn = TestBufferStream.new(noop)
       conns &= conn
-      let peerInfo = randomPeerInfo()
-      conn.peerInfo = peerInfo
-      let peer = gossipSub.getPubSubPeer(peerInfo.peerId)
+      let peerId = randomPeerId()
+      conn.peerId = peerId
+      let peer = gossipSub.getPubSubPeer(peerId)
       let id = @[0'u8, 1, 2, 3]
       let msg = ControlIHave(
         topicID: topic,
@@ -694,9 +694,9 @@ suite "GossipSub internal":
       # given duplicate ihave should generate only one iwant
       let conn = TestBufferStream.new(noop)
       conns &= conn
-      let peerInfo = randomPeerInfo()
-      conn.peerInfo = peerInfo
-      let peer = gossipSub.getPubSubPeer(peerInfo.peerId)
+      let peerId = randomPeerId()
+      conn.peerId = peerId
+      let peer = gossipSub.getPubSubPeer(peerId)
       let id = @[0'u8, 1, 2, 3]
       let msg = ControlIHave(
         topicID: topic,
@@ -709,9 +709,9 @@ suite "GossipSub internal":
       # given duplicate iwant should generate only one message
       let conn = TestBufferStream.new(noop)
       conns &= conn
-      let peerInfo = randomPeerInfo()
-      conn.peerInfo = peerInfo
-      let peer = gossipSub.getPubSubPeer(peerInfo.peerId)
+      let peerId = randomPeerId()
+      conn.peerId = peerId
+      let peer = gossipSub.getPubSubPeer(peerId)
       let id = @[0'u8, 1, 2, 3]
       gossipSub.mcache.put(id, Message())
       let msg = ControlIWant(
