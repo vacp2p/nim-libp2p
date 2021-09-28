@@ -240,7 +240,7 @@ suite "Connection Manager":
 
     await connMngr.close()
 
-  asyncTest "track max incoming connections":
+  asyncTest "should enforce max connections for incomming":
     let connMngr = ConnManager.new(maxIncoming = 3)
 
     for i in 0..<3:
@@ -266,8 +266,8 @@ suite "Connection Manager":
 
     await connMngr.close()
 
-  asyncTest "track max outgoing connections":
-    let connMngr = ConnManager.new(maxConnections = 3, maxIncoming = 0)
+  asyncTest "should enforce max connections for outgoing":
+    let connMngr = ConnManager.new(maxConnections = 3)
 
     for i in 0..<3:
       let conn = connMngr.trackOutgoingConn(
@@ -291,7 +291,7 @@ suite "Connection Manager":
 
     await connMngr.close()
 
-  asyncTest "track global limit for incoming":
+  asyncTest "should enforce max incoming connections with global limit":
     let connMngr = ConnManager.new(maxConnections = 3)
 
     for i in 0..<3:
@@ -317,7 +317,7 @@ suite "Connection Manager":
 
     await connMngr.close()
 
-  asyncTest "track global limit for outgoing":
+  asyncTest "should enforce max outgoing connections with global limit":
     let connMngr = ConnManager.new(maxConnections = 3)
 
     for i in 0..<3:
@@ -345,41 +345,10 @@ suite "Connection Manager":
   asyncTest "dissable incoming connections":
     let connMngr = ConnManager.new(maxIncoming = 0)
 
-    # should timeout adding a connection over the limit
-    let conn = connMngr.trackIncomingConn(
-        proc(): Future[Connection] {.async.} =
-          return Connection.new(
-            PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet(),
-            Direction.In)
-      )
-
-    check not(await conn.withTimeout(10.millis))
-
-    await connMngr.close()
-
-  asyncTest "dissable global limits - only for outgoing":
-    let connMngr = ConnManager.new(maxConnections = 0)
-
-    for i in 0..<30:
+    for i in 0..<3:
       let conn = connMngr.trackOutgoingConn(
         proc(): Future[Connection] {.async.} =
-          return Connection.new(
-            PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet(),
-            Direction.In)
-      )
-
-      check await conn.withTimeout(10.millis)
-      connMngr.storeConn(await conn)
-
-    await connMngr.close()
-
-  asyncTest "dissable global limits - should not allow incoming":
-    let connMngr = ConnManager.new(maxConnections = 0)
-
-    for i in 0..<30:
-      let conn = connMngr.trackOutgoingConn(
-        proc(): Future[Connection] {.async.} =
-          return Connection.new(
+          return Connection.init(
             PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet(),
             Direction.In)
       )
@@ -397,4 +366,95 @@ suite "Connection Manager":
 
     check not(await conn.withTimeout(10.millis))
 
+    await connMngr.close()
+
+  asyncTest "dissable global limits":
+    let connMngr = ConnManager.new(maxConnections = 0)
+
+    for i in 0..<30:
+      let conn = connMngr.trackOutgoingConn(
+        proc(): Future[Connection] {.async.} =
+          return Connection.new(
+            PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet(),
+            Direction.In)
+      )
+
+      check await conn.withTimeout(10.millis)
+      connMngr.storeConn(await conn)
+
+    await connMngr.close()
+
+  asyncTest "dissable global limits - should cap incoming":
+    let connMngr = ConnManager.new(maxConnections = 0, maxIncoming = 1)
+
+    for i in 0..<3:
+      let conn = connMngr.trackOutgoingConn(
+        proc(): Future[Connection] {.async.} =
+          return Connection.new(
+            PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet(),
+            Direction.In)
+      )
+
+      check await conn.withTimeout(10.millis)
+      connMngr.storeConn(await conn)
+
+    # should timeout adding a connection over the limit
+    let conn = connMngr.trackIncomingConn(
+        proc(): Future[Connection] {.async.} =
+          return Connection.new(
+            PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet(),
+            Direction.In)
+      )
+
+    check not(await conn.withTimeout(10.millis))
+
+    await connMngr.close()
+
+  asyncTest "dissable global limits - should allow incoming":
+    let connMngr = ConnManager.new(maxConnections = 0, maxIncoming = 4)
+
+    for i in 0..<3:
+      let conn = connMngr.trackOutgoingConn(
+        proc(): Future[Connection] {.async.} =
+          return Connection.init(
+            PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet(),
+            Direction.In)
+      )
+
+      check await conn.withTimeout(10.millis)
+      connMngr.storeConn(await conn)
+
+    let conn = connMngr.trackIncomingConn(
+        proc(): Future[Connection] {.async.} =
+          return Connection.init(
+            PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet(),
+            Direction.In)
+      )
+
+    connMngr.storeConn(await conn)
+    check await conn.withTimeout(10.millis)
+    await connMngr.close()
+
+  asyncTest "dissable global limits - should dissable incoming":
+    let connMngr = ConnManager.new(maxConnections = 0, maxIncoming = 0)
+
+    for i in 0..<3:
+      let conn = connMngr.trackOutgoingConn(
+        proc(): Future[Connection] {.async.} =
+          return Connection.init(
+            PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet(),
+            Direction.In)
+      )
+
+      check await conn.withTimeout(10.millis)
+      connMngr.storeConn(await conn)
+
+    let conn = connMngr.trackIncomingConn(
+        proc(): Future[Connection] {.async.} =
+          return Connection.init(
+            PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet(),
+            Direction.In)
+      )
+
+    check not(await conn.withTimeout(10.millis))
     await connMngr.close()
