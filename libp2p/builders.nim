@@ -108,7 +108,7 @@ proc withMaxConnections*(b: SwitchBuilder, max: int): SwitchBuilder =
   b.maxConnections = max
   b
 
-proc withMaxIncomming*(b: SwitchBuilder, max: int): SwitchBuilder =
+proc withMaxIncoming*(b: SwitchBuilder, max: int): SwitchBuilder =
   b.maxIncoming = max
   b
 
@@ -218,7 +218,7 @@ proc newStandardSwitch*(
     .withRng(rng)
     .withAddress(address)
     .withMaxConnections(maxConnections)
-    .withMaxIncomming(maxIncoming)
+    .withMaxIncoming(maxIncoming)
     .withMaxConnsPerPeer(maxConnsPerPeer)
     .withMplex(inTimeout, outTimeout)
     .withTcpTransport(transportFlags)
