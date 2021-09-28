@@ -89,10 +89,26 @@ proc new*(C: type ConnManager,
            maxConnsPerPeer = MaxConnectionsPerPeer,
            maxConnections = MaxConnections,
            maxIncoming = MaxIncoming): ConnManager {.raises: [CatchableError].} =
+  ## Initialize the connection manager
+  ##
+  ## maxConnsPerPeer  - the maximum connections we should allow for any one peer
+  ## maxConnections   - global hard limit on all connections,
+  ##                    setting to <= 0 will dissable the global limit
+  ## maxIncoming      - incoming connections limit, if it's > `maxConnections`
+  ##                    it will be capped at that, setting to <= 0 will
+  ##                    dissable incoming connections
+  ##
+
+  let incomingLimit = if maxIncoming <= 0:
+      0 # dissable incoming connections
+    elif maxConnections > 0 and maxIncoming > maxConnections:
+      # cap max incoming to a hard connection limit
+      maxConnections
+    else:
+      maxIncoming
 
   C(maxConnsPerPeer: maxConnsPerPeer,
-    connSema: newAsyncSemaphore(
-      if maxIncoming > maxConnections: maxConnections else: maxIncoming),
+    connSema: newAsyncSemaphore(incomingLimit),
     maxConnections: maxConnections)
 
 proc connCount*(c: ConnManager, peerId: PeerID): int =
