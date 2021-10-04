@@ -503,9 +503,9 @@ proc maintainDirectPeers(g: GossipSub) {.async.} =
           let _ = await g.switch.dial(id, addrs, g.codecs)
           # populate the peer after it's connected
           discard g.getOrCreatePeer(id, g.codecs)
-        except CancelledError:
+        except CancelledError as exc:
           trace "Direct peer dial canceled"
-          raise
+          raise exc
         except CatchableError as exc:
           debug "Direct peer error dialing", msg = exc.msg
 
