@@ -174,6 +174,19 @@ proc newRng*(): ref BrHmacDrbgContext =
     return nil
   rng
 
+proc shuffle*[T](
+  rng: ref BrHmacDrbgContext,
+  x: var openArray[T]) =
+
+  var randValues = newSeqUninitialized[byte](len(x) * 2)
+  brHmacDrbgGenerate(rng[], randValues)
+
+  for i in countdown(x.high, 1):
+    let
+      rand = randValues[i * 2].int32 or (randValues[i * 2 + 1].int32 shl 8)
+      y = rand mod i
+    swap(x[i], x[y])
+
 proc random*(T: typedesc[PrivateKey], scheme: PKScheme,
              rng: var BrHmacDrbgContext,
              bits = RsaDefaultKeySize): CryptoResult[PrivateKey] =

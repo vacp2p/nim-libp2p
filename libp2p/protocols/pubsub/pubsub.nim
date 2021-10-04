@@ -10,11 +10,12 @@
 {.push raises: [Defect].}
 
 import std/[tables, sequtils, sets, strutils]
-import chronos, chronicles, metrics
+import chronos, chronicles, metrics, bearssl
 import ./pubsubpeer,
        ./rpc/[message, messages, protobuf],
        ../../switch,
        ../protocol,
+       ../../crypto/crypto,
        ../../stream/connection,
        ../../peerid,
        ../../peerinfo,
@@ -106,6 +107,7 @@ type
     anonymize*: bool                   # if we omit fromPeer and seqno from RPC messages we send
     subscriptionValidator*: SubscriptionValidator # callback used to validate subscriptions
     topicsHigh*: int                  # the maximum number of topics a peer is allowed to subscribe to
+    rng*: ref BrHmacDrbgContext
 
     knownTopics*: HashSet[string]
 
@@ -538,6 +540,7 @@ proc init*[PubParams: object | bool](
   sign: bool = true,
   msgIdProvider: MsgIdProvider = defaultMsgIdProvider,
   subscriptionValidator: SubscriptionValidator = nil,
+  rng: ref BrHmacDrbgContext = newRng(),
   parameters: PubParams = false): P
   {.raises: [Defect, InitializationError].} =
   let pubsub =
@@ -550,6 +553,7 @@ proc init*[PubParams: object | bool](
         sign: sign,
         msgIdProvider: msgIdProvider,
         subscriptionValidator: subscriptionValidator,
+        rng: rng,
         topicsHigh: int.high)
     else:
       P(switch: switch,
@@ -561,6 +565,7 @@ proc init*[PubParams: object | bool](
         msgIdProvider: msgIdProvider,
         subscriptionValidator: subscriptionValidator,
         parameters: parameters,
+        rng: rng,
         topicsHigh: int.high)
 
   proc peerEventHandler(peerId: PeerId, event: PeerEvent) {.async.} =
