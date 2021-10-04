@@ -69,17 +69,17 @@ proc handlePeer(c: Chat, conn: Connection) {.async.} =
   try:
     c.conn = conn
     c.connected = true
-    c.writeStdout $conn.peerInfo.peerId & " connected"
+    c.writeStdout $conn.peerId & " connected"
 
     # Read loop
     while true:
       let
         strData = await conn.readLp(1024)
         str = string.fromBytes(strData)
-      c.writeStdout $conn.peerInfo.peerId & ": " & $str
+      c.writeStdout $conn.peerId & ": " & $str
 
   except LPStreamEOFError:
-    c.writeStdout $conn.peerInfo.peerId & " disconnected"
+    c.writeStdout $conn.peerId & " disconnected"
 
 proc dialPeer(c: Chat, address: string) {.async.} =
   # Parse and dial address
