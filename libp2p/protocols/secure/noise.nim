@@ -565,7 +565,7 @@ method handshake*(p: Noise, conn: Connection, initiator: bool): Future[SecureCon
         raise newException(NoiseHandshakeError, "Invalid remote peer id")
       conn.peerId = pid.get()
 
-    var tmp = NoiseConnection.init(conn, conn.peerId, conn.observedAddr)
+    var tmp = NoiseConnection.new(conn, conn.peerId, conn.observedAddr)
 
     if initiator:
       tmp.readCs = handshakeRes.cs2

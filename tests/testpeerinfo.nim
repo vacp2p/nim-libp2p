@@ -11,7 +11,7 @@ import ./helpers
 suite "PeerInfo":
   test "Should init with private key":
     let seckey = PrivateKey.random(ECDSA, rng[]).get()
-    var peerInfo = PeerInfo.init(seckey)
+    var peerInfo = PeerInfo.new(seckey)
     var peerId = PeerID.init(seckey).get()
 
     check peerId == peerInfo.peerId

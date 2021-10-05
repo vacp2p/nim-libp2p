@@ -34,7 +34,7 @@ type
   WsStream = ref object of Connection
     session: WSSession
 
-proc init*(T: type WsStream,
+proc new*(T: type WsStream,
            session: WSSession,
            dir: Direction,
            timeout = 10.minutes,
@@ -169,7 +169,7 @@ method accept*(self: WsTransport): Future[Connection] {.async, gcsafe.} =
     let
       req = await self.httpserver.accept()
       wstransp = await self.wsserver.handleRequest(req)
-      stream = WsStream.init(wstransp, Direction.In)
+      stream = WsStream.new(wstransp, Direction.In)
 
     self.trackConnection(stream, Direction.In)
     return stream
@@ -199,7 +199,7 @@ method dial*(
       "",
       secure = secure,
       flags = self.tlsFlags)
-    stream = WsStream.init(transp, Direction.Out)
+    stream = WsStream.new(transp, Direction.Out)
 
   self.trackConnection(stream, Direction.Out)
   return stream

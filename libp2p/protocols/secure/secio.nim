@@ -263,7 +263,7 @@ proc newSecioConn(conn: Connection,
   ## cipher algorithm ``cipher``, stretched keys ``secrets`` and order
   ## ``order``.
 
-  result = SecioConn.init(conn, conn.peerId, conn.observedAddr)
+  result = SecioConn.new(conn, conn.peerId, conn.observedAddr)
 
   let i0 = if order < 0: 1 else: 0
   let i1 = if order < 0: 0 else: 1

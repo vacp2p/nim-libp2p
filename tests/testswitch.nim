@@ -534,7 +534,7 @@ suite "Switch":
     # use same private keys to emulate two connection from same peer
     let
       privateKey = PrivateKey.random(rng[]).tryGet()
-      peerInfo = PeerInfo.init(privateKey)
+      peerInfo = PeerInfo.new(privateKey)
 
     var switches: seq[Switch]
     var done = newFuture[void]()
@@ -577,7 +577,7 @@ suite "Switch":
     # use same private keys to emulate two connection from same peer
     let
       privateKey = PrivateKey.random(rng[]).tryGet()
-      peerInfo = PeerInfo.init(privateKey)
+      peerInfo = PeerInfo.new(privateKey)
 
     var conns = 1
     var switches: seq[Switch]
@@ -736,7 +736,7 @@ suite "Switch":
     discard await switch2.start()
     let someAddr = MultiAddress.init("/ip4/127.128.0.99").get()
     let seckey = PrivateKey.random(ECDSA, rng[]).get()
-    let somePeer = PeerInfo.init(secKey, [someAddr])
+    let somePeer = PeerInfo.new(secKey, [someAddr])
     expect(DialFailedError):
       discard await switch2.dial(somePeer.peerId, somePeer.addrs, TestCodec)
     await switch2.stop()

@@ -84,7 +84,7 @@ type
 proc newTooManyConnectionsError(): ref TooManyConnectionsError {.inline.} =
   result = newException(TooManyConnectionsError, "Too many connections")
 
-proc init*(C: type ConnManager,
+proc new*(C: type ConnManager,
            maxConnsPerPeer = MaxConnectionsPerPeer,
            maxConnections = MaxConnections,
            maxIn = -1,

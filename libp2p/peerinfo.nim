@@ -39,7 +39,7 @@ func shortLog*(p: PeerInfo): auto =
   )
 chronicles.formatIt(PeerInfo): shortLog(it)
 
-proc init*(
+proc new*(
   p: typedesc[PeerInfo],
   key: PrivateKey,
   addrs: openarray[MultiAddress] = [],
