@@ -151,6 +151,21 @@ method stop*(self: WsTransport) {.async, gcsafe.} =
     trace "Error shutting down ws transport", exc = exc.msg
 
 proc trackConnection(self: WsTransport, conn: WsStream, dir: Direction) =
+  conn.observedAddr =
+    try:
+      let
+        codec =
+          if self.secure:
+            MultiAddress.init("/wss")
+          else:
+            MultiAddress.init("/ws")
+        remoteAddr = conn.session.stream.reader.tsource.remoteAddress
+
+      MultiAddress.init(remoteAddr).tryGet() & codec.tryGet()
+    except CatchableError as exc:
+      trace "Failed to create observedAddr", exc = exc.msg
+      MultiAddress()
+
   self.connections[dir].add(conn)
   proc onClose() {.async.} =
     await conn.session.stream.reader.join()
