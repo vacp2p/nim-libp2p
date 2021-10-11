@@ -49,7 +49,7 @@ proc new*(
   {.raises: [Defect, PeerInfoError].} =
 
   let pubkey = try:
-      key.getKey().tryGet()
+      key.getPublicKey().tryGet()
     except CatchableError:
       raise newException(PeerInfoError, "invalid private key")
 

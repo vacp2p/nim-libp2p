@@ -43,9 +43,6 @@ type
 proc new*(T: typedesc[MultistreamSelect]): T =
   T(codec: MSCodec)
 
-proc newMultistream*(): MultistreamSelect {.deprecated: "use MultistreamSelect.new".} =
-  MultistreamSelect.new()
-
 template validateSuffix(str: string): untyped =
     if str.endsWith("\n"):
       str.removeSuffix("\n")

@@ -615,10 +615,3 @@ proc new*(
 
   noise.init()
   noise
-
-proc newNoise*(
-  rng: ref BrHmacDrbgContext,
-  privateKey: PrivateKey,
-  outgoing: bool = true,
-  commonPrologue: seq[byte] = @[]): Noise {.deprecated: "use Noise.new".}=
-  Noise.new(rng, privateKey, outgoing, commonPrologue)

@@ -289,18 +289,3 @@ proc new*(
     codec: codec,
     peerId: peerId,
   )
-
-proc newPubSubPeer*(
-  peerId: PeerID,
-  getConn: GetConn,
-  dropConn: DropConn,
-  onEvent: OnEvent,
-  codec: string): PubSubPeer {.deprecated: "use PubSubPeer.new".} =
-
-  PubSubPeer.new(
-    peerId,
-    getConn,
-    dropConn,
-    onEvent,
-    codec
-  )

@@ -441,6 +441,3 @@ proc new*(
   )
   secio.init()
   secio
-
-proc newSecio*(rng: ref BrHmacDrbgContext, localPrivateKey: PrivateKey): Secio {.deprecated: "use Secio.new".} =
-  Secio.new(rng, localPrivateKey)

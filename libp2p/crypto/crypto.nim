@@ -344,9 +344,6 @@ proc getPublicKey*(key: PrivateKey): CryptoResult[PublicKey] =
     else:
       err(SchemeError)
 
-proc getKey*(key: PrivateKey): CryptoResult[PublicKey] {.deprecated: "use getPublicKey".} =
-  key.getPublicKey()
-
 proc toRawBytes*(key: PrivateKey | PublicKey,
                  data: var openarray[byte]): CryptoResult[int] =
   ## Serialize private key ``key`` (using scheme's own serialization) and store
@@ -1025,39 +1022,6 @@ proc write*[T: PublicKey|PrivateKey](pb: var ProtoBuffer, field: int,
 proc write*(pb: var ProtoBuffer, field: int, sig: Signature) {.
      inline, raises: [Defect].} =
   write(pb, field, sig.getBytes())
-
-proc initProtoField*(index: int, key: PublicKey|PrivateKey): ProtoField {.
-     deprecated, raises: [Defect, ResultError[CryptoError]].} =
-  ## Initialize ProtoField with PublicKey/PrivateKey ``key``.
-  result = initProtoField(index, key.getBytes().tryGet())
-
-proc initProtoField*(index: int, sig: Signature): ProtoField {.deprecated.} =
-  ## Initialize ProtoField with Signature ``sig``.
-  result = initProtoField(index, sig.getBytes())
-
-proc getValue*[T: PublicKey|PrivateKey](data: var ProtoBuffer, field: int,
-                                        value: var T): int {.deprecated.} =
-  ## Read PublicKey/PrivateKey from ProtoBuf's message and validate it.
-  var buf: seq[byte]
-  var key: PublicKey
-  result = getLengthValue(data, field, buf)
-  if result > 0:
-    if not key.init(buf):
-      result = -1
-    else:
-      value = key
-
-proc getValue*(data: var ProtoBuffer, field: int, value: var Signature): int {.
-     deprecated.} =
-  ## Read ``Signature`` from ProtoBuf's message and validate it.
-  var buf: seq[byte]
-  var sig: Signature
-  result = getLengthValue(data, field, buf)
-  if result > 0:
-    if not sig.init(buf):
-      result = -1
-    else:
-      value = sig
 
 proc getField*[T: PublicKey|PrivateKey](pb: ProtoBuffer, field: int,
                                         value: var T): ProtoResult[bool] =
