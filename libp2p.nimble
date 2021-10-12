@@ -42,7 +42,8 @@ proc buildSample(filename: string, run = false) =
   rmFile "examples/" & filename.toExe
 
 proc buildTutorial(filename: string) =
-  exec "nim c -r tools/markdown_runner.nim " & filename
+  exec "cat " & filename & " | nim c -r tools/markdown_runner.nim | " &
+    " nim --warning[CaseTransition]:off --warning[ObservableStores]:off --warning[LockLevel]:off c -"
 
 task testnative, "Runs libp2p native tests":
   runTest("testnative")
