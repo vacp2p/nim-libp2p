@@ -80,5 +80,3 @@ waitFor(main())
 ```
 
 And that's it!
-
-In the [next tutorial](), we'll create a more interesting and complete program using the pubsub protocol bundled with libp2p.
