@@ -59,7 +59,7 @@ type
     MessageTooBig,
     BadWireType,
     IncorrectBlob,
-    MandatoryFieldMissing
+    RequiredFieldMissing
 
   ProtoResult*[T] = Result[T, ProtoError]
 
@@ -576,14 +576,14 @@ proc getField*(pb: ProtoBuffer, field: int,
   else:
     err(res.error)
 
-proc getMandatoryField*[T](pb: ProtoBuffer, field: int,
+proc getRequiredField*[T](pb: ProtoBuffer, field: int,
                output: var T): ProtoResult[void] {.inline.} =
   let res = pb.getField(field, output)
   if res.isOk():
     if res.get():
       ok()
     else:
-      err(MandatoryFieldMissing)
+      err(RequiredFieldMissing)
   else:
     err(res.error)
 
@@ -663,14 +663,14 @@ proc getRepeatedField*[T: ProtoScalar](data: ProtoBuffer, field: int,
   else:
     ok(false)
 
-proc getMandatoryRepeatedField*[T](pb: ProtoBuffer, field: int,
+proc getRequiredRepeatedField*[T](pb: ProtoBuffer, field: int,
                output: var seq[T]): ProtoResult[void] {.inline.} =
   let res = pb.getRepeatedField(field, output)
   if res.isOk():
     if res.get():
       ok()
     else:
-      err(MandatoryFieldMissing)
+      err(RequiredFieldMissing)
   else:
     err(res.error)
 
