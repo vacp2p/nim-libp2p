@@ -60,6 +60,7 @@ type
     score*: float64
     iWantBudget*: int
     iHaveBudget*: int
+    maxRecvMessageSize*: int
     appScore*: float64 # application specific score
     behaviourPenalty*: float64 # the eventual penalty score
 
@@ -280,7 +281,8 @@ proc new*(
   getConn: GetConn,
   dropConn: DropConn,
   onEvent: OnEvent,
-  codec: string): T =
+  codec: string,
+  maxRecvMessageSize = 64 * 1024): T =
 
   T(
     getConn: getConn,
@@ -288,6 +290,7 @@ proc new*(
     onEvent: onEvent,
     codec: codec,
     peerId: peerId,
+    maxRecvMessageSize: maxRecvMessageSize
   )
 
 proc newPubSubPeer*(

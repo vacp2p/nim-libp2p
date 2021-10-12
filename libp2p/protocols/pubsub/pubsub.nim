@@ -106,6 +106,7 @@ type
     anonymize*: bool                   # if we omit fromPeer and seqno from RPC messages we send
     subscriptionValidator*: SubscriptionValidator # callback used to validate subscriptions
     topicsHigh*: int                  # the maximum number of topics a peer is allowed to subscribe to
+    maxRecvMessageSize*: int
 
     knownTopics*: HashSet[string]
 
@@ -283,7 +284,7 @@ proc getOrCreatePeer*(
     p.onPubSubPeerEvent(peer, event)
 
   # create new pubsub peer
-  let pubSubPeer = PubSubPeer.new(peerId, getConn, dropConn, onEvent, protos[0])
+  let pubSubPeer = PubSubPeer.new(peerId, getConn, dropConn, onEvent, protos[0], p.maxRecvMessageSize)
   debug "created new pubsub peer", peerId
 
   p.peers[peerId] = pubSubPeer
@@ -473,6 +474,8 @@ method initPubSub*(p: PubSub)
   p.observers = new(seq[PubSubObserver])
   if p.msgIdProvider == nil:
     p.msgIdProvider = defaultMsgIdProvider
+  if p.maxRecvMessageSize == 0:
+    p.maxRecvMessageSize = 64 * 1024
 
 method start*(p: PubSub) {.async, base.} =
   ## start pubsub
