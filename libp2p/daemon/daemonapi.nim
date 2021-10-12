@@ -465,7 +465,7 @@ proc requestPSSubscribe(topic: string): ProtoBuffer =
 proc checkResponse(pb: ProtoBuffer): ResponseKind {.inline.} =
   result = ResponseKind.Malformed
   var value: uint64
-  if getField(pb, 1, value) == true:
+  if getMandatoryField(pb, 1, value).isOk():
     if value == 0:
       result = ResponseKind.Success
     else:
@@ -473,8 +473,8 @@ proc checkResponse(pb: ProtoBuffer): ResponseKind {.inline.} =
 
 proc getErrorMessage(pb: ProtoBuffer): string {.inline, raises: [Defect, DaemonLocalError].} =
   var error: seq[byte]
-  if pb.getField(ResponseType.ERROR.int, error) == true:
-    if initProtoBuffer(error).getField(1, result) == false:
+  if pb.getMandatoryField(ResponseType.ERROR.int, error).isOk():
+    if initProtoBuffer(error).getMandatoryField(1, result).isErr():
       raise newException(DaemonLocalError, "Error message is missing!")
 
 proc recvMessage(conn: StreamTransport): Future[seq[byte]] {.async.} =
@@ -835,8 +835,8 @@ proc getPeerInfo(pb: ProtoBuffer): PeerInfo
   {.raises: [Defect, DaemonLocalError].} =
   ## Get PeerInfo object from ``pb``.
   result.addresses = newSeq[MultiAddress]()
-  if pb.getField(1, result.peer) == false:
-    raise newException(DaemonLocalError, "Missing required field `peer`!")
+  if pb.getMandatoryField(1, result.peer).isErr():
+    raise newException(DaemonLocalError, "Incorrect or empty message received!")
 
   discard pb.getRepeatedField(2, result.addresses)
 
@@ -847,7 +847,7 @@ proc identity*(api: DaemonAPI): Future[PeerInfo] {.async.} =
     var pb = await transactMessage(transp, requestIdentity())
     pb.withMessage() do:
       var res: seq[byte]
-      if pb.getField(ResponseType.IDENTITY.int, res) == true:
+      if pb.getMandatoryField(ResponseType.IDENTITY.int, res).isOk():
         var resPb = initProtoBuffer(res)
         result = getPeerInfo(resPb)
   finally:
@@ -888,18 +888,15 @@ proc openStream*(api: DaemonAPI, peer: PeerID,
                                                             timeout))
     pb.withMessage() do:
       var res: seq[byte]
-      if pb.getField(ResponseType.STREAMINFO.int, res) == true:
+      if pb.getMandatoryField(ResponseType.STREAMINFO.int, res).isOk():
         let resPb = initProtoBuffer(res)
         # stream.peer = newSeq[byte]()
         var raddress = newSeq[byte]()
         stream.protocol = ""
-        if resPb.getField(1, stream.peer) == false:
-          raise newException(DaemonLocalError, "Missing `peer` field!")
-        if resPb.getField(2, raddress) == false:
-          raise newException(DaemonLocalError, "Missing `address` field!")
+        resPb.getMandatoryField(1, stream.peer).tryGet()
+        resPb.getMandatoryField(2, raddress).tryGet()
         stream.raddress = MultiAddress.init(raddress).tryGet()
-        if resPb.getField(3, stream.protocol) == false:
-          raise newException(DaemonLocalError, "Missing `proto` field!")
+        resPb.getMandatoryField(3, stream.protocol).tryGet()
         stream.flags.incl(Outbound)
         stream.transp = transp
         result = stream
@@ -914,13 +911,10 @@ proc streamHandler(server: StreamServer, transp: StreamTransport) {.async.} =
   var stream = new P2PStream
   var raddress = newSeq[byte]()
   stream.protocol = ""
-  if pb.getField(1, stream.peer) == false:
-    raise newException(DaemonLocalError, "Missing `peer` field!")
-  if pb.getField(2, raddress) == false:
-    raise newException(DaemonLocalError, "Missing `address` field!")
+  pb.getMandatoryField(1, stream.peer).tryGet()
+  pb.getMandatoryField(2, raddress).tryGet()
   stream.raddress = MultiAddress.init(raddress).tryGet()
-  if pb.getField(3, stream.protocol) == false:
-    raise newException(DaemonLocalError, "Missing `proto` field!")
+  pb.getMandatoryField(3, stream.protocol).tryGet()
   stream.flags.incl(Inbound)
   stream.transp = transp
   if len(stream.protocol) > 0:
@@ -960,7 +954,7 @@ proc listPeers*(api: DaemonAPI): Future[seq[PeerInfo]] {.async.} =
     pb.withMessage() do:
       result = newSeq[PeerInfo]()
       var ress: seq[seq[byte]]
-      if pb.getRepeatedField(ResponseType.PEERINFO.int, ress) == true:
+      if pb.getMandatoryRepeatedField(ResponseType.PEERINFO.int, ress).isOk():
         for p in ress:
           let peer = initProtoBuffer(p).getPeerInfo()
           result.add(peer)
@@ -1001,7 +995,7 @@ proc cmTrimPeers*(api: DaemonAPI) {.async.} =
 proc dhtGetSinglePeerInfo(pb: ProtoBuffer): PeerInfo
   {.raises: [Defect, DaemonLocalError].} =
   var res: seq[byte]
-  if pb.getField(2, res) == true:
+  if pb.getMandatoryField(2, res).isOk():
     result = initProtoBuffer(res).getPeerInfo()
   else:
     raise newException(DaemonLocalError, "Missing required field `peer`!")
@@ -1009,32 +1003,32 @@ proc dhtGetSinglePeerInfo(pb: ProtoBuffer): PeerInfo
 proc dhtGetSingleValue(pb: ProtoBuffer): seq[byte]
   {.raises: [Defect, DaemonLocalError].} =
   result = newSeq[byte]()
-  if pb.getField(3, result) == false:
+  if pb.getMandatoryField(3, result).isErr():
     raise newException(DaemonLocalError, "Missing field `value`!")
 
 proc dhtGetSinglePublicKey(pb: ProtoBuffer): PublicKey
   {.raises: [Defect, DaemonLocalError].} =
-  if pb.getField(3, result) == false:
+  if pb.getMandatoryField(3, result).isErr():
     raise newException(DaemonLocalError, "Missing field `value`!")
 
 proc dhtGetSinglePeerID(pb: ProtoBuffer): PeerID
   {.raises: [Defect, DaemonLocalError].} =
-  if pb.getField(3, result) == false:
+  if pb.getMandatoryField(3, result).isErr():
     raise newException(DaemonLocalError, "Missing field `value`!")
 
 proc enterDhtMessage(pb: ProtoBuffer, rt: DHTResponseType): Protobuffer
   {.inline, raises: [Defect, DaemonLocalError].} =
   var dhtResponse: seq[byte]
-  if pb.getField(ResponseType.DHT.int, dhtResponse) == true:
+  if pb.getMandatoryField(ResponseType.DHT.int, dhtResponse).isOk():
     var pbDhtResponse = initProtoBuffer(dhtResponse)
     var dtype: uint
-    if pbDhtResponse.getField(1, dtype) == false:
+    if pbDhtResponse.getMandatoryField(1, dtype).isErr():
       raise newException(DaemonLocalError, "Missing required DHT field `type`!")
     if dtype != cast[uint](rt):
       raise newException(DaemonLocalError, "Wrong DHT answer type! ")
 
     var value: seq[byte]
-    if pbDhtResponse.getField(3, value) == false:
+    if pbDhtResponse.getMandatoryField(3, value).isErr():
       raise newException(DaemonLocalError, "Missing required DHT field `value`!")
     
     return initProtoBuffer(value)
@@ -1044,7 +1038,7 @@ proc enterDhtMessage(pb: ProtoBuffer, rt: DHTResponseType): Protobuffer
 proc enterPsMessage(pb: ProtoBuffer): ProtoBuffer
   {.inline, raises: [Defect, DaemonLocalError].} =
   var res: seq[byte]
-  if pb.getField(ResponseType.PUBSUB.int, res) == false:
+  if pb.getMandatoryField(ResponseType.PUBSUB.int, res).isErr():
     raise newException(DaemonLocalError, "Wrong message type!")
 
   initProtoBuffer(res)
@@ -1052,7 +1046,7 @@ proc enterPsMessage(pb: ProtoBuffer): ProtoBuffer
 proc getDhtMessageType(pb: ProtoBuffer): DHTResponseType
   {.inline, raises: [Defect, DaemonLocalError].} =
   var dtype: uint
-  if pb.getField(1, dtype) == false:
+  if pb.getMandatoryField(1, dtype).isErr():
     raise newException(DaemonLocalError, "Missing required DHT field `type`!")
   if dtype == cast[uint](DHTResponseType.VALUE):
     result = DHTResponseType.VALUE

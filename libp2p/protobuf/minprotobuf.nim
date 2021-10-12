@@ -58,7 +58,8 @@ type
     BufferOverflow,
     MessageTooBig,
     BadWireType,
-    IncorrectBlob
+    IncorrectBlob,
+    MandatoryFieldMissing
 
   ProtoResult*[T] = Result[T, ProtoError]
 
@@ -432,13 +433,6 @@ proc getValue[T:seq[byte]|string](data: var ProtoBuffer, header: ProtoHeader,
   else:
     err(ProtoError.VarintDecode)
 
-proc `==`*(r: ProtoResult[bool], v: bool): bool =
-  # Simple lift
-  let rv =
-    if r.isOk(): r.value
-    else: false
-  rv == v
-
 proc getField*[T: ProtoScalar](data: ProtoBuffer, field: int,
                                output: var T): ProtoResult[bool] =
   checkFieldNumber(field)
@@ -582,6 +576,17 @@ proc getField*(pb: ProtoBuffer, field: int,
   else:
     err(res.error)
 
+proc getMandatoryField*[T](pb: ProtoBuffer, field: int,
+               output: var T): ProtoResult[void] {.inline.} =
+  let res = pb.getField(field, output)
+  if res.isOk():
+    if res.get():
+      ok()
+    else:
+      err(MandatoryFieldMissing)
+  else:
+    err(res.error)
+
 proc getRepeatedField*[T: seq[byte]|string](data: ProtoBuffer, field: int,
                                         output: var seq[T]): ProtoResult[bool] =
   checkFieldNumber(field)
@@ -657,6 +662,17 @@ proc getRepeatedField*[T: ProtoScalar](data: ProtoBuffer, field: int,
     ok(true)
   else:
     ok(false)
+
+proc getMandatoryRepeatedField*[T](pb: ProtoBuffer, field: int,
+               output: var seq[T]): ProtoResult[void] {.inline.} =
+  let res = pb.getRepeatedField(field, output)
+  if res.isOk():
+    if res.get():
+      ok()
+    else:
+      err(MandatoryFieldMissing)
+  else:
+    err(res.error)
 
 proc getPackedRepeatedField*[T: ProtoScalar](data: ProtoBuffer, field: int,
                                         output: var seq[T]): ProtoResult[bool] =
