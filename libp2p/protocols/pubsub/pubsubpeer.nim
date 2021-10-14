@@ -282,7 +282,7 @@ proc new*(
   dropConn: DropConn,
   onEvent: OnEvent,
   codec: string,
-  maxRecvMessageSize): T =
+  maxRecvMessageSize: int): T =
 
   T(
     getConn: getConn,
@@ -298,12 +298,14 @@ proc newPubSubPeer*(
   getConn: GetConn,
   dropConn: DropConn,
   onEvent: OnEvent,
-  codec: string): PubSubPeer {.deprecated: "use PubSubPeer.new".} =
+  codec: string,
+  maxRecvMessageSize: int): PubSubPeer {.deprecated: "use PubSubPeer.new".} =
 
   PubSubPeer.new(
     peerId,
     getConn,
     dropConn,
     onEvent,
-    codec
+    codec,
+    maxRecvMessageSize
   )
