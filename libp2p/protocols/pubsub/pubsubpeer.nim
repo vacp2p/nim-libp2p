@@ -120,7 +120,7 @@ proc handle*(p: PubSubPeer, conn: Connection) {.async.} =
       while not conn.atEof:
         trace "waiting for data", conn, peer = p, closed = conn.closed
 
-        var data = await conn.readLp(64 * 1024)
+        var data = await conn.readLp(p.maxRecvMessageSize)
         trace "read data from peer",
           conn, peer = p, closed = conn.closed,
           data = data.shortLog
