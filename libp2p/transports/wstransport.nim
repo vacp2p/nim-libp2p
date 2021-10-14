@@ -150,13 +150,36 @@ method stop*(self: WsTransport) {.async, gcsafe.} =
   except CatchableError as exc:
     trace "Error shutting down ws transport", exc = exc.msg
 
-proc trackConnection(self: WsTransport, conn: WsStream, dir: Direction) =
+proc connHandler(self: WsTransport,
+                 stream: WsSession,
+                 dir: Direction): Future[Connection] {.async.} =
+  let observedAddr =
+    try:
+      let
+        codec =
+          if self.secure:
+            MultiAddress.init("/wss")
+          else:
+            MultiAddress.init("/ws")
+        remoteAddr = stream.stream.reader.tsource.remoteAddress
+
+      MultiAddress.init(remoteAddr).tryGet() & codec.tryGet()
+    except CatchableError as exc:
+      trace "Failed to create observedAddr", exc = exc.msg
+      if not(isNil(stream) and stream.stream.reader.closed):
+        await stream.close()
+      raise exc
+
+  let conn = WsStream.init(stream, dir)
+  conn.observedAddr = observedAddr
+
   self.connections[dir].add(conn)
   proc onClose() {.async.} =
     await conn.session.stream.reader.join()
     self.connections[dir].keepItIf(it != conn)
     trace "Cleaned up client"
   asyncSpawn onClose()
+  return conn
 
 method accept*(self: WsTransport): Future[Connection] {.async, gcsafe.} =
   ## accept a new WS connection
@@ -169,10 +192,8 @@ method accept*(self: WsTransport): Future[Connection] {.async, gcsafe.} =
     let
       req = await self.httpserver.accept()
       wstransp = await self.wsserver.handleRequest(req)
-      stream = WsStream.init(wstransp, Direction.In)
 
-    self.trackConnection(stream, Direction.In)
-    return stream
+    return await self.connHandler(wstransp, Direction.In)
   except TransportOsError as exc:
     debug "OS Error", exc = exc.msg
   except TransportTooManyError as exc:
@@ -199,10 +220,8 @@ method dial*(
       "",
       secure = secure,
       flags = self.tlsFlags)
-    stream = WsStream.init(transp, Direction.Out)
 
-  self.trackConnection(stream, Direction.Out)
-  return stream
+  return await self.connHandler(transp, Direction.Out)
 
 method handles*(t: WsTransport, address: MultiAddress): bool {.gcsafe.} =
   if procCall Transport(t).handles(address):

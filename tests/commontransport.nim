@@ -25,6 +25,34 @@ proc commonTransportTest*(name: string, prov: TransportProvider, ma: string) =
       check transport1.handles(transport1.ma)
       await transport1.stop()
 
+    asyncTest "e2e: handle observedAddr":
+      let ma: MultiAddress = Multiaddress.init(ma).tryGet()
+
+      let transport1 = prov()
+      await transport1.start(ma)
+
+      let transport2 = prov()
+
+      proc acceptHandler() {.async, gcsafe.} =
+        let conn = await transport1.accept()
+        check transport1.handles(conn.observedAddr)
+        await conn.close()
+
+      let handlerWait = acceptHandler()
+
+      let conn = await transport2.dial(transport1.ma)
+
+      check transport2.handles(conn.observedAddr)
+
+      await conn.close() #for some protocols, closing requires actively reading, so we must close here
+
+      await allFuturesThrowing(
+        allFinished(
+          transport1.stop(),
+          transport2.stop()))
+
+      await handlerWait.wait(1.seconds) # when no issues will not wait that long!
+
     asyncTest "e2e: handle write":
       let ma: MultiAddress = Multiaddress.init(ma).tryGet()
 
