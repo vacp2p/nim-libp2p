@@ -106,7 +106,11 @@ type
     anonymize*: bool                   # if we omit fromPeer and seqno from RPC messages we send
     subscriptionValidator*: SubscriptionValidator # callback used to validate subscriptions
     topicsHigh*: int                  # the maximum number of topics a peer is allowed to subscribe to
-    maxRecvMessageSize*: int          # the maximum message size we'll globally allow
+    maxRecvMessageSize*: int          ##\ 
+      ## the maximum raw message size we'll globally allow
+      ## for finer tuning, check message size on topic validator
+      ##
+      ## defaults to 64kB
 
     knownTopics*: HashSet[string]
 

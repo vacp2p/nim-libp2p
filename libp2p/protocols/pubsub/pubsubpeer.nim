@@ -60,7 +60,7 @@ type
     score*: float64
     iWantBudget*: int
     iHaveBudget*: int
-    maxRecvMessageSize*: int
+    maxRecvMessageSize: int
     appScore*: float64 # application specific score
     behaviourPenalty*: float64 # the eventual penalty score
 
@@ -282,7 +282,7 @@ proc new*(
   dropConn: DropConn,
   onEvent: OnEvent,
   codec: string,
-  maxRecvMessageSize = 64 * 1024): T =
+  maxRecvMessageSize): T =
 
   T(
     getConn: getConn,
