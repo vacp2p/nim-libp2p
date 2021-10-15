@@ -110,6 +110,9 @@ type
       ## the maximum raw message size we'll globally allow
       ## for finer tuning, check message size on topic validator
       ##
+      ## sending a big message to a peer with a lower size limit can
+      ## lead to issues, from descoring to connection drops
+      ##
       ## defaults to 64kB
 
     knownTopics*: HashSet[string]
