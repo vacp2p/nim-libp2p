@@ -71,10 +71,10 @@ proc connHandler*(self: TcpTransport,
   try:
     observedAddr = MultiAddress.init(client.remoteAddress).tryGet()
   except CatchableError as exc:
-    trace "Connection setup failed", exc = exc.msg
+    trace "Failed to create observedAddr", exc = exc.msg
     if not(isNil(client) and client.closed):
       await client.closeWait()
-      raise exc
+    raise exc
 
   trace "Handling tcp connection", address = $observedAddr,
                                    dir = $dir,
