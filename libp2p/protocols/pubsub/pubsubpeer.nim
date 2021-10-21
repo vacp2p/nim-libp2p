@@ -60,7 +60,7 @@ type
     score*: float64
     iWantBudget*: int
     iHaveBudget*: int
-    maxRecvMessageSize: int
+    maxMessageSize: int
     appScore*: float64 # application specific score
     behaviourPenalty*: float64 # the eventual penalty score
 
@@ -120,7 +120,7 @@ proc handle*(p: PubSubPeer, conn: Connection) {.async.} =
       while not conn.atEof:
         trace "waiting for data", conn, peer = p, closed = conn.closed
 
-        var data = await conn.readLp(p.maxRecvMessageSize)
+        var data = await conn.readLp(p.maxMessageSize)
         trace "read data from peer",
           conn, peer = p, closed = conn.closed,
           data = data.shortLog
@@ -244,6 +244,10 @@ proc sendEncoded*(p: PubSubPeer, msg: seq[byte]) {.raises: [Defect].} =
     debug "empty message, skipping", p, msg = shortLog(msg)
     return
 
+  if msg.len > p.maxMessageSize:
+    info "trying to send a too big for pubsub", maxSize=p.maxMessageSize, msgSize=msg.len
+    return
+
   let conn = p.sendConn
   if conn == nil or conn.closed():
     trace "No send connection, skipping message", p, msg = shortLog(msg)
@@ -282,7 +286,7 @@ proc new*(
   dropConn: DropConn,
   onEvent: OnEvent,
   codec: string,
-  maxRecvMessageSize: int): T =
+  maxMessageSize: int): T =
 
   T(
     getConn: getConn,
@@ -290,7 +294,7 @@ proc new*(
     onEvent: onEvent,
     codec: codec,
     peerId: peerId,
-    maxRecvMessageSize: maxRecvMessageSize
+    maxMessageSize: maxMessageSize
   )
 
 proc newPubSubPeer*(
@@ -299,7 +303,7 @@ proc newPubSubPeer*(
   dropConn: DropConn,
   onEvent: OnEvent,
   codec: string,
-  maxRecvMessageSize: int): PubSubPeer {.deprecated: "use PubSubPeer.new".} =
+  maxMessageSize: int): PubSubPeer {.deprecated: "use PubSubPeer.new".} =
 
   PubSubPeer.new(
     peerId,
@@ -307,5 +311,5 @@ proc newPubSubPeer*(
     dropConn,
     onEvent,
     codec,
-    maxRecvMessageSize
+    maxMessageSize
   )
