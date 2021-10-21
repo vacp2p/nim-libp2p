@@ -426,11 +426,11 @@ suite "FloodSub":
       bigNode[0].switch.stop()
     )
 
-    check messageReceived == 2
-
     await allFuturesThrowing(
       smallNode[0].stop(),
       bigNode[0].stop()
     )
 
     await allFuturesThrowing(nodesFut)
+
+    check messageReceived == 2
