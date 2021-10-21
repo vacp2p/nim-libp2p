@@ -413,10 +413,12 @@ suite "FloodSub":
 
     let
       bigMessage = newSeq[byte](1000)
-      smallMessage = newSeq[byte](10)
+      smallMessage1 = @[1.byte]
+      smallMessage2 = @[3.byte]
 
-    check (await smallNode[0].publish("foo", smallMessage)) > 0
-    check (await bigNode[0].publish("foo", smallMessage)) > 0
+    # Need two different messages, otherwise they are the same when anonymized
+    check (await smallNode[0].publish("foo", smallMessage1)) > 0
+    check (await bigNode[0].publish("foo", smallMessage2)) > 0
 
     check (await checkExpiring(messageReceived == 2)) == true
 
