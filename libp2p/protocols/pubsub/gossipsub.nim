@@ -438,7 +438,10 @@ method publish*(g: GossipSub,
   if topic in g.topics: # if we're subscribed use the mesh
     peers.incl(g.mesh.getOrDefault(topic))
 
-  if peers.len < g.parameters.dLow: # not subscribed or bad mesh, send to fanout peers
+  if peers.len < g.parameters.dLow and g.parameters.floodPublish == false:
+    # not subscribed or bad mesh, send to fanout peers
+    # disable for floodPublish, since we already sent to every good peer
+    #
     var fanoutPeers = g.fanout.getOrDefault(topic).toSeq()
     if fanoutPeers.len == 0:
       g.replenishFanout(topic)
