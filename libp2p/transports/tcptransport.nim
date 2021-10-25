@@ -71,10 +71,10 @@ proc connHandler*(self: TcpTransport,
   try:
     observedAddr = MultiAddress.init(client.remoteAddress).tryGet()
   except CatchableError as exc:
-    trace "Connection setup failed", exc = exc.msg
+    trace "Failed to create observedAddr", exc = exc.msg
     if not(isNil(client) and client.closed):
       await client.closeWait()
-      raise exc
+    raise exc
 
   trace "Handling tcp connection", address = $observedAddr,
                                    dir = $dir,
@@ -113,13 +113,6 @@ proc connHandler*(self: TcpTransport,
   asyncSpawn onClose()
 
   return conn
-
-proc init*(
-  T: typedesc[TcpTransport],
-  flags: set[ServerFlags] = {},
-  upgrade: Upgrade): T {.deprecated: "use .new".} =
-
-  T.new(flags, upgrade)
 
 proc new*(
   T: typedesc[TcpTransport],

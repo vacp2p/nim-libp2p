@@ -9,7 +9,7 @@
 
 {.push raises: [Defect].}
 
-import std/[tables, sets, options, sequtils, random]
+import std/[tables, sets, options, sequtils]
 import chronos, chronicles, metrics
 import ./pubsub,
        ./floodsub,
@@ -297,9 +297,8 @@ method rpcHandler*(g: GossipSub,
     template msg: untyped = rpcMsg.messages[i]
     let msgId = g.msgIdProvider(msg)
 
-    # avoid the remote peer from controlling the seen table hashing
-    # by adding random bytes to the ID we ensure we randomize the IDs
-    # we do only for seen as this is the great filter from the external world
+    # addSeen adds salt to msgId to avoid
+    # remote attacking the hash function
     if g.addSeen(msgId):
       trace "Dropping already-seen message", msgId = shortLog(msgId), peer
       # make sure to update score tho before continuing
@@ -503,9 +502,9 @@ proc maintainDirectPeers(g: GossipSub) {.async.} =
           let _ = await g.switch.dial(id, addrs, g.codecs)
           # populate the peer after it's connected
           discard g.getOrCreatePeer(id, g.codecs)
-        except CancelledError:
+        except CancelledError as exc:
           trace "Direct peer dial canceled"
-          raise
+          raise exc
         except CatchableError as exc:
           debug "Direct peer error dialing", msg = exc.msg
 
@@ -547,8 +546,6 @@ method initPubSub*(g: GossipSub)
   let validationRes = g.parameters.validateParameters()
   if validationRes.isErr:
     raise newException(InitializationError, $validationRes.error)
-
-  randomize()
 
   # init the floodsub stuff here, we customize timedcache in gossip!
   g.seen = TimedCache[MessageID].init(g.parameters.seenTTL)

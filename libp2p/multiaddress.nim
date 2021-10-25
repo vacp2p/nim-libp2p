@@ -1073,7 +1073,7 @@ proc getField*(pb: var ProtoBuffer, field: int,
     else:
       err(ProtoError.IncorrectBlob)
 
-proc getRepeatedField*(pb: var ProtoBuffer, field: int,
+proc getRepeatedField*(pb: ProtoBuffer, field: int,
                        value: var seq[MultiAddress]): ProtoResult[bool] {.
      inline.} =
   var items: seq[seq[byte]]

@@ -565,7 +565,7 @@ method handshake*(p: Noise, conn: Connection, initiator: bool): Future[SecureCon
         raise newException(NoiseHandshakeError, "Invalid remote peer id")
       conn.peerId = pid.get()
 
-    var tmp = NoiseConnection.init(conn, conn.peerId, conn.observedAddr)
+    var tmp = NoiseConnection.new(conn, conn.peerId, conn.observedAddr)
 
     if initiator:
       tmp.readCs = handshakeRes.cs2
@@ -615,10 +615,3 @@ proc new*(
 
   noise.init()
   noise
-
-proc newNoise*(
-  rng: ref BrHmacDrbgContext,
-  privateKey: PrivateKey,
-  outgoing: bool = true,
-  commonPrologue: seq[byte] = @[]): Noise {.deprecated: "use Noise.new".}=
-  Noise.new(rng, privateKey, outgoing, commonPrologue)

@@ -10,11 +10,12 @@
 {.push raises: [Defect].}
 
 import std/[tables, sequtils, sets, strutils]
-import chronos, chronicles, metrics
+import chronos, chronicles, metrics, bearssl
 import ./pubsubpeer,
        ./rpc/[message, messages, protobuf],
        ../../switch,
        ../protocol,
+       ../../crypto/crypto,
        ../../stream/connection,
        ../../peerid,
        ../../peerinfo,
@@ -114,6 +115,7 @@ type
       ## lead to issues, from descoring to connection drops
       ##
       ## defaults to 1mB
+    rng*: ref BrHmacDrbgContext
 
     knownTopics*: HashSet[string]
 
@@ -547,6 +549,7 @@ proc init*[PubParams: object | bool](
   msgIdProvider: MsgIdProvider = defaultMsgIdProvider,
   subscriptionValidator: SubscriptionValidator = nil,
   maxMessageSize: int = 1024 * 1024,
+  rng: ref BrHmacDrbgContext = newRng(),
   parameters: PubParams = false): P
   {.raises: [Defect, InitializationError].} =
   let pubsub =
@@ -560,6 +563,7 @@ proc init*[PubParams: object | bool](
         msgIdProvider: msgIdProvider,
         subscriptionValidator: subscriptionValidator,
         maxMessageSize: maxMessageSize,
+        rng: rng,
         topicsHigh: int.high)
     else:
       P(switch: switch,
@@ -572,6 +576,7 @@ proc init*[PubParams: object | bool](
         subscriptionValidator: subscriptionValidator,
         parameters: parameters,
         maxMessageSize: maxMessageSize,
+        rng: rng,
         topicsHigh: int.high)
 
   proc peerEventHandler(peerId: PeerId, event: PeerEvent) {.async.} =

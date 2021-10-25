@@ -18,16 +18,16 @@ method newStream*(
   name: string = "",
   lazy: bool = false):
   Future[Connection] {.async, gcsafe.} =
-  result = Connection.init(m.peerId, Direction.Out)
+  result = Connection.new(m.peerId, Direction.Out)
 
 suite "Connection Manager":
   teardown:
     checkTrackers()
 
   asyncTest "add and retrieve a connection":
-    let connMngr = ConnManager.init()
+    let connMngr = ConnManager.new()
     let peerId = PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet()
-    let conn = Connection.init(peerId, Direction.In)
+    let conn = Connection.new(peerId, Direction.In)
 
     connMngr.storeConn(conn)
     check conn in connMngr
@@ -39,9 +39,9 @@ suite "Connection Manager":
     await connMngr.close()
 
   asyncTest "shouldn't allow a closed connection":
-    let connMngr = ConnManager.init()
+    let connMngr = ConnManager.new()
     let peerId = PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet()
-    let conn = Connection.init(peerId, Direction.In)
+    let conn = Connection.new(peerId, Direction.In)
     await conn.close()
 
     expect CatchableError:
@@ -50,9 +50,9 @@ suite "Connection Manager":
     await connMngr.close()
 
   asyncTest "shouldn't allow an EOFed connection":
-    let connMngr = ConnManager.init()
+    let connMngr = ConnManager.new()
     let peerId = PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet()
-    let conn = Connection.init(peerId, Direction.In)
+    let conn = Connection.new(peerId, Direction.In)
     conn.isEof = true
 
     expect CatchableError:
@@ -62,9 +62,9 @@ suite "Connection Manager":
     await connMngr.close()
 
   asyncTest "add and retrieve a muxer":
-    let connMngr = ConnManager.init()
+    let connMngr = ConnManager.new()
     let peerId = PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet()
-    let conn = Connection.init(peerId, Direction.In)
+    let conn = Connection.new(peerId, Direction.In)
     let muxer = new Muxer
     muxer.connection = conn
 
@@ -78,9 +78,9 @@ suite "Connection Manager":
     await connMngr.close()
 
   asyncTest "shouldn't allow a muxer for an untracked connection":
-    let connMngr = ConnManager.init()
+    let connMngr = ConnManager.new()
     let peerId = PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet()
-    let conn = Connection.init(peerId, Direction.In)
+    let conn = Connection.new(peerId, Direction.In)
     let muxer = new Muxer
     muxer.connection = conn
 
@@ -92,10 +92,10 @@ suite "Connection Manager":
     await connMngr.close()
 
   asyncTest "get conn with direction":
-    let connMngr = ConnManager.init()
+    let connMngr = ConnManager.new()
     let peerId = PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet()
-    let conn1 = Connection.init(peerId, Direction.Out)
-    let conn2 = Connection.init(peerId, Direction.In)
+    let conn1 = Connection.new(peerId, Direction.Out)
+    let conn2 = Connection.new(peerId, Direction.In)
 
     connMngr.storeConn(conn1)
     connMngr.storeConn(conn2)
@@ -112,9 +112,9 @@ suite "Connection Manager":
     await connMngr.close()
 
   asyncTest "get muxed stream for peer":
-    let connMngr = ConnManager.init()
+    let connMngr = ConnManager.new()
     let peerId = PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet()
-    let conn = Connection.init(peerId, Direction.In)
+    let conn = Connection.new(peerId, Direction.In)
 
     let muxer = new TestMuxer
     muxer.peerId = peerId
@@ -132,9 +132,9 @@ suite "Connection Manager":
     await stream.close()
 
   asyncTest "get stream from directed connection":
-    let connMngr = ConnManager.init()
+    let connMngr = ConnManager.new()
     let peerId = PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet()
-    let conn = Connection.init(peerId, Direction.In)
+    let conn = Connection.new(peerId, Direction.In)
 
     let muxer = new TestMuxer
     muxer.peerId = peerId
@@ -153,9 +153,9 @@ suite "Connection Manager":
     await stream1.close()
 
   asyncTest "get stream from any connection":
-    let connMngr = ConnManager.init()
+    let connMngr = ConnManager.new()
     let peerId = PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet()
-    let conn = Connection.init(peerId, Direction.In)
+    let conn = Connection.new(peerId, Direction.In)
 
     let muxer = new TestMuxer
     muxer.peerId = peerId
@@ -172,14 +172,14 @@ suite "Connection Manager":
     await stream.close()
 
   asyncTest "should raise on too many connections":
-    let connMngr = ConnManager.init(maxConnsPerPeer = 1)
+    let connMngr = ConnManager.new(maxConnsPerPeer = 1)
     let peerId = PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet()
 
-    connMngr.storeConn(Connection.init(peerId, Direction.In))
+    connMngr.storeConn(Connection.new(peerId, Direction.In))
 
     let conns = @[
-        Connection.init(peerId, Direction.In),
-        Connection.init(peerId, Direction.In)]
+        Connection.new(peerId, Direction.In),
+        Connection.new(peerId, Direction.In)]
 
     expect TooManyConnectionsError:
       connMngr.storeConn(conns[0])
@@ -191,9 +191,9 @@ suite "Connection Manager":
       allFutures(conns.mapIt( it.close() )))
 
   asyncTest "cleanup on connection close":
-    let connMngr = ConnManager.init()
+    let connMngr = ConnManager.new()
     let peerId = PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet()
-    let conn = Connection.init(peerId, Direction.In)
+    let conn = Connection.new(peerId, Direction.In)
     let muxer = new Muxer
 
     muxer.connection = conn
@@ -212,7 +212,7 @@ suite "Connection Manager":
     await connMngr.close()
 
   asyncTest "drop connections for peer":
-    let connMngr = ConnManager.init()
+    let connMngr = ConnManager.new()
     let peerId = PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet()
 
     for i in 0..<2:
@@ -220,7 +220,7 @@ suite "Connection Manager":
         Direction.In else:
         Direction.Out
 
-      let conn = Connection.init(peerId, dir)
+      let conn = Connection.new(peerId, dir)
       let muxer = new Muxer
       muxer.connection = conn
 
@@ -241,13 +241,13 @@ suite "Connection Manager":
     await connMngr.close()
 
   asyncTest "track total incoming connection limits":
-    let connMngr = ConnManager.init(maxConnections = 3)
+    let connMngr = ConnManager.new(maxConnections = 3)
 
     var conns: seq[Connection]
     for i in 0..<3:
       let conn = connMngr.trackIncomingConn(
         proc(): Future[Connection] {.async.} =
-          return Connection.init(
+          return Connection.new(
             PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet(),
             Direction.In)
       )
@@ -258,7 +258,7 @@ suite "Connection Manager":
     # should timeout adding a connection over the limit
     let conn = connMngr.trackIncomingConn(
         proc(): Future[Connection] {.async.} =
-          return Connection.init(
+          return Connection.new(
             PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet(),
             Direction.In)
       )
@@ -270,13 +270,13 @@ suite "Connection Manager":
       allFutures(conns.mapIt( it.close() )))
 
   asyncTest "track total outgoing connection limits":
-    let connMngr = ConnManager.init(maxConnections = 3)
+    let connMngr = ConnManager.new(maxConnections = 3)
 
     var conns: seq[Connection]
     for i in 0..<3:
       let conn = await connMngr.trackOutgoingConn(
         proc(): Future[Connection] {.async.} =
-          return Connection.init(
+          return Connection.new(
             PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet(),
             Direction.In)
       )
@@ -287,7 +287,7 @@ suite "Connection Manager":
     expect TooManyConnectionsError:
       discard await connMngr.trackOutgoingConn(
           proc(): Future[Connection] {.async.} =
-            return Connection.init(
+            return Connection.new(
               PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet(),
               Direction.In)
         )
@@ -297,13 +297,13 @@ suite "Connection Manager":
       allFutures(conns.mapIt( it.close() )))
 
   asyncTest "track both incoming and outgoing total connections limits - fail on incoming":
-    let connMngr = ConnManager.init(maxConnections = 3)
+    let connMngr = ConnManager.new(maxConnections = 3)
 
     var conns: seq[Connection]
     for i in 0..<3:
       let conn = await connMngr.trackOutgoingConn(
         proc(): Future[Connection] {.async.} =
-          return Connection.init(
+          return Connection.new(
             PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet(),
             Direction.In)
       )
@@ -313,7 +313,7 @@ suite "Connection Manager":
     # should timeout adding a connection over the limit
     let conn = connMngr.trackIncomingConn(
         proc(): Future[Connection] {.async.} =
-          return Connection.init(
+          return Connection.new(
             PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet(),
             Direction.In)
       )
@@ -325,13 +325,13 @@ suite "Connection Manager":
       allFutures(conns.mapIt( it.close() )))
 
   asyncTest "track both incoming and outgoing total connections limits - fail on outgoing":
-    let connMngr = ConnManager.init(maxConnections = 3)
+    let connMngr = ConnManager.new(maxConnections = 3)
 
     var conns: seq[Connection]
     for i in 0..<3:
       let conn = connMngr.trackIncomingConn(
         proc(): Future[Connection] {.async.} =
-          return Connection.init(
+          return Connection.new(
             PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet(),
             Direction.In)
       )
@@ -343,7 +343,7 @@ suite "Connection Manager":
     expect TooManyConnectionsError:
       discard await connMngr.trackOutgoingConn(
           proc(): Future[Connection] {.async.} =
-            return Connection.init(
+            return Connection.new(
               PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet(),
               Direction.In)
         )
@@ -353,13 +353,13 @@ suite "Connection Manager":
       allFutures(conns.mapIt( it.close() )))
 
   asyncTest "track max incoming connection limits":
-    let connMngr = ConnManager.init(maxIn = 3)
+    let connMngr = ConnManager.new(maxIn = 3)
 
     var conns: seq[Connection]
     for i in 0..<3:
       let conn = connMngr.trackIncomingConn(
         proc(): Future[Connection] {.async.} =
-          return Connection.init(
+          return Connection.new(
             PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet(),
             Direction.In)
       )
@@ -370,7 +370,7 @@ suite "Connection Manager":
     # should timeout adding a connection over the limit
     let conn = connMngr.trackIncomingConn(
         proc(): Future[Connection] {.async.} =
-          return Connection.init(
+          return Connection.new(
             PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet(),
             Direction.In)
       )
@@ -382,13 +382,13 @@ suite "Connection Manager":
       allFutures(conns.mapIt( it.close() )))
 
   asyncTest "track max outgoing connection limits":
-    let connMngr = ConnManager.init(maxOut = 3)
+    let connMngr = ConnManager.new(maxOut = 3)
 
     var conns: seq[Connection]
     for i in 0..<3:
       let conn = await connMngr.trackOutgoingConn(
         proc(): Future[Connection] {.async.} =
-          return Connection.init(
+          return Connection.new(
             PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet(),
             Direction.In)
       )
@@ -399,7 +399,7 @@ suite "Connection Manager":
     expect TooManyConnectionsError:
       discard await connMngr.trackOutgoingConn(
           proc(): Future[Connection] {.async.} =
-            return Connection.init(
+            return Connection.new(
               PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet(),
               Direction.In)
         )
@@ -409,13 +409,13 @@ suite "Connection Manager":
       allFutures(conns.mapIt( it.close() )))
 
   asyncTest "track incoming max connections limits - fail on incoming":
-    let connMngr = ConnManager.init(maxOut = 3)
+    let connMngr = ConnManager.new(maxOut = 3)
 
     var conns: seq[Connection]
     for i in 0..<3:
       let conn = await connMngr.trackOutgoingConn(
         proc(): Future[Connection] {.async.} =
-          return Connection.init(
+          return Connection.new(
             PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet(),
             Direction.In)
       )
@@ -425,7 +425,7 @@ suite "Connection Manager":
     # should timeout adding a connection over the limit
     let conn = connMngr.trackIncomingConn(
         proc(): Future[Connection] {.async.} =
-          return Connection.init(
+          return Connection.new(
             PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet(),
             Direction.In)
       )
@@ -437,13 +437,13 @@ suite "Connection Manager":
       allFutures(conns.mapIt( it.close() )))
 
   asyncTest "track incoming max connections limits - fail on outgoing":
-    let connMngr = ConnManager.init(maxIn = 3)
+    let connMngr = ConnManager.new(maxIn = 3)
 
     var conns: seq[Connection]
     for i in 0..<3:
       let conn = connMngr.trackIncomingConn(
         proc(): Future[Connection] {.async.} =
-          return Connection.init(
+          return Connection.new(
             PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet(),
             Direction.In)
       )
@@ -455,7 +455,7 @@ suite "Connection Manager":
     expect TooManyConnectionsError:
       discard await connMngr.trackOutgoingConn(
           proc(): Future[Connection] {.async.} =
-            return Connection.init(
+            return Connection.new(
               PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet(),
               Direction.In)
         )
