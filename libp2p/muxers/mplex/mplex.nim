@@ -190,7 +190,7 @@ method handle*(m: Mplex) {.async, gcsafe.} =
     await m.close()
   trace "Stopped mplex handler", m
 
-proc init*(M: type Mplex,
+proc new*(M: type Mplex,
            conn: Connection,
            inTimeout, outTimeout: Duration = DefaultChanTimeout,
            maxChannCount: int = MaxChannelCount): Mplex =

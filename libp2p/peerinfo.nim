@@ -39,7 +39,7 @@ func shortLog*(p: PeerInfo): auto =
   )
 chronicles.formatIt(PeerInfo): shortLog(it)
 
-proc init*(
+proc new*(
   p: typedesc[PeerInfo],
   key: PrivateKey,
   addrs: openarray[MultiAddress] = [],
@@ -49,7 +49,7 @@ proc init*(
   {.raises: [Defect, PeerInfoError].} =
 
   let pubkey = try:
-      key.getKey().tryGet()
+      key.getPublicKey().tryGet()
     except CatchableError:
       raise newException(PeerInfoError, "invalid private key")
 

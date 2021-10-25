@@ -189,7 +189,7 @@ proc muxerHandler(
     await muxer.close()
     trace "Exception in muxer handler", conn, msg = exc.msg
 
-proc init*(
+proc new*(
   T: type MuxedUpgrade,
   identity: Identify,
   muxers: Table[string, MuxerProvider],

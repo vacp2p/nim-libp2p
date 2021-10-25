@@ -41,8 +41,8 @@ suite "Ping":
     pingProto1 = Ping.new()
     pingProto2 = Ping.new(handlePing)
 
-    msListen = newMultistream()
-    msDial = newMultistream()
+    msListen = MultistreamSelect.new()
+    msDial = MultistreamSelect.new()
 
     pingReceivedCount = 0
 
@@ -91,7 +91,7 @@ suite "Ping":
         buf: array[32, byte]
         fakebuf: array[32, byte]
       await conn.readExactly(addr buf[0], 32)
-      await conn.write(addr fakebuf[0], 32)
+      await conn.write(@fakebuf)
     fakePingProto.codec = PingCodec
     fakePingProto.handler = fakeHandle
 

@@ -186,8 +186,8 @@ proc connectOnce(p: PubSubPeer): Future[void] {.async.} =
     try:
       if p.onEvent != nil:
         p.onEvent(p, PubsubPeerEvent(kind: PubSubPeerEventKind.Disconnected))
-    except CancelledError:
-      raise
+    except CancelledError as exc:
+      raise exc
     except CatchableError as exc:
       debug "Errors during diconnection events", error = exc.msg
 
@@ -288,19 +288,4 @@ proc new*(
     onEvent: onEvent,
     codec: codec,
     peerId: peerId,
-  )
-
-proc newPubSubPeer*(
-  peerId: PeerID,
-  getConn: GetConn,
-  dropConn: DropConn,
-  onEvent: OnEvent,
-  codec: string): PubSubPeer {.deprecated: "use PubSubPeer.new".} =
-
-  PubSubPeer.new(
-    peerId,
-    getConn,
-    dropConn,
-    onEvent,
-    codec
   )
