@@ -348,7 +348,7 @@ suite "Connection Manager":
     for i in 0..<3:
       let conn = connMngr.trackOutgoingConn(
         proc(): Future[Connection] {.async.} =
-          return Connection.init(
+          return Connection.new(
             PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet(),
             Direction.In)
       )
@@ -416,7 +416,7 @@ suite "Connection Manager":
     for i in 0..<3:
       let conn = connMngr.trackOutgoingConn(
         proc(): Future[Connection] {.async.} =
-          return Connection.init(
+          return Connection.new(
             PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet(),
             Direction.In)
       )
@@ -426,7 +426,7 @@ suite "Connection Manager":
 
     let conn = connMngr.trackIncomingConn(
         proc(): Future[Connection] {.async.} =
-          return Connection.init(
+          return Connection.new(
             PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet(),
             Direction.In)
       )
@@ -441,7 +441,7 @@ suite "Connection Manager":
     for i in 0..<3:
       let conn = connMngr.trackOutgoingConn(
         proc(): Future[Connection] {.async.} =
-          return Connection.init(
+          return Connection.new(
             PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet(),
             Direction.In)
       )
@@ -451,7 +451,7 @@ suite "Connection Manager":
 
     let conn = connMngr.trackIncomingConn(
         proc(): Future[Connection] {.async.} =
-          return Connection.init(
+          return Connection.new(
             PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet(),
             Direction.In)
       )
