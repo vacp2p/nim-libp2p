@@ -18,8 +18,6 @@ import ../libp2p/[errors,
                   muxers/muxer,
                   muxers/mplex/lpchannel,
                   stream/lpstream,
-                  nameresolving/nameresolver,
-                  nameresolving/mockresolver,
                   stream/chronosstream,
                   transports/tcptransport]
 import ./helpers

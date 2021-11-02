@@ -14,7 +14,6 @@ import stew/assign2
 import chronicles
 import messages,
        ../../../peerid,
-       ../../../utility,
        ../../../protobuf/minprotobuf
 
 {.push raises: [Defect].}

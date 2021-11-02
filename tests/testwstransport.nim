@@ -1,14 +1,12 @@
 {.used.}
 
-import sequtils
-import chronos, stew/byteutils
+import chronos
 import ../libp2p/[stream/connection,
                   transports/transport,
                   transports/wstransport,
                   upgrademngrs/upgrade,
                   multiaddress,
-                  errors,
-                  wire]
+                  errors]
 
 import ./helpers, ./commontransport
 

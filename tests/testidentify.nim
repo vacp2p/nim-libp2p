@@ -1,5 +1,5 @@
 import options, bearssl
-import chronos, strutils, sequtils, sets, algorithm
+import chronos, sets
 import ../libp2p/[protocols/identify,
                   multiaddress,
                   peerinfo,

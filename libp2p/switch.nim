@@ -13,8 +13,7 @@ import std/[tables,
             options,
             sets,
             oids,
-            sugar,
-            math]
+            sugar]
 
 import chronos,
        chronicles,
@@ -22,7 +21,7 @@ import chronos,
 
 import stream/connection,
        transports/transport,
-       upgrademngrs/[upgrade, muxedupgrade],
+       upgrademngrs/upgrade,
        multistream,
        multiaddress,
        protocols/protocol,

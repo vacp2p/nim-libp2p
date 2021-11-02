@@ -1,17 +1,15 @@
 {.used.}
 
-import std/[streams, strutils, sets, sequtils, tables, algorithm]
-import chronos, stew/byteutils
+import std/[strutils, sequtils, tables]
+import chronos
 import ../libp2p/[stream/connection,
                   transports/transport,
-                  transports/tcptransport,
                   upgrademngrs/upgrade,
                   multiaddress,
                   errors,
                   nameresolving/nameresolver,
                   nameresolving/dnsresolver,
-                  nameresolving/mockresolver,
-                  wire]
+                  nameresolving/mockresolver]
 
 import ./helpers
 #

@@ -10,7 +10,7 @@
 {.push raises: [Defect].}
 
 import
-  std/[streams, strutils, sets, sequtils],
+  std/[streams, sets, sequtils],
   chronos, chronicles,
   dnsclientpkg/[protocol, types]
 

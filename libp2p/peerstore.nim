@@ -10,7 +10,7 @@
 {.push raises: [Defect].}
 
 import
-  std/[tables, sets, sequtils, options],
+  std/[tables, sets, options],
   ./crypto/crypto,
   ./protocols/identify,
   ./peerid, ./peerinfo,

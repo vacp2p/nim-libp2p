@@ -9,7 +9,7 @@
 
 {.push raises: [Defect].}
 
-import std/[sequtils, sets, hashes, tables]
+import std/[sets, hashes, tables]
 import chronos, chronicles, metrics, bearssl
 import ./pubsub,
        ./pubsubpeer,
@@ -19,8 +19,7 @@ import ./pubsub,
        ../../crypto/crypto,
        ../../stream/connection,
        ../../peerid,
-       ../../peerinfo,
-       ../../utility
+       ../../peerinfo
 
 logScope:
   topics = "libp2p floodsub"

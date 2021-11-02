@@ -10,7 +10,7 @@
 {.push raises: [Defect].}
 
 import
-  std/[streams, strutils, tables],
+  std/[tables],
   chronos, chronicles
 
 import nameresolver

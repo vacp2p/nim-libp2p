@@ -13,7 +13,7 @@ import std/[tables, sets, options]
 import chronos, chronicles, metrics
 import "."/[types]
 import ".."/[pubsubpeer]
-import "../../.."/[peerid, multiaddress, utility, switch]
+import "../../.."/[peerid, multiaddress, switch]
 
 declareGauge(libp2p_gossipsub_peers_scores, "the scores of the peers in gossipsub", labels = ["agent"])
 declareCounter(libp2p_gossipsub_bad_score_disconnection, "the number of peers disconnected by gossipsub", labels = ["agent"])

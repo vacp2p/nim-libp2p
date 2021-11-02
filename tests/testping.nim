@@ -1,10 +1,9 @@
 import options, bearssl
-import chronos, strutils
+import chronos
 import ../libp2p/[protocols/identify,
                   protocols/ping,
                   multiaddress,
                   peerinfo,
-                  wire,
                   peerid,
                   stream/connection,
                   multistream,

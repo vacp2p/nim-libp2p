@@ -37,4 +37,4 @@ export
   connection, multiaddress, crypto, lpstream,
   bufferstream, bearssl, muxer, mplex, transport,
   tcptransport, noise, errors, cid, multihash,
-  multicodec, builders, pubsub
+  multibase, multicodec, builders, pubsub

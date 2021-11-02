@@ -12,9 +12,9 @@
 import std/[tables, sequtils, sets, algorithm]
 import chronos, chronicles, metrics
 import "."/[types, scoring]
-import ".."/[pubsubpeer, peertable, timedcache, mcache, floodsub, pubsub]
+import ".."/[pubsubpeer, peertable, mcache, floodsub, pubsub]
 import "../rpc"/[messages]
-import "../../.."/[peerid, multiaddress, utility, switch]
+import "../../.."/[peerid, multiaddress, switch]
 
 declareGauge(libp2p_gossipsub_cache_window_size, "the number of messages in the cache")
 declareGauge(libp2p_gossipsub_peers_per_topic_mesh, "gossipsub peers per topic in mesh", labels = ["topic"])
