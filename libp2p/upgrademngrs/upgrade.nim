@@ -9,7 +9,7 @@
 
 {.push raises: [Defect].}
 
-import std/[options, sequtils]
+import std/[options, sequtils, strutils]
 import pkg/[chronos, chronicles, metrics]
 
 import ../stream/connection,
@@ -18,7 +18,8 @@ import ../stream/connection,
        ../multistream,
        ../peerstore,
        ../connmanager,
-       ../errors
+       ../errors,
+       ../utility
 
 export connmanager, connection, identify, secure, multistream
 

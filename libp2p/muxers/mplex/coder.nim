@@ -11,6 +11,7 @@
 
 import pkg/[chronos, nimcrypto/utils, chronicles, stew/byteutils]
 import ../../stream/connection,
+       ../../utility,
        ../../varint,
        ../../vbuffer,
        ../muxer
