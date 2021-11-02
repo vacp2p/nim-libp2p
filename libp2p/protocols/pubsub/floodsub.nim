@@ -19,6 +19,7 @@ import ./pubsub,
        ../../crypto/crypto,
        ../../stream/connection,
        ../../peerid,
+       ../../utility,
        ../../peerinfo
 
 logScope:

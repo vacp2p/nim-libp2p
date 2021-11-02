@@ -9,7 +9,7 @@
 
 {.push raises: [Defect].}
 
-import std/[sequtils, strutils, tables, hashes]
+import std/[sequtils, tables, hashes]
 import chronos, chronicles, nimcrypto/sha2, metrics
 import rpc/[messages, message, protobuf],
        ../../peerid,
