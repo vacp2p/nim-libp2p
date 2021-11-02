@@ -10,11 +10,12 @@
 {.push raises: [Defect].}
 
 import std/[tables, sequtils, sets, strutils]
-import chronos, chronicles, metrics
+import chronos, chronicles, metrics, bearssl
 import ./pubsubpeer,
        ./rpc/[message, messages, protobuf],
        ../../switch,
        ../protocol,
+       ../../crypto/crypto,
        ../../stream/connection,
        ../../peerid,
        ../../peerinfo,
@@ -106,6 +107,15 @@ type
     anonymize*: bool                   # if we omit fromPeer and seqno from RPC messages we send
     subscriptionValidator*: SubscriptionValidator # callback used to validate subscriptions
     topicsHigh*: int                  # the maximum number of topics a peer is allowed to subscribe to
+    maxMessageSize*: int          ##\ 
+      ## the maximum raw message size we'll globally allow
+      ## for finer tuning, check message size on topic validator
+      ##
+      ## sending a big message to a peer with a lower size limit can
+      ## lead to issues, from descoring to connection drops
+      ##
+      ## defaults to 1mB
+    rng*: ref BrHmacDrbgContext
 
     knownTopics*: HashSet[string]
 
@@ -283,7 +293,7 @@ proc getOrCreatePeer*(
     p.onPubSubPeerEvent(peer, event)
 
   # create new pubsub peer
-  let pubSubPeer = PubSubPeer.new(peerId, getConn, dropConn, onEvent, protos[0])
+  let pubSubPeer = PubSubPeer.new(peerId, getConn, dropConn, onEvent, protos[0], p.maxMessageSize)
   debug "created new pubsub peer", peerId
 
   p.peers[peerId] = pubSubPeer
@@ -538,6 +548,8 @@ proc init*[PubParams: object | bool](
   sign: bool = true,
   msgIdProvider: MsgIdProvider = defaultMsgIdProvider,
   subscriptionValidator: SubscriptionValidator = nil,
+  maxMessageSize: int = 1024 * 1024,
+  rng: ref BrHmacDrbgContext = newRng(),
   parameters: PubParams = false): P
   {.raises: [Defect, InitializationError].} =
   let pubsub =
@@ -550,6 +562,8 @@ proc init*[PubParams: object | bool](
         sign: sign,
         msgIdProvider: msgIdProvider,
         subscriptionValidator: subscriptionValidator,
+        maxMessageSize: maxMessageSize,
+        rng: rng,
         topicsHigh: int.high)
     else:
       P(switch: switch,
@@ -561,6 +575,8 @@ proc init*[PubParams: object | bool](
         msgIdProvider: msgIdProvider,
         subscriptionValidator: subscriptionValidator,
         parameters: parameters,
+        maxMessageSize: maxMessageSize,
+        rng: rng,
         topicsHigh: int.high)
 
   proc peerEventHandler(peerId: PeerId, event: PeerEvent) {.async.} =

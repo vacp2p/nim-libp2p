@@ -65,10 +65,6 @@ proc new*(
   bufferStream.initStream()
   bufferStream
 
-proc newBufferStream*(
-  timeout: Duration = DefaultConnectionTimeout): BufferStream {.deprecated: "use BufferStream.new".} =
-  return BufferStream.new(timeout)
-
 method pushData*(s: BufferStream, data: seq[byte]) {.base, async.} =
   ## Write bytes to internal read buffer, use this to fill up the
   ## buffer with data.

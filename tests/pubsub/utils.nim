@@ -26,7 +26,8 @@ proc generateNodes*(
   triggerSelf: bool = false,
   verifySignature: bool = libp2p_pubsub_verify,
   anonymize: bool = libp2p_pubsub_anonymize,
-  sign: bool = libp2p_pubsub_sign): seq[PubSub] =
+  sign: bool = libp2p_pubsub_sign,
+  maxMessageSize: int = 1024 * 1024): seq[PubSub] =
 
   for i in 0..<num:
     let switch = newStandardSwitch(secureManagers = secureManagers)
@@ -38,6 +39,7 @@ proc generateNodes*(
         sign = sign,
         msgIdProvider = msgIdProvider,
         anonymize = anonymize,
+        maxMessageSize = maxMessageSize,
         parameters = (var p = GossipSubParams.init(); p.floodPublish = false; p.historyLength = 20; p.historyGossip = 20; p))
       # set some testing params, to enable scores
       g.topicParams.mgetOrPut("foobar", TopicParams.init()).topicWeight = 1.0
@@ -51,6 +53,7 @@ proc generateNodes*(
         verifySignature = verifySignature,
         sign = sign,
         msgIdProvider = msgIdProvider,
+        maxMessageSize = maxMessageSize,
         anonymize = anonymize).PubSub
 
     switch.mount(pubsub)

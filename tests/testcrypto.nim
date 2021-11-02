@@ -12,6 +12,7 @@
 import unittest2
 import nimcrypto/[utils, sysrand]
 import ../libp2p/crypto/[crypto, chacha20poly1305, curve25519, hkdf]
+import bearssl
 
 when defined(nimHasUsed): {.used.}
 
@@ -545,3 +546,10 @@ suite "Key interface test suite":
 
     sha256.hkdf(salt, ikm, info, output)
     check output[0].toHex(true) == truth
+
+  test "shuffle":
+    var cards = ["Ace", "King", "Queen", "Jack", "Ten"]
+    var rng = (ref BrHmacDrbgContext)()
+    brHmacDrbgInit(addr rng[], addr sha256Vtable, nil, 0)
+    rng.shuffle(cards)
+    check cards == ["King", "Ten", "Ace", "Queen", "Jack"]
