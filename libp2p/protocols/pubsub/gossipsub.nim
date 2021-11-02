@@ -235,7 +235,12 @@ proc handleSubscribe*(g: GossipSub,
 
     # unsubscribe remote peer from the topic
     g.gossipsub.removePeer(topic, peer)
-    g.mesh.removePeer(topic, peer)
+
+    if g.mesh.hasPeer(topic, peer):
+      #against spec
+      g.mesh.removePeer(topic, peer)
+      g.pruned(peer, topic)
+
     g.fanout.removePeer(topic, peer)
     if peer.peerId in g.parameters.directPeers:
       g.explicit.removePeer(topic, peer)
