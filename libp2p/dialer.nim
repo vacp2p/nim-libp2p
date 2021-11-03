@@ -51,13 +51,7 @@ proc dialAndUpgrade(
   Future[Connection] {.async.} =
   debug "Dialing peer", peerId
 
-  # Avoid "cannot be captured as it would violate memory safety" errors in Nim-1.4.x.
-  var
-    transport: Transport
-    address: MultiAddress
-
-  for rawAddress in addrs:      # for each address
-    address = rawAddress
+  for address in addrs:      # for each address
     let
       hostname = address.getHostname()
       resolvedAddresses =
@@ -65,17 +59,20 @@ proc dialAndUpgrade(
         else: await self.nameResolver.resolveMAddress(address)
 
     for a in resolvedAddresses:      # for each resolved address
-      for t in self.transports: # for each transport
-        transport = t
-
-        if t.handles(a):   # check if it can dial it
+      for transport in self.transports: # for each transport
+        if transport.handles(a):   # check if it can dial it
           trace "Dialing address", address = $a, peerId, hostname
           let dialed = try:
               libp2p_total_dial_attempts.inc()
               # await a connection slot when the total
               # connection count is equal to `maxConns`
+              #
+              # Need to copy to avoid "cannot be captured" errors in Nim-1.4.x.
+              let
+                transportCopy = transport
+                addressCopy = a
               await self.connManager.trackOutgoingConn(
-                () => transport.dial(hostname, a)
+                () => transportCopy.dial(hostname, addressCopy)
               )
             except TooManyConnectionsError as exc:
               trace "Connection limit reached!"
