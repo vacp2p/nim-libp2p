@@ -20,7 +20,7 @@ nimble install libp2p@#master
 # A simple ping application
 We'll start by creating a simple application, which is starting two libp2p [switch](https://docs.libp2p.io/concepts/stream-multiplexing/#switch-swarm), and pinging each other using the [Ping](https://docs.libp2p.io/concepts/protocols/#ping) protocol.
 
-_You can extract the code from this tutorial by using `nim c -r tools/markdown_runner.nim examples/tutorial_1_connect.md`!_
+_TIP: You can extract the code from this tutorial by running `nim c -r tools/markdown_runner.nim examples/tutorial_1_connect.md` in the libp2p folder!_
 
 Let's create a `part1.nim`, and import our dependencies:
 ```nim

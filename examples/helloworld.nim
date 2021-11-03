@@ -13,7 +13,7 @@ type
 
 proc new(T: typedesc[TestProto]): T =
 
-  # every incoming connections will in handled in this closure
+  # every incoming connections will be in handled in this closure
   proc handle(conn: Connection, proto: string) {.async, gcsafe.} =
     echo "Got from remote - ", string.fromBytes(await conn.readLp(1024))
     await conn.writeLp("Roger p2p!")

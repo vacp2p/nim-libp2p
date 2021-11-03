@@ -138,9 +138,9 @@ proc readLoop(c: Chat) {.async.} =
         try:
           if line.startsWith("/") and "p2p" in line:
             await c.dialPeer(line)
-        except:
+        except CatchableError as exc:
           echo &"unable to dial remote peer {line}"
-          echo getCurrentExceptionMsg()
+          echo exc.msg
 
 proc readInput(wfd: AsyncFD) {.thread.} =
   ## This thread performs reading from `stdin` and sends data over

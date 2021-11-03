@@ -28,7 +28,7 @@ Theses two parts can be identical, but in our trivial protocol, the server will 
 Let's start with the server part:
 ```nim
 proc new(T: typedesc[TestProto]): T =
-  # every incoming connections will in handled in this closure
+  # every incoming connections will in be handled in this closure
   proc handle(conn: Connection, proto: string) {.async, gcsafe.} =
     echo "Got from remote - ", string.fromBytes(await conn.readLp(1024))
     # We must close the connections ourselves when we're done with it
