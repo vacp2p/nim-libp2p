@@ -30,7 +30,8 @@ type
 
 func `$`*(pid: PeerID): string =
   ## Return base58 encoded ``pid`` representation.
-  Base58.encode(pid.data)
+  # This unusual call syntax is used to avoid a strange Nim compilation error
+  base58.encode(Base58, pid.data)
 
 func shortLog*(pid: PeerId): string =
   ## Returns compact string representation of ``pid``.
