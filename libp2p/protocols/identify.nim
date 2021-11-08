@@ -215,3 +215,12 @@ proc mount*[Switch](i: Identify, s: Switch)
   i.init()
   i.peerInfo = s.peerInfo
   s.identify = i
+
+proc mount*[Switch](i: IdentifyPush, s: Switch)
+  {.gcsafe, raises: [Defect, LPError].} =
+
+  proc updateStore(peerId: PeerId, info: IdentifyInfo) {.async.} =
+    s.peerStore.updatePeerInfo(info)
+
+  i.identifyHandler = updateStore
+  i.init()
