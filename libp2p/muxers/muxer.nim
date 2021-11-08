@@ -58,9 +58,6 @@ proc new*(
   muxerProvider.init()
   muxerProvider
 
-proc newMuxerProvider*(creator: MuxerConstructor, codec: string): MuxerProvider {.gcsafe, deprecated: "use MuxerProvider.new".} =
-  MuxerProvider.new(creator, codec)
-
 method init(c: MuxerProvider) =
   proc handler(conn: Connection, proto: string) {.async, gcsafe, closure.} =
     trace "starting muxer handler", proto=proto, conn

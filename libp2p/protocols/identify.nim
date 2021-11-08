@@ -122,9 +122,6 @@ proc new*(T: typedesc[Identify], peerInfo: PeerInfo): T =
   identify.init()
   identify
 
-proc newIdentify*(peerInfo: PeerInfo): Identify {.deprecated: "use Identify.new".} =
-  Identify.new(peerInfo)
-
 method init*(p: Identify) =
   proc handle(conn: Connection, proto: string) {.async, gcsafe, closure.} =
     try:

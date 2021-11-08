@@ -16,6 +16,7 @@ import ./pubsub,
        ./timedcache,
        ./peertable,
        ./rpc/[message, messages],
+       ../../crypto/crypto,
        ../../stream/connection,
        ../../peerid,
        ../../peerinfo,
@@ -207,8 +208,7 @@ method initPubSub*(f: FloodSub)
   {.raises: [Defect, InitializationError].} =
   procCall PubSub(f).initPubSub()
   f.seen = TimedCache[MessageID].init(2.minutes)
-  var rng = newRng()
   f.seenSalt = newSeqUninitialized[byte](sizeof(Hash))
-  brHmacDrbgGenerate(rng[], f.seenSalt)
+  brHmacDrbgGenerate(f.rng[], f.seenSalt)
 
   f.init()

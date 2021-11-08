@@ -83,9 +83,6 @@ proc new*(T: typedesc[TestBufferStream], writeHandler: WriteHandler): T =
   testBufferStream.initStream()
   testBufferStream
 
-proc newBufferStream*(writeHandler: WriteHandler): TestBufferStream {.deprecated: "use TestBufferStream.new".}=
-  TestBufferStream.new(writeHandler)
-
 proc checkExpiringInternal(cond: proc(): bool {.raises: [Defect].} ): Future[bool] {.async, gcsafe.} =
   {.gcsafe.}:
     let start = Moment.now()

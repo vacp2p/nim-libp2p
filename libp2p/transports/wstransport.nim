@@ -34,7 +34,7 @@ type
   WsStream = ref object of Connection
     session: WSSession
 
-proc init*(T: type WsStream,
+proc new*(T: type WsStream,
            session: WSSession,
            dir: Direction,
            timeout = 10.minutes,
@@ -185,7 +185,7 @@ proc connHandler(self: WsTransport,
         await stream.close()
       raise exc
 
-  let conn = WsStream.init(stream, dir)
+  let conn = WsStream.new(stream, dir)
   conn.observedAddr = observedAddr
 
   self.connections[dir].add(conn)
@@ -239,6 +239,7 @@ method accept*(self: WsTransport): Future[Connection] {.async, gcsafe.} =
 
 method dial*(
   self: WsTransport,
+  hostname: string,
   address: MultiAddress): Future[Connection] {.async, gcsafe.} =
   ## dial a peer
   ##
@@ -251,6 +252,7 @@ method dial*(
       address.initTAddress().tryGet(),
       "",
       secure = secure,
+      hostName = hostname,
       flags = self.tlsFlags)
 
   try:

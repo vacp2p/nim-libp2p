@@ -282,7 +282,7 @@ proc newSwitch*(peerInfo: PeerInfo,
     transports: transports,
     connManager: connManager,
     peerStore: PeerStore.new(),
-    dialer: Dialer.new(peerInfo.peerId, connManager, transports, ms),
+    dialer: Dialer.new(peerInfo.peerId, connManager, transports, ms, nameResolver),
     nameResolver: nameResolver)
 
   switch.connManager.peerStore = switch.peerStore

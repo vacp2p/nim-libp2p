@@ -29,6 +29,3 @@ proc new*(T: typedesc[PlainText]): T =
   let plainText = T()
   plainText.init()
   plainText
-
-proc newPlainText*(): PlainText {.deprecated: "use PlainText.new".} =
-  PlainText.new()

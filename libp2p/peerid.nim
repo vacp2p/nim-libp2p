@@ -196,21 +196,6 @@ func write*(vb: var VBuffer, pid: PeerID) =
   ## Write PeerID value ``peerid`` to buffer ``vb``.
   vb.writeSeq(pid.data)
 
-func initProtoField*(index: int, pid: PeerID): ProtoField {.deprecated.} =
-  ## Initialize ProtoField with PeerID ``value``.
-  initProtoField(index, pid.data)
-
-func getValue*(data: var ProtoBuffer, field: int, value: var PeerID): int {.
-     deprecated.} =
-  ## Read ``PeerID`` from ProtoBuf's message and validate it.
-  var pid: PeerID
-  result = getLengthValue(data, field, pid.data)
-  if result > 0:
-    if not pid.validate():
-      result = -1
-    else:
-      value = pid
-
 func write*(pb: var ProtoBuffer, field: int, pid: PeerID) =
   ## Write PeerID value ``peerid`` to object ``pb`` using ProtoBuf's encoding.
   write(pb, field, pid.data)

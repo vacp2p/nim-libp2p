@@ -115,13 +115,6 @@ proc connHandler*(self: TcpTransport,
 
   return conn
 
-proc init*(
-  T: typedesc[TcpTransport],
-  flags: set[ServerFlags] = {},
-  upgrade: Upgrade): T {.deprecated: "use .new".} =
-
-  T.new(flags, upgrade)
-
 proc new*(
   T: typedesc[TcpTransport],
   flags: set[ServerFlags] = {},
@@ -239,6 +232,7 @@ method accept*(self: TcpTransport): Future[Connection] {.async, gcsafe.} =
 
 method dial*(
   self: TcpTransport,
+  hostname: string,
   address: MultiAddress): Future[Connection] {.async, gcsafe.} =
   ## dial a peer
   ##

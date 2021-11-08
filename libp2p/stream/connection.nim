@@ -151,7 +151,7 @@ proc timeoutMonitor(s: Connection) {.async, gcsafe.} =
     if not await s.pollActivity():
       return
 
-proc init*(C: type Connection,
+proc new*(C: type Connection,
            peerId: PeerId,
            dir: Direction,
            timeout: Duration = DefaultConnectionTimeout,
