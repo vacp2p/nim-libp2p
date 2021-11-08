@@ -199,6 +199,7 @@ method accept*(self: TcpTransport): Future[Connection] {.async, gcsafe.} =
 
 method dial*(
   self: TcpTransport,
+  hostname: string,
   address: MultiAddress): Future[Connection] {.async, gcsafe.} =
   ## dial a peer
   ##

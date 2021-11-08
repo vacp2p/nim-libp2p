@@ -59,7 +59,7 @@ suite "Name resolving":
     var resolver {.threadvar.}: MockResolver
 
     proc testOne(input: string, output: seq[Multiaddress]): bool =
-      let resolved = waitFor resolver.resolveMAddresses(@[Multiaddress.init(input).tryGet()])
+      let resolved = waitFor resolver.resolveMAddress(Multiaddress.init(input).tryGet())
       if resolved != output:
         echo "Expected ", output
         echo "Got ", resolved
@@ -89,18 +89,6 @@ suite "Name resolving":
       resolver.ipResponses[("localhost", true)] = @["::1"]
 
       check testOne("/ip6/::1/tcp/0", "/ip6/::1/tcp/0")
-
-    asyncTest "test multiple resolve":
-      resolver.ipResponses[("localhost", false)] = @["127.0.0.1"]
-      resolver.ipResponses[("localhost", true)] = @["::1"]
-
-      let resolved = waitFor resolver.resolveMAddresses(@[
-        Multiaddress.init("/dns/localhost/udp/0").tryGet(),
-        Multiaddress.init("/dns4/localhost/udp/0").tryGet(),
-        Multiaddress.init("/dns6/localhost/udp/0").tryGet(),
-        ])
-
-      check resolved == @[Multiaddress.init("/ip4/127.0.0.1/udp/0").tryGet(), Multiaddress.init("/ip6/::1/udp/0").tryGet()]
 
     asyncTest "dnsaddr recursive test":
       resolver.txtResponses["_dnsaddr.bootstrap.libp2p.io"] = @[

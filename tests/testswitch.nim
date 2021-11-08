@@ -21,7 +21,8 @@ import ../libp2p/[errors,
                   nameresolving/nameresolver,
                   nameresolving/mockresolver,
                   stream/chronosstream,
-                  transports/tcptransport]
+                  transports/tcptransport,
+                  transports/wstransport]
 import ./helpers
 
 const
@@ -463,7 +464,7 @@ suite "Switch":
 
     let switch1 = newStandardSwitch()
 
-    let rng = newRng()
+    let rng = crypto.newRng()
     # use same private keys to emulate two connection from same peer
     let privKey = PrivateKey.random(rng[]).tryGet()
     let switch2 = newStandardSwitch(
@@ -530,7 +531,7 @@ suite "Switch":
   asyncTest "e2e should allow dropping peer from connection events":
     var awaiters: seq[Future[void]]
 
-    let rng = newRng()
+    let rng = crypto.newRng()
     # use same private keys to emulate two connection from same peer
     let
       privateKey = PrivateKey.random(rng[]).tryGet()
@@ -573,7 +574,7 @@ suite "Switch":
   asyncTest "e2e should allow dropping multiple connections for peer from connection events":
     var awaiters: seq[Future[void]]
 
-    let rng = newRng()
+    let rng = crypto.newRng()
     # use same private keys to emulate two connection from same peer
     let
       privateKey = PrivateKey.random(rng[]).tryGet()
@@ -901,5 +902,79 @@ suite "Switch":
       switch1.peerStore.addressBook.get(switch2.peerInfo.peerId) == switch2.peerInfo.addrs.toHashSet()
       switch2.peerStore.addressBook.get(switch1.peerInfo.peerId) == switch1.peerInfo.addrs.toHashSet()
 
-      switch1.peerStore.addressBook.get(switch2.peerInfo.peerId) == switch2.peerInfo.addrs.toHashSet()
-      switch2.peerStore.addressBook.get(switch1.peerInfo.peerId) == switch1.peerInfo.addrs.toHashSet()
+      switch1.peerStore.protoBook.get(switch2.peerInfo.peerId) == switch2.peerInfo.protocols.toHashSet()
+      switch2.peerStore.protoBook.get(switch1.peerInfo.peerId) == switch1.peerInfo.protocols.toHashSet()
+
+  asyncTest "e2e dial dns4 address":
+    var awaiters: seq[Future[void]]
+    let resolver = MockResolver.new()
+    resolver.ipResponses[("localhost", false)] = @["127.0.0.1"]
+    resolver.ipResponses[("localhost", true)] = @["::1"]
+
+    let
+      srcSwitch = newStandardSwitch(nameResolver = resolver)
+      destSwitch = newStandardSwitch()
+
+    awaiters.add(await destSwitch.start())
+    awaiters.add(await srcSwitch.start())
+    await allFuturesThrowing(awaiters)
+
+    let testAddr = MultiAddress.init("/dns4/localhost/").tryGet() &
+                    destSwitch.peerInfo.addrs[0][1].tryGet()
+
+    await srcSwitch.connect(destSwitch.peerInfo.peerId, @[testAddr])
+    check srcSwitch.isConnected(destSwitch.peerInfo.peerId)
+
+    await destSwitch.stop()
+    await srcSwitch.stop()
+
+  asyncTest "e2e dial dnsaddr with multiple transports":
+    var awaiters: seq[Future[void]]
+    let resolver = MockResolver.new()
+
+    let
+      wsAddress = MultiAddress.init("/ip4/127.0.0.1/tcp/0/ws").tryGet()
+      tcpAddress = MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet()
+
+      srcTcpSwitch = newStandardSwitch(nameResolver = resolver)
+      srcWsSwitch =
+        SwitchBuilder.new()
+        .withAddress(wsAddress)
+        .withRng(crypto.newRng())
+        .withMplex()
+        .withTransport(proc (upgr: Upgrade): Transport = WsTransport.new(upgr))
+        .withNameResolver(resolver)
+        .withNoise()
+        .build()
+
+      destSwitch =
+        SwitchBuilder.new()
+        .withAddresses(@[tcpAddress, wsAddress])
+        .withRng(crypto.newRng())
+        .withMplex()
+        .withTransport(proc (upgr: Upgrade): Transport = WsTransport.new(upgr))
+        .withTcpTransport()
+        .withNoise()
+        .build()
+
+    awaiters.add(await destSwitch.start())
+    awaiters.add(await srcTcpSwitch.start())
+    awaiters.add(await srcWsSwitch.start())
+    await allFuturesThrowing(awaiters)
+
+    resolver.txtResponses["_dnsaddr.test.io"] = @[
+      "dnsaddr=/ip4/127.0.0.1" & $destSwitch.peerInfo.addrs[1][1].tryGet() & "/ws",
+      "dnsaddr=/ip4/127.0.0.1" & $destSwitch.peerInfo.addrs[0][1].tryGet()
+    ]
+
+    let testAddr = MultiAddress.init("/dnsaddr/test.io/").tryGet()
+
+    await srcTcpSwitch.connect(destSwitch.peerInfo.peerId, @[testAddr])
+    check srcTcpSwitch.isConnected(destSwitch.peerInfo.peerId)
+
+    await srcWsSwitch.connect(destSwitch.peerInfo.peerId, @[testAddr])
+    check srcWsSwitch.isConnected(destSwitch.peerInfo.peerId)
+
+    await destSwitch.stop()
+    await srcWsSwitch.stop()
+    await srcTcpSwitch.stop()
