@@ -239,3 +239,11 @@ method close*(m: Mplex) {.async, gcsafe.} =
   m.channels[true].clear()
 
   trace "Closed mplex", m
+
+proc mount*[Switch](s: Switch, T: typedesc[Mplex], inTimeout = 5.minutes, outTimeout = 5.minutes) =
+  proc newMuxer(conn: Connection): Muxer =
+    Mplex.new(
+      conn,
+      inTimeout = inTimeout,
+      outTimeout = outTimeout)
+  s.muxers[MplexCodec] = MuxerProvider.new(newMuxer, MplexCodec)

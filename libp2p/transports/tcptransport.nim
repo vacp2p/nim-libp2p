@@ -127,6 +127,14 @@ proc new*(
   inc getTcpTransportTracker().opened
   return transport
 
+proc mount*[Switch](s: Switch,
+  T: typedesc[TcpTransport],
+  flags: set[ServerFlags] = {}) =
+
+  let transp = T.new(flags, s.getUpgrade())
+  s.transports &= transp
+
+
 method start*(
   self: TcpTransport,
   ma: MultiAddress) {.async.} =

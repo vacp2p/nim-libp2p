@@ -59,9 +59,12 @@ type
       peerInfo*: PeerInfo
       connManager*: ConnManager
       transports*: seq[Transport]
+      muxers*: Table[string, MuxerProvider]
+      secureManagers*: seq[Secure]
       ms*: MultistreamSelect
       acceptFuts: seq[Future[void]]
       dialer*: Dial
+      identify*: Identify
       peerStore*: PeerStore
       nameResolver*: NameResolver
 
@@ -126,7 +129,7 @@ proc dial*(
   proto: string): Future[Connection] =
   dial(s, peerId, addrs, @[proto])
 
-proc mount*[T: LPProtocol](s: Switch, proto: T, matcher: Matcher = nil)
+proc mount*(s: Switch, proto: LPProtocol, matcher: Matcher = nil)
   {.gcsafe, raises: [Defect, LPError].} =
   if isNil(proto.handler):
     raise newException(LPError,
@@ -138,6 +141,12 @@ proc mount*[T: LPProtocol](s: Switch, proto: T, matcher: Matcher = nil)
 
   s.ms.addHandler(proto.codecs, proto, matcher)
   s.peerInfo.protocols.add(proto.codec)
+
+proc mount*(s: Switch, T: typedesc[LPProtocol])
+  {.gcsafe, raises: [Defect, LPError].} =
+  let t = T.new()
+  t.mount(s)
+  s.mount(t)
 
 proc upgradeMonitor(conn: Connection, upgrades: AsyncSemaphore) {.async.} =
   ## monitor connection for upgrades
@@ -234,6 +243,11 @@ proc stop*(s: Switch) {.async.} =
   trace "Switch stopped"
 
 proc start*(s: Switch): Future[seq[Future[void]]] {.async, gcsafe.} =
+  s.dialer = Dialer.new(s.peerInfo.peerId, s.connManager, s.transports, s.ms, s.nameResolver)
+  s.peerStore = PeerStore.new()
+  s.connManager.peerStore = s.peerStore
+  #TODO do some sanity checks here
+
   trace "starting switch for peer", peerInfo = s.peerInfo
   var startFuts: seq[Future[void]]
   for t in s.transports: # for each transport
@@ -255,6 +269,26 @@ proc start*(s: Switch): Future[seq[Future[void]]] {.async, gcsafe.} =
   debug "Started libp2p node", peer = s.peerInfo
   return startFuts # listen for incoming connections
 
+proc getUpgrade*(s: Switch): Upgrade =
+  MuxedUpgrade.new(s.identify, s.muxers, s.secureManagers, s.connManager, s.ms)
+
+proc new*(
+  T: typedesc[Switch],
+  peerInfo: PeerInfo,
+  ms = MultistreamSelect.new()): T =
+  T(
+    peerInfo: peerInfo,
+    ms: ms)
+
+proc new*(T: typedesc[Switch],
+  addrs: seq[MultiAddress],
+  rng = newRng()): T =
+
+  let
+    secKey = PrivateKey.random(rng[])
+    peerInfo = PeerInfo.new(secKey.tryGet(), addrs)
+  T.new(peerInfo)
+
 proc newSwitch*(peerInfo: PeerInfo,
                 transports: seq[Transport],
                 identity: Identify,
@@ -263,7 +297,7 @@ proc newSwitch*(peerInfo: PeerInfo,
                 connManager: ConnManager,
                 ms: MultistreamSelect,
                 nameResolver: NameResolver = nil): Switch
-                {.raises: [Defect, LPError].} =
+                {.raises: [Defect, LPError], deprecated.} =
   if secureManagers.len == 0:
     raise newException(LPError, "Provide at least one secure manager")
 

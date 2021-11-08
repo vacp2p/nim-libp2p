@@ -208,3 +208,10 @@ proc init*(p: IdentifyPush) =
 proc push*(p: IdentifyPush, peerInfo: PeerInfo, conn: Connection) {.async.} =
   var pb = encodeMsg(peerInfo, conn.observedAddr)
   await conn.writeLp(pb.buffer)
+
+proc mount*[Switch](i: Identify, s: Switch)
+  {.gcsafe, raises: [Defect, LPError].} =
+
+  i.init()
+  i.peerInfo = s.peerInfo
+  s.identify = i
