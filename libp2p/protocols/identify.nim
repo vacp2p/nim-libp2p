@@ -44,6 +44,7 @@ type
     protoVersion*: Option[string]
     agentVersion*: Option[string]
     protos*: seq[string]
+    signedPeerRecord*: Option[Envelope]
 
   Identify* = ref object of LPProtocol
     peerInfo*: PeerInfo
@@ -76,6 +77,14 @@ proc encodeMsg*(peerInfo: PeerInfo, observedAddr: Multiaddress): ProtoBuffer
   else:
     peerInfo.agentVersion
   result.write(6, agentVersion)
+
+  ## Optionally populate signedPeerRecord field.
+  ## See https://github.com/libp2p/go-libp2p/blob/ddf96ce1cfa9e19564feb9bd3e8269958bbc0aba/p2p/protocol/identify/pb/identify.proto for reference.
+  if peerInfo.signedPeerRecord.isSome():
+    let sprBuff = peerInfo.signedPeerRecord.get().encode()
+    if sprBuff.isOk():
+      result.write(8, sprBuff.get())
+
   result.finish()
 
 proc decodeMsg*(buf: seq[byte]): Option[IdentifyInfo] =
@@ -85,6 +94,7 @@ proc decodeMsg*(buf: seq[byte]): Option[IdentifyInfo] =
     oaddr: MultiAddress
     protoVersion: string
     agentVersion: string
+    signedPeerRecord: Envelope
 
   var pb = initProtoBuffer(buf)
 
@@ -95,8 +105,11 @@ proc decodeMsg*(buf: seq[byte]): Option[IdentifyInfo] =
   let r5 = pb.getField(5, protoVersion)
   let r6 = pb.getField(6, agentVersion)
 
+  let r8 = pb.getSignedPeerRecord(8, signedPeerRecord)
+
   let res = r1.isOk() and r2.isOk() and r3.isOk() and
-            r4.isOk() and r5.isOk() and r6.isOk()
+            r4.isOk() and r5.isOk() and r6.isOk() and
+            r8.isOk()
 
   if res:
     if r1.get():
@@ -107,11 +120,14 @@ proc decodeMsg*(buf: seq[byte]): Option[IdentifyInfo] =
       iinfo.protoVersion = some(protoVersion)
     if r6.get():
       iinfo.agentVersion = some(agentVersion)
+    if r8.get():
+      iinfo.signedPeerRecord = some(signedPeerRecord)
     debug "decodeMsg: decoded message", pubkey = ($pubKey).shortLog,
           addresses = $iinfo.addrs, protocols = $iinfo.protos,
           observable_address = $iinfo.observedAddr,
           proto_version = $iinfo.protoVersion,
-          agent_version = $iinfo.agentVersion
+          agent_version = $iinfo.agentVersion,
+          signedPeerRecord = $iinfo.signedPeerRecord
     some(iinfo)
   else:
     trace "decodeMsg: failed to decode received message"

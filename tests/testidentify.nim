@@ -75,6 +75,7 @@ suite "Identify":
       check id.protoVersion.get() == ProtoVersion
       check id.agentVersion.get() == AgentVersion
       check id.protos == @["/test/proto1/1.0.0", "/test/proto2/1.0.0"]
+      check id.signedPeerRecord.get() == remotePeerInfo.signedPeerRecord.get()
 
     asyncTest "custom agent version":
       const customAgentVersion = "MY CUSTOM AGENT STRING"
@@ -98,6 +99,7 @@ suite "Identify":
       check id.protoVersion.get() == ProtoVersion
       check id.agentVersion.get() == customAgentVersion
       check id.protos == @["/test/proto1/1.0.0", "/test/proto2/1.0.0"]
+      check id.signedPeerRecord.get() == remotePeerInfo.signedPeerRecord.get()
 
     asyncTest "handle failed identify":
       msListen.addHandler(IdentifyCodec, identifyProto1)
