@@ -18,6 +18,7 @@ import ../protobuf/minprotobuf,
        ../crypto/crypto,
        ../multiaddress,
        ../protocols/protocol,
+       ../signed_envelope,
        ../utility,
        ../errors
 
@@ -29,6 +30,7 @@ const
   IdentifyPushCodec* = "/ipfs/id/push/1.0.0"
   ProtoVersion* = "ipfs/0.1.0"
   AgentVersion* = "nim-libp2p/0.0.1"
+  PeerRecordEnvelopeDomain* = "libp2p-peer-record"
 
 type
   IdentifyError* = object of LPError
@@ -43,6 +45,7 @@ type
     observedAddr*: Option[MultiAddress]
     protoVersion*: Option[string]
     agentVersion*: Option[string]
+    signedPeerRecord*: Option[Envelope]
     protos*: seq[string]
 
   Identify* = ref object of LPProtocol
@@ -85,6 +88,7 @@ proc decodeMsg*(buf: seq[byte]): Option[IdentifyInfo] =
     oaddr: MultiAddress
     protoVersion: string
     agentVersion: string
+    signedPeerRecord: seq[byte]
 
   var pb = initProtoBuffer(buf)
 
@@ -94,9 +98,11 @@ proc decodeMsg*(buf: seq[byte]): Option[IdentifyInfo] =
   let r4 = pb.getField(4, oaddr)
   let r5 = pb.getField(5, protoVersion)
   let r6 = pb.getField(6, agentVersion)
+  let r7 = pb.getField(8, signedPeerRecord)
 
   let res = r1.isOk() and r2.isOk() and r3.isOk() and
-            r4.isOk() and r5.isOk() and r6.isOk()
+            r4.isOk() and r5.isOk() and r6.isOk() and
+            r7.isOk()
 
   if res:
     if r1.get():
@@ -107,6 +113,13 @@ proc decodeMsg*(buf: seq[byte]): Option[IdentifyInfo] =
       iinfo.protoVersion = some(protoVersion)
     if r6.get():
       iinfo.agentVersion = some(agentVersion)
+    if r7.get():
+      let decodedEnvelope = decodeEnvelope(signedPeerRecord, PeerRecordEnvelopeDomain)
+      if decodedEnvelope.isOk():
+        iinfo.signedPeerRecord = some(decodedEnvelope.get())
+        echo "yey"
+      else:
+        echo "no :'(", decodedEnvelope.error()
     debug "decodeMsg: decoded message", pubkey = ($pubKey).shortLog,
           addresses = $iinfo.addrs, protocols = $iinfo.protos,
           observable_address = $iinfo.observedAddr,
