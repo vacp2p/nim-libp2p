@@ -139,6 +139,7 @@ type
     disconnectBadPeers*: bool
 
   BackoffTable* = Table[string, Table[PeerID, Moment]]
+  ValidationSeenTable* = Table[MessageID, HashSet[PubSubPeer]]
 
   GossipSub* = ref object of FloodSub
     mesh*: PeerTable                           # peers that we send messages to when we are subscribed to the topic
@@ -150,6 +151,7 @@ type
     gossip*: Table[string, seq[ControlIHave]]  # pending gossip
     control*: Table[string, ControlMessage]    # pending control messages
     mcache*: MCache                            # messages cache
+    validationSeen*: ValidationSeenTable       # peers who sent us message in validation
     heartbeatFut*: Future[void]                 # cancellation future for heartbeat interval
     heartbeatRunning*: bool
 

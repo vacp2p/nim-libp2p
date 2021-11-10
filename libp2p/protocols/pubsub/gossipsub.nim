@@ -295,7 +295,9 @@ method rpcHandler*(g: GossipSub,
 
   for i in 0..<rpcMsg.messages.len():                         # for every message
     template msg: untyped = rpcMsg.messages[i]
-    let msgId = g.msgIdProvider(msg)
+    let
+      msgId = g.msgIdProvider(msg)
+      msgIdSalted = msgId & g.seenSalt
 
     # addSeen adds salt to msgId to avoid
     # remote attacking the hash function
@@ -306,8 +308,13 @@ method rpcHandler*(g: GossipSub,
       # score only if messages are not too old.
       g.rewardDelivered(peer, msg.topicIDs, false)
 
+      if msgIdSalted in g.validationSeen:
+        g.validationSeen[msgIdSalted].incl(peer)
+
       # onto the next message
       continue
+
+    g.validationSeen[msgIdSalted] = toHashSet([peer])
 
     # avoid processing messages we are not interested in
     if msg.topicIDs.allIt(it notin g.topics):
@@ -332,6 +339,10 @@ method rpcHandler*(g: GossipSub,
     # as we have a "lax" policy and allow signed messages
 
     let validation = await g.validate(msg)
+
+    var seenPeers: HashSet[PubSubPeer]
+    discard g.validationSeen.pop(msgIdSalted, seenPeers)
+
     case validation
     of ValidationResult.Reject:
       debug "Dropping message after validation, reason: reject",
@@ -359,6 +370,10 @@ method rpcHandler*(g: GossipSub,
       g.mesh.withValue(t, peers): toSendPeers.incl(peers[])
 
       await handleData(g, t, msg.data)
+
+    # Don't send it to source peer, or peers that
+    # sent it during validation
+    toSendPeers.excl(seenPeers)
 
     # In theory, if topics are the same in all messages, we could batch - we'd
     # also have to be careful to only include validated messages
