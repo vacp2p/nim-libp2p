@@ -626,14 +626,6 @@ suite "GossipSub":
 
     await bFinished
 
-    check:
-      "foobar" in gossip1.gossipsub
-      "foobar" in gossip2.gossipsub
-      gossip1.mesh.hasPeerID("foobar", gossip2.peerInfo.peerId)
-      not gossip1.fanout.hasPeerID("foobar", gossip2.peerInfo.peerId)
-      gossip2.mesh.hasPeerID("foobar", gossip1.peerInfo.peerId)
-      not gossip2.fanout.hasPeerID("foobar", gossip1.peerInfo.peerId)
-
     await allFuturesThrowing(
       nodes[0].switch.stop(),
       nodes[1].switch.stop(),
