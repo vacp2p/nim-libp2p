@@ -8,7 +8,7 @@ suite "Signed envelope":
       rng = newRng()
       privKey = PrivateKey.random(rng[]).tryGet()
       envelope = Envelope.init(privKey, @[byte 12, 0], "payload".toBytes(), "domain").tryGet()
-      buffer = envelope.encode().tryGet().buffer
+      buffer = envelope.encode().tryGet()
       decodedEnvelope = Envelope.decode(buffer, "domain").tryGet()
       wrongDomain = Envelope.decode(buffer, "wdomain")
 
