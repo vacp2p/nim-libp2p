@@ -314,8 +314,6 @@ method rpcHandler*(g: GossipSub,
       # onto the next message
       continue
 
-    g.validationSeen[msgIdSalted] = toHashSet([peer])
-
     # avoid processing messages we are not interested in
     if msg.topicIDs.allIt(it notin g.topics):
       debug "Dropping message of topic without subscription", msgId = shortLog(msgId), peer
@@ -337,6 +335,10 @@ method rpcHandler*(g: GossipSub,
 
     # g.anonymize needs no evaluation when receiving messages
     # as we have a "lax" policy and allow signed messages
+
+    # Be careful not to fill the validationSeen table
+    # (eg, pop everything you put in it)
+    g.validationSeen[msgIdSalted] = toHashSet([peer])
 
     let validation = await g.validate(msg)
 
