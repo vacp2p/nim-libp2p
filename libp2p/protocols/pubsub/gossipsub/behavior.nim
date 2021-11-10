@@ -156,24 +156,30 @@ proc handleGraft*(g: GossipSub,
 
   return prunes
 
-proc getPeers(prune: ControlPrune, peer: PubSubPeer): seq[PeerRecord] =
-  var routingRecords: seq[PeerRecord]
+proc getPeers(prune: ControlPrune, peer: PubSubPeer): seq[(PeerId, Option[PeerRecord])] =
+  var routingRecords: seq[(PeerId, Option[PeerRecord])]
   for record in prune.peers:
-    let envelope = Envelope.decode(record.signedPeerRecord, "libp2p-routing-state")
-    if envelope.isErr:
-      debug "peer sent invalid envelope", peer, error=envelope.error
-      continue
+    let peerRecord =
+      if record.signedPeerRecord.len == 0:
+        none(PeerRecord)
+      else:
+        let envelope = Envelope.decode(record.signedPeerRecord, "libp2p-routing-state")
+        if envelope.isErr:
+          info "peer sent invalid envelope", peer, error=envelope.error
+          none(PeerRecord)
+        else:
+          if not record.peerID.match(envelope.get().publicKey):
+            info "peer sent envelope with wrong public key", peer
+            none(PeerRecord)
+          else:
+            let signedRecord = PeerRecord.decode(envelope.get().payload)
+            if signedRecord.isErr:
+              info "peer sent invalid record", peer, error=signedRecord.error
+              none(PeerRecord)
+            else:
+              some(signedRecord.get())
 
-    if not record.peerID.match(envelope.get().publicKey):
-      debug "peer sent envelope with wrong public key", peer
-      continue
-
-    let signedRecord = PeerRecord.decode(envelope.get().payload)
-    if signedRecord.isErr:
-      debug "peer sent invalid record", peer, error=signedRecord.error
-      continue
-
-    routingRecords.add(signedRecord.get())
+    routingRecords.add((record.peerId, peerRecord))
 
   routingRecords
 
@@ -205,7 +211,7 @@ proc handlePrune*(g: GossipSub, peer: PubSubPeer, prunes: seq[ControlPrune]) {.r
 
     if peer.score > g.parameters.gossipThreshold and prune.peers.len > 0:
       let routingRecords = prune.getPeers(peer)
-      echo routingRecords
+      #TODO do something with this
 
 proc handleIHave*(g: GossipSub,
                  peer: PubSubPeer,
