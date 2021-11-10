@@ -37,6 +37,7 @@ logScope:
 
 declareCounter(libp2p_gossipsub_failed_publish, "number of failed publish")
 declareCounter(libp2p_gossipsub_invalid_topic_subscription, "number of invalid topic subscriptions that happened")
+declareCounter(libp2p_gossipsub_duplicate_during_validation, "number of duplicates received during message validation")
 
 proc init*(_: type[GossipSubParams]): GossipSubParams =
   GossipSubParams(
@@ -344,6 +345,7 @@ method rpcHandler*(g: GossipSub,
 
     var seenPeers: HashSet[PubSubPeer]
     discard g.validationSeen.pop(msgIdSalted, seenPeers)
+    libp2p_gossipsub_duplicate_during_validation.inc(seenPeers.len - 1)
 
     case validation
     of ValidationResult.Reject:
