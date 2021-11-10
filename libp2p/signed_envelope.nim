@@ -49,7 +49,10 @@ proc getSignatureBuffer(e: Envelope): seq[byte] =
   
   buffer.buffer
 
-proc decodeEnvelope*(buf: seq[byte], domain: string): Result[Envelope, EnvelopeError] =
+proc decode*(T: typedesc[Envelope],
+  buf: seq[byte],
+  domain: string): Result[Envelope, EnvelopeError] =
+
   let pb = initProtoBuffer(buf)
   var envelope = Envelope()
 
@@ -64,10 +67,11 @@ proc decodeEnvelope*(buf: seq[byte], domain: string): Result[Envelope, EnvelopeE
   else:
     ok(envelope)
 
-proc createEnvelope*(privateKey: PrivateKey,
-                     payloadType: seq[byte],
-                     payload: seq[byte],
-                     domain: string): Result[Envelope, CryptoError] =
+proc new*(T: typedesc[Envelope],
+    privateKey: PrivateKey,
+    payloadType: seq[byte],
+    payload: seq[byte],
+    domain: string): Result[Envelope, CryptoError] =
   var envelope = Envelope(
     publicKey: ? privateKey.getPublicKey(),
     domain: domain,
@@ -79,7 +83,7 @@ proc createEnvelope*(privateKey: PrivateKey,
 
   ok(envelope)
 
-proc encodeEnvelope*(env: Envelope): Result[ProtoBuffer, CryptoError] =
+proc encode*(env: Envelope): Result[ProtoBuffer, CryptoError] =
   var pb = initProtoBuffer()
 
   try:
