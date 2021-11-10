@@ -345,7 +345,7 @@ method rpcHandler*(g: GossipSub,
 
     var seenPeers: HashSet[PubSubPeer]
     discard g.validationSeen.pop(msgIdSalted, seenPeers)
-    libp2p_gossipsub_duplicate_during_validation.inc(seenPeers.len - 1)
+    libp2p_gossipsub_duplicate_during_validation.inc(seenPeers.len.float - 1)
 
     case validation
     of ValidationResult.Reject:
