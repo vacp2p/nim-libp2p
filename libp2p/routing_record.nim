@@ -47,7 +47,7 @@ proc decode*(
       var addressInfo = AddressInfo()
       let subProto = initProtoBuffer(address)
       if ? subProto.getField(1, addressInfo.address) == false:
-        return err(RequiredFieldMissing)
+        return err(ProtoError.RequiredFieldMissing)
 
       record.addresses &= addressInfo
 
