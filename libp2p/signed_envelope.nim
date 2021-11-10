@@ -17,6 +17,8 @@ import multicodec,
        protobuf/minprotobuf,
        vbuffer
 
+export crypto
+
 type
   EnvelopeError* = enum
     EnvelopeInvalidProtobuf,
@@ -27,7 +29,7 @@ type
     publicKey*: PublicKey
     domain*: string
     payloadType*: seq[byte]
-    payload*: seq[byte]
+    payload: seq[byte]
     signature*: Signature
 
 proc mapProtobufError(e: ProtoError): EnvelopeError =
@@ -90,3 +92,7 @@ proc encodeEnvelope*(env: Envelope): Result[ProtoBuffer, CryptoError] =
 
   pb.finish()
   ok(pb)
+
+proc payload*(env: Envelope): seq[byte] =
+  # Payload is readonly
+  env.payload
