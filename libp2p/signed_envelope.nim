@@ -67,7 +67,7 @@ proc decode*(T: typedesc[Envelope],
   else:
     ok(envelope)
 
-proc new*(T: typedesc[Envelope],
+proc init*(T: typedesc[Envelope],
     privateKey: PrivateKey,
     payloadType: seq[byte],
     payload: seq[byte],
@@ -83,7 +83,7 @@ proc new*(T: typedesc[Envelope],
 
   ok(envelope)
 
-proc encode*(env: Envelope): Result[ProtoBuffer, CryptoError] =
+proc encode*(env: Envelope): Result[seq[byte], CryptoError] =
   var pb = initProtoBuffer()
 
   try:
@@ -95,7 +95,7 @@ proc encode*(env: Envelope): Result[ProtoBuffer, CryptoError] =
     return err(exc.error)
 
   pb.finish()
-  ok(pb)
+  ok(pb.buffer)
 
 proc payload*(env: Envelope): seq[byte] =
   # Payload is readonly
