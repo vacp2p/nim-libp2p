@@ -100,3 +100,19 @@ proc encode*(env: Envelope): Result[seq[byte], CryptoError] =
 proc payload*(env: Envelope): seq[byte] =
   # Payload is readonly
   env.payload
+
+proc getField*(pb: ProtoBuffer, field: int,
+               value: var Envelope,
+               domain: string): ProtoResult[bool] {.
+     inline.} =
+  var buffer: seq[byte]
+  let res = ? pb.getField(field, buffer)
+  if not(res):
+    ok(false)
+  else:
+    let env = Envelope.decode(buffer, domain)
+    if env.isOk():
+      value = env.get()
+      ok(true)
+    else:
+      err(ProtoError.IncorrectBlob)
