@@ -364,7 +364,7 @@ method rpcHandler*(g: GossipSub,
 
     g.rewardDelivered(peer, msg.topicIDs, true)
 
-    var toSendPeers = initHashSet[PubSubPeer]()
+    var toSendPeers = HashSet[PubSubPeer]()
     for t in msg.topicIDs:                      # for every topic in the message
       if t notin g.topics:
         continue
