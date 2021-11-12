@@ -616,7 +616,7 @@ suite "GossipSub":
       gossip1.seen = TimedCache[MessageId].init()
       gossip3.seen = TimedCache[MessageId].init()
       let msgId = toSeq(gossip2.validationSeen.keys)[0]
-      check await checkExpiring(try: gossip2.validationSeen[msgId].len > 1 except: false)
+      check await checkExpiring(try: gossip2.validationSeen[msgId].len > 0 except: false)
       result = ValidationResult.Accept
       bFinished.complete()
 

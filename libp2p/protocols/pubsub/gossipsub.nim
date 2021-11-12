@@ -309,8 +309,7 @@ method rpcHandler*(g: GossipSub,
       # score only if messages are not too old.
       g.rewardDelivered(peer, msg.topicIDs, false)
 
-      if msgIdSalted in g.validationSeen:
-        g.validationSeen[msgIdSalted].incl(peer)
+      g.validationSeen.withValue(msgIdSalted, seen): seen[].incl(peer)
 
       # onto the next message
       continue
@@ -339,13 +338,13 @@ method rpcHandler*(g: GossipSub,
 
     # Be careful not to fill the validationSeen table
     # (eg, pop everything you put in it)
-    g.validationSeen[msgIdSalted] = toHashSet([peer])
+    g.validationSeen[msgIdSalted] = initHashSet[PubSubPeer]()
 
     let validation = await g.validate(msg)
 
     var seenPeers: HashSet[PubSubPeer]
     discard g.validationSeen.pop(msgIdSalted, seenPeers)
-    libp2p_gossipsub_duplicate_during_validation.inc(seenPeers.len.float - 1)
+    libp2p_gossipsub_duplicate_during_validation.inc(seenPeers.len.int64)
 
     case validation
     of ValidationResult.Reject:
@@ -377,6 +376,7 @@ method rpcHandler*(g: GossipSub,
 
     # Don't send it to source peer, or peers that
     # sent it during validation
+    toSendPeers.excl(peer)
     toSendPeers.excl(seenPeers)
 
     # In theory, if topics are the same in all messages, we could batch - we'd
