@@ -22,7 +22,7 @@ suite "PeerInfo":
   test "Signed peer record":
     const
       ExpectedDomain = $multiCodec("libp2p-peer-record")
-      ExpectedPayloadType = "/libp2p/routing-state-record".toBytes()
+      ExpectedPayloadType = @[(byte) 0x03, (byte) 0x01]
     
     let
       seckey = PrivateKey.random(rng[]).tryGet()

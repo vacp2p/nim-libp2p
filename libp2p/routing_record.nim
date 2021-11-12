@@ -24,8 +24,8 @@ export peerid, multiaddress, signed_envelope
 
 ## Constants relating to signed peer records
 const
-  EnvelopePayloadType= "/libp2p/routing-state-record".toBytes() # payload_type for routing records as spec'ed in RFC0003
   EnvelopeDomain = multiCodec("libp2p-peer-record") # envelope domain as per RFC0002
+  EnvelopePayloadType= @[(byte) 0x03, (byte) 0x01] # payload_type for routing records as spec'ed in RFC0003
 
 type
   AddressInfo* = object
@@ -119,7 +119,7 @@ proc init*(T: typedesc[Envelope],
   
   ok(envelope)
 
-proc getField*(pb: ProtoBuffer, field: int,
+proc getSignedPeerRecord*(pb: ProtoBuffer, field: int,
                value: var Envelope): ProtoResult[bool] {.
      inline.} =
   getField(pb, field, value, $EnvelopeDomain)

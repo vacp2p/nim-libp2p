@@ -105,7 +105,7 @@ proc decodeMsg*(buf: seq[byte]): Option[IdentifyInfo] =
   let r5 = pb.getField(5, protoVersion)
   let r6 = pb.getField(6, agentVersion)
 
-  let r8 = pb.getField(8, signedPeerRecord)
+  let r8 = pb.getSignedPeerRecord(8, signedPeerRecord)
 
   let res = r1.isOk() and r2.isOk() and r3.isOk() and
             r4.isOk() and r5.isOk() and r6.isOk() and
