@@ -11,14 +11,21 @@
 
 {.push raises: [Defect].}
 
-import std/sequtils
+import std/[sequtils, times]
 import pkg/stew/[results, byteutils]
 import
   multiaddress,
+  multicodec,
   peerid,
-  protobuf/minprotobuf
+  protobuf/minprotobuf,
+  signed_envelope
 
-export peerid, multiaddress
+export peerid, multiaddress, signed_envelope
+
+## Constants relating to signed peer records
+const
+  EnvelopePayloadType= "/libp2p/routing-state-record".toBytes() # payload_type for routing records as spec'ed in RFC0003
+  EnvelopeDomain = multiCodec("libp2p-peer-record") # envelope domain as per RFC0002
 
 type
   AddressInfo* = object
@@ -77,3 +84,42 @@ proc init*(T: typedesc[PeerRecord],
     seqNo: seqNo,
     addresses: addresses.mapIt(AddressInfo(address: it))
   )
+
+
+## Functions related to signed peer records
+
+proc init*(T: typedesc[Envelope],
+           privateKey: PrivateKey,
+           peerRecord: PeerRecord): Result[Envelope, CryptoError] =
+  
+  ## Init a signed envelope wrapping a peer record
+
+  let envelope = ? Envelope.init(privateKey,
+                                 EnvelopePayloadType,
+                                 peerRecord.encode(),
+                                 $EnvelopeDomain)
+  
+  ok(envelope)
+
+proc init*(T: typedesc[Envelope],
+           peerId: PeerId,
+           addresses: seq[MultiAddress],
+           privateKey: PrivateKey): Result[Envelope, CryptoError] =
+  ## Creates a signed peer record for this peer:
+  ## a peer routing record according to https://github.com/libp2p/specs/blob/500a7906dd7dd8f64e0af38de010ef7551fd61b6/RFC/0003-routing-records.md
+  ## in a signed envelope according to https://github.com/libp2p/specs/blob/500a7906dd7dd8f64e0af38de010ef7551fd61b6/RFC/0002-signed-envelopes.md
+  
+  # First create a peer record from the peer info
+  let peerRecord = PeerRecord.init(peerId,
+                                   getTime().toUnix().uint64, # This currently follows the recommended implementation, using unix epoch as seq no.
+                                   addresses)
+
+  let envelope = ? Envelope.init(privateKey,
+                                 peerRecord)
+  
+  ok(envelope)
+
+proc getField*(pb: ProtoBuffer, field: int,
+               value: var Envelope): ProtoResult[bool] {.
+     inline.} =
+  getField(pb, field, value, $EnvelopeDomain)

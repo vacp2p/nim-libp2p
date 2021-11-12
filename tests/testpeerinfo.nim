@@ -1,8 +1,9 @@
 {.used.}
 
 import options, bearssl
-import chronos
+import chronos, stew/byteutils
 import ../libp2p/crypto/crypto,
+       ../libp2p/multicodec,
        ../libp2p/peerinfo,
        ../libp2p/peerid,
        ../libp2p/routing_record
@@ -19,6 +20,10 @@ suite "PeerInfo":
     check seckey.getPublicKey().get() == peerInfo.publicKey
   
   test "Signed peer record":
+    const
+      ExpectedDomain = $multiCodec("libp2p-peer-record")
+      ExpectedPayloadType = "/libp2p/routing-state-record".toBytes()
+    
     let
       seckey = PrivateKey.random(rng[]).tryGet()
       peerId = PeerID.init(seckey).get()
@@ -32,8 +37,8 @@ suite "PeerInfo":
     # Check envelope fields
     check:
       env.publicKey == peerInfo.publicKey
-      env.domain == EnvelopeDomain
-      env.payloadType == EnvelopePayloadType
+      env.domain == ExpectedDomain
+      env.payloadType == ExpectedPayloadType
 
     # Check payload (routing record)
     check:

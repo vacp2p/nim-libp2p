@@ -79,7 +79,7 @@ proc encodeMsg*(peerInfo: PeerInfo, observedAddr: Multiaddress): ProtoBuffer
   result.write(6, agentVersion)
 
   ## Optionally populate signedPeerRecord field.
-  ## See https://github.com/libp2p/go-libp2p/blob/master/p2p/protocol/identify/pb/identify.proto for reference.
+  ## See https://github.com/libp2p/go-libp2p/blob/ddf96ce1cfa9e19564feb9bd3e8269958bbc0aba/p2p/protocol/identify/pb/identify.proto for reference.
   if peerInfo.signedPeerRecord.isSome():
     let sprBuff = peerInfo.signedPeerRecord.get().encode()
     if sprBuff.isOk():
@@ -105,7 +105,7 @@ proc decodeMsg*(buf: seq[byte]): Option[IdentifyInfo] =
   let r5 = pb.getField(5, protoVersion)
   let r6 = pb.getField(6, agentVersion)
 
-  let r8 = pb.getField(8, signedPeerRecord, EnvelopeDomain)
+  let r8 = pb.getField(8, signedPeerRecord)
 
   let res = r1.isOk() and r2.isOk() and r3.isOk() and
             r4.isOk() and r5.isOk() and r6.isOk() and

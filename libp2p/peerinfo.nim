@@ -9,18 +9,13 @@
 
 {.push raises: [Defect].}
 
-import std/[options, sequtils, hashes, times]
-import pkg/[chronos, chronicles, stew/byteutils, stew/results]
-import peerid, multiaddress, crypto/crypto, signed_envelope, routing_record, errors
+import std/[options, sequtils, hashes]
+import pkg/[chronos, chronicles, stew/results]
+import peerid, multiaddress, crypto/crypto, routing_record, errors
 
-export peerid, multiaddress, crypto, signed_envelope, errors, results
+export peerid, multiaddress, crypto, routing_record, errors, results
 
 ## Our local peer info
-
-## Constants relating to signed peer records
-const
-  EnvelopePayloadType* = "/libp2p/routing-state-record".toBytes() # payload_type for routing records as spec'ed in RFC0003
-  EnvelopeDomain* = "libp2p-routing-record" # envelope domain as per RFC0002
 
 type
   PeerInfoError* = LPError
@@ -34,24 +29,6 @@ type
     privateKey*: PrivateKey
     publicKey*: PublicKey
     signedPeerRecord*: Option[Envelope]
-
-proc createSignedPeerRecord(peerId: PeerID, addrs: seq[MultiAddress], key: PrivateKey): Result[Envelope, CryptoError] =
-  ## Creates a signed peer record for this peer:
-  ## a peer routing record according to https://github.com/libp2p/specs/blob/master/RFC/0003-routing-records.md
-  ## in a signed envelope according to https://github.com/libp2p/specs/blob/master/RFC/0002-signed-envelopes.md
-
-  # First create a peer record from the peer info
-  let peerRecord = PeerRecord.init(peerId,
-                                   getTime().toUnix().uint64, # This currently follows the recommended implementation, using unix epoch as seq no.
-                                   addrs)
-
-  # Wrap peer record in envelope and sign
-  let envelope = ? Envelope.init(key,
-                                 EnvelopePayloadType,
-                                 peerRecord.encode(),
-                                 EnvelopeDomain)
-  
-  ok(envelope)
 
 func shortLog*(p: PeerInfo): auto =
   (
@@ -80,7 +57,7 @@ proc new*(
   let peerId = PeerID.init(key).tryGet()
 
   # TODO: should using signed peer records be configurable?
-  let sprRes = createSignedPeerRecord(peerId, @addrs, key)
+  let sprRes = Envelope.init(peerId, @addrs, key)
   let spr = if sprRes.isOk:
               some(sprRes.get())
             else:
