@@ -40,7 +40,7 @@ const
 type
   TestProto = ref object of LPProtocol
 
-method init(p: TestProto) {.gcsafe.} =
+method init(p: TestProto) {.gcsafe, raises: [Defect].} =
   proc handle(conn: Connection, proto: string) {.async, gcsafe.} =
     let msg = string.fromBytes(await conn.readLp(1024))
     check "Hello!" == msg

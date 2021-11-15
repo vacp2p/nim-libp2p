@@ -11,7 +11,7 @@ import ../libp2p/[stream/connection,
 
 import ./helpers
 
-type TransportProvider* = proc(): Transport {.gcsafe.}
+type TransportProvider* = proc(): Transport {.gcsafe, raises: [Defect].}
 
 proc commonTransportTest*(name: string, prov: TransportProvider, ma: string) =
   suite name & " common tests":

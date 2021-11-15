@@ -22,7 +22,7 @@ proc runTest(filename: string, verify: bool = true, sign: bool = true,
              moreoptions: string = "") =
   let env_nimflags = getEnv("NIMFLAGS")
   var excstr = "nim c --opt:speed -d:debug -d:libp2p_agents_metrics -d:libp2p_protobuf_metrics -d:libp2p_network_protocols_metrics --verbosity:0 --hints:off " & env_nimflags
-  excstr.add(" --warning[CaseTransition]:off --warning[ObservableStores]:off --warning[LockLevel]:off")
+  excstr.add(" --warning[CaseTransition]:off --warning[ObservableStores]:off --warning[LockLevel]:off -d:chronosStrictException")
   excstr.add(" -d:libp2p_pubsub_sign=" & $sign)
   excstr.add(" -d:libp2p_pubsub_verify=" & $verify)
   excstr.add(" " & moreoptions & " ")
@@ -35,7 +35,7 @@ proc runTest(filename: string, verify: bool = true, sign: bool = true,
 
 proc buildSample(filename: string, run = false) =
   var excstr = "nim c --opt:speed --threads:on -d:debug --verbosity:0 --hints:off"
-  excstr.add(" --warning[CaseTransition]:off --warning[ObservableStores]:off --warning[LockLevel]:off")
+  excstr.add(" --warning[CaseTransition]:off --warning[ObservableStores]:off --warning[LockLevel]:off -d:chronosStrictException")
   excstr.add(" examples/" & filename)
   exec excstr
   if run:
@@ -44,7 +44,7 @@ proc buildSample(filename: string, run = false) =
 
 proc buildTutorial(filename: string) =
   discard gorge "cat " & filename & " | nim c -r --hints:off tools/markdown_runner.nim | " &
-    " nim --warning[CaseTransition]:off --warning[ObservableStores]:off --warning[LockLevel]:off c -"
+    " nim --warning[CaseTransition]:off --warning[ObservableStores]:off --warning[LockLevel]:off -d:chronosStrictException c -"
 
 task testnative, "Runs libp2p native tests":
   runTest("testnative")

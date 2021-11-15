@@ -65,7 +65,7 @@ type
         discard
 
   PeerEventHandler* =
-    proc(peerId: PeerId, event: PeerEvent): Future[void] {.gcsafe.}
+    proc(peerId: PeerId, event: PeerEvent): Future[void] {.gcsafe, raises: [Defect].}
 
   MuxerHolder = object
     muxer: Muxer

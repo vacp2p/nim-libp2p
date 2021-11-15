@@ -13,7 +13,7 @@ import ../libp2p/[stream/connection,
 import ./helpers, ./commontransport
 
 const
-  SecureKey* = """
+  SecureKey = """
 -----BEGIN PRIVATE KEY-----
 MIICdwIBADANBgkqhkiG9w0BAQEFAASCAmEwggJdAgEAAoGBAP0yH7F7FtGunC91
 IPkU+u8B4gdxiwYW0J3PrixtB1Xz3e4dfjwQqhIJlG6BxQ4myCxmSPjxP/eOOYp+
@@ -32,7 +32,7 @@ NABr5ec1FxuJa/8=
 -----END PRIVATE KEY-----
 """
 
-  SecureCert* = """
+  SecureCert = """
 -----BEGIN CERTIFICATE-----
 MIICjDCCAfWgAwIBAgIURjeiJmkNbBVktqXvnXh44DKx364wDQYJKoZIhvcNAQEL
 BQAwVzELMAkGA1UEBhMCQVUxEzARBgNVBAgMClNvbWUtU3RhdGUxITAfBgNVBAoM
@@ -62,13 +62,16 @@ suite "WebSocket transport":
 
   commonTransportTest(
     "WebSocket Secure",
-    proc (): Transport =
-      WsTransport.new(
-        Upgrade(),
-        TLSPrivateKey.init(SecureKey),
-        TLSCertificate.init(SecureCert),
-        {TLSFlags.NoVerifyHost, TLSFlags.NoVerifyServerName}),
-      "/ip4/0.0.0.0/tcp/0/wss")
+    (proc (): Transport {.gcsafe.} =
+      try:
+        return WsTransport.new(
+          Upgrade(),
+          TLSPrivateKey.init(SecureKey),
+          TLSCertificate.init(SecureCert),
+          {TLSFlags.NoVerifyHost, TLSFlags.NoVerifyServerName})
+      except Exception: check(false)
+    ),
+    "/ip4/0.0.0.0/tcp/0/wss")
 
   asyncTest "Hostname verification":
     let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0/wss").tryGet()
