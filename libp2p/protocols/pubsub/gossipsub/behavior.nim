@@ -10,7 +10,6 @@
 {.push raises: [Defect].}
 
 import std/[tables, sequtils, sets, algorithm]
-import random # for shuffle
 import chronos, chronicles, metrics
 import "."/[types, scoring]
 import ".."/[pubsubpeer, peertable, timedcache, mcache, floodsub, pubsub]
@@ -215,7 +214,7 @@ proc handleIHave*(g: GossipSub,
               break
     # shuffling res.messageIDs before sending it out to increase the likelihood
     # of getting an answer if the peer truncates the list due to internal size restrictions.
-    shuffle(res.messageIDs)
+    g.rng.shuffle(res.messageIDs)
     return res
 
 proc handleIWant*(g: GossipSub,
@@ -282,7 +281,7 @@ proc rebalanceMesh*(g: GossipSub, topic: string, metrics: ptr MeshMetrics = nil)
     )
 
     # shuffle anyway, score might be not used
-    shuffle(candidates)
+    g.rng.shuffle(candidates)
 
     # sort peers by score, high score first since we graft
     candidates.sort(byScore, SortOrder.Descending)
@@ -318,7 +317,7 @@ proc rebalanceMesh*(g: GossipSub, topic: string, metrics: ptr MeshMetrics = nil)
       )
 
       # shuffle anyway, score might be not used
-      shuffle(candidates)
+      g.rng.shuffle(candidates)
 
       # sort peers by score, high score first, we are grafting
       candidates.sort(byScore, SortOrder.Descending)
@@ -350,7 +349,7 @@ proc rebalanceMesh*(g: GossipSub, topic: string, metrics: ptr MeshMetrics = nil)
     prunes.keepIf do (x: PubSubPeer) -> bool: x notin grafts
 
     # shuffle anyway, score might be not used
-    shuffle(prunes)
+    g.rng.shuffle(prunes)
 
     # sort peers by score (inverted), pruning, so low score peers are on top
     prunes.sort(byScore, SortOrder.Ascending)
@@ -382,7 +381,7 @@ proc rebalanceMesh*(g: GossipSub, topic: string, metrics: ptr MeshMetrics = nil)
       if pruneLen > 0:
         # Ok we got some peers to prune,
         # for this heartbeat let's prune those
-        shuffle(prunes)
+        g.rng.shuffle(prunes)
         prunes.setLen(pruneLen)
 
       trace "pruning", prunes = prunes.len
@@ -519,7 +518,7 @@ proc getGossipPeers*(g: GossipSub): Table[PubSubPeer, ControlMessage] {.raises: 
     # similar to rust: https://github.com/sigp/rust-libp2p/blob/f53d02bc873fef2bf52cd31e3d5ce366a41d8a8c/protocols/gossipsub/src/behaviour.rs#L2101
     # and go https://github.com/libp2p/go-libp2p-pubsub/blob/08c17398fb11b2ab06ca141dddc8ec97272eb772/gossipsub.go#L582
     if midsSeq.len > IHaveMaxLength:
-      shuffle(midsSeq)
+      g.rng.shuffle(midsSeq)
       midsSeq.setLen(IHaveMaxLength)
 
     let
@@ -540,7 +539,7 @@ proc getGossipPeers*(g: GossipSub): Table[PubSubPeer, ControlMessage] {.raises: 
       target = min(factor, allPeers.len)
 
     if target < allPeers.len:
-      shuffle(allPeers)
+      g.rng.shuffle(allPeers)
       allPeers.setLen(target)
 
     for peer in allPeers:

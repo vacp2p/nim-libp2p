@@ -60,11 +60,17 @@ method accept*(self: Transport): Future[Connection]
 
 method dial*(
   self: Transport,
+  hostname: string,
   address: MultiAddress): Future[Connection] {.base, gcsafe.} =
   ## dial a peer
   ##
 
   doAssert(false, "Not implemented!")
+
+proc dial*(
+  self: Transport,
+  address: MultiAddress): Future[Connection] {.gcsafe.} =
+  self.dial("", address)
 
 method upgradeIncoming*(
   self: Transport,

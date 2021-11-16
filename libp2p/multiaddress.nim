@@ -426,7 +426,7 @@ const
 
   Unreliable* = mapOr(UDP)
 
-  Reliable* = mapOr(TCP, UTP, QUIC)
+  Reliable* = mapOr(TCP, UTP, QUIC, WebSockets)
 
   IPFS* = mapAnd(Reliable, mapEq("p2p"))
 
@@ -944,59 +944,6 @@ proc `==`*(m1: var MultiAddress, m2: MultiAddress): bool =
   ## Check of two MultiAddress are equal
   m1.data == m2.data
 
-proc isWire*(ma: MultiAddress): bool =
-  ## Returns ``true`` if MultiAddress ``ma`` is one of:
-  ## - {IP4}/{TCP, UDP}
-  ## - {IP6}/{TCP, UDP}
-  ## - {UNIX}/{PATH}
-
-  var state = 0
-  const
-    wireProtocols = toHashSet([
-                        multiCodec("ip4"), multiCodec("ip6"),
-                      ])
-    wireTransports = toHashSet([
-                        multiCodec("tcp"), multiCodec("udp")
-                      ])
-  try:
-    for rpart in ma.items():
-      if rpart.isErr():
-        return false
-      let part = rpart.get()
-
-      if state == 0:
-        let rcode = part.protoCode()
-        if rcode.isErr():
-          return false
-        let code = rcode.get()
-
-        if code in wireProtocols:
-          inc(state)
-          continue
-        elif code == multiCodec("unix"):
-          result = true
-          break
-        else:
-          result = false
-          break
-      elif state == 1:
-        let rcode = part.protoCode()
-        if rcode.isErr():
-          return false
-        let code = rcode.get()
-
-        if code in wireTransports:
-          inc(state)
-          result = true
-        else:
-          result = false
-          break
-      else:
-        result = false
-        break
-  except:
-    result = false
-
 proc matchPart(pat: MaPattern, protos: seq[MultiCodec]): MaPatResult =
   var empty: seq[MultiCodec]
   var pcs = protos
@@ -1073,7 +1020,7 @@ proc getField*(pb: var ProtoBuffer, field: int,
     else:
       err(ProtoError.IncorrectBlob)
 
-proc getRepeatedField*(pb: var ProtoBuffer, field: int,
+proc getRepeatedField*(pb: ProtoBuffer, field: int,
                        value: var seq[MultiAddress]): ProtoResult[bool] {.
      inline.} =
   var items: seq[seq[byte]]

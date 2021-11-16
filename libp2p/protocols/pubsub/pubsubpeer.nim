@@ -60,6 +60,7 @@ type
     score*: float64
     iWantBudget*: int
     iHaveBudget*: int
+    maxMessageSize: int
     appScore*: float64 # application specific score
     behaviourPenalty*: float64 # the eventual penalty score
 
@@ -119,7 +120,7 @@ proc handle*(p: PubSubPeer, conn: Connection) {.async.} =
       while not conn.atEof:
         trace "waiting for data", conn, peer = p, closed = conn.closed
 
-        var data = await conn.readLp(64 * 1024)
+        var data = await conn.readLp(p.maxMessageSize)
         trace "read data from peer",
           conn, peer = p, closed = conn.closed,
           data = data.shortLog
@@ -186,8 +187,8 @@ proc connectOnce(p: PubSubPeer): Future[void] {.async.} =
     try:
       if p.onEvent != nil:
         p.onEvent(p, PubsubPeerEvent(kind: PubSubPeerEventKind.Disconnected))
-    except CancelledError:
-      raise
+    except CancelledError as exc:
+      raise exc
     except CatchableError as exc:
       debug "Errors during diconnection events", error = exc.msg
 
@@ -243,6 +244,10 @@ proc sendEncoded*(p: PubSubPeer, msg: seq[byte]) {.raises: [Defect].} =
     debug "empty message, skipping", p, msg = shortLog(msg)
     return
 
+  if msg.len > p.maxMessageSize:
+    info "trying to send a too big for pubsub", maxSize=p.maxMessageSize, msgSize=msg.len
+    return
+
   let conn = p.sendConn
   if conn == nil or conn.closed():
     trace "No send connection, skipping message", p, msg = shortLog(msg)
@@ -280,7 +285,8 @@ proc new*(
   getConn: GetConn,
   dropConn: DropConn,
   onEvent: OnEvent,
-  codec: string): T =
+  codec: string,
+  maxMessageSize: int): T =
 
   T(
     getConn: getConn,
@@ -288,19 +294,5 @@ proc new*(
     onEvent: onEvent,
     codec: codec,
     peerId: peerId,
-  )
-
-proc newPubSubPeer*(
-  peerId: PeerID,
-  getConn: GetConn,
-  dropConn: DropConn,
-  onEvent: OnEvent,
-  codec: string): PubSubPeer {.deprecated: "use PubSubPeer.new".} =
-
-  PubSubPeer.new(
-    peerId,
-    getConn,
-    dropConn,
-    onEvent,
-    codec
+    maxMessageSize: maxMessageSize
   )
