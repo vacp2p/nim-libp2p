@@ -150,10 +150,10 @@ type
     key*: PublicKey
 
   P2PStreamCallback* = proc(api: DaemonAPI,
-                            stream: P2PStream): Future[void] {.gcsafe.}
+                            stream: P2PStream): Future[void] {.gcsafe, raises: [Defect, CatchableError].}
   P2PPubSubCallback* = proc(api: DaemonAPI,
                             ticket: PubsubTicket,
-                            message: PubSubMessage): Future[bool] {.gcsafe.}
+                            message: PubSubMessage): Future[bool] {.gcsafe, raises: [Defect, CatchableError].}
 
   DaemonError* = object of LPError
   DaemonRemoteError* = object of DaemonError
@@ -755,7 +755,13 @@ proc newDaemonApi*(flags: set[P2PDaemonFlags] = {},
 
   # Starting daemon process
   # echo "Starting ", cmd, " ", args.join(" ")
-  api.process = startProcess(cmd, "", args, env, {poParentStreams})
+  api.process = 
+    try:
+      startProcess(cmd, "", args, env, {poParentStreams})
+    except CatchableError as exc:
+      raise exc
+    except Exception as exc:
+      raise newException(DaemonLocalError, exc.msg)
   # Waiting until daemon will not be bound to control socket.
   while true:
     if not api.process.running():
@@ -900,7 +906,7 @@ proc openStream*(api: DaemonAPI, peer: PeerID,
         stream.flags.incl(Outbound)
         stream.transp = transp
         result = stream
-  except Exception as exc:
+  except CatchableError as exc:
     await api.closeConnection(transp)
     raise exc
 
@@ -936,7 +942,7 @@ proc addHandler*(api: DaemonAPI, protocols: seq[string],
                                                                protocols))
     pb.withMessage() do:
       api.servers.add(P2PServer(server: server, address: maddress))
-  except Exception as exc:
+  except CatchableError as exc:
     for item in protocols:
       api.handlers.del(item)
     server.stop()
@@ -1301,7 +1307,7 @@ proc pubsubSubscribe*(api: DaemonAPI, topic: string,
       ticket.transp = transp
       asyncSpawn pubsubLoop(api, ticket)
       result = ticket
-  except Exception as exc:
+  except CatchableError as exc:
     await api.closeConnection(transp)
     raise exc
 
