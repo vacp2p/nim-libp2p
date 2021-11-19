@@ -149,22 +149,12 @@ jobs:
             bash build_nim.sh nim csources dist/nimble NimBinaries
           echo '${{ github.workspace }}/nim/bin' >> $GITHUB_PATH
 
-      - name: Setup Go
-        uses: actions/setup-go@v2
-        with:
-          go-version: '^1.15.5'
-
-      - name: Install p2pd
-        run: |
-          V=1 bash scripts/build_p2pd.sh p2pdCache 124530a3
-
       - name: Run nim-libp2p tests
         run: |
           nimble install -y --depsOnly
-          nimble test
+          nimble test_slim
           if [[ "${{ matrix.branch }}" == "version-1-6" || "${{ matrix.branch }}" == "devel" ]]; then
             echo -e "\nTesting with '--gc:orc':\n"
             export NIMFLAGS="--gc:orc"
-            nimble test
+            nimble test_slim
           fi
-

@@ -86,8 +86,8 @@ task test, "Runs the test suite":
 task test_slim, "Runs the test suite":
   exec "nimble testnative"
   exec "nimble testpubsub_slim"
-  exec "nimble testinterop"
   exec "nimble testfilter"
+  exec "nimble examples_build"
 
 task examples_build, "Build the samples":
   buildSample("directchat")
