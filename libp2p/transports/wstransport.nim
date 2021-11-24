@@ -196,6 +196,10 @@ method accept*(self: WsTransport): Future[Connection] {.async, gcsafe.} =
     return await self.connHandler(wstransp, Direction.In)
   except TransportOsError as exc:
     debug "OS Error", exc = exc.msg
+  except WebSocketError as exc:
+    debug "Websocket Error", exc = exc.msg
+  except AsyncStreamError as exc:
+    debug "AsyncStream Error", exc = exc.msg
   except TransportTooManyError as exc:
     debug "Too many files opened", exc = exc.msg
   except TransportUseClosedError as exc:
