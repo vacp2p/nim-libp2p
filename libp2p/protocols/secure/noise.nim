@@ -460,10 +460,8 @@ proc encryptFrame(
 
   cipherFrame[2 + src.len()..<cipherFrame.len] = tag
 
-method write*(sconn: NoiseConnection, message: seq[byte]): Future[void] {.async.} =
-  if message.len == 0:
-    return
-
+method write*(sconn: NoiseConnection, message: seq[byte]): Future[void] =
+  # Fast path: `{.async.}` would introduce a copy of `message`
   const FramingSize = 2 + sizeof(ChaChaPolyTag)
 
   let
@@ -479,10 +477,16 @@ method write*(sconn: NoiseConnection, message: seq[byte]): Future[void] {.async.
     let
       chunkSize = min(MaxPlainSize, left)
 
-    encryptFrame(
-      sconn,
-      cipherFrames.toOpenArray(woffset, woffset + chunkSize + FramingSize - 1),
-      message.toOpenArray(offset, offset + chunkSize - 1))
+    try:
+      encryptFrame(
+        sconn,
+        cipherFrames.toOpenArray(woffset, woffset + chunkSize + FramingSize - 1),
+        message.toOpenArray(offset, offset + chunkSize - 1))
+    except NoiseNonceMaxError as exc:
+      debug "Noise nonce exceeded"
+      let fut = newFuture[void]("noise.write.nonce")
+      fut.fail(exc)
+      return fut
 
     when defined(libp2p_dump):
       dumpMessage(
@@ -492,9 +496,12 @@ method write*(sconn: NoiseConnection, message: seq[byte]): Future[void] {.async.
     left = left - chunkSize
     offset += chunkSize
     woffset += chunkSize + FramingSize
-    sconn.activity = true
 
-  await sconn.stream.write(cipherFrames)
+  sconn.activity = true
+
+  # Write all `cipherFrames` in a single write, to avoid interleaving /
+  # sequencing issues
+  sconn.stream.write(cipherFrames)
 
 method handshake*(p: Noise, conn: Connection, initiator: bool): Future[SecureConn] {.async.} =
   trace "Starting Noise handshake", conn, initiator
