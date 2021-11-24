@@ -107,8 +107,16 @@ method start*(
 
   
   for i, ma in addrs:
+    let isWss =
+      if WSS.match(ma):
+        if self.secure: true
+        else:
+          warn "Trying to listen on a WSS address without setting the certificate!"
+          false
+      else: false
+
     let httpserver =
-      if self.secure:
+      if isWss:
         TlsHttpServer.create(
           address = ma.initTAddress().tryGet(),
           tlsPrivateKey = self.tlsPrivateKey,
@@ -119,7 +127,7 @@ method start*(
 
     self.httpservers &= httpserver
 
-    let codec = if WSS.match(ma):
+    let codec = if isWss:
         MultiAddress.init("/wss")
       else:
         MultiAddress.init("/ws")
@@ -167,12 +175,13 @@ method stop*(self: WsTransport) {.async, gcsafe.} =
 
 proc connHandler(self: WsTransport,
                  stream: WsSession,
+                 secure: bool,
                  dir: Direction): Future[Connection] {.async.} =
   let observedAddr =
     try:
       let
         codec =
-          if self.secure:
+          if secure:
             MultiAddress.init("/wss")
           else:
             MultiAddress.init("/ws")
@@ -221,8 +230,9 @@ method accept*(self: WsTransport): Future[Connection] {.async, gcsafe.} =
     try:
       let
         wstransp = await self.wsserver.handleRequest(req)
+        isSecure = self.httpservers[index].secure
 
-      return await self.connHandler(wstransp, Direction.In)
+      return await self.connHandler(wstransp, isSecure, Direction.In)
     except CatchableError as exc:
       await req.stream.closeWait()
       raise exc
@@ -233,6 +243,9 @@ method accept*(self: WsTransport): Future[Connection] {.async, gcsafe.} =
   except TransportUseClosedError as exc:
     debug "Server was closed", exc = exc.msg
     raise newTransportClosedError(exc)
+  except CancelledError as exc:
+    # bubble up silently
+    raise exc
   except CatchableError as exc:
     warn "Unexpected error accepting connection", exc = exc.msg
     raise exc
@@ -256,7 +269,7 @@ method dial*(
       flags = self.tlsFlags)
 
   try:
-    return await self.connHandler(transp, Direction.Out)
+    return await self.connHandler(transp, secure, Direction.Out)
   except CatchableError as exc:
     await transp.close()
     raise exc
