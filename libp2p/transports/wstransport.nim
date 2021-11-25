@@ -105,7 +105,6 @@ method start*(
     factories = self.factories,
     rng = self.rng)
 
-  
   for i, ma in addrs:
     let isWss =
       if WSS.match(ma):
@@ -115,7 +114,7 @@ method start*(
           false
       else: false
 
-    let httpserver =
+    let httpserver = try:
       if isWss:
         TlsHttpServer.create(
           address = ma.initTAddress().tryGet(),
@@ -124,6 +123,9 @@ method start*(
           flags = self.flags)
       else:
         HttpServer.create(ma.initTAddress().tryGet())
+    except CatchableError as exc:
+      trace "Unable to create http server", address = ma, exc = exc.msg
+      continue
 
     self.httpservers &= httpserver
 
@@ -135,6 +137,10 @@ method start*(
     # always get the resolved address in case we're bound to 0.0.0.0:0
     self.addrs[i] = MultiAddress.init(
       httpserver.localAddress()).tryGet() & codec.tryGet()
+
+  if self.httpservers.len <= 0:
+    raise newException(
+      LPError, "Unable listen on any of the provided addresess " & $addrs)
 
   trace "Listening on", addresses = self.addrs
 

@@ -42,7 +42,6 @@ method start*(
 
   trace "starting transport on addrs", address = $addrs
   self.addrs = addrs
-  self.running = true
 
 method stop*(self: Transport) {.base, async.} =
   ## stop and cleanup the transport

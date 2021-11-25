@@ -32,7 +32,7 @@ const
 
 type
   TcpTransport* = ref object of Transport
-    servers*: seq[StreamServer]
+    servers: seq[StreamServer]
     clients: array[Direction, seq[StreamTransport]]
     flags: set[ServerFlags]
     acceptFuts: seq[Future[StreamTransport]]
@@ -145,19 +145,29 @@ method start*(
       trace "Invalid address detected, skipping!", address = ma
       continue
 
-    let server = createStreamServer(
-      ma = ma,
-      flags = self.flags,
-      udata = self)
+    let server = try:
+      createStreamServer(
+        ma = ma,
+        flags = self.flags,
+        udata = self)
+    except CatchableError as exc:
+      trace "Unable to create stream server", address = ma, exc = exc.msg
+      continue
+
+    self.servers &= server
 
     # always get the resolved address in case we're bound to 0.0.0.0:0
     self.addrs[i] = MultiAddress.init(
       server.sock.getLocalAddress()
     ).tryGet()
 
-    self.servers &= server
-
     trace "Listening on", address = ma
+
+  if self.servers.len <= 0:
+    raise newException(
+      LPError, "Unable listen on any of the provided addresess " & $addrs)
+
+  self.running = true
 
 method stop*(self: TcpTransport) {.async, gcsafe.} =
   ## stop the transport
