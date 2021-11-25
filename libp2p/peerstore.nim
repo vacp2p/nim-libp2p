@@ -14,6 +14,7 @@ import
   ./crypto/crypto,
   ./protocols/identify,
   ./peerid, ./peerinfo,
+  ./routing_record,
   ./multiaddress
 
 type
@@ -53,6 +54,8 @@ type
 
     agentBook*: PeerBook[string]
     protoVersionBook*: PeerBook[string]
+
+    signedPeerRecordBook*: PeerBook[Envelope]
   
 ## Constructs a new PeerStore with metadata of type M
 proc new*(T: type PeerStore): PeerStore =
@@ -160,3 +163,6 @@ proc updatePeerInfo*(
 
   if info.protos.len > 0:
     peerStore.protoBook.set(info.peerId, info.protos)
+  
+  if info.signedPeerRecord.isSome:
+    peerStore.signedPeerRecordBook.set(info.peerId, info.signedPeerRecord.get())
