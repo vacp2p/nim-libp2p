@@ -79,7 +79,9 @@ proc handlePeer(c: Chat, conn: Connection) {.async.} =
       c.writeStdout $conn.peerId & ": " & $str
 
   except LPStreamEOFError:
-    c.writeStdout $conn.peerId & " disconnected"
+    defer: c.writeStdout $conn.peerId & " disconnected"
+    await c.conn.close()
+    c.connected = false
 
 proc dialPeer(c: Chat, address: string) {.async.} =
   # Parse and dial address
@@ -130,7 +132,7 @@ proc readLoop(c: Chat) {.async.} =
 
       await c.switch.stop()
       c.writeStdout "quitting..."
-      quit(0)
+      return
     else:
       if c.connected:
         await c.conn.writeLp(line)
@@ -189,5 +191,6 @@ proc main() {.async.} =
 
   await chat.readLoop()
   await allFuturesThrowing(libp2pFuts)
+  quit(0)
 
 waitFor(main())
