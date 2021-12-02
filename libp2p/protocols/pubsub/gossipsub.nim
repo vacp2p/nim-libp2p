@@ -43,7 +43,7 @@ proc init*(_: type[GossipSubParams]): GossipSubParams =
   GossipSubParams(
       explicit: true,
       pruneBackoff: 1.minutes,
-      unsubcribeBackoff: 1.minutes,
+      unsubcribeBackoff: 5.seconds,
       floodPublish: true,
       gossipFactor: 0.25,
       d: GossipSubD,
