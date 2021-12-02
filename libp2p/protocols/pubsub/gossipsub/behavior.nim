@@ -42,11 +42,11 @@ proc pruned*(g: GossipSub,
              p: PubSubPeer,
              topic: string,
              setBackoff: bool = true,
-             backoff: Duration = 0.seconds) {.raises: [Defect].} =
+             backoff = none(Duration)) {.raises: [Defect].} =
   if setBackoff:
     let
       backoffDuration =
-        if backoff.seconds > 0: backoff
+        if isSome(backoff): backoff.get()
         else: g.parameters.pruneBackoff
       backoffMoment = Moment.fromNow(backoffDuration)
 

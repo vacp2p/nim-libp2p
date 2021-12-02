@@ -420,7 +420,7 @@ method onTopicSubscription*(g: GossipSub, topic: string, subscribed: bool) =
     g.broadcast(mpeers, msg)
 
     for peer in mpeers:
-      g.pruned(peer, topic, backoff = g.parameters.unsubcribeBackoff)
+      g.pruned(peer, topic, backoff = some(g.parameters.unsubcribeBackoff))
 
     g.mesh.del(topic)
 
