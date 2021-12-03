@@ -253,7 +253,10 @@ proc start*(s: Switch) {.async, gcsafe.} =
 
   for s in startFuts:
     if s.failed:
-      error "Failed to start one transport", error=s.error.msg
+      # TODO: replace this exception with a `listenError` callback. See
+      # https://github.com/status-im/nim-libp2p/pull/662 for more info.
+      raise newException(transport.TransportError,
+        "Failed to start one transport", s.error)
 
   for t in s.transports: # for each transport
     if t.addrs.len > 0:
