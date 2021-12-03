@@ -54,9 +54,8 @@ suite "Switch":
     switch1.mount(testProto)
 
     let switch2 = newStandardSwitch()
-    var awaiters: seq[Future[void]]
-    awaiters.add(await switch1.start())
-    awaiters.add(await switch2.start())
+    await switch1.start()
+    await switch2.start()
 
     let conn = await switch2.dial(switch1.peerInfo.peerId, switch1.peerInfo.addrs, TestCodec)
 
@@ -72,9 +71,6 @@ suite "Switch":
       done.wait(5.seconds),
       switch1.stop(),
       switch2.stop())
-
-    # this needs to go at end
-    await allFuturesThrowing(awaiters)
 
     check not switch1.isConnected(switch2.peerInfo.peerId)
     check not switch2.isConnected(switch1.peerInfo.peerId)
@@ -103,9 +99,8 @@ suite "Switch":
     switch1.mount(testProto, match)
 
     let switch2 = newStandardSwitch(secureManagers = [SecureProtocol.Noise])
-    var awaiters: seq[Future[void]]
-    awaiters.add(await switch1.start())
-    awaiters.add(await switch2.start())
+    await switch1.start()
+    await switch2.start()
 
     let conn = await switch2.dial(switch1.peerInfo.peerId, switch1.peerInfo.addrs, callProto)
 
@@ -121,9 +116,6 @@ suite "Switch":
       done.wait(5.seconds),
       switch1.stop(),
       switch2.stop())
-
-    # this needs to go at end
-    await allFuturesThrowing(awaiters)
 
     check not switch1.isConnected(switch2.peerInfo.peerId)
     check not switch2.isConnected(switch1.peerInfo.peerId)
@@ -147,9 +139,8 @@ suite "Switch":
     switch1.mount(testProto)
 
     let switch2 = newStandardSwitch()
-    var awaiters: seq[Future[void]]
-    awaiters.add(await switch1.start())
-    awaiters.add(await switch2.start())
+    await switch1.start()
+    await switch2.start()
 
     let conn = await switch2.dial(switch1.peerInfo.peerId, switch1.peerInfo.addrs, TestCodec)
 
@@ -167,15 +158,10 @@ suite "Switch":
       switch2.stop(),
     )
 
-    # this needs to go at end
-    await allFuturesThrowing(awaiters)
-
     check not switch1.isConnected(switch2.peerInfo.peerId)
     check not switch2.isConnected(switch1.peerInfo.peerId)
 
   asyncTest "e2e use connect then dial":
-    var awaiters: seq[Future[void]]
-
     proc handle(conn: Connection, proto: string) {.async, gcsafe.} =
       try:
         let msg = string.fromBytes(await conn.readLp(1024))
@@ -192,8 +178,8 @@ suite "Switch":
     switch1.mount(testProto)
 
     let switch2 = newStandardSwitch(secureManagers = [SecureProtocol.Noise])
-    awaiters.add(await switch1.start())
-    awaiters.add(await switch2.start())
+    await switch1.start()
+    await switch2.start()
 
     await switch2.connect(switch1.peerInfo.peerId, switch1.peerInfo.addrs)
     let conn = await switch2.dial(switch1.peerInfo.peerId, switch1.peerInfo.addrs, TestCodec)
@@ -210,18 +196,15 @@ suite "Switch":
       switch1.stop(),
       switch2.stop()
     )
-    await allFuturesThrowing(awaiters)
 
     check not switch1.isConnected(switch2.peerInfo.peerId)
     check not switch2.isConnected(switch1.peerInfo.peerId)
 
   asyncTest "e2e should not leak on peer disconnect":
-    var awaiters: seq[Future[void]]
-
     let switch1 = newStandardSwitch()
     let switch2 = newStandardSwitch()
-    awaiters.add(await switch1.start())
-    awaiters.add(await switch2.start())
+    await switch1.start()
+    await switch2.start()
 
     await switch2.connect(switch1.peerInfo.peerId, switch1.peerInfo.addrs)
 
@@ -239,11 +222,8 @@ suite "Switch":
     await allFuturesThrowing(
       switch1.stop(),
       switch2.stop())
-    await allFuturesThrowing(awaiters)
 
   asyncTest "e2e should trigger connection events (remote)":
-    var awaiters: seq[Future[void]]
-
     let switch1 = newStandardSwitch()
     let switch2 = newStandardSwitch()
 
@@ -269,8 +249,8 @@ suite "Switch":
     switch2.addConnEventHandler(hook, ConnEventKind.Connected)
     switch2.addConnEventHandler(hook, ConnEventKind.Disconnected)
 
-    awaiters.add(await switch1.start())
-    awaiters.add(await switch2.start())
+    await switch1.start()
+    await switch2.start()
 
     await switch2.connect(switch1.peerInfo.peerId, switch1.peerInfo.addrs)
 
@@ -294,11 +274,8 @@ suite "Switch":
     await allFuturesThrowing(
       switch1.stop(),
       switch2.stop())
-    await allFuturesThrowing(awaiters)
 
   asyncTest "e2e should trigger connection events (local)":
-    var awaiters: seq[Future[void]]
-
     let switch1 = newStandardSwitch()
     let switch2 = newStandardSwitch()
 
@@ -324,8 +301,8 @@ suite "Switch":
     switch1.addConnEventHandler(hook, ConnEventKind.Connected)
     switch1.addConnEventHandler(hook, ConnEventKind.Disconnected)
 
-    awaiters.add(await switch1.start())
-    awaiters.add(await switch2.start())
+    await switch1.start()
+    await switch2.start()
 
     await switch2.connect(switch1.peerInfo.peerId, switch1.peerInfo.addrs)
 
@@ -349,11 +326,8 @@ suite "Switch":
     await allFuturesThrowing(
       switch1.stop(),
       switch2.stop())
-    await allFuturesThrowing(awaiters)
 
   asyncTest "e2e should trigger peer events (remote)":
-    var awaiters: seq[Future[void]]
-
     let switch1 = newStandardSwitch()
     let switch2 = newStandardSwitch()
 
@@ -378,8 +352,8 @@ suite "Switch":
     switch1.addPeerEventHandler(handler, PeerEventKind.Joined)
     switch1.addPeerEventHandler(handler, PeerEventKind.Left)
 
-    awaiters.add(await switch1.start())
-    awaiters.add(await switch2.start())
+    await switch1.start()
+    await switch2.start()
 
     await switch2.connect(switch1.peerInfo.peerId, switch1.peerInfo.addrs)
 
@@ -403,11 +377,8 @@ suite "Switch":
     await allFuturesThrowing(
       switch1.stop(),
       switch2.stop())
-    await allFuturesThrowing(awaiters)
 
   asyncTest "e2e should trigger peer events (local)":
-    var awaiters: seq[Future[void]]
-
     let switch1 = newStandardSwitch()
     let switch2 = newStandardSwitch()
 
@@ -432,8 +403,8 @@ suite "Switch":
     switch2.addPeerEventHandler(handler, PeerEventKind.Joined)
     switch2.addPeerEventHandler(handler, PeerEventKind.Left)
 
-    awaiters.add(await switch1.start())
-    awaiters.add(await switch2.start())
+    await switch1.start()
+    await switch2.start()
 
     await switch2.connect(switch1.peerInfo.peerId, switch1.peerInfo.addrs)
 
@@ -457,11 +428,8 @@ suite "Switch":
     await allFuturesThrowing(
       switch1.stop(),
       switch2.stop())
-    await allFuturesThrowing(awaiters)
 
   asyncTest "e2e should trigger peer events only once per peer":
-    var awaiters: seq[Future[void]]
-
     let switch1 = newStandardSwitch()
 
     let rng = crypto.newRng()
@@ -494,9 +462,9 @@ suite "Switch":
     switch1.addPeerEventHandler(handler, PeerEventKind.Joined)
     switch1.addPeerEventHandler(handler, PeerEventKind.Left)
 
-    awaiters.add(await switch1.start())
-    awaiters.add(await switch2.start())
-    awaiters.add(await switch3.start())
+    await switch1.start()
+    await switch2.start()
+    await switch3.start()
 
     await switch2.connect(switch1.peerInfo.peerId, switch1.peerInfo.addrs) # should trigger 1st Join event
     await switch3.connect(switch1.peerInfo.peerId, switch1.peerInfo.addrs) # should trigger 2nd Join event
@@ -526,11 +494,8 @@ suite "Switch":
       switch1.stop(),
       switch2.stop(),
       switch3.stop())
-    await allFuturesThrowing(awaiters)
 
   asyncTest "e2e should allow dropping peer from connection events":
-    var awaiters: seq[Future[void]]
-
     let rng = crypto.newRng()
     # use same private keys to emulate two connection from same peer
     let
@@ -555,7 +520,7 @@ suite "Switch":
 
     switches[0].addConnEventHandler(hook, ConnEventKind.Connected)
     switches[0].addConnEventHandler(hook, ConnEventKind.Disconnected)
-    awaiters.add(await switches[0].start())
+    await switches[0].start()
 
     switches.add(newStandardSwitch(
       privKey = some(privateKey),
@@ -569,11 +534,8 @@ suite "Switch":
 
     await allFuturesThrowing(
       switches.mapIt( it.stop() ))
-    await allFuturesThrowing(awaiters)
 
   asyncTest "e2e should allow dropping multiple connections for peer from connection events":
-    var awaiters: seq[Future[void]]
-
     let rng = crypto.newRng()
     # use same private keys to emulate two connection from same peer
     let
@@ -603,7 +565,7 @@ suite "Switch":
         rng = rng))
 
     switches[0].addConnEventHandler(hook, ConnEventKind.Connected)
-    awaiters.add(await switches[0].start())
+    await switches[0].start()
 
     for i in 1..5:
       switches.add(newStandardSwitch(
@@ -619,7 +581,6 @@ suite "Switch":
 
     await allFuturesThrowing(
       switches.mapIt( it.stop() ))
-    await allFuturesThrowing(awaiters)
 
   # TODO: we should be able to test cancellation
   # for most of the steps in the upgrade flow -
@@ -641,8 +602,7 @@ suite "Switch":
     let handlerWait = acceptHandler()
     let switch = newStandardSwitch(secureManagers = [SecureProtocol.Noise])
 
-    var awaiters: seq[Future[void]]
-    awaiters.add(await switch.start())
+    await switch.start()
 
     var peerId = PeerID.init(PrivateKey.random(ECDSA, rng[]).get()).get()
     let connectFut = switch.connect(peerId, transport.addrs)
@@ -658,9 +618,6 @@ suite "Switch":
       transport.stop(),
       switch.stop())
 
-    # this needs to go at end
-    await allFuturesThrowing(awaiters)
-
   asyncTest "e2e closing remote conn should not leak":
     let ma = @[Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
 
@@ -674,8 +631,7 @@ suite "Switch":
     let handlerWait = acceptHandler()
     let switch = newStandardSwitch(secureManagers = [SecureProtocol.Noise])
 
-    var awaiters: seq[Future[void]]
-    awaiters.add(await switch.start())
+    await switch.start()
 
     var peerId = PeerID.init(PrivateKey.random(ECDSA, rng[]).get()).get()
     expect LPStreamClosedError:
@@ -691,9 +647,6 @@ suite "Switch":
       transport.stop(),
       switch.stop())
 
-    # this needs to go at end
-    await allFuturesThrowing(awaiters)
-
   asyncTest "e2e calling closeWithEOF on the same stream should not assert":
     proc handle(conn: Connection, proto: string) {.async, gcsafe.} =
       discard await conn.readLp(100)
@@ -707,8 +660,7 @@ suite "Switch":
 
     let switch2 = newStandardSwitch(secureManagers = [SecureProtocol.Noise])
 
-    var awaiters: seq[Future[void]]
-    awaiters.add(await switch1.start())
+    await switch1.start()
 
     let conn = await switch2.dial(switch1.peerInfo.peerId, switch1.peerInfo.addrs, TestCodec)
 
@@ -729,12 +681,9 @@ suite "Switch":
 
     await switch1.stop()
 
-    # this needs to go at end
-    await allFuturesThrowing(awaiters)
-
   asyncTest "connect to inexistent peer":
     let switch2 = newStandardSwitch(secureManagers = [SecureProtocol.Noise])
-    discard await switch2.start()
+    await switch2.start()
     let someAddr = MultiAddress.init("/ip4/127.128.0.99").get()
     let seckey = PrivateKey.random(ECDSA, rng[]).get()
     let somePeer = PeerInfo.new(secKey, [someAddr])
@@ -743,46 +692,41 @@ suite "Switch":
     await switch2.stop()
 
   asyncTest "e2e total connection limits on incoming connections":
-    var awaiters: seq[Future[void]]
-
     var switches: seq[Switch]
     let destSwitch = newStandardSwitch(maxConnections = 3)
     switches.add(destSwitch)
-    awaiters.add(await destSwitch.start())
+    await destSwitch.start()
 
     let destPeerInfo = destSwitch.peerInfo
     for i in 0..<3:
       let switch = newStandardSwitch()
       switches.add(switch)
-      awaiters.add(await switch.start())
+      await switch.start()
 
       check await switch.connect(destPeerInfo.peerId, destPeerInfo.addrs)
         .withTimeout(1000.millis)
 
     let switchFail = newStandardSwitch()
     switches.add(switchFail)
-    awaiters.add(await switchFail.start())
+    await switchFail.start()
 
     check not(await switchFail.connect(destPeerInfo.peerId, destPeerInfo.addrs)
       .withTimeout(1000.millis))
 
     await allFuturesThrowing(
       allFutures(switches.mapIt( it.stop() )))
-    await allFuturesThrowing(awaiters)
 
   asyncTest "e2e total connection limits on incoming connections":
-    var awaiters: seq[Future[void]]
-
     var switches: seq[Switch]
     for i in 0..<3:
       switches.add(newStandardSwitch())
-      awaiters.add(await switches[i].start())
+      await switches[i].start()
 
     let srcSwitch = newStandardSwitch(maxConnections = 3)
-    awaiters.add(await srcSwitch.start())
+    await srcSwitch.start()
 
     let dstSwitch = newStandardSwitch()
-    awaiters.add(await dstSwitch.start())
+    await dstSwitch.start()
 
     for s in switches:
       check await srcSwitch.connect(s.peerInfo.peerId, s.peerInfo.addrs)
@@ -796,49 +740,44 @@ suite "Switch":
 
     await allFuturesThrowing(
       allFutures(switches.mapIt( it.stop() )))
-    await allFuturesThrowing(awaiters)
 
   asyncTest "e2e max incoming connection limits":
-    var awaiters: seq[Future[void]]
-
     var switches: seq[Switch]
     let destSwitch = newStandardSwitch(maxIn = 3)
     switches.add(destSwitch)
-    awaiters.add(await destSwitch.start())
+    await destSwitch.start()
 
     let destPeerInfo = destSwitch.peerInfo
     for i in 0..<3:
       let switch = newStandardSwitch()
       switches.add(switch)
-      awaiters.add(await switch.start())
+      await switch.start()
 
       check await switch.connect(destPeerInfo.peerId, destPeerInfo.addrs)
         .withTimeout(1000.millis)
 
     let switchFail = newStandardSwitch()
     switches.add(switchFail)
-    awaiters.add(await switchFail.start())
+    await switchFail.start()
 
     check not(await switchFail.connect(destPeerInfo.peerId, destPeerInfo.addrs)
       .withTimeout(1000.millis))
 
     await allFuturesThrowing(
       allFutures(switches.mapIt( it.stop() )))
-    await allFuturesThrowing(awaiters)
 
   asyncTest "e2e max outgoing connection limits":
-    var awaiters: seq[Future[void]]
 
     var switches: seq[Switch]
     for i in 0..<3:
       switches.add(newStandardSwitch())
-      awaiters.add(await switches[i].start())
+      await switches[i].start()
 
     let srcSwitch = newStandardSwitch(maxOut = 3)
-    awaiters.add(await srcSwitch.start())
+    await srcSwitch.start()
 
     let dstSwitch = newStandardSwitch()
-    awaiters.add(await dstSwitch.start())
+    await dstSwitch.start()
 
     for s in switches:
       check await srcSwitch.connect(s.peerInfo.peerId, s.peerInfo.addrs)
@@ -852,7 +791,6 @@ suite "Switch":
 
     await allFuturesThrowing(
       allFutures(switches.mapIt( it.stop() )))
-    await allFuturesThrowing(awaiters)
 
   asyncTest "e2e peer store":
     let done = newFuture[void]()
@@ -873,9 +811,8 @@ suite "Switch":
     switch1.mount(testProto)
 
     let switch2 = newStandardSwitch()
-    var awaiters: seq[Future[void]]
-    awaiters.add(await switch1.start())
-    awaiters.add(await switch2.start())
+    await switch1.start()
+    await switch2.start()
 
     let conn = await switch2.dial(switch1.peerInfo.peerId, switch1.peerInfo.addrs, TestCodec)
 
@@ -891,9 +828,6 @@ suite "Switch":
       done.wait(5.seconds),
       switch1.stop(),
       switch2.stop())
-
-    # this needs to go at end
-    await allFuturesThrowing(awaiters)
 
     check not switch1.isConnected(switch2.peerInfo.peerId)
     check not switch2.isConnected(switch1.peerInfo.peerId)
@@ -973,7 +907,6 @@ suite "Switch":
     check not switch2.isConnected(switch1.peerInfo.peerId)
 
   asyncTest "e2e dial dns4 address":
-    var awaiters: seq[Future[void]]
     let resolver = MockResolver.new()
     resolver.ipResponses[("localhost", false)] = @["127.0.0.1"]
     resolver.ipResponses[("localhost", true)] = @["::1"]
@@ -982,9 +915,8 @@ suite "Switch":
       srcSwitch = newStandardSwitch(nameResolver = resolver)
       destSwitch = newStandardSwitch()
 
-    awaiters.add(await destSwitch.start())
-    awaiters.add(await srcSwitch.start())
-    await allFuturesThrowing(awaiters)
+    await destSwitch.start()
+    await srcSwitch.start()
 
     let testAddr = MultiAddress.init("/dns4/localhost/").tryGet() &
                     destSwitch.peerInfo.addrs[0][1].tryGet()
@@ -996,7 +928,6 @@ suite "Switch":
     await srcSwitch.stop()
 
   asyncTest "e2e dial dnsaddr with multiple transports":
-    var awaiters: seq[Future[void]]
     let resolver = MockResolver.new()
 
     let
@@ -1024,10 +955,8 @@ suite "Switch":
         .withNoise()
         .build()
 
-    awaiters.add(await destSwitch.start())
-    awaiters.add(await srcTcpSwitch.start())
-    awaiters.add(await srcWsSwitch.start())
-    await allFuturesThrowing(awaiters)
+    await destSwitch.start()
+    await srcWsSwitch.start()
 
     resolver.txtResponses["_dnsaddr.test.io"] = @[
       "dnsaddr=" & $destSwitch.peerInfo.addrs[0],

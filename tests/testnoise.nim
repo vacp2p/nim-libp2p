@@ -257,7 +257,6 @@ suite "Noise":
 
     var peerInfo1, peerInfo2: PeerInfo
     var switch1, switch2: Switch
-    var awaiters: seq[Future[void]]
 
     (switch1, peerInfo1) = createSwitch(ma1, false)
 
@@ -266,8 +265,8 @@ suite "Noise":
     testProto.codec = TestCodec
     switch1.mount(testProto)
     (switch2, peerInfo2) = createSwitch(ma2, true)
-    awaiters.add(await switch1.start())
-    awaiters.add(await switch2.start())
+    await switch1.start()
+    await switch2.start()
     let conn = await switch2.dial(switch1.peerInfo.peerId, switch1.peerInfo.addrs, TestCodec)
     await conn.writeLp("Hello!")
     let msg = string.fromBytes(await conn.readLp(1024))
@@ -277,7 +276,6 @@ suite "Noise":
     await allFuturesThrowing(
       switch1.stop(),
       switch2.stop())
-    await allFuturesThrowing(awaiters)
 
   asyncTest "e2e test wrong secure negotiation":
     let ma1 = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
@@ -285,7 +283,6 @@ suite "Noise":
 
     var peerInfo1, peerInfo2: PeerInfo
     var switch1, switch2: Switch
-    var awaiters: seq[Future[void]]
 
     (switch1, peerInfo1) = createSwitch(ma1, false)
 
@@ -294,13 +291,11 @@ suite "Noise":
     testProto.codec = TestCodec
     switch1.mount(testProto)
     (switch2, peerInfo2) = createSwitch(ma2, true, true) # secio, we want to fail
-    awaiters.add(await switch1.start())
-    awaiters.add(await switch2.start())
+    await switch1.start()
+    await switch2.start()
     expect(UpgradeFailedError):
       let conn = await switch2.dial(switch1.peerInfo.peerId, switch1.peerInfo.addrs, TestCodec)
 
     await allFuturesThrowing(
       switch1.stop(),
       switch2.stop())
-
-    await allFuturesThrowing(awaiters)
