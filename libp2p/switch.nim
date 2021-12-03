@@ -234,7 +234,7 @@ proc stop*(s: Switch) {.async.} =
 
   trace "Switch stopped"
 
-proc start*(s: Switch): Future[seq[Future[void]]] {.async, gcsafe.} =
+proc start*(s: Switch) {.async, gcsafe.} =
   trace "starting switch for peer", peerInfo = s.peerInfo
   var startFuts: seq[Future[void]]
   for t in s.transports:
@@ -253,7 +253,7 @@ proc start*(s: Switch): Future[seq[Future[void]]] {.async, gcsafe.} =
 
   for s in startFuts:
     if s.failed:
-      info "Failed to start one transport", error=s.error.msg
+      error "Failed to start one transport", error=s.error.msg
 
   for t in s.transports: # for each transport
     if t.addrs.len > 0:
@@ -261,8 +261,6 @@ proc start*(s: Switch): Future[seq[Future[void]]] {.async, gcsafe.} =
       s.peerInfo.addrs &= t.addrs
 
   debug "Started libp2p node", peer = s.peerInfo
-  return startFuts # listen for incoming connections
-
 
 proc newSwitch*(peerInfo: PeerInfo,
                 transports: seq[Transport],

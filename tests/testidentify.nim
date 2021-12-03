@@ -129,7 +129,6 @@ suite "Identify":
       switch2 {.threadvar.}: Switch
       identifyPush1 {.threadvar.}: IdentifyPush
       identifyPush2 {.threadvar.}: IdentifyPush
-      awaiters {.threadvar.}: seq[Future[void]]
       conn {.threadvar.}: Connection
     asyncSetup:
       switch1 = newStandardSwitch()
@@ -146,8 +145,8 @@ suite "Identify":
       switch1.mount(identifyPush1)
       switch2.mount(identifyPush2)
 
-      awaiters.add(await switch1.start())
-      awaiters.add(await switch2.start())
+      await switch1.start()
+      await switch2.start()
 
       conn = await switch2.dial(
         switch1.peerInfo.peerId,
@@ -166,9 +165,6 @@ suite "Identify":
 
       await switch1.stop()
       await switch2.stop()
-
-      # this needs to go at end
-      await allFuturesThrowing(awaiters)
 
     asyncTest "simple push identify":
       switch2.peerInfo.protocols.add("/newprotocol/")
