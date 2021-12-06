@@ -38,11 +38,20 @@ proc grafted*(g: GossipSub, p: PubSubPeer, topic: string) {.raises: [Defect].} =
 
     trace "grafted", peer=p, topic
 
-proc pruned*(g: GossipSub, p: PubSubPeer, topic: string, setBackoff: bool = true) {.raises: [Defect].} =
+proc pruned*(g: GossipSub,
+             p: PubSubPeer,
+             topic: string,
+             setBackoff: bool = true,
+             backoff = none(Duration)) {.raises: [Defect].} =
   if setBackoff:
-    let backoff = Moment.fromNow(g.parameters.pruneBackoff)
+    let
+      backoffDuration =
+        if isSome(backoff): backoff.get()
+        else: g.parameters.pruneBackoff
+      backoffMoment = Moment.fromNow(backoffDuration)
+
     g.backingOff
-      .mgetOrPut(topic, initTable[PeerID, Moment]())[p.peerId] = backoff
+      .mgetOrPut(topic, initTable[PeerID, Moment]())[p.peerId] = backoffMoment
 
   g.peerStats.withValue(p.peerId, stats):
     stats.topicInfos.withValue(topic, info):

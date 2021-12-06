@@ -209,18 +209,12 @@ proc push*(p: IdentifyPush, peerInfo: PeerInfo, conn: Connection) {.async.} =
   var pb = encodeMsg(peerInfo, conn.observedAddr)
   await conn.writeLp(pb.buffer)
 
-proc mount*[Switch](i: Identify, s: Switch)
-  {.gcsafe, raises: [Defect, LPError].} =
+proc switchWith*[Switch](s: Switch, i: Identify)
+  {.gcsafe, raises: [Defect].} =
 
   i.init()
   i.peerInfo = s.peerInfo
   s.identify = i
-
-proc mount*[Switch](i: IdentifyPush, s: Switch)
-  {.gcsafe, raises: [Defect, LPError].} =
-
-  proc updateStore(peerId: PeerId, info: IdentifyInfo) {.async.} =
-    s.peerStore.updatePeerInfo(info)
-
-  i.identifyHandler = updateStore
-  i.init()
+  try:
+    s.switch.mount(i)
+  except: discard

@@ -616,12 +616,9 @@ proc new*(
   noise.init()
   noise
 
-proc mount*[Switch](
+proc switchWith*[Switch](
   s: Switch,
-  T: typedesc[Noise],
-  rng: ref BrHmacDrbgContext,
-  outgoing: bool = true,
-  commonPrologue: seq[byte] = @[]) =
+  noi: Noise) =
 
-  let noise = T.new(rng, s.peerInfo.privateKey, outgoing, commonPrologue)
-  s.secureManagers &= noise
+  let noise = Noise.new(newRng(), s.peerInfo.privateKey)
+  s.switch.secureManagers &= noise

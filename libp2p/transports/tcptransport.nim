@@ -20,7 +20,8 @@ import transport,
        ../multiaddress,
        ../stream/connection,
        ../stream/chronosstream,
-       ../upgrademngrs/upgrade
+       ../upgrademngrs/upgrade,
+       ../upgrademngrs/muxedupgrade
 
 logScope:
   topics = "libp2p tcptransport"
@@ -32,9 +33,10 @@ const
 
 type
   TcpTransport* = ref object of Transport
-    server*: StreamServer
+    servers*: seq[StreamServer]
     clients: array[Direction, seq[StreamTransport]]
     flags: set[ServerFlags]
+    acceptFuts: seq[Future[StreamTransport]]
 
   TcpTransportTracker* = ref object of TrackerBase
     opened*: uint64
@@ -121,42 +123,49 @@ proc new*(
 
   let transport = T(
     flags: flags,
-    upgrader: upgrade
-  )
+    upgrader: upgrade)
 
   inc getTcpTransportTracker().opened
   return transport
 
-proc mount*[Switch](s: Switch,
-  T: typedesc[TcpTransport],
-  flags: set[ServerFlags] = {}) =
+proc switchWith*[Switch](s: Switch,
+  tcpTransport: TcpTransport) =
 
-  let transp = T.new(flags, s.getUpgrade())
-  s.transports &= transp
-
+  let upgrade = MuxedUpgrade.new(s.identify, s.muxers, s.secureManagers, s.connManager, s.ms)
+  tcpTransport.upgrader = upgrade
+  s.switch.transports &= tcpTransport
 
 method start*(
   self: TcpTransport,
-  ma: MultiAddress) {.async.} =
+  addrs: seq[MultiAddress]) {.async.} =
   ## listen on the transport
   ##
 
   if self.running:
-    trace "TCP transport already running"
+    warn "TCP transport already running"
     return
 
-  await procCall Transport(self).start(ma)
+  await procCall Transport(self).start(addrs)
   trace "Starting TCP transport"
 
-  self.server = createStreamServer(
-    ma = self.ma,
-    flags = self.flags,
-    udata = self)
+  for i, ma in addrs:
+    if not self.handles(ma):
+      trace "Invalid address detected, skipping!", address = ma
+      continue
 
-  # always get the resolved address in case we're bound to 0.0.0.0:0
-  self.ma = MultiAddress.init(self.server.sock.getLocalAddress()).tryGet()
+    let server = createStreamServer(
+      ma = ma,
+      flags = self.flags,
+      udata = self)
 
-  trace "Listening on", address = self.ma
+    # always get the resolved address in case we're bound to 0.0.0.0:0
+    self.addrs[i] = MultiAddress.init(
+      server.sock.getLocalAddress()
+    ).tryGet()
+
+    self.servers &= server
+
+    trace "Listening on", address = ma
 
 method stop*(self: TcpTransport) {.async, gcsafe.} =
   ## stop the transport
@@ -171,11 +180,21 @@ method stop*(self: TcpTransport) {.async, gcsafe.} =
         self.clients[Direction.In].mapIt(it.closeWait()) &
         self.clients[Direction.Out].mapIt(it.closeWait())))
 
-    # server can be nil
-    if not isNil(self.server):
-      await self.server.closeWait()
+    var toWait: seq[Future[void]]
+    for fut in self.acceptFuts:
+      if not fut.finished:
+        toWait.add(fut.cancelAndWait())
+      elif fut.done:
+        toWait.add(fut.read().closeWait())
 
-    self.server = nil
+    for server in self.servers:
+      server.stop()
+      toWait.add(server.closeWait())
+
+    await allFutures(toWait)
+
+    self.servers = @[]
+
     trace "Transport stopped"
     inc getTcpTransportTracker().closed
   except CatchableError as exc:
@@ -189,7 +208,19 @@ method accept*(self: TcpTransport): Future[Connection] {.async, gcsafe.} =
     raise newTransportClosedError()
 
   try:
-    let transp = await self.server.accept()
+    if self.acceptFuts.len <= 0:
+      self.acceptFuts = self.servers.mapIt(it.accept())
+
+    if self.acceptFuts.len <= 0:
+      return
+
+    let
+      finished = await one(self.acceptFuts)
+      index = self.acceptFuts.find(finished)
+
+    self.acceptFuts[index] = self.servers[index].accept()
+
+    let transp = await finished
     return await self.connHandler(transp, Direction.In)
   except TransportOsError as exc:
     # TODO: it doesn't sound like all OS errors
@@ -201,6 +232,8 @@ method accept*(self: TcpTransport): Future[Connection] {.async, gcsafe.} =
   except TransportUseClosedError as exc:
     debug "Server was closed", exc = exc.msg
     raise newTransportClosedError(exc)
+  except CancelledError as exc:
+    raise
   except CatchableError as exc:
     debug "Unexpected error accepting connection", exc = exc.msg
     raise exc
@@ -215,7 +248,11 @@ method dial*(
   trace "Dialing remote peer", address = $address
 
   let transp = await connect(address)
-  return await self.connHandler(transp, Direction.Out)
+  try:
+    return await self.connHandler(transp, Direction.Out)
+  except CatchableError as err:
+    await transp.closeWait()
+    raise err
 
 method handles*(t: TcpTransport, address: MultiAddress): bool {.gcsafe.} =
   if procCall Transport(t).handles(address):

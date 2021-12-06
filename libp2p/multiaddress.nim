@@ -1005,7 +1005,7 @@ proc `$`*(pat: MaPattern): string =
 proc write*(pb: var ProtoBuffer, field: int, value: MultiAddress) {.inline.} =
   write(pb, field, value.data.buffer)
 
-proc getField*(pb: var ProtoBuffer, field: int,
+proc getField*(pb: ProtoBuffer, field: int,
                value: var MultiAddress): ProtoResult[bool] {.
      inline.} =
   var buffer: seq[byte]

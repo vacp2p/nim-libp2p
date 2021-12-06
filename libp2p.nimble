@@ -12,7 +12,7 @@ requires "nim >= 1.2.0",
          "https://github.com/ba0f3/dnsclient.nim == 0.1.0",
          "bearssl >= 0.1.4",
          "chronicles#ba2817f1",
-         "chronos >= 2.5.2",
+         "chronos >= 3.0.6",
          "metrics",
          "secp256k1",
          "stew#head",
@@ -86,8 +86,8 @@ task test, "Runs the test suite":
 task test_slim, "Runs the test suite":
   exec "nimble testnative"
   exec "nimble testpubsub_slim"
-  exec "nimble testinterop"
   exec "nimble testfilter"
+  exec "nimble examples_build"
 
 task examples_build, "Build the samples":
   buildSample("directchat")

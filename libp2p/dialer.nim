@@ -249,3 +249,13 @@ proc new*(
     transports: transports,
     ms: ms,
     nameResolver: nameResolver)
+
+proc switchWith*[Switch](
+  s: Switch,
+  dial: Dialer) =
+
+  dial.localPeerId = s.peerInfo.peerId
+  dial.connManager = s.connManager
+  dial.transports = s.transports
+  dial.ms = s.ms
+  s.dialer = dial

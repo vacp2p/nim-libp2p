@@ -37,11 +37,13 @@ logScope:
 
 declareCounter(libp2p_gossipsub_failed_publish, "number of failed publish")
 declareCounter(libp2p_gossipsub_invalid_topic_subscription, "number of invalid topic subscriptions that happened")
+declareCounter(libp2p_gossipsub_duplicate_during_validation, "number of duplicates received during message validation")
 
 proc init*(_: type[GossipSubParams]): GossipSubParams =
   GossipSubParams(
       explicit: true,
       pruneBackoff: 1.minutes,
+      unsubcribeBackoff: 5.seconds,
       floodPublish: true,
       gossipFactor: 0.25,
       d: GossipSubD,
@@ -76,6 +78,8 @@ proc validateParameters*(parameters: GossipSubParams): Result[void, cstring] =
     err("gossipsub: dOut parameter error, Number of outbound connections to keep in the mesh. Must be less than D_lo and at most D/2")
   elif parameters.gossipThreshold >= 0:
     err("gossipsub: gossipThreshold parameter error, Must be < 0")
+  elif parameters.unsubcribeBackoff.seconds <= 0:
+    err("gossipsub: unsubcribeBackoff parameter error, Must be > 0 seconds")
   elif parameters.publishThreshold >= parameters.gossipThreshold:
     err("gossipsub: publishThreshold parameter error, Must be < gossipThreshold")
   elif parameters.graylistThreshold >= parameters.publishThreshold:
@@ -295,7 +299,9 @@ method rpcHandler*(g: GossipSub,
 
   for i in 0..<rpcMsg.messages.len():                         # for every message
     template msg: untyped = rpcMsg.messages[i]
-    let msgId = g.msgIdProvider(msg)
+    let
+      msgId = g.msgIdProvider(msg)
+      msgIdSalted = msgId & g.seenSalt
 
     # addSeen adds salt to msgId to avoid
     # remote attacking the hash function
@@ -305,6 +311,8 @@ method rpcHandler*(g: GossipSub,
       # TODO: take into account meshMessageDeliveriesWindow
       # score only if messages are not too old.
       g.rewardDelivered(peer, msg.topicIDs, false)
+
+      g.validationSeen.withValue(msgIdSalted, seen): seen[].incl(peer)
 
       # onto the next message
       continue
@@ -331,7 +339,16 @@ method rpcHandler*(g: GossipSub,
     # g.anonymize needs no evaluation when receiving messages
     # as we have a "lax" policy and allow signed messages
 
+    # Be careful not to fill the validationSeen table
+    # (eg, pop everything you put in it)
+    g.validationSeen[msgIdSalted] = initHashSet[PubSubPeer]()
+
     let validation = await g.validate(msg)
+
+    var seenPeers: HashSet[PubSubPeer]
+    discard g.validationSeen.pop(msgIdSalted, seenPeers)
+    libp2p_gossipsub_duplicate_during_validation.inc(seenPeers.len.int64)
+
     case validation
     of ValidationResult.Reject:
       debug "Dropping message after validation, reason: reject",
@@ -350,7 +367,7 @@ method rpcHandler*(g: GossipSub,
 
     g.rewardDelivered(peer, msg.topicIDs, true)
 
-    var toSendPeers = initHashSet[PubSubPeer]()
+    var toSendPeers = HashSet[PubSubPeer]()
     for t in msg.topicIDs:                      # for every topic in the message
       if t notin g.topics:
         continue
@@ -359,6 +376,11 @@ method rpcHandler*(g: GossipSub,
       g.mesh.withValue(t, peers): toSendPeers.incl(peers[])
 
       await handleData(g, t, msg.data)
+
+    # Don't send it to source peer, or peers that
+    # sent it during validation
+    toSendPeers.excl(peer)
+    toSendPeers.excl(seenPeers)
 
     # In theory, if topics are the same in all messages, we could batch - we'd
     # also have to be careful to only include validated messages
@@ -394,11 +416,11 @@ method onTopicSubscription*(g: GossipSub, topic: string, subscribed: bool) =
           prune: @[ControlPrune(
             topicID: topic,
             peers: g.peerExchangeList(topic),
-            backoff: g.parameters.pruneBackoff.seconds.uint64)])))
+            backoff: g.parameters.unsubcribeBackoff.seconds.uint64)])))
     g.broadcast(mpeers, msg)
 
     for peer in mpeers:
-      g.pruned(peer, topic)
+      g.pruned(peer, topic, backoff = some(g.parameters.unsubcribeBackoff))
 
     g.mesh.del(topic)
 

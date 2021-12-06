@@ -194,6 +194,26 @@ proc muxerHandler(
     await muxer.close()
     trace "Exception in muxer handler", conn, msg = exc.msg
 
+proc init(upgrader: MuxedUpgrade) =
+  upgrader.streamHandler = proc(conn: Connection)
+    {.async, gcsafe, raises: [Defect].} =
+    trace "Starting stream handler", conn
+    try:
+      await upgrader.ms.handle(conn) # handle incoming connection
+    except CancelledError as exc:
+      raise exc
+    except CatchableError as exc:
+      trace "exception in stream handler", conn, msg = exc.msg
+    finally:
+      await conn.closeWithEOF()
+    trace "Stream handler done", conn
+
+  for _, val in upgrader.muxers:
+    val.streamHandler = upgrader.streamHandler
+    val.muxerHandler = proc(muxer: Muxer): Future[void]
+      {.raises: [Defect].} =
+      upgrader.muxerHandler(muxer)
+
 proc new*(
   T: type MuxedUpgrade,
   identity: Identify,
@@ -209,23 +229,5 @@ proc new*(
     connManager: connManager,
     ms: ms)
 
-  upgrader.streamHandler = proc(conn: Connection)
-    {.async, gcsafe, raises: [Defect].} =
-    trace "Starting stream handler", conn
-    try:
-      await upgrader.ms.handle(conn) # handle incoming connection
-    except CancelledError as exc:
-      raise exc
-    except CatchableError as exc:
-      trace "exception in stream handler", conn, msg = exc.msg
-    finally:
-      await conn.closeWithEOF()
-    trace "Stream handler done", conn
-
-  for _, val in muxers:
-    val.streamHandler = upgrader.streamHandler
-    val.muxerHandler = proc(muxer: Muxer): Future[void]
-      {.raises: [Defect].} =
-      upgrader.muxerHandler(muxer)
-
+  upgrader.init()
   return upgrader

@@ -103,13 +103,9 @@ proc new*(C: type ConnManager,
     inSema: inSema,
     outSema: outSema)
 
-proc mount*[Switch](s: Switch,
-  T: typedesc[ConnManager],
-  maxConnsPerPeer = MaxConnectionsPerPeer,
-  maxConnections = MaxConnections,
-  maxIn = -1,
-  maxOut = -1) =
-  let connManager = T.new(maxConnsPerPeer, maxConnections, maxIn, maxOut)
+proc switchWith*[Switch](s: Switch,
+  connManager: ConnManager,
+  ) =
   s.connManager = connManager
 
 proc connCount*(c: ConnManager, peerId: PeerID): int =

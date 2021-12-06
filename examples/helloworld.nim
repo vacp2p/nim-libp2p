@@ -65,9 +65,8 @@ proc main() {.async, gcsafe.} =
 
   # Start the nodes. This will start the transports
   # and listen on each local addresses
-  let
-    switch1Fut = await switch1.start()
-    switch2Fut = await switch2.start()
+  await switch1.start()
+  await switch2.start()
 
   # the node addrs is populated with it's
   # actual port during the start
@@ -87,6 +86,5 @@ proc main() {.async, gcsafe.} =
   await conn.close()
 
   await allFutures(switch1.stop(), switch2.stop()) # close connections and shutdown all transports
-  await allFutures(switch1Fut & switch2Fut) # wait for all transports to shutdown
 
 waitFor(main())
