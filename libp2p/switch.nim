@@ -56,6 +56,10 @@ const
   ConcurrentUpgrades* = 4
 
 type
+    ListenErrorCallback = proc (
+      err: ref CatchableError): ref CatchableError
+      {.gcsafe, raises: [Defect].}
+
     Switch* = ref object of Dial
       peerInfo*: PeerInfo
       connManager*: ConnManager
@@ -65,6 +69,7 @@ type
       dialer*: Dial
       peerStore*: PeerStore
       nameResolver*: NameResolver
+      listenError*: ListenErrorCallback
 
 proc addConnEventHandler*(s: Switch,
                           handler: ConnEventHandler,
@@ -236,7 +241,6 @@ proc stop*(s: Switch) {.async.} =
 
 proc start*(s: Switch) {.async, gcsafe.} =
   trace "starting switch for peer", peerInfo = s.peerInfo
-  var startFuts: seq[Future[void]]
   for t in s.transports:
     let addrs = s.peerInfo.addrs.filterIt(
       t.handles(it)
@@ -247,19 +251,13 @@ proc start*(s: Switch) {.async, gcsafe.} =
     )
 
     if addrs.len > 0:
-      startFuts.add(t.start(addrs))
+      try:
+        await t.start(addrs)
+      except CatchableError as e:
+        let err = s.listenError(e)
+        if not err.isNil:
+          raise err
 
-  await allFutures(startFuts)
-
-  for s in startFuts:
-    if s.failed:
-      # TODO: replace this exception with a `listenError` callback. See
-      # https://github.com/status-im/nim-libp2p/pull/662 for more info.
-      raise newException(transport.TransportError,
-        "Failed to start one transport", s.error)
-
-  for t in s.transports: # for each transport
-    if t.addrs.len > 0:
       s.acceptFuts.add(s.accept(t))
       s.peerInfo.addrs &= t.addrs
 
@@ -272,8 +270,10 @@ proc newSwitch*(peerInfo: PeerInfo,
                 secureManagers: openArray[Secure] = [],
                 connManager: ConnManager,
                 ms: MultistreamSelect,
-                nameResolver: NameResolver = nil): Switch
+                nameResolver: NameResolver = nil,
+                listenError: ListenErrorCallback = nil): Switch
                 {.raises: [Defect, LPError].} =
+
   if secureManagers.len == 0:
     raise newException(LPError, "Provide at least one secure manager")
 
@@ -284,7 +284,13 @@ proc newSwitch*(peerInfo: PeerInfo,
     connManager: connManager,
     peerStore: PeerStore.new(),
     dialer: Dialer.new(peerInfo.peerId, connManager, transports, ms, nameResolver),
-    nameResolver: nameResolver)
+    nameResolver: nameResolver,
+    listenError: listenError)
+
+  if switch.listenError.isNil:
+    switch.listenError = proc(e: ref CatchableError): ref CatchableError =
+      error "Failed to start one transport", error = e.msg
+      return nil
 
   switch.connManager.peerStore = switch.peerStore
   switch.mount(identity)

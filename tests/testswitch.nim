@@ -21,6 +21,7 @@ import ../libp2p/[errors,
                   nameresolving/nameresolver,
                   nameresolving/mockresolver,
                   stream/chronosstream,
+                  transports/mocktransport,
                   transports/tcptransport,
                   transports/wstransport]
 import ./helpers
@@ -974,3 +975,107 @@ suite "Switch":
     await destSwitch.stop()
     await srcWsSwitch.stop()
     await srcTcpSwitch.stop()
+
+  asyncTest "listenError callback default returns nil":
+    let switch = newStandardSwitch()
+    check switch.listenError.isNil.not
+
+    let exc = newException(CatchableError, "test")
+    check switch.listenError(exc).isNil
+
+    await switch.stop()
+
+  asyncTest "listenError callback assignable and callable":
+    let
+      switch = newStandardSwitch()
+      exc1 = newException(CatchableError, "test1")
+      exc2 = newException(CatchableError, "test2")
+
+    switch.listenError = proc(exc: ref CatchableError): ref CatchableError =
+      check exc == exc1
+      return exc2
+
+    check switch.listenError(exc1) == exc2
+
+    await switch.stop()
+
+  asyncTest "listenError called when transport fails and does not re-raise":
+    let
+      exc1 = newException(CatchableError, "test1")
+      startMock =
+        proc(addrs: seq[MultiAddress]): Future[void] =
+          echo "[test] inside mocktransport.start"
+          raise exc1
+      mockTransport =
+        proc(upgr: Upgrade): Transport {.raises: [Defect].} =
+          # try/except here to keep the compiler happy. `startMock` can raise
+          # an exception if called, but it is not actually called in `new`, so
+          # we can wrap it in try/except to tell the compiler the exceptions
+          # won't bubble up to `TransportProvider`.
+          try: return MockTransport.new(startMock)
+          except: return
+      rng = crypto.newRng()
+      ma = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
+      switch = SwitchBuilder
+        .new()
+        .withRng(rng)       # Give the application RNG
+        .withAddress(ma)    # Our local address(es)
+        .withTransport(mockTransport) # Use MockTransport as transport
+        .withMplex()        # Use Mplex as muxer
+        .withNoise()        # Use Noise as secure manager
+        .build()
+
+    switch.listenError = proc(exc: ref CatchableError): ref CatchableError =
+      check exc == exc1
+      return nil
+
+    try:
+      await switch.start()
+    except CatchableError:
+      # shouldn't re-raise error in listenError callback (returns nil)
+      fail()
+
+    await switch.stop()
+
+  asyncTest "listenError called when transport fails and re-raises new exception":
+    let
+      exc1 = newException(CatchableError, "test1")
+      exc2 = newException(CatchableError, "test2")
+      startMock =
+        proc(addrs: seq[MultiAddress]): Future[void] =
+          echo "[test] inside mocktransport.start"
+          raise exc1
+      mockTransport =
+        proc(upgr: Upgrade): Transport {.raises: [Defect].} =
+          # try/except here to keep the compiler happy. `startMock` can raise
+          # an exception if called, but it is not actually called in `new`, so
+          # we can wrap it in try/except to tell the compiler the exceptions
+          # won't bubble up to `TransportProvider`.
+          try: return MockTransport.new(startMock)
+          except: return
+      rng = crypto.newRng()
+      ma = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
+      switch = SwitchBuilder
+        .new()
+        .withRng(rng)       # Give the application RNG
+        .withAddress(ma)    # Our local address(es)
+        .withTransport(mockTransport) # Use MockTransport as transport
+        .withMplex()        # Use Mplex as muxer
+        .withNoise()        # Use Noise as secure manager
+        .build()
+
+    switch.listenError = proc(exc: ref CatchableError): ref CatchableError =
+      check exc == exc1
+      return exc2
+
+    var listenErrorReRaised = false
+
+    try:
+      await switch.start()
+    except CatchableError as ex:
+      listenErrorReRaised = true
+      check ex == exc2
+
+    check listenErrorReRaised
+
+    await switch.stop()
