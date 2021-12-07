@@ -216,5 +216,5 @@ proc switchWith*[Switch](s: Switch, i: Identify)
   i.peerInfo = s.peerInfo
   s.identify = i
   try:
-    s.switch.mount(i)
+    s.mount(i)
   except: discard

@@ -133,7 +133,7 @@ proc switchWith*[Switch](s: Switch,
 
   let upgrade = MuxedUpgrade.new(s.identify, s.muxers, s.secureManagers, s.connManager, s.ms)
   tcpTransport.upgrader = upgrade
-  s.switch.transports &= tcpTransport
+  s.transportsAdd(tcpTransport)
 
 method start*(
   self: TcpTransport,

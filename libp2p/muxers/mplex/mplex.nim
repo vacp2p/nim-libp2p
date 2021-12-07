@@ -246,4 +246,4 @@ proc switchWith*[Switch](s: Switch, mplex: Mplex) =
       conn,
       inTimeout = 5.minutes,
       outTimeout = 5.minutes)
-  s.switch.muxers[MplexCodec] = MuxerProvider.new(newMuxer, MplexCodec)
+  s.muxersAdd(MplexCodec, MuxerProvider.new(newMuxer, MplexCodec))

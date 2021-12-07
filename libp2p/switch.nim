@@ -143,12 +143,6 @@ proc mount*(s: Switch, proto: LPProtocol, matcher: Matcher = nil)
   s.ms.addHandler(proto.codecs, proto, matcher)
   s.peerInfo.protocols.add(proto.codec)
 
-proc mount*(s: Switch, T: typedesc[LPProtocol])
-  {.gcsafe, raises: [Defect, LPError].} =
-  let t = T.new()
-  t.mount(s)
-  s.mount(t)
-
 proc upgradeMonitor(conn: Connection, upgrades: AsyncSemaphore) {.async.} =
   ## monitor connection for upgrades
   ##
@@ -275,12 +269,12 @@ proc start*(s: Switch) {.async, gcsafe.} =
   debug "Started libp2p node", peer = s.peerInfo
 
 proc new*(
-  T: typedesc[Switch],
-  peerInfo: PeerInfo,
-  ms = MultistreamSelect.new()): T =
+  T: typedesc[Switch]
+  ): T =
+
   T(
-    peerInfo: peerInfo,
-    ms: ms)
+    peerStore: PeerStore.new()
+  )
 
 proc new*(T: typedesc[Switch],
   addrs: seq[MultiAddress],

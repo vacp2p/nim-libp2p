@@ -63,3 +63,22 @@ proc new*(
     protocols: @protocols)
 
   return peerInfo
+
+proc new*(
+  p: typedesc[PeerInfo],
+  rng = newRng(),
+  addrs: openarray[MultiAddress] = [],
+  protocols: openarray[string] = [],
+  protoVersion: string = "",
+  agentVersion: string = ""): PeerInfo
+  {.raises: [Defect, PeerInfoError].} =
+
+  try:
+    PeerInfo.new(PrivateKey.random(rng[]).tryGet(), addrs, protocols, protoVersion, agentVersion)
+  except:
+    raise newException(PeerInfoError, "Can't generate random key")
+
+proc switchWith*[Switch](s: Switch,
+  peerInfo: PeerInfo) =
+
+  s.peerInfo = peerInfo

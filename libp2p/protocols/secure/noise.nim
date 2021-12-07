@@ -616,9 +616,32 @@ proc new*(
   noise.init()
   noise
 
+proc new*(
+  T: typedesc[Noise],
+  rng: ref BrHmacDrbgContext,
+  outgoing: bool = true,
+  commonPrologue: seq[byte] = @[]): T =
+
+  var noise = Noise(
+    rng: rng,
+    outgoing: outgoing,
+    noiseKeys: genKeyPair(rng[]),
+    commonPrologue: commonPrologue,
+  )
+
+  noise
+
 proc switchWith*[Switch](
   s: Switch,
-  noi: Noise) =
+  noise: Noise) =
 
-  let noise = Noise.new(newRng(), s.peerInfo.privateKey)
-  s.switch.secureManagers &= noise
+  noise.init()
+  noise.localPrivateKey = s.peerInfo.privateKey
+
+  let pkBytes = noise.localPrivateKey.getPublicKey()
+  .expect("Expected valid Private Key")
+  .getBytes().expect("Couldn't get public Key bytes")
+
+  noise.localPublicKey = pkBytes
+
+  s.secureManagersAdd(noise)

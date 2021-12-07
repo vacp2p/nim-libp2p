@@ -17,77 +17,97 @@ export
 
 type
   SwitchBuilder* = ref object
-    switch*: Switch
+    switch: Switch
     locks: Table[string, string]
     mounting: string
 
-proc new*(T: type[SwitchBuilder], peerInfo: PeerInfo): T =
+proc new*(T: type[SwitchBuilder], switchType: type[Switch] = Switch): T =
   T(
-    switch: Switch.new(peerInfo)
+    switch: switchType.new()
   )
 
-proc new*(T: type[SwitchBuilder],
-  addrs: seq[MultiAddress],
-  rng = newRng()): T =
+#proc new*(T: type[SwitchBuilder],
+#  addrs: seq[MultiAddress],
+#  rng = newRng()): T =
+#
+#  try:
+#    let
+#      secKey = PrivateKey.random(rng[])
+#      peerInfo = PeerInfo.new(secKey.tryGet(), addrs)
+#    result = T.new(peerInfo)
+#  except: discard
 
-  try:
-    let
-      secKey = PrivateKey.random(rng[])
-      peerInfo = PeerInfo.new(secKey.tryGet(), addrs)
-    result = T.new(peerInfo)
-  except: discard
+template borrowVar(toBorrow: untyped) =
+  const field = $typeof(Switch.toBorrow) # Shows "seq[Transport]"
+  #const field = astToStr(toBorrow)      # Shows "transports"
 
-template liftVar(name: untyped) =
-  proc name*(switchBuilder: SwitchBuilder): auto =
-    #const field = $typeof(switchBuilder.switch.name)
-    const field = astToStr(name)
+  proc toBorrow*(switchBuilder: SwitchBuilder): auto =
+    let isNotSetup =
+      when Switch.toBorrow is ref:
+        isNil switchBuilder.switch.toBorrow
+      elif Switch.toBorrow is seq:
+        switchBuilder.switch.toBorrow.len == 0
+      elif Switch.toBorrow is Table:
+        toSeq(switchBuilder.switch.toBorrow.keys).len == 0
 
-    when switchBuilder.switch.name is ref:
-      if isNil switchBuilder.switch.name:
-        echo "With(" & switchBuilder.mounting & "): " & field & " should be setup first"
-    when switchBuilder.switch.name is seq:
-      if switchBuilder.switch.name.len == 0:
-        echo "With(" & switchBuilder.mounting & "): " & field & " should be setup first"
-    when switchBuilder.switch.name is Table:
-      if toSeq(switchBuilder.switch.name.keys).len == 0:
-        echo "With(" & switchBuilder.mounting & "): " & field & " should be setup first"
+    if isNotSetup:
+      raise newException(Defect,
+        "With(" & switchBuilder.mounting & "): " & field & " should be setup first")
 
     if field notin switchBuilder.locks:
       switchBuilder.locks[field] = switchBuilder.mounting
 
-    switchBuilder.switch.name
+    switchBuilder.switch.toBorrow
 
-  proc `name=`*(switchBuilder: SwitchBuilder, value: auto): auto =
-    const field = astToStr(name)
-
+  proc `toBorrow Add`*(switchBuilder: SwitchBuilder, value: auto) =
     if field in switchBuilder.locks:
-      echo "With(" & switchBuilder.mounting & "): can't be done after With(" & switchBuilder.locks.getOrDefault(field) & ")"
-    switchBuilder.switch.name = value
+      raise newException(Defect,
+        "With(" & switchBuilder.mounting & "): can't be done after With(" & switchBuilder.locks.getOrDefault(field) & ")")
+    # I don't like this
+    switchBuilder.switch.toBorrow &= value
 
-liftVar(identify)
-liftVar(peerInfo)
-liftVar(muxers)
-liftVar(secureManagers)
-liftVar(connManager)
-liftVar(ms)
-liftVar(dialer)
-liftVar(transports)
+  proc `toBorrow Add`*(switchBuilder: SwitchBuilder, key, value: auto) =
+    if field in switchBuilder.locks:
+      raise newException(Defect,
+        "With(" & switchBuilder.mounting & "): can't be done after With(" & switchBuilder.locks.getOrDefault(field) & ")")
+    # I don't like this
+    switchBuilder.switch.toBorrow[key] = value
 
-proc with*(switchBuilder: SwitchBuilder, T: typedesc): T {.discardable.} =
-  switchBuilder.mounting = $T
-  let val = T.new()
-  switchBuilder.switchWith(val)
-  val
+  proc `toBorrow=`*(switchBuilder: SwitchBuilder, value: auto): auto =
+    if field in switchBuilder.locks:
+      raise newException(Defect,
+        "With(" & switchBuilder.mounting & "): can't be done after With(" & switchBuilder.locks.getOrDefault(field) & ")")
+    switchBuilder.switch.toBorrow = value
+
+borrowVar(identify)
+borrowVar(peerStore)
+borrowVar(peerInfo)
+borrowVar(muxers)
+borrowVar(secureManagers)
+borrowVar(connManager)
+borrowVar(ms)
+borrowVar(dialer)
+borrowVar(transports)
+
+# borrow
+proc mount*(s: SwitchBuilder, proto: LPProtocol, matcher: Matcher = nil)
+  {.gcsafe, raises: [Defect, LPError].} =
+
+  # to throw if ms is not set
+  discard s.ms
+  s.switch.mount(proto, matcher)
 
 proc with*[T](switchBuilder: SwitchBuilder, val: T): T {.discardable.} =
   switchBuilder.mounting = $typeof(val)
   switchBuilder.switchWith(val)
+  switchBuilder.mounting = "Unknown"
   val
 
-#proc with*(switchBuilder: SwitchBuilder, T: typedesc): T {.discardable.} =
-#  switchBuilder.mounting = $T
-#  let val = T.new()
-#  switchBuilder.switchWith(val)
-#  val
+template with*(switchBuilder: SwitchBuilder, args: varargs[untyped]) =
+  #switchBuilder.with(unpackVarargs(new, args))
+  switchBuilder.with(new(args))
 
-proc build*(switchBuilder: SwitchBuilder): Switch = switchBuilder.switch
+proc build*(switchBuilder: SwitchBuilder): Switch =
+  # to throw if Dialer is not set
+  discard switchBuilder.dialer
+  switchBuilder.switch

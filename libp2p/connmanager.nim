@@ -107,6 +107,7 @@ proc switchWith*[Switch](s: Switch,
   connManager: ConnManager,
   ) =
   s.connManager = connManager
+  connManager.peerStore = s.peerStore
 
 proc connCount*(c: ConnManager, peerId: PeerID): int =
   c.conns.getOrDefault(peerId).len
