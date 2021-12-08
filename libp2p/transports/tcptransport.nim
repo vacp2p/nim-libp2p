@@ -118,11 +118,16 @@ proc connHandler*(self: TcpTransport,
 proc new*(
   T: typedesc[TcpTransport],
   flags: set[ServerFlags] = {},
-  upgrade: Upgrade): T =
+  upgrade: Upgrade,
+  listenError: ListenErrorCallback = nil): T =
 
   let transport = T(
     flags: flags,
-    upgrader: upgrade)
+    upgrader: upgrade,
+    listenError: listenError)
+
+  if transport.listenError.isNil:
+    transport.listenError = ListenErrorDefault
 
   inc getTcpTransportTracker().opened
   return transport
@@ -143,19 +148,25 @@ method start*(
   for i, ma in addrs:
     if not self.handles(ma):
       trace "Invalid address detected, skipping!", address = ma
+      self.addrs.del i
       continue
 
-    let server = createStreamServer(
-      ma = ma,
-      flags = self.flags,
-      udata = self)
+    try:
+      let server = createStreamServer(
+        ma = ma,
+        flags = self.flags,
+        udata = self)
 
-    # always get the resolved address in case we're bound to 0.0.0.0:0
-    self.addrs[i] = MultiAddress.init(
-      server.sock.getLocalAddress()
-    ).tryGet()
+      # always get the resolved address in case we're bound to 0.0.0.0:0
+      self.addrs[i] = MultiAddress.init(
+        server.sock.getLocalAddress()
+      ).tryGet()
 
-    self.servers &= server
+      self.servers &= server
+    except CatchableError as ex:
+      let err = self.listenError(ma, ex)
+      if not err.isNil:
+        raise err
 
     trace "Listening on", address = ma
 

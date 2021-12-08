@@ -56,8 +56,10 @@ const
   ConcurrentUpgrades* = 4
 
 type
+    SwitchError* = object of LPError
+    SwitchListenError* = object of SwitchError
     ListenErrorCallback = proc (
-      err: ref CatchableError): ref CatchableError
+      err: ref TransportListenError): ref SwitchListenError
       {.gcsafe, raises: [Defect].}
 
     Switch* = ref object of Dial
@@ -253,15 +255,22 @@ proc start*(s: Switch) {.async, gcsafe.} =
     if addrs.len > 0:
       try:
         await t.start(addrs)
-      except CatchableError as e:
+      except TransportListenError as e:
         let err = s.listenError(e)
         if not err.isNil:
           raise err
-
       s.acceptFuts.add(s.accept(t))
       s.peerInfo.addrs &= t.addrs
 
   debug "Started libp2p node", peer = s.peerInfo
+
+proc newSwitchListenError*(parent: ref TransportListenError = nil): ref SwitchListenError =
+  (ref SwitchListenError)(msg: "Failed to start one transport", parent: parent)
+
+const ListenErrorDefault =
+  proc(e: ref TransportListenError): ref SwitchListenError =
+    error "Failed to start one transport", error = e.msg
+    return newSwitchListenError(e)
 
 proc newSwitch*(peerInfo: PeerInfo,
                 transports: seq[Transport],
@@ -288,9 +297,10 @@ proc newSwitch*(peerInfo: PeerInfo,
     listenError: listenError)
 
   if switch.listenError.isNil:
-    switch.listenError = proc(e: ref CatchableError): ref CatchableError =
-      error "Failed to start one transport", error = e.msg
-      return nil
+    switch.listenError = ListenErrorDefault
+    # switch.listenError = proc(ma: MultiAddress, e: ref TransportListenError): ref SwitchError =
+    #   error "Failed to start one transport", error = e.msg
+    #   return nil
 
   switch.connManager.peerStore = switch.peerStore
   switch.mount(identity)
