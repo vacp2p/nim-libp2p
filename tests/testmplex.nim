@@ -901,10 +901,13 @@ suite "Mplex":
       for i in 0..9:
         dialStreams.add((await mplexDial.newStream()))
 
+      check await checkExpiring(listenStreams.len == 10 and dialStreams.len == 10)
+
       await conn.close()
       await allFuturesThrowing(
           (dialStreams & listenStreams)
           .mapIt( it.join() ))
+
 
       checkTracker(LPChannelTrackerName)
 
