@@ -816,6 +816,8 @@ suite "Mplex":
       for i in 0..9:
         dialStreams.add((await mplexDial.newStream()))
 
+      check await checkExpiring(listenStreams.len == 10 and dialStreams.len == 10)
+
       await mplexListen.close()
       await allFuturesThrowing(
           (dialStreams & listenStreams)
