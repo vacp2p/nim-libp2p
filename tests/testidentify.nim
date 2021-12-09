@@ -175,6 +175,9 @@ suite "Identify":
 
       await identifyPush2.push(switch2.peerInfo, conn)
 
+      check await checkExpiring(switch1.peerStore.protoBook.get(switch2.peerInfo.peerId) == switch2.peerInfo.protocols.toHashSet())
+      check await checkExpiring(switch1.peerStore.addressBook.get(switch2.peerInfo.peerId) == switch2.peerInfo.addrs.toHashSet())
+
       await closeAll()
 
       # Wait the very end to be sure that the push has been processed
@@ -195,6 +198,12 @@ suite "Identify":
       switch2.peerInfo = PeerInfo.new(PrivateKey.random(newRng()[]).get())
 
       await identifyPush2.push(switch2.peerInfo, conn)
+
+      # We have no way to know when the message will is received
+      # because it will fail validation inside push identify itself
+      #
+      # So no choice but to sleep
+      await sleepAsync(10.milliseconds)
 
       await closeAll()
 
