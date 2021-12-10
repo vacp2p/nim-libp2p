@@ -265,8 +265,8 @@ proc write*(pb: var ProtoBuffer, field: int, value: ProtoBuffer) {.inline.} =
 
 proc finish*(pb: var ProtoBuffer) =
   ## Prepare protobuf's buffer ``pb`` for writing to stream.
-  doAssert(len(pb.buffer) > 0)
   if WithVarintLength in pb.options:
+    doAssert(len(pb.buffer) >= 10)
     let size = uint(len(pb.buffer) - 10)
     let pos = 10 - vsizeof(size)
     var usedBytes = 0
@@ -274,14 +274,17 @@ proc finish*(pb: var ProtoBuffer) =
     doAssert(res.isOk())
     pb.offset = pos
   elif WithUint32BeLength in pb.options:
+    doAssert(len(pb.buffer) >= 4)
     let size = uint(len(pb.buffer) - 4)
     pb.buffer[0 ..< 4] = toBytesBE(uint32(size))
     pb.offset = 4
   elif WithUint32LeLength in pb.options:
+    doAssert(len(pb.buffer) >= 4)
     let size = uint(len(pb.buffer) - 4)
     pb.buffer[0 ..< 4] = toBytesLE(uint32(size))
     pb.offset = 4
   else:
+    doAssert(len(pb.buffer) > 0)
     pb.offset = 0
 
 proc getHeader(data: var ProtoBuffer,
