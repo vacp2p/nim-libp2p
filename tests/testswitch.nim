@@ -977,11 +977,14 @@ suite "Switch":
     await srcTcpSwitch.stop()
 
   asyncTest "listenError callback default returns TransportListenError (pessimistic)":
-    let switch = newStandardSwitch()
+    let
+      switch = newStandardSwitch()
+      transport = Transport()
+
     check switch.listenError.isNil.not
 
     let exc = newException(TransportListenError, "test")
-    check not switch.listenError(exc).isNil
+    check not switch.listenError(transport, exc).isNil
 
     await switch.stop()
 
@@ -990,52 +993,21 @@ suite "Switch":
       switch = newStandardSwitch()
       transportListenError = newException(TransportListenError, "test1")
       switchListenError = newException(SwitchListenError, "test2")
+      transport = Transport()
 
-    switch.listenError = proc(exc: ref TransportListenError): ref SwitchListenError =
-      check exc == transportListenError
+    switch.listenError = proc(
+        t: Transport, exc: ref TransportListenError): ref SwitchListenError =
+
+      check:
+        exc == transportListenError
+        t == transport
+
       return switchListenError
 
-    check switch.listenError(transportListenError) == switchListenError
+    check:
+      switch.listenError(transport, transportListenError) == switchListenError
 
     await switch.stop()
-
-  # asyncTest "listenError called when transport fails and does not re-raise":
-  #   let
-  #     exc1 = newException(CatchableError, "test1")
-  #     startMock =
-  #       proc(addrs: seq[MultiAddress]): Future[void] =
-  #         echo "[test] inside mocktransport.start"
-  #         raise exc1
-  #     mockTransport =
-  #       proc(upgr: Upgrade): Transport {.raises: [Defect].} =
-  #         # try/except here to keep the compiler happy. `startMock` can raise
-  #         # an exception if called, but it is not actually called in `new`, so
-  #         # we can wrap it in try/except to tell the compiler the exceptions
-  #         # won't bubble up to `TransportProvider`.
-  #         try: return MockTransport.new(startMock)
-  #         except: return
-  #     rng = crypto.newRng()
-  #     ma = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
-  #     switch = SwitchBuilder
-  #       .new()
-  #       .withRng(rng)       # Give the application RNG
-  #       .withAddress(ma)    # Our local address(es)
-  #       .withTransport(mockTransport) # Use MockTransport as transport
-  #       .withMplex()        # Use Mplex as muxer
-  #       .withNoise()        # Use Noise as secure manager
-  #       .build()
-
-  #   switch.listenError = proc(exc: ref CatchableError): ref CatchableError =
-  #     check exc == exc1
-  #     return nil
-
-  #   try:
-  #     await switch.start()
-  #   except CatchableError:
-  #     # shouldn't re-raise error in listenError callback (returns nil)
-  #     fail()
-
-  #   await switch.stop()
 
   asyncTest "fully pessimistic: swith/transport listenError callback defaults, should re-raise first address failure":
     let
@@ -1156,7 +1128,9 @@ suite "Switch":
         .build()
 
 
-    switch.listenError = proc(exc: ref TransportListenError): ref SwitchListenError =
+    switch.listenError = proc(
+        t: Transport, exc: ref TransportListenError): ref SwitchListenError =
+
       let ma = exc.ma
       if ma == ma0:
         check exc.parent == exc0
@@ -1233,7 +1207,8 @@ suite "Switch":
         .build()
 
 
-    switch.listenError = proc(exc: ref TransportListenError): ref SwitchListenError =
+    switch.listenError = proc(
+        t: Transport, exc: ref TransportListenError): ref SwitchListenError =
       fail()
 
     try:
@@ -1249,26 +1224,27 @@ suite "Switch":
 
     await switch.stop()
 
-  asyncTest "partial: transport pessimistic, switch optimistic, listenError only gets first address exception":
+  asyncTest "partial: transport pessimistic, switch optimistic, transport.listenError only gets first address exception, switch.listenError gets called for each transport failure":
     var
       handledTransportErrs0 = initTable[MultiAddress, ref CatchableError]()
       handledTransportErrs1 = initTable[MultiAddress, ref CatchableError]()
     let
-      # exc0 = newException(CatchableError, "test0")
+      # excXY, where X = MockTransport index, Y = transport exception index
       exc01 = newException(CatchableError, "test01")
-      exc02 = newException(CatchableError, "test02")
       exc10 = newException(CatchableError, "test10")
 
 
       transportListenError0 =
         proc(ma: MultiAddress, ex: ref CatchableError): ref TransportListenError =
           handledTransportErrs0[ma] = ex
-          return newTransportListenError(ma, ex) # pessimistic transport multiaddress failure
+          # pessimistic transport multiaddress failure
+          return newTransportListenError(ma, ex)
 
       transportListenError1 =
         proc(ma: MultiAddress, ex: ref CatchableError): ref TransportListenError =
           handledTransportErrs1[ma] = ex
-          return newTransportListenError(ma, ex) # pessimistic transport multiaddress failure
+          # pessimistic transport multiaddress failure
+          return newTransportListenError(ma, ex)
 
       transportStartMock0 =
         proc(self: MockTransport, addrs: seq[MultiAddress]): Future[void] {.async.} =
@@ -1279,12 +1255,10 @@ suite "Switch":
               elif i == 1:
                 echo "[test.startMock] raising exc1"
                 raise exc01
-              elif i == 2:
-                echo "[test.startMock] raising exc2"
-                raise exc02
+              else:
+                fail()
             except CatchableError as e:
               let err = self.listenError(ma, e)
-              # check err == nil
               if not err.isNil:
                 raise err
 
@@ -1295,10 +1269,9 @@ suite "Switch":
               if i == 0:
                 raise exc10
               else:
-                continue
+                fail()
             except CatchableError as e:
               let err = self.listenError(ma, e)
-              # check err == nil
               if not err.isNil:
                 raise err
 
@@ -1339,32 +1312,249 @@ suite "Switch":
         .withNoise()        # Use Noise as secure manager
         .build()
 
+    switch.listenError = proc(
+        t: Transport,
+        exc: ref TransportListenError): ref SwitchListenError =
 
-    switch.listenError = proc(exc: ref TransportListenError): ref SwitchListenError =
       let ma = exc.ma
       if ma == ma0:
         check exc.parent == exc10
+        check t == switch.transports[1]
       elif ma == ma1:
         check exc.parent == exc01
+        check t == switch.transports[0]
       else:
         fail()
-      return nil # switch optimistic, continue with all transports
+      # switch optimistic, continue with all transports
+      return nil
 
     try:
       await switch.start()
     except SwitchListenError:
-      echo "switch listen error fail"
+      # because switch.listenError returns nil, we shouldn't expect an error
+      # to be raised from switch.start
       fail()
 
-    echo "handledTransportErrs1:"
+    echo "handledTransportErrs0:"
     for ma, ex in handledTransportErrs0:
       echo "ma: ", $ma, ", ex: ", ex.msg
 
-    echo "handledTransportErrs2:"
+    echo "handledTransportErrs1:"
     for ma, ex in handledTransportErrs1:
       echo "ma: ", $ma, ", ex: ", ex.msg
 
     check handledTransportErrs0 == [(ma1, exc01)].toTable()
     check handledTransportErrs1 == [(ma0, exc10)].toTable()
 
-    # await switch.stop()
+    await switch.stop()
+
+  asyncTest "partial: transport0 optimistic, transport1 pessimistic, transport2 optimistic, switch pessimistic, transport3 does not start":
+    var
+      handledTransportErrs0 = initTable[MultiAddress, ref CatchableError]()
+      handledTransportErrs1 = initTable[MultiAddress, ref CatchableError]()
+    let
+      # excXY, where X = MockTransport index, Y = transport exception index
+      exc01 = newException(CatchableError, "test01")
+      exc10 = newException(CatchableError, "test10")
+
+      transportListenError0 =
+        proc(ma: MultiAddress, ex: ref CatchableError): ref TransportListenError =
+          handledTransportErrs0[ma] = ex
+          # optimistic transport multiaddress failure
+          return nil
+
+      transportListenError1 =
+        proc(ma: MultiAddress, ex: ref CatchableError): ref TransportListenError =
+          handledTransportErrs1[ma] = ex
+          return newTransportListenError(ma, ex)
+
+      transportListenError2 =
+        proc(ma: MultiAddress, ex: ref CatchableError): ref TransportListenError =
+          # should not get here as switch is pessimistic so will stop at first
+          # failed transport (transpor1)
+          fail()
+
+      transportStartMock0 =
+        proc(self: MockTransport, addrs: seq[MultiAddress]): Future[void] {.async.} =
+          for i, ma in addrs:
+            try:
+              if i == 1:
+                raise exc01
+              else:
+                continue
+            except CatchableError as e:
+              let err = self.listenError(ma, e)
+              if not err.isNil:
+                raise err
+
+      transportStartMock1 =
+        proc(self: MockTransport, addrs: seq[MultiAddress]): Future[void] {.async.} =
+          for i, ma in addrs:
+            try:
+              if i == 0:
+                raise exc10
+              else:
+                continue
+            except CatchableError as e:
+              let err = self.listenError(ma, e)
+              if not err.isNil:
+                raise err
+
+      transportStartMock2 =
+        proc(self: MockTransport, addrs: seq[MultiAddress]): Future[void] {.async.} =
+          # should not start transpor2 as transport1 should fail pessimistically
+          fail()
+
+      mockTransport0 =
+        proc(upgr: Upgrade): Transport {.raises: [Defect].} =
+          # try/except here to keep the compiler happy. `startMock` can raise
+          # an exception if called, but it is not actually called in `new`, so
+          # we can wrap it in try/except to tell the compiler the exceptions
+          # won't bubble up to `TransportProvider`.
+          try: return MockTransport.new(
+            upgr,
+            startMock = transportStartMock0,
+            listenError = transportListenError0)
+          except: return
+
+      mockTransport1 =
+        proc(upgr: Upgrade): Transport {.raises: [Defect].} =
+          # try/except here to keep the compiler happy. `startMock` can raise
+          # an exception if called, but it is not actually called in `new`, so
+          # we can wrap it in try/except to tell the compiler the exceptions
+          # won't bubble up to `TransportProvider`.
+          try: return MockTransport.new(
+            upgr,
+            startMock = transportStartMock1,
+            listenError = transportListenError1)
+          except: return
+
+      mockTransport2 =
+        proc(upgr: Upgrade): Transport {.raises: [Defect].} =
+          # try/except here to keep the compiler happy. `startMock` can raise
+          # an exception if called, but it is not actually called in `new`, so
+          # we can wrap it in try/except to tell the compiler the exceptions
+          # won't bubble up to `TransportProvider`.
+          try: return MockTransport.new(
+            upgr,
+            startMock = transportStartMock2,
+            listenError = transportListenError2)
+          except: return
+
+      ma0 = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
+      ma1 = Multiaddress.init("/ip4/0.0.0.0/tcp/1").tryGet()
+      ma2 = Multiaddress.init("/ip4/0.0.0.0/tcp/2").tryGet()
+      switch = SwitchBuilder
+        .new()
+        .withRng(rng)       # Give the application RNG
+        .withAddresses(@[ma0, ma1, ma2])    # Our local address(es)
+        .withTransport(mockTransport0) # Use MockTransport 0 as transport
+        .withTransport(mockTransport1) # Use MockTransport 1 as transport
+        .withTransport(mockTransport2) # Use MockTransport 2 as transport
+        .withMplex()        # Use Mplex as muxer
+        .withNoise()        # Use Noise as secure manager
+        .build()
+
+    switch.listenError = proc(
+        t: Transport,
+        exc: ref TransportListenError): ref SwitchListenError =
+
+      check t == switch.transports[1]
+      check exc.ma == ma0
+
+      # pessimistic
+      return newSwitchListenError(t, exc)
+
+    try:
+      await switch.start()
+    except SwitchListenError as e:
+      let tListenEx = (ref TransportListenError)(e.parent)
+      check tListenEx.ma == ma0
+      check tListenEx.parent == exc10
+      check e.transport == switch.transports[1]
+
+    echo "handledTransportErrs0:"
+    for ma, ex in handledTransportErrs0:
+      echo "ma: ", $ma, ", ex: ", ex.msg
+
+    echo "handledTransportErrs1:"
+    for ma, ex in handledTransportErrs1:
+      echo "ma: ", $ma, ", ex: ", ex.msg
+
+    check handledTransportErrs0 == [(ma1, exc01)].toTable()
+    check handledTransportErrs1 == [(ma0, exc10)].toTable()
+
+    await switch.stop()
+
+  asyncTest "no exceptions raised, listenError should not be called":
+    let
+      transportListenError0 =
+        proc(ma: MultiAddress, ex: ref CatchableError): ref TransportListenError =
+          fail()
+
+      transportListenError1 =
+        proc(ma: MultiAddress, ex: ref CatchableError): ref TransportListenError =
+          fail()
+
+      transportStartMock0 =
+        proc(self: MockTransport, addrs: seq[MultiAddress]): Future[void] {.async.} =
+          for i, ma in addrs:
+            continue
+
+      transportStartMock1 =
+        proc(self: MockTransport, addrs: seq[MultiAddress]): Future[void] {.async.} =
+          for i, ma in addrs:
+            continue
+
+      mockTransport0 =
+        proc(upgr: Upgrade): Transport {.raises: [Defect].} =
+          # try/except here to keep the compiler happy. `startMock` can raise
+          # an exception if called, but it is not actually called in `new`, so
+          # we can wrap it in try/except to tell the compiler the exceptions
+          # won't bubble up to `TransportProvider`.
+          try: return MockTransport.new(
+            upgr,
+            startMock = transportStartMock0,
+            listenError = transportListenError0)
+          except: return
+
+      mockTransport1 =
+        proc(upgr: Upgrade): Transport {.raises: [Defect].} =
+          # try/except here to keep the compiler happy. `startMock` can raise
+          # an exception if called, but it is not actually called in `new`, so
+          # we can wrap it in try/except to tell the compiler the exceptions
+          # won't bubble up to `TransportProvider`.
+          try: return MockTransport.new(
+            upgr,
+            startMock = transportStartMock1,
+            listenError = transportListenError1)
+          except: return
+
+      ma0 = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
+      ma1 = Multiaddress.init("/ip4/0.0.0.0/tcp/1").tryGet()
+      ma2 = Multiaddress.init("/ip4/0.0.0.0/tcp/2").tryGet()
+      switch = SwitchBuilder
+        .new()
+        .withRng(rng)       # Give the application RNG
+        .withAddresses(@[ma0, ma1, ma2])    # Our local address(es)
+        .withTransport(mockTransport0) # Use MockTransport 0 as transport
+        .withTransport(mockTransport1) # Use MockTransport 1 as transport
+        .withMplex()        # Use Mplex as muxer
+        .withNoise()        # Use Noise as secure manager
+        .build()
+
+
+    switch.listenError = proc(
+        t: Transport,
+        exc: ref TransportListenError): ref SwitchListenError =
+
+      fail()
+
+    try:
+      await switch.start()
+    except SwitchListenError:
+      # because switch.listenError should never be called, we shouldn't expect
+      # an error to be raised from switch.start
+      fail()
+
+    await switch.stop()

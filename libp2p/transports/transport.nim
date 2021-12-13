@@ -119,3 +119,11 @@ method handles*(
     .filterIt(
       it == multiCodec("p2p-circuit")
     ).len == 0
+
+method `==`*(
+    a: Transport, b: Transport): bool {.base, gcsafe.} =
+
+  return
+    a.addrs == b.addrs and
+    a.running == b.running and
+    a.listenError == b.listenError

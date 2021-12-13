@@ -58,7 +58,9 @@ const
 type
     SwitchError* = object of LPError
     SwitchListenError* = object of SwitchError
+      transport*: Transport
     ListenErrorCallback = proc (
+      t: Transport,
       err: ref TransportListenError): ref SwitchListenError
       {.gcsafe, raises: [Defect].}
 
@@ -256,7 +258,7 @@ proc start*(s: Switch) {.async, gcsafe.} =
       try:
         await t.start(addrs)
       except TransportListenError as e:
-        let err = s.listenError(e)
+        let err = s.listenError(t, e)
         if not err.isNil:
           raise err
       s.acceptFuts.add(s.accept(t))
@@ -264,13 +266,18 @@ proc start*(s: Switch) {.async, gcsafe.} =
 
   debug "Started libp2p node", peer = s.peerInfo
 
-proc newSwitchListenError*(parent: ref TransportListenError = nil): ref SwitchListenError =
-  (ref SwitchListenError)(msg: "Failed to start one transport", parent: parent)
+proc newSwitchListenError*(
+    t: Transport,
+    parent: ref TransportListenError = nil): ref SwitchListenError =
+
+  (ref SwitchListenError)(msg: "Failed to start one transport",
+                          transport: t,
+                          parent: parent)
 
 const ListenErrorDefault =
-  proc(e: ref TransportListenError): ref SwitchListenError =
+  proc(t: Transport, e: ref TransportListenError): ref SwitchListenError =
     error "Failed to start one transport", error = e.msg
-    return newSwitchListenError(e)
+    return newSwitchListenError(t, e)
 
 proc newSwitch*(peerInfo: PeerInfo,
                 transports: seq[Transport],
