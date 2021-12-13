@@ -816,6 +816,8 @@ suite "Mplex":
       for i in 0..9:
         dialStreams.add((await mplexDial.newStream()))
 
+      check await checkExpiring(listenStreams.len == 10 and dialStreams.len == 10)
+
       await mplexListen.close()
       await allFuturesThrowing(
           (dialStreams & listenStreams)
@@ -860,6 +862,8 @@ suite "Mplex":
       for i in 0..9:
         dialStreams.add((await mplexDial.newStream()))
 
+      check await checkExpiring(listenStreams.len == 10 and dialStreams.len == 10)
+
       mplexHandle.cancel()
       await allFuturesThrowing(
           (dialStreams & listenStreams)
@@ -901,10 +905,13 @@ suite "Mplex":
       for i in 0..9:
         dialStreams.add((await mplexDial.newStream()))
 
+      check await checkExpiring(listenStreams.len == 10 and dialStreams.len == 10)
+
       await conn.close()
       await allFuturesThrowing(
           (dialStreams & listenStreams)
           .mapIt( it.join() ))
+
 
       checkTracker(LPChannelTrackerName)
 
@@ -944,7 +951,8 @@ suite "Mplex":
       for i in 0..9:
         dialStreams.add((await mplexDial.newStream()))
 
-      await sleepAsync(100.millis)
+      check await checkExpiring(listenStreams.len == 10 and dialStreams.len == 10)
+
       await listenConn.closeWithEOF()
       await allFuturesThrowing(
           (dialStreams & listenStreams)
