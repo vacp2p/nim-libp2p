@@ -378,7 +378,7 @@ suite "Mplex":
 
   suite "mplex e2e":
     asyncTest "read/write receiver":
-      let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
+      let ma = @[Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
 
       let transport1: TcpTransport = TcpTransport.new(upgrade = Upgrade())
       let listenFut = transport1.start(ma)
@@ -397,7 +397,7 @@ suite "Mplex":
 
       let acceptFut = acceptHandler()
       let transport2: TcpTransport = TcpTransport.new(upgrade = Upgrade())
-      let conn = await transport2.dial(transport1.ma)
+      let conn = await transport2.dial(transport1.addrs[0])
 
       let mplexDial = Mplex.new(conn)
       let mplexDialFut = mplexDial.handle()
@@ -415,7 +415,7 @@ suite "Mplex":
       await listenFut
 
     asyncTest "read/write receiver lazy":
-      let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
+      let ma = @[Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
 
       let transport1: TcpTransport = TcpTransport.new(upgrade = Upgrade())
       let listenFut = transport1.start(ma)
@@ -434,7 +434,7 @@ suite "Mplex":
 
       let acceptFut = acceptHandler()
       let transport2: TcpTransport = TcpTransport.new(upgrade = Upgrade())
-      let conn = await transport2.dial(transport1.ma)
+      let conn = await transport2.dial(transport1.addrs[0])
 
       let mplexDial = Mplex.new(conn)
       let stream = await mplexDial.newStream(lazy = true)
@@ -454,7 +454,7 @@ suite "Mplex":
 
     asyncTest "write fragmented":
       let
-        ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
+        ma = @[Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
         listenJob = newFuture[void]()
 
       var bigseq = newSeqOfCap[uint8](MaxMsgSize * 2)
@@ -486,7 +486,7 @@ suite "Mplex":
 
       let acceptFut = acceptHandler()
       let transport2: TcpTransport = TcpTransport.new(upgrade = Upgrade())
-      let conn = await transport2.dial(transport1.ma)
+      let conn = await transport2.dial(transport1.addrs[0])
 
       let mplexDial = Mplex.new(conn)
       let mplexDialFut = mplexDial.handle()
@@ -506,7 +506,7 @@ suite "Mplex":
       await listenFut
 
     asyncTest "read/write initiator":
-      let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
+      let ma = @[Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
 
       let transport1: TcpTransport = TcpTransport.new(upgrade = Upgrade())
       let listenFut = transport1.start(ma)
@@ -523,7 +523,7 @@ suite "Mplex":
         await mplexListen.close()
 
       let transport2: TcpTransport = TcpTransport.new(upgrade = Upgrade())
-      let conn = await transport2.dial(transport1.ma)
+      let conn = await transport2.dial(transport1.addrs[0])
 
       let acceptFut = acceptHandler()
       let mplexDial = Mplex.new(conn)
@@ -542,7 +542,7 @@ suite "Mplex":
       await listenFut
 
     asyncTest "multiple streams":
-      let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
+      let ma = @[Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
 
       let transport1 = TcpTransport.new(upgrade = Upgrade())
       let listenFut = transport1.start(ma)
@@ -565,7 +565,7 @@ suite "Mplex":
         await mplexListen.close()
 
       let transport2: TcpTransport = TcpTransport.new(upgrade = Upgrade())
-      let conn = await transport2.dial(transport1.ma)
+      let conn = await transport2.dial(transport1.addrs[0])
 
       let acceptFut = acceptHandler()
       let mplexDial = Mplex.new(conn)
@@ -586,7 +586,7 @@ suite "Mplex":
       await listenFut
 
     asyncTest "multiple read/write streams":
-      let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
+      let ma = @[Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
 
       let transport1: TcpTransport = TcpTransport.new(upgrade = Upgrade())
       let listenFut = transport1.start(ma)
@@ -610,7 +610,7 @@ suite "Mplex":
         await mplexListen.close()
 
       let transport2: TcpTransport = TcpTransport.new(upgrade = Upgrade())
-      let conn = await transport2.dial(transport1.ma)
+      let conn = await transport2.dial(transport1.addrs[0])
 
       let acceptFut = acceptHandler()
       let mplexDial = Mplex.new(conn)
@@ -633,7 +633,7 @@ suite "Mplex":
       await listenFut
 
     asyncTest "channel closes listener with EOF":
-      let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
+      let ma = @[Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
 
       let transport1 = TcpTransport.new(upgrade = Upgrade())
       var listenStreams: seq[Connection]
@@ -658,7 +658,7 @@ suite "Mplex":
       await transport1.start(ma)
       let acceptFut = acceptHandler()
       let transport2: TcpTransport = TcpTransport.new(upgrade = Upgrade())
-      let conn = await transport2.dial(transport1.ma)
+      let conn = await transport2.dial(transport1.addrs[0])
 
       let mplexDial = Mplex.new(conn)
       let mplexDialFut = mplexDial.handle()
@@ -681,7 +681,7 @@ suite "Mplex":
       await acceptFut
 
     asyncTest "channel closes dialer with EOF":
-      let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
+      let ma = @[Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
       let transport1 = TcpTransport.new(upgrade = Upgrade())
 
       var count = 0
@@ -706,7 +706,7 @@ suite "Mplex":
       let acceptFut = acceptHandler()
 
       let transport2: TcpTransport = TcpTransport.new(upgrade = Upgrade())
-      let conn = await transport2.dial(transport1.ma)
+      let conn = await transport2.dial(transport1.addrs[0])
 
       let mplexDial = Mplex.new(conn)
       let mplexDialFut = mplexDial.handle()
@@ -746,7 +746,7 @@ suite "Mplex":
       await acceptFut
 
     asyncTest "dialing mplex closes both ends":
-      let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
+      let ma = @[Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
       let transport1 = TcpTransport.new(upgrade = Upgrade())
 
       var listenStreams: seq[Connection]
@@ -765,7 +765,7 @@ suite "Mplex":
       let acceptFut = acceptHandler()
 
       let transport2: TcpTransport = TcpTransport.new(upgrade = Upgrade())
-      let conn = await transport2.dial(transport1.ma)
+      let conn = await transport2.dial(transport1.addrs[0])
 
       let mplexDial = Mplex.new(conn)
       let mplexDialFut = mplexDial.handle()
@@ -788,7 +788,7 @@ suite "Mplex":
       await acceptFut
 
     asyncTest "listening mplex closes both ends":
-      let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
+      let ma = @[Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
       let transport1 = TcpTransport.new(upgrade = Upgrade())
 
       var mplexListen: Mplex
@@ -808,7 +808,7 @@ suite "Mplex":
       let acceptFut = acceptHandler()
 
       let transport2: TcpTransport = TcpTransport.new(upgrade = Upgrade())
-      let conn = await transport2.dial(transport1.ma)
+      let conn = await transport2.dial(transport1.addrs[0])
 
       let mplexDial = Mplex.new(conn)
       let mplexDialFut = mplexDial.handle()
@@ -833,7 +833,7 @@ suite "Mplex":
       await acceptFut
 
     asyncTest "canceling mplex handler closes both ends":
-      let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
+      let ma = @[Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
       let transport1 = TcpTransport.new(upgrade = Upgrade())
 
       var mplexHandle: Future[void]
@@ -854,7 +854,7 @@ suite "Mplex":
       let acceptFut = acceptHandler()
 
       let transport2: TcpTransport = TcpTransport.new(upgrade = Upgrade())
-      let conn = await transport2.dial(transport1.ma)
+      let conn = await transport2.dial(transport1.addrs[0])
 
       let mplexDial = Mplex.new(conn)
       let mplexDialFut = mplexDial.handle()
@@ -878,7 +878,7 @@ suite "Mplex":
         transport2.stop())
 
     asyncTest "closing dialing connection should close both ends":
-      let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
+      let ma = @[Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
       let transport1 = TcpTransport.new(upgrade = Upgrade())
 
       var listenStreams: seq[Connection]
@@ -897,7 +897,7 @@ suite "Mplex":
       let acceptFut = acceptHandler()
 
       let transport2: TcpTransport = TcpTransport.new(upgrade = Upgrade())
-      let conn = await transport2.dial(transport1.ma)
+      let conn = await transport2.dial(transport1.addrs[0])
 
       let mplexDial = Mplex.new(conn)
       let mplexDialFut = mplexDial.handle()
@@ -923,7 +923,7 @@ suite "Mplex":
       await acceptFut
 
     asyncTest "canceling listening connection should close both ends":
-      let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
+      let ma = @[Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
       let transport1 = TcpTransport.new(upgrade = Upgrade())
 
       var listenConn: Connection
@@ -943,7 +943,7 @@ suite "Mplex":
       let acceptFut = acceptHandler()
 
       let transport2: TcpTransport = TcpTransport.new(upgrade = Upgrade())
-      let conn = await transport2.dial(transport1.ma)
+      let conn = await transport2.dial(transport1.addrs[0])
 
       let mplexDial = Mplex.new(conn)
       let mplexDialFut = mplexDial.handle()
@@ -969,7 +969,7 @@ suite "Mplex":
 
     suite "jitter":
       asyncTest "channel should be able to handle erratic read/writes":
-        let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
+        let ma = @[Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
 
         let transport1: TcpTransport = TcpTransport.new(upgrade = Upgrade())
         let listenFut = transport1.start(ma)
@@ -993,7 +993,7 @@ suite "Mplex":
           await mplexListen.close()
 
         let transport2: TcpTransport = TcpTransport.new(upgrade = Upgrade())
-        let conn = await transport2.dial(transport1.ma)
+        let conn = await transport2.dial(transport1.addrs[0])
 
         let acceptFut = acceptHandler()
         let mplexDial = Mplex.new(conn)
@@ -1041,7 +1041,7 @@ suite "Mplex":
         await listenFut
 
       asyncTest "channel should handle 1 byte read/write":
-        let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
+        let ma = @[Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
 
         let transport1: TcpTransport = TcpTransport.new(upgrade = Upgrade())
         let listenFut = transport1.start(ma)
@@ -1062,7 +1062,7 @@ suite "Mplex":
           await mplexListen.close()
 
         let transport2: TcpTransport = TcpTransport.new(upgrade = Upgrade())
-        let conn = await transport2.dial(transport1.ma)
+        let conn = await transport2.dial(transport1.addrs[0])
 
         let acceptFut = acceptHandler()
         let mplexDial = Mplex.new(conn)
