@@ -23,7 +23,7 @@ logScope:
 type
   ListenErrorCallback* = proc (
       ma: MultiAddress,
-      err: ref CatchableError): ref TransportListenError
+      err: ref CatchableError): Future[ref TransportListenError]
       {.gcsafe, raises: [Defect].}
   TransportError* = object of LPError
   TransportInvalidAddrError* = object of TransportError
@@ -41,12 +41,18 @@ proc newTransportClosedError*(parent: ref Exception = nil): ref LPError =
   newException(TransportClosedError,
     "Transport closed, no more connections!", parent)
 
-proc newTransportListenError*(ma: MultiAddress, parent: ref Exception = nil): ref TransportListenError =
-  (ref TransportListenError)(msg: "Transport failed to start", parent: parent, ma: ma)
+proc newTransportListenError*(
+    ma: MultiAddress,
+    parent: ref Exception = nil): ref TransportListenError =
+
+  return (ref TransportListenError)(msg: "Transport failed to start", parent: parent, ma: ma)
 
 const ListenErrorDefault* =
-  proc(ma: MultiAddress, err: ref CatchableError): ref TransportListenError =
-    newTransportListenError(ma, err)
+  proc(
+      ma: MultiAddress,
+      err: ref CatchableError): Future[ref TransportListenError] {.async.} =
+
+    return newTransportListenError(ma, err)
 
 method start*(
   self: Transport,

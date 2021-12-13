@@ -125,6 +125,115 @@ suite "TCP transport":
     server.close()
     await server.join()
 
+  asyncTest "pessimistic: default listenError callback returns TransportListenError":
+    let
+      transport = TcpTransport.new(upgrade = Upgrade())
+
+    check not transport.listenError.isNil
+
+    let
+      exc = newException(CatchableError, "test")
+      ma = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
+      listenErrResult = await transport.listenError(ma, exc)
+
+    check:
+      not listenErrResult.isNil
+      listenErrResult is (ref TransportListenError)
+
+    await transport.stop()
+
+  asyncTest "listenError callback assignable and callable":
+    let
+      failListenErr = proc(
+          maErr: MultiAddress,
+          exc: ref CatchableError): Future[ref TransportListenError] {.async.} =
+        fail()
+      transport = TcpTransport.new(
+        upgrade = Upgrade(),
+        listenError = failListenErr)
+      ma = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
+      catchableError = newException(CatchableError, "test1")
+      transportListenError = newTransportListenError(ma, catchableError)
+
+    transport.listenError = proc(
+        maErr: MultiAddress,
+        exc: ref CatchableError): Future[ref TransportListenError] {.async.} =
+
+      check:
+        exc == catchableError
+        maErr == ma
+
+      return transportListenError
+
+    let listenErrResult = await transport.listenError(ma, catchableError)
+
+    check:
+      listenErrResult == transportListenError
+
+    await transport.stop()
+
+  asyncTest "pessimistic: default listenError re-raises exception":
+    let
+      # use a bad MultiAddress to throw an error during transport.start
+      ma = Multiaddress.init("/ip4/1.0.0.0/tcp/0").tryGet()
+
+      transport = TcpTransport.new(upgrade = Upgrade())
+
+    expect TransportListenError:
+      await transport.start(@[ma])
+
+    await transport.stop()
+
+  asyncTest "pessimistic: overridden listenError re-raises exception":
+    var transportListenErr: ref TransportListenError
+
+    let
+      # use a bad MultiAddress to throw an error during transport.start
+      ma = Multiaddress.init("/ip4/1.0.0.0/tcp/0").tryGet()
+      listenError = proc(
+          maErr: MultiAddress,
+          exc: ref CatchableError): Future[ref TransportListenError] {.async.} =
+
+        transportListenErr = newTransportListenError(maErr, exc)
+        check maErr == ma
+        return transportListenErr
+
+      transport = TcpTransport.new(
+        upgrade = Upgrade(),
+        listenError = listenError)
+
+    try:
+      await transport.start(@[ma])
+      fail()
+    except TransportListenError as e:
+      check e == transportListenErr
+
+    await transport.stop()
+
+  asyncTest "optimistic: overridden listenError does not re-raise exception":
+    var transportListenErr: ref TransportListenError
+
+    let
+      # use a bad MultiAddress to throw an error during transport.start
+      ma = Multiaddress.init("/ip4/1.0.0.0/tcp/0").tryGet()
+      listenError = proc(
+          maErr: MultiAddress,
+          exc: ref CatchableError): Future[ref TransportListenError] {.async.} =
+
+        check maErr == ma
+        return nil
+
+      transport = TcpTransport.new(
+        upgrade = Upgrade(),
+        listenError = listenError)
+
+    try:
+      await transport.start(@[ma])
+    except TransportListenError as e:
+      fail()
+
+    await transport.stop()
+
   commonTransportTest(
     "TcpTransport",
     proc (): Transport = TcpTransport.new(upgrade = Upgrade()),

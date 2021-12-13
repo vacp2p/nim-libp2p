@@ -119,15 +119,12 @@ proc new*(
   T: typedesc[TcpTransport],
   flags: set[ServerFlags] = {},
   upgrade: Upgrade,
-  listenError: ListenErrorCallback = nil): T =
+  listenError: ListenErrorCallback = ListenErrorDefault): T =
 
   let transport = T(
     flags: flags,
     upgrader: upgrade,
     listenError: listenError)
-
-  if transport.listenError.isNil:
-    transport.listenError = ListenErrorDefault
 
   inc getTcpTransportTracker().opened
   return transport
@@ -164,7 +161,7 @@ method start*(
 
       self.servers &= server
     except CatchableError as ex:
-      let err = self.listenError(ma, ex)
+      let err = await self.listenError(ma, ex)
       if not err.isNil:
         raise err
 

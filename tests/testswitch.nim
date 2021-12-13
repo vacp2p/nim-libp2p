@@ -976,19 +976,24 @@ suite "Switch":
     await srcWsSwitch.stop()
     await srcTcpSwitch.stop()
 
-  asyncTest "listenError callback default returns TransportListenError (pessimistic)":
+  asyncTest "pessimistic: default listenError callback returns SwitchListenError":
     let
       switch = newStandardSwitch()
       transport = Transport()
 
     check switch.listenError.isNil.not
 
-    let exc = newException(TransportListenError, "test")
-    check not switch.listenError(transport, exc).isNil
+    let
+      exc = newException(TransportListenError, "test")
+      listenErrResult = await switch.listenError(transport, exc)
+
+    check:
+      not listenErrResult.isNil
+      listenErrResult is (ref SwitchListenError)
 
     await switch.stop()
 
-  asyncTest "listenError callback assignable and callable":
+  asyncTest "switch listenError callback assignable and callable":
     let
       switch = newStandardSwitch()
       transportListenError = newException(TransportListenError, "test1")
@@ -996,7 +1001,8 @@ suite "Switch":
       transport = Transport()
 
     switch.listenError = proc(
-        t: Transport, exc: ref TransportListenError): ref SwitchListenError =
+        t: Transport,
+        exc: ref TransportListenError): Future[ref SwitchListenError] {.async.} =
 
       check:
         exc == transportListenError
@@ -1004,8 +1010,8 @@ suite "Switch":
 
       return switchListenError
 
-    check:
-      switch.listenError(transport, transportListenError) == switchListenError
+    let listenErrResult = await switch.listenError(transport, transportListenError)
+    check listenErrResult == switchListenError
 
     await switch.stop()
 
@@ -1016,7 +1022,7 @@ suite "Switch":
       exc2 = newException(CatchableError, "test2")
 
       transportStartMock =
-        proc(self: MockTransport, addrs: seq[MultiAddress]): Future[void] =
+        proc(self: MockTransport, addrs: seq[MultiAddress]): Future[void] {.async.} =
           for i, ma in addrs:
             try:
               if i == 0:
@@ -1031,9 +1037,10 @@ suite "Switch":
                 echo "[test.startMock] raising exc2"
                 raise exc2
             except CatchableError as e:
-              let err = self.listenError(ma, e)
+              let err = await self.listenError(ma, e)
               if not err.isNil:
                 raise err
+              # return
           fail() # should not get this far
 
       mockTransport =
@@ -1067,8 +1074,9 @@ suite "Switch":
         exc = TransportListenError(e.parent[])
         ma = exc.ma
 
-      check ma == ma0
-      check exc.parent == exc0
+      check:
+        ma == ma0
+        exc.parent == exc0
 
     await switch.stop()
 
@@ -1080,7 +1088,10 @@ suite "Switch":
       exc2 = newException(CatchableError, "test2")
 
       transportListenError =
-        proc(ma: MultiAddress, ex: ref CatchableError): ref TransportListenError =
+        proc(
+            ma: MultiAddress,
+            ex: ref CatchableError): Future[ref TransportListenError] {.async.} =
+
           handledTransportErrs[ma] = ex
           return nil # optimistic transport multiaddress failure
 
@@ -1098,7 +1109,7 @@ suite "Switch":
                 echo "[test.startMock] raising exc2"
                 raise exc2
             except CatchableError as e:
-              let err = self.listenError(ma, e)
+              let err = await self.listenError(ma, e)
               # check err == nil
               if not err.isNil:
                 raise err
@@ -1129,7 +1140,8 @@ suite "Switch":
 
 
     switch.listenError = proc(
-        t: Transport, exc: ref TransportListenError): ref SwitchListenError =
+        t: Transport,
+        exc: ref TransportListenError): Future[ref SwitchListenError] {.async.} =
 
       let ma = exc.ma
       if ma == ma0:
@@ -1160,7 +1172,10 @@ suite "Switch":
       exc2 = newException(CatchableError, "test2")
 
       transportListenError =
-        proc(ma: MultiAddress, ex: ref CatchableError): ref TransportListenError =
+        proc(
+            ma: MultiAddress,
+            ex: ref CatchableError): Future[ref TransportListenError] {.async.} =
+
           handledTransportErrs[ma] = ex
           return nil # optimistic transport multiaddress failure
 
@@ -1177,7 +1192,7 @@ suite "Switch":
                 echo "[test.startMock] raising exc2"
                 raise exc2
             except CatchableError as e:
-              let err = self.listenError(ma, e)
+              let err = await self.listenError(ma, e)
               # check err == nil
               if not err.isNil:
                 raise err
@@ -1208,7 +1223,8 @@ suite "Switch":
 
 
     switch.listenError = proc(
-        t: Transport, exc: ref TransportListenError): ref SwitchListenError =
+        t: Transport,
+        exc: ref TransportListenError): Future[ref SwitchListenError] {.async.} =
       fail()
 
     try:
@@ -1235,13 +1251,19 @@ suite "Switch":
 
 
       transportListenError0 =
-        proc(ma: MultiAddress, ex: ref CatchableError): ref TransportListenError =
+        proc(
+            ma: MultiAddress,
+            ex: ref CatchableError): Future[ref TransportListenError] {.async.} =
+
           handledTransportErrs0[ma] = ex
           # pessimistic transport multiaddress failure
           return newTransportListenError(ma, ex)
 
       transportListenError1 =
-        proc(ma: MultiAddress, ex: ref CatchableError): ref TransportListenError =
+        proc(
+            ma: MultiAddress,
+            ex: ref CatchableError): Future[ref TransportListenError] {.async.} =
+
           handledTransportErrs1[ma] = ex
           # pessimistic transport multiaddress failure
           return newTransportListenError(ma, ex)
@@ -1258,7 +1280,7 @@ suite "Switch":
               else:
                 fail()
             except CatchableError as e:
-              let err = self.listenError(ma, e)
+              let err = await self.listenError(ma, e)
               if not err.isNil:
                 raise err
 
@@ -1271,7 +1293,7 @@ suite "Switch":
               else:
                 fail()
             except CatchableError as e:
-              let err = self.listenError(ma, e)
+              let err = await self.listenError(ma, e)
               if not err.isNil:
                 raise err
 
@@ -1314,15 +1336,17 @@ suite "Switch":
 
     switch.listenError = proc(
         t: Transport,
-        exc: ref TransportListenError): ref SwitchListenError =
+        exc: ref TransportListenError): Future[ref SwitchListenError] {.async.} =
 
       let ma = exc.ma
       if ma == ma0:
-        check exc.parent == exc10
-        check t == switch.transports[1]
+        check:
+          exc.parent == exc10
+          t == switch.transports[1]
       elif ma == ma1:
-        check exc.parent == exc01
-        check t == switch.transports[0]
+        check:
+          exc.parent == exc01
+          t == switch.transports[0]
       else:
         fail()
       # switch optimistic, continue with all transports
@@ -1343,8 +1367,9 @@ suite "Switch":
     for ma, ex in handledTransportErrs1:
       echo "ma: ", $ma, ", ex: ", ex.msg
 
-    check handledTransportErrs0 == [(ma1, exc01)].toTable()
-    check handledTransportErrs1 == [(ma0, exc10)].toTable()
+    check:
+      handledTransportErrs0 == [(ma1, exc01)].toTable()
+      handledTransportErrs1 == [(ma0, exc10)].toTable()
 
     await switch.stop()
 
@@ -1358,18 +1383,27 @@ suite "Switch":
       exc10 = newException(CatchableError, "test10")
 
       transportListenError0 =
-        proc(ma: MultiAddress, ex: ref CatchableError): ref TransportListenError =
+        proc(
+            ma: MultiAddress,
+            ex: ref CatchableError): Future[ref TransportListenError] {.async.} =
+
           handledTransportErrs0[ma] = ex
           # optimistic transport multiaddress failure
           return nil
 
       transportListenError1 =
-        proc(ma: MultiAddress, ex: ref CatchableError): ref TransportListenError =
+        proc(
+            ma: MultiAddress,
+            ex: ref CatchableError): Future[ref TransportListenError] {.async.} =
+
           handledTransportErrs1[ma] = ex
           return newTransportListenError(ma, ex)
 
       transportListenError2 =
-        proc(ma: MultiAddress, ex: ref CatchableError): ref TransportListenError =
+        proc(
+            ma: MultiAddress,
+            ex: ref CatchableError): Future[ref TransportListenError] {.async.} =
+
           # should not get here as switch is pessimistic so will stop at first
           # failed transport (transpor1)
           fail()
@@ -1383,7 +1417,7 @@ suite "Switch":
               else:
                 continue
             except CatchableError as e:
-              let err = self.listenError(ma, e)
+              let err = await self.listenError(ma, e)
               if not err.isNil:
                 raise err
 
@@ -1396,7 +1430,7 @@ suite "Switch":
               else:
                 continue
             except CatchableError as e:
-              let err = self.listenError(ma, e)
+              let err = await self.listenError(ma, e)
               if not err.isNil:
                 raise err
 
@@ -1457,10 +1491,11 @@ suite "Switch":
 
     switch.listenError = proc(
         t: Transport,
-        exc: ref TransportListenError): ref SwitchListenError =
+        exc: ref TransportListenError): Future[ref SwitchListenError] {.async.} =
 
-      check t == switch.transports[1]
-      check exc.ma == ma0
+      check:
+        t == switch.transports[1]
+        exc.ma == ma0
 
       # pessimistic
       return newSwitchListenError(t, exc)
@@ -1469,9 +1504,10 @@ suite "Switch":
       await switch.start()
     except SwitchListenError as e:
       let tListenEx = (ref TransportListenError)(e.parent)
-      check tListenEx.ma == ma0
-      check tListenEx.parent == exc10
-      check e.transport == switch.transports[1]
+      check:
+        tListenEx.ma == ma0
+        tListenEx.parent == exc10
+        e.transport == switch.transports[1]
 
     echo "handledTransportErrs0:"
     for ma, ex in handledTransportErrs0:
@@ -1481,19 +1517,24 @@ suite "Switch":
     for ma, ex in handledTransportErrs1:
       echo "ma: ", $ma, ", ex: ", ex.msg
 
-    check handledTransportErrs0 == [(ma1, exc01)].toTable()
-    check handledTransportErrs1 == [(ma0, exc10)].toTable()
+    check:
+      handledTransportErrs0 == [(ma1, exc01)].toTable()
+      handledTransportErrs1 == [(ma0, exc10)].toTable()
 
     await switch.stop()
 
   asyncTest "no exceptions raised, listenError should not be called":
     let
       transportListenError0 =
-        proc(ma: MultiAddress, ex: ref CatchableError): ref TransportListenError =
+        proc(
+            ma: MultiAddress,
+            ex: ref CatchableError): Future[ref TransportListenError] {.async.} =
           fail()
 
       transportListenError1 =
-        proc(ma: MultiAddress, ex: ref CatchableError): ref TransportListenError =
+        proc(
+            ma: MultiAddress,
+            ex: ref CatchableError): Future[ref TransportListenError] {.async.} =
           fail()
 
       transportStartMock0 =
@@ -1546,7 +1587,7 @@ suite "Switch":
 
     switch.listenError = proc(
         t: Transport,
-        exc: ref TransportListenError): ref SwitchListenError =
+        exc: ref TransportListenError): Future[ref SwitchListenError] {.async.} =
 
       fail()
 

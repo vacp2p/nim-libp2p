@@ -61,7 +61,7 @@ type
       transport*: Transport
     ListenErrorCallback = proc (
       t: Transport,
-      err: ref TransportListenError): ref SwitchListenError
+      err: ref TransportListenError): Future[ref SwitchListenError]
       {.gcsafe, raises: [Defect].}
 
     Switch* = ref object of Dial
@@ -258,7 +258,7 @@ proc start*(s: Switch) {.async, gcsafe.} =
       try:
         await t.start(addrs)
       except TransportListenError as e:
-        let err = s.listenError(t, e)
+        let err = await s.listenError(t, e)
         if not err.isNil:
           raise err
       s.acceptFuts.add(s.accept(t))
@@ -275,7 +275,10 @@ proc newSwitchListenError*(
                           parent: parent)
 
 const ListenErrorDefault =
-  proc(t: Transport, e: ref TransportListenError): ref SwitchListenError =
+  proc(
+      t: Transport,
+      e: ref TransportListenError): Future[ref SwitchListenError] {.async.}=
+
     error "Failed to start one transport", error = e.msg
     return newSwitchListenError(t, e)
 
@@ -287,7 +290,7 @@ proc newSwitch*(peerInfo: PeerInfo,
                 connManager: ConnManager,
                 ms: MultistreamSelect,
                 nameResolver: NameResolver = nil,
-                listenError: ListenErrorCallback = nil): Switch
+                listenError: ListenErrorCallback = ListenErrorDefault): Switch
                 {.raises: [Defect, LPError].} =
 
   if secureManagers.len == 0:
@@ -302,12 +305,6 @@ proc newSwitch*(peerInfo: PeerInfo,
     dialer: Dialer.new(peerInfo.peerId, connManager, transports, ms, nameResolver),
     nameResolver: nameResolver,
     listenError: listenError)
-
-  if switch.listenError.isNil:
-    switch.listenError = ListenErrorDefault
-    # switch.listenError = proc(ma: MultiAddress, e: ref TransportListenError): ref SwitchError =
-    #   error "Failed to start one transport", error = e.msg
-    #   return nil
 
   switch.connManager.peerStore = switch.peerStore
   switch.mount(identity)
