@@ -102,7 +102,7 @@ type
   GossipSubParams* = object
     explicit*: bool
     pruneBackoff*: Duration
-    unsubcribeBackoff*: Duration
+    unsubscribeBackoff*: Duration
     floodPublish*: bool
     gossipFactor*: float64
     d*: int
