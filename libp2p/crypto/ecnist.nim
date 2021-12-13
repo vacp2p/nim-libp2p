@@ -381,11 +381,15 @@ proc toBytes*(seckey: EcPrivateKey, data: var openarray[byte]): EcResult[int] =
       c0.write(Asn1Tag.Oid, Asn1OidSecp521r1)
     c0.finish()
     offset = pubkey.getOffset()
+    if offset < 0:
+      return err(EcKeyIncorrectError)
     length = pubkey.key.qlen
     c1.write(Asn1Tag.BitString,
              pubkey.buffer.toOpenArray(offset, offset + length - 1))
     c1.finish()
     offset = seckey.getOffset()
+    if offset < 0:
+      return err(EcKeyIncorrectError)
     length = seckey.key.xlen
     p.write(1'u64)
     p.write(Asn1Tag.OctetString,
@@ -426,6 +430,8 @@ proc toBytes*(pubkey: EcPublicKey, data: var openarray[byte]): EcResult[int] =
     c.finish()
     p.write(c)
     let offset = getOffset(pubkey)
+    if offset < 0:
+      return err(EcKeyIncorrectError)
     let length = pubkey.key.qlen
     p.write(Asn1Tag.BitString,
             pubkey.buffer.toOpenArray(offset, offset + length - 1))
