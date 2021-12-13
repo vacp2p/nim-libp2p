@@ -142,12 +142,7 @@ method start*(
   await procCall Transport(self).start(addrs)
   trace "Starting TCP transport"
 
-  for i, ma in addrs:
-    if not self.handles(ma):
-      trace "Invalid address detected, skipping!", address = ma
-      self.addrs.del i
-      continue
-
+  for i, ma in self.addrs:
     try:
       let server = createStreamServer(
         ma = ma,

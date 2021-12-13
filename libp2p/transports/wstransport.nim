@@ -105,13 +105,7 @@ method start*(
     factories = self.factories,
     rng = self.rng)
 
-  
-  for i, ma in addrs:
-    if not self.handles(ma):
-      trace "Invalid address detected, skipping!", address = ma
-      self.addrs.del i
-      continue
-
+  for i, ma in self.addrs:
     let isWss =
       if WSS.match(ma):
         if self.secure: true

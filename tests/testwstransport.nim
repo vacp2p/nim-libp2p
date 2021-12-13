@@ -164,6 +164,23 @@ suite "WebSocket transport":
 
     await transport.stop()
 
+  asyncTest "unhandled addresses are filtered":
+    let
+      transport = WsTransport.new(upgrade = Upgrade())
+      maWs = Multiaddress.init("/ip4/0.0.0.0/tcp/1/ws").tryGet()
+      maUdp = Multiaddress.init("/ip4/0.0.0.0/udp/0").tryGet()
+      maWss = Multiaddress.init("/ip4/0.0.0.0/tcp/1/wss").tryGet()
+      maP2p = Multiaddress.init("/p2p-circuit").tryGet()
+
+    try:
+      await transport.start(@[maWs, maUdp, maWss, maP2p])
+    except:
+      discard
+
+    check transport.addrs == @[maWs, maWss]
+
+    await transport.stop()
+
   commonTransportTest(
     "WebSocket",
     proc (): Transport = WsTransport.new(Upgrade()),
