@@ -94,3 +94,5 @@ task examples_build, "Build the samples":
   buildSample("helloworld", true)
   buildTutorial("examples/tutorial_1_connect.md")
   buildTutorial("examples/tutorial_2_customproto.md")
+  buildTutorial("examples/tutorial_3_streamproto.md")
+  buildTutorial("examples/tutorial_4_streamproto2.md")

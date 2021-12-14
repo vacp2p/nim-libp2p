@@ -83,16 +83,27 @@ We can find out which port was attributed, and the resulting local addresses, by
 
 We'll **dial** the first switch from the second one, by specifying it's **Peer ID**, it's **MultiAddress** and the **`Ping` protocol codec**:
 ```nim
-  let conn = await switch2.dial(switch1.peerInfo.peerId, switch1.peerInfo.addrs, PingCodec)
+  let stream = await switch2.dial(switch1.peerInfo.peerId, switch1.peerInfo.addrs, PingCodec)
 ```
-We now have a `Ping` connection setup between the second and the first switch, we can use it to actually ping the node:
+This will connect to the peer using a transport compatible with one of the peer MultiAddress.
+The connection will next be upgraded, meaning it will be secured using our SecureManager (Noise in our case),
+and multiplexed using our Multiplexer (Mplex here).
+
+The "physical" connection will be handled by libp2p, which will keep it opened for as long as it's used.
+If you want to keep a connection around, you will have to actively use it, eg, by pinging it regularly.
+
+Because we asked for the `PingCodec`, a multiplexed Channel (or Stream) will be opened on this connection
+and the Codec will be negotiated. Once this is done, the libp2p will give us back the stream.
+
+We now have a `Ping` stream setup between the second and the first switch, we can use it to actually ping the node:
 ```nim
   # ping the other node and echo the ping duration
-  echo "ping: ", await pingProtocol.ping(conn)
+  echo "ping: ", await pingProtocol.ping(stream)
 
-  # We must close the connection ourselves when we're done with it
-  await conn.close()
+  # We must close the stream ourselves when we're done with it
+  await stream.close()
 ```
+Closing the stream will not close the underlying connection.
 
 And that's it! Just a little bit of cleanup: shutting down the switches, waiting for them to stop, and we'll call our `main` procedure:
 ```nim
