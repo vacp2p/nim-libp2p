@@ -175,9 +175,9 @@ method readOnce*(s: LPChannel,
     await s.reset()
     raise exc
 
-method write*(s: LPChannel, msg: seq[byte]): Future[void] {.async.} =
-  ## Write to mplex channel - there may be up to MaxWrite concurrent writes
-  ## pending after which the peer is disconnected
+proc prepareWrite(s: LPChannel, msg: seq[byte]): Future[void] {.async.} =
+  # prepareWrite is the slow path of writing a message - see conditions in
+  # write
   if s.closedLocal or s.conn.closed:
     raise newLPStreamClosedError()
 
@@ -191,19 +191,20 @@ method write*(s: LPChannel, msg: seq[byte]): Future[void] {.async.} =
     await s.conn.close()
     return
 
-  s.writes += 1
+  if not s.isOpen:
+    await s.open()
+
+  await s.conn.writeMsg(s.id, s.msgCode, msg)
+
+proc completeWrite(
+    s: LPChannel, fut: Future[void], msgLen: int): Future[void] {.async.} =
   try:
-    if not s.isOpen:
-      await s.open()
+    s.writes += 1
 
-    # writes should happen in sequence
-    trace "write msg", s, conn = s.conn, len = msg.len
-
-    await s.conn.writeMsg(s.id, s.msgCode, msg)
-
+    await fut
     when defined(libp2p_network_protocols_metrics):
       if s.tag.len > 0:
-        libp2p_protocols_bytes.inc(msg.len.int64, labelValues=[s.tag, "out"])
+        libp2p_protocols_bytes.inc(msgLen.int64, labelValues=[s.tag, "out"])
 
     s.activity = true
   except CatchableError as exc:
@@ -213,6 +214,24 @@ method write*(s: LPChannel, msg: seq[byte]): Future[void] {.async.} =
     raise exc
   finally:
     s.writes -= 1
+
+method write*(s: LPChannel, msg: seq[byte]): Future[void] =
+  ## Write to mplex channel - there may be up to MaxWrite concurrent writes
+  ## pending after which the peer is disconnected
+
+  let
+    closed = s.closedLocal or s.conn.closed
+
+  let fut =
+    if (not closed) and msg.len > 0 and s.writes < MaxWrites and s.isOpen:
+      # Fast path: Avoid a copy of msg being kept in the closure created by
+      # `{.async.}` as this drives up memory usage - the conditions are laid out
+      # in prepareWrite
+      s.conn.writeMsg(s.id, s.msgCode, msg)
+    else:
+      prepareWrite(s, msg)
+
+  s.completeWrite(fut, msg.len)
 
 proc init*(
   L: type LPChannel,
