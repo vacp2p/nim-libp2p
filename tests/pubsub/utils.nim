@@ -40,7 +40,7 @@ proc generateNodes*(
         msgIdProvider = msgIdProvider,
         anonymize = anonymize,
         maxMessageSize = maxMessageSize,
-        parameters = (var p = GossipSubParams.init(); p.floodPublish = false; p.historyLength = 20; p.historyGossip = 20; p.unsubcribeBackoff = 1.seconds; p))
+        parameters = (var p = GossipSubParams.init(); p.floodPublish = false; p.historyLength = 20; p.historyGossip = 20; p.unsubscribeBackoff = 1.seconds; p))
       # set some testing params, to enable scores
       g.topicParams.mgetOrPut("foobar", TopicParams.init()).topicWeight = 1.0
       g.topicParams.mgetOrPut("foo", TopicParams.init()).topicWeight = 1.0
