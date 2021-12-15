@@ -634,7 +634,7 @@ suite "Switch":
     await switch.start()
 
     var peerId = PeerID.init(PrivateKey.random(ECDSA, rng[]).get()).get()
-    expect LPStreamClosedError:
+    expect LPStreamClosedError, LPStreamEOFError:
       await switch.connect(peerId, transport.addrs)
 
     await handlerWait
