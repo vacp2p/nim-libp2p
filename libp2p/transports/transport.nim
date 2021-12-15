@@ -56,7 +56,7 @@ const ListenErrorDefault* =
 
 method start*(
   self: Transport,
-  addrs: seq[MultiAddress]) {.base, async, raises: [TransportListenError].} =
+  addrs: seq[MultiAddress]) {.base, async, raises: [Defect, TransportListenError].} =
   ## start the transport
   ##
 
