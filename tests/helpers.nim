@@ -108,6 +108,6 @@ proc buildExceptions*(x, y: int): seq[seq[ref CatchableError]] =
       errTbl.add newException(CatchableError, "test" & $i & $j)
     result.add errTbl
 
-proc buildLocalTcpAddrs*(x: int): seq[MultiAddress] {.raises: [LPError].} =
+proc buildLocalTcpAddrs*(x: int): seq[MultiAddress] {.raises: [Defect, LPError].} =
   for i in 0..<x:
     result.add Multiaddress.init("/ip4/0.0.0.0/tcp/" & $(i+1)).tryGet()
