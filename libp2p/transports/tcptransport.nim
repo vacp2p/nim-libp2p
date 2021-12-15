@@ -128,12 +128,10 @@ proc new*(
   inc getTcpTransportTracker().opened
   return transport
 
-proc switchWith*[Switch](s: Switch,
-  tcpTransport: TcpTransport) =
-
-  let upgrade = MuxedUpgrade.new(s.identify, s.muxers, s.secureManagers, s.connManager, s.ms)
+proc setup*[Ctx](c: Ctx, tcpTransport: TcpTransport) =
+  let upgrade = MuxedUpgrade.new(c.identify, c.muxers, c.secureManagers, c.connManager, c.ms)
   tcpTransport.upgrader = upgrade
-  s.transportsAdd(tcpTransport)
+  c.transports = c.transports & tcpTransport
 
 method start*(
   self: TcpTransport,

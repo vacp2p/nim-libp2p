@@ -629,14 +629,11 @@ proc new*(
     commonPrologue: commonPrologue,
   )
 
+  noise.init()
   noise
 
-proc switchWith*[Switch](
-  s: Switch,
-  noise: Noise) =
-
-  noise.init()
-  noise.localPrivateKey = s.peerInfo.privateKey
+proc setup*[Ctx](c: Ctx, noise: Noise) =
+  noise.localPrivateKey = c.peerInfo.privateKey
 
   let pkBytes = noise.localPrivateKey.getPublicKey()
   .expect("Expected valid Private Key")
@@ -644,4 +641,4 @@ proc switchWith*[Switch](
 
   noise.localPublicKey = pkBytes
 
-  s.secureManagersAdd(noise)
+  c.secureManagers &= noise

@@ -103,11 +103,9 @@ proc new*(C: type ConnManager,
     inSema: inSema,
     outSema: outSema)
 
-proc switchWith*[Switch](s: Switch,
-  connManager: ConnManager,
-  ) =
-  s.connManager = connManager
-  connManager.peerStore = s.peerStore
+proc setup*[Ctx](c: Ctx, connManager: ConnManager) =
+  c.connManager = connManager
+  connManager.peerStore = c.peerStore
 
 proc connCount*(c: ConnManager, peerId: PeerID): int =
   c.conns.getOrDefault(peerId).len

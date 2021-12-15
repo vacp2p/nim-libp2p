@@ -122,6 +122,16 @@ proc new*(T: typedesc[Identify], peerInfo: PeerInfo): T =
   identify.init()
   identify
 
+proc new*(T: typedesc[Identify]): T =
+  let identify = T()
+  identify.init()
+  identify
+
+proc setup*[Ctx](c: Ctx, i: Identify) {.raises: [Defect, LPError].} =
+  i.peerInfo = c.peerInfo
+  c.identify = i
+  c.mount(i)
+
 method init*(p: Identify) =
   proc handle(conn: Connection, proto: string) {.async, gcsafe, closure.} =
     try:
@@ -209,12 +219,3 @@ proc push*(p: IdentifyPush, peerInfo: PeerInfo, conn: Connection) {.async.} =
   var pb = encodeMsg(peerInfo, conn.observedAddr)
   await conn.writeLp(pb.buffer)
 
-proc switchWith*[Switch](s: Switch, i: Identify)
-  {.gcsafe, raises: [Defect].} =
-
-  i.init()
-  i.peerInfo = s.peerInfo
-  s.identify = i
-  try:
-    s.mount(i)
-  except: discard

@@ -73,12 +73,12 @@ proc new*(
   agentVersion: string = ""): PeerInfo
   {.raises: [Defect, PeerInfoError].} =
 
-  try:
-    PeerInfo.new(PrivateKey.random(rng[]).tryGet(), addrs, protocols, protoVersion, agentVersion)
-  except:
-    raise newException(PeerInfoError, "Can't generate random key")
+  let randomPrivateKey = PrivateKey.random(rng[])
+  if randomPrivateKey.isErr:
+    raise newException(PeerInfoError, "Failed to create a random private key")
 
-proc switchWith*[Switch](s: Switch,
+  PeerInfo.new(randomPrivateKey.get(), addrs, protocols, protoVersion, agentVersion)
+
+proc setup*[Ctx](c: Ctx,
   peerInfo: PeerInfo) =
-
-  s.peerInfo = peerInfo
+  c.peerInfo = peerInfo

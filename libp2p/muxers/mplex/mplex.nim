@@ -240,10 +240,11 @@ method close*(m: Mplex) {.async, gcsafe.} =
 
   trace "Closed mplex", m
 
-proc switchWith*[Switch](s: Switch, mplex: Mplex) =
+proc setup*[Ctx](c: Ctx, mplex: Mplex) =
   proc newMuxer(conn: Connection): Muxer =
     Mplex.new(
       conn,
       inTimeout = 5.minutes,
       outTimeout = 5.minutes)
-  s.muxersAdd(MplexCodec, MuxerProvider.new(newMuxer, MplexCodec))
+
+  c.muxers[MplexCodec] = MuxerProvider.new(newMuxer, MplexCodec)

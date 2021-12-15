@@ -43,8 +43,8 @@ type
 proc new*(T: typedesc[MultistreamSelect]): T =
   T(codec: MSCodec)
 
-proc switchWith*[Switch](s: Switch, ms: MultistreamSelect) =
-  s.ms = ms
+proc setup*[Ctx](c: Ctx, ms: MultistreamSelect) =
+  c.ms = ms
 
 template validateSuffix(str: string): untyped =
     if str.endsWith("\n"):

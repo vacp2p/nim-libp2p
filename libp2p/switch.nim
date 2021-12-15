@@ -268,23 +268,6 @@ proc start*(s: Switch) {.async, gcsafe.} =
 
   debug "Started libp2p node", peer = s.peerInfo
 
-proc new*(
-  T: typedesc[Switch]
-  ): T =
-
-  T(
-    peerStore: PeerStore.new()
-  )
-
-proc new*(T: typedesc[Switch],
-  addrs: seq[MultiAddress],
-  rng = newRng()): T =
-
-  let
-    secKey = PrivateKey.random(rng[])
-    peerInfo = PeerInfo.new(secKey.tryGet(), addrs)
-  T.new(peerInfo)
-
 proc newSwitch*(peerInfo: PeerInfo,
                 transports: seq[Transport],
                 identity: Identify,
