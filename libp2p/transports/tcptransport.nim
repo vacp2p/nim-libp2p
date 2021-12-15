@@ -131,7 +131,7 @@ proc new*(
 
 method start*(
   self: TcpTransport,
-  addrs: seq[MultiAddress]) {.async, raises: [TransportListenError].} =
+  addrs: seq[MultiAddress]) {.async, raises: [Defect, TransportListenError].} =
   ## listen on the transport
   ##
 
