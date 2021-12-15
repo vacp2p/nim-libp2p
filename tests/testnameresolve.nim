@@ -58,8 +58,8 @@ suite "Name resolving":
   suite "Generic Resolving":
     var resolver {.threadvar.}: MockResolver
 
-    proc testOne(input: string, output: seq[Multiaddress]): bool =
-      let resolved = waitFor resolver.resolveMAddress(Multiaddress.init(input).tryGet())
+    proc testOne(input: string, output: seq[MultiAddress]): bool =
+      let resolved = waitFor resolver.resolveMAddress(MultiAddress.init(input).tryGet())
       if resolved != output:
         echo "Expected ", output
         echo "Got ", resolved
@@ -67,10 +67,10 @@ suite "Name resolving":
       return true
 
     proc testOne(input: string, output: seq[string]): bool =
-      testOne(input, output.mapIt(Multiaddress.init(it).tryGet()))
+      testOne(input, output.mapIt(MultiAddress.init(it).tryGet()))
 
     proc testOne(input, output: string): bool =
-      testOne(input, @[Multiaddress.init(output).tryGet()])
+      testOne(input, @[MultiAddress.init(output).tryGet()])
 
     asyncSetup:
       resolver = MockResolver.new()

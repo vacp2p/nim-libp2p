@@ -26,7 +26,7 @@ type
   TransportClosedError* = object of TransportError
 
   Transport* = ref object of RootObj
-    addrs*: seq[Multiaddress]
+    addrs*: seq[MultiAddress]
     running*: bool
     upgrader*: Upgrade
 

@@ -31,7 +31,7 @@ suite "Ping":
     pingReceivedCount {.threadvar.}: int
 
   asyncSetup:
-    ma = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
+    ma = MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
 
     transport1 = TcpTransport.new(upgrade = Upgrade())
     transport2 = TcpTransport.new(upgrade = Upgrade())

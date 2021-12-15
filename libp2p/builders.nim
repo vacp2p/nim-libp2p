@@ -198,7 +198,7 @@ proc build*(b: SwitchBuilder): Switch
 proc newStandardSwitch*(
   privKey = none(PrivateKey),
   addrs: MultiAddress | seq[MultiAddress] = MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet(),
-  secureManagers: openarray[SecureProtocol] = [
+  secureManagers: openArray[SecureProtocol] = [
       SecureProtocol.Noise,
     ],
   transportFlags: set[ServerFlags] = {},

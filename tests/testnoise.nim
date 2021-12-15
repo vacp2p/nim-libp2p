@@ -88,7 +88,7 @@ suite "Noise":
 
   asyncTest "e2e: handle write + noise":
     let
-      server = @[Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
+      server = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
       serverPrivKey = PrivateKey.random(ECDSA, rng[]).get()
       serverInfo = PeerInfo.new(serverPrivKey, server)
       serverNoise = Noise.new(rng, serverPrivKey, outgoing = false)
@@ -129,7 +129,7 @@ suite "Noise":
 
   asyncTest "e2e: handle write + noise (wrong prologue)":
     let
-      server = @[Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
+      server = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
       serverPrivKey = PrivateKey.random(ECDSA, rng[]).get()
       serverInfo = PeerInfo.new(serverPrivKey, server)
       serverNoise = Noise.new(rng, serverPrivKey, outgoing = false)
@@ -169,7 +169,7 @@ suite "Noise":
 
   asyncTest "e2e: handle read + noise":
     let
-      server = @[Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
+      server = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
       serverPrivKey = PrivateKey.random(ECDSA, rng[]).get()
       serverInfo = PeerInfo.new(serverPrivKey, server)
       serverNoise = Noise.new(rng, serverPrivKey, outgoing = false)
@@ -208,7 +208,7 @@ suite "Noise":
 
   asyncTest "e2e: handle read + noise fragmented":
     let
-      server = @[Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
+      server = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
       serverPrivKey = PrivateKey.random(ECDSA, rng[]).get()
       serverInfo = PeerInfo.new(serverPrivKey, server)
       serverNoise = Noise.new(rng, serverPrivKey, outgoing = false)
@@ -252,8 +252,8 @@ suite "Noise":
     await listenFut
 
   asyncTest "e2e use switch dial proto string":
-    let ma1 = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
-    let ma2 = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
+    let ma1 = MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
+    let ma2 = MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
 
     var peerInfo1, peerInfo2: PeerInfo
     var switch1, switch2: Switch
@@ -278,8 +278,8 @@ suite "Noise":
       switch2.stop())
 
   asyncTest "e2e test wrong secure negotiation":
-    let ma1 = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
-    let ma2 = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
+    let ma1 = MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
+    let ma2 = MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
 
     var peerInfo1, peerInfo2: PeerInfo
     var switch1, switch2: Switch

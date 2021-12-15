@@ -21,7 +21,7 @@ requires "nim >= 1.2.0",
 proc runTest(filename: string, verify: bool = true, sign: bool = true,
              moreoptions: string = "") =
   let env_nimflags = getEnv("NIMFLAGS")
-  var excstr = "nim c --opt:speed -d:debug -d:libp2p_agents_metrics -d:libp2p_protobuf_metrics -d:libp2p_network_protocols_metrics --verbosity:0 --hints:off " & env_nimflags
+  var excstr = "nim c --opt:speed -d:debug -d:libp2p_agents_metrics -d:libp2p_protobuf_metrics -d:libp2p_network_protocols_metrics --verbosity:0 --hints:off --styleCheck:usages --styleCheck:hint " & env_nimflags
   excstr.add(" --warning[CaseTransition]:off --warning[ObservableStores]:off --warning[LockLevel]:off")
   excstr.add(" -d:libp2p_pubsub_sign=" & $sign)
   excstr.add(" -d:libp2p_pubsub_verify=" & $verify)
@@ -34,7 +34,7 @@ proc runTest(filename: string, verify: bool = true, sign: bool = true,
   rmFile "tests/" & filename.toExe
 
 proc buildSample(filename: string, run = false) =
-  var excstr = "nim c --opt:speed --threads:on -d:debug --verbosity:0 --hints:off"
+  var excstr = "nim c --opt:speed --threads:on -d:debug --verbosity:0 --hints:off "
   excstr.add(" --warning[CaseTransition]:off --warning[ObservableStores]:off --warning[LockLevel]:off")
   excstr.add(" examples/" & filename)
   exec excstr

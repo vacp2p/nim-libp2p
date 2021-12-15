@@ -165,30 +165,30 @@ proc feCopy(h: var Fe, f: Fe) =
   h[8] = f8
   h[9] = f9
 
-proc load3(inp: openarray[byte]): uint64 =
+proc load_3(inp: openArray[byte]): uint64 =
   result = cast[uint64](inp[0])
   result = result or (cast[uint64](inp[1]) shl 8)
   result = result or (cast[uint64](inp[2]) shl 16)
 
-proc load4(inp: openarray[byte]): uint64 =
+proc load_4(inp: openArray[byte]): uint64 =
   result = cast[uint64](inp[0])
   result = result or (cast[uint64](inp[1]) shl 8)
   result = result or (cast[uint64](inp[2]) shl 16)
   result = result or (cast[uint64](inp[3]) shl 24)
 
-proc feFromBytes(h: var Fe, s: openarray[byte]) =
+proc feFromBytes(h: var Fe, s: openArray[byte]) =
   var c0, c1, c2, c3, c4, c5, c6, c7, c8, c9: int64
 
-  var h0 = cast[int64](load4(s.toOpenArray(0, 3)))
-  var h1 = cast[int64](load3(s.toOpenArray(4, 6))) shl 6
-  var h2 = cast[int64](load3(s.toOpenArray(7, 9))) shl 5
-  var h3 = cast[int64](load3(s.toOpenArray(10, 12))) shl 3
-  var h4 = cast[int64](load3(s.toOpenArray(13, 15))) shl 2
-  var h5 = cast[int64](load4(s.toOpenArray(16, 19)))
-  var h6 = cast[int64](load3(s.toOpenArray(20, 22))) shl 7
-  var h7 = cast[int64](load3(s.toOpenArray(23, 25))) shl 5
-  var h8 = cast[int64](load3(s.toOpenArray(26, 28))) shl 4
-  var h9 = (cast[int64](load3(s.toOpenArray(29, 31))) and 8388607'i32) shl 2
+  var h0 = cast[int64](load_4(s.toOpenArray(0, 3)))
+  var h1 = cast[int64](load_3(s.toOpenArray(4, 6))) shl 6
+  var h2 = cast[int64](load_3(s.toOpenArray(7, 9))) shl 5
+  var h3 = cast[int64](load_3(s.toOpenArray(10, 12))) shl 3
+  var h4 = cast[int64](load_3(s.toOpenArray(13, 15))) shl 2
+  var h5 = cast[int64](load_4(s.toOpenArray(16, 19)))
+  var h6 = cast[int64](load_3(s.toOpenArray(20, 22))) shl 7
+  var h7 = cast[int64](load_3(s.toOpenArray(23, 25))) shl 5
+  var h8 = cast[int64](load_3(s.toOpenArray(26, 28))) shl 4
+  var h9 = (cast[int64](load_3(s.toOpenArray(29, 31))) and 8388607'i32) shl 2
 
   c9 = ashr((h9 + (1'i64 shl 24)), 25); h0 = h0 + (c9 * 19); h9 -= (c9 shl 25)
   c1 = ashr((h1 + (1'i64 shl 24)), 25); h2 = h2 + c1; h1 -= (c1 shl 25)
@@ -213,7 +213,7 @@ proc feFromBytes(h: var Fe, s: openarray[byte]) =
   h[8] = cast[int32](h8)
   h[9] = cast[int32](h9)
 
-proc feToBytes(s: var openarray[byte], h: Fe) =
+proc feToBytes(s: var openArray[byte], h: Fe) =
   var h0 = h[0]; var h1 = h[1]; var h2 = h[2]; var h3 = h[3]; var h4 = h[4]
   var h5 = h[5]; var h6 = h[6]; var h7 = h[7]; var h8 = h[8]; var h9 = h[9]
   var q, c0, c1, c2, c3, c4, c5, c6, c7, c8, c9: int32
@@ -450,7 +450,7 @@ proc feNeg(h: var Fe, f: Fe) =
   h[0] = h0; h[1] = h1; h[2] = h2; h[3] = h3; h[4] = h4
   h[5] = h5; h[6] = h6; h[7] = h7; h[8] = h8; h[9] = h9
 
-proc verify32(x: openarray[byte], y: openarray[byte]): int32 =
+proc verify32(x: openArray[byte], y: openArray[byte]): int32 =
   var d = 0'u32
   d = d or (x[0] xor y[0])
   d = d or (x[1] xor y[1])
@@ -800,7 +800,7 @@ proc geAdd(r: var GeP1P1, p: GeP3, q: GeCached) =
   feAdd(r.z, t0, r.t)
   feSub(r.t, t0, r.t)
 
-proc geFromBytesNegateVartime(h: var GeP3, s: openarray[byte]): int32 =
+proc geFromBytesNegateVartime(h: var GeP3, s: openArray[byte]): int32 =
   var u, v, v3, vxx, check: Fe
 
   feFromBytes(h.y, s)
@@ -876,12 +876,12 @@ proc geSub(r: var GeP1P1, p: GeP3, q: GeCached) =
   feSub(r.z, t0, r.t)
   feAdd(r.t, t0, r.t)
 
-proc geToBytes(s: var openarray[byte], h: GeP2) =
+proc geToBytes(s: var openArray[byte], h: GeP2) =
   var recip, x, y: Fe
   feInvert(recip, h.z)
   feMul(x, h.x, recip)
   feMul(y, h.y, recip)
-  feTobytes(s, y)
+  feToBytes(s, y)
   s[31] = s[31] xor cast[byte](feIsNegative(x) shl 7)
 
 proc geP1P1toP2(r: var GeP2, p: GeP1P1) =
@@ -925,10 +925,10 @@ proc geP3toP2(r: var GeP2, p: GeP3) =
 
 proc geP3dbl(r: var GeP1P1, p: GeP3) =
   var q: GeP2
-  geP3ToP2(q, p)
+  geP3toP2(q, p)
   geP2dbl(r, q)
 
-proc geP3ToBytes(s: var openarray[byte], h: GeP3) =
+proc geP3ToBytes(s: var openArray[byte], h: GeP3) =
   var recip, x, y: Fe
 
   feInvert(recip, h.z);
@@ -985,7 +985,7 @@ proc select(t: var GePrecomp, pos: int, b: int8) =
   feNeg(minust.xy2d, t.xy2d)
   cmov(t, minust, bnegative)
 
-proc geScalarMultBase(h: var GeP3, a: openarray[byte]) =
+proc geScalarMultBase(h: var GeP3, a: openArray[byte]) =
   var e: array[64, int8]
   var carry: int8
   var r: GeP1P1
@@ -1010,8 +1010,8 @@ proc geScalarMultBase(h: var GeP3, a: openarray[byte]) =
     geMadd(r, h, t)
     geP1P1toP3(h, r)
 
-  geP3dbl(r, h); geP1P1ToP2(s, r)
-  geP2dbl(r, s); geP1P1ToP2(s, r)
+  geP3dbl(r, h); geP1P1toP2(s, r)
+  geP2dbl(r, s); geP1P1toP2(s, r)
   geP2dbl(r, s); geP1P1toP2(s, r)
   geP2dbl(r, s); geP1P1toP3(h, r)
 
@@ -1020,7 +1020,7 @@ proc geScalarMultBase(h: var GeP3, a: openarray[byte]) =
     geMadd(r, h, t)
     geP1P1toP3(h, r)
 
-proc scMulAdd(s: var openarray[byte], a, b, c: openarray[byte]) =
+proc scMulAdd(s: var openArray[byte], a, b, c: openArray[byte]) =
   var a0 = 2097151'i64 and cast[int64](load_3(a.toOpenArray(0, 2)))
   var a1 = 2097151'i64 and cast[int64](load_4(a.toOpenArray(2, 5)) shr 5)
   var a2 = 2097151'i64 and cast[int64](load_3(a.toOpenArray(5, 7)) shr 2)
@@ -1320,7 +1320,7 @@ proc scMulAdd(s: var openarray[byte], a, b, c: openarray[byte]) =
   s[30] = cast[uint8](ashr(s11, 9))
   s[31] = cast[uint8](ashr(s11, 17))
 
-proc scReduce(s: var openarray[byte]) =
+proc scReduce(s: var openArray[byte]) =
   var s0 = 2097151'i64 and cast[int64](load_3(s.toOpenArray(0, 2)));
   var s1 = 2097151'i64 and cast[int64](load_4(s.toOpenArray(2, 5)) shr 5)
   var s2 = 2097151'i64 and cast[int64](load_3(s.toOpenArray(5, 7)) shr 2)
@@ -1546,7 +1546,7 @@ proc scReduce(s: var openarray[byte]) =
   s[30] = cast[byte](ashr(s11, 9))
   s[31] = cast[byte](ashr(s11, 17))
 
-proc slide(r: var openarray[int8], a: openarray[byte]) =
+proc slide(r: var openArray[int8], a: openArray[byte]) =
   for i in 0..<256:
     r[i] = cast[int8](1'u8 and (a[i shr 3] shr (i and 7)))
   for i in 0..<256:
@@ -1567,8 +1567,8 @@ proc slide(r: var openarray[int8], a: openarray[byte]) =
             break
         inc(b)
 
-proc geDoubleScalarMultVartime(r: var GeP2, a: openarray[byte], A: GeP3,
-                               b: openarray[byte]) =
+proc geDoubleScalarMultVartime(r: var GeP2, a: openArray[byte], A: GeP3,
+                               b: openArray[byte]) =
   var
     aslide: array[256, int8]
     bslide: array[256, int8]
@@ -1632,7 +1632,7 @@ proc NEQ(x, y: uint32): uint32 {.inline.} =
 proc LT0(x: int32): uint32 {.inline.} =
   result = cast[uint32](x) shr 31
 
-proc checkScalar*(scalar: openarray[byte]): uint32 =
+proc checkScalar*(scalar: openArray[byte]): uint32 =
   var z = 0'u32
   var c = 0'i32
   for u in scalar:
@@ -1686,7 +1686,7 @@ proc getPublicKey*(key: EdPrivateKey): EdPublicKey =
   ## Calculate and return ED25519 public key from private key ``key``.
   copyMem(addr result.data[0], unsafeAddr key.data[32], 32)
 
-proc toBytes*(key: EdPrivateKey, data: var openarray[byte]): int =
+proc toBytes*(key: EdPrivateKey, data: var openArray[byte]): int =
   ## Serialize ED25519 `private key` ``key`` to raw binary form and store it
   ## to ``data``.
   ##
@@ -1696,7 +1696,7 @@ proc toBytes*(key: EdPrivateKey, data: var openarray[byte]): int =
   if len(data) >= result:
     copyMem(addr data[0], unsafeAddr key.data[0], len(key.data))
 
-proc toBytes*(key: EdPublicKey, data: var openarray[byte]): int =
+proc toBytes*(key: EdPublicKey, data: var openArray[byte]): int =
   ## Serialize ED25519 `public key` ``key`` to raw binary form and store it
   ## to ``data``.
   ##
@@ -1706,7 +1706,7 @@ proc toBytes*(key: EdPublicKey, data: var openarray[byte]): int =
   if len(data) >= result:
     copyMem(addr data[0], unsafeAddr key.data[0], len(key.data))
 
-proc toBytes*(sig: EdSignature, data: var openarray[byte]): int =
+proc toBytes*(sig: EdSignature, data: var openArray[byte]): int =
   ## Serialize ED25519 `signature` ``sig`` to raw binary form and store it
   ## to ``data``.
   ##
@@ -1749,7 +1749,7 @@ proc `$`*(sig: EdSignature): string =
   ## Return string representation of ED25519 `signature`.
   ncrutils.toHex(sig.data)
 
-proc init*(key: var EdPrivateKey, data: openarray[byte]): bool =
+proc init*(key: var EdPrivateKey, data: openArray[byte]): bool =
   ## Initialize ED25519 `private key` ``key`` from raw binary
   ## representation ``data``.
   ##
@@ -1759,7 +1759,7 @@ proc init*(key: var EdPrivateKey, data: openarray[byte]): bool =
     copyMem(addr key.data[0], unsafeAddr data[0], length)
     result = true
 
-proc init*(key: var EdPublicKey, data: openarray[byte]): bool =
+proc init*(key: var EdPublicKey, data: openArray[byte]): bool =
   ## Initialize ED25519 `public key` ``key`` from raw binary
   ## representation ``data``.
   ##
@@ -1769,7 +1769,7 @@ proc init*(key: var EdPublicKey, data: openarray[byte]): bool =
     copyMem(addr key.data[0], unsafeAddr data[0], length)
     result = true
 
-proc init*(sig: var EdSignature, data: openarray[byte]): bool =
+proc init*(sig: var EdSignature, data: openArray[byte]): bool =
   ## Initialize ED25519 `signature` ``sig`` from raw binary
   ## representation ``data``.
   ##
@@ -1801,7 +1801,7 @@ proc init*(sig: var EdSignature, data: string): bool =
   init(sig, ncrutils.fromHex(data))
 
 proc init*(t: typedesc[EdPrivateKey],
-           data: openarray[byte]): Result[EdPrivateKey, EdError] =
+           data: openArray[byte]): Result[EdPrivateKey, EdError] =
   ## Initialize ED25519 `private key` from raw binary representation ``data``
   ## and return constructed object.
   var res: t
@@ -1811,7 +1811,7 @@ proc init*(t: typedesc[EdPrivateKey],
     ok(res)
 
 proc init*(t: typedesc[EdPublicKey],
-           data: openarray[byte]): Result[EdPublicKey, EdError] =
+           data: openArray[byte]): Result[EdPublicKey, EdError] =
   ## Initialize ED25519 `public key` from raw binary representation ``data``
   ## and return constructed object.
   var res: t
@@ -1821,7 +1821,7 @@ proc init*(t: typedesc[EdPublicKey],
     ok(res)
 
 proc init*(t: typedesc[EdSignature],
-           data: openarray[byte]): Result[EdSignature, EdError] =
+           data: openArray[byte]): Result[EdSignature, EdError] =
   ## Initialize ED25519 `signature` from raw binary representation ``data``
   ## and return constructed object.
   var res: t
@@ -1878,7 +1878,7 @@ proc clear*(pair: var EdKeyPair) =
   burnMem(pair.pubkey.data)
 
 proc sign*[T: byte|char](key: EdPrivateKey,
-                         message: openarray[T]): EdSignature {.gcsafe, noinit.} =
+                         message: openArray[T]): EdSignature {.gcsafe, noinit.} =
   ## Create ED25519 signature of data ``message`` using private key ``key``.
   var ctx: sha512
   var r: GeP3
@@ -1911,7 +1911,7 @@ proc sign*[T: byte|char](key: EdPrivateKey,
   scMulAdd(result.data.toOpenArray(32, 63), hram.data.toOpenArray(0, 31),
            hash.data.toOpenArray(0, 31), nonce.data.toOpenArray(0, 31))
 
-proc verify*[T: byte|char](sig: EdSignature, message: openarray[T],
+proc verify*[T: byte|char](sig: EdSignature, message: openArray[T],
                            key: EdPublicKey): bool =
   ## Verify ED25519 signature ``sig`` using public key ``key`` and data
   ## ``message``.

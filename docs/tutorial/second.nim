@@ -56,7 +56,7 @@ proc dialPeer(p: ChatProto, address: string) {.async.} =
       .tryGet()
       .protoAddress()
       .tryGet()
-    remotePeer = PeerID.init(peerIdBytes).tryGet()
+    remotePeer = PeerId.init(peerIdBytes).tryGet()
     # split the wire address
     ip4Addr = multiAddr[multiCodec("ip4")].tryGet()
     tcpAddr = multiAddr[multiCodec("tcp")].tryGet()
@@ -182,7 +182,7 @@ proc processInput(rfd: AsyncFD, rng: ref BrHmacDrbgContext) {.async.} =
   chatProto.started = true
 
   let id = $switch.peerInfo.peerId
-  echo "PeerID: " & id
+  echo "PeerId: " & id
   echo "listening on: "
   for a in switch.peerInfo.addrs:
     echo &"{a}/p2p/{id}"

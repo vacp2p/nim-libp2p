@@ -139,7 +139,7 @@ type
 
     disconnectBadPeers*: bool
 
-  BackoffTable* = Table[string, Table[PeerID, Moment]]
+  BackoffTable* = Table[string, Table[PeerId, Moment]]
   ValidationSeenTable* = Table[MessageID, HashSet[PubSubPeer]]
 
   GossipSub* = ref object of FloodSub
@@ -156,11 +156,11 @@ type
     heartbeatFut*: Future[void]                 # cancellation future for heartbeat interval
     heartbeatRunning*: bool
 
-    peerStats*: Table[PeerID, PeerStats]
+    peerStats*: Table[PeerId, PeerStats]
     parameters*: GossipSubParams
     topicParams*: Table[string, TopicParams]
     directPeersLoop*: Future[void]
-    peersInIP*: Table[MultiAddress, HashSet[PeerID]]
+    peersInIP*: Table[MultiAddress, HashSet[PeerId]]
 
     heartbeatEvents*: seq[AsyncEvent]
 

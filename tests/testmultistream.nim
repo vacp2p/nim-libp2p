@@ -234,7 +234,7 @@ suite "Multistream select":
     await ms.handle(conn)
 
   asyncTest "e2e - handle":
-    let ma = @[Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
+    let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
 
     var protocol: LPProtocol = new LPProtocol
     proc testHandler(conn: Connection,
@@ -274,7 +274,7 @@ suite "Multistream select":
     await handlerWait.wait(30.seconds)
 
   asyncTest "e2e - ls":
-    let ma = @[Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
+    let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
 
     let
       handlerWait = newFuture[void]()
@@ -326,7 +326,7 @@ suite "Multistream select":
     await listenFut.wait(5.seconds)
 
   asyncTest "e2e - select one from a list with unsupported protos":
-    let ma = @[Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
+    let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
 
     var protocol: LPProtocol = new LPProtocol
     proc testHandler(conn: Connection,
@@ -364,7 +364,7 @@ suite "Multistream select":
     await transport1.stop()
 
   asyncTest "e2e - select one with both valid":
-    let ma = @[Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
+    let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
 
     var protocol: LPProtocol = new LPProtocol
     proc testHandler(conn: Connection,

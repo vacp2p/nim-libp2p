@@ -586,7 +586,7 @@ suite "Switch":
   # for most of the steps in the upgrade flow -
   # this is just a basic test for dials
   asyncTest "e2e canceling dial should not leak":
-    let ma = @[Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
+    let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
 
     let transport = TcpTransport.new(upgrade = Upgrade())
     await transport.start(ma)
@@ -604,7 +604,7 @@ suite "Switch":
 
     await switch.start()
 
-    var peerId = PeerID.init(PrivateKey.random(ECDSA, rng[]).get()).get()
+    var peerId = PeerId.init(PrivateKey.random(ECDSA, rng[]).get()).get()
     let connectFut = switch.connect(peerId, transport.addrs)
     await sleepAsync(500.millis)
     connectFut.cancel()
@@ -619,7 +619,7 @@ suite "Switch":
       switch.stop())
 
   asyncTest "e2e closing remote conn should not leak":
-    let ma = @[Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
+    let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
 
     let transport = TcpTransport.new(upgrade = Upgrade())
     await transport.start(ma)
@@ -633,7 +633,7 @@ suite "Switch":
 
     await switch.start()
 
-    var peerId = PeerID.init(PrivateKey.random(ECDSA, rng[]).get()).get()
+    var peerId = PeerId.init(PrivateKey.random(ECDSA, rng[]).get()).get()
     expect LPStreamClosedError, LPStreamEOFError:
       await switch.connect(peerId, transport.addrs)
 
@@ -673,7 +673,7 @@ suite "Switch":
 
     await allFuturesThrowing(readers)
     await switch2.stop() #Otherwise this leaks
-    check await checkExpiring(not switch1.isConnected(switch2.peerInfo.peerID))
+    check await checkExpiring(not switch1.isConnected(switch2.peerInfo.peerId))
 
     checkTracker(LPChannelTrackerName)
     checkTracker(SecureConnTrackerName)
@@ -686,7 +686,7 @@ suite "Switch":
     await switch2.start()
     let someAddr = MultiAddress.init("/ip4/127.128.0.99").get()
     let seckey = PrivateKey.random(ECDSA, rng[]).get()
-    let somePeer = PeerInfo.new(secKey, [someAddr])
+    let somePeer = PeerInfo.new(seckey, [someAddr])
     expect(DialFailedError):
       discard await switch2.dial(somePeer.peerId, somePeer.addrs, TestCodec)
     await switch2.stop()

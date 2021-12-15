@@ -19,14 +19,14 @@ proc commonTransportTest*(name: string, prov: TransportProvider, ma: string) =
       checkTrackers()
 
     asyncTest "can handle local address":
-      let ma = @[Multiaddress.init(ma).tryGet()]
+      let ma = @[MultiAddress.init(ma).tryGet()]
       let transport1 = prov()
       await transport1.start(ma)
       check transport1.handles(transport1.addrs[0])
       await transport1.stop()
 
     asyncTest "e2e: handle observedAddr":
-      let ma = @[Multiaddress.init(ma).tryGet()]
+      let ma = @[MultiAddress.init(ma).tryGet()]
 
       let transport1 = prov()
       await transport1.start(ma)
@@ -54,7 +54,7 @@ proc commonTransportTest*(name: string, prov: TransportProvider, ma: string) =
       await handlerWait.wait(1.seconds) # when no issues will not wait that long!
 
     asyncTest "e2e: handle write":
-      let ma = @[Multiaddress.init(ma).tryGet()]
+      let ma = @[MultiAddress.init(ma).tryGet()]
 
       let transport1 = prov()
       await transport1.start(ma)
@@ -82,7 +82,7 @@ proc commonTransportTest*(name: string, prov: TransportProvider, ma: string) =
       await handlerWait.wait(1.seconds) # when no issues will not wait that long!
 
     asyncTest "e2e: handle read":
-      let ma = @[Multiaddress.init(ma).tryGet()]
+      let ma = @[MultiAddress.init(ma).tryGet()]
       let transport1 = prov()
       await transport1.start(ma)
 
@@ -108,7 +108,7 @@ proc commonTransportTest*(name: string, prov: TransportProvider, ma: string) =
           transport2.stop()))
 
     asyncTest "e2e: handle dial cancellation":
-      let ma = @[Multiaddress.init(ma).tryGet()]
+      let ma = @[MultiAddress.init(ma).tryGet()]
 
       let transport1 = prov()
       await transport1.start(ma)
@@ -125,7 +125,7 @@ proc commonTransportTest*(name: string, prov: TransportProvider, ma: string) =
           transport2.stop()))
 
     asyncTest "e2e: handle accept cancellation":
-      let ma = @[Multiaddress.init(ma).tryGet()]
+      let ma = @[MultiAddress.init(ma).tryGet()]
 
       let transport1 = prov()
       await transport1.start(ma)
@@ -186,7 +186,7 @@ proc commonTransportTest*(name: string, prov: TransportProvider, ma: string) =
       await transport1.stop()
 
     asyncTest "e2e: stopping transport kills connections":
-      let ma = @[Multiaddress.init(ma).tryGet()]
+      let ma = @[MultiAddress.init(ma).tryGet()]
 
       let transport1 = prov()
       await transport1.start(ma)
@@ -206,7 +206,7 @@ proc commonTransportTest*(name: string, prov: TransportProvider, ma: string) =
       check conn.closed()
 
     asyncTest "read or write on closed connection":
-      let ma = @[Multiaddress.init(ma).tryGet()]
+      let ma = @[MultiAddress.init(ma).tryGet()]
       let transport1 = prov()
       await transport1.start(ma)
 

@@ -12,8 +12,8 @@
 ## option enabled ``nim-libp2p`` will create dumps of unencrypted messages for
 ## every peer libp2p communicates.
 ##
-## Every file is created with name "<PeerID>.pbcap". One file represents
-## all the communication with peer which identified by ``PeerID``.
+## Every file is created with name "<PeerId>.pbcap". One file represents
+## all the communication with peer which identified by ``PeerId``.
 ##
 ## File can have multiple protobuf encoded messages of this format:
 ##
@@ -170,7 +170,7 @@ iterator messages*(data: seq[byte]): Option[ProtoMessage] =
     else:
       break
 
-proc dumpHex*(pbytes: openarray[byte], groupBy = 1, ascii = true): string =
+proc dumpHex*(pbytes: openArray[byte], groupBy = 1, ascii = true): string =
   ## Get hexadecimal dump of memory for array ``pbytes``.
   var res = ""
   var offset = 0
