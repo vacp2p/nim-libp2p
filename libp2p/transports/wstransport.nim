@@ -90,7 +90,7 @@ proc secure*(self: WsTransport): bool =
 
 method start*(
   self: WsTransport,
-  addrs: seq[MultiAddress]) {.async.} =
+  addrs: seq[MultiAddress]) {.async, raises: [TransportListenError].} =
   ## listen on the transport
   ##
 

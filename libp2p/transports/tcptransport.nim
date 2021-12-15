@@ -131,7 +131,7 @@ proc new*(
 
 method start*(
   self: TcpTransport,
-  addrs: seq[MultiAddress]) {.async.} =
+  addrs: seq[MultiAddress]) {.async, raises: [TransportListenError].} =
   ## listen on the transport
   ##
 
@@ -142,7 +142,7 @@ method start*(
   await procCall Transport(self).start(addrs)
   trace "Starting TCP transport"
 
-  for i, ma in self.addrs:
+  for i, ma in addrs:
     try:
       let server = createStreamServer(
         ma = ma,

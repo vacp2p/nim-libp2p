@@ -1,6 +1,6 @@
 {.push raises: [Defect].}
 
-import chronos, bearssl
+import chronos, bearssl, tables
 
 import ../libp2p/transports/tcptransport
 import ../libp2p/stream/bufferstream
@@ -96,3 +96,18 @@ proc checkExpiringInternal(cond: proc(): bool {.raises: [Defect].} ): Future[boo
 
 template checkExpiring*(code: untyped): untyped =
   checkExpiringInternal(proc(): bool = code)
+
+proc buildExceptions*(x: int): seq[ref CatchableError] =
+  for i in 0..<x:
+    result.add newException(CatchableError, "test" & $i)
+
+proc buildExceptions*(x, y: int): seq[seq[ref CatchableError]] =
+  for i in 0..<x:
+    var errTbl = newSeq[ref CatchableError]()
+    for j in 0..<y:
+      errTbl.add newException(CatchableError, "test" & $i & $j)
+    result.add errTbl
+
+proc buildLocalTcpAddrs*(x: int): seq[MultiAddress] {.raises: [LPError].} =
+  for i in 0..<x:
+    result.add Multiaddress.init("/ip4/0.0.0.0/tcp/" & $(i+1)).tryGet()

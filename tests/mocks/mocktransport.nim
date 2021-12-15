@@ -57,7 +57,7 @@ proc new*(
 
   return transport
 
-method start*(self: MockTransport, addrs: seq[MultiAddress]) {.async.} =
+method start*(self: MockTransport, addrs: seq[MultiAddress]) {.async, raises: [TransportListenError].} =
   self.addrs = addrs
   await self.startMock(self, addrs)
   self.running = true

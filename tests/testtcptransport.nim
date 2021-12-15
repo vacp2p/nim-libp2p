@@ -234,7 +234,7 @@ suite "TCP transport":
 
     await transport.stop()
 
-  asyncTest "unhandled addresses are filtered":
+  asyncTest "handles correct tcp addresses":
     let
       transport = TcpTransport.new(upgrade = Upgrade())
       maTcp1 = Multiaddress.init("/ip4/0.0.0.0/tcp/1").tryGet()
@@ -242,8 +242,11 @@ suite "TCP transport":
       maTcp2 = Multiaddress.init("/ip4/0.0.0.0/tcp/2").tryGet()
       maP2p = Multiaddress.init("/p2p-circuit").tryGet()
 
-    await transport.start(@[maTcp1, maUdp, maTcp2, maP2p])
-    check transport.addrs == @[maTcp1, maTcp2]
+    check:
+      transport.handles(maTcp1)
+      transport.handles(maTcp2)
+      not transport.handles(maUdp)
+      not transport.handles(maP2p)
 
     await transport.stop()
 

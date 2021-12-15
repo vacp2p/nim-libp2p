@@ -57,12 +57,6 @@ const
 
 type
     SwitchError* = object of LPError
-    SwitchListenError* = object of SwitchError
-      transport*: Transport
-    ListenErrorCallback = proc (
-      t: Transport,
-      err: ref TransportListenError): Future[ref SwitchListenError]
-      {.gcsafe, raises: [Defect].}
 
     Switch* = ref object of Dial
       peerInfo*: PeerInfo
@@ -73,7 +67,6 @@ type
       dialer*: Dial
       peerStore*: PeerStore
       nameResolver*: NameResolver
-      listenError*: ListenErrorCallback
 
 proc addConnEventHandler*(s: Switch,
                           handler: ConnEventHandler,
@@ -217,7 +210,6 @@ proc accept(s: Switch, transport: Transport) {.async.} = # noraises
 
 proc stop*(s: Switch) {.async.} =
   trace "Stopping switch"
-
   # close and cleanup all connections
   await s.connManager.close()
 
@@ -243,7 +235,7 @@ proc stop*(s: Switch) {.async.} =
 
   trace "Switch stopped"
 
-proc start*(s: Switch) {.async, gcsafe.} =
+proc start*(s: Switch) {.async, gcsafe, raises: [Defect, TransportListenError].} =
   trace "starting switch for peer", peerInfo = s.peerInfo
   for t in s.transports:
     let addrs = s.peerInfo.addrs.filterIt(
@@ -255,32 +247,11 @@ proc start*(s: Switch) {.async, gcsafe.} =
     )
 
     if addrs.len > 0:
-      try:
-        await t.start(addrs)
-      except TransportListenError as e:
-        let err = await s.listenError(t, e)
-        if not err.isNil:
-          raise err
+      await t.start(addrs)
       s.acceptFuts.add(s.accept(t))
       s.peerInfo.addrs &= t.addrs
 
   debug "Started libp2p node", peer = s.peerInfo
-
-proc newSwitchListenError*(
-    t: Transport,
-    parent: ref TransportListenError = nil): ref SwitchListenError =
-
-  (ref SwitchListenError)(msg: "Failed to start one transport",
-                          transport: t,
-                          parent: parent)
-
-const ListenErrorDefault =
-  proc(
-      t: Transport,
-      e: ref TransportListenError): Future[ref SwitchListenError] {.async.}=
-
-    error "Failed to start one transport", error = e.msg
-    return newSwitchListenError(t, e)
 
 proc newSwitch*(peerInfo: PeerInfo,
                 transports: seq[Transport],
@@ -289,8 +260,7 @@ proc newSwitch*(peerInfo: PeerInfo,
                 secureManagers: openArray[Secure] = [],
                 connManager: ConnManager,
                 ms: MultistreamSelect,
-                nameResolver: NameResolver = nil,
-                listenError: ListenErrorCallback = ListenErrorDefault): Switch
+                nameResolver: NameResolver = nil): Switch
                 {.raises: [Defect, LPError].} =
 
   if secureManagers.len == 0:
@@ -303,8 +273,7 @@ proc newSwitch*(peerInfo: PeerInfo,
     connManager: connManager,
     peerStore: PeerStore.new(),
     dialer: Dialer.new(peerInfo.peerId, connManager, transports, ms, nameResolver),
-    nameResolver: nameResolver,
-    listenError: listenError)
+    nameResolver: nameResolver)
 
   switch.connManager.peerStore = switch.peerStore
   switch.mount(identity)

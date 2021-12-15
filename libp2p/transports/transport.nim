@@ -54,33 +54,14 @@ const ListenErrorDefault* =
 
     return newTransportListenError(ma, err)
 
-method handles*(
-  self: Transport,
-  address: MultiAddress): bool {.base, gcsafe.} =
-  ## check if transport supports the multiaddress
-  ##
-
-  # by default we skip circuit addresses to avoid
-  # having to repeat the check in every transport
-  if address.protocols.isOk:
-    return address.protocols
-    .get()
-    .filterIt(
-      it == multiCodec("p2p-circuit")
-    ).len == 0
-
 method start*(
   self: Transport,
-  addrs: seq[MultiAddress]) {.base, async.} =
+  addrs: seq[MultiAddress]) {.base, async, raises: [TransportListenError].} =
   ## start the transport
   ##
 
   trace "starting transport on addrs", address = $addrs
-  self.addrs = addrs.filter(proc(ma: MultiAddress): bool =
-    let handled = self.handles(ma)
-    if not handled:
-      trace "Invalid address detected, skipping!", address = ma
-    return handled)
+  self.addrs = addrs
   self.running = true
 
 method stop*(self: Transport) {.base, async.} =
@@ -129,6 +110,21 @@ method upgradeOutgoing*(
   ##
 
   self.upgrader.upgradeOutgoing(conn)
+
+method handles*(
+  self: Transport,
+  address: MultiAddress): bool {.base, gcsafe.} =
+  ## check if transport supports the multiaddress
+  ##
+
+  # by default we skip circuit addresses to avoid
+  # having to repeat the check in every transport
+  if address.protocols.isOk:
+    return address.protocols
+    .get()
+    .filterIt(
+      it == multiCodec("p2p-circuit")
+    ).len == 0
 
 method `==`*(
     a: Transport, b: Transport): bool {.base, gcsafe.} =
