@@ -98,32 +98,13 @@ task examples_build, "Build the samples":
 # pin system
 # while nimble lockfile
 # isn't available
-import strscans
-import algorithm
+
 const PinFile = ".pinned"
 task pin, "Create a lockfile":
-  rmDir("nimbledeps")
-  mkDir("nimbledeps")
-  exec("nimble install -dy")
-  var allDeps = newSeq[string]()
-  for dependency in listDirs("nimbledeps/pkgs"):
-    #echo dependency & "/nimblemeta.json"
-    let fileContent = readFile(dependency & "/nimblemeta.json")
-    var
-      prefix = ""
-      url = ""
-      version = ""
-    discard scanf(fileContent, "$*url\":\"$+\"", prefix, url)
-    discard scanf(fileContent, "$*vcsRevision\":\"$+\"", prefix, version)
-    #if version.len == 0:
-    #  echo execCmdEx("ls")
-    if version.len > 0 and url.len > 0:
-      allDeps &= url & "@#" & version
-    else:
-      echo "Failed to get url & version for ", dependency
-  allDeps.sort()
-  writeFile(PinFile, allDeps.join("\n"))
-  echo allDeps.join("\n")
+  # pinner.nim was originally here
+  # but you can't read output from
+  # a command in a nimscript
+  exec "nim c -r pinner.nim"
 
 task pinned_deps, "Reads the lockfile":
   rmDir("nimbledeps")
