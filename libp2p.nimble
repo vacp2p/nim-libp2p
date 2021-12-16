@@ -11,7 +11,7 @@ requires "nim >= 1.2.0",
          "nimcrypto >= 0.4.1",
          "https://github.com/ba0f3/dnsclient.nim == 0.1.0",
          "bearssl >= 0.1.4",
-         "chronicles#ba2817f1",
+         "chronicles >= 0.10.2",
          "chronos >= 3.0.6",
          "metrics",
          "secp256k1",
@@ -94,3 +94,34 @@ task examples_build, "Build the samples":
   buildSample("helloworld", true)
   buildTutorial("examples/tutorial_1_connect.md")
   buildTutorial("examples/tutorial_2_customproto.md")
+
+# pin system
+# while nimble lockfile
+# isn't available
+
+const PinFile = ".pinned"
+task pin, "Create a lockfile":
+  # pinner.nim was originally here
+  # but you can't read output from
+  # a command in a nimscript
+  exec "nim c -r tools/pinner.nim"
+
+import sequtils
+import os
+task install_pinned, "Reads the lockfile":
+  let toInstall = readFile(PinFile).splitWhitespace().mapIt((it.split(";", 1)[0], it.split(";", 1)[1]))
+  # [('packageName', 'packageFullUri')]
+
+  rmDir("nimbledeps")
+  mkDir("nimbledeps")
+  exec "nimble install -y " & toInstall.mapIt(it[1]).join(" ")
+
+  # Remove the automatically installed deps
+  # (inefficient you say?)
+  let allowedDirectories = toInstall.mapIt(it[0] & "-" & it[1].split('@')[1])
+  for dependency in listDirs("nimbledeps/pkgs"):
+    if dependency.extractFilename notin allowedDirectories:
+      rmDir(dependency)
+
+task unpin, "Restore global package use":
+  rmDir("nimbledeps")
