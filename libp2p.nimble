@@ -109,7 +109,7 @@ task pin, "Create a lockfile":
 task pinned_deps, "Reads the lockfile":
   rmDir("nimbledeps")
   mkDir("nimbledeps")
-  exec "nimble install -y " & readFile(PinFile).replace("\n", " ")
+  exec "nimble install -y " & readFile(PinFile).splitWhitespace().join(" ")
 
   # Remove the automatically installed deps
   # (inefficient you say?)

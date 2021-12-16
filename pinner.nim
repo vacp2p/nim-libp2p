@@ -8,9 +8,9 @@ import json
 import osproc
 
 const PinFile = ".pinned"
-#removeDir("nimbledeps")
-#createDir("nimbledeps")
-#discard execCmd("nimble install -dy")
+removeDir("nimbledeps")
+createDir("nimbledeps")
+discard execCmd("nimble install -dy")
 
 var allDeps: Table[string, string]
 for (_, dependency) in walkDir("nimbledeps/pkgs"):
