@@ -46,7 +46,7 @@ type
     oid*: Oid
     maxChannCount: int
 
-func shortLog*(m: MPlex): auto =
+func shortLog*(m: Mplex): auto =
   shortLog(m.connection)
 
 chronicles.formatIt(Mplex): shortLog(it)

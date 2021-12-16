@@ -169,7 +169,7 @@ method onPubSubPeerEvent*(p: GossipSub, peer: PubsubPeer, event: PubSubPeerEvent
 
   procCall FloodSub(p).onPubSubPeerEvent(peer, event)
 
-method unsubscribePeer*(g: GossipSub, peer: PeerID) =
+method unsubscribePeer*(g: GossipSub, peer: PeerId) =
   ## handle peer disconnects
   ##
 

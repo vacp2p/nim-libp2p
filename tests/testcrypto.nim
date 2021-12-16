@@ -335,7 +335,7 @@ const
     "8613E8F86D2DD1CF3CEDC52AD91423F2F31E0003",
   ]
 
-proc cmp(a, b: openarray[byte]): bool =
+proc cmp(a, b: openArray[byte]): bool =
   result = (@a == @b)
 
 proc testStretcher(s, e: int, cs: string, ds: string): bool =

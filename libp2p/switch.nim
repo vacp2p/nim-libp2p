@@ -86,43 +86,43 @@ proc removePeerEventHandler*(s: Switch,
                              kind: PeerEventKind) =
   s.connManager.removePeerEventHandler(handler, kind)
 
-proc isConnected*(s: Switch, peerId: PeerID): bool =
+proc isConnected*(s: Switch, peerId: PeerId): bool =
   ## returns true if the peer has one or more
   ## associated connections (sockets)
   ##
 
   peerId in s.connManager
 
-proc disconnect*(s: Switch, peerId: PeerID): Future[void] {.gcsafe.} =
+proc disconnect*(s: Switch, peerId: PeerId): Future[void] {.gcsafe.} =
   s.connManager.dropPeer(peerId)
 
 method connect*(
   s: Switch,
-  peerId: PeerID,
+  peerId: PeerId,
   addrs: seq[MultiAddress]): Future[void] =
   s.dialer.connect(peerId, addrs)
 
 method dial*(
   s: Switch,
-  peerId: PeerID,
+  peerId: PeerId,
   protos: seq[string]): Future[Connection] =
   s.dialer.dial(peerId, protos)
 
 proc dial*(s: Switch,
-           peerId: PeerID,
+           peerId: PeerId,
            proto: string): Future[Connection] =
   dial(s, peerId, @[proto])
 
 method dial*(
   s: Switch,
-  peerId: PeerID,
+  peerId: PeerId,
   addrs: seq[MultiAddress],
   protos: seq[string]): Future[Connection] =
   s.dialer.dial(peerId, addrs, protos)
 
 proc dial*(
   s: Switch,
-  peerId: PeerID,
+  peerId: PeerId,
   addrs: seq[MultiAddress],
   proto: string): Future[Connection] =
   dial(s, peerId, addrs, @[proto])
@@ -212,9 +212,9 @@ proc stop*(s: Switch) {.async.} =
   # close and cleanup all connections
   await s.connManager.close()
 
-  for t in s.transports:
+  for transp in s.transports:
     try:
-      await t.stop()
+      await transp.stop()
     except CancelledError as exc:
       raise exc
     except CatchableError as exc:
@@ -269,7 +269,7 @@ proc newSwitch*(peerInfo: PeerInfo,
                 transports: seq[Transport],
                 identity: Identify,
                 muxers: Table[string, MuxerProvider],
-                secureManagers: openarray[Secure] = [],
+                secureManagers: openArray[Secure] = [],
                 connManager: ConnManager,
                 ms: MultistreamSelect,
                 nameResolver: NameResolver = nil): Switch

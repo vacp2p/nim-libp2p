@@ -45,7 +45,7 @@ chronicles.formatIt(SecureConn): shortLog(it)
 proc new*(T: type SecureConn,
            conn: Connection,
            peerId: PeerId,
-           observedAddr: Multiaddress,
+           observedAddr: MultiAddress,
            timeout: Duration = DefaultConnectionTimeout): T =
   result = T(stream: conn,
              peerId: peerId,

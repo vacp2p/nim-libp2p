@@ -84,7 +84,7 @@ suite "MinProtobuf test suite":
     pb.finish()
     return pb.buffer
 
-  proc getVarintDecodedValue(data: openarray[byte]): uint64 =
+  proc getVarintDecodedValue(data: openArray[byte]): uint64 =
     var value: uint64
     var pb = initProtoBuffer(data)
     let res = pb.getField(1, value)
@@ -97,7 +97,7 @@ suite "MinProtobuf test suite":
     pb.finish()
     return pb.buffer
 
-  proc getFixed32DecodedValue(data: openarray[byte]): uint32 =
+  proc getFixed32DecodedValue(data: openArray[byte]): uint32 =
     var value: float32
     var pb = initProtoBuffer(data)
     let res = pb.getField(1, value)
@@ -110,7 +110,7 @@ suite "MinProtobuf test suite":
     pb.finish()
     return pb.buffer
 
-  proc getFixed64DecodedValue(data: openarray[byte]): uint64 =
+  proc getFixed64DecodedValue(data: openArray[byte]): uint64 =
     var value: float64
     var pb = initProtoBuffer(data)
     let res = pb.getField(1, value)
@@ -129,7 +129,7 @@ suite "MinProtobuf test suite":
     pb.finish()
     return pb.buffer
 
-  proc getLengthDecodedValue(data: openarray[byte]): string =
+  proc getLengthDecodedValue(data: openArray[byte]): string =
     var value = newString(len(data))
     var valueLen = 0
     var pb = initProtoBuffer(data)
@@ -138,13 +138,13 @@ suite "MinProtobuf test suite":
     value.setLen(valueLen)
     value
 
-  proc isFullZero[T: byte|char](data: openarray[T]): bool =
+  proc isFullZero[T: byte|char](data: openArray[T]): bool =
     for ch in data:
       if int(ch) != 0:
         return false
     return true
 
-  proc corruptHeader(data: var openarray[byte], index: int) =
+  proc corruptHeader(data: var openArray[byte], index: int) =
     var values = [3, 4, 6]
     data[0] = data[0] and 0xF8'u8
     data[0] = data[0] or byte(values[index mod len(values)])

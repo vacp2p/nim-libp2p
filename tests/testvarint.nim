@@ -171,7 +171,7 @@ proc hexChar*(c: byte, lowercase: bool = false): string =
   of 0..9: result[1] = chr(t0 + ord('0'))
   else: result[1] = chr(t0 - 10 + alpha)
 
-proc toHex*(a: openarray[byte], lowercase: bool = false): string =
+proc toHex*(a: openArray[byte], lowercase: bool = false): string =
   result = ""
   for i in a:
     result = result & hexChar(i, lowercase)
@@ -263,7 +263,7 @@ suite "Variable integer test suite":
       buffer.setLen(PBedgeSizes[i])
       check:
         PB.putUVarint(buffer, length, PBedgeValues[i]).isOk()
-      buffer.setlen(buffer.high)
+      buffer.setLen(buffer.high)
       check:
         PB.getUVarint(buffer, length, value).error() == VarintError.Incomplete
 
@@ -339,7 +339,7 @@ suite "Variable integer test suite":
       buffer.setLen(LPedgeSizes[i])
       check:
         LP.putUVarint(buffer, length, LPedgeValues[i]).isOk()
-      buffer.setlen(buffer.high)
+      buffer.setLen(buffer.high)
       check:
         LP.getUVarint(buffer, length, value).error() == VarintError.Incomplete
 

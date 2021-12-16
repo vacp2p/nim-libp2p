@@ -17,7 +17,7 @@ suite "TCP transport":
     checkTrackers()
 
   asyncTest "test listener: handle write":
-    let ma = @[Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
+    let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
     let transport: TcpTransport = TcpTransport.new(upgrade = Upgrade())
     asyncSpawn transport.start(ma)
 
@@ -38,7 +38,7 @@ suite "TCP transport":
     check string.fromBytes(msg) == "Hello!"
 
   asyncTest "test listener: handle read":
-    let ma = @[Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
+    let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
 
     let transport: TcpTransport = TcpTransport.new(upgrade = Upgrade())
     asyncSpawn transport.start(ma)

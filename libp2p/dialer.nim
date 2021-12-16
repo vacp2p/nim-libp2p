@@ -40,13 +40,13 @@ type
     localPeerId*: PeerId
     ms: MultistreamSelect
     connManager: ConnManager
-    dialLock: Table[PeerID, AsyncLock]
+    dialLock: Table[PeerId, AsyncLock]
     transports: seq[Transport]
     nameResolver: NameResolver
 
 proc dialAndUpgrade(
   self: Dialer,
-  peerId: PeerID,
+  peerId: PeerId,
   addrs: seq[MultiAddress]):
   Future[Connection] {.async.} =
   debug "Dialing peer", peerId
@@ -111,7 +111,7 @@ proc dialAndUpgrade(
 
 proc internalConnect(
   self: Dialer,
-  peerId: PeerID,
+  peerId: PeerId,
   addrs: seq[MultiAddress]):
   Future[Connection] {.async.} =
   if self.localPeerId == peerId:
@@ -158,7 +158,7 @@ proc internalConnect(
 
 method connect*(
   self: Dialer,
-  peerId: PeerID,
+  peerId: PeerId,
   addrs: seq[MultiAddress]) {.async.} =
   ## connect remote peer without negotiating
   ## a protocol
@@ -183,7 +183,7 @@ proc negotiateStream(
 
 method dial*(
   self: Dialer,
-  peerId: PeerID,
+  peerId: PeerId,
   protos: seq[string]): Future[Connection] {.async.} =
   ## create a protocol stream over an
   ## existing connection
@@ -198,7 +198,7 @@ method dial*(
 
 method dial*(
   self: Dialer,
-  peerId: PeerID,
+  peerId: PeerId,
   addrs: seq[MultiAddress],
   protos: seq[string]): Future[Connection] {.async.} =
   ## create a protocol stream and establish

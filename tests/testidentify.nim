@@ -36,7 +36,7 @@ suite "Identify":
       conn {.threadvar.}: Connection
 
     asyncSetup:
-      ma = @[Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
+      ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
       remoteSecKey = PrivateKey.random(ECDSA, rng[]).get()
       remotePeerInfo = PeerInfo.new(
         remoteSecKey,
@@ -72,7 +72,7 @@ suite "Identify":
       discard await msDial.select(conn, IdentifyCodec)
       let id = await identifyProto2.identify(conn, remotePeerInfo.peerId)
 
-      check id.pubKey.get() == remoteSecKey.getPublicKey().get()
+      check id.pubkey.get() == remoteSecKey.getPublicKey().get()
       check id.addrs == ma
       check id.protoVersion.get() == ProtoVersion
       check id.agentVersion.get() == AgentVersion
@@ -95,7 +95,7 @@ suite "Identify":
       discard await msDial.select(conn, IdentifyCodec)
       let id = await identifyProto2.identify(conn, remotePeerInfo.peerId)
 
-      check id.pubKey.get() == remoteSecKey.getPublicKey().get()
+      check id.pubkey.get() == remoteSecKey.getPublicKey().get()
       check id.addrs == ma
       check id.protoVersion.get() == ProtoVersion
       check id.agentVersion.get() == customAgentVersion

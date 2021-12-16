@@ -174,7 +174,7 @@ method stop*(self: WsTransport) {.async, gcsafe.} =
     trace "Error shutting down ws transport", exc = exc.msg
 
 proc connHandler(self: WsTransport,
-                 stream: WsSession,
+                 stream: WSSession,
                  secure: bool,
                  dir: Direction): Future[Connection] {.async.} =
   let observedAddr =

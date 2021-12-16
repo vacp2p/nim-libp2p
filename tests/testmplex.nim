@@ -378,7 +378,7 @@ suite "Mplex":
 
   suite "mplex e2e":
     asyncTest "read/write receiver":
-      let ma = @[Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
+      let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
 
       let transport1: TcpTransport = TcpTransport.new(upgrade = Upgrade())
       let listenFut = transport1.start(ma)
@@ -415,7 +415,7 @@ suite "Mplex":
       await listenFut
 
     asyncTest "read/write receiver lazy":
-      let ma = @[Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
+      let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
 
       let transport1: TcpTransport = TcpTransport.new(upgrade = Upgrade())
       let listenFut = transport1.start(ma)
@@ -454,7 +454,7 @@ suite "Mplex":
 
     asyncTest "write fragmented":
       let
-        ma = @[Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
+        ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
         listenJob = newFuture[void]()
 
       var bigseq = newSeqOfCap[uint8](MaxMsgSize * 2)
@@ -506,7 +506,7 @@ suite "Mplex":
       await listenFut
 
     asyncTest "read/write initiator":
-      let ma = @[Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
+      let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
 
       let transport1: TcpTransport = TcpTransport.new(upgrade = Upgrade())
       let listenFut = transport1.start(ma)
@@ -542,7 +542,7 @@ suite "Mplex":
       await listenFut
 
     asyncTest "multiple streams":
-      let ma = @[Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
+      let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
 
       let transport1 = TcpTransport.new(upgrade = Upgrade())
       let listenFut = transport1.start(ma)
@@ -586,7 +586,7 @@ suite "Mplex":
       await listenFut
 
     asyncTest "multiple read/write streams":
-      let ma = @[Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
+      let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
 
       let transport1: TcpTransport = TcpTransport.new(upgrade = Upgrade())
       let listenFut = transport1.start(ma)
@@ -633,7 +633,7 @@ suite "Mplex":
       await listenFut
 
     asyncTest "channel closes listener with EOF":
-      let ma = @[Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
+      let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
 
       let transport1 = TcpTransport.new(upgrade = Upgrade())
       var listenStreams: seq[Connection]
@@ -681,7 +681,7 @@ suite "Mplex":
       await acceptFut
 
     asyncTest "channel closes dialer with EOF":
-      let ma = @[Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
+      let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
       let transport1 = TcpTransport.new(upgrade = Upgrade())
 
       var count = 0
@@ -746,7 +746,7 @@ suite "Mplex":
       await acceptFut
 
     asyncTest "dialing mplex closes both ends":
-      let ma = @[Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
+      let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
       let transport1 = TcpTransport.new(upgrade = Upgrade())
 
       var listenStreams: seq[Connection]
@@ -788,7 +788,7 @@ suite "Mplex":
       await acceptFut
 
     asyncTest "listening mplex closes both ends":
-      let ma = @[Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
+      let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
       let transport1 = TcpTransport.new(upgrade = Upgrade())
 
       var mplexListen: Mplex
@@ -833,7 +833,7 @@ suite "Mplex":
       await acceptFut
 
     asyncTest "canceling mplex handler closes both ends":
-      let ma = @[Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
+      let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
       let transport1 = TcpTransport.new(upgrade = Upgrade())
 
       var mplexHandle: Future[void]
@@ -878,7 +878,7 @@ suite "Mplex":
         transport2.stop())
 
     asyncTest "closing dialing connection should close both ends":
-      let ma = @[Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
+      let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
       let transport1 = TcpTransport.new(upgrade = Upgrade())
 
       var listenStreams: seq[Connection]
@@ -923,7 +923,7 @@ suite "Mplex":
       await acceptFut
 
     asyncTest "canceling listening connection should close both ends":
-      let ma = @[Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
+      let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
       let transport1 = TcpTransport.new(upgrade = Upgrade())
 
       var listenConn: Connection
@@ -969,7 +969,7 @@ suite "Mplex":
 
     suite "jitter":
       asyncTest "channel should be able to handle erratic read/writes":
-        let ma = @[Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
+        let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
 
         let transport1: TcpTransport = TcpTransport.new(upgrade = Upgrade())
         let listenFut = transport1.start(ma)
@@ -1041,7 +1041,7 @@ suite "Mplex":
         await listenFut
 
       asyncTest "channel should handle 1 byte read/write":
-        let ma = @[Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
+        let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
 
         let transport1: TcpTransport = TcpTransport.new(upgrade = Upgrade())
         let listenFut = transport1.start(ma)

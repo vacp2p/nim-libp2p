@@ -71,7 +71,7 @@ suite "WebSocket transport":
       "/ip4/0.0.0.0/tcp/0/wss")
 
   asyncTest "Hostname verification":
-    let ma = @[Multiaddress.init("/ip4/0.0.0.0/tcp/0/wss").tryGet()]
+    let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0/wss").tryGet()]
     let transport1 = WsTransport.new(Upgrade(), TLSPrivateKey.init(SecureKey), TLSCertificate.init(SecureCert), {TLSFlags.NoVerifyHost})
 
     await transport1.start(ma)
