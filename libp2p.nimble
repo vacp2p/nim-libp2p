@@ -107,6 +107,7 @@ task pin, "Create a lockfile":
   exec "nim c -r tools/pinner.nim"
 
 import sequtils
+import os
 task install_pinned, "Reads the lockfile":
   let toInstall = readFile(PinFile).splitWhitespace().mapIt((it.split(";", 1)[0], it.split(";", 1)[1]))
   # [('packageName', 'packageFullUri')]
@@ -117,9 +118,9 @@ task install_pinned, "Reads the lockfile":
 
   # Remove the automatically installed deps
   # (inefficient you say?)
-  let allowedDirectories = toInstall.mapIt("nimbledeps/pkgs/" & it[0] & "-" & it[1].split('@')[1])
+  let allowedDirectories = toInstall.mapIt(it[0] & "-" & it[1].split('@')[1])
   for dependency in listDirs("nimbledeps/pkgs"):
-    if dependency notin allowedDirectories:
+    if dependency.extractFilename notin allowedDirectories:
       rmDir(dependency)
 
 task unpin, "Restore global package use":
