@@ -1,12 +1,14 @@
 {.push raises: [Defect].}
 
-import chronos
+import chronos, chronicles
 import ../../libp2p/[multiaddress,
        stream/connection,
        transports/transport,
        upgrademngrs/upgrade]
-import ./mockconnection,
-       ../helpers
+import ../helpers
+
+logScope:
+  topics = "libp2p mocktransport"
 
 type
   StartMock* = proc(self: MockTransport, addrs: seq[MultiAddress]): Future[void] {.gcsafe.}
@@ -29,13 +31,26 @@ const StopMockDefault =
     discard
 
 const AcceptMockDefault =
-  proc(self: MockTransport): Future[Connection] =
-    let
-      fut = newFuture[Connection]("mocktransport.accept.future")
-      peerId = PeerID.init(PrivateKey.random(ECDSA, rng[]).get()).get()
-      conn = MockConnection.new(peerId)
-    fut.complete(conn)
-    return fut
+  proc(self: MockTransport): Future[Connection] {.async.} =
+    proc writeHandler(msg: seq[byte]) {.async.} =
+      return
+
+    let client = TestBufferStream.new(writeHandler)
+    proc onClose() {.async.} =
+      try:
+        let f = client.join()
+        if not f.finished: await f.cancelAndWait()
+        await allFuturesThrowing(client.close())
+
+        trace "Cleaned up client"
+
+      except CatchableError as exc:
+        let useExc {.used.} = exc
+        debug "Error cleaning up client", errMsg = exc.msg
+
+    asyncSpawn onClose()
+
+    return client
 
 proc new*(
   T: typedesc[MockTransport],
@@ -51,9 +66,6 @@ proc new*(
     stopMock: stopMock,
     acceptMock: acceptMock,
     listenError: listenError)
-
-  # if transport.listenError.isNil:
-  #   transport.listenError = ListenErrorDefault
 
   return transport
 
