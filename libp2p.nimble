@@ -104,7 +104,7 @@ task pin, "Create a lockfile":
   # pinner.nim was originally here
   # but you can't read output from
   # a command in a nimscript
-  exec "nim c -r pinner.nim"
+  exec "nim c -r tools/pinner.nim"
 
 task pinned_deps, "Reads the lockfile":
   rmDir("nimbledeps")
