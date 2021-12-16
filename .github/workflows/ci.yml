@@ -176,7 +176,7 @@ jobs:
 
       - name: Run nim-libp2p tests
         run: |
-          nimble pinned_deps
+          nimble install_pinned
           nimble test
 
   bumpNBC-stable:
