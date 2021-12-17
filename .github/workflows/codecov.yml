@@ -33,7 +33,7 @@ jobs:
           curl -O -L -s -S https://raw.githubusercontent.com/status-im/nimbus-build-system/master/scripts/build_nim.sh
           env MAKE="make -j${NPROC}" bash build_nim.sh Nim csources dist/nimble NimBinaries
           export PATH="$PATH:$PWD/Nim/bin"
-          nimble install -y --depsOnly
+          nimble install_pinned
           export NIM_OPTIONS="--opt:speed -d:debug --verbosity:0 --hints:off --lineDir:on -d:chronicles_log_level=INFO --warning[CaseTransition]:off --warning[ObservableStores]:off --warning[LockLevel]:off --nimcache:nimcache --passC:-fprofile-arcs --passC:-ftest-coverage --passL:-fprofile-arcs --passL:-ftest-coverage ${{ matrix.nim-options }}"
           nim c $NIM_OPTIONS -r ${{ matrix.test-program }}
           cd nimcache; rm *.c; cd ..
@@ -71,8 +71,8 @@ jobs:
           curl -O -L -s -S https://raw.githubusercontent.com/status-im/nimbus-build-system/master/scripts/build_nim.sh
           env MAKE="make -j${NPROC}" bash build_nim.sh Nim csources dist/nimble NimBinaries
           export PATH="$PATH:$PWD/Nim/bin"
-          nimble install -y --depsOnly
-          export NIM_OPTIONS="--opt:speed -d:debug --verbosity:0 --hints:off --lineDir:on -d:chronicles_log_level=INFO --warning[CaseTransition]:off --warning[ObservableStores]:off --warning[LockLevel]:off --nimcache:nimcache --passC:-fprofile-arcs --passC:-ftest-coverage --passL:-fprofile-arcs --passL:-ftest-coverage ${{ matrix.nim-options }}"
+          nimble install_pinned
+          export NIM_OPTIONS="--opt:speed -d:debug --verbosity:0 --hints:off --lineDir:on -d:chronicles_log_level=INFO --warning[CaseTransition]:off --warning[ObservableStores]:off --warning[LockLevel]:off --nimcache:nimcache --passC:-fprofile-arcs --passC:-ftest-coverage --passL:-fprofile-arcs --passL:-ftest-coverage ${{ matrix.nim-options }} --clearNimblePath --NimblePath:nimbledeps/pkgs"
           nim c $NIM_OPTIONS -r ${{ matrix.test-program }}
           cd nimcache; rm *.c; cd ..
           lcov --capture --directory nimcache --output-file coverage/coverage.info
@@ -112,7 +112,7 @@ jobs:
           curl -O -L -s -S https://raw.githubusercontent.com/status-im/nimbus-build-system/master/scripts/build_nim.sh
           env MAKE="make -j${NPROC}" bash build_nim.sh Nim csources dist/nimble NimBinaries
           export PATH="$PATH:$PWD/Nim/bin"
-          nimble install -y --depsOnly
+          nimble install_pinned
           export NIM_OPTIONS="--opt:speed -d:debug --verbosity:0 --hints:off --lineDir:on -d:chronicles_log_level=INFO --warning[CaseTransition]:off --warning[ObservableStores]:off --warning[LockLevel]:off --nimcache:nimcache --passC:-fprofile-arcs --passC:-ftest-coverage --passL:-fprofile-arcs --passL:-ftest-coverage ${{ matrix.nim-options }}"
           nim c $NIM_OPTIONS -r ${{ matrix.test-program }}
           cd nimcache; rm *.c; cd ..

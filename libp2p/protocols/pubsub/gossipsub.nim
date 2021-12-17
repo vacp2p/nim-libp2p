@@ -43,6 +43,7 @@ proc init*(_: type[GossipSubParams]): GossipSubParams =
   GossipSubParams(
       explicit: true,
       pruneBackoff: 1.minutes,
+      unsubscribeBackoff: 5.seconds,
       floodPublish: true,
       gossipFactor: 0.25,
       d: GossipSubD,
@@ -77,6 +78,8 @@ proc validateParameters*(parameters: GossipSubParams): Result[void, cstring] =
     err("gossipsub: dOut parameter error, Number of outbound connections to keep in the mesh. Must be less than D_lo and at most D/2")
   elif parameters.gossipThreshold >= 0:
     err("gossipsub: gossipThreshold parameter error, Must be < 0")
+  elif parameters.unsubscribeBackoff.seconds <= 0:
+    err("gossipsub: unsubscribeBackoff parameter error, Must be > 0 seconds")
   elif parameters.publishThreshold >= parameters.gossipThreshold:
     err("gossipsub: publishThreshold parameter error, Must be < gossipThreshold")
   elif parameters.graylistThreshold >= parameters.publishThreshold:
@@ -166,7 +169,7 @@ method onPubSubPeerEvent*(p: GossipSub, peer: PubsubPeer, event: PubSubPeerEvent
 
   procCall FloodSub(p).onPubSubPeerEvent(peer, event)
 
-method unsubscribePeer*(g: GossipSub, peer: PeerID) =
+method unsubscribePeer*(g: GossipSub, peer: PeerId) =
   ## handle peer disconnects
   ##
 
@@ -413,11 +416,11 @@ method onTopicSubscription*(g: GossipSub, topic: string, subscribed: bool) =
           prune: @[ControlPrune(
             topicID: topic,
             peers: g.peerExchangeList(topic),
-            backoff: g.parameters.pruneBackoff.seconds.uint64)])))
+            backoff: g.parameters.unsubscribeBackoff.seconds.uint64)])))
     g.broadcast(mpeers, msg)
 
     for peer in mpeers:
-      g.pruned(peer, topic)
+      g.pruned(peer, topic, backoff = some(g.parameters.unsubscribeBackoff))
 
     g.mesh.del(topic)
 

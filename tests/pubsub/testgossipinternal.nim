@@ -18,7 +18,7 @@ type
 
 proc noop(data: seq[byte]) {.async, gcsafe.} = discard
 
-proc getPubSubPeer(p: TestGossipSub, peerId: PeerID): PubSubPeer =
+proc getPubSubPeer(p: TestGossipSub, peerId: PeerId): PubSubPeer =
   proc getConn(): Future[Connection] =
     p.switch.dial(peerId, GossipSubCodec)
 
@@ -317,8 +317,8 @@ suite "GossipSub internal":
     let peers = gossipSub.getGossipPeers()
     check peers.len == gossipSub.parameters.d
     for p in peers.keys:
-      check not gossipSub.fanout.hasPeerID(topic, p.peerId)
-      check not gossipSub.mesh.hasPeerID(topic, p.peerId)
+      check not gossipSub.fanout.hasPeerId(topic, p.peerId)
+      check not gossipSub.mesh.hasPeerId(topic, p.peerId)
 
     await allFuturesThrowing(conns.mapIt(it.close()))
     await gossipSub.switch.stop()
@@ -552,7 +552,7 @@ suite "GossipSub internal":
       peer.sendConn = conn
       gossipSub.gossipsub[topic].incl(peer)
       gossipSub.backingOff
-        .mgetOrPut(topic, initTable[PeerID, Moment]())
+        .mgetOrPut(topic, initTable[PeerId, Moment]())
         .add(peerId, Moment.now() + 1.hours)
       let prunes = gossipSub.handleGraft(peer, @[ControlGraft(topicID: topic)])
       # there must be a control prune due to violation of backoff

@@ -164,7 +164,7 @@ const
     "08021220B333BE3E843339E0E2CE9E083ABC119BE05C7B65B8665ADE19E172D47BF91305"
   ]
 
-  PeerIDs = [
+  PeerIds = [
     "QmeuZJbXrszW2jdT7GdduSjQskPU3S7vvGWKtKgDfkDvWs",
     "QmeasUkAi1BhVUmopWzYJ5G1PGys9T5MZ2sPn87XTyaUAM",
     "Qmc3PxhMhQja8N4t7mRDyGm2vHkvcxe5Kabp2iAig1DXHb",
@@ -180,15 +180,15 @@ const
   ]
 
 suite "Peer testing suite":
-  test "Go PeerID test vectors":
+  test "Go PeerId test vectors":
     for i in 0..<len(PrivateKeys):
       var seckey = PrivateKey.init(stripSpaces(PrivateKeys[i])).get()
       var pubkey = seckey.getPublicKey().get()
-      var p1 = PeerID.init(seckey).get()
-      var p2 = PeerID.init(pubkey).get()
-      var p3 = PeerID.init(PeerIDs[i]).get()
-      var b1 = Base58.decode(PeerIDs[i])
-      var p4 = PeerID.init(b1).get()
+      var p1 = PeerId.init(seckey).get()
+      var p2 = PeerId.init(pubkey).get()
+      var p3 = PeerId.init(PeerIds[i]).get()
+      var b1 = Base58.decode(PeerIds[i])
+      var p4 = PeerId.init(b1).get()
       var buf1 = newSeq[byte](len(p1))
       var buf2 = newSeq[byte](len(p2))
       var buf3 = newSeq[byte](len(p3))
@@ -200,10 +200,10 @@ suite "Peer testing suite":
         p1 == p2
         p1 == p4
         p2 == p4
-        $p1 == PeerIDs[i]
-        $p2 == PeerIDs[i]
-        $p3 == PeerIDs[i]
-        $p4 == PeerIDs[i]
+        $p1 == PeerIds[i]
+        $p2 == PeerIds[i]
+        $p3 == PeerIds[i]
+        $p4 == PeerIds[i]
         p1.match(seckey) == true
         p1.match(pubkey) == true
         p1.getBytes() == p2.getBytes()

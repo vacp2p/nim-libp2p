@@ -71,7 +71,7 @@ suite "WebSocket transport":
       "/ip4/0.0.0.0/tcp/0/wss")
 
   asyncTest "Hostname verification":
-    let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0/wss").tryGet()
+    let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0/wss").tryGet()]
     let transport1 = WsTransport.new(Upgrade(), TLSPrivateKey.init(SecureKey), TLSCertificate.init(SecureCert), {TLSFlags.NoVerifyHost})
 
     await transport1.start(ma)
@@ -84,12 +84,12 @@ suite "WebSocket transport":
     let handlerWait = acceptHandler()
 
     # ws.test is in certificate
-    let conn = await transport1.dial("ws.test", transport1.ma)
+    let conn = await transport1.dial("ws.test", transport1.addrs[0])
 
     await conn.close()
 
     try:
-      let conn = await transport1.dial("ws.wronghostname", transport1.ma)
+      let conn = await transport1.dial("ws.wronghostname", transport1.addrs[0])
       check false
     except CatchableError as exc:
       check true

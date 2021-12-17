@@ -71,7 +71,7 @@ const
 template orError*(exp: untyped, err: untyped): untyped =
   (exp.mapErr do (_: auto) -> auto: err)
 
-proc decode(data: openarray[byte]): Result[Cid, CidError] =
+proc decode(data: openArray[byte]): Result[Cid, CidError] =
   if len(data) == 34 and data[0] == 0x12'u8 and data[1] == 0x20'u8:
     ok(Cid(
         cidver: CIDv0,
@@ -114,7 +114,7 @@ proc decode(data: openarray[byte]): Result[Cid, CidError] =
                     hpos: offset,
                     data: vb))
 
-proc decode(data: openarray[char]): Result[Cid, CidError] =
+proc decode(data: openArray[char]): Result[Cid, CidError] =
   var buffer: seq[byte]
   var plen = 0
   if len(data) < 2:
@@ -137,7 +137,7 @@ proc decode(data: openarray[char]): Result[Cid, CidError] =
       return err(CidError.Incorrect)
   decode(buffer)
 
-proc validate*(ctype: typedesc[Cid], data: openarray[byte]): bool =
+proc validate*(ctype: typedesc[Cid], data: openArray[byte]): bool =
   ## Returns ``true`` is data has valid binary CID representation.
   var version, codec: uint64
   var res: VarintResult[void]
@@ -185,7 +185,7 @@ proc version*(cid: Cid): CidVersion =
   ## Returns CID version
   result = cid.cidver
 
-proc init*[T: char|byte](ctype: typedesc[Cid], data: openarray[T]): Result[Cid, CidError] =
+proc init*[T: char|byte](ctype: typedesc[Cid], data: openArray[T]): Result[Cid, CidError] =
   ## Create new content identifier using array of bytes or string ``data``.
   decode(data)
 
@@ -275,7 +275,7 @@ proc `$`*(cid: Cid): string =
   if cid.cidver == CIDv0:
     BTCBase58.encode(cid.data.buffer)
   elif cid.cidver == CIDv1:
-    let res = Multibase.encode("base58btc", cid.data.buffer)
+    let res = MultiBase.encode("base58btc", cid.data.buffer)
     if res.isOk():
       res.get()
     else:

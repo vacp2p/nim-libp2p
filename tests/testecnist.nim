@@ -315,6 +315,9 @@ suite "EC NIST-P256/384/521 test suite":
         rkey2 == key
         rkey3 == key
         rkey4 == key
+      rkey1.key.xlen = rkey1.buffer.len + 1
+      check:
+        rkey1.getBytes == EcResult[seq[byte]].err(EcKeyIncorrectError)
 
   test "[secp256r1] Public key serialize/deserialize test":
     for i in 0..<TestsCount:
@@ -333,6 +336,9 @@ suite "EC NIST-P256/384/521 test suite":
         rkey2 == pair.pubkey
         rkey3 == pair.pubkey
         rkey4 == pair.pubkey
+      rkey1.key.qlen = rkey1.buffer.len + 1
+      check:
+        rkey1.getBytes == EcResult[seq[byte]].err(EcKeyIncorrectError)
 
   test "[secp256r1] ECDHE test":
     for i in 0..<TestsCount:
@@ -422,6 +428,9 @@ suite "EC NIST-P256/384/521 test suite":
         rkey2 == key
         rkey3 == key
         rkey4 == key
+      rkey1.key.xlen = rkey1.buffer.len + 1
+      check:
+        rkey1.getBytes == EcResult[seq[byte]].err(EcKeyIncorrectError)
 
   test "[secp384r1] Public key serialize/deserialize test":
     for i in 0..<TestsCount:
@@ -440,6 +449,9 @@ suite "EC NIST-P256/384/521 test suite":
         rkey2 == pair.pubkey
         rkey3 == pair.pubkey
         rkey4 == pair.pubkey
+      rkey1.key.qlen = rkey1.buffer.len + 1
+      check:
+        rkey1.getBytes == EcResult[seq[byte]].err(EcKeyIncorrectError)
 
   test "[secp384r1] ECDHE test":
     for i in 0..<TestsCount:
@@ -529,6 +541,9 @@ suite "EC NIST-P256/384/521 test suite":
         rkey2 == key
         rkey3 == key
         rkey4 == key
+      rkey1.key.xlen = rkey1.buffer.len + 1
+      check:
+        rkey1.getBytes == EcResult[seq[byte]].err(EcKeyIncorrectError)
 
   test "[secp521r1] Public key serialize/deserialize test":
     for i in 0..<TestsCount:
@@ -547,6 +562,9 @@ suite "EC NIST-P256/384/521 test suite":
         rkey2 == pair.pubkey
         rkey3 == pair.pubkey
         rkey4 == pair.pubkey
+      rkey1.key.qlen = rkey1.buffer.len + 1
+      check:
+        rkey1.getBytes == EcResult[seq[byte]].err(EcKeyIncorrectError)
 
   test "[secp521r1] ECDHE test":
     for i in 0..<TestsCount:

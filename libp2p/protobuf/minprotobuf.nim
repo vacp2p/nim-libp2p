@@ -123,7 +123,7 @@ proc initProtoBuffer*(data: seq[byte], offset = 0,
   result.offset = offset
   result.options = options
 
-proc initProtoBuffer*(data: openarray[byte], offset = 0,
+proc initProtoBuffer*(data: openArray[byte], offset = 0,
                       options: set[ProtoFlags] = {}): ProtoBuffer =
   ## Initialize ProtoBuffer with copy of ``data``.
   result.buffer = @data
@@ -191,7 +191,7 @@ proc write*[T: ProtoScalar](pb: var ProtoBuffer,
     pb.offset += sizeof(T)
 
 proc writePacked*[T: ProtoScalar](pb: var ProtoBuffer, field: int,
-                                  value: openarray[T]) =
+                                  value: openArray[T]) =
   checkFieldNumber(field)
   var length = 0
   let dlength =
@@ -239,7 +239,7 @@ proc writePacked*[T: ProtoScalar](pb: var ProtoBuffer, field: int,
       pb.offset += sizeof(T)
 
 proc write*[T: byte|char](pb: var ProtoBuffer, field: int,
-                          value: openarray[T]) =
+                          value: openArray[T]) =
   checkFieldNumber(field)
   var length = 0
   let flength = vsizeof(getProtoHeader(field, ProtoFieldKind.Length)) +
@@ -265,8 +265,8 @@ proc write*(pb: var ProtoBuffer, field: int, value: ProtoBuffer) {.inline.} =
 
 proc finish*(pb: var ProtoBuffer) =
   ## Prepare protobuf's buffer ``pb`` for writing to stream.
-  doAssert(len(pb.buffer) > 0)
   if WithVarintLength in pb.options:
+    doAssert(len(pb.buffer) >= 10)
     let size = uint(len(pb.buffer) - 10)
     let pos = 10 - vsizeof(size)
     var usedBytes = 0
@@ -274,14 +274,17 @@ proc finish*(pb: var ProtoBuffer) =
     doAssert(res.isOk())
     pb.offset = pos
   elif WithUint32BeLength in pb.options:
+    doAssert(len(pb.buffer) >= 4)
     let size = uint(len(pb.buffer) - 4)
     pb.buffer[0 ..< 4] = toBytesBE(uint32(size))
     pb.offset = 4
   elif WithUint32LeLength in pb.options:
+    doAssert(len(pb.buffer) >= 4)
     let size = uint(len(pb.buffer) - 4)
     pb.buffer[0 ..< 4] = toBytesLE(uint32(size))
     pb.offset = 4
   else:
+    doAssert(len(pb.buffer) > 0)
     pb.offset = 0
 
 proc getHeader(data: var ProtoBuffer,
@@ -382,7 +385,7 @@ proc getValue[T: ProtoScalar](data: var ProtoBuffer,
       err(ProtoError.MessageIncomplete)
 
 proc getValue[T:byte|char](data: var ProtoBuffer, header: ProtoHeader,
-                           outBytes: var openarray[T],
+                           outBytes: var openArray[T],
                            outLength: var int): ProtoResult[void] =
   doAssert(header.wire == ProtoFieldKind.Length)
   var length = 0
@@ -475,7 +478,7 @@ proc getField*[T: ProtoScalar](data: ProtoBuffer, field: int,
     ok(false)
 
 proc getField*[T: byte|char](data: ProtoBuffer, field: int,
-                             output: var openarray[T],
+                             output: var openArray[T],
                              outlen: var int): ProtoResult[bool] =
   checkFieldNumber(field)
   var pb = data

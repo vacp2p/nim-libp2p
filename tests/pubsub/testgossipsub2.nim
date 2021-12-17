@@ -41,11 +41,11 @@ proc waitSub(sender, receiver: auto; key: string) {.async, gcsafe.} =
   ev.clear()
 
   while (not fsub.gossipsub.hasKey(key) or
-         not fsub.gossipsub.hasPeerID(key, receiver.peerInfo.peerId)) and
+         not fsub.gossipsub.hasPeerId(key, receiver.peerInfo.peerId)) and
         (not fsub.mesh.hasKey(key) or
-         not fsub.mesh.hasPeerID(key, receiver.peerInfo.peerId)) and
+         not fsub.mesh.hasPeerId(key, receiver.peerInfo.peerId)) and
         (not fsub.fanout.hasKey(key) or
-         not fsub.fanout.hasPeerID(key , receiver.peerInfo.peerId)):
+         not fsub.fanout.hasPeerId(key , receiver.peerInfo.peerId)):
     trace "waitSub sleeping..."
 
     # await more heartbeats
