@@ -1,6 +1,6 @@
 {.used.}
 
-import options, sequtils, sets, tables
+import options, sequtils, sets, sugar, tables
 import chronos
 import stew/byteutils
 import nimcrypto/sysrand
@@ -17,6 +17,7 @@ import ../libp2p/[errors,
                   protocols/secure/secure,
                   muxers/muxer,
                   muxers/mplex/lpchannel,
+                  muxers/mplex/mplex,
                   stream/lpstream,
                   nameresolving/nameresolver,
                   nameresolving/mockresolver,
@@ -1492,3 +1493,60 @@ suite "Switch":
     check switch.transports[0].addrs == @[maTcp1, maUdp, maTcp2]
 
     await switch.stop()
+
+  asyncTest "should raise defect if no transports provided during construction":
+    let
+      mAddrs = buildLocalTcpAddrs(3)
+      transport = (upgr: Upgrade) -> Transport => MockTransport.new(upgr)
+
+    # builder should raise defect with addresses, but no transports
+    expect LPDefect:
+      discard SwitchBuilder
+        .new()
+        .withRng(rng)       # Give the application RNG
+        .withAddresses(mAddrs)    # Our local address(es)
+        .withMplex()        # Use Mplex as muxer
+        .withNoise()        # Use Noise as secure manager
+        .build()
+
+    # builder should raise defect with transports, but no addresses
+    expect LPDefect:
+      echo "[testswitch] building switch with no addresses"
+      discard SwitchBuilder
+        .new()
+        .withRng(rng)       # Give the application RNG
+        .withTransport(transport)
+        .withAddresses(@[])
+        .withMplex()        # Use Mplex as muxer
+        .withNoise()        # Use Noise as secure manager
+        .build()
+
+    # should raise defect with addresses, but no transports
+    var
+      seckey = PrivateKey.random(rng[]).get()
+      peerInfo = PeerInfo.new(seckey, mAddrs)
+      identify = Identify.new(peerInfo)
+      muxers = initTable[string, MuxerProvider]()
+
+    muxers[MplexCodec] =
+       MuxerProvider.new((conn: Connection) -> Muxer => Mplex.new(conn), MplexCodec)
+
+    expect LPDefect:
+      discard newSwitch(
+        peerInfo = peerInfo,
+        transports = @[],
+        identity = identify,
+        muxers = muxers,
+        connManager = ConnManager.new(),
+        ms = MultistreamSelect.new())
+
+    # should raise defect with transports, but no addresses
+    peerInfo.addrs = @[]
+    expect LPDefect:
+      discard newSwitch(
+        peerInfo = peerInfo,
+        transports = @[transport(Upgrade.new())],
+        identity = identify,
+        muxers = muxers,
+        connManager = ConnManager.new(),
+        ms = MultistreamSelect.new())

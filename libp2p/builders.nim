@@ -136,7 +136,7 @@ proc withNameResolver*(b: SwitchBuilder, nameResolver: NameResolver): SwitchBuil
   b
 
 proc build*(b: SwitchBuilder): Switch
-  {.raises: [Defect, LPError].} =
+  {.raises: [Defect, LPDefect, LPError].} =
 
   if b.rng == nil: # newRng could fail
     raise newException(Defect, "Cannot initialize RNG")
@@ -210,7 +210,7 @@ proc newStandardSwitch*(
   maxOut = -1,
   maxConnsPerPeer = MaxConnectionsPerPeer,
   nameResolver: NameResolver = nil): Switch
-  {.raises: [Defect, LPError].} =
+  {.raises: [Defect, LPDefect, LPError].} =
   if SecureProtocol.Secio in secureManagers:
       quit("Secio is deprecated!") # use of secio is unsafe
 

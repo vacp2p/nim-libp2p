@@ -261,7 +261,13 @@ proc newSwitch*(peerInfo: PeerInfo,
                 connManager: ConnManager,
                 ms: MultistreamSelect,
                 nameResolver: NameResolver = nil): Switch
-                {.raises: [Defect, LPError].} =
+                {.raises: [Defect, LPDefect, LPError].} =
+
+  if transports.len == 0:
+    raise newException(LPDefect, "Provide at least one transport")
+
+  if peerInfo.addrs.len == 0:
+    raise newException(LPDefect, "Provide at least one address")
 
   if secureManagers.len == 0:
     raise newException(LPError, "Provide at least one secure manager")

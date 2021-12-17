@@ -250,6 +250,14 @@ suite "TCP transport":
 
     await transport.stop()
 
+  asyncTest "should raise Defect on start with no addresses":
+    let transport = TcpTransport.new(upgrade = Upgrade())
+
+    expect TransportDefect:
+      await transport.start(@[])
+
+    await transport.stop()
+
   commonTransportTest(
     "TcpTransport",
     proc (): Transport = TcpTransport.new(upgrade = Upgrade()),

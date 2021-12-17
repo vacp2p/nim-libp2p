@@ -180,6 +180,14 @@ suite "WebSocket transport":
 
     await transport.stop()
 
+  asyncTest "should raise Defect on start with no addresses":
+    let transport = WsTransport.new(upgrade = Upgrade())
+
+    expect TransportDefect:
+      await transport.start(@[])
+
+    await transport.stop()
+
   commonTransportTest(
     "WebSocket",
     proc (): Transport = WsTransport.new(Upgrade()),
