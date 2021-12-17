@@ -12,6 +12,6 @@ secp256k1;https://github.com/status-im/nim-secp256k1@#d790c42206fab4b8008eaa9118
 serialization;https://github.com/status-im/nim-serialization@#11a8aa64d27d4fa92e266b9488500461da193c24
 stew;https://github.com/status-im/nim-stew@#2f9c61f485e1de6d7e163294008276c455d39da2
 testutils;https://github.com/status-im/nim-testutils@#aa6e5216f4b4ab5aa971cdcdd70e1ec1203cedf2
-unittest2;https://github.com/status-im/nim-unittest2@#b9b61cfe4a4b238de7175287b7481c35a798a582
+unittest2;https://github.com/status-im/nim-unittest2@#4e2893eacb916c7678fdc4935ff7420f13bf3a9c
 websock;https://github.com/status-im/nim-websock@#c2aae352f7fad7a8d333327c37e966969d3ee542
 zlib;https://github.com/status-im/nim-zlib@#d4e716d071eba1b5e0ffdf7949d983959e2b95dd
