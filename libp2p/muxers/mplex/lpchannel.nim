@@ -21,8 +21,12 @@ export connection
 logScope:
   topics = "libp2p mplexchannel"
 
+declareHistogram libp2p_protocols_qtime, "message queuing time", ["protocol"]
 when defined(libp2p_network_protocols_metrics):
   declareCounter libp2p_protocols_bytes, "total sent or received bytes", ["protocol", "direction"]
+  declareHistogram libp2p_protocols_qlen, "message queue length", ["protocol"],
+    buckets = [0.0, 1.0, 2.0, 4.0, 8.0, 16.0, 32.0, 64.0, 128.0, 256.0]
+  declareCounter libp2p_protocols_qlenclose, "closed because of max queuelen", ["protocol"]
 
 ## Channel half-closed states
 ##
@@ -187,6 +191,8 @@ proc prepareWrite(s: LPChannel, msg: seq[byte]): Future[void] {.async.} =
   if s.writes >= MaxWrites:
     debug "Closing connection, too many in-flight writes on channel",
       s, conn = s.conn, writes = s.writes
+    when defined(libp2p_network_protocols_metrics):
+        libp2p_protocols_qlenclose.inc(labelValues=[s.tag])
     await s.reset()
     await s.conn.close()
     return
@@ -199,9 +205,13 @@ proc prepareWrite(s: LPChannel, msg: seq[byte]): Future[void] {.async.} =
 proc completeWrite(
     s: LPChannel, fut: Future[void], msgLen: int): Future[void] {.async.} =
   try:
+    when defined(libp2p_network_protocols_metrics):
+      libp2p_protocols_qlen.observe(s.writes.int64)
+
     s.writes += 1
 
-    await fut
+    libp2p_protocols_qtime.time:
+      await fut
     when defined(libp2p_network_protocols_metrics):
       if s.tag.len > 0:
         libp2p_protocols_bytes.inc(msgLen.int64, labelValues=[s.tag, "out"])
