@@ -319,8 +319,6 @@ proc validateAndRelay(g: GossipSub,
       g.floodsub.withValue(t, peers): toSendPeers.incl(peers[])
       g.mesh.withValue(t, peers): toSendPeers.incl(peers[])
 
-      await handleData(g, t, msg.data)
-
     # Don't send it to source peer, or peers that
     # sent it during validation
     toSendPeers.excl(peer)
@@ -331,10 +329,14 @@ proc validateAndRelay(g: GossipSub,
     g.broadcast(toSendPeers, RPCMsg(messages: @[msg]))
     trace "forwared message to peers", peers = toSendPeers.len, msgId, peer
     for topic in msg.topicIDs:
+      if topic notin g.topics: continue
+
       if g.knownTopics.contains(topic):
         libp2p_pubsub_messages_rebroadcasted.inc(toSendPeers.len.int64, labelValues = [topic])
       else:
         libp2p_pubsub_messages_rebroadcasted.inc(toSendPeers.len.int64, labelValues = ["generic"])
+
+      await handleData(g, topic, msg.data)
   except CatchableError as exc:
     info "validateAndRelay failed", msg=exc.msg
 
