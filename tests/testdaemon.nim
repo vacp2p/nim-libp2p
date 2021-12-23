@@ -1,4 +1,4 @@
-import chronos, unittest2
+import chronos, unittest2, helpers
 import ../libp2p/daemon/daemonapi, ../libp2p/multiaddress, ../libp2p/multicodec,
        ../libp2p/cid, ../libp2p/multihash, ../libp2p/peerid
 
@@ -140,9 +140,7 @@ when isMainModule:
     # test "Provide CID test":
     #   check:
     #     waitFor(provideCidTest()) == true
-    test "GossipSub test":
-      check:
-        waitFor(pubsubTest({PSGossipSub})) == true
-    test "FloodSub test":
-      check:
-        waitFor(pubsubTest({PSFloodSub})) == true
+    flakyAsyncTest "GossipSub test", attempts=4:
+      check (await pubsubTest({PSGossipSub})) == true
+    flakyAsyncTest "FloodSub test", attempts=4:
+      check (await pubsubTest({PSFloodSub})) == true
