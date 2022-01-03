@@ -96,7 +96,7 @@ suite "Minimal ASN.1 encode/decode suite":
         ncrutils.fromHex(Asn1EdgeExpects[i]) == value
 
   test "ASN.1 DER INTEGER encoding/decoding of native unsigned values test":
-    proc decodeBuffer(data: openarray[byte]): uint64 =
+    proc decodeBuffer(data: openArray[byte]): uint64 =
       var ab = Asn1Buffer.init(data)
       let fres = ab.read()
       doAssert(fres.isOk() and fres.get().kind == Asn1Tag.Integer)

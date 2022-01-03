@@ -10,7 +10,7 @@
 {.push raises: [Defect].}
 
 ## This module implementes API for `go-libp2p-daemon`.
-import std/[os, osproc, strutils, tables, strtabs]
+import std/[os, osproc, strutils, tables, strtabs, sequtils]
 import pkg/[chronos, chronicles]
 import ../varint, ../multiaddress, ../multicodec, ../cid, ../peerid
 import ../wire, ../multihash, ../protobuf/minprotobuf, ../errors
@@ -35,7 +35,7 @@ type
     Critical, Error, Warning, Notice, Info, Debug, Trace
 
   RequestType* {.pure.} = enum
-    IDENTITY = 0,
+    IDENTIFY = 0,
     CONNECT = 1,
     STREAM_OPEN = 2,
     STREAM_HANDLER = 3,
@@ -107,12 +107,12 @@ type
     RelayActive,   ## Enables active mode for relay.
     RelayDiscovery,## Enables passive discovery for relay.
     RelayHop,      ## Enables hop for relay.
-    NoInlinePeerID,## Disable inlining of peer ID (not yet in #master).
+    NoInlinePeerId,## Disable inlining of peer ID (not yet in #master).
     NoProcessCtrl  ## Process was not spawned.
 
   P2PStream* = ref object
     flags*: set[P2PStreamFlags]
-    peer*: PeerID
+    peer*: PeerId
     raddress*: MultiAddress
     protocol*: string
     transp*: StreamTransport
@@ -133,7 +133,7 @@ type
     userData*: RootRef
 
   PeerInfo* = object
-    peer*: PeerID
+    peer*: PeerId
     addresses*: seq[MultiAddress]
 
   PubsubTicket* = ref object
@@ -142,7 +142,7 @@ type
     transp*: StreamTransport
 
   PubSubMessage* = object
-    peer*: PeerID
+    peer*: PeerId
     data*: seq[byte]
     seqno*: seq[byte]
     topics*: seq[string]
@@ -167,100 +167,100 @@ proc requestIdentity(): ProtoBuffer =
   ## https://github.com/libp2p/go-libp2p-daemon/blob/master/conn.go
   ## Processing function `doIdentify(req *pb.Request)`.
   result = initProtoBuffer({WithVarintLength})
-  result.write(initProtoField(1, cast[uint](RequestType.IDENTITY)))
+  result.write(1, cast[uint](RequestType.IDENTIFY))
   result.finish()
 
-proc requestConnect(peerid: PeerID,
-                    addresses: openarray[MultiAddress],
+proc requestConnect(peerid: PeerId,
+                    addresses: openArray[MultiAddress],
                     timeout = 0): ProtoBuffer =
   ## https://github.com/libp2p/go-libp2p-daemon/blob/master/conn.go
   ## Processing function `doConnect(req *pb.Request)`.
   result = initProtoBuffer({WithVarintLength})
   var msg = initProtoBuffer()
-  msg.write(initProtoField(1, peerid))
+  msg.write(1, peerid)
   for item in addresses:
-    msg.write(initProtoField(2, item.data.buffer))
+    msg.write(2, item.data.buffer)
   if timeout > 0:
-    msg.write(initProtoField(3, hint64(timeout)))
-  result.write(initProtoField(1, cast[uint](RequestType.CONNECT)))
-  result.write(initProtoField(2, msg))
+    msg.write(3, hint64(timeout))
+  result.write(1, cast[uint](RequestType.CONNECT))
+  result.write(2, msg)
   result.finish()
 
-proc requestDisconnect(peerid: PeerID): ProtoBuffer =
+proc requestDisconnect(peerid: PeerId): ProtoBuffer =
   ## https://github.com/libp2p/go-libp2p-daemon/blob/master/conn.go
   ## Processing function `doDisconnect(req *pb.Request)`.
   result = initProtoBuffer({WithVarintLength})
   var msg = initProtoBuffer()
-  msg.write(initProtoField(1, peerid))
-  result.write(initProtoField(1, cast[uint](RequestType.DISCONNECT)))
-  result.write(initProtoField(7, msg))
+  msg.write(1, peerid)
+  result.write(1, cast[uint](RequestType.DISCONNECT))
+  result.write(7, msg)
   result.finish()
 
-proc requestStreamOpen(peerid: PeerID,
-                       protocols: openarray[string],
+proc requestStreamOpen(peerid: PeerId,
+                       protocols: openArray[string],
                        timeout = 0): ProtoBuffer =
   ## https://github.com/libp2p/go-libp2p-daemon/blob/master/conn.go
   ## Processing function `doStreamOpen(req *pb.Request)`.
   result = initProtoBuffer({WithVarintLength})
   var msg = initProtoBuffer()
-  msg.write(initProtoField(1, peerid))
+  msg.write(1, peerid)
   for item in protocols:
-    msg.write(initProtoField(2, item))
+    msg.write(2, item)
   if timeout > 0:
-    msg.write(initProtoField(3, hint64(timeout)))
-  result.write(initProtoField(1, cast[uint](RequestType.STREAM_OPEN)))
-  result.write(initProtoField(3, msg))
+    msg.write(3, hint64(timeout))
+  result.write(1, cast[uint](RequestType.STREAM_OPEN))
+  result.write(3, msg)
   result.finish()
 
 proc requestStreamHandler(address: MultiAddress,
-                          protocols: openarray[MultiProtocol]): ProtoBuffer =
+                          protocols: openArray[MultiProtocol]): ProtoBuffer =
   ## https://github.com/libp2p/go-libp2p-daemon/blob/master/conn.go
   ## Processing function `doStreamHandler(req *pb.Request)`.
   result = initProtoBuffer({WithVarintLength})
   var msg = initProtoBuffer()
-  msg.write(initProtoField(1, address.data.buffer))
+  msg.write(1, address.data.buffer)
   for item in protocols:
-    msg.write(initProtoField(2, item))
-  result.write(initProtoField(1, cast[uint](RequestType.STREAM_HANDLER)))
-  result.write(initProtoField(4, msg))
+    msg.write(2, item)
+  result.write(1, cast[uint](RequestType.STREAM_HANDLER))
+  result.write(4, msg)
   result.finish()
 
 proc requestListPeers(): ProtoBuffer =
   ## https://github.com/libp2p/go-libp2p-daemon/blob/master/conn.go
   ## Processing function `doListPeers(req *pb.Request)`
   result = initProtoBuffer({WithVarintLength})
-  result.write(initProtoField(1, cast[uint](RequestType.LIST_PEERS)))
+  result.write(1, cast[uint](RequestType.LIST_PEERS))
   result.finish()
 
-proc requestDHTFindPeer(peer: PeerID, timeout = 0): ProtoBuffer =
+proc requestDHTFindPeer(peer: PeerId, timeout = 0): ProtoBuffer =
   ## https://github.com/libp2p/go-libp2p-daemon/blob/master/dht.go
   ## Processing function `doDHTFindPeer(req *pb.DHTRequest)`.
   let msgid = cast[uint](DHTRequestType.FIND_PEER)
   result = initProtoBuffer({WithVarintLength})
   var msg = initProtoBuffer()
-  msg.write(initProtoField(1, msgid))
-  msg.write(initProtoField(2, peer))
+  msg.write(1, msgid)
+  msg.write(2, peer)
   if timeout > 0:
-    msg.write(initProtoField(7, hint64(timeout)))
+    msg.write(7, hint64(timeout))
   msg.finish()
-  result.write(initProtoField(1, cast[uint](RequestType.DHT)))
-  result.write(initProtoField(5, msg))
+  result.write(1, cast[uint](RequestType.DHT))
+  result.write(5, msg)
   result.finish()
 
-proc requestDHTFindPeersConnectedToPeer(peer: PeerID,
+proc requestDHTFindPeersConnectedToPeer(peer: PeerId,
                                         timeout = 0): ProtoBuffer =
   ## https://github.com/libp2p/go-libp2p-daemon/blob/master/dht.go
   ## Processing function `doDHTFindPeersConnectedToPeer(req *pb.DHTRequest)`.
   let msgid = cast[uint](DHTRequestType.FIND_PEERS_CONNECTED_TO_PEER)
   result = initProtoBuffer({WithVarintLength})
   var msg = initProtoBuffer()
-  msg.write(initProtoField(1, msgid))
-  msg.write(initProtoField(2, peer))
+  msg.write(1, msgid)
+  msg.write(2, peer)
   if timeout > 0:
-    msg.write(initProtoField(7, hint64(timeout)))
+    msg.write(7, hint64(timeout))
   msg.finish()
-  result.write(initProtoField(1, cast[uint](RequestType.DHT)))
-  result.write(initProtoField(5, msg))
+  result.write(1, cast[uint](RequestType.DHT))
+  result.write(5, msg)
   result.finish()
 
 proc requestDHTFindProviders(cid: Cid,
@@ -270,14 +270,14 @@ proc requestDHTFindProviders(cid: Cid,
   let msgid = cast[uint](DHTRequestType.FIND_PROVIDERS)
   result = initProtoBuffer({WithVarintLength})
   var msg = initProtoBuffer()
-  msg.write(initProtoField(1, msgid))
-  msg.write(initProtoField(3, cid.data.buffer))
-  msg.write(initProtoField(6, count))
+  msg.write(1, msgid)
+  msg.write(3, cid.data.buffer)
+  msg.write(6, count)
   if timeout > 0:
-    msg.write(initProtoField(7, hint64(timeout)))
+    msg.write(7, hint64(timeout))
   msg.finish()
-  result.write(initProtoField(1, cast[uint](RequestType.DHT)))
-  result.write(initProtoField(5, msg))
+  result.write(1, cast[uint](RequestType.DHT))
+  result.write(5, msg)
   result.finish()
 
 proc requestDHTGetClosestPeers(key: string, timeout = 0): ProtoBuffer =
@@ -286,28 +286,28 @@ proc requestDHTGetClosestPeers(key: string, timeout = 0): ProtoBuffer =
   let msgid = cast[uint](DHTRequestType.GET_CLOSEST_PEERS)
   result = initProtoBuffer({WithVarintLength})
   var msg = initProtoBuffer()
-  msg.write(initProtoField(1, msgid))
-  msg.write(initProtoField(4, key))
+  msg.write(1, msgid)
+  msg.write(4, key)
   if timeout > 0:
-    msg.write(initProtoField(7, hint64(timeout)))
+    msg.write(7, hint64(timeout))
   msg.finish()
-  result.write(initProtoField(1, cast[uint](RequestType.DHT)))
-  result.write(initProtoField(5, msg))
+  result.write(1, cast[uint](RequestType.DHT))
+  result.write(5, msg)
   result.finish()
 
-proc requestDHTGetPublicKey(peer: PeerID, timeout = 0): ProtoBuffer =
+proc requestDHTGetPublicKey(peer: PeerId, timeout = 0): ProtoBuffer =
   ## https://github.com/libp2p/go-libp2p-daemon/blob/master/dht.go
   ## Processing function `doDHTGetPublicKey(req *pb.DHTRequest)`.
   let msgid = cast[uint](DHTRequestType.GET_PUBLIC_KEY)
   result = initProtoBuffer({WithVarintLength})
   var msg = initProtoBuffer()
-  msg.write(initProtoField(1, msgid))
-  msg.write(initProtoField(2, peer))
+  msg.write(1, msgid)
+  msg.write(2, peer)
   if timeout > 0:
-    msg.write(initProtoField(7, hint64(timeout)))
+    msg.write(7, hint64(timeout))
   msg.finish()
-  result.write(initProtoField(1, cast[uint](RequestType.DHT)))
-  result.write(initProtoField(5, msg))
+  result.write(1, cast[uint](RequestType.DHT))
+  result.write(5, msg)
   result.finish()
 
 proc requestDHTGetValue(key: string, timeout = 0): ProtoBuffer =
@@ -316,13 +316,13 @@ proc requestDHTGetValue(key: string, timeout = 0): ProtoBuffer =
   let msgid = cast[uint](DHTRequestType.GET_VALUE)
   result = initProtoBuffer({WithVarintLength})
   var msg = initProtoBuffer()
-  msg.write(initProtoField(1, msgid))
-  msg.write(initProtoField(4, key))
+  msg.write(1, msgid)
+  msg.write(4, key)
   if timeout > 0:
-    msg.write(initProtoField(7, hint64(timeout)))
+    msg.write(7, hint64(timeout))
   msg.finish()
-  result.write(initProtoField(1, cast[uint](RequestType.DHT)))
-  result.write(initProtoField(5, msg))
+  result.write(1, cast[uint](RequestType.DHT))
+  result.write(5, msg)
   result.finish()
 
 proc requestDHTSearchValue(key: string, timeout = 0): ProtoBuffer =
@@ -331,30 +331,30 @@ proc requestDHTSearchValue(key: string, timeout = 0): ProtoBuffer =
   let msgid = cast[uint](DHTRequestType.SEARCH_VALUE)
   result = initProtoBuffer({WithVarintLength})
   var msg = initProtoBuffer()
-  msg.write(initProtoField(1, msgid))
-  msg.write(initProtoField(4, key))
+  msg.write(1, msgid)
+  msg.write(4, key)
   if timeout > 0:
-    msg.write(initProtoField(7, hint64(timeout)))
+    msg.write(7, hint64(timeout))
   msg.finish()
-  result.write(initProtoField(1, cast[uint](RequestType.DHT)))
-  result.write(initProtoField(5, msg))
+  result.write(1, cast[uint](RequestType.DHT))
+  result.write(5, msg)
   result.finish()
 
-proc requestDHTPutValue(key: string, value: openarray[byte],
+proc requestDHTPutValue(key: string, value: openArray[byte],
                         timeout = 0): ProtoBuffer =
   ## https://github.com/libp2p/go-libp2p-daemon/blob/master/dht.go
   ## Processing function `doDHTPutValue(req *pb.DHTRequest)`.
   let msgid = cast[uint](DHTRequestType.PUT_VALUE)
   result = initProtoBuffer({WithVarintLength})
   var msg = initProtoBuffer()
-  msg.write(initProtoField(1, msgid))
-  msg.write(initProtoField(4, key))
-  msg.write(initProtoField(5, value))
+  msg.write(1, msgid)
+  msg.write(4, key)
+  msg.write(5, value)
   if timeout > 0:
-    msg.write(initProtoField(7, hint64(timeout)))
+    msg.write(7, hint64(timeout))
   msg.finish()
-  result.write(initProtoField(1, cast[uint](RequestType.DHT)))
-  result.write(initProtoField(5, msg))
+  result.write(1, cast[uint](RequestType.DHT))
+  result.write(5, msg)
   result.finish()
 
 proc requestDHTProvide(cid: Cid, timeout = 0): ProtoBuffer =
@@ -363,40 +363,40 @@ proc requestDHTProvide(cid: Cid, timeout = 0): ProtoBuffer =
   let msgid = cast[uint](DHTRequestType.PROVIDE)
   result = initProtoBuffer({WithVarintLength})
   var msg = initProtoBuffer()
-  msg.write(initProtoField(1, msgid))
-  msg.write(initProtoField(3, cid.data.buffer))
+  msg.write(1, msgid)
+  msg.write(3, cid.data.buffer)
   if timeout > 0:
-    msg.write(initProtoField(7, hint64(timeout)))
+    msg.write(7, hint64(timeout))
   msg.finish()
-  result.write(initProtoField(1, cast[uint](RequestType.DHT)))
-  result.write(initProtoField(5, msg))
+  result.write(1, cast[uint](RequestType.DHT))
+  result.write(5, msg)
   result.finish()
 
-proc requestCMTagPeer(peer: PeerID, tag: string, weight: int): ProtoBuffer =
+proc requestCMTagPeer(peer: PeerId, tag: string, weight: int): ProtoBuffer =
   ## https://github.com/libp2p/go-libp2p-daemon/blob/master/connmgr.go#L18
   let msgid = cast[uint](ConnManagerRequestType.TAG_PEER)
   result = initProtoBuffer({WithVarintLength})
   var msg = initProtoBuffer()
-  msg.write(initProtoField(1, msgid))
-  msg.write(initProtoField(2, peer))
-  msg.write(initProtoField(3, tag))
-  msg.write(initProtoField(4, hint64(weight)))
+  msg.write(1, msgid)
+  msg.write(2, peer)
+  msg.write(3, tag)
+  msg.write(4, hint64(weight))
   msg.finish()
-  result.write(initProtoField(1, cast[uint](RequestType.CONNMANAGER)))
-  result.write(initProtoField(6, msg))
+  result.write(1, cast[uint](RequestType.CONNMANAGER))
+  result.write(6, msg)
   result.finish()
 
-proc requestCMUntagPeer(peer: PeerID, tag: string): ProtoBuffer =
+proc requestCMUntagPeer(peer: PeerId, tag: string): ProtoBuffer =
   ## https://github.com/libp2p/go-libp2p-daemon/blob/master/connmgr.go#L33
   let msgid = cast[uint](ConnManagerRequestType.UNTAG_PEER)
   result = initProtoBuffer({WithVarintLength})
   var msg = initProtoBuffer()
-  msg.write(initProtoField(1, msgid))
-  msg.write(initProtoField(2, peer))
-  msg.write(initProtoField(3, tag))
+  msg.write(1, msgid)
+  msg.write(2, peer)
+  msg.write(3, tag)
   msg.finish()
-  result.write(initProtoField(1, cast[uint](RequestType.CONNMANAGER)))
-  result.write(initProtoField(6, msg))
+  result.write(1, cast[uint](RequestType.CONNMANAGER))
+  result.write(6, msg)
   result.finish()
 
 proc requestCMTrim(): ProtoBuffer =
@@ -404,10 +404,10 @@ proc requestCMTrim(): ProtoBuffer =
   let msgid = cast[uint](ConnManagerRequestType.TRIM)
   result = initProtoBuffer({WithVarintLength})
   var msg = initProtoBuffer()
-  msg.write(initProtoField(1, msgid))
+  msg.write(1, msgid)
   msg.finish()
-  result.write(initProtoField(1, cast[uint](RequestType.CONNMANAGER)))
-  result.write(initProtoField(6, msg))
+  result.write(1, cast[uint](RequestType.CONNMANAGER))
+  result.write(6, msg)
   result.finish()
 
 proc requestPSGetTopics(): ProtoBuffer =
@@ -416,10 +416,10 @@ proc requestPSGetTopics(): ProtoBuffer =
   let msgid = cast[uint](PSRequestType.GET_TOPICS)
   result = initProtoBuffer({WithVarintLength})
   var msg = initProtoBuffer()
-  msg.write(initProtoField(1, msgid))
+  msg.write(1, msgid)
   msg.finish()
-  result.write(initProtoField(1, cast[uint](RequestType.PUBSUB)))
-  result.write(initProtoField(8, msg))
+  result.write(1, cast[uint](RequestType.PUBSUB))
+  result.write(8, msg)
   result.finish()
 
 proc requestPSListPeers(topic: string): ProtoBuffer =
@@ -428,25 +428,25 @@ proc requestPSListPeers(topic: string): ProtoBuffer =
   let msgid = cast[uint](PSRequestType.LIST_PEERS)
   result = initProtoBuffer({WithVarintLength})
   var msg = initProtoBuffer()
-  msg.write(initProtoField(1, msgid))
-  msg.write(initProtoField(2, topic))
+  msg.write(1, msgid)
+  msg.write(2, topic)
   msg.finish()
-  result.write(initProtoField(1, cast[uint](RequestType.PUBSUB)))
-  result.write(initProtoField(8, msg))
+  result.write(1, cast[uint](RequestType.PUBSUB))
+  result.write(8, msg)
   result.finish()
 
-proc requestPSPublish(topic: string, data: openarray[byte]): ProtoBuffer =
+proc requestPSPublish(topic: string, data: openArray[byte]): ProtoBuffer =
   ## https://github.com/libp2p/go-libp2p-daemon/blob/master/pubsub.go
   ## Processing function `doPubsubPublish(req *pb.PSRequest)`.
   let msgid = cast[uint](PSRequestType.PUBLISH)
   result = initProtoBuffer({WithVarintLength})
   var msg = initProtoBuffer()
-  msg.write(initProtoField(1, msgid))
-  msg.write(initProtoField(2, topic))
-  msg.write(initProtoField(3, data))
+  msg.write(1, msgid)
+  msg.write(2, topic)
+  msg.write(3, data)
   msg.finish()
-  result.write(initProtoField(1, cast[uint](RequestType.PUBSUB)))
-  result.write(initProtoField(8, msg))
+  result.write(1, cast[uint](RequestType.PUBSUB))
+  result.write(8, msg)
   result.finish()
 
 proc requestPSSubscribe(topic: string): ProtoBuffer =
@@ -455,25 +455,26 @@ proc requestPSSubscribe(topic: string): ProtoBuffer =
   let msgid = cast[uint](PSRequestType.SUBSCRIBE)
   result = initProtoBuffer({WithVarintLength})
   var msg = initProtoBuffer()
-  msg.write(initProtoField(1, msgid))
-  msg.write(initProtoField(2, topic))
+  msg.write(1, msgid)
+  msg.write(2, topic)
   msg.finish()
-  result.write(initProtoField(1, cast[uint](RequestType.PUBSUB)))
-  result.write(initProtoField(8, msg))
+  result.write(1, cast[uint](RequestType.PUBSUB))
+  result.write(8, msg)
   result.finish()
 
-proc checkResponse(pb: var ProtoBuffer): ResponseKind {.inline.} =
+proc checkResponse(pb: ProtoBuffer): ResponseKind {.inline.} =
   result = ResponseKind.Malformed
   var value: uint64
-  if getVarintValue(pb, 1, value) > 0:
+  if getRequiredField(pb, 1, value).isOk():
     if value == 0:
       result = ResponseKind.Success
     else:
       result = ResponseKind.Error
 
-proc getErrorMessage(pb: var ProtoBuffer): string {.inline, raises: [Defect, DaemonLocalError].} =
-  if pb.enterSubmessage() == cast[int](ResponseType.ERROR):
-    if pb.getString(1, result) == -1:
+proc getErrorMessage(pb: ProtoBuffer): string {.inline, raises: [Defect, DaemonLocalError].} =
+  var error: seq[byte]
+  if pb.getRequiredField(ResponseType.ERROR.int, error).isOk():
+    if initProtoBuffer(error).getRequiredField(1, result).isErr():
       raise newException(DaemonLocalError, "Error message is missing!")
 
 proc recvMessage(conn: StreamTransport): Future[seq[byte]] {.async.} =
@@ -724,8 +725,8 @@ proc newDaemonApi*(flags: set[P2PDaemonFlags] = {},
     args.add("-relayDiscovery=true")
   if RelayHop in api.flags:
     args.add("-relayHop=true")
-  if NoInlinePeerID in api.flags:
-    args.add("-noInlinePeerID=true")
+  if NoInlinePeerId in api.flags:
+    args.add("-noInlinePeerId=true")
   if len(bootstrapNodes) > 0:
     args.add("-bootstrapPeers=" & bootstrapNodes.join(","))
   if len(id) != 0:
@@ -830,26 +831,14 @@ proc transactMessage(transp: StreamTransport,
     raise newException(DaemonLocalError, "Incorrect or empty message received!")
   result = initProtoBuffer(message)
 
-proc getPeerInfo(pb: var ProtoBuffer): PeerInfo
+proc getPeerInfo(pb: ProtoBuffer): PeerInfo
   {.raises: [Defect, DaemonLocalError].} =
   ## Get PeerInfo object from ``pb``.
   result.addresses = newSeq[MultiAddress]()
-  if pb.getValue(1, result.peer) == -1:
-    raise newException(DaemonLocalError, "Missing required field `peer`!")
+  if pb.getRequiredField(1, result.peer).isErr():
+    raise newException(DaemonLocalError, "Incorrect or empty message received!")
 
-  var address = newSeq[byte]()
-  while pb.getBytes(2, address) != -1:
-    if len(address) != 0:
-      var copyaddr = address
-      let addrRes = MultiAddress.init(copyaddr)
-
-      # TODO: for some reason `toException` doesn't
-      # work for this module
-      if addrRes.isErr:
-        raise newException(DaemonLocalError, addrRes.error)
-
-      result.addresses.add(addrRes.get())
-      address.setLen(0)
+  discard pb.getRepeatedField(2, result.addresses)
 
 proc identity*(api: DaemonAPI): Future[PeerInfo] {.async.} =
   ## Get Node identity information
@@ -857,13 +846,14 @@ proc identity*(api: DaemonAPI): Future[PeerInfo] {.async.} =
   try:
     var pb = await transactMessage(transp, requestIdentity())
     pb.withMessage() do:
-      let res = pb.enterSubmessage()
-      if res == cast[int](ResponseType.IDENTITY):
-        result = pb.getPeerInfo()
+      var res: seq[byte]
+      if pb.getRequiredField(ResponseType.IDENTITY.int, res).isOk():
+        var resPb = initProtoBuffer(res)
+        result = getPeerInfo(resPb)
   finally:
     await api.closeConnection(transp)
 
-proc connect*(api: DaemonAPI, peer: PeerID,
+proc connect*(api: DaemonAPI, peer: PeerId,
               addresses: seq[MultiAddress],
               timeout = 0) {.async.} =
   ## Connect to remote peer with id ``peer`` and addresses ``addresses``.
@@ -876,7 +866,7 @@ proc connect*(api: DaemonAPI, peer: PeerID,
   except:
     await api.closeConnection(transp)
 
-proc disconnect*(api: DaemonAPI, peer: PeerID) {.async.} =
+proc disconnect*(api: DaemonAPI, peer: PeerId) {.async.} =
   ## Disconnect from remote peer with id ``peer``.
   var transp = await api.newConnection()
   try:
@@ -886,7 +876,7 @@ proc disconnect*(api: DaemonAPI, peer: PeerID) {.async.} =
   finally:
     await api.closeConnection(transp)
 
-proc openStream*(api: DaemonAPI, peer: PeerID,
+proc openStream*(api: DaemonAPI, peer: PeerId,
                  protocols: seq[string],
                  timeout = 0): Future[P2PStream] {.async.} =
   ## Open new stream to peer ``peer`` using one of the protocols in
@@ -897,18 +887,16 @@ proc openStream*(api: DaemonAPI, peer: PeerID,
     var pb = await transp.transactMessage(requestStreamOpen(peer, protocols,
                                                             timeout))
     pb.withMessage() do:
-      var res = pb.enterSubmessage()
-      if res == cast[int](ResponseType.STREAMINFO):
+      var res: seq[byte]
+      if pb.getRequiredField(ResponseType.STREAMINFO.int, res).isOk():
+        let resPb = initProtoBuffer(res)
         # stream.peer = newSeq[byte]()
         var raddress = newSeq[byte]()
         stream.protocol = ""
-        if pb.getValue(1, stream.peer) == -1:
-          raise newException(DaemonLocalError, "Missing `peer` field!")
-        if pb.getLengthValue(2, raddress) == -1:
-          raise newException(DaemonLocalError, "Missing `address` field!")
+        resPb.getRequiredField(1, stream.peer).tryGet()
+        resPb.getRequiredField(2, raddress).tryGet()
         stream.raddress = MultiAddress.init(raddress).tryGet()
-        if pb.getLengthValue(3, stream.protocol) == -1:
-          raise newException(DaemonLocalError, "Missing `proto` field!")
+        resPb.getRequiredField(3, stream.protocol).tryGet()
         stream.flags.incl(Outbound)
         stream.transp = transp
         result = stream
@@ -923,13 +911,10 @@ proc streamHandler(server: StreamServer, transp: StreamTransport) {.async.} =
   var stream = new P2PStream
   var raddress = newSeq[byte]()
   stream.protocol = ""
-  if pb.getValue(1, stream.peer) == -1:
-    raise newException(DaemonLocalError, "Missing `peer` field!")
-  if pb.getLengthValue(2, raddress) == -1:
-    raise newException(DaemonLocalError, "Missing `address` field!")
+  pb.getRequiredField(1, stream.peer).tryGet()
+  pb.getRequiredField(2, raddress).tryGet()
   stream.raddress = MultiAddress.init(raddress).tryGet()
-  if pb.getLengthValue(3, stream.protocol) == -1:
-    raise newException(DaemonLocalError, "Missing `proto` field!")
+  pb.getRequiredField(3, stream.protocol).tryGet()
   stream.flags.incl(Inbound)
   stream.transp = transp
   if len(stream.protocol) > 0:
@@ -968,18 +953,15 @@ proc listPeers*(api: DaemonAPI): Future[seq[PeerInfo]] {.async.} =
     var pb = await transp.transactMessage(requestListPeers())
     pb.withMessage() do:
       result = newSeq[PeerInfo]()
-      var res = pb.enterSubmessage()
-      while res != 0:
-        if res == cast[int](ResponseType.PEERINFO):
-          var peer = pb.getPeerInfo()
+      var ress: seq[seq[byte]]
+      if pb.getRequiredRepeatedField(ResponseType.PEERINFO.int, ress).isOk():
+        for p in ress:
+          let peer = initProtoBuffer(p).getPeerInfo()
           result.add(peer)
-        else:
-          pb.skipSubmessage()
-        res = pb.enterSubmessage()
   finally:
     await api.closeConnection(transp)
 
-proc cmTagPeer*(api: DaemonAPI, peer: PeerID, tag: string,
+proc cmTagPeer*(api: DaemonAPI, peer: PeerId, tag: string,
               weight: int) {.async.} =
   ## Tag peer with id ``peer`` using ``tag`` and ``weight``.
   var transp = await api.newConnection()
@@ -990,7 +972,7 @@ proc cmTagPeer*(api: DaemonAPI, peer: PeerID, tag: string,
   finally:
     await api.closeConnection(transp)
 
-proc cmUntagPeer*(api: DaemonAPI, peer: PeerID, tag: string) {.async.} =
+proc cmUntagPeer*(api: DaemonAPI, peer: PeerId, tag: string) {.async.} =
   ## Remove tag ``tag`` from peer with id ``peer``.
   var transp = await api.newConnection()
   try:
@@ -1010,51 +992,61 @@ proc cmTrimPeers*(api: DaemonAPI) {.async.} =
   finally:
     await api.closeConnection(transp)
 
-proc dhtGetSinglePeerInfo(pb: var ProtoBuffer): PeerInfo
+proc dhtGetSinglePeerInfo(pb: ProtoBuffer): PeerInfo
   {.raises: [Defect, DaemonLocalError].} =
-  if pb.enterSubmessage() == 2:
-    result = pb.getPeerInfo()
+  var res: seq[byte]
+  if pb.getRequiredField(2, res).isOk():
+    result = initProtoBuffer(res).getPeerInfo()
   else:
     raise newException(DaemonLocalError, "Missing required field `peer`!")
 
-proc dhtGetSingleValue(pb: var ProtoBuffer): seq[byte]
+proc dhtGetSingleValue(pb: ProtoBuffer): seq[byte]
   {.raises: [Defect, DaemonLocalError].} =
   result = newSeq[byte]()
-  if pb.getLengthValue(3, result) == -1:
+  if pb.getRequiredField(3, result).isErr():
     raise newException(DaemonLocalError, "Missing field `value`!")
 
-proc dhtGetSinglePublicKey(pb: var ProtoBuffer): PublicKey
+proc dhtGetSinglePublicKey(pb: ProtoBuffer): PublicKey
   {.raises: [Defect, DaemonLocalError].} =
-  if pb.getValue(3, result) == -1:
+  if pb.getRequiredField(3, result).isErr():
     raise newException(DaemonLocalError, "Missing field `value`!")
 
-proc dhtGetSinglePeerID(pb: var ProtoBuffer): PeerID
+proc dhtGetSinglePeerId(pb: ProtoBuffer): PeerId
   {.raises: [Defect, DaemonLocalError].} =
-  if pb.getValue(3, result) == -1:
+  if pb.getRequiredField(3, result).isErr():
     raise newException(DaemonLocalError, "Missing field `value`!")
 
-proc enterDhtMessage(pb: var ProtoBuffer, rt: DHTResponseType)
+proc enterDhtMessage(pb: ProtoBuffer, rt: DHTResponseType): Protobuffer
   {.inline, raises: [Defect, DaemonLocalError].} =
-  var dtype: uint
-  var res = pb.enterSubmessage()
-  if res == cast[int](ResponseType.DHT):
-    if pb.getVarintValue(1, dtype) == 0:
+  var dhtResponse: seq[byte]
+  if pb.getRequiredField(ResponseType.DHT.int, dhtResponse).isOk():
+    var pbDhtResponse = initProtoBuffer(dhtResponse)
+    var dtype: uint
+    if pbDhtResponse.getRequiredField(1, dtype).isErr():
       raise newException(DaemonLocalError, "Missing required DHT field `type`!")
     if dtype != cast[uint](rt):
       raise newException(DaemonLocalError, "Wrong DHT answer type! ")
+
+    var value: seq[byte]
+    if pbDhtResponse.getRequiredField(3, value).isErr():
+      raise newException(DaemonLocalError, "Missing required DHT field `value`!")
+    
+    return initProtoBuffer(value)
   else:
     raise newException(DaemonLocalError, "Wrong message type!")
 
-proc enterPsMessage(pb: var ProtoBuffer)
+proc enterPsMessage(pb: ProtoBuffer): ProtoBuffer
   {.inline, raises: [Defect, DaemonLocalError].} =
-  var res = pb.enterSubmessage()
-  if res != cast[int](ResponseType.PUBSUB):
+  var res: seq[byte]
+  if pb.getRequiredField(ResponseType.PUBSUB.int, res).isErr():
     raise newException(DaemonLocalError, "Wrong message type!")
 
-proc getDhtMessageType(pb: var ProtoBuffer): DHTResponseType
+  initProtoBuffer(res)
+
+proc getDhtMessageType(pb: ProtoBuffer): DHTResponseType
   {.inline, raises: [Defect, DaemonLocalError].} =
   var dtype: uint
-  if pb.getVarintValue(1, dtype) == 0:
+  if pb.getRequiredField(1, dtype).isErr():
     raise newException(DaemonLocalError, "Missing required DHT field `type`!")
   if dtype == cast[uint](DHTResponseType.VALUE):
     result = DHTResponseType.VALUE
@@ -1063,7 +1055,7 @@ proc getDhtMessageType(pb: var ProtoBuffer): DHTResponseType
   else:
     raise newException(DaemonLocalError, "Wrong DHT answer type!")
 
-proc dhtFindPeer*(api: DaemonAPI, peer: PeerID,
+proc dhtFindPeer*(api: DaemonAPI, peer: PeerId,
                   timeout = 0): Future[PeerInfo] {.async.} =
   ## Find peer with id ``peer`` and return peer information ``PeerInfo``.
   ##
@@ -1073,12 +1065,11 @@ proc dhtFindPeer*(api: DaemonAPI, peer: PeerID,
   try:
     var pb = await transp.transactMessage(requestDHTFindPeer(peer, timeout))
     withMessage(pb) do:
-      pb.enterDhtMessage(DHTResponseType.VALUE)
-      result = pb.dhtGetSinglePeerInfo()
+      result = pb.enterDhtMessage(DHTResponseType.VALUE).dhtGetSinglePeerInfo()
   finally:
     await api.closeConnection(transp)
 
-proc dhtGetPublicKey*(api: DaemonAPI, peer: PeerID,
+proc dhtGetPublicKey*(api: DaemonAPI, peer: PeerId,
                       timeout = 0): Future[PublicKey] {.async.} =
   ## Get peer's public key from peer with id ``peer``.
   ##
@@ -1088,8 +1079,7 @@ proc dhtGetPublicKey*(api: DaemonAPI, peer: PeerID,
   try:
     var pb = await transp.transactMessage(requestDHTGetPublicKey(peer, timeout))
     withMessage(pb) do:
-      pb.enterDhtMessage(DHTResponseType.VALUE)
-      result = pb.dhtGetSinglePublicKey()
+      result = pb.enterDhtMessage(DHTResponseType.VALUE).dhtGetSinglePublicKey()
   finally:
     await api.closeConnection(transp)
 
@@ -1103,8 +1093,7 @@ proc dhtGetValue*(api: DaemonAPI, key: string,
   try:
     var pb = await transp.transactMessage(requestDHTGetValue(key, timeout))
     withMessage(pb) do:
-      pb.enterDhtMessage(DHTResponseType.VALUE)
-      result = pb.dhtGetSingleValue()
+      result = pb.enterDhtMessage(DHTResponseType.VALUE).dhtGetSingleValue()
   finally:
     await api.closeConnection(transp)
 
@@ -1136,7 +1125,7 @@ proc dhtProvide*(api: DaemonAPI, cid: Cid, timeout = 0) {.async.} =
   finally:
     await api.closeConnection(transp)
 
-proc dhtFindPeersConnectedToPeer*(api: DaemonAPI, peer: PeerID,
+proc dhtFindPeersConnectedToPeer*(api: DaemonAPI, peer: PeerId,
                                  timeout = 0): Future[seq[PeerInfo]] {.async.} =
   ## Find peers which are connected to peer with id ``peer``.
   ##
@@ -1148,7 +1137,7 @@ proc dhtFindPeersConnectedToPeer*(api: DaemonAPI, peer: PeerID,
     let spb = requestDHTFindPeersConnectedToPeer(peer, timeout)
     var pb = await transp.transactMessage(spb)
     withMessage(pb) do:
-      pb.enterDhtMessage(DHTResponseType.BEGIN)
+      discard pb.enterDhtMessage(DHTResponseType.BEGIN)
       while true:
         var message = await transp.recvMessage()
         if len(message) == 0:
@@ -1162,18 +1151,18 @@ proc dhtFindPeersConnectedToPeer*(api: DaemonAPI, peer: PeerID,
     await api.closeConnection(transp)
 
 proc dhtGetClosestPeers*(api: DaemonAPI, key: string,
-                         timeout = 0): Future[seq[PeerID]] {.async.} =
+                         timeout = 0): Future[seq[PeerId]] {.async.} =
   ## Get closest peers for ``key``.
   ##
   ## You can specify timeout for DHT request with ``timeout`` value. ``0`` value
   ## means no timeout.
   var transp = await api.newConnection()
-  var list = newSeq[PeerID]()
+  var list = newSeq[PeerId]()
   try:
     let spb = requestDHTGetClosestPeers(key, timeout)
     var pb = await transp.transactMessage(spb)
     withMessage(pb) do:
-      pb.enterDhtMessage(DHTResponseType.BEGIN)
+      discard pb.enterDhtMessage(DHTResponseType.BEGIN)
       while true:
         var message = await transp.recvMessage()
         if len(message) == 0:
@@ -1181,7 +1170,7 @@ proc dhtGetClosestPeers*(api: DaemonAPI, key: string,
         var cpb = initProtoBuffer(message)
         if cpb.getDhtMessageType() == DHTResponseType.END:
           break
-        list.add(cpb.dhtGetSinglePeerID())
+        list.add(cpb.dhtGetSinglePeerId())
       result = list
   finally:
     await api.closeConnection(transp)
@@ -1198,7 +1187,7 @@ proc dhtFindProviders*(api: DaemonAPI, cid: Cid, count: uint32,
     let spb = requestDHTFindProviders(cid, count, timeout)
     var pb = await transp.transactMessage(spb)
     withMessage(pb) do:
-      pb.enterDhtMessage(DHTResponseType.BEGIN)
+      discard pb.enterDhtMessage(DHTResponseType.BEGIN)
       while true:
         var message = await transp.recvMessage()
         if len(message) == 0:
@@ -1222,7 +1211,7 @@ proc dhtSearchValue*(api: DaemonAPI, key: string,
   try:
     var pb = await transp.transactMessage(requestDHTSearchValue(key, timeout))
     withMessage(pb) do:
-      pb.enterDhtMessage(DHTResponseType.BEGIN)
+      discard pb.enterDhtMessage(DHTResponseType.BEGIN)
       while true:
         var message = await transp.recvMessage()
         if len(message) == 0:
@@ -1241,30 +1230,26 @@ proc pubsubGetTopics*(api: DaemonAPI): Future[seq[string]] {.async.} =
   try:
     var pb = await transp.transactMessage(requestPSGetTopics())
     withMessage(pb) do:
-      pb.enterPsMessage()
+      let innerPb = pb.enterPsMessage()
       var topics = newSeq[string]()
-      var topic = ""
-      while pb.getString(1, topic) != -1:
-        topics.add(topic)
-        topic.setLen(0)
+      discard innerPb.getRepeatedField(1, topics)
       result = topics
   finally:
     await api.closeConnection(transp)
 
 proc pubsubListPeers*(api: DaemonAPI,
-                      topic: string): Future[seq[PeerID]] {.async.} =
+                      topic: string): Future[seq[PeerId]] {.async.} =
   ## Get list of peers we are connected to and which also subscribed to topic
   ## ``topic``.
   var transp = await api.newConnection()
   try:
     var pb = await transp.transactMessage(requestPSListPeers(topic))
     withMessage(pb) do:
-      var peer: PeerID
-      pb.enterPsMessage()
-      var peers = newSeq[PeerID]()
-      while pb.getValue(2, peer) != -1:
-        peers.add(peer)
-      result = peers
+      var peer: PeerId
+      let innerPb = pb.enterPsMessage()
+      var peers = newSeq[seq[byte]]()
+      discard innerPb.getRepeatedField(2, peers)
+      result = peers.mapIt(PeerId.init(it).get())
   finally:
     await api.closeConnection(transp)
 
@@ -1279,24 +1264,15 @@ proc pubsubPublish*(api: DaemonAPI, topic: string,
   finally:
     await api.closeConnection(transp)
 
-proc getPubsubMessage*(pb: var ProtoBuffer): PubSubMessage =
+proc getPubsubMessage*(pb: ProtoBuffer): PubSubMessage =
   result.data = newSeq[byte]()
   result.seqno = newSeq[byte]()
-  discard pb.getValue(1, result.peer)
-  discard pb.getBytes(2, result.data)
-  discard pb.getBytes(3, result.seqno)
-  var item = newSeq[byte]()
-  while true:
-    if pb.getBytes(4, item) == -1:
-      break
-    var copyitem = item
-    var stritem = cast[string](copyitem)
-    if len(result.topics) == 0:
-      result.topics = newSeq[string]()
-    result.topics.add(stritem)
-    item.setLen(0)
-  discard pb.getValue(5, result.signature)
-  discard pb.getValue(6, result.key)
+  discard pb.getField(1, result.peer)
+  discard pb.getField(2, result.data)
+  discard pb.getField(3, result.seqno)
+  discard pb.getRepeatedField(4, result.topics)
+  discard pb.getField(5, result.signature)
+  discard pb.getField(6, result.key)
 
 proc pubsubLoop(api: DaemonAPI, ticket: PubsubTicket) {.async.} =
   while true:
@@ -1332,7 +1308,7 @@ proc pubsubSubscribe*(api: DaemonAPI, topic: string,
 proc shortLog*(pinfo: PeerInfo): string =
   ## Get string representation of ``PeerInfo`` object.
   result = newStringOfCap(128)
-  result.add("{PeerID: '")
+  result.add("{PeerId: '")
   result.add($pinfo.peer.shortLog())
   result.add("' Addresses: [")
   let length = len(pinfo.addresses)

@@ -53,6 +53,10 @@ const
     "/ip4/1.2.3.4/tcp/80/unix/a/b/c/d/e/f",
     "/ip4/127.0.0.1/ipfs/QmcgpsyWgH8Y8ajJz1Cu72KnS5uo2Aa2LpzU7kinSupNKC/tcp/1234/unix/stdio",
     "/ip4/127.0.0.1/p2p/QmcgpsyWgH8Y8ajJz1Cu72KnS5uo2Aa2LpzU7kinSupNKC/tcp/1234/unix/stdio",
+    "/dns/example.io/udp/65535",
+    "/dns4/example.io/udp/65535",
+    "/dns6/example.io/udp/65535",
+    "/dnsaddr/example.io/udp/65535",
   ]
 
   FailureVectors = [
@@ -188,29 +192,6 @@ const
     "9003172F612F622F632F642F652F662F672F682F692E736F636B"
   ]
 
-  UtilitySuccessVectors = [
-    "/ip4/127.0.0.1/tcp/1024",
-    "/ip4/127.0.0.1/udp/1024",
-    "/ip4/0.0.0.0/tcp/1024",
-    "/ip4/0.0.0.0/udp/1024",
-    "/ip4/255.255.255.255/tcp/65535",
-    "/ip4/255.255.255.255/udp/65535",
-    "/ip6/::1/tcp/1024",
-    "/ip6/::1/udp/1024",
-    "/ip6/::/tcp/65535",
-    "/ip6/::/udp/65535",
-    "/ip6/::/udp/65535",
-    "/unix/tmp/test.socket"
-  ]
-
-  UtilityFailVectors = [
-    "/ip4/127.0.0.1/ipfs/QmcgpsyWgH8Y8ajJz1Cu72KnS5uo2Aa2LpzU7kinSupNKC",
-    "/ip4/127.0.0.1/ipfs/QmcgpsyWgH8Y8ajJz1Cu72KnS5uo2Aa2LpzU7kinSupNKC/tcp/1234",
-    "/ip6/2001:8a0:7ac5:4201:3ac9:86ff:fe31:7095/tcp/8000/ws/ipfs/QmcgpsyWgH8Y8ajJz1Cu72KnS5uo2Aa2LpzU7kinSupNKC",
-    "/p2p-webrtc-star/ip4/127.0.0.1/tcp/9090/ws/ipfs/QmcgpsyWgH8Y8ajJz1Cu72KnS5uo2Aa2LpzU7kinSupNKC",
-    "/ip4/127.0.0.1/udp/1234/quic"
-  ]
-
   PatternVectors = [
     PatternVector(pattern: IP,
       good: @["/ip4/0.0.0.0", "/ip6/fc00::"],
@@ -257,7 +238,7 @@ const
       ]
     ),
     PatternVector(pattern: DNS,
-      good: @["/dnsaddr/example.io", "/dns4/example.io", "/dns6/example.io"],
+      good: @["/dns/example.io", "/dnsaddr/example.io", "/dns4/example.io", "/dns6/example.io"],
       bad: @["/ip4/127.0.0.1"],
     ),
     PatternVector(pattern: WebRTCDirect,
@@ -334,14 +315,6 @@ suite "MultiAddress test suite":
     check:
       $cma == "/ip4/127.0.0.1/udp/30000/p2p-circuit"
       $ma2 == "/ip4/127.0.0.1/udp/30000/p2p-circuit"
-
-  test "isWire() test":
-    for item in UtilitySuccessVectors:
-      var a = MultiAddress.init(item).get()
-      check a.isWire() == true
-    for item in UtilityFailVectors:
-      var a = MultiAddress.init(item).get()
-      check a.isWire() == false
 
   test "Path addresses serialization/deserialization":
     for i in 0..<len(PathVectors):

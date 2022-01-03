@@ -10,7 +10,6 @@
 {.push raises: [Defect].}
 
 import std/[tables, sequtils, sets, algorithm]
-import random # for shuffle
 import chronos, chronicles, metrics
 import "."/[types, scoring]
 import ".."/[pubsubpeer, peertable, timedcache, mcache, floodsub, pubsub]
@@ -39,11 +38,20 @@ proc grafted*(g: GossipSub, p: PubSubPeer, topic: string) {.raises: [Defect].} =
 
     trace "grafted", peer=p, topic
 
-proc pruned*(g: GossipSub, p: PubSubPeer, topic: string, setBackoff: bool = true) {.raises: [Defect].} =
+proc pruned*(g: GossipSub,
+             p: PubSubPeer,
+             topic: string,
+             setBackoff: bool = true,
+             backoff = none(Duration)) {.raises: [Defect].} =
   if setBackoff:
-    let backoff = Moment.fromNow(g.parameters.pruneBackoff)
+    let
+      backoffDuration =
+        if isSome(backoff): backoff.get()
+        else: g.parameters.pruneBackoff
+      backoffMoment = Moment.fromNow(backoffDuration)
+
     g.backingOff
-      .mgetOrPut(topic, initTable[PeerID, Moment]())[p.peerId] = backoff
+      .mgetOrPut(topic, initTable[PeerId, Moment]())[p.peerId] = backoffMoment
 
   g.peerStats.withValue(p.peerId, stats):
     stats.topicInfos.withValue(topic, info):
@@ -63,7 +71,7 @@ proc pruned*(g: GossipSub, p: PubSubPeer, topic: string, setBackoff: bool = true
 proc handleBackingOff*(t: var BackoffTable, topic: string) {.raises: [Defect].} =
   let now = Moment.now()
   var expired = toSeq(t.getOrDefault(topic).pairs())
-  expired.keepIf do (pair: tuple[peer: PeerID, expire: Moment]) -> bool:
+  expired.keepIf do (pair: tuple[peer: PeerId, expire: Moment]) -> bool:
     now >= pair.expire
   for (peer, _) in expired:
     t.withValue(topic, v):
@@ -76,7 +84,7 @@ proc peerExchangeList*(g: GossipSub, topic: string): seq[PeerInfoMsg] {.raises: 
   # by spec, larger then Dhi, but let's put some hard caps
   peers.setLen(min(peers.len, g.parameters.dHigh * 2))
   peers.map do (x: PubSubPeer) -> PeerInfoMsg:
-    PeerInfoMsg(peerID: x.peerId.getBytes())
+    PeerInfoMsg(peerId: x.peerId.getBytes())
 
 proc handleGraft*(g: GossipSub,
                  peer: PubSubPeer,
@@ -89,7 +97,7 @@ proc handleGraft*(g: GossipSub,
     # It is an error to GRAFT on a explicit peer
     if peer.peerId in g.parameters.directPeers:
       # receiving a graft from a direct peer should yield a more prominent warning (protocol violation)
-      warn "attempt to graft an explicit peer, peering agreements should be reciprocal",
+      warn "an explicit peer attempted to graft us, peering agreements should be reciprocal",
         peer, topic
       # and such an attempt should be logged and rejected with a PRUNE
       prunes.add(ControlPrune(
@@ -99,16 +107,20 @@ proc handleGraft*(g: GossipSub,
 
       let backoff = Moment.fromNow(g.parameters.pruneBackoff)
       g.backingOff
-        .mgetOrPut(topic, initTable[PeerID, Moment]())[peer.peerId] = backoff
+        .mgetOrPut(topic, initTable[PeerId, Moment]())[peer.peerId] = backoff
 
       peer.behaviourPenalty += 0.1
 
       continue
 
+    # Check backingOff
+    # Ignore BackoffSlackTime here, since this only for outbound activity
+    # and subtract a second time to avoid race conditions
+    # (peers may wait to graft us as the exact instant they're allowed to)
     if  g.backingOff
           .getOrDefault(topic)
-          .getOrDefault(peer.peerId) > Moment.now():
-      debug "attempt to graft a backingOff peer", peer, topic
+          .getOrDefault(peer.peerId) - (BackoffSlackTime * 2).seconds > Moment.now():
+      debug "a backingOff peer attempted to graft us", peer, topic
       # and such an attempt should be logged and rejected with a PRUNE
       prunes.add(ControlPrune(
         topicID: topic,
@@ -117,7 +129,7 @@ proc handleGraft*(g: GossipSub,
 
       let backoff = Moment.fromNow(g.parameters.pruneBackoff)
       g.backingOff
-        .mgetOrPut(topic, initTable[PeerID, Moment]())[peer.peerId] = backoff
+        .mgetOrPut(topic, initTable[PeerId, Moment]())[peer.peerId] = backoff
 
       peer.behaviourPenalty += 0.1
 
@@ -162,19 +174,17 @@ proc handlePrune*(g: GossipSub, peer: PubSubPeer, prunes: seq[ControlPrune]) {.r
     # add peer backoff
     if prune.backoff > 0:
       let
-        # avoid overflows and follow params
-        # worst case if the remote thinks we are wrong we get penalized
-        # but we won't end up with ghost peers
+        # avoid overflows and clamp to reasonable value
         backoffSeconds = clamp(
           prune.backoff + BackoffSlackTime,
           0'u64,
-          g.parameters.pruneBackoff.seconds.uint64 + BackoffSlackTime
+          1.days.seconds.uint64
         )
         backoff = Moment.fromNow(backoffSeconds.int64.seconds)
         current = g.backingOff.getOrDefault(topic).getOrDefault(peer.peerId)
       if backoff > current:
         g.backingOff
-          .mgetOrPut(topic, initTable[PeerID, Moment]())[peer.peerId] = backoff
+          .mgetOrPut(topic, initTable[PeerId, Moment]())[peer.peerId] = backoff
 
     trace "pruning rpc received peer", peer, score = peer.score
     g.pruned(peer, topic, setBackoff = false)
@@ -213,7 +223,7 @@ proc handleIHave*(g: GossipSub,
               break
     # shuffling res.messageIDs before sending it out to increase the likelihood
     # of getting an answer if the peer truncates the list due to internal size restrictions.
-    shuffle(res.messageIDs)
+    g.rng.shuffle(res.messageIDs)
     return res
 
 proc handleIWant*(g: GossipSub,
@@ -280,7 +290,7 @@ proc rebalanceMesh*(g: GossipSub, topic: string, metrics: ptr MeshMetrics = nil)
     )
 
     # shuffle anyway, score might be not used
-    shuffle(candidates)
+    g.rng.shuffle(candidates)
 
     # sort peers by score, high score first since we graft
     candidates.sort(byScore, SortOrder.Descending)
@@ -316,7 +326,7 @@ proc rebalanceMesh*(g: GossipSub, topic: string, metrics: ptr MeshMetrics = nil)
       )
 
       # shuffle anyway, score might be not used
-      shuffle(candidates)
+      g.rng.shuffle(candidates)
 
       # sort peers by score, high score first, we are grafting
       candidates.sort(byScore, SortOrder.Descending)
@@ -348,7 +358,7 @@ proc rebalanceMesh*(g: GossipSub, topic: string, metrics: ptr MeshMetrics = nil)
     prunes.keepIf do (x: PubSubPeer) -> bool: x notin grafts
 
     # shuffle anyway, score might be not used
-    shuffle(prunes)
+    g.rng.shuffle(prunes)
 
     # sort peers by score (inverted), pruning, so low score peers are on top
     prunes.sort(byScore, SortOrder.Ascending)
@@ -380,7 +390,7 @@ proc rebalanceMesh*(g: GossipSub, topic: string, metrics: ptr MeshMetrics = nil)
       if pruneLen > 0:
         # Ok we got some peers to prune,
         # for this heartbeat let's prune those
-        shuffle(prunes)
+        g.rng.shuffle(prunes)
         prunes.setLen(pruneLen)
 
       trace "pruning", prunes = prunes.len
@@ -517,7 +527,7 @@ proc getGossipPeers*(g: GossipSub): Table[PubSubPeer, ControlMessage] {.raises: 
     # similar to rust: https://github.com/sigp/rust-libp2p/blob/f53d02bc873fef2bf52cd31e3d5ce366a41d8a8c/protocols/gossipsub/src/behaviour.rs#L2101
     # and go https://github.com/libp2p/go-libp2p-pubsub/blob/08c17398fb11b2ab06ca141dddc8ec97272eb772/gossipsub.go#L582
     if midsSeq.len > IHaveMaxLength:
-      shuffle(midsSeq)
+      g.rng.shuffle(midsSeq)
       midsSeq.setLen(IHaveMaxLength)
 
     let
@@ -538,7 +548,7 @@ proc getGossipPeers*(g: GossipSub): Table[PubSubPeer, ControlMessage] {.raises: 
       target = min(factor, allPeers.len)
 
     if target < allPeers.len:
-      shuffle(allPeers)
+      g.rng.shuffle(allPeers)
       allPeers.setLen(target)
 
     for peer in allPeers:

@@ -16,6 +16,7 @@ import ./pubsub,
        ./timedcache,
        ./peertable,
        ./rpc/[message, messages],
+       ../../crypto/crypto,
        ../../stream/connection,
        ../../peerid,
        ../../peerinfo,
@@ -74,7 +75,7 @@ proc handleSubscribe*(f: FloodSub,
       # unsubscribe the peer from the topic
       peers[].excl(peer)
 
-method unsubscribePeer*(f: FloodSub, peer: PeerID) =
+method unsubscribePeer*(f: FloodSub, peer: PeerId) =
   ## handle peer disconnects
   ##
   trace "unsubscribing floodsub peer", peer
@@ -207,8 +208,7 @@ method initPubSub*(f: FloodSub)
   {.raises: [Defect, InitializationError].} =
   procCall PubSub(f).initPubSub()
   f.seen = TimedCache[MessageID].init(2.minutes)
-  var rng = newRng()
   f.seenSalt = newSeqUninitialized[byte](sizeof(Hash))
-  brHmacDrbgGenerate(rng[], f.seenSalt)
+  brHmacDrbgGenerate(f.rng[], f.seenSalt)
 
   f.init()

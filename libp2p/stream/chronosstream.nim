@@ -26,18 +26,18 @@ type
     client: StreamTransport
     when defined(libp2p_agents_metrics):
       tracked: bool
-      shortAgent: string
 
 when defined(libp2p_agents_metrics):
   declareGauge(libp2p_peers_identity, "peers identities", labels = ["agent"])
   declareCounter(libp2p_peers_traffic_read, "incoming traffic", labels = ["agent"])
   declareCounter(libp2p_peers_traffic_write, "outgoing traffic", labels = ["agent"])
 
+declareCounter(libp2p_network_bytes, "total traffic", labels = ["direction"])
+
 func shortLog*(conn: ChronosStream): auto =
   try:
     if conn.isNil: "ChronosStream(nil)"
-    elif conn.peerInfo.isNil: $conn.oid
-    else: &"{shortLog(conn.peerInfo.peerId)}:{conn.oid}"
+    else: &"{shortLog(conn.peerId)}:{conn.oid}"
   except ValueError as exc:
     raise newException(Defect, exc.msg)
 
@@ -45,7 +45,7 @@ chronicles.formatIt(ChronosStream): shortLog(it)
 
 method initStream*(s: ChronosStream) =
   if s.objName.len == 0:
-    s.objName = "ChronosStream"
+    s.objName = ChronosStreamTrackerName
 
   s.timeoutHandler = proc() {.async, gcsafe.} =
     trace "Idle timeout expired, closing ChronosStream", s
@@ -82,16 +82,9 @@ template withExceptions(body: untyped) =
 
 when defined(libp2p_agents_metrics):
   proc trackPeerIdentity(s: ChronosStream) =
-    if not s.tracked:
-      if not isNil(s.peerInfo) and s.peerInfo.agentVersion.len > 0:
-        # / seems a weak "standard" so for now it's reliable
-        let shortAgent = s.peerInfo.agentVersion.split("/")[0].safeToLowerAscii()
-        if shortAgent.isOk() and KnownLibP2PAgentsSeq.contains(shortAgent.get()):
-          s.shortAgent = shortAgent.get()
-        else:
-          s.shortAgent = "unknown"
-        libp2p_peers_identity.inc(labelValues = [s.shortAgent])
-        s.tracked = true
+    if not s.tracked and s.shortAgent.len > 0:
+      libp2p_peers_identity.inc(labelValues = [s.shortAgent])
+      s.tracked = true
 
   proc untrackPeerIdentity(s: ChronosStream) =
     if s.tracked:
@@ -101,39 +94,45 @@ when defined(libp2p_agents_metrics):
 method readOnce*(s: ChronosStream, pbytes: pointer, nbytes: int): Future[int] {.async.} =
   if s.atEof:
     raise newLPStreamEOFError()
-
   withExceptions:
     result = await s.client.readOnce(pbytes, nbytes)
     s.activity = true # reset activity flag
+    libp2p_network_bytes.inc(nbytes.int64, labelValues = ["in"])
     when defined(libp2p_agents_metrics):
       s.trackPeerIdentity()
       if s.tracked:
         libp2p_peers_traffic_read.inc(nbytes.int64, labelValues = [s.shortAgent])
 
-method write*(s: ChronosStream, msg: seq[byte]) {.async.} =
-  if s.closed:
-    raise newLPStreamClosedError()
-
-  if msg.len == 0:
-    return
-
+proc completeWrite(
+    s: ChronosStream, fut: Future[int], msgLen: int): Future[void] {.async.} =
   withExceptions:
     # StreamTransport will only return written < msg.len on fatal failures where
     # further writing is not possible - in such cases, we'll raise here,
     # since we don't return partial writes lengths
-    var written = await s.client.write(msg)
+    var written = await fut
 
-    if written < msg.len:
+    if written < msgLen:
       raise (ref LPStreamClosedError)(msg: "Write couldn't finish writing")
 
     s.activity = true # reset activity flag
+    libp2p_network_bytes.inc(msgLen.int64, labelValues = ["out"])
     when defined(libp2p_agents_metrics):
       s.trackPeerIdentity()
       if s.tracked:
-        libp2p_peers_traffic_write.inc(msg.len.int64, labelValues = [s.shortAgent])
+        libp2p_peers_traffic_write.inc(msgLen.int64, labelValues = [s.shortAgent])
+
+method write*(s: ChronosStream, msg: seq[byte]): Future[void] =
+  # Avoid a copy of msg being kept in the closure created by `{.async.}` as this
+  # drives up memory usage
+  if s.closed:
+    let fut = newFuture[void]("chronosstream.write.closed")
+    fut.fail(newLPStreamClosedError())
+    return fut
+
+  s.completeWrite(s.client.write(msg), msg.len)
 
 method closed*(s: ChronosStream): bool =
-  result = s.client.closed
+  s.client.closed
 
 method atEof*(s: ChronosStream): bool =
   s.client.atEof()

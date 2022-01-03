@@ -100,8 +100,7 @@ type
 func shortLog*(conn: NoiseConnection): auto =
   try:
     if conn.isNil: "NoiseConnection(nil)"
-    elif conn.peerInfo.isNil: $conn.oid
-    else: &"{shortLog(conn.peerInfo.peerId)}:{conn.oid}"
+    else: &"{shortLog(conn.peerId)}:{conn.oid}"
   except ValueError as exc:
     raise newException(Defect, exc.msg)
 
@@ -147,7 +146,7 @@ proc encrypt(
 
 proc encryptWithAd(state: var CipherState, ad, data: openArray[byte]): seq[byte]
   {.raises: [Defect, NoiseNonceMaxError].} =
-  result = newSeqOfCap[byte](data.len + sizeof(ChachaPolyTag))
+  result = newSeqOfCap[byte](data.len + sizeof(ChaChaPolyTag))
   result.add(data)
 
   let tag = encrypt(state, result, ad)
@@ -218,7 +217,7 @@ proc encryptAndHash(ss: var SymmetricState, data: openArray[byte]): seq[byte]
 proc decryptAndHash(ss: var SymmetricState, data: openArray[byte]): seq[byte]
   {.raises: [Defect, NoiseDecryptTagError, NoiseNonceMaxError].} =
   # according to spec if key is empty leave plaintext
-  if ss.cs.hasKey:
+  if ss.cs.hasKey and data.len > ChaChaPolyTag.len:
     result = ss.cs.decryptWithAd(ss.h.data, data)
   else:
     result = @data
@@ -369,7 +368,7 @@ proc handshakeXXOutbound(
     dh_se()
 
     # last payload must follow the encrypted way of sending
-    msg.add hs.ss.encryptAndHash(p2psecret)
+    msg.add hs.ss.encryptAndHash(p2pSecret)
 
     await conn.sendHSMessage(msg.data)
 
@@ -409,7 +408,7 @@ proc handshakeXXInbound(
     write_s()
     dh_es()
 
-    msg.add hs.ss.encryptAndHash(p2psecret)
+    msg.add hs.ss.encryptAndHash(p2pSecret)
 
     await conn.sendHSMessage(msg.data)
     msg.clear()
@@ -432,7 +431,7 @@ method readMessage*(sconn: NoiseConnection): Future[seq[byte]] {.async.} =
   while true: # Discard 0-length payloads
     let frame = await sconn.stream.readFrame()
     sconn.activity = true
-    if frame.len > 0:
+    if frame.len > ChaChaPolyTag.len:
       let res = sconn.readCs.decryptWithAd([], frame)
       if res.len > 0:
         when defined(libp2p_dump):
@@ -461,10 +460,8 @@ proc encryptFrame(
 
   cipherFrame[2 + src.len()..<cipherFrame.len] = tag
 
-method write*(sconn: NoiseConnection, message: seq[byte]): Future[void] {.async.} =
-  if message.len == 0:
-    return
-
+method write*(sconn: NoiseConnection, message: seq[byte]): Future[void] =
+  # Fast path: `{.async.}` would introduce a copy of `message`
   const FramingSize = 2 + sizeof(ChaChaPolyTag)
 
   let
@@ -480,10 +477,16 @@ method write*(sconn: NoiseConnection, message: seq[byte]): Future[void] {.async.
     let
       chunkSize = min(MaxPlainSize, left)
 
-    encryptFrame(
-      sconn,
-      cipherFrames.toOpenArray(woffset, woffset + chunkSize + FramingSize - 1),
-      message.toOpenArray(offset, offset + chunkSize - 1))
+    try:
+      encryptFrame(
+        sconn,
+        cipherFrames.toOpenArray(woffset, woffset + chunkSize + FramingSize - 1),
+        message.toOpenArray(offset, offset + chunkSize - 1))
+    except NoiseNonceMaxError as exc:
+      debug "Noise nonce exceeded"
+      let fut = newFuture[void]("noise.write.nonce")
+      fut.fail(exc)
+      return fut
 
     when defined(libp2p_dump):
       dumpMessage(
@@ -493,9 +496,12 @@ method write*(sconn: NoiseConnection, message: seq[byte]): Future[void] {.async.
     left = left - chunkSize
     offset += chunkSize
     woffset += chunkSize + FramingSize
-    sconn.activity = true
 
-  await sconn.stream.write(cipherFrames)
+  sconn.activity = true
+
+  # Write all `cipherFrames` in a single write, to avoid interleaving /
+  # sequencing issues
+  sconn.stream.write(cipherFrames)
 
 method handshake*(p: Noise, conn: Connection, initiator: bool): Future[SecureConn] {.async.} =
   trace "Starting Noise handshake", conn, initiator
@@ -547,27 +553,26 @@ method handshake*(p: Noise, conn: Connection, initiator: bool): Future[SecureCon
     else:
       trace "Remote signature verified", conn
 
-    if initiator and not isNil(conn.peerInfo):
-      let pid = PeerID.init(remotePubKey)
-      if not conn.peerInfo.peerId.validate():
+    if initiator:
+      let pid = PeerId.init(remotePubKey)
+      if not conn.peerId.validate():
         raise newException(NoiseHandshakeError, "Failed to validate peerId.")
-      if pid.isErr or pid.get() != conn.peerInfo.peerId:
+      if pid.isErr or pid.get() != conn.peerId:
         var
           failedKey: PublicKey
-        discard extractPublicKey(conn.peerInfo.peerId, failedKey)
+        discard extractPublicKey(conn.peerId, failedKey)
         debug "Noise handshake, peer infos don't match!",
           initiator, dealt_peer = conn,
           dealt_key = $failedKey, received_peer = $pid,
           received_key = $remotePubKey
-        raise newException(NoiseHandshakeError, "Noise handshake, peer infos don't match! " & $pid & " != " & $conn.peerInfo.peerId)
+        raise newException(NoiseHandshakeError, "Noise handshake, peer infos don't match! " & $pid & " != " & $conn.peerId)
+    else:
+      let pid = PeerId.init(remotePubKey)
+      if pid.isErr:
+        raise newException(NoiseHandshakeError, "Invalid remote peer id")
+      conn.peerId = pid.get()
 
-    conn.peerInfo =
-      if conn.peerInfo != nil:
-        conn.peerInfo
-      else:
-        PeerInfo.init(PeerID.init(remotePubKey).tryGet())
-
-    var tmp = NoiseConnection.init(conn, conn.peerInfo, conn.observedAddr)
+    var tmp = NoiseConnection.new(conn, conn.peerId, conn.observedAddr)
 
     if initiator:
       tmp.readCs = handshakeRes.cs2
@@ -579,7 +584,7 @@ method handshake*(p: Noise, conn: Connection, initiator: bool): Future[SecureCon
   finally:
     burnMem(handshakeRes)
 
-  trace "Noise handshake completed!", initiator, peer = shortLog(secure.peerInfo)
+  trace "Noise handshake completed!", initiator, peer = shortLog(secure.peerId)
 
   conn.timeout = timeout
 
@@ -602,11 +607,9 @@ proc new*(
   outgoing: bool = true,
   commonPrologue: seq[byte] = @[]): T =
 
-  let pkBytes = privateKey
-  .getKey()
+  let pkBytes = privateKey.getPublicKey()
   .expect("Expected valid Private Key")
-  .getBytes()
-  .expect("Couldn't get Private Key bytes")
+  .getBytes().expect("Couldn't get public Key bytes")
 
   var noise = Noise(
     rng: rng,
@@ -619,10 +622,3 @@ proc new*(
 
   noise.init()
   noise
-
-proc newNoise*(
-  rng: ref BrHmacDrbgContext,
-  privateKey: PrivateKey,
-  outgoing: bool = true,
-  commonPrologue: seq[byte] = @[]): Noise {.deprecated: "use Noise.new".}=
-  Noise.new(rng, privateKey, outgoing, commonPrologue)

@@ -21,6 +21,9 @@ export connection
 logScope:
   topics = "libp2p mplexchannel"
 
+when defined(libp2p_network_protocols_metrics):
+  declareCounter libp2p_protocols_bytes, "total sent or received bytes", ["protocol", "direction"]
+
 ## Channel half-closed states
 ##
 ## | State    | Closed local      | Closed remote
@@ -54,10 +57,9 @@ type
 func shortLog*(s: LPChannel): auto =
   try:
     if s.isNil: "LPChannel(nil)"
-    elif s.conn.peerInfo.isNil: $s.oid
     elif s.name != $s.oid and s.name.len > 0:
-      &"{shortLog(s.conn.peerInfo.peerId)}:{s.oid}:{s.name}"
-    else: &"{shortLog(s.conn.peerInfo.peerId)}:{s.oid}"
+      &"{shortLog(s.conn.peerId)}:{s.oid}:{s.name}"
+    else: &"{shortLog(s.conn.peerId)}:{s.oid}"
   except ValueError as exc:
     raise newException(Defect, exc.msg)
 
@@ -157,6 +159,10 @@ method readOnce*(s: LPChannel,
   ## or the reads will lock each other.
   try:
     let bytes = await procCall BufferStream(s).readOnce(pbytes, nbytes)
+    when defined(libp2p_network_protocols_metrics):
+      if s.tag.len > 0:
+        libp2p_protocols_bytes.inc(bytes.int64, labelValues=[s.tag, "in"])
+
     trace "readOnce", s, bytes
     if bytes == 0:
       await s.closeUnderlying()
@@ -169,9 +175,9 @@ method readOnce*(s: LPChannel,
     await s.reset()
     raise exc
 
-method write*(s: LPChannel, msg: seq[byte]): Future[void] {.async.} =
-  ## Write to mplex channel - there may be up to MaxWrite concurrent writes
-  ## pending after which the peer is disconnected
+proc prepareWrite(s: LPChannel, msg: seq[byte]): Future[void] {.async.} =
+  # prepareWrite is the slow path of writing a message - see conditions in
+  # write
   if s.closedLocal or s.conn.closed:
     raise newLPStreamClosedError()
 
@@ -185,15 +191,21 @@ method write*(s: LPChannel, msg: seq[byte]): Future[void] {.async.} =
     await s.conn.close()
     return
 
-  s.writes += 1
+  if not s.isOpen:
+    await s.open()
+
+  await s.conn.writeMsg(s.id, s.msgCode, msg)
+
+proc completeWrite(
+    s: LPChannel, fut: Future[void], msgLen: int): Future[void] {.async.} =
   try:
-    if not s.isOpen:
-      await s.open()
+    s.writes += 1
 
-    # writes should happen in sequence
-    trace "write msg", s, conn = s.conn, len = msg.len
+    await fut
+    when defined(libp2p_network_protocols_metrics):
+      if s.tag.len > 0:
+        libp2p_protocols_bytes.inc(msgLen.int64, labelValues=[s.tag, "out"])
 
-    await s.conn.writeMsg(s.id, s.msgCode, msg)
     s.activity = true
   except CatchableError as exc:
     trace "exception in lpchannel write handler", s, msg = exc.msg
@@ -202,6 +214,24 @@ method write*(s: LPChannel, msg: seq[byte]): Future[void] {.async.} =
     raise exc
   finally:
     s.writes -= 1
+
+method write*(s: LPChannel, msg: seq[byte]): Future[void] =
+  ## Write to mplex channel - there may be up to MaxWrite concurrent writes
+  ## pending after which the peer is disconnected
+
+  let
+    closed = s.closedLocal or s.conn.closed
+
+  let fut =
+    if (not closed) and msg.len > 0 and s.writes < MaxWrites and s.isOpen:
+      # Fast path: Avoid a copy of msg being kept in the closure created by
+      # `{.async.}` as this drives up memory usage - the conditions are laid out
+      # in prepareWrite
+      s.conn.writeMsg(s.id, s.msgCode, msg)
+    else:
+      prepareWrite(s, msg)
+
+  s.completeWrite(fut, msg.len)
 
 proc init*(
   L: type LPChannel,

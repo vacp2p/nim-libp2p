@@ -12,6 +12,7 @@
 import unittest2
 import nimcrypto/[utils, sysrand]
 import ../libp2p/crypto/[crypto, chacha20poly1305, curve25519, hkdf]
+import bearssl
 
 when defined(nimHasUsed): {.used.}
 
@@ -334,7 +335,7 @@ const
     "8613E8F86D2DD1CF3CEDC52AD91423F2F31E0003",
   ]
 
-proc cmp(a, b: openarray[byte]): bool =
+proc cmp(a, b: openArray[byte]): bool =
   result = (@a == @b)
 
 proc testStretcher(s, e: int, cs: string, ds: string): bool =
@@ -372,7 +373,7 @@ suite "Key interface test suite":
     for i in 0..<len(PrivateKeys):
       var seckey = PrivateKey.init(fromHex(stripSpaces(PrivateKeys[i]))).expect("private key")
       var pubkey = PublicKey.init(fromHex(stripSpaces(PublicKeys[i]))).expect("public key")
-      var calckey = seckey.getKey().expect("public key")
+      var calckey = seckey.getPublicKey().expect("public key")
       check:
         pubkey == calckey
       var checkseckey = seckey.getBytes().expect("private key")
@@ -387,7 +388,7 @@ suite "Key interface test suite":
 
     for i in 0..<5:
       var seckey = PrivateKey.random(ECDSA, rng[]).get()
-      var pubkey = seckey.getKey().get()
+      var pubkey = seckey.getPublicKey().get()
       var pair = KeyPair.random(ECDSA, rng[]).get()
       var sig1 = pair.seckey.sign(bmsg).get()
       var sig2 = seckey.sign(bmsg).get()
@@ -407,7 +408,7 @@ suite "Key interface test suite":
 
     for i in 0..<5:
       var seckey = PrivateKey.random(Ed25519, rng[]).get()
-      var pubkey = seckey.getKey().get()
+      var pubkey = seckey.getPublicKey().get()
       var pair = KeyPair.random(Ed25519, rng[]).get()
       var sig1 = pair.seckey.sign(bmsg).get()
       var sig2 = seckey.sign(bmsg).get()
@@ -427,7 +428,7 @@ suite "Key interface test suite":
 
     for i in 0 ..< 2:
       var seckey = PrivateKey.random(RSA, rng[], 2048).get()
-      var pubkey = seckey.getKey().get()
+      var pubkey = seckey.getPublicKey().get()
       var pair = KeyPair.random(RSA, rng[], 2048).get()
       var sig1 = pair.seckey.sign(bmsg).get()
       var sig2 = seckey.sign(bmsg).get()
@@ -545,3 +546,10 @@ suite "Key interface test suite":
 
     sha256.hkdf(salt, ikm, info, output)
     check output[0].toHex(true) == truth
+
+  test "shuffle":
+    var cards = ["Ace", "King", "Queen", "Jack", "Ten"]
+    var rng = (ref BrHmacDrbgContext)()
+    brHmacDrbgInit(addr rng[], addr sha256Vtable, nil, 0)
+    rng.shuffle(cards)
+    check cards == ["King", "Ten", "Ace", "Queen", "Jack"]

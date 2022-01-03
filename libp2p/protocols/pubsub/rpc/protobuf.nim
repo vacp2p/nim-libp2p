@@ -39,7 +39,7 @@ proc write*(pb: var ProtoBuffer, field: int, graft: ControlGraft) =
 
 proc write*(pb: var ProtoBuffer, field: int, infoMsg: PeerInfoMsg) =
   var ipb = initProtoBuffer()
-  ipb.write(1, infoMsg.peerID)
+  ipb.write(1, infoMsg.peerId)
   ipb.write(2, infoMsg.signedPeerRecord)
   ipb.finish()
   pb.write(field, ipb)
@@ -142,10 +142,10 @@ proc decodePeerInfoMsg*(pb: ProtoBuffer): ProtoResult[PeerInfoMsg] {.
      inline.} =
   trace "decodePeerInfoMsg: decoding message"
   var pi = PeerInfoMsg()
-  if ? pb.getField(1, pi.peerID):
-    trace "decodePeerInfoMsg: read peerID", peerID = pi.peerID
+  if ? pb.getField(1, pi.peerId):
+    trace "decodePeerInfoMsg: read peerId", peerId = pi.peerId
   else:
-    trace "decodePeerInfoMsg: peerID is missing"
+    trace "decodePeerInfoMsg: peerId is missing"
   if ? pb.getField(2, pi.signedPeerRecord):
     trace "decodePeerInfoMsg: read signedPeerRecord", signedPeerRecord = pi.signedPeerRecord
   else:

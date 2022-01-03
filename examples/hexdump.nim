@@ -71,8 +71,8 @@ proc dumpHex*(pbytes: pointer, nbytes: int, items = 1, ascii = true): string =
     result = result & asciiText
   result = result & "\n"
 
-proc dumpHex*[T](v: openarray[T], items: int = 0, ascii = true): string =
-  ## Return hexadecimal memory dump representation of openarray[T] ``v``.
+proc dumpHex*[T](v: openArray[T], items: int = 0, ascii = true): string =
+  ## Return hexadecimal memory dump representation of openArray[T] ``v``.
   ## ``items``  - number of bytes in group (supported ``items`` count is
   ##  0, 1, 2, 4, 8). If ``items`` is ``0`` group size will depend on
   ## ``sizeof(T)``.

@@ -35,13 +35,15 @@ proc identify*(
 
   try:
     await self.identify(stream)
+    when defined(libp2p_agents_metrics):
+      muxer.connection.shortAgent = stream.shortAgent
   finally:
     await stream.closeWithEOF()
 
 proc mux*(
   self: MuxedUpgrade,
   conn: Connection): Future[Muxer] {.async, gcsafe.} =
-  ## mux incoming connection
+  ## mux outgoing connection
 
   trace "Muxing connection", conn
   if self.muxers.len == 0:
@@ -86,17 +88,16 @@ method upgradeOutgoing*(
     raise newException(UpgradeFailedError,
       "unable to secure connection, stopping upgrade")
 
-  if sconn.peerInfo.isNil:
-    raise newException(UpgradeFailedError,
-      "current version of nim-libp2p requires that secure protocol negotiates peerid")
-
   let muxer = await self.mux(sconn) # mux it if possible
   if muxer == nil:
     # TODO this might be relaxed in the future
     raise newException(UpgradeFailedError,
       "a muxer is required for outgoing connections")
 
-  if sconn.closed() or isNil(sconn.peerInfo):
+  when defined(libp2p_agents_metrics):
+    conn.shortAgent = muxer.connection.shortAgent
+
+  if sconn.closed():
     await sconn.close()
     raise newException(UpgradeFailedError,
       "Connection closed or missing peer info, stopping upgrade")
@@ -164,11 +165,6 @@ proc muxerHandler(
   let
     conn = muxer.connection
 
-  if conn.peerInfo.isNil:
-    warn "This version of nim-libp2p requires secure protocol to negotiate peerid"
-    await muxer.close()
-    return
-
   # store incoming connection
   self.connManager.storeConn(conn)
 
@@ -177,6 +173,11 @@ proc muxerHandler(
 
   try:
     await self.identify(muxer)
+    when defined(libp2p_agents_metrics):
+      #TODO Passing data between layers is a pain
+      if muxer.connection of SecureConn:
+        let secureConn = (SecureConn)muxer.connection
+        secureConn.stream.shortAgent = muxer.connection.shortAgent
   except IdentifyError as exc:
     # Identify is non-essential, though if it fails, it might indicate that
     # the connection was closed already - this will be picked up by the read
@@ -193,11 +194,11 @@ proc muxerHandler(
     await muxer.close()
     trace "Exception in muxer handler", conn, msg = exc.msg
 
-proc init*(
+proc new*(
   T: type MuxedUpgrade,
   identity: Identify,
   muxers: Table[string, MuxerProvider],
-  secureManagers: openarray[Secure] = [],
+  secureManagers: openArray[Secure] = [],
   connManager: ConnManager,
   ms: MultistreamSelect): T =
 

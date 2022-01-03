@@ -161,7 +161,7 @@ suite "Ed25519 test suite":
     for i in 0..<5:
       var key = EdPrivateKey.init(stripSpaces(SecretKeys[i])).expect("key/sig")
       var exppub = EdPublicKey.init(stripSpaces(PublicKeys[i])).expect("key/sig")
-      var pubkey = key.getKey()
+      var pubkey = key.getPublicKey()
       check pubkey == exppub
       var msg = fromHex(stripSpaces(Messages[i]))
       var sig = key.sign(msg)

@@ -13,7 +13,6 @@ import options
 import chronos, chronicles
 import ../protobuf/minprotobuf,
        ../peerinfo,
-       ../connmanager,
        ../stream/connection,
        ../peerid,
        ../crypto/crypto,
@@ -38,7 +37,8 @@ type
   IdentifyNoPubKeyError* = object of IdentifyError
 
   IdentifyInfo* = object
-    pubKey*: Option[PublicKey]
+    pubkey*: Option[PublicKey]
+    peerId*: PeerId
     addrs*: seq[MultiAddress]
     observedAddr*: Option[MultiAddress]
     protoVersion*: Option[string]
@@ -48,16 +48,22 @@ type
   Identify* = ref object of LPProtocol
     peerInfo*: PeerInfo
 
-  IdentifyPush* = ref object of LPProtocol
-    connManager: ConnManager
+  IdentifyPushHandler* = proc (
+    peer: PeerId,
+    newInfo: IdentifyInfo):
+    Future[void]
+    {.gcsafe, raises: [Defect].}
 
-proc encodeMsg*(peerInfo: PeerInfo, observedAddr: Multiaddress): ProtoBuffer
+  IdentifyPush* = ref object of LPProtocol
+    identifyHandler: IdentifyPushHandler
+
+proc encodeMsg*(peerInfo: PeerInfo, observedAddr: MultiAddress): ProtoBuffer
   {.raises: [Defect, IdentifyNoPubKeyError].} =
   result = initProtoBuffer()
-  if peerInfo.publicKey.isNone:
-    raise newException(IdentifyNoPubKeyError, "No public key found for peer!")
 
-  result.write(1, peerInfo.publicKey.get().getBytes().get())
+  let pkey = peerInfo.publicKey
+
+  result.write(1, pkey.getBytes().get())
   for ma in peerInfo.addrs:
     result.write(2, ma.data.buffer)
   for proto in peerInfo.protocols:
@@ -75,14 +81,14 @@ proc encodeMsg*(peerInfo: PeerInfo, observedAddr: Multiaddress): ProtoBuffer
 proc decodeMsg*(buf: seq[byte]): Option[IdentifyInfo] =
   var
     iinfo: IdentifyInfo
-    pubKey: PublicKey
+    pubkey: PublicKey
     oaddr: MultiAddress
     protoVersion: string
     agentVersion: string
 
   var pb = initProtoBuffer(buf)
 
-  let r1 = pb.getField(1, pubKey)
+  let r1 = pb.getField(1, pubkey)
   let r2 = pb.getRepeatedField(2, iinfo.addrs)
   let r3 = pb.getRepeatedField(3, iinfo.protos)
   let r4 = pb.getField(4, oaddr)
@@ -94,14 +100,14 @@ proc decodeMsg*(buf: seq[byte]): Option[IdentifyInfo] =
 
   if res:
     if r1.get():
-      iinfo.pubKey = some(pubKey)
+      iinfo.pubkey = some(pubkey)
     if r4.get():
       iinfo.observedAddr = some(oaddr)
     if r5.get():
       iinfo.protoVersion = some(protoVersion)
     if r6.get():
       iinfo.agentVersion = some(agentVersion)
-    debug "decodeMsg: decoded message", pubkey = ($pubKey).shortLog,
+    debug "decodeMsg: decoded message", pubkey = ($pubkey).shortLog,
           addresses = $iinfo.addrs, protocols = $iinfo.protos,
           observable_address = $iinfo.observedAddr,
           proto_version = $iinfo.protoVersion,
@@ -115,9 +121,6 @@ proc new*(T: typedesc[Identify], peerInfo: PeerInfo): T =
   let identify = T(peerInfo: peerInfo)
   identify.init()
   identify
-
-proc newIdentify*(peerInfo: PeerInfo): Identify {.deprecated: "use Identify.new".} =
-  Identify.new(peerInfo)
 
 method init*(p: Identify) =
   proc handle(conn: Connection, proto: string) {.async, gcsafe, closure.} =
@@ -138,7 +141,7 @@ method init*(p: Identify) =
 
 proc identify*(p: Identify,
                conn: Connection,
-               remotePeerInfo: PeerInfo): Future[IdentifyInfo] {.async, gcsafe.} =
+               remotePeerId: PeerId): Future[IdentifyInfo] {.async, gcsafe.} =
   trace "initiating identify", conn
   var message = await conn.readLp(64*1024)
   if len(message) == 0:
@@ -150,23 +153,25 @@ proc identify*(p: Identify,
     raise newException(IdentityInvalidMsgError, "Incorrect message received!")
   result = infoOpt.get()
 
-  if not isNil(remotePeerInfo) and result.pubKey.isSome:
-    let peer = PeerID.init(result.pubKey.get())
+  if result.pubkey.isSome:
+    let peer = PeerId.init(result.pubkey.get())
     if peer.isErr:
       raise newException(IdentityInvalidMsgError, $peer.error)
     else:
-      if peer.get() != remotePeerInfo.peerId:
+      result.peerId = peer.get()
+      if peer.get() != remotePeerId:
         trace "Peer ids don't match",
               remote = peer,
-              local = remotePeerInfo.peerId
+              local = remotePeerId
 
         raise newException(IdentityNoMatchError, "Peer ids don't match")
+  else:
+    raise newException(IdentityInvalidMsgError, "No pubkey in identify")
 
-proc new*(T: typedesc[IdentifyPush], connManager: ConnManager): T =
-  let identifypush = T(connManager: connManager)
+proc new*(T: typedesc[IdentifyPush], handler: IdentifyPushHandler = nil): T =
+  let identifypush = T(identifyHandler: handler)
   identifypush.init()
   identifypush
-
 
 proc init*(p: IdentifyPush) =
   proc handle(conn: Connection, proto: string) {.async, gcsafe, closure.} =
@@ -178,30 +183,17 @@ proc init*(p: IdentifyPush) =
       if infoOpt.isNone():
         raise newException(IdentityInvalidMsgError, "Incorrect message received!")
 
-      let indentInfo = infoOpt.get()
+      var indentInfo = infoOpt.get()
 
-      if isNil(conn.peerInfo):
-        raise newException(IdentityInvalidMsgError, "Connection got no peerInfo")
-
-      if indentInfo.pubKey.isSome:
-        let receivedPeerId = PeerID.init(indentInfo.pubKey.get()).tryGet()
-        if receivedPeerId != conn.peerInfo.peerId:
+      if indentInfo.pubkey.isSome:
+        let receivedPeerId = PeerId.init(indentInfo.pubkey.get()).tryGet()
+        if receivedPeerId != conn.peerId:
           raise newException(IdentityNoMatchError, "Peer ids don't match")
+        indentInfo.peerId = receivedPeerId
 
-      if indentInfo.addrs.len > 0:
-        conn.peerInfo.addrs = indentInfo.addrs
-
-      if indentInfo.agentVersion.isSome:
-        conn.peerInfo.agentVersion = indentInfo.agentVersion.get()
-
-      if indentInfo.protoVersion.isSome:
-        conn.peerInfo.protoVersion = indentInfo.protoVersion.get()
-
-      if indentInfo.protos.len > 0:
-        conn.peerInfo.protocols = indentInfo.protos
-
-      trace "triggering peer event", peerInfo = conn.peerInfo
-      await p.connManager.triggerPeerEvents(conn.peerInfo, PeerEvent(kind: PeerEventKind.Identified))
+      trace "triggering peer event", peerInfo = conn.peerId
+      if not isNil(p.identifyHandler):
+        await p.identifyHandler(conn.peerId, indentInfo)
     except CancelledError as exc:
       raise exc
     except CatchableError as exc:

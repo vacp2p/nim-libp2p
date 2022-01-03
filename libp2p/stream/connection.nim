@@ -33,10 +33,13 @@ type
     timeout*: Duration              # channel timeout if no activity
     timerTaskFut: Future[void]      # the current timer instance
     timeoutHandler*: TimeoutHandler # timeout handler
-    peerInfo*: PeerInfo
-    observedAddr*: Multiaddress
+    peerId*: PeerId
+    observedAddr*: MultiAddress
     upgraded*: Future[void]
+    tag*: string                    # debug tag for metrics (generally ms protocol)
     transportDir*: Direction        # The bottom level transport (generally the socket) direction
+    when defined(libp2p_agents_metrics):
+      shortAgent*: string
 
 proc timeoutMonitor(s: Connection) {.async, gcsafe.}
 
@@ -59,8 +62,7 @@ proc onUpgrade*(s: Connection) {.async.} =
 func shortLog*(conn: Connection): string =
   try:
     if conn.isNil: "Connection(nil)"
-    elif conn.peerInfo.isNil: $conn.oid
-    else: &"{shortLog(conn.peerInfo.peerId)}:{conn.oid}"
+    else: &"{shortLog(conn.peerId)}:{conn.oid}"
   except ValueError as exc:
     raiseAssert(exc.msg)
 
@@ -149,13 +151,13 @@ proc timeoutMonitor(s: Connection) {.async, gcsafe.} =
     if not await s.pollActivity():
       return
 
-proc init*(C: type Connection,
-           peerInfo: PeerInfo,
+proc new*(C: type Connection,
+           peerId: PeerId,
            dir: Direction,
            timeout: Duration = DefaultConnectionTimeout,
            timeoutHandler: TimeoutHandler = nil,
            observedAddr: MultiAddress = MultiAddress()): Connection =
-  result = C(peerInfo: peerInfo,
+  result = C(peerId: peerId,
              dir: dir,
              timeout: timeout,
              timeoutHandler: timeoutHandler,

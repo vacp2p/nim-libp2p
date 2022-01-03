@@ -180,7 +180,7 @@ proc readExactly*(s: LPStream,
 proc readLine*(s: LPStream,
                limit = 0,
                sep = "\r\n"): Future[string]
-               {.async, deprecated: "todo".} =
+               {.async.} =
   # TODO replace with something that exploits buffering better
   var lim = if limit <= 0: -1 else: limit
   var state = 0
@@ -254,9 +254,6 @@ proc writeLp*(s: LPStream, msg: openArray[byte]): Future[void] =
 
 proc writeLp*(s: LPStream, msg: string): Future[void] =
   writeLp(s, msg.toOpenArrayByte(0, msg.high))
-
-proc write*(s: LPStream, pbytes: pointer, nbytes: int): Future[void] {.deprecated: "seq".} =
-  s.write(@(toOpenArray(cast[ptr UncheckedArray[byte]](pbytes), 0, nbytes - 1)))
 
 proc write*(s: LPStream, msg: string): Future[void] =
   s.write(msg.toBytes())

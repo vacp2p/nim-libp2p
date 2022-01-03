@@ -6,6 +6,7 @@ import ../libp2p/transports/tcptransport
 import ../libp2p/stream/bufferstream
 import ../libp2p/crypto/crypto
 import ../libp2p/stream/lpstream
+import ../libp2p/stream/chronosstream
 import ../libp2p/muxers/mplex/lpchannel
 import ../libp2p/protocols/secure/secure
 
@@ -15,6 +16,7 @@ export asyncunit
 const
   StreamTransportTrackerName = "stream.transport"
   StreamServerTrackerName = "stream.server"
+  DgramTransportTrackerName = "datagram.transport"
 
   trackerNames = [
     LPStreamTrackerName,
@@ -24,7 +26,9 @@ const
     BufferStreamTrackerName,
     TcpTransportTrackerName,
     StreamTransportTrackerName,
-    StreamServerTrackerName
+    StreamServerTrackerName,
+    DgramTransportTrackerName,
+    ChronosStreamTrackerName
   ]
 
 iterator testTrackers*(extras: openArray[string] = []): TrackerBase =
@@ -78,9 +82,6 @@ proc new*(T: typedesc[TestBufferStream], writeHandler: WriteHandler): T =
   let testBufferStream = T(writeHandler: writeHandler)
   testBufferStream.initStream()
   testBufferStream
-
-proc newBufferStream*(writeHandler: WriteHandler): TestBufferStream {.deprecated: "use TestBufferStream.new".}=
-  TestBufferStream.new(writeHandler)
 
 proc checkExpiringInternal(cond: proc(): bool {.raises: [Defect].} ): Future[bool] {.async, gcsafe.} =
   {.gcsafe.}:

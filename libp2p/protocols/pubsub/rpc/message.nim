@@ -77,16 +77,24 @@ proc init*(
     let peer = peer.get()
     msg.fromPeer = peer.peerId
     if sign:
-      if peer.keyType != KeyType.HasPrivate:
-        raise (ref LPError)(msg: "Cannot sign message without private key")
-
       msg.signature = sign(msg, peer.privateKey).expect("Couldn't sign message!")
-      msg.key = peer.privateKey
-        .getKey()
-        .expect("Expected a Private Key!")
-        .getBytes()
-        .expect("Couldn't get Private Key bytes!")
+      msg.key = peer.privateKey.getPublicKey().expect("Invalid private key!")
+        .getBytes().expect("Couldn't get public key bytes!")
   elif sign:
     raise (ref LPError)(msg: "Cannot sign message without peer info")
 
+  msg
+
+proc init*(
+    T: type Message,
+    peerId: PeerId,
+    data: seq[byte],
+    topic: string,
+    seqno: Option[uint64]): Message
+    {.gcsafe, raises: [Defect, LPError].} =
+  var msg = Message(data: data, topicIDs: @[topic])
+  msg.fromPeer = peerId
+
+  if seqno.isSome:
+    msg.seqno = @(seqno.get().toBytesBE())
   msg

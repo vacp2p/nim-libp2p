@@ -38,8 +38,7 @@ type
 func shortLog*(s: BufferStream): auto =
   try:
     if s.isNil: "BufferStream(nil)"
-    elif s.peerInfo.isNil: $s.oid
-    else: &"{shortLog(s.peerInfo.peerId)}:{s.oid}"
+    else: &"{shortLog(s.peerId)}:{s.oid}"
   except ValueError as exc:
     raise newException(Defect, exc.msg)
 
@@ -65,10 +64,6 @@ proc new*(
   let bufferStream = T(timeout: timeout)
   bufferStream.initStream()
   bufferStream
-
-proc newBufferStream*(
-  timeout: Duration = DefaultConnectionTimeout): BufferStream {.deprecated: "use BufferStream.new".} =
-  return BufferStream.new(timeout)
 
 method pushData*(s: BufferStream, data: seq[byte]) {.base, async.} =
   ## Write bytes to internal read buffer, use this to fill up the

@@ -43,9 +43,6 @@ type
 proc new*(T: typedesc[MultistreamSelect]): T =
   T(codec: MSCodec)
 
-proc newMultistream*(): MultistreamSelect {.deprecated: "use MultistreamSelect.new".} =
-  MultistreamSelect.new()
-
 template validateSuffix(str: string): untyped =
     if str.endsWith("\n"):
       str.removeSuffix("\n")
@@ -80,6 +77,7 @@ proc select*(m: MultistreamSelect,
     trace "reading first requested proto", conn
     if s == proto[0]:
       trace "successfully selected ", conn, proto = proto[0]
+      conn.tag = proto[0]
       return proto[0]
     elif proto.len > 1:
       # Try to negotiate alternatives
@@ -92,6 +90,7 @@ proc select*(m: MultistreamSelect,
         validateSuffix(s)
         if s == p:
           trace "selected protocol", conn, protocol = s
+          conn.tag = s
           return s
       return ""
     else:
@@ -169,6 +168,7 @@ proc handle*(m: MultistreamSelect, conn: Connection, active: bool = false) {.asy
           if (not isNil(h.match) and h.match(ms)) or h.protos.contains(ms):
             trace "found handler", conn, protocol = ms
             await conn.writeLp(ms & "\n")
+            conn.tag = ms
             await h.protocol.handler(conn, ms)
             return
         debug "no handlers", conn, protocol = ms

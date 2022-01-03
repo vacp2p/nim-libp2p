@@ -46,7 +46,7 @@ type
     oid*: Oid
     maxChannCount: int
 
-func shortLog*(m: MPlex): auto =
+func shortLog*(m: Mplex): auto =
   shortLog(m.connection)
 
 chronicles.formatIt(Mplex): shortLog(it)
@@ -68,7 +68,7 @@ proc cleanupChann(m: Mplex, chann: LPChannel) {.async, inline.} =
     when defined(libp2p_expensive_metrics):
       libp2p_mplex_channels.set(
         m.channels[chann.initiator].len.int64,
-        labelValues = [$chann.initiator, $m.connection.peerInfo.peerId])
+        labelValues = [$chann.initiator, $m.connection.peerId])
   except CatchableError as exc:
     warn "Error cleaning up mplex channel", m, chann, msg = exc.msg
 
@@ -94,9 +94,11 @@ proc newStreamInternal*(m: Mplex,
     name,
     timeout = timeout)
 
-  result.peerInfo = m.connection.peerInfo
+  result.peerId = m.connection.peerId
   result.observedAddr = m.connection.observedAddr
   result.transportDir = m.connection.transportDir
+  when defined(libp2p_agents_metrics):
+    result.shortAgent = m.connection.shortAgent
 
   trace "Creating new channel", m, channel = result, id, initiator, name
 
@@ -108,7 +110,7 @@ proc newStreamInternal*(m: Mplex,
   when defined(libp2p_expensive_metrics):
     libp2p_mplex_channels.set(
       m.channels[initiator].len.int64,
-      labelValues = [$initiator, $m.connection.peerInfo.peerId])
+      labelValues = [$initiator, $m.connection.peerId])
 
 proc handleStream(m: Mplex, chann: LPChannel) {.async.} =
   ## call the muxer stream handler for this channel
@@ -190,7 +192,7 @@ method handle*(m: Mplex) {.async, gcsafe.} =
     await m.close()
   trace "Stopped mplex handler", m
 
-proc init*(M: type Mplex,
+proc new*(M: type Mplex,
            conn: Connection,
            inTimeout, outTimeout: Duration = DefaultChanTimeout,
            maxChannCount: int = MaxChannelCount): Mplex =

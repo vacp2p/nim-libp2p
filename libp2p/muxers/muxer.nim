@@ -58,9 +58,6 @@ proc new*(
   muxerProvider.init()
   muxerProvider
 
-proc newMuxerProvider*(creator: MuxerConstructor, codec: string): MuxerProvider {.gcsafe, deprecated: "use MuxerProvider.new".} =
-  MuxerProvider.new(creator, codec)
-
 method init(c: MuxerProvider) =
   proc handler(conn: Connection, proto: string) {.async, gcsafe, closure.} =
     trace "starting muxer handler", proto=proto, conn
@@ -76,7 +73,9 @@ method init(c: MuxerProvider) =
 
       # finally await both the futures
       if not isNil(c.muxerHandler):
-        futs &= c.muxerHandler(muxer)
+        await c.muxerHandler(muxer)
+        when defined(libp2p_agents_metrics):
+          conn.shortAgent = muxer.connection.shortAgent
 
       checkFutures(await allFinished(futs))
     except CancelledError as exc:

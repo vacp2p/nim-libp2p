@@ -22,7 +22,7 @@ suite "Identify":
 
   suite "handle identify message":
     var
-      ma {.threadvar.}: MultiAddress
+      ma {.threadvar.}: seq[MultiAddress]
       remoteSecKey {.threadvar.}: PrivateKey
       remotePeerInfo {.threadvar.}: PeerInfo
       serverFut {.threadvar.}: Future[void]
@@ -36,10 +36,12 @@ suite "Identify":
       conn {.threadvar.}: Connection
 
     asyncSetup:
-      ma = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
+      ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
       remoteSecKey = PrivateKey.random(ECDSA, rng[]).get()
-      remotePeerInfo = PeerInfo.init(
-        remoteSecKey, [ma], ["/test/proto1/1.0.0", "/test/proto2/1.0.0"])
+      remotePeerInfo = PeerInfo.new(
+        remoteSecKey,
+        ma,
+        ["/test/proto1/1.0.0", "/test/proto2/1.0.0"])
 
       transport1 = TcpTransport.new(upgrade = Upgrade())
       transport2 = TcpTransport.new(upgrade = Upgrade())
@@ -65,13 +67,13 @@ suite "Identify":
         await msListen.handle(c)
 
       acceptFut = acceptHandler()
-      conn = await transport2.dial(transport1.ma)
+      conn = await transport2.dial(transport1.addrs[0])
 
       discard await msDial.select(conn, IdentifyCodec)
-      let id = await identifyProto2.identify(conn, remotePeerInfo)
+      let id = await identifyProto2.identify(conn, remotePeerInfo.peerId)
 
-      check id.pubKey.get() == remoteSecKey.getKey().get()
-      check id.addrs[0] == ma
+      check id.pubkey.get() == remoteSecKey.getPublicKey().get()
+      check id.addrs == ma
       check id.protoVersion.get() == ProtoVersion
       check id.agentVersion.get() == AgentVersion
       check id.protos == @["/test/proto1/1.0.0", "/test/proto2/1.0.0"]
@@ -88,13 +90,13 @@ suite "Identify":
         await msListen.handle(c)
 
       acceptFut = acceptHandler()
-      conn = await transport2.dial(transport1.ma)
+      conn = await transport2.dial(transport1.addrs[0])
 
       discard await msDial.select(conn, IdentifyCodec)
-      let id = await identifyProto2.identify(conn, remotePeerInfo)
+      let id = await identifyProto2.identify(conn, remotePeerInfo.peerId)
 
-      check id.pubKey.get() == remoteSecKey.getKey().get()
-      check id.addrs[0] == ma
+      check id.pubkey.get() == remoteSecKey.getPublicKey().get()
+      check id.addrs == ma
       check id.protoVersion.get() == ProtoVersion
       check id.agentVersion.get() == customAgentVersion
       check id.protos == @["/test/proto1/1.0.0", "/test/proto2/1.0.0"]
@@ -114,12 +116,12 @@ suite "Identify":
           await conn.close()
 
       acceptFut = acceptHandler()
-      conn = await transport2.dial(transport1.ma)
+      conn = await transport2.dial(transport1.addrs[0])
 
       expect IdentityNoMatchError:
-        let pi2 = PeerInfo.init(PrivateKey.random(ECDSA, rng[]).get())
+        let pi2 = PeerInfo.new(PrivateKey.random(ECDSA, rng[]).get())
         discard await msDial.select(conn, IdentifyCodec)
-        discard await identifyProto2.identify(conn, pi2)
+        discard await identifyProto2.identify(conn, pi2.peerId)
 
   suite "handle push identify message":
     var
@@ -127,35 +129,36 @@ suite "Identify":
       switch2 {.threadvar.}: Switch
       identifyPush1 {.threadvar.}: IdentifyPush
       identifyPush2 {.threadvar.}: IdentifyPush
-      awaiters {.threadvar.}: seq[Future[void]]
       conn {.threadvar.}: Connection
     asyncSetup:
       switch1 = newStandardSwitch()
       switch2 = newStandardSwitch()
 
-      identifyPush1 = IdentifyPush.new(switch1.connManager)
-      identifyPush2 = IdentifyPush.new(switch2.connManager)
+      proc updateStore1(peerId: PeerId, info: IdentifyInfo) {.async.} =
+        switch1.peerStore.updatePeerInfo(info)
+      proc updateStore2(peerId: PeerId, info: IdentifyInfo) {.async.} =
+        switch2.peerStore.updatePeerInfo(info)
+
+      identifyPush1 = IdentifyPush.new(updateStore1)
+      identifyPush2 = IdentifyPush.new(updateStore2)
 
       switch1.mount(identifyPush1)
       switch2.mount(identifyPush2)
 
-      awaiters.add(await switch1.start())
-      awaiters.add(await switch2.start())
+      await switch1.start()
+      await switch2.start()
 
-      conn = await switch2.dial(switch1.peerInfo.peerId, switch1.peerInfo.addrs, IdentifyPushCodec)
-
-      let storedInfo1 = switch1.peerStore.get(switch2.peerInfo.peerId)
-      let storedInfo2 = switch2.peerStore.get(switch1.peerInfo.peerId)
+      conn = await switch2.dial(
+        switch1.peerInfo.peerId,
+        switch1.peerInfo.addrs,
+        IdentifyPushCodec)
 
       check:
-        storedInfo1.peerId == switch2.peerInfo.peerId
-        storedInfo2.peerId == switch1.peerInfo.peerId
+        switch1.peerStore.addressBook.get(switch2.peerInfo.peerId) == switch2.peerInfo.addrs.toHashSet()
+        switch2.peerStore.addressBook.get(switch1.peerInfo.peerId) == switch1.peerInfo.addrs.toHashSet()
 
-        storedInfo1.addrs.toSeq() == switch2.peerInfo.addrs
-        storedInfo2.addrs.toSeq() == switch1.peerInfo.addrs
-
-        storedInfo1.protos.toSeq() == switch2.peerInfo.protocols
-        storedInfo2.protos.toSeq() == switch1.peerInfo.protocols
+        switch1.peerStore.addressBook.get(switch2.peerInfo.peerId) == switch2.peerInfo.addrs.toHashSet()
+        switch2.peerStore.addressBook.get(switch1.peerInfo.peerId) == switch1.peerInfo.addrs.toHashSet()
 
     proc closeAll() {.async.} =
       await conn.close()
@@ -163,29 +166,25 @@ suite "Identify":
       await switch1.stop()
       await switch2.stop()
 
-      # this needs to go at end
-      await allFuturesThrowing(awaiters)
-
     asyncTest "simple push identify":
       switch2.peerInfo.protocols.add("/newprotocol/")
       switch2.peerInfo.addrs.add(MultiAddress.init("/ip4/127.0.0.1/tcp/5555").tryGet())
 
       check:
-        switch1.peerStore.get(switch2.peerInfo.peerId).addrs.toSeq() != switch2.peerInfo.addrs
-        switch1.peerStore.get(switch2.peerInfo.peerId).protos != switch2.peerInfo.protocols.toSet()
+        switch1.peerStore.addressBook.get(switch2.peerInfo.peerId) != switch2.peerInfo.addrs.toHashSet()
+        switch1.peerStore.protoBook.get(switch2.peerInfo.peerId) != switch2.peerInfo.protocols.toHashSet()
 
       await identifyPush2.push(switch2.peerInfo, conn)
+
+      check await checkExpiring(switch1.peerStore.protoBook.get(switch2.peerInfo.peerId) == switch2.peerInfo.protocols.toHashSet())
+      check await checkExpiring(switch1.peerStore.addressBook.get(switch2.peerInfo.peerId) == switch2.peerInfo.addrs.toHashSet())
 
       await closeAll()
 
       # Wait the very end to be sure that the push has been processed
-      var aprotos = switch1.peerStore.get(switch2.peerInfo.peerId).protos.toSeq()
-      var bprotos = switch2.peerInfo.protocols
-      aprotos.sort()
-      bprotos.sort()
       check:
-        aprotos == bprotos
-        switch1.peerStore.get(switch2.peerInfo.peerId).addrs == switch2.peerInfo.addrs.toSet()
+        switch1.peerStore.protoBook.get(switch2.peerInfo.peerId) == switch2.peerInfo.protocols.toHashSet()
+        switch1.peerStore.addressBook.get(switch2.peerInfo.peerId) == switch2.peerInfo.addrs.toHashSet()
 
 
     asyncTest "wrong peer id push identify":
@@ -193,21 +192,23 @@ suite "Identify":
       switch2.peerInfo.addrs.add(MultiAddress.init("/ip4/127.0.0.1/tcp/5555").tryGet())
 
       check:
-        switch1.peerStore.get(switch2.peerInfo.peerId).addrs != switch2.peerInfo.addrs.toSet()
-        switch1.peerStore.get(switch2.peerInfo.peerId).protos.toSeq() != switch2.peerInfo.protocols
+        switch1.peerStore.addressBook.get(switch2.peerInfo.peerId) != switch2.peerInfo.addrs.toHashSet()
+        switch1.peerStore.protoBook.get(switch2.peerInfo.peerId) != switch2.peerInfo.protocols.toHashSet()
 
       let oldPeerId = switch2.peerInfo.peerId
-      switch2.peerInfo = PeerInfo.init(PrivateKey.random(newRng()[]).get())
+      switch2.peerInfo = PeerInfo.new(PrivateKey.random(newRng()[]).get())
 
       await identifyPush2.push(switch2.peerInfo, conn)
+
+      # We have no way to know when the message will is received
+      # because it will fail validation inside push identify itself
+      #
+      # So no choice but to sleep
+      await sleepAsync(10.milliseconds)
 
       await closeAll()
 
       # Wait the very end to be sure that the push has been processed
-      var aprotos = switch1.peerStore.get(oldPeerId).protos.toSeq()
-      var bprotos = switch2.peerInfo.protocols
-      aprotos.sort()
-      bprotos.sort()
       check:
-        aprotos != bprotos
-        switch1.peerStore.get(oldPeerId).addrs.toSeq() != switch2.peerInfo.addrs
+        switch1.peerStore.protoBook.get(oldPeerId) != switch2.peerInfo.protocols.toHashSet()
+        switch1.peerStore.addressBook.get(oldPeerId) != switch2.peerInfo.addrs.toHashSet()
