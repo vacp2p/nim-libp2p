@@ -78,11 +78,12 @@ proc getDnsResponse(
       dataStream = newStringStream()
     dataStream.writeData(addr rawResponse[0], rawResponse.len)
     dataStream.setPosition(0)
+    # parseResponse can has a raises: [Exception, ..] because of
+    # https://github.com/nim-lang/Nim/commit/035134de429b5d99c5607c5fae912762bebb6008
+    # it can't actually raise though
     return parseResponse(dataStream)
-  except CatchableError as exc:
-    raise exc
-  except Exception as exc: # DNS library can throw anything
-    raise newException(CatchableError, "DNS query error: " & exc.msg)
+  except CatchableError as exc: raise exc
+  except Exception as exc: raiseAssert exc.msg
   finally:
     await sock.closeWait()
 
@@ -114,10 +115,7 @@ method resolveIp*(
       try:
         let resp = await fut
         for answer in resp.answers:
-          resolvedAddresses.incl(
-            try: answer.toString()
-            except Exception as exc: raise newException(CatchableError, exc.msg)
-          )
+          resolvedAddresses.incl(answer.toString())
       except CancelledError as e:
         raise e
       except ValueError as e:
@@ -147,14 +145,9 @@ method resolveTxt*(
   for _ in 0 ..< self.nameServers.len:
     let server = self.nameServers[0]
     try:
-      let
-        response = await getDnsResponse(server, address, TXT)
-        answers = response.answers.mapIt(
-            try: it.toString()
-            except Exception as exc: raise newException(CatchableError, exc.msg)
-          )
-      trace "Got TXT response", server = $server, answers
-      return answers
+      let response = await getDnsResponse(server, address, TXT)
+      trace "Got TXT response", server = $server, answer=response.answers.mapIt(it.toString())
+      return response.answers.mapIt(it.toString())
     except CancelledError as e:
       raise e
     except CatchableError as e:
