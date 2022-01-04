@@ -761,7 +761,7 @@ proc newDaemonApi*(flags: set[P2PDaemonFlags] = {},
     except CatchableError as exc:
       raise exc
     except Exception as exc:
-      raise newException(DaemonLocalError, exc.msg)
+      raise raiseAssert exc.msg
   # Waiting until daemon will not be bound to control socket.
   while true:
     if not api.process.running():
