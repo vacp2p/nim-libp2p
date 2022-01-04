@@ -15,7 +15,9 @@ import testmultibase,
        testmultihash,
        testmultiaddress,
        testcid,
-       testpeerid
+       testpeerid,
+       testsigned_envelope,
+       testrouting_record
 
 import testtcptransport,
        testnameresolve,

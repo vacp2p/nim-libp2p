@@ -57,11 +57,10 @@ proc main() {.async, gcsafe.} =
   
   switch1.mount(testProto)
   
-  let
-    switch1Fut = await switch1.start()
-    switch2Fut = await switch2.start()
+  await switch1.start()
+  await switch2.start()
     
-    conn = await switch2.dial(switch1.peerInfo.peerId, switch1.peerInfo.addrs, TestCodec)
+  let conn = await switch2.dial(switch1.peerInfo.peerId, switch1.peerInfo.addrs, TestCodec)
 
   await testProto.hello(conn)
 
@@ -69,7 +68,6 @@ proc main() {.async, gcsafe.} =
   await conn.close()
 
   await allFutures(switch1.stop(), switch2.stop()) # close connections and shutdown all transports
-  await allFutures(switch1Fut & switch2Fut) # wait for all transports to shutdown
 ```
 
 This is very similar to the first tutorial's `main`, the only noteworthy difference is that we use `newStandardSwitch`, which is similar to `createSwitch` but is bundled directly in libp2p

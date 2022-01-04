@@ -38,11 +38,20 @@ proc grafted*(g: GossipSub, p: PubSubPeer, topic: string) {.raises: [Defect].} =
 
     trace "grafted", peer=p, topic
 
-proc pruned*(g: GossipSub, p: PubSubPeer, topic: string, setBackoff: bool = true) {.raises: [Defect].} =
+proc pruned*(g: GossipSub,
+             p: PubSubPeer,
+             topic: string,
+             setBackoff: bool = true,
+             backoff = none(Duration)) {.raises: [Defect].} =
   if setBackoff:
-    let backoff = Moment.fromNow(g.parameters.pruneBackoff)
+    let
+      backoffDuration =
+        if isSome(backoff): backoff.get()
+        else: g.parameters.pruneBackoff
+      backoffMoment = Moment.fromNow(backoffDuration)
+
     g.backingOff
-      .mgetOrPut(topic, initTable[PeerID, Moment]())[p.peerId] = backoff
+      .mgetOrPut(topic, initTable[PeerId, Moment]())[p.peerId] = backoffMoment
 
   g.peerStats.withValue(p.peerId, stats):
     stats.topicInfos.withValue(topic, info):
@@ -62,7 +71,7 @@ proc pruned*(g: GossipSub, p: PubSubPeer, topic: string, setBackoff: bool = true
 proc handleBackingOff*(t: var BackoffTable, topic: string) {.raises: [Defect].} =
   let now = Moment.now()
   var expired = toSeq(t.getOrDefault(topic).pairs())
-  expired.keepIf do (pair: tuple[peer: PeerID, expire: Moment]) -> bool:
+  expired.keepIf do (pair: tuple[peer: PeerId, expire: Moment]) -> bool:
     now >= pair.expire
   for (peer, _) in expired:
     t.withValue(topic, v):
@@ -75,7 +84,7 @@ proc peerExchangeList*(g: GossipSub, topic: string): seq[PeerInfoMsg] {.raises: 
   # by spec, larger then Dhi, but let's put some hard caps
   peers.setLen(min(peers.len, g.parameters.dHigh * 2))
   peers.map do (x: PubSubPeer) -> PeerInfoMsg:
-    PeerInfoMsg(peerID: x.peerId.getBytes())
+    PeerInfoMsg(peerId: x.peerId.getBytes())
 
 proc handleGraft*(g: GossipSub,
                  peer: PubSubPeer,
@@ -98,7 +107,7 @@ proc handleGraft*(g: GossipSub,
 
       let backoff = Moment.fromNow(g.parameters.pruneBackoff)
       g.backingOff
-        .mgetOrPut(topic, initTable[PeerID, Moment]())[peer.peerId] = backoff
+        .mgetOrPut(topic, initTable[PeerId, Moment]())[peer.peerId] = backoff
 
       peer.behaviourPenalty += 0.1
 
@@ -120,7 +129,7 @@ proc handleGraft*(g: GossipSub,
 
       let backoff = Moment.fromNow(g.parameters.pruneBackoff)
       g.backingOff
-        .mgetOrPut(topic, initTable[PeerID, Moment]())[peer.peerId] = backoff
+        .mgetOrPut(topic, initTable[PeerId, Moment]())[peer.peerId] = backoff
 
       peer.behaviourPenalty += 0.1
 
@@ -175,7 +184,7 @@ proc handlePrune*(g: GossipSub, peer: PubSubPeer, prunes: seq[ControlPrune]) {.r
         current = g.backingOff.getOrDefault(topic).getOrDefault(peer.peerId)
       if backoff > current:
         g.backingOff
-          .mgetOrPut(topic, initTable[PeerID, Moment]())[peer.peerId] = backoff
+          .mgetOrPut(topic, initTable[PeerId, Moment]())[peer.peerId] = backoff
 
     trace "pruning rpc received peer", peer, score = peer.score
     g.pruned(peer, topic, setBackoff = false)

@@ -54,7 +54,7 @@ proc testPubSubDaemonPublish(gossip: bool = false, count: int = 1) {.async.} =
 
   nativeNode.mount(pubsub)
 
-  let awaiters = nativeNode.start()
+  await nativeNode.start()
   await pubsub.start()
   let nativePeer = nativeNode.peerInfo
 
@@ -90,7 +90,6 @@ proc testPubSubDaemonPublish(gossip: bool = false, count: int = 1) {.async.} =
 
   await nativeNode.stop()
   await pubsub.stop()
-  await allFutures(awaiters)
   await daemonNode.close()
 
 proc testPubSubNodePublish(gossip: bool = false, count: int = 1) {.async.} =
@@ -115,7 +114,7 @@ proc testPubSubNodePublish(gossip: bool = false, count: int = 1) {.async.} =
 
   nativeNode.mount(pubsub)
 
-  let awaiters = nativeNode.start()
+  await nativeNode.start()
   await pubsub.start()
   let nativePeer = nativeNode.peerInfo
 
@@ -151,7 +150,6 @@ proc testPubSubNodePublish(gossip: bool = false, count: int = 1) {.async.} =
   check finished
   await nativeNode.stop()
   await pubsub.stop()
-  await allFutures(awaiters)
   await daemonNode.close()
 
 suite "Interop":
@@ -171,7 +169,7 @@ suite "Interop":
       secureManagers = [SecureProtocol.Noise],
       outTimeout = 5.minutes)
 
-    let awaiters = await nativeNode.start()
+    await nativeNode.start()
     let daemonNode = await newDaemonApi()
     let daemonPeer = await daemonNode.identity()
 
@@ -195,7 +193,6 @@ suite "Interop":
 
     await nativeNode.stop()
     await daemonNode.close()
-    await allFutures(awaiters)
 
     await sleepAsync(1.seconds)
 
@@ -215,7 +212,7 @@ suite "Interop":
       secureManagers = [SecureProtocol.Noise],
       outTimeout = 5.minutes)
 
-    let awaiters = await nativeNode.start()
+    await nativeNode.start()
 
     let daemonNode = await newDaemonApi()
     let daemonPeer = await daemonNode.identity()
@@ -236,7 +233,6 @@ suite "Interop":
 
     await conn.close()
     await nativeNode.stop()
-    await allFutures(awaiters)
     await daemonNode.close()
 
   asyncTest "daemon -> native connection":
@@ -260,7 +256,7 @@ suite "Interop":
 
     nativeNode.mount(proto)
 
-    let awaiters = await nativeNode.start()
+    await nativeNode.start()
     let nativePeer = nativeNode.peerInfo
 
     let daemonNode = await newDaemonApi()
@@ -272,7 +268,6 @@ suite "Interop":
 
     await stream.close()
     await nativeNode.stop()
-    await allFutures(awaiters)
     await daemonNode.close()
     await sleepAsync(1.seconds)
 
@@ -305,7 +300,7 @@ suite "Interop":
 
     nativeNode.mount(proto)
 
-    let awaiters = await nativeNode.start()
+    await nativeNode.start()
     let nativePeer = nativeNode.peerInfo
 
     let daemonNode = await newDaemonApi(hostAddresses = @[wsAddress])
@@ -317,7 +312,6 @@ suite "Interop":
 
     await stream.close()
     await nativeNode.stop()
-    await allFutures(awaiters)
     await daemonNode.close()
     await sleepAsync(1.seconds)
 
@@ -343,7 +337,7 @@ suite "Interop":
       .withNoise()
       .build()
 
-    let awaiters = await nativeNode.start()
+    await nativeNode.start()
 
     let daemonNode = await newDaemonApi(hostAddresses = @[wsAddress])
     let daemonPeer = await daemonNode.identity()
@@ -364,7 +358,6 @@ suite "Interop":
 
     await conn.close()
     await nativeNode.stop()
-    await allFutures(awaiters)
     await daemonNode.close()
 
   asyncTest "daemon -> multiple reads and writes":
@@ -391,7 +384,7 @@ suite "Interop":
 
     nativeNode.mount(proto)
 
-    let awaiters = await nativeNode.start()
+    await nativeNode.start()
     let nativePeer = nativeNode.peerInfo
 
     let daemonNode = await newDaemonApi()
@@ -408,7 +401,6 @@ suite "Interop":
 
     await stream.close()
     await nativeNode.stop()
-    await allFutures(awaiters)
     await daemonNode.close()
 
   asyncTest "read write multiple":
@@ -437,7 +429,7 @@ suite "Interop":
 
     nativeNode.mount(proto)
 
-    let awaiters = await nativeNode.start()
+    await nativeNode.start()
     let nativePeer = nativeNode.peerInfo
 
     let daemonNode = await newDaemonApi()
@@ -454,7 +446,6 @@ suite "Interop":
     check 10 == (await wait(testFuture, 1.minutes))
     await stream.close()
     await nativeNode.stop()
-    await allFutures(awaiters)
     await daemonNode.close()
 
   asyncTest "floodsub: daemon publish one":

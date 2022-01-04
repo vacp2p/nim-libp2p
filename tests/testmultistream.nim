@@ -236,7 +236,7 @@ suite "Multistream select":
     await ms.handle(conn)
 
   asyncTest "e2e - handle":
-    let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
+    let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
 
     var protocol: LPProtocol = new LPProtocol
     proc testHandler(conn: Connection,
@@ -262,7 +262,7 @@ suite "Multistream select":
 
     let msDial = MultistreamSelect.new()
     let transport2 = TcpTransport.new(upgrade = Upgrade())
-    let conn = await transport2.dial(transport1.ma)
+    let conn = await transport2.dial(transport1.addrs[0])
 
     check (await msDial.select(conn, "/test/proto/1.0.0")) == true
 
@@ -276,7 +276,7 @@ suite "Multistream select":
     await handlerWait.wait(30.seconds)
 
   asyncTest "e2e - ls":
-    let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
+    let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
 
     let
       handlerWait = newFuture[void]()
@@ -314,7 +314,7 @@ suite "Multistream select":
     let acceptFut = acceptHandler()
     let msDial = MultistreamSelect.new()
     let transport2: TcpTransport = TcpTransport.new(upgrade = Upgrade())
-    let conn = await transport2.dial(transport1.ma)
+    let conn = await transport2.dial(transport1.addrs[0])
 
     let ls = await msDial.list(conn)
     let protos: seq[string] = @["/test/proto1/1.0.0", "/test/proto2/1.0.0"]
@@ -328,7 +328,7 @@ suite "Multistream select":
     await listenFut.wait(5.seconds)
 
   asyncTest "e2e - select one from a list with unsupported protos":
-    let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
+    let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
 
     var protocol: LPProtocol = new LPProtocol
     proc testHandler(conn: Connection,
@@ -352,7 +352,7 @@ suite "Multistream select":
     let acceptFut = acceptHandler()
     let msDial = MultistreamSelect.new()
     let transport2: TcpTransport = TcpTransport.new(upgrade = Upgrade())
-    let conn = await transport2.dial(transport1.ma)
+    let conn = await transport2.dial(transport1.addrs[0])
 
     check (await msDial.select(conn,
       @["/test/proto/1.0.0", "/test/no/proto/1.0.0"])) == "/test/proto/1.0.0"
@@ -366,7 +366,7 @@ suite "Multistream select":
     await transport1.stop()
 
   asyncTest "e2e - select one with both valid":
-    let ma: MultiAddress = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
+    let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
 
     var protocol: LPProtocol = new LPProtocol
     proc testHandler(conn: Connection,
@@ -390,7 +390,7 @@ suite "Multistream select":
     let acceptFut = acceptHandler()
     let msDial = MultistreamSelect.new()
     let transport2: TcpTransport = TcpTransport.new(upgrade = Upgrade())
-    let conn = await transport2.dial(transport1.ma)
+    let conn = await transport2.dial(transport1.addrs[0])
 
     check (await msDial.select(conn,
       @[

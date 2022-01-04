@@ -45,10 +45,10 @@ proc main() {.async, gcsafe.} =
   let
     rng = newRng() # Single random number source for the whole application
     # port 0 will take a random available port
-    # `tryGet` will throw an exception if the Multiaddress failed
+    # `tryGet` will throw an exception if the MultiAddress failed
     # (for instance, if the address is not well formatted)
-    ma1 = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
-    ma2 = Multiaddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
+    ma1 = MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
+    ma2 = MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
 
   # setup the custom proto
   let testProto = TestProto.new()
@@ -65,9 +65,8 @@ proc main() {.async, gcsafe.} =
 
   # Start the nodes. This will start the transports
   # and listen on each local addresses
-  let
-    switch1Fut = await switch1.start()
-    switch2Fut = await switch2.start()
+  await switch1.start()
+  await switch2.start()
 
   # the node addrs is populated with it's
   # actual port during the start
@@ -87,6 +86,5 @@ proc main() {.async, gcsafe.} =
   await conn.close()
 
   await allFutures(switch1.stop(), switch2.stop()) # close connections and shutdown all transports
-  await allFutures(switch1Fut & switch2Fut) # wait for all transports to shutdown
 
 waitFor(main())

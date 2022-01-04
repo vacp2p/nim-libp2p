@@ -12,13 +12,13 @@ suite "PeerStore":
   let
     # Peer 1
     keyPair1 = KeyPair.random(ECDSA, rng[]).get()
-    peerId1 = PeerID.init(keyPair1.secKey).get()
+    peerId1 = PeerId.init(keyPair1.seckey).get()
     multiaddrStr1 = "/ip4/127.0.0.1/udp/1234/p2p/QmcgpsyWgH8Y8ajJz1Cu72KnS5uo2Aa2LpzU7kinSupNKC"
     multiaddr1 = MultiAddress.init(multiaddrStr1).get()
     testcodec1 = "/nim/libp2p/test/0.0.1-beta1"
     # Peer 2
     keyPair2 = KeyPair.random(ECDSA, rng[]).get()
-    peerId2 = PeerID.init(keyPair2.secKey).get()
+    peerId2 = PeerId.init(keyPair2.seckey).get()
     multiaddrStr2 = "/ip4/0.0.0.0/tcp/1234/ipfs/QmcgpsyWgH8Y8ajJz1Cu72KnS5uo2Aa2LpzU7kinSupNKC"
     multiaddr2 = MultiAddress.init(multiaddrStr2).get()
     testcodec2 = "/nim/libp2p/test/0.0.2-beta1"
@@ -32,8 +32,8 @@ suite "PeerStore":
     peerStore.addressBook.add(peerId2, multiaddr2)
     peerStore.protoBook.add(peerId1, testcodec1)
     peerStore.protoBook.add(peerId2, testcodec2)
-    peerStore.keyBook.set(peerId1, keyPair1.pubKey)
-    peerStore.keyBook.set(peerId2, keyPair2.pubKey)
+    peerStore.keyBook.set(peerId1, keyPair1.pubkey)
+    peerStore.keyBook.set(peerId2, keyPair2.pubkey)
 
     # Test PeerStore::delete
     check:
@@ -52,13 +52,13 @@ suite "PeerStore":
       protoChanged = false
       keyChanged = false
 
-    proc addrChange(peerId: PeerID, addrs: HashSet[MultiAddress]) =
+    proc addrChange(peerId: PeerId, addrs: HashSet[MultiAddress]) =
       addrChanged = true
 
-    proc protoChange(peerId: PeerID, protos: HashSet[string]) =
+    proc protoChange(peerId: PeerId, protos: HashSet[string]) =
       protoChanged = true
 
-    proc keyChange(peerId: PeerID, publicKey: PublicKey) =
+    proc keyChange(peerId: PeerId, publicKey: PublicKey) =
       keyChanged = true
 
     peerStore.addHandlers(addrChangeHandler = addrChange,

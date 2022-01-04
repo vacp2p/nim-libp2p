@@ -198,7 +198,7 @@ proc new*(
   T: type MuxedUpgrade,
   identity: Identify,
   muxers: Table[string, MuxerProvider],
-  secureManagers: openarray[Secure] = [],
+  secureManagers: openArray[Secure] = [],
   connManager: ConnManager,
   ms: MultistreamSelect): T =
 

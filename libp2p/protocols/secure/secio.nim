@@ -83,7 +83,7 @@ func shortLog*(conn: SecioConn): auto =
 
 chronicles.formatIt(SecioConn): shortLog(it)
 
-proc init(mac: var SecureMac, hash: string, key: openarray[byte]) =
+proc init(mac: var SecureMac, hash: string, key: openArray[byte]) =
   if hash == "SHA256":
     mac = SecureMac(kind: SecureMacType.Sha256)
     mac.ctxsha256.init(key)
@@ -94,7 +94,7 @@ proc init(mac: var SecureMac, hash: string, key: openarray[byte]) =
     mac = SecureMac(kind: SecureMacType.Sha1)
     mac.ctxsha1.init(key)
 
-proc update(mac: var SecureMac, data: openarray[byte]) =
+proc update(mac: var SecureMac, data: openArray[byte]) =
   case mac.kind
   of SecureMacType.Sha256:
     update(mac.ctxsha256, data)
@@ -112,7 +112,7 @@ proc sizeDigest(mac: SecureMac): int {.inline.} =
   of SecureMacType.Sha1:
     result = int(mac.ctxsha1.sizeDigest())
 
-proc finish(mac: var SecureMac, data: var openarray[byte]) =
+proc finish(mac: var SecureMac, data: var openArray[byte]) =
   case mac.kind
   of SecureMacType.Sha256:
     discard finish(mac.ctxsha256, data)
@@ -130,8 +130,8 @@ proc reset(mac: var SecureMac) =
   of SecureMacType.Sha1:
     reset(mac.ctxsha1)
 
-proc init(sc: var SecureCipher, cipher: string, key: openarray[byte],
-          iv: openarray[byte]) {.inline.} =
+proc init(sc: var SecureCipher, cipher: string, key: openArray[byte],
+          iv: openArray[byte]) {.inline.} =
   if cipher == "AES-128":
     sc = SecureCipher(kind: SecureCipherType.Aes128)
     sc.ctxaes128.init(key, iv)
@@ -142,8 +142,8 @@ proc init(sc: var SecureCipher, cipher: string, key: openarray[byte],
     sc = SecureCipher(kind: SecureCipherType.Twofish)
     sc.ctxtwofish256.init(key, iv)
 
-proc encrypt(cipher: var SecureCipher, input: openarray[byte],
-             output: var openarray[byte]) {.inline.} =
+proc encrypt(cipher: var SecureCipher, input: openArray[byte],
+             output: var openArray[byte]) {.inline.} =
   case cipher.kind
   of SecureCipherType.Aes128:
     cipher.ctxaes128.encrypt(input, output)
@@ -152,8 +152,8 @@ proc encrypt(cipher: var SecureCipher, input: openarray[byte],
   of SecureCipherType.Twofish:
     cipher.ctxtwofish256.encrypt(input, output)
 
-proc decrypt(cipher: var SecureCipher, input: openarray[byte],
-             output: var openarray[byte]) {.inline.} =
+proc decrypt(cipher: var SecureCipher, input: openArray[byte],
+             output: var openArray[byte]) {.inline.} =
   case cipher.kind
   of SecureCipherType.Aes128:
     cipher.ctxaes128.decrypt(input, output)
@@ -300,8 +300,8 @@ method handshake*(s: Secio, conn: Connection, initiator: bool = false): Future[S
     remoteExchanges: string
     remoteCiphers: string
     remoteHashes: string
-    remotePeerId: PeerID
-    localPeerId: PeerID
+    remotePeerId: PeerId
+    localPeerId: PeerId
     localBytesPubkey = s.localPublicKey.getBytes().tryGet()
 
   brHmacDrbgGenerate(s.rng[], localNonce)
@@ -312,7 +312,7 @@ method handshake*(s: Secio, conn: Connection, initiator: bool = false): Future[S
                                SecioCiphers,
                                SecioHashes)
 
-  localPeerId = PeerID.init(s.localPublicKey).tryGet()
+  localPeerId = PeerId.init(s.localPublicKey).tryGet()
 
   trace "Local proposal", schemes = SecioExchanges,
                           ciphers = SecioCiphers,
@@ -336,9 +336,9 @@ method handshake*(s: Secio, conn: Connection, initiator: bool = false): Future[S
           pubkey = remoteBytesPubkey.shortLog
     raise (ref SecioError)(msg: "Remote public key incorrect or corrupted")
 
-  remotePeerId = PeerID.init(remotePubkey).tryGet()
+  remotePeerId = PeerId.init(remotePubkey).tryGet()
 
-  # TODO: PeerID check against supplied PeerID
+  # TODO: PeerId check against supplied PeerId
   if not initiator:
     conn.peerId = remotePeerId
   let order = getOrder(remoteBytesPubkey, localNonce, localBytesPubkey,

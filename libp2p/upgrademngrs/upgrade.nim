@@ -76,7 +76,7 @@ proc identify*(
       info = await self.identity.identify(conn, conn.peerId)
       peerStore = self.connManager.peerStore
 
-    if info.pubKey.isNone and isNil(conn):
+    if info.pubkey.isNone and isNil(conn):
       raise newException(UpgradeFailedError,
         "no public key provided and no existing peer identity found")
 
