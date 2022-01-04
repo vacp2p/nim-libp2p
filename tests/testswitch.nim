@@ -562,6 +562,7 @@ suite "Switch":
         conns.dec
 
     switches.add(newStandardSwitch(
+        maxConnsPerPeer = 10,
         rng = rng))
 
     switches[0].addConnEventHandler(hook, ConnEventKind.Connected)
