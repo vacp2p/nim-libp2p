@@ -17,7 +17,7 @@ import
   protocols/[identify, secure/secure, secure/noise],
   connmanager, upgrademngrs/muxedupgrade,
   nameresolving/nameresolver,
-  errors
+  errors, utility
 
 export
   switch, peerid, peerinfo, connection, multiaddress, crypto, errors
@@ -33,7 +33,7 @@ type
     enable: bool
     newMuxer: MuxerConstructor
 
-  SwitchBuilder* = ref object
+  SwitchBuilder* {.public.} = ref object
     privKey: Option[PrivateKey]
     addresses: seq[MultiAddress]
     secureManagers: seq[SecureProtocol]
@@ -48,7 +48,7 @@ type
     agentVersion: string
     nameResolver: NameResolver
 
-proc new*(T: type[SwitchBuilder]): T =
+proc new*(T: type[SwitchBuilder]): T {.public.} =
 
   let address = MultiAddress
   .init("/ip4/127.0.0.1/tcp/0")
@@ -65,20 +65,20 @@ proc new*(T: type[SwitchBuilder]): T =
     protoVersion: ProtoVersion,
     agentVersion: AgentVersion)
 
-proc withPrivateKey*(b: SwitchBuilder, privateKey: PrivateKey): SwitchBuilder =
+proc withPrivateKey*(b: SwitchBuilder, privateKey: PrivateKey): SwitchBuilder {.public.} =
   b.privKey = some(privateKey)
   b
 
-proc withAddress*(b: SwitchBuilder, address: MultiAddress): SwitchBuilder =
+proc withAddress*(b: SwitchBuilder, address: MultiAddress): SwitchBuilder {.public.} =
   b.addresses = @[address]
   b
 
-proc withAddresses*(b: SwitchBuilder, addresses: seq[MultiAddress]): SwitchBuilder =
+proc withAddresses*(b: SwitchBuilder, addresses: seq[MultiAddress]): SwitchBuilder {.public.} =
   b.addresses = addresses
   b
 
 
-proc withMplex*(b: SwitchBuilder, inTimeout = 5.minutes, outTimeout = 5.minutes): SwitchBuilder =
+proc withMplex*(b: SwitchBuilder, inTimeout = 5.minutes, outTimeout = 5.minutes): SwitchBuilder {.public.} =
   proc newMuxer(conn: Connection): Muxer =
     Mplex.new(
       conn,
@@ -92,51 +92,51 @@ proc withMplex*(b: SwitchBuilder, inTimeout = 5.minutes, outTimeout = 5.minutes)
 
   b
 
-proc withNoise*(b: SwitchBuilder): SwitchBuilder =
+proc withNoise*(b: SwitchBuilder): SwitchBuilder {.public.} =
   b.secureManagers.add(SecureProtocol.Noise)
   b
 
-proc withTransport*(b: SwitchBuilder, prov: TransportProvider): SwitchBuilder =
+proc withTransport*(b: SwitchBuilder, prov: TransportProvider): SwitchBuilder {.public.} =
   b.transports.add(prov)
   b
 
-proc withTcpTransport*(b: SwitchBuilder, flags: set[ServerFlags] = {}): SwitchBuilder =
+proc withTcpTransport*(b: SwitchBuilder, flags: set[ServerFlags] = {}): SwitchBuilder {.public.} =
   b.withTransport(proc(upgr: Upgrade): Transport = TcpTransport.new(flags, upgr))
 
-proc withRng*(b: SwitchBuilder, rng: ref BrHmacDrbgContext): SwitchBuilder =
+proc withRng*(b: SwitchBuilder, rng: ref BrHmacDrbgContext): SwitchBuilder {.public.} =
   b.rng = rng
   b
 
-proc withMaxConnections*(b: SwitchBuilder, maxConnections: int): SwitchBuilder =
+proc withMaxConnections*(b: SwitchBuilder, maxConnections: int): SwitchBuilder {.public.} =
   b.maxConnections = maxConnections
   b
 
-proc withMaxIn*(b: SwitchBuilder, maxIn: int): SwitchBuilder =
+proc withMaxIn*(b: SwitchBuilder, maxIn: int): SwitchBuilder {.public.} =
   b.maxIn = maxIn
   b
 
-proc withMaxOut*(b: SwitchBuilder, maxOut: int): SwitchBuilder =
+proc withMaxOut*(b: SwitchBuilder, maxOut: int): SwitchBuilder {.public.} =
   b.maxOut = maxOut
   b
 
-proc withMaxConnsPerPeer*(b: SwitchBuilder, maxConnsPerPeer: int): SwitchBuilder =
+proc withMaxConnsPerPeer*(b: SwitchBuilder, maxConnsPerPeer: int): SwitchBuilder {.public.} =
   b.maxConnsPerPeer = maxConnsPerPeer
   b
 
-proc withProtoVersion*(b: SwitchBuilder, protoVersion: string): SwitchBuilder =
+proc withProtoVersion*(b: SwitchBuilder, protoVersion: string): SwitchBuilder {.public.} =
   b.protoVersion = protoVersion
   b
 
-proc withAgentVersion*(b: SwitchBuilder, agentVersion: string): SwitchBuilder =
+proc withAgentVersion*(b: SwitchBuilder, agentVersion: string): SwitchBuilder {.public.} =
   b.agentVersion = agentVersion
   b
 
-proc withNameResolver*(b: SwitchBuilder, nameResolver: NameResolver): SwitchBuilder =
+proc withNameResolver*(b: SwitchBuilder, nameResolver: NameResolver): SwitchBuilder {.public.} =
   b.nameResolver = nameResolver
   b
 
 proc build*(b: SwitchBuilder): Switch
-  {.raises: [Defect, LPError].} =
+  {.raises: [Defect, LPError], public.} =
 
   if b.rng == nil: # newRng could fail
     raise newException(Defect, "Cannot initialize RNG")
@@ -210,7 +210,7 @@ proc newStandardSwitch*(
   maxOut = -1,
   maxConnsPerPeer = MaxConnectionsPerPeer,
   nameResolver: NameResolver = nil): Switch
-  {.raises: [Defect, LPError].} =
+  {.raises: [Defect, LPError], public.} =
   if SecureProtocol.Secio in secureManagers:
       quit("Secio is deprecated!") # use of secio is unsafe
 

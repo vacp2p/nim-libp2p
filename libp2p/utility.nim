@@ -11,6 +11,8 @@
 
 import stew/byteutils
 
+template public* {.pragma.}
+
 const
   ShortDumpMax = 12
 
