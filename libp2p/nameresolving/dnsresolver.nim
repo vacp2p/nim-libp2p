@@ -78,7 +78,12 @@ proc getDnsResponse(
       dataStream = newStringStream()
     dataStream.writeData(addr rawResponse[0], rawResponse.len)
     dataStream.setPosition(0)
+    # parseResponse can has a raises: [Exception, ..] because of
+    # https://github.com/nim-lang/Nim/commit/035134de429b5d99c5607c5fae912762bebb6008
+    # it can't actually raise though
     return parseResponse(dataStream)
+  except CatchableError as exc: raise exc
+  except Exception as exc: raiseAssert exc.msg
   finally:
     await sock.closeWait()
 

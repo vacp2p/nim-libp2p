@@ -162,7 +162,10 @@ proc main() {.async.} =
     stdinReader = fromPipe(rfd)
 
   var thread: Thread[AsyncFD]
-  thread.createThread(readInput, wfd)
+  try:
+    thread.createThread(readInput, wfd)
+  except Exception as exc:
+    quit("Failed to create thread: " & exc.msg)
 
   var localAddress = MultiAddress.init(DefaultAddr).tryGet()
 

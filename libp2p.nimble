@@ -9,7 +9,7 @@ skipDirs      = @["tests", "examples", "Nim", "tools", "scripts", "docs"]
 
 requires "nim >= 1.2.0",
          "nimcrypto >= 0.4.1",
-         "https://github.com/ba0f3/dnsclient.nim == 0.1.0",
+         "dnsclient >= 0.1.2",
          "bearssl >= 0.1.4",
          "chronicles >= 0.10.2",
          "chronos >= 3.0.6",
@@ -18,11 +18,19 @@ requires "nim >= 1.2.0",
          "stew#head",
          "websock"
 
+const nimflags =
+  "--verbosity:0 --hints:off " &
+  "--warning[CaseTransition]:off --warning[ObservableStores]:off " &
+  "--warning[LockLevel]:off " &
+  "-d:chronosStrictException " &
+  "--styleCheck:usages --styleCheck:hint "
+
 proc runTest(filename: string, verify: bool = true, sign: bool = true,
              moreoptions: string = "") =
   let env_nimflags = getEnv("NIMFLAGS")
-  var excstr = "nim c --opt:speed -d:debug -d:libp2p_agents_metrics -d:libp2p_protobuf_metrics -d:libp2p_network_protocols_metrics --verbosity:0 --hints:off --styleCheck:usages --styleCheck:hint " & env_nimflags
-  excstr.add(" --warning[CaseTransition]:off --warning[ObservableStores]:off --warning[LockLevel]:off")
+  var excstr = "nim c --opt:speed -d:debug -d:libp2p_agents_metrics -d:libp2p_protobuf_metrics -d:libp2p_network_protocols_metrics "
+  excstr.add(" " & env_nimflags & " ")
+  excstr.add(" " & nimflags & " ")
   excstr.add(" -d:libp2p_pubsub_sign=" & $sign)
   excstr.add(" -d:libp2p_pubsub_verify=" & $verify)
   excstr.add(" " & moreoptions & " ")
@@ -34,8 +42,8 @@ proc runTest(filename: string, verify: bool = true, sign: bool = true,
   rmFile "tests/" & filename.toExe
 
 proc buildSample(filename: string, run = false) =
-  var excstr = "nim c --opt:speed --threads:on -d:debug --verbosity:0 --hints:off "
-  excstr.add(" --warning[CaseTransition]:off --warning[ObservableStores]:off --warning[LockLevel]:off")
+  var excstr = "nim c --opt:speed --threads:on -d:debug "
+  excstr.add(" " & nimflags & " ")
   excstr.add(" examples/" & filename)
   exec excstr
   if run:
@@ -44,7 +52,7 @@ proc buildSample(filename: string, run = false) =
 
 proc buildTutorial(filename: string) =
   discard gorge "cat " & filename & " | nim c -r --hints:off tools/markdown_runner.nim | " &
-    " nim --warning[CaseTransition]:off --warning[ObservableStores]:off --warning[LockLevel]:off c -"
+    " nim " & nimflags & " c -"
 
 task testnative, "Runs libp2p native tests":
   runTest("testnative")
