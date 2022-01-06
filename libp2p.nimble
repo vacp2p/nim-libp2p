@@ -27,9 +27,8 @@ const nimflags =
 
 proc runTest(filename: string, verify: bool = true, sign: bool = true,
              moreoptions: string = "") =
-  let env_nimflags = getEnv("NIMFLAGS")
   var excstr = "nim c --opt:speed -d:debug -d:libp2p_agents_metrics -d:libp2p_protobuf_metrics -d:libp2p_network_protocols_metrics "
-  excstr.add(" " & env_nimflags & " ")
+  excstr.add(" " & getEnv("NIMFLAGS") & " ")
   excstr.add(" " & nimflags & " ")
   excstr.add(" -d:libp2p_pubsub_sign=" & $sign)
   excstr.add(" -d:libp2p_pubsub_verify=" & $verify)
@@ -91,7 +90,7 @@ task test, "Runs the test suite":
   exec "nimble testfilter"
   exec "nimble examples_build"
 
-task test_slim, "Runs the test suite":
+task test_slim, "Runs the (slimmed down) test suite":
   exec "nimble testnative"
   exec "nimble testpubsub_slim"
   exec "nimble testfilter"
