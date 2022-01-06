@@ -9,6 +9,7 @@ on:
 
 jobs:
   build:
+    timeout-minutes: 120
     strategy:
       fail-fast: false
       matrix:
@@ -172,7 +173,7 @@ jobs:
           if [[ "${{ matrix.branch }}" == "version-1-6" || "${{ matrix.branch }}" == "devel" ]]; then
             echo -e "\nTesting with '--gc:orc':\n"
             export NIMFLAGS="${NIMFLAGS} --gc:orc"
-            nimble test
+            nimble test_slim
           fi
 
   bumpNBC-stable:
