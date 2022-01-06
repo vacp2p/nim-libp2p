@@ -210,7 +210,7 @@ proc new*(
     ms: ms)
 
   upgrader.streamHandler = proc(conn: Connection)
-    {.async, gcsafe, raises: [Defect].} =
+    {.async, gcsafe.} =
     trace "Starting stream handler", conn
     try:
       await upgrader.ms.handle(conn) # handle incoming connection

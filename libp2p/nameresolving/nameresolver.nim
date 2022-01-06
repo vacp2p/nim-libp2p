@@ -50,7 +50,7 @@ proc resolveDnsAddress(
   ma: MultiAddress,
   domain: Domain = Domain.AF_UNSPEC,
   prefix = ""): Future[seq[MultiAddress]]
-  {.async, raises: [Defect, MaError, TransportAddressError].} =
+  {.async.} =
   #Resolve a single address
   var pbuf: array[2, byte]
 
