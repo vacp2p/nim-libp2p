@@ -844,6 +844,7 @@ suite "Switch":
     when defined(windows):
       # this randomly locks the Windows CI job
       skip()
+      return
     proc handle(conn: Connection, proto: string) {.async, gcsafe.} =
       try:
         let msg = string.fromBytes(await conn.readLp(1024))

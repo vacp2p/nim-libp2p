@@ -140,6 +140,7 @@ proc commonTransportTest*(name: string, prov: TransportProvider, ma: string) =
       when defined(windows):
         # this randomly locks the Windows CI job
         skip()
+        return
       let addrs = @[MultiAddress.init(ma).tryGet(),
                     MultiAddress.init(ma).tryGet()]
 
