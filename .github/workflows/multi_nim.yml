@@ -47,7 +47,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v2
         with:
-          ref: master
+          ref: unstable
           submodules: true
 
       - name: Install build dependencies (Linux i386)
