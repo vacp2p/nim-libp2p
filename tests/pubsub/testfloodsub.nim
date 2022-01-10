@@ -29,7 +29,7 @@ proc waitSub(sender, receiver: auto; key: string) {.async, gcsafe.} =
   var ceil = 15
   let fsub = cast[FloodSub](sender)
   while not fsub.floodsub.hasKey(key) or
-        not fsub.floodsub.hasPeerID(key, receiver.peerInfo.peerId):
+        not fsub.floodsub.hasPeerId(key, receiver.peerInfo.peerId):
     await sleepAsync(100.millis)
     dec ceil
     doAssert(ceil > 0, "waitSub timeout!")
@@ -380,5 +380,59 @@ suite "FloodSub":
         allFutures(
           it.stop(),
           it.switch.stop())))
+
+    await allFuturesThrowing(nodesFut)
+
+  asyncTest "FloodSub message size validation":
+    var messageReceived = 0
+    proc handler(topic: string, data: seq[byte]) {.async, gcsafe.} =
+      check data.len < 50
+      inc(messageReceived)
+
+    let
+      bigNode = generateNodes(1)
+      smallNode = generateNodes(1, maxMessageSize = 200)
+
+      # start switches
+      nodesFut = await allFinished(
+        bigNode[0].switch.start(),
+        smallNode[0].switch.start(),
+      )
+
+    # start pubsubcon
+    await allFuturesThrowing(
+      allFinished(
+        bigNode[0].start(),
+        smallNode[0].start(),
+    ))
+
+    await subscribeNodes(bigNode & smallNode)
+    bigNode[0].subscribe("foo", handler)
+    smallNode[0].subscribe("foo", handler)
+    await waitSub(bigNode[0], smallNode[0], "foo")
+
+    let
+      bigMessage = newSeq[byte](1000)
+      smallMessage1 = @[1.byte]
+      smallMessage2 = @[3.byte]
+
+    # Need two different messages, otherwise they are the same when anonymized
+    check (await smallNode[0].publish("foo", smallMessage1)) > 0
+    check (await bigNode[0].publish("foo", smallMessage2)) > 0
+
+    check (await checkExpiring(messageReceived == 2)) == true
+
+    check (await smallNode[0].publish("foo", bigMessage)) > 0
+    check (await bigNode[0].publish("foo", bigMessage)) > 0
+
+    await allFuturesThrowing(
+      smallNode[0].switch.stop(),
+      bigNode[0].switch.stop()
+    )
+
+    await allFuturesThrowing(
+      smallNode[0].stop(),
+      bigNode[0].stop()
+    )
 
     await allFuturesThrowing(nodesFut)

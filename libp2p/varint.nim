@@ -103,7 +103,7 @@ proc vsizeof*(x: SomeVarint): int {.inline.} =
   Leb128.len(toUleb(x))
 
 proc getUVarint*[T: PB|LP](vtype: typedesc[T],
-                           pbytes: openarray[byte],
+                           pbytes: openArray[byte],
                            outlen: var int,
                            outval: var SomeUVarint): VarintResult[void] =
   ## Decode `unsigned varint` from buffer ``pbytes`` and store it to ``outval``.
@@ -149,7 +149,7 @@ proc getUVarint*[T: PB|LP](vtype: typedesc[T],
   ok()
 
 proc putUVarint*[T: PB|LP](vtype: typedesc[T],
-                           pbytes: var openarray[byte],
+                           pbytes: var openArray[byte],
                            outlen: var int,
                            outval: SomeUVarint): VarintResult[void] =
   ## Encode `unsigned varint` ``outval`` and store it to array ``pbytes``.
@@ -180,7 +180,7 @@ proc putUVarint*[T: PB|LP](vtype: typedesc[T],
   else:
     err(VarintError.Overrun)
 
-proc getSVarint*(pbytes: openarray[byte], outsize: var int,
+proc getSVarint*(pbytes: openArray[byte], outsize: var int,
                  outval: var (PBZigVarint | PBSomeSVarint)): VarintResult[void] {.inline.} =
   ## Decode signed integer (``int32`` or ``int64``) from buffer ``pbytes``
   ## and store it to ``outval``.
@@ -210,7 +210,7 @@ proc getSVarint*(pbytes: openarray[byte], outsize: var int,
     outval = fromUleb(value, type(outval))
   res
 
-proc putSVarint*(pbytes: var openarray[byte], outsize: var int,
+proc putSVarint*(pbytes: var openArray[byte], outsize: var int,
                  outval: (PBZigVarint | PBSomeSVarint)): VarintResult[void] {.inline.} =
   ## Encode signed integer ``outval`` using ProtoBuffer's zigzag encoding
   ## (``sint32`` or ``sint64``) and store it to array ``pbytes``.
@@ -230,7 +230,7 @@ template varintFatal(msg) =
   const m = msg
   {.fatal: m.}
 
-proc putVarint*[T: PB|LP](vtype: typedesc[T], pbytes: var openarray[byte],
+proc putVarint*[T: PB|LP](vtype: typedesc[T], pbytes: var openArray[byte],
                 nbytes: var int, value: SomeVarint): VarintResult[void] {.inline.} =
   when vtype is PB:
     when (type(value) is PBSomeSVarint) or (type(value) is PBZigVarint):
@@ -247,7 +247,7 @@ proc putVarint*[T: PB|LP](vtype: typedesc[T], pbytes: var openarray[byte],
       varintFatal("LibP2P's varint do not support type [" &
                    typetraits.name(type(value)) & "]")
 
-proc getVarint*[T: PB|LP](vtype: typedesc[T], pbytes: openarray[byte],
+proc getVarint*[T: PB|LP](vtype: typedesc[T], pbytes: openArray[byte],
                           nbytes: var int,
                           value: var SomeVarint): VarintResult[void] {.inline.} =
   when vtype is PB:

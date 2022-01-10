@@ -10,11 +10,12 @@
 {.push raises: [Defect].}
 
 import std/[tables, sequtils, sets, strutils]
-import chronos, chronicles, metrics
+import chronos, chronicles, metrics, bearssl
 import ./pubsubpeer,
        ./rpc/[message, messages, protobuf],
        ../../switch,
        ../protocol,
+       ../../crypto/crypto,
        ../../stream/connection,
        ../../peerid,
        ../../peerinfo,
@@ -93,7 +94,7 @@ type
     switch*: Switch                    # the switch used to dial/connect to peers
     peerInfo*: PeerInfo                # this peer's info
     topics*: Table[string, seq[TopicHandler]]      # the topics that _we_ are interested in
-    peers*: Table[PeerID, PubSubPeer]  ##\
+    peers*: Table[PeerId, PubSubPeer]  ##\
       ## Peers that we are interested to gossip with (but not necessarily
       ## yet connected to)
     triggerSelf*: bool                 # trigger own local handler on publish
@@ -106,10 +107,19 @@ type
     anonymize*: bool                   # if we omit fromPeer and seqno from RPC messages we send
     subscriptionValidator*: SubscriptionValidator # callback used to validate subscriptions
     topicsHigh*: int                  # the maximum number of topics a peer is allowed to subscribe to
+    maxMessageSize*: int          ##\ 
+      ## the maximum raw message size we'll globally allow
+      ## for finer tuning, check message size on topic validator
+      ##
+      ## sending a big message to a peer with a lower size limit can
+      ## lead to issues, from descoring to connection drops
+      ##
+      ## defaults to 1mB
+    rng*: ref BrHmacDrbgContext
 
     knownTopics*: HashSet[string]
 
-method unsubscribePeer*(p: PubSub, peerId: PeerID) {.base.} =
+method unsubscribePeer*(p: PubSub, peerId: PeerId) {.base.} =
   ## handle peer disconnects
   ##
 
@@ -263,7 +273,7 @@ method onPubSubPeerEvent*(p: PubSub, peer: PubsubPeer, event: PubsubPeerEvent) {
 
 proc getOrCreatePeer*(
     p: PubSub,
-    peerId: PeerID,
+    peerId: PeerId,
     protos: seq[string]): PubSubPeer =
   p.peers.withValue(peerId, peer):
     return peer[]
@@ -283,7 +293,7 @@ proc getOrCreatePeer*(
     p.onPubSubPeerEvent(peer, event)
 
   # create new pubsub peer
-  let pubSubPeer = PubSubPeer.new(peerId, getConn, dropConn, onEvent, protos[0])
+  let pubSubPeer = PubSubPeer.new(peerId, getConn, dropConn, onEvent, protos[0], p.maxMessageSize)
   debug "created new pubsub peer", peerId
 
   p.peers[peerId] = pubSubPeer
@@ -364,7 +374,7 @@ method handleConn*(p: PubSub,
   finally:
     await conn.closeWithEOF()
 
-method subscribePeer*(p: PubSub, peer: PeerID) {.base.} =
+method subscribePeer*(p: PubSub, peer: PeerId) {.base.} =
   ## subscribe to remote peer to receive/send pubsub
   ## messages
   ##
@@ -542,6 +552,8 @@ proc init*[PubParams: object | bool](
   sign: bool = true,
   msgIdProvider: MsgIdProvider = defaultMsgIdProvider,
   subscriptionValidator: SubscriptionValidator = nil,
+  maxMessageSize: int = 1024 * 1024,
+  rng: ref BrHmacDrbgContext = newRng(),
   parameters: PubParams = false): P
   {.raises: [Defect, InitializationError].} =
   let pubsub =
@@ -554,6 +566,8 @@ proc init*[PubParams: object | bool](
         sign: sign,
         msgIdProvider: msgIdProvider,
         subscriptionValidator: subscriptionValidator,
+        maxMessageSize: maxMessageSize,
+        rng: rng,
         topicsHigh: int.high)
     else:
       P(switch: switch,
@@ -565,6 +579,8 @@ proc init*[PubParams: object | bool](
         msgIdProvider: msgIdProvider,
         subscriptionValidator: subscriptionValidator,
         parameters: parameters,
+        maxMessageSize: maxMessageSize,
+        rng: rng,
         topicsHigh: int.high)
 
   proc peerEventHandler(peerId: PeerId, event: PeerEvent) {.async.} =

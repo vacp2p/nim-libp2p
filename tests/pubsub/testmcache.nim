@@ -10,13 +10,13 @@ import ../../libp2p/[peerid,
 
 var rng = newRng()
 
-proc randomPeerID(): PeerID =
-  PeerID.init(PrivateKey.random(ECDSA, rng[]).get()).get()
+proc randomPeerId(): PeerId =
+  PeerId.init(PrivateKey.random(ECDSA, rng[]).get()).get()
 
 suite "MCache":
   test "put/get":
     var mCache = MCache.init(3, 5)
-    var msg = Message(fromPeer: randomPeerID(), seqno: "12345".toBytes())
+    var msg = Message(fromPeer: randomPeerId(), seqno: "12345".toBytes())
     let msgId = defaultMsgIdProvider(msg)
     mCache.put(msgId, msg)
     check mCache.get(msgId).isSome and mCache.get(msgId).get() == msg
@@ -25,13 +25,13 @@ suite "MCache":
     var mCache = MCache.init(3, 5)
 
     for i in 0..<3:
-      var msg = Message(fromPeer: randomPeerID(),
+      var msg = Message(fromPeer: randomPeerId(),
                         seqno: "12345".toBytes(),
                         topicIDs: @["foo"])
       mCache.put(defaultMsgIdProvider(msg), msg)
 
     for i in 0..<5:
-      var msg = Message(fromPeer: randomPeerID(),
+      var msg = Message(fromPeer: randomPeerId(),
                         seqno: "12345".toBytes(),
                         topicIDs: @["bar"])
       mCache.put(defaultMsgIdProvider(msg), msg)
@@ -46,7 +46,7 @@ suite "MCache":
     var mCache = MCache.init(1, 5)
 
     for i in 0..<3:
-      var msg = Message(fromPeer: randomPeerID(),
+      var msg = Message(fromPeer: randomPeerId(),
                         seqno: "12345".toBytes(),
                         topicIDs: @["foo"])
       mCache.put(defaultMsgIdProvider(msg), msg)
@@ -55,7 +55,7 @@ suite "MCache":
     check mCache.window("foo").len == 0
 
     for i in 0..<3:
-      var msg = Message(fromPeer: randomPeerID(),
+      var msg = Message(fromPeer: randomPeerId(),
                         seqno: "12345".toBytes(),
                         topicIDs: @["bar"])
       mCache.put(defaultMsgIdProvider(msg), msg)
@@ -64,7 +64,7 @@ suite "MCache":
     check mCache.window("bar").len == 0
 
     for i in 0..<3:
-      var msg = Message(fromPeer: randomPeerID(),
+      var msg = Message(fromPeer: randomPeerId(),
                         seqno: "12345".toBytes(),
                         topicIDs: @["baz"])
       mCache.put(defaultMsgIdProvider(msg), msg)
@@ -76,19 +76,19 @@ suite "MCache":
     var mCache = MCache.init(1, 5)
 
     for i in 0..<3:
-      var msg = Message(fromPeer: randomPeerID(),
+      var msg = Message(fromPeer: randomPeerId(),
                         seqno: "12345".toBytes(),
                         topicIDs: @["foo"])
       mCache.put(defaultMsgIdProvider(msg), msg)
 
     for i in 0..<3:
-      var msg = Message(fromPeer: randomPeerID(),
+      var msg = Message(fromPeer: randomPeerId(),
                         seqno: "12345".toBytes(),
                         topicIDs: @["bar"])
       mCache.put(defaultMsgIdProvider(msg), msg)
 
     for i in 0..<3:
-      var msg = Message(fromPeer: randomPeerID(),
+      var msg = Message(fromPeer: randomPeerId(),
                         seqno: "12345".toBytes(),
                         topicIDs: @["baz"])
       mCache.put(defaultMsgIdProvider(msg), msg)

@@ -426,7 +426,7 @@ const
 
   Unreliable* = mapOr(UDP)
 
-  Reliable* = mapOr(TCP, UTP, QUIC)
+  Reliable* = mapOr(TCP, UTP, QUIC, WebSockets)
 
   IPFS* = mapAnd(Reliable, mapEq("p2p"))
 
@@ -498,7 +498,7 @@ proc protoName*(ma: MultiAddress): MaResult[string] =
       ok($(proto.mcodec))
 
 proc protoArgument*(ma: MultiAddress,
-                    value: var openarray[byte]): MaResult[int] =
+                    value: var openArray[byte]): MaResult[int] =
   ## Returns MultiAddress ``ma`` protocol argument value.
   ##
   ## If current MultiAddress do not have argument value, then result will be
@@ -723,7 +723,7 @@ proc validate*(ma: MultiAddress): bool =
 
 proc init*(
     mtype: typedesc[MultiAddress], protocol: MultiCodec,
-    value: openarray[byte] = []): MaResult[MultiAddress] =
+    value: openArray[byte] = []): MaResult[MultiAddress] =
   ## Initialize MultiAddress object from protocol id ``protocol`` and array
   ## of bytes ``value``.
   let proto = CodeAddresses.getOrDefault(protocol)
@@ -754,7 +754,7 @@ proc init*(
       raiseAssert "None checked above"
 
 proc init*(mtype: typedesc[MultiAddress], protocol: MultiCodec,
-           value: PeerID): MaResult[MultiAddress] {.inline.} =
+           value: PeerId): MaResult[MultiAddress] {.inline.} =
   ## Initialize MultiAddress object from protocol id ``protocol`` and peer id
   ## ``value``.
   init(mtype, protocol, value.data)
@@ -832,7 +832,7 @@ proc init*(mtype: typedesc[MultiAddress],
     ok(res)
 
 proc init*(mtype: typedesc[MultiAddress],
-           data: openarray[byte]): MaResult[MultiAddress] =
+           data: openArray[byte]): MaResult[MultiAddress] =
   ## Initialize MultiAddress with array of bytes ``data``.
   if len(data) == 0:
     err("multiaddress: Address could not be empty!")
@@ -944,59 +944,6 @@ proc `==`*(m1: var MultiAddress, m2: MultiAddress): bool =
   ## Check of two MultiAddress are equal
   m1.data == m2.data
 
-proc isWire*(ma: MultiAddress): bool =
-  ## Returns ``true`` if MultiAddress ``ma`` is one of:
-  ## - {IP4}/{TCP, UDP}
-  ## - {IP6}/{TCP, UDP}
-  ## - {UNIX}/{PATH}
-
-  var state = 0
-  const
-    wireProtocols = toHashSet([
-                        multiCodec("ip4"), multiCodec("ip6"),
-                      ])
-    wireTransports = toHashSet([
-                        multiCodec("tcp"), multiCodec("udp")
-                      ])
-  try:
-    for rpart in ma.items():
-      if rpart.isErr():
-        return false
-      let part = rpart.get()
-
-      if state == 0:
-        let rcode = part.protoCode()
-        if rcode.isErr():
-          return false
-        let code = rcode.get()
-
-        if code in wireProtocols:
-          inc(state)
-          continue
-        elif code == multiCodec("unix"):
-          result = true
-          break
-        else:
-          result = false
-          break
-      elif state == 1:
-        let rcode = part.protoCode()
-        if rcode.isErr():
-          return false
-        let code = rcode.get()
-
-        if code in wireTransports:
-          inc(state)
-          result = true
-        else:
-          result = false
-          break
-      else:
-        result = false
-        break
-  except:
-    result = false
-
 proc matchPart(pat: MaPattern, protos: seq[MultiCodec]): MaPatResult =
   var empty: seq[MultiCodec]
   var pcs = protos
@@ -1058,7 +1005,7 @@ proc `$`*(pat: MaPattern): string =
 proc write*(pb: var ProtoBuffer, field: int, value: MultiAddress) {.inline.} =
   write(pb, field, value.data.buffer)
 
-proc getField*(pb: var ProtoBuffer, field: int,
+proc getField*(pb: ProtoBuffer, field: int,
                value: var MultiAddress): ProtoResult[bool] {.
      inline.} =
   var buffer: seq[byte]
@@ -1073,7 +1020,7 @@ proc getField*(pb: var ProtoBuffer, field: int,
     else:
       err(ProtoError.IncorrectBlob)
 
-proc getRepeatedField*(pb: var ProtoBuffer, field: int,
+proc getRepeatedField*(pb: ProtoBuffer, field: int,
                        value: var seq[MultiAddress]): ProtoResult[bool] {.
      inline.} =
   var items: seq[seq[byte]]

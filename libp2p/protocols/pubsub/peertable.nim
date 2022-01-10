@@ -15,7 +15,7 @@ import ./pubsubpeer, ../../peerid
 type
   PeerTable* = Table[string, HashSet[PubSubPeer]] # topic string to peer map
 
-proc hasPeerID*(t: PeerTable, topic: string, peerId: PeerID): bool =
+proc hasPeerId*(t: PeerTable, topic: string, peerId: PeerId): bool =
   if topic in t:
     try:
       for peer in t[topic]:

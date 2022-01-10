@@ -23,18 +23,18 @@ proc br_hkdf_inject(ctx: ptr BearHKDFContext; ikm: pointer; len: csize_t) {.impo
 proc br_hkdf_flip(ctx: ptr BearHKDFContext) {.importc: "br_hkdf_flip", header: "bearssl_kdf.h", raises: [].}
 proc br_hkdf_produce(ctx: ptr BearHKDFContext; info: pointer; infoLen: csize_t; output: pointer; outputLen: csize_t) {.importc: "br_hkdf_produce", header: "bearssl_kdf.h", raises: [].}
 
-proc hkdf*[T: sha256; len: static int](_: type[T]; salt, ikm, info: openarray[byte]; outputs: var openarray[HKDFResult[len]]) =
+proc hkdf*[T: sha256; len: static int](_: type[T]; salt, ikm, info: openArray[byte]; outputs: var openArray[HKDFResult[len]]) =
   var
     ctx: BearHKDFContext
   br_hkdf_init(
     addr ctx, addr sha256Vtable,
-    if salt.len > 0: unsafeaddr salt[0] else: nil, csize_t(salt.len))
+    if salt.len > 0: unsafeAddr salt[0] else: nil, csize_t(salt.len))
   br_hkdf_inject(
-    addr ctx, if ikm.len > 0: unsafeaddr ikm[0] else: nil, csize_t(ikm.len))
+    addr ctx, if ikm.len > 0: unsafeAddr ikm[0] else: nil, csize_t(ikm.len))
   br_hkdf_flip(addr ctx)
   for i in 0..outputs.high:
     br_hkdf_produce(
       addr ctx,
-      if info.len > 0: unsafeaddr info[0]
+      if info.len > 0: unsafeAddr info[0]
       else: nil, csize_t(info.len),
       addr outputs[i][0], csize_t(outputs[i].len))

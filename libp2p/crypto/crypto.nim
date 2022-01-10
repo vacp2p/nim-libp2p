@@ -130,8 +130,8 @@ type
         skkey*: SkPrivateKey
       else:
         discard
-    of PKSCheme.ECDSA:
-      when supported(PKSCheme.ECDSA):
+    of PKScheme.ECDSA:
+      when supported(PKScheme.ECDSA):
         eckey*: ecnist.EcPrivateKey
       else:
         discard
@@ -173,6 +173,19 @@ proc newRng*(): ref BrHmacDrbgContext =
   if seeder(addr rng.vtable) == 0:
     return nil
   rng
+
+proc shuffle*[T](
+  rng: ref BrHmacDrbgContext,
+  x: var openArray[T]) =
+
+  var randValues = newSeqUninitialized[byte](len(x) * 2)
+  brHmacDrbgGenerate(rng[], randValues)
+
+  for i in countdown(x.high, 1):
+    let
+      rand = randValues[i * 2].int32 or (randValues[i * 2 + 1].int32 shl 8)
+      y = rand mod i
+    swap(x[i], x[y])
 
 proc random*(T: typedesc[PrivateKey], scheme: PKScheme,
              rng: var BrHmacDrbgContext,
@@ -331,11 +344,8 @@ proc getPublicKey*(key: PrivateKey): CryptoResult[PublicKey] =
     else:
       err(SchemeError)
 
-proc getKey*(key: PrivateKey): CryptoResult[PublicKey] {.deprecated: "use getPublicKey".} =
-  key.getPublicKey()
-
 proc toRawBytes*(key: PrivateKey | PublicKey,
-                 data: var openarray[byte]): CryptoResult[int] =
+                 data: var openArray[byte]): CryptoResult[int] =
   ## Serialize private key ``key`` (using scheme's own serialization) and store
   ## it to ``data``.
   ##
@@ -387,7 +397,7 @@ proc getRawBytes*(key: PrivateKey | PublicKey): CryptoResult[seq[byte]] =
     else:
       err(SchemeError)
 
-proc toBytes*(key: PrivateKey, data: var openarray[byte]): CryptoResult[int] =
+proc toBytes*(key: PrivateKey, data: var openArray[byte]): CryptoResult[int] =
   ## Serialize private key ``key`` (using libp2p protobuf scheme) and store
   ## it to ``data``.
   ##
@@ -401,7 +411,7 @@ proc toBytes*(key: PrivateKey, data: var openarray[byte]): CryptoResult[int] =
     copyMem(addr data[0], addr msg.buffer[0], blen)
   ok(blen)
 
-proc toBytes*(key: PublicKey, data: var openarray[byte]): CryptoResult[int] =
+proc toBytes*(key: PublicKey, data: var openArray[byte]): CryptoResult[int] =
   ## Serialize public key ``key`` (using libp2p protobuf scheme) and store
   ## it to ``data``.
   ##
@@ -415,7 +425,7 @@ proc toBytes*(key: PublicKey, data: var openarray[byte]): CryptoResult[int] =
     copyMem(addr data[0], addr msg.buffer[0], blen)
   ok(blen)
 
-proc toBytes*(sig: Signature, data: var openarray[byte]): int =
+proc toBytes*(sig: Signature, data: var openArray[byte]): int =
   ## Serialize signature ``sig`` and store it to ``data``.
   ##
   ## Returns number of bytes (octets) needed to store signature ``sig``.
@@ -445,7 +455,7 @@ proc getBytes*(sig: Signature): seq[byte] =
   ## Return signature ``sig`` in binary form.
   result = sig.data
 
-proc init*[T: PrivateKey|PublicKey](key: var T, data: openarray[byte]): bool =
+proc init*[T: PrivateKey|PublicKey](key: var T, data: openArray[byte]): bool =
   ## Initialize private key ``key`` from libp2p's protobuf serialized raw
   ## binary form.
   ##
@@ -507,7 +517,7 @@ proc init*[T: PrivateKey|PublicKey](key: var T, data: openarray[byte]): bool =
           else:
             false
 
-proc init*(sig: var Signature, data: openarray[byte]): bool =
+proc init*(sig: var Signature, data: openArray[byte]): bool =
   ## Initialize signature ``sig`` from raw binary form.
   ##
   ## Returns ``true`` on success.
@@ -530,7 +540,7 @@ proc init*(sig: var Signature, data: string): bool =
   sig.init(ncrutils.fromHex(data))
 
 proc init*(t: typedesc[PrivateKey],
-           data: openarray[byte]): CryptoResult[PrivateKey] =
+           data: openArray[byte]): CryptoResult[PrivateKey] =
   ## Create new private key from libp2p's protobuf serialized binary form.
   var res: t
   if not res.init(data):
@@ -539,7 +549,7 @@ proc init*(t: typedesc[PrivateKey],
     ok(res)
 
 proc init*(t: typedesc[PublicKey],
-           data: openarray[byte]): CryptoResult[PublicKey] =
+           data: openArray[byte]): CryptoResult[PublicKey] =
   ## Create new public key from libp2p's protobuf serialized binary form.
   var res: t
   if not res.init(data):
@@ -548,7 +558,7 @@ proc init*(t: typedesc[PublicKey],
     ok(res)
 
 proc init*(t: typedesc[Signature],
-           data: openarray[byte]): CryptoResult[Signature] =
+           data: openArray[byte]): CryptoResult[Signature] =
   ## Create new public key from libp2p's protobuf serialized binary form.
   var res: t
   if not res.init(data):
@@ -703,7 +713,7 @@ proc `$`*(sig: Signature): string =
   result = ncrutils.toHex(sig.data)
 
 proc sign*(key: PrivateKey,
-           data: openarray[byte]): CryptoResult[Signature] {.gcsafe.} =
+           data: openArray[byte]): CryptoResult[Signature] {.gcsafe.} =
   ## Sign message ``data`` using private key ``key`` and return generated
   ## signature in raw binary form.
   var res: Signature
@@ -737,7 +747,7 @@ proc sign*(key: PrivateKey,
     else:
       err(SchemeError)
 
-proc verify*(sig: Signature, message: openarray[byte], key: PublicKey): bool =
+proc verify*(sig: Signature, message: openArray[byte], key: PublicKey): bool =
   ## Verify signature ``sig`` using message ``message`` and public key ``key``.
   ## Return ``true`` if message signature is valid.
   case key.scheme:
@@ -888,8 +898,8 @@ proc ephemeral*(
   else:
     ephemeral(Secp521r1, rng)
 
-proc getOrder*(remotePubkey, localNonce: openarray[byte],
-               localPubkey, remoteNonce: openarray[byte]): CryptoResult[int] =
+proc getOrder*(remotePubkey, localNonce: openArray[byte],
+               localPubkey, remoteNonce: openArray[byte]): CryptoResult[int] =
   ## Compare values and calculate `order` parameter.
   var ctx: sha256
   ctx.init()
@@ -933,7 +943,7 @@ proc selectBest*(order: int, p1, p2: string): string =
       if felement == selement:
         return felement
 
-proc createProposal*(nonce, pubkey: openarray[byte],
+proc createProposal*(nonce, pubkey: openArray[byte],
                      exchanges, ciphers, hashes: string): seq[byte] =
   ## Create SecIO proposal message using random ``nonce``, local public key
   ## ``pubkey``, comma-delimieted list of supported exchange schemes
@@ -967,7 +977,7 @@ proc decodeProposal*(message: seq[byte], nonce, pubkey: var seq[byte],
   r3.isOk() and r3.get() and r4.isOk() and r4.get() and
   r5.isOk() and r5.get()
 
-proc createExchange*(epubkey, signature: openarray[byte]): seq[byte] =
+proc createExchange*(epubkey, signature: openArray[byte]): seq[byte] =
   ## Create SecIO exchange message using ephemeral public key ``epubkey`` and
   ## signature of proposal blocks ``signature``.
   var msg = initProtoBuffer({WithUint32BeLength})
@@ -1012,39 +1022,6 @@ proc write*[T: PublicKey|PrivateKey](pb: var ProtoBuffer, field: int,
 proc write*(pb: var ProtoBuffer, field: int, sig: Signature) {.
      inline, raises: [Defect].} =
   write(pb, field, sig.getBytes())
-
-proc initProtoField*(index: int, key: PublicKey|PrivateKey): ProtoField {.
-     deprecated, raises: [Defect, ResultError[CryptoError]].} =
-  ## Initialize ProtoField with PublicKey/PrivateKey ``key``.
-  result = initProtoField(index, key.getBytes().tryGet())
-
-proc initProtoField*(index: int, sig: Signature): ProtoField {.deprecated.} =
-  ## Initialize ProtoField with Signature ``sig``.
-  result = initProtoField(index, sig.getBytes())
-
-proc getValue*[T: PublicKey|PrivateKey](data: var ProtoBuffer, field: int,
-                                        value: var T): int {.deprecated.} =
-  ## Read PublicKey/PrivateKey from ProtoBuf's message and validate it.
-  var buf: seq[byte]
-  var key: PublicKey
-  result = getLengthValue(data, field, buf)
-  if result > 0:
-    if not key.init(buf):
-      result = -1
-    else:
-      value = key
-
-proc getValue*(data: var ProtoBuffer, field: int, value: var Signature): int {.
-     deprecated.} =
-  ## Read ``Signature`` from ProtoBuf's message and validate it.
-  var buf: seq[byte]
-  var sig: Signature
-  result = getLengthValue(data, field, buf)
-  if result > 0:
-    if not sig.init(buf):
-      result = -1
-    else:
-      value = sig
 
 proc getField*[T: PublicKey|PrivateKey](pb: ProtoBuffer, field: int,
                                         value: var T): ProtoResult[bool] =

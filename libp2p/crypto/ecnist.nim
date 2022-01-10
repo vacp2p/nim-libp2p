@@ -94,7 +94,7 @@ proc NEQ(x, y: uint32): uint32 {.inline.} =
 proc LT0(x: int32): uint32 {.inline.} =
   result = cast[uint32](x) shr 31
 
-proc checkScalar(scalar: openarray[byte], curve: cint): uint32 =
+proc checkScalar(scalar: openArray[byte], curve: cint): uint32 =
   ## Return ``1`` if all of the following hold:
   ##   - len(``scalar``) <= ``orderlen``
   ##   - ``scalar`` != 0
@@ -116,7 +116,7 @@ proc checkScalar(scalar: openarray[byte], curve: cint): uint32 =
     c = -1
   result = NEQ(z, 0'u32) and LT0(c)
 
-proc checkPublic(key: openarray[byte], curve: cint): uint32 =
+proc checkPublic(key: openArray[byte], curve: cint): uint32 =
   ## Return ``1`` if public key ``key`` is on curve.
   var ckey = @key
   var x = [0x00'u8, 0x01'u8]
@@ -315,7 +315,7 @@ proc `$`*(sig: EcSignature): string =
   else:
     result = ncrutils.toHex(sig.buffer)
 
-proc toRawBytes*(seckey: EcPrivateKey, data: var openarray[byte]): EcResult[int] =
+proc toRawBytes*(seckey: EcPrivateKey, data: var openArray[byte]): EcResult[int] =
   ## Serialize EC private key ``seckey`` to raw binary form and store it
   ## to ``data``.
   ##
@@ -331,7 +331,7 @@ proc toRawBytes*(seckey: EcPrivateKey, data: var openarray[byte]): EcResult[int]
   else:
     err(EcKeyIncorrectError)
 
-proc toRawBytes*(pubkey: EcPublicKey, data: var openarray[byte]): EcResult[int] =
+proc toRawBytes*(pubkey: EcPublicKey, data: var openArray[byte]): EcResult[int] =
   ## Serialize EC public key ``pubkey`` to uncompressed form specified in
   ## section 4.3.6 of ANSI X9.62.
   ##
@@ -347,7 +347,7 @@ proc toRawBytes*(pubkey: EcPublicKey, data: var openarray[byte]): EcResult[int] 
   else:
     err(EcKeyIncorrectError)
 
-proc toRawBytes*(sig: EcSignature, data: var openarray[byte]): int =
+proc toRawBytes*(sig: EcSignature, data: var openArray[byte]): int =
   ## Serialize EC signature ``sig`` to raw binary form and store it to ``data``.
   ##
   ## Returns number of bytes (octets) needed to store EC signature, or `0`
@@ -358,7 +358,7 @@ proc toRawBytes*(sig: EcSignature, data: var openarray[byte]): int =
     if len(sig.buffer) > 0:
       copyMem(addr data[0], unsafeAddr sig.buffer[0], len(sig.buffer))
 
-proc toBytes*(seckey: EcPrivateKey, data: var openarray[byte]): EcResult[int] =
+proc toBytes*(seckey: EcPrivateKey, data: var openArray[byte]): EcResult[int] =
   ## Serialize EC private key ``seckey`` to ASN.1 DER binary form and store it
   ## to ``data``.
   ##
@@ -381,11 +381,15 @@ proc toBytes*(seckey: EcPrivateKey, data: var openarray[byte]): EcResult[int] =
       c0.write(Asn1Tag.Oid, Asn1OidSecp521r1)
     c0.finish()
     offset = pubkey.getOffset()
+    if offset < 0:
+      return err(EcKeyIncorrectError)
     length = pubkey.key.qlen
     c1.write(Asn1Tag.BitString,
              pubkey.buffer.toOpenArray(offset, offset + length - 1))
     c1.finish()
     offset = seckey.getOffset()
+    if offset < 0:
+      return err(EcKeyIncorrectError)
     length = seckey.key.xlen
     p.write(1'u64)
     p.write(Asn1Tag.OctetString,
@@ -404,7 +408,7 @@ proc toBytes*(seckey: EcPrivateKey, data: var openarray[byte]): EcResult[int] =
     err(EcKeyIncorrectError)
 
 
-proc toBytes*(pubkey: EcPublicKey, data: var openarray[byte]): EcResult[int] =
+proc toBytes*(pubkey: EcPublicKey, data: var openArray[byte]): EcResult[int] =
   ## Serialize EC public key ``pubkey`` to ASN.1 DER binary form and store it
   ## to ``data``.
   ##
@@ -426,6 +430,8 @@ proc toBytes*(pubkey: EcPublicKey, data: var openarray[byte]): EcResult[int] =
     c.finish()
     p.write(c)
     let offset = getOffset(pubkey)
+    if offset < 0:
+      return err(EcKeyIncorrectError)
     let length = pubkey.key.qlen
     p.write(Asn1Tag.BitString,
             pubkey.buffer.toOpenArray(offset, offset + length - 1))
@@ -439,7 +445,7 @@ proc toBytes*(pubkey: EcPublicKey, data: var openarray[byte]): EcResult[int] =
   else:
     err(EcKeyIncorrectError)
 
-proc toBytes*(sig: EcSignature, data: var openarray[byte]): EcResult[int] =
+proc toBytes*(sig: EcSignature, data: var openArray[byte]): EcResult[int] =
   ## Serialize EC signature ``sig`` to ASN.1 DER binary form and store it
   ## to ``data``.
   ##
@@ -586,7 +592,7 @@ proc `==`*(a, b: EcSignature): bool =
     else:
       CT.isEqual(a.buffer, b.buffer)
 
-proc init*(key: var EcPrivateKey, data: openarray[byte]): Result[void, Asn1Error] =
+proc init*(key: var EcPrivateKey, data: openArray[byte]): Result[void, Asn1Error] =
   ## Initialize EC `private key` or `signature` ``key`` from ASN.1 DER binary
   ## representation ``data``.
   ##
@@ -639,7 +645,7 @@ proc init*(key: var EcPrivateKey, data: openarray[byte]): Result[void, Asn1Error
   else:
     err(Asn1Error.Incorrect)
 
-proc init*(pubkey: var EcPublicKey, data: openarray[byte]): Result[void, Asn1Error] =
+proc init*(pubkey: var EcPublicKey, data: openArray[byte]): Result[void, Asn1Error] =
   ## Initialize EC public key ``pubkey`` from ASN.1 DER binary representation
   ## ``data``.
   ##
@@ -698,7 +704,7 @@ proc init*(pubkey: var EcPublicKey, data: openarray[byte]): Result[void, Asn1Err
   else:
     err(Asn1Error.Incorrect)
 
-proc init*(sig: var EcSignature, data: openarray[byte]): Result[void, Asn1Error] =
+proc init*(sig: var EcSignature, data: openArray[byte]): Result[void, Asn1Error] =
   ## Initialize EC signature ``sig`` from raw binary representation ``data``.
   ##
   ## Procedure returns ``Result[void, Asn1Error]``.
@@ -718,7 +724,7 @@ proc init*[T: EcPKI](sospk: var T,
   sospk.init(ncrutils.fromHex(data))
 
 proc init*(t: typedesc[EcPrivateKey],
-           data: openarray[byte]): EcResult[EcPrivateKey] =
+           data: openArray[byte]): EcResult[EcPrivateKey] =
   ## Initialize EC private key from ASN.1 DER binary representation ``data`` and
   ## return constructed object.
   var key: EcPrivateKey
@@ -729,7 +735,7 @@ proc init*(t: typedesc[EcPrivateKey],
     ok(key)
 
 proc init*(t: typedesc[EcPublicKey],
-           data: openarray[byte]): EcResult[EcPublicKey] =
+           data: openArray[byte]): EcResult[EcPublicKey] =
   ## Initialize EC public key from ASN.1 DER binary representation ``data`` and
   ## return constructed object.
   var key: EcPublicKey
@@ -740,7 +746,7 @@ proc init*(t: typedesc[EcPublicKey],
     ok(key)
 
 proc init*(t: typedesc[EcSignature],
-           data: openarray[byte]): EcResult[EcSignature] =
+           data: openArray[byte]): EcResult[EcSignature] =
   ## Initialize EC signature from raw binary representation ``data`` and
   ## return constructed object.
   var sig: EcSignature
@@ -755,7 +761,7 @@ proc init*[T: EcPKI](t: typedesc[T], data: string): EcResult[T] =
   ## string representation ``data`` and return constructed object.
   t.init(ncrutils.fromHex(data))
 
-proc initRaw*(key: var EcPrivateKey, data: openarray[byte]): bool =
+proc initRaw*(key: var EcPrivateKey, data: openArray[byte]): bool =
   ## Initialize EC `private key` or `scalar` ``key`` from raw binary
   ## representation ``data``.
   ##
@@ -784,7 +790,7 @@ proc initRaw*(key: var EcPrivateKey, data: openarray[byte]): bool =
       key.key.curve = curve
       result = true
 
-proc initRaw*(pubkey: var EcPublicKey, data: openarray[byte]): bool =
+proc initRaw*(pubkey: var EcPublicKey, data: openArray[byte]): bool =
   ## Initialize EC public key ``pubkey`` from raw binary representation
   ## ``data``.
   ##
@@ -815,7 +821,7 @@ proc initRaw*(pubkey: var EcPublicKey, data: openarray[byte]): bool =
       pubkey.key.curve = curve
       result = true
 
-proc initRaw*(sig: var EcSignature, data: openarray[byte]): bool =
+proc initRaw*(sig: var EcSignature, data: openArray[byte]): bool =
   ## Initialize EC signature ``sig`` from raw binary representation ``data``.
   ##
   ## Length of ``data`` array must be ``Sig256Length``, ``Sig384Length``
@@ -838,7 +844,7 @@ proc initRaw*[T: EcPKI](sospk: var T, data: string): bool {.inline.} =
   result = sospk.initRaw(ncrutils.fromHex(data))
 
 proc initRaw*(t: typedesc[EcPrivateKey],
-              data: openarray[byte]): EcResult[EcPrivateKey] =
+              data: openArray[byte]): EcResult[EcPrivateKey] =
   ## Initialize EC private key from raw binary representation ``data`` and
   ## return constructed object.
   var res: EcPrivateKey
@@ -848,7 +854,7 @@ proc initRaw*(t: typedesc[EcPrivateKey],
     ok(res)
 
 proc initRaw*(t: typedesc[EcPublicKey],
-              data: openarray[byte]): EcResult[EcPublicKey] =
+              data: openArray[byte]): EcResult[EcPublicKey] =
   ## Initialize EC public key from raw binary representation ``data`` and
   ## return constructed object.
   var res: EcPublicKey
@@ -858,7 +864,7 @@ proc initRaw*(t: typedesc[EcPublicKey],
     ok(res)
 
 proc initRaw*(t: typedesc[EcSignature],
-              data: openarray[byte]): EcResult[EcSignature] =
+              data: openArray[byte]): EcResult[EcSignature] =
   ## Initialize EC signature from raw binary representation ``data`` and
   ## return constructed object.
   var res: EcSignature
@@ -894,7 +900,7 @@ proc scalarMul*(pub: EcPublicKey, sec: EcPrivateKey): EcPublicKey =
             result = key
 
 proc toSecret*(pubkey: EcPublicKey, seckey: EcPrivateKey,
-               data: var openarray[byte]): int =
+               data: var openArray[byte]): int =
   ## Calculate ECDHE shared secret using Go's elliptic/curve approach, using
   ## remote public key ``pubkey`` and local private key ``seckey`` and store
   ## shared secret to ``data``.
@@ -931,7 +937,7 @@ proc getSecret*(pubkey: EcPublicKey, seckey: EcPrivateKey): seq[byte] =
     copyMem(addr result[0], addr data[0], res)
 
 proc sign*[T: byte|char](seckey: EcPrivateKey,
-                      message: openarray[T]): EcResult[EcSignature] {.gcsafe.} =
+                      message: openArray[T]): EcResult[EcSignature] {.gcsafe.} =
   ## Get ECDSA signature of data ``message`` using private key ``seckey``.
   if isNil(seckey):
     return err(EcKeyIncorrectError)
@@ -960,7 +966,7 @@ proc sign*[T: byte|char](seckey: EcPrivateKey,
   else:
     err(EcKeyIncorrectError)
 
-proc verify*[T: byte|char](sig: EcSignature, message: openarray[T],
+proc verify*[T: byte|char](sig: EcSignature, message: openArray[T],
                            pubkey: EcPublicKey): bool {.inline.} =
   ## Verify ECDSA signature ``sig`` using public key ``pubkey`` and data
   ## ``message``.

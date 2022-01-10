@@ -80,7 +80,7 @@ proc withAddresses*(b: SwitchBuilder, addresses: seq[MultiAddress]): SwitchBuild
 
 proc withMplex*(b: SwitchBuilder, inTimeout = 5.minutes, outTimeout = 5.minutes): SwitchBuilder =
   proc newMuxer(conn: Connection): Muxer =
-    Mplex.init(
+    Mplex.new(
       conn,
       inTimeout = inTimeout,
       outTimeout = outTimeout)
@@ -151,7 +151,7 @@ proc build*(b: SwitchBuilder): Switch
     secureManagerInstances.add(Noise.new(b.rng, seckey).Secure)
 
   let
-    peerInfo = PeerInfo.init(
+    peerInfo = PeerInfo.new(
       seckey,
       b.addresses,
       protoVersion = b.protoVersion,
@@ -166,9 +166,9 @@ proc build*(b: SwitchBuilder): Switch
 
   let
     identify = Identify.new(peerInfo)
-    connManager = ConnManager.init(b.maxConnsPerPeer, b.maxConnections, b.maxIn, b.maxOut)
+    connManager = ConnManager.new(b.maxConnsPerPeer, b.maxConnections, b.maxIn, b.maxOut)
     ms = MultistreamSelect.new()
-    muxedUpgrade = MuxedUpgrade.init(identify, muxers, secureManagerInstances, connManager, ms)
+    muxedUpgrade = MuxedUpgrade.new(identify, muxers, secureManagerInstances, connManager, ms)
 
   let
     transports = block:
@@ -197,8 +197,8 @@ proc build*(b: SwitchBuilder): Switch
 
 proc newStandardSwitch*(
   privKey = none(PrivateKey),
-  address = MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet(),
-  secureManagers: openarray[SecureProtocol] = [
+  addrs: MultiAddress | seq[MultiAddress] = MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet(),
+  secureManagers: openArray[SecureProtocol] = [
       SecureProtocol.Noise,
     ],
   transportFlags: set[ServerFlags] = {},
@@ -214,9 +214,10 @@ proc newStandardSwitch*(
   if SecureProtocol.Secio in secureManagers:
       quit("Secio is deprecated!") # use of secio is unsafe
 
+  let addrs = when addrs is MultiAddress: @[addrs] else: addrs
   var b = SwitchBuilder
     .new()
-    .withAddress(address)
+    .withAddresses(addrs)
     .withRng(rng)
     .withMaxConnections(maxConnections)
     .withMaxIn(maxIn)

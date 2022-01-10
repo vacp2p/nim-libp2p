@@ -21,7 +21,7 @@ type
   PeerInfoError* = LPError
 
   PeerInfo* = ref object
-    peerId*: PeerID
+    peerId*: PeerId
     addrs*: seq[MultiAddress]
     protocols*: seq[string]
     protoVersion*: string
@@ -39,22 +39,22 @@ func shortLog*(p: PeerInfo): auto =
   )
 chronicles.formatIt(PeerInfo): shortLog(it)
 
-proc init*(
+proc new*(
   p: typedesc[PeerInfo],
   key: PrivateKey,
-  addrs: openarray[MultiAddress] = [],
-  protocols: openarray[string] = [],
+  addrs: openArray[MultiAddress] = [],
+  protocols: openArray[string] = [],
   protoVersion: string = "",
   agentVersion: string = ""): PeerInfo
   {.raises: [Defect, PeerInfoError].} =
 
   let pubkey = try:
-      key.getKey().tryGet()
+      key.getPublicKey().tryGet()
     except CatchableError:
       raise newException(PeerInfoError, "invalid private key")
 
   let peerInfo = PeerInfo(
-    peerId: PeerID.init(key).tryGet(),
+    peerId: PeerId.init(key).tryGet(),
     publicKey: pubkey,
     privateKey: key,
     protoVersion: protoVersion,

@@ -41,7 +41,7 @@ proc serveThread(udata: CustomData) {.async.} =
       if line.startsWith("/connect"):
         var parts = line.split(" ")
         if len(parts) == 2:
-          var peerId = PeerID.init(parts[1])
+          var peerId = PeerId.init(parts[1])
           var address = MultiAddress.init(multiCodec("p2p-circuit"))
           address &= MultiAddress.init(multiCodec("p2p"), peerId)
           echo "= Searching for peer ", peerId.pretty()
@@ -59,7 +59,7 @@ proc serveThread(udata: CustomData) {.async.} =
       elif line.startsWith("/search"):
         var parts = line.split(" ")
         if len(parts) == 2:
-          var peerId = PeerID.init(parts[1])
+          var peerId = PeerId.init(parts[1])
           echo "= Searching for peer ", peerId.pretty()
           var id = await udata.api.dhtFindPeer(peerId)
           echo "= Peer " & parts[1] & " found at addresses:"
@@ -68,7 +68,7 @@ proc serveThread(udata: CustomData) {.async.} =
       elif line.startsWith("/consearch"):
         var parts = line.split(" ")
         if len(parts) == 2:
-          var peerId = PeerID.init(parts[1])
+          var peerId = PeerId.init(parts[1])
           echo "= Searching for peers connected to peer ", parts[1]
           var peers = await udata.api.dhtFindPeersConnectedToPeer(peerId)
           echo "= Found ", len(peers), " connected to peer ", parts[1]
@@ -127,7 +127,7 @@ proc main() {.async.} =
       echo ">> ", line
 
   await data.api.addHandler(ServerProtocols, streamHandler)
-  echo "= Your PeerID is ", id.peer.pretty()
+  echo "= Your PeerId is ", id.peer.pretty()
   await data.serveFut
 
 when isMainModule:

@@ -154,7 +154,7 @@ proc code*(tag: Asn1Tag): byte {.inline.} =
   of Asn1Tag.Context:
     0xA0'u8
 
-proc asn1EncodeLength*(dest: var openarray[byte], length: uint64): int =
+proc asn1EncodeLength*(dest: var openArray[byte], length: uint64): int =
   ## Encode ASN.1 DER length part of TLV triple and return number of bytes
   ## (octets) used.
   ##
@@ -181,8 +181,8 @@ proc asn1EncodeLength*(dest: var openarray[byte], length: uint64): int =
     # then 9, so it is safe to convert it to `int`.
     int(res)
 
-proc asn1EncodeInteger*(dest: var openarray[byte],
-                        value: openarray[byte]): int =
+proc asn1EncodeInteger*(dest: var openArray[byte],
+                        value: openArray[byte]): int =
   ## Encode big-endian binary representation of integer as ASN.1 DER `INTEGER`
   ## and return number of bytes (octets) used.
   ##
@@ -228,7 +228,7 @@ proc asn1EncodeInteger*(dest: var openarray[byte],
               len(value) - offset)
   destlen
 
-proc asn1EncodeInteger*[T: SomeUnsignedInt](dest: var openarray[byte],
+proc asn1EncodeInteger*[T: SomeUnsignedInt](dest: var openArray[byte],
                                             value: T): int =
   ## Encode Nim's unsigned integer as ASN.1 DER `INTEGER` and return number of
   ## bytes (octets) used.
@@ -238,7 +238,7 @@ proc asn1EncodeInteger*[T: SomeUnsignedInt](dest: var openarray[byte],
   ## but number of bytes (octets) required will be returned.
   dest.asn1EncodeInteger(value.toBytesBE())
 
-proc asn1EncodeBoolean*(dest: var openarray[byte], value: bool): int =
+proc asn1EncodeBoolean*(dest: var openArray[byte], value: bool): int =
   ## Encode Nim's boolean as ASN.1 DER `BOOLEAN` and return number of bytes
   ## (octets) used.
   ##
@@ -252,7 +252,7 @@ proc asn1EncodeBoolean*(dest: var openarray[byte], value: bool): int =
     dest[2] = if value: 0xFF'u8 else: 0x00'u8
   res
 
-proc asn1EncodeNull*(dest: var openarray[byte]): int =
+proc asn1EncodeNull*(dest: var openArray[byte]): int =
   ## Encode ASN.1 DER `NULL` and return number of bytes (octets) used.
   ##
   ## If length of ``dest`` is less then number of required bytes to encode
@@ -264,8 +264,8 @@ proc asn1EncodeNull*(dest: var openarray[byte]): int =
     dest[1] = 0x00'u8
   res
 
-proc asn1EncodeOctetString*(dest: var openarray[byte],
-                            value: openarray[byte]): int =
+proc asn1EncodeOctetString*(dest: var openArray[byte],
+                            value: openArray[byte]): int =
   ## Encode array of bytes as ASN.1 DER `OCTET STRING` and return number of
   ## bytes (octets) used.
   ##
@@ -282,8 +282,8 @@ proc asn1EncodeOctetString*(dest: var openarray[byte],
       copyMem(addr dest[1 + lenlen], unsafeAddr value[0], len(value))
   res
 
-proc asn1EncodeBitString*(dest: var openarray[byte],
-                          value: openarray[byte], bits = 0): int =
+proc asn1EncodeBitString*(dest: var openArray[byte],
+                          value: openArray[byte], bits = 0): int =
   ## Encode array of bytes as ASN.1 DER `BIT STRING` and return number of bytes
   ## (octets) used.
   ##
@@ -318,7 +318,7 @@ proc asn1EncodeBitString*(dest: var openarray[byte],
       dest[2 + lenlen + bytelen - 1] = lastbyte and mask
   res
 
-proc asn1EncodeTag[T: SomeUnsignedInt](dest: var openarray[byte],
+proc asn1EncodeTag[T: SomeUnsignedInt](dest: var openArray[byte],
                                        value: T): int =
   var v = value
   if value <= cast[T](0x7F):
@@ -341,7 +341,7 @@ proc asn1EncodeTag[T: SomeUnsignedInt](dest: var openarray[byte],
       dest[k - 1] = dest[k - 1] and 0x7F'u8
     res
 
-proc asn1EncodeOid*(dest: var openarray[byte], value: openarray[int]): int =
+proc asn1EncodeOid*(dest: var openArray[byte], value: openArray[int]): int =
   ## Encode array of integers ``value`` as ASN.1 DER `OBJECT IDENTIFIER` and
   ## return number of bytes (octets) used.
   ##
@@ -367,7 +367,7 @@ proc asn1EncodeOid*(dest: var openarray[byte], value: openarray[int]): int =
                               cast[uint64](value[i]))
   res
 
-proc asn1EncodeOid*(dest: var openarray[byte], value: openarray[byte]): int =
+proc asn1EncodeOid*(dest: var openArray[byte], value: openArray[byte]): int =
   ## Encode array of bytes ``value`` as ASN.1 DER `OBJECT IDENTIFIER` and return
   ## number of bytes (octets) used.
   ##
@@ -386,8 +386,8 @@ proc asn1EncodeOid*(dest: var openarray[byte], value: openarray[byte]): int =
     copyMem(addr dest[1 + lenlen], unsafeAddr value[0], len(value))
   res
 
-proc asn1EncodeSequence*(dest: var openarray[byte],
-                         value: openarray[byte]): int =
+proc asn1EncodeSequence*(dest: var openArray[byte],
+                         value: openArray[byte]): int =
   ## Encode ``value`` as ASN.1 DER `SEQUENCE` and return number of bytes
   ## (octets) used.
   ##
@@ -403,7 +403,7 @@ proc asn1EncodeSequence*(dest: var openarray[byte],
     copyMem(addr dest[1 + lenlen], unsafeAddr value[0], len(value))
   res
 
-proc asn1EncodeComposite*(dest: var openarray[byte],
+proc asn1EncodeComposite*(dest: var openArray[byte],
                           value: Asn1Composite): int =
   ## Encode composite value and return number of bytes (octets) used.
   ##
@@ -420,7 +420,7 @@ proc asn1EncodeComposite*(dest: var openarray[byte],
             len(value.buffer))
   res
 
-proc asn1EncodeContextTag*(dest: var openarray[byte], value: openarray[byte],
+proc asn1EncodeContextTag*(dest: var openArray[byte], value: openArray[byte],
                            tag: int): int =
   ## Encode ASN.1 DER `CONTEXT SPECIFIC TAG` ``tag`` for value ``value`` and
   ## return number of bytes (octets) used.
@@ -692,7 +692,7 @@ proc getBuffer*(field: Asn1Field): Asn1Buffer {.inline.} =
   ## Return ``field`` as Asn1Buffer to enter composite types.
   Asn1Buffer(buffer: field.buffer, offset: field.offset, length: field.length)
 
-proc `==`*(field: Asn1Field, data: openarray[byte]): bool =
+proc `==`*(field: Asn1Field, data: openArray[byte]): bool =
   ## Compares field ``field`` data with ``data`` and returns ``true`` if both
   ## buffers are equal.
   let length = len(field.buffer)
@@ -710,7 +710,7 @@ proc `==`*(field: Asn1Field, data: openarray[byte]): bool =
     else:
       false
 
-proc init*(t: typedesc[Asn1Buffer], data: openarray[byte]): Asn1Buffer =
+proc init*(t: typedesc[Asn1Buffer], data: openArray[byte]): Asn1Buffer =
   ## Initialize ``Asn1Buffer`` from array of bytes ``data``.
   Asn1Buffer(buffer: @data)
 
@@ -825,7 +825,7 @@ proc write*[T: Asn1Buffer|Asn1Composite](abc: var T, value: bool) =
   abc.offset += length
 
 proc write*[T: Asn1Buffer|Asn1Composite](abc: var T, tag: Asn1Tag,
-                                         value: openarray[byte], bits = 0) =
+                                         value: openArray[byte], bits = 0) =
   ## Write array ``value`` using ``tag``.
   ##
   ## This procedure is used to write ASN.1 `INTEGER`, `OCTET STRING`,

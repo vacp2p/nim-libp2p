@@ -34,7 +34,7 @@ type
     timerTaskFut: Future[void]      # the current timer instance
     timeoutHandler*: TimeoutHandler # timeout handler
     peerId*: PeerId
-    observedAddr*: Multiaddress
+    observedAddr*: MultiAddress
     upgraded*: Future[void]
     tag*: string                    # debug tag for metrics (generally ms protocol)
     transportDir*: Direction        # The bottom level transport (generally the socket) direction
@@ -151,7 +151,7 @@ proc timeoutMonitor(s: Connection) {.async, gcsafe.} =
     if not await s.pollActivity():
       return
 
-proc init*(C: type Connection,
+proc new*(C: type Connection,
            peerId: PeerId,
            dir: Direction,
            timeout: Duration = DefaultConnectionTimeout,

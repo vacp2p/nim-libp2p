@@ -7,6 +7,8 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
+{.push raises: [Defect].}
+
 import chronos, chronicles, bearssl
 import ../protobuf/minprotobuf,
        ../peerinfo,
@@ -49,7 +51,7 @@ method init*(p: Ping) =
       var buf: array[PingSize, byte]
       await conn.readExactly(addr buf[0], PingSize)
       trace "echoing ping", conn
-      await conn.write(addr buf[0], PingSize)
+      await conn.write(@buf)
       if not isNil(p.pingHandler):
         await p.pingHandler(conn.peerId)
     except CancelledError as exc:
@@ -79,7 +81,7 @@ proc ping*(
   let startTime = Moment.now()
 
   trace "sending ping", conn
-  await conn.write(addr randomBuf[0], randomBuf.len)
+  await conn.write(@randomBuf)
 
   await conn.readExactly(addr resultBuf[0], PingSize)
 

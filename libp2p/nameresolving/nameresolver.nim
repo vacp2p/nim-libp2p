@@ -40,12 +40,10 @@ method resolveIp*(
 
   doAssert(false, "Not implemented!")
 
-proc getHostname(ma: MultiAddress): string =
-  var dnsbuf = newSeq[byte](256)
-
-  let dnsLen = ma[0].get().protoArgument(dnsbuf).get()
-  dnsbuf.setLen(dnsLen)
-  return string.fromBytes(dnsbuf)
+proc getHostname*(ma: MultiAddress): string =
+  let firstPart = ($ma[0].get()).split('/')
+  if firstPart.len > 1: firstPart[2]
+  else: ""
 
 proc resolveDnsAddress(
   self: NameResolver,
@@ -122,27 +120,26 @@ proc resolveDnsAddr(
   return result
 
 
-proc resolveMAddresses*(
+proc resolveMAddress*(
   self: NameResolver,
-  addrs: seq[MultiAddress]): Future[seq[MultiAddress]] {.async.} =
+  address: MultiAddress): Future[seq[MultiAddress]] {.async.} =
   var res = initOrderedSet[MultiAddress]()
 
-  for address in addrs:
-    if not DNS.matchPartial(address):
-      res.incl(address)
-    else:
-      let code = address[0].get().protoCode().get()
-      let seq = case code:
-        of multiCodec("dns"):
-          await self.resolveDnsAddress(address)
-        of multiCodec("dns4"):
-          await self.resolveDnsAddress(address, Domain.AF_INET)
-        of multiCodec("dns6"):
-          await self.resolveDnsAddress(address, Domain.AF_INET6)
-        of multiCodec("dnsaddr"):
-          await self.resolveDnsAddr(address)
-        else:
-          @[address]
-      for ad in seq:
-        res.incl(ad)
+  if not DNS.matchPartial(address):
+    res.incl(address)
+  else:
+    let code = address[0].get().protoCode().get()
+    let seq = case code:
+      of multiCodec("dns"):
+        await self.resolveDnsAddress(address)
+      of multiCodec("dns4"):
+        await self.resolveDnsAddress(address, Domain.AF_INET)
+      of multiCodec("dns6"):
+        await self.resolveDnsAddress(address, Domain.AF_INET6)
+      of multiCodec("dnsaddr"):
+        await self.resolveDnsAddr(address)
+      else:
+        @[address]
+    for ad in seq:
+      res.incl(ad)
   return res.toSeq

@@ -13,6 +13,8 @@ import ../libp2p/protocols/secure/secure
 import ./asyncunit
 export asyncunit
 
+{.push raises: [Defect].}
+
 const
   StreamTransportTrackerName = "stream.transport"
   StreamServerTrackerName = "stream.server"
@@ -51,7 +53,9 @@ template checkTrackers*() =
       checkpoint tracker.dump()
       fail()
   # Also test the GC is not fooling with us
-  GC_fullCollect()
+  try:
+    GC_fullCollect()
+  except: discard
 
 type RngWrap = object
   rng: ref BrHmacDrbgContext
@@ -82,9 +86,6 @@ proc new*(T: typedesc[TestBufferStream], writeHandler: WriteHandler): T =
   let testBufferStream = T(writeHandler: writeHandler)
   testBufferStream.initStream()
   testBufferStream
-
-proc newBufferStream*(writeHandler: WriteHandler): TestBufferStream {.deprecated: "use TestBufferStream.new".}=
-  TestBufferStream.new(writeHandler)
 
 proc checkExpiringInternal(cond: proc(): bool {.raises: [Defect].} ): Future[bool] {.async, gcsafe.} =
   {.gcsafe.}:
