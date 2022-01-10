@@ -21,12 +21,12 @@ export connection
 logScope:
   topics = "libp2p mplexchannel"
 
-declareHistogram libp2p_protocols_qtime, "message queuing time", ["protocol"]
 when defined(libp2p_network_protocols_metrics):
   declareCounter libp2p_protocols_bytes, "total sent or received bytes", ["protocol", "direction"]
   declareHistogram libp2p_protocols_qlen, "message queue length", ["protocol"],
     buckets = [0.0, 1.0, 2.0, 4.0, 8.0, 16.0, 32.0, 64.0, 128.0, 256.0]
   declareCounter libp2p_protocols_qlenclose, "closed because of max queuelen", ["protocol"]
+  declareHistogram libp2p_protocols_qtime, "message queuing time", ["protocol"]
 
 ## Channel half-closed states
 ##
@@ -210,11 +210,13 @@ proc completeWrite(
 
     s.writes += 1
 
-    libp2p_protocols_qtime.time:
-      await fut
     when defined(libp2p_network_protocols_metrics):
+      libp2p_protocols_qtime.time:
+        await fut
       if s.tag.len > 0:
         libp2p_protocols_bytes.inc(msgLen.int64, labelValues=[s.tag, "out"])
+    else:
+      await fut
 
     s.activity = true
   except CatchableError as exc:
