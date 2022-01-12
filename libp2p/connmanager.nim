@@ -30,8 +30,7 @@ const
 type
   TooManyConnectionsError* = object of LPError
 
-  ConnProvider* = proc(): Future[Connection]
-    {.gcsafe, closure, raises: [Defect].}
+  ConnProvider* = proc(): Future[Connection] {.gcsafe, closure, raises: [], async.}
 
   ConnEventKind* {.pure.} = enum
     Connected,    # A connection was made and securely upgraded - there may be
@@ -401,7 +400,7 @@ proc storeConn*(c: ConnManager, conn: Connection)
 proc trackConn(c: ConnManager,
                provider: ConnProvider,
                sema: AsyncSemaphore):
-               Future[Connection] {.async.} =
+               Future[Connection] {.async, raises: [].} =
   var conn: Connection
   try:
     conn = await provider()
@@ -411,7 +410,7 @@ proc trackConn(c: ConnManager,
 
     trace "Got connection", conn
 
-    proc semaphoreMonitor() {.async.} =
+    proc semaphoreMonitor() {.async, raises: [].} =
       try:
         await conn.join()
       except CatchableError as exc:
@@ -453,7 +452,7 @@ proc trackIncomingConn*(c: ConnManager,
 
 proc trackOutgoingConn*(c: ConnManager,
                         provider: ConnProvider):
-                        Future[Connection] {.async.} =
+                        Future[Connection] {.async, raises: [TooManyConnectionsError].} =
   ## try acquiring a connection if all slots
   ## are already taken, raise TooManyConnectionsError
   ## exception

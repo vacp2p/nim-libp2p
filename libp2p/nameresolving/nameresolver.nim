@@ -14,7 +14,7 @@ import
   chronos,
   chronicles,
   stew/[endians2, byteutils]
-import ".."/[multiaddress, multicodec]
+import ".."/[multiaddress, multicodec, errors]
 
 logScope:
   topics = "libp2p nameresolver"
@@ -24,7 +24,7 @@ type
 
 method resolveTxt*(
   self: NameResolver,
-  address: string): Future[seq[string]] {.async, base.} =
+  address: string): Future[seq[string]] {.async, base, raises: [].} =
   ## Get TXT record
   ## 
 
@@ -34,7 +34,7 @@ method resolveIp*(
   self: NameResolver,
   address: string,
   port: Port,
-  domain: Domain = Domain.AF_UNSPEC): Future[seq[TransportAddress]] {.async, base.} =
+  domain: Domain = Domain.AF_UNSPEC): Future[seq[TransportAddress]] {.async, raises: [], base.} =
   ## Resolve the specified address
   ## 
 
@@ -50,13 +50,16 @@ proc resolveDnsAddress(
   ma: MultiAddress,
   domain: Domain = Domain.AF_UNSPEC,
   prefix = ""): Future[seq[MultiAddress]]
-  {.async.} =
+  {.async, raises: [MaError].} =
   #Resolve a single address
   var pbuf: array[2, byte]
 
   var dnsval = getHostname(ma)
 
-  if ma[1].tryGet().protoArgument(pbuf).tryGet() == 0:
+  let portNumber =
+    try: ma[1].tryGet().protoArgument(pbuf).tryGet()
+    except ResultError[string], LPError: 0
+  if portNumber == 0:
     raise newException(MaError, "Incorrect port number")
   let
     port = Port(fromBytesBE(uint16, pbuf))
@@ -65,10 +68,14 @@ proc resolveDnsAddress(
   var addressSuffix = ma
   return collect(newSeqOfCap(4)):
     for address in resolvedAddresses:
-      var createdAddress = MultiAddress.init(address).tryGet()[0].tryGet()
-      for part in ma:
-        if DNS.match(part.get()): continue
-        createdAddress &= part.tryGet()
+      var createdAddress: MultiAddress
+      try:
+        createdAddress = MultiAddress.init(address).tryGet()[0].tryGet()
+        for part in ma:
+          if DNS.match(part.get()): continue
+          createdAddress &= part.tryGet()
+      except LPError:
+        raise newException(MaError, "Invalid resolved address:" & $address)
       createdAddress
 
 func matchDnsSuffix(m1, m2: MultiAddress): MaResult[bool] =
@@ -84,7 +91,7 @@ proc resolveDnsAddr(
   self: NameResolver,
   ma: MultiAddress,
   depth: int = 0): Future[seq[MultiAddress]]
-  {.async.} =
+  {.async, raises: [LPError, MaError].} =
 
   trace "Resolving dnsaddr", ma
   if depth > 6:
@@ -122,7 +129,7 @@ proc resolveDnsAddr(
 
 proc resolveMAddress*(
   self: NameResolver,
-  address: MultiAddress): Future[seq[MultiAddress]] {.async.} =
+  address: MultiAddress): Future[seq[MultiAddress]] {.async, raises: [LPError, MaError].} =
   var res = initOrderedSet[MultiAddress]()
 
   if not DNS.matchPartial(address):

@@ -48,7 +48,8 @@ proc dialAndUpgrade(
   self: Dialer,
   peerId: PeerId,
   addrs: seq[MultiAddress]):
-  Future[Connection] {.async.} =
+  Future[Connection] {.async, raises: [DialFailedError, TooManyConnectionsError].} =
+
   debug "Dialing peer", peerId
 
   for address in addrs:      # for each address
@@ -56,7 +57,9 @@ proc dialAndUpgrade(
       hostname = address.getHostname()
       resolvedAddresses =
         if isNil(self.nameResolver): @[address]
-        else: await self.nameResolver.resolveMAddress(address)
+        else:
+          try: await self.nameResolver.resolveMAddress(address)
+          except LPError, MaError: raise newException(DialFailedError, "Failed to resolve name")
 
     for a in resolvedAddresses:      # for each resolved address
       for transport in self.transports: # for each transport

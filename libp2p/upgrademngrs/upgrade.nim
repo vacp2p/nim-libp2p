@@ -44,7 +44,7 @@ method upgradeIncoming*(
 
 method upgradeOutgoing*(
   self: Upgrade,
-  conn: Connection): Future[Connection] {.base.} =
+  conn: Connection): Future[Connection] {.base, raises: [UpgradeFailedError], async.} =
   doAssert(false, "Not implemented!")
 
 proc secure*(
