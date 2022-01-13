@@ -258,7 +258,7 @@ proc writeLp*(s: LPStream, msg: string): Future[void] =
 proc write*(s: LPStream, msg: string): Future[void] =
   s.write(msg.toBytes())
 
-method closeImpl*(s: LPStream): Future[void] {.async, base.} =
+method closeImpl*(s: LPStream): Future[void] {.async, base, raises: [].} =
   ## Implementation of close - called only once
   trace "Closing stream", s, objName = s.objName, dir = $s.dir
   libp2p_open_streams.dec(labelValues = [s.objName, $s.dir])
@@ -266,7 +266,7 @@ method closeImpl*(s: LPStream): Future[void] {.async, base.} =
   s.closeEvent.fire()
   trace "Closed stream", s, objName = s.objName, dir = $s.dir
 
-method close*(s: LPStream): Future[void] {.base, async.} = # {.raises [Defect].}
+method close*(s: LPStream): Future[void] {.base, async, raises: [].} = # {.raises [Defect].}
   ## close the stream - this may block, but will not raise exceptions
   ##
   if s.isClosed:

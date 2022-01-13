@@ -246,9 +246,9 @@ suite "Connection Manager":
     var conns: seq[Connection]
     for i in 0..<3:
       let conn = connMngr.trackIncomingConn(
-        proc(): Future[Connection] {.async.} =
+        proc(): Future[Connection] {.async, raises: [].} =
           return Connection.new(
-            PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet(),
+            PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).get()).get(),
             Direction.In)
       )
 
@@ -257,9 +257,9 @@ suite "Connection Manager":
 
     # should timeout adding a connection over the limit
     let conn = connMngr.trackIncomingConn(
-        proc(): Future[Connection] {.async.} =
+        proc(): Future[Connection] {.async, raises: [].} =
           return Connection.new(
-            PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet(),
+            PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).get()).get(),
             Direction.In)
       )
 
@@ -275,9 +275,9 @@ suite "Connection Manager":
     var conns: seq[Connection]
     for i in 0..<3:
       let conn = await connMngr.trackOutgoingConn(
-        proc(): Future[Connection] {.async.} =
+        proc(): Future[Connection] {.async, raises: [].} =
           return Connection.new(
-            PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet(),
+            PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).get()).get(),
             Direction.In)
       )
 
@@ -286,9 +286,9 @@ suite "Connection Manager":
     # should throw adding a connection over the limit
     expect TooManyConnectionsError:
       discard await connMngr.trackOutgoingConn(
-          proc(): Future[Connection] {.async.} =
+          proc(): Future[Connection] {.async, raises: [].} =
             return Connection.new(
-              PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet(),
+              PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).get()).get(),
               Direction.In)
         )
 
@@ -302,9 +302,9 @@ suite "Connection Manager":
     var conns: seq[Connection]
     for i in 0..<3:
       let conn = await connMngr.trackOutgoingConn(
-        proc(): Future[Connection] {.async.} =
+        proc(): Future[Connection] {.async, raises: [].} =
           return Connection.new(
-            PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet(),
+            PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).get()).get(),
             Direction.In)
       )
 
@@ -312,9 +312,9 @@ suite "Connection Manager":
 
     # should timeout adding a connection over the limit
     let conn = connMngr.trackIncomingConn(
-        proc(): Future[Connection] {.async.} =
+        proc(): Future[Connection] {.async, raises: [].} =
           return Connection.new(
-            PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet(),
+            PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).get()).get(),
             Direction.In)
       )
 
@@ -330,9 +330,9 @@ suite "Connection Manager":
     var conns: seq[Connection]
     for i in 0..<3:
       let conn = connMngr.trackIncomingConn(
-        proc(): Future[Connection] {.async.} =
+        proc(): Future[Connection] {.async, raises: [].} =
           return Connection.new(
-            PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet(),
+            PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).get()).get(),
             Direction.In)
       )
 
@@ -342,9 +342,9 @@ suite "Connection Manager":
     # should throw adding a connection over the limit
     expect TooManyConnectionsError:
       discard await connMngr.trackOutgoingConn(
-          proc(): Future[Connection] {.async.} =
+          proc(): Future[Connection] {.async, raises: [].} =
             return Connection.new(
-              PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet(),
+              PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).get()).get(),
               Direction.In)
         )
 
@@ -358,9 +358,9 @@ suite "Connection Manager":
     var conns: seq[Connection]
     for i in 0..<3:
       let conn = connMngr.trackIncomingConn(
-        proc(): Future[Connection] {.async.} =
+        proc(): Future[Connection] {.async, raises: [].} =
           return Connection.new(
-            PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet(),
+            PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).get()).get(),
             Direction.In)
       )
 
@@ -369,9 +369,9 @@ suite "Connection Manager":
 
     # should timeout adding a connection over the limit
     let conn = connMngr.trackIncomingConn(
-        proc(): Future[Connection] {.async.} =
+        proc(): Future[Connection] {.async, raises: [].} =
           return Connection.new(
-            PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet(),
+            PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).get()).get(),
             Direction.In)
       )
 
@@ -387,9 +387,9 @@ suite "Connection Manager":
     var conns: seq[Connection]
     for i in 0..<3:
       let conn = await connMngr.trackOutgoingConn(
-        proc(): Future[Connection] {.async.} =
+        proc(): Future[Connection] {.async, raises: [].} =
           return Connection.new(
-            PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet(),
+            PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).get()).get(),
             Direction.In)
       )
 
@@ -398,9 +398,9 @@ suite "Connection Manager":
     # should throw adding a connection over the limit
     expect TooManyConnectionsError:
       discard await connMngr.trackOutgoingConn(
-          proc(): Future[Connection] {.async.} =
+          proc(): Future[Connection] {.async, raises: [].} =
             return Connection.new(
-              PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet(),
+              PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).get()).get(),
               Direction.In)
         )
 
@@ -414,9 +414,9 @@ suite "Connection Manager":
     var conns: seq[Connection]
     for i in 0..<3:
       let conn = await connMngr.trackOutgoingConn(
-        proc(): Future[Connection] {.async.} =
+        proc(): Future[Connection] {.async, raises: [].} =
           return Connection.new(
-            PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet(),
+            PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).get()).get(),
             Direction.In)
       )
 
@@ -424,9 +424,9 @@ suite "Connection Manager":
 
     # should timeout adding a connection over the limit
     let conn = connMngr.trackIncomingConn(
-        proc(): Future[Connection] {.async.} =
+        proc(): Future[Connection] {.async, raises: [].} =
           return Connection.new(
-            PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet(),
+            PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).get()).get(),
             Direction.In)
       )
 
@@ -442,9 +442,9 @@ suite "Connection Manager":
     var conns: seq[Connection]
     for i in 0..<3:
       let conn = connMngr.trackIncomingConn(
-        proc(): Future[Connection] {.async.} =
+        proc(): Future[Connection] {.async, raises: [].} =
           return Connection.new(
-            PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet(),
+            PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).get()).get(),
             Direction.In)
       )
 
@@ -454,9 +454,9 @@ suite "Connection Manager":
     # should throw adding a connection over the limit
     expect TooManyConnectionsError:
       discard await connMngr.trackOutgoingConn(
-          proc(): Future[Connection] {.async.} =
+          proc(): Future[Connection] {.async, raises: [].} =
             return Connection.new(
-              PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet(),
+              PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).get()).get(),
               Direction.In)
         )
 

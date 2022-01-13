@@ -160,7 +160,7 @@ type
 template orError*(exp: untyped, err: untyped): untyped =
   (exp.mapErr do (_: auto) -> auto: err)
 
-proc newRng*(): ref BrHmacDrbgContext =
+proc newRng*(): ref BrHmacDrbgContext {.raises: [].} =
   # You should only create one instance of the RNG per application / library
   # Ref is used so that it can be shared between components
   # TODO consider moving to bearssl

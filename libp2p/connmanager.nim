@@ -402,30 +402,22 @@ proc trackConn(c: ConnManager,
                sema: AsyncSemaphore):
                Future[Connection] {.async, raises: [].} =
   var conn: Connection
-  try:
-    conn = await provider()
+  conn = await provider()
 
-    if isNil(conn):
-      return
+  if isNil(conn):
+    return
 
-    trace "Got connection", conn
+  trace "Got connection", conn
 
-    proc semaphoreMonitor() {.async, raises: [].} =
-      try:
-        await conn.join()
-      except CatchableError as exc:
-        trace "Exception in semaphore monitor, ignoring", exc = exc.msg
+  proc semaphoreMonitor() {.async, raises: [].} =
+    try:
+      await conn.join()
+    except CatchableError as exc:
+      trace "Exception in semaphore monitor, ignoring", exc = exc.msg
 
-      sema.release()
+    sema.release()
 
-    asyncSpawn semaphoreMonitor()
-  except CatchableError as exc:
-    trace "Exception tracking connection", exc = exc.msg
-    if not isNil(conn):
-      await conn.close()
-
-    raise exc
-
+  asyncSpawn semaphoreMonitor()
   return conn
 
 proc trackIncomingConn*(c: ConnManager,
@@ -436,19 +428,14 @@ proc trackIncomingConn*(c: ConnManager,
   ##
 
   var conn: Connection
-  try:
-    trace "Tracking incoming connection"
-    await c.inSema.acquire()
-    conn = await c.trackConn(provider, c.inSema)
-    if isNil(conn):
-      trace "Couldn't acquire connection, releasing semaphore slot", dir = $Direction.In
-      c.inSema.release()
-
-    return conn
-  except CatchableError as exc:
-    trace "Exception tracking connection", exc = exc.msg
+  trace "Tracking incoming connection"
+  await c.inSema.acquire()
+  conn = await c.trackConn(provider, c.inSema)
+  if isNil(conn):
+    trace "Couldn't acquire connection, releasing semaphore slot", dir = $Direction.In
     c.inSema.release()
-    raise exc
+
+  return conn
 
 proc trackOutgoingConn*(c: ConnManager,
                         provider: ConnProvider):
@@ -467,17 +454,12 @@ proc trackOutgoingConn*(c: ConnManager,
     raise newTooManyConnectionsError()
 
   var conn: Connection
-  try:
-    conn = await c.trackConn(provider, c.outSema)
-    if isNil(conn):
-      trace "Couldn't acquire connection, releasing semaphore slot", dir = $Direction.Out
-      c.outSema.release()
-
-    return conn
-  except CatchableError as exc:
-    trace "Exception tracking connection", exc = exc.msg
+  conn = await c.trackConn(provider, c.outSema)
+  if isNil(conn):
+    trace "Couldn't acquire connection, releasing semaphore slot", dir = $Direction.Out
     c.outSema.release()
-    raise exc
+
+  return conn
 
 proc storeMuxer*(c: ConnManager,
                  muxer: Muxer,

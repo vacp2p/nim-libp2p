@@ -93,8 +93,8 @@ proc handleConn(s: Secure,
       for f in futs:
         if not f.finished: await f.cancelAndWait() # cancel outstanding join()
 
-      await allFuturesThrowing(
-        sconn.close(), conn.close())
+      await sconn.close()
+      await conn.close()
     except CancelledError:
       # This is top-level procedure which will work as separate task, so it
       # do not need to propagate CancelledError.

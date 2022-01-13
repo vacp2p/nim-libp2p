@@ -85,7 +85,7 @@ proc closeUnderlying(s: LPChannel): Future[void] {.async.} =
   if s.closedLocal and s.atEof():
     await procCall BufferStream(s).close()
 
-proc reset*(s: LPChannel) {.async, gcsafe.} =
+proc reset*(s: LPChannel) {.async, gcsafe, raises: [].} =
   if s.isClosed:
     trace "Already closed", s
     return
@@ -143,9 +143,9 @@ method initStream*(s: LPChannel) =
   if s.objName.len == 0:
     s.objName = LPChannelTrackerName
 
-  s.timeoutHandler = proc(): Future[void] {.gcsafe.} =
+  s.timeoutHandler = proc(): Future[void] {.gcsafe, async, raises: [].} =
     trace "Idle timeout expired, resetting LPChannel", s
-    s.reset()
+    await s.reset()
 
   procCall BufferStream(s).initStream()
 

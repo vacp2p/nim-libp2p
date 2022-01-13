@@ -53,7 +53,7 @@ method stop*(self: Transport) {.base, async.} =
   self.running = false
 
 method accept*(self: Transport): Future[Connection]
-               {.base, gcsafe.} =
+              {.base, gcsafe, async, raises: [].} =
   ## accept incoming connections
   ##
 
@@ -62,7 +62,7 @@ method accept*(self: Transport): Future[Connection]
 method dial*(
   self: Transport,
   hostname: string,
-  address: MultiAddress): Future[Connection] {.base, gcsafe.} =
+  address: MultiAddress): Future[Connection] {.base, gcsafe, async, raises: [].} =
   ## dial a peer
   ##
 
@@ -70,8 +70,8 @@ method dial*(
 
 proc dial*(
   self: Transport,
-  address: MultiAddress): Future[Connection] {.gcsafe.} =
-  self.dial("", address)
+  address: MultiAddress): Future[Connection] {.gcsafe, async, raises: [].} =
+  return await self.dial("", address)
 
 method upgradeIncoming*(
   self: Transport,
@@ -84,12 +84,12 @@ method upgradeIncoming*(
 
 method upgradeOutgoing*(
   self: Transport,
-  conn: Connection): Future[Connection] {.base, gcsafe.} =
+  conn: Connection): Future[Connection] {.base, gcsafe, async, raises: [UpgradeFailedError].} =
   ## base upgrade method that the transport uses to perform
   ## transport specific upgrades
   ##
 
-  self.upgrader.upgradeOutgoing(conn)
+  return await self.upgrader.upgradeOutgoing(conn)
 
 method handles*(
   self: Transport,

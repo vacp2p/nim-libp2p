@@ -29,7 +29,7 @@ const
   DefaultConnectionTimeout* = 5.minutes
 
 type
-  TimeoutHandler* = proc(): Future[void] {.gcsafe, raises: [Defect].}
+  TimeoutHandler* = proc(): Future[void] {.gcsafe, raises: [], async.}
 
   Connection* = ref object of LPStream
     activity*: bool                 # reset every time data is sent or received
@@ -87,11 +87,11 @@ method initStream*(s: Connection) =
 
     s.timerTaskFut = s.timeoutMonitor()
     if isNil(s.timeoutHandler):
-      s.timeoutHandler = proc(): Future[void] =
+      s.timeoutHandler = proc(): Future[void] {.async, raises: [].} =
         trace "Idle timeout expired, closing connection", s
-        s.close()
+        await s.close()
 
-method closeImpl*(s: Connection): Future[void] =
+method closeImpl*(s: Connection): Future[void] {.async, raises: [].} =
   # Cleanup timeout timer
   trace "Closing connection", s
 
@@ -105,7 +105,7 @@ method closeImpl*(s: Connection): Future[void] =
 
   trace "Closed connection", s
 
-  procCall LPStream(s).closeImpl()
+  await procCall LPStream(s).closeImpl()
 
 func hash*(p: Connection): Hash =
   cast[pointer](p).hash

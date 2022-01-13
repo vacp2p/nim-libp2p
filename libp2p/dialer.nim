@@ -19,6 +19,7 @@ import dial,
        multistream,
        connmanager,
        stream/connection,
+       upgrademngrs/upgrade,
        transports/transport,
        nameresolving/nameresolver,
        errors
@@ -48,7 +49,7 @@ proc dialAndUpgrade(
   self: Dialer,
   peerId: PeerId,
   addrs: seq[MultiAddress]):
-  Future[Connection] {.async, raises: [DialFailedError, TooManyConnectionsError].} =
+  Future[Connection] {.async, raises: [DialFailedError, UpgradeFailedError, TooManyConnectionsError].} =
 
   debug "Dialing peer", peerId
 
@@ -59,34 +60,24 @@ proc dialAndUpgrade(
         if isNil(self.nameResolver): @[address]
         else:
           try: await self.nameResolver.resolveMAddress(address)
-          except LPError, MaError: raise newException(DialFailedError, "Failed to resolve name")
+          except MaError: raise newException(DialFailedError, "Failed to resolve name")
 
     for a in resolvedAddresses:      # for each resolved address
       for transport in self.transports: # for each transport
         if transport.handles(a):   # check if it can dial it
           trace "Dialing address", address = $a, peerId, hostname
-          let dialed = try:
-              libp2p_total_dial_attempts.inc()
-              # await a connection slot when the total
-              # connection count is equal to `maxConns`
-              #
-              # Need to copy to avoid "cannot be captured" errors in Nim-1.4.x.
-              let
-                transportCopy = transport
-                addressCopy = a
+          libp2p_total_dial_attempts.inc()
+          # await a connection slot when the total
+          # connection count is equal to `maxConns`
+          #
+          # Need to copy to avoid "cannot be captured" errors in Nim-1.4.x.
+          let
+            transportCopy = transport
+            addressCopy = a
+            dialed =
               await self.connManager.trackOutgoingConn(
                 () => transportCopy.dial(hostname, addressCopy)
               )
-            except TooManyConnectionsError as exc:
-              trace "Connection limit reached!"
-              raise exc
-            except CancelledError as exc:
-              debug "Dialing canceled", msg = exc.msg, peerId
-              raise exc
-            except CatchableError as exc:
-              debug "Dialing failed", msg = exc.msg, peerId
-              libp2p_failed_dials.inc()
-              continue # Try the next address
 
           # make sure to assign the peer to the connection
           dialed.peerId = peerId
@@ -97,15 +88,15 @@ proc dialAndUpgrade(
 
           libp2p_successful_dials.inc()
 
-          let conn = try:
+          let conn =
+            try:
               await transport.upgradeOutgoing(dialed)
-            except CatchableError as exc:
+            except UpgradeFailedError as exc:
               # If we failed to establish the connection through one transport,
               # we won't succeeded through another - no use in trying again
               await dialed.close()
               debug "Upgrade failed", msg = exc.msg, peerId
-              if exc isnot CancelledError:
-                libp2p_failed_upgrades_outgoing.inc()
+              libp2p_failed_upgrades_outgoing.inc()
               raise exc
 
           doAssert not isNil(conn), "connection died after upgradeOutgoing"

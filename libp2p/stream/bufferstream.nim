@@ -172,7 +172,7 @@ method readOnce*(s: BufferStream,
 
   return rbytes
 
-method closeImpl*(s: BufferStream): Future[void] =
+method closeImpl*(s: BufferStream): Future[void] {.async, raises: [].} =
   ## close the stream and clear the buffer
   trace "Closing BufferStream", s, len = s.len
 
@@ -212,4 +212,4 @@ method closeImpl*(s: BufferStream): Future[void] =
 
   trace "Closed BufferStream", s
 
-  procCall Connection(s).closeImpl() # noraises, nocancels
+  await procCall Connection(s).closeImpl() # noraises, nocancels

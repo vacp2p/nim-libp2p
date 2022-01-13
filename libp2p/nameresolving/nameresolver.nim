@@ -91,7 +91,7 @@ proc resolveDnsAddr(
   self: NameResolver,
   ma: MultiAddress,
   depth: int = 0): Future[seq[MultiAddress]]
-  {.async, raises: [LPError, MaError].} =
+  {.async, raises: [MaError].} =
 
   trace "Resolving dnsaddr", ma
   if depth > 6:
@@ -107,9 +107,10 @@ proc resolveDnsAddr(
   var result: seq[MultiAddress]
   for entry in txt:
     if not entry.startsWith("dnsaddr="): continue
-    let entryValue = MultiAddress.init(entry[8..^1]).tryGet()
+    let entryValue = try: MultiAddress.init(entry[8..^1]).tryGet() except: raise newException(MaError, "")
 
-    if not matchDnsSuffix(ma, entryValue).tryGet(): continue
+    let isDnsAddr = try: matchDnsSuffix(ma, entryValue).tryGet() except: raise newException(MaError, "")
+    if not isDnsAddr: continue
 
     # The spec is not clear wheter only DNSADDR can be recursived
     # or any DNS addr. Only handling DNSADDR because it's simpler
@@ -129,7 +130,7 @@ proc resolveDnsAddr(
 
 proc resolveMAddress*(
   self: NameResolver,
-  address: MultiAddress): Future[seq[MultiAddress]] {.async, raises: [LPError, MaError].} =
+  address: MultiAddress): Future[seq[MultiAddress]] {.async, raises: [MaError].} =
   var res = initOrderedSet[MultiAddress]()
 
   if not DNS.matchPartial(address):

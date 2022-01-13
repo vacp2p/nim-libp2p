@@ -47,7 +47,7 @@ method initStream*(s: ChronosStream) =
   if s.objName.len == 0:
     s.objName = ChronosStreamTrackerName
 
-  s.timeoutHandler = proc() {.async, gcsafe.} =
+  s.timeoutHandler = proc() {.async, gcsafe, raises: [].} =
     trace "Idle timeout expired, closing ChronosStream", s
     await s.close()
 
