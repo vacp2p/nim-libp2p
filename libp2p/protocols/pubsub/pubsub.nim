@@ -452,6 +452,11 @@ proc subscribe*(p: PubSub,
   ##               on every received message
   ##
 
+  # Check that this is an allowed topic
+  if p.subscriptionValidator != nil and p.subscriptionValidator(topic) == false:
+    warn "Trying to subscribe to a topic not passing validation!", topic
+    return
+
   p.topics.withValue(topic, handlers) do:
     # Already subscribed, just adding another handler
     handlers[].add(handler)
