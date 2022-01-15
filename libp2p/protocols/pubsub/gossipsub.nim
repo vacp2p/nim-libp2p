@@ -186,15 +186,15 @@ method unsubscribePeer*(g: GossipSub, peer: PeerId) =
       if s[].len == 0:
         g.peersInIP.del(pubSubPeer.address.get())
 
-  for t in toSeq(g.gossipsub.keys):
-    g.gossipsub.removePeer(t, pubSubPeer)
-    # also try to remove from explicit table here
-    g.explicit.removePeer(t, pubSubPeer)
-
   for t in toSeq(g.mesh.keys):
     trace "pruning unsubscribing peer", pubSubPeer, score = pubSubPeer.score
     g.pruned(pubSubPeer, t)
     g.mesh.removePeer(t, pubSubPeer)
+
+  for t in toSeq(g.gossipsub.keys):
+    g.gossipsub.removePeer(t, pubSubPeer)
+    # also try to remove from explicit table here
+    g.explicit.removePeer(t, pubSubPeer)
 
   for t in toSeq(g.fanout.keys):
     g.fanout.removePeer(t, pubSubPeer)
@@ -237,9 +237,14 @@ proc handleSubscribe*(g: GossipSub,
   else:
     trace "peer unsubscribed from topic"
 
+    if g.mesh.hasPeer(topic, peer):
+      #against spec
+      g.mesh.removePeer(topic, peer)
+      g.pruned(peer, topic)
+
     # unsubscribe remote peer from the topic
     g.gossipsub.removePeer(topic, peer)
-    g.mesh.removePeer(topic, peer)
+
     g.fanout.removePeer(topic, peer)
     if peer.peerId in g.parameters.directPeers:
       g.explicit.removePeer(topic, peer)
