@@ -94,7 +94,7 @@ type
     switch*: Switch                    # the switch used to dial/connect to peers
     peerInfo*: PeerInfo                # this peer's info
     topics*: Table[string, seq[TopicHandler]]      # the topics that _we_ are interested in
-    peers*: Table[PeerID, PubSubPeer]  ##\
+    peers*: Table[PeerId, PubSubPeer]  ##\
       ## Peers that we are interested to gossip with (but not necessarily
       ## yet connected to)
     triggerSelf*: bool                 # trigger own local handler on publish
@@ -119,7 +119,7 @@ type
 
     knownTopics*: HashSet[string]
 
-method unsubscribePeer*(p: PubSub, peerId: PeerID) {.base.} =
+method unsubscribePeer*(p: PubSub, peerId: PeerId) {.base.} =
   ## handle peer disconnects
   ##
 
@@ -273,7 +273,7 @@ method onPubSubPeerEvent*(p: PubSub, peer: PubsubPeer, event: PubsubPeerEvent) {
 
 proc getOrCreatePeer*(
     p: PubSub,
-    peerId: PeerID,
+    peerId: PeerId,
     protos: seq[string]): PubSubPeer =
   p.peers.withValue(peerId, peer):
     return peer[]
@@ -374,7 +374,7 @@ method handleConn*(p: PubSub,
   finally:
     await conn.closeWithEOF()
 
-method subscribePeer*(p: PubSub, peer: PeerID) {.base.} =
+method subscribePeer*(p: PubSub, peer: PeerId) {.base.} =
   ## subscribe to remote peer to receive/send pubsub
   ## messages
   ##
@@ -451,6 +451,11 @@ proc subscribe*(p: PubSub,
   ##               that will be triggered
   ##               on every received message
   ##
+
+  # Check that this is an allowed topic
+  if p.subscriptionValidator != nil and p.subscriptionValidator(topic) == false:
+    warn "Trying to subscribe to a topic not passing validation!", topic
+    return
 
   p.topics.withValue(topic, handlers) do:
     # Already subscribed, just adding another handler

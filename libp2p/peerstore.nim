@@ -22,7 +22,7 @@ type
   # Handler types #
   #################
 
-  PeerBookChangeHandler*[T] = proc(peerId: PeerID, entry: T)
+  PeerBookChangeHandler*[T] = proc(peerId: PeerId, entry: T)
 
   AddrChangeHandler* = PeerBookChangeHandler[HashSet[MultiAddress]]
   ProtoChangeHandler* = PeerBookChangeHandler[HashSet[string]]
@@ -34,7 +34,7 @@ type
 
   # Each book contains a book (map) and event handler(s)
   PeerBook*[T] = object of RootObj
-    book*: Table[PeerID, T]
+    book*: Table[PeerId, T]
     changeHandlers: seq[PeerBookChangeHandler[T]]
 
   SetPeerBook*[T] = object of PeerBook[HashSet[T]]
@@ -68,13 +68,13 @@ proc new*(T: type PeerStore): PeerStore =
 #########################
 
 proc get*[T](peerBook: PeerBook[T],
-             peerId: PeerID): T =
+             peerId: PeerId): T =
   ## Get all the known metadata of a provided peer.
   
   peerBook.book.getOrDefault(peerId)
 
 proc set*[T](peerBook: var PeerBook[T],
-             peerId: PeerID,
+             peerId: PeerId,
              entry: T) =
   ## Set metadata for a given peerId. This will replace any
   ## previously stored metadata.
@@ -86,7 +86,7 @@ proc set*[T](peerBook: var PeerBook[T],
     handler(peerId, peerBook.get(peerId))
 
 proc delete*[T](peerBook: var PeerBook[T],
-                peerId: PeerID): bool =
+                peerId: PeerId): bool =
   ## Delete the provided peer from the book.
   
   if not peerBook.book.hasKey(peerId):
@@ -95,7 +95,7 @@ proc delete*[T](peerBook: var PeerBook[T],
     peerBook.book.del(peerId)
     return true
 
-proc contains*[T](peerBook: PeerBook[T], peerId: PeerID): bool =
+proc contains*[T](peerBook: PeerBook[T], peerId: PeerId): bool =
   peerId in peerBook.book
 
 ################
@@ -104,7 +104,7 @@ proc contains*[T](peerBook: PeerBook[T], peerId: PeerID): bool =
 
 proc add*[T](
   peerBook: var SetPeerBook[T],
-  peerId: PeerID,
+  peerId: PeerId,
   entry: T) =
   ## Add entry to a given peer. If the peer is not known,
   ## it will be set with the provided entry.
@@ -119,7 +119,7 @@ proc add*[T](
 # Helper for seq
 proc set*[T](
   peerBook: var SetPeerBook[T],
-  peerId: PeerID,
+  peerId: PeerId,
   entry: seq[T]) =
   ## Add entry to a given peer. If the peer is not known,
   ## it will be set with the provided entry.
@@ -141,7 +141,7 @@ proc addHandlers*(peerStore: PeerStore,
   peerStore.keyBook.changeHandlers.add(keyChangeHandler)
 
 proc delete*(peerStore: PeerStore,
-             peerId: PeerID): bool =
+             peerId: PeerId): bool =
   ## Delete the provided peer from every book.
   
   peerStore.addressBook.delete(peerId) and

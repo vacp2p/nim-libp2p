@@ -43,6 +43,7 @@ proc init*(_: type[GossipSubParams]): GossipSubParams =
   GossipSubParams(
       explicit: true,
       pruneBackoff: 1.minutes,
+      unsubscribeBackoff: 5.seconds,
       floodPublish: true,
       gossipFactor: 0.25,
       d: GossipSubD,
@@ -77,6 +78,8 @@ proc validateParameters*(parameters: GossipSubParams): Result[void, cstring] =
     err("gossipsub: dOut parameter error, Number of outbound connections to keep in the mesh. Must be less than D_lo and at most D/2")
   elif parameters.gossipThreshold >= 0:
     err("gossipsub: gossipThreshold parameter error, Must be < 0")
+  elif parameters.unsubscribeBackoff.seconds <= 0:
+    err("gossipsub: unsubscribeBackoff parameter error, Must be > 0 seconds")
   elif parameters.publishThreshold >= parameters.gossipThreshold:
     err("gossipsub: publishThreshold parameter error, Must be < gossipThreshold")
   elif parameters.graylistThreshold >= parameters.publishThreshold:
@@ -166,7 +169,7 @@ method onPubSubPeerEvent*(p: GossipSub, peer: PubsubPeer, event: PubSubPeerEvent
 
   procCall FloodSub(p).onPubSubPeerEvent(peer, event)
 
-method unsubscribePeer*(g: GossipSub, peer: PeerID) =
+method unsubscribePeer*(g: GossipSub, peer: PeerId) =
   ## handle peer disconnects
   ##
 
@@ -183,15 +186,15 @@ method unsubscribePeer*(g: GossipSub, peer: PeerID) =
       if s[].len == 0:
         g.peersInIP.del(pubSubPeer.address.get())
 
-  for t in toSeq(g.gossipsub.keys):
-    g.gossipsub.removePeer(t, pubSubPeer)
-    # also try to remove from explicit table here
-    g.explicit.removePeer(t, pubSubPeer)
-
   for t in toSeq(g.mesh.keys):
     trace "pruning unsubscribing peer", pubSubPeer, score = pubSubPeer.score
     g.pruned(pubSubPeer, t)
     g.mesh.removePeer(t, pubSubPeer)
+
+  for t in toSeq(g.gossipsub.keys):
+    g.gossipsub.removePeer(t, pubSubPeer)
+    # also try to remove from explicit table here
+    g.explicit.removePeer(t, pubSubPeer)
 
   for t in toSeq(g.fanout.keys):
     g.fanout.removePeer(t, pubSubPeer)
@@ -234,9 +237,14 @@ proc handleSubscribe*(g: GossipSub,
   else:
     trace "peer unsubscribed from topic"
 
+    if g.mesh.hasPeer(topic, peer):
+      #against spec
+      g.mesh.removePeer(topic, peer)
+      g.pruned(peer, topic)
+
     # unsubscribe remote peer from the topic
     g.gossipsub.removePeer(topic, peer)
-    g.mesh.removePeer(topic, peer)
+
     g.fanout.removePeer(topic, peer)
     if peer.peerId in g.parameters.directPeers:
       g.explicit.removePeer(topic, peer)
@@ -278,6 +286,64 @@ proc handleControl(g: GossipSub, peer: PubSubPeer, control: ControlMessage) =
     g.send(
       peer,
       RPCMsg(control: some(respControl), messages: messages))
+
+proc validateAndRelay(g: GossipSub,
+                      msg: Message,
+                      msgId, msgIdSalted: MessageId,
+                      peer: PubSubPeer) {.async.} =
+  try:
+    let validation = await g.validate(msg)
+
+    var seenPeers: HashSet[PubSubPeer]
+    discard g.validationSeen.pop(msgIdSalted, seenPeers)
+    libp2p_gossipsub_duplicate_during_validation.inc(seenPeers.len.int64)
+
+    case validation
+    of ValidationResult.Reject:
+      debug "Dropping message after validation, reason: reject",
+        msgId = shortLog(msgId), peer
+      g.punishInvalidMessage(peer, msg.topicIDs)
+      return
+    of ValidationResult.Ignore:
+      debug "Dropping message after validation, reason: ignore",
+        msgId = shortLog(msgId), peer
+      return
+    of ValidationResult.Accept:
+      discard
+
+    # store in cache only after validation
+    g.mcache.put(msgId, msg)
+
+    g.rewardDelivered(peer, msg.topicIDs, true)
+
+    var toSendPeers = HashSet[PubSubPeer]()
+    for t in msg.topicIDs:                      # for every topic in the message
+      if t notin g.topics:
+        continue
+
+      g.floodsub.withValue(t, peers): toSendPeers.incl(peers[])
+      g.mesh.withValue(t, peers): toSendPeers.incl(peers[])
+
+    # Don't send it to source peer, or peers that
+    # sent it during validation
+    toSendPeers.excl(peer)
+    toSendPeers.excl(seenPeers)
+
+    # In theory, if topics are the same in all messages, we could batch - we'd
+    # also have to be careful to only include validated messages
+    g.broadcast(toSendPeers, RPCMsg(messages: @[msg]))
+    trace "forwared message to peers", peers = toSendPeers.len, msgId, peer
+    for topic in msg.topicIDs:
+      if topic notin g.topics: continue
+
+      if g.knownTopics.contains(topic):
+        libp2p_pubsub_messages_rebroadcasted.inc(toSendPeers.len.int64, labelValues = [topic])
+      else:
+        libp2p_pubsub_messages_rebroadcasted.inc(toSendPeers.len.int64, labelValues = ["generic"])
+
+      await handleData(g, topic, msg.data)
+  except CatchableError as exc:
+    info "validateAndRelay failed", msg=exc.msg
 
 method rpcHandler*(g: GossipSub,
                   peer: PubSubPeer,
@@ -340,54 +406,7 @@ method rpcHandler*(g: GossipSub,
     # (eg, pop everything you put in it)
     g.validationSeen[msgIdSalted] = initHashSet[PubSubPeer]()
 
-    let validation = await g.validate(msg)
-
-    var seenPeers: HashSet[PubSubPeer]
-    discard g.validationSeen.pop(msgIdSalted, seenPeers)
-    libp2p_gossipsub_duplicate_during_validation.inc(seenPeers.len.int64)
-
-    case validation
-    of ValidationResult.Reject:
-      debug "Dropping message after validation, reason: reject",
-        msgId = shortLog(msgId), peer
-      g.punishInvalidMessage(peer, msg.topicIDs)
-      continue
-    of ValidationResult.Ignore:
-      debug "Dropping message after validation, reason: ignore",
-        msgId = shortLog(msgId), peer
-      continue
-    of ValidationResult.Accept:
-      discard
-
-    # store in cache only after validation
-    g.mcache.put(msgId, msg)
-
-    g.rewardDelivered(peer, msg.topicIDs, true)
-
-    var toSendPeers = HashSet[PubSubPeer]()
-    for t in msg.topicIDs:                      # for every topic in the message
-      if t notin g.topics:
-        continue
-
-      g.floodsub.withValue(t, peers): toSendPeers.incl(peers[])
-      g.mesh.withValue(t, peers): toSendPeers.incl(peers[])
-
-      await handleData(g, t, msg.data)
-
-    # Don't send it to source peer, or peers that
-    # sent it during validation
-    toSendPeers.excl(peer)
-    toSendPeers.excl(seenPeers)
-
-    # In theory, if topics are the same in all messages, we could batch - we'd
-    # also have to be careful to only include validated messages
-    g.broadcast(toSendPeers, RPCMsg(messages: @[msg]))
-    trace "forwared message to peers", peers = toSendPeers.len, msgId, peer
-    for topic in msg.topicIDs:
-      if g.knownTopics.contains(topic):
-        libp2p_pubsub_messages_rebroadcasted.inc(toSendPeers.len.int64, labelValues = [topic])
-      else:
-        libp2p_pubsub_messages_rebroadcasted.inc(toSendPeers.len.int64, labelValues = ["generic"])
+    asyncSpawn g.validateAndRelay(msg, msgId, msgIdSalted, peer)
 
   if rpcMsg.control.isSome():
     g.handleControl(peer, rpcMsg.control.unsafeGet())
@@ -413,11 +432,11 @@ method onTopicSubscription*(g: GossipSub, topic: string, subscribed: bool) =
           prune: @[ControlPrune(
             topicID: topic,
             peers: g.peerExchangeList(topic),
-            backoff: g.parameters.pruneBackoff.seconds.uint64)])))
+            backoff: g.parameters.unsubscribeBackoff.seconds.uint64)])))
     g.broadcast(mpeers, msg)
 
     for peer in mpeers:
-      g.pruned(peer, topic)
+      g.pruned(peer, topic, backoff = some(g.parameters.unsubscribeBackoff))
 
     g.mesh.del(topic)
 

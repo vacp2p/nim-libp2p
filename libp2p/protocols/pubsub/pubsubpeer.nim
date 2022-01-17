@@ -53,7 +53,7 @@ type
     codec*: string                      # the protocol that this peer joined from
     sendConn*: Connection               # cached send connection
     address*: Option[MultiAddress]
-    peerId*: PeerID
+    peerId*: PeerId
     handler*: RPCHandler
     observers*: ref seq[PubSubObserver] # ref as in smart_ptr
 
@@ -281,7 +281,7 @@ proc send*(p: PubSubPeer, msg: RPCMsg, anonymize: bool) {.raises: [Defect].} =
 
 proc new*(
   T: typedesc[PubSubPeer],
-  peerId: PeerID,
+  peerId: PeerId,
   getConn: GetConn,
   dropConn: DropConn,
   onEvent: OnEvent,

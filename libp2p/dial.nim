@@ -18,7 +18,7 @@ type
 
 method connect*(
   self: Dial,
-  peerId: PeerID,
+  peerId: PeerId,
   addrs: seq[MultiAddress]) {.async, base.} =
   ## connect remote peer without negotiating
   ## a protocol
@@ -28,7 +28,7 @@ method connect*(
 
 method dial*(
   self: Dial,
-  peerId: PeerID,
+  peerId: PeerId,
   protos: seq[string]): Future[Connection] {.async, base.} =
   ## create a protocol stream over an
   ## existing connection
@@ -38,7 +38,7 @@ method dial*(
 
 method dial*(
   self: Dial,
-  peerId: PeerID,
+  peerId: PeerId,
   addrs: seq[MultiAddress],
   protos: seq[string]): Future[Connection] {.async, base.} =
   ## create a protocol stream and establish

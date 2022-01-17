@@ -53,7 +53,7 @@ proc initVBuffer*(data: seq[byte], offset = 0): VBuffer =
     shallowCopy(result.buffer, data)
   result.offset = offset
 
-proc initVBuffer*(data: openarray[byte], offset = 0): VBuffer =
+proc initVBuffer*(data: openArray[byte], offset = 0): VBuffer =
   ## Initialize VBuffer with copy of ``data``.
   result.buffer = newSeq[byte](len(data))
   if len(data) > 0:
@@ -88,7 +88,7 @@ proc writeLPVarint*(vb: var VBuffer, value: LPSomeUVarint) =
 proc writeVarint*(vb: var VBuffer, value: LPSomeUVarint) =
   writeLPVarint(vb, value)
 
-proc writeSeq*[T: byte|char](vb: var VBuffer, value: openarray[T]) =
+proc writeSeq*[T: byte|char](vb: var VBuffer, value: openArray[T]) =
   ## Write array ``value`` to buffer ``vb``, value will be prefixed with
   ## varint length of the array.
   var length = 0
@@ -101,7 +101,7 @@ proc writeSeq*[T: byte|char](vb: var VBuffer, value: openarray[T]) =
     copyMem(addr vb.buffer[vb.offset], unsafeAddr value[0], len(value))
     vb.offset += len(value)
 
-proc writeArray*[T: byte|char](vb: var VBuffer, value: openarray[T]) =
+proc writeArray*[T: byte|char](vb: var VBuffer, value: openArray[T]) =
   ## Write array ``value`` to buffer ``vb``, value will NOT be prefixed with
   ## varint length of the array.
   if len(value) > 0:
@@ -151,7 +151,7 @@ proc peekSeq*[T: string|seq[byte]](vb: var VBuffer, value: var T): int =
     vb.offset -= length
 
 proc peekArray*[T: char|byte](vb: var VBuffer,
-                              value: var openarray[T]): int =
+                              value: var openArray[T]): int =
   ## Peek array from buffer ``vb`` and store result to ``value``.
   ##
   ## This procedure will not adjust internal offset.
@@ -183,7 +183,7 @@ proc readSeq*[T: string|seq[byte]](vb: var VBuffer,
     vb.offset += result
 
 proc readArray*[T: char|byte](vb: var VBuffer,
-                              value: var openarray[T]): int {.inline.} =
+                              value: var openArray[T]): int {.inline.} =
   ## Read array from buffer ``vb`` and store result to ``value``.
   ##
   ## Returns number of bytes consumed from ``vb`` or ``-1`` on error.

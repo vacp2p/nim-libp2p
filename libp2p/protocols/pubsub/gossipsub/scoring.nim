@@ -73,7 +73,7 @@ proc colocationFactor(g: GossipSub, peer: PubSubPeer): float64 =
   else:
     let
       address = peer.address.get()
-    g.peersInIP.mgetOrPut(address, initHashSet[PeerID]()).incl(peer.peerId)
+    g.peersInIP.mgetOrPut(address, initHashSet[PeerId]()).incl(peer.peerId)
     let
       ipPeers = g.peersInIP.getOrDefault(address).len().float64
     if ipPeers > g.parameters.ipColocationFactorThreshold:
@@ -109,7 +109,7 @@ proc updateScores*(g: GossipSub) = # avoid async
   trace "updating scores", peers = g.peers.len
 
   let now = Moment.now()
-  var evicting: seq[PeerID]
+  var evicting: seq[PeerId]
 
   for peerId, stats in g.peerStats.mpairs:
     let peer = g.peers.getOrDefault(peerId)

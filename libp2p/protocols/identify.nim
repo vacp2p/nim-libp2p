@@ -37,7 +37,7 @@ type
   IdentifyNoPubKeyError* = object of IdentifyError
 
   IdentifyInfo* = object
-    pubKey*: Option[PublicKey]
+    pubkey*: Option[PublicKey]
     peerId*: PeerId
     addrs*: seq[MultiAddress]
     observedAddr*: Option[MultiAddress]
@@ -58,7 +58,7 @@ type
   IdentifyPush* = ref object of LPProtocol
     identifyHandler: IdentifyPushHandler
 
-proc encodeMsg*(peerInfo: PeerInfo, observedAddr: Multiaddress): ProtoBuffer
+proc encodeMsg*(peerInfo: PeerInfo, observedAddr: MultiAddress): ProtoBuffer
   {.raises: [Defect, IdentifyNoPubKeyError].} =
   result = initProtoBuffer()
 
@@ -90,7 +90,7 @@ proc encodeMsg*(peerInfo: PeerInfo, observedAddr: Multiaddress): ProtoBuffer
 proc decodeMsg*(buf: seq[byte]): Option[IdentifyInfo] =
   var
     iinfo: IdentifyInfo
-    pubKey: PublicKey
+    pubkey: PublicKey
     oaddr: MultiAddress
     protoVersion: string
     agentVersion: string
@@ -98,7 +98,7 @@ proc decodeMsg*(buf: seq[byte]): Option[IdentifyInfo] =
 
   var pb = initProtoBuffer(buf)
 
-  let r1 = pb.getField(1, pubKey)
+  let r1 = pb.getField(1, pubkey)
   let r2 = pb.getRepeatedField(2, iinfo.addrs)
   let r3 = pb.getRepeatedField(3, iinfo.protos)
   let r4 = pb.getField(4, oaddr)
@@ -113,7 +113,7 @@ proc decodeMsg*(buf: seq[byte]): Option[IdentifyInfo] =
 
   if res:
     if r1.get():
-      iinfo.pubKey = some(pubKey)
+      iinfo.pubkey = some(pubkey)
     if r4.get():
       iinfo.observedAddr = some(oaddr)
     if r5.get():
@@ -122,7 +122,7 @@ proc decodeMsg*(buf: seq[byte]): Option[IdentifyInfo] =
       iinfo.agentVersion = some(agentVersion)
     if r8.get():
       iinfo.signedPeerRecord = some(signedPeerRecord)
-    debug "decodeMsg: decoded message", pubkey = ($pubKey).shortLog,
+    debug "decodeMsg: decoded message", pubkey = ($pubkey).shortLog,
           addresses = $iinfo.addrs, protocols = $iinfo.protos,
           observable_address = $iinfo.observedAddr,
           proto_version = $iinfo.protoVersion,
@@ -169,8 +169,8 @@ proc identify*(p: Identify,
     raise newException(IdentityInvalidMsgError, "Incorrect message received!")
   result = infoOpt.get()
 
-  if result.pubKey.isSome:
-    let peer = PeerID.init(result.pubKey.get())
+  if result.pubkey.isSome:
+    let peer = PeerId.init(result.pubkey.get())
     if peer.isErr:
       raise newException(IdentityInvalidMsgError, $peer.error)
     else:
@@ -201,8 +201,8 @@ proc init*(p: IdentifyPush) =
 
       var indentInfo = infoOpt.get()
 
-      if indentInfo.pubKey.isSome:
-        let receivedPeerId = PeerID.init(indentInfo.pubKey.get()).tryGet()
+      if indentInfo.pubkey.isSome:
+        let receivedPeerId = PeerId.init(indentInfo.pubkey.get()).tryGet()
         if receivedPeerId != conn.peerId:
           raise newException(IdentityNoMatchError, "Peer ids don't match")
         indentInfo.peerId = receivedPeerId

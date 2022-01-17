@@ -21,7 +21,7 @@ type
   PeerInfoError* = LPError
 
   PeerInfo* = ref object
-    peerId*: PeerID
+    peerId*: PeerId
     addrs*: seq[MultiAddress]
     protocols*: seq[string]
     protoVersion*: string
@@ -43,8 +43,8 @@ chronicles.formatIt(PeerInfo): shortLog(it)
 proc new*(
   p: typedesc[PeerInfo],
   key: PrivateKey,
-  addrs: openarray[MultiAddress] = [],
-  protocols: openarray[string] = [],
+  addrs: openArray[MultiAddress] = [],
+  protocols: openArray[string] = [],
   protoVersion: string = "",
   agentVersion: string = ""): PeerInfo
   {.raises: [Defect, PeerInfoError].} =
