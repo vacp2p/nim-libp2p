@@ -56,7 +56,7 @@ method readOnce*(s: TestSelectStream,
 
 method write*(s: TestSelectStream, msg: seq[byte]) {.async, gcsafe.} = discard
 
-method close(s: TestSelectStream) {.async, gcsafe, raises: [Defect].} =
+method close(s: TestSelectStream) {.async, gcsafe.} =
   s.isClosed = true
   s.isEof = true
 
