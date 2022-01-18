@@ -477,7 +477,7 @@ proc trackOutgoingConn*(c: ConnManager,
 
   # always count against the semaphore regardless
   # if the semaphore limit has been reached
-  asyncSpawn c.connSema.acquire()
+  c.connSema.forceAcquire()
   var conn: Connection
   try:
     conn = await c.trackConn(provider, c.connSema)
