@@ -36,7 +36,7 @@ suite "AsyncSemaphore":
     await sema.acquire()
     let fut = sema.acquire()
 
-    check sema.count == -1
+    check sema.count == 0
     sema.release()
     sema.release()
     check sema.count == 1
@@ -66,7 +66,7 @@ suite "AsyncSemaphore":
 
     let fut = sema.acquire()
     check fut.finished == false
-    check sema.count == -1
+    check sema.count == 0
 
     sema.release()
     sema.release()
@@ -145,3 +145,26 @@ suite "AsyncSemaphore":
     sema.release()
 
     check await sema.acquire().withTimeout(10.millis)
+
+  asyncTest "should handle tryAcquire properly":
+    let sema = newAsyncSemaphore(1)
+
+    await sema.acquire()
+    check not(await sema.acquire().withTimeout(1.millis)) # should not acquire but cancel
+    sema.forceAcquire()
+
+    let
+      fut1 = sema.acquire()
+      fut2 = sema.acquire()
+    sema.release()
+
+    await fut1 or fut2 or sleepAsync(1.millis)
+    check:
+      not fut1.finished()
+      not fut2.finished()
+
+    sema.release()
+    await fut1 or sleepAsync(1.millis)
+    check:
+      fut1.finished()
+      not fut2.finished()

@@ -7,7 +7,7 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-{.push raises: [Defect].}
+{.push raises: [].}
 
 import sequtils
 import chronos, chronicles
@@ -38,6 +38,14 @@ proc tryAcquire*(s: AsyncSemaphore): bool =
     trace "Acquired slot", available = s.count, queue = s.queue.len
     return true
 
+proc forceAcquire*(s: AsyncSemaphore) =
+  ## Always acquire a semaphore, even
+  ## if it is currently empty
+  ##
+
+  s.count.dec
+  trace "Acquired slot", available = s.count, queue = s.queue.len
+
 proc acquire*(s: AsyncSemaphore): Future[void] =
   ## Acquire a resource and decrement the resource
   ## counter. If no more resources are available,
@@ -54,13 +62,10 @@ proc acquire*(s: AsyncSemaphore): Future[void] =
     fut.cancelCallback = nil
     if not fut.finished:
       s.queue.keepItIf( it != fut )
-      s.count.inc
 
   fut.cancelCallback = cancellation
 
   s.queue.add(fut)
-  s.count.dec
-
   trace "Queued slot", available = s.count, queue = s.queue.len
   return fut
 
@@ -77,13 +82,13 @@ proc release*(s: AsyncSemaphore) =
     trace "Releasing slot", available = s.count,
                             queue = s.queue.len
 
-    if s.queue.len > 0:
+    s.count.inc # increment the resource count
+    if s.queue.len > 0 and s.count > 0:
       var fut = s.queue[0]
       s.queue.delete(0)
       if not fut.finished():
         fut.complete()
-
-    s.count.inc # increment the resource count
+        dec s.count
     trace "Released slot", available = s.count,
                            queue = s.queue.len
     return
