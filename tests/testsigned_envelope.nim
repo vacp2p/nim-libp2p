@@ -3,7 +3,7 @@ import stew/byteutils
 import ../libp2p/[signed_envelope]
 
 suite "Signed envelope":
-  test "Encode -> decode test":
+  test "Encode -> decode -> encode -> decode test":
     let
       rng = newRng()
       privKey = PrivateKey.random(rng[]).tryGet()
@@ -12,9 +12,15 @@ suite "Signed envelope":
       decodedEnvelope = Envelope.decode(buffer, "domain").tryGet()
       wrongDomain = Envelope.decode(buffer, "wdomain")
 
+      reencodedEnvelope = decodedEnvelope.encode().tryGet()
+      redecodedEnvelope = Envelope.decode(reencodedEnvelope, "domain").tryGet()
+
     check:
       decodedEnvelope == envelope
       wrongDomain.error == EnvelopeInvalidSignature
+
+      reencodedEnvelope == buffer
+      redecodedEnvelope == envelope
 
   test "Interop decode test":
     # from https://github.com/libp2p/go-libp2p-core/blob/b18a4c9c5629870bde2cd85ab3b87a507600d411/record/envelope_test.go#L68

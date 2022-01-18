@@ -213,7 +213,8 @@ proc newStandardSwitch*(
   maxIn = -1,
   maxOut = -1,
   maxConnsPerPeer = MaxConnectionsPerPeer,
-  nameResolver: NameResolver = nil): Switch
+  nameResolver: NameResolver = nil,
+  sendSignedPeerRecord = false): Switch
   {.raises: [Defect, LPError].} =
   if SecureProtocol.Secio in secureManagers:
       quit("Secio is deprecated!") # use of secio is unsafe
@@ -223,6 +224,7 @@ proc newStandardSwitch*(
     .new()
     .withAddresses(addrs)
     .withRng(rng)
+    .withSignedPeerRecord(sendSignedPeerRecord)
     .withMaxConnections(maxConnections)
     .withMaxIn(maxIn)
     .withMaxOut(maxOut)

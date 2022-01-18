@@ -83,8 +83,16 @@ proc peerExchangeList*(g: GossipSub, topic: string): seq[PeerInfoMsg] {.raises: 
       x.score >= 0.0
   # by spec, larger then Dhi, but let's put some hard caps
   peers.setLen(min(peers.len, g.parameters.dHigh * 2))
+  let sprBook = g.switch.peerStore.signedPeerRecordBook
   peers.map do (x: PubSubPeer) -> PeerInfoMsg:
-    PeerInfoMsg(peerId: x.peerId)
+    PeerInfoMsg(
+      peerId: x.peerId,
+      signedPeerRecord:
+        if x.peerId in sprBook:
+          sprBook.get(x.peerId).encode().get(default(seq[byte]))
+        else:
+          default(seq[byte])
+      )
 
 proc handleGraft*(g: GossipSub,
                  peer: PubSubPeer,
@@ -172,21 +180,16 @@ proc getPeers(prune: ControlPrune, peer: PubSubPeer): seq[(PeerId, Option[PeerRe
       if record.signedPeerRecord.len == 0:
         none(PeerRecord)
       else:
-        let envelope = Envelope.decode(record.signedPeerRecord, "libp2p-routing-state")
-        if envelope.isErr:
-          info "peer sent invalid envelope", peer, error=envelope.error
+        let signedRecord = getSignedPeerRecord(record.signedPeerRecord)
+        if signedRecord.isErr:
+          trace "peer sent invalid SPR", peer, error=signedRecord.error
           none(PeerRecord)
         else:
-          if not record.peerID.match(envelope.get().publicKey):
-            info "peer sent envelope with wrong public key", peer
+          if record.peerID != signedRecord.get().peerId:
+            trace "peer sent envelope with wrong public key", peer
             none(PeerRecord)
           else:
-            let signedRecord = PeerRecord.decode(envelope.get().payload)
-            if signedRecord.isErr:
-              info "peer sent invalid record", peer, error=signedRecord.error
-              none(PeerRecord)
-            else:
-              some(signedRecord.get())
+            some(signedRecord.get())
 
     routingRecords.add((record.peerId, peerRecord))
 
@@ -218,9 +221,12 @@ proc handlePrune*(g: GossipSub, peer: PubSubPeer, prunes: seq[ControlPrune]) {.r
     g.pruned(peer, topic, setBackoff = false)
     g.mesh.removePeer(topic, peer)
 
-    if peer.score > g.parameters.gossipThreshold and prune.peers.len > 0:
+    if peer.score > g.parameters.gossipThreshold and prune.peers.len > 0 and
+      g.routingRecordsHandler.len > 0:
       let routingRecords = prune.getPeers(peer)
-      #TODO do something with this
+
+      for handler in g.routingRecordsHandler:
+        handler(peer.peerId, topic, routingRecords)
 
 proc handleIHave*(g: GossipSub,
                  peer: PubSubPeer,

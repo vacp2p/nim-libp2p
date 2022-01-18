@@ -24,8 +24,8 @@ export peerid, multiaddress, signed_envelope
 
 ## Constants relating to signed peer records
 const
-  EnvelopeDomain = multiCodec("libp2p-peer-record") # envelope domain as per RFC0002
-  EnvelopePayloadType= @[(byte) 0x03, (byte) 0x01] # payload_type for routing records as spec'ed in RFC0003
+  EnvelopeDomain = $multiCodec("libp2p-peer-record") # envelope domain as per RFC0002
+  EnvelopePayloadType= @[(byte) 0x03, (byte) 0x01] # payloadType for routing records as spec'ed in RFC0003
 
 type
   AddressInfo* = object
@@ -97,7 +97,7 @@ proc init*(T: typedesc[Envelope],
   let envelope = ? Envelope.init(privateKey,
                                  EnvelopePayloadType,
                                  peerRecord.encode(),
-                                 $EnvelopeDomain)
+                                 EnvelopeDomain)
   
   ok(envelope)
 
@@ -122,4 +122,16 @@ proc init*(T: typedesc[Envelope],
 proc getSignedPeerRecord*(pb: ProtoBuffer, field: int,
                value: var Envelope): ProtoResult[bool] {.
      inline.} =
-  getField(pb, field, value, $EnvelopeDomain)
+  getField(pb, field, value, EnvelopeDomain)
+
+proc getSignedPeerRecord*(envelopeBuf: seq[byte]): Result[PeerRecord, EnvelopeError] =
+  let
+    envelope = ? Envelope.decode(envelopeBuf, EnvelopeDomain)
+    spr = ? PeerRecord.decode(envelope.payload).orErr(EnvelopeInvalidProtobuf)
+ 
+  if not spr.peerId.match(envelope.publicKey):
+    err(EnvelopeInvalidSignature)
+  elif envelope.payloadType != EnvelopePayloadType:
+    err(EnvelopeInvalidSignature)
+  else:
+    ok(spr)
