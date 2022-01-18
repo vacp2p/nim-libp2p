@@ -48,6 +48,7 @@ type
 
   Identify* = ref object of LPProtocol
     peerInfo*: PeerInfo
+    sendSignedPeerRecord*: bool
 
   IdentifyPushHandler* = proc (
     peer: PeerId,
@@ -58,8 +59,8 @@ type
   IdentifyPush* = ref object of LPProtocol
     identifyHandler: IdentifyPushHandler
 
-proc encodeMsg*(peerInfo: PeerInfo, observedAddr: MultiAddress): ProtoBuffer
-  {.raises: [Defect, IdentifyNoPubKeyError].} =
+proc encodeMsg(peerInfo: PeerInfo, observedAddr: MultiAddress, sendSpr: bool): ProtoBuffer
+  {.raises: [Defect].} =
   result = initProtoBuffer()
 
   let pkey = peerInfo.publicKey
@@ -80,7 +81,7 @@ proc encodeMsg*(peerInfo: PeerInfo, observedAddr: MultiAddress): ProtoBuffer
 
   ## Optionally populate signedPeerRecord field.
   ## See https://github.com/libp2p/go-libp2p/blob/ddf96ce1cfa9e19564feb9bd3e8269958bbc0aba/p2p/protocol/identify/pb/identify.proto for reference.
-  if peerInfo.signedPeerRecord.isSome():
+  if peerInfo.signedPeerRecord.isSome() and sendSpr:
     let sprBuff = peerInfo.signedPeerRecord.get().encode()
     if sprBuff.isOk():
       result.write(8, sprBuff.get())
@@ -133,8 +134,15 @@ proc decodeMsg*(buf: seq[byte]): Option[IdentifyInfo] =
     trace "decodeMsg: failed to decode received message"
     none[IdentifyInfo]()
 
-proc new*(T: typedesc[Identify], peerInfo: PeerInfo): T =
-  let identify = T(peerInfo: peerInfo)
+proc new*(
+  T: typedesc[Identify],
+  peerInfo: PeerInfo,
+  sendSignedPeerRecord = false
+  ): T =
+  let identify = T(
+    peerInfo: peerInfo,
+    sendSignedPeerRecord: sendSignedPeerRecord
+  )
   identify.init()
   identify
 
@@ -142,7 +150,7 @@ method init*(p: Identify) =
   proc handle(conn: Connection, proto: string) {.async, gcsafe, closure.} =
     try:
       trace "handling identify request", conn
-      var pb = encodeMsg(p.peerInfo, conn.observedAddr)
+      var pb = encodeMsg(p.peerInfo, conn.observedAddr, p.sendSignedPeerRecord)
       await conn.writeLp(pb.buffer)
     except CancelledError as exc:
       raise exc
@@ -222,5 +230,5 @@ proc init*(p: IdentifyPush) =
   p.codec = IdentifyPushCodec
 
 proc push*(p: IdentifyPush, peerInfo: PeerInfo, conn: Connection) {.async.} =
-  var pb = encodeMsg(peerInfo, conn.observedAddr)
+  var pb = encodeMsg(peerInfo, conn.observedAddr, true)
   await conn.writeLp(pb.buffer)
