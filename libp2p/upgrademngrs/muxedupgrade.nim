@@ -173,6 +173,11 @@ proc muxerHandler(
 
   try:
     await self.identify(muxer)
+    when defined(libp2p_agents_metrics):
+      #TODO Passing data between layers is a pain
+      if muxer.connection of SecureConn:
+        let secureConn = (SecureConn)muxer.connection
+        secureConn.stream.shortAgent = muxer.connection.shortAgent
   except IdentifyError as exc:
     # Identify is non-essential, though if it fails, it might indicate that
     # the connection was closed already - this will be picked up by the read
@@ -193,7 +198,7 @@ proc new*(
   T: type MuxedUpgrade,
   identity: Identify,
   muxers: Table[string, MuxerProvider],
-  secureManagers: openarray[Secure] = [],
+  secureManagers: openArray[Secure] = [],
   connManager: ConnManager,
   ms: MultistreamSelect): T =
 

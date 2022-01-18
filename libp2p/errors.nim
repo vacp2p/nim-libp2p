@@ -49,7 +49,7 @@ proc allFuturesThrowing*[T](args: varargs[Future[T]]): Future[void] =
   for fut in args:
     futs &= fut
   proc call() {.async.} =
-    var first: ref Exception = nil
+    var first: ref CatchableError = nil
     futs = await allFinished(futs)
     for fut in futs:
       if fut.failed:

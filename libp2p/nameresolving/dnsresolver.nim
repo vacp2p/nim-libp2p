@@ -78,7 +78,12 @@ proc getDnsResponse(
       dataStream = newStringStream()
     dataStream.writeData(addr rawResponse[0], rawResponse.len)
     dataStream.setPosition(0)
+    # parseResponse can has a raises: [Exception, ..] because of
+    # https://github.com/nim-lang/Nim/commit/035134de429b5d99c5607c5fae912762bebb6008
+    # it can't actually raise though
     return parseResponse(dataStream)
+  except CatchableError as exc: raise exc
+  except Exception as exc: raiseAssert exc.msg
   finally:
     await sock.closeWait()
 
@@ -88,9 +93,9 @@ method resolveIp*(
   port: Port,
   domain: Domain = Domain.AF_UNSPEC): Future[seq[TransportAddress]] {.async.} =
 
-  trace "Resolving IP using DNS", address, servers = self.nameservers.mapIt($it), domain
-  for _ in 0 ..< self.nameservers.len:
-    let server = self.nameservers[0]
+  trace "Resolving IP using DNS", address, servers = self.nameServers.mapIt($it), domain
+  for _ in 0 ..< self.nameServers.len:
+    let server = self.nameServers[0]
     var responseFutures: seq[Future[Response]]
     if domain == Domain.AF_INET or domain == Domain.AF_UNSPEC:
       responseFutures.add(getDnsResponse(server, address, A))
@@ -122,8 +127,8 @@ method resolveIp*(
         break
 
     if resolveFailed:
-      self.nameservers.add(self.nameservers[0])
-      self.nameservers.delete(0)
+      self.nameServers.add(self.nameServers[0])
+      self.nameServers.delete(0)
       continue
 
     trace "Got IPs from DNS server", resolvedAddresses, server = $server
@@ -136,9 +141,9 @@ method resolveTxt*(
   self: DnsResolver,
   address: string): Future[seq[string]] {.async.} =
 
-  trace "Resolving TXT using DNS", address, servers = self.nameservers.mapIt($it)
-  for _ in 0 ..< self.nameservers.len:
-    let server = self.nameservers[0]
+  trace "Resolving TXT using DNS", address, servers = self.nameServers.mapIt($it)
+  for _ in 0 ..< self.nameServers.len:
+    let server = self.nameServers[0]
     try:
       let response = await getDnsResponse(server, address, TXT)
       trace "Got TXT response", server = $server, answer=response.answers.mapIt(it.toString())
@@ -147,8 +152,8 @@ method resolveTxt*(
       raise e
     except CatchableError as e:
       info "Failed to query DNS", address, error=e.msg
-      self.nameservers.add(self.nameservers[0])
-      self.nameservers.delete(0)
+      self.nameServers.add(self.nameServers[0])
+      self.nameServers.delete(0)
       continue
 
   debug "Failed to resolve TXT, returning empty set"

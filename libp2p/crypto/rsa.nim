@@ -279,7 +279,7 @@ proc clear*[T: RsaPKI|RsaKeyPair](pki: var T) =
     burnMem(pki.buffer)
     pki.buffer.setLen(0)
 
-proc toBytes*(key: RsaPrivateKey, data: var openarray[byte]): RsaResult[int] =
+proc toBytes*(key: RsaPrivateKey, data: var openArray[byte]): RsaResult[int] =
   ## Serialize RSA private key ``key`` to ASN.1 DER binary form and store it
   ## to ``data``.
   ##
@@ -316,7 +316,7 @@ proc toBytes*(key: RsaPrivateKey, data: var openarray[byte]): RsaResult[int] =
   else:
     err(RsaKeyIncorrectError)
 
-proc toBytes*(key: RsaPublicKey, data: var openarray[byte]): RsaResult[int] =
+proc toBytes*(key: RsaPublicKey, data: var openArray[byte]): RsaResult[int] =
   ## Serialize RSA public key ``key`` to ASN.1 DER binary form and store it
   ## to ``data``.
   ##
@@ -350,7 +350,7 @@ proc toBytes*(key: RsaPublicKey, data: var openarray[byte]): RsaResult[int] =
   else:
     err(RsaKeyIncorrectError)
 
-proc toBytes*(sig: RsaSignature, data: var openarray[byte]): RSaResult[int] =
+proc toBytes*(sig: RsaSignature, data: var openArray[byte]): RsaResult[int] =
   ## Serialize RSA signature ``sig`` to raw binary form and store it
   ## to ``data``.
   ##
@@ -402,7 +402,7 @@ proc getBytes*(sig: RsaSignature): RsaResult[seq[byte]] =
   else:
     err(RsaSignatureError)
 
-proc init*(key: var RsaPrivateKey, data: openarray[byte]): Result[void, Asn1Error] =
+proc init*(key: var RsaPrivateKey, data: openArray[byte]): Result[void, Asn1Error] =
   ## Initialize RSA private key ``key`` from ASN.1 DER binary representation
   ## ``data``.
   ##
@@ -493,7 +493,7 @@ proc init*(key: var RsaPrivateKey, data: openarray[byte]): Result[void, Asn1Erro
   else:
     err(Asn1Error.Incorrect)
 
-proc init*(key: var RsaPublicKey, data: openarray[byte]): Result[void, Asn1Error] =
+proc init*(key: var RsaPublicKey, data: openArray[byte]): Result[void, Asn1Error] =
   ## Initialize RSA public key ``key`` from ASN.1 DER binary representation
   ## ``data``.
   ##
@@ -562,7 +562,7 @@ proc init*(key: var RsaPublicKey, data: openarray[byte]): Result[void, Asn1Error
   else:
     err(Asn1Error.Incorrect)
 
-proc init*(sig: var RsaSignature, data: openarray[byte]): Result[void, Asn1Error] =
+proc init*(sig: var RsaSignature, data: openArray[byte]): Result[void, Asn1Error] =
   ## Initialize RSA signature ``sig`` from ASN.1 DER binary representation
   ## ``data``.
   ##
@@ -583,7 +583,7 @@ proc init*[T: RsaPKI](sospk: var T,
   sospk.init(ncrutils.fromHex(data))
 
 proc init*(t: typedesc[RsaPrivateKey],
-           data: openarray[byte]): RsaResult[RsaPrivateKey] =
+           data: openArray[byte]): RsaResult[RsaPrivateKey] =
   ## Initialize RSA private key from ASN.1 DER binary representation ``data``
   ## and return constructed object.
   var res: RsaPrivateKey
@@ -593,7 +593,7 @@ proc init*(t: typedesc[RsaPrivateKey],
     ok(res)
 
 proc init*(t: typedesc[RsaPublicKey],
-           data: openarray[byte]): RsaResult[RsaPublicKey] =
+           data: openArray[byte]): RsaResult[RsaPublicKey] =
   ## Initialize RSA public key from ASN.1 DER binary representation ``data``
   ## and return constructed object.
   var res: RsaPublicKey
@@ -603,7 +603,7 @@ proc init*(t: typedesc[RsaPublicKey],
     ok(res)
 
 proc init*(t: typedesc[RsaSignature],
-           data: openarray[byte]): RsaResult[RsaSignature] =
+           data: openArray[byte]): RsaResult[RsaSignature] =
   ## Initialize RSA signature from raw binary representation ``data`` and
   ## return constructed object.
   var res: RsaSignature
@@ -743,7 +743,7 @@ proc `==`*(a, b: RsaPublicKey): bool =
     (r1 and r2)
 
 proc sign*[T: byte|char](key: RsaPrivateKey,
-                         message: openarray[T]): RsaResult[RsaSignature] {.gcsafe.} =
+                         message: openArray[T]): RsaResult[RsaSignature] {.gcsafe.} =
   ## Get RSA PKCS1.5 signature of data ``message`` using SHA256 and private
   ## key ``key``.
   if isNil(key):
@@ -770,7 +770,7 @@ proc sign*[T: byte|char](key: RsaPrivateKey,
   else:
     ok(res)
 
-proc verify*[T: byte|char](sig: RsaSignature, message: openarray[T],
+proc verify*[T: byte|char](sig: RsaSignature, message: openArray[T],
                            pubkey: RsaPublicKey): bool {.inline.} =
   ## Verify RSA signature ``sig`` using public key ``pubkey`` and data
   ## ``message``.

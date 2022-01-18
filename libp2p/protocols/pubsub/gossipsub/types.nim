@@ -102,6 +102,7 @@ type
   GossipSubParams* = object
     explicit*: bool
     pruneBackoff*: Duration
+    unsubscribeBackoff*: Duration
     floodPublish*: bool
     gossipFactor*: float64
     d*: int
@@ -138,7 +139,8 @@ type
 
     disconnectBadPeers*: bool
 
-  BackoffTable* = Table[string, Table[PeerID, Moment]]
+  BackoffTable* = Table[string, Table[PeerId, Moment]]
+  ValidationSeenTable* = Table[MessageID, HashSet[PubSubPeer]]
 
   GossipSub* = ref object of FloodSub
     mesh*: PeerTable                           # peers that we send messages to when we are subscribed to the topic
@@ -150,14 +152,15 @@ type
     gossip*: Table[string, seq[ControlIHave]]  # pending gossip
     control*: Table[string, ControlMessage]    # pending control messages
     mcache*: MCache                            # messages cache
+    validationSeen*: ValidationSeenTable       # peers who sent us message in validation
     heartbeatFut*: Future[void]                 # cancellation future for heartbeat interval
     heartbeatRunning*: bool
 
-    peerStats*: Table[PeerID, PeerStats]
+    peerStats*: Table[PeerId, PeerStats]
     parameters*: GossipSubParams
     topicParams*: Table[string, TopicParams]
     directPeersLoop*: Future[void]
-    peersInIP*: Table[MultiAddress, HashSet[PeerID]]
+    peersInIP*: Table[MultiAddress, HashSet[PeerId]]
 
     heartbeatEvents*: seq[AsyncEvent]
 

@@ -17,7 +17,7 @@ export options
 
 type
     PeerInfoMsg* = object
-      peerID*: seq[byte]
+      peerId*: seq[byte]
       signedPeerRecord*: seq[byte]
 
     SubOpts* = object

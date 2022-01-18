@@ -72,9 +72,11 @@ method closeImpl*(s: WsStream): Future[void] {.async.} =
 
 type
   WsTransport* = ref object of Transport
-    httpserver: HttpServer
+    httpservers: seq[HttpServer]
     wsserver: WSServer
     connections: array[Direction, seq[WsStream]]
+
+    acceptFuts: seq[Future[HttpRequest]]
 
     tlsPrivateKey: TLSPrivateKey
     tlsCertificate: TLSCertificate
@@ -88,42 +90,55 @@ proc secure*(self: WsTransport): bool =
 
 method start*(
   self: WsTransport,
-  ma: MultiAddress) {.async.} =
+  addrs: seq[MultiAddress]) {.async.} =
   ## listen on the transport
   ##
 
   if self.running:
-    trace "WS transport already running"
+    warn "WS transport already running"
     return
 
-  await procCall Transport(self).start(ma)
+  await procCall Transport(self).start(addrs)
   trace "Starting WS transport"
-
-  self.httpserver =
-    if self.secure:
-      TlsHttpServer.create(
-        address = self.ma.initTAddress().tryGet(),
-        tlsPrivateKey = self.tlsPrivateKey,
-        tlsCertificate = self.tlsCertificate,
-        flags = self.flags)
-    else:
-      HttpServer.create(self.ma.initTAddress().tryGet())
 
   self.wsserver = WSServer.new(
     factories = self.factories,
     rng = self.rng)
 
-  let codec = if self.secure:
-      MultiAddress.init("/wss")
-    else:
-      MultiAddress.init("/ws")
+  
+  for i, ma in addrs:
+    let isWss =
+      if WSS.match(ma):
+        if self.secure: true
+        else:
+          warn "Trying to listen on a WSS address without setting the certificate!"
+          false
+      else: false
 
-  # always get the resolved address in case we're bound to 0.0.0.0:0
-  self.ma = MultiAddress.init(
-    self.httpserver.localAddress()).tryGet() & codec.tryGet()
+    let httpserver =
+      if isWss:
+        TlsHttpServer.create(
+          address = ma.initTAddress().tryGet(),
+          tlsPrivateKey = self.tlsPrivateKey,
+          tlsCertificate = self.tlsCertificate,
+          flags = self.flags)
+      else:
+        HttpServer.create(ma.initTAddress().tryGet())
+
+    self.httpservers &= httpserver
+
+    let codec = if isWss:
+        MultiAddress.init("/wss")
+      else:
+        MultiAddress.init("/ws")
+
+    # always get the resolved address in case we're bound to 0.0.0.0:0
+    self.addrs[i] = MultiAddress.init(
+      httpserver.localAddress()).tryGet() & codec.tryGet()
+
+  trace "Listening on", addresses = self.addrs
 
   self.running = true
-  trace "Listening on", address = self.ma
 
 method stop*(self: WsTransport) {.async, gcsafe.} =
   ## stop the transport
@@ -140,24 +155,33 @@ method stop*(self: WsTransport) {.async, gcsafe.} =
         self.connections[Direction.In].mapIt(it.close()) &
         self.connections[Direction.Out].mapIt(it.close())))
 
-    # server can be nil
-    if not isNil(self.httpserver):
-      self.httpserver.stop()
-      await self.httpserver.closeWait()
+    var toWait: seq[Future[void]]
+    for fut in self.acceptFuts:
+      if not fut.finished:
+        toWait.add(fut.cancelAndWait())
+      elif fut.done:
+        toWait.add(fut.read().stream.closeWait())
 
-    self.httpserver = nil
+    for server in self.httpservers:
+      server.stop()
+      toWait.add(server.closeWait())
+
+    await allFutures(toWait)
+
+    self.httpservers = @[]
     trace "Transport stopped"
   except CatchableError as exc:
     trace "Error shutting down ws transport", exc = exc.msg
 
 proc connHandler(self: WsTransport,
-                 stream: WsSession,
+                 stream: WSSession,
+                 secure: bool,
                  dir: Direction): Future[Connection] {.async.} =
   let observedAddr =
     try:
       let
         codec =
-          if self.secure:
+          if secure:
             MultiAddress.init("/wss")
           else:
             MultiAddress.init("/ws")
@@ -189,24 +213,50 @@ method accept*(self: WsTransport): Future[Connection] {.async, gcsafe.} =
     raise newTransportClosedError()
 
   try:
-    let
-      req = await self.httpserver.accept()
-      wstransp = await self.wsserver.handleRequest(req)
+    if self.acceptFuts.len <= 0:
+      self.acceptFuts = self.httpservers.mapIt(it.accept())
 
-    return await self.connHandler(wstransp, Direction.In)
+    if self.acceptFuts.len <= 0:
+      return
+
+    let
+      finished = await one(self.acceptFuts)
+      index = self.acceptFuts.find(finished)
+
+    self.acceptFuts[index] = self.httpservers[index].accept()
+
+    let req = await finished
+
+    try:
+      let
+        wstransp = await self.wsserver.handleRequest(req)
+        isSecure = self.httpservers[index].secure
+
+      return await self.connHandler(wstransp, isSecure, Direction.In)
+    except CatchableError as exc:
+      await req.stream.closeWait()
+      raise exc
   except TransportOsError as exc:
     debug "OS Error", exc = exc.msg
+  except WebSocketError as exc:
+    debug "Websocket Error", exc = exc.msg
+  except AsyncStreamError as exc:
+    debug "AsyncStream Error", exc = exc.msg
   except TransportTooManyError as exc:
     debug "Too many files opened", exc = exc.msg
   except TransportUseClosedError as exc:
     debug "Server was closed", exc = exc.msg
     raise newTransportClosedError(exc)
+  except CancelledError as exc:
+    # bubble up silently
+    raise exc
   except CatchableError as exc:
     warn "Unexpected error accepting connection", exc = exc.msg
     raise exc
 
 method dial*(
   self: WsTransport,
+  hostname: string,
   address: MultiAddress): Future[Connection] {.async, gcsafe.} =
   ## dial a peer
   ##
@@ -219,9 +269,14 @@ method dial*(
       address.initTAddress().tryGet(),
       "",
       secure = secure,
+      hostName = hostname,
       flags = self.tlsFlags)
 
-  return await self.connHandler(transp, Direction.Out)
+  try:
+    return await self.connHandler(transp, secure, Direction.Out)
+  except CatchableError as exc:
+    await transp.close()
+    raise exc
 
 method handles*(t: WsTransport, address: MultiAddress): bool {.gcsafe.} =
   if procCall Transport(t).handles(address):

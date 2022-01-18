@@ -22,10 +22,11 @@ logScope:
 
 type
   TransportError* = object of LPError
+  TransportInvalidAddrError* = object of TransportError
   TransportClosedError* = object of TransportError
 
   Transport* = ref object of RootObj
-    ma*: Multiaddress
+    addrs*: seq[MultiAddress]
     running*: bool
     upgrader*: Upgrade
 
@@ -35,20 +36,20 @@ proc newTransportClosedError*(parent: ref Exception = nil): ref LPError =
 
 method start*(
   self: Transport,
-  ma: MultiAddress): Future[void] {.base, async.} =
+  addrs: seq[MultiAddress]) {.base, async.} =
   ## start the transport
   ##
 
-  trace "starting transport", address = $ma
-  self.ma = ma
+  trace "starting transport on addrs", address = $addrs
+  self.addrs = addrs
   self.running = true
 
-method stop*(self: Transport): Future[void] {.base, async.} =
+method stop*(self: Transport) {.base, async.} =
   ## stop and cleanup the transport
   ## including all outstanding connections
   ##
 
-  trace "stopping transport", address = $self.ma
+  trace "stopping transport", address = $self.addrs
   self.running = false
 
 method accept*(self: Transport): Future[Connection]
@@ -60,11 +61,17 @@ method accept*(self: Transport): Future[Connection]
 
 method dial*(
   self: Transport,
+  hostname: string,
   address: MultiAddress): Future[Connection] {.base, gcsafe.} =
   ## dial a peer
   ##
 
   doAssert(false, "Not implemented!")
+
+proc dial*(
+  self: Transport,
+  address: MultiAddress): Future[Connection] {.gcsafe.} =
+  self.dial("", address)
 
 method upgradeIncoming*(
   self: Transport,

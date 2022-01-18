@@ -20,8 +20,9 @@ import dial,
        connmanager,
        stream/connection,
        transports/transport,
-       errors,
-       utils/semaphore
+       utils/semaphore,
+       nameresolving/nameresolver,
+       errors
 
 export dial, errors
 
@@ -40,72 +41,78 @@ type
     localPeerId*: PeerId
     ms: MultistreamSelect
     connManager: ConnManager
-    dialLock: Table[PeerID, AsyncLock]
+    dialLock: Table[PeerId, AsyncLock]
     transports: seq[Transport]
+    nameResolver: NameResolver
 
 proc dialAndUpgrade(
   self: Dialer,
-  peerId: PeerID,
+  peerId: PeerId,
   addrs: seq[MultiAddress]):
   Future[Connection] {.async.} =
   debug "Dialing peer", peerId
 
-  # Avoid "cannot be captured as it would violate memory safety" errors in Nim-1.4.x.
-  var
-    transport: Transport
-    address: MultiAddress
+  for address in addrs:      # for each address
+    let
+      hostname = address.getHostname()
+      resolvedAddresses =
+        if isNil(self.nameResolver): @[address]
+        else: await self.nameResolver.resolveMAddress(address)
 
-  for t in self.transports: # for each transport
-    transport = t
-    for a in addrs:      # for each address
-      address = a
-      if t.handles(a):   # check if it can dial it
-        trace "Dialing address", address = $a, peerId
-        let dialed = try:
-            libp2p_total_dial_attempts.inc()
-            # await a connection slot when the total
-            # connection count is equal to `maxConnections`
-            await self.connManager.trackOutgoingConn(
-              () => transport.dial(address)
-            )
-          except TooManyConnectionsError as exc:
-            trace "Connection limit reached!"
-            raise exc
-          except CancelledError as exc:
-            debug "Dialing canceled", msg = exc.msg, peerId
-            raise exc
-          except CatchableError as exc:
-            debug "Dialing failed", msg = exc.msg, peerId
-            libp2p_failed_dials.inc()
-            continue # Try the next address
+    for a in resolvedAddresses:      # for each resolved address
+      for transport in self.transports: # for each transport
+        if transport.handles(a):   # check if it can dial it
+          trace "Dialing address", address = $a, peerId, hostname
+          let dialed = try:
+              libp2p_total_dial_attempts.inc()
+              # await a connection slot when the total
+              # connection count is equal to `maxConnections`
+              #
+              # Need to copy to avoid "cannot be captured" errors in Nim-1.4.x.
+              let
+                transportCopy = transport
+                addressCopy = a
+              await self.connManager.trackOutgoingConn(
+                () => transportCopy.dial(hostname, addressCopy)
+              )
+            except TooManyConnectionsError as exc:
+              trace "Connection limit reached!"
+              raise exc
+            except CancelledError as exc:
+              debug "Dialing canceled", msg = exc.msg, peerId
+              raise exc
+            except CatchableError as exc:
+              debug "Dialing failed", msg = exc.msg, peerId
+              libp2p_failed_dials.inc()
+              continue # Try the next address
 
-        # make sure to assign the peer to the connection
-        dialed.peerId = peerId
+          # make sure to assign the peer to the connection
+          dialed.peerId = peerId
 
-        # also keep track of the connection's bottom unsafe transport direction
-        # required by gossipsub scoring
-        dialed.transportDir = Direction.Out
+          # also keep track of the connection's bottom unsafe transport direction
+          # required by gossipsub scoring
+          dialed.transportDir = Direction.Out
 
-        libp2p_successful_dials.inc()
+          libp2p_successful_dials.inc()
 
-        let conn = try:
-            await transport.upgradeOutgoing(dialed)
-          except CatchableError as exc:
-            # If we failed to establish the connection through one transport,
-            # we won't succeeded through another - no use in trying again
-            await dialed.close()
-            debug "Upgrade failed", msg = exc.msg, peerId
-            if exc isnot CancelledError:
-              libp2p_failed_upgrades_outgoing.inc()
-            raise exc
+          let conn = try:
+              await transport.upgradeOutgoing(dialed)
+            except CatchableError as exc:
+              # If we failed to establish the connection through one transport,
+              # we won't succeeded through another - no use in trying again
+              await dialed.close()
+              debug "Upgrade failed", msg = exc.msg, peerId
+              if exc isnot CancelledError:
+                libp2p_failed_upgrades_outgoing.inc()
+              raise exc
 
-        doAssert not isNil(conn), "connection died after upgradeOutgoing"
-        debug "Dial successful", conn, peerId = conn.peerId
-        return conn
+          doAssert not isNil(conn), "connection died after upgradeOutgoing"
+          debug "Dial successful", conn, peerId = conn.peerId
+          return conn
 
 proc internalConnect(
   self: Dialer,
-  peerId: PeerID,
+  peerId: PeerId,
   addrs: seq[MultiAddress]):
   Future[Connection] {.async.} =
   if self.localPeerId == peerId:
@@ -152,7 +159,7 @@ proc internalConnect(
 
 method connect*(
   self: Dialer,
-  peerId: PeerID,
+  peerId: PeerId,
   addrs: seq[MultiAddress]) {.async.} =
   ## connect remote peer without negotiating
   ## a protocol
@@ -177,7 +184,7 @@ proc negotiateStream(
 
 method dial*(
   self: Dialer,
-  peerId: PeerID,
+  peerId: PeerId,
   protos: seq[string]): Future[Connection] {.async.} =
   ## create a protocol stream over an
   ## existing connection
@@ -192,7 +199,7 @@ method dial*(
 
 method dial*(
   self: Dialer,
-  peerId: PeerID,
+  peerId: PeerId,
   addrs: seq[MultiAddress],
   protos: seq[string]): Future[Connection] {.async.} =
   ## create a protocol stream and establish
@@ -235,9 +242,11 @@ proc new*(
   localPeerId: PeerId,
   connManager: ConnManager,
   transports: seq[Transport],
-  ms: MultistreamSelect): Dialer =
+  ms: MultistreamSelect,
+  nameResolver: NameResolver = nil): Dialer =
 
   T(localPeerId: localPeerId,
     connManager: connManager,
     transports: transports,
-    ms: ms)
+    ms: ms,
+    nameResolver: nameResolver)

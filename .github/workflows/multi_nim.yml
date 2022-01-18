@@ -1,0 +1,175 @@
+name: Daily
+on:
+  schedule:
+    - cron: "30 6 * * *"
+  workflow_dispatch:
+
+jobs:
+  build:
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - os: linux
+            cpu: amd64
+          - os: linux
+            cpu: i386
+          - os: macos
+            cpu: amd64
+          - os: windows
+            cpu: amd64
+          #- os: windows
+            #cpu: i386
+        branch: [version-1-2, version-1-4, version-1-6, devel]
+        include:
+          - target:
+              os: linux
+            builder: ubuntu-20.04
+            shell: bash
+          - target:
+              os: macos
+            builder: macos-10.15
+            shell: bash
+          - target:
+              os: windows
+            builder: windows-2019
+            shell: msys2 {0}
+
+    defaults:
+      run:
+        shell: ${{ matrix.shell }}
+
+    name: '${{ matrix.target.os }}-${{ matrix.target.cpu }} (Nim ${{ matrix.branch }})'
+    runs-on: ${{ matrix.builder }}
+    continue-on-error: ${{ matrix.branch == 'version-1-6' || matrix.branch == 'devel' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+        with:
+          ref: unstable
+          submodules: true
+
+      - name: Install build dependencies (Linux i386)
+        if: runner.os == 'Linux' && matrix.target.cpu == 'i386'
+        run: |
+          sudo dpkg --add-architecture i386
+          sudo apt-get update -qq
+          sudo DEBIAN_FRONTEND='noninteractive' apt-get install \
+            --no-install-recommends -yq gcc-multilib g++-multilib \
+            libssl-dev:i386
+          mkdir -p external/bin
+          cat << EOF > external/bin/gcc
+          #!/bin/bash
+          exec $(which gcc) -m32 "\$@"
+          EOF
+          cat << EOF > external/bin/g++
+          #!/bin/bash
+          exec $(which g++) -m32 "\$@"
+          EOF
+          chmod 755 external/bin/gcc external/bin/g++
+          echo '${{ github.workspace }}/external/bin' >> $GITHUB_PATH
+
+      - name: MSYS2 (Windows i386)
+        if: runner.os == 'Windows' && matrix.target.cpu == 'i386'
+        uses: msys2/setup-msys2@v2
+        with:
+          path-type: inherit
+          msystem: MINGW32
+          install: >-
+            base-devel
+            git
+            mingw-w64-i686-toolchain
+
+      - name: MSYS2 (Windows amd64)
+        if: runner.os == 'Windows' && matrix.target.cpu == 'amd64'
+        uses: msys2/setup-msys2@v2
+        with:
+          path-type: inherit
+          install: >-
+            base-devel
+            git
+            mingw-w64-x86_64-toolchain
+
+      - name: Restore Nim DLLs dependencies (Windows) from cache
+        if: runner.os == 'Windows'
+        id: windows-dlls-cache
+        uses: actions/cache@v2
+        with:
+          path: external/dlls
+          key: 'dlls'
+
+      - name: Install DLL dependencies (Windows)
+        if: >
+          steps.windows-dlls-cache.outputs.cache-hit != 'true' &&
+          runner.os == 'Windows'
+        run: |
+          mkdir external
+          curl -L "https://nim-lang.org/download/windeps.zip" -o external/windeps.zip
+          7z x external/windeps.zip -oexternal/dlls
+
+      - name: Path to cached dependencies (Windows)
+        if: >
+          runner.os == 'Windows'
+        run: |
+          echo '${{ github.workspace }}'"/external/dlls" >> $GITHUB_PATH
+
+      - name: Derive environment variables
+        run: |
+          if [[ '${{ matrix.target.cpu }}' == 'amd64' ]]; then
+            PLATFORM=x64
+          else
+            PLATFORM=x86
+          fi
+          echo "PLATFORM=$PLATFORM" >> $GITHUB_ENV
+
+          ncpu=
+          MAKE_CMD="make"
+          case '${{ runner.os }}' in
+          'Linux')
+            ncpu=$(nproc)
+            ;;
+          'macOS')
+            ncpu=$(sysctl -n hw.ncpu)
+            ;;
+          'Windows')
+            ncpu=$NUMBER_OF_PROCESSORS
+            MAKE_CMD="mingw32-make"
+            ;;
+          esac
+          [[ -z "$ncpu" || $ncpu -le 0 ]] && ncpu=1
+          echo "ncpu=$ncpu" >> $GITHUB_ENV
+          echo "MAKE_CMD=${MAKE_CMD}" >> $GITHUB_ENV
+
+      - name: Build Nim and Nimble
+        run: |
+          curl -O -L -s -S https://raw.githubusercontent.com/status-im/nimbus-build-system/master/scripts/build_nim.sh
+          env MAKE="${MAKE_CMD} -j${ncpu}" ARCH_OVERRIDE=${PLATFORM} NIM_COMMIT=${{ matrix.branch }} \
+            QUICK_AND_DIRTY_COMPILER=1 QUICK_AND_DIRTY_NIMBLE=1 CC=gcc \
+            bash build_nim.sh nim csources dist/nimble NimBinaries
+          echo '${{ github.workspace }}/nim/bin' >> $GITHUB_PATH
+
+      - name: Setup Go
+        uses: actions/setup-go@v2
+        with:
+          go-version: '^1.15.5'
+
+      - name: Install p2pd
+        run: |
+          V=1 bash scripts/build_p2pd.sh p2pdCache 124530a3
+
+      - name: Run tests
+        run: |
+          if [[ "${{ matrix.target.os }}" == "windows" ]]; then
+            # https://github.com/status-im/nimbus-eth2/issues/3121
+            export NIMFLAGS="-d:nimRawSetjmp"
+          fi
+          nim --version
+          nimble --version
+          nimble install -y --depsOnly
+          nimble test
+          if [[ "${{ matrix.branch }}" == "version-1-6" || "${{ matrix.branch }}" == "devel" ]]; then
+            echo -e "\nTesting with '--gc:orc':\n"
+            export NIMFLAGS="${NIMFLAGS} --gc:orc"
+            nimble test
+          fi

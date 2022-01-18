@@ -1,0 +1,17 @@
+asynctest;https://github.com/markspanbroek/asynctest@#3882ed64ed3159578f796bc5ae0c6b13837fe798
+bearssl;https://github.com/status-im/nim-bearssl@#ba80e2a0d7ae8aab666cee013e38ff8d33a3e5e7
+chronicles;https://github.com/status-im/nim-chronicles@#2a2681b60289aaf7895b7056f22616081eb1a882
+chronos;https://github.com/status-im/nim-chronos@#17fed89c99beac5a92d3668d0d3e9b0e4ac13936
+dnsclient;https://github.com/ba0f3/dnsclient.nim@#fbb76f8af8a33ab818184a7d4406d9fee20993be
+faststreams;https://github.com/status-im/nim-faststreams@#c653d05f277dca0f374732c5b9b80f2368faea33
+httputils;https://github.com/status-im/nim-http-utils@#ad6f82e4b7d504ea9b8222c9c01aa1d24ebd4dc8
+json_serialization;https://github.com/status-im/nim-json-serialization@#010aa238cf6afddf1fbe4cbcd27ab3be3f443841
+metrics;https://github.com/status-im/nim-metrics@#2c0c486c65f980e8387f86bed0b43d53161c8286
+nimcrypto;https://github.com/cheatfate/nimcrypto@#a5742a9a214ac33f91615f3862c7b099aec43b00
+secp256k1;https://github.com/status-im/nim-secp256k1@#153ec71a3416c1043846c9462587f74b73b1e5a8
+serialization;https://github.com/status-im/nim-serialization@#11a8aa64d27d4fa92e266b9488500461da193c24
+stew;https://github.com/status-im/nim-stew@#4e223b95a70d612d71569a308b35dbb82d961c5a
+testutils;https://github.com/status-im/nim-testutils@#aa6e5216f4b4ab5aa971cdcdd70e1ec1203cedf2
+unittest2;https://github.com/status-im/nim-unittest2@#4e2893eacb916c7678fdc4935ff7420f13bf3a9c
+websock;https://github.com/status-im/nim-websock@#73edde4417f7b45003113b7a34212c3ccd95b9fd
+zlib;https://github.com/status-im/nim-zlib@#d4e716d071eba1b5e0ffdf7949d983959e2b95dd

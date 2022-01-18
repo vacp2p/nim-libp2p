@@ -22,6 +22,7 @@ import utils, ../../libp2p/[errors,
                             protocols/pubsub/gossipsub,
                             protocols/pubsub/pubsubpeer,
                             protocols/pubsub/peertable,
+                            protocols/pubsub/timedcache,
                             protocols/pubsub/rpc/messages]
 import ../helpers
 
@@ -43,11 +44,11 @@ proc waitSub(sender, receiver: auto; key: string) {.async, gcsafe.} =
   ev.clear()
 
   while (not fsub.gossipsub.hasKey(key) or
-         not fsub.gossipsub.hasPeerID(key, receiver.peerInfo.peerId)) and
+         not fsub.gossipsub.hasPeerId(key, receiver.peerInfo.peerId)) and
         (not fsub.mesh.hasKey(key) or
-         not fsub.mesh.hasPeerID(key, receiver.peerInfo.peerId)) and
+         not fsub.mesh.hasPeerId(key, receiver.peerInfo.peerId)) and
         (not fsub.fanout.hasKey(key) or
-         not fsub.fanout.hasPeerID(key , receiver.peerInfo.peerId)):
+         not fsub.fanout.hasPeerId(key , receiver.peerInfo.peerId)):
     trace "waitSub sleeping..."
 
     # await more heartbeats
@@ -319,6 +320,70 @@ suite "GossipSub":
 
     await allFuturesThrowing(nodesFut.concat())
 
+  asyncTest "GossipSub unsub - resub faster than backoff":
+    var handlerFut = newFuture[bool]()
+    proc handler(topic: string, data: seq[byte]) {.async, gcsafe.} =
+      check topic == "foobar"
+      handlerFut.complete(true)
+
+    let
+      nodes = generateNodes(2, gossip = true)
+
+      # start switches
+      nodesFut = await allFinished(
+        nodes[0].switch.start(),
+        nodes[1].switch.start(),
+      )
+
+    # start pubsub
+    await allFuturesThrowing(
+      allFinished(
+        nodes[0].start(),
+        nodes[1].start(),
+    ))
+
+    await subscribeNodes(nodes)
+
+    nodes[0].subscribe("foobar", handler)
+    nodes[1].subscribe("foobar", handler)
+
+    var subs: seq[Future[void]]
+    subs &= waitSub(nodes[1], nodes[0], "foobar")
+    subs &= waitSub(nodes[0], nodes[1], "foobar")
+
+    await allFuturesThrowing(subs)
+
+    nodes[0].unsubscribe("foobar", handler)
+    nodes[0].subscribe("foobar", handler)
+
+    # regular backoff is 60 seconds, so we must not wait that long
+    await (waitSub(nodes[0], nodes[1], "foobar") and waitSub(nodes[1], nodes[0], "foobar")).wait(30.seconds)
+
+    var validatorFut = newFuture[bool]()
+    proc validator(topic: string,
+                    message: Message):
+                    Future[ValidationResult] {.async.} =
+      check topic == "foobar"
+      validatorFut.complete(true)
+      result = ValidationResult.Accept
+
+    nodes[1].addValidator("foobar", validator)
+    tryPublish await nodes[0].publish("foobar", "Hello!".toBytes()), 1
+
+    check (await validatorFut) and (await handlerFut)
+
+    await allFuturesThrowing(
+      nodes[0].switch.stop(),
+      nodes[1].switch.stop()
+    )
+
+    await allFuturesThrowing(
+      nodes[0].stop(),
+      nodes[1].stop()
+    )
+
+    await allFuturesThrowing(nodesFut.concat())
+
   asyncTest "e2e - GossipSub should add remote peer topic subscriptions":
     proc handler(topic: string, data: seq[byte]) {.async, gcsafe.} =
       discard
@@ -352,7 +417,7 @@ suite "GossipSub":
     check:
       "foobar" in gossip2.topics
       "foobar" in gossip1.gossipsub
-      gossip1.gossipsub.hasPeerID("foobar", gossip2.peerInfo.peerId)
+      gossip1.gossipsub.hasPeerId("foobar", gossip2.peerInfo.peerId)
 
     await allFuturesThrowing(
       nodes[0].switch.stop(),
@@ -410,11 +475,11 @@ suite "GossipSub":
       "foobar" in gossip1.gossipsub
       "foobar" in gossip2.gossipsub
 
-      gossip1.gossipsub.hasPeerID("foobar", gossip2.peerInfo.peerId) or
-      gossip1.mesh.hasPeerID("foobar", gossip2.peerInfo.peerId)
+      gossip1.gossipsub.hasPeerId("foobar", gossip2.peerInfo.peerId) or
+      gossip1.mesh.hasPeerId("foobar", gossip2.peerInfo.peerId)
 
-      gossip2.gossipsub.hasPeerID("foobar", gossip1.peerInfo.peerId) or
-      gossip2.mesh.hasPeerID("foobar", gossip1.peerInfo.peerId)
+      gossip2.gossipsub.hasPeerId("foobar", gossip1.peerInfo.peerId) or
+      gossip2.mesh.hasPeerId("foobar", gossip1.peerInfo.peerId)
 
     await allFuturesThrowing(
       nodes[0].switch.stop(),
@@ -476,8 +541,8 @@ suite "GossipSub":
 
     check:
       "foobar" in gossip1.gossipsub
-      gossip1.fanout.hasPeerID("foobar", gossip2.peerInfo.peerId)
-      not gossip1.mesh.hasPeerID("foobar", gossip2.peerInfo.peerId)
+      gossip1.fanout.hasPeerId("foobar", gossip2.peerInfo.peerId)
+      not gossip1.mesh.hasPeerId("foobar", gossip2.peerInfo.peerId)
 
     await passed.wait(2.seconds)
 
@@ -539,10 +604,10 @@ suite "GossipSub":
     check:
       "foobar" in gossip1.gossipsub
       "foobar" in gossip2.gossipsub
-      gossip1.mesh.hasPeerID("foobar", gossip2.peerInfo.peerId)
-      not gossip1.fanout.hasPeerID("foobar", gossip2.peerInfo.peerId)
-      gossip2.mesh.hasPeerID("foobar", gossip1.peerInfo.peerId)
-      not gossip2.fanout.hasPeerID("foobar", gossip1.peerInfo.peerId)
+      gossip1.mesh.hasPeerId("foobar", gossip2.peerInfo.peerId)
+      not gossip1.fanout.hasPeerId("foobar", gossip2.peerInfo.peerId)
+      gossip2.mesh.hasPeerId("foobar", gossip1.peerInfo.peerId)
+      not gossip2.fanout.hasPeerId("foobar", gossip1.peerInfo.peerId)
 
     await allFuturesThrowing(
       nodes[0].switch.stop(),
@@ -552,6 +617,89 @@ suite "GossipSub":
     await allFuturesThrowing(
       nodes[0].stop(),
       nodes[1].stop()
+    )
+
+    await allFuturesThrowing(nodesFut.concat())
+
+  asyncTest "e2e - GossipSub should not send to source & peers who already seen":
+    # 3 nodes: A, B, C
+    # A publishes, B relays, C is having a long validation
+    # so C should not send to anyone
+
+    let
+      nodes = generateNodes(
+        3,
+        gossip = true)
+
+      # start switches
+      nodesFut = await allFinished(
+        nodes[0].switch.start(),
+        nodes[1].switch.start(),
+        nodes[2].switch.start(),
+      )
+
+    # start pubsub
+    await allFuturesThrowing(
+      allFinished(
+        nodes[0].start(),
+        nodes[1].start(),
+        nodes[2].start(),
+    ))
+
+    await subscribeNodes(nodes)
+
+    var cRelayed: Future[void] = newFuture[void]()
+    var bFinished: Future[void] = newFuture[void]()
+    var
+      aReceived = 0
+      cReceived = 0
+    proc handlerA(topic: string, data: seq[byte]) {.async, gcsafe.} =
+      inc aReceived
+      check aReceived < 2
+    proc handlerB(topic: string, data: seq[byte]) {.async, gcsafe.} = discard
+    proc handlerC(topic: string, data: seq[byte]) {.async, gcsafe.} =
+      inc cReceived
+      check cReceived < 2
+      cRelayed.complete()
+
+    nodes[0].subscribe("foobar", handlerA)
+    nodes[1].subscribe("foobar", handlerB)
+    nodes[2].subscribe("foobar", handlerC)
+    await waitSub(nodes[0], nodes[1], "foobar")
+    await waitSub(nodes[0], nodes[2], "foobar")
+    await waitSub(nodes[2], nodes[1], "foobar")
+    await waitSub(nodes[1], nodes[2], "foobar")
+
+    var gossip1: GossipSub = GossipSub(nodes[0])
+    var gossip2: GossipSub = GossipSub(nodes[1])
+    var gossip3: GossipSub = GossipSub(nodes[2])
+
+    proc slowValidator(topic: string, message: Message): Future[ValidationResult] {.async.} =
+      await cRelayed
+      # Empty A & C caches to detect duplicates
+      gossip1.seen = TimedCache[MessageId].init()
+      gossip3.seen = TimedCache[MessageId].init()
+      let msgId = toSeq(gossip2.validationSeen.keys)[0]
+      check await checkExpiring(try: gossip2.validationSeen[msgId].len > 0 except: false)
+      result = ValidationResult.Accept
+      bFinished.complete()
+
+    nodes[1].addValidator("foobar", slowValidator)
+
+    tryPublish await nodes[0].publish("foobar", "Hello!".toBytes()), 1
+
+    await bFinished
+
+    await allFuturesThrowing(
+      nodes[0].switch.stop(),
+      nodes[1].switch.stop(),
+      nodes[2].switch.stop()
+    )
+
+    await allFuturesThrowing(
+      nodes[0].stop(),
+      nodes[1].stop(),
+      nodes[2].stop()
     )
 
     await allFuturesThrowing(nodesFut.concat())
@@ -598,8 +746,8 @@ suite "GossipSub":
     check:
       "foobar" in gossip1.gossipsub
       "foobar" notin gossip2.gossipsub
-      not gossip1.mesh.hasPeerID("foobar", gossip2.peerInfo.peerId)
-      not gossip1.fanout.hasPeerID("foobar", gossip2.peerInfo.peerId)
+      not gossip1.mesh.hasPeerId("foobar", gossip2.peerInfo.peerId)
+      not gossip1.fanout.hasPeerId("foobar", gossip2.peerInfo.peerId)
 
     await allFuturesThrowing(
       nodes[0].switch.stop(),

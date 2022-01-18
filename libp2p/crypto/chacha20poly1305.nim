@@ -37,17 +37,17 @@ type
   ChaChaPolyNonce* = array[ChaChaPolyNonceSize, byte]
   ChaChaPolyTag* = array[ChaChaPolyTagSize, byte]
 
-proc intoChaChaPolyKey*(s: openarray[byte]): ChaChaPolyKey =
+proc intoChaChaPolyKey*(s: openArray[byte]): ChaChaPolyKey =
   assert s.len == ChaChaPolyKeySize
-  copyMem(addr result[0], unsafeaddr s[0], ChaChaPolyKeySize)
+  copyMem(addr result[0], unsafeAddr s[0], ChaChaPolyKeySize)
 
-proc intoChaChaPolyNonce*(s: openarray[byte]): ChaChaPolyNonce =
+proc intoChaChaPolyNonce*(s: openArray[byte]): ChaChaPolyNonce =
   assert s.len == ChaChaPolyNonceSize
-  copyMem(addr result[0], unsafeaddr s[0], ChaChaPolyNonceSize)
+  copyMem(addr result[0], unsafeAddr s[0], ChaChaPolyNonceSize)
 
-proc intoChaChaPolyTag*(s: openarray[byte]): ChaChaPolyTag =
+proc intoChaChaPolyTag*(s: openArray[byte]): ChaChaPolyTag =
   assert s.len == ChaChaPolyTagSize
-  copyMem(addr result[0], unsafeaddr s[0], ChaChaPolyTagSize)
+  copyMem(addr result[0], unsafeAddr s[0], ChaChaPolyTagSize)
 
 # bearssl allows us to use optimized versions
 # this is reconciled at runtime
@@ -57,17 +57,17 @@ proc encrypt*(_: type[ChaChaPoly],
                  key: ChaChaPolyKey,
                  nonce: ChaChaPolyNonce,
                  tag: var ChaChaPolyTag,
-                 data: var openarray[byte],
-                 aad: openarray[byte]) =
+                 data: var openArray[byte],
+                 aad: openArray[byte]) =
   let
     ad = if aad.len > 0:
-           unsafeaddr aad[0]
+           unsafeAddr aad[0]
          else:
            nil
 
   ourPoly1305CtmulRun(
-    unsafeaddr key[0],
-    unsafeaddr nonce[0],
+    unsafeAddr key[0],
+    unsafeAddr nonce[0],
     addr data[0],
     data.len,
     ad,
@@ -80,17 +80,17 @@ proc decrypt*(_: type[ChaChaPoly],
                  key: ChaChaPolyKey,
                  nonce: ChaChaPolyNonce,
                  tag: var ChaChaPolyTag,
-                 data: var openarray[byte],
-                 aad: openarray[byte]) =
+                 data: var openArray[byte],
+                 aad: openArray[byte]) =
   let
     ad = if aad.len > 0:
-          unsafeaddr aad[0]
+          unsafeAddr aad[0]
          else:
            nil
 
   ourPoly1305CtmulRun(
-    unsafeaddr key[0],
-    unsafeaddr nonce[0],
+    unsafeAddr key[0],
+    unsafeAddr nonce[0],
     addr data[0],
     data.len,
     ad,

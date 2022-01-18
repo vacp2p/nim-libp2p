@@ -201,6 +201,7 @@ const MultiCodecList = [
   ("p2p-webrtc-direct", 0x0114), # not in multicodec list
   ("onion", 0x01BC),
   ("p2p-circuit", 0x0122),
+  ("libp2p-peer-record", 0x0301),
   ("dns", 0x35),
   ("dns4", 0x36),
   ("dns6", 0x37),

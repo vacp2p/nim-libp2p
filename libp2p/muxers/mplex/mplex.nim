@@ -46,7 +46,7 @@ type
     oid*: Oid
     maxChannCount: int
 
-func shortLog*(m: MPlex): auto =
+func shortLog*(m: Mplex): auto =
   shortLog(m.connection)
 
 chronicles.formatIt(Mplex): shortLog(it)
@@ -97,6 +97,8 @@ proc newStreamInternal*(m: Mplex,
   result.peerId = m.connection.peerId
   result.observedAddr = m.connection.observedAddr
   result.transportDir = m.connection.transportDir
+  when defined(libp2p_agents_metrics):
+    result.shortAgent = m.connection.shortAgent
 
   trace "Creating new channel", m, channel = result, id, initiator, name
 

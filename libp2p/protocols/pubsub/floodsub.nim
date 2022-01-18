@@ -75,7 +75,7 @@ proc handleSubscribe*(f: FloodSub,
       # unsubscribe the peer from the topic
       peers[].excl(peer)
 
-method unsubscribePeer*(f: FloodSub, peer: PeerID) =
+method unsubscribePeer*(f: FloodSub, peer: PeerId) =
   ## handle peer disconnects
   ##
   trace "unsubscribing floodsub peer", peer
