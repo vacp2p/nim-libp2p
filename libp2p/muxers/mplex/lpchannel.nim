@@ -24,7 +24,7 @@ logScope:
 when defined(libp2p_network_protocols_metrics):
   declareCounter libp2p_protocols_bytes, "total sent or received bytes", ["protocol", "direction"]
   declareHistogram libp2p_protocols_qlen, "message queue length", ["protocol"],
-    buckets = [0.0, 1.0, 2.0, 4.0, 8.0, 16.0, 32.0, 64.0, 128.0, 256.0]
+    buckets = [0.0, 1.0, 2.0, 4.0, 8.0, 16.0, 32.0, 64.0, 128.0, 256.0, 512.0]
   declareCounter libp2p_protocols_qlenclose, "closed because of max queuelen", ["protocol"]
   declareHistogram libp2p_protocols_qtime, "message queuing time", ["protocol"]
 
