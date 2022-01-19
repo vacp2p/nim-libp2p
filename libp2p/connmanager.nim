@@ -81,6 +81,7 @@ type
     connEvents: array[ConnEventKind, OrderedSet[ConnEventHandler]]
     peerEvents: array[PeerEventKind, OrderedSet[PeerEventHandler]]
     peerStore*: PeerStore
+    forceDial*: bool
 
 proc newTooManyConnectionsError(): ref TooManyConnectionsError {.inline.} =
   result = newException(TooManyConnectionsError, "Too many connections")
@@ -89,11 +90,13 @@ proc new*(C: type ConnManager,
            maxConnsPerPeer = MaxConnectionsPerPeer,
            maxConnections = MaxConnections,
            maxIn = MaxConnections,
-           maxOut = MaxConnections): ConnManager =
+           maxOut = MaxConnections,
+           forceDial = false): ConnManager =
   C(maxConnsPerPeer: maxConnsPerPeer,
     inSema: newAsyncSemaphore(maxIn),
     outSema: newAsyncSemaphore(maxOut),
-    connSema: newAsyncSemaphore(maxConnections))
+    connSema: newAsyncSemaphore(maxConnections),
+    forceDial: forceDial)
 
 proc connCount*(c: ConnManager, peerId: PeerId): int =
   c.conns.getOrDefault(peerId).len
@@ -463,7 +466,14 @@ proc trackOutgoingConn*(c: ConnManager,
                                             max = c.outSema.size
     raise newTooManyConnectionsError()
 
-  c.connSema.forceAcquire()
+  if c.forceDial:
+    c.connSema.forceAcquire()
+  else:
+    if not c.connSema.tryAcquire():
+      trace "Too many connections!", count = c.connSema.count,
+                                     max = c.connSema.size
+      raise newTooManyConnectionsError()
+      c.outSema.release()
 
   var conn: Connection
   try:

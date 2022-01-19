@@ -46,6 +46,7 @@ type
     maxConnsPerPeer: int
     protoVersion: string
     agentVersion: string
+    forceDial: bool
     nameResolver: NameResolver
 
 proc new*(T: type[SwitchBuilder]): T =
@@ -59,8 +60,8 @@ proc new*(T: type[SwitchBuilder]): T =
     addresses: @[address],
     secureManagers: @[],
     maxConnections: MaxConnections,
-    maxIn: MaxConnections,
-    maxOut: MaxConnections,
+    maxIn: -1,
+    maxOut: -1,
     maxConnsPerPeer: MaxConnectionsPerPeer,
     protoVersion: ProtoVersion,
     agentVersion: AgentVersion)
@@ -109,6 +110,10 @@ proc withRng*(b: SwitchBuilder, rng: ref BrHmacDrbgContext): SwitchBuilder =
 
 proc withMaxConnections*(b: SwitchBuilder, maxConnections: int): SwitchBuilder =
   b.maxConnections = maxConnections
+  b
+
+proc withForceDial*(b: SwitchBuilder, forceDial: bool): SwitchBuilder =
+  b.forceDial = forceDial
   b
 
 proc withMaxIn*(b: SwitchBuilder, maxIn: int): SwitchBuilder =
@@ -166,7 +171,9 @@ proc build*(b: SwitchBuilder): Switch
 
   let
     identify = Identify.new(peerInfo)
-    connManager = ConnManager.new(b.maxConnsPerPeer, b.maxConnections, b.maxIn, b.maxOut)
+    maxIn = if b.maxIn >= 0: b.maxIn else: b.maxConnections
+    maxOut = if b.maxOut >= 0: b.maxOut else: b.maxConnections
+    connManager = ConnManager.new(b.maxConnsPerPeer, b.maxConnections, maxIn, maxOut, b.forceDial)
     ms = MultistreamSelect.new()
     muxedUpgrade = MuxedUpgrade.new(identify, muxers, secureManagerInstances, connManager, ms)
 
