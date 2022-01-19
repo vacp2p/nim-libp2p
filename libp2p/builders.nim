@@ -59,8 +59,8 @@ proc new*(T: type[SwitchBuilder]): T =
     addresses: @[address],
     secureManagers: @[],
     maxConnections: MaxConnections,
-    maxIn: -1,
-    maxOut: -1,
+    maxIn: MaxConnections,
+    maxOut: MaxConnections,
     maxConnsPerPeer: MaxConnectionsPerPeer,
     protoVersion: ProtoVersion,
     agentVersion: AgentVersion)
@@ -206,8 +206,8 @@ proc newStandardSwitch*(
   inTimeout: Duration = 5.minutes,
   outTimeout: Duration = 5.minutes,
   maxConnections = MaxConnections,
-  maxIn = -1,
-  maxOut = -1,
+  maxIn = MaxConnections,
+  maxOut = MaxConnections,
   maxConnsPerPeer = MaxConnectionsPerPeer,
   nameResolver: NameResolver = nil): Switch
   {.raises: [Defect, LPError].} =
