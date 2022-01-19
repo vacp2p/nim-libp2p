@@ -88,9 +88,10 @@ type
 proc secure*(self: WsTransport): bool =
   not (isNil(self.tlsPrivateKey) or isNil(self.tlsCertificate))
 
+# TODO: add {.raises: [TransportListenError].} when supported by chronos
 method start*(
   self: WsTransport,
-  addrs: seq[MultiAddress]) {.async, raises: [Defect, TransportListenError].} =
+  addrs: seq[MultiAddress]) {.async.} =
   ## listen on the transport
   ##
 

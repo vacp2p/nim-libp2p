@@ -129,9 +129,10 @@ proc new*(
   inc getTcpTransportTracker().opened
   return transport
 
+# TODO: add {.raises: [TransportListenError].} when supported by chronos
 method start*(
   self: TcpTransport,
-  addrs: seq[MultiAddress]) {.async, raises: [Defect, TransportListenError].} =
+  addrs: seq[MultiAddress]) {.async.} =
   ## listen on the transport
   ##
 

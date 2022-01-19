@@ -21,7 +21,6 @@ logScope:
   topics = "libp2p transport"
 
 type
-  TransportDefect* = object of Defect
   ListenErrorCallback* = proc (
       ma: MultiAddress,
       err: ref CatchableError): Future[ref TransportListenError]
@@ -55,16 +54,18 @@ const ListenErrorDefault* =
 
     return newTransportListenError(ma, err)
 
+# TODO: add {.raises: [TransportError, TransportListenError].} when supported
+# by chronos
 method start*(
   self: Transport,
   addrs: seq[MultiAddress])
-  {.base, async, raises: [Defect, TransportDefect, TransportListenError].} =
+  {.base, async.} =
   ## start the transport
   ##
 
   trace "starting transport on addrs", address = $addrs
   if addrs.len == 0:
-    raise newException(TransportDefect,
+    raise newException(TransportError,
       "Transport requires at least one address to be started")
 
   self.addrs = addrs

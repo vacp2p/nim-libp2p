@@ -1500,7 +1500,7 @@ suite "Switch":
       transport = (upgr: Upgrade) -> Transport => MockTransport.new(upgr)
 
     # builder should raise defect with addresses, but no transports
-    expect LPDefect:
+    expect LPError:
       discard SwitchBuilder
         .new()
         .withRng(rng)       # Give the application RNG
@@ -1510,7 +1510,7 @@ suite "Switch":
         .build()
 
     # builder should raise defect with transports, but no addresses
-    expect LPDefect:
+    expect LPError:
       echo "[testswitch] building switch with no addresses"
       discard SwitchBuilder
         .new()
@@ -1531,7 +1531,7 @@ suite "Switch":
     muxers[MplexCodec] =
        MuxerProvider.new((conn: Connection) -> Muxer => Mplex.new(conn), MplexCodec)
 
-    expect LPDefect:
+    expect LPError:
       discard newSwitch(
         peerInfo = peerInfo,
         transports = @[],
@@ -1542,7 +1542,7 @@ suite "Switch":
 
     # should raise defect with transports, but no addresses
     peerInfo.addrs = @[]
-    expect LPDefect:
+    expect LPError:
       discard newSwitch(
         peerInfo = peerInfo,
         transports = @[transport(Upgrade.new())],

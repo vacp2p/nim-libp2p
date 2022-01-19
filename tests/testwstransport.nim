@@ -183,7 +183,7 @@ suite "WebSocket transport":
   asyncTest "should raise Defect on start with no addresses":
     let transport = WsTransport.new(upgrade = Upgrade())
 
-    expect TransportDefect:
+    expect TransportError:
       await transport.start(@[])
 
     await transport.stop()
