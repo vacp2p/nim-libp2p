@@ -22,7 +22,7 @@
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
   "id": 4,
-  "iteration": 1641818192128,
+  "iteration": 1642596851125,
   "links": [],
   "liveNow": false,
   "panels": [
@@ -358,7 +358,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "exemplar": true,
-          "expr": "rate(libp2p_protocols_qtime_bucket{instance=\"${instance}\"}[$__rate_interval])",
+          "expr": "rate(libp2p_mplex_qtime_bucket{instance=\"${instance}\"}[$__rate_interval])",
           "format": "heatmap",
           "instant": false,
           "interval": "",
@@ -421,7 +421,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "exemplar": true,
-          "expr": "rate(libp2p_protocols_qlen_bucket{instance=\"${instance}\"}[$__rate_interval])",
+          "expr": "rate(libp2p_mplex_qlen_bucket{instance=\"${instance}\"}[$__rate_interval])",
           "format": "heatmap",
           "instant": false,
           "interval": "",
@@ -447,12 +447,104 @@
       "yBucketBound": "auto"
     },
     {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": true,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "links": [],
+          "mappings": [],
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 14,
+        "x": 0,
+        "y": 23
+      },
+      "id": 86,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "pluginVersion": "8.1.6",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "exemplar": true,
+          "expr": "rate(libp2p_mplex_qlenclose_total{instance=\"${instance}\"}[$__rate_interval])",
+          "interval": "",
+          "legendFormat": "reason: max queue length reached",
+          "refId": "A"
+        }
+      ],
+      "title": "Peer connections closed / second (${instance})",
+      "type": "timeseries"
+    },
+    {
       "collapsed": false,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 23
+        "y": 28
       },
       "id": 68,
       "panels": [],
@@ -534,7 +626,7 @@
         "h": 5,
         "w": 14,
         "x": 0,
-        "y": 24
+        "y": 29
       },
       "id": 80,
       "options": {
@@ -649,7 +741,7 @@
         "h": 5,
         "w": 14,
         "x": 0,
-        "y": 29
+        "y": 34
       },
       "id": 73,
       "options": {
@@ -767,7 +859,7 @@
         "h": 5,
         "w": 14,
         "x": 0,
-        "y": 34
+        "y": 39
       },
       "id": 74,
       "options": {
@@ -860,7 +952,7 @@
         "h": 5,
         "w": 14,
         "x": 0,
-        "y": 39
+        "y": 44
       },
       "id": 81,
       "options": {
@@ -952,7 +1044,7 @@
         "h": 5,
         "w": 14,
         "x": 0,
-        "y": 44
+        "y": 49
       },
       "id": 78,
       "options": {
@@ -1069,7 +1161,7 @@
         "h": 5,
         "w": 14,
         "x": 0,
-        "y": 49
+        "y": 54
       },
       "id": 77,
       "options": {
@@ -1163,7 +1255,7 @@
         "h": 5,
         "w": 14,
         "x": 0,
-        "y": 54
+        "y": 59
       },
       "id": 84,
       "options": {
@@ -1293,7 +1385,7 @@
         "h": 5,
         "w": 14,
         "x": 0,
-        "y": 59
+        "y": 64
       },
       "id": 85,
       "options": {
@@ -1346,12 +1438,8 @@
       {
         "current": {
           "selected": true,
-          "text": [
-            "Prometheus"
-          ],
-          "value": [
-            "Prometheus"
-          ]
+          "text": "Prometheus",
+          "value": "Prometheus"
         },
         "description": "The prometheus instance to use as data source",
         "hide": 0,
@@ -1373,39 +1461,14 @@
           "text": "127.0.0.1:8008",
           "value": "127.0.0.1:8008"
         },
-        "definition": "label_values(process_virtual_memory_bytes,instance)",
-        "error": {
-          "config": {
-            "data": {
-              "end": "1641818183",
-              "match[]": "process_virtual_memory_bytes",
-              "start": "1641814583"
-            },
-            "headers": {
-              "Content-Type": "application/x-www-form-urlencoded",
-              "X-Grafana-Org-Id": 1
-            },
-            "hideFromInspector": true,
-            "method": "POST",
-            "retry": 0,
-            "url": "api/datasources/proxy/1/api/v1/series"
-          },
-          "data": {
-            "error": "Bad Gateway",
-            "message": "Bad Gateway",
-            "response": ""
-          },
-          "message": "Bad Gateway",
-          "status": 502,
-          "statusText": "Bad Gateway"
-        },
+        "definition": "label_values(instance)",
         "hide": 0,
         "includeAll": false,
         "multi": false,
         "name": "instance",
         "options": [],
         "query": {
-          "query": "label_values(process_virtual_memory_bytes,instance)",
+          "query": "label_values(instance)",
           "refId": "StandardVariableQuery"
         },
         "refresh": 1,
@@ -1440,6 +1503,6 @@
   "timezone": "",
   "title": "libp2p metrics",
   "uid": "oHpljhTnk",
-  "version": 11,
+  "version": 17,
   "weekStart": ""
 }
