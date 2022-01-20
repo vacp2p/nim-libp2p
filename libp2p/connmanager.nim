@@ -472,8 +472,8 @@ proc trackOutgoingConn*(c: ConnManager,
     if not c.connSema.tryAcquire():
       trace "Too many connections!", count = c.connSema.count,
                                      max = c.connSema.size
-      raise newTooManyConnectionsError()
       c.outSema.release()
+      raise newTooManyConnectionsError()
 
   var conn: Connection
   try:
