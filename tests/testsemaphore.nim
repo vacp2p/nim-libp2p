@@ -146,7 +146,7 @@ suite "AsyncSemaphore":
 
     check await sema.acquire().withTimeout(10.millis)
 
-  asyncTest "should handle tryAcquire properly":
+  asyncTest "should handle forceAcquire properly":
     let sema = newAsyncSemaphore(1)
 
     await sema.acquire()

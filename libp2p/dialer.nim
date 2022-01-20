@@ -47,7 +47,8 @@ type
 proc dialAndUpgrade(
   self: Dialer,
   peerId: PeerId,
-  addrs: seq[MultiAddress]):
+  addrs: seq[MultiAddress],
+  forceDial = false):
   Future[Connection] {.async.} =
   debug "Dialing peer", peerId
 
@@ -73,7 +74,7 @@ proc dialAndUpgrade(
                 addressCopy = a
               await self.connManager.trackOutgoingConn(
                 () => transportCopy.dial(hostname, addressCopy)
-              )
+              , forceDial)
             except TooManyConnectionsError as exc:
               trace "Connection limit reached!"
               raise exc
@@ -112,7 +113,8 @@ proc dialAndUpgrade(
 proc internalConnect(
   self: Dialer,
   peerId: PeerId,
-  addrs: seq[MultiAddress]):
+  addrs: seq[MultiAddress],
+  forceDial = false):
   Future[Connection] {.async.} =
   if self.localPeerId == peerId:
     raise newException(CatchableError, "can't dial self!")
@@ -136,7 +138,7 @@ proc internalConnect(
       trace "Reusing existing connection", conn, direction = $conn.dir
       return conn
 
-    conn = await self.dialAndUpgrade(peerId, addrs)
+    conn = await self.dialAndUpgrade(peerId, addrs, forceDial)
     if isNil(conn): # None of the addresses connected
       raise newException(DialFailedError, "Unable to establish outgoing link")
 
@@ -159,7 +161,8 @@ proc internalConnect(
 method connect*(
   self: Dialer,
   peerId: PeerId,
-  addrs: seq[MultiAddress]) {.async.} =
+  addrs: seq[MultiAddress],
+  forceDial = false) {.async.} =
   ## connect remote peer without negotiating
   ## a protocol
   ##
@@ -200,7 +203,8 @@ method dial*(
   self: Dialer,
   peerId: PeerId,
   addrs: seq[MultiAddress],
-  protos: seq[string]): Future[Connection] {.async.} =
+  protos: seq[string],
+  forceDial = false): Future[Connection] {.async.} =
   ## create a protocol stream and establish
   ## a connection if one doesn't exist already
   ##
