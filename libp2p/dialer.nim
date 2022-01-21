@@ -48,7 +48,7 @@ proc dialAndUpgrade(
   self: Dialer,
   peerId: PeerId,
   addrs: seq[MultiAddress],
-  forceDial = false):
+  forceDial: bool):
   Future[Connection] {.async.} =
   debug "Dialing peer", peerId
 
@@ -114,7 +114,7 @@ proc internalConnect(
   self: Dialer,
   peerId: PeerId,
   addrs: seq[MultiAddress],
-  forceDial = false):
+  forceDial: bool):
   Future[Connection] {.async.} =
   if self.localPeerId == peerId:
     raise newException(CatchableError, "can't dial self!")
@@ -170,7 +170,7 @@ method connect*(
   if self.connManager.connCount(peerId) > 0:
     return
 
-  discard await self.internalConnect(peerId, addrs)
+  discard await self.internalConnect(peerId, addrs, forceDial)
 
 proc negotiateStream(
   self: Dialer,
@@ -222,7 +222,7 @@ method dial*(
 
   try:
     trace "Dialing (new)", peerId, protos
-    conn = await self.internalConnect(peerId, addrs)
+    conn = await self.internalConnect(peerId, addrs, forceDial)
     trace "Opening stream", conn
     stream = await self.connManager.getStream(conn)
 
