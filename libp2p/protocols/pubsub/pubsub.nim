@@ -85,7 +85,7 @@ type
   TopicPair* = tuple[topic: string, handler: TopicHandler]
 
   MsgIdProvider* =
-    proc(m: Message): MessageID {.noSideEffect, raises: [Defect], gcsafe.}
+    proc(m: Message): Result[MessageID, string] {.noSideEffect, raises: [Defect], gcsafe.}
 
   SubscriptionValidator* =
     proc(topic: string): bool {.raises: [Defect], gcsafe.}
