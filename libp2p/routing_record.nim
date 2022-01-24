@@ -11,7 +11,7 @@
 
 {.push raises: [Defect].}
 
-import std/[sequtils, times]
+import std/[sequtils, times, sugar]
 import pkg/stew/[results, byteutils]
 import
   multiaddress,
@@ -127,7 +127,7 @@ proc getSignedPeerRecord*(pb: ProtoBuffer, field: int,
 proc getSignedPeerRecord*(envelopeBuf: seq[byte]): Result[PeerRecord, EnvelopeError] =
   let
     envelope = ? Envelope.decode(envelopeBuf, EnvelopeDomain)
-    spr = ? PeerRecord.decode(envelope.payload).orErr(EnvelopeInvalidProtobuf)
+    spr = ? PeerRecord.decode(envelope.payload).mapErr(x => EnvelopeInvalidProtobuf)
  
   if not spr.peerId.match(envelope.publicKey):
     err(EnvelopeInvalidSignature)
