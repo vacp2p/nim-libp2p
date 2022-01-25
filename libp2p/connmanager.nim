@@ -410,8 +410,8 @@ proc trackConn(c: ConnManager,
       except CatchableError as exc:
         trace "Exception in semaphore monitor, ignoring", exc = exc.msg
 
-      sema.release()
       c.connSema.release()
+      sema.release()
 
     asyncSpawn semaphoreMonitor()
   except CatchableError as exc:
@@ -438,14 +438,14 @@ proc trackIncomingConn*(c: ConnManager,
     conn = await c.trackConn(provider, c.inSema)
     if isNil(conn):
       trace "Couldn't acquire connection, releasing semaphore slot", dir = $Direction.In
-      c.inSema.release()
       c.connSema.release()
+      c.inSema.release()
 
     return conn
   except CatchableError as exc:
     trace "Exception tracking connection", exc = exc.msg
-    c.inSema.release()
     c.connSema.release()
+    c.inSema.release()
     raise exc
 
 proc trackOutgoingConn*(c: ConnManager,
@@ -479,14 +479,14 @@ proc trackOutgoingConn*(c: ConnManager,
     conn = await c.trackConn(provider, c.outSema)
     if isNil(conn):
       trace "Couldn't acquire connection, releasing semaphore slot", dir = $Direction.Out
-      c.outSema.release()
       c.connSema.release()
+      c.outSema.release()
 
     return conn
   except CatchableError as exc:
     trace "Exception tracking connection", exc = exc.msg
-    c.outSema.release()
     c.connSema.release()
+    c.outSema.release()
     raise exc
 
 proc storeMuxer*(c: ConnManager,

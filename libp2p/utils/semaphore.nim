@@ -38,14 +38,6 @@ proc tryAcquire*(s: AsyncSemaphore): bool =
     trace "Acquired slot", available = s.count, queue = s.queue.len
     return true
 
-proc forceAcquire*(s: AsyncSemaphore) =
-  ## Always acquire a semaphore, even
-  ## if it is currently empty
-  ##
-
-  s.count.dec
-  trace "Acquired slot", available = s.count, queue = s.queue.len
-
 proc acquire*(s: AsyncSemaphore): Future[void] =
   ## Acquire a resource and decrement the resource
   ## counter. If no more resources are available,
@@ -68,6 +60,13 @@ proc acquire*(s: AsyncSemaphore): Future[void] =
   s.queue.add(fut)
   trace "Queued slot", available = s.count, queue = s.queue.len
   return fut
+
+proc forceAcquire*(s: AsyncSemaphore) =
+  ## Always acquire a semaphore, even
+  ## if it is currently empty
+  ##
+
+  asyncSpawn s.acquire()
 
 proc release*(s: AsyncSemaphore) =
   ## Release a resource from the semaphore,
