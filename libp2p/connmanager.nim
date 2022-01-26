@@ -452,7 +452,8 @@ proc trackIncomingConn*(c: ConnManager,
     raise exc
 
 proc trackOutgoingConn*(c: ConnManager,
-                        provider: ConnProvider):
+                        provider: ConnProvider,
+                        forceDial = false):
                         Future[Connection] {.async.} =
   ## try acquiring a connection if all slots
   ## are already taken, raise TooManyConnectionsError
@@ -463,9 +464,12 @@ proc trackOutgoingConn*(c: ConnManager,
                                         max = c.outSema.size
 
   if not c.outSema.tryAcquire():
-    trace "Too many outgoing connections!", count = c.outSema.count,
-                                            max = c.outSema.size
-    raise newTooManyConnectionsError()
+    if forceDial:
+      c.outSema.forceAcquire()
+    else:
+      trace "Too many outgoing connections!", count = c.outSema.count,
+                                              max = c.outSema.size
+      raise newTooManyConnectionsError()
 
   var conn: Connection
   try:
