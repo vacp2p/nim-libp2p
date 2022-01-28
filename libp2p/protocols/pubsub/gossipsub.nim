@@ -367,6 +367,7 @@ method rpcHandler*(g: GossipSub,
     if msgIdResult.isErr:
       debug "Dropping message due to failed message id generation",
         error = msgIdResult.error
+      # TODO: descore peers due to error during message validation (malicious?)
       continue
 
     let
@@ -515,8 +516,9 @@ method publish*(g: GossipSub,
     msgIdResult = g.msgIdProvider(msg)
 
   if msgIdResult.isErr:
-    debug "Dropping message due to failed message id generation",
+    trace "Error generating message id, skipping publish",
       error = msgIdResult.error
+    libp2p_gossipsub_failed_publish.inc()
     return 0
 
   let msgId = msgIdResult.get

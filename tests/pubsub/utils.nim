@@ -7,6 +7,7 @@ const
 import hashes, random, tables
 import chronos, stew/[byteutils, results]
 import ../../libp2p/[builders,
+                     protocols/pubsub/errors,
                      protocols/pubsub/pubsub,
                      protocols/pubsub/gossipsub,
                      protocols/pubsub/floodsub,
@@ -17,7 +18,7 @@ export builders
 
 randomize()
 
-func defaultMsgIdProvider*(m: Message): Result[MessageID, string] =
+func defaultMsgIdProvider*(m: Message): Result[MessageID, ValidationResult] =
   let mid =
     if m.seqno.len > 0 and m.fromPeer.data.len > 0:
       byteutils.toHex(m.seqno) & $m.fromPeer

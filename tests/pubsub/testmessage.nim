@@ -6,6 +6,7 @@ import options
 import stew/byteutils
 import ../../libp2p/[peerid, peerinfo,
                      crypto/crypto,
+                     protocols/pubsub/errors,
                      protocols/pubsub/rpc/message,
                      protocols/pubsub/rpc/messages]
 
@@ -55,7 +56,7 @@ suite "Message":
 
     check:
       msgIdResult.isErr
-      msgIdResult.error == "Invalid seqno or source peerid"
+      msgIdResult.error == ValidationResult.Reject
 
   test "defaultMsgIdProvider error - no source seqno":
     let
@@ -71,4 +72,4 @@ suite "Message":
 
     check:
       msgIdResult.isErr
-      msgIdResult.error == "Invalid seqno or source peerid"
+      msgIdResult.error == ValidationResult.Reject

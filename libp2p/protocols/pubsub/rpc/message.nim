@@ -16,9 +16,10 @@ import ./messages,
        ../../../peerid,
        ../../../peerinfo,
        ../../../crypto/crypto,
-       ../../../protobuf/minprotobuf
+       ../../../protobuf/minprotobuf,
+       ../../../protocols/pubsub/errors
 
-export messages
+export errors, messages
 
 logScope:
   topics = "pubsubmessage"
@@ -28,12 +29,12 @@ const PubSubPrefix = toBytes("libp2p-pubsub:")
 declareCounter(libp2p_pubsub_sig_verify_success, "pubsub successfully validated messages")
 declareCounter(libp2p_pubsub_sig_verify_failure, "pubsub failed validated messages")
 
-func defaultMsgIdProvider*(m: Message): Result[MessageID, string] =
+func defaultMsgIdProvider*(m: Message): Result[MessageID, ValidationResult] =
   if m.seqno.len > 0 and m.fromPeer.data.len > 0:
     let mid = byteutils.toHex(m.seqno) & $m.fromPeer
     ok mid.toBytes()
   else:
-    err "Invalid seqno or source peerid"
+    err ValidationResult.Reject
 
 proc sign*(msg: Message, privateKey: PrivateKey): CryptoResult[seq[byte]] =
   ok((? privateKey.sign(PubSubPrefix & encodeMessage(msg, false))).getBytes())

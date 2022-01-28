@@ -11,7 +11,8 @@
 
 import std/[tables, sequtils, sets, strutils]
 import chronos, chronicles, metrics, bearssl
-import ./pubsubpeer,
+import ./errors as pubsub_errors,
+       ./pubsubpeer,
        ./rpc/[message, messages, protobuf],
        ../../switch,
        ../protocol,
@@ -76,16 +77,13 @@ type
   TopicHandler* = proc(topic: string,
                        data: seq[byte]): Future[void] {.gcsafe, raises: [Defect].}
 
-  ValidationResult* {.pure.} = enum
-    Accept, Reject, Ignore
-
   ValidatorHandler* = proc(topic: string,
                            message: Message): Future[ValidationResult] {.gcsafe, raises: [Defect].}
 
   TopicPair* = tuple[topic: string, handler: TopicHandler]
 
   MsgIdProvider* =
-    proc(m: Message): Result[MessageID, string] {.noSideEffect, raises: [Defect], gcsafe.}
+    proc(m: Message): Result[MessageID, ValidationResult] {.noSideEffect, raises: [Defect], gcsafe.}
 
   SubscriptionValidator* =
     proc(topic: string): bool {.raises: [Defect], gcsafe.}

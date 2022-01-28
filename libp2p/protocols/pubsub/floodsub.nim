@@ -100,6 +100,7 @@ method rpcHandler*(f: FloodSub,
     if msgIdResult.isErr:
       debug "Dropping message due to failed message id generation",
         error = msgIdResult.error
+      # TODO: descore peers due to error during message validation (malicious?)
       continue
 
     let msgId = msgIdResult.get
@@ -193,7 +194,7 @@ method publish*(f: FloodSub,
     msgIdResult = f.msgIdProvider(msg)
 
   if msgIdResult.isErr:
-    debug "Error generating message id, skipping publish",
+    trace "Error generating message id, skipping publish",
       error = msgIdResult.error
     return 0
 
