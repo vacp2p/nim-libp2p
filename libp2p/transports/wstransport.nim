@@ -53,7 +53,12 @@ method readOnce*(
   s: WsStream,
   pbytes: pointer,
   nbytes: int): Future[int] {.async.} =
-  let res = await s.session.recv(pbytes, nbytes)
+  let res =
+    try:
+      await s.session.recv(pbytes, nbytes)
+    except AsyncStreamIncompleteError:
+      raise newLPStreamEOFError()
+
   if res == 0 and s.session.readyState == ReadyState.Closed:
     raise newLPStreamEOFError()
   return res
