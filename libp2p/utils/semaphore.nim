@@ -38,9 +38,6 @@ proc tryAcquire*(s: AsyncSemaphore): bool =
     trace "Acquired slot", available = s.count, queue = s.queue.len
     return true
 
-proc forceAcquire*(s: AsyncSemaphore) =
-  s.count.dec
-
 proc acquire*(s: AsyncSemaphore): Future[void] =
   ## Acquire a resource and decrement the resource
   ## counter. If no more resources are available,
@@ -65,6 +62,9 @@ proc acquire*(s: AsyncSemaphore): Future[void] =
   trace "Queued slot", available = s.count, queue = s.queue.len
   return fut
 
+proc forceAcquire*(s: AsyncSemaphore) =
+  s.count.dec
+
 proc release*(s: AsyncSemaphore) =
   ## Release a resource from the semaphore,
   ## by picking the first future from the queue
@@ -79,7 +79,7 @@ proc release*(s: AsyncSemaphore) =
                             queue = s.queue.len
 
     s.count.inc
-    if s.queue.len > 0 and s.count > 0:
+    if s.queue.len > 0:
       var fut = s.queue[0]
       s.queue.delete(0)
       if not fut.finished():
