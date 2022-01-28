@@ -49,11 +49,24 @@ proc new*(T: type WsStream,
   stream.initStream()
   return stream
 
+template mapExceptions(body: untyped) =
+  try:
+    body
+  except AsyncStreamIncompleteError:
+    raise newLPStreamEOFError()
+  except AsyncStreamUseClosedError:
+    raise newLPStreamEOFError()
+  except WSClosedError:
+    raise newLPStreamEOFError()
+  except AsyncStreamLimitError:
+    raise newLPStreamLimitError()
+
 method readOnce*(
   s: WsStream,
   pbytes: pointer,
   nbytes: int): Future[int] {.async.} =
-  let res = await s.session.recv(pbytes, nbytes)
+  let res = mapExceptions(await s.session.recv(pbytes, nbytes))
+
   if res == 0 and s.session.readyState == ReadyState.Closed:
     raise newLPStreamEOFError()
   return res
@@ -61,10 +74,7 @@ method readOnce*(
 method write*(
   s: WsStream,
   msg: seq[byte]): Future[void] {.async.} =
-  try:
-    await s.session.send(msg, Opcode.Binary)
-  except WSClosedError:
-    raise newLPStreamEOFError()
+  mapExceptions(await s.session.send(msg, Opcode.Binary))
 
 method closeImpl*(s: WsStream): Future[void] {.async.} =
   await s.session.close()
