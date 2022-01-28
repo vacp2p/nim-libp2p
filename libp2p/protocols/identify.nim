@@ -9,8 +9,8 @@
 
 {.push raises: [Defect].}
 
-import options
-import chronos, chronicles
+import std/[sequtils, strutils]
+import chronos, chronicles, json_serialization/std/options
 import ../protobuf/minprotobuf,
        ../peerinfo,
        ../stream/connection,
@@ -108,10 +108,13 @@ proc decodeMsg*(buf: seq[byte]): Option[IdentifyInfo] =
     if r6.get():
       iinfo.agentVersion = some(agentVersion)
     debug "decodeMsg: decoded message", pubkey = ($pubkey).shortLog,
-          addresses = $iinfo.addrs, protocols = $iinfo.protos,
-          observable_address = $iinfo.observedAddr,
-          proto_version = $iinfo.protoVersion,
-          agent_version = $iinfo.agentVersion
+          addresses = iinfo.addrs.mapIt($it).join(","),
+          protocols = iinfo.protos.mapIt($it).join(","),
+          observable_address =
+            if iinfo.observedAddr.isSome(): $iinfo.observedAddr.get()
+            else: "None",
+          proto_version = iinfo.protoVersion,
+          agent_version = iinfo.agentVersion
     some(iinfo)
   else:
     trace "decodeMsg: failed to decode received message"
