@@ -24,6 +24,7 @@ import utils, ../../libp2p/[errors,
                             protocols/pubsub/peertable,
                             protocols/pubsub/timedcache,
                             protocols/pubsub/rpc/messages]
+import ../../libp2p/protocols/pubsub/errors as pubsub_errors
 import ../helpers
 
 proc `$`(peer: PubSubPeer): string = shortLog(peer)
