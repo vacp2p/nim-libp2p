@@ -574,7 +574,8 @@ suite "GossipSub":
     let
       nodes = generateNodes(
         2,
-        gossip = true)
+        gossip = true,
+        unsubscribeBackoff = 10.minutes)
 
       # start switches
       nodesFut = await allFinished(
