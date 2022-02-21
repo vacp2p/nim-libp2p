@@ -180,7 +180,7 @@ proc getPeers(prune: ControlPrune, peer: PubSubPeer): seq[(PeerId, Option[PeerRe
       if record.signedPeerRecord.len == 0:
         none(PeerRecord)
       else:
-        let signedRecord = getSignedPeerRecord(record.signedPeerRecord)
+        let signedRecord = decodeSignedPeerRecord(record.signedPeerRecord)
         if signedRecord.isErr:
           trace "peer sent invalid SPR", peer, error=signedRecord.error
           none(PeerRecord)

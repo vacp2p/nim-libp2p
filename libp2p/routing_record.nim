@@ -76,8 +76,9 @@ proc encode*(record: PeerRecord): seq[byte] =
 
 proc init*(T: typedesc[PeerRecord],
   peerId: PeerId,
-  seqNo: uint64,
-  addresses: seq[MultiAddress]): T =
+  addresses: seq[MultiAddress],
+  seqNo = getTime().toUnix().uint64 # follows the recommended implementation, using unix epoch as seq no.
+  ): T =
 
   PeerRecord(
     peerId: peerId,
@@ -101,30 +102,12 @@ proc init*(T: typedesc[Envelope],
   
   ok(envelope)
 
-proc init*(T: typedesc[Envelope],
-           peerId: PeerId,
-           addresses: seq[MultiAddress],
-           privateKey: PrivateKey): Result[Envelope, CryptoError] =
-  ## Creates a signed peer record for this peer:
-  ## a peer routing record according to https://github.com/libp2p/specs/blob/500a7906dd7dd8f64e0af38de010ef7551fd61b6/RFC/0003-routing-records.md
-  ## in a signed envelope according to https://github.com/libp2p/specs/blob/500a7906dd7dd8f64e0af38de010ef7551fd61b6/RFC/0002-signed-envelopes.md
-  
-  # First create a peer record from the peer info
-  let peerRecord = PeerRecord.init(peerId,
-                                   getTime().toUnix().uint64, # This currently follows the recommended implementation, using unix epoch as seq no.
-                                   addresses)
-
-  let envelope = ? Envelope.init(privateKey,
-                                 peerRecord)
-  
-  ok(envelope)
-
 proc getSignedPeerRecord*(pb: ProtoBuffer, field: int,
                value: var Envelope): ProtoResult[bool] {.
      inline.} =
   getField(pb, field, value, EnvelopeDomain)
 
-proc getSignedPeerRecord*(envelopeBuf: seq[byte]): Result[PeerRecord, EnvelopeError] =
+proc decodeSignedPeerRecord*(envelopeBuf: seq[byte]): Result[PeerRecord, EnvelopeError] =
   let
     envelope = ? Envelope.decode(envelopeBuf, EnvelopeDomain)
     spr = ? PeerRecord.decode(envelope.payload).mapErr(x => EnvelopeInvalidProtobuf)

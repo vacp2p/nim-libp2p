@@ -9,7 +9,7 @@ suite "Routing record":
       privKey = PrivateKey.random(rng[]).tryGet()
       peerId = PeerId.init(privKey).tryGet()
       multiAddresses = @[MultiAddress.init("/ip4/0.0.0.0/tcp/24").tryGet(), MultiAddress.init("/ip4/0.0.0.0/tcp/25").tryGet()]
-      routingRecord = PeerRecord.init(peerId, 42, multiAddresses)
+      routingRecord = PeerRecord.init(peerId, multiAddresses, 42)
 
       buffer = routingRecord.encode()
 

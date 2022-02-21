@@ -56,8 +56,10 @@ proc new*(
   
   let peerId = PeerID.init(key).tryGet()
 
-  # TODO: should using signed peer records be configurable?
-  let sprRes = Envelope.init(peerId, @addrs, key)
+  let sprRes = Envelope.init(
+    key,
+    PeerRecord.init(peerId, @addrs)
+  )
   let spr = if sprRes.isOk:
               some(sprRes.get())
             else:
