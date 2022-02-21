@@ -492,7 +492,7 @@ method publish*(g: GossipSub,
       g.replenishFanout(topic)
       fanoutPeers = g.fanout.getOrDefault(topic).toSeq()
 
-    fanoutPeers.shuffle()
+    g.rng.shuffle(fanoutPeers)
     if fanoutPeers.len + peers.len > g.parameters.d:
       fanoutPeers.setLen(g.parameters.d - peers.len)
     
