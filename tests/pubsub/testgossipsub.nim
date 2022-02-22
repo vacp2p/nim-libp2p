@@ -24,6 +24,7 @@ import utils, ../../libp2p/[errors,
                             protocols/pubsub/peertable,
                             protocols/pubsub/timedcache,
                             protocols/pubsub/rpc/messages]
+import ../../libp2p/protocols/pubsub/errors as pubsub_errors
 import ../helpers
 
 proc `$`(peer: PubSubPeer): string = shortLog(peer)
@@ -563,6 +564,72 @@ suite "GossipSub":
 
     await allFuturesThrowing(nodesFut.concat())
     check observed == 2
+
+  asyncTest "e2e - GossipSub send over fanout A -> B for subscribed topic":
+    var passed = newFuture[void]()
+    proc handler(topic: string, data: seq[byte]) {.async, gcsafe.} =
+      check topic == "foobar"
+      passed.complete()
+
+    let
+      nodes = generateNodes(
+        2,
+        gossip = true,
+        unsubscribeBackoff = 10.minutes)
+
+      # start switches
+      nodesFut = await allFinished(
+        nodes[0].switch.start(),
+        nodes[1].switch.start(),
+      )
+
+    # start pubsub
+    await allFuturesThrowing(
+      allFinished(
+        nodes[0].start(),
+        nodes[1].start(),
+    ))
+
+    await subscribeNodes(nodes)
+
+    nodes[1].subscribe("foobar", handler)
+    nodes[0].subscribe("foobar", handler)
+    await waitSub(nodes[0], nodes[1], "foobar")
+    await waitSub(nodes[1], nodes[0], "foobar")
+
+    nodes[0].unsubscribe("foobar", handler)
+
+    let gsNode = GossipSub(nodes[1])
+    check await checkExpiring(gsNode.mesh.getOrDefault("foobar").len == 0)
+
+    nodes[0].subscribe("foobar", handler)
+
+    check GossipSub(nodes[0]).mesh.getOrDefault("foobar").len == 0
+
+    tryPublish await nodes[0].publish("foobar", "Hello!".toBytes()), 1
+
+    check:
+      GossipSub(nodes[0]).fanout.getOrDefault("foobar").len > 0
+      GossipSub(nodes[0]).mesh.getOrDefault("foobar").len == 0
+
+    await passed.wait(2.seconds)
+
+    trace "test done, stopping..."
+
+    await nodes[0].stop()
+    await nodes[1].stop()
+
+    await allFuturesThrowing(
+      nodes[0].switch.stop(),
+      nodes[1].switch.stop()
+    )
+
+    await allFuturesThrowing(
+      nodes[0].stop(),
+      nodes[1].stop()
+    )
+
+    await allFuturesThrowing(nodesFut.concat())
 
   asyncTest "e2e - GossipSub send over mesh A -> B":
     var passed: Future[bool] = newFuture[bool]()

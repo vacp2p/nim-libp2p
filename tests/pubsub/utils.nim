@@ -4,29 +4,43 @@ const
   libp2p_pubsub_verify {.booldefine.} = true
   libp2p_pubsub_anonymize {.booldefine.} = false
 
-import random, tables
-import chronos
+import hashes, random, tables
+import chronos, stew/[byteutils, results]
 import ../../libp2p/[builders,
+                     protocols/pubsub/errors,
                      protocols/pubsub/pubsub,
                      protocols/pubsub/gossipsub,
                      protocols/pubsub/floodsub,
+                     protocols/pubsub/rpc/messages,
                      protocols/secure/secure]
 
 export builders
 
 randomize()
 
+func defaultMsgIdProvider*(m: Message): Result[MessageID, ValidationResult] =
+  let mid =
+    if m.seqno.len > 0 and m.fromPeer.data.len > 0:
+      byteutils.toHex(m.seqno) & $m.fromPeer
+    else:
+      # This part is irrelevant because it's not standard,
+      # We use it exclusively for testing basically and users should
+      # implement their own logic in the case they use anonymization
+      $m.data.hash & $m.topicIDs.hash
+  ok mid.toBytes()
+
 proc generateNodes*(
   num: Natural,
   secureManagers: openArray[SecureProtocol] = [
     SecureProtocol.Noise
   ],
-  msgIdProvider: MsgIdProvider = nil,
+  msgIdProvider: MsgIdProvider = defaultMsgIdProvider,
   gossip: bool = false,
   triggerSelf: bool = false,
   verifySignature: bool = libp2p_pubsub_verify,
   anonymize: bool = libp2p_pubsub_anonymize,
   sign: bool = libp2p_pubsub_sign,
+  unsubscribeBackoff = 1.seconds,
   maxMessageSize: int = 1024 * 1024): seq[PubSub] =
 
   for i in 0..<num:
@@ -40,7 +54,7 @@ proc generateNodes*(
         msgIdProvider = msgIdProvider,
         anonymize = anonymize,
         maxMessageSize = maxMessageSize,
-        parameters = (var p = GossipSubParams.init(); p.floodPublish = false; p.historyLength = 20; p.historyGossip = 20; p.unsubscribeBackoff = 1.seconds; p))
+        parameters = (var p = GossipSubParams.init(); p.floodPublish = false; p.historyLength = 20; p.historyGossip = 20; p.unsubscribeBackoff = unsubscribeBackoff; p))
       # set some testing params, to enable scores
       g.topicParams.mgetOrPut("foobar", TopicParams.init()).topicWeight = 1.0
       g.topicParams.mgetOrPut("foo", TopicParams.init()).topicWeight = 1.0

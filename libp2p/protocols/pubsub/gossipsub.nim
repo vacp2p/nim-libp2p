@@ -362,8 +362,16 @@ method rpcHandler*(g: GossipSub,
 
   for i in 0..<rpcMsg.messages.len():                         # for every message
     template msg: untyped = rpcMsg.messages[i]
+    let msgIdResult = g.msgIdProvider(msg)
+
+    if msgIdResult.isErr:
+      debug "Dropping message due to failed message id generation",
+        error = msgIdResult.error
+      # TODO: descore peers due to error during message validation (malicious?)
+      continue
+
     let
-      msgId = g.msgIdProvider(msg)
+      msgId = msgIdResult.get
       msgIdSalted = msgId & g.seenSalt
 
     # addSeen adds salt to msgId to avoid
@@ -474,13 +482,23 @@ method publish*(g: GossipSub,
 
   if topic in g.topics: # if we're subscribed use the mesh
     peers.incl(g.mesh.getOrDefault(topic))
-  else: # not subscribed, send to fanout peers
-    # try optimistically
-    peers.incl(g.fanout.getOrDefault(topic))
-    if peers.len == 0:
-      # ok we had nothing.. let's try replenish inline
+
+  if peers.len < g.parameters.dLow and g.parameters.floodPublish == false:
+    # not subscribed or bad mesh, send to fanout peers
+    # disable for floodPublish, since we already sent to every good peer
+    #
+    var fanoutPeers = g.fanout.getOrDefault(topic).toSeq()
+    if fanoutPeers.len == 0:
       g.replenishFanout(topic)
-      peers.incl(g.fanout.getOrDefault(topic))
+      fanoutPeers = g.fanout.getOrDefault(topic).toSeq()
+
+    g.rng.shuffle(fanoutPeers)
+    if fanoutPeers.len + peers.len > g.parameters.d:
+      fanoutPeers.setLen(g.parameters.d - peers.len)
+    
+    for fanPeer in fanoutPeers:
+      peers.incl(fanPeer)
+      if peers.len > g.parameters.d: break
 
     # even if we couldn't publish,
     # we still attempted to publish
@@ -505,7 +523,15 @@ method publish*(g: GossipSub,
         Message.init(none(PeerInfo), data, topic, none(uint64), false)
       else:
         Message.init(some(g.peerInfo), data, topic, some(g.msgSeqno), g.sign)
-    msgId = g.msgIdProvider(msg)
+    msgIdResult = g.msgIdProvider(msg)
+
+  if msgIdResult.isErr:
+    trace "Error generating message id, skipping publish",
+      error = msgIdResult.error
+    libp2p_gossipsub_failed_publish.inc()
+    return 0
+
+  let msgId = msgIdResult.get
 
   logScope: msgId = shortLog(msgId)
 
