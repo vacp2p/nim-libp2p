@@ -20,6 +20,7 @@ import utils,
                      protocols/pubsub/floodsub,
                      protocols/pubsub/rpc/messages,
                      protocols/pubsub/peertable]
+import ../../libp2p/protocols/pubsub/errors as pubsub_errors
 
 import ../helpers
 
