@@ -1,17 +1,18 @@
-## Nim-LibP2P
-## Copyright (c) 2019 Status Research & Development GmbH
-## Licensed under either of
-##  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
-##  * MIT license ([LICENSE-MIT](LICENSE-MIT))
-## at your option.
-## This file may not be copied, modified, or distributed except according to
-## those terms.
+# Nim-LibP2P
+# Copyright (c) 2019 Status Research & Development GmbH
+# Licensed under either of
+#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+#  * MIT license ([LICENSE-MIT](LICENSE-MIT))
+# at your option.
+# This file may not be copied, modified, or distributed except according to
+# those terms.
 
 {.push raises: [Defect].}
+{.push public.}
 
 import std/[options, sequtils, hashes]
 import pkg/[chronos, chronicles, stew/results]
-import peerid, multiaddress, crypto/crypto, errors
+import peerid, multiaddress, crypto/crypto, errors, utility
 
 export peerid, multiaddress, crypto, errors, results
 
@@ -20,7 +21,7 @@ export peerid, multiaddress, crypto, errors, results
 type
   PeerInfoError* = LPError
 
-  PeerInfo* = ref object
+  PeerInfo* {.public.} = ref object
     peerId*: PeerId
     addrs*: seq[MultiAddress]
     protocols*: seq[string]

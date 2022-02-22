@@ -76,7 +76,9 @@ proc addConnEventHandler*(s: Switch,
                           kind: ConnEventKind) {.public.} =
   ## Adds a ConnEventHandler, which will be triggered when
   ## a connection to a peer is created or dropped.
-  ## There may be multiple connections per peer
+  ## There may be multiple connections per peer.
+  ##
+  ## The handler should not raise.
   s.connManager.addConnEventHandler(handler, kind)
 
 proc removeConnEventHandler*(s: Switch,
@@ -89,6 +91,8 @@ proc addPeerEventHandler*(s: Switch,
                           kind: PeerEventKind) {.public.} =
   ## Adds a PeerEventHandler, which will be triggered when
   ## a peer connects or disconnects from us.
+  ##
+  ## The handler should not raise.
   s.connManager.addPeerEventHandler(handler, kind)
 
 proc removePeerEventHandler*(s: Switch,

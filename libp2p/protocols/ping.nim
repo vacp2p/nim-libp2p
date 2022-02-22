@@ -1,11 +1,13 @@
-## Nim-LibP2P
-## Copyright (c) 2021 Status Research & Development GmbH
-## Licensed under either of
-##  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
-##  * MIT license ([LICENSE-MIT](LICENSE-MIT))
-## at your option.
-## This file may not be copied, modified, or distributed except according to
-## those terms.
+# Nim-LibP2P
+# Copyright (c) 2021 Status Research & Development GmbH
+# Licensed under either of
+#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+#  * MIT license ([LICENSE-MIT](LICENSE-MIT))
+# at your option.
+# This file may not be copied, modified, or distributed except according to
+# those terms.
+
+## `Ping <https://docs.libp2p.io/concepts/protocols/#ping>`_ protocol implementation
 
 {.push raises: [Defect].}
 
@@ -17,6 +19,7 @@ import ../protobuf/minprotobuf,
        ../crypto/crypto,
        ../multiaddress,
        ../protocols/protocol,
+       ../utility,
        ../errors
 
 logScope:
@@ -33,13 +36,15 @@ type
   PingHandler* = proc (
     peer: PeerId):
     Future[void]
-    {.gcsafe, raises: [Defect].}
+    {.gcsafe, raises: [Defect], public.}
 
   Ping* = ref object of LPProtocol
     pingHandler*: PingHandler
     rng: ref BrHmacDrbgContext
 
-proc new*(T: typedesc[Ping], handler: PingHandler = nil, rng: ref BrHmacDrbgContext = newRng()): T =
+proc new*(T: typedesc[Ping], handler: PingHandler = nil, rng: ref BrHmacDrbgContext = newRng()): T {.public.} =
+  ## Create a Ping protocol. The optional `handler` will be called
+  ## every time a peer pings us.
   let ping = Ping(pinghandler: handler, rng: rng)
   ping.init()
   ping
@@ -65,10 +70,8 @@ method init*(p: Ping) =
 proc ping*(
   p: Ping,
   conn: Connection,
-  ): Future[Duration] {.async, gcsafe.} =
-  ## Sends ping to `conn`
-  ## Returns the delay
-  ##
+  ): Future[Duration] {.async, gcsafe, public.} =
+  ## Sends ping to `conn`, returns the delay
 
   trace "initiating ping", conn
 

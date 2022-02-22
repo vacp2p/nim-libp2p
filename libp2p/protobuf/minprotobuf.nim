@@ -1,17 +1,17 @@
-## Nim-Libp2p
-## Copyright (c) 2018 Status Research & Development GmbH
-## Licensed under either of
-##  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
-##  * MIT license ([LICENSE-MIT](LICENSE-MIT))
-## at your option.
-## This file may not be copied, modified, or distributed except according to
-## those terms.
+# Nim-Libp2p
+# Copyright (c) 2018 Status Research & Development GmbH
+# Licensed under either of
+#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+#  * MIT license ([LICENSE-MIT](LICENSE-MIT))
+# at your option.
+# This file may not be copied, modified, or distributed except according to
+# those terms.
 
 ## This module implements minimal Google's ProtoBuf primitives.
 
 {.push raises: [Defect].}
 
-import ../varint, stew/[endians2, results]
+import ../varint, ../utility, stew/[endians2, results]
 export results
 
 const
@@ -86,7 +86,7 @@ template getProtoHeader*(field: ProtoField): uint64 =
   ## Get protobuf's field header integer for ``field``.
   ((uint64(field.index) shl 3) or uint64(field.kind))
 
-template toOpenArray*(pb: ProtoBuffer): untyped =
+template toOpenArray*(pb: ProtoBuffer): untyped {.public.} =
   toOpenArray(pb.buffer, pb.offset, len(pb.buffer) - 1)
 
 template isEmpty*(pb: ProtoBuffer): bool =
