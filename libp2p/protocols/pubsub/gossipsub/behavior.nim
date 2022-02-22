@@ -180,16 +180,16 @@ proc getPeers(prune: ControlPrune, peer: PubSubPeer): seq[(PeerId, Option[PeerRe
       if record.signedPeerRecord.len == 0:
         none(PeerRecord)
       else:
-        let signedRecord = decodeSignedPeerRecord(record.signedPeerRecord)
+        let signedRecord = SignedPeerRecord.decode(record.signedPeerRecord)
         if signedRecord.isErr:
           trace "peer sent invalid SPR", peer, error=signedRecord.error
           none(PeerRecord)
         else:
-          if record.peerID != signedRecord.get().peerId:
+          if record.peerID != signedRecord.get().data.peerId:
             trace "peer sent envelope with wrong public key", peer
             none(PeerRecord)
           else:
-            some(signedRecord.get())
+            some(signedRecord.get().data)
 
     routingRecords.add((record.peerId, peerRecord))
 

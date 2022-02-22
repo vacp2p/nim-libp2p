@@ -22,11 +22,6 @@ import
 
 export peerid, multiaddress, signed_envelope
 
-## Constants relating to signed peer records
-const
-  EnvelopeDomain = $multiCodec("libp2p-peer-record") # envelope domain as per RFC0002
-  EnvelopePayloadType= @[(byte) 0x03, (byte) 0x01] # payloadType for routing records as spec'ed in RFC0003
-
 type
   AddressInfo* = object
     address*: MultiAddress
@@ -88,33 +83,17 @@ proc init*(T: typedesc[PeerRecord],
 
 
 ## Functions related to signed peer records
+const
+  EnvelopeDomain = $multiCodec("libp2p-peer-record") # envelope domain as per RFC0002
+  EnvelopePayloadType= @[(byte) 0x03, (byte) 0x01] # payloadType for routing records as spec'ed in RFC0003
 
-proc init*(T: typedesc[Envelope],
-           privateKey: PrivateKey,
-           peerRecord: PeerRecord): Result[Envelope, CryptoError] =
-  
-  ## Init a signed envelope wrapping a peer record
+type SignedPeerRecord* = SignedPayload[PeerRecord]
 
-  let envelope = ? Envelope.init(privateKey,
-                                 EnvelopePayloadType,
-                                 peerRecord.encode(),
-                                 EnvelopeDomain)
-  
-  ok(envelope)
+proc payloadDomain*(T: typedesc[PeerRecord]): string = $multiCodec("libp2p-peer-record")
+proc payloadType*(T: typedesc[PeerRecord]): seq[byte] = @[(byte) 0x03, (byte) 0x01]
 
-proc getSignedPeerRecord*(pb: ProtoBuffer, field: int,
-               value: var Envelope): ProtoResult[bool] {.
-     inline.} =
-  getField(pb, field, value, EnvelopeDomain)
-
-proc decodeSignedPeerRecord*(envelopeBuf: seq[byte]): Result[PeerRecord, EnvelopeError] =
-  let
-    envelope = ? Envelope.decode(envelopeBuf, EnvelopeDomain)
-    spr = ? PeerRecord.decode(envelope.payload).mapErr(x => EnvelopeInvalidProtobuf)
- 
-  if not spr.peerId.match(envelope.publicKey):
-    err(EnvelopeInvalidSignature)
-  elif envelope.payloadType != EnvelopePayloadType:
+proc checkValid*(spr: SignedPeerRecord): Result[void, EnvelopeError] =
+  if not spr.data.peerId.match(spr.envelope.publicKey):
     err(EnvelopeInvalidSignature)
   else:
-    ok(spr)
+    ok()
