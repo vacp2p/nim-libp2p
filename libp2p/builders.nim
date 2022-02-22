@@ -1,11 +1,20 @@
-## Nim-Libp2p
-## Copyright (c) 2020 Status Research & Development GmbH
-## Licensed under either of
-##  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
-##  * MIT license ([LICENSE-MIT](LICENSE-MIT))
-## at your option.
-## This file may not be copied, modified, or distributed except according to
-## those terms.
+# Nim-Libp2p
+# Copyright (c) 2020 Status Research & Development GmbH
+# Licensed under either of
+#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+#  * MIT license ([LICENSE-MIT](LICENSE-MIT))
+# at your option.
+# This file may not be copied, modified, or distributed except according to
+# those terms.
+
+## This module contains a Switch Building helper.
+runnableExamples:
+  let switch =
+   SwitchBuilder.new()
+   .withRng(rng)
+   .withAddresses(multiaddress)
+   # etc
+   .build()
 
 {.push raises: [Defect].}
 
@@ -23,7 +32,7 @@ export
   switch, peerid, peerinfo, connection, multiaddress, crypto, errors
 
 type
-  TransportProvider* = proc(upgr: Upgrade): Transport {.gcsafe, raises: [Defect].}
+  TransportProvider* {.public.} = proc(upgr: Upgrade): Transport {.gcsafe, raises: [Defect].}
 
   SecureProtocol* {.pure.} = enum
     Noise,
@@ -33,7 +42,7 @@ type
     enable: bool
     newMuxer: MuxerConstructor
 
-  SwitchBuilder* {.public.} = ref object
+  SwitchBuilder* = ref object
     privKey: Option[PrivateKey]
     addresses: seq[MultiAddress]
     secureManagers: seq[SecureProtocol]
@@ -49,6 +58,7 @@ type
     nameResolver: NameResolver
 
 proc new*(T: type[SwitchBuilder]): T {.public.} =
+  ## Creates a SwitchBuilder
 
   let address = MultiAddress
   .init("/ip4/127.0.0.1/tcp/0")
@@ -66,19 +76,30 @@ proc new*(T: type[SwitchBuilder]): T {.public.} =
     agentVersion: AgentVersion)
 
 proc withPrivateKey*(b: SwitchBuilder, privateKey: PrivateKey): SwitchBuilder {.public.} =
+  ## Set the private key of the switch. Will be used to
+  ## generate a PeerId
+
   b.privKey = some(privateKey)
   b
 
 proc withAddress*(b: SwitchBuilder, address: MultiAddress): SwitchBuilder {.public.} =
+  ## | Set the listening address of the switch
+  ## | Calling it multiple time will override the value
+
   b.addresses = @[address]
   b
 
 proc withAddresses*(b: SwitchBuilder, addresses: seq[MultiAddress]): SwitchBuilder {.public.} =
+  ## | Set the listening addresses of the switch
+  ## | Calling it multiple time will override the value
+
   b.addresses = addresses
   b
 
 
 proc withMplex*(b: SwitchBuilder, inTimeout = 5.minutes, outTimeout = 5.minutes): SwitchBuilder {.public.} =
+  ## | Uses `Mplex <https://docs.libp2p.io/concepts/stream-multiplexing/#mplex>`_ as a multiplexer
+  ## | `Timeout` is the duration after which a inactive connection will be closed
   proc newMuxer(conn: Connection): Muxer =
     Mplex.new(
       conn,
@@ -97,6 +118,12 @@ proc withNoise*(b: SwitchBuilder): SwitchBuilder {.public.} =
   b
 
 proc withTransport*(b: SwitchBuilder, prov: TransportProvider): SwitchBuilder {.public.} =
+  ## Use a custom transport
+  runnableExamples:
+    let switch =
+      SwitchBuilder.new()
+      .withTransport(proc(upgr: Upgrade): Transport = TcpTransport.new(flags, upgr))
+      .build()
   b.transports.add(prov)
   b
 
@@ -108,14 +135,18 @@ proc withRng*(b: SwitchBuilder, rng: ref BrHmacDrbgContext): SwitchBuilder {.pub
   b
 
 proc withMaxConnections*(b: SwitchBuilder, maxConnections: int): SwitchBuilder {.public.} =
+  ## Maximum concurrent connections of the switch. You should either use this, or
+  ## `withMaxIn <#withMaxIn,SwitchBuilder,int>`_ & `withMaxOut<#withMaxOut,SwitchBuilder,int>`_
   b.maxConnections = maxConnections
   b
 
 proc withMaxIn*(b: SwitchBuilder, maxIn: int): SwitchBuilder {.public.} =
+  ## Maximum concurrent incoming connections. Should be used with `withMaxOut<#withMaxOut,SwitchBuilder,int>`_
   b.maxIn = maxIn
   b
 
 proc withMaxOut*(b: SwitchBuilder, maxOut: int): SwitchBuilder {.public.} =
+  ## Maximum concurrent outgoing connections. Should be used with `withMaxIn<#withMaxIn,SwitchBuilder,int>`_
   b.maxOut = maxOut
   b
 
@@ -211,6 +242,8 @@ proc newStandardSwitch*(
   maxConnsPerPeer = MaxConnectionsPerPeer,
   nameResolver: NameResolver = nil): Switch
   {.raises: [Defect, LPError], public.} =
+  ## Helper for common switch configurations.
+
   if SecureProtocol.Secio in secureManagers:
       quit("Secio is deprecated!") # use of secio is unsafe
 

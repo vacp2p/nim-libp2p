@@ -1,11 +1,15 @@
-## Nim-LibP2P
-## Copyright (c) 2019 Status Research & Development GmbH
-## Licensed under either of
-##  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
-##  * MIT license ([LICENSE-MIT](LICENSE-MIT))
-## at your option.
-## This file may not be copied, modified, or distributed except according to
-## those terms.
+# Nim-LibP2P
+# Copyright (c) 2019 Status Research & Development GmbH
+# Licensed under either of
+#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+#  * MIT license ([LICENSE-MIT](LICENSE-MIT))
+# at your option.
+# This file may not be copied, modified, or distributed except according to
+# those terms.
+
+## The switch is the core of libp2p, which brings together the
+## transports, the connection manager, the upgrader and other
+## parts to allow programs to use libp2p
 
 {.push raises: [Defect].}
 
@@ -37,6 +41,7 @@ import stream/connection,
        peerid,
        peerstore,
        errors,
+       utility,
        dialer
 
 export connmanager, upgrade, dialer, peerstore
@@ -56,7 +61,7 @@ const
   ConcurrentUpgrades* = 4
 
 type
-    Switch* = ref object of Dial
+    Switch* {.public.} = ref object of Dial
       peerInfo*: PeerInfo
       connManager*: ConnManager
       transports*: seq[Transport]
@@ -68,67 +73,87 @@ type
 
 proc addConnEventHandler*(s: Switch,
                           handler: ConnEventHandler,
-                          kind: ConnEventKind) =
+                          kind: ConnEventKind) {.public.} =
+  ## Adds a ConnEventHandler, which will be triggered when
+  ## a connection to a peer is created or dropped.
+  ## There may be multiple connections per peer
   s.connManager.addConnEventHandler(handler, kind)
 
 proc removeConnEventHandler*(s: Switch,
                              handler: ConnEventHandler,
-                             kind: ConnEventKind) =
+                             kind: ConnEventKind) {.public.} =
   s.connManager.removeConnEventHandler(handler, kind)
 
 proc addPeerEventHandler*(s: Switch,
                           handler: PeerEventHandler,
-                          kind: PeerEventKind) =
+                          kind: PeerEventKind) {.public.} =
+  ## Adds a PeerEventHandler, which will be triggered when
+  ## a peer connects or disconnects from us.
   s.connManager.addPeerEventHandler(handler, kind)
 
 proc removePeerEventHandler*(s: Switch,
                              handler: PeerEventHandler,
-                             kind: PeerEventKind) =
+                             kind: PeerEventKind) {.public.} =
   s.connManager.removePeerEventHandler(handler, kind)
 
-proc isConnected*(s: Switch, peerId: PeerId): bool =
+proc isConnected*(s: Switch, peerId: PeerId): bool {.public.} =
   ## returns true if the peer has one or more
-  ## associated connections (sockets)
+  ## associated connections
   ##
 
   peerId in s.connManager
 
-proc disconnect*(s: Switch, peerId: PeerId): Future[void] {.gcsafe.} =
+proc disconnect*(s: Switch, peerId: PeerId): Future[void] {.gcsafe, public.} =
+  ## Disconnect from a peer, waiting for the connection(s) to be dropped
   s.connManager.dropPeer(peerId)
 
 method connect*(
   s: Switch,
   peerId: PeerId,
-  addrs: seq[MultiAddress]): Future[void] =
+  addrs: seq[MultiAddress]): Future[void] {.public.} =
+  ## Connects to a peer without opening a stream to it
+
   s.dialer.connect(peerId, addrs)
 
 method dial*(
   s: Switch,
   peerId: PeerId,
-  protos: seq[string]): Future[Connection] =
+  protos: seq[string]): Future[Connection] {.public.} =
+  ## Open a stream to a connected peer with the specified `protos`
+
   s.dialer.dial(peerId, protos)
 
 proc dial*(s: Switch,
            peerId: PeerId,
-           proto: string): Future[Connection] =
+           proto: string): Future[Connection] {.public.} =
+  ## Open a stream to a connected peer with the specified `proto`
+
   dial(s, peerId, @[proto])
 
 method dial*(
   s: Switch,
   peerId: PeerId,
   addrs: seq[MultiAddress],
-  protos: seq[string]): Future[Connection] =
+  protos: seq[string]): Future[Connection] {.public.} =
+  ## Connected to a peer and open a stream
+  ## with the specified `protos`
+
   s.dialer.dial(peerId, addrs, protos)
 
 proc dial*(
   s: Switch,
   peerId: PeerId,
   addrs: seq[MultiAddress],
-  proto: string): Future[Connection] =
+  proto: string): Future[Connection] {.public.} =
+  ## Connected to a peer and open a stream
+  ## with the specified `proto`
+
   dial(s, peerId, addrs, @[proto])
 
 proc mount*[T: LPProtocol](s: Switch, proto: T, matcher: Matcher = nil)
-  {.gcsafe, raises: [Defect, LPError].} =
+  {.gcsafe, raises: [Defect, LPError], public.} =
+  ## mount a protocol to the switch
+
   if isNil(proto.handler):
     raise newException(LPError,
       "Protocol has to define a handle method or proc")
@@ -206,7 +231,10 @@ proc accept(s: Switch, transport: Transport) {.async.} = # noraises
         await conn.close()
       return
 
-proc stop*(s: Switch) {.async.} =
+proc stop*(s: Switch) {.async, public.} =
+  ## Stop listening on every transport, and
+  ## close every active connections
+
   trace "Stopping switch"
 
   # close and cleanup all connections
@@ -234,7 +262,9 @@ proc stop*(s: Switch) {.async.} =
 
   trace "Switch stopped"
 
-proc start*(s: Switch) {.async, gcsafe.} =
+proc start*(s: Switch) {.async, gcsafe, public.} =
+  ## Start listening on every transport
+
   trace "starting switch for peer", peerInfo = s.peerInfo
   var startFuts: seq[Future[void]]
   for t in s.transports:
@@ -273,7 +303,7 @@ proc newSwitch*(peerInfo: PeerInfo,
                 connManager: ConnManager,
                 ms: MultistreamSelect,
                 nameResolver: NameResolver = nil): Switch
-                {.raises: [Defect, LPError].} =
+                {.raises: [Defect, LPError], public.} =
   if secureManagers.len == 0:
     raise newException(LPError, "Provide at least one secure manager")
 
