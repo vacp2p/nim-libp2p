@@ -161,11 +161,27 @@ suite "AsyncSemaphore":
 
     await fut1 or fut2 or sleepAsync(1.millis)
     check:
-      not fut1.finished()
+      fut1.finished()
       not fut2.finished()
 
     sema.release()
     await fut1 or fut2 or sleepAsync(1.millis)
     check:
       fut1.finished()
-      not fut2.finished()
+      fut2.finished()
+
+
+    sema.forceAcquire()
+    sema.forceAcquire()
+
+    let
+      fut3 = sema.acquire()
+      fut4 = sema.acquire()
+      fut5 = sema.acquire()
+    sema.release()
+    sema.release()
+    await sleepAsync(1.millis)
+    check:
+      fut3.finished()
+      fut4.finished()
+      not fut5.finished()
