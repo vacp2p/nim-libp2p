@@ -83,10 +83,6 @@ proc init*(T: typedesc[PeerRecord],
 
 
 ## Functions related to signed peer records
-const
-  EnvelopeDomain = $multiCodec("libp2p-peer-record") # envelope domain as per RFC0002
-  EnvelopePayloadType= @[(byte) 0x03, (byte) 0x01] # payloadType for routing records as spec'ed in RFC0003
-
 type SignedPeerRecord* = SignedPayload[PeerRecord]
 
 proc payloadDomain*(T: typedesc[PeerRecord]): string = $multiCodec("libp2p-peer-record")
