@@ -34,7 +34,7 @@ type
     timerTaskFut: Future[void]      # the current timer instance
     timeoutHandler*: TimeoutHandler # timeout handler
     peerId*: PeerId
-    observedAddr*: Multiaddress
+    observedAddr*: MultiAddress
     upgraded*: Future[void]
     tag*: string                    # debug tag for metrics (generally ms protocol)
     transportDir*: Direction        # The bottom level transport (generally the socket) direction

@@ -13,6 +13,8 @@ import ../libp2p/protocols/secure/secure
 import ./asyncunit
 export asyncunit
 
+{.push raises: [Defect].}
+
 const
   StreamTransportTrackerName = "stream.transport"
   StreamServerTrackerName = "stream.server"
@@ -51,7 +53,9 @@ template checkTrackers*() =
       checkpoint tracker.dump()
       fail()
   # Also test the GC is not fooling with us
-  GC_fullCollect()
+  try:
+    GC_fullCollect()
+  except: discard
 
 type RngWrap = object
   rng: ref BrHmacDrbgContext

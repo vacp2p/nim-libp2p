@@ -79,7 +79,9 @@ proc handlePeer(c: Chat, conn: Connection) {.async.} =
       c.writeStdout $conn.peerId & ": " & $str
 
   except LPStreamEOFError:
-    c.writeStdout $conn.peerId & " disconnected"
+    defer: c.writeStdout $conn.peerId & " disconnected"
+    await c.conn.close()
+    c.connected = false
 
 proc dialPeer(c: Chat, address: string) {.async.} =
   # Parse and dial address
@@ -90,7 +92,7 @@ proc dialPeer(c: Chat, address: string) {.async.} =
       .tryGet()
       .protoAddress()
       .tryGet()
-    remotePeer = PeerID.init(peerIdBytes).tryGet()
+    remotePeer = PeerId.init(peerIdBytes).tryGet()
     # split the wire address
     ip4Addr = multiAddr[multiCodec("ip4")].tryGet()
     tcpAddr = multiAddr[multiCodec("tcp")].tryGet()
@@ -130,7 +132,7 @@ proc readLoop(c: Chat) {.async.} =
 
       await c.switch.stop()
       c.writeStdout "quitting..."
-      quit(0)
+      return
     else:
       if c.connected:
         await c.conn.writeLp(line)
@@ -160,7 +162,10 @@ proc main() {.async.} =
     stdinReader = fromPipe(rfd)
 
   var thread: Thread[AsyncFD]
-  thread.createThread(readInput, wfd)
+  try:
+    thread.createThread(readInput, wfd)
+  except Exception as exc:
+    quit("Failed to create thread: " & exc.msg)
 
   var localAddress = MultiAddress.init(DefaultAddr).tryGet()
 
@@ -179,15 +184,15 @@ proc main() {.async.} =
 
   switch.mount(ChatProto.new(chat))
 
-  let libp2pFuts = await switch.start()
+  await switch.start()
 
   let id = $switch.peerInfo.peerId
-  echo "PeerID: " & id
+  echo "PeerId: " & id
   echo "listening on: "
   for a in switch.peerInfo.addrs:
     echo &"{a}/p2p/{id}"
 
   await chat.readLoop()
-  await allFuturesThrowing(libp2pFuts)
+  quit(0)
 
 waitFor(main())

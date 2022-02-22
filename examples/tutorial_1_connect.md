@@ -73,9 +73,8 @@ We can now create our two switches:
     
   switch1.mount(pingProtocol)
 
-  let
-    switch1Fut = await switch1.start()
-    switch2Fut = await switch2.start()
+  await switch1.start()
+  await switch2.start()
 ```
 We've **mounted** the `pingProtocol` on our first switch. This means that the first switch will actually listen for any ping requests coming in, and handle them accordingly.
 
@@ -98,7 +97,6 @@ We now have a `Ping` connection setup between the second and the first switch, w
 And that's it! Just a little bit of cleanup: shutting down the switches, waiting for them to stop, and we'll call our `main` procedure:
 ```nim
   await allFutures(switch1.stop(), switch2.stop()) # close connections and shutdown all transports
-  await allFutures(switch1Fut & switch2Fut) # wait for all transports to shutdown
   
 waitFor(main())
 ```

@@ -197,8 +197,8 @@ proc build*(b: SwitchBuilder): Switch
 
 proc newStandardSwitch*(
   privKey = none(PrivateKey),
-  address = MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet(),
-  secureManagers: openarray[SecureProtocol] = [
+  addrs: MultiAddress | seq[MultiAddress] = MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet(),
+  secureManagers: openArray[SecureProtocol] = [
       SecureProtocol.Noise,
     ],
   transportFlags: set[ServerFlags] = {},
@@ -214,9 +214,10 @@ proc newStandardSwitch*(
   if SecureProtocol.Secio in secureManagers:
       quit("Secio is deprecated!") # use of secio is unsafe
 
+  let addrs = when addrs is MultiAddress: @[addrs] else: addrs
   var b = SwitchBuilder
     .new()
-    .withAddress(address)
+    .withAddresses(addrs)
     .withRng(rng)
     .withMaxConnections(maxConnections)
     .withMaxIn(maxIn)

@@ -41,11 +41,11 @@ proc waitSub(sender, receiver: auto; key: string) {.async, gcsafe.} =
   ev.clear()
 
   while (not fsub.gossipsub.hasKey(key) or
-         not fsub.gossipsub.hasPeerID(key, receiver.peerInfo.peerId)) and
+         not fsub.gossipsub.hasPeerId(key, receiver.peerInfo.peerId)) and
         (not fsub.mesh.hasKey(key) or
-         not fsub.mesh.hasPeerID(key, receiver.peerInfo.peerId)) and
+         not fsub.mesh.hasPeerId(key, receiver.peerInfo.peerId)) and
         (not fsub.fanout.hasKey(key) or
-         not fsub.fanout.hasPeerID(key , receiver.peerInfo.peerId)):
+         not fsub.fanout.hasPeerId(key , receiver.peerInfo.peerId)):
     trace "waitSub sleeping..."
 
     # await more heartbeats
@@ -147,6 +147,9 @@ suite "GossipSub":
         nodes[1].start(),
     ))
 
+    # We must subscribe before setting the validator
+    nodes[0].subscribe("foobar", handler)
+
     var gossip = GossipSub(nodes[0])
     let invalidDetected = newFuture[void]()
     gossip.subscriptionValidator =
@@ -162,7 +165,6 @@ suite "GossipSub":
 
     await subscribeNodes(nodes)
 
-    nodes[0].subscribe("foobar", handler)
     nodes[1].subscribe("foobar", handler)
 
     await invalidDetected.wait(10.seconds)

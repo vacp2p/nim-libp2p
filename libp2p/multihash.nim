@@ -41,8 +41,8 @@ const
   ErrParseError = "Parse error fromHex"
 
 type
-  MHashCoderProc* = proc(data: openarray[byte],
-                         output: var openarray[byte]) {.nimcall, gcsafe, noSideEffect, raises: [Defect].}
+  MHashCoderProc* = proc(data: openArray[byte],
+                         output: var openArray[byte]) {.nimcall, gcsafe, noSideEffect, raises: [Defect].}
   MHash* = object
     mcodec*: MultiCodec
     size*: int
@@ -56,20 +56,20 @@ type
 
   MhResult*[T] = Result[T, cstring]
 
-proc identhash(data: openarray[byte], output: var openarray[byte]) =
+proc identhash(data: openArray[byte], output: var openArray[byte]) =
   if len(output) > 0:
     var length = if len(data) > len(output): len(output)
                  else: len(data)
     copyMem(addr output[0], unsafeAddr data[0], length)
 
-proc sha1hash(data: openarray[byte], output: var openarray[byte]) =
+proc sha1hash(data: openArray[byte], output: var openArray[byte]) =
   if len(output) > 0:
     var digest = sha1.digest(data)
     var length = if sha1.sizeDigest > len(output): len(output)
                  else: sha1.sizeDigest
     copyMem(addr output[0], addr digest.data[0], length)
 
-proc dblsha2_256hash(data: openarray[byte], output: var openarray[byte]) =
+proc dblsha2_256hash(data: openArray[byte], output: var openArray[byte]) =
   if len(output) > 0:
     var digest1 = sha256.digest(data)
     var digest2 = sha256.digest(digest1.data)
@@ -77,91 +77,91 @@ proc dblsha2_256hash(data: openarray[byte], output: var openarray[byte]) =
                  else: sha256.sizeDigest
     copyMem(addr output[0], addr digest2.data[0], length)
 
-proc blake2Bhash(data: openarray[byte], output: var openarray[byte]) =
+proc blake2Bhash(data: openArray[byte], output: var openArray[byte]) =
   if len(output) > 0:
     var digest = blake2_512.digest(data)
     var length = if blake2_512.sizeDigest > len(output): len(output)
                  else: blake2_512.sizeDigest
     copyMem(addr output[0], addr digest.data[0], length)
 
-proc blake2Shash(data: openarray[byte], output: var openarray[byte]) =
+proc blake2Shash(data: openArray[byte], output: var openArray[byte]) =
   if len(output) > 0:
     var digest = blake2_256.digest(data)
     var length = if blake2_256.sizeDigest > len(output): len(output)
                  else: blake2_256.sizeDigest
     copyMem(addr output[0], addr digest.data[0], length)
 
-proc sha2_256hash(data: openarray[byte], output: var openarray[byte]) =
+proc sha2_256hash(data: openArray[byte], output: var openArray[byte]) =
   if len(output) > 0:
     var digest = sha256.digest(data)
     var length = if sha256.sizeDigest > len(output): len(output)
                  else: sha256.sizeDigest
     copyMem(addr output[0], addr digest.data[0], length)
 
-proc sha2_512hash(data: openarray[byte], output: var openarray[byte]) =
+proc sha2_512hash(data: openArray[byte], output: var openArray[byte]) =
   if len(output) > 0:
     var digest = sha512.digest(data)
     var length = if sha512.sizeDigest > len(output): len(output)
                  else: sha512.sizeDigest
     copyMem(addr output[0], addr digest.data[0], length)
 
-proc sha3_224hash(data: openarray[byte], output: var openarray[byte]) =
+proc sha3_224hash(data: openArray[byte], output: var openArray[byte]) =
   if len(output) > 0:
     var digest = sha3_224.digest(data)
     var length = if sha3_224.sizeDigest > len(output): len(output)
                  else: sha3_224.sizeDigest
     copyMem(addr output[0], addr digest.data[0], length)
 
-proc sha3_256hash(data: openarray[byte], output: var openarray[byte]) =
+proc sha3_256hash(data: openArray[byte], output: var openArray[byte]) =
   if len(output) > 0:
     var digest = sha3_256.digest(data)
     var length = if sha3_256.sizeDigest > len(output): len(output)
                  else: sha3_256.sizeDigest
     copyMem(addr output[0], addr digest.data[0], length)
 
-proc sha3_384hash(data: openarray[byte], output: var openarray[byte]) =
+proc sha3_384hash(data: openArray[byte], output: var openArray[byte]) =
   if len(output) > 0:
     var digest = sha3_384.digest(data)
     var length = if sha3_384.sizeDigest > len(output): len(output)
                  else: sha3_384.sizeDigest
     copyMem(addr output[0], addr digest.data[0], length)
 
-proc sha3_512hash(data: openarray[byte], output: var openarray[byte]) =
+proc sha3_512hash(data: openArray[byte], output: var openArray[byte]) =
   if len(output) > 0:
     var digest = sha3_512.digest(data)
     var length = if sha3_512.sizeDigest > len(output): len(output)
                  else: sha3_512.sizeDigest
     copyMem(addr output[0], addr digest.data[0], length)
 
-proc keccak_224hash(data: openarray[byte], output: var openarray[byte]) =
+proc keccak_224hash(data: openArray[byte], output: var openArray[byte]) =
   if len(output) > 0:
     var digest = keccak224.digest(data)
     var length = if keccak224.sizeDigest > len(output): len(output)
                  else: keccak224.sizeDigest
     copyMem(addr output[0], addr digest.data[0], length)
 
-proc keccak_256hash(data: openarray[byte], output: var openarray[byte]) =
+proc keccak_256hash(data: openArray[byte], output: var openArray[byte]) =
   if len(output) > 0:
     var digest = keccak256.digest(data)
     var length = if keccak256.sizeDigest > len(output): len(output)
                  else: keccak256.sizeDigest
     copyMem(addr output[0], addr digest.data[0], length)
 
-proc keccak_384hash(data: openarray[byte], output: var openarray[byte]) =
+proc keccak_384hash(data: openArray[byte], output: var openArray[byte]) =
   if len(output) > 0:
     var digest = keccak384.digest(data)
     var length = if keccak384.sizeDigest > len(output): len(output)
                  else: keccak384.sizeDigest
     copyMem(addr output[0], addr digest.data[0], length)
 
-proc keccak_512hash(data: openarray[byte], output: var openarray[byte]) =
+proc keccak_512hash(data: openArray[byte], output: var openArray[byte]) =
   if len(output) > 0:
     var digest = keccak512.digest(data)
     var length = if keccak512.sizeDigest > len(output): len(output)
                  else: keccak512.sizeDigest
     copyMem(addr output[0], addr digest.data[0], length)
 
-proc shake_128hash(data: openarray[byte], output: var openarray[byte]) =
+proc shake_128hash(data: openArray[byte], output: var openArray[byte]) =
   var sctx: shake128
   if len(output) > 0:
     sctx.init()
@@ -170,7 +170,7 @@ proc shake_128hash(data: openarray[byte], output: var openarray[byte]) =
     discard sctx.output(addr output[0], uint(len(output)))
     sctx.clear()
 
-proc shake_256hash(data: openarray[byte], output: var openarray[byte]) =
+proc shake_256hash(data: openArray[byte], output: var openArray[byte]) =
   var sctx: shake256
   if len(output) > 0:
     sctx.init()
@@ -208,16 +208,16 @@ const
     ),
     MHash(mcodec: multiCodec("shake-128"), size: 32, coder: shake_128hash),
     MHash(mcodec: multiCodec("shake-256"), size: 64, coder: shake_256hash),
-    MHash(mcodec: multiCodec("keccak-224"), size: keccak_224.sizeDigest,
+    MHash(mcodec: multiCodec("keccak-224"), size: keccak224.sizeDigest,
           coder: keccak_224hash
     ),
-    MHash(mcodec: multiCodec("keccak-256"), size: keccak_256.sizeDigest,
+    MHash(mcodec: multiCodec("keccak-256"), size: keccak256.sizeDigest,
           coder: keccak_256hash
     ),
-    MHash(mcodec: multiCodec("keccak-384"), size: keccak_384.sizeDigest,
+    MHash(mcodec: multiCodec("keccak-384"), size: keccak384.sizeDigest,
           coder: keccak_384hash
     ),
-    MHash(mcodec: multiCodec("keccak-512"), size: keccak_512.sizeDigest,
+    MHash(mcodec: multiCodec("keccak-512"), size: keccak512.sizeDigest,
           coder: keccak_512hash
     ),
     MHash(mcodec: multiCodec("blake2b-8"), size: 1, coder: blake2Bhash),
@@ -325,7 +325,7 @@ proc initMultiHashCodeTable(): Table[MultiCodec, MHash] {.compileTime.} =
 const
   CodeHashes = initMultiHashCodeTable()
 
-proc digestImplWithHash(hash: MHash, data: openarray[byte]): MultiHash =
+proc digestImplWithHash(hash: MHash, data: openArray[byte]): MultiHash =
   var buffer: array[MaxHashSize, byte]
   result.data = initVBuffer()
   result.mcodec = hash.mcodec
@@ -343,7 +343,7 @@ proc digestImplWithHash(hash: MHash, data: openarray[byte]): MultiHash =
     result.size = hash.size
   result.data.finish()
 
-proc digestImplWithoutHash(hash: MHash, data: openarray[byte]): MultiHash =
+proc digestImplWithoutHash(hash: MHash, data: openArray[byte]): MultiHash =
   result.data = initVBuffer()
   result.mcodec = hash.mcodec
   result.size = len(data)
@@ -354,7 +354,7 @@ proc digestImplWithoutHash(hash: MHash, data: openarray[byte]): MultiHash =
   result.data.finish()
 
 proc digest*(mhtype: typedesc[MultiHash], hashname: string,
-             data: openarray[byte]): MhResult[MultiHash] {.inline.} =
+             data: openArray[byte]): MhResult[MultiHash] {.inline.} =
   ## Perform digest calculation using hash algorithm with name ``hashname`` on
   ## data array ``data``.
   let mc = MultiCodec.codec(hashname)
@@ -368,7 +368,7 @@ proc digest*(mhtype: typedesc[MultiHash], hashname: string,
       ok(digestImplWithHash(hash, data))
 
 proc digest*(mhtype: typedesc[MultiHash], hashcode: int,
-             data: openarray[byte]): MhResult[MultiHash] {.inline.} =
+             data: openArray[byte]): MhResult[MultiHash] {.inline.} =
   ## Perform digest calculation using hash algorithm with code ``hashcode`` on
   ## data array ``data``.
   let hash = CodeHashes.getOrDefault(hashcode)
@@ -406,7 +406,7 @@ proc init*[T](mhtype: typedesc[MultiHash], hashcode: MultiCodec,
     ok(digestImplWithoutHash(hash, mdigest.data))
 
 proc init*(mhtype: typedesc[MultiHash], hashname: string,
-           bdigest: openarray[byte]): MhResult[MultiHash] {.inline.} =
+           bdigest: openArray[byte]): MhResult[MultiHash] {.inline.} =
   ## Create MultiHash from array of bytes ``bdigest`` and hash algorithm code
   ## ``hashcode``.
   let mc = MultiCodec.codec(hashname)
@@ -422,7 +422,7 @@ proc init*(mhtype: typedesc[MultiHash], hashname: string,
       ok(digestImplWithoutHash(hash, bdigest))
 
 proc init*(mhtype: typedesc[MultiHash], hashcode: MultiCodec,
-           bdigest: openarray[byte]): MhResult[MultiHash] {.inline.} =
+           bdigest: openArray[byte]): MhResult[MultiHash] {.inline.} =
   ## Create MultiHash from array of bytes ``bdigest`` and hash algorithm code
   ## ``hashcode``.
   let hash = CodeHashes.getOrDefault(hashcode)
@@ -433,7 +433,7 @@ proc init*(mhtype: typedesc[MultiHash], hashcode: MultiCodec,
   else:
     ok(digestImplWithoutHash(hash, bdigest))
 
-proc decode*(mhtype: typedesc[MultiHash], data: openarray[byte],
+proc decode*(mhtype: typedesc[MultiHash], data: openArray[byte],
              mhash: var MultiHash): MhResult[int] =
   ## Decode MultiHash value from array of bytes ``data``.
   ##
@@ -478,7 +478,7 @@ proc decode*(mhtype: typedesc[MultiHash], data: openarray[byte],
                                                vb.offset + int(size) - 1))
   ok(vb.offset + int(size))
 
-proc validate*(mhtype: typedesc[MultiHash], data: openarray[byte]): bool =
+proc validate*(mhtype: typedesc[MultiHash], data: openArray[byte]): bool =
   ## Returns ``true`` if array of bytes ``data`` has correct MultiHash inside.
   var code, size: uint64
   var res: VarintResult[void]
@@ -509,7 +509,7 @@ proc validate*(mhtype: typedesc[MultiHash], data: openarray[byte]): bool =
   result = true
 
 proc init*(mhtype: typedesc[MultiHash],
-           data: openarray[byte]): MhResult[MultiHash] {.inline.} =
+           data: openArray[byte]): MhResult[MultiHash] {.inline.} =
   ## Create MultiHash from bytes array ``data``.
   var hash: MultiHash
   discard ? MultiHash.decode(data, hash)
@@ -530,7 +530,7 @@ proc init58*(mhtype: typedesc[MultiHash],
   if MultiHash.decode(Base58.decode(data), result) == -1:
     raise newException(MultihashError, "Incorrect MultiHash binary format")
 
-proc cmp(a: openarray[byte], b: openarray[byte]): bool {.inline.} =
+proc cmp(a: openArray[byte], b: openArray[byte]): bool {.inline.} =
   if len(a) != len(b):
     return false
   var n = len(a)

@@ -5,9 +5,9 @@
 <h3 align="center">The Nim implementation of the libp2p Networking Stack.</h3>
 
 <p align="center">
-<a href="https://travis-ci.org/status-im/nim-libp2p"><img src="https://travis-ci.org/status-im/nim-libp2p.svg?branch=master" /></a>
-<a href="https://ci.appveyor.com/project/nimbus/nim-libp2p/branch/master"><img src="https://ci.appveyor.com/api/projects/status/pqgif5bcie6cp3wi/branch/master?svg=true" /></a>
-<a href="https://dev.azure.com/nimbus-dev/nim-libp2p/_build?definitionId=5&branchName=master"><img src="https://img.shields.io/azure-devops/build/nimbus-dev/dc5eed24-3f6c-4c06-8466-3d060abd6c8b/5/master?label=Azure%20%28Linux%2064-bit%2C%20Windows%2032-bit%2F64-bit%2C%20MacOS%2064-bit%29" /></a>
+<a href="https://github.com/status-im/nim-libp2p/actions"><img src="https://github.com/status-im/nim-libp2p/actions/workflows/ci.yml/badge.svg" /></a>
+<a href="https://codecov.io/gh/status-im/nim-libp2p"><img src="https://codecov.io/gh/status-im/nim-libp2p/branch/master/graph/badge.svg?token=UR5JRQ249W"/></a>
+    
 </p>
 
 <p align="center">
@@ -21,9 +21,9 @@
 An implementation of [libp2p](https://libp2p.io/) in Nim.
 
 ## Project Status
-libp2p is now used in production by a few projects at [status](https://github.com/status-im), including [nimbus](https://github.com/status-im/nimbus-eth2).
+libp2p is used in production by a few projects at [Status](https://github.com/status-im), including [Nimbus](https://github.com/status-im/nimbus-eth2).
 
-While far from complete, currently available componets are fairly stable.
+While far from complete, currently available components are stable.
 
 Check our [examples folder](/examples) to get started!
 
@@ -95,6 +95,7 @@ nimble install
 # run all the unit tests
 nimble test
 ```
+The code follows the [Status Nim Style Guide](https://status-im.github.io/nim-style-guide/).
 
 ### Packages
 
@@ -107,9 +108,12 @@ List of packages currently in existence for nim-libp2p:
 
 #### Transports
 - [libp2p-tcp](https://github.com/status-im/nim-libp2p/blob/master/libp2p/transports/tcptransport.nim)
+- [libp2p-ws](https://github.com/status-im/nim-libp2p/blob/master/libp2p/transports/wstransport.nim)
 
 #### Secure Channels
 - [libp2p-secio](https://github.com/status-im/nim-libp2p/blob/master/libp2p/protocols/secure/secio.nim)
+- [libp2p-noise](https://github.com/status-im/nim-libp2p/blob/master/libp2p/protocols/secure/noise.nim)
+- [libp2p-plaintext](https://github.com/status-im/nim-libp2p/blob/master/libp2p/protocols/secure/plaintext.nim)
 
 #### Stream Multiplexers
 - [libp2p-mplex](https://github.com/status-im/nim-libp2p/blob/master/libp2p/muxers/mplex/mplex.nim)
@@ -132,7 +136,6 @@ Packages that exist in the original libp2p specs and are under active developmen
 - libp2p-daemon
 - libp2p-webrtc-direct
 - libp2p-webrtc-star
-- libp2p-websockets
 - libp2p-spdy
 - libp2p-bootstrap
 - libp2p-kad-dht
@@ -166,13 +169,16 @@ nim c -d:KnownLibP2PTopics=topic1,topic2,topic3 some_file.nim
 ```
 
 ## Contribute
+
 The libp2p implementation in Nim is a work in progress. We welcome contributors to help out! Specifically, you can:
 - Go through the modules and **check out existing issues**. This would be especially useful for modules in active development. Some knowledge of IPFS/libp2p may be required, as well as the infrastructure behind it.
 - **Perform code reviews**. Feel free to let us know if you found anything that can a) speed up the project development b) ensure better quality and c) reduce possible future bugs.
 - **Add tests**. Help nim-libp2p to be more robust by adding more tests to the [tests folder](https://github.com/status-im/nim-libp2p/tree/master/tests).
 
+The code follows the [Status Nim Style Guide](https://status-im.github.io/nim-style-guide/).
+
 ### Core Developers
-[@cheatfate](https://github.com/cheatfate), [Dmitriy Ryajov](https://github.com/dryajov), [Giovanni Petrantoni](https://github.com/sinkingsugar), [Zahary Karadjov](https://github.com/zah)
+[@cheatfate](https://github.com/cheatfate), [Dmitriy Ryajov](https://github.com/dryajov), [Tanguy](https://github.com/Menduist), [Zahary Karadjov](https://github.com/zah)
 
 ## License
 

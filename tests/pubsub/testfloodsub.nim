@@ -20,6 +20,7 @@ import utils,
                      protocols/pubsub/floodsub,
                      protocols/pubsub/rpc/messages,
                      protocols/pubsub/peertable]
+import ../../libp2p/protocols/pubsub/errors as pubsub_errors
 
 import ../helpers
 
@@ -29,7 +30,7 @@ proc waitSub(sender, receiver: auto; key: string) {.async, gcsafe.} =
   var ceil = 15
   let fsub = cast[FloodSub](sender)
   while not fsub.floodsub.hasKey(key) or
-        not fsub.floodsub.hasPeerID(key, receiver.peerInfo.peerId):
+        not fsub.floodsub.hasPeerId(key, receiver.peerInfo.peerId):
     await sleepAsync(100.millis)
     dec ceil
     doAssert(ceil > 0, "waitSub timeout!")

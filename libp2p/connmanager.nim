@@ -25,7 +25,7 @@ declareGauge(libp2p_peers, "total connected peers")
 
 const
   MaxConnections* = 50
-  MaxConnectionsPerPeer* = 5
+  MaxConnectionsPerPeer* = 1
 
 type
   TooManyConnectionsError* = object of LPError
@@ -65,7 +65,7 @@ type
         discard
 
   PeerEventHandler* =
-    proc(peerId: PeerId, event: PeerEvent): Future[void] {.gcsafe.}
+    proc(peerId: PeerId, event: PeerEvent): Future[void] {.gcsafe, raises: [Defect].}
 
   MuxerHolder = object
     muxer: Muxer
@@ -75,7 +75,7 @@ type
     maxConnsPerPeer: int
     inSema*: AsyncSemaphore
     outSema*: AsyncSemaphore
-    conns: Table[PeerID, HashSet[Connection]]
+    conns: Table[PeerId, HashSet[Connection]]
     muxed: Table[Connection, MuxerHolder]
     connEvents: array[ConnEventKind, OrderedSet[ConnEventHandler]]
     peerEvents: array[PeerEventKind, OrderedSet[PeerEventHandler]]
@@ -103,7 +103,7 @@ proc new*(C: type ConnManager,
     inSema: inSema,
     outSema: outSema)
 
-proc connCount*(c: ConnManager, peerId: PeerID): int =
+proc connCount*(c: ConnManager, peerId: PeerId): int =
   c.conns.getOrDefault(peerId).len
 
 proc addConnEventHandler*(c: ConnManager,
@@ -219,7 +219,7 @@ proc contains*(c: ConnManager, conn: Connection): bool =
 
   return conn in c.conns.getOrDefault(conn.peerId)
 
-proc contains*(c: ConnManager, peerId: PeerID): bool =
+proc contains*(c: ConnManager, peerId: PeerId): bool =
   peerId in c.conns
 
 proc contains*(c: ConnManager, muxer: Muxer): bool =
@@ -334,7 +334,7 @@ proc onClose(c: ConnManager, conn: Connection) {.async.} =
     asyncSpawn c.peerCleanup(conn)
 
 proc selectConn*(c: ConnManager,
-                peerId: PeerID,
+                peerId: PeerId,
                 dir: Direction): Connection =
   ## Select a connection for the provided peer and direction
   ##
@@ -345,7 +345,7 @@ proc selectConn*(c: ConnManager,
   if conns.len > 0:
     return conns[0]
 
-proc selectConn*(c: ConnManager, peerId: PeerID): Connection =
+proc selectConn*(c: ConnManager, peerId: PeerId): Connection =
   ## Select a connection for the provided giving priority
   ## to outgoing connections
   ##
@@ -506,7 +506,7 @@ proc storeMuxer*(c: ConnManager,
   asyncSpawn c.onConnUpgraded(muxer.connection)
 
 proc getStream*(c: ConnManager,
-                peerId: PeerID,
+                peerId: PeerId,
                 dir: Direction): Future[Connection] {.async, gcsafe.} =
   ## get a muxed stream for the provided peer
   ## with the given direction
@@ -517,7 +517,7 @@ proc getStream*(c: ConnManager,
     return await muxer.newStream()
 
 proc getStream*(c: ConnManager,
-                peerId: PeerID): Future[Connection] {.async, gcsafe.} =
+                peerId: PeerId): Future[Connection] {.async, gcsafe.} =
   ## get a muxed stream for the passed peer from any connection
   ##
 
@@ -534,7 +534,7 @@ proc getStream*(c: ConnManager,
   if not(isNil(muxer)):
     return await muxer.newStream()
 
-proc dropPeer*(c: ConnManager, peerId: PeerID) {.async.} =
+proc dropPeer*(c: ConnManager, peerId: PeerId) {.async.} =
   ## drop connections and cleanup resources for peer
   ##
   trace "Dropping peer", peerId

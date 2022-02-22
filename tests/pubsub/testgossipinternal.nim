@@ -18,7 +18,7 @@ type
 
 proc noop(data: seq[byte]) {.async, gcsafe.} = discard
 
-proc getPubSubPeer(p: TestGossipSub, peerId: PeerID): PubSubPeer =
+proc getPubSubPeer(p: TestGossipSub, peerId: PeerId): PubSubPeer =
   proc getConn(): Future[Connection] =
     p.switch.dial(peerId, GossipSubCodec)
 
@@ -38,6 +38,8 @@ proc randomPeerId(): PeerId =
     PeerId.init(PrivateKey.random(ECDSA, rng[]).get()).tryGet()
   except CatchableError as exc:
     raise newException(Defect, exc.msg)
+
+const MsgIdFail = "msg id gen failure"
 
 suite "GossipSub internal":
   teardown:
@@ -308,7 +310,7 @@ suite "GossipSub internal":
       conn.peerId = peerId
       inc seqno
       let msg = Message.init(peerId, ("HELLO" & $i).toBytes(), topic, some(seqno))
-      gossipSub.mcache.put(gossipSub.msgIdProvider(msg), msg)
+      gossipSub.mcache.put(gossipSub.msgIdProvider(msg).expect(MsgIdFail), msg)
 
     check gossipSub.fanout[topic].len == 15
     check gossipSub.mesh[topic].len == 15
@@ -317,8 +319,8 @@ suite "GossipSub internal":
     let peers = gossipSub.getGossipPeers()
     check peers.len == gossipSub.parameters.d
     for p in peers.keys:
-      check not gossipSub.fanout.hasPeerID(topic, p.peerId)
-      check not gossipSub.mesh.hasPeerID(topic, p.peerId)
+      check not gossipSub.fanout.hasPeerId(topic, p.peerId)
+      check not gossipSub.mesh.hasPeerId(topic, p.peerId)
 
     await allFuturesThrowing(conns.mapIt(it.close()))
     await gossipSub.switch.stop()
@@ -355,7 +357,7 @@ suite "GossipSub internal":
       conn.peerId = peerId
       inc seqno
       let msg = Message.init(peerId, ("HELLO" & $i).toBytes(), topic, some(seqno))
-      gossipSub.mcache.put(gossipSub.msgIdProvider(msg), msg)
+      gossipSub.mcache.put(gossipSub.msgIdProvider(msg).expect(MsgIdFail), msg)
 
     let peers = gossipSub.getGossipPeers()
     check peers.len == gossipSub.parameters.d
@@ -396,7 +398,7 @@ suite "GossipSub internal":
       conn.peerId = peerId
       inc seqno
       let msg = Message.init(peerId, ("HELLO" & $i).toBytes(), topic, some(seqno))
-      gossipSub.mcache.put(gossipSub.msgIdProvider(msg), msg)
+      gossipSub.mcache.put(gossipSub.msgIdProvider(msg).expect(MsgIdFail), msg)
 
     let peers = gossipSub.getGossipPeers()
     check peers.len == gossipSub.parameters.d
@@ -437,7 +439,7 @@ suite "GossipSub internal":
       conn.peerId = peerId
       inc seqno
       let msg = Message.init(peerId, ("bar" & $i).toBytes(), topic, some(seqno))
-      gossipSub.mcache.put(gossipSub.msgIdProvider(msg), msg)
+      gossipSub.mcache.put(gossipSub.msgIdProvider(msg).expect(MsgIdFail), msg)
 
     let peers = gossipSub.getGossipPeers()
     check peers.len == 0
@@ -552,7 +554,7 @@ suite "GossipSub internal":
       peer.sendConn = conn
       gossipSub.gossipsub[topic].incl(peer)
       gossipSub.backingOff
-        .mgetOrPut(topic, initTable[PeerID, Moment]())
+        .mgetOrPut(topic, initTable[PeerId, Moment]())
         .add(peerId, Moment.now() + 1.hours)
       let prunes = gossipSub.handleGraft(peer, @[ControlGraft(topicID: topic)])
       # there must be a control prune due to violation of backoff

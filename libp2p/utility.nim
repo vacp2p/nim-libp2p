@@ -16,7 +16,7 @@ template public* {.pragma.}
 const
   ShortDumpMax = 12
 
-func shortLog*(item: openarray[byte]): string =
+func shortLog*(item: openArray[byte]): string =
   if item.len <= ShortDumpMax:
     result = item.toHex()
   else:
