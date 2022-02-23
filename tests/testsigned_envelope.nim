@@ -1,6 +1,7 @@
 import unittest2
 import stew/byteutils
 import ../libp2p/[signed_envelope]
+import ../libp2p/protobuf/minprotobuf
 
 suite "Signed envelope":
   test "Encode -> decode -> encode -> decode test":
@@ -39,20 +40,22 @@ suite "Signed envelope":
 type
   DummyPayload* = object
     awesome: byte
-  SignedDummy = SignedPayload[DummyPayload]
 
-proc decode*(T: typedesc[DummyPayload], buffer: seq[byte]): Result[DummyPayload, cstring] =
+proc decode*(T: typedesc[DummyPayload], buffer: seq[byte]): Result[DummyPayload, ProtoError] =
   ok(DummyPayload(awesome: buffer[0]))
 
 proc encode*(pd: DummyPayload): seq[byte] =
   @[pd.awesome]
 
+proc payloadDomain*(T: typedesc[DummyPayload]): string = "dummy"
+proc payloadType*(T: typedesc[DummyPayload]): seq[byte] = @[(byte) 0x00, (byte) 0x00]
+
+type SignedDummy {.explain.} = SignedPayload[DummyPayload]
+
 proc checkValid*(pd: SignedDummy): Result[void, EnvelopeError] =
   if pd.data.awesome == 12.byte: ok()
   else: err(EnvelopeInvalidSignature)
 
-proc payloadDomain*(T: typedesc[DummyPayload]): string = "dummy"
-proc payloadType*(T: typedesc[DummyPayload]): seq[byte] = @[(byte) 0x00, (byte) 0x00]
 suite "Signed payload":
   test "Simple encode -> decode":
     let

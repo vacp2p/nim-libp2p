@@ -83,10 +83,10 @@ proc init*(T: typedesc[PeerRecord],
 
 
 ## Functions related to signed peer records
-type SignedPeerRecord* = SignedPayload[PeerRecord]
-
 proc payloadDomain*(T: typedesc[PeerRecord]): string = $multiCodec("libp2p-peer-record")
 proc payloadType*(T: typedesc[PeerRecord]): seq[byte] = @[(byte) 0x03, (byte) 0x01]
+
+type SignedPeerRecord* = SignedPayload[PeerRecord]
 
 proc checkValid*(spr: SignedPeerRecord): Result[void, EnvelopeError] =
   if not spr.data.peerId.match(spr.envelope.publicKey):
