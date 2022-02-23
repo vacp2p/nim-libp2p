@@ -30,6 +30,7 @@ export results
 export PubSubPeer
 export PubSubObserver
 export protocol
+export pubsub_errors
 
 logScope:
   topics = "libp2p pubsub"
