@@ -56,12 +56,12 @@ proc new*(
   
   let peerId = PeerID.init(key).tryGet()
 
-  let sprRes = Envelope.init(
+  let sprRes = SignedPeerRecord.init(
     key,
     PeerRecord.init(peerId, @addrs)
   )
   let spr = if sprRes.isOk:
-              some(sprRes.get())
+              some(sprRes.get().envelope)
             else:
               none(Envelope)
 

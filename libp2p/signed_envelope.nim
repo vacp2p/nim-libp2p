@@ -132,7 +132,7 @@ proc init*[T](_: typedesc[SignedPayload[T]],
 
   let envelope = ? Envelope.init(privateKey,
                                  T.payloadType(),
-                                 payload.encode(),
+                                 data.encode(),
                                  T.payloadDomain)
   
   ok(SignedPayload[T](data: data, envelope: envelope))
