@@ -120,13 +120,8 @@ proc getField*(pb: ProtoBuffer, field: int,
       err(ProtoError.IncorrectBlob)
 
 type
-  SigneablePayload* {.explain.} = concept x, type T
-    T.decode(seq[byte]) is Result[x, ProtoError]
-    x.encode() is seq[byte]
-    T.payloadType() is seq[byte]
-    T.payloadDomain() is string
-
-  SignedPayload*[T: SigneablePayload] = object
+  SignedPayload*[T] = object
+    # T needs to have .encode(), .decode(), .payloadType(), .domain()
     envelope*: Envelope
     data*: T
 
