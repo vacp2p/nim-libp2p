@@ -104,10 +104,18 @@ suite "AsyncSemaphore":
 
     await sema.acquire()
 
-    let tmp = sema.acquire()
-    check not tmp.finished()
+    let
+      tmp = sema.acquire()
+      tmp2 = sema.acquire()
+    check:
+      not tmp.finished()
+      not tmp2.finished()
 
     tmp.cancel()
+    sema.release()
+
+    check tmp2.finished()
+
     sema.release()
 
     check await sema.acquire().withTimeout(10.millis)

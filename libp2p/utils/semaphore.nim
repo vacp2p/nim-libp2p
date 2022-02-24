@@ -63,6 +63,10 @@ proc acquire*(s: AsyncSemaphore): Future[void] =
   return fut
 
 proc forceAcquire*(s: AsyncSemaphore) =
+  ## ForceAcquire will always succeed,
+  ## creating a temporary slot if required.
+  ## This temporary slot will stay usable until
+  ## there is less `acquire`s than `release`s
   s.count.dec
 
 proc release*(s: AsyncSemaphore) =
@@ -79,12 +83,13 @@ proc release*(s: AsyncSemaphore) =
                             queue = s.queue.len
 
     s.count.inc
-    if s.queue.len > 0:
+    while s.queue.len > 0:
       var fut = s.queue[0]
       s.queue.delete(0)
       if not fut.finished():
         s.count.dec
         fut.complete()
+        break
 
     trace "Released slot", available = s.count,
                            queue = s.queue.len
