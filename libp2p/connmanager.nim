@@ -463,13 +463,12 @@ proc trackOutgoingConn*(c: ConnManager,
   trace "Tracking outgoing connection", count = c.outSema.count,
                                         max = c.outSema.size
 
-  if not c.outSema.tryAcquire():
-    if forceDial:
-      c.outSema.forceAcquire()
-    else:
-      trace "Too many outgoing connections!", count = c.outSema.count,
-                                              max = c.outSema.size
-      raise newTooManyConnectionsError()
+  if forceDial:
+    c.outSema.forceAcquire()
+  elif not c.outSema.tryAcquire():
+    trace "Too many outgoing connections!", count = c.outSema.count,
+                                            max = c.outSema.size
+    raise newTooManyConnectionsError()
 
   var conn: Connection
   try:

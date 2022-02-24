@@ -83,8 +83,8 @@ proc release*(s: AsyncSemaphore) =
       var fut = s.queue[0]
       s.queue.delete(0)
       if not fut.finished():
-        fut.complete()
         s.count.dec
+        fut.complete()
 
     trace "Released slot", available = s.count,
                            queue = s.queue.len
