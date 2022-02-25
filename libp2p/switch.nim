@@ -56,6 +56,8 @@ const
   ConcurrentUpgrades* = 4
 
 type
+    SwitchError* = object of LPError
+
     Switch* = ref object of Dial
       peerInfo*: PeerInfo
       connManager*: ConnManager
@@ -210,7 +212,6 @@ proc accept(s: Switch, transport: Transport) {.async.} = # noraises
 
 proc stop*(s: Switch) {.async.} =
   trace "Stopping switch"
-
   # close and cleanup all connections
   await s.connManager.close()
 
@@ -236,9 +237,9 @@ proc stop*(s: Switch) {.async.} =
 
   trace "Switch stopped"
 
+# TODO: add {.raises: [TransportListenError].} when supported by chronos
 proc start*(s: Switch) {.async, gcsafe.} =
   trace "starting switch for peer", peerInfo = s.peerInfo
-  var startFuts: seq[Future[void]]
   for t in s.transports:
     let addrs = s.peerInfo.addrs.filterIt(
       t.handles(it)
@@ -249,19 +250,7 @@ proc start*(s: Switch) {.async, gcsafe.} =
     )
 
     if addrs.len > 0:
-      startFuts.add(t.start(addrs))
-
-  await allFutures(startFuts)
-
-  for s in startFuts:
-    if s.failed:
-      # TODO: replace this exception with a `listenError` callback. See
-      # https://github.com/status-im/nim-libp2p/pull/662 for more info.
-      raise newException(transport.TransportError,
-        "Failed to start one transport", s.error)
-
-  for t in s.transports: # for each transport
-    if t.addrs.len > 0:
+      await t.start(addrs)
       s.acceptFuts.add(s.accept(t))
       s.peerInfo.addrs &= t.addrs
 
@@ -276,6 +265,13 @@ proc newSwitch*(peerInfo: PeerInfo,
                 ms: MultistreamSelect,
                 nameResolver: NameResolver = nil): Switch
                 {.raises: [Defect, LPError].} =
+
+  if transports.len == 0:
+    raise newException(LPError, "Provide at least one transport")
+
+  if peerInfo.addrs.len == 0:
+    raise newException(LPError, "Provide at least one address")
+
   if secureManagers.len == 0:
     raise newException(LPError, "Provide at least one secure manager")
 

@@ -21,26 +21,53 @@ logScope:
   topics = "libp2p transport"
 
 type
+  ListenErrorCallback* = proc (
+      ma: MultiAddress,
+      err: ref CatchableError): Future[ref TransportListenError]
+      {.gcsafe, raises: [Defect].}
   TransportError* = object of LPError
   TransportInvalidAddrError* = object of TransportError
   TransportClosedError* = object of TransportError
+  TransportListenError* = object of TransportError
+    ma*: MultiAddress
 
   Transport* = ref object of RootObj
     addrs*: seq[MultiAddress]
     running*: bool
     upgrader*: Upgrade
+    listenError*: ListenErrorCallback
 
 proc newTransportClosedError*(parent: ref Exception = nil): ref LPError =
   newException(TransportClosedError,
     "Transport closed, no more connections!", parent)
 
+proc newTransportListenError*(
+    ma: MultiAddress,
+    parent: ref Exception = nil): ref TransportListenError =
+
+  return (ref TransportListenError)(msg: "Transport failed to start", parent: parent, ma: ma)
+
+const ListenErrorDefault* =
+  proc(
+      ma: MultiAddress,
+      err: ref CatchableError): Future[ref TransportListenError] {.async.} =
+
+    return newTransportListenError(ma, err)
+
+# TODO: add {.raises: [TransportError, TransportListenError].} when supported
+# by chronos
 method start*(
   self: Transport,
-  addrs: seq[MultiAddress]) {.base, async.} =
+  addrs: seq[MultiAddress])
+  {.base, async.} =
   ## start the transport
   ##
 
   trace "starting transport on addrs", address = $addrs
+  if addrs.len == 0:
+    raise newException(TransportError,
+      "Transport requires at least one address to be started")
+
   self.addrs = addrs
   self.running = true
 

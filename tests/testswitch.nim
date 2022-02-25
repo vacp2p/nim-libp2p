@@ -1,6 +1,6 @@
 {.used.}
 
-import options, sequtils, sets
+import options, sequtils, sets, sugar, tables
 import chronos
 import stew/byteutils
 import nimcrypto/sysrand
@@ -17,12 +17,14 @@ import ../libp2p/[errors,
                   protocols/secure/secure,
                   muxers/muxer,
                   muxers/mplex/lpchannel,
+                  muxers/mplex/mplex,
                   stream/lpstream,
                   nameresolving/nameresolver,
                   nameresolving/mockresolver,
                   stream/chronosstream,
                   transports/tcptransport,
                   transports/wstransport]
+import ./mocks/mocktransport
 import ./helpers
 
 const
@@ -979,3 +981,577 @@ suite "Switch":
     await destSwitch.stop()
     await srcWsSwitch.stop()
     await srcTcpSwitch.stop()
+
+  asyncTest "pessimistic: transport listenError callback default, should re-raise first address failure":
+    let
+      exc = buildExceptions(3)
+
+      transportStartMock =
+        proc(self: MockTransport, addrs: seq[MultiAddress]): Future[void] {.async.} =
+          for i, ma in addrs:
+            try:
+              if i == 0:
+                raise exc[0]
+              else:
+                fail()
+            except CatchableError as e:
+              let err = await self.listenError(ma, e)
+              if not err.isNil:
+                raise err
+              # return
+          fail() # should not get this far
+
+      mockTransport =
+        proc(upgr: Upgrade): Transport {.raises: [Defect].} =
+          # try/except here to keep the compiler happy. `startMock` can raise
+          # an exception if called, but it is not actually called in `new`, so
+          # we can wrap it in try/except to tell the compiler the exceptions
+          # won't bubble up to `TransportProvider`.
+          try: return MockTransport.new(
+            upgr,
+            startMock = transportStartMock)
+          except: return
+
+      mAddrs = buildLocalTcpAddrs(3)
+
+      switch = SwitchBuilder
+        .new()
+        .withRng(rng)       # Give the application RNG
+        .withAddresses(mAddrs)    # Our local address(es)
+        .withTransport(mockTransport) # Use MockTransport as transport
+        .withMplex()        # Use Mplex as muxer
+        .withNoise()        # Use Noise as secure manager
+        .build()
+
+    try:
+      await switch.start()
+      fail()
+    except TransportListenError as e:
+      check:
+        e.ma == mAddrs[0]
+        e.parent == exc[0]
+
+    await switch.stop()
+
+  asyncTest "pessimistic: transport listenError callback overridden, should re-raise first failures":
+    var handledTransportErrs = initTable[MultiAddress, ref CatchableError]()
+    let
+      exc = buildExceptions(3)
+
+      transportListenError =
+        proc(
+            ma: MultiAddress,
+            ex: ref CatchableError): Future[ref TransportListenError] {.async.} =
+
+          handledTransportErrs[ma] = ex
+          return newTransportListenError(ma, ex) # optimistic transport multiaddress failure
+
+      transportStartMock =
+        proc(self: MockTransport, addrs: seq[MultiAddress]): Future[void] {.async.} =
+          for i, ma in addrs:
+            try:
+              raise exc[i]
+            except CatchableError as e:
+              let err = await self.listenError(ma, e)
+              # check err == nil
+              if not err.isNil:
+                raise err
+
+      mockTransport =
+        proc(upgr: Upgrade): Transport {.raises: [Defect].} =
+          # try/except here to keep the compiler happy. `startMock` can raise
+          # an exception if called, but it is not actually called in `new`, so
+          # we can wrap it in try/except to tell the compiler the exceptions
+          # won't bubble up to `TransportProvider`.
+          try: return MockTransport.new(
+            upgr,
+            startMock = transportStartMock,
+            listenError = transportListenError)
+          except: return
+
+      mAddrs = buildLocalTcpAddrs(3)
+
+      switch = SwitchBuilder
+        .new()
+        .withRng(rng)       # Give the application RNG
+        .withAddresses(mAddrs)    # Our local address(es)
+        .withTransport(mockTransport) # Use MockTransport as transport
+        .withMplex()        # Use Mplex as muxer
+        .withNoise()        # Use Noise as secure manager
+        .build()
+
+    try:
+      await switch.start()
+    except TransportListenError as e:
+      check e.parent == exc[0]
+
+    echo "handledTransportErrs:"
+    for ma, ex in handledTransportErrs:
+      echo "ma: ", $ma, ", ex: ", ex.msg
+
+    check handledTransportErrs == [(mAddrs[0], exc[0])].toTable()
+
+    await switch.stop()
+
+  asyncTest "optimistic: transport listenError callback overridden, should not re-raise any failures":
+    var handledTransportErrs = initTable[MultiAddress, ref CatchableError]()
+    let
+      exc = buildExceptions(3)
+
+      transportListenError =
+        proc(
+            ma: MultiAddress,
+            ex: ref CatchableError): Future[ref TransportListenError] {.async.} =
+
+          handledTransportErrs[ma] = ex
+          return nil # optimistic transport multiaddress failure
+
+      transportStartMock =
+        proc(self: MockTransport, addrs: seq[MultiAddress]): Future[void] {.async.} =
+          for i, ma in addrs:
+            try:
+              raise exc[i]
+            except CatchableError as e:
+              let err = await self.listenError(ma, e)
+              # check err == nil
+              if not err.isNil:
+                raise err
+
+      mockTransport =
+        proc(upgr: Upgrade): Transport {.raises: [Defect].} =
+          # try/except here to keep the compiler happy. `startMock` can raise
+          # an exception if called, but it is not actually called in `new`, so
+          # we can wrap it in try/except to tell the compiler the exceptions
+          # won't bubble up to `TransportProvider`.
+          try: return MockTransport.new(
+            upgr,
+            startMock = transportStartMock,
+            listenError = transportListenError)
+          except: return
+
+      mAddrs = buildLocalTcpAddrs(3)
+
+      switch = SwitchBuilder
+        .new()
+        .withRng(rng)       # Give the application RNG
+        .withAddresses(mAddrs)    # Our local address(es)
+        .withTransport(mockTransport) # Use MockTransport as transport
+        .withMplex()        # Use Mplex as muxer
+        .withNoise()        # Use Noise as secure manager
+        .build()
+
+    try:
+      await switch.start()
+    except TransportListenError:
+      fail()
+
+    echo "handledTransportErrs:"
+    for mAddr, ex in handledTransportErrs:
+      echo "ma: ", $mAddr, ", ex: ", ex.msg
+
+    check handledTransportErrs == [(mAddrs[0], exc[0]), (mAddrs[1], exc[1]), (mAddrs[2], exc[2])].toTable()
+
+    await switch.stop()
+
+  asyncTest "mixed: transport0 optimistic, transport1 pessimistic, transport1.listenError only gets first address exception":
+    var
+      handledTransportErrs0 = initTable[MultiAddress, ref CatchableError]()
+      handledTransportErrs1 = initTable[MultiAddress, ref CatchableError]()
+
+    let
+      exc = buildExceptions(2, 3)
+
+      transportListenError0 =
+        proc(
+            ma: MultiAddress,
+            ex: ref CatchableError): Future[ref TransportListenError] {.async.} =
+
+          handledTransportErrs0[ma] = ex
+          # optimistic transport multiaddress failure
+          return nil
+
+      transportListenError1 =
+        proc(
+            ma: MultiAddress,
+            ex: ref CatchableError): Future[ref TransportListenError] {.async.} =
+
+          handledTransportErrs1[ma] = ex
+          # pessimistic transport multiaddress failure
+          return newTransportListenError(ma, ex)
+
+      transportStartMock0 =
+        proc(self: MockTransport, addrs: seq[MultiAddress]): Future[void] {.async.} =
+          for i, ma in addrs:
+            try:
+              raise exc[0][i]
+            except CatchableError as e:
+              let err = await self.listenError(ma, e)
+              if not err.isNil:
+                raise err
+
+      transportStartMock1 =
+        proc(self: MockTransport, addrs: seq[MultiAddress]): Future[void] {.async.} =
+          for i, ma in addrs:
+            try:
+              if i == 0:
+                continue
+              elif i == 1:
+                raise exc[1][i]
+              else:
+                fail()
+            except CatchableError as e:
+              let err = await self.listenError(ma, e)
+              if not err.isNil:
+                raise err
+
+      mockTransport0 =
+        proc(upgr: Upgrade): Transport {.raises: [Defect].} =
+          # try/except here to keep the compiler happy. `startMock` can raise
+          # an exception if called, but it is not actually called in `new`, so
+          # we can wrap it in try/except to tell the compiler the exceptions
+          # won't bubble up to `TransportProvider`.
+          try: return MockTransport.new(
+            upgr,
+            startMock = transportStartMock0,
+            listenError = transportListenError0)
+          except: return
+
+      mockTransport1 =
+        proc(upgr: Upgrade): Transport {.raises: [Defect].} =
+          # try/except here to keep the compiler happy. `startMock` can raise
+          # an exception if called, but it is not actually called in `new`, so
+          # we can wrap it in try/except to tell the compiler the exceptions
+          # won't bubble up to `TransportProvider`.
+          try: return MockTransport.new(
+            upgr,
+            startMock = transportStartMock1,
+            listenError = transportListenError1)
+          except: return
+
+      mAddrs = buildLocalTcpAddrs(3)
+
+      switch = SwitchBuilder
+        .new()
+        .withRng(rng)       # Give the application RNG
+        .withAddresses(mAddrs)    # Our local address(es)
+        .withTransport(mockTransport0) # Use MockTransport 0 as transport
+        .withTransport(mockTransport1) # Use MockTransport 1 as transport
+        .withMplex()        # Use Mplex as muxer
+        .withNoise()        # Use Noise as secure manager
+        .build()
+
+    var listenErrCalled = false
+
+    try:
+      await switch.start()
+    except TransportListenError as e:
+      listenErrCalled = true
+      check:
+        e.ma == mAddrs[1]
+        e.parent == exc[1][1]
+
+    check listenErrCalled
+
+    echo "handledTransportErrs0:"
+    for ma, ex in handledTransportErrs0:
+      echo "ma: ", $ma, ", ex: ", ex.msg
+
+    echo "handledTransportErrs1:"
+    for ma, ex in handledTransportErrs1:
+      echo "ma: ", $ma, ", ex: ", ex.msg
+
+    check:
+      handledTransportErrs0 == [(mAddrs[0], exc[0][0]), (mAddrs[1], exc[0][1]), (mAddrs[2], exc[0][2])].toTable()
+      handledTransportErrs1 == [(mAddrs[1], exc[1][1])].toTable()
+
+    await switch.stop()
+
+  asyncTest "transport0 / transport2 optimistic, transport1 pessimistic - transport1 exception re-raised and transport2 should not start":
+    var
+      handledTransportErrs0 = initTable[MultiAddress, ref CatchableError]()
+      handledTransportErrs1 = initTable[MultiAddress, ref CatchableError]()
+    let
+      # excXY, where X = MockTransport index, Y = transport exception index
+      exc = buildExceptions(2, 2)
+
+      transportListenError0 =
+        proc(
+            ma: MultiAddress,
+            ex: ref CatchableError): Future[ref TransportListenError] {.async.} =
+
+          handledTransportErrs0[ma] = ex
+          # optimistic transport multiaddress failure
+          return nil
+
+      transportListenError1 =
+        proc(
+            ma: MultiAddress,
+            ex: ref CatchableError): Future[ref TransportListenError] {.async.} =
+
+          handledTransportErrs1[ma] = ex
+          return newTransportListenError(ma, ex)
+
+      transportListenError2 =
+        proc(
+            ma: MultiAddress,
+            ex: ref CatchableError): Future[ref TransportListenError] {.async.} =
+
+          # should not get here as switch is pessimistic so will stop at first
+          # failed transport (transpor1)
+          fail()
+
+      transportStartMock0 =
+        proc(self: MockTransport, addrs: seq[MultiAddress]): Future[void] {.async.} =
+          for i, ma in addrs:
+            try:
+              if i == 1:
+                raise exc[0][i]
+              else:
+                continue
+            except CatchableError as e:
+              let err = await self.listenError(ma, e)
+              if not err.isNil:
+                raise err
+
+      transportStartMock1 =
+        proc(self: MockTransport, addrs: seq[MultiAddress]): Future[void] {.async.} =
+          for i, ma in addrs:
+            try:
+              if i == 0:
+                raise exc[1][i]
+              else:
+                continue
+            except CatchableError as e:
+              let err = await self.listenError(ma, e)
+              if not err.isNil:
+                raise err
+
+      transportStartMock2 =
+        proc(self: MockTransport, addrs: seq[MultiAddress]): Future[void] {.async.} =
+          # should not start transpor2 as transport1 should fail pessimistically
+          fail()
+
+      mockTransport0 =
+        proc(upgr: Upgrade): Transport {.raises: [Defect].} =
+          # try/except here to keep the compiler happy. `startMock` can raise
+          # an exception if called, but it is not actually called in `new`, so
+          # we can wrap it in try/except to tell the compiler the exceptions
+          # won't bubble up to `TransportProvider`.
+          try: return MockTransport.new(
+            upgr,
+            startMock = transportStartMock0,
+            listenError = transportListenError0)
+          except: return
+
+      mockTransport1 =
+        proc(upgr: Upgrade): Transport {.raises: [Defect].} =
+          # try/except here to keep the compiler happy. `startMock` can raise
+          # an exception if called, but it is not actually called in `new`, so
+          # we can wrap it in try/except to tell the compiler the exceptions
+          # won't bubble up to `TransportProvider`.
+          try: return MockTransport.new(
+            upgr,
+            startMock = transportStartMock1,
+            listenError = transportListenError1)
+          except: return
+
+      mockTransport2 =
+        proc(upgr: Upgrade): Transport {.raises: [Defect].} =
+          # try/except here to keep the compiler happy. `startMock` can raise
+          # an exception if called, but it is not actually called in `new`, so
+          # we can wrap it in try/except to tell the compiler the exceptions
+          # won't bubble up to `TransportProvider`.
+          try: return MockTransport.new(
+            upgr,
+            startMock = transportStartMock2,
+            listenError = transportListenError2)
+          except: return
+
+      mAddrs = buildLocalTcpAddrs(3)
+
+      switch = SwitchBuilder
+        .new()
+        .withRng(rng)       # Give the application RNG
+        .withAddresses(mAddrs)    # Our local address(es)
+        .withTransport(mockTransport0) # Use MockTransport 0 as transport
+        .withTransport(mockTransport1) # Use MockTransport 1 as transport
+        .withTransport(mockTransport2) # Use MockTransport 2 as transport
+        .withMplex()        # Use Mplex as muxer
+        .withNoise()        # Use Noise as secure manager
+        .build()
+
+    try:
+      await switch.start()
+    except TransportListenError as e:
+      check:
+        e.ma == mAddrs[0]
+        e.parent == exc[1][0]
+
+    echo "handledTransportErrs0:"
+    for ma, ex in handledTransportErrs0:
+      echo "ma: ", $ma, ", ex: ", ex.msg
+
+    echo "handledTransportErrs1:"
+    for ma, ex in handledTransportErrs1:
+      echo "ma: ", $ma, ", ex: ", ex.msg
+
+    check:
+      handledTransportErrs0 == [(mAddrs[1], exc[0][1])].toTable()
+      handledTransportErrs1 == [(mAddrs[0], exc[1][0])].toTable()
+
+    await switch.stop()
+
+  asyncTest "no exceptions raised, listenError should not be called":
+    let
+      transportListenError0 =
+        proc(
+            ma: MultiAddress,
+            ex: ref CatchableError): Future[ref TransportListenError] {.async.} =
+          fail()
+
+      transportListenError1 =
+        proc(
+            ma: MultiAddress,
+            ex: ref CatchableError): Future[ref TransportListenError] {.async.} =
+          fail()
+
+      transportStartMock0 =
+        proc(self: MockTransport, addrs: seq[MultiAddress]): Future[void] {.async.} =
+          for i, ma in addrs:
+            continue
+
+      transportStartMock1 =
+        proc(self: MockTransport, addrs: seq[MultiAddress]): Future[void] {.async.} =
+          for i, ma in addrs:
+            continue
+
+      mockTransport0 =
+        proc(upgr: Upgrade): Transport {.raises: [Defect].} =
+          # try/except here to keep the compiler happy. `startMock` can raise
+          # an exception if called, but it is not actually called in `new`, so
+          # we can wrap it in try/except to tell the compiler the exceptions
+          # won't bubble up to `TransportProvider`.
+          try: return MockTransport.new(
+            upgr,
+            startMock = transportStartMock0,
+            listenError = transportListenError0)
+          except: return
+
+      mockTransport1 =
+        proc(upgr: Upgrade): Transport {.raises: [Defect].} =
+          # try/except here to keep the compiler happy. `startMock` can raise
+          # an exception if called, but it is not actually called in `new`, so
+          # we can wrap it in try/except to tell the compiler the exceptions
+          # won't bubble up to `TransportProvider`.
+          try: return MockTransport.new(
+            upgr,
+            startMock = transportStartMock1,
+            listenError = transportListenError1)
+          except: return
+
+      mAddrs = buildLocalTcpAddrs(3)
+
+      switch = SwitchBuilder
+        .new()
+        .withRng(rng)       # Give the application RNG
+        .withAddresses(mAddrs)    # Our local address(es)
+        .withTransport(mockTransport0) # Use MockTransport 0 as transport
+        .withTransport(mockTransport1) # Use MockTransport 1 as transport
+        .withMplex()        # Use Mplex as muxer
+        .withNoise()        # Use Noise as secure manager
+        .build()
+
+    try:
+      await switch.start()
+    except TransportListenError:
+      # because transport.listenError should never be called, we shouldn't
+      # expect an error to be raised from switch.start
+      fail()
+
+    await switch.stop()
+
+  asyncTest "unhandled addresses are filtered":
+    let
+      transport = proc(upgr: Upgrade): Transport {.raises: [Defect].} =
+        # try/except here to keep the compiler happy. `startMock` can raise
+        # an exception if called, but it is not actually called in `new`, so
+        # we can wrap it in try/except to tell the compiler the exceptions
+        # won't bubble up to `TransportProvider`.
+        try: return MockTransport.new(upgr)
+        except: return
+      maTcp1 = Multiaddress.init("/ip4/0.0.0.0/tcp/1").tryGet()
+      maUdp = Multiaddress.init("/ip4/0.0.0.0/udp/0").tryGet()
+      maTcp2 = Multiaddress.init("/ip4/0.0.0.0/tcp/2").tryGet()
+      maP2p = Multiaddress.init("/p2p-circuit").tryGet()
+
+      switch = SwitchBuilder
+        .new()
+        .withRng(rng)       # Give the application RNG
+        .withAddresses(@[maTcp1, maUdp, maTcp2, maP2p])    # Our local address(es)
+        .withTransport(transport) # Use MockTransport as transport
+        .withMplex()        # Use Mplex as muxer
+        .withNoise()        # Use Noise as secure manager
+        .build()
+
+    await switch.start()
+
+    check switch.transports[0].addrs == @[maTcp1, maUdp, maTcp2]
+
+    await switch.stop()
+
+  asyncTest "should raise defect if no transports provided during construction":
+    let
+      mAddrs = buildLocalTcpAddrs(3)
+      transport = (upgr: Upgrade) -> Transport => MockTransport.new(upgr)
+
+    # builder should raise defect with addresses, but no transports
+    expect LPError:
+      discard SwitchBuilder
+        .new()
+        .withRng(rng)       # Give the application RNG
+        .withAddresses(mAddrs)    # Our local address(es)
+        .withMplex()        # Use Mplex as muxer
+        .withNoise()        # Use Noise as secure manager
+        .build()
+
+    # builder should raise defect with transports, but no addresses
+    expect LPError:
+      echo "[testswitch] building switch with no addresses"
+      discard SwitchBuilder
+        .new()
+        .withRng(rng)       # Give the application RNG
+        .withTransport(transport)
+        .withAddresses(@[])
+        .withMplex()        # Use Mplex as muxer
+        .withNoise()        # Use Noise as secure manager
+        .build()
+
+    # should raise defect with addresses, but no transports
+    var
+      seckey = PrivateKey.random(rng[]).get()
+      peerInfo = PeerInfo.new(seckey, mAddrs)
+      identify = Identify.new(peerInfo)
+      muxers = initTable[string, MuxerProvider]()
+
+    muxers[MplexCodec] =
+       MuxerProvider.new((conn: Connection) -> Muxer => Mplex.new(conn), MplexCodec)
+
+    expect LPError:
+      discard newSwitch(
+        peerInfo = peerInfo,
+        transports = @[],
+        identity = identify,
+        muxers = muxers,
+        connManager = ConnManager.new(),
+        ms = MultistreamSelect.new())
+
+    # should raise defect with transports, but no addresses
+    peerInfo.addrs = @[]
+    expect LPError:
+      discard newSwitch(
+        peerInfo = peerInfo,
+        transports = @[transport(Upgrade.new())],
+        identity = identify,
+        muxers = muxers,
+        connManager = ConnManager.new(),
+        ms = MultistreamSelect.new())

@@ -100,8 +100,8 @@ proc withTransport*(b: SwitchBuilder, prov: TransportProvider): SwitchBuilder =
   b.transports.add(prov)
   b
 
-proc withTcpTransport*(b: SwitchBuilder, flags: set[ServerFlags] = {}): SwitchBuilder =
-  b.withTransport(proc(upgr: Upgrade): Transport = TcpTransport.new(flags, upgr))
+proc withTcpTransport*(b: SwitchBuilder, flags: set[ServerFlags] = {}, listenError: ListenErrorCallback = nil): SwitchBuilder =
+  b.withTransport(proc(upgr: Upgrade): Transport = TcpTransport.new(flags, upgr, listenError))
 
 proc withRng*(b: SwitchBuilder, rng: ref BrHmacDrbgContext): SwitchBuilder =
   b.rng = rng

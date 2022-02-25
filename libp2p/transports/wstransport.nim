@@ -98,6 +98,7 @@ type
 proc secure*(self: WsTransport): bool =
   not (isNil(self.tlsPrivateKey) or isNil(self.tlsCertificate))
 
+# TODO: add {.raises: [TransportListenError].} when supported by chronos
 method start*(
   self: WsTransport,
   addrs: seq[MultiAddress]) {.async.} =
@@ -115,8 +116,7 @@ method start*(
     factories = self.factories,
     rng = self.rng)
 
-  
-  for i, ma in addrs:
+  for i, ma in self.addrs:
     let isWss =
       if WSS.match(ma):
         if self.secure: true
@@ -125,26 +125,32 @@ method start*(
           false
       else: false
 
-    let httpserver =
-      if isWss:
-        TlsHttpServer.create(
-          address = ma.initTAddress().tryGet(),
-          tlsPrivateKey = self.tlsPrivateKey,
-          tlsCertificate = self.tlsCertificate,
-          flags = self.flags)
-      else:
-        HttpServer.create(ma.initTAddress().tryGet())
+    try:
+      let httpserver =
+        if isWss:
+          TlsHttpServer.create(
+            address = ma.initTAddress().tryGet(),
+            tlsPrivateKey = self.tlsPrivateKey,
+            tlsCertificate = self.tlsCertificate,
+            flags = self.flags)
+        else:
+          HttpServer.create(ma.initTAddress().tryGet())
 
-    self.httpservers &= httpserver
+      self.httpservers &= httpserver
 
-    let codec = if isWss:
-        MultiAddress.init("/wss")
-      else:
-        MultiAddress.init("/ws")
+      let codec = if isWss:
+          MultiAddress.init("/wss")
+        else:
+          MultiAddress.init("/ws")
 
-    # always get the resolved address in case we're bound to 0.0.0.0:0
-    self.addrs[i] = MultiAddress.init(
-      httpserver.localAddress()).tryGet() & codec.tryGet()
+      # always get the resolved address in case we're bound to 0.0.0.0:0
+      self.addrs[i] = MultiAddress.init(
+        httpserver.localAddress()).tryGet() & codec.tryGet()
+
+    except CatchableError as ex:
+      let err = await self.listenError(ma, ex)
+      if not err.isNil:
+        raise err
 
   trace "Listening on", addresses = self.addrs
 
@@ -301,7 +307,8 @@ proc new*(
   tlsFlags: set[TLSFlags] = {},
   flags: set[ServerFlags] = {},
   factories: openArray[ExtFactory] = [],
-  rng: Rng = nil): T =
+  rng: Rng = nil,
+  listenError: ListenErrorCallback = ListenErrorDefault): T =
 
   T(
     upgrader: upgrade,
@@ -310,14 +317,16 @@ proc new*(
     tlsFlags: tlsFlags,
     flags: flags,
     factories: @factories,
-    rng: rng)
+    rng: rng,
+    listenError: listenError)
 
 proc new*(
   T: typedesc[WsTransport],
   upgrade: Upgrade,
   flags: set[ServerFlags] = {},
   factories: openArray[ExtFactory] = [],
-  rng: Rng = nil): T =
+  rng: Rng = nil,
+  listenError: ListenErrorCallback = ListenErrorDefault): T =
 
   T.new(
     upgrade = upgrade,
@@ -325,4 +334,5 @@ proc new*(
     tlsCertificate = nil,
     flags = flags,
     factories = @factories,
-    rng = rng)
+    rng = rng,
+    listenError = listenError)

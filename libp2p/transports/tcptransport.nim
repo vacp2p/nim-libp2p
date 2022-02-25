@@ -118,15 +118,18 @@ proc connHandler*(self: TcpTransport,
 proc new*(
   T: typedesc[TcpTransport],
   flags: set[ServerFlags] = {},
-  upgrade: Upgrade): T =
+  upgrade: Upgrade,
+  listenError: ListenErrorCallback = ListenErrorDefault): T =
 
   let transport = T(
     flags: flags,
-    upgrader: upgrade)
+    upgrader: upgrade,
+    listenError: listenError)
 
   inc getTcpTransportTracker().opened
   return transport
 
+# TODO: add {.raises: [TransportListenError].} when supported by chronos
 method start*(
   self: TcpTransport,
   addrs: seq[MultiAddress]) {.async.} =
@@ -141,21 +144,22 @@ method start*(
   trace "Starting TCP transport"
 
   for i, ma in addrs:
-    if not self.handles(ma):
-      trace "Invalid address detected, skipping!", address = ma
-      continue
+    try:
+      let server = createStreamServer(
+        ma = ma,
+        flags = self.flags,
+        udata = self)
 
-    let server = createStreamServer(
-      ma = ma,
-      flags = self.flags,
-      udata = self)
+      # always get the resolved address in case we're bound to 0.0.0.0:0
+      self.addrs[i] = MultiAddress.init(
+        server.sock.getLocalAddress()
+      ).tryGet()
 
-    # always get the resolved address in case we're bound to 0.0.0.0:0
-    self.addrs[i] = MultiAddress.init(
-      server.sock.getLocalAddress()
-    ).tryGet()
-
-    self.servers &= server
+      self.servers &= server
+    except CatchableError as ex:
+      let err = await self.listenError(ma, ex)
+      if not err.isNil:
+        raise err
 
     trace "Listening on", address = ma
 
