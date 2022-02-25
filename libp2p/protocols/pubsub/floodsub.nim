@@ -96,7 +96,14 @@ method rpcHandler*(f: FloodSub,
     f.handleSubscribe(peer, sub.topic, sub.subscribe)
 
   for msg in rpcMsg.messages:                         # for every message
-    let msgId = f.msgIdProvider(msg)
+    let msgIdResult = f.msgIdProvider(msg)
+    if msgIdResult.isErr:
+      debug "Dropping message due to failed message id generation",
+        error = msgIdResult.error
+      # TODO: descore peers due to error during message validation (malicious?)
+      continue
+
+    let msgId = msgIdResult.get
 
     if f.addSeen(msgId):
       trace "Dropping already-seen message", msgId, peer
@@ -184,7 +191,14 @@ method publish*(f: FloodSub,
         Message.init(none(PeerInfo), data, topic, none(uint64), false)
       else:
         Message.init(some(f.peerInfo), data, topic, some(f.msgSeqno), f.sign)
-    msgId = f.msgIdProvider(msg)
+    msgIdResult = f.msgIdProvider(msg)
+
+  if msgIdResult.isErr:
+    trace "Error generating message id, skipping publish",
+      error = msgIdResult.error
+    return 0
+
+  let msgId = msgIdResult.get
 
   trace "Created new message",
     msg = shortLog(msg), peers = peers.len, topic, msgId

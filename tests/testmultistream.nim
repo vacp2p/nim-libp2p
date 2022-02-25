@@ -10,6 +10,9 @@ import ../libp2p/errors,
        ../libp2p/protocols/protocol,
        ../libp2p/upgrademngrs/upgrade
 
+
+{.push raises: [Defect].}
+
 import ./helpers
 
 when defined(nimHasUsed): {.used.}
@@ -53,7 +56,7 @@ method readOnce*(s: TestSelectStream,
 
 method write*(s: TestSelectStream, msg: seq[byte]) {.async, gcsafe.} = discard
 
-method close(s: TestSelectStream) {.async, gcsafe.} =
+method close(s: TestSelectStream) {.async, gcsafe, raises: [Defect].} =
   s.isClosed = true
   s.isEof = true
 
@@ -63,7 +66,7 @@ proc newTestSelectStream(): TestSelectStream =
 
 ## Mock stream for handles `ls` test
 type
-  LsHandler = proc(procs: seq[byte]): Future[void] {.gcsafe.}
+  LsHandler = proc(procs: seq[byte]): Future[void] {.gcsafe, raises: [Defect].}
 
   TestLsStream = ref object of Connection
     step*: int
@@ -115,7 +118,7 @@ proc newTestLsStream(ls: LsHandler): TestLsStream {.gcsafe.} =
 
 ## Mock stream for handles `na` test
 type
-  NaHandler = proc(procs: string): Future[void] {.gcsafe.}
+  NaHandler = proc(procs: string): Future[void] {.gcsafe, raises: [Defect].}
 
   TestNaStream = ref object of Connection
     step*: int
@@ -195,14 +198,14 @@ suite "Multistream select":
   asyncTest "test handle `ls`":
     let ms = MultistreamSelect.new()
 
-    proc testLsHandler(proto: seq[byte]) {.async, gcsafe.} # forward declaration
-    let conn = Connection(newTestLsStream(testLsHandler))
+    var conn: Connection = nil
     let done = newFuture[void]()
     proc testLsHandler(proto: seq[byte]) {.async, gcsafe.} =
       var strProto: string = string.fromBytes(proto)
       check strProto == "\x26/test/proto1/1.0.0\n/test/proto2/1.0.0\n"
       await conn.close()
       done.complete()
+    conn = Connection(newTestLsStream(testLsHandler))
 
     proc testHandler(conn: Connection, proto: string): Future[void]
       {.async, gcsafe.} = discard
@@ -216,13 +219,12 @@ suite "Multistream select":
   asyncTest "test handle `na`":
     let ms = MultistreamSelect.new()
 
-    proc testNaHandler(msg: string): Future[void] {.async, gcsafe.}
-    let conn = newTestNaStream(testNaHandler)
-
+    var conn: Connection = nil
     proc testNaHandler(msg: string): Future[void] {.async, gcsafe.} =
       echo msg
       check msg == Na
       await conn.close()
+    conn = newTestNaStream(testNaHandler)
 
     var protocol: LPProtocol = new LPProtocol
     proc testHandler(conn: Connection,

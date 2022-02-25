@@ -225,7 +225,7 @@ method accept*(self: TcpTransport): Future[Connection] {.async, gcsafe.} =
     debug "Server was closed", exc = exc.msg
     raise newTransportClosedError(exc)
   except CancelledError as exc:
-    raise
+    raise exc
   except CatchableError as exc:
     debug "Unexpected error accepting connection", exc = exc.msg
     raise exc

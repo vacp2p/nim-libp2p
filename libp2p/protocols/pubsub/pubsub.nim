@@ -11,7 +11,8 @@
 
 import std/[tables, sequtils, sets, strutils]
 import chronos, chronicles, metrics, bearssl
-import ./pubsubpeer,
+import ./errors as pubsub_errors,
+       ./pubsubpeer,
        ./rpc/[message, messages, protobuf],
        ../../switch,
        ../protocol,
@@ -29,6 +30,7 @@ export results
 export PubSubPeer
 export PubSubObserver
 export protocol
+export pubsub_errors
 
 logScope:
   topics = "libp2p pubsub"
@@ -76,16 +78,13 @@ type
   TopicHandler* = proc(topic: string,
                        data: seq[byte]): Future[void] {.gcsafe, raises: [Defect].}
 
-  ValidationResult* {.pure.} = enum
-    Accept, Reject, Ignore
-
   ValidatorHandler* = proc(topic: string,
                            message: Message): Future[ValidationResult] {.gcsafe, raises: [Defect].}
 
   TopicPair* = tuple[topic: string, handler: TopicHandler]
 
   MsgIdProvider* =
-    proc(m: Message): MessageID {.noSideEffect, raises: [Defect], gcsafe.}
+    proc(m: Message): Result[MessageID, ValidationResult] {.noSideEffect, raises: [Defect], gcsafe.}
 
   SubscriptionValidator* =
     proc(topic: string): bool {.raises: [Defect], gcsafe.}
@@ -451,6 +450,11 @@ proc subscribe*(p: PubSub,
   ##               that will be triggered
   ##               on every received message
   ##
+
+  # Check that this is an allowed topic
+  if p.subscriptionValidator != nil and p.subscriptionValidator(topic) == false:
+    warn "Trying to subscribe to a topic not passing validation!", topic
+    return
 
   p.topics.withValue(topic, handlers) do:
     # Already subscribed, just adding another handler

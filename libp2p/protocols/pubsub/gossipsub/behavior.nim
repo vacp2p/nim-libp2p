@@ -489,9 +489,11 @@ proc replenishFanout*(g: GossipSub, topic: string) {.raises: [Defect].} =
   logScope: topic
   trace "about to replenish fanout"
 
+  let currentMesh = g.mesh.getOrDefault(topic)
   if g.fanout.peers(topic) < g.parameters.dLow:
     trace "replenishing fanout", peers = g.fanout.peers(topic)
     for peer in g.gossipsub.getOrDefault(topic):
+      if peer in currentMesh: continue
       if g.fanout.addPeer(topic, peer):
         if g.fanout.peers(topic) == g.parameters.d:
           break

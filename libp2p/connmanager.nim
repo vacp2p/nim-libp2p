@@ -25,7 +25,7 @@ declareGauge(libp2p_peers, "total connected peers")
 
 const
   MaxConnections* = 50
-  MaxConnectionsPerPeer* = 5
+  MaxConnectionsPerPeer* = 1
 
 type
   TooManyConnectionsError* = object of LPError
@@ -65,7 +65,7 @@ type
         discard
 
   PeerEventHandler* =
-    proc(peerId: PeerId, event: PeerEvent): Future[void] {.gcsafe.}
+    proc(peerId: PeerId, event: PeerEvent): Future[void] {.gcsafe, raises: [Defect].}
 
   MuxerHolder = object
     muxer: Muxer
@@ -452,7 +452,8 @@ proc trackIncomingConn*(c: ConnManager,
     raise exc
 
 proc trackOutgoingConn*(c: ConnManager,
-                        provider: ConnProvider):
+                        provider: ConnProvider,
+                        forceDial = false):
                         Future[Connection] {.async.} =
   ## try acquiring a connection if all slots
   ## are already taken, raise TooManyConnectionsError
@@ -462,7 +463,9 @@ proc trackOutgoingConn*(c: ConnManager,
   trace "Tracking outgoing connection", count = c.outSema.count,
                                         max = c.outSema.size
 
-  if not c.outSema.tryAcquire():
+  if forceDial:
+    c.outSema.forceAcquire()
+  elif not c.outSema.tryAcquire():
     trace "Too many outgoing connections!", count = c.outSema.count,
                                             max = c.outSema.size
     raise newTooManyConnectionsError()

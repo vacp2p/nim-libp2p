@@ -186,15 +186,15 @@ method unsubscribePeer*(g: GossipSub, peer: PeerId) =
       if s[].len == 0:
         g.peersInIP.del(pubSubPeer.address.get())
 
-  for t in toSeq(g.gossipsub.keys):
-    g.gossipsub.removePeer(t, pubSubPeer)
-    # also try to remove from explicit table here
-    g.explicit.removePeer(t, pubSubPeer)
-
   for t in toSeq(g.mesh.keys):
     trace "pruning unsubscribing peer", pubSubPeer, score = pubSubPeer.score
     g.pruned(pubSubPeer, t)
     g.mesh.removePeer(t, pubSubPeer)
+
+  for t in toSeq(g.gossipsub.keys):
+    g.gossipsub.removePeer(t, pubSubPeer)
+    # also try to remove from explicit table here
+    g.explicit.removePeer(t, pubSubPeer)
 
   for t in toSeq(g.fanout.keys):
     g.fanout.removePeer(t, pubSubPeer)
@@ -237,9 +237,14 @@ proc handleSubscribe*(g: GossipSub,
   else:
     trace "peer unsubscribed from topic"
 
+    if g.mesh.hasPeer(topic, peer):
+      #against spec
+      g.mesh.removePeer(topic, peer)
+      g.pruned(peer, topic)
+
     # unsubscribe remote peer from the topic
     g.gossipsub.removePeer(topic, peer)
-    g.mesh.removePeer(topic, peer)
+
     g.fanout.removePeer(topic, peer)
     if peer.peerId in g.parameters.directPeers:
       g.explicit.removePeer(topic, peer)
@@ -282,6 +287,64 @@ proc handleControl(g: GossipSub, peer: PubSubPeer, control: ControlMessage) =
       peer,
       RPCMsg(control: some(respControl), messages: messages))
 
+proc validateAndRelay(g: GossipSub,
+                      msg: Message,
+                      msgId, msgIdSalted: MessageId,
+                      peer: PubSubPeer) {.async.} =
+  try:
+    let validation = await g.validate(msg)
+
+    var seenPeers: HashSet[PubSubPeer]
+    discard g.validationSeen.pop(msgIdSalted, seenPeers)
+    libp2p_gossipsub_duplicate_during_validation.inc(seenPeers.len.int64)
+
+    case validation
+    of ValidationResult.Reject:
+      debug "Dropping message after validation, reason: reject",
+        msgId = shortLog(msgId), peer
+      g.punishInvalidMessage(peer, msg.topicIDs)
+      return
+    of ValidationResult.Ignore:
+      debug "Dropping message after validation, reason: ignore",
+        msgId = shortLog(msgId), peer
+      return
+    of ValidationResult.Accept:
+      discard
+
+    # store in cache only after validation
+    g.mcache.put(msgId, msg)
+
+    g.rewardDelivered(peer, msg.topicIDs, true)
+
+    var toSendPeers = HashSet[PubSubPeer]()
+    for t in msg.topicIDs:                      # for every topic in the message
+      if t notin g.topics:
+        continue
+
+      g.floodsub.withValue(t, peers): toSendPeers.incl(peers[])
+      g.mesh.withValue(t, peers): toSendPeers.incl(peers[])
+
+    # Don't send it to source peer, or peers that
+    # sent it during validation
+    toSendPeers.excl(peer)
+    toSendPeers.excl(seenPeers)
+
+    # In theory, if topics are the same in all messages, we could batch - we'd
+    # also have to be careful to only include validated messages
+    g.broadcast(toSendPeers, RPCMsg(messages: @[msg]))
+    trace "forwared message to peers", peers = toSendPeers.len, msgId, peer
+    for topic in msg.topicIDs:
+      if topic notin g.topics: continue
+
+      if g.knownTopics.contains(topic):
+        libp2p_pubsub_messages_rebroadcasted.inc(toSendPeers.len.int64, labelValues = [topic])
+      else:
+        libp2p_pubsub_messages_rebroadcasted.inc(toSendPeers.len.int64, labelValues = ["generic"])
+
+      await handleData(g, topic, msg.data)
+  except CatchableError as exc:
+    info "validateAndRelay failed", msg=exc.msg
+
 method rpcHandler*(g: GossipSub,
                   peer: PubSubPeer,
                   rpcMsg: RPCMsg) {.async.} =
@@ -299,8 +362,16 @@ method rpcHandler*(g: GossipSub,
 
   for i in 0..<rpcMsg.messages.len():                         # for every message
     template msg: untyped = rpcMsg.messages[i]
+    let msgIdResult = g.msgIdProvider(msg)
+
+    if msgIdResult.isErr:
+      debug "Dropping message due to failed message id generation",
+        error = msgIdResult.error
+      # TODO: descore peers due to error during message validation (malicious?)
+      continue
+
     let
-      msgId = g.msgIdProvider(msg)
+      msgId = msgIdResult.get
       msgIdSalted = msgId & g.seenSalt
 
     # addSeen adds salt to msgId to avoid
@@ -343,54 +414,7 @@ method rpcHandler*(g: GossipSub,
     # (eg, pop everything you put in it)
     g.validationSeen[msgIdSalted] = initHashSet[PubSubPeer]()
 
-    let validation = await g.validate(msg)
-
-    var seenPeers: HashSet[PubSubPeer]
-    discard g.validationSeen.pop(msgIdSalted, seenPeers)
-    libp2p_gossipsub_duplicate_during_validation.inc(seenPeers.len.int64)
-
-    case validation
-    of ValidationResult.Reject:
-      debug "Dropping message after validation, reason: reject",
-        msgId = shortLog(msgId), peer
-      g.punishInvalidMessage(peer, msg.topicIDs)
-      continue
-    of ValidationResult.Ignore:
-      debug "Dropping message after validation, reason: ignore",
-        msgId = shortLog(msgId), peer
-      continue
-    of ValidationResult.Accept:
-      discard
-
-    # store in cache only after validation
-    g.mcache.put(msgId, msg)
-
-    g.rewardDelivered(peer, msg.topicIDs, true)
-
-    var toSendPeers = HashSet[PubSubPeer]()
-    for t in msg.topicIDs:                      # for every topic in the message
-      if t notin g.topics:
-        continue
-
-      g.floodsub.withValue(t, peers): toSendPeers.incl(peers[])
-      g.mesh.withValue(t, peers): toSendPeers.incl(peers[])
-
-      await handleData(g, t, msg.data)
-
-    # Don't send it to source peer, or peers that
-    # sent it during validation
-    toSendPeers.excl(peer)
-    toSendPeers.excl(seenPeers)
-
-    # In theory, if topics are the same in all messages, we could batch - we'd
-    # also have to be careful to only include validated messages
-    g.broadcast(toSendPeers, RPCMsg(messages: @[msg]))
-    trace "forwared message to peers", peers = toSendPeers.len, msgId, peer
-    for topic in msg.topicIDs:
-      if g.knownTopics.contains(topic):
-        libp2p_pubsub_messages_rebroadcasted.inc(toSendPeers.len.int64, labelValues = [topic])
-      else:
-        libp2p_pubsub_messages_rebroadcasted.inc(toSendPeers.len.int64, labelValues = ["generic"])
+    asyncSpawn g.validateAndRelay(msg, msgId, msgIdSalted, peer)
 
   if rpcMsg.control.isSome():
     g.handleControl(peer, rpcMsg.control.unsafeGet())
@@ -458,13 +482,23 @@ method publish*(g: GossipSub,
 
   if topic in g.topics: # if we're subscribed use the mesh
     peers.incl(g.mesh.getOrDefault(topic))
-  else: # not subscribed, send to fanout peers
-    # try optimistically
-    peers.incl(g.fanout.getOrDefault(topic))
-    if peers.len == 0:
-      # ok we had nothing.. let's try replenish inline
+
+  if peers.len < g.parameters.dLow and g.parameters.floodPublish == false:
+    # not subscribed or bad mesh, send to fanout peers
+    # disable for floodPublish, since we already sent to every good peer
+    #
+    var fanoutPeers = g.fanout.getOrDefault(topic).toSeq()
+    if fanoutPeers.len == 0:
       g.replenishFanout(topic)
-      peers.incl(g.fanout.getOrDefault(topic))
+      fanoutPeers = g.fanout.getOrDefault(topic).toSeq()
+
+    g.rng.shuffle(fanoutPeers)
+    if fanoutPeers.len + peers.len > g.parameters.d:
+      fanoutPeers.setLen(g.parameters.d - peers.len)
+    
+    for fanPeer in fanoutPeers:
+      peers.incl(fanPeer)
+      if peers.len > g.parameters.d: break
 
     # even if we couldn't publish,
     # we still attempted to publish
@@ -489,7 +523,15 @@ method publish*(g: GossipSub,
         Message.init(none(PeerInfo), data, topic, none(uint64), false)
       else:
         Message.init(some(g.peerInfo), data, topic, some(g.msgSeqno), g.sign)
-    msgId = g.msgIdProvider(msg)
+    msgIdResult = g.msgIdProvider(msg)
+
+  if msgIdResult.isErr:
+    trace "Error generating message id, skipping publish",
+      error = msgIdResult.error
+    libp2p_gossipsub_failed_publish.inc()
+    return 0
+
+  let msgId = msgIdResult.get
 
   logScope: msgId = shortLog(msgId)
 

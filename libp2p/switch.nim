@@ -99,8 +99,9 @@ proc disconnect*(s: Switch, peerId: PeerId): Future[void] {.gcsafe.} =
 method connect*(
   s: Switch,
   peerId: PeerId,
-  addrs: seq[MultiAddress]): Future[void] =
-  s.dialer.connect(peerId, addrs)
+  addrs: seq[MultiAddress],
+  forceDial = false): Future[void] =
+  s.dialer.connect(peerId, addrs, forceDial)
 
 method dial*(
   s: Switch,
@@ -117,8 +118,9 @@ method dial*(
   s: Switch,
   peerId: PeerId,
   addrs: seq[MultiAddress],
-  protos: seq[string]): Future[Connection] =
-  s.dialer.dial(peerId, addrs, protos)
+  protos: seq[string],
+  forceDial = false): Future[Connection] =
+  s.dialer.dial(peerId, addrs, protos, forceDial)
 
 proc dial*(
   s: Switch,

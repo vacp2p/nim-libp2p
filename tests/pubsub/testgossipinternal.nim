@@ -39,6 +39,8 @@ proc randomPeerId(): PeerId =
   except CatchableError as exc:
     raise newException(Defect, exc.msg)
 
+const MsgIdSuccess = "msg id gen success"
+
 suite "GossipSub internal":
   teardown:
     checkTrackers()
@@ -308,7 +310,7 @@ suite "GossipSub internal":
       conn.peerId = peerId
       inc seqno
       let msg = Message.init(peerId, ("HELLO" & $i).toBytes(), topic, some(seqno))
-      gossipSub.mcache.put(gossipSub.msgIdProvider(msg), msg)
+      gossipSub.mcache.put(gossipSub.msgIdProvider(msg).expect(MsgIdSuccess), msg)
 
     check gossipSub.fanout[topic].len == 15
     check gossipSub.mesh[topic].len == 15
@@ -355,7 +357,7 @@ suite "GossipSub internal":
       conn.peerId = peerId
       inc seqno
       let msg = Message.init(peerId, ("HELLO" & $i).toBytes(), topic, some(seqno))
-      gossipSub.mcache.put(gossipSub.msgIdProvider(msg), msg)
+      gossipSub.mcache.put(gossipSub.msgIdProvider(msg).expect(MsgIdSuccess), msg)
 
     let peers = gossipSub.getGossipPeers()
     check peers.len == gossipSub.parameters.d
@@ -396,7 +398,7 @@ suite "GossipSub internal":
       conn.peerId = peerId
       inc seqno
       let msg = Message.init(peerId, ("HELLO" & $i).toBytes(), topic, some(seqno))
-      gossipSub.mcache.put(gossipSub.msgIdProvider(msg), msg)
+      gossipSub.mcache.put(gossipSub.msgIdProvider(msg).expect(MsgIdSuccess), msg)
 
     let peers = gossipSub.getGossipPeers()
     check peers.len == gossipSub.parameters.d
@@ -437,7 +439,7 @@ suite "GossipSub internal":
       conn.peerId = peerId
       inc seqno
       let msg = Message.init(peerId, ("bar" & $i).toBytes(), topic, some(seqno))
-      gossipSub.mcache.put(gossipSub.msgIdProvider(msg), msg)
+      gossipSub.mcache.put(gossipSub.msgIdProvider(msg).expect(MsgIdSuccess), msg)
 
     let peers = gossipSub.getGossipPeers()
     check peers.len == 0
