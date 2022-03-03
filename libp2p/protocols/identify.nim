@@ -9,7 +9,7 @@
 
 {.push raises: [Defect].}
 
-import std/[sequtils, options, strutils]
+import std/[sequtils, options, strutils, sugar]
 import chronos, chronicles
 import ../protobuf/minprotobuf,
        ../peerinfo,
@@ -58,6 +58,21 @@ type
 
   IdentifyPush* = ref object of LPProtocol
     identifyHandler: IdentifyPushHandler
+
+chronicles.expandIt(IdentifyInfo):
+  pubkey = ($it.pubkey).shortLog
+  addresses = it.addrs.map(x => $x).join(",")
+  protocols = it.protos.map(x => $x).join(",")
+  observable_address =
+    if it.observedAddr.isSome(): $it.observedAddr.get()
+    else: "None"
+  proto_version = it.protoVersion.get("None")
+  agent_version = it.agentVersion.get("None")
+  signedPeerRecord =
+    # The SPR contains the same data as the identify message
+    # would be cumbersome to log
+    if iinfo.signedPeerRecord.isSome(): "Some"
+    else: "None"
 
 proc encodeMsg(peerInfo: PeerInfo, observedAddr: MultiAddress, sendSpr: bool): ProtoBuffer
   {.raises: [Defect].} =
@@ -124,19 +139,7 @@ proc decodeMsg*(buf: seq[byte]): Option[IdentifyInfo] =
     if r8.get() and r1.get():
       if iinfo.pubkey.get() == signedPeerRecord.envelope.publicKey:
         iinfo.signedPeerRecord = some(signedPeerRecord.envelope)
-    debug "decodeMsg: decoded identify", pubkey = ($pubkey).shortLog,
-          addresses = iinfo.addrs.mapIt($it).join(","),
-          protocols = iinfo.protos.mapIt($it).join(","),
-          observable_address =
-            if iinfo.observedAddr.isSome(): $iinfo.observedAddr.get()
-            else: "None",
-          proto_version = iinfo.protoVersion.get("None"),
-          agent_version = iinfo.agentVersion.get("None"),
-          signedPeerRecord =
-            # The SPR contains the same data as the identify message
-            # would be cumbersome to log
-            if iinfo.signedPeerRecord.isSome(): "Some"
-            else: "None"
+    debug "decodeMsg: decoded identify", iinfo
     some(iinfo)
   else:
     trace "decodeMsg: failed to decode received message"
