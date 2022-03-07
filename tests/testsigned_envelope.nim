@@ -61,7 +61,7 @@ suite "Signed payload":
 
       dummyPayload = DummyPayload(awesome: 12.byte)
       signed = SignedDummy.init(privKey, dummyPayload).tryGet()
-      encoded = signed.envelope.encode().tryGet()
+      encoded = signed.encode().tryGet()
       decoded = SignedDummy.decode(encoded).tryGet()
 
     check:
@@ -75,7 +75,7 @@ suite "Signed payload":
 
       dummyPayload = DummyPayload(awesome: 30.byte)
       signed = SignedDummy.init(privKey, dummyPayload).tryGet()
-      encoded = signed.envelope.encode().tryGet()
+      encoded = signed.encode().tryGet()
     check SignedDummy.decode(encoded).error == EnvelopeInvalidSignature
 
   test "Invalid payload type":

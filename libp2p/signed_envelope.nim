@@ -164,3 +164,6 @@ proc decode*[T](
     ? signedPayload.checkValid()
 
   ok(signedPayload)
+
+proc encode*[T](msg: SignedPayload[T]): Result[seq[byte], CryptoError] =
+  msg.envelope.encode()
