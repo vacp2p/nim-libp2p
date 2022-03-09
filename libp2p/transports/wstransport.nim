@@ -331,11 +331,11 @@ proc new*(
   rng: Rng = nil,
   handshakeTimeout = DefaultHeadersTimeout): T =
 
-  T.new(
-    upgrade = upgrade,
-    tlsPrivateKey = nil,
-    tlsCertificate = nil,
-    flags = flags,
-    factories = @factories,
-    rng = rng,
+  T(
+    upgrade: upgrade,
+    tlsPrivateKey: nil,
+    tlsCertificate: nil,
+    flags: flags,
+    factories: @factories,
+    rng: rng,
     handshakeTimeout: handshakeTimeout)
