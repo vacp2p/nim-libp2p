@@ -36,13 +36,12 @@ suite "PeerStore":
     peerStore[KeyBook][peerId2] = keyPair2.pubkey
 
     # Test PeerStore::del
-    check:
-      # Delete existing peerId
-      peerStore.del(peerId1) == true
-      peerId1 notin peerStore[AddressBook]
+    # Delete existing peerId
+    peerStore.del(peerId1)
+    check peerId1 notin peerStore[AddressBook]
+    # Now try and del it again
+    peerStore.del(peerId1)
 
-      # Now try and del it again
-      peerStore.del(peerId1) == false
 
   test "PeerStore listeners":
     # Set up peer store with listener
@@ -50,8 +49,7 @@ suite "PeerStore":
       peerStore = PeerStore.new()
       addrChanged = false
 
-    proc addrChange(peerId: PeerId) =
-      check peerId == peerId1
+    proc addrChange(peerId: PeerId) {.gcsafe.} =
       addrChanged = true
 
     peerStore[AddressBook].addHandler(addrChange)
@@ -96,3 +94,20 @@ suite "PeerStore":
     check:
       toSeq(keys(addressBook.book))[0] == peerId2
       toSeq(values(addressBook.book))[0] == @[multiaddr1, multiaddr2]
+
+  test "Pruner":
+    var peerStore = PeerStore.new(capacity = 0)
+    peerStore[AgentBook][peerId1] = "gds"
+
+    peerStore.cleanup(peerId1)
+
+    check peerId1 notin peerStore[AgentBook]
+
+    peerStore = PeerStore.new(capacity = 1)
+    peerStore[AgentBook][peerId1] = "gds"
+    peerStore[AgentBook][peerId2] = "gds"
+    peerStore.cleanup(peerId2)
+    peerStore.cleanup(peerId1)
+    check:
+      peerId1 in peerStore[AgentBook]
+      peerId2 notin peerStore[AgentBook]

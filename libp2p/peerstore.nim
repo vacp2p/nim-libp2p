@@ -21,11 +21,7 @@ type
   # Handler types #
   #################
 
-  PeerBookChangeHandler*[T] = proc(peerId: PeerId)
-
-  AddrChangeHandler* = PeerBookChangeHandler[HashSet[MultiAddress]]
-  ProtoChangeHandler* = PeerBookChangeHandler[HashSet[string]]
-  KeyChangeHandler* = PeerBookChangeHandler[PublicKey]
+  PeerBookChangeHandler* = proc(peerId: PeerId) {.gcsafe, raises: [Defect].}
   
   #########
   # Books #
@@ -33,10 +29,11 @@ type
 
   # Each book contains a book (map) and event handler(s)
   BasePeerBook = ref object of RootObj
+    changeHandlers: seq[PeerBookChangeHandler]
+    deleteHandler: PeerBookChangeHandler
 
   PeerBook*[T] = ref object of BasePeerBook
     book*: Table[PeerId, T]
-    changeHandlers: seq[PeerBookChangeHandler[T]]
 
   SeqPeerBook*[T] = ref object of PeerBook[seq[T]]
   
@@ -53,18 +50,16 @@ type
 
   PeerStore* = ref object
     books: Table[string, BasePeerBook]
+    capacity: int
+    toClean: seq[PeerId]
   
 ## Constructs a new PeerStore with metadata of type M
-proc new*(T: type PeerStore): PeerStore =
-  var p: PeerStore
-  new(p)
-  return p
+proc new*(T: type PeerStore, capacity = 1000): PeerStore =
+  T(capacity: capacity)
 
 #########################
 # Generic Peer Book API #
 #########################
-
-method del*(peerBook: BasePeerBook, peerId: PeerId): bool {.base.} = discard
 
 proc `[]`*[T](peerBook: PeerBook[T],
              peerId: PeerId): T =
@@ -83,7 +78,7 @@ proc `[]=`*[T](peerBook: PeerBook[T],
   for handler in peerBook.changeHandlers:
     handler(peerId)
 
-method del*[T](peerBook: PeerBook[T],
+proc del*[T](peerBook: PeerBook[T],
                 peerId: PeerId): bool =
   ## Delete the provided peer from the book.
   
@@ -99,7 +94,7 @@ method del*[T](peerBook: PeerBook[T],
 proc contains*[T](peerBook: PeerBook[T], peerId: PeerId): bool =
   peerId in peerBook.book
 
-proc addHandler*[T](peerBook: PeerBook[T], handler: PeerBookChangeHandler[T]) =
+proc addHandler*[T](peerBook: PeerBook[T], handler: PeerBookChangeHandler) =
   peerBook.changeHandlers.add(handler)
 
 ##################  
@@ -110,16 +105,18 @@ proc `[]`*[T](p: PeerStore, typ: type[T]): T =
   result = T(p.books.getOrDefault(name))
   if result.isNil:
     result = T.new()
+    result.deleteHandler = proc(pid: PeerId) =
+      # Manual method because generic method
+      # don't work
+      discard T(p.books.getOrDefault(name)).del(pid)
     p.books[name] = result
   return result
 
 proc del*(peerStore: PeerStore,
-             peerId: PeerId): bool =
+             peerId: PeerId) =
   ## Delete the provided peer from every book.
   for _, book in peerStore.books:
-    if book.del(peerId):
-      result = true
-  return result
+    book.deleteHandler(peerId)
 
 
 proc updatePeerInfo*(
@@ -137,3 +134,20 @@ proc updatePeerInfo*(
 
   if info.protos.len > 0:
     peerStore[ProtoBook][info.peerId] = info.protos
+
+  let cleanupPos = peerStore.toClean.find(info.peerId)
+  if cleanupPos >= 0:
+    peerStore.toClean.delete(cleanupPos)
+
+proc cleanup*(
+  peerStore: PeerStore,
+  peerId: PeerId) =
+
+  if peerStore.capacity <= 0:
+    peerStore.del(peerId)
+    return
+
+  peerStore.toClean.add(peerId)
+  while peerStore.toClean.len > peerStore.capacity:
+    peerStore.del(peerStore.toClean[0])
+    peerStore.toClean.delete(0)
