@@ -10,7 +10,7 @@
 {.push raises: [Defect].}
 
 import
-  std/[tables, sets, sequtils, options],
+  std/[tables, sets, sequtils, options, macros],
   ./crypto/crypto,
   ./protocols/identify,
   ./peerid, ./peerinfo,
@@ -99,8 +99,13 @@ proc addHandler*[T](peerBook: PeerBook[T], handler: PeerBookChangeHandler) =
 ##################  
 # Peer Store API #
 ##################
+macro getTypeName(t: type): untyped =
+  # Generate unique name in form of Module.Type
+  let typ = getTypeImpl(t)[1]
+  newLit(repr(typ.owner()) & "." & repr(typ))
+
 proc `[]`*[T](p: PeerStore, typ: type[T]): T =
-  let name = $typ
+  let name = getTypeName(T)
   result = T(p.books.getOrDefault(name))
   if result.isNil:
     result = T.new()
