@@ -154,11 +154,11 @@ suite "Identify":
         IdentifyPushCodec)
 
       check:
-        switch1.peerStore.addressBook.get(switch2.peerInfo.peerId) == switch2.peerInfo.addrs.toHashSet()
-        switch2.peerStore.addressBook.get(switch1.peerInfo.peerId) == switch1.peerInfo.addrs.toHashSet()
+        switch1.peerStore[AddressBook][switch2.peerInfo.peerId] == switch2.peerInfo.addrs
+        switch2.peerStore[AddressBook][switch1.peerInfo.peerId] == switch1.peerInfo.addrs
 
-        switch1.peerStore.addressBook.get(switch2.peerInfo.peerId) == switch2.peerInfo.addrs.toHashSet()
-        switch2.peerStore.addressBook.get(switch1.peerInfo.peerId) == switch1.peerInfo.addrs.toHashSet()
+        switch1.peerStore[AddressBook][switch2.peerInfo.peerId] == switch2.peerInfo.addrs
+        switch2.peerStore[AddressBook][switch1.peerInfo.peerId] == switch1.peerInfo.addrs
 
     proc closeAll() {.async.} =
       await conn.close()
@@ -171,20 +171,20 @@ suite "Identify":
       switch2.peerInfo.addrs.add(MultiAddress.init("/ip4/127.0.0.1/tcp/5555").tryGet())
 
       check:
-        switch1.peerStore.addressBook.get(switch2.peerInfo.peerId) != switch2.peerInfo.addrs.toHashSet()
-        switch1.peerStore.protoBook.get(switch2.peerInfo.peerId) != switch2.peerInfo.protocols.toHashSet()
+        switch1.peerStore[AddressBook][switch2.peerInfo.peerId] != switch2.peerInfo.addrs
+        switch1.peerStore[ProtoBook][switch2.peerInfo.peerId] != switch2.peerInfo.protocols
 
       await identifyPush2.push(switch2.peerInfo, conn)
 
-      check await checkExpiring(switch1.peerStore.protoBook.get(switch2.peerInfo.peerId) == switch2.peerInfo.protocols.toHashSet())
-      check await checkExpiring(switch1.peerStore.addressBook.get(switch2.peerInfo.peerId) == switch2.peerInfo.addrs.toHashSet())
+      check await checkExpiring(switch1.peerStore[ProtoBook][switch2.peerInfo.peerId] == switch2.peerInfo.protocols)
+      check await checkExpiring(switch1.peerStore[AddressBook][switch2.peerInfo.peerId] == switch2.peerInfo.addrs)
 
       await closeAll()
 
       # Wait the very end to be sure that the push has been processed
       check:
-        switch1.peerStore.protoBook.get(switch2.peerInfo.peerId) == switch2.peerInfo.protocols.toHashSet()
-        switch1.peerStore.addressBook.get(switch2.peerInfo.peerId) == switch2.peerInfo.addrs.toHashSet()
+        switch1.peerStore[ProtoBook][switch2.peerInfo.peerId] == switch2.peerInfo.protocols
+        switch1.peerStore[AddressBook][switch2.peerInfo.peerId] == switch2.peerInfo.addrs
 
 
     asyncTest "wrong peer id push identify":
@@ -192,8 +192,8 @@ suite "Identify":
       switch2.peerInfo.addrs.add(MultiAddress.init("/ip4/127.0.0.1/tcp/5555").tryGet())
 
       check:
-        switch1.peerStore.addressBook.get(switch2.peerInfo.peerId) != switch2.peerInfo.addrs.toHashSet()
-        switch1.peerStore.protoBook.get(switch2.peerInfo.peerId) != switch2.peerInfo.protocols.toHashSet()
+        switch1.peerStore[AddressBook][switch2.peerInfo.peerId] != switch2.peerInfo.addrs
+        switch1.peerStore[ProtoBook][switch2.peerInfo.peerId] != switch2.peerInfo.protocols
 
       let oldPeerId = switch2.peerInfo.peerId
       switch2.peerInfo = PeerInfo.new(PrivateKey.random(newRng()[]).get())
@@ -210,5 +210,5 @@ suite "Identify":
 
       # Wait the very end to be sure that the push has been processed
       check:
-        switch1.peerStore.protoBook.get(oldPeerId) != switch2.peerInfo.protocols.toHashSet()
-        switch1.peerStore.addressBook.get(oldPeerId) != switch2.peerInfo.addrs.toHashSet()
+        switch1.peerStore[ProtoBook][oldPeerId] != switch2.peerInfo.protocols
+        switch1.peerStore[AddressBook][oldPeerId] != switch2.peerInfo.addrs
