@@ -47,6 +47,7 @@ type
     protoVersion: string
     agentVersion: string
     nameResolver: NameResolver
+    peerStore: PeerStore
 
 proc new*(T: type[SwitchBuilder]): T =
 
@@ -123,6 +124,10 @@ proc withMaxConnsPerPeer*(b: SwitchBuilder, maxConnsPerPeer: int): SwitchBuilder
   b.maxConnsPerPeer = maxConnsPerPeer
   b
 
+proc withPeerStore*(b: SwitchBuilder, store: PeerStore): SwitchBuilder =
+  b.peerStore = store
+  b
+
 proc withProtoVersion*(b: SwitchBuilder, protoVersion: string): SwitchBuilder =
   b.protoVersion = protoVersion
   b
@@ -183,6 +188,9 @@ proc build*(b: SwitchBuilder): Switch
   if isNil(b.rng):
     b.rng = newRng()
 
+  if isNil(b.peerStore):
+    b.peerStore = PeerStore.new()
+
   let switch = newSwitch(
     peerInfo = peerInfo,
     transports = transports,
@@ -191,7 +199,8 @@ proc build*(b: SwitchBuilder): Switch
     secureManagers = secureManagerInstances,
     connManager = connManager,
     ms = ms,
-    nameResolver = b.nameResolver)
+    nameResolver = b.nameResolver,
+    peerStore = b.peerStore)
 
   return switch
 
@@ -209,7 +218,8 @@ proc newStandardSwitch*(
   maxIn = -1,
   maxOut = -1,
   maxConnsPerPeer = MaxConnectionsPerPeer,
-  nameResolver: NameResolver = nil): Switch
+  nameResolver: NameResolver = nil,
+  peerStore = PeerStore.new()): Switch
   {.raises: [Defect, LPError].} =
   if SecureProtocol.Secio in secureManagers:
       quit("Secio is deprecated!") # use of secio is unsafe
@@ -226,6 +236,7 @@ proc newStandardSwitch*(
     .withMplex(inTimeout, outTimeout)
     .withTcpTransport(transportFlags)
     .withNameResolver(nameResolver)
+    .withPeerStore(peerStore)
     .withNoise()
 
   if privKey.isSome():

@@ -811,7 +811,7 @@ suite "Switch":
     let switch1 = newStandardSwitch()
     switch1.mount(testProto)
 
-    let switch2 = newStandardSwitch()
+    let switch2 = newStandardSwitch(peerStore = PeerStore.new(capacity = 0))
     await switch1.start()
     await switch2.start()
 
@@ -835,10 +835,10 @@ suite "Switch":
 
     check:
       switch1.peerStore[AddressBook][switch2.peerInfo.peerId] == switch2.peerInfo.addrs
-      switch2.peerStore[AddressBook][switch1.peerInfo.peerId] == switch1.peerInfo.addrs
-
       switch1.peerStore[ProtoBook][switch2.peerInfo.peerId] == switch2.peerInfo.protocols
-      switch2.peerStore[ProtoBook][switch1.peerInfo.peerId] == switch1.peerInfo.protocols
+
+      switch1.peerInfo.peerId notin switch2.peerStore[AddressBook]
+      switch1.peerInfo.peerId notin switch2.peerStore[ProtoBook]
 
   asyncTest "e2e should allow multiple local addresses":
     when defined(windows):

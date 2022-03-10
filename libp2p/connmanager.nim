@@ -307,6 +307,9 @@ proc peerCleanup(c: ConnManager, conn: Connection) {.async.} =
     await c.triggerConnEvent(
       peerId, ConnEvent(kind: ConnEventKind.Disconnected))
     await c.triggerPeerEvents(peerId, PeerEvent(kind: PeerEventKind.Left))
+
+    if not(c.peerStore.isNil):
+      c.peerStore.cleanup(peerId)
   except CatchableError as exc:
     # This is top-level procedure which will work as separate task, so it
     # do not need to propagate CancelledError and should handle other errors

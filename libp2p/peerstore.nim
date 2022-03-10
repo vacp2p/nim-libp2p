@@ -30,7 +30,7 @@ type
   # Each book contains a book (map) and event handler(s)
   BasePeerBook = ref object of RootObj
     changeHandlers: seq[PeerBookChangeHandler]
-    deleteHandler: PeerBookChangeHandler
+    deletor: PeerBookChangeHandler
 
   PeerBook*[T] = ref object of BasePeerBook
     book*: Table[PeerId, T]
@@ -50,10 +50,9 @@ type
 
   PeerStore* = ref object
     books: Table[string, BasePeerBook]
-    capacity: int
-    toClean: seq[PeerId]
+    capacity*: int
+    toClean*: seq[PeerId]
   
-## Constructs a new PeerStore with metadata of type M
 proc new*(T: type PeerStore, capacity = 1000): PeerStore =
   T(capacity: capacity)
 
@@ -105,7 +104,7 @@ proc `[]`*[T](p: PeerStore, typ: type[T]): T =
   result = T(p.books.getOrDefault(name))
   if result.isNil:
     result = T.new()
-    result.deleteHandler = proc(pid: PeerId) =
+    result.deletor = proc(pid: PeerId) =
       # Manual method because generic method
       # don't work
       discard T(p.books.getOrDefault(name)).del(pid)
@@ -116,8 +115,7 @@ proc del*(peerStore: PeerStore,
              peerId: PeerId) =
   ## Delete the provided peer from every book.
   for _, book in peerStore.books:
-    book.deleteHandler(peerId)
-
+    book.deletor(peerId)
 
 proc updatePeerInfo*(
   peerStore: PeerStore,
