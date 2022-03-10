@@ -338,4 +338,4 @@ proc new*(
     flags = flags,
     factories = @factories,
     rng = rng,
-    handshakeTimeout: handshakeTimeout)
+    handshakeTimeout = handshakeTimeout)
