@@ -14,7 +14,7 @@ import chronos, chronicles, metrics
 import "."/[types, scoring]
 import ".."/[pubsubpeer, peertable, timedcache, mcache, floodsub, pubsub]
 import "../rpc"/[messages]
-import "../../.."/[peerid, multiaddress, utility, switch]
+import "../../.."/[peerid, multiaddress, utility, switch, routing_record, signed_envelope]
 
 declareGauge(libp2p_gossipsub_cache_window_size, "the number of messages in the cache")
 declareGauge(libp2p_gossipsub_peers_per_topic_mesh, "gossipsub peers per topic in mesh", labels = ["topic"])
@@ -83,8 +83,16 @@ proc peerExchangeList*(g: GossipSub, topic: string): seq[PeerInfoMsg] {.raises: 
       x.score >= 0.0
   # by spec, larger then Dhi, but let's put some hard caps
   peers.setLen(min(peers.len, g.parameters.dHigh * 2))
+  let sprBook = g.switch.peerStore.signedPeerRecordBook
   peers.map do (x: PubSubPeer) -> PeerInfoMsg:
-    PeerInfoMsg(peerId: x.peerId.getBytes())
+    PeerInfoMsg(
+      peerId: x.peerId,
+      signedPeerRecord:
+        if x.peerId in sprBook:
+          sprBook.get(x.peerId).encode().get(default(seq[byte]))
+        else:
+          default(seq[byte])
+      )
 
 proc handleGraft*(g: GossipSub,
                  peer: PubSubPeer,
@@ -165,6 +173,29 @@ proc handleGraft*(g: GossipSub,
 
   return prunes
 
+proc getPeers(prune: ControlPrune, peer: PubSubPeer): seq[(PeerId, Option[PeerRecord])] =
+  var routingRecords: seq[(PeerId, Option[PeerRecord])]
+  for record in prune.peers:
+    let peerRecord =
+      if record.signedPeerRecord.len == 0:
+        none(PeerRecord)
+      else:
+        let signedRecord = SignedPeerRecord.decode(record.signedPeerRecord)
+        if signedRecord.isErr:
+          trace "peer sent invalid SPR", peer, error=signedRecord.error
+          none(PeerRecord)
+        else:
+          if record.peerID != signedRecord.get().data.peerId:
+            trace "peer sent envelope with wrong public key", peer
+            none(PeerRecord)
+          else:
+            some(signedRecord.get().data)
+
+    routingRecords.add((record.peerId, peerRecord))
+
+  routingRecords
+
+
 proc handlePrune*(g: GossipSub, peer: PubSubPeer, prunes: seq[ControlPrune]) {.raises: [Defect].} =
   for prune in prunes:
     let topic = prune.topicID
@@ -190,9 +221,12 @@ proc handlePrune*(g: GossipSub, peer: PubSubPeer, prunes: seq[ControlPrune]) {.r
     g.pruned(peer, topic, setBackoff = false)
     g.mesh.removePeer(topic, peer)
 
-    # TODO peer exchange, we miss ambient peer discovery in libp2p, so we are blocked by that
-    # another option could be to implement signed peer records
-    ## if peer.score > g.parameters.gossipThreshold and prunes.peers.len > 0:
+    if peer.score > g.parameters.gossipThreshold and prune.peers.len > 0 and
+      g.routingRecordsHandler.len > 0:
+      let routingRecords = prune.getPeers(peer)
+
+      for handler in g.routingRecordsHandler:
+        handler(peer.peerId, topic, routingRecords)
 
 proc handleIHave*(g: GossipSub,
                  peer: PubSubPeer,

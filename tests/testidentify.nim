@@ -77,6 +77,7 @@ suite "Identify":
       check id.protoVersion.get() == ProtoVersion
       check id.agentVersion.get() == AgentVersion
       check id.protos == @["/test/proto1/1.0.0", "/test/proto2/1.0.0"]
+      check id.signedPeerRecord.isNone()
 
     asyncTest "custom agent version":
       const customAgentVersion = "MY CUSTOM AGENT STRING"
@@ -100,6 +101,7 @@ suite "Identify":
       check id.protoVersion.get() == ProtoVersion
       check id.agentVersion.get() == customAgentVersion
       check id.protos == @["/test/proto1/1.0.0", "/test/proto2/1.0.0"]
+      check id.signedPeerRecord.isNone()
 
     asyncTest "handle failed identify":
       msListen.addHandler(IdentifyCodec, identifyProto1)
@@ -122,6 +124,27 @@ suite "Identify":
         let pi2 = PeerInfo.new(PrivateKey.random(ECDSA, rng[]).get())
         discard await msDial.select(conn, IdentifyCodec)
         discard await identifyProto2.identify(conn, pi2.peerId)
+
+    asyncTest "can send signed peer record":
+      msListen.addHandler(IdentifyCodec, identifyProto1)
+      identifyProto1.sendSignedPeerRecord = true
+      serverFut = transport1.start(ma)
+      proc acceptHandler(): Future[void] {.async, gcsafe.} =
+        let c = await transport1.accept()
+        await msListen.handle(c)
+
+      acceptFut = acceptHandler()
+      conn = await transport2.dial(transport1.addrs[0])
+
+      discard await msDial.select(conn, IdentifyCodec)
+      let id = await identifyProto2.identify(conn, remotePeerInfo.peerId)
+
+      check id.pubkey.get() == remoteSecKey.getPublicKey().get()
+      check id.addrs == ma
+      check id.protoVersion.get() == ProtoVersion
+      check id.agentVersion.get() == AgentVersion
+      check id.protos == @["/test/proto1/1.0.0", "/test/proto2/1.0.0"]
+      check id.signedPeerRecord.get() == remotePeerInfo.signedPeerRecord.get()
 
   suite "handle push identify message":
     var
@@ -159,6 +182,10 @@ suite "Identify":
 
         switch1.peerStore.addressBook.get(switch2.peerInfo.peerId) == switch2.peerInfo.addrs.toHashSet()
         switch2.peerStore.addressBook.get(switch1.peerInfo.peerId) == switch1.peerInfo.addrs.toHashSet()
+
+        #switch1.peerStore.signedPeerRecordBook.get(switch2.peerInfo.peerId) == switch2.peerInfo.signedPeerRecord.get()
+        #switch2.peerStore.signedPeerRecordBook.get(switch1.peerInfo.peerId) == switch1.peerInfo.signedPeerRecord.get()
+        # no longer sent by default
 
     proc closeAll() {.async.} =
       await conn.close()
