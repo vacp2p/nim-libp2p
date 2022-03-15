@@ -25,7 +25,7 @@ declareGauge(libp2p_gossipsub_no_peers_topics, "number of topics in mesh with no
 declareGauge(libp2p_gossipsub_low_peers_topics, "number of topics in mesh with at least one but below dlow peers")
 declareGauge(libp2p_gossipsub_healthy_peers_topics, "number of topics in mesh with at least dlow peers (but below dhigh)")
 declareCounter(libp2p_gossipsub_above_dhigh_condition, "number of above dhigh pruning branches ran", labels = ["topic"])
-declareSummary(libp2p_gossipsub_mcache_hit, "missed IWANT message cache lookups", labels = ["topic"])
+declareSummary(libp2p_gossipsub_mcache_hit, "ratio of successful IWANT message cache lookups", labels = ["topic"])
 
 proc grafted*(g: GossipSub, p: PubSubPeer, topic: string) {.raises: [Defect].} =
   g.withPeerStats(p.peerId) do (stats: var PeerStats):
