@@ -19,6 +19,7 @@ import ../protobuf/minprotobuf,
        ../multiaddress,
        ../protocols/protocol,
        ../utility,
+       ../builder3,
        ../errors
 
 logScope:
@@ -124,6 +125,10 @@ proc new*(T: typedesc[Identify], peerInfo: PeerInfo): T =
   let identify = T(peerInfo: peerInfo)
   identify.init()
   identify
+
+proc setup*(p: Identify, peerInfo: PeerInfo) {.setupproc.} =
+  p.peerInfo = peerInfo
+  p.init()
 
 method init*(p: Identify) =
   proc handle(conn: Connection, proto: string) {.async, gcsafe, closure.} =

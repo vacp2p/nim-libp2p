@@ -17,7 +17,8 @@ import ../muxer,
        ../../utility,
        ../../peerinfo,
        ./coder,
-       ./lpchannel
+       ./lpchannel,
+       ../../builder3
 
 export muxer
 
@@ -239,3 +240,11 @@ method close*(m: Mplex) {.async, gcsafe.} =
   m.channels[true].clear()
 
   trace "Closed mplex", m
+
+proc setup*(n: Mplex, muxers: var Table[string, MuxerProvider]) {.setupproc.} =
+  proc newMuxer(conn: Connection): Muxer =
+    Mplex.new(
+      conn,
+      inTimeout = 5.minutes,
+      outTimeout = 5.minutes)
+  muxers[MplexCodec] = MuxerProvider.new(newMuxer, MplexCodec)

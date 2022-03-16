@@ -9,7 +9,7 @@
 
 {.push raises: [Defect].}
 
-import std/[tables, macros, sequtils]
+import std/[tables, macros, sequtils, strutils]
 
 type
   GenHolder = ref object of RootObj
@@ -20,23 +20,35 @@ type
   TypeTable = object
     table: Table[string, GenHolder]
 
+proc getTypeName(s: string): string =
+  # That's not ideal, to say the least
+  result = s.toLower().replace("_", "")
+  while '.' in result:
+    var lastChar = 0
+    for i in 0..<result.len:
+      if result[i] == '.':
+        result.delete(lastChar..i)
+        break
+      elif result[i] notin Letters:
+        lastChar = i + 1
+
 proc contains[T](tt: TypeTable, typ: type[T]): bool =
-  tt.table.contains($typ)
+  tt.table.contains(getTypeName($typ))
 
 proc contains(tt: TypeTable, typ: string): bool =
-  tt.table.contains(typ)
+  tt.table.contains(getTypeName(typ))
 
 proc `[]`[T](tt: TypeTable, typ: type[T]): T =
-  let holder = Holder[T](tt.table.getOrDefault($typ))
+  let holder = Holder[T](tt.table.getOrDefault(getTypeName($typ)))
   if holder.isNil:
     default(T)
   else:
     holder.value
 
 proc `[]=`[T](tt: var TypeTable, typ: type[T], val: T) =
-  let holder = Holder[T](tt.table.getOrDefault($typ))
+  let holder = Holder[T](tt.table.getOrDefault(getTypeName($typ)))
   if holder.isNil:
-    tt.table[$typ] = Holder[T](value: val)
+    tt.table[getTypeName($typ)] = Holder[T](value: val)
   else:
     holder.value = val
 
@@ -44,7 +56,7 @@ type
   BuildDep* = object
     deps: seq[string]
     outs: seq[string]
-    run: proc(b: Builder)
+    run: proc(b: Builder) {.raises: [Exception].}
 
   Builder* = ref object
     context: TypeTable
@@ -55,32 +67,48 @@ proc with*[T](builder: Builder, val: T): T {.discardable.} =
   builder.deps.add(buildDep)
 
 template with*(switchBuilder: Builder, args: varargs[untyped]) =
-  when args is ref:
+  #TODO find a better test, obviously
+  when not compiles((args) isnot string):
+    switchBuilder.with(new(args))
+  elif (args) isnot string and (args) isnot float:
     switchBuilder.with(new(args))
   else:
     switchBuilder.with(default(args))
 
+{.pop.} # building can raise anything the setup can
 proc build*[T](builder: Builder, val: type[T]): T {.discardable.} =
   builder.with(T)
+
+  # Kick & dirty dependency solver
   while builder.deps.len > 0:
-    for index, dep in builder.deps:
+    echo builder.deps, ": ", toSeq(builder.context.table.keys())
+
+    for index, buildAttempt in builder.deps:
       var canBeRun = true
-      for dep in dep.deps:
+      for dep in buildAttempt.deps:
+        # Do we have every dep?
         if dep notin builder.context:
+          echo "Missing for ", buildAttempt.outs[0], ": ", dep
           canBeRun = false
+
+        # Someone still have to output a dep?
+        for index2, otherDep in builder.deps:
+          if index != index2 and dep in otherDep.outs:
+            echo "Missing for ", buildAttempt.outs[0], ": ", dep
+            canBeRun = false
       if canBeRun == false: continue
 
-      dep.run(builder)
+      buildAttempt.run(builder)
       builder.deps.delete(index)
       break
 
   builder.context[T]
 
-macro setupproc(prc: untyped): untyped =
+macro setupproc*(prc: untyped): untyped =
   result = nnkStmtList.newTree(prc)
 
   let
-    buildDepsProc = newProc(ident"getBuildDeps")
+    buildDepsProc = newProc(nnkPostFix.newTree(ident"*", ident"getBuildDeps"))
     targetType =
       if params(prc)[1][1].kind == nnkVarTy: params(prc)[1][1][0]
       else: params(prc)[1][1]
@@ -107,14 +135,18 @@ macro setupproc(prc: untyped): untyped =
     setResult
   )
 
+  let targetTypeAsString = newStrLitNode(getTypeName(repr(targetType)))
+  buildDepsProc.body.add(
+    quote do: result.outs.add(`targetTypeAsString`)
+  )
   for setupParam in params(prc)[2..^1]:
     if setupParam[1].kind == nnkVarTy:
-      let paramType = newStrLitNode($setupParam[1][0])
+      let paramType = newStrLitNode(getTypeName(repr(setupParam[1][0])))
       buildDepsProc.body.add(
         quote do: result.outs.add(`paramType`)
       )
     else:
-      let paramType = newStrLitNode($setupParam[1])
+      let paramType = newStrLitNode(getTypeName(repr(setupParam[1])))
       buildDepsProc.body.add(
         quote do: result.deps.add(`paramType`)
       )

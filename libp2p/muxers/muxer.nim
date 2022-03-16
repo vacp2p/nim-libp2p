@@ -54,7 +54,7 @@ proc new*(
   codec: string): T {.gcsafe.} =
 
   let muxerProvider = T(newMuxer: creator)
-  muxerProvider.codec = codec
+  #muxerProvider.codec = codec wtf?
   muxerProvider.init()
   muxerProvider
 

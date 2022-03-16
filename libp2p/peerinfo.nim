@@ -11,7 +11,7 @@
 
 import std/[options, sequtils, hashes]
 import pkg/[chronos, chronicles, stew/results]
-import peerid, multiaddress, crypto/crypto, errors
+import peerid, multiaddress, crypto/crypto, errors, builder3
 
 export peerid, multiaddress, crypto, errors, results
 
@@ -63,3 +63,5 @@ proc new*(
     protocols: @protocols)
 
   return peerInfo
+
+proc setup*(p: PeerInfo) {.setupproc.} = discard

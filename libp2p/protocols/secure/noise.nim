@@ -21,6 +21,7 @@ import ../../peerinfo
 import ../../protobuf/minprotobuf
 import ../../utility
 import ../../errors
+import ../../builder3
 
 import secure,
       ../../crypto/[crypto, chacha20poly1305, curve25519, hkdf]
@@ -622,3 +623,13 @@ proc new*(
 
   noise.init()
   noise
+
+proc setup*(n: Noise, peerInfo: PeerInfo, rng: ref HmacDrbgContext, secureManagers: var seq[Secure]) {.setupproc.} =
+  n.localPrivateKey = peerInfo.privateKey
+  n.noiseKeys = genKeyPair(rng[])
+  let pkBytes = n.localPrivateKey.getPublicKey()
+  .expect("Expected valid Private Key")
+  .getBytes().expect("Couldn't get public Key bytes")
+
+  n.localPublicKey = pkBytes
+  secureManagers &= n

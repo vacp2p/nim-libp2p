@@ -13,7 +13,7 @@ import
   std/[tables, sets, sequtils, options],
   ./crypto/crypto,
   ./protocols/identify,
-  ./peerid, ./peerinfo,
+  ./peerid, ./peerinfo, builder3,
   ./multiaddress
 
 type
@@ -160,3 +160,5 @@ proc updatePeerInfo*(
 
   if info.protos.len > 0:
     peerStore.protoBook.set(info.peerId, info.protos)
+
+proc setup*(p: PeerStore) {.setupproc.} = discard

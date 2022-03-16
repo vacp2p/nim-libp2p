@@ -21,7 +21,8 @@ import dial,
        stream/connection,
        transports/transport,
        nameresolving/nameresolver,
-       errors
+       errors,
+       builder3
 
 export dial, errors
 
@@ -254,3 +255,15 @@ proc new*(
     transports: transports,
     ms: ms,
     nameResolver: nameResolver)
+
+proc setup*(
+  p: Dialer,
+  peerInfo: PeerInfo,
+  connManager: ConnManager,
+  transports: seq[Transport],
+  multistreamSelect: MultistreamSelect) {.setupproc.} =
+
+  p.localPeerId = peerInfo.peerId
+  p.connManager = connManager
+  p.transports = transports
+  p.ms = multistreamSelect

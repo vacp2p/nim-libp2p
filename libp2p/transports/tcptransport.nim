@@ -9,18 +9,21 @@
 
 {.push raises: [Defect].}
 
-import std/[oids, sequtils]
+import std/[oids, sequtils, tables]
 import chronos, chronicles
 import transport,
        ../errors,
+       ../builder3,
        ../wire,
        ../multicodec,
        ../multistream,
        ../connmanager,
        ../multiaddress,
        ../stream/connection,
+       ../muxers/muxer,
        ../stream/chronosstream,
-       ../upgrademngrs/upgrade
+       ../upgrademngrs/upgrade,
+       ../upgrademngrs/muxedupgrade
 
 logScope:
   topics = "libp2p tcptransport"
@@ -250,3 +253,18 @@ method handles*(t: TcpTransport, address: MultiAddress): bool {.gcsafe.} =
   if procCall Transport(t).handles(address):
     if address.protocols.isOk:
       return TCP.match(address)
+
+proc setup*(
+  t: TcpTransport,
+  identify: Identify,
+  muxers: Table[string, MuxerProvider],
+  secureManagers: seq[Secure],
+  connManager: ConnManager,
+  ms: MultistreamSelect,
+  transports: var seq[Transport]) {.setupproc.} =
+
+  #TODO could be nice to be able to do builder.Build(MuxedUpgrade) instead
+  # not sure of feasible that is
+  let upgrade = MuxedUpgrade.new(identify, muxers, secureManagers, connManager, ms)
+  t.upgrader = upgrade
+  transports &= t

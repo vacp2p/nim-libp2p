@@ -13,7 +13,8 @@ import std/[strutils]
 import chronos, chronicles, stew/byteutils
 import stream/connection,
        vbuffer,
-       protocols/protocol
+       protocols/protocol,
+       builder3
 
 logScope:
   topics = "libp2p multistream"
@@ -210,3 +211,5 @@ proc addHandler*(m: MultistreamSelect,
   m.handlers.add(HandlerHolder(protos: @[codec],
                                protocol: protocol,
                                match: matcher))
+
+proc setup*(p: MultistreamSelect) {.setupproc.} = discard

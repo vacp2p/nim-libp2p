@@ -37,6 +37,7 @@ import stream/connection,
        peerid,
        peerstore,
        errors,
+       builder3,
        dialer
 
 export connmanager, upgrade, dialer, peerstore
@@ -291,3 +292,22 @@ proc newSwitch*(peerInfo: PeerInfo,
   switch.connManager.peerStore = switch.peerStore
   switch.mount(identity)
   return switch
+
+proc setup*(
+  p: Switch,
+  peerInfo: PeerInfo,
+  ms: MultistreamSelect,
+  transports: seq[Transport],
+  connManager: ConnManager,
+  peerStore: PeerStore,
+  dialer: Dialer,
+  identify: Identify
+  ) {.setupproc, raises: [Defect, LPError].} =
+  
+  p.peerInfo = peerInfo
+  p.ms = ms
+  p.transports = transports
+  p.connManager = connManager
+  p.peerStore = peerStore
+  p.dialer = dialer
+  p.mount(identify)

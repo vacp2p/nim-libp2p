@@ -16,6 +16,7 @@ import peerinfo,
        stream/connection,
        muxers/muxer,
        utils/semaphore,
+       builder3,
        errors
 
 logScope:
@@ -581,3 +582,6 @@ proc close*(c: ConnManager) {.async.} =
       await conn.close()
 
   trace "Closed ConnManager"
+
+proc setup*(p: ConnManager, peerStore: PeerStore) {.setupproc.} =
+  p.peerStore = peerStore
