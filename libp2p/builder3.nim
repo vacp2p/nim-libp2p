@@ -67,10 +67,10 @@ proc with*[T](builder: Builder, val: T): T {.discardable.} =
   builder.deps.add(buildDep)
 
 template with*(switchBuilder: Builder, args: varargs[untyped]) =
-  #TODO find a better test, obviously
-  when not compiles((args) isnot string):
+  #TODO find a better test
+  when not compiles(args isnot string):
     switchBuilder.with(new(args))
-  elif (args) isnot string and (args) isnot float:
+  elif args is ref:
     switchBuilder.with(new(args))
   else:
     switchBuilder.with(default(args))
