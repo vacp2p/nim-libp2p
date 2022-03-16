@@ -151,6 +151,9 @@ proc writeHeader(s: YamuxChannel, header: YamuxHeader) {.async.} =
     s.opened = true
   await s.conn.writeHeader(headCopy)
 
+proc open*(s: YamuxChannel) {.async, gcsafe.} =
+  await s.writeHeader(YamuxHeader.windowUpdate(s.id, 0))
+
 method close*(s: YamuxChannel) {.async, gcsafe.} =
   await s.writeHeader(YamuxHeader.data(s.id, 0, {Fin}))
 
@@ -233,9 +236,11 @@ method newStream*(
   name: string = "",
   lazy: bool = false): Future[Connection] {.async, gcsafe.} =
 
-  result = m.createStream(m.currentId)
+  let stream = m.createStream(m.currentId)
   m.currentId += 2
-  return result
+  if not lazy:
+    await stream.open()
+  return stream
 
 proc new*(T: type[Yamux], conn: Connection): T =
   T(
