@@ -269,18 +269,12 @@ proc handleControl(g: GossipSub, peer: PubSubPeer, control: ControlMessage) =
 
     for smsg in messages:
       for topic in smsg.topicIDs:
-        if g.knownTopics.contains(topic):
-          libp2p_pubsub_broadcast_messages.inc(labelValues = [topic])
-        else:
-          libp2p_pubsub_broadcast_messages.inc(labelValues = ["generic"])
+        topicMetricInc(g, topic, libp2p_pubsub_broadcast_messages)
 
     libp2p_pubsub_broadcast_iwant.inc(respControl.iwant.len.int64)
 
     for prune in respControl.prune:
-      if g.knownTopics.contains(prune.topicID):
-        libp2p_pubsub_broadcast_prune.inc(labelValues = [prune.topicID])
-      else:
-        libp2p_pubsub_broadcast_prune.inc(labelValues = ["generic"])
+      topicMetricInc(g, prune.topicID, libp2p_pubsub_broadcast_prune)
 
     trace "sending control message", msg = shortLog(respControl), peer
     g.send(
@@ -336,10 +330,7 @@ proc validateAndRelay(g: GossipSub,
     for topic in msg.topicIDs:
       if topic notin g.topics: continue
 
-      if g.knownTopics.contains(topic):
-        libp2p_pubsub_messages_rebroadcasted.inc(toSendPeers.len.int64, labelValues = [topic])
-      else:
-        libp2p_pubsub_messages_rebroadcasted.inc(toSendPeers.len.int64, labelValues = ["generic"])
+      topicMetricInc(g, topic, libp2p_pubsub_messages_rebroadcasted, toSendPeers.len.int64)
 
       await handleData(g, topic, msg.data)
   except CatchableError as exc:
@@ -546,10 +537,7 @@ method publish*(g: GossipSub,
 
   g.broadcast(peers, RPCMsg(messages: @[msg]))
 
-  if g.knownTopics.contains(topic):
-    libp2p_pubsub_messages_published.inc(peers.len.int64, labelValues = [topic])
-  else:
-    libp2p_pubsub_messages_published.inc(peers.len.int64, labelValues = ["generic"])
+  topicMetricInc(g, topic, libp2p_pubsub_messages_published, peers.len.int64)
 
   trace "Published message to peers", peers=peers.len
 

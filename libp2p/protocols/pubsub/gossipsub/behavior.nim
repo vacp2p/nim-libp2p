@@ -347,10 +347,7 @@ proc rebalanceMesh*(g: GossipSub, topic: string, metrics: ptr MeshMetrics = nil)
   npeers = g.mesh.peers(topic)
   if npeers > g.parameters.dHigh:
     if not isNil(metrics):
-      if g.knownTopics.contains(topic):
-        libp2p_gossipsub_above_dhigh_condition.inc(labelValues = [topic])
-      else:
-        libp2p_gossipsub_above_dhigh_condition.inc(labelValues = ["other"])
+      topicMetricInc(g, topic, libp2p_gossipsub_above_dhigh_condition)
 
     # prune peers if we've gone over Dhi
     prunes = toSeq(try: g.mesh[topic] except KeyError: raiseAssert "have peers")
@@ -612,10 +609,7 @@ proc onHeartbeat(g: GossipSub) {.raises: [Defect].} =
     for peer, control in peers:
       # only ihave from here
       for ihave in control.ihave:
-        if g.knownTopics.contains(ihave.topicID):
-          libp2p_pubsub_broadcast_ihave.inc(labelValues = [ihave.topicID])
-        else:
-          libp2p_pubsub_broadcast_ihave.inc(labelValues = ["generic"])
+        topicMetricInc(g, ihave.topicID, libp2p_pubsub_broadcast_ihave)
       g.send(peer, RPCMsg(control: some(control)))
 
     g.mcache.shift() # shift the cache
