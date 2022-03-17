@@ -30,6 +30,8 @@ export transport, websock
 const
   WsTransportTrackerName* = "libp2p.wstransport"
 
+  DefaultHeadersTimeout = 3.seconds
+
 type
   WsStream = ref object of Connection
     session: WSSession
@@ -92,6 +94,7 @@ type
     tlsCertificate: TLSCertificate
     tlsFlags: set[TLSFlags]
     flags: set[ServerFlags]
+    handshakeTimeout: Duration
     factories: seq[ExtFactory]
     rng: Rng
 
@@ -131,9 +134,13 @@ method start*(
           address = ma.initTAddress().tryGet(),
           tlsPrivateKey = self.tlsPrivateKey,
           tlsCertificate = self.tlsCertificate,
-          flags = self.flags)
+          flags = self.flags,
+          handshakeTimeout = self.handshakeTimeout)
       else:
-        HttpServer.create(ma.initTAddress().tryGet())
+        HttpServer.create(
+          ma.initTAddress().tryGet(),
+          handshakeTimeout = self.handshakeTimeout
+        )
 
     self.httpservers &= httpserver
 
@@ -222,19 +229,19 @@ method accept*(self: WsTransport): Future[Connection] {.async, gcsafe.} =
   if not self.running:
     raise newTransportClosedError()
 
+  if self.acceptFuts.len <= 0:
+    self.acceptFuts = self.httpservers.mapIt(it.accept())
+
+  if self.acceptFuts.len <= 0:
+    return
+
+  let
+    finished = await one(self.acceptFuts)
+    index = self.acceptFuts.find(finished)
+
+  self.acceptFuts[index] = self.httpservers[index].accept()
+
   try:
-    if self.acceptFuts.len <= 0:
-      self.acceptFuts = self.httpservers.mapIt(it.accept())
-
-    if self.acceptFuts.len <= 0:
-      return
-
-    let
-      finished = await one(self.acceptFuts)
-      index = self.acceptFuts.find(finished)
-
-    self.acceptFuts[index] = self.httpservers[index].accept()
-
     let req = await finished
 
     try:
@@ -250,6 +257,8 @@ method accept*(self: WsTransport): Future[Connection] {.async, gcsafe.} =
     debug "OS Error", exc = exc.msg
   except WebSocketError as exc:
     debug "Websocket Error", exc = exc.msg
+  except HttpError as exc:
+    debug "Http Error", exc = exc.msg
   except AsyncStreamError as exc:
     debug "AsyncStream Error", exc = exc.msg
   except TransportTooManyError as exc:
@@ -301,7 +310,8 @@ proc new*(
   tlsFlags: set[TLSFlags] = {},
   flags: set[ServerFlags] = {},
   factories: openArray[ExtFactory] = [],
-  rng: Rng = nil): T =
+  rng: Rng = nil,
+  handshakeTimeout = DefaultHeadersTimeout): T =
 
   T(
     upgrader: upgrade,
@@ -310,14 +320,16 @@ proc new*(
     tlsFlags: tlsFlags,
     flags: flags,
     factories: @factories,
-    rng: rng)
+    rng: rng,
+    handshakeTimeout: handshakeTimeout)
 
 proc new*(
   T: typedesc[WsTransport],
   upgrade: Upgrade,
   flags: set[ServerFlags] = {},
   factories: openArray[ExtFactory] = [],
-  rng: Rng = nil): T =
+  rng: Rng = nil,
+  handshakeTimeout = DefaultHeadersTimeout): T =
 
   T.new(
     upgrade = upgrade,
@@ -325,4 +337,5 @@ proc new*(
     tlsCertificate = nil,
     flags = flags,
     factories = @factories,
-    rng = rng)
+    rng = rng,
+    handshakeTimeout = handshakeTimeout)
