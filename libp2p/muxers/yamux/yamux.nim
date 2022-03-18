@@ -69,7 +69,7 @@ proc encode(header: YamuxHeader): array[12, byte] =
   result[4..7] = toBytesBE(header.streamId)
   result[8..11] = toBytesBE(header.length)
 
-proc writeHeader(conn: LPStream, header: YamuxHeader): Future[void] {.gcsafe.} =
+proc write(conn: LPStream, header: YamuxHeader): Future[void] {.gcsafe.} =
   var buffer = header.encode()
   return conn.write(@buffer)
 
@@ -130,10 +130,10 @@ type
     closedLocally: bool
     receivedData: AsyncEvent
 
-proc recvQueueLen(y: YamuxChannel): int =
+proc recvQueueBytes(y: YamuxChannel): int =
   for elem in y.recvQueue: result.inc(elem.len)
 
-proc sendQueueLen(y: YamuxChannel): int =
+proc sendQueueBytes(y: YamuxChannel): int =
   for elem in y.sendQueue: result.inc(elem.len)
 
 proc remoteClosed(y: YamuxChannel) =
@@ -141,13 +141,13 @@ proc remoteClosed(y: YamuxChannel) =
   y.closedRemotely.complete()
 
 proc updateRecvWindow(channel: YamuxChannel) {.async.} =
-  let inWindow = channel.recvWindow + channel.recvQueueLen()
+  let inWindow = channel.recvWindow + channel.recvQueueBytes()
   if inWindow > channel.maxRecvWindow div 2:
     return
 
   let delta = channel.maxRecvWindow - inWindow
   channel.recvWindow.inc(delta)
-  await channel.conn.writeHeader(YamuxHeader.windowUpdate(
+  await channel.conn.write(YamuxHeader.windowUpdate(
     channel.id,
     delta.uint32
   ))
@@ -188,16 +188,13 @@ proc remoteSentData(y: YamuxChannel, b: seq[byte]) {.async.} =
 proc setMaxRecvWindow*(channel: YamuxChannel, maxRecvWindow: int) =
   channel.maxRecvWindow = maxRecvWindow
 
-proc writeHeader(s: YamuxChannel, header: YamuxHeader) {.async.} =
-  #TODO get rid of this proc (can't be used by trySend)
-  var headCopy = header
+proc setupHeader(s: YamuxChannel, header: var YamuxHeader) =
   if not s.opened:
-    headCopy.flags.incl(MsgFlags.Syn)
+    header.flags.incl(MsgFlags.Syn)
     s.opened = true
-  await s.conn.writeHeader(headCopy)
-
-proc open*(s: YamuxChannel) {.async, gcsafe.} =
-  await s.writeHeader(YamuxHeader.windowUpdate(s.id, 0))
+  if not s.acked:
+    header.flags.incl(MsgFlags.Ack)
+    s.acked = true
 
 proc trySend(s: YamuxChannel) {.async.} =
   if s.sendQueue.len == 0: return
@@ -207,7 +204,7 @@ proc trySend(s: YamuxChannel) {.async.} =
     return
 
   let
-    bytesAvailable = s.sendQueueLen
+    bytesAvailable = s.sendQueueBytes()
     toSend = min(s.sendWindow, bytesAvailable)
   var
     sendBuffer = newSeqUninitialized[byte](toSend + 12)
@@ -217,10 +214,8 @@ proc trySend(s: YamuxChannel) {.async.} =
   if toSend >= bytesAvailable and s.closedLocally:
     trace "last buffer we'll sent on this channel", toSend, bytesAvailable
     header.flags.incl({Fin})
-  if not s.opened:
-    header.flags.incl({Syn})
-    s.opened = true
 
+  s.setupHeader(header)
 
   sendBuffer[0..<12] = header.encode()
 
@@ -240,14 +235,18 @@ proc trySend(s: YamuxChannel) {.async.} =
   s.sendWindow.dec(toSend)
   await s.conn.write(sendBuffer)
 
+proc actuallyClose(s: YamuxChannel) {.async.} =
+  if s.closedLocally and s.sendQueue.len == 0 and
+    s.closedRemotely.done():
+    await procCall Connection(s).closeImpl()
+
 method closeImpl*(s: YamuxChannel) {.async, gcsafe.} =
   if s.closedLocally: return
   s.closedLocally = true
 
   if s.sendQueue.len == 0:
-    await s.writeHeader(YamuxHeader.data(s.id, 0, {Fin}))
-
-  await procCall Connection(s).closeImpl()
+    await s.conn.write(YamuxHeader.data(s.id, 0, {Fin}))
+    await s.actuallyClose()
 
 method write*(s: YamuxChannel, msg: seq[byte]) {.async.} =
   if s.closedLocally:
@@ -255,6 +254,11 @@ method write*(s: YamuxChannel, msg: seq[byte]) {.async.} =
 
   s.sendQueue.add(msg)
   await s.trySend()
+
+proc open*(s: YamuxChannel) {.async, gcsafe.} =
+  # Just write an empty message, Syn will be
+  # piggy-backed
+  await s.write(@[])
 
 type
   YamuxError = object of CatchableError
@@ -298,7 +302,7 @@ method handle*(m: Yamux) {.async, gcsafe.} =
 
       case header.msgType:
       of Ping:
-        await m.connection.writeHeader(YamuxHeader.ping(header.length))
+        await m.connection.write(YamuxHeader.ping(header.length))
       of GoAway:
         raise newException(YamuxError, "Peer closed the connection")
       of Data, WindowUpdate:
@@ -336,7 +340,7 @@ method handle*(m: Yamux) {.async, gcsafe.} =
 
   except YamuxError as exc:
     debug "Closing yamux connection", error=exc.msg
-    await m.connection.writeHeader(YamuxHeader.goAway(ProtocolError))
+    await m.connection.write(YamuxHeader.goAway(ProtocolError))
   finally:
     await m.close()
 
