@@ -15,40 +15,55 @@ type
   GenHolder = ref object of RootObj
 
   Holder[T] = ref object of GenHolder
+    prettyName: string
     value: T
 
   TypeTable = object
     table: Table[string, GenHolder]
 
-proc getTypeName(s: string): string =
-  # That's not ideal, to say the least
-  result = s.toLower().replace("_", "")
-  while '.' in result:
-    var lastChar = 0
-    for i in 0..<result.len:
-      if result[i] == '.':
-        result.delete(lastChar..i)
-        break
-      elif result[i] notin Letters:
-        lastChar = i + 1
+proc getTypeNameRecur(n: NimNode): string {.compiletime.} =
+  # can't do something safer because of
+  # https://github.com/nim-lang/Nim/issues/19617
+  #
+  # two different types with the same name in different modules
+  # might clash
+  case n.kind:
+  of nnkSym:
+    $n
+  of nnkBracketExpr:
+    getTypeNameRecur(n[0]) & "[" & getTypeNameRecur(n[1]) & "]"
+  else:
+    assert false
+    "unsupported"
+
+macro getTypeName*(s: typed): untyped =
+  let
+    typInst = getType(s)
+    stripped =
+      if typInst.kind == nnkBracketExpr and typInst[0].eqIdent("typedesc"):
+        typInst[1]
+      else:
+        typInst
+
+  newLit(getTypeNameRecur(stripped))
 
 proc contains[T](tt: TypeTable, typ: type[T]): bool =
-  tt.table.contains(getTypeName($typ))
+  tt.table.contains(getTypeName(T))
 
 proc contains(tt: TypeTable, typ: string): bool =
-  tt.table.contains(getTypeName(typ))
+  tt.table.contains(typ)
 
 proc `[]`[T](tt: TypeTable, typ: type[T]): T =
-  let holder = Holder[T](tt.table.getOrDefault(getTypeName($typ)))
+  let holder = Holder[T](tt.table.getOrDefault(getTypeName(T)))
   if holder.isNil:
     default(T)
   else:
     holder.value
 
 proc `[]=`[T](tt: var TypeTable, typ: type[T], val: T) =
-  let holder = Holder[T](tt.table.getOrDefault(getTypeName($typ)))
+  let holder = Holder[T](tt.table.getOrDefault(getTypeName(T)))
   if holder.isNil:
-    tt.table[getTypeName($typ)] = Holder[T](value: val)
+    tt.table[getTypeName(T)] = Holder[T](value: val)
   else:
     holder.value = val
 
@@ -135,20 +150,19 @@ macro setupproc*(prc: untyped): untyped =
     setResult
   )
 
-  let targetTypeAsString = newStrLitNode(getTypeName(repr(targetType)))
   buildDepsProc.body.add(
-    quote do: result.outs.add(`targetTypeAsString`)
+    quote do: result.outs.add(getTypeName(`targetType`))
   )
   for setupParam in params(prc)[2..^1]:
     if setupParam[1].kind == nnkVarTy:
-      let paramType = newStrLitNode(getTypeName(repr(setupParam[1][0])))
+      let paramType = setupParam[1][0]
       buildDepsProc.body.add(
-        quote do: result.outs.add(`paramType`)
+        quote do: result.outs.add(getTypeName(`paramType`))
       )
     else:
-      let paramType = newStrLitNode(getTypeName(repr(setupParam[1])))
+      let paramType = setupParam[1]
       buildDepsProc.body.add(
-        quote do: result.deps.add(`paramType`)
+        quote do: result.deps.add(getTypeName(`paramType`))
       )
 
   let
@@ -204,3 +218,13 @@ when isMainModule:
   builder.with(5)
   builder.with(float)
   echo builder.build(string)
+
+  doAssert getTypeName(int) == "int"
+  doAssert getTypeName(seq[iNT]) == "seq[int]"
+
+  type
+    hello = int
+    hello3 = distinct int
+  doAssert getTypeName(hello) == "int"
+  doAssert getTypeName(hello3) == "hello3"
+  doAssert getTypeName(ref int) == "ref[int]"
