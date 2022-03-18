@@ -96,6 +96,8 @@ proc contains*[T](peerBook: PeerBook[T], peerId: PeerId): bool =
 proc addHandler*[T](peerBook: PeerBook[T], handler: PeerBookChangeHandler) =
   peerBook.changeHandlers.add(handler)
 
+proc len*[T](peerBook: PeerBook[T]): int = peerBook.book.len
+
 ##################  
 # Peer Store API #
 ##################
@@ -146,8 +148,11 @@ proc cleanup*(
   peerStore: PeerStore,
   peerId: PeerId) =
 
-  if peerStore.capacity <= 0:
+  if peerStore.capacity == 0:
     peerStore.del(peerId)
+    return
+  elif peerStore.capacity < 0:
+    #infinite capacity
     return
 
   peerStore.toClean.add(peerId)

@@ -95,15 +95,16 @@ suite "PeerStore":
       toSeq(keys(addressBook.book))[0] == peerId2
       toSeq(values(addressBook.book))[0] == @[multiaddr1, multiaddr2]
 
-  test "Pruner":
-    var peerStore = PeerStore.new(capacity = 0)
+  test "Pruner - no capacity":
+    let peerStore = PeerStore.new(capacity = 0)
     peerStore[AgentBook][peerId1] = "gds"
 
     peerStore.cleanup(peerId1)
 
     check peerId1 notin peerStore[AgentBook]
 
-    peerStore = PeerStore.new(capacity = 1)
+  test "Pruner - FIFO":
+    let peerStore = PeerStore.new(capacity = 1)
     peerStore[AgentBook][peerId1] = "gds"
     peerStore[AgentBook][peerId2] = "gds"
     peerStore.cleanup(peerId2)
@@ -111,3 +112,23 @@ suite "PeerStore":
     check:
       peerId1 in peerStore[AgentBook]
       peerId2 notin peerStore[AgentBook]
+
+  test "Pruner - regular capacity":
+    var peerStore = PeerStore.new(capacity = 20)
+
+    for i in 0..<30:
+      let randomPeerId = PeerId.init(KeyPair.random(ECDSA, rng[]).get().pubkey).get()
+      peerStore[AgentBook][randomPeerId] = "gds"
+      peerStore.cleanup(randomPeerId)
+
+    check peerStore[AgentBook].len == 20
+
+  test "Pruner - infinite capacity":
+    var peerStore = PeerStore.new(capacity = -1)
+
+    for i in 0..<30:
+      let randomPeerId = PeerId.init(KeyPair.random(ECDSA, rng[]).get().pubkey).get()
+      peerStore[AgentBook][randomPeerId] = "gds"
+      peerStore.cleanup(randomPeerId)
+
+    check peerStore[AgentBook].len == 30
