@@ -932,3 +932,75 @@ suite "GossipSub":
           it.switch.stop())))
 
     await allFuturesThrowing(nodesFut)
+
+  asyncTest "e2e - GossipSub peer exchange":
+    # A, B & C are subscribed to something
+    # B unsubcribe from it, it should send
+    # PX to A & C
+    #
+    # C sent his SPR, not A
+    proc handler(topic: string, data: seq[byte]) {.async, gcsafe.} =
+      discard # not used in this test
+
+    let
+      nodes = generateNodes(
+        2,
+        gossip = true) &
+        generateNodes(1, gossip = true, sendSignedPeerRecord = true)
+
+      # start switches
+      nodesFut = await allFinished(
+        nodes[0].switch.start(),
+        nodes[1].switch.start(),
+        nodes[2].switch.start(),
+      )
+
+    # start pubsub
+    await allFuturesThrowing(
+      allFinished(
+        nodes[0].start(),
+        nodes[1].start(),
+        nodes[2].start(),
+    ))
+
+    var
+      gossip0 = GossipSub(nodes[0])
+      gossip1 = GossipSub(nodes[1])
+      gossip2 = GossipSub(nodes[1])
+
+    await subscribeNodes(nodes)
+
+    nodes[0].subscribe("foobar", handler)
+    nodes[1].subscribe("foobar", handler)
+    nodes[2].subscribe("foobar", handler)
+    for x in 0..<3:
+      for y in 0..<3:
+        if x != y:
+          await waitSub(nodes[x], nodes[y], "foobar")
+
+    var passed: Future[void] = newFuture[void]()
+    gossip0.routingRecordsHandler.add(proc(peer: PeerId, tag: string, peers: seq[RoutingRecordsPair]) =
+      check:
+        tag == "foobar"
+        peers.len == 2
+        peers[0].record.isSome() xor peers[1].record.isSome()
+      passed.complete()
+    )
+    nodes[1].unsubscribe("foobar", handler)
+
+    await passed
+
+    await allFuturesThrowing(
+      nodes[0].switch.stop(),
+      nodes[1].switch.stop(),
+      nodes[2].switch.stop()
+    )
+
+    await allFuturesThrowing(
+      nodes[0].stop(),
+      nodes[1].stop(),
+      nodes[2].stop()
+    )
+
+    await allFuturesThrowing(nodesFut.concat())
+

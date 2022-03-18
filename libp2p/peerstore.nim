@@ -14,6 +14,7 @@ import
   ./crypto/crypto,
   ./protocols/identify,
   ./peerid, ./peerinfo,
+  ./routing_record,
   ./multiaddress
 
 type
@@ -43,6 +44,7 @@ type
 
   AgentBook* = ref object of PeerBook[string]
   ProtoVersionBook* = ref object of PeerBook[string]
+  SPRBook* = ref object of PeerBook[Envelope]
   
   ####################
   # Peer store types #
@@ -139,6 +141,9 @@ proc updatePeerInfo*(
 
   if info.protos.len > 0:
     peerStore[ProtoBook][info.peerId] = info.protos
+
+  if info.signedPeerRecord.isSome:
+    peerStore[SPRBook][info.peerId] = info.signedPeerRecord.get()
 
   let cleanupPos = peerStore.toClean.find(info.peerId)
   if cleanupPos >= 0:

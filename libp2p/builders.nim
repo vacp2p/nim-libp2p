@@ -42,6 +42,7 @@ type
     rng: ref BrHmacDrbgContext
     maxConnections: int
     maxIn: int
+    sendSignedPeerRecord: bool
     maxOut: int
     maxConnsPerPeer: int
     protoVersion: string
@@ -78,6 +79,9 @@ proc withAddresses*(b: SwitchBuilder, addresses: seq[MultiAddress]): SwitchBuild
   b.addresses = addresses
   b
 
+proc withSignedPeerRecord*(b: SwitchBuilder, sendIt = true): SwitchBuilder =
+  b.sendSignedPeerRecord = sendIt
+  b
 
 proc withMplex*(b: SwitchBuilder, inTimeout = 5.minutes, outTimeout = 5.minutes): SwitchBuilder =
   proc newMuxer(conn: Connection): Muxer =
@@ -170,7 +174,7 @@ proc build*(b: SwitchBuilder): Switch
       muxers
 
   let
-    identify = Identify.new(peerInfo)
+    identify = Identify.new(peerInfo, b.sendSignedPeerRecord)
     connManager = ConnManager.new(b.maxConnsPerPeer, b.maxConnections, b.maxIn, b.maxOut)
     ms = MultistreamSelect.new()
     muxedUpgrade = MuxedUpgrade.new(identify, muxers, secureManagerInstances, connManager, ms)
@@ -219,6 +223,7 @@ proc newStandardSwitch*(
   maxOut = -1,
   maxConnsPerPeer = MaxConnectionsPerPeer,
   nameResolver: NameResolver = nil,
+  sendSignedPeerRecord = false,
   peerStore = PeerStore.new()): Switch
   {.raises: [Defect, LPError].} =
   if SecureProtocol.Secio in secureManagers:
@@ -229,6 +234,7 @@ proc newStandardSwitch*(
     .new()
     .withAddresses(addrs)
     .withRng(rng)
+    .withSignedPeerRecord(sendSignedPeerRecord)
     .withMaxConnections(maxConnections)
     .withMaxIn(maxIn)
     .withMaxOut(maxOut)
