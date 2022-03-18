@@ -170,7 +170,7 @@ macro setupproc*(prc: untyped): untyped =
     runnerProc = newProc(params = [newEmptyNode(), builderParam])
     beforeCall = nnkStmtList.newTree()
     valCopyIdent = ident"valCopy"
-    caller = newCall("setup", valCopyIdent)
+    caller = newCall(prc.name, valCopyIdent)
     afterCall = nnkStmtList.newTree()
   var paramCount = 0
   for setupParam in params(prc)[2..^1]:
@@ -211,7 +211,7 @@ when isMainModule:
   proc setup(i: var float) {.setupproc.} =
     i = 10.12
 
-  proc setup(i: var string) {.setupproc.} =
+  proc othername(i: var string) {.setupproc.} =
     discard
 
   let builder = Builder()
