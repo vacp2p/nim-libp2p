@@ -116,7 +116,7 @@ proc windowUpdate(
   )
 
 type
-  YamuxChannel = ref object of Connection
+  YamuxChannel* = ref object of Connection
     id: uint32
     recvWindow: int
     sendWindow: int
@@ -129,6 +129,7 @@ type
     closedRemotely: Future[void]
     closedLocally: bool
     receivedData: AsyncEvent
+    updatedRecvWindow: AsyncEvent
 
 proc recvQueueBytes(y: YamuxChannel): int =
   for elem in y.recvQueue: result.inc(elem.len)
@@ -255,6 +256,11 @@ method write*(s: YamuxChannel, msg: seq[byte]) {.async.} =
   s.sendQueue.add(msg)
   await s.trySend()
 
+  while s.sendWindow == 0 and s.sendQueue.len > 0:
+    # Block until there is room
+    s.updatedRecvWindow.clear()
+    await s.updatedRecvWindow.wait()
+
 proc open*(s: YamuxChannel) {.async, gcsafe.} =
   # Just write an empty message, Syn will be
   # piggy-backed
@@ -275,6 +281,7 @@ proc createStream(m: Yamux, id: uint32): YamuxChannel =
     sendWindow: DefaultWindowSize,
     conn: m.connection,
     receivedData: newAsyncEvent(),
+    updatedRecvWindow: newAsyncEvent(),
     closedRemotely: newFuture[void]()
   )
   result.initStream()
@@ -299,6 +306,7 @@ method handle*(m: Yamux) {.async, gcsafe.} =
     while not m.connection.atEof:
       trace "waiting for header"
       let header = await m.connection.readHeader()
+      trace "got message", typ=header.msgType, len=header.length
 
       case header.msgType:
       of Ping:
@@ -323,6 +331,7 @@ method handle*(m: Yamux) {.async, gcsafe.} =
 
         if header.msgType == WindowUpdate:
           stream.sendWindow += int(header.length)
+          stream.updatedRecvWindow.fire()
           await stream.trySend()
         else:
           if header.length.int > stream.recvWindow.int:
