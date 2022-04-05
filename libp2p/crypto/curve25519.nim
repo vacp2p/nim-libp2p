@@ -27,7 +27,7 @@ const
 type
   Curve25519* = object
   Curve25519Key* = array[Curve25519KeySize, byte]
-  pcuchar = ptr cuchar
+  pcuchar = ptr char
   Curve25519Error* = enum
     Curver25519GenError
 
