@@ -9,7 +9,7 @@
 
 {.push raises: [Defect].}
 
-import std/[tables, sequtils, sets, algorithm]
+import std/[tables, sequtils, sets, algorithm, sugar]
 import chronos, chronicles, metrics
 import "."/[types, scoring]
 import ".."/[pubsubpeer, peertable, timedcache, mcache, floodsub, pubsub]
@@ -310,18 +310,21 @@ proc rebalanceMesh*(g: GossipSub, topic: string, metrics: ptr MeshMetrics = nil)
   if npeers  < g.parameters.dLow:
     trace "replenishing mesh", peers = npeers
     # replenish the mesh if we're below Dlo
-    var candidates = toSeq(
-      g.gossipsub.getOrDefault(topic, initHashSet[PubSubPeer]()) -
-      g.mesh.getOrDefault(topic, initHashSet[PubSubPeer]())
-    ).filterIt(
-      it.connected and
-      # avoid negative score peers
-      it.score >= 0.0 and
-      # don't pick explicit peers
-      it.peerId notin g.parameters.directPeers and
-      # and avoid peers we are backing off
-      it.peerId notin g.backingOff.getOrDefault(topic)
-    )
+    var candidates: seq[PubSubPeer]
+    let currentMesh = g.mesh.getOrDefault(topic)
+    g.gossipSub.withValue(topic, peerList):
+      for it in peerList[]:
+        if
+          it notin currentMesh and
+          it.connected and
+          # avoid negative score peers
+          it.score >= 0.0 and
+          # don't pick explicit peers
+          it.peerId notin g.parameters.directPeers and
+          # and avoid peers we are backing off
+          it.peerId notin g.backingOff.getOrDefault(topic):
+
+          candidates.add(it)
 
     # shuffle anyway, score might be not used
     g.rng.shuffle(candidates)
@@ -344,20 +347,23 @@ proc rebalanceMesh*(g: GossipSub, topic: string, metrics: ptr MeshMetrics = nil)
   else:
       trace "replenishing mesh outbound quota", peers = g.mesh.peers(topic)
 
-      var candidates = toSeq(
-        g.gossipsub.getOrDefault(topic, initHashSet[PubSubPeer]()) -
-        g.mesh.getOrDefault(topic, initHashSet[PubSubPeer]())
-      ).filterIt(
-        it.connected and
-        # get only outbound ones
-        it.outbound and
-        # avoid negative score peers
-        it.score >= 0.0 and
-        # don't pick explicit peers
-        it.peerId notin g.parameters.directPeers and
-        # and avoid peers we are backing off
-        it.peerId notin g.backingOff.getOrDefault(topic)
-      )
+      var candidates: seq[PubSubPeer]
+      let currentMesh = g.mesh.getOrDefault(topic)
+      g.gossipSub.withValue(topic, peerList):
+        for it in peerList[]:
+          if
+            it notin currentMesh and
+            it.connected and
+            # get only outbound ones
+            it.outbound and
+            # avoid negative score peers
+            it.score >= 0.0 and
+            # don't pick explicit peers
+            it.peerId notin g.parameters.directPeers and
+            # and avoid peers we are backing off
+            it.peerId notin g.backingOff.getOrDefault(topic):
+
+            candidates.add(it)
 
       # shuffle anyway, score might be not used
       g.rng.shuffle(candidates)
@@ -442,22 +448,25 @@ proc rebalanceMesh*(g: GossipSub, topic: string, metrics: ptr MeshMetrics = nil)
     let median = peers[medianIdx]
     if median.score < g.parameters.opportunisticGraftThreshold:
       trace "median score below opportunistic threshold", score = median.score
-      var avail = toSeq(
-        g.gossipsub.getOrDefault(topic, initHashSet[PubSubPeer]()) -
-        g.mesh.getOrDefault(topic, initHashSet[PubSubPeer]())
-      )
+      var avail: seq[PubSubPeer]
+      let currentMesh = g.mesh.getOrDefault(topic)
 
-      avail.keepIf do (x: PubSubPeer) -> bool:
-        # avoid negative score peers
-        x.score >= median.score and
-        # don't pick explicit peers
-        x.peerId notin g.parameters.directPeers and
-        # and avoid peers we are backing off
-        x.peerId notin g.backingOff.getOrDefault(topic)
+      g.gossipSub.withValue(topic, peerList):
+        for it in peerList[]:
+          if
+            it notin currentMesh and
+            # avoid negative score peers
+            it.score >= median.score and
+            # don't pick explicit peers
+            it.peerId notin g.parameters.directPeers and
+            # and avoid peers we are backing off
+            it.peerId notin g.backingOff.getOrDefault(topic):
 
-      # by spec, grab only 2
-      if avail.len > 2:
-        avail.setLen(2)
+            avail.add(it)
+
+            # by spec, grab only 2
+            if avail.len > 1:
+              break
 
       for peer in avail:
         if g.mesh.addPeer(topic, peer):
