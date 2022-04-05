@@ -62,7 +62,6 @@ proc resolveDnsAddress(
     port = Port(fromBytesBE(uint16, pbuf))
     resolvedAddresses = await self.resolveIp(prefix & dnsval, port, domain)
  
-  var addressSuffix = ma
   return collect(newSeqOfCap(4)):
     for address in resolvedAddresses:
       var createdAddress = MultiAddress.init(address).tryGet()[0].tryGet()

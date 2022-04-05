@@ -9,7 +9,7 @@
 
 {.push raises: [Defect].}
 
-import std/[options, sequtils, hashes]
+import std/[options, sequtils]
 import pkg/[chronos, chronicles, stew/results]
 import peerid, multiaddress, crypto/crypto, routing_record, errors
 

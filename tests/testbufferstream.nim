@@ -228,7 +228,7 @@ suite "BufferStream":
     await stream.pushData("123".toBytes())
     let push = stream.pushData("123".toBytes())
 
-    expect AssertionError:
+    expect AssertionDefect:
       await stream.pushData("123".toBytes())
 
     await stream.closeWithEOF()

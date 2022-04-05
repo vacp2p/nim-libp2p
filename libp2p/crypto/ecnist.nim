@@ -252,8 +252,8 @@ proc getPublicKey*(seckey: EcPrivateKey): EcResult[EcPublicKey] =
 
   var ecimp = brEcGetDefault()
   if seckey.key.curve in EcSupportedCurvesCint:
-    var length = getPublicKeyLength(cast[EcCurveKind](seckey.key.curve))
     var res = new EcPublicKey
+    assert res.len == getPublicKeyLength(cast[EcCurveKind](seckey.key.curve))
     if brEcComputePublicKey(ecimp, addr res.key,
                             addr res.buffer[0], unsafeAddr seckey.key) == 0:
       err(EcKeyIncorrectError)
