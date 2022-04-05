@@ -9,7 +9,7 @@
 
 {.push raises: [Defect].}
 
-import std/[tables, sequtils, sets, algorithm, sugar]
+import std/[tables, sequtils, sets, algorithm]
 import chronos, chronicles, metrics
 import "."/[types, scoring]
 import ".."/[pubsubpeer, peertable, timedcache, mcache, floodsub, pubsub]
