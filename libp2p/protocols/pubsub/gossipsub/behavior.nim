@@ -602,8 +602,6 @@ proc onHeartbeat(g: GossipSub) {.raises: [Defect].} =
         peer.iWantBudget = IWantPeerBudget
         peer.iHaveBudget = IHavePeerBudget
 
-    g.updateScores()
-
     var meshMetrics = MeshMetrics()
 
     for t in toSeq(g.topics.keys):

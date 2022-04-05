@@ -253,6 +253,12 @@ proc updateScores*(g: GossipSub) = # avoid async
 
   trace "updated scores", peers = g.peers.len
 
+proc scoringHeartbeat*(g: GossipSub) {.async.} =
+  while g.heartbeatRunning:
+    trace "running scoring heartbeat", instance = cast[int](g)
+    g.updateScores()
+    await sleepAsync(g.parameters.decayInterval)
+
 proc punishInvalidMessage*(g: GossipSub, peer: PubSubPeer, topics: seq[string]) =
   for tt in topics:
     let t = tt

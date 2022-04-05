@@ -583,6 +583,7 @@ method start*(g: GossipSub) {.async.} =
 
   g.heartbeatRunning = true
   g.heartbeatFut = g.heartbeat()
+  g.scoringHeartbeatFut = g.scoringHeartbeat()
   g.directPeersLoop = g.maintainDirectPeers()
 
 method stop*(g: GossipSub) {.async.} =
@@ -594,6 +595,7 @@ method stop*(g: GossipSub) {.async.} =
   # stop heartbeat interval
   g.heartbeatRunning = false
   g.directPeersLoop.cancel()
+  g.scoringHeartbeatFut.cancel()
   if not g.heartbeatFut.finished:
     trace "awaiting last heartbeat"
     await g.heartbeatFut
