@@ -378,12 +378,16 @@ method rpcHandler*(g: GossipSub,
     # remote attacking the hash function
     if g.addSeen(msgId):
       trace "Dropping already-seen message", msgId = shortLog(msgId), peer
-      # make sure to update score tho before continuing
-      # TODO: take into account meshMessageDeliveriesWindow
-      # score only if messages are not too old.
-      g.rewardDelivered(peer, msg.topicIDs, false)
 
-      g.validationSeen.withValue(msgIdSalted, seen): seen[].incl(peer)
+      var alreadyReceived = false
+      g.validationSeen.withValue(msgIdSalted, seen):
+        if seen[].containsOrIncl(peer):
+          # peer sent us this message twice
+          alreadyReceived = true
+
+      if not alreadyReceived:
+        let delay = Moment.now() - g.firstSeen(msgId)
+        g.rewardDelivered(peer, msg.topicIDs, false, delay)
 
       # onto the next message
       continue

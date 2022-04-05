@@ -274,7 +274,7 @@ proc addCapped*[T](stat: var T, diff, cap: T) =
   stat += min(diff, cap - stat)
 
 proc rewardDelivered*(
-    g: GossipSub, peer: PubSubPeer, topics: openArray[string], first: bool) =
+    g: GossipSub, peer: PubSubPeer, topics: openArray[string], first: bool, delay = ZeroDuration) =
   for tt in topics:
     let t = tt
     if t notin g.topics:
@@ -283,6 +283,10 @@ proc rewardDelivered*(
     let tt = t
     let topicParams = g.topicParams.mgetOrPut(t, TopicParams.init())
                                             # if in mesh add more delivery score
+
+    if delay > topicParams.meshMessageDeliveriesWindow:
+      # Too old
+      continue
 
     g.withPeerStats(peer.peerId) do (stats: var PeerStats):
       stats.topicInfos.withValue(tt, tstats):
