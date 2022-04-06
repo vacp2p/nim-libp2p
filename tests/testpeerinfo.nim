@@ -31,7 +31,7 @@ suite "PeerInfo":
       peerInfo = PeerInfo.new(seckey, multiAddresses)
     
     let
-      env = peerInfo.signedPeerRecord.get()
+      env = peerInfo.signedPeerRecord.envelope
       rec = PeerRecord.decode(env.payload()).tryGet()
     
     # Check envelope fields
