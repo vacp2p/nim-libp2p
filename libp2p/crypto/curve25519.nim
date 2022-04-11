@@ -1,5 +1,5 @@
 ## Nim-Libp2p
-## Copyright (c) 2020 Status Research & Development GmbH
+## Copyright (c) 2020-2022 Status Research & Development GmbH
 ## Licensed under either of
 ##  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
 ##  * MIT license ([LICENSE-MIT](LICENSE-MIT))
@@ -19,6 +19,7 @@
 
 import bearssl
 import stew/results
+from stew/assign2 import assign
 export results
 
 const
@@ -33,7 +34,7 @@ type
 
 proc intoCurve25519Key*(s: openArray[byte]): Curve25519Key =
   assert s.len == Curve25519KeySize
-  copyMem(addr result[0], unsafeAddr s[0], Curve25519KeySize)
+  assign(result, s)
 
 proc getBytes*(key: Curve25519Key): seq[byte] = @key
 
