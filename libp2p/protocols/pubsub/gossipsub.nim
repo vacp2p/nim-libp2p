@@ -38,6 +38,8 @@ logScope:
 declareCounter(libp2p_gossipsub_failed_publish, "number of failed publish")
 declareCounter(libp2p_gossipsub_invalid_topic_subscription, "number of invalid topic subscriptions that happened")
 declareCounter(libp2p_gossipsub_duplicate_during_validation, "number of duplicates received during message validation")
+declareCounter(libp2p_gossipsub_duplicate, "number of duplicates received")
+declareCounter(libp2p_gossipsub_received, "number of messages received (deduplicated)")
 
 proc init*(_: type[GossipSubParams]): GossipSubParams =
   GossipSubParams(
@@ -385,8 +387,12 @@ method rpcHandler*(g: GossipSub,
 
       g.validationSeen.withValue(msgIdSalted, seen): seen[].incl(peer)
 
+      libp2p_gossipsub_duplicate.inc()
+
       # onto the next message
       continue
+
+    libp2p_gossipsub_received.inc()
 
     # avoid processing messages we are not interested in
     if msg.topicIDs.allIt(it notin g.topics):
