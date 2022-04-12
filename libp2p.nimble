@@ -27,7 +27,7 @@ const nimflags =
 
 proc runTest(filename: string, verify: bool = true, sign: bool = true,
              moreoptions: string = "") =
-  var excstr = "nim c --opt:speed -d:debug -d:libp2p_agents_metrics -d:libp2p_protobuf_metrics -d:libp2p_network_protocols_metrics "
+  var excstr = "nim c --opt:speed -d:debug -d:libp2p_agents_metrics -d:libp2p_protobuf_metrics -d:libp2p_network_protocols_metrics -d:libp2p_mplex_metrics "
   excstr.add(" " & getEnv("NIMFLAGS") & " ")
   excstr.add(" " & nimflags & " ")
   excstr.add(" -d:libp2p_pubsub_sign=" & $sign)
