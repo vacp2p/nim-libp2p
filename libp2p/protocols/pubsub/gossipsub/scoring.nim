@@ -255,9 +255,10 @@ proc updateScores*(g: GossipSub) = # avoid async
 
 proc scoringHeartbeat*(g: GossipSub) {.async.} =
   while g.heartbeatRunning:
+    let sleepFuture = sleepAsync(g.parameters.decayInterval)
     trace "running scoring heartbeat", instance = cast[int](g)
     g.updateScores()
-    await sleepAsync(g.parameters.decayInterval)
+    await sleepFuture
 
 proc punishInvalidMessage*(g: GossipSub, peer: PubSubPeer, topics: seq[string]) =
   for tt in topics:

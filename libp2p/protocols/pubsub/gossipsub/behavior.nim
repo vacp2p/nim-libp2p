@@ -656,6 +656,7 @@ proc onHeartbeat(g: GossipSub) {.raises: [Defect].} =
 
 proc heartbeat*(g: GossipSub) {.async.} =
   while g.heartbeatRunning:
+    let sleepFuture = sleepAsync(g.parameters.heartbeatInterval)
     trace "running heartbeat", instance = cast[int](g)
     g.onHeartbeat()
 
@@ -663,4 +664,4 @@ proc heartbeat*(g: GossipSub) {.async.} =
       trace "firing heartbeat event", instance = cast[int](g)
       trigger.fire()
 
-    await sleepAsync(g.parameters.heartbeatInterval)
+    await sleepFuture
