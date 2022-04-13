@@ -28,7 +28,7 @@ type
     agentVersion*: string
     privateKey*: PrivateKey
     publicKey*: PublicKey
-    signedPeerRecord*: Option[Envelope]
+    signedPeerRecord*: SignedPeerRecord
 
 func shortLog*(p: PeerInfo): auto =
   (
@@ -39,6 +39,17 @@ func shortLog*(p: PeerInfo): auto =
     agentVersion: p.agentVersion,
   )
 chronicles.formatIt(PeerInfo): shortLog(it)
+
+proc update*(p: PeerInfo) =
+  let sprRes = SignedPeerRecord.init(
+    p.privateKey,
+    PeerRecord.init(p.peerId, p.addrs)
+  )
+  if sprRes.isOk:
+    p.signedPeerRecord = sprRes.get()
+  else:
+    discard
+    #info "Can't update the signed peer record"
 
 proc new*(
   p: typedesc[PeerInfo],
@@ -56,15 +67,6 @@ proc new*(
   
   let peerId = PeerID.init(key).tryGet()
 
-  let sprRes = SignedPeerRecord.init(
-    key,
-    PeerRecord.init(peerId, @addrs)
-  )
-  let spr = if sprRes.isOk:
-              some(sprRes.get().envelope)
-            else:
-              none(Envelope)
-
   let peerInfo = PeerInfo(
     peerId: peerId,
     publicKey: pubkey,
@@ -73,6 +75,8 @@ proc new*(
     agentVersion: agentVersion,
     addrs: @addrs,
     protocols: @protocols,
-    signedPeerRecord: spr)
+  )
+
+  peerInfo.update()
 
   return peerInfo

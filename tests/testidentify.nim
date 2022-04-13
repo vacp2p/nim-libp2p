@@ -144,7 +144,7 @@ suite "Identify":
       check id.protoVersion.get() == ProtoVersion
       check id.agentVersion.get() == AgentVersion
       check id.protos == @["/test/proto1/1.0.0", "/test/proto2/1.0.0"]
-      check id.signedPeerRecord.get() == remotePeerInfo.signedPeerRecord.get()
+      check id.signedPeerRecord.get() == remotePeerInfo.signedPeerRecord.envelope
 
   suite "handle push identify message":
     var

@@ -265,6 +265,8 @@ proc start*(s: Switch) {.async, gcsafe.} =
       s.acceptFuts.add(s.accept(t))
       s.peerInfo.addrs &= t.addrs
 
+  s.peerInfo.update()
+
   debug "Started libp2p node", peer = s.peerInfo
 
 proc newSwitch*(peerInfo: PeerInfo,
