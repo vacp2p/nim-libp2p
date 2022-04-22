@@ -119,6 +119,21 @@ proc getField*(pb: ProtoBuffer, field: int,
     else:
       err(ProtoError.IncorrectBlob)
 
+proc write*(pb: var ProtoBuffer, field: int, env: Envelope): Result[void, CryptoError] =
+  var ipb = initProtoBuffer()
+
+  try:
+    ipb.write(1, env.publicKey)
+    ipb.write(2, env.payloadType)
+    ipb.write(3, env.payload)
+    ipb.write(5, env.signature)
+  except ResultError[CryptoError] as exc:
+    return err(exc.error)
+  ipb.finish()
+
+  pb.write(field, ipb)
+  ok()
+
 type
   SignedPayload*[T] = object
     # T needs to have .encode(), .decode(), .payloadType(), .domain()
