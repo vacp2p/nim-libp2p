@@ -173,3 +173,82 @@ proc decodeHopMessage(buf: seq[byte]): Option[HopMessage] =
     some(msg)
   else:
     HopMessage.none
+
+# Stop Message
+
+proc encodeStopMessage(msg: StopMessage): ProtoBuffer =
+  var pb = initProtoBuffer()
+
+  pb.write(1, msg.msgType.ord.uint)
+  if isSome(msg.peer):
+    var ppb = initProtoBuffer()
+    ppb.write(1, msg.peer.get().peerId)
+    for ma in msg.peer.get().addrs:
+      ppb.write(2, ma.data.buffer)
+    ppb.finish()
+    pb.write(2, ppb.buffer)
+  if isSome(msg.limit):
+    let limit = msg.limit.get()
+    var lpb = initProtoBuffer()
+    if isSome(limit.duration):
+      lpb.write(1, limit.duration.get())
+    if isSome(limit.data):
+      lpb.write(2, limit.data.get())
+    lpb.finish()
+    pb.write(3, lpb.buffer)
+  if isSome(msg.status):
+    pb.write(4, msg.status.get().ord.uint)
+
+  pb.finish()
+  pb
+
+proc decodeStopMessage(buf: seq[byte]): Option[StopMessage] =
+  let pb = initProtoBuffer(buf)
+  var
+    msg: StopMessage
+    msgTypeOrd: uint32
+    ppb: ProtoBuffer
+    vpb: ProtoBuffer
+    lpb: ProtoBuffer
+    statusOrd: uint32
+    peer: RelayV2Peer
+    reservation: Reservation
+    limit: RelayV2Limit
+    rVoucher: ProtoResult[bool]
+    res: bool
+
+  let
+    r1 = pb.getRequiredField(1, msgTypeOrd)
+    r2 = pb.getField(2, ppb)
+    r3 = pb.getField(3, lpb)
+    r4 = pb.getField(4, statusOrd)
+
+  res = r1.isOk() and r2.isOk() and r3.isOk() and r4.isOk()
+
+  if r2.isOk() and r2.get():
+    let
+      r2PeerId = ppb.getField(1, peer.peerId)
+      r2Addrs = ppb.getRepeatedField(2, peer.addrs)
+    res = res and r2PeerId.isOk() and r2Addrs.isOk()
+  if r3.isOk() and r3.get():
+    var
+      lduration: uint32
+      ldata: uint64
+    let
+      r3Duration = lpb.getField(1, lduration)
+      r3Data = lpb.getField(2, ldata)
+    if r3Duration.isOk() and r3Duration.get(): limit.duration = some(lduration)
+    if r3Data.isOk() and r3Data.get(): limit.data = some(ldata)
+    res = res and r3Duration.isOk() and r3Data.isOk()
+
+  if res:
+    msg.msgType = StopMessageType(msgTypeOrd)
+    if r2.get():
+      msg.peer = some(peer)
+    if r3.get():
+      msg.limit = some(limit)
+    if r4.get():
+      msg.status = some(RelayV2Status(statusOrd))
+    some(msg)
+  else:
+    StopMessage.none
