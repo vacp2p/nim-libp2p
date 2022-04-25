@@ -24,6 +24,7 @@ import ./voucher,
 const
   RelayV2HopCodec* = "/libp2p/circuit/relay/0.2.0/hop"
   RelayV2StopCodec* = "/libp2p/circuit/relay/0.2.0/stop"
+  MsgSize* = 4096
 
 logScope:
   topics = "libp2p relayv2"
@@ -69,9 +70,17 @@ type
     duration: Option[uint32] # seconds
     data: Option[uint64] # bytes
 
+  RelayV2* = ref object of LPProtocol
+    switch: Switch
+    peerId: PeerID
+    rsvp: Table[PeerId, Duration]
+    hopCount: CountTable[PeerID]
+
+    msgSize*: int
+
 # Hop Protocol
 
-proc encodeHopMessage(msg: HopMessage): Result[ProtoBuffer, CryptoError] =
+proc encodeHopMessage*(msg: HopMessage): Result[ProtoBuffer, CryptoError] =
   var pb = initProtoBuffer()
 
   pb.write(1, msg.msgType.ord.uint)
@@ -147,6 +156,7 @@ proc decodeHopMessage(buf: seq[byte]): Option[HopMessage] =
       if signedVoucher.isOk():
         reservation.svoucher = some(signedVoucher.get())
       else:
+        trace "voucher failed"
         res = false
     res = res and r3Expire.isOk() and r3Addrs.isOk() and rVoucher.isOk()
   if r4.isOk() and r4.get():
@@ -173,6 +183,21 @@ proc decodeHopMessage(buf: seq[byte]): Option[HopMessage] =
     some(msg)
   else:
     HopMessage.none
+
+proc handleError*(conn: Connection, code: RelayV2Status) {.async, gcsafe.} =
+  trace "send status", status = $code & "(" & $ord(code) & ")"
+  let
+    msg = HopMessage(msgType: HopMessageType.Status,
+      peer: none(RelayV2Peer),
+      reservation: none(Reservation),
+      limit: none(RelayV2Limit),
+      status: some(code))
+    pb = encodeHopMessage(msg)
+
+  if pb.isOk:
+    await conn.writeLp(pb.get().buffer)
+  else:
+    error "error encoding relay response", error = $pb
 
 # Stop Message
 
@@ -252,3 +277,46 @@ proc decodeStopMessage(buf: seq[byte]): Option[StopMessage] =
     some(msg)
   else:
     StopMessage.none
+
+# Protocols
+
+proc handleReserve(rv2: RelayV2, conn: Connection) {.async, gcsafe.} =
+  discard
+
+proc handleConnect(rv2: Relayv2, conn: Connection, msg: HopMessage) {.async, gcsafe.} =
+  discard
+
+proc new*(T: typedesc[RelayV2], switch: Switch): T =
+  let rv2 = T(switch = switch)
+
+proc init(rv2: RelayV2) =
+  proc handleStream(conn: Connection, proto: string) {.async, gcsafe.} =
+    try:
+      let msgOpt = decodeHopMessage(await conn.readLp(rv2.msgSize))
+
+      if msgOpt.isNone:
+        await handleError(conn, RelayV2Status.MalformedMessage)
+        return
+      else:
+        trace "relayv2 handle stream", msg = msgOpt.get()
+      let msg = msgOpt.get()
+
+      if msg.msgType == HopMessageType.Reserve:
+        rv2.handleReserve(conn)
+      elif msg.msgType == HopMessageType.Connect:
+        rv2.handleConnect(conn, msg)
+      else:
+        trace "Unexpected relayv2 handshake", msgType=msg.msgType
+        await handleError(conn, RelayV2Status.MalformedMessage)
+    except CancelledError as exc:
+      raise exc
+    except CatchableError as exc:
+      trace "exception in relayv2 handler", exc = exc.msg, conn
+    finally:
+      trace "exiting relayv2 handler", conn
+      await conn.close()
+
+  rv2.handler = handleStream
+  rv2.codecs = @[RelayV2HopCodec]
+
+  rv2.msgSize = MsgSize
