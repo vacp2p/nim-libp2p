@@ -35,6 +35,7 @@ logScope:
   topics = "libp2p relayv2"
 
 type
+  RelayV2Error* = object of LPError
   RelayV2Status* = enum
     Ok = 100
     ReservationRefused = 200
@@ -70,7 +71,7 @@ type
   Reservation* = object
     expire: uint64 # required, Unix expiration time (UTC)
     addrs: seq[MultiAddress] # relay address for reserving peer
-    svoucher: Option[SignedVoucher] # optional, reservation voucher
+    svoucher: Option[seq[byte]] # optional, reservation voucher
   RelayV2Limit* = object
     duration: Option[uint32] # seconds
     data: Option[uint64] # bytes
@@ -105,7 +106,7 @@ proc encodeHopMessage*(msg: HopMessage): Result[ProtoBuffer, CryptoError] =
     for ma in rsrv.addrs:
       rpb.write(2, ma.data.buffer)
     if isSome(rsrv.svoucher):
-      rpb.write(3, ? rsrv.svoucher.get().encode())
+      rpb.write(3, rsrv.svoucher.get())
     rpb.finish()
     pb.write(3, rpb.buffer)
   if isSome(msg.limit):
@@ -130,13 +131,12 @@ proc decodeHopMessage(buf: seq[byte]): Option[HopMessage] =
     msgTypeOrd: uint32
     ppb: ProtoBuffer
     rpb: ProtoBuffer
-    vpb: ProtoBuffer
     lpb: ProtoBuffer
+    svoucher: seq[byte]
     statusOrd: uint32
     peer: RelayV2Peer
     reservation: Reservation
     limit: RelayV2Limit
-    rVoucher: ProtoResult[bool]
     res: bool
 
   let
@@ -157,15 +157,10 @@ proc decodeHopMessage(buf: seq[byte]): Option[HopMessage] =
     let
       r3Expire = rpb.getRequiredField(1, reservation.expire)
       r3Addrs = rpb.getRepeatedField(2, reservation.addrs)
-    rVoucher = rpb.getField(3, vpb)
-    if rVoucher.isOk() and rVoucher.get():
-      let signedVoucher = SignedVoucher.decode(vpb.buffer)
-      if signedVoucher.isOk():
-        reservation.svoucher = some(signedVoucher.get())
-      else:
-        trace "voucher failed"
-        res = false
-    res = res and r3Expire.isOk() and r3Addrs.isOk() and rVoucher.isOk()
+      r3SVoucher = rpb.getField(3, svoucher)
+    if r3SVoucher.isOk() and r3SVoucher.get():
+      reservation.svoucher = some(svoucher)
+    res = res and r3Expire.isOk() and r3Addrs.isOk() and r3SVoucher.isOk()
   if r4.isOk() and r4.get():
     var
       lduration: uint32
@@ -293,14 +288,14 @@ proc createHopMessage(
     pid: PeerID,
     expire: DateTime): Result[HopMessage, CryptoError] =
   var msg: HopMessage
-  let expireUnix = uint64(expire.toTime.toUnix) # maybe weird integer conversion
+  let expireUnix = expire.toTime.toUnix.uint64 # maybe weird integer conversion
   let v = Voucher(relayPeerId: rv2.switch.peerInfo.peerId,
                   reservingPeerId: pid,
                   expiration: expireUnix)
   let sv = ? SignedVoucher.init(rv2.switch.peerInfo.privateKey, v)
   msg.reservation = some(Reservation(expire: expireUnix,
                          addrs: rv2.switch.peerInfo.addrs,
-                         svoucher: some(sv)))
+                         svoucher: some(? sv.encode)))
   msg.limit = some(rv2.limit)
   msg.msgType = HopMessageType.Status
   msg.status = some(Ok)
@@ -318,7 +313,8 @@ proc handleReserve(rv2: RelayV2, conn: Connection) {.async, gcsafe.} =
     return
 
   # TODO: Access Control List check, eventually
-  let expire = now() + rv2.reservationTTL
+
+  let expire = now().utc + rv2.reservationTTL
   rv2.rsvp[pid] = expire
 
   trace "reserving relay slot for", pid
