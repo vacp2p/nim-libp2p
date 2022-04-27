@@ -390,5 +390,34 @@ type
 proc new(T: typedesc[Client], switch: Switch): T =
   T(swith = switch)
 
-proc reserve(T: typedesc[Client], src: Switch, rel: PeerID) {.async.} =
+proc reserve(src: Switch, relayPI: PeerInfo): Future[Result[Reservation, RelayV2Error]] {.async.} =
+  let conn = await src.dial(relayPI.peerId, relayPI.addrs, RelayV2HopCodec)
+  let msg = HopMessage(msgType: HopMessageType.Reserve)
+  let pb = encodeHopMessage(msg)
+  if pb.isErr():
+    error "Encode hop message during client side reserve", msg
+    return
+  await conn.writeLp(pb.get().buffer)
+  let responseMsgOpt = decodeHopMessage(await conn.readLp(MsgSize))
+  if responseMsgOpt.isNone():
+    trace "Malformed message from relay"
+    return err(RelayV2Error()) # TODO: To change because it's reaaally bad
+  let responseMsg = responseMsgOpt.get()
+  if responseMsg.msgType != HopMessageType.Status:
+    trace "unexpected relay response type", msgType = responseMsg.msgType
+    return err(RelayV2Error())
+  if responseMsg.status.isNone() or responseMsg.status.get() != Ok:
+    trace "reservation failed", status = responseMsg.status
+    return err(RelayV2Error())
+  if responseMsg.reservation.isNone():
+    trace "missing reservation info"
+    return err(RelayV2Error())
+  let rsvp = responseMsg.reservation.get()
+  if now().utc < rsvp.expire.int64.fromUnix.utc: # unsure
+    trace "received reservation with expiration date in the past"
+    return err(RelayV2Error())
+  if rsvp.svoucher.isSome():
+    let svoucher = SignedVoucher.decode(rsvp.svoucher.get())
+    if svoucher.isErr():
+      trace "error consuming voucher envelope", error = svoucher.error
   discard
