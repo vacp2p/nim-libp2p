@@ -40,7 +40,7 @@ proc init*(T: typedesc[Voucher],
           relayPeerId: PeerID,
           reservingPeerId: PeerID,
           expiration: uint64): T =
-  Voucher(
+  T(
     relayPeerId = relayPeerId,
     reservingPeerId = reservingPeerId,
     expiration: expiration

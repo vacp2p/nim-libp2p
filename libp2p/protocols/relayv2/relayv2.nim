@@ -15,16 +15,21 @@ import ./voucher,
        ../../peerinfo,
        ../../switch,
        ../../multiaddress,
+       ../../multicodec,
        ../../stream/connection,
        ../../protocols/protocol,
+       ../../transports/transport,
        ../../utility,
        ../../errors,
        ../../signed_envelope
+
+import std/times # Eventually replace it by chronos/timer
 
 const
   RelayV2HopCodec* = "/libp2p/circuit/relay/0.2.0/hop"
   RelayV2StopCodec* = "/libp2p/circuit/relay/0.2.0/stop"
   MsgSize* = 4096
+  DefaultReservationTimeout* = initDuration(hours = 1)
 
 logScope:
   topics = "libp2p relayv2"
@@ -73,10 +78,12 @@ type
   RelayV2* = ref object of LPProtocol
     switch: Switch
     peerId: PeerID
-    rsvp: Table[PeerId, Duration]
+    rsvp: Table[PeerId, DateTime] # TODO: eventually replace by chronos/timer
     hopCount: CountTable[PeerID]
 
-    msgSize*: int
+    reservationTTL: times.Duration # TODO: eventually replace by chronos/timer
+    limit: RelayV2Limit
+    msgSize*: int # TODO: Verify in the spec if it's configurable
 
 # Hop Protocol
 
@@ -197,6 +204,7 @@ proc handleError*(conn: Connection, code: RelayV2Status) {.async, gcsafe.} =
   if pb.isOk:
     await conn.writeLp(pb.get().buffer)
   else:
+    # This should never happen
     error "error encoding relay response", error = $pb
 
 # Stop Message
@@ -280,14 +288,64 @@ proc decodeStopMessage(buf: seq[byte]): Option[StopMessage] =
 
 # Protocols
 
+proc createHopMessage(
+    rv2: RelayV2,
+    pid: PeerID,
+    expire: DateTime): Result[HopMessage, CryptoError] =
+  var msg: HopMessage
+  let expireUnix = uint64(expire.toTime.toUnix) # maybe weird integer conversion
+  let v = Voucher(relayPeerId: rv2.switch.peerInfo.peerId,
+                  reservingPeerId: pid,
+                  expiration: expireUnix)
+  let sv = ? SignedVoucher.init(rv2.switch.peerInfo.privateKey, v)
+  msg.reservation = some(Reservation(expire: expireUnix,
+                         addrs: rv2.switch.peerInfo.addrs,
+                         svoucher: some(sv)))
+  msg.limit = some(rv2.limit)
+  msg.msgType = HopMessageType.Status
+  msg.status = some(Ok)
+  return ok(msg)
+
 proc handleReserve(rv2: RelayV2, conn: Connection) {.async, gcsafe.} =
-  discard
+  let
+    pid = conn.peerId
+    addrs = conn.observedAddr
+    testAddrs = addrs.contains(multiCodec("p2p-circuit"))
+
+  if testAddrs.isErr() or testAddrs.get():
+    trace "reservation attempt over relay connection", pid
+    await handleError(conn, RelayV2Status.PermissionDenied)
+    return
+
+  # TODO: Access Control List check, eventually
+  let expire = now() + rv2.reservationTTL
+  rv2.rsvp[pid] = expire
+
+  trace "reserving relay slot for", pid
+
+  let msg = rv2.createHopMessage(pid, expire)
+  if isErr(msg):
+    trace "error signing the voucher", error = error(msg), pid, addrs
+    # conn.reset()
+    return
+  let pb = encodeHopMessage(msg.get())
+  if isErr(pb):
+    trace "error signing the voucher", error = error(pb), msg
+    # conn.reset()
+    return
+  try:
+    await conn.writeLp(pb.get().buffer)
+  except CancelledError as exc:
+    raise exc
+  except CatchableError as exc:
+    trace "error writing reservation response", exc=exc.msg, retractedPid = pid
+    # conn.reset()
 
 proc handleConnect(rv2: Relayv2, conn: Connection, msg: HopMessage) {.async, gcsafe.} =
   discard
 
 proc new*(T: typedesc[RelayV2], switch: Switch): T =
-  let rv2 = T(switch = switch)
+  T(switch = switch)
 
 proc init(rv2: RelayV2) =
   proc handleStream(conn: Connection, proto: string) {.async, gcsafe.} =
@@ -302,9 +360,9 @@ proc init(rv2: RelayV2) =
       let msg = msgOpt.get()
 
       if msg.msgType == HopMessageType.Reserve:
-        rv2.handleReserve(conn)
+        await rv2.handleReserve(conn)
       elif msg.msgType == HopMessageType.Connect:
-        rv2.handleConnect(conn, msg)
+        await rv2.handleConnect(conn, msg)
       else:
         trace "Unexpected relayv2 handshake", msgType=msg.msgType
         await handleError(conn, RelayV2Status.MalformedMessage)
@@ -319,4 +377,22 @@ proc init(rv2: RelayV2) =
   rv2.handler = handleStream
   rv2.codecs = @[RelayV2HopCodec]
 
+  # make all this configurable
+  rv2.reservationTTL = DefaultReservationTimeout
+  rv2.limit = RelayV2Limit(duration: some(120u32), data: some(1u64 shr 17))
+
   rv2.msgSize = MsgSize
+
+# Client side
+
+type
+  Client = ref object of Transport
+    switch: Switch
+    # activeDials: Table[PeerID, Completion] # ??
+    # hopCount: Table[PeerID, int]
+
+proc new(T: typedesc[Client], switch: Switch): T =
+  T(swith = switch)
+
+proc reserve(T: typedesc[Client], src: Switch, rel: PeerID) {.async.} =
+  discard
