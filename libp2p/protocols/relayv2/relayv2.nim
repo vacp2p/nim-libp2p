@@ -341,9 +341,11 @@ proc handleConnect(rv2: Relayv2, conn: Connection, msg: HopMessage) {.async, gcs
   discard
 
 proc new*(T: typedesc[RelayV2], switch: Switch): T =
-  T(switch = switch)
+  let rv2 = T(switch: switch)
+  rv2.init()
+  rv2
 
-proc init(rv2: RelayV2) =
+proc init*(rv2: RelayV2) =
   proc handleStream(conn: Connection, proto: string) {.async, gcsafe.} =
     try:
       let msgOpt = decodeHopMessage(await conn.readLp(rv2.msgSize))
@@ -386,38 +388,73 @@ type
     switch: Switch
     # activeDials: Table[PeerID, Completion] # ??
     # hopCount: Table[PeerID, int]
+  ReserveError* = enum
+    ReserveFailedDial,
+    ReserveFailedConnection,
+    ReserveMalformedMessage,
+    ReserveBadType,
+    ReserveBadStatus,
+    ReserveMissingReservation,
+    ReserveBadExpirationDate,
+    ReserveInvalidVoucher,
+    ReserveUnexpected
 
 proc new(T: typedesc[Client], switch: Switch): T =
   T(swith = switch)
 
-proc reserve(src: Switch, relayPI: PeerInfo): Future[Result[Reservation, RelayV2Error]] {.async.} =
-  let conn = await src.dial(relayPI.peerId, relayPI.addrs, RelayV2HopCodec)
-  let msg = HopMessage(msgType: HopMessageType.Reserve)
+proc reserve*(src: Switch, relayPI: PeerInfo): Future[Result[Reservation, ReserveError]] {.async.} =
+  var
+    msg = HopMessage(msgType: HopMessageType.Reserve)
+    msgOpt: Option[HopMessage]
   let pb = encodeHopMessage(msg)
   if pb.isErr():
     error "Encode hop message during client side reserve", msg
-    return
-  await conn.writeLp(pb.get().buffer)
-  let responseMsgOpt = decodeHopMessage(await conn.readLp(MsgSize))
-  if responseMsgOpt.isNone():
+    return err(ReserveUnexpected)
+
+  let conn = try:
+    await src.dial(relayPI.peerId, relayPI.addrs, RelayV2HopCodec)
+  except CancelledError as exc:
+    raise exc
+  except CatchableError as exc:
+    trace "error opening relay stream", exc=exc.msg, relayPI
+    return err(ReserveFailedDial)
+  defer:
+    await conn.close()
+
+  try:
+    await conn.writeLp(pb.get().buffer)
+    msgOpt = decodeHopMessage(await conn.readLp(MsgSize))
+  except CancelledError as exc:
+    raise exc
+  except CatchableError as exc:
+    trace "error writing reservation message", exc=exc.msg
+    return err(ReserveFailedConnection)
+
+  if msgOpt.isNone():
     trace "Malformed message from relay"
-    return err(RelayV2Error()) # TODO: To change because it's reaaally bad
-  let responseMsg = responseMsgOpt.get()
-  if responseMsg.msgType != HopMessageType.Status:
-    trace "unexpected relay response type", msgType = responseMsg.msgType
-    return err(RelayV2Error())
-  if responseMsg.status.isNone() or responseMsg.status.get() != Ok:
-    trace "reservation failed", status = responseMsg.status
-    return err(RelayV2Error())
-  if responseMsg.reservation.isNone():
+    return err(ReserveMalformedMessage)
+  msg = msgOpt.get()
+  if msg.msgType != HopMessageType.Status:
+    trace "unexpected relay response type", msgType = msg.msgType
+    return err(ReserveBadType)
+  if msg.status.isNone() or msg.status.get() != Ok:
+    trace "reservation failed", status = msg.status
+    return err(ReserveBadStatus)
+
+  if msg.reservation.isNone():
     trace "missing reservation info"
-    return err(RelayV2Error())
-  let rsvp = responseMsg.reservation.get()
-  if now().utc < rsvp.expire.int64.fromUnix.utc: # unsure
+    return err(ReserveMissingReservation)
+  let rsvp = msg.reservation.get()
+  if now().utc > rsvp.expire.int64.fromUnix.utc:
     trace "received reservation with expiration date in the past"
-    return err(RelayV2Error())
+    return err(ReserveBadExpirationDate)
   if rsvp.svoucher.isSome():
     let svoucher = SignedVoucher.decode(rsvp.svoucher.get())
     if svoucher.isErr():
       trace "error consuming voucher envelope", error = svoucher.error
-  discard
+      return err(ReserveInvalidVoucher)
+
+  if msg.limit.isSome():
+    discard # TODO: Add those informations to rsvp eventually
+
+  return ok(rsvp)
