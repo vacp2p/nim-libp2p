@@ -8,7 +8,7 @@
 ## those terms.
 
 import options
-import sequtils, strutils, tables
+import strutils, tables
 import chronos, chronicles
 
 import ./voucher,
@@ -19,7 +19,6 @@ import ./voucher,
        ../../stream/connection,
        ../../protocols/protocol,
        ../../transports/transport,
-       ../../utility,
        ../../errors,
        ../../signed_envelope
 
@@ -92,40 +91,39 @@ proc encodeHopMessage*(msg: HopMessage): ProtoBuffer =
   var pb = initProtoBuffer()
 
   pb.write(1, msg.msgType.ord.uint)
-  if isSome(msg.peer):
+  if msg.peer.isSome():
     var ppb = initProtoBuffer()
     ppb.write(1, msg.peer.get().peerId)
     for ma in msg.peer.get().addrs:
       ppb.write(2, ma.data.buffer)
     ppb.finish()
     pb.write(2, ppb.buffer)
-  if isSome(msg.reservation):
+  if msg.reservation.isSome():
     let rsrv = msg.reservation.get()
     var rpb = initProtoBuffer()
     rpb.write(1, rsrv.expire)
     for ma in rsrv.addrs:
       rpb.write(2, ma.data.buffer)
-    if isSome(rsrv.svoucher):
+    if rsrv.svoucher.isSome():
       rpb.write(3, rsrv.svoucher.get())
     rpb.finish()
     pb.write(3, rpb.buffer)
-  if isSome(msg.limit):
+  if msg.limit.isSome():
     let limit = msg.limit.get()
     var lpb = initProtoBuffer()
-    if isSome(limit.duration):
+    if limit.duration.isSome():
       lpb.write(1, limit.duration.get())
-    if isSome(limit.data):
+    if limit.data.isSome():
       lpb.write(2, limit.data.get())
     lpb.finish()
     pb.write(4, lpb.buffer)
-  if isSome(msg.status):
+  if msg.status.isSome():
     pb.write(5, msg.status.get().ord.uint)
 
   pb.finish()
   pb
 
 proc decodeHopMessage(buf: seq[byte]): Option[HopMessage] =
-  let pb = initProtoBuffer(buf)
   var
     msg: HopMessage
     msgTypeOrd: uint32
@@ -140,6 +138,7 @@ proc decodeHopMessage(buf: seq[byte]): Option[HopMessage] =
     res: bool
 
   let
+    pb = initProtoBuffer(buf)
     r1 = pb.getRequiredField(1, msgTypeOrd)
     r2 = pb.getField(2, ppb)
     r3 = pb.getField(3, rpb)
@@ -209,30 +208,29 @@ proc encodeStopMessage(msg: StopMessage): ProtoBuffer =
   var pb = initProtoBuffer()
 
   pb.write(1, msg.msgType.ord.uint)
-  if isSome(msg.peer):
+  if msg.peer.isSome():
     var ppb = initProtoBuffer()
     ppb.write(1, msg.peer.get().peerId)
     for ma in msg.peer.get().addrs:
       ppb.write(2, ma.data.buffer)
     ppb.finish()
     pb.write(2, ppb.buffer)
-  if isSome(msg.limit):
+  if msg.limit.isSome():
     let limit = msg.limit.get()
     var lpb = initProtoBuffer()
-    if isSome(limit.duration):
+    if limit.duration.isSome():
       lpb.write(1, limit.duration.get())
-    if isSome(limit.data):
+    if limit.data.isSome():
       lpb.write(2, limit.data.get())
     lpb.finish()
     pb.write(3, lpb.buffer)
-  if isSome(msg.status):
+  if msg.status.isSome():
     pb.write(4, msg.status.get().ord.uint)
 
   pb.finish()
   pb
 
 proc decodeStopMessage(buf: seq[byte]): Option[StopMessage] =
-  let pb = initProtoBuffer(buf)
   var
     msg: StopMessage
     msgTypeOrd: uint32
@@ -247,6 +245,7 @@ proc decodeStopMessage(buf: seq[byte]): Option[StopMessage] =
     res: bool
 
   let
+    pb = initProtoBuffer(buf)
     r1 = pb.getRequiredField(1, msgTypeOrd)
     r2 = pb.getField(2, ppb)
     r3 = pb.getField(3, lpb)
@@ -321,7 +320,7 @@ proc handleReserve(rv2: RelayV2, conn: Connection) {.async, gcsafe.} =
   trace "reserving relay slot for", pid
 
   let msg = rv2.createHopMessage(pid, expire)
-  if isErr(msg):
+  if msg.isErr():
     trace "error signing the voucher", error = error(msg), pid, addrs
     # conn.reset()
     return
@@ -578,7 +577,21 @@ proc handleConnect(cl: Client, conn: Connection, msg: StopMessage) {.async.} =
 
   trace "incoming relay connection", src, conn
 
-  # await sendStatus(conn, RelayStatus.Success)
+  let
+    msg = StopMessage(
+      msgType: StopMessageType.Status,
+      peer: none(RelayV2Peer),
+      limit: none(RelayV2Limit),
+      status: some(RelayV2Status.Ok))
+    pb = encodeStopMessage(msg)
+
+  try:
+    await conn.writeLp(pb.buffer)
+  except CancelledError as exc:
+    raise exc
+  except CatchableError as exc:
+    trace "error writing stop msg", exc=exc.msg
+    return
   await cl.queue.addLast(conn)
   await conn.join()
 
