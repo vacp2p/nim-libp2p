@@ -8,7 +8,7 @@
 ## those terms.
 
 import options
-import strutils, tables
+import strutils, sequtils, tables
 import chronos, chronicles
 
 import ./voucher,
@@ -679,3 +679,100 @@ proc reserve*(cl: Client, relayPI: PeerInfo): Future[Result[Reservation, Reserve
     discard # TODO: Add those informations to rsvp eventually
 
   return ok(rsvp)
+
+proc dialPeer(
+    cl: Client,
+    conn: Connection,
+    dstPeerId: PeerID,
+    dstAddrs: seq[MultiAddress]): Future[Connection] {.async.} =
+  var
+    msg = HopMessage(
+      msgType: HopMessageType.Connect,
+      peer: some(RelayV2Peer(peerId: dstPeerId, addrs: dstAddrs)))
+    pb = encodeHopMessage(msg)
+
+  trace "Dial peer", msgSend=msg
+
+  let msgRcvFromRelayOpt = try:
+    await conn.writeLp(pb.buffer)
+    decodeHopMessage(await conn.readLp(MsgSize)) # TODO: cl.msgSize
+  except CancelledError as exc:
+    raise exc
+  except CatchableError as exc:
+    trace "error reading stop response", exc=exc.msg
+    raise exc
+
+  if msgRcvFromRelayOpt.isNone():
+    trace "error reading stop response", msg = msgRcvFromRelayOpt
+    # TODO: raise
+    return
+
+  let msgRcvFromRelay = msgRcvFromRelayOpt.get()
+  if msgRcvFromRelay.msgType != HopMessageType.Status:
+    trace "unexcepted relay stop response", msgType = msgRcvFromRelay.msgType
+    # TODO: raise
+    return
+
+  if msgRcvFromRelay.status.isNone() or msgRcvFromRelay.status.get() != RelayV2Status.Ok:
+    trace "relay stop failure", status=msgRcvFromRelay.status
+    # TODO: raise
+    return
+
+  # TODO: check limit + do smthg with it
+
+  result = conn
+
+# Transport
+
+type
+  RelayV2Transport* = ref object of Transport
+    client*: Client
+
+method start*(self: RelayV2Transport, ma: seq[MultiAddress]) {.async.} =
+  if self.running:
+    trace "Relay transport already running"
+    return
+
+  await procCall Transport(self).start(ma)
+  trace "Starting Relay transport"
+
+method stop*(self: RelayV2Transport) {.async, gcsafe.} =
+  self.running = false
+  while not self.client.queue.empty():
+    await self.client.queue.popFirstNoWait().close()
+
+method accept*(self: RelayV2Transport): Future[Connection] {.async, gcsafe.} =
+  result = await self.client.queue.popFirst()
+
+proc dial*(self: RelayV2Transport, ma: MultiAddress): Future[Connection] {.async, gcsafe.} =
+  let
+    sma = toSeq(ma.items())
+    relayAddrs = sma[0..sma.len-4].mapIt(it.tryGet()).foldl(a & b)
+  var
+    relayPeerId: PeerId
+    dstPeerId: PeerId
+  # if not relayPeerId.init(($(sma[^3].get())).split('/')[2]):
+  #   raise newException(RelayError, "Relay doesn't exist")
+  # if not dstPeerId.init(($(sma[^1].get())).split('/')[2]):
+  #   raise newException(RelayError, "Destination doesn't exist")
+  trace "Dial", relayPeerId, relayAddrs, dstPeerId
+
+  let conn = await self.client.switch.dial(relayPeerId, @[ relayAddrs ], RelayV2HopCodec)
+  result = await self.client.dialPeer(conn, dstPeerId, @[])
+
+method dial*(
+  self: RelayV2Transport,
+  hostname: string,
+  address: MultiAddress): Future[Connection] {.async, gcsafe.} =
+  result = await self.dial(address)
+
+method handles*(self: RelayV2Transport, ma: MultiAddress): bool {.gcsafe} =
+  discard
+  # if ma.protocols.isOk():
+  #   let sma = toSeq(ma.items())
+  #   if sma.len >= 3:
+  #     result=(CircuitRelay.match(sma[^2].get()) and P2PPattern.match(sma[^1].get())) or CircuitRelay.match(sma[^1].get())
+  # trace "Handles return", ma, result
+
+proc new*(T: typedesc[RelayV2Transport], cl: Client, upgrader: Upgrade): T =
+  T(client: cl, upgrader: upgrader)
