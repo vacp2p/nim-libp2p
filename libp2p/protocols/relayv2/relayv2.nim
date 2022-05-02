@@ -289,7 +289,7 @@ proc createHopMessage(
     pid: PeerID,
     expire: DateTime): Result[HopMessage, CryptoError] =
   var msg: HopMessage
-  let expireUnix = expire.toTime.toUnix.uint64 # maybe weird integer conversion
+  let expireUnix = expire.toTime.toUnix.uint64
   let v = Voucher(relayPeerId: rv2.switch.peerInfo.peerId,
                   reservingPeerId: pid,
                   expiration: expireUnix)
@@ -467,6 +467,17 @@ proc handleConnect(rv2: Relayv2, conn: Connection, msg: HopMessage) {.async, gcs
     await futDst.cancelAndWait()
   await bridge(conn, connDst)
 
+proc heartbeat(rv2: RelayV2) {.async.} =
+  while true: # TODO: idk... something?
+    let n = now().utc
+    var rsvp = rv2.rsvp
+    for k, v in rv2.rsvp.mpairs:
+      if n > v:
+        rsvp.del(k)
+    rv2.rsvp = rsvp
+
+    await sleepAsync(chronos.seconds(1))
+
 proc new*(T: typedesc[RelayV2], switch: Switch): T =
   let rv2 = T(switch: switch)
   rv2.init()
@@ -502,11 +513,13 @@ proc init*(rv2: RelayV2) =
   rv2.handler = handleStream
   rv2.codecs = @[RelayV2HopCodec]
 
-  # make all this configurable
+  # make all this configurable + make the heartbeat sleep time configurable
   rv2.reservationTTL = DefaultReservationTimeout
   rv2.limit = RelayV2Limit(duration: some(120u32), data: some(1u64 shr 17))
 
   rv2.msgSize = MsgSize
+
+  asyncSpawn rv2.onHeartbeat()
 
 # Client side
 
