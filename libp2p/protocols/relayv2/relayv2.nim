@@ -425,8 +425,8 @@ proc handleConnect(rv2: Relayv2, conn: Connection, msg: HopMessage) {.async, gcs
   proc bridge(conn: Connection, connDst: Connection) {.async.} =
     const bufferSize = 4096
     var
-      bufSrcToDst {.noInit}: array[bufferSize, byte]
-      bufDstToSrc {.noInit}: array[bufferSize, byte]
+      bufSrcToDst: array[bufferSize, byte]
+      bufDstToSrc: array[bufferSize, byte]
       futSrc = conn.readOnce(addr bufSrcToDst[0], bufSrcToDst.high + 1)
       futDst = connDst.readOnce(addr bufDstToSrc[0], bufDstToSrc.high + 1)
       bytesSendFromSrcToDst = 0
@@ -515,7 +515,7 @@ proc init*(rv2: RelayV2) =
   # TODO: make all this configurable
   # + make the heartbeat sleep time configurable
   rv2.reservationTTL = DefaultReservationTimeout
-  rv2.limit = RelayV2Limit(duration: some(120u32), data: some(1u64 shr 17))
+  rv2.limit = RelayV2Limit(duration: some(120u32), data: some(1u64 shl 17))
 
   rv2.msgSize = MsgSize
 
@@ -609,7 +609,7 @@ proc init*(cl: Client) =
       let msg = msgOpt.get()
 
       if msg.msgType == StopMessageType.Connect:
-        discard # await cl.handleConnect(conn, msg)
+        await cl.handleConnect(conn, msg)
       else:
         trace "Unexpected client / relayv2 handshake", msgType=msg.msgType
         await handleStopError(conn, RelayV2Status.MalformedMessage)
@@ -751,10 +751,12 @@ proc dial*(self: RelayV2Transport, ma: MultiAddress): Future[Connection] {.async
   var
     relayPeerId: PeerId
     dstPeerId: PeerId
-  # if not relayPeerId.init(($(sma[^3].get())).split('/')[2]):
-  #   raise newException(RelayError, "Relay doesn't exist")
-  # if not dstPeerId.init(($(sma[^1].get())).split('/')[2]):
-  #   raise newException(RelayError, "Destination doesn't exist")
+  if not relayPeerId.init(($(sma[^3].get())).split('/')[2]):
+    # raise smthg
+    return
+  if not dstPeerId.init(($(sma[^1].get())).split('/')[2]):
+    # raise smthg
+    return
   trace "Dial", relayPeerId, relayAddrs, dstPeerId
 
   let conn = await self.client.switch.dial(relayPeerId, @[ relayAddrs ], RelayV2HopCodec)
@@ -766,13 +768,16 @@ method dial*(
   address: MultiAddress): Future[Connection] {.async, gcsafe.} =
   result = await self.dial(address)
 
+const # TODO Move those two in multiaddress.nim
+  P2PPattern = mapEq("p2p")
+  CircuitRelay = mapEq("p2p-circuit")
+
 method handles*(self: RelayV2Transport, ma: MultiAddress): bool {.gcsafe} =
-  discard
-  # if ma.protocols.isOk():
-  #   let sma = toSeq(ma.items())
-  #   if sma.len >= 3:
-  #     result=(CircuitRelay.match(sma[^2].get()) and P2PPattern.match(sma[^1].get())) or CircuitRelay.match(sma[^1].get())
-  # trace "Handles return", ma, result
+  if ma.protocols.isOk():
+    let sma = toSeq(ma.items())
+    if sma.len >= 3:
+      result=(CircuitRelay.match(sma[^2].get()) and P2PPattern.match(sma[^1].get())) or CircuitRelay.match(sma[^1].get())
+  trace "Handles return", ma, result
 
 proc new*(T: typedesc[RelayV2Transport], cl: Client, upgrader: Upgrade): T =
   T(client: cl, upgrader: upgrader)
