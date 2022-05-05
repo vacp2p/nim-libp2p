@@ -114,10 +114,11 @@ proc disconnect*(s: Switch, peerId: PeerId): Future[void] {.gcsafe, public.} =
 method connect*(
   s: Switch,
   peerId: PeerId,
-  addrs: seq[MultiAddress]): Future[void] {.public.} =
+  addrs: seq[MultiAddress],
+  forceDial = false): Future[void] {.public.} =
   ## Connects to a peer without opening a stream to it
 
-  s.dialer.connect(peerId, addrs)
+  s.dialer.connect(peerId, addrs, forceDial)
 
 method dial*(
   s: Switch,
@@ -138,11 +139,12 @@ method dial*(
   s: Switch,
   peerId: PeerId,
   addrs: seq[MultiAddress],
-  protos: seq[string]): Future[Connection] {.public.} =
+  protos: seq[string],
+  forceDial = false): Future[Connection] {.public.} =
   ## Connected to a peer and open a stream
   ## with the specified `protos`
 
-  s.dialer.dial(peerId, addrs, protos)
+  s.dialer.dial(peerId, addrs, protos, forceDial)
 
 proc dial*(
   s: Switch,
@@ -296,6 +298,8 @@ proc start*(s: Switch) {.async, gcsafe, public.} =
     if t.addrs.len > 0:
       s.acceptFuts.add(s.accept(t))
       s.peerInfo.addrs &= t.addrs
+
+  s.peerInfo.update()
 
   debug "Started libp2p node", peer = s.peerInfo
 

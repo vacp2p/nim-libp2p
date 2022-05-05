@@ -13,13 +13,13 @@ var rng = newRng()
 proc randomPeerId(): PeerId =
   PeerId.init(PrivateKey.random(ECDSA, rng[]).get()).get()
 
-const MsgIdGenFail = "msg id gen failure"
+const MsgIdGenSuccess = "msg id generation success"
 
 suite "MCache":
   test "put/get":
     var mCache = MCache.init(3, 5)
     var msg = Message(fromPeer: randomPeerId(), seqno: "12345".toBytes())
-    let msgId = defaultMsgIdProvider(msg).expect(MsgIdGenFail)
+    let msgId = defaultMsgIdProvider(msg).expect(MsgIdGenSuccess)
     mCache.put(msgId, msg)
     check mCache.get(msgId).isSome and mCache.get(msgId).get() == msg
 
@@ -30,13 +30,13 @@ suite "MCache":
       var msg = Message(fromPeer: randomPeerId(),
                         seqno: "12345".toBytes(),
                         topicIDs: @["foo"])
-      mCache.put(defaultMsgIdProvider(msg).expect(MsgIdGenFail), msg)
+      mCache.put(defaultMsgIdProvider(msg).expect(MsgIdGenSuccess), msg)
 
     for i in 0..<5:
       var msg = Message(fromPeer: randomPeerId(),
                         seqno: "12345".toBytes(),
                         topicIDs: @["bar"])
-      mCache.put(defaultMsgIdProvider(msg).expect(MsgIdGenFail), msg)
+      mCache.put(defaultMsgIdProvider(msg).expect(MsgIdGenSuccess), msg)
 
     var mids = mCache.window("foo")
     check mids.len == 3
@@ -51,7 +51,7 @@ suite "MCache":
       var msg = Message(fromPeer: randomPeerId(),
                         seqno: "12345".toBytes(),
                         topicIDs: @["foo"])
-      mCache.put(defaultMsgIdProvider(msg).expect(MsgIdGenFail), msg)
+      mCache.put(defaultMsgIdProvider(msg).expect(MsgIdGenSuccess), msg)
 
     mCache.shift()
     check mCache.window("foo").len == 0
@@ -60,7 +60,7 @@ suite "MCache":
       var msg = Message(fromPeer: randomPeerId(),
                         seqno: "12345".toBytes(),
                         topicIDs: @["bar"])
-      mCache.put(defaultMsgIdProvider(msg).expect(MsgIdGenFail), msg)
+      mCache.put(defaultMsgIdProvider(msg).expect(MsgIdGenSuccess), msg)
 
     mCache.shift()
     check mCache.window("bar").len == 0
@@ -69,7 +69,7 @@ suite "MCache":
       var msg = Message(fromPeer: randomPeerId(),
                         seqno: "12345".toBytes(),
                         topicIDs: @["baz"])
-      mCache.put(defaultMsgIdProvider(msg).expect(MsgIdGenFail), msg)
+      mCache.put(defaultMsgIdProvider(msg).expect(MsgIdGenSuccess), msg)
 
     mCache.shift()
     check mCache.window("baz").len == 0
@@ -81,19 +81,19 @@ suite "MCache":
       var msg = Message(fromPeer: randomPeerId(),
                         seqno: "12345".toBytes(),
                         topicIDs: @["foo"])
-      mCache.put(defaultMsgIdProvider(msg).expect(MsgIdGenFail), msg)
+      mCache.put(defaultMsgIdProvider(msg).expect(MsgIdGenSuccess), msg)
 
     for i in 0..<3:
       var msg = Message(fromPeer: randomPeerId(),
                         seqno: "12345".toBytes(),
                         topicIDs: @["bar"])
-      mCache.put(defaultMsgIdProvider(msg).expect(MsgIdGenFail), msg)
+      mCache.put(defaultMsgIdProvider(msg).expect(MsgIdGenSuccess), msg)
 
     for i in 0..<3:
       var msg = Message(fromPeer: randomPeerId(),
                         seqno: "12345".toBytes(),
                         topicIDs: @["baz"])
-      mCache.put(defaultMsgIdProvider(msg).expect(MsgIdGenFail), msg)
+      mCache.put(defaultMsgIdProvider(msg).expect(MsgIdGenSuccess), msg)
 
     mCache.shift()
     check mCache.window("foo").len == 0

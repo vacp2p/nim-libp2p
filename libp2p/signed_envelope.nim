@@ -11,6 +11,7 @@
 
 {.push raises: [Defect].}
 
+import std/sugar
 import pkg/stew/[results, byteutils]
 import multicodec,
        crypto/crypto,
@@ -23,7 +24,8 @@ type
   EnvelopeError* = enum
     EnvelopeInvalidProtobuf,
     EnvelopeFieldMissing,
-    EnvelopeInvalidSignature
+    EnvelopeInvalidSignature,
+    EnvelopeWrongType
 
   Envelope* = object
     publicKey*: PublicKey
@@ -116,3 +118,52 @@ proc getField*(pb: ProtoBuffer, field: int,
       ok(true)
     else:
       err(ProtoError.IncorrectBlob)
+
+type
+  SignedPayload*[T] = object
+    # T needs to have .encode(), .decode(), .payloadType(), .domain()
+    envelope*: Envelope
+    data*: T
+
+proc init*[T](_: typedesc[SignedPayload[T]],
+           privateKey: PrivateKey,
+           data: T): Result[SignedPayload[T], CryptoError] =
+  mixin encode
+
+  let envelope = ? Envelope.init(privateKey,
+                                 T.payloadType(),
+                                 data.encode(),
+                                 T.payloadDomain)
+  
+  ok(SignedPayload[T](data: data, envelope: envelope))
+
+proc getField*[T](pb: ProtoBuffer, field: int,
+               value: var SignedPayload[T]): ProtoResult[bool] {.
+     inline.} =
+  if not ? getField(pb, field, value.envelope, T.payloadDomain):
+    ok(false)
+  else:
+    mixin decode
+    value.data = ? T.decode(value.envelope.payload).mapErr(x => ProtoError.IncorrectBlob)
+    ok(true)
+
+proc decode*[T](
+  _: typedesc[SignedPayload[T]],
+  buffer: seq[byte]
+  ): Result[SignedPayload[T], EnvelopeError] =
+
+  let
+    envelope = ? Envelope.decode(buffer, T.payloadDomain)
+    data = ? T.decode(envelope.payload).mapErr(x => EnvelopeInvalidProtobuf)
+    signedPayload = SignedPayload[T](envelope: envelope, data: data)
+
+  if envelope.payloadType != T.payloadType:
+    return err(EnvelopeWrongType)
+
+  when compiles(? signedPayload.checkValid()):
+    ? signedPayload.checkValid()
+
+  ok(signedPayload)
+
+proc encode*[T](msg: SignedPayload[T]): Result[seq[byte], CryptoError] =
+  msg.envelope.encode()

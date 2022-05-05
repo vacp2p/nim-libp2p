@@ -21,7 +21,7 @@ import
   ./crypto/crypto, ./multicodec, ./multihash, ./vbuffer,
   ./protobuf/minprotobuf
 
-export results
+export results, utility
 
 const
   maxInlineKeyLength* = 42

@@ -40,11 +40,12 @@ proc generateNodes*(
   verifySignature: bool = libp2p_pubsub_verify,
   anonymize: bool = libp2p_pubsub_anonymize,
   sign: bool = libp2p_pubsub_sign,
+  sendSignedPeerRecord = false,
   unsubscribeBackoff = 1.seconds,
   maxMessageSize: int = 1024 * 1024): seq[PubSub] =
 
   for i in 0..<num:
-    let switch = newStandardSwitch(secureManagers = secureManagers)
+    let switch = newStandardSwitch(secureManagers = secureManagers, sendSignedPeerRecord = sendSignedPeerRecord)
     let pubsub = if gossip:
       let g = GossipSub.init(
         switch = switch,

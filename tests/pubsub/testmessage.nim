@@ -29,7 +29,7 @@ suite "Message":
         E6B946186A4EB44E0D714B2A2D48263D75CF52D30BEF9D9AE2A9FEB7DAF1775F
         E731065A"""
       seckey = PrivateKey.init(fromHex(stripSpaces(pkHex)))
-                .expect("invalid private key bytes")
+                .expect("valid private key bytes")
       peer = PeerInfo.new(seckey)
       msg = Message.init(some(peer), @[], "topic", some(seqno), sign = true)
       msgIdResult = msg.defaultMsgIdProvider()
@@ -47,7 +47,7 @@ suite "Message":
         E6B946186A4EB44E0D714B2A2D48263D75CF52D30BEF9D9AE2A9FEB7DAF1775F
         E731065A"""
       seckey = PrivateKey.init(fromHex(stripSpaces(pkHex)))
-                .expect("invalid private key bytes")
+                .expect("valid private key bytes")
       peer = PeerInfo.new(seckey)
 
     var msg = Message.init(peer.some, @[], "topic", some(seqno), sign = true)
@@ -65,7 +65,7 @@ suite "Message":
         E6B946186A4EB44E0D714B2A2D48263D75CF52D30BEF9D9AE2A9FEB7DAF1775F
         E731065A"""
       seckey = PrivateKey.init(fromHex(stripSpaces(pkHex)))
-                .expect("invalid private key bytes")
+                .expect("valid private key bytes")
       peer = PeerInfo.new(seckey)
       msg = Message.init(some(peer), @[], "topic", uint64.none, sign = true)
       msgIdResult = msg.defaultMsgIdProvider()

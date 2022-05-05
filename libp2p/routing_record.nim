@@ -11,7 +11,7 @@
 
 {.push raises: [Defect].}
 
-import std/[sequtils, times]
+import std/[sequtils, times, sugar]
 import pkg/stew/[results, byteutils]
 import
   multiaddress,
@@ -21,11 +21,6 @@ import
   signed_envelope
 
 export peerid, multiaddress, signed_envelope
-
-## Constants relating to signed peer records
-const
-  EnvelopeDomain = multiCodec("libp2p-peer-record") # envelope domain as per RFC0002
-  EnvelopePayloadType= @[(byte) 0x03, (byte) 0x01] # payload_type for routing records as spec'ed in RFC0003
 
 type
   AddressInfo* = object
@@ -76,8 +71,9 @@ proc encode*(record: PeerRecord): seq[byte] =
 
 proc init*(T: typedesc[PeerRecord],
   peerId: PeerId,
-  seqNo: uint64,
-  addresses: seq[MultiAddress]): T =
+  addresses: seq[MultiAddress],
+  seqNo = getTime().toUnix().uint64 # follows the recommended implementation, using unix epoch as seq no.
+  ): T =
 
   PeerRecord(
     peerId: peerId,
@@ -87,39 +83,13 @@ proc init*(T: typedesc[PeerRecord],
 
 
 ## Functions related to signed peer records
+type SignedPeerRecord* = SignedPayload[PeerRecord]
 
-proc init*(T: typedesc[Envelope],
-           privateKey: PrivateKey,
-           peerRecord: PeerRecord): Result[Envelope, CryptoError] =
-  
-  ## Init a signed envelope wrapping a peer record
+proc payloadDomain*(T: typedesc[PeerRecord]): string = $multiCodec("libp2p-peer-record")
+proc payloadType*(T: typedesc[PeerRecord]): seq[byte] = @[(byte) 0x03, (byte) 0x01]
 
-  let envelope = ? Envelope.init(privateKey,
-                                 EnvelopePayloadType,
-                                 peerRecord.encode(),
-                                 $EnvelopeDomain)
-  
-  ok(envelope)
-
-proc init*(T: typedesc[Envelope],
-           peerId: PeerId,
-           addresses: seq[MultiAddress],
-           privateKey: PrivateKey): Result[Envelope, CryptoError] =
-  ## Creates a signed peer record for this peer:
-  ## a peer routing record according to https://github.com/libp2p/specs/blob/500a7906dd7dd8f64e0af38de010ef7551fd61b6/RFC/0003-routing-records.md
-  ## in a signed envelope according to https://github.com/libp2p/specs/blob/500a7906dd7dd8f64e0af38de010ef7551fd61b6/RFC/0002-signed-envelopes.md
-  
-  # First create a peer record from the peer info
-  let peerRecord = PeerRecord.init(peerId,
-                                   getTime().toUnix().uint64, # This currently follows the recommended implementation, using unix epoch as seq no.
-                                   addresses)
-
-  let envelope = ? Envelope.init(privateKey,
-                                 peerRecord)
-  
-  ok(envelope)
-
-proc getSignedPeerRecord*(pb: ProtoBuffer, field: int,
-               value: var Envelope): ProtoResult[bool] {.
-     inline.} =
-  getField(pb, field, value, $EnvelopeDomain)
+proc checkValid*(spr: SignedPeerRecord): Result[void, EnvelopeError] =
+  if not spr.data.peerId.match(spr.envelope.publicKey):
+    err(EnvelopeInvalidSignature)
+  else:
+    ok()

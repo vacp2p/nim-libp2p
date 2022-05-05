@@ -18,7 +18,7 @@ import tables, strutils, sets, stew/shims/net
 import multicodec, multihash, multibase, transcoder, vbuffer, peerid,
        protobuf/minprotobuf, errors, utility
 import stew/[base58, base32, endians2, results]
-export results, minprotobuf, vbuffer
+export results, minprotobuf, vbuffer, utility
 
 type
   MAKind* = enum

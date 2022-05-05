@@ -12,7 +12,7 @@
 {.push raises: [Defect].}
 
 import ../varint, ../utility, stew/[endians2, results]
-export results
+export results, utility
 
 const
   MaxMessageSize* = 1'u shl 22
@@ -86,7 +86,7 @@ template getProtoHeader*(field: ProtoField): uint64 =
   ## Get protobuf's field header integer for ``field``.
   ((uint64(field.index) shl 3) or uint64(field.kind))
 
-template toOpenArray*(pb: ProtoBuffer): untyped {.public.} =
+template toOpenArray*(pb: ProtoBuffer): untyped =
   toOpenArray(pb.buffer, pb.offset, len(pb.buffer) - 1)
 
 template isEmpty*(pb: ProtoBuffer): bool =

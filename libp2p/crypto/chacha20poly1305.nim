@@ -1,5 +1,5 @@
 ## Nim-Libp2p
-## Copyright (c) 2020 Status Research & Development GmbH
+## Copyright (c) 2020-2022 Status Research & Development GmbH
 ## Licensed under either of
 ##  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
 ##  * MIT license ([LICENSE-MIT](LICENSE-MIT))
@@ -18,6 +18,8 @@
 {.push raises: [Defect].}
 
 import bearssl
+from stew/assign2 import assign
+from stew/ranges/ptr_arith import baseAddr
 
 # have to do this due to a nim bug and raises[] on callbacks
 # https://github.com/nim-lang/Nim/issues/13905
@@ -39,15 +41,15 @@ type
 
 proc intoChaChaPolyKey*(s: openArray[byte]): ChaChaPolyKey =
   assert s.len == ChaChaPolyKeySize
-  copyMem(addr result[0], unsafeAddr s[0], ChaChaPolyKeySize)
+  assign(result, s)
 
 proc intoChaChaPolyNonce*(s: openArray[byte]): ChaChaPolyNonce =
   assert s.len == ChaChaPolyNonceSize
-  copyMem(addr result[0], unsafeAddr s[0], ChaChaPolyNonceSize)
+  assign(result, s)
 
 proc intoChaChaPolyTag*(s: openArray[byte]): ChaChaPolyTag =
   assert s.len == ChaChaPolyTagSize
-  copyMem(addr result[0], unsafeAddr s[0], ChaChaPolyTagSize)
+  assign(result, s)
 
 # bearssl allows us to use optimized versions
 # this is reconciled at runtime
@@ -68,11 +70,11 @@ proc encrypt*(_: type[ChaChaPoly],
   ourPoly1305CtmulRun(
     unsafeAddr key[0],
     unsafeAddr nonce[0],
-    addr data[0],
+    baseAddr(data),
     data.len,
     ad,
     aad.len,
-    addr tag[0],
+    baseAddr(tag),
     chacha20CtRun,
     #[encrypt]# 1.cint)
 
@@ -91,10 +93,10 @@ proc decrypt*(_: type[ChaChaPoly],
   ourPoly1305CtmulRun(
     unsafeAddr key[0],
     unsafeAddr nonce[0],
-    addr data[0],
+    baseAddr(data),
     data.len,
     ad,
     aad.len,
-    addr tag[0],
+    baseAddr(tag),
     chacha20CtRun,
     #[decrypt]# 0.cint)

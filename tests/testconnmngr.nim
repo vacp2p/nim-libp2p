@@ -463,3 +463,33 @@ suite "Connection Manager":
     await connMngr.close()
     await allFuturesThrowing(
       allFutures(conns.mapIt( it.close() )))
+
+  asyncTest "allow force dial":
+    let connMngr = ConnManager.new(maxConnections = 2)
+
+    var conns: seq[Connection]
+    for i in 0..<3:
+      let conn = connMngr.trackOutgoingConn(
+        (proc(): Future[Connection] {.async.} =
+          return Connection.new(
+            PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet(),
+            Direction.In)
+        ), true
+      )
+
+      check await conn.withTimeout(10.millis)
+      conns.add(await conn)
+
+    # should throw adding a connection over the limit
+    expect TooManyConnectionsError:
+      discard await connMngr.trackOutgoingConn(
+          (proc(): Future[Connection] {.async.} =
+            return Connection.new(
+              PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet(),
+              Direction.In)
+          ), false
+        )
+
+    await connMngr.close()
+    await allFuturesThrowing(
+      allFutures(conns.mapIt( it.close() )))
