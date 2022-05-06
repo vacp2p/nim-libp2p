@@ -32,6 +32,8 @@ const
   DefaultLimitDuration* = 120
   DefaultLimitData* = 1 shl 17
   DefaultHeartbeatSleepTime = 1
+  MaxCircuit* = 1024
+  MaxCircuitPerPeer* = 64
 
 logScope:
   topics = "libp2p relayv2"
@@ -82,11 +84,15 @@ type
     switch: Switch
     peerId: PeerID
     rsvp: Table[PeerId, DateTime] # TODO: eventually replace by chronos/timer
-    hopCount: CountTable[PeerID]
+
+    streamCount: int
+    peerCount: CountTable[PeerId]
 
     reservationTTL*: times.Duration # TODO: eventually replace by chronos/timer
     limit*: RelayV2Limit
     heartbeatSleepTime*: uint32 # seconds
+    maxCircuit*: int
+    maxCircuitPerPeer*: int
     msgSize*: int
 
 # Hop Protocol
@@ -306,8 +312,16 @@ proc handleReserve(rv2: RelayV2, conn: Connection) {.async, gcsafe.} =
     # conn.reset()
 
 proc handleConnect(rv2: Relayv2, conn: Connection, msg: HopMessage) {.async, gcsafe.} =
+  rv2.streamCount.inc()
+  defer: rv2.streamCount.dec()
+
+  if rv2.streamCount > rv2.maxCircuit:
+    trace "refusing connection; too many active circuit"
+    await handleHopError(conn, RelayV2Status.ResourceLimitExceeded)
+    return
+
   let
-    src = conn.peerId
+    src = conn.peerId # TODO: check if src => { peerId: conn.peerId, addrs: conn.observedAddr } ?
     addrs = conn.observedAddr
     testAddrs = addrs.contains(multiCodec("p2p-circuit"))
 
@@ -329,9 +343,17 @@ proc handleConnect(rv2: Relayv2, conn: Connection, msg: HopMessage) {.async, gcs
     await handleHopError(conn, RelayV2Status.NoReservation)
     return
 
-  # TODO: Check max circuit for src and dst
-  # + incr accordingly
-  # + defer decr
+  rv2.peerCount.inc(src)
+  rv2.peerCount.inc(dst.peerId)
+  defer:
+    rv2.peerCount.inc(src, -1)
+    rv2.peerCount.inc(dst.peerId, -1)
+
+  if rv2.peerCount[src] > rv2.maxCircuitPerPeer or
+     rv2.peerCount[dst.peerId] > rv2.maxCircuitPerPeer:
+    trace "too many connections", src = rv2.peerCount[src], dst = rv2.peerCount[dst.peerId], max = rv2.maxCircuitPerPeer
+    await handleHopError(conn, RelayV2Status.ResourceLimitExceeded)
+    return
 
   let connDst = try:
     await rv2.switch.dial(dst.peerId, RelayV2StopCodec)
@@ -460,7 +482,9 @@ proc init*(
   limitDuration: uint32 = DefaultLimitDuration,
   limitData: uint64 = DefaultLimitData,
   heartbeatSleepTime: uint32 = DefaultHeartbeatSleepTime,
-  msgSize: uint32 = MsgSize) =
+  maxCircuit: int = MaxCircuit,
+  maxCircuitPerPeer: int = MaxCircuitPerPeer,
+  msgSize: int = MsgSize) =
   proc handleStream(conn: Connection, proto: string) {.async, gcsafe.} =
     try:
       let msgOpt = decodeHopMessage(await conn.readLp(rv2.msgSize))
@@ -492,6 +516,8 @@ proc init*(
   rv2.reservationTTL = reservationTTL
   rv2.limit = RelayV2Limit(duration: limitDuration, data: limitData)
   rv2.heartbeatSleepTime = heartbeatSleepTime
+  rv2.maxCircuit = maxCircuit
+  rv2.maxCircuitPerPeer = maxCircuitPerPeer
   rv2.msgSize = msgSize
 
   asyncSpawn rv2.heartbeat()
@@ -502,7 +528,6 @@ type
   Client* = ref object of LPProtocol
     switch: Switch
     queue: AsyncQueue[Connection]
-    # hopCount: Table[PeerID, int]
   ReserveError* = enum
     ReserveFailedDial,
     ReserveFailedConnection,
