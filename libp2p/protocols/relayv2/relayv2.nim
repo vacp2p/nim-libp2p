@@ -72,8 +72,8 @@ type
     addrs: seq[MultiAddress] # relay address for reserving peer
     svoucher: Option[seq[byte]] # optional, reservation voucher
   RelayV2Limit* = object
-    duration: Option[uint32] # seconds
-    data: Option[uint64] # bytes
+    duration: uint32 # seconds
+    data: uint64 # bytes
 
   RelayV2* = ref object of LPProtocol
     switch: Switch
@@ -111,10 +111,8 @@ proc encodeHopMessage*(msg: HopMessage): ProtoBuffer =
   if msg.limit.isSome():
     let limit = msg.limit.get()
     var lpb = initProtoBuffer()
-    if limit.duration.isSome():
-      lpb.write(1, limit.duration.get())
-    if limit.data.isSome():
-      lpb.write(2, limit.data.get())
+    lpb.write(1, limit.duration)
+    lpb.write(2, limit.data)
     lpb.finish()
     pb.write(4, lpb.buffer)
   if msg.status.isSome():
@@ -127,10 +125,9 @@ proc decodeHopMessage(buf: seq[byte]): Option[HopMessage] =
   var
     msg: HopMessage
     msgTypeOrd: uint32
-    ppb: ProtoBuffer
-    rpb: ProtoBuffer
-    lpb: ProtoBuffer
-    svoucher: seq[byte]
+    pbPeer: ProtoBuffer
+    pbReservation: ProtoBuffer
+    pbLimit: ProtoBuffer
     statusOrd: uint32
     peer: RelayV2Peer
     reservation: Reservation
@@ -140,59 +137,44 @@ proc decodeHopMessage(buf: seq[byte]): Option[HopMessage] =
   let
     pb = initProtoBuffer(buf)
     r1 = pb.getRequiredField(1, msgTypeOrd)
-    r2 = pb.getField(2, ppb)
-    r3 = pb.getField(3, rpb)
-    r4 = pb.getField(4, lpb)
+    r2 = pb.getField(2, pbPeer)
+    r3 = pb.getField(3, pbReservation)
+    r4 = pb.getField(4, pbLimit)
     r5 = pb.getField(5, statusOrd)
 
-  res = r1.isOk() and r2.isOk() and r3.isOk() and r4.isOk() and r5.isOk()
+  if r1.isErr() or r2.isErr() or r3.isErr() or r4.isErr() or r5.isErr():
+    return none(HopMessage)
 
-  if r2.isOk() and r2.get():
-    let
-      r2PeerId = ppb.getField(1, peer.peerId)
-      r2Addrs = ppb.getRepeatedField(2, peer.addrs)
-    res = res and r2PeerId.isOk() and r2Addrs.isOk()
-  if r3.isOk() and r3.get():
-    let
-      r3Expire = rpb.getRequiredField(1, reservation.expire)
-      r3Addrs = rpb.getRepeatedField(2, reservation.addrs)
-      r3SVoucher = rpb.getField(3, svoucher)
-    if r3SVoucher.isOk() and r3SVoucher.get():
-      reservation.svoucher = some(svoucher)
-    res = res and r3Expire.isOk() and r3Addrs.isOk() and r3SVoucher.isOk()
-  if r4.isOk() and r4.get():
-    var
-      lduration: uint32
-      ldata: uint64
-    let
-      r4Duration = lpb.getField(1, lduration)
-      r4Data = lpb.getField(2, ldata)
-    if r4Duration.isOk() and r4Duration.get(): limit.duration = some(lduration)
-    if r4Data.isOk() and r4Data.get(): limit.data = some(ldata)
-    res = res and r4Duration.isOk() and r4Data.isOk()
+  if r2.get() and
+     (pbPeer.getRequiredField(1, peer.peerId).isErr() or
+      pbPeer.getRepeatedField(2, peer.addrs).isErr()):
+    return none(HopMessage)
 
-  if res:
-    msg.msgType = HopMessageType(msgTypeOrd)
-    if r2.get():
-      msg.peer = some(peer)
-    if r3.get():
-      msg.reservation = some(reservation)
-    if r4.get():
-      msg.limit = some(limit)
-    if r5.get():
-      msg.status = some(RelayV2Status(statusOrd))
-    some(msg)
-  else:
-    HopMessage.none
+  if r3.get():
+    var svoucher: seq[byte]
+    let rSVoucher = pbReservation.getField(3, svoucher)
+    if pbReservation.getRequiredField(1, reservation.expire).isErr() or
+       pbReservation.getRepeatedField(2, reservation.addrs).isErr() or
+       rSVoucher.isErr():
+      return none(HopMessage)
+    if rSVoucher.get(): reservation.svoucher = some(svoucher)
+
+  if r4.get() and
+     (pbLimit.getField(1, limit.duration).isErr() or
+      pbLimit.getField(1, limit.data).isErr()):
+    return none(HopMessage)
+
+  msg.msgType = HopMessageType(msgTypeOrd)
+  if r2.get(): msg.peer = some(peer)
+  if r3.get(): msg.reservation = some(reservation)
+  if r4.get(): msg.limit = some(limit)
+  if r5.get(): msg.status = some(RelayV2Status(statusOrd))
+  some(msg)
 
 proc handleHopError*(conn: Connection, code: RelayV2Status) {.async, gcsafe.} =
   trace "send hop status", status = $code & "(" & $ord(code) & ")"
   let
-    msg = HopMessage(msgType: HopMessageType.Status,
-      peer: none(RelayV2Peer),
-      reservation: none(Reservation),
-      limit: none(RelayV2Limit),
-      status: some(code))
+    msg = HopMessage(msgType: HopMessageType.Status, status: some(code))
     pb = encodeHopMessage(msg)
 
   try:
@@ -216,12 +198,10 @@ proc encodeStopMessage(msg: StopMessage): ProtoBuffer =
     ppb.finish()
     pb.write(2, ppb.buffer)
   if msg.limit.isSome():
-    let limit = msg.limit.get()
     var lpb = initProtoBuffer()
-    if limit.duration.isSome():
-      lpb.write(1, limit.duration.get())
-    if limit.data.isSome():
-      lpb.write(2, limit.data.get())
+    let limit = msg.limit.get()
+    lpb.write(1, limit.duration)
+    lpb.write(2, limit.data)
     lpb.finish()
     pb.write(3, lpb.buffer)
   if msg.status.isSome():
@@ -234,12 +214,10 @@ proc decodeStopMessage(buf: seq[byte]): Option[StopMessage] =
   var
     msg: StopMessage
     msgTypeOrd: uint32
-    ppb: ProtoBuffer
-    vpb: ProtoBuffer
-    lpb: ProtoBuffer
+    pbPeer: ProtoBuffer
+    pbLimit: ProtoBuffer
     statusOrd: uint32
     peer: RelayV2Peer
-    reservation: Reservation
     limit: RelayV2Limit
     rVoucher: ProtoResult[bool]
     res: bool
@@ -247,39 +225,28 @@ proc decodeStopMessage(buf: seq[byte]): Option[StopMessage] =
   let
     pb = initProtoBuffer(buf)
     r1 = pb.getRequiredField(1, msgTypeOrd)
-    r2 = pb.getField(2, ppb)
-    r3 = pb.getField(3, lpb)
+    r2 = pb.getField(2, pbPeer)
+    r3 = pb.getField(3, pbLimit)
     r4 = pb.getField(4, statusOrd)
 
-  res = r1.isOk() and r2.isOk() and r3.isOk() and r4.isOk()
+  if r1.isErr() or r2.isErr() or r3.isErr() or r4.isErr():
+    return none(StopMessage)
 
-  if r2.isOk() and r2.get():
-    let
-      r2PeerId = ppb.getField(1, peer.peerId)
-      r2Addrs = ppb.getRepeatedField(2, peer.addrs)
-    res = res and r2PeerId.isOk() and r2Addrs.isOk()
-  if r3.isOk() and r3.get():
-    var
-      lduration: uint32
-      ldata: uint64
-    let
-      r3Duration = lpb.getField(1, lduration)
-      r3Data = lpb.getField(2, ldata)
-    if r3Duration.isOk() and r3Duration.get(): limit.duration = some(lduration)
-    if r3Data.isOk() and r3Data.get(): limit.data = some(ldata)
-    res = res and r3Duration.isOk() and r3Data.isOk()
+  if r2.get() and
+     (pbPeer.getRequiredField(1, peer.peerId).isErr() or
+      pbPeer.getRepeatedField(2, peer.addrs).isErr()):
+    return none(StopMessage)
 
-  if res:
-    msg.msgType = StopMessageType(msgTypeOrd)
-    if r2.get():
-      msg.peer = some(peer)
-    if r3.get():
-      msg.limit = some(limit)
-    if r4.get():
-      msg.status = some(RelayV2Status(statusOrd))
-    some(msg)
-  else:
-    StopMessage.none
+  if r3.get() and
+     (pbLimit.getField(1, limit.duration).isErr() or
+      pbLimit.getField(1, limit.data).isErr()):
+    return none(StopMessage)
+
+  msg.msgType = StopMessageType(msgTypeOrd)
+  if r2.get(): msg.peer = some(peer)
+  if r3.get(): msg.limit = some(limit)
+  if r4.get(): msg.status = some(RelayV2Status(statusOrd))
+  some(msg)
 
 # Protocols
 
@@ -356,6 +323,7 @@ proc handleConnect(rv2: Relayv2, conn: Connection, msg: HopMessage) {.async, gcs
   if dst.peerId notin rv2.rsvp:
     trace "refusing connection, no reservation", src, dst = dst.peerId
     await handleHopError(conn, RelayV2Status.NoReservation)
+    return
 
   # TODO: Check max circuit for src and dst
   # + incr accordingly
@@ -515,7 +483,7 @@ proc init*(rv2: RelayV2) =
   # TODO: make all this configurable
   # + make the heartbeat sleep time configurable
   rv2.reservationTTL = DefaultReservationTimeout
-  rv2.limit = RelayV2Limit(duration: some(120u32), data: some(1u64 shl 17))
+  rv2.limit = RelayV2Limit(duration: 120u32, data: 1u64 shl 17)
 
   rv2.msgSize = MsgSize
 
