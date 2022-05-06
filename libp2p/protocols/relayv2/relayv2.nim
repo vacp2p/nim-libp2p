@@ -28,7 +28,10 @@ const
   RelayV2HopCodec* = "/libp2p/circuit/relay/0.2.0/hop"
   RelayV2StopCodec* = "/libp2p/circuit/relay/0.2.0/stop"
   MsgSize* = 4096
-  DefaultReservationTimeout* = initDuration(hours = 1)
+  DefaultReservationTTL* = initDuration(hours = 1)
+  DefaultLimitDuration* = 120
+  DefaultLimitData* = 1 shl 17
+  DefaultHeartbeatSleepTime = 1
 
 logScope:
   topics = "libp2p relayv2"
@@ -81,9 +84,10 @@ type
     rsvp: Table[PeerId, DateTime] # TODO: eventually replace by chronos/timer
     hopCount: CountTable[PeerID]
 
-    reservationTTL: times.Duration # TODO: eventually replace by chronos/timer
-    limit: RelayV2Limit
-    msgSize*: int # TODO: Verify in the spec if it's configurable
+    reservationTTL*: times.Duration # TODO: eventually replace by chronos/timer
+    limit*: RelayV2Limit
+    heartbeatSleepTime*: uint32 # seconds
+    msgSize*: int
 
 # Hop Protocol
 
@@ -443,14 +447,20 @@ proc heartbeat(rv2: RelayV2) {.async.} =
         rsvp.del(k)
     rv2.rsvp = rsvp
 
-    await sleepAsync(chronos.seconds(1))
+    await sleepAsync(chronos.seconds(rv2.heartbeatSleepTime))
 
 proc new*(T: typedesc[RelayV2], switch: Switch): T =
   let rv2 = T(switch: switch)
   rv2.init()
   rv2
 
-proc init*(rv2: RelayV2) =
+proc init*(
+  rv2: RelayV2,
+  reservationTTL: times.Duration = DefaultReservationTTL,
+  limitDuration: uint32 = DefaultLimitDuration,
+  limitData: uint64 = DefaultLimitData,
+  heartbeatSleepTime: uint32 = DefaultHeartbeatSleepTime,
+  msgSize: uint32 = MsgSize) =
   proc handleStream(conn: Connection, proto: string) {.async, gcsafe.} =
     try:
       let msgOpt = decodeHopMessage(await conn.readLp(rv2.msgSize))
@@ -462,13 +472,12 @@ proc init*(rv2: RelayV2) =
         trace "relayv2 handle stream", msg = msgOpt.get()
       let msg = msgOpt.get()
 
-      if msg.msgType == HopMessageType.Reserve:
-        await rv2.handleReserve(conn)
-      elif msg.msgType == HopMessageType.Connect:
-        await rv2.handleConnect(conn, msg)
-      else:
-        trace "Unexpected relayv2 handshake", msgType=msg.msgType
-        await handleHopError(conn, RelayV2Status.MalformedMessage)
+      case msg.msgType:
+        of HopMessageType.Reserve: await rv2.handleReserve(conn)
+        of HopMessageType.Connect: await rv2.handleConnect(conn, msg)
+        else:
+          trace "Unexpected relayv2 handshake", msgType=msg.msgType
+          await handleHopError(conn, RelayV2Status.MalformedMessage)
     except CancelledError as exc:
       raise exc
     except CatchableError as exc:
@@ -480,12 +489,10 @@ proc init*(rv2: RelayV2) =
   rv2.handler = handleStream
   rv2.codecs = @[RelayV2HopCodec]
 
-  # TODO: make all this configurable
-  # + make the heartbeat sleep time configurable
-  rv2.reservationTTL = DefaultReservationTimeout
-  rv2.limit = RelayV2Limit(duration: 120u32, data: 1u64 shl 17)
-
-  rv2.msgSize = MsgSize
+  rv2.reservationTTL = reservationTTL
+  rv2.limit = RelayV2Limit(duration: limitDuration, data: limitData)
+  rv2.heartbeatSleepTime = heartbeatSleepTime
+  rv2.msgSize = msgSize
 
   asyncSpawn rv2.heartbeat()
 
