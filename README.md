@@ -42,7 +42,7 @@ libp2p grew out of IPFS, but it is built so that lots of people can use it, for 
 - [Here](https://github.com/libp2p/libp2p#description) is an overview of libp2p and its implementations in other programming languages.
 
 ## Install
-** Prerequisite **
+**Prerequisite**
 - [Nim](https://nim-lang.org/install.html)
 ```
 nimble install libp2p
@@ -53,7 +53,7 @@ You'll find some tutorials [here](examples/tutorial_1_connect.md), or some examp
 - [hello world (ping)](examples/helloworld.nim)
 - [direct chat](examples/directchat.nim)
 
-**Go Daemon**
+**Go Daemon:**
 Please find the installation and usage intructions in [daemonapi.md](examples/go-daemon/daemonapi.md).
 
 ## Modules
@@ -109,7 +109,7 @@ cd nim-libp2p
 nimble install
 ```
 
-** Run unit tests **
+**Run unit tests**
 ```sh
 # run all the unit tests
 nimble test
