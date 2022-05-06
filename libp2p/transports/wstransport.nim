@@ -7,7 +7,7 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-## WS & WSS transport implementation
+## WebSocket & WebSocket Secure transport implementation
 
 {.push raises: [Defect].}
 
@@ -315,7 +315,7 @@ proc new*(
   factories: openArray[ExtFactory] = [],
   rng: Rng = nil,
   handshakeTimeout = DefaultHeadersTimeout): T {.public.} =
-  ## Creates a secure WS transport
+  ## Creates a secure WebSocket transport
 
   T(
     upgrader: upgrade,
@@ -334,7 +334,7 @@ proc new*(
   factories: openArray[ExtFactory] = [],
   rng: Rng = nil,
   handshakeTimeout = DefaultHeadersTimeout): T {.public.} =
-  ## Creates a clear WS transport
+  ## Creates a clear-text WebSocket transport
 
   T.new(
     upgrade = upgrade,
