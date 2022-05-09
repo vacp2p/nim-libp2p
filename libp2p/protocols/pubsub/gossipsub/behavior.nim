@@ -79,6 +79,8 @@ proc handleBackingOff*(t: var BackoffTable, topic: string) {.raises: [Defect].} 
       v[].del(peer)
 
 proc peerExchangeList*(g: GossipSub, topic: string): seq[PeerInfoMsg] {.raises: [Defect].} =
+  if g.parameters.disablePX:
+    return @[]
   var peers = g.gossipsub.getOrDefault(topic, initHashSet[PubSubPeer]()).toSeq()
   peers.keepIf do (x: PubSubPeer) -> bool:
       x.score >= 0.0
