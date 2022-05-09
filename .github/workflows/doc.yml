@@ -1,0 +1,79 @@
+name: Docgen
+on:
+  push:
+  workflow_dispatch:
+
+
+jobs:
+  build:
+    timeout-minutes: 10
+
+    name: '${{ matrix.target.os }}-${{ matrix.target.cpu }} (Nim ${{ matrix.branch }})'
+    runs-on: 'ubuntu-20.04'
+    continue-on-error: true
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+        with:
+          submodules: true
+
+      - name: Derive environment variables
+        run: |
+          if [[ '${{ matrix.target.cpu }}' == 'amd64' ]]; then
+            PLATFORM=x64
+          else
+            PLATFORM=x86
+          fi
+          echo "PLATFORM=$PLATFORM" >> $GITHUB_ENV
+
+          ncpu=
+          MAKE_CMD="make"
+          case '${{ runner.os }}' in
+          'Linux')
+            ncpu=$(nproc)
+            ;;
+          'macOS')
+            ncpu=$(sysctl -n hw.ncpu)
+            ;;
+          'Windows')
+            ncpu=$NUMBER_OF_PROCESSORS
+            MAKE_CMD="mingw32-make"
+            ;;
+          esac
+          [[ -z "$ncpu" || $ncpu -le 0 ]] && ncpu=1
+          echo "ncpu=$ncpu" >> $GITHUB_ENV
+          echo "MAKE_CMD=${MAKE_CMD}" >> $GITHUB_ENV
+
+      - name: Build Nim and Nimble
+        run: |
+          curl -O -L -s -S https://raw.githubusercontent.com/status-im/nimbus-build-system/master/scripts/build_nim.sh
+          env MAKE="${MAKE_CMD} -j${ncpu}" ARCH_OVERRIDE=${PLATFORM} NIM_COMMIT=devel \
+            QUICK_AND_DIRTY_COMPILER=1 QUICK_AND_DIRTY_NIMBLE=1 CC=gcc \
+            bash build_nim.sh nim csources dist/nimble NimBinaries
+          echo '${{ github.workspace }}/nim/bin' >> $GITHUB_PATH
+
+      - name: Generate doc
+        run: |
+          nim --version
+          nimble --version
+          nimble install_pinned
+          nim doc --git.url:https://github.com/status-im/nim-libp2p --git.commit:${GITHUB_REF##*/} --outdir:${GITHUB_REF##*/} --project libp2p
+
+      - name: Clone NBC
+        uses: actions/checkout@v2
+        with:
+          repository: status-im/nim-libp2p
+          ref: gh-pages
+          path: subdoc
+          submodules: true
+          fetch-depth: 0
+
+      - name: Commit this bump
+        run: |
+          cd subdoc
+          mv ../${GITHUB_REF##*/} .
+          git add .
+          git config --global user.email "${{ github.actor }}@users.noreply.github.com"
+          git config --global user.name = "${{ github.actor }}"
+          git commit -a -m "update docs for ${GITHUB_REF##*/}"
+          git push origin gh-pages
