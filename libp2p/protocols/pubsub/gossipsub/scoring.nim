@@ -242,7 +242,8 @@ proc updateScores*(g: GossipSub) = # avoid async
 
     trace "updated peer's score", peer, score = peer.score, n_topics, is_grafted
 
-    if g.parameters.disconnectBadPeers and stats.score < g.parameters.graylistThreshold:
+    if g.parameters.disconnectBadPeers and stats.score < g.parameters.graylistThreshold and
+        peer.peerId notin g.parameters.directPeers:
       debug "disconnecting bad score peer", peer, score = peer.score
       asyncSpawn(try: g.disconnectPeer(peer) except Exception as exc: raiseAssert exc.msg)
 
