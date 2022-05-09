@@ -23,6 +23,7 @@ import ./voucher,
        ../../signed_envelope
 
 import std/times # Eventually replace it by chronos/timer
+export chronicles
 
 const
   RelayV2HopCodec* = "/libp2p/circuit/relay/0.2.0/hop"
@@ -87,6 +88,8 @@ type
 
     streamCount: int
     peerCount: CountTable[PeerId]
+
+    heartbeatFut: Future[void]
 
     reservationTTL*: times.Duration # TODO: eventually replace by chronos/timer
     limit*: RelayV2Limit
@@ -461,7 +464,7 @@ proc handleConnect(rv2: Relayv2, conn: Connection, msg: HopMessage) {.async, gcs
   await bridge(conn, connDst)
 
 proc heartbeat(rv2: RelayV2) {.async.} =
-  while true: # TODO: idk... something?
+  while true:
     let n = now().utc
     var rsvp = rv2.rsvp
     for k, v in rv2.rsvp.mpairs:
@@ -471,20 +474,25 @@ proc heartbeat(rv2: RelayV2) {.async.} =
 
     await sleepAsync(chronos.seconds(rv2.heartbeatSleepTime))
 
-proc new*(T: typedesc[RelayV2], switch: Switch): T =
-  let rv2 = T(switch: switch)
-  rv2.init()
-  rv2
 
-proc init*(
-  rv2: RelayV2,
-  reservationTTL: times.Duration = DefaultReservationTTL,
-  limitDuration: uint32 = DefaultLimitDuration,
-  limitData: uint64 = DefaultLimitData,
-  heartbeatSleepTime: uint32 = DefaultHeartbeatSleepTime,
-  maxCircuit: int = MaxCircuit,
-  maxCircuitPerPeer: int = MaxCircuitPerPeer,
-  msgSize: int = MsgSize) =
+proc new*(T: typedesc[RelayV2], switch: Switch,
+     reservationTTL: times.Duration = DefaultReservationTTL,
+     limitDuration: uint32 = DefaultLimitDuration,
+     limitData: uint64 = DefaultLimitData,
+     heartbeatSleepTime: uint32 = DefaultHeartbeatSleepTime,
+     maxCircuit: int = MaxCircuit,
+     maxCircuitPerPeer: int = MaxCircuitPerPeer,
+     msgSize: int = MsgSize): T =
+
+  let rv2 = T(switch: switch,
+    codecs: @[RelayV2HopCodec],
+    reservationTTL: reservationTTL,
+    limit: RelayV2Limit(duration: limitDuration, data: limitData),
+    heartbeatSleepTime: heartbeatSleepTime,
+    maxCircuit: maxCircuit,
+    maxCircuitPerPeer: maxCircuitPerPeer,
+    msgSize: msgSize)
+
   proc handleStream(conn: Connection, proto: string) {.async, gcsafe.} =
     try:
       let msgOpt = decodeHopMessage(await conn.readLp(rv2.msgSize))
@@ -511,16 +519,21 @@ proc init*(
       await conn.close()
 
   rv2.handler = handleStream
-  rv2.codecs = @[RelayV2HopCodec]
+  rv2
 
-  rv2.reservationTTL = reservationTTL
-  rv2.limit = RelayV2Limit(duration: limitDuration, data: limitData)
-  rv2.heartbeatSleepTime = heartbeatSleepTime
-  rv2.maxCircuit = maxCircuit
-  rv2.maxCircuitPerPeer = maxCircuitPerPeer
-  rv2.msgSize = msgSize
+proc start*(rv2: RelayV2) {.async.} =
+  if not rv2.heartbeatFut.isNil:
+    warn "Starting relayv2 twice"
+    return
 
-  asyncSpawn rv2.heartbeat()
+  rv2.heartbeatFut = rv2.heartbeat()
+
+proc stop*(rv2: RelayV2) {.async.} =
+  if rv2.heartbeatFut.isNil:
+    warn "Stopping relayv2 without starting it"
+    return
+
+  rv2.heartbeatFut.cancel()
 
 # Client side
 
