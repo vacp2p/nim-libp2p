@@ -241,6 +241,9 @@ method dial*(
     await cleanup()
     raise exc
 
+method addTransport*(self: Dialer, t: Transport) =
+  self.transports &= t
+
 proc new*(
   T: type Dialer,
   localPeerId: PeerId,

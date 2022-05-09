@@ -31,4 +31,5 @@ import testtcptransport,
        testpeerinfo,
        testpeerstore,
        testping,
-       testmplex
+       testmplex,
+       testrelay
