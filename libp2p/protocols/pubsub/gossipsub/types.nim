@@ -138,6 +138,7 @@ type
     directPeers*: Table[PeerId, seq[MultiAddress]]
 
     disconnectBadPeers*: bool
+    enablePX*: bool
 
   BackoffTable* = Table[string, Table[PeerId, Moment]]
   ValidationSeenTable* = Table[MessageID, HashSet[PubSubPeer]]

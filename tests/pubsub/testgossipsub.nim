@@ -945,7 +945,8 @@ suite "GossipSub":
     let
       nodes = generateNodes(
         2,
-        gossip = true) &
+        gossip = true,
+        enablePX = true) &
         generateNodes(1, gossip = true, sendSignedPeerRecord = true)
 
       # start switches
@@ -988,7 +989,7 @@ suite "GossipSub":
     )
     nodes[1].unsubscribe("foobar", handler)
 
-    await passed
+    await passed.wait(5.seconds)
 
     await allFuturesThrowing(
       nodes[0].switch.stop(),
