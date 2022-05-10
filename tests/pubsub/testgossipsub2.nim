@@ -218,7 +218,6 @@ suite "GossipSub":
     ### await subscribeNodes(nodes)
 
     proc handler(topic: string, data: seq[byte]) {.async, gcsafe.} = discard
-    nodes[0].subscribe("foobar", handler)
     nodes[1].subscribe("foobar", handler)
 
     await invalidDetected.wait(10.seconds)
@@ -452,7 +451,10 @@ suite "GossipSub":
       )
 
     var gossip = GossipSub(nodes[0])
-    gossip.parameters.decayInterval = 10.milliseconds
+    # MacOs has some nasty jitter when sleeping
+    # (up to 7 ms), so we need some pretty long
+    # sleeps to be safe here
+    gossip.parameters.decayInterval = 30.milliseconds
 
     # start pubsub
     await allFuturesThrowing(
@@ -476,7 +478,7 @@ suite "GossipSub":
 
     gossip.peerStats[nodes[1].peerInfo.peerId].topicInfos["foobar"].meshMessageDeliveries = 100
     gossip.topicParams["foobar"].meshMessageDeliveriesDecay = 0.9
-    await sleepAsync(50.milliseconds)
+    await sleepAsync(150.milliseconds)
 
     # We should have decayed 5 times, though allowing 4..6
     check:
