@@ -22,6 +22,6 @@ template heartbeat*(name: string, interval: Duration, body: untyped): untyped =
     nextHeartbeat += interval
     let now = Moment.now()
     if nextHeartbeat < now:
-      info "Missed heartbeat", heartbeat = name, delay = nextHeartbeat - now
+      info "Missed heartbeat", heartbeat = name, delay = now - nextHeartbeat
       nextHeartbeat = now + interval
     await sleepAsync(nextHeartbeat - now)

@@ -454,7 +454,7 @@ suite "GossipSub":
     # MacOs has some nasty jitter when sleeping
     # (up to 7 ms), so we need some pretty long
     # sleeps to be safe here
-    gossip.parameters.decayInterval = 30.milliseconds
+    gossip.parameters.decayInterval = 300.milliseconds
 
     # start pubsub
     await allFuturesThrowing(
@@ -478,12 +478,11 @@ suite "GossipSub":
 
     gossip.peerStats[nodes[1].peerInfo.peerId].topicInfos["foobar"].meshMessageDeliveries = 100
     gossip.topicParams["foobar"].meshMessageDeliveriesDecay = 0.9
-    await sleepAsync(150.milliseconds)
+    await sleepAsync(1500.milliseconds)
 
     # We should have decayed 5 times, though allowing 4..6
     check:
-      gossip.peerStats[nodes[1].peerInfo.peerId].topicInfos["foobar"].meshMessageDeliveries < 66
-      gossip.peerStats[nodes[1].peerInfo.peerId].topicInfos["foobar"].meshMessageDeliveries > 50
+      gossip.peerStats[nodes[1].peerInfo.peerId].topicInfos["foobar"].meshMessageDeliveries in 50.0 .. 66.0
 
     await allFuturesThrowing(
       nodes[0].switch.stop(),
