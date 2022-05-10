@@ -84,6 +84,8 @@ method closeImpl*(s: WsStream): Future[void] {.async.} =
   await s.session.close()
   await procCall Connection(s).closeImpl()
 
+method isCircuitRelay*(s: WsStream): bool = false
+
 type
   WsTransport* = ref object of Transport
     httpservers: seq[HttpServer]

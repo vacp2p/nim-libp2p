@@ -252,6 +252,9 @@ method write*(sconn: SecioConn, message: seq[byte]) {.async.} =
     await sconn.stream.write(msg)
     sconn.activity = true
 
+method isCircuitRelay*(s: SecioConn): bool =
+  s.stream.isCircuitRelay()
+
 proc newSecioConn(conn: Connection,
                   hash: string,
                   cipher: string,
