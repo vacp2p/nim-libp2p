@@ -17,8 +17,10 @@ when defined(nimdoc):
       transports/tcptransport,
       transports/wstransport,
       protocols/ping,
+      protocols/pubsub,
       peerid,
       peerinfo,
+      peerstore,
       multiaddress]
 else:
   import

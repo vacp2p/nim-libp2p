@@ -14,6 +14,8 @@
 import ../varint, ../utility, stew/[endians2, results]
 export results, utility
 
+{.push public.}
+
 const
   MaxMessageSize* = 1'u shl 22
 

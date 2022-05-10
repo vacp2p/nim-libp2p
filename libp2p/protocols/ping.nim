@@ -31,12 +31,12 @@ const
 
 type
   PingError* = object of LPError
-  WrongPingAckError* = object of LPError
+  WrongPingAckError* = object of PingError
 
-  PingHandler* = proc (
+  PingHandler* {.public.} = proc (
     peer: PeerId):
     Future[void]
-    {.gcsafe, raises: [Defect], public.}
+    {.gcsafe, raises: [Defect].}
 
   Ping* = ref object of LPProtocol
     pingHandler*: PingHandler
