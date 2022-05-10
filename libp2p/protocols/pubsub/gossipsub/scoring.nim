@@ -13,7 +13,7 @@ import std/[tables, sets, options]
 import chronos, chronicles, metrics
 import "."/[types]
 import ".."/[pubsubpeer]
-import "../../.."/[peerid, multiaddress, utility, switch]
+import "../../.."/[peerid, multiaddress, utility, switch, utils/heartbeat]
 
 declareGauge(libp2p_gossipsub_peers_scores, "the scores of the peers in gossipsub", labels = ["agent"])
 declareCounter(libp2p_gossipsub_bad_score_disconnection, "the number of peers disconnected by gossipsub", labels = ["agent"])
@@ -255,11 +255,9 @@ proc updateScores*(g: GossipSub) = # avoid async
   trace "updated scores", peers = g.peers.len
 
 proc scoringHeartbeat*(g: GossipSub) {.async.} =
-  while g.heartbeatRunning:
-    let sleepFuture = sleepAsync(g.parameters.decayInterval)
+  heartbeat "Gossipsub scoring", g.parameters.decayInterval:
     trace "running scoring heartbeat", instance = cast[int](g)
     g.updateScores()
-    await sleepFuture
 
 proc punishInvalidMessage*(g: GossipSub, peer: PubSubPeer, topics: seq[string]) =
   for tt in topics:

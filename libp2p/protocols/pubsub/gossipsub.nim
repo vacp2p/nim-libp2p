@@ -28,7 +28,7 @@ import ./pubsub,
 import stew/results
 export results
 
-import ./gossipsub/[types, scoring, behavior]
+import ./gossipsub/[types, scoring, behavior], ../../utils/heartbeat
 
 export types, scoring, behavior, pubsub
 
@@ -566,7 +566,7 @@ method publish*(g: GossipSub,
   return peers.len
 
 proc maintainDirectPeers(g: GossipSub) {.async.} =
-  while g.heartbeatRunning:
+  heartbeat "GossipSub DirectPeers", 1.minutes:
     for id, addrs in g.parameters.directPeers:
       let peer = g.peers.getOrDefault(id)
       if isNil(peer):
@@ -582,8 +582,6 @@ proc maintainDirectPeers(g: GossipSub) {.async.} =
         except CatchableError as exc:
           debug "Direct peer error dialing", msg = exc.msg
 
-    await sleepAsync(1.minutes)
-
 method start*(g: GossipSub) {.async.} =
   trace "gossipsub start"
 
@@ -591,7 +589,6 @@ method start*(g: GossipSub) {.async.} =
     warn "Starting gossipsub twice"
     return
 
-  g.heartbeatRunning = true
   g.heartbeatFut = g.heartbeat()
   g.scoringHeartbeatFut = g.scoringHeartbeat()
   g.directPeersLoop = g.maintainDirectPeers()
@@ -603,14 +600,10 @@ method stop*(g: GossipSub) {.async.} =
     return
 
   # stop heartbeat interval
-  g.heartbeatRunning = false
   g.directPeersLoop.cancel()
   g.scoringHeartbeatFut.cancel()
-  if not g.heartbeatFut.finished:
-    trace "awaiting last heartbeat"
-    await g.heartbeatFut
-    trace "heartbeat stopped"
-    g.heartbeatFut = nil
+  g.heartbeatFut.cancel()
+  g.heartbeatFut = nil
 
 method initPubSub*(g: GossipSub)
   {.raises: [Defect, InitializationError].} =
