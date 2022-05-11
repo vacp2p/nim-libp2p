@@ -76,7 +76,7 @@ import nimcrypto/[rijndael, twofish, sha2, hash, hmac]
 import nimcrypto/utils as ncrutils
 import ../utility
 import stew/results
-export results
+export results, utility
 
 # This is workaround for Nim's `import` bug
 export rijndael, twofish, sha2, hash, hmac, ncrutils

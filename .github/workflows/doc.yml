@@ -6,7 +6,7 @@ on:
 
 jobs:
   build:
-    timeout-minutes: 10
+    timeout-minutes: 20
 
     name: 'Generate & upload documentation'
     runs-on: 'ubuntu-20.04'
@@ -29,7 +29,10 @@ jobs:
           # nim doc can "fail", but the doc is still generated
           nim doc --git.url:https://github.com/status-im/nim-libp2p --git.commit:${GITHUB_REF##*/} --outdir:${GITHUB_REF##*/} --project libp2p || true
 
-      - name: Clone NBC
+          # check that the folder exists
+          ls ${GITHUB_REF##*/}
+
+      - name: Clone the gh-pages branch
         uses: actions/checkout@v2
         with:
           repository: status-im/nim-libp2p
@@ -38,10 +41,21 @@ jobs:
           submodules: true
           fetch-depth: 0
 
-      - name: Commit this bump
+      - name: Commit & push
         run: |
           cd subdoc
+
+          # Delete merged branches doc's
+          for branch in $(git branch -vv | grep ': gone]' | awk '{print $1}'); do rm -rf $branch; done
+
+          # Update / create this branch doc
+          rm -rf ${GITHUB_REF##*/}
           mv ../${GITHUB_REF##*/} .
+
+          # Remove .idx files
+          # NOTE: git also uses idx files in his
+          # internal folder, hence the `*` instead of `.`
+          find * -name "*.idx" -delete
           git add .
           git config --global user.email "${{ github.actor }}@users.noreply.github.com"
           git config --global user.name = "${{ github.actor }}"
