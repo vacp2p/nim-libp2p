@@ -478,7 +478,8 @@ method handles*(self: RelayTransport, ma: MultiAddress): bool {.gcsafe} =
   if ma.protocols.isOk:
     let sma = toSeq(ma.items())
     if sma.len >= 3:
-      result=(CircuitRelay.match(sma[^2].get()) and P2PPattern.match(sma[^1].get())) or CircuitRelay.match(sma[^1].get())
+      result = CircuitRelay.match(sma[^2].get()) and
+               P2PPattern.match(sma[^1].get())
   trace "Handles return", ma, result
 
 proc new*(T: typedesc[RelayTransport], relay: Relay, upgrader: Upgrade): T =
