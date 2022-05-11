@@ -596,9 +596,6 @@ method closeImpl*(s: NoiseConnection) {.async.} =
   burnMem(s.readCs)
   burnMem(s.writeCs)
 
-method isCircuitRelay*(s: NoiseConnection): bool =
-  s.stream.isCircuitRelay()
-
 method init*(p: Noise) {.gcsafe.} =
   procCall Secure(p).init()
   p.codec = NoiseCodec
