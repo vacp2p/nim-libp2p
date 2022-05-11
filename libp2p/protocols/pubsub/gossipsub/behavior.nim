@@ -310,24 +310,30 @@ proc rebalanceMesh*(g: GossipSub, topic: string, metrics: ptr MeshMetrics = nil)
   var
     prunes, grafts: seq[PubSubPeer]
     npeers = g.mesh.peers(topic)
+    defaultMesh: HashSet[PubSubPeer]
 
   if npeers  < g.parameters.dLow:
     trace "replenishing mesh", peers = npeers
     # replenish the mesh if we're below Dlo
-    var candidates: seq[PubSubPeer]
-    let currentMesh = g.mesh.getOrDefault(topic)
-    g.gossipSub.withValue(topic, peerList):
-      for it in peerList[]:
-        if
-          it.connected and
-          # avoid negative score peers
-          it.score >= 0.0 and
-          it notin currentMesh and
-          # don't pick explicit peers
-          it.peerId notin g.parameters.directPeers and
-          # and avoid peers we are backing off
-          it.peerId notin g.backingOff.getOrDefault(topic):
-            candidates.add(it)
+
+    # This is a workaround to get the HashSet from the table
+    # without creating a copy.
+    proc getCandidates(currentMesh: var HashSet[PubSubPeer]): seq[PubSubPeer] =
+      g.gossipSub.withValue(topic, peerList):
+        for it in peerList[]:
+          if
+              it.connected and
+              # avoid negative score peers
+              it.score >= 0.0 and
+              it notin currentMesh and
+              # don't pick explicit peers
+              it.peerId notin g.parameters.directPeers and
+              # and avoid peers we are backing off
+              it.peerId notin g.backingOff.getOrDefault(topic):
+            result.add(it)
+    var candidates =
+      try: getCandidates(g.mesh[topic])
+      except KeyError: getCandidates(defaultMesh)
 
     # shuffle anyway, score might be not used
     g.rng.shuffle(candidates)
@@ -348,41 +354,46 @@ proc rebalanceMesh*(g: GossipSub, topic: string, metrics: ptr MeshMetrics = nil)
           grafts &= peer
 
   else:
-      trace "replenishing mesh outbound quota", peers = g.mesh.peers(topic)
+    trace "replenishing mesh outbound quota", peers = g.mesh.peers(topic)
 
-      var candidates: seq[PubSubPeer]
-      let currentMesh = g.mesh.getOrDefault(topic)
+    # this is a workaround to get the hashset from the table
+    # without creating a copy.
+    proc getCandidates(currentMesh: var HashSet[PubSubPeer]): seq[PubSubPeer] =
       g.gossipSub.withValue(topic, peerList):
         for it in peerList[]:
           if
-            it.connected and
-            # get only outbound ones
-            it.outbound and
-            it notin currentMesh and
-            # avoid negative score peers
-            it.score >= 0.0 and
-            # don't pick explicit peers
-            it.peerId notin g.parameters.directPeers and
-            # and avoid peers we are backing off
-            it.peerId notin g.backingOff.getOrDefault(topic):
-              candidates.add(it)
+              it.connected and
+              # get only outbound ones
+              it.outbound and
+              it notin currentMesh and
+              # avoid negative score peers
+              it.score >= 0.0 and
+              # don't pick explicit peers
+              it.peerId notin g.parameters.directPeers and
+              # and avoid peers we are backing off
+              it.peerId notin g.backingOff.getOrDefault(topic):
+            result.add(it)
 
-      # shuffle anyway, score might be not used
-      g.rng.shuffle(candidates)
+    var candidates =
+      try: getCandidates(g.mesh[topic])
+      except KeyError: getCandidates(defaultMesh)
 
-      # sort peers by score, high score first, we are grafting
-      candidates.sort(byScore, SortOrder.Descending)
+    # shuffle anyway, score might be not used
+    g.rng.shuffle(candidates)
 
-      # Graft peers so we reach a count of D
-      candidates.setLen(min(candidates.len, g.parameters.dOut))
+    # sort peers by score, high score first, we are grafting
+    candidates.sort(byScore, SortOrder.Descending)
 
-      trace "grafting outbound peers", topic, peers = candidates.len
+    # Graft peers so we reach a count of D
+    candidates.setLen(min(candidates.len, g.parameters.dOut))
 
-      for peer in candidates:
-        if g.mesh.addPeer(topic, peer):
-          g.grafted(peer, topic)
-          g.fanout.removePeer(topic, peer)
-          grafts &= peer
+    trace "grafting outbound peers", topic, peers = candidates.len
+
+    for peer in candidates:
+      if g.mesh.addPeer(topic, peer):
+        g.grafted(peer, topic)
+        g.fanout.removePeer(topic, peer)
+        grafts &= peer
 
 
   # get again npeers after possible grafts
@@ -450,24 +461,29 @@ proc rebalanceMesh*(g: GossipSub, topic: string, metrics: ptr MeshMetrics = nil)
     let median = peers[medianIdx]
     if median.score < g.parameters.opportunisticGraftThreshold:
       trace "median score below opportunistic threshold", score = median.score
-      var avail: seq[PubSubPeer]
-      let currentMesh = g.mesh.getOrDefault(topic)
 
-      g.gossipSub.withValue(topic, peerList):
-        for it in peerList[]:
-          if
-            # avoid negative score peers
-            it.score >= median.score and
-            it notin currentMesh and
-            # don't pick explicit peers
-            it.peerId notin g.parameters.directPeers and
-            # and avoid peers we are backing off
-            it.peerId notin g.backingOff.getOrDefault(topic):
-              avail.add(it)
+      # this is a workaround to get the hashset from the table
+      # without creating a copy.
+      proc getCandidates(currentMesh: var HashSet[PubSubPeer]): seq[PubSubPeer] =
+        g.gossipSub.withValue(topic, peerList):
+          for it in peerList[]:
+            if
+                # avoid negative score peers
+                it.score >= median.score and
+                it notin currentMesh and
+                # don't pick explicit peers
+                it.peerId notin g.parameters.directPeers and
+                # and avoid peers we are backing off
+                it.peerId notin g.backingOff.getOrDefault(topic):
+              result.add(it)
 
               # by spec, grab only 2
-              if avail.len > 1:
+              if result.len > 1:
                 break
+
+      let avail =
+        try: getCandidates(g.mesh[topic])
+        except KeyError: getCandidates(defaultMesh)
 
       for peer in avail:
         if g.mesh.addPeer(topic, peer):
