@@ -120,18 +120,11 @@ proc getField*(pb: ProtoBuffer, field: int,
       err(ProtoError.IncorrectBlob)
 
 proc write*(pb: var ProtoBuffer, field: int, env: Envelope): Result[void, CryptoError] =
-  var ipb = initProtoBuffer()
+  let e = env.encode()
 
-  try:
-    ipb.write(1, env.publicKey)
-    ipb.write(2, env.payloadType)
-    ipb.write(3, env.payload)
-    ipb.write(5, env.signature)
-  except ResultError[CryptoError] as exc:
-    return err(exc.error)
-  ipb.finish()
-
-  pb.write(field, ipb)
+  if e.isErr():
+    return err(e.error)
+  pb.write(field, e.get())
   ok()
 
 type
