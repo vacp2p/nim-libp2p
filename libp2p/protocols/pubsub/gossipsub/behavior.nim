@@ -311,6 +311,7 @@ proc rebalanceMesh*(g: GossipSub, topic: string, metrics: ptr MeshMetrics = nil)
     prunes, grafts: seq[PubSubPeer]
     npeers = g.mesh.peers(topic)
     defaultMesh: HashSet[PubSubPeer]
+    backingOff = g.backingOff.getOrDefault(topic)
 
   if npeers  < g.parameters.dLow:
     trace "replenishing mesh", peers = npeers
@@ -329,7 +330,7 @@ proc rebalanceMesh*(g: GossipSub, topic: string, metrics: ptr MeshMetrics = nil)
               # don't pick explicit peers
               it.peerId notin g.parameters.directPeers and
               # and avoid peers we are backing off
-              it.peerId notin g.backingOff.getOrDefault(topic):
+              it.peerId notin backingOff:
             result.add(it)
     var candidates =
       try: getCandidates(g.mesh[topic])
@@ -371,7 +372,7 @@ proc rebalanceMesh*(g: GossipSub, topic: string, metrics: ptr MeshMetrics = nil)
               # don't pick explicit peers
               it.peerId notin g.parameters.directPeers and
               # and avoid peers we are backing off
-              it.peerId notin g.backingOff.getOrDefault(topic):
+              it.peerId notin backingOff:
             result.add(it)
 
     var candidates =
@@ -452,6 +453,8 @@ proc rebalanceMesh*(g: GossipSub, topic: string, metrics: ptr MeshMetrics = nil)
         g.pruned(peer, topic)
         g.mesh.removePeer(topic, peer)
 
+      backingOff = g.backingOff.getOrDefault(topic)
+
   # opportunistic grafting, by spec mesh should not be empty...
   if g.mesh.peers(topic) > 1:
     var peers = toSeq(try: g.mesh[topic] except KeyError: raiseAssert "have peers")
@@ -474,7 +477,7 @@ proc rebalanceMesh*(g: GossipSub, topic: string, metrics: ptr MeshMetrics = nil)
                 # don't pick explicit peers
                 it.peerId notin g.parameters.directPeers and
                 # and avoid peers we are backing off
-                it.peerId notin g.backingOff.getOrDefault(topic):
+                it.peerId notin backingOff:
               result.add(it)
 
               # by spec, grab only 2
