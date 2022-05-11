@@ -22,7 +22,18 @@ import ./voucher,
        ../../errors,
        ../../signed_envelope
 
-import std/times # Eventually replace it by chronos/timer
+# TODO:
+# * Eventually replace std/times by chronos/timer. Currently chronos/timer
+#   doesn't offer the possibility to get a datetime in UNIX UTC
+# * Eventually add an access control list in the handleReserve and
+#   handleConnect of the Relay
+# * When the circuit relay v1 will be merged with unstable:
+#   + add a backward compatibility on the RelayV2Transport
+#   + remove the two Pattern
+# * Optimize the limit in the encoding part of the hop / stop message
+# * Better reservation management ie find a way to re-reserve when the end is
+#   nigh
+import std/times
 export chronicles
 
 const
@@ -74,26 +85,26 @@ type
     peerId*: PeerID
     addrs*: seq[MultiAddress]
   Reservation* = object
-    expire: uint64 # required, Unix expiration time (UTC)
-    addrs: seq[MultiAddress] # relay address for reserving peer
+    expire: uint64              # required, Unix expiration time (UTC)
+    addrs: seq[MultiAddress]    # relay address for reserving peer
     svoucher: Option[seq[byte]] # optional, reservation voucher
   RelayV2Limit* = object
-    duration: uint32 # seconds
-    data: uint64 # bytes
+    duration: uint32            # seconds
+    data: uint64                # bytes
 
   RelayV2* = ref object of LPProtocol
     switch: Switch
     peerId: PeerID
-    rsvp: Table[PeerId, DateTime] # TODO: eventually replace by chronos/timer
+    rsvp: Table[PeerId, DateTime]
 
     streamCount: int
     peerCount: CountTable[PeerId]
 
     heartbeatFut: Future[void]
 
-    reservationTTL*: times.Duration # TODO: eventually replace by chronos/timer
+    reservationTTL*: times.Duration
     limit*: RelayV2Limit
-    heartbeatSleepTime*: uint32 # seconds
+    heartbeatSleepTime*: uint32
     maxCircuit*: int
     maxCircuitPerPeer*: int
     msgSize*: int
@@ -134,6 +145,10 @@ proc new*(
   limitData: uint64): T =
   let rv = T(conn: conn, limitDuration: limitDuration, limitData: limitData)
   rv.initStream()
+  if limitDuration > 0:
+    asyncSpawn (proc () {.async.} =
+      await sleepAsync(limitDuration.seconds()) or conn.join()
+      await conn.close())()
   return rv
 
 # Hop Protocol
@@ -329,8 +344,6 @@ proc handleReserve(rv2: RelayV2, conn: Connection) {.async, gcsafe.} =
     await handleHopError(conn, RelayV2Status.PermissionDenied)
     return
 
-  # TODO: Access Control List check, eventually
-
   let expire = now().utc + rv2.reservationTTL
   rv2.rsvp[pid] = expire
 
@@ -374,8 +387,6 @@ proc handleConnect(rv2: Relayv2,
     trace "connection attempt over relay connection", src = conn.peerId
     await handleHopError(conn, RelayV2Status.PermissionDenied)
     return
-
-  # TODO: Access Control List check, eventually
 
   if dst.peerId notin rv2.rsvp:
     trace "refusing connection, no reservation", src, dst = dst.peerId
@@ -649,7 +660,6 @@ proc handleConnect(cl: Client, conn: Connection, msg: StopMessage) {.async.} =
   await conn.join()
 
 proc init*(cl: Client) =
-  # TODO add circuit relay v1 to the handler for backwards compatibility
   proc handleStream(conn: Connection, proto: string) {.async, gcsafe.} =
     try:
       let msgOpt = decodeStopMessage(await conn.readLp(MsgSize))
@@ -677,9 +687,20 @@ proc init*(cl: Client) =
   cl.queue = newAsyncQueue[Connection](0)
 
   cl.handler = handleStream
-  cl.codecs = @[RelayV2StopCodec] # TODO: add Circuit RelayV1
+  cl.codecs = @[RelayV2StopCodec]
 
-proc reserve*(cl: Client, relayPI: PeerInfo): Future[Result[Reservation, ReserveError]] {.async.} =
+type
+  Rsvp = object
+    expire: uint64           # required, Unix expiration time (UTC)
+    addrs: seq[MultiAddress] # relay address for reserving peer
+    voucher: Option[Voucher] # optional, reservation voucher
+    limitDuration: uint32    # seconds
+    limitData: uint64        # bytes
+  ReservationError* = object of RelayV2Error
+  RelayV2DialError* = object of RelayV2Error
+
+
+proc reserve*(cl: Client, relayPI: PeerInfo): Future[Rsvp] {.async.} =
   var
     msg = HopMessage(msgType: HopMessageType.Reserve)
     msgOpt: Option[HopMessage]
@@ -691,7 +712,7 @@ proc reserve*(cl: Client, relayPI: PeerInfo): Future[Result[Reservation, Reserve
     raise exc
   except CatchableError as exc:
     trace "error opening relay stream", exc=exc.msg, relayPI
-    return err(ReserveFailedDial)
+    raise newException(ReservationError, exc.msg)
   defer:
     await conn.close()
 
@@ -702,36 +723,39 @@ proc reserve*(cl: Client, relayPI: PeerInfo): Future[Result[Reservation, Reserve
     raise exc
   except CatchableError as exc:
     trace "error writing reservation message", exc=exc.msg
-    return err(ReserveFailedConnection)
+    raise newException(ReservationError, exc.msg)
 
   if msgOpt.isNone():
     trace "Malformed message from relay"
-    return err(ReserveMalformedMessage)
+    raise newException(ReservationError, "Malformed message from relay")
   msg = msgOpt.get()
   if msg.msgType != HopMessageType.Status:
     trace "unexpected relay response type", msgType = msg.msgType
-    return err(ReserveBadType)
+    raise newException(ReservationError, "Unexpected relay response type")
   if msg.status.isNone() or msg.status.get() != Ok:
     trace "reservation failed", status = msg.status
-    return err(ReserveBadStatus)
+    raise newException(ReservationError, "Reservation failed")
 
   if msg.reservation.isNone():
     trace "missing reservation info"
-    return err(ReserveMissingReservation)
-  let rsvp = msg.reservation.get()
-  if now().utc > rsvp.expire.int64.fromUnix.utc:
+    raise newException(ReservationError, "Missing reservation information")
+  let reservation = msg.reservation.get()
+  if now().utc > reservation.expire.int64.fromUnix.utc:
     trace "received reservation with expiration date in the past"
-    return err(ReserveBadExpirationDate)
-  if rsvp.svoucher.isSome():
-    let svoucher = SignedVoucher.decode(rsvp.svoucher.get())
-    if svoucher.isErr():
+    raise newException(ReservationError, "Bad expiration date")
+  result.expire = reservation.expire
+  result.addrs = reservation.addrs
+
+  if reservation.svoucher.isSome():
+    let svoucher = SignedVoucher.decode(reservation.svoucher.get())
+    if svoucher.isErr() or svoucher.get().data.relayPeerId != relayPI.peerId:
       trace "error consuming voucher envelope", error = svoucher.error
-      return err(ReserveInvalidVoucher)
+      raise newException(ReservationError, "Invalid voucher")
+    result.voucher = some(svoucher.get().data)
 
   if msg.limit.isSome():
-    discard # TODO: Add those informations to rsvp eventually
-
-  return ok(rsvp)
+    result.limitDuration = msg.limit.get().duration
+    result.limitData = msg.limit.get().data
 
 proc dialPeer(
     cl: Client,
@@ -753,28 +777,25 @@ proc dialPeer(
     raise exc
   except CatchableError as exc:
     trace "error reading stop response", exc=exc.msg
-    raise exc
+    raise newException(RelayV2DialError, exc.msg)
 
   if msgRcvFromRelayOpt.isNone():
     trace "error reading stop response", msg = msgRcvFromRelayOpt
-    # TODO: raise
-    return
+    raise newException(RelayV2DialError, "No stop response")
 
   let msgRcvFromRelay = msgRcvFromRelayOpt.get()
   if msgRcvFromRelay.msgType != HopMessageType.Status:
     trace "unexcepted relay stop response", msgType = msgRcvFromRelay.msgType
-    # TODO: raise
-    return
+    raise newException(RelayV2DialError, "Unexpected stop response")
 
   if msgRcvFromRelay.status.isNone() or msgRcvFromRelay.status.get() != RelayV2Status.Ok:
     trace "relay stop failure", status=msgRcvFromRelay.status
-    # TODO: raise
-    return
+    raise newException(RelayV2DialError, "Relay stop failure")
 
   if msgRcvFromRelay.limit.isSome():
     conn.limitDuration = msgRcvFromRelay.limit.get().duration
     conn.limitData = msgRcvFromRelay.limit.get().data
-  conn
+  return conn
 
 # Transport
 
@@ -823,7 +844,7 @@ method dial*(
   address: MultiAddress): Future[Connection] {.async, gcsafe.} =
   result = await self.dial(address)
 
-const # TODO Move those two in multiaddress.nim
+const
   P2PPattern = mapEq("p2p")
   CircuitRelay = mapEq("p2p-circuit")
 
@@ -831,9 +852,8 @@ method handles*(self: RelayV2Transport, ma: MultiAddress): bool {.gcsafe} =
   if ma.protocols.isOk():
     let sma = toSeq(ma.items())
     if sma.len >= 3:
-      result = (CircuitRelay.match(sma[^2].get()) and
-                P2PPattern.match(sma[^1].get())) or
-               CircuitRelay.match(sma[^1].get())
+      result = CircuitRelay.match(sma[^2].get()) and
+               P2PPattern.match(sma[^1].get())
   trace "Handles return", ma, result
 
 proc new*(T: typedesc[RelayV2Transport], cl: Client, upgrader: Upgrade): T =
