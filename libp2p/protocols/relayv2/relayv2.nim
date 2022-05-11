@@ -351,7 +351,9 @@ proc handleReserve(rv2: RelayV2, conn: Connection) {.async, gcsafe.} =
     trace "error writing reservation response", exc=exc.msg, retractedPid = pid
     # conn.reset()
 
-proc handleConnect(rv2: Relayv2, conn: Connection, msg: HopMessage) {.async, gcsafe.} =
+proc handleConnect(rv2: Relayv2,
+                   conn: Connection,
+                   msg: HopMessage) {.async, gcsafe.} =
   rv2.streamCount.inc()
   defer: rv2.streamCount.dec()
 
@@ -360,10 +362,7 @@ proc handleConnect(rv2: Relayv2, conn: Connection, msg: HopMessage) {.async, gcs
     await handleHopError(conn, RelayV2Status.ResourceLimitExceeded)
     return
 
-  let
-    src = conn.peerId # TODO: check if src => { peerId: conn.peerId, addrs: conn.observedAddr } ?
-    addrs = conn.observedAddr
-    testAddrs = addrs.contains(multiCodec("p2p-circuit"))
+  let src = conn.peerId
 
   if msg.peer.isNone():
     await handleHopError(conn, RelayV2Status.MalformedMessage)
@@ -371,7 +370,7 @@ proc handleConnect(rv2: Relayv2, conn: Connection, msg: HopMessage) {.async, gcs
 
   let dst = msg.peer.get()
 
-  if testAddrs.isErr() or testAddrs.get():
+  if conn.isCircuitRelay():
     trace "connection attempt over relay connection", src = conn.peerId
     await handleHopError(conn, RelayV2Status.PermissionDenied)
     return
@@ -391,7 +390,9 @@ proc handleConnect(rv2: Relayv2, conn: Connection, msg: HopMessage) {.async, gcs
 
   if rv2.peerCount[src] > rv2.maxCircuitPerPeer or
      rv2.peerCount[dst.peerId] > rv2.maxCircuitPerPeer:
-    trace "too many connections", src = rv2.peerCount[src], dst = rv2.peerCount[dst.peerId], max = rv2.maxCircuitPerPeer
+    trace "too many connections", src = rv2.peerCount[src],
+                                  dst = rv2.peerCount[dst.peerId],
+                                  max = rv2.maxCircuitPerPeer
     await handleHopError(conn, RelayV2Status.ResourceLimitExceeded)
     return
 
@@ -407,8 +408,8 @@ proc handleConnect(rv2: Relayv2, conn: Connection, msg: HopMessage) {.async, gcs
     await connDst.close()
 
   let stopMsgToSend = StopMessage(msgType: StopMessageType.Connect,
-                            peer: some(RelayV2Peer(peerId: src, addrs: @[addrs])),
-                            limit: some(rv2.limit))
+                          peer: some(RelayV2Peer(peerId: src, addrs: @[])),
+                          limit: some(rv2.limit))
 
   try:
     await connDst.writeLp(encodeStopMessage(stopMsgToSend).buffer)
@@ -435,11 +436,13 @@ proc handleConnect(rv2: Relayv2, conn: Connection, msg: HopMessage) {.async, gcs
 
   let msgRcvFromDst = msgRcvFromDstOpt.get()
   if msgRcvFromDst.msgType != StopMessageType.Status:
-    trace "unexpected stop response, not a status message", msgType = msgRcvFromDst.msgType
+    trace "unexpected stop response, not a status message",
+          msgType = msgRcvFromDst.msgType
     await handleHopError(conn, RelayV2Status.ConnectionFailed)
     return
 
-  if msgRcvFromDst.status.isNone() or msgRcvFromDst.status.get() != RelayV2Status.Ok:
+  if msgRcvFromDst.status.isNone() or
+     msgRcvFromDst.status.get() != RelayV2Status.Ok:
     trace "relay stop failure", status = msgRcvFromDst.status
     await handleHopError(conn, RelayV2Status.ConnectionFailed)
     return
@@ -649,7 +652,7 @@ proc init*(cl: Client) =
   # TODO add circuit relay v1 to the handler for backwards compatibility
   proc handleStream(conn: Connection, proto: string) {.async, gcsafe.} =
     try:
-      let msgOpt = decodeStopMessage(await conn.readLp(MsgSize)) # TODO: configurable
+      let msgOpt = decodeStopMessage(await conn.readLp(MsgSize))
 
       if msgOpt.isNone():
         await handleHopError(conn, RelayV2Status.MalformedMessage)
@@ -745,7 +748,7 @@ proc dialPeer(
 
   let msgRcvFromRelayOpt = try:
     await conn.writeLp(pb.buffer)
-    decodeHopMessage(await conn.readLp(MsgSize)) # TODO: cl.msgSize
+    decodeHopMessage(await conn.readLp(MsgSize))
   except CancelledError as exc:
     raise exc
   except CatchableError as exc:
@@ -771,7 +774,6 @@ proc dialPeer(
   if msgRcvFromRelay.limit.isSome():
     conn.limitDuration = msgRcvFromRelay.limit.get().duration
     conn.limitData = msgRcvFromRelay.limit.get().data
-
   conn
 
 # Transport
@@ -829,7 +831,9 @@ method handles*(self: RelayV2Transport, ma: MultiAddress): bool {.gcsafe} =
   if ma.protocols.isOk():
     let sma = toSeq(ma.items())
     if sma.len >= 3:
-      result=(CircuitRelay.match(sma[^2].get()) and P2PPattern.match(sma[^1].get())) or CircuitRelay.match(sma[^1].get())
+      result = (CircuitRelay.match(sma[^2].get()) and
+                P2PPattern.match(sma[^1].get())) or
+               CircuitRelay.match(sma[^1].get())
   trace "Handles return", ma, result
 
 proc new*(T: typedesc[RelayV2Transport], cl: Client, upgrader: Upgrade): T =
