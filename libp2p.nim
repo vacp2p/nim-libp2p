@@ -34,6 +34,10 @@ when defined(nimdoc):
       peerinfo,
       peerstore,
       multiaddress]
+
+  proc dummyPrivateProc*() =
+    ## A private proc example
+    discard
 else:
   import
     libp2p/[protobuf/minprotobuf,
