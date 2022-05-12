@@ -45,7 +45,7 @@ proc waitSub(sender, receiver: auto; key: string) {.async, gcsafe.} =
     await sleepAsync(5.milliseconds)
     doAssert Moment.now() < timeout, "waitSub timeout!"
 
-template tryPublish(call: untyped, require: int, wait = 10.milliseconds, timeout = 5.seconds): untyped =
+template tryPublish(call: untyped, require: int, wait = 10.milliseconds, timeout = 10.seconds): untyped =
   var
     expiration = Moment.now() + timeout
     pubs = 0
@@ -365,7 +365,7 @@ suite "GossipSub":
     tryPublish await wait(nodes[0].publish("foobar",
                                   toBytes("from node " &
                                   $nodes[0].peerInfo.peerId)),
-                                  1.minutes), 1, 5.seconds
+                                  1.minutes), 1, 5.seconds, 3.minutes
 
     await wait(seenFut, 5.minutes)
     check: seen.len >= runs
@@ -388,11 +388,9 @@ suite "GossipSub":
     # Waiting 2 heartbeats
 
     for _ in 0..1:
-      for i in 0..<runs:
-        if i mod 3 == 0:
-          let evnt = newAsyncEvent()
-          GossipSub(nodes[i]).heartbeatEvents &= evnt
-          await evnt.wait()
+      let evnt = newAsyncEvent()
+      GossipSub(nodes[0]).heartbeatEvents &= evnt
+      await evnt.wait()
 
     # ensure peer stats are stored properly and kept properly
     check:
@@ -410,11 +408,9 @@ suite "GossipSub":
     # Waiting 2 heartbeats
 
     for _ in 0..1:
-      for i in 0..<runs:
-        if i mod 3 == 0:
-          let evnt = newAsyncEvent()
-          GossipSub(nodes[i]).heartbeatEvents &= evnt
-          await evnt.wait()
+      let evnt = newAsyncEvent()
+      GossipSub(nodes[0]).heartbeatEvents &= evnt
+      await evnt.wait()
 
     # ensure peer stats are stored properly and kept properly
     check:
