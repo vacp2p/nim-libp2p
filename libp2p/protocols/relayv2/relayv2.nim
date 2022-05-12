@@ -109,30 +109,23 @@ proc new*(
     asyncSpawn (proc () {.async.} =
       let sleep = sleepAsync(limitDuration.seconds())
       await sleep or conn.join()
-      if sleep.isFinished(): await conn.close()
+      if sleep.finished(): await conn.close()
       else: sleep.cancel())()
   return rv
 
-proc handleHopError*(conn: Connection, code: RelayV2Status) {.async, gcsafe.} =
+# Protocols
+
+proc sendHopError*(conn: Connection, code: Status) {.async, gcsafe.} =
   trace "send hop status", status = $code & "(" & $ord(code) & ")"
   let
     msg = HopMessage(msgType: HopMessageType.Status, status: some(code))
     pb = encode(msg)
+  await conn.writeLp(pb.buffer)
 
-  try:
-    await conn.writeLp(pb.buffer)
-  except CancelledError as exc:
-    raise exc
-  except CatchableError as exc:
-    trace "error writing error msg", exc=exc.msg, code
-
-# Protocols
-
-proc createHopMessage(
+proc createReserveResponse(
     rv2: RelayV2,
     pid: PeerID,
     expire: DateTime): Result[HopMessage, CryptoError] =
-  var msg: HopMessage
   let
     expireUnix = expire.toTime.toUnix.uint64
     v = Voucher(relayPeerId: rv2.switch.peerInfo.peerId,
@@ -140,160 +133,129 @@ proc createHopMessage(
                   expiration: expireUnix)
     sv = ? SignedVoucher.init(rv2.switch.peerInfo.privateKey, v)
     ma = MultiAddress.init("/p2p/" & $rv2.switch.peerInfo.peerId).tryGet()
-  msg.reservation = some(Reservation(expire: expireUnix,
-                         addrs: rv2.switch.peerInfo.addrs.mapIt(it & ma),
-                         svoucher: some(? sv.encode)))
-  msg.limit = rv2.limit
-  msg.msgType = HopMessageType.Status
-  msg.status = some(Ok)
+    rsrv = Reservation(expire: expireUnix,
+                       addrs: rv2.switch.peerInfo.addrs.mapIt(it & ma),
+                       svoucher: some(? sv.encode))
+    msg = HopMessage(msgType: HopMessageType.Status,
+                     reservation: some(rsrv),
+                     limit: rv2.limit,
+                     status: some(Ok))
   return ok(msg)
 
-proc handleReserve(rv2: RelayV2, conn: Connection) {.async, gcsafe.} =
-  let pid = conn.peerId
-
-  if conn.isCircuitRelay():
-    trace "reservation attempt over relay connection", pid
-    await handleHopError(conn, RelayV2Status.PermissionDenied)
+proc handleReserve(rv2: RelayV2, connSrc: Connection) {.async, gcsafe.} =
+  if connSrc.isCircuitRelay():
+    trace "reservation attempt over relay connection", pid = connSrc.peerId
+    await sendHopError(connSrc, PermissionDenied)
     return
 
-  let expire = now().utc + rv2.reservationTTL
-  rv2.rsvp[pid] = expire
+  let
+    pid = connSrc.peerId
+    expire = now().utc + rv2.reservationTTL
+    msg = rv2.createReserveResponse(pid, expire)
 
   trace "reserving relay slot for", pid
-
-  let msg = rv2.createHopMessage(pid, expire)
   if msg.isErr():
     trace "error signing the voucher", error = error(msg), pid
-    # conn.reset()
     return
-  let pb = encode(msg.get())
-
-  try:
-    await conn.writeLp(pb.buffer)
-  except CancelledError as exc:
-    raise exc
-  except CatchableError as exc:
-    trace "error writing reservation response", exc=exc.msg, retractedPid = pid
-    # conn.reset()
+  rv2.rsvp[pid] = expire
+  await connSrc.writeLp(encode(msg.get()).buffer)
 
 proc handleConnect(rv2: Relayv2,
-                   conn: Connection,
+                   connSrc: Connection,
                    msg: HopMessage) {.async, gcsafe.} =
   rv2.streamCount.inc()
   defer: rv2.streamCount.dec()
 
   if rv2.streamCount > rv2.maxCircuit:
     trace "refusing connection; too many active circuit"
-    await handleHopError(conn, RelayV2Status.ResourceLimitExceeded)
+    await sendHopError(connSrc, ResourceLimitExceeded)
     return
 
-  let src = conn.peerId
+  if connSrc.isCircuitRelay():
+    trace "connection attempt over relay connection"
+    await sendHopError(connSrc, PermissionDenied)
+    return
 
   if msg.peer.isNone():
-    await handleHopError(conn, RelayV2Status.MalformedMessage)
+    await sendHopError(connSrc, MalformedMessage)
     return
 
-  let dst = msg.peer.get()
+  let
+    src = connSrc.peerId
+    dst = msg.peer.get().peerId
 
-  if conn.isCircuitRelay():
-    trace "connection attempt over relay connection", src = conn.peerId
-    await handleHopError(conn, RelayV2Status.PermissionDenied)
-    return
-
-  if dst.peerId notin rv2.rsvp:
-    trace "refusing connection, no reservation", src, dst = dst.peerId
-    await handleHopError(conn, RelayV2Status.NoReservation)
+  if dst notin rv2.rsvp:
+    trace "refusing connection, no reservation", src, dst
+    await sendHopError(connSrc, NoReservation)
     return
 
   rv2.peerCount.inc(src)
-  rv2.peerCount.inc(dst.peerId)
+  rv2.peerCount.inc(dst)
   defer:
     rv2.peerCount.inc(src, -1)
-    rv2.peerCount.inc(dst.peerId, -1)
+    rv2.peerCount.inc(dst, -1)
 
   if rv2.peerCount[src] > rv2.maxCircuitPerPeer or
-     rv2.peerCount[dst.peerId] > rv2.maxCircuitPerPeer:
+     rv2.peerCount[dst] > rv2.maxCircuitPerPeer:
     trace "too many connections", src = rv2.peerCount[src],
-                                  dst = rv2.peerCount[dst.peerId],
+                                  dst = rv2.peerCount[dst],
                                   max = rv2.maxCircuitPerPeer
-    await handleHopError(conn, RelayV2Status.ResourceLimitExceeded)
+    await sendHopError(connSrc, ResourceLimitExceeded)
     return
 
   let connDst = try:
-    await rv2.switch.dial(dst.peerId, RelayV2StopCodec)
+    await rv2.switch.dial(dst, RelayV2StopCodec)
   except CancelledError as exc:
     raise exc
   except CatchableError as exc:
     trace "error opening relay stream", dst, exc=exc.msg
-    await handleHopError(conn, RelayV2Status.ConnectionFailed)
+    await sendHopError(connSrc, ConnectionFailed)
     return
   defer:
     await connDst.close()
 
-  let stopMsgToSend = StopMessage(msgType: StopMessageType.Connect,
+  let
+    stopMsgToSend = StopMessage(msgType: StopMessageType.Connect,
                           peer: some(Peer(peerId: src, addrs: @[])),
                           limit: rv2.limit)
+    msgRcvFromDst = try:
+      await connDst.writeLp(encode(stopMsgToSend).buffer)
+      StopMessage.decode(await connDst.readLp(rv2.msgSize)).get()
+    except CancelledError as exc:
+      raise exc
+    except CatchableError as exc:
+      trace "error reading or writing stop handshake", exc=exc.msg
+      await sendHopError(connSrc, ConnectionFailed)
+      return
 
-  try:
-    await connDst.writeLp(encode(stopMsgToSend).buffer)
-  except CancelledError as exc:
-    raise exc
-  except CatchableError as exc:
-    trace "error writing stop handshake", exc=exc.msg
-    await handleHopError(conn, RelayV2Status.ConnectionFailed)
-    return
-
-  let msgRcvFromDstOpt = try:
-    StopMessage.decode(await connDst.readLp(rv2.msgSize))
-  except CancelledError as exc:
-    raise exc
-  except CatchableError as exc:
-    trace "error reading stop response", exc=exc.msg
-    await handleHopError(conn, RelayV2Status.ConnectionFailed)
-    return
-
-  if msgRcvFromDstOpt.isNone():
-    trace "error reading stop response", msg = msgRcvFromDstOpt
-    await handleHopError(conn, RelayV2Status.ConnectionFailed)
-    return
-
-  let msgRcvFromDst = msgRcvFromDstOpt.get()
   if msgRcvFromDst.msgType != StopMessageType.Status:
     trace "unexpected stop response, not a status message",
           msgType = msgRcvFromDst.msgType
-    await handleHopError(conn, RelayV2Status.ConnectionFailed)
+    await sendHopError(connSrc, ConnectionFailed)
     return
 
-  if msgRcvFromDst.status.isNone() or
-     msgRcvFromDst.status.get() != RelayV2Status.Ok:
+  if msgRcvFromDst.status.get(UnexpectedMessage) != Ok:
     trace "relay stop failure", status = msgRcvFromDst.status
-    await handleHopError(conn, RelayV2Status.ConnectionFailed)
+    await sendHopError(connSrc, ConnectionFailed)
     return
 
-  let resp = HopMessage(msgType: HopMessageType.Status,
-                        status: some(RelayV2Status.Ok))
-  try:
-    await conn.writeLp(encode(resp).buffer)
-  except CancelledError as exc:
-    raise exc
-  except CatchableError as exc:
-    trace "error writing relay response", exc=exc.msg
-    return
+  await connSrc.writeLp(encode(HopMessage(msgType: HopMessageType.Status,
+                                          status: some(Ok))).buffer)
 
   trace "relaying connection", src, dst
 
-  proc bridge(conn: Connection, connDst: Connection) {.async.} =
+  proc bridge(connSrc: Connection, connDst: Connection) {.async.} =
     const bufferSize = 4096
     var
       bufSrcToDst: array[bufferSize, byte]
       bufDstToSrc: array[bufferSize, byte]
-      futSrc = conn.readOnce(addr bufSrcToDst[0], bufSrcToDst.len)
+      futSrc = connSrc.readOnce(addr bufSrcToDst[0], bufSrcToDst.len)
       futDst = connDst.readOnce(addr bufDstToSrc[0], bufDstToSrc.len)
       bytesSendFromSrcToDst = 0
       bytesSendFromDstToSrc = 0
       bufRead: int
 
-    while not conn.closed() and not connDst.closed():
+    while not connSrc.closed() and not connDst.closed():
       try:
         await futSrc or futDst
         if futSrc.finished():
@@ -302,18 +264,18 @@ proc handleConnect(rv2: Relayv2,
           bytesSendFromSrcToDst.inc(bufRead)
           await connDst.write(@bufSrcToDst[0..<bufRead])
           zeroMem(addr(bufSrcToDst), bufferSize)
-          futSrc = conn.readOnce(addr bufSrcToDst[0], bufSrcToDst.len)
+          futSrc = connSrc.readOnce(addr bufSrcToDst[0], bufSrcToDst.len)
         if futDst.finished():
           bufRead = await futDst
           assert bufRead <= bufferSize
           bytesSendFromDstToSrc += bufRead
-          await conn.write(bufDstToSrc[0..<bufRead])
+          await connSrc.write(bufDstToSrc[0..<bufRead])
           zeroMem(addr(bufDstToSrc), bufferSize)
           futDst = connDst.readOnce(addr bufDstToSrc[0], bufDstToSrc.len)
       except CancelledError as exc:
         raise exc
       except CatchableError as exc:
-        if conn.closed() or conn.atEof():
+        if connSrc.closed() or connSrc.atEof():
           trace "relay src closed connection", src
         if connDst.closed() or connDst.atEof():
           trace "relay dst closed connection", dst
@@ -324,9 +286,8 @@ proc handleConnect(rv2: Relayv2,
 
     await futSrc.cancelAndWait()
     await futDst.cancelAndWait()
-  await bridge(RelayConnection.new(conn, rv2.limit.duration, rv2.limit.data),
+  await bridge(RelayConnection.new(connSrc, rv2.limit.duration, rv2.limit.data),
                RelayConnection.new(connDst, rv2.limit.duration, rv2.limit.data))
-
 
 proc heartbeat(rv2: RelayV2) {.async.} =
   while true:
@@ -363,10 +324,9 @@ proc new*(T: typedesc[RelayV2], switch: Switch,
       let msgOpt = HopMessage.decode(await conn.readLp(rv2.msgSize))
 
       if msgOpt.isNone():
-        await handleHopError(conn, RelayV2Status.MalformedMessage)
+        await sendHopError(conn, MalformedMessage)
         return
-      else:
-        trace "relayv2 handle stream", msg = msgOpt.get()
+      trace "relayv2 handle stream", msg = msgOpt.get()
       let msg = msgOpt.get()
 
       case msg.msgType:
@@ -374,7 +334,7 @@ proc new*(T: typedesc[RelayV2], switch: Switch,
         of HopMessageType.Connect: await rv2.handleConnect(conn, msg)
         else:
           trace "Unexpected relayv2 handshake", msgType=msg.msgType
-          await handleHopError(conn, RelayV2Status.MalformedMessage)
+          await sendHopError(conn, MalformedMessage)
     except CancelledError as exc:
       raise exc
     except CatchableError as exc:
@@ -406,143 +366,66 @@ type
   Client* = ref object of LPProtocol
     switch: Switch
     queue: AsyncQueue[Connection]
-  ReserveError* = enum
-    ReserveFailedDial,
-    ReserveFailedConnection,
-    ReserveMalformedMessage,
-    ReserveBadType,
-    ReserveBadStatus,
-    ReserveMissingReservation,
-    ReserveBadExpirationDate,
-    ReserveInvalidVoucher,
-    ReserveUnexpected
 
-proc handleStopError(conn: Connection, code: RelayV2Status) {.async.} =
+proc sendStopError(conn: Connection, code: Status) {.async.} =
   trace "send stop status", status = $code & " (" & $ord(code) & ")"
-  let
-    msg = StopMessage(msgType: StopMessageType.Status, status: some(code))
-    pb = encode(msg)
-
-  try:
-    await conn.writeLp(pb.buffer)
-  except CancelledError as exc:
-    raise exc
-  except CatchableError as exc:
-    trace "error writing error msg", exc=exc.msg, code
-
-proc new*(T: typedesc[Client], switch: Switch): T =
-  let cl = T(switch: switch)
-  cl.init()
-  cl
+  let msg = StopMessage(msgType: StopMessageType.Status, status: some(code))
+  await conn.writeLp(encode(msg).buffer)
 
 proc handleConnect(cl: Client, conn: Connection, msg: StopMessage) {.async.} =
   if msg.peer.isNone():
-    await handleStopError(conn, RelayV2Status.MalformedMessage)
+    await sendStopError(conn, MalformedMessage)
     return
   let
+    # TODO: check the go version to see in which way this could fail
+    # it's unclear in the spec
     src = msg.peer.get()
     limitDuration = msg.limit.duration
     limitData = msg.limit.data
     msg = StopMessage(
       msgType: StopMessageType.Status,
-      status: some(RelayV2Status.Ok))
+      status: some(Ok))
     pb = encode(msg)
 
-  trace "incoming relay connection", src, conn
+  trace "incoming relay connection", src
 
-  try:
-    await conn.writeLp(pb.buffer)
-  except CancelledError as exc:
-    raise exc
-  except CatchableError as exc:
-    trace "error writing stop msg", exc=exc.msg
-    return
+  await conn.writeLp(pb.buffer)
   await cl.queue.addLast(RelayConnection.new(conn, limitDuration, limitData))
   await conn.join()
 
-proc init*(cl: Client) =
-  proc handleStream(conn: Connection, proto: string) {.async, gcsafe.} =
-    try:
-      let msgOpt = StopMessage.decode(await conn.readLp(MsgSize))
-
-      if msgOpt.isNone():
-        await handleHopError(conn, RelayV2Status.MalformedMessage)
-        return
-      else:
-        trace "client handle stream", msg = msgOpt.get()
-      let msg = msgOpt.get()
-
-      if msg.msgType == StopMessageType.Connect:
-        await cl.handleConnect(conn, msg)
-      else:
-        trace "Unexpected client / relayv2 handshake", msgType=msg.msgType
-        await handleStopError(conn, RelayV2Status.MalformedMessage)
-    except CancelledError as exc:
-      raise exc
-    except CatchableError as exc:
-      trace "exception in client handler", exc = exc.msg, conn
-    finally:
-      trace "exiting client handler", conn
-      await conn.close()
-
-  cl.queue = newAsyncQueue[Connection](0)
-
-  cl.handler = handleStream
-  cl.codecs = @[RelayV2StopCodec]
-
 type
-  Rsvp = object
-    expire: uint64           # required, Unix expiration time (UTC)
-    addrs: seq[MultiAddress] # relay address for reserving peer
-    voucher: Option[Voucher] # optional, reservation voucher
-    limitDuration: uint32    # seconds
-    limitData: uint64        # bytes
+  Rsvp* = object
+    expire*: uint64           # required, Unix expiration time (UTC)
+    addrs*: seq[MultiAddress] # relay address for reserving peer
+    voucher*: Option[Voucher] # optional, reservation voucher
+    limitDuration*: uint32    # seconds
+    limitData*: uint64        # bytes
   ReservationError* = object of RelayV2Error
   RelayV2DialError* = object of RelayV2Error
 
-
 proc reserve*(cl: Client, relayPI: PeerInfo): Future[Rsvp] {.async.} =
-  var
-    msg = HopMessage(msgType: HopMessageType.Reserve)
-    msgOpt: Option[HopMessage]
-  let pb = encode(msg)
+  let conn = await cl.switch.dial(relayPI.peerId, relayPI.addrs, RelayV2HopCodec)
+  defer: await conn.close()
+  let
+    pb = encode(HopMessage(msgType: HopMessageType.Reserve))
+    msg = try:
+      await conn.writeLp(pb.buffer)
+      HopMessage.decode(await conn.readLp(MsgSize)).get()
+    except CancelledError as exc:
+      raise exc
+    except CatchableError as exc:
+      trace "error writing or reading reservation message", exc=exc.msg
+      raise newException(ReservationError, exc.msg)
 
-  let conn = try:
-    await cl.switch.dial(relayPI.peerId, relayPI.addrs, RelayV2HopCodec)
-  except CancelledError as exc:
-    raise exc
-  except CatchableError as exc:
-    trace "error opening relay stream", exc=exc.msg, relayPI
-    raise newException(ReservationError, exc.msg)
-  defer:
-    await conn.close()
-
-  try:
-    await conn.writeLp(pb.buffer)
-    msgOpt = HopMessage.decode(await conn.readLp(MsgSize))
-  except CancelledError as exc:
-    raise exc
-  except CatchableError as exc:
-    trace "error writing reservation message", exc=exc.msg
-    raise newException(ReservationError, exc.msg)
-
-  if msgOpt.isNone():
-    trace "Malformed message from relay"
-    raise newException(ReservationError, "Malformed message from relay")
-  msg = msgOpt.get()
   if msg.msgType != HopMessageType.Status:
-    trace "unexpected relay response type", msgType = msg.msgType
     raise newException(ReservationError, "Unexpected relay response type")
-  if msg.status.isNone() or msg.status.get() != Ok:
-    trace "reservation failed", status = msg.status
+  if msg.status.get(UnexpectedMessage) != Ok:
     raise newException(ReservationError, "Reservation failed")
-
   if msg.reservation.isNone():
-    trace "missing reservation info"
     raise newException(ReservationError, "Missing reservation information")
+
   let reservation = msg.reservation.get()
   if now().utc > reservation.expire.int64.fromUnix.utc:
-    trace "received reservation with expiration date in the past"
     raise newException(ReservationError, "Bad expiration date")
   result.expire = reservation.expire
   result.addrs = reservation.addrs
@@ -550,7 +433,6 @@ proc reserve*(cl: Client, relayPI: PeerInfo): Future[Rsvp] {.async.} =
   if reservation.svoucher.isSome():
     let svoucher = SignedVoucher.decode(reservation.svoucher.get())
     if svoucher.isErr() or svoucher.get().data.relayPeerId != relayPI.peerId:
-      trace "error consuming voucher envelope", error = svoucher.error
       raise newException(ReservationError, "Invalid voucher")
     result.voucher = some(svoucher.get().data)
 
@@ -562,39 +444,58 @@ proc dialPeer(
     conn: RelayConnection,
     dstPeerId: PeerID,
     dstAddrs: seq[MultiAddress]): Future[Connection] {.async.} =
-  var
-    msg = HopMessage(
-      msgType: HopMessageType.Connect,
-      peer: some(Peer(peerId: dstPeerId, addrs: dstAddrs)))
-    pb = encode(msg)
+  let
+    p = Peer(peerId: dstPeerId, addrs: dstAddrs)
+    pb = encode(HopMessage(msgType: HopMessageType.Connect, peer: some(p)))
 
-  trace "Dial peer", msgSend=msg
+  trace "Dial peer", p
 
-  let msgRcvFromRelayOpt = try:
+  let msgRcvFromRelay = try:
     await conn.writeLp(pb.buffer)
-    HopMessage.decode(await conn.readLp(MsgSize))
+    HopMessage.decode(await conn.readLp(MsgSize)).get()
   except CancelledError as exc:
     raise exc
   except CatchableError as exc:
     trace "error reading stop response", exc=exc.msg
     raise newException(RelayV2DialError, exc.msg)
 
-  if msgRcvFromRelayOpt.isNone():
-    trace "error reading stop response", msg = msgRcvFromRelayOpt
-    raise newException(RelayV2DialError, "No stop response")
-
-  let msgRcvFromRelay = msgRcvFromRelayOpt.get()
   if msgRcvFromRelay.msgType != HopMessageType.Status:
-    trace "unexcepted relay stop response", msgType = msgRcvFromRelay.msgType
     raise newException(RelayV2DialError, "Unexpected stop response")
-
-  if msgRcvFromRelay.status.isNone() or msgRcvFromRelay.status.get() != RelayV2Status.Ok:
-    trace "relay stop failure", status=msgRcvFromRelay.status
+  if msgRcvFromRelay.status.get(UnexpectedMessage) != Ok:
     raise newException(RelayV2DialError, "Relay stop failure")
-
   conn.limitDuration = msgRcvFromRelay.limit.duration
   conn.limitData = msgRcvFromRelay.limit.data
   return conn
+
+proc new*(T: typedesc[Client], switch: Switch): T =
+  let cl = T(switch: switch)
+  proc handleStream(conn: Connection, proto: string) {.async, gcsafe.} =
+    try:
+      let msgOpt = StopMessage.decode(await conn.readLp(MsgSize))
+
+      if msgOpt.isNone():
+        await sendHopError(conn, MalformedMessage)
+        return
+      trace "client handle stream", msg = msgOpt.get()
+      let msg = msgOpt.get()
+
+      if msg.msgType == StopMessageType.Connect:
+        await cl.handleConnect(conn, msg)
+      else:
+        trace "Unexpected client / relayv2 handshake", msgType=msg.msgType
+        await sendStopError(conn, MalformedMessage)
+    except CancelledError as exc:
+      raise exc
+    except CatchableError as exc:
+      trace "exception in client handler", exc = exc.msg, conn
+    finally:
+      trace "exiting client handler", conn
+      await conn.close()
+
+  cl.queue = newAsyncQueue[Connection](0)
+  cl.handler = handleStream
+  cl.codecs = @[RelayV2StopCodec]
+  cl
 
 # Transport
 

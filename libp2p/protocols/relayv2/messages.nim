@@ -75,7 +75,7 @@ type
     duration*: uint32            # seconds
     data*: uint64                # bytes
 
-  RelayV2Status* = enum
+  Status* = enum
     Ok = 100
     ReservationRefused = 200
     ResourceLimitExceeded = 201
@@ -93,7 +93,7 @@ type
     peer*: Option[Peer]
     reservation*: Option[Reservation]
     limit*: Limit
-    status*: Option[RelayV2Status]
+    status*: Option[Status]
 
 proc encode*(msg: HopMessage): ProtoBuffer =
   var pb = initProtoBuffer()
@@ -175,7 +175,7 @@ proc decode*(_: typedesc[HopMessage], buf: seq[byte]): Option[HopMessage] =
   if r2.get(): msg.peer = some(peer)
   if r3.get(): msg.reservation = some(reservation)
   if r4.get(): msg.limit = limit
-  if r5.get(): msg.status = some(RelayV2Status(statusOrd))
+  if r5.get(): msg.status = some(Status(statusOrd))
   some(msg)
 
 # Stop Message
@@ -188,7 +188,7 @@ type
     msgType*: StopMessageType
     peer*: Option[Peer]
     limit*: Limit
-    status*: Option[RelayV2Status]
+    status*: Option[Status]
 
 
 proc encode*(msg: StopMessage): ProtoBuffer =
@@ -249,5 +249,5 @@ proc decode*(_: typedesc[StopMessage], buf: seq[byte]): Option[StopMessage] =
   msg.msgType = StopMessageType(msgTypeOrd)
   if r2.get(): msg.peer = some(peer)
   if r3.get(): msg.limit = limit
-  if r4.get(): msg.status = some(RelayV2Status(statusOrd))
+  if r4.get(): msg.status = some(Status(statusOrd))
   some(msg)
