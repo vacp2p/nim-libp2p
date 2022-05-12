@@ -11,7 +11,7 @@ import options
 import strutils, sequtils, tables
 import chronos, chronicles
 
-import ./voucher,
+import ./messages,
        ../../peerinfo,
        ../../switch,
        ../../multiaddress,
@@ -30,67 +30,27 @@ import ./voucher,
 # * When the circuit relay v1 will be merged with unstable:
 #   + add a backward compatibility on the RelayV2Transport
 #   + remove the two Pattern
-# * Optimize the limit in the encoding part of the hop / stop message
 # * Better reservation management ie find a way to re-reserve when the end is
 #   nigh
 import std/times
 export chronicles
 
 const
-  RelayV2HopCodec* = "/libp2p/circuit/relay/0.2.0/hop"
-  RelayV2StopCodec* = "/libp2p/circuit/relay/0.2.0/stop"
-  MsgSize* = 4096
-  DefaultReservationTTL* = initDuration(hours = 1)
-  DefaultLimitDuration* = 120
-  DefaultLimitData* = 1 shl 17
+  RelayV2HopCodec = "/libp2p/circuit/relay/0.2.0/hop"
+  RelayV2StopCodec = "/libp2p/circuit/relay/0.2.0/stop"
+  MsgSize = 4096
+  DefaultReservationTTL = initDuration(hours = 1)
+  DefaultLimitDuration = 120
+  DefaultLimitData = 1 shl 17
   DefaultHeartbeatSleepTime = 1
-  MaxCircuit* = 1024
-  MaxCircuitPerPeer* = 64
+  MaxCircuit = 1024
+  MaxCircuitPerPeer = 64
 
 logScope:
   topics = "libp2p relayv2"
 
 type
   RelayV2Error* = object of LPError
-  RelayV2Status* = enum
-    Ok = 100
-    ReservationRefused = 200
-    ResourceLimitExceeded = 201
-    PermissionDenied = 202
-    ConnectionFailed = 203
-    NoReservation = 204
-    MalformedMessage = 400
-    UnexpectedMessage = 401
-  HopMessageType* {.pure.} = enum
-    Reserve = 0
-    Connect = 1
-    Status = 2
-  HopMessage* = object
-    msgType*: HopMessageType
-    peer*: Option[RelayV2Peer]
-    reservation*: Option[Reservation]
-    limit*: Option[RelayV2Limit]
-    status*: Option[RelayV2Status]
-
-  StopMessageType* {.pure.} = enum
-    Connect = 0
-    Status = 1
-  StopMessage* = object
-    msgType*: StopMessageType
-    peer*: Option[RelayV2Peer]
-    limit*: Option[RelayV2Limit]
-    status*: Option[RelayV2Status]
-
-  RelayV2Peer* = object
-    peerId*: PeerID
-    addrs*: seq[MultiAddress]
-  Reservation* = object
-    expire: uint64              # required, Unix expiration time (UTC)
-    addrs: seq[MultiAddress]    # relay address for reserving peer
-    svoucher: Option[seq[byte]] # optional, reservation voucher
-  RelayV2Limit* = object
-    duration: uint32            # seconds
-    data: uint64                # bytes
 
   RelayV2* = ref object of LPProtocol
     switch: Switch
@@ -103,7 +63,7 @@ type
     heartbeatFut: Future[void]
 
     reservationTTL*: times.Duration
-    limit*: RelayV2Limit
+    limit*: Limit
     heartbeatSleepTime*: uint32
     maxCircuit*: int
     maxCircuitPerPeer*: int
@@ -151,97 +111,11 @@ proc new*(
       await conn.close())()
   return rv
 
-# Hop Protocol
-
-proc encodeHopMessage*(msg: HopMessage): ProtoBuffer =
-  var pb = initProtoBuffer()
-
-  pb.write(1, msg.msgType.ord.uint)
-  if msg.peer.isSome():
-    var ppb = initProtoBuffer()
-    ppb.write(1, msg.peer.get().peerId)
-    for ma in msg.peer.get().addrs:
-      ppb.write(2, ma.data.buffer)
-    ppb.finish()
-    pb.write(2, ppb.buffer)
-  if msg.reservation.isSome():
-    let rsrv = msg.reservation.get()
-    var rpb = initProtoBuffer()
-    rpb.write(1, rsrv.expire)
-    for ma in rsrv.addrs:
-      rpb.write(2, ma.data.buffer)
-    if rsrv.svoucher.isSome():
-      rpb.write(3, rsrv.svoucher.get())
-    rpb.finish()
-    pb.write(3, rpb.buffer)
-  if msg.limit.isSome():
-    let limit = msg.limit.get()
-    var lpb = initProtoBuffer()
-    lpb.write(1, limit.duration)
-    lpb.write(2, limit.data)
-    lpb.finish()
-    pb.write(4, lpb.buffer)
-  if msg.status.isSome():
-    pb.write(5, msg.status.get().ord.uint)
-
-  pb.finish()
-  pb
-
-proc decodeHopMessage(buf: seq[byte]): Option[HopMessage] =
-  var
-    msg: HopMessage
-    msgTypeOrd: uint32
-    pbPeer: ProtoBuffer
-    pbReservation: ProtoBuffer
-    pbLimit: ProtoBuffer
-    statusOrd: uint32
-    peer: RelayV2Peer
-    reservation: Reservation
-    limit: RelayV2Limit
-    res: bool
-
-  let
-    pb = initProtoBuffer(buf)
-    r1 = pb.getRequiredField(1, msgTypeOrd)
-    r2 = pb.getField(2, pbPeer)
-    r3 = pb.getField(3, pbReservation)
-    r4 = pb.getField(4, pbLimit)
-    r5 = pb.getField(5, statusOrd)
-
-  if r1.isErr() or r2.isErr() or r3.isErr() or r4.isErr() or r5.isErr():
-    return none(HopMessage)
-
-  if r2.get() and
-     (pbPeer.getRequiredField(1, peer.peerId).isErr() or
-      pbPeer.getRepeatedField(2, peer.addrs).isErr()):
-    return none(HopMessage)
-
-  if r3.get():
-    var svoucher: seq[byte]
-    let rSVoucher = pbReservation.getField(3, svoucher)
-    if pbReservation.getRequiredField(1, reservation.expire).isErr() or
-       pbReservation.getRepeatedField(2, reservation.addrs).isErr() or
-       rSVoucher.isErr():
-      return none(HopMessage)
-    if rSVoucher.get(): reservation.svoucher = some(svoucher)
-
-  if r4.get() and
-     (pbLimit.getField(1, limit.duration).isErr() or
-      pbLimit.getField(1, limit.data).isErr()):
-    return none(HopMessage)
-
-  msg.msgType = HopMessageType(msgTypeOrd)
-  if r2.get(): msg.peer = some(peer)
-  if r3.get(): msg.reservation = some(reservation)
-  if r4.get(): msg.limit = some(limit)
-  if r5.get(): msg.status = some(RelayV2Status(statusOrd))
-  some(msg)
-
 proc handleHopError*(conn: Connection, code: RelayV2Status) {.async, gcsafe.} =
   trace "send hop status", status = $code & "(" & $ord(code) & ")"
   let
     msg = HopMessage(msgType: HopMessageType.Status, status: some(code))
-    pb = encodeHopMessage(msg)
+    pb = encode(msg)
 
   try:
     await conn.writeLp(pb.buffer)
@@ -249,70 +123,6 @@ proc handleHopError*(conn: Connection, code: RelayV2Status) {.async, gcsafe.} =
     raise exc
   except CatchableError as exc:
     trace "error writing error msg", exc=exc.msg, code
-
-# Stop Message
-
-proc encodeStopMessage(msg: StopMessage): ProtoBuffer =
-  var pb = initProtoBuffer()
-
-  pb.write(1, msg.msgType.ord.uint)
-  if msg.peer.isSome():
-    var ppb = initProtoBuffer()
-    ppb.write(1, msg.peer.get().peerId)
-    for ma in msg.peer.get().addrs:
-      ppb.write(2, ma.data.buffer)
-    ppb.finish()
-    pb.write(2, ppb.buffer)
-  if msg.limit.isSome():
-    var lpb = initProtoBuffer()
-    let limit = msg.limit.get()
-    lpb.write(1, limit.duration)
-    lpb.write(2, limit.data)
-    lpb.finish()
-    pb.write(3, lpb.buffer)
-  if msg.status.isSome():
-    pb.write(4, msg.status.get().ord.uint)
-
-  pb.finish()
-  pb
-
-proc decodeStopMessage(buf: seq[byte]): Option[StopMessage] =
-  var
-    msg: StopMessage
-    msgTypeOrd: uint32
-    pbPeer: ProtoBuffer
-    pbLimit: ProtoBuffer
-    statusOrd: uint32
-    peer: RelayV2Peer
-    limit: RelayV2Limit
-    rVoucher: ProtoResult[bool]
-    res: bool
-
-  let
-    pb = initProtoBuffer(buf)
-    r1 = pb.getRequiredField(1, msgTypeOrd)
-    r2 = pb.getField(2, pbPeer)
-    r3 = pb.getField(3, pbLimit)
-    r4 = pb.getField(4, statusOrd)
-
-  if r1.isErr() or r2.isErr() or r3.isErr() or r4.isErr():
-    return none(StopMessage)
-
-  if r2.get() and
-     (pbPeer.getRequiredField(1, peer.peerId).isErr() or
-      pbPeer.getRepeatedField(2, peer.addrs).isErr()):
-    return none(StopMessage)
-
-  if r3.get() and
-     (pbLimit.getField(1, limit.duration).isErr() or
-      pbLimit.getField(2, limit.data).isErr()):
-    return none(StopMessage)
-
-  msg.msgType = StopMessageType(msgTypeOrd)
-  if r2.get(): msg.peer = some(peer)
-  if r3.get(): msg.limit = some(limit)
-  if r4.get(): msg.status = some(RelayV2Status(statusOrd))
-  some(msg)
 
 # Protocols
 
@@ -331,7 +141,7 @@ proc createHopMessage(
   msg.reservation = some(Reservation(expire: expireUnix,
                          addrs: rv2.switch.peerInfo.addrs.mapIt(it & ma),
                          svoucher: some(? sv.encode)))
-  msg.limit = some(rv2.limit)
+  msg.limit = rv2.limit
   msg.msgType = HopMessageType.Status
   msg.status = some(Ok)
   return ok(msg)
@@ -354,7 +164,7 @@ proc handleReserve(rv2: RelayV2, conn: Connection) {.async, gcsafe.} =
     trace "error signing the voucher", error = error(msg), pid
     # conn.reset()
     return
-  let pb = encodeHopMessage(msg.get())
+  let pb = encode(msg.get())
 
   try:
     await conn.writeLp(pb.buffer)
@@ -419,11 +229,11 @@ proc handleConnect(rv2: Relayv2,
     await connDst.close()
 
   let stopMsgToSend = StopMessage(msgType: StopMessageType.Connect,
-                          peer: some(RelayV2Peer(peerId: src, addrs: @[])),
-                          limit: some(rv2.limit))
+                          peer: some(Peer(peerId: src, addrs: @[])),
+                          limit: rv2.limit)
 
   try:
-    await connDst.writeLp(encodeStopMessage(stopMsgToSend).buffer)
+    await connDst.writeLp(encode(stopMsgToSend).buffer)
   except CancelledError as exc:
     raise exc
   except CatchableError as exc:
@@ -432,7 +242,7 @@ proc handleConnect(rv2: Relayv2,
     return
 
   let msgRcvFromDstOpt = try:
-    decodeStopMessage(await connDst.readLp(rv2.msgSize))
+    StopMessage.decode(await connDst.readLp(rv2.msgSize))
   except CancelledError as exc:
     raise exc
   except CatchableError as exc:
@@ -461,7 +271,7 @@ proc handleConnect(rv2: Relayv2,
   let resp = HopMessage(msgType: HopMessageType.Status,
                         status: some(RelayV2Status.Ok))
   try:
-    await conn.writeLp(encodeHopMessage(resp).buffer)
+    await conn.writeLp(encode(resp).buffer)
   except CancelledError as exc:
     raise exc
   except CatchableError as exc:
@@ -540,7 +350,7 @@ proc new*(T: typedesc[RelayV2], switch: Switch,
   let rv2 = T(switch: switch,
     codecs: @[RelayV2HopCodec],
     reservationTTL: reservationTTL,
-    limit: RelayV2Limit(duration: limitDuration, data: limitData),
+    limit: Limit(duration: limitDuration, data: limitData),
     heartbeatSleepTime: heartbeatSleepTime,
     maxCircuit: maxCircuit,
     maxCircuitPerPeer: maxCircuitPerPeer,
@@ -548,7 +358,7 @@ proc new*(T: typedesc[RelayV2], switch: Switch,
 
   proc handleStream(conn: Connection, proto: string) {.async, gcsafe.} =
     try:
-      let msgOpt = decodeHopMessage(await conn.readLp(rv2.msgSize))
+      let msgOpt = HopMessage.decode(await conn.readLp(rv2.msgSize))
 
       if msgOpt.isNone():
         await handleHopError(conn, RelayV2Status.MalformedMessage)
@@ -608,11 +418,8 @@ type
 proc handleStopError(conn: Connection, code: RelayV2Status) {.async.} =
   trace "send stop status", status = $code & " (" & $ord(code) & ")"
   let
-    msg = StopMessage(msgType: StopMessageType.Status,
-      peer: none(RelayV2Peer),
-      limit: none(RelayV2Limit),
-      status: some(code))
-    pb = encodeStopMessage(msg)
+    msg = StopMessage(msgType: StopMessageType.Status, status: some(code))
+    pb = encode(msg)
 
   try:
     await conn.writeLp(pb.buffer)
@@ -630,24 +437,16 @@ proc handleConnect(cl: Client, conn: Connection, msg: StopMessage) {.async.} =
   if msg.peer.isNone():
     await handleStopError(conn, RelayV2Status.MalformedMessage)
     return
-  let src = msg.peer.get()
-  var
-    limitDuration: uint32
-    limitData: uint64
-
-  if msg.limit.isSome():
-    limitDuration = msg.limit.get().duration
-    limitData = msg.limit.get().data
-
-  trace "incoming relay connection", src, conn
-
   let
+    src = msg.peer.get()
+    limitDuration = msg.limit.duration
+    limitData = msg.limit.data
     msg = StopMessage(
       msgType: StopMessageType.Status,
-      peer: none(RelayV2Peer),
-      limit: none(RelayV2Limit),
       status: some(RelayV2Status.Ok))
-    pb = encodeStopMessage(msg)
+    pb = encode(msg)
+
+  trace "incoming relay connection", src, conn
 
   try:
     await conn.writeLp(pb.buffer)
@@ -662,7 +461,7 @@ proc handleConnect(cl: Client, conn: Connection, msg: StopMessage) {.async.} =
 proc init*(cl: Client) =
   proc handleStream(conn: Connection, proto: string) {.async, gcsafe.} =
     try:
-      let msgOpt = decodeStopMessage(await conn.readLp(MsgSize))
+      let msgOpt = StopMessage.decode(await conn.readLp(MsgSize))
 
       if msgOpt.isNone():
         await handleHopError(conn, RelayV2Status.MalformedMessage)
@@ -704,7 +503,7 @@ proc reserve*(cl: Client, relayPI: PeerInfo): Future[Rsvp] {.async.} =
   var
     msg = HopMessage(msgType: HopMessageType.Reserve)
     msgOpt: Option[HopMessage]
-  let pb = encodeHopMessage(msg)
+  let pb = encode(msg)
 
   let conn = try:
     await cl.switch.dial(relayPI.peerId, relayPI.addrs, RelayV2HopCodec)
@@ -718,7 +517,7 @@ proc reserve*(cl: Client, relayPI: PeerInfo): Future[Rsvp] {.async.} =
 
   try:
     await conn.writeLp(pb.buffer)
-    msgOpt = decodeHopMessage(await conn.readLp(MsgSize))
+    msgOpt = HopMessage.decode(await conn.readLp(MsgSize))
   except CancelledError as exc:
     raise exc
   except CatchableError as exc:
@@ -753,9 +552,8 @@ proc reserve*(cl: Client, relayPI: PeerInfo): Future[Rsvp] {.async.} =
       raise newException(ReservationError, "Invalid voucher")
     result.voucher = some(svoucher.get().data)
 
-  if msg.limit.isSome():
-    result.limitDuration = msg.limit.get().duration
-    result.limitData = msg.limit.get().data
+  result.limitDuration = msg.limit.duration
+  result.limitData = msg.limit.data
 
 proc dialPeer(
     cl: Client,
@@ -765,14 +563,14 @@ proc dialPeer(
   var
     msg = HopMessage(
       msgType: HopMessageType.Connect,
-      peer: some(RelayV2Peer(peerId: dstPeerId, addrs: dstAddrs)))
-    pb = encodeHopMessage(msg)
+      peer: some(Peer(peerId: dstPeerId, addrs: dstAddrs)))
+    pb = encode(msg)
 
   trace "Dial peer", msgSend=msg
 
   let msgRcvFromRelayOpt = try:
     await conn.writeLp(pb.buffer)
-    decodeHopMessage(await conn.readLp(MsgSize))
+    HopMessage.decode(await conn.readLp(MsgSize))
   except CancelledError as exc:
     raise exc
   except CatchableError as exc:
@@ -792,9 +590,8 @@ proc dialPeer(
     trace "relay stop failure", status=msgRcvFromRelay.status
     raise newException(RelayV2DialError, "Relay stop failure")
 
-  if msgRcvFromRelay.limit.isSome():
-    conn.limitDuration = msgRcvFromRelay.limit.get().duration
-    conn.limitData = msgRcvFromRelay.limit.get().data
+  conn.limitDuration = msgRcvFromRelay.limit.duration
+  conn.limitData = msgRcvFromRelay.limit.data
   return conn
 
 # Transport
