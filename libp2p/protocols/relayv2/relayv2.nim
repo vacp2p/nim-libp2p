@@ -107,8 +107,10 @@ proc new*(
   rv.initStream()
   if limitDuration > 0:
     asyncSpawn (proc () {.async.} =
-      await sleepAsync(limitDuration.seconds()) or conn.join()
-      await conn.close())()
+      let sleep = sleepAsync(limitDuration.seconds())
+      await sleep or conn.join()
+      if sleep.isFinished(): await conn.close()
+      else: sleep.cancel())()
   return rv
 
 proc handleHopError*(conn: Connection, code: RelayV2Status) {.async, gcsafe.} =
