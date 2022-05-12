@@ -20,6 +20,7 @@ import ./messages,
        ../../protocols/protocol,
        ../../transports/transport,
        ../../errors,
+       ../../utils/heartbeat,
        ../../signed_envelope
 
 # TODO:
@@ -63,7 +64,7 @@ type
     streamCount: int
     peerCount: CountTable[PeerId]
 
-    heartbeatFut: Future[void]
+    reservationLoop: Future[void]
 
     reservationTTL*: times.Duration
     limit*: Limit
@@ -285,18 +286,6 @@ proc handleConnect(rv2: Relayv2,
   await bridge(RelayConnection.new(connSrc, rv2.limit.duration, rv2.limit.data),
                RelayConnection.new(connDst, rv2.limit.duration, rv2.limit.data))
 
-proc heartbeat(rv2: RelayV2) {.async.} =
-  while true:
-    let n = now().utc
-    var rsvp = rv2.rsvp
-    for k, v in rv2.rsvp.mpairs:
-      if n > v:
-        rsvp.del(k)
-    rv2.rsvp = rsvp
-
-    await sleepAsync(chronos.seconds(rv2.heartbeatSleepTime))
-
-
 proc new*(T: typedesc[RelayV2], switch: Switch,
      reservationTTL: times.Duration = DefaultReservationTTL,
      limitDuration: uint32 = DefaultLimitDuration,
@@ -342,19 +331,28 @@ proc new*(T: typedesc[RelayV2], switch: Switch,
   rv2.handler = handleStream
   rv2
 
+proc deletesReservation(rv2: RelayV2) {.async.} =
+  heartbeat "Reservation timeout", rv2.heartbeatSleepTime.seconds():
+    let n = now().utc
+    var rsvp = rv2.rsvp
+    for k, v in rv2.rsvp.mpairs:
+      if n > v:
+        rsvp.del(k)
+    rv2.rsvp = rsvp
+
 proc start*(rv2: RelayV2) {.async.} =
-  if not rv2.heartbeatFut.isNil:
+  if not rv2.reservationLoop.isNil:
     warn "Starting relayv2 twice"
     return
 
-  rv2.heartbeatFut = rv2.heartbeat()
+  rv2.reservationLoop = rv2.deletesReservation()
 
 proc stop*(rv2: RelayV2) {.async.} =
-  if rv2.heartbeatFut.isNil:
+  if rv2.reservationLoop.isNil:
     warn "Stopping relayv2 without starting it"
     return
 
-  rv2.heartbeatFut.cancel()
+  rv2.reservationLoop.cancel()
 
 # Client side
 
