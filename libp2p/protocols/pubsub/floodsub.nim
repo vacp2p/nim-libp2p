@@ -1,11 +1,11 @@
-## Nim-LibP2P
-## Copyright (c) 2019 Status Research & Development GmbH
-## Licensed under either of
-##  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
-##  * MIT license ([LICENSE-MIT](LICENSE-MIT))
-## at your option.
-## This file may not be copied, modified, or distributed except according to
-## those terms.
+# Nim-LibP2P
+# Copyright (c) 2022 Status Research & Development GmbH
+# Licensed under either of
+#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+#  * MIT license ([LICENSE-MIT](LICENSE-MIT))
+# at your option.
+# This file may not be copied, modified, or distributed except according to
+# those terms.
 
 {.push raises: [Defect].}
 
@@ -22,13 +22,15 @@ import ./pubsub,
        ../../peerinfo,
        ../../utility
 
+## Simple flood-based publishing.
+
 logScope:
   topics = "libp2p floodsub"
 
 const FloodSubCodec* = "/floodsub/1.0.0"
 
 type
-  FloodSub* = ref object of PubSub
+  FloodSub* {.public.} = ref object of PubSub
     floodsub*: PeerTable      # topic to remote peer map
     seen*: TimedCache[MessageID] # message id:s already seen on the network
     seenSalt*: seq[byte]

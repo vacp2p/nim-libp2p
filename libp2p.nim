@@ -8,6 +8,18 @@
 # those terms.
 
 when defined(nimdoc):
+  ## Welcome to the nim-libp2p documentation!
+  ##
+  ## On the left, you'll find a switch that allows you to see private
+  ## procedures. By default, you'll only see the public one (marked with `{.public.}`)
+  ##
+  ## The difference between public and private procedures is that public procedure
+  ## stay backward compatible during the Major version, whereas private ones can
+  ## change at each new Minor version.
+  ##
+  ## If you're new to nim-libp2p, you can find a tutorial `here<https://github.com/status-im/nim-libp2p/blob/master/examples/tutorial_1_connect.md>`_
+  ## that can help you get started.
+
   # Import stuff for doc
   import libp2p/[
       protobuf/minprotobuf,

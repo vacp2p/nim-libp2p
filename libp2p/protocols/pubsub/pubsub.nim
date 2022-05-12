@@ -93,6 +93,9 @@ type
     proc(m: Message): Result[MessageID, ValidationResult] {.noSideEffect, raises: [Defect], gcsafe.}
 
   SubscriptionValidator* {.public.} =
+    ## Every time a peer send us a subscription (even to an unknown topic),
+    ## we have to store it, which may be an attack vector.
+    ## This callback can be used to reject topic we're not interested in
     proc(topic: string): bool {.raises: [Defect], gcsafe.}
 
   PubSub* {.public.} = ref object of LPProtocol
@@ -107,9 +110,9 @@ type
     sign*: bool                        ## enable message signing
     validators*: Table[string, HashSet[ValidatorHandler]]
     observers: ref seq[PubSubObserver] # ref as in smart_ptr
-    msgIdProvider*: MsgIdProvider      # #Turn message into message id (not nil)
+    msgIdProvider*: MsgIdProvider      ## Turn message into message id (not nil)
     msgSeqno*: uint64
-    anonymize*: bool                   # #if we omit fromPeer and seqno from RPC messages we send
+    anonymize*: bool                   ## if we omit fromPeer and seqno from RPC messages we send
     subscriptionValidator*: SubscriptionValidator # callback used to validate subscriptions
     topicsHigh*: int                  ## the maximum number of topics a peer is allowed to subscribe to
     maxMessageSize*: int          ##\ 
@@ -495,11 +498,11 @@ method initPubSub*(p: PubSub)
   if p.msgIdProvider == nil:
     p.msgIdProvider = defaultMsgIdProvider
 
-method start*(p: PubSub) {.async, base.} =
+method start*(p: PubSub) {.async, base, public.} =
   ## start pubsub
   discard
 
-method stop*(p: PubSub) {.async, base.} =
+method stop*(p: PubSub) {.async, base, public.} =
   ## stop pubsub
   discard
 
