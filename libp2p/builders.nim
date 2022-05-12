@@ -14,7 +14,7 @@ import
   switch, peerid, peerinfo, stream/connection, multiaddress,
   crypto/crypto, transports/[transport, tcptransport],
   muxers/[muxer, mplex/mplex],
-  protocols/[identify, secure/secure, secure/noise, relay],
+  protocols/[identify, secure/secure, secure/noise, relay, relay/relayv2],
   connmanager, upgrademngrs/muxedupgrade,
   nameresolving/nameresolver,
   errors
@@ -51,6 +51,7 @@ type
     peerStoreCapacity: Option[int]
     isCircuitRelay: bool
     circuitRelayCanHop: bool
+    circuitRelayClient: Client
 
 proc new*(T: type[SwitchBuilder]): T =
 
@@ -157,6 +158,10 @@ proc withRelayTransport*(b: SwitchBuilder, canHop: bool): SwitchBuilder =
   b.circuitRelayCanHop = canHop
   b
 
+proc withCircuitRelayV2*(b: SwitchBuilder, cl: Client): SwitchBuilder =
+  b.circuitRelayClient = cl
+  b
+
 proc build*(b: SwitchBuilder): Switch
   {.raises: [Defect, LPError].} =
 
@@ -226,6 +231,11 @@ proc build*(b: SwitchBuilder): Switch
     let relay = Relay.new(switch, b.circuitRelayCanHop)
     switch.mount(relay)
     switch.addTransport(RelayTransport.new(relay, muxedUpgrade))
+
+  if not isNil(b.circuitRelayClient):
+    b.circuitRelayClient.setup(switch)
+    switch.mount(b.circuitRelayClient)
+    switch.addTransport(RelayV2Transport.new(b.circuitRelayClient, muxedUpgrade))
 
   return switch
 

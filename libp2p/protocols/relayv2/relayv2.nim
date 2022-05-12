@@ -117,7 +117,7 @@ proc new*(
       else: sleep.cancel())()
   return rv
 
-# Protocols
+# Relay Side
 
 proc sendHopError*(conn: Connection, code: Status) {.async, gcsafe.} =
   trace "send hop status", status = $code & "(" & $ord(code) & ")"
@@ -459,8 +459,11 @@ proc dialPeer(
   conn.limitData = msgRcvFromRelay.limit.data
   return conn
 
-proc new*(T: typedesc[Client], switch: Switch): T =
-  let cl = T(switch: switch)
+proc setup*(cl: Client, switch: Switch) =
+  cl.switch = switch
+
+proc new*(T: typedesc[Client]): T =
+  let cl = T()
   proc handleStream(conn: Connection, proto: string) {.async, gcsafe.} =
     try:
       let msgOpt = StopMessage.decode(await conn.readLp(MsgSize))
