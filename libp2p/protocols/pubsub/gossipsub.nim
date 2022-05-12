@@ -430,6 +430,13 @@ method rpcHandler*(g: GossipSub,
   if rpcMsg.control.isSome():
     g.handleControl(peer, rpcMsg.control.unsafeGet())
 
+  # Now, check subscription to update the meshes if required
+  for i in 0..<min(g.topicsHigh, rpcMsg.subscriptions.len):
+    let topic = rpcMsg.subscriptions[i].topic
+    if topic in g.topics and g.mesh.peers(topic) < g.parameters.dLow:
+      # rebalance but don't update metrics here, we do that only in the heartbeat
+      g.rebalanceMesh(topic, metrics = nil)
+
   g.updateMetrics(rpcMsg)
 
 method onTopicSubscription*(g: GossipSub, topic: string, subscribed: bool) =
