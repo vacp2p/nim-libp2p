@@ -519,11 +519,9 @@ proc dial*(self: RelayV2Transport, ma: MultiAddress): Future[Connection] {.async
     relayPeerId: PeerId
     dstPeerId: PeerId
   if not relayPeerId.init(($(sma[^3].get())).split('/')[2]):
-    # raise smthg
-    return
+    raise newException(RelayV2DialError, "Relay doesn't exist")
   if not dstPeerId.init(($(sma[^1].get())).split('/')[2]):
-    # raise smthg
-    return
+    raise newException(RelayV2DialError, "Destination doesn't exist")
   trace "Dial", relayPeerId, relayAddrs, dstPeerId
 
   let conn = await self.client.switch.dial(relayPeerId, @[ relayAddrs ], RelayV2HopCodec)
