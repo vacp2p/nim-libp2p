@@ -399,15 +399,15 @@ suite "GossipSub":
     await subscribeNodes(nodes)
 
     nodes[1].subscribe("foobar", handler)
-    await sleepAsync(10.seconds)
 
     let gossip1 = GossipSub(nodes[0])
     let gossip2 = GossipSub(nodes[1])
 
-    check:
-      "foobar" in gossip2.topics
-      "foobar" in gossip1.gossipsub
+    check await checkExpiring(
+      "foobar" in gossip2.topics and
+      "foobar" in gossip1.gossipsub and
       gossip1.gossipsub.hasPeerId("foobar", gossip2.peerInfo.peerId)
+    )
 
     await allFuturesThrowing(
       nodes[0].switch.stop(),
@@ -848,7 +848,7 @@ suite "GossipSub":
     tryPublish await wait(nodes[0].publish("foobar",
                                   toBytes("from node " &
                                   $nodes[0].peerInfo.peerId)),
-                                  1.minutes), 1, 5.seconds
+                                  1.minutes), 1
 
     await wait(seenFut, 2.minutes)
     check: seen.len >= runs
@@ -900,7 +900,7 @@ suite "GossipSub":
     tryPublish await wait(nodes[0].publish("foobar",
                                   toBytes("from node " &
                                   $nodes[0].peerInfo.peerId)),
-                                  1.minutes), 1, 5.seconds
+                                  1.minutes), 1
 
     await wait(seenFut, 5.minutes)
     check: seen.len >= runs
