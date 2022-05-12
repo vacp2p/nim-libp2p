@@ -93,10 +93,10 @@ type
     proc(m: Message): Result[MessageID, ValidationResult] {.noSideEffect, raises: [Defect], gcsafe.}
 
   SubscriptionValidator* {.public.} =
+    proc(topic: string): bool {.raises: [Defect], gcsafe.}
     ## Every time a peer send us a subscription (even to an unknown topic),
     ## we have to store it, which may be an attack vector.
     ## This callback can be used to reject topic we're not interested in
-    proc(topic: string): bool {.raises: [Defect], gcsafe.}
 
   PubSub* {.public.} = ref object of LPProtocol
     switch*: Switch                    # the switch used to dial/connect to peers
