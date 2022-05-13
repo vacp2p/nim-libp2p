@@ -41,7 +41,7 @@ type
     ms: MultistreamSelect
     connManager: ConnManager
     dialLock: Table[PeerId, AsyncLock]
-    transports*: seq[Transport]
+    transports: seq[Transport]
     nameResolver: NameResolver
 
 proc dialAndUpgrade(

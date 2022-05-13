@@ -44,8 +44,8 @@ const
   DefaultLimitDuration = 120
   DefaultLimitData = 1 shl 17
   DefaultHeartbeatSleepTime = 1
-  MaxCircuit = 1024
-  MaxCircuitPerPeer = 64
+  MaxReservation = 128
+  MaxCircuitPerPeer = 16
 
 logScope:
   topics = "libp2p relayv2"
@@ -69,7 +69,7 @@ type
     reservationTTL*: times.Duration
     limit*: Limit
     heartbeatSleepTime*: uint32
-    maxCircuit*: int
+    maxReservation*: int
     maxCircuitPerPeer*: int
     msgSize*: int
 
@@ -152,6 +152,10 @@ proc handleReserve(rv2: RelayV2, connSrc: Connection) {.async, gcsafe.} =
     await sendHopError(connSrc, PermissionDenied)
     return
 
+  if rv2.rsvp.len() >= rv2.maxReservation:
+    trace "Too many reservations", pid = connSrc.peerId
+    await sendHopError(connSrc, ReservationRefused)
+    return
   let
     pid = connSrc.peerId
     expire = now().utc + rv2.reservationTTL
@@ -167,14 +171,6 @@ proc handleReserve(rv2: RelayV2, connSrc: Connection) {.async, gcsafe.} =
 proc handleConnect(rv2: Relayv2,
                    connSrc: Connection,
                    msg: HopMessage) {.async, gcsafe.} =
-  rv2.streamCount.inc()
-  defer: rv2.streamCount.dec()
-
-  if rv2.streamCount > rv2.maxCircuit:
-    trace "refusing connection; too many active circuit"
-    await sendHopError(connSrc, ResourceLimitExceeded)
-    return
-
   if connSrc.isCircuitRelay():
     trace "connection attempt over relay connection"
     await sendHopError(connSrc, PermissionDenied)
@@ -291,7 +287,7 @@ proc new*(T: typedesc[RelayV2], switch: Switch,
      limitDuration: uint32 = DefaultLimitDuration,
      limitData: uint64 = DefaultLimitData,
      heartbeatSleepTime: uint32 = DefaultHeartbeatSleepTime,
-     maxCircuit: int = MaxCircuit,
+     maxReservation: int = MaxReservation,
      maxCircuitPerPeer: int = MaxCircuitPerPeer,
      msgSize: int = MsgSize): T =
 
@@ -300,7 +296,7 @@ proc new*(T: typedesc[RelayV2], switch: Switch,
     reservationTTL: reservationTTL,
     limit: Limit(duration: limitDuration, data: limitData),
     heartbeatSleepTime: heartbeatSleepTime,
-    maxCircuit: maxCircuit,
+    maxReservation: maxReservation,
     maxCircuitPerPeer: maxCircuitPerPeer,
     msgSize: msgSize)
 
@@ -328,6 +324,9 @@ proc new*(T: typedesc[RelayV2], switch: Switch,
       trace "exiting relayv2 handler", conn
       await conn.close()
 
+  rv2.switch.addPeerEventHandler(
+    proc (peerId: PeerId, event: PeerEvent) {.async.} = rv2.rsvp.del(peerId),
+    Left)
   rv2.handler = handleStream
   rv2
 
