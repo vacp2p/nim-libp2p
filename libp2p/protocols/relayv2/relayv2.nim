@@ -37,8 +37,8 @@ import std/times
 export chronicles
 
 const
-  RelayV2HopCodec = "/libp2p/circuit/relay/0.2.0/hop"
-  RelayV2StopCodec = "/libp2p/circuit/relay/0.2.0/stop"
+  RelayV2HopCodec* = "/libp2p/circuit/relay/0.2.0/hop"
+  RelayV2StopCodec* = "/libp2p/circuit/relay/0.2.0/stop"
   MsgSize = 4096
   DefaultReservationTTL = initDuration(hours = 1)
   DefaultLimitDuration = 120
@@ -357,7 +357,7 @@ proc stop*(rv2: RelayV2) {.async.} =
 
 type
   Client* = ref object of LPProtocol
-    switch: Switch
+    switch*: Switch
     queue: AsyncQueue[Connection]
 
 proc sendStopError(conn: Connection, code: Status) {.async.} =
