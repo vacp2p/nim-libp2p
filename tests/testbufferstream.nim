@@ -228,6 +228,8 @@ suite "BufferStream":
     await stream.pushData("123".toBytes())
     let push = stream.pushData("123".toBytes())
 
+    when (NimMajor, NimMinor) < (1, 4):
+      type AssertionDefect = AssertionError
     expect AssertionDefect:
       await stream.pushData("123".toBytes())
 

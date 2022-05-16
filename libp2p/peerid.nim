@@ -38,7 +38,12 @@ func shortLog*(pid: PeerId): string =
   var spid = $pid
   if len(spid) > 10:
     spid[3] = '*'
-    spid.delete(4 .. spid.high - 6)
+    
+    # reminder to remove this once we stop supporting 1.2
+    when (NimMajor, NimMinor) > (1, 2):
+      spid.delete(4 .. spid.high - 6)
+    else:
+      spid.delete(4, spid.high - 6)
 
   spid
 
