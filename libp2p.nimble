@@ -23,7 +23,9 @@ const nimflags =
   "--warning[CaseTransition]:off --warning[ObservableStores]:off " &
   "--warning[LockLevel]:off " &
   "-d:chronosStrictException " &
-  "--styleCheck:usages --styleCheck:hint "
+  "--styleCheck:usages --styleCheck:hint " &
+  "-d:chronicles_sinks=textlines[stdout],json[dynamic] -d:chronicles_log_level=TRACE " &
+  "-d:chronicles_runtime_filtering=TRUE "
 
 proc runTest(filename: string, verify: bool = true, sign: bool = true,
              moreoptions: string = "") =
@@ -33,11 +35,7 @@ proc runTest(filename: string, verify: bool = true, sign: bool = true,
   excstr.add(" -d:libp2p_pubsub_sign=" & $sign)
   excstr.add(" -d:libp2p_pubsub_verify=" & $verify)
   excstr.add(" " & moreoptions & " ")
-  if verify and sign:
-    # build it with TRACE and JSON logs
-    exec excstr & " -d:chronicles_log_level=TRACE -d:chronicles_sinks:json" & " tests/" & filename
-  # build it again, to run it with less verbose logs
-  exec excstr & " -d:chronicles_log_level=INFO -r" & " tests/" & filename
+  exec excstr & " -r " & " tests/" & filename
   rmFile "tests/" & filename.toExe
 
 proc buildSample(filename: string, run = false) =
