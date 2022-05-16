@@ -97,7 +97,7 @@ method write*(self: RelayConnection, msg: seq[byte]): Future[void] {.async.} =
   await self.conn.write(msg)
 
 method closeImpl*(self: RelayConnection): Future[void] {.async.} =
-  await self.conn.closeImpl()
+  await self.conn.close()
   await procCall Connection(self).closeImpl()
 
 method isCircuitRelay*(self: RelayConnection): bool = true
@@ -183,7 +183,6 @@ proc handleConnect(rv2: Relayv2,
   let
     src = connSrc.peerId
     dst = msg.peer.get().peerId
-
   if dst notin rv2.rsvp:
     trace "refusing connection, no reservation", src, dst
     await sendHopError(connSrc, NoReservation)
@@ -279,8 +278,13 @@ proc handleConnect(rv2: Relayv2,
 
     await futSrc.cancelAndWait()
     await futDst.cancelAndWait()
-  await bridge(RelayConnection.new(connSrc, rv2.limit.duration, rv2.limit.data),
-               RelayConnection.new(connDst, rv2.limit.duration, rv2.limit.data))
+  let
+    rconnSrc = RelayConnection.new(connSrc, rv2.limit.duration, rv2.limit.data)
+    rconnDst = RelayConnection.new(connDst, rv2.limit.duration, rv2.limit.data)
+  defer:
+    await rconnSrc.close()
+    await rconnDst.close()
+  await bridge(rconnSrc, rconnDst)
 
 proc new*(T: typedesc[RelayV2], switch: Switch,
      reservationTTL: times.Duration = DefaultReservationTTL,
@@ -309,7 +313,6 @@ proc new*(T: typedesc[RelayV2], switch: Switch,
         return
       trace "relayv2 handle stream", msg = msgOpt.get()
       let msg = msgOpt.get()
-
       case msg.msgType:
         of HopMessageType.Reserve: await rv2.handleReserve(conn)
         of HopMessageType.Connect: await rv2.handleConnect(conn, msg)
@@ -394,8 +397,8 @@ type
     limitDuration*: uint32    # seconds
     limitData*: uint64        # bytes
 
-proc reserve*(cl: Client, relayPI: PeerInfo): Future[Rsvp] {.async.} =
-  let conn = await cl.switch.dial(relayPI.peerId, relayPI.addrs, RelayV2HopCodec)
+proc reserve*(cl: Client, peerId: PeerId, addrs: seq[MultiAddress]): Future[Rsvp] {.async.} =
+  let conn = await cl.switch.dial(peerId, addrs, RelayV2HopCodec)
   defer: await conn.close()
   let
     pb = encode(HopMessage(msgType: HopMessageType.Reserve))
@@ -423,7 +426,7 @@ proc reserve*(cl: Client, relayPI: PeerInfo): Future[Rsvp] {.async.} =
 
   if reservation.svoucher.isSome():
     let svoucher = SignedVoucher.decode(reservation.svoucher.get())
-    if svoucher.isErr() or svoucher.get().data.relayPeerId != relayPI.peerId:
+    if svoucher.isErr() or svoucher.get().data.relayPeerId != peerId:
       raise newException(ReservationError, "Invalid voucher")
     result.voucher = some(svoucher.get().data)
 
@@ -453,6 +456,7 @@ proc dialPeer(
   if msgRcvFromRelay.msgType != HopMessageType.Status:
     raise newException(RelayV2DialError, "Unexpected stop response")
   if msgRcvFromRelay.status.get(UnexpectedMessage) != Ok:
+    trace "Relay stop failed", msg = msgRcvFromRelay.status.get()
     raise newException(RelayV2DialError, "Relay stop failure")
   conn.limitDuration = msgRcvFromRelay.limit.duration
   conn.limitData = msgRcvFromRelay.limit.data
@@ -524,7 +528,7 @@ proc dial*(self: RelayV2Transport, ma: MultiAddress): Future[Connection] {.async
     raise newException(RelayV2DialError, "Relay doesn't exist")
   if not dstPeerId.init(($(sma[^1].get())).split('/')[2]):
     raise newException(RelayV2DialError, "Destination doesn't exist")
-  trace "Dial", relayPeerId, relayAddrs, dstPeerId
+  trace "Dial", relayPeerId, dstPeerId
 
   let conn = await self.client.switch.dial(relayPeerId, @[ relayAddrs ], RelayV2HopCodec)
   let rc = RelayConnection.new(conn, 0, 0)

@@ -57,7 +57,7 @@ suite "Circuit Relay V2":
       await rel.start()
       await src1.connect(rel.peerInfo.peerId, rel.peerInfo.addrs)
       await src2.connect(rel.peerInfo.peerId, rel.peerInfo.addrs)
-      rsvp = await cl1.reserve(rel.peerInfo)
+      rsvp = await cl1.reserve(rel.peerInfo.peerId, rel.peerInfo.addrs)
       range = now().utc + (ttl-1).seconds..now().utc + (ttl+1).seconds
       check:
         rsvp.expire.int64.fromUnix.utc in range
@@ -75,9 +75,9 @@ suite "Circuit Relay V2":
 
     asynctest "Too many reservations + Reconnect":
       expect(ReservationError):
-        discard await cl2.reserve(rel.peerInfo)
+        discard await cl2.reserve(rel.peerInfo.peerId, rel.peerInfo.addrs)
       await rel.disconnect(src1.peerInfo.peerId)
-      rsvp = await cl2.reserve(rel.peerInfo)
+      rsvp = await cl2.reserve(rel.peerInfo.peerId, rel.peerInfo.addrs)
       range = now().utc + (ttl-1).seconds..now().utc + (ttl+1).seconds
       check:
         rsvp.expire.int64.fromUnix.utc in range
@@ -86,9 +86,28 @@ suite "Circuit Relay V2":
     
     asynctest "Reservation ttl expires":
       await sleepAsync(chronos.timer.seconds(ttl + 1))
-      rsvp = await cl1.reserve(rel.peerInfo)
+      rsvp = await cl1.reserve(rel.peerInfo.peerId, rel.peerInfo.addrs)
       range = now().utc + (ttl-1).seconds..now().utc + (ttl+1).seconds
       check:
         rsvp.expire.int64.fromUnix.utc in range
         rsvp.limitDuration == ldur
         rsvp.limitData == ldata
+
+    asynctest "Reservation over relay":
+      let
+        rv2add = RelayV2.new(src2)
+        addrs = @[ MultiAddress.init($rel.peerInfo.addrs[0] & "/p2p/" &
+                                     $rel.peerInfo.peerId & "/p2p-circuit/p2p/" &
+                                     $src2.peerInfo.peerId).get() ]
+      src2.mount(rv2add)
+      await rv2add.start()
+      rv2.maxReservation.inc()
+
+      rsvp = await cl2.reserve(rel.peerInfo.peerId, rel.peerInfo.addrs)
+      range = now().utc + (ttl-1).seconds..now().utc + (ttl+1).seconds
+      check:
+        rsvp.expire.int64.fromUnix.utc in range
+        rsvp.limitDuration == ldur
+        rsvp.limitData == ldata
+      expect(ReservationError):
+        discard await cl1.reserve(src2.peerInfo.peerId, addrs)
