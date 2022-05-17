@@ -247,8 +247,8 @@ proc handleConnect(rv2: Relayv2,
       bytesSendFromDstToSrc = 0
       bufRead: int
 
-    while not connSrc.closed() and not connDst.closed():
-      try:
+    try:
+      while not connSrc.closed() and not connDst.closed():
         await futSrc or futDst
         if futSrc.finished():
           bufRead = await futSrc
@@ -264,15 +264,14 @@ proc handleConnect(rv2: Relayv2,
           await connSrc.write(bufDstToSrc[0..<bufRead])
           zeroMem(addr(bufDstToSrc), bufferSize)
           futDst = connDst.readOnce(addr bufDstToSrc[0], bufDstToSrc.len)
-      except CancelledError as exc:
-        raise exc
-      except CatchableError as exc:
-        if connSrc.closed() or connSrc.atEof():
-          trace "relay src closed connection", src
-        if connDst.closed() or connDst.atEof():
-          trace "relay dst closed connection", dst
-        trace "relay error", exc=exc.msg
-        break
+    except CancelledError as exc:
+      raise exc
+    except CatchableError as exc:
+      if connSrc.closed() or connSrc.atEof():
+        trace "relay src closed connection", src
+      if connDst.closed() or connDst.atEof():
+        trace "relay dst closed connection", dst
+      trace "relay error", exc=exc.msg
 
     trace "end relaying", bytesSendFromSrcToDst, bytesSendFromDstToSrc
 
