@@ -115,7 +115,6 @@ suite "Circuit Relay V2":
 
   suite "Connection":
     asyncTearDown:
-      echo "src / dst / rel stop"
       await allFutures(src.stop(), dst.stop(), rel.stop())
       checkTrackers()
     var
@@ -255,40 +254,3 @@ take to the ship.""")
       await conn.writeLp("surprise me!")
       expect(LPStreamEOFError):
         discard await conn.readLp(1024)
-
-    asynctest "Reservation ttl expire during connection":
-      ttl = 1
-      proto.handler = proc(conn: Connection, proto: string) {.async.} =
-        check: "test1" == string.fromBytes(await conn.readLp(1024))
-        await conn.writeLp("test2")
-        check: "test3" == string.fromBytes(await conn.readLp(1024))
-        await sleepAsync(2000)
-        await conn.writeLp("test4")
-        await conn.close()
-        echo "ben ses close"
-      rv2 = RelayV2.new(rel,
-                        reservationTTL=initDuration(seconds=ttl),
-                        limitDuration=ldur,
-                        limitData=ldata)
-      rel.mount(rv2)
-      dst.mount(proto)
-
-      await rv2.start()
-      await rel.start()
-      await src.start()
-      await dst.start()
-
-      await src.connect(rel.peerInfo.peerId, rel.peerInfo.addrs)
-      await dst.connect(rel.peerInfo.peerId, rel.peerInfo.addrs)
-
-      rsvp = await dstCl.reserve(rel.peerInfo.peerId, rel.peerInfo.addrs)
-      conn = await src.dial(dst.peerInfo.peerId, @[ addrs ], customProtoCodec)
-      await conn.writeLp("test1")
-      check: "test2" == string.fromBytes(await conn.readLp(1024))
-      await conn.writeLp("test3")
-      check: "test4" == string.fromBytes(await conn.readLp(1024))
-      await conn.close()
-      await sleepAsync(2000)
-
-      expect(DialFailedError):
-        conn = await src.dial(dst.peerInfo.peerId, @[ addrs ], customProtoCodec)

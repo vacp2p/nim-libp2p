@@ -358,9 +358,12 @@ proc stop*(rv2: RelayV2) {.async.} =
 # Client side
 
 type
+  ClientAddConn* = proc(conn: Connection,
+                        duration: uint32,
+                        data: uint64): Future[void] {.gcsafe, raises: [Defect].}
   Client* = ref object of LPProtocol
     switch*: Switch
-    queue: AsyncQueue[Connection]
+    addConn: ClientAddConn
 
 proc sendStopError(conn: Connection, code: Status) {.async.} =
   trace "send stop status", status = $code & " (" & $ord(code) & ")"
@@ -384,9 +387,15 @@ proc handleConnect(cl: Client, conn: Connection, msg: StopMessage) {.async.} =
 
   trace "incoming relay connection", src
 
+  if cl.addConn == nil:
+    await sendStopError(conn, Status.ConnectionFailed)
+    await conn.close()
+    return
   await conn.writeLp(pb.buffer)
-  await cl.queue.addLast(RelayConnection.new(conn, limitDuration, limitData))
-  await conn.join()
+  # This sound redundant but the callback could, in theory, be set to nil during
+  # sendStatus(Success) so it's safer to double check
+  if cl.addConn != nil: await cl.addConn(conn, limitDuration, limitData)
+  else: await conn.close()
 
 type
   Rsvp* = object
@@ -489,7 +498,6 @@ proc new*(T: typedesc[Client]): T =
       trace "exiting client handler", conn
       await conn.close()
 
-  cl.queue = newAsyncQueue[Connection](0)
   cl.handler = handleStream
   cl.codecs = @[RelayV2StopCodec]
   cl
@@ -499,22 +507,32 @@ proc new*(T: typedesc[Client]): T =
 type
   RelayV2Transport* = ref object of Transport
     client*: Client
+    queue: AsyncQueue[Connection]
+    selfRunning: bool
 
 method start*(self: RelayV2Transport, ma: seq[MultiAddress]) {.async.} =
-  if self.running:
+  if self.selfRunning:
     trace "Relay transport already running"
     return
 
+  self.client.addConn = proc(conn: Connection,
+                             duration: uint32 = 0,
+                             data: uint64 = 0) {.async, gcsafe, raises: [Defect].} =
+    await self.queue.addLast(RelayConnection.new(conn, duration, data))
+    await conn.join()
+  self.selfRunning = true
   await procCall Transport(self).start(ma)
   trace "Starting Relay transport"
 
 method stop*(self: RelayV2Transport) {.async, gcsafe.} =
   self.running = false
-  while not self.client.queue.empty():
-    await self.client.queue.popFirstNoWait().close()
+  self.selfRunning = false
+  self.client.addConn = nil
+  while not self.queue.empty():
+    await self.queue.popFirstNoWait().close()
 
 method accept*(self: RelayV2Transport): Future[Connection] {.async, gcsafe.} =
-  result = await self.client.queue.popFirst()
+  result = await self.queue.popFirst()
 
 proc dial*(self: RelayV2Transport, ma: MultiAddress): Future[Connection] {.async, gcsafe.} =
   let
@@ -539,10 +557,6 @@ method dial*(
   address: MultiAddress): Future[Connection] {.async, gcsafe.} =
   result = await self.dial(address)
 
-const
-  P2PPattern = mapEq("p2p")
-  CircuitRelay = mapEq("p2p-circuit")
-
 method handles*(self: RelayV2Transport, ma: MultiAddress): bool {.gcsafe} =
   if ma.protocols.isOk():
     let sma = toSeq(ma.items())
@@ -552,4 +566,6 @@ method handles*(self: RelayV2Transport, ma: MultiAddress): bool {.gcsafe} =
   trace "Handles return", ma, result
 
 proc new*(T: typedesc[RelayV2Transport], cl: Client, upgrader: Upgrade): T =
-  T(client: cl, upgrader: upgrader)
+  result = T(client: cl, upgrader: upgrader)
+  result.running = true
+  result.queue = newAsyncQueue[Connection](0)
