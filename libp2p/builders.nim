@@ -14,7 +14,7 @@ import
   switch, peerid, peerinfo, stream/connection, multiaddress,
   crypto/crypto, transports/[transport, tcptransport],
   muxers/[muxer, mplex/mplex],
-  protocols/[identify, secure/secure, secure/noise],
+  protocols/[identify, secure/secure, secure/noise, relay],
   connmanager, upgrademngrs/muxedupgrade,
   nameresolving/nameresolver,
   errors
@@ -48,6 +48,8 @@ type
     protoVersion: string
     agentVersion: string
     nameResolver: NameResolver
+    isCircuitRelay: bool
+    circuitRelayCanHop: bool
 
 proc new*(T: type[SwitchBuilder]): T =
 
@@ -64,7 +66,8 @@ proc new*(T: type[SwitchBuilder]): T =
     maxOut: -1,
     maxConnsPerPeer: MaxConnectionsPerPeer,
     protoVersion: ProtoVersion,
-    agentVersion: AgentVersion)
+    agentVersion: AgentVersion,
+    isCircuitRelay: false)
 
 proc withPrivateKey*(b: SwitchBuilder, privateKey: PrivateKey): SwitchBuilder =
   b.privKey = some(privateKey)
@@ -139,6 +142,11 @@ proc withNameResolver*(b: SwitchBuilder, nameResolver: NameResolver): SwitchBuil
   b.nameResolver = nameResolver
   b
 
+proc withRelayTransport*(b: SwitchBuilder, canHop: bool): SwitchBuilder =
+  b.isCircuitRelay = true
+  b.circuitRelayCanHop = canHop
+  b
+
 proc build*(b: SwitchBuilder): Switch
   {.raises: [Defect, LPError].} =
 
@@ -196,6 +204,11 @@ proc build*(b: SwitchBuilder): Switch
     connManager = connManager,
     ms = ms,
     nameResolver = b.nameResolver)
+
+  if b.isCircuitRelay:
+    let relay = Relay.new(switch, b.circuitRelayCanHop)
+    switch.mount(relay)
+    switch.addTransport(RelayTransport.new(relay, muxedUpgrade))
 
   return switch
 
