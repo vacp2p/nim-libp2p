@@ -549,7 +549,13 @@ proc dial*(self: RelayV2Transport, ma: MultiAddress): Future[Connection] {.async
 
   let conn = await self.client.switch.dial(relayPeerId, @[ relayAddrs ], RelayV2HopCodec)
   let rc = RelayConnection.new(conn, 0, 0)
-  result = await self.client.dialPeer(rc, dstPeerId, @[])
+  try:
+    result = await self.client.dialPeer(rc, dstPeerId, @[])
+  except CancelledError as exc:
+    raise exc
+  except CatchableError as exc:
+    await rc.close()
+    raise exc
 
 method dial*(
   self: RelayV2Transport,
