@@ -137,10 +137,16 @@ proc decodeMsg*(buf: seq[byte]): Option[RelayMessage] =
       pbDst.getRepeatedField(2, dst.addrs).isErr()):
     return none(RelayMessage)
 
-  if r1.get(): rMsg.msgType = some(RelayType(msgTypeOrd))
+  if r1.get():
+    if msgTypeOrd.int notin RelayType.low.ord .. RelayType.high.ord:
+      return none(RelayMessage)
+    rMsg.msgType = some(RelayType(msgTypeOrd))
   if r2.get(): rMsg.srcPeer = some(src)
   if r3.get(): rMsg.dstPeer = some(dst)
-  if r4.get(): rMsg.status = some(RelayStatus(statusOrd))
+  if r4.get():
+    if msgTypeOrd.int notin RelayStatus.low.ord .. RelayStatus.high.ord:
+      return none(RelayMessage)
+    rMsg.status = some(RelayStatus(statusOrd))
   some(rMsg)
 
 proc sendStatus*(conn: Connection, code: RelayStatus) {.async, gcsafe.} =

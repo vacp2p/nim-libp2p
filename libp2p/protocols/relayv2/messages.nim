@@ -171,11 +171,16 @@ proc decode*(_: typedesc[HopMessage], buf: seq[byte]): Option[HopMessage] =
       pbLimit.getField(2, limit.data).isErr()):
     return none(HopMessage)
 
+  if msgTypeOrd.int notin HopMessageType.low.ord .. HopMessageType.high.ord:
+    return none(HopMessage)
   msg.msgType = HopMessageType(msgTypeOrd)
   if r2.get(): msg.peer = some(peer)
   if r3.get(): msg.reservation = some(reservation)
   if r4.get(): msg.limit = limit
-  if r5.get(): msg.status = some(Status(statusOrd))
+  if r5.get():
+    if statusOrd.int notin Status.low.ord .. Status.high.ord:
+      return none(HopMessage)
+    msg.status = some(Status(statusOrd))
   some(msg)
 
 # Stop Message
@@ -246,8 +251,13 @@ proc decode*(_: typedesc[StopMessage], buf: seq[byte]): Option[StopMessage] =
       pbLimit.getField(2, limit.data).isErr()):
     return none(StopMessage)
 
+  if msgTypeOrd.int notin StopMessageType.low.ord .. StopMessageType.high.ord:
+    return none(StopMessage)
   msg.msgType = StopMessageType(msgTypeOrd)
   if r2.get(): msg.peer = some(peer)
   if r3.get(): msg.limit = limit
-  if r4.get(): msg.status = some(Status(statusOrd))
+  if r4.get():
+    if statusOrd.int notin Status.low.ord .. Status.high.ord:
+      return none(StopMessage)
+    msg.status = some(Status(statusOrd))
   some(msg)

@@ -30,9 +30,7 @@ import ./messages,
 #   handleConnect of the Relay
 # * When the circuit relay v1 will be merged with unstable:
 #   + add a backward compatibility on the RelayV2Transport
-#   + remove the two Pattern
-# * Better reservation management ie find a way to re-reserve when the end is
-#   nigh
+# * Better reservation management ie find a way to re-reserve when the end is nigh
 import std/times
 export chronicles
 
