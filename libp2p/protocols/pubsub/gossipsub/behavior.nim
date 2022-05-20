@@ -317,24 +317,22 @@ proc rebalanceMesh*(g: GossipSub, topic: string, metrics: ptr MeshMetrics = nil)
     trace "replenishing mesh", peers = npeers
     # replenish the mesh if we're below Dlo
 
-    # This is a workaround to get the HashSet from the table
-    # without creating a copy.
-    proc getCandidates(currentMesh: var HashSet[PubSubPeer]): seq[PubSubPeer] =
-      g.gossipSub.withValue(topic, peerList):
-        for it in peerList[]:
-          if
-              it.connected and
-              # avoid negative score peers
-              it.score >= 0.0 and
-              it notin currentMesh and
-              # don't pick explicit peers
-              it.peerId notin g.parameters.directPeers and
-              # and avoid peers we are backing off
-              it.peerId notin backingOff:
-            result.add(it)
-    var candidates =
-      try: getCandidates(g.mesh[topic])
-      except KeyError: getCandidates(defaultMesh)
+    var
+      candidates: seq[PubSubPeer]
+      currentMesh = addr defaultMesh
+    g.mesh.withValue(topic, v): currentMesh = v
+    g.gossipSub.withValue(topic, peerList):
+      for it in peerList[]:
+        if
+            it.connected and
+            # avoid negative score peers
+            it.score >= 0.0 and
+            it notin currentMesh[] and
+            # don't pick explicit peers
+            it.peerId notin g.parameters.directPeers and
+            # and avoid peers we are backing off
+            it.peerId notin backingOff:
+          candidates.add(it)
 
     # shuffle anyway, score might be not used
     g.rng.shuffle(candidates)
@@ -357,27 +355,24 @@ proc rebalanceMesh*(g: GossipSub, topic: string, metrics: ptr MeshMetrics = nil)
   else:
     trace "replenishing mesh outbound quota", peers = g.mesh.peers(topic)
 
-    # this is a workaround to get the hashset from the table
-    # without creating a copy.
-    proc getCandidates(currentMesh: var HashSet[PubSubPeer]): seq[PubSubPeer] =
-      g.gossipSub.withValue(topic, peerList):
-        for it in peerList[]:
-          if
-              it.connected and
-              # get only outbound ones
-              it.outbound and
-              it notin currentMesh and
-              # avoid negative score peers
-              it.score >= 0.0 and
-              # don't pick explicit peers
-              it.peerId notin g.parameters.directPeers and
-              # and avoid peers we are backing off
-              it.peerId notin backingOff:
-            result.add(it)
-
-    var candidates =
-      try: getCandidates(g.mesh[topic])
-      except KeyError: getCandidates(defaultMesh)
+    var
+      candidates: seq[PubSubPeer]
+      currentMesh = addr defaultMesh
+    g.mesh.withValue(topic, v): currentMesh = v
+    g.gossipSub.withValue(topic, peerList):
+      for it in peerList[]:
+        if
+            it.connected and
+            # get only outbound ones
+            it.outbound and
+            it notin currentMesh[] and
+            # avoid negative score peers
+            it.score >= 0.0 and
+            # don't pick explicit peers
+            it.peerId notin g.parameters.directPeers and
+            # and avoid peers we are backing off
+            it.peerId notin backingOff:
+          candidates.add(it)
 
     # shuffle anyway, score might be not used
     g.rng.shuffle(candidates)
@@ -465,28 +460,25 @@ proc rebalanceMesh*(g: GossipSub, topic: string, metrics: ptr MeshMetrics = nil)
     if median.score < g.parameters.opportunisticGraftThreshold:
       trace "median score below opportunistic threshold", score = median.score
 
-      # this is a workaround to get the hashset from the table
-      # without creating a copy.
-      proc getCandidates(currentMesh: var HashSet[PubSubPeer]): seq[PubSubPeer] =
-        g.gossipSub.withValue(topic, peerList):
-          for it in peerList[]:
-            if
-                # avoid negative score peers
-                it.score >= median.score and
-                it notin currentMesh and
-                # don't pick explicit peers
-                it.peerId notin g.parameters.directPeers and
-                # and avoid peers we are backing off
-                it.peerId notin backingOff:
-              result.add(it)
+      var
+        avail: seq[PubSubPeer]
+        currentMesh = addr defaultMesh
+      g.mesh.withValue(topic, v): currentMesh = v
+      g.gossipSub.withValue(topic, peerList):
+        for it in peerList[]:
+          if
+              # avoid negative score peers
+              it.score >= median.score and
+              it notin currentMesh[] and
+              # don't pick explicit peers
+              it.peerId notin g.parameters.directPeers and
+              # and avoid peers we are backing off
+              it.peerId notin backingOff:
+            avail.add(it)
 
-              # by spec, grab only 2
-              if result.len > 1:
-                break
-
-      let avail =
-        try: getCandidates(g.mesh[topic])
-        except KeyError: getCandidates(defaultMesh)
+            # by spec, grab only 2
+            if avail.len > 1:
+              break
 
       for peer in avail:
         if g.mesh.addPeer(topic, peer):
