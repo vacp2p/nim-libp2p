@@ -86,6 +86,11 @@ proc removePeerEventHandler*(s: Switch,
                              kind: PeerEventKind) =
   s.connManager.removePeerEventHandler(handler, kind)
 
+method addTransport*(s: Switch,
+                  t: Transport) =
+  s.transports &= t
+  s.dialer.addTransport(t)
+
 proc isConnected*(s: Switch, peerId: PeerId): bool =
   ## returns true if the peer has one or more
   ## associated connections (sockets)
@@ -248,7 +253,7 @@ proc start*(s: Switch) {.async, gcsafe.} =
       it notin addrs
     )
 
-    if addrs.len > 0:
+    if addrs.len > 0 or t.running:
       startFuts.add(t.start(addrs))
 
   await allFutures(startFuts)
@@ -261,9 +266,11 @@ proc start*(s: Switch) {.async, gcsafe.} =
         "Failed to start one transport", s.error)
 
   for t in s.transports: # for each transport
-    if t.addrs.len > 0:
+    if t.addrs.len > 0 or t.running:
       s.acceptFuts.add(s.accept(t))
       s.peerInfo.addrs &= t.addrs
+
+  s.peerInfo.update()
 
   debug "Started libp2p node", peer = s.peerInfo
 

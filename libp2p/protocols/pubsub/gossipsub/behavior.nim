@@ -14,7 +14,7 @@ import chronos, chronicles, metrics
 import "."/[types, scoring]
 import ".."/[pubsubpeer, peertable, timedcache, mcache, floodsub, pubsub]
 import "../rpc"/[messages]
-import "../../.."/[peerid, multiaddress, utility, switch, routing_record, signed_envelope]
+import "../../.."/[peerid, multiaddress, utility, switch, routing_record, signed_envelope, utils/heartbeat]
 
 declareGauge(libp2p_gossipsub_cache_window_size, "the number of messages in the cache")
 declareGauge(libp2p_gossipsub_peers_per_topic_mesh, "gossipsub peers per topic in mesh", labels = ["topic"])
@@ -79,6 +79,8 @@ proc handleBackingOff*(t: var BackoffTable, topic: string) {.raises: [Defect].} 
       v[].del(peer)
 
 proc peerExchangeList*(g: GossipSub, topic: string): seq[PeerInfoMsg] {.raises: [Defect].} =
+  if not g.parameters.enablePX:
+    return @[]
   var peers = g.gossipsub.getOrDefault(topic, initHashSet[PubSubPeer]()).toSeq()
   peers.keepIf do (x: PubSubPeer) -> bool:
       x.score >= 0.0
@@ -606,8 +608,6 @@ proc onHeartbeat(g: GossipSub) {.raises: [Defect].} =
         peer.iWantBudget = IWantPeerBudget
         peer.iHaveBudget = IHavePeerBudget
 
-    g.updateScores()
-
     var meshMetrics = MeshMetrics()
 
     for t in toSeq(g.topics.keys):
@@ -661,12 +661,10 @@ proc onHeartbeat(g: GossipSub) {.raises: [Defect].} =
 # {.pop.} # raises [Defect]
 
 proc heartbeat*(g: GossipSub) {.async.} =
-  while g.heartbeatRunning:
+  heartbeat "GossipSub", g.parameters.heartbeatInterval:
     trace "running heartbeat", instance = cast[int](g)
     g.onHeartbeat()
 
     for trigger in g.heartbeatEvents:
       trace "firing heartbeat event", instance = cast[int](g)
       trigger.fire()
-
-    await sleepAsync(g.parameters.heartbeatInterval)

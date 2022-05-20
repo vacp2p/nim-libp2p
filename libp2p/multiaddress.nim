@@ -428,7 +428,9 @@ const
 
   Reliable* = mapOr(TCP, UTP, QUIC, WebSockets)
 
-  IPFS* = mapAnd(Reliable, mapEq("p2p"))
+  P2PPattern* = mapEq("p2p")
+
+  IPFS* = mapAnd(Reliable, P2PPattern)
 
   HTTP* = mapOr(
     mapAnd(TCP, mapEq("http")),
@@ -446,6 +448,8 @@ const
     mapAnd(HTTP, mapEq("p2p-webrtc-direct")),
     mapAnd(HTTPS, mapEq("p2p-webrtc-direct"))
   )
+
+  CircuitRelay* = mapEq("p2p-circuit")
 
 proc initMultiAddressCodeTable(): Table[MultiCodec,
                                         MAProtocol] {.compileTime.} =

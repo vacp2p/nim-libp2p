@@ -18,7 +18,7 @@ const Timeout* = 10.seconds # default timeout in ms
 type
   TimedEntry*[K] = ref object of RootObj
     key: K
-    expiresAt: Moment
+    addedAt: Moment
     next, prev: TimedEntry[K]
 
   TimedCache*[K] = object of RootObj
@@ -27,7 +27,8 @@ type
     timeout: Duration
 
 func expire*(t: var TimedCache, now: Moment = Moment.now()) =
-  while t.head != nil and t.head.expiresAt < now:
+  let expirationLimit = now - t.timeout
+  while t.head != nil and t.head.addedAt < expirationLimit:
     t.entries.del(t.head.key)
     t.head.prev = nil
     t.head = t.head.next
@@ -54,7 +55,7 @@ func put*[K](t: var TimedCache[K], k: K, now = Moment.now()): bool =
 
   var res = t.del(k) # Refresh existing item
 
-  let node = TimedEntry[K](key: k, expiresAt: now + t.timeout)
+  let node = TimedEntry[K](key: k, addedAt: now)
 
   if t.head == nil:
     t.tail = node
@@ -62,7 +63,7 @@ func put*[K](t: var TimedCache[K], k: K, now = Moment.now()): bool =
   else:
     # search from tail because typically that's where we add when now grows
     var cur = t.tail
-    while cur != nil and node.expiresAt < cur.expiresAt:
+    while cur != nil and node.addedAt < cur.addedAt:
       cur = cur.prev
 
     if cur == nil:
@@ -82,6 +83,10 @@ func put*[K](t: var TimedCache[K], k: K, now = Moment.now()): bool =
 
 func contains*[K](t: TimedCache[K], k: K): bool =
   k in t.entries
+
+func addedAt*[K](t: TimedCache[K], k: K): Moment =
+  t.entries.getOrDefault(k).addedAt
+
 
 func init*[K](T: type TimedCache[K], timeout: Duration = Timeout): T =
   T(

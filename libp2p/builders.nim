@@ -14,7 +14,7 @@ import
   switch, peerid, peerinfo, stream/connection, multiaddress,
   crypto/crypto, transports/[transport, tcptransport],
   muxers/[muxer, mplex/mplex],
-  protocols/[identify, secure/secure, secure/noise],
+  protocols/[identify, secure/secure, secure/noise, relay],
   connmanager, upgrademngrs/muxedupgrade,
   nameresolving/nameresolver,
   errors
@@ -48,7 +48,9 @@ type
     protoVersion: string
     agentVersion: string
     nameResolver: NameResolver
-    peerStore: PeerStore
+    peerStoreCapacity: Option[int]
+    isCircuitRelay: bool
+    circuitRelayCanHop: bool
 
 proc new*(T: type[SwitchBuilder]): T =
 
@@ -65,7 +67,8 @@ proc new*(T: type[SwitchBuilder]): T =
     maxOut: -1,
     maxConnsPerPeer: MaxConnectionsPerPeer,
     protoVersion: ProtoVersion,
-    agentVersion: AgentVersion)
+    agentVersion: AgentVersion,
+    isCircuitRelay: false)
 
 proc withPrivateKey*(b: SwitchBuilder, privateKey: PrivateKey): SwitchBuilder =
   b.privKey = some(privateKey)
@@ -128,8 +131,8 @@ proc withMaxConnsPerPeer*(b: SwitchBuilder, maxConnsPerPeer: int): SwitchBuilder
   b.maxConnsPerPeer = maxConnsPerPeer
   b
 
-proc withPeerStore*(b: SwitchBuilder, store: PeerStore): SwitchBuilder =
-  b.peerStore = store
+proc withPeerStore*(b: SwitchBuilder, capacity: int): SwitchBuilder =
+  b.peerStoreCapacity = some(capacity)
   b
 
 proc withProtoVersion*(b: SwitchBuilder, protoVersion: string): SwitchBuilder =
@@ -142,6 +145,11 @@ proc withAgentVersion*(b: SwitchBuilder, agentVersion: string): SwitchBuilder =
 
 proc withNameResolver*(b: SwitchBuilder, nameResolver: NameResolver): SwitchBuilder =
   b.nameResolver = nameResolver
+  b
+
+proc withRelayTransport*(b: SwitchBuilder, canHop: bool): SwitchBuilder =
+  b.isCircuitRelay = true
+  b.circuitRelayCanHop = canHop
   b
 
 proc build*(b: SwitchBuilder): Switch
@@ -192,8 +200,11 @@ proc build*(b: SwitchBuilder): Switch
   if isNil(b.rng):
     b.rng = newRng()
 
-  if isNil(b.peerStore):
-    b.peerStore = PeerStore.new()
+  let peerStore =
+    if isSome(b.peerStoreCapacity):
+      PeerStore.new(b.peerStoreCapacity.get())
+    else:
+      PeerStore.new()
 
   let switch = newSwitch(
     peerInfo = peerInfo,
@@ -204,7 +215,12 @@ proc build*(b: SwitchBuilder): Switch
     connManager = connManager,
     ms = ms,
     nameResolver = b.nameResolver,
-    peerStore = b.peerStore)
+    peerStore = peerStore)
+
+  if b.isCircuitRelay:
+    let relay = Relay.new(switch, b.circuitRelayCanHop)
+    switch.mount(relay)
+    switch.addTransport(RelayTransport.new(relay, muxedUpgrade))
 
   return switch
 
@@ -223,8 +239,7 @@ proc newStandardSwitch*(
   maxOut = -1,
   maxConnsPerPeer = MaxConnectionsPerPeer,
   nameResolver: NameResolver = nil,
-  sendSignedPeerRecord = false,
-  peerStore = PeerStore.new()): Switch
+  sendSignedPeerRecord = false): Switch
   {.raises: [Defect, LPError].} =
   if SecureProtocol.Secio in secureManagers:
       quit("Secio is deprecated!") # use of secio is unsafe
@@ -242,7 +257,6 @@ proc newStandardSwitch*(
     .withMplex(inTimeout, outTimeout)
     .withTcpTransport(transportFlags)
     .withNameResolver(nameResolver)
-    .withPeerStore(peerStore)
     .withNoise()
 
   if privKey.isSome():

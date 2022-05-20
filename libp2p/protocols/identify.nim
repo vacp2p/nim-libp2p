@@ -96,8 +96,8 @@ proc encodeMsg(peerInfo: PeerInfo, observedAddr: MultiAddress, sendSpr: bool): P
 
   ## Optionally populate signedPeerRecord field.
   ## See https://github.com/libp2p/go-libp2p/blob/ddf96ce1cfa9e19564feb9bd3e8269958bbc0aba/p2p/protocol/identify/pb/identify.proto for reference.
-  if peerInfo.signedPeerRecord.isSome() and sendSpr:
-    let sprBuff = peerInfo.signedPeerRecord.get().encode()
+  if sendSpr:
+    let sprBuff = peerInfo.signedPeerRecord.envelope.encode()
     if sprBuff.isOk():
       result.write(8, sprBuff.get())
 

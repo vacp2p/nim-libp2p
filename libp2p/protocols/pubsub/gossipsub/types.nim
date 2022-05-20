@@ -138,6 +138,7 @@ type
     directPeers*: Table[PeerId, seq[MultiAddress]]
 
     disconnectBadPeers*: bool
+    enablePX*: bool
 
   BackoffTable* = Table[string, Table[PeerId, Moment]]
   ValidationSeenTable* = Table[MessageID, HashSet[PubSubPeer]]
@@ -161,6 +162,7 @@ type
     mcache*: MCache                            # messages cache
     validationSeen*: ValidationSeenTable       # peers who sent us message in validation
     heartbeatFut*: Future[void]                # cancellation future for heartbeat interval
+    scoringHeartbeatFut*: Future[void]         # cancellation future for scoring heartbeat interval
     heartbeatRunning*: bool
 
     peerStats*: Table[PeerId, PeerStats]
