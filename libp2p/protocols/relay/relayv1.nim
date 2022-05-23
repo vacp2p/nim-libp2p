@@ -13,14 +13,15 @@ import options
 import sequtils, strutils, tables
 import chronos, chronicles
 
-import ../peerinfo,
-       ../switch,
-       ../multiaddress,
-       ../stream/connection,
-       ../protocols/protocol,
-       ../transports/transport,
-       ../utility,
-       ../errors
+import ../../peerinfo,
+       ../../switch,
+       ../../multiaddress,
+       ../../stream/connection,
+       ../../protocols/protocol,
+       ../../transports/transport,
+       ../../utility,
+       ../../errors
+import ./messages
 
 const
   RelayCodec* = "/libp2p/circuit/relay/0.1.0"
@@ -32,42 +33,9 @@ logScope:
   topics = "libp2p relay"
 
 type
-  RelayType* = enum
-    Hop = 1
-    Stop = 2
-    Status = 3
-    CanHop = 4
-  RelayStatus* = enum
-    Success = 100
-    HopSrcAddrTooLong = 220
-    HopDstAddrTooLong = 221
-    HopSrcMultiaddrInvalid = 250
-    HopDstMultiaddrInvalid = 251
-    HopNoConnToDst = 260
-    HopCantDialDst = 261
-    HopCantOpenDstStream = 262
-    HopCantSpeakRelay = 270
-    HopCantRelayToSelf = 280
-    StopSrcAddrTooLong = 320
-    StopDstAddrTooLong = 321
-    StopSrcMultiaddrInvalid = 350
-    StopDstMultiaddrInvalid = 351
-    StopRelayRefused = 390
-    MalformedMessage = 400
-
   RelayError* = object of LPError
 
-  RelayPeer* = object
-    peerId*: PeerID
-    addrs*: seq[MultiAddress]
-
   AddConn* = proc(conn: Connection): Future[void] {.gcsafe, raises: [Defect].}
-
-  RelayMessage* = object
-    msgType*: Option[RelayType]
-    srcPeer*: Option[RelayPeer]
-    dstPeer*: Option[RelayPeer]
-    status*: Option[RelayStatus]
 
   Relay* = ref object of LPProtocol
     switch*: Switch
@@ -83,79 +51,13 @@ type
     maxCircuitPerPeer*: int
     msgSize*: int
 
-proc encodeMsg*(msg: RelayMessage): ProtoBuffer =
-  result = initProtoBuffer()
-
-  if isSome(msg.msgType):
-    result.write(1, msg.msgType.get().ord.uint)
-  if isSome(msg.srcPeer):
-    var peer = initProtoBuffer()
-    peer.write(1, msg.srcPeer.get().peerId)
-    for ma in msg.srcPeer.get().addrs:
-      peer.write(2, ma.data.buffer)
-    peer.finish()
-    result.write(2, peer.buffer)
-  if isSome(msg.dstPeer):
-    var peer = initProtoBuffer()
-    peer.write(1, msg.dstPeer.get().peerId)
-    for ma in msg.dstPeer.get().addrs:
-      peer.write(2, ma.data.buffer)
-    peer.finish()
-    result.write(3, peer.buffer)
-  if isSome(msg.status):
-    result.write(4, msg.status.get().ord.uint)
-
-  result.finish()
-
-proc decodeMsg*(buf: seq[byte]): Option[RelayMessage] =
-  var
-    rMsg: RelayMessage
-    msgTypeOrd: uint32
-    src: RelayPeer
-    dst: RelayPeer
-    statusOrd: uint32
-    pbSrc: ProtoBuffer
-    pbDst: ProtoBuffer
-
-  let
-    pb = initProtoBuffer(buf)
-    r1 = pb.getField(1, msgTypeOrd)
-    r2 = pb.getField(2, pbSrc)
-    r3 = pb.getField(3, pbDst)
-    r4 = pb.getField(4, statusOrd)
-
-  if r1.isErr() or r2.isErr() or r3.isErr() or r4.isErr():
-    return none(RelayMessage)
-
-  if r2.get() and
-     (pbSrc.getField(1, src.peerId).isErr() or
-      pbSrc.getRepeatedField(2, src.addrs).isErr()):
-    return none(RelayMessage)
-
-  if r3.get() and
-     (pbDst.getField(1, dst.peerId).isErr() or
-      pbDst.getRepeatedField(2, dst.addrs).isErr()):
-    return none(RelayMessage)
-
-  if r1.get():
-    if msgTypeOrd.int notin RelayType.low.ord .. RelayType.high.ord:
-      return none(RelayMessage)
-    rMsg.msgType = some(RelayType(msgTypeOrd))
-  if r2.get(): rMsg.srcPeer = some(src)
-  if r3.get(): rMsg.dstPeer = some(dst)
-  if r4.get():
-    if msgTypeOrd.int notin RelayStatus.low.ord .. RelayStatus.high.ord:
-      return none(RelayMessage)
-    rMsg.status = some(RelayStatus(statusOrd))
-  some(rMsg)
-
-proc sendStatus*(conn: Connection, code: RelayStatus) {.async, gcsafe.} =
+proc sendStatus*(conn: Connection, code: StatusV1) {.async, gcsafe.} =
   trace "send status", status = $code & "(" & $ord(code) & ")"
   let
     msg = RelayMessage(
       msgType: some(RelayType.Status),
       status: some(code))
-    pb = encodeMsg(msg)
+    pb = encode(msg)
 
   await conn.writeLp(pb.buffer)
 
@@ -166,25 +68,25 @@ proc handleHopStream(r: Relay, conn: Connection, msg: RelayMessage) {.async, gcs
 
   if r.streamCount > r.maxCircuit:
     trace "refusing connection; too many active circuit"
-    await sendStatus(conn, RelayStatus.HopCantSpeakRelay)
+    await sendStatus(conn, StatusV1.HopCantSpeakRelay)
     return
 
-  proc checkMsg(): Result[RelayMessage, RelayStatus] =
+  proc checkMsg(): Result[RelayMessage, StatusV1] =
     if not r.canHop:
-      return err(RelayStatus.HopCantSpeakRelay)
+      return err(StatusV1.HopCantSpeakRelay)
     if msg.srcPeer.isNone:
-      return err(RelayStatus.HopSrcMultiaddrInvalid)
+      return err(StatusV1.HopSrcMultiaddrInvalid)
     let src = msg.srcPeer.get()
     if src.peerId != conn.peerId:
-      return err(RelayStatus.HopSrcMultiaddrInvalid)
+      return err(StatusV1.HopSrcMultiaddrInvalid)
     if msg.dstPeer.isNone:
-      return err(RelayStatus.HopDstMultiaddrInvalid)
+      return err(StatusV1.HopDstMultiaddrInvalid)
     let dst = msg.dstPeer.get()
     if dst.peerId == r.switch.peerInfo.peerId:
-      return err(RelayStatus.HopCantRelayToSelf)
+      return err(StatusV1.HopCantRelayToSelf)
     if not r.switch.isConnected(dst.peerId):
       trace "relay not connected to dst", dst
-      return err(RelayStatus.HopNoConnToDst)
+      return err(StatusV1.HopNoConnToDst)
     ok(msg)
 
   let check = checkMsg()
@@ -197,7 +99,7 @@ proc handleHopStream(r: Relay, conn: Connection, msg: RelayMessage) {.async, gcs
 
   # TODO: if r.acl # access control list
   #       and not r.acl.AllowHop(src.peerId, dst.peerId)
-  #         sendStatus(conn, RelayStatus.HopCantSpeakRelay)
+  #         sendStatus(conn, StatusV1.HopCantSpeakRelay)
 
   r.hopCount.inc(src.peerId)
   r.hopCount.inc(dst.peerId)
@@ -207,12 +109,12 @@ proc handleHopStream(r: Relay, conn: Connection, msg: RelayMessage) {.async, gcs
 
   if r.hopCount[src.peerId] > r.maxCircuitPerPeer:
     trace "refusing connection; too many connection from src", src, dst
-    await sendStatus(conn, RelayStatus.HopCantSpeakRelay)
+    await sendStatus(conn, StatusV1.HopCantSpeakRelay)
     return
 
   if r.hopCount[dst.peerId] > r.maxCircuitPerPeer:
     trace "refusing connection; too many connection to dst", src, dst
-    await sendStatus(conn, RelayStatus.HopCantSpeakRelay)
+    await sendStatus(conn, StatusV1.HopCantSpeakRelay)
     return
 
   let connDst = try:
@@ -221,7 +123,7 @@ proc handleHopStream(r: Relay, conn: Connection, msg: RelayMessage) {.async, gcs
     raise exc
   except CatchableError as exc:
     trace "error opening relay stream", dst, exc=exc.msg
-    await sendStatus(conn, RelayStatus.HopCantDialDst)
+    await sendStatus(conn, StatusV1.HopCantDialDst)
     return
   defer:
     await connDst.close()
@@ -229,36 +131,35 @@ proc handleHopStream(r: Relay, conn: Connection, msg: RelayMessage) {.async, gcs
   let msgToSend = RelayMessage(
     msgType: some(RelayType.Stop),
     srcPeer: some(src),
-    dstPeer: some(dst),
-    status: none(RelayStatus))
+    dstPeer: some(dst))
 
   let msgRcvFromDstOpt = try:
-    await connDst.writeLp(encodeMsg(msgToSend).buffer)
-    decodeMsg(await connDst.readLp(r.msgSize))
+    await connDst.writeLp(encode(msgToSend).buffer)
+    RelayMessage.decode(await connDst.readLp(r.msgSize))
   except CancelledError as exc:
     raise exc
   except CatchableError as exc:
     trace "error writing stop handshake or reading stop response", exc=exc.msg
-    await sendStatus(conn, RelayStatus.HopCantOpenDstStream)
+    await sendStatus(conn, StatusV1.HopCantOpenDstStream)
     return
 
   if msgRcvFromDstOpt.isNone:
     trace "error reading stop response", msg = msgRcvFromDstOpt
-    await sendStatus(conn, RelayStatus.HopCantOpenDstStream)
+    await sendStatus(conn, StatusV1.HopCantOpenDstStream)
     return
 
   let msgRcvFromDst = msgRcvFromDstOpt.get()
   if msgRcvFromDst.msgType.isNone or msgRcvFromDst.msgType.get() != RelayType.Status:
     trace "unexcepted relay stop response", msgType = msgRcvFromDst.msgType
-    await sendStatus(conn, RelayStatus.HopCantOpenDstStream)
+    await sendStatus(conn, StatusV1.HopCantOpenDstStream)
     return
 
-  if msgRcvFromDst.status.isNone or msgRcvFromDst.status.get() != RelayStatus.Success:
+  if msgRcvFromDst.status.isNone or msgRcvFromDst.status.get() != StatusV1.Success:
     trace "relay stop failure", status=msgRcvFromDst.status
-    await sendStatus(conn, RelayStatus.HopCantOpenDstStream)
+    await sendStatus(conn, StatusV1.HopCantOpenDstStream)
     return
 
-  await sendStatus(conn, RelayStatus.Success)
+  await sendStatus(conn, StatusV1.Success)
 
   trace "relaying connection", src, dst
 
@@ -306,26 +207,26 @@ proc handleHopStream(r: Relay, conn: Connection, msg: RelayMessage) {.async, gcs
 
 proc handleStopStream(r: Relay, conn: Connection, msg: RelayMessage) {.async, gcsafe.} =
   if msg.srcPeer.isNone:
-    await sendStatus(conn, RelayStatus.StopSrcMultiaddrInvalid)
+    await sendStatus(conn, StatusV1.StopSrcMultiaddrInvalid)
     return
   let src = msg.srcPeer.get()
 
   if msg.dstPeer.isNone:
-    await sendStatus(conn, RelayStatus.StopDstMultiaddrInvalid)
+    await sendStatus(conn, StatusV1.StopDstMultiaddrInvalid)
     return
 
   let dst = msg.dstPeer.get()
   if dst.peerId != r.switch.peerInfo.peerId:
-    await sendStatus(conn, RelayStatus.StopDstMultiaddrInvalid)
+    await sendStatus(conn, StatusV1.StopDstMultiaddrInvalid)
     return
 
   trace "get a relay connection", src, conn
 
   if r.addConn == nil:
-    await sendStatus(conn, RelayStatus.StopRelayRefused)
+    await sendStatus(conn, StatusV1.StopRelayRefused)
     await conn.close()
     return
-  await sendStatus(conn, RelayStatus.Success)
+  await sendStatus(conn, StatusV1.Success)
   # This sound redundant but the callback could, in theory, be set to nil during
   # sendStatus(Success) so it's safer to double check
   if r.addConn != nil: await r.addConn(conn)
@@ -334,9 +235,9 @@ proc handleStopStream(r: Relay, conn: Connection, msg: RelayMessage) {.async, gc
 proc handleCanHop(r: Relay, conn: Connection, msg: RelayMessage) {.async, gcsafe.} =
   await sendStatus(conn,
     if r.canHop:
-      RelayStatus.Success
+      StatusV1.Success
     else:
-      RelayStatus.HopCantSpeakRelay
+      StatusV1.HopCantSpeakRelay
   )
 
 proc new*(T: typedesc[Relay], switch: Switch, canHop: bool): T =
@@ -347,10 +248,10 @@ proc new*(T: typedesc[Relay], switch: Switch, canHop: bool): T =
 method init*(r: Relay) =
   proc handleStream(conn: Connection, proto: string) {.async, gcsafe.} =
     try:
-      let msgOpt = decodeMsg(await conn.readLp(r.msgSize))
+      let msgOpt = RelayMessage.decode(await conn.readLp(r.msgSize))
 
       if msgOpt.isNone:
-        await sendStatus(conn, RelayStatus.MalformedMessage)
+        await sendStatus(conn, StatusV1.MalformedMessage)
         return
       else:
         trace "relay handle stream", msg = msgOpt.get()
@@ -362,7 +263,7 @@ method init*(r: Relay) =
         of RelayType.CanHop: await r.handleCanHop(conn, msg)
         else:
           trace "Unexpected relay handshake", msgType=msg.msgType
-          await sendStatus(conn, RelayStatus.MalformedMessage)
+          await sendStatus(conn, StatusV1.MalformedMessage)
     except CancelledError as exc:
       raise exc
     except CatchableError as exc:
@@ -387,9 +288,8 @@ proc dialPeer(
     msg = RelayMessage(
       msgType: some(RelayType.Hop),
       srcPeer: some(RelayPeer(peerId: r.switch.peerInfo.peerId, addrs: r.switch.peerInfo.addrs)),
-      dstPeer: some(RelayPeer(peerId: dstPeerId, addrs: dstAddrs)),
-      status: none(RelayStatus))
-    pb = encodeMsg(msg)
+      dstPeer: some(RelayPeer(peerId: dstPeerId, addrs: dstAddrs)))
+    pb = encode(msg)
 
   trace "Dial peer", msgSend=msg
 
@@ -402,28 +302,28 @@ proc dialPeer(
     raise exc
 
   let msgRcvFromRelayOpt = try:
-    decodeMsg(await conn.readLp(r.msgSize))
+    RelayMessage.decode(await conn.readLp(r.msgSize))
   except CancelledError as exc:
     raise exc
   except CatchableError as exc:
     trace "error reading stop response", exc=exc.msg
-    await sendStatus(conn, RelayStatus.HopCantOpenDstStream)
+    await sendStatus(conn, StatusV1.HopCantOpenDstStream)
     raise exc
 
   if msgRcvFromRelayOpt.isNone:
     trace "error reading stop response", msg = msgRcvFromRelayOpt
-    await sendStatus(conn, RelayStatus.HopCantOpenDstStream)
+    await sendStatus(conn, StatusV1.HopCantOpenDstStream)
     raise newException(RelayError, "Hop can't open destination stream")
 
   let msgRcvFromRelay = msgRcvFromRelayOpt.get()
   if msgRcvFromRelay.msgType.isNone or msgRcvFromRelay.msgType.get() != RelayType.Status:
     trace "unexcepted relay stop response", msgType = msgRcvFromRelay.msgType
-    await sendStatus(conn, RelayStatus.HopCantOpenDstStream)
+    await sendStatus(conn, StatusV1.HopCantOpenDstStream)
     raise newException(RelayError, "Hop can't open destination stream")
 
-  if msgRcvFromRelay.status.isNone or msgRcvFromRelay.status.get() != RelayStatus.Success:
+  if msgRcvFromRelay.status.isNone or msgRcvFromRelay.status.get() != StatusV1.Success:
     trace "relay stop failure", status=msgRcvFromRelay.status
-    await sendStatus(conn, RelayStatus.HopCantOpenDstStream)
+    await sendStatus(conn, StatusV1.HopCantOpenDstStream)
     raise newException(RelayError, "Hop can't open destination stream")
   result = conn
 

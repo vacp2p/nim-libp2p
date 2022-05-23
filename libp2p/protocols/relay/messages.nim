@@ -7,10 +7,119 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import options
+import options, macros, sequtils
 
 import ../../peerinfo,
        ../../signed_envelope
+
+# Circuit Relay V1 Message
+
+macro enumFullRangeOrd(a: typed): untyped =
+  newNimNode(nnkBracket).add(a.getType[1][1..^1].mapIt(nnkCall.newTree(ident("ord"), it)))
+
+proc contains[T](e: type[T], v: int): bool =
+  v in enumFullRangeOrd(e)
+
+type
+  RelayType* {.pure.} = enum
+    Hop = 1
+    Stop = 2
+    Status = 3
+    CanHop = 4
+
+  StatusV1* {.pure.} = enum
+    Success = 100
+    HopSrcAddrTooLong = 220
+    HopDstAddrTooLong = 221
+    HopSrcMultiaddrInvalid = 250
+    HopDstMultiaddrInvalid = 251
+    HopNoConnToDst = 260
+    HopCantDialDst = 261
+    HopCantOpenDstStream = 262
+    HopCantSpeakRelay = 270
+    HopCantRelayToSelf = 280
+    StopSrcAddrTooLong = 320
+    StopDstAddrTooLong = 321
+    StopSrcMultiaddrInvalid = 350
+    StopDstMultiaddrInvalid = 351
+    StopRelayRefused = 390
+    MalformedMessage = 400
+
+  RelayPeer* = object
+    peerId*: PeerID
+    addrs*: seq[MultiAddress]
+
+  RelayMessage* = object
+    msgType*: Option[RelayType]
+    srcPeer*: Option[RelayPeer]
+    dstPeer*: Option[RelayPeer]
+    status*: Option[StatusV1]
+
+proc encode*(msg: RelayMessage): ProtoBuffer =
+  result = initProtoBuffer()
+
+  if isSome(msg.msgType):
+    result.write(1, msg.msgType.get().ord.uint)
+  if isSome(msg.srcPeer):
+    var peer = initProtoBuffer()
+    peer.write(1, msg.srcPeer.get().peerId)
+    for ma in msg.srcPeer.get().addrs:
+      peer.write(2, ma.data.buffer)
+    peer.finish()
+    result.write(2, peer.buffer)
+  if isSome(msg.dstPeer):
+    var peer = initProtoBuffer()
+    peer.write(1, msg.dstPeer.get().peerId)
+    for ma in msg.dstPeer.get().addrs:
+      peer.write(2, ma.data.buffer)
+    peer.finish()
+    result.write(3, peer.buffer)
+  if isSome(msg.status):
+    result.write(4, msg.status.get().ord.uint)
+
+  result.finish()
+
+proc decode*(_: typedesc[RelayMessage], buf: seq[byte]): Option[RelayMessage] =
+  var
+    rMsg: RelayMessage
+    msgTypeOrd: uint32
+    src: RelayPeer
+    dst: RelayPeer
+    statusOrd: uint32
+    pbSrc: ProtoBuffer
+    pbDst: ProtoBuffer
+
+  let
+    pb = initProtoBuffer(buf)
+    r1 = pb.getField(1, msgTypeOrd)
+    r2 = pb.getField(2, pbSrc)
+    r3 = pb.getField(3, pbDst)
+    r4 = pb.getField(4, statusOrd)
+
+  if r1.isErr() or r2.isErr() or r3.isErr() or r4.isErr():
+    return none(RelayMessage)
+
+  if r2.get() and
+     (pbSrc.getField(1, src.peerId).isErr() or
+      pbSrc.getRepeatedField(2, src.addrs).isErr()):
+    return none(RelayMessage)
+
+  if r3.get() and
+     (pbDst.getField(1, dst.peerId).isErr() or
+      pbDst.getRepeatedField(2, dst.addrs).isErr()):
+    return none(RelayMessage)
+
+  if r1.get():
+    if msgTypeOrd.int notin RelayType:
+      return none(RelayMessage)
+    rMsg.msgType = some(RelayType(msgTypeOrd))
+  if r2.get(): rMsg.srcPeer = some(src)
+  if r3.get(): rMsg.dstPeer = some(dst)
+  if r4.get():
+    if statusOrd.int notin StatusV1:
+      return none(RelayMessage)
+    rMsg.status = some(StatusV1(statusOrd))
+  some(rMsg)
 
 # Voucher
 
@@ -20,7 +129,7 @@ type
     reservingPeerId*: PeerID # peer ID of the reserving peer
     expiration*: uint64      # UNIX UTC expiration time for the reservation
 
-proc decode*(T: typedesc[Voucher], buf: seq[byte]): Result[Voucher, ProtoError] =
+proc decode*(_: typedesc[Voucher], buf: seq[byte]): Result[Voucher, ProtoError] =
   let pb = initProtoBuffer(buf)
   var v = Voucher()
 
@@ -52,8 +161,8 @@ proc init*(T: typedesc[Voucher],
 
 type SignedVoucher* = SignedPayload[Voucher]
 
-proc payloadDomain*(T: typedesc[Voucher]): string = "libp2p-relay-rsvp"
-proc payloadType*(T: typedesc[Voucher]): seq[byte] = @[ (byte)0x03, (byte)0x02 ]
+proc payloadDomain*(_: typedesc[Voucher]): string = "libp2p-relay-rsvp"
+proc payloadType*(_: typedesc[Voucher]): seq[byte] = @[ (byte)0x03, (byte)0x02 ]
 
 proc checkValid*(spr: SignedVoucher): Result[void, EnvelopeError] =
   if not spr.data.relayPeerId.match(spr.envelope.publicKey):
@@ -61,7 +170,7 @@ proc checkValid*(spr: SignedVoucher): Result[void, EnvelopeError] =
   else:
     ok()
 
-# HopMessage
+# Circuit Relay V2 Hop Message
 
 type
   Peer* = object
@@ -75,7 +184,7 @@ type
     duration*: uint32            # seconds
     data*: uint64                # bytes
 
-  Status* = enum
+  StatusV2* = enum
     Ok = 100
     ReservationRefused = 200
     ResourceLimitExceeded = 201
@@ -93,7 +202,7 @@ type
     peer*: Option[Peer]
     reservation*: Option[Reservation]
     limit*: Limit
-    status*: Option[Status]
+    status*: Option[StatusV2]
 
 proc encode*(msg: HopMessage): ProtoBuffer =
   var pb = initProtoBuffer()
@@ -178,12 +287,12 @@ proc decode*(_: typedesc[HopMessage], buf: seq[byte]): Option[HopMessage] =
   if r3.get(): msg.reservation = some(reservation)
   if r4.get(): msg.limit = limit
   if r5.get():
-    if statusOrd.int notin Status.low.ord .. Status.high.ord:
+    if statusOrd.int notin StatusV2:
       return none(HopMessage)
-    msg.status = some(Status(statusOrd))
+    msg.status = some(StatusV2(statusOrd))
   some(msg)
 
-# Stop Message
+# Circuit Relay V2 Stop Message
 
 type
   StopMessageType* {.pure.} = enum
@@ -193,7 +302,7 @@ type
     msgType*: StopMessageType
     peer*: Option[Peer]
     limit*: Limit
-    status*: Option[Status]
+    status*: Option[StatusV2]
 
 
 proc encode*(msg: StopMessage): ProtoBuffer =
@@ -257,7 +366,7 @@ proc decode*(_: typedesc[StopMessage], buf: seq[byte]): Option[StopMessage] =
   if r2.get(): msg.peer = some(peer)
   if r3.get(): msg.limit = limit
   if r4.get():
-    if statusOrd.int notin Status.low.ord .. Status.high.ord:
+    if statusOrd.int notin StatusV2:
       return none(StopMessage)
-    msg.status = some(Status(statusOrd))
+    msg.status = some(StatusV2(statusOrd))
   some(msg)

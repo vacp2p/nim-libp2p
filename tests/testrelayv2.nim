@@ -2,8 +2,8 @@
 
 import bearssl, chronos, options
 import ../libp2p
-import ../libp2p/[protocols/relayv2/relayv2,
-                  protocols/relayv2/messages]
+import ../libp2p/[protocols/relay/relayv2,
+                  protocols/relay/messages]
 import ./helpers
 import std/times
 import stew/byteutils
@@ -72,7 +72,7 @@ suite "Circuit Relay V2":
       let msg = HopMessage.decode(await conn.readLp(MsgSize)).get()
       check:
         msg.msgType == HopMessageType.Status
-        msg.status == some(Status.ReservationRefused)
+        msg.status == some(StatusV2.ReservationRefused)
 
     asynctest "Too many reservations + Reconnect":
       expect(ReservationError):

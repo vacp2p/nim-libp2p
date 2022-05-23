@@ -14,7 +14,7 @@ import
   switch, peerid, peerinfo, stream/connection, multiaddress,
   crypto/crypto, transports/[transport, tcptransport],
   muxers/[muxer, mplex/mplex],
-  protocols/[identify, secure/secure, secure/noise, relay, relayv2/relayv2],
+  protocols/[identify, secure/secure, secure/noise, relay/relayv1, relay/relayv2],
   connmanager, upgrademngrs/muxedupgrade,
   nameresolving/nameresolver,
   errors

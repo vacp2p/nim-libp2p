@@ -117,7 +117,7 @@ proc new*(
 
 # Relay Side
 
-proc sendHopError*(conn: Connection, code: Status) {.async, gcsafe.} =
+proc sendHopError*(conn: Connection, code: StatusV2) {.async, gcsafe.} =
   trace "send hop status", status = $code & "(" & $ord(code) & ")"
   let
     msg = HopMessage(msgType: HopMessageType.Status, status: some(code))
@@ -363,7 +363,7 @@ type
     switch*: Switch
     addConn: ClientAddConn
 
-proc sendStopError(conn: Connection, code: Status) {.async.} =
+proc sendStopError(conn: Connection, code: StatusV2) {.async.} =
   trace "send stop status", status = $code & " (" & $ord(code) & ")"
   let msg = StopMessage(msgType: StopMessageType.Status, status: some(code))
   await conn.writeLp(encode(msg).buffer)
@@ -386,7 +386,7 @@ proc handleConnect(cl: Client, conn: Connection, msg: StopMessage) {.async.} =
   trace "incoming relay connection", src
 
   if cl.addConn == nil:
-    await sendStopError(conn, Status.ConnectionFailed)
+    await sendStopError(conn, StatusV2.ConnectionFailed)
     await conn.close()
     return
   await conn.writeLp(pb.buffer)
