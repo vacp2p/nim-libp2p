@@ -11,8 +11,8 @@
 
 {.push raises: [Defect].}
 
-import std/[sequtils, times, sugar]
-import pkg/stew/[results, byteutils]
+import std/[sequtils, times]
+import pkg/stew/results
 import
   multiaddress,
   multicodec,

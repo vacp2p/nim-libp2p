@@ -81,8 +81,6 @@ export results
 # This is workaround for Nim's `import` bug
 export rijndael, twofish, sha2, hash, hmac, ncrutils
 
-from strutils import split
-
 type
   DigestSheme* = enum
     Sha256,
