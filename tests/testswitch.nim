@@ -811,7 +811,7 @@ suite "Switch":
     let switch1 = newStandardSwitch()
     switch1.mount(testProto)
 
-    let switch2 = newStandardSwitch(peerStore = PeerStore.new(capacity = 0))
+    let switch2 = newStandardSwitch(peerStoreCapacity = 0)
     await switch1.start()
     await switch2.start()
 
