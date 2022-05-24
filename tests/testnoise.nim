@@ -12,7 +12,6 @@
 import tables, bearssl
 import chronos, stew/byteutils
 import chronicles
-import ../libp2p/crypto/crypto
 import ../libp2p/[switch,
                   errors,
                   multistream,

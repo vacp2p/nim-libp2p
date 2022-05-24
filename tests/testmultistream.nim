@@ -278,9 +278,6 @@ suite "Multistream select":
   asyncTest "e2e - ls":
     let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
 
-    let
-      handlerWait = newFuture[void]()
-
     let msListen = MultistreamSelect.new()
     var protocol: LPProtocol = new LPProtocol
     protocol.handler = proc(conn: Connection, proto: string) {.async, gcsafe.} =
