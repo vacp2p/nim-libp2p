@@ -17,6 +17,10 @@ import peerid,
 type
   Dial* = ref object of RootObj
 
+  DialRes* = tuple
+    conn: Connection
+    proto: string
+
 method connect*(
   self: Dial,
   peerId: PeerId,
@@ -32,7 +36,7 @@ method dial*(
   self: Dial,
   peerId: PeerId,
   protos: seq[string],
-  ): Future[Connection] {.async, base.} =
+  ): Future[DialRes] {.async, base.} =
   ## create a protocol stream over an
   ## existing connection
   ##
@@ -44,7 +48,7 @@ method dial*(
   peerId: PeerId,
   addrs: seq[MultiAddress],
   protos: seq[string],
-  forceDial = false): Future[Connection] {.async, base.} =
+  forceDial = false): Future[DialRes] {.async, base.} =
   ## create a protocol stream and establish
   ## a connection if one doesn't exist already
   ##

@@ -2,8 +2,10 @@
 
 import bearssl, chronos, options
 import ../libp2p
-import ../libp2p/[protocols/relay/relayv2,
-                  protocols/relay/messages]
+import ../libp2p/[protocols/relay/relay,
+                  protocols/relay/messages,
+                  protocols/relay/utils,
+                  protocols/relay/client]
 import ./helpers
 import std/times
 import stew/byteutils
@@ -15,7 +17,7 @@ proc createSwitch(cl: Client): Switch =
     .withTcpTransport()
     .withMplex()
     .withNoise()
-    .withCircuitRelayV2(cl)
+    .withCircuitRelayTransport(cl)
     .build()
 
 suite "Circuit Relay V2":
@@ -30,7 +32,7 @@ suite "Circuit Relay V2":
       ldata {.threadvar.}: uint64
       cl1 {.threadvar.}: Client
       cl2 {.threadvar.}: Client
-      rv2 {.threadvar.}: RelayV2
+      rv2 {.threadvar.}: Relay
       src1 {.threadvar.}: Switch
       src2 {.threadvar.}: Switch
       rel {.threadvar.}: Switch
@@ -46,11 +48,11 @@ suite "Circuit Relay V2":
       src1 = createSwitch(cl1)
       src2 = createSwitch(cl2)
       rel = newStandardSwitch()
-      rv2 = RelayV2.new(rel,
+      rv2 = Relay.new(rel,
                         reservationTTL=initDuration(seconds=ttl),
                         limitDuration=ldur,
                         limitData=ldata,
-                        maxReservation=1)
+                        maxCircuit=1)
       rel.mount(rv2)
       await rv2.start()
       await src1.start()
@@ -96,13 +98,13 @@ suite "Circuit Relay V2":
 
     asynctest "Reservation over relay":
       let
-        rv2add = RelayV2.new(src2)
+        rv2add = Relay.new(src2)
         addrs = @[ MultiAddress.init($rel.peerInfo.addrs[0] & "/p2p/" &
                                      $rel.peerInfo.peerId & "/p2p-circuit/p2p/" &
                                      $src2.peerInfo.peerId).get() ]
       src2.mount(rv2add)
       await rv2add.start()
-      rv2.maxReservation.inc()
+      rv2.maxCircuit.inc()
 
       rsvp = await cl2.reserve(rel.peerInfo.peerId, rel.peerInfo.addrs)
       range = now().utc + (ttl-1).seconds..now().utc + (ttl+1).seconds
@@ -126,7 +128,7 @@ suite "Circuit Relay V2":
       ldata {.threadvar.}: uint64
       srcCl {.threadvar.}: Client
       dstCl {.threadvar.}: Client
-      rv2 {.threadvar.}: RelayV2
+      rv2 {.threadvar.}: Relay
       src {.threadvar.}: Switch
       dst {.threadvar.}: Switch
       rel {.threadvar.}: Switch
@@ -156,7 +158,7 @@ suite "Circuit Relay V2":
         check: "test3" == string.fromBytes(await conn.readLp(1024))
         await conn.writeLp("test4")
         await conn.close()
-      rv2 = RelayV2.new(rel,
+      rv2 = Relay.new(rel,
                         reservationTTL=initDuration(seconds=ttl),
                         limitDuration=ldur,
                         limitData=ldata)
@@ -189,7 +191,7 @@ suite "Circuit Relay V2":
         await sleepAsync(3000)
         await conn.writeLp("that was a cool power nap")
         await conn.close()
-      rv2 = RelayV2.new(rel,
+      rv2 = Relay.new(rel,
                         reservationTTL=initDuration(seconds=ttl),
                         limitDuration=ldur,
                         limitData=ldata)
@@ -233,7 +235,7 @@ people's hats off--then, I account it high time to get to sea as soon
 as I can. This is my substitute for pistol and ball. With a
 philosophical flourish Cato throws himself upon his sword; I quietly
 take to the ship.""")
-      rv2 = RelayV2.new(rel,
+      rv2 = Relay.new(rel,
                         reservationTTL=initDuration(seconds=ttl),
                         limitDuration=ldur,
                         limitData=ldata)
@@ -264,7 +266,7 @@ take to the ship.""")
         check: "test3" == string.fromBytes(await conn.readLp(1024))
         await conn.writeLp("test4")
         await conn.close()
-      rv2 = RelayV2.new(rel,
+      rv2 = Relay.new(rel,
                         reservationTTL=initDuration(seconds=ttl),
                         limitDuration=ldur,
                         limitData=ldata)
@@ -304,8 +306,8 @@ take to the ship.""")
       let
         rel2Cl = Client.new()
         rel2 = createSwitch(rel2Cl)
-        rv2 = RelayV2.new(rel)
-        rv2add = RelayV2.new(rel2)
+        rv2 = Relay.new(rel)
+        rv2add = Relay.new(rel2)
         addrs = @[ MultiAddress.init($rel.peerInfo.addrs[0] & "/p2p/" &
                                      $rel.peerInfo.peerId & "/p2p-circuit/p2p/" &
                                      $rel2.peerInfo.peerId & "/p2p/" &

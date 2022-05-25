@@ -4,6 +4,7 @@ import options, bearssl, chronos
 import stew/byteutils
 import ../libp2p/[protocols/relay/relayv1,
                   protocols/relay/messages,
+                  protocols/relay/utils,
                   multiaddress,
                   peerinfo,
                   peerid,

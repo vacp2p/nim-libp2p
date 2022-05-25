@@ -14,11 +14,14 @@ import ../../peerinfo,
 
 # Circuit Relay V1 Message
 
-macro enumFullRangeOrd(a: typed): untyped =
-  newNimNode(nnkBracket).add(a.getType[1][1..^1].mapIt(nnkCall.newTree(ident("ord"), it)))
+macro enumRangeOrd(a: typed): untyped =
+  let
+    values = a.getType[1][1..^1]
+    valuesOrded = values.mapIt(newCall("ord", it))
+  newNimNode(nnkBracket).add(valuesOrded)
 
-proc contains[T](e: type[T], v: int): bool =
-  v in enumFullRangeOrd(e)
+proc contains(e: type[enum], v: SomeInteger): bool =
+  v in enumRangeOrd(e)
 
 type
   RelayType* {.pure.} = enum

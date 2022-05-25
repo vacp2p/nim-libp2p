@@ -14,7 +14,8 @@ import
   switch, peerid, peerinfo, stream/connection, multiaddress,
   crypto/crypto, transports/[transport, tcptransport],
   muxers/[muxer, mplex/mplex],
-  protocols/[identify, secure/secure, secure/noise, relay/relayv1, relay/relayv2],
+  protocols/[identify, secure/secure, secure/noise],
+  protocols/relay/[relay, client, rtransport],
   connmanager, upgrademngrs/muxedupgrade,
   nameresolving/nameresolver,
   errors
@@ -49,8 +50,6 @@ type
     agentVersion: string
     nameResolver: NameResolver
     peerStoreCapacity: Option[int]
-    isCircuitRelay: bool
-    circuitRelayCanHop: bool
     circuitRelayClient: Client
 
 proc new*(T: type[SwitchBuilder]): T =
@@ -68,8 +67,7 @@ proc new*(T: type[SwitchBuilder]): T =
     maxOut: -1,
     maxConnsPerPeer: MaxConnectionsPerPeer,
     protoVersion: ProtoVersion,
-    agentVersion: AgentVersion,
-    isCircuitRelay: false)
+    agentVersion: AgentVersion)
 
 proc withPrivateKey*(b: SwitchBuilder, privateKey: PrivateKey): SwitchBuilder =
   b.privKey = some(privateKey)
@@ -153,12 +151,7 @@ proc withNameResolver*(b: SwitchBuilder, nameResolver: NameResolver): SwitchBuil
   b.nameResolver = nameResolver
   b
 
-proc withRelayTransport*(b: SwitchBuilder, canHop: bool): SwitchBuilder =
-  b.isCircuitRelay = true
-  b.circuitRelayCanHop = canHop
-  b
-
-proc withCircuitRelayV2*(b: SwitchBuilder, cl: Client): SwitchBuilder =
+proc withCircuitRelayTransport*(b: SwitchBuilder, cl: Client): SwitchBuilder =
   b.circuitRelayClient = cl
   b
 
@@ -227,15 +220,10 @@ proc build*(b: SwitchBuilder): Switch
     nameResolver = b.nameResolver,
     peerStore = peerStore)
 
-  if b.isCircuitRelay:
-    let relay = Relay.new(switch, b.circuitRelayCanHop)
-    switch.mount(relay)
-    switch.addTransport(RelayTransport.new(relay, muxedUpgrade))
-
   if not isNil(b.circuitRelayClient):
     b.circuitRelayClient.setup(switch)
     switch.mount(b.circuitRelayClient)
-    switch.addTransport(RelayV2Transport.new(b.circuitRelayClient, muxedUpgrade))
+    switch.addTransport(RelayTransport.new(b.circuitRelayClient, muxedUpgrade))
 
   return switch
 

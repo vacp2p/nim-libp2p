@@ -110,28 +110,30 @@ method connect*(
 method dial*(
   s: Switch,
   peerId: PeerId,
-  protos: seq[string]): Future[Connection] =
+  protos: seq[string]): Future[DialRes] =
   s.dialer.dial(peerId, protos)
 
 proc dial*(s: Switch,
            peerId: PeerId,
-           proto: string): Future[Connection] =
-  dial(s, peerId, @[proto])
+           proto: string): Future[Connection] {.async.} =
+  let (conn, _) = await dial(s, peerId, @[proto])
+  return conn
 
 method dial*(
   s: Switch,
   peerId: PeerId,
   addrs: seq[MultiAddress],
   protos: seq[string],
-  forceDial = false): Future[Connection] =
+  forceDial = false): Future[DialRes] =
   s.dialer.dial(peerId, addrs, protos, forceDial)
 
 proc dial*(
   s: Switch,
   peerId: PeerId,
   addrs: seq[MultiAddress],
-  proto: string): Future[Connection] =
-  dial(s, peerId, addrs, @[proto])
+  proto: string): Future[Connection] {.async.} =
+  let (conn, _) = await dial(s, peerId, addrs, @[proto])
+  return conn
 
 proc mount*[T: LPProtocol](s: Switch, proto: T, matcher: Matcher = nil)
   {.gcsafe, raises: [Defect, LPError].} =
