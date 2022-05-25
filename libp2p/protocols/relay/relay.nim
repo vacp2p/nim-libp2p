@@ -62,6 +62,7 @@ type
     maxCircuitPerPeer*: int
     msgSize*: int
     # RelayV1
+    isCircuitRelayV1: bool
     streamCount: int
     # RelayV2
     rsvp: Table[PeerId, DateTime]
@@ -312,19 +313,16 @@ proc new*(T: typedesc[Relay], switch: Switch,
      maxCircuit: int = MaxCircuit,
      maxCircuitPerPeer: int = MaxCircuitPerPeer,
      msgSize: int = MsgSize,
-     circuitRelayV1: bool = true): T =
+     circuitRelayV1: bool = false): T =
 
   let r = T(switch: switch,
-            codecs: if circuitRelayV1:
-              @[RelayV1Codec, RelayV2HopCodec]
-            else:
-              @[RelayV2HopCodec],
             reservationTTL: reservationTTL,
             limit: Limit(duration: limitDuration, data: limitData),
             heartbeatSleepTime: heartbeatSleepTime,
             maxCircuit: maxCircuit,
             maxCircuitPerPeer: maxCircuitPerPeer,
-            msgSize: msgSize)
+            msgSize: msgSize,
+            isCircuitRelayV1: circuitRelayV1)
 
   proc handleStream(conn: Connection, proto: string) {.async, gcsafe.} =
     try:
@@ -341,6 +339,8 @@ proc new*(T: typedesc[Relay], switch: Switch,
 
   r.switch.addPeerEventHandler(
     proc (peerId: PeerId, event: PeerEvent) {.async.} = r.rsvp.del(peerId), Left)
+  r.codecs = if r.isCircuitRelayV1: @[RelayV1Codec]
+             else: @[RelayV2HopCodec, RelayV1Codec]
   r.handler = handleStream
   r
 
