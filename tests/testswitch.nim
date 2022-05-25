@@ -811,7 +811,7 @@ suite "Switch":
     let switch1 = newStandardSwitch()
     switch1.mount(testProto)
 
-    let switch2 = newStandardSwitch()
+    let switch2 = newStandardSwitch(peerStoreCapacity = 0)
     await switch1.start()
     await switch2.start()
 
@@ -834,11 +834,11 @@ suite "Switch":
     check not switch2.isConnected(switch1.peerInfo.peerId)
 
     check:
-      switch1.peerStore.addressBook.get(switch2.peerInfo.peerId) == switch2.peerInfo.addrs.toHashSet()
-      switch2.peerStore.addressBook.get(switch1.peerInfo.peerId) == switch1.peerInfo.addrs.toHashSet()
+      switch1.peerStore[AddressBook][switch2.peerInfo.peerId] == switch2.peerInfo.addrs
+      switch1.peerStore[ProtoBook][switch2.peerInfo.peerId] == switch2.peerInfo.protocols
 
-      switch1.peerStore.protoBook.get(switch2.peerInfo.peerId) == switch2.peerInfo.protocols.toHashSet()
-      switch2.peerStore.protoBook.get(switch1.peerInfo.peerId) == switch1.peerInfo.protocols.toHashSet()
+      switch1.peerInfo.peerId notin switch2.peerStore[AddressBook]
+      switch1.peerInfo.peerId notin switch2.peerStore[ProtoBook]
 
   asyncTest "e2e should allow multiple local addresses":
     when defined(windows):

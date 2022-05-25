@@ -281,7 +281,8 @@ proc newSwitch*(peerInfo: PeerInfo,
                 secureManagers: openArray[Secure] = [],
                 connManager: ConnManager,
                 ms: MultistreamSelect,
-                nameResolver: NameResolver = nil): Switch
+                nameResolver: NameResolver = nil,
+                peerStore = PeerStore.new()): Switch
                 {.raises: [Defect, LPError].} =
   if secureManagers.len == 0:
     raise newException(LPError, "Provide at least one secure manager")
@@ -291,10 +292,10 @@ proc newSwitch*(peerInfo: PeerInfo,
     ms: ms,
     transports: transports,
     connManager: connManager,
-    peerStore: PeerStore.new(),
+    peerStore: peerStore,
     dialer: Dialer.new(peerInfo.peerId, connManager, transports, ms, nameResolver),
     nameResolver: nameResolver)
 
-  switch.connManager.peerStore = switch.peerStore
+  switch.connManager.peerStore = peerStore
   switch.mount(identity)
   return switch

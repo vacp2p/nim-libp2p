@@ -86,13 +86,13 @@ proc peerExchangeList*(g: GossipSub, topic: string): seq[PeerInfoMsg] {.raises: 
       x.score >= 0.0
   # by spec, larger then Dhi, but let's put some hard caps
   peers.setLen(min(peers.len, g.parameters.dHigh * 2))
-  let sprBook = g.switch.peerStore.signedPeerRecordBook
+  let sprBook = g.switch.peerStore[SPRBook]
   peers.map do (x: PubSubPeer) -> PeerInfoMsg:
     PeerInfoMsg(
       peerId: x.peerId,
       signedPeerRecord:
         if x.peerId in sprBook:
-          sprBook.get(x.peerId).encode().get(default(seq[byte]))
+          sprBook[x.peerId].encode().get(default(seq[byte]))
         else:
           default(seq[byte])
       )

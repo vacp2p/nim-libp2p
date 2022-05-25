@@ -28,170 +28,107 @@ suite "PeerStore":
     var
       peerStore = PeerStore.new()
 
-    peerStore.addressBook.add(peerId1, multiaddr1)
-    peerStore.addressBook.add(peerId2, multiaddr2)
-    peerStore.protoBook.add(peerId1, testcodec1)
-    peerStore.protoBook.add(peerId2, testcodec2)
-    peerStore.keyBook.set(peerId1, keyPair1.pubkey)
-    peerStore.keyBook.set(peerId2, keyPair2.pubkey)
+    peerStore[AddressBook][peerId1] = @[multiaddr1]
+    peerStore[AddressBook][peerId2] = @[multiaddr2]
+    peerStore[ProtoBook][peerId1] = @[testcodec1]
+    peerStore[ProtoBook][peerId2] = @[testcodec2]
+    peerStore[KeyBook][peerId1] = keyPair1.pubkey
+    peerStore[KeyBook][peerId2] = keyPair2.pubkey
 
-    # Test PeerStore::delete
-    check:
-      # Delete existing peerId
-      peerStore.delete(peerId1) == true
-      peerId1 notin peerStore.addressBook
+    # Test PeerStore::del
+    # Delete existing peerId
+    peerStore.del(peerId1)
+    check peerId1 notin peerStore[AddressBook]
+    # Now try and del it again
+    peerStore.del(peerId1)
 
-      # Now try and delete it again
-      peerStore.delete(peerId1) == false
 
   test "PeerStore listeners":
     # Set up peer store with listener
     var
       peerStore = PeerStore.new()
       addrChanged = false
-      protoChanged = false
-      keyChanged = false
 
-    proc addrChange(peerId: PeerId, addrs: HashSet[MultiAddress]) =
+    proc addrChange(peerId: PeerId) {.gcsafe.} =
       addrChanged = true
 
-    proc protoChange(peerId: PeerId, protos: HashSet[string]) =
-      protoChanged = true
-
-    proc keyChange(peerId: PeerId, publicKey: PublicKey) =
-      keyChanged = true
-
-    peerStore.addHandlers(addrChangeHandler = addrChange,
-                          protoChangeHandler = protoChange,
-                          keyChangeHandler = keyChange)
+    peerStore[AddressBook].addHandler(addrChange)
 
     # Test listener triggered on adding multiaddr
-    peerStore.addressBook.add(peerId1, multiaddr1)
-    check:
-      addrChanged == true
+    peerStore[AddressBook][peerId1] = @[multiaddr1]
+    check: addrChanged == true
 
-    # Test listener triggered on setting addresses
     addrChanged = false
-    peerStore.addressBook.set(peerId2,
-                              toHashSet([multiaddr1, multiaddr2]))
     check:
+      peerStore[AddressBook].del(peerId1) == true
       addrChanged == true
 
-    # Test listener triggered on adding proto
-    peerStore.protoBook.add(peerId1, testcodec1)
-    check:
-      protoChanged == true
-
-    # Test listener triggered on setting protos
-    protoChanged = false
-    peerStore.protoBook.set(peerId2,
-                            toHashSet([testcodec1, testcodec2]))
-    check:
-      protoChanged == true
-
-    # Test listener triggered on setting public key
-    peerStore.keyBook.set(peerId1,
-                          keyPair1.pubkey)
-    check:
-      keyChanged == true
-
-    # Test listener triggered on changing public key
-    keyChanged = false
-    peerStore.keyBook.set(peerId1,
-                          keyPair2.pubkey)
-    check:
-      keyChanged == true
-
-  test "AddressBook API":
+  test "PeerBook API":
     # Set up address book
-    var
-      addressBook = PeerStore.new().addressBook
+    var addressBook = PeerStore.new()[AddressBook]
 
     # Test AddressBook::add
-    addressBook.add(peerId1, multiaddr1)
+    addressBook[peerId1] = @[multiaddr1]
 
     check:
       toSeq(keys(addressBook.book))[0] == peerId1
-      toSeq(values(addressBook.book))[0] == toHashSet([multiaddr1])
+      toSeq(values(addressBook.book))[0] == @[multiaddr1]
 
     # Test AddressBook::get
     check:
-      addressBook.get(peerId1) == toHashSet([multiaddr1])
+      addressBook[peerId1] == @[multiaddr1]
 
-    # Test AddressBook::delete
+    # Test AddressBook::del
     check:
-      # Try to delete peerId that doesn't exist
-      addressBook.delete(peerId2) == false
+      # Try to del peerId that doesn't exist
+      addressBook.del(peerId2) == false
 
       # Delete existing peerId
       addressBook.book.len == 1 # sanity
-      addressBook.delete(peerId1) == true
+      addressBook.del(peerId1) == true
       addressBook.book.len == 0
 
     # Test AddressBook::set
     # Set peerId2 with multiple multiaddrs
-    addressBook.set(peerId2,
-                toHashSet([multiaddr1, multiaddr2]))
+    addressBook[peerId2] = @[multiaddr1, multiaddr2]
     check:
       toSeq(keys(addressBook.book))[0] == peerId2
-      toSeq(values(addressBook.book))[0] == toHashSet([multiaddr1, multiaddr2])
+      toSeq(values(addressBook.book))[0] == @[multiaddr1, multiaddr2]
 
-  test "ProtoBook API":
-    # Set up protocol book
-    var
-      protoBook = PeerStore.new().protoBook
+  test "Pruner - no capacity":
+    let peerStore = PeerStore.new(capacity = 0)
+    peerStore[AgentBook][peerId1] = "gds"
 
-    # Test ProtoBook::add
-    protoBook.add(peerId1, testcodec1)
+    peerStore.cleanup(peerId1)
 
+    check peerId1 notin peerStore[AgentBook]
+
+  test "Pruner - FIFO":
+    let peerStore = PeerStore.new(capacity = 1)
+    peerStore[AgentBook][peerId1] = "gds"
+    peerStore[AgentBook][peerId2] = "gds"
+    peerStore.cleanup(peerId2)
+    peerStore.cleanup(peerId1)
     check:
-      toSeq(keys(protoBook.book))[0] == peerId1
-      toSeq(values(protoBook.book))[0] == toHashSet([testcodec1])
+      peerId1 in peerStore[AgentBook]
+      peerId2 notin peerStore[AgentBook]
 
-    # Test ProtoBook::get
-    check:
-      protoBook.get(peerId1) == toHashSet([testcodec1])
+  test "Pruner - regular capacity":
+    var peerStore = PeerStore.new(capacity = 20)
 
-    # Test ProtoBook::delete
-    check:
-      # Try to delete peerId that doesn't exist
-      protoBook.delete(peerId2) == false
+    for i in 0..<30:
+      let randomPeerId = PeerId.init(KeyPair.random(ECDSA, rng[]).get().pubkey).get()
+      peerStore[AgentBook][randomPeerId] = "gds"
+      peerStore.cleanup(randomPeerId)
 
-      # Delete existing peerId
-      protoBook.book.len == 1 # sanity
-      protoBook.delete(peerId1) == true
-      protoBook.book.len == 0
+    check peerStore[AgentBook].len == 20
 
-    # Test ProtoBook::set
-    # Set peerId2 with multiple protocols
-    protoBook.set(peerId2,
-                  toHashSet([testcodec1, testcodec2]))
-    check:
-      toSeq(keys(protoBook.book))[0] == peerId2
-      toSeq(values(protoBook.book))[0] == toHashSet([testcodec1, testcodec2])
+  test "Pruner - infinite capacity":
+    var peerStore = PeerStore.new(capacity = -1)
 
-  test "KeyBook API":
-    # Set up key book
-    var
-      keyBook = PeerStore.new().keyBook
+    for i in 0..<30:
+      let randomPeerId = PeerId.init(KeyPair.random(ECDSA, rng[]).get().pubkey).get()
+      peerStore[AgentBook][randomPeerId] = "gds"
+      peerStore.cleanup(randomPeerId)
 
-    # Test KeyBook::set
-    keyBook.set(peerId1,
-                keyPair1.pubkey)
-    check:
-      toSeq(keys(keyBook.book))[0] == peerId1
-      toSeq(values(keyBook.book))[0] == keyPair1.pubkey
-
-    # Test KeyBook::get
-    check:
-      keyBook.get(peerId1) == keyPair1.pubkey
-
-    # Test KeyBook::delete
-    check:
-      # Try to delete peerId that doesn't exist
-      keyBook.delete(peerId2) == false
-
-      # Delete existing peerId
-      keyBook.book.len == 1 # sanity
-      keyBook.delete(peerId1) == true
-      keyBook.book.len == 0
+    check peerStore[AgentBook].len == 30
