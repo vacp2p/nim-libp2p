@@ -86,12 +86,17 @@ proc withSignedPeerRecord*(b: SwitchBuilder, sendIt = true): SwitchBuilder =
   b.sendSignedPeerRecord = sendIt
   b
 
-proc withMplex*(b: SwitchBuilder, inTimeout = 5.minutes, outTimeout = 5.minutes): SwitchBuilder =
+proc withMplex*(
+    b: SwitchBuilder,
+    inTimeout = 5.minutes,
+    outTimeout = 5.minutes,
+    maxChannCount = 200): SwitchBuilder =
   proc newMuxer(conn: Connection): Muxer =
     Mplex.new(
       conn,
-      inTimeout = inTimeout,
-      outTimeout = outTimeout)
+      inTimeout,
+      outTimeout,
+      maxChannCount)
 
   b.mplexOpts = MplexOpts(
     enable: true,
