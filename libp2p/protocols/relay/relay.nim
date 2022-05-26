@@ -45,7 +45,7 @@ const
   MaxCircuitPerPeer = 16
 
 logScope:
-  topics = "libp2p relayv2"
+  topics = "libp2p relay"
 
 type
   RelayV2Error* = object of LPError
