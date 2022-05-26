@@ -2,7 +2,8 @@ import options, tables
 import chronos, chronicles, stew/byteutils
 import helpers
 import ../libp2p
-import ../libp2p/[daemon/daemonapi, varint, transports/wstransport, crypto/crypto, protocols/relay ]
+import ../libp2p/[daemon/daemonapi, varint, transports/wstransport, crypto/crypto]
+import ../libp2p/protocols/relay/[relay, client, rtransport, utils]
 
 type
   DaemonPeerInfo = daemonapi.PeerInfo
@@ -472,7 +473,8 @@ suite "Interop":
   asyncTest "gossipsub: node publish many":
     await testPubSubNodePublish(gossip = true, count = 10)
 
-  asyncTest "NativeSrc -> NativeRelay -> DaemonDst":
+suite "Interop Circuit Relay V1":
+  asyncTest "NativeSrc -> NativeRelayV1 -> DaemonDst":
     proc daemonHandler(api: DaemonAPI, stream: P2PStream) {.async.} =
       check "line1" == string.fromBytes(await stream.transp.readLp())
       discard await stream.transp.writeLp("line2")
@@ -482,35 +484,32 @@ suite "Interop":
     let
       maSrc = MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
       maRel = MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
+      clSrc = Client.new()
       src = SwitchBuilder.new()
         .withRng(crypto.newRng())
         .withAddresses(@[ maSrc ])
         .withTcpTransport()
         .withMplex()
         .withNoise()
-        .withRelayTransport(false)
+        .withCircuitRelayTransport(clSrc)
         .build()
-      rel = SwitchBuilder.new()
-        .withRng(crypto.newRng())
-        .withAddresses(@[ maRel ])
-        .withTcpTransport()
-        .withMplex()
-        .withNoise()
-        .withRelayTransport(true)
-        .build()
+      srelay = newStandardSwitch()
+      r = Relay.new(srelay, circuitRelayV1=true)
 
+    srelay.mount(r)
+    await r.start()
     await src.start()
-    await rel.start()
+    await srelay.start()
     let daemonNode = await newDaemonApi()
     let daemonPeer = await daemonNode.identity()
-    let maStr = $rel.peerInfo.addrs[0] & "/p2p/" & $rel.peerInfo.peerId & "/p2p-circuit/p2p/" & $daemonPeer.peer
+    let maStr = $srelay.peerInfo.addrs[0] & "/p2p/" & $srelay.peerInfo.peerId & "/p2p-circuit/p2p/" & $daemonPeer.peer
     let maddr = MultiAddress.init(maStr).tryGet()
-    await src.connect(rel.peerInfo.peerId, rel.peerInfo.addrs)
-    await rel.connect(daemonPeer.peer, daemonPeer.addresses)
+    await src.connect(srelay.peerInfo.peerId, srelay.peerInfo.addrs)
+    await srelay.connect(daemonPeer.peer, daemonPeer.addresses)
 
     await daemonNode.addHandler(@[ "/testCustom" ], daemonHandler)
 
-    let conn = await src.dial(daemonPeer.peer, @[ maddr ], @[ "/testCustom" ])
+    let conn = await src.dial(daemonPeer.peer, @[ maddr ], "/testCustom")
 
     await conn.writeLp("line1")
     check string.fromBytes(await conn.readLp(1024)) == "line2"
@@ -518,10 +517,10 @@ suite "Interop":
     await conn.writeLp("line3")
     check string.fromBytes(await conn.readLp(1024)) == "line4"
 
-    await allFutures(src.stop(), rel.stop())
+    await allFutures(src.stop(), srelay.stop())
     await daemonNode.close()
 
-  asyncTest "DaemonSrc -> NativeRelay -> NativeDst":
+  asyncTest "DaemonSrc -> NativeRelayV1 -> NativeDst":
     proc customHandler(conn: Connection, proto: string) {.async.} =
       check "line1" == string.fromBytes(await conn.readLp(1024))
       await conn.writeLp("line2")
@@ -529,7 +528,7 @@ suite "Interop":
       await conn.writeLp("line4")
       await conn.close()
     let
-      protos = @[ "/customProto", RelayCodec ]
+      protos = @[ "/customProto", RelayV1Codec ]
     var
       customProto = new LPProtocol
     customProto.handler = customHandler
@@ -537,32 +536,29 @@ suite "Interop":
     let
       maRel = MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
       maDst = MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
-      rel = SwitchBuilder.new()
-        .withRng(crypto.newRng())
-        .withAddresses(@[ maRel ])
-        .withTcpTransport()
-        .withMplex()
-        .withNoise()
-        .withRelayTransport(true)
-        .build()
+      clDst = Client.new()
       dst = SwitchBuilder.new()
         .withRng(crypto.newRng())
         .withAddresses(@[ maDst ])
         .withTcpTransport()
         .withMplex()
         .withNoise()
-        .withRelayTransport(false)
+        .withCircuitRelayTransport(clDst)
         .build()
+      srelay = newStandardSwitch()
+      r = Relay.new(srelay, circuitRelayV1=true)
 
+    srelay.mount(r)
     dst.mount(customProto)
-    await rel.start()
+    await r.start()
+    await srelay.start()
     await dst.start()
     let daemonNode = await newDaemonApi()
     let daemonPeer = await daemonNode.identity()
-    let maStr = $rel.peerInfo.addrs[0] & "/p2p/" & $rel.peerInfo.peerId & "/p2p-circuit/p2p/" & $dst.peerInfo.peerId
+    let maStr = $srelay.peerInfo.addrs[0] & "/p2p/" & $srelay.peerInfo.peerId & "/p2p-circuit/p2p/" & $dst.peerInfo.peerId
     let maddr = MultiAddress.init(maStr).tryGet()
-    await daemonNode.connect(rel.peerInfo.peerId, rel.peerInfo.addrs)
-    await rel.connect(dst.peerInfo.peerId, dst.peerInfo.addrs)
+    await daemonNode.connect(srelay.peerInfo.peerId, srelay.peerInfo.addrs)
+    await srelay.connect(dst.peerInfo.peerId, dst.peerInfo.addrs)
     await daemonNode.connect(dst.peerInfo.peerId, @[ maddr ])
     var stream = await daemonNode.openStream(dst.peerInfo.peerId, protos)
 
@@ -571,10 +567,10 @@ suite "Interop":
     discard await stream.transp.writeLp("line3")
     check string.fromBytes(await stream.transp.readLp()) == "line4"
 
-    await allFutures(dst.stop(), rel.stop())
+    await allFutures(dst.stop(), srelay.stop())
     await daemonNode.close()
 
-  asyncTest "NativeSrc -> DaemonRelay -> NativeDst":
+  asyncTest "NativeSrc -> DaemonRelayV1 -> NativeDst":
     proc customHandler(conn: Connection, proto: string) {.async.} =
       check "line1" == string.fromBytes(await conn.readLp(1024))
       await conn.writeLp("line2")
@@ -582,7 +578,7 @@ suite "Interop":
       await conn.writeLp("line4")
       await conn.close()
     let
-      protos = @[ "/customProto", RelayCodec ]
+      protos = @[ "/customProto", RelayV1Codec ]
     var
       customProto = new LPProtocol
     customProto.handler = customHandler
@@ -590,13 +586,15 @@ suite "Interop":
     let
       maSrc = MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
       maDst = MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
+      clSrc = Client.new()
+      clDst = Client.new()
       src = SwitchBuilder.new()
         .withRng(crypto.newRng())
         .withAddresses(@[ maSrc ])
         .withTcpTransport()
         .withMplex()
         .withNoise()
-        .withRelayTransport(false)
+        .withCircuitRelayTransport(clSrc)
         .build()
       dst = SwitchBuilder.new()
         .withRng(crypto.newRng())
@@ -604,7 +602,7 @@ suite "Interop":
         .withTcpTransport()
         .withMplex()
         .withNoise()
-        .withRelayTransport(false)
+        .withCircuitRelayTransport(clDst)
         .build()
 
     dst.mount(customProto)
