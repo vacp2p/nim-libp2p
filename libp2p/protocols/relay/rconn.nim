@@ -8,8 +8,7 @@
 ## those terms.
 
 import chronos
-import ./messages,
-       ../../stream/connection
+import ../../stream/connection
 
 type
   RelayConnection* = ref object of Connection

@@ -8,7 +8,7 @@
 ## those terms.
 
 import options
-import strutils, sequtils, tables
+import sequtils, tables
 import chronos, chronicles
 
 import ./messages,
