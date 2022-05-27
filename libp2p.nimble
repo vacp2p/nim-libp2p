@@ -23,13 +23,13 @@ const nimflags =
   "--warning[CaseTransition]:off --warning[ObservableStores]:off " &
   "--warning[LockLevel]:off " &
   "-d:chronosStrictException " &
-  "--styleCheck:usages --styleCheck:hint " &
-  "-d:chronicles_sinks=textlines[stdout],json[dynamic] -d:chronicles_log_level=TRACE " &
-  "-d:chronicles_runtime_filtering=TRUE "
+  "--styleCheck:usages --styleCheck:hint "
 
 proc runTest(filename: string, verify: bool = true, sign: bool = true,
              moreoptions: string = "") =
   var excstr = "nim c --opt:speed -d:debug -d:libp2p_agents_metrics -d:libp2p_protobuf_metrics -d:libp2p_network_protocols_metrics -d:libp2p_mplex_metrics "
+  excstr.add(" -d:chronicles_sinks=textlines[stdout],json[dynamic] -d:chronicles_log_level=TRACE ")
+  excstr.add(" -d:chronicles_runtime_filtering=TRUE ")
   excstr.add(" " & getEnv("NIMFLAGS") & " ")
   excstr.add(" " & nimflags & " ")
   excstr.add(" -d:libp2p_pubsub_sign=" & $sign)
