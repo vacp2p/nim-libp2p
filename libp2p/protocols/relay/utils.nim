@@ -70,9 +70,9 @@ proc bridge*(connSrc: Connection, connDst: Connection) {.async.} =
     raise exc
   except CatchableError as exc:
     if connSrc.closed() or connSrc.atEof():
-      trace "relay src closed connection", src
+      trace "relay src closed connection", src = connSrc.peerId
     if connDst.closed() or connDst.atEof():
-      trace "relay dst closed connection", dst
+      trace "relay dst closed connection", dst = connDst.peerId
     trace "relay error", exc=exc.msg
   trace "end relaying", bytesSendFromSrcToDst, bytesSendFromDstToSrc
   await futSrc.cancelAndWait()
