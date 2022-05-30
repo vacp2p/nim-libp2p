@@ -39,8 +39,7 @@ func shortLog*(pid: PeerId): string =
   if len(spid) > 10:
     spid[3] = '*'
     
-    # reminder to remove this once we stop supporting 1.2
-    when (NimMajor, NimMinor) > (1, 2):
+    when (NimMajor, NimMinor) > (1, 4):
       spid.delete(4 .. spid.high - 6)
     else:
       spid.delete(4, spid.high - 6)
