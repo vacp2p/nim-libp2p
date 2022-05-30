@@ -347,11 +347,9 @@ proc new*(T: typedesc[Relay], switch: Switch,
 proc deletesReservation(r: Relay) {.async.} =
   heartbeat "Reservation timeout", r.heartbeatSleepTime.seconds():
     let n = now().utc
-    var rsvp = r.rsvp
-    for k, v in r.rsvp.mpairs:
-      if n > v:
-        rsvp.del(k)
-    r.rsvp = rsvp
+    for k in toSeq(r.rsvp.keys):
+      if n > r.rsvp[k]:
+        r.rsvp.del(k)
 
 proc start*(r: Relay) {.async.} =
   if not r.reservationLoop.isNil:
