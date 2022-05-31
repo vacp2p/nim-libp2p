@@ -14,14 +14,25 @@ import ../../peerinfo,
 
 # Circuit Relay V1 Message
 
-macro enumRangeOrd(a: typed): untyped =
+# TODO: Eventually remove those three macros/proc & replace it by stew/objects
+macro enumRangeOrd(a: type[enum]): untyped =
   let
     values = a.getType[1][1..^1]
     valuesOrded = values.mapIt(newCall("ord", it))
   newNimNode(nnkBracket).add(valuesOrded)
 
-proc contains(e: type[enum], v: SomeInteger): bool =
-  v in enumRangeOrd(e)
+macro hasHoles*(T: type[enum]): bool =
+  let len = T.getType[1].len - 2
+  quote: `T`.high.ord - `T`.low.ord != `len`
+
+proc contains[I: SomeInteger](e: type[enum], v: I): bool =
+  when I is uint64:
+    if v > int.high.uint64:
+      return false
+  when e.hasHoles():
+    v.int64 in enumRangeOrd(e).mapIt(it.int64)
+  else:
+    v.int64 in e.low.int64 .. e.high.int64
 
 type
   RelayType* {.pure.} = enum
