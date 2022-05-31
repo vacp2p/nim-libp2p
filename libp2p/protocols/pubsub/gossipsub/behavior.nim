@@ -14,7 +14,7 @@ import chronos, chronicles, metrics
 import "."/[types, scoring]
 import ".."/[pubsubpeer, peertable, timedcache, mcache, floodsub, pubsub]
 import "../rpc"/[messages]
-import "../../.."/[peerid, multiaddress, utility, switch, routing_record, signed_envelope]
+import "../../.."/[peerid, multiaddress, utility, switch, routing_record, signed_envelope, utils/heartbeat]
 
 declareGauge(libp2p_gossipsub_cache_window_size, "the number of messages in the cache")
 declareGauge(libp2p_gossipsub_peers_per_topic_mesh, "gossipsub peers per topic in mesh", labels = ["topic"])
@@ -79,18 +79,20 @@ proc handleBackingOff*(t: var BackoffTable, topic: string) {.raises: [Defect].} 
       v[].del(peer)
 
 proc peerExchangeList*(g: GossipSub, topic: string): seq[PeerInfoMsg] {.raises: [Defect].} =
+  if not g.parameters.enablePX:
+    return @[]
   var peers = g.gossipsub.getOrDefault(topic, initHashSet[PubSubPeer]()).toSeq()
   peers.keepIf do (x: PubSubPeer) -> bool:
       x.score >= 0.0
   # by spec, larger then Dhi, but let's put some hard caps
   peers.setLen(min(peers.len, g.parameters.dHigh * 2))
-  let sprBook = g.switch.peerStore.signedPeerRecordBook
+  let sprBook = g.switch.peerStore[SPRBook]
   peers.map do (x: PubSubPeer) -> PeerInfoMsg:
     PeerInfoMsg(
       peerId: x.peerId,
       signedPeerRecord:
         if x.peerId in sprBook:
-          sprBook.get(x.peerId).encode().get(default(seq[byte]))
+          sprBook[x.peerId].encode().get(default(seq[byte]))
         else:
           default(seq[byte])
       )
@@ -310,22 +312,29 @@ proc rebalanceMesh*(g: GossipSub, topic: string, metrics: ptr MeshMetrics = nil)
   var
     prunes, grafts: seq[PubSubPeer]
     npeers = g.mesh.peers(topic)
+    defaultMesh: HashSet[PubSubPeer]
+    backingOff = g.backingOff.getOrDefault(topic)
 
   if npeers  < g.parameters.dLow:
     trace "replenishing mesh", peers = npeers
     # replenish the mesh if we're below Dlo
-    var candidates = toSeq(
-      g.gossipsub.getOrDefault(topic, initHashSet[PubSubPeer]()) -
-      g.mesh.getOrDefault(topic, initHashSet[PubSubPeer]())
-    ).filterIt(
-      it.connected and
-      # avoid negative score peers
-      it.score >= 0.0 and
-      # don't pick explicit peers
-      it.peerId notin g.parameters.directPeers and
-      # and avoid peers we are backing off
-      it.peerId notin g.backingOff.getOrDefault(topic)
-    )
+
+    var
+      candidates: seq[PubSubPeer]
+      currentMesh = addr defaultMesh
+    g.mesh.withValue(topic, v): currentMesh = v
+    g.gossipSub.withValue(topic, peerList):
+      for it in peerList[]:
+        if
+            it.connected and
+            # avoid negative score peers
+            it.score >= 0.0 and
+            it notin currentMesh[] and
+            # don't pick explicit peers
+            it.peerId notin g.parameters.directPeers and
+            # and avoid peers we are backing off
+            it.peerId notin backingOff:
+          candidates.add(it)
 
     # shuffle anyway, score might be not used
     g.rng.shuffle(candidates)
@@ -346,39 +355,43 @@ proc rebalanceMesh*(g: GossipSub, topic: string, metrics: ptr MeshMetrics = nil)
           grafts &= peer
 
   else:
-      trace "replenishing mesh outbound quota", peers = g.mesh.peers(topic)
+    trace "replenishing mesh outbound quota", peers = g.mesh.peers(topic)
 
-      var candidates = toSeq(
-        g.gossipsub.getOrDefault(topic, initHashSet[PubSubPeer]()) -
-        g.mesh.getOrDefault(topic, initHashSet[PubSubPeer]())
-      ).filterIt(
-        it.connected and
-        # get only outbound ones
-        it.outbound and
-        # avoid negative score peers
-        it.score >= 0.0 and
-        # don't pick explicit peers
-        it.peerId notin g.parameters.directPeers and
-        # and avoid peers we are backing off
-        it.peerId notin g.backingOff.getOrDefault(topic)
-      )
+    var
+      candidates: seq[PubSubPeer]
+      currentMesh = addr defaultMesh
+    g.mesh.withValue(topic, v): currentMesh = v
+    g.gossipSub.withValue(topic, peerList):
+      for it in peerList[]:
+        if
+            it.connected and
+            # get only outbound ones
+            it.outbound and
+            it notin currentMesh[] and
+            # avoid negative score peers
+            it.score >= 0.0 and
+            # don't pick explicit peers
+            it.peerId notin g.parameters.directPeers and
+            # and avoid peers we are backing off
+            it.peerId notin backingOff:
+          candidates.add(it)
 
-      # shuffle anyway, score might be not used
-      g.rng.shuffle(candidates)
+    # shuffle anyway, score might be not used
+    g.rng.shuffle(candidates)
 
-      # sort peers by score, high score first, we are grafting
-      candidates.sort(byScore, SortOrder.Descending)
+    # sort peers by score, high score first, we are grafting
+    candidates.sort(byScore, SortOrder.Descending)
 
-      # Graft peers so we reach a count of D
-      candidates.setLen(min(candidates.len, g.parameters.dOut))
+    # Graft peers so we reach a count of D
+    candidates.setLen(min(candidates.len, g.parameters.dOut))
 
-      trace "grafting outbound peers", topic, peers = candidates.len
+    trace "grafting outbound peers", topic, peers = candidates.len
 
-      for peer in candidates:
-        if g.mesh.addPeer(topic, peer):
-          g.grafted(peer, topic)
-          g.fanout.removePeer(topic, peer)
-          grafts &= peer
+    for peer in candidates:
+      if g.mesh.addPeer(topic, peer):
+        g.grafted(peer, topic)
+        g.fanout.removePeer(topic, peer)
+        grafts &= peer
 
 
   # get again npeers after possible grafts
@@ -437,6 +450,8 @@ proc rebalanceMesh*(g: GossipSub, topic: string, metrics: ptr MeshMetrics = nil)
         g.pruned(peer, topic)
         g.mesh.removePeer(topic, peer)
 
+      backingOff = g.backingOff.getOrDefault(topic)
+
   # opportunistic grafting, by spec mesh should not be empty...
   if g.mesh.peers(topic) > 1:
     var peers = toSeq(try: g.mesh[topic] except KeyError: raiseAssert "have peers")
@@ -446,22 +461,26 @@ proc rebalanceMesh*(g: GossipSub, topic: string, metrics: ptr MeshMetrics = nil)
     let median = peers[medianIdx]
     if median.score < g.parameters.opportunisticGraftThreshold:
       trace "median score below opportunistic threshold", score = median.score
-      var avail = toSeq(
-        g.gossipsub.getOrDefault(topic, initHashSet[PubSubPeer]()) -
-        g.mesh.getOrDefault(topic, initHashSet[PubSubPeer]())
-      )
 
-      avail.keepIf do (x: PubSubPeer) -> bool:
-        # avoid negative score peers
-        x.score >= median.score and
-        # don't pick explicit peers
-        x.peerId notin g.parameters.directPeers and
-        # and avoid peers we are backing off
-        x.peerId notin g.backingOff.getOrDefault(topic)
+      var
+        avail: seq[PubSubPeer]
+        currentMesh = addr defaultMesh
+      g.mesh.withValue(topic, v): currentMesh = v
+      g.gossipSub.withValue(topic, peerList):
+        for it in peerList[]:
+          if
+              # avoid negative score peers
+              it.score >= median.score and
+              it notin currentMesh[] and
+              # don't pick explicit peers
+              it.peerId notin g.parameters.directPeers and
+              # and avoid peers we are backing off
+              it.peerId notin backingOff:
+            avail.add(it)
 
-      # by spec, grab only 2
-      if avail.len > 2:
-        avail.setLen(2)
+            # by spec, grab only 2
+            if avail.len > 1:
+              break
 
       for peer in avail:
         if g.mesh.addPeer(topic, peer):
@@ -606,8 +625,6 @@ proc onHeartbeat(g: GossipSub) {.raises: [Defect].} =
         peer.iWantBudget = IWantPeerBudget
         peer.iHaveBudget = IHavePeerBudget
 
-    g.updateScores()
-
     var meshMetrics = MeshMetrics()
 
     for t in toSeq(g.topics.keys):
@@ -661,12 +678,10 @@ proc onHeartbeat(g: GossipSub) {.raises: [Defect].} =
 # {.pop.} # raises [Defect]
 
 proc heartbeat*(g: GossipSub) {.async.} =
-  while g.heartbeatRunning:
+  heartbeat "GossipSub", g.parameters.heartbeatInterval:
     trace "running heartbeat", instance = cast[int](g)
     g.onHeartbeat()
 
     for trigger in g.heartbeatEvents:
       trace "firing heartbeat event", instance = cast[int](g)
       trigger.fire()
-
-    await sleepAsync(g.parameters.heartbeatInterval)

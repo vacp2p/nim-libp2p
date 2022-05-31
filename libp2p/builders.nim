@@ -23,7 +23,7 @@ import
   switch, peerid, peerinfo, stream/connection, multiaddress,
   crypto/crypto, transports/[transport, tcptransport],
   muxers/[muxer, mplex/mplex],
-  protocols/[identify, secure/secure, secure/noise],
+  protocols/[identify, secure/secure, secure/noise, relay],
   connmanager, upgrademngrs/muxedupgrade,
   nameresolving/nameresolver,
   errors, utility
@@ -57,6 +57,9 @@ type
     protoVersion: string
     agentVersion: string
     nameResolver: NameResolver
+    peerStoreCapacity: Option[int]
+    isCircuitRelay: bool
+    circuitRelayCanHop: bool
 
 proc new*(T: type[SwitchBuilder]): T {.public.} =
   ## Creates a SwitchBuilder
@@ -74,7 +77,8 @@ proc new*(T: type[SwitchBuilder]): T {.public.} =
     maxOut: -1,
     maxConnsPerPeer: MaxConnectionsPerPeer,
     protoVersion: ProtoVersion,
-    agentVersion: AgentVersion)
+    agentVersion: AgentVersion,
+    isCircuitRelay: false)
 
 proc withPrivateKey*(b: SwitchBuilder, privateKey: PrivateKey): SwitchBuilder {.public.} =
   ## Set the private key of the switch. Will be used to
@@ -97,18 +101,23 @@ proc withAddresses*(b: SwitchBuilder, addresses: seq[MultiAddress]): SwitchBuild
   b.addresses = addresses
   b
 
-proc withSignedPeerRecord*(b: SwitchBuilder, sendIt = true): SwitchBuilder =
+proc withSignedPeerRecord*(b: SwitchBuilder, sendIt = true): SwitchBuilder {.public.} =
   b.sendSignedPeerRecord = sendIt
   b
 
-proc withMplex*(b: SwitchBuilder, inTimeout = 5.minutes, outTimeout = 5.minutes): SwitchBuilder {.public.} =
+proc withMplex*(
+    b: SwitchBuilder,
+    inTimeout = 5.minutes,
+    outTimeout = 5.minutes,
+    maxChannCount = 200): SwitchBuilder {.public.} =
   ## | Uses `Mplex <https://docs.libp2p.io/concepts/stream-multiplexing/#mplex>`_ as a multiplexer
   ## | `Timeout` is the duration after which a inactive connection will be closed
   proc newMuxer(conn: Connection): Muxer =
     Mplex.new(
       conn,
-      inTimeout = inTimeout,
-      outTimeout = outTimeout)
+      inTimeout,
+      outTimeout,
+      maxChannCount)
 
   b.mplexOpts = MplexOpts(
     enable: true,
@@ -158,6 +167,10 @@ proc withMaxConnsPerPeer*(b: SwitchBuilder, maxConnsPerPeer: int): SwitchBuilder
   b.maxConnsPerPeer = maxConnsPerPeer
   b
 
+proc withPeerStore*(b: SwitchBuilder, capacity: int): SwitchBuilder {.public.} =
+  b.peerStoreCapacity = some(capacity)
+  b
+
 proc withProtoVersion*(b: SwitchBuilder, protoVersion: string): SwitchBuilder {.public.} =
   b.protoVersion = protoVersion
   b
@@ -168,6 +181,11 @@ proc withAgentVersion*(b: SwitchBuilder, agentVersion: string): SwitchBuilder {.
 
 proc withNameResolver*(b: SwitchBuilder, nameResolver: NameResolver): SwitchBuilder {.public.} =
   b.nameResolver = nameResolver
+  b
+
+proc withRelayTransport*(b: SwitchBuilder, canHop: bool): SwitchBuilder =
+  b.isCircuitRelay = true
+  b.circuitRelayCanHop = canHop
   b
 
 proc build*(b: SwitchBuilder): Switch
@@ -218,6 +236,12 @@ proc build*(b: SwitchBuilder): Switch
   if isNil(b.rng):
     b.rng = newRng()
 
+  let peerStore =
+    if isSome(b.peerStoreCapacity):
+      PeerStore.new(b.peerStoreCapacity.get())
+    else:
+      PeerStore.new()
+
   let switch = newSwitch(
     peerInfo = peerInfo,
     transports = transports,
@@ -226,7 +250,13 @@ proc build*(b: SwitchBuilder): Switch
     secureManagers = secureManagerInstances,
     connManager = connManager,
     ms = ms,
-    nameResolver = b.nameResolver)
+    nameResolver = b.nameResolver,
+    peerStore = peerStore)
+
+  if b.isCircuitRelay:
+    let relay = Relay.new(switch, b.circuitRelayCanHop)
+    switch.mount(relay)
+    switch.addTransport(RelayTransport.new(relay, muxedUpgrade))
 
   return switch
 
@@ -245,7 +275,8 @@ proc newStandardSwitch*(
   maxOut = -1,
   maxConnsPerPeer = MaxConnectionsPerPeer,
   nameResolver: NameResolver = nil,
-  sendSignedPeerRecord = false): Switch
+  sendSignedPeerRecord = false,
+  peerStoreCapacity = 1000): Switch
   {.raises: [Defect, LPError], public.} =
   ## Helper for common switch configurations.
 
@@ -262,6 +293,7 @@ proc newStandardSwitch*(
     .withMaxIn(maxIn)
     .withMaxOut(maxOut)
     .withMaxConnsPerPeer(maxConnsPerPeer)
+    .withPeerStore(capacity=peerStoreCapacity)
     .withMplex(inTimeout, outTimeout)
     .withTcpTransport(transportFlags)
     .withNameResolver(nameResolver)

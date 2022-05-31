@@ -100,6 +100,11 @@ proc removePeerEventHandler*(s: Switch,
                              kind: PeerEventKind) {.public.} =
   s.connManager.removePeerEventHandler(handler, kind)
 
+method addTransport*(s: Switch,
+                  t: Transport) =
+  s.transports &= t
+  s.dialer.addTransport(t)
+
 proc isConnected*(s: Switch, peerId: PeerId): bool {.public.} =
   ## returns true if the peer has one or more
   ## associated connections
@@ -282,7 +287,7 @@ proc start*(s: Switch) {.async, gcsafe, public.} =
       it notin addrs
     )
 
-    if addrs.len > 0:
+    if addrs.len > 0 or t.running:
       startFuts.add(t.start(addrs))
 
   await allFutures(startFuts)
@@ -295,7 +300,7 @@ proc start*(s: Switch) {.async, gcsafe, public.} =
         "Failed to start one transport", s.error)
 
   for t in s.transports: # for each transport
-    if t.addrs.len > 0:
+    if t.addrs.len > 0 or t.running:
       s.acceptFuts.add(s.accept(t))
       s.peerInfo.addrs &= t.addrs
 
@@ -310,7 +315,8 @@ proc newSwitch*(peerInfo: PeerInfo,
                 secureManagers: openArray[Secure] = [],
                 connManager: ConnManager,
                 ms: MultistreamSelect,
-                nameResolver: NameResolver = nil): Switch
+                nameResolver: NameResolver = nil,
+                peerStore = PeerStore.new()): Switch
                 {.raises: [Defect, LPError], public.} =
   if secureManagers.len == 0:
     raise newException(LPError, "Provide at least one secure manager")
@@ -320,10 +326,10 @@ proc newSwitch*(peerInfo: PeerInfo,
     ms: ms,
     transports: transports,
     connManager: connManager,
-    peerStore: PeerStore.new(),
+    peerStore: peerStore,
     dialer: Dialer.new(peerInfo.peerId, connManager, transports, ms, nameResolver),
     nameResolver: nameResolver)
 
-  switch.connManager.peerStore = switch.peerStore
+  switch.connManager.peerStore = peerStore
   switch.mount(identity)
   return switch
