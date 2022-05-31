@@ -27,6 +27,7 @@ const
 
   TRANSPMA* = mapOr(
     RTRANSPMA,
+    QUIC,
     UDP
   )
 

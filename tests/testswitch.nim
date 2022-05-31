@@ -22,7 +22,8 @@ import ../libp2p/[errors,
                   nameresolving/mockresolver,
                   stream/chronosstream,
                   transports/tcptransport,
-                  transports/wstransport]
+                  transports/wstransport,
+                  transports/quictransport]
 import ./helpers
 
 const
@@ -979,3 +980,34 @@ suite "Switch":
     await destSwitch.stop()
     await srcWsSwitch.stop()
     await srcTcpSwitch.stop()
+
+  asyncTest "e2e quic transport":
+    let
+      #TODO port 0 doesn't work yet
+      quicAddress1 = MultiAddress.init("/ip4/127.0.0.1/udp/4567/quic").tryGet()
+      quicAddress2 = MultiAddress.init("/ip4/127.0.0.1/udp/4566/quic").tryGet()
+
+      srcSwitch =
+        SwitchBuilder.new()
+        .withAddress(quicAddress1)
+        .withRng(crypto.newRng())
+        .withTransport(proc (upgr: Upgrade): Transport = QuicTransport.new(upgr))
+        .withNoise()
+        .build()
+
+      destSwitch =
+        SwitchBuilder.new()
+        .withAddress(quicAddress2)
+        .withRng(crypto.newRng())
+        .withTransport(proc (upgr: Upgrade): Transport = QuicTransport.new(upgr))
+        .withNoise()
+        .build()
+
+    await destSwitch.start()
+    await srcSwitch.start()
+
+    await srcSwitch.connect(destSwitch.peerInfo.peerId, destSwitch.peerInfo.addrs)
+    check srcSwitch.isConnected(destSwitch.peerInfo.peerId)
+
+    await destSwitch.stop()
+    await srcSwitch.stop()
