@@ -36,13 +36,13 @@ import std/times
 export chronicles
 
 const
-  MsgSize = 4096
-  DefaultReservationTTL = initDuration(hours = 1)
-  DefaultLimitDuration = 120
-  DefaultLimitData = 1 shl 17
-  DefaultHeartbeatSleepTime = 1
-  MaxCircuit = 128
-  MaxCircuitPerPeer = 16
+  RelayMsgSize* = 4096
+  DefaultReservationTTL* = initDuration(hours = 1)
+  DefaultLimitDuration* = 120
+  DefaultLimitData* = 1 shl 17
+  DefaultHeartbeatSleepTime* = 1
+  MaxCircuit* = 128
+  MaxCircuitPerPeer* = 16
 
 logScope:
   topics = "libp2p relay"
@@ -55,7 +55,7 @@ type
 
 type
   Relay* = ref object of LPProtocol
-    switch: Switch
+    switch*: Switch
     peerCount: CountTable[PeerId]
 
     # number of reservation (relayv2) + number of connection (relayv1)
@@ -64,7 +64,7 @@ type
     maxCircuitPerPeer*: int
     msgSize*: int
     # RelayV1
-    isCircuitRelayV1: bool
+    isCircuitRelayV1*: bool
     streamCount: int
     # RelayV2
     rsvp: Table[PeerId, DateTime]
@@ -191,7 +191,7 @@ proc handleConnect(r: Relay,
     await rconnDst.close()
   await bridge(rconnSrc, rconnDst)
 
-proc handleStreamV2(r: Relay, conn: Connection) {.async, gcsafe.} =
+proc handleHopStreamV2*(r: Relay, conn: Connection) {.async, gcsafe.} =
   let msgOpt = HopMessage.decode(await conn.readLp(r.msgSize))
   if msgOpt.isNone():
     await sendHopStatus(conn, MalformedMessage)
@@ -207,7 +207,7 @@ proc handleStreamV2(r: Relay, conn: Connection) {.async, gcsafe.} =
 
 # Relay V1
 
-proc handleHop(r: Relay, connSrc: Connection, msg: RelayMessage) {.async, gcsafe.} =
+proc handleHop*(r: Relay, connSrc: Connection, msg: RelayMessage) {.async, gcsafe.} =
   r.streamCount.inc()
   defer: r.streamCount.dec()
   if r.streamCount + r.rsvp.len() >= r.maxCircuit:
@@ -302,23 +302,28 @@ proc handleStreamV1(r: Relay, conn: Connection) {.async, gcsafe.} =
     of RelayType.Hop: await r.handleHop(conn, msg)
     of RelayType.Stop: await sendStatus(conn, StatusV1.StopRelayRefused)
     of RelayType.CanHop: await sendStatus(conn, StatusV1.Success)
-
     else:
       trace "Unexpected relay handshake", msgType=msg.msgType
       await sendStatus(conn, StatusV1.MalformedMessage)
 
-proc new*(T: typedesc[Relay], switch: Switch,
+proc setup*(r: Relay, switch: Switch) =
+  r.switch = switch
+  r.switch.addPeerEventHandler(
+    proc (peerId: PeerId, event: PeerEvent) {.async.} =
+      r.rsvp.del(peerId),
+    Left)
+
+proc new*(T: typedesc[Relay],
      reservationTTL: times.Duration = DefaultReservationTTL,
      limitDuration: uint32 = DefaultLimitDuration,
      limitData: uint64 = DefaultLimitData,
      heartbeatSleepTime: uint32 = DefaultHeartbeatSleepTime,
      maxCircuit: int = MaxCircuit,
      maxCircuitPerPeer: int = MaxCircuitPerPeer,
-     msgSize: int = MsgSize,
+     msgSize: int = RelayMsgSize,
      circuitRelayV1: bool = false): T =
 
-  let r = T(switch: switch,
-            reservationTTL: reservationTTL,
+  let r = T(reservationTTL: reservationTTL,
             limit: Limit(duration: limitDuration, data: limitData),
             heartbeatSleepTime: heartbeatSleepTime,
             maxCircuit: maxCircuit,
@@ -329,7 +334,7 @@ proc new*(T: typedesc[Relay], switch: Switch,
   proc handleStream(conn: Connection, proto: string) {.async, gcsafe.} =
     try:
       case proto:
-      of RelayV2HopCodec: await r.handleStreamV2(conn)
+      of RelayV2HopCodec: await r.handleHopStreamV2(conn)
       of RelayV1Codec: await r.handleStreamV1(conn)
     except CancelledError as exc:
       raise exc
@@ -339,8 +344,6 @@ proc new*(T: typedesc[Relay], switch: Switch,
       trace "exiting relayv2 handler", conn
       await conn.close()
 
-  r.switch.addPeerEventHandler(
-    proc (peerId: PeerId, event: PeerEvent) {.async.} = r.rsvp.del(peerId), Left)
   r.codecs = if r.isCircuitRelayV1: @[RelayV1Codec]
              else: @[RelayV2HopCodec, RelayV1Codec]
   r.handler = handleStream

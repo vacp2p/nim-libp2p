@@ -10,14 +10,14 @@ import ./helpers
 import std/times
 import stew/byteutils
 
-proc createSwitch(cl: RelayClient): Switch =
+proc createSwitch(r: Relay): Switch =
   result = SwitchBuilder.new()
     .withRng(newRng())
     .withAddresses(@[ MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet() ])
     .withTcpTransport()
     .withMplex()
     .withNoise()
-    .withCircuitRelayTransport(cl)
+    .withCircuitRelay(r)
     .build()
 
 suite "Circuit Relay V2":
@@ -45,15 +45,14 @@ suite "Circuit Relay V2":
       ldata = 2048
       cl1 = RelayClient.new()
       cl2 = RelayClient.new()
+      rv2 = Relay.new(reservationTTL=initDuration(seconds=ttl),
+                      limitDuration=ldur,
+                      limitData=ldata,
+                      maxCircuit=1)
       src1 = createSwitch(cl1)
       src2 = createSwitch(cl2)
-      rel = newStandardSwitch()
-      rv2 = Relay.new(rel,
-                        reservationTTL=initDuration(seconds=ttl),
-                        limitDuration=ldur,
-                        limitData=ldata,
-                        maxCircuit=1)
-      rel.mount(rv2)
+      rel = createSwitch(rv2)
+
       await rv2.start()
       await src1.start()
       await src2.start()
@@ -61,7 +60,7 @@ suite "Circuit Relay V2":
       await src1.connect(rel.peerInfo.peerId, rel.peerInfo.addrs)
       await src2.connect(rel.peerInfo.peerId, rel.peerInfo.addrs)
       rsvp = await cl1.reserve(rel.peerInfo.peerId, rel.peerInfo.addrs)
-      range = now().utc + (ttl-1).seconds..now().utc + (ttl+1).seconds
+      range = now().utc + (ttl-2).seconds..now().utc + (ttl+2).seconds
       check:
         rsvp.expire.int64.fromUnix.utc in range
         rsvp.limitDuration == ldur
@@ -71,7 +70,7 @@ suite "Circuit Relay V2":
       let conn = await cl2.switch.dial(rel.peerInfo.peerId, rel.peerInfo.addrs, RelayV2HopCodec)
       let pb = encode(HopMessage(msgType: HopMessageType.Reserve))
       await conn.writeLp(pb.buffer)
-      let msg = HopMessage.decode(await conn.readLp(MsgSize)).get()
+      let msg = HopMessage.decode(await conn.readLp(RelayMsgSize)).get()
       check:
         msg.msgType == HopMessageType.Status
         msg.status == some(StatusV2.ReservationRefused)
@@ -98,10 +97,11 @@ suite "Circuit Relay V2":
 
     asynctest "Reservation over relay":
       let
-        rv2add = Relay.new(src2)
+        rv2add = Relay.new()
         addrs = @[ MultiAddress.init($rel.peerInfo.addrs[0] & "/p2p/" &
                                      $rel.peerInfo.peerId & "/p2p-circuit/p2p/" &
                                      $src2.peerInfo.peerId).get() ]
+      rv2add.setup(src2)
       src2.mount(rv2add)
       await rv2add.start()
       rv2.maxCircuit.inc()
@@ -158,10 +158,10 @@ suite "Circuit Relay V2":
         check: "test3" == string.fromBytes(await conn.readLp(1024))
         await conn.writeLp("test4")
         await conn.close()
-      rv2 = Relay.new(rel,
-                        reservationTTL=initDuration(seconds=ttl),
-                        limitDuration=ldur,
-                        limitData=ldata)
+      rv2 = Relay.new(reservationTTL=initDuration(seconds=ttl),
+                      limitDuration=ldur,
+                      limitData=ldata)
+      rv2.setup(rel)
       rel.mount(rv2)
       dst.mount(proto)
 
@@ -180,7 +180,7 @@ suite "Circuit Relay V2":
       check: "test2" == string.fromBytes(await conn.readLp(1024))
       await conn.writeLp("test3")
       check: "test4" == string.fromBytes(await conn.readLp(1024))
-      await conn.close()
+      await allFutures(conn.close(), rv2.stop())
 
     asynctest "Connection duration exceeded":
       ldur = 2
@@ -191,10 +191,10 @@ suite "Circuit Relay V2":
         await sleepAsync(3000)
         await conn.writeLp("that was a cool power nap")
         await conn.close()
-      rv2 = Relay.new(rel,
-                        reservationTTL=initDuration(seconds=ttl),
-                        limitDuration=ldur,
-                        limitData=ldata)
+      rv2 = Relay.new(reservationTTL=initDuration(seconds=ttl),
+                      limitDuration=ldur,
+                      limitData=ldata)
+      rv2.setup(rel)
       rel.mount(rv2)
       dst.mount(proto)
 
@@ -213,6 +213,7 @@ suite "Circuit Relay V2":
       await conn.writeLp("go!")
       expect(LPStreamEOFError):
         discard await conn.readLp(1024)
+      await allFutures(conn.close(), rv2.stop())
 
     asynctest "Connection data exceeded":
       ldata = 1000
@@ -235,10 +236,10 @@ people's hats off--then, I account it high time to get to sea as soon
 as I can. This is my substitute for pistol and ball. With a
 philosophical flourish Cato throws himself upon his sword; I quietly
 take to the ship.""")
-      rv2 = Relay.new(rel,
-                        reservationTTL=initDuration(seconds=ttl),
-                        limitDuration=ldur,
-                        limitData=ldata)
+      rv2 = Relay.new(reservationTTL=initDuration(seconds=ttl),
+                      limitDuration=ldur,
+                      limitData=ldata)
+      rv2.setup(rel)
       rel.mount(rv2)
       dst.mount(proto)
 
@@ -257,6 +258,7 @@ take to the ship.""")
       await conn.writeLp("surprise me!")
       expect(LPStreamEOFError):
         discard await conn.readLp(1024)
+      await allFutures(conn.close(), rv2.stop())
 
     asynctest "Reservation ttl expire during connection":
       ttl = 1
@@ -266,10 +268,10 @@ take to the ship.""")
         check: "test3" == string.fromBytes(await conn.readLp(1024))
         await conn.writeLp("test4")
         await conn.close()
-      rv2 = Relay.new(rel,
-                        reservationTTL=initDuration(seconds=ttl),
-                        limitDuration=ldur,
-                        limitData=ldata)
+      rv2 = Relay.new(reservationTTL=initDuration(seconds=ttl),
+                      limitDuration=ldur,
+                      limitData=ldata)
+      rv2.setup(rel)
       rel.mount(rv2)
       dst.mount(proto)
 
@@ -295,6 +297,7 @@ take to the ship.""")
         await conn.close()
         await src.connect(rel.peerInfo.peerId, rel.peerInfo.addrs)
         conn = await src.dial(dst.peerInfo.peerId, @[ addrs ], customProtoCodec)
+      await allFutures(conn.close(), rv2.stop())
 
     asynctest "Connection over relay":
       # src => rel => rel2 => dst
@@ -304,20 +307,19 @@ take to the ship.""")
       proto.handler = proc(conn: Connection, proto: string) {.async.} =
         raise newException(CatchableError, "Should not be here")
       let
-        rel2Cl = RelayClient.new()
+        rel2Cl = RelayClient.new(canHop = true)
         rel2 = createSwitch(rel2Cl)
-        rv2 = Relay.new(rel)
-        rv2add = Relay.new(rel2)
+        rv2 = Relay.new()
         addrs = @[ MultiAddress.init($rel.peerInfo.addrs[0] & "/p2p/" &
                                      $rel.peerInfo.peerId & "/p2p-circuit/p2p/" &
                                      $rel2.peerInfo.peerId & "/p2p/" &
                                      $rel2.peerInfo.peerId & "/p2p-circuit/p2p/" &
                                      $dst.peerInfo.peerId).get() ]
+      rv2.setup(rel)
       rel.mount(rv2)
       dst.mount(proto)
-      rel2.mount(rv2add)
       await rv2.start()
-      await rv2add.start()
+      await rel2Cl.start()
       await rel.start()
       await rel2.start()
       await src.start()
@@ -332,4 +334,4 @@ take to the ship.""")
 
       expect(DialFailedError):
         conn = await src.dial(dst.peerInfo.peerId, addrs, customProtoCodec)
-      await rel2.stop()
+      await allFutures(conn.close(), rel2.stop(), rv2.stop(), rel2Cl.stop())

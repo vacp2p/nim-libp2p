@@ -50,7 +50,7 @@ type
     agentVersion: string
     nameResolver: NameResolver
     peerStoreCapacity: Option[int]
-    circuitRelayClient: RelayClient
+    circuitRelay: Relay
 
 proc new*(T: type[SwitchBuilder]): T =
 
@@ -151,8 +151,8 @@ proc withNameResolver*(b: SwitchBuilder, nameResolver: NameResolver): SwitchBuil
   b.nameResolver = nameResolver
   b
 
-proc withCircuitRelayTransport*(b: SwitchBuilder, cl: RelayClient): SwitchBuilder =
-  b.circuitRelayClient = cl
+proc withCircuitRelay*(b: SwitchBuilder, r: Relay): SwitchBuilder =
+  b.circuitRelay = r
   b
 
 proc build*(b: SwitchBuilder): Switch
@@ -220,10 +220,11 @@ proc build*(b: SwitchBuilder): Switch
     nameResolver = b.nameResolver,
     peerStore = peerStore)
 
-  if not isNil(b.circuitRelayClient):
-    b.circuitRelayClient.setup(switch)
-    switch.mount(b.circuitRelayClient)
-    switch.addTransport(RelayTransport.new(b.circuitRelayClient, muxedUpgrade))
+  if not isNil(b.circuitRelay):
+    if b.circuitRelay of RelayClient:
+      switch.addTransport(RelayTransport.new(RelayClient(b.circuitRelay), muxedUpgrade))
+    b.circuitRelay.setup(switch)
+    switch.mount(b.circuitRelay)
 
   return switch
 

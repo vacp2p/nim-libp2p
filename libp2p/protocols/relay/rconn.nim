@@ -19,10 +19,10 @@ type
     dataSent*: uint64
 
 method readOnce*(
-  self: RelayConnection,
-  pbytes: pointer,
-  nbytes: int):
-  Future[int] {.async.} =
+    self: RelayConnection,
+    pbytes: pointer,
+    nbytes: int): Future[int] {.async.} =
+  self.activity = true
   return await self.conn.readOnce(pbytes, nbytes)
 
 method write*(self: RelayConnection, msg: seq[byte]): Future[void] {.async.} =
@@ -30,6 +30,7 @@ method write*(self: RelayConnection, msg: seq[byte]): Future[void] {.async.} =
   if self.limitData != 0 and self.dataSent > self.limitData:
     await self.close()
     return
+  self.activity = true
   await self.conn.write(msg)
 
 method closeImpl*(self: RelayConnection): Future[void] {.async.} =
