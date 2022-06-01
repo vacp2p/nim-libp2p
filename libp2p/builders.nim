@@ -50,7 +50,7 @@ type
     agentVersion: string
     nameResolver: NameResolver
     peerStoreCapacity: Option[int]
-    circuitRelayClient: Client
+    circuitRelayClient: RelayClient
 
 proc new*(T: type[SwitchBuilder]): T =
 
@@ -151,7 +151,7 @@ proc withNameResolver*(b: SwitchBuilder, nameResolver: NameResolver): SwitchBuil
   b.nameResolver = nameResolver
   b
 
-proc withCircuitRelayTransport*(b: SwitchBuilder, cl: Client): SwitchBuilder =
+proc withCircuitRelayTransport*(b: SwitchBuilder, cl: RelayClient): SwitchBuilder =
   b.circuitRelayClient = cl
   b
 

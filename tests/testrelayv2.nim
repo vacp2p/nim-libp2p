@@ -10,7 +10,7 @@ import ./helpers
 import std/times
 import stew/byteutils
 
-proc createSwitch(cl: Client): Switch =
+proc createSwitch(cl: RelayClient): Switch =
   result = SwitchBuilder.new()
     .withRng(newRng())
     .withAddresses(@[ MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet() ])
@@ -30,8 +30,8 @@ suite "Circuit Relay V2":
       ttl {.threadvar.}: int
       ldur {.threadvar.}: uint32
       ldata {.threadvar.}: uint64
-      cl1 {.threadvar.}: Client
-      cl2 {.threadvar.}: Client
+      cl1 {.threadvar.}: RelayClient
+      cl2 {.threadvar.}: RelayClient
       rv2 {.threadvar.}: Relay
       src1 {.threadvar.}: Switch
       src2 {.threadvar.}: Switch
@@ -43,8 +43,8 @@ suite "Circuit Relay V2":
       ttl = 1
       ldur = 60
       ldata = 2048
-      cl1 = Client.new()
-      cl2 = Client.new()
+      cl1 = RelayClient.new()
+      cl2 = RelayClient.new()
       src1 = createSwitch(cl1)
       src2 = createSwitch(cl2)
       rel = newStandardSwitch()
@@ -126,8 +126,8 @@ suite "Circuit Relay V2":
       ttl {.threadvar.}: int
       ldur {.threadvar.}: uint32
       ldata {.threadvar.}: uint64
-      srcCl {.threadvar.}: Client
-      dstCl {.threadvar.}: Client
+      srcCl {.threadvar.}: RelayClient
+      dstCl {.threadvar.}: RelayClient
       rv2 {.threadvar.}: Relay
       src {.threadvar.}: Switch
       dst {.threadvar.}: Switch
@@ -142,8 +142,8 @@ suite "Circuit Relay V2":
       ttl = 60
       ldur = 120
       ldata = 16384
-      srcCl = Client.new()
-      dstCl = Client.new()
+      srcCl = RelayClient.new()
+      dstCl = RelayClient.new()
       src = createSwitch(srcCl)
       dst = createSwitch(dstCl)
       rel = newStandardSwitch()
@@ -304,7 +304,7 @@ take to the ship.""")
       proto.handler = proc(conn: Connection, proto: string) {.async.} =
         raise newException(CatchableError, "Should not be here")
       let
-        rel2Cl = Client.new()
+        rel2Cl = RelayClient.new()
         rel2 = createSwitch(rel2Cl)
         rv2 = Relay.new(rel)
         rv2add = Relay.new(rel2)

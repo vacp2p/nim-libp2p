@@ -1,4 +1,16 @@
-import chronos, chronicles, sequtils, strutils
+## Nim-LibP2P
+## Copyright (c) 2022 Status Research & Development GmbH
+## Licensed under either of
+##  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+##  * MIT license ([LICENSE-MIT](LICENSE-MIT))
+## at your option.
+## This file may not be copied, modified, or distributed except according to
+## those terms.
+
+import sequtils, strutils
+
+import chronos, chronicles
+
 import ./client,
        ./rconn,
        ./utils,
@@ -7,11 +19,11 @@ import ./client,
        ../../transports/transport
 
 logScope:
-  topics = "libp2p circuit relay transport"
+  topics = "libp2p relay relay-transport"
 
 type
   RelayTransport* = ref object of Transport
-    client*: Client
+    client*: RelayClient
     queue: AsyncQueue[Connection]
     selfRunning: bool
 
@@ -84,7 +96,7 @@ method handles*(self: RelayTransport, ma: MultiAddress): bool {.gcsafe} =
                P2PPattern.match(sma[^1].get())
   trace "Handles return", ma, result
 
-proc new*(T: typedesc[RelayTransport], cl: Client, upgrader: Upgrade): T =
+proc new*(T: typedesc[RelayTransport], cl: RelayClient, upgrader: Upgrade): T =
   result = T(client: cl, upgrader: upgrader)
   result.running = true
   result.queue = newAsyncQueue[Connection](0)

@@ -7,12 +7,15 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import chronos, chronicles, options
+import options
+
+import chronos, chronicles
+
 import ./messages,
        ../../stream/connection
 
 logScope:
-  topics = "libp2p circuit relay utils"
+  topics = "libp2p relay relay-utils"
 
 const
   RelayV1Codec* = "/libp2p/circuit/relay/0.1.0"

@@ -35,8 +35,8 @@ suite "Circuit Relay":
     src {.threadvar.}: Switch
     dst {.threadvar.}: Switch
     srelay {.threadvar.}: Switch
-    clSrc {.threadvar.}: Client
-    clDst {.threadvar.}: Client
+    clSrc {.threadvar.}: RelayClient
+    clDst {.threadvar.}: RelayClient
     r {.threadvar.}: Relay
     conn {.threadVar.}: Connection
     msg {.threadVar.}: ProtoBuffer
@@ -76,8 +76,8 @@ suite "Circuit Relay":
     customProto.codec = protos[0]
 
     ma = MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
-    clSrc = Client.new()
-    clDst = Client.new()
+    clSrc = RelayClient.new()
+    clDst = RelayClient.new()
     src = SwitchBuilder.new()
       .withRng(newRng())
       .withAddresses(@[ MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet() ])

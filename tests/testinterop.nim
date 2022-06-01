@@ -484,7 +484,7 @@ suite "Interop Circuit Relay V1":
     let
       maSrc = MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
       maRel = MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
-      clSrc = Client.new()
+      clSrc = RelayClient.new()
       src = SwitchBuilder.new()
         .withRng(crypto.newRng())
         .withAddresses(@[ maSrc ])
@@ -536,7 +536,7 @@ suite "Interop Circuit Relay V1":
     let
       maRel = MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
       maDst = MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
-      clDst = Client.new()
+      clDst = RelayClient.new()
       dst = SwitchBuilder.new()
         .withRng(crypto.newRng())
         .withAddresses(@[ maDst ])
@@ -586,8 +586,8 @@ suite "Interop Circuit Relay V1":
     let
       maSrc = MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
       maDst = MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
-      clSrc = Client.new()
-      clDst = Client.new()
+      clSrc = RelayClient.new()
+      clDst = RelayClient.new()
       src = SwitchBuilder.new()
         .withRng(crypto.newRng())
         .withAddresses(@[ maSrc ])

@@ -8,6 +8,7 @@
 ## those terms.
 
 import chronos
+
 import ../../stream/connection
 
 type

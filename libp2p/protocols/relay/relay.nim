@@ -7,8 +7,8 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import options
-import sequtils, tables
+import options, sequtils, tables
+
 import chronos, chronicles
 
 import ./messages,
@@ -57,8 +57,10 @@ type
   Relay* = ref object of LPProtocol
     switch: Switch
     peerCount: CountTable[PeerId]
-    
-    maxCircuit*: int # number of reservation + number of connection
+
+    # number of reservation (relayv2) + number of connection (relayv1)
+    maxCircuit*: int
+
     maxCircuitPerPeer*: int
     msgSize*: int
     # RelayV1

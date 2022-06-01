@@ -7,7 +7,10 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import chronos, chronicles, options
+import times, options
+
+import chronos, chronicles
+
 import ./messages,
        ./rconn,
        ./utils,
@@ -16,24 +19,23 @@ import ./messages,
        ../../multiaddress,
        ../../stream/connection
 
-import std/times
 
 logScope:
-  topics = "libp2p circuit relay client"
+  topics = "libp2p relay relay-client"
 
-const ClientMsgSize = 4096
+const RelayClientMsgSize = 4096
 
 type
-  ClientError* = object of LPError
-  ReservationError* = object of ClientError
-  RelayV1DialError* = object of ClientError
-  RelayV2DialError* = object of ClientError
-  ClientAddConn* = proc(conn: Connection,
+  RelayClientError* = object of LPError
+  ReservationError* = object of RelayClientError
+  RelayV1DialError* = object of RelayClientError
+  RelayV2DialError* = object of RelayClientError
+  RelayClientAddConn* = proc(conn: Connection,
                         duration: uint32,
                         data: uint64): Future[void] {.gcsafe, raises: [Defect].}
-  Client* = ref object of LPProtocol
+  RelayClient* = ref object of LPProtocol
     switch*: Switch
-    addConn*: ClientAddConn
+    addConn*: RelayClientAddConn
 
   Rsvp* = object
     expire*: uint64           # required, Unix expiration time (UTC)
@@ -47,7 +49,7 @@ proc sendStopError(conn: Connection, code: StatusV2) {.async.} =
   let msg = StopMessage(msgType: StopMessageType.Status, status: some(code))
   await conn.writeLp(encode(msg).buffer)
 
-proc handleConnect(cl: Client, conn: Connection, msg: StopMessage) {.async.} =
+proc handleConnect(cl: RelayClient, conn: Connection, msg: StopMessage) {.async.} =
   if msg.peer.isNone():
     await sendStopError(conn, MalformedMessage)
     return
@@ -74,14 +76,14 @@ proc handleConnect(cl: Client, conn: Connection, msg: StopMessage) {.async.} =
   if cl.addConn != nil: await cl.addConn(conn, limitDuration, limitData)
   else: await conn.close()
 
-proc reserve*(cl: Client, peerId: PeerId, addrs: seq[MultiAddress]): Future[Rsvp] {.async.} =
+proc reserve*(cl: RelayClient, peerId: PeerId, addrs: seq[MultiAddress]): Future[Rsvp] {.async.} =
   let conn = await cl.switch.dial(peerId, addrs, RelayV2HopCodec)
   defer: await conn.close()
   let
     pb = encode(HopMessage(msgType: HopMessageType.Reserve))
     msg = try:
       await conn.writeLp(pb.buffer)
-      HopMessage.decode(await conn.readLp(ClientMsgSize)).get()
+      HopMessage.decode(await conn.readLp(RelayClientMsgSize)).get()
     except CancelledError as exc:
       raise exc
     except CatchableError as exc:
@@ -111,7 +113,7 @@ proc reserve*(cl: Client, peerId: PeerId, addrs: seq[MultiAddress]): Future[Rsvp
   result.limitData = msg.limit.data
 
 proc dialPeerV1*(
-    cl: Client,
+    cl: RelayClient,
     conn: Connection,
     dstPeerId: PeerId,
     dstAddrs: seq[MultiAddress]): Future[Connection] {.async.} =
@@ -133,7 +135,7 @@ proc dialPeerV1*(
     raise exc
 
   let msgRcvFromRelayOpt = try:
-    RelayMessage.decode(await conn.readLp(ClientMsgSize))
+    RelayMessage.decode(await conn.readLp(RelayClientMsgSize))
   except CancelledError as exc:
     raise exc
   except CatchableError as exc:
@@ -159,7 +161,7 @@ proc dialPeerV1*(
   result = conn
 
 proc dialPeerV2*(
-    cl: Client,
+    cl: RelayClient,
     conn: RelayConnection,
     dstPeerId: PeerID,
     dstAddrs: seq[MultiAddress]): Future[Connection] {.async.} =
@@ -171,7 +173,7 @@ proc dialPeerV2*(
 
   let msgRcvFromRelay = try:
     await conn.writeLp(pb.buffer)
-    HopMessage.decode(await conn.readLp(ClientMsgSize)).get()
+    HopMessage.decode(await conn.readLp(RelayClientMsgSize)).get()
   except CancelledError as exc:
     raise exc
   except CatchableError as exc:
@@ -187,8 +189,8 @@ proc dialPeerV2*(
   conn.limitData = msgRcvFromRelay.limit.data
   return conn
 
-proc handleStreamV2(cl: Client, conn: Connection) {.async, gcsafe.} =
-  let msgOpt = StopMessage.decode(await conn.readLp(ClientMsgSize))
+proc handleStreamV2(cl: RelayClient, conn: Connection) {.async, gcsafe.} =
+  let msgOpt = StopMessage.decode(await conn.readLp(RelayClientMsgSize))
   if msgOpt.isNone():
     await sendHopStatus(conn, MalformedMessage)
     return
@@ -201,7 +203,7 @@ proc handleStreamV2(cl: Client, conn: Connection) {.async, gcsafe.} =
     trace "Unexpected client / relayv2 handshake", msgType=msg.msgType
     await sendStopError(conn, MalformedMessage)
 
-proc handleStop(cl: Client, conn: Connection, msg: RelayMessage) {.async, gcsafe.} =
+proc handleStop(cl: RelayClient, conn: Connection, msg: RelayMessage) {.async, gcsafe.} =
   if msg.srcPeer.isNone:
     await sendStatus(conn, StatusV1.StopSrcMultiaddrInvalid)
     return
@@ -228,8 +230,8 @@ proc handleStop(cl: Client, conn: Connection, msg: RelayMessage) {.async, gcsafe
   if cl.addConn != nil: await cl.addConn(conn, 0, 0)
   else: await conn.close()
 
-proc handleStreamV1(cl: Client, conn: Connection) {.async, gcsafe.} =
-  let msgOpt = RelayMessage.decode(await conn.readLp(ClientMsgSize))
+proc handleStreamV1(cl: RelayClient, conn: Connection) {.async, gcsafe.} =
+  let msgOpt = RelayMessage.decode(await conn.readLp(RelayClientMsgSize))
   if msgOpt.isNone:
     await sendStatus(conn, StatusV1.MalformedMessage)
     return
@@ -243,10 +245,10 @@ proc handleStreamV1(cl: Client, conn: Connection) {.async, gcsafe.} =
       trace "Unexpected relay handshake", msgType=msg.msgType
       await sendStatus(conn, StatusV1.MalformedMessage)
 
-proc setup*(cl: Client, switch: Switch) =
+proc setup*(cl: RelayClient, switch: Switch) =
   cl.switch = switch
 
-proc new*(T: typedesc[Client]): T =
+proc new*(T: typedesc[RelayClient]): T =
   let cl = T()
   proc handleStream(conn: Connection, proto: string) {.async, gcsafe.} =
     try:
