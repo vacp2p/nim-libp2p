@@ -335,3 +335,85 @@ take to the ship.""")
       expect(DialFailedError):
         conn = await src.dial(dst.peerInfo.peerId, addrs, customProtoCodec)
       await allFutures(conn.close(), rel2.stop(), rv2.stop(), rel2Cl.stop())
+
+    asynctest "Connection using ClientRelay":
+      var
+        protoABC = new LPProtocol
+        protoBCA = new LPProtocol
+        protoCAB = new LPProtocol
+      protoABC.codec = "/abctest"
+      protoABC.handler = proc(conn: Connection, proto: string) {.async.} =
+        check: "testABC1" == string.fromBytes(await conn.readLp(1024))
+        await conn.writeLp("testABC2")
+        check: "testABC3" == string.fromBytes(await conn.readLp(1024))
+        await conn.writeLp("testABC4")
+        await conn.close()
+      protoBCA.codec = "/bcatest"
+      protoBCA.handler = proc(conn: Connection, proto: string) {.async.} =
+        check: "testBCA1" == string.fromBytes(await conn.readLp(1024))
+        await conn.writeLp("testBCA2")
+        check: "testBCA3" == string.fromBytes(await conn.readLp(1024))
+        await conn.writeLp("testBCA4")
+        await conn.close()
+      protoCAB.codec = "/cabtest"
+      protoCAB.handler = proc(conn: Connection, proto: string) {.async.} =
+        check: "testCAB1" == string.fromBytes(await conn.readLp(1024))
+        await conn.writeLp("testCAB2")
+        check: "testCAB3" == string.fromBytes(await conn.readLp(1024))
+        await conn.writeLp("testCAB4")
+        await conn.close()
+
+      let
+        clientA = RelayClient.new(canHop = true)
+        clientB = RelayClient.new(canHop = true)
+        clientC = RelayClient.new(canHop = true)
+        switchA = createSwitch(clientA)
+        switchB = createSwitch(clientB)
+        switchC = createSwitch(clientC)
+        addrsABC = MultiAddress.init($switchB.peerInfo.addrs[0] & "/p2p/" &
+                                     $switchB.peerInfo.peerId & "/p2p-circuit/p2p/" &
+                                     $switchC.peerInfo.peerId).get()
+        addrsBCA = MultiAddress.init($switchC.peerInfo.addrs[0] & "/p2p/" &
+                                     $switchC.peerInfo.peerId & "/p2p-circuit/p2p/" &
+                                     $switchA.peerInfo.peerId).get()
+        addrsCAB = MultiAddress.init($switchA.peerInfo.addrs[0] & "/p2p/" &
+                                     $switchA.peerInfo.peerId & "/p2p-circuit/p2p/" &
+                                     $switchB.peerInfo.peerId).get()
+      switchA.mount(protoBCA)
+      switchB.mount(protoCAB)
+      switchC.mount(protoABC)
+
+      await clientA.start()
+      await clientB.start()
+      await clientC.start()
+      await switchA.start()
+      await switchB.start()
+      await switchC.start()
+
+      await switchA.connect(switchB.peerInfo.peerId, switchB.peerInfo.addrs)
+      await switchB.connect(switchC.peerInfo.peerId, switchC.peerInfo.addrs)
+      await switchC.connect(switchA.peerInfo.peerId, switchA.peerInfo.addrs)
+      let rsvpABC = await clientA.reserve(switchC.peerInfo.peerId, switchC.peerInfo.addrs)
+      let rsvpBCA = await clientB.reserve(switchA.peerInfo.peerId, switchA.peerInfo.addrs)
+      let rsvpCAB = await clientC.reserve(switchB.peerInfo.peerId, switchB.peerInfo.addrs)
+      let connABC = await switchA.dial(switchC.peerInfo.peerId, @[ addrsABC ], "/abctest")
+      let connBCA = await switchB.dial(switchA.peerInfo.peerId, @[ addrsBCA ], "/bcatest")
+      let connCAB = await switchC.dial(switchB.peerInfo.peerId, @[ addrsCAB ], "/cabtest")
+
+      await connABC.writeLp("testABC1")
+      await connBCA.writeLp("testBCA1")
+      await connCAB.writeLp("testCAB1")
+      check:
+        "testABC2" == string.fromBytes(await connABC.readLp(1024))
+        "testBCA2" == string.fromBytes(await connBCA.readLp(1024))
+        "testCAB2" == string.fromBytes(await connCAB.readLp(1024))
+      await connABC.writeLp("testABC3")
+      await connBCA.writeLp("testBCA3")
+      await connCAB.writeLp("testCAB3")
+      check:
+        "testABC4" == string.fromBytes(await connABC.readLp(1024))
+        "testBCA4" == string.fromBytes(await connBCA.readLp(1024))
+        "testCAB4" == string.fromBytes(await connCAB.readLp(1024))
+      await allFutures(connABC.close(), connBCA.close(), connCAB.close())
+      await allFutures(clientA.stop(), clientB.stop(), clientC.stop())
+      await allFutures(switchA.stop(), switchB.stop(), switchC.stop())
