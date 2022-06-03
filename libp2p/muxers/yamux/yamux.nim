@@ -314,7 +314,12 @@ method handle*(m: Yamux) {.async, gcsafe.} =
         if MsgFlags.Syn in header.flags:
           await m.connection.write(YamuxHeader.ping(MsgFlags.Ack, header.length))
       of GoAway:
-        raise newException(YamuxError, "Peer closed the connection")
+        case header.length:
+        of NormalTermination.uint32: trace "Received normal termination go away"
+        of ProtocolError.uint32: trace "Received protocol error go away"
+        of InternalError.uint32: trace "Received internal error go away"
+        else: trace "Received unexpected error go away"
+        break
       of Data, WindowUpdate:
         if MsgFlags.Syn in header.flags:
           if header.streamId in m.channels:
