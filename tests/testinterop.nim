@@ -2,7 +2,7 @@ import options, tables
 import chronos, chronicles, stew/byteutils
 import helpers
 import ../libp2p
-import ../libp2p/[daemon/daemonapi, varint, transports/wstransport, crypto/crypto]
+import ../libp2p/[daemon/daemonapi, varint, transports/wstransport, crypto/crypto, protocols/relay ]
 
 type
   DaemonPeerInfo = daemonapi.PeerInfo
@@ -471,3 +471,158 @@ suite "Interop":
 
   asyncTest "gossipsub: node publish many":
     await testPubSubNodePublish(gossip = true, count = 10)
+
+  asyncTest "NativeSrc -> NativeRelay -> DaemonDst":
+    proc daemonHandler(api: DaemonAPI, stream: P2PStream) {.async.} =
+      check "line1" == string.fromBytes(await stream.transp.readLp())
+      discard await stream.transp.writeLp("line2")
+      check "line3" == string.fromBytes(await stream.transp.readLp())
+      discard await stream.transp.writeLp("line4")
+      await stream.close()
+    let
+      maSrc = MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
+      maRel = MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
+      src = SwitchBuilder.new()
+        .withRng(crypto.newRng())
+        .withAddresses(@[ maSrc ])
+        .withTcpTransport()
+        .withMplex()
+        .withNoise()
+        .withRelayTransport(false)
+        .build()
+      rel = SwitchBuilder.new()
+        .withRng(crypto.newRng())
+        .withAddresses(@[ maRel ])
+        .withTcpTransport()
+        .withMplex()
+        .withNoise()
+        .withRelayTransport(true)
+        .build()
+
+    await src.start()
+    await rel.start()
+    let daemonNode = await newDaemonApi()
+    let daemonPeer = await daemonNode.identity()
+    let maStr = $rel.peerInfo.addrs[0] & "/p2p/" & $rel.peerInfo.peerId & "/p2p-circuit/p2p/" & $daemonPeer.peer
+    let maddr = MultiAddress.init(maStr).tryGet()
+    await src.connect(rel.peerInfo.peerId, rel.peerInfo.addrs)
+    await rel.connect(daemonPeer.peer, daemonPeer.addresses)
+
+    await daemonNode.addHandler(@[ "/testCustom" ], daemonHandler)
+
+    let conn = await src.dial(daemonPeer.peer, @[ maddr ], @[ "/testCustom" ])
+
+    await conn.writeLp("line1")
+    check string.fromBytes(await conn.readLp(1024)) == "line2"
+
+    await conn.writeLp("line3")
+    check string.fromBytes(await conn.readLp(1024)) == "line4"
+
+    await allFutures(src.stop(), rel.stop())
+    await daemonNode.close()
+
+  asyncTest "DaemonSrc -> NativeRelay -> NativeDst":
+    proc customHandler(conn: Connection, proto: string) {.async.} =
+      check "line1" == string.fromBytes(await conn.readLp(1024))
+      await conn.writeLp("line2")
+      check "line3" == string.fromBytes(await conn.readLp(1024))
+      await conn.writeLp("line4")
+      await conn.close()
+    let
+      protos = @[ "/customProto", RelayCodec ]
+    var
+      customProto = new LPProtocol
+    customProto.handler = customHandler
+    customProto.codec = protos[0]
+    let
+      maRel = MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
+      maDst = MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
+      rel = SwitchBuilder.new()
+        .withRng(crypto.newRng())
+        .withAddresses(@[ maRel ])
+        .withTcpTransport()
+        .withMplex()
+        .withNoise()
+        .withRelayTransport(true)
+        .build()
+      dst = SwitchBuilder.new()
+        .withRng(crypto.newRng())
+        .withAddresses(@[ maDst ])
+        .withTcpTransport()
+        .withMplex()
+        .withNoise()
+        .withRelayTransport(false)
+        .build()
+
+    dst.mount(customProto)
+    await rel.start()
+    await dst.start()
+    let daemonNode = await newDaemonApi()
+    let daemonPeer = await daemonNode.identity()
+    let maStr = $rel.peerInfo.addrs[0] & "/p2p/" & $rel.peerInfo.peerId & "/p2p-circuit/p2p/" & $dst.peerInfo.peerId
+    let maddr = MultiAddress.init(maStr).tryGet()
+    await daemonNode.connect(rel.peerInfo.peerId, rel.peerInfo.addrs)
+    await rel.connect(dst.peerInfo.peerId, dst.peerInfo.addrs)
+    await daemonNode.connect(dst.peerInfo.peerId, @[ maddr ])
+    var stream = await daemonNode.openStream(dst.peerInfo.peerId, protos)
+
+    discard await stream.transp.writeLp("line1")
+    check string.fromBytes(await stream.transp.readLp()) == "line2"
+    discard await stream.transp.writeLp("line3")
+    check string.fromBytes(await stream.transp.readLp()) == "line4"
+
+    await allFutures(dst.stop(), rel.stop())
+    await daemonNode.close()
+
+  asyncTest "NativeSrc -> DaemonRelay -> NativeDst":
+    proc customHandler(conn: Connection, proto: string) {.async.} =
+      check "line1" == string.fromBytes(await conn.readLp(1024))
+      await conn.writeLp("line2")
+      check "line3" == string.fromBytes(await conn.readLp(1024))
+      await conn.writeLp("line4")
+      await conn.close()
+    let
+      protos = @[ "/customProto", RelayCodec ]
+    var
+      customProto = new LPProtocol
+    customProto.handler = customHandler
+    customProto.codec = protos[0]
+    let
+      maSrc = MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
+      maDst = MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
+      src = SwitchBuilder.new()
+        .withRng(crypto.newRng())
+        .withAddresses(@[ maSrc ])
+        .withTcpTransport()
+        .withMplex()
+        .withNoise()
+        .withRelayTransport(false)
+        .build()
+      dst = SwitchBuilder.new()
+        .withRng(crypto.newRng())
+        .withAddresses(@[ maDst ])
+        .withTcpTransport()
+        .withMplex()
+        .withNoise()
+        .withRelayTransport(false)
+        .build()
+
+    dst.mount(customProto)
+    await src.start()
+    await dst.start()
+    let daemonNode = await newDaemonApi({RelayHop})
+    let daemonPeer = await daemonNode.identity()
+    let maStr = $daemonPeer.addresses[0] & "/p2p/" & $daemonPeer.peer & "/p2p-circuit/p2p/" & $dst.peerInfo.peerId
+    let maddr = MultiAddress.init(maStr).tryGet()
+    await src.connect(daemonPeer.peer, daemonPeer.addresses)
+    await daemonNode.connect(dst.peerInfo.peerId, dst.peerInfo.addrs)
+    let conn = await src.dial(dst.peerInfo.peerId, @[ maddr ], protos[0])
+
+    await conn.writeLp("line1")
+    check string.fromBytes(await conn.readLp(1024)) == "line2"
+
+    await conn.writeLp("line3")
+    check string.fromBytes(await conn.readLp(1024)) == "line4"
+
+    await allFutures(src.stop(), dst.stop())
+    await daemonNode.close()

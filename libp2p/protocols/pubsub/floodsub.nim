@@ -42,6 +42,9 @@ proc addSeen*(f: FloodSub, msgId: MessageID): bool =
   # Return true if the message has already been seen
   f.seen.put(f.seenSalt & msgId)
 
+proc firstSeen*(f: FloodSub, msgId: MessageID): Moment =
+  f.seen.addedAt(f.seenSalt & msgId)
+
 proc handleSubscribe*(f: FloodSub,
                       peer: PubsubPeer,
                       topic: string,

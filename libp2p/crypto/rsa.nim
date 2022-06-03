@@ -62,7 +62,7 @@ type
     buffer*: seq[byte]
     seck*: BrRsaPrivateKey
     pubk*: BrRsaPublicKey
-    pexp*: ptr cuchar
+    pexp*: ptr char
     pexplen*: int
 
   RsaPublicKey* = ref object
@@ -109,9 +109,9 @@ template getArray*(bs, os, ls: untyped): untyped =
 template trimZeroes(b: seq[byte], pt, ptlen: untyped) =
   var length = ptlen
   for i in 0..<length:
-    if pt[] != cast[cuchar](0x00'u8):
+    if pt[] != cast[char](0x00'u8):
       break
-    pt = cast[ptr cuchar](cast[uint](pt) + 1)
+    pt = cast[ptr char](cast[uint](pt) + 1)
     ptlen -= 1
 
 proc random*[T: RsaKP](t: typedesc[T], rng: var BrHmacDrbgContext,
@@ -150,7 +150,7 @@ proc random*[T: RsaKP](t: typedesc[T], rng: var BrHmacDrbgContext,
   if computed == 0:
     return err(RsaGenError)
 
-  res.pexp = cast[ptr cuchar](addr res.buffer[eko])
+  res.pexp = cast[ptr char](addr res.buffer[eko])
   res.pexplen = computed
 
   trimZeroes(res.buffer, res.seck.p, res.seck.plen)
@@ -190,14 +190,14 @@ proc copy*[T: RsaPKI](key: T): T =
       copyMem(addr result.buffer[no], key.pubk.n, key.pubk.nlen)
       copyMem(addr result.buffer[eo], key.pubk.e, key.pubk.elen)
       copyMem(addr result.buffer[peo], key.pexp, key.pexplen)
-      result.seck.p = cast[ptr cuchar](addr result.buffer[po])
-      result.seck.q = cast[ptr cuchar](addr result.buffer[qo])
-      result.seck.dp = cast[ptr cuchar](addr result.buffer[dpo])
-      result.seck.dq = cast[ptr cuchar](addr result.buffer[dqo])
-      result.seck.iq = cast[ptr cuchar](addr result.buffer[iqo])
-      result.pubk.n = cast[ptr cuchar](addr result.buffer[no])
-      result.pubk.e = cast[ptr cuchar](addr result.buffer[eo])
-      result.pexp = cast[ptr cuchar](addr result.buffer[peo])
+      result.seck.p = cast[ptr char](addr result.buffer[po])
+      result.seck.q = cast[ptr char](addr result.buffer[qo])
+      result.seck.dp = cast[ptr char](addr result.buffer[dpo])
+      result.seck.dq = cast[ptr char](addr result.buffer[dqo])
+      result.seck.iq = cast[ptr char](addr result.buffer[iqo])
+      result.pubk.n = cast[ptr char](addr result.buffer[no])
+      result.pubk.e = cast[ptr char](addr result.buffer[eo])
+      result.pexp = cast[ptr char](addr result.buffer[peo])
       result.seck.plen = key.seck.plen
       result.seck.qlen = key.seck.qlen
       result.seck.dplen = key.seck.dplen
@@ -216,8 +216,8 @@ proc copy*[T: RsaPKI](key: T): T =
       let eo = no + key.key.nlen
       copyMem(addr result.buffer[no], key.key.n, key.key.nlen)
       copyMem(addr result.buffer[eo], key.key.e, key.key.elen)
-      result.key.n = cast[ptr cuchar](addr result.buffer[no])
-      result.key.e = cast[ptr cuchar](addr result.buffer[eo])
+      result.key.n = cast[ptr char](addr result.buffer[no])
+      result.key.e = cast[ptr char](addr result.buffer[eo])
       result.key.nlen = key.key.nlen
       result.key.elen = key.key.elen
   elif T is RsaSignature:
@@ -231,8 +231,8 @@ proc getPublicKey*(key: RsaPrivateKey): RsaPublicKey =
   let length = key.pubk.nlen + key.pubk.elen
   result = new RsaPublicKey
   result.buffer = newSeq[byte](length)
-  result.key.n = cast[ptr cuchar](addr result.buffer[0])
-  result.key.e = cast[ptr cuchar](addr result.buffer[key.pubk.nlen])
+  result.key.n = cast[ptr char](addr result.buffer[0])
+  result.key.e = cast[ptr char](addr result.buffer[key.pubk.nlen])
   copyMem(addr result.buffer[0], cast[pointer](key.pubk.n), key.pubk.nlen)
   copyMem(addr result.buffer[key.pubk.nlen], cast[pointer](key.pubk.e),
           key.pubk.elen)
@@ -472,14 +472,14 @@ proc init*(key: var RsaPrivateKey, data: openArray[byte]): Result[void, Asn1Erro
      len(rawdp) > 0 and len(rawdq) > 0 and len(rawiq) > 0:
     key = new RsaPrivateKey
     key.buffer = @data
-    key.pubk.n = cast[ptr cuchar](addr key.buffer[rawn.offset])
-    key.pubk.e = cast[ptr cuchar](addr key.buffer[rawpube.offset])
-    key.seck.p = cast[ptr cuchar](addr key.buffer[rawp.offset])
-    key.seck.q = cast[ptr cuchar](addr key.buffer[rawq.offset])
-    key.seck.dp = cast[ptr cuchar](addr key.buffer[rawdp.offset])
-    key.seck.dq = cast[ptr cuchar](addr key.buffer[rawdq.offset])
-    key.seck.iq = cast[ptr cuchar](addr key.buffer[rawiq.offset])
-    key.pexp = cast[ptr cuchar](addr key.buffer[rawprie.offset])
+    key.pubk.n = cast[ptr char](addr key.buffer[rawn.offset])
+    key.pubk.e = cast[ptr char](addr key.buffer[rawpube.offset])
+    key.seck.p = cast[ptr char](addr key.buffer[rawp.offset])
+    key.seck.q = cast[ptr char](addr key.buffer[rawq.offset])
+    key.seck.dp = cast[ptr char](addr key.buffer[rawdp.offset])
+    key.seck.dq = cast[ptr char](addr key.buffer[rawdq.offset])
+    key.seck.iq = cast[ptr char](addr key.buffer[rawiq.offset])
+    key.pexp = cast[ptr char](addr key.buffer[rawprie.offset])
     key.pubk.nlen = len(rawn)
     key.pubk.elen = len(rawpube)
     key.seck.plen = len(rawp)
@@ -554,8 +554,8 @@ proc init*(key: var RsaPublicKey, data: openArray[byte]): Result[void, Asn1Error
   if len(rawn) >= (MinKeySize shr 3) and len(rawe) > 0:
     key = new RsaPublicKey
     key.buffer = @data
-    key.key.n = cast[ptr cuchar](addr key.buffer[rawn.offset])
-    key.key.e = cast[ptr cuchar](addr key.buffer[rawe.offset])
+    key.key.n = cast[ptr char](addr key.buffer[rawn.offset])
+    key.key.e = cast[ptr char](addr key.buffer[rawe.offset])
     key.key.nlen = len(rawn)
     key.key.elen = len(rawe)
     ok()
@@ -762,9 +762,9 @@ proc sign*[T: byte|char](key: RsaPrivateKey,
     kv.update(addr hc.vtable, nil, 0)
   kv.output(addr hc.vtable, addr hash[0])
   var oid = RsaOidSha256
-  let implRes = impl(cast[ptr cuchar](addr oid[0]),
-                 cast[ptr cuchar](addr hash[0]), len(hash),
-                 addr key.seck, cast[ptr cuchar](addr res.buffer[0]))
+  let implRes = impl(cast[ptr char](addr oid[0]),
+                 cast[ptr char](addr hash[0]), len(hash),
+                 addr key.seck, cast[ptr char](addr res.buffer[0]))
   if implRes == 0:
     err(RsaSignatureError)
   else:
@@ -791,8 +791,8 @@ proc verify*[T: byte|char](sig: RsaSignature, message: openArray[T],
       kv.update(addr hc.vtable, nil, 0)
     kv.output(addr hc.vtable, addr hash[0])
     var oid = RsaOidSha256
-    let res = impl(cast[ptr cuchar](addr sig.buffer[0]), len(sig.buffer),
-                   cast[ptr cuchar](addr oid[0]),
-                   len(check), addr pubkey.key, cast[ptr cuchar](addr check[0]))
+    let res = impl(cast[ptr char](addr sig.buffer[0]), len(sig.buffer),
+                   cast[ptr char](addr oid[0]),
+                   len(check), addr pubkey.key, cast[ptr char](addr check[0]))
     if res == 1:
       result = equalMem(addr check[0], addr hash[0], len(hash))

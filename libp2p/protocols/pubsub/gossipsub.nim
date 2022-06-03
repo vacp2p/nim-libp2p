@@ -28,7 +28,7 @@ import ./pubsub,
 import stew/results
 export results
 
-import ./gossipsub/[types, scoring, behavior]
+import ./gossipsub/[types, scoring, behavior], ../../utils/heartbeat
 
 export types, scoring, behavior, pubsub
 
@@ -38,6 +38,8 @@ logScope:
 declareCounter(libp2p_gossipsub_failed_publish, "number of failed publish")
 declareCounter(libp2p_gossipsub_invalid_topic_subscription, "number of invalid topic subscriptions that happened")
 declareCounter(libp2p_gossipsub_duplicate_during_validation, "number of duplicates received during message validation")
+declareCounter(libp2p_gossipsub_duplicate, "number of duplicates received")
+declareCounter(libp2p_gossipsub_received, "number of messages received (deduplicated)")
 
 proc init*(_: type[GossipSubParams]): GossipSubParams =
   GossipSubParams(
@@ -69,7 +71,8 @@ proc init*(_: type[GossipSubParams]): GossipSubParams =
       ipColocationFactorThreshold: 1.0,
       behaviourPenaltyWeight: -1.0,
       behaviourPenaltyDecay: 0.999,
-      disconnectBadPeers: false
+      disconnectBadPeers: false,
+      enablePX: false
     )
 
 proc validateParameters*(parameters: GossipSubParams): Result[void, cstring] =
@@ -378,15 +381,23 @@ method rpcHandler*(g: GossipSub,
     # remote attacking the hash function
     if g.addSeen(msgId):
       trace "Dropping already-seen message", msgId = shortLog(msgId), peer
-      # make sure to update score tho before continuing
-      # TODO: take into account meshMessageDeliveriesWindow
-      # score only if messages are not too old.
-      g.rewardDelivered(peer, msg.topicIDs, false)
 
-      g.validationSeen.withValue(msgIdSalted, seen): seen[].incl(peer)
+      var alreadyReceived = false
+      g.validationSeen.withValue(msgIdSalted, seen):
+        if seen[].containsOrIncl(peer):
+          # peer sent us this message twice
+          alreadyReceived = true
+
+      if not alreadyReceived:
+        let delay = Moment.now() - g.firstSeen(msgId)
+        g.rewardDelivered(peer, msg.topicIDs, false, delay)
+
+      libp2p_gossipsub_duplicate.inc()
 
       # onto the next message
       continue
+
+    libp2p_gossipsub_received.inc()
 
     # avoid processing messages we are not interested in
     if msg.topicIDs.allIt(it notin g.topics):
@@ -556,7 +567,7 @@ method publish*(g: GossipSub,
   return peers.len
 
 proc maintainDirectPeers(g: GossipSub) {.async.} =
-  while g.heartbeatRunning:
+  heartbeat "GossipSub DirectPeers", 1.minutes:
     for id, addrs in g.parameters.directPeers:
       let peer = g.peers.getOrDefault(id)
       if isNil(peer):
@@ -572,8 +583,6 @@ proc maintainDirectPeers(g: GossipSub) {.async.} =
         except CatchableError as exc:
           debug "Direct peer error dialing", msg = exc.msg
 
-    await sleepAsync(1.minutes)
-
 method start*(g: GossipSub) {.async.} =
   trace "gossipsub start"
 
@@ -581,8 +590,8 @@ method start*(g: GossipSub) {.async.} =
     warn "Starting gossipsub twice"
     return
 
-  g.heartbeatRunning = true
   g.heartbeatFut = g.heartbeat()
+  g.scoringHeartbeatFut = g.scoringHeartbeat()
   g.directPeersLoop = g.maintainDirectPeers()
 
 method stop*(g: GossipSub) {.async.} =
@@ -592,13 +601,10 @@ method stop*(g: GossipSub) {.async.} =
     return
 
   # stop heartbeat interval
-  g.heartbeatRunning = false
   g.directPeersLoop.cancel()
-  if not g.heartbeatFut.finished:
-    trace "awaiting last heartbeat"
-    await g.heartbeatFut
-    trace "heartbeat stopped"
-    g.heartbeatFut = nil
+  g.scoringHeartbeatFut.cancel()
+  g.heartbeatFut.cancel()
+  g.heartbeatFut = nil
 
 method initPubSub*(g: GossipSub)
   {.raises: [Defect, InitializationError].} =

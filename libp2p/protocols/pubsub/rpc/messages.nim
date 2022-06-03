@@ -10,14 +10,17 @@
 {.push raises: [Defect].}
 
 import options, sequtils
-import ../../../utility
-import ../../../peerid
+import "../../.."/[
+        peerid,
+        routing_record,
+        utility
+      ]
 
 export options
 
 type
     PeerInfoMsg* = object
-      peerId*: seq[byte]
+      peerId*: PeerId
       signedPeerRecord*: seq[byte]
 
     SubOpts* = object

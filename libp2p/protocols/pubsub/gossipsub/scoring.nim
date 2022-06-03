@@ -13,7 +13,7 @@ import std/[tables, sets, options]
 import chronos, chronicles, metrics
 import "."/[types]
 import ".."/[pubsubpeer]
-import "../../.."/[peerid, multiaddress, utility, switch]
+import "../../.."/[peerid, multiaddress, utility, switch, utils/heartbeat]
 
 declareGauge(libp2p_gossipsub_peers_scores, "the scores of the peers in gossipsub", labels = ["agent"])
 declareCounter(libp2p_gossipsub_bad_score_disconnection, "the number of peers disconnected by gossipsub", labels = ["agent"])
@@ -242,7 +242,8 @@ proc updateScores*(g: GossipSub) = # avoid async
 
     trace "updated peer's score", peer, score = peer.score, n_topics, is_grafted
 
-    if g.parameters.disconnectBadPeers and stats.score < g.parameters.graylistThreshold:
+    if g.parameters.disconnectBadPeers and stats.score < g.parameters.graylistThreshold and
+        peer.peerId notin g.parameters.directPeers:
       debug "disconnecting bad score peer", peer, score = peer.score
       asyncSpawn(try: g.disconnectPeer(peer) except Exception as exc: raiseAssert exc.msg)
 
@@ -252,6 +253,11 @@ proc updateScores*(g: GossipSub) = # avoid async
     g.peerStats.del(peer)
 
   trace "updated scores", peers = g.peers.len
+
+proc scoringHeartbeat*(g: GossipSub) {.async.} =
+  heartbeat "Gossipsub scoring", g.parameters.decayInterval:
+    trace "running scoring heartbeat", instance = cast[int](g)
+    g.updateScores()
 
 proc punishInvalidMessage*(g: GossipSub, peer: PubSubPeer, topics: seq[string]) =
   for tt in topics:
@@ -268,7 +274,7 @@ proc addCapped*[T](stat: var T, diff, cap: T) =
   stat += min(diff, cap - stat)
 
 proc rewardDelivered*(
-    g: GossipSub, peer: PubSubPeer, topics: openArray[string], first: bool) =
+    g: GossipSub, peer: PubSubPeer, topics: openArray[string], first: bool, delay = ZeroDuration) =
   for tt in topics:
     let t = tt
     if t notin g.topics:
@@ -277,6 +283,10 @@ proc rewardDelivered*(
     let tt = t
     let topicParams = g.topicParams.mgetOrPut(t, TopicParams.init())
                                             # if in mesh add more delivery score
+
+    if delay > topicParams.meshMessageDeliveriesWindow:
+      # Too old
+      continue
 
     g.withPeerStats(peer.peerId) do (stats: var PeerStats):
       stats.topicInfos.withValue(tt, tstats):

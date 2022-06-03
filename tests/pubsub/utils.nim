@@ -40,11 +40,13 @@ proc generateNodes*(
   verifySignature: bool = libp2p_pubsub_verify,
   anonymize: bool = libp2p_pubsub_anonymize,
   sign: bool = libp2p_pubsub_sign,
+  sendSignedPeerRecord = false,
   unsubscribeBackoff = 1.seconds,
-  maxMessageSize: int = 1024 * 1024): seq[PubSub] =
+  maxMessageSize: int = 1024 * 1024,
+  enablePX: bool = false): seq[PubSub] =
 
   for i in 0..<num:
-    let switch = newStandardSwitch(secureManagers = secureManagers)
+    let switch = newStandardSwitch(secureManagers = secureManagers, sendSignedPeerRecord = sendSignedPeerRecord)
     let pubsub = if gossip:
       let g = GossipSub.init(
         switch = switch,
@@ -54,7 +56,7 @@ proc generateNodes*(
         msgIdProvider = msgIdProvider,
         anonymize = anonymize,
         maxMessageSize = maxMessageSize,
-        parameters = (var p = GossipSubParams.init(); p.floodPublish = false; p.historyLength = 20; p.historyGossip = 20; p.unsubscribeBackoff = unsubscribeBackoff; p))
+        parameters = (var p = GossipSubParams.init(); p.floodPublish = false; p.historyLength = 20; p.historyGossip = 20; p.unsubscribeBackoff = unsubscribeBackoff; p.enablePX = enablePX; p))
       # set some testing params, to enable scores
       g.topicParams.mgetOrPut("foobar", TopicParams.init()).topicWeight = 1.0
       g.topicParams.mgetOrPut("foo", TopicParams.init()).topicWeight = 1.0
