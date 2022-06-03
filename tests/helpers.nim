@@ -91,8 +91,8 @@ proc bridgedConnections*: (Connection, Connection) =
   let
     connA = TestBufferStream()
     connB = TestBufferStream()
-  connA.dir = Out
-  connB.dir = In
+  connA.dir = Direction.Out
+  connB.dir = Direction.In
   connA.initStream()
   connB.initStream()
   connA.writeHandler = proc(data: seq[byte]) {.async.} =

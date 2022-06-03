@@ -13,7 +13,7 @@ import std/[tables]
 import chronos, chronicles, stew/[endians2, byteutils]
 import
   ../muxer,
-  ../../stream/[lpstream, connection]
+  ../../stream/connection
 
 export muxer
 
