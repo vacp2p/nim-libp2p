@@ -73,10 +73,11 @@ proc write(conn: LPStream, header: YamuxHeader): Future[void] {.gcsafe.} =
   var buffer = header.encode()
   return conn.write(@buffer)
 
-proc ping(T: type[YamuxHeader], pingData: uint32): T =
+proc ping(T: type[YamuxHeader], flag: MsgFlags, pingData: uint32): T =
   T(
     version: YamuxVersion,
     msgType: MsgType.Ping,
+    flags: {flag},
     length: pingData
   )
 
@@ -310,7 +311,8 @@ method handle*(m: Yamux) {.async, gcsafe.} =
 
       case header.msgType:
       of Ping:
-        await m.connection.write(YamuxHeader.ping(header.length))
+        if MsgFlags.Syn in header.flags:
+          await m.connection.write(YamuxHeader.ping(MsgFlags.Ack, header.length))
       of GoAway:
         raise newException(YamuxError, "Peer closed the connection")
       of Data, WindowUpdate:
