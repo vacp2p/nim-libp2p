@@ -138,9 +138,17 @@ type
     directPeers*: Table[PeerId, seq[MultiAddress]]
 
     disconnectBadPeers*: bool
+    enablePX*: bool
 
   BackoffTable* = Table[string, Table[PeerId, Moment]]
   ValidationSeenTable* = Table[MessageID, HashSet[PubSubPeer]]
+
+  RoutingRecordsPair* = tuple[id: PeerId, record: Option[PeerRecord]]
+  RoutingRecordsHandler* =
+    proc(peer: PeerId,
+    tag: string, # For gossipsub, the topic
+    peers: seq[RoutingRecordsPair])
+    {.gcsafe, raises: [Defect].}
 
   GossipSub* = ref object of FloodSub
     mesh*: PeerTable                           # peers that we send messages to when we are subscribed to the topic
@@ -153,7 +161,8 @@ type
     control*: Table[string, ControlMessage]    # pending control messages
     mcache*: MCache                            # messages cache
     validationSeen*: ValidationSeenTable       # peers who sent us message in validation
-    heartbeatFut*: Future[void]                 # cancellation future for heartbeat interval
+    heartbeatFut*: Future[void]                # cancellation future for heartbeat interval
+    scoringHeartbeatFut*: Future[void]         # cancellation future for scoring heartbeat interval
     heartbeatRunning*: bool
 
     peerStats*: Table[PeerId, PeerStats]
@@ -161,6 +170,7 @@ type
     topicParams*: Table[string, TopicParams]
     directPeersLoop*: Future[void]
     peersInIP*: Table[MultiAddress, HashSet[PeerId]]
+    routingRecordsHandler*: seq[RoutingRecordsHandler] # Callback for peer exchange
 
     heartbeatEvents*: seq[AsyncEvent]
 

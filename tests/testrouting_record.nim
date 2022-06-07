@@ -9,7 +9,7 @@ suite "Routing record":
       privKey = PrivateKey.random(rng[]).tryGet()
       peerId = PeerId.init(privKey).tryGet()
       multiAddresses = @[MultiAddress.init("/ip4/0.0.0.0/tcp/24").tryGet(), MultiAddress.init("/ip4/0.0.0.0/tcp/25").tryGet()]
-      routingRecord = PeerRecord.init(peerId, 42, multiAddresses)
+      routingRecord = PeerRecord.init(peerId, multiAddresses, 42)
 
       buffer = routingRecord.encode()
 
@@ -36,3 +36,33 @@ suite "Routing record":
       $decodedRecord.addresses[0].address == "/ip4/1.2.3.4/tcp/0"
       $decodedRecord.addresses[1].address == "/ip4/1.2.3.4/tcp/1"
 
+suite "Signed Routing Record":
+  test "Encode -> decode test":
+    let
+      rng = newRng()
+      privKey = PrivateKey.random(rng[]).tryGet()
+      peerId = PeerId.init(privKey).tryGet()
+      multiAddresses = @[MultiAddress.init("/ip4/0.0.0.0/tcp/24").tryGet(), MultiAddress.init("/ip4/0.0.0.0/tcp/25").tryGet()]
+      routingRecord = SignedPeerRecord.init(privKey, PeerRecord.init(peerId, multiAddresses, 42)).tryGet()
+      buffer = routingRecord.envelope.encode().tryGet()
+
+      parsedRR = SignedPeerRecord.decode(buffer).tryGet().data
+
+    check:
+      parsedRR.peerId == peerId
+      parsedRR.seqNo == 42
+      parsedRR.addresses.len == 2
+      parsedRR.addresses[0].address == multiAddresses[0]
+      parsedRR.addresses[1].address == multiAddresses[1]
+
+  test "Can't use mismatched public key":
+    let
+      rng = newRng()
+      privKey = PrivateKey.random(rng[]).tryGet()
+      privKey2 = PrivateKey.random(rng[]).tryGet()
+      peerId = PeerId.init(privKey).tryGet()
+      multiAddresses = @[MultiAddress.init("/ip4/0.0.0.0/tcp/24").tryGet(), MultiAddress.init("/ip4/0.0.0.0/tcp/25").tryGet()]
+      routingRecord = SignedPeerRecord.init(privKey2, PeerRecord.init(peerId, multiAddresses, 42)).tryGet()
+      buffer = routingRecord.envelope.encode().tryGet()
+
+    check SignedPeerRecord.decode(buffer).error == EnvelopeInvalidSignature

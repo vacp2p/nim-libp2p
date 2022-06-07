@@ -9,7 +9,7 @@
 
 {.push raises: [Defect].}
 
-import std/[options, strformat]
+import std/[strformat]
 import chronos, chronicles, bearssl
 import ../protocol,
        ../../stream/streamseq,

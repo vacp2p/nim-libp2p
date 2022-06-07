@@ -182,10 +182,6 @@ suite "GossipSub":
     await allFuturesThrowing(nodesFut.concat())
 
   asyncTest "GossipSub test directPeers":
-    var handlerFut = newFuture[bool]()
-    proc handler(topic: string, data: seq[byte]) {.async, gcsafe.} =
-      check topic == "foobar"
-      handlerFut.complete(true)
 
     let
       nodes = generateNodes(2, gossip = true)
@@ -221,10 +217,117 @@ suite "GossipSub":
     # DO NOT SUBSCRIBE, CONNECTION SHOULD HAPPEN
     ### await subscribeNodes(nodes)
 
-    nodes[0].subscribe("foobar", handler)
+    proc handler(topic: string, data: seq[byte]) {.async, gcsafe.} = discard
     nodes[1].subscribe("foobar", handler)
 
     await invalidDetected.wait(10.seconds)
+
+    await allFuturesThrowing(
+      nodes[0].switch.stop(),
+      nodes[1].switch.stop()
+    )
+
+    await allFuturesThrowing(
+      nodes[0].stop(),
+      nodes[1].stop()
+    )
+
+    await allFuturesThrowing(nodesFut.concat())
+
+  asyncTest "GossipSub directPeers: always forward messages":
+    let
+      nodes = generateNodes(2, gossip = true)
+
+      # start switches
+      nodesFut = await allFinished(
+        nodes[0].switch.start(),
+        nodes[1].switch.start(),
+      )
+
+    GossipSub(nodes[0]).parameters.directPeers[nodes[1].switch.peerInfo.peerId] = nodes[1].switch.peerInfo.addrs
+    GossipSub(nodes[1]).parameters.directPeers[nodes[0].switch.peerInfo.peerId] = nodes[0].switch.peerInfo.addrs
+
+    # start pubsub
+    await allFuturesThrowing(
+      allFinished(
+        nodes[0].start(),
+        nodes[1].start(),
+    ))
+
+    var handlerFut = newFuture[void]()
+    proc handler(topic: string, data: seq[byte]) {.async, gcsafe.} =
+      check topic == "foobar"
+      handlerFut.complete()
+
+    nodes[0].subscribe("foobar", handler)
+    nodes[1].subscribe("foobar", handler)
+
+    tryPublish await nodes[0].publish("foobar", toBytes("hellow")), 1
+
+    await handlerFut
+
+    # peer shouldn't be in our mesh
+    check "foobar" notin GossipSub(nodes[0]).mesh
+    check "foobar" notin GossipSub(nodes[1]).mesh
+
+    await allFuturesThrowing(
+      nodes[0].switch.stop(),
+      nodes[1].switch.stop()
+    )
+
+    await allFuturesThrowing(
+      nodes[0].stop(),
+      nodes[1].stop()
+    )
+
+    await allFuturesThrowing(nodesFut.concat())
+
+  asyncTest "GossipSub directPeers: don't kick direct peer with low score":
+    let
+      nodes = generateNodes(2, gossip = true)
+
+      # start switches
+      nodesFut = await allFinished(
+        nodes[0].switch.start(),
+        nodes[1].switch.start(),
+      )
+
+    GossipSub(nodes[0]).parameters.directPeers[nodes[1].switch.peerInfo.peerId] = nodes[1].switch.peerInfo.addrs
+    GossipSub(nodes[1]).parameters.directPeers[nodes[0].switch.peerInfo.peerId] = nodes[0].switch.peerInfo.addrs
+
+    GossipSub(nodes[1]).parameters.disconnectBadPeers = true
+    GossipSub(nodes[1]).parameters.graylistThreshold = 100000
+
+    # start pubsub
+    await allFuturesThrowing(
+      allFinished(
+        nodes[0].start(),
+        nodes[1].start(),
+    ))
+
+    var handlerFut = newFuture[void]()
+    proc handler(topic: string, data: seq[byte]) {.async, gcsafe.} =
+      check topic == "foobar"
+      handlerFut.complete()
+
+    nodes[0].subscribe("foobar", handler)
+    nodes[1].subscribe("foobar", handler)
+
+    tryPublish await nodes[0].publish("foobar", toBytes("hellow")), 1
+
+    await handlerFut
+
+    GossipSub(nodes[1]).updateScores()
+    # peer shouldn't be in our mesh
+    check:
+      GossipSub(nodes[1]).peerStats[nodes[0].switch.peerInfo.peerId].score < GossipSub(nodes[1]).parameters.graylistThreshold
+    GossipSub(nodes[1]).updateScores()
+
+    handlerFut = newFuture[void]()
+    tryPublish await nodes[0].publish("foobar", toBytes("hellow2")), 1
+
+    # Without directPeers, this would fail
+    await handlerFut.wait(1.seconds)
 
     await allFuturesThrowing(
       nodes[0].switch.stop(),
@@ -335,3 +438,60 @@ suite "GossipSub":
           it.switch.stop())))
 
     await allFuturesThrowing(nodesFut)
+
+  asyncTest "GossipSub scoring - decayInterval":
+
+    let
+      nodes = generateNodes(2, gossip = true)
+
+      # start switches
+      nodesFut = await allFinished(
+        nodes[0].switch.start(),
+        nodes[1].switch.start(),
+      )
+
+    var gossip = GossipSub(nodes[0])
+    # MacOs has some nasty jitter when sleeping
+    # (up to 7 ms), so we need some pretty long
+    # sleeps to be safe here
+    gossip.parameters.decayInterval = 300.milliseconds
+
+    # start pubsub
+    await allFuturesThrowing(
+      allFinished(
+        nodes[0].start(),
+        nodes[1].start(),
+    ))
+
+    var handlerFut = newFuture[void]()
+    proc handler(topic: string, data: seq[byte]) {.async, gcsafe.} =
+      handlerFut.complete()
+
+    await subscribeNodes(nodes)
+
+    nodes[0].subscribe("foobar", handler)
+    nodes[1].subscribe("foobar", handler)
+
+    tryPublish await nodes[0].publish("foobar", toBytes("hello")), 1
+
+    await handlerFut
+
+    gossip.peerStats[nodes[1].peerInfo.peerId].topicInfos["foobar"].meshMessageDeliveries = 100
+    gossip.topicParams["foobar"].meshMessageDeliveriesDecay = 0.9
+    await sleepAsync(1500.milliseconds)
+
+    # We should have decayed 5 times, though allowing 4..6
+    check:
+      gossip.peerStats[nodes[1].peerInfo.peerId].topicInfos["foobar"].meshMessageDeliveries in 50.0 .. 66.0
+
+    await allFuturesThrowing(
+      nodes[0].switch.stop(),
+      nodes[1].switch.stop()
+    )
+
+    await allFuturesThrowing(
+      nodes[0].stop(),
+      nodes[1].stop()
+    )
+
+    await allFuturesThrowing(nodesFut.concat())

@@ -123,8 +123,8 @@ proc checkPublic(key: openArray[byte], curve: cint): uint32 =
   var impl = brEcGetDefault()
   var orderlen = 0
   discard impl.order(curve, addr orderlen)
-  result = impl.mul(cast[ptr cuchar](unsafeAddr ckey[0]), len(ckey),
-                    cast[ptr cuchar](addr x[0]), len(x), curve)
+  result = impl.mul(cast[ptr char](unsafeAddr ckey[0]), len(ckey),
+                    cast[ptr char](addr x[0]), len(x), curve)
 
 proc getOffset(pubkey: EcPublicKey): int {.inline.} =
   let o = cast[uint](pubkey.key.q) - cast[uint](unsafeAddr pubkey.buffer[0])
@@ -174,7 +174,7 @@ proc copy*[T: EcPKI](dst: var T, src: T): bool =
           dst.buffer = src.buffer
           dst.key.curve = src.key.curve
           dst.key.xlen = length
-          dst.key.x = cast[ptr cuchar](addr dst.buffer[offset])
+          dst.key.x = cast[ptr char](addr dst.buffer[offset])
           result = true
     elif T is EcPublicKey:
       let length = src.key.qlen
@@ -184,7 +184,7 @@ proc copy*[T: EcPKI](dst: var T, src: T): bool =
           dst.buffer = src.buffer
           dst.key.curve = src.key.curve
           dst.key.qlen = length
-          dst.key.q = cast[ptr cuchar](addr dst.buffer[offset])
+          dst.key.q = cast[ptr char](addr dst.buffer[offset])
           result = true
     else:
       let length = len(src.buffer)
@@ -252,8 +252,8 @@ proc getPublicKey*(seckey: EcPrivateKey): EcResult[EcPublicKey] =
 
   var ecimp = brEcGetDefault()
   if seckey.key.curve in EcSupportedCurvesCint:
-    var length = getPublicKeyLength(cast[EcCurveKind](seckey.key.curve))
     var res = new EcPublicKey
+    assert res.buffer.len > getPublicKeyLength(cast[EcCurveKind](seckey.key.curve))
     if brEcComputePublicKey(ecimp, addr res.key,
                             addr res.buffer[0], unsafeAddr seckey.key) == 0:
       err(EcKeyIncorrectError)
@@ -638,7 +638,7 @@ proc init*(key: var EcPrivateKey, data: openArray[byte]): Result[void, Asn1Error
   if checkScalar(raw.toOpenArray(), curve) == 1'u32:
     key = new EcPrivateKey
     copyMem(addr key.buffer[0], addr raw.buffer[raw.offset], raw.length)
-    key.key.x = cast[ptr cuchar](addr key.buffer[0])
+    key.key.x = cast[ptr char](addr key.buffer[0])
     key.key.xlen = raw.length
     key.key.curve = curve
     ok()
@@ -697,7 +697,7 @@ proc init*(pubkey: var EcPublicKey, data: openArray[byte]): Result[void, Asn1Err
   if checkPublic(raw.toOpenArray(), curve) != 0:
     pubkey = new EcPublicKey
     copyMem(addr pubkey.buffer[0], addr raw.buffer[raw.offset], raw.length)
-    pubkey.key.q = cast[ptr cuchar](addr pubkey.buffer[0])
+    pubkey.key.q = cast[ptr char](addr pubkey.buffer[0])
     pubkey.key.qlen = raw.length
     pubkey.key.curve = curve
     ok()
@@ -785,7 +785,7 @@ proc initRaw*(key: var EcPrivateKey, data: openArray[byte]): bool =
       let length = len(data)
       key = new EcPrivateKey
       copyMem(addr key.buffer[0], unsafeAddr data[0], length)
-      key.key.x = cast[ptr cuchar](addr key.buffer[0])
+      key.key.x = cast[ptr char](addr key.buffer[0])
       key.key.xlen = length
       key.key.curve = curve
       result = true
@@ -816,7 +816,7 @@ proc initRaw*(pubkey: var EcPublicKey, data: openArray[byte]): bool =
       let length = len(data)
       pubkey = new EcPublicKey
       copyMem(addr pubkey.buffer[0], unsafeAddr data[0], length)
-      pubkey.key.q = cast[ptr cuchar](addr pubkey.buffer[0])
+      pubkey.key.q = cast[ptr char](addr pubkey.buffer[0])
       pubkey.key.qlen = length
       pubkey.key.curve = curve
       result = true
@@ -891,9 +891,9 @@ proc scalarMul*(pub: EcPublicKey, sec: EcPrivateKey): EcPublicKey =
         let poffset = key.getOffset()
         let soffset = sec.getOffset()
         if poffset >= 0 and soffset >= 0:
-          let res = impl.mul(cast[ptr cuchar](addr key.buffer[poffset]),
+          let res = impl.mul(cast[ptr char](addr key.buffer[poffset]),
                              key.key.qlen,
-                             cast[ptr cuchar](unsafeAddr sec.buffer[soffset]),
+                             cast[ptr char](unsafeAddr sec.buffer[soffset]),
                              sec.key.xlen,
                              key.key.curve)
           if res != 0:

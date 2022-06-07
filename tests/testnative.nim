@@ -2,7 +2,8 @@ import testvarint,
        testconnection,
        testminprotobuf,
        teststreamseq,
-       testsemaphore
+       testsemaphore,
+       testheartbeat
 
 import testminasn1,
        testrsa,
@@ -31,4 +32,5 @@ import testtcptransport,
        testpeerinfo,
        testpeerstore,
        testping,
-       testmplex
+       testmplex,
+       testrelay
