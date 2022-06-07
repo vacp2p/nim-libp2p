@@ -133,10 +133,6 @@ type
     receivedData: AsyncEvent
     updatedRecvWindow: AsyncEvent
 
-proc remoteClosed(channel: YamuxChannel) =
-  if channel.closedRemotely.done(): return
-  channel.closedRemotely.complete()
-
 proc updateRecvWindow(channel: YamuxChannel) {.async.} =
   let inWindow = channel.recvWindow + channel.recvQueue.len
   if inWindow > channel.maxRecvWindow div 2:
@@ -223,13 +219,18 @@ proc actuallyClose(channel: YamuxChannel) {.async.} =
      channel.closedRemotely.done():
     await procCall Connection(channel).closeImpl()
 
-method closeImpl*(channel: YamuxChannel) {.async, gcsafe.} =
-  if channel.closedLocally: return
-  channel.closedLocally = true
+proc remoteClosed(channel: YamuxChannel) {.async.} =
+  if not channel.closedRemotely.done():
+    channel.closedRemotely.complete()
+  await channel.actuallyClose()
 
-  if channel.isReset == false and channel.sendQueue.len == 0:
-    await channel.conn.write(YamuxHeader.data(channel.id, 0, {Fin}))
-    await channel.actuallyClose()
+method closeImpl*(channel: YamuxChannel) {.async, gcsafe.} =
+  if not channel.closedLocally:
+    channel.closedLocally = true
+
+    if channel.isReset == false and channel.sendQueue.len == 0:
+      await channel.conn.write(YamuxHeader.data(channel.id, 0, {Fin}))
+  await channel.actuallyClose()
 
 method write*(channel: YamuxChannel, msg: seq[byte]) {.async.} =
   if channel.closedLocally or channel.isReset:
@@ -331,15 +332,14 @@ method handle*(m: Yamux) {.async, gcsafe.} =
 
         if MsgFlags.Fin in header.flags:
           trace "remote closed stream"
-          stream.remoteClosed()
+          await stream.remoteClosed()
           if stream.closedLocally:
             m.channels.del(header.streamId)
         if MsgFlags.Rst in header.flags:
           trace "remote reset stream"
           stream.isReset = true
-          stream.remoteClosed()
+          await stream.remoteClosed()
           m.channels.del(header.streamId)
-
 
   except YamuxError as exc:
     debug "Closing yamux connection", error=exc.msg
