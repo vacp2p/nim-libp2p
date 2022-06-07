@@ -127,6 +127,7 @@ type
     acked: bool
     sendQueue: seq[byte]
     recvQueue: seq[byte]
+    isReset: bool
     closedRemotely: Future[void]
     closedLocally: bool
     receivedData: AsyncEvent
@@ -155,10 +156,11 @@ method readOnce*(
   nbytes: int):
   Future[int] {.async.} =
 
+  if channel.isReset: return 0
   if channel.recvQueue.len == 0:
     channel.receivedData.clear()
     await channel.closedRemotely or channel.receivedData.wait()
-    if channel.closedRemotely.done() and channel.recvQueue.len == 0:
+    if channel.isReset or (channel.closedRemotely.done() and channel.recvQueue.len == 0):
       return 0
 
   let toRead = min(channel.recvQueue.len, nbytes)
@@ -225,12 +227,12 @@ method closeImpl*(channel: YamuxChannel) {.async, gcsafe.} =
   if channel.closedLocally: return
   channel.closedLocally = true
 
-  if channel.sendQueue.len == 0:
+  if channel.isReset == false and channel.sendQueue.len == 0:
     await channel.conn.write(YamuxHeader.data(channel.id, 0, {Fin}))
     await channel.actuallyClose()
 
 method write*(channel: YamuxChannel, msg: seq[byte]) {.async.} =
-  if channel.closedLocally:
+  if channel.closedLocally or channel.isReset:
     raise newLPStreamEOFError()
 
   channel.sendQueue = channel.sendQueue.concat(msg)
@@ -330,6 +332,14 @@ method handle*(m: Yamux) {.async, gcsafe.} =
         if MsgFlags.Fin in header.flags:
           trace "remote closed stream"
           stream.remoteClosed()
+          if stream.closedLocally:
+            m.channels.del(header.streamId)
+        if MsgFlags.Rst in header.flags:
+          trace "remote reset stream"
+          stream.isReset = true
+          stream.remoteClosed()
+          m.channels.del(header.streamId)
+
 
   except YamuxError as exc:
     debug "Closing yamux connection", error=exc.msg
