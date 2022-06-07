@@ -40,6 +40,8 @@ declareCounter(libp2p_gossipsub_invalid_topic_subscription, "number of invalid t
 declareCounter(libp2p_gossipsub_duplicate_during_validation, "number of duplicates received during message validation")
 declareCounter(libp2p_gossipsub_duplicate, "number of duplicates received")
 declareCounter(libp2p_gossipsub_received, "number of messages received (deduplicated)")
+when defined(libp2p_gossipsub_perpeer_metrics):
+  declareHistogram(libp2p_gossipsub_duplicatedelay, "duplicate dalay statistics", ["peer"])
 
 proc init*(_: type[GossipSubParams]): GossipSubParams =
   GossipSubParams(
@@ -391,6 +393,8 @@ method rpcHandler*(g: GossipSub,
       if not alreadyReceived:
         let delay = Moment.now() - g.firstSeen(msgId)
         g.rewardDelivered(peer, msg.topicIDs, false, delay)
+        when defined(libp2p_gossipsub_perpeer_metrics):
+          libp2p_gossipsub_duplicatedelay.observe(delay.milliseconds, labelValues=[$peer.peerId])
 
       libp2p_gossipsub_duplicate.inc()
 
