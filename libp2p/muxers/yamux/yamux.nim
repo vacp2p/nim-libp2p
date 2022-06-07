@@ -9,7 +9,7 @@
 
 {.push raises: [Defect].}
 
-import std/[tables]
+import sequtils, std/[tables]
 import chronos, chronicles, stew/[endians2, byteutils]
 import
   ../muxer,
@@ -125,25 +125,19 @@ type
     conn: Connection
     opened: bool
     acked: bool
-    sendQueue: seq[seq[byte]]
-    recvQueue: seq[seq[byte]]
+    sendQueue: seq[byte]
+    recvQueue: seq[byte]
     closedRemotely: Future[void]
     closedLocally: bool
     receivedData: AsyncEvent
     updatedRecvWindow: AsyncEvent
 
-proc recvQueueBytes(y: YamuxChannel): int =
-  for elem in y.recvQueue: result.inc(elem.len)
-
-proc sendQueueBytes(y: YamuxChannel): int =
-  for elem in y.sendQueue: result.inc(elem.len)
-
-proc remoteClosed(y: YamuxChannel) =
-  if y.closedRemotely.done(): return
-  y.closedRemotely.complete()
+proc remoteClosed(channel: YamuxChannel) =
+  if channel.closedRemotely.done(): return
+  channel.closedRemotely.complete()
 
 proc updateRecvWindow(channel: YamuxChannel) {.async.} =
-  let inWindow = channel.recvWindow + channel.recvQueueBytes()
+  let inWindow = channel.recvWindow + channel.recvQueue.len
   if inWindow > channel.maxRecvWindow div 2:
     return
 
@@ -156,116 +150,101 @@ proc updateRecvWindow(channel: YamuxChannel) {.async.} =
   trace "increasing the recvWindow", delta
 
 method readOnce*(
-  y: YamuxChannel,
+  channel: YamuxChannel,
   pbytes: pointer,
   nbytes: int):
   Future[int] {.async.} =
-  
-  if y.recvQueue.len == 0:
-    await y.closedRemotely or y.receivedData.wait()
-    y.receivedData.clear()
-    if y.closedRemotely.done() and y.recvQueue.len == 0:
+
+  if channel.recvQueue.len == 0:
+    channel.receivedData.clear()
+    await channel.closedRemotely or channel.receivedData.wait()
+    if channel.closedRemotely.done() and channel.recvQueue.len == 0:
       return 0
 
-  let toRead = min(y.recvQueue[0].len, nbytes)
+  let toRead = min(channel.recvQueue.len, nbytes)
 
   var p = cast[ptr UncheckedArray[byte]](pbytes)
-  toOpenArray(p, 0, nbytes - 1)[0..<toRead] = y.recvQueue[0].toOpenArray(0, toRead - 1)
-  if toRead < y.recvQueue[0].len:
-    y.recvQueue[0] = y.recvQueue[0][toRead..^1]
-  else:
-    y.recvQueue.delete(0)
+  toOpenArray(p, 0, nbytes - 1)[0..<toRead] = channel.recvQueue.toOpenArray(0, toRead - 1)
+  channel.recvQueue = channel.recvQueue[toRead..^1]
 
-  # We made some room in the recv buffer
-  # let the peer know
-  await y.updateRecvWindow()
+  # We made some room in the recv buffer let the peer know
+  await channel.updateRecvWindow()
   return toRead
 
-proc remoteSentData(y: YamuxChannel, b: seq[byte]) {.async.} =
-  y.recvWindow -= b.len
-  y.recvQueue.add(b)
-  y.receivedData.fire()
-  await y.updateRecvWindow()
+proc gotDataFromRemote(channel: YamuxChannel, b: seq[byte]) {.async.} =
+  channel.recvWindow -= b.len
+  channel.recvQueue = channel.recvQueue.concat(b)
+  channel.receivedData.fire()
+  await channel.updateRecvWindow()
 
 proc setMaxRecvWindow*(channel: YamuxChannel, maxRecvWindow: int) =
   channel.maxRecvWindow = maxRecvWindow
 
-proc setupHeader(s: YamuxChannel, header: var YamuxHeader) =
-  if not s.opened:
+proc setupHeader(channel: YamuxChannel, header: var YamuxHeader) =
+  if not channel.opened:
     header.flags.incl(MsgFlags.Syn)
-    s.opened = true
-  if not s.acked:
+    channel.opened = true
+  if not channel.acked:
     header.flags.incl(MsgFlags.Ack)
-    s.acked = true
+    channel.acked = true
 
-proc trySend(s: YamuxChannel) {.async.} =
-  if s.sendQueue.len == 0: return
-  if s.sendWindow == 0:
+proc trySend(channel: YamuxChannel) {.async.} =
+  if channel.sendQueue.len == 0: return
+  if channel.sendWindow == 0:
     #TODO check queue size, kill conn if too big
     trace "send window empty"
     return
 
   let
-    bytesAvailable = s.sendQueueBytes()
-    toSend = min(s.sendWindow, bytesAvailable)
+    toSend = min(channel.sendWindow, channel.sendQueue.len)
   var
     sendBuffer = newSeqUninitialized[byte](toSend + 12)
-    inBuffer = 0
-    header = YamuxHeader.data(s.id, toSend.uint32)
+    header = YamuxHeader.data(channel.id, toSend.uint32)
 
-  if toSend >= bytesAvailable and s.closedLocally:
-    trace "last buffer we'll sent on this channel", toSend, bytesAvailable
+  if toSend >= channel.sendQueue.len and channel.closedLocally:
+    trace "last buffer we'll sent on this channel", toSend, bytesAvailable = channel.sendQueue.len
     header.flags.incl({Fin})
 
-  s.setupHeader(header)
+  channel.setupHeader(header)
 
   sendBuffer[0..<12] = header.encode()
+  sendBuffer[12..<toSend+12] = channel.sendQueue[0..<toSend]
 
-  while inBuffer < toSend:
-    let bufferToSend = min(toSend - inBuffer, s.sendQueue[0].len)
-    sendBuffer.toOpenArray(12, 12 + toSend - 1)[inBuffer..<(inBuffer+bufferToSend)] = s.sendQueue[0].toOpenArray(0, bufferToSend - 1)
-
-    let remaining = s.sendQueue[0].len - bufferToSend
-    if remaining <= 0:
-      s.sendQueue.delete(0)
-    else:
-      s.sendQueue[0] = s.sendQueue[0][^remaining..^1]
-
-    inBuffer.inc(bufferToSend)
+  channel.sendQueue = channel.sendQueue[toSend..^1]
 
   trace "build send buffer", len=sendBuffer.len
-  s.sendWindow.dec(toSend)
-  await s.conn.write(sendBuffer)
+  channel.sendWindow.dec(toSend)
+  await channel.conn.write(sendBuffer)
 
-proc actuallyClose(s: YamuxChannel) {.async.} =
-  if s.closedLocally and s.sendQueue.len == 0 and
-    s.closedRemotely.done():
-    await procCall Connection(s).closeImpl()
+proc actuallyClose(channel: YamuxChannel) {.async.} =
+  if channel.closedLocally and channel.sendQueue.len == 0 and
+     channel.closedRemotely.done():
+    await procCall Connection(channel).closeImpl()
 
-method closeImpl*(s: YamuxChannel) {.async, gcsafe.} =
-  if s.closedLocally: return
-  s.closedLocally = true
+method closeImpl*(channel: YamuxChannel) {.async, gcsafe.} =
+  if channel.closedLocally: return
+  channel.closedLocally = true
 
-  if s.sendQueue.len == 0:
-    await s.conn.write(YamuxHeader.data(s.id, 0, {Fin}))
-    await s.actuallyClose()
+  if channel.sendQueue.len == 0:
+    await channel.conn.write(YamuxHeader.data(channel.id, 0, {Fin}))
+    await channel.actuallyClose()
 
-method write*(s: YamuxChannel, msg: seq[byte]) {.async.} =
-  if s.closedLocally:
+method write*(channel: YamuxChannel, msg: seq[byte]) {.async.} =
+  if channel.closedLocally:
     raise newLPStreamEOFError()
 
-  s.sendQueue.add(msg)
-  await s.trySend()
+  channel.sendQueue = channel.sendQueue.concat(msg)
+  await channel.trySend()
 
-  while s.sendWindow == 0 and s.sendQueue.len > 0:
+  while channel.sendWindow == 0 and channel.sendQueue.len > 0:
     # Block until there is room
-    s.updatedRecvWindow.clear()
-    await s.updatedRecvWindow.wait()
+    channel.updatedRecvWindow.clear()
+    await channel.updatedRecvWindow.wait()
 
-proc open*(s: YamuxChannel) {.async, gcsafe.} =
+proc open*(channel: YamuxChannel) {.async, gcsafe.} =
   # Just write an empty message, Syn will be
   # piggy-backed
-  await s.write(@[])
+  await channel.write(@[])
 
 type
   YamuxError = object of CatchableError
@@ -288,7 +267,6 @@ proc createStream(m: Yamux, id: uint32): YamuxChannel =
   result.initStream()
   m.channels[id] = result
   trace "created channel", id
-  return result
 
 proc handleStream(m: Yamux, chann: YamuxChannel) {.async.} =
   ## call the muxer stream handler for this channel
@@ -348,7 +326,7 @@ method handle*(m: Yamux) {.async, gcsafe.} =
           if header.length > 0:
             var buffer = newSeqUninitialized[byte](header.length)
             await m.connection.readExactly(addr buffer[0], int(header.length))
-            await stream.remoteSentData(buffer)
+            await stream.gotDataFromRemote(buffer)
 
         if MsgFlags.Fin in header.flags:
           trace "remote closed stream"
