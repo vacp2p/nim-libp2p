@@ -309,8 +309,7 @@ method handle*(m: Yamux) {.async, gcsafe.} =
             newStream.opened = true
             asyncSpawn m.handleStream(newStream)
         elif header.streamId notin m.channels:
-          debug "Unknown stream, skipping", id=header.streamId, typ=header.msgType
-          continue
+          raise newException(YamuxError, "Unknown stream ID: " & $header.streamId)
 
         let stream = m.channels[header.streamId]
 
