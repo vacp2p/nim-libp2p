@@ -247,8 +247,7 @@ method write*(s: LPChannel, msg: seq[byte]): Future[void] =
 
   s.completeWrite(fut, msg.len)
 
-method isCircuitRelay*(s: LPChannel): bool =
-  s.conn.isCircuitRelay()
+method getWrapped*(s: LPChannel): Connection = s.conn
 
 proc init*(
   L: type LPChannel,

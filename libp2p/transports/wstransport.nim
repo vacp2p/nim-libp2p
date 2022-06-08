@@ -84,7 +84,7 @@ method closeImpl*(s: WsStream): Future[void] {.async.} =
   await s.session.close()
   await procCall Connection(s).closeImpl()
 
-method isCircuitRelay*(s: WsStream): bool = false
+method getWrapped*(s: WsStream): Connection = nil
 
 type
   WsTransport* = ref object of Transport

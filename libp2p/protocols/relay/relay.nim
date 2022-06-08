@@ -95,8 +95,16 @@ proc createReserveResponse(
                      status: some(Ok))
   return ok(msg)
 
+proc isRelayed(conn: Connection): bool =
+  var wrappedConn = conn
+  while not isNil(wrappedConn):
+    if wrappedConn of RelayConnection:
+      return true
+    wrappedConn = wrappedConn.getWrapped()
+  return false
+
 proc handleReserve(r: Relay, conn: Connection) {.async, gcsafe.} =
-  if conn.isCircuitRelay():
+  if conn.isRelayed():
     trace "reservation attempt over relay connection", pid = conn.peerId
     await sendHopStatus(conn, PermissionDenied)
     return
@@ -120,7 +128,7 @@ proc handleReserve(r: Relay, conn: Connection) {.async, gcsafe.} =
 proc handleConnect(r: Relay,
                    connSrc: Connection,
                    msg: HopMessage) {.async, gcsafe.} =
-  if connSrc.isCircuitRelay():
+  if connSrc.isRelayed():
     trace "connection attempt over relay connection"
     await sendHopStatus(connSrc, PermissionDenied)
     return

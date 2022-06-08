@@ -72,8 +72,7 @@ method closeImpl*(s: SecureConn) {.async.} =
 method readMessage*(c: SecureConn): Future[seq[byte]] {.async, base.} =
   doAssert(false, "Not implemented!")
 
-method isCircuitRelay*(s: SecureConn): bool =
-  s.stream.isCircuitRelay()
+method getWrapped*(s: SecureConn): Connection = s.stream
 
 method handshake*(s: Secure,
                   conn: Connection,

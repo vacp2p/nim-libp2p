@@ -157,4 +157,4 @@ method closeImpl*(s: ChronosStream) {.async.} =
 
   await procCall Connection(s).closeImpl()
 
-method isCircuitRelay*(s: ChronosStream): bool = false
+method getWrapped*(s: ChronosStream): Connection = nil

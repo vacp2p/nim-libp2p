@@ -151,7 +151,7 @@ proc timeoutMonitor(s: Connection) {.async, gcsafe.} =
     if not await s.pollActivity():
       return
 
-method isCircuitRelay*(s: Connection): bool {.base.} =
+method getWrapped*(s: Connection): Connection {.base.} =
   doAssert(false, "not implemented!")
 
 proc new*(C: type Connection,

@@ -37,7 +37,7 @@ method closeImpl*(self: RelayConnection): Future[void] {.async.} =
   await self.conn.close()
   await procCall Connection(self).closeImpl()
 
-method isCircuitRelay*(self: RelayConnection): bool = true
+method getWrapped*(self: RelayConnection): Connection = self.conn
 
 proc new*(
   T: typedesc[RelayConnection],
