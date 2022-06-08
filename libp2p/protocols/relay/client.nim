@@ -50,7 +50,7 @@ proc sendStopError(conn: Connection, code: StatusV2) {.async.} =
   let msg = StopMessage(msgType: StopMessageType.Status, status: some(code))
   await conn.writeLp(encode(msg).buffer)
 
-proc handleConnect(cl: RelayClient, conn: Connection, msg: StopMessage) {.async.} =
+proc handleRelayedConnect(cl: RelayClient, conn: Connection, msg: StopMessage) {.async.} =
   if msg.peer.isNone():
     await sendStopError(conn, MalformedMessage)
     return
@@ -77,7 +77,9 @@ proc handleConnect(cl: RelayClient, conn: Connection, msg: StopMessage) {.async.
   if cl.addConn != nil: await cl.addConn(conn, limitDuration, limitData)
   else: await conn.close()
 
-proc reserve*(cl: RelayClient, peerId: PeerId, addrs: seq[MultiAddress]): Future[Rsvp] {.async.} =
+proc reserve*(cl: RelayClient,
+              peerId: PeerId,
+              addrs: seq[MultiAddress] = @[]): Future[Rsvp] {.async.} =
   let conn = await cl.switch.dial(peerId, addrs, RelayV2HopCodec)
   defer: await conn.close()
   let
@@ -199,7 +201,7 @@ proc handleStopStreamV2(cl: RelayClient, conn: Connection) {.async, gcsafe.} =
   let msg = msgOpt.get()
 
   if msg.msgType == StopMessageType.Connect:
-    await cl.handleConnect(conn, msg)
+    await cl.handleRelayedConnect(conn, msg)
   else:
     trace "Unexpected client / relayv2 handshake", msgType=msg.msgType
     await sendStopError(conn, MalformedMessage)
