@@ -99,6 +99,7 @@ task test_slim, "Runs the (slimmed down) test suite":
 task examples_build, "Build the samples":
   buildSample("directchat")
   buildSample("helloworld", true)
+  buildSample("circuitrelay", true)
   buildTutorial("examples/tutorial_1_connect.md")
   buildTutorial("examples/tutorial_2_customproto.md")
 
