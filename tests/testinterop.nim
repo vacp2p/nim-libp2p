@@ -510,7 +510,7 @@ suite "Interop":
 
     await daemonNode.addHandler(@[ "/testCustom" ], daemonHandler)
 
-    let conn = await src.dial(daemonPeer.peer, @[ maddr ], @[ "/testCustom" ])
+    let conn = await src.dial(daemonPeer.peer, @[ maddr ], "/testCustom")
 
     await conn.writeLp("line1")
     check string.fromBytes(await conn.readLp(1024)) == "line2"

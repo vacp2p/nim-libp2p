@@ -210,7 +210,7 @@ proc handleHopStream(r: Relay, conn: Connection, msg: RelayMessage) {.async, gcs
     return
 
   let connDst = try:
-    await r.switch.dial(dst.peerId, @[RelayCodec])
+    await r.switch.dial(dst.peerId, RelayCodec)
   except CancelledError as exc:
     raise exc
   except CatchableError as exc:
