@@ -214,6 +214,18 @@ proc trySend(channel: YamuxChannel) {.async.} =
   channel.sendWindow.dec(toSend)
   await channel.conn.write(sendBuffer)
 
+method write*(channel: YamuxChannel, msg: seq[byte]) {.async.} =
+  if channel.closedLocally or channel.isReset:
+    raise newLPStreamEOFError()
+
+  channel.sendQueue = channel.sendQueue.concat(msg)
+  await channel.trySend()
+
+  while channel.sendWindow == 0 and channel.sendQueue.len > 0:
+    # Block until there is room
+    channel.updatedRecvWindow.clear()
+    await channel.updatedRecvWindow.wait()
+
 proc actuallyClose(channel: YamuxChannel) {.async.} =
   if channel.closedLocally and channel.sendQueue.len == 0 and
      channel.closedRemotely.done():
@@ -231,18 +243,6 @@ method closeImpl*(channel: YamuxChannel) {.async, gcsafe.} =
     if channel.isReset == false and channel.sendQueue.len == 0:
       await channel.conn.write(YamuxHeader.data(channel.id, 0, {Fin}))
   await channel.actuallyClose()
-
-method write*(channel: YamuxChannel, msg: seq[byte]) {.async.} =
-  if channel.closedLocally or channel.isReset:
-    raise newLPStreamEOFError()
-
-  channel.sendQueue = channel.sendQueue.concat(msg)
-  await channel.trySend()
-
-  while channel.sendWindow == 0 and channel.sendQueue.len > 0:
-    # Block until there is room
-    channel.updatedRecvWindow.clear()
-    await channel.updatedRecvWindow.wait()
 
 proc open*(channel: YamuxChannel) {.async, gcsafe.} =
   # Just write an empty message, Syn will be
@@ -345,7 +345,7 @@ method handle*(m: Yamux) {.async, gcsafe.} =
     debug "Closing yamux connection", error=exc.msg
     await m.connection.write(YamuxHeader.goAway(ProtocolError))
   finally:
-    await m.close()
+    await m.close() # TODO
 
 method newStream*(
   m: Yamux,
