@@ -60,14 +60,14 @@ const
 type
   RsaPrivateKey* = ref object
     buffer*: seq[byte]
-    seck*: RsaPrivateKey
-    pubk*: RsaPublicKey
+    seck*: bearssl.RsaPrivateKey
+    pubk*: bearssl.RsaPublicKey
     pexp*: ptr char
     pexplen*: int
 
   RsaPublicKey* = ref object
     buffer*: seq[byte]
-    key*: RsaPublicKey
+    key*: bearssl.RsaPublicKey
 
   RsaKeyPair* = RsaPrivateKey
 
@@ -751,7 +751,7 @@ proc sign*[T: byte|char](key: RsaPrivateKey,
 
   var hc: HashCompatContext
   var hash: array[32, byte]
-  let impl = RsaPkcs1SignGetDefault()
+  let impl = BrRsaPkcs1SignGetDefault()
   var res = new RsaSignature
   res.buffer = newSeq[byte]((key.seck.nBitlen + 7) shr 3)
   var kv = addr sha256Vtable
@@ -782,7 +782,7 @@ proc verify*[T: byte|char](sig: RsaSignature, message: openArray[T],
     var hc: HashCompatContext
     var hash: array[32, byte]
     var check: array[32, byte]
-    var impl = RsaPkcs1VrfyGetDefault()
+    var impl = BrRsaPkcs1VrfyGetDefault()
     var kv = addr sha256Vtable
     kv.init(addr hc.vtable)
     if len(message) > 0:

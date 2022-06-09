@@ -162,12 +162,12 @@ proc newRng*(): ref HmacDrbgContext =
   # You should only create one instance of the RNG per application / library
   # Ref is used so that it can be shared between components
   # TODO consider moving to bearssl
-  var seeder = brPrngSeederSystem(nil)
+  var seeder = prngSeederSystem(nil)
   if seeder == nil:
     return nil
 
   var rng = (ref HmacDrbgContext)()
-  brHmacDrbgInit(addr rng[], addr sha256Vtable, nil, 0)
+  hmacDrbgInit(addr rng[], addr sha256Vtable, nil, 0)
   if seeder(addr rng.vtable) == 0:
     return nil
   rng
@@ -177,7 +177,7 @@ proc shuffle*[T](
   x: var openArray[T]) =
 
   var randValues = newSeqUninitialized[byte](len(x) * 2)
-  brHmacDrbgGenerate(rng[], randValues)
+  hmacDrbgGenerate(addr rng[], addr randValues[0], randValues.len.csize_t)
 
   for i in countdown(x.high, 1):
     let

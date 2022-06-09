@@ -304,7 +304,7 @@ method handshake*(s: Secio, conn: Connection, initiator: bool = false): Future[S
     localPeerId: PeerId
     localBytesPubkey = s.localPublicKey.getBytes().tryGet()
 
-  brHmacDrbgGenerate(s.rng[], localNonce)
+  hmacDrbgGenerate(addr s.rng[], addr localNonce[0], localNonce.len.csize_t)
 
   var request = createProposal(localNonce,
                                localBytesPubkey,

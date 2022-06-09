@@ -41,11 +41,11 @@ const
 type
   EcPrivateKey* = ref object
     buffer*: array[BR_EC_KBUF_PRIV_MAX_SIZE, byte]
-    key*: EcPrivateKey
+    key*: bearssl.EcPrivateKey
 
   EcPublicKey* = ref object
     buffer*: array[BR_EC_KBUF_PUB_MAX_SIZE, byte]
-    key*: EcPublicKey
+    key*: bearssl.EcPublicKey
 
   EcKeyPair* = object
     seckey*: EcPrivateKey
@@ -55,9 +55,9 @@ type
     buffer*: seq[byte]
 
   EcCurveKind* = enum
-    Secp256r1 = BR_EC_SECP256R1,
-    Secp384r1 = BR_EC_SECP384R1,
-    Secp521r1 = BR_EC_SECP521R1
+    Secp256r1 = EC_SECP256R1,
+    Secp384r1 = EC_SECP384R1,
+    Secp521r1 = EC_SECP521R1
 
   EcPKI* = EcPrivateKey | EcPublicKey | EcSignature
 
@@ -373,11 +373,11 @@ proc toBytes*(seckey: EcPrivateKey, data: var openArray[byte]): EcResult[int] =
     var p = Asn1Composite.init(Asn1Tag.Sequence)
     var c0 = Asn1Composite.init(0)
     var c1 = Asn1Composite.init(1)
-    if seckey.key.curve == BR_EC_SECP256R1:
+    if seckey.key.curve == EC_SECP256R1:
       c0.write(Asn1Tag.Oid, Asn1OidSecp256r1)
-    elif seckey.key.curve == BR_EC_SECP384R1:
+    elif seckey.key.curve == EC_SECP384R1:
       c0.write(Asn1Tag.Oid, Asn1OidSecp384r1)
-    elif seckey.key.curve == BR_EC_SECP521R1:
+    elif seckey.key.curve == EC_SECP521R1:
       c0.write(Asn1Tag.Oid, Asn1OidSecp521r1)
     c0.finish()
     offset = pubkey.getOffset()
@@ -421,11 +421,11 @@ proc toBytes*(pubkey: EcPublicKey, data: var openArray[byte]): EcResult[int] =
     var p = Asn1Composite.init(Asn1Tag.Sequence)
     var c = Asn1Composite.init(Asn1Tag.Sequence)
     c.write(Asn1Tag.Oid, Asn1OidEcPublicKey)
-    if pubkey.key.curve == BR_EC_SECP256R1:
+    if pubkey.key.curve == EC_SECP256R1:
       c.write(Asn1Tag.Oid, Asn1OidSecp256r1)
-    elif pubkey.key.curve == BR_EC_SECP384R1:
+    elif pubkey.key.curve == EC_SECP384R1:
       c.write(Asn1Tag.Oid, Asn1OidSecp384r1)
-    elif pubkey.key.curve == BR_EC_SECP521R1:
+    elif pubkey.key.curve == EC_SECP521R1:
       c.write(Asn1Tag.Oid, Asn1OidSecp521r1)
     c.finish()
     p.write(c)
@@ -913,11 +913,11 @@ proc toSecret*(pubkey: EcPublicKey, seckey: EcPrivateKey,
   doAssert((not isNil(pubkey)) and (not isNil(seckey)))
   var mult = scalarMul(pubkey, seckey)
   if not isNil(mult):
-    if seckey.key.curve == BR_EC_SECP256R1:
+    if seckey.key.curve == EC_SECP256R1:
       result = Secret256Length
-    elif seckey.key.curve == BR_EC_SECP384R1:
+    elif seckey.key.curve == EC_SECP384R1:
       result = Secret384Length
-    elif seckey.key.curve == BR_EC_SECP521R1:
+    elif seckey.key.curve == EC_SECP521R1:
       result = Secret521Length
     if len(data) >= result:
       var qplus1 = cast[pointer](cast[uint](mult.key.q) + 1'u)
