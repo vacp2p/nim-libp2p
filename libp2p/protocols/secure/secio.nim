@@ -37,7 +37,7 @@ const
 
 type
   Secio* = ref object of Secure
-    rng: ref BrHmacDrbgContext
+    rng: ref HmacDrbgContext
     localPrivateKey: PrivateKey
     localPublicKey: PublicKey
     remotePublicKey: PublicKey
@@ -428,7 +428,7 @@ method init(s: Secio) {.gcsafe.} =
 
 proc new*(
   T: typedesc[Secio],
-  rng: ref BrHmacDrbgContext,
+  rng: ref HmacDrbgContext,
   localPrivateKey: PrivateKey): T =
   let pkRes = localPrivateKey.getPublicKey()
   if pkRes.isErr:

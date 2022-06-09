@@ -1644,7 +1644,7 @@ proc checkScalar*(scalar: openArray[byte]): uint32 =
     c = -1
   result = NEQ(z, 0'u32) and LT0(c)
 
-proc random*(t: typedesc[EdPrivateKey], rng: var BrHmacDrbgContext): EdPrivateKey =
+proc random*(t: typedesc[EdPrivateKey], rng: var HmacDrbgContext): EdPrivateKey =
   ## Generate new random ED25519 private key using the given random number generator
   var
     point: GeP3
@@ -1663,7 +1663,7 @@ proc random*(t: typedesc[EdPrivateKey], rng: var BrHmacDrbgContext): EdPrivateKe
 
   res
 
-proc random*(t: typedesc[EdKeyPair], rng: var BrHmacDrbgContext): EdKeyPair =
+proc random*(t: typedesc[EdKeyPair], rng: var HmacDrbgContext): EdKeyPair =
   ## Generate new random ED25519 private and public keypair using OS specific
   ## CSPRNG.
   var

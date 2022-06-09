@@ -560,7 +560,7 @@ suite "Key interface test suite":
 
   test "shuffle":
     var cards = ["Ace", "King", "Queen", "Jack", "Ten"]
-    var rng = (ref BrHmacDrbgContext)()
+    var rng = (ref HmacDrbgContext)()
     brHmacDrbgInit(addr rng[], addr sha256Vtable, nil, 0)
     rng.shuffle(cards)
     check cards == ["King", "Ten", "Ace", "Queen", "Jack"]

@@ -34,14 +34,14 @@ type
 template pubkey*(v: SkKeyPair): SkPublicKey = SkPublicKey(secp256k1.SkKeyPair(v).pubkey)
 template seckey*(v: SkKeyPair): SkPrivateKey = SkPrivateKey(secp256k1.SkKeyPair(v).seckey)
 
-proc random*(t: typedesc[SkPrivateKey], rng: var BrHmacDrbgContext): SkPrivateKey =
+proc random*(t: typedesc[SkPrivateKey], rng: var HmacDrbgContext): SkPrivateKey =
   let rngPtr = unsafeAddr rng # doesn't escape
   proc callRng(data: var openArray[byte]) =
     brHmacDrbgGenerate(rngPtr[], data)
 
   SkPrivateKey(SkSecretKey.random(callRng))
 
-proc random*(t: typedesc[SkKeyPair], rng: var BrHmacDrbgContext): SkKeyPair =
+proc random*(t: typedesc[SkKeyPair], rng: var HmacDrbgContext): SkKeyPair =
   let rngPtr = unsafeAddr rng # doesn't escape
   proc callRng(data: var openArray[byte]) =
     brHmacDrbgGenerate(rngPtr[], data)

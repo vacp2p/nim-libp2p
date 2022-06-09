@@ -60,14 +60,14 @@ const
 type
   RsaPrivateKey* = ref object
     buffer*: seq[byte]
-    seck*: BrRsaPrivateKey
-    pubk*: BrRsaPublicKey
+    seck*: RsaPrivateKey
+    pubk*: RsaPublicKey
     pexp*: ptr char
     pexplen*: int
 
   RsaPublicKey* = ref object
     buffer*: seq[byte]
-    key*: BrRsaPublicKey
+    key*: RsaPublicKey
 
   RsaKeyPair* = RsaPrivateKey
 
@@ -114,7 +114,7 @@ template trimZeroes(b: seq[byte], pt, ptlen: untyped) =
     pt = cast[ptr char](cast[uint](pt) + 1)
     ptlen -= 1
 
-proc random*[T: RsaKP](t: typedesc[T], rng: var BrHmacDrbgContext,
+proc random*[T: RsaKP](t: typedesc[T], rng: var HmacDrbgContext,
                        bits = DefaultKeySize,
                        pubexp = DefaultPublicExponent): RsaResult[T] =
   ## Generate new random RSA private key using BearSSL's HMAC-SHA256-DRBG
@@ -749,9 +749,9 @@ proc sign*[T: byte|char](key: RsaPrivateKey,
   if isNil(key):
     return err(RsaKeyIncorrectError)
 
-  var hc: BrHashCompatContext
+  var hc: HashCompatContext
   var hash: array[32, byte]
-  let impl = BrRsaPkcs1SignGetDefault()
+  let impl = RsaPkcs1SignGetDefault()
   var res = new RsaSignature
   res.buffer = newSeq[byte]((key.seck.nBitlen + 7) shr 3)
   var kv = addr sha256Vtable
@@ -779,10 +779,10 @@ proc verify*[T: byte|char](sig: RsaSignature, message: openArray[T],
   ## verification failed.
   doAssert((not isNil(sig)) and (not isNil(pubkey)))
   if len(sig.buffer) > 0:
-    var hc: BrHashCompatContext
+    var hc: HashCompatContext
     var hash: array[32, byte]
     var check: array[32, byte]
-    var impl = BrRsaPkcs1VrfyGetDefault()
+    var impl = RsaPkcs1VrfyGetDefault()
     var kv = addr sha256Vtable
     kv.init(addr hc.vtable)
     if len(message) > 0:

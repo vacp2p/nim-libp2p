@@ -158,7 +158,7 @@ type
 template orError*(exp: untyped, err: untyped): untyped =
   (exp.mapErr do (_: auto) -> auto: err)
 
-proc newRng*(): ref BrHmacDrbgContext =
+proc newRng*(): ref HmacDrbgContext =
   # You should only create one instance of the RNG per application / library
   # Ref is used so that it can be shared between components
   # TODO consider moving to bearssl
@@ -166,14 +166,14 @@ proc newRng*(): ref BrHmacDrbgContext =
   if seeder == nil:
     return nil
 
-  var rng = (ref BrHmacDrbgContext)()
+  var rng = (ref HmacDrbgContext)()
   brHmacDrbgInit(addr rng[], addr sha256Vtable, nil, 0)
   if seeder(addr rng.vtable) == 0:
     return nil
   rng
 
 proc shuffle*[T](
-  rng: ref BrHmacDrbgContext,
+  rng: ref HmacDrbgContext,
   x: var openArray[T]) =
 
   var randValues = newSeqUninitialized[byte](len(x) * 2)
@@ -186,7 +186,7 @@ proc shuffle*[T](
     swap(x[i], x[y])
 
 proc random*(T: typedesc[PrivateKey], scheme: PKScheme,
-             rng: var BrHmacDrbgContext,
+             rng: var HmacDrbgContext,
              bits = RsaDefaultKeySize): CryptoResult[PrivateKey] =
   ## Generate random private key for scheme ``scheme``.
   ##
@@ -218,7 +218,7 @@ proc random*(T: typedesc[PrivateKey], scheme: PKScheme,
     else:
       err(SchemeError)
 
-proc random*(T: typedesc[PrivateKey], rng: var BrHmacDrbgContext,
+proc random*(T: typedesc[PrivateKey], rng: var HmacDrbgContext,
              bits = RsaDefaultKeySize): CryptoResult[PrivateKey] =
   ## Generate random private key using default public-key cryptography scheme.
   ##
@@ -242,7 +242,7 @@ proc random*(T: typedesc[PrivateKey], rng: var BrHmacDrbgContext,
     err(SchemeError)
 
 proc random*(T: typedesc[KeyPair], scheme: PKScheme,
-             rng: var BrHmacDrbgContext,
+             rng: var HmacDrbgContext,
              bits = RsaDefaultKeySize): CryptoResult[KeyPair] =
   ## Generate random key pair for scheme ``scheme``.
   ##
@@ -282,7 +282,7 @@ proc random*(T: typedesc[KeyPair], scheme: PKScheme,
     else:
       err(SchemeError)
 
-proc random*(T: typedesc[KeyPair], rng: var BrHmacDrbgContext,
+proc random*(T: typedesc[KeyPair], rng: var HmacDrbgContext,
              bits = RsaDefaultKeySize): CryptoResult[KeyPair] =
   ## Generate random private pair of keys using default public-key cryptography
   ## scheme.
@@ -870,7 +870,7 @@ proc mac*(secret: Secret, id: int): seq[byte] {.inline.} =
 
 proc ephemeral*(
     scheme: ECDHEScheme,
-    rng: var BrHmacDrbgContext): CryptoResult[EcKeyPair] =
+    rng: var HmacDrbgContext): CryptoResult[EcKeyPair] =
   ## Generate ephemeral keys used to perform ECDHE.
   var keypair: EcKeyPair
   if scheme == Secp256r1:
@@ -882,7 +882,7 @@ proc ephemeral*(
   ok(keypair)
 
 proc ephemeral*(
-    scheme: string, rng: var BrHmacDrbgContext): CryptoResult[EcKeyPair] =
+    scheme: string, rng: var HmacDrbgContext): CryptoResult[EcKeyPair] =
   ## Generate ephemeral keys used to perform ECDHE using string encoding.
   ##
   ## Currently supported encoding strings are P-256, P-384, P-521, if encoding

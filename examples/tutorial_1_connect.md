@@ -35,7 +35,7 @@ import libp2p/protocols/ping
 
 Next, we'll create an helper procedure to create our switches. A switch needs a bit of configuration, and it will be easier to do this configuration only once:
 ```nim
-proc createSwitch(ma: MultiAddress, rng: ref BrHmacDrbgContext): Switch =
+proc createSwitch(ma: MultiAddress, rng: ref HmacDrbgContext): Switch =
   var switch = SwitchBuilder
     .new()
     .withRng(rng)       # Give the application RNG

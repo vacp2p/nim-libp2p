@@ -46,7 +46,7 @@ proc byteswap(buf: var Curve25519Key) {.inline.} =
     buf[31 - i] = x
 
 proc mul*(_: type[Curve25519], point: var Curve25519Key, multiplier: Curve25519Key) =
-  let defaultBrEc = brEcGetDefault()
+  let defaultBrEc = ecGetDefault()
 
   # multiplier needs to be big-endian
   var
@@ -62,7 +62,7 @@ proc mul*(_: type[Curve25519], point: var Curve25519Key, multiplier: Curve25519K
   assert res == 1
 
 proc mulgen(_: type[Curve25519], dst: var Curve25519Key, point: Curve25519Key) =
-  let defaultBrEc = brEcGetDefault()
+  let defaultBrEc = ecGetDefault()
 
   var
     rpoint = point
@@ -80,9 +80,9 @@ proc mulgen(_: type[Curve25519], dst: var Curve25519Key, point: Curve25519Key) =
 proc public*(private: Curve25519Key): Curve25519Key =
   Curve25519.mulgen(result, private)
 
-proc random*(_: type[Curve25519Key], rng: var BrHmacDrbgContext): Curve25519Key =
+proc random*(_: type[Curve25519Key], rng: var HmacDrbgContext): Curve25519Key =
   var res: Curve25519Key
-  let defaultBrEc = brEcGetDefault()
+  let defaultBrEc = ecGetDefault()
   let len = brEcKeygen(
     addr rng.vtable, defaultBrEc, nil, addr res[0], EC_curve25519)
   # Per bearssl documentation, the keygen only fails if the curve is

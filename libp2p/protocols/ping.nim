@@ -37,9 +37,9 @@ type
 
   Ping* = ref object of LPProtocol
     pingHandler*: PingHandler
-    rng: ref BrHmacDrbgContext
+    rng: ref HmacDrbgContext
 
-proc new*(T: typedesc[Ping], handler: PingHandler = nil, rng: ref BrHmacDrbgContext = newRng()): T =
+proc new*(T: typedesc[Ping], handler: PingHandler = nil, rng: ref HmacDrbgContext = newRng()): T =
   let ping = Ping(pinghandler: handler, rng: rng)
   ping.init()
   ping

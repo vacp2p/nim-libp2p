@@ -41,11 +41,11 @@ const
 type
   EcPrivateKey* = ref object
     buffer*: array[BR_EC_KBUF_PRIV_MAX_SIZE, byte]
-    key*: BrEcPrivateKey
+    key*: EcPrivateKey
 
   EcPublicKey* = ref object
     buffer*: array[BR_EC_KBUF_PUB_MAX_SIZE, byte]
-    key*: BrEcPublicKey
+    key*: EcPublicKey
 
   EcKeyPair* = object
     seckey*: EcPrivateKey
@@ -101,7 +101,7 @@ proc checkScalar(scalar: openArray[byte], curve: cint): uint32 =
   ##   - ``scalar`` is lower than the curve ``order``.
   ##
   ## Otherwise, return ``0``.
-  var impl = brEcGetDefault()
+  var impl = ecGetDefault()
   var orderlen = 0
   var order = cast[ptr UncheckedArray[byte]](impl.order(curve, addr orderlen))
 
@@ -120,7 +120,7 @@ proc checkPublic(key: openArray[byte], curve: cint): uint32 =
   ## Return ``1`` if public key ``key`` is on curve.
   var ckey = @key
   var x = [0x00'u8, 0x01'u8]
-  var impl = brEcGetDefault()
+  var impl = ecGetDefault()
   var orderlen = 0
   discard impl.order(curve, addr orderlen)
   result = impl.mul(cast[ptr char](unsafeAddr ckey[0]), len(ckey),
@@ -230,13 +230,13 @@ proc clear*[T: EcPKI|EcKeyPair](pki: var T) =
 
 proc random*(
     T: typedesc[EcPrivateKey], kind: EcCurveKind,
-    rng: var BrHmacDrbgContext): EcResult[EcPrivateKey] =
+    rng: var HmacDrbgContext): EcResult[EcPrivateKey] =
   ## Generate new random EC private key using BearSSL's HMAC-SHA256-DRBG
   ## algorithm.
   ##
   ## ``kind`` elliptic curve kind of your choice (secp256r1, secp384r1 or
   ## secp521r1).
-  var ecimp = brEcGetDefault()
+  var ecimp = ecGetDefault()
   var res = new EcPrivateKey
   if brEcKeygen(addr rng.vtable, ecimp,
                 addr res.key, addr res.buffer[0],
@@ -250,7 +250,7 @@ proc getPublicKey*(seckey: EcPrivateKey): EcResult[EcPublicKey] =
   if isNil(seckey):
     return err(EcKeyIncorrectError)
 
-  var ecimp = brEcGetDefault()
+  var ecimp = ecGetDefault()
   if seckey.key.curve in EcSupportedCurvesCint:
     var res = new EcPublicKey
     assert res.buffer.len > getPublicKeyLength(cast[EcCurveKind](seckey.key.curve))
@@ -264,7 +264,7 @@ proc getPublicKey*(seckey: EcPrivateKey): EcResult[EcPublicKey] =
 
 proc random*(
     T: typedesc[EcKeyPair], kind: EcCurveKind,
-    rng: var BrHmacDrbgContext): EcResult[T] =
+    rng: var HmacDrbgContext): EcResult[T] =
   ## Generate new random EC private and public keypair using BearSSL's
   ## HMAC-SHA256-DRBG algorithm.
   ##
@@ -883,7 +883,7 @@ proc scalarMul*(pub: EcPublicKey, sec: EcPrivateKey): EcPublicKey =
   ##
   ## Returns point in curve as ``pub * sec`` or ``nil`` otherwise.
   doAssert((not isNil(pub)) and (not isNil(sec)))
-  var impl = brEcGetDefault()
+  var impl = ecGetDefault()
   if sec.key.curve in EcSupportedCurvesCint:
     if pub.key.curve == sec.key.curve:
       var key = new EcPublicKey
@@ -941,9 +941,9 @@ proc sign*[T: byte|char](seckey: EcPrivateKey,
   ## Get ECDSA signature of data ``message`` using private key ``seckey``.
   if isNil(seckey):
     return err(EcKeyIncorrectError)
-  var hc: BrHashCompatContext
+  var hc: HashCompatContext
   var hash: array[32, byte]
-  var impl = brEcGetDefault()
+  var impl = ecGetDefault()
   if seckey.key.curve in EcSupportedCurvesCint:
     var sig = new EcSignature
     sig.buffer = newSeq[byte](256)
@@ -974,9 +974,9 @@ proc verify*[T: byte|char](sig: EcSignature, message: openArray[T],
   ## Return ``true`` if message verification succeeded, ``false`` if
   ## verification failed.
   doAssert((not isNil(sig)) and (not isNil(pubkey)))
-  var hc: BrHashCompatContext
+  var hc: HashCompatContext
   var hash: array[32, byte]
-  var impl = brEcGetDefault()
+  var impl = ecGetDefault()
   if pubkey.key.curve in EcSupportedCurvesCint:
     var kv = addr sha256Vtable
     kv.init(addr hc.vtable)

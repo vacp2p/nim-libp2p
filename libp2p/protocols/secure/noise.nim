@@ -78,7 +78,7 @@ type
     rs: Curve25519Key
 
   Noise* = ref object of Secure
-    rng: ref BrHmacDrbgContext
+    rng: ref HmacDrbgContext
     localPrivateKey: PrivateKey
     localPublicKey: seq[byte]
     noiseKeys: KeyPair
@@ -106,7 +106,7 @@ func shortLog*(conn: NoiseConnection): auto =
 
 chronicles.formatIt(NoiseConnection): shortLog(it)
 
-proc genKeyPair(rng: var BrHmacDrbgContext): KeyPair =
+proc genKeyPair(rng: var HmacDrbgContext): KeyPair =
   result.privateKey = Curve25519Key.random(rng)
   result.publicKey = result.privateKey.public()
 
@@ -602,7 +602,7 @@ method init*(p: Noise) {.gcsafe.} =
 
 proc new*(
   T: typedesc[Noise],
-  rng: ref BrHmacDrbgContext,
+  rng: ref HmacDrbgContext,
   privateKey: PrivateKey,
   outgoing: bool = true,
   commonPrologue: seq[byte] = @[]): T =
