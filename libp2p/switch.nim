@@ -239,6 +239,8 @@ proc stop*(s: Switch) {.async.} =
     if not a.finished:
       a.cancel()
 
+  await s.ms.stop()
+
   trace "Switch stopped"
 
 proc start*(s: Switch) {.async, gcsafe.} =
@@ -271,6 +273,8 @@ proc start*(s: Switch) {.async, gcsafe.} =
       s.peerInfo.addrs &= t.addrs
 
   s.peerInfo.update()
+
+  await s.ms.start()
 
   debug "Started libp2p node", peer = s.peerInfo
 

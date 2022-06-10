@@ -55,7 +55,6 @@ proc testPubSubDaemonPublish(gossip: bool = false, count: int = 1) {.async.} =
   nativeNode.mount(pubsub)
 
   await nativeNode.start()
-  await pubsub.start()
   let nativePeer = nativeNode.peerInfo
 
   var finished = false
@@ -89,7 +88,6 @@ proc testPubSubDaemonPublish(gossip: bool = false, count: int = 1) {.async.} =
   await wait(publisher(), 5.minutes) # should be plenty of time
 
   await nativeNode.stop()
-  await pubsub.stop()
   await daemonNode.close()
 
 proc testPubSubNodePublish(gossip: bool = false, count: int = 1) {.async.} =
@@ -115,7 +113,6 @@ proc testPubSubNodePublish(gossip: bool = false, count: int = 1) {.async.} =
   nativeNode.mount(pubsub)
 
   await nativeNode.start()
-  await pubsub.start()
   let nativePeer = nativeNode.peerInfo
 
   await nativeNode.connect(daemonPeer.peer, daemonPeer.addresses)
@@ -149,7 +146,6 @@ proc testPubSubNodePublish(gossip: bool = false, count: int = 1) {.async.} =
 
   check finished
   await nativeNode.stop()
-  await pubsub.stop()
   await daemonNode.close()
 
 suite "Interop":

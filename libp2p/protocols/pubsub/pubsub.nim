@@ -488,14 +488,6 @@ method initPubSub*(p: PubSub)
   if p.msgIdProvider == nil:
     p.msgIdProvider = defaultMsgIdProvider
 
-method start*(p: PubSub) {.async, base.} =
-  ## start pubsub
-  discard
-
-method stop*(p: PubSub) {.async, base.} =
-  ## stopt pubsub
-  discard
-
 method addValidator*(p: PubSub,
                      topic: varargs[string],
                      hook: ValidatorHandler) {.base.} =

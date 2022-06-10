@@ -24,6 +24,8 @@ type
     handler*: LPProtoHandler ## this handler gets invoked by the protocol negotiator
 
 method init*(p: LPProtocol) {.base, gcsafe.} = discard
+method start*(p: LPProtocol) {.async, base.} = discard
+method stop*(p: LPProtocol) {.async, base.} = discard
 
 func codec*(p: LPProtocol): string =
   assert(p.codecs.len > 0, "Codecs sequence was empty!")

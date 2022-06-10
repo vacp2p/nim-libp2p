@@ -9,7 +9,7 @@
 
 {.push raises: [Defect].}
 
-import std/[strutils]
+import std/[strutils, sequtils]
 import chronos, chronicles, stew/byteutils
 import stream/connection,
        protocols/protocol
@@ -209,3 +209,9 @@ proc addHandler*(m: MultistreamSelect,
   m.handlers.add(HandlerHolder(protos: @[codec],
                                protocol: protocol,
                                match: matcher))
+
+proc start*(m: MultistreamSelect) {.async.} =
+  await allFutures(m.handlers.mapIt(it.protocol.start()))
+
+proc stop*(m: MultistreamSelect) {.async.} =
+  await allFutures(m.handlers.mapIt(it.protocol.stop()))

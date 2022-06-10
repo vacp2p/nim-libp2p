@@ -566,22 +566,29 @@ method publish*(g: GossipSub,
 
   return peers.len
 
+proc maintainDirectPeer(g: GossipSub, id: PeerId, addrs: seq[MultiAddress]) {.async.} =
+  let peer = g.peers.getOrDefault(id)
+  if isNil(peer):
+    trace "Attempting to dial a direct peer", peer = id
+    try:
+      # dial, internally connection will be stored
+      let _ = await g.switch.dial(id, addrs, g.codecs)
+      # populate the peer after it's connected
+      discard g.getOrCreatePeer(id, g.codecs)
+    except CancelledError as exc:
+      trace "Direct peer dial canceled"
+      raise exc
+    except CatchableError as exc:
+      debug "Direct peer error dialing", msg = exc.msg
+
+proc addDirectPeer*(g: GossipSub, id: PeerId, addrs: seq[MultiAddress]) {.async.} =
+  g.parameters.directPeers[id] = addrs
+  await g.maintainDirectPeer(id, addrs)
+
 proc maintainDirectPeers(g: GossipSub) {.async.} =
   heartbeat "GossipSub DirectPeers", 1.minutes:
     for id, addrs in g.parameters.directPeers:
-      let peer = g.peers.getOrDefault(id)
-      if isNil(peer):
-        trace "Attempting to dial a direct peer", peer = id
-        try:
-          # dial, internally connection will be stored
-          let _ = await g.switch.dial(id, addrs, g.codecs)
-          # populate the peer after it's connected
-          discard g.getOrCreatePeer(id, g.codecs)
-        except CancelledError as exc:
-          trace "Direct peer dial canceled"
-          raise exc
-        except CatchableError as exc:
-          debug "Direct peer error dialing", msg = exc.msg
+      await g.addDirectPeer(id, addrs)
 
 method start*(g: GossipSub) {.async.} =
   trace "gossipsub start"
