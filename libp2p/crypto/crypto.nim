@@ -69,7 +69,7 @@ when supported(PKScheme.Secp256k1):
 # We are still importing `ecnist` because, it is used for SECIO handshake,
 # but it will be impossible to create ECNIST keys or import ECNIST keys.
 
-import ecnist, bearssl/[abi/bearssl_rand, abi/bearssl_hash]
+import ecnist, bearssl/rand, bearssl/hash as bhash
 import ../protobuf/minprotobuf, ../vbuffer, ../multihash, ../multicodec
 import nimcrypto/[rijndael, twofish, sha2, hash, hmac]
 # We use `ncrutils` for constant-time hexadecimal encoding/decoding procedures.
@@ -79,7 +79,7 @@ import stew/results
 export results
 
 # This is workaround for Nim's `import` bug
-export rijndael, twofish, sha2, hash, hmac, ncrutils, bearssl_rand
+export rijndael, twofish, sha2, hash, hmac, ncrutils, rand
 
 type
   DigestSheme* = enum

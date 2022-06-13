@@ -12,7 +12,7 @@
 {.push raises: [Defect].}
 
 import nimcrypto
-import bearssl/[abi/bearssl_kdf, abi/bearssl_rand, abi/bearssl_hash]
+import bearssl/[kdf, rand, hash]
 
 type HkdfResult*[len: static int] = array[len, byte]
 

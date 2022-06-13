@@ -9,7 +9,7 @@
 
 {.push raises: [Defect].}
 
-import bearssl/[abi/bearssl_rand, abi/bearssl_hash]
+import bearssl/rand
 import
   secp256k1,
   stew/[byteutils, results],

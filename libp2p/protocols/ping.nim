@@ -10,7 +10,7 @@
 {.push raises: [Defect].}
 
 import chronos, chronicles
-import bearssl/[abi/bearssl_rand, abi/bearssl_hash]
+import bearssl/[rand, hash]
 import ../protobuf/minprotobuf,
        ../peerinfo,
        ../stream/connection,

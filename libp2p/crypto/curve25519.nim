@@ -17,7 +17,7 @@
 
 {.push raises: [Defect].}
 
-import bearssl/[abi/bearssl_ec, abi/bearssl_rand, abi/bearssl_hash]
+import bearssl/[ec, rand, hash]
 import stew/results
 from stew/assign2 import assign
 export results

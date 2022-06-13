@@ -13,7 +13,7 @@
 
 {.push raises: Defect.}
 
-import bearssl/[abi/bearssl_rand, abi/bearssl_hash]
+import bearssl/[rand, hash]
 import constants
 import nimcrypto/[hash, sha2]
 # We use `ncrutils` for constant-time hexadecimal encoding/decoding procedures.

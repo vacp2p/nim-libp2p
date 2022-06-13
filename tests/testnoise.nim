@@ -10,7 +10,7 @@
 {.used.}
 
 import tables
-import bearssl/[abi/bearssl_rand, abi/bearssl_hash]
+import bearssl/[rand, hash]
 import chronos, stew/byteutils
 import chronicles
 import ../libp2p/[switch,

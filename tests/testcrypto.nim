@@ -12,7 +12,7 @@
 import unittest2
 import nimcrypto/[utils, sysrand]
 import ../libp2p/crypto/[crypto, chacha20poly1305, curve25519, hkdf]
-import bearssl/[abi/bearssl_rand, abi/bearssl_hash]
+import bearssl/[rand, hash]
 
 when defined(nimHasUsed): {.used.}
 

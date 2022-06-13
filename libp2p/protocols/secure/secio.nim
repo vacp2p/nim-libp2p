@@ -10,7 +10,7 @@
 {.push raises: [Defect].}
 
 import std/[oids, strformat]
-import bearssl/[abi/bearssl_rand, abi/bearssl_hash]
+import bearssl/[rand, hash]
 import chronos, chronicles, stew/endians2
 import nimcrypto/[hmac, sha2, sha, hash, rijndael, twofish, bcmode]
 import secure,
