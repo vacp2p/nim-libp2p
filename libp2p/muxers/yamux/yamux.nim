@@ -10,10 +10,9 @@
 {.push raises: [Defect].}
 
 import sequtils, std/[tables]
-import chronos, chronicles, stew/[endians2, byteutils]
-import
-  ../muxer,
-  ../../stream/connection
+import chronos, chronicles, stew/[endians2, byteutils, objects]
+import ../muxer,
+       ../../stream/connection
 
 export muxer
 
@@ -25,6 +24,8 @@ const
   DefaultWindowSize = 256000
 
 type
+  YamuxError = object of CatchableError
+
   MsgType = enum
     Data = 0x0
     WindowUpdate = 0x1
@@ -32,10 +33,10 @@ type
     GoAway = 0x3
 
   MsgFlags {.size: 2.} = enum
-    Syn = 0x1
-    Ack = 0x2
-    Fin = 0x4
-    Rst = 0x8
+    Syn
+    Ack
+    Fin
+    Rst
 
   GoAwayStatus = enum
     NormalTermination = 0x0,
@@ -54,10 +55,10 @@ proc readHeader(conn: LPStream): Future[YamuxHeader] {.async, gcsafe.} =
   await conn.readExactly(addr buffer[0], 12)
 
   result.version = buffer[0]
-  result.msgType = MsgType(buffer[1])
-  result.flags = cast[set[MsgFlags]](
-    fromBytesBE(uint16, buffer[2..3])
-  )
+  let flags = fromBytesBE(uint16, buffer[2..3])
+  if not result.msgType.checkedEnumAssign(buffer[1]) or flags notin 0..15:
+     raise newException(YamuxError, "Wrong header")
+  result.flags = cast[set[MsgFlags]](flags)
   result.streamId = fromBytesBE(uint32, buffer[4..7])
   result.length = fromBytesBE(uint32, buffer[8..11])
   return result
@@ -250,8 +251,6 @@ proc open*(channel: YamuxChannel) {.async, gcsafe.} =
   await channel.write(@[])
 
 type
-  YamuxError = object of CatchableError
-
   Yamux* = ref object of Muxer
     channels: Table[uint32, YamuxChannel]
     currentId: uint32
