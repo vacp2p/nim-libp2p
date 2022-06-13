@@ -56,7 +56,7 @@ proc readHeader(conn: LPStream): Future[YamuxHeader] {.async, gcsafe.} =
 
   result.version = buffer[0]
   let flags = fromBytesBE(uint16, buffer[2..3])
-  if not result.msgType.checkedEnumAssign(buffer[1]) or flags notin 0..15:
+  if not result.msgType.checkedEnumAssign(buffer[1]) or flags notin 0'u16..15'u16:
      raise newException(YamuxError, "Wrong header")
   result.flags = cast[set[MsgFlags]](flags)
   result.streamId = fromBytesBE(uint32, buffer[4..7])
@@ -126,13 +126,23 @@ type
     conn: Connection
     opened: bool
     acked: bool
-    sendQueue: seq[byte]
+    sendQueue: seq[seq[byte]]
     recvQueue: seq[byte]
     isReset: bool
     closedRemotely: Future[void]
     closedLocally: bool
     receivedData: AsyncEvent
     updatedRecvWindow: AsyncEvent
+
+proc sendQueueBytes(channel: YamuxChannel, limit: bool = false): int =
+  for elem in channel.sendQueue:
+    result.inc(min(elem.len, if limit: channel.sendWindow div 3 else: elem.len))
+
+proc reset(channel: YamuxChannel) {.async.} =
+  channel.sendQueue = @[]
+  channel.recvQueue = @[]
+  channel.isReset = true
+  await channel.conn.write(toSeq(YamuxHeader.data(channel.id, 0, {Rst}).encode()))
 
 proc updateRecvWindow(channel: YamuxChannel) {.async.} =
   let inWindow = channel.recvWindow + channel.recvQueue.len
@@ -190,26 +200,37 @@ proc setupHeader(channel: YamuxChannel, header: var YamuxHeader) =
 proc trySend(channel: YamuxChannel) {.async.} =
   if channel.sendQueue.len == 0: return
   if channel.sendWindow == 0:
-    #TODO check queue size, kill conn if too big
+    if channel.sendQueueBytes(true) > channel.maxRecvWindow:
+      await channel.reset()
+      raise newException(YamuxError, "Send queue saturated")
     trace "send window empty"
     return
 
   let
-    toSend = min(channel.sendWindow, channel.sendQueue.len)
+    bytesAvailable = channel.sendQueueBytes()
+    toSend = min(channel.sendWindow, bytesAvailable)
   var
     sendBuffer = newSeqUninitialized[byte](toSend + 12)
     header = YamuxHeader.data(channel.id, toSend.uint32)
+    inBuffer = 0
 
-  if toSend >= channel.sendQueue.len and channel.closedLocally:
-    trace "last buffer we'll sent on this channel", toSend, bytesAvailable = channel.sendQueue.len
+  if toSend >= bytesAvailable and channel.closedLocally:
+    trace "last buffer we'll sent on this channel", toSend, bytesAvailable
     header.flags.incl({Fin})
 
   channel.setupHeader(header)
 
   sendBuffer[0..<12] = header.encode()
-  sendBuffer[12..<toSend+12] = channel.sendQueue[0..<toSend]
 
-  channel.sendQueue = channel.sendQueue[toSend..^1]
+  while inBuffer < toSend:
+    let bufferToSend = min(toSend - inBuffer, channel.sendQueue[0].len)
+    sendBuffer.toOpenArray(12, 12 + toSend - 1)[inBuffer..<(inBuffer+bufferToSend)] = channel.sendQueue[0].toOpenArray(0, bufferToSend - 1)
+    let remaining = channel.sendQueue[0].len - bufferToSend
+    if remaining <= 0:
+      channel.sendQueue.delete(0)
+    else:
+      channel.sendQueue[0] = channel.sendQueue[0][^remaining..^1]
+    inBuffer.inc(bufferToSend)
 
   trace "build send buffer", len=sendBuffer.len
   channel.sendWindow.dec(toSend)
@@ -219,7 +240,7 @@ method write*(channel: YamuxChannel, msg: seq[byte]) {.async.} =
   if channel.closedLocally or channel.isReset:
     raise newLPStreamEOFError()
 
-  channel.sendQueue = channel.sendQueue.concat(msg)
+  channel.sendQueue.add(msg)
   await channel.trySend()
 
   while channel.sendWindow == 0 and channel.sendQueue.len > 0:
@@ -246,8 +267,7 @@ method closeImpl*(channel: YamuxChannel) {.async, gcsafe.} =
   await channel.actuallyClose()
 
 proc open*(channel: YamuxChannel) {.async, gcsafe.} =
-  # Just write an empty message, Syn will be
-  # piggy-backed
+  # Just write an empty message, Syn will be piggy-backed
   await channel.write(@[])
 
 type
