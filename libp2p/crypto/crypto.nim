@@ -69,7 +69,7 @@ when supported(PKScheme.Secp256k1):
 # We are still importing `ecnist` because, it is used for SECIO handshake,
 # but it will be impossible to create ECNIST keys or import ECNIST keys.
 
-import ecnist, bearssl
+import ecnist, bearssl/[abi/bearssl_rand, abi/bearssl_hash]
 import ../protobuf/minprotobuf, ../vbuffer, ../multihash, ../multicodec
 import nimcrypto/[rijndael, twofish, sha2, hash, hmac]
 # We use `ncrutils` for constant-time hexadecimal encoding/decoding procedures.
@@ -79,7 +79,7 @@ import stew/results
 export results
 
 # This is workaround for Nim's `import` bug
-export rijndael, twofish, sha2, hash, hmac, ncrutils
+export rijndael, twofish, sha2, hash, hmac, ncrutils, bearssl_rand
 
 type
   DigestSheme* = enum
@@ -167,7 +167,7 @@ proc newRng*(): ref HmacDrbgContext =
     return nil
 
   var rng = (ref HmacDrbgContext)()
-  hmacDrbgInit(addr rng[], addr sha256Vtable, nil, 0)
+  hmacDrbgInit(rng[], addr sha256Vtable, nil, 0)
   if seeder(addr rng.vtable) == 0:
     return nil
   rng
@@ -176,8 +176,10 @@ proc shuffle*[T](
   rng: ref HmacDrbgContext,
   x: var openArray[T]) =
 
+  if x.len == 0: return
+
   var randValues = newSeqUninitialized[byte](len(x) * 2)
-  hmacDrbgGenerate(addr rng[], addr randValues[0], randValues.len.csize_t)
+  hmacDrbgGenerate(rng[], addr randValues[0], uint(randValues.len))
 
   for i in countdown(x.high, 1):
     let

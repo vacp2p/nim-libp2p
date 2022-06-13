@@ -10,7 +10,7 @@
 {.push raises: [Defect].}
 
 import
-  options, tables, chronos, chronicles, bearssl,
+  options, tables, chronos, chronicles,
   switch, peerid, peerinfo, stream/connection, multiaddress,
   crypto/crypto, transports/[transport, tcptransport],
   muxers/[muxer, mplex/mplex],

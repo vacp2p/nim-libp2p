@@ -10,7 +10,7 @@
 {.push raises: [Defect].}
 
 import std/[tables, sequtils, sets, strutils]
-import chronos, chronicles, metrics, bearssl
+import chronos, chronicles, metrics
 import ./errors as pubsub_errors,
        ./pubsubpeer,
        ./rpc/[message, messages, protobuf],

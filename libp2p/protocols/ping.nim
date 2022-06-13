@@ -9,7 +9,8 @@
 
 {.push raises: [Defect].}
 
-import chronos, chronicles, bearssl
+import chronos, chronicles
+import bearssl/[abi/bearssl_rand, abi/bearssl_hash]
 import ../protobuf/minprotobuf,
        ../peerinfo,
        ../stream/connection,
@@ -76,7 +77,7 @@ proc ping*(
     randomBuf: array[PingSize, byte]
     resultBuf: array[PingSize, byte]
 
-  hmacDrbgGenerate(addr p.rng[], addr randomBuf[0], randomBuf.len.csize_t)
+  hmacDrbgGenerate(p.rng[], addr randomBuf[0], randomBuf.len.csize_t)
 
   let startTime = Moment.now()
 

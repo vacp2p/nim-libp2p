@@ -9,8 +9,9 @@
 
 {.push raises: [Defect].}
 
+import bearssl/[abi/bearssl_rand, abi/bearssl_hash]
 import
-  secp256k1, bearssl,
+  secp256k1,
   stew/[byteutils, results],
   nimcrypto/[hash, sha2]
 
@@ -35,16 +36,18 @@ template pubkey*(v: SkKeyPair): SkPublicKey = SkPublicKey(secp256k1.SkKeyPair(v)
 template seckey*(v: SkKeyPair): SkPrivateKey = SkPrivateKey(secp256k1.SkKeyPair(v).seckey)
 
 proc random*(t: typedesc[SkPrivateKey], rng: var HmacDrbgContext): SkPrivateKey =
-  let rngPtr = unsafeAddr rng # doesn't escape
+  #TODO this is probably wrong
+  var rng2 = addr rng
   proc callRng(data: var openArray[byte]) =
-    hmacDrbgGenerate(rngPtr, addr data, csize_t(data.len))
+    hmacDrbgGenerate(rng2[], addr data, csize_t(data.len))
 
   SkPrivateKey(SkSecretKey.random(callRng))
 
 proc random*(t: typedesc[SkKeyPair], rng: var HmacDrbgContext): SkKeyPair =
-  let rngPtr = unsafeAddr rng # doesn't escape
+  #TODO this is probably wrong
+  let rng2 = addr rng
   proc callRng(data: var openArray[byte]) =
-    hmacDrbgGenerate(rngPtr, addr data, csize_t(data.len))
+    hmacDrbgGenerate(rng2[], addr data, csize_t(data.len))
 
   SkKeyPair(secp256k1.SkKeyPair.random(callRng))
 

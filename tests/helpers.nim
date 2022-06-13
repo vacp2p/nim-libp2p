@@ -1,6 +1,6 @@
 {.push raises: [Defect].}
 
-import chronos, bearssl
+import chronos
 
 import ../libp2p/transports/tcptransport
 import ../libp2p/stream/bufferstream

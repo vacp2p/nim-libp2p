@@ -13,7 +13,8 @@
 
 {.push raises: Defect.}
 
-import constants, bearssl
+import bearssl/[abi/bearssl_rand, abi/bearssl_hash]
+import constants
 import nimcrypto/[hash, sha2]
 # We use `ncrutils` for constant-time hexadecimal encoding/decoding procedures.
 import nimcrypto/utils as ncrutils
@@ -1651,7 +1652,7 @@ proc random*(t: typedesc[EdPrivateKey], rng: var HmacDrbgContext): EdPrivateKey 
     pk: array[EdPublicKeySize, byte]
     res: EdPrivateKey
 
-  hmacDrbgGenerate(addr rng, addr res.data[0], 32)
+  hmacDrbgGenerate(rng, addr res.data[0], 32)
 
   var hh = sha512.digest(res.data.toOpenArray(0, 31))
   hh.data[0] = hh.data[0] and 0xF8'u8
@@ -1670,7 +1671,7 @@ proc random*(t: typedesc[EdKeyPair], rng: var HmacDrbgContext): EdKeyPair =
     point: GeP3
     res: EdKeyPair
 
-  hmacDrbgGenerate(addr rng, addr res.seckey.data[0], 32)
+  hmacDrbgGenerate(rng, addr res.seckey.data[0], 32)
 
   var hh = sha512.digest(res.seckey.data.toOpenArray(0, 31))
   hh.data[0] = hh.data[0] and 0xF8'u8

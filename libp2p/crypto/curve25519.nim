@@ -17,7 +17,7 @@
 
 {.push raises: [Defect].}
 
-import bearssl
+import bearssl/[abi/bearssl_ec, abi/bearssl_rand, abi/bearssl_hash]
 import stew/results
 from stew/assign2 import assign
 export results
@@ -54,9 +54,9 @@ proc mul*(_: type[Curve25519], point: var Curve25519Key, multiplier: Curve25519K
   multiplierBs.byteswap()
   let
     res = defaultBrEc.mul(
-      cast[pcuchar](addr point[0]),
+      addr point[0],
       Curve25519KeySize,
-      cast[pcuchar](addr multiplierBs[0]),
+      addr multiplierBs[0],
       Curve25519KeySize,
       EC_curve25519)
   assert res == 1
@@ -70,8 +70,8 @@ proc mulgen(_: type[Curve25519], dst: var Curve25519Key, point: Curve25519Key) =
 
   let
     size = defaultBrEc.mulgen(
-      cast[pcuchar](addr dst[0]),
-      cast[pcuchar](addr rpoint[0]),
+      addr dst[0],
+      addr rpoint[0],
       Curve25519KeySize,
       EC_curve25519)
   
@@ -83,7 +83,7 @@ proc public*(private: Curve25519Key): Curve25519Key =
 proc random*(_: type[Curve25519Key], rng: var HmacDrbgContext): Curve25519Key =
   var res: Curve25519Key
   let defaultBrEc = ecGetDefault()
-  let len = brEcKeygen(
+  let len = ecKeygen(
     addr rng.vtable, defaultBrEc, nil, addr res[0], EC_curve25519)
   # Per bearssl documentation, the keygen only fails if the curve is
   # unrecognised -

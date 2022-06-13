@@ -12,7 +12,7 @@
 import std/[oids, strformat]
 import chronos
 import chronicles
-import bearssl
+import bearssl/[abi/bearssl_rand, abi/bearssl_hash]
 import stew/[endians2, byteutils]
 import nimcrypto/[utils, sha2, hmac]
 import ../../stream/[connection, streamseq]

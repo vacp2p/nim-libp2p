@@ -12,7 +12,7 @@
 import unittest2
 import nimcrypto/[utils, sysrand]
 import ../libp2p/crypto/[crypto, chacha20poly1305, curve25519, hkdf]
-import bearssl
+import bearssl/[abi/bearssl_rand, abi/bearssl_hash]
 
 when defined(nimHasUsed): {.used.}
 
@@ -561,6 +561,6 @@ suite "Key interface test suite":
   test "shuffle":
     var cards = ["Ace", "King", "Queen", "Jack", "Ten"]
     var rng = (ref HmacDrbgContext)()
-    brHmacDrbgInit(addr rng[], addr sha256Vtable, nil, 0)
+    hmacDrbgInit(rng[], addr sha256Vtable, nil, 0)
     rng.shuffle(cards)
     check cards == ["King", "Ten", "Ace", "Queen", "Jack"]

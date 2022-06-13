@@ -12,7 +12,7 @@
 {.push raises: [Defect].}
 
 import nimcrypto
-import bearssl
+import bearssl/[abi/bearssl_kdf, abi/bearssl_rand, abi/bearssl_hash]
 
 type HkdfResult*[len: static int] = array[len, byte]
 
@@ -20,14 +20,14 @@ proc hkdf*[T: sha256; len: static int](_: type[T]; salt, ikm, info: openArray[by
   var
     ctx: HkdfContext
   hkdfInit(
-    addr ctx, addr sha256Vtable,
+    ctx, addr sha256Vtable,
     if salt.len > 0: unsafeAddr salt[0] else: nil, csize_t(salt.len))
   hkdfInject(
-    addr ctx, if ikm.len > 0: unsafeAddr ikm[0] else: nil, csize_t(ikm.len))
-  hkdfFlip(addr ctx)
+    ctx, if ikm.len > 0: unsafeAddr ikm[0] else: nil, csize_t(ikm.len))
+  hkdfFlip(ctx)
   for i in 0..outputs.high:
     discard hkdfProduce(
-      addr ctx,
+      ctx,
       if info.len > 0: unsafeAddr info[0]
       else: nil, csize_t(info.len),
       addr outputs[i][0], csize_t(outputs[i].len))

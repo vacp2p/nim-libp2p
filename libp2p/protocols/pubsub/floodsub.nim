@@ -226,6 +226,6 @@ method initPubSub*(f: FloodSub)
   procCall PubSub(f).initPubSub()
   f.seen = TimedCache[MessageID].init(2.minutes)
   f.seenSalt = newSeqUninitialized[byte](sizeof(Hash))
-  hmacDrbgGenerate(f.rng[], f.seenSalt)
+  hmacDrbgGenerate(f.rng[], addr f.seenSalt[0], uint(f.seenSalt.len))
 
   f.init()
