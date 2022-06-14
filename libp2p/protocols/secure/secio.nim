@@ -10,7 +10,7 @@
 {.push raises: [Defect].}
 
 import std/[oids, strformat]
-import bearssl/[rand, hash]
+import bearssl/rand
 import chronos, chronicles, stew/endians2
 import nimcrypto/[hmac, sha2, sha, hash, rijndael, twofish, bcmode]
 import secure,
@@ -305,7 +305,7 @@ method handshake*(s: Secio, conn: Connection, initiator: bool = false): Future[S
     localPeerId: PeerId
     localBytesPubkey = s.localPublicKey.getBytes().tryGet()
 
-  hmacDrbgGenerate(s.rng[], addr localNonce[0], localNonce.len.csize_t)
+  hmacDrbgGenerate(s.rng[], localNonce)
 
   var request = createProposal(localNonce,
                                localBytesPubkey,

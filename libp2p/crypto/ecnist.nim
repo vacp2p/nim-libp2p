@@ -119,7 +119,7 @@ proc checkScalar(scalar: openArray[byte], curve: cint): uint32 =
 proc checkPublic(key: openArray[byte], curve: cint): uint32 =
   ## Return ``1`` if public key ``key`` is on curve.
   var ckey = @key
-  var x = [byte(0x00), 0x01]
+  var x = [byte 0x00, 0x01]
   var impl = ecGetDefault()
   var orderlen: uint = 0
   discard impl.order(curve, orderlen)

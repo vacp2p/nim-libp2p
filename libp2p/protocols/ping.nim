@@ -77,7 +77,7 @@ proc ping*(
     randomBuf: array[PingSize, byte]
     resultBuf: array[PingSize, byte]
 
-  hmacDrbgGenerate(p.rng[], addr randomBuf[0], randomBuf.len.csize_t)
+  hmacDrbgGenerate(p.rng[], randomBuf)
 
   let startTime = Moment.now()
 

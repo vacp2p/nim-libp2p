@@ -480,13 +480,13 @@ proc init*(key: var RsaPrivateKey, data: openArray[byte]): Result[void, Asn1Erro
     key.seck.dq = addr key.buffer[rawdq.offset]
     key.seck.iq = addr key.buffer[rawiq.offset]
     key.pexp = addr key.buffer[rawprie.offset]
-    key.pubk.nlen = len(rawn).uint
-    key.pubk.elen = len(rawpube).uint
-    key.seck.plen = len(rawp).uint
-    key.seck.qlen = len(rawq).uint
-    key.seck.dplen = len(rawdp).uint
-    key.seck.dqlen = len(rawdq).uint
-    key.seck.iqlen = len(rawiq).uint
+    key.pubk.nlen = uint(len(rawn))
+    key.pubk.elen = uint(len(rawpube))
+    key.seck.plen = uint(len(rawp))
+    key.seck.qlen = uint(len(rawq))
+    key.seck.dplen = uint(len(rawdp))
+    key.seck.dqlen = uint(len(rawdq))
+    key.seck.iqlen = uint(len(rawiq))
     key.pexplen = uint(len(rawprie))
     key.seck.nBitlen = cast[uint32](len(rawn) shl 3)
     ok()
@@ -556,8 +556,8 @@ proc init*(key: var RsaPublicKey, data: openArray[byte]): Result[void, Asn1Error
     key.buffer = @data
     key.key.n = addr key.buffer[rawn.offset]
     key.key.e = addr key.buffer[rawe.offset]
-    key.key.nlen = len(rawn).uint
-    key.key.elen = len(rawe).uint
+    key.key.nlen = uint(len(rawn))
+    key.key.elen = uint(len(rawe))
     ok()
   else:
     err(Asn1Error.Incorrect)
@@ -757,7 +757,7 @@ proc sign*[T: byte|char](key: RsaPrivateKey,
   var kv = addr sha256Vtable
   kv.init(addr hc.vtable)
   if len(message) > 0:
-    kv.update(addr hc.vtable, unsafeAddr message[0], len(message).uint)
+    kv.update(addr hc.vtable, unsafeAddr message[0], uint(len(message)))
   else:
     kv.update(addr hc.vtable, nil, 0)
   kv.out(addr hc.vtable, addr hash[0])

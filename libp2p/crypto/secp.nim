@@ -36,18 +36,17 @@ template pubkey*(v: SkKeyPair): SkPublicKey = SkPublicKey(secp256k1.SkKeyPair(v)
 template seckey*(v: SkKeyPair): SkPrivateKey = SkPrivateKey(secp256k1.SkKeyPair(v).seckey)
 
 proc random*(t: typedesc[SkPrivateKey], rng: var HmacDrbgContext): SkPrivateKey =
-  #TODO this is probably wrong
-  var rng2 = addr rng
+  #TODO is there a better way?
+  var rngPtr = addr rng
   proc callRng(data: var openArray[byte]) =
-    hmacDrbgGenerate(rng2[], addr data, csize_t(data.len))
+    hmacDrbgGenerate(rngPtr[], data)
 
   SkPrivateKey(SkSecretKey.random(callRng))
 
 proc random*(t: typedesc[SkKeyPair], rng: var HmacDrbgContext): SkKeyPair =
-  #TODO this is probably wrong
-  let rng2 = addr rng
+  let rngPtr = addr rng
   proc callRng(data: var openArray[byte]) =
-    hmacDrbgGenerate(rng2[], addr data, csize_t(data.len))
+    hmacDrbgGenerate(rngPtr[], data)
 
   SkKeyPair(secp256k1.SkKeyPair.random(callRng))
 

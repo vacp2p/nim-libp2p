@@ -68,6 +68,7 @@ proc encrypt*(_: type[ChaChaPoly],
     ad,
     uint(aad.len),
     baseAddr(tag),
+    # cast is required to workaround https://github.com/nim-lang/Nim/issues/13905
     cast[Chacha20Run](chacha20CtRun),
     #[encrypt]# 1.cint)
 
@@ -91,5 +92,6 @@ proc decrypt*(_: type[ChaChaPoly],
     ad,
     uint(aad.len),
     baseAddr(tag),
+    # cast is required to workaround https://github.com/nim-lang/Nim/issues/13905
     cast[Chacha20Run](chacha20CtRun),
     #[decrypt]# 0.cint)

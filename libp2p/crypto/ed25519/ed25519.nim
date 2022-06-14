@@ -1652,7 +1652,7 @@ proc random*(t: typedesc[EdPrivateKey], rng: var HmacDrbgContext): EdPrivateKey 
     pk: array[EdPublicKeySize, byte]
     res: EdPrivateKey
 
-  hmacDrbgGenerate(rng, addr res.data[0], 32)
+  hmacDrbgGenerate(rng, res.data.toOpenArray(0, 31))
 
   var hh = sha512.digest(res.data.toOpenArray(0, 31))
   hh.data[0] = hh.data[0] and 0xF8'u8
@@ -1671,7 +1671,7 @@ proc random*(t: typedesc[EdKeyPair], rng: var HmacDrbgContext): EdKeyPair =
     point: GeP3
     res: EdKeyPair
 
-  hmacDrbgGenerate(rng, addr res.seckey.data[0], 32)
+  hmacDrbgGenerate(rng, res.seckey.data.toOpenArray(0, 31))
 
   var hh = sha512.digest(res.seckey.data.toOpenArray(0, 31))
   hh.data[0] = hh.data[0] and 0xF8'u8

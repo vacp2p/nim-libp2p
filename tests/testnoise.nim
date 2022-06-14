@@ -215,7 +215,7 @@ suite "Noise":
       readTask = newFuture[void]()
 
     var hugePayload = newSeq[byte](0xFFFFF)
-    hmacDrbgGenerate(rng[], addr hugePayload[0], uint(hugePayload.len))
+    hmacDrbgGenerate(rng[], hugePayload)
     trace "Sending huge payload", size = hugePayload.len
 
     let

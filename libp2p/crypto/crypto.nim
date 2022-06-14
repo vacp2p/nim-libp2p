@@ -179,7 +179,7 @@ proc shuffle*[T](
   if x.len == 0: return
 
   var randValues = newSeqUninitialized[byte](len(x) * 2)
-  hmacDrbgGenerate(rng[], addr randValues[0], uint(randValues.len))
+  hmacDrbgGenerate(rng[], randValues)
 
   for i in countdown(x.high, 1):
     let
