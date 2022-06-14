@@ -22,7 +22,7 @@ import stew/[results, ctops]
 export results
 
 # This workaround needed because of some bugs in Nim Static[T].
-export hash, sha2
+export hash, sha2, rand
 
 const
   EdPrivateKeySize* = 64

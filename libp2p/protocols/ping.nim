@@ -20,6 +20,8 @@ import ../protobuf/minprotobuf,
        ../protocols/protocol,
        ../errors
 
+export chronicles, rand, connection
+
 logScope:
   topics = "libp2p ping"
 

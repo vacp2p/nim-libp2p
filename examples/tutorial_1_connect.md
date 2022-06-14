@@ -24,13 +24,11 @@ _TIP: You can extract the code from this tutorial by running `nim c -r tools/mar
 
 Let's create a `part1.nim`, and import our dependencies:
 ```nim
-import bearssl
 import chronos
 
 import libp2p
 import libp2p/protocols/ping
 ```
-[bearssl](https://github.com/status-im/nim-bearssl) is used as a [cryptographic pseudorandom number generator](https://en.wikipedia.org/wiki/Cryptographically-secure_pseudorandom_number_generator)  
 [chronos](https://github.com/status-im/nim-chronos) the asynchronous framework used by `nim-libp2p`
 
 Next, we'll create an helper procedure to create our switches. A switch needs a bit of configuration, and it will be easier to do this configuration only once:

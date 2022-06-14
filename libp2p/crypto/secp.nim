@@ -15,7 +15,7 @@ import
   stew/[byteutils, results],
   nimcrypto/[hash, sha2]
 
-export sha2, results
+export sha2, results, rand
 
 const
   SkRawPrivateKeySize* = 256 div 8

@@ -1,4 +1,3 @@
-import bearssl
 import chronos         # an efficient library for async
 import stew/byteutils  # various utils
 import ../libp2p       # when installed through nimble, just use `import libp2p`
