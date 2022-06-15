@@ -1,5 +1,5 @@
 asynctest;https://github.com/markspanbroek/asynctest@#5347c59b4b057443a014722aa40800cd8bb95c69
-bearssl;https://github.com/status-im/nim-bearssl@#2a724e60a301e9383371aceb75d61c3f8a994ae4
+bearssl;https://github.com/status-im/nim-bearssl@#c4aec8b664709356060b71b7e495be62ca446a65
 chronicles;https://github.com/status-im/nim-chronicles@#2a2681b60289aaf7895b7056f22616081eb1a882
 chronos;https://github.com/status-im/nim-chronos@#875d7d8e6ef0803ae1c331dbf76b1981b0caeb15
 dnsclient;https://github.com/ba0f3/dnsclient.nim@#fbb76f8af8a33ab818184a7d4406d9fee20993be
