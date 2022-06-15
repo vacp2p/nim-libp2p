@@ -148,7 +148,7 @@ proc reset(channel: YamuxChannel) {.async.} =
     channel.sendWindow = 0
     channel.recvWindow = 0
     if not channel.closedRemotely.done():
-      await channel.conn.write(toSeq(YamuxHeader.data(channel.id, 0, {Rst}).encode()))
+      await channel.conn.write(YamuxHeader.data(channel.id, 0, {Rst}))
 
 proc updateRecvWindow(channel: YamuxChannel) {.async.} =
   let inWindow = channel.recvWindow + channel.recvQueue.len
@@ -260,12 +260,12 @@ method write*(channel: YamuxChannel, msg: seq[byte]) {.async.} =
   if channel.closedLocally or channel.isReset:
     raise newLPStreamEOFError()
 
-  let blockUntil = channel.bytesSent + msg.len().uint64
+  let blockUntil = channel.bytesSent + channel.sendQueueBytes().uint64 + msg.len().uint64
   channel.sendQueue.add(msg)
   await channel.trySend()
 
   while blockUntil > channel.bytesSent:
-    # Block until there is room
+    # Block until data has been sent
     channel.sentData.clear()
     await channel.sentData.wait()
 
