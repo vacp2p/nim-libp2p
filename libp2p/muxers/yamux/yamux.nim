@@ -184,6 +184,7 @@ method readOnce*(
 
   # We made some room in the recv buffer let the peer know
   await channel.updateRecvWindow()
+  channel.activity = true
   return toRead
 
 proc gotDataFromRemote(channel: YamuxChannel, b: seq[byte]) {.async.} =
@@ -251,6 +252,7 @@ proc trySend(channel: YamuxChannel) {.async.} =
       channel.sendWindow.dec(toSend)
       channel.bytesSent.inc(toSend)
       await channel.conn.write(sendBuffer)
+      channel.activity = true
       channel.sentData.fire()
     channel.isSending = false
 
@@ -396,7 +398,7 @@ method handle*(m: Yamux) {.async, gcsafe.} =
           await channel.close()
 
   except YamuxError as exc:
-    debug "Closing yamux connection", error=exc.msg
+    trace "Closing yamux connection", error=exc.msg
     await m.connection.write(YamuxHeader.goAway(ProtocolError))
   finally:
     await m.close()
