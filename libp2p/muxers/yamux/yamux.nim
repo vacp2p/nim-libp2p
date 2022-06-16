@@ -124,8 +124,8 @@ type
     sendWindow: int
     maxRecvWindow: int
     conn: Connection
+    isSrc: bool
     opened: bool
-    acked: bool
     isSending: bool
     sendQueue: seq[seq[byte]]
     recvQueue: seq[byte]
@@ -231,12 +231,12 @@ proc setMaxRecvWindow*(channel: YamuxChannel, maxRecvWindow: int) =
   channel.maxRecvWindow = maxRecvWindow
 
 proc setupHeader(channel: YamuxChannel, header: var YamuxHeader) =
-  if not channel.opened:
+  if not channel.opened and channel.isSrc:
     header.flags.incl(MsgFlags.Syn)
     channel.opened = true
-  if not channel.acked:
+  if not channel.opened and not channel.isSrc:
     header.flags.incl(MsgFlags.Ack)
-    channel.acked = true
+    channel.opened = true
 
 proc trySend(channel: YamuxChannel) {.async.} =
   if not channel.isSending:
@@ -317,12 +317,13 @@ proc cleanupChann(m: Yamux, channel: YamuxChannel) {.async.} =
   await channel.join()
   m.channels.del(channel.id)
 
-proc createStream(m: Yamux, id: uint32): YamuxChannel =
+proc createStream(m: Yamux, id: uint32, isSrc: bool): YamuxChannel =
   result = YamuxChannel(
     id: id,
     maxRecvWindow: DefaultWindowSize,
     recvWindow: DefaultWindowSize,
     sendWindow: DefaultWindowSize,
+    isSrc: isSrc,
     conn: m.connection,
     receivedData: newAsyncEvent(),
     sentData: newAsyncEvent(),
@@ -379,7 +380,7 @@ method handle*(m: Yamux) {.async, gcsafe.} =
           else:
             if header.streamId mod 2 == m.currentId mod 2:
               raise newException(YamuxError, "Peer used our reserved stream id")
-            let newStream = m.createStream(header.streamId)
+            let newStream = m.createStream(header.streamId, false)
             newStream.opened = true
             asyncSpawn m.handleStream(newStream)
         elif header.streamId notin m.channels:
@@ -425,7 +426,7 @@ method newStream*(
   name: string = "",
   lazy: bool = false): Future[Connection] {.async, gcsafe.} =
 
-  let stream = m.createStream(m.currentId)
+  let stream = m.createStream(m.currentId, true)
   m.currentId += 2
   if not lazy:
     await stream.open()
