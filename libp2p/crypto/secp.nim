@@ -9,12 +9,13 @@
 
 {.push raises: [Defect].}
 
+import bearssl/rand
 import
-  secp256k1, bearssl,
+  secp256k1,
   stew/[byteutils, results],
   nimcrypto/[hash, sha2]
 
-export sha2, results
+export sha2, results, rand
 
 const
   SkRawPrivateKeySize* = 256 div 8
@@ -34,17 +35,18 @@ type
 template pubkey*(v: SkKeyPair): SkPublicKey = SkPublicKey(secp256k1.SkKeyPair(v).pubkey)
 template seckey*(v: SkKeyPair): SkPrivateKey = SkPrivateKey(secp256k1.SkKeyPair(v).seckey)
 
-proc random*(t: typedesc[SkPrivateKey], rng: var BrHmacDrbgContext): SkPrivateKey =
-  let rngPtr = unsafeAddr rng # doesn't escape
+proc random*(t: typedesc[SkPrivateKey], rng: var HmacDrbgContext): SkPrivateKey =
+  #TODO is there a better way?
+  var rngPtr = addr rng
   proc callRng(data: var openArray[byte]) =
-    brHmacDrbgGenerate(rngPtr[], data)
+    hmacDrbgGenerate(rngPtr[], data)
 
   SkPrivateKey(SkSecretKey.random(callRng))
 
-proc random*(t: typedesc[SkKeyPair], rng: var BrHmacDrbgContext): SkKeyPair =
-  let rngPtr = unsafeAddr rng # doesn't escape
+proc random*(t: typedesc[SkKeyPair], rng: var HmacDrbgContext): SkKeyPair =
+  let rngPtr = addr rng
   proc callRng(data: var openArray[byte]) =
-    brHmacDrbgGenerate(rngPtr[], data)
+    hmacDrbgGenerate(rngPtr[], data)
 
   SkKeyPair(secp256k1.SkKeyPair.random(callRng))
 

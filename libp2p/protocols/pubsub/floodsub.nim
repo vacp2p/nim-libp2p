@@ -10,7 +10,7 @@
 {.push raises: [Defect].}
 
 import std/[sequtils, sets, hashes, tables]
-import chronos, chronicles, metrics, bearssl
+import chronos, chronicles, metrics
 import ./pubsub,
        ./pubsubpeer,
        ./timedcache,
@@ -226,6 +226,6 @@ method initPubSub*(f: FloodSub)
   procCall PubSub(f).initPubSub()
   f.seen = TimedCache[MessageID].init(2.minutes)
   f.seenSalt = newSeqUninitialized[byte](sizeof(Hash))
-  brHmacDrbgGenerate(f.rng[], f.seenSalt)
+  hmacDrbgGenerate(f.rng[], f.seenSalt)
 
   f.init()
