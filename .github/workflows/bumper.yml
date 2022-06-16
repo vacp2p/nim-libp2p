@@ -32,4 +32,5 @@ jobs:
           git commit -a -m "auto-bump nim-libp2p"
           git branch -D nim-libp2p-auto-bump-${GITHUB_REF##*/} || true
           git switch -c nim-libp2p-auto-bump-${GITHUB_REF##*/}
+          git config --unset-all http.https://github.com/.extraheader
           git push -f origin nim-libp2p-auto-bump-${GITHUB_REF##*/}
