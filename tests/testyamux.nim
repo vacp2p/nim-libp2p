@@ -7,9 +7,8 @@ import
   ./helpers
 
 suite "Yamux":
-  #TODO failing right now
-  #teardown:
-  #  checkTrackers()
+  teardown:
+    checkTrackers()
 
   template mSetup {.inject.} =
     #TODO in a template to avoid threadvar

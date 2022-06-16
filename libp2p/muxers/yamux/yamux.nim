@@ -136,9 +136,40 @@ type
     receivedData: AsyncEvent
     sentData: AsyncEvent
 
+proc `$`(channel: YamuxChannel): string =
+  result = if channel.conn.dir == Out: "=> " else: "<= "
+  result &= $channel.id
+  var s: seq[string] = @[]
+  if channel.closedRemotely.done():
+    s.add("ClosedRemotely")
+  if channel.closedLocally:
+    s.add("ClosedLocally")
+  if channel.isReset:
+    s.add("Reset")
+  if s.len > 0:
+    result &= " {" & s.foldl(if a != "": a & ", " & b else: b, "") & "}"
+
 proc sendQueueBytes(channel: YamuxChannel, limit: bool = false): int =
   for elem in channel.sendQueue:
     result.inc(min(elem.len, if limit: channel.sendWindow div 3 else: elem.len))
+
+proc actuallyClose(channel: YamuxChannel) {.async.} =
+  if channel.closedLocally and channel.sendQueue.len == 0 and
+     channel.closedRemotely.done():
+    await procCall Connection(channel).closeImpl()
+
+proc remoteClosed(channel: YamuxChannel) {.async.} =
+  if not channel.closedRemotely.done():
+    channel.closedRemotely.complete()
+    await channel.actuallyClose()
+
+method closeImpl*(channel: YamuxChannel) {.async, gcsafe.} =
+  if not channel.closedLocally:
+    channel.closedLocally = true
+
+    if channel.isReset == false and channel.sendQueue.len == 0:
+      await channel.conn.write(YamuxHeader.data(channel.id, 0, {Fin}))
+    await channel.actuallyClose()
 
 proc reset(channel: YamuxChannel) {.async.} =
   if not channel.isReset:
@@ -147,8 +178,11 @@ proc reset(channel: YamuxChannel) {.async.} =
     channel.recvQueue = @[]
     channel.sendWindow = 0
     channel.recvWindow = 0
-    if not channel.closedRemotely.done():
+    if not channel.closedLocally:
       await channel.conn.write(YamuxHeader.data(channel.id, 0, {Rst}))
+      await channel.close()
+    if not channel.closedRemotely.done():
+      await channel.remoteClosed()
 
 proc updateRecvWindow(channel: YamuxChannel) {.async.} =
   let inWindow = channel.recvWindow + channel.recvQueue.len
@@ -269,24 +303,6 @@ method write*(channel: YamuxChannel, msg: seq[byte]) {.async.} =
     channel.sentData.clear()
     await channel.sentData.wait()
 
-proc actuallyClose(channel: YamuxChannel) {.async.} =
-  if channel.closedLocally and channel.sendQueue.len == 0 and
-     channel.closedRemotely.done():
-    await procCall Connection(channel).closeImpl()
-
-proc remoteClosed(channel: YamuxChannel) {.async.} =
-  if not channel.closedRemotely.done():
-    channel.closedRemotely.complete()
-  await channel.actuallyClose()
-
-method closeImpl*(channel: YamuxChannel) {.async, gcsafe.} =
-  if not channel.closedLocally:
-    channel.closedLocally = true
-
-    if channel.isReset == false and channel.sendQueue.len == 0:
-      await channel.conn.write(YamuxHeader.data(channel.id, 0, {Fin}))
-  await channel.actuallyClose()
-
 proc open*(channel: YamuxChannel) {.async, gcsafe.} =
   # Just write an empty message, Syn will be piggy-backed
   await channel.write(@[])
@@ -325,6 +341,7 @@ proc close*(m: Yamux) {.async.} =
 
   for channel in m.channels.values:
     await channel.reset()
+  await m.connection.write(YamuxHeader.goAway(NormalTermination))
   await m.connection.close()
 
 proc handleStream(m: Yamux, channel: YamuxChannel) {.async.} =
