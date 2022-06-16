@@ -24,7 +24,7 @@ const
   DefaultWindowSize = 256000
 
 type
-  YamuxError = object of CatchableError
+  YamuxError* = object of CatchableError
 
   MsgType = enum
     Data = 0x0
@@ -151,7 +151,7 @@ proc `$`(channel: YamuxChannel): string =
 
 proc sendQueueBytes(channel: YamuxChannel, limit: bool = false): int =
   for elem in channel.sendQueue:
-    result.inc(min(elem.len, if limit: channel.sendWindow div 3 else: elem.len))
+    result.inc(min(elem.len, if limit: channel.maxRecvWindow div 3 else: elem.len))
 
 proc actuallyClose(channel: YamuxChannel) {.async.} =
   if channel.closedLocally and channel.sendQueue.len == 0 and
@@ -245,6 +245,7 @@ proc trySend(channel: YamuxChannel) {.async.} =
       if channel.sendWindow == 0:
         if channel.sendQueueBytes(true) > channel.maxRecvWindow:
           await channel.reset()
+          channel.sentData.fire()
           raise newException(YamuxError, "Send queue saturated")
         trace "send window empty"
         break
@@ -302,6 +303,8 @@ method write*(channel: YamuxChannel, msg: seq[byte]) {.async.} =
     # Block until data has been sent
     channel.sentData.clear()
     await channel.sentData.wait()
+    if channel.isReset:
+      raise newException(YamuxError, "Send queue saturated")
 
 proc open*(channel: YamuxChannel) {.async, gcsafe.} =
   # Just write an empty message, Syn will be piggy-backed

@@ -1,3 +1,4 @@
+import sugar
 import chronos
 import
   ../libp2p/[
@@ -36,6 +37,27 @@ suite "Yamux":
       await streamA.writeLp(fromHex("1234"))
       check (await streamA.readLp(100)) == fromHex("5678")
       await streamA.close()
+
+    asyncTest "Continuing read after close":
+      mSetup()
+      let
+        readerBlocker = newFuture[void]()
+        handlerBlocker = newFuture[void]()
+      var numberOfRead = 0
+      yamuxb.streamHandler = proc(conn: Connection) {.async.} =
+        await readerBlocker
+        var buffer: array[25600, byte]
+        while (await conn.readOnce(addr buffer[0], 25600)) > 0:
+          numberOfRead.inc()
+        await conn.close()
+        handlerBlocker.complete()
+
+      let streamA = await yamuxa.newStream()
+      await wait(streamA.write(newSeq[byte](256000)), 1.seconds) # shouldn't block
+      await streamA.close()
+      readerBlocker.complete()
+      await handlerBlocker
+      check: numberOfRead == 10
 
   suite "Window exhaustion":
     asyncTest "Basic exhaustion blocking":
@@ -111,3 +133,22 @@ suite "Yamux":
 
       # 1 for initial exhaustion + (142 / 20) = 9
       check numberOfRead == 9
+
+    asyncTest "Saturate until reset":
+      mSetup()
+      let writerBlocker = newFuture[void]()
+      yamuxb.streamHandler = proc(conn: Connection) {.async.} =
+        await writerBlocker
+        var buffer: array[256, byte]
+        check: (await conn.readOnce(addr buffer[0], 256)) == 0
+        await conn.close()
+
+      let streamA = await yamuxa.newStream()
+      await streamA.write(newSeq[byte](256000))
+      let wrFut = collect(newSeq):
+        for _ in 0..3:
+          streamA.write(newSeq[byte](100000))
+      for i in 0..3:
+        expect(YamuxError): await wrFut[i]
+      writerBlocker.complete()
+      await streamA.close()
