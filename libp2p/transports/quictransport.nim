@@ -44,14 +44,9 @@ method readOnce*(stream: QuicStream,
                  nbytes: int): Future[int] {.async.} =
   if stream.cached.len == 0:
     stream.cached = await mapExceptions(stream.stream.read())
-  if stream.cached.len <= nbytes:
-    copyMem(pbytes, addr stream.cached[0], stream.cached.len)
-    result = stream.cached.len
-    stream.cached = @[]
-  else:
-    copyMem(pbytes, addr stream.cached[0], nbytes)
-    result = nbytes
-    stream.cached = stream.cached[nbytes..^1]
+  result = min(nbytes, stream.cached.len)
+  copyMem(pbytes, addr stream.cached[0], result)
+  stream.cached = stream.cached[result..^1]
 
 {.push warning[LockLevel]: off.}
 method write*(stream: QuicStream, bytes: seq[byte]) {.async.} =
