@@ -13,7 +13,8 @@
 
 {.push raises: Defect.}
 
-import constants, bearssl
+import bearssl/rand
+import constants
 import nimcrypto/[hash, sha2]
 # We use `ncrutils` for constant-time hexadecimal encoding/decoding procedures.
 import nimcrypto/utils as ncrutils
@@ -21,7 +22,7 @@ import stew/[results, ctops]
 export results
 
 # This workaround needed because of some bugs in Nim Static[T].
-export hash, sha2
+export hash, sha2, rand
 
 const
   EdPrivateKeySize* = 64
@@ -1644,14 +1645,14 @@ proc checkScalar*(scalar: openArray[byte]): uint32 =
     c = -1
   result = NEQ(z, 0'u32) and LT0(c)
 
-proc random*(t: typedesc[EdPrivateKey], rng: var BrHmacDrbgContext): EdPrivateKey =
+proc random*(t: typedesc[EdPrivateKey], rng: var HmacDrbgContext): EdPrivateKey =
   ## Generate new random ED25519 private key using the given random number generator
   var
     point: GeP3
     pk: array[EdPublicKeySize, byte]
     res: EdPrivateKey
 
-  brHmacDrbgGenerate(addr rng, addr res.data[0], 32)
+  hmacDrbgGenerate(rng, res.data.toOpenArray(0, 31))
 
   var hh = sha512.digest(res.data.toOpenArray(0, 31))
   hh.data[0] = hh.data[0] and 0xF8'u8
@@ -1663,14 +1664,14 @@ proc random*(t: typedesc[EdPrivateKey], rng: var BrHmacDrbgContext): EdPrivateKe
 
   res
 
-proc random*(t: typedesc[EdKeyPair], rng: var BrHmacDrbgContext): EdKeyPair =
+proc random*(t: typedesc[EdKeyPair], rng: var HmacDrbgContext): EdKeyPair =
   ## Generate new random ED25519 private and public keypair using OS specific
   ## CSPRNG.
   var
     point: GeP3
     res: EdKeyPair
 
-  brHmacDrbgGenerate(addr rng, addr res.seckey.data[0], 32)
+  hmacDrbgGenerate(rng, res.seckey.data.toOpenArray(0, 31))
 
   var hh = sha512.digest(res.seckey.data.toOpenArray(0, 31))
   hh.data[0] = hh.data[0] and 0xF8'u8
