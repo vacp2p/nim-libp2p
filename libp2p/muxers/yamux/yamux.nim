@@ -118,6 +118,10 @@ proc windowUpdate(
   )
 
 type
+  ToSend = tuple
+    data: seq[byte]
+    sent: int
+    fut: Future[void]
   YamuxChannel* = ref object of Connection
     id: uint32
     recvWindow: int
@@ -127,14 +131,13 @@ type
     isSrc: bool
     opened: bool
     isSending: bool
-    sendQueue: seq[seq[byte]]
+    sendQueue: seq[ToSend]
     recvQueue: seq[byte]
-    bytesSent: uint64
+    msgSent: uint64
     isReset: bool
     closedRemotely: Future[void]
     closedLocally: bool
     receivedData: AsyncEvent
-    sentData: AsyncEvent
 
 proc `$`(channel: YamuxChannel): string =
   result = if channel.conn.dir == Out: "=> " else: "<= "
@@ -150,8 +153,8 @@ proc `$`(channel: YamuxChannel): string =
     result &= " {" & s.foldl(if a != "": a & ", " & b else: b, "") & "}"
 
 proc sendQueueBytes(channel: YamuxChannel, limit: bool = false): int =
-  for elem in channel.sendQueue:
-    result.inc(min(elem.len, if limit: channel.maxRecvWindow div 3 else: elem.len))
+  for (elem, sent, _) in channel.sendQueue:
+    result.inc(min(elem.len - sent, if limit: channel.maxRecvWindow div 3 else: elem.len - sent))
 
 proc actuallyClose(channel: YamuxChannel) {.async.} =
   if channel.closedLocally and channel.sendQueue.len == 0 and
@@ -174,6 +177,8 @@ method closeImpl*(channel: YamuxChannel) {.async, gcsafe.} =
 proc reset(channel: YamuxChannel) {.async.} =
   if not channel.isReset:
     channel.isReset = true
+    for (_, _, fut) in channel.sendQueue:
+      fut.fail(newException(YamuxError, "Channel reset"))
     channel.sendQueue = @[]
     channel.recvQueue = @[]
     channel.sendWindow = 0
@@ -242,19 +247,20 @@ proc trySend(channel: YamuxChannel) {.async.} =
   if not channel.isSending:
     channel.isSending = true
     while channel.sendQueue.len != 0:
+      var futures: seq[Future[void]]
+      channel.sendQueue.keepItIf(not (it.fut.cancelled() and it.sent == 0))
       if channel.sendWindow == 0:
         if channel.sendQueueBytes(true) > channel.maxRecvWindow:
           await channel.reset()
-          channel.sentData.fire()
-          raise newException(YamuxError, "Send queue saturated")
         trace "send window empty"
         break
-      if channel.sendQueue[0].len == 0:
+      if channel.sendQueue[0].data.len == 0:
         var header = YamuxHeader.data(channel.id, 0)
         channel.setupHeader(header)
         let sendBuffer = toSeq(header.encode())
-        channel.sendQueue.delete(0)
         await channel.conn.write(sendBuffer)
+        channel.sendQueue[0].fut.complete()
+        channel.sendQueue.delete(0)
         continue
 
       let
@@ -274,37 +280,30 @@ proc trySend(channel: YamuxChannel) {.async.} =
       sendBuffer[0..<12] = header.encode()
 
       while inBuffer < toSend:
-        let bufferToSend = min(toSend - inBuffer, channel.sendQueue[0].len)
-        sendBuffer.toOpenArray(12, 12 + toSend - 1)[inBuffer..<(inBuffer+bufferToSend)] = channel.sendQueue[0].toOpenArray(0, bufferToSend - 1)
-        let remaining = channel.sendQueue[0].len - bufferToSend
-        if remaining <= 0:
+        let (data, sent, fut) = channel.sendQueue[0]
+        let bufferToSend = min(data.len - sent, toSend - inBuffer)
+        sendBuffer.toOpenArray(12, 12 + toSend - 1)[inBuffer..<(inBuffer+bufferToSend)] =
+          channel.sendQueue[0].data.toOpenArray(sent, sent + bufferToSend - 1)
+        channel.sendQueue[0].sent.inc(bufferToSend)
+        if channel.sendQueue[0].sent >= data.len:
+          futures.add(fut)
           channel.sendQueue.delete(0)
-        else:
-          channel.sendQueue[0] = channel.sendQueue[0][^remaining..^1]
         inBuffer.inc(bufferToSend)
 
       trace "build send buffer", len=sendBuffer.len
       channel.sendWindow.dec(toSend)
-      channel.bytesSent.inc(toSend)
       await channel.conn.write(sendBuffer)
+      for fut in futures.items():
+        fut.complete()
       channel.activity = true
-      channel.sentData.fire()
     channel.isSending = false
 
-method write*(channel: YamuxChannel, msg: seq[byte]) {.async.} =
+method write*(channel: YamuxChannel, msg: seq[byte]): Future[void] =
+  result = newFuture[void]("Yamux Send")
   if channel.closedLocally or channel.isReset:
-    raise newLPStreamEOFError()
-
-  let blockUntil = channel.bytesSent + channel.sendQueueBytes().uint64 + msg.len().uint64
-  channel.sendQueue.add(msg)
-  await channel.trySend()
-
-  while blockUntil > channel.bytesSent:
-    # Block until data has been sent
-    channel.sentData.clear()
-    await channel.sentData.wait()
-    if channel.isReset:
-      raise newException(YamuxError, "Send queue saturated")
+    result.fail(newLPStreamEOFError())
+  channel.sendQueue.add((msg, 0, result))
+  asyncSpawn channel.trySend()
 
 proc open*(channel: YamuxChannel) {.async, gcsafe.} =
   # Just write an empty message, Syn will be piggy-backed
@@ -329,7 +328,6 @@ proc createStream(m: Yamux, id: uint32, isSrc: bool): YamuxChannel =
     isSrc: isSrc,
     conn: m.connection,
     receivedData: newAsyncEvent(),
-    sentData: newAsyncEvent(),
     closedRemotely: newFuture[void]()
   )
   result.initStream()
@@ -339,7 +337,7 @@ proc createStream(m: Yamux, id: uint32, isSrc: bool): YamuxChannel =
 
 proc close*(m: Yamux) {.async.} =
   if m.isClosed == true:
-    trace "Already closed", m
+    trace "Already closed"
     return
   m.isClosed = true
 
