@@ -20,6 +20,7 @@ logScope:
   topics = "libp2p yamux"
 
 const
+  YamuxCodec* = "/yamux/1.0.0"
   YamuxVersion = 0.uint8
   DefaultWindowSize = 256000
 
@@ -62,6 +63,12 @@ proc readHeader(conn: LPStream): Future[YamuxHeader] {.async, gcsafe.} =
   result.streamId = fromBytesBE(uint32, buffer[4..7])
   result.length = fromBytesBE(uint32, buffer[8..11])
   return result
+
+proc `$`(header: YamuxHeader): string =
+  result = "{" & $header.msgType & ", "
+  result &= "{" & header.flags.foldl(if a != "": a & ", " & $b else: $b, "") & "}, "
+  result &= "streamId: " & $header.streamId & ", "
+  result &= "length: " & $header.length & "}"
 
 proc encode(header: YamuxHeader): array[12, byte] =
   result[0] = header.version
@@ -257,6 +264,7 @@ proc trySend(channel: YamuxChannel) {.async.} =
         var header = YamuxHeader.data(channel.id, 0)
         channel.setupHeader(header)
         let sendBuffer = toSeq(header.encode())
+        trace "send empty buffer", header
         await channel.conn.write(sendBuffer)
         channel.sendQueue[0].fut.complete()
         channel.sendQueue.delete(0)
@@ -289,7 +297,7 @@ proc trySend(channel: YamuxChannel) {.async.} =
           channel.sendQueue.delete(0)
         inBuffer.inc(bufferToSend)
 
-      trace "build send buffer", len=sendBuffer.len
+      trace "build send buffer", header, msg=string.fromBytes(sendBuffer)
       channel.sendWindow.dec(toSend)
       await channel.conn.write(sendBuffer)
       for fut in futures.items():
@@ -334,7 +342,7 @@ proc createStream(m: Yamux, id: uint32, isSrc: bool): YamuxChannel =
   asyncSpawn m.cleanupChann(result)
   trace "created channel", id
 
-proc close*(m: Yamux) {.async.} =
+method close*(m: Yamux) {.async.} =
   if m.isClosed == true:
     trace "Already closed"
     return
@@ -362,7 +370,7 @@ method handle*(m: Yamux) {.async, gcsafe.} =
     while not m.connection.atEof:
       trace "waiting for header"
       let header = await m.connection.readHeader()
-      trace "got message", typ=header.msgType, len=header.length
+      trace "got message", header
 
       case header.msgType:
       of Ping:
@@ -381,7 +389,7 @@ method handle*(m: Yamux) {.async, gcsafe.} =
             if header.streamId mod 2 == m.currentId mod 2:
               raise newException(YamuxError, "Peer used our reserved stream id")
             let newStream = m.createStream(header.streamId, false)
-            newStream.opened = true
+            await newStream.write(@[])
             asyncSpawn m.handleStream(newStream)
         elif header.streamId notin m.channels:
           raise newException(YamuxError, "Unknown stream ID: " & $header.streamId)
@@ -399,6 +407,7 @@ method handle*(m: Yamux) {.async, gcsafe.} =
           if header.length > 0:
             var buffer = newSeqUninitialized[byte](header.length)
             await m.connection.readExactly(addr buffer[0], int(header.length))
+            trace "Msg Rcv", msg=string.fromBytes(buffer)
             if channel.isReset:
               channel.recvWindow.inc(buffer.len)
               if channel.recvWindow > channel.maxRecvWindow:
