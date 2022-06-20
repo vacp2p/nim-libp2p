@@ -133,7 +133,6 @@ type
     isSending: bool
     sendQueue: seq[ToSend]
     recvQueue: seq[byte]
-    msgSent: uint64
     isReset: bool
     closedRemotely: Future[void]
     closedLocally: bool
@@ -178,7 +177,7 @@ proc reset(channel: YamuxChannel) {.async.} =
   if not channel.isReset:
     channel.isReset = true
     for (_, _, fut) in channel.sendQueue:
-      fut.fail(newException(YamuxError, "Channel reset"))
+      fut.fail(newLPStreamEOFError())
     channel.sendQueue = @[]
     channel.recvQueue = @[]
     channel.sendWindow = 0
