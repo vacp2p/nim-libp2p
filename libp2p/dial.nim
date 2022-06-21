@@ -19,7 +19,7 @@ type
 
   DialRes* = tuple
     conn: Connection
-    proto: string
+    protocol: string
 
 method connect*(
   self: Dial,
