@@ -10,7 +10,7 @@
 {.push raises: [Defect].}
 
 import std/[strformat]
-import chronos, chronicles, bearssl
+import chronos, chronicles
 import ../protocol,
        ../../stream/streamseq,
        ../../stream/connection,
