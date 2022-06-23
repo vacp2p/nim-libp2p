@@ -200,6 +200,8 @@ proc reset(channel: YamuxChannel, isLocal: bool = false) {.async.} =
       await channel.remoteClosed()
     channel.receivedData.fire()
   if not isLocal:
+    # If we reset locally, we want to flush up to a maximum of recvWindow
+    # bytes. We use the recvWindow in the proc cleanupChann.
     channel.recvWindow = 0
 
 proc updateRecvWindow(channel: YamuxChannel) {.async.} =
@@ -427,7 +429,7 @@ method handle*(m: Yamux) {.async, gcsafe.} =
             # Flush the data
             var buffer = newSeqUninitialized[byte](header.length)
             await m.connection.readExactly(addr buffer[0], int(header.length))
-            m.flushed[header.streamId].inc(-int(header.length))
+            m.flushed[header.streamId].dec(int(header.length))
             if m.flushed[header.streamId] < 0:
               raise newException(YamuxError, "Peer didn't stop sending msg after reset")
           continue
