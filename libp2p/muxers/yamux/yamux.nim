@@ -182,7 +182,7 @@ method closeImpl*(channel: YamuxChannel) {.async, gcsafe.} =
       await channel.conn.write(YamuxHeader.data(channel.id, 0, {Fin}))
     await channel.actuallyClose()
 
-proc reset(channel: YamuxChannel, sendReset: bool = false) {.async.} =
+proc reset(channel: YamuxChannel, isLocal: bool = false) {.async.} =
   if not channel.isReset:
     trace "Reset channel"
     channel.isReset = true
@@ -191,15 +191,16 @@ proc reset(channel: YamuxChannel, sendReset: bool = false) {.async.} =
     channel.sendQueue = @[]
     channel.recvQueue = @[]
     channel.sendWindow = 0
-    channel.recvWindow = 0
     if not channel.closedLocally:
-      if sendReset:
+      if isLocal:
         try: await channel.conn.write(YamuxHeader.data(channel.id, 0, {Rst}))
         except LPStreamEOFError as exc: discard
       await channel.close()
     if not channel.closedRemotely.done():
       await channel.remoteClosed()
     channel.receivedData.fire()
+  if not isLocal:
+    channel.recvWindow = 0
 
 proc updateRecvWindow(channel: YamuxChannel) {.async.} =
   let inWindow = channel.recvWindow + channel.recvQueue.len
@@ -335,12 +336,15 @@ proc open*(channel: YamuxChannel) {.async, gcsafe.} =
 type
   Yamux* = ref object of Muxer
     channels: Table[uint32, YamuxChannel]
+    flushed: Table[uint32, int]
     currentId: uint32
     isClosed: bool
 
 proc cleanupChann(m: Yamux, channel: YamuxChannel) {.async.} =
   await channel.join()
   m.channels.del(channel.id)
+  if channel.isReset and channel.recvWindow > 0:
+    m.flushed[channel.id] = channel.recvWindow
 
 proc createStream(m: Yamux, id: uint32, isSrc: bool): YamuxChannel =
   result = YamuxChannel(
@@ -409,13 +413,24 @@ method handle*(m: Yamux) {.async, gcsafe.} =
           if header.streamId in m.channels:
             debug "Trying to create an existing channel, skipping", id=header.streamId
           else:
+            if header.streamId in m.flushed:
+              m.flushed.del(header.streamId)
             if header.streamId mod 2 == m.currentId mod 2:
               raise newException(YamuxError, "Peer used our reserved stream id")
             let newStream = m.createStream(header.streamId, false)
             await newStream.write(@[])
             asyncSpawn m.handleStream(newStream)
         elif header.streamId notin m.channels:
-          raise newException(YamuxError, "Unknown stream ID: " & $header.streamId)
+          if header.streamId notin m.flushed:
+            raise newException(YamuxError, "Unknown stream ID: " & $header.streamId)
+          elif header.msgType == Data:
+            # Flush the data
+            var buffer = newSeqUninitialized[byte](header.length)
+            await m.connection.readExactly(addr buffer[0], int(header.length))
+            m.flushed[header.streamId].inc(-int(header.length))
+            if m.flushed[header.streamId] < 0:
+              raise newException(YamuxError, "Peer didn't stop sending msg after reset")
+          continue
 
         let channel = m.channels[header.streamId]
 
@@ -431,12 +446,7 @@ method handle*(m: Yamux) {.async, gcsafe.} =
             var buffer = newSeqUninitialized[byte](header.length)
             await m.connection.readExactly(addr buffer[0], int(header.length))
             trace "Msg Rcv", msg=string.fromBytes(buffer)
-            if channel.isReset:
-              channel.recvWindow.inc(buffer.len)
-              if channel.recvWindow > channel.maxRecvWindow:
-                raise newException(YamuxError, "Peer didn't stop sending msg after reset")
-            else:
-              await channel.gotDataFromRemote(buffer)
+            await channel.gotDataFromRemote(buffer)
 
         if MsgFlags.Fin in header.flags:
           trace "remote closed channel"
