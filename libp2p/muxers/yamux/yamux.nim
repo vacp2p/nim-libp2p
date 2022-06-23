@@ -181,7 +181,7 @@ method closeImpl*(channel: YamuxChannel) {.async, gcsafe.} =
       await channel.conn.write(YamuxHeader.data(channel.id, 0, {Fin}))
     await channel.actuallyClose()
 
-proc reset(channel: YamuxChannel) {.async.} =
+proc reset(channel: YamuxChannel, sendReset: bool = false) {.async.} =
   if not channel.isReset:
     trace "Reset channel"
     channel.isReset = true
@@ -192,6 +192,9 @@ proc reset(channel: YamuxChannel) {.async.} =
     channel.sendWindow = 0
     channel.recvWindow = 0
     if not channel.closedLocally:
+      if sendReset:
+        try: await channel.conn.write(YamuxHeader.data(channel.id, 0, {Rst}))
+        except LPStreamEOFError as exc: discard
       await channel.close()
     if not channel.closedRemotely.done():
       await channel.remoteClosed()
@@ -257,13 +260,9 @@ proc trySend(channel: YamuxChannel) {.async.} =
       var futures: seq[Future[void]]
       channel.sendQueue.keepItIf(not (it.fut.cancelled() and it.sent == 0))
       if channel.sendWindow == 0:
-        if channel.sendQueueBytes(true) > channel.maxRecvWindow:
-          if not channel.closedLocally:
-            try: await channel.conn.write(YamuxHeader.data(channel.id, 0, {Rst}))
-            except LPStreamEOFError as exc: break
-          await channel.reset()
-          break
         trace "send window empty"
+        if channel.sendQueueBytes(true) > channel.maxRecvWindow:
+          await channel.reset(true)
         break
       if channel.sendQueue[0].data.len == 0:
         var header = YamuxHeader.data(channel.id, 0)
@@ -441,9 +440,7 @@ method handle*(m: Yamux) {.async, gcsafe.} =
           await channel.remoteClosed()
         if MsgFlags.Rst in header.flags:
           trace "remote reset channel"
-          channel.isReset = true
-          await channel.remoteClosed()
-          await channel.close()
+          await channel.reset()
   except LPStreamEOFError as exc:
     trace "Stream EOF", msg = exc.msg
   except YamuxError as exc:
