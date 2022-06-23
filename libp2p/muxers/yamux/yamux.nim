@@ -145,6 +145,7 @@ type
     closedRemotely: Future[void]
     closedLocally: bool
     receivedData: AsyncEvent
+    returnedEof: bool
 
 proc `$`(channel: YamuxChannel): string =
   result = if channel.conn.dir == Out: "=> " else: "<= "
@@ -198,6 +199,7 @@ proc reset(channel: YamuxChannel, sendReset: bool = false) {.async.} =
       await channel.close()
     if not channel.closedRemotely.done():
       await channel.remoteClosed()
+    channel.receivedData.fire()
 
 proc updateRecvWindow(channel: YamuxChannel) {.async.} =
   let inWindow = channel.recvWindow + channel.recvQueue.len
@@ -218,11 +220,12 @@ method readOnce*(
   nbytes: int):
   Future[int] {.async.} =
 
-  if channel.isReset: return 0
+  if channel.returnedEof: raise newLPStreamEOFError()
   if channel.recvQueue.len == 0:
     channel.receivedData.clear()
     await channel.closedRemotely or channel.receivedData.wait()
-    if channel.isReset or (channel.closedRemotely.done() and channel.recvQueue.len == 0):
+    if channel.closedRemotely.done() and channel.recvQueue.len == 0:
+      channel.returnedEof = true
       return 0
 
   let toRead = min(channel.recvQueue.len, nbytes)

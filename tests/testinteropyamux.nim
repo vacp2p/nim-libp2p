@@ -192,7 +192,7 @@ proc testPubSubNodePublish(gossip: bool = false, count: int = 1) {.async.} =
   await pubsub.stop()
   await daemonNode.close()
 
-suite "Interop":
+suite "Interop Yamux":
   # TODO: chronos transports are leaking,
   # but those are tracked for both the daemon
   # and libp2p, so not sure which one it is,
@@ -202,6 +202,7 @@ suite "Interop":
 
   # TODO: this test is failing sometimes on windows
   # For some reason we receive EOF before test 4 sometimes
+
   asyncTest "native -> daemon multiple reads and writes":
     var protos = @["/test-stream"]
 
