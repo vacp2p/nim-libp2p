@@ -78,7 +78,7 @@ proc encode(header: YamuxHeader): array[12, byte] =
   result[8..11] = toBytesBE(header.length)
 
 proc write(conn: LPStream, header: YamuxHeader): Future[void] {.gcsafe.} =
-  trace "write directly on stream", header
+  trace "write directly on stream", h = $header
   var buffer = header.encode()
   return conn.write(@buffer)
 
@@ -186,7 +186,7 @@ proc reset(channel: YamuxChannel, sendReset: bool = false) {.async.} =
   if not channel.isReset:
     trace "Reset channel"
     channel.isReset = true
-    for (_, _, fut) in channel.sendQueue:
+    for (d, s, fut) in channel.sendQueue:
       fut.fail(newLPStreamEOFError())
     channel.sendQueue = @[]
     channel.recvQueue = @[]
@@ -271,7 +271,7 @@ proc trySend(channel: YamuxChannel) {.async.} =
         var header = YamuxHeader.data(channel.id, 0)
         channel.setupHeader(header)
         let sendBuffer = toSeq(header.encode())
-        trace "send empty buffer", header
+        trace "send empty buffer", h = $header
         try: await channel.conn.write(sendBuffer)
         except LPStreamEOFError as exc:
           await channel.reset()
@@ -307,7 +307,7 @@ proc trySend(channel: YamuxChannel) {.async.} =
           channel.sendQueue.delete(0)
         inBuffer.inc(bufferToSend)
 
-      trace "build send buffer", header, msg=string.fromBytes(sendBuffer[12..^1])
+      trace "build send buffer", h = $header, msg=string.fromBytes(sendBuffer[12..^1])
       channel.sendWindow.dec(toSend)
       try: await channel.conn.write(sendBuffer)
       except LPStreamEOFError as exc:
@@ -393,7 +393,7 @@ method handle*(m: Yamux) {.async, gcsafe.} =
     while not m.connection.atEof:
       trace "waiting for header"
       let header = await m.connection.readHeader()
-      trace "got message", header
+      trace "got message", h = $header
 
       case header.msgType:
       of Ping:
