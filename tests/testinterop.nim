@@ -162,6 +162,7 @@ suite "Interop":
 
   # TODO: this test is failing sometimes on windows
   # For some reason we receive EOF before test 4 sometimes
+
   asyncTest "native -> daemon multiple reads and writes":
     var protos = @["/test-stream"]
 

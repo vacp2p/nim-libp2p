@@ -78,6 +78,7 @@ proc encode(header: YamuxHeader): array[12, byte] =
   result[8..11] = toBytesBE(header.length)
 
 proc write(conn: LPStream, header: YamuxHeader): Future[void] {.gcsafe.} =
+  trace "write directly on stream", header
   var buffer = header.encode()
   return conn.write(@buffer)
 
@@ -182,6 +183,7 @@ method closeImpl*(channel: YamuxChannel) {.async, gcsafe.} =
 
 proc reset(channel: YamuxChannel) {.async.} =
   if not channel.isReset:
+    trace "Reset channel"
     channel.isReset = true
     for (_, _, fut) in channel.sendQueue:
       fut.fail(newLPStreamEOFError())
@@ -190,7 +192,6 @@ proc reset(channel: YamuxChannel) {.async.} =
     channel.sendWindow = 0
     channel.recvWindow = 0
     if not channel.closedLocally:
-      await channel.conn.write(YamuxHeader.data(channel.id, 0, {Rst}))
       await channel.close()
     if not channel.closedRemotely.done():
       await channel.remoteClosed()
@@ -257,7 +258,11 @@ proc trySend(channel: YamuxChannel) {.async.} =
       channel.sendQueue.keepItIf(not (it.fut.cancelled() and it.sent == 0))
       if channel.sendWindow == 0:
         if channel.sendQueueBytes(true) > channel.maxRecvWindow:
+          if not channel.closedLocally:
+            try: await channel.conn.write(YamuxHeader.data(channel.id, 0, {Rst}))
+            except LPStreamEOFError as exc: break
           await channel.reset()
+          break
         trace "send window empty"
         break
       if channel.sendQueue[0].data.len == 0:
@@ -265,7 +270,10 @@ proc trySend(channel: YamuxChannel) {.async.} =
         channel.setupHeader(header)
         let sendBuffer = toSeq(header.encode())
         trace "send empty buffer", header
-        await channel.conn.write(sendBuffer)
+        try: await channel.conn.write(sendBuffer)
+        except LPStreamEOFError as exc:
+          await channel.reset()
+          break
         channel.sendQueue[0].fut.complete()
         channel.sendQueue.delete(0)
         continue
@@ -297,9 +305,14 @@ proc trySend(channel: YamuxChannel) {.async.} =
           channel.sendQueue.delete(0)
         inBuffer.inc(bufferToSend)
 
-      trace "build send buffer", header, msg=string.fromBytes(sendBuffer)
+      trace "build send buffer", header, msg=string.fromBytes(sendBuffer[12..^1])
       channel.sendWindow.dec(toSend)
-      await channel.conn.write(sendBuffer)
+      try: await channel.conn.write(sendBuffer)
+      except LPStreamEOFError as exc:
+        for fut in futures.items():
+          fut.fail(exc)
+        await channel.reset()
+        break
       for fut in futures.items():
         fut.complete()
       channel.activity = true
@@ -309,6 +322,7 @@ method write*(channel: YamuxChannel, msg: seq[byte]): Future[void] =
   result = newFuture[void]("Yamux Send")
   if channel.closedLocally or channel.isReset:
     result.fail(newLPStreamEOFError())
+    return result
   channel.sendQueue.add((msg, 0, result))
   asyncSpawn channel.trySend()
 
@@ -338,9 +352,14 @@ proc createStream(m: Yamux, id: uint32, isSrc: bool): YamuxChannel =
     closedRemotely: newFuture[void]()
   )
   result.initStream()
+  result.peerId = m.connection.peerId
+  result.observedAddr = m.connection.observedAddr
+  result.transportDir = m.connection.transportDir
+  when defined(libp2p_agents_metrics):
+    result.shortAgent = m.connection.shortAgent
   m.channels[id] = result
   asyncSpawn m.cleanupChann(result)
-  trace "created channel", id
+  trace "created channel", id, pid=m.connection.peerId
 
 method close*(m: Yamux) {.async.} =
   if m.isClosed == true:
@@ -348,10 +367,12 @@ method close*(m: Yamux) {.async.} =
     return
   m.isClosed = true
 
+  trace "Closing yamux"
   for channel in m.channels.values:
     await channel.reset()
   await m.connection.write(YamuxHeader.goAway(NormalTermination))
   await m.connection.close()
+  trace "Closed yamux"
 
 proc handleStream(m: Yamux, channel: YamuxChannel) {.async.} =
   ## call the muxer stream handler for this channel
@@ -365,7 +386,7 @@ proc handleStream(m: Yamux, channel: YamuxChannel) {.async.} =
     await channel.reset()
 
 method handle*(m: Yamux) {.async, gcsafe.} =
-  trace "Starting yamux handler"
+  trace "Starting yamux handler", pid=m.connection.peerId
   try:
     while not m.connection.atEof:
       trace "waiting for header"
@@ -423,12 +444,14 @@ method handle*(m: Yamux) {.async, gcsafe.} =
           channel.isReset = true
           await channel.remoteClosed()
           await channel.close()
-
+  except LPStreamEOFError as exc:
+    trace "Stream EOF", msg = exc.msg
   except YamuxError as exc:
     trace "Closing yamux connection", error=exc.msg
     await m.connection.write(YamuxHeader.goAway(ProtocolError))
   finally:
     await m.close()
+  trace "Stopped yamux handler"
 
 method newStream*(
   m: Yamux,

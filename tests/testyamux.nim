@@ -149,6 +149,6 @@ suite "Yamux":
         for _ in 0..3:
           streamA.write(newSeq[byte](100000))
       for i in 0..3:
-        expect(YamuxError): await wrFut[i]
+        expect(LPStreamEOFError): await wrFut[i]
       writerBlocker.complete()
       await streamA.close()
