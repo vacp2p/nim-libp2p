@@ -427,11 +427,11 @@ method handle*(m: Yamux) {.async, gcsafe.} =
             raise newException(YamuxError, "Unknown stream ID: " & $header.streamId)
           elif header.msgType == Data:
             # Flush the data
-            var buffer = newSeqUninitialized[byte](header.length)
-            await m.connection.readExactly(addr buffer[0], int(header.length))
             m.flushed[header.streamId].dec(int(header.length))
             if m.flushed[header.streamId] < 0:
               raise newException(YamuxError, "Peer didn't stop sending msg after reset")
+            var buffer = newSeqUninitialized[byte](header.length)
+            await m.connection.readExactly(addr buffer[0], int(header.length))
           continue
 
         let channel = m.channels[header.streamId]
