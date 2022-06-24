@@ -7,7 +7,8 @@ import ../libp2p/[daemon/daemonapi, varint, transports/wstransport, crypto/crypt
 type
   SwitchCreator = proc(
     isRelay: bool = false,
-    ma: MultiAddress = MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet()): Switch {.gcsafe.}
+    ma: MultiAddress = MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet(),
+    prov: TransportProvider = proc(upgr: Upgrade): Transport = TcpTransport.new({}, upgr)): Switch {.gcsafe.}
   DaemonPeerInfo = daemonapi.PeerInfo
 
 proc writeLp(s: StreamTransport, msg: string | seq[byte]): Future[int] {.gcsafe.} =
@@ -295,14 +296,10 @@ proc commonInteropTests*(name: string, swCreator: SwitchCreator) =
 
       let wsAddress = MultiAddress.init("/ip4/127.0.0.1/tcp/0/ws").tryGet()
 
-      let nativeNode = SwitchBuilder
-        .new()
-        .withAddress(wsAddress)
-        .withRng(crypto.newRng())
-        .withMplex()
-        .withTransport(proc (upgr: Upgrade): Transport = WsTransport.new(upgr))
-        .withNoise()
-        .build()
+      let nativeNode = swCreator(
+        ma = wsAddress,
+        prov = proc (upgr: Upgrade): Transport = WsTransport.new(upgr)
+      )
 
       nativeNode.mount(proto)
 
