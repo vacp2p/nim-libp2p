@@ -414,7 +414,7 @@ method handle*(m: Yamux) {.async, gcsafe.} =
             # Flush the data
             m.flushed[header.streamId].dec(int(header.length))
             if m.flushed[header.streamId] < 0:
-              raise newException(YamuxError, "Peer didn't stop sending msg after reset")
+              raise newException(YamuxError, "Peer exhausted the recvWindow after reset")
             var buffer = newSeqUninitialized[byte](header.length)
             await m.connection.readExactly(addr buffer[0], int(header.length))
           continue
