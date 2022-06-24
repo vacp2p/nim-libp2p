@@ -5,7 +5,8 @@ import ../libp2p/crypto/crypto
 proc switchMplexCreator(
     isRelay: bool = false,
     ma: MultiAddress = MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet(),
-    prov: TransportProvider = proc(upgr: Upgrade): Transport = TcpTransport.new({}, upgr)): Switch =
+    prov: TransportProvider = proc(upgr: Upgrade): Transport = TcpTransport.new({}, upgr)):
+      Switch {.raises: [Defect, LPError].} =
 
   SwitchBuilder.new()
     .withSignedPeerRecord(false)
@@ -26,7 +27,8 @@ proc switchMplexCreator(
 proc switchYamuxCreator(
     isRelay: bool = false,
     ma: MultiAddress = MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet(),
-    prov: TransportProvider = proc(upgr: Upgrade): Transport = TcpTransport.new({}, upgr)): Switch =
+    prov: TransportProvider = proc(upgr: Upgrade): Transport = TcpTransport.new({}, upgr)):
+      Switch {.raises: [Defect, LPError].} =
 
   SwitchBuilder.new()
     .withSignedPeerRecord(false)

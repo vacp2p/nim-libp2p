@@ -8,7 +8,8 @@ type
   SwitchCreator = proc(
     isRelay: bool = false,
     ma: MultiAddress = MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet(),
-    prov: TransportProvider = proc(upgr: Upgrade): Transport = TcpTransport.new({}, upgr)): Switch {.gcsafe.}
+    prov: TransportProvider = proc(upgr: Upgrade): Transport = TcpTransport.new({}, upgr)):
+       Switch {.gcsafe, raises: [Defect, LPError].}
   DaemonPeerInfo = daemonapi.PeerInfo
 
 proc writeLp(s: StreamTransport, msg: string | seq[byte]): Future[int] {.gcsafe.} =
