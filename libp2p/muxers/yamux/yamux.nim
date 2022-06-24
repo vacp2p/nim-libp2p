@@ -251,91 +251,74 @@ proc gotDataFromRemote(channel: YamuxChannel, b: seq[byte]) {.async.} =
 proc setMaxRecvWindow*(channel: YamuxChannel, maxRecvWindow: int) =
   channel.maxRecvWindow = maxRecvWindow
 
-proc setupHeader(channel: YamuxChannel, header: var YamuxHeader) =
-  if not channel.opened:
-    header.flags.incl(
-      if channel.isSrc:
-        MsgFlags.Syn
-      else:
-        MsgFlags.Ack
-    )
-    channel.opened = true
-
 proc trySend(channel: YamuxChannel) {.async.} =
-  if not channel.isSending:
-    channel.isSending = true
-    while channel.sendQueue.len != 0:
-      var futures: seq[Future[void]]
-      channel.sendQueue.keepItIf(not (it.fut.cancelled() and it.sent == 0))
-      if channel.sendWindow == 0:
-        trace "send window empty"
-        if channel.sendQueueBytes(true) > channel.maxRecvWindow:
-          await channel.reset(true)
-        break
-      if channel.sendQueue[0].data.len == 0:
-        var header = YamuxHeader.data(channel.id, 0)
-        channel.setupHeader(header)
-        let sendBuffer = toSeq(header.encode())
-        trace "send empty buffer", h = $header
-        try: await channel.conn.write(sendBuffer)
-        except LPStreamEOFError as exc:
-          await channel.reset()
-          break
-        channel.sendQueue[0].fut.complete()
+  if channel.isSending:
+    return
+  channel.isSending = true
+  defer: channel.isSending = false
+  while channel.sendQueue.len != 0:
+    channel.sendQueue.keepItIf(not (it.fut.cancelled() and it.sent == 0))
+    if channel.sendWindow == 0:
+      trace "send window empty"
+      if channel.sendQueueBytes(true) > channel.maxRecvWindow:
+        await channel.reset(true)
+      break
+
+    let
+      bytesAvailable = channel.sendQueueBytes()
+      toSend = min(channel.sendWindow, bytesAvailable)
+    var
+      sendBuffer = newSeqUninitialized[byte](toSend + 12)
+      header = YamuxHeader.data(channel.id, toSend.uint32)
+      inBuffer = 0
+
+    if toSend >= bytesAvailable and channel.closedLocally:
+      trace "last buffer we'll sent on this channel", toSend, bytesAvailable
+      header.flags.incl({Fin})
+
+    sendBuffer[0..<12] = header.encode()
+
+    var futures: seq[Future[void]]
+    while inBuffer < toSend:
+      let (data, sent, fut) = channel.sendQueue[0]
+      let bufferToSend = min(data.len - sent, toSend - inBuffer)
+      sendBuffer.toOpenArray(12, 12 + toSend - 1)[inBuffer..<(inBuffer+bufferToSend)] =
+        channel.sendQueue[0].data.toOpenArray(sent, sent + bufferToSend - 1)
+      channel.sendQueue[0].sent.inc(bufferToSend)
+      if channel.sendQueue[0].sent >= data.len:
+        futures.add(fut)
         channel.sendQueue.delete(0)
-        continue
+      inBuffer.inc(bufferToSend)
 
-      let
-        bytesAvailable = channel.sendQueueBytes()
-        toSend = min(channel.sendWindow, bytesAvailable)
-      var
-        sendBuffer = newSeqUninitialized[byte](toSend + 12)
-        header = YamuxHeader.data(channel.id, toSend.uint32)
-        inBuffer = 0
-
-      if toSend >= bytesAvailable and channel.closedLocally:
-        trace "last buffer we'll sent on this channel", toSend, bytesAvailable
-        header.flags.incl({Fin})
-
-      channel.setupHeader(header)
-
-      sendBuffer[0..<12] = header.encode()
-
-      while inBuffer < toSend:
-        let (data, sent, fut) = channel.sendQueue[0]
-        let bufferToSend = min(data.len - sent, toSend - inBuffer)
-        sendBuffer.toOpenArray(12, 12 + toSend - 1)[inBuffer..<(inBuffer+bufferToSend)] =
-          channel.sendQueue[0].data.toOpenArray(sent, sent + bufferToSend - 1)
-        channel.sendQueue[0].sent.inc(bufferToSend)
-        if channel.sendQueue[0].sent >= data.len:
-          futures.add(fut)
-          channel.sendQueue.delete(0)
-        inBuffer.inc(bufferToSend)
-
-      trace "build send buffer", h = $header, msg=string.fromBytes(sendBuffer[12..^1])
-      channel.sendWindow.dec(toSend)
-      try: await channel.conn.write(sendBuffer)
-      except LPStreamEOFError as exc:
-        for fut in futures.items():
-          fut.fail(exc)
-        await channel.reset()
-        break
+    trace "build send buffer", h = $header, msg=string.fromBytes(sendBuffer[12..^1])
+    channel.sendWindow.dec(toSend)
+    try: await channel.conn.write(sendBuffer)
+    except LPStreamEOFError as exc:
       for fut in futures.items():
-        fut.complete()
-      channel.activity = true
-    channel.isSending = false
+        fut.fail(exc)
+      await channel.reset()
+      break
+    for fut in futures.items():
+      fut.complete()
+    channel.activity = true
 
 method write*(channel: YamuxChannel, msg: seq[byte]): Future[void] =
   result = newFuture[void]("Yamux Send")
   if channel.closedLocally or channel.isReset:
     result.fail(newLPStreamEOFError())
     return result
+  if msg.len == 0:
+    result.complete()
+    return result
   channel.sendQueue.add((msg, 0, result))
   asyncSpawn channel.trySend()
 
 proc open*(channel: YamuxChannel) {.async, gcsafe.} =
-  # Just write an empty message, Syn will be piggy-backed
-  await channel.write(@[])
+  if channel.opened:
+    trace "Try to open channel twice"
+    return
+  channel.opened = true
+  await channel.conn.write(YamuxHeader.data(channel.id, 0, {if channel.isSrc: Syn else: Ack}))
 
 type
   Yamux* = ref object of Muxer
