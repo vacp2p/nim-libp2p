@@ -152,6 +152,8 @@ method readOnce*(s: SecureConn,
       s.isEof = true
       await s.close()
       raise err
+    except CancelledError as exc:
+      raise exc
     except CatchableError as err:
       debug "Error while reading message from secure connection, closing.",
         error = err.name,
