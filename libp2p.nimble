@@ -61,7 +61,6 @@ task testdaemon, "Runs daemon tests":
 
 task testinterop, "Runs interop tests":
   runTest("testinterop")
-  runTest("testinteropyamux")
 
 task testpubsub, "Runs pubsub tests":
   runTest("pubsub/testgossipinternal", sign = false, verify = false, moreoptions = "-d:pubsub_internal_testing")
