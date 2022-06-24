@@ -252,11 +252,13 @@ proc setMaxRecvWindow*(channel: YamuxChannel, maxRecvWindow: int) =
   channel.maxRecvWindow = maxRecvWindow
 
 proc setupHeader(channel: YamuxChannel, header: var YamuxHeader) =
-  if not channel.opened and channel.isSrc:
-    header.flags.incl(MsgFlags.Syn)
-    channel.opened = true
-  if not channel.opened and not channel.isSrc:
-    header.flags.incl(MsgFlags.Ack)
+  if not channel.opened:
+    header.flags.incl(
+      if channel.isSrc:
+        MsgFlags.Syn
+      else:
+        MsgFlags.Ack
+    )
     channel.opened = true
 
 proc trySend(channel: YamuxChannel) {.async.} =
