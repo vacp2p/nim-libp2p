@@ -1,6 +1,6 @@
 {.push raises: [Defect].}
 
-import chronos, bearssl
+import chronos
 
 import ../libp2p/transports/tcptransport
 import ../libp2p/stream/bufferstream
@@ -58,11 +58,11 @@ template checkTrackers*() =
   except: discard
 
 type RngWrap = object
-  rng: ref BrHmacDrbgContext
+  rng: ref HmacDrbgContext
 
 var rngVar: RngWrap
 
-proc getRng(): ref BrHmacDrbgContext =
+proc getRng(): ref HmacDrbgContext =
   # TODO if `rngVar` is a threadvar like it should be, there are random and
   #      spurious compile failures on mac - this is not gcsafe but for the
   #      purpose of the tests, it's ok as long as we only use a single thread
@@ -71,7 +71,7 @@ proc getRng(): ref BrHmacDrbgContext =
       rngVar.rng = newRng()
     rngVar.rng
 
-template rng*(): ref BrHmacDrbgContext =
+template rng*(): ref HmacDrbgContext =
   getRng()
 
 type

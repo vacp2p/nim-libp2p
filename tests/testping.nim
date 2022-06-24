@@ -1,4 +1,4 @@
-import options, bearssl
+import options
 import chronos, strutils
 import ../libp2p/[protocols/identify,
                   protocols/ping,
