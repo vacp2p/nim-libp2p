@@ -571,8 +571,7 @@ proc maintainDirectPeer(g: GossipSub, id: PeerId, addrs: seq[MultiAddress]) {.as
   if isNil(peer):
     trace "Attempting to dial a direct peer", peer = id
     try:
-      # dial, internally connection will be stored
-      let _ = await g.switch.dial(id, addrs, g.codecs)
+      await g.switch.connect(id, addrs)
       # populate the peer after it's connected
       discard g.getOrCreatePeer(id, g.codecs)
     except CancelledError as exc:
@@ -600,9 +599,11 @@ method start*(g: GossipSub) {.async.} =
   g.heartbeatFut = g.heartbeat()
   g.scoringHeartbeatFut = g.scoringHeartbeat()
   g.directPeersLoop = g.maintainDirectPeers()
+  g.started = true
 
 method stop*(g: GossipSub) {.async.} =
   trace "gossipsub stop"
+  g.started = false
   if g.heartbeatFut.isNil:
     warn "Stopping gossipsub without starting it"
     return

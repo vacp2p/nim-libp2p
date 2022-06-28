@@ -22,10 +22,12 @@ type
   LPProtocol* = ref object of RootObj
     codecs*: seq[string]
     handler*: LPProtoHandler ## this handler gets invoked by the protocol negotiator
+    started*: bool
 
 method init*(p: LPProtocol) {.base, gcsafe.} = discard
-method start*(p: LPProtocol) {.async, base.} = discard
-method stop*(p: LPProtocol) {.async, base.} = discard
+method start*(p: LPProtocol) {.async, base.} = p.started = true
+method stop*(p: LPProtocol) {.async, base.} = p.started = false
+
 
 func codec*(p: LPProtocol): string =
   assert(p.codecs.len > 0, "Codecs sequence was empty!")
