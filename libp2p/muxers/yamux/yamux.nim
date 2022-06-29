@@ -405,7 +405,7 @@ method handle*(m: Yamux) {.async, gcsafe.} =
             if header.streamId mod 2 == m.currentId mod 2:
               raise newException(YamuxError, "Peer used our reserved stream id")
             let newStream = m.createStream(header.streamId, false)
-            await newStream.write(@[])
+            await newStream.open()
             asyncSpawn m.handleStream(newStream)
         elif header.streamId notin m.channels:
           if header.streamId notin m.flushed:
