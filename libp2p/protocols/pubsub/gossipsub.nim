@@ -506,7 +506,7 @@ method publish*(g: GossipSub,
     g.rng.shuffle(fanoutPeers)
     if fanoutPeers.len + peers.len > g.parameters.d:
       fanoutPeers.setLen(g.parameters.d - peers.len)
-    
+
     for fanPeer in fanoutPeers:
       peers.incl(fanPeer)
       if peers.len > g.parameters.d: break
@@ -527,22 +527,18 @@ method publish*(g: GossipSub,
     libp2p_gossipsub_failed_publish.inc()
     return 0
 
-  inc g.msgSeqno
   let
     msg =
       if g.anonymize:
         Message.init(none(PeerInfo), data, topic, none(uint64), false)
       else:
+        inc g.msgSeqno
         Message.init(some(g.peerInfo), data, topic, some(g.msgSeqno), g.sign)
-    msgIdResult = g.msgIdProvider(msg)
-
-  if msgIdResult.isErr:
-    trace "Error generating message id, skipping publish",
-      error = msgIdResult.error
-    libp2p_gossipsub_failed_publish.inc()
-    return 0
-
-  let msgId = msgIdResult.get
+    msgId = g.msgIdProvider(msg).valueOr:
+      trace "Error generating message id, skipping publish",
+        error = error
+      libp2p_gossipsub_failed_publish.inc()
+      return 0
 
   logScope: msgId = shortLog(msgId)
 
