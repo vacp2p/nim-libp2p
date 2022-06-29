@@ -9,9 +9,10 @@
 
 {.push raises: [Defect].}
 
-import std/options
+import std/[options, sets, sequtils]
 import chronos, chronicles, stew/objects
 import ./protocol,
+       ../switch,
        ../multiaddress,
        ../peerid,
        ../errors
@@ -21,6 +22,7 @@ logScope:
 
 const
   AutonatCodec* = "/libp2p/autonat/1.0.0"
+  ArbitraryLimit = 128 # TODO: make it a configuration variable or smthg
 
 type
   AutonatError* = object of LPError
@@ -112,7 +114,6 @@ proc encode*(r: AutonatDialResponse): ProtoBuffer =
 
 proc decode(_: typedesc[AutonatMsg], buf: seq[byte]): Option[AutonatMsg] =
   var
-    msg: AutonatMsg
     msgTypeOrd: uint32
     pbDial: ProtoBuffer
     pbResponse: ProtoBuffer
@@ -125,7 +126,7 @@ proc decode(_: typedesc[AutonatMsg], buf: seq[byte]): Option[AutonatMsg] =
     r3 = pb.getField(3, pbResponse)
 
   if r1.isErr() or r2.isErr() or r3.isErr(): return none(AutonatMsg)
-  
+
   if r1.get() and not checkedEnumAssign(msg.msgType, msgTypeOrd):
     return none(AutonatMsg)
   if r2.get():
@@ -143,10 +144,10 @@ proc decode(_: typedesc[AutonatMsg], buf: seq[byte]): Option[AutonatMsg] =
         r5 = pbPeerInfo.getField(1, pid)
         r6 = pbPeerInfo.getRepeatedField(2, peerInfo.addrs)
       if r5.isErr() or r6.isErr(): return none(AutonatMsg)
-      if r5.get(): peerInfo.peerId = some(pid)
+      if r5.get(): peerInfo.id = some(pid)
       dial.peerInfo = some(peerInfo)
     msg.dial = some(dial)
-  
+
   if r3.get():
     var
       statusOrd: uint
@@ -167,3 +168,67 @@ proc decode(_: typedesc[AutonatMsg], buf: seq[byte]): Option[AutonatMsg] =
     msg.response = some(response)
 
   return some(msg)
+
+proc dialResponseError(conn: Connection, status: ResponseStatus, text: string = "") {.async.} =
+  let pb = AutonatDialResponse(
+             status: status,
+             text: if text == "": none(string) else: some(text),
+             ma: none(MultiAddress)
+           ).encode()
+  await conn.write(pb.buffer)
+
+type
+  Autonat* = ref object of LPProtocol
+
+proc doDial(a: Autonat, conn: Connection, addrs: seq[MultiAddress]) {.async.} =
+  discard
+
+proc handleDial(a: Autonat, conn: Connection, msg: AutonatMsg): Future[void] =
+  if msg.dial.isNone() or msg.dial.get().peerInfo.isNone():
+    return conn.dialResponseError(BadRequest, "Missing Peer Info")
+  let peerInfo = msg.dial.get().peerInfo.get()
+  if peerInfo.id.isSome() and peerInfo.id.get() != conn.peerId:
+    return conn.dialResponseError(BadRequest, "PeerId mismatch")
+
+  if conn.observedAddr[0].isErr() or (not IP4.match(conn.observedAddr[0].get()) and
+                                      not IP6.match(conn.observedAddr[0].get())):
+    return conn.dialResponseError(InternalError, "Expected an IP address")
+
+  var addrs = initHashSet[MultiAddress]()
+  addrs.incl(conn.observedAddr)
+  for ma in peerInfo.addrs:
+    let maFirst = ma[0]
+    if maFirst.isErr() or (not IP4.match(maFirst.get()) and
+                           not IP6.match(maFirst.get())):
+      continue
+    addrs.incl(ma)
+    if len(addrs) >= ArbitraryLimit:
+      break
+
+  if len(addrs) == 0:
+    return conn.dialResponseError(DialRefused, "No dialable address")
+  return a.doDial(conn, toSeq(addrs))
+
+proc new*(T: typedesc[Autonat]): T =
+  let autonat = T()
+  autonat.init()
+  autonat
+
+method init*(a: Autonat) =
+  proc handleStream(conn: Connection, proto: string) {.async, gcsafe.} =
+    try:
+      let msgOpt = AutonatMsg.decode(await conn.readLp(1024))
+      if msgOpt.isNone() or msgOpt.get().msgType != MsgType.Dial:
+        raise newException(AutonatError, "Received malformed message")
+      let msg = msgOpt.get()
+      await a.handleDial(conn, msg)
+    except CancelledError as exc:
+      raise exc
+    except CatchableError as exc:
+      trace "exception in autonat handler", exc = exc.msg, conn
+    finally:
+      trace "exiting autonat handler", conn
+      await conn.close()
+
+  a.handler = handleStream
+  a.codecs = @[AutonatCodec]
