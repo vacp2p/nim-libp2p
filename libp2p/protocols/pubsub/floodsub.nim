@@ -187,21 +187,17 @@ method publish*(f: FloodSub,
     debug "No peers for topic, skipping publish", topic
     return 0
 
-  inc f.msgSeqno
   let
     msg =
       if f.anonymize:
         Message.init(none(PeerInfo), data, topic, none(uint64), false)
       else:
+        inc f.msgSeqno
         Message.init(some(f.peerInfo), data, topic, some(f.msgSeqno), f.sign)
-    msgIdResult = f.msgIdProvider(msg)
-
-  if msgIdResult.isErr:
-    trace "Error generating message id, skipping publish",
-      error = msgIdResult.error
-    return 0
-
-  let msgId = msgIdResult.get
+    msgId = f.msgIdProvider(msg).valueOr:
+      trace "Error generating message id, skipping publish",
+        error = error
+      return 0
 
   trace "Created new message",
     msg = shortLog(msg), peers = peers.len, topic, msgId
