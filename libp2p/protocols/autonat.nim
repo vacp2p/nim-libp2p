@@ -169,7 +169,7 @@ proc decode(_: typedesc[AutonatMsg], buf: seq[byte]): Option[AutonatMsg] =
 
   return some(msg)
 
-proc dialResponseError(conn: Connection, status: ResponseStatus, text: string = "") {.async.} =
+proc sendResponseError(conn: Connection, status: ResponseStatus, text: string = "") {.async.} =
   let pb = AutonatDialResponse(
              status: status,
              text: if text == "": none(string) else: some(text),
@@ -177,22 +177,38 @@ proc dialResponseError(conn: Connection, status: ResponseStatus, text: string = 
            ).encode()
   await conn.write(pb.buffer)
 
+proc sendResponseOk(conn: Connection, ma: MultiAddress) {.async.} =
+  let pb = AutonatDialResponse(
+             status: ResponseStatus.Ok,
+             text: some("Ok"),
+             ma: some(ma)
+           ).encode()
+  await conn.write(pb.buffer)
+
 type
   Autonat* = ref object of LPProtocol
+    switch: Switch
 
 proc doDial(a: Autonat, conn: Connection, addrs: seq[MultiAddress]) {.async.} =
-  discard
+  try:
+    let connDst = await a.switch.dial(conn.peerId, addrs, AutonatCodec)
+    defer: await connDst.close()
+    await conn.sendResponseOk(connDst.observedAddr)
+  except CancelledError as exc:
+    raise exc
+  except CatchableError as exc:
+    await conn.sendResponseError(DialError, "Dial failed")
 
 proc handleDial(a: Autonat, conn: Connection, msg: AutonatMsg): Future[void] =
   if msg.dial.isNone() or msg.dial.get().peerInfo.isNone():
-    return conn.dialResponseError(BadRequest, "Missing Peer Info")
+    return conn.sendResponseError(BadRequest, "Missing Peer Info")
   let peerInfo = msg.dial.get().peerInfo.get()
   if peerInfo.id.isSome() and peerInfo.id.get() != conn.peerId:
-    return conn.dialResponseError(BadRequest, "PeerId mismatch")
+    return conn.sendResponseError(BadRequest, "PeerId mismatch")
 
   if conn.observedAddr[0].isErr() or (not IP4.match(conn.observedAddr[0].get()) and
                                       not IP6.match(conn.observedAddr[0].get())):
-    return conn.dialResponseError(InternalError, "Expected an IP address")
+    return conn.sendResponseError(InternalError, "Expected an IP address")
 
   var addrs = initHashSet[MultiAddress]()
   addrs.incl(conn.observedAddr)
@@ -206,11 +222,11 @@ proc handleDial(a: Autonat, conn: Connection, msg: AutonatMsg): Future[void] =
       break
 
   if len(addrs) == 0:
-    return conn.dialResponseError(DialRefused, "No dialable address")
+    return conn.sendResponseError(DialRefused, "No dialable address")
   return a.doDial(conn, toSeq(addrs))
 
-proc new*(T: typedesc[Autonat]): T =
-  let autonat = T()
+proc new*(T: typedesc[Autonat], switch: Switch): T =
+  let autonat = T(switch: Switch)
   autonat.init()
   autonat
 
