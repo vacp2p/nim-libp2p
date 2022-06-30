@@ -979,3 +979,29 @@ suite "Switch":
     await destSwitch.stop()
     await srcWsSwitch.stop()
     await srcTcpSwitch.stop()
+
+  asyncTest "mount unstarted protocol":
+    proc handle(conn: Connection, proto: string) {.async, gcsafe.} =
+      check "test123" == string.fromBytes(await conn.readLp(1024))
+      await conn.writeLp("test456")
+      await conn.close()
+    let
+      src = newStandardSwitch()
+      dst = newStandardSwitch()
+      testProto = new TestProto
+    testProto.codec = TestCodec
+    testProto.handler = handle
+
+    await src.start()
+    await dst.start()
+    expect LPError:
+      dst.mount(testProto)
+    await testProto.start()
+    dst.mount(testProto)
+
+    let conn = await src.dial(dst.peerInfo.peerId, dst.peerInfo.addrs, TestCodec)
+    await conn.writeLp("test123")
+    check "test456" == string.fromBytes(await conn.readLp(1024))
+    await conn.close()
+    await src.stop()
+    await dst.stop()
