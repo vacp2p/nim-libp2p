@@ -65,6 +65,7 @@ type
       dialer*: Dial
       peerStore*: PeerStore
       nameResolver*: NameResolver
+      started: bool
 
 proc addConnEventHandler*(s: Switch,
                           handler: ConnEventHandler,
@@ -145,6 +146,9 @@ proc mount*[T: LPProtocol](s: Switch, proto: T, matcher: Matcher = nil)
     raise newException(LPError,
       "Protocol has to define a codec string")
 
+  if s.started and not proto.started:
+    raise newException(LPError, "Protocol not started")
+
   s.ms.addHandler(proto.codecs, proto, matcher)
   s.peerInfo.protocols.add(proto.codec)
 
@@ -217,6 +221,7 @@ proc accept(s: Switch, transport: Transport) {.async.} = # noraises
 proc stop*(s: Switch) {.async.} =
   trace "Stopping switch"
 
+  s.started = false
   # close and cleanup all connections
   await s.connManager.close()
 
@@ -239,6 +244,8 @@ proc stop*(s: Switch) {.async.} =
   for a in s.acceptFuts:
     if not a.finished:
       a.cancel()
+
+  await s.ms.stop()
 
   trace "Switch stopped"
 
@@ -272,6 +279,10 @@ proc start*(s: Switch) {.async, gcsafe.} =
       s.peerInfo.addrs &= t.addrs
 
   s.peerInfo.update()
+
+  await s.ms.start()
+
+  s.started = true
 
   debug "Started libp2p node", peer = s.peerInfo
 

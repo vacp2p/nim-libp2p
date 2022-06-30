@@ -10,7 +10,8 @@
 {.push raises: [Defect].}
 
 import std/[oids, strformat]
-import chronos, chronicles, stew/endians2, bearssl
+import bearssl/rand
+import chronos, chronicles, stew/endians2
 import nimcrypto/[hmac, sha2, sha, hash, rijndael, twofish, bcmode]
 import secure,
        ../../stream/connection,
@@ -37,7 +38,7 @@ const
 
 type
   Secio* = ref object of Secure
-    rng: ref BrHmacDrbgContext
+    rng: ref HmacDrbgContext
     localPrivateKey: PrivateKey
     localPublicKey: PublicKey
     remotePublicKey: PublicKey
@@ -304,7 +305,7 @@ method handshake*(s: Secio, conn: Connection, initiator: bool = false): Future[S
     localPeerId: PeerId
     localBytesPubkey = s.localPublicKey.getBytes().tryGet()
 
-  brHmacDrbgGenerate(s.rng[], localNonce)
+  hmacDrbgGenerate(s.rng[], localNonce)
 
   var request = createProposal(localNonce,
                                localBytesPubkey,
@@ -428,7 +429,7 @@ method init(s: Secio) {.gcsafe.} =
 
 proc new*(
   T: typedesc[Secio],
-  rng: ref BrHmacDrbgContext,
+  rng: ref HmacDrbgContext,
   localPrivateKey: PrivateKey): T =
   let pkRes = localPrivateKey.getPublicKey()
   if pkRes.isErr:

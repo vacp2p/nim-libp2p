@@ -10,7 +10,7 @@
 {.push raises: [Defect].}
 
 import std/[tables, sequtils, sets, strutils]
-import chronos, chronicles, metrics, bearssl
+import chronos, chronicles, metrics
 import ./errors as pubsub_errors,
        ./pubsubpeer,
        ./rpc/[message, messages, protobuf],
@@ -114,7 +114,7 @@ type
       ## lead to issues, from descoring to connection drops
       ##
       ## defaults to 1mB
-    rng*: ref BrHmacDrbgContext
+    rng*: ref HmacDrbgContext
 
     knownTopics*: HashSet[string]
 
@@ -489,14 +489,6 @@ method initPubSub*(p: PubSub)
   if p.msgIdProvider == nil:
     p.msgIdProvider = defaultMsgIdProvider
 
-method start*(p: PubSub) {.async, base.} =
-  ## start pubsub
-  discard
-
-method stop*(p: PubSub) {.async, base.} =
-  ## stopt pubsub
-  discard
-
 method addValidator*(p: PubSub,
                      topic: varargs[string],
                      hook: ValidatorHandler) {.base.} =
@@ -554,7 +546,7 @@ proc init*[PubParams: object | bool](
   msgIdProvider: MsgIdProvider = defaultMsgIdProvider,
   subscriptionValidator: SubscriptionValidator = nil,
   maxMessageSize: int = 1024 * 1024,
-  rng: ref BrHmacDrbgContext = newRng(),
+  rng: ref HmacDrbgContext = newRng(),
   parameters: PubParams = false): P
   {.raises: [Defect, InitializationError].} =
   let pubsub =

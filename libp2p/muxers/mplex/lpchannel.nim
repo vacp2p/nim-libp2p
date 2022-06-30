@@ -78,6 +78,8 @@ proc open*(s: LPChannel) {.async, gcsafe.} =
   try:
     await s.conn.writeMsg(s.id, MessageType.New, s.name)
     s.isOpen = true
+  except CancelledError as exc:
+    raise exc
   except CatchableError as exc:
     await s.conn.close()
     raise exc
@@ -221,6 +223,11 @@ proc completeWrite(
         libp2p_protocols_bytes.inc(msgLen.int64, labelValues=[s.tag, "out"])
 
     s.activity = true
+  except CancelledError as exc:
+    # Chronos may still send the data
+    raise exc
+  except LPStreamClosedError as exc:
+    raise exc
   except CatchableError as exc:
     trace "exception in lpchannel write handler", s, msg = exc.msg
     await s.reset()
