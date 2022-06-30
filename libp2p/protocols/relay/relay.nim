@@ -372,10 +372,12 @@ method start*(r: Relay) {.async.} =
     warn "Starting relay twice"
     return
   r.reservationLoop = r.deletesReservation()
+  r.started = true
 
 method stop*(r: Relay) {.async.} =
   if r.reservationLoop.isNil:
     warn "Stopping relay without starting it"
     return
+  r.started = false
   r.reservationLoop.cancel()
   r.reservationLoop = nil

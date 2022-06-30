@@ -101,6 +101,7 @@ suite "Circuit Relay V2":
                                      $rel.peerInfo.peerId & "/p2p-circuit/p2p/" &
                                      $src2.peerInfo.peerId).get() ]
       rv2add.setup(src2)
+      await rv2add.start()
       src2.mount(rv2add)
       rv2.maxCircuit.inc()
 

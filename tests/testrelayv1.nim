@@ -106,7 +106,6 @@ suite "Circuit Relay":
 
     dst.mount(customProto)
 
-    await r.start()
     await src.start()
     await dst.start()
     await srelay.start()
