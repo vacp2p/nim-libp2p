@@ -53,14 +53,13 @@ suite "Circuit Relay V2":
       src2 = createSwitch(cl2)
       rel = createSwitch(rv2)
 
-      await rv2.start()
       await src1.start()
       await src2.start()
       await rel.start()
       await src1.connect(rel.peerInfo.peerId, rel.peerInfo.addrs)
       await src2.connect(rel.peerInfo.peerId, rel.peerInfo.addrs)
       rsvp = await cl1.reserve(rel.peerInfo.peerId, rel.peerInfo.addrs)
-      range = now().utc + (ttl-2).seconds..now().utc + (ttl+2).seconds
+      range = now().utc + (ttl-3).seconds..now().utc + (ttl+3).seconds
       check:
         rsvp.expire.int64.fromUnix.utc in range
         rsvp.limitDuration == ldur
@@ -80,7 +79,7 @@ suite "Circuit Relay V2":
         discard await cl2.reserve(rel.peerInfo.peerId, rel.peerInfo.addrs)
       await rel.disconnect(src1.peerInfo.peerId)
       rsvp = await cl2.reserve(rel.peerInfo.peerId, rel.peerInfo.addrs)
-      range = now().utc + (ttl-1).seconds..now().utc + (ttl+1).seconds
+      range = now().utc + (ttl-3).seconds..now().utc + (ttl+3).seconds
       check:
         rsvp.expire.int64.fromUnix.utc in range
         rsvp.limitDuration == ldur
@@ -89,7 +88,7 @@ suite "Circuit Relay V2":
     asynctest "Reservation ttl expires":
       await sleepAsync(chronos.timer.seconds(ttl + 1))
       rsvp = await cl1.reserve(rel.peerInfo.peerId, rel.peerInfo.addrs)
-      range = now().utc + (ttl-1).seconds..now().utc + (ttl+1).seconds
+      range = now().utc + (ttl-3).seconds..now().utc + (ttl+3).seconds
       check:
         rsvp.expire.int64.fromUnix.utc in range
         rsvp.limitDuration == ldur
@@ -103,11 +102,10 @@ suite "Circuit Relay V2":
                                      $src2.peerInfo.peerId).get() ]
       rv2add.setup(src2)
       src2.mount(rv2add)
-      await rv2add.start()
       rv2.maxCircuit.inc()
 
       rsvp = await cl2.reserve(rel.peerInfo.peerId, rel.peerInfo.addrs)
-      range = now().utc + (ttl-1).seconds..now().utc + (ttl+1).seconds
+      range = now().utc + (ttl-3).seconds..now().utc + (ttl+3).seconds
       check:
         rsvp.expire.int64.fromUnix.utc in range
         rsvp.limitDuration == ldur
@@ -165,7 +163,6 @@ suite "Circuit Relay V2":
       rel.mount(rv2)
       dst.mount(proto)
 
-      await rv2.start()
       await rel.start()
       await src.start()
       await dst.start()
@@ -198,7 +195,6 @@ suite "Circuit Relay V2":
       rel.mount(rv2)
       dst.mount(proto)
 
-      await rv2.start()
       await rel.start()
       await src.start()
       await dst.start()
@@ -243,7 +239,6 @@ take to the ship.""")
       rel.mount(rv2)
       dst.mount(proto)
 
-      await rv2.start()
       await rel.start()
       await src.start()
       await dst.start()
@@ -275,7 +270,6 @@ take to the ship.""")
       rel.mount(rv2)
       dst.mount(proto)
 
-      await rv2.start()
       await rel.start()
       await src.start()
       await dst.start()
@@ -318,8 +312,6 @@ take to the ship.""")
       rv2.setup(rel)
       rel.mount(rv2)
       dst.mount(proto)
-      await rv2.start()
-      await rel2Cl.start()
       await rel.start()
       await rel2.start()
       await src.start()
@@ -383,9 +375,6 @@ take to the ship.""")
       switchB.mount(protoCAB)
       switchC.mount(protoABC)
 
-      await clientA.start()
-      await clientB.start()
-      await clientC.start()
       await switchA.start()
       await switchB.start()
       await switchC.start()

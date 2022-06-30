@@ -7,7 +7,9 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import options, sequtils, tables
+{.push raises: [Defect].}
+
+import options, sequtils, tables, sugar
 
 import chronos, chronicles
 
@@ -85,9 +87,10 @@ proc createReserveResponse(
                   reservingPeerId: pid,
                   expiration: expireUnix)
     sv = ? SignedVoucher.init(r.switch.peerInfo.privateKey, v)
-    ma = MultiAddress.init("/p2p/" & $r.switch.peerInfo.peerId).tryGet()
+    ma = ? MultiAddress.init("/p2p/" & $r.switch.peerInfo.peerId).orErr(CryptoError.KeyError)
     rsrv = Reservation(expire: expireUnix,
-                       addrs: r.switch.peerInfo.addrs.mapIt(it & ma),
+                       addrs: r.switch.peerInfo.addrs.mapIt(
+                         ? it.concat(ma).orErr(CryptoError.KeyError)),
                        svoucher: some(? sv.encode))
     msg = HopMessage(msgType: HopMessageType.Status,
                      reservation: some(rsrv),
@@ -364,16 +367,15 @@ proc deletesReservation(r: Relay) {.async.} =
       if n > r.rsvp[k]:
         r.rsvp.del(k)
 
-proc start*(r: Relay) {.async.} =
+method start*(r: Relay) {.async.} =
   if not r.reservationLoop.isNil:
-    warn "Starting relayv2 twice"
+    warn "Starting relay twice"
     return
-
   r.reservationLoop = r.deletesReservation()
 
-proc stop*(rv2: Relay) {.async.} =
-  if rv2.reservationLoop.isNil:
-    warn "Stopping relayv2 without starting it"
+method stop*(r: Relay) {.async.} =
+  if r.reservationLoop.isNil:
+    warn "Stopping relay without starting it"
     return
-
-  rv2.reservationLoop.cancel()
+  r.reservationLoop.cancel()
+  r.reservationLoop = nil

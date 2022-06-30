@@ -47,7 +47,6 @@ proc main() {.async.} =
 
   swDst.mount(proto)
 
-  await relay.start()
   await swRel.start()
   await swSrc.start()
   await swDst.start()
@@ -71,6 +70,7 @@ proc main() {.async.} =
   echo "2 - Src Received: ", msg
   assert "test4" == msg
 
-  await allFutures(relay.stop(), swSrc.stop(), swDst.stop(), swRel.stop())
+  await relay.stop()
+  await allFutures(swSrc.stop(), swDst.stop(), swRel.stop())
 
 waitFor(main())
