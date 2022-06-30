@@ -506,7 +506,7 @@ method publish*(g: GossipSub,
     g.rng.shuffle(fanoutPeers)
     if fanoutPeers.len + peers.len > g.parameters.d:
       fanoutPeers.setLen(g.parameters.d - peers.len)
-    
+
     for fanPeer in fanoutPeers:
       peers.incl(fanPeer)
       if peers.len > g.parameters.d: break
@@ -520,9 +520,9 @@ method publish*(g: GossipSub,
 
   if peers.len == 0:
     let topicPeers = g.gossipsub.getOrDefault(topic).toSeq()
-    notice "No peers for topic, skipping publish",  peersOnTopic = topicPeers.len,
-                                                    connectedPeers = topicPeers.filterIt(it.connected).len,
-                                                    topic
+    debug "No peers for topic, skipping publish",  peersOnTopic = topicPeers.len,
+                                                   connectedPeers = topicPeers.filterIt(it.connected).len,
+                                                   topic
     # skipping topic as our metrics finds that heavy
     libp2p_gossipsub_failed_publish.inc()
     return 0
