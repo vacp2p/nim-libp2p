@@ -10,7 +10,7 @@
 {.push raises: [Defect].}
 
 import
-  std/[tables, sets, sequtils, options],
+  std/[tables, sets, options, macros],
   ./crypto/crypto,
   ./protocols/identify,
   ./peerid, ./peerinfo,
@@ -22,58 +22,52 @@ type
   # Handler types #
   #################
 
-  PeerBookChangeHandler*[T] = proc(peerId: PeerId, entry: T)
-
-  AddrChangeHandler* = PeerBookChangeHandler[HashSet[MultiAddress]]
-  ProtoChangeHandler* = PeerBookChangeHandler[HashSet[string]]
-  KeyChangeHandler* = PeerBookChangeHandler[PublicKey]
+  PeerBookChangeHandler* = proc(peerId: PeerId) {.gcsafe, raises: [Defect].}
   
   #########
   # Books #
   #########
 
   # Each book contains a book (map) and event handler(s)
-  PeerBook*[T] = object of RootObj
-    book*: Table[PeerId, T]
-    changeHandlers: seq[PeerBookChangeHandler[T]]
+  BasePeerBook = ref object of RootObj
+    changeHandlers: seq[PeerBookChangeHandler]
+    deletor: PeerBookChangeHandler
 
-  SetPeerBook*[T] = object of PeerBook[HashSet[T]]
+  PeerBook*[T] = ref object of BasePeerBook
+    book*: Table[PeerId, T]
+
+  SeqPeerBook*[T] = ref object of PeerBook[seq[T]]
   
-  AddressBook* = object of SetPeerBook[MultiAddress]
-  ProtoBook* = object of SetPeerBook[string]
-  KeyBook* = object of PeerBook[PublicKey]
+  AddressBook* = ref object of SeqPeerBook[MultiAddress]
+  ProtoBook* = ref object of SeqPeerBook[string]
+  KeyBook* = ref object of PeerBook[PublicKey]
+
+  AgentBook* = ref object of PeerBook[string]
+  ProtoVersionBook* = ref object of PeerBook[string]
+  SPRBook* = ref object of PeerBook[Envelope]
   
   ####################
   # Peer store types #
   ####################
 
   PeerStore* = ref object
-    addressBook*: AddressBook
-    protoBook*: ProtoBook
-    keyBook*: KeyBook
-
-    agentBook*: PeerBook[string]
-    protoVersionBook*: PeerBook[string]
-
-    signedPeerRecordBook*: PeerBook[Envelope]
+    books: Table[string, BasePeerBook]
+    capacity*: int
+    toClean*: seq[PeerId]
   
-## Constructs a new PeerStore with metadata of type M
-proc new*(T: type PeerStore): PeerStore =
-  var p: PeerStore
-  new(p)
-  return p
+proc new*(T: type PeerStore, capacity = 1000): PeerStore =
+  T(capacity: capacity)
 
 #########################
 # Generic Peer Book API #
 #########################
 
-proc get*[T](peerBook: PeerBook[T],
+proc `[]`*[T](peerBook: PeerBook[T],
              peerId: PeerId): T =
   ## Get all the known metadata of a provided peer.
-  
   peerBook.book.getOrDefault(peerId)
 
-proc set*[T](peerBook: var PeerBook[T],
+proc `[]=`*[T](peerBook: PeerBook[T],
              peerId: PeerId,
              entry: T) =
   ## Set metadata for a given peerId. This will replace any
@@ -83,86 +77,90 @@ proc set*[T](peerBook: var PeerBook[T],
 
   # Notify clients
   for handler in peerBook.changeHandlers:
-    handler(peerId, peerBook.get(peerId))
+    handler(peerId)
 
-proc delete*[T](peerBook: var PeerBook[T],
+proc del*[T](peerBook: PeerBook[T],
                 peerId: PeerId): bool =
   ## Delete the provided peer from the book.
   
-  if not peerBook.book.hasKey(peerId):
+  if peerId notin peerBook.book:
     return false
   else:
     peerBook.book.del(peerId)
+    # Notify clients
+    for handler in peerBook.changeHandlers:
+      handler(peerId)
     return true
 
 proc contains*[T](peerBook: PeerBook[T], peerId: PeerId): bool =
   peerId in peerBook.book
 
-################
-# Set Book API #
-################
+proc addHandler*[T](peerBook: PeerBook[T], handler: PeerBookChangeHandler) =
+  peerBook.changeHandlers.add(handler)
 
-proc add*[T](
-  peerBook: var SetPeerBook[T],
-  peerId: PeerId,
-  entry: T) =
-  ## Add entry to a given peer. If the peer is not known,
-  ## it will be set with the provided entry.
-  
-  peerBook.book.mgetOrPut(peerId,
-                          initHashSet[T]()).incl(entry)
-  
-  # Notify clients
-  for handler in peerBook.changeHandlers:
-    handler(peerId, peerBook.get(peerId))
-
-# Helper for seq
-proc set*[T](
-  peerBook: var SetPeerBook[T],
-  peerId: PeerId,
-  entry: seq[T]) =
-  ## Add entry to a given peer. If the peer is not known,
-  ## it will be set with the provided entry.
-  peerBook.set(peerId, entry.toHashSet())
-  
+proc len*[T](peerBook: PeerBook[T]): int = peerBook.book.len
 
 ##################  
 # Peer Store API #
 ##################
+macro getTypeName(t: type): untyped =
+  # Generate unique name in form of Module.Type
+  let typ = getTypeImpl(t)[1]
+  newLit(repr(typ.owner()) & "." & repr(typ))
 
-proc addHandlers*(peerStore: PeerStore,
-                  addrChangeHandler: AddrChangeHandler,
-                  protoChangeHandler: ProtoChangeHandler,
-                  keyChangeHandler: KeyChangeHandler) =
-  ## Register event handlers to notify clients of changes in the peer store
-  
-  peerStore.addressBook.changeHandlers.add(addrChangeHandler)
-  peerStore.protoBook.changeHandlers.add(protoChangeHandler)
-  peerStore.keyBook.changeHandlers.add(keyChangeHandler)
+proc `[]`*[T](p: PeerStore, typ: type[T]): T =
+  let name = getTypeName(T)
+  result = T(p.books.getOrDefault(name))
+  if result.isNil:
+    result = T.new()
+    result.deletor = proc(pid: PeerId) =
+      # Manual method because generic method
+      # don't work
+      discard T(p.books.getOrDefault(name)).del(pid)
+    p.books[name] = result
+  return result
 
-proc delete*(peerStore: PeerStore,
-             peerId: PeerId): bool =
+proc del*(peerStore: PeerStore,
+             peerId: PeerId) =
   ## Delete the provided peer from every book.
-  
-  peerStore.addressBook.delete(peerId) and
-  peerStore.protoBook.delete(peerId) and
-  peerStore.keyBook.delete(peerId)
+  for _, book in peerStore.books:
+    book.deletor(peerId)
 
 proc updatePeerInfo*(
   peerStore: PeerStore,
   info: IdentifyInfo) =
 
   if info.addrs.len > 0:
-    peerStore.addressBook.set(info.peerId, info.addrs)
+    peerStore[AddressBook][info.peerId] = info.addrs
 
   if info.agentVersion.isSome:
-    peerStore.agentBook.set(info.peerId, info.agentVersion.get().string)
+    peerStore[AgentBook][info.peerId] = info.agentVersion.get().string
 
   if info.protoVersion.isSome:
-    peerStore.protoVersionBook.set(info.peerId, info.protoVersion.get().string)
+    peerStore[ProtoVersionBook][info.peerId] = info.protoVersion.get().string
 
   if info.protos.len > 0:
-    peerStore.protoBook.set(info.peerId, info.protos)
-  
+    peerStore[ProtoBook][info.peerId] = info.protos
+
   if info.signedPeerRecord.isSome:
-    peerStore.signedPeerRecordBook.set(info.peerId, info.signedPeerRecord.get())
+    peerStore[SPRBook][info.peerId] = info.signedPeerRecord.get()
+
+  let cleanupPos = peerStore.toClean.find(info.peerId)
+  if cleanupPos >= 0:
+    peerStore.toClean.delete(cleanupPos)
+
+proc cleanup*(
+  peerStore: PeerStore,
+  peerId: PeerId) =
+
+  if peerStore.capacity == 0:
+    peerStore.del(peerId)
+    return
+  elif peerStore.capacity < 0:
+    #infinite capacity
+    return
+
+  peerStore.toClean.add(peerId)
+  while peerStore.toClean.len > peerStore.capacity:
+    peerStore.del(peerStore.toClean[0])
+    peerStore.toClean.delete(0)

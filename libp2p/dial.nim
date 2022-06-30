@@ -11,7 +11,8 @@
 
 import chronos
 import peerid,
-       stream/connection
+       stream/connection,
+       transports/transport
 
 type
   Dial* = ref object of RootObj
@@ -48,4 +49,9 @@ method dial*(
   ## a connection if one doesn't exist already
   ##
 
+  doAssert(false, "Not implemented!")
+
+method addTransport*(
+  self: Dial,
+  transport: Transport) {.base.} =
   doAssert(false, "Not implemented!")

@@ -4,7 +4,6 @@ include ../../libp2p/protocols/pubsub/gossipsub
 
 import options
 import ../stublogger
-import bearssl
 import stew/byteutils
 import ../../libp2p/builders
 import ../../libp2p/errors

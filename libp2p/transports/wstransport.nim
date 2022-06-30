@@ -71,12 +71,14 @@ method readOnce*(
 
   if res == 0 and s.session.readyState == ReadyState.Closed:
     raise newLPStreamEOFError()
+  s.activity = true # reset activity flag
   return res
 
 method write*(
   s: WsStream,
   msg: seq[byte]): Future[void] {.async.} =
   mapExceptions(await s.session.send(msg, Opcode.Binary))
+  s.activity = true # reset activity flag
 
 method closeImpl*(s: WsStream): Future[void] {.async.} =
   await s.session.close()

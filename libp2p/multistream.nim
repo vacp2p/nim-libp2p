@@ -12,7 +12,6 @@
 import std/[strutils]
 import chronos, chronicles, stew/byteutils
 import stream/connection,
-       vbuffer,
        protocols/protocol
 
 logScope:

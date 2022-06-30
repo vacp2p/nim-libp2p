@@ -30,11 +30,9 @@ import
           crypto/crypto,
           protocols/pubsub]
 
-import bearssl
-
 export
   minprotobuf, switch, peerid, peerinfo,
   connection, multiaddress, crypto, lpstream,
-  bufferstream, bearssl, muxer, mplex, transport,
+  bufferstream, muxer, mplex, transport,
   tcptransport, noise, errors, cid, multihash,
   multicodec, builders, pubsub
