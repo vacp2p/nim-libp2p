@@ -11,7 +11,8 @@
 
 {.push raises: [Defect].}
 
-import chronos, chronicles, bearssl
+import chronos, chronicles
+import bearssl/[rand, hash]
 import ../protobuf/minprotobuf,
        ../peerinfo,
        ../stream/connection,
@@ -21,6 +22,8 @@ import ../protobuf/minprotobuf,
        ../protocols/protocol,
        ../utility,
        ../errors
+
+export chronicles, rand, connection
 
 logScope:
   topics = "libp2p ping"
@@ -40,11 +43,9 @@ type
 
   Ping* = ref object of LPProtocol
     pingHandler*: PingHandler
-    rng: ref BrHmacDrbgContext
+    rng: ref HmacDrbgContext
 
-proc new*(T: typedesc[Ping], handler: PingHandler = nil, rng: ref BrHmacDrbgContext = newRng()): T {.public.} =
-  ## Create a Ping protocol. The optional `handler` will be called
-  ## every time a peer pings us.
+proc new*(T: typedesc[Ping], handler: PingHandler = nil, rng: ref HmacDrbgContext = newRng()): T {.public.} =
   let ping = Ping(pinghandler: handler, rng: rng)
   ping.init()
   ping
@@ -79,7 +80,7 @@ proc ping*(
     randomBuf: array[PingSize, byte]
     resultBuf: array[PingSize, byte]
 
-  p.rng[].brHmacDrbgGenerate(randomBuf)
+  hmacDrbgGenerate(p.rng[], randomBuf)
 
   let startTime = Moment.now()
 

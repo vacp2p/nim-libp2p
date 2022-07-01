@@ -9,7 +9,7 @@
 
 {.used.}
 
-import tables, bearssl
+import tables
 import chronos, stew/byteutils
 import chronicles
 import ../libp2p/[switch,
@@ -214,7 +214,7 @@ suite "Noise":
       readTask = newFuture[void]()
 
     var hugePayload = newSeq[byte](0xFFFFF)
-    brHmacDrbgGenerate(rng[], hugePayload)
+    hmacDrbgGenerate(rng[], hugePayload)
     trace "Sending huge payload", size = hugePayload.len
 
     let

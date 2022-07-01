@@ -1,6 +1,6 @@
 {.used.}
 
-import options, bearssl
+import options
 import chronos, stew/byteutils
 import ../libp2p/crypto/crypto,
        ../libp2p/multicodec,

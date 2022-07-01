@@ -89,13 +89,6 @@ suite "GossipSub":
         nodes[1].switch.start(),
       )
 
-    # start pubsub
-    await allFuturesThrowing(
-      allFinished(
-        nodes[0].start(),
-        nodes[1].start(),
-    ))
-
     await subscribeNodes(nodes)
 
     nodes[0].subscribe("foobar", handler)
@@ -125,11 +118,6 @@ suite "GossipSub":
       nodes[1].switch.stop()
     )
 
-    await allFuturesThrowing(
-      nodes[0].stop(),
-      nodes[1].stop()
-    )
-
     await allFuturesThrowing(nodesFut.concat())
 
   asyncTest "GossipSub validation should fail (reject)":
@@ -144,13 +132,6 @@ suite "GossipSub":
         nodes[0].switch.start(),
         nodes[1].switch.start(),
       )
-
-    # start pubsub
-    await allFuturesThrowing(
-      allFinished(
-        nodes[0].start(),
-        nodes[1].start(),
-    ))
 
     await subscribeNodes(nodes)
 
@@ -187,11 +168,6 @@ suite "GossipSub":
       nodes[1].switch.stop()
     )
 
-    await allFuturesThrowing(
-      nodes[0].stop(),
-      nodes[1].stop()
-    )
-
     await allFuturesThrowing(nodesFut.concat())
 
   asyncTest "GossipSub validation should fail (ignore)":
@@ -206,13 +182,6 @@ suite "GossipSub":
         nodes[0].switch.start(),
         nodes[1].switch.start(),
       )
-
-    # start pubsub
-    await allFuturesThrowing(
-      allFinished(
-        nodes[0].start(),
-        nodes[1].start(),
-    ))
 
     await subscribeNodes(nodes)
 
@@ -249,11 +218,6 @@ suite "GossipSub":
       nodes[1].switch.stop()
     )
 
-    await allFuturesThrowing(
-      nodes[0].stop(),
-      nodes[1].stop()
-    )
-
     await allFuturesThrowing(nodesFut.concat())
 
   asyncTest "GossipSub validation one fails and one succeeds":
@@ -270,13 +234,6 @@ suite "GossipSub":
         nodes[0].switch.start(),
         nodes[1].switch.start(),
       )
-
-    # start pubsub
-    await allFuturesThrowing(
-      allFinished(
-        nodes[0].start(),
-        nodes[1].start(),
-    ))
 
     await subscribeNodes(nodes)
 
@@ -314,11 +271,6 @@ suite "GossipSub":
       nodes[1].switch.stop()
     )
 
-    await allFuturesThrowing(
-      nodes[0].stop(),
-      nodes[1].stop()
-    )
-
     await allFuturesThrowing(nodesFut.concat())
 
   asyncTest "GossipSub unsub - resub faster than backoff":
@@ -335,13 +287,6 @@ suite "GossipSub":
         nodes[0].switch.start(),
         nodes[1].switch.start(),
       )
-
-    # start pubsub
-    await allFuturesThrowing(
-      allFinished(
-        nodes[0].start(),
-        nodes[1].start(),
-    ))
 
     await subscribeNodes(nodes)
 
@@ -378,11 +323,6 @@ suite "GossipSub":
       nodes[1].switch.stop()
     )
 
-    await allFuturesThrowing(
-      nodes[0].stop(),
-      nodes[1].stop()
-    )
-
     await allFuturesThrowing(nodesFut.concat())
 
   asyncTest "e2e - GossipSub should add remote peer topic subscriptions":
@@ -399,13 +339,6 @@ suite "GossipSub":
         nodes[0].switch.start(),
         nodes[1].switch.start(),
       )
-
-    # start pubsub
-    await allFuturesThrowing(
-      allFinished(
-        nodes[0].start(),
-        nodes[1].start(),
-    ))
 
     await subscribeNodes(nodes)
 
@@ -425,11 +358,6 @@ suite "GossipSub":
       nodes[1].switch.stop()
     )
 
-    await allFuturesThrowing(
-      nodes[0].stop(),
-      nodes[1].stop()
-    )
-
     await allFuturesThrowing(nodesFut.concat())
 
   asyncTest "e2e - GossipSub should add remote peer topic subscriptions if both peers are subscribed":
@@ -446,13 +374,6 @@ suite "GossipSub":
         nodes[0].switch.start(),
         nodes[1].switch.start(),
       )
-
-    # start pubsub
-    await allFuturesThrowing(
-      allFinished(
-        nodes[0].start(),
-        nodes[1].start(),
-    ))
 
     await subscribeNodes(nodes)
 
@@ -487,11 +408,6 @@ suite "GossipSub":
       nodes[1].switch.stop()
     )
 
-    await allFuturesThrowing(
-      nodes[0].stop(),
-      nodes[1].stop()
-    )
-
     await allFuturesThrowing(nodesFut.concat())
 
   asyncTest "e2e - GossipSub send over fanout A -> B":
@@ -510,13 +426,6 @@ suite "GossipSub":
         nodes[0].switch.start(),
         nodes[1].switch.start(),
       )
-
-    # start pubsub
-    await allFuturesThrowing(
-      allFinished(
-        nodes[0].start(),
-        nodes[1].start(),
-    ))
 
     await subscribeNodes(nodes)
 
@@ -549,17 +458,9 @@ suite "GossipSub":
 
     trace "test done, stopping..."
 
-    await nodes[0].stop()
-    await nodes[1].stop()
-
     await allFuturesThrowing(
       nodes[0].switch.stop(),
       nodes[1].switch.stop()
-    )
-
-    await allFuturesThrowing(
-      nodes[0].stop(),
-      nodes[1].stop()
     )
 
     await allFuturesThrowing(nodesFut.concat())
@@ -582,13 +483,6 @@ suite "GossipSub":
         nodes[0].switch.start(),
         nodes[1].switch.start(),
       )
-
-    # start pubsub
-    await allFuturesThrowing(
-      allFinished(
-        nodes[0].start(),
-        nodes[1].start(),
-    ))
 
     await subscribeNodes(nodes)
 
@@ -616,17 +510,9 @@ suite "GossipSub":
 
     trace "test done, stopping..."
 
-    await nodes[0].stop()
-    await nodes[1].stop()
-
     await allFuturesThrowing(
       nodes[0].switch.stop(),
       nodes[1].switch.stop()
-    )
-
-    await allFuturesThrowing(
-      nodes[0].stop(),
-      nodes[1].stop()
     )
 
     await allFuturesThrowing(nodesFut.concat())
@@ -647,13 +533,6 @@ suite "GossipSub":
         nodes[0].switch.start(),
         nodes[1].switch.start(),
       )
-
-    # start pubsub
-    await allFuturesThrowing(
-      allFinished(
-        nodes[0].start(),
-        nodes[1].start(),
-    ))
 
     await subscribeNodes(nodes)
 
@@ -681,11 +560,6 @@ suite "GossipSub":
       nodes[1].switch.stop()
     )
 
-    await allFuturesThrowing(
-      nodes[0].stop(),
-      nodes[1].stop()
-    )
-
     await allFuturesThrowing(nodesFut.concat())
 
   asyncTest "e2e - GossipSub should not send to source & peers who already seen":
@@ -704,14 +578,6 @@ suite "GossipSub":
         nodes[1].switch.start(),
         nodes[2].switch.start(),
       )
-
-    # start pubsub
-    await allFuturesThrowing(
-      allFinished(
-        nodes[0].start(),
-        nodes[1].start(),
-        nodes[2].start(),
-    ))
 
     await subscribeNodes(nodes)
 
@@ -763,12 +629,6 @@ suite "GossipSub":
       nodes[2].switch.stop()
     )
 
-    await allFuturesThrowing(
-      nodes[0].stop(),
-      nodes[1].stop(),
-      nodes[2].stop()
-    )
-
     await allFuturesThrowing(nodesFut.concat())
 
   asyncTest "e2e - GossipSub send over floodPublish A -> B":
@@ -787,13 +647,6 @@ suite "GossipSub":
         nodes[0].switch.start(),
         nodes[1].switch.start(),
       )
-
-    # start pubsub
-    await allFuturesThrowing(
-      allFinished(
-        nodes[0].start(),
-        nodes[1].start(),
-    ))
 
     var gossip1: GossipSub = GossipSub(nodes[0])
     gossip1.parameters.floodPublish = true
@@ -821,11 +674,6 @@ suite "GossipSub":
       nodes[1].switch.stop()
     )
 
-    await allFuturesThrowing(
-      nodes[0].stop(),
-      nodes[1].stop()
-    )
-
     await allFuturesThrowing(nodesFut.concat())
 
   asyncTest "e2e - GossipSub with multiple peers":
@@ -835,7 +683,6 @@ suite "GossipSub":
       nodes = generateNodes(runs, gossip = true, triggerSelf = true)
       nodesFut = nodes.mapIt(it.switch.start())
 
-    await allFuturesThrowing(nodes.mapIt(it.start()))
     await subscribeNodes(nodes)
 
     var seen: Table[string, int]
@@ -875,7 +722,6 @@ suite "GossipSub":
     await allFuturesThrowing(
       nodes.mapIt(
         allFutures(
-          it.stop(),
           it.switch.stop())))
 
     await allFuturesThrowing(nodesFut)
@@ -887,7 +733,6 @@ suite "GossipSub":
       nodes = generateNodes(runs, gossip = true, triggerSelf = true)
       nodesFut = nodes.mapIt(it.switch.start())
 
-    await allFuturesThrowing(nodes.mapIt(it.start()))
     await subscribeSparseNodes(nodes)
 
     var seen: Table[string, int]
@@ -928,7 +773,6 @@ suite "GossipSub":
     await allFuturesThrowing(
       nodes.mapIt(
         allFutures(
-          it.stop(),
           it.switch.stop())))
 
     await allFuturesThrowing(nodesFut)
@@ -955,14 +799,6 @@ suite "GossipSub":
         nodes[1].switch.start(),
         nodes[2].switch.start(),
       )
-
-    # start pubsub
-    await allFuturesThrowing(
-      allFinished(
-        nodes[0].start(),
-        nodes[1].start(),
-        nodes[2].start(),
-    ))
 
     var
       gossip0 = GossipSub(nodes[0])
@@ -997,11 +833,4 @@ suite "GossipSub":
       nodes[2].switch.stop()
     )
 
-    await allFuturesThrowing(
-      nodes[0].stop(),
-      nodes[1].stop(),
-      nodes[2].stop()
-    )
-
     await allFuturesThrowing(nodesFut.concat())
-

@@ -134,6 +134,10 @@ method readOnce*(s: BufferStream,
     let buf =
       try:
         await s.readQueue.popFirst()
+      except CancelledError as exc:
+        # Not very efficient, but shouldn't happen often
+        s.readBuf.assign(@(p.toOpenArray(0, rbytes - 1)) & @(s.readBuf.data))
+        raise exc
       except CatchableError as exc:
         # When an exception happens here, the Bufferstream is effectively
         # broken and no more reads will be valid - for now, return EOF if it's

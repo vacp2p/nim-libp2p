@@ -1,6 +1,6 @@
 {.used.}
 
-import options, bearssl, chronos
+import options, chronos
 import stew/byteutils
 import ../libp2p/[protocols/relay,
                   multiaddress,

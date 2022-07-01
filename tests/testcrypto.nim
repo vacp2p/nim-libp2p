@@ -10,9 +10,9 @@
 ## Test vectors was made using Go implementation
 ## https://github.com/libp2p/go-libp2p-crypto/blob/master/key.go
 import unittest2
+import bearssl/hash
 import nimcrypto/[utils, sysrand]
 import ../libp2p/crypto/[crypto, chacha20poly1305, curve25519, hkdf]
-import bearssl
 
 when defined(nimHasUsed): {.used.}
 
@@ -560,7 +560,7 @@ suite "Key interface test suite":
 
   test "shuffle":
     var cards = ["Ace", "King", "Queen", "Jack", "Ten"]
-    var rng = (ref BrHmacDrbgContext)()
-    brHmacDrbgInit(addr rng[], addr sha256Vtable, nil, 0)
+    var rng = (ref HmacDrbgContext)()
+    hmacDrbgInit(rng[], addr sha256Vtable, nil, 0)
     rng.shuffle(cards)
     check cards == ["King", "Ten", "Ace", "Queen", "Jack"]
