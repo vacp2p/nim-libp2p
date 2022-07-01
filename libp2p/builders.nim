@@ -151,7 +151,7 @@ proc withNameResolver*(b: SwitchBuilder, nameResolver: NameResolver): SwitchBuil
   b.nameResolver = nameResolver
   b
 
-proc withCircuitRelay*(b: SwitchBuilder, r: Relay): SwitchBuilder =
+proc withCircuitRelay*(b: SwitchBuilder, r: Relay = Relay.new()): SwitchBuilder =
   b.circuitRelay = r
   b
 
