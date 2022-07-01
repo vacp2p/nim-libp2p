@@ -102,6 +102,23 @@ task examples_build, "Build the samples":
   buildTutorial("examples/tutorial_1_connect.md")
   buildTutorial("examples/tutorial_2_customproto.md")
 
+proc tutorialToHtml(source, output: string) =
+  var html = gorge("./nimbledeps/bin/markdown < " & source)
+  html &= """
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/water.css@2/out/water.css">
+<link rel="stylesheet" href="https://unpkg.com/@highlightjs/cdn-assets@11.5.1/styles/default.min.css">
+<script src="https://unpkg.com/@highlightjs/cdn-assets@11.5.1/highlight.min.js"></script>
+<script src="https://unpkg.com/@highlightjs/cdn-assets@11.5.1/languages/nim.min.js"></script>
+<script>hljs.highlightAll();</script>
+  """
+  writeFile(output, html)
+
+
+task markdown_to_html, "Build the tutorials HTML":
+  exec "nimble install -y markdown"
+  tutorialToHtml("examples/tutorial_1_connect.md", "tuto1.html")
+  tutorialToHtml("examples/tutorial_2_customproto.md", "tuto2.html")
+
 # pin system
 # while nimble lockfile
 # isn't available
