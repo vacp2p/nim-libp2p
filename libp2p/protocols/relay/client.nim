@@ -103,7 +103,8 @@ proc reserve*(cl: RelayClient,
     raise newException(ReservationError, "Missing reservation information")
 
   let reservation = msg.reservation.get()
-  if now().utc > reservation.expire.int64.fromUnix.utc:
+  if reservation.expire > int64.high().uint64 or
+     now().utc > reservation.expire.int64.fromUnix.utc:
     raise newException(ReservationError, "Bad expiration date")
   result.expire = reservation.expire
   result.addrs = reservation.addrs
