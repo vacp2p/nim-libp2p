@@ -477,11 +477,16 @@ proc commonInteropTests*(name: string, swCreator: SwitchCreator) =
 proc relayInteropTests*(name: string, relayCreator: SwitchCreator) =
   suite "Interop relay using " & name:
     asyncTest "NativeSrc -> NativeRelay -> DaemonDst":
+      let closeBlocker = newFuture[void]()
+      # TODO: This Future blocks the daemonHandler after sending the last message.
+      # It exists because there's a strange behavior where stream.close sends
+      # a Rst instead of Fin. We should investigate this at some point.
       proc daemonHandler(api: DaemonAPI, stream: P2PStream) {.async.} =
         check "line1" == string.fromBytes(await stream.transp.readLp())
         discard await stream.transp.writeLp("line2")
         check "line3" == string.fromBytes(await stream.transp.readLp())
         discard await stream.transp.writeLp("line4")
+        await closeBlocker
         await stream.close()
       let
         maSrc = MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
@@ -508,6 +513,7 @@ proc relayInteropTests*(name: string, relayCreator: SwitchCreator) =
       await conn.writeLp("line3")
       check string.fromBytes(await conn.readLp(1024)) == "line4"
 
+      closeBlocker.complete()
       await allFutures(src.stop(), rel.stop())
       await daemonNode.close()
 
