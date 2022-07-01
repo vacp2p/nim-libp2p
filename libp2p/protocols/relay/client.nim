@@ -149,21 +149,17 @@ proc dialPeerV1*(
     await sendStatus(conn, StatusV1.HopCantOpenDstStream)
     raise exc
 
-  if msgRcvFromRelayOpt.isNone:
-    trace "error reading stop response", msg = msgRcvFromRelayOpt
+  try:
+    if msgRcvFromRelayOpt.isNone:
+      raise newException(RelayV1DialError, "Hop can't open destination stream")
+    let msgRcvFromRelay = msgRcvFromRelayOpt.get()
+    if msgRcvFromRelay.msgType.isNone or msgRcvFromRelay.msgType.get() != RelayType.Status:
+      raise newException(RelayV1DialError, "Hop can't open destination stream: wrong message type")
+    if msgRcvFromRelay.status.isNone or msgRcvFromRelay.status.get() != StatusV1.Success:
+      raise newException(RelayV1DialError, "Hop can't open destination stream: status failed")
+  except RelayV1DialError as exc:
     await sendStatus(conn, StatusV1.HopCantOpenDstStream)
-    raise newException(RelayV1DialError, "Hop can't open destination stream")
-
-  let msgRcvFromRelay = msgRcvFromRelayOpt.get()
-  if msgRcvFromRelay.msgType.isNone or msgRcvFromRelay.msgType.get() != RelayType.Status:
-    trace "unexcepted relay stop response", msgType = msgRcvFromRelay.msgType
-    await sendStatus(conn, StatusV1.HopCantOpenDstStream)
-    raise newException(RelayV1DialError, "Hop can't open destination stream")
-
-  if msgRcvFromRelay.status.isNone or msgRcvFromRelay.status.get() != StatusV1.Success:
-    trace "relay stop failure", status=msgRcvFromRelay.status
-    await sendStatus(conn, StatusV1.HopCantOpenDstStream)
-    raise newException(RelayV1DialError, "Hop can't open destination stream")
+    raise exc
   result = conn
 
 proc dialPeerV2*(
