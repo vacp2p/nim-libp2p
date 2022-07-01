@@ -9,6 +9,7 @@
 when defined(nimHasUsed): {.used.}
 
 import unittest2
+import stublogger
 import ../libp2p/crypto/crypto
 import nimcrypto/utils
 

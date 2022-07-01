@@ -1,4 +1,4 @@
-import options, tables
+import options, tables, stublogger
 import chronos, chronicles, stew/byteutils
 import helpers
 import ../libp2p
