@@ -66,13 +66,13 @@ proc dial*(self: RelayTransport, ma: MultiAddress): Future[Connection] {.async, 
     raise newException(RelayV2DialError, "Destination doesn't exist")
   trace "Dial", relayPeerId, dstPeerId
 
-  let (conn, proto) = await self.client.switch.dial(
+  let conn = await self.client.switch.dial(
     relayPeerId,
     @[ relayAddrs ],
     @[ RelayV2HopCodec, RelayV1Codec ])
   var rc: RelayConnection
   try:
-    case proto:
+    case conn.protocol:
     of RelayV1Codec:
       return await self.client.dialPeerV1(conn, dstPeerId, @[])
     of RelayV2HopCodec:

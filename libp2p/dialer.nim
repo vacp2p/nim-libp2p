@@ -176,19 +176,19 @@ method connect*(
 proc negotiateStream(
   self: Dialer,
   conn: Connection,
-  protos: seq[string]): Future[DialRes] {.async.} =
+  protos: seq[string]): Future[Connection] {.async.} =
   trace "Negotiating stream", conn, protos
   let selected = await self.ms.select(conn, protos)
   if not protos.contains(selected):
     await conn.closeWithEOF()
     raise newException(DialFailedError, "Unable to select sub-protocol " & $protos)
 
-  return (conn, selected)
+  return conn
 
 method dial*(
   self: Dialer,
   peerId: PeerId,
-  protos: seq[string]): Future[DialRes] {.async.} =
+  protos: seq[string]): Future[Connection] {.async.} =
   ## create a protocol stream over an
   ## existing connection
   ##
@@ -205,7 +205,7 @@ method dial*(
   peerId: PeerId,
   addrs: seq[MultiAddress],
   protos: seq[string],
-  forceDial = false): Future[DialRes] {.async.} =
+  forceDial = false): Future[Connection] {.async.} =
   ## create a protocol stream and establish
   ## a connection if one doesn't exist already
   ##
