@@ -10,7 +10,7 @@
 {.push raises: [Defect].}
 
 import
-  options, tables, chronos, chronicles, bearssl,
+  options, tables, chronos, chronicles,
   switch, peerid, peerinfo, stream/connection, multiaddress,
   crypto/crypto, transports/[transport, tcptransport],
   muxers/[muxer, mplex/mplex, yamux/yamux],
@@ -39,7 +39,7 @@ type
     secureManagers: seq[SecureProtocol]
     muxers: seq[MuxerBuilder]
     transports: seq[TransportProvider]
-    rng: ref BrHmacDrbgContext
+    rng: ref HmacDrbgContext
     maxConnections: int
     maxIn: int
     sendSignedPeerRecord: bool
@@ -118,7 +118,7 @@ proc withTransport*(b: SwitchBuilder, prov: TransportProvider): SwitchBuilder =
 proc withTcpTransport*(b: SwitchBuilder, flags: set[ServerFlags] = {}): SwitchBuilder =
   b.withTransport(proc(upgr: Upgrade): Transport = TcpTransport.new(flags, upgr))
 
-proc withRng*(b: SwitchBuilder, rng: ref BrHmacDrbgContext): SwitchBuilder =
+proc withRng*(b: SwitchBuilder, rng: ref HmacDrbgContext): SwitchBuilder =
   b.rng = rng
   b
 

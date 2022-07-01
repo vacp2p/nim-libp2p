@@ -5,7 +5,6 @@ We'll now look at how to create a custom protocol inside the libp2p
 # Custom protocol in libp2p
 Let's create a `part2.nim`, and import our dependencies:
 ```nim
-import bearssl
 import chronos
 import stew/byteutils
 

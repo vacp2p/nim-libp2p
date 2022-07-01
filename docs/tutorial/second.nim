@@ -150,7 +150,7 @@ proc readInput(wfd: AsyncFD) {.thread.} =
     let line = stdin.readLine()
     discard waitFor transp.write(line & "\r\n")
 
-proc processInput(rfd: AsyncFD, rng: ref BrHmacDrbgContext) {.async.} =
+proc processInput(rfd: AsyncFD, rng: ref HmacDrbgContext) {.async.} =
   let transp = fromPipe(rfd)
 
   let seckey = PrivateKey.random(RSA, rng[]).get()
