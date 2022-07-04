@@ -466,6 +466,7 @@ proc dial*(self: RelayTransport, ma: MultiAddress): Future[Connection] {.async, 
   trace "Dial", relayPeerId, relayAddrs, dstPeerId
 
   let conn = await self.relay.switch.dial(relayPeerId, @[ relayAddrs ], RelayCodec)
+  conn.dir = Direction.Out
   result = await self.relay.dialPeer(conn, dstPeerId, @[])
 
 method dial*(

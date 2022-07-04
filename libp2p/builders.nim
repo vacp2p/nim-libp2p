@@ -22,7 +22,7 @@ import
   options, tables, chronos, chronicles,
   switch, peerid, peerinfo, stream/connection, multiaddress,
   crypto/crypto, transports/[transport, tcptransport],
-  muxers/[muxer, mplex/mplex],
+  muxers/[muxer, mplex/mplex, yamux/yamux],
   protocols/[identify, secure/secure, secure/noise, relay],
   connmanager, upgrademngrs/muxedupgrade,
   nameresolving/nameresolver,
@@ -38,15 +38,15 @@ type
     Noise,
     Secio {.deprecated.}
 
-  MplexOpts = object
-    enable: bool
+  MuxerBuilder = object
+    codec: string
     newMuxer: MuxerConstructor
 
   SwitchBuilder* = ref object
     privKey: Option[PrivateKey]
     addresses: seq[MultiAddress]
     secureManagers: seq[SecureProtocol]
-    mplexOpts: MplexOpts
+    muxers: seq[MuxerBuilder]
     transports: seq[TransportProvider]
     rng: ref HmacDrbgContext
     maxConnections: int
@@ -119,11 +119,13 @@ proc withMplex*(
       outTimeout,
       maxChannCount)
 
-  b.mplexOpts = MplexOpts(
-    enable: true,
-    newMuxer: newMuxer,
-  )
+  b.muxers.add(MuxerBuilder(codec: MplexCodec, newMuxer: newMuxer))
+  b
 
+proc withYamux*(b: SwitchBuilder): SwitchBuilder =
+  proc newMuxer(conn: Connection): Muxer = Yamux.new(conn)
+
+  b.muxers.add(MuxerBuilder(codec: YamuxCodec, newMuxer: newMuxer))
   b
 
 proc withNoise*(b: SwitchBuilder): SwitchBuilder {.public.} =
@@ -213,8 +215,8 @@ proc build*(b: SwitchBuilder): Switch
   let
     muxers = block:
       var muxers: Table[string, MuxerProvider]
-      if b.mplexOpts.enable:
-        muxers[MplexCodec] = MuxerProvider.new(b.mplexOpts.newMuxer, MplexCodec)
+      for m in b.muxers:
+        muxers[m.codec] = MuxerProvider.new(m.newMuxer, m.codec)
       muxers
 
   let

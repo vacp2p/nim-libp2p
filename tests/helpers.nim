@@ -87,6 +87,22 @@ proc new*(T: typedesc[TestBufferStream], writeHandler: WriteHandler): T =
   testBufferStream.initStream()
   testBufferStream
 
+proc bridgedConnections*: (Connection, Connection) =
+  let
+    connA = TestBufferStream()
+    connB = TestBufferStream()
+  connA.dir = Direction.Out
+  connB.dir = Direction.In
+  connA.initStream()
+  connB.initStream()
+  connA.writeHandler = proc(data: seq[byte]) {.async.} =
+    await connB.pushData(data)
+
+  connB.writeHandler = proc(data: seq[byte]) {.async.} =
+    await connA.pushData(data)
+  return (connA, connB)
+
+
 proc checkExpiringInternal(cond: proc(): bool {.raises: [Defect].} ): Future[bool] {.async, gcsafe.} =
   {.gcsafe.}:
     let start = Moment.now()
