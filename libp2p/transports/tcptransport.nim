@@ -1,11 +1,13 @@
-## Nim-LibP2P
-## Copyright (c) 2019 Status Research & Development GmbH
-## Licensed under either of
-##  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
-##  * MIT license ([LICENSE-MIT](LICENSE-MIT))
-## at your option.
-## This file may not be copied, modified, or distributed except according to
-## those terms.
+# Nim-LibP2P
+# Copyright (c) 2022 Status Research & Development GmbH
+# Licensed under either of
+#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+#  * MIT license ([LICENSE-MIT](LICENSE-MIT))
+# at your option.
+# This file may not be copied, modified, or distributed except according to
+# those terms.
+
+## TCP transport implementation
 
 {.push raises: [Defect].}
 
@@ -20,7 +22,8 @@ import transport,
        ../multiaddress,
        ../stream/connection,
        ../stream/chronosstream,
-       ../upgrademngrs/upgrade
+       ../upgrademngrs/upgrade,
+       ../utility
 
 logScope:
   topics = "libp2p tcptransport"
@@ -118,7 +121,7 @@ proc connHandler*(self: TcpTransport,
 proc new*(
   T: typedesc[TcpTransport],
   flags: set[ServerFlags] = {},
-  upgrade: Upgrade): T =
+  upgrade: Upgrade): T {.public.} =
 
   let transport = T(
     flags: flags,

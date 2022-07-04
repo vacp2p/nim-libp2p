@@ -47,7 +47,7 @@ proc switchYamuxCreator(
     .build()
 
 
-suite "Interop mplex":
+suite "Tests interop":
   commonInteropTests("mplex", switchMplexCreator)
   relayInteropTests("mplex", switchMplexCreator)
 

@@ -1,23 +1,24 @@
-## Nim-Libp2p
-## Copyright (c) 2018 Status Research & Development GmbH
-## Licensed under either of
-##  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
-##  * MIT license ([LICENSE-MIT](LICENSE-MIT))
-## at your option.
-## This file may not be copied, modified, or distributed except according to
-## those terms.
+# Nim-Libp2p
+# Copyright (c) 2022 Status Research & Development GmbH
+# Licensed under either of
+#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+#  * MIT license ([LICENSE-MIT](LICENSE-MIT))
+# at your option.
+# This file may not be copied, modified, or distributed except according to
+# those terms.
 
 ## This module implements MultiAddress.
 
 {.push raises: [Defect].}
+{.push public.}
 
 import pkg/chronos
 import std/[nativesockets, hashes]
 import tables, strutils, sets, stew/shims/net
 import multicodec, multihash, multibase, transcoder, vbuffer, peerid,
-       protobuf/minprotobuf, errors
+       protobuf/minprotobuf, errors, utility
 import stew/[base58, base32, endians2, results]
-export results, minprotobuf, vbuffer
+export results, minprotobuf, vbuffer, utility
 
 type
   MAKind* = enum
