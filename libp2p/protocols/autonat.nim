@@ -169,6 +169,13 @@ proc decode(_: typedesc[AutonatMsg], buf: seq[byte]): Option[AutonatMsg] =
 
   return some(msg)
 
+proc sendDial(conn: Connection, pid: PeerId, addrs: seq[MultiAddress]) {.async.} =
+  let pb = AutonatDial(peerInfo: some(AutonatPeerInfo(
+                         id: some(pid),
+                         addrs: addrs
+                       ))).encode()
+  await conn.write(pb.buffer)
+
 proc sendResponseError(conn: Connection, status: ResponseStatus, text: string = "") {.async.} =
   let pb = AutonatDialResponse(
              status: status,
@@ -188,6 +195,24 @@ proc sendResponseOk(conn: Connection, ma: MultiAddress) {.async.} =
 type
   Autonat* = ref object of LPProtocol
     switch: Switch
+
+proc dialBack*(a: Autonat, pid: PeerId, ma: MultiAddress|seq[MultiAddress]):
+    Future[MultiAddress] {.async.} =
+  let addrs = when ma is MultiAddress: @[ma] else: ma
+  let conn = await a.switch.dial(pid, addrs, AutonatCodec)
+  defer: await conn.close()
+  await conn.sendDial(a.switch.peerInfo.peerId, a.switch.peerInfo.addrs)
+  let msgOpt = AutonatMsg.decode(await conn.readLp(1024)) # Lp?
+  if msgOpt.isNone() or
+     msgOpt.get().MsgType != DialResponse or
+     msgOpt.get().response.isNone():
+    raise newException(AutonatError, "Unexpected response")
+  let response = msgOpt.get().response.get()
+  if response.status != ResponseStatus.Ok:
+    raise newException(AutonatError, "Bad status " & $response.status & " " & response.text)
+  if response.ma.isNone():
+    raise newException(AutonatError, "Missing address")
+  return response.ma.get()
 
 proc doDial(a: Autonat, conn: Connection, addrs: seq[MultiAddress]) {.async.} =
   try:
