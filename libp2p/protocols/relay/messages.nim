@@ -10,31 +10,11 @@
 {.push raises: [Defect].}
 
 import options, macros, sequtils
-
+import stew/objects
 import ../../peerinfo,
        ../../signed_envelope
 
 # Circuit Relay V1 Message
-
-# TODO: Eventually remove those three macros/proc & replace it by stew/objects
-macro enumRangeOrd(a: type[enum]): untyped =
-  let
-    values = a.getType[1][1..^1]
-    valuesOrded = values.mapIt(newCall("ord", it))
-  newNimNode(nnkBracket).add(valuesOrded)
-
-macro hasHoles*(T: type[enum]): bool =
-  let len = T.getType[1].len - 2
-  quote: `T`.high.ord - `T`.low.ord != `len`
-
-proc contains[I: SomeInteger](e: type[enum], v: I): bool =
-  when I is uint64:
-    if v > int.high.uint64:
-      return false
-  when e.hasHoles():
-    v.int64 in enumRangeOrd(e).mapIt(it.int64)
-  else:
-    v.int64 in e.low.int64 .. e.high.int64
 
 type
   RelayType* {.pure.} = enum
@@ -296,9 +276,8 @@ proc decode*(_: typedesc[HopMessage], buf: seq[byte]): Option[HopMessage] =
       pbLimit.getField(2, limit.data).isErr()):
     return none(HopMessage)
 
-  if msgTypeOrd.int notin HopMessageType.low.ord .. HopMessageType.high.ord:
+  if not checkedEnumAssign(msg.msgType, msgTypeOrd):
     return none(HopMessage)
-  msg.msgType = HopMessageType(msgTypeOrd)
   if r2.get(): msg.peer = some(peer)
   if r3.get(): msg.reservation = some(reservation)
   if r4.get(): msg.limit = limit

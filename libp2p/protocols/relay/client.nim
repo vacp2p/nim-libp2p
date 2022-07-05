@@ -37,7 +37,7 @@ type
                         duration: uint32,
                         data: uint64): Future[void] {.gcsafe, raises: [Defect].}
   RelayClient* = ref object of Relay
-    addConn*: RelayClientAddConn
+    onNewConnection*: RelayClientAddConn
     canHop: bool
 
   Rsvp* = object
@@ -69,14 +69,14 @@ proc handleRelayedConnect(cl: RelayClient, conn: Connection, msg: StopMessage) {
 
   trace "incoming relay connection", src
 
-  if cl.addConn == nil:
+  if cl.onNewConnection == nil:
     await sendStopError(conn, StatusV2.ConnectionFailed)
     await conn.close()
     return
   await conn.writeLp(pb.buffer)
   # This sound redundant but the callback could, in theory, be set to nil during
   # conn.writeLp so it's safer to double check
-  if cl.addConn != nil: await cl.addConn(conn, limitDuration, limitData)
+  if cl.onNewConnection != nil: await cl.onNewConnection(conn, limitDuration, limitData)
   else: await conn.close()
 
 proc reserve*(cl: RelayClient,
@@ -222,14 +222,14 @@ proc handleStop(cl: RelayClient, conn: Connection, msg: RelayMessage) {.async, g
 
   trace "get a relay connection", src, conn
 
-  if cl.addConn == nil:
+  if cl.onNewConnection == nil:
     await sendStatus(conn, StatusV1.StopRelayRefused)
     await conn.close()
     return
   await sendStatus(conn, StatusV1.Success)
   # This sound redundant but the callback could, in theory, be set to nil during
   # sendStatus(Success) so it's safer to double check
-  if cl.addConn != nil: await cl.addConn(conn, 0, 0)
+  if cl.onNewConnection != nil: await cl.onNewConnection(conn, 0, 0)
   else: await conn.close()
 
 proc handleStreamV1(cl: RelayClient, conn: Connection) {.async, gcsafe.} =

@@ -34,11 +34,12 @@ method start*(self: RelayTransport, ma: seq[MultiAddress]) {.async.} =
     trace "Relay transport already running"
     return
 
-  self.client.addConn = proc(conn: Connection,
-                             duration: uint32 = 0,
-                             data: uint64 = 0) {.async, gcsafe, raises: [Defect].} =
-    await self.queue.addLast(RelayConnection.new(conn, duration, data))
-    await conn.join()
+  self.client.onNewConnection = proc(
+    conn: Connection,
+    duration: uint32 = 0,
+    data: uint64 = 0) {.async, gcsafe, raises: [Defect].} =
+      await self.queue.addLast(RelayConnection.new(conn, duration, data))
+      await conn.join()
   self.selfRunning = true
   await procCall Transport(self).start(ma)
   trace "Starting Relay transport"
@@ -46,7 +47,7 @@ method start*(self: RelayTransport, ma: seq[MultiAddress]) {.async.} =
 method stop*(self: RelayTransport) {.async, gcsafe.} =
   self.running = false
   self.selfRunning = false
-  self.client.addConn = nil
+  self.client.onNewConnection = nil
   while not self.queue.empty():
     await self.queue.popFirstNoWait().close()
 
