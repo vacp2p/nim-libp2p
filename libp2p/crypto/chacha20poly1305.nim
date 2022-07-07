@@ -1,11 +1,11 @@
-## Nim-Libp2p
-## Copyright (c) 2020-2022 Status Research & Development GmbH
-## Licensed under either of
-##  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
-##  * MIT license ([LICENSE-MIT](LICENSE-MIT))
-## at your option.
-## This file may not be copied, modified, or distributed except according to
-## those terms.
+# Nim-Libp2p
+# Copyright (c) 2022 Status Research & Development GmbH
+# Licensed under either of
+#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+#  * MIT license ([LICENSE-MIT](LICENSE-MIT))
+# at your option.
+# This file may not be copied, modified, or distributed except according to
+# those terms.
 
 ## This module integrates BearSSL ChaCha20+Poly1305
 ##
@@ -17,16 +17,9 @@
 
 {.push raises: [Defect].}
 
-import bearssl
+import bearssl/blockx
 from stew/assign2 import assign
 from stew/ranges/ptr_arith import baseAddr
-
-# have to do this due to a nim bug and raises[] on callbacks
-# https://github.com/nim-lang/Nim/issues/13905
-proc ourPoly1305CtmulRun*(key: pointer; iv: pointer; data: pointer; len: int;
-                      aad: pointer; aadLen: int; tag: pointer; ichacha: pointer;
-                      encrypt: cint) {.cdecl, importc: "br_poly1305_ctmul_run",
-                                     header: "bearssl_block.h".}
 
 const
   ChaChaPolyKeySize = 32
@@ -67,15 +60,16 @@ proc encrypt*(_: type[ChaChaPoly],
          else:
            nil
 
-  ourPoly1305CtmulRun(
+  poly1305CtmulRun(
     unsafeAddr key[0],
     unsafeAddr nonce[0],
     baseAddr(data),
-    data.len,
+    uint(data.len),
     ad,
-    aad.len,
+    uint(aad.len),
     baseAddr(tag),
-    chacha20CtRun,
+    # cast is required to workaround https://github.com/nim-lang/Nim/issues/13905
+    cast[Chacha20Run](chacha20CtRun),
     #[encrypt]# 1.cint)
 
 proc decrypt*(_: type[ChaChaPoly],
@@ -90,13 +84,14 @@ proc decrypt*(_: type[ChaChaPoly],
          else:
            nil
 
-  ourPoly1305CtmulRun(
+  poly1305CtmulRun(
     unsafeAddr key[0],
     unsafeAddr nonce[0],
     baseAddr(data),
-    data.len,
+    uint(data.len),
     ad,
-    aad.len,
+    uint(aad.len),
     baseAddr(tag),
-    chacha20CtRun,
+    # cast is required to workaround https://github.com/nim-lang/Nim/issues/13905
+    cast[Chacha20Run](chacha20CtRun),
     #[decrypt]# 0.cint)

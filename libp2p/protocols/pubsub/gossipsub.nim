@@ -1,11 +1,13 @@
-## Nim-LibP2P
-## Copyright (c) 2019 Status Research & Development GmbH
-## Licensed under either of
-##  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
-##  * MIT license ([LICENSE-MIT](LICENSE-MIT))
-## at your option.
-## This file may not be copied, modified, or distributed except according to
-## those terms.
+# Nim-LibP2P
+# Copyright (c) 2022 Status Research & Development GmbH
+# Licensed under either of
+#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+#  * MIT license ([LICENSE-MIT](LICENSE-MIT))
+# at your option.
+# This file may not be copied, modified, or distributed except according to
+# those terms.
+
+## Gossip based publishing
 
 {.push raises: [Defect].}
 
@@ -506,7 +508,7 @@ method publish*(g: GossipSub,
     g.rng.shuffle(fanoutPeers)
     if fanoutPeers.len + peers.len > g.parameters.d:
       fanoutPeers.setLen(g.parameters.d - peers.len)
-    
+
     for fanPeer in fanoutPeers:
       peers.incl(fanPeer)
       if peers.len > g.parameters.d: break
@@ -520,29 +522,25 @@ method publish*(g: GossipSub,
 
   if peers.len == 0:
     let topicPeers = g.gossipsub.getOrDefault(topic).toSeq()
-    notice "No peers for topic, skipping publish",  peersOnTopic = topicPeers.len,
-                                                    connectedPeers = topicPeers.filterIt(it.connected).len,
-                                                    topic
+    debug "No peers for topic, skipping publish",  peersOnTopic = topicPeers.len,
+                                                   connectedPeers = topicPeers.filterIt(it.connected).len,
+                                                   topic
     # skipping topic as our metrics finds that heavy
     libp2p_gossipsub_failed_publish.inc()
     return 0
 
-  inc g.msgSeqno
   let
     msg =
       if g.anonymize:
         Message.init(none(PeerInfo), data, topic, none(uint64), false)
       else:
+        inc g.msgSeqno
         Message.init(some(g.peerInfo), data, topic, some(g.msgSeqno), g.sign)
-    msgIdResult = g.msgIdProvider(msg)
-
-  if msgIdResult.isErr:
-    trace "Error generating message id, skipping publish",
-      error = msgIdResult.error
-    libp2p_gossipsub_failed_publish.inc()
-    return 0
-
-  let msgId = msgIdResult.get
+    msgId = g.msgIdProvider(msg).valueOr:
+      trace "Error generating message id, skipping publish",
+        error = error
+      libp2p_gossipsub_failed_publish.inc()
+      return 0
 
   logScope: msgId = shortLog(msgId)
 
@@ -566,22 +564,28 @@ method publish*(g: GossipSub,
 
   return peers.len
 
+proc maintainDirectPeer(g: GossipSub, id: PeerId, addrs: seq[MultiAddress]) {.async.} =
+  let peer = g.peers.getOrDefault(id)
+  if isNil(peer):
+    trace "Attempting to dial a direct peer", peer = id
+    try:
+      await g.switch.connect(id, addrs)
+      # populate the peer after it's connected
+      discard g.getOrCreatePeer(id, g.codecs)
+    except CancelledError as exc:
+      trace "Direct peer dial canceled"
+      raise exc
+    except CatchableError as exc:
+      debug "Direct peer error dialing", msg = exc.msg
+
+proc addDirectPeer*(g: GossipSub, id: PeerId, addrs: seq[MultiAddress]) {.async.} =
+  g.parameters.directPeers[id] = addrs
+  await g.maintainDirectPeer(id, addrs)
+
 proc maintainDirectPeers(g: GossipSub) {.async.} =
   heartbeat "GossipSub DirectPeers", 1.minutes:
     for id, addrs in g.parameters.directPeers:
-      let peer = g.peers.getOrDefault(id)
-      if isNil(peer):
-        trace "Attempting to dial a direct peer", peer = id
-        try:
-          # dial, internally connection will be stored
-          let _ = await g.switch.dial(id, addrs, g.codecs)
-          # populate the peer after it's connected
-          discard g.getOrCreatePeer(id, g.codecs)
-        except CancelledError as exc:
-          trace "Direct peer dial canceled"
-          raise exc
-        except CatchableError as exc:
-          debug "Direct peer error dialing", msg = exc.msg
+      await g.addDirectPeer(id, addrs)
 
 method start*(g: GossipSub) {.async.} =
   trace "gossipsub start"
@@ -593,9 +597,11 @@ method start*(g: GossipSub) {.async.} =
   g.heartbeatFut = g.heartbeat()
   g.scoringHeartbeatFut = g.scoringHeartbeat()
   g.directPeersLoop = g.maintainDirectPeers()
+  g.started = true
 
 method stop*(g: GossipSub) {.async.} =
   trace "gossipsub stop"
+  g.started = false
   if g.heartbeatFut.isNil:
     warn "Stopping gossipsub without starting it"
     return

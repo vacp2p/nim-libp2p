@@ -28,16 +28,14 @@ const nimflags =
 proc runTest(filename: string, verify: bool = true, sign: bool = true,
              moreoptions: string = "") =
   var excstr = "nim c --opt:speed -d:debug -d:libp2p_agents_metrics -d:libp2p_protobuf_metrics -d:libp2p_network_protocols_metrics -d:libp2p_mplex_metrics "
+  excstr.add(" -d:chronicles_sinks=textlines[stdout],json[dynamic] -d:chronicles_log_level=TRACE ")
+  excstr.add(" -d:chronicles_runtime_filtering=TRUE ")
   excstr.add(" " & getEnv("NIMFLAGS") & " ")
   excstr.add(" " & nimflags & " ")
   excstr.add(" -d:libp2p_pubsub_sign=" & $sign)
   excstr.add(" -d:libp2p_pubsub_verify=" & $verify)
   excstr.add(" " & moreoptions & " ")
-  if verify and sign:
-    # build it with TRACE and JSON logs
-    exec excstr & " -d:chronicles_log_level=TRACE -d:chronicles_sinks:json" & " tests/" & filename
-  # build it again, to run it with less verbose logs
-  exec excstr & " -d:chronicles_log_level=INFO -r" & " tests/" & filename
+  exec excstr & " -r " & " tests/" & filename
   rmFile "tests/" & filename.toExe
 
 proc buildSample(filename: string, run = false) =
@@ -101,6 +99,23 @@ task examples_build, "Build the samples":
   buildSample("helloworld", true)
   buildTutorial("examples/tutorial_1_connect.md")
   buildTutorial("examples/tutorial_2_customproto.md")
+
+proc tutorialToHtml(source, output: string) =
+  var html = gorge("./nimbledeps/bin/markdown < " & source)
+  html &= """
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/water.css@2/out/water.css">
+<link rel="stylesheet" href="https://unpkg.com/@highlightjs/cdn-assets@11.5.1/styles/default.min.css">
+<script src="https://unpkg.com/@highlightjs/cdn-assets@11.5.1/highlight.min.js"></script>
+<script src="https://unpkg.com/@highlightjs/cdn-assets@11.5.1/languages/nim.min.js"></script>
+<script>hljs.highlightAll();</script>
+  """
+  writeFile(output, html)
+
+
+task markdown_to_html, "Build the tutorials HTML":
+  exec "nimble install -y markdown"
+  tutorialToHtml("examples/tutorial_1_connect.md", "tuto1.html")
+  tutorialToHtml("examples/tutorial_2_customproto.md", "tuto2.html")
 
 # pin system
 # while nimble lockfile

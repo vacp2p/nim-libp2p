@@ -1,45 +1,54 @@
-## Nim-Libp2p
-## Copyright (c) 2020 Status Research & Development GmbH
-## Licensed under either of
-##  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
-##  * MIT license ([LICENSE-MIT](LICENSE-MIT))
-## at your option.
-## This file may not be copied, modified, or distributed except according to
-## those terms.
+# Nim-Libp2p
+# Copyright (c) 2022 Status Research & Development GmbH
+# Licensed under either of
+#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+#  * MIT license ([LICENSE-MIT](LICENSE-MIT))
+# at your option.
+# This file may not be copied, modified, or distributed except according to
+# those terms.
+
+## This module contains a Switch Building helper.
+runnableExamples:
+  let switch =
+   SwitchBuilder.new()
+   .withRng(rng)
+   .withAddresses(multiaddress)
+   # etc
+   .build()
 
 {.push raises: [Defect].}
 
 import
-  options, tables, chronos, chronicles, bearssl,
+  options, tables, chronos, chronicles,
   switch, peerid, peerinfo, stream/connection, multiaddress,
   crypto/crypto, transports/[transport, tcptransport],
-  muxers/[muxer, mplex/mplex],
+  muxers/[muxer, mplex/mplex, yamux/yamux],
   protocols/[identify, secure/secure, secure/noise, relay],
   connmanager, upgrademngrs/muxedupgrade,
   nameresolving/nameresolver,
-  errors
+  errors, utility
 
 export
   switch, peerid, peerinfo, connection, multiaddress, crypto, errors
 
 type
-  TransportProvider* = proc(upgr: Upgrade): Transport {.gcsafe, raises: [Defect].}
+  TransportProvider* {.public.} = proc(upgr: Upgrade): Transport {.gcsafe, raises: [Defect].}
 
   SecureProtocol* {.pure.} = enum
     Noise,
     Secio {.deprecated.}
 
-  MplexOpts = object
-    enable: bool
+  MuxerBuilder = object
+    codec: string
     newMuxer: MuxerConstructor
 
   SwitchBuilder* = ref object
     privKey: Option[PrivateKey]
     addresses: seq[MultiAddress]
     secureManagers: seq[SecureProtocol]
-    mplexOpts: MplexOpts
+    muxers: seq[MuxerBuilder]
     transports: seq[TransportProvider]
-    rng: ref BrHmacDrbgContext
+    rng: ref HmacDrbgContext
     maxConnections: int
     maxIn: int
     sendSignedPeerRecord: bool
@@ -52,7 +61,8 @@ type
     isCircuitRelay: bool
     circuitRelayCanHop: bool
 
-proc new*(T: type[SwitchBuilder]): T =
+proc new*(T: type[SwitchBuilder]): T {.public.} =
+  ## Creates a SwitchBuilder
 
   let address = MultiAddress
   .init("/ip4/127.0.0.1/tcp/0")
@@ -70,19 +80,28 @@ proc new*(T: type[SwitchBuilder]): T =
     agentVersion: AgentVersion,
     isCircuitRelay: false)
 
-proc withPrivateKey*(b: SwitchBuilder, privateKey: PrivateKey): SwitchBuilder =
+proc withPrivateKey*(b: SwitchBuilder, privateKey: PrivateKey): SwitchBuilder {.public.} =
+  ## Set the private key of the switch. Will be used to
+  ## generate a PeerId
+
   b.privKey = some(privateKey)
   b
 
-proc withAddress*(b: SwitchBuilder, address: MultiAddress): SwitchBuilder =
+proc withAddress*(b: SwitchBuilder, address: MultiAddress): SwitchBuilder {.public.} =
+  ## | Set the listening address of the switch
+  ## | Calling it multiple time will override the value
+
   b.addresses = @[address]
   b
 
-proc withAddresses*(b: SwitchBuilder, addresses: seq[MultiAddress]): SwitchBuilder =
+proc withAddresses*(b: SwitchBuilder, addresses: seq[MultiAddress]): SwitchBuilder {.public.} =
+  ## | Set the listening addresses of the switch
+  ## | Calling it multiple time will override the value
+
   b.addresses = addresses
   b
 
-proc withSignedPeerRecord*(b: SwitchBuilder, sendIt = true): SwitchBuilder =
+proc withSignedPeerRecord*(b: SwitchBuilder, sendIt = true): SwitchBuilder {.public.} =
   b.sendSignedPeerRecord = sendIt
   b
 
@@ -90,7 +109,9 @@ proc withMplex*(
     b: SwitchBuilder,
     inTimeout = 5.minutes,
     outTimeout = 5.minutes,
-    maxChannCount = 200): SwitchBuilder =
+    maxChannCount = 200): SwitchBuilder {.public.} =
+  ## | Uses `Mplex <https://docs.libp2p.io/concepts/stream-multiplexing/#mplex>`_ as a multiplexer
+  ## | `Timeout` is the duration after which a inactive connection will be closed
   proc newMuxer(conn: Connection): Muxer =
     Mplex.new(
       conn,
@@ -98,57 +119,69 @@ proc withMplex*(
       outTimeout,
       maxChannCount)
 
-  b.mplexOpts = MplexOpts(
-    enable: true,
-    newMuxer: newMuxer,
-  )
-
+  b.muxers.add(MuxerBuilder(codec: MplexCodec, newMuxer: newMuxer))
   b
 
-proc withNoise*(b: SwitchBuilder): SwitchBuilder =
+proc withYamux*(b: SwitchBuilder): SwitchBuilder =
+  proc newMuxer(conn: Connection): Muxer = Yamux.new(conn)
+
+  b.muxers.add(MuxerBuilder(codec: YamuxCodec, newMuxer: newMuxer))
+  b
+
+proc withNoise*(b: SwitchBuilder): SwitchBuilder {.public.} =
   b.secureManagers.add(SecureProtocol.Noise)
   b
 
-proc withTransport*(b: SwitchBuilder, prov: TransportProvider): SwitchBuilder =
+proc withTransport*(b: SwitchBuilder, prov: TransportProvider): SwitchBuilder {.public.} =
+  ## Use a custom transport
+  runnableExamples:
+    let switch =
+      SwitchBuilder.new()
+      .withTransport(proc(upgr: Upgrade): Transport = TcpTransport.new(flags, upgr))
+      .build()
   b.transports.add(prov)
   b
 
-proc withTcpTransport*(b: SwitchBuilder, flags: set[ServerFlags] = {}): SwitchBuilder =
+proc withTcpTransport*(b: SwitchBuilder, flags: set[ServerFlags] = {}): SwitchBuilder {.public.} =
   b.withTransport(proc(upgr: Upgrade): Transport = TcpTransport.new(flags, upgr))
 
-proc withRng*(b: SwitchBuilder, rng: ref BrHmacDrbgContext): SwitchBuilder =
+proc withRng*(b: SwitchBuilder, rng: ref HmacDrbgContext): SwitchBuilder {.public.} =
   b.rng = rng
   b
 
-proc withMaxConnections*(b: SwitchBuilder, maxConnections: int): SwitchBuilder =
+proc withMaxConnections*(b: SwitchBuilder, maxConnections: int): SwitchBuilder {.public.} =
+  ## Maximum concurrent connections of the switch. You should either use this, or
+  ## `withMaxIn <#withMaxIn,SwitchBuilder,int>`_ & `withMaxOut<#withMaxOut,SwitchBuilder,int>`_
   b.maxConnections = maxConnections
   b
 
-proc withMaxIn*(b: SwitchBuilder, maxIn: int): SwitchBuilder =
+proc withMaxIn*(b: SwitchBuilder, maxIn: int): SwitchBuilder {.public.} =
+  ## Maximum concurrent incoming connections. Should be used with `withMaxOut<#withMaxOut,SwitchBuilder,int>`_
   b.maxIn = maxIn
   b
 
-proc withMaxOut*(b: SwitchBuilder, maxOut: int): SwitchBuilder =
+proc withMaxOut*(b: SwitchBuilder, maxOut: int): SwitchBuilder {.public.} =
+  ## Maximum concurrent outgoing connections. Should be used with `withMaxIn<#withMaxIn,SwitchBuilder,int>`_
   b.maxOut = maxOut
   b
 
-proc withMaxConnsPerPeer*(b: SwitchBuilder, maxConnsPerPeer: int): SwitchBuilder =
+proc withMaxConnsPerPeer*(b: SwitchBuilder, maxConnsPerPeer: int): SwitchBuilder {.public.} =
   b.maxConnsPerPeer = maxConnsPerPeer
   b
 
-proc withPeerStore*(b: SwitchBuilder, capacity: int): SwitchBuilder =
+proc withPeerStore*(b: SwitchBuilder, capacity: int): SwitchBuilder {.public.} =
   b.peerStoreCapacity = some(capacity)
   b
 
-proc withProtoVersion*(b: SwitchBuilder, protoVersion: string): SwitchBuilder =
+proc withProtoVersion*(b: SwitchBuilder, protoVersion: string): SwitchBuilder {.public.} =
   b.protoVersion = protoVersion
   b
 
-proc withAgentVersion*(b: SwitchBuilder, agentVersion: string): SwitchBuilder =
+proc withAgentVersion*(b: SwitchBuilder, agentVersion: string): SwitchBuilder {.public.} =
   b.agentVersion = agentVersion
   b
 
-proc withNameResolver*(b: SwitchBuilder, nameResolver: NameResolver): SwitchBuilder =
+proc withNameResolver*(b: SwitchBuilder, nameResolver: NameResolver): SwitchBuilder {.public.} =
   b.nameResolver = nameResolver
   b
 
@@ -158,7 +191,7 @@ proc withRelayTransport*(b: SwitchBuilder, canHop: bool): SwitchBuilder =
   b
 
 proc build*(b: SwitchBuilder): Switch
-  {.raises: [Defect, LPError].} =
+  {.raises: [Defect, LPError], public.} =
 
   if b.rng == nil: # newRng could fail
     raise newException(Defect, "Cannot initialize RNG")
@@ -182,8 +215,8 @@ proc build*(b: SwitchBuilder): Switch
   let
     muxers = block:
       var muxers: Table[string, MuxerProvider]
-      if b.mplexOpts.enable:
-        muxers[MplexCodec] = MuxerProvider.new(b.mplexOpts.newMuxer, MplexCodec)
+      for m in b.muxers:
+        muxers[m.codec] = MuxerProvider.new(m.newMuxer, m.codec)
       muxers
 
   let
@@ -246,7 +279,9 @@ proc newStandardSwitch*(
   nameResolver: NameResolver = nil,
   sendSignedPeerRecord = false,
   peerStoreCapacity = 1000): Switch
-  {.raises: [Defect, LPError].} =
+  {.raises: [Defect, LPError], public.} =
+  ## Helper for common switch configurations.
+
   if SecureProtocol.Secio in secureManagers:
       quit("Secio is deprecated!") # use of secio is unsafe
 

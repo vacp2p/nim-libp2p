@@ -1,11 +1,11 @@
-## Nim-Libp2p
-## Copyright (c) 2018 Status Research & Development GmbH
-## Licensed under either of
-##  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
-##  * MIT license ([LICENSE-MIT](LICENSE-MIT))
-## at your option.
-## This file may not be copied, modified, or distributed except according to
-## those terms.
+# Nim-Libp2p
+# Copyright (c) 2022 Status Research & Development GmbH
+# Licensed under either of
+#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+#  * MIT license ([LICENSE-MIT](LICENSE-MIT))
+# at your option.
+# This file may not be copied, modified, or distributed except according to
+# those terms.
 
 ## This module implements Public Key and Private Key interface for libp2p.
 {.push raises: [Defect].}
@@ -69,17 +69,17 @@ when supported(PKScheme.Secp256k1):
 # We are still importing `ecnist` because, it is used for SECIO handshake,
 # but it will be impossible to create ECNIST keys or import ECNIST keys.
 
-import ecnist, bearssl
+import ecnist, bearssl/rand, bearssl/hash as bhash
 import ../protobuf/minprotobuf, ../vbuffer, ../multihash, ../multicodec
 import nimcrypto/[rijndael, twofish, sha2, hash, hmac]
 # We use `ncrutils` for constant-time hexadecimal encoding/decoding procedures.
 import nimcrypto/utils as ncrutils
 import ../utility
 import stew/results
-export results
+export results, utility
 
 # This is workaround for Nim's `import` bug
-export rijndael, twofish, sha2, hash, hmac, ncrutils
+export rijndael, twofish, sha2, hash, hmac, ncrutils, rand
 
 type
   DigestSheme* = enum
@@ -158,26 +158,28 @@ type
 template orError*(exp: untyped, err: untyped): untyped =
   (exp.mapErr do (_: auto) -> auto: err)
 
-proc newRng*(): ref BrHmacDrbgContext =
+proc newRng*(): ref HmacDrbgContext =
   # You should only create one instance of the RNG per application / library
   # Ref is used so that it can be shared between components
   # TODO consider moving to bearssl
-  var seeder = brPrngSeederSystem(nil)
+  var seeder = prngSeederSystem(nil)
   if seeder == nil:
     return nil
 
-  var rng = (ref BrHmacDrbgContext)()
-  brHmacDrbgInit(addr rng[], addr sha256Vtable, nil, 0)
+  var rng = (ref HmacDrbgContext)()
+  hmacDrbgInit(rng[], addr sha256Vtable, nil, 0)
   if seeder(addr rng.vtable) == 0:
     return nil
   rng
 
 proc shuffle*[T](
-  rng: ref BrHmacDrbgContext,
+  rng: ref HmacDrbgContext,
   x: var openArray[T]) =
 
+  if x.len == 0: return
+
   var randValues = newSeqUninitialized[byte](len(x) * 2)
-  brHmacDrbgGenerate(rng[], randValues)
+  hmacDrbgGenerate(rng[], randValues)
 
   for i in countdown(x.high, 1):
     let
@@ -186,7 +188,7 @@ proc shuffle*[T](
     swap(x[i], x[y])
 
 proc random*(T: typedesc[PrivateKey], scheme: PKScheme,
-             rng: var BrHmacDrbgContext,
+             rng: var HmacDrbgContext,
              bits = RsaDefaultKeySize): CryptoResult[PrivateKey] =
   ## Generate random private key for scheme ``scheme``.
   ##
@@ -218,7 +220,7 @@ proc random*(T: typedesc[PrivateKey], scheme: PKScheme,
     else:
       err(SchemeError)
 
-proc random*(T: typedesc[PrivateKey], rng: var BrHmacDrbgContext,
+proc random*(T: typedesc[PrivateKey], rng: var HmacDrbgContext,
              bits = RsaDefaultKeySize): CryptoResult[PrivateKey] =
   ## Generate random private key using default public-key cryptography scheme.
   ##
@@ -242,7 +244,7 @@ proc random*(T: typedesc[PrivateKey], rng: var BrHmacDrbgContext,
     err(SchemeError)
 
 proc random*(T: typedesc[KeyPair], scheme: PKScheme,
-             rng: var BrHmacDrbgContext,
+             rng: var HmacDrbgContext,
              bits = RsaDefaultKeySize): CryptoResult[KeyPair] =
   ## Generate random key pair for scheme ``scheme``.
   ##
@@ -282,7 +284,7 @@ proc random*(T: typedesc[KeyPair], scheme: PKScheme,
     else:
       err(SchemeError)
 
-proc random*(T: typedesc[KeyPair], rng: var BrHmacDrbgContext,
+proc random*(T: typedesc[KeyPair], rng: var HmacDrbgContext,
              bits = RsaDefaultKeySize): CryptoResult[KeyPair] =
   ## Generate random private pair of keys using default public-key cryptography
   ## scheme.
@@ -870,7 +872,7 @@ proc mac*(secret: Secret, id: int): seq[byte] {.inline.} =
 
 proc ephemeral*(
     scheme: ECDHEScheme,
-    rng: var BrHmacDrbgContext): CryptoResult[EcKeyPair] =
+    rng: var HmacDrbgContext): CryptoResult[EcKeyPair] =
   ## Generate ephemeral keys used to perform ECDHE.
   var keypair: EcKeyPair
   if scheme == Secp256r1:
@@ -882,7 +884,7 @@ proc ephemeral*(
   ok(keypair)
 
 proc ephemeral*(
-    scheme: string, rng: var BrHmacDrbgContext): CryptoResult[EcKeyPair] =
+    scheme: string, rng: var HmacDrbgContext): CryptoResult[EcKeyPair] =
   ## Generate ephemeral keys used to perform ECDHE using string encoding.
   ##
   ## Currently supported encoding strings are P-256, P-384, P-521, if encoding

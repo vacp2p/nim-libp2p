@@ -1,18 +1,18 @@
-## Nim-Libp2p
-## Copyright (c) 2018 Status Research & Development GmbH
-## Licensed under either of
-##  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
-##  * MIT license ([LICENSE-MIT](LICENSE-MIT))
-## at your option.
-## This file may not be copied, modified, or distributed except according to
-## those terms.
+# Nim-Libp2p
+# Copyright (c) 2022 Status Research & Development GmbH
+# Licensed under either of
+#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+#  * MIT license ([LICENSE-MIT](LICENSE-MIT))
+# at your option.
+# This file may not be copied, modified, or distributed except according to
+# those terms.
 
 ## Test vectors was made using Go implementation
 ## https://github.com/libp2p/go-libp2p-crypto/blob/master/key.go
 import unittest2
+import bearssl/hash
 import nimcrypto/[utils, sysrand]
 import ../libp2p/crypto/[crypto, chacha20poly1305, curve25519, hkdf]
-import bearssl
 
 when defined(nimHasUsed): {.used.}
 
@@ -560,7 +560,7 @@ suite "Key interface test suite":
 
   test "shuffle":
     var cards = ["Ace", "King", "Queen", "Jack", "Ten"]
-    var rng = (ref BrHmacDrbgContext)()
-    brHmacDrbgInit(addr rng[], addr sha256Vtable, nil, 0)
+    var rng = (ref HmacDrbgContext)()
+    hmacDrbgInit(rng[], addr sha256Vtable, nil, 0)
     rng.shuffle(cards)
     check cards == ["King", "Ten", "Ace", "Queen", "Jack"]

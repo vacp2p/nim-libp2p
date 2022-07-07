@@ -1,6 +1,6 @@
 {.push raises: [Defect].}
 
-import chronos, bearssl
+import chronos
 
 import ../libp2p/transports/tcptransport
 import ../libp2p/stream/bufferstream
@@ -58,11 +58,11 @@ template checkTrackers*() =
   except: discard
 
 type RngWrap = object
-  rng: ref BrHmacDrbgContext
+  rng: ref HmacDrbgContext
 
 var rngVar: RngWrap
 
-proc getRng(): ref BrHmacDrbgContext =
+proc getRng(): ref HmacDrbgContext =
   # TODO if `rngVar` is a threadvar like it should be, there are random and
   #      spurious compile failures on mac - this is not gcsafe but for the
   #      purpose of the tests, it's ok as long as we only use a single thread
@@ -71,7 +71,7 @@ proc getRng(): ref BrHmacDrbgContext =
       rngVar.rng = newRng()
     rngVar.rng
 
-template rng*(): ref BrHmacDrbgContext =
+template rng*(): ref HmacDrbgContext =
   getRng()
 
 type
@@ -86,6 +86,22 @@ proc new*(T: typedesc[TestBufferStream], writeHandler: WriteHandler): T =
   let testBufferStream = T(writeHandler: writeHandler)
   testBufferStream.initStream()
   testBufferStream
+
+proc bridgedConnections*: (Connection, Connection) =
+  let
+    connA = TestBufferStream()
+    connB = TestBufferStream()
+  connA.dir = Direction.Out
+  connB.dir = Direction.In
+  connA.initStream()
+  connB.initStream()
+  connA.writeHandler = proc(data: seq[byte]) {.async.} =
+    await connB.pushData(data)
+
+  connB.writeHandler = proc(data: seq[byte]) {.async.} =
+    await connA.pushData(data)
+  return (connA, connB)
+
 
 proc checkExpiringInternal(cond: proc(): bool {.raises: [Defect].} ): Future[bool] {.async, gcsafe.} =
   {.gcsafe.}:

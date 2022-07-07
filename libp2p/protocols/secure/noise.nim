@@ -1,18 +1,18 @@
-## Nim-LibP2P
-## Copyright (c) 2020 Status Research & Development GmbH
-## Licensed under either of
-##  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
-##  * MIT license ([LICENSE-MIT](LICENSE-MIT))
-## at your option.
-## This file may not be copied, modified, or distributed except according to
-## those terms.
+# Nim-LibP2P
+# Copyright (c) 2022 Status Research & Development GmbH
+# Licensed under either of
+#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+#  * MIT license ([LICENSE-MIT](LICENSE-MIT))
+# at your option.
+# This file may not be copied, modified, or distributed except according to
+# those terms.
 
 {.push raises: [Defect].}
 
 import std/[oids, strformat]
 import chronos
 import chronicles
-import bearssl
+import bearssl/[rand, hash]
 import stew/[endians2, byteutils]
 import nimcrypto/[utils, sha2, hmac]
 import ../../stream/[connection, streamseq]
@@ -78,7 +78,7 @@ type
     rs: Curve25519Key
 
   Noise* = ref object of Secure
-    rng: ref BrHmacDrbgContext
+    rng: ref HmacDrbgContext
     localPrivateKey: PrivateKey
     localPublicKey: seq[byte]
     noiseKeys: KeyPair
@@ -106,7 +106,7 @@ func shortLog*(conn: NoiseConnection): auto =
 
 chronicles.formatIt(NoiseConnection): shortLog(it)
 
-proc genKeyPair(rng: var BrHmacDrbgContext): KeyPair =
+proc genKeyPair(rng: var HmacDrbgContext): KeyPair =
   result.privateKey = Curve25519Key.random(rng)
   result.publicKey = result.privateKey.public()
 
@@ -602,7 +602,7 @@ method init*(p: Noise) {.gcsafe.} =
 
 proc new*(
   T: typedesc[Noise],
-  rng: ref BrHmacDrbgContext,
+  rng: ref HmacDrbgContext,
   privateKey: PrivateKey,
   outgoing: bool = true,
   commonPrologue: seq[byte] = @[]): T =
