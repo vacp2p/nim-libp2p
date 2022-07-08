@@ -35,4 +35,6 @@ import testtcptransport,
        testpeerstore,
        testping,
        testmplex,
-       testrelay
+       testrelay,
+       testyamux,
+       testautonat

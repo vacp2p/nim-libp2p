@@ -1,11 +1,11 @@
-## Nim-LibP2P
-## Copyright (c) 2022 Status Research & Development GmbH
-## Licensed under either of
-##  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
-##  * MIT license ([LICENSE-MIT](LICENSE-MIT))
-## at your option.
-## This file may not be copied, modified, or distributed except according to
-## those terms.
+# Nim-LibP2P
+# Copyright (c) 2022 Status Research & Development GmbH
+# Licensed under either of
+#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+#  * MIT license ([LICENSE-MIT](LICENSE-MIT))
+# at your option.
+# This file may not be copied, modified, or distributed except according to
+# those terms.
 
 {.push raises: [Defect].}
 
@@ -27,28 +27,28 @@ const
 type
   AutonatError* = object of LPError
 
-  MsgType = enum
+  MsgType* = enum
     Dial = 0
     DialResponse = 1
 
-  ResponseStatus = enum
+  ResponseStatus* = enum
     Ok = 0
     DialError = 100
     DialRefused = 101
     BadRequest = 200
     InternalError = 300
 
-  AutonatPeerInfo = object
+  AutonatPeerInfo* = object
     id: Option[PeerID]
     addrs: seq[MultiAddress]
 
-  AutonatDial = object
+  AutonatDial* = object
     peerInfo: Option[AutonatPeerInfo]
 
-  AutonatDialResponse = object
-    status: ResponseStatus
-    text: Option[string]
-    ma: Option[MultiAddress]
+  AutonatDialResponse* = object
+    status*: ResponseStatus
+    text*: Option[string]
+    ma*: Option[MultiAddress]
 
   AutonatMsg = object
     msgType: MsgType
@@ -111,6 +111,7 @@ proc encode*(r: AutonatDialResponse): ProtoBuffer =
     bufferResponse.write(3, r.ma.get())
   bufferResponse.finish()
   result.write(3, bufferResponse.buffer)
+  result.finish()
 
 proc decode(_: typedesc[AutonatMsg], buf: seq[byte]): Option[AutonatMsg] =
   var
@@ -124,7 +125,6 @@ proc decode(_: typedesc[AutonatMsg], buf: seq[byte]): Option[AutonatMsg] =
     r1 = pb.getField(1, msgTypeOrd)
     r2 = pb.getField(2, pbDial)
     r3 = pb.getField(3, pbResponse)
-
   if r1.isErr() or r2.isErr() or r3.isErr(): return none(AutonatMsg)
 
   if r1.get() and not checkedEnumAssign(msg.msgType, msgTypeOrd):
@@ -174,7 +174,7 @@ proc sendDial(conn: Connection, pid: PeerId, addrs: seq[MultiAddress]) {.async.}
                          id: some(pid),
                          addrs: addrs
                        ))).encode()
-  await conn.write(pb.buffer)
+  await conn.writeLp(pb.buffer)
 
 proc sendResponseError(conn: Connection, status: ResponseStatus, text: string = "") {.async.} =
   let pb = AutonatDialResponse(
@@ -182,7 +182,7 @@ proc sendResponseError(conn: Connection, status: ResponseStatus, text: string = 
              text: if text == "": none(string) else: some(text),
              ma: none(MultiAddress)
            ).encode()
-  await conn.write(pb.buffer)
+  await conn.writeLp(pb.buffer)
 
 proc sendResponseOk(conn: Connection, ma: MultiAddress) {.async.} =
   let pb = AutonatDialResponse(
@@ -190,11 +190,11 @@ proc sendResponseOk(conn: Connection, ma: MultiAddress) {.async.} =
              text: some("Ok"),
              ma: some(ma)
            ).encode()
-  await conn.write(pb.buffer)
+  await conn.writeLp(pb.buffer)
 
 type
   Autonat* = ref object of LPProtocol
-    switch: Switch
+    switch*: Switch
 
 proc dialBack*(a: Autonat, pid: PeerId, ma: MultiAddress|seq[MultiAddress]):
     Future[MultiAddress] {.async.} =
@@ -202,27 +202,29 @@ proc dialBack*(a: Autonat, pid: PeerId, ma: MultiAddress|seq[MultiAddress]):
   let conn = await a.switch.dial(pid, addrs, AutonatCodec)
   defer: await conn.close()
   await conn.sendDial(a.switch.peerInfo.peerId, a.switch.peerInfo.addrs)
-  let msgOpt = AutonatMsg.decode(await conn.readLp(1024)) # Lp?
+  let msgOpt = AutonatMsg.decode(await conn.readLp(1024))
   if msgOpt.isNone() or
-     msgOpt.get().MsgType != DialResponse or
+     msgOpt.get().msgType != DialResponse or
      msgOpt.get().response.isNone():
     raise newException(AutonatError, "Unexpected response")
   let response = msgOpt.get().response.get()
   if response.status != ResponseStatus.Ok:
-    raise newException(AutonatError, "Bad status " & $response.status & " " & response.text)
+    raise newException(AutonatError, "Bad status " &
+                                      $response.status &
+                                      (if response.text.isNone: ""
+                                      else: " " & response.text.get()))
   if response.ma.isNone():
     raise newException(AutonatError, "Missing address")
   return response.ma.get()
 
 proc doDial(a: Autonat, conn: Connection, addrs: seq[MultiAddress]) {.async.} =
   try:
-    let connDst = await a.switch.dial(conn.peerId, addrs, AutonatCodec)
-    defer: await connDst.close()
-    await conn.sendResponseOk(connDst.observedAddr)
+    let ma = await Dialer(a.switch.dialer).canDial(conn.peerId, addrs, @[AutonatCodec])
+    await conn.sendResponseOk(ma)
   except CancelledError as exc:
     raise exc
   except CatchableError as exc:
-    await conn.sendResponseError(DialError, "Dial failed")
+    await conn.sendResponseError(DialError, exc.msg)
 
 proc handleDial(a: Autonat, conn: Connection, msg: AutonatMsg): Future[void] =
   if msg.dial.isNone() or msg.dial.get().peerInfo.isNone():
@@ -251,7 +253,7 @@ proc handleDial(a: Autonat, conn: Connection, msg: AutonatMsg): Future[void] =
   return a.doDial(conn, toSeq(addrs))
 
 proc new*(T: typedesc[Autonat], switch: Switch): T =
-  let autonat = T(switch: Switch)
+  let autonat = T(switch: switch)
   autonat.init()
   autonat
 

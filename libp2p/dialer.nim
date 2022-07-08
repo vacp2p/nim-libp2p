@@ -21,6 +21,7 @@ import dial,
        stream/connection,
        transports/transport,
        nameresolving/nameresolver,
+       upgrademngrs/upgrade,
        errors
 
 export dial, errors
@@ -184,6 +185,45 @@ proc negotiateStream(
     raise newException(DialFailedError, "Unable to select sub-protocol " & $protos)
 
   return conn
+
+method canDial*(
+  self: Dialer,
+  peerId: PeerId,
+  addrs: seq[MultiAddress],
+  protos: seq[string]): Future[MultiAddress] {.async.} =
+  ## Create a protocol stream and in order to check
+  ## if a connection is possible.
+  ## Doesn't use the Connection Manager to save it.
+  ##
+
+  trace "Check if it can dial", peerId, addrs, protos
+  for address in addrs:      # for each address
+    let
+      hostname = address.getHostname()
+      resolvedAddresses =
+        if isNil(self.nameResolver): @[address]
+        else: await self.nameResolver.resolveMAddress(address)
+
+    for a in resolvedAddresses:      # for each resolved address
+      for transport in self.transports: # for each transport
+        if transport.handles(a):   # check if it can dial it
+          trace "Dialing address", address = $a, peerId, hostname
+          try:
+            let dialed = await transport.dial(hostname, address)
+            defer: await dialed.close()
+            # make sure to assign the peer to the connection
+            dialed.peerId = peerId
+            # also keep track of the connection's bottom unsafe transport direction
+            # required by gossipsub scoring
+            dialed.transportDir = Direction.Out
+            let sconn = await transport.upgrader.secure(dialed)
+            await sconn.close()
+            return sconn.observedAddr
+          except CancelledError as exc:
+            raise exc
+          except CatchableError as exc:
+            continue # Try the next address
+  raise newException(DialFailedError, "Dial failed")
 
 method dial*(
   self: Dialer,
