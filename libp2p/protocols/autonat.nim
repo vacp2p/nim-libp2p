@@ -210,9 +210,8 @@ proc dialBack*(a: Autonat, pid: PeerId, ma: MultiAddress|seq[MultiAddress]):
   let response = msgOpt.get().response.get()
   if response.status != ResponseStatus.Ok:
     raise newException(AutonatError, "Bad status " &
-                                      $response.status &
-                                      (if response.text.isNone: ""
-                                      else: " " & response.text.get()))
+                                      $response.status & " " &
+                                      response.text.get(""))
   if response.ma.isNone():
     raise newException(AutonatError, "Missing address")
   return response.ma.get()

@@ -190,7 +190,7 @@ method canDial*(
   self: Dialer,
   peerId: PeerId,
   addrs: seq[MultiAddress],
-  protos: seq[string]): Future[MultiAddress] {.async.} =
+  protos: seq[string]): Future[MultiAddress] {.raises: [Defect], async.} =
   ## Create a protocol stream and in order to check
   ## if a connection is possible.
   ## Doesn't use the Connection Manager to save it.
