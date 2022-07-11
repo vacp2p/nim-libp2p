@@ -232,10 +232,11 @@ proc handleDial(a: Autonat, conn: Connection, msg: AutonatMsg): Future[void] =
   if peerInfo.id.isSome() and peerInfo.id.get() != conn.peerId:
     return conn.sendResponseError(BadRequest, "PeerId mismatch")
 
-  if conn.observedAddr[0].isErr() or (not IP4.match(conn.observedAddr[0].get()) and
-                                      not IP6.match(conn.observedAddr[0].get())):
+  let hostIp = conn.observedAddr[0]
+  if hostIp.isErr() or (not IP4.match(hostIp.get()) and
+                        not IP6.match(hostIp.get())):
+    trace "wrong observed address", address=conn.observedAddr
     return conn.sendResponseError(InternalError, "Expected an IP address")
-
   var addrs = initHashSet[MultiAddress]()
   addrs.incl(conn.observedAddr)
   for ma in peerInfo.addrs:
@@ -243,7 +244,18 @@ proc handleDial(a: Autonat, conn: Connection, msg: AutonatMsg): Future[void] =
     if maFirst.isErr() or (not IP4.match(maFirst.get()) and
                            not IP6.match(maFirst.get())):
       continue
-    addrs.incl(ma)
+
+    try:
+      addrs.incl(
+        if maFirst.get() == hostIp.get():
+          ma
+        else:
+          let maEnd = ma[1..^1]
+          if maEnd.isErr(): continue
+          hostIp.get() & maEnd.get()
+      )
+    except LPError as exc:
+      continue
     if len(addrs) >= ArbitraryLimit:
       break
 
