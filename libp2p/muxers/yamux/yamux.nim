@@ -10,7 +10,7 @@
 {.push raises: [Defect].}
 
 import sequtils, std/[tables]
-import chronos, chronicles, stew/[endians2, byteutils, objects]
+import chronos, chronicles, metrics, stew/[endians2, byteutils, objects]
 import ../muxer,
        ../../stream/connection
 
@@ -23,6 +23,9 @@ const
   YamuxCodec* = "/yamux/1.0.0"
   YamuxVersion = 0.uint8
   DefaultWindowSize = 256000
+
+when defined(libp2p_yamux_metrics):
+  declareGauge(libp2p_yamux_channels, "yamux channels", labels = ["initiator", "peer"])
 
 type
   YamuxError* = object of CatchableError
@@ -327,9 +330,15 @@ type
     currentId: uint32
     isClosed: bool
 
+proc lenBySrc(m: Yamux, isSrc: bool): int =
+  for v in m.channels.values():
+    if v.isSrc == isSrc: result += 1
+
 proc cleanupChann(m: Yamux, channel: YamuxChannel) {.async.} =
   await channel.join()
   m.channels.del(channel.id)
+  when defined(libp2p_yamux_metrics):
+    libp2p_yamux_channels.set(m.lenBySrc(channel.isSrc).int64, [$channel.isSrc, $channel.peerId])
   if channel.isReset and channel.recvWindow > 0:
     m.flushed[channel.id] = channel.recvWindow
 
@@ -353,6 +362,8 @@ proc createStream(m: Yamux, id: uint32, isSrc: bool): YamuxChannel =
   m.channels[id] = result
   asyncSpawn m.cleanupChann(result)
   trace "created channel", id, pid=m.connection.peerId
+  when defined(libp2p_yamux_metrics):
+    libp2p_yamux_channels.set(m.lenBySrc(isSrc).int64, [$isSrc, $result.peerId])
 
 method close*(m: Yamux) {.async.} =
   if m.isClosed == true:
