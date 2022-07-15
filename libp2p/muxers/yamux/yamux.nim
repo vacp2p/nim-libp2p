@@ -27,6 +27,10 @@ const
 
 when defined(libp2p_yamux_metrics):
   declareGauge(libp2p_yamux_channels, "yamux channels", labels = ["initiator", "peer"])
+  declareHistogram libp2p_yamux_send_queue, "message send queue length (in byte)",
+    buckets = [0.0, 100.0, 250.0, 1000.0, 2000.0, 1600.0, 6400.0, 25600.0, 256000.0]
+  declareHistogram libp2p_yamux_recv_queue, "message recv queue length (in byte)",
+    buckets = [0.0, 100.0, 250.0, 1000.0, 2000.0, 1600.0, 6400.0, 25600.0, 256000.0]
 
 type
   YamuxError* = object of CatchableError
@@ -250,6 +254,8 @@ proc gotDataFromRemote(channel: YamuxChannel, b: seq[byte]) {.async.} =
   channel.recvWindow -= b.len
   channel.recvQueue = channel.recvQueue.concat(b)
   channel.receivedData.fire()
+  when defined(libp2p_yamux_metrics):
+    libp2p_yamux_recv_queue.observe(channel.recvQueue.len.int64)
   await channel.updateRecvWindow()
 
 proc setMaxRecvWindow*(channel: YamuxChannel, maxRecvWindow: int) =
@@ -315,6 +321,8 @@ method write*(channel: YamuxChannel, msg: seq[byte]): Future[void] =
     result.complete()
     return result
   channel.sendQueue.add((msg, 0, result))
+  when defined(libp2p_yamux_metrics):
+    libp2p_yamux_recv_queue.observe(channel.sendQueueBytes().int64)
   asyncSpawn channel.trySend()
 
 proc open*(channel: YamuxChannel) {.async, gcsafe.} =
