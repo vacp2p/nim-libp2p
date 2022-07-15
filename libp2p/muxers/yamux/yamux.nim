@@ -23,6 +23,7 @@ const
   YamuxCodec* = "/yamux/1.0.0"
   YamuxVersion = 0.uint8
   DefaultWindowSize = 256000
+  MaxChannelCount = 200
 
 when defined(libp2p_yamux_metrics):
   declareGauge(libp2p_yamux_channels, "yamux channels", labels = ["initiator", "peer"])
@@ -329,6 +330,7 @@ type
     flushed: Table[uint32, int]
     currentId: uint32
     isClosed: bool
+    maxChannCount: int
 
 proc lenBySrc(m: Yamux, isSrc: bool): int =
   for v in m.channels.values():
@@ -416,6 +418,9 @@ method handle*(m: Yamux) {.async, gcsafe.} =
             if header.streamId mod 2 == m.currentId mod 2:
               raise newException(YamuxError, "Peer used our reserved stream id")
             let newStream = m.createStream(header.streamId, false)
+            if m.channels.len >= m.maxChannCount:
+              await newStream.reset()
+              continue
             await newStream.open()
             asyncSpawn m.handleStream(newStream)
         elif header.streamId notin m.channels:
@@ -466,14 +471,17 @@ method newStream*(
   name: string = "",
   lazy: bool = false): Future[Connection] {.async, gcsafe.} =
 
+  if m.channels.len > m.maxChannCount - 1:
+    raise newException(TooManyChannels, "max allowed channel count exceeded")
   let stream = m.createStream(m.currentId, true)
   m.currentId += 2
   if not lazy:
     await stream.open()
   return stream
 
-proc new*(T: type[Yamux], conn: Connection): T =
+proc new*(T: type[Yamux], conn: Connection, maxChannCount: int = MaxChannelCount): T =
   T(
     connection: conn,
-    currentId: if conn.dir == Out: 1 else: 2
+    currentId: if conn.dir == Out: 1 else: 2,
+    maxChannCount: maxChannCount
   )
