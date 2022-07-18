@@ -27,7 +27,7 @@ type
 
 proc getMuxerByCodec(self: MuxedUpgrade, muxerName: string): MuxerProvider =
   for m in self.muxers:
-    if m.codecs[0] == muxerName:
+    if muxerName in m.codecs:
       return m
 
 proc identify*(

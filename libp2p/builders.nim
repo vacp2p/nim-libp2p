@@ -116,7 +116,7 @@ proc withMplex*(
       maxChannCount)
 
   for m in b.muxers:
-    if m.codecs[0] == MplexCodec:
+    if MplexCodec == m.codecs:
       m.newMuxer = newMuxer
       return b
   b.muxers.add(MuxerProvider.new(newMuxer, MplexCodec))
@@ -126,7 +126,7 @@ proc withYamux*(b: SwitchBuilder): SwitchBuilder =
   proc newMuxer(conn: Connection): Muxer = Yamux.new(conn)
 
   for m in b.muxers:
-    if m.codecs[0] == YamuxCodec:
+    if YamuxCodec in m.codecs:
       m.newMuxer = newMuxer
       return b
   b.muxers.add(MuxerProvider.new(newMuxer, YamuxCodec))
