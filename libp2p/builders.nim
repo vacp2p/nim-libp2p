@@ -115,20 +115,14 @@ proc withMplex*(
       outTimeout,
       maxChannCount)
 
-  for m in b.muxers:
-    if MplexCodec in m.codecs:
-      m.newMuxer = newMuxer
-      return b
+  assert b.muxers.countIt(it.codec == MplexCodec) == 0, "Mplex build multiple times"
   b.muxers.add(MuxerProvider.new(newMuxer, MplexCodec))
   b
 
 proc withYamux*(b: SwitchBuilder): SwitchBuilder =
   proc newMuxer(conn: Connection): Muxer = Yamux.new(conn)
 
-  for m in b.muxers:
-    if YamuxCodec in m.codecs:
-      m.newMuxer = newMuxer
-      return b
+  assert b.muxers.countIt(it.codec == YamuxCodec) == 0, "Yamux build multiple times"
   b.muxers.add(MuxerProvider.new(newMuxer, YamuxCodec))
   b
 
