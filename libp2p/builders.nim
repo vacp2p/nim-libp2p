@@ -19,7 +19,7 @@ runnableExamples:
 {.push raises: [Defect].}
 
 import
-  options, tables, chronos, chronicles,
+  options, tables, chronos, chronicles, sequtils,
   switch, peerid, peerinfo, stream/connection, multiaddress,
   crypto/crypto, transports/[transport, tcptransport],
   muxers/[muxer, mplex/mplex, yamux/yamux],
