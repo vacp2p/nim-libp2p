@@ -116,7 +116,7 @@ proc withMplex*(
       maxChannCount)
 
   for m in b.muxers:
-    if MplexCodec == m.codecs:
+    if MplexCodec in m.codecs:
       m.newMuxer = newMuxer
       return b
   b.muxers.add(MuxerProvider.new(newMuxer, MplexCodec))
