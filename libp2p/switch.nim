@@ -71,6 +71,7 @@ type
       peerStore*: PeerStore
       nameResolver*: NameResolver
       started: bool
+      concurrentUpgrades: int
 
 proc addConnEventHandler*(s: Switch,
                           handler: ConnEventHandler,
@@ -327,7 +328,8 @@ proc newSwitch*(peerInfo: PeerInfo,
                 connManager: ConnManager,
                 ms: MultistreamSelect,
                 nameResolver: NameResolver = nil,
-                peerStore = PeerStore.new()): Switch
+                peerStore = PeerStore.new(),
+                concurrentUpgrades = ConcurrentUpgrades): Switch
                 {.raises: [Defect, LPError], public.} =
   if secureManagers.len == 0:
     raise newException(LPError, "Provide at least one secure manager")
@@ -339,7 +341,8 @@ proc newSwitch*(peerInfo: PeerInfo,
     connManager: connManager,
     peerStore: peerStore,
     dialer: Dialer.new(peerInfo.peerId, connManager, transports, ms, nameResolver),
-    nameResolver: nameResolver)
+    nameResolver: nameResolver,
+    concurrentUpgrades: ConcurrentUpgrades)
 
   switch.connManager.peerStore = peerStore
   switch.mount(identity)

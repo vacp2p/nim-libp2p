@@ -50,6 +50,7 @@ type
     transports: seq[TransportProvider]
     rng: ref HmacDrbgContext
     maxConnections: int
+    maxConcurrentUpgrades: int
     maxIn: int
     sendSignedPeerRecord: bool
     maxOut: int
@@ -73,6 +74,7 @@ proc new*(T: type[SwitchBuilder]): T {.public.} =
     addresses: @[address],
     secureManagers: @[],
     maxConnections: MaxConnections,
+    maxConcurrentUpgrades: ConcurrentUpgrades,
     maxIn: -1,
     maxOut: -1,
     maxConnsPerPeer: MaxConnectionsPerPeer,
@@ -153,6 +155,11 @@ proc withMaxConnections*(b: SwitchBuilder, maxConnections: int): SwitchBuilder {
   ## Maximum concurrent connections of the switch. You should either use this, or
   ## `withMaxIn <#withMaxIn,SwitchBuilder,int>`_ & `withMaxOut<#withMaxOut,SwitchBuilder,int>`_
   b.maxConnections = maxConnections
+  b
+
+proc withMaxConcurrentUpgrades*(b: SwitchBuilder, maxConcurrentUpgrades: int): SwitchBuilder {.public.} =
+  ## Maximum concurrent upgrades on the switch. Default to 4
+  b.maxConcurrentUpgrades = maxConcurrentUpgrades
   b
 
 proc withMaxIn*(b: SwitchBuilder, maxIn: int): SwitchBuilder {.public.} =
@@ -253,6 +260,7 @@ proc build*(b: SwitchBuilder): Switch
     connManager = connManager,
     ms = ms,
     nameResolver = b.nameResolver,
+    concurrentUpgrades = b.maxConcurrentUpgrades,
     peerStore = peerStore)
 
   if b.isCircuitRelay:
