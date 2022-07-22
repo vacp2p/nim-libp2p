@@ -322,7 +322,6 @@ proc start*(s: Switch) {.async, gcsafe, public.} =
 proc newSwitch*(peerInfo: PeerInfo,
                 transports: seq[Transport],
                 identity: Identify,
-                muxers: Table[string, MuxerProvider],
                 secureManagers: openArray[Secure] = [],
                 connManager: ConnManager,
                 ms: MultistreamSelect,
