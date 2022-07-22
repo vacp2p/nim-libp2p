@@ -13,12 +13,17 @@
 
 {.push raises: [Defect].}
 
-import strutils
+import tables
 import chronos, chronicles, protobuf_serialization
-import ./discoveryinterface
+import ./discoveryinterface,
+       ../../routing_record,
+       ../../stream/connection
 
 logScope:
   topics = "libp2p discovery rendezvous"
+
+const
+  RendezVousCodec* = "/rendezvous/1.0.0"
 
 type
   MessageType {.pure.} = enum
@@ -37,6 +42,10 @@ type
     NotAuthorized = 200
     InternalError = 300
     Unavailable = 400
+
+  Cookie {.protobuf3.} = object
+    timestamp {.pint, fieldNumber: 1.}: int64
+    topic {.fieldNumber: 2.}: string
 
   Register {.protobuf3.} = object
     ns {.fieldNumber: 1.}: Option[string]
@@ -69,3 +78,34 @@ type
     unregister {.fieldNumber: 4.}: Option[Unregister]
     discover {.fieldNumber: 5.}: Option[Discover]
     discoverResponse {.fieldNumber: 6.}: Option[DiscoverResponse]
+
+  RendezVous* = ref object of DiscoveryInterface
+    # timestamp / topic / Register
+    register: Table[string, seq[(int64, Register)]]
+
+proc register(rdv: RendezVous, conn: Connection, r: Register) {.async.} = discard
+
+proc unregister(rdv: RendezVous, conn: Connection, u: Unregister) {.async.} = discard
+proc discover(rdv: RendezVous, conn: Connection, d: Discover) {.async.} = discard
+
+proc new*(T: typedesc[RendezVous]): T =
+  result = T()
+  proc handleStream(conn: Connection, proto: string) {.async, gcsafe.} =
+    try:
+      let msg = await conn.readLp(4096)
+      case msg.msgType.get():
+        of Register: await result.register(conn, msg.register.get())
+        of RegisterResponse:
+          trace "Got an unexpected Register Response", response = msg.registerResponse
+        of Unregister: await result.unregister(conn, msg.unregister.get())
+        of Discover: await result.discover(conn, msg.discover.get())
+        of DiscoverResponse:
+          trace "Got an unexpected Discover Response", response = msg.discoverResponse
+    except CancelledError as exc:
+      raise exc
+    except CatchableError as exc:
+      trace "exception in rendezvous handler", error = exc.msg
+    finally:
+      conn.close()
+  result.handler = handleStream
+  result.codec = RendezVousCodec
