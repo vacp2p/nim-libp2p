@@ -63,7 +63,7 @@ jobs:
           git push origin gh-pages
 
   update_site:
-    if: github.ref == 'refs/heads/unstable'
+    if: github.ref == 'refs/heads/master'
     name: 'Rebuild website'
     runs-on: ubuntu-latest
     steps:
