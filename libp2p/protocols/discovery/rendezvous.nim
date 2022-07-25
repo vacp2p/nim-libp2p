@@ -13,7 +13,7 @@
 
 {.push raises: [Defect].}
 
-import tables
+import tables, times, sequtils
 import chronos, chronicles, protobuf_serialization
 import ./discoveryinterface,
        ../../routing_record,
@@ -24,6 +24,9 @@ logScope:
 
 const
   RendezVousCodec* = "/rendezvous/1.0.0"
+  MinimumTTL = 2'u64 * 60 * 60
+  MaximumTTL = 72'u64 * 60 * 60
+  RegistrationLimitPerPeer = 1000
 
 type
   MessageType {.pure.} = enum
@@ -37,7 +40,7 @@ type
     Ok = 0
     InvalidNamespace = 100
     InvalidSignedPeerRecord = 101
-    InvalidTtl = 102
+    InvalidTTL = 102
     InvalidCookie = 103
     NotAuthorized = 200
     InternalError = 300
@@ -79,13 +82,73 @@ type
     discover {.fieldNumber: 5.}: Option[Discover]
     discoverResponse {.fieldNumber: 6.}: Option[DiscoverResponse]
 
-  RendezVous* = ref object of DiscoveryInterface
-    # timestamp / topic / Register
-    register: Table[string, seq[(int64, Register)]]
+  RegisteredData = object
+    ttl: DateTime
+    registeredTime: DateTime
+    data: Register
 
-proc register(rdv: RendezVous, conn: Connection, r: Register) {.async.} = discard
+  RendezVous* = ref object of DiscoveryInterface
+    register: Table[string, seq[RegisteredData]]
+    registered: Table[string, TableRef[PeerID, RegisteredData]]
+
+proc popIf[T](s: var seq[T], pred: proc (x: T): bool): Result[T, void] =
+  var i = 0
+  for x in s:
+    if pred(x):
+      s.delete(i, i)
+      return ok(x)
+    i += 1
+  return err()
+
+proc checkPeerRecord(spr: Option[seq[byte]], peerId: PeerId): Result[void, string] =
+  if spr.isNone():
+    return err("Empty peer record")
+  let signedEnv = SignedPeerRecord.decode(spr.get())
+  if signedEnv.isErr():
+    return err($signedEnv.error())
+  if signedEnv.get().data.peerId != peerId:
+    return err("Bad Peer ID")
+  return ok()
+
+proc sendRegisterResponse(conn: Connection,
+                          ttl: uint64) {.async.} =
+  let msg = Protobuf.encode(RegisterResponse(status: some(Ok), ttl: some(ttl)))
+  await conn.writeLP(msg)
+
+proc sendRegisterResponseError(conn: Connection,
+                               status: ResponseStatus,
+                               text: string = "") {.async.} =
+  let msg = Protobuf.encode(RegisterResponse(status: some(status), text: some(text)))
+  await conn.writeLP(msg)
+
+proc countRegister(rdv: RendezVous, peerId: PeerID): int =
+  for r in rdv.register.values():
+    result += r.countIt(it.peerId == peerId)
+
+proc register(rdv: RendezVous, conn: Connection, r: Register): Future[void] =
+  let ns = r.ns.get("")
+  if ns.len notin 1..255:
+    return conn.sendRegisterResponseError(InvalidNamespace)
+  let ttl = r.ttl.get(MinimumTTL)
+  if ttl notin MinimumTTL..MaximumTTL:
+    return conn.sendRegisterResponseError(InvalidTTL)
+  let pr = checkPeerRecord(r.signedPeerRecord, conn.peerId)
+  if pr.isErr():
+    return conn.sendRegisterResponseError(InvalidSignedPeerRecord, pr.error())
+  if rdv.countRegister(conn.peerId) >= RegistrationLimitPerPeer:
+    return conn.sendRegisterResponseError(NotAuthorized, "Registration limit reached")
+  let n = now()
+  discard rdv.registered.hasKeyOrPut(ns, newTable[PeerID, RegisteredData]())
+  try:
+    discard rdv.registered[ns].hasKeyOrPut(conn.peerId, RegisteredData(registeredTime: n))
+    rdv.registered[ns][conn.peerId].ttl = n + initDuration(ttl.int64)
+    rdv.registered[ns][conn.peerId].data = r
+  except:
+    doAssert false, "Should have key"
+  conn.sendRegisterResponse(ttl)
 
 proc unregister(rdv: RendezVous, conn: Connection, u: Unregister) {.async.} = discard
+
 proc discover(rdv: RendezVous, conn: Connection, d: Discover) {.async.} = discard
 
 proc new*(T: typedesc[RendezVous]): T =
@@ -109,3 +172,4 @@ proc new*(T: typedesc[RendezVous]): T =
       conn.close()
   result.handler = handleStream
   result.codec = RendezVousCodec
+  result.registered = newTable[string, TableRef[PeerID, RegisteredData]]()
