@@ -1,8 +1,9 @@
 # Simple ping tutorial
 
-Hi all, welcome to the first article of the nim-libp2p's tutorial series!
+Hi all, welcome to the first nim-libp2p tutorial!
 
-_This tutorial is for everyone who is interested in building peer-to-peer chatting applications. No Nim programming experience is needed._
+!!! tips ""
+    This tutorial is for everyone who is interested in building peer-to-peer applications. No Nim programming experience is needed.
 
 To give you a quick overview, **Nim** is the programming language we are using and **nim-libp2p** is the Nim implementation of [libp2p](https://libp2p.io/), a modular library that enables the development of peer-to-peer network applications.
 
@@ -11,7 +12,7 @@ Hope you'll find it helpful in your journey of learning. Happy coding! ;)
 ## Before you start
 The only prerequisite here is [Nim](https://nim-lang.org/), the programming language with a Python-like syntax and a performance similar to C. Detailed information can be found [here](https://nim-lang.org/docs/tut1.html).
 
-Install Nim via their official website: [https://nim-lang.org/install.html](https://nim-lang.org/install.html)
+Install Nim via their [official website](https://nim-lang.org/install.html).
 Check Nim's installation via `nim --version` and its package manager Nimble via `nimble --version`.
 
 You can now install the latest version of `nim-libp2p`:

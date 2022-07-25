@@ -22,6 +22,7 @@ theme:
   name: material
   features:
     - navigation.instant
+    - search.highlight
   palette:
     - scheme: default
       primary: blue grey
@@ -36,7 +37,8 @@ theme:
         name: Switch to light mode
 
 nav:
+  - Introduction: README.md
   - Tutorials:
     - 'Part I: Simple connection': tutorial_1_connect.md
     - 'Part II: Custom protocol': tutorial_2_customproto.md
-  - Documentation: '/master/libp2p.html'
+  - Reference: '/nim-libp2p/master/libp2p.html'
