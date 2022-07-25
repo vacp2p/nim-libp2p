@@ -3,6 +3,7 @@ site_name: nim-libp2p
 repo_url: https://github.com/status-im/nim-libp2p
 repo_name: status-im/nim-libp2p
 site_url: https://status-im.github.io/nim-libp2p/docs
+edit_uri: edit/unstable/examples/
 
 docs_dir: examples
 
