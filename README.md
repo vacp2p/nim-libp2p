@@ -114,8 +114,6 @@ nimble install
 # run all the unit tests
 nimble test
 ```
-The code follows the [Status Nim Style Guide](https://status-im.github.io/nim-style-guide/).
-
 
 ### Contribute
 
