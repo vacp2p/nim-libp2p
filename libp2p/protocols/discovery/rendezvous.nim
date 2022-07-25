@@ -13,7 +13,7 @@
 
 {.push raises: [Defect].}
 
-import tables, times, sequtils
+import tables, times, sequtils, sugar
 import chronos, chronicles, protobuf_serialization, bearssl/rand
 import ./discoveryinterface,
        ../../routing_record,
@@ -27,6 +27,7 @@ const
   MinimumTTL = 2'u64 * 60 * 60
   MaximumTTL = 72'u64 * 60 * 60
   RegistrationLimitPerPeer = 1000
+  DiscoverLimit = 1000
 
 type
   MessageType {.pure.} = enum
@@ -48,7 +49,7 @@ type
 
   Cookie {.protobuf3.} = object
     timestamp {.pint, fieldNumber: 1.}: int64
-    topic {.fieldNumber: 2.}: string
+    ns {.fieldNumber: 2.}: string
 
   Register {.protobuf3.} = object
     ns {.fieldNumber: 1.}: Option[string]
@@ -65,7 +66,7 @@ type
 
   Discover {.protobuf3.} = object
     ns {.fieldNumber: 1.}: Option[string]
-    limit {.pint, fieldNumber: 3.}: Option[uint64]
+    limit {.pint, fieldNumber: 2.}: Option[uint64]
     cookie {.fieldNumber: 3.}: Option[seq[byte]]
 
   DiscoverResponse {.protobuf3.} = object
@@ -104,13 +105,29 @@ proc checkPeerRecord(spr: Option[seq[byte]], peerId: PeerId): Result[void, strin
 
 proc sendRegisterResponse(conn: Connection,
                           ttl: uint64) {.async.} =
-  let msg = Protobuf.encode(RegisterResponse(status: some(Ok), ttl: some(ttl)))
+  let msg = Protobuf.encode(Message(
+        msgType: some(MessageType.RegisterResponse),
+        registerResponse: some(RegisterResponse(status: some(Ok), ttl: some(ttl)))))
   await conn.writeLP(msg)
 
 proc sendRegisterResponseError(conn: Connection,
                                status: ResponseStatus,
                                text: string = "") {.async.} =
-  let msg = Protobuf.encode(RegisterResponse(status: some(status), text: some(text)))
+  let msg = Protobuf.encode(Message(
+        msgType: some(MessageType.RegisterResponse),
+        registerResponse: some(RegisterResponse(status: some(status), text: some(text)))))
+  await conn.writeLP(msg)
+
+proc sendDiscoverResponse(conn: Connection,
+                          s: seq[Register],
+                          cookie: Cookie) {.async.} = discard
+
+proc sendDiscoverResponseError(conn: Connection,
+                               status: ResponseStatus,
+                               text: string = "") {.async.} =
+  let msg = Protobuf.encode(Message(
+        msgType: some(MessageType.DiscoverResponse),
+        discoverResponse: some(DiscoverResponse(status: some(status), text: some(text)))))
   await conn.writeLP(msg)
 
 proc countRegister(rdv: RendezVous, peerId: PeerID): int =
@@ -151,7 +168,30 @@ proc unregister(rdv: RendezVous, conn: Connection, u: Unregister) =
   except KeyError:
     return
 
-proc discover(rdv: RendezVous, conn: Connection, d: Discover) {.async.} = discard
+proc discover(rdv: RendezVous, conn: Connection, d: Discover): Future[void] =
+  let ns = d.ns.get("")
+  if ns.len notin 1..255:
+    return conn.sendDiscoverResponseError(InvalidNamespace)
+  var count: uint64
+  let
+    nsSalted = ns & rdv.salt
+    limit = min(1000'u64, d.limit.get(1000))
+    cookieTime = if d.cookie.isSome():
+        let cookie = try: Protobuf.decode(d.cookie.get(), type(Cookie))
+          except ProtobufReadError: return conn.sendDiscoverResponseError(InvalidCookie)
+        if cookie.ns != ns: return conn.sendDiscoverResponseError(InvalidCookie)
+        cookie.timestamp.fromUnix.utc()
+      else: 0.fromUnix.utc()
+    s = try:
+       collect(newSeq()):
+          for r in rdv.register[nsSalted].values():
+            if r.registeredTime > cookieTime:
+              count.inc()
+              if count >= limit: break
+              r.data
+      except KeyError: return conn.sendDiscoverResponseError(InvalidNamespace)
+
+  conn.sendDiscoverResponse(s, Cookie(timestamp: now().toTime.toUnix, ns: ns))
 
 proc new*(T: typedesc[RendezVous], rng: ref HmacDrbgContext = newRng()): T =
   result = T(rng: rng)
