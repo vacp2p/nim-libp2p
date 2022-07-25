@@ -14,7 +14,7 @@
 {.push raises: [Defect].}
 
 import tables, times, sequtils
-import chronos, chronicles, protobuf_serialization
+import chronos, chronicles, protobuf_serialization, bearssl/rand
 import ./discoveryinterface,
        ../../routing_record,
        ../../stream/connection
@@ -88,17 +88,9 @@ type
     data: Register
 
   RendezVous* = ref object of DiscoveryInterface
-    register: Table[string, seq[RegisteredData]]
-    registered: Table[string, TableRef[PeerID, RegisteredData]]
-
-proc popIf[T](s: var seq[T], pred: proc (x: T): bool): Result[T, void] =
-  var i = 0
-  for x in s:
-    if pred(x):
-      s.delete(i, i)
-      return ok(x)
-    i += 1
-  return err()
+    register: Table[string, Table[PeerID, RegisteredData]]
+    salt: string
+    rng: ref HmacDrbgContext
 
 proc checkPeerRecord(spr: Option[seq[byte]], peerId: PeerId): Result[void, string] =
   if spr.isNone():
@@ -123,7 +115,8 @@ proc sendRegisterResponseError(conn: Connection,
 
 proc countRegister(rdv: RendezVous, peerId: PeerID): int =
   for r in rdv.register.values():
-    result += r.countIt(it.peerId == peerId)
+    for pid in r.keys():
+      if pid == peerId: result.inc()
 
 proc register(rdv: RendezVous, conn: Connection, r: Register): Future[void] =
   let ns = r.ns.get("")
@@ -137,12 +130,14 @@ proc register(rdv: RendezVous, conn: Connection, r: Register): Future[void] =
     return conn.sendRegisterResponseError(InvalidSignedPeerRecord, pr.error())
   if rdv.countRegister(conn.peerId) >= RegistrationLimitPerPeer:
     return conn.sendRegisterResponseError(NotAuthorized, "Registration limit reached")
-  let n = now()
-  discard rdv.registered.hasKeyOrPut(ns, newTable[PeerID, RegisteredData]())
+  let
+    n = now()
+    nsSalted = ns & rdv.salt
+  discard rdv.register.hasKeyOrPut(nsSalted, initTable[PeerID, RegisteredData]())
   try:
-    discard rdv.registered[ns].hasKeyOrPut(conn.peerId, RegisteredData(registeredTime: n))
-    rdv.registered[ns][conn.peerId].ttl = n + initDuration(ttl.int64)
-    rdv.registered[ns][conn.peerId].data = r
+    discard rdv.register[nsSalted].hasKeyOrPut(conn.peerId, RegisteredData(registeredTime: n))
+    rdv.register[nsSalted][conn.peerId].ttl = n + initDuration(ttl.int64)
+    rdv.register[nsSalted][conn.peerId].data = r
   except:
     doAssert false, "Should have key"
   conn.sendRegisterResponse(ttl)
@@ -151,8 +146,8 @@ proc unregister(rdv: RendezVous, conn: Connection, u: Unregister) {.async.} = di
 
 proc discover(rdv: RendezVous, conn: Connection, d: Discover) {.async.} = discard
 
-proc new*(T: typedesc[RendezVous]): T =
-  result = T()
+proc new*(T: typedesc[RendezVous], rng: ref HmacDrbgContext = newRng()): T =
+  result = T(rng: rng)
   proc handleStream(conn: Connection, proto: string) {.async, gcsafe.} =
     try:
       let msg = await conn.readLp(4096)
@@ -172,4 +167,5 @@ proc new*(T: typedesc[RendezVous]): T =
       conn.close()
   result.handler = handleStream
   result.codec = RendezVousCodec
-  result.registered = newTable[string, TableRef[PeerID, RegisteredData]]()
+  result.register = initTable[string, Table[PeerID, RegisteredData]]()
+  result.salt = string.fromBytes(generateBytes(rng, 8))
