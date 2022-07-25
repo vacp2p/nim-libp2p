@@ -142,7 +142,14 @@ proc register(rdv: RendezVous, conn: Connection, r: Register): Future[void] =
     doAssert false, "Should have key"
   conn.sendRegisterResponse(ttl)
 
-proc unregister(rdv: RendezVous, conn: Connection, u: Unregister) {.async.} = discard
+proc unregister(rdv: RendezVous, conn: Connection, u: Unregister) =
+  let nsSalted = u.ns.get("") & rdv.salt
+  try:
+    rdv.register[nsSalted].del(conn.peerId)
+    if rdv.register[nsSalted].len == 0:
+      rdv.register.del(nsSalted)
+  except KeyError:
+    return
 
 proc discover(rdv: RendezVous, conn: Connection, d: Discover) {.async.} = discard
 
