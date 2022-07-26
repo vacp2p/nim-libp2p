@@ -158,7 +158,7 @@ method onNewPeer(g: GossipSub, peer: PubSubPeer) =
     peer.iWantBudget = IWantPeerBudget
     peer.iHaveBudget = IHavePeerBudget
 
-method onPubSubPeerEvent*(p: GossipSub, peer: PubsubPeer, event: PubSubPeerEvent) {.gcsafe.} =
+method onPubSubPeerEvent*(p: GossipSub, peer: PubSubPeer, event: PubsubPeerEvent) {.gcsafe.} =
   case event.kind
   of PubSubPeerEventKind.Connected:
     discard
@@ -294,7 +294,7 @@ proc handleControl(g: GossipSub, peer: PubSubPeer, control: ControlMessage) =
 
 proc validateAndRelay(g: GossipSub,
                       msg: Message,
-                      msgId, msgIdSalted: MessageId,
+                      msgId, msgIdSalted: MessageID,
                       peer: PubSubPeer) {.async.} =
   try:
     let validation = await g.validate(msg)

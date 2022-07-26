@@ -270,7 +270,7 @@ method rpcHandler*(p: PubSub,
 
 method onNewPeer(p: PubSub, peer: PubSubPeer) {.base.} = discard
 
-method onPubSubPeerEvent*(p: PubSub, peer: PubsubPeer, event: PubsubPeerEvent) {.base, gcsafe.} =
+method onPubSubPeerEvent*(p: PubSub, peer: PubSubPeer, event: PubsubPeerEvent) {.base, gcsafe.} =
   # Peer event is raised for the send connection in particular
   case event.kind
   of PubSubPeerEventKind.Connected:
@@ -290,14 +290,14 @@ proc getOrCreatePeer*(
     p.switch.dial(peerId, protos)
 
   proc dropConn(peer: PubSubPeer) =
-    proc dropConnAsync(peer: PubsubPeer) {.async.} =
+    proc dropConnAsync(peer: PubSubPeer) {.async.} =
       try:
         await p.switch.disconnect(peer.peerId)
       except CatchableError as exc: # never cancelled
         trace "Failed to close connection", peer, error = exc.name, msg = exc.msg
     asyncSpawn dropConnAsync(peer)
 
-  proc onEvent(peer: PubsubPeer, event: PubsubPeerEvent) {.gcsafe.} =
+  proc onEvent(peer: PubSubPeer, event: PubsubPeerEvent) {.gcsafe.} =
     p.onPubSubPeerEvent(peer, event)
 
   # create new pubsub peer
@@ -312,7 +312,7 @@ proc getOrCreatePeer*(
   # metrics
   libp2p_pubsub_peers.set(p.peers.len.int64)
 
-  pubsubPeer.connect()
+  pubSubPeer.connect()
 
   return pubSubPeer
 

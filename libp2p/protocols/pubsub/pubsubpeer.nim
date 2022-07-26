@@ -43,7 +43,7 @@ type
     kind*: PubSubPeerEventKind
 
   GetConn* = proc(): Future[Connection] {.gcsafe, raises: [Defect].}
-  DropConn* = proc(peer: PubsubPeer) {.gcsafe, raises: [Defect].} # have to pass peer as it's unknown during init
+  DropConn* = proc(peer: PubSubPeer) {.gcsafe, raises: [Defect].} # have to pass peer as it's unknown during init
   OnEvent* = proc(peer: PubSubPeer, event: PubsubPeerEvent) {.gcsafe, raises: [Defect].}
 
   PubSubPeer* = ref object of RootObj

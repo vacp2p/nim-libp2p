@@ -132,8 +132,8 @@ proc decodeGraft*(pb: ProtoBuffer): ProtoResult[ControlGraft] {.
 
   trace "decodeGraft: decoding message"
   var control = ControlGraft()
-  if ? pb.getField(1, control.topicId):
-    trace "decodeGraft: read topicId", topic_id = control.topicId
+  if ? pb.getField(1, control.topicID):
+    trace "decodeGraft: read topicId", topic_id = control.topicID
   else:
     trace "decodeGraft: topicId is missing"
   ok(control)
@@ -159,8 +159,8 @@ proc decodePrune*(pb: ProtoBuffer): ProtoResult[ControlPrune] {.
 
   trace "decodePrune: decoding message"
   var control = ControlPrune()
-  if ? pb.getField(1, control.topicId):
-    trace "decodePrune: read topicId", topic_id = control.topicId
+  if ? pb.getField(1, control.topicID):
+    trace "decodePrune: read topicId", topic_id = control.topicID
   else:
     trace "decodePrune: topicId is missing"
   var bpeers: seq[seq[byte]]
@@ -178,8 +178,8 @@ proc decodeIHave*(pb: ProtoBuffer): ProtoResult[ControlIHave] {.
 
   trace "decodeIHave: decoding message"
   var control = ControlIHave()
-  if ? pb.getField(1, control.topicId):
-    trace "decodeIHave: read topicId", topic_id = control.topicId
+  if ? pb.getField(1, control.topicID):
+    trace "decodeIHave: read topicId", topic_id = control.topicID
   else:
     trace "decodeIHave: topicId is missing"
   if ? pb.getRepeatedField(2, control.messageIDs):

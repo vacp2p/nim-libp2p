@@ -188,7 +188,7 @@ proc getPeers(prune: ControlPrune, peer: PubSubPeer): seq[(PeerId, Option[PeerRe
           trace "peer sent invalid SPR", peer, error=signedRecord.error
           none(PeerRecord)
         else:
-          if record.peerID != signedRecord.get().data.peerId:
+          if record.peerId != signedRecord.get().data.peerId:
             trace "peer sent envelope with wrong public key", peer
             none(PeerRecord)
           else:
@@ -323,7 +323,7 @@ proc rebalanceMesh*(g: GossipSub, topic: string, metrics: ptr MeshMetrics = nil)
       candidates: seq[PubSubPeer]
       currentMesh = addr defaultMesh
     g.mesh.withValue(topic, v): currentMesh = v
-    g.gossipSub.withValue(topic, peerList):
+    g.gossipsub.withValue(topic, peerList):
       for it in peerList[]:
         if
             it.connected and
@@ -361,7 +361,7 @@ proc rebalanceMesh*(g: GossipSub, topic: string, metrics: ptr MeshMetrics = nil)
       candidates: seq[PubSubPeer]
       currentMesh = addr defaultMesh
     g.mesh.withValue(topic, v): currentMesh = v
-    g.gossipSub.withValue(topic, peerList):
+    g.gossipsub.withValue(topic, peerList):
       for it in peerList[]:
         if
             it.connected and
@@ -466,7 +466,7 @@ proc rebalanceMesh*(g: GossipSub, topic: string, metrics: ptr MeshMetrics = nil)
         avail: seq[PubSubPeer]
         currentMesh = addr defaultMesh
       g.mesh.withValue(topic, v): currentMesh = v
-      g.gossipSub.withValue(topic, peerList):
+      g.gossipsub.withValue(topic, peerList):
         for it in peerList[]:
           if
               # avoid negative score peers
@@ -611,7 +611,7 @@ proc getGossipPeers*(g: GossipSub): Table[PubSubPeer, ControlMessage] {.raises: 
       allPeers.setLen(target)
 
     for peer in allPeers:
-      control.mGetOrPut(peer, ControlMessage()).ihave.add(ihave)
+      control.mgetOrPut(peer, ControlMessage()).ihave.add(ihave)
 
   libp2p_gossipsub_cache_window_size.set(cacheWindowSize.int64)
 

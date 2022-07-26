@@ -48,7 +48,7 @@ proc firstSeen*(f: FloodSub, msgId: MessageID): Moment =
   f.seen.addedAt(f.seenSalt & msgId)
 
 proc handleSubscribe*(f: FloodSub,
-                      peer: PubsubPeer,
+                      peer: PubSubPeer,
                       topic: string,
                       subscribe: bool) =
   logScope:
