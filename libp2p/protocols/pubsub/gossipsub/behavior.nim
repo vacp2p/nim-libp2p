@@ -246,21 +246,21 @@ proc handleIHave*(g: GossipSub,
     let deIhaves = ihaves.deduplicate()
     for ihave in deIhaves:
       trace "peer sent ihave",
-        peer, topic = ihave.topicId, msgs = ihave.messageIDs
+        peer, topic = ihave.topicId, msgs = ihave.messageIds
       if ihave.topicId in g.mesh:
         # also avoid duplicates here!
-        let deIhavesMsgs = ihave.messageIDs.deduplicate()
+        let deIhavesMsgs = ihave.messageIds.deduplicate()
         for msgId in deIhavesMsgs:
           if not g.hasSeen(msgId):
             if peer.iHaveBudget > 0:
-              res.messageIDs.add(msgId)
+              res.messageIds.add(msgId)
               dec peer.iHaveBudget
               trace "requested message via ihave", messageID=msgId
             else:
               break
     # shuffling res.messageIDs before sending it out to increase the likelihood
     # of getting an answer if the peer truncates the list due to internal size restrictions.
-    g.rng.shuffle(res.messageIDs)
+    g.rng.shuffle(res.messageIds)
     return res
 
 proc handleIWant*(g: GossipSub,
@@ -274,7 +274,7 @@ proc handleIWant*(g: GossipSub,
   else:
     let deIwants = iwants.deduplicate()
     for iwant in deIwants:
-      let deIwantsMsgs = iwant.messageIDs.deduplicate()
+      let deIwantsMsgs = iwant.messageIds.deduplicate()
       for mid in deIwantsMsgs:
         trace "peer sent iwant", peer, messageID = mid
         let msg = g.mcache.get(mid)

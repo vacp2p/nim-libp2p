@@ -158,7 +158,7 @@ method onNewPeer(g: GossipSub, peer: PubSubPeer) =
     peer.iWantBudget = IWantPeerBudget
     peer.iHaveBudget = IHavePeerBudget
 
-method onPubSubPeerEvent*(p: GossipSub, peer: PubSubPeer, event: PubsubPeerEvent) {.gcsafe.} =
+method onPubSubPeerEvent*(p: GossipSub, peer: PubSubPeer, event: PubSubPeerEvent) {.gcsafe.} =
   case event.kind
   of PubSubPeerEventKind.Connected:
     discard
@@ -261,7 +261,7 @@ proc handleControl(g: GossipSub, peer: PubSubPeer, control: ControlMessage) =
 
   var respControl: ControlMessage
   let iwant = g.handleIHave(peer, control.ihave)
-  if iwant.messageIDs.len > 0:
+  if iwant.messageIds.len > 0:
     respControl.iwant.add(iwant)
   respControl.prune.add(g.handleGraft(peer, control.graft))
   let messages = g.handleIWant(peer, control.iwant)
@@ -273,7 +273,7 @@ proc handleControl(g: GossipSub, peer: PubSubPeer, control: ControlMessage) =
     # iwant and prunes from here, also messages
 
     for smsg in messages:
-      for topic in smsg.topicIDs:
+      for topic in smsg.topicIds:
         if g.knownTopics.contains(topic):
           libp2p_pubsub_broadcast_messages.inc(labelValues = [topic])
         else:
@@ -307,7 +307,7 @@ proc validateAndRelay(g: GossipSub,
     of ValidationResult.Reject:
       debug "Dropping message after validation, reason: reject",
         msgId = shortLog(msgId), peer
-      g.punishInvalidMessage(peer, msg.topicIDs)
+      g.punishInvalidMessage(peer, msg.topicIds)
       return
     of ValidationResult.Ignore:
       debug "Dropping message after validation, reason: ignore",
@@ -319,10 +319,10 @@ proc validateAndRelay(g: GossipSub,
     # store in cache only after validation
     g.mcache.put(msgId, msg)
 
-    g.rewardDelivered(peer, msg.topicIDs, true)
+    g.rewardDelivered(peer, msg.topicIds, true)
 
     var toSendPeers = HashSet[PubSubPeer]()
-    for t in msg.topicIDs:                      # for every topic in the message
+    for t in msg.topicIds:                      # for every topic in the message
       if t notin g.topics:
         continue
 
@@ -338,7 +338,7 @@ proc validateAndRelay(g: GossipSub,
     # also have to be careful to only include validated messages
     g.broadcast(toSendPeers, RPCMsg(messages: @[msg]))
     trace "forwared message to peers", peers = toSendPeers.len, msgId, peer
-    for topic in msg.topicIDs:
+    for topic in msg.topicIds:
       if topic notin g.topics: continue
 
       if g.knownTopics.contains(topic):
@@ -392,7 +392,7 @@ method rpcHandler*(g: GossipSub,
 
       if not alreadyReceived:
         let delay = Moment.now() - g.firstSeen(msgId)
-        g.rewardDelivered(peer, msg.topicIDs, false, delay)
+        g.rewardDelivered(peer, msg.topicIds, false, delay)
 
       libp2p_gossipsub_duplicate.inc()
 
@@ -402,7 +402,7 @@ method rpcHandler*(g: GossipSub,
     libp2p_gossipsub_received.inc()
 
     # avoid processing messages we are not interested in
-    if msg.topicIDs.allIt(it notin g.topics):
+    if msg.topicIds.allIt(it notin g.topics):
       debug "Dropping message of topic without subscription", msgId = shortLog(msgId), peer
       continue
 
@@ -410,14 +410,14 @@ method rpcHandler*(g: GossipSub,
       # always validate if signature is present or required
       debug "Dropping message due to failed signature verification",
         msgId = shortLog(msgId), peer
-      g.punishInvalidMessage(peer, msg.topicIDs)
+      g.punishInvalidMessage(peer, msg.topicIds)
       continue
 
     if msg.seqno.len > 0 and msg.seqno.len != 8:
       # if we have seqno should be 8 bytes long
       debug "Dropping message due to invalid seqno length",
         msgId = shortLog(msgId), peer
-      g.punishInvalidMessage(peer, msg.topicIDs)
+      g.punishInvalidMessage(peer, msg.topicIds)
       continue
 
     # g.anonymize needs no evaluation when receiving messages

@@ -26,7 +26,7 @@ func defaultMsgIdProvider*(m: Message): Result[MessageId, ValidationResult] =
       # This part is irrelevant because it's not standard,
       # We use it exclusively for testing basically and users should
       # implement their own logic in the case they use anonymization
-      $m.data.hash & $m.topicIDs.hash
+      $m.data.hash & $m.topicIds.hash
   ok mid.toBytes()
 
 proc generateNodes*(
