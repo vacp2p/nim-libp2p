@@ -71,7 +71,7 @@ proc dial*(self: RelayTransport, ma: MultiAddress): Future[Connection] {.async, 
     relayPeerId,
     @[ relayAddrs ],
     @[ RelayV2HopCodec, RelayV1Codec ])
-  conn.dir = Out
+  conn.dir = Direction.Out
   var rc: RelayConnection
   try:
     case conn.protocol:
