@@ -102,7 +102,7 @@ proc handleGraft*(g: GossipSub,
                  grafts: seq[ControlGraft]): seq[ControlPrune] = # {.raises: [Defect].} TODO chronicles exception on windows
   var prunes: seq[ControlPrune]
   for graft in grafts:
-    let topic = graft.topicID
+    let topic = graft.topicId
     trace "peer grafted topic", peer, topic
 
     # It is an error to GRAFT on a explicit peer
@@ -201,7 +201,7 @@ proc getPeers(prune: ControlPrune, peer: PubSubPeer): seq[(PeerId, Option[PeerRe
 
 proc handlePrune*(g: GossipSub, peer: PubSubPeer, prunes: seq[ControlPrune]) {.raises: [Defect].} =
   for prune in prunes:
-    let topic = prune.topicID
+    let topic = prune.topicId
 
     trace "peer pruned topic", peer, topic
 
@@ -246,8 +246,8 @@ proc handleIHave*(g: GossipSub,
     let deIhaves = ihaves.deduplicate()
     for ihave in deIhaves:
       trace "peer sent ihave",
-        peer, topic = ihave.topicID, msgs = ihave.messageIDs
-      if ihave.topicID in g.mesh:
+        peer, topic = ihave.topicId, msgs = ihave.messageIDs
+      if ihave.topicId in g.mesh:
         # also avoid duplicates here!
         let deIhavesMsgs = ihave.messageIDs.deduplicate()
         for msgId in deIhavesMsgs:
@@ -667,8 +667,8 @@ proc onHeartbeat(g: GossipSub) {.raises: [Defect].} =
     for peer, control in peers:
       # only ihave from here
       for ihave in control.ihave:
-        if g.knownTopics.contains(ihave.topicID):
-          libp2p_pubsub_broadcast_ihave.inc(labelValues = [ihave.topicID])
+        if g.knownTopics.contains(ihave.topicId):
+          libp2p_pubsub_broadcast_ihave.inc(labelValues = [ihave.topicId])
         else:
           libp2p_pubsub_broadcast_ihave.inc(labelValues = ["generic"])
       g.send(peer, RPCMsg(control: some(control)))

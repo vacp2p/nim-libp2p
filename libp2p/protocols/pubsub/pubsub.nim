@@ -90,7 +90,7 @@ type
   TopicPair* = tuple[topic: string, handler: TopicHandler]
 
   MsgIdProvider* {.public.} =
-    proc(m: Message): Result[MessageID, ValidationResult] {.noSideEffect, raises: [Defect], gcsafe.}
+    proc(m: Message): Result[MessageId, ValidationResult] {.noSideEffect, raises: [Defect], gcsafe.}
 
   SubscriptionValidator* {.public.} =
     proc(topic: string): bool {.raises: [Defect], gcsafe.}
@@ -174,18 +174,18 @@ proc broadcast*(
 
     let control = msg.control.get()
     for ihave in control.ihave:
-      if p.knownTopics.contains(ihave.topicID):
-        libp2p_pubsub_broadcast_ihave.inc(npeers, labelValues = [ihave.topicID])
+      if p.knownTopics.contains(ihave.topicId):
+        libp2p_pubsub_broadcast_ihave.inc(npeers, labelValues = [ihave.topicId])
       else:
         libp2p_pubsub_broadcast_ihave.inc(npeers, labelValues = ["generic"])
     for graft in control.graft:
-      if p.knownTopics.contains(graft.topicID):
-        libp2p_pubsub_broadcast_graft.inc(npeers, labelValues = [graft.topicID])
+      if p.knownTopics.contains(graft.topicId):
+        libp2p_pubsub_broadcast_graft.inc(npeers, labelValues = [graft.topicId])
       else:
         libp2p_pubsub_broadcast_graft.inc(npeers, labelValues = ["generic"])
     for prune in control.prune:
-      if p.knownTopics.contains(prune.topicID):
-        libp2p_pubsub_broadcast_prune.inc(npeers, labelValues = [prune.topicID])
+      if p.knownTopics.contains(prune.topicId):
+        libp2p_pubsub_broadcast_prune.inc(npeers, labelValues = [prune.topicId])
       else:
         libp2p_pubsub_broadcast_prune.inc(npeers, labelValues = ["generic"])
 
@@ -247,18 +247,18 @@ proc updateMetrics*(p: PubSub, rpcMsg: RPCMsg) =
     libp2p_pubsub_received_iwant.inc(rpcMsg.control.get().iwant.len.int64)
     template control: untyped = rpcMsg.control.unsafeGet()
     for ihave in control.ihave:
-      if p.knownTopics.contains(ihave.topicID):
-        libp2p_pubsub_received_ihave.inc(labelValues = [ihave.topicID])
+      if p.knownTopics.contains(ihave.topicId):
+        libp2p_pubsub_received_ihave.inc(labelValues = [ihave.topicId])
       else:
         libp2p_pubsub_received_ihave.inc(labelValues = ["generic"])
     for graft in control.graft:
-      if p.knownTopics.contains(graft.topicID):
-        libp2p_pubsub_received_graft.inc(labelValues = [graft.topicID])
+      if p.knownTopics.contains(graft.topicId):
+        libp2p_pubsub_received_graft.inc(labelValues = [graft.topicId])
       else:
         libp2p_pubsub_received_graft.inc(labelValues = ["generic"])
     for prune in control.prune:
-      if p.knownTopics.contains(prune.topicID):
-        libp2p_pubsub_received_prune.inc(labelValues = [prune.topicID])
+      if p.knownTopics.contains(prune.topicId):
+        libp2p_pubsub_received_prune.inc(labelValues = [prune.topicId])
       else:
         libp2p_pubsub_received_prune.inc(labelValues = ["generic"])
 

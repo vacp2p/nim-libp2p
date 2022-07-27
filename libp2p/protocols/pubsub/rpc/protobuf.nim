@@ -30,7 +30,7 @@ when defined(libp2p_protobuf_metrics):
 
 proc write*(pb: var ProtoBuffer, field: int, graft: ControlGraft) =
   var ipb = initProtoBuffer()
-  ipb.write(1, graft.topicID)
+  ipb.write(1, graft.topicId)
   ipb.finish()
   pb.write(field, ipb)
 
@@ -46,7 +46,7 @@ proc write*(pb: var ProtoBuffer, field: int, infoMsg: PeerInfoMsg) =
 
 proc write*(pb: var ProtoBuffer, field: int, prune: ControlPrune) =
   var ipb = initProtoBuffer()
-  ipb.write(1, prune.topicID)
+  ipb.write(1, prune.topicId)
   for peer in prune.peers:
     ipb.write(2, peer)
   ipb.write(3, prune.backoff)
@@ -58,7 +58,7 @@ proc write*(pb: var ProtoBuffer, field: int, prune: ControlPrune) =
 
 proc write*(pb: var ProtoBuffer, field: int, ihave: ControlIHave) =
   var ipb = initProtoBuffer()
-  ipb.write(1, ihave.topicID)
+  ipb.write(1, ihave.topicId)
   for mid in ihave.messageIDs:
     ipb.write(2, mid)
   ipb.finish()
@@ -132,8 +132,8 @@ proc decodeGraft*(pb: ProtoBuffer): ProtoResult[ControlGraft] {.
 
   trace "decodeGraft: decoding message"
   var control = ControlGraft()
-  if ? pb.getField(1, control.topicID):
-    trace "decodeGraft: read topicId", topic_id = control.topicID
+  if ? pb.getField(1, control.topicId):
+    trace "decodeGraft: read topicId", topic_id = control.topicId
   else:
     trace "decodeGraft: topicId is missing"
   ok(control)
@@ -159,8 +159,8 @@ proc decodePrune*(pb: ProtoBuffer): ProtoResult[ControlPrune] {.
 
   trace "decodePrune: decoding message"
   var control = ControlPrune()
-  if ? pb.getField(1, control.topicID):
-    trace "decodePrune: read topicId", topic_id = control.topicID
+  if ? pb.getField(1, control.topicId):
+    trace "decodePrune: read topicId", topic_id = control.topicId
   else:
     trace "decodePrune: topicId is missing"
   var bpeers: seq[seq[byte]]
@@ -178,8 +178,8 @@ proc decodeIHave*(pb: ProtoBuffer): ProtoResult[ControlIHave] {.
 
   trace "decodeIHave: decoding message"
   var control = ControlIHave()
-  if ? pb.getField(1, control.topicID):
-    trace "decodeIHave: read topicId", topic_id = control.topicID
+  if ? pb.getField(1, control.topicId):
+    trace "decodeIHave: read topicId", topic_id = control.topicId
   else:
     trace "decodeIHave: topicId is missing"
   if ? pb.getRepeatedField(2, control.messageIDs):

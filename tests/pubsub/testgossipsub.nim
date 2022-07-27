@@ -610,8 +610,8 @@ suite "GossipSub":
     proc slowValidator(topic: string, message: Message): Future[ValidationResult] {.async.} =
       await cRelayed
       # Empty A & C caches to detect duplicates
-      gossip1.seen = TimedCache[MessageID].init()
-      gossip3.seen = TimedCache[MessageID].init()
+      gossip1.seen = TimedCache[MessageId].init()
+      gossip3.seen = TimedCache[MessageId].init()
       let msgId = toSeq(gossip2.validationSeen.keys)[0]
       check await checkExpiring(try: gossip2.validationSeen[msgId].len > 0 except: false)
       result = ValidationResult.Accept

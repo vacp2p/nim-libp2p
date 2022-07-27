@@ -27,7 +27,7 @@ type
       subscribe*: bool
       topic*: string
 
-    MessageID* = seq[byte]
+    MessageId* = seq[byte]
 
     Message* = object
       fromPeer*: PeerId
@@ -44,17 +44,17 @@ type
       prune*: seq[ControlPrune]
 
     ControlIHave* = object
-      topicID*: string
-      messageIDs*: seq[MessageID]
+      topicId*: string
+      messageIDs*: seq[MessageId]
 
     ControlIWant* = object
-      messageIDs*: seq[MessageID]
+      messageIDs*: seq[MessageId]
 
     ControlGraft* = object
-      topicID*: string
+      topicId*: string
 
     ControlPrune* = object
-      topicID*: string
+      topicId*: string
       peers*: seq[PeerInfoMsg]
       backoff*: uint64
 
@@ -70,7 +70,7 @@ func withSubs*(
 
 func shortLog*(s: ControlIHave): auto =
   (
-    topicID: s.topicID.shortLog,
+    topicId: s.topicId.shortLog,
     messageIDs: mapIt(s.messageIDs, it.shortLog)
   )
 
@@ -81,12 +81,12 @@ func shortLog*(s: ControlIWant): auto =
 
 func shortLog*(s: ControlGraft): auto =
   (
-    topicID: s.topicID.shortLog
+    topicId: s.topicId.shortLog
   )
 
 func shortLog*(s: ControlPrune): auto =
   (
-    topicID: s.topicID.shortLog
+    topicId: s.topicId.shortLog
   )
 
 func shortLog*(c: ControlMessage): auto =

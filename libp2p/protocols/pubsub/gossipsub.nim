@@ -282,8 +282,8 @@ proc handleControl(g: GossipSub, peer: PubSubPeer, control: ControlMessage) =
     libp2p_pubsub_broadcast_iwant.inc(respControl.iwant.len.int64)
 
     for prune in respControl.prune:
-      if g.knownTopics.contains(prune.topicID):
-        libp2p_pubsub_broadcast_prune.inc(labelValues = [prune.topicID])
+      if g.knownTopics.contains(prune.topicId):
+        libp2p_pubsub_broadcast_prune.inc(labelValues = [prune.topicId])
       else:
         libp2p_pubsub_broadcast_prune.inc(labelValues = ["generic"])
 
@@ -294,7 +294,7 @@ proc handleControl(g: GossipSub, peer: PubSubPeer, control: ControlMessage) =
 
 proc validateAndRelay(g: GossipSub,
                       msg: Message,
-                      msgId, msgIdSalted: MessageID,
+                      msgId, msgIdSalted: MessageId,
                       peer: PubSubPeer) {.async.} =
   try:
     let validation = await g.validate(msg)
@@ -624,7 +624,7 @@ method initPubSub*(g: GossipSub)
     raise newException(InitializationError, $validationRes.error)
 
   # init the floodsub stuff here, we customize timedcache in gossip!
-  g.seen = TimedCache[MessageID].init(g.parameters.seenTTL)
+  g.seen = TimedCache[MessageId].init(g.parameters.seenTTL)
 
   # init gossip stuff
   g.mcache = MCache.init(g.parameters.historyGossip, g.parameters.historyLength)
