@@ -33,7 +33,7 @@ type
       fromPeer*: PeerId
       data*: seq[byte]
       seqno*: seq[byte]
-      topicIDs*: seq[string]
+      topicIds*: seq[string]
       signature*: seq[byte]
       key*: seq[byte]
 
@@ -45,10 +45,10 @@ type
 
     ControlIHave* = object
       topicId*: string
-      messageIDs*: seq[MessageId]
+      messageIds*: seq[MessageId]
 
     ControlIWant* = object
-      messageIDs*: seq[MessageId]
+      messageIds*: seq[MessageId]
 
     ControlGraft* = object
       topicId*: string
@@ -71,12 +71,12 @@ func withSubs*(
 func shortLog*(s: ControlIHave): auto =
   (
     topicId: s.topicId.shortLog,
-    messageIDs: mapIt(s.messageIDs, it.shortLog)
+    messageIds: mapIt(s.messageIds, it.shortLog)
   )
 
 func shortLog*(s: ControlIWant): auto =
   (
-    messageIDs: mapIt(s.messageIDs, it.shortLog)
+    messageIds: mapIt(s.messageIds, it.shortLog)
   )
 
 func shortLog*(s: ControlGraft): auto =
@@ -102,7 +102,7 @@ func shortLog*(msg: Message): auto =
     fromPeer: msg.fromPeer.shortLog,
     data: msg.data.shortLog,
     seqno: msg.seqno.shortLog,
-    topicIDs: $msg.topicIDs,
+    topicIds: $msg.topicIds,
     signature: msg.signature.shortLog,
     key: msg.key.shortLog
   )

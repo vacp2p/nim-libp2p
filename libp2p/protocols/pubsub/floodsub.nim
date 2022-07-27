@@ -139,7 +139,7 @@ method rpcHandler*(f: FloodSub,
       discard
 
     var toSendPeers = initHashSet[PubSubPeer]()
-    for t in msg.topicIDs:                     # for every topic in the message
+    for t in msg.topicIds:                     # for every topic in the message
       if t notin f.topics:
         continue
       f.floodsub.withValue(t, peers): toSendPeers.incl(peers[])

@@ -163,7 +163,7 @@ proc broadcast*(
         libp2p_pubsub_broadcast_unsubscriptions.inc(npeers, labelValues = ["generic"])
 
   for smsg in msg.messages:
-    for topic in smsg.topicIDs:
+    for topic in smsg.topicIds:
       if p.knownTopics.contains(topic):
         libp2p_pubsub_broadcast_messages.inc(npeers, labelValues = [topic])
       else:
@@ -236,8 +236,8 @@ proc updateMetrics*(p: PubSub, rpcMsg: RPCMsg) =
 
   for i in 0..<rpcMsg.messages.len():
     template smsg: untyped = rpcMsg.messages[i]
-    for j in 0..<smsg.topicIDs.len():
-      template topic: untyped = smsg.topicIDs[j]
+    for j in 0..<smsg.topicIds.len():
+      template topic: untyped = smsg.topicIds[j]
       if p.knownTopics.contains(topic):
         libp2p_pubsub_received_messages.inc(labelValues = [topic])
       else:
@@ -270,7 +270,7 @@ method rpcHandler*(p: PubSub,
 
 method onNewPeer(p: PubSub, peer: PubSubPeer) {.base.} = discard
 
-method onPubSubPeerEvent*(p: PubSub, peer: PubSubPeer, event: PubsubPeerEvent) {.base, gcsafe.} =
+method onPubSubPeerEvent*(p: PubSub, peer: PubSubPeer, event: PubSubPeerEvent) {.base, gcsafe.} =
   # Peer event is raised for the send connection in particular
   case event.kind
   of PubSubPeerEventKind.Connected:
@@ -297,7 +297,7 @@ proc getOrCreatePeer*(
         trace "Failed to close connection", peer, error = exc.name, msg = exc.msg
     asyncSpawn dropConnAsync(peer)
 
-  proc onEvent(peer: PubSubPeer, event: PubsubPeerEvent) {.gcsafe.} =
+  proc onEvent(peer: PubSubPeer, event: PubSubPeerEvent) {.gcsafe.} =
     p.onPubSubPeerEvent(peer, event)
 
   # create new pubsub peer
@@ -520,11 +520,11 @@ method removeValidator*(p: PubSub,
 method validate*(p: PubSub, message: Message): Future[ValidationResult] {.async, base.} =
   var pending: seq[Future[ValidationResult]]
   trace "about to validate message"
-  for topic in message.topicIDs:
-    trace "looking for validators on topic", topicID = topic,
+  for topic in message.topicIds:
+    trace "looking for validators on topic", topicId = topic,
                                              registered = toSeq(p.validators.keys)
     if topic in p.validators:
-      trace "running validators for topic", topicID = topic
+      trace "running validators for topic", topicId = topic
       for validator in p.validators[topic]:
         pending.add(validator(topic, message))
 
