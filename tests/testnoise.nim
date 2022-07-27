@@ -1,11 +1,11 @@
-## Nim-LibP2P
-## Copyright (c) 2020 Status Research & Development GmbH
-## Licensed under either of
-##  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
-##  * MIT license ([LICENSE-MIT](LICENSE-MIT))
-## at your option.
-## This file may not be copied, modified, or distributed except according to
-## those terms.
+# Nim-LibP2P
+# Copyright (c) 2022 Status Research & Development GmbH
+# Licensed under either of
+#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+#  * MIT license ([LICENSE-MIT](LICENSE-MIT))
+# at your option.
+# This file may not be copied, modified, or distributed except according to
+# those terms.
 
 {.used.}
 
@@ -61,7 +61,7 @@ proc createSwitch(ma: MultiAddress; outgoing: bool, secio: bool = false): (Switc
   let
     identify = Identify.new(peerInfo)
     mplexProvider = MuxerProvider.new(createMplex, MplexCodec)
-    muxers = [(MplexCodec, mplexProvider)].toTable()
+    muxers = @[mplexProvider]
     secureManagers = if secio:
       [Secure(Secio.new(rng, privateKey))]
     else:
@@ -75,7 +75,6 @@ proc createSwitch(ma: MultiAddress; outgoing: bool, secio: bool = false): (Switc
       peerInfo,
       transports,
       identify,
-      muxers,
       secureManagers,
       connManager,
       ms)

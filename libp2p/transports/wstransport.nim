@@ -1,11 +1,13 @@
-## Nim-LibP2P
-## Copyright (c) 2021 Status Research & Development GmbH
-## Licensed under either of
-##  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
-##  * MIT license ([LICENSE-MIT](LICENSE-MIT))
-## at your option.
-## This file may not be copied, modified, or distributed except according to
-## those terms.
+# Nim-LibP2P
+# Copyright (c) 2022 Status Research & Development GmbH
+# Licensed under either of
+#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+#  * MIT license ([LICENSE-MIT](LICENSE-MIT))
+# at your option.
+# This file may not be copied, modified, or distributed except according to
+# those terms.
+
+## WebSocket & WebSocket Secure transport implementation
 
 {.push raises: [Defect].}
 
@@ -18,6 +20,7 @@ import transport,
        ../multistream,
        ../connmanager,
        ../multiaddress,
+       ../utility,
        ../stream/connection,
        ../upgrademngrs/upgrade,
        websock/websock
@@ -315,7 +318,8 @@ proc new*(
   flags: set[ServerFlags] = {},
   factories: openArray[ExtFactory] = [],
   rng: Rng = nil,
-  handshakeTimeout = DefaultHeadersTimeout): T =
+  handshakeTimeout = DefaultHeadersTimeout): T {.public.} =
+  ## Creates a secure WebSocket transport
 
   T(
     upgrader: upgrade,
@@ -333,7 +337,8 @@ proc new*(
   flags: set[ServerFlags] = {},
   factories: openArray[ExtFactory] = [],
   rng: Rng = nil,
-  handshakeTimeout = DefaultHeadersTimeout): T =
+  handshakeTimeout = DefaultHeadersTimeout): T {.public.} =
+  ## Creates a clear-text WebSocket transport
 
   T.new(
     upgrade = upgrade,

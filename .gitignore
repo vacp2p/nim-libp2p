@@ -13,3 +13,5 @@ build/
 .vscode/
 .DS_Store
 tests/pubsub/testgossipsub
+nimble.develop
+nimble.paths

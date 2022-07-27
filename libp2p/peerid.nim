@@ -1,25 +1,27 @@
-## Nim-LibP2P
-## Copyright (c) 2018 Status Research & Development GmbH
-## Licensed under either of
-##  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
-##  * MIT license ([LICENSE-MIT](LICENSE-MIT))
-## at your option.
-## This file may not be copied, modified, or distributed except according to
-## those terms.
+# Nim-LibP2P
+# Copyright (c) 2022 Status Research & Development GmbH
+# Licensed under either of
+#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+#  * MIT license ([LICENSE-MIT](LICENSE-MIT))
+# at your option.
+# This file may not be copied, modified, or distributed except according to
+# those terms.
 
 ## This module implementes API for libp2p peer.
 
 {.push raises: [Defect].}
+{.push public.}
 
 import
   std/[hashes, strutils],
   stew/[base58, results],
   chronicles,
   nimcrypto/utils,
+  utility,
   ./crypto/crypto, ./multicodec, ./multihash, ./vbuffer,
   ./protobuf/minprotobuf
 
-export results
+export results, utility
 
 const
   maxInlineKeyLength* = 42
