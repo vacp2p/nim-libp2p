@@ -111,7 +111,7 @@ method pushEof*(s: BufferStream) {.base, async.} =
   finally:
     s.pushing = false
 
-method atEof*(s: BufferStream): bool {.raises: [Defect].} =
+method atEof*(s: BufferStream): bool =
   s.isEof and s.readBuf.len == 0
 
 method readOnce*(s: BufferStream,

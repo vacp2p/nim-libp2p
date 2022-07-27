@@ -39,7 +39,12 @@ const
 type
   TestProto = ref object of LPProtocol
 
-method init(p: TestProto) {.gcsafe, raises: [Defect].} =
+when (NimMajor, NimMinor) < (1, 4):
+  {.push raises: [Defect].}
+else:
+  {.push raises: [].}
+
+method init(p: TestProto) {.gcsafe.} =
   proc handle(conn: Connection, proto: string) {.async, gcsafe.} =
     let msg = string.fromBytes(await conn.readLp(1024))
     check "Hello!" == msg
@@ -48,6 +53,9 @@ method init(p: TestProto) {.gcsafe, raises: [Defect].} =
 
   p.codec = TestCodec
   p.handler = handle
+
+{.pop.}
+
 
 proc createSwitch(ma: MultiAddress; outgoing: bool, secio: bool = false): (Switch, PeerInfo) =
   var
