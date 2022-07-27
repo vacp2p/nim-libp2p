@@ -29,7 +29,7 @@ const PubSubPrefix = toBytes("libp2p-pubsub:")
 declareCounter(libp2p_pubsub_sig_verify_success, "pubsub successfully validated messages")
 declareCounter(libp2p_pubsub_sig_verify_failure, "pubsub failed validated messages")
 
-func defaultMsgIdProvider*(m: Message): Result[MessageID, ValidationResult] =
+func defaultMsgIdProvider*(m: Message): Result[MessageId, ValidationResult] =
   if m.seqno.len > 0 and m.fromPeer.data.len > 0:
     let mid = byteutils.toHex(m.seqno) & $m.fromPeer
     ok mid.toBytes()

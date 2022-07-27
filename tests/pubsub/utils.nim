@@ -18,7 +18,7 @@ export builders
 
 randomize()
 
-func defaultMsgIdProvider*(m: Message): Result[MessageID, ValidationResult] =
+func defaultMsgIdProvider*(m: Message): Result[MessageId, ValidationResult] =
   let mid =
     if m.seqno.len > 0 and m.fromPeer.data.len > 0:
       byteutils.toHex(m.seqno) & $m.fromPeer

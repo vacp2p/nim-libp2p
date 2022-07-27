@@ -30,7 +30,7 @@ when defined(libp2p_protobuf_metrics):
 
 proc write*(pb: var ProtoBuffer, field: int, graft: ControlGraft) =
   var ipb = initProtoBuffer()
-  ipb.write(1, graft.topicID)
+  ipb.write(1, graft.topicId)
   ipb.finish()
   pb.write(field, ipb)
 
@@ -46,7 +46,7 @@ proc write*(pb: var ProtoBuffer, field: int, infoMsg: PeerInfoMsg) =
 
 proc write*(pb: var ProtoBuffer, field: int, prune: ControlPrune) =
   var ipb = initProtoBuffer()
-  ipb.write(1, prune.topicID)
+  ipb.write(1, prune.topicId)
   for peer in prune.peers:
     ipb.write(2, peer)
   ipb.write(3, prune.backoff)
@@ -58,7 +58,7 @@ proc write*(pb: var ProtoBuffer, field: int, prune: ControlPrune) =
 
 proc write*(pb: var ProtoBuffer, field: int, ihave: ControlIHave) =
   var ipb = initProtoBuffer()
-  ipb.write(1, ihave.topicID)
+  ipb.write(1, ihave.topicId)
   for mid in ihave.messageIDs:
     ipb.write(2, mid)
   ipb.finish()

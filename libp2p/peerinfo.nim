@@ -66,7 +66,7 @@ proc new*(
     except CatchableError:
       raise newException(PeerInfoError, "invalid private key")
   
-  let peerId = PeerID.init(key).tryGet()
+  let peerId = PeerId.init(key).tryGet()
 
   let peerInfo = PeerInfo(
     peerId: peerId,

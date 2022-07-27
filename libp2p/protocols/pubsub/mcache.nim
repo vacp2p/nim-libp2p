@@ -16,30 +16,30 @@ export sets, tables, messages, options
 
 type
   CacheEntry* = object
-    mid*: MessageID
+    mid*: MessageId
     topicIDs*: seq[string]
 
   MCache* = object of RootObj
-    msgs*: Table[MessageID, Message]
+    msgs*: Table[MessageId, Message]
     history*: seq[seq[CacheEntry]]
     windowSize*: Natural
 
-func get*(c: MCache, mid: MessageID): Option[Message] =
+func get*(c: MCache, mid: MessageId): Option[Message] =
   if mid in c.msgs:
     try: some(c.msgs[mid])
     except KeyError: raiseAssert "checked"
   else:
     none(Message)
 
-func contains*(c: MCache, mid: MessageID): bool =
+func contains*(c: MCache, mid: MessageId): bool =
   mid in c.msgs
 
-func put*(c: var MCache, msgId: MessageID, msg: Message) =
+func put*(c: var MCache, msgId: MessageId, msg: Message) =
   if not c.msgs.hasKeyOrPut(msgId, msg):
     # Only add cache entry if the message was not already in the cache
     c.history[0].add(CacheEntry(mid: msgId, topicIDs: msg.topicIDs))
 
-func window*(c: MCache, topic: string): HashSet[MessageID] =
+func window*(c: MCache, topic: string): HashSet[MessageId] =
   let
     len = min(c.windowSize, c.history.len)
 

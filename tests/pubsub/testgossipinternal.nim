@@ -531,7 +531,7 @@ suite "GossipSub internal":
     await gossipSub.rpcHandler(peer, lotOfSubs)
 
     check:
-      gossipSub.gossipSub.len == gossipSub.topicsHigh
+      gossipSub.gossipsub.len == gossipSub.topicsHigh
       peer.behaviourPenalty > 0.0
 
     await conn.close()
