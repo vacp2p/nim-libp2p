@@ -364,6 +364,7 @@ proc createStream(m: Yamux, id: uint32, isSrc: bool): YamuxChannel =
     closedRemotely: newFuture[void]()
   )
   result.objName = "YamuxStream"
+  result.dir = if isSrc: Direction.Out else: Direction.In
   result.initStream()
   result.peerId = m.connection.peerId
   result.observedAddr = m.connection.observedAddr
