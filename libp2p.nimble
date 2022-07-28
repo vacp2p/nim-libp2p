@@ -16,7 +16,8 @@ requires "nim >= 1.2.0",
          "metrics",
          "secp256k1",
          "stew#head",
-         "websock"
+         "websock",
+         "protobuf_serialization"
 
 const nimflags =
   "--verbosity:0 --hints:off " &

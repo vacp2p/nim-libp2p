@@ -7,17 +7,16 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-## The switch is the core of libp2p, which brings together the
-## transports, the connection manager, the upgrader and other
-## parts to allow programs to use libp2p
-
 {.push raises: [Defect].}
 
 import tables, times, sequtils, sugar
 import chronos, chronicles, protobuf_serialization, bearssl/rand
 import ./discoveryinterface,
+       ../protocol,
        ../../routing_record,
-       ../../stream/connection
+       ../../utils/heartbeat,
+       ../../stream/connection,
+       ../../utils/offsettedseq
 
 logScope:
   topics = "libp2p discovery rendezvous"
@@ -27,7 +26,7 @@ const
   MinimumTTL = 2'u64 * 60 * 60
   MaximumTTL = 72'u64 * 60 * 60
   RegistrationLimitPerPeer = 1000
-  DiscoverLimit = 1000
+  DiscoverLimit = 1000'u64
 
 type
   MessageType {.pure.} = enum
@@ -48,7 +47,7 @@ type
     Unavailable = 400
 
   Cookie {.protobuf3.} = object
-    timestamp {.pint, fieldNumber: 1.}: int64
+    offset {.pint, fieldNumber: 1.}: uint64
     ns {.fieldNumber: 2.}: string
 
   Register {.protobuf3.} = object
@@ -84,14 +83,21 @@ type
     discoverResponse {.fieldNumber: 6.}: Option[DiscoverResponse]
 
   RegisteredData = object
-    ttl: DateTime
-    registeredTime: DateTime
+    expireDate: DateTime
+    peerId: PeerID
     data: Register
 
-  RendezVous* = ref object of DiscoveryInterface
-    register: Table[string, Table[PeerID, RegisteredData]]
+  RegisteredSeq = object
+    s: seq[RegisteredData]
+    offset: uint64
+
+  RendezVous* = ref object of LPProtocol
+    indexes: Table[string, OffsettedSeq[int]]
+    registered: OffsettedSeq[RegisteredData]
     salt: string
-    rng: ref HmacDrbgContext
+    defaultDT: DateTime
+    registerDeletionLoop: Future[void]
+    registerEvent: AsyncEvent
 
 proc checkPeerRecord(spr: Option[seq[byte]], peerId: PeerId): Result[void, string] =
   if spr.isNone():
@@ -120,7 +126,16 @@ proc sendRegisterResponseError(conn: Connection,
 
 proc sendDiscoverResponse(conn: Connection,
                           s: seq[Register],
-                          cookie: Cookie) {.async.} = discard
+                          cookie: Cookie) {.async.} =
+  let msg = Protobuf.encode(Message(
+        msgType: some(MessageType.DiscoverResponse),
+        discoverResponse: some(DiscoverResponse(
+            status: some(Ok),
+            registrations: s,
+            cookie: some(Protobuf.encode(cookie))
+          ))
+        ))
+  await conn.writeLP(msg)
 
 proc sendDiscoverResponseError(conn: Connection,
                                status: ResponseStatus,
@@ -131,9 +146,9 @@ proc sendDiscoverResponseError(conn: Connection,
   await conn.writeLP(msg)
 
 proc countRegister(rdv: RendezVous, peerId: PeerID): int =
-  for r in rdv.register.values():
-    for pid in r.keys():
-      if pid == peerId: result.inc()
+   for data in rdv.registered:
+     if data.peerId == peerId:
+       result.inc()
 
 proc register(rdv: RendezVous, conn: Connection, r: Register): Future[void] =
   let ns = r.ns.get("")
@@ -150,51 +165,69 @@ proc register(rdv: RendezVous, conn: Connection, r: Register): Future[void] =
   let
     n = now()
     nsSalted = ns & rdv.salt
-  discard rdv.register.hasKeyOrPut(nsSalted, initTable[PeerID, RegisteredData]())
+  discard rdv.indexes.hasKeyOrPut(nsSalted, initOffsettedSeq[int]())
   try:
-    discard rdv.register[nsSalted].hasKeyOrPut(conn.peerId, RegisteredData(registeredTime: n))
-    rdv.register[nsSalted][conn.peerId].ttl = n + initDuration(ttl.int64)
-    rdv.register[nsSalted][conn.peerId].data = r
-  except:
+    for index in rdv.indexes[nsSalted]:
+      if rdv.registered[index].peerId == conn.peerId:
+        rdv.registered[index].expireDate = rdv.defaultDT
+    rdv.registered.add(
+      RegisteredData(
+        peerId: conn.peerId,
+        expireDate: now() + initDuration(ttl.int64),
+        data: r
+      )
+    )
+    rdv.indexes[nsSalted].add(rdv.registered.high)
+#    rdv.registerEvent.fire()
+  except KeyError:
     doAssert false, "Should have key"
   conn.sendRegisterResponse(ttl)
 
 proc unregister(rdv: RendezVous, conn: Connection, u: Unregister) =
   let nsSalted = u.ns.get("") & rdv.salt
   try:
-    rdv.register[nsSalted].del(conn.peerId)
-    if rdv.register[nsSalted].len == 0:
-      rdv.register.del(nsSalted)
+    for index in rdv.indexes[nsSalted]:
+      if rdv.registered[index].peerId == conn.peerId:
+        rdv.registered[index].expireDate = rdv.defaultDT
   except KeyError:
     return
 
 proc discover(rdv: RendezVous, conn: Connection, d: Discover): Future[void] =
   let ns = d.ns.get("")
-  if ns.len notin 1..255:
+  if ns.len notin 0..255:
     return conn.sendDiscoverResponseError(InvalidNamespace)
-  var count: uint64
+  var
+    limit = min(DiscoverLimit, d.limit.get(DiscoverLimit))
   let
     nsSalted = ns & rdv.salt
-    limit = min(1000'u64, d.limit.get(1000))
-    cookieTime = if d.cookie.isSome():
-        let cookie = try: Protobuf.decode(d.cookie.get(), type(Cookie))
-          except ProtobufReadError: return conn.sendDiscoverResponseError(InvalidCookie)
-        if cookie.ns != ns: return conn.sendDiscoverResponseError(InvalidCookie)
-        cookie.timestamp.fromUnix.utc()
-      else: 0.fromUnix.utc()
-    s = try:
-       collect(newSeq()):
-          for r in rdv.register[nsSalted].values():
-            if r.registeredTime > cookieTime:
-              count.inc()
-              if count >= limit: break
-              r.data
-      except KeyError: return conn.sendDiscoverResponseError(InvalidNamespace)
-
-  conn.sendDiscoverResponse(s, Cookie(timestamp: now().toTime.toUnix, ns: ns))
+    cookie = if d.cookie.isSome():
+      try: Protobuf.decode(d.cookie.get(), type(Cookie))
+      except ProtobufReadError: return conn.sendDiscoverResponseError(InvalidCookie)
+    else: Cookie(offset: rdv.registered.low().uint64, ns: ns)
+    indexes = if ns != "":
+        try: rdv.indexes[nsSalted].s
+        except KeyError: return conn.sendDiscoverResponseError(InvalidNamespace)
+      else: toSeq(rdv.registered.low()..rdv.registered.high())
+  if indexes.len() == 0:
+    return conn.sendDiscoverResponse(@[], Cookie())
+  var offset = indexes[^1]
+  let s = collect(newSeq()):
+      for index in indexes:
+        if index.uint64 < cookie.offset: continue
+        if limit == 0:
+          offset = index
+          break
+        limit.dec()
+        rdv.registered[index].data
+  conn.sendDiscoverResponse(s, Cookie(offset: offset.uint64, ns: ns))
 
 proc new*(T: typedesc[RendezVous], rng: ref HmacDrbgContext = newRng()): T =
-  result = T(rng: rng)
+  result = T(
+    salt: string.fromBytes(generateBytes(rng, 8)),
+    registered: initOffsettedSeq[RegisteredData](),
+    defaultDT: 0.fromUnix().utc(),
+    registerEvent: newAsyncEvent()
+  )
   proc handleStream(conn: Connection, proto: string) {.async, gcsafe.} =
     try:
       let msg = await conn.readLp(4096)
@@ -202,7 +235,7 @@ proc new*(T: typedesc[RendezVous], rng: ref HmacDrbgContext = newRng()): T =
         of Register: await result.register(conn, msg.register.get())
         of RegisterResponse:
           trace "Got an unexpected Register Response", response = msg.registerResponse
-        of Unregister: await result.unregister(conn, msg.unregister.get())
+        of Unregister: result.unregister(conn, msg.unregister.get())
         of Discover: await result.discover(conn, msg.discover.get())
         of DiscoverResponse:
           trace "Got an unexpected Discover Response", response = msg.discoverResponse
@@ -214,5 +247,23 @@ proc new*(T: typedesc[RendezVous], rng: ref HmacDrbgContext = newRng()): T =
       conn.close()
   result.handler = handleStream
   result.codec = RendezVousCodec
-  result.register = initTable[string, Table[PeerID, RegisteredData]]()
-  result.salt = string.fromBytes(generateBytes(rng, 8))
+
+proc deletesRegister(rdv: RendezVous) {.async.} =
+  heartbeat "Register timeout", chronos.minutes(1):
+    let n = now()
+    rdv.registered.flushIfIt(it.expireDate < n)
+    for data in rdv.indexes.mvalues():
+      data.flushIfIt(it < rdv.registered.offset)
+
+method start*(rdv: RendezVous) {.async.} =
+  if not rdv.registerDeletionLoop.isNil:
+    warn "Starting rendezvous twice"
+  rdv.registerDeletionLoop = rdv.deletesRegister()
+  rdv.started = true
+
+method stop*(rdv: RendezVous) {.async.} =
+  if rdv.registerDeletionLoop.isNil:
+    warn "Stopping rendezvous without starting it"
+  rdv.started = false
+  rdv.registerDeletionLoop.cancel()
+  rdv.registerDeletionLoop = nil
