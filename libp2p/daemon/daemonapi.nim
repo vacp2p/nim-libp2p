@@ -1022,7 +1022,7 @@ proc dhtGetSinglePeerId(pb: ProtoBuffer): PeerId
   if pb.getRequiredField(3, result).isErr():
     raise newException(DaemonLocalError, "Missing field `value`!")
 
-proc enterDhtMessage(pb: ProtoBuffer, rt: DHTResponseType): Protobuffer
+proc enterDhtMessage(pb: ProtoBuffer, rt: DHTResponseType): ProtoBuffer
   {.inline, raises: [Defect, DaemonLocalError].} =
   var dhtResponse: seq[byte]
   if pb.getRequiredField(ResponseType.DHT.int, dhtResponse).isOk():

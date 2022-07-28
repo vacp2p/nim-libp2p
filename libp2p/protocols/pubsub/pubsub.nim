@@ -90,7 +90,7 @@ type
   TopicPair* = tuple[topic: string, handler: TopicHandler]
 
   MsgIdProvider* {.public.} =
-    proc(m: Message): Result[MessageID, ValidationResult] {.noSideEffect, raises: [Defect], gcsafe.}
+    proc(m: Message): Result[MessageId, ValidationResult] {.noSideEffect, raises: [Defect], gcsafe.}
 
   SubscriptionValidator* {.public.} =
     proc(topic: string): bool {.raises: [Defect], gcsafe.}
@@ -163,7 +163,7 @@ proc broadcast*(
         libp2p_pubsub_broadcast_unsubscriptions.inc(npeers, labelValues = ["generic"])
 
   for smsg in msg.messages:
-    for topic in smsg.topicIDs:
+    for topic in smsg.topicIds:
       if p.knownTopics.contains(topic):
         libp2p_pubsub_broadcast_messages.inc(npeers, labelValues = [topic])
       else:
@@ -174,18 +174,18 @@ proc broadcast*(
 
     let control = msg.control.get()
     for ihave in control.ihave:
-      if p.knownTopics.contains(ihave.topicID):
-        libp2p_pubsub_broadcast_ihave.inc(npeers, labelValues = [ihave.topicID])
+      if p.knownTopics.contains(ihave.topicId):
+        libp2p_pubsub_broadcast_ihave.inc(npeers, labelValues = [ihave.topicId])
       else:
         libp2p_pubsub_broadcast_ihave.inc(npeers, labelValues = ["generic"])
     for graft in control.graft:
-      if p.knownTopics.contains(graft.topicID):
-        libp2p_pubsub_broadcast_graft.inc(npeers, labelValues = [graft.topicID])
+      if p.knownTopics.contains(graft.topicId):
+        libp2p_pubsub_broadcast_graft.inc(npeers, labelValues = [graft.topicId])
       else:
         libp2p_pubsub_broadcast_graft.inc(npeers, labelValues = ["generic"])
     for prune in control.prune:
-      if p.knownTopics.contains(prune.topicID):
-        libp2p_pubsub_broadcast_prune.inc(npeers, labelValues = [prune.topicID])
+      if p.knownTopics.contains(prune.topicId):
+        libp2p_pubsub_broadcast_prune.inc(npeers, labelValues = [prune.topicId])
       else:
         libp2p_pubsub_broadcast_prune.inc(npeers, labelValues = ["generic"])
 
@@ -236,8 +236,8 @@ proc updateMetrics*(p: PubSub, rpcMsg: RPCMsg) =
 
   for i in 0..<rpcMsg.messages.len():
     template smsg: untyped = rpcMsg.messages[i]
-    for j in 0..<smsg.topicIDs.len():
-      template topic: untyped = smsg.topicIDs[j]
+    for j in 0..<smsg.topicIds.len():
+      template topic: untyped = smsg.topicIds[j]
       if p.knownTopics.contains(topic):
         libp2p_pubsub_received_messages.inc(labelValues = [topic])
       else:
@@ -247,18 +247,18 @@ proc updateMetrics*(p: PubSub, rpcMsg: RPCMsg) =
     libp2p_pubsub_received_iwant.inc(rpcMsg.control.get().iwant.len.int64)
     template control: untyped = rpcMsg.control.unsafeGet()
     for ihave in control.ihave:
-      if p.knownTopics.contains(ihave.topicID):
-        libp2p_pubsub_received_ihave.inc(labelValues = [ihave.topicID])
+      if p.knownTopics.contains(ihave.topicId):
+        libp2p_pubsub_received_ihave.inc(labelValues = [ihave.topicId])
       else:
         libp2p_pubsub_received_ihave.inc(labelValues = ["generic"])
     for graft in control.graft:
-      if p.knownTopics.contains(graft.topicID):
-        libp2p_pubsub_received_graft.inc(labelValues = [graft.topicID])
+      if p.knownTopics.contains(graft.topicId):
+        libp2p_pubsub_received_graft.inc(labelValues = [graft.topicId])
       else:
         libp2p_pubsub_received_graft.inc(labelValues = ["generic"])
     for prune in control.prune:
-      if p.knownTopics.contains(prune.topicID):
-        libp2p_pubsub_received_prune.inc(labelValues = [prune.topicID])
+      if p.knownTopics.contains(prune.topicId):
+        libp2p_pubsub_received_prune.inc(labelValues = [prune.topicId])
       else:
         libp2p_pubsub_received_prune.inc(labelValues = ["generic"])
 
@@ -270,7 +270,7 @@ method rpcHandler*(p: PubSub,
 
 method onNewPeer(p: PubSub, peer: PubSubPeer) {.base.} = discard
 
-method onPubSubPeerEvent*(p: PubSub, peer: PubsubPeer, event: PubsubPeerEvent) {.base, gcsafe.} =
+method onPubSubPeerEvent*(p: PubSub, peer: PubSubPeer, event: PubSubPeerEvent) {.base, gcsafe.} =
   # Peer event is raised for the send connection in particular
   case event.kind
   of PubSubPeerEventKind.Connected:
@@ -290,14 +290,14 @@ proc getOrCreatePeer*(
     return await p.switch.dial(peerId, protos)
 
   proc dropConn(peer: PubSubPeer) =
-    proc dropConnAsync(peer: PubsubPeer) {.async.} =
+    proc dropConnAsync(peer: PubSubPeer) {.async.} =
       try:
         await p.switch.disconnect(peer.peerId)
       except CatchableError as exc: # never cancelled
         trace "Failed to close connection", peer, error = exc.name, msg = exc.msg
     asyncSpawn dropConnAsync(peer)
 
-  proc onEvent(peer: PubsubPeer, event: PubsubPeerEvent) {.gcsafe.} =
+  proc onEvent(peer: PubSubPeer, event: PubSubPeerEvent) {.gcsafe.} =
     p.onPubSubPeerEvent(peer, event)
 
   # create new pubsub peer
@@ -312,7 +312,7 @@ proc getOrCreatePeer*(
   # metrics
   libp2p_pubsub_peers.set(p.peers.len.int64)
 
-  pubsubPeer.connect()
+  pubSubPeer.connect()
 
   return pubSubPeer
 
@@ -520,11 +520,11 @@ method removeValidator*(p: PubSub,
 method validate*(p: PubSub, message: Message): Future[ValidationResult] {.async, base.} =
   var pending: seq[Future[ValidationResult]]
   trace "about to validate message"
-  for topic in message.topicIDs:
-    trace "looking for validators on topic", topicID = topic,
+  for topic in message.topicIds:
+    trace "looking for validators on topic", topicId = topic,
                                              registered = toSeq(p.validators.keys)
     if topic in p.validators:
-      trace "running validators for topic", topicID = topic
+      trace "running validators for topic", topicId = topic
       for validator in p.validators[topic]:
         pending.add(validator(topic, message))
 
