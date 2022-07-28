@@ -58,7 +58,7 @@ type
   RelayError* = object of LPError
 
   RelayPeer* = object
-    peerId*: PeerID
+    peerId*: PeerId
     addrs*: seq[MultiAddress]
 
   AddConn* = proc(conn: Connection): Future[void] {.gcsafe, raises: [Defect].}
@@ -71,7 +71,7 @@ type
 
   Relay* = ref object of LPProtocol
     switch*: Switch
-    peerId: PeerID
+    peerId: PeerId
     dialer: Dial
     canHop: bool
     streamCount: int

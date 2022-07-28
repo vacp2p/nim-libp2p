@@ -39,12 +39,12 @@ type
     Connected
     Disconnected
 
-  PubsubPeerEvent* = object
+  PubSubPeerEvent* = object
     kind*: PubSubPeerEventKind
 
   GetConn* = proc(): Future[Connection] {.gcsafe, raises: [Defect].}
-  DropConn* = proc(peer: PubsubPeer) {.gcsafe, raises: [Defect].} # have to pass peer as it's unknown during init
-  OnEvent* = proc(peer: PubSubPeer, event: PubsubPeerEvent) {.gcsafe, raises: [Defect].}
+  DropConn* = proc(peer: PubSubPeer) {.gcsafe, raises: [Defect].} # have to pass peer as it's unknown during init
+  OnEvent* = proc(peer: PubSubPeer, event: PubSubPeerEvent) {.gcsafe, raises: [Defect].}
 
   PubSubPeer* = ref object of RootObj
     getConn*: GetConn                   # callback to establish a new send connection
@@ -175,7 +175,7 @@ proc connectOnce(p: PubSubPeer): Future[void] {.async.} =
     p.address = some(p.sendConn.observedAddr)
 
     if p.onEvent != nil:
-      p.onEvent(p, PubsubPeerEvent(kind: PubSubPeerEventKind.Connected))
+      p.onEvent(p, PubSubPeerEvent(kind: PubSubPeerEventKind.Connected))
 
     await handle(p, newConn)
   finally:
@@ -186,7 +186,7 @@ proc connectOnce(p: PubSubPeer): Future[void] {.async.} =
 
     try:
       if p.onEvent != nil:
-        p.onEvent(p, PubsubPeerEvent(kind: PubSubPeerEventKind.Disconnected))
+        p.onEvent(p, PubSubPeerEvent(kind: PubSubPeerEventKind.Disconnected))
     except CancelledError as exc:
       raise exc
     except CatchableError as exc:

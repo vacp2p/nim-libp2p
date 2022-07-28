@@ -7,7 +7,7 @@
 <p align="center">
 <a href="https://github.com/status-im/nim-libp2p/actions"><img src="https://github.com/status-im/nim-libp2p/actions/workflows/ci.yml/badge.svg" /></a>
 <a href="https://codecov.io/gh/status-im/nim-libp2p"><img src="https://codecov.io/gh/status-im/nim-libp2p/branch/master/graph/badge.svg?token=UR5JRQ249W"/></a>
-    
+
 </p>
 
 <p align="center">
@@ -49,9 +49,7 @@ nimble install libp2p
 ```
 
 ## Getting Started
-You'll find some tutorials [here](examples/tutorial_1_connect.md), or some examples:
-- [hello world (ping)](examples/helloworld.nim)
-- [direct chat](examples/directchat.nim)
+You'll find the documentation [here].(https://status-im.github.io/nim-libp2p/docs/)
 
 **Go Daemon:**
 Please find the installation and usage intructions in [daemonapi.md](examples/go-daemon/daemonapi.md).
@@ -114,8 +112,6 @@ nimble install
 # run all the unit tests
 nimble test
 ```
-The code follows the [Status Nim Style Guide](https://status-im.github.io/nim-style-guide/).
-
 
 ### Contribute
 

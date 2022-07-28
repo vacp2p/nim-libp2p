@@ -27,13 +27,13 @@ type
       subscribe*: bool
       topic*: string
 
-    MessageID* = seq[byte]
+    MessageId* = seq[byte]
 
     Message* = object
       fromPeer*: PeerId
       data*: seq[byte]
       seqno*: seq[byte]
-      topicIDs*: seq[string]
+      topicIds*: seq[string]
       signature*: seq[byte]
       key*: seq[byte]
 
@@ -44,17 +44,17 @@ type
       prune*: seq[ControlPrune]
 
     ControlIHave* = object
-      topicID*: string
-      messageIDs*: seq[MessageID]
+      topicId*: string
+      messageIds*: seq[MessageId]
 
     ControlIWant* = object
-      messageIDs*: seq[MessageID]
+      messageIds*: seq[MessageId]
 
     ControlGraft* = object
-      topicID*: string
+      topicId*: string
 
     ControlPrune* = object
-      topicID*: string
+      topicId*: string
       peers*: seq[PeerInfoMsg]
       backoff*: uint64
 
@@ -70,23 +70,23 @@ func withSubs*(
 
 func shortLog*(s: ControlIHave): auto =
   (
-    topicID: s.topicID.shortLog,
-    messageIDs: mapIt(s.messageIDs, it.shortLog)
+    topicId: s.topicId.shortLog,
+    messageIds: mapIt(s.messageIds, it.shortLog)
   )
 
 func shortLog*(s: ControlIWant): auto =
   (
-    messageIDs: mapIt(s.messageIDs, it.shortLog)
+    messageIds: mapIt(s.messageIds, it.shortLog)
   )
 
 func shortLog*(s: ControlGraft): auto =
   (
-    topicID: s.topicID.shortLog
+    topicId: s.topicId.shortLog
   )
 
 func shortLog*(s: ControlPrune): auto =
   (
-    topicID: s.topicID.shortLog
+    topicId: s.topicId.shortLog
   )
 
 func shortLog*(c: ControlMessage): auto =
@@ -102,7 +102,7 @@ func shortLog*(msg: Message): auto =
     fromPeer: msg.fromPeer.shortLog,
     data: msg.data.shortLog,
     seqno: msg.seqno.shortLog,
-    topicIDs: $msg.topicIDs,
+    topicIds: $msg.topicIds,
     signature: msg.signature.shortLog,
     key: msg.key.shortLog
   )
