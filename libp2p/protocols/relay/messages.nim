@@ -1,11 +1,11 @@
-## Nim-LibP2P
-## Copyright (c) 2022 Status Research & Development GmbH
-## Licensed under either of
-##  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
-##  * MIT license ([LICENSE-MIT](LICENSE-MIT))
-## at your option.
-## This file may not be copied, modified, or distributed except according to
-## those terms.
+# Nim-LibP2P
+# Copyright (c) 2022 Status Research & Development GmbH
+# Licensed under either of
+#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+#  * MIT license ([LICENSE-MIT](LICENSE-MIT))
+# at your option.
+# This file may not be copied, modified, or distributed except according to
+# those terms.
 
 {.push raises: [Defect].}
 
@@ -42,7 +42,7 @@ type
     MalformedMessage = 400
 
   RelayPeer* = object
-    peerId*: PeerID
+    peerId*: PeerId
     addrs*: seq[MultiAddress]
 
   RelayMessage* = object
@@ -121,8 +121,8 @@ proc decode*(_: typedesc[RelayMessage], buf: seq[byte]): Option[RelayMessage] =
 
 type
   Voucher* = object
-    relayPeerId*: PeerID     # peer ID of the relay
-    reservingPeerId*: PeerID # peer ID of the reserving peer
+    relayPeerId*: PeerId     # peer ID of the relay
+    reservingPeerId*: PeerId # peer ID of the reserving peer
     expiration*: uint64      # UNIX UTC expiration time for the reservation
 
 proc decode*(_: typedesc[Voucher], buf: seq[byte]): Result[Voucher, ProtoError] =
@@ -146,8 +146,8 @@ proc encode*(v: Voucher): seq[byte] =
   pb.buffer
 
 proc init*(T: typedesc[Voucher],
-          relayPeerId: PeerID,
-          reservingPeerId: PeerID,
+          relayPeerId: PeerId,
+          reservingPeerId: PeerId,
           expiration: uint64): T =
   T(
     relayPeerId = relayPeerId,
@@ -170,7 +170,7 @@ proc checkValid*(spr: SignedVoucher): Result[void, EnvelopeError] =
 
 type
   Peer* = object
-    peerId*: PeerID
+    peerId*: PeerId
     addrs*: seq[MultiAddress]
   Reservation* = object
     expire*: uint64              # required, Unix expiration time (UTC)

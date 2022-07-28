@@ -1,11 +1,11 @@
-## Nim-LibP2P
-## Copyright (c) 2022 Status Research & Development GmbH
-## Licensed under either of
-##  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
-##  * MIT license ([LICENSE-MIT](LICENSE-MIT))
-## at your option.
-## This file may not be copied, modified, or distributed except according to
-## those terms.
+# Nim-LibP2P
+# Copyright (c) 2022 Status Research & Development GmbH
+# Licensed under either of
+#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+#  * MIT license ([LICENSE-MIT](LICENSE-MIT))
+# at your option.
+# This file may not be copied, modified, or distributed except according to
+# those terms.
 
 {.push raises: [Defect].}
 
@@ -79,7 +79,7 @@ type
 
 proc createReserveResponse(
     r: Relay,
-    pid: PeerID,
+    pid: PeerId,
     expire: DateTime): Result[HopMessage, CryptoError] =
   let
     expireUnix = expire.toTime.toUnix.uint64
