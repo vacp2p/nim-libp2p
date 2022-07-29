@@ -7,10 +7,6 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-## The switch is the core of libp2p, which brings together the
-## transports, the connection manager, the upgrader and other
-## parts to allow programs to use libp2p
-
 {.push raises: [Defect].}
 
 import tables

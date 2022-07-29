@@ -9,10 +9,11 @@
 
 {.push raises: [Defect].}
 
-import tables, times, sequtils, sugar
+import tables, times, sequtils, sugar, sets
 import chronos, chronicles, protobuf_serialization, bearssl/rand
 import ./discoveryinterface,
        ../protocol,
+       ../../switch,
        ../../routing_record,
        ../../utils/heartbeat,
        ../../stream/connection,
@@ -98,6 +99,8 @@ type
     defaultDT: DateTime
     registerDeletionLoop: Future[void]
     registerEvent: AsyncEvent
+    peers: seq[PeerId]
+    switch: Switch
 
 proc checkPeerRecord(spr: Option[seq[byte]], peerId: PeerId): Result[void, string] =
   if spr.isNone():
@@ -150,18 +153,7 @@ proc countRegister(rdv: RendezVous, peerId: PeerID): int =
      if data.peerId == peerId:
        result.inc()
 
-proc register(rdv: RendezVous, conn: Connection, r: Register): Future[void] =
-  let ns = r.ns.get("")
-  if ns.len notin 1..255:
-    return conn.sendRegisterResponseError(InvalidNamespace)
-  let ttl = r.ttl.get(MinimumTTL)
-  if ttl notin MinimumTTL..MaximumTTL:
-    return conn.sendRegisterResponseError(InvalidTTL)
-  let pr = checkPeerRecord(r.signedPeerRecord, conn.peerId)
-  if pr.isErr():
-    return conn.sendRegisterResponseError(InvalidSignedPeerRecord, pr.error())
-  if rdv.countRegister(conn.peerId) >= RegistrationLimitPerPeer:
-    return conn.sendRegisterResponseError(NotAuthorized, "Registration limit reached")
+proc save(rdv: RendezVous, ns: string, peerId: PeerId, r: Register, ttl: uint64 = MinimumTTL) =
   let
     n = now()
     nsSalted = ns & rdv.salt
@@ -181,6 +173,20 @@ proc register(rdv: RendezVous, conn: Connection, r: Register): Future[void] =
 #    rdv.registerEvent.fire()
   except KeyError:
     doAssert false, "Should have key"
+
+proc register(rdv: RendezVous, conn: Connection, r: Register): Future[void] =
+  let ns = r.ns.get("")
+  if ns.len notin 1..255:
+    return conn.sendRegisterResponseError(InvalidNamespace)
+  let ttl = r.ttl.get(MinimumTTL)
+  if ttl notin MinimumTTL..MaximumTTL:
+    return conn.sendRegisterResponseError(InvalidTTL)
+  let pr = checkPeerRecord(r.signedPeerRecord, conn.peerId)
+  if pr.isErr():
+    return conn.sendRegisterResponseError(InvalidSignedPeerRecord, pr.error())
+  if rdv.countRegister(conn.peerId) >= RegistrationLimitPerPeer:
+    return conn.sendRegisterResponseError(NotAuthorized, "Registration limit reached")
+  rdv.save(ns, conn.peerId, r, ttl)
   conn.sendRegisterResponse(ttl)
 
 proc unregister(rdv: RendezVous, conn: Connection, u: Unregister) =
@@ -221,13 +227,28 @@ proc discover(rdv: RendezVous, conn: Connection, d: Discover): Future[void] =
         rdv.registered[index].data
   conn.sendDiscoverResponse(s, Cookie(offset: offset.uint64, ns: ns))
 
-proc new*(T: typedesc[RendezVous], rng: ref HmacDrbgContext = newRng()): T =
+proc advertise*(rdv: RendezVous,
+                spr: SignedPeerRecord,
+                ns: string,
+                ttl: uint64 = MinimumTTL) {.async.} =
+  let sprBuff = rdv.switch.peerInfo.signedPeerRecord.envelope.encode()
+  if sprBuff.isErr() or ns.len() notin 1..255 or ttl notin MinimumTTL..MaximumTTL:
+    return
+  let r = Register(ns: some(ns), signedPeerRecord: some(sprBuff), ttl: some(ttl))
+  rdv.save(ns, rdv.switch.peerInfo.peerId, ttl)
+  # send to peers
+
+proc new*(T: typedesc[RendezVous],
+          switch: Switch,
+          rng: ref HmacDrbgContext = newRng()): T =
   result = T(
     salt: string.fromBytes(generateBytes(rng, 8)),
     registered: initOffsettedSeq[RegisteredData](),
     defaultDT: 0.fromUnix().utc(),
+    switch: switch,
     registerEvent: newAsyncEvent()
   )
+
   proc handleStream(conn: Connection, proto: string) {.async, gcsafe.} =
     try:
       let msg = await conn.readLp(4096)
@@ -245,6 +266,15 @@ proc new*(T: typedesc[RendezVous], rng: ref HmacDrbgContext = newRng()): T =
       trace "exception in rendezvous handler", error = exc.msg
     finally:
       conn.close()
+
+  proc handlePeer(peerId: PeerId, kind: PeerEventKind) =
+    if RendezVousCodec in switch.peerStore[ProtoBook][peerId]:
+      if kind == PeerEventKind.Joined: rdv.peers.add(peerId)
+      elif kind == PeerEventKind.Left: rdv.peers.keepItIf(it != peerId)
+
+  result.switch.addPeerEventHandler(handlePeer, PeerEventKind.Joined)
+  result.switch.addPeerEventHandler(handlePeer, PeerEventKind.Left)
+
   result.handler = handleStream
   result.codec = RendezVousCodec
 
@@ -267,3 +297,10 @@ method stop*(rdv: RendezVous) {.async.} =
   rdv.started = false
   rdv.registerDeletionLoop.cancel()
   rdv.registerDeletionLoop = nil
+
+type
+  RendezVousInterface = ref object of DiscoveryInterface
+    rdv: RendezVous
+
+proc new*(T: typedesc[RendezVousInterface], rdv: RendezVous): RendezVousInterface =
+  result = T(rdv: rdv)
