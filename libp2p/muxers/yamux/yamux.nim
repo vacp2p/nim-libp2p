@@ -203,6 +203,7 @@ proc reset(channel: YamuxChannel, isLocal: bool = false) {.async.} =
       if isLocal:
         try: await channel.conn.write(YamuxHeader.data(channel.id, 0, {Rst}))
         except LPStreamEOFError as exc: discard
+        except LPStreamClosedError as exc: discard
       await channel.close()
     if not channel.closedRemotely.done():
       await channel.remoteClosed()
