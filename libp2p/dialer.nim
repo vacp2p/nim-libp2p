@@ -181,41 +181,23 @@ proc negotiateStream(
 method canDial*(
   self: Dialer,
   peerId: PeerId,
-  addrs: seq[MultiAddress],
-  protos: seq[string]): Future[MultiAddress] {.raises: [Defect], async.} =
+  addrs: seq[MultiAddress]): Future[MultiAddress] {.raises: [Defect], async.} =
   ## Create a protocol stream and in order to check
   ## if a connection is possible.
   ## Doesn't use the Connection Manager to save it.
   ##
 
-  trace "Check if it can dial", peerId, addrs, protos
-  for address in addrs:      # for each address
-    let
-      hostname = address.getHostname()
-      resolvedAddresses =
-        if isNil(self.nameResolver): @[address]
-        else: await self.nameResolver.resolveMAddress(address)
-
-    for a in resolvedAddresses:      # for each resolved address
-      for transport in self.transports: # for each transport
-        if transport.handles(a):   # check if it can dial it
-          trace "Dialing address", address = $a, peerId, hostname
-          try:
-            let dialed = await transport.dial(hostname, address)
-            defer: await dialed.close()
-            # make sure to assign the peer to the connection
-            dialed.peerId = peerId
-            # also keep track of the connection's bottom unsafe transport direction
-            # required by gossipsub scoring
-            dialed.transportDir = Direction.Out
-            let sconn = await transport.upgrader.secure(dialed)
-            await sconn.close()
-            return sconn.observedAddr
-          except CancelledError as exc:
-            raise exc
-          except CatchableError as exc:
-            continue # Try the next address
-  raise newException(DialFailedError, "Dial failed")
+  trace "Check if it can dial", peerId, addrs
+  try:
+    let conn = self.dialAndUpgrade(peerId, addrs)
+    if conn.isNil():
+      raise newException(DialFailedError, "No valid multiaddress")
+    await conn.close()
+    return conn.observedAddr
+  except CancelledError as exc:
+    raise exc
+  except CatchableError as exc:
+    raise newException(DialFailedError, exc.msg)
 
 method dial*(
   self: Dialer,

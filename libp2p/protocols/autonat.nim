@@ -218,7 +218,7 @@ proc dialBack*(a: Autonat, pid: PeerId, ma: MultiAddress|seq[MultiAddress]):
 
 proc doDial(a: Autonat, conn: Connection, addrs: seq[MultiAddress]) {.async.} =
   try:
-    let ma = await Dialer(a.switch.dialer).canDial(conn.peerId, addrs, @[AutonatCodec])
+    let ma = await Dialer(a.switch.dialer).canDial(conn.peerId, addrs)
     await conn.sendResponseOk(ma)
   except CancelledError as exc:
     raise exc
