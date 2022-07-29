@@ -48,8 +48,7 @@ type
 proc dialAndUpgrade(
   self: Dialer,
   peerId: PeerId,
-  addrs: seq[MultiAddress],
-  forceDial: bool):
+  addrs: seq[MultiAddress]):
   Future[Connection] {.async.} =
   debug "Dialing peer", peerId
 
@@ -66,17 +65,7 @@ proc dialAndUpgrade(
           trace "Dialing address", address = $a, peerId, hostname
           let dialed = try:
               libp2p_total_dial_attempts.inc()
-              # await a connection slot when the total
-              # connection count is equal to `maxConns`
-              #
-              # Need to copy to avoid "cannot be captured" errors in Nim-1.4.x.
-              let
-                transportCopy = transport
-                addressCopy = a
-              await self.connManager.trackOutgoingConn(
-                () => transportCopy.dial(hostname, addressCopy),
-                forceDial
-              )
+              await transport.dial(hostname, a)
             except TooManyConnectionsError as exc:
               trace "Connection limit reached!"
               raise exc
@@ -140,7 +129,10 @@ proc internalConnect(
       trace "Reusing existing connection", conn, direction = $conn.dir
       return conn
 
-    conn = await self.dialAndUpgrade(peerId, addrs, forceDial)
+    conn = await self.connManager.trackOutgoingConn(
+      () => self.dialAndUpgrade(peerId, addrs),
+      forceDial
+    )
     if isNil(conn): # None of the addresses connected
       raise newException(DialFailedError, "Unable to establish outgoing link")
 
