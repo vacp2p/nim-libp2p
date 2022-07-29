@@ -189,7 +189,7 @@ method canDial*(
 
   trace "Check if it can dial", peerId, addrs
   try:
-    let conn = self.dialAndUpgrade(peerId, addrs)
+    let conn = await self.dialAndUpgrade(peerId, addrs)
     if conn.isNil():
       raise newException(DialFailedError, "No valid multiaddress")
     await conn.close()
