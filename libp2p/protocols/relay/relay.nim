@@ -176,7 +176,7 @@ proc handleConnect(r: Relay,
     let stopMsg = StopMessage(msgType: StopMessageType.Connect,
                             peer: some(Peer(peerId: src, addrs: @[])),
                             limit: r.limit)
-    await connDst.writeLP(encode(stopMsg).buffer)
+    await connDst.writeLp(encode(stopMsg).buffer)
     let msg = StopMessage.decode(await connDst.readLp(r.msgSize)).get()
     if msg.msgType != StopMessageType.Status:
       raise newException(SendStopError, "Unexpected stop response, not a status message")
