@@ -23,7 +23,7 @@ proc createSwitch(r: Relay): Switch =
 suite "Circuit Relay V2":
 
   suite "Reservation":
-    asyncTearDown:
+    asyncTeardown:
       await allFutures(src1.stop(), src2.stop(), rel.stop())
       checkTrackers()
     var
@@ -65,7 +65,7 @@ suite "Circuit Relay V2":
         rsvp.limitDuration == ldur
         rsvp.limitData == ldata
 
-    asynctest "Too many reservations":
+    asyncTest "Too many reservations":
       let conn = await cl2.switch.dial(rel.peerInfo.peerId, rel.peerInfo.addrs, RelayV2HopCodec)
       let pb = encode(HopMessage(msgType: HopMessageType.Reserve))
       await conn.writeLp(pb.buffer)
@@ -74,7 +74,7 @@ suite "Circuit Relay V2":
         msg.msgType == HopMessageType.Status
         msg.status == some(StatusV2.ReservationRefused)
 
-    asynctest "Too many reservations + Reconnect":
+    asyncTest "Too many reservations + Reconnect":
       expect(ReservationError):
         discard await cl2.reserve(rel.peerInfo.peerId, rel.peerInfo.addrs)
       await rel.disconnect(src1.peerInfo.peerId)
@@ -85,7 +85,7 @@ suite "Circuit Relay V2":
         rsvp.limitDuration == ldur
         rsvp.limitData == ldata
 
-    asynctest "Reservation ttl expires":
+    asyncTest "Reservation ttl expires":
       await sleepAsync(chronos.timer.seconds(ttl + 1))
       rsvp = await cl1.reserve(rel.peerInfo.peerId, rel.peerInfo.addrs)
       range = now().utc + (ttl-3).seconds..now().utc + (ttl+3).seconds
@@ -94,7 +94,7 @@ suite "Circuit Relay V2":
         rsvp.limitDuration == ldur
         rsvp.limitData == ldata
 
-    asynctest "Reservation over relay":
+    asyncTest "Reservation over relay":
       let
         rv2add = Relay.new()
         addrs = @[ MultiAddress.init($rel.peerInfo.addrs[0] & "/p2p/" &
@@ -115,8 +115,7 @@ suite "Circuit Relay V2":
         discard await cl1.reserve(src2.peerInfo.peerId, addrs)
 
   suite "Connection":
-    asyncTearDown:
-      await allFutures(src.stop(), dst.stop(), rel.stop())
+    asyncTeardown:
       checkTrackers()
     var
       addrs {.threadvar.}: MultiAddress
@@ -150,7 +149,7 @@ suite "Circuit Relay V2":
                                 $rel.peerInfo.peerId & "/p2p-circuit/p2p/" &
                                 $dst.peerInfo.peerId).get()
 
-    asynctest "Connection succeed":
+    asyncTest "Connection succeed":
       proto.handler = proc(conn: Connection, proto: string) {.async.} =
         check: "test1" == string.fromBytes(await conn.readLp(1024))
         await conn.writeLp("test2")
@@ -178,9 +177,10 @@ suite "Circuit Relay V2":
       check: "test2" == string.fromBytes(await conn.readLp(1024))
       await conn.writeLp("test3")
       check: "test4" == string.fromBytes(await conn.readLp(1024))
-      await allFutures(conn.close(), rv2.stop())
+      await allFutures(conn.close())
+      await allFutures(src.stop(), dst.stop(), rel.stop())
 
-    asynctest "Connection duration exceeded":
+    asyncTest "Connection duration exceeded":
       ldur = 2
       proto.handler = proc(conn: Connection, proto: string) {.async.} =
         check "wanna sleep?" == string.fromBytes(await conn.readLp(1024))
@@ -210,9 +210,10 @@ suite "Circuit Relay V2":
       await conn.writeLp("go!")
       expect(LPStreamEOFError):
         discard await conn.readLp(1024)
-      await allFutures(conn.close(), rv2.stop())
+      await allFutures(conn.close())
+      await allFutures(src.stop(), dst.stop(), rel.stop())
 
-    asynctest "Connection data exceeded":
+    asyncTest "Connection data exceeded":
       ldata = 1000
       proto.handler = proc(conn: Connection, proto: string) {.async.} =
         check "count me the better story you know" == string.fromBytes(await conn.readLp(1024))
@@ -254,9 +255,10 @@ take to the ship.""")
       await conn.writeLp("surprise me!")
       expect(LPStreamEOFError):
         discard await conn.readLp(1024)
-      await allFutures(conn.close(), rv2.stop())
+      await allFutures(conn.close())
+      await allFutures(src.stop(), dst.stop(), rel.stop())
 
-    asynctest "Reservation ttl expire during connection":
+    asyncTest "Reservation ttl expire during connection":
       ttl = 1
       proto.handler = proc(conn: Connection, proto: string) {.async.} =
         check: "test1" == string.fromBytes(await conn.readLp(1024))
@@ -292,9 +294,10 @@ take to the ship.""")
         await conn.close()
         await src.connect(rel.peerInfo.peerId, rel.peerInfo.addrs)
         conn = await src.dial(dst.peerInfo.peerId, @[ addrs ], customProtoCodec)
-      await allFutures(conn.close(), rv2.stop())
+      await allFutures(conn.close())
+      await allFutures(src.stop(), dst.stop(), rel.stop())
 
-    asynctest "Connection over relay":
+    asyncTest "Connection over relay":
       # src => rel => rel2 => dst
       # rel2 reserve rel
       # dst reserve rel2
@@ -327,9 +330,10 @@ take to the ship.""")
 
       expect(DialFailedError):
         conn = await src.dial(dst.peerInfo.peerId, addrs, customProtoCodec)
-      await allFutures(conn.close(), rel2.stop(), rv2.stop(), rel2Cl.stop())
+      await allFutures(conn.close())
+      await allFutures(src.stop(), dst.stop(), rel.stop(), rel2.stop())
 
-    asynctest "Connection using ClientRelay":
+    asyncTest "Connection using ClientRelay":
       var
         protoABC = new LPProtocol
         protoBCA = new LPProtocol
@@ -405,5 +409,4 @@ take to the ship.""")
         "testBCA4" == string.fromBytes(await connBCA.readLp(1024))
         "testCAB4" == string.fromBytes(await connCAB.readLp(1024))
       await allFutures(connABC.close(), connBCA.close(), connCAB.close())
-      await allFutures(clientA.stop(), clientB.stop(), clientC.stop())
       await allFutures(switchA.stop(), switchB.stop(), switchC.stop())

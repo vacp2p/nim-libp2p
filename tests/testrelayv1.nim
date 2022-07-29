@@ -38,9 +38,9 @@ suite "Circuit Relay":
     clSrc {.threadvar.}: RelayClient
     clDst {.threadvar.}: RelayClient
     r {.threadvar.}: Relay
-    conn {.threadVar.}: Connection
-    msg {.threadVar.}: ProtoBuffer
-    rcv {.threadVar.}: Option[RelayMessage]
+    conn {.threadvar.}: Connection
+    msg {.threadvar.}: ProtoBuffer
+    rcv {.threadvar.}: Option[RelayMessage]
 
   proc createMsg(
     msgType: Option[RelayType] = RelayType.none,
@@ -269,7 +269,7 @@ suite "Circuit Relay":
     await conn.writeLp("line3")
     check string.fromBytes(await conn.readLp(1024)) == "line4"
 
-  asynctest "Bad MultiAddress":
+  asyncTest "Bad MultiAddress":
     await src.connect(srelay.peerInfo.peerId, srelay.peerInfo.addrs)
     await srelay.connect(dst.peerInfo.peerId, dst.peerInfo.addrs)
     expect(CatchableError):

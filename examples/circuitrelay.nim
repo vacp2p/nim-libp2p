@@ -31,7 +31,7 @@ proc main() {.async.} =
   let
     relay = Relay.new()
     clSrc = RelayClient.new()
-    clDSt = RelayClient.new()
+    clDst = RelayClient.new()
 
     # Create three hosts, enable relay client on two of them.
     # The third one can relay connections for other peers.
