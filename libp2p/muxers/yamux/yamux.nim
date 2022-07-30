@@ -272,7 +272,12 @@ proc trySend(channel: YamuxChannel) {.async.} =
     if channel.sendWindow == 0:
       trace "send window empty"
       if channel.sendQueueBytes(true) > channel.maxRecvWindow:
-        await channel.reset(true)
+        debug "channel send queue too big, resetting", maxSendWindow=channel.maxRecvWindow,
+          currentQueueSize = channel.sendQueueBytes(true)
+        try:
+          await channel.reset(true)
+        except CatchableError as exc:
+          debug "failed to reset", msg=exc.msg
       break
 
     let
@@ -304,7 +309,7 @@ proc trySend(channel: YamuxChannel) {.async.} =
     trace "build send buffer", h = $header, msg=string.fromBytes(sendBuffer[12..^1])
     channel.sendWindow.dec(toSend)
     try: await channel.conn.write(sendBuffer)
-    except LPStreamEOFError as exc:
+    except CatchableError as exc:
       for fut in futures.items():
         fut.fail(exc)
       await channel.reset()
