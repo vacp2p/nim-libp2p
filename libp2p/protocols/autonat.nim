@@ -22,7 +22,7 @@ logScope:
 
 const
   AutonatCodec* = "/libp2p/autonat/1.0.0"
-  ArbitraryLimit = 128 # TODO: make it a configuration variable or smthg
+  AddressLimit = 8
 
 type
   AutonatError* = object of LPError
@@ -39,7 +39,7 @@ type
     InternalError = 300
 
   AutonatPeerInfo* = object
-    id: Option[PeerID]
+    id: Option[PeerId]
     addrs: seq[MultiAddress]
 
   AutonatDial* = object
@@ -218,7 +218,7 @@ proc dialBack*(a: Autonat, pid: PeerId, ma: MultiAddress|seq[MultiAddress]):
 
 proc doDial(a: Autonat, conn: Connection, addrs: seq[MultiAddress]) {.async.} =
   try:
-    let ma = await Dialer(a.switch.dialer).canDial(conn.peerId, addrs)
+    let ma = await a.switch.dialer.tryDial(conn.peerId, addrs)
     await conn.sendResponseOk(ma)
   except CancelledError as exc:
     raise exc
@@ -233,16 +233,14 @@ proc handleDial(a: Autonat, conn: Connection, msg: AutonatMsg): Future[void] =
     return conn.sendResponseError(BadRequest, "PeerId mismatch")
 
   let hostIp = conn.observedAddr[0]
-  if hostIp.isErr() or (not IP4.match(hostIp.get()) and
-                        not IP6.match(hostIp.get())):
+  if hostIp.isErr() or not IP.match(hostIp.get()):
     trace "wrong observed address", address=conn.observedAddr
     return conn.sendResponseError(InternalError, "Expected an IP address")
   var addrs = initHashSet[MultiAddress]()
   addrs.incl(conn.observedAddr)
   for ma in peerInfo.addrs:
     let maFirst = ma[0]
-    if maFirst.isErr() or (not IP4.match(maFirst.get()) and
-                           not IP6.match(maFirst.get())):
+    if maFirst.isErr() or not IP.match(maFirst.get()):
       continue
 
     try:
@@ -256,7 +254,7 @@ proc handleDial(a: Autonat, conn: Connection, msg: AutonatMsg): Future[void] =
       )
     except LPError as exc:
       continue
-    if len(addrs) >= ArbitraryLimit:
+    if len(addrs) >= AddressLimit:
       break
 
   if len(addrs) == 0:

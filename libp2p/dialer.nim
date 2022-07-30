@@ -178,7 +178,7 @@ proc negotiateStream(
 
   return conn
 
-method canDial*(
+method tryDial*(
   self: Dialer,
   peerId: PeerId,
   addrs: seq[MultiAddress]): Future[MultiAddress] {.raises: [Defect], async.} =
