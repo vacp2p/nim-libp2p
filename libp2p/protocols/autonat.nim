@@ -15,6 +15,7 @@ import ./protocol,
        ../switch,
        ../multiaddress,
        ../peerid,
+       ../utils/semaphore,
        ../errors
 
 logScope:
@@ -194,10 +195,13 @@ proc sendResponseOk(conn: Connection, ma: MultiAddress) {.async.} =
 
 type
   Autonat* = ref object of LPProtocol
+    sem: AsyncSemaphore
     switch*: Switch
 
 proc dialBack*(a: Autonat, pid: PeerId, ma: MultiAddress|seq[MultiAddress]):
     Future[MultiAddress] {.async.} =
+  await a.sem.acquire()
+  defer: a.sem.release()
   let addrs = when ma is MultiAddress: @[ma] else: ma
   let conn = await a.switch.dial(pid, addrs, AutonatCodec)
   defer: await conn.close()
@@ -261,8 +265,8 @@ proc handleDial(a: Autonat, conn: Connection, msg: AutonatMsg): Future[void] =
     return conn.sendResponseError(DialRefused, "No dialable address")
   return a.doDial(conn, toSeq(addrs))
 
-proc new*(T: typedesc[Autonat], switch: Switch): T =
-  let autonat = T(switch: switch)
+proc new*(T: typedesc[Autonat], switch: Switch, semSize: int = 1): T =
+  let autonat = T(switch: switch, sem: newAsyncSemaphore(semSize))
   autonat.init()
   autonat
 

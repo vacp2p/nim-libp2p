@@ -36,18 +36,18 @@ suite "Autonat":
 
   asyncTest "Simple test":
     let
-      src = createAutonatSwitch()
+      src = newStandardSwitch()
       dst = createAutonatSwitch()
     await src.start()
     await dst.start()
 
     await src.connect(dst.peerInfo.peerId, dst.peerInfo.addrs)
-    let ma = await Autonat(switch: src).dialBack(dst.peerInfo.peerId, dst.peerInfo.addrs)
+    let ma = await Autonat.new(src).dialBack(dst.peerInfo.peerId, dst.peerInfo.addrs)
     await allFutures(src.stop(), dst.stop())
 
   asyncTest "Simple failed test":
     let
-      src = createAutonatSwitch()
+      src = newStandardSwitch()
       dst = makeAutonatServicePrivate()
 
     await src.start()
@@ -55,5 +55,5 @@ suite "Autonat":
 
     await src.connect(dst.peerInfo.peerId, dst.peerInfo.addrs)
     expect AutonatError:
-      discard await Autonat(switch: src).dialBack(dst.peerInfo.peerId, dst.peerInfo.addrs)
+      discard await Autonat.new(src).dialBack(dst.peerInfo.peerId, dst.peerInfo.addrs)
     await allFutures(src.stop(), dst.stop())
