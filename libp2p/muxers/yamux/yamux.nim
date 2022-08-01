@@ -371,6 +371,9 @@ proc createStream(m: Yamux, id: uint32, isSrc: bool): YamuxChannel =
   )
   result.objName = "YamuxStream"
   result.dir = if isSrc: Direction.Out else: Direction.In
+  result.timeoutHandler = proc(): Future[void] {.gcsafe.} =
+    trace "Idle timeout expired, resetting YamuxChannel"
+    result.reset()
   result.initStream()
   result.peerId = m.connection.peerId
   result.observedAddr = m.connection.observedAddr
