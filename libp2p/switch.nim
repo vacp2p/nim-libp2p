@@ -101,8 +101,7 @@ proc removePeerEventHandler*(s: Switch,
                              kind: PeerEventKind) {.public.} =
   s.connManager.removePeerEventHandler(handler, kind)
 
-method addTransport*(s: Switch,
-                  t: Transport) =
+method addTransport*(s: Switch, t: Transport) =
   s.transports &= t
   s.dialer.addTransport(t)
 

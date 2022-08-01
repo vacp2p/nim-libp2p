@@ -286,8 +286,8 @@ proc getOrCreatePeer*(
   p.peers.withValue(peerId, peer):
     return peer[]
 
-  proc getConn(): Future[Connection] =
-    p.switch.dial(peerId, protos)
+  proc getConn(): Future[Connection] {.async.} =
+    return await p.switch.dial(peerId, protos)
 
   proc dropConn(peer: PubSubPeer) =
     proc dropConnAsync(peer: PubSubPeer) {.async.} =

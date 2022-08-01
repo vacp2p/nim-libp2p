@@ -23,7 +23,8 @@ import
   switch, peerid, peerinfo, stream/connection, multiaddress,
   crypto/crypto, transports/[transport, tcptransport],
   muxers/[muxer, mplex/mplex, yamux/yamux],
-  protocols/[identify, secure/secure, secure/noise, relay],
+  protocols/[identify, secure/secure, secure/noise],
+  protocols/relay/[relay, client, rtransport],
   connmanager, upgrademngrs/muxedupgrade,
   nameresolving/nameresolver,
   errors, utility
@@ -54,8 +55,7 @@ type
     agentVersion: string
     nameResolver: NameResolver
     peerStoreCapacity: Option[int]
-    isCircuitRelay: bool
-    circuitRelayCanHop: bool
+    circuitRelay: Relay
 
 proc new*(T: type[SwitchBuilder]): T {.public.} =
   ## Creates a SwitchBuilder
@@ -73,8 +73,7 @@ proc new*(T: type[SwitchBuilder]): T {.public.} =
     maxOut: -1,
     maxConnsPerPeer: MaxConnectionsPerPeer,
     protoVersion: ProtoVersion,
-    agentVersion: AgentVersion,
-    isCircuitRelay: false)
+    agentVersion: AgentVersion)
 
 proc withPrivateKey*(b: SwitchBuilder, privateKey: PrivateKey): SwitchBuilder {.public.} =
   ## Set the private key of the switch. Will be used to
@@ -183,9 +182,8 @@ proc withNameResolver*(b: SwitchBuilder, nameResolver: NameResolver): SwitchBuil
   b.nameResolver = nameResolver
   b
 
-proc withRelayTransport*(b: SwitchBuilder, canHop: bool): SwitchBuilder =
-  b.isCircuitRelay = true
-  b.circuitRelayCanHop = canHop
+proc withCircuitRelay*(b: SwitchBuilder, r: Relay = Relay.new()): SwitchBuilder =
+  b.circuitRelay = r
   b
 
 proc build*(b: SwitchBuilder): Switch
@@ -245,10 +243,11 @@ proc build*(b: SwitchBuilder): Switch
     nameResolver = b.nameResolver,
     peerStore = peerStore)
 
-  if b.isCircuitRelay:
-    let relay = Relay.new(switch, b.circuitRelayCanHop)
-    switch.mount(relay)
-    switch.addTransport(RelayTransport.new(relay, muxedUpgrade))
+  if not isNil(b.circuitRelay):
+    if b.circuitRelay of RelayClient:
+      switch.addTransport(RelayTransport.new(RelayClient(b.circuitRelay), muxedUpgrade))
+    b.circuitRelay.setup(switch)
+    switch.mount(b.circuitRelay)
 
   return switch
 
