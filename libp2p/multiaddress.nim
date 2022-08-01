@@ -548,28 +548,6 @@ proc protoAddress*(ma: MultiAddress): MaResult[seq[byte]] =
   buffer.setLen(res)
   ok(buffer)
 
-proc len*(ma: MultiAddress): MaResult[int] =
-  var counter: int = 0
-  var header: uint64
-  var vb = ma
-  var data = newSeq[byte]()
-
-  while len(vb.data) > 0:
-    if vb.data.readVarint(header) == -1:
-      return err("multiaddress: Malformed binary address!")
-    let proto = CodeAddresses.getOrDefault(MultiCodec(header))
-    if proto.kind == None:
-      return err("multiaddress: Unsupported protocol '" & $header & "'")
-    elif proto.kind == Fixed:
-      data.setLen(proto.size)
-      if vb.data.readArray(data) != proto.size:
-        return err("multiaddress: Decoding protocol error")
-    elif proto.kind in {Length, Path}:
-      if vb.data.readSeq(data) == -1:
-        return err("multiaddress: Decoding protocol error")
-    counter.inc()
-  ok(counter)
-
 proc getPart(ma: MultiAddress, index: int): MaResult[MultiAddress] =
   var header: uint64
   var data = newSeq[byte]()
@@ -610,50 +588,17 @@ proc getPart(ma: MultiAddress, index: int): MaResult[MultiAddress] =
   ok(res)
 
 proc getParts[U, V](ma: MultiAddress, slice: HSlice[U, V]): MaResult[MultiAddress] =
-  let maLength = ? len(ma)
+  when slice.a is BackwardsIndex or slice.b is BackwardsIndex:
+    let maLength = ? len(ma)
   template normalizeIndex(index): int =
     when index is BackwardsIndex: maLength - int(index)
     else: int(index)
   let
     indexStart = normalizeIndex(slice.a)
     indexEnd = normalizeIndex(slice.b)
-  if indexStart notin 0..<maLength or indexEnd notin indexStart..<maLength:
-    return err("multiaddress: index out of bound")
-  var
-    header: uint64
-    data = newSeq[byte]()
-    offset = 0
-    vb = ma
-    res: MultiAddress
-  res.data = initVBuffer()
-  while offset <= indexEnd:
-    if vb.data.readVarint(header) == -1:
-      return err("multiaddress: Malformed binary address!")
-
-    let proto = CodeAddresses.getOrDefault(MultiCodec(header))
-    if proto.kind == None:
-      return err("multiaddress: Unsupported protocol '" & $header & "'")
-
-    elif proto.kind == Fixed:
-      data.setLen(proto.size)
-      if vb.data.readArray(data) != proto.size:
-        return err("multiaddress: Decoding protocol error")
-
-      if offset in indexStart..indexEnd:
-        res.data.writeVarint(header)
-        res.data.writeArray(data)
-    elif proto.kind in {Length, Path}:
-      if vb.data.readSeq(data) == -1:
-        return err("multiaddress: Decoding protocol error")
-
-      if offset in indexStart..indexEnd:
-        res.data.writeVarint(header)
-        res.data.writeSeq(data)
-    elif proto.kind == Marker:
-      if offset in indexStart..indexEnd:
-        res.data.writeVarint(header)
-    inc(offset)
-  res.data.finish()
+  var res: MultiAddress
+  for i in indexStart..indexEnd:
+    ? res.append(? ma[i])
   ok(res)
 
 proc `[]`*(ma: MultiAddress, i: int): MaResult[MultiAddress] {.inline.} =
@@ -699,6 +644,13 @@ iterator items*(ma: MultiAddress): MaResult[MultiAddress] =
       res.data.writeVarint(header)
     res.data.finish()
     yield ok(MaResult[MultiAddress], res)
+
+proc len*(ma: MultiAddress): MaResult[int] =
+  var counter: int
+  for part in ma:
+    if part.isErr: return err(part.error)
+    counter.inc()
+  ok(counter)
 
 proc contains*(ma: MultiAddress, codec: MultiCodec): MaResult[bool] {.inline.} =
   ## Returns ``true``, if address with MultiCodec ``codec`` present in
