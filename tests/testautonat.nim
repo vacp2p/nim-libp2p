@@ -42,7 +42,7 @@ suite "Autonat":
     await dst.start()
 
     await src.connect(dst.peerInfo.peerId, dst.peerInfo.addrs)
-    let ma = await Autonat.new(src).dialBack(dst.peerInfo.peerId, dst.peerInfo.addrs)
+    let ma = await Autonat.new(src).dialMe(dst.peerInfo.peerId, dst.peerInfo.addrs)
     await allFutures(src.stop(), dst.stop())
 
   asyncTest "Simple failed test":
@@ -55,5 +55,5 @@ suite "Autonat":
 
     await src.connect(dst.peerInfo.peerId, dst.peerInfo.addrs)
     expect AutonatError:
-      discard await Autonat.new(src).dialBack(dst.peerInfo.peerId, dst.peerInfo.addrs)
+      discard await Autonat.new(src).dialMe(dst.peerInfo.peerId, dst.peerInfo.addrs)
     await allFutures(src.stop(), dst.stop())

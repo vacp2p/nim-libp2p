@@ -198,10 +198,8 @@ type
     sem: AsyncSemaphore
     switch*: Switch
 
-proc dialBack*(a: Autonat, pid: PeerId, ma: MultiAddress|seq[MultiAddress]):
+proc dialMe*(a: Autonat, pid: PeerId, ma: MultiAddress|seq[MultiAddress]):
     Future[MultiAddress] {.async.} =
-  await a.sem.acquire()
-  defer: a.sem.release()
   let addrs = when ma is MultiAddress: @[ma] else: ma
   let conn = await a.switch.dial(pid, addrs, AutonatCodec)
   defer: await conn.close()
@@ -220,14 +218,17 @@ proc dialBack*(a: Autonat, pid: PeerId, ma: MultiAddress|seq[MultiAddress]):
     raise newException(AutonatError, "Missing address")
   return response.ma.get()
 
-proc doDial(a: Autonat, conn: Connection, addrs: seq[MultiAddress]) {.async.} =
+proc tryDial(a: Autonat, conn: Connection, addrs: seq[MultiAddress]) {.async.} =
   try:
+    await a.sem.acquire()
     let ma = await a.switch.dialer.tryDial(conn.peerId, addrs)
     await conn.sendResponseOk(ma)
   except CancelledError as exc:
     raise exc
   except CatchableError as exc:
     await conn.sendResponseError(DialError, exc.msg)
+  finally:
+    a.sem.release()
 
 proc handleDial(a: Autonat, conn: Connection, msg: AutonatMsg): Future[void] =
   if msg.dial.isNone() or msg.dial.get().peerInfo.isNone():
@@ -263,7 +264,7 @@ proc handleDial(a: Autonat, conn: Connection, msg: AutonatMsg): Future[void] =
 
   if len(addrs) == 0:
     return conn.sendResponseError(DialRefused, "No dialable address")
-  return a.doDial(conn, toSeq(addrs))
+  return a.tryDial(conn, toSeq(addrs))
 
 proc new*(T: typedesc[Autonat], switch: Switch, semSize: int = 1): T =
   let autonat = T(switch: switch, sem: newAsyncSemaphore(semSize))
