@@ -160,11 +160,11 @@ proc save(rdv: RendezVous, ns: string, peerId: PeerId, r: Register, ttl: uint64 
   discard rdv.indexes.hasKeyOrPut(nsSalted, initOffsettedSeq[int]())
   try:
     for index in rdv.indexes[nsSalted]:
-      if rdv.registered[index].peerId == conn.peerId:
+      if rdv.registered[index].peerId == peerId:
         rdv.registered[index].expireDate = rdv.defaultDT
     rdv.registered.add(
       RegisteredData(
-        peerId: conn.peerId,
+        peerId: peerId,
         expireDate: now() + initDuration(ttl.int64),
         data: r
       )
@@ -228,7 +228,6 @@ proc discover(rdv: RendezVous, conn: Connection, d: Discover): Future[void] =
   conn.sendDiscoverResponse(s, Cookie(offset: offset.uint64, ns: ns))
 
 proc advertise*(rdv: RendezVous,
-                spr: SignedPeerRecord,
                 ns: string,
                 ttl: uint64 = MinimumTTL) {.async.} =
   let sprBuff = rdv.switch.peerInfo.signedPeerRecord.envelope.encode()
@@ -297,10 +296,3 @@ method stop*(rdv: RendezVous) {.async.} =
   rdv.started = false
   rdv.registerDeletionLoop.cancel()
   rdv.registerDeletionLoop = nil
-
-type
-  RendezVousInterface = ref object of DiscoveryInterface
-    rdv: RendezVous
-
-proc new*(T: typedesc[RendezVousInterface], rdv: RendezVous): RendezVousInterface =
-  result = T(rdv: rdv)
