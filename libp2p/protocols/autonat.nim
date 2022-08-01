@@ -238,7 +238,8 @@ proc handleDial(a: Autonat, conn: Connection, msg: AutonatMsg): Future[void] =
   if peerInfo.id.isSome() and peerInfo.id.get() != conn.peerId:
     return conn.sendResponseError(BadRequest, "PeerId mismatch")
 
-  if conn.observedAddr.contains(multiCodec("p2p-circuit")).get():
+  var isRelayed = conn.observedAddr.contains(multiCodec("p2p-circuit"))
+  if isRelayed.isErr() or isRelayed.get():
     return conn.sendResponseError(DialRefused, "Refused to dial a relayed observed address")
   let hostIp = conn.observedAddr[0]
   if hostIp.isErr() or not IP.match(hostIp.get()):
@@ -247,7 +248,8 @@ proc handleDial(a: Autonat, conn: Connection, msg: AutonatMsg): Future[void] =
   var addrs = initHashSet[MultiAddress]()
   addrs.incl(conn.observedAddr)
   for ma in peerInfo.addrs:
-    if ma.contains(multiCodec("p2p-circuit")).get():
+    isRelayed = ma.contains(multiCodec("p2p-circuit"))
+    if isRelayed.isErr() or isRelayed.get():
       continue
     let maFirst = ma[0]
     if maFirst.isErr() or not IP.match(maFirst.get()):
@@ -293,4 +295,4 @@ method init*(a: Autonat) =
       await conn.close()
 
   a.handler = handleStream
-  a.codecs = @[AutonatCodec]
+  a.codec = AutonatCodec
