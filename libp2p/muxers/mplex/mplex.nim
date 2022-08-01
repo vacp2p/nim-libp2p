@@ -34,7 +34,6 @@ when defined(libp2p_expensive_metrics):
     "mplex channels", labels = ["initiator", "peer"])
 
 type
-  TooManyChannels* = object of MuxerError
   InvalidChannelIdError* = object of MuxerError
 
   Mplex* = ref object of Muxer

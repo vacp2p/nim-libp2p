@@ -22,6 +22,7 @@ const
 
 type
   MuxerError* = object of LPError
+  TooManyChannels* = object of MuxerError
 
   StreamHandler* = proc(conn: Connection): Future[void] {.gcsafe, raises: [Defect].}
   MuxerHandler* = proc(muxer: Muxer): Future[void] {.gcsafe, raises: [Defect].}
