@@ -19,7 +19,7 @@ import ./protocol,
        ../errors
 
 logScope:
-  topics = "libp2p identify"
+  topics = "libp2p autonat"
 
 const
   AutonatCodec* = "/libp2p/autonat/1.0.0"
