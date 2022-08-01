@@ -20,7 +20,7 @@ proc createAutonatSwitch(): Switch =
 proc makeAutonatServicePrivate(): Switch =
   var autonatProtocol = new LPProtocol
   autonatProtocol.handler = proc (conn: Connection, proto: string) {.async, gcsafe.} =
-    discard await conn.readLP(1024)
+    discard await conn.readLp(1024)
     await conn.writeLp(AutonatDialResponse(
       status: DialError,
       text: some("dial failed"),
