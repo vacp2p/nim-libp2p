@@ -19,11 +19,12 @@ runnableExamples:
 {.push raises: [Defect].}
 
 import
-  options, tables, chronos, chronicles,
+  options, tables, chronos, chronicles, sequtils,
   switch, peerid, peerinfo, stream/connection, multiaddress,
   crypto/crypto, transports/[transport, tcptransport],
   muxers/[muxer, mplex/mplex, yamux/yamux],
-  protocols/[identify, secure/secure, secure/noise, relay],
+  protocols/[identify, secure/secure, secure/noise],
+  protocols/relay/[relay, client, rtransport],
   connmanager, upgrademngrs/muxedupgrade,
   nameresolving/nameresolver,
   errors, utility
@@ -38,15 +39,11 @@ type
     Noise,
     Secio {.deprecated.}
 
-  MuxerBuilder = object
-    codec: string
-    newMuxer: MuxerConstructor
-
   SwitchBuilder* = ref object
     privKey: Option[PrivateKey]
     addresses: seq[MultiAddress]
     secureManagers: seq[SecureProtocol]
-    muxers: seq[MuxerBuilder]
+    muxers: seq[MuxerProvider]
     transports: seq[TransportProvider]
     rng: ref HmacDrbgContext
     maxConnections: int
@@ -58,8 +55,7 @@ type
     agentVersion: string
     nameResolver: NameResolver
     peerStoreCapacity: Option[int]
-    isCircuitRelay: bool
-    circuitRelayCanHop: bool
+    circuitRelay: Relay
 
 proc new*(T: type[SwitchBuilder]): T {.public.} =
   ## Creates a SwitchBuilder
@@ -77,8 +73,7 @@ proc new*(T: type[SwitchBuilder]): T {.public.} =
     maxOut: -1,
     maxConnsPerPeer: MaxConnectionsPerPeer,
     protoVersion: ProtoVersion,
-    agentVersion: AgentVersion,
-    isCircuitRelay: false)
+    agentVersion: AgentVersion)
 
 proc withPrivateKey*(b: SwitchBuilder, privateKey: PrivateKey): SwitchBuilder {.public.} =
   ## Set the private key of the switch. Will be used to
@@ -119,13 +114,15 @@ proc withMplex*(
       outTimeout,
       maxChannCount)
 
-  b.muxers.add(MuxerBuilder(codec: MplexCodec, newMuxer: newMuxer))
+  assert b.muxers.countIt(it.codec == MplexCodec) == 0, "Mplex build multiple times"
+  b.muxers.add(MuxerProvider.new(newMuxer, MplexCodec))
   b
 
 proc withYamux*(b: SwitchBuilder): SwitchBuilder =
   proc newMuxer(conn: Connection): Muxer = Yamux.new(conn)
 
-  b.muxers.add(MuxerBuilder(codec: YamuxCodec, newMuxer: newMuxer))
+  assert b.muxers.countIt(it.codec == YamuxCodec) == 0, "Yamux build multiple times"
+  b.muxers.add(MuxerProvider.new(newMuxer, YamuxCodec))
   b
 
 proc withNoise*(b: SwitchBuilder): SwitchBuilder {.public.} =
@@ -185,9 +182,8 @@ proc withNameResolver*(b: SwitchBuilder, nameResolver: NameResolver): SwitchBuil
   b.nameResolver = nameResolver
   b
 
-proc withRelayTransport*(b: SwitchBuilder, canHop: bool): SwitchBuilder =
-  b.isCircuitRelay = true
-  b.circuitRelayCanHop = canHop
+proc withCircuitRelay*(b: SwitchBuilder, r: Relay = Relay.new()): SwitchBuilder =
+  b.circuitRelay = r
   b
 
 proc build*(b: SwitchBuilder): Switch
@@ -213,17 +209,10 @@ proc build*(b: SwitchBuilder): Switch
       agentVersion = b.agentVersion)
 
   let
-    muxers = block:
-      var muxers: Table[string, MuxerProvider]
-      for m in b.muxers:
-        muxers[m.codec] = MuxerProvider.new(m.newMuxer, m.codec)
-      muxers
-
-  let
     identify = Identify.new(peerInfo, b.sendSignedPeerRecord)
     connManager = ConnManager.new(b.maxConnsPerPeer, b.maxConnections, b.maxIn, b.maxOut)
     ms = MultistreamSelect.new()
-    muxedUpgrade = MuxedUpgrade.new(identify, muxers, secureManagerInstances, connManager, ms)
+    muxedUpgrade = MuxedUpgrade.new(identify, b.muxers, secureManagerInstances, connManager, ms)
 
   let
     transports = block:
@@ -248,17 +237,17 @@ proc build*(b: SwitchBuilder): Switch
     peerInfo = peerInfo,
     transports = transports,
     identity = identify,
-    muxers = muxers,
     secureManagers = secureManagerInstances,
     connManager = connManager,
     ms = ms,
     nameResolver = b.nameResolver,
     peerStore = peerStore)
 
-  if b.isCircuitRelay:
-    let relay = Relay.new(switch, b.circuitRelayCanHop)
-    switch.mount(relay)
-    switch.addTransport(RelayTransport.new(relay, muxedUpgrade))
+  if not isNil(b.circuitRelay):
+    if b.circuitRelay of RelayClient:
+      switch.addTransport(RelayTransport.new(RelayClient(b.circuitRelay), muxedUpgrade))
+    b.circuitRelay.setup(switch)
+    switch.mount(b.circuitRelay)
 
   return switch
 

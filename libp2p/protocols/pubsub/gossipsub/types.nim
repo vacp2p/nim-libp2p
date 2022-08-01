@@ -141,7 +141,7 @@ type
     enablePX*: bool
 
   BackoffTable* = Table[string, Table[PeerId, Moment]]
-  ValidationSeenTable* = Table[MessageID, HashSet[PubSubPeer]]
+  ValidationSeenTable* = Table[MessageId, HashSet[PubSubPeer]]
 
   RoutingRecordsPair* = tuple[id: PeerId, record: Option[PeerRecord]]
   RoutingRecordsHandler* =

@@ -22,8 +22,13 @@ logScope:
 
 type
   MuxedUpgrade* = ref object of Upgrade
-    muxers*: Table[string, MuxerProvider]
+    muxers*: seq[MuxerProvider]
     streamHandler*: StreamHandler
+
+proc getMuxerByCodec(self: MuxedUpgrade, muxerName: string): MuxerProvider =
+  for m in self.muxers:
+    if muxerName in m.codecs:
+      return m
 
 proc identify*(
   self: MuxedUpgrade,
@@ -50,7 +55,7 @@ proc mux*(
     warn "no muxers registered, skipping upgrade flow", conn
     return
 
-  let muxerName = await self.ms.select(conn, toSeq(self.muxers.keys()))
+  let muxerName = await self.ms.select(conn, self.muxers.mapIt(it.codec))
   if muxerName.len == 0 or muxerName == "na":
     debug "no muxer available, early exit", conn
     return
@@ -58,7 +63,7 @@ proc mux*(
   trace "Found a muxer", conn, muxerName
 
   # create new muxer for connection
-  let muxer = self.muxers[muxerName].newMuxer(conn)
+  let muxer = self.getMuxerByCodec(muxerName).newMuxer(conn)
 
   # install stream handler
   muxer.streamHandler = self.streamHandler
@@ -127,7 +132,7 @@ method upgradeIncoming*(
 
       cconn = sconn
       # add the muxer
-      for muxer in self.muxers.values:
+      for muxer in self.muxers:
         ms.addHandler(muxer.codecs, muxer)
 
       # handle subsequent secure requests
@@ -197,7 +202,7 @@ proc muxerHandler(
 proc new*(
   T: type MuxedUpgrade,
   identity: Identify,
-  muxers: Table[string, MuxerProvider],
+  muxers: seq[MuxerProvider],
   secureManagers: openArray[Secure] = [],
   connManager: ConnManager,
   ms: MultistreamSelect): T =

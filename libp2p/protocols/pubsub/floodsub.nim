@@ -32,23 +32,23 @@ const FloodSubCodec* = "/floodsub/1.0.0"
 type
   FloodSub* {.public.} = ref object of PubSub
     floodsub*: PeerTable      # topic to remote peer map
-    seen*: TimedCache[MessageID] # message id:s already seen on the network
+    seen*: TimedCache[MessageId] # message id:s already seen on the network
     seenSalt*: seq[byte]
 
-proc hasSeen*(f: FloodSub, msgId: MessageID): bool =
+proc hasSeen*(f: FloodSub, msgId: MessageId): bool =
   f.seenSalt & msgId in f.seen
 
-proc addSeen*(f: FloodSub, msgId: MessageID): bool =
+proc addSeen*(f: FloodSub, msgId: MessageId): bool =
   # Salting the seen hash helps avoid attacks against the hash function used
   # in the nim hash table
   # Return true if the message has already been seen
   f.seen.put(f.seenSalt & msgId)
 
-proc firstSeen*(f: FloodSub, msgId: MessageID): Moment =
+proc firstSeen*(f: FloodSub, msgId: MessageId): Moment =
   f.seen.addedAt(f.seenSalt & msgId)
 
 proc handleSubscribe*(f: FloodSub,
-                      peer: PubsubPeer,
+                      peer: PubSubPeer,
                       topic: string,
                       subscribe: bool) =
   logScope:
@@ -139,7 +139,7 @@ method rpcHandler*(f: FloodSub,
       discard
 
     var toSendPeers = initHashSet[PubSubPeer]()
-    for t in msg.topicIDs:                     # for every topic in the message
+    for t in msg.topicIds:                     # for every topic in the message
       if t notin f.topics:
         continue
       f.floodsub.withValue(t, peers): toSendPeers.incl(peers[])
@@ -222,7 +222,7 @@ method publish*(f: FloodSub,
 method initPubSub*(f: FloodSub)
   {.raises: [Defect, InitializationError].} =
   procCall PubSub(f).initPubSub()
-  f.seen = TimedCache[MessageID].init(2.minutes)
+  f.seen = TimedCache[MessageId].init(2.minutes)
   f.seenSalt = newSeqUninitialized[byte](sizeof(Hash))
   hmacDrbgGenerate(f.rng[], f.seenSalt)
 

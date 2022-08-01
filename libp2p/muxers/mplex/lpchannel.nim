@@ -168,8 +168,8 @@ method readOnce*(s: LPChannel,
   try:
     let bytes = await procCall BufferStream(s).readOnce(pbytes, nbytes)
     when defined(libp2p_network_protocols_metrics):
-      if s.tag.len > 0:
-        libp2p_protocols_bytes.inc(bytes.int64, labelValues=[s.tag, "in"])
+      if s.protocol.len > 0:
+        libp2p_protocols_bytes.inc(bytes.int64, labelValues=[s.protocol, "in"])
 
     trace "readOnce", s, bytes
     if bytes == 0:
@@ -219,8 +219,8 @@ proc completeWrite(
       await fut
 
     when defined(libp2p_network_protocol_metrics):
-      if s.tag.len > 0:
-        libp2p_protocols_bytes.inc(msgLen.int64, labelValues=[s.tag, "out"])
+      if s.protocol.len > 0:
+        libp2p_protocols_bytes.inc(msgLen.int64, labelValues=[s.protocol, "out"])
 
     s.activity = true
   except CancelledError as exc:
@@ -253,6 +253,8 @@ method write*(s: LPChannel, msg: seq[byte]): Future[void] =
       prepareWrite(s, msg)
 
   s.completeWrite(fut, msg.len)
+
+method getWrapped*(s: LPChannel): Connection = s.conn
 
 proc init*(
   L: type LPChannel,

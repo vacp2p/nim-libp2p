@@ -61,3 +61,39 @@ jobs:
           git config --global user.name = "${{ github.actor }}"
           git commit -a -m "update docs for ${GITHUB_REF##*/}"
           git push origin gh-pages
+
+  update_site:
+    if: github.ref == 'refs/heads/master'
+    name: 'Rebuild website'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - uses: actions/setup-python@v2
+        with:
+          python-version: 3.x
+
+      - name: Generate website
+        run: pip install mkdocs-material && mkdocs build
+
+      - name: Clone the gh-pages branch
+        uses: actions/checkout@v2
+        with:
+          repository: status-im/nim-libp2p
+          ref: gh-pages
+          path: subdoc
+          fetch-depth: 0
+
+      - name: Commit & push
+        run: |
+          cd subdoc
+
+          rm -rf docs
+          mv ../site docs
+
+          git add .
+          git config --global user.email "${{ github.actor }}@users.noreply.github.com"
+          git config --global user.name = "${{ github.actor }}"
+          git commit -a -m "update website"
+          git push origin gh-pages

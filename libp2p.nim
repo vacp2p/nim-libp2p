@@ -8,7 +8,7 @@
 # those terms.
 
 when defined(nimdoc):
-  ## Welcome to the nim-libp2p documentation!
+  ## Welcome to the nim-libp2p reference!
   ##
   ## On the left, you'll find a switch that allows you to see private
   ## procedures. By default, you'll only see the public one (marked with `{.public.}`)

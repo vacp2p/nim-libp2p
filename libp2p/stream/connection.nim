@@ -36,7 +36,7 @@ type
     peerId*: PeerId
     observedAddr*: MultiAddress
     upgraded*: Future[void]
-    tag*: string                    # debug tag for metrics (generally ms protocol)
+    protocol*: string               # protocol used by the connection, used as tag for metrics
     transportDir*: Direction        # The bottom level transport (generally the socket) direction
     when defined(libp2p_agents_metrics):
       shortAgent*: string
@@ -150,6 +150,9 @@ proc timeoutMonitor(s: Connection) {.async, gcsafe.} =
 
     if not await s.pollActivity():
       return
+
+method getWrapped*(s: Connection): Connection {.base.} =
+  doAssert(false, "not implemented!")
 
 proc new*(C: type Connection,
            peerId: PeerId,

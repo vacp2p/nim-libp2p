@@ -1,0 +1,36 @@
+name: Bumper
+on:
+  push:
+    branches:
+      - unstable
+      - bumper
+  workflow_dispatch:
+
+jobs:
+  bumpNimbus:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clone NBC
+        uses: actions/checkout@v2
+        with:
+          repository: status-im/nimbus-eth2
+          ref: unstable
+          path: nbc
+          submodules: true
+          fetch-depth: 0
+          token:  ${{ secrets.ACTIONS_GITHUB_TOKEN }}
+
+      - name: Checkout this ref
+        run: |
+          cd nbc/vendor/nim-libp2p
+          git checkout $GITHUB_SHA
+
+      - name: Commit this bump
+        run: |
+          cd nbc
+          git config --global user.email "${{ github.actor }}@users.noreply.github.com"
+          git config --global user.name = "${{ github.actor }}"
+          git commit -a -m "auto-bump nim-libp2p"
+          git branch -D nim-libp2p-auto-bump-${GITHUB_REF##*/} || true
+          git switch -c nim-libp2p-auto-bump-${GITHUB_REF##*/}
+          git push -f origin nim-libp2p-auto-bump-${GITHUB_REF##*/}

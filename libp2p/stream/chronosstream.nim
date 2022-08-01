@@ -156,3 +156,5 @@ method closeImpl*(s: ChronosStream) {.async.} =
     s.untrackPeerIdentity()
 
   await procCall Connection(s).closeImpl()
+
+method getWrapped*(s: ChronosStream): Connection = nil
