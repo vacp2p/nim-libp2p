@@ -245,7 +245,9 @@ proc advertise*(rdv: RendezVous,
       let conn = await rdv.switch.dial(peer, RendezVousCodec)
       defer: await conn.close()
       await conn.writeLp(msg)
-      let msgRecv = Protobuf.decode(await conn.readLp(4096), type(Message))
+      let
+        buf = await conn.readLp(4096)
+        msgRecv = Protobuf.decode(buf, type(Message))
       if msgRecv.msgType.get() != MessageType.RegisterResponse:
         trace "cannot register", peer, msgType = msgRecv.msgType
     except CancelledError as exc:
@@ -253,13 +255,20 @@ proc advertise*(rdv: RendezVous,
     except CatchableError as exc:
       trace "exception in the advertise", error = exc.msg
 
-proc request*(rdv: RendezVous, ns: string): Future[void] {.async.} = discard
+proc request*(rdv: RendezVous, ns: string): Future[seq[PeerRecord]] {.async.} =
+  let nsSalted = ns & rdv.salt
+  var s = collect(newSeq()):
+    if nsSalted in rdv.indexes:
+      for index in rdv.indexes[nsSalted]:
+        SignedPeerRecord.decode(rdv.registered[index].data.signedPeerRecord.get()).get().data
+  # TODO: send to peers and append the response to s
+  return s
 
 proc new*(T: typedesc[RendezVous],
           switch: Switch,
           rng: ref HmacDrbgContext = newRng()): T =
   let rdv = T(
-    salt: "TODO",#string.fromBytes(generateBytes(rng, 8)),
+    salt: string.fromBytes(generateBytes(rng[], 8)),
     registered: initOffsettedSeq[RegisteredData](),
     defaultDT: 0.fromUnix().utc(),
     switch: switch,
@@ -269,7 +278,9 @@ proc new*(T: typedesc[RendezVous],
   proc handleStream(conn: Connection, proto: string) {.async, gcsafe.} =
     try:
       discard
-      let msg = Protobuf.decode(await conn.readLp(4096), type(Message))
+      let
+        buf = await conn.readLp(4096)
+        msg = Protobuf.decode(buf, type(Message))
       case msg.msgType.get():
         of MessageType.Register: await rdv.register(conn, msg.register.get())
         of MessageType.RegisterResponse:
@@ -298,6 +309,7 @@ proc new*(T: typedesc[RendezVous],
   return rdv
 
 proc deletesRegister(rdv: RendezVous) {.async.} =
+  # TODO replace 1 minutes by the shortest time to sleep before a registration finished
   heartbeat "Register timeout", chronos.minutes(1):
     let n = now()
     rdv.registered.flushIfIt(it.expireDate < n)

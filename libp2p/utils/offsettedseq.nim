@@ -40,16 +40,18 @@ proc flushIf*[T](o: OffsettedSeq[T], pred: proc (x: T): bool) =
   for e in o.s:
     if not pred(e): break
     i.inc()
-  o.s.delete(0..<i)
-  o.offset.inc(i)
+  if i > 0:
+    o.s.delete(0..<i)
+    o.offset.inc(i)
 
 template flushIfIt*(o, pred: untyped) =
   var i = 0
   for it {.inject.} in o.s:
     if not pred: break
     i.inc()
-  o.s.delete(0..<i)
-  o.offset.inc(i)
+  if i > 0:
+    o.s.delete(0..<i)
+    o.offset.inc(i)
 
 proc add*[T](o: var OffsettedSeq[T], v: T) =
   o.s.add(v)
