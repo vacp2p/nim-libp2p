@@ -9,7 +9,10 @@
 
 ## This module implementes API for libp2p peer.
 
-{.push raises: [Defect].}
+when (NimMajor, NimMinor) < (1, 4):
+  {.push raises: [Defect].}
+else:
+  {.push raises: [].}
 {.push public.}
 
 import
