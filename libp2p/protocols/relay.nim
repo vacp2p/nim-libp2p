@@ -1,11 +1,11 @@
-## Nim-LibP2P
-## Copyright (c) 2022 Status Research & Development GmbH
-## Licensed under either of
-##  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
-##  * MIT license ([LICENSE-MIT](LICENSE-MIT))
-## at your option.
-## This file may not be copied, modified, or distributed except according to
-## those terms.
+# Nim-LibP2P
+# Copyright (c) 2022 Status Research & Development GmbH
+# Licensed under either of
+#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+#  * MIT license ([LICENSE-MIT](LICENSE-MIT))
+# at your option.
+# This file may not be copied, modified, or distributed except according to
+# those terms.
 
 {.push raises: [Defect].}
 
@@ -58,7 +58,7 @@ type
   RelayError* = object of LPError
 
   RelayPeer* = object
-    peerId*: PeerID
+    peerId*: PeerId
     addrs*: seq[MultiAddress]
 
   AddConn* = proc(conn: Connection): Future[void] {.gcsafe, raises: [Defect].}
@@ -71,7 +71,7 @@ type
 
   Relay* = ref object of LPProtocol
     switch*: Switch
-    peerId: PeerID
+    peerId: PeerId
     dialer: Dial
     canHop: bool
     streamCount: int
@@ -466,6 +466,7 @@ proc dial*(self: RelayTransport, ma: MultiAddress): Future[Connection] {.async, 
   trace "Dial", relayPeerId, relayAddrs, dstPeerId
 
   let conn = await self.relay.switch.dial(relayPeerId, @[ relayAddrs ], RelayCodec)
+  conn.dir = Direction.Out
   result = await self.relay.dialPeer(conn, dstPeerId, @[])
 
 method dial*(

@@ -3,6 +3,7 @@ include ../../libp2p/protocols/pubsub/gossipsub
 {.used.}
 
 import options
+import ../stublogger
 import stew/byteutils
 import ../../libp2p/builders
 import ../../libp2p/errors
@@ -530,7 +531,7 @@ suite "GossipSub internal":
     await gossipSub.rpcHandler(peer, lotOfSubs)
 
     check:
-      gossipSub.gossipSub.len == gossipSub.topicsHigh
+      gossipSub.gossipsub.len == gossipSub.topicsHigh
       peer.behaviourPenalty > 0.0
 
     await conn.close()
@@ -689,7 +690,7 @@ suite "GossipSub internal":
       )
       peer.iHaveBudget = 0
       let iwants = gossipSub.handleIHave(peer, @[msg])
-      check: iwants.messageIDs.len == 0
+      check: iwants.messageIds.len == 0
 
     block:
       # given duplicate ihave should generate only one iwant
@@ -704,7 +705,7 @@ suite "GossipSub internal":
         messageIDs: @[id, id, id]
       )
       let iwants = gossipSub.handleIHave(peer, @[msg])
-      check: iwants.messageIDs.len == 1
+      check: iwants.messageIds.len == 1
 
     block:
       # given duplicate iwant should generate only one message

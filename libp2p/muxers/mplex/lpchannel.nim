@@ -1,11 +1,11 @@
-## Nim-LibP2P
-## Copyright (c) 2019 Status Research & Development GmbH
-## Licensed under either of
-##  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
-##  * MIT license ([LICENSE-MIT](LICENSE-MIT))
-## at your option.
-## This file may not be copied, modified, or distributed except according to
-## those terms.
+# Nim-LibP2P
+# Copyright (c) 2022 Status Research & Development GmbH
+# Licensed under either of
+#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+#  * MIT license ([LICENSE-MIT](LICENSE-MIT))
+# at your option.
+# This file may not be copied, modified, or distributed except according to
+# those terms.
 
 {.push raises: [Defect].}
 
@@ -78,6 +78,8 @@ proc open*(s: LPChannel) {.async, gcsafe.} =
   try:
     await s.conn.writeMsg(s.id, MessageType.New, s.name)
     s.isOpen = true
+  except CancelledError as exc:
+    raise exc
   except CatchableError as exc:
     await s.conn.close()
     raise exc
@@ -221,6 +223,11 @@ proc completeWrite(
         libp2p_protocols_bytes.inc(msgLen.int64, labelValues=[s.tag, "out"])
 
     s.activity = true
+  except CancelledError as exc:
+    # Chronos may still send the data
+    raise exc
+  except LPStreamClosedError as exc:
+    raise exc
   except CatchableError as exc:
     trace "exception in lpchannel write handler", s, msg = exc.msg
     await s.reset()

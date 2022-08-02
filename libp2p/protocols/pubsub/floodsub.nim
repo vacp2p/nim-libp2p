@@ -1,11 +1,11 @@
-## Nim-LibP2P
-## Copyright (c) 2019 Status Research & Development GmbH
-## Licensed under either of
-##  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
-##  * MIT license ([LICENSE-MIT](LICENSE-MIT))
-## at your option.
-## This file may not be copied, modified, or distributed except according to
-## those terms.
+# Nim-LibP2P
+# Copyright (c) 2022 Status Research & Development GmbH
+# Licensed under either of
+#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+#  * MIT license ([LICENSE-MIT](LICENSE-MIT))
+# at your option.
+# This file may not be copied, modified, or distributed except according to
+# those terms.
 
 {.push raises: [Defect].}
 
@@ -22,31 +22,33 @@ import ./pubsub,
        ../../peerinfo,
        ../../utility
 
+## Simple flood-based publishing.
+
 logScope:
   topics = "libp2p floodsub"
 
 const FloodSubCodec* = "/floodsub/1.0.0"
 
 type
-  FloodSub* = ref object of PubSub
+  FloodSub* {.public.} = ref object of PubSub
     floodsub*: PeerTable      # topic to remote peer map
-    seen*: TimedCache[MessageID] # message id:s already seen on the network
+    seen*: TimedCache[MessageId] # message id:s already seen on the network
     seenSalt*: seq[byte]
 
-proc hasSeen*(f: FloodSub, msgId: MessageID): bool =
+proc hasSeen*(f: FloodSub, msgId: MessageId): bool =
   f.seenSalt & msgId in f.seen
 
-proc addSeen*(f: FloodSub, msgId: MessageID): bool =
+proc addSeen*(f: FloodSub, msgId: MessageId): bool =
   # Salting the seen hash helps avoid attacks against the hash function used
   # in the nim hash table
   # Return true if the message has already been seen
   f.seen.put(f.seenSalt & msgId)
 
-proc firstSeen*(f: FloodSub, msgId: MessageID): Moment =
+proc firstSeen*(f: FloodSub, msgId: MessageId): Moment =
   f.seen.addedAt(f.seenSalt & msgId)
 
 proc handleSubscribe*(f: FloodSub,
-                      peer: PubsubPeer,
+                      peer: PubSubPeer,
                       topic: string,
                       subscribe: bool) =
   logScope:
@@ -137,7 +139,7 @@ method rpcHandler*(f: FloodSub,
       discard
 
     var toSendPeers = initHashSet[PubSubPeer]()
-    for t in msg.topicIDs:                     # for every topic in the message
+    for t in msg.topicIds:                     # for every topic in the message
       if t notin f.topics:
         continue
       f.floodsub.withValue(t, peers): toSendPeers.incl(peers[])
@@ -187,21 +189,17 @@ method publish*(f: FloodSub,
     debug "No peers for topic, skipping publish", topic
     return 0
 
-  inc f.msgSeqno
   let
     msg =
       if f.anonymize:
         Message.init(none(PeerInfo), data, topic, none(uint64), false)
       else:
+        inc f.msgSeqno
         Message.init(some(f.peerInfo), data, topic, some(f.msgSeqno), f.sign)
-    msgIdResult = f.msgIdProvider(msg)
-
-  if msgIdResult.isErr:
-    trace "Error generating message id, skipping publish",
-      error = msgIdResult.error
-    return 0
-
-  let msgId = msgIdResult.get
+    msgId = f.msgIdProvider(msg).valueOr:
+      trace "Error generating message id, skipping publish",
+        error = error
+      return 0
 
   trace "Created new message",
     msg = shortLog(msg), peers = peers.len, topic, msgId
@@ -224,7 +222,7 @@ method publish*(f: FloodSub,
 method initPubSub*(f: FloodSub)
   {.raises: [Defect, InitializationError].} =
   procCall PubSub(f).initPubSub()
-  f.seen = TimedCache[MessageID].init(2.minutes)
+  f.seen = TimedCache[MessageId].init(2.minutes)
   f.seenSalt = newSeqUninitialized[byte](sizeof(Hash))
   hmacDrbgGenerate(f.rng[], f.seenSalt)
 

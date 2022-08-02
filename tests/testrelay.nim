@@ -59,9 +59,9 @@ suite "Circuit Relay":
     relaySrc {.threadvar.}: Relay
     relayDst {.threadvar.}: Relay
     relayRel {.threadvar.}: Relay
-    conn {.threadVar.}: Connection
-    msg {.threadVar.}: ProtoBuffer
-    rcv {.threadVar.}: Option[RelayMessage]
+    conn {.threadvar.}: Connection
+    msg {.threadvar.}: ProtoBuffer
+    rcv {.threadvar.}: Option[RelayMessage]
 
   proc createMsg(
     msgType: Option[RelayType] = RelayType.none,
@@ -326,7 +326,7 @@ suite "Circuit Relay":
 
     await allFutures(srcWR.stop(), dstWR.stop(), relWR.stop())
 
-  asynctest "Bad MultiAddress":
+  asyncTest "Bad MultiAddress":
     await src.connect(rel.peerInfo.peerId, rel.peerInfo.addrs)
     await rel.connect(dst.peerInfo.peerId, dst.peerInfo.addrs)
     expect(CatchableError):

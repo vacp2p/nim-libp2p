@@ -1,11 +1,13 @@
-## Nim-LibP2P
-## Copyright (c) 2019 Status Research & Development GmbH
-## Licensed under either of
-##  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
-##  * MIT license ([LICENSE-MIT](LICENSE-MIT))
-## at your option.
-## This file may not be copied, modified, or distributed except according to
-## those terms.
+# Nim-LibP2P
+# Copyright (c) 2022 Status Research & Development GmbH
+# Licensed under either of
+#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+#  * MIT license ([LICENSE-MIT](LICENSE-MIT))
+# at your option.
+# This file may not be copied, modified, or distributed except according to
+# those terms.
+
+## Gossip based publishing
 
 {.push raises: [Defect].}
 
@@ -156,7 +158,7 @@ method onNewPeer(g: GossipSub, peer: PubSubPeer) =
     peer.iWantBudget = IWantPeerBudget
     peer.iHaveBudget = IHavePeerBudget
 
-method onPubSubPeerEvent*(p: GossipSub, peer: PubsubPeer, event: PubSubPeerEvent) {.gcsafe.} =
+method onPubSubPeerEvent*(p: GossipSub, peer: PubSubPeer, event: PubSubPeerEvent) {.gcsafe.} =
   case event.kind
   of PubSubPeerEventKind.Connected:
     discard
@@ -259,7 +261,7 @@ proc handleControl(g: GossipSub, peer: PubSubPeer, control: ControlMessage) =
 
   var respControl: ControlMessage
   let iwant = g.handleIHave(peer, control.ihave)
-  if iwant.messageIDs.len > 0:
+  if iwant.messageIds.len > 0:
     respControl.iwant.add(iwant)
   respControl.prune.add(g.handleGraft(peer, control.graft))
   let messages = g.handleIWant(peer, control.iwant)
@@ -271,7 +273,7 @@ proc handleControl(g: GossipSub, peer: PubSubPeer, control: ControlMessage) =
     # iwant and prunes from here, also messages
 
     for smsg in messages:
-      for topic in smsg.topicIDs:
+      for topic in smsg.topicIds:
         if g.knownTopics.contains(topic):
           libp2p_pubsub_broadcast_messages.inc(labelValues = [topic])
         else:
@@ -280,8 +282,8 @@ proc handleControl(g: GossipSub, peer: PubSubPeer, control: ControlMessage) =
     libp2p_pubsub_broadcast_iwant.inc(respControl.iwant.len.int64)
 
     for prune in respControl.prune:
-      if g.knownTopics.contains(prune.topicID):
-        libp2p_pubsub_broadcast_prune.inc(labelValues = [prune.topicID])
+      if g.knownTopics.contains(prune.topicId):
+        libp2p_pubsub_broadcast_prune.inc(labelValues = [prune.topicId])
       else:
         libp2p_pubsub_broadcast_prune.inc(labelValues = ["generic"])
 
@@ -305,7 +307,7 @@ proc validateAndRelay(g: GossipSub,
     of ValidationResult.Reject:
       debug "Dropping message after validation, reason: reject",
         msgId = shortLog(msgId), peer
-      g.punishInvalidMessage(peer, msg.topicIDs)
+      g.punishInvalidMessage(peer, msg.topicIds)
       return
     of ValidationResult.Ignore:
       debug "Dropping message after validation, reason: ignore",
@@ -317,10 +319,10 @@ proc validateAndRelay(g: GossipSub,
     # store in cache only after validation
     g.mcache.put(msgId, msg)
 
-    g.rewardDelivered(peer, msg.topicIDs, true)
+    g.rewardDelivered(peer, msg.topicIds, true)
 
     var toSendPeers = HashSet[PubSubPeer]()
-    for t in msg.topicIDs:                      # for every topic in the message
+    for t in msg.topicIds:                      # for every topic in the message
       if t notin g.topics:
         continue
 
@@ -336,7 +338,7 @@ proc validateAndRelay(g: GossipSub,
     # also have to be careful to only include validated messages
     g.broadcast(toSendPeers, RPCMsg(messages: @[msg]))
     trace "forwared message to peers", peers = toSendPeers.len, msgId, peer
-    for topic in msg.topicIDs:
+    for topic in msg.topicIds:
       if topic notin g.topics: continue
 
       if g.knownTopics.contains(topic):
@@ -390,7 +392,7 @@ method rpcHandler*(g: GossipSub,
 
       if not alreadyReceived:
         let delay = Moment.now() - g.firstSeen(msgId)
-        g.rewardDelivered(peer, msg.topicIDs, false, delay)
+        g.rewardDelivered(peer, msg.topicIds, false, delay)
 
       libp2p_gossipsub_duplicate.inc()
 
@@ -400,7 +402,7 @@ method rpcHandler*(g: GossipSub,
     libp2p_gossipsub_received.inc()
 
     # avoid processing messages we are not interested in
-    if msg.topicIDs.allIt(it notin g.topics):
+    if msg.topicIds.allIt(it notin g.topics):
       debug "Dropping message of topic without subscription", msgId = shortLog(msgId), peer
       continue
 
@@ -408,14 +410,14 @@ method rpcHandler*(g: GossipSub,
       # always validate if signature is present or required
       debug "Dropping message due to failed signature verification",
         msgId = shortLog(msgId), peer
-      g.punishInvalidMessage(peer, msg.topicIDs)
+      g.punishInvalidMessage(peer, msg.topicIds)
       continue
 
     if msg.seqno.len > 0 and msg.seqno.len != 8:
       # if we have seqno should be 8 bytes long
       debug "Dropping message due to invalid seqno length",
         msgId = shortLog(msgId), peer
-      g.punishInvalidMessage(peer, msg.topicIDs)
+      g.punishInvalidMessage(peer, msg.topicIds)
       continue
 
     # g.anonymize needs no evaluation when receiving messages
@@ -506,7 +508,7 @@ method publish*(g: GossipSub,
     g.rng.shuffle(fanoutPeers)
     if fanoutPeers.len + peers.len > g.parameters.d:
       fanoutPeers.setLen(g.parameters.d - peers.len)
-    
+
     for fanPeer in fanoutPeers:
       peers.incl(fanPeer)
       if peers.len > g.parameters.d: break
@@ -520,29 +522,25 @@ method publish*(g: GossipSub,
 
   if peers.len == 0:
     let topicPeers = g.gossipsub.getOrDefault(topic).toSeq()
-    notice "No peers for topic, skipping publish",  peersOnTopic = topicPeers.len,
-                                                    connectedPeers = topicPeers.filterIt(it.connected).len,
-                                                    topic
+    debug "No peers for topic, skipping publish",  peersOnTopic = topicPeers.len,
+                                                   connectedPeers = topicPeers.filterIt(it.connected).len,
+                                                   topic
     # skipping topic as our metrics finds that heavy
     libp2p_gossipsub_failed_publish.inc()
     return 0
 
-  inc g.msgSeqno
   let
     msg =
       if g.anonymize:
         Message.init(none(PeerInfo), data, topic, none(uint64), false)
       else:
+        inc g.msgSeqno
         Message.init(some(g.peerInfo), data, topic, some(g.msgSeqno), g.sign)
-    msgIdResult = g.msgIdProvider(msg)
-
-  if msgIdResult.isErr:
-    trace "Error generating message id, skipping publish",
-      error = msgIdResult.error
-    libp2p_gossipsub_failed_publish.inc()
-    return 0
-
-  let msgId = msgIdResult.get
+    msgId = g.msgIdProvider(msg).valueOr:
+      trace "Error generating message id, skipping publish",
+        error = error
+      libp2p_gossipsub_failed_publish.inc()
+      return 0
 
   logScope: msgId = shortLog(msgId)
 
@@ -566,22 +564,28 @@ method publish*(g: GossipSub,
 
   return peers.len
 
+proc maintainDirectPeer(g: GossipSub, id: PeerId, addrs: seq[MultiAddress]) {.async.} =
+  let peer = g.peers.getOrDefault(id)
+  if isNil(peer):
+    trace "Attempting to dial a direct peer", peer = id
+    try:
+      await g.switch.connect(id, addrs)
+      # populate the peer after it's connected
+      discard g.getOrCreatePeer(id, g.codecs)
+    except CancelledError as exc:
+      trace "Direct peer dial canceled"
+      raise exc
+    except CatchableError as exc:
+      debug "Direct peer error dialing", msg = exc.msg
+
+proc addDirectPeer*(g: GossipSub, id: PeerId, addrs: seq[MultiAddress]) {.async.} =
+  g.parameters.directPeers[id] = addrs
+  await g.maintainDirectPeer(id, addrs)
+
 proc maintainDirectPeers(g: GossipSub) {.async.} =
   heartbeat "GossipSub DirectPeers", 1.minutes:
     for id, addrs in g.parameters.directPeers:
-      let peer = g.peers.getOrDefault(id)
-      if isNil(peer):
-        trace "Attempting to dial a direct peer", peer = id
-        try:
-          # dial, internally connection will be stored
-          let _ = await g.switch.dial(id, addrs, g.codecs)
-          # populate the peer after it's connected
-          discard g.getOrCreatePeer(id, g.codecs)
-        except CancelledError as exc:
-          trace "Direct peer dial canceled"
-          raise exc
-        except CatchableError as exc:
-          debug "Direct peer error dialing", msg = exc.msg
+      await g.addDirectPeer(id, addrs)
 
 method start*(g: GossipSub) {.async.} =
   trace "gossipsub start"
@@ -593,9 +597,11 @@ method start*(g: GossipSub) {.async.} =
   g.heartbeatFut = g.heartbeat()
   g.scoringHeartbeatFut = g.scoringHeartbeat()
   g.directPeersLoop = g.maintainDirectPeers()
+  g.started = true
 
 method stop*(g: GossipSub) {.async.} =
   trace "gossipsub stop"
+  g.started = false
   if g.heartbeatFut.isNil:
     warn "Stopping gossipsub without starting it"
     return
@@ -618,7 +624,7 @@ method initPubSub*(g: GossipSub)
     raise newException(InitializationError, $validationRes.error)
 
   # init the floodsub stuff here, we customize timedcache in gossip!
-  g.seen = TimedCache[MessageID].init(g.parameters.seenTTL)
+  g.seen = TimedCache[MessageId].init(g.parameters.seenTTL)
 
   # init gossip stuff
   g.mcache = MCache.init(g.parameters.historyGossip, g.parameters.historyLength)

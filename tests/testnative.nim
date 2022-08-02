@@ -1,3 +1,5 @@
+import stublogger
+
 import testvarint,
        testconnection,
        testminprotobuf,

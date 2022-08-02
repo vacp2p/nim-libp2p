@@ -1,15 +1,15 @@
-## Nim-LibP2P
-## Copyright (c) 2019 Status Research & Development GmbH
-## Licensed under either of
-##  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
-##  * MIT license ([LICENSE-MIT](LICENSE-MIT))
-## at your option.
-## This file may not be copied, modified, or distributed except according to
-## those terms.
+# Nim-LibP2P
+# Copyright (c) 2022 Status Research & Development GmbH
+# Licensed under either of
+#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+#  * MIT license ([LICENSE-MIT](LICENSE-MIT))
+# at your option.
+# This file may not be copied, modified, or distributed except according to
+# those terms.
 
 {.push raises: [Defect].}
 
-import std/[strutils]
+import std/[strutils, sequtils]
 import chronos, chronicles, stew/byteutils
 import stream/connection,
        protocols/protocol
@@ -209,3 +209,9 @@ proc addHandler*(m: MultistreamSelect,
   m.handlers.add(HandlerHolder(protos: @[codec],
                                protocol: protocol,
                                match: matcher))
+
+proc start*(m: MultistreamSelect) {.async.} =
+  await allFutures(m.handlers.mapIt(it.protocol.start()))
+
+proc stop*(m: MultistreamSelect) {.async.} =
+  await allFutures(m.handlers.mapIt(it.protocol.stop()))
