@@ -19,6 +19,7 @@ import ./discoveryinterface,
        ../../stream/connection,
        ../../utils/offsettedseq
 
+export chronicles, protobuf_serialization
 logScope:
   topics = "libp2p discovery rendezvous"
 
@@ -85,7 +86,7 @@ type
 
   RegisteredData = object
     expireDate: DateTime
-    peerId: PeerID
+    peerId: PeerId
     data: Register
 
   RegisteredSeq = object
@@ -117,7 +118,7 @@ proc sendRegisterResponse(conn: Connection,
   let msg = Protobuf.encode(Message(
         msgType: some(MessageType.RegisterResponse),
         registerResponse: some(RegisterResponse(status: some(Ok), ttl: some(ttl)))))
-  await conn.writeLP(msg)
+  await conn.writeLp(msg)
 
 proc sendRegisterResponseError(conn: Connection,
                                status: ResponseStatus,
@@ -125,7 +126,7 @@ proc sendRegisterResponseError(conn: Connection,
   let msg = Protobuf.encode(Message(
         msgType: some(MessageType.RegisterResponse),
         registerResponse: some(RegisterResponse(status: some(status), text: some(text)))))
-  await conn.writeLP(msg)
+  await conn.writeLp(msg)
 
 proc sendDiscoverResponse(conn: Connection,
                           s: seq[Register],
@@ -138,7 +139,7 @@ proc sendDiscoverResponse(conn: Connection,
             cookie: some(Protobuf.encode(cookie))
           ))
         ))
-  await conn.writeLP(msg)
+  await conn.writeLp(msg)
 
 proc sendDiscoverResponseError(conn: Connection,
                                status: ResponseStatus,
@@ -146,9 +147,9 @@ proc sendDiscoverResponseError(conn: Connection,
   let msg = Protobuf.encode(Message(
         msgType: some(MessageType.DiscoverResponse),
         discoverResponse: some(DiscoverResponse(status: some(status), text: some(text)))))
-  await conn.writeLP(msg)
+  await conn.writeLp(msg)
 
-proc countRegister(rdv: RendezVous, peerId: PeerID): int =
+proc countRegister(rdv: RendezVous, peerId: PeerId): int =
    for data in rdv.registered:
      if data.peerId == peerId:
        result.inc()
@@ -233,15 +234,32 @@ proc advertise*(rdv: RendezVous,
   let sprBuff = rdv.switch.peerInfo.signedPeerRecord.envelope.encode()
   if sprBuff.isErr() or ns.len() notin 1..255 or ttl notin MinimumTTL..MaximumTTL:
     return
-  let r = Register(ns: some(ns), signedPeerRecord: some(sprBuff), ttl: some(ttl))
-  rdv.save(ns, rdv.switch.peerInfo.peerId, ttl)
-  # send to peers
+  let
+    r = Register(ns: some(ns), signedPeerRecord: some(sprBuff.get()), ttl: some(ttl))
+    msg = Protobuf.encode(Message(
+        msgType: some(MessageType.Register),
+        register: some(r)))
+  rdv.save(ns, rdv.switch.peerInfo.peerId, r, ttl)
+  for peer in rdv.peers:
+    try:
+      let conn = await rdv.switch.dial(peer, RendezVousCodec)
+      defer: await conn.close()
+      await conn.writeLp(msg)
+      let msgRecv = Protobuf.decode(await conn.readLp(4096), type(Message))
+      if msgRecv.msgType.get() != MessageType.RegisterResponse:
+        trace "cannot register", peer, msgType = msgRecv.msgType
+    except CancelledError as exc:
+      raise exc
+    except CatchableError as exc:
+      trace "exception in the advertise", error = exc.msg
+
+proc request*(rdv: RendezVous, ns: string): Future[void] {.async.} = discard
 
 proc new*(T: typedesc[RendezVous],
           switch: Switch,
           rng: ref HmacDrbgContext = newRng()): T =
-  result = T(
-    salt: string.fromBytes(generateBytes(rng, 8)),
+  let rdv = T(
+    salt: "TODO",#string.fromBytes(generateBytes(rng, 8)),
     registered: initOffsettedSeq[RegisteredData](),
     defaultDT: 0.fromUnix().utc(),
     switch: switch,
@@ -250,32 +268,34 @@ proc new*(T: typedesc[RendezVous],
 
   proc handleStream(conn: Connection, proto: string) {.async, gcsafe.} =
     try:
-      let msg = await conn.readLp(4096)
+      discard
+      let msg = Protobuf.decode(await conn.readLp(4096), type(Message))
       case msg.msgType.get():
-        of Register: await result.register(conn, msg.register.get())
-        of RegisterResponse:
+        of MessageType.Register: await rdv.register(conn, msg.register.get())
+        of MessageType.RegisterResponse:
           trace "Got an unexpected Register Response", response = msg.registerResponse
-        of Unregister: result.unregister(conn, msg.unregister.get())
-        of Discover: await result.discover(conn, msg.discover.get())
-        of DiscoverResponse:
+        of MessageType.Unregister: rdv.unregister(conn, msg.unregister.get())
+        of MessageType.Discover: await rdv.discover(conn, msg.discover.get())
+        of MessageType.DiscoverResponse:
           trace "Got an unexpected Discover Response", response = msg.discoverResponse
     except CancelledError as exc:
       raise exc
     except CatchableError as exc:
       trace "exception in rendezvous handler", error = exc.msg
     finally:
-      conn.close()
+      await conn.close()
 
-  proc handlePeer(peerId: PeerId, kind: PeerEventKind) =
+  proc handlePeer(peerId: PeerId, event: PeerEvent): Future[void] =
     if RendezVousCodec in switch.peerStore[ProtoBook][peerId]:
-      if kind == PeerEventKind.Joined: rdv.peers.add(peerId)
-      elif kind == PeerEventKind.Left: rdv.peers.keepItIf(it != peerId)
+      if event.kind == PeerEventKind.Joined: rdv.peers.add(peerId)
+      elif event.kind == PeerEventKind.Left: rdv.peers.keepItIf(it != peerId)
 
-  result.switch.addPeerEventHandler(handlePeer, PeerEventKind.Joined)
-  result.switch.addPeerEventHandler(handlePeer, PeerEventKind.Left)
+  rdv.switch.addPeerEventHandler(handlePeer, PeerEventKind.Joined)
+  rdv.switch.addPeerEventHandler(handlePeer, PeerEventKind.Left)
 
-  result.handler = handleStream
-  result.codec = RendezVousCodec
+  rdv.handler = handleStream
+  rdv.codec = RendezVousCodec
+  return rdv
 
 proc deletesRegister(rdv: RendezVous) {.async.} =
   heartbeat "Register timeout", chronos.minutes(1):
