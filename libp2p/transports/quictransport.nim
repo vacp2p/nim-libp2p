@@ -15,6 +15,8 @@ export multicodec
 export connection
 export transport
 
+{.push raises: [Defect].}
+
 logScope:
   topics = "libp2p quictransport"
 
@@ -213,7 +215,7 @@ method stop*(transport: QuicTransport) {.async.} =
 proc wrapConnection(transport: QuicTransport, connection: QuicConnection): P2PConnection =
   #TODO currently not exposed from nim-quic
   let
-    observedAddr = MultiAddress.init("/ip4/0.0.0.0/udp/0/quic").tryGet()
+    observedAddr = MultiAddress.init("/ip4/0.0.0.0/udp/0/quic").get()
     conres = QuicSession(connection: connection, observedAddr: observedAddr)
   conres.initStream()
 
