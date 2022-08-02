@@ -1,11 +1,11 @@
 import helpers, commoninterop
 import ../libp2p
-import ../libp2p/crypto/crypto
+import ../libp2p/crypto/crypto, ../libp2p/protocols/relay/[relay, client]
 
 proc switchMplexCreator(
-    isRelay: bool = false,
     ma: MultiAddress = MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet(),
-    prov: TransportProvider = proc(upgr: Upgrade): Transport = TcpTransport.new({}, upgr)):
+    prov: TransportProvider = proc(upgr: Upgrade): Transport = TcpTransport.new({}, upgr),
+    relay: Relay = Relay.new(circuitRelayV1 = true)):
       Switch {.raises: [Defect, LPError].} =
 
   SwitchBuilder.new()
@@ -20,14 +20,14 @@ proc switchMplexCreator(
     .withMaxConnsPerPeer(MaxConnectionsPerPeer)
     .withPeerStore(capacity=1000)
     .withNoise()
-    .withRelayTransport(isRelay)
+    .withCircuitRelay(relay)
     .withNameResolver(nil)
     .build()
 
 proc switchYamuxCreator(
-    isRelay: bool = false,
     ma: MultiAddress = MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet(),
-    prov: TransportProvider = proc(upgr: Upgrade): Transport = TcpTransport.new({}, upgr)):
+    prov: TransportProvider = proc(upgr: Upgrade): Transport = TcpTransport.new({}, upgr),
+    relay: Relay = Relay.new(circuitRelayV1 = true)):
       Switch {.raises: [Defect, LPError].} =
 
   SwitchBuilder.new()
@@ -42,7 +42,7 @@ proc switchYamuxCreator(
     .withMaxConnsPerPeer(MaxConnectionsPerPeer)
     .withPeerStore(capacity=1000)
     .withNoise()
-    .withRelayTransport(isRelay)
+    .withCircuitRelay(relay)
     .withNameResolver(nil)
     .build()
 

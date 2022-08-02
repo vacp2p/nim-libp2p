@@ -42,7 +42,7 @@ suite "MCache":
     check mids.len == 3
 
     var id = toSeq(mids)[0]
-    check mCache.get(id).get().topicIDs[0] == "foo"
+    check mCache.get(id).get().topicIds[0] == "foo"
 
   test "shift - shift 1 window at a time":
     var mCache = MCache.init(1, 5)

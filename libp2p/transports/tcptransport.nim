@@ -127,7 +127,6 @@ proc new*(
     flags: flags,
     upgrader: upgrade)
 
-  inc getTcpTransportTracker().opened
   return transport
 
 method start*(
@@ -142,6 +141,7 @@ method start*(
 
   await procCall Transport(self).start(addrs)
   trace "Starting TCP transport"
+  inc getTcpTransportTracker().opened
 
   for i, ma in addrs:
     if not self.handles(ma):
@@ -165,16 +165,19 @@ method start*(
 method stop*(self: TcpTransport) {.async, gcsafe.} =
   ## stop the transport
   ##
-
   try:
     trace "Stopping TCP transport"
-    await procCall Transport(self).stop() # call base
 
     checkFutures(
       await allFinished(
         self.clients[Direction.In].mapIt(it.closeWait()) &
         self.clients[Direction.Out].mapIt(it.closeWait())))
 
+    if not self.running:
+      warn "TCP transport already stopped"
+      return
+
+    await procCall Transport(self).stop() # call base
     var toWait: seq[Future[void]]
     for fut in self.acceptFuts:
       if not fut.finished:

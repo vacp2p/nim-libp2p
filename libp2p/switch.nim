@@ -101,8 +101,7 @@ proc removePeerEventHandler*(s: Switch,
                              kind: PeerEventKind) {.public.} =
   s.connManager.removePeerEventHandler(handler, kind)
 
-method addTransport*(s: Switch,
-                  t: Transport) =
+method addTransport*(s: Switch, t: Transport) =
   s.transports &= t
   s.dialer.addTransport(t)
 
@@ -322,7 +321,6 @@ proc start*(s: Switch) {.async, gcsafe, public.} =
 proc newSwitch*(peerInfo: PeerInfo,
                 transports: seq[Transport],
                 identity: Identify,
-                muxers: Table[string, MuxerProvider],
                 secureManagers: openArray[Secure] = [],
                 connManager: ConnManager,
                 ms: MultistreamSelect,

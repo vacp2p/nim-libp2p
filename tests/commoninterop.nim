@@ -2,13 +2,14 @@ import options, tables
 import chronos, chronicles, stew/byteutils
 import helpers
 import ../libp2p
-import ../libp2p/[daemon/daemonapi, varint, transports/wstransport, crypto/crypto, protocols/relay ]
+import ../libp2p/[daemon/daemonapi, varint, transports/wstransport, crypto/crypto]
+import ../libp2p/protocols/relay/[relay, client, utils]
 
 type
   SwitchCreator = proc(
-    isRelay: bool = false,
     ma: MultiAddress = MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet(),
-    prov: TransportProvider = proc(upgr: Upgrade): Transport = TcpTransport.new({}, upgr)):
+    prov: TransportProvider = proc(upgr: Upgrade): Transport = TcpTransport.new({}, upgr),
+    relay: Relay = Relay.new(circuitRelayV1 = true)):
        Switch {.gcsafe, raises: [Defect, LPError].}
   DaemonPeerInfo = daemonapi.PeerInfo
 
@@ -491,8 +492,8 @@ proc relayInteropTests*(name: string, relayCreator: SwitchCreator) =
       let
         maSrc = MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
         maRel = MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
-        src = relayCreator(false, maSrc)
-        rel = relayCreator(true, maRel)
+        src = relayCreator(maSrc, relay = RelayClient.new(circuitRelayV1 = true))
+        rel = relayCreator(maRel)
 
       await src.start()
       await rel.start()
@@ -525,7 +526,7 @@ proc relayInteropTests*(name: string, relayCreator: SwitchCreator) =
         await conn.writeLp("line4")
         await conn.close()
       let
-        protos = @[ "/customProto", RelayCodec ]
+        protos = @[ "/customProto", RelayV1Codec ]
       var
         customProto = new LPProtocol
       customProto.handler = customHandler
@@ -533,8 +534,8 @@ proc relayInteropTests*(name: string, relayCreator: SwitchCreator) =
       let
         maRel = MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
         maDst = MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
-        rel = relayCreator(true, maRel)
-        dst = relayCreator(false, maDst)
+        rel = relayCreator(maRel)
+        dst = relayCreator(maDst, relay=RelayClient.new())
 
       dst.mount(customProto)
       await rel.start()
@@ -564,7 +565,7 @@ proc relayInteropTests*(name: string, relayCreator: SwitchCreator) =
         await conn.writeLp("line4")
         await conn.close()
       let
-        protos = @[ "/customProto", RelayCodec ]
+        protos = @[ "/customProto", RelayV1Codec ]
       var
         customProto = new LPProtocol
       customProto.handler = customHandler
@@ -572,8 +573,8 @@ proc relayInteropTests*(name: string, relayCreator: SwitchCreator) =
       let
         maSrc = MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
         maDst = MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
-        src = relayCreator(false, maSrc)
-        dst = relayCreator(false, maDst)
+        src = relayCreator(maSrc, relay=RelayClient.new())
+        dst = relayCreator(maDst, relay=RelayClient.new())
 
       dst.mount(customProto)
       await src.start()

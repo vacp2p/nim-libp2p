@@ -18,12 +18,18 @@ requires "nim >= 1.2.0",
          "stew#head",
          "websock"
 
+const styleCheckStyle =
+  if (NimMajor, NimMinor) < (1, 6):
+    "hint"
+  else:
+    "error"
+
 const nimflags =
   "--verbosity:0 --hints:off " &
   "--warning[CaseTransition]:off --warning[ObservableStores]:off " &
   "--warning[LockLevel]:off " &
   "-d:chronosStrictException " &
-  "--styleCheck:usages --styleCheck:hint "
+  "--styleCheck:usages --styleCheck:" & styleCheckStyle & " "
 
 proc runTest(filename: string, verify: bool = true, sign: bool = true,
              moreoptions: string = "") =
@@ -97,6 +103,7 @@ task test_slim, "Runs the (slimmed down) test suite":
 task examples_build, "Build the samples":
   buildSample("directchat")
   buildSample("helloworld", true)
+  buildSample("circuitrelay", true)
   buildTutorial("examples/tutorial_1_connect.md")
   buildTutorial("examples/tutorial_2_customproto.md")
 

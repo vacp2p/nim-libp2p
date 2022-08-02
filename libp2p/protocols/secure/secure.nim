@@ -72,6 +72,8 @@ method closeImpl*(s: SecureConn) {.async.} =
 method readMessage*(c: SecureConn): Future[seq[byte]] {.async, base.} =
   doAssert(false, "Not implemented!")
 
+method getWrapped*(s: SecureConn): Connection = s.stream
+
 method handshake*(s: Secure,
                   conn: Connection,
                   initiator: bool): Future[SecureConn] {.async, base.} =
