@@ -7,7 +7,10 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-{.push raises: [Defect].}
+when (NimMajor, NimMinor) < (1, 4):
+  {.push raises: [Defect].}
+else:
+  {.push raises: [].}
 
 import std/[oids, strformat]
 import chronos, chronicles, metrics
@@ -156,3 +159,5 @@ method closeImpl*(s: ChronosStream) {.async.} =
     s.untrackPeerIdentity()
 
   await procCall Connection(s).closeImpl()
+
+method getWrapped*(s: ChronosStream): Connection = nil

@@ -7,7 +7,10 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-{.push raises: [Defect].}
+when (NimMajor, NimMinor) < (1, 4):
+  {.push raises: [Defect].}
+else:
+  {.push raises: [].}
 
 import std/[strformat]
 import chronos, chronicles
@@ -71,6 +74,8 @@ method closeImpl*(s: SecureConn) {.async.} =
 
 method readMessage*(c: SecureConn): Future[seq[byte]] {.async, base.} =
   doAssert(false, "Not implemented!")
+
+method getWrapped*(s: SecureConn): Connection = s.stream
 
 method handshake*(s: Secure,
                   conn: Connection,

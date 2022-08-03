@@ -7,7 +7,10 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-{.push raises: [Defect].}
+when (NimMajor, NimMinor) < (1, 4):
+  {.push raises: [Defect].}
+else:
+  {.push raises: [].}
 
 import tables, sequtils, oids
 import chronos, chronicles, stew/byteutils, metrics
@@ -34,7 +37,6 @@ when defined(libp2p_expensive_metrics):
     "mplex channels", labels = ["initiator", "peer"])
 
 type
-  TooManyChannels* = object of MuxerError
   InvalidChannelIdError* = object of MuxerError
 
   Mplex* = ref object of Muxer

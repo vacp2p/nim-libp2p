@@ -13,7 +13,10 @@
 ## `publish<#publish.e%2CPubSub%2Cstring%2Cseq%5Bbyte%5D>`_ something on it,
 ## and eventually `unsubscribe<#unsubscribe%2CPubSub%2Cstring%2CTopicHandler>`_ from it.
 
-{.push raises: [Defect].}
+when (NimMajor, NimMinor) < (1, 4):
+  {.push raises: [Defect].}
+else:
+  {.push raises: [].}
 
 import std/[tables, sequtils, sets, strutils]
 import chronos, chronicles, metrics
@@ -286,8 +289,8 @@ proc getOrCreatePeer*(
   p.peers.withValue(peerId, peer):
     return peer[]
 
-  proc getConn(): Future[Connection] =
-    p.switch.dial(peerId, protos)
+  proc getConn(): Future[Connection] {.async.} =
+    return await p.switch.dial(peerId, protos)
 
   proc dropConn(peer: PubSubPeer) =
     proc dropConnAsync(peer: PubSubPeer) {.async.} =

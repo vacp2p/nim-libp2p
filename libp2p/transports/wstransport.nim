@@ -9,7 +9,10 @@
 
 ## WebSocket & WebSocket Secure transport implementation
 
-{.push raises: [Defect].}
+when (NimMajor, NimMinor) < (1, 4):
+  {.push raises: [Defect].}
+else:
+  {.push raises: [].}
 
 import std/[sequtils]
 import chronos, chronicles
@@ -86,6 +89,8 @@ method write*(
 method closeImpl*(s: WsStream): Future[void] {.async.} =
   await s.session.close()
   await procCall Connection(s).closeImpl()
+
+method getWrapped*(s: WsStream): Connection = nil
 
 type
   WsTransport* = ref object of Transport

@@ -1,4 +1,7 @@
-{.push raises: [Defect].}
+when (NimMajor, NimMinor) < (1, 4):
+  {.push raises: [Defect].}
+else:
+  {.push raises: [].}
 
 import chronos
 
@@ -13,7 +16,6 @@ import ../libp2p/protocols/secure/secure
 import ./asyncunit
 export asyncunit
 
-{.push raises: [Defect].}
 
 const
   StreamTransportTrackerName = "stream.transport"

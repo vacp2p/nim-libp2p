@@ -11,7 +11,10 @@
 ## transports, the connection manager, the upgrader and other
 ## parts to allow programs to use libp2p
 
-{.push raises: [Defect].}
+when (NimMajor, NimMinor) < (1, 4):
+  {.push raises: [Defect].}
+else:
+  {.push raises: [].}
 
 import std/[tables,
             options,
@@ -101,8 +104,7 @@ proc removePeerEventHandler*(s: Switch,
                              kind: PeerEventKind) {.public.} =
   s.connManager.removePeerEventHandler(handler, kind)
 
-method addTransport*(s: Switch,
-                  t: Transport) =
+method addTransport*(s: Switch, t: Transport) =
   s.transports &= t
   s.dialer.addTransport(t)
 

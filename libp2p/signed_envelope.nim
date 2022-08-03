@@ -9,7 +9,10 @@
 
 ## This module implements Signed Envelope.
 
-{.push raises: [Defect].}
+when (NimMajor, NimMinor) < (1, 4):
+  {.push raises: [Defect].}
+else:
+  {.push raises: [].}
 
 import std/sugar
 import pkg/stew/[results, byteutils]
@@ -118,6 +121,14 @@ proc getField*(pb: ProtoBuffer, field: int,
       ok(true)
     else:
       err(ProtoError.IncorrectBlob)
+
+proc write*(pb: var ProtoBuffer, field: int, env: Envelope): Result[void, CryptoError] =
+  let e = env.encode()
+
+  if e.isErr():
+    return err(e.error)
+  pb.write(field, e.get())
+  ok()
 
 type
   SignedPayload*[T] = object

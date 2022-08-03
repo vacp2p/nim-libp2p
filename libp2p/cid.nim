@@ -9,7 +9,10 @@
 
 ## This module implementes CID (Content IDentifier).
 
-{.push raises: [Defect].}
+when (NimMajor, NimMinor) < (1, 4):
+  {.push raises: [Defect].}
+else:
+  {.push raises: [].}
 
 import tables, hashes
 import multibase, multicodec, multihash, vbuffer, varint

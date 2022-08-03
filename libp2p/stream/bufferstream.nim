@@ -7,7 +7,10 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-{.push raises: [Defect].}
+when (NimMajor, NimMinor) < (1, 4):
+  {.push raises: [Defect].}
+else:
+  {.push raises: [].}
 
 import std/strformat
 import stew/byteutils
@@ -108,7 +111,7 @@ method pushEof*(s: BufferStream) {.base, async.} =
   finally:
     s.pushing = false
 
-method atEof*(s: BufferStream): bool {.raises: [Defect].} =
+method atEof*(s: BufferStream): bool =
   s.isEof and s.readBuf.len == 0
 
 method readOnce*(s: BufferStream,
