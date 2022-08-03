@@ -11,7 +11,10 @@ import ../libp2p/errors,
        ../libp2p/upgrademngrs/upgrade
 
 
-{.push raises: [Defect].}
+when (NimMajor, NimMinor) < (1, 4):
+  {.push raises: [Defect].}
+else:
+  {.push raises: [].}
 
 import ./helpers
 
@@ -56,7 +59,7 @@ method readOnce*(s: TestSelectStream,
 
 method write*(s: TestSelectStream, msg: seq[byte]) {.async, gcsafe.} = discard
 
-method close(s: TestSelectStream) {.async, gcsafe, raises: [Defect].} =
+method close(s: TestSelectStream) {.async, gcsafe.} =
   s.isClosed = true
   s.isEof = true
 

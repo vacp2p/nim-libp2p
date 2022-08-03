@@ -9,7 +9,10 @@
 
 ## This module implements minimal ASN.1 encoding/decoding primitives.
 
-{.push raises: [Defect].}
+when (NimMajor, NimMinor) < (1, 4):
+  {.push raises: [Defect].}
+else:
+  {.push raises: [].}
 
 import stew/[endians2, results, ctops]
 export results

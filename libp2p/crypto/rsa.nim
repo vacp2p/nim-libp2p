@@ -13,7 +13,11 @@
 ## BearSSL library <https://bearssl.org/>
 ## Copyright(C) 2018 Thomas Pornin <pornin@bolet.org>.
 
-{.push raises: Defect.}
+when (NimMajor, NimMinor) < (1, 4):
+  {.push raises: [Defect].}
+else:
+  {.push raises: [].}
+
 import bearssl/[rsa, rand, hash]
 import minasn1
 import stew/[results, ctops]

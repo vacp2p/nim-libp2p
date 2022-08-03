@@ -8,7 +8,10 @@
 # those terms.
 
 ## This module implements Public Key and Private Key interface for libp2p.
-{.push raises: [Defect].}
+when (NimMajor, NimMinor) < (1, 4):
+  {.push raises: [Defect].}
+else:
+  {.push raises: [].}
 
 from strutils import split, strip, cmpIgnoreCase
 

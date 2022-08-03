@@ -9,7 +9,10 @@
 
 ## This module implements MultiAddress.
 
-{.push raises: [Defect].}
+when (NimMajor, NimMinor) < (1, 4):
+  {.push raises: [Defect].}
+else:
+  {.push raises: [].}
 {.push public.}
 
 import pkg/chronos
