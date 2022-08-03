@@ -1,3 +1,5 @@
+import stublogger
+
 import helpers, commoninterop
 import ../libp2p
 import ../libp2p/crypto/crypto, ../libp2p/protocols/relay/[relay, client]
