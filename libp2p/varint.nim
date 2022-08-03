@@ -16,7 +16,10 @@
 ##   maximum size of encoded value is 9 octets (bytes).
 ##   https://github.com/multiformats/unsigned-varint
 
-{.push raises: [Defect].}
+when (NimMajor, NimMinor) < (1, 4):
+  {.push raises: [Defect].}
+else:
+  {.push raises: [].}
 
 import stew/[byteutils, leb128, results]
 export leb128, results

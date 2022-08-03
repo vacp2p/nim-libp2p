@@ -7,7 +7,10 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-{.push raises: [Defect].}
+when (NimMajor, NimMinor) < (1, 4):
+  {.push raises: [Defect].}
+else:
+  {.push raises: [].}
 
 import options
 import stew/assign2
@@ -17,7 +20,6 @@ import messages,
        ../../../utility,
        ../../../protobuf/minprotobuf
 
-{.push raises: [Defect].}
 
 logScope:
   topics = "pubsubprotobuf"

@@ -7,7 +7,10 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-{.push raises: [Defect].}
+when (NimMajor, NimMinor) < (1, 4):
+  {.push raises: [Defect].}
+else:
+  {.push raises: [].}
 
 import pkg/[chronos, nimcrypto/utils, chronicles, stew/byteutils]
 import ../../stream/connection,

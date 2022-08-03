@@ -66,9 +66,6 @@ proc dialAndUpgrade(
           let dialed = try:
               libp2p_total_dial_attempts.inc()
               await transport.dial(hostname, a)
-            except TooManyConnectionsError as exc:
-              trace "Connection limit reached!"
-              raise exc
             except CancelledError as exc:
               debug "Dialing canceled", msg = exc.msg, peerId
               raise exc
@@ -91,6 +88,7 @@ proc dialAndUpgrade(
             except CatchableError as exc:
               # If we failed to establish the connection through one transport,
               # we won't succeeded through another - no use in trying again
+              # TODO we should try another address though
               await dialed.close()
               debug "Upgrade failed", msg = exc.msg, peerId
               if exc isnot CancelledError:
@@ -129,15 +127,18 @@ proc internalConnect(
       trace "Reusing existing connection", conn, direction = $conn.dir
       return conn
 
-    conn = await self.connManager.trackOutgoingConn(
-      () => self.dialAndUpgrade(peerId, addrs),
-      forceDial
-    )
+    let slot = await self.connManager.getOutgoingSlot(forceDial)
+    conn =
+      try:
+        await self.dialAndUpgrade(peerId, addrs)
+      except CatchableError as exc:
+        slot.release()
+        raise exc
+    slot.trackConnection(conn)
     if isNil(conn): # None of the addresses connected
       raise newException(DialFailedError, "Unable to establish outgoing link")
 
-    # We already check for this in Connection manager
-    # but a disconnect could have happened right after
+    # A disconnect could have happened right after
     # we've added the connection so we check again
     # to prevent races due to that.
     if conn.closed() or conn.atEof():

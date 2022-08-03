@@ -21,7 +21,10 @@
 ## 1. SKEIN
 ## 2. MURMUR
 
-{.push raises: [Defect].}
+when (NimMajor, NimMinor) < (1, 4):
+  {.push raises: [Defect].}
+else:
+  {.push raises: [].}
 
 import tables
 import nimcrypto/[sha, sha2, keccak, blake2, hash, utils]

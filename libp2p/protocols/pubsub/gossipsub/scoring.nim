@@ -7,7 +7,10 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-{.push raises: [Defect].}
+when (NimMajor, NimMinor) < (1, 4):
+  {.push raises: [Defect].}
+else:
+  {.push raises: [].}
 
 import std/[tables, sets, options]
 import chronos, chronicles, metrics
@@ -101,7 +104,6 @@ proc disconnectPeer(g: GossipSub, peer: PubSubPeer) {.async.} =
   except CatchableError as exc: # Never cancelled
     trace "Failed to close connection", peer, error = exc.name, msg = exc.msg
 
-{.push raises: [Defect].}
 
 proc updateScores*(g: GossipSub) = # avoid async
   ## https://github.com/libp2p/specs/blob/master/pubsub/gossipsub/gossipsub-v1.1.md#the-score-function

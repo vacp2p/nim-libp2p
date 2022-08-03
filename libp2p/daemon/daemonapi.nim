@@ -7,7 +7,10 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-{.push raises: [Defect].}
+when (NimMajor, NimMinor) < (1, 4):
+  {.push raises: [Defect].}
+else:
+  {.push raises: [].}
 
 ## This module implementes API for `go-libp2p-daemon`.
 import std/[os, osproc, strutils, tables, strtabs, sequtils]

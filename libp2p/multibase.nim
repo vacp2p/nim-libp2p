@@ -13,7 +13,10 @@
 ## 1. base32z
 ##
 
-{.push raises: [Defect].}
+when (NimMajor, NimMinor) < (1, 4):
+  {.push raises: [Defect].}
+else:
+  {.push raises: [].}
 
 import tables
 import stew/[base32, base58, base64, results]
