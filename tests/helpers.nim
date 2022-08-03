@@ -1,4 +1,7 @@
-{.push raises: [Defect].}
+when (NimMajor, NimMinor) < (1, 4):
+  {.push raises: [Defect].}
+else:
+  {.push raises: [].}
 
 import chronos
 
@@ -13,7 +16,6 @@ import ../libp2p/protocols/secure/secure
 import ./asyncunit
 export asyncunit
 
-{.push raises: [Defect].}
 
 const
   StreamTransportTrackerName = "stream.transport"
@@ -86,6 +88,22 @@ proc new*(T: typedesc[TestBufferStream], writeHandler: WriteHandler): T =
   let testBufferStream = T(writeHandler: writeHandler)
   testBufferStream.initStream()
   testBufferStream
+
+proc bridgedConnections*: (Connection, Connection) =
+  let
+    connA = TestBufferStream()
+    connB = TestBufferStream()
+  connA.dir = Direction.Out
+  connB.dir = Direction.In
+  connA.initStream()
+  connB.initStream()
+  connA.writeHandler = proc(data: seq[byte]) {.async.} =
+    await connB.pushData(data)
+
+  connB.writeHandler = proc(data: seq[byte]) {.async.} =
+    await connA.pushData(data)
+  return (connA, connB)
+
 
 proc checkExpiringInternal(cond: proc(): bool {.raises: [Defect].} ): Future[bool] {.async, gcsafe.} =
   {.gcsafe.}:

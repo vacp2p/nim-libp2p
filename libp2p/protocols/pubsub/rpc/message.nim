@@ -1,13 +1,16 @@
-## Nim-LibP2P
-## Copyright (c) 2019 Status Research & Development GmbH
-## Licensed under either of
-##  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
-##  * MIT license ([LICENSE-MIT](LICENSE-MIT))
-## at your option.
-## This file may not be copied, modified, or distributed except according to
-## those terms.
+# Nim-LibP2P
+# Copyright (c) 2022 Status Research & Development GmbH
+# Licensed under either of
+#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+#  * MIT license ([LICENSE-MIT](LICENSE-MIT))
+# at your option.
+# This file may not be copied, modified, or distributed except according to
+# those terms.
 
-{.push raises: [Defect].}
+when (NimMajor, NimMinor) < (1, 4):
+  {.push raises: [Defect].}
+else:
+  {.push raises: [].}
 
 import hashes
 import chronicles, metrics, stew/[byteutils, endians2]
@@ -29,7 +32,7 @@ const PubSubPrefix = toBytes("libp2p-pubsub:")
 declareCounter(libp2p_pubsub_sig_verify_success, "pubsub successfully validated messages")
 declareCounter(libp2p_pubsub_sig_verify_failure, "pubsub failed validated messages")
 
-func defaultMsgIdProvider*(m: Message): Result[MessageID, ValidationResult] =
+func defaultMsgIdProvider*(m: Message): Result[MessageId, ValidationResult] =
   if m.seqno.len > 0 and m.fromPeer.data.len > 0:
     let mid = byteutils.toHex(m.seqno) & $m.fromPeer
     ok mid.toBytes()

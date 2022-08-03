@@ -1,13 +1,18 @@
-## Nim-LibP2P
-## Copyright (c) 2019 Status Research & Development GmbH
-## Licensed under either of
-##  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
-##  * MIT license ([LICENSE-MIT](LICENSE-MIT))
-## at your option.
-## This file may not be copied, modified, or distributed except according to
-## those terms.
+# Nim-LibP2P
+# Copyright (c) 2022 Status Research & Development GmbH
+# Licensed under either of
+#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+#  * MIT license ([LICENSE-MIT](LICENSE-MIT))
+# at your option.
+# This file may not be copied, modified, or distributed except according to
+# those terms.
 
-{.push raises: [Defect].}
+## TCP transport implementation
+
+when (NimMajor, NimMinor) < (1, 4):
+  {.push raises: [Defect].}
+else:
+  {.push raises: [].}
 
 import std/[oids, sequtils]
 import chronos, chronicles
@@ -20,7 +25,8 @@ import transport,
        ../multiaddress,
        ../stream/connection,
        ../stream/chronosstream,
-       ../upgrademngrs/upgrade
+       ../upgrademngrs/upgrade,
+       ../utility
 
 logScope:
   topics = "libp2p tcptransport"
@@ -118,13 +124,12 @@ proc connHandler*(self: TcpTransport,
 proc new*(
   T: typedesc[TcpTransport],
   flags: set[ServerFlags] = {},
-  upgrade: Upgrade): T =
+  upgrade: Upgrade): T {.public.} =
 
   let transport = T(
     flags: flags,
     upgrader: upgrade)
 
-  inc getTcpTransportTracker().opened
   return transport
 
 method start*(
@@ -139,6 +144,7 @@ method start*(
 
   await procCall Transport(self).start(addrs)
   trace "Starting TCP transport"
+  inc getTcpTransportTracker().opened
 
   for i, ma in addrs:
     if not self.handles(ma):
@@ -162,16 +168,19 @@ method start*(
 method stop*(self: TcpTransport) {.async, gcsafe.} =
   ## stop the transport
   ##
-
   try:
     trace "Stopping TCP transport"
-    await procCall Transport(self).stop() # call base
 
     checkFutures(
       await allFinished(
         self.clients[Direction.In].mapIt(it.closeWait()) &
         self.clients[Direction.Out].mapIt(it.closeWait())))
 
+    if not self.running:
+      warn "TCP transport already stopped"
+      return
+
+    await procCall Transport(self).stop() # call base
     var toWait: seq[Future[void]]
     for fut in self.acceptFuts:
       if not fut.finished:

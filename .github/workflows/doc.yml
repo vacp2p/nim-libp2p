@@ -1,0 +1,99 @@
+name: Docgen
+on:
+  push:
+  workflow_dispatch:
+
+
+jobs:
+  build:
+    timeout-minutes: 20
+
+    name: 'Generate & upload documentation'
+    runs-on: 'ubuntu-20.04'
+    continue-on-error: true
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+        with:
+          submodules: true
+
+      - uses: jiro4989/setup-nim-action@v1
+        with:
+          nim-version: 'stable'
+
+      - name: Generate doc
+        run: |
+          nim --version
+          nimble --version
+          nimble install_pinned
+          # nim doc can "fail", but the doc is still generated
+          nim doc --git.url:https://github.com/status-im/nim-libp2p --git.commit:${GITHUB_REF##*/} --outdir:${GITHUB_REF##*/} --project libp2p || true
+
+          # check that the folder exists
+          ls ${GITHUB_REF##*/}
+
+      - name: Clone the gh-pages branch
+        uses: actions/checkout@v2
+        with:
+          repository: status-im/nim-libp2p
+          ref: gh-pages
+          path: subdoc
+          submodules: true
+          fetch-depth: 0
+
+      - name: Commit & push
+        run: |
+          cd subdoc
+
+          # Delete merged branches doc's
+          for branch in $(git branch -vv | grep ': gone]' | awk '{print $1}'); do rm -rf $branch; done
+
+          # Update / create this branch doc
+          rm -rf ${GITHUB_REF##*/}
+          mv ../${GITHUB_REF##*/} .
+
+          # Remove .idx files
+          # NOTE: git also uses idx files in his
+          # internal folder, hence the `*` instead of `.`
+          find * -name "*.idx" -delete
+          git add .
+          git config --global user.email "${{ github.actor }}@users.noreply.github.com"
+          git config --global user.name = "${{ github.actor }}"
+          git commit -a -m "update docs for ${GITHUB_REF##*/}"
+          git push origin gh-pages
+
+  update_site:
+    if: github.ref == 'refs/heads/master'
+    name: 'Rebuild website'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - uses: actions/setup-python@v2
+        with:
+          python-version: 3.x
+
+      - name: Generate website
+        run: pip install mkdocs-material && mkdocs build
+
+      - name: Clone the gh-pages branch
+        uses: actions/checkout@v2
+        with:
+          repository: status-im/nim-libp2p
+          ref: gh-pages
+          path: subdoc
+          fetch-depth: 0
+
+      - name: Commit & push
+        run: |
+          cd subdoc
+
+          rm -rf docs
+          mv ../site docs
+
+          git add .
+          git config --global user.email "${{ github.actor }}@users.noreply.github.com"
+          git config --global user.name = "${{ github.actor }}"
+          git commit -a -m "update website"
+          git push origin gh-pages

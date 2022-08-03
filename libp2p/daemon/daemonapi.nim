@@ -1,13 +1,16 @@
-## Nim-LibP2P
-## Copyright (c) 2018 Status Research & Development GmbH
-## Licensed under either of
-##  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
-##  * MIT license ([LICENSE-MIT](LICENSE-MIT))
-## at your option.
-## This file may not be copied, modified, or distributed except according to
-## those terms.
+# Nim-LibP2P
+# Copyright (c) 2022 Status Research & Development GmbH
+# Licensed under either of
+#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+#  * MIT license ([LICENSE-MIT](LICENSE-MIT))
+# at your option.
+# This file may not be copied, modified, or distributed except according to
+# those terms.
 
-{.push raises: [Defect].}
+when (NimMajor, NimMinor) < (1, 4):
+  {.push raises: [Defect].}
+else:
+  {.push raises: [].}
 
 ## This module implementes API for `go-libp2p-daemon`.
 import std/[os, osproc, strutils, tables, strtabs, sequtils]
@@ -1022,7 +1025,7 @@ proc dhtGetSinglePeerId(pb: ProtoBuffer): PeerId
   if pb.getRequiredField(3, result).isErr():
     raise newException(DaemonLocalError, "Missing field `value`!")
 
-proc enterDhtMessage(pb: ProtoBuffer, rt: DHTResponseType): Protobuffer
+proc enterDhtMessage(pb: ProtoBuffer, rt: DHTResponseType): ProtoBuffer
   {.inline, raises: [Defect, DaemonLocalError].} =
   var dhtResponse: seq[byte]
   if pb.getRequiredField(ResponseType.DHT.int, dhtResponse).isOk():

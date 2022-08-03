@@ -1,13 +1,31 @@
-## Nim-LibP2P
-## Copyright (c) 2021 Status Research & Development GmbH
-## Licensed under either of
-##  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
-##  * MIT license ([LICENSE-MIT](LICENSE-MIT))
-## at your option.
-## This file may not be copied, modified, or distributed except according to
-## those terms.
+# Nim-LibP2P
+# Copyright (c) 2022 Status Research & Development GmbH
+# Licensed under either of
+#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+#  * MIT license ([LICENSE-MIT](LICENSE-MIT))
+# at your option.
+# This file may not be copied, modified, or distributed except according to
+# those terms.
 
-{.push raises: [Defect].}
+## Stores generic informations about peers.
+runnableExamples:
+  # Will keep info of all connected peers +
+  # last 50 disconnected peers
+  let peerStore = PeerStore.new(capacity = 50)
+
+  # Create a custom book type
+  type MoodBook = ref object of PeerBook[string]
+
+  var somePeerId: PeerId
+  discard somePeerId.init("")
+
+  peerStore[MoodBook][somePeerId] = "Happy"
+  doAssert peerStore[MoodBook][somePeerId] == "Happy"
+
+when (NimMajor, NimMinor) < (1, 4):
+  {.push raises: [Defect].}
+else:
+  {.push raises: [].}
 
 import
   std/[tables, sets, options, macros],
@@ -15,7 +33,8 @@ import
   ./protocols/identify,
   ./peerid, ./peerinfo,
   ./routing_record,
-  ./multiaddress
+  ./multiaddress,
+  utility
 
 type
   #################
@@ -23,7 +42,7 @@ type
   #################
 
   PeerBookChangeHandler* = proc(peerId: PeerId) {.gcsafe, raises: [Defect].}
-  
+
   #########
   # Books #
   #########
@@ -33,29 +52,29 @@ type
     changeHandlers: seq[PeerBookChangeHandler]
     deletor: PeerBookChangeHandler
 
-  PeerBook*[T] = ref object of BasePeerBook
+  PeerBook*[T] {.public.} = ref object of BasePeerBook
     book*: Table[PeerId, T]
 
   SeqPeerBook*[T] = ref object of PeerBook[seq[T]]
-  
-  AddressBook* = ref object of SeqPeerBook[MultiAddress]
-  ProtoBook* = ref object of SeqPeerBook[string]
-  KeyBook* = ref object of PeerBook[PublicKey]
 
-  AgentBook* = ref object of PeerBook[string]
-  ProtoVersionBook* = ref object of PeerBook[string]
-  SPRBook* = ref object of PeerBook[Envelope]
-  
+  AddressBook* {.public.} = ref object of SeqPeerBook[MultiAddress]
+  ProtoBook* {.public.} = ref object of SeqPeerBook[string]
+  KeyBook* {.public.} = ref object of PeerBook[PublicKey]
+
+  AgentBook* {.public.} = ref object of PeerBook[string]
+  ProtoVersionBook* {.public.} = ref object of PeerBook[string]
+  SPRBook* {.public.} = ref object of PeerBook[Envelope]
+
   ####################
   # Peer store types #
   ####################
 
-  PeerStore* = ref object
+  PeerStore* {.public.} = ref object
     books: Table[string, BasePeerBook]
     capacity*: int
     toClean*: seq[PeerId]
-  
-proc new*(T: type PeerStore, capacity = 1000): PeerStore =
+
+proc new*(T: type PeerStore, capacity = 1000): PeerStore {.public.} =
   T(capacity: capacity)
 
 #########################
@@ -63,16 +82,15 @@ proc new*(T: type PeerStore, capacity = 1000): PeerStore =
 #########################
 
 proc `[]`*[T](peerBook: PeerBook[T],
-             peerId: PeerId): T =
-  ## Get all the known metadata of a provided peer.
+             peerId: PeerId): T {.public.} =
+  ## Get all known metadata of a provided peer, or default(T) if missing
   peerBook.book.getOrDefault(peerId)
 
 proc `[]=`*[T](peerBook: PeerBook[T],
              peerId: PeerId,
-             entry: T) =
-  ## Set metadata for a given peerId. This will replace any
-  ## previously stored metadata.
-  
+             entry: T) {.public.} =
+  ## Set metadata for a given peerId.
+
   peerBook.book[peerId] = entry
 
   # Notify clients
@@ -80,9 +98,9 @@ proc `[]=`*[T](peerBook: PeerBook[T],
     handler(peerId)
 
 proc del*[T](peerBook: PeerBook[T],
-                peerId: PeerId): bool =
-  ## Delete the provided peer from the book.
-  
+                peerId: PeerId): bool {.public.} =
+  ## Delete the provided peer from the book. Returns whether the peer was in the book
+
   if peerId notin peerBook.book:
     return false
   else:
@@ -92,15 +110,16 @@ proc del*[T](peerBook: PeerBook[T],
       handler(peerId)
     return true
 
-proc contains*[T](peerBook: PeerBook[T], peerId: PeerId): bool =
+proc contains*[T](peerBook: PeerBook[T], peerId: PeerId): bool {.public.} =
   peerId in peerBook.book
 
-proc addHandler*[T](peerBook: PeerBook[T], handler: PeerBookChangeHandler) =
+proc addHandler*[T](peerBook: PeerBook[T], handler: PeerBookChangeHandler) {.public.} =
+  ## Adds a callback that will be called everytime the book changes
   peerBook.changeHandlers.add(handler)
 
-proc len*[T](peerBook: PeerBook[T]): int = peerBook.book.len
+proc len*[T](peerBook: PeerBook[T]): int {.public.} = peerBook.book.len
 
-##################  
+##################
 # Peer Store API #
 ##################
 macro getTypeName(t: type): untyped =
@@ -108,7 +127,8 @@ macro getTypeName(t: type): untyped =
   let typ = getTypeImpl(t)[1]
   newLit(repr(typ.owner()) & "." & repr(typ))
 
-proc `[]`*[T](p: PeerStore, typ: type[T]): T =
+proc `[]`*[T](p: PeerStore, typ: type[T]): T {.public.} =
+  ## Get a book from the PeerStore (ex: peerStore[AddressBook])
   let name = getTypeName(T)
   result = T(p.books.getOrDefault(name))
   if result.isNil:
@@ -121,7 +141,7 @@ proc `[]`*[T](p: PeerStore, typ: type[T]): T =
   return result
 
 proc del*(peerStore: PeerStore,
-             peerId: PeerId) =
+             peerId: PeerId) {.public.} =
   ## Delete the provided peer from every book.
   for _, book in peerStore.books:
     book.deletor(peerId)

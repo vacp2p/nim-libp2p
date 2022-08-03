@@ -1,13 +1,16 @@
-## Nim-LibP2P
-## Copyright (c) 2019 Status Research & Development GmbH
-## Licensed under either of
-##  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
-##  * MIT license ([LICENSE-MIT](LICENSE-MIT))
-## at your option.
-## This file may not be copied, modified, or distributed except according to
-## those terms.
+# Nim-LibP2P
+# Copyright (c) 2022 Status Research & Development GmbH
+# Licensed under either of
+#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+#  * MIT license ([LICENSE-MIT](LICENSE-MIT))
+# at your option.
+# This file may not be copied, modified, or distributed except according to
+# those terms.
 
-{.push raises: [Defect].}
+when (NimMajor, NimMinor) < (1, 4):
+  {.push raises: [Defect].}
+else:
+  {.push raises: [].}
 
 import options
 import stew/assign2
@@ -17,7 +20,6 @@ import messages,
        ../../../utility,
        ../../../protobuf/minprotobuf
 
-{.push raises: [Defect].}
 
 logScope:
   topics = "pubsubprotobuf"
@@ -30,7 +32,7 @@ when defined(libp2p_protobuf_metrics):
 
 proc write*(pb: var ProtoBuffer, field: int, graft: ControlGraft) =
   var ipb = initProtoBuffer()
-  ipb.write(1, graft.topicID)
+  ipb.write(1, graft.topicId)
   ipb.finish()
   pb.write(field, ipb)
 
@@ -46,7 +48,7 @@ proc write*(pb: var ProtoBuffer, field: int, infoMsg: PeerInfoMsg) =
 
 proc write*(pb: var ProtoBuffer, field: int, prune: ControlPrune) =
   var ipb = initProtoBuffer()
-  ipb.write(1, prune.topicID)
+  ipb.write(1, prune.topicId)
   for peer in prune.peers:
     ipb.write(2, peer)
   ipb.write(3, prune.backoff)
@@ -58,8 +60,8 @@ proc write*(pb: var ProtoBuffer, field: int, prune: ControlPrune) =
 
 proc write*(pb: var ProtoBuffer, field: int, ihave: ControlIHave) =
   var ipb = initProtoBuffer()
-  ipb.write(1, ihave.topicID)
-  for mid in ihave.messageIDs:
+  ipb.write(1, ihave.topicId)
+  for mid in ihave.messageIds:
     ipb.write(2, mid)
   ipb.finish()
   pb.write(field, ipb)
@@ -69,7 +71,7 @@ proc write*(pb: var ProtoBuffer, field: int, ihave: ControlIHave) =
 
 proc write*(pb: var ProtoBuffer, field: int, iwant: ControlIWant) =
   var ipb = initProtoBuffer()
-  for mid in iwant.messageIDs:
+  for mid in iwant.messageIds:
     ipb.write(1, mid)
   if len(ipb.buffer) > 0:
     ipb.finish()
@@ -109,7 +111,7 @@ proc encodeMessage*(msg: Message, anonymize: bool): seq[byte] =
   pb.write(2, msg.data)
   if len(msg.seqno) > 0 and not anonymize:
     pb.write(3, msg.seqno)
-  for topic in msg.topicIDs:
+  for topic in msg.topicIds:
     pb.write(4, topic)
   if len(msg.signature) > 0 and not anonymize:
     pb.write(5, msg.signature)
@@ -182,8 +184,8 @@ proc decodeIHave*(pb: ProtoBuffer): ProtoResult[ControlIHave] {.
     trace "decodeIHave: read topicId", topic_id = control.topicId
   else:
     trace "decodeIHave: topicId is missing"
-  if ? pb.getRepeatedField(2, control.messageIDs):
-    trace "decodeIHave: read messageIDs", message_ids = control.messageIDs
+  if ? pb.getRepeatedField(2, control.messageIds):
+    trace "decodeIHave: read messageIDs", message_ids = control.messageIds
   else:
     trace "decodeIHave: no messageIDs"
   ok(control)
@@ -194,8 +196,8 @@ proc decodeIWant*(pb: ProtoBuffer): ProtoResult[ControlIWant] {.inline.} =
 
   trace "decodeIWant: decoding message"
   var control = ControlIWant()
-  if ? pb.getRepeatedField(1, control.messageIDs):
-    trace "decodeIWant: read messageIDs", message_ids = control.messageIDs
+  if ? pb.getRepeatedField(1, control.messageIds):
+    trace "decodeIWant: read messageIDs", message_ids = control.messageIds
   else:
     trace "decodeIWant: no messageIDs"
   ok(control)
@@ -281,8 +283,8 @@ proc decodeMessage*(pb: ProtoBuffer): ProtoResult[Message] {.inline.} =
     trace "decodeMessage: read seqno", seqno = msg.seqno
   else:
     trace "decodeMessage: seqno is missing"
-  if ? pb.getRepeatedField(4, msg.topicIDs):
-    trace "decodeMessage: read topics", topic_ids = msg.topicIDs
+  if ? pb.getRepeatedField(4, msg.topicIds):
+    trace "decodeMessage: read topics", topic_ids = msg.topicIds
   else:
     trace "decodeMessage: topics are missing"
   if ? pb.getField(5, msg.signature):

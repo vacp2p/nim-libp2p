@@ -1,17 +1,21 @@
-## Nim-LibP2P
-## Copyright (c) 2019 Status Research & Development GmbH
-## Licensed under either of
-##  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
-##  * MIT license ([LICENSE-MIT](LICENSE-MIT))
-## at your option.
-## This file may not be copied, modified, or distributed except according to
-## those terms.
+# Nim-LibP2P
+# Copyright (c) 2022 Status Research & Development GmbH
+# Licensed under either of
+#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+#  * MIT license ([LICENSE-MIT](LICENSE-MIT))
+# at your option.
+# This file may not be copied, modified, or distributed except according to
+# those terms.
 
-{.push raises: [Defect].}
+when (NimMajor, NimMinor) < (1, 4):
+  {.push raises: [Defect].}
+else:
+  {.push raises: [].}
+{.push public.}
 
 import std/[options, sequtils]
 import pkg/[chronos, chronicles, stew/results]
-import peerid, multiaddress, crypto/crypto, routing_record, errors
+import peerid, multiaddress, crypto/crypto, routing_record, errors, utility
 
 export peerid, multiaddress, crypto, routing_record, errors, results
 
@@ -20,7 +24,7 @@ export peerid, multiaddress, crypto, routing_record, errors, results
 type
   PeerInfoError* = LPError
 
-  PeerInfo* = ref object
+  PeerInfo* {.public.} = ref object
     peerId*: PeerId
     addrs*: seq[MultiAddress]
     protocols*: seq[string]
@@ -65,7 +69,7 @@ proc new*(
     except CatchableError:
       raise newException(PeerInfoError, "invalid private key")
   
-  let peerId = PeerID.init(key).tryGet()
+  let peerId = PeerId.init(key).tryGet()
 
   let peerInfo = PeerInfo(
     peerId: peerId,
