@@ -243,253 +243,131 @@ suite "Connection Manager":
   asyncTest "track total incoming connection limits":
     let connMngr = ConnManager.new(maxConnections = 3)
 
-    var conns: seq[Connection]
     for i in 0..<3:
-      let conn = connMngr.trackIncomingConn(
-        proc(): Future[Connection] {.async.} =
-          return Connection.new(
-            PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet(),
-            Direction.In)
-      )
-
-      check await conn.withTimeout(10.millis)
-      conns.add(await conn)
+      check await connMngr.getIncomingSlot().withTimeout(10.millis)
 
     # should timeout adding a connection over the limit
-    let conn = connMngr.trackIncomingConn(
-        proc(): Future[Connection] {.async.} =
-          return Connection.new(
-            PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet(),
-            Direction.In)
-      )
-
-    check not(await conn.withTimeout(10.millis))
+    check not(await connMngr.getIncomingSlot().withTimeout(10.millis))
 
     await connMngr.close()
-    await allFuturesThrowing(
-      allFutures(conns.mapIt( it.close() )))
 
   asyncTest "track total outgoing connection limits":
     let connMngr = ConnManager.new(maxConnections = 3)
 
-    var conns: seq[Connection]
     for i in 0..<3:
-      let conn = await connMngr.trackOutgoingConn(
-        proc(): Future[Connection] {.async.} =
-          return Connection.new(
-            PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet(),
-            Direction.In)
-      )
-
-      conns.add(conn)
+      check await connMngr.getOutgoingSlot().withTimeout(10.millis)
 
     # should throw adding a connection over the limit
     expect TooManyConnectionsError:
-      discard await connMngr.trackOutgoingConn(
-          proc(): Future[Connection] {.async.} =
-            return Connection.new(
-              PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet(),
-              Direction.In)
-        )
+      discard await connMngr.getOutgoingSlot()
 
     await connMngr.close()
-    await allFuturesThrowing(
-      allFutures(conns.mapIt( it.close() )))
 
   asyncTest "track both incoming and outgoing total connections limits - fail on incoming":
     let connMngr = ConnManager.new(maxConnections = 3)
 
-    var conns: seq[Connection]
     for i in 0..<3:
-      let conn = await connMngr.trackOutgoingConn(
-        proc(): Future[Connection] {.async.} =
-          return Connection.new(
-            PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet(),
-            Direction.In)
-      )
-
-      conns.add(conn)
+      check await connMngr.getOutgoingSlot().withTimeout(10.millis)
 
     # should timeout adding a connection over the limit
-    let conn = connMngr.trackIncomingConn(
-        proc(): Future[Connection] {.async.} =
-          return Connection.new(
-            PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet(),
-            Direction.In)
-      )
-
-    check not(await conn.withTimeout(10.millis))
+    check not(await connMngr.getIncomingSlot().withTimeout(10.millis))
 
     await connMngr.close()
-    await allFuturesThrowing(
-      allFutures(conns.mapIt( it.close() )))
 
   asyncTest "track both incoming and outgoing total connections limits - fail on outgoing":
     let connMngr = ConnManager.new(maxConnections = 3)
 
-    var conns: seq[Connection]
     for i in 0..<3:
-      let conn = connMngr.trackIncomingConn(
-        proc(): Future[Connection] {.async.} =
-          return Connection.new(
-            PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet(),
-            Direction.In)
-      )
-
-      check await conn.withTimeout(10.millis)
-      conns.add(await conn)
+      check await connMngr.getIncomingSlot().withTimeout(10.millis)
 
     # should throw adding a connection over the limit
     expect TooManyConnectionsError:
-      discard await connMngr.trackOutgoingConn(
-          proc(): Future[Connection] {.async.} =
-            return Connection.new(
-              PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet(),
-              Direction.In)
-        )
+      discard await connMngr.getOutgoingSlot()
 
     await connMngr.close()
-    await allFuturesThrowing(
-      allFutures(conns.mapIt( it.close() )))
 
   asyncTest "track max incoming connection limits":
     let connMngr = ConnManager.new(maxIn = 3)
 
-    var conns: seq[Connection]
     for i in 0..<3:
-      let conn = connMngr.trackIncomingConn(
-        proc(): Future[Connection] {.async.} =
-          return Connection.new(
-            PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet(),
-            Direction.In)
-      )
+      check await connMngr.getIncomingSlot().withTimeout(10.millis)
 
-      check await conn.withTimeout(10.millis)
-      conns.add(await conn)
-
-    # should timeout adding a connection over the limit
-    let conn = connMngr.trackIncomingConn(
-        proc(): Future[Connection] {.async.} =
-          return Connection.new(
-            PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet(),
-            Direction.In)
-      )
-
-    check not(await conn.withTimeout(10.millis))
+    check not(await connMngr.getIncomingSlot().withTimeout(10.millis))
 
     await connMngr.close()
-    await allFuturesThrowing(
-      allFutures(conns.mapIt( it.close() )))
 
   asyncTest "track max outgoing connection limits":
     let connMngr = ConnManager.new(maxOut = 3)
 
-    var conns: seq[Connection]
     for i in 0..<3:
-      let conn = await connMngr.trackOutgoingConn(
-        proc(): Future[Connection] {.async.} =
-          return Connection.new(
-            PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet(),
-            Direction.In)
-      )
-
-      conns.add(conn)
+      check await connMngr.getOutgoingSlot().withTimeout(10.millis)
 
     # should throw adding a connection over the limit
     expect TooManyConnectionsError:
-      discard await connMngr.trackOutgoingConn(
-          proc(): Future[Connection] {.async.} =
-            return Connection.new(
-              PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet(),
-              Direction.In)
-        )
+      discard await connMngr.getOutgoingSlot()
 
     await connMngr.close()
-    await allFuturesThrowing(
-      allFutures(conns.mapIt( it.close() )))
 
   asyncTest "track incoming max connections limits - fail on incoming":
     let connMngr = ConnManager.new(maxOut = 3)
 
-    var conns: seq[Connection]
     for i in 0..<3:
-      let conn = await connMngr.trackOutgoingConn(
-        proc(): Future[Connection] {.async.} =
-          return Connection.new(
-            PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet(),
-            Direction.In)
-      )
-
-      conns.add(conn)
+      check await connMngr.getOutgoingSlot().withTimeout(10.millis)
 
     # should timeout adding a connection over the limit
-    let conn = connMngr.trackIncomingConn(
-        proc(): Future[Connection] {.async.} =
-          return Connection.new(
-            PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet(),
-            Direction.In)
-      )
-
-    check not(await conn.withTimeout(10.millis))
+    check not(await connMngr.getIncomingSlot().withTimeout(10.millis))
 
     await connMngr.close()
-    await allFuturesThrowing(
-      allFutures(conns.mapIt( it.close() )))
 
   asyncTest "track incoming max connections limits - fail on outgoing":
     let connMngr = ConnManager.new(maxIn = 3)
 
     var conns: seq[Connection]
     for i in 0..<3:
-      let conn = connMngr.trackIncomingConn(
-        proc(): Future[Connection] {.async.} =
-          return Connection.new(
-            PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet(),
-            Direction.In)
-      )
-
-      check await conn.withTimeout(10.millis)
-      conns.add(await conn)
+      check await connMngr.getIncomingSlot().withTimeout(10.millis)
 
     # should throw adding a connection over the limit
     expect TooManyConnectionsError:
-      discard await connMngr.trackOutgoingConn(
-          proc(): Future[Connection] {.async.} =
-            return Connection.new(
-              PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet(),
-              Direction.In)
-        )
+      discard await connMngr.getOutgoingSlot()
 
     await connMngr.close()
-    await allFuturesThrowing(
-      allFutures(conns.mapIt( it.close() )))
 
   asyncTest "allow force dial":
     let connMngr = ConnManager.new(maxConnections = 2)
 
     var conns: seq[Connection]
     for i in 0..<3:
-      let conn = connMngr.trackOutgoingConn(
-        (proc(): Future[Connection] {.async.} =
-          return Connection.new(
-            PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet(),
-            Direction.In)
-        ), true
-      )
-
-      check await conn.withTimeout(10.millis)
-      conns.add(await conn)
+      check await connMngr.getOutgoingSlot(true).withTimeout(10.millis)
 
     # should throw adding a connection over the limit
     expect TooManyConnectionsError:
-      discard await connMngr.trackOutgoingConn(
-          (proc(): Future[Connection] {.async.} =
-            return Connection.new(
-              PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet(),
-              Direction.In)
-          ), false
-        )
+      discard await connMngr.getOutgoingSlot(false)
 
     await connMngr.close()
+
+  asyncTest "release slot on connection end":
+    let connMngr = ConnManager.new(maxConnections = 3)
+
+    var conns: seq[Connection]
+    for i in 0..<3:
+      let slot = await ((connMngr.getOutgoingSlot()).wait(10.millis))
+
+      let conn =
+        Connection.new(
+          PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet(),
+          Direction.In)
+
+      slot.trackConnection(conn)
+      conns.add(conn)
+
+    # should be full now
+    let incomingSlot = connMngr.getIncomingSlot()
+
+    check (await incomingSlot.withTimeout(10.millis)) == false
+
     await allFuturesThrowing(
       allFutures(conns.mapIt( it.close() )))
+
+    check await incomingSlot.withTimeout(10.millis)
+
+    await connMngr.close()

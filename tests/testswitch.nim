@@ -21,6 +21,7 @@ import ../libp2p/[errors,
                   nameresolving/nameresolver,
                   nameresolving/mockresolver,
                   stream/chronosstream,
+                  utils/semaphore,
                   transports/tcptransport,
                   transports/wstransport]
 import ./helpers
@@ -206,6 +207,12 @@ suite "Switch":
     await switch1.start()
     await switch2.start()
 
+    let startCounts =
+      @[
+        switch1.connManager.inSema.count, switch1.connManager.outSema.count,
+        switch2.connManager.inSema.count, switch2.connManager.outSema.count
+      ]
+
     await switch2.connect(switch1.peerInfo.peerId, switch1.peerInfo.addrs)
 
     check switch1.isConnected(switch2.peerInfo.peerId)
@@ -218,6 +225,15 @@ suite "Switch":
 
     checkTracker(LPChannelTrackerName)
     checkTracker(SecureConnTrackerName)
+
+    await sleepAsync(1.seconds)
+
+    check:
+      startCounts ==
+        @[
+          switch1.connManager.inSema.count, switch1.connManager.outSema.count,
+          switch2.connManager.inSema.count, switch2.connManager.outSema.count
+        ]
 
     await allFuturesThrowing(
       switch1.stop(),
