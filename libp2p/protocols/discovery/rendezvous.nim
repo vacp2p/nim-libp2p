@@ -113,10 +113,8 @@ type
 proc checkPeerRecord(spr: Option[seq[byte]], peerId: PeerId): Result[void, string] =
   if spr.isNone():
     return err("Empty peer record")
-  let signedEnv = SignedPeerRecord.decode(spr.get())
-  if signedEnv.isErr():
-    return err($signedEnv.error())
-  if signedEnv.get().data.peerId != peerId:
+  let signedEnv = ? SignedPeerRecord.decode(spr.get()).mapErr(x => $x)
+  if signedEnv.data.peerId != peerId:
     return err("Bad Peer ID")
   return ok()
 
@@ -214,11 +212,13 @@ proc discover(rdv: RendezVous, conn: Connection, d: Discover): Future[void] =
     limit = min(DiscoverLimit, d.limit.get(DiscoverLimit))
   let
     nsSalted = ns & rdv.salt
-    cookie = if d.cookie.isSome():
-      try: Protobuf.decode(d.cookie.get(), type(Cookie))
-      except ProtobufReadError: return conn.sendDiscoverResponseError(InvalidCookie)
-    else: Cookie(offset: rdv.registered.low().uint64, ns: ns)
-    indexes = if ns != "":
+    cookie =
+      if d.cookie.isSome():
+        try: Protobuf.decode(d.cookie.get(), type(Cookie))
+        except ProtobufReadError: return conn.sendDiscoverResponseError(InvalidCookie)
+      else: Cookie(offset: rdv.registered.low().uint64, ns: ns)
+    indexes =
+      if ns != "":
         try: rdv.indexes[nsSalted].s
         except KeyError: return conn.sendDiscoverResponseError(InvalidNamespace)
       else: toSeq(rdv.registered.low()..rdv.registered.high())
