@@ -20,7 +20,8 @@ import ./discoveryinterface,
        ../../routing_record,
        ../../utils/heartbeat,
        ../../stream/connection,
-       ../../utils/offsettedseq
+       ../../utils/offsettedseq,
+       ../../utils/semaphore
 
 export chronicles, protobuf_serialization
 logScope:
@@ -32,6 +33,7 @@ const
   MaximumTTL = 72'u64 * 60 * 60
   RegistrationLimitPerPeer = 1000
   DiscoverLimit = 1000'u64
+  SemaphoreDefaultSize = 5
 
 type
   MessageType {.pure.} = enum
@@ -102,7 +104,9 @@ type
     salt: string
     defaultDT: DateTime
     registerDeletionLoop: Future[void]
-    registerEvent: AsyncEvent
+    registerEvent: AsyncEvent # TODO: to raise during the heartbeat
+    # + make the heartbeat sleep duration "smarter"
+    sema: AsyncSemaphore
     peers: seq[PeerId]
     switch: Switch
 
@@ -231,6 +235,21 @@ proc discover(rdv: RendezVous, conn: Connection, d: Discover): Future[void] =
         rdv.registered[index].data
   conn.sendDiscoverResponse(s, Cookie(offset: offset.uint64, ns: ns))
 
+proc advertisePeer(rdv: RendezVous, peer: PeerId, msg: seq[byte]) {.async.} =
+  let conn = await rdv.switch.dial(peer, RendezVousCodec)
+  defer: await conn.close()
+  await conn.writeLp(msg).wait(chronos.milliseconds(2500))
+  let
+    buf = await conn.readLp(4096).wait(chronos.milliseconds(2500))
+    msgRecv = Protobuf.decode(buf, type(Message))
+  if msgRecv.msgType.isNone() or msgRecv.msgType.get() != MessageType.RegisterResponse:
+    trace "Unexpected register response", peer, msgType = msgRecv.msgType
+  elif msgRecv.registerResponse.isNone() or
+       msgRecv.registerResponse.get().status.isNone() or
+       msgRecv.registerResponse.get().status.get() != ResponseStatus.Ok:
+    trace "Refuse to register", peer, response = msgRecv.registerResponse
+  rdv.sema.release()
+
 proc advertise*(rdv: RendezVous,
                 ns: string,
                 ttl: uint64 = MinimumTTL) {.async.} =
@@ -239,23 +258,17 @@ proc advertise*(rdv: RendezVous,
     return
   let
     r = Register(ns: some(ns), signedPeerRecord: some(sprBuff.get()), ttl: some(ttl))
-    msg = Protobuf.encode(Message(
-        msgType: some(MessageType.Register),
-        register: some(r)))
+    msg = Protobuf.encode(Message(msgType: some(MessageType.Register), register: some(r)))
   rdv.save(ns, rdv.switch.peerInfo.peerId, r, ttl)
   for peer in rdv.peers:
     try:
-      let conn = await rdv.switch.dial(peer, RendezVousCodec)
-      defer: await conn.close()
-      await conn.writeLp(msg)
-      let
-        buf = await conn.readLp(4096)
-        msgRecv = Protobuf.decode(buf, type(Message))
-      if msgRecv.msgType.get() != MessageType.RegisterResponse:
-        trace "cannot register", peer, msgType = msgRecv.msgType
+      await rdv.sema.acquire()
+      asyncSpawn rdv.advertisePeer(peer, msg)
     except CancelledError as exc:
+      rdv.sema.release()
       raise exc
     except CatchableError as exc:
+      rdv.sema.release()
       trace "exception in the advertise", error = exc.msg
 
 proc request*(rdv: RendezVous, ns: string): Future[seq[PeerRecord]] {.async.} =
@@ -269,13 +282,15 @@ proc request*(rdv: RendezVous, ns: string): Future[seq[PeerRecord]] {.async.} =
 
 proc new*(T: typedesc[RendezVous],
           switch: Switch,
+          semSize: int = SemaphoreDefaultSize,
           rng: ref HmacDrbgContext = newRng()): T =
   let rdv = T(
     salt: string.fromBytes(generateBytes(rng[], 8)),
     registered: initOffsettedSeq[RegisteredData](),
     defaultDT: 0.fromUnix().utc(),
     switch: switch,
-    registerEvent: newAsyncEvent()
+    registerEvent: newAsyncEvent(),
+    sema: newAsyncSemaphore(semSize)
   )
 
   proc handleStream(conn: Connection, proto: string) {.async, gcsafe.} =
