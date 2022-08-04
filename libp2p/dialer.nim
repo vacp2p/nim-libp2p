@@ -182,7 +182,7 @@ proc negotiateStream(
 method tryDial*(
   self: Dialer,
   peerId: PeerId,
-  addrs: seq[MultiAddress]): Future[MultiAddress] {.raises: [Defect], async.} =
+  addrs: seq[MultiAddress]): Future[MultiAddress] {.async.} =
   ## Create a protocol stream and in order to check
   ## if a connection is possible.
   ## Doesn't use the Connection Manager to save it.
