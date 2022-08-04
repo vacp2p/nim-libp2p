@@ -63,7 +63,7 @@ type
     ttl {.pint, fieldNumber: 3.}: Option[uint64] # in seconds
 
   RegisterResponse {.protobuf3.} = object
-    status {.fieldNumber: 1.}: Option[ResponseStatus]
+    status {.fieldNumber: 1.}: ResponseStatus
     text {.fieldNumber: 2.}: Option[string]
     ttl {.pint, fieldNumber: 3.}: Option[uint64] # in seconds
 
@@ -78,11 +78,11 @@ type
   DiscoverResponse {.protobuf3.} = object
     registrations {.fieldNumber: 1.}: seq[Register]
     cookie {.fieldNumber: 2.}: Option[seq[byte]]
-    status {.fieldNumber: 3.}: Option[ResponseStatus]
+    status {.fieldNumber: 3.}: ResponseStatus
     text {.fieldNumber: 4.}: Option[string]
 
   Message {.protobuf3.} = object
-    msgType {.fieldNumber: 1.}: Option[MessageType]
+    msgType {.fieldNumber: 1.}: MessageType
     register {.fieldNumber: 2.}: Option[Register]
     registerResponse {.fieldNumber: 3.}: Option[RegisterResponse]
     unregister {.fieldNumber: 4.}: Option[Unregister]
@@ -123,25 +123,25 @@ proc checkPeerRecord(spr: Option[seq[byte]], peerId: PeerId): Result[void, strin
 proc sendRegisterResponse(conn: Connection,
                           ttl: uint64) {.async.} =
   let msg = Protobuf.encode(Message(
-        msgType: some(MessageType.RegisterResponse),
-        registerResponse: some(RegisterResponse(status: some(Ok), ttl: some(ttl)))))
+        msgType: MessageType.RegisterResponse,
+        registerResponse: some(RegisterResponse(status: Ok, ttl: some(ttl)))))
   await conn.writeLp(msg)
 
 proc sendRegisterResponseError(conn: Connection,
                                status: ResponseStatus,
                                text: string = "") {.async.} =
   let msg = Protobuf.encode(Message(
-        msgType: some(MessageType.RegisterResponse),
-        registerResponse: some(RegisterResponse(status: some(status), text: some(text)))))
+        msgType: MessageType.RegisterResponse,
+        registerResponse: some(RegisterResponse(status: status, text: some(text)))))
   await conn.writeLp(msg)
 
 proc sendDiscoverResponse(conn: Connection,
                           s: seq[Register],
                           cookie: Cookie) {.async.} =
   let msg = Protobuf.encode(Message(
-        msgType: some(MessageType.DiscoverResponse),
+        msgType: MessageType.DiscoverResponse,
         discoverResponse: some(DiscoverResponse(
-            status: some(Ok),
+            status: Ok,
             registrations: s,
             cookie: some(Protobuf.encode(cookie))
           ))
@@ -152,8 +152,8 @@ proc sendDiscoverResponseError(conn: Connection,
                                status: ResponseStatus,
                                text: string = "") {.async.} =
   let msg = Protobuf.encode(Message(
-        msgType: some(MessageType.DiscoverResponse),
-        discoverResponse: some(DiscoverResponse(status: some(status), text: some(text)))))
+        msgType: MessageType.DiscoverResponse,
+        discoverResponse: some(DiscoverResponse(status: status, text: some(text)))))
   await conn.writeLp(msg)
 
 proc countRegister(rdv: RendezVous, peerId: PeerId): int =
@@ -242,11 +242,10 @@ proc advertisePeer(rdv: RendezVous, peer: PeerId, msg: seq[byte]) {.async.} =
   let
     buf = await conn.readLp(4096).wait(chronos.milliseconds(2500))
     msgRecv = Protobuf.decode(buf, type(Message))
-  if msgRecv.msgType.isNone() or msgRecv.msgType.get() != MessageType.RegisterResponse:
+  if msgRecv.msgType != MessageType.RegisterResponse:
     trace "Unexpected register response", peer, msgType = msgRecv.msgType
   elif msgRecv.registerResponse.isNone() or
-       msgRecv.registerResponse.get().status.isNone() or
-       msgRecv.registerResponse.get().status.get() != ResponseStatus.Ok:
+       msgRecv.registerResponse.get().status != ResponseStatus.Ok:
     trace "Refuse to register", peer, response = msgRecv.registerResponse
   rdv.sema.release()
 
@@ -258,7 +257,7 @@ proc advertise*(rdv: RendezVous,
     return
   let
     r = Register(ns: some(ns), signedPeerRecord: some(sprBuff.get()), ttl: some(ttl))
-    msg = Protobuf.encode(Message(msgType: some(MessageType.Register), register: some(r)))
+    msg = Protobuf.encode(Message(msgType: MessageType.Register, register: some(r)))
   rdv.save(ns, rdv.switch.peerInfo.peerId, r, ttl)
   for peer in rdv.peers:
     try:
@@ -299,7 +298,7 @@ proc new*(T: typedesc[RendezVous],
       let
         buf = await conn.readLp(4096)
         msg = Protobuf.decode(buf, type(Message))
-      case msg.msgType.get():
+      case msg.msgType:
         of MessageType.Register: await rdv.register(conn, msg.register.get())
         of MessageType.RegisterResponse:
           trace "Got an unexpected Register Response", response = msg.registerResponse
