@@ -236,18 +236,24 @@ proc discover(rdv: RendezVous, conn: Connection, d: Discover): Future[void] =
   conn.sendDiscoverResponse(s, Cookie(offset: offset.uint64, ns: ns))
 
 proc advertisePeer(rdv: RendezVous, peer: PeerId, msg: seq[byte]) {.async.} =
-  let conn = await rdv.switch.dial(peer, RendezVousCodec)
-  defer: await conn.close()
-  await conn.writeLp(msg).wait(chronos.milliseconds(2500))
-  let
-    buf = await conn.readLp(4096).wait(chronos.milliseconds(2500))
-    msgRecv = Protobuf.decode(buf, type(Message))
-  if msgRecv.msgType != MessageType.RegisterResponse:
-    trace "Unexpected register response", peer, msgType = msgRecv.msgType
-  elif msgRecv.registerResponse.isNone() or
-       msgRecv.registerResponse.get().status != ResponseStatus.Ok:
-    trace "Refuse to register", peer, response = msgRecv.registerResponse
-  rdv.sema.release()
+  proc advertiseWrap() {.async.} =
+    try:
+      let conn = await rdv.switch.dial(peer, RendezVousCodec)
+      defer: await conn.close()
+      await conn.writeLp(msg)
+      let
+        buf = await conn.readLp(4096)
+        msgRecv = Protobuf.decode(buf, type(Message))
+      if msgRecv.msgType != MessageType.RegisterResponse:
+        trace "Unexpected register response", peer, msgType = msgRecv.msgType
+      elif msgRecv.registerResponse.isNone() or
+           msgRecv.registerResponse.get().status != ResponseStatus.Ok:
+        trace "Refuse to register", peer, response = msgRecv.registerResponse
+    except CatchableError as exc:
+      trace "exception in the advertise", error = exc.msg
+    finally:
+      rdv.sema.release()
+  await advertiseWrap().wait(chronos.seconds(5))
 
 proc advertise*(rdv: RendezVous,
                 ns: string,
@@ -260,15 +266,8 @@ proc advertise*(rdv: RendezVous,
     msg = Protobuf.encode(Message(msgType: MessageType.Register, register: some(r)))
   rdv.save(ns, rdv.switch.peerInfo.peerId, r, ttl)
   for peer in rdv.peers:
-    try:
-      await rdv.sema.acquire()
-      asyncSpawn rdv.advertisePeer(peer, msg)
-    except CancelledError as exc:
-      rdv.sema.release()
-      raise exc
-    except CatchableError as exc:
-      rdv.sema.release()
-      trace "exception in the advertise", error = exc.msg
+    await rdv.sema.acquire()
+    asyncSpawn rdv.advertisePeer(peer, msg)
 
 proc request*(rdv: RendezVous, ns: string): Future[seq[PeerRecord]] {.async.} =
   let nsSalted = ns & rdv.salt
