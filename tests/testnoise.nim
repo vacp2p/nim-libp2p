@@ -299,7 +299,7 @@ suite "Noise":
     (switch2, peerInfo2) = createSwitch(ma2, true, true) # secio, we want to fail
     await switch1.start()
     await switch2.start()
-    expect(UpgradeFailedError):
+    expect(DialFailedError):
       let conn = await switch2.dial(switch1.peerInfo.peerId, switch1.peerInfo.addrs, TestCodec)
 
     await allFuturesThrowing(

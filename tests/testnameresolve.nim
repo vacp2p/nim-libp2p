@@ -139,7 +139,7 @@ suite "Name resolving":
     asyncTest "dnsaddr infinite recursion":
       resolver.txtResponses["_dnsaddr.bootstrap.libp2p.io"] = @["dnsaddr=/dnsaddr/bootstrap.libp2p.io"]
 
-      check testOne("/dnsaddr/bootstrap.libp2p.io/", "/dnsaddr/bootstrap.libp2p.io/")
+      check testOne("/dnsaddr/bootstrap.libp2p.io/", newSeq[string]())
 
   suite "DNS Resolving":
     teardown:
