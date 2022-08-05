@@ -271,11 +271,47 @@ proc advertise*(rdv: RendezVous,
 
 proc request*(rdv: RendezVous, ns: string): Future[seq[PeerRecord]] {.async.} =
   let nsSalted = ns & rdv.salt
-  var s = collect(newSeq()):
-    if nsSalted in rdv.indexes:
-      for index in rdv.indexes[nsSalted]:
-        SignedPeerRecord.decode(rdv.registered[index].data.signedPeerRecord.get()).get().data
-  # TODO: send to peers and append the response to s
+  var
+    s = collect(newSeq()):
+      if nsSalted in rdv.indexes:
+        for index in rdv.indexes[nsSalted]:
+          SignedPeerRecord.decode(rdv.registered[index].data.signedPeerRecord.get()).get().data
+    d = Discover(ns: some(ns))
+
+  proc requestPeer(peer: PeerId) {.async.} =
+    let conn = await rdv.switch.dial(peer, RendezVousCodec)
+    defer: await conn.close()
+    # TODO: setup cookie and limit
+    await conn.writeLp(Protobuf.encode(Message(
+      msgType: MessageType.Discover,
+      discover: some(d))))
+    let
+      buf = await conn.readLp(65536)
+      msgRcv = Protobuf.decode(buf, type(Message))
+    if msgRcv.msgType != MessageType.DiscoverResponse or
+       msgRcv.discoverResponse.isNone():
+      trace "Unexpected discover response", msgType = msgRcv.msgType
+      return
+    let resp = msgRcv.discoverResponse.get()
+    if resp.status != ResponseStatus.Ok:
+      trace "Refuse to discover", status = resp.status, text = resp.text
+      return
+    for r in resp.registrations:
+      if r.signedPeerRecord.isNone(): continue
+      let sprRes = SignedPeerRecord.decode(r.signedPeerRecord.get())
+      if sprRes.isErr(): continue
+      let pr = sprRes.get().data
+      if s.anyIt(it.peerId == pr.peerId): continue
+      # TODO: limit.dec() + register locally
+      s.add(pr)
+
+  for peer in rdv.peers:
+    try:
+      await peer.requestPeer()
+    except CancelledError as exc:
+      raise exc
+    except CatchableError as exc:
+      trace "exception catch in request", error = exc.msg
   return s
 
 proc new*(T: typedesc[RendezVous],
