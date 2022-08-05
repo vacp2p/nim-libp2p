@@ -163,7 +163,6 @@ proc save(rdv: RendezVous,
           ns: string,
           peerId: PeerId,
           r: Register,
-          ttl: uint64 = MinimumTTL,
           update: bool = true) =
   let nsSalted = ns & rdv.salt
   discard rdv.indexes.hasKeyOrPut(nsSalted, initOffsettedSeq[int]())
@@ -175,7 +174,7 @@ proc save(rdv: RendezVous,
     rdv.registered.add(
       RegisteredData(
         peerId: peerId,
-        expiration: Moment.now() + ttl.int64.seconds,
+        expiration: Moment.now() + r.ttl.get(MinimumTTL).int64.seconds,
         data: r
       )
     )
@@ -195,7 +194,7 @@ proc register(rdv: RendezVous, conn: Connection, r: Register): Future[void] =
     return conn.sendRegisterResponseError(InvalidSignedPeerRecord, pr.error())
   if rdv.countRegister(conn.peerId) >= RegistrationLimitPerPeer:
     return conn.sendRegisterResponseError(NotAuthorized, "Registration limit reached")
-  rdv.save(r.ns, conn.peerId, r, ttl)
+  rdv.save(r.ns, conn.peerId, r)
   conn.sendRegisterResponse(ttl)
 
 proc unregister(rdv: RendezVous, conn: Connection, u: Unregister) =
@@ -267,7 +266,7 @@ proc advertise*(rdv: RendezVous,
   let
     r = Register(ns: ns, signedPeerRecord: sprBuff.get(), ttl: some(ttl))
     msg = Protobuf.encode(Message(msgType: MessageType.Register, register: some(r)))
-  rdv.save(ns, rdv.switch.peerInfo.peerId, r, ttl)
+  rdv.save(ns, rdv.switch.peerInfo.peerId, r)
   for peer in rdv.peers:
     await rdv.sema.acquire()
     asyncSpawn rdv.advertisePeer(peer, msg)
@@ -321,7 +320,7 @@ proc request*(rdv: RendezVous, ns: string): Future[seq[PeerRecord]] {.async.} =
       let pr = sprRes.get().data
       if s.anyIt(it.peerId == pr.peerId): continue
       limit.dec()
-      rdv.save(ns, peer, r, r.ttl.get(MinimumTTL), false)
+      rdv.save(ns, peer, r, false)
       s.add(pr)
 
   for peer in rdv.peers:
