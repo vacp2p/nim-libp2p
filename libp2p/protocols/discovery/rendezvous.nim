@@ -12,7 +12,7 @@ when (NimMajor, NimMinor) < (1, 4):
 else:
   {.push raises: [].}
 
-import tables, times, sequtils, sugar, sets
+import tables, sequtils, sugar, sets
 import chronos, chronicles, protobuf_serialization, bearssl/rand
 import ./discoveryinterface,
        ../protocol,
@@ -90,7 +90,7 @@ type
     discoverResponse {.fieldNumber: 6.}: Option[DiscoverResponse]
 
   RegisteredData = object
-    expireDate: DateTime
+    expiration: Moment
     peerId: PeerId
     data: Register
 
@@ -102,7 +102,7 @@ type
     indexes: Table[string, OffsettedSeq[int]]
     registered: OffsettedSeq[RegisteredData]
     salt: string
-    defaultDT: DateTime
+    defaultDT: Moment
     registerDeletionLoop: Future[void]
     registerEvent: AsyncEvent # TODO: to raise during the heartbeat
     # + make the heartbeat sleep duration "smarter"
@@ -161,17 +161,17 @@ proc countRegister(rdv: RendezVous, peerId: PeerId): int =
 
 proc save(rdv: RendezVous, ns: string, peerId: PeerId, r: Register, ttl: uint64 = MinimumTTL) =
   let
-    n = now()
+    n = Moment.now()
     nsSalted = ns & rdv.salt
   discard rdv.indexes.hasKeyOrPut(nsSalted, initOffsettedSeq[int]())
   try:
     for index in rdv.indexes[nsSalted]:
       if rdv.registered[index].peerId == peerId:
-        rdv.registered[index].expireDate = rdv.defaultDT
+        rdv.registered[index].expiration = rdv.defaultDT
     rdv.registered.add(
       RegisteredData(
         peerId: peerId,
-        expireDate: now() + initDuration(ttl.int64),
+        expiration: Moment.now() + ttl.int64.seconds,
         data: r
       )
     )
@@ -200,7 +200,7 @@ proc unregister(rdv: RendezVous, conn: Connection, u: Unregister) =
   try:
     for index in rdv.indexes[nsSalted]:
       if rdv.registered[index].peerId == conn.peerId:
-        rdv.registered[index].expireDate = rdv.defaultDT
+        rdv.registered[index].expiration = rdv.defaultDT
   except KeyError:
     return
 
@@ -285,8 +285,8 @@ proc new*(T: typedesc[RendezVous],
   let rdv = T(
     salt: string.fromBytes(generateBytes(rng[], 8)),
     registered: initOffsettedSeq[RegisteredData](),
-    defaultDT: 0.fromUnix().utc(),
     switch: switch,
+    defaultDT: Moment.now() - 1.days,
     registerEvent: newAsyncEvent(),
     sema: newAsyncSemaphore(semSize)
   )
@@ -327,8 +327,8 @@ proc new*(T: typedesc[RendezVous],
 proc deletesRegister(rdv: RendezVous) {.async.} =
   # TODO replace 1 minutes by the shortest time to sleep before a registration finished
   heartbeat "Register timeout", chronos.minutes(1):
-    let n = now()
-    rdv.registered.flushIfIt(it.expireDate < n)
+    let n = Moment.now()
+    rdv.registered.flushIfIt(it.expiration < n)
     for data in rdv.indexes.mvalues():
       data.flushIfIt(it < rdv.registered.offset)
 
