@@ -232,6 +232,7 @@ proc discover(rdv: RendezVous, conn: Connection, d: Discover): Future[void] =
           offset = index
           break
         limit.dec()
+        rdv.registered[index].data.ttl = some((rdv.registered[index].expiration - Moment.now()).seconds.uint64)
         rdv.registered[index].data
   conn.sendDiscoverResponse(s, Cookie(offset: offset.uint64, ns: ns))
 
