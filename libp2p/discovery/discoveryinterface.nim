@@ -15,10 +15,9 @@ else:
 import tables
 import chronos,
        chronicles
-import ../protocol,
-       ../../peerid,
-       ../../multiaddress,
-       ../../errors
+import ../peerid,
+       ../multiaddress,
+       ../errors
 
 type
   DiscoveryError* = object of LPError

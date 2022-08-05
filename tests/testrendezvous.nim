@@ -2,7 +2,7 @@
 
 import options, chronos
 import stew/byteutils
-import ../libp2p/[protocols/discovery/rendezvous,
+import ../libp2p/[protocols/rendezvous,
                   switch,
                   builders,]
 import ./helpers

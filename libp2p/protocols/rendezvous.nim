@@ -14,14 +14,13 @@ else:
 
 import tables, sequtils, sugar, sets
 import chronos, chronicles, protobuf_serialization, bearssl/rand
-import ./discoveryinterface,
-       ../protocol,
-       ../../switch,
-       ../../routing_record,
-       ../../utils/heartbeat,
-       ../../stream/connection,
-       ../../utils/offsettedseq,
-       ../../utils/semaphore
+import ./protocol,
+       ../switch,
+       ../routing_record,
+       ../utils/heartbeat,
+       ../stream/connection,
+       ../utils/offsettedseq,
+       ../utils/semaphore
 
 export chronicles, protobuf_serialization
 logScope:
