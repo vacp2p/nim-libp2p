@@ -15,9 +15,9 @@ suite "RendezVous":
     s.mount(rdv)
     await s.start()
     await rdv.advertise("foo")
-    let res1 = await rdv.request("foo")
+    let res1 = rdv.requestLocally("foo")
     check:
       res1.len == 1
       res1[0] == s.peerInfo.signedPeerRecord.data
-    let res2 = await rdv.request("bar")
+    let res2 = rdv.requestLocally("bar")
     check res2.len == 0

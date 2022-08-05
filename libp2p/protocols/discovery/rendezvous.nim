@@ -104,10 +104,11 @@ type
     salt: string
     defaultDT: Moment
     registerDeletionLoop: Future[void]
-    registerEvent: AsyncEvent # TODO: to raise during the heartbeat
+    #registerEvent: AsyncEvent # TODO: to raise during the heartbeat
     # + make the heartbeat sleep duration "smarter"
     sema: AsyncSemaphore
     peers: seq[PeerId]
+    cookiesSaved: Table[PeerId, Table[string, seq[byte]]]
     switch: Switch
 
 proc checkPeerRecord(spr: seq[byte], peerId: PeerId): Result[void, string] =
@@ -158,14 +159,18 @@ proc countRegister(rdv: RendezVous, peerId: PeerId): int =
      if data.peerId == peerId:
        result.inc()
 
-proc save(rdv: RendezVous, ns: string, peerId: PeerId, r: Register, ttl: uint64 = MinimumTTL) =
-  let
-    n = Moment.now()
-    nsSalted = ns & rdv.salt
+proc save(rdv: RendezVous,
+          ns: string,
+          peerId: PeerId,
+          r: Register,
+          ttl: uint64 = MinimumTTL,
+          update: bool = true) =
+  let nsSalted = ns & rdv.salt
   discard rdv.indexes.hasKeyOrPut(nsSalted, initOffsettedSeq[int]())
   try:
     for index in rdv.indexes[nsSalted]:
       if rdv.registered[index].peerId == peerId:
+        if update == false: return
         rdv.registered[index].expiration = rdv.defaultDT
     rdv.registered.add(
       RegisteredData(
@@ -267,19 +272,31 @@ proc advertise*(rdv: RendezVous,
     await rdv.sema.acquire()
     asyncSpawn rdv.advertisePeer(peer, msg)
 
+proc requestLocally*(rdv: RendezVous, ns: string): seq[PeerRecord] =
+  let nsSalted = ns & rdv.salt
+  try:
+    collect(newSeq()):
+      for index in rdv.indexes[nsSalted]:
+        SignedPeerRecord.decode(rdv.registered[index].data.signedPeerRecord).get().data
+  except KeyError as exc:
+    @[]
+
 proc request*(rdv: RendezVous, ns: string): Future[seq[PeerRecord]] {.async.} =
   let nsSalted = ns & rdv.salt
   var
-    s = collect(newSeq()):
-      if nsSalted in rdv.indexes:
-        for index in rdv.indexes[nsSalted]:
-          SignedPeerRecord.decode(rdv.registered[index].data.signedPeerRecord).get().data
+    s: seq[PeerRecord]
+    limit = DiscoverLimit
     d = Discover(ns: ns)
 
   proc requestPeer(peer: PeerId) {.async.} =
     let conn = await rdv.switch.dial(peer, RendezVousCodec)
     defer: await conn.close()
-    # TODO: setup cookie and limit
+    d.limit = some(limit)
+    d.cookie =
+      try:
+        some(rdv.cookiesSaved[peer][ns])
+      except KeyError as exc:
+        none(seq[byte])
     await conn.writeLp(Protobuf.encode(Message(
       msgType: MessageType.Discover,
       discover: some(d))))
@@ -294,15 +311,21 @@ proc request*(rdv: RendezVous, ns: string): Future[seq[PeerRecord]] {.async.} =
     if resp.status != ResponseStatus.Ok:
       trace "Refuse to discover", status = resp.status, text = resp.text
       return
+    if resp.cookie.isSome():
+      if rdv.cookiesSaved.hasKeyOrPut(peer, {ns: resp.cookie.get()}.toTable):
+        rdv.cookiesSaved[peer][ns] = resp.cookie.get()
     for r in resp.registrations:
+      if limit == 0: return
       let sprRes = SignedPeerRecord.decode(r.signedPeerRecord)
       if sprRes.isErr(): continue
       let pr = sprRes.get().data
       if s.anyIt(it.peerId == pr.peerId): continue
-      # TODO: limit.dec() + register locally
+      limit.dec()
+      rdv.save(ns, peer, r, r.ttl.get(MinimumTTL), false)
       s.add(pr)
 
   for peer in rdv.peers:
+    if limit == 0: break
     try:
       await peer.requestPeer()
     except CancelledError as exc:
@@ -320,7 +343,7 @@ proc new*(T: typedesc[RendezVous],
     registered: initOffsettedSeq[RegisteredData](),
     switch: switch,
     defaultDT: Moment.now() - 1.days,
-    registerEvent: newAsyncEvent(),
+    #registerEvent: newAsyncEvent(),
     sema: newAsyncSemaphore(semSize)
   )
 
