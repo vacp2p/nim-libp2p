@@ -58,8 +58,8 @@ type
     ns {.fieldNumber: 2.}: string
 
   Register {.protobuf3.} = object
-    ns {.fieldNumber: 1.}: Option[string]
-    signedPeerRecord {.fieldNumber: 2.}: Option[seq[byte]]
+    ns {.fieldNumber: 1.}: string
+    signedPeerRecord {.fieldNumber: 2.}: seq[byte]
     ttl {.pint, fieldNumber: 3.}: Option[uint64] # in seconds
 
   RegisterResponse {.protobuf3.} = object
@@ -68,10 +68,10 @@ type
     ttl {.pint, fieldNumber: 3.}: Option[uint64] # in seconds
 
   Unregister {.protobuf3.} = object
-    ns {.fieldNumber: 1.}: Option[string]
+    ns {.fieldNumber: 1.}: string
 
   Discover {.protobuf3.} = object
-    ns {.fieldNumber: 1.}: Option[string]
+    ns {.fieldNumber: 1.}: string
     limit {.pint, fieldNumber: 2.}: Option[uint64]
     cookie {.fieldNumber: 3.}: Option[seq[byte]]
 
@@ -110,10 +110,9 @@ type
     peers: seq[PeerId]
     switch: Switch
 
-proc checkPeerRecord(spr: Option[seq[byte]], peerId: PeerId): Result[void, string] =
-  if spr.isNone():
-    return err("Empty peer record")
-  let signedEnv = ? SignedPeerRecord.decode(spr.get()).mapErr(x => $x)
+proc checkPeerRecord(spr: seq[byte], peerId: PeerId): Result[void, string] =
+  if spr.len == 0: return err("Empty peer record")
+  let signedEnv = ? SignedPeerRecord.decode(spr).mapErr(x => $x)
   if signedEnv.data.peerId != peerId:
     return err("Bad Peer ID")
   return ok()
@@ -181,8 +180,7 @@ proc save(rdv: RendezVous, ns: string, peerId: PeerId, r: Register, ttl: uint64 
     doAssert false, "Should have key"
 
 proc register(rdv: RendezVous, conn: Connection, r: Register): Future[void] =
-  let ns = r.ns.get("")
-  if ns.len notin 1..255:
+  if r.ns.len notin 1..255:
     return conn.sendRegisterResponseError(InvalidNamespace)
   let ttl = r.ttl.get(MinimumTTL)
   if ttl notin MinimumTTL..MaximumTTL:
@@ -192,11 +190,11 @@ proc register(rdv: RendezVous, conn: Connection, r: Register): Future[void] =
     return conn.sendRegisterResponseError(InvalidSignedPeerRecord, pr.error())
   if rdv.countRegister(conn.peerId) >= RegistrationLimitPerPeer:
     return conn.sendRegisterResponseError(NotAuthorized, "Registration limit reached")
-  rdv.save(ns, conn.peerId, r, ttl)
+  rdv.save(r.ns, conn.peerId, r, ttl)
   conn.sendRegisterResponse(ttl)
 
 proc unregister(rdv: RendezVous, conn: Connection, u: Unregister) =
-  let nsSalted = u.ns.get("") & rdv.salt
+  let nsSalted = u.ns & rdv.salt
   try:
     for index in rdv.indexes[nsSalted]:
       if rdv.registered[index].peerId == conn.peerId:
@@ -205,20 +203,18 @@ proc unregister(rdv: RendezVous, conn: Connection, u: Unregister) =
     return
 
 proc discover(rdv: RendezVous, conn: Connection, d: Discover): Future[void] =
-  let ns = d.ns.get("")
-  if ns.len notin 0..255:
+  if d.ns.len notin 0..255:
     return conn.sendDiscoverResponseError(InvalidNamespace)
-  var
-    limit = min(DiscoverLimit, d.limit.get(DiscoverLimit))
+  var limit = min(DiscoverLimit, d.limit.get(DiscoverLimit))
   let
-    nsSalted = ns & rdv.salt
+    nsSalted = d.ns & rdv.salt
     cookie =
       if d.cookie.isSome():
         try: Protobuf.decode(d.cookie.get(), type(Cookie))
         except ProtobufReadError: return conn.sendDiscoverResponseError(InvalidCookie)
-      else: Cookie(offset: rdv.registered.low().uint64, ns: ns)
+      else: Cookie(offset: rdv.registered.low().uint64, ns: d.ns)
     indexes =
-      if ns != "":
+      if d.ns != "":
         try: rdv.indexes[nsSalted].s
         except KeyError: return conn.sendDiscoverResponseError(InvalidNamespace)
       else: toSeq(rdv.registered.low()..rdv.registered.high())
@@ -227,14 +223,15 @@ proc discover(rdv: RendezVous, conn: Connection, d: Discover): Future[void] =
   var offset = indexes[^1]
   let s = collect(newSeq()):
       for index in indexes:
+        var reg = rdv.registered[index]
         if index.uint64 < cookie.offset: continue
         if limit == 0:
           offset = index
           break
         limit.dec()
-        rdv.registered[index].data.ttl = some((rdv.registered[index].expiration - Moment.now()).seconds.uint64)
-        rdv.registered[index].data
-  conn.sendDiscoverResponse(s, Cookie(offset: offset.uint64, ns: ns))
+        reg.data.ttl = some((reg.expiration - Moment.now()).seconds.uint64)
+        reg.data
+  conn.sendDiscoverResponse(s, Cookie(offset: offset.uint64, ns: d.ns))
 
 proc advertisePeer(rdv: RendezVous, peer: PeerId, msg: seq[byte]) {.async.} =
   proc advertiseWrap() {.async.} =
@@ -254,16 +251,16 @@ proc advertisePeer(rdv: RendezVous, peer: PeerId, msg: seq[byte]) {.async.} =
       trace "exception in the advertise", error = exc.msg
     finally:
       rdv.sema.release()
-  await advertiseWrap().wait(chronos.seconds(5))
+  discard await advertiseWrap().withTimeout(5.seconds)
 
 proc advertise*(rdv: RendezVous,
                 ns: string,
                 ttl: uint64 = MinimumTTL) {.async.} =
-  let sprBuff = rdv.switch.peerInfo.signedPeerRecord.envelope.encode()
-  if sprBuff.isErr() or ns.len() notin 1..255 or ttl notin MinimumTTL..MaximumTTL:
+  let sprBuff = rdv.switch.peerInfo.signedPeerRecord.encode()
+  if sprBuff.isErr() or ns.len notin 1..255 or ttl notin MinimumTTL..MaximumTTL:
     return
   let
-    r = Register(ns: some(ns), signedPeerRecord: some(sprBuff.get()), ttl: some(ttl))
+    r = Register(ns: ns, signedPeerRecord: sprBuff.get(), ttl: some(ttl))
     msg = Protobuf.encode(Message(msgType: MessageType.Register, register: some(r)))
   rdv.save(ns, rdv.switch.peerInfo.peerId, r, ttl)
   for peer in rdv.peers:
@@ -276,8 +273,8 @@ proc request*(rdv: RendezVous, ns: string): Future[seq[PeerRecord]] {.async.} =
     s = collect(newSeq()):
       if nsSalted in rdv.indexes:
         for index in rdv.indexes[nsSalted]:
-          SignedPeerRecord.decode(rdv.registered[index].data.signedPeerRecord.get()).get().data
-    d = Discover(ns: some(ns))
+          SignedPeerRecord.decode(rdv.registered[index].data.signedPeerRecord).get().data
+    d = Discover(ns: ns)
 
   proc requestPeer(peer: PeerId) {.async.} =
     let conn = await rdv.switch.dial(peer, RendezVousCodec)
@@ -298,8 +295,7 @@ proc request*(rdv: RendezVous, ns: string): Future[seq[PeerRecord]] {.async.} =
       trace "Refuse to discover", status = resp.status, text = resp.text
       return
     for r in resp.registrations:
-      if r.signedPeerRecord.isNone(): continue
-      let sprRes = SignedPeerRecord.decode(r.signedPeerRecord.get())
+      let sprRes = SignedPeerRecord.decode(r.signedPeerRecord)
       if sprRes.isErr(): continue
       let pr = sprRes.get().data
       if s.anyIt(it.peerId == pr.peerId): continue
@@ -363,7 +359,7 @@ proc new*(T: typedesc[RendezVous],
 
 proc deletesRegister(rdv: RendezVous) {.async.} =
   # TODO replace 1 minutes by the shortest time to sleep before a registration finished
-  heartbeat "Register timeout", chronos.minutes(1):
+  heartbeat "Register timeout", 1.minutes:
     let n = Moment.now()
     rdv.registered.flushIfIt(it.expiration < n)
     for data in rdv.indexes.mvalues():
