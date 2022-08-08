@@ -12,7 +12,7 @@ when (NimMajor, NimMinor) < (1, 4):
 else:
   {.push raises: [].}
 
-import tables
+import tables, sequtils
 import chronos,
        chronicles
 import ../peerid,
@@ -22,16 +22,43 @@ import ../peerid,
 type
   DiscoveryError* = object of LPError
 
-  DiscoveryFilter* = Table[string, string]
+  BaseFilter = ref object of RootObj
+
+  Filter[T] = ref object of BaseFilter
+    filter*: T
+  
+  FilterTuple = tuple
+    key: string
+    value: string
+
+  NamespaceFilter* = ref object of Filter[string]
+  PeerIdFilter* = ref object of Filter[PeerId]
+  KeyValueFilter* = ref object of Filter[FilterTuple]
+  DiscoveryFilter* = seq[BaseFilter]
+
+proc `[]`*[T](df: DiscoveryFilter, filter: typedesc[T]): seq[T] =
+  df.filterIt(it of filter).mapIt(filter(it))
+
+proc addFilter*[T](df: var DiscoveryFilter, filter: T) =
+  when T is string:
+    df.add(NamespaceFilter(filter: filter))
+  elif T is PeerId:
+    df.add(PeerIdFilter(filter: filter))
+  elif T is FilterTuple:
+    df.add(TestFilter(filter: filter))
+  else:
+    {.fatal: "Must be a filtrable element".}
+
+type
   DiscoveryResult* = object
-    id*: PeerId
-    ma*: MultiAddress
+    peerId*: PeerId
+    addresses*: seq[MultiAddress]
     filter*: DiscoveryFilter
 
   PeerFoundCallback* = proc(filter: DiscoveryResult)
 
   DiscoveryInterface* = ref object of RootObj
-    onPeerFound: PeerFoundCallback
+    onPeerFound*: PeerFoundCallback
 
 method request(self: DiscoveryInterface, filter: DiscoveryFilter) {.async, base.} =
   doAssert(false, "Not implemented!")

@@ -12,6 +12,7 @@ when (NimMajor, NimMinor) < (1, 4):
 else:
   {.push raises: [].}
 
+import sequtils
 import chronos
 import ./discoveryinterface,
        ../protocols/rendezvous
@@ -21,7 +22,16 @@ type
     rdv: RendezVous
 
 method request(self: RendezVousInterface, filter: DiscoveryFilter) {.async.} =
-  doAssert(false, "Not implemented!")
+  for nsf in filter[NamespaceFilter]:
+    for pr in await self.rdv.request(nsf.filter):
+      self.onPeerFound(
+        DiscoveryResult(
+          peerId: pr.peerId,
+          addresses: pr.addresses.mapIt(it.address),
+          filter: filter
+        )
+      )
 
-method advertise(self: RendezVousInterface) {.async.} =
-  doAssert(false, "Not implemented!")
+method advertise(self: RendezVousInterface, filter: DiscoveryFilter) {.async.} =
+  for nsf in filter[NamespaceFilter]:
+    await self.rdv.advertise(nsf.filter)
