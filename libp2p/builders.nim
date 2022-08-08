@@ -23,7 +23,7 @@ import
   switch, peerid, peerinfo, stream/connection, multiaddress,
   crypto/crypto, transports/[transport, tcptransport],
   muxers/[muxer, mplex/mplex, yamux/yamux],
-  protocols/[identify, secure/secure, secure/noise],
+  protocols/[identify, secure/secure, secure/noise, rendezvous],
   protocols/relay/[relay, client, rtransport],
   connmanager, upgrademngrs/muxedupgrade,
   nameresolving/nameresolver,
@@ -56,6 +56,7 @@ type
     nameResolver: NameResolver
     peerStoreCapacity: Option[int]
     circuitRelay: Relay
+    rdv: RendezVous
 
 proc new*(T: type[SwitchBuilder]): T {.public.} =
   ## Creates a SwitchBuilder
@@ -186,6 +187,10 @@ proc withCircuitRelay*(b: SwitchBuilder, r: Relay = Relay.new()): SwitchBuilder 
   b.circuitRelay = r
   b
 
+proc withRendezVous*(b: SwitchBuilder, rdv: RendezVous = RendezVous.new()): SwitchBuilder =
+  b.rdv = rdv
+  b
+
 proc build*(b: SwitchBuilder): Switch
   {.raises: [Defect, LPError], public.} =
 
@@ -248,6 +253,10 @@ proc build*(b: SwitchBuilder): Switch
       switch.addTransport(RelayTransport.new(RelayClient(b.circuitRelay), muxedUpgrade))
     b.circuitRelay.setup(switch)
     switch.mount(b.circuitRelay)
+
+  if not isNil(b.rdv):
+    b.rdv.setup(switch)
+    switch.mount(b.rdv)
 
   return switch
 

@@ -11,7 +11,8 @@ suite "RendezVous":
   asyncTest "Simple local test":
     let
       s = newStandardSwitch()
-      rdv = RendezVous.new(s)
+      rdv = RendezVous.new()
+    rdv.setup(s)
     s.mount(rdv)
     await s.start()
     await rdv.advertise("foo")

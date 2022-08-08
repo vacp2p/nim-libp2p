@@ -332,8 +332,16 @@ proc request*(rdv: RendezVous, ns: string): Future[seq[PeerRecord]] {.async.} =
       trace "exception catch in request", error = exc.msg
   return s
 
+proc setup*(rdv: RendezVous, switch: Switch) =
+  rdv.switch = switch
+  proc handlePeer(peerId: PeerId, event: PeerEvent): Future[void] =
+    if RendezVousCodec in switch.peerStore[ProtoBook][peerId]:
+      if event.kind == PeerEventKind.Joined: rdv.peers.add(peerId)
+      elif event.kind == PeerEventKind.Left: rdv.peers.keepItIf(it != peerId)
+  rdv.switch.addPeerEventHandler(handlePeer, PeerEventKind.Joined)
+  rdv.switch.addPeerEventHandler(handlePeer, PeerEventKind.Left)
+
 proc new*(T: typedesc[RendezVous],
-          switch: Switch,
           semSize: int = SemaphoreDefaultSize,
           rng: ref HmacDrbgContext = newRng()): T =
   let rdv = T(
@@ -365,14 +373,6 @@ proc new*(T: typedesc[RendezVous],
       trace "exception in rendezvous handler", error = exc.msg
     finally:
       await conn.close()
-
-  proc handlePeer(peerId: PeerId, event: PeerEvent): Future[void] =
-    if RendezVousCodec in switch.peerStore[ProtoBook][peerId]:
-      if event.kind == PeerEventKind.Joined: rdv.peers.add(peerId)
-      elif event.kind == PeerEventKind.Left: rdv.peers.keepItIf(it != peerId)
-
-  rdv.switch.addPeerEventHandler(handlePeer, PeerEventKind.Joined)
-  rdv.switch.addPeerEventHandler(handlePeer, PeerEventKind.Left)
 
   rdv.handler = handleStream
   rdv.codec = RendezVousCodec
