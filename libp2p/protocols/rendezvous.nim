@@ -13,7 +13,7 @@ else:
   {.push raises: [].}
 
 import tables, sequtils, sugar, sets
-import chronos, chronicles, protobuf_serialization, bearssl/rand
+import chronos, chronicles, protobuf_serialization, bearssl/rand, stew/byteutils
 import ./protocol,
        ../switch,
        ../routing_record,
@@ -347,7 +347,6 @@ proc new*(T: typedesc[RendezVous],
   let rdv = T(
     salt: string.fromBytes(generateBytes(rng[], 8)),
     registered: initOffsettedSeq[RegisteredData](),
-    switch: switch,
     defaultDT: Moment.now() - 1.days,
     #registerEvent: newAsyncEvent(),
     sema: newAsyncSemaphore(semSize)

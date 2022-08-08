@@ -7,13 +7,22 @@ import ../libp2p/[protocols/rendezvous,
                   builders,]
 import ./helpers
 
+proc createSwitch(rdv: RendezVous = RendezVous.new()): Switch =
+  SwitchBuilder.new()
+    .withRng(newRng())
+    .withAddresses(@[ MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet() ])
+    .withTcpTransport()
+    .withMplex()
+    .withNoise()
+    .withRendezVous(rdv)
+    .build()
+
 suite "RendezVous":
   asyncTest "Simple local test":
     let
-      s = newStandardSwitch()
       rdv = RendezVous.new()
-    rdv.setup(s)
-    s.mount(rdv)
+      s = createSwitch(rdv)
+
     await s.start()
     await rdv.advertise("foo")
     let res1 = rdv.requestLocally("foo")
