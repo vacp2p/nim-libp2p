@@ -14,8 +14,8 @@ type
     s*: seq[T]
     offset*: int
 
-proc initOffsettedSeq*[T]: OffsettedSeq[T] =
-  OffsettedSeq[T](s: newSeq[T]())
+proc initOffsettedSeq*[T](offset: int = 0): OffsettedSeq[T] =
+  OffsettedSeq[T](s: newSeq[T](), offset: offset)
 
 proc all*[T](o: OffsettedSeq[T], pred: proc (x: T): bool): bool =
   o.s.all(pred)

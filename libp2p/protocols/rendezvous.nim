@@ -166,7 +166,7 @@ proc save(rdv: RendezVous,
           r: Register,
           update: bool = true) =
   let nsSalted = ns & rdv.salt
-  discard rdv.indexes.hasKeyOrPut(nsSalted, initOffsettedSeq[int]())
+  discard rdv.indexes.hasKeyOrPut(nsSalted, initOffsettedSeq[int](1))
   try:
     for index in rdv.indexes[nsSalted]:
       if rdv.registered[index].peerId == peerId:
@@ -185,6 +185,7 @@ proc save(rdv: RendezVous,
     doAssert false, "Should have key"
 
 proc register(rdv: RendezVous, conn: Connection, r: Register): Future[void] =
+  trace "RDV Register", peerId = conn.peerId, ns = r.ns
   if r.ns.len notin 1..255:
     return conn.sendRegisterResponseError(InvalidNamespace)
   let ttl = r.ttl.get(MinimumTTL)
@@ -199,6 +200,7 @@ proc register(rdv: RendezVous, conn: Connection, r: Register): Future[void] =
   conn.sendRegisterResponse(ttl)
 
 proc unregister(rdv: RendezVous, conn: Connection, u: Unregister) =
+  trace "RDV Unregister", peerId = conn.peerId, ns = u.ns
   let nsSalted = u.ns & rdv.salt
   try:
     for index in rdv.indexes[nsSalted]:
@@ -208,6 +210,7 @@ proc unregister(rdv: RendezVous, conn: Connection, u: Unregister) =
     return
 
 proc discover(rdv: RendezVous, conn: Connection, d: Discover) {.async.} =
+  trace "RDV Discover", peerId = conn.peerId, ns = d.ns
   if d.ns.len notin 0..255:
     await conn.sendDiscoverResponseError(InvalidNamespace)
     return
@@ -221,7 +224,7 @@ proc discover(rdv: RendezVous, conn: Connection, d: Discover) {.async.} =
         except ProtobufReadError:
           await conn.sendDiscoverResponseError(InvalidCookie)
           return
-      else: Cookie(offset: rdv.registered.low().uint64, ns: d.ns)
+      else: Cookie()
     indexes =
       if d.ns != "":
         try:
@@ -238,7 +241,7 @@ proc discover(rdv: RendezVous, conn: Connection, d: Discover) {.async.} =
   let s = collect(newSeq()):
       for index in indexes:
         var reg = rdv.registered[index]
-        if reg.expiration < n or index.uint64 < cookie.offset: continue
+        if reg.expiration < n or index.uint64 <= cookie.offset: continue
         if limit == 0:
           offset = index
           break
@@ -247,7 +250,10 @@ proc discover(rdv: RendezVous, conn: Connection, d: Discover) {.async.} =
         reg.data
   await conn.sendDiscoverResponse(s, Cookie(offset: offset.uint64, ns: d.ns))
 
-proc advertisePeer(rdv: RendezVous, peer: PeerId, msg: seq[byte]) {.async.} =
+proc advertisePeer(rdv: RendezVous,
+                   peer: PeerId,
+                   msg: seq[byte],
+                   sema: AsyncSemaphore) {.async.} =
   proc advertiseWrap() {.async.} =
     try:
       let conn = await rdv.switch.dial(peer, RendezVousCodec)
@@ -265,12 +271,15 @@ proc advertisePeer(rdv: RendezVous, peer: PeerId, msg: seq[byte]) {.async.} =
       trace "exception in the advertise", error = exc.msg
     finally:
       rdv.sema.release()
+      sema.release()
   discard await advertiseWrap().withTimeout(5.seconds)
 
 proc advertise*(rdv: RendezVous,
                 ns: string,
                 ttl: uint64 = MinimumTTL) {.async.} =
-  let sprBuff = rdv.switch.peerInfo.signedPeerRecord.encode()
+  let
+    sprBuff = rdv.switch.peerInfo.signedPeerRecord.encode()
+    sema = newAsyncSemaphore(1)
   if sprBuff.isErr() or ns.len notin 1..255 or ttl notin MinimumTTL..MaximumTTL:
     return
   let
@@ -279,7 +288,9 @@ proc advertise*(rdv: RendezVous,
   rdv.save(ns, rdv.switch.peerInfo.peerId, r)
   for peer in rdv.peers:
     await rdv.sema.acquire()
-    asyncSpawn rdv.advertisePeer(peer, msg)
+    sema.forceAcquire()
+    asyncSpawn rdv.advertisePeer(peer, msg, sema)
+  await sema.acquire()
 
 proc requestLocally*(rdv: RendezVous, ns: string): seq[PeerRecord] =
   let
@@ -357,26 +368,22 @@ proc unsubscribeLocally*(rdv: RendezVous, ns: string) =
     return
 
 proc unsubscribe*(rdv: RendezVous, ns: string) {.async.} =
+  # TODO: find a way to improve this, maybe something similar to the advertise
   rdv.unsubscribeLocally(ns)
   let msg = Protobuf.encode(Message(
     msgType: MessageType.Unregister,
     unregister: some(Unregister(ns: ns))))
 
   proc unsubscribePeer(rdv: RendezVous, peerId: PeerId) {.async.} =
-    proc unsubscribeWrap {.async.} =
-      try:
-        let conn = await rdv.switch.dial(peerId, RendezVousCodec)
-        defer: await conn.close()
-        await conn.writeLp(msg)
-      except CatchableError as exc:
-        trace "exception while unsubscribing", error = exc.msg
-      finally:
-        rdv.sema.release()
-    discard await unsubscribeWrap().withTimeout(5.seconds)
+    try:
+      let conn = await rdv.switch.dial(peerId, RendezVousCodec)
+      defer: await conn.close()
+      await conn.writeLp(msg)
+    except CatchableError as exc:
+      trace "exception while unsubscribing", error = exc.msg
 
   for peer in rdv.peers:
-    await rdv.sema.acquire()
-    await rdv.unsubscribePeer(peer)
+    discard await rdv.unsubscribePeer(peer).withTimeout(5.seconds)
 
 proc setup*(rdv: RendezVous, switch: Switch) =
   rdv.switch = switch
@@ -392,7 +399,7 @@ proc new*(T: typedesc[RendezVous],
           rng: ref HmacDrbgContext = newRng()): T =
   let rdv = T(
     salt: string.fromBytes(generateBytes(rng[], 8)),
-    registered: initOffsettedSeq[RegisteredData](),
+    registered: initOffsettedSeq[RegisteredData](1),
     defaultDT: Moment.now() - 1.days,
     #registerEvent: newAsyncEvent(),
     sema: newAsyncSemaphore(SemaphoreDefaultSize)
@@ -403,7 +410,6 @@ proc new*(T: typedesc[RendezVous],
       let
         buf = await conn.readLp(4096)
         msg = Protobuf.decode(buf, type(Message))
-      trace "Rendezvous handle stream", msgType = msg.msgType
       case msg.msgType:
         of MessageType.Register: await rdv.register(conn, msg.register.get())
         of MessageType.RegisterResponse:
