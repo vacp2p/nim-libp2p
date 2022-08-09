@@ -22,7 +22,9 @@ import ./protocol,
        ../utils/offsettedseq,
        ../utils/semaphore
 
-export chronicles, protobuf_serialization
+export protobuf_serialization
+export chronicles
+
 logScope:
   topics = "libp2p discovery rendezvous"
 
@@ -324,6 +326,7 @@ proc request*(rdv: RendezVous, ns: string): Future[seq[PeerRecord]] {.async.} =
 
   for peer in rdv.peers:
     if limit == 0: break
+    if RendezVousCodec notin rdv.switch.peerStore[ProtoBook][peer]: continue
     try:
       await peer.requestPeer()
     except CancelledError as exc:
@@ -334,27 +337,26 @@ proc request*(rdv: RendezVous, ns: string): Future[seq[PeerRecord]] {.async.} =
 
 proc setup*(rdv: RendezVous, switch: Switch) =
   rdv.switch = switch
-  proc handlePeer(peerId: PeerId, event: PeerEvent): Future[void] =
-    if RendezVousCodec in switch.peerStore[ProtoBook][peerId]:
-      if event.kind == PeerEventKind.Joined: rdv.peers.add(peerId)
-      elif event.kind == PeerEventKind.Left: rdv.peers.keepItIf(it != peerId)
-  rdv.switch.addPeerEventHandler(handlePeer, PeerEventKind.Joined)
-  rdv.switch.addPeerEventHandler(handlePeer, PeerEventKind.Left)
+  proc handlePeer(peerId: PeerId, event: PeerEvent) {.async.} =
+    if event.kind == PeerEventKind.Joined:
+      rdv.peers.add(peerId)
+    elif event.kind == PeerEventKind.Left:
+      rdv.peers.keepItIf(it != peerId)
+  rdv.switch.addPeerEventHandler(handlePeer, Joined)
+  rdv.switch.addPeerEventHandler(handlePeer, Left)
 
 proc new*(T: typedesc[RendezVous],
-          semSize: int = SemaphoreDefaultSize,
           rng: ref HmacDrbgContext = newRng()): T =
   let rdv = T(
     salt: string.fromBytes(generateBytes(rng[], 8)),
     registered: initOffsettedSeq[RegisteredData](),
     defaultDT: Moment.now() - 1.days,
     #registerEvent: newAsyncEvent(),
-    sema: newAsyncSemaphore(semSize)
+    sema: newAsyncSemaphore(SemaphoreDefaultSize)
   )
 
   proc handleStream(conn: Connection, proto: string) {.async, gcsafe.} =
     try:
-      discard
       let
         buf = await conn.readLp(4096)
         msg = Protobuf.decode(buf, type(Message))
@@ -375,6 +377,13 @@ proc new*(T: typedesc[RendezVous],
 
   rdv.handler = handleStream
   rdv.codec = RendezVousCodec
+  return rdv
+
+proc new*(T: typedesc[RendezVous],
+         switch: Switch,
+         rng: ref HmacDrbgContext = newRng()): T =
+  let rdv = T.new(rng)
+  rdv.setup(switch)
   return rdv
 
 proc deletesRegister(rdv: RendezVous) {.async.} =
