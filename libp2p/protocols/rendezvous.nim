@@ -207,36 +207,45 @@ proc unregister(rdv: RendezVous, conn: Connection, u: Unregister) =
   except KeyError:
     return
 
-proc discover(rdv: RendezVous, conn: Connection, d: Discover): Future[void] =
+proc discover(rdv: RendezVous, conn: Connection, d: Discover) {.async.} =
   if d.ns.len notin 0..255:
-    return conn.sendDiscoverResponseError(InvalidNamespace)
+    await conn.sendDiscoverResponseError(InvalidNamespace)
+    return
   var limit = min(DiscoverLimit, d.limit.get(DiscoverLimit))
   let
     nsSalted = d.ns & rdv.salt
     cookie =
       if d.cookie.isSome():
-        try: Protobuf.decode(d.cookie.get(), type(Cookie))
-        except ProtobufReadError: return conn.sendDiscoverResponseError(InvalidCookie)
+        try:
+          Protobuf.decode(d.cookie.get(), type(Cookie))
+        except ProtobufReadError:
+          await conn.sendDiscoverResponseError(InvalidCookie)
+          return
       else: Cookie(offset: rdv.registered.low().uint64, ns: d.ns)
     indexes =
       if d.ns != "":
-        try: rdv.indexes[nsSalted].s
-        except KeyError: return conn.sendDiscoverResponseError(InvalidNamespace)
+        try:
+          rdv.indexes[nsSalted].s
+        except KeyError:
+          await conn.sendDiscoverResponseError(InvalidNamespace)
+          return
       else: toSeq(rdv.registered.low()..rdv.registered.high())
   if indexes.len() == 0:
-    return conn.sendDiscoverResponse(@[], Cookie())
+    await conn.sendDiscoverResponse(@[], Cookie())
+    return
   var offset = indexes[^1]
+  let n = Moment.now()
   let s = collect(newSeq()):
       for index in indexes:
         var reg = rdv.registered[index]
-        if index.uint64 < cookie.offset: continue
+        if reg.expiration < n or index.uint64 < cookie.offset: continue
         if limit == 0:
           offset = index
           break
         limit.dec()
         reg.data.ttl = some((reg.expiration - Moment.now()).seconds.uint64)
         reg.data
-  conn.sendDiscoverResponse(s, Cookie(offset: offset.uint64, ns: d.ns))
+  await conn.sendDiscoverResponse(s, Cookie(offset: offset.uint64, ns: d.ns))
 
 proc advertisePeer(rdv: RendezVous, peer: PeerId, msg: seq[byte]) {.async.} =
   proc advertiseWrap() {.async.} =
@@ -273,11 +282,14 @@ proc advertise*(rdv: RendezVous,
     asyncSpawn rdv.advertisePeer(peer, msg)
 
 proc requestLocally*(rdv: RendezVous, ns: string): seq[PeerRecord] =
-  let nsSalted = ns & rdv.salt
+  let
+    nsSalted = ns & rdv.salt
+    n = Moment.now()
   try:
     collect(newSeq()):
       for index in rdv.indexes[nsSalted]:
-        SignedPeerRecord.decode(rdv.registered[index].data.signedPeerRecord).get().data
+        if rdv.registered[index].expiration > n:
+          SignedPeerRecord.decode(rdv.registered[index].data.signedPeerRecord).get().data
   except KeyError as exc:
     @[]
 
@@ -309,7 +321,7 @@ proc request*(rdv: RendezVous, ns: string): Future[seq[PeerRecord]] {.async.} =
       return
     let resp = msgRcv.discoverResponse.get()
     if resp.status != ResponseStatus.Ok:
-      trace "Refuse to discover", status = resp.status, text = resp.text
+      trace "Cannot discover", ns, status = resp.status, text = resp.text
       return
     if resp.cookie.isSome():
       if rdv.cookiesSaved.hasKeyOrPut(peer, {ns: resp.cookie.get()}.toTable):
@@ -335,6 +347,37 @@ proc request*(rdv: RendezVous, ns: string): Future[seq[PeerRecord]] {.async.} =
       trace "exception catch in request", error = exc.msg
   return s
 
+proc unsubscribeLocally*(rdv: RendezVous, ns: string) =
+  let nsSalted = ns & rdv.salt
+  try:
+    for index in rdv.indexes[nsSalted]:
+      if rdv.registered[index].peerId == rdv.switch.peerInfo.peerId:
+        rdv.registered[index].expiration = rdv.defaultDT
+  except KeyError:
+    return
+
+proc unsubscribe*(rdv: RendezVous, ns: string) {.async.} =
+  rdv.unsubscribeLocally(ns)
+  let msg = Protobuf.encode(Message(
+    msgType: MessageType.Unregister,
+    unregister: some(Unregister(ns: ns))))
+
+  proc unsubscribePeer(rdv: RendezVous, peerId: PeerId) {.async.} =
+    proc unsubscribeWrap {.async.} =
+      try:
+        let conn = await rdv.switch.dial(peerId, RendezVousCodec)
+        defer: await conn.close()
+        await conn.writeLp(msg)
+      except CatchableError as exc:
+        trace "exception while unsubscribing", error = exc.msg
+      finally:
+        rdv.sema.release()
+    discard await unsubscribeWrap().withTimeout(5.seconds)
+
+  for peer in rdv.peers:
+    await rdv.sema.acquire()
+    await rdv.unsubscribePeer(peer)
+
 proc setup*(rdv: RendezVous, switch: Switch) =
   rdv.switch = switch
   proc handlePeer(peerId: PeerId, event: PeerEvent) {.async.} =
@@ -354,12 +397,13 @@ proc new*(T: typedesc[RendezVous],
     #registerEvent: newAsyncEvent(),
     sema: newAsyncSemaphore(SemaphoreDefaultSize)
   )
-
+  logScope: topics = "libp2p discovery rendezvous"
   proc handleStream(conn: Connection, proto: string) {.async, gcsafe.} =
     try:
       let
         buf = await conn.readLp(4096)
         msg = Protobuf.decode(buf, type(Message))
+      trace "Rendezvous handle stream", msgType = msg.msgType
       case msg.msgType:
         of MessageType.Register: await rdv.register(conn, msg.register.get())
         of MessageType.RegisterResponse:

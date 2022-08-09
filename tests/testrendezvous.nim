@@ -31,6 +31,9 @@ suite "RendezVous":
       res1[0] == s.peerInfo.signedPeerRecord.data
     let res2 = rdv.requestLocally("bar")
     check res2.len == 0
+    rdv.unsubscribeLocally("foo")
+    let res3 = rdv.requestLocally("foo")
+    check res3.len == 0
 
   asyncTest "Simple remote test":
     let
@@ -46,3 +49,8 @@ suite "RendezVous":
     check:
       res1.len == 1
       res1[0] == client.peerInfo.signedPeerRecord.data
+    let res2 = await rdv.request("bar")
+    check res2.len == 0
+    await rdv.unsubscribe("foo")
+    let res3 = await rdv.request("foo")
+    check res3.len == 0
