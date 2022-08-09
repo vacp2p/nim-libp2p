@@ -24,6 +24,8 @@ suite "RendezVous":
       s = createSwitch(rdv)
 
     await s.start()
+    let res0 = rdv.requestLocally("empty")
+    check res0.len == 0
     await rdv.advertise("foo")
     let res1 = rdv.requestLocally("foo")
     check res1.len == 1 and res1[0] == s.peerInfo.signedPeerRecord.data
@@ -42,6 +44,8 @@ suite "RendezVous":
     await client.start()
     await remoteSwitch.start()
     await client.connect(remoteSwitch.peerInfo.peerId, remoteSwitch.peerInfo.addrs)
+    let res0 = await rdv.request("empty")
+    check res0.len == 0
     await rdv.advertise("foo")
     let res1 = await rdv.request("foo")
     check res1.len == 1 and res1[0] == client.peerInfo.signedPeerRecord.data

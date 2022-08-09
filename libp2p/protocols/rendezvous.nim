@@ -100,7 +100,7 @@ type
     offset: uint64
 
   RendezVous* = ref object of LPProtocol
-    indexes: Table[string, OffsettedSeq[int]]
+    indexes: Table[string, seq[int]]
     registered: OffsettedSeq[RegisteredData]
     salt: string
     defaultDT: Moment
@@ -166,7 +166,7 @@ proc save(rdv: RendezVous,
           r: Register,
           update: bool = true) =
   let nsSalted = ns & rdv.salt
-  discard rdv.indexes.hasKeyOrPut(nsSalted, initOffsettedSeq[int](1))
+  discard rdv.indexes.hasKeyOrPut(nsSalted, newSeq[int]())
   try:
     for index in rdv.indexes[nsSalted]:
       if rdv.registered[index].peerId == peerId:
@@ -228,7 +228,7 @@ proc discover(rdv: RendezVous, conn: Connection, d: Discover) {.async.} =
     indexes =
       if d.ns != "":
         try:
-          rdv.indexes[nsSalted].s
+          rdv.indexes[nsSalted]
         except KeyError:
           await conn.sendDiscoverResponseError(InvalidNamespace)
           return
@@ -442,7 +442,7 @@ proc deletesRegister(rdv: RendezVous) {.async.} =
     let n = Moment.now()
     rdv.registered.flushIfIt(it.expiration < n)
     for data in rdv.indexes.mvalues():
-      data.flushIfIt(it < rdv.registered.offset)
+      data.keepItIf(it >= rdv.registered.offset)
 
 method start*(rdv: RendezVous) {.async.} =
   if not rdv.registerDeletionLoop.isNil:
