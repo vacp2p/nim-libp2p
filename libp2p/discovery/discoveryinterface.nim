@@ -55,13 +55,13 @@ type
     addresses*: seq[MultiAddress]
     filter*: DiscoveryFilter
 
-  PeerFoundCallback* = proc(filter: DiscoveryResult)
+  PeerFoundCallback* = proc(res: DiscoveryResult)
 
   DiscoveryInterface* = ref object of RootObj
     onPeerFound*: PeerFoundCallback
 
-method request(self: DiscoveryInterface, filter: DiscoveryFilter) {.async, base.} =
+method request*(self: DiscoveryInterface, filter: DiscoveryFilter) {.async, base.} =
   doAssert(false, "Not implemented!")
 
-method advertise(self: DiscoveryInterface) {.async, base.} =
+method advertise*(self: DiscoveryInterface) {.async, base.} =
   doAssert(false, "Not implemented!")
