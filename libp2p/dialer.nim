@@ -21,6 +21,7 @@ import dial,
        stream/connection,
        transports/transport,
        nameresolving/nameresolver,
+       upgrademngrs/upgrade,
        errors
 
 export dial, errors
@@ -177,6 +178,27 @@ proc negotiateStream(
     raise newException(DialFailedError, "Unable to select sub-protocol " & $protos)
 
   return conn
+
+method tryDial*(
+  self: Dialer,
+  peerId: PeerId,
+  addrs: seq[MultiAddress]): Future[MultiAddress] {.async.} =
+  ## Create a protocol stream and in order to check
+  ## if a connection is possible.
+  ## Doesn't use the Connection Manager to save it.
+  ##
+
+  trace "Check if it can dial", peerId, addrs
+  try:
+    let conn = await self.dialAndUpgrade(peerId, addrs)
+    if conn.isNil():
+      raise newException(DialFailedError, "No valid multiaddress")
+    await conn.close()
+    return conn.observedAddr
+  except CancelledError as exc:
+    raise exc
+  except CatchableError as exc:
+    raise newException(DialFailedError, exc.msg)
 
 method dial*(
   self: Dialer,

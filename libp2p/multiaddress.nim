@@ -590,9 +590,27 @@ proc getPart(ma: MultiAddress, index: int): MaResult[MultiAddress] =
     inc(offset)
   ok(res)
 
+proc getParts[U, V](ma: MultiAddress, slice: HSlice[U, V]): MaResult[MultiAddress] =
+  when slice.a is BackwardsIndex or slice.b is BackwardsIndex:
+    let maLength = ? len(ma)
+  template normalizeIndex(index): int =
+    when index is BackwardsIndex: maLength - int(index)
+    else: int(index)
+  let
+    indexStart = normalizeIndex(slice.a)
+    indexEnd = normalizeIndex(slice.b)
+  var res: MultiAddress
+  for i in indexStart..indexEnd:
+    ? res.append(? ma[i])
+  ok(res)
+
 proc `[]`*(ma: MultiAddress, i: int): MaResult[MultiAddress] {.inline.} =
   ## Returns part with index ``i`` of MultiAddress ``ma``.
   ma.getPart(i)
+
+proc `[]`*(ma: MultiAddress, slice: HSlice): MaResult[MultiAddress] {.inline.} =
+  ## Returns parts with slice ``slice`` of MultiAddress ``ma``.
+  ma.getParts(slice)
 
 iterator items*(ma: MultiAddress): MaResult[MultiAddress] =
   ## Iterates over all addresses inside of MultiAddress ``ma``.
@@ -629,6 +647,13 @@ iterator items*(ma: MultiAddress): MaResult[MultiAddress] =
       res.data.writeVarint(header)
     res.data.finish()
     yield ok(MaResult[MultiAddress], res)
+
+proc len*(ma: MultiAddress): MaResult[int] =
+  var counter: int
+  for part in ma:
+    if part.isErr: return err(part.error)
+    counter.inc()
+  ok(counter)
 
 proc contains*(ma: MultiAddress, codec: MultiCodec): MaResult[bool] {.inline.} =
   ## Returns ``true``, if address with MultiCodec ``codec`` present in
