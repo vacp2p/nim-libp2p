@@ -19,32 +19,36 @@ import ./discoveryinterface
 export discoveryinterface
 
 type
-  DiscoveryManager = object
+  DiscoveryManager* = ref object of RootObj
     di: seq[DiscoveryInterface]
     rq: seq[Future[void]]
 
-  DiscoveryQuery = object
+  DiscoveryQuery* = ref object of RootObj
     dm: DiscoveryManager
     filter: DiscoveryFilter
     peers: seq[DiscoveryResult]
     foundEvent: AsyncEvent
 
-proc request(dm: var DiscoveryManager, filter: DiscoveryFilter): DiscoveryQuery =
+method add*(dm: DiscoveryManager, di: DiscoveryInterface) =
+  dm.di &= di
+
+method request*(dm: DiscoveryManager, filter: DiscoveryFilter): DiscoveryQuery {.base.} =
   var query = DiscoveryQuery(dm: dm, filter: filter, foundEvent: newAsyncEvent())
   for i in dm.di:
     i.onPeerFound =
-      proc(res: DiscoveryResult) =
+      proc(res: DiscoveryResult) {.raises: [Defect], gcsafe.} =
         query.peers.add(res)
         query.foundEvent.fire()
     dm.rq.add(i.request(filter))
+  return query
 
-proc advertise(dm: DiscoveryManager, filter: DiscoveryFilter) {.async.} =
+method advertise*(dm: DiscoveryManager, filter: DiscoveryFilter) {.async, base.} =
   for i in dm.di:
-    i.advertise(filter)
+    await i.advertise(filter)
 
-proc getPeer(query: var DiscoveryQuery): Future[DiscoveryResult] {.async.} =
+method getPeer*(query: DiscoveryQuery): Future[DiscoveryResult] {.async, base.} =
   if query.dm.rq.allIt(it.finished()) and query.peers.len == 0:
-    query = query.dm.request(query.filter)
+    discard # TODO: raise ntm
   if query.peers.len > 0:
     result = query.peers[0]
     query.peers.delete(0)
@@ -55,5 +59,8 @@ proc getPeer(query: var DiscoveryQuery): Future[DiscoveryResult] {.async.} =
     result = query.peers[0]
     query.peers.delete(0)
 
-proc stop(query: DiscoveryQuery) =
-  for r in query.dm.rq: r.cancel()
+proc stop*(query: DiscoveryQuery) =
+  for r in query.dm.rq:
+    if not r.finished(): r.cancel()
+  for i in query.dm.di:
+    i.onPeerFound = nil

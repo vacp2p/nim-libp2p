@@ -12,7 +12,7 @@ when (NimMajor, NimMinor) < (1, 4):
 else:
   {.push raises: [].}
 
-import tables, sequtils
+import tables, sequtils, macros
 import chronos,
        chronicles
 import ../peerid,
@@ -23,39 +23,41 @@ type
   DiscoveryError* = object of LPError
 
   BaseFilter = ref object of RootObj
+    comparator*: proc(f: BaseFilter, c: BaseFilter): bool
 
   Filter[T] = ref object of BaseFilter
     filter*: T
   
-  FilterTuple = tuple
-    key: string
-    value: string
+  DiscoveryFilter* = Table[string, BaseFilter]
 
-  NamespaceFilter* = ref object of Filter[string]
-  PeerIdFilter* = ref object of Filter[PeerId]
-  KeyValueFilter* = ref object of Filter[FilterTuple]
-  DiscoveryFilter* = seq[BaseFilter]
+macro getTypeName(t: type): untyped =
+  let typ = getTypeImpl(t)[1]
+  newLit(repr(typ.owner()) & "." & repr(typ))
 
-proc `[]`*[T](df: DiscoveryFilter, filter: typedesc[T]): seq[T] =
-  df.filterIt(it of filter).mapIt(filter(it))
+proc `[]=`*[T](df: var DiscoveryFilter,
+               t: typedesc[T],
+               filter: T) =
+  let name = getTypeName(T)
+  df.add(name, Filter[T](
+      filter: filter,
+      comparator: proc(f: BaseFilter, c: BaseFilter): bool =
+        if f is Filter[T] and c is Filter[T]:
+          Filter[T](f).filter == Filter[T](c).filter
+        else:
+          false
+    )
+  )
 
-proc addFilter*[T](df: var DiscoveryFilter, filter: T) =
-  when T is string:
-    df.add(NamespaceFilter(filter: filter))
-  elif T is PeerId:
-    df.add(PeerIdFilter(filter: filter))
-  elif T is FilterTuple:
-    df.add(TestFilter(filter: filter))
-  else:
-    {.fatal: "Must be a filtrable element".}
+proc `[]`*[T](df: DiscoveryFilter, t: typedesc[T]): T =
+  let name = getTypeName(T)
+  result = Filter[T](df.getOrDefault(name)).filter
 
 type
-  DiscoveryResult* = object
+  DiscoveryResult* = ref object of RootObj
     peerId*: PeerId
     addresses*: seq[MultiAddress]
-    filter*: DiscoveryFilter
 
-  PeerFoundCallback* = proc(res: DiscoveryResult)
+  PeerFoundCallback* = proc(res: DiscoveryResult) {.raises: [Defect], gcsafe.}
 
   DiscoveryInterface* = ref object of RootObj
     onPeerFound*: PeerFoundCallback
@@ -63,5 +65,5 @@ type
 method request*(self: DiscoveryInterface, filter: DiscoveryFilter) {.async, base.} =
   doAssert(false, "Not implemented!")
 
-method advertise*(self: DiscoveryInterface) {.async, base.} =
+method advertise*(self: DiscoveryInterface, filter: DiscoveryFilter) {.async, base.} =
   doAssert(false, "Not implemented!")

@@ -18,20 +18,24 @@ import ./discoveryinterface,
        ../protocols/rendezvous
 
 type
-  RendezVousInterface = ref object of DiscoveryInterface
-    rdv: RendezVous
+  RendezVousInterface* = ref object of DiscoveryInterface
+    rdv*: RendezVous
 
-method request(self: RendezVousInterface, filter: DiscoveryFilter) {.async.} =
-  for nsf in filter[NamespaceFilter]:
-    for pr in await self.rdv.request(nsf.filter):
-      self.onPeerFound(
-        DiscoveryResult(
-          peerId: pr.peerId,
-          addresses: pr.addresses.mapIt(it.address),
-          filter: filter
-        )
+  RdvNamespace* = distinct string
+
+proc `==`*(a: RdvNamespace, b: RdvNamespace): bool =
+  string(a) == string(b)
+
+method request*(self: RendezVousInterface, filter: DiscoveryFilter) {.async.} =
+  let f = filter[RdvNamespace]
+  for pr in await self.rdv.request(string(f)):
+    self.onPeerFound(
+      DiscoveryResult(
+        peerId: pr.peerId,
+        addresses: pr.addresses.mapIt(it.address),
       )
+    )
 
-method advertise(self: RendezVousInterface, filter: DiscoveryFilter) {.async.} =
-  for nsf in filter[NamespaceFilter]:
-    await self.rdv.advertise(nsf.filter)
+method advertise*(self: RendezVousInterface, filter: DiscoveryFilter) {.async.} =
+  let f = filter[RdvNamespace]
+  await self.rdv.advertise(string(f))
