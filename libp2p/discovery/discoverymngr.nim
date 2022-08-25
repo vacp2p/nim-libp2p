@@ -14,11 +14,13 @@ else:
 
 import sequtils
 import chronos, chronicles
-import ./discoveryinterface
+import ./discoveryinterface,
+       ../errors
 
 export discoveryinterface
 
 type
+  DiscoveryError* = object of LPError
   DiscoveryManager* = ref object of RootObj
     di: seq[DiscoveryInterface]
     rq: seq[Future[void]]
@@ -48,7 +50,7 @@ method advertise*(dm: DiscoveryManager, filter: DiscoveryFilter) {.async, base.}
 
 method getPeer*(query: DiscoveryQuery): Future[DiscoveryResult] {.async, base.} =
   if query.dm.rq.allIt(it.finished()) and query.peers.len == 0:
-    discard # TODO: raise ntm
+    raise newException(DiscoveryError, "Unable to find any peer matching this request")
   if query.peers.len > 0:
     result = query.peers[0]
     query.peers.delete(0)
