@@ -15,7 +15,10 @@ export multicodec
 export connection
 export transport
 
-{.push raises: [Defect].}
+when (NimMajor, NimMinor) < (1, 4):
+  {.push raises: [Defect].}
+else:
+  {.push raises: [].}
 
 logScope:
   topics = "libp2p quictransport"
@@ -119,7 +122,7 @@ proc identify(
   ) {.async, gcsafe.} =
   # new stream for identify
   let muxer = QuicMuxer(quicSession: conn, connection: conn)
-  muxer.streamHandler = proc(conn: P2PConnection) {.async, gcsafe, raises: [Defect].} =
+  muxer.streamHandler = proc(conn: P2PConnection) {.async, gcsafe.} =
     trace "Starting stream handler"
     try:
       await self.ms.handle(conn) # handle incoming connection
