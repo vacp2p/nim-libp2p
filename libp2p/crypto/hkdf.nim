@@ -9,7 +9,10 @@
 
 # https://tools.ietf.org/html/rfc5869
 
-{.push raises: [Defect].}
+when (NimMajor, NimMinor) < (1, 4):
+  {.push raises: [Defect].}
+else:
+  {.push raises: [].}
 
 import nimcrypto
 import bearssl/[kdf, rand, hash]

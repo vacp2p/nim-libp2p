@@ -7,7 +7,10 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-{.push raises: [Defect].}
+when (NimMajor, NimMinor) < (1, 4):
+  {.push raises: [Defect].}
+else:
+  {.push raises: [].}
 
 import chronos
 import peerid,
@@ -54,4 +57,10 @@ method dial*(
 method addTransport*(
   self: Dial,
   transport: Transport) {.base.} =
+  doAssert(false, "Not implemented!")
+
+method tryDial*(
+  self: Dial,
+  peerId: PeerId,
+  addrs: seq[MultiAddress]): Future[MultiAddress] {.async, base.} =
   doAssert(false, "Not implemented!")

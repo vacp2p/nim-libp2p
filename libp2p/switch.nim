@@ -11,7 +11,10 @@
 ## transports, the connection manager, the upgrader and other
 ## parts to allow programs to use libp2p
 
-{.push raises: [Defect].}
+when (NimMajor, NimMinor) < (1, 4):
+  {.push raises: [Defect].}
+else:
+  {.push raises: [].}
 
 import std/[tables,
             options,
@@ -211,10 +214,14 @@ proc accept(s: Switch, transport: Transport) {.async.} = # noraises
       # the upgrade succeeds or fails, this is
       # currently done by the `upgradeMonitor`
       await upgrades.acquire()    # first wait for an upgrade slot to become available
-      conn = await s.connManager  # next attempt to get an incoming connection
-      .trackIncomingConn(
-        () => transport.accept()
-      )
+      let slot = await s.connManager.getIncomingSlot()
+      conn =
+        try:
+          await transport.accept()
+        except CatchableError as exc:
+          slot.release()
+          raise exc
+      slot.trackConnection(conn)
       if isNil(conn):
         # A nil connection means that we might have hit a
         # file-handle limit (or another non-fatal error),

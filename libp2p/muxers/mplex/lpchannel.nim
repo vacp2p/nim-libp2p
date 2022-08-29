@@ -7,7 +7,10 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-{.push raises: [Defect].}
+when (NimMajor, NimMinor) < (1, 4):
+  {.push raises: [Defect].}
+else:
+  {.push raises: [].}
 
 import std/[oids, strformat]
 import pkg/[chronos, chronicles, metrics, nimcrypto/utils]
@@ -84,7 +87,7 @@ proc open*(s: LPChannel) {.async, gcsafe.} =
     await s.conn.close()
     raise exc
 
-method closed*(s: LPChannel): bool {.raises: [Defect].} =
+method closed*(s: LPChannel): bool =
   s.closedLocal
 
 proc closeUnderlying(s: LPChannel): Future[void] {.async.} =

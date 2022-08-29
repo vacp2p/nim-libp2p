@@ -16,14 +16,17 @@ runnableExamples:
    # etc
    .build()
 
-{.push raises: [Defect].}
+when (NimMajor, NimMinor) < (1, 4):
+  {.push raises: [Defect].}
+else:
+  {.push raises: [].}
 
 import
   options, tables, chronos, chronicles, sequtils,
   switch, peerid, peerinfo, stream/connection, multiaddress,
   crypto/crypto, transports/[transport, tcptransport],
   muxers/[muxer, mplex/mplex, yamux/yamux],
-  protocols/[identify, secure/secure, secure/noise, rendezvous],
+  protocols/[identify, secure/secure, secure/noise, autonat, rendezvous],
   protocols/relay/[relay, client, rtransport],
   connmanager, upgrademngrs/muxedupgrade,
   nameresolving/nameresolver,
@@ -55,6 +58,7 @@ type
     agentVersion: string
     nameResolver: NameResolver
     peerStoreCapacity: Option[int]
+    autonat: bool
     circuitRelay: Relay
     rdv: RendezVous
 
@@ -183,6 +187,10 @@ proc withNameResolver*(b: SwitchBuilder, nameResolver: NameResolver): SwitchBuil
   b.nameResolver = nameResolver
   b
 
+proc withAutonat*(b: SwitchBuilder): SwitchBuilder =
+  b.autonat = true
+  b
+
 proc withCircuitRelay*(b: SwitchBuilder, r: Relay = Relay.new()): SwitchBuilder =
   b.circuitRelay = r
   b
@@ -247,6 +255,10 @@ proc build*(b: SwitchBuilder): Switch
     ms = ms,
     nameResolver = b.nameResolver,
     peerStore = peerStore)
+
+  if b.autonat:
+    let autonat = Autonat.new(switch)
+    switch.mount(autonat)
 
   if not isNil(b.circuitRelay):
     if b.circuitRelay of RelayClient:

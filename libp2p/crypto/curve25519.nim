@@ -15,7 +15,10 @@
 
 # RFC @ https://tools.ietf.org/html/rfc7748
 
-{.push raises: [Defect].}
+when (NimMajor, NimMinor) < (1, 4):
+  {.push raises: [Defect].}
+else:
+  {.push raises: [].}
 
 import bearssl/[ec, rand, hash]
 import stew/results

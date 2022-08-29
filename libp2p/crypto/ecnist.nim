@@ -14,7 +14,10 @@
 ## BearSSL library <https://bearssl.org/>
 ## Copyright(C) 2018 Thomas Pornin <pornin@bolet.org>.
 
-{.push raises: [Defect].}
+when (NimMajor, NimMinor) < (1, 4):
+  {.push raises: [Defect].}
+else:
+  {.push raises: [].}
 
 import bearssl/[ec, rand, hash]
 # We use `ncrutils` for constant-time hexadecimal encoding/decoding procedures.

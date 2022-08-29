@@ -9,7 +9,10 @@
 
 ## WebSocket & WebSocket Secure transport implementation
 
-{.push raises: [Defect].}
+when (NimMajor, NimMinor) < (1, 4):
+  {.push raises: [Defect].}
+else:
+  {.push raises: [].}
 
 import std/[sequtils]
 import chronos, chronicles

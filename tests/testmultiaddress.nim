@@ -367,3 +367,12 @@ suite "MultiAddress test suite":
     check:
       MultiAddress.init("/ip4/0.0.0.0").get().protoAddress().get() == address_v4
       MultiAddress.init("/ip6/::0").get().protoAddress().get() == address_v6
+
+  test "MultiAddress getParts":
+    let ma = MultiAddress.init("/ip4/0.0.0.0/tcp/0/p2p/QmcgpsyWgH8Y8ajJz1Cu72KnS5uo2Aa2LpzU7kinSupNKC/p2p-circuit/p2p/QmcgpsyWgH8Y8ajJz1Cu72KnS5uo2Aa2LpzU7kinSuNEXT/unix/stdio/").get()
+    check:
+      $ma[0..0].get() == "/ip4/0.0.0.0"
+      $ma[0..1].get() == "/ip4/0.0.0.0/tcp/0"
+      $ma[1..2].get() == "/tcp/0/p2p/QmcgpsyWgH8Y8ajJz1Cu72KnS5uo2Aa2LpzU7kinSupNKC"
+      $ma[^3..^1].get() == "/p2p-circuit/p2p/QmcgpsyWgH8Y8ajJz1Cu72KnS5uo2Aa2LpzU7kinSuNEXT/unix/stdio"
+      ma[5..7].isErr()

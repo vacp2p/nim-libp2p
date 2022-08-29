@@ -22,7 +22,10 @@ runnableExamples:
   peerStore[MoodBook][somePeerId] = "Happy"
   doAssert peerStore[MoodBook][somePeerId] == "Happy"
 
-{.push raises: [Defect].}
+when (NimMajor, NimMinor) < (1, 4):
+  {.push raises: [Defect].}
+else:
+  {.push raises: [].}
 
 import
   std/[tables, sets, options, macros],

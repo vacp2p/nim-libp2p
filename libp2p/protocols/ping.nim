@@ -9,7 +9,10 @@
 
 ## `Ping <https://docs.libp2p.io/concepts/protocols/#ping>`_ protocol implementation
 
-{.push raises: [Defect].}
+when (NimMajor, NimMinor) < (1, 4):
+  {.push raises: [Defect].}
+else:
+  {.push raises: [].}
 
 import chronos, chronicles
 import bearssl/[rand, hash]
