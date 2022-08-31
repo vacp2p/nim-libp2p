@@ -201,6 +201,19 @@ suite "Switch":
     check not switch1.isConnected(switch2.peerInfo.peerId)
     check not switch2.isConnected(switch1.peerInfo.peerId)
 
+  asyncTest "e2e connect to peer with unkown PeerId":
+    let switch1 = newStandardSwitch(secureManagers = [SecureProtocol.Noise])
+    let switch2 = newStandardSwitch(secureManagers = [SecureProtocol.Noise])
+    await switch1.start()
+    await switch2.start()
+
+    check: (await switch2.connect(switch1.peerInfo.addrs)) == switch1.peerInfo.peerId
+
+    await allFuturesThrowing(
+      switch1.stop(),
+      switch2.stop()
+    )
+
   asyncTest "e2e should not leak on peer disconnect":
     let switch1 = newStandardSwitch()
     let switch2 = newStandardSwitch()
