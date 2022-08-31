@@ -291,7 +291,7 @@ proc transactMessage(conn: Connection,
   await conn.write(msg)
   return await conn.readRawMessage()
 
-method handshake*(s: Secio, conn: Connection, initiator: bool = false): Future[SecureConn] {.async.} =
+method handshake*(s: Secio, conn: Connection, initiator: bool, peerId: Opt[PeerId]): Future[SecureConn] {.async.} =
   var
     localNonce: array[SecioNonceSize, byte]
     remoteNonce: seq[byte]
@@ -342,9 +342,14 @@ method handshake*(s: Secio, conn: Connection, initiator: bool = false): Future[S
 
   remotePeerId = PeerId.init(remotePubkey).tryGet()
 
-  # TODO: PeerId check against supplied PeerId
-  if not initiator:
-    conn.peerId = remotePeerId
+  if peerId.isSome():
+    let targetPid = peerId.get()
+    if not targetPid.validate():
+      raise newException(SecioError, "Failed to validate expected peerId.")
+
+    if remotePeerId != targetPid:
+      raise newException(SecioError, "Peer ids don't match!")
+  conn.peerId = remotePeerId
   let order = getOrder(remoteBytesPubkey, localNonce, localBytesPubkey,
                        remoteNonce).tryGet()
   trace "Remote proposal", schemes = remoteExchanges, ciphers = remoteCiphers,

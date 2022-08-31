@@ -153,9 +153,6 @@ func init*(pid: var PeerId, data: string): bool =
       pid = opid
       result = true
 
-func empty*(pid: PeerId): bool =
-  pid.data.len == 0
-
 func init*(t: typedesc[PeerId], data: openArray[byte]): Result[PeerId, cstring] =
   ## Create new peer id from raw binary representation ``data``.
   var res: PeerId

@@ -504,7 +504,7 @@ method write*(sconn: NoiseConnection, message: seq[byte]): Future[void] =
   # sequencing issues
   sconn.stream.write(cipherFrames)
 
-method handshake*(p: Noise, conn: Connection, initiator: bool): Future[SecureConn] {.async.} =
+method handshake*(p: Noise, conn: Connection, initiator: bool, peerId: Opt[PeerId]): Future[SecureConn] {.async.} =
   trace "Starting Noise handshake", conn, initiator
 
   let timeout = conn.timeout
@@ -557,21 +557,21 @@ method handshake*(p: Noise, conn: Connection, initiator: bool): Future[SecureCon
 
     trace "Remote peer id", pid = $pid
 
-    if initiator and not conn.peerId.empty():
-      if not conn.peerId.validate():
+    if peerId.isSome():
+      let targetPid = peerId.get()
+      if not targetPid.validate():
         raise newException(NoiseHandshakeError, "Failed to validate expected peerId.")
 
-      if pid != conn.peerId:
+      if pid != targetPid:
         var
           failedKey: PublicKey
-        discard extractPublicKey(conn.peerId, failedKey)
+        discard extractPublicKey(targetPid, failedKey)
         debug "Noise handshake, peer id doesn't match!",
           initiator, dealt_peer = conn,
           dealt_key = $failedKey, received_peer = $pid,
           received_key = $remotePubKey
-        raise newException(NoiseHandshakeError, "Noise handshake, peer infos don't match! " & $pid & " != " & $conn.peerId)
-    else:
-      conn.peerId = pid
+        raise newException(NoiseHandshakeError, "Noise handshake, peer id don't match! " & $pid & " != " & $targetPid)
+    conn.peerId = pid
 
     var tmp = NoiseConnection.new(conn, conn.peerId, conn.observedAddr)
     if initiator:

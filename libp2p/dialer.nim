@@ -74,9 +74,6 @@ proc dialAndUpgrade(
               libp2p_failed_dials.inc()
               continue # Try the next address
 
-          # make sure to assign the peer to the connection
-          dialed.peerId = peerId
-
           # also keep track of the connection's bottom unsafe transport direction
           # required by gossipsub scoring
           dialed.transportDir = Direction.Out
@@ -84,7 +81,7 @@ proc dialAndUpgrade(
           libp2p_successful_dials.inc()
 
           let conn = try:
-              await transport.upgradeOutgoing(dialed)
+              await transport.upgradeOutgoing(dialed, Opt.some(peerId))
             except CatchableError as exc:
               # If we failed to establish the connection through one transport,
               # we won't succeeded through another - no use in trying again
