@@ -41,7 +41,7 @@ type
     localPeerId*: PeerId
     ms: MultistreamSelect
     connManager: ConnManager
-    dialLock: Table[Opt[PeerId], AsyncLock]
+    dialLock: Table[PeerId, AsyncLock]
     transports: seq[Transport]
     nameResolver: NameResolver
 
@@ -106,7 +106,7 @@ proc internalConnect(
     raise newException(CatchableError, "can't dial self!")
 
   # Ensure there's only one in-flight attempt per peer
-  let lock = self.dialLock.mgetOrPut(peerId, newAsyncLock())
+  let lock = self.dialLock.mgetOrPut(peerId.get(default(PeerId)), newAsyncLock())
   try:
     await lock.acquire()
 
