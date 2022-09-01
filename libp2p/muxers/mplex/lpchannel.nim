@@ -55,9 +55,11 @@ type
     id*: uint64                   # channel id
     name*: string                 # name of the channel (for debugging)
     conn*: Connection             # wrapped connection used to for writing
+    connDown*: bool               # has wrapped connection went down
     initiator*: bool              # initiated remotely or locally flag
     isOpen*: bool                 # has channel been opened
     closedLocal*: bool            # has channel been closed locally
+    remoteReset*: bool            # has channel been remotely reset
     msgCode*: MessageType         # cached in/out message code
     closeCode*: MessageType       # cached in/out close code
     resetCode*: MessageType       # cached in/out reset code
@@ -168,6 +170,12 @@ method readOnce*(s: LPChannel,
   ## channels are blocked - in particular, this means that reading from one
   ## channel must not be done from within a callback / read handler of another
   ## or the reads will lock each other.
+  if s.connDown:
+    raise newLPStreamConnDownError()
+  if s.remoteReset:
+    raise newLPStreamResetError()
+  if s.atEof():
+    raise newLPStreamRemoteClosedError()
   try:
     let bytes = await procCall BufferStream(s).readOnce(pbytes, nbytes)
     when defined(libp2p_network_protocols_metrics):
@@ -189,8 +197,12 @@ method readOnce*(s: LPChannel,
 proc prepareWrite(s: LPChannel, msg: seq[byte]): Future[void] {.async.} =
   # prepareWrite is the slow path of writing a message - see conditions in
   # write
-  if s.closedLocal or s.conn.closed:
+  if s.remoteReset:
+    raise newLPStreamResetError()
+  if s.closedLocal:
     raise newLPStreamClosedError()
+  if s.conn.closed:
+    raise newLPStreamRemoteClosedError()
 
   if msg.len == 0:
     return
@@ -235,7 +247,7 @@ proc completeWrite(
     trace "exception in lpchannel write handler", s, msg = exc.msg
     await s.reset()
     await s.conn.close()
-    raise exc
+    raise newLPStreamConnDownError(exc)
   finally:
     s.writes -= 1
 

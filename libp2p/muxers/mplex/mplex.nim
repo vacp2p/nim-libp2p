@@ -183,11 +183,16 @@ method handle*(m: Mplex) {.async, gcsafe.} =
         of MessageType.CloseIn, MessageType.CloseOut:
           await channel.pushEof()
         of MessageType.ResetIn, MessageType.ResetOut:
+          channel.remoteReset = true
           await channel.reset()
   except CancelledError:
     debug "Unexpected cancellation in mplex handler", m
   except LPStreamEOFError as exc:
     trace "Stream EOF", m, msg = exc.msg
+    for channel in m.channels[true].mvalues():
+      channel.connDown = true
+    for channel in m.channels[false].mvalues():
+      channel.connDown = true
   except CatchableError as exc:
     debug "Unexpected exception in mplex read loop", m, msg = exc.msg
   finally:
