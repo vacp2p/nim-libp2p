@@ -36,4 +36,6 @@ import testtcptransport,
        testping,
        testmplex,
        testrelayv1,
-       testrelayv2
+       testrelayv2,
+       testyamux,
+       testautonat

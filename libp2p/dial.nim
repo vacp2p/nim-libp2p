@@ -58,3 +58,9 @@ method addTransport*(
   self: Dial,
   transport: Transport) {.base.} =
   doAssert(false, "Not implemented!")
+
+method tryDial*(
+  self: Dial,
+  peerId: PeerId,
+  addrs: seq[MultiAddress]): Future[MultiAddress] {.async, base.} =
+  doAssert(false, "Not implemented!")

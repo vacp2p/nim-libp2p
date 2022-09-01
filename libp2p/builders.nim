@@ -26,7 +26,7 @@ import
   switch, peerid, peerinfo, stream/connection, multiaddress,
   crypto/crypto, transports/[transport, tcptransport],
   muxers/[muxer, mplex/mplex, yamux/yamux],
-  protocols/[identify, secure/secure, secure/noise],
+  protocols/[identify, secure/secure, secure/noise, autonat],
   protocols/relay/[relay, client, rtransport],
   connmanager, upgrademngrs/muxedupgrade,
   nameresolving/nameresolver,
@@ -58,6 +58,7 @@ type
     agentVersion: string
     nameResolver: NameResolver
     peerStoreCapacity: Option[int]
+    autonat: bool
     circuitRelay: Relay
 
 proc new*(T: type[SwitchBuilder]): T {.public.} =
@@ -185,6 +186,10 @@ proc withNameResolver*(b: SwitchBuilder, nameResolver: NameResolver): SwitchBuil
   b.nameResolver = nameResolver
   b
 
+proc withAutonat*(b: SwitchBuilder): SwitchBuilder =
+  b.autonat = true
+  b
+
 proc withCircuitRelay*(b: SwitchBuilder, r: Relay = Relay.new()): SwitchBuilder =
   b.circuitRelay = r
   b
@@ -245,6 +250,10 @@ proc build*(b: SwitchBuilder): Switch
     ms = ms,
     nameResolver = b.nameResolver,
     peerStore = peerStore)
+
+  if b.autonat:
+    let autonat = Autonat.new(switch)
+    switch.mount(autonat)
 
   if not isNil(b.circuitRelay):
     if b.circuitRelay of RelayClient:

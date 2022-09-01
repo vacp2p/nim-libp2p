@@ -18,26 +18,13 @@ requires "nim >= 1.2.0",
          "stew#head",
          "websock"
 
-const styleCheckStyle =
-  if (NimMajor, NimMinor) < (1, 6):
-    "hint"
-  else:
-    "error"
-
-const nimflags =
-  "--verbosity:0 --hints:off " &
-  "--warning[CaseTransition]:off --warning[ObservableStores]:off " &
-  "--warning[LockLevel]:off " &
-  "-d:chronosStrictException " &
-  "--styleCheck:usages --styleCheck:" & styleCheckStyle & " "
-
 proc runTest(filename: string, verify: bool = true, sign: bool = true,
              moreoptions: string = "") =
-  var excstr = "nim c --opt:speed -d:debug -d:libp2p_agents_metrics -d:libp2p_protobuf_metrics -d:libp2p_network_protocols_metrics -d:libp2p_mplex_metrics "
+  var excstr = "nim c --skipParentCfg --opt:speed -d:debug -d:libp2p_agents_metrics -d:libp2p_protobuf_metrics -d:libp2p_network_protocols_metrics -d:libp2p_mplex_metrics "
   excstr.add(" -d:chronicles_sinks=textlines[stdout],json[dynamic] -d:chronicles_log_level=TRACE ")
   excstr.add(" -d:chronicles_runtime_filtering=TRUE ")
   excstr.add(" " & getEnv("NIMFLAGS") & " ")
-  excstr.add(" " & nimflags & " ")
+  excstr.add(" --verbosity:0 --hints:off ")
   excstr.add(" -d:libp2p_pubsub_sign=" & $sign)
   excstr.add(" -d:libp2p_pubsub_verify=" & $verify)
   excstr.add(" " & moreoptions & " ")
@@ -45,8 +32,7 @@ proc runTest(filename: string, verify: bool = true, sign: bool = true,
   rmFile "tests/" & filename.toExe
 
 proc buildSample(filename: string, run = false) =
-  var excstr = "nim c --opt:speed --threads:on -d:debug "
-  excstr.add(" " & nimflags & " ")
+  var excstr = "nim c --opt:speed --threads:on -d:debug --verbosity:0 --hints:off "
   excstr.add(" examples/" & filename)
   exec excstr
   if run:
@@ -55,7 +41,7 @@ proc buildSample(filename: string, run = false) =
 
 proc buildTutorial(filename: string) =
   discard gorge "cat " & filename & " | nim c -r --hints:off tools/markdown_runner.nim | " &
-    " nim " & nimflags & " c -"
+    " nim --verbosity:0 --hints:off c -"
 
 task testnative, "Runs libp2p native tests":
   runTest("testnative")
