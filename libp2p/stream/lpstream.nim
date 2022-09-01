@@ -59,7 +59,11 @@ type
   LPStreamWriteError* = object of LPStreamError
     par*: ref CatchableError
   LPStreamEOFError* = object of LPStreamError
-  LPStreamClosedError* = object of LPStreamError
+
+  LPStreamResetError* = object of LPStreamEOFError
+  LPStreamClosedError* = object of LPStreamEOFError
+  LPStreamRemoteClosedError* = object of LPStreamEOFError
+  LPStreamConnDownError* = object of LPStreamEOFError
 
   InvalidVarintError* = object of LPStreamError
   MaxSizeError* = object of LPStreamError
@@ -119,8 +123,21 @@ proc newLPStreamIncorrectDefect*(m: string): ref LPStreamIncorrectDefect =
 proc newLPStreamEOFError*(): ref LPStreamEOFError =
   result = newException(LPStreamEOFError, "Stream EOF!")
 
+proc newLPStreamResetError*(): ref LPStreamResetError =
+  result = newException(LPStreamResetError, "Stream Reset!")
+
 proc newLPStreamClosedError*(): ref LPStreamClosedError =
   result = newException(LPStreamClosedError, "Stream Closed!")
+
+proc newLPStreamRemoteClosedError*(): ref LPStreamRemoteClosedError =
+  result = newException(LPStreamRemoteClosedError, "Stream Remotely Closed!")
+
+proc newLPStreamConnDownError*(
+    parentException: ref Exception = nil): ref LPStreamConnDownError =
+  result = newException(
+    LPStreamConnDownError,
+    "Stream Underlying Connection Closed!",
+    parentException)
 
 func shortLog*(s: LPStream): auto =
   if s.isNil: "LPStream(nil)"
