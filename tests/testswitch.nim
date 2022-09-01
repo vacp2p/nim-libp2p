@@ -208,6 +208,7 @@ suite "Switch":
     await switch2.start()
 
     check: (await switch2.connect(switch1.peerInfo.addrs)) == switch1.peerInfo.peerId
+    await switch2.disconnect(switch1.peerInfo.peerId)
 
     await allFuturesThrowing(
       switch1.stop(),
