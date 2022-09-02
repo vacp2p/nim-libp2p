@@ -170,7 +170,7 @@ method connect*(
   self: Dialer,
   addrs: seq[MultiAddress],
   ): Future[PeerId] {.async.} =
-  ## Connects to a peer and retrieve it's PeerId
+  ## Connects to a peer and retrieve its PeerId
 
   return (await self.internalConnect(Opt.none(PeerId), addrs, false)).peerId
 

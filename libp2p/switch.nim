@@ -131,7 +131,7 @@ method connect*(
 method connect*(
   s: Switch,
   addrs: seq[MultiAddress]): Future[PeerId] =
-  ## Connects to a peer and retrieve it's PeerId
+  ## Connects to a peer and retrieve its PeerId
 
   s.dialer.connect(addrs)
 
