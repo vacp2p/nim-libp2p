@@ -189,10 +189,6 @@ method handle*(m: Mplex) {.async, gcsafe.} =
     debug "Unexpected cancellation in mplex handler", m
   except LPStreamEOFError as exc:
     trace "Stream EOF", m, msg = exc.msg
-    for channel in m.channels[true].mvalues():
-      channel.connDown = true
-    for channel in m.channels[false].mvalues():
-      channel.connDown = true
   except CatchableError as exc:
     debug "Unexpected exception in mplex read loop", m, msg = exc.msg
   finally:
