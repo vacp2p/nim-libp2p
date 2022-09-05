@@ -60,6 +60,13 @@ type
     par*: ref CatchableError
   LPStreamEOFError* = object of LPStreamError
 
+#        X        |           Read            |         Write
+#   Local close   |           Works           |  LPStreamClosedError
+#   Remote close  | LPStreamRemoteClosedError |         Works
+#   Local reset   |    LPStreamClosedError    |  LPStreamClosedError
+#   Remote reset  |    LPStreamResetError     |  LPStreamResetError
+# Connection down |     LPStreamConnDown      | LPStreamConnDownError
+
   LPStreamResetError* = object of LPStreamEOFError
   LPStreamClosedError* = object of LPStreamEOFError
   LPStreamRemoteClosedError* = object of LPStreamEOFError

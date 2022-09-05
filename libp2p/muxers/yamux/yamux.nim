@@ -158,7 +158,6 @@ type
     closedLocally: bool
     receivedData: AsyncEvent
     returnedEof: bool
-    connDown: ref LPStreamConnDownError
 
 proc `$`(channel: YamuxChannel): string =
   result = if channel.conn.dir == Out: "=> " else: "<= "
@@ -242,8 +241,8 @@ method readOnce*(
   if channel.isReset:
     raise if channel.remoteReset:
         newLPStreamResetError()
-      elif not isNil(channel.connDown):
-        channel.connDown
+      elif channel.conn.closed:
+        newLPStreamConnDownError()
       else:
         newLPStreamClosedError()
   if channel.returnedEof:
@@ -325,9 +324,9 @@ proc trySend(channel: YamuxChannel) {.async.} =
     channel.sendWindow.dec(toSend)
     try: await channel.conn.write(sendBuffer)
     except CatchableError as exc:
-      channel.connDown = newLPStreamConnDownError(exc)
+      let connDown = newLPStreamConnDownError(exc)
       for fut in futures.items():
-        fut.fail(channel.connDown)
+        fut.fail(connDown)
       await channel.reset()
       break
     for fut in futures.items():
@@ -498,9 +497,6 @@ method handle*(m: Yamux) {.async, gcsafe.} =
           await channel.reset()
   except LPStreamEOFError as exc:
     trace "Stream EOF", msg = exc.msg
-    let exc = newLPStreamConnDownError(exc)
-    for channel in m.channels.mvalues():
-      channel.connDown = exc
   except YamuxError as exc:
     trace "Closing yamux connection", error=exc.msg
     await m.connection.write(YamuxHeader.goAway(ProtocolError))
