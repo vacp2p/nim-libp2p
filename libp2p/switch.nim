@@ -128,6 +128,13 @@ method connect*(
 
   s.dialer.connect(peerId, addrs, forceDial)
 
+method connect*(
+  s: Switch,
+  addrs: seq[MultiAddress]): Future[PeerId] =
+  ## Connects to a peer and retrieve its PeerId
+
+  s.dialer.connect(addrs)
+
 method dial*(
   s: Switch,
   peerId: PeerId,

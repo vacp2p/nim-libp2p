@@ -49,7 +49,7 @@ nimble install libp2p
 ```
 
 ## Getting Started
-You'll find the documentation [here].(https://status-im.github.io/nim-libp2p/docs/)
+You'll find the documentation [here](https://status-im.github.io/nim-libp2p/docs/).
 
 **Go Daemon:**
 Please find the installation and usage intructions in [daemonapi.md](examples/go-daemon/daemonapi.md).

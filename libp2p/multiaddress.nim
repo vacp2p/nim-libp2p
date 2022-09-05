@@ -541,6 +541,17 @@ proc protoArgument*(ma: MultiAddress,
       else:
         ok(res)
 
+proc protoArgument*(ma: MultiAddress): MaResult[seq[byte]] =
+  ## Returns MultiAddress ``ma`` protocol argument value.
+  ##
+  ## If current MultiAddress have no argument value, then result will be empty
+
+  var res: seq[byte]
+  let size = ? ma.protoArgument(res)
+  res.setLen(size)
+  discard ? ma.protoArgument(res)
+  ok(res)
+
 proc protoAddress*(ma: MultiAddress): MaResult[seq[byte]] =
   ## Returns MultiAddress ``ma`` protocol address binary blob.
   ##
@@ -558,6 +569,9 @@ proc getPart(ma: MultiAddress, index: int): MaResult[MultiAddress] =
   var vb = ma
   var res: MultiAddress
   res.data = initVBuffer()
+
+  if index < 0: return err("multiaddress: negative index gived to getPart")
+
   while offset <= index:
     if vb.data.readVarint(header) == -1:
       return err("multiaddress: Malformed binary address!")
@@ -604,9 +618,13 @@ proc getParts[U, V](ma: MultiAddress, slice: HSlice[U, V]): MaResult[MultiAddres
     ? res.append(? ma[i])
   ok(res)
 
-proc `[]`*(ma: MultiAddress, i: int): MaResult[MultiAddress] {.inline.} =
+proc `[]`*(ma: MultiAddress, i: int | BackwardsIndex): MaResult[MultiAddress] {.inline.} =
   ## Returns part with index ``i`` of MultiAddress ``ma``.
-  ma.getPart(i)
+  when i is BackwardsIndex:
+    let maLength = ? len(ma)
+    ma.getPart(maLength - int(i))
+  else:
+    ma.getPart(i)
 
 proc `[]`*(ma: MultiAddress, slice: HSlice): MaResult[MultiAddress] {.inline.} =
   ## Returns parts with slice ``slice`` of MultiAddress ``ma``.

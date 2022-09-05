@@ -46,15 +46,9 @@ type
     transports: seq[Transport]
     nameResolver: NameResolver
 
-proc removePart(ma: MultiAddress, toRemove: MultiCodec): MultiAddress =
-  result = MultiAddress.init()
-  for part in ma:
-    if part.get().protoCode().get() == toRemove: continue
-    result &= part.get()
-
 proc dialAndUpgrade(
   self: Dialer,
-  peerId: PeerId,
+  peerId: Opt[PeerId],
   hostname: string,
   address: MultiAddress):
   Future[Connection] {.async.} =
@@ -62,7 +56,8 @@ proc dialAndUpgrade(
   for transport in self.transports: # for each transport
     if transport.handles(address):   # check if it can dial it
       trace "Dialing address", address, peerId, hostname
-      let dialed = try:
+      let dialed =
+        try:
           libp2p_total_dial_attempts.inc()
           await transport.dial(hostname, address)
         except CancelledError as exc:
@@ -73,17 +68,15 @@ proc dialAndUpgrade(
           libp2p_failed_dials.inc()
           return nil # Try the next address
 
-      # make sure to assign the peer to the connection
-      dialed.peerId = peerId
-
       # also keep track of the connection's bottom unsafe transport direction
       # required by gossipsub scoring
       dialed.transportDir = Direction.Out
 
       libp2p_successful_dials.inc()
 
-      let conn = try:
-          await transport.upgradeOutgoing(dialed)
+      let conn =
+        try:
+          await transport.upgradeOutgoing(dialed, peerId)
         except CatchableError as exc:
           # If we failed to establish the connection through one transport,
           # we won't succeeded through another - no use in trying again
@@ -100,27 +93,47 @@ proc dialAndUpgrade(
       return conn
   return nil
 
+proc expandDnsAddr(
+  self: Dialer,
+  peerId: Opt[PeerId],
+  address: MultiAddress): Future[seq[(MultiAddress, Opt[PeerId])]] {.async.} =
+
+  if not DNSADDR.matchPartial(address): return @[(address, peerId)]
+  if isNil(self.nameResolver):
+    info "Can't resolve DNSADDR without NameResolver", ma=address
+    return @[]
+
+  let
+    toResolve =
+      if peerId.isSome:
+        address & MultiAddress.init(multiCodec("p2p"), peerId.tryGet()).tryGet()
+      else:
+        address
+    resolved = await self.nameResolver.resolveDnsAddr(toResolve)
+
+  for resolvedAddress in resolved:
+    let lastPart = resolvedAddress[^1].tryGet()
+    if lastPart.protoCode == Result[MultiCodec, string].ok(multiCodec("p2p")):
+      let
+        peerIdBytes = lastPart.protoArgument().tryGet()
+        addrPeerId = PeerId.init(peerIdBytes).tryGet()
+      result.add((resolvedAddress[0..^2].tryGet(), Opt.some(addrPeerId)))
+    else:
+      result.add((resolvedAddress, peerId))
+
 proc dialAndUpgrade(
   self: Dialer,
-  peerId: PeerId,
+  peerId: Opt[PeerId],
   addrs: seq[MultiAddress]):
   Future[Connection] {.async.} =
 
   debug "Dialing peer", peerId
 
-  let p2pPart = MultiAddress.init(multiCodec("p2p"), peerId).tryGet()
   for rawAddress in addrs:
     # resolve potential dnsaddr
-    let addresses =
-      if DNSADDR.matchPartial(rawAddress):
-        if isNil(self.nameResolver):
-          info "Can't resolve DNSADDR without NameResolver", ma=rawAddress
-          continue
-        (await self.nameResolver.resolveDnsAddr(rawAddress & p2pPart)).mapIt(it.removePart(multiCodec("p2p")))
-      else:
-        @[rawAddress]
+    let addresses = await self.expandDnsAddr(peerId, rawAddress)
 
-    for expandedAddress in addresses:
+    for (expandedAddress, addrPeerId) in addresses:
       # DNS resolution
       let
         hostname = expandedAddress.getHostname()
@@ -129,26 +142,28 @@ proc dialAndUpgrade(
           else: await self.nameResolver.resolveMAddress(expandedAddress)
 
       for resolvedAddress in resolvedAddresses:
-        result = await self.dialAndUpgrade(peerId, hostname, resolvedAddress)
+        result = await self.dialAndUpgrade(addrPeerId, hostname, resolvedAddress)
         if not isNil(result):
           return result
 
 proc internalConnect(
   self: Dialer,
-  peerId: PeerId,
+  peerId: Opt[PeerId],
   addrs: seq[MultiAddress],
   forceDial: bool):
   Future[Connection] {.async.} =
-  if self.localPeerId == peerId:
+  if Opt.some(self.localPeerId) == peerId:
     raise newException(CatchableError, "can't dial self!")
 
   # Ensure there's only one in-flight attempt per peer
-  let lock = self.dialLock.mgetOrPut(peerId, newAsyncLock())
+  let lock = self.dialLock.mgetOrPut(peerId.get(default(PeerId)), newAsyncLock())
   try:
     await lock.acquire()
 
     # Check if we have a connection already and try to reuse it
-    var conn = self.connManager.selectConn(peerId)
+    var conn =
+      if peerId.isSome: self.connManager.selectConn(peerId.get())
+      else: nil
     if conn != nil:
       if conn.atEof or conn.closed:
         # This connection should already have been removed from the connection
@@ -199,7 +214,15 @@ method connect*(
   if self.connManager.connCount(peerId) > 0:
     return
 
-  discard await self.internalConnect(peerId, addrs, forceDial)
+  discard await self.internalConnect(Opt.some(peerId), addrs, forceDial)
+
+method connect*(
+  self: Dialer,
+  addrs: seq[MultiAddress],
+  ): Future[PeerId] {.async.} =
+  ## Connects to a peer and retrieve its PeerId
+
+  return (await self.internalConnect(Opt.none(PeerId), addrs, false)).peerId
 
 proc negotiateStream(
   self: Dialer,
@@ -217,14 +240,14 @@ method tryDial*(
   self: Dialer,
   peerId: PeerId,
   addrs: seq[MultiAddress]): Future[MultiAddress] {.async.} =
-  ## Create a protocol stream and in order to check
+  ## Create a protocol stream in order to check
   ## if a connection is possible.
   ## Doesn't use the Connection Manager to save it.
   ##
 
   trace "Check if it can dial", peerId, addrs
   try:
-    let conn = await self.dialAndUpgrade(peerId, addrs)
+    let conn = await self.dialAndUpgrade(Opt.some(peerId), addrs)
     if conn.isNil():
       raise newException(DialFailedError, "No valid multiaddress")
     await conn.close()
@@ -272,7 +295,7 @@ method dial*(
 
   try:
     trace "Dialing (new)", peerId, protos
-    conn = await self.internalConnect(peerId, addrs, forceDial)
+    conn = await self.internalConnect(Opt.some(peerId), addrs, forceDial)
     trace "Opening stream", conn
     stream = await self.connManager.getStream(conn)
 

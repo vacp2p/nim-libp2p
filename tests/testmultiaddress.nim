@@ -372,6 +372,11 @@ suite "MultiAddress test suite":
     let ma = MultiAddress.init("/ip4/0.0.0.0/tcp/0/p2p/QmcgpsyWgH8Y8ajJz1Cu72KnS5uo2Aa2LpzU7kinSupNKC/p2p-circuit/p2p/QmcgpsyWgH8Y8ajJz1Cu72KnS5uo2Aa2LpzU7kinSuNEXT/unix/stdio/").get()
     check:
       $ma[0..0].get() == "/ip4/0.0.0.0"
+      $ma[^1].get() == "/unix/stdio"
+      ma[-100].isErr()
+      ma[100].isErr()
+      ma[^100].isErr()
+      ma[^0].isErr()
       $ma[0..1].get() == "/ip4/0.0.0.0/tcp/0"
       $ma[1..2].get() == "/tcp/0/p2p/QmcgpsyWgH8Y8ajJz1Cu72KnS5uo2Aa2LpzU7kinSupNKC"
       $ma[^3..^1].get() == "/p2p-circuit/p2p/QmcgpsyWgH8Y8ajJz1Cu72KnS5uo2Aa2LpzU7kinSuNEXT/unix/stdio"
