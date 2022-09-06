@@ -180,7 +180,7 @@ suite "Yamux":
         await conn.close()
 
       let streamA = await yamuxa.newStream()
-      await yamuxA.close()
+      await yamuxa.close()
       expect LPStreamClosedError: await streamA.writeLp(fromHex("1234"))
       expect LPStreamClosedError: discard await streamA.readLp(100)
       blocker.complete()
