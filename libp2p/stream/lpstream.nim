@@ -225,6 +225,10 @@ proc readLine*(s: LPStream,
   while true:
     var ch: char
     if (await readOnce(s, addr ch, 1)) == 0:
+      # Re-readOnce to raise a more specific error than EOF
+      # Raise EOF if it doesn't raise anything(shouldn't happen)
+      discard await readOnce(s, addr ch, 1)
+      warn "Read twice while at EOF"
       raise newLPStreamEOFError()
 
     if sep[state] == ch:
@@ -249,6 +253,10 @@ proc readVarint*(conn: LPStream): Future[uint64] {.async, gcsafe, public.} =
 
   for i in 0..<len(buffer):
     if (await conn.readOnce(addr buffer[i], 1)) == 0:
+      # Re-readOnce to raise a more specific error than EOF
+      # Raise EOF if it doesn't raise anything(shouldn't happen)
+      discard await conn.readOnce(addr buffer[i], 1)
+      warn "Read twice while at EOF"
       raise newLPStreamEOFError()
 
     var

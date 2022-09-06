@@ -241,10 +241,10 @@ method readOnce*(
   if channel.isReset:
     raise if channel.remoteReset:
         newLPStreamResetError()
-      elif channel.conn.closed:
-        newLPStreamConnDownError()
-      else:
+      elif channel.closedLocally:
         newLPStreamClosedError()
+      else:
+        newLPStreamConnDownError()
   if channel.returnedEof:
     raise newLPStreamRemoteClosedError()
   if channel.recvQueue.len == 0:
@@ -335,11 +335,11 @@ proc trySend(channel: YamuxChannel) {.async.} =
 
 method write*(channel: YamuxChannel, msg: seq[byte]): Future[void] =
   result = newFuture[void]("Yamux Send")
-  if channel.closedLocally or (channel.isReset and not channel.remoteReset):
-    result.fail(newLPStreamClosedError())
-    return result
-  if channel.isReset:
+  if channel.remoteReset:
     result.fail(newLPStreamResetError())
+    return result
+  if channel.closedLocally or channel.isReset:
+    result.fail(newLPStreamClosedError())
     return result
   if msg.len == 0:
     result.complete()
@@ -411,8 +411,9 @@ method close*(m: Yamux) {.async.} =
   m.isClosed = true
 
   trace "Closing yamux"
-  for channel in m.channels.values:
-    await channel.reset()
+  let channels = toSeq(m.channels.values())
+  for channel in channels:
+    await channel.reset(true)
   await m.connection.write(YamuxHeader.goAway(NormalTermination))
   await m.connection.close()
   trace "Closed yamux"
