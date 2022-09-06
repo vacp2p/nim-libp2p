@@ -59,6 +59,7 @@ type
     isOpen*: bool                 # has channel been opened
     closedLocal*: bool            # has channel been closed locally
     remoteReset*: bool            # has channel been remotely reset
+    localReset*: bool             # has channel been reset locally
     msgCode*: MessageType         # cached in/out message code
     closeCode*: MessageType       # cached in/out close code
     resetCode*: MessageType       # cached in/out reset code
@@ -104,6 +105,7 @@ proc reset*(s: LPChannel) {.async, gcsafe.} =
 
   s.isClosed = true
   s.closedLocal = true
+  s.localReset = not s.remoteReset
 
   trace "Resetting channel", s, len = s.len
 
@@ -171,6 +173,8 @@ method readOnce*(s: LPChannel,
   ## or the reads will lock each other.
   if s.remoteReset:
     raise newLPStreamResetError()
+  if s.localReset:
+    raise newLPStreamClosedError()
   if s.atEof():
     raise newLPStreamRemoteClosedError()
   if s.conn.closed:

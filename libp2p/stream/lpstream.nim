@@ -189,6 +189,8 @@ proc readExactly*(s: LPStream,
   ## Waits for `nbytes` to be available, then read
   ## them and return them
   if s.atEof:
+    var ch: char
+    discard await s.readOnce(addr ch, 1)
     raise newLPStreamEOFError()
 
   if nbytes == 0:
@@ -207,6 +209,10 @@ proc readExactly*(s: LPStream,
   if read == 0:
     doAssert s.atEof()
     trace "couldn't read all bytes, stream EOF", s, nbytes, read
+    # Re-readOnce to raise a more specific error than EOF
+    # Raise EOF if it doesn't raise anything(shouldn't happen)
+    discard await s.readOnce(addr pbuffer[read], nbytes - read)
+    warn "Read twice while at EOF"
     raise newLPStreamEOFError()
 
   if read < nbytes:
