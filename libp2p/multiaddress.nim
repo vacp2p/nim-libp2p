@@ -222,6 +222,40 @@ proc onionVB(vb: var VBuffer): bool =
   if vb.readArray(buf) == 12:
     result = true
 
+proc onion3StB(s: string, vb: var VBuffer): bool =
+  try:
+    var parts = s.split(':')
+    if len(parts) != 2:
+      return false
+    if len(parts[0]) != 56:
+      return false
+    var address = Base32Lower.decode(parts[0].toLowerAscii())
+    var nport = parseInt(parts[1])
+    if (nport > 0 and nport < 65536) and len(address) == 35:
+      address.setLen(37)
+      address[35] = cast[byte]((nport shr 8) and 0xFF)
+      address[36] = cast[byte](nport and 0xFF)
+      vb.writeArray(address)
+      result = true
+  except:
+    discard
+
+proc onion3BtS(vb: var VBuffer, s: var string): bool =
+  ## ONION address bufferToString() implementation.
+  var buf: array[37, byte]
+  if vb.readArray(buf) == 37:
+    var nport = (cast[uint16](buf[35]) shl 8) or cast[uint16](buf[36])
+    s = Base32Lower.encode(buf.toOpenArray(0, 34))
+    s.add(":")
+    s.add($nport)
+    result = true
+
+proc onion3VB(vb: var VBuffer): bool =
+  ## ONION address validateBuffer() implementation.
+  var buf: array[37, byte]
+  if vb.readArray(buf) == 37:
+    result = true
+
 proc unixStB(s: string, vb: var VBuffer): bool =
   ## Unix socket name stringToBuffer() implementation.
   if len(s) > 0:
@@ -310,6 +344,11 @@ const
     bufferToString: onionBtS,
     validateBuffer: onionVB
   )
+  TranscoderOnion3* = Transcoder(
+    stringToBuffer: onion3StB,
+    bufferToString: onion3BtS,
+    validateBuffer: onion3VB
+  )
   TranscoderDNS* = Transcoder(
     stringToBuffer: dnsStB,
     bufferToString: dnsBtS,
@@ -362,6 +401,10 @@ const
     MAProtocol(
       mcodec: multiCodec("onion"), kind: Fixed, size: 10,
       coder: TranscoderOnion
+    ),
+    MAProtocol(
+      mcodec: multiCodec("onion3"), kind: Fixed, size: 37,
+      coder: TranscoderOnion3
     ),
     MAProtocol(
       mcodec: multiCodec("ws"), kind: Marker, size: 0
