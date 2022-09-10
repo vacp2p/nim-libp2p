@@ -136,7 +136,7 @@ nim c -d:libp2p_expensive_metrics some_file.nim
 **use identify metrics**
 
 ```bash
-nim c -d:libp2p_agents_metrics -d:KnownLibP2PAgents=nimbus,lighthouse,prysm,teku some_file.nim
+nim c -d:libp2p_agents_metrics -d:KnownLibP2PAgents=nimbus,lighthouse,lodestar,prysm,teku some_file.nim
 ```
 
 **specify gossipsub specific topics to measure**
