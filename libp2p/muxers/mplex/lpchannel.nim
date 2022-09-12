@@ -195,7 +195,7 @@ method readOnce*(s: LPChannel,
     # data has been lost in s.readBuf and there's no way to gracefully recover /
     # use the channel any more
     await s.reset()
-    raise exc
+    raise newLPStreamConnDownError(exc)
 
 proc prepareWrite(s: LPChannel, msg: seq[byte]): Future[void] {.async.} =
   # prepareWrite is the slow path of writing a message - see conditions in
