@@ -530,7 +530,7 @@ proc protoArgument*(ma: MultiAddress,
           err("multiaddress: Decoding protocol error")
         else:
           ok(res)
-      elif proto.kind in {Length, Path}:
+      elif proto.kind in {MAKind.Length, Path}:
         if vb.data.readSeq(buffer) == -1:
           err("multiaddress: Decoding protocol error")
         else:
@@ -575,7 +575,7 @@ proc getPart(ma: MultiAddress, index: int): MaResult[MultiAddress] =
         res.data.writeVarint(header)
         res.data.writeArray(data)
         res.data.finish()
-    elif proto.kind in {Length, Path}:
+    elif proto.kind in {MAKind.Length, Path}:
       if vb.data.readSeq(data) == -1:
         return err("multiaddress: Decoding protocol error")
 
@@ -637,7 +637,7 @@ iterator items*(ma: MultiAddress): MaResult[MultiAddress] =
 
       res.data.writeVarint(header)
       res.data.writeArray(data)
-    elif proto.kind in {Length, Path}:
+    elif proto.kind in {MAKind.Length, Path}:
       if vb.data.readSeq(data) == -1:
         yield err(MaResult[MultiAddress], "Decoding protocol error")
 
