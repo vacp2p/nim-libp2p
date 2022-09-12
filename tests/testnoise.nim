@@ -60,8 +60,7 @@ method init(p: TestProto) {.gcsafe.} =
 proc createSwitch(ma: MultiAddress; outgoing: bool, secio: bool = false): (Switch, PeerInfo) =
   var
     privateKey = PrivateKey.random(ECDSA, rng[]).get()
-    peerInfo = PeerInfo.new(privateKey)
-  peerInfo.addrs.add(ma)
+    peerInfo = PeerInfo.new(privateKey, @[ma])
 
   proc createMplex(conn: Connection): Muxer =
     result = Mplex.new(conn)
