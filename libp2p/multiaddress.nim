@@ -530,7 +530,7 @@ proc protoArgument*(ma: MultiAddress,
           err("multiaddress: Decoding protocol error")
         else:
           ok(res)
-      elif proto.kind in {Length, Path}:
+      elif proto.kind in {MAKind.Length, Path}:
         if vb.data.readSeq(buffer) == -1:
           err("multiaddress: Decoding protocol error")
         else:
@@ -541,17 +541,6 @@ proc protoArgument*(ma: MultiAddress,
       else:
         ok(res)
 
-proc protoArgument*(ma: MultiAddress): MaResult[seq[byte]] =
-  ## Returns MultiAddress ``ma`` protocol argument value.
-  ##
-  ## If current MultiAddress have no argument value, then result will be empty
-
-  var res: seq[byte]
-  let size = ? ma.protoArgument(res)
-  res.setLen(size)
-  discard ? ma.protoArgument(res)
-  ok(res)
-
 proc protoAddress*(ma: MultiAddress): MaResult[seq[byte]] =
   ## Returns MultiAddress ``ma`` protocol address binary blob.
   ##
@@ -561,6 +550,13 @@ proc protoAddress*(ma: MultiAddress): MaResult[seq[byte]] =
   let res = ? protoArgument(ma, buffer)
   buffer.setLen(res)
   ok(buffer)
+
+proc protoArgument*(ma: MultiAddress): MaResult[seq[byte]] =
+  ## Returns MultiAddress ``ma`` protocol address binary blob.
+  ##
+  ## If current MultiAddress do not have argument value, then result array will
+  ## be empty.
+  ma.protoAddress()
 
 proc getPart(ma: MultiAddress, index: int): MaResult[MultiAddress] =
   var header: uint64
@@ -589,7 +585,7 @@ proc getPart(ma: MultiAddress, index: int): MaResult[MultiAddress] =
         res.data.writeVarint(header)
         res.data.writeArray(data)
         res.data.finish()
-    elif proto.kind in {Length, Path}:
+    elif proto.kind in {MAKind.Length, Path}:
       if vb.data.readSeq(data) == -1:
         return err("multiaddress: Decoding protocol error")
 
@@ -655,7 +651,7 @@ iterator items*(ma: MultiAddress): MaResult[MultiAddress] =
 
       res.data.writeVarint(header)
       res.data.writeArray(data)
-    elif proto.kind in {Length, Path}:
+    elif proto.kind in {MAKind.Length, Path}:
       if vb.data.readSeq(data) == -1:
         yield err(MaResult[MultiAddress], "Decoding protocol error")
 
