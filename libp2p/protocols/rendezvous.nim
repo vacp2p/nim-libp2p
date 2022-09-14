@@ -100,7 +100,7 @@ proc encode(c: Cookie): ProtoBuffer =
   result.write(2, c.ns)
   result.finish()
 
-proc encode(r: Register): Protobuffer =
+proc encode(r: Register): ProtoBuffer =
   result = initProtoBuffer()
   result.write(1, r.ns)
   result.write(2, r.signedPeerRecord)
@@ -108,7 +108,7 @@ proc encode(r: Register): Protobuffer =
     result.write(3, r.ttl.get())
   result.finish()
 
-proc encode(rr: RegisterResponse): Protobuffer =
+proc encode(rr: RegisterResponse): ProtoBuffer =
   result = initProtoBuffer()
   result.write(1, rr.status.uint)
   if rr.text.isSome():
