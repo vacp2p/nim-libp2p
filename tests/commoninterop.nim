@@ -3,7 +3,7 @@ import chronos, chronicles, stew/byteutils
 import helpers
 import ../libp2p
 import ../libp2p/[daemon/daemonapi, varint, transports/wstransport, crypto/crypto]
-import ../libp2p/protocols/relay/[relay, client, utils]
+import ../libp2p/protocols/connectivity/relay/[relay, client, utils]
 
 type
   SwitchCreator = proc(
