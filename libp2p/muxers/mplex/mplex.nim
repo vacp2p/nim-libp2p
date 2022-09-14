@@ -183,6 +183,7 @@ method handle*(m: Mplex) {.async, gcsafe.} =
         of MessageType.CloseIn, MessageType.CloseOut:
           await channel.pushEof()
         of MessageType.ResetIn, MessageType.ResetOut:
+          channel.remoteReset = true
           await channel.reset()
   except CancelledError:
     debug "Unexpected cancellation in mplex handler", m
