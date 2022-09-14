@@ -14,13 +14,13 @@ else:
 
 import std/[options, sets, sequtils]
 import chronos, chronicles, stew/objects
-import ./protocol,
-       ../switch,
-       ../multiaddress,
-       ../multicodec,
-       ../peerid,
-       ../utils/semaphore,
-       ../errors
+import ../protocol,
+       ../../switch,
+       ../../multiaddress,
+       ../../multicodec,
+       ../../peerid,
+       ../../utils/semaphore,
+       ../../errors
 
 logScope:
   topics = "libp2p autonat"

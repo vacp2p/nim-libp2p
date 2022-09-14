@@ -2,11 +2,11 @@
 
 import options, bearssl, chronos
 import stew/byteutils
-import ../libp2p/[protocols/relay/relay,
-                  protocols/relay/client,
-                  protocols/relay/messages,
-                  protocols/relay/utils,
-                  protocols/relay/rtransport,
+import ../libp2p/[protocols/connectivity/relay/relay,
+                  protocols/connectivity/relay/client,
+                  protocols/connectivity/relay/messages,
+                  protocols/connectivity/relay/utils,
+                  protocols/connectivity/relay/rtransport,
                   multiaddress,
                   peerinfo,
                   peerid,
