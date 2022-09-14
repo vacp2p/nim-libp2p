@@ -1035,3 +1035,12 @@ suite "Switch":
     await conn.close()
     await src.stop()
     await dst.stop()
+
+  asyncTest "switch failing to start stops properly":
+    let switch = newStandardSwitch(
+      addrs = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet(), MultiAddress.init("/ip4/1.1.1.1/tcp/0").tryGet()]
+    )
+
+    expect LPError:
+      await switch.start()
+    # test is that this doesn't leak
