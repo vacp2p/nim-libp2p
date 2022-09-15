@@ -20,10 +20,10 @@ import ./relay,
        ./messages,
        ./rconn,
        ./utils,
-       ../../peerinfo,
-       ../../switch,
-       ../../multiaddress,
-       ../../stream/connection
+       ../../../peerinfo,
+       ../../../switch,
+       ../../../multiaddress,
+       ../../../stream/connection
 
 
 logScope:

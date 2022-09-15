@@ -2,10 +2,10 @@
 
 import bearssl, chronos, options
 import ../libp2p
-import ../libp2p/[protocols/relay/relay,
-                  protocols/relay/messages,
-                  protocols/relay/utils,
-                  protocols/relay/client]
+import ../libp2p/[protocols/connectivity/relay/relay,
+                  protocols/connectivity/relay/messages,
+                  protocols/connectivity/relay/utils,
+                  protocols/connectivity/relay/client]
 import ./helpers
 import std/times
 import stew/byteutils
