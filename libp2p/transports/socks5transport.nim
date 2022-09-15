@@ -1,30 +1,44 @@
+
+when (NimMajor, NimMinor) < (1, 4):
+  {.push raises: [Defect].}
+else:
+  {.push raises: [].}
+
+import std/[oids, sequtils]
 import chronos, chronicles, strutils
 import stew/byteutils
 import ../multicodec
 import transport,
+      tcptransport,
+      ../wire,
+      ../stream/[lpstream, connection, chronosstream],
       ../multiaddress,
-      ../stream/connection,
-      ../stream/chronosstream
+      ../upgrademngrs/upgrade
+
+const
+  Socks5TransportTrackerName* = "libp2p.socks5transport"
 
 type
   Socks5Transport* = ref object of Transport
     transportAddress: TransportAddress
+    tcpTransport: TcpTransport
 
 proc new*(
   T: typedesc[Socks5Transport],
   address: string, 
-  port: Port): T {.public.} =
+  port: Port): T {.public, raises: [Defect, TransportAddressError]} =
   ## Creates a SOCKS5 transport
 
   T(
-    transportAddress: initTAddress(address, port))
+    transportAddress: initTAddress(address, port),
+    tcpTransport: TcpTransport.new(upgrade = Upgrade()))
 
 proc connHandler*(self: Socks5Transport,
                   client: StreamTransport,
                   dir: Direction): Future[Connection] {.async.} =
   var observedAddr: MultiAddress = MultiAddress()
   try:
-    observedAddr = MultiAddress.init(client.remoteAddress).tryGet()
+    observedAddr = MultiAddress.init("/ip4/0.0.0.0").tryGet()
   except CatchableError as exc:
     trace "Failed to create observedAddr", exc = exc.msg
     if not(isNil(client) and client.closed):
@@ -33,8 +47,8 @@ proc connHandler*(self: Socks5Transport,
 
   trace "Handling tcp connection", address = $observedAddr,
                                    dir = $dir,
-                                   clients = self.clients[Direction.In].len +
-                                   self.clients[Direction.Out].len
+                                   clients = self.tcpTransport.clients[Direction.In].len +
+                                   self.tcpTransport.clients[Direction.Out].len
 
   let conn = Connection(
     ChronosStream.init(
@@ -53,7 +67,7 @@ proc connHandler*(self: Socks5Transport,
       trace "Cleaning up client", addrs = $client.remoteAddress,
                                   conn
 
-      #self.clients[dir].keepItIf( it != client )
+      self.tcpTransport.clients[dir].keepItIf( it != client )
       await allFuturesThrowing(
         conn.close(), client.closeWait())
 
@@ -64,7 +78,7 @@ proc connHandler*(self: Socks5Transport,
       let useExc {.used.} = exc
       debug "Error cleaning up client", errMsg = exc.msg, conn
 
-  #self.clients[dir].add(client)
+  self.tcpTransport.clients[dir].add(client)
   asyncSpawn onClose()
 
   return conn
@@ -77,32 +91,50 @@ method dial*(
   ##
 
   trace "Dialing remote peer", address = $address
+  try:
+    let transp = await connect(self.transportAddress)
+    var bytesWritten = await transp.write(@[05'u8, 01, 00])
+    var resp = await transp.read(2)
 
-  let transp = await connect(self.transportAddress)
-  var bytesWritten = await transp.write(@[05'u8, 01, 00])
-  var resp = await transp.read(2)
+    let addressArray = ($address).split('/')
+    let addressStr = addressArray[2].split(':')[0] & ".onion"
 
-  let addressArray = ($address).split('/')
-  let addressStr = addressArray[2].split(':')[0] & ".onion"
+    let port = string.fromBytes(address.data.buffer[37..38])
 
-  let port = string.fromBytes(address.data.buffer[37..38])
+    bytesWritten = await transp.write("\x05\x01\x00\x03" & addressStr.len.char & addressStr & port)
+    resp = await transp.read(10)
+    echo resp
 
-  bytesWritten = await transp.write("\x05\x01\x00\x03" & addressStr.len.char & addressStr & port)
-  echo bytesWritten
-  resp = await transp.read(10)
-  echo resp
+    return await self.connHandler(transp, Direction.Out)
+  except CatchableError as err:
+    await transp.closeWait()
+    raise err
 
-  return await self.connHandler(transp, Direction.Out)
+method start*(
+  self: Socks5Transport,
+  addrs: seq[MultiAddress]) {.async.} =
+  ## listen on the transport
+  ##
 
-let s = Socks5Transport.new("127.0.0.1", 9150.Port)
-let ma = MultiAddress.init("/onion3/torchdeedp3i2jigzjdmfpn5ttjhthh5wbmda2rr3jvqjg5p77c54dqd:80")
-let conn = waitFor s.dial("", ma.tryGet())
+  await self.tcpTransport.start(addrs)
 
-let addressStr = "torchdeedp3i2jigzjdmfpn5ttjhthh5wbmda2rr3jvqjg5p77c54dqd.onion"
-waitFor conn.write("GET / HTTP/1.1\nHost: $#\n\n" % [addressStr])
-var resp: array[1000, byte]
-waitFor conn.readExactly(addr resp, 1000)
-echo string.fromBytes(resp)
+method accept*(self: Socks5Transport): Future[Connection] {.async, gcsafe.} =
+  ## accept a new TCP connection
+  ##
+  return await self.tcpTransport.accept()
+
+method stop*(self: Socks5Transport) {.async, gcsafe.} =
+  ## stop the transport
+  ##
+  await self.tcpTransport.stop()
+
+
+
+
+
+
+
+
 
 
 
