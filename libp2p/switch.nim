@@ -175,19 +175,16 @@ proc mount*[T: LPProtocol](s: Switch, proto: T, matcher: Matcher = nil)
   {.gcsafe, raises: [Defect, LPError], public.} =
   ## mount a protocol to the switch
 
-  if isNil(proto.handler):
+  if proto.codecs.len > 0 and isNil(proto.handler):
     raise newException(LPError,
       "Protocol has to define a handle method or proc")
-
-  if proto.codec.len == 0:
-    raise newException(LPError,
-      "Protocol has to define a codec string")
 
   if s.started and not proto.started:
     raise newException(LPError, "Protocol not started")
 
   s.ms.addHandler(proto.codecs, proto, matcher)
-  s.peerInfo.protocols.add(proto.codec)
+  for codec in proto.codecs:
+    s.peerInfo.protocols.add(codec)
 
 proc upgradeMonitor(conn: Connection, upgrades: AsyncSemaphore) {.async.} =
   ## monitor connection for upgrades
