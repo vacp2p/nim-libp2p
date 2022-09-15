@@ -43,7 +43,11 @@ suite "Discovery":
       let query = dm.request(filters)
       await doneAdvFoo
       let res = await query.getPeer()
-      echo res.peerId == clientB.peerInfo.peerId
+      check:
+        res.peerId == clientB.peerInfo.peerId
+      doneAdvBar.complete()
     asyncSpawn manageQuery()
     await rdvB.advertise("foo")
     doneAdvFoo.complete()
+    await doneAdvBar
+    await allFutures(clientA.stop(), clientB.stop(), remoteNode.stop())
