@@ -1,6 +1,6 @@
 import chronos, stew/byteutils
 import ../libp2p,
-       ../libp2p/protocols/relay/[relay, client]
+       ../libp2p/protocols/connectivity/relay/[relay, client]
 
 # Helper to create a circuit relay node
 proc createCircuitRelaySwitch(r: Relay): Switch =

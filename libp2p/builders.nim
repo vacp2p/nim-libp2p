@@ -26,8 +26,8 @@ import
   switch, peerid, peerinfo, stream/connection, multiaddress,
   crypto/crypto, transports/[transport, tcptransport],
   muxers/[muxer, mplex/mplex, yamux/yamux],
-  protocols/[identify, secure/secure, secure/noise, autonat],
-  protocols/relay/[relay, client, rtransport],
+  protocols/[identify, secure/secure, secure/noise],
+  protocols/connectivity/[autonat, relay/relay, relay/client, relay/rtransport],
   connmanager, upgrademngrs/muxedupgrade,
   nameresolving/nameresolver,
   errors, utility

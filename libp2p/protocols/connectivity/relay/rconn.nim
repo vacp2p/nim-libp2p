@@ -14,7 +14,7 @@ else:
 
 import chronos
 
-import ../../stream/connection
+import ../../../stream/connection
 
 type
   RelayConnection* = ref object of Connection
