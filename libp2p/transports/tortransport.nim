@@ -16,24 +16,24 @@ import transport,
       ../upgrademngrs/upgrade
 
 const
-  Socks5TransportTrackerName* = "libp2p.socks5transport"
+  Socks5TransportTrackerName* = "libp2p.tortransport"
 
 type
-  Socks5Transport* = ref object of Transport
+  TorTransport* = ref object of Transport
     transportAddress: TransportAddress
     tcpTransport: TcpTransport
 
 proc new*(
-  T: typedesc[Socks5Transport],
+  T: typedesc[TorTransport],
   address: string, 
   port: Port): T {.public, raises: [Defect, TransportAddressError]} =
-  ## Creates a SOCKS5 transport
+  ## Creates a Tor transport
 
   T(
     transportAddress: initTAddress(address, port),
     tcpTransport: TcpTransport.new(upgrade = Upgrade()))
 
-proc connHandler*(self: Socks5Transport,
+proc connHandler*(self: TorTransport,
                   client: StreamTransport,
                   dir: Direction): Future[Connection] {.async.} =
   var observedAddr: MultiAddress = MultiAddress()
@@ -84,15 +84,15 @@ proc connHandler*(self: Socks5Transport,
   return conn
 
 method dial*(
-  self: Socks5Transport,
+  self: TorTransport,
   hostname: string,
   address: MultiAddress): Future[Connection] {.async, gcsafe.} =
   ## dial a peer
   ##
 
   trace "Dialing remote peer", address = $address
+  let transp = await connect(self.transportAddress)
   try:
-    let transp = await connect(self.transportAddress)
     var bytesWritten = await transp.write(@[05'u8, 01, 00])
     var resp = await transp.read(2)
 
@@ -111,19 +111,19 @@ method dial*(
     raise err
 
 method start*(
-  self: Socks5Transport,
+  self: TorTransport,
   addrs: seq[MultiAddress]) {.async.} =
   ## listen on the transport
   ##
 
   await self.tcpTransport.start(addrs)
 
-method accept*(self: Socks5Transport): Future[Connection] {.async, gcsafe.} =
+method accept*(self: TorTransport): Future[Connection] {.async, gcsafe.} =
   ## accept a new TCP connection
   ##
   return await self.tcpTransport.accept()
 
-method stop*(self: Socks5Transport) {.async, gcsafe.} =
+method stop*(self: TorTransport) {.async, gcsafe.} =
   ## stop the transport
   ##
   await self.tcpTransport.stop()

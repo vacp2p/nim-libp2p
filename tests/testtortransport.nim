@@ -5,7 +5,7 @@ import sequtils
 import chronos, stew/byteutils
 import ../libp2p/[stream/connection,
                   transports/transport,
-                  transports/socks5transport,
+                  transports/tortransport,
                   upgrademngrs/upgrade,
                   multiaddress,
                   errors,
@@ -13,12 +13,12 @@ import ../libp2p/[stream/connection,
 
 import ./helpers, ./commontransport
 
-suite "SOCKS5 transport":
+suite "Tor transport":
   teardown:
     checkTrackers()
 
   asyncTest "test dial":
-    let s = Socks5Transport.new("127.0.0.1", 9050.Port)
+    let s = TorTransport.new("127.0.0.1", 9050.Port)
     let ma = MultiAddress.init("/onion3/torchdeedp3i2jigzjdmfpn5ttjhthh5wbmda2rr3jvqjg5p77c54dqd:80")
     let conn = await s.dial("", ma.tryGet())
 
@@ -31,7 +31,7 @@ suite "SOCKS5 transport":
 
   asyncTest "test start":
     proc a() {.async, raises:[].} =
-      let s = Socks5Transport.new("127.0.0.1", 9050.Port)
+      let s = TorTransport.new("127.0.0.1", 9050.Port)
       let ma = MultiAddress.init("/onion3/a2mncbqsbullu7thgm4e6zxda2xccmcgzmaq44oayhdtm6rav5vovcad:80")
       let conn = await s.dial("", ma.tryGet())
 
@@ -43,7 +43,7 @@ suite "SOCKS5 transport":
       #await s.stop()
       echo string.fromBytes(resp)
 
-    let server = Socks5Transport.new("127.0.0.1", 9150.Port)
+    let server = TorTransport.new("127.0.0.1", 9150.Port)
     let ma = @[MultiAddress.init("/ip4/127.0.0.1/tcp/8080").tryGet()]
     asyncSpawn server.start(ma)
 
