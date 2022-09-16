@@ -18,6 +18,8 @@ proc createSwitch(rdv: RendezVous = RendezVous.new()): Switch =
     .build()
 
 suite "RendezVous":
+  teardown:
+    checkTrackers()
   asyncTest "Simple local test":
     let
       rdv = RendezVous.new()
@@ -34,6 +36,7 @@ suite "RendezVous":
     rdv.unsubscribeLocally("foo")
     let res3 = rdv.requestLocally("foo")
     check res3.len == 0
+    await s.stop()
 
   asyncTest "Simple remote test":
     let
@@ -54,6 +57,7 @@ suite "RendezVous":
     await rdv.unsubscribe("foo")
     let res3 = await rdv.request("foo")
     check res3.len == 0
+    await allFutures(client.stop(), remoteSwitch.stop())
 
   asyncTest "Simple cookie test":
     let
@@ -73,3 +77,4 @@ suite "RendezVous":
     await rdvB.advertise("foo")
     let res2 = await rdvA.request("foo")
     check: res2.len == 1 and res2[0] == clientB.peerInfo.signedPeerRecord.data
+    await allFutures(clientA.stop(), clientB.stop(), remoteSwitch.stop())
