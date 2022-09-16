@@ -3,7 +3,7 @@ import chronos
 import
   ../libp2p/[
     builders,
-    protocols/autonat
+    protocols/connectivity/autonat
   ],
   ./helpers
 

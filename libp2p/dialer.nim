@@ -47,7 +47,7 @@ type
 
 proc dialAndUpgrade(
   self: Dialer,
-  peerId: PeerId,
+  peerId: Opt[PeerId],
   addrs: seq[MultiAddress]):
   Future[Connection] {.async.} =
   debug "Dialing peer", peerId
@@ -74,9 +74,6 @@ proc dialAndUpgrade(
               libp2p_failed_dials.inc()
               continue # Try the next address
 
-          # make sure to assign the peer to the connection
-          dialed.peerId = peerId
-
           # also keep track of the connection's bottom unsafe transport direction
           # required by gossipsub scoring
           dialed.transportDir = Direction.Out
@@ -84,7 +81,7 @@ proc dialAndUpgrade(
           libp2p_successful_dials.inc()
 
           let conn = try:
-              await transport.upgradeOutgoing(dialed)
+              await transport.upgradeOutgoing(dialed, peerId)
             except CatchableError as exc:
               # If we failed to establish the connection through one transport,
               # we won't succeeded through another - no use in trying again
@@ -101,20 +98,22 @@ proc dialAndUpgrade(
 
 proc internalConnect(
   self: Dialer,
-  peerId: PeerId,
+  peerId: Opt[PeerId],
   addrs: seq[MultiAddress],
   forceDial: bool):
   Future[Connection] {.async.} =
-  if self.localPeerId == peerId:
+  if Opt.some(self.localPeerId) == peerId:
     raise newException(CatchableError, "can't dial self!")
 
   # Ensure there's only one in-flight attempt per peer
-  let lock = self.dialLock.mgetOrPut(peerId, newAsyncLock())
+  let lock = self.dialLock.mgetOrPut(peerId.get(default(PeerId)), newAsyncLock())
   try:
     await lock.acquire()
 
     # Check if we have a connection already and try to reuse it
-    var conn = self.connManager.selectConn(peerId)
+    var conn =
+      if peerId.isSome: self.connManager.selectConn(peerId.get())
+      else: nil
     if conn != nil:
       if conn.atEof or conn.closed:
         # This connection should already have been removed from the connection
@@ -165,7 +164,15 @@ method connect*(
   if self.connManager.connCount(peerId) > 0:
     return
 
-  discard await self.internalConnect(peerId, addrs, forceDial)
+  discard await self.internalConnect(Opt.some(peerId), addrs, forceDial)
+
+method connect*(
+  self: Dialer,
+  addrs: seq[MultiAddress],
+  ): Future[PeerId] {.async.} =
+  ## Connects to a peer and retrieve its PeerId
+
+  return (await self.internalConnect(Opt.none(PeerId), addrs, false)).peerId
 
 proc negotiateStream(
   self: Dialer,
@@ -183,14 +190,14 @@ method tryDial*(
   self: Dialer,
   peerId: PeerId,
   addrs: seq[MultiAddress]): Future[MultiAddress] {.async.} =
-  ## Create a protocol stream and in order to check
+  ## Create a protocol stream in order to check
   ## if a connection is possible.
   ## Doesn't use the Connection Manager to save it.
   ##
 
   trace "Check if it can dial", peerId, addrs
   try:
-    let conn = await self.dialAndUpgrade(peerId, addrs)
+    let conn = await self.dialAndUpgrade(Opt.some(peerId), addrs)
     if conn.isNil():
       raise newException(DialFailedError, "No valid multiaddress")
     await conn.close()
@@ -238,7 +245,7 @@ method dial*(
 
   try:
     trace "Dialing (new)", peerId, protos
-    conn = await self.internalConnect(peerId, addrs, forceDial)
+    conn = await self.internalConnect(Opt.some(peerId), addrs, forceDial)
     trace "Opening stream", conn
     stream = await self.connManager.getStream(conn)
 

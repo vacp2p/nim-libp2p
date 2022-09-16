@@ -201,6 +201,20 @@ suite "Switch":
     check not switch1.isConnected(switch2.peerInfo.peerId)
     check not switch2.isConnected(switch1.peerInfo.peerId)
 
+  asyncTest "e2e connect to peer with unkown PeerId":
+    let switch1 = newStandardSwitch(secureManagers = [SecureProtocol.Noise])
+    let switch2 = newStandardSwitch(secureManagers = [SecureProtocol.Noise])
+    await switch1.start()
+    await switch2.start()
+
+    check: (await switch2.connect(switch1.peerInfo.addrs)) == switch1.peerInfo.peerId
+    await switch2.disconnect(switch1.peerInfo.peerId)
+
+    await allFuturesThrowing(
+      switch1.stop(),
+      switch2.stop()
+    )
+
   asyncTest "e2e should not leak on peer disconnect":
     let switch1 = newStandardSwitch()
     let switch2 = newStandardSwitch()
@@ -1021,3 +1035,12 @@ suite "Switch":
     await conn.close()
     await src.stop()
     await dst.stop()
+
+  asyncTest "switch failing to start stops properly":
+    let switch = newStandardSwitch(
+      addrs = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet(), MultiAddress.init("/ip4/1.1.1.1/tcp/0").tryGet()]
+    )
+
+    expect LPError:
+      await switch.start()
+    # test is that this doesn't leak

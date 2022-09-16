@@ -19,9 +19,9 @@ import chronos, chronicles
 import ./client,
        ./rconn,
        ./utils,
-       ../../switch,
-       ../../stream/connection,
-       ../../transports/transport
+       ../../../switch,
+       ../../../stream/connection,
+       ../../../transports/transport
 
 logScope:
   topics = "libp2p relay relay-transport"

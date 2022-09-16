@@ -17,7 +17,7 @@ import options
 import chronos, chronicles
 
 import ./messages,
-       ../../stream/connection
+       ../../../stream/connection
 
 logScope:
   topics = "libp2p relay relay-utils"
