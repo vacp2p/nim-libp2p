@@ -117,6 +117,8 @@ proc encodeMessage*(msg: Message, anonymize: bool): seq[byte] =
     pb.write(5, msg.signature)
   if len(msg.key) > 0 and not anonymize:
     pb.write(6, msg.key)
+  if msg.stem.isSome:
+    pb.write(7, msg.stem.get)
   pb.finish()
 
   when defined(libp2p_protobuf_metrics):
@@ -295,6 +297,12 @@ proc decodeMessage*(pb: ProtoBuffer): ProtoResult[Message] {.inline.} =
     trace "decodeMessage: read public key", key = msg.key.shortLog()
   else:
     trace "decodeMessage: public key is missing"
+  var stem: uint32
+  if ? pb.getField(7, stem):
+    msg.stem = some stem
+    trace "decodeMessage: read stem", stem = msg.stem.shortLog()
+  else:
+    trace "decodeMessage: stem is missing"
   ok(msg)
 
 proc decodeMessages*(pb: ProtoBuffer): ProtoResult[seq[Message]] {.inline.} =

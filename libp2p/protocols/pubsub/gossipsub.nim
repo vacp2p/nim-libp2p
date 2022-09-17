@@ -14,7 +14,7 @@ when (NimMajor, NimMinor) < (1, 4):
 else:
   {.push raises: [].}
 
-import std/[tables, sets, options, sequtils]
+import std/[tables, sets, options, random, sequtils]
 import chronos, chronicles, metrics
 import ./pubsub,
        ./floodsub,
@@ -295,10 +295,26 @@ proc handleControl(g: GossipSub, peer: PubSubPeer, control: ControlMessage) =
       peer,
       RPCMsg(control: some(respControl), messages: messages))
 
+proc sampleDandelionPeers(peers: var HashSet[PubSubPeer]) =
+  const dandelionD = 2
+  if peers.len <= dandelionD:
+    return
+
+  trace "Sampling peers", availablePeers = peers.len, dandelionD
+  var
+    remainingPeers = peers.toSeq()
+    randomPeers: HashSet[PubSubPeer]
+  while randomPeers.len < dandelionD:
+    let index = random(remainingPeers.len)
+    randomPeers.incl remainingPeers[index]
+    remainingPeers.delete index
+  peers = randomPeers
+
 proc validateAndRelay(g: GossipSub,
-                      msg: Message,
+                      m: Message,
                       msgId, msgIdSalted: MessageId,
                       peer: PubSubPeer) {.async.} =
+  var msg = m
   try:
     let validation = await g.validate(msg)
 
@@ -319,6 +335,9 @@ proc validateAndRelay(g: GossipSub,
     of ValidationResult.Accept:
       discard
 
+    if msg.stem.get(0) > 0:
+      msg.stem = some(msg.stem.get - 1)
+
     # store in cache only after validation
     g.mcache.put(msgId, msg)
 
@@ -336,6 +355,9 @@ proc validateAndRelay(g: GossipSub,
     # sent it during validation
     toSendPeers.excl(peer)
     toSendPeers.excl(seenPeers)
+
+    if msg.stem.get(0) > 0:
+      toSendPeers.sampleDandelionPeers()
 
     # In theory, if topics are the same in all messages, we could batch - we'd
     # also have to be careful to only include validated messages
@@ -539,13 +561,22 @@ method publish*(g: GossipSub,
     libp2p_gossipsub_failed_publish.inc()
     return 0
 
+  peers.sampleDandelionPeers()
+
   let
     msg =
       if g.anonymize:
-        Message.init(none(PeerInfo), data, topic, none(uint64), false)
+        const
+          dandelionStemLo = 3.uint32
+          dandelionStemHi = 6.uint32
+        let stem = range[dandelionStemLo .. (dandelionStemHi - 1)].rand().uint32
+        Message.init(
+          none(PeerInfo), data, topic, none(uint64), false,
+          stem = some stem)
       else:
         inc g.msgSeqno
-        Message.init(some(g.peerInfo), data, topic, some(g.msgSeqno), g.sign)
+        Message.init(
+          some(g.peerInfo), data, topic, some(g.msgSeqno), g.sign)
     msgId = g.msgIdProvider(msg).valueOr:
       trace "Error generating message id, skipping publish",
         error = error

@@ -65,7 +65,8 @@ proc init*(
     data: seq[byte],
     topic: string,
     seqno: Option[uint64],
-    sign: bool = true): Message
+    sign: bool = true,
+    stem = none(uint32)): Message
     {.gcsafe, raises: [Defect, LPError].} =
   var msg = Message(data: data, topicIDs: @[topic])
 
@@ -82,6 +83,8 @@ proc init*(
         .getBytes().expect("Couldn't get public key bytes!")
   elif sign:
     raise (ref LPError)(msg: "Cannot sign message without peer info")
+
+  msg.stem = stem
 
   msg
 

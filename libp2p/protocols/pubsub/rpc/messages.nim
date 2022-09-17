@@ -39,6 +39,7 @@ type
       topicIds*: seq[string]
       signature*: seq[byte]
       key*: seq[byte]
+      stem*: Option[uint32]
 
     ControlMessage* = object
       ihave*: seq[ControlIHave]
@@ -100,6 +101,16 @@ func shortLog*(c: ControlMessage): auto =
     prune: mapIt(c.prune, it.shortLog)
   )
 
+func shortLog*(s: Option[uint32]): auto =
+  if s.isSome:
+    (
+      stem: $s.get
+    )
+  else:
+    (
+      stem: "(not set)"
+    )
+
 func shortLog*(msg: Message): auto =
   (
     fromPeer: msg.fromPeer.shortLog,
@@ -107,7 +118,8 @@ func shortLog*(msg: Message): auto =
     seqno: msg.seqno.shortLog,
     topicIds: $msg.topicIds,
     signature: msg.signature.shortLog,
-    key: msg.key.shortLog
+    key: msg.key.shortLog,
+    stem: msg.stem.shortLog,
   )
 
 func shortLog*(m: RPCMsg): auto =
