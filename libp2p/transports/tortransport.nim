@@ -7,6 +7,7 @@ else:
 import std/[oids, sequtils]
 import chronos, chronicles, strutils
 import stew/byteutils
+import stew/endians2
 import ../multicodec
 import transport,
       tcptransport,
@@ -18,6 +19,8 @@ import transport,
 const
   Socks5TransportTrackerName* = "libp2p.tortransport"
 
+  ONIO3_MATCHER = mapAnd(TCP, mapEq("onion3"))
+
 type
   TorTransport* = ref object of Transport
     transportAddress: TransportAddress
@@ -25,12 +28,11 @@ type
 
 proc new*(
   T: typedesc[TorTransport],
-  address: string, 
-  port: Port): T {.public, raises: [Defect, TransportAddressError]} =
+  transportAddress: TransportAddress): T {.public.} =
   ## Creates a Tor transport
 
   T(
-    transportAddress: initTAddress(address, port),
+    transportAddress: transportAddress,
     tcpTransport: TcpTransport.new(upgrade = Upgrade()))
 
 proc connHandler*(self: TorTransport,
@@ -83,6 +85,31 @@ proc connHandler*(self: TorTransport,
 
   return conn
 
+proc connectToTorServer(transportAddress: TransportAddress): Future[StreamTransport] {.async, gcsafe.} =
+  let transp = await connect(transportAddress)
+  try:
+    var bytesWritten = await transp.write(@[05'u8, 01, 00])
+    var resp = await transp.read(2)
+    return transp
+  except CatchableError as err:
+    await transp.closeWait()
+    raise err
+
+proc dialPeer(transp: StreamTransport, address: MultiAddress) {.async, gcsafe.} =
+
+  let addressArray = ($address).split('/')
+  let addressStr = addressArray[2].split(':')[0] & ".onion"
+
+  # The address field contains a fully-qualified domain name.
+  # The first octet of the address field contains the number of octets of name that
+  # follow, there is no terminating NUL octet.
+  let dstAddr = @(uint8(addressStr.len).toBytes()) & addressStr.toBytes()
+  let dstPort = address.data.buffer[37..38]
+  let b = @[05'u8, 01, 00, 03] & dstAddr & dstPort
+
+  discard await transp.write(b)
+  discard await transp.read(10)
+
 method dial*(
   self: TorTransport,
   hostname: string,
@@ -91,20 +118,10 @@ method dial*(
   ##
 
   trace "Dialing remote peer", address = $address
-  let transp = await connect(self.transportAddress)
+  let transp = await connectToTorServer(self.transportAddress)
+
   try:
-    var bytesWritten = await transp.write(@[05'u8, 01, 00])
-    var resp = await transp.read(2)
-
-    let addressArray = ($address).split('/')
-    let addressStr = addressArray[2].split(':')[0] & ".onion"
-
-    let port = string.fromBytes(address.data.buffer[37..38])
-
-    bytesWritten = await transp.write("\x05\x01\x00\x03" & addressStr.len.char & addressStr & port)
-    resp = await transp.read(10)
-    echo resp
-
+    await dialPeer(transp, address)
     return await self.connHandler(transp, Direction.Out)
   except CatchableError as err:
     await transp.closeWait()
@@ -116,7 +133,22 @@ method start*(
   ## listen on the transport
   ##
 
-  await self.tcpTransport.start(addrs)
+  #await procCall Transport(self).start(addrs)
+  var ipTcpAddrs: seq[MultiAddress]
+  var onion3Addrs: seq[MultiAddress]
+  for i, ma in addrs:
+    if not self.handles(ma):
+        trace "Invalid address detected, skipping!", address = ma
+        continue
+  
+    let ipTcp = ma[0..1].get()
+    ipTcpAddrs.add(ipTcp)
+    let onion3 = ma[multiCodec("onion3")].get()
+    onion3Addrs.add(onion3) 
+
+  if len(ipTcpAddrs) != 0 and len(onion3Addrs) != 0:
+    await self.tcpTransport.start(ipTcpAddrs)
+    self.addrs = onion3Addrs
 
 method accept*(self: TorTransport): Future[Connection] {.async, gcsafe.} =
   ## accept a new TCP connection
@@ -128,14 +160,7 @@ method stop*(self: TorTransport) {.async, gcsafe.} =
   ##
   await self.tcpTransport.stop()
 
-
-
-
-
-
-
-
-
-
-
-
+method handles*(t: TorTransport, address: MultiAddress): bool {.gcsafe.} =  
+  if procCall Transport(t).handles(address):
+    if address.protocols.isOk:
+      return ONIO3_MATCHER.match(address)

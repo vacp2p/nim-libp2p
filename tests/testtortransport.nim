@@ -13,12 +13,14 @@ import ../libp2p/[stream/connection,
 
 import ./helpers, ./commontransport
 
+let torServer = initTAddress("127.0.0.1", 9050.Port)
+
 suite "Tor transport":
   teardown:
     checkTrackers()
 
   asyncTest "test dial":
-    let s = TorTransport.new("127.0.0.1", 9050.Port)
+    let s = TorTransport.new(torServer)
     let ma = MultiAddress.init("/onion3/torchdeedp3i2jigzjdmfpn5ttjhthh5wbmda2rr3jvqjg5p77c54dqd:80")
     let conn = await s.dial("", ma.tryGet())
 
@@ -31,7 +33,7 @@ suite "Tor transport":
 
   asyncTest "test start":
     proc a() {.async, raises:[].} =
-      let s = TorTransport.new("127.0.0.1", 9050.Port)
+      let s = TorTransport.new(initTAddress("127.0.0.1", 9050.Port))
       let ma = MultiAddress.init("/onion3/a2mncbqsbullu7thgm4e6zxda2xccmcgzmaq44oayhdtm6rav5vovcad:80")
       let conn = await s.dial("", ma.tryGet())
 
@@ -43,8 +45,8 @@ suite "Tor transport":
       #await s.stop()
       echo string.fromBytes(resp)
 
-    let server = TorTransport.new("127.0.0.1", 9150.Port)
-    let ma = @[MultiAddress.init("/ip4/127.0.0.1/tcp/8080").tryGet()]
+    let server = TorTransport.new(initTAddress("127.0.0.1", 9050.Port))
+    let ma = @[MultiAddress.init("/ip4/127.0.0.1/tcp/8080/onion3/a2mncbqsbullu7thgm4e6zxda2xccmcgzmaq44oayhdtm6rav5vovcad:80").tryGet()]
     asyncSpawn server.start(ma)
 
     proc acceptHandler() {.async, gcsafe.} =
