@@ -24,16 +24,20 @@ const
 type
   TorTransport* = ref object of Transport
     transportAddress: TransportAddress
+    flags: set[ServerFlags]
     tcpTransport: TcpTransport
 
 proc new*(
   T: typedesc[TorTransport],
-  transportAddress: TransportAddress): T {.public.} =
+  transportAddress: TransportAddress,
+  flags: set[ServerFlags] = {},
+  upgrade: Upgrade): T {.public.} =
   ## Creates a Tor transport
 
   T(
     transportAddress: transportAddress,
-    tcpTransport: TcpTransport.new(upgrade = Upgrade()))
+    flags: flags,
+    tcpTransport: TcpTransport.new(upgrade = upgrade))
 
 proc connHandler*(self: TorTransport,
                   client: StreamTransport,
@@ -88,8 +92,8 @@ proc connHandler*(self: TorTransport,
 proc connectToTorServer(transportAddress: TransportAddress): Future[StreamTransport] {.async, gcsafe.} =
   let transp = await connect(transportAddress)
   try:
-    var bytesWritten = await transp.write(@[05'u8, 01, 00])
-    var resp = await transp.read(2)
+    discard await transp.write(@[05'u8, 01, 00])
+    discard await transp.read(2)
     return transp
   except CatchableError as err:
     await transp.closeWait()
@@ -108,7 +112,7 @@ proc dialPeer(transp: StreamTransport, address: MultiAddress) {.async, gcsafe.} 
   let b = @[05'u8, 01, 00, 03] & dstAddr & dstPort
 
   discard await transp.write(b)
-  discard await transp.read(10)
+  echo await transp.read(5)
 
 method dial*(
   self: TorTransport,
@@ -133,7 +137,6 @@ method start*(
   ## listen on the transport
   ##
 
-  #await procCall Transport(self).start(addrs)
   var ipTcpAddrs: seq[MultiAddress]
   var onion3Addrs: seq[MultiAddress]
   for i, ma in addrs:
@@ -147,8 +150,8 @@ method start*(
     onion3Addrs.add(onion3) 
 
   if len(ipTcpAddrs) != 0 and len(onion3Addrs) != 0:
+    await procCall Transport(self).start(onion3Addrs)
     await self.tcpTransport.start(ipTcpAddrs)
-    self.addrs = onion3Addrs
 
 method accept*(self: TorTransport): Future[Connection] {.async, gcsafe.} =
   ## accept a new TCP connection
