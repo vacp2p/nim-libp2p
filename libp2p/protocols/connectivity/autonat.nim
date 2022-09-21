@@ -244,11 +244,9 @@ proc handleDial(a: Autonat, conn: Connection, msg: AutonatMsg): Future[void] =
   if peerInfo.id.isSome() and peerInfo.id.get() != conn.peerId:
     return conn.sendResponseError(BadRequest, "PeerId mismatch")
 
-  let observedAddr =
-    if conn.observedAddr.isNone:
-      return conn.sendResponseError(BadRequest, "Missing observed address")
-    else:
-      conn.observedAddr.get()
+  if conn.observedAddr.isNone:
+    return conn.sendResponseError(BadRequest, "Missing observed address")
+  let observedAddr = conn.observedAddr.get()
 
   var isRelayed = observedAddr.contains(multiCodec("p2p-circuit"))
   if isRelayed.isErr() or isRelayed.get():
