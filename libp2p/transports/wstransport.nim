@@ -14,7 +14,7 @@ when (NimMajor, NimMinor) < (1, 4):
 else:
   {.push raises: [].}
 
-import std/[sequtils]
+import std/[sequtils, options]
 import chronos, chronicles
 import transport,
        ../errors,
@@ -46,7 +46,7 @@ proc new*(T: type WsStream,
            session: WSSession,
            dir: Direction,
            timeout = 10.minutes,
-           observedAddr: MultiAddress = MultiAddress()): T =
+           observedAddr: Option[MultiAddress] = none(MultiAddress)): T =
 
   let stream = T(
     session: session,
@@ -222,7 +222,7 @@ proc connHandler(self: WsTransport,
       raise exc
 
   let conn = WsStream.new(stream, dir)
-  conn.observedAddr = observedAddr
+  conn.observedAddr = some(observedAddr)
 
   self.connections[dir].add(conn)
   proc onClose() {.async.} =

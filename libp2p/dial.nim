@@ -12,6 +12,7 @@ when (NimMajor, NimMinor) < (1, 4):
 else:
   {.push raises: [].}
 
+import std/options
 import chronos
 import peerid,
        stream/connection,
@@ -69,5 +70,5 @@ method addTransport*(
 method tryDial*(
   self: Dial,
   peerId: PeerId,
-  addrs: seq[MultiAddress]): Future[MultiAddress] {.async, base.} =
+  addrs: seq[MultiAddress]): Future[Option[MultiAddress]] {.async, base.} =
   doAssert(false, "Not implemented!")

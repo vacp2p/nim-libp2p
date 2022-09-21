@@ -14,7 +14,7 @@ when (NimMajor, NimMinor) < (1, 4):
 else:
   {.push raises: [].}
 
-import std/[oids, sequtils]
+import std/[oids, sequtils, options]
 import chronos, chronicles
 import transport,
        ../errors,
@@ -71,17 +71,19 @@ proc setupTcpTransportTracker(): TcpTransportTracker =
   result.isLeaked = leakTransport
   addTracker(TcpTransportTrackerName, result)
 
-proc connHandler*(self: TcpTransport,
-                  client: StreamTransport,
-                  dir: Direction): Future[Connection] {.async.} =
-  var observedAddr: MultiAddress = MultiAddress()
+proc getObservedAddr(client: StreamTransport): Future[MultiAddress] {.async.} =
   try:
-    observedAddr = MultiAddress.init(client.remoteAddress).tryGet()
+    return MultiAddress.init(client.remoteAddress).tryGet()
   except CatchableError as exc:
     trace "Failed to create observedAddr", exc = exc.msg
     if not(isNil(client) and client.closed):
       await client.closeWait()
     raise exc
+
+proc connHandler*(self: TcpTransport,
+                  client: StreamTransport,
+                  observedAddr: Option[MultiAddress],
+                  dir: Direction): Future[Connection] {.async.} =
 
   trace "Handling tcp connection", address = $observedAddr,
                                    dir = $dir,
@@ -222,7 +224,8 @@ method accept*(self: TcpTransport): Future[Connection] {.async, gcsafe.} =
     self.acceptFuts[index] = self.servers[index].accept()
 
     let transp = await finished
-    return await self.connHandler(transp, Direction.In)
+    let observedAddr = await getObservedAddr(transp)
+    return await self.connHandler(transp, some(observedAddr), Direction.In)
   except TransportOsError as exc:
     # TODO: it doesn't sound like all OS errors
     # can  be ignored, we should re-raise those
@@ -250,7 +253,8 @@ method dial*(
 
   let transp = await connect(address)
   try:
-    return await self.connHandler(transp, Direction.Out)
+    let observedAddr = await getObservedAddr(transp)
+    return await self.connHandler(transp, some(observedAddr), Direction.Out)
   except CatchableError as err:
     await transp.closeWait()
     raise err

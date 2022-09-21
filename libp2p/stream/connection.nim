@@ -12,7 +12,7 @@ when (NimMajor, NimMinor) < (1, 4):
 else:
   {.push raises: [].}
 
-import std/[hashes, oids, strformat]
+import std/[hashes, oids, strformat, options]
 import chronicles, chronos, metrics
 import lpstream,
        ../multiaddress,
@@ -37,7 +37,7 @@ type
     timerTaskFut: Future[void]      # the current timer instance
     timeoutHandler*: TimeoutHandler # timeout handler
     peerId*: PeerId
-    observedAddr*: MultiAddress
+    observedAddr*: Option[MultiAddress]
     upgraded*: Future[void]
     protocol*: string               # protocol used by the connection, used as tag for metrics
     transportDir*: Direction        # The bottom level transport (generally the socket) direction
@@ -162,7 +162,7 @@ proc new*(C: type Connection,
            dir: Direction,
            timeout: Duration = DefaultConnectionTimeout,
            timeoutHandler: TimeoutHandler = nil,
-           observedAddr: MultiAddress = MultiAddress()): Connection =
+           observedAddr: Option[MultiAddress] = none(MultiAddress)): Connection =
   result = C(peerId: peerId,
              dir: dir,
              timeout: timeout,

@@ -174,7 +174,7 @@ proc connectOnce(p: PubSubPeer): Future[void] {.async.} =
 
     trace "Get new send connection", p, newConn
     p.sendConn = newConn
-    p.address = some(p.sendConn.observedAddr)
+    p.address = p.sendConn.observedAddr
 
     if p.onEvent != nil:
       p.onEvent(p, PubSubPeerEvent(kind: PubSubPeerEventKind.Connected))

@@ -226,7 +226,10 @@ proc tryDial(a: Autonat, conn: Connection, addrs: seq[MultiAddress]) {.async.} =
   try:
     await a.sem.acquire()
     let ma = await a.switch.dialer.tryDial(conn.peerId, addrs)
-    await conn.sendResponseOk(ma)
+    if ma.isSome:
+      await conn.sendResponseOk(ma.get())
+    else:
+      await conn.sendResponseError(DialError, "Missing observed address")
   except CancelledError as exc:
     raise exc
   except CatchableError as exc:
@@ -241,15 +244,21 @@ proc handleDial(a: Autonat, conn: Connection, msg: AutonatMsg): Future[void] =
   if peerInfo.id.isSome() and peerInfo.id.get() != conn.peerId:
     return conn.sendResponseError(BadRequest, "PeerId mismatch")
 
-  var isRelayed = conn.observedAddr.contains(multiCodec("p2p-circuit"))
+  let observedAddr =
+    if conn.observedAddr.isNone:
+      return conn.sendResponseError(BadRequest, "Missing observed address")
+    else:
+      conn.observedAddr.get()
+
+  var isRelayed = observedAddr.contains(multiCodec("p2p-circuit"))
   if isRelayed.isErr() or isRelayed.get():
     return conn.sendResponseError(DialRefused, "Refused to dial a relayed observed address")
-  let hostIp = conn.observedAddr[0]
+  let hostIp = observedAddr[0]
   if hostIp.isErr() or not IP.match(hostIp.get()):
-    trace "wrong observed address", address=conn.observedAddr
+    trace "wrong observed address", address=observedAddr
     return conn.sendResponseError(InternalError, "Expected an IP address")
   var addrs = initHashSet[MultiAddress]()
-  addrs.incl(conn.observedAddr)
+  addrs.incl(observedAddr)
   for ma in peerInfo.addrs:
     isRelayed = ma.contains(multiCodec("p2p-circuit"))
     if isRelayed.isErr() or isRelayed.get():
