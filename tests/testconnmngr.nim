@@ -9,6 +9,9 @@ import ../libp2p/[connmanager,
 
 import helpers
 
+proc getConnection(peerId: PeerId, dir: Direction = Direction.In): Connection = 
+  return Connection.new(peerId, dir, Opt.none(MultiAddress))
+
 type
   TestMuxer = ref object of Muxer
     peerId: PeerId
@@ -18,7 +21,7 @@ method newStream*(
   name: string = "",
   lazy: bool = false):
   Future[Connection] {.async, gcsafe.} =
-  result = Connection.new(m.peerId, Direction.Out)
+  result = getConnection(m.peerId, Direction.Out)
 
 suite "Connection Manager":
   teardown:
@@ -27,7 +30,7 @@ suite "Connection Manager":
   asyncTest "add and retrieve a connection":
     let connMngr = ConnManager.new()
     let peerId = PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet()
-    let conn = Connection.new(peerId, Direction.In)
+    let conn = getConnection(peerId)
 
     connMngr.storeConn(conn)
     check conn in connMngr
@@ -41,7 +44,7 @@ suite "Connection Manager":
   asyncTest "shouldn't allow a closed connection":
     let connMngr = ConnManager.new()
     let peerId = PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet()
-    let conn = Connection.new(peerId, Direction.In)
+    let conn = getConnection(peerId)
     await conn.close()
 
     expect CatchableError:
@@ -52,7 +55,7 @@ suite "Connection Manager":
   asyncTest "shouldn't allow an EOFed connection":
     let connMngr = ConnManager.new()
     let peerId = PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet()
-    let conn = Connection.new(peerId, Direction.In)
+    let conn = getConnection(peerId)
     conn.isEof = true
 
     expect CatchableError:
@@ -64,7 +67,7 @@ suite "Connection Manager":
   asyncTest "add and retrieve a muxer":
     let connMngr = ConnManager.new()
     let peerId = PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet()
-    let conn = Connection.new(peerId, Direction.In)
+    let conn = getConnection(peerId)
     let muxer = new Muxer
     muxer.connection = conn
 
@@ -80,7 +83,7 @@ suite "Connection Manager":
   asyncTest "shouldn't allow a muxer for an untracked connection":
     let connMngr = ConnManager.new()
     let peerId = PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet()
-    let conn = Connection.new(peerId, Direction.In)
+    let conn = getConnection(peerId)
     let muxer = new Muxer
     muxer.connection = conn
 
@@ -94,8 +97,8 @@ suite "Connection Manager":
   asyncTest "get conn with direction":
     let connMngr = ConnManager.new()
     let peerId = PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet()
-    let conn1 = Connection.new(peerId, Direction.Out)
-    let conn2 = Connection.new(peerId, Direction.In)
+    let conn1 = getConnection(peerId, Direction.Out)
+    let conn2 = getConnection(peerId)
 
     connMngr.storeConn(conn1)
     connMngr.storeConn(conn2)
@@ -114,7 +117,7 @@ suite "Connection Manager":
   asyncTest "get muxed stream for peer":
     let connMngr = ConnManager.new()
     let peerId = PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet()
-    let conn = Connection.new(peerId, Direction.In)
+    let conn = getConnection(peerId)
 
     let muxer = new TestMuxer
     muxer.peerId = peerId
@@ -134,7 +137,7 @@ suite "Connection Manager":
   asyncTest "get stream from directed connection":
     let connMngr = ConnManager.new()
     let peerId = PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet()
-    let conn = Connection.new(peerId, Direction.In)
+    let conn = getConnection(peerId)
 
     let muxer = new TestMuxer
     muxer.peerId = peerId
@@ -155,7 +158,7 @@ suite "Connection Manager":
   asyncTest "get stream from any connection":
     let connMngr = ConnManager.new()
     let peerId = PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet()
-    let conn = Connection.new(peerId, Direction.In)
+    let conn = getConnection(peerId)
 
     let muxer = new TestMuxer
     muxer.peerId = peerId
@@ -175,11 +178,11 @@ suite "Connection Manager":
     let connMngr = ConnManager.new(maxConnsPerPeer = 1)
     let peerId = PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet()
 
-    connMngr.storeConn(Connection.new(peerId, Direction.In))
+    connMngr.storeConn(getConnection(peerId))
 
     let conns = @[
-        Connection.new(peerId, Direction.In),
-        Connection.new(peerId, Direction.In)]
+        getConnection(peerId),
+        getConnection(peerId)]
 
     expect TooManyConnectionsError:
       connMngr.storeConn(conns[0])
@@ -193,7 +196,7 @@ suite "Connection Manager":
   asyncTest "cleanup on connection close":
     let connMngr = ConnManager.new()
     let peerId = PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet()
-    let conn = Connection.new(peerId, Direction.In)
+    let conn = getConnection(peerId)
     let muxer = new Muxer
 
     muxer.connection = conn
@@ -220,7 +223,7 @@ suite "Connection Manager":
         Direction.In else:
         Direction.Out
 
-      let conn = Connection.new(peerId, dir)
+      let conn = getConnection(peerId, dir)
       let muxer = new Muxer
       muxer.connection = conn
 
@@ -353,7 +356,7 @@ suite "Connection Manager":
       let slot = await ((connMngr.getOutgoingSlot()).wait(10.millis))
 
       let conn =
-        Connection.new(
+        getConnection(
           PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet(),
           Direction.In)
 

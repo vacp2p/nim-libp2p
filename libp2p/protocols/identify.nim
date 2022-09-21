@@ -15,7 +15,7 @@ when (NimMajor, NimMinor) < (1, 4):
 else:
   {.push raises: [].}
 
-import std/[sequtils, options, strutils, sugar, options]
+import std/[sequtils, options, strutils, sugar]
 import chronos, chronicles
 import ../protobuf/minprotobuf,
        ../peerinfo,
@@ -80,7 +80,7 @@ chronicles.expandIt(IdentifyInfo):
     if iinfo.signedPeerRecord.isSome(): "Some"
     else: "None"
 
-proc encodeMsg(peerInfo: PeerInfo, observedAddr: Option[MultiAddress], sendSpr: bool): ProtoBuffer
+proc encodeMsg(peerInfo: PeerInfo, observedAddr: Opt[MultiAddress], sendSpr: bool): ProtoBuffer
   {.raises: [Defect].} =
   result = initProtoBuffer()
 

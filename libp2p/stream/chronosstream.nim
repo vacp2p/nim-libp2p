@@ -12,7 +12,7 @@ when (NimMajor, NimMinor) < (1, 4):
 else:
   {.push raises: [].}
 
-import std/[oids, strformat, options]
+import std/[oids, strformat]
 import chronos, chronicles, metrics
 import connection
 import ../utility
@@ -60,7 +60,7 @@ proc init*(C: type ChronosStream,
            client: StreamTransport,
            dir: Direction,
            timeout = DefaultChronosStreamTimeout,
-           observedAddr: Option[MultiAddress] = none(MultiAddress)): ChronosStream =
+           observedAddr: Opt[MultiAddress]): ChronosStream =
   result = C(client: client,
              timeout: timeout,
              dir: dir,

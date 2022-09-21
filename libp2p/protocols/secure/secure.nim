@@ -12,7 +12,7 @@ when (NimMajor, NimMinor) < (1, 4):
 else:
   {.push raises: [].}
 
-import std/[strformat, options]
+import std/[strformat]
 import chronos, chronicles
 import ../protocol,
        ../../stream/streamseq,
@@ -48,7 +48,7 @@ chronicles.formatIt(SecureConn): shortLog(it)
 proc new*(T: type SecureConn,
            conn: Connection,
            peerId: PeerId,
-           observedAddr: Option[MultiAddress],
+           observedAddr: Opt[MultiAddress],
            timeout: Duration = DefaultConnectionTimeout): T =
   result = T(stream: conn,
              peerId: peerId,
