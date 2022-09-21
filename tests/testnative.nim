@@ -38,6 +38,5 @@ import testtcptransport,
        testrelayv1,
        testrelayv2,
        testrendezvous,
-       testdiscovery,
        testyamux,
        testautonat
