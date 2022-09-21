@@ -1,6 +1,5 @@
 {.used.}
 
-import std/options
 import sequtils
 import chronos, stew/byteutils
 import ../libp2p/[stream/connection,

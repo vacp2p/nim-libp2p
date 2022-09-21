@@ -14,7 +14,7 @@ when (NimMajor, NimMinor) < (1, 4):
 else:
   {.push raises: [].}
 
-import std/[oids, sequtils, options]
+import std/[oids, sequtils]
 import chronos, chronicles
 import transport,
        ../errors,
@@ -82,7 +82,7 @@ proc getObservedAddr(client: StreamTransport): Future[MultiAddress] {.async.} =
 
 proc connHandler*(self: TcpTransport,
                   client: StreamTransport,
-                  observedAddr: Option[MultiAddress],
+                  observedAddr: Opt[MultiAddress],
                   dir: Direction): Future[Connection] {.async.} =
 
   trace "Handling tcp connection", address = $observedAddr,
@@ -225,7 +225,7 @@ method accept*(self: TcpTransport): Future[Connection] {.async, gcsafe.} =
 
     let transp = await finished
     let observedAddr = await getObservedAddr(transp)
-    return await self.connHandler(transp, some(observedAddr), Direction.In)
+    return await self.connHandler(transp, Opt.some(observedAddr), Direction.In)
   except TransportOsError as exc:
     # TODO: it doesn't sound like all OS errors
     # can  be ignored, we should re-raise those
@@ -254,7 +254,7 @@ method dial*(
   let transp = await connect(address)
   try:
     let observedAddr = await getObservedAddr(transp)
-    return await self.connHandler(transp, some(observedAddr), Direction.Out)
+    return await self.connHandler(transp, Opt.some(observedAddr), Direction.Out)
   except CatchableError as err:
     await transp.closeWait()
     raise err

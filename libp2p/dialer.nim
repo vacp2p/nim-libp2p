@@ -7,7 +7,7 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-import std/[sugar, tables, options]
+import std/[sugar, tables]
 
 import pkg/[chronos,
             chronicles,
@@ -189,7 +189,7 @@ proc negotiateStream(
 method tryDial*(
   self: Dialer,
   peerId: PeerId,
-  addrs: seq[MultiAddress]): Future[Option[MultiAddress]] {.async.} =
+  addrs: seq[MultiAddress]): Future[Opt[MultiAddress]] {.async.} =
   ## Create a protocol stream in order to check
   ## if a connection is possible.
   ## Doesn't use the Connection Manager to save it.
