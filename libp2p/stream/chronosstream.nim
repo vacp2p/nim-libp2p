@@ -13,9 +13,12 @@ else:
   {.push raises: [].}
 
 import std/[oids, strformat]
+import stew/results
 import chronos, chronicles, metrics
 import connection
 import ../utility
+
+export results
 
 logScope:
   topics = "libp2p chronosstream"
@@ -60,7 +63,7 @@ proc init*(C: type ChronosStream,
            client: StreamTransport,
            dir: Direction,
            timeout = DefaultChronosStreamTimeout,
-           observedAddr: MultiAddress = MultiAddress()): ChronosStream =
+           observedAddr: Opt[MultiAddress]): ChronosStream =
   result = C(client: client,
              timeout: timeout,
              dir: dir,

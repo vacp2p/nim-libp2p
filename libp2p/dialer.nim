@@ -9,6 +9,7 @@
 
 import std/[sugar, tables]
 
+import stew/results
 import pkg/[chronos,
             chronicles,
             metrics]
@@ -24,7 +25,7 @@ import dial,
        upgrademngrs/upgrade,
        errors
 
-export dial, errors
+export dial, errors, results
 
 logScope:
   topics = "libp2p dialer"
@@ -189,7 +190,7 @@ proc negotiateStream(
 method tryDial*(
   self: Dialer,
   peerId: PeerId,
-  addrs: seq[MultiAddress]): Future[MultiAddress] {.async.} =
+  addrs: seq[MultiAddress]): Future[Opt[MultiAddress]] {.async.} =
   ## Create a protocol stream in order to check
   ## if a connection is possible.
   ## Doesn't use the Connection Manager to save it.
