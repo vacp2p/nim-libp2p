@@ -1,4 +1,5 @@
 import sequtils
+import stew/results
 import chronos
 import ../libp2p/[connmanager,
                   stream/connection,

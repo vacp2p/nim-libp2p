@@ -15,6 +15,7 @@ else:
   {.push raises: [].}
 
 import std/[sequtils]
+import stew/results
 import chronos, chronicles
 import transport,
        ../errors,
@@ -31,7 +32,7 @@ import transport,
 logScope:
   topics = "libp2p wstransport"
 
-export transport, websock
+export transport, websock, results
 
 const
   WsTransportTrackerName* = "libp2p.wstransport"

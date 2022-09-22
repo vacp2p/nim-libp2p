@@ -13,6 +13,7 @@ else:
   {.push raises: [].}
 
 import std/[strformat]
+import stew/results
 import chronos, chronicles
 import ../protocol,
        ../../stream/streamseq,
@@ -21,7 +22,7 @@ import ../protocol,
        ../../peerinfo,
        ../../errors
 
-export protocol
+export protocol, results
 
 logScope:
   topics = "libp2p secure"

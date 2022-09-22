@@ -13,13 +13,14 @@ else:
   {.push raises: [].}
 
 import std/[hashes, oids, strformat]
+import stew/results
 import chronicles, chronos, metrics
 import lpstream,
        ../multiaddress,
        ../peerinfo,
        ../errors
 
-export lpstream, peerinfo, errors
+export lpstream, peerinfo, errors, results
 
 logScope:
   topics = "libp2p connection"

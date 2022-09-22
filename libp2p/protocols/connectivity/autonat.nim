@@ -13,6 +13,7 @@ else:
   {.push raises: [].}
 
 import std/[options, sets, sequtils]
+import stew/results
 import chronos, chronicles, stew/objects
 import ../protocol,
        ../../switch,

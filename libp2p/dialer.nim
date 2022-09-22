@@ -9,6 +9,7 @@
 
 import std/[sugar, tables]
 
+import stew/results
 import pkg/[chronos,
             chronicles,
             metrics]
@@ -24,7 +25,7 @@ import dial,
        upgrademngrs/upgrade,
        errors
 
-export dial, errors
+export dial, errors, results
 
 logScope:
   topics = "libp2p dialer"

@@ -12,7 +12,8 @@ when (NimMajor, NimMinor) < (1, 4):
 else:
   {.push raises: [].}
 
-import std/[sequtils, strutils, tables, hashes]
+import std/[sequtils, strutils, tables, hashes, options]
+import stew/results
 import chronos, chronicles, nimcrypto/sha2, metrics
 import rpc/[messages, message, protobuf],
        ../../peerid,

@@ -15,6 +15,7 @@ else:
   {.push raises: [].}
 
 import std/[oids, sequtils]
+import stew/results
 import chronos, chronicles
 import transport,
        ../errors,
@@ -31,7 +32,7 @@ import transport,
 logScope:
   topics = "libp2p tcptransport"
 
-export transport
+export transport, results
 
 const
   TcpTransportTrackerName* = "libp2p.tcptransport"

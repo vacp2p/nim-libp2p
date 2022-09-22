@@ -13,9 +13,12 @@ else:
   {.push raises: [].}
 
 import chronos
+import stew/results
 import peerid,
        stream/connection,
        transports/transport
+
+export results
 
 type
   Dial* = ref object of RootObj

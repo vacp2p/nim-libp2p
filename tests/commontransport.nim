@@ -1,7 +1,7 @@
 {.used.}
 
 import sequtils
-import chronos, stew/byteutils
+import chronos, stew/[byteutils, results]
 import ../libp2p/[stream/connection,
                   transports/transport,
                   upgrademngrs/upgrade,

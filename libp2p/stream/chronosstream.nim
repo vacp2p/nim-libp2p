@@ -13,9 +13,12 @@ else:
   {.push raises: [].}
 
 import std/[oids, strformat]
+import stew/results
 import chronos, chronicles, metrics
 import connection
 import ../utility
+
+export results
 
 logScope:
   topics = "libp2p chronosstream"
