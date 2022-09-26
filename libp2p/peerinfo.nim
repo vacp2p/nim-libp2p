@@ -15,7 +15,7 @@ else:
 
 import std/[options, sequtils]
 import pkg/[chronos, chronicles, stew/results]
-import peerid, multiaddress, crypto/crypto, routing_record, errors, utility
+import peerid, multiaddress, multicodec, crypto/crypto, routing_record, errors, utility
 
 export peerid, multiaddress, crypto, routing_record, errors, results
 
@@ -55,6 +55,23 @@ proc update*(p: PeerInfo) =
     discard
     #info "Can't update the signed peer record"
 
+proc fullAddrs*(p: PeerInfo): seq[MultiAddress] {.raises: [LPError].} =
+  let peerIdPart = MultiAddress.init(multiCodec("p2p"), p.peerId.data).tryGet()
+  for address in p.addrs:
+    let fullAddr = address & peerIdPart
+    result.add(fullAddr)
+
+proc parseFullAddress*(ma: MultiAddress): (PeerId, MultiAddress) {.raises: [LPError].} =
+  let p2pPart = ma[^1].tryGet()
+  if p2pPart.protoCode.tryGet() != multiCodec("p2p"):
+    raise newException(MaError, "Missing p2p part from multiaddress!")
+
+  result[1] = ma[0 .. ^2].tryGet()
+  result[0] = PeerId.init(p2pPart.protoArgument().tryGet()).tryGet()
+
+proc parseFullAddress*(ma: string): (PeerId, MultiAddress) {.raises: [LPError].} =
+  MultiAddress.init(ma).tryGet().parseFullAddress()
+
 proc new*(
   p: typedesc[PeerInfo],
   key: PrivateKey,
@@ -68,7 +85,7 @@ proc new*(
       key.getPublicKey().tryGet()
     except CatchableError:
       raise newException(PeerInfoError, "invalid private key")
-  
+
   let peerId = PeerId.init(key).tryGet()
 
   let peerInfo = PeerInfo(

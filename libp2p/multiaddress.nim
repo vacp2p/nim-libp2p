@@ -1092,6 +1092,9 @@ proc `$`*(pat: MaPattern): string =
   elif pat.operator == Eq:
     result = $pat.value
 
+proc bytes*(value: MultiAddress): seq[byte] =
+  value.data.buffer
+
 proc write*(pb: var ProtoBuffer, field: int, value: MultiAddress) {.inline.} =
   write(pb, field, value.data.buffer)
 
