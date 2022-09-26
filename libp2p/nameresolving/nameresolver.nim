@@ -13,7 +13,7 @@ else:
   {.push raises: [].}
 
 import std/[sugar, sets, sequtils, strutils]
-import 
+import
   chronos,
   chronicles,
   stew/[endians2, byteutils]
@@ -22,14 +22,14 @@ import ".."/[multiaddress, multicodec]
 logScope:
   topics = "libp2p nameresolver"
 
-type 
+type
   NameResolver* = ref object of RootObj
 
 method resolveTxt*(
   self: NameResolver,
   address: string): Future[seq[string]] {.async, base.} =
   ## Get TXT record
-  ## 
+  ##
 
   doAssert(false, "Not implemented!")
 
@@ -39,16 +39,18 @@ method resolveIp*(
   port: Port,
   domain: Domain = Domain.AF_UNSPEC): Future[seq[TransportAddress]] {.async, base.} =
   ## Resolve the specified address
-  ## 
+  ##
 
   doAssert(false, "Not implemented!")
 
 proc getHostname*(ma: MultiAddress): string =
-  let firstPart = ($ma[0].get()).split('/')
-  if firstPart.len > 1: firstPart[2]
+  let
+    firstPart = ma[0].valueOr: return ""
+    fpSplitted = ($firstPart).split('/', 2)
+  if fpSplitted.len > 2: fpSplitted[2]
   else: ""
 
-proc resolveDnsAddress(
+proc resolveOneAddress(
   self: NameResolver,
   ma: MultiAddress,
   domain: Domain = Domain.AF_UNSPEC,
@@ -64,29 +66,22 @@ proc resolveDnsAddress(
   let
     port = Port(fromBytesBE(uint16, pbuf))
     resolvedAddresses = await self.resolveIp(prefix & dnsval, port, domain)
- 
+
   return collect(newSeqOfCap(4)):
     for address in resolvedAddresses:
       var createdAddress = MultiAddress.init(address).tryGet()[0].tryGet()
       for part in ma:
-        if DNS.match(part.get()): continue
+        if DNS.match(part.tryGet()): continue
         createdAddress &= part.tryGet()
       createdAddress
 
-func matchDnsSuffix(m1, m2: MultiAddress): MaResult[bool] =
-  for partMaybe in m1:
-    let part = ?partMaybe
-    if DNS.match(part): continue
-    let entryProt = ?m2[?part.protoCode()]
-    if entryProt != part:
-      return ok(false)
-  return ok(true)
-
-proc resolveDnsAddr(
+proc resolveDnsAddr*(
   self: NameResolver,
   ma: MultiAddress,
-  depth: int = 0): Future[seq[MultiAddress]]
-  {.async.} =
+  depth: int = 0): Future[seq[MultiAddress]] {.async.} =
+
+  if not DNSADDR.matchPartial(ma):
+    return @[ma]
 
   trace "Resolving dnsaddr", ma
   if depth > 6:
@@ -104,21 +99,17 @@ proc resolveDnsAddr(
     if not entry.startsWith("dnsaddr="): continue
     let entryValue = MultiAddress.init(entry[8..^1]).tryGet()
 
-    if not matchDnsSuffix(ma, entryValue).tryGet(): continue
+    if entryValue.contains(multiCodec("p2p")).tryGet() and ma.contains(multiCodec("p2p")).tryGet():
+      if entryValue[multiCodec("p2p")] != ma[multiCodec("p2p")]:
+        continue
 
-    # The spec is not clear wheter only DNSADDR can be recursived
-    # or any DNS addr. Only handling DNSADDR because it's simpler
-    # to avoid infinite recursion
-    if DNSADDR.matchPartial(entryValue):
-      let resolved = await self.resolveDnsAddr(entryValue, depth + 1)
-      for r in resolved:
-        result.add(r)
-    else:
-      result.add(entryValue)
+    let resolved = await self.resolveDnsAddr(entryValue, depth + 1)
+    for r in resolved:
+      result.add(r)
 
   if result.len == 0:
-    debug "Failed to resolve any DNSADDR", ma
-    return @[ma]
+    debug "Failed to resolve a DNSADDR", ma
+    return @[]
   return result
 
 
@@ -133,14 +124,15 @@ proc resolveMAddress*(
     let code = address[0].get().protoCode().get()
     let seq = case code:
       of multiCodec("dns"):
-        await self.resolveDnsAddress(address)
+        await self.resolveOneAddress(address)
       of multiCodec("dns4"):
-        await self.resolveDnsAddress(address, Domain.AF_INET)
+        await self.resolveOneAddress(address, Domain.AF_INET)
       of multiCodec("dns6"):
-        await self.resolveDnsAddress(address, Domain.AF_INET6)
+        await self.resolveOneAddress(address, Domain.AF_INET6)
       of multiCodec("dnsaddr"):
         await self.resolveDnsAddr(address)
       else:
+        doAssert false
         @[address]
     for ad in seq:
       res.incl(ad)

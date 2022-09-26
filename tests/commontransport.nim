@@ -1,7 +1,7 @@
 {.used.}
 
 import sequtils
-import chronos, stew/byteutils
+import chronos, stew/[byteutils, results]
 import ../libp2p/[stream/connection,
                   transports/transport,
                   upgrademngrs/upgrade,
@@ -35,14 +35,16 @@ proc commonTransportTest*(name: string, prov: TransportProvider, ma: string) =
 
       proc acceptHandler() {.async, gcsafe.} =
         let conn = await transport1.accept()
-        check transport1.handles(conn.observedAddr)
+        if conn.observedAddr.isSome():
+          check transport1.handles(conn.observedAddr.get())
         await conn.close()
 
       let handlerWait = acceptHandler()
 
       let conn = await transport2.dial(transport1.addrs[0])
 
-      check transport2.handles(conn.observedAddr)
+      if conn.observedAddr.isSome():
+        check transport2.handles(conn.observedAddr.get())
 
       await conn.close() #for some protocols, closing requires actively reading, so we must close here
 

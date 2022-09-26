@@ -13,13 +13,14 @@ else:
   {.push raises: [].}
 
 import std/[hashes, oids, strformat]
+import stew/results
 import chronicles, chronos, metrics
 import lpstream,
        ../multiaddress,
        ../peerinfo,
        ../errors
 
-export lpstream, peerinfo, errors
+export lpstream, peerinfo, errors, results
 
 logScope:
   topics = "libp2p connection"
@@ -37,7 +38,7 @@ type
     timerTaskFut: Future[void]      # the current timer instance
     timeoutHandler*: TimeoutHandler # timeout handler
     peerId*: PeerId
-    observedAddr*: MultiAddress
+    observedAddr*: Opt[MultiAddress]
     upgraded*: Future[void]
     protocol*: string               # protocol used by the connection, used as tag for metrics
     transportDir*: Direction        # The bottom level transport (generally the socket) direction
@@ -160,9 +161,9 @@ method getWrapped*(s: Connection): Connection {.base.} =
 proc new*(C: type Connection,
            peerId: PeerId,
            dir: Direction,
+           observedAddr: Opt[MultiAddress],
            timeout: Duration = DefaultConnectionTimeout,
-           timeoutHandler: TimeoutHandler = nil,
-           observedAddr: MultiAddress = MultiAddress()): Connection =
+           timeoutHandler: TimeoutHandler = nil): Connection =
   result = C(peerId: peerId,
              dir: dir,
              timeout: timeout,
