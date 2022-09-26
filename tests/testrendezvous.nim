@@ -1,7 +1,7 @@
 {.used.}
 
-import options, chronos
-import stew/byteutils
+import options, sequtils
+import stew/byteutils, chronos
 import ../libp2p/[protocols/rendezvous,
                   switch,
                   builders,]
@@ -62,6 +62,34 @@ suite "RendezVous":
     let res3 = await rdv.request("foo")
     check res3.len == 0
     await allFutures(client.stop(), remoteSwitch.stop())
+
+  asyncTest "Harder remote test":
+    var
+      rdvSeq: seq[RendezVous] = @[]
+      clientSeq: seq[Switch] = @[]
+      remoteSwitch = createSwitch()
+
+    for x in 0..10:
+      rdvSeq.add(RendezVous.new())
+      clientSeq.add(createSwitch(rdvSeq[^1]))
+    await remoteSwitch.start()
+    await allFutures(clientSeq.mapIt(it.start()))
+    await allFutures(clientSeq.mapIt(remoteSwitch.connect(it.peerInfo.peerId, it.peerInfo.addrs)))
+    await allFutures(rdvSeq.mapIt(it.advertise("foo")))
+    var data = clientSeq.mapIt(it.peerInfo.signedPeerRecord.data)
+    let res1 = await rdvSeq[0].request("foo", 5)
+    check res1.len == 5
+    for d in res1:
+      check d in data
+    data.keepItIf(it notin res1)
+    let res2 = await rdvSeq[0].request("foo")
+    check res2.len == 5
+    for d in res2:
+      check d in data
+    let res3 = await rdvSeq[0].request("foo")
+    check res3.len == 0
+    await remoteSwitch.stop()
+    await allFutures(clientSeq.mapIt(it.stop()))
 
   asyncTest "Simple cookie test":
     let
