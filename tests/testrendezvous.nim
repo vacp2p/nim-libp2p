@@ -1,6 +1,6 @@
 {.used.}
 
-import options, sequtils
+import options, sequtils, strutils
 import stew/byteutils, chronos
 import ../libp2p/[protocols/rendezvous,
                   switch,
@@ -112,3 +112,14 @@ suite "RendezVous":
       res2.len == 1
       res2[0] == clientB.peerInfo.signedPeerRecord.data
     await allFutures(clientA.stop(), clientB.stop(), remoteSwitch.stop())
+
+  asyncTest "Various local error":
+    let
+      rdv = RendezVous.new()
+      switch = createSwitch(rdv)
+    expect RendezVousError: discard await rdv.request("A".repeat(300))
+    expect RendezVousError: discard await rdv.request("A", -1)
+    expect RendezVousError: discard await rdv.request("A", 3000)
+    expect RendezVousError: await rdv.advertise("A".repeat(300))
+    expect RendezVousError: await rdv.advertise("A", 2.weeks)
+    expect RendezVousError: await rdv.advertise("A", 5.minutes)

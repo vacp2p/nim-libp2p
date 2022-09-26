@@ -280,6 +280,7 @@ proc decode(_: typedesc[Message], buf: seq[byte]): Option[Message] =
 
 
 type
+  RendezVousError* = object of LPError
   RegisteredData = object
     expiration: Moment
     peerId: PeerId
@@ -478,10 +479,13 @@ proc advertisePeer(rdv: RendezVous,
 proc advertise*(rdv: RendezVous,
                 ns: string,
                 ttl: Duration = MinimumDuration) {.async.} =
-  let
-    sprBuff = rdv.switch.peerInfo.signedPeerRecord.encode()
-  if sprBuff.isErr() or ns.len notin 1..255 or ttl notin MinimumDuration..MaximumDuration:
-    return
+  let sprBuff = rdv.switch.peerInfo.signedPeerRecord.encode()
+  if sprBuff.isErr():
+    raise newException(RendezVousError, "Wrong Signed Peer Record")
+  if ns.len notin 1..255:
+    raise newException(RendezVousError, "Invalid namespace")
+  if ttl notin MinimumDuration..MaximumDuration:
+    raise newException(RendezVousError, "Invalid time to live")
   let
     r = Register(ns: ns, signedPeerRecord: sprBuff.get(), ttl: some(ttl.seconds.uint64))
     msg = encode(Message(msgType: MessageType.Register, register: some(r)))
@@ -513,7 +517,10 @@ proc request*(rdv: RendezVous,
     limit: uint64
     d = Discover(ns: ns)
 
-  if l <= 0 or l > DiscoverLimit.int: return
+  if l <= 0 or l > DiscoverLimit.int:
+    raise newException(RendezVousError, "Invalid limit")
+  if ns.len notin 0..255:
+    raise newException(RendezVousError, "Invalid namespace")
   limit = l.uint64
   proc requestPeer(peer: PeerId) {.async.} =
     let conn = await rdv.switch.dial(peer, RendezVousCodec)
@@ -581,6 +588,8 @@ proc unsubscribeLocally*(rdv: RendezVous, ns: string) =
 
 proc unsubscribe*(rdv: RendezVous, ns: string) {.async.} =
   # TODO: find a way to improve this, maybe something similar to the advertise
+  if ns.len notin 1..255:
+    raise newException(RendezVousError, "Invalid namespace")
   rdv.unsubscribeLocally(ns)
   let msg = encode(Message(
     msgType: MessageType.Unregister,
