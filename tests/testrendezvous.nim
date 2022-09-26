@@ -30,7 +30,9 @@ suite "RendezVous":
     check res0.len == 0
     await rdv.advertise("foo")
     let res1 = rdv.requestLocally("foo")
-    check res1.len == 1 and res1[0] == s.peerInfo.signedPeerRecord.data
+    check:
+      res1.len == 1
+      res1[0] == s.peerInfo.signedPeerRecord.data
     let res2 = rdv.requestLocally("bar")
     check res2.len == 0
     rdv.unsubscribeLocally("foo")
@@ -51,7 +53,9 @@ suite "RendezVous":
     check res0.len == 0
     await rdv.advertise("foo")
     let res1 = await rdv.request("foo")
-    check res1.len == 1 and res1[0] == client.peerInfo.signedPeerRecord.data
+    check:
+      res1.len == 1
+      res1[0] == client.peerInfo.signedPeerRecord.data
     let res2 = await rdv.request("bar")
     check res2.len == 0
     await rdv.unsubscribe("foo")
@@ -76,5 +80,7 @@ suite "RendezVous":
     let res1 = await rdvA.request("foo")
     await rdvB.advertise("foo")
     let res2 = await rdvA.request("foo")
-    check: res2.len == 1 and res2[0] == clientB.peerInfo.signedPeerRecord.data
+    check:
+      res2.len == 1
+      res2[0] == clientB.peerInfo.signedPeerRecord.data
     await allFutures(clientA.stop(), clientB.stop(), remoteSwitch.stop())

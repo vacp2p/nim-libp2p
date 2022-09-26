@@ -16,8 +16,7 @@ requires "nim >= 1.2.0",
          "metrics",
          "secp256k1",
          "stew#head",
-         "websock",
-         "protobuf_serialization"
+         "websock"
 
 proc runTest(filename: string, verify: bool = true, sign: bool = true,
              moreoptions: string = "") =
