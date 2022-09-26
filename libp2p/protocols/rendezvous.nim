@@ -293,8 +293,10 @@ type
     # Registered needs to be an offsetted sequence
     # because we need stable index for the cookies.
     registered: OffsettedSeq[RegisteredData]
-    # Indexes are just "pointer" to registered.
-    indexes: Table[string, seq[int]]
+    # Namespaces is a table whose key is a salted namespace and
+    # the value is the index sequence corresponding to this
+    # namespace in the offsettedqueue.
+    namespaces: Table[string, seq[int]]
     rng: ref HmacDrbgContext
     salt: string
     defaultDT: Moment
@@ -361,9 +363,9 @@ proc save(rdv: RendezVous,
           r: Register,
           update: bool = true) =
   let nsSalted = ns & rdv.salt
-  discard rdv.indexes.hasKeyOrPut(nsSalted, newSeq[int]())
+  discard rdv.namespaces.hasKeyOrPut(nsSalted, newSeq[int]())
   try:
-    for index in rdv.indexes[nsSalted]:
+    for index in rdv.namespaces[nsSalted]:
       if rdv.registered[index].peerId == peerId:
         if update == false: return
         rdv.registered[index].expiration = rdv.defaultDT
@@ -374,7 +376,7 @@ proc save(rdv: RendezVous,
         data: r
       )
     )
-    rdv.indexes[nsSalted].add(rdv.registered.high)
+    rdv.namespaces[nsSalted].add(rdv.registered.high)
 #    rdv.registerEvent.fire()
   except KeyError:
     doAssert false, "Should have key"
@@ -398,7 +400,7 @@ proc unregister(rdv: RendezVous, conn: Connection, u: Unregister) =
   trace "Received Unregister", peerId = conn.peerId, ns = u.ns
   let nsSalted = u.ns & rdv.salt
   try:
-    for index in rdv.indexes[nsSalted]:
+    for index in rdv.namespaces[nsSalted]:
       if rdv.registered[index].peerId == conn.peerId:
         rdv.registered[index].expiration = rdv.defaultDT
   except KeyError:
@@ -424,21 +426,21 @@ proc discover(rdv: RendezVous, conn: Connection, d: Discover) {.async.} =
     cookie = Cookie(offset: rdv.registered.low().uint64 - 1)
   let
     nsSalted = d.ns & rdv.salt
-    indexes =
+    namespaces =
       if d.ns != "":
         try:
-          rdv.indexes[nsSalted]
+          rdv.namespaces[nsSalted]
         except KeyError:
           await conn.sendDiscoverResponseError(InvalidNamespace)
           return
       else: toSeq(cookie.offset.int..rdv.registered.high())
-  if indexes.len() == 0:
+  if namespaces.len() == 0:
     await conn.sendDiscoverResponse(@[], Cookie())
     return
-  var offset = indexes[^1]
+  var offset = namespaces[^1]
   let n = Moment.now()
   var s = collect(newSeq()):
-      for index in indexes:
+      for index in namespaces:
         var reg = rdv.registered[index]
         if limit == 0:
           offset = index
@@ -496,7 +498,7 @@ proc requestLocally*(rdv: RendezVous, ns: string): seq[PeerRecord] =
     n = Moment.now()
   try:
     collect(newSeq()):
-      for index in rdv.indexes[nsSalted]:
+      for index in rdv.namespaces[nsSalted]:
         if rdv.registered[index].expiration > n:
           SignedPeerRecord.decode(rdv.registered[index].data.signedPeerRecord).get().data
   except KeyError as exc:
@@ -571,7 +573,7 @@ proc request*(rdv: RendezVous,
 proc unsubscribeLocally*(rdv: RendezVous, ns: string) =
   let nsSalted = ns & rdv.salt
   try:
-    for index in rdv.indexes[nsSalted]:
+    for index in rdv.namespaces[nsSalted]:
       if rdv.registered[index].peerId == rdv.switch.peerInfo.peerId:
         rdv.registered[index].expiration = rdv.defaultDT
   except KeyError:
@@ -651,7 +653,7 @@ proc deletesRegister(rdv: RendezVous) {.async.} =
   heartbeat "Register timeout", 1.minutes:
     let n = Moment.now()
     rdv.registered.flushIfIt(it.expiration < n)
-    for data in rdv.indexes.mvalues():
+    for data in rdv.namespaces.mvalues():
       data.keepItIf(it >= rdv.registered.offset)
 
 method start*(rdv: RendezVous) {.async.} =
