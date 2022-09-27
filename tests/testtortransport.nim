@@ -9,7 +9,8 @@ import ../libp2p/[stream/connection,
                   upgrademngrs/upgrade,
                   multiaddress,
                   errors,
-                  wire]
+                  wire,
+                  builders]
 
 import ./helpers, ./commontransport
 
@@ -31,7 +32,7 @@ suite "Tor transport":
     await conn.close()
     echo string.fromBytes(resp)
 
-  asyncTest "test start":
+  asyncTest "test dial and start":
     proc a() {.async, raises:[].} =
       let s = TorTransport.new(transportAddress = torServer, upgrade = Upgrade())
       let ma = MultiAddress.init("/onion3/a2mncbqsbullu7thgm4e6zxda2xccmcgzmaq44oayhdtm6rav5vovcad:80")
@@ -45,9 +46,9 @@ suite "Tor transport":
       #await s.stop()
       echo string.fromBytes(resp)
 
-    let server = TorTransport.new(transportAddress = torServer, upgrade = Upgrade())
+    let server = TorTransport.new(torServer, {ReuseAddr}, Upgrade())
     let ma = @[MultiAddress.init("/ip4/127.0.0.1/tcp/8080/onion3/a2mncbqsbullu7thgm4e6zxda2xccmcgzmaq44oayhdtm6rav5vovcad:80").tryGet()]
-    asyncSpawn server.start(ma)
+    await server.start(ma)
 
     proc acceptHandler() {.async, gcsafe.} =
       let conn = await server.accept()
@@ -60,3 +61,69 @@ suite "Tor transport":
 
     await handlerWait.wait(1.seconds) # when no issues will not wait that long!
     await server.stop()
+
+  asyncTest "test dial and start with builder":
+
+    ##
+    # Create our custom protocol
+    ##
+    const TestCodec = "/test/proto/1.0.0" # custom protocol string identifier
+
+    type
+      TestProto = ref object of LPProtocol # declare a custom protocol
+
+    proc new(T: typedesc[TestProto]): T =
+
+      # every incoming connections will be in handled in this closure
+      proc handle(conn: Connection, proto: string) {.async, gcsafe.} =
+        echo "Got from remote - ", string.fromBytes(await conn.readLp(1024))
+        await conn.writeLp("Roger p2p!")
+
+        # We must close the connections ourselves when we're done with it
+        await conn.close()
+
+      return T(codecs: @[TestCodec], handler: handle)
+
+
+    let rng = newRng()
+
+    let ma = MultiAddress.init("/ip4/127.0.0.1/tcp/8080/onion3/a2mncbqsbullu7thgm4e6zxda2xccmcgzmaq44oayhdtm6rav5vovcad:80").tryGet()
+
+    let serverSwitch = SwitchBuilder.new()
+      .withRng(rng)
+      .withTorTransport(torServer, {ReuseAddr})
+      .withAddress(ma)
+      .withMplex()
+      .withNoise()
+      .build()
+
+    # setup the custom proto
+    let testProto = TestProto.new()
+
+    serverSwitch.mount(testProto)
+    await serverSwitch.start()
+
+    let serverPeerId = serverSwitch.peerInfo.peerId
+    let serverAddress = serverSwitch.peerInfo.addrs
+
+    proc a(): Future[Switch] {.async, raises:[].} =
+      let clientSwitch = SwitchBuilder.new()
+        .withRng(rng)
+        .withTorTransport(torServer)
+        .withMplex()
+        .withNoise()
+        .build()
+
+      let conn = await clientSwitch.dial(serverPeerId, serverAddress, TestCodec)
+
+      await conn.writeLp("Hello p2p!")
+
+      echo "Remote responded with - ", string.fromBytes(await conn.readLp(1024))
+      await conn.close()
+      return clientSwitch
+
+    let client = await a()
+
+    await allFutures(serverSwitch.stop(), client.stop())
+
+

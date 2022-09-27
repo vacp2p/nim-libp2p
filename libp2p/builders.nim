@@ -24,7 +24,7 @@ else:
 import
   options, tables, chronos, chronicles, sequtils,
   switch, peerid, peerinfo, stream/connection, multiaddress,
-  crypto/crypto, transports/[transport, tcptransport],
+  crypto/crypto, transports/[transport, tcptransport, tortransport],
   muxers/[muxer, mplex/mplex, yamux/yamux],
   protocols/[identify, secure/secure, secure/noise, rendezvous],
   protocols/connectivity/[autonat, relay/relay, relay/client, relay/rtransport],
@@ -146,6 +146,9 @@ proc withTransport*(b: SwitchBuilder, prov: TransportProvider): SwitchBuilder {.
 
 proc withTcpTransport*(b: SwitchBuilder, flags: set[ServerFlags] = {}): SwitchBuilder {.public.} =
   b.withTransport(proc(upgr: Upgrade): Transport = TcpTransport.new(flags, upgr))
+
+proc withTorTransport*(b: SwitchBuilder, torServerForDialing: TransportAddress, flags: set[ServerFlags] = {}): SwitchBuilder {.public} =
+  b.withTransport(proc(upgr: Upgrade): Transport = TorTransport.new(torServerForDialing, flags, upgr))
 
 proc withRng*(b: SwitchBuilder, rng: ref HmacDrbgContext): SwitchBuilder {.public.} =
   b.rng = rng

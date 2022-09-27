@@ -18,12 +18,14 @@ import transport,
 const
   Socks5TransportTrackerName* = "libp2p.tortransport"
 
-  ONIO3_MATCHER = mapAnd(TCP, mapEq("onion3"))
+  ONIO3_MATCHER = mapEq("onion3")
+  TCP_ONIO3_MATCHER = mapAnd(TCP, ONIO3_MATCHER)
 
 type
+  TransportStartError* = object of transport.TransportError
+
   TorTransport* = ref object of Transport
     transportAddress: TransportAddress
-    flags: set[ServerFlags]
     tcpTransport: TcpTransport
 
 proc new*(
@@ -35,8 +37,8 @@ proc new*(
 
   T(
     transportAddress: transportAddress,
-    flags: flags,
-    tcpTransport: TcpTransport.new(upgrade = upgrade))
+    upgrader: upgrade,
+    tcpTransport: TcpTransport.new(flags, upgrade))
 
 proc connectToTorServer(transportAddress: TransportAddress): Future[StreamTransport] {.async, gcsafe.} =
   let transp = await connect(transportAddress)
@@ -47,6 +49,23 @@ proc connectToTorServer(transportAddress: TransportAddress): Future[StreamTransp
   except CatchableError as err:
     await transp.closeWait()
     raise err
+
+proc readServerReply(transp: StreamTransport) {.async, gcsafe.} =
+  ## The specification for this code is defined on [link text](https://www.rfc-editor.org/rfc/rfc1928#section-5)
+  ## and [link text](https://www.rfc-editor.org/rfc/rfc1928#section-6).
+  let portNumOctets = 2
+  let ipV4NumOctets = 4
+  let ipV6NumOctets = 16
+  let firstFourOctets = await transp.read(4)
+  let atyp = firstFourOctets[3]
+  case atyp:
+    of 0x01:
+      discard await transp.read(ipV4NumOctets + portNumOctets)
+    of 0x03:
+      let fqdnNumOctets = await transp.read(1)
+      discard await transp.read(int(uint8.fromBytes(fqdnNumOctets)) + portNumOctets)
+    else:
+      discard await transp.read(ipV6NumOctets + portNumOctets)
 
 proc dialPeer(transp: StreamTransport, address: MultiAddress) {.async, gcsafe.} =
 
@@ -59,9 +78,8 @@ proc dialPeer(transp: StreamTransport, address: MultiAddress) {.async, gcsafe.} 
   let dstAddr = @(uint8(addressStr.len).toBytes()) & addressStr.toBytes()
   let dstPort = address.data.buffer[37..38]
   let b = @[05'u8, 01, 00, 03] & dstAddr & dstPort
-
   discard await transp.write(b)
-  echo await transp.read(5)
+  await readServerReply(transp)
 
 method dial*(
   self: TorTransport,
@@ -89,8 +107,8 @@ method start*(
   var ipTcpAddrs: seq[MultiAddress]
   var onion3Addrs: seq[MultiAddress]
   for i, ma in addrs:
-    if not self.handles(ma):
-        trace "Invalid address detected, skipping!", address = ma
+    if not TCP_ONIO3_MATCHER.match(ma):
+        warn "Invalid address detected, skipping!", address = ma
         continue
 
     let ipTcp = ma[0..1].get()
@@ -101,6 +119,8 @@ method start*(
   if len(ipTcpAddrs) != 0 and len(onion3Addrs) != 0:
     await procCall Transport(self).start(onion3Addrs)
     await self.tcpTransport.start(ipTcpAddrs)
+  else:
+    raise newException(TransportStartError, "Tor Transport couldn't start, no supported addr was provided.")
 
 method accept*(self: TorTransport): Future[Connection] {.async, gcsafe.} =
   ## accept a new TCP connection
@@ -110,9 +130,10 @@ method accept*(self: TorTransport): Future[Connection] {.async, gcsafe.} =
 method stop*(self: TorTransport) {.async, gcsafe.} =
   ## stop the transport
   ##
+  await procCall Transport(self).stop() # call base
   await self.tcpTransport.stop()
 
 method handles*(t: TorTransport, address: MultiAddress): bool {.gcsafe.} =
   if procCall Transport(t).handles(address):
     if address.protocols.isOk:
-      return ONIO3_MATCHER.match(address)
+      return ONIO3_MATCHER.match(address) or TCP_ONIO3_MATCHER.match(address)
