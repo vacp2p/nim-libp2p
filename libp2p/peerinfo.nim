@@ -55,22 +55,26 @@ proc update*(p: PeerInfo) =
     discard
     #info "Can't update the signed peer record"
 
-proc fullAddrs*(p: PeerInfo): seq[MultiAddress] {.raises: [LPError].} =
-  let peerIdPart = MultiAddress.init(multiCodec("p2p"), p.peerId.data).tryGet()
+proc fullAddrs*(p: PeerInfo): MaResult[seq[MultiAddress]] =
+  let peerIdPart = ? MultiAddress.init(multiCodec("p2p"), p.peerId.data)
+  var res: seq[MultiAddress]
   for address in p.addrs:
-    let fullAddr = address & peerIdPart
-    result.add(fullAddr)
+    res.add(? concat(address, peerIdPart))
+  ok(res)
 
-proc parseFullAddress*(ma: MultiAddress): (PeerId, MultiAddress) {.raises: [LPError].} =
-  let p2pPart = ma[^1].tryGet()
-  if p2pPart.protoCode.tryGet() != multiCodec("p2p"):
-    raise newException(MaError, "Missing p2p part from multiaddress!")
+proc parseFullAddress*(ma: MultiAddress): MaResult[(PeerId, MultiAddress)] =
+  let p2pPart = ? ma[^1]
+  if ? p2pPart.protoCode != multiCodec("p2p"):
+    return err("Missing p2p part from multiaddress!")
 
-  result[1] = ma[0 .. ^2].tryGet()
-  result[0] = PeerId.init(p2pPart.protoArgument().tryGet()).tryGet()
+  let res = (
+    ? PeerId.init(? p2pPart.protoArgument()).orErr("invalid peerid"),
+    ? ma[0 .. ^2]
+  )
+  ok(res)
 
-proc parseFullAddress*(ma: string): (PeerId, MultiAddress) {.raises: [LPError].} =
-  MultiAddress.init(ma).tryGet().parseFullAddress()
+proc parseFullAddress*(ma: string | seq[byte]): MaResult[(PeerId, MultiAddress)] =
+  parseFullAddress(? MultiAddress.init(ma))
 
 proc new*(
   p: typedesc[PeerInfo],
