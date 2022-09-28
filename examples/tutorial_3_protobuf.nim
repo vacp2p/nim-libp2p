@@ -55,7 +55,7 @@ proc decode(_: type Metric, buf: seq[byte]): Result[Metric, ProtoError] =
   # The Result will hold an error if the protobuf is invalid.
   # The Result will hold "false" if the field is missing
   #
-  # We are just checking the error, and ignoring wether the value
+  # We are just checking the error, and ignoring whether the value
   # is present or not (default values are valid).
   discard ? pb.getField(1, res.name)
   discard ? pb.getField(2, res.value)
@@ -81,7 +81,7 @@ proc decode(_: type MetricList, buf: seq[byte]): Result[MetricList, ProtoError] 
 ## ## Results instead of exceptions
 ## As you can see, this part of the program also uses Results instead of exceptions for error handling.
 ## We start by `{.push raises: [].}`, which will prevent every non-async function from raising
-## exception.
+## exceptions.
 ##
 ## Then, we use [nim-result](https://github.com/arnetheduck/nim-result) to convey
 ## errors to function callers. A `Result[T, E]` will either hold a valid result of type
@@ -96,7 +96,7 @@ proc decode(_: type MetricList, buf: seq[byte]): Result[MetricList, ProtoError] 
 ## nim-result is packed with other functionalities that you'll find in the
 ## nim-result repository.
 ##
-## Results and exception are generally interchangeable, but have different sementics
+## Results and exception are generally interchangeable, but have different semantics
 ## that you may or may not prefer.
 ##
 ## ## Creating the protocol
