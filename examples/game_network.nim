@@ -118,6 +118,7 @@ proc networking(g: Game) {.async.} =
   )
 
   await switch.start()
+  defer: await switch.stop()
 
   if paramCount() > 0:
     let (peerId, multiAddress) = paramStr(1).parseFullAddress().tryGet()
@@ -137,9 +138,9 @@ proc networking(g: Game) {.async.} =
       published = true
 
   let peerConn = await g.peerFound
+  defer: await peerConn.closeWithEof()
+
   await g.mainLoop(peerConn)
-  await peerConn.closeWithEof()
-  await switch.stop()
 
 let
   game = Game.new()
@@ -147,4 +148,4 @@ let
 nico.init("Status", "Tron")
 nico.createWindow("Tron", mapSize * 4, mapSize * 4, 4, false)
 nico.run(proc = discard, proc(dt: float32) = game.update(dt), proc = game.draw())
-waitFor(netFut)
+waitFor(netFut.cancelAndWait())

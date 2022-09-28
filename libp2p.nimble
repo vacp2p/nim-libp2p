@@ -31,8 +31,8 @@ proc runTest(filename: string, verify: bool = true, sign: bool = true,
   exec excstr & " -r " & " tests/" & filename
   rmFile "tests/" & filename.toExe
 
-proc buildSample(filename: string, run = false) =
-  var excstr = "nim c --opt:speed --threads:on -d:debug --verbosity:0 --hints:off -p:. "
+proc buildSample(filename: string, run = false, extraFlags = "") =
+  var excstr = "nim c --opt:speed --threads:on -d:debug --verbosity:0 --hints:off -p:. " & extraFlags
   excstr.add(" examples/" & filename)
   exec excstr
   if run:
@@ -90,6 +90,7 @@ task website, "Build the website":
   tutorialToMd("examples/tutorial_1_connect.nim")
   tutorialToMd("examples/tutorial_2_customproto.nim")
   tutorialToMd("examples/circuitrelay.nim")
+  tutorialToMd("examples/game_network.nim")
   exec "mkdocs build"
 
 task examples_build, "Build the samples":
@@ -98,6 +99,9 @@ task examples_build, "Build the samples":
   buildSample("circuitrelay", true)
   buildSample("tutorial_1_connect", true)
   buildSample("tutorial_2_customproto", true)
+  if (NimMajor, NimMinor) > (1, 4):
+    exec "nimble install -y nico"
+    buildSample("game_network", false, "--styleCheck:off")
 
 # pin system
 # while nimble lockfile
