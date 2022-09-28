@@ -1,66 +1,101 @@
 {.used.}
 
-import std/strformat
-import sequtils
-import chronos, stew/byteutils
+import chronos, stew/[byteutils, endians2]
 import ../libp2p/[stream/connection,
+                  protocols/connectivity/relay/utils,
                   transports/transport,
+                  transports/tcptransport,
                   transports/tortransport,
                   upgrademngrs/upgrade,
                   multiaddress,
                   errors,
-                  wire,
                   builders]
 
 import ./helpers, ./commontransport
 
 let torServer = initTAddress("127.0.0.1", 9050.Port)
 
+
+type
+  TorServerStub = ref object of RootObj
+    tcpTransport: TcpTransport
+
+proc new(
+  T: typedesc[TorServerStub]): T {.public.} =
+
+  T(
+    tcpTransport: TcpTransport.new(flags = {ReuseAddr}, upgrade = Upgrade()))
+
+proc start(self: TorServerStub) {.async, raises: [].} =
+  let ma = @[MultiAddress.init("/ip4/127.0.0.1/tcp/9050").tryGet()]
+
+  await self.tcpTransport.start(ma)
+
+  var msg = newSeq[byte](3)
+
+  let connSrc = await self.tcpTransport.accept()
+  await connSrc.readExactly(addr msg[0], 3)
+
+  await connSrc.write(@[05'u8, 00])
+
+  msg = newSeq[byte](5)
+  await connSrc.readExactly(addr msg[0], 5)
+  let n = int(uint8.fromBytes(msg[4..4]))
+  msg = newSeq[byte](n)
+  await connSrc.readExactly(addr msg[0], n + 2) # +2 bytes for the port
+
+  await connSrc.write(@[05'u8, 00, 00, 01, 00, 00, 00, 00, 00, 00])
+
+  let connDst = await self.tcpTransport.dial("", MultiAddress.init("/ip4/127.0.0.1/tcp/8080").tryGet())
+
+  await bridge(connSrc, connDst)
+
+
+
+proc stop(self: TorServerStub) {.async, raises: [].} =
+  await self.tcpTransport.stop()
+
 suite "Tor transport":
   teardown:
     checkTrackers()
 
-  asyncTest "test dial":
-    let s = TorTransport.new(transportAddress = torServer, upgrade = Upgrade())
-    let ma = MultiAddress.init("/onion3/torchdeedp3i2jigzjdmfpn5ttjhthh5wbmda2rr3jvqjg5p77c54dqd:80")
-    let conn = await s.dial("", ma.tryGet())
-
-    let addressStr = "torchdeedp3i2jigzjdmfpn5ttjhthh5wbmda2rr3jvqjg5p77c54dqd.onion"
-    await conn.write(fmt("GET / HTTP/1.1\nHost: {addressStr}\n\n"))
-    var resp: array[1000, byte]
-    await conn.readExactly(addr resp, 1000)
-    await conn.close()
-    echo string.fromBytes(resp)
-
   asyncTest "test dial and start":
-    proc a() {.async, raises:[].} =
+
+    proc startClient() {.async, raises:[].} =
       let s = TorTransport.new(transportAddress = torServer, upgrade = Upgrade())
       let ma = MultiAddress.init("/onion3/a2mncbqsbullu7thgm4e6zxda2xccmcgzmaq44oayhdtm6rav5vovcad:80")
       let conn = await s.dial("", ma.tryGet())
 
-      let addressStr = "a2mncbqsbullu7thgm4e6zxda2xccmcgzmaq44oayhdtm6rav5vovcad.onion"
-      await conn.write(fmt("GET / HTTP/1.1\nHost: {addressStr}\n\n"))
-      var resp: array[5, byte]
-      await conn.readExactly(addr resp, 5)
+      await conn.write("client")
+      var resp: array[6, byte]
+      discard await conn.readOnce(addr resp, 6)
       await conn.close()
-      #await s.stop()
-      echo string.fromBytes(resp)
+
+      check string.fromBytes(resp) == "server"
 
     let server = TorTransport.new(torServer, {ReuseAddr}, Upgrade())
-    let ma = @[MultiAddress.init("/ip4/127.0.0.1/tcp/8080/onion3/a2mncbqsbullu7thgm4e6zxda2xccmcgzmaq44oayhdtm6rav5vovcad:80").tryGet()]
-    await server.start(ma)
+    let ma2 = @[MultiAddress.init("/ip4/127.0.0.1/tcp/8080/onion3/a2mncbqsbullu7thgm4e6zxda2xccmcgzmaq44oayhdtm6rav5vovcad:80").tryGet()]
+    await server.start(ma2)
 
     proc acceptHandler() {.async, gcsafe.} =
       let conn = await server.accept()
-      await conn.write("Hello!")
+
+      var resp: array[6, byte]
+      discard await conn.readOnce(addr resp, 6)
+      check string.fromBytes(resp) == "client"
+
+      await conn.write("server")
       await conn.close()
 
-    let handlerWait = acceptHandler()
+    let stub = TorServerStub.new()
+    asyncSpawn stub.start()
 
-    await a()
+    asyncSpawn acceptHandler()
 
-    await handlerWait.wait(1.seconds) # when no issues will not wait that long!
-    await server.stop()
+    await startClient()
+
+    await allFutures(server.stop(), stub.stop())
+
 
   asyncTest "test dial and start with builder":
 
@@ -76,8 +111,11 @@ suite "Tor transport":
 
       # every incoming connections will be in handled in this closure
       proc handle(conn: Connection, proto: string) {.async, gcsafe.} =
-        echo "Got from remote - ", string.fromBytes(await conn.readLp(1024))
-        await conn.writeLp("Roger p2p!")
+
+        var resp: array[6, byte]
+        discard await conn.readOnce(addr resp, 6)
+        check string.fromBytes(resp) == "client"
+        await conn.write("server")
 
         # We must close the connections ourselves when we're done with it
         await conn.close()
@@ -106,7 +144,7 @@ suite "Tor transport":
     let serverPeerId = serverSwitch.peerInfo.peerId
     let serverAddress = serverSwitch.peerInfo.addrs
 
-    proc a(): Future[Switch] {.async, raises:[].} =
+    proc startClient() {.async, raises:[].} =
       let clientSwitch = SwitchBuilder.new()
         .withRng(rng)
         .withTorTransport(torServer)
@@ -116,14 +154,18 @@ suite "Tor transport":
 
       let conn = await clientSwitch.dial(serverPeerId, serverAddress, TestCodec)
 
-      await conn.writeLp("Hello p2p!")
+      await conn.write("client")
 
-      echo "Remote responded with - ", string.fromBytes(await conn.readLp(1024))
+      var resp: array[6, byte]
+      await conn.readExactly(addr resp, 6)
+      check string.fromBytes(resp) == "server"
       await conn.close()
-      return clientSwitch
 
-    let client = await a()
+    let stub = TorServerStub.new()
+    asyncSpawn stub.start()
 
-    await allFutures(serverSwitch.stop(), client.stop())
+    await startClient()
+
+    await allFutures(serverSwitch.stop(), stub.stop())
 
 
