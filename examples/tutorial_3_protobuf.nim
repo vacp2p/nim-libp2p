@@ -102,7 +102,7 @@ proc decode(_: type MetricList, buf: seq[byte]): Result[MetricList, ProtoError] 
 ## ## Creating the protocol
 ## We'll next create a protocol, like in the last tutorial, to request these metrics from our host
 type
-  MetricCallback = proc: Future[MetricList] {.raises: [].}
+  MetricCallback = proc: Future[MetricList] {.raises: [], gcsafe.}
   MetricProto = ref object of LPProtocol
     metricGetter: MetricCallback
 
