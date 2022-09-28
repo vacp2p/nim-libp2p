@@ -1,5 +1,10 @@
 {.used.}
 
+when (NimMajor, NimMinor) < (1, 4):
+  {.push raises: [Defect].}
+else:
+  {.push raises: [].}
+
 import tables
 import chronos, stew/[byteutils, endians2]
 import ../libp2p/[stream/connection,
@@ -30,7 +35,7 @@ proc new(
 proc registerOnionAddr(self: TorServerStub, key: string, val: string) =
   self.addrTable[key] = val
 
-proc start(self: TorServerStub) {.async, raises: [].} =
+proc start(self: TorServerStub) {.async.} =
   let ma = @[MultiAddress.init(torServer).tryGet()]
 
   await self.tcpTransport.start(ma)
@@ -58,7 +63,7 @@ proc start(self: TorServerStub) {.async, raises: [].} =
 
   await bridge(connSrc, connDst)
 
-proc stop(self: TorServerStub) {.async, raises: [].} =
+proc stop(self: TorServerStub) {.async.} =
   await self.tcpTransport.stop()
 
 suite "Tor transport":
@@ -67,7 +72,7 @@ suite "Tor transport":
 
   asyncTest "test dial and start":
 
-    proc startClient() {.async, raises:[].} =
+    proc startClient() {.async.} =
       let s = TorTransport.new(transportAddress = torServer, upgrade = Upgrade())
       let ma = MultiAddress.init("/onion3/a2mncbqsbullu7thgm4e6zxda2xccmcgzmaq44oayhdtm6rav5vovcad:80")
       let conn = await s.dial("", ma.tryGet())
@@ -152,7 +157,7 @@ suite "Tor transport":
     let serverPeerId = serverSwitch.peerInfo.peerId
     let serverAddress = serverSwitch.peerInfo.addrs
 
-    proc startClient() {.async, raises:[].} =
+    proc startClient() {.async.} =
       let clientSwitch = SwitchBuilder.new()
         .withRng(rng)
         .withTorTransport(torServer)
