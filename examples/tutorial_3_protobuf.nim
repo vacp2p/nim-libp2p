@@ -12,8 +12,8 @@ import stew/results # for Opt[T]
 
 import libp2p
 
-## Let's define a structure for our messages:
-##
+## ## Protobuf encoding & decoding
+## This will be the structure of our messages:
 ## ```protobuf
 ## message MetricList {
 ##   message Metric {
@@ -40,6 +40,7 @@ type
   MetricList = object
     metrics: seq[Metric]
 
+{.push raises: [].}
 
 proc encode(m: Metric): ProtoBuffer =
   result = initProtoBuffer()
@@ -47,18 +48,18 @@ proc encode(m: Metric): ProtoBuffer =
   result.write(2, m.value)
   result.finish()
 
-proc decode(_: type Metric, buf: seq[byte]): Opt[Metric] =
+proc decode(_: type Metric, buf: seq[byte]): Result[Metric, ProtoError] =
   var res: Metric
   let pb = initProtoBuffer(buf)
-  # "getField" will return a Result[bool, cstring].
+  # "getField" will return a Result[bool, ProtoError].
   # The Result will hold an error if the protobuf is invalid.
   # The Result will hold "false" if the field is missing
   #
   # We are just checking the error, and ignoring wether the value
-  # is present or not (default values are valid)
-  discard pb.getField(1, res.name).valueOr: return Opt.none(Metric)
-  discard pb.getField(2, res.value).valueOr: return Opt.none(Metric)
-  return Opt.some(res)
+  # is present or not (default values are valid).
+  discard ? pb.getField(1, res.name)
+  discard ? pb.getField(2, res.value)
+  ok(res)
 
 proc encode(m: MetricList): ProtoBuffer =
   result = initProtoBuffer()
@@ -66,17 +67,39 @@ proc encode(m: MetricList): ProtoBuffer =
     result.write(1, metric.encode())
   result.finish()
 
-proc decode(_: type MetricList, buf: seq[byte]): Opt[MetricList] =
+proc decode(_: type MetricList, buf: seq[byte]): Result[MetricList, ProtoError] =
   var
     res: MetricList
     metrics: seq[seq[byte]]
   let pb = initProtoBuffer(buf)
-  discard pb.getRepeatedField(1, metrics).valueOr: return Opt.none(MetricList)
+  discard ? pb.getRepeatedField(1, metrics)
 
   for metric in metrics:
     res.metrics &= ? Metric.decode(metric)
-  return Opt.some(res)
+  ok(res)
 
+## ## Results instead of exceptions
+## As you can see, this part of the program also uses Results instead of exceptions for error handling.
+## We start by `{.push raises: [].}`, which will prevent every non-async function from raising
+## exception.
+##
+## Then, we use [nim-result](https://github.com/arnetheduck/nim-result) to convey
+## errors to function callers. A `Result[T, E]` will either hold a valid result of type
+## T, or an error of type E.
+##
+## You can check if the call succeeded by using `res.isOk`, and then get the
+## value using `res.value` or the error by using `res.error`.
+##
+## Another useful tool is `?`, which will unpack a Result if it succeeded,
+## or if it failed, exit the current procedure returning the error.
+##
+## nim-result is packed with other functionalities that you'll find in the
+## nim-result repository.
+##
+## Results and exception are generally interchangeable, but have different sementics
+## that you may or may not prefer.
+##
+## ## Creating the protocol
 ## We'll next create a protocol, like in the last tutorial, to request these metrics from our host
 type
   MetricCallback = proc: Future[MetricList] {.raises: [].}
@@ -98,17 +121,19 @@ proc new(_: typedesc[MetricProto], cb: MetricCallback): MetricProto =
 
 proc fetch(p: MetricProto, conn: Connection): Future[MetricList] {.async.} =
   let protobuf = await conn.readLp(2048)
+  # tryGet will raise an exception if the Result contains an error.
+  # It's useful to bridge between exception-world and result-world
   return MetricList.decode(protobuf).tryGet()
 
 ## We can now create our main procedure:
 proc main() {.async, gcsafe.} =
   let rng = newRng()
   proc randomMetricGenerator: Future[MetricList] {.async.} =
-    let metricCount = rng[].generate(int32) mod 16
-    for i in 0 ..< metricCount:
+    let metricCount = rng[].generate(uint32) mod 16
+    for i in 0 ..< metricCount + 1:
       result.metrics.add(Metric(
         name: "metric_" & $i,
-        value: rng[].generate(float)
+        value: float(rng[].generate(uint16)) / 1000.0
       ))
     return result
   let
