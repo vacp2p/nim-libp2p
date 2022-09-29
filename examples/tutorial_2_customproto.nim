@@ -71,3 +71,4 @@ proc main() {.async, gcsafe.} =
 waitFor(main())
 
 ## And that's it!
+## In the [next tutorial](tutorial_3_protobuf.md), we'll create a more complex protocol using Protobuf.
