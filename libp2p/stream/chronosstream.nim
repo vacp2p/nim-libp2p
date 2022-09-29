@@ -131,7 +131,7 @@ method write*(s: ChronosStream, msg: seq[byte]): Future[void] =
   # Avoid a copy of msg being kept in the closure created by `{.async.}` as this
   # drives up memory usage
   if msg.len == 0:
-    warn "Empty seq, nothing to write"
+    trace "Empty byte seq, nothing to write"
     return
   if s.closed:
     let fut = newFuture[void]("chronosstream.write.closed")
