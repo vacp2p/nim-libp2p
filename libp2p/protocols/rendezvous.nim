@@ -12,10 +12,9 @@ when (NimMajor, NimMinor) < (1, 4):
 else:
   {.push raises: [].}
 
-import tables, sequtils, sugar, sets
+import tables, sequtils, sugar, sets, options
 import chronos,
        chronicles,
-       protobuf_serialization,
        bearssl/rand,
        stew/[byteutils, objects]
 import ./protocol,
@@ -26,7 +25,6 @@ import ./protocol,
        ../utils/offsettedseq,
        ../utils/semaphore
 
-export protobuf_serialization
 export chronicles
 
 logScope:
@@ -668,12 +666,14 @@ proc deletesRegister(rdv: RendezVous) {.async.} =
 method start*(rdv: RendezVous) {.async.} =
   if not rdv.registerDeletionLoop.isNil:
     warn "Starting rendezvous twice"
+    return
   rdv.registerDeletionLoop = rdv.deletesRegister()
   rdv.started = true
 
 method stop*(rdv: RendezVous) {.async.} =
   if rdv.registerDeletionLoop.isNil:
     warn "Stopping rendezvous without starting it"
+    return
   rdv.started = false
   rdv.registerDeletionLoop.cancel()
   rdv.registerDeletionLoop = nil
