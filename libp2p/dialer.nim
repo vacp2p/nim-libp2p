@@ -7,8 +7,9 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-import std/[sugar, tables]
+import std/[sugar, tables, sequtils]
 
+import stew/results
 import pkg/[chronos,
             chronicles,
             metrics]
@@ -16,6 +17,7 @@ import pkg/[chronos,
 import dial,
        peerid,
        peerinfo,
+       multicodec,
        multistream,
        connmanager,
        stream/connection,
@@ -24,7 +26,7 @@ import dial,
        upgrademngrs/upgrade,
        errors
 
-export dial, errors
+export dial, errors, results
 
 logScope:
   topics = "libp2p dialer"
@@ -48,53 +50,102 @@ type
 proc dialAndUpgrade(
   self: Dialer,
   peerId: Opt[PeerId],
+  hostname: string,
+  address: MultiAddress):
+  Future[Connection] {.async.} =
+
+  for transport in self.transports: # for each transport
+    if transport.handles(address):   # check if it can dial it
+      trace "Dialing address", address, peerId, hostname
+      let dialed =
+        try:
+          libp2p_total_dial_attempts.inc()
+          await transport.dial(hostname, address)
+        except CancelledError as exc:
+          debug "Dialing canceled", msg = exc.msg, peerId
+          raise exc
+        except CatchableError as exc:
+          debug "Dialing failed", msg = exc.msg, peerId
+          libp2p_failed_dials.inc()
+          return nil # Try the next address
+
+      # also keep track of the connection's bottom unsafe transport direction
+      # required by gossipsub scoring
+      dialed.transportDir = Direction.Out
+
+      libp2p_successful_dials.inc()
+
+      let conn =
+        try:
+          await transport.upgradeOutgoing(dialed, peerId)
+        except CatchableError as exc:
+          # If we failed to establish the connection through one transport,
+          # we won't succeeded through another - no use in trying again
+          await dialed.close()
+          debug "Upgrade failed", msg = exc.msg, peerId
+          if exc isnot CancelledError:
+            libp2p_failed_upgrades_outgoing.inc()
+
+          # Try other address
+          return nil
+
+      doAssert not isNil(conn), "connection died after upgradeOutgoing"
+      debug "Dial successful", conn, peerId = conn.peerId
+      return conn
+  return nil
+
+proc expandDnsAddr(
+  self: Dialer,
+  peerId: Opt[PeerId],
+  address: MultiAddress): Future[seq[(MultiAddress, Opt[PeerId])]] {.async.} =
+
+  if not DNSADDR.matchPartial(address): return @[(address, peerId)]
+  if isNil(self.nameResolver):
+    info "Can't resolve DNSADDR without NameResolver", ma=address
+    return @[]
+
+  let
+    toResolve =
+      if peerId.isSome:
+        address & MultiAddress.init(multiCodec("p2p"), peerId.tryGet()).tryGet()
+      else:
+        address
+    resolved = await self.nameResolver.resolveDnsAddr(toResolve)
+
+  for resolvedAddress in resolved:
+    let lastPart = resolvedAddress[^1].tryGet()
+    if lastPart.protoCode == Result[MultiCodec, string].ok(multiCodec("p2p")):
+      let
+        peerIdBytes = lastPart.protoArgument().tryGet()
+        addrPeerId = PeerId.init(peerIdBytes).tryGet()
+      result.add((resolvedAddress[0..^2].tryGet(), Opt.some(addrPeerId)))
+    else:
+      result.add((resolvedAddress, peerId))
+
+proc dialAndUpgrade(
+  self: Dialer,
+  peerId: Opt[PeerId],
   addrs: seq[MultiAddress]):
   Future[Connection] {.async.} =
+
   debug "Dialing peer", peerId
 
-  for address in addrs:      # for each address
-    let
-      hostname = address.getHostname()
-      resolvedAddresses =
-        if isNil(self.nameResolver): @[address]
-        else: await self.nameResolver.resolveMAddress(address)
+  for rawAddress in addrs:
+    # resolve potential dnsaddr
+    let addresses = await self.expandDnsAddr(peerId, rawAddress)
 
-    for a in resolvedAddresses:      # for each resolved address
-      for transport in self.transports: # for each transport
-        if transport.handles(a):   # check if it can dial it
-          trace "Dialing address", address = $a, peerId, hostname
-          let dialed = try:
-              libp2p_total_dial_attempts.inc()
-              await transport.dial(hostname, a)
-            except CancelledError as exc:
-              debug "Dialing canceled", msg = exc.msg, peerId
-              raise exc
-            except CatchableError as exc:
-              debug "Dialing failed", msg = exc.msg, peerId
-              libp2p_failed_dials.inc()
-              continue # Try the next address
+    for (expandedAddress, addrPeerId) in addresses:
+      # DNS resolution
+      let
+        hostname = expandedAddress.getHostname()
+        resolvedAddresses =
+          if isNil(self.nameResolver): @[expandedAddress]
+          else: await self.nameResolver.resolveMAddress(expandedAddress)
 
-          # also keep track of the connection's bottom unsafe transport direction
-          # required by gossipsub scoring
-          dialed.transportDir = Direction.Out
-
-          libp2p_successful_dials.inc()
-
-          let conn = try:
-              await transport.upgradeOutgoing(dialed, peerId)
-            except CatchableError as exc:
-              # If we failed to establish the connection through one transport,
-              # we won't succeeded through another - no use in trying again
-              # TODO we should try another address though
-              await dialed.close()
-              debug "Upgrade failed", msg = exc.msg, peerId
-              if exc isnot CancelledError:
-                libp2p_failed_upgrades_outgoing.inc()
-              raise exc
-
-          doAssert not isNil(conn), "connection died after upgradeOutgoing"
-          debug "Dial successful", conn, peerId = conn.peerId
-          return conn
+      for resolvedAddress in resolvedAddresses:
+        result = await self.dialAndUpgrade(addrPeerId, hostname, resolvedAddress)
+        if not isNil(result):
+          return result
 
 proc internalConnect(
   self: Dialer,
@@ -189,7 +240,7 @@ proc negotiateStream(
 method tryDial*(
   self: Dialer,
   peerId: PeerId,
-  addrs: seq[MultiAddress]): Future[MultiAddress] {.async.} =
+  addrs: seq[MultiAddress]): Future[Opt[MultiAddress]] {.async.} =
   ## Create a protocol stream in order to check
   ## if a connection is possible.
   ## Doesn't use the Connection Manager to save it.

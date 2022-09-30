@@ -201,13 +201,25 @@ suite "Switch":
     check not switch1.isConnected(switch2.peerInfo.peerId)
     check not switch2.isConnected(switch1.peerInfo.peerId)
 
-  asyncTest "e2e connect to peer with unkown PeerId":
+  asyncTest "e2e connect to peer with unknown PeerId":
+    let resolver = MockResolver.new()
     let switch1 = newStandardSwitch(secureManagers = [SecureProtocol.Noise])
-    let switch2 = newStandardSwitch(secureManagers = [SecureProtocol.Noise])
+    let switch2 = newStandardSwitch(secureManagers = [SecureProtocol.Noise], nameResolver = resolver)
     await switch1.start()
     await switch2.start()
 
+    # via dnsaddr
+    resolver.txtResponses["_dnsaddr.test.io"] = @[
+      "dnsaddr=" & $switch1.peerInfo.addrs[0] & "/p2p/" & $switch1.peerInfo.peerId,
+    ]
+
+    check: (await switch2.connect(@[MultiAddress.init("/dnsaddr/test.io/").tryGet()])) == switch1.peerInfo.peerId
+    await switch2.disconnect(switch1.peerInfo.peerId)
+
+    # via direct ip
+    check not switch2.isConnected(switch1.peerInfo.peerId)
     check: (await switch2.connect(switch1.peerInfo.addrs)) == switch1.peerInfo.peerId
+
     await switch2.disconnect(switch1.peerInfo.peerId)
 
     await allFuturesThrowing(
@@ -665,7 +677,7 @@ suite "Switch":
     await switch.start()
 
     var peerId = PeerId.init(PrivateKey.random(ECDSA, rng[]).get()).get()
-    expect LPStreamClosedError, LPStreamEOFError:
+    expect DialFailedError:
       await switch.connect(peerId, transport.addrs)
 
     await handlerWait
@@ -994,9 +1006,10 @@ suite "Switch":
     await srcWsSwitch.start()
 
     resolver.txtResponses["_dnsaddr.test.io"] = @[
-      "dnsaddr=" & $destSwitch.peerInfo.addrs[0],
-      "dnsaddr=" & $destSwitch.peerInfo.addrs[1]
+      "dnsaddr=/dns4/localhost" & $destSwitch.peerInfo.addrs[0][1..^1].tryGet() & "/p2p/" & $destSwitch.peerInfo.peerId,
+      "dnsaddr=/dns4/localhost" & $destSwitch.peerInfo.addrs[1][1..^1].tryGet()
     ]
+    resolver.ipResponses[("localhost", false)] = @["127.0.0.1"]
 
     let testAddr = MultiAddress.init("/dnsaddr/test.io/").tryGet()
 

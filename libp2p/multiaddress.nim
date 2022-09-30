@@ -573,7 +573,7 @@ proc protoArgument*(ma: MultiAddress,
           err("multiaddress: Decoding protocol error")
         else:
           ok(res)
-      elif proto.kind in {Length, Path}:
+      elif proto.kind in {MAKind.Length, Path}:
         if vb.data.readSeq(buffer) == -1:
           err("multiaddress: Decoding protocol error")
         else:
@@ -594,6 +594,13 @@ proc protoAddress*(ma: MultiAddress): MaResult[seq[byte]] =
   buffer.setLen(res)
   ok(buffer)
 
+proc protoArgument*(ma: MultiAddress): MaResult[seq[byte]] =
+  ## Returns MultiAddress ``ma`` protocol address binary blob.
+  ##
+  ## If current MultiAddress do not have argument value, then result array will
+  ## be empty.
+  ma.protoAddress()
+
 proc getPart(ma: MultiAddress, index: int): MaResult[MultiAddress] =
   var header: uint64
   var data = newSeq[byte]()
@@ -601,6 +608,9 @@ proc getPart(ma: MultiAddress, index: int): MaResult[MultiAddress] =
   var vb = ma
   var res: MultiAddress
   res.data = initVBuffer()
+
+  if index < 0: return err("multiaddress: negative index gived to getPart")
+
   while offset <= index:
     if vb.data.readVarint(header) == -1:
       return err("multiaddress: Malformed binary address!")
@@ -618,7 +628,7 @@ proc getPart(ma: MultiAddress, index: int): MaResult[MultiAddress] =
         res.data.writeVarint(header)
         res.data.writeArray(data)
         res.data.finish()
-    elif proto.kind in {Length, Path}:
+    elif proto.kind in {MAKind.Length, Path}:
       if vb.data.readSeq(data) == -1:
         return err("multiaddress: Decoding protocol error")
 
@@ -647,9 +657,13 @@ proc getParts[U, V](ma: MultiAddress, slice: HSlice[U, V]): MaResult[MultiAddres
     ? res.append(? ma[i])
   ok(res)
 
-proc `[]`*(ma: MultiAddress, i: int): MaResult[MultiAddress] {.inline.} =
+proc `[]`*(ma: MultiAddress, i: int | BackwardsIndex): MaResult[MultiAddress] {.inline.} =
   ## Returns part with index ``i`` of MultiAddress ``ma``.
-  ma.getPart(i)
+  when i is BackwardsIndex:
+    let maLength = ? len(ma)
+    ma.getPart(maLength - int(i))
+  else:
+    ma.getPart(i)
 
 proc `[]`*(ma: MultiAddress, slice: HSlice): MaResult[MultiAddress] {.inline.} =
   ## Returns parts with slice ``slice`` of MultiAddress ``ma``.
@@ -680,7 +694,7 @@ iterator items*(ma: MultiAddress): MaResult[MultiAddress] =
 
       res.data.writeVarint(header)
       res.data.writeArray(data)
-    elif proto.kind in {Length, Path}:
+    elif proto.kind in {MAKind.Length, Path}:
       if vb.data.readSeq(data) == -1:
         yield err(MaResult[MultiAddress], "Decoding protocol error")
 

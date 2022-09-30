@@ -13,9 +13,12 @@ else:
   {.push raises: [].}
 
 import chronos
+import stew/results
 import peerid,
        stream/connection,
        transports/transport
+
+export results
 
 type
   Dial* = ref object of RootObj
@@ -69,5 +72,5 @@ method addTransport*(
 method tryDial*(
   self: Dial,
   peerId: PeerId,
-  addrs: seq[MultiAddress]): Future[MultiAddress] {.async, base.} =
+  addrs: seq[MultiAddress]): Future[Opt[MultiAddress]] {.async, base.} =
   doAssert(false, "Not implemented!")
