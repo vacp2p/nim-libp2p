@@ -9,7 +9,7 @@ skipDirs      = @["tests", "examples", "Nim", "tools", "scripts", "docs"]
 
 requires "nim >= 1.2.0",
          "nimcrypto >= 0.4.1",
-         "dnsclient >= 0.1.2",
+         "dnsclient >= 0.3.0 & < 0.4.0",
          "bearssl >= 0.1.4",
          "chronicles >= 0.10.2",
          "chronos >= 3.0.6",
@@ -89,6 +89,7 @@ task test_slim, "Runs the (slimmed down) test suite":
 task website, "Build the website":
   tutorialToMd("examples/tutorial_1_connect.nim")
   tutorialToMd("examples/tutorial_2_customproto.nim")
+  tutorialToMd("examples/tutorial_3_protobuf.nim")
   tutorialToMd("examples/circuitrelay.nim")
   tutorialToMd("examples/game_network.nim")
   exec "mkdocs build"
@@ -100,6 +101,9 @@ task examples_build, "Build the samples":
   buildSample("tutorial_1_connect", true)
   buildSample("tutorial_2_customproto", true)
   if (NimMajor, NimMinor) > (1, 4):
+    # This tutorial relies on post 1.4 exception tracking
+    buildSample("tutorial_3_protobuf", true)
+    # Nico doesn't work in 1.2
     exec "nimble install -y nico"
     buildSample("game_network", false, "--styleCheck:off")
 

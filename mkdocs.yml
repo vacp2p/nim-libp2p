@@ -40,10 +40,11 @@ theme:
         name: Switch to light mode
 
 nav:
-  - Introduction: README.md
   - Tutorials:
+    - 'Introduction': README.md
     - 'Simple connection': tutorial_1_connect.md
     - 'Create a custom protocol': tutorial_2_customproto.md
+    - 'Protobuf': tutorial_3_protobuf.md
     - 'Circuit Relay': circuitrelay.md
     - 'Game': game_network.md
   - Reference: '/nim-libp2p/master/libp2p.html'
