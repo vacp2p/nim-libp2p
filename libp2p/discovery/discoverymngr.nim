@@ -12,7 +12,6 @@ when (NimMajor, NimMinor) < (1, 4):
 else:
   {.push raises: [].}
 
-import sequtils
 import chronos, chronicles
 import ./discoveryinterface,
        ../errors
@@ -71,6 +70,7 @@ proc getPeer*(query: DiscoveryQuery): Future[DiscoveryFilters] {.async.} =
     raise exc
 
   if not finished(getter):
+    # discovery loops only finish when they don't handle the query
     raise newException(DiscoveryError, "Unable to find any peer matching this request")
   return await getter
 

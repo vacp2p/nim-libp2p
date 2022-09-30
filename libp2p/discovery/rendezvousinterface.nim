@@ -25,8 +25,7 @@ type
 
   RdvNamespace* = distinct string
 
-proc `==`*(a: RdvNamespace, b: RdvNamespace): bool =
-  string(a) == string(b)
+proc `==`*(a: RdvNamespace, b: RdvNamespace): bool {.borrow.}
 
 method request*(self: RendezVousInterface, filters: DiscoveryFilters) {.async.} =
   var namespace = ""
@@ -48,6 +47,8 @@ method request*(self: RendezVousInterface, filters: DiscoveryFilters) {.async.} 
         peer.add(address)
 
       peer.add(pr)
+      peer.add(DiscoveryService(namespace))
+      peer.add(RdvNamespace(namespace))
       self.onPeerFound(peer)
 
     #TODO should be configurable
