@@ -21,48 +21,59 @@ export discoveryinterface
 
 type
   DiscoveryError* = object of LPError
-  DiscoveryManager* = ref object of RootObj
-    di: seq[DiscoveryInterface]
-    rq: seq[Future[void]]
+  DiscoveryManager* = ref object
+    interfaces: seq[DiscoveryInterface]
+    queries: seq[DiscoveryQuery]
 
-  DiscoveryQuery* = ref object of RootObj
-    dm: DiscoveryManager
-    filter: DiscoveryFilter
-    peers: seq[DiscoveryResult]
-    foundEvent: AsyncEvent
+  DiscoveryQuery* = ref object
+    filter: DiscoveryFilters
+    peers: AsyncQueue[DiscoveryFilters]
+    futs: seq[Future[void]]
 
-method add*(dm: DiscoveryManager, di: DiscoveryInterface) =
-  dm.di &= di
+proc add*(dm: DiscoveryManager, di: DiscoveryInterface) =
+  dm.interfaces &= di
 
-method request*(dm: DiscoveryManager, filter: DiscoveryFilter): DiscoveryQuery {.base.} =
-  var query = DiscoveryQuery(dm: dm, filter: filter, foundEvent: newAsyncEvent())
-  for i in dm.di:
-    i.onPeerFound =
-      proc(res: DiscoveryResult) {.raises: [Defect], gcsafe.} =
-        query.peers.add(res)
-        query.foundEvent.fire()
-    dm.rq.add(i.request(filter))
+  di.onPeerFound = proc (res: DiscoveryFilters) =
+    for query in dm.queries:
+      if query.filter.match(res):
+        try:
+          query.peers.putNoWait(res)
+        except AsyncQueueFullError as exc:
+          debug "Cannot push discovered peer to queue"
+
+proc request*(dm: DiscoveryManager, filter: DiscoveryFilters): DiscoveryQuery =
+  var query = DiscoveryQuery(filter: filter, peers: newAsyncQueue[DiscoveryFilters]())
+  for i in dm.interfaces:
+    query.futs.add(i.request(filter))
   return query
 
-method advertise*(dm: DiscoveryManager, filter: DiscoveryFilter) {.async, base.} =
-  for i in dm.di:
-    await i.advertise(filter)
+proc advertise*(dm: DiscoveryManager, filter: DiscoveryFilters) {.async.} =
+  for i in dm.interfaces:
+    i.toAdvertise = filter
+    if i.advertiseLoop.isNil:
+      i.advertisementUpdated = newAsyncEvent()
+      i.advertiseLoop = i.advertise()
+    else:
+      i.advertisementUpdated.fire()
 
-method getPeer*(query: DiscoveryQuery): Future[DiscoveryResult] {.async, base.} =
-  if query.dm.rq.allIt(it.finished()) and query.peers.len == 0:
+proc stop*(dm: DiscoveryManager) =
+  for i in dm.interfaces:
+    if isNil(i.advertiseLoop): continue
+    i.advertiseLoop.cancel()
+
+proc getPeer*(query: DiscoveryQuery): Future[DiscoveryFilters] {.async.} =
+  let getter = query.peers.popFirst()
+
+  try:
+    await getter or allFinished(query.futs)
+  except CancelledError as exc:
+    getter.cancel()
+    raise exc
+
+  if not finished(getter):
     raise newException(DiscoveryError, "Unable to find any peer matching this request")
-  if query.peers.len > 0:
-    result = query.peers[0]
-    query.peers.delete(0)
-    return
-  query.foundEvent.clear()
-  await query.foundEvent.wait()
-  if query.peers.len > 0:
-    result = query.peers[0]
-    query.peers.delete(0)
+  return await getter
 
 proc stop*(query: DiscoveryQuery) =
-  for r in query.dm.rq:
+  for r in query.futs:
     if not r.finished(): r.cancel()
-  for i in query.dm.di:
-    i.onPeerFound = nil

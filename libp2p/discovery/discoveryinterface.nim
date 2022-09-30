@@ -12,58 +12,78 @@ when (NimMajor, NimMinor) < (1, 4):
 else:
   {.push raises: [].}
 
-import tables, sequtils, macros
+import tables, macros
 import chronos,
        chronicles
 import ../peerid,
        ../multiaddress,
        ../errors
 
+#TODO should this be moved to discoverymngr.nim?
 type
   DiscoveryError* = object of LPError
 
   BaseFilter = ref object of RootObj
-    comparator*: proc(f: BaseFilter, c: BaseFilter): bool
+    comparator*: proc(f: BaseFilter, c: BaseFilter): bool {.gcsafe, raises: [Defect].}
 
   Filter[T] = ref object of BaseFilter
-    filter*: T
-  
-  DiscoveryFilter* = Table[string, BaseFilter]
+    value*: T
 
-macro getTypeName(t: type): untyped =
-  let typ = getTypeImpl(t)[1]
-  newLit(repr(typ.owner()) & "." & repr(typ))
+  #TODO find better name
+  DiscoveryFilters* = object
+    filters: seq[BaseFilter]
 
-proc `[]=`*[T](df: var DiscoveryFilter,
-               t: typedesc[T],
-               filter: T) =
-  let name = getTypeName(T)
-  df.add(name, Filter[T](
-      filter: filter,
+  DiscoveryService* = distinct string
+
+proc `==`*(a, b: DiscoveryService): bool {.borrow.}
+
+proc add*[T](df: var DiscoveryFilters,
+             value: T) =
+  df.filters.add(Filter[T](
+      value: value,
       comparator: proc(f: BaseFilter, c: BaseFilter): bool =
         if f is Filter[T] and c is Filter[T]:
-          Filter[T](f).filter == Filter[T](c).filter
+          Filter[T](f).value == Filter[T](c).value
         else:
           false
     )
   )
 
-proc `[]`*[T](df: DiscoveryFilter, t: typedesc[T]): T =
-  let name = getTypeName(T)
-  result = Filter[T](df.getOrDefault(name)).filter
+proc ofType*[T](f: BaseFilter, _: type[T]): bool =
+  return f is Filter[T]
+
+proc to*[T](f: BaseFilter, _: type[T]): T =
+  Filter[T](f).value
+
+iterator items*(df: DiscoveryFilters): BaseFilter =
+  for f in df.filters:
+    yield f
+
+proc `[]`*[T](df: DiscoveryFilters, t: typedesc[T]): seq[T] =
+  for f in df.filters:
+    if f is Filter[T]:
+      result.add Filter[T](f).value
+
+proc match*(filter, candidate: DiscoveryFilters): bool =
+  for f in filter.filters:
+    block oneFilter:
+      for field in candidate.filters:
+        if field.comparator(field, f):
+          break oneFilter
+      return false
+  return true
 
 type
-  DiscoveryResult* = ref object of RootObj
-    peerId*: PeerId
-    addresses*: seq[MultiAddress]
-
-  PeerFoundCallback* = proc(res: DiscoveryResult) {.raises: [Defect], gcsafe.}
+  PeerFoundCallback* = proc(res: DiscoveryFilters) {.raises: [Defect], gcsafe.}
 
   DiscoveryInterface* = ref object of RootObj
     onPeerFound*: PeerFoundCallback
+    toAdvertise*: DiscoveryFilters
+    advertisementUpdated*: AsyncEvent
+    advertiseLoop*: Future[void]
 
-method request*(self: DiscoveryInterface, filter: DiscoveryFilter) {.async, base.} =
+method request*(self: DiscoveryInterface, filter: DiscoveryFilters) {.async, base.} =
   doAssert(false, "Not implemented!")
 
-method advertise*(self: DiscoveryInterface, filter: DiscoveryFilter) {.async, base.} =
+method advertise*(self: DiscoveryInterface) {.async, base.} =
   doAssert(false, "Not implemented!")
