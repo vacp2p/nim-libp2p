@@ -32,7 +32,7 @@ logScope:
 
 const
   RendezVousCodec* = "/rendezvous/1.0.0"
-  MinimumDuration = 2.hours
+  MinimumDuration* = 2.hours
   MaximumDuration = 72.hours
   MinimumTTL = MinimumDuration.seconds.uint64
   MaximumTTL = MaximumDuration.seconds.uint64

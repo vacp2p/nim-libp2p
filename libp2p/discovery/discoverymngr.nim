@@ -13,10 +13,7 @@ else:
   {.push raises: [].}
 
 import chronos, chronicles
-import ./discoveryinterface,
-       ../errors
-
-export discoveryinterface
+import ../errors
 
 type
   BaseAttr = ref object of RootObj
@@ -33,7 +30,7 @@ type
 proc `==`*(a, b: DiscoveryService): bool {.borrow.}
 
 proc ofType*[T](f: BaseAttr, _: type[T]): bool =
-  return f is Attribute[T]
+  return f of Attribute[T]
 
 proc to*[T](f: BaseAttr, _: type[T]): T =
   Attribute[T](f).value
@@ -43,7 +40,7 @@ proc add*[T](pa: var PeerAttributes,
   pa.attributes.add(Attribute[T](
       value: value,
       comparator: proc(f: BaseAttr, c: BaseAttr): bool =
-        f.ofType(T) and c.ofType(T) and f.to(T).value == c.to(T).value
+        f.ofType(T) and c.ofType(T) and f.to(T) == c.to(T)
     )
   )
 
@@ -53,8 +50,8 @@ iterator items*(pa: PeerAttributes): BaseAttr =
 
 proc `[]`*[T](pa: PeerAttributes, t: typedesc[T]): seq[T] =
   for f in pa.attributes:
-    if f.ofType(T)
-      result.add(f.to(T).value)
+    if f.ofType(T):
+      result.add(f.to(T))
 
 proc match*(pa, candidate: PeerAttributes): bool =
   for f in pa.attributes:
@@ -107,9 +104,15 @@ proc request*(dm: DiscoveryManager, pa: PeerAttributes): DiscoveryQuery =
   var query = DiscoveryQuery(attr: pa, peers: newAsyncQueue[PeerAttributes]())
   for i in dm.interfaces:
     query.futs.add(i.request(pa))
+  dm.queries.add(query)
   return query
 
-proc advertise*(dm: DiscoveryManager, pa: PeerAttributes) {.async.} =
+proc request*[T](dm: DiscoveryManager, value: T): DiscoveryQuery =
+  var pa: PeerAttributes
+  pa.add(value)
+  return dm.request(pa)
+
+proc advertise*(dm: DiscoveryManager, pa: PeerAttributes) =
   for i in dm.interfaces:
     i.toAdvertise = pa
     if i.advertiseLoop.isNil:
@@ -117,6 +120,11 @@ proc advertise*(dm: DiscoveryManager, pa: PeerAttributes) {.async.} =
       i.advertiseLoop = i.advertise()
     else:
       i.advertisementUpdated.fire()
+
+proc advertise*[T](dm: DiscoveryManager, value: T) =
+  var pa: PeerAttributes
+  pa.add(value)
+  dm.advertise(pa)
 
 proc stop*(dm: DiscoveryManager) =
   for i in dm.interfaces:

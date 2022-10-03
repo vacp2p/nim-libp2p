@@ -29,26 +29,21 @@ suite "Discovery":
       clientA = createSwitch(rdvA)
       clientB = createSwitch(rdvB)
       remoteNode = createSwitch()
-      doneAdvBar = newFuture[void]()
     var
-      dm = DiscoveryManager()
-      filters: DiscoveryFilter
-    filters[RdvNamespace] = RdvNamespace("foo")
-    dm.add(RendezVousInterface(rdv: rdvA))
+      dmA = DiscoveryManager()
+      dmB = DiscoveryManager()
+    dmA.add(RendezVousInterface.new(rdvA, ttr = 500.milliseconds))
+    dmB.add(RendezVousInterface.new(rdvB))
     await allFutures(clientA.start(), clientB.start(), remoteNode.start())
 
     await clientB.connect(remoteNode.peerInfo.peerId, remoteNode.peerInfo.addrs)
-    await rdvB.advertise("foo")
     await clientA.connect(remoteNode.peerInfo.peerId, remoteNode.peerInfo.addrs)
 
-    proc manageQuery() {.async.} =
-      await sleepAsync(500.milliseconds)
-      # make sure to wait for the advertise to be done
-      let query = dm.request(filters)
-      let res = await query.getPeer()
-      check:
-        res.peerId == clientB.peerInfo.peerId
-      doneAdvBar.complete()
-    asyncSpawn manageQuery()
-    await doneAdvBar
+    dmB.advertise(RdvNamespace("foo"))
+
+    let query = dmA.request(RdvNamespace("foo"))
+    let res = await query.getPeer()
+    let resPid = res[PeerId]
+    check:
+      resPid.len == 1 and resPid[0] == clientB.peerInfo.peerId
     await allFutures(clientA.stop(), clientB.stop(), remoteNode.stop())

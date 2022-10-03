@@ -14,34 +14,35 @@ else:
 
 import sequtils
 import chronos
-import ./discoveryinterface,
+import ./discoverymngr,
        ../protocols/rendezvous,
        ../peerid
 
 type
-  #TODO should take default TTL as a param
   RendezVousInterface* = ref object of DiscoveryInterface
     rdv*: RendezVous
+    timeToRequest: Duration
+    timeToAdvertise: Duration
 
   RdvNamespace* = distinct string
 
-proc `==`*(a: RdvNamespace, b: RdvNamespace): bool {.borrow.}
+proc `==`*(a, b: RdvNamespace): bool {.borrow.}
 
-method request*(self: RendezVousInterface, filters: DiscoveryFilters) {.async.} =
+method request*(self: RendezVousInterface, pa: PeerAttributes) {.async.} =
   var namespace = ""
-  for filter in filters:
-    if filter.ofType(RdvNamespace):
-      namespace = string filter.to(RdvNamespace)
-    elif filter.ofType(DiscoveryService):
-      namespace = string filter.to(DiscoveryService)
-    elif filter.ofType(PeerId):
-      namespace = $filter.to(PeerId)
+  for attr in pa:
+    if attr.ofType(RdvNamespace):
+      namespace = string attr.to(RdvNamespace)
+    elif attr.ofType(DiscoveryService):
+      namespace = string attr.to(DiscoveryService)
+    elif attr.ofType(PeerId):
+      namespace = $attr.to(PeerId)
     else:
       # unhandled type
       return
   while true:
     for pr in await self.rdv.request(namespace):
-      var peer: DiscoveryFilters
+      var peer: PeerAttributes
       peer.add(pr.peerId)
       for address in pr.addresses:
         peer.add(address)
@@ -51,23 +52,27 @@ method request*(self: RendezVousInterface, filters: DiscoveryFilters) {.async.} 
       peer.add(RdvNamespace(namespace))
       self.onPeerFound(peer)
 
-    #TODO should be configurable
-    await sleepAsync(1.minutes)
+    await sleepAsync(self.timeToRequest)
 
 method advertise*(self: RendezVousInterface) {.async.} =
   while true:
     var toAdvertise: seq[string]
-    for filter in self.toAdvertise:
-      if filter.ofType(RdvNamespace):
-        toAdvertise.add string filter.to(RdvNamespace)
-      elif filter.ofType(DiscoveryService):
-        toAdvertise.add string filter.to(DiscoveryService)
-      elif filter.ofType(PeerId):
-        toAdvertise.add $filter.to(PeerId)
+    for attr in self.toAdvertise:
+      if attr.ofType(RdvNamespace):
+        toAdvertise.add string attr.to(RdvNamespace)
+      elif attr.ofType(DiscoveryService):
+        toAdvertise.add string attr.to(DiscoveryService)
+      elif attr.ofType(PeerId):
+        toAdvertise.add $attr.to(PeerId)
 
     self.advertisementUpdated.clear()
     for toAdv in toAdvertise:
-      await self.rdv.advertise(toAdv)
+      await self.rdv.advertise(toAdv, self.timeToAdvertise)
 
-    #TODO put TTL here
-    await sleepAsync(10.hours) or self.advertisementUpdated.wait()
+    await sleepAsync(self.timeToAdvertise) or self.advertisementUpdated.wait()
+
+proc new*(T: typedesc[RendezVousInterface],
+          rdv: RendezVous,
+          ttr: Duration = 1.minutes,
+          tta: Duration = MinimumDuration): RendezVousInterface =
+  T(rdv: rdv, timeToRequest: ttr, timeToAdvertise: tta)
