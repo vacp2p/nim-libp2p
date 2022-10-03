@@ -12,15 +12,16 @@ when (NimMajor, NimMinor) < (1, 4):
 else:
   {.push raises: [].}
 
-import chronos, chronicles
+import std/sequtils
+import chronos, chronicles, stew/results
 import ../errors
 
 type
   BaseAttr = ref object of RootObj
-    comparator*: proc(f: BaseAttr, c: BaseAttr): bool {.gcsafe, raises: [Defect].}
+    comparator: proc(f, c: BaseAttr): bool {.gcsafe, raises: [Defect].}
 
   Attribute[T] = ref object of BaseAttr
-    value*: T
+    value: T
 
   PeerAttributes* = object
     attributes: seq[BaseAttr]
@@ -48,10 +49,19 @@ iterator items*(pa: PeerAttributes): BaseAttr =
   for f in pa.attributes:
     yield f
 
-proc `[]`*[T](pa: PeerAttributes, t: typedesc[T]): seq[T] =
+proc getAll*[T](pa: PeerAttributes, t: typedesc[T]): seq[T] =
   for f in pa.attributes:
     if f.ofType(T):
       result.add(f.to(T))
+
+proc `{}`*[T](pa: PeerAttributes, t: typedesc[T]): Opt[T] =
+  for f in pa.attributes:
+    if f.ofType(T):
+      return Opt.some(f.to(T))
+  Opt.none(T)
+
+proc `[]`*[T](pa: PeerAttributes, t: typedesc[T]): T {.raises: [KeyError].} =
+  pa{T}.valueOr: raise newException(KeyError, "Attritute not found")
 
 proc match*(pa, candidate: PeerAttributes): bool =
   for f in pa.attributes:
@@ -105,6 +115,7 @@ proc request*(dm: DiscoveryManager, pa: PeerAttributes): DiscoveryQuery =
   for i in dm.interfaces:
     query.futs.add(i.request(pa))
   dm.queries.add(query)
+  dm.queries.keepItIf(it.futs.anyIt(not it.finished()))
   return query
 
 proc request*[T](dm: DiscoveryManager, value: T): DiscoveryQuery =
@@ -126,7 +137,13 @@ proc advertise*[T](dm: DiscoveryManager, value: T) =
   pa.add(value)
   dm.advertise(pa)
 
+proc stop*(query: DiscoveryQuery) =
+  for r in query.futs:
+    if not r.finished(): r.cancel()
+
 proc stop*(dm: DiscoveryManager) =
+  for q in dm.queries:
+    q.stop()
   for i in dm.interfaces:
     if isNil(i.advertiseLoop): continue
     i.advertiseLoop.cancel()
@@ -144,7 +161,3 @@ proc getPeer*(query: DiscoveryQuery): Future[PeerAttributes] {.async.} =
     # discovery loops only finish when they don't handle the query
     raise newException(DiscoveryError, "Unable to find any peer matching this request")
   return await getter
-
-proc stop*(query: DiscoveryQuery) =
-  for r in query.futs:
-    if not r.finished(): r.cancel()

@@ -284,10 +284,6 @@ type
     peerId: PeerId
     data: Register
 
-  RegisteredSeq = object
-    s: seq[RegisteredData]
-    offset: uint64
-
   RendezVous* = ref object of LPProtocol
     # Registered needs to be an offsetted sequence
     # because we need stable index for the cookies.

@@ -1,6 +1,6 @@
 {.used.}
 
-import options, chronos
+import options, chronos, sets
 import stew/byteutils
 import ../libp2p/[protocols/rendezvous,
                   switch,
@@ -29,7 +29,6 @@ suite "Discovery":
       clientA = createSwitch(rdvA)
       clientB = createSwitch(rdvB)
       remoteNode = createSwitch()
-    var
       dmA = DiscoveryManager()
       dmB = DiscoveryManager()
     dmA.add(RendezVousInterface.new(rdvA, ttr = 500.milliseconds))
@@ -41,9 +40,12 @@ suite "Discovery":
 
     dmB.advertise(RdvNamespace("foo"))
 
-    let query = dmA.request(RdvNamespace("foo"))
-    let res = await query.getPeer()
-    let resPid = res[PeerId]
+    let
+      query = dmA.request(RdvNamespace("foo"))
+      res = await query.getPeer()
     check:
-      resPid.len == 1 and resPid[0] == clientB.peerInfo.peerId
+      res{PeerId}.get() == clientB.peerInfo.peerId
+      res[PeerId] == clientB.peerInfo.peerId
+      res.getAll(PeerId) == @[clientB.peerInfo.peerId]
+      toHashSet(res.getAll(MultiAddress)) == toHashSet(clientB.peerInfo.addrs)
     await allFutures(clientA.stop(), clientB.stop(), remoteNode.stop())

@@ -45,9 +45,8 @@ method request*(self: RendezVousInterface, pa: PeerAttributes) {.async.} =
       var peer: PeerAttributes
       peer.add(pr.peerId)
       for address in pr.addresses:
-        peer.add(address)
+        peer.add(address.address)
 
-      peer.add(pr)
       peer.add(DiscoveryService(namespace))
       peer.add(RdvNamespace(namespace))
       self.onPeerFound(peer)
