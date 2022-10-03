@@ -60,7 +60,7 @@ proc `{}`*[T](pa: PeerAttributes, t: typedesc[T]): Opt[T] =
       return Opt.some(f.to(T))
   Opt.none(T)
 
-proc `[]`*[T](pa: PeerAttributes, t: typedesc[T]): T {.raises: [KeyError].} =
+proc `[]`*[T](pa: PeerAttributes, t: typedesc[T]): T {.raises: [Defect, KeyError].} =
   pa{T}.valueOr: raise newException(KeyError, "Attritute not found")
 
 proc match*(pa, candidate: PeerAttributes): bool =
