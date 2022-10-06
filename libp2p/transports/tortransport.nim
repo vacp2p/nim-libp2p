@@ -1,32 +1,57 @@
+# Nim-LibP2P
+# Copyright (c) 2022 Status Research & Development GmbH
+# Licensed under either of
+#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+#  * MIT license ([LICENSE-MIT](LICENSE-MIT))
+# at your option.
+# This file may not be copied, modified, or distributed except according to
+# those terms.
+
+## Tor transport implementation
 
 when (NimMajor, NimMinor) < (1, 4):
   {.push raises: [Defect].}
 else:
   {.push raises: [].}
 
-import std/[oids, sequtils]
 import chronos, chronicles, strutils
 import stew/[byteutils, endians2, results]
 import ../multicodec
 import transport,
       tcptransport,
-      ../wire,
       ../stream/[lpstream, connection, chronosstream],
       ../multiaddress,
       ../upgrademngrs/upgrade
 
 const
-  Socks5TransportTrackerName* = "libp2p.tortransport"
+  Socks5ProtocolVersion = byte(5)
+  NMethods = byte(1)
 
-  ONIO3_MATCHER = mapEq("onion3")
-  TCP_ONIO3_MATCHER = mapAnd(TCP, ONIO3_MATCHER)
+  Onion3Matcher = mapEq("onion3")
+  TcpOnion3Matcher = mapAnd(TCP, Onion3Matcher)
 
 type
-  TransportStartError* = object of transport.TransportError
-
   TorTransport* = ref object of Transport
     transportAddress: TransportAddress
     tcpTransport: TcpTransport
+
+  Socks5AuthMethod* {.pure.} = enum
+    NoAuth = 0
+    GSSAPI = 1
+    UsernamePassword = 2
+    NoAcceptableMethod = 0xff
+
+  Socks5RequestCommand* {.pure.} = enum
+    Connect = 1, Bind = 2, UdpAssoc = 3
+
+  Socks5AddressType* {.pure.} = enum
+    IPv4 = 1, FQDN = 3, IPv6 = 4
+
+  TransportStartError* = object of transport.TransportError
+
+  Socks5Error* = object of CatchableError
+  Socks5AuthFailedError* = object of Socks5Error
+  Socks5VersionError* = object of Socks5Error
 
 proc new*(
   T: typedesc[TorTransport],
@@ -40,18 +65,26 @@ proc new*(
     upgrader: upgrade,
     tcpTransport: TcpTransport.new(flags, upgrade))
 
-proc connectToTorServer(transportAddress: TransportAddress): Future[StreamTransport] {.async, gcsafe.} =
+proc connectToTorServer(
+    transportAddress: TransportAddress): Future[StreamTransport] {.async, gcsafe.} =
   let transp = await connect(transportAddress)
   try:
-    discard await transp.write(@[05'u8, 01, 00])
-    discard await transp.read(2)
+    discard await transp.write(@[Socks5ProtocolVersion, NMethods, Socks5AuthMethod.NoAuth.byte])
+    let serverReply = await transp.read(2)
+    let socks5ProtocolVersion = serverReply[0]
+    let serverSelectedMethod =serverReply[1]
+    if socks5ProtocolVersion != Socks5ProtocolVersion:
+      raise newException(Socks5VersionError, "Unsupported socks version")
+    if serverSelectedMethod != Socks5AuthMethod.NoAuth.byte:
+      raise newException(Socks5AuthFailedError, "Unsupported auth method")
     return transp
   except CatchableError as err:
     await transp.closeWait()
     raise err
 
 proc readServerReply(transp: StreamTransport) {.async, gcsafe.} =
-  ## The specification for this code is defined on [link text](https://www.rfc-editor.org/rfc/rfc1928#section-5)
+  ## The specification for this code is defined on
+  ## [link text](https://www.rfc-editor.org/rfc/rfc1928#section-5)
   ## and [link text](https://www.rfc-editor.org/rfc/rfc1928#section-6).
   let portNumOctets = 2
   let ipV4NumOctets = 4
@@ -59,15 +92,16 @@ proc readServerReply(transp: StreamTransport) {.async, gcsafe.} =
   let firstFourOctets = await transp.read(4)
   let atyp = firstFourOctets[3]
   case atyp:
-    of 0x01:
+    of Socks5AddressType.IPv4.byte:
       discard await transp.read(ipV4NumOctets + portNumOctets)
-    of 0x03:
+    of Socks5AddressType.FQDN.byte:
       let fqdnNumOctets = await transp.read(1)
       discard await transp.read(int(uint8.fromBytes(fqdnNumOctets)) + portNumOctets)
     else:
       discard await transp.read(ipV6NumOctets + portNumOctets)
 
-proc dialPeer(transp: StreamTransport, address: MultiAddress) {.async, gcsafe.} =
+proc dialPeer(
+    transp: StreamTransport, address: MultiAddress) {.async, gcsafe.} =
 
   let addressArray = ($address).split('/')
   let addressStr = addressArray[2].split(':')[0] & ".onion"
@@ -77,7 +111,13 @@ proc dialPeer(transp: StreamTransport, address: MultiAddress) {.async, gcsafe.} 
   # follow, there is no terminating NUL octet.
   let dstAddr = @(uint8(addressStr.len).toBytes()) & addressStr.toBytes()
   let dstPort = address.data.buffer[37..38]
-  let b = @[05'u8, 01, 00, 03] & dstAddr & dstPort
+  let reserved = byte(0)
+  let b = @[
+    Socks5ProtocolVersion,
+    Socks5RequestCommand.Connect.byte,
+    reserved,
+    Socks5AddressType.FQDN.byte] & dstAddr & dstPort
+
   discard await transp.write(b)
   await readServerReply(transp)
 
@@ -107,7 +147,7 @@ method start*(
   var ipTcpAddrs: seq[MultiAddress]
   var onion3Addrs: seq[MultiAddress]
   for i, ma in addrs:
-    if not TCP_ONIO3_MATCHER.match(ma):
+    if not TcpOnion3Matcher.match(ma):
         warn "Invalid address detected, skipping!", address = ma
         continue
 
@@ -123,7 +163,7 @@ method start*(
     raise newException(TransportStartError, "Tor Transport couldn't start, no supported addr was provided.")
 
 method accept*(self: TorTransport): Future[Connection] {.async, gcsafe.} =
-  ## accept a new TCP connection
+  ## accept a new Tor connection
   ##
   return await self.tcpTransport.accept()
 
@@ -136,4 +176,4 @@ method stop*(self: TorTransport) {.async, gcsafe.} =
 method handles*(t: TorTransport, address: MultiAddress): bool {.gcsafe.} =
   if procCall Transport(t).handles(address):
     if address.protocols.isOk:
-      return ONIO3_MATCHER.match(address) or TCP_ONIO3_MATCHER.match(address)
+      return Onion3Matcher.match(address) or TcpOnion3Matcher.match(address)
