@@ -1,11 +1,11 @@
-## Nim-LibP2P
-## Copyright (c) 2020 Status Research & Development GmbH
-## Licensed under either of
-##  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
-##  * MIT license ([LICENSE-MIT](LICENSE-MIT))
-## at your option.
-## This file may not be copied, modified, or distributed except according to
-## those terms.
+# Nim-LibP2P
+# Copyright (c) 2022 Status Research & Development GmbH
+# Licensed under either of
+#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+#  * MIT license ([LICENSE-MIT](LICENSE-MIT))
+# at your option.
+# This file may not be copied, modified, or distributed except according to
+# those terms.
 
 {.used.}
 
@@ -39,7 +39,12 @@ const
 type
   TestProto = ref object of LPProtocol
 
-method init(p: TestProto) {.gcsafe, raises: [Defect].} =
+when (NimMajor, NimMinor) < (1, 4):
+  {.push raises: [Defect].}
+else:
+  {.push raises: [].}
+
+method init(p: TestProto) {.gcsafe.} =
   proc handle(conn: Connection, proto: string) {.async, gcsafe.} =
     let msg = string.fromBytes(await conn.readLp(1024))
     check "Hello!" == msg
@@ -48,6 +53,9 @@ method init(p: TestProto) {.gcsafe, raises: [Defect].} =
 
   p.codec = TestCodec
   p.handler = handle
+
+{.pop.}
+
 
 proc createSwitch(ma: MultiAddress; outgoing: bool, secio: bool = false): (Switch, PeerInfo) =
   var
@@ -61,7 +69,7 @@ proc createSwitch(ma: MultiAddress; outgoing: bool, secio: bool = false): (Switc
   let
     identify = Identify.new(peerInfo)
     mplexProvider = MuxerProvider.new(createMplex, MplexCodec)
-    muxers = [(MplexCodec, mplexProvider)].toTable()
+    muxers = @[mplexProvider]
     secureManagers = if secio:
       [Secure(Secio.new(rng, privateKey))]
     else:
@@ -75,7 +83,6 @@ proc createSwitch(ma: MultiAddress; outgoing: bool, secio: bool = false): (Switc
       peerInfo,
       transports,
       identify,
-      muxers,
       secureManagers,
       connManager,
       ms)
@@ -97,7 +104,7 @@ suite "Noise":
 
     proc acceptHandler() {.async.} =
       let conn = await transport1.accept()
-      let sconn = await serverNoise.secure(conn, false)
+      let sconn = await serverNoise.secure(conn, false, Opt.none(PeerId))
       try:
         await sconn.write("Hello!")
       finally:
@@ -112,8 +119,7 @@ suite "Noise":
       clientNoise = Noise.new(rng, clientPrivKey, outgoing = true)
       conn = await transport2.dial(transport1.addrs[0])
 
-    conn.peerId = serverInfo.peerId
-    let sconn = await clientNoise.secure(conn, true)
+    let sconn = await clientNoise.secure(conn, true, Opt.some(serverInfo.peerId))
 
     var msg = newSeq[byte](6)
     await sconn.readExactly(addr msg[0], 6)
@@ -142,7 +148,7 @@ suite "Noise":
       var conn: Connection
       try:
         conn = await transport1.accept()
-        discard await serverNoise.secure(conn, false)
+        discard await serverNoise.secure(conn, false, Opt.none(PeerId))
       except CatchableError:
         discard
       finally:
@@ -155,11 +161,10 @@ suite "Noise":
       clientInfo = PeerInfo.new(clientPrivKey, transport1.addrs)
       clientNoise = Noise.new(rng, clientPrivKey, outgoing = true, commonPrologue = @[1'u8, 2'u8, 3'u8])
       conn = await transport2.dial(transport1.addrs[0])
-    conn.peerId = serverInfo.peerId
 
     var sconn: Connection = nil
     expect(NoiseDecryptTagError):
-      sconn = await clientNoise.secure(conn, true)
+      sconn = await clientNoise.secure(conn, true, Opt.some(conn.peerId))
 
     await conn.close()
     await handlerWait
@@ -179,7 +184,7 @@ suite "Noise":
 
     proc acceptHandler() {.async, gcsafe.} =
       let conn = await transport1.accept()
-      let sconn = await serverNoise.secure(conn, false)
+      let sconn = await serverNoise.secure(conn, false, Opt.none(PeerId))
       defer:
         await sconn.close()
         await conn.close()
@@ -195,8 +200,7 @@ suite "Noise":
       clientInfo = PeerInfo.new(clientPrivKey, transport1.addrs)
       clientNoise = Noise.new(rng, clientPrivKey, outgoing = true)
       conn = await transport2.dial(transport1.addrs[0])
-    conn.peerId = serverInfo.peerId
-    let sconn = await clientNoise.secure(conn, true)
+    let sconn = await clientNoise.secure(conn, true, Opt.some(serverInfo.peerId))
 
     await sconn.write("Hello!")
     await acceptFut
@@ -223,7 +227,7 @@ suite "Noise":
 
     proc acceptHandler() {.async, gcsafe.} =
       let conn = await transport1.accept()
-      let sconn = await serverNoise.secure(conn, false)
+      let sconn = await serverNoise.secure(conn, false, Opt.none(PeerId))
       defer:
         await sconn.close()
       let msg = await sconn.readLp(1024*1024)
@@ -237,8 +241,7 @@ suite "Noise":
       clientInfo = PeerInfo.new(clientPrivKey, transport1.addrs)
       clientNoise = Noise.new(rng, clientPrivKey, outgoing = true)
       conn = await transport2.dial(transport1.addrs[0])
-    conn.peerId = serverInfo.peerId
-    let sconn = await clientNoise.secure(conn, true)
+    let sconn = await clientNoise.secure(conn, true, Opt.some(serverInfo.peerId))
 
     await sconn.writeLp(hugePayload)
     await readTask
@@ -292,7 +295,7 @@ suite "Noise":
     (switch2, peerInfo2) = createSwitch(ma2, true, true) # secio, we want to fail
     await switch1.start()
     await switch2.start()
-    expect(UpgradeFailedError):
+    expect(DialFailedError):
       let conn = await switch2.dial(switch1.peerInfo.peerId, switch1.peerInfo.addrs, TestCodec)
 
     await allFuturesThrowing(

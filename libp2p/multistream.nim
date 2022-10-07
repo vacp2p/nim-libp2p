@@ -1,15 +1,18 @@
-## Nim-LibP2P
-## Copyright (c) 2019 Status Research & Development GmbH
-## Licensed under either of
-##  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
-##  * MIT license ([LICENSE-MIT](LICENSE-MIT))
-## at your option.
-## This file may not be copied, modified, or distributed except according to
-## those terms.
+# Nim-LibP2P
+# Copyright (c) 2022 Status Research & Development GmbH
+# Licensed under either of
+#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+#  * MIT license ([LICENSE-MIT](LICENSE-MIT))
+# at your option.
+# This file may not be copied, modified, or distributed except according to
+# those terms.
 
-{.push raises: [Defect].}
+when (NimMajor, NimMinor) < (1, 4):
+  {.push raises: [Defect].}
+else:
+  {.push raises: [].}
 
-import std/[strutils]
+import std/[strutils, sequtils]
 import chronos, chronicles, stew/byteutils
 import stream/connection,
        protocols/protocol
@@ -76,7 +79,7 @@ proc select*(m: MultistreamSelect,
     trace "reading first requested proto", conn
     if s == proto[0]:
       trace "successfully selected ", conn, proto = proto[0]
-      conn.tag = proto[0]
+      conn.protocol = proto[0]
       return proto[0]
     elif proto.len > 1:
       # Try to negotiate alternatives
@@ -89,7 +92,7 @@ proc select*(m: MultistreamSelect,
         validateSuffix(s)
         if s == p:
           trace "selected protocol", conn, protocol = s
-          conn.tag = s
+          conn.protocol = s
           return s
       return ""
     else:
@@ -167,7 +170,7 @@ proc handle*(m: MultistreamSelect, conn: Connection, active: bool = false) {.asy
           if (not isNil(h.match) and h.match(ms)) or h.protos.contains(ms):
             trace "found handler", conn, protocol = ms
             await conn.writeLp(ms & "\n")
-            conn.tag = ms
+            conn.protocol = ms
             await h.protocol.handler(conn, ms)
             return
         debug "no handlers", conn, protocol = ms
@@ -209,3 +212,9 @@ proc addHandler*(m: MultistreamSelect,
   m.handlers.add(HandlerHolder(protos: @[codec],
                                protocol: protocol,
                                match: matcher))
+
+proc start*(m: MultistreamSelect) {.async.} =
+  await allFutures(m.handlers.mapIt(it.protocol.start()))
+
+proc stop*(m: MultistreamSelect) {.async.} =
+  await allFutures(m.handlers.mapIt(it.protocol.stop()))

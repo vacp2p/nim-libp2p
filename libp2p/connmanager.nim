@@ -1,13 +1,16 @@
-## Nim-LibP2P
-## Copyright (c) 2020 Status Research & Development GmbH
-## Licensed under either of
-##  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
-##  * MIT license ([LICENSE-MIT](LICENSE-MIT))
-## at your option.
-## This file may not be copied, modified, or distributed except according to
-## those terms.
+# Nim-LibP2P
+# Copyright (c) 2022 Status Research & Development GmbH
+# Licensed under either of
+#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+#  * MIT license ([LICENSE-MIT](LICENSE-MIT))
+# at your option.
+# This file may not be copied, modified, or distributed except according to
+# those terms.
 
-{.push raises: [Defect].}
+when (NimMajor, NimMinor) < (1, 4):
+  {.push raises: [Defect].}
+else:
+  {.push raises: [].}
 
 import std/[options, tables, sequtils, sets]
 import pkg/[chronos, chronicles, metrics]
@@ -29,9 +32,6 @@ const
 
 type
   TooManyConnectionsError* = object of LPError
-
-  ConnProvider* = proc(): Future[Connection]
-    {.gcsafe, closure, raises: [Defect].}
 
   ConnEventKind* {.pure.} = enum
     Connected,    # A connection was made and securely upgraded - there may be
@@ -80,6 +80,10 @@ type
     connEvents: array[ConnEventKind, OrderedSet[ConnEventHandler]]
     peerEvents: array[PeerEventKind, OrderedSet[PeerEventHandler]]
     peerStore*: PeerStore
+
+  ConnectionSlot* = object
+    connManager: ConnManager
+    direction: Direction
 
 proc newTooManyConnectionsError(): ref TooManyConnectionsError {.inline.} =
   result = newException(TooManyConnectionsError, "Too many connections")
@@ -401,90 +405,39 @@ proc storeConn*(c: ConnManager, conn: Connection)
   trace "Stored connection",
     conn, direction = $conn.dir, connections = c.conns.len
 
-proc trackConn(c: ConnManager,
-               provider: ConnProvider,
-               sema: AsyncSemaphore):
-               Future[Connection] {.async.} =
-  var conn: Connection
-  try:
-    conn = await provider()
+proc getIncomingSlot*(c: ConnManager): Future[ConnectionSlot] {.async.} =
+  await c.inSema.acquire()
+  return ConnectionSlot(connManager: c, direction: In)
 
-    if isNil(conn):
-      return
-
-    trace "Got connection", conn
-
-    proc semaphoreMonitor() {.async.} =
-      try:
-        await conn.join()
-      except CatchableError as exc:
-        trace "Exception in semaphore monitor, ignoring", exc = exc.msg
-
-      sema.release()
-
-    asyncSpawn semaphoreMonitor()
-  except CatchableError as exc:
-    trace "Exception tracking connection", exc = exc.msg
-    if not isNil(conn):
-      await conn.close()
-
-    raise exc
-
-  return conn
-
-proc trackIncomingConn*(c: ConnManager,
-                        provider: ConnProvider):
-                        Future[Connection] {.async.} =
-  ## await for a connection slot before attempting
-  ## to call the connection provider
-  ##
-
-  var conn: Connection
-  try:
-    trace "Tracking incoming connection"
-    await c.inSema.acquire()
-    conn = await c.trackConn(provider, c.inSema)
-    if isNil(conn):
-      trace "Couldn't acquire connection, releasing semaphore slot", dir = $Direction.In
-      c.inSema.release()
-
-    return conn
-  except CatchableError as exc:
-    trace "Exception tracking connection", exc = exc.msg
-    c.inSema.release()
-    raise exc
-
-proc trackOutgoingConn*(c: ConnManager,
-                        provider: ConnProvider,
-                        forceDial = false):
-                        Future[Connection] {.async.} =
-  ## try acquiring a connection if all slots
-  ## are already taken, raise TooManyConnectionsError
-  ## exception
-  ##
-
-  trace "Tracking outgoing connection", count = c.outSema.count,
-                                        max = c.outSema.size
-
+proc getOutgoingSlot*(c: ConnManager, forceDial = false): Future[ConnectionSlot] {.async.} =
   if forceDial:
     c.outSema.forceAcquire()
   elif not c.outSema.tryAcquire():
     trace "Too many outgoing connections!", count = c.outSema.count,
                                             max = c.outSema.size
     raise newTooManyConnectionsError()
+  return ConnectionSlot(connManager: c, direction: Out)
 
-  var conn: Connection
-  try:
-    conn = await c.trackConn(provider, c.outSema)
-    if isNil(conn):
-      trace "Couldn't acquire connection, releasing semaphore slot", dir = $Direction.Out
-      c.outSema.release()
+proc release*(cs: ConnectionSlot) =
+  if cs.direction == In:
+    cs.connManager.inSema.release()
+  else:
+    cs.connManager.outSema.release()
 
-    return conn
-  except CatchableError as exc:
-    trace "Exception tracking connection", exc = exc.msg
-    c.outSema.release()
-    raise exc
+proc trackConnection*(cs: ConnectionSlot, conn: Connection) =
+  if isNil(conn):
+    cs.release()
+    return
+
+  proc semaphoreMonitor() {.async.} =
+    try:
+      await conn.join()
+    except CatchableError as exc:
+      trace "Exception in semaphore monitor, ignoring", exc = exc.msg
+
+    cs.release()
+
+  asyncSpawn semaphoreMonitor()
 
 proc storeMuxer*(c: ConnManager,
                  muxer: Muxer,

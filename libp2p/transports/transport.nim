@@ -1,14 +1,17 @@
-## Nim-LibP2P
-## Copyright (c) 2019 Status Research & Development GmbH
-## Licensed under either of
-##  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
-##  * MIT license ([LICENSE-MIT](LICENSE-MIT))
-## at your option.
-## This file may not be copied, modified, or distributed except according to
-## those terms.
+# Nim-LibP2P
+# Copyright (c) 2022 Status Research & Development GmbH
+# Licensed under either of
+#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+#  * MIT license ([LICENSE-MIT](LICENSE-MIT))
+# at your option.
+# This file may not be copied, modified, or distributed except according to
+# those terms.
 ##
 
-{.push raises: [Defect].}
+when (NimMajor, NimMinor) < (1, 4):
+  {.push raises: [Defect].}
+else:
+  {.push raises: [].}
 
 import sequtils
 import chronos, chronicles
@@ -84,12 +87,13 @@ method upgradeIncoming*(
 
 method upgradeOutgoing*(
   self: Transport,
-  conn: Connection): Future[Connection] {.base, gcsafe.} =
+  conn: Connection,
+  peerId: Opt[PeerId]): Future[Connection] {.base, gcsafe.} =
   ## base upgrade method that the transport uses to perform
   ## transport specific upgrades
   ##
 
-  self.upgrader.upgradeOutgoing(conn)
+  self.upgrader.upgradeOutgoing(conn, peerId)
 
 method handles*(
   self: Transport,

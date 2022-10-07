@@ -1,0 +1,49 @@
+site_name: nim-libp2p
+
+repo_url: https://github.com/status-im/nim-libp2p
+repo_name: status-im/nim-libp2p
+site_url: https://status-im.github.io/nim-libp2p/docs
+# Can't find a way to point the edit to the .nim instead
+# of the .md
+edit_uri: ''
+
+docs_dir: examples
+
+markdown_extensions:
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+
+theme:
+  logo: https://docs.libp2p.io/images/logo_small.png
+  favicon: https://docs.libp2p.io/images/logo_small.png
+  name: material
+  features:
+    - navigation.instant
+    - search.highlight
+  palette:
+    - scheme: default
+      primary: blue grey
+      toggle:
+        icon: material/toggle-switch
+        name: Switch to dark mode
+
+    - scheme: slate
+      primary: blue grey
+      toggle:
+        icon: material/toggle-switch-off-outline
+        name: Switch to light mode
+
+nav:
+  - Introduction: README.md
+  - Tutorials:
+    - 'Simple connection': tutorial_1_connect.md
+    - 'Create a custom protocol': tutorial_2_customproto.md
+    - 'Protobuf': tutorial_3_protobuf.md
+    - 'Circuit Relay': circuitrelay.md
+  - Reference: '/nim-libp2p/master/libp2p.html'

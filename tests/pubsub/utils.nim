@@ -18,7 +18,7 @@ export builders
 
 randomize()
 
-func defaultMsgIdProvider*(m: Message): Result[MessageID, ValidationResult] =
+func defaultMsgIdProvider*(m: Message): Result[MessageId, ValidationResult] =
   let mid =
     if m.seqno.len > 0 and m.fromPeer.data.len > 0:
       byteutils.toHex(m.seqno) & $m.fromPeer
@@ -26,7 +26,7 @@ func defaultMsgIdProvider*(m: Message): Result[MessageID, ValidationResult] =
       # This part is irrelevant because it's not standard,
       # We use it exclusively for testing basically and users should
       # implement their own logic in the case they use anonymization
-      $m.data.hash & $m.topicIDs.hash
+      $m.data.hash & $m.topicIds.hash
   ok mid.toBytes()
 
 proc generateNodes*(

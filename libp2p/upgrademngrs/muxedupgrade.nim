@@ -1,13 +1,16 @@
-## Nim-LibP2P
-## Copyright (c) 2021 Status Research & Development GmbH
-## Licensed under either of
-##  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
-##  * MIT license ([LICENSE-MIT](LICENSE-MIT))
-## at your option.
-## This file may not be copied, modified, or distributed except according to
-## those terms.
+# Nim-LibP2P
+# Copyright (c) 2022 Status Research & Development GmbH
+# Licensed under either of
+#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+#  * MIT license ([LICENSE-MIT](LICENSE-MIT))
+# at your option.
+# This file may not be copied, modified, or distributed except according to
+# those terms.
 
-{.push raises: [Defect].}
+when (NimMajor, NimMinor) < (1, 4):
+  {.push raises: [Defect].}
+else:
+  {.push raises: [].}
 
 import std/[tables, sequtils]
 import pkg/[chronos, chronicles, metrics]
@@ -22,8 +25,13 @@ logScope:
 
 type
   MuxedUpgrade* = ref object of Upgrade
-    muxers*: Table[string, MuxerProvider]
+    muxers*: seq[MuxerProvider]
     streamHandler*: StreamHandler
+
+proc getMuxerByCodec(self: MuxedUpgrade, muxerName: string): MuxerProvider =
+  for m in self.muxers:
+    if muxerName in m.codecs:
+      return m
 
 proc identify*(
   self: MuxedUpgrade,
@@ -50,7 +58,7 @@ proc mux*(
     warn "no muxers registered, skipping upgrade flow", conn
     return
 
-  let muxerName = await self.ms.select(conn, toSeq(self.muxers.keys()))
+  let muxerName = await self.ms.select(conn, self.muxers.mapIt(it.codec))
   if muxerName.len == 0 or muxerName == "na":
     debug "no muxer available, early exit", conn
     return
@@ -58,7 +66,7 @@ proc mux*(
   trace "Found a muxer", conn, muxerName
 
   # create new muxer for connection
-  let muxer = self.muxers[muxerName].newMuxer(conn)
+  let muxer = self.getMuxerByCodec(muxerName).newMuxer(conn)
 
   # install stream handler
   muxer.streamHandler = self.streamHandler
@@ -80,10 +88,11 @@ proc mux*(
 
 method upgradeOutgoing*(
   self: MuxedUpgrade,
-  conn: Connection): Future[Connection] {.async, gcsafe.} =
+  conn: Connection,
+  peerId: Opt[PeerId]): Future[Connection] {.async, gcsafe.} =
   trace "Upgrading outgoing connection", conn
 
-  let sconn = await self.secure(conn) # secure the connection
+  let sconn = await self.secure(conn, peerId) # secure the connection
   if isNil(sconn):
     raise newException(UpgradeFailedError,
       "unable to secure connection, stopping upgrade")
@@ -121,13 +130,13 @@ method upgradeIncoming*(
 
     var cconn = conn
     try:
-      var sconn = await secure.secure(cconn, false)
+      var sconn = await secure.secure(cconn, false, Opt.none(PeerId))
       if isNil(sconn):
         return
 
       cconn = sconn
       # add the muxer
-      for muxer in self.muxers.values:
+      for muxer in self.muxers:
         ms.addHandler(muxer.codecs, muxer)
 
       # handle subsequent secure requests
@@ -197,7 +206,7 @@ proc muxerHandler(
 proc new*(
   T: type MuxedUpgrade,
   identity: Identify,
-  muxers: Table[string, MuxerProvider],
+  muxers: seq[MuxerProvider],
   secureManagers: openArray[Secure] = [],
   connManager: ConnManager,
   ms: MultistreamSelect): T =

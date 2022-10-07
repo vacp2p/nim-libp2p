@@ -1,13 +1,22 @@
-## Nim-LibP2P
-## Copyright (c) 2019 Status Research & Development GmbH
-## Licensed under either of
-##  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
-##  * MIT license ([LICENSE-MIT](LICENSE-MIT))
-## at your option.
-## This file may not be copied, modified, or distributed except according to
-## those terms.
+# Nim-LibP2P
+# Copyright (c) 2022 Status Research & Development GmbH
+# Licensed under either of
+#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+#  * MIT license ([LICENSE-MIT](LICENSE-MIT))
+# at your option.
+# This file may not be copied, modified, or distributed except according to
+# those terms.
 
-{.push raises: [Defect].}
+## Base interface for pubsub protocols
+##
+## You can `subscribe<#subscribe%2CPubSub%2Cstring%2CTopicHandler>`_ to a topic,
+## `publish<#publish.e%2CPubSub%2Cstring%2Cseq%5Bbyte%5D>`_ something on it,
+## and eventually `unsubscribe<#unsubscribe%2CPubSub%2Cstring%2CTopicHandler>`_ from it.
+
+when (NimMajor, NimMinor) < (1, 4):
+  {.push raises: [Defect].}
+else:
+  {.push raises: [].}
 
 import std/[tables, sequtils, sets, strutils]
 import chronos, chronicles, metrics
@@ -75,37 +84,40 @@ declarePublicCounter(libp2p_pubsub_received_prune, "pubsub broadcast prune", lab
 type
   InitializationError* = object of LPError
 
-  TopicHandler* = proc(topic: string,
+  TopicHandler* {.public.} = proc(topic: string,
                        data: seq[byte]): Future[void] {.gcsafe, raises: [Defect].}
 
-  ValidatorHandler* = proc(topic: string,
+  ValidatorHandler* {.public.} = proc(topic: string,
                            message: Message): Future[ValidationResult] {.gcsafe, raises: [Defect].}
 
   TopicPair* = tuple[topic: string, handler: TopicHandler]
 
-  MsgIdProvider* =
-    proc(m: Message): Result[MessageID, ValidationResult] {.noSideEffect, raises: [Defect], gcsafe.}
+  MsgIdProvider* {.public.} =
+    proc(m: Message): Result[MessageId, ValidationResult] {.noSideEffect, raises: [Defect], gcsafe.}
 
-  SubscriptionValidator* =
+  SubscriptionValidator* {.public.} =
     proc(topic: string): bool {.raises: [Defect], gcsafe.}
+    ## Every time a peer send us a subscription (even to an unknown topic),
+    ## we have to store it, which may be an attack vector.
+    ## This callback can be used to reject topic we're not interested in
 
-  PubSub* = ref object of LPProtocol
+  PubSub* {.public.} = ref object of LPProtocol
     switch*: Switch                    # the switch used to dial/connect to peers
     peerInfo*: PeerInfo                # this peer's info
     topics*: Table[string, seq[TopicHandler]]      # the topics that _we_ are interested in
-    peers*: Table[PeerId, PubSubPeer]  ##\
-      ## Peers that we are interested to gossip with (but not necessarily
-      ## yet connected to)
-    triggerSelf*: bool                 # trigger own local handler on publish
-    verifySignature*: bool             # enable signature verification
-    sign*: bool                        # enable message signing
+    peers*: Table[PeerId, PubSubPeer]  #\
+      # Peers that we are interested to gossip with (but not necessarily
+      # yet connected to)
+    triggerSelf*: bool                 ## trigger own local handler on publish
+    verifySignature*: bool             ## enable signature verification
+    sign*: bool                        ## enable message signing
     validators*: Table[string, HashSet[ValidatorHandler]]
     observers: ref seq[PubSubObserver] # ref as in smart_ptr
-    msgIdProvider*: MsgIdProvider      # Turn message into message id (not nil)
+    msgIdProvider*: MsgIdProvider      ## Turn message into message id (not nil)
     msgSeqno*: uint64
-    anonymize*: bool                   # if we omit fromPeer and seqno from RPC messages we send
+    anonymize*: bool                   ## if we omit fromPeer and seqno from RPC messages we send
     subscriptionValidator*: SubscriptionValidator # callback used to validate subscriptions
-    topicsHigh*: int                  # the maximum number of topics a peer is allowed to subscribe to
+    topicsHigh*: int                  ## the maximum number of topics a peer is allowed to subscribe to
     maxMessageSize*: int          ##\ 
       ## the maximum raw message size we'll globally allow
       ## for finer tuning, check message size on topic validator
@@ -154,7 +166,7 @@ proc broadcast*(
         libp2p_pubsub_broadcast_unsubscriptions.inc(npeers, labelValues = ["generic"])
 
   for smsg in msg.messages:
-    for topic in smsg.topicIDs:
+    for topic in smsg.topicIds:
       if p.knownTopics.contains(topic):
         libp2p_pubsub_broadcast_messages.inc(npeers, labelValues = [topic])
       else:
@@ -165,18 +177,18 @@ proc broadcast*(
 
     let control = msg.control.get()
     for ihave in control.ihave:
-      if p.knownTopics.contains(ihave.topicID):
-        libp2p_pubsub_broadcast_ihave.inc(npeers, labelValues = [ihave.topicID])
+      if p.knownTopics.contains(ihave.topicId):
+        libp2p_pubsub_broadcast_ihave.inc(npeers, labelValues = [ihave.topicId])
       else:
         libp2p_pubsub_broadcast_ihave.inc(npeers, labelValues = ["generic"])
     for graft in control.graft:
-      if p.knownTopics.contains(graft.topicID):
-        libp2p_pubsub_broadcast_graft.inc(npeers, labelValues = [graft.topicID])
+      if p.knownTopics.contains(graft.topicId):
+        libp2p_pubsub_broadcast_graft.inc(npeers, labelValues = [graft.topicId])
       else:
         libp2p_pubsub_broadcast_graft.inc(npeers, labelValues = ["generic"])
     for prune in control.prune:
-      if p.knownTopics.contains(prune.topicID):
-        libp2p_pubsub_broadcast_prune.inc(npeers, labelValues = [prune.topicID])
+      if p.knownTopics.contains(prune.topicId):
+        libp2p_pubsub_broadcast_prune.inc(npeers, labelValues = [prune.topicId])
       else:
         libp2p_pubsub_broadcast_prune.inc(npeers, labelValues = ["generic"])
 
@@ -227,8 +239,8 @@ proc updateMetrics*(p: PubSub, rpcMsg: RPCMsg) =
 
   for i in 0..<rpcMsg.messages.len():
     template smsg: untyped = rpcMsg.messages[i]
-    for j in 0..<smsg.topicIDs.len():
-      template topic: untyped = smsg.topicIDs[j]
+    for j in 0..<smsg.topicIds.len():
+      template topic: untyped = smsg.topicIds[j]
       if p.knownTopics.contains(topic):
         libp2p_pubsub_received_messages.inc(labelValues = [topic])
       else:
@@ -238,18 +250,18 @@ proc updateMetrics*(p: PubSub, rpcMsg: RPCMsg) =
     libp2p_pubsub_received_iwant.inc(rpcMsg.control.get().iwant.len.int64)
     template control: untyped = rpcMsg.control.unsafeGet()
     for ihave in control.ihave:
-      if p.knownTopics.contains(ihave.topicID):
-        libp2p_pubsub_received_ihave.inc(labelValues = [ihave.topicID])
+      if p.knownTopics.contains(ihave.topicId):
+        libp2p_pubsub_received_ihave.inc(labelValues = [ihave.topicId])
       else:
         libp2p_pubsub_received_ihave.inc(labelValues = ["generic"])
     for graft in control.graft:
-      if p.knownTopics.contains(graft.topicID):
-        libp2p_pubsub_received_graft.inc(labelValues = [graft.topicID])
+      if p.knownTopics.contains(graft.topicId):
+        libp2p_pubsub_received_graft.inc(labelValues = [graft.topicId])
       else:
         libp2p_pubsub_received_graft.inc(labelValues = ["generic"])
     for prune in control.prune:
-      if p.knownTopics.contains(prune.topicID):
-        libp2p_pubsub_received_prune.inc(labelValues = [prune.topicID])
+      if p.knownTopics.contains(prune.topicId):
+        libp2p_pubsub_received_prune.inc(labelValues = [prune.topicId])
       else:
         libp2p_pubsub_received_prune.inc(labelValues = ["generic"])
 
@@ -261,7 +273,7 @@ method rpcHandler*(p: PubSub,
 
 method onNewPeer(p: PubSub, peer: PubSubPeer) {.base.} = discard
 
-method onPubSubPeerEvent*(p: PubSub, peer: PubsubPeer, event: PubsubPeerEvent) {.base, gcsafe.} =
+method onPubSubPeerEvent*(p: PubSub, peer: PubSubPeer, event: PubSubPeerEvent) {.base, gcsafe.} =
   # Peer event is raised for the send connection in particular
   case event.kind
   of PubSubPeerEventKind.Connected:
@@ -277,22 +289,14 @@ proc getOrCreatePeer*(
   p.peers.withValue(peerId, peer):
     return peer[]
 
-  proc getConn(): Future[Connection] =
-    p.switch.dial(peerId, protos)
+  proc getConn(): Future[Connection] {.async.} =
+    return await p.switch.dial(peerId, protos)
 
-  proc dropConn(peer: PubSubPeer) =
-    proc dropConnAsync(peer: PubsubPeer) {.async.} =
-      try:
-        await p.switch.disconnect(peer.peerId)
-      except CatchableError as exc: # never cancelled
-        trace "Failed to close connection", peer, error = exc.name, msg = exc.msg
-    asyncSpawn dropConnAsync(peer)
-
-  proc onEvent(peer: PubsubPeer, event: PubsubPeerEvent) {.gcsafe.} =
+  proc onEvent(peer: PubSubPeer, event: PubSubPeerEvent) {.gcsafe.} =
     p.onPubSubPeerEvent(peer, event)
 
   # create new pubsub peer
-  let pubSubPeer = PubSubPeer.new(peerId, getConn, dropConn, onEvent, protos[0], p.maxMessageSize)
+  let pubSubPeer = PubSubPeer.new(peerId, getConn, onEvent, protos[0], p.maxMessageSize)
   debug "created new pubsub peer", peerId
 
   p.peers[peerId] = pubSubPeer
@@ -303,7 +307,7 @@ proc getOrCreatePeer*(
   # metrics
   libp2p_pubsub_peers.set(p.peers.len.int64)
 
-  pubsubPeer.connect()
+  pubSubPeer.connect()
 
   return pubSubPeer
 
@@ -411,7 +415,7 @@ method onTopicSubscription*(p: PubSub, topic: string, subscribed: bool) {.base.}
 
 proc unsubscribe*(p: PubSub,
                   topic: string,
-                  handler: TopicHandler) =
+                  handler: TopicHandler) {.public.} =
   ## unsubscribe from a ``topic`` string
   ##
   p.topics.withValue(topic, handlers):
@@ -424,12 +428,13 @@ proc unsubscribe*(p: PubSub,
 
     p.updateTopicMetrics(topic)
 
-proc unsubscribe*(p: PubSub, topics: openArray[TopicPair]) =
+proc unsubscribe*(p: PubSub, topics: openArray[TopicPair]) {.public.} =
   ## unsubscribe from a list of ``topic`` handlers
   for t in topics:
     p.unsubscribe(t.topic, t.handler)
 
-proc unsubscribeAll*(p: PubSub, topic: string) =
+proc unsubscribeAll*(p: PubSub, topic: string) {.public.} =
+  ## unsubscribe every `handler` from `topic`
   if topic notin p.topics:
     debug "unsubscribeAll called for an unknown topic", topic
   else:
@@ -441,15 +446,14 @@ proc unsubscribeAll*(p: PubSub, topic: string) =
 
 proc subscribe*(p: PubSub,
                 topic: string,
-                handler: TopicHandler) =
+                handler: TopicHandler) {.public.} =
   ## subscribe to a topic
   ##
   ## ``topic``   - a string topic to subscribe to
   ##
-  ## ``handler`` - is a user provided proc
-  ##               that will be triggered
-  ##               on every received message
-  ##
+  ## ``handler`` - user provided proc that
+  ##               will be triggered on every
+  ##               received message
 
   # Check that this is an allowed topic
   if p.subscriptionValidator != nil and p.subscriptionValidator(topic) == false:
@@ -470,8 +474,9 @@ proc subscribe*(p: PubSub,
 
 method publish*(p: PubSub,
                 topic: string,
-                data: seq[byte]): Future[int] {.base, async.} =
+                data: seq[byte]): Future[int] {.base, async, public.} =
   ## publish to a ``topic``
+  ##
   ## The return value is the number of neighbours that we attempted to send the
   ## message to, excluding self. Note that this is an optimistic number of
   ## attempts - the number of peers that actually receive the message might
@@ -488,24 +493,19 @@ method initPubSub*(p: PubSub)
   if p.msgIdProvider == nil:
     p.msgIdProvider = defaultMsgIdProvider
 
-method start*(p: PubSub) {.async, base.} =
-  ## start pubsub
-  discard
-
-method stop*(p: PubSub) {.async, base.} =
-  ## stopt pubsub
-  discard
-
 method addValidator*(p: PubSub,
                      topic: varargs[string],
-                     hook: ValidatorHandler) {.base.} =
+                     hook: ValidatorHandler) {.base, public.} =
+  ## Add a validator to a `topic`. Each new message received in this
+  ## will be sent to `hook`. `hook` can return either `Accept`,
+  ## `Ignore` or `Reject` (which can descore the peer)
   for t in topic:
     trace "adding validator for topic", topicId = t
     p.validators.mgetOrPut(t, HashSet[ValidatorHandler]()).incl(hook)
 
 method removeValidator*(p: PubSub,
                         topic: varargs[string],
-                        hook: ValidatorHandler) {.base.} =
+                        hook: ValidatorHandler) {.base, public.} =
   for t in topic:
     p.validators.withValue(t, validators):
       validators[].excl(hook)
@@ -515,11 +515,11 @@ method removeValidator*(p: PubSub,
 method validate*(p: PubSub, message: Message): Future[ValidationResult] {.async, base.} =
   var pending: seq[Future[ValidationResult]]
   trace "about to validate message"
-  for topic in message.topicIDs:
-    trace "looking for validators on topic", topicID = topic,
+  for topic in message.topicIds:
+    trace "looking for validators on topic", topicId = topic,
                                              registered = toSeq(p.validators.keys)
     if topic in p.validators:
-      trace "running validators for topic", topicID = topic
+      trace "running validators for topic", topicId = topic
       for validator in p.validators[topic]:
         pending.add(validator(topic, message))
 
@@ -555,7 +555,7 @@ proc init*[PubParams: object | bool](
   maxMessageSize: int = 1024 * 1024,
   rng: ref HmacDrbgContext = newRng(),
   parameters: PubParams = false): P
-  {.raises: [Defect, InitializationError].} =
+  {.raises: [Defect, InitializationError], public.} =
   let pubsub =
     when PubParams is bool:
       P(switch: switch,
@@ -598,9 +598,9 @@ proc init*[PubParams: object | bool](
 
   return pubsub
 
-proc addObserver*(p: PubSub; observer: PubSubObserver) = p.observers[] &= observer
+proc addObserver*(p: PubSub; observer: PubSubObserver) {.public.} = p.observers[] &= observer
 
-proc removeObserver*(p: PubSub; observer: PubSubObserver) =
+proc removeObserver*(p: PubSub; observer: PubSubObserver) {.public.} =
   let idx = p.observers[].find(observer)
   if idx != -1:
     p.observers[].del(idx)

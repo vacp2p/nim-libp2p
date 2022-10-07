@@ -1,15 +1,21 @@
-## Nim-LibP2P
-## Copyright (c) 2019 Status Research & Development GmbH
-## Licensed under either of
-##  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
-##  * MIT license ([LICENSE-MIT](LICENSE-MIT))
-## at your option.
-## This file may not be copied, modified, or distributed except according to
-## those terms.
+# Nim-LibP2P
+# Copyright (c) 2022 Status Research & Development GmbH
+# Licensed under either of
+#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+#  * MIT license ([LICENSE-MIT](LICENSE-MIT))
+# at your option.
+# This file may not be copied, modified, or distributed except according to
+# those terms.
 
-{.push raises: [Defect].}
+## TCP transport implementation
+
+when (NimMajor, NimMinor) < (1, 4):
+  {.push raises: [Defect].}
+else:
+  {.push raises: [].}
 
 import std/[oids, sequtils]
+import stew/results
 import chronos, chronicles
 import transport,
        ../errors,
@@ -20,12 +26,13 @@ import transport,
        ../multiaddress,
        ../stream/connection,
        ../stream/chronosstream,
-       ../upgrademngrs/upgrade
+       ../upgrademngrs/upgrade,
+       ../utility
 
 logScope:
   topics = "libp2p tcptransport"
 
-export transport
+export transport, results
 
 const
   TcpTransportTrackerName* = "libp2p.tcptransport"
@@ -65,17 +72,19 @@ proc setupTcpTransportTracker(): TcpTransportTracker =
   result.isLeaked = leakTransport
   addTracker(TcpTransportTrackerName, result)
 
-proc connHandler*(self: TcpTransport,
-                  client: StreamTransport,
-                  dir: Direction): Future[Connection] {.async.} =
-  var observedAddr: MultiAddress = MultiAddress()
+proc getObservedAddr(client: StreamTransport): Future[MultiAddress] {.async.} =
   try:
-    observedAddr = MultiAddress.init(client.remoteAddress).tryGet()
+    return MultiAddress.init(client.remoteAddress).tryGet()
   except CatchableError as exc:
     trace "Failed to create observedAddr", exc = exc.msg
     if not(isNil(client) and client.closed):
       await client.closeWait()
     raise exc
+
+proc connHandler*(self: TcpTransport,
+                  client: StreamTransport,
+                  observedAddr: Opt[MultiAddress],
+                  dir: Direction): Future[Connection] {.async.} =
 
   trace "Handling tcp connection", address = $observedAddr,
                                    dir = $dir,
@@ -118,13 +127,12 @@ proc connHandler*(self: TcpTransport,
 proc new*(
   T: typedesc[TcpTransport],
   flags: set[ServerFlags] = {},
-  upgrade: Upgrade): T =
+  upgrade: Upgrade): T {.public.} =
 
   let transport = T(
     flags: flags,
     upgrader: upgrade)
 
-  inc getTcpTransportTracker().opened
   return transport
 
 method start*(
@@ -139,6 +147,7 @@ method start*(
 
   await procCall Transport(self).start(addrs)
   trace "Starting TCP transport"
+  inc getTcpTransportTracker().opened
 
   for i, ma in addrs:
     if not self.handles(ma):
@@ -162,16 +171,19 @@ method start*(
 method stop*(self: TcpTransport) {.async, gcsafe.} =
   ## stop the transport
   ##
-
   try:
     trace "Stopping TCP transport"
-    await procCall Transport(self).stop() # call base
 
     checkFutures(
       await allFinished(
         self.clients[Direction.In].mapIt(it.closeWait()) &
         self.clients[Direction.Out].mapIt(it.closeWait())))
 
+    if not self.running:
+      warn "TCP transport already stopped"
+      return
+
+    await procCall Transport(self).stop() # call base
     var toWait: seq[Future[void]]
     for fut in self.acceptFuts:
       if not fut.finished:
@@ -213,7 +225,8 @@ method accept*(self: TcpTransport): Future[Connection] {.async, gcsafe.} =
     self.acceptFuts[index] = self.servers[index].accept()
 
     let transp = await finished
-    return await self.connHandler(transp, Direction.In)
+    let observedAddr = await getObservedAddr(transp)
+    return await self.connHandler(transp, Opt.some(observedAddr), Direction.In)
   except TransportOsError as exc:
     # TODO: it doesn't sound like all OS errors
     # can  be ignored, we should re-raise those
@@ -241,7 +254,8 @@ method dial*(
 
   let transp = await connect(address)
   try:
-    return await self.connHandler(transp, Direction.Out)
+    let observedAddr = await getObservedAddr(transp)
+    return await self.connHandler(transp, Opt.some(observedAddr), Direction.Out)
   except CatchableError as err:
     await transp.closeWait()
     raise err

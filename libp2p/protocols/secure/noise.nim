@@ -1,13 +1,16 @@
-## Nim-LibP2P
-## Copyright (c) 2020 Status Research & Development GmbH
-## Licensed under either of
-##  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
-##  * MIT license ([LICENSE-MIT](LICENSE-MIT))
-## at your option.
-## This file may not be copied, modified, or distributed except according to
-## those terms.
+# Nim-LibP2P
+# Copyright (c) 2022 Status Research & Development GmbH
+# Licensed under either of
+#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+#  * MIT license ([LICENSE-MIT](LICENSE-MIT))
+# at your option.
+# This file may not be copied, modified, or distributed except according to
+# those terms.
 
-{.push raises: [Defect].}
+when (NimMajor, NimMinor) < (1, 4):
+  {.push raises: [Defect].}
+else:
+  {.push raises: [].}
 
 import std/[oids, strformat]
 import chronos
@@ -35,7 +38,7 @@ const
   # https://godoc.org/github.com/libp2p/go-libp2p-noise#pkg-constants
   NoiseCodec* = "/noise"
 
-  PayloadString = "noise-libp2p-static-key:"
+  PayloadString = toBytes("noise-libp2p-static-key:")
 
   ProtocolXXName = "Noise_XX_25519_ChaChaPoly_SHA256"
 
@@ -336,7 +339,6 @@ proc handshakeXXOutbound(
     hs = HandshakeState.init()
 
   try:
-
     hs.ss.mixHash(p.commonPrologue)
     hs.s = p.noiseKeys
 
@@ -442,7 +444,6 @@ method readMessage*(sconn: NoiseConnection): Future[seq[byte]] {.async.} =
       dumpMessage(sconn, FlowDirection.Incoming, [])
     trace "Received 0-length message", sconn
 
-
 proc encryptFrame(
     sconn: NoiseConnection,
     cipherFrame: var openArray[byte],
@@ -503,7 +504,7 @@ method write*(sconn: NoiseConnection, message: seq[byte]): Future[void] =
   # sequencing issues
   sconn.stream.write(cipherFrames)
 
-method handshake*(p: Noise, conn: Connection, initiator: bool): Future[SecureConn] {.async.} =
+method handshake*(p: Noise, conn: Connection, initiator: bool, peerId: Opt[PeerId]): Future[SecureConn] {.async.} =
   trace "Starting Noise handshake", conn, initiator
 
   let timeout = conn.timeout
@@ -512,7 +513,7 @@ method handshake*(p: Noise, conn: Connection, initiator: bool): Future[SecureCon
   # https://github.com/libp2p/specs/tree/master/noise#libp2p-data-in-handshake-messages
   let
     signedPayload = p.localPrivateKey.sign(
-      PayloadString.toBytes & p.noiseKeys.publicKey.getBytes).tryGet()
+      PayloadString & p.noiseKeys.publicKey.getBytes).tryGet()
 
   var
     libp2pProof = initProtoBuffer()
@@ -535,11 +536,9 @@ method handshake*(p: Noise, conn: Connection, initiator: bool): Future[SecureCon
       remoteSig: Signature
       remoteSigBytes: seq[byte]
 
-    let r1 = remoteProof.getField(1, remotePubKeyBytes)
-    let r2 = remoteProof.getField(2, remoteSigBytes)
-    if r1.isErr() or not(r1.get()):
+    if not remoteProof.getField(1, remotePubKeyBytes).valueOr(false):
       raise newException(NoiseHandshakeError, "Failed to deserialize remote public key bytes. (initiator: " & $initiator & ")")
-    if r2.isErr() or not(r2.get()):
+    if not remoteProof.getField(2, remoteSigBytes).valueOr(false):
       raise newException(NoiseHandshakeError, "Failed to deserialize remote signature bytes. (initiator: " & $initiator & ")")
 
     if not remotePubKey.init(remotePubKeyBytes):
@@ -547,33 +546,34 @@ method handshake*(p: Noise, conn: Connection, initiator: bool): Future[SecureCon
     if not remoteSig.init(remoteSigBytes):
       raise newException(NoiseHandshakeError, "Failed to decode remote signature. (initiator: " & $initiator & ")")
 
-    let verifyPayload = PayloadString.toBytes & handshakeRes.rs.getBytes
+    let verifyPayload = PayloadString & handshakeRes.rs.getBytes
     if not remoteSig.verify(verifyPayload, remotePubKey):
       raise newException(NoiseHandshakeError, "Noise handshake signature verify failed.")
     else:
       trace "Remote signature verified", conn
 
-    if initiator:
-      let pid = PeerId.init(remotePubKey)
-      if not conn.peerId.validate():
-        raise newException(NoiseHandshakeError, "Failed to validate peerId.")
-      if pid.isErr or pid.get() != conn.peerId:
+    let pid = PeerId.init(remotePubKey).valueOr:
+      raise newException(NoiseHandshakeError, "Invalid remote peer id: " & $error)
+
+    trace "Remote peer id", pid = $pid
+
+    if peerId.isSome():
+      let targetPid = peerId.get()
+      if not targetPid.validate():
+        raise newException(NoiseHandshakeError, "Failed to validate expected peerId.")
+
+      if pid != targetPid:
         var
           failedKey: PublicKey
-        discard extractPublicKey(conn.peerId, failedKey)
-        debug "Noise handshake, peer infos don't match!",
+        discard extractPublicKey(targetPid, failedKey)
+        debug "Noise handshake, peer id doesn't match!",
           initiator, dealt_peer = conn,
           dealt_key = $failedKey, received_peer = $pid,
           received_key = $remotePubKey
-        raise newException(NoiseHandshakeError, "Noise handshake, peer infos don't match! " & $pid & " != " & $conn.peerId)
-    else:
-      let pid = PeerId.init(remotePubKey)
-      if pid.isErr:
-        raise newException(NoiseHandshakeError, "Invalid remote peer id")
-      conn.peerId = pid.get()
+        raise newException(NoiseHandshakeError, "Noise handshake, peer id don't match! " & $pid & " != " & $targetPid)
+    conn.peerId = pid
 
     var tmp = NoiseConnection.new(conn, conn.peerId, conn.observedAddr)
-
     if initiator:
       tmp.readCs = handshakeRes.cs2
       tmp.writeCs = handshakeRes.cs1

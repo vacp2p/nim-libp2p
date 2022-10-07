@@ -1,15 +1,21 @@
-## Nim-LibP2P
-## Copyright (c) 2021 Status Research & Development GmbH
-## Licensed under either of
-##  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
-##  * MIT license ([LICENSE-MIT](LICENSE-MIT))
-## at your option.
-## This file may not be copied, modified, or distributed except according to
-## those terms.
+# Nim-LibP2P
+# Copyright (c) 2022 Status Research & Development GmbH
+# Licensed under either of
+#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+#  * MIT license ([LICENSE-MIT](LICENSE-MIT))
+# at your option.
+# This file may not be copied, modified, or distributed except according to
+# those terms.
 
-{.push raises: [Defect].}
+## WebSocket & WebSocket Secure transport implementation
+
+when (NimMajor, NimMinor) < (1, 4):
+  {.push raises: [Defect].}
+else:
+  {.push raises: [].}
 
 import std/[sequtils]
+import stew/results
 import chronos, chronicles
 import transport,
        ../errors,
@@ -18,6 +24,7 @@ import transport,
        ../multistream,
        ../connmanager,
        ../multiaddress,
+       ../utility,
        ../stream/connection,
        ../upgrademngrs/upgrade,
        websock/websock
@@ -25,7 +32,7 @@ import transport,
 logScope:
   topics = "libp2p wstransport"
 
-export transport, websock
+export transport, websock, results
 
 const
   WsTransportTrackerName* = "libp2p.wstransport"
@@ -39,8 +46,8 @@ type
 proc new*(T: type WsStream,
            session: WSSession,
            dir: Direction,
-           timeout = 10.minutes,
-           observedAddr: MultiAddress = MultiAddress()): T =
+           observedAddr: Opt[MultiAddress],
+           timeout = 10.minutes): T =
 
   let stream = T(
     session: session,
@@ -83,6 +90,8 @@ method write*(
 method closeImpl*(s: WsStream): Future[void] {.async.} =
   await s.session.close()
   await procCall Connection(s).closeImpl()
+
+method getWrapped*(s: WsStream): Connection = nil
 
 type
   WsTransport* = ref object of Transport
@@ -213,8 +222,7 @@ proc connHandler(self: WsTransport,
         await stream.close()
       raise exc
 
-  let conn = WsStream.new(stream, dir)
-  conn.observedAddr = observedAddr
+  let conn = WsStream.new(stream, dir, Opt.some(observedAddr))
 
   self.connections[dir].add(conn)
   proc onClose() {.async.} =
@@ -313,7 +321,8 @@ proc new*(
   flags: set[ServerFlags] = {},
   factories: openArray[ExtFactory] = [],
   rng: Rng = nil,
-  handshakeTimeout = DefaultHeadersTimeout): T =
+  handshakeTimeout = DefaultHeadersTimeout): T {.public.} =
+  ## Creates a secure WebSocket transport
 
   T(
     upgrader: upgrade,
@@ -331,7 +340,8 @@ proc new*(
   flags: set[ServerFlags] = {},
   factories: openArray[ExtFactory] = [],
   rng: Rng = nil,
-  handshakeTimeout = DefaultHeadersTimeout): T =
+  handshakeTimeout = DefaultHeadersTimeout): T {.public.} =
+  ## Creates a clear-text WebSocket transport
 
   T.new(
     upgrade = upgrade,

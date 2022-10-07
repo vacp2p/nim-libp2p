@@ -7,7 +7,10 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-{.push raises: [Defect].}
+when (NimMajor, NimMinor) < (1, 4):
+  {.push raises: [Defect].}
+else:
+  {.push raises: [].}
 
 import sequtils
 import chronos, chronicles
@@ -22,6 +25,14 @@ template heartbeat*(name: string, interval: Duration, body: untyped): untyped =
     nextHeartbeat += interval
     let now = Moment.now()
     if nextHeartbeat < now:
-      info "Missed heartbeat", heartbeat = name, delay = now - nextHeartbeat
-      nextHeartbeat = now + interval
+      let
+        delay = now - nextHeartbeat
+        itv = interval
+      if delay > itv:
+        info "Missed multiple heartbeats", heartbeat = name,
+          delay = delay, hinterval = itv
+      else:
+        debug "Missed heartbeat", heartbeat = name,
+          delay = delay, hinterval = itv
+      nextHeartbeat = now + itv
     await sleepAsync(nextHeartbeat - now)

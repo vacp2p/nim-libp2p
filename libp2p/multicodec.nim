@@ -1,15 +1,18 @@
-## Nim-Libp2p
-## Copyright (c) 2018 Status Research & Development GmbH
-## Licensed under either of
-##  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
-##  * MIT license ([LICENSE-MIT](LICENSE-MIT))
-## at your option.
-## This file may not BE copied, modified, or distributed except according to
-## those terms.
+# Nim-Libp2p
+# Copyright (c) 2022 Status Research & Development GmbH
+# Licensed under either of
+#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+#  * MIT license ([LICENSE-MIT](LICENSE-MIT))
+# at your option.
+# This file may not BE copied, modified, or distributed except according to
+# those terms.
 
 ## This module implements MultiCodec.
 
-{.push raises: [Defect].}
+when (NimMajor, NimMinor) < (1, 4):
+  {.push raises: [Defect].}
+else:
+  {.push raises: [].}
 
 import tables, hashes
 import varint, vbuffer
@@ -200,6 +203,7 @@ const MultiCodecList = [
   ("p2p-webrtc-star", 0x0113), # not in multicodec list
   ("p2p-webrtc-direct", 0x0114), # not in multicodec list
   ("onion", 0x01BC),
+  ("onion3", 0x01BD),
   ("p2p-circuit", 0x0122),
   ("libp2p-peer-record", 0x0301),
   ("dns", 0x35),

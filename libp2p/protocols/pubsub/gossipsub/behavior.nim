@@ -1,13 +1,16 @@
-## Nim-LibP2P
-## Copyright (c) 2021 Status Research & Development GmbH
-## Licensed under either of
-##  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
-##  * MIT license ([LICENSE-MIT](LICENSE-MIT))
-## at your option.
-## This file may not be copied, modified, or distributed except according to
-## those terms.
+# Nim-LibP2P
+# Copyright (c) 2022 Status Research & Development GmbH
+# Licensed under either of
+#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+#  * MIT license ([LICENSE-MIT](LICENSE-MIT))
+# at your option.
+# This file may not be copied, modified, or distributed except according to
+# those terms.
 
-{.push raises: [Defect].}
+when (NimMajor, NimMinor) < (1, 4):
+  {.push raises: [Defect].}
+else:
+  {.push raises: [].}
 
 import std/[tables, sequtils, sets, algorithm]
 import chronos, chronicles, metrics
@@ -102,7 +105,7 @@ proc handleGraft*(g: GossipSub,
                  grafts: seq[ControlGraft]): seq[ControlPrune] = # {.raises: [Defect].} TODO chronicles exception on windows
   var prunes: seq[ControlPrune]
   for graft in grafts:
-    let topic = graft.topicID
+    let topic = graft.topicId
     trace "peer grafted topic", peer, topic
 
     # It is an error to GRAFT on a explicit peer
@@ -188,7 +191,7 @@ proc getPeers(prune: ControlPrune, peer: PubSubPeer): seq[(PeerId, Option[PeerRe
           trace "peer sent invalid SPR", peer, error=signedRecord.error
           none(PeerRecord)
         else:
-          if record.peerID != signedRecord.get().data.peerId:
+          if record.peerId != signedRecord.get().data.peerId:
             trace "peer sent envelope with wrong public key", peer
             none(PeerRecord)
           else:
@@ -201,7 +204,7 @@ proc getPeers(prune: ControlPrune, peer: PubSubPeer): seq[(PeerId, Option[PeerRe
 
 proc handlePrune*(g: GossipSub, peer: PubSubPeer, prunes: seq[ControlPrune]) {.raises: [Defect].} =
   for prune in prunes:
-    let topic = prune.topicID
+    let topic = prune.topicId
 
     trace "peer pruned topic", peer, topic
 
@@ -246,21 +249,21 @@ proc handleIHave*(g: GossipSub,
     let deIhaves = ihaves.deduplicate()
     for ihave in deIhaves:
       trace "peer sent ihave",
-        peer, topic = ihave.topicID, msgs = ihave.messageIDs
-      if ihave.topicID in g.mesh:
+        peer, topic = ihave.topicId, msgs = ihave.messageIds
+      if ihave.topicId in g.mesh:
         # also avoid duplicates here!
-        let deIhavesMsgs = ihave.messageIDs.deduplicate()
+        let deIhavesMsgs = ihave.messageIds.deduplicate()
         for msgId in deIhavesMsgs:
           if not g.hasSeen(msgId):
             if peer.iHaveBudget > 0:
-              res.messageIDs.add(msgId)
+              res.messageIds.add(msgId)
               dec peer.iHaveBudget
               trace "requested message via ihave", messageID=msgId
             else:
               break
     # shuffling res.messageIDs before sending it out to increase the likelihood
     # of getting an answer if the peer truncates the list due to internal size restrictions.
-    g.rng.shuffle(res.messageIDs)
+    g.rng.shuffle(res.messageIds)
     return res
 
 proc handleIWant*(g: GossipSub,
@@ -274,7 +277,7 @@ proc handleIWant*(g: GossipSub,
   else:
     let deIwants = iwants.deduplicate()
     for iwant in deIwants:
-      let deIwantsMsgs = iwant.messageIDs.deduplicate()
+      let deIwantsMsgs = iwant.messageIds.deduplicate()
       for mid in deIwantsMsgs:
         trace "peer sent iwant", peer, messageID = mid
         let msg = g.mcache.get(mid)
@@ -323,7 +326,7 @@ proc rebalanceMesh*(g: GossipSub, topic: string, metrics: ptr MeshMetrics = nil)
       candidates: seq[PubSubPeer]
       currentMesh = addr defaultMesh
     g.mesh.withValue(topic, v): currentMesh = v
-    g.gossipSub.withValue(topic, peerList):
+    g.gossipsub.withValue(topic, peerList):
       for it in peerList[]:
         if
             it.connected and
@@ -361,7 +364,7 @@ proc rebalanceMesh*(g: GossipSub, topic: string, metrics: ptr MeshMetrics = nil)
       candidates: seq[PubSubPeer]
       currentMesh = addr defaultMesh
     g.mesh.withValue(topic, v): currentMesh = v
-    g.gossipSub.withValue(topic, peerList):
+    g.gossipsub.withValue(topic, peerList):
       for it in peerList[]:
         if
             it.connected and
@@ -466,7 +469,7 @@ proc rebalanceMesh*(g: GossipSub, topic: string, metrics: ptr MeshMetrics = nil)
         avail: seq[PubSubPeer]
         currentMesh = addr defaultMesh
       g.mesh.withValue(topic, v): currentMesh = v
-      g.gossipSub.withValue(topic, peerList):
+      g.gossipsub.withValue(topic, peerList):
         for it in peerList[]:
           if
               # avoid negative score peers
@@ -611,7 +614,7 @@ proc getGossipPeers*(g: GossipSub): Table[PubSubPeer, ControlMessage] {.raises: 
       allPeers.setLen(target)
 
     for peer in allPeers:
-      control.mGetOrPut(peer, ControlMessage()).ihave.add(ihave)
+      control.mgetOrPut(peer, ControlMessage()).ihave.add(ihave)
 
   libp2p_gossipsub_cache_window_size.set(cacheWindowSize.int64)
 
@@ -667,8 +670,8 @@ proc onHeartbeat(g: GossipSub) {.raises: [Defect].} =
     for peer, control in peers:
       # only ihave from here
       for ihave in control.ihave:
-        if g.knownTopics.contains(ihave.topicID):
-          libp2p_pubsub_broadcast_ihave.inc(labelValues = [ihave.topicID])
+        if g.knownTopics.contains(ihave.topicId):
+          libp2p_pubsub_broadcast_ihave.inc(labelValues = [ihave.topicId])
         else:
           libp2p_pubsub_broadcast_ihave.inc(labelValues = ["generic"])
       g.send(peer, RPCMsg(control: some(control)))

@@ -1,11 +1,11 @@
-## Nim-Libp2p
-## Copyright (c) 2020-2022 Status Research & Development GmbH
-## Licensed under either of
-##  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
-##  * MIT license ([LICENSE-MIT](LICENSE-MIT))
-## at your option.
-## This file may not be copied, modified, or distributed except according to
-## those terms.
+# Nim-Libp2p
+# Copyright (c) 2022-2022 Status Research & Development GmbH
+# Licensed under either of
+#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+#  * MIT license ([LICENSE-MIT](LICENSE-MIT))
+# at your option.
+# This file may not be copied, modified, or distributed except according to
+# those terms.
 
 ## This module integrates BearSSL Cyrve25519 mul and mulgen
 ##
@@ -15,7 +15,10 @@
 
 # RFC @ https://tools.ietf.org/html/rfc7748
 
-{.push raises: [Defect].}
+when (NimMajor, NimMinor) < (1, 4):
+  {.push raises: [Defect].}
+else:
+  {.push raises: [].}
 
 import bearssl/[ec, rand, hash]
 import stew/results
@@ -28,7 +31,6 @@ const
 type
   Curve25519* = object
   Curve25519Key* = array[Curve25519KeySize, byte]
-  pcuchar = ptr char
   Curve25519Error* = enum
     Curver25519GenError
 
@@ -74,7 +76,7 @@ proc mulgen(_: type[Curve25519], dst: var Curve25519Key, point: Curve25519Key) =
       addr rpoint[0],
       Curve25519KeySize,
       EC_curve25519)
-  
+
   assert size == Curve25519KeySize
 
 proc public*(private: Curve25519Key): Curve25519Key =

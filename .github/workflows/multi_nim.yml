@@ -29,7 +29,7 @@ jobs:
             shell: bash
           - target:
               os: macos
-            builder: macos-10.15
+            builder: macos-12
             shell: bash
           - target:
               os: windows
@@ -160,10 +160,6 @@ jobs:
 
       - name: Run tests
         run: |
-          if [[ "${{ matrix.target.os }}" == "windows" ]]; then
-            # https://github.com/status-im/nimbus-eth2/issues/3121
-            export NIMFLAGS="-d:nimRawSetjmp"
-          fi
           nim --version
           nimble --version
           nimble install -y --depsOnly

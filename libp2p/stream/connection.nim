@@ -1,22 +1,26 @@
-## Nim-LibP2P
-## Copyright (c) 2020 Status Research & Development GmbH
-## Licensed under either of
-##  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
-##  * MIT license ([LICENSE-MIT](LICENSE-MIT))
-## at your option.
-## This file may not be copied, modified, or distributed except according to
-## those terms.
+# Nim-LibP2P
+# Copyright (c) 2022 Status Research & Development GmbH
+# Licensed under either of
+#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+#  * MIT license ([LICENSE-MIT](LICENSE-MIT))
+# at your option.
+# This file may not be copied, modified, or distributed except according to
+# those terms.
 
-{.push raises: [Defect].}
+when (NimMajor, NimMinor) < (1, 4):
+  {.push raises: [Defect].}
+else:
+  {.push raises: [].}
 
 import std/[hashes, oids, strformat]
+import stew/results
 import chronicles, chronos, metrics
 import lpstream,
        ../multiaddress,
        ../peerinfo,
        ../errors
 
-export lpstream, peerinfo, errors
+export lpstream, peerinfo, errors, results
 
 logScope:
   topics = "libp2p connection"
@@ -34,9 +38,9 @@ type
     timerTaskFut: Future[void]      # the current timer instance
     timeoutHandler*: TimeoutHandler # timeout handler
     peerId*: PeerId
-    observedAddr*: MultiAddress
+    observedAddr*: Opt[MultiAddress]
     upgraded*: Future[void]
-    tag*: string                    # debug tag for metrics (generally ms protocol)
+    protocol*: string               # protocol used by the connection, used as tag for metrics
     transportDir*: Direction        # The bottom level transport (generally the socket) direction
     when defined(libp2p_agents_metrics):
       shortAgent*: string
@@ -151,12 +155,15 @@ proc timeoutMonitor(s: Connection) {.async, gcsafe.} =
     if not await s.pollActivity():
       return
 
+method getWrapped*(s: Connection): Connection {.base.} =
+  doAssert(false, "not implemented!")
+
 proc new*(C: type Connection,
            peerId: PeerId,
            dir: Direction,
+           observedAddr: Opt[MultiAddress],
            timeout: Duration = DefaultConnectionTimeout,
-           timeoutHandler: TimeoutHandler = nil,
-           observedAddr: MultiAddress = MultiAddress()): Connection =
+           timeoutHandler: TimeoutHandler = nil): Connection =
   result = C(peerId: peerId,
              dir: dir,
              timeout: timeout,

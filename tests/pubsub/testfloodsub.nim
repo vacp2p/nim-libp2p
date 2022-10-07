@@ -1,11 +1,11 @@
-## Nim-Libp2p
-## Copyright (c) 2018 Status Research & Development GmbH
-## Licensed under either of
-##  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
-##  * MIT license ([LICENSE-MIT](LICENSE-MIT))
-## at your option.
-## This file may not be copied, modified, or distributed except according to
-## those terms.
+# Nim-Libp2p
+# Copyright (c) 2022 Status Research & Development GmbH
+# Licensed under either of
+#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+#  * MIT license ([LICENSE-MIT](LICENSE-MIT))
+# at your option.
+# This file may not be copied, modified, or distributed except according to
+# those terms.
 
 {.used.}
 
@@ -54,13 +54,6 @@ suite "FloodSub":
         nodes[1].switch.start(),
       )
 
-    # start pubsub
-    await allFuturesThrowing(
-      allFinished(
-        nodes[0].start(),
-        nodes[1].start(),
-    ))
-
     await subscribeNodes(nodes)
 
     nodes[1].subscribe("foobar", handler)
@@ -72,11 +65,6 @@ suite "FloodSub":
     await allFuturesThrowing(
       nodes[0].switch.stop(),
       nodes[1].switch.stop()
-    )
-
-    await allFuturesThrowing(
-      nodes[0].stop(),
-      nodes[1].stop()
     )
 
     await allFuturesThrowing(nodesFut.concat())
@@ -96,12 +84,6 @@ suite "FloodSub":
         nodes[1].switch.start(),
       )
 
-    # start pubsubcon
-    await allFuturesThrowing(
-      allFinished(
-        nodes[0].start(),
-        nodes[1].start(),
-    ))
 
     await subscribeNodes(nodes)
 
@@ -115,11 +97,6 @@ suite "FloodSub":
     await allFuturesThrowing(
       nodes[0].switch.stop(),
       nodes[1].switch.stop()
-    )
-
-    await allFuturesThrowing(
-      nodes[0].stop(),
-      nodes[1].stop()
     )
 
     await allFuturesThrowing(nodesFut)
@@ -138,13 +115,6 @@ suite "FloodSub":
         nodes[0].switch.start(),
         nodes[1].switch.start(),
       )
-
-    # start pubsubcon
-    await allFuturesThrowing(
-      allFinished(
-        nodes[0].start(),
-        nodes[1].start(),
-    ))
 
     await subscribeNodes(nodes)
 
@@ -168,11 +138,6 @@ suite "FloodSub":
         nodes[1].switch.stop()
       )
 
-    await allFuturesThrowing(
-      nodes[0].stop(),
-      nodes[1].stop()
-    )
-
     await allFuturesThrowing(nodesFut)
 
   asyncTest "FloodSub validation should fail":
@@ -187,13 +152,6 @@ suite "FloodSub":
         nodes[0].switch.start(),
         nodes[1].switch.start(),
       )
-
-    # start pubsubcon
-    await allFuturesThrowing(
-      allFinished(
-        nodes[0].start(),
-        nodes[1].start(),
-    ))
 
     await subscribeNodes(nodes)
     nodes[1].subscribe("foobar", handler)
@@ -214,11 +172,6 @@ suite "FloodSub":
         nodes[1].switch.stop()
       )
 
-    await allFuturesThrowing(
-      nodes[0].stop(),
-      nodes[1].stop()
-    )
-
     await allFuturesThrowing(nodesFut)
 
   asyncTest "FloodSub validation one fails and one succeeds":
@@ -235,13 +188,6 @@ suite "FloodSub":
         nodes[0].switch.start(),
         nodes[1].switch.start(),
       )
-
-    # start pubsubcon
-    await allFuturesThrowing(
-      allFinished(
-        nodes[0].start(),
-        nodes[1].start(),
-    ))
 
     await subscribeNodes(nodes)
     nodes[1].subscribe("foo", handler)
@@ -264,11 +210,6 @@ suite "FloodSub":
     await allFuturesThrowing(
       nodes[0].switch.stop(),
       nodes[1].switch.stop()
-    )
-
-    await allFuturesThrowing(
-      nodes[0].stop(),
-      nodes[1].stop()
     )
 
     await allFuturesThrowing(nodesFut)
@@ -296,7 +237,6 @@ suite "FloodSub":
       nodes = generateNodes(runs, triggerSelf = false)
       nodesFut = nodes.mapIt(it.switch.start())
 
-    await allFuturesThrowing(nodes.mapIt(it.start()))
     await subscribeNodes(nodes)
 
     for i in 0..<runs:
@@ -318,7 +258,6 @@ suite "FloodSub":
     await allFuturesThrowing(
       nodes.mapIt(
         allFutures(
-          it.stop(),
           it.switch.stop())))
 
     await allFuturesThrowing(nodesFut)
@@ -346,7 +285,6 @@ suite "FloodSub":
       nodes = generateNodes(runs, triggerSelf = true)
       nodesFut = nodes.mapIt(it.switch.start())
 
-    await allFuturesThrowing(nodes.mapIt(it.start()))
     await subscribeNodes(nodes)
 
     for i in 0..<runs:
@@ -379,7 +317,6 @@ suite "FloodSub":
     await allFuturesThrowing(
       nodes.mapIt(
         allFutures(
-          it.stop(),
           it.switch.stop())))
 
     await allFuturesThrowing(nodesFut)
@@ -399,13 +336,6 @@ suite "FloodSub":
         bigNode[0].switch.start(),
         smallNode[0].switch.start(),
       )
-
-    # start pubsubcon
-    await allFuturesThrowing(
-      allFinished(
-        bigNode[0].start(),
-        smallNode[0].start(),
-    ))
 
     await subscribeNodes(bigNode & smallNode)
     bigNode[0].subscribe("foo", handler)
@@ -429,11 +359,6 @@ suite "FloodSub":
     await allFuturesThrowing(
       smallNode[0].switch.stop(),
       bigNode[0].switch.stop()
-    )
-
-    await allFuturesThrowing(
-      smallNode[0].stop(),
-      bigNode[0].stop()
     )
 
     await allFuturesThrowing(nodesFut)

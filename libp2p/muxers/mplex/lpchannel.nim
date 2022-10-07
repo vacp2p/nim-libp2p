@@ -1,13 +1,16 @@
-## Nim-LibP2P
-## Copyright (c) 2019 Status Research & Development GmbH
-## Licensed under either of
-##  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
-##  * MIT license ([LICENSE-MIT](LICENSE-MIT))
-## at your option.
-## This file may not be copied, modified, or distributed except according to
-## those terms.
+# Nim-LibP2P
+# Copyright (c) 2022 Status Research & Development GmbH
+# Licensed under either of
+#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+#  * MIT license ([LICENSE-MIT](LICENSE-MIT))
+# at your option.
+# This file may not be copied, modified, or distributed except according to
+# those terms.
 
-{.push raises: [Defect].}
+when (NimMajor, NimMinor) < (1, 4):
+  {.push raises: [Defect].}
+else:
+  {.push raises: [].}
 
 import std/[oids, strformat]
 import pkg/[chronos, chronicles, metrics, nimcrypto/utils]
@@ -55,6 +58,8 @@ type
     initiator*: bool              # initiated remotely or locally flag
     isOpen*: bool                 # has channel been opened
     closedLocal*: bool            # has channel been closed locally
+    remoteReset*: bool            # has channel been remotely reset
+    localReset*: bool             # has channel been reset locally
     msgCode*: MessageType         # cached in/out message code
     closeCode*: MessageType       # cached in/out close code
     resetCode*: MessageType       # cached in/out reset code
@@ -84,7 +89,7 @@ proc open*(s: LPChannel) {.async, gcsafe.} =
     await s.conn.close()
     raise exc
 
-method closed*(s: LPChannel): bool {.raises: [Defect].} =
+method closed*(s: LPChannel): bool =
   s.closedLocal
 
 proc closeUnderlying(s: LPChannel): Future[void] {.async.} =
@@ -100,6 +105,7 @@ proc reset*(s: LPChannel) {.async, gcsafe.} =
 
   s.isClosed = true
   s.closedLocal = true
+  s.localReset = not s.remoteReset
 
   trace "Resetting channel", s, len = s.len
 
@@ -165,11 +171,19 @@ method readOnce*(s: LPChannel,
   ## channels are blocked - in particular, this means that reading from one
   ## channel must not be done from within a callback / read handler of another
   ## or the reads will lock each other.
+  if s.remoteReset:
+    raise newLPStreamResetError()
+  if s.localReset:
+    raise newLPStreamClosedError()
+  if s.atEof():
+    raise newLPStreamRemoteClosedError()
+  if s.conn.closed:
+    raise newLPStreamConnDownError()
   try:
     let bytes = await procCall BufferStream(s).readOnce(pbytes, nbytes)
     when defined(libp2p_network_protocols_metrics):
-      if s.tag.len > 0:
-        libp2p_protocols_bytes.inc(bytes.int64, labelValues=[s.tag, "in"])
+      if s.protocol.len > 0:
+        libp2p_protocols_bytes.inc(bytes.int64, labelValues=[s.protocol, "in"])
 
     trace "readOnce", s, bytes
     if bytes == 0:
@@ -181,13 +195,17 @@ method readOnce*(s: LPChannel,
     # data has been lost in s.readBuf and there's no way to gracefully recover /
     # use the channel any more
     await s.reset()
-    raise exc
+    raise newLPStreamConnDownError(exc)
 
 proc prepareWrite(s: LPChannel, msg: seq[byte]): Future[void] {.async.} =
   # prepareWrite is the slow path of writing a message - see conditions in
   # write
-  if s.closedLocal or s.conn.closed:
+  if s.remoteReset:
+    raise newLPStreamResetError()
+  if s.closedLocal:
     raise newLPStreamClosedError()
+  if s.conn.closed:
+    raise newLPStreamConnDownError()
 
   if msg.len == 0:
     return
@@ -219,8 +237,8 @@ proc completeWrite(
       await fut
 
     when defined(libp2p_network_protocol_metrics):
-      if s.tag.len > 0:
-        libp2p_protocols_bytes.inc(msgLen.int64, labelValues=[s.tag, "out"])
+      if s.protocol.len > 0:
+        libp2p_protocols_bytes.inc(msgLen.int64, labelValues=[s.protocol, "out"])
 
     s.activity = true
   except CancelledError as exc:
@@ -232,7 +250,7 @@ proc completeWrite(
     trace "exception in lpchannel write handler", s, msg = exc.msg
     await s.reset()
     await s.conn.close()
-    raise exc
+    raise newLPStreamConnDownError(exc)
   finally:
     s.writes -= 1
 
@@ -253,6 +271,8 @@ method write*(s: LPChannel, msg: seq[byte]): Future[void] =
       prepareWrite(s, msg)
 
   s.completeWrite(fut, msg.len)
+
+method getWrapped*(s: LPChannel): Connection = s.conn
 
 proc init*(
   L: type LPChannel,

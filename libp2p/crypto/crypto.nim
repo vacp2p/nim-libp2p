@@ -1,14 +1,17 @@
-## Nim-Libp2p
-## Copyright (c) 2018 Status Research & Development GmbH
-## Licensed under either of
-##  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
-##  * MIT license ([LICENSE-MIT](LICENSE-MIT))
-## at your option.
-## This file may not be copied, modified, or distributed except according to
-## those terms.
+# Nim-Libp2p
+# Copyright (c) 2022 Status Research & Development GmbH
+# Licensed under either of
+#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+#  * MIT license ([LICENSE-MIT](LICENSE-MIT))
+# at your option.
+# This file may not be copied, modified, or distributed except according to
+# those terms.
 
 ## This module implements Public Key and Private Key interface for libp2p.
-{.push raises: [Defect].}
+when (NimMajor, NimMinor) < (1, 4):
+  {.push raises: [Defect].}
+else:
+  {.push raises: [].}
 
 from strutils import split, strip, cmpIgnoreCase
 
@@ -76,7 +79,7 @@ import nimcrypto/[rijndael, twofish, sha2, hash, hmac]
 import nimcrypto/utils as ncrutils
 import ../utility
 import stew/results
-export results
+export results, utility
 
 # This is workaround for Nim's `import` bug
 export rijndael, twofish, sha2, hash, hmac, ncrutils, rand

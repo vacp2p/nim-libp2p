@@ -1,23 +1,27 @@
-## Nim-Libp2p
-## Copyright (c) 2018 Status Research & Development GmbH
-## Licensed under either of
-##  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
-##  * MIT license ([LICENSE-MIT](LICENSE-MIT))
-## at your option.
-## This file may not be copied, modified, or distributed except according to
-## those terms.
+# Nim-Libp2p
+# Copyright (c) 2022 Status Research & Development GmbH
+# Licensed under either of
+#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+#  * MIT license ([LICENSE-MIT](LICENSE-MIT))
+# at your option.
+# This file may not be copied, modified, or distributed except according to
+# those terms.
 
 ## This module implements MultiAddress.
 
-{.push raises: [Defect].}
+when (NimMajor, NimMinor) < (1, 4):
+  {.push raises: [Defect].}
+else:
+  {.push raises: [].}
+{.push public.}
 
 import pkg/chronos
 import std/[nativesockets, hashes]
 import tables, strutils, sets, stew/shims/net
 import multicodec, multihash, multibase, transcoder, vbuffer, peerid,
-       protobuf/minprotobuf, errors
+       protobuf/minprotobuf, errors, utility
 import stew/[base58, base32, endians2, results]
-export results, minprotobuf, vbuffer
+export results, minprotobuf, vbuffer, utility
 
 type
   MAKind* = enum
@@ -218,6 +222,40 @@ proc onionVB(vb: var VBuffer): bool =
   if vb.readArray(buf) == 12:
     result = true
 
+proc onion3StB(s: string, vb: var VBuffer): bool =
+  try:
+    var parts = s.split(':')
+    if len(parts) != 2:
+      return false
+    if len(parts[0]) != 56:
+      return false
+    var address = Base32Lower.decode(parts[0].toLowerAscii())
+    var nport = parseInt(parts[1])
+    if (nport > 0 and nport < 65536) and len(address) == 35:
+      address.setLen(37)
+      address[35] = cast[byte]((nport shr 8) and 0xFF)
+      address[36] = cast[byte](nport and 0xFF)
+      vb.writeArray(address)
+      result = true
+  except:
+    discard
+
+proc onion3BtS(vb: var VBuffer, s: var string): bool =
+  ## ONION address bufferToString() implementation.
+  var buf: array[37, byte]
+  if vb.readArray(buf) == 37:
+    var nport = (cast[uint16](buf[35]) shl 8) or cast[uint16](buf[36])
+    s = Base32Lower.encode(buf.toOpenArray(0, 34))
+    s.add(":")
+    s.add($nport)
+    result = true
+
+proc onion3VB(vb: var VBuffer): bool =
+  ## ONION address validateBuffer() implementation.
+  var buf: array[37, byte]
+  if vb.readArray(buf) == 37:
+    result = true
+
 proc unixStB(s: string, vb: var VBuffer): bool =
   ## Unix socket name stringToBuffer() implementation.
   if len(s) > 0:
@@ -306,6 +344,11 @@ const
     bufferToString: onionBtS,
     validateBuffer: onionVB
   )
+  TranscoderOnion3* = Transcoder(
+    stringToBuffer: onion3StB,
+    bufferToString: onion3BtS,
+    validateBuffer: onion3VB
+  )
   TranscoderDNS* = Transcoder(
     stringToBuffer: dnsStB,
     bufferToString: dnsBtS,
@@ -358,6 +401,10 @@ const
     MAProtocol(
       mcodec: multiCodec("onion"), kind: Fixed, size: 10,
       coder: TranscoderOnion
+    ),
+    MAProtocol(
+      mcodec: multiCodec("onion3"), kind: Fixed, size: 37,
+      coder: TranscoderOnion3
     ),
     MAProtocol(
       mcodec: multiCodec("ws"), kind: Marker, size: 0
@@ -526,7 +573,7 @@ proc protoArgument*(ma: MultiAddress,
           err("multiaddress: Decoding protocol error")
         else:
           ok(res)
-      elif proto.kind in {Length, Path}:
+      elif proto.kind in {MAKind.Length, Path}:
         if vb.data.readSeq(buffer) == -1:
           err("multiaddress: Decoding protocol error")
         else:
@@ -547,6 +594,13 @@ proc protoAddress*(ma: MultiAddress): MaResult[seq[byte]] =
   buffer.setLen(res)
   ok(buffer)
 
+proc protoArgument*(ma: MultiAddress): MaResult[seq[byte]] =
+  ## Returns MultiAddress ``ma`` protocol address binary blob.
+  ##
+  ## If current MultiAddress do not have argument value, then result array will
+  ## be empty.
+  ma.protoAddress()
+
 proc getPart(ma: MultiAddress, index: int): MaResult[MultiAddress] =
   var header: uint64
   var data = newSeq[byte]()
@@ -554,6 +608,9 @@ proc getPart(ma: MultiAddress, index: int): MaResult[MultiAddress] =
   var vb = ma
   var res: MultiAddress
   res.data = initVBuffer()
+
+  if index < 0: return err("multiaddress: negative index gived to getPart")
+
   while offset <= index:
     if vb.data.readVarint(header) == -1:
       return err("multiaddress: Malformed binary address!")
@@ -571,7 +628,7 @@ proc getPart(ma: MultiAddress, index: int): MaResult[MultiAddress] =
         res.data.writeVarint(header)
         res.data.writeArray(data)
         res.data.finish()
-    elif proto.kind in {Length, Path}:
+    elif proto.kind in {MAKind.Length, Path}:
       if vb.data.readSeq(data) == -1:
         return err("multiaddress: Decoding protocol error")
 
@@ -586,9 +643,31 @@ proc getPart(ma: MultiAddress, index: int): MaResult[MultiAddress] =
     inc(offset)
   ok(res)
 
-proc `[]`*(ma: MultiAddress, i: int): MaResult[MultiAddress] {.inline.} =
+proc getParts[U, V](ma: MultiAddress, slice: HSlice[U, V]): MaResult[MultiAddress] =
+  when slice.a is BackwardsIndex or slice.b is BackwardsIndex:
+    let maLength = ? len(ma)
+  template normalizeIndex(index): int =
+    when index is BackwardsIndex: maLength - int(index)
+    else: int(index)
+  let
+    indexStart = normalizeIndex(slice.a)
+    indexEnd = normalizeIndex(slice.b)
+  var res: MultiAddress
+  for i in indexStart..indexEnd:
+    ? res.append(? ma[i])
+  ok(res)
+
+proc `[]`*(ma: MultiAddress, i: int | BackwardsIndex): MaResult[MultiAddress] {.inline.} =
   ## Returns part with index ``i`` of MultiAddress ``ma``.
-  ma.getPart(i)
+  when i is BackwardsIndex:
+    let maLength = ? len(ma)
+    ma.getPart(maLength - int(i))
+  else:
+    ma.getPart(i)
+
+proc `[]`*(ma: MultiAddress, slice: HSlice): MaResult[MultiAddress] {.inline.} =
+  ## Returns parts with slice ``slice`` of MultiAddress ``ma``.
+  ma.getParts(slice)
 
 iterator items*(ma: MultiAddress): MaResult[MultiAddress] =
   ## Iterates over all addresses inside of MultiAddress ``ma``.
@@ -615,7 +694,7 @@ iterator items*(ma: MultiAddress): MaResult[MultiAddress] =
 
       res.data.writeVarint(header)
       res.data.writeArray(data)
-    elif proto.kind in {Length, Path}:
+    elif proto.kind in {MAKind.Length, Path}:
       if vb.data.readSeq(data) == -1:
         yield err(MaResult[MultiAddress], "Decoding protocol error")
 
@@ -625,6 +704,13 @@ iterator items*(ma: MultiAddress): MaResult[MultiAddress] =
       res.data.writeVarint(header)
     res.data.finish()
     yield ok(MaResult[MultiAddress], res)
+
+proc len*(ma: MultiAddress): MaResult[int] =
+  var counter: int
+  for part in ma:
+    if part.isErr: return err(part.error)
+    counter.inc()
+  ok(counter)
 
 proc contains*(ma: MultiAddress, codec: MultiCodec): MaResult[bool] {.inline.} =
   ## Returns ``true``, if address with MultiCodec ``codec`` present in

@@ -1,18 +1,24 @@
-## Nim-LibP2P
-## Copyright (c) 2021 Status Research & Development GmbH
-## Licensed under either of
-##  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
-##  * MIT license ([LICENSE-MIT](LICENSE-MIT))
-## at your option.
-## This file may not be copied, modified, or distributed except according to
-## those terms.
+# Nim-LibP2P
+# Copyright (c) 2022 Status Research & Development GmbH
+# Licensed under either of
+#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+#  * MIT license ([LICENSE-MIT](LICENSE-MIT))
+# at your option.
+# This file may not be copied, modified, or distributed except according to
+# those terms.
 
-{.push raises: [Defect].}
+when (NimMajor, NimMinor) < (1, 4):
+  {.push raises: [Defect].}
+else:
+  {.push raises: [].}
 
 import chronos
+import stew/results
 import peerid,
        stream/connection,
        transports/transport
+
+export results
 
 type
   Dial* = ref object of RootObj
@@ -25,6 +31,13 @@ method connect*(
   ## connect remote peer without negotiating
   ## a protocol
   ##
+
+  doAssert(false, "Not implemented!")
+
+method connect*(
+  self: Dial,
+  addrs: seq[MultiAddress]): Future[PeerId] {.async, base.} =
+  ## Connects to a peer and retrieve its PeerId
 
   doAssert(false, "Not implemented!")
 
@@ -54,4 +67,10 @@ method dial*(
 method addTransport*(
   self: Dial,
   transport: Transport) {.base.} =
+  doAssert(false, "Not implemented!")
+
+method tryDial*(
+  self: Dial,
+  peerId: PeerId,
+  addrs: seq[MultiAddress]): Future[Opt[MultiAddress]] {.async, base.} =
   doAssert(false, "Not implemented!")

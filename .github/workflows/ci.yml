@@ -22,14 +22,14 @@ jobs:
             cpu: amd64
           - os: windows
             cpu: amd64
-        branch: ['1.2.18', 'stable']
+        branch: ['1.2.18', '1.6.8']
         include:
           - target:
               os: linux
             builder: ubuntu-20.04
           - target:
               os: macos
-            builder: macos-10.15
+            builder: macos-12
           - target:
               os: windows
             builder: windows-2019
@@ -61,94 +61,7 @@ jobs:
 
       - name: Run tests
         run: |
-          if [[ "${{ matrix.target.os }}" == "windows" ]]; then
-            # https://github.com/status-im/nimbus-eth2/issues/3121
-            export NIMFLAGS="-d:nimRawSetjmp"
-          fi
           nim --version
           nimble --version
           nimble install_pinned
           nimble test
-
-  bumpNBC-stable:
-    if: github.ref == 'refs/heads/master'
-    needs: build
-    runs-on: ubuntu-latest
-    steps:
-      - uses: status-im/github-app-token@v1
-        name: Generate token
-        id: generate-token
-        with:
-          app_id: ${{ secrets.BUMP_BOT_APP_ID }}
-          private_key: ${{ secrets.BUMP_BOT_APP_PRIVATE_KEY }}
-
-      - name: Clone NBC
-        uses: actions/checkout@v2
-        with:
-          repository: status-im/nimbus-eth2
-          ref: unstable
-          path: nbc
-          submodules: true
-          fetch-depth: 0
-
-      - name: Checkout this ref
-        run: |
-          cd nbc/vendor/nim-libp2p
-          git checkout $GITHUB_SHA
-
-      - name: Commit this bump
-        run: |
-          cd nbc
-          git config --global user.email "${{ github.actor }}@users.noreply.github.com"
-          git config --global user.name = "${{ github.actor }}"
-          git commit -a -m "auto-bump nim-libp2p"
-
-      - name: Make PR
-        uses: peter-evans/create-pull-request@v3.5.0
-        with:
-          branch: nim-libp2p-auto-bump
-          path: nbc
-          token: ${{ steps.generate-token.outputs.token }}
-          title: nim-libp2p auto bump
-
-  bumpNBC-unstable:
-    if: github.ref == 'refs/heads/unstable'
-    needs: build
-    runs-on: ubuntu-latest
-    steps:
-      - uses: status-im/github-app-token@v1
-        name: Generate token
-        id: generate-token
-        with:
-          app_id: ${{ secrets.BUMP_BOT_APP_ID }}
-          private_key: ${{ secrets.BUMP_BOT_APP_PRIVATE_KEY }}
-
-      - name: Clone NBC
-        uses: actions/checkout@v2
-        with:
-          repository: status-im/nimbus-eth2
-          ref: unstable
-          path: nbc
-          submodules: true
-          fetch-depth: 0
-
-      - name: Checkout this ref
-        run: |
-          cd nbc/vendor/nim-libp2p
-          git checkout $GITHUB_SHA
-
-      - name: Commit this bump
-        run: |
-          cd nbc
-          git config --global user.email "${{ github.actor }}@users.noreply.github.com"
-          git config --global user.name = "${{ github.actor }}"
-          git commit -a -m "auto-bump nim-libp2p"
-
-      - name: Make PR
-        uses: peter-evans/create-pull-request@v3.5.0
-        with:
-          branch: nim-libp2p-auto-bump-unstable
-          path: nbc
-          token: ${{ steps.generate-token.outputs.token }}
-          title: nim-libp2p unstable auto bump
-          draft: true

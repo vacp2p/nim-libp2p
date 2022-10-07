@@ -1,17 +1,20 @@
-## Nim-LibP2P
-## Copyright (c) 2021 Status Research & Development GmbH
-## Licensed under either of
-##  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
-##  * MIT license ([LICENSE-MIT](LICENSE-MIT))
-## at your option.
-## This file may not be copied, modified, or distributed except according to
-## those terms.
+# Nim-LibP2P
+# Copyright (c) 2022 Status Research & Development GmbH
+# Licensed under either of
+#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+#  * MIT license ([LICENSE-MIT](LICENSE-MIT))
+# at your option.
+# This file may not be copied, modified, or distributed except according to
+# those terms.
 
-{.push raises: [Defect].}
+when (NimMajor, NimMinor) < (1, 4):
+  {.push raises: [Defect].}
+else:
+  {.push raises: [].}
 
 import
   std/[streams, strutils, sets, sequtils],
-  chronos, chronicles,
+  chronos, chronicles, stew/byteutils,
   dnsclientpkg/[protocol, types]
 
 import
@@ -73,15 +76,11 @@ proc getDnsResponse(
     if not receivedDataFuture.finished:
       raise newException(IOError, "DNS server timeout")
 
-    var
-      rawResponse = sock.getMessage()
-      dataStream = newStringStream()
-    dataStream.writeData(addr rawResponse[0], rawResponse.len)
-    dataStream.setPosition(0)
+    let rawResponse = sock.getMessage()
     # parseResponse can has a raises: [Exception, ..] because of
     # https://github.com/nim-lang/Nim/commit/035134de429b5d99c5607c5fae912762bebb6008
     # it can't actually raise though
-    return parseResponse(dataStream)
+    return parseResponse(string.fromBytes(rawResponse))
   except CatchableError as exc: raise exc
   except Exception as exc: raiseAssert exc.msg
   finally:
@@ -115,7 +114,14 @@ method resolveIp*(
       try:
         let resp = await fut
         for answer in resp.answers:
-          resolvedAddresses.incl(answer.toString())
+          # toString can has a raises: [Exception, ..] because of
+          # https://github.com/nim-lang/Nim/commit/035134de429b5d99c5607c5fae912762bebb6008
+          # it can't actually raise though
+          resolvedAddresses.incl(
+            try: answer.toString()
+            except CatchableError as exc: raise exc
+            except Exception as exc: raiseAssert exc.msg
+          )
       except CancelledError as e:
         raise e
       except ValueError as e:
@@ -155,6 +161,11 @@ method resolveTxt*(
       self.nameServers.add(self.nameServers[0])
       self.nameServers.delete(0)
       continue
+    except Exception as e:
+      # toString can has a raises: [Exception, ..] because of
+      # https://github.com/nim-lang/Nim/commit/035134de429b5d99c5607c5fae912762bebb6008
+      # it can't actually raise though
+      raiseAssert e.msg
 
   debug "Failed to resolve TXT, returning empty set"
   return @[]

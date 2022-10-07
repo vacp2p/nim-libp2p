@@ -1,3 +1,5 @@
+import stublogger
+
 import testvarint,
        testconnection,
        testminprotobuf,
@@ -33,4 +35,9 @@ import testtcptransport,
        testpeerstore,
        testping,
        testmplex,
-       testrelay
+       testrelayv1,
+       testrelayv2,
+       testrendezvous,
+       testdiscovery,
+       testyamux,
+       testautonat

@@ -1,25 +1,30 @@
-## Nim-LibP2P
-## Copyright (c) 2018 Status Research & Development GmbH
-## Licensed under either of
-##  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
-##  * MIT license ([LICENSE-MIT](LICENSE-MIT))
-## at your option.
-## This file may not be copied, modified, or distributed except according to
-## those terms.
+# Nim-LibP2P
+# Copyright (c) 2022 Status Research & Development GmbH
+# Licensed under either of
+#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+#  * MIT license ([LICENSE-MIT](LICENSE-MIT))
+# at your option.
+# This file may not be copied, modified, or distributed except according to
+# those terms.
 
 ## This module implementes API for libp2p peer.
 
-{.push raises: [Defect].}
+when (NimMajor, NimMinor) < (1, 4):
+  {.push raises: [Defect].}
+else:
+  {.push raises: [].}
+{.push public.}
 
 import
   std/[hashes, strutils],
   stew/[base58, results],
   chronicles,
   nimcrypto/utils,
+  utility,
   ./crypto/crypto, ./multicodec, ./multihash, ./vbuffer,
   ./protobuf/minprotobuf
 
-export results
+export results, utility
 
 const
   maxInlineKeyLength* = 42
@@ -38,7 +43,7 @@ func shortLog*(pid: PeerId): string =
   var spid = $pid
   if len(spid) > 10:
     spid[3] = '*'
-    
+
     when (NimMajor, NimMinor) > (1, 4):
       spid.delete(4 .. spid.high - 6)
     else:

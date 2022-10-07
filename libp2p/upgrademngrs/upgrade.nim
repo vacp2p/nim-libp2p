@@ -1,13 +1,16 @@
-## Nim-LibP2P
-## Copyright (c) 2021 Status Research & Development GmbH
-## Licensed under either of
-##  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
-##  * MIT license ([LICENSE-MIT](LICENSE-MIT))
-## at your option.
-## This file may not be copied, modified, or distributed except according to
-## those terms.
+# Nim-LibP2P
+# Copyright (c) 2022 Status Research & Development GmbH
+# Licensed under either of
+#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+#  * MIT license ([LICENSE-MIT](LICENSE-MIT))
+# at your option.
+# This file may not be copied, modified, or distributed except according to
+# those terms.
 
-{.push raises: [Defect].}
+when (NimMajor, NimMinor) < (1, 4):
+  {.push raises: [Defect].}
+else:
+  {.push raises: [].}
 
 import std/[options, sequtils, strutils]
 import pkg/[chronos, chronicles, metrics]
@@ -44,12 +47,14 @@ method upgradeIncoming*(
 
 method upgradeOutgoing*(
   self: Upgrade,
-  conn: Connection): Future[Connection] {.base.} =
+  conn: Connection,
+  peerId: Opt[PeerId]): Future[Connection] {.base.} =
   doAssert(false, "Not implemented!")
 
 proc secure*(
   self: Upgrade,
-  conn: Connection): Future[Connection] {.async, gcsafe.} =
+  conn: Connection,
+  peerId: Opt[PeerId]): Future[Connection] {.async, gcsafe.} =
   if self.secureManagers.len <= 0:
     raise newException(UpgradeFailedError, "No secure managers registered!")
 
@@ -64,7 +69,7 @@ proc secure*(
   # let's avoid duplicating checks but detect if it fails to do it properly
   doAssert(secureProtocol.len > 0)
 
-  return await secureProtocol[0].secure(conn, true)
+  return await secureProtocol[0].secure(conn, true, peerId)
 
 proc identify*(
   self: Upgrade,

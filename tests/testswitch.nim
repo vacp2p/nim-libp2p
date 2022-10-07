@@ -21,6 +21,7 @@ import ../libp2p/[errors,
                   nameresolving/nameresolver,
                   nameresolving/mockresolver,
                   stream/chronosstream,
+                  utils/semaphore,
                   transports/tcptransport,
                   transports/wstransport]
 import ./helpers
@@ -200,11 +201,43 @@ suite "Switch":
     check not switch1.isConnected(switch2.peerInfo.peerId)
     check not switch2.isConnected(switch1.peerInfo.peerId)
 
+  asyncTest "e2e connect to peer with unknown PeerId":
+    let resolver = MockResolver.new()
+    let switch1 = newStandardSwitch(secureManagers = [SecureProtocol.Noise])
+    let switch2 = newStandardSwitch(secureManagers = [SecureProtocol.Noise], nameResolver = resolver)
+    await switch1.start()
+    await switch2.start()
+
+    # via dnsaddr
+    resolver.txtResponses["_dnsaddr.test.io"] = @[
+      "dnsaddr=" & $switch1.peerInfo.addrs[0] & "/p2p/" & $switch1.peerInfo.peerId,
+    ]
+
+    check: (await switch2.connect(@[MultiAddress.init("/dnsaddr/test.io/").tryGet()])) == switch1.peerInfo.peerId
+    await switch2.disconnect(switch1.peerInfo.peerId)
+
+    # via direct ip
+    check not switch2.isConnected(switch1.peerInfo.peerId)
+    check: (await switch2.connect(switch1.peerInfo.addrs)) == switch1.peerInfo.peerId
+
+    await switch2.disconnect(switch1.peerInfo.peerId)
+
+    await allFuturesThrowing(
+      switch1.stop(),
+      switch2.stop()
+    )
+
   asyncTest "e2e should not leak on peer disconnect":
     let switch1 = newStandardSwitch()
     let switch2 = newStandardSwitch()
     await switch1.start()
     await switch2.start()
+
+    let startCounts =
+      @[
+        switch1.connManager.inSema.count, switch1.connManager.outSema.count,
+        switch2.connManager.inSema.count, switch2.connManager.outSema.count
+      ]
 
     await switch2.connect(switch1.peerInfo.peerId, switch1.peerInfo.addrs)
 
@@ -218,6 +251,15 @@ suite "Switch":
 
     checkTracker(LPChannelTrackerName)
     checkTracker(SecureConnTrackerName)
+
+    await sleepAsync(1.seconds)
+
+    check:
+      startCounts ==
+        @[
+          switch1.connManager.inSema.count, switch1.connManager.outSema.count,
+          switch2.connManager.inSema.count, switch2.connManager.outSema.count
+        ]
 
     await allFuturesThrowing(
       switch1.stop(),
@@ -635,7 +677,7 @@ suite "Switch":
     await switch.start()
 
     var peerId = PeerId.init(PrivateKey.random(ECDSA, rng[]).get()).get()
-    expect LPStreamClosedError, LPStreamEOFError:
+    expect DialFailedError:
       await switch.connect(peerId, transport.addrs)
 
     await handlerWait
@@ -964,9 +1006,10 @@ suite "Switch":
     await srcWsSwitch.start()
 
     resolver.txtResponses["_dnsaddr.test.io"] = @[
-      "dnsaddr=" & $destSwitch.peerInfo.addrs[0],
-      "dnsaddr=" & $destSwitch.peerInfo.addrs[1]
+      "dnsaddr=/dns4/localhost" & $destSwitch.peerInfo.addrs[0][1..^1].tryGet() & "/p2p/" & $destSwitch.peerInfo.peerId,
+      "dnsaddr=/dns4/localhost" & $destSwitch.peerInfo.addrs[1][1..^1].tryGet()
     ]
+    resolver.ipResponses[("localhost", false)] = @["127.0.0.1"]
 
     let testAddr = MultiAddress.init("/dnsaddr/test.io/").tryGet()
 
@@ -979,3 +1022,38 @@ suite "Switch":
     await destSwitch.stop()
     await srcWsSwitch.stop()
     await srcTcpSwitch.stop()
+
+  asyncTest "mount unstarted protocol":
+    proc handle(conn: Connection, proto: string) {.async, gcsafe.} =
+      check "test123" == string.fromBytes(await conn.readLp(1024))
+      await conn.writeLp("test456")
+      await conn.close()
+    let
+      src = newStandardSwitch()
+      dst = newStandardSwitch()
+      testProto = new TestProto
+    testProto.codec = TestCodec
+    testProto.handler = handle
+
+    await src.start()
+    await dst.start()
+    expect LPError:
+      dst.mount(testProto)
+    await testProto.start()
+    dst.mount(testProto)
+
+    let conn = await src.dial(dst.peerInfo.peerId, dst.peerInfo.addrs, TestCodec)
+    await conn.writeLp("test123")
+    check "test456" == string.fromBytes(await conn.readLp(1024))
+    await conn.close()
+    await src.stop()
+    await dst.stop()
+
+  asyncTest "switch failing to start stops properly":
+    let switch = newStandardSwitch(
+      addrs = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet(), MultiAddress.init("/ip4/1.1.1.1/tcp/0").tryGet()]
+    )
+
+    expect LPError:
+      await switch.start()
+    # test is that this doesn't leak

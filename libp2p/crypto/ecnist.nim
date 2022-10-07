@@ -1,11 +1,11 @@
-## Nim-Libp2p
-## Copyright (c) 2018 Status Research & Development GmbH
-## Licensed under either of
-##  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
-##  * MIT license ([LICENSE-MIT](LICENSE-MIT))
-## at your option.
-## This file may not be copied, modified, or distributed except according to
-## those terms.
+# Nim-Libp2p
+# Copyright (c) 2022 Status Research & Development GmbH
+# Licensed under either of
+#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+#  * MIT license ([LICENSE-MIT](LICENSE-MIT))
+# at your option.
+# This file may not be copied, modified, or distributed except according to
+# those terms.
 
 ## This module implements constant-time ECDSA and ECDHE for NIST elliptic
 ## curves secp256r1, secp384r1 and secp521r1.
@@ -14,7 +14,10 @@
 ## BearSSL library <https://bearssl.org/>
 ## Copyright(C) 2018 Thomas Pornin <pornin@bolet.org>.
 
-{.push raises: [Defect].}
+when (NimMajor, NimMinor) < (1, 4):
+  {.push raises: [Defect].}
+else:
+  {.push raises: [].}
 
 import bearssl/[ec, rand, hash]
 # We use `ncrutils` for constant-time hexadecimal encoding/decoding procedures.
@@ -55,9 +58,9 @@ type
     buffer*: seq[byte]
 
   EcCurveKind* = enum
-    Secp256r1 = EC_SECP256R1,
-    Secp384r1 = EC_SECP384R1,
-    Secp521r1 = EC_SECP521R1
+    Secp256r1 = EC_secp256r1,
+    Secp384r1 = EC_secp384r1,
+    Secp521r1 = EC_secp521r1
 
   EcPKI* = EcPrivateKey | EcPublicKey | EcSignature
 
@@ -373,11 +376,11 @@ proc toBytes*(seckey: EcPrivateKey, data: var openArray[byte]): EcResult[int] =
     var p = Asn1Composite.init(Asn1Tag.Sequence)
     var c0 = Asn1Composite.init(0)
     var c1 = Asn1Composite.init(1)
-    if seckey.key.curve == EC_SECP256R1:
+    if seckey.key.curve == EC_secp256r1:
       c0.write(Asn1Tag.Oid, Asn1OidSecp256r1)
-    elif seckey.key.curve == EC_SECP384R1:
+    elif seckey.key.curve == EC_secp384r1:
       c0.write(Asn1Tag.Oid, Asn1OidSecp384r1)
-    elif seckey.key.curve == EC_SECP521R1:
+    elif seckey.key.curve == EC_secp521r1:
       c0.write(Asn1Tag.Oid, Asn1OidSecp521r1)
     c0.finish()
     offset = pubkey.getOffset()
@@ -421,11 +424,11 @@ proc toBytes*(pubkey: EcPublicKey, data: var openArray[byte]): EcResult[int] =
     var p = Asn1Composite.init(Asn1Tag.Sequence)
     var c = Asn1Composite.init(Asn1Tag.Sequence)
     c.write(Asn1Tag.Oid, Asn1OidEcPublicKey)
-    if pubkey.key.curve == EC_SECP256R1:
+    if pubkey.key.curve == EC_secp256r1:
       c.write(Asn1Tag.Oid, Asn1OidSecp256r1)
-    elif pubkey.key.curve == EC_SECP384R1:
+    elif pubkey.key.curve == EC_secp384r1:
       c.write(Asn1Tag.Oid, Asn1OidSecp384r1)
-    elif pubkey.key.curve == EC_SECP521R1:
+    elif pubkey.key.curve == EC_secp521r1:
       c.write(Asn1Tag.Oid, Asn1OidSecp521r1)
     c.finish()
     p.write(c)
@@ -913,11 +916,11 @@ proc toSecret*(pubkey: EcPublicKey, seckey: EcPrivateKey,
   doAssert((not isNil(pubkey)) and (not isNil(seckey)))
   var mult = scalarMul(pubkey, seckey)
   if not isNil(mult):
-    if seckey.key.curve == EC_SECP256R1:
+    if seckey.key.curve == EC_secp256r1:
       result = Secret256Length
-    elif seckey.key.curve == EC_SECP384R1:
+    elif seckey.key.curve == EC_secp384r1:
       result = Secret384Length
-    elif seckey.key.curve == EC_SECP521R1:
+    elif seckey.key.curve == EC_secp521r1:
       result = Secret521Length
     if len(data) >= result:
       var qplus1 = cast[pointer](cast[uint](mult.key.q) + 1'u)

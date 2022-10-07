@@ -1,11 +1,11 @@
-## Nim-Libp2p
-## Copyright (c) 2018 Status Research & Development GmbH
-## Licensed under either of
-##  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
-##  * MIT license ([LICENSE-MIT](LICENSE-MIT))
-## at your option.
-## This file may not be copied, modified, or distributed except according to
-## those terms.
+# Nim-Libp2p
+# Copyright (c) 2022 Status Research & Development GmbH
+# Licensed under either of
+#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+#  * MIT license ([LICENSE-MIT](LICENSE-MIT))
+# at your option.
+# This file may not be copied, modified, or distributed except according to
+# those terms.
 
 {.used.}
 
@@ -28,18 +28,11 @@ import ../helpers
 proc waitSub(sender, receiver: auto; key: string) {.async, gcsafe.} =
   if sender == receiver:
     return
-  # turn things deterministic
+  let timeout = Moment.now() + 5.seconds
+  let fsub = GossipSub(sender)
+
   # this is for testing purposes only
   # peers can be inside `mesh` and `fanout`, not just `gossipsub`
-  var ceil = 15
-  let fsub = GossipSub(sender)
-  let ev = newAsyncEvent()
-  fsub.heartbeatEvents.add(ev)
-
-  # await first heartbeat
-  await ev.wait()
-  ev.clear()
-
   while (not fsub.gossipsub.hasKey(key) or
          not fsub.gossipsub.hasPeerId(key, receiver.peerInfo.peerId)) and
         (not fsub.mesh.hasKey(key) or
@@ -48,23 +41,19 @@ proc waitSub(sender, receiver: auto; key: string) {.async, gcsafe.} =
          not fsub.fanout.hasPeerId(key , receiver.peerInfo.peerId)):
     trace "waitSub sleeping..."
 
-    # await more heartbeats
-    await ev.wait()
-    ev.clear()
+    # await
+    await sleepAsync(5.milliseconds)
+    doAssert Moment.now() < timeout, "waitSub timeout!"
 
-    dec ceil
-    doAssert(ceil > 0, "waitSub timeout!")
-
-template tryPublish(call: untyped, require: int, wait: Duration = 1.seconds, times: int = 10): untyped =
+template tryPublish(call: untyped, require: int, wait = 10.milliseconds, timeout = 10.seconds): untyped =
   var
-    limit = times
+    expiration = Moment.now() + timeout
     pubs = 0
-  while pubs < require and limit > 0:
+  while pubs < require and Moment.now() < expiration:
     pubs = pubs + call
     await sleepAsync(wait)
-    limit.dec()
-  if limit == 0:
-    doAssert(false, "Failed to publish!")
+
+  doAssert pubs >= require, "Failed to publish!"
 
 suite "GossipSub":
   teardown:
@@ -77,7 +66,6 @@ suite "GossipSub":
       nodes = generateNodes(runs, gossip = true, triggerSelf = true)
       nodesFut = nodes.mapIt(it.switch.start())
 
-    await allFuturesThrowing(nodes.mapIt(it.start()))
     await subscribeSparseNodes(nodes)
 
     var seen: Table[string, int]
@@ -120,7 +108,6 @@ suite "GossipSub":
     await allFuturesThrowing(
       nodes.mapIt(
         allFutures(
-          it.stop(),
           it.switch.stop())))
 
     await allFuturesThrowing(nodesFut)
@@ -139,13 +126,6 @@ suite "GossipSub":
         nodes[0].switch.start(),
         nodes[1].switch.start(),
       )
-
-    # start pubsub
-    await allFuturesThrowing(
-      allFinished(
-        nodes[0].start(),
-        nodes[1].start(),
-    ))
 
     # We must subscribe before setting the validator
     nodes[0].subscribe("foobar", handler)
@@ -174,36 +154,15 @@ suite "GossipSub":
       nodes[1].switch.stop()
     )
 
-    await allFuturesThrowing(
-      nodes[0].stop(),
-      nodes[1].stop()
-    )
-
     await allFuturesThrowing(nodesFut.concat())
 
   asyncTest "GossipSub test directPeers":
-
-    let
-      nodes = generateNodes(2, gossip = true)
-
-      # start switches
-      nodesFut = await allFinished(
-        nodes[0].switch.start(),
-        nodes[1].switch.start(),
-      )
-
-    var gossip = GossipSub(nodes[0])
-    gossip.parameters.directPeers[nodes[1].switch.peerInfo.peerId] = nodes[1].switch.peerInfo.addrs
-
-    # start pubsub
-    await allFuturesThrowing(
-      allFinished(
-        nodes[0].start(),
-        nodes[1].start(),
-    ))
+    let nodes = generateNodes(2, gossip = true)
+    await allFutures(nodes[0].switch.start(), nodes[1].switch.start())
+    await GossipSub(nodes[0]).addDirectPeer(nodes[1].switch.peerInfo.peerId, nodes[1].switch.peerInfo.addrs)
 
     let invalidDetected = newFuture[void]()
-    gossip.subscriptionValidator =
+    GossipSub(nodes[0]).subscriptionValidator =
       proc(topic: string): bool =
         if topic == "foobar":
           try:
@@ -227,13 +186,6 @@ suite "GossipSub":
       nodes[1].switch.stop()
     )
 
-    await allFuturesThrowing(
-      nodes[0].stop(),
-      nodes[1].stop()
-    )
-
-    await allFuturesThrowing(nodesFut.concat())
-
   asyncTest "GossipSub directPeers: always forward messages":
     let
       nodes = generateNodes(2, gossip = true)
@@ -244,15 +196,8 @@ suite "GossipSub":
         nodes[1].switch.start(),
       )
 
-    GossipSub(nodes[0]).parameters.directPeers[nodes[1].switch.peerInfo.peerId] = nodes[1].switch.peerInfo.addrs
-    GossipSub(nodes[1]).parameters.directPeers[nodes[0].switch.peerInfo.peerId] = nodes[0].switch.peerInfo.addrs
-
-    # start pubsub
-    await allFuturesThrowing(
-      allFinished(
-        nodes[0].start(),
-        nodes[1].start(),
-    ))
+    await GossipSub(nodes[0]).addDirectPeer(nodes[1].switch.peerInfo.peerId, nodes[1].switch.peerInfo.addrs)
+    await GossipSub(nodes[1]).addDirectPeer(nodes[0].switch.peerInfo.peerId, nodes[0].switch.peerInfo.addrs)
 
     var handlerFut = newFuture[void]()
     proc handler(topic: string, data: seq[byte]) {.async, gcsafe.} =
@@ -275,11 +220,6 @@ suite "GossipSub":
       nodes[1].switch.stop()
     )
 
-    await allFuturesThrowing(
-      nodes[0].stop(),
-      nodes[1].stop()
-    )
-
     await allFuturesThrowing(nodesFut.concat())
 
   asyncTest "GossipSub directPeers: don't kick direct peer with low score":
@@ -292,18 +232,11 @@ suite "GossipSub":
         nodes[1].switch.start(),
       )
 
-    GossipSub(nodes[0]).parameters.directPeers[nodes[1].switch.peerInfo.peerId] = nodes[1].switch.peerInfo.addrs
-    GossipSub(nodes[1]).parameters.directPeers[nodes[0].switch.peerInfo.peerId] = nodes[0].switch.peerInfo.addrs
+    await GossipSub(nodes[0]).addDirectPeer(nodes[1].switch.peerInfo.peerId, nodes[1].switch.peerInfo.addrs)
+    await GossipSub(nodes[1]).addDirectPeer(nodes[0].switch.peerInfo.peerId, nodes[0].switch.peerInfo.addrs)
 
     GossipSub(nodes[1]).parameters.disconnectBadPeers = true
     GossipSub(nodes[1]).parameters.graylistThreshold = 100000
-
-    # start pubsub
-    await allFuturesThrowing(
-      allFinished(
-        nodes[0].start(),
-        nodes[1].start(),
-    ))
 
     var handlerFut = newFuture[void]()
     proc handler(topic: string, data: seq[byte]) {.async, gcsafe.} =
@@ -334,11 +267,6 @@ suite "GossipSub":
       nodes[1].switch.stop()
     )
 
-    await allFuturesThrowing(
-      nodes[0].stop(),
-      nodes[1].stop()
-    )
-
     await allFuturesThrowing(nodesFut.concat())
 
   asyncTest "GossipsSub peers disconnections mechanics":
@@ -348,7 +276,6 @@ suite "GossipSub":
       nodes = generateNodes(runs, gossip = true, triggerSelf = true)
       nodesFut = nodes.mapIt(it.switch.start())
 
-    await allFuturesThrowing(nodes.mapIt(it.start()))
     await subscribeNodes(nodes)
 
     var seen: Table[string, int]
@@ -376,7 +303,7 @@ suite "GossipSub":
     tryPublish await wait(nodes[0].publish("foobar",
                                   toBytes("from node " &
                                   $nodes[0].peerInfo.peerId)),
-                                  1.minutes), 1, 5.seconds
+                                  1.minutes), 1, 5.seconds, 3.minutes
 
     await wait(seenFut, 5.minutes)
     check: seen.len >= runs
@@ -399,11 +326,9 @@ suite "GossipSub":
     # Waiting 2 heartbeats
 
     for _ in 0..1:
-      for i in 0..<runs:
-        if i mod 3 == 0:
-          let evnt = newAsyncEvent()
-          GossipSub(nodes[i]).heartbeatEvents &= evnt
-          await evnt.wait()
+      let evnt = newAsyncEvent()
+      GossipSub(nodes[0]).heartbeatEvents &= evnt
+      await evnt.wait()
 
     # ensure peer stats are stored properly and kept properly
     check:
@@ -421,11 +346,9 @@ suite "GossipSub":
     # Waiting 2 heartbeats
 
     for _ in 0..1:
-      for i in 0..<runs:
-        if i mod 3 == 0:
-          let evnt = newAsyncEvent()
-          GossipSub(nodes[i]).heartbeatEvents &= evnt
-          await evnt.wait()
+      let evnt = newAsyncEvent()
+      GossipSub(nodes[0]).heartbeatEvents &= evnt
+      await evnt.wait()
 
     # ensure peer stats are stored properly and kept properly
     check:
@@ -434,7 +357,6 @@ suite "GossipSub":
     await allFuturesThrowing(
       nodes.mapIt(
         allFutures(
-          it.stop(),
           it.switch.stop())))
 
     await allFuturesThrowing(nodesFut)
@@ -444,24 +366,18 @@ suite "GossipSub":
     let
       nodes = generateNodes(2, gossip = true)
 
-      # start switches
-      nodesFut = await allFinished(
-        nodes[0].switch.start(),
-        nodes[1].switch.start(),
-      )
-
     var gossip = GossipSub(nodes[0])
     # MacOs has some nasty jitter when sleeping
     # (up to 7 ms), so we need some pretty long
     # sleeps to be safe here
     gossip.parameters.decayInterval = 300.milliseconds
 
-    # start pubsub
-    await allFuturesThrowing(
-      allFinished(
-        nodes[0].start(),
-        nodes[1].start(),
-    ))
+    let
+      # start switches
+      nodesFut = await allFinished(
+        nodes[0].switch.start(),
+        nodes[1].switch.start(),
+      )
 
     var handlerFut = newFuture[void]()
     proc handler(topic: string, data: seq[byte]) {.async, gcsafe.} =
@@ -487,11 +403,6 @@ suite "GossipSub":
     await allFuturesThrowing(
       nodes[0].switch.stop(),
       nodes[1].switch.stop()
-    )
-
-    await allFuturesThrowing(
-      nodes[0].stop(),
-      nodes[1].stop()
     )
 
     await allFuturesThrowing(nodesFut.concat())

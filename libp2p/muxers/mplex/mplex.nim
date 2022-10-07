@@ -1,13 +1,16 @@
-## Nim-LibP2P
-## Copyright (c) 2019 Status Research & Development GmbH
-## Licensed under either of
-##  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
-##  * MIT license ([LICENSE-MIT](LICENSE-MIT))
-## at your option.
-## This file may not be copied, modified, or distributed except according to
-## those terms.
+# Nim-LibP2P
+# Copyright (c) 2022 Status Research & Development GmbH
+# Licensed under either of
+#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+#  * MIT license ([LICENSE-MIT](LICENSE-MIT))
+# at your option.
+# This file may not be copied, modified, or distributed except according to
+# those terms.
 
-{.push raises: [Defect].}
+when (NimMajor, NimMinor) < (1, 4):
+  {.push raises: [Defect].}
+else:
+  {.push raises: [].}
 
 import tables, sequtils, oids
 import chronos, chronicles, stew/byteutils, metrics
@@ -34,7 +37,6 @@ when defined(libp2p_expensive_metrics):
     "mplex channels", labels = ["initiator", "peer"])
 
 type
-  TooManyChannels* = object of MuxerError
   InvalidChannelIdError* = object of MuxerError
 
   Mplex* = ref object of Muxer
@@ -181,6 +183,7 @@ method handle*(m: Mplex) {.async, gcsafe.} =
         of MessageType.CloseIn, MessageType.CloseOut:
           await channel.pushEof()
         of MessageType.ResetIn, MessageType.ResetOut:
+          channel.remoteReset = true
           await channel.reset()
   except CancelledError:
     debug "Unexpected cancellation in mplex handler", m

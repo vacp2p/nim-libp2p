@@ -1,15 +1,22 @@
-## Nim-LibP2P
-## Copyright (c) 2019 Status Research & Development GmbH
-## Licensed under either of
-##  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
-##  * MIT license ([LICENSE-MIT](LICENSE-MIT))
-## at your option.
-## This file may not be copied, modified, or distributed except according to
-## those terms.
+# Nim-LibP2P
+# Copyright (c) 2022 Status Research & Development GmbH
+# Licensed under either of
+#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+#  * MIT license ([LICENSE-MIT](LICENSE-MIT))
+# at your option.
+# This file may not be copied, modified, or distributed except according to
+# those terms.
 
-{.push raises: [Defect].}
+## `Identify <https://docs.libp2p.io/concepts/protocols/#identify>`_ and
+## `Push Identify <https://docs.libp2p.io/concepts/protocols/#identify-push>`_ implementation
+
+when (NimMajor, NimMinor) < (1, 4):
+  {.push raises: [Defect].}
+else:
+  {.push raises: [].}
 
 import std/[sequtils, options, strutils, sugar]
+import stew/results
 import chronos, chronicles
 import ../protobuf/minprotobuf,
        ../peerinfo,
@@ -36,7 +43,7 @@ type
   IdentityInvalidMsgError* = object of IdentifyError
   IdentifyNoPubKeyError* = object of IdentifyError
 
-  IdentifyInfo* = object
+  IdentifyInfo* {.public.} = object
     pubkey*: Option[PublicKey]
     peerId*: PeerId
     addrs*: seq[MultiAddress]
@@ -54,7 +61,7 @@ type
     peer: PeerId,
     newInfo: IdentifyInfo):
     Future[void]
-    {.gcsafe, raises: [Defect].}
+    {.gcsafe, raises: [Defect], public.}
 
   IdentifyPush* = ref object of LPProtocol
     identifyHandler: IdentifyPushHandler
@@ -74,7 +81,7 @@ chronicles.expandIt(IdentifyInfo):
     if iinfo.signedPeerRecord.isSome(): "Some"
     else: "None"
 
-proc encodeMsg(peerInfo: PeerInfo, observedAddr: MultiAddress, sendSpr: bool): ProtoBuffer
+proc encodeMsg(peerInfo: PeerInfo, observedAddr: Opt[MultiAddress], sendSpr: bool): ProtoBuffer
   {.raises: [Defect].} =
   result = initProtoBuffer()
 
@@ -85,7 +92,8 @@ proc encodeMsg(peerInfo: PeerInfo, observedAddr: MultiAddress, sendSpr: bool): P
     result.write(2, ma.data.buffer)
   for proto in peerInfo.protocols:
     result.write(3, proto)
-  result.write(4, observedAddr.data.buffer)
+  if observedAddr.isSome:
+    result.write(4, observedAddr.get().data.buffer)
   let protoVersion = ProtoVersion
   result.write(5, protoVersion)
   let agentVersion = if peerInfo.agentVersion.len <= 0:
@@ -203,7 +211,9 @@ proc identify*(p: Identify,
   else:
     raise newException(IdentityInvalidMsgError, "No pubkey in identify")
 
-proc new*(T: typedesc[IdentifyPush], handler: IdentifyPushHandler = nil): T =
+proc new*(T: typedesc[IdentifyPush], handler: IdentifyPushHandler = nil): T {.public.} =
+  ## Create a IdentifyPush protocol. `handler` will be called every time
+  ## a peer sends us new `PeerInfo`
   let identifypush = T(identifyHandler: handler)
   identifypush.init()
   identifypush
@@ -240,6 +250,7 @@ proc init*(p: IdentifyPush) =
   p.handler = handle
   p.codec = IdentifyPushCodec
 
-proc push*(p: IdentifyPush, peerInfo: PeerInfo, conn: Connection) {.async.} =
+proc push*(p: IdentifyPush, peerInfo: PeerInfo, conn: Connection) {.async, public.} =
+  ## Send new `peerInfo`s to a connection
   var pb = encodeMsg(peerInfo, conn.observedAddr, true)
   await conn.writeLp(pb.buffer)
