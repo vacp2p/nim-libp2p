@@ -52,6 +52,9 @@ suite "Identify":
       msListen = MultistreamSelect.new()
       msDial = MultistreamSelect.new()
 
+      serverFut = transport1.start(ma)
+      await remotePeerInfo.update()
+
     asyncTeardown:
       await conn.close()
       await acceptFut
@@ -61,7 +64,6 @@ suite "Identify":
 
     asyncTest "default agent version":
       msListen.addHandler(IdentifyCodec, identifyProto1)
-      serverFut = transport1.start(ma)
       proc acceptHandler(): Future[void] {.async, gcsafe.} =
         let c = await transport1.accept()
         await msListen.handle(c)
@@ -84,8 +86,6 @@ suite "Identify":
       remotePeerInfo.agentVersion = customAgentVersion
       msListen.addHandler(IdentifyCodec, identifyProto1)
 
-      serverFut = transport1.start(ma)
-
       proc acceptHandler(): Future[void] {.async, gcsafe.} =
         let c = await transport1.accept()
         await msListen.handle(c)
@@ -105,7 +105,6 @@ suite "Identify":
 
     asyncTest "handle failed identify":
       msListen.addHandler(IdentifyCodec, identifyProto1)
-      asyncSpawn transport1.start(ma)
 
       proc acceptHandler() {.async.} =
         var conn: Connection
@@ -128,7 +127,6 @@ suite "Identify":
     asyncTest "can send signed peer record":
       msListen.addHandler(IdentifyCodec, identifyProto1)
       identifyProto1.sendSignedPeerRecord = true
-      serverFut = transport1.start(ma)
       proc acceptHandler(): Future[void] {.async, gcsafe.} =
         let c = await transport1.accept()
         await msListen.handle(c)
@@ -195,7 +193,8 @@ suite "Identify":
 
     asyncTest "simple push identify":
       switch2.peerInfo.protocols.add("/newprotocol/")
-      switch2.peerInfo.addrs.add(MultiAddress.init("/ip4/127.0.0.1/tcp/5555").tryGet())
+      switch2.peerInfo.listenAddrs.add(MultiAddress.init("/ip4/127.0.0.1/tcp/5555").tryGet())
+      await switch2.peerInfo.update()
 
       check:
         switch1.peerStore[AddressBook][switch2.peerInfo.peerId] != switch2.peerInfo.addrs
@@ -216,7 +215,8 @@ suite "Identify":
 
     asyncTest "wrong peer id push identify":
       switch2.peerInfo.protocols.add("/newprotocol/")
-      switch2.peerInfo.addrs.add(MultiAddress.init("/ip4/127.0.0.1/tcp/5555").tryGet())
+      switch2.peerInfo.listenAddrs.add(MultiAddress.init("/ip4/127.0.0.1/tcp/5555").tryGet())
+      await switch2.peerInfo.update()
 
       check:
         switch1.peerStore[AddressBook][switch2.peerInfo.peerId] != switch2.peerInfo.addrs
