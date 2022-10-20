@@ -90,6 +90,7 @@ task website, "Build the website":
   tutorialToMd("examples/tutorial_1_connect.nim")
   tutorialToMd("examples/tutorial_2_customproto.nim")
   tutorialToMd("examples/tutorial_3_protobuf.nim")
+  tutorialToMd("examples/tutorial_4_gossipsub.nim")
   tutorialToMd("examples/circuitrelay.nim")
   exec "mkdocs build"
 
@@ -99,6 +100,7 @@ task examples_build, "Build the samples":
   buildSample("circuitrelay", true)
   buildSample("tutorial_1_connect", true)
   buildSample("tutorial_2_customproto", true)
+  buildSample("tutorial_4_gossipsub", true)
   if (NimMajor, NimMinor) > (1, 2):
     # This tutorial relies on post 1.4 exception tracking
     buildSample("tutorial_3_protobuf", true)
