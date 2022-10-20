@@ -10,7 +10,7 @@
 ## You'll find a good explanation on how GossipSub works
 ## [here.](https://docs.libp2p.io/concepts/publish-subscribe/) There are a lot
 ## of parameters you can tweak to adjust how GossipSub behaves but here we'll
-## the the sane defaults shipped with libp2p.
+## use the sane defaults shipped with libp2p.
 ##
 ## We'll start by creating our metric structure like previously
 
@@ -151,3 +151,13 @@ waitFor(main())
 ## ```
 ##
 ## This is John receiving & logging everyone's metrics.
+##
+## ## Going further
+## Building efficient & safe GossipSub networks is a tricky subject. By tweaking the [gossip params](https://status-im.github.io/nim-libp2p/master/libp2p/protocols/pubsub/gossipsub/types.html#GossipSubParams)
+## and [topic params](https://status-im.github.io/nim-libp2p/master/libp2p/protocols/pubsub/gossipsub/types.html#TopicParams),
+## you can achieve very different properties.
+##
+## Also see reports for [GossipSub v1.1](https://gateway.ipfs.io/ipfs/QmRAFP5DBnvNjdYSbWhEhVRJJDFCLpPyvew5GwCCB4VxM4)
+##
+## If you are interested in broadcasting for your application, you may want to use [Waku](https://waku.org/), which builds on top of GossipSub,
+## and adds features such as history, spam protection, and light node friendliness.
