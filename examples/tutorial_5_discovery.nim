@@ -11,6 +11,7 @@ import chronos
 
 import libp2p
 import libp2p/protocols/rendezvous
+import libp2p/protocols/ping
 import libp2p/discovery/rendezvousinterface
 import libp2p/discovery/discoverymngr
 
@@ -37,14 +38,16 @@ proc main() {.async, gcsafe.} =
   var
     switches: seq[Switch] = @[]
     discManagers: seq[DiscoveryManager] = @[]
-  for _ in 0..5:
+  for i in 0..5:
     # Create a RendezVous Protocol
     let rdv = RendezVous.new()
     # Create a switch, mount the RendezVous protocol to it, start it and
-    # enventually connect it to the previous node in the sequence
+    # eventually connect it to the previous node in the sequence
     let switch = createSwitch(rdv)
+    # The first switch'll ping, so we mount the protocol accordingly
+    if i == 0: switch.mount(Ping.new())
     await switch.start()
-    if switches.len > 0:
+    if i > 0:
       await switches[^1].connect(switch.peerInfo.peerId, switch.peerInfo.addrs)
     switches.add(switch)
 
@@ -72,6 +75,9 @@ proc main() {.async, gcsafe.} =
     # The most useful are the PeerId and the MultiAddresses
     res = await query.getPeer()
 
+  # We must stop the query after that, otherwise, it will continue to receive data
+  query.stop()
+
   doAssert(res[PeerId] == switches[0].peerInfo.peerId)
   let resMa = res.getAll(MultiAddress)
   for ma in resMa:
@@ -80,13 +86,14 @@ proc main() {.async, gcsafe.} =
   # The peer Id and the address of the node0 is discovered by the node5 after
   # being pass by all the intermediate node.
 
-  # The node5 can connect the node0 to talk about someTopic directly.
+  # Now the node5 can connect and ping the node1
+  let conn = await switches[5].dial(res[PeerId], resMa, PingCodec)
+  echo "ping: ", await Ping.new().ping(conn)
 
   # Stop all the DiscoveryManagers
   for dm in discManagers: dm.stop()
 
   # Stop all the switches
-  let futStop = switches.mapIt(it.stop())
-  await allFutures(futStop)
+  await allFutures(switches.mapIt(it.stop()))
 
 waitFor(main())
