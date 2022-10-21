@@ -516,10 +516,15 @@ proc trimRight(s: string, ch: char): string =
       break
   result = s[0..(s.high - m)]
 
+proc shcopy*(m1: var MultiAddress, m2: MultiAddress) =
+  shallowCopy(m1.data.buffer, m2.data.buffer)
+  m1.data.offset = m2.data.offset
+
 proc protoCode*(ma: MultiAddress): MaResult[MultiCodec] =
   ## Returns MultiAddress ``ma`` protocol code.
   var header: uint64
-  var vb = ma
+  var vb: MultiAddress
+  shcopy(vb, ma)
   if vb.data.readVarint(header) == -1:
     err("multiaddress: Malformed binary address!")
   else:
@@ -532,7 +537,8 @@ proc protoCode*(ma: MultiAddress): MaResult[MultiCodec] =
 proc protoName*(ma: MultiAddress): MaResult[string] =
   ## Returns MultiAddress ``ma`` protocol name.
   var header: uint64
-  var vb = ma
+  var vb: MultiAddress
+  shcopy(vb, ma)
   if vb.data.readVarint(header) == -1:
     err("multiaddress: Malformed binary address!")
   else:
@@ -549,8 +555,9 @@ proc protoArgument*(ma: MultiAddress,
   ## If current MultiAddress do not have argument value, then result will be
   ## ``0``.
   var header: uint64
-  var vb = ma
+  var vb: MultiAddress
   var buffer: seq[byte]
+  shcopy(vb, ma)
   if vb.data.readVarint(header) == -1:
     err("multiaddress: Malformed binary address!")
   else:
@@ -785,7 +792,8 @@ proc encode*(mbtype: typedesc[MultiBase], encoding: string,
 proc validate*(ma: MultiAddress): bool =
   ## Returns ``true`` if MultiAddress ``ma`` is valid.
   var header: uint64
-  var vb = ma
+  var vb: MultiAddress
+  shcopy(vb, ma)
   while true:
     if vb.data.isEmpty():
       break
