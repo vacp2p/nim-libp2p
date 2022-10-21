@@ -102,6 +102,7 @@ task examples_build, "Build the samples":
   if (NimMajor, NimMinor) > (1, 2):
     # This tutorial relies on post 1.4 exception tracking
     buildSample("tutorial_3_protobuf", true)
+    buildSample("tutorial_5_discovery", true)
 
 # pin system
 # while nimble lockfile
