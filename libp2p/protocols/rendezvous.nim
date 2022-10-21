@@ -559,7 +559,9 @@ proc request*(rdv: RendezVous,
     for (_, r) in s.values():
       rdv.save(ns, peer, r, false)
 
-  for peer in rdv.peers:
+  # copy to avoid resizes during the loop
+  let peers = rdv.peers
+  for peer in peers:
     if limit == 0: break
     if RendezVousCodec notin rdv.switch.peerStore[ProtoBook][peer]: continue
     try:
