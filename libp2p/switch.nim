@@ -299,11 +299,11 @@ proc start*(s: Switch) {.async, gcsafe, public.} =
   trace "starting switch for peer", peerInfo = s.peerInfo
   var startFuts: seq[Future[void]]
   for t in s.transports:
-    let addrs = s.peerInfo.addrs.filterIt(
+    let addrs = s.peerInfo.listenAddrs.filterIt(
       t.handles(it)
     )
 
-    s.peerInfo.addrs.keepItIf(
+    s.peerInfo.listenAddrs.keepItIf(
       it notin addrs
     )
 
@@ -320,9 +320,9 @@ proc start*(s: Switch) {.async, gcsafe, public.} =
   for t in s.transports: # for each transport
     if t.addrs.len > 0 or t.running:
       s.acceptFuts.add(s.accept(t))
-      s.peerInfo.addrs &= t.addrs
+      s.peerInfo.listenAddrs &= t.addrs
 
-  s.peerInfo.update()
+  await s.peerInfo.update()
 
   await s.ms.start()
 
