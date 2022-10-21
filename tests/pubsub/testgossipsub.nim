@@ -665,55 +665,56 @@ suite "GossipSub":
 
     await allFuturesThrowing(nodesFut.concat())
 
-  asyncTest "e2e - GossipSub with multiple peers":
-    var runs = 10
+  #TODO fix this test, see #787
+  #asyncTest "e2e - GossipSub with multiple peers":
+  #  var runs = 10
 
-    let
-      nodes = generateNodes(runs, gossip = true, triggerSelf = true)
-      nodesFut = nodes.mapIt(it.switch.start())
+  #  let
+  #    nodes = generateNodes(runs, gossip = true, triggerSelf = true)
+  #    nodesFut = nodes.mapIt(it.switch.start())
 
-    await subscribeNodes(nodes)
+  #  await subscribeNodes(nodes)
 
-    var seen: Table[string, int]
-    var seenFut = newFuture[void]()
-    for i in 0..<nodes.len:
-      let dialer = nodes[i]
-      var handler: TopicHandler
-      closureScope:
-        var peerName = $dialer.peerInfo.peerId
-        handler = proc(topic: string, data: seq[byte]) {.async, gcsafe, closure.} =
-          if peerName notin seen:
-            seen[peerName] = 0
-          seen[peerName].inc
-          check topic == "foobar"
-          if not seenFut.finished() and seen.len >= runs:
-            seenFut.complete()
+  #  var seen: Table[string, int]
+  #  var seenFut = newFuture[void]()
+  #  for i in 0..<nodes.len:
+  #    let dialer = nodes[i]
+  #    var handler: TopicHandler
+  #    closureScope:
+  #      var peerName = $dialer.peerInfo.peerId
+  #      handler = proc(topic: string, data: seq[byte]) {.async, gcsafe, closure.} =
+  #        if peerName notin seen:
+  #          seen[peerName] = 0
+  #        seen[peerName].inc
+  #        check topic == "foobar"
+  #        if not seenFut.finished() and seen.len >= runs:
+  #          seenFut.complete()
 
-      dialer.subscribe("foobar", handler)
-      await waitSub(nodes[0], dialer, "foobar")
+  #    dialer.subscribe("foobar", handler)
+  #    await waitSub(nodes[0], dialer, "foobar")
 
-    tryPublish await wait(nodes[0].publish("foobar",
-                                  toBytes("from node " &
-                                  $nodes[0].peerInfo.peerId)),
-                                  1.minutes), 1
+  #  tryPublish await wait(nodes[0].publish("foobar",
+  #                                toBytes("from node " &
+  #                                $nodes[0].peerInfo.peerId)),
+  #                                1.minutes), 1
 
-    await wait(seenFut, 2.minutes)
-    check: seen.len >= runs
-    for k, v in seen.pairs:
-      check: v >= 1
+  #  await wait(seenFut, 2.minutes)
+  #  check: seen.len >= runs
+  #  for k, v in seen.pairs:
+  #    check: v >= 1
 
-    for node in nodes:
-      var gossip = GossipSub(node)
+  #  for node in nodes:
+  #    var gossip = GossipSub(node)
 
-      check:
-        "foobar" in gossip.gossipsub
+  #    check:
+  #      "foobar" in gossip.gossipsub
 
-    await allFuturesThrowing(
-      nodes.mapIt(
-        allFutures(
-          it.switch.stop())))
+  #  await allFuturesThrowing(
+  #    nodes.mapIt(
+  #      allFutures(
+  #        it.switch.stop())))
 
-    await allFuturesThrowing(nodesFut)
+  #  await allFuturesThrowing(nodesFut)
 
   asyncTest "e2e - GossipSub with multiple peers (sparse)":
     var runs = 10
