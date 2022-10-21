@@ -71,25 +71,36 @@ proc select*(m: MultistreamSelect,
   else:
     trace "multistream handshake success", conn
 
+  echo " 0 ", proto
   if proto.len() == 0: # no protocols, must be a handshake call
     return Codec
   else:
+    echo " 1"
     s = string.fromBytes(await conn.readLp(MsgSize)) # read the first proto
+    echo " 2"
     validateSuffix(s)
+    echo " 3"
     trace "reading first requested proto", conn
     if s == proto[0]:
+      echo "  4.1"
       trace "successfully selected ", conn, proto = proto[0]
       conn.protocol = proto[0]
+      echo "  4.2 ", proto[0]
       return proto[0]
     elif proto.len > 1:
+      echo "  5.1"
       # Try to negotiate alternatives
       let protos = proto[1..<proto.len()]
       trace "selecting one of several protos", conn, protos = protos
+      echo "  5.2"
       for p in protos:
+        echo "   5.2.1"
         trace "selecting proto", conn, proto = p
         await conn.writeLp((p & "\n")) # select proto
+        echo "   5.2.2"
         s = string.fromBytes(await conn.readLp(MsgSize)) # read the first proto
         validateSuffix(s)
+        echo "   5.2.3"
         if s == p:
           trace "selected protocol", conn, protocol = s
           conn.protocol = s
@@ -102,6 +113,7 @@ proc select*(m: MultistreamSelect,
 proc select*(m: MultistreamSelect,
              conn: Connection,
              proto: string): Future[bool] {.async.} =
+  echo proto
   if proto.len > 0:
     return (await m.select(conn, @[proto])) == proto
   else:

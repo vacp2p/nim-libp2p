@@ -76,7 +76,9 @@ proc identify*(
   conn: Connection) {.async, gcsafe.} =
   ## identify the connection
 
+  echo "==>0", self.identity.codec
   if (await self.ms.select(conn, self.identity.codec)):
+    echo "==>1"
     let
       info = await self.identity.identify(conn, conn.peerId)
       peerStore = self.connManager.peerStore
