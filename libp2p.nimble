@@ -9,7 +9,7 @@ skipDirs      = @["tests", "examples", "Nim", "tools", "scripts", "docs"]
 
 requires "nim >= 1.2.0",
          "nimcrypto >= 0.4.1",
-         "dnsclient >= 0.1.2",
+         "dnsclient >= 0.3.0 & < 0.4.0",
          "bearssl >= 0.1.4",
          "chronicles >= 0.10.2",
          "chronos >= 3.0.6",
@@ -32,16 +32,16 @@ proc runTest(filename: string, verify: bool = true, sign: bool = true,
   rmFile "tests/" & filename.toExe
 
 proc buildSample(filename: string, run = false) =
-  var excstr = "nim c --opt:speed --threads:on -d:debug --verbosity:0 --hints:off "
+  var excstr = "nim c --opt:speed --threads:on -d:debug --verbosity:0 --hints:off -p:. "
   excstr.add(" examples/" & filename)
   exec excstr
   if run:
     exec "./examples/" & filename.toExe
   rmFile "examples/" & filename.toExe
 
-proc buildTutorial(filename: string) =
-  discard gorge "cat " & filename & " | nim c -r --hints:off tools/markdown_runner.nim | " &
-    " nim --verbosity:0 --hints:off c -"
+proc tutorialToMd(filename: string) =
+  let markdown = gorge "cat " & filename & " | nim c -r --verbosity:0 --hints:off tools/markdown_builder.nim "
+  writeFile(filename.replace(".nim", ".md"), markdown)
 
 task testnative, "Runs libp2p native tests":
   runTest("testnative")
@@ -86,12 +86,24 @@ task test_slim, "Runs the (slimmed down) test suite":
   exec "nimble testfilter"
   exec "nimble examples_build"
 
+task website, "Build the website":
+  tutorialToMd("examples/tutorial_1_connect.nim")
+  tutorialToMd("examples/tutorial_2_customproto.nim")
+  tutorialToMd("examples/tutorial_3_protobuf.nim")
+  tutorialToMd("examples/tutorial_4_gossipsub.nim")
+  tutorialToMd("examples/circuitrelay.nim")
+  exec "mkdocs build"
+
 task examples_build, "Build the samples":
   buildSample("directchat")
   buildSample("helloworld", true)
   buildSample("circuitrelay", true)
-  buildTutorial("examples/tutorial_1_connect.md")
-  buildTutorial("examples/tutorial_2_customproto.md")
+  buildSample("tutorial_1_connect", true)
+  buildSample("tutorial_2_customproto", true)
+  if (NimMajor, NimMinor) > (1, 2):
+    # These tutorials relies on post 1.4 exception tracking
+    buildSample("tutorial_3_protobuf", true)
+    buildSample("tutorial_4_gossipsub", true)
 
 # pin system
 # while nimble lockfile

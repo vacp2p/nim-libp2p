@@ -12,7 +12,8 @@ when (NimMajor, NimMinor) < (1, 4):
 else:
   {.push raises: [].}
 
-import std/[sequtils, strutils, tables, hashes]
+import std/[sequtils, strutils, tables, hashes, options]
+import stew/results
 import chronos, chronicles, nimcrypto/sha2, metrics
 import rpc/[messages, message, protobuf],
        ../../peerid,
@@ -51,7 +52,6 @@ type
 
   PubSubPeer* = ref object of RootObj
     getConn*: GetConn                   # callback to establish a new send connection
-    dropConn*: DropConn                 # Function pointer to use to drop connections
     onEvent*: OnEvent                   # Connectivity updates for peer
     codec*: string                      # the protocol that this peer joined from
     sendConn*: Connection               # cached send connection
@@ -175,7 +175,7 @@ proc connectOnce(p: PubSubPeer): Future[void] {.async.} =
 
     trace "Get new send connection", p, newConn
     p.sendConn = newConn
-    p.address = some(p.sendConn.observedAddr)
+    p.address = if p.sendConn.observedAddr.isSome: some(p.sendConn.observedAddr.get) else: none(MultiAddress)
 
     if p.onEvent != nil:
       p.onEvent(p, PubSubPeerEvent(kind: PubSubPeerEventKind.Connected))
@@ -206,9 +206,6 @@ proc connectImpl(p: PubSubPeer) {.async.} =
       await connectOnce(p)
   except CatchableError as exc: # never cancelled
     debug "Could not establish send connection", msg = exc.msg
-  finally:
-    # drop the connection, else we end up with ghost peers
-    if p.dropConn != nil: p.dropConn(p)
 
 proc connect*(p: PubSubPeer) =
   asyncSpawn connectImpl(p)
@@ -286,14 +283,12 @@ proc new*(
   T: typedesc[PubSubPeer],
   peerId: PeerId,
   getConn: GetConn,
-  dropConn: DropConn,
   onEvent: OnEvent,
   codec: string,
   maxMessageSize: int): T =
 
   T(
     getConn: getConn,
-    dropConn: dropConn,
     onEvent: onEvent,
     codec: codec,
     peerId: peerId,

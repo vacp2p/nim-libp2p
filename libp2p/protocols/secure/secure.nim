@@ -13,6 +13,7 @@ else:
   {.push raises: [].}
 
 import std/[strformat]
+import stew/results
 import chronos, chronicles
 import ../protocol,
        ../../stream/streamseq,
@@ -21,7 +22,7 @@ import ../protocol,
        ../../peerinfo,
        ../../errors
 
-export protocol
+export protocol, results
 
 logScope:
   topics = "libp2p secure"
@@ -48,7 +49,7 @@ chronicles.formatIt(SecureConn): shortLog(it)
 proc new*(T: type SecureConn,
            conn: Connection,
            peerId: PeerId,
-           observedAddr: MultiAddress,
+           observedAddr: Opt[MultiAddress],
            timeout: Duration = DefaultConnectionTimeout): T =
   result = T(stream: conn,
              peerId: peerId,
@@ -79,13 +80,15 @@ method getWrapped*(s: SecureConn): Connection = s.stream
 
 method handshake*(s: Secure,
                   conn: Connection,
-                  initiator: bool): Future[SecureConn] {.async, base.} =
+                  initiator: bool,
+                  peerId: Opt[PeerId]): Future[SecureConn] {.async, base.} =
   doAssert(false, "Not implemented!")
 
 proc handleConn(s: Secure,
                  conn: Connection,
-                 initiator: bool): Future[Connection] {.async.} =
-  var sconn = await s.handshake(conn, initiator)
+                 initiator: bool,
+                 peerId: Opt[PeerId]): Future[Connection] {.async.} =
+  var sconn = await s.handshake(conn, initiator, peerId)
   # mark connection bottom level transport direction
   # this is the safest place to do this
   # we require this information in for example gossipsub
@@ -121,7 +124,7 @@ method init*(s: Secure) =
     try:
       # We don't need the result but we
       # definitely need to await the handshake
-      discard await s.handleConn(conn, false)
+      discard await s.handleConn(conn, false, Opt.none(PeerId))
       trace "connection secured", conn
     except CancelledError as exc:
       warn "securing connection canceled", conn
@@ -135,9 +138,10 @@ method init*(s: Secure) =
 
 method secure*(s: Secure,
                conn: Connection,
-               initiator: bool):
+               initiator: bool,
+               peerId: Opt[PeerId]):
                Future[Connection] {.base.} =
-  s.handleConn(conn, initiator)
+  s.handleConn(conn, initiator, peerId)
 
 method readOnce*(s: SecureConn,
                  pbytes: pointer,

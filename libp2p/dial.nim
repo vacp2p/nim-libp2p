@@ -13,9 +13,12 @@ else:
   {.push raises: [].}
 
 import chronos
+import stew/results
 import peerid,
        stream/connection,
        transports/transport
+
+export results
 
 type
   Dial* = ref object of RootObj
@@ -28,6 +31,13 @@ method connect*(
   ## connect remote peer without negotiating
   ## a protocol
   ##
+
+  doAssert(false, "Not implemented!")
+
+method connect*(
+  self: Dial,
+  addrs: seq[MultiAddress]): Future[PeerId] {.async, base.} =
+  ## Connects to a peer and retrieve its PeerId
 
   doAssert(false, "Not implemented!")
 
@@ -62,5 +72,5 @@ method addTransport*(
 method tryDial*(
   self: Dial,
   peerId: PeerId,
-  addrs: seq[MultiAddress]): Future[MultiAddress] {.async, base.} =
+  addrs: seq[MultiAddress]): Future[Opt[MultiAddress]] {.async, base.} =
   doAssert(false, "Not implemented!")

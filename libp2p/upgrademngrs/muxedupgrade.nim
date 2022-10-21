@@ -88,10 +88,11 @@ proc mux*(
 
 method upgradeOutgoing*(
   self: MuxedUpgrade,
-  conn: Connection): Future[Connection] {.async, gcsafe.} =
+  conn: Connection,
+  peerId: Opt[PeerId]): Future[Connection] {.async, gcsafe.} =
   trace "Upgrading outgoing connection", conn
 
-  let sconn = await self.secure(conn) # secure the connection
+  let sconn = await self.secure(conn, peerId) # secure the connection
   if isNil(sconn):
     raise newException(UpgradeFailedError,
       "unable to secure connection, stopping upgrade")
@@ -129,7 +130,7 @@ method upgradeIncoming*(
 
     var cconn = conn
     try:
-      var sconn = await secure.secure(cconn, false)
+      var sconn = await secure.secure(cconn, false, Opt.none(PeerId))
       if isNil(sconn):
         return
 

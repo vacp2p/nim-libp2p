@@ -43,7 +43,7 @@ func shortLog*(pid: PeerId): string =
   var spid = $pid
   if len(spid) > 10:
     spid[3] = '*'
-    
+
     when (NimMajor, NimMinor) > (1, 4):
       spid.delete(4 .. spid.high - 6)
     else:
@@ -148,7 +148,7 @@ func init*(pid: var PeerId, data: string): bool =
   if Base58.decode(data, p, length) == Base58Status.Success:
     p.setLen(length)
     var opid: PeerId
-    shallowCopy(opid.data, p)
+    opid.data = p
     if opid.validate():
       pid = opid
       result = true

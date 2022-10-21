@@ -17,7 +17,7 @@ import options
 import chronos, chronicles
 
 import ./messages,
-       ../../stream/connection
+       ../../../stream/connection
 
 logScope:
   topics = "libp2p relay relay-utils"
@@ -64,15 +64,17 @@ proc bridge*(connSrc: Connection, connDst: Connection) {.async.} =
       await futSrc or futDst
       if futSrc.finished():
         bufRead = await futSrc
-        bytesSendFromSrcToDst.inc(bufRead)
-        await connDst.write(@bufSrcToDst[0..<bufRead])
-        zeroMem(addr(bufSrcToDst), bufSrcToDst.high + 1)
+        if bufRead > 0:
+          bytesSendFromSrcToDst.inc(bufRead)
+          await connDst.write(@bufSrcToDst[0..<bufRead])
+          zeroMem(addr(bufSrcToDst), bufSrcToDst.high + 1)
         futSrc = connSrc.readOnce(addr bufSrcToDst[0], bufSrcToDst.high + 1)
       if futDst.finished():
         bufRead = await futDst
-        bytesSendFromDstToSrc += bufRead
-        await connSrc.write(bufDstToSrc[0..<bufRead])
-        zeroMem(addr(bufDstToSrc), bufDstToSrc.high + 1)
+        if bufRead > 0:
+          bytesSendFromDstToSrc += bufRead
+          await connSrc.write(bufDstToSrc[0..<bufRead])
+          zeroMem(addr(bufDstToSrc), bufDstToSrc.high + 1)
         futDst = connDst.readOnce(addr bufDstToSrc[0], bufDstToSrc.high + 1)
   except CancelledError as exc:
     raise exc

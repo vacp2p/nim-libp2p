@@ -128,6 +128,13 @@ method connect*(
 
   s.dialer.connect(peerId, addrs, forceDial)
 
+method connect*(
+  s: Switch,
+  addrs: seq[MultiAddress]): Future[PeerId] =
+  ## Connects to a peer and retrieve its PeerId
+
+  s.dialer.connect(addrs)
+
 method dial*(
   s: Switch,
   peerId: PeerId,
@@ -292,11 +299,11 @@ proc start*(s: Switch) {.async, gcsafe, public.} =
   trace "starting switch for peer", peerInfo = s.peerInfo
   var startFuts: seq[Future[void]]
   for t in s.transports:
-    let addrs = s.peerInfo.addrs.filterIt(
+    let addrs = s.peerInfo.listenAddrs.filterIt(
       t.handles(it)
     )
 
-    s.peerInfo.addrs.keepItIf(
+    s.peerInfo.listenAddrs.keepItIf(
       it notin addrs
     )
 
@@ -305,19 +312,17 @@ proc start*(s: Switch) {.async, gcsafe, public.} =
 
   await allFutures(startFuts)
 
-  for s in startFuts:
-    if s.failed:
-      # TODO: replace this exception with a `listenError` callback. See
-      # https://github.com/status-im/nim-libp2p/pull/662 for more info.
-      raise newException(transport.TransportError,
-        "Failed to start one transport", s.error)
+  for fut in startFuts:
+    if fut.failed:
+      await s.stop()
+      raise fut.error
 
   for t in s.transports: # for each transport
     if t.addrs.len > 0 or t.running:
       s.acceptFuts.add(s.accept(t))
-      s.peerInfo.addrs &= t.addrs
+      s.peerInfo.listenAddrs &= t.addrs
 
-  s.peerInfo.update()
+  await s.peerInfo.update()
 
   await s.ms.start()
 
