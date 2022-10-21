@@ -665,7 +665,7 @@ suite "GossipSub":
 
     await allFuturesThrowing(nodesFut.concat())
 
-  #TODO fix this test, see #787
+  #TODO fix this test, see #788
   #asyncTest "e2e - GossipSub with multiple peers":
   #  var runs = 10
 
