@@ -9,6 +9,7 @@
 
 ## Length Prefixed stream implementation
 
+{.push gcsafe.}
 when (NimMajor, NimMinor) < (1, 4):
   {.push raises: [Defect].}
 else:
