@@ -128,10 +128,11 @@ suite "Tor transport":
 
     await serverSwitch.stop()
 
+  proc transProvider(): Transport = TorTransport.new(transportAddress = torServer, flags = {ReuseAddr}, upgrade = Upgrade())
+
   commonTransportTest(
-    proc (): Transport = TorTransport.new(transportAddress = torServer, flags = {ReuseAddr}, upgrade = Upgrade()),
+    transProvider,
     "/ip4/127.0.0.1/tcp/8080/onion3/a2mncbqsbullu7thgm4e6zxda2xccmcgzmaq44oayhdtm6rav5vovcad:80",
     "/ip4/127.0.0.1/tcp/8081/onion3/a2mncbqsbullu7thgm4e6zxda2xccmcgzmaq44oayhdtm6rav5vovcae:80")
-
 
 
