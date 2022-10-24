@@ -56,12 +56,10 @@ suite "WebSocket transport":
     checkTrackers()
 
   commonTransportTest(
-    "WebSocket",
     proc (): Transport = WsTransport.new(Upgrade()),
     "/ip4/0.0.0.0/tcp/0/ws")
 
   commonTransportTest(
-    "WebSocket Secure",
     (proc (): Transport {.gcsafe.} =
       try:
         return WsTransport.new(

@@ -13,25 +13,24 @@ import ./helpers
 
 type TransportProvider* = proc(): Transport {.gcsafe, raises: [Defect].}
 
-proc commonTransportTest*(name: string, prov: TransportProvider, ma: string) =
-  suite name & " common tests":
-    teardown:
-      checkTrackers()
+template commonTransportTest*(prov: TransportProvider, ma1: string, ma2: string = "") =
+  block:
+    let transpProvider = prov
 
     asyncTest "can handle local address":
-      let ma = @[MultiAddress.init(ma).tryGet()]
-      let transport1 = prov()
+      let ma = @[MultiAddress.init(ma1).tryGet()]
+      let transport1 = transpProvider()
       await transport1.start(ma)
       check transport1.handles(transport1.addrs[0])
       await transport1.stop()
 
     asyncTest "e2e: handle observedAddr":
-      let ma = @[MultiAddress.init(ma).tryGet()]
+      let ma = @[MultiAddress.init(ma1).tryGet()]
 
-      let transport1 = prov()
+      let transport1 = transpProvider()
       await transport1.start(ma)
 
-      let transport2 = prov()
+      let transport2 = transpProvider()
 
       proc acceptHandler() {.async, gcsafe.} =
         let conn = await transport1.accept()
@@ -56,9 +55,9 @@ proc commonTransportTest*(name: string, prov: TransportProvider, ma: string) =
       await handlerWait.wait(1.seconds) # when no issues will not wait that long!
 
     asyncTest "e2e: handle write":
-      let ma = @[MultiAddress.init(ma).tryGet()]
+      let ma = @[MultiAddress.init(ma1).tryGet()]
 
-      let transport1 = prov()
+      let transport1 = transpProvider()
       await transport1.start(ma)
 
       proc acceptHandler() {.async, gcsafe.} =
@@ -68,7 +67,7 @@ proc commonTransportTest*(name: string, prov: TransportProvider, ma: string) =
 
       let handlerWait = acceptHandler()
 
-      let transport2 = prov()
+      let transport2 = transpProvider()
       let conn = await transport2.dial(transport1.addrs[0])
       var msg = newSeq[byte](6)
       await conn.readExactly(addr msg[0], 6)
@@ -84,8 +83,8 @@ proc commonTransportTest*(name: string, prov: TransportProvider, ma: string) =
       await handlerWait.wait(1.seconds) # when no issues will not wait that long!
 
     asyncTest "e2e: handle read":
-      let ma = @[MultiAddress.init(ma).tryGet()]
-      let transport1 = prov()
+      let ma = @[MultiAddress.init(ma1).tryGet()]
+      let transport1 = transpProvider()
       await transport1.start(ma)
 
       proc acceptHandler() {.async, gcsafe.} =
@@ -97,7 +96,7 @@ proc commonTransportTest*(name: string, prov: TransportProvider, ma: string) =
 
       let handlerWait = acceptHandler()
 
-      let transport2 = prov()
+      let transport2 = transpProvider()
       let conn = await transport2.dial(transport1.addrs[0])
       await conn.write("Hello!")
 
@@ -110,12 +109,12 @@ proc commonTransportTest*(name: string, prov: TransportProvider, ma: string) =
           transport2.stop()))
 
     asyncTest "e2e: handle dial cancellation":
-      let ma = @[MultiAddress.init(ma).tryGet()]
+      let ma = @[MultiAddress.init(ma1).tryGet()]
 
-      let transport1 = prov()
+      let transport1 = transpProvider()
       await transport1.start(ma)
 
-      let transport2 = prov()
+      let transport2 = transpProvider()
       let cancellation = transport2.dial(transport1.addrs[0])
 
       await cancellation.cancelAndWait()
@@ -127,9 +126,9 @@ proc commonTransportTest*(name: string, prov: TransportProvider, ma: string) =
           transport2.stop()))
 
     asyncTest "e2e: handle accept cancellation":
-      let ma = @[MultiAddress.init(ma).tryGet()]
+      let ma = @[MultiAddress.init(ma1).tryGet()]
 
-      let transport1 = prov()
+      let transport1 = transpProvider()
       await transport1.start(ma)
 
       let acceptHandler = transport1.accept()
@@ -143,11 +142,11 @@ proc commonTransportTest*(name: string, prov: TransportProvider, ma: string) =
         # this randomly locks the Windows CI job
         skip()
         return
-      let addrs = @[MultiAddress.init(ma).tryGet(),
-                    MultiAddress.init(ma).tryGet()]
+      let addrs = @[MultiAddress.init(ma1).tryGet(),
+                    MultiAddress.init(if ma2 == "": ma1 else: ma2).tryGet()]
 
 
-      let transport1 = prov()
+      let transport1 = transpProvider()
       await transport1.start(addrs)
 
       proc acceptHandler() {.async, gcsafe.} =
@@ -192,12 +191,12 @@ proc commonTransportTest*(name: string, prov: TransportProvider, ma: string) =
       await transport1.stop()
 
     asyncTest "e2e: stopping transport kills connections":
-      let ma = @[MultiAddress.init(ma).tryGet()]
+      let ma = @[MultiAddress.init(ma1).tryGet()]
 
-      let transport1 = prov()
+      let transport1 = transpProvider()
       await transport1.start(ma)
 
-      let transport2 = prov()
+      let transport2 = transpProvider()
 
       let acceptHandler = transport1.accept()
       let conn = await transport2.dial(transport1.addrs[0])
@@ -212,8 +211,8 @@ proc commonTransportTest*(name: string, prov: TransportProvider, ma: string) =
       check conn.closed()
 
     asyncTest "read or write on closed connection":
-      let ma = @[MultiAddress.init(ma).tryGet()]
-      let transport1 = prov()
+      let ma = @[MultiAddress.init(ma1).tryGet()]
+      let transport1 = transpProvider()
       await transport1.start(ma)
 
       proc acceptHandler() {.async, gcsafe.} =

@@ -16,62 +16,23 @@ import ../libp2p/[stream/connection,
                   errors,
                   builders]
 
-import ./helpers, ./commontransport
+import ./helpers, ./stubs, ./commontransport
 
 const torServer = initTAddress("127.0.0.1", 9050.Port)
-
-type
-  TorServerStub = ref object of RootObj
-    tcpTransport: TcpTransport
-    addrTable: Table[string, string]
-
-proc new(
-  T: typedesc[TorServerStub]): T {.public.} =
-
-  T(
-    tcpTransport: TcpTransport.new(flags = {ReuseAddr}, upgrade = Upgrade()),
-    addrTable: initTable[string, string]())
-
-proc registerOnionAddr(self: TorServerStub, key: string, val: string) =
-  self.addrTable[key] = val
-
-proc start(self: TorServerStub) {.async.} =
-  let ma = @[MultiAddress.init(torServer).tryGet()]
-
-  await self.tcpTransport.start(ma)
-
-  var msg = newSeq[byte](3)
-
-  let connSrc = await self.tcpTransport.accept()
-  await connSrc.readExactly(addr msg[0], 3)
-
-  await connSrc.write(@[05'u8, 00])
-
-  msg = newSeq[byte](5)
-  await connSrc.readExactly(addr msg[0], 5)
-  let n = int(uint8.fromBytes(msg[4..4])) + 2 # +2 bytes for the port
-  msg = newSeq[byte](n)
-  await connSrc.readExactly(addr msg[0], n)
-
-  let onionAddr = string.fromBytes(msg[0..^3]) # ignore the port
-
-  let tcpIpAddr = self.addrTable[$(onionAddr)]
-
-  await connSrc.write(@[05'u8, 00, 00, 01, 00, 00, 00, 00, 00, 00])
-
-  let connDst = await self.tcpTransport.dial("", MultiAddress.init(tcpIpAddr).tryGet())
-
-  await bridge(connSrc, connDst)
-
-proc stop(self: TorServerStub) {.async.} =
-  await self.tcpTransport.stop()
-
+var stub: TorServerStub
+var startFut: Future[void]
 suite "Tor transport":
+  setup:
+    stub = TorServerStub.new()
+    stub.registerOnionAddr("a2mncbqsbullu7thgm4e6zxda2xccmcgzmaq44oayhdtm6rav5vovcad.onion", "/ip4/127.0.0.1/tcp/8080")
+    stub.registerOnionAddr("a2mncbqsbullu7thgm4e6zxda2xccmcgzmaq44oayhdtm6rav5vovcae.onion", "/ip4/127.0.0.1/tcp/8081")
+    startFut = stub.start()
   teardown:
+    waitFor startFut.cancelAndWait()
+    waitFor stub.stop()
     checkTrackers()
 
   asyncTest "test dial and start":
-
     proc startClient() {.async.} =
       let s = TorTransport.new(transportAddress = torServer, upgrade = Upgrade())
       let ma = MultiAddress.init("/onion3/a2mncbqsbullu7thgm4e6zxda2xccmcgzmaq44oayhdtm6rav5vovcad:80")
@@ -98,23 +59,13 @@ suite "Tor transport":
       await conn.write("server")
       await conn.close()
 
-    let stub = TorServerStub.new()
-    stub.registerOnionAddr("a2mncbqsbullu7thgm4e6zxda2xccmcgzmaq44oayhdtm6rav5vovcad.onion", "/ip4/127.0.0.1/tcp/8080")
-
-    asyncSpawn stub.start()
-
     asyncSpawn acceptHandler()
 
     await startClient()
 
-    await allFutures(server.stop(), stub.stop())
-
+    await server.stop()
 
   asyncTest "test dial and start with builder":
-
-    ##
-    # Create our custom protocol
-    ##
     const TestCodec = "/test/proto/1.0.0" # custom protocol string identifier
 
     type
@@ -134,7 +85,6 @@ suite "Tor transport":
         await conn.close()
 
       return T(codecs: @[TestCodec], handler: handle)
-
 
     let rng = newRng()
 
@@ -174,12 +124,14 @@ suite "Tor transport":
       check string.fromBytes(resp) == "server"
       await conn.close()
 
-    let stub = TorServerStub.new()
-    stub.registerOnionAddr("a2mncbqsbullu7thgm4e6zxda2xccmcgzmaq44oayhdtm6rav5vovcad.onion", "/ip4/127.0.0.1/tcp/8080")
-    asyncSpawn stub.start()
-
     await startClient()
 
-    await allFutures(serverSwitch.stop(), stub.stop())
+    await serverSwitch.stop()
+
+  commonTransportTest(
+    proc (): Transport = TorTransport.new(transportAddress = torServer, flags = {ReuseAddr}, upgrade = Upgrade()),
+    "/ip4/127.0.0.1/tcp/8080/onion3/a2mncbqsbullu7thgm4e6zxda2xccmcgzmaq44oayhdtm6rav5vovcad:80",
+    "/ip4/127.0.0.1/tcp/8081/onion3/a2mncbqsbullu7thgm4e6zxda2xccmcgzmaq44oayhdtm6rav5vovcae:80")
+
 
 

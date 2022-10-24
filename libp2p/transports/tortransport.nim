@@ -65,6 +65,12 @@ proc new*(
     upgrader: upgrade,
     tcpTransport: TcpTransport.new(flags, upgrade))
 
+proc handlesDial(address: MultiAddress): bool {.gcsafe.} =
+  return Onion3Matcher.match(address)
+
+proc handlesStart(address: MultiAddress): bool {.gcsafe.} =
+  return TcpOnion3Matcher.match(address)
+
 proc connectToTorServer(
     transportAddress: TransportAddress): Future[StreamTransport] {.async, gcsafe.} =
   let transp = await connect(transportAddress)
@@ -144,28 +150,30 @@ method start*(
   ## listen on the transport
   ##
 
-  var ipTcpAddrs: seq[MultiAddress]
+  var listenAddrs: seq[MultiAddress]
   var onion3Addrs: seq[MultiAddress]
   for i, ma in addrs:
-    if not TcpOnion3Matcher.match(ma):
+    if not handlesStart(ma):
         warn "Invalid address detected, skipping!", address = ma
         continue
 
-    let ipTcp = ma[0..1].get()
-    ipTcpAddrs.add(ipTcp)
+    let listenAddress = ma[0..1].get()
+    listenAddrs.add(listenAddress)
     let onion3 = ma[multiCodec("onion3")].get()
     onion3Addrs.add(onion3)
 
-  if len(ipTcpAddrs) != 0 and len(onion3Addrs) != 0:
+  if len(listenAddrs) != 0 and len(onion3Addrs) != 0:
     await procCall Transport(self).start(onion3Addrs)
-    await self.tcpTransport.start(ipTcpAddrs)
+    await self.tcpTransport.start(listenAddrs)
   else:
     raise newException(TransportStartError, "Tor Transport couldn't start, no supported addr was provided.")
 
 method accept*(self: TorTransport): Future[Connection] {.async, gcsafe.} =
   ## accept a new Tor connection
   ##
-  return await self.tcpTransport.accept()
+  let conn = await self.tcpTransport.accept()
+  conn.observedAddr = Opt.none(MultiAddress)
+  return conn
 
 method stop*(self: TorTransport) {.async, gcsafe.} =
   ## stop the transport
@@ -176,4 +184,4 @@ method stop*(self: TorTransport) {.async, gcsafe.} =
 method handles*(t: TorTransport, address: MultiAddress): bool {.gcsafe.} =
   if procCall Transport(t).handles(address):
     if address.protocols.isOk:
-      return Onion3Matcher.match(address) or TcpOnion3Matcher.match(address)
+      return handlesDial(address) or handlesStart(address)
