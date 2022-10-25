@@ -9,7 +9,7 @@
 
 {.used.}
 
-import sequtils, options, tables, sets
+import sequtils, options, tables, sets, sugar
 import chronos, stew/byteutils
 import chronicles
 import utils, ../../libp2p/[errors,
@@ -28,26 +28,6 @@ import ../../libp2p/protocols/pubsub/errors as pubsub_errors
 import ../helpers
 
 proc `$`(peer: PubSubPeer): string = shortLog(peer)
-
-proc waitSub(sender, receiver: auto; key: string) {.async, gcsafe.} =
-  if sender == receiver:
-    return
-  let timeout = Moment.now() + 5.seconds
-  let fsub = GossipSub(sender)
-
-  # this is for testing purposes only
-  # peers can be inside `mesh` and `fanout`, not just `gossipsub`
-  while (not fsub.gossipsub.hasKey(key) or
-         not fsub.gossipsub.hasPeerId(key, receiver.peerInfo.peerId)) and
-        (not fsub.mesh.hasKey(key) or
-         not fsub.mesh.hasPeerId(key, receiver.peerInfo.peerId)) and
-        (not fsub.fanout.hasKey(key) or
-         not fsub.fanout.hasPeerId(key , receiver.peerInfo.peerId)):
-    trace "waitSub sleeping..."
-
-    # await
-    await sleepAsync(5.milliseconds)
-    doAssert Moment.now() < timeout, "waitSub timeout!"
 
 template tryPublish(call: untyped, require: int, wait = 10.milliseconds, timeout = 5.seconds): untyped =
   var
@@ -690,14 +670,14 @@ suite "GossipSub":
             seenFut.complete()
 
       dialer.subscribe("foobar", handler)
-      await waitSub(nodes[0], dialer, "foobar")
+    await waitSubGraph(nodes, "foobar")
 
     tryPublish await wait(nodes[0].publish("foobar",
                                   toBytes("from node " &
                                   $nodes[0].peerInfo.peerId)),
                                   1.minutes), 1
 
-    await wait(seenFut, 2.minutes)
+    await wait(seenFut, 1.minutes)
     check: seen.len >= runs
     for k, v in seen.pairs:
       check: v >= 1
@@ -726,10 +706,11 @@ suite "GossipSub":
 
     var seen: Table[string, int]
     var seenFut = newFuture[void]()
+
     for i in 0..<nodes.len:
       let dialer = nodes[i]
       var handler: TopicHandler
-      closureScope:
+      capture dialer, i:
         var peerName = $dialer.peerInfo.peerId
         handler = proc(topic: string, data: seq[byte]) {.async, gcsafe, closure.} =
           if peerName notin seen:
@@ -740,14 +721,14 @@ suite "GossipSub":
             seenFut.complete()
 
       dialer.subscribe("foobar", handler)
-      await waitSub(nodes[0], dialer, "foobar")
 
+    await waitSubGraph(nodes, "foobar")
     tryPublish await wait(nodes[0].publish("foobar",
                                   toBytes("from node " &
                                   $nodes[0].peerInfo.peerId)),
                                   1.minutes), 1
 
-    await wait(seenFut, 5.minutes)
+    await wait(seenFut, 60.seconds)
     check: seen.len >= runs
     for k, v in seen.pairs:
       check: v >= 1
