@@ -2,11 +2,9 @@
 
 import ../stublogger
 
-import testfloodsub
-when not defined(linux):
-  import testgossipsub,
-         testgossipsub2
-import
+import testfloodsub,
+       testgossipsub,
+       testgossipsub2,
        testmcache,
        testtimedcache,
        testmessage

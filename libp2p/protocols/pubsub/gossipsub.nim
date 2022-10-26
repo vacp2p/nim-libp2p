@@ -360,7 +360,7 @@ method rpcHandler*(g: GossipSub,
     template sub: untyped = rpcMsg.subscriptions[i]
     g.handleSubscribe(peer, sub.topic, sub.subscribe)
 
-  # the above call applied limtis to subs number
+  # the above call applied limits to subs number
   # in gossipsub we want to apply scoring as well
   if rpcMsg.subscriptions.len > g.topicsHigh:
     debug "received an rpc message with an oversized amount of subscriptions",  peer,
