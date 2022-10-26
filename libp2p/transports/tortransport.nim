@@ -14,8 +14,9 @@ when (NimMajor, NimMinor) < (1, 4):
 else:
   {.push raises: [].}
 
+import std/strformat
 import chronos, chronicles, strutils
-import stew/[byteutils, endians2, results]
+import stew/[byteutils, endians2, results, objects]
 import ../multicodec
 import transport,
       tcptransport,
@@ -26,9 +27,6 @@ import transport,
 const
   Socks5ProtocolVersion = byte(5)
   NMethods = byte(1)
-
-  Onion3Matcher = mapEq("onion3")
-  TcpOnion3Matcher = mapAnd(TCP, Onion3Matcher)
 
 type
   TorTransport* = ref object of Transport
@@ -47,11 +45,19 @@ type
   Socks5AddressType* {.pure.} = enum
     IPv4 = 1, FQDN = 3, IPv6 = 4
 
+  Socks5ReplyType* {.pure.} = enum
+    Succeeded = (0, "Succeeded"), ServerFailure = (1, "Server Failure"),
+    ConnectionNotAllowed = (2, "Connection Not Allowed"), NetworkUnreachable = (3, "Network Unreachable"),
+    HostUnreachable = (4, "Host Unreachable"), ConnectionRefused = (5, "Connection Refused"),
+    TtlExpired = (6, "Ttl Expired"), CommandNotSupported = (7, "Command Not Supported"),
+    AddressTypeNotSupported = (8, "Address Type Not Supported")
+
   TransportStartError* = object of transport.TransportError
 
   Socks5Error* = object of CatchableError
   Socks5AuthFailedError* = object of Socks5Error
   Socks5VersionError* = object of Socks5Error
+  Socks5ServerReplyError* = object of Socks5Error
 
 proc new*(
   T: typedesc[TorTransport],
@@ -66,19 +72,20 @@ proc new*(
     tcpTransport: TcpTransport.new(flags, upgrade))
 
 proc handlesDial(address: MultiAddress): bool {.gcsafe.} =
-  return Onion3Matcher.match(address)
+  return Onion3.match(address)
 
 proc handlesStart(address: MultiAddress): bool {.gcsafe.} =
-  return TcpOnion3Matcher.match(address)
+  return TcpOnion3.match(address)
 
 proc connectToTorServer(
     transportAddress: TransportAddress): Future[StreamTransport] {.async, gcsafe.} =
   let transp = await connect(transportAddress)
   try:
     discard await transp.write(@[Socks5ProtocolVersion, NMethods, Socks5AuthMethod.NoAuth.byte])
-    let serverReply = await transp.read(2)
-    let socks5ProtocolVersion = serverReply[0]
-    let serverSelectedMethod =serverReply[1]
+    let
+      serverReply = await transp.read(2)
+      socks5ProtocolVersion = serverReply[0]
+      serverSelectedMethod = serverReply[1]
     if socks5ProtocolVersion != Socks5ProtocolVersion:
       raise newException(Socks5VersionError, "Unsupported socks version")
     if serverSelectedMethod != Socks5AuthMethod.NoAuth.byte:
@@ -92,10 +99,21 @@ proc readServerReply(transp: StreamTransport) {.async, gcsafe.} =
   ## The specification for this code is defined on
   ## [link text](https://www.rfc-editor.org/rfc/rfc1928#section-5)
   ## and [link text](https://www.rfc-editor.org/rfc/rfc1928#section-6).
-  let portNumOctets = 2
-  let ipV4NumOctets = 4
-  let ipV6NumOctets = 16
-  let firstFourOctets = await transp.read(4)
+  let
+    portNumOctets = 2
+    ipV4NumOctets = 4
+    ipV6NumOctets = 16
+    firstFourOctets = await transp.read(4)
+    socks5ProtocolVersion = firstFourOctets[0]
+    serverReply = firstFourOctets[1]
+  if socks5ProtocolVersion != Socks5ProtocolVersion:
+    raise newException(Socks5VersionError, "Unsupported socks version")
+  if serverReply != Socks5ReplyType.Succeeded.byte:
+    var socks5ReplyType: Socks5ReplyType
+    if socks5ReplyType.checkedEnumAssign(serverReply):
+      raise newException(Socks5ServerReplyError, fmt"Server reply error: {Socks5ReplyType(serverReply)}")
+    else:
+      raise newException(LPError, fmt"Unexpected server reply: {serverReply}")
   let atyp = firstFourOctets[3]
   case atyp:
     of Socks5AddressType.IPv4.byte:
@@ -115,10 +133,11 @@ proc dialPeer(
   # The address field contains a fully-qualified domain name.
   # The first octet of the address field contains the number of octets of name that
   # follow, there is no terminating NUL octet.
-  let dstAddr = @(uint8(addressStr.len).toBytes()) & addressStr.toBytes()
-  let dstPort = address.data.buffer[37..38]
-  let reserved = byte(0)
-  let b = @[
+  let
+    dstAddr = @(uint8(addressStr.len).toBytes()) & addressStr.toBytes()
+    dstPort = address.data.buffer[37..38]
+    reserved = byte(0)
+    b = @[
     Socks5ProtocolVersion,
     Socks5RequestCommand.Connect.byte,
     reserved,
@@ -133,7 +152,8 @@ method dial*(
   address: MultiAddress): Future[Connection] {.async, gcsafe.} =
   ## dial a peer
   ##
-
+  if not handlesDial(address):
+    raise newException(LPError, fmt"Invalid onion3 address: {address}")
   trace "Dialing remote peer", address = $address
   let transp = await connectToTorServer(self.transportAddress)
 
@@ -183,5 +203,4 @@ method stop*(self: TorTransport) {.async, gcsafe.} =
 
 method handles*(t: TorTransport, address: MultiAddress): bool {.gcsafe.} =
   if procCall Transport(t).handles(address):
-    if address.protocols.isOk:
-      return handlesDial(address) or handlesStart(address)
+    return handlesDial(address) or handlesStart(address)

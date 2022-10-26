@@ -33,37 +33,35 @@ suite "Tor transport":
     checkTrackers()
 
   asyncTest "test dial and start":
-    proc startClient() {.async.} =
-      let s = TorTransport.new(transportAddress = torServer, upgrade = Upgrade())
-      let ma = MultiAddress.init("/onion3/a2mncbqsbullu7thgm4e6zxda2xccmcgzmaq44oayhdtm6rav5vovcad:80")
-      let conn = await s.dial("", ma.tryGet())
-
-      await conn.write("client")
-      var resp: array[6, byte]
-      discard await conn.readOnce(addr resp, 6)
-      await conn.close()
-
-      check string.fromBytes(resp) == "server"
-
     let server = TorTransport.new(torServer, {ReuseAddr}, Upgrade())
     let ma2 = @[MultiAddress.init("/ip4/127.0.0.1/tcp/8080/onion3/a2mncbqsbullu7thgm4e6zxda2xccmcgzmaq44oayhdtm6rav5vovcad:80").tryGet()]
     await server.start(ma2)
 
-    proc acceptHandler() {.async, gcsafe.} =
+    proc runClient() {.async.} =
+      let client = TorTransport.new(transportAddress = torServer, upgrade = Upgrade())
+      let conn = await client.dial("", server.addrs[0])
+
+      await conn.write("client")
+      var resp: array[6, byte]
+      await conn.readExactly(addr resp, 6)
+      await conn.close()
+
+      check string.fromBytes(resp) == "server"
+      await client.stop()
+
+    proc serverAcceptHandler() {.async, gcsafe.} =
       let conn = await server.accept()
 
       var resp: array[6, byte]
-      discard await conn.readOnce(addr resp, 6)
+      await conn.readExactly(addr resp, 6)
       check string.fromBytes(resp) == "client"
 
       await conn.write("server")
       await conn.close()
+      await server.stop()
 
-    asyncSpawn acceptHandler()
-
-    await startClient()
-
-    await server.stop()
+    asyncSpawn serverAcceptHandler()
+    await runClient()
 
   asyncTest "test dial and start with builder":
     const TestCodec = "/test/proto/1.0.0" # custom protocol string identifier
@@ -77,7 +75,7 @@ suite "Tor transport":
       proc handle(conn: Connection, proto: string) {.async, gcsafe.} =
 
         var resp: array[6, byte]
-        discard await conn.readOnce(addr resp, 6)
+        await conn.readExactly(addr resp, 6)
         check string.fromBytes(resp) == "client"
         await conn.write("server")
 
@@ -123,6 +121,7 @@ suite "Tor transport":
       await conn.readExactly(addr resp, 6)
       check string.fromBytes(resp) == "server"
       await conn.close()
+      await clientSwitch.stop()
 
     await startClient()
 
