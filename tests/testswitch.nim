@@ -247,14 +247,12 @@ suite "Switch":
     await switch2.disconnect(switch1.peerInfo.peerId)
 
     check not switch2.isConnected(switch1.peerInfo.peerId)
-    check await(checkExpiring((not switch1.isConnected(switch2.peerInfo.peerId))))
+    checkExpiring: not switch1.isConnected(switch2.peerInfo.peerId)
 
     checkTracker(LPChannelTrackerName)
     checkTracker(SecureConnTrackerName)
 
-    await sleepAsync(1.seconds)
-
-    check:
+    checkExpiring:
       startCounts ==
         @[
           switch1.connManager.inSema.count, switch1.connManager.outSema.count,
@@ -302,7 +300,7 @@ suite "Switch":
     await switch2.disconnect(switch1.peerInfo.peerId)
 
     check not switch2.isConnected(switch1.peerInfo.peerId)
-    check await(checkExpiring((not switch1.isConnected(switch2.peerInfo.peerId))))
+    checkExpiring: not switch1.isConnected(switch2.peerInfo.peerId)
 
     checkTracker(LPChannelTrackerName)
     checkTracker(SecureConnTrackerName)
@@ -354,7 +352,7 @@ suite "Switch":
     await switch2.disconnect(switch1.peerInfo.peerId)
 
     check not switch2.isConnected(switch1.peerInfo.peerId)
-    check await(checkExpiring((not switch1.isConnected(switch2.peerInfo.peerId))))
+    checkExpiring: not switch1.isConnected(switch2.peerInfo.peerId)
 
     checkTracker(LPChannelTrackerName)
     checkTracker(SecureConnTrackerName)
@@ -405,7 +403,7 @@ suite "Switch":
     await switch2.disconnect(switch1.peerInfo.peerId)
 
     check not switch2.isConnected(switch1.peerInfo.peerId)
-    check await(checkExpiring((not switch1.isConnected(switch2.peerInfo.peerId))))
+    checkExpiring: not switch1.isConnected(switch2.peerInfo.peerId)
 
     checkTracker(LPChannelTrackerName)
     checkTracker(SecureConnTrackerName)
@@ -456,7 +454,7 @@ suite "Switch":
     await switch2.disconnect(switch1.peerInfo.peerId)
 
     check not switch2.isConnected(switch1.peerInfo.peerId)
-    check await(checkExpiring((not switch1.isConnected(switch2.peerInfo.peerId))))
+    checkExpiring: not switch1.isConnected(switch2.peerInfo.peerId)
 
     checkTracker(LPChannelTrackerName)
     checkTracker(SecureConnTrackerName)
@@ -520,8 +518,8 @@ suite "Switch":
 
     check not switch2.isConnected(switch1.peerInfo.peerId)
     check not switch3.isConnected(switch1.peerInfo.peerId)
-    check await(checkExpiring((not switch1.isConnected(switch2.peerInfo.peerId))))
-    check await(checkExpiring((not switch1.isConnected(switch3.peerInfo.peerId))))
+    checkExpiring: not switch1.isConnected(switch2.peerInfo.peerId)
+    checkExpiring: not switch1.isConnected(switch3.peerInfo.peerId)
 
     checkTracker(LPChannelTrackerName)
     checkTracker(SecureConnTrackerName)
@@ -554,7 +552,6 @@ suite "Switch":
         await switches[0].disconnect(peerInfo.peerId) # trigger disconnect
       of ConnEventKind.Disconnected:
         check not switches[0].isConnected(peerInfo.peerId)
-        await sleepAsync(1.millis)
         done.complete()
 
     switches.add(newStandardSwitch(
@@ -571,8 +568,6 @@ suite "Switch":
     await onConnect
 
     await done
-    checkTracker(LPChannelTrackerName)
-    checkTracker(SecureConnTrackerName)
 
     await allFuturesThrowing(
       switches.mapIt( it.stop() ))
@@ -624,42 +619,6 @@ suite "Switch":
 
     await allFuturesThrowing(
       switches.mapIt( it.stop() ))
-
-  # TODO: we should be able to test cancellation
-  # for most of the steps in the upgrade flow -
-  # this is just a basic test for dials
-  asyncTest "e2e canceling dial should not leak":
-    let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
-
-    let transport = TcpTransport.new(upgrade = Upgrade())
-    await transport.start(ma)
-
-    proc acceptHandler() {.async, gcsafe.} =
-      try:
-        let conn = await transport.accept()
-        discard await conn.readLp(100)
-        await conn.close()
-      except CatchableError:
-        discard
-
-    let handlerWait = acceptHandler()
-    let switch = newStandardSwitch(secureManagers = [SecureProtocol.Noise])
-
-    await switch.start()
-
-    var peerId = PeerId.init(PrivateKey.random(ECDSA, rng[]).get()).get()
-    let connectFut = switch.connect(peerId, transport.addrs)
-    await sleepAsync(500.millis)
-    connectFut.cancel()
-    await handlerWait
-
-    checkTracker(LPChannelTrackerName)
-    checkTracker(SecureConnTrackerName)
-    checkTracker(ChronosStreamTrackerName)
-
-    await allFuturesThrowing(
-      transport.stop(),
-      switch.stop())
 
   asyncTest "e2e closing remote conn should not leak":
     let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
@@ -716,7 +675,7 @@ suite "Switch":
 
     await allFuturesThrowing(readers)
     await switch2.stop() #Otherwise this leaks
-    check await checkExpiring(not switch1.isConnected(switch2.peerInfo.peerId))
+    checkExpiring: not switch1.isConnected(switch2.peerInfo.peerId)
 
     checkTracker(LPChannelTrackerName)
     checkTracker(SecureConnTrackerName)

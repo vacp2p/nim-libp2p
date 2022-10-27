@@ -316,11 +316,10 @@ suite "GossipSub":
     let gossip1 = GossipSub(nodes[0])
     let gossip2 = GossipSub(nodes[1])
 
-    check await checkExpiring(
+    checkExpiring:
       "foobar" in gossip2.topics and
       "foobar" in gossip1.gossipsub and
       gossip1.gossipsub.hasPeerId("foobar", gossip2.peerInfo.peerId)
-    )
 
     await allFuturesThrowing(
       nodes[0].switch.stop(),
@@ -463,7 +462,7 @@ suite "GossipSub":
     nodes[0].unsubscribe("foobar", handler)
 
     let gsNode = GossipSub(nodes[1])
-    check await checkExpiring(gsNode.mesh.getOrDefault("foobar").len == 0)
+    checkExpiring: gsNode.mesh.getOrDefault("foobar").len == 0
 
     nodes[0].subscribe("foobar", handler)
 
@@ -582,7 +581,7 @@ suite "GossipSub":
       gossip1.seen = TimedCache[MessageId].init()
       gossip3.seen = TimedCache[MessageId].init()
       let msgId = toSeq(gossip2.validationSeen.keys)[0]
-      check await checkExpiring(try: gossip2.validationSeen[msgId].len > 0 except: false)
+      checkExpiring(try: gossip2.validationSeen[msgId].len > 0 except: false)
       result = ValidationResult.Accept
       bFinished.complete()
 
