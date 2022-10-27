@@ -36,6 +36,7 @@ const DumbCodec = "/dumb/proto/1.0.0"
 type DumbProto = ref object of LPProtocol
 proc new(T: typedesc[DumbProto], nodeNumber: int, fut: Future[void]): T =
   proc handle(conn: Connection, proto: string) {.async, gcsafe.} =
+    if fut.done(): return
     echo "Node", nodeNumber, " received: ", string.fromBytes(await conn.readLp(1024))
     await conn.close()
     fut.complete()
