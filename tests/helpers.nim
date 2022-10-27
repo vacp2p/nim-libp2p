@@ -105,16 +105,15 @@ proc bridgedConnections*: (Connection, Connection) =
   return (connA, connB)
 
 
-proc checkExpiringInternal(cond: proc(): bool {.raises: [Defect].} ): Future[bool] {.async, gcsafe.} =
-  {.gcsafe.}:
-    let start = Moment.now()
-    while true:
-      if Moment.now() > (start + chronos.seconds(5)):
-        return false
-      elif cond():
-        return true
-      else:
-        await sleepAsync(1.millis)
+proc checkExpiringInternal(cond: proc(): bool {.raises: [Defect], gcsafe.} ): Future[bool] {.async, gcsafe.} =
+  let start = Moment.now()
+  while true:
+    if Moment.now() > (start + chronos.seconds(5)):
+      return false
+    elif cond():
+      return true
+    else:
+      await sleepAsync(1.millis)
 
 template checkExpiring*(code: untyped): untyped =
-  checkExpiringInternal(proc(): bool = code)
+  check await checkExpiringInternal(proc(): bool = code)

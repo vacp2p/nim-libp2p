@@ -351,7 +351,7 @@ suite "FloodSub":
     check (await smallNode[0].publish("foo", smallMessage1)) > 0
     check (await bigNode[0].publish("foo", smallMessage2)) > 0
 
-    check (await checkExpiring(messageReceived == 2)) == true
+    checkExpiring: messageReceived == 2
 
     check (await smallNode[0].publish("foo", bigMessage)) > 0
     check (await bigNode[0].publish("foo", bigMessage)) > 0
