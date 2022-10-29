@@ -1,4 +1,4 @@
-## # Discovery method
+## # Discovery Manager
 ##
 ## In the [previous tutorial](tutorial_4_gossipsub.md), we built a custom protocol using [protobuf](https://developers.google.com/protocol-buffers) and
 ## spread informations (some metrics) on the network using gossipsub.
@@ -38,7 +38,7 @@ proc new(T: typedesc[DumbProto], nodeNumber: int): T =
     await conn.close()
   return T(codecs: @[DumbCodec], handler: handle)
 
-## # Bootnodes
+## ## Bootnodes
 ## The first time a p2p program is ran, he needs to know how to join
 ## its network. This is generally done by hard-coding a list of stable
 ## nodes in the binary, called "bootnodes". These bootnodes are a
@@ -53,11 +53,11 @@ proc main() {.async, gcsafe.} =
   let bootNode = createSwitch()
   await bootNode.start()
 
+  # Create 5 nodes in the network
   var
     switches: seq[Switch] = @[]
     discManagers: seq[DiscoveryManager] = @[]
 
-  # Create 5 nodes in the network
   for i in 0..5:
     let rdv = RendezVous.new()
     # Create a remote future to await at the end of the program
@@ -81,7 +81,8 @@ proc main() {.async, gcsafe.} =
     # Each nodes of the network will advertise on some topics (EvenGang or OddClub)
     dm.advertise(RdvNamespace(if i mod 2 == 0: "EvenGang" else: "OddClub"))
 
-  # We can now create the newcomer, this peer will connect to the boot node
+  ## We can now create the newcomer. This peer will connect to the boot node, and use
+  ## it to discover peers & greet them.
   let
     rdv = RendezVous.new()
     newcomer = createSwitch(rdv)
@@ -90,7 +91,7 @@ proc main() {.async, gcsafe.} =
   await newcomer.connect(bootNode.peerInfo.peerId, bootNode.peerInfo.addrs)
   dm.add(RendezVousInterface.new(rdv, ttr = 250.milliseconds))
 
-  # Use the discovery manager to find peers on the OddClub topic the greet them
+  # Use the discovery manager to find peers on the OddClub topic to greet them
   let queryOddClub = dm.request(RdvNamespace("OddClub"))
   for _ in 0..2:
     let
