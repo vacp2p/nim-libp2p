@@ -32,7 +32,7 @@ logScope:
 
 const
   RendezVousCodec* = "/rendezvous/1.0.0"
-  MinimumDuration = 2.hours
+  MinimumDuration* = 2.hours
   MaximumDuration = 72.hours
   MinimumTTL = MinimumDuration.seconds.uint64
   MaximumTTL = MaximumDuration.seconds.uint64
@@ -283,10 +283,6 @@ type
     expiration: Moment
     peerId: PeerId
     data: Register
-
-  RegisteredSeq = object
-    s: seq[RegisteredData]
-    offset: uint64
 
   RendezVous* = ref object of LPProtocol
     # Registered needs to be an offsetted sequence
@@ -563,7 +559,9 @@ proc request*(rdv: RendezVous,
     for (_, r) in s.values():
       rdv.save(ns, peer, r, false)
 
-  for peer in rdv.peers:
+  # copy to avoid resizes during the loop
+  let peers = rdv.peers
+  for peer in peers:
     if limit == 0: break
     if RendezVousCodec notin rdv.switch.peerStore[ProtoBook][peer]: continue
     try:

@@ -16,7 +16,7 @@ import chronos
 import std/[tables, sets]
 import ".."/[floodsub, peertable, mcache, pubsubpeer]
 import "../rpc"/[messages]
-import "../../.."/[peerid, multiaddress]
+import "../../.."/[peerid, multiaddress, utility]
 
 const
   GossipSubCodec* = "/meshsub/1.1.0"
@@ -65,7 +65,7 @@ type
     meshFailurePenalty*: float64
     invalidMessageDeliveries*: float64
 
-  TopicParams* = object
+  TopicParams* {.public.} = object
     topicWeight*: float64
 
     # p1
@@ -102,7 +102,7 @@ type
     appScore*: float64 # application specific score
     behaviourPenalty*: float64 # the eventual penalty score
 
-  GossipSubParams* = object
+  GossipSubParams* {.public.} = object
     explicit*: bool
     pruneBackoff*: Duration
     unsubscribeBackoff*: Duration

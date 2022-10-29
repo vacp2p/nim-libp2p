@@ -90,8 +90,10 @@ task website, "Build the website":
   tutorialToMd("examples/tutorial_1_connect.nim")
   tutorialToMd("examples/tutorial_2_customproto.nim")
   tutorialToMd("examples/tutorial_3_protobuf.nim")
-  tutorialToMd("examples/circuitrelay.nim")
+  tutorialToMd("examples/tutorial_4_gossipsub.nim")
+  tutorialToMd("examples/tutorial_5_discovery.nim")
   tutorialToMd("examples/game_network.nim")
+  tutorialToMd("examples/circuitrelay.nim")
   exec "mkdocs build"
 
 task examples_build, "Build the samples":
@@ -100,9 +102,11 @@ task examples_build, "Build the samples":
   buildSample("circuitrelay", true)
   buildSample("tutorial_1_connect", true)
   buildSample("tutorial_2_customproto", true)
-  if (NimMajor, NimMinor) > (1, 4):
-    # This tutorial relies on post 1.4 exception tracking
+  if (NimMajor, NimMinor) > (1, 2):
+    # These tutorials relies on post 1.4 exception tracking
     buildSample("tutorial_3_protobuf", true)
+    buildSample("tutorial_4_gossipsub", true)
+    buildSample("tutorial_5_discovery", true)
     # Nico doesn't work in 1.2
     exec "nimble install -y nico"
     buildSample("game_network", false, "--styleCheck:off")

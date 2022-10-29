@@ -48,19 +48,19 @@ proc main() {.async.} =
     swSrc = createCircuitRelaySwitch(clSrc)
     swDst = createCircuitRelaySwitch(clDst)
 
-    # Create a relay address to swDst using swRel as the relay
-    addrs = MultiAddress.init($swRel.peerInfo.addrs[0] & "/p2p/" &
-                              $swRel.peerInfo.peerId & "/p2p-circuit/p2p/" &
-                              $swDst.peerInfo.peerId).get()
-
   swDst.mount(proto)
 
   await swRel.start()
   await swSrc.start()
   await swDst.start()
 
-  # Connect both Src and Dst to the relay, but not to each other.
-  await swSrc.connect(swRel.peerInfo.peerId, swRel.peerInfo.addrs)
+  let
+    # Create a relay address to swDst using swRel as the relay
+    addrs = MultiAddress.init($swRel.peerInfo.addrs[0] & "/p2p/" &
+                              $swRel.peerInfo.peerId & "/p2p-circuit/p2p/" &
+                              $swDst.peerInfo.peerId).get()
+
+  # Connect Dst to the relay
   await swDst.connect(swRel.peerInfo.peerId, swRel.peerInfo.addrs)
 
   # Dst reserve a slot on the relay.
