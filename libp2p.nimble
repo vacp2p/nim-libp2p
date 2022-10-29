@@ -92,7 +92,7 @@ task website, "Build the website":
   tutorialToMd("examples/tutorial_3_protobuf.nim")
   tutorialToMd("examples/tutorial_4_gossipsub.nim")
   tutorialToMd("examples/tutorial_5_discovery.nim")
-  tutorialToMd("examples/game_network.nim")
+  tutorialToMd("examples/tutorial_6_game.nim")
   tutorialToMd("examples/circuitrelay.nim")
   exec "mkdocs build"
 
@@ -109,7 +109,7 @@ task examples_build, "Build the samples":
     buildSample("tutorial_5_discovery", true)
     # Nico doesn't work in 1.2
     exec "nimble install -y nico"
-    buildSample("game_network", false, "--styleCheck:off")
+    buildSample("tutorial_6_game", false, "--styleCheck:off")
 
 # pin system
 # while nimble lockfile
