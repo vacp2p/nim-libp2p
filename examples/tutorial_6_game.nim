@@ -13,6 +13,8 @@
 ## The game will be a simple Tron. We will use [nico](https://github.com/ftsf/nico)
 ## as a game engine. (you need to run `nimble install nico` to have it available)
 ##
+## ![multiplay](https://user-images.githubusercontent.com/13471753/198852714-b55048e3-f233-4723-900d-2193ad259fe1.gif)
+##
 ## We will start by importing our dependencies and creating our types
 import os
 import nico, chronos, stew/byteutils, stew/endians2
@@ -24,7 +26,7 @@ import libp2p/discovery/discoverymngr
 const
   directions = @[(K_UP, 0, -1), (K_LEFT, -1, 0), (K_DOWN, 0, 1), (K_RIGHT, 1, 0)]
   mapSize = 32
-  tickPeriod = 0.1
+  tickPeriod = 0.2
 
 type
   Player = ref object
@@ -101,7 +103,8 @@ proc tick(g: Game, p: Player) =
 
 proc mainLoop(g: Game, peer: Connection) {.async.} =
   while not (g.localPlayer.lost or g.remotePlayer.lost):
-    g.tickTime = 0
+    if g.tickTime > 0.0:
+      g.tickTime = 0
     g.tickFinished = newFuture[int]()
 
     # Wait for a choosen direction
