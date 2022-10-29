@@ -91,6 +91,7 @@ task website, "Build the website":
   tutorialToMd("examples/tutorial_2_customproto.nim")
   tutorialToMd("examples/tutorial_3_protobuf.nim")
   tutorialToMd("examples/tutorial_4_gossipsub.nim")
+  tutorialToMd("examples/tutorial_5_discovery.nim")
   tutorialToMd("examples/circuitrelay.nim")
   exec "mkdocs build"
 
@@ -104,6 +105,7 @@ task examples_build, "Build the samples":
     # These tutorials relies on post 1.4 exception tracking
     buildSample("tutorial_3_protobuf", true)
     buildSample("tutorial_4_gossipsub", true)
+    buildSample("tutorial_5_discovery", true)
 
 # pin system
 # while nimble lockfile

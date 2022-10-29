@@ -46,5 +46,6 @@ nav:
     - 'Create a custom protocol': tutorial_2_customproto.md
     - 'Protobuf': tutorial_3_protobuf.md
     - 'GossipSub': tutorial_4_gossipsub.md
+    - 'Discovery Manager': tutorial_5_discovery.md
     - 'Circuit Relay': circuitrelay.md
   - Reference: '/nim-libp2p/master/libp2p.html'
