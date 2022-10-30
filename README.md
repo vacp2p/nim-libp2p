@@ -98,20 +98,31 @@ nim-libp2p is used by:
 - [nim-codex](https://github.com/status-im/nim-codex), a decentralized storage application
 - (open a pull request if you want to be included here)
 
-## Development
-**Clone and Install dependencies:**
+## Stability
+nim-libp2p has been used in production for over a year in high-stake scenarios, so its core is considered stable.
+Some modules are more recent and less stable.
 
+The versioning follows [semver](https://semver.org/), with some additions:
+- Some of libp2p procedures are marked as `.public.`, they will remain compatible during each `MAJOR` version
+- The rest of the procedures are considered internal, and can change at any `MINOR` version (but remain compatible for each new `PATCH`)
+
+We aim to be compatible at all time with at least 2 Nim `MINOR` versions, currently `1.2 & 1.6`
+
+## Development
+Clone and Install dependencies:
 ```sh
 git clone https://github.com/status-im/nim-libp2p
 cd nim-libp2p
-nimble install
+nimble install -dy
 ```
 
-**Run unit tests**
+Run unit tests:
 ```sh
 # run all the unit tests
 nimble test
 ```
+This requires the go daemon to be available. To only run native tests, use `nimble testnative`.
+Or use `nimble tasks` to show all available tasks.
 
 ### Contribute
 
@@ -125,22 +136,19 @@ The code follows the [Status Nim Style Guide](https://status-im.github.io/nim-st
 ### Core Developers
 [@cheatfate](https://github.com/cheatfate), [Dmitriy Ryajov](https://github.com/dryajov), [Tanguy](https://github.com/Menduist), [Zahary Karadjov](https://github.com/zah)
 
-### Tips and tricks
+### Compile time flags
 
-**enable expensive metrics:**
-
+Enable expensive metrics (ie, metrics with per-peer cardinality):
 ```bash
 nim c -d:libp2p_expensive_metrics some_file.nim
 ```
 
-**use identify metrics**
-
+Set list of known libp2p agents for metrics:
 ```bash
 nim c -d:libp2p_agents_metrics -d:KnownLibP2PAgents=nimbus,lighthouse,lodestar,prysm,teku some_file.nim
 ```
 
-**specify gossipsub specific topics to measure**
-
+Specify gossipsub specific topics to measure in the metrics:
 ```bash
 nim c -d:KnownLibP2PTopics=topic1,topic2,topic3 some_file.nim
 ```
