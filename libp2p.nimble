@@ -31,8 +31,8 @@ proc runTest(filename: string, verify: bool = true, sign: bool = true,
   exec excstr & " -r " & " tests/" & filename
   rmFile "tests/" & filename.toExe
 
-proc buildSample(filename: string, run = false) =
-  var excstr = "nim c --opt:speed --threads:on -d:debug --verbosity:0 --hints:off -p:. "
+proc buildSample(filename: string, run = false, extraFlags = "") =
+  var excstr = "nim c --opt:speed --threads:on -d:debug --verbosity:0 --hints:off -p:. " & extraFlags
   excstr.add(" examples/" & filename)
   exec excstr
   if run:
@@ -92,6 +92,7 @@ task website, "Build the website":
   tutorialToMd("examples/tutorial_3_protobuf.nim")
   tutorialToMd("examples/tutorial_4_gossipsub.nim")
   tutorialToMd("examples/tutorial_5_discovery.nim")
+  tutorialToMd("examples/tutorial_6_game.nim")
   tutorialToMd("examples/circuitrelay.nim")
   exec "mkdocs build"
 
@@ -106,6 +107,9 @@ task examples_build, "Build the samples":
     buildSample("tutorial_3_protobuf", true)
     buildSample("tutorial_4_gossipsub", true)
     buildSample("tutorial_5_discovery", true)
+    # Nico doesn't work in 1.2
+    exec "nimble install -y nico"
+    buildSample("tutorial_6_game", false, "--styleCheck:off")
 
 # pin system
 # while nimble lockfile

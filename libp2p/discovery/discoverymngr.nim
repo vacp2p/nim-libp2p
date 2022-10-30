@@ -89,10 +89,12 @@ method advertise*(self: DiscoveryInterface) {.async, base.} =
 
 type
   DiscoveryError* = object of LPError
+  DiscoveryFinished* = object of LPError
 
   DiscoveryQuery* = ref object
     attr: PeerAttributes
     peers: AsyncQueue[PeerAttributes]
+    finished: bool
     futs: seq[Future[void]]
 
   DiscoveryManager* = ref object
@@ -137,7 +139,22 @@ proc advertise*[T](dm: DiscoveryManager, value: T) =
   pa.add(value)
   dm.advertise(pa)
 
+template forEach*(query: DiscoveryQuery, code: untyped) =
+  ## Will execute `code` for each discovered peer. The
+  ## peer attritubtes are available through the variable
+  ## `peer`
+
+  proc forEachInternal(q: DiscoveryQuery) {.async.} =
+    while true:
+      let peer {.inject.} =
+        try: await q.getPeer()
+        except DiscoveryFinished: return
+      code
+
+  asyncSpawn forEachInternal(query)
+
 proc stop*(query: DiscoveryQuery) =
+  query.finished = true
   for r in query.futs:
     if not r.finished(): r.cancel()
 
@@ -158,6 +175,8 @@ proc getPeer*(query: DiscoveryQuery): Future[PeerAttributes] {.async.} =
     raise exc
 
   if not finished(getter):
+    if query.finished:
+      raise newException(DiscoveryFinished, "Discovery query stopped")
     # discovery loops only finish when they don't handle the query
     raise newException(DiscoveryError, "Unable to find any peer matching this request")
   return await getter
