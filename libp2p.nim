@@ -17,7 +17,7 @@ when defined(nimdoc):
   ## stay backward compatible during the Major version, whereas private ones can
   ## change at each new Minor version.
   ##
-  ## If you're new to nim-libp2p, you can find a tutorial `here<https://github.com/status-im/nim-libp2p/blob/master/examples/tutorial_1_connect.md>`_
+  ## If you're new to nim-libp2p, you can find a tutorial `here<https://status-im.github.io/nim-libp2p/docs/tutorial_1_connect/>`_
   ## that can help you get started.
 
   # Import stuff for doc

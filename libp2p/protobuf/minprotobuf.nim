@@ -124,7 +124,7 @@ proc vsizeof*(field: ProtoField): int {.inline.} =
 proc initProtoBuffer*(data: seq[byte], offset = 0,
                       options: set[ProtoFlags] = {}): ProtoBuffer =
   ## Initialize ProtoBuffer with shallow copy of ``data``.
-  shallowCopy(result.buffer, data)
+  result.buffer = data
   result.offset = offset
   result.options = options
 

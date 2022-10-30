@@ -267,11 +267,11 @@ proc updateMetrics*(p: PubSub, rpcMsg: RPCMsg) =
 
 method rpcHandler*(p: PubSub,
                    peer: PubSubPeer,
-                   rpcMsg: RPCMsg): Future[void] {.base.} =
+                   rpcMsg: RPCMsg): Future[void] {.base, async.} =
   ## Handler that must be overridden by concrete implementation
   raiseAssert "Unimplemented"
 
-method onNewPeer(p: PubSub, peer: PubSubPeer) {.base.} = discard
+method onNewPeer(p: PubSub, peer: PubSubPeer) {.base, gcsafe.} = discard
 
 method onPubSubPeerEvent*(p: PubSub, peer: PubSubPeer, event: PubSubPeerEvent) {.base, gcsafe.} =
   # Peer event is raised for the send connection in particular

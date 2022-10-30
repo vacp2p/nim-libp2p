@@ -10,8 +10,7 @@
 {.used.}
 
 import sequtils, options, tables, sets
-import chronos, stew/byteutils
-import chronicles
+import chronos, stew/byteutils, chronicles
 import utils, ../../libp2p/[errors,
                             peerid,
                             peerinfo,
@@ -24,26 +23,6 @@ import utils, ../../libp2p/[errors,
                             protocols/pubsub/peertable,
                             protocols/pubsub/rpc/messages]
 import ../helpers
-
-proc waitSub(sender, receiver: auto; key: string) {.async, gcsafe.} =
-  if sender == receiver:
-    return
-  let timeout = Moment.now() + 5.seconds
-  let fsub = GossipSub(sender)
-
-  # this is for testing purposes only
-  # peers can be inside `mesh` and `fanout`, not just `gossipsub`
-  while (not fsub.gossipsub.hasKey(key) or
-         not fsub.gossipsub.hasPeerId(key, receiver.peerInfo.peerId)) and
-        (not fsub.mesh.hasKey(key) or
-         not fsub.mesh.hasPeerId(key, receiver.peerInfo.peerId)) and
-        (not fsub.fanout.hasKey(key) or
-         not fsub.fanout.hasPeerId(key , receiver.peerInfo.peerId)):
-    trace "waitSub sleeping..."
-
-    # await
-    await sleepAsync(5.milliseconds)
-    doAssert Moment.now() < timeout, "waitSub timeout!"
 
 template tryPublish(call: untyped, require: int, wait = 10.milliseconds, timeout = 10.seconds): untyped =
   var
@@ -269,7 +248,7 @@ suite "GossipSub":
 
     await allFuturesThrowing(nodesFut.concat())
 
-  asyncTest "GossipsSub peers disconnections mechanics":
+  asyncTest "GossipSub peers disconnections mechanics":
     var runs = 10
 
     let
@@ -294,7 +273,8 @@ suite "GossipSub":
             seenFut.complete()
 
       dialer.subscribe("foobar", handler)
-      await waitSub(nodes[0], dialer, "foobar")
+
+    await waitSubGraph(nodes, "foobar")
 
     # ensure peer stats are stored properly and kept properly
     check:
