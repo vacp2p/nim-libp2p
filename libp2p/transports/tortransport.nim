@@ -20,6 +20,8 @@ import stew/[byteutils, endians2, results, objects]
 import ../multicodec
 import transport,
       tcptransport,
+      ../switch,
+      ../builders,
       ../stream/[lpstream, connection, chronosstream],
       ../multiaddress,
       ../upgrademngrs/upgrade
@@ -29,7 +31,7 @@ const
   NMethods = byte(1)
 
 type
-  TorTransport* = ref object of Transport
+  TorTransport = ref object of Transport
     transportAddress: TransportAddress
     tcpTransport: TcpTransport
 
@@ -59,7 +61,7 @@ type
   Socks5VersionError* = object of Socks5Error
   Socks5ServerReplyError* = object of Socks5Error
 
-proc new*(
+proc new(
   T: typedesc[TorTransport],
   transportAddress: TransportAddress,
   flags: set[ServerFlags] = {},
@@ -204,3 +206,39 @@ method stop*(self: TorTransport) {.async, gcsafe.} =
 method handles*(t: TorTransport, address: MultiAddress): bool {.gcsafe.} =
   if procCall Transport(t).handles(address):
     return handlesDial(address) or handlesStart(address)
+
+type
+  TorSwitch* = ref object of Switch
+
+proc new*(
+  T: typedesc[TorSwitch],
+  torServer: TransportAddress,
+  rng: ref HmacDrbgContext,
+  addresses: seq[MultiAddress] = @[],
+  flags: set[ServerFlags] = {}): TorSwitch
+  {.raises: [LPError], public.} =
+    var builder = SwitchBuilder.new()
+        .withRng(rng)
+        .withTransport(proc(upgr: Upgrade): Transport = TorTransport.new(torServer, flags, upgr))
+    if addresses.len != 0:
+        builder = builder.withAddresses(addresses)
+    let switch = builder.withMplex()
+        .withNoise()
+        .build()
+    let torSwitch = T(
+      peerInfo: switch.peerInfo,
+      ms: switch.ms,
+      transports: switch.transports,
+      connManager: switch.connManager,
+      peerStore: switch.peerStore,
+      dialer: Dialer.new(switch.peerInfo.peerId, switch.connManager, switch.transports, switch.ms, nil),
+      nameResolver: nil)
+
+    torSwitch.connManager.peerStore = switch.peerStore
+    return torSwitch
+
+method addTransport*(s: TorSwitch, t: Transport) =
+  doAssert(false, "not implemented!")
+
+method getTorTransport*(s: TorSwitch): Transport {.base.} =
+  return s.transports[0]
