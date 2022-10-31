@@ -139,13 +139,13 @@ proc dialPeer(
     dstAddr = @(uint8(addressStr.len).toBytes()) & addressStr.toBytes()
     dstPort = address.data.buffer[37..38]
     reserved = byte(0)
-    b = @[
-    Socks5ProtocolVersion,
-    Socks5RequestCommand.Connect.byte,
-    reserved,
-    Socks5AddressType.FQDN.byte] & dstAddr & dstPort
+    request = @[
+      Socks5ProtocolVersion,
+      Socks5RequestCommand.Connect.byte,
+      reserved,
+      Socks5AddressType.FQDN.byte] & dstAddr & dstPort
 
-  discard await transp.write(b)
+  discard await transp.write(request)
   await readServerReply(transp)
 
 method dial*(

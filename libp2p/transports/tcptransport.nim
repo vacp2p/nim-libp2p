@@ -40,7 +40,7 @@ const
 type
   TcpTransport* = ref object of Transport
     servers*: seq[StreamServer]
-    clients*: array[Direction, seq[StreamTransport]]
+    clients: array[Direction, seq[StreamTransport]]
     flags: set[ServerFlags]
     acceptFuts: seq[Future[StreamTransport]]
 

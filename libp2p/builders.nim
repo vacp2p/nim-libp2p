@@ -24,7 +24,7 @@ else:
 import
   options, tables, chronos, chronicles, sequtils,
   switch, peerid, peerinfo, stream/connection, multiaddress,
-  crypto/crypto, transports/[transport, tcptransport, tortransport],
+  crypto/crypto, transports/[transport, tcptransport],
   muxers/[muxer, mplex/mplex, yamux/yamux],
   protocols/[identify, secure/secure, secure/noise, rendezvous],
   protocols/connectivity/[autonat, relay/relay, relay/client, relay/rtransport],
