@@ -86,6 +86,9 @@ suite "Tor transport":
     await serverSwitch.stop()
 
   test "It's not possible to add another transport":
+    when (NimMajor, NimMinor, NimPatch) < (1, 4, 0):
+      type AssertionDefect = AssertionError
+
     let torSwitch = TorSwitch.new(torServer = torServer, rng= rng, flags = {ReuseAddr})
     expect(AssertionDefect):
       torSwitch.addTransport(TcpTransport.new(upgrade = Upgrade()))
