@@ -85,7 +85,7 @@ suite "Tor transport":
 
     await serverSwitch.stop()
 
-  test "It's not possible to add another transport":
+  test "It's not possible to add another transport in TorSwitch":
     when (NimMajor, NimMinor, NimPatch) < (1, 4, 0):
       type AssertionDefect = AssertionError
 
@@ -95,10 +95,8 @@ suite "Tor transport":
     waitFor torSwitch.stop()
 
   proc transProvider(): Transport =
-    try:
-      TorSwitch.new(torServer = torServer, rng= rng, flags = {ReuseAddr}).getTorTransport()
-    except:
-      raise newException(Defect, "Error when creating Tor Transport")
+      TorTransport.new(torServer, {ReuseAddr}, Upgrade())
+
 
   commonTransportTest(
     transProvider,

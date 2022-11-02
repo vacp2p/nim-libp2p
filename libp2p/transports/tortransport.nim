@@ -31,7 +31,7 @@ const
   NMethods = byte(1)
 
 type
-  TorTransport = ref object of Transport
+  TorTransport* = ref object of Transport
     transportAddress: TransportAddress
     tcpTransport: TcpTransport
 
@@ -61,7 +61,7 @@ type
   Socks5VersionError* = object of Socks5Error
   Socks5ServerReplyError* = object of Socks5Error
 
-proc new(
+proc new*(
   T: typedesc[TorTransport],
   transportAddress: TransportAddress,
   flags: set[ServerFlags] = {},
