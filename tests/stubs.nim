@@ -6,7 +6,7 @@ else:
   {.push raises: [].}
 
 import tables
-import chronos, stew/[byteutils, endians2]
+import chronos, stew/[byteutils, endians2, shims/net]
 import ../libp2p/[stream/connection,
                   protocols/connectivity/relay/utils,
                   transports/tcptransport,
@@ -15,8 +15,6 @@ import ../libp2p/[stream/connection,
                   multiaddress,
                   errors,
                   builders]
-
-const torServer = initTAddress("127.0.0.1", 9050.Port)
 
 type
   TorServerStub* = ref object of RootObj
@@ -30,11 +28,11 @@ proc new*(
     tcpTransport: TcpTransport.new(flags = {ReuseAddr}, upgrade = Upgrade()),
     addrTable: initTable[string, string]())
 
-proc registerOnionAddr*(self: TorServerStub, key: string, val: string) =
+proc registerAddr*(self: TorServerStub, key: string, val: string) =
   self.addrTable[key] = val
 
-proc start*(self: TorServerStub) {.async.} =
-  let ma = @[MultiAddress.init(torServer).tryGet()]
+proc start*(self: TorServerStub, address: TransportAddress) {.async.} =
+  let ma = @[MultiAddress.init(address).tryGet()]
 
   await self.tcpTransport.start(ma)
 
@@ -45,15 +43,36 @@ proc start*(self: TorServerStub) {.async.} =
 
     await connSrc.write(@[05'u8, 00])
 
-    msg = newSeq[byte](5)
-    await connSrc.readExactly(addr msg[0], 5)
-    let n = int(uint8.fromBytes(msg[4..4])) + 2 # +2 bytes for the port
-    msg = newSeq[byte](n)
-    await connSrc.readExactly(addr msg[0], n)
+    msg = newSeq[byte](4)
+    await connSrc.readExactly(addr msg[0], 4)
+    let atyp = int(uint8.fromBytes(msg[3..3]))
+    let address = case atyp:
+      of Socks5AddressType.IPv4.ord:
+        let n = 4 + 2 # +2 bytes for the port
+        msg = newSeq[byte](n)
+        await connSrc.readExactly(addr msg[0], n)
+        var ip: array[4, byte]
+        for i, e in msg[0..^3]:
+          ip[i] = e
+        $(ipv4(ip)) & ":" & $(Port(fromBytesBE(uint16, msg[^2..^1])))
+      of Socks5AddressType.IPv6.ord:
+        let n = 16 + 2 # +2 bytes for the port
+        msg = newSeq[byte](n) # +2 bytes for the port
+        await connSrc.readExactly(addr msg[0], n)
+        var ip: array[16, byte]
+        for i, e in msg[0..^3]:
+          ip[i] = e
+        $(ipv6(ip)) & ":" & $(Port(fromBytesBE(uint16, msg[^2..^1])))
+      of Socks5AddressType.FQDN.ord:
+        await connSrc.readExactly(addr msg[0], 1)
+        let n = int(uint8.fromBytes(msg[0..0])) + 2 # +2 bytes for the port
+        msg = newSeq[byte](n)
+        await connSrc.readExactly(addr msg[0], n)
+        string.fromBytes(msg[0..^3]) & ":" & $(Port(fromBytesBE(uint16, msg[^2..^1])))
+      else:
+        raise newException(LPError, "Address not supported")
 
-    let onionAddr = string.fromBytes(msg[0..^3]) # ignore the port
-
-    let tcpIpAddr = self.addrTable[$(onionAddr)]
+    let tcpIpAddr = self.addrTable[$(address)]
 
     await connSrc.write(@[05'u8, 00, 00, 01, 00, 00, 00, 00, 00, 00])
 

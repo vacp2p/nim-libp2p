@@ -27,6 +27,11 @@ import transport,
       ../upgrademngrs/upgrade
 
 const
+  IPTcp = mapAnd(IP, mapEq("tcp"))
+  IPv4Tcp = mapAnd(IP4, mapEq("tcp"))
+  IPv6Tcp = mapAnd(IP6, mapEq("tcp"))
+  DnsTcp = mapAnd(DNSANY, mapEq("tcp"))
+
   Socks5ProtocolVersion = byte(5)
   NMethods = byte(1)
 
@@ -74,7 +79,7 @@ proc new*(
     tcpTransport: TcpTransport.new(flags, upgrade))
 
 proc handlesDial(address: MultiAddress): bool {.gcsafe.} =
-  return Onion3.match(address)
+  return Onion3.match(address) or TCP.match(address) or DNSANY.match(address)
 
 proc handlesStart(address: MultiAddress): bool {.gcsafe.} =
   return TcpOnion3.match(address)
@@ -119,32 +124,60 @@ proc readServerReply(transp: StreamTransport) {.async, gcsafe.} =
   let atyp = firstFourOctets[3]
   case atyp:
     of Socks5AddressType.IPv4.byte:
-      discard await transp.read(ipV4NumOctets + portNumOctets)
+      discard await transp.read(ipV4NumOctets + portNumOctets) 
     of Socks5AddressType.FQDN.byte:
       let fqdnNumOctets = await transp.read(1)
       discard await transp.read(int(uint8.fromBytes(fqdnNumOctets)) + portNumOctets)
     else:
       discard await transp.read(ipV6NumOctets + portNumOctets)
 
+proc parseOnion3(address: MultiAddress): (byte, seq[byte], seq[byte]) =
+  let
+    addressArray = ($address).split('/')
+    addressStr = addressArray[2].split(':')[0] & ".onion"
+    dstAddr = @(uint8(addressStr.len).toBytes()) & addressStr.toBytes()
+    dstPort = address.data.buffer[37..38]
+  return (Socks5AddressType.FQDN.byte, dstAddr, dstPort)
+
+proc parseIpTcp(address: MultiAddress): (byte, seq[byte], seq[byte]) =
+  let (codec, atyp) = 
+    if IPv4Tcp.match(address):
+      (multiCodec("ip4"), Socks5AddressType.IPv4.byte)
+    else:
+      (multiCodec("ip6"), Socks5AddressType.IPv6.byte)
+  let
+    dstAddr = address[codec].get().protoArgument().get()
+    dstPort = address[multiCodec("tcp")].get().protoArgument().get()
+  (atyp, dstAddr, dstPort)
+
+proc parseDnsTcp(address: MultiAddress): (byte, seq[byte], seq[byte]) =
+  let
+    dnsAddress = address[multiCodec("dns")].get().protoArgument().get()
+    dstAddr = @(uint8(dnsAddress.len).toBytes()) & dnsAddress
+    dstPort = address[multiCodec("tcp")].get().protoArgument().get()
+  (Socks5AddressType.FQDN.byte, dstAddr, dstPort)
+
 proc dialPeer(
     transp: StreamTransport, address: MultiAddress) {.async, gcsafe.} =
-
-  let addressArray = ($address).split('/')
-  let addressStr = addressArray[2].split(':')[0] & ".onion"
-
   # The address field contains a fully-qualified domain name.
   # The first octet of the address field contains the number of octets of name that
   # follow, there is no terminating NUL octet.
-  let
-    dstAddr = @(uint8(addressStr.len).toBytes()) & addressStr.toBytes()
-    dstPort = address.data.buffer[37..38]
-    reserved = byte(0)
-    request = @[
-      Socks5ProtocolVersion,
-      Socks5RequestCommand.Connect.byte,
-      reserved,
-      Socks5AddressType.FQDN.byte] & dstAddr & dstPort
+  let (atyp, dstAddr, dstPort) =
+    if Onion3.match(address):
+      parseOnion3(address)
+    elif IPTcp.match(address):
+      parseIpTcp(address)
+    elif DnsTcp.match(address):
+      parseDnsTcp(address)
+    else:
+      raise newException(LPError, fmt"Address not supported: {address}")
 
+  let reserved = byte(0)
+  let request = @[
+    Socks5ProtocolVersion,
+    Socks5RequestCommand.Connect.byte,
+    reserved,
+    atyp] & dstAddr & dstPort
   discard await transp.write(request)
   await readServerReply(transp)
 
@@ -155,7 +188,7 @@ method dial*(
   ## dial a peer
   ##
   if not handlesDial(address):
-    raise newException(LPError, fmt"Invalid onion3 address: {address}")
+    raise newException(LPError, fmt"Not supported address: {address}")
   trace "Dialing remote peer", address = $address
   let transp = await connectToTorServer(self.transportAddress)
 
