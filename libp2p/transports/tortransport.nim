@@ -133,7 +133,7 @@ proc readServerReply(transp: StreamTransport) {.async, gcsafe.} =
     else:
       raise newException(LPError, "Address not supported")
 
-proc parseOnion3(address: MultiAddress): (byte, seq[byte], seq[byte]) {.raises: [LPError, ValueError].} =
+proc parseOnion3(address: MultiAddress): (byte, seq[byte], seq[byte]) {.raises: [Defect, LPError, ValueError].} =
   var addressArray = ($address).split('/')
   if addressArray.len < 2: raise newException(LPError, fmt"Onion address not supported {address}")
   addressArray = addressArray[2].split(':')
@@ -144,7 +144,7 @@ proc parseOnion3(address: MultiAddress): (byte, seq[byte], seq[byte]) {.raises: 
     dstPort = address.data.buffer[37..38]
   return (Socks5AddressType.FQDN.byte, dstAddr, dstPort)
 
-proc parseIpTcp(address: MultiAddress): (byte, seq[byte], seq[byte]) {.raises: [LPError, ValueError].} =
+proc parseIpTcp(address: MultiAddress): (byte, seq[byte], seq[byte]) {.raises: [Defect, LPError, ValueError].} =
   let (codec, atyp) =
     if IPv4Tcp.match(address):
       (multiCodec("ip4"), Socks5AddressType.IPv4.byte)
