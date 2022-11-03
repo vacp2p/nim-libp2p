@@ -84,6 +84,7 @@ declarePublicCounter(libp2p_pubsub_received_prune, "pubsub broadcast prune", lab
 type
   InitializationError* = object of LPError
 
+  #TODO sink?
   TopicHandler* {.public.} = proc(topic: string,
                        data: seq[byte]): Future[void] {.gcsafe, raises: [Defect].}
 
@@ -311,7 +312,7 @@ proc getOrCreatePeer*(
 
   return pubSubPeer
 
-proc handleData*(p: PubSub, topic: string, data: seq[byte]): Future[void] =
+proc handleData*(p: PubSub, topic: string, data: sink seq[byte]): Future[void] =
   # Start work on all data handlers without copying data into closure like
   # happens on {.async.} transformation
   p.topics.withValue(topic, handlers) do:
@@ -474,7 +475,7 @@ proc subscribe*(p: PubSub,
 
 method publish*(p: PubSub,
                 topic: string,
-                data: seq[byte]): Future[int] {.base, async, public.} =
+                data: sink seq[byte]): Future[int] {.base, async, public.} =
   ## publish to a ``topic``
   ##
   ## The return value is the number of neighbours that we attempted to send the

@@ -111,7 +111,7 @@ proc encodeMsg(peerInfo: PeerInfo, observedAddr: Opt[MultiAddress], sendSpr: boo
 
   result.finish()
 
-proc decodeMsg*(buf: seq[byte]): Option[IdentifyInfo] =
+proc decodeMsg*(buf: sink seq[byte]): Option[IdentifyInfo] =
   var
     iinfo: IdentifyInfo
     pubkey: PublicKey

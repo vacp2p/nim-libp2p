@@ -5,6 +5,7 @@ if dirExists("nimbledeps/pkgs"):
 switch("warning", "CaseTransition:off")
 switch("warning", "ObservableStores:off")
 switch("warning", "LockLevel:off")
+switch("warningAsError", "UseBase:on")
 --define:chronosStrictException
 --styleCheck:usages
 if (NimMajor, NimMinor) < (1, 6):

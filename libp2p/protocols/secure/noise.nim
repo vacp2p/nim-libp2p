@@ -333,7 +333,7 @@ proc sendHSMessage(sconn: Connection, buf: openArray[byte]): Future[void] =
 
 proc handshakeXXOutbound(
     p: Noise, conn: Connection,
-    p2pSecret: seq[byte]): Future[HandshakeResult] {.async.} =
+    p2pSecret: sink seq[byte]): Future[HandshakeResult] {.async.} =
   const initiator = true
   var
     hs = HandshakeState.init()
@@ -381,7 +381,7 @@ proc handshakeXXOutbound(
 
 proc handshakeXXInbound(
     p: Noise, conn: Connection,
-    p2pSecret: seq[byte]): Future[HandshakeResult] {.async.} =
+    p2pSecret: sink seq[byte]): Future[HandshakeResult] {.async.} =
   const initiator = false
 
   var
@@ -461,7 +461,7 @@ proc encryptFrame(
 
   cipherFrame[2 + src.len()..<cipherFrame.len] = tag
 
-method write*(sconn: NoiseConnection, message: seq[byte]): Future[void] =
+method write*(sconn: NoiseConnection, message: sink seq[byte]): Future[void] =
   # Fast path: `{.async.}` would introduce a copy of `message`
   const FramingSize = 2 + sizeof(ChaChaPolyTag)
 

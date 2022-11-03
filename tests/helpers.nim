@@ -81,7 +81,7 @@ type
   TestBufferStream* = ref object of BufferStream
     writeHandler*: WriteHandler
 
-method write*(s: TestBufferStream, msg: seq[byte]): Future[void] =
+method write*(s: TestBufferStream, msg: sink seq[byte]): Future[void] =
   s.writeHandler(msg)
 
 proc new*(T: typedesc[TestBufferStream], writeHandler: WriteHandler): T =

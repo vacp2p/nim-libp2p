@@ -30,7 +30,7 @@ method readOnce*(
   self.activity = true
   return await self.conn.readOnce(pbytes, nbytes)
 
-method write*(self: RelayConnection, msg: seq[byte]): Future[void] {.async.} =
+method write*(self: RelayConnection, msg: sink seq[byte]): Future[void] {.async.} =
   self.dataSent.inc(msg.len)
   if self.limitData != 0 and self.dataSent > self.limitData:
     await self.close()

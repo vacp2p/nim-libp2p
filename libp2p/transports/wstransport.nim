@@ -83,7 +83,7 @@ method readOnce*(
 
 method write*(
   s: WsStream,
-  msg: seq[byte]): Future[void] {.async.} =
+  msg: sink seq[byte]): Future[void] {.async.} =
   mapExceptions(await s.session.send(msg, Opcode.Binary))
   s.activity = true # reset activity flag
 

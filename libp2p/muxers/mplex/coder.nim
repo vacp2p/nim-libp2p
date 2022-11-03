@@ -61,7 +61,7 @@ proc readMsg*(conn: Connection): Future[Msg] {.async, gcsafe.} =
 proc writeMsg*(conn: Connection,
                id: uint64,
                msgType: MessageType,
-               data: seq[byte] = @[]): Future[void] =
+               data: sink seq[byte] = @[]): Future[void] =
   var
     left = data.len
     offset = 0
