@@ -45,9 +45,9 @@ proc start*(self: TorServerStub, address: TransportAddress) {.async.} =
 
     msg = newSeq[byte](4)
     await connSrc.readExactly(addr msg[0], 4)
-    let atyp = int(uint8.fromBytes(msg[3..3]))
+    let atyp = msg[3]
     let address = case atyp:
-      of Socks5AddressType.IPv4.ord:
+      of Socks5AddressType.IPv4.byte:
         let n = 4 + 2 # +2 bytes for the port
         msg = newSeq[byte](n)
         await connSrc.readExactly(addr msg[0], n)
@@ -55,7 +55,7 @@ proc start*(self: TorServerStub, address: TransportAddress) {.async.} =
         for i, e in msg[0..^3]:
           ip[i] = e
         $(ipv4(ip)) & ":" & $(Port(fromBytesBE(uint16, msg[^2..^1])))
-      of Socks5AddressType.IPv6.ord:
+      of Socks5AddressType.IPv6.byte:
         let n = 16 + 2 # +2 bytes for the port
         msg = newSeq[byte](n) # +2 bytes for the port
         await connSrc.readExactly(addr msg[0], n)
@@ -63,7 +63,7 @@ proc start*(self: TorServerStub, address: TransportAddress) {.async.} =
         for i, e in msg[0..^3]:
           ip[i] = e
         $(ipv6(ip)) & ":" & $(Port(fromBytesBE(uint16, msg[^2..^1])))
-      of Socks5AddressType.FQDN.ord:
+      of Socks5AddressType.FQDN.byte:
         await connSrc.readExactly(addr msg[0], 1)
         let n = int(uint8.fromBytes(msg[0..0])) + 2 # +2 bytes for the port
         msg = newSeq[byte](n)

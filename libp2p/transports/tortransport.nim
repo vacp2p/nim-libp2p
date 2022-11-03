@@ -118,7 +118,7 @@ proc readServerReply(transp: StreamTransport) {.async, gcsafe.} =
   if serverReply != Socks5ReplyType.Succeeded.byte:
     var socks5ReplyType: Socks5ReplyType
     if socks5ReplyType.checkedEnumAssign(serverReply):
-      raise newException(Socks5ServerReplyError, fmt"Server reply error: {Socks5ReplyType(serverReply)}")
+      raise newException(Socks5ServerReplyError, fmt"Server reply error: {socks5ReplyType}")
     else:
       raise newException(LPError, fmt"Unexpected server reply: {serverReply}")
   let atyp = firstFourOctets[3]
@@ -128,23 +128,30 @@ proc readServerReply(transp: StreamTransport) {.async, gcsafe.} =
     of Socks5AddressType.FQDN.byte:
       let fqdnNumOctets = await transp.read(1)
       discard await transp.read(int(uint8.fromBytes(fqdnNumOctets)) + portNumOctets)
-    else:
+    of Socks5AddressType.IPv6.byte:
       discard await transp.read(ipV6NumOctets + portNumOctets)
+    else:
+      raise newException(LPError, "Address not supported")
 
-proc parseOnion3(address: MultiAddress): (byte, seq[byte], seq[byte]) =
+proc parseOnion3(address: MultiAddress): (byte, seq[byte], seq[byte]) {.raises: [LPError, ValueError].} =
+  var addressArray = ($address).split('/')
+  if addressArray.len < 2: raise newException(LPError, fmt"Onion address not supported {address}")
+  addressArray = addressArray[2].split(':')
+  if addressArray.len == 0: raise newException(LPError, fmt"Onion address not supported {address}")
   let
-    addressArray = ($address).split('/')
-    addressStr = addressArray[2].split(':')[0] & ".onion"
+    addressStr = addressArray[0] & ".onion"
     dstAddr = @(uint8(addressStr.len).toBytes()) & addressStr.toBytes()
     dstPort = address.data.buffer[37..38]
   return (Socks5AddressType.FQDN.byte, dstAddr, dstPort)
 
-proc parseIpTcp(address: MultiAddress): (byte, seq[byte], seq[byte]) =
-  let (codec, atyp) = 
+proc parseIpTcp(address: MultiAddress): (byte, seq[byte], seq[byte]) {.raises: [LPError, ValueError].} =
+  let (codec, atyp) =
     if IPv4Tcp.match(address):
       (multiCodec("ip4"), Socks5AddressType.IPv4.byte)
-    else:
+    elif IPv6Tcp.match(address):
       (multiCodec("ip6"), Socks5AddressType.IPv6.byte)
+    else:
+      raise newException(LPError, fmt"IP address not supported {address}")
   let
     dstAddr = address[codec].get().protoArgument().get()
     dstPort = address[multiCodec("tcp")].get().protoArgument().get()
@@ -159,9 +166,6 @@ proc parseDnsTcp(address: MultiAddress): (byte, seq[byte], seq[byte]) =
 
 proc dialPeer(
     transp: StreamTransport, address: MultiAddress) {.async, gcsafe.} =
-  # The address field contains a fully-qualified domain name.
-  # The first octet of the address field contains the number of octets of name that
-  # follow, there is no terminating NUL octet.
   let (atyp, dstAddr, dstPort) =
     if Onion3.match(address):
       parseOnion3(address)
@@ -188,7 +192,7 @@ method dial*(
   ## dial a peer
   ##
   if not handlesDial(address):
-    raise newException(LPError, fmt"Not supported address: {address}")
+    raise newException(LPError, fmt"Address not supported: {address}")
   trace "Dialing remote peer", address = $address
   let transp = await connectToTorServer(self.transportAddress)
 
