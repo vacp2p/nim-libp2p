@@ -80,7 +80,7 @@ type
     opened*: uint64
     closed*: uint64
 
-proc setupStreamTracker(name: string): StreamTracker =
+proc setupStreamTracker*(name: string): StreamTracker =
   let tracker = new StreamTracker
 
   proc dumpTracking(): string {.gcsafe.} =

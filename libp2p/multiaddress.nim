@@ -470,6 +470,8 @@ const
   WS* = mapAnd(TCP, mapEq("ws"))
   WSS* = mapAnd(TCP, mapEq("wss"))
   WebSockets* = mapOr(WS, WSS)
+  Onion3* = mapEq("onion3")
+  TcpOnion3* = mapAnd(TCP, Onion3)
 
   Unreliable* = mapOr(UDP)
 

@@ -23,6 +23,7 @@ import testmultibase,
        testrouting_record
 
 import testtcptransport,
+       testtortransport,
        testnameresolve,
        testwstransport,
        testmultistream,
