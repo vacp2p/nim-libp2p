@@ -22,7 +22,7 @@ import messages,
 
 
 logScope:
-  topics = "pubsubprotobuf"
+  topics = "libp2p pubsubprotobuf"
 
 when defined(libp2p_protobuf_metrics):
   import metrics
