@@ -16,8 +16,7 @@ requires "nim >= 1.2.0",
          "metrics",
          "secp256k1",
          "stew#head",
-         "websock",
-         "nimPNG#head" # this is to fix broken build on 1.7.3, remove it when this lib version 0.3.2 or later is released
+         "websock"
 
 proc runTest(filename: string, verify: bool = true, sign: bool = true,
              moreoptions: string = "") =
@@ -109,6 +108,7 @@ task examples_build, "Build the samples":
     buildSample("tutorial_4_gossipsub", true)
     buildSample("tutorial_5_discovery", true)
     # Nico doesn't work in 1.2
+    exec "nimble install -y nimpng@#HEAD" # this is to fix broken build on 1.7.3, remove it when nimpng version 0.3.2 or later is released
     exec "nimble install -y nico"
     buildSample("tutorial_6_game", false, "--styleCheck:off")
 
