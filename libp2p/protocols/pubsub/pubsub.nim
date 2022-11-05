@@ -130,7 +130,7 @@ type
 
     knownTopics*: HashSet[string]
 
-method unsubscribePeer*(p: PubSub, peerId: PeerId) {.base.} =
+method unsubscribePeer*(p: PubSub, peerId: PeerId) {.base, gcsafe.} =
   ## handle peer disconnects
   ##
 
@@ -377,7 +377,7 @@ method handleConn*(p: PubSub,
   finally:
     await conn.closeWithEOF()
 
-method subscribePeer*(p: PubSub, peer: PeerId) {.base.} =
+method subscribePeer*(p: PubSub, peer: PeerId) {.base, gcsafe.} =
   ## subscribe to remote peer to receive/send pubsub
   ## messages
   ##
@@ -400,7 +400,7 @@ proc updateTopicMetrics(p: PubSub, topic: string) =
 
     libp2p_pubsub_topic_handlers.set(others, labelValues = ["other"])
 
-method onTopicSubscription*(p: PubSub, topic: string, subscribed: bool) {.base.} =
+method onTopicSubscription*(p: PubSub, topic: string, subscribed: bool) {.base, gcsafe.} =
   # Called when subscribe is called the first time for a topic or unsubscribe
   # removes the last handler
 
@@ -433,7 +433,7 @@ proc unsubscribe*(p: PubSub, topics: openArray[TopicPair]) {.public.} =
   for t in topics:
     p.unsubscribe(t.topic, t.handler)
 
-proc unsubscribeAll*(p: PubSub, topic: string) {.public.} =
+proc unsubscribeAll*(p: PubSub, topic: string) {.public, gcsafe.} =
   ## unsubscribe every `handler` from `topic`
   if topic notin p.topics:
     debug "unsubscribeAll called for an unknown topic", topic
@@ -495,7 +495,7 @@ method initPubSub*(p: PubSub)
 
 method addValidator*(p: PubSub,
                      topic: varargs[string],
-                     hook: ValidatorHandler) {.base, public.} =
+                     hook: ValidatorHandler) {.base, public, gcsafe.} =
   ## Add a validator to a `topic`. Each new message received in this
   ## will be sent to `hook`. `hook` can return either `Accept`,
   ## `Ignore` or `Reject` (which can descore the peer)
