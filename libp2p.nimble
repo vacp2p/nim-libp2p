@@ -16,7 +16,8 @@ requires "nim >= 1.2.0",
          "metrics",
          "secp256k1",
          "stew#head",
-         "websock"
+         "websock",
+         "unittest2 >= 0.0.5 & < 0.1.0"
 
 proc runTest(filename: string, verify: bool = true, sign: bool = true,
              moreoptions: string = "") =
