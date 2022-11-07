@@ -256,7 +256,7 @@ method accept*(self: WsTransport): Future[Connection] {.async, gcsafe.} =
 
     try:
       let
-        wstransp = await self.wsserver.handleRequest(req)
+        wstransp = await self.wsserver.handleRequest(req).wait(self.handshakeTimeout)
         isSecure = self.httpservers[index].secure
 
       return await self.connHandler(wstransp, isSecure, Direction.In)
@@ -273,6 +273,8 @@ method accept*(self: WsTransport): Future[Connection] {.async, gcsafe.} =
     debug "AsyncStream Error", exc = exc.msg
   except TransportTooManyError as exc:
     debug "Too many files opened", exc = exc.msg
+  except AsyncTimeoutError as exc:
+    debug "Timed out", exc = exc.msg
   except TransportUseClosedError as exc:
     debug "Server was closed", exc = exc.msg
     raise newTransportClosedError(exc)
