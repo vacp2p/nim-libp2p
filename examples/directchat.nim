@@ -5,8 +5,8 @@ import
   strformat, strutils,
   stew/byteutils,
   chronos,
-  ../libp2p,
-  ../libp2p/protocols/connectivity/nat_auto_mapper
+  libp2p,
+  libp2p/protocols/connectivity/nat_auto_mapper
 
 const DefaultAddr = "/ip4/0.0.0.0/tcp/0"
 

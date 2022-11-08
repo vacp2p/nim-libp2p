@@ -9,6 +9,7 @@
 
 ## Length Prefixed stream implementation
 
+{.push gcsafe.}
 when (NimMajor, NimMinor) < (1, 4):
   {.push raises: [Defect].}
 else:
@@ -79,7 +80,7 @@ type
     opened*: uint64
     closed*: uint64
 
-proc setupStreamTracker(name: string): StreamTracker =
+proc setupStreamTracker*(name: string): StreamTracker =
   let tracker = new StreamTracker
 
   proc dumpTracking(): string {.gcsafe.} =

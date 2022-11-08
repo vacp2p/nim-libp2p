@@ -7,12 +7,14 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
+{.push gcsafe.}
 when (NimMajor, NimMinor) < (1, 4):
   {.push raises: [Defect].}
 else:
   {.push raises: [].}
 
 import std/[strformat]
+import stew/results
 import chronos, chronicles
 import ../protocol,
        ../../stream/streamseq,
@@ -21,7 +23,7 @@ import ../protocol,
        ../../peerinfo,
        ../../errors
 
-export protocol
+export protocol, results
 
 logScope:
   topics = "libp2p secure"
@@ -48,7 +50,7 @@ chronicles.formatIt(SecureConn): shortLog(it)
 proc new*(T: type SecureConn,
            conn: Connection,
            peerId: PeerId,
-           observedAddr: MultiAddress,
+           observedAddr: Opt[MultiAddress],
            timeout: Duration = DefaultConnectionTimeout): T =
   result = T(stream: conn,
              peerId: peerId,

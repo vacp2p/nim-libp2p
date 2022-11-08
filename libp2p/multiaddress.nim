@@ -470,6 +470,8 @@ const
   WS* = mapAnd(TCP, mapEq("ws"))
   WSS* = mapAnd(TCP, mapEq("wss"))
   WebSockets* = mapOr(WS, WSS)
+  Onion3* = mapEq("onion3")
+  TcpOnion3* = mapAnd(TCP, Onion3)
 
   Unreliable* = mapOr(UDP)
 
@@ -516,15 +518,10 @@ proc trimRight(s: string, ch: char): string =
       break
   result = s[0..(s.high - m)]
 
-proc shcopy*(m1: var MultiAddress, m2: MultiAddress) =
-  shallowCopy(m1.data.buffer, m2.data.buffer)
-  m1.data.offset = m2.data.offset
-
 proc protoCode*(ma: MultiAddress): MaResult[MultiCodec] =
   ## Returns MultiAddress ``ma`` protocol code.
   var header: uint64
-  var vb: MultiAddress
-  shcopy(vb, ma)
+  var vb = ma
   if vb.data.readVarint(header) == -1:
     err("multiaddress: Malformed binary address!")
   else:
@@ -537,8 +534,7 @@ proc protoCode*(ma: MultiAddress): MaResult[MultiCodec] =
 proc protoName*(ma: MultiAddress): MaResult[string] =
   ## Returns MultiAddress ``ma`` protocol name.
   var header: uint64
-  var vb: MultiAddress
-  shcopy(vb, ma)
+  var vb = ma
   if vb.data.readVarint(header) == -1:
     err("multiaddress: Malformed binary address!")
   else:
@@ -555,9 +551,8 @@ proc protoArgument*(ma: MultiAddress,
   ## If current MultiAddress do not have argument value, then result will be
   ## ``0``.
   var header: uint64
-  var vb: MultiAddress
+  var vb = ma
   var buffer: seq[byte]
-  shcopy(vb, ma)
   if vb.data.readVarint(header) == -1:
     err("multiaddress: Malformed binary address!")
   else:
@@ -594,6 +589,13 @@ proc protoAddress*(ma: MultiAddress): MaResult[seq[byte]] =
   buffer.setLen(res)
   ok(buffer)
 
+proc protoArgument*(ma: MultiAddress): MaResult[seq[byte]] =
+  ## Returns MultiAddress ``ma`` protocol address binary blob.
+  ##
+  ## If current MultiAddress do not have argument value, then result array will
+  ## be empty.
+  ma.protoAddress()
+
 proc getPart(ma: MultiAddress, index: int): MaResult[MultiAddress] =
   var header: uint64
   var data = newSeq[byte]()
@@ -601,6 +603,9 @@ proc getPart(ma: MultiAddress, index: int): MaResult[MultiAddress] =
   var vb = ma
   var res: MultiAddress
   res.data = initVBuffer()
+
+  if index < 0: return err("multiaddress: negative index gived to getPart")
+
   while offset <= index:
     if vb.data.readVarint(header) == -1:
       return err("multiaddress: Malformed binary address!")
@@ -647,9 +652,13 @@ proc getParts[U, V](ma: MultiAddress, slice: HSlice[U, V]): MaResult[MultiAddres
     ? res.append(? ma[i])
   ok(res)
 
-proc `[]`*(ma: MultiAddress, i: int): MaResult[MultiAddress] {.inline.} =
+proc `[]`*(ma: MultiAddress, i: int | BackwardsIndex): MaResult[MultiAddress] {.inline.} =
   ## Returns part with index ``i`` of MultiAddress ``ma``.
-  ma.getPart(i)
+  when i is BackwardsIndex:
+    let maLength = ? len(ma)
+    ma.getPart(maLength - int(i))
+  else:
+    ma.getPart(i)
 
 proc `[]`*(ma: MultiAddress, slice: HSlice): MaResult[MultiAddress] {.inline.} =
   ## Returns parts with slice ``slice`` of MultiAddress ``ma``.
@@ -778,8 +787,7 @@ proc encode*(mbtype: typedesc[MultiBase], encoding: string,
 proc validate*(ma: MultiAddress): bool =
   ## Returns ``true`` if MultiAddress ``ma`` is valid.
   var header: uint64
-  var vb: MultiAddress
-  shcopy(vb, ma)
+  var vb = ma
   while true:
     if vb.data.isEmpty():
       break
@@ -1077,6 +1085,9 @@ proc `$`*(pat: MaPattern): string =
     result = "(" & sub.join("|") & ")"
   elif pat.operator == Eq:
     result = $pat.value
+
+proc bytes*(value: MultiAddress): seq[byte] =
+  value.data.buffer
 
 proc write*(pb: var ProtoBuffer, field: int, value: MultiAddress) {.inline.} =
   write(pb, field, value.data.buffer)

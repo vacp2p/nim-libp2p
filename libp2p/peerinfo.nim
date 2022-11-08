@@ -15,7 +15,7 @@ else:
 
 import std/[options, sequtils]
 import pkg/[chronos, chronicles, stew/results]
-import peerid, multiaddress, crypto/crypto, routing_record, errors, utility
+import peerid, multiaddress, multicodec, crypto/crypto, routing_record, errors, utility
 
 export peerid, multiaddress, crypto, routing_record, errors, results
 
@@ -68,6 +68,27 @@ proc update*(p: PeerInfo) {.async.} =
 
 proc addrs*(p: PeerInfo): seq[MultiAddress] =
   p.addrs
+
+proc fullAddrs*(p: PeerInfo): MaResult[seq[MultiAddress]] =
+  let peerIdPart = ? MultiAddress.init(multiCodec("p2p"), p.peerId.data)
+  var res: seq[MultiAddress]
+  for address in p.addrs:
+    res.add(? concat(address, peerIdPart))
+  ok(res)
+
+proc parseFullAddress*(ma: MultiAddress): MaResult[(PeerId, MultiAddress)] =
+  let p2pPart = ? ma[^1]
+  if ? p2pPart.protoCode != multiCodec("p2p"):
+    return err("Missing p2p part from multiaddress!")
+
+  let res = (
+    ? PeerId.init(? p2pPart.protoArgument()).orErr("invalid peerid"),
+    ? ma[0 .. ^2]
+  )
+  ok(res)
+
+proc parseFullAddress*(ma: string | seq[byte]): MaResult[(PeerId, MultiAddress)] =
+  parseFullAddress(? MultiAddress.init(ma))
 
 proc new*(
   p: typedesc[PeerInfo],

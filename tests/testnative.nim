@@ -23,6 +23,7 @@ import testmultibase,
        testrouting_record
 
 import testtcptransport,
+       testtortransport,
        testnameresolve,
        testwstransport,
        testmultistream,
@@ -37,5 +38,7 @@ import testtcptransport,
        testmplex,
        testrelayv1,
        testrelayv2,
+       testrendezvous,
+       testdiscovery,
        testyamux,
        testautonat

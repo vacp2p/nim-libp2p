@@ -125,7 +125,8 @@ suite "TCP transport":
     server.close()
     await server.join()
 
+  proc transProvider(): Transport = TcpTransport.new(upgrade = Upgrade())
+
   commonTransportTest(
-    "TcpTransport",
-    proc (): Transport = TcpTransport.new(upgrade = Upgrade()),
+    transProvider,
     "/ip4/0.0.0.0/tcp/0")
