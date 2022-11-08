@@ -35,13 +35,17 @@ logScope:
 export transport, websock, results
 
 const
-  WsTransportTrackerName* = "libp2p.wstransport"
-
   DefaultHeadersTimeout = 3.seconds
 
 type
   WsStream = ref object of Connection
     session: WSSession
+
+method initStream*(s: WsStream) =
+  if s.objName.len == 0:
+    s.objName = "WsStream"
+
+  procCall Connection(s).initStream()
 
 proc new*(T: type WsStream,
            session: WSSession,
@@ -129,7 +133,7 @@ method start*(
     factories = self.factories,
     rng = self.rng)
 
-  
+
   for i, ma in addrs:
     let isWss =
       if WSS.match(ma):
