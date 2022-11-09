@@ -2,11 +2,11 @@
   <a href="https://libp2p.io"><img width="250" src="./.assets/full-logo.svg?raw=true" alt="nim-libp2p logo" /></a>
 </h1>
 
-<h3 align="center">The Nim implementation of the libp2p Networking Stack.</h3>
+<h3 align="center">The <a href="https://nim-lang.org/">Nim</a> implementation of the <a href="https://libp2p.io/">libp2p</a> Networking Stack.</h3>
 
 <p align="center">
 <a href="https://github.com/status-im/nim-libp2p/actions"><img src="https://github.com/status-im/nim-libp2p/actions/workflows/ci.yml/badge.svg" /></a>
-<a href="https://codecov.io/gh/status-im/nim-libp2p"><img src="https://codecov.io/gh/status-im/nim-libp2p/branch/master/graph/badge.svg?token=UR5JRQ249W"/></a>
+<a href="https://codecov.io/gh/status-im/nim-libp2p"><img src="https://codecov.io/gh/status-im/nim-libp2p/branch/unstable/graph/badge.svg?token=UR5JRQ249W"/></a>
 
 </p>
 
@@ -39,7 +39,7 @@ libp2p is the product of a long and arduous quest of understanding; a deep dive 
 libp2p grew out of IPFS, but it is built so that lots of people can use it, for lots of different projects.
 
 - Learn more about libp2p at [**libp2p.io**](https://libp2p.io) and follow our evolving documentation efforts at [**docs.libp2p.io**](https://docs.libp2p.io).
-- [Here](https://github.com/libp2p/libp2p#description) is an overview of libp2p and its implementations in other programming languages.
+- [Here](https://github.com/libp2p/libp2p#implementations) is a list of its implementations in other programming languages.
 
 ## Install
 **Prerequisite**
@@ -63,25 +63,28 @@ List of packages modules implemented in nim-libp2p:
 | **Libp2p**                                                 |                                                                                                                  |
 | [libp2p](libp2p/switch.nim)                                | The core of the project                                                                                          |
 | [connmanager](libp2p/connmanager.nim)                      | Connection manager                                                                                               |
-| [identify / push identify](libp2p/protocols/identify.nim)  | [Identify](https://docs.libp2p.io/concepts/protocols/#identify) protocol                                         |
-| [ping](libp2p/protocols/ping.nim)                          | [Ping](https://docs.libp2p.io/concepts/protocols/#ping) protocol                                                 |
+| [identify / push identify](libp2p/protocols/identify.nim)  | [Identify](https://docs.libp2p.io/concepts/fundamentals/protocols/#identify) protocol                            |
+| [ping](libp2p/protocols/ping.nim)                          | [Ping](https://docs.libp2p.io/concepts/fundamentals/protocols/#ping) protocol                                    |
 | [libp2p-daemon-client](libp2p/daemon/daemonapi.nim)        | [go-daemon](https://github.com/libp2p/go-libp2p-daemon) nim wrapper                                              |
 | [interop-libp2p](tests/testinterop.nim)                    | Interop tests                                                                                                    |
 | **Transports**                                             |                                                                                                                  |
 | [libp2p-tcp](libp2p/transports/tcptransport.nim)           | TCP transport                                                                                                    |
 | [libp2p-ws](libp2p/transports/wstransport.nim)             | WebSocket & WebSocket Secure transport                                                                           |
+| [libp2p-tor](libp2p/transports/tortransport.nim)           | Tor Transport                                                                                                    |
 | **Secure Channels**                                        |                                                                                                                  |
-| [libp2p-secio](libp2p/protocols/secure/secio.nim)          | [Secio](https://docs.libp2p.io/concepts/protocols/#secio) secure channel                                         |
-| [libp2p-noise](libp2p/protocols/secure/noise.nim)          | [Noise](https://github.com/libp2p/specs/tree/master/noise) secure channel                                        |
-| [libp2p-plaintext](libp2p/protocols/secure/plaintext.nim)  | [Plain Text](https://github.com/libp2p/specs/tree/master/plaintext) for development purposes                     |
+| [libp2p-secio](libp2p/protocols/secure/secio.nim)          | Secio secure channel                                                                                             |
+| [libp2p-noise](libp2p/protocols/secure/noise.nim)          | [Noise](https://docs.libp2p.io/concepts/secure-comm/noise/) secure channel                                       |
+| [libp2p-plaintext](libp2p/protocols/secure/plaintext.nim)  | Plain Text for development purposes                                                                              |
 | **Stream Multiplexers**                                    |                                                                                                                  |
 | [libp2p-mplex](libp2p/muxers/mplex/mplex.nim)              | [MPlex](https://github.com/libp2p/specs/tree/master/mplex) multiplexer                                           |
+| [libp2p-yamux](libp2p/muxers/yamux/yamux.nim)              | [Yamux](https://docs.libp2p.io/concepts/multiplex/yamux/) multiplexer                                            |
 | **Data Types**                                             |                                                                                                                  |
-| [peer-id](libp2p/peerid.nim)                               | [Cryptographic identifiers](https://docs.libp2p.io/concepts/peer-id/)                                            |
-| [peer-store](libp2p/peerstore.nim)                         | ["Phone book" of known peers](https://docs.libp2p.io/concepts/peer-id/#peerinfo)                                 |
+| [peer-id](libp2p/peerid.nim)                               | [Cryptographic identifiers](https://docs.libp2p.io/concepts/fundamentals/peers/#peer-id)                         |
+| [peer-store](libp2p/peerstore.nim)                         | ["Phone book" of known peers](https://docs.libp2p.io/concepts/fundamentals/peers/#peer-store)                    |
 | [multiaddress](libp2p/multiaddress.nim)                    | [Composable network addresses](https://github.com/multiformats/multiaddr)                                        |
 | [signed envelope](libp2p/signed_envelope.nim)              | [Signed generic data container](https://github.com/libp2p/specs/blob/master/RFC/0002-signed-envelopes.md)        |
 | [routing record](libp2p/routing_record.nim)                | [Signed peer dialing informations](https://github.com/libp2p/specs/blob/master/RFC/0003-routing-records.md)      |
+| [discovery manager](libp2p/discovery/discoverymngr.nim)    | Discovery Manager                                                                                                |
 | **Utilities**                                              |                                                                                                                  |
 | [libp2p-crypto](libp2p/crypto)                             | Cryptographic backend                                                                                            |
 | [libp2p-crypto-secp256k1](libp2p/crypto/secp.nim)          |                                                                                                                  |
@@ -114,6 +117,7 @@ Clone and Install dependencies:
 git clone https://github.com/status-im/nim-libp2p
 cd nim-libp2p
 nimble install -dy
+# or use `nimble install_pinned` to install the dependencies versions used in CI
 ```
 
 Run unit tests:
