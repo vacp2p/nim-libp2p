@@ -136,7 +136,7 @@ The libp2p implementation in Nim is a work in progress. We welcome contributors 
 The code follows the [Status Nim Style Guide](https://status-im.github.io/nim-style-guide/).
 
 ### Contributors
-<img src="https://contrib.rocks/image?repo=status-im/nim-libp2p" alt="nim-libp2p contributors">
+<a href="https://github.com/status-im/nim-libp2p/graphs/contributors"><img src="https://contrib.rocks/image?repo=status-im/nim-libp2p" alt="nim-libp2p contributors"></a>
 
 ### Core Maintainers
 <table>
