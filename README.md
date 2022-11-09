@@ -16,19 +16,17 @@
 <img src="https://img.shields.io/badge/nim-%3E%3D1.2.0-orange.svg?style=flat-square" />
 </p>
 
-## Introduction
-
-An implementation of [libp2p](https://libp2p.io/) in [Nim](https://nim-lang.org/).
-
 # Table of Contents
 - [Background](#background)
 - [Install](#install)
 - [Getting Started](#getting-started)
 - [Modules](#modules)
 - [Users](#users)
+- [Stability](#stability)
 - [Development](#development)
   - [Contribute](#contribute)
-  - [Core Developers](#core-developers)
+  - [Contributors](#contributors)
+  - [Core Maintainers](#core-maintainers)
 - [License](#license)
 
 ## Background
@@ -137,8 +135,19 @@ The libp2p implementation in Nim is a work in progress. We welcome contributors 
 
 The code follows the [Status Nim Style Guide](https://status-im.github.io/nim-style-guide/).
 
-### Core Developers
-[@cheatfate](https://github.com/cheatfate), [Dmitriy Ryajov](https://github.com/dryajov), [Tanguy](https://github.com/Menduist), [Zahary Karadjov](https://github.com/zah)
+### Contributors
+<img src="https://contrib.rocks/image?repo=status-im/nim-libp2p" alt="nim-libp2p contributors">
+
+### Core Maintainers
+<table>
+  <tbody>
+    <tr>
+      <td align="center"><a href="https://github.com/Menduist"><img src="https://avatars.githubusercontent.com/u/13471753?v=4?s=100" width="100px;" alt="Tanguy"/><br /><sub><b>Tanguy (Menduist)</b></sub></a></td>
+      <td align="center"><a href="https://github.com/lchenut"><img src="https://avatars.githubusercontent.com/u/11214565?v=4?s=100" width="100px;" alt="Ludovic"/><br /><sub><b>Ludovic</b></sub></a></td>
+      <td align="center"><a href="https://github.com/diegomrsantos"><img src="https://avatars.githubusercontent.com/u/7316595?v=4?s=100" width="100px;" alt="Diego"/><br /><sub><b>Diego</b></sub></a></td>
+    </tr>
+  </tbody>
+</table>
 
 ### Compile time flags
 
