@@ -6,7 +6,7 @@
 
 <p align="center">
 <a href="https://github.com/status-im/nim-libp2p/actions"><img src="https://github.com/status-im/nim-libp2p/actions/workflows/ci.yml/badge.svg" /></a>
-<a href="https://codecov.io/gh/status-im/nim-libp2p"><img src="https://codecov.io/gh/status-im/nim-libp2p/branch/unstable/graph/badge.svg?token=UR5JRQ249W"/></a>
+<a href="https://codecov.io/gh/status-im/nim-libp2p"><img src="https://codecov.io/gh/status-im/nim-libp2p/branch/master/graph/badge.svg?token=UR5JRQ249W"/></a>
 
 </p>
 
@@ -30,14 +30,12 @@
 - [License](#license)
 
 ## Background
-libp2p is a networking stack and library modularized out of [The IPFS Project](https://github.com/ipfs/ipfs), and bundled separately for other tools to use.
+libp2p is a [Peer-to-Peer](https://en.wikipedia.org/wiki/Peer-to-peer) networking stack, with [implementations](https://github.com/libp2p/libp2p#implementations) in multiple languages derived from the same [specifications.](https://github.com/libp2p/specs)
 
-libp2p is the product of a long and arduous quest of understanding; a deep dive into the internet's network stack and the peer-to-peer protocols from the past. Building large scale peer-to-peer systems has been complex and difficult in the last 15 years and libp2p is a way to fix that. It is a "network stack", a suite of networking protocols that cleanly separates concerns and enables sophisticated applications to only use the protocols they absolutely need, without giving up interoperability and upgradeability.
+Building large scale peer-to-peer systems has been complex and difficult in the last 15 years and libp2p is a way to fix that. It's striving to be a modular stack, with sane and secure defaults, useful protocols, while remain open and extensible.
+This implementation in native Nim, relying on [chronos](https://github.com/status-im/nim-chronos) for async. It's used in production by a few [projects](#users)
 
-libp2p grew out of IPFS, but it is built so that lots of people can use it, for lots of different projects.
-
-- Learn more about libp2p at [**libp2p.io**](https://libp2p.io) and follow our evolving documentation efforts at [**docs.libp2p.io**](https://docs.libp2p.io).
-- [Here](https://github.com/libp2p/libp2p#implementations) is a list of its implementations in other programming languages.
+Learn more about libp2p at [**libp2p.io**](https://libp2p.io) and follow libp2p's documentation [**docs.libp2p.io**](https://docs.libp2p.io).
 
 ## Install
 **Prerequisite**
@@ -47,7 +45,7 @@ nimble install libp2p
 ```
 
 ## Getting Started
-You'll find the documentation [here](https://status-im.github.io/nim-libp2p/docs/).
+You'll find the nim-libp2p documentation [here](https://status-im.github.io/nim-libp2p/docs/).
 
 **Go Daemon:**
 Please find the installation and usage intructions in [daemonapi.md](examples/go-daemon/daemonapi.md).
@@ -78,7 +76,7 @@ List of packages modules implemented in nim-libp2p:
 | [libp2p-yamux](libp2p/muxers/yamux/yamux.nim)              | [Yamux](https://docs.libp2p.io/concepts/multiplex/yamux/) multiplexer                                            |
 | **Data Types**                                             |                                                                                                                  |
 | [peer-id](libp2p/peerid.nim)                               | [Cryptographic identifiers](https://docs.libp2p.io/concepts/fundamentals/peers/#peer-id)                         |
-| [peer-store](libp2p/peerstore.nim)                         | ["Phone book" of known peers](https://docs.libp2p.io/concepts/fundamentals/peers/#peer-store)                    |
+| [peer-store](libp2p/peerstore.nim)                         | ["Address book" of known peers](https://docs.libp2p.io/concepts/fundamentals/peers/#peer-store)                  |
 | [multiaddress](libp2p/multiaddress.nim)                    | [Composable network addresses](https://github.com/multiformats/multiaddr)                                        |
 | [signed envelope](libp2p/signed_envelope.nim)              | [Signed generic data container](https://github.com/libp2p/specs/blob/master/RFC/0002-signed-envelopes.md)        |
 | [routing record](libp2p/routing_record.nim)                | [Signed peer dialing informations](https://github.com/libp2p/specs/blob/master/RFC/0003-routing-records.md)      |
@@ -114,8 +112,10 @@ Clone and Install dependencies:
 ```sh
 git clone https://github.com/status-im/nim-libp2p
 cd nim-libp2p
+# to use dependencies computed by nimble
 nimble install -dy
-# or use `nimble install_pinned` to install the dependencies versions used in CI
+# OR to install the dependencies versions used in CI
+nimble install_pinned
 ```
 
 Run unit tests:
