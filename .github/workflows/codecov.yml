@@ -26,13 +26,11 @@ jobs:
           export PATH="$PATH:$PWD/Nim/bin"
           nimble install_pinned
           export NIMFLAGS="--lineDir:on --nimcache:nimcache --passC:-fprofile-arcs --passC:-ftest-coverage --passL:-fprofile-arcs --passL:-ftest-coverage"
-          lcov --capture --initial --directory nimcache --output-file coverage/coverage_base.info
           nimble testnative
           nimble testpubsub
           nimble testfilter
           cd nimcache; rm *.c; cd ..
-          lcov --capture --directory nimcache --output-file coverage/coverage_tests.info
-          lcov --add-tracefile coverage/coverage_base.info --add-tracefile coverage/coverage_tests.info --output-file coverage/coverage.info
+          lcov --capture --directory nimcache --output-file coverage/coverage.info
           shopt -s globstar
           ls `pwd`/libp2p/{*,**/*}.nim
           lcov --extract coverage/coverage.info  `pwd`/libp2p/{*,**/*}.nim --output-file coverage/coverage.f.info
