@@ -19,8 +19,7 @@ export results, utility
 
 {.push public.}
 
-const
-  MaxMessageSize* = 1'u shl 22
+const MaxMessageSize = 1'u shl 22
 
 type
   ProtoFieldKind* = enum
