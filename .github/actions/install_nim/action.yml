@@ -15,12 +15,10 @@ inputs:
 
 runs:
   using: "composite"
-  defaults:
-    run:
-      shell: ${{ input.shell }}
   steps:
     - name: Install build dependencies (Linux i386)
-      if: input.os == 'Linux' && input.cpu == 'i386'
+      shell: ${{ inputs.shell }}
+      if: inputs.os == 'Linux' && inputs.cpu == 'i386'
       run: |
         sudo dpkg --add-architecture i386
         sudo apt-get update -qq
@@ -40,7 +38,8 @@ runs:
         echo '${{ github.workspace }}/external/bin' >> $GITHUB_PATH
 
     - name: MSYS2 (Windows i386)
-      if: input.os == 'Windows' && input.cpu == 'i386'
+      shell: ${{ inputs.shell }}
+      if: inputs.os == 'Windows' && inputs.cpu == 'i386'
       uses: msys2/setup-msys2@v2
       with:
         path-type: inherit
@@ -51,7 +50,8 @@ runs:
           mingw-w64-i686-toolchain
 
     - name: MSYS2 (Windows amd64)
-      if: input.os == 'Windows' && input.cpu == 'amd64'
+      shell: ${{ inputs.shell }}
+      if: inputs.os == 'Windows' && inputs.cpu == 'amd64'
       uses: msys2/setup-msys2@v2
       with:
         path-type: inherit
@@ -61,7 +61,8 @@ runs:
           mingw-w64-x86_64-toolchain
 
     - name: Restore Nim DLLs dependencies (Windows) from cache
-      if: input.os == 'Windows'
+      shell: ${{ inputs.shell }}
+      if: inputs.os == 'Windows'
       id: windows-dlls-cache
       uses: actions/cache@v3
       with:
@@ -69,23 +70,26 @@ runs:
         key: 'dlls'
 
     - name: Install DLL dependencies (Windows)
+      shell: ${{ inputs.shell }}
       if: >
         steps.windows-dlls-cache.outputs.cache-hit != 'true' &&
-        input.os == 'Windows'
+        inputs.os == 'Windows'
       run: |
         mkdir external
         curl -L "https://nim-lang.org/download/windeps.zip" -o external/windeps.zip
         7z x external/windeps.zip -oexternal/dlls
 
     - name: Path to cached dependencies (Windows)
+      shell: ${{ inputs.shell }}
       if: >
-        input.os == 'Windows'
+        inputs.os == 'Windows'
       run: |
         echo '${{ github.workspace }}'"/external/dlls" >> $GITHUB_PATH
 
     - name: Derive environment variables
+      shell: ${{ inputs.shell }}
       run: |
-        if [[ '${{ input.cpu }}' == 'amd64' ]]; then
+        if [[ '${{ inputs.cpu }}' == 'amd64' ]]; then
           PLATFORM=x64
         else
           PLATFORM=x86
@@ -94,7 +98,7 @@ runs:
 
         ncpu=
         MAKE_CMD="make"
-        case '${{ input.os }}' in
+        case '${{ inputs.os }}' in
         'Linux')
           ncpu=$(nproc)
           ;;
@@ -121,6 +125,7 @@ runs:
 
     - name: Build Nim and Nimble
       if: steps.nim-cache.outputs.cache-hit != 'true'
+      shell: ${{ inputs.shell }}
       run: |
         curl -O -L -s -S https://raw.githubusercontent.com/status-im/nimbus-build-system/master/scripts/build_nim.sh
         env MAKE="${MAKE_CMD} -j${ncpu}" ARCH_OVERRIDE=${PLATFORM} NIM_COMMIT=${{ inputs.nim_branch }} \
