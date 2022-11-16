@@ -15,6 +15,9 @@ inputs:
 
 runs:
   using: "composite"
+  defaults:
+    run:
+      shell: ${{ input.shell }}
   steps:
     - name: Install build dependencies (Linux i386)
       if: input.os == 'Linux' && input.cpu == 'i386'
