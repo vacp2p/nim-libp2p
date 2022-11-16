@@ -10,8 +10,10 @@ on:
   workflow_dispatch:
 
 jobs:
-  GossipSub:
+  Coverage:
     runs-on: ubuntu-20.04
+    env:
+      CICOV: YES
     steps:
       - uses: actions/checkout@v2
         with:
@@ -25,7 +27,7 @@ jobs:
           env MAKE="make -j${NPROC}" bash build_nim.sh Nim csources dist/nimble NimBinaries
           export PATH="$PATH:$PWD/Nim/bin"
           nimble install_pinned
-          export NIMFLAGS="--lineDir:on --nimcache:nimcache --passC:-fprofile-arcs --passC:-ftest-coverage --passL:-fprofile-arcs --passL:-ftest-coverage"
+          export NIMFLAGS="--lineDir:on --passC:-fprofile-arcs --passC:-ftest-coverage --passL:-fprofile-arcs --passL:-ftest-coverage"
           nimble testnative
           nimble testpubsub
           nimble testfilter
