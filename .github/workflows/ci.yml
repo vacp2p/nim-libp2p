@@ -59,7 +59,8 @@ jobs:
       - name: Setup Nim
         uses: "./.github/actions/install_nim"
         with:
-          os: ${{ matrix.os }}
+          os: ${{ matrix.target.os }}
+          cpu: ${{ matrix.target.cpu }}
           shell: ${{ matrix.shell }}
           nim_branch: ${{ matrix.branch }}
 
