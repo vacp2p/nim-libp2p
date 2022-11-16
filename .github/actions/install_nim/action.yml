@@ -38,7 +38,6 @@ runs:
         echo '${{ github.workspace }}/external/bin' >> $GITHUB_PATH
 
     - name: MSYS2 (Windows i386)
-      shell: ${{ inputs.shell }}
       if: inputs.os == 'Windows' && inputs.cpu == 'i386'
       uses: msys2/setup-msys2@v2
       with:
@@ -50,7 +49,6 @@ runs:
           mingw-w64-i686-toolchain
 
     - name: MSYS2 (Windows amd64)
-      shell: ${{ inputs.shell }}
       if: inputs.os == 'Windows' && inputs.cpu == 'amd64'
       uses: msys2/setup-msys2@v2
       with:
@@ -61,7 +59,6 @@ runs:
           mingw-w64-x86_64-toolchain
 
     - name: Restore Nim DLLs dependencies (Windows) from cache
-      shell: ${{ inputs.shell }}
       if: inputs.os == 'Windows'
       id: windows-dlls-cache
       uses: actions/cache@v3
