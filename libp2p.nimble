@@ -19,6 +19,7 @@ requires "nim >= 1.2.0",
          "websock",
          "unittest2 >= 0.0.5 & < 0.1.0"
 
+import hashes
 proc runTest(filename: string, verify: bool = true, sign: bool = true,
              moreoptions: string = "") =
   var excstr = "nim c --skipParentCfg --opt:speed -d:debug -d:libp2p_agents_metrics -d:libp2p_protobuf_metrics -d:libp2p_network_protocols_metrics -d:libp2p_mplex_metrics "
@@ -29,6 +30,8 @@ proc runTest(filename: string, verify: bool = true, sign: bool = true,
   excstr.add(" -d:libp2p_pubsub_sign=" & $sign)
   excstr.add(" -d:libp2p_pubsub_verify=" & $verify)
   excstr.add(" " & moreoptions & " ")
+  if getEnv("CICOV").len > 0:
+    excstr &= " --nimcache:nimcache/" & filename & "-" & $excstr.hash
   exec excstr & " -r " & " tests/" & filename
   rmFile "tests/" & filename.toExe
 
