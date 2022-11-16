@@ -31,7 +31,7 @@ jobs:
           nimble testnative
           nimble testpubsub
           nimble testfilter
-          cd nimcache; rm *.c; cd ..
+          find nimcache -name *.c -delete
           lcov --capture --directory nimcache --output-file coverage/coverage.info
           shopt -s globstar
           ls `pwd`/libp2p/{*,**/*}.nim
