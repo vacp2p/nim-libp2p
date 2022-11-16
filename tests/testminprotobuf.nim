@@ -623,18 +623,27 @@ suite "MinProtobuf test suite":
 
   test "[length] too big message test":
     var pb1 = initProtoBuffer()
-    var bigString = newString(MaxMessageSize + 1)
+    var bigString = newString(pb1.maxSize + 1)
 
     for i in 0 ..< len(bigString):
       bigString[i] = 'A'
     pb1.write(1, bigString)
     pb1.finish()
-    var pb2 = initProtoBuffer(pb1.buffer)
-    var value = newString(MaxMessageSize + 1)
-    var valueLen = 0
-    let res = pb2.getField(1, value, valueLen)
-    check:
-      res.isErr() == true
+    block:
+      var pb2 = initProtoBuffer(pb1.buffer)
+      var value = newString(pb1.maxSize + 1)
+      var valueLen = 0
+      let res = pb2.getField(1, value, valueLen)
+      check:
+        res.isErr() == true
+
+    block:
+      var pb2 = initProtoBuffer(pb1.buffer, maxSize = uint.high)
+      var value = newString(pb1.maxSize + 1)
+      var valueLen = 0
+      let res = pb2.getField(1, value, valueLen)
+      check:
+        res.isErr() == false
 
   test "[length] Repeated field test":
     var pb1 = initProtoBuffer()
