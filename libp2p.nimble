@@ -31,7 +31,7 @@ proc runTest(filename: string, verify: bool = true, sign: bool = true,
   excstr.add(" -d:libp2p_pubsub_verify=" & $verify)
   excstr.add(" " & moreoptions & " ")
   if getEnv("CICOV").len > 0:
-    excstr &= " --nimcache:nimcache/" & filename & "-" & ($excstr.hash)[0..8]
+    excstr &= " --nimcache:nimcache/" & filename & "-" & $excstr.hash
   exec excstr & " -r " & " tests/" & filename
   rmFile "tests/" & filename.toExe
 
