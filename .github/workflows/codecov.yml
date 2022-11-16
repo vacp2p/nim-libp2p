@@ -9,6 +9,10 @@ on:
   pull_request:
   workflow_dispatch:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   Coverage:
     runs-on: ubuntu-20.04
@@ -34,7 +38,7 @@ jobs:
           key: nimbledeps-${{ hashFiles('.pinned') }}
 
       - name: Install deps
-        if: steps.deps-cache.outputs.cache-hit != 'true'
+        if: ${{ steps.deps-cache.outputs.cache-hit != 'true' }}
         run: |
           nimble install_pinned
 

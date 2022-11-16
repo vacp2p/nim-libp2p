@@ -81,7 +81,7 @@ jobs:
           key: nimbledeps-${{ hashFiles('.pinned') }}
 
       - name: Install deps
-        if: steps.deps-cache.outputs.cache-hit != 'true'
+        if: ${{ steps.deps-cache.outputs.cache-hit != 'true' }}
         run: |
           nimble install_pinned
 

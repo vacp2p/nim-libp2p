@@ -121,8 +121,8 @@ runs:
         restore-keys: ${{ inputs.os }}-${{ inputs.cpu }}-nim-${{ inputs.nim_branch }}-cache-${{ env.cache_nonce }}
 
     - name: Build Nim and Nimble
-      if: steps.nim-cache.outputs.cache-hit != 'true'
       shell: ${{ inputs.shell }}
+      if: ${{ steps.nim-cache.outputs.cache-hit != 'true' }}
       run: |
         curl -O -L -s -S https://raw.githubusercontent.com/status-im/nimbus-build-system/master/scripts/build_nim.sh
         env MAKE="${MAKE_CMD} -j${ncpu}" ARCH_OVERRIDE=${PLATFORM} NIM_COMMIT=${{ inputs.nim_branch }} \
