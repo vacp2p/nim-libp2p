@@ -9,8 +9,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: snnaplab/delete-branch-cache-action@v1
-        with:
-          ref: unstable
 
   build:
     needs: delete-cache
@@ -54,9 +52,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v2
-        with:
-          ref: unstable
-          submodules: true
 
       - name: Setup Nim
         uses: "./.github/actions/install_nim"
