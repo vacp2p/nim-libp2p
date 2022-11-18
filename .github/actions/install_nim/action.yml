@@ -116,7 +116,7 @@ runs:
       id: nim-cache
       uses: actions/cache@v3
       with:
-        path: '${{ github.workspace }}/nim/bin'
+        path: '${{ github.workspace }}/nim'
         key: ${{ inputs.os }}-${{ inputs.cpu }}-nim-${{ inputs.nim_branch }}-cache-${{ env.cache_nonce }}
 
     - name: Build Nim and Nimble
