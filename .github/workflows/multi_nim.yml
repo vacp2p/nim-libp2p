@@ -59,7 +59,7 @@ jobs:
           os: ${{ matrix.target.os }}
           shell: ${{ matrix.shell }}
           nim_branch: ${{ matrix.branch }}
-          cpu: ${{ matrix.target.branch }}
+          cpu: ${{ matrix.target.cpu }}
 
       - name: Setup Go
         uses: actions/setup-go@v2
