@@ -117,8 +117,7 @@ runs:
       uses: actions/cache@v3
       with:
         path: '${{ github.workspace }}/nim/bin'
-        key: ${{ inputs.os }}-${{ inputs.cpu }}-nim-${{ inputs.nim_branch }}-cache-${{ env.cache_nonce }}-${{ github.run_id }}
-        restore-keys: ${{ inputs.os }}-${{ inputs.cpu }}-nim-${{ inputs.nim_branch }}-cache-${{ env.cache_nonce }}
+        key: ${{ inputs.os }}-${{ inputs.cpu }}-nim-${{ inputs.nim_branch }}-cache-${{ env.cache_nonce }}
 
     - name: Build Nim and Nimble
       shell: ${{ inputs.shell }}
