@@ -48,7 +48,7 @@ jobs:
 
     name: '${{ matrix.target.os }}-${{ matrix.target.cpu }} (Nim ${{ matrix.branch }})'
     runs-on: ${{ matrix.builder }}
-    continue-on-error: ${{ matrix.branch == 'version-1-6' || matrix.branch == 'devel' }}
+    continue-on-error: ${{ matrix.branch == 'devel' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v2
@@ -75,9 +75,8 @@ jobs:
           nim --version
           nimble --version
           nimble install -y --depsOnly
-          nimble test
-          if [[ "${{ matrix.branch }}" == "version-1-6" || "${{ matrix.branch }}" == "devel" ]]; then
+          NIMFLAGS="${NIMFLAGS} --gc:refc" nimble test
+          if [[ "${{ matrix.branch }}" == "devel" ]]; then
             echo -e "\nTesting with '--gc:orc':\n"
-            export NIMFLAGS="${NIMFLAGS} --gc:orc"
-            nimble test
+            NIMFLAGS="${NIMFLAGS} --gc:orc" nimble test
           fi
