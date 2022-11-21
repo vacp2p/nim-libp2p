@@ -9,6 +9,10 @@ on:
   pull_request:
   workflow_dispatch:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   Coverage:
     runs-on: ubuntu-20.04
@@ -18,15 +22,31 @@ jobs:
       - uses: actions/checkout@v2
         with:
           fetch-depth: 0
+
+      - name: Setup Nim
+        uses: "./.github/actions/install_nim"
+        with:
+          os: linux
+          cpu: amd64
+          shell: bash
+
+      - name: Restore deps from cache
+        id: deps-cache
+        uses: actions/cache@v3
+        with:
+          path: nimbledeps
+          key: nimbledeps-${{ hashFiles('.pinned') }}
+
+      - name: Install deps
+        if: ${{ steps.deps-cache.outputs.cache-hit != 'true' }}
+        run: |
+          nimble install_pinned
+
       - name: Run
         run: |
           sudo apt-get update
           sudo apt-get install -y lcov build-essential git curl
           mkdir coverage
-          curl -O -L -s -S https://raw.githubusercontent.com/status-im/nimbus-build-system/master/scripts/build_nim.sh
-          env MAKE="make -j${NPROC}" bash build_nim.sh Nim csources dist/nimble NimBinaries
-          export PATH="$PATH:$PWD/Nim/bin"
-          nimble install_pinned
           export NIMFLAGS="--lineDir:on --passC:-fprofile-arcs --passC:-ftest-coverage --passL:-fprofile-arcs --passL:-ftest-coverage"
           nimble testnative
           nimble testpubsub
@@ -38,7 +58,8 @@ jobs:
           lcov --extract coverage/coverage.info  `pwd`/libp2p/{*,**/*}.nim --output-file coverage/coverage.f.info
           genhtml coverage/coverage.f.info --output-directory coverage/output
           bash <(curl -s https://codecov.io/bash) -f coverage/coverage.f.info || echo "Codecov did not collect coverage reports"
-      - uses: actions/upload-artifact@master
-        with:
-          name: coverage
-          path: coverage
+
+          #- uses: actions/upload-artifact@master
+          #  with:
+          #    name: coverage
+          #    path: coverage

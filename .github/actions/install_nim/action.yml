@@ -1,0 +1,131 @@
+name: Install Nim
+inputs:
+  os:
+    description: "Operating system to build for"
+    required: true
+  cpu:
+    description: "CPU to build for"
+    default: "amd64"
+  nim_branch:
+    description: "Nim version"
+    default: "version-1-6"
+  shell:
+    description: "Shell to run commands in"
+    default: "bash --noprofile --norc -e -o pipefail"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Install build dependencies (Linux i386)
+      shell: ${{ inputs.shell }}
+      if: inputs.os == 'Linux' && inputs.cpu == 'i386'
+      run: |
+        sudo dpkg --add-architecture i386
+        sudo apt-get update -qq
+        sudo DEBIAN_FRONTEND='noninteractive' apt-get install \
+          --no-install-recommends -yq gcc-multilib g++-multilib \
+          libssl-dev:i386
+        mkdir -p external/bin
+        cat << EOF > external/bin/gcc
+        #!/bin/bash
+        exec $(which gcc) -m32 "\$@"
+        EOF
+        cat << EOF > external/bin/g++
+        #!/bin/bash
+        exec $(which g++) -m32 "\$@"
+        EOF
+        chmod 755 external/bin/gcc external/bin/g++
+        echo '${{ github.workspace }}/external/bin' >> $GITHUB_PATH
+
+    - name: MSYS2 (Windows i386)
+      if: inputs.os == 'Windows' && inputs.cpu == 'i386'
+      uses: msys2/setup-msys2@v2
+      with:
+        path-type: inherit
+        msystem: MINGW32
+        install: >-
+          base-devel
+          git
+          mingw-w64-i686-toolchain
+
+    - name: MSYS2 (Windows amd64)
+      if: inputs.os == 'Windows' && inputs.cpu == 'amd64'
+      uses: msys2/setup-msys2@v2
+      with:
+        path-type: inherit
+        install: >-
+          base-devel
+          git
+          mingw-w64-x86_64-toolchain
+
+    - name: Restore Nim DLLs dependencies (Windows) from cache
+      if: inputs.os == 'Windows'
+      id: windows-dlls-cache
+      uses: actions/cache@v3
+      with:
+        path: external/dlls
+        key: 'dlls'
+
+    - name: Install DLL dependencies (Windows)
+      shell: ${{ inputs.shell }}
+      if: >
+        steps.windows-dlls-cache.outputs.cache-hit != 'true' &&
+        inputs.os == 'Windows'
+      run: |
+        mkdir external
+        curl -L "https://nim-lang.org/download/windeps.zip" -o external/windeps.zip
+        7z x external/windeps.zip -oexternal/dlls
+
+    - name: Path to cached dependencies (Windows)
+      shell: ${{ inputs.shell }}
+      if: >
+        inputs.os == 'Windows'
+      run: |
+        echo '${{ github.workspace }}'"/external/dlls" >> $GITHUB_PATH
+
+    - name: Derive environment variables
+      shell: ${{ inputs.shell }}
+      run: |
+        if [[ '${{ inputs.cpu }}' == 'amd64' ]]; then
+          PLATFORM=x64
+        else
+          PLATFORM=x86
+        fi
+        echo "PLATFORM=$PLATFORM" >> $GITHUB_ENV
+
+        ncpu=
+        MAKE_CMD="make"
+        case '${{ inputs.os }}' in
+        'Linux')
+          ncpu=$(nproc)
+          ;;
+        'macOS')
+          ncpu=$(sysctl -n hw.ncpu)
+          ;;
+        'Windows')
+          ncpu=$NUMBER_OF_PROCESSORS
+          MAKE_CMD="mingw32-make"
+          ;;
+        esac
+        [[ -z "$ncpu" || $ncpu -le 0 ]] && ncpu=1
+        echo "ncpu=$ncpu" >> $GITHUB_ENV
+        echo "MAKE_CMD=${MAKE_CMD}" >> $GITHUB_ENV
+        echo '${{ github.workspace }}/nim/bin' >> $GITHUB_PATH
+
+    - name: Restore Nim from cache
+      id: nim-cache
+      uses: actions/cache@v3
+      with:
+        path: '${{ github.workspace }}/nim'
+        key: ${{ inputs.os }}-${{ inputs.cpu }}-nim-${{ inputs.nim_branch }}-cache-${{ env.cache_nonce }}
+
+    - name: Build Nim and Nimble
+      shell: ${{ inputs.shell }}
+      if: ${{ steps.nim-cache.outputs.cache-hit != 'true' }}
+      run: |
+        # We don't want partial matches of the cache restored
+        rm -rf nim
+        curl -O -L -s -S https://raw.githubusercontent.com/status-im/nimbus-build-system/master/scripts/build_nim.sh
+        env MAKE="${MAKE_CMD} -j${ncpu}" ARCH_OVERRIDE=${PLATFORM} NIM_COMMIT=${{ inputs.nim_branch }} \
+          QUICK_AND_DIRTY_COMPILER=1 QUICK_AND_DIRTY_NIMBLE=1 CC=gcc \
+          bash build_nim.sh nim csources dist/nimble NimBinaries
