@@ -26,6 +26,8 @@ import ../libp2p/[errors,
                   transports/wstransport]
 import ./helpers
 
+import ../libp2p/services/hpservice
+
 const
   TestCodec = "/test/proto/1.0.0"
 
@@ -288,6 +290,8 @@ suite "Switch":
 
     switch2.addConnEventHandler(hook, ConnEventKind.Connected)
     switch2.addConnEventHandler(hook, ConnEventKind.Disconnected)
+
+    switch1.addService(HPService.new())
 
     await switch1.start()
     await switch2.start()

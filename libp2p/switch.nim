@@ -74,6 +74,13 @@ type
       peerStore*: PeerStore
       nameResolver*: NameResolver
       started: bool
+      services*: seq[Service]
+
+    Service* = ref object of RootObj
+
+method setup*(self: Service, switch: Switch) {.base, async, gcsafe, public.} = discard
+
+method run*(self: Service, switch: Switch) {.base, async, gcsafe, public.} = discard
 
 proc addConnEventHandler*(s: Switch,
                           handler: ConnEventHandler,
@@ -107,6 +114,9 @@ proc removePeerEventHandler*(s: Switch,
 method addTransport*(s: Switch, t: Transport) =
   s.transports &= t
   s.dialer.addTransport(t)
+
+method addService*(switch: Switch, service: Service) =
+  switch.services.add(service)
 
 proc isConnected*(s: Switch, peerId: PeerId): bool {.public.} =
   ## returns true if the peer has one or more
@@ -326,6 +336,9 @@ proc start*(s: Switch) {.async, gcsafe, public.} =
 
   await s.ms.start()
 
+  for service in s.services:
+    await service.setup(s)
+
   s.started = true
 
   debug "Started libp2p node", peer = s.peerInfo
@@ -337,7 +350,8 @@ proc newSwitch*(peerInfo: PeerInfo,
                 connManager: ConnManager,
                 ms: MultistreamSelect,
                 nameResolver: NameResolver = nil,
-                peerStore = PeerStore.new()): Switch
+                peerStore = PeerStore.new(),
+                services = newSeq[Service]()): Switch
                 {.raises: [Defect, LPError], public.} =
   if secureManagers.len == 0:
     raise newException(LPError, "Provide at least one secure manager")
@@ -349,8 +363,10 @@ proc newSwitch*(peerInfo: PeerInfo,
     connManager: connManager,
     peerStore: peerStore,
     dialer: Dialer.new(peerInfo.peerId, connManager, transports, ms, nameResolver),
-    nameResolver: nameResolver)
+    nameResolver: nameResolver,
+    services: services)
 
   switch.connManager.peerStore = peerStore
   switch.mount(identity)
+
   return switch
