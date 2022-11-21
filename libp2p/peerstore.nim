@@ -16,7 +16,7 @@ runnableExamples:
   # Create a custom book type
   type MoodBook = ref object of PeerBook[string]
 
-  var somePeerId = PeerId.initRandom().get()
+  var somePeerId = PeerId.random().get()
 
   peerStore[MoodBook][somePeerId] = "Happy"
   doAssert peerStore[MoodBook][somePeerId] == "Happy"

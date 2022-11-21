@@ -152,8 +152,8 @@ suite "Identify":
       identifyPush2 {.threadvar.}: IdentifyPush
       conn {.threadvar.}: Connection
     asyncSetup:
-      switch1 = newStandardSwitch()
-      switch2 = newStandardSwitch()
+      switch1 = newStandardSwitch(sendSignedPeerRecord=true)
+      switch2 = newStandardSwitch(sendSignedPeerRecord=true)
 
       proc updateStore1(peerId: PeerId, info: IdentifyInfo) {.async.} =
         switch1.peerStore.updatePeerInfo(info)
@@ -189,10 +189,9 @@ suite "Identify":
 
         switch1.peerStore[ProtoBook][switch2.peerInfo.peerId] == switch2.peerInfo.protocols
         switch2.peerStore[ProtoBook][switch1.peerInfo.peerId] == switch1.peerInfo.protocols
-        
-        #switch1.peerStore.signedPeerRecordBook.get(switch2.peerInfo.peerId) == switch2.peerInfo.signedPeerRecord.get()
-        #switch2.peerStore.signedPeerRecordBook.get(switch1.peerInfo.peerId) == switch1.peerInfo.signedPeerRecord.get()
-        # no longer sent by default
+
+        switch1.peerStore[SPRBook][switch2.peerInfo.peerId] == switch2.peerInfo.signedPeerRecord.envelope
+        switch2.peerStore[SPRBook][switch1.peerInfo.peerId] == switch1.peerInfo.signedPeerRecord.envelope
 
     proc closeAll() {.async.} =
       await conn.close()
