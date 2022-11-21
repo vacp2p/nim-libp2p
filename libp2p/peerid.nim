@@ -184,6 +184,11 @@ func init*(t: typedesc[PeerId], seckey: PrivateKey): Result[PeerId, cstring] =
   ## Create new peer id from private key ``seckey``.
   PeerId.init(? seckey.getPublicKey().orError(cstring("invalid private key")))
 
+proc random*(t: typedesc[PeerId], rng = newRng()): Result[PeerId, cstring] =
+  ## Create new peer id with random public key.
+  let randomKey = PrivateKey.random(Secp256k1, rng[])[]
+  PeerId.init(randomKey).orError(cstring("failed to generate random key"))
+
 func match*(pid: PeerId, pubkey: PublicKey): bool =
   ## Returns ``true`` if ``pid`` matches public key ``pubkey``.
   let p = PeerId.init(pubkey)
