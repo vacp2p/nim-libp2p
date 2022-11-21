@@ -203,10 +203,14 @@ type
     sem: AsyncSemaphore
     switch*: Switch
 
-proc dialMe*(a: Autonat, pid: PeerId, ma: MultiAddress|seq[MultiAddress]):
+proc dialMe*(a: Autonat, pid: PeerId, ma: MultiAddress|seq[MultiAddress] = newSeq[MultiAddress]()):
     Future[MultiAddress] {.async.} =
   let addrs = when ma is MultiAddress: @[ma] else: ma
-  let conn = await a.switch.dial(pid, addrs, AutonatCodec)
+  let conn = if addrs.len == 0:
+    await a.switch.dial(pid, @[AutonatCodec])
+  else:
+    await a.switch.dial(pid, addrs, AutonatCodec)
+
   defer: await conn.close()
   await conn.sendDial(a.switch.peerInfo.peerId, a.switch.peerInfo.addrs)
   let msgOpt = AutonatMsg.decode(await conn.readLp(1024))
