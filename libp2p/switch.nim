@@ -82,6 +82,8 @@ method setup*(self: Service, switch: Switch) {.base, async, gcsafe, public.} = d
 
 method run*(self: Service, switch: Switch) {.base, async, gcsafe, public.} = discard
 
+method stop*(self: Service, switch: Switch) {.base, async, gcsafe, public.} = discard
+
 proc addConnEventHandler*(s: Switch,
                           handler: ConnEventHandler,
                           kind: ConnEventKind) {.public.} =
@@ -299,6 +301,9 @@ proc stop*(s: Switch) {.async, public.} =
     if not a.finished:
       a.cancel()
 
+  for service in s.services:
+    await service.stop(s)
+
   await s.ms.stop()
 
   trace "Switch stopped"
@@ -338,6 +343,7 @@ proc start*(s: Switch) {.async, gcsafe, public.} =
 
   for service in s.services:
     await service.setup(s)
+    await service.run(s)
 
   s.started = true
 
