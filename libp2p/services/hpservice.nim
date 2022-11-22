@@ -24,7 +24,7 @@ type
     t: CountTable[NetworkReachability]
     maxConfidence: int
 
-  NetworkReachability {.pure.} = enum
+  NetworkReachability* {.pure.} = enum
     Private, Public, Unknown
 
 proc new*(T: typedesc[HPService], maxConfidence: int = 3): T =
@@ -33,6 +33,9 @@ proc new*(T: typedesc[HPService], maxConfidence: int = 3): T =
     networkReachability: NetworkReachability.Unknown,
     maxConfidence: maxConfidence,
     t: initCountTable[NetworkReachability]())
+
+proc networkReachability*(self: HPService): NetworkReachability {.inline.} =
+  return self.networkReachability
 
 proc handleAnswer(self: HPService, ans: NetworkReachability) =
   if ans == NetworkReachability.Unknown:
