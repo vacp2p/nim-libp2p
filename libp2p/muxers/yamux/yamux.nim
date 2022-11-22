@@ -265,7 +265,7 @@ method readOnce*(
   channel.activity = true
   return toRead
 
-proc gotDataFromRemote(channel: YamuxChannel, b: seq[byte]) {.async.} =
+proc gotDataFromRemote(channel: YamuxChannel, b: sink seq[byte]) {.async.} =
   channel.recvWindow -= b.len
   channel.recvQueue = channel.recvQueue.concat(b)
   channel.receivedData.fire()
@@ -333,7 +333,7 @@ proc trySend(channel: YamuxChannel) {.async.} =
       fut.complete()
     channel.activity = true
 
-method write*(channel: YamuxChannel, msg: seq[byte]): Future[void] =
+method write*(channel: YamuxChannel, msg: sink seq[byte]): Future[void] =
   result = newFuture[void]("Yamux Send")
   if channel.remoteReset:
     result.fail(newLPStreamResetError())

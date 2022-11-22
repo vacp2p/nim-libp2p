@@ -477,7 +477,7 @@ method onTopicSubscription*(g: GossipSub, topic: string, subscribed: bool) =
 
 method publish*(g: GossipSub,
                 topic: string,
-                data: seq[byte]): Future[int] {.async.} =
+                data: sink seq[byte]): Future[int] {.async.} =
   # base returns always 0
   discard await procCall PubSub(g).publish(topic, data)
 

@@ -322,7 +322,7 @@ proc encodeRpcMsg*(msg: RPCMsg, anonymize: bool): seq[byte] =
     pb.finish()
   pb.buffer
 
-proc decodeRpcMsg*(msg: seq[byte]): ProtoResult[RPCMsg] {.inline.} =
+proc decodeRpcMsg*(msg: sink seq[byte]): ProtoResult[RPCMsg] {.inline.} =
   trace "decodeRpcMsg: decoding message", msg = msg.shortLog()
   var pb = initProtoBuffer(msg)
   var rpcMsg = ok(RPCMsg())

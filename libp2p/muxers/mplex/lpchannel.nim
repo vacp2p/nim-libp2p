@@ -197,7 +197,7 @@ method readOnce*(s: LPChannel,
     await s.reset()
     raise newLPStreamConnDownError(exc)
 
-proc prepareWrite(s: LPChannel, msg: seq[byte]): Future[void] {.async.} =
+proc prepareWrite(s: LPChannel, msg: sink seq[byte]): Future[void] {.async.} =
   # prepareWrite is the slow path of writing a message - see conditions in
   # write
   if s.remoteReset:
@@ -254,7 +254,7 @@ proc completeWrite(
   finally:
     s.writes -= 1
 
-method write*(s: LPChannel, msg: seq[byte]): Future[void] =
+method write*(s: LPChannel, msg: sink seq[byte]): Future[void] =
   ## Write to mplex channel - there may be up to MaxWrite concurrent writes
   ## pending after which the peer is disconnected
 

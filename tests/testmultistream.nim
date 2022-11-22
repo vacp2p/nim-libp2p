@@ -57,7 +57,7 @@ method readOnce*(s: TestSelectStream,
 
       return "\0x3na\n".len()
 
-method write*(s: TestSelectStream, msg: seq[byte]) {.async, gcsafe.} = discard
+method write*(s: TestSelectStream, msg: sink seq[byte]) {.async, gcsafe.} = discard
 
 method close(s: TestSelectStream) {.async, gcsafe.} =
   s.isClosed = true
@@ -106,7 +106,7 @@ method readOnce*(s: TestLsStream,
       copyMem(pbytes, addr buf[0], buf.len())
       return buf.len()
 
-method write*(s: TestLsStream, msg: seq[byte]) {.async, gcsafe.} =
+method write*(s: TestLsStream, msg: sink seq[byte]) {.async, gcsafe.} =
   if s.step == 4:
     await s.ls(msg)
 
@@ -160,7 +160,7 @@ method readOnce*(s: TestNaStream,
 
       return "\0x3na\n".len()
 
-method write*(s: TestNaStream, msg: seq[byte]) {.async, gcsafe.} =
+method write*(s: TestNaStream, msg: sink seq[byte]) {.async, gcsafe.} =
   if s.step == 4:
     await s.na(string.fromBytes(msg))
 

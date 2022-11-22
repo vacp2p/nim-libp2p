@@ -210,7 +210,7 @@ proc connectImpl(p: PubSubPeer) {.async.} =
 proc connect*(p: PubSubPeer) =
   asyncSpawn connectImpl(p)
 
-proc sendImpl(conn: Connection, encoded: seq[byte]): Future[void] {.raises: [Defect].} =
+proc sendImpl(conn: Connection, encoded: sink seq[byte]): Future[void] {.raises: [Defect].} =
   trace "sending encoded msgs to peer", conn, encoded = shortLog(encoded)
 
   let fut = conn.writeLp(encoded) # Avoid copying `encoded` into future
@@ -237,7 +237,7 @@ template sendMetrics(msg: RPCMsg): untyped =
         # metrics
         libp2p_pubsub_sent_messages.inc(labelValues = [$p.peerId, t])
 
-proc sendEncoded*(p: PubSubPeer, msg: seq[byte]) {.raises: [Defect].} =
+proc sendEncoded*(p: PubSubPeer, msg: sink seq[byte]) {.raises: [Defect].} =
   doAssert(not isNil(p), "pubsubpeer nil!")
 
   if msg.len <= 0:

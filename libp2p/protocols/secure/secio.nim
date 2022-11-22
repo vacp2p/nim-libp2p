@@ -226,7 +226,7 @@ method readMessage*(sconn: SecioConn): Future[seq[byte]] {.async.} =
     trace "Message MAC verification failed", buf = buf.shortLog
     raise (ref SecioError)(msg: "message failed MAC verification")
 
-method write*(sconn: SecioConn, message: seq[byte]) {.async.} =
+method write*(sconn: SecioConn, message: sink seq[byte]) {.async.} =
   ## Write message ``message`` to secure connection ``sconn``.
   if message.len == 0:
     return

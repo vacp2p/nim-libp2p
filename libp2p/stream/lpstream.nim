@@ -283,7 +283,7 @@ proc readLp*(s: LPStream, maxSize: int): Future[seq[byte]] {.async, gcsafe, publ
   await s.readExactly(addr res[0], res.len)
   return res
 
-method write*(s: LPStream, msg: seq[byte]): Future[void] {.base, public.} =
+method write*(s: LPStream, msg: sink seq[byte]): Future[void] {.base, public.} =
   # Write `msg` to stream, waiting for the write to be finished
   doAssert(false, "not implemented!")
 

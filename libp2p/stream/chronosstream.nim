@@ -127,7 +127,7 @@ proc completeWrite(
       if s.tracked:
         libp2p_peers_traffic_write.inc(msgLen.int64, labelValues = [s.shortAgent])
 
-method write*(s: ChronosStream, msg: seq[byte]): Future[void] =
+method write*(s: ChronosStream, msg: sink seq[byte]): Future[void] =
   # Avoid a copy of msg being kept in the closure created by `{.async.}` as this
   # drives up memory usage
   if msg.len == 0:
