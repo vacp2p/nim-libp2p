@@ -10,6 +10,7 @@ switch("warning", "LockLevel:off")
 if (NimMajor, NimMinor) < (1, 6):
   --styleCheck:hint
 else:
+  switch("warningAsError", "UseBase:on")
   --styleCheck:error
 
 # Avoid some rare stack corruption while using exceptions with a SEH-enabled

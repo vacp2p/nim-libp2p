@@ -18,6 +18,7 @@ import chronos, chronicles
 import ../stream/connection,
        ../multiaddress,
        ../multicodec,
+       ../muxers/muxer,
        ../upgrademngrs/upgrade
 
 logScope:
@@ -78,7 +79,7 @@ proc dial*(
 
 method upgradeIncoming*(
   self: Transport,
-  conn: Connection): Future[void] {.base, gcsafe.} =
+  conn: Connection): Future[Muxer] {.base, gcsafe.} =
   ## base upgrade method that the transport uses to perform
   ## transport specific upgrades
   ##
@@ -88,7 +89,7 @@ method upgradeIncoming*(
 method upgradeOutgoing*(
   self: Transport,
   conn: Connection,
-  peerId: Opt[PeerId]): Future[Connection] {.base, gcsafe.} =
+  peerId: Opt[PeerId]): Future[Muxer] {.base, gcsafe.} =
   ## base upgrade method that the transport uses to perform
   ## transport specific upgrades
   ##

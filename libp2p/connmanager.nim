@@ -67,16 +67,12 @@ type
   PeerEventHandler* =
     proc(peerId: PeerId, event: PeerEvent): Future[void] {.gcsafe, raises: [Defect].}
 
-  MuxerHolder = object
-    muxer: Muxer
-    handle: Future[void]
-
   ConnManager* = ref object of RootObj
     maxConnsPerPeer: int
     inSema*: AsyncSemaphore
     outSema*: AsyncSemaphore
     conns: Table[PeerId, HashSet[Connection]]
-    muxed: Table[Connection, MuxerHolder]
+    muxed: Table[Connection, Muxer]
     connEvents: array[ConnEventKind, OrderedSet[ConnEventHandler]]
     peerEvents: array[PeerEventKind, OrderedSet[PeerEventHandler]]
     peerStore*: PeerStore
@@ -241,18 +237,18 @@ proc contains*(c: ConnManager, muxer: Muxer): bool =
   if conn notin c.muxed:
     return
 
-  return muxer == c.muxed.getOrDefault(conn).muxer
+  return muxer == c.muxed.getOrDefault(conn)
 
-proc closeMuxerHolder(muxerHolder: MuxerHolder) {.async.} =
-  trace "Cleaning up muxer", m = muxerHolder.muxer
+proc closeMuxer(muxer: Muxer) {.async.} =
+  trace "Cleaning up muxer", m = muxer
 
-  await muxerHolder.muxer.close()
-  if not(isNil(muxerHolder.handle)):
+  await muxer.close()
+  if not(isNil(muxer.handle)):
     try:
-      await muxerHolder.handle # TODO noraises?
+      await muxer.handle # TODO noraises?
     except CatchableError as exc:
       trace "Exception in close muxer handler", exc = exc.msg
-  trace "Cleaned up muxer", m = muxerHolder.muxer
+  trace "Cleaned up muxer", m = muxer
 
 proc delConn(c: ConnManager, conn: Connection) =
   let peerId = conn.peerId
@@ -273,15 +269,13 @@ proc cleanupConn(c: ConnManager, conn: Connection) {.async.} =
     return
 
   # Remove connection from all tables without async breaks
-  var muxer = some(MuxerHolder())
-  if not c.muxed.pop(conn, muxer.get()):
-    muxer = none(MuxerHolder)
-
+  var muxer = c.muxed.getOrDefault(conn)
+  c.muxed.del(conn)
   delConn(c, conn)
 
   try:
-    if muxer.isSome:
-      await closeMuxerHolder(muxer.get())
+    if not muxer.isNil:
+      await closeMuxer(muxer)
   finally:
     await conn.close()
 
@@ -373,7 +367,7 @@ proc selectMuxer*(c: ConnManager, conn: Connection): Muxer =
     return
 
   if conn in c.muxed:
-    return c.muxed.getOrDefault(conn).muxer
+    return c.muxed.getOrDefault(conn)
   else:
     debug "no muxer for connection", conn
 
@@ -440,8 +434,7 @@ proc trackConnection*(cs: ConnectionSlot, conn: Connection) =
   asyncSpawn semaphoreMonitor()
 
 proc storeMuxer*(c: ConnManager,
-                 muxer: Muxer,
-                 handle: Future[void] = nil)
+                 muxer: Muxer)
                  {.raises: [Defect, CatchableError].} =
   ## store the connection and muxer
   ##
@@ -455,12 +448,10 @@ proc storeMuxer*(c: ConnManager,
   if muxer.connection notin c:
     raise newException(CatchableError, "cant add muxer for untracked connection")
 
-  c.muxed[muxer.connection] = MuxerHolder(
-    muxer: muxer,
-    handle: handle)
+  c.muxed[muxer.connection] = muxer
 
   trace "Stored muxer",
-    muxer, handle = not handle.isNil, connections = c.conns.len
+    muxer, connections = c.conns.len
 
   asyncSpawn c.onConnUpgraded(muxer.connection)
 
@@ -493,6 +484,14 @@ proc getStream*(c: ConnManager,
   if not(isNil(muxer)):
     return await muxer.newStream()
 
+proc getStream*(c: ConnManager,
+                muxer: Muxer): Future[Connection] {.async, gcsafe.} =
+  ## get a muxed stream for the passed muxer
+  ##
+
+  if not(isNil(muxer)):
+    return await muxer.newStream()
+
 proc dropPeer*(c: ConnManager, peerId: PeerId) {.async.} =
   ## drop connections and cleanup resources for peer
   ##
@@ -502,14 +501,14 @@ proc dropPeer*(c: ConnManager, peerId: PeerId) {.async.} =
     trace  "Removing connection", conn
     delConn(c, conn)
 
-  var muxers: seq[MuxerHolder]
+  var muxers: seq[Muxer]
   for conn in conns:
     if conn in c.muxed:
       muxers.add c.muxed[conn]
       c.muxed.del(conn)
 
   for muxer in muxers:
-    await closeMuxerHolder(muxer)
+    await closeMuxer(muxer)
 
   for conn in conns:
     await conn.close()
@@ -530,7 +529,7 @@ proc close*(c: ConnManager) {.async.} =
   c.muxed.clear()
 
   for _, muxer in muxed:
-    await closeMuxerHolder(muxer)
+    await closeMuxer(muxer)
 
   for _, conns2 in conns:
     for conn in conns2:

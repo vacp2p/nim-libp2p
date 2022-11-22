@@ -60,12 +60,10 @@ logScope:
 
 declareCounter(libp2p_failed_upgrades_incoming, "incoming connections failed upgrades")
 
-const
-  ConcurrentUpgrades* = 4
-
 type
     Switch* {.public.} = ref object of Dial
       peerInfo*: PeerInfo
+      identify*: Identify
       connManager*: ConnManager
       transports*: seq[Transport]
       ms*: MultistreamSelect
@@ -208,56 +206,23 @@ proc upgradeMonitor(conn: Connection, upgrades: AsyncSemaphore) {.async.} =
   finally:
     upgrades.release() # don't forget to release the slot!
 
+
 proc accept(s: Switch, transport: Transport) {.async.} = # noraises
   ## switch accept loop, ran for every transport
   ##
 
-  let upgrades = newAsyncSemaphore(ConcurrentUpgrades)
+  let upgrades = newAsyncSemaphore(4)
   while transport.running:
-    var conn: Connection
+    let
+      conn = await transport.accept()
     try:
-      debug "About to accept incoming connection"
-      # remember to always release the slot when
-      # the upgrade succeeds or fails, this is
-      # currently done by the `upgradeMonitor`
-      await upgrades.acquire()    # first wait for an upgrade slot to become available
-      let slot = await s.connManager.getIncomingSlot()
-      conn =
-        try:
-          await transport.accept()
-        except CatchableError as exc:
-          slot.release()
-          raise exc
-      slot.trackConnection(conn)
-      if isNil(conn):
-        # A nil connection means that we might have hit a
-        # file-handle limit (or another non-fatal error),
-        # we can get one on the next try, but we should
-        # be careful to not end up in a thigh loop that
-        # will starve the main event loop, thus we sleep
-        # here before retrying.
-        trace "Unable to get a connection, sleeping"
-        await sleepAsync(100.millis) # TODO: should be configurable?
-        upgrades.release()
-        continue
-
-      # set the direction of this bottom level transport
-      # in order to be able to consume this information in gossipsub if required
-      # gossipsub gives priority to connections we make
-      conn.transportDir = Direction.In
-
-      debug "Accepted an incoming connection", conn
-      asyncSpawn upgradeMonitor(conn, upgrades)
-      asyncSpawn transport.upgradeIncoming(conn)
-    except CancelledError as exc:
-      trace "releasing semaphore on cancellation"
-      upgrades.release() # always release the slot
+      let muxed = await transport.upgradeIncoming(conn)
+      await s.peerStore.identify(s.ms, s.identify, muxed)
+      s.connManager.storeConn(muxed.connection)
+      s.connManager.storeMuxer(muxed)
     except CatchableError as exc:
-      debug "Exception in accept loop, exiting", exc = exc.msg
-      upgrades.release() # always release the slot
-      if not isNil(conn):
-        await conn.close()
-      return
+      debug "Failed to store connection", msg=exc.msg
+      await conn.close()
 
 proc stop*(s: Switch) {.async, public.} =
   ## Stop listening on every transport, and
@@ -332,7 +297,7 @@ proc start*(s: Switch) {.async, gcsafe, public.} =
 
 proc newSwitch*(peerInfo: PeerInfo,
                 transports: seq[Transport],
-                identity: Identify,
+                identify: Identify,
                 secureManagers: openArray[Secure] = [],
                 connManager: ConnManager,
                 ms: MultistreamSelect,
@@ -348,9 +313,11 @@ proc newSwitch*(peerInfo: PeerInfo,
     transports: transports,
     connManager: connManager,
     peerStore: peerStore,
+    identify: identify,
     dialer: Dialer.new(peerInfo.peerId, connManager, transports, ms, nameResolver),
     nameResolver: nameResolver)
 
   switch.connManager.peerStore = peerStore
-  switch.mount(identity)
+  #TODO identify could be part of the PeerStore instead
+  switch.mount(identify)
   return switch

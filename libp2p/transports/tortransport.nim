@@ -265,6 +265,7 @@ proc new*(
     let torSwitch = T(
       peerInfo: switch.peerInfo,
       ms: switch.ms,
+      identify: switch.identify,
       transports: switch.transports,
       connManager: switch.connManager,
       peerStore: switch.peerStore,

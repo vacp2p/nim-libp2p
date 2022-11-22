@@ -28,11 +28,16 @@ else:
 
 import
   std/[tables, sets, options, macros],
+  chronos,
   ./crypto/crypto,
   ./protocols/identify,
+  ./protocols/protocol,
   ./peerid, ./peerinfo,
   ./routing_record,
   ./multiaddress,
+  ./stream/connection,
+  ./multistream,
+  ./muxers/muxer,
   utility
 
 type
@@ -186,3 +191,29 @@ proc cleanup*(
   while peerStore.toClean.len > peerStore.capacity:
     peerStore.del(peerStore.toClean[0])
     peerStore.toClean.delete(0)
+
+proc identify*(
+  peerStore: PeerStore,
+  ms: MultistreamSelect,
+  identify: Identify,
+  muxer: Muxer) {.async.} =
+
+  # new stream for identify
+  var stream = await muxer.newStream()
+  if stream == nil:
+    return
+
+  try:
+    if (await ms.select(stream, identify.codec())):
+      let info = await identify.identify(stream, stream.peerId)
+
+      when defined(libp2p_agents_metrics):
+        muxer.connection.shortAgent = "unknown"
+        if info.agentVersion.isSome and info.agentVersion.get().len > 0:
+          let shortAgent = info.agentVersion.get().split("/")[0].safeToLowerAscii()
+          if shortAgent.isOk() and KnownLibP2PAgentsSeq.contains(shortAgent.get()):
+            muxer.connection.shortAgent = shortAgent.get()
+
+      peerStore.updatePeerInfo(info)
+  finally:
+    await stream.closeWithEOF()

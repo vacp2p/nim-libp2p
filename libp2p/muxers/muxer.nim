@@ -32,16 +32,16 @@ type
 
   Muxer* = ref object of RootObj
     streamHandler*: StreamHandler
+    handler*: Future[void]
     connection*: Connection
 
   # user provider proc that returns a constructed Muxer
   MuxerConstructor* = proc(conn: Connection): Muxer {.gcsafe, closure, raises: [Defect].}
 
   # this wraps a creator proc that knows how to make muxers
-  MuxerProvider* = ref object of LPProtocol
+  MuxerProvider* = ref object
     newMuxer*: MuxerConstructor
-    streamHandler*: StreamHandler # triggered every time there is a new stream, called for any muxer instance
-    muxerHandler*: MuxerHandler # triggered every time there is a new muxed connection created
+    codec*: string
 
 func shortLog*(m: Muxer): auto = shortLog(m.connection)
 chronicles.formatIt(Muxer): shortLog(it)
@@ -57,36 +57,5 @@ proc new*(
   creator: MuxerConstructor,
   codec: string): T {.gcsafe.} =
 
-  let muxerProvider = T(newMuxer: creator)
-  muxerProvider.codec = codec
-  muxerProvider.init()
+  let muxerProvider = T(newMuxer: creator, codec: codec)
   muxerProvider
-
-method init(c: MuxerProvider) =
-  proc handler(conn: Connection, proto: string) {.async, gcsafe, closure.} =
-    trace "starting muxer handler", proto=proto, conn
-    try:
-      let
-        muxer = c.newMuxer(conn)
-
-      if not isNil(c.streamHandler):
-        muxer.streamHandler = c.streamHandler
-
-      var futs = newSeq[Future[void]]()
-      futs &= muxer.handle()
-
-      # finally await both the futures
-      if not isNil(c.muxerHandler):
-        await c.muxerHandler(muxer)
-        when defined(libp2p_agents_metrics):
-          conn.shortAgent = muxer.connection.shortAgent
-
-      checkFutures(await allFinished(futs))
-    except CancelledError as exc:
-      raise exc
-    except CatchableError as exc:
-      trace "exception in muxer handler", exc = exc.msg, conn, proto
-    finally:
-      await conn.close()
-
-  c.handler = handler
