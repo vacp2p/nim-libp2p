@@ -7,10 +7,6 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-## The switch is the core of libp2p, which brings together the
-## transports, the connection manager, the upgrader and other
-## parts to allow programs to use libp2p
-
 import chronos
 import unittest2
 import ./helpers
@@ -31,23 +27,82 @@ proc createAutonatSwitch(): Switch =
 suite "Hope Punching":
   teardown:
     checkTrackers()
-  asyncTest "Hope Punching test":
+  asyncTest "Hope Punching Private Reachability test":
     let switch1 = createAutonatSwitch()
     let switch2 = createAutonatSwitch()
     let switch3 = createAutonatSwitch()
     let switch4 = createAutonatSwitch()
 
-    switch1.addService(HPService.new())
+    let hpservice = HPService.new()
+    check hpservice.networkReachability() == NetworkReachability.Unknown
+    switch1.addService(hpservice)
 
     await switch1.start()
     await switch2.start()
+    await switch3.start()
+    await switch4.start()
 
-    await switch2.connect(switch1.peerInfo.peerId, switch1.peerInfo.addrs)
-    await switch3.connect(switch1.peerInfo.peerId, switch1.peerInfo.addrs)
-    await switch4.connect(switch1.peerInfo.peerId, switch1.peerInfo.addrs)
+    echo $switch1.peerInfo.listenAddrs
+    switch1.peerInfo.listenAddrs = @[MultiAddress.init("/ip4/0.0.0.0/tcp/1").tryGet()]
+    await switch1.peerInfo.update()
+    echo $switch1.peerInfo.listenAddrs
 
-    await sleepAsync(500.milliseconds)
+    await switch1.connect(switch2.peerInfo.peerId, switch2.peerInfo.addrs)
+    await switch1.connect(switch3.peerInfo.peerId, switch3.peerInfo.addrs)
+    await switch1.connect(switch4.peerInfo.peerId, switch4.peerInfo.addrs)
+
+    check hpservice.networkReachability() == NetworkReachability.Private
 
     await allFuturesThrowing(
-      switch1.stop(),
-      switch2.stop())
+      switch1.stop(), switch2.stop(), switch3.stop(), switch4.stop())
+
+  asyncTest "Hope Punching Public Reachability test":
+    let switch1 = createAutonatSwitch()
+    let switch2 = createAutonatSwitch()
+    let switch3 = createAutonatSwitch()
+    let switch4 = createAutonatSwitch()
+
+    let hpservice = HPService.new()
+    check hpservice.networkReachability() == NetworkReachability.Unknown
+    switch1.addService(hpservice)
+
+    await switch1.start()
+    await switch2.start()
+    await switch3.start()
+    await switch4.start()
+
+    await switch1.connect(switch2.peerInfo.peerId, switch2.peerInfo.addrs)
+    await switch1.connect(switch3.peerInfo.peerId, switch3.peerInfo.addrs)
+    await switch1.connect(switch4.peerInfo.peerId, switch4.peerInfo.addrs)
+
+    check hpservice.networkReachability() == NetworkReachability.Public
+
+    await allFuturesThrowing(
+      switch1.stop(), switch2.stop(), switch3.stop(), switch4.stop())
+
+  # asyncTest "IPFS Hope Punching test":
+  #   let switch1 = createAutonatSwitch()
+
+  #   switch1.addService(HPService.new())
+
+  #   await switch1.start()
+
+  #   asyncSpawn switch1.connect(
+  #     PeerId.init("QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN").get(),
+  #     @[MultiAddress.init("/ip4/139.178.91.71/tcp/4001").get()]
+  #   )
+
+  #   asyncSpawn switch1.connect(
+  #     PeerId.init("QmcZf59bWwK5XFi76CZX8cbJ4BhTzzA3gU1ZjYZcYW3dwt").get(),
+  #     @[MultiAddress.init("/ip4/145.40.118.135/tcp/4001").get()]
+  #   )
+
+  #   asyncSpawn switch1.connect(
+  #     PeerId.init("QmaCpDMGvV2BGHeYERUEnRQAwe3N8SzbUtfsmvsqQLuvuJ").get(),
+  #     @[MultiAddress.init("/ip4/104.131.131.82/tcp/4001").get()]
+  #   )
+
+  #   await sleepAsync(20.seconds)
+
+  #   await allFuturesThrowing(
+  #     switch1.stop())
