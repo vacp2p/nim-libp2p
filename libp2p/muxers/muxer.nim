@@ -51,7 +51,9 @@ chronicles.formatIt(Muxer): shortLog(it)
 # muxer interface
 method newStream*(m: Muxer, name: string = "", lazy: bool = false):
   Future[Connection] {.base, async, gcsafe.} = discard
-method close*(m: Muxer) {.base, async, gcsafe.} = discard
+method close*(m: Muxer) {.base, async, gcsafe.} =
+  if not isNil(m.connection):
+    await m.connection.close()
 method handle*(m: Muxer): Future[void] {.base, async, gcsafe.} = discard
 
 proc new*(

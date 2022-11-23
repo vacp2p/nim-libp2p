@@ -10,8 +10,8 @@ import ../libp2p/[connmanager,
 
 import helpers
 
-proc getConnection(peerId: PeerId, dir: Direction = Direction.In): Connection = 
-  return Connection.new(peerId, dir, Opt.none(MultiAddress))
+proc getMuxer(peerId: PeerId, dir: Direction = Direction.In): Muxer =
+  return Muxer(connection: Connection.new(peerId, dir, Opt.none(MultiAddress)))
 
 type
   TestMuxer = ref object of Muxer
@@ -22,71 +22,55 @@ method newStream*(
   name: string = "",
   lazy: bool = false):
   Future[Connection] {.async, gcsafe.} =
-  result = getConnection(m.peerId, Direction.Out)
+  result = Connection.new(m.peerId, Direction.Out, Opt.none(MultiAddress))
 
 suite "Connection Manager":
   teardown:
     checkTrackers()
 
-  asyncTest "add and retrieve a connection":
+  asyncTest "add and retrieve a muxer":
     let connMngr = ConnManager.new()
     let peerId = PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet()
-    let conn = getConnection(peerId)
+    let mux = getMuxer(peerId)
 
-    connMngr.storeConn(conn)
-    check conn in connMngr
+    connMngr.storeMuxer(mux)
+    check mux in connMngr
 
-    let peerConn = connMngr.selectConn(peerId)
-    check peerConn == conn
-    check peerConn.dir == Direction.In
+    let peerMux = connMngr.selectMuxer(peerId)
+    check peerMux == mux
+    check peerMux.connection.dir == Direction.In
 
     await connMngr.close()
 
   asyncTest "shouldn't allow a closed connection":
     let connMngr = ConnManager.new()
     let peerId = PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet()
-    let conn = getConnection(peerId)
-    await conn.close()
+    let mux = getMuxer(peerId)
+    await mux.connection.close()
 
     expect CatchableError:
-      connMngr.storeConn(conn)
+      connMngr.storeMuxer(mux)
 
     await connMngr.close()
 
   asyncTest "shouldn't allow an EOFed connection":
     let connMngr = ConnManager.new()
     let peerId = PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet()
-    let conn = getConnection(peerId)
-    conn.isEof = true
+    let mux = getMuxer(peerId)
+    mux.connection.isEof = true
 
     expect CatchableError:
-      connMngr.storeConn(conn)
+      connMngr.storeMuxer(mux)
 
-    await conn.close()
+    await mux.close()
     await connMngr.close()
 
-  asyncTest "add and retrieve a muxer":
+  asyncTest "shouldn't allow a muxer with no connection":
     let connMngr = ConnManager.new()
     let peerId = PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet()
-    let conn = getConnection(peerId)
-    let muxer = new Muxer
-    muxer.connection = conn
-
-    connMngr.storeConn(conn)
-    connMngr.storeMuxer(muxer)
-    check muxer in connMngr
-
-    let peerMuxer = connMngr.selectMuxer(conn)
-    check peerMuxer == muxer
-
-    await connMngr.close()
-
-  asyncTest "shouldn't allow a muxer for an untracked connection":
-    let connMngr = ConnManager.new()
-    let peerId = PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet()
-    let conn = getConnection(peerId)
-    let muxer = new Muxer
-    muxer.connection = conn
+    let muxer = getMuxer(peerId)
+    let conn = muxer.connection
+    muxer.connection = nil
 
     expect CatchableError:
       connMngr.storeMuxer(muxer)
@@ -98,33 +82,34 @@ suite "Connection Manager":
   asyncTest "get conn with direction":
     let connMngr = ConnManager.new()
     let peerId = PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet()
-    let conn1 = getConnection(peerId, Direction.Out)
-    let conn2 = getConnection(peerId)
+    let mux1 = getMuxer(peerId, Direction.Out)
+    let mux2 = getMuxer(peerId)
 
-    connMngr.storeConn(conn1)
-    connMngr.storeConn(conn2)
-    check conn1 in connMngr
-    check conn2 in connMngr
+    connMngr.storeMuxer(mux1)
+    connMngr.storeMuxer(mux2)
+    check mux1 in connMngr
+    check mux2 in connMngr
 
-    let outConn = connMngr.selectConn(peerId, Direction.Out)
-    let inConn = connMngr.selectConn(peerId, Direction.In)
+    let outMux = connMngr.selectMuxer(peerId, Direction.Out)
+    let inMux = connMngr.selectMuxer(peerId, Direction.In)
 
-    check outConn != inConn
-    check outConn.dir == Direction.Out
-    check inConn.dir == Direction.In
+    check outMux != inMux
+    check outMux == mux1
+    check inMux == mux2
+    check outMux.connection.dir == Direction.Out
+    check inMux.connection.dir == Direction.In
 
     await connMngr.close()
 
   asyncTest "get muxed stream for peer":
     let connMngr = ConnManager.new()
     let peerId = PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet()
-    let conn = getConnection(peerId)
 
     let muxer = new TestMuxer
+    let connection = Connection.new(peerId, Direction.In, Opt.none(MultiAddress))
     muxer.peerId = peerId
-    muxer.connection = conn
+    muxer.connection = connection
 
-    connMngr.storeConn(conn)
     connMngr.storeMuxer(muxer)
     check muxer in connMngr
 
@@ -133,18 +118,18 @@ suite "Connection Manager":
     check stream.peerId == peerId
 
     await connMngr.close()
+    await connection.close()
     await stream.close()
 
   asyncTest "get stream from directed connection":
     let connMngr = ConnManager.new()
     let peerId = PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet()
-    let conn = getConnection(peerId)
 
     let muxer = new TestMuxer
+    let connection = Connection.new(peerId, Direction.In, Opt.none(MultiAddress))
     muxer.peerId = peerId
-    muxer.connection = conn
+    muxer.connection = connection
 
-    connMngr.storeConn(conn)
     connMngr.storeMuxer(muxer)
     check muxer in connMngr
 
@@ -155,63 +140,39 @@ suite "Connection Manager":
 
     await connMngr.close()
     await stream1.close()
-
-  asyncTest "get stream from any connection":
-    let connMngr = ConnManager.new()
-    let peerId = PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet()
-    let conn = getConnection(peerId)
-
-    let muxer = new TestMuxer
-    muxer.peerId = peerId
-    muxer.connection = conn
-
-    connMngr.storeConn(conn)
-    connMngr.storeMuxer(muxer)
-    check muxer in connMngr
-
-    let stream = await connMngr.getStream(conn)
-    check not(isNil(stream))
-
-    await connMngr.close()
-    await stream.close()
+    await connection.close()
 
   asyncTest "should raise on too many connections":
     let connMngr = ConnManager.new(maxConnsPerPeer = 1)
     let peerId = PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet()
 
-    connMngr.storeConn(getConnection(peerId))
+    connMngr.storeMuxer(getMuxer(peerId))
 
-    let conns = @[
-        getConnection(peerId),
-        getConnection(peerId)]
+    let muxs = @[
+        getMuxer(peerId),
+        getMuxer(peerId)]
 
     expect TooManyConnectionsError:
-      connMngr.storeConn(conns[0])
-      connMngr.storeConn(conns[1])
+      connMngr.storeMuxer(muxs[0])
+      connMngr.storeMuxer(muxs[1])
 
     await connMngr.close()
 
     await allFuturesThrowing(
-      allFutures(conns.mapIt( it.close() )))
+      allFutures(muxs.mapIt( it.close() )))
 
   asyncTest "cleanup on connection close":
     let connMngr = ConnManager.new()
     let peerId = PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet()
-    let conn = getConnection(peerId)
-    let muxer = new Muxer
+    let muxer = getMuxer(peerId)
 
-    muxer.connection = conn
-    connMngr.storeConn(conn)
     connMngr.storeMuxer(muxer)
 
-    check conn in connMngr
     check muxer in connMngr
 
-    await conn.close()
-    await sleepAsync(10.millis)
+    await muxer.close()
 
-    check conn notin connMngr
-    check muxer notin connMngr
+    checkExpiring: muxer notin connMngr
 
     await connMngr.close()
 
@@ -224,23 +185,19 @@ suite "Connection Manager":
         Direction.In else:
         Direction.Out
 
-      let conn = getConnection(peerId, dir)
-      let muxer = new Muxer
-      muxer.connection = conn
+      let muxer = getMuxer(peerId, dir)
 
-      connMngr.storeConn(conn)
       connMngr.storeMuxer(muxer)
 
-      check conn in connMngr
       check muxer in connMngr
-      check not(isNil(connMngr.selectConn(peerId, dir)))
+      check not(isNil(connMngr.selectMuxer(peerId, dir)))
 
     check peerId in connMngr
     await connMngr.dropPeer(peerId)
 
-    check peerId notin connMngr
-    check isNil(connMngr.selectConn(peerId, Direction.In))
-    check isNil(connMngr.selectConn(peerId, Direction.Out))
+    checkExpiring: peerId notin connMngr
+    check isNil(connMngr.selectMuxer(peerId, Direction.In))
+    check isNil(connMngr.selectMuxer(peerId, Direction.Out))
 
     await connMngr.close()
 
@@ -352,17 +309,17 @@ suite "Connection Manager":
   asyncTest "release slot on connection end":
     let connMngr = ConnManager.new(maxConnections = 3)
 
-    var conns: seq[Connection]
+    var muxs: seq[Muxer]
     for i in 0..<3:
       let slot = await ((connMngr.getOutgoingSlot()).wait(10.millis))
 
-      let conn =
-        getConnection(
+      let muxer =
+        getMuxer(
           PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet(),
           Direction.In)
 
-      slot.trackConnection(conn)
-      conns.add(conn)
+      slot.trackMuxer(muxer)
+      muxs.add(muxer)
 
     # should be full now
     let incomingSlot = connMngr.getIncomingSlot()
@@ -370,7 +327,7 @@ suite "Connection Manager":
     check (await incomingSlot.withTimeout(10.millis)) == false
 
     await allFuturesThrowing(
-      allFutures(conns.mapIt( it.close() )))
+      allFutures(muxs.mapIt( it.close() )))
 
     check await incomingSlot.withTimeout(10.millis)
 

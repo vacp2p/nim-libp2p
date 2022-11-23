@@ -193,7 +193,6 @@ proc upgrader(switch: Switch, trans: Transport, conn: Connection) {.async.} =
   try:
     let muxed = await trans.upgradeIncoming(conn)
     await switch.peerStore.identify(muxed)
-    switch.connManager.storeConn(muxed.connection)
     switch.connManager.storeMuxer(muxed)
     trace "Connection upgrade succeeded"
   except CatchableError as exc:

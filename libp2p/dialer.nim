@@ -165,17 +165,9 @@ proc internalConnect(
 
     # Check if we have a connection already and try to reuse it
     var muxed =
-      if peerId.isSome: self.connManager.selectMuxer(self.connManager.selectConn(peerId.get()))
+      if peerId.isSome: self.connManager.selectMuxer(peerId.get())
       else: nil
     if muxed != nil:
-      #if mux.atEof or mux.closed:
-      #  # This connection should already have been removed from the connection
-      #  # manager - it's essentially a bug that we end up here - we'll fail
-      #  # for now, hoping that this will clean themselves up later...
-      #  warn "dead connection in connection manager", conn
-      #  await conn.close()
-      #  raise newException(DialFailedError, "Zombie connection encountered")
-
       trace "Reusing existing connection", direction = $muxed.connection.dir
       return muxed
 
@@ -192,7 +184,6 @@ proc internalConnect(
 
     try:
       await self.peerStore.identify(muxed)
-      self.connManager.storeConn(muxed.connection)
       self.connManager.storeMuxer(muxed)
     except CatchableError as exc:
       trace "Failed to finish outgoung upgrade", err=exc.msg
