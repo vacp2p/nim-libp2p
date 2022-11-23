@@ -129,6 +129,7 @@ proc handle*(
   _: type MultistreamSelect,
   conn: Connection,
   protos: seq[string],
+  matchers = newSeq[Matcher](),
   active: bool = false,
   ): Future[string] {.async, gcsafe.} =
   trace "Starting multistream negotiation", conn, handshaked = active
@@ -163,7 +164,11 @@ proc handle*(
           conn
         await conn.writeLp(Na)
     else:
-      if ms in protos:
+      var found = ms in protos
+      if not found:
+        for matcher in matchers:
+          if matcher(ms): found = true
+      if found:
         trace "found handler", conn, protocol = ms
         await conn.writeLp(ms & "\n")
         conn.protocol = ms
@@ -173,16 +178,20 @@ proc handle*(
 
 proc handle*(m: MultistreamSelect, conn: Connection, active: bool = false) {.async, gcsafe.} =
   trace "Starting multistream handler", conn, handshaked = active
-  var handshaked = active
-  var protos: seq[string]
+  var
+    handshaked = active
+    protos: seq[string]
+    matchers: seq[Matcher]
   for h in m.handlers:
+    if not isNil(h.match):
+      matchers.add(h.match)
     for proto in h.protos:
       protos.add(proto)
 
   try:
-    let negotiated = await MultistreamSelect.handle(conn, protos, active)
+    let negotiated = await MultistreamSelect.handle(conn, protos, matchers, active)
     for h in m.handlers:
-      if h.protos.contains(negotiated):
+      if h.protos.contains(negotiated) or (not isNil(h.match) and h.match(negotiated)):
         await h.protocol.handler(conn, negotiated)
         return
     debug "no handlers", conn, negotiated
