@@ -39,7 +39,7 @@ type
   MuxerConstructor* = proc(conn: Connection): Muxer {.gcsafe, closure, raises: [Defect].}
 
   # this wraps a creator proc that knows how to make muxers
-  MuxerProvider* = ref object
+  MuxerProvider* = object
     newMuxer*: MuxerConstructor
     codec*: string
 
