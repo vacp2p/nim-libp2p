@@ -177,7 +177,7 @@ suite "Identify":
       check:
         switch1.peerStore[AddressBook][switch2.peerInfo.peerId] == switch2.peerInfo.addrs
         switch2.peerStore[AddressBook][switch1.peerInfo.peerId] == switch1.peerInfo.addrs
-        
+
         switch1.peerStore[KeyBook][switch2.peerInfo.peerId] == switch2.peerInfo.publicKey
         switch2.peerStore[KeyBook][switch1.peerInfo.peerId] == switch1.peerInfo.publicKey
 

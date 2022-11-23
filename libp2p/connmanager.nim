@@ -243,9 +243,9 @@ proc closeMuxer(muxer: Muxer) {.async.} =
   trace "Cleaning up muxer", m = muxer
 
   await muxer.close()
-  if not(isNil(muxer.handle)):
+  if not(isNil(muxer.handler)):
     try:
-      await muxer.handle # TODO noraises?
+      await muxer.handler # TODO noraises?
     except CatchableError as exc:
       trace "Exception in close muxer handler", exc = exc.msg
   trace "Cleaned up muxer", m = muxer
@@ -432,6 +432,12 @@ proc trackConnection*(cs: ConnectionSlot, conn: Connection) =
     cs.release()
 
   asyncSpawn semaphoreMonitor()
+
+proc trackMuxer*(cs: ConnectionSlot, mux: Muxer) =
+  if isNil(mux):
+    cs.release()
+    return
+  cs.trackConnection(mux.connection)
 
 proc storeMuxer*(c: ConnManager,
                  muxer: Muxer)

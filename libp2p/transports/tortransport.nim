@@ -265,11 +265,10 @@ proc new*(
     let torSwitch = T(
       peerInfo: switch.peerInfo,
       ms: switch.ms,
-      identify: switch.identify,
       transports: switch.transports,
       connManager: switch.connManager,
       peerStore: switch.peerStore,
-      dialer: Dialer.new(switch.peerInfo.peerId, switch.connManager, switch.transports, switch.ms, nil),
+      dialer: Dialer.new(switch.peerInfo.peerId, switch.connManager, switch.peerStore, switch.transports, nil),
       nameResolver: nil)
 
     torSwitch.connManager.peerStore = switch.peerStore

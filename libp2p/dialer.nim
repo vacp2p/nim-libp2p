@@ -17,6 +17,7 @@ import pkg/[chronos,
 import dial,
        peerid,
        peerinfo,
+       peerstore,
        multicodec,
        muxers/muxer,
        multistream,
@@ -42,10 +43,10 @@ type
 
   Dialer* = ref object of Dial
     localPeerId*: PeerId
-    ms: MultistreamSelect
     connManager: ConnManager
     dialLock: Table[PeerId, AsyncLock]
     transports: seq[Transport]
+    peerStore: PeerStore
     nameResolver: NameResolver
 
 proc dialAndUpgrade(
@@ -163,10 +164,10 @@ proc internalConnect(
     await lock.acquire()
 
     # Check if we have a connection already and try to reuse it
-    var mux =
+    var muxed =
       if peerId.isSome: self.connManager.selectMuxer(self.connManager.selectConn(peerId.get()))
       else: nil
-    if mux != nil:
+    if muxed != nil:
       #if mux.atEof or mux.closed:
       #  # This connection should already have been removed from the connection
       #  # manager - it's essentially a bug that we end up here - we'll fail
@@ -175,33 +176,30 @@ proc internalConnect(
       #  await conn.close()
       #  raise newException(DialFailedError, "Zombie connection encountered")
 
-      trace "Reusing existing connection", direction = $mux.connection.dir
-      return mux
+      trace "Reusing existing connection", direction = $muxed.connection.dir
+      return muxed
 
     let slot = await self.connManager.getOutgoingSlot(forceDial)
-    mux =
+    muxed =
       try:
         await self.dialAndUpgrade(peerId, addrs)
       except CatchableError as exc:
         slot.release()
         raise exc
-    #TODO
-    #slot.trackConnection(conn)
-    if isNil(mux): # None of the addresses connected
+    slot.trackMuxer(muxed)
+    if isNil(muxed): # None of the addresses connected
       raise newException(DialFailedError, "Unable to establish outgoing link")
 
-    # A disconnect could have happened right after
-    # we've added the connection so we check again
-    # to prevent races due to that.
-    # TODO
-    #if conn.closed() or conn.atEof():
-    #  # This can happen when the other ends drops us
-    #  # before we get a chance to return the connection
-    #  # back to the dialer.
-    #  trace "Connection dead on arrival", conn
-    #  raise newLPStreamClosedError()
+    try:
+      await self.peerStore.identify(muxed)
+      self.connManager.storeConn(muxed.connection)
+      self.connManager.storeMuxer(muxed)
+    except CatchableError as exc:
+      trace "Failed to finish outgoung upgrade", err=exc.msg
+      await muxed.close()
+      raise exc
 
-    return mux
+    return muxed
   finally:
     if lock.locked():
       lock.release()
@@ -233,7 +231,7 @@ proc negotiateStream(
   conn: Connection,
   protos: seq[string]): Future[Connection] {.async.} =
   trace "Negotiating stream", conn, protos
-  let selected = await self.ms.select(conn, protos)
+  let selected = await MultistreamSelect.select(conn, protos)
   if not protos.contains(selected):
     await conn.closeWithEOF()
     raise newException(DialFailedError, "Unable to select sub-protocol " & $protos)
@@ -324,12 +322,12 @@ proc new*(
   T: type Dialer,
   localPeerId: PeerId,
   connManager: ConnManager,
+  peerStore: PeerStore,
   transports: seq[Transport],
-  ms: MultistreamSelect,
   nameResolver: NameResolver = nil): Dialer =
 
   T(localPeerId: localPeerId,
     connManager: connManager,
     transports: transports,
-    ms: ms,
+    peerStore: peerStore,
     nameResolver: nameResolver)

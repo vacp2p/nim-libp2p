@@ -67,6 +67,7 @@ proc createSwitch(ma: MultiAddress; outgoing: bool, secio: bool = false): (Switc
 
   let
     identify = Identify.new(peerInfo)
+    peerStore = PeerStore.new(identify)
     mplexProvider = MuxerProvider.new(createMplex, MplexCodec)
     muxers = @[mplexProvider]
     secureManagers = if secio:
@@ -81,10 +82,10 @@ proc createSwitch(ma: MultiAddress; outgoing: bool, secio: bool = false): (Switc
   let switch = newSwitch(
       peerInfo,
       transports,
-      identify,
       secureManagers,
       connManager,
-      ms)
+      ms,
+      peerStore)
   result = (switch, peerInfo)
 
 suite "Noise":

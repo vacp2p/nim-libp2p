@@ -242,19 +242,20 @@ proc build*(b: SwitchBuilder): Switch
 
   let peerStore =
     if isSome(b.peerStoreCapacity):
-      PeerStore.new(b.peerStoreCapacity.get())
+      PeerStore.new(identify, b.peerStoreCapacity.get())
     else:
-      PeerStore.new()
+      PeerStore.new(identify)
 
   let switch = newSwitch(
     peerInfo = peerInfo,
     transports = transports,
-    identify = identify,
     secureManagers = secureManagerInstances,
     connManager = connManager,
     ms = ms,
     nameResolver = b.nameResolver,
     peerStore = peerStore)
+
+  switch.mount(identify)
 
   if b.autonat:
     let autonat = Autonat.new(switch)

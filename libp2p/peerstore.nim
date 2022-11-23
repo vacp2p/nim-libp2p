@@ -75,11 +75,15 @@ type
 
   PeerStore* {.public.} = ref object
     books: Table[string, BasePeerBook]
+    identify: Identify
     capacity*: int
     toClean*: seq[PeerId]
 
-proc new*(T: type PeerStore, capacity = 1000): PeerStore {.public.} =
-  T(capacity: capacity)
+proc new*(T: type PeerStore, identify: Identify, capacity = 1000): PeerStore {.public.} =
+  T(
+    identify: identify,
+    capacity: capacity
+  )
 
 #########################
 # Generic Peer Book API #
@@ -194,8 +198,6 @@ proc cleanup*(
 
 proc identify*(
   peerStore: PeerStore,
-  ms: MultistreamSelect,
-  identify: Identify,
   muxer: Muxer) {.async.} =
 
   # new stream for identify
@@ -204,8 +206,8 @@ proc identify*(
     return
 
   try:
-    if (await ms.select(stream, identify.codec())):
-      let info = await identify.identify(stream, stream.peerId)
+    if (await MultistreamSelect.select(stream, peerStore.identify.codec())):
+      let info = await peerStore.identify.identify(stream, stream.peerId)
 
       when defined(libp2p_agents_metrics):
         muxer.connection.shortAgent = "unknown"

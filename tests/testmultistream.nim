@@ -224,8 +224,7 @@ suite "Multistream select":
 
     var conn: Connection = nil
     proc testNaHandler(msg: string): Future[void] {.async, gcsafe.} =
-      echo msg
-      check msg == Na
+      check msg == "\x03na\n"
       await conn.close()
     conn = newTestNaStream(testNaHandler)
 

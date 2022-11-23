@@ -43,7 +43,9 @@ type
     newMuxer*: MuxerConstructor
     codec*: string
 
-func shortLog*(m: Muxer): auto = shortLog(m.connection)
+func shortLog*(m: Muxer): auto =
+  if isNil(m): "nil"
+  else: shortLog(m.connection)
 chronicles.formatIt(Muxer): shortLog(it)
 
 # muxer interface

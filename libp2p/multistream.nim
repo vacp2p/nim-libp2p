@@ -21,11 +21,11 @@ logScope:
   topics = "libp2p multistream"
 
 const
-  MsgSize* = 64*1024
-  Codec* = "/multistream/1.0.0"
+  MsgSize = 64*1024
+  Codec = "/multistream/1.0.0"
 
-  Na* = "na\n"
-  Ls* = "ls\n"
+  Na = "na\n"
+  Ls = "ls\n"
 
 type
   Matcher* = proc (proto: string): bool {.gcsafe, raises: [Defect].}
@@ -50,11 +50,11 @@ template validateSuffix(str: string): untyped =
     else:
       raise newException(MultiStreamError, "MultistreamSelect failed, malformed message")
 
-proc select*(m: MultistreamSelect,
+proc select*(_: MultistreamSelect | type MultistreamSelect,
              conn: Connection,
              proto: seq[string]):
              Future[string] {.async.} =
-  trace "initiating handshake", conn, codec = m.codec
+  trace "initiating handshake", conn, codec = Codec
   ## select a remote protocol
   await conn.writeLp(Codec & "\n") # write handshake
   if proto.len() > 0:
@@ -98,13 +98,13 @@ proc select*(m: MultistreamSelect,
       # No alternatives, fail
       return ""
 
-proc select*(m: MultistreamSelect,
+proc select*(_: MultistreamSelect | type MultistreamSelect,
              conn: Connection,
              proto: string): Future[bool] {.async.} =
   if proto.len > 0:
-    return (await m.select(conn, @[proto])) == proto
+    return (await MultistreamSelect.select(conn, @[proto])) == proto
   else:
-    return (await m.select(conn, @[])) == Codec
+    return (await MultistreamSelect.select(conn, @[])) == Codec
 
 proc select*(m: MultistreamSelect, conn: Connection): Future[bool] =
   m.select(conn, "")
@@ -150,7 +150,10 @@ proc handle*(
     case ms:
     of "ls":
       trace "handle: listing protos", conn
-      await conn.writeLp(protos.join("\n"))
+      #TODO this doens't seem to follow spec, each protocol
+      # should be length prefixed. Not very important
+      # since LS is getting deprecated
+      await conn.writeLp(protos.join("\n") & "\n")
     of Codec:
       if not handshaked:
         await conn.writeLp(Codec & "\n")
