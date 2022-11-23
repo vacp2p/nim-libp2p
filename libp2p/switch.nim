@@ -190,18 +190,10 @@ proc mount*[T: LPProtocol](s: Switch, proto: T, matcher: Matcher = nil)
   s.peerInfo.protocols.add(proto.codec)
 
 proc upgrader(switch: Switch, trans: Transport, conn: Connection) {.async.} =
-  try:
-    let muxed = await trans.upgradeIncoming(conn)
-    await switch.peerStore.identify(muxed)
-    switch.connManager.storeMuxer(muxed)
-    trace "Connection upgrade succeeded"
-  except CatchableError as exc:
-    if exc isnot CancelledError:
-      libp2p_failed_upgrades_incoming.inc()
-    if not isNil(conn):
-      await conn.close()
-
-    trace "Exception awaiting connection upgrade", exc = exc.msg, conn
+  let muxed = await trans.upgradeIncoming(conn)
+  await switch.peerStore.identify(muxed)
+  switch.connManager.storeMuxer(muxed)
+  trace "Connection upgrade succeeded"
 
 proc upgradeMonitor(
     switch: Switch,
@@ -210,6 +202,12 @@ proc upgradeMonitor(
     upgrades: AsyncSemaphore) {.async.} =
   try:
     await switch.upgrader(trans, conn).wait(30.seconds)
+  except CatchableError as exc:
+    if exc isnot CancelledError:
+      libp2p_failed_upgrades_incoming.inc()
+    if not isNil(conn):
+      await conn.close()
+    trace "Exception awaiting connection upgrade", exc = exc.msg, conn
   finally:
     upgrades.release()
 
