@@ -6,6 +6,7 @@ faststreams;https://github.com/status-im/nim-faststreams@#6112432b3a81d9db116cd5
 httputils;https://github.com/status-im/nim-http-utils@#e88e231dfcef4585fe3b2fbd9b664dbd28a88040
 json_serialization;https://github.com/status-im/nim-json-serialization@#e5b18fb710c3d0167ec79f3b892f5a7a1bc6d1a4
 metrics;https://github.com/status-im/nim-metrics@#0a6477268e850d7bc98347b3875301524871765f
+nat_mapper;https://github.com/status-im/nim-nat-mapper@#31c7e280c65c8e0816d82978e710464399f6cd6c
 nimcrypto;https://github.com/cheatfate/nimcrypto@#24e006df85927f64916e60511620583b11403178
 secp256k1;https://github.com/status-im/nim-secp256k1@#c7f1a37d9b0f17292649bfed8bf6cef83cf4221f
 serialization;https://github.com/status-im/nim-serialization@#60a5bd8ac0461dfadd3069fd9c01a7734f205995

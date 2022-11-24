@@ -5,9 +5,10 @@ import
   strformat, strutils,
   stew/byteutils,
   chronos,
-  libp2p
+  libp2p,
+  libp2p/protocols/connectivity/nat_auto_mapper
 
-const DefaultAddr = "/ip4/127.0.0.1/tcp/0"
+const DefaultAddr = "/ip4/0.0.0.0/tcp/0"
 
 const Help = """
   Commands: /[?|help|connect|disconnect|exit]
@@ -178,11 +179,14 @@ proc main() {.async.} =
     .withNoise()        # Use Noise as secure manager
     .build()
 
-  let chat = Chat(
-    switch: switch,
-    stdinReader: stdinReader)
+  let
+    chat = Chat(
+      switch: switch,
+      stdinReader: stdinReader)
+    natAutoMapper = NatAutoMapper.new(switch.peerInfo)
 
   switch.mount(ChatProto.new(chat))
+  switch.mount(natAutoMapper)
 
   await switch.start()
 
