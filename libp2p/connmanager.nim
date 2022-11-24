@@ -228,18 +228,20 @@ proc muxCleanup(c: ConnManager, mux: Muxer) {.async.} =
   try:
     trace "Triggering disconnect events", mux
     let peerId = mux.connection.peerId
-    await c.triggerConnEvent(
-      peerId, ConnEvent(kind: ConnEventKind.Disconnected))
 
     let muxers = c.muxed.getOrDefault(peerId).filterIt(it != mux)
     if muxers.len > 0:
       c.muxed[peerId] = muxers
     else:
+      c.muxed.del(peerId)
+      libp2p_peers.set(c.muxed.len.int64)
       await c.triggerPeerEvents(peerId, PeerEvent(kind: PeerEventKind.Left))
 
       if not(c.peerStore.isNil):
         c.peerStore.cleanup(peerId)
-      c.muxed.del(peerId)
+
+    await c.triggerConnEvent(
+      peerId, ConnEvent(kind: ConnEventKind.Disconnected))
   except CatchableError as exc:
     # This is top-level procedure which will work as separate task, so it
     # do not need to propagate CancelledError and should handle other errors
@@ -309,18 +311,18 @@ proc storeMuxer*(c: ConnManager,
   assert muxer notin c.muxed.getOrDefault(peerId)
 
   let
-    newPeer = peerId in c.muxed
+    newPeer = peerId notin c.muxed
     dir = muxer.connection.dir
+  assert newPeer or c.muxed[peerId].len > 0
   c.muxed.mgetOrPut(peerId, newSeq[Muxer]()).add(muxer)
   libp2p_peers.set(c.muxed.len.int64)
 
+  asyncSpawn c.triggerConnEvent(
+    peerId, ConnEvent(kind: ConnEventKind.Connected, incoming: dir == Direction.In))
 
   if newPeer:
     asyncSpawn c.triggerPeerEvents(
       peerId, PeerEvent(kind: PeerEventKind.Joined, initiator: dir == Direction.Out))
-
-  asyncSpawn c.triggerConnEvent(
-    peerId, ConnEvent(kind: ConnEventKind.Connected, incoming: dir == Direction.In))
 
   asyncSpawn c.onClose(muxer)
 
