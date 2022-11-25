@@ -107,11 +107,7 @@ suite "GossipSub":
     nodes[0].subscribe("foobar", handler)
     nodes[1].subscribe("foobar", handler)
 
-    var subs: seq[Future[void]]
-    subs &= waitSub(nodes[1], nodes[0], "foobar")
-    subs &= waitSub(nodes[0], nodes[1], "foobar")
-
-    await allFuturesThrowing(subs)
+    await waitSubGraph(nodes, "foobar")
 
     let gossip1 = GossipSub(nodes[0])
     let gossip2 = GossipSub(nodes[1])
