@@ -55,6 +55,7 @@ type
     onEvent*: OnEvent                   # Connectivity updates for peer
     codec*: string                      # the protocol that this peer joined from
     sendConn*: Connection               # cached send connection
+    connectedFut: Future[void]
     address*: Option[MultiAddress]
     peerId*: PeerId
     handler*: RPCHandler
@@ -120,6 +121,8 @@ proc handle*(p: PubSubPeer, conn: Connection) {.async.} =
     conn, peer = p, closed = conn.closed
   try:
     try:
+      # wait for bidirectional connection
+      await p.connectedFut
       while not conn.atEof:
         trace "waiting for data", conn, peer = p, closed = conn.closed
 
@@ -174,6 +177,7 @@ proc connectOnce(p: PubSubPeer): Future[void] {.async.} =
     # stop working so we make an effort to only keep a single channel alive
 
     trace "Get new send connection", p, newConn
+    p.connectedFut.complete()
     p.sendConn = newConn
     p.address = if p.sendConn.observedAddr.isSome: some(p.sendConn.observedAddr.get) else: none(MultiAddress)
 
@@ -182,6 +186,8 @@ proc connectOnce(p: PubSubPeer): Future[void] {.async.} =
 
     await handle(p, newConn)
   finally:
+    if not p.connectedFut.finished():
+      p.connectedFut.fail(newException(LPError, "can't establish conn"))
     if p.sendConn != nil:
       trace "Removing send connection", p, conn = p.sendConn
       await p.sendConn.close()
@@ -292,5 +298,6 @@ proc new*(
     onEvent: onEvent,
     codec: codec,
     peerId: peerId,
+    connectedFut: newFuture[void](),
     maxMessageSize: maxMessageSize
   )
