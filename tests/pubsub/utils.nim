@@ -132,13 +132,17 @@ proc waitSubGraph*(nodes: seq[PubSub], key: string) {.async, gcsafe.} =
       seen: HashSet[PeerId]
     for n in nodes:
       nodesMesh[n.peerInfo.peerId] = toSeq(GossipSub(n).mesh.getOrDefault(key).items()).mapIt(it.peerId)
-    proc explore(p: PeerId) =
-      if p in seen: return
-      seen.incl(p)
-      for peer in nodesMesh.getOrDefault(p):
-        explore(peer)
-    explore(nodes[0].peerInfo.peerId)
-    if seen.len == nodes.len: return
+    var ok = 0
+    for n in nodes:
+      seen.clear()
+      proc explore(p: PeerId) =
+        if p in seen: return
+        seen.incl(p)
+        for peer in nodesMesh.getOrDefault(p):
+          explore(peer)
+      explore(n.peerInfo.peerId)
+      if seen.len == nodes.len: ok.inc()
+    if ok == nodes.len: return
     trace "waitSubGraph sleeping..."
 
     await sleepAsync(5.milliseconds)
