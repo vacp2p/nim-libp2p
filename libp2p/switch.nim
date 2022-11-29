@@ -296,6 +296,10 @@ proc stop*(s: Switch) {.async, public.} =
 proc start*(s: Switch) {.async, gcsafe, public.} =
   ## Start listening on every transport
 
+  if s.started:
+    warn "Switch has already been started"
+    return
+
   trace "starting switch for peer", peerInfo = s.peerInfo
   var startFuts: seq[Future[void]]
   for t in s.transports:
