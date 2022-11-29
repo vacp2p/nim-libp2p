@@ -203,9 +203,8 @@ type
     sem: AsyncSemaphore
     switch*: Switch
 
-proc dialMe*(a: Autonat, pid: PeerId, ma: MultiAddress|seq[MultiAddress] = newSeq[MultiAddress]()):
-    Future[MultiAddress] {.async.} =
-  let addrs = when ma is MultiAddress: @[ma] else: ma
+method dialMe*(a: Autonat, pid: PeerId, addrs: seq[MultiAddress] = newSeq[MultiAddress]()):
+    Future[MultiAddress] {.base, async.} =
   let conn = if addrs.len == 0:
     await a.switch.dial(pid, @[AutonatCodec])
   else:
