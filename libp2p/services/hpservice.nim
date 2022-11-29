@@ -15,68 +15,63 @@ else:
 import ../switch
 import chronos
 import std/tables
-import ../protocols/connectivity/autonat
+import ../protocols/rendezvous
+import ../services/autonatservice
+import ../discovery/[rendezvousinterface, discoverymngr]
+import ../protocols/connectivity/relay/[relay, client]
 
 type
   HPService* = ref object of Service
-    newPeerHandler: PeerEventHandler
-    networkReachability: NetworkReachability
-    t: CountTable[NetworkReachability]
-    maxConfidence: int
+    rdv: RendezVous
+    dm: DiscoveryManager
+    relayClient: RelayClient
+    autonatService: AutonatService
+    onNewStatusHandler: NewStatusHandler
+    callb: Callb
 
-  NetworkReachability* {.pure.} = enum
-    Private, Public, Unknown
+  Callb* = proc (ma: MultiAddress): Future[void]  {.gcsafe, raises: [Defect].}
 
-proc new*(T: typedesc[HPService], maxConfidence: int = 3): T =
+proc new*(T: typedesc[HPService], rdv: RendezVous, relayClient: RelayClient, autonatService: AutonatService): T =
+  let dm = DiscoveryManager()
+  dm.add(RendezVousInterface.new(rdv))
   return T(
-    newPeerHandler: nil,
-    networkReachability: NetworkReachability.Unknown,
-    maxConfidence: maxConfidence,
-    t: initCountTable[NetworkReachability]())
+    rdv: rdv,
+    dm: dm,
+    relayClient: relayClient,
+    autonatService: autonatService)
 
-proc networkReachability*(self: HPService): NetworkReachability {.inline.} =
-  return self.networkReachability
+proc relay(self: HPService) {.async.} =
+  let queryRelay = self.dm.request(RdvNamespace("relay"))
+  let res = await queryRelay.getPeer()
+  let rsvp = await self.relayClient.reserve(res[PeerId], res.getAll(MultiAddress))
+  let relayedAddr = MultiAddress.init($rsvp.addrs[0] &
+                              "/p2p-circuit/p2p/" &
+                              $rsvp.voucher.get().reservingPeerId).tryGet()
 
-proc handleAnswer(self: HPService, ans: NetworkReachability) =
-  if ans == NetworkReachability.Unknown:
-    return
-  if ans == self.networkReachability:
-    if self.t[ans] == self.maxConfidence:
-      return
-    self.t.inc(ans)
-  else:
-    if self.t[self.networkReachability] > 0:
-      self.t.inc(self.networkReachability, -1)
-    if self.t[ans] < self.maxConfidence:
-      self.t.inc(ans)
-    if self.t[ans] == self.maxConfidence or self.t[self.networkReachability] == 0:
-      self.networkReachability = ans
+  await self.callb(relayedAddr)
 
-proc askPeer(self: HPService, s: Switch, peerId: PeerId): Future[void] {.async.} =
-  echo "Asking peer " & $(peerId)
-  let ans =
-    try:
-      let ma = await Autonat.new(s).dialMe(peerId)
-      NetworkReachability.Public
-    except AutonatError:
-      NetworkReachability.Private
-  self.handleAnswer(ans)
-  echo self.t
-  echo self.networkReachability
+  # switch1.peerInfo.listenAddrs = @[relayedAddr]
+  # await switch1.peerInfo.update()
 
-proc h(self: HPService, switch: Switch) =
-  for p in switch.peerStore[AddressBook].book.keys:
-    discard askPeer(self, switch, p)
+# proc networkReachability*(self: HPService): NetworkReachability {.inline.} =
+#   return self.networkReachability
 
 method setup*(self: HPService, switch: Switch) {.async.} =
-  self.newPeerHandler = proc (peerId: PeerId, event: PeerEvent): Future[void] =
-    return askPeer(self, switch, peerId)
+  await self.autonatService.setup(switch)
 
-  switch.connManager.addPeerEventHandler(self.newPeerHandler, PeerEventKind.Joined)
+  self.onNewStatusHandler = proc (networkReachability: NetworkReachability) {.gcsafe, async.} =
+    if networkReachability == NetworkReachability.Private:
+      await self.relay()
 
-method run*(self: HPService, switch: Switch) {.async, gcsafe, public.} =
-  h(self, switch)
+  self.autonatService.onNewStatuswithMaxConfidence(self.onNewStatusHandler)
 
-method stop*(self: HPService, switch: Switch) {.async, gcsafe, public.} =
-  if not isNil(self.newPeerHandler):
-    switch.connManager.removePeerEventHandler(self.newPeerHandler, PeerEventKind.Joined)
+method run*(self: HPService, switch: Switch) {.async, public.} =
+  await self.autonatService.run(switch)
+
+method stop*(self: HPService, switch: Switch) {.async, public.} =
+  await self.autonatService.stop(switch)
+  if not isNil(self.onNewStatusHandler):
+    discard #switch.connManager.removePeerEventHandler(self.newPeerHandler, PeerEventKind.Joined)
+
+proc onNewRelayAddr*(self: HPService, f: Callb) =
+  self.callb = f

@@ -25,6 +25,7 @@ import ./relay,
        ../../../multiaddress,
        ../../../stream/connection
 
+export options
 
 logScope:
   topics = "libp2p relay relay-client"
