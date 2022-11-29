@@ -1016,3 +1016,13 @@ suite "Switch":
     expect LPError:
       await switch.start()
     # test is that this doesn't leak
+
+  asyncTest "starting two times does not crash":
+    let switch = newStandardSwitch(
+      addrs = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
+    )
+
+    await switch.start()
+    await switch.start()
+
+    await allFuturesThrowing(switch.stop())
