@@ -17,7 +17,7 @@ import chronos
 import ../stream/connection
 
 const
-  DefaultMaxStreams* = 10
+  DefaultMaxIncomingStreams* = 10
 
 type
   LPProtoHandler* = proc (
@@ -30,7 +30,7 @@ type
     codecs*: seq[string]
     handler*: LPProtoHandler ## this handler gets invoked by the protocol negotiator
     started*: bool
-    maxStreams*: Opt[int]
+    maxIncomingStreams*: Opt[int]
 
 method init*(p: LPProtocol) {.base, gcsafe.} = discard
 method start*(p: LPProtocol) {.async, base.} = p.started = true

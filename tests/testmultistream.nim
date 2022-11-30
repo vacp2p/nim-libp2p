@@ -282,7 +282,10 @@ suite "Multistream select":
     let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
     let blocker = newFuture[void]()
 
-    var protocol: LPProtocol = LPProtocol(maxStreams: Opt.some(5))
+    # Start 5 streams which are blocked by `blocker`
+    # Try to start a new one, which should fail
+    # Unblock the 5 streams, check that we can open a new one
+    var protocol: LPProtocol = LPProtocol(maxIncomingStreams: Opt.some(5))
     proc testHandler(conn: Connection,
                       proto: string):
                       Future[void] {.async, gcsafe.} =
@@ -319,10 +322,10 @@ suite "Multistream select":
 
     # Fill up the 5 allowed streams
     var dialers: seq[Future[void]]
-    for _ in 0..5:
+    for _ in 0..<5:
       dialers.add(connector())
 
-    # This one will fail somehow
+    # This one will fail during negotiation
     expect(CatchableError):
       waitFor(connector())
     # check that the dialers aren't finished

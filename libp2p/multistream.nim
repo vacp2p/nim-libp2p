@@ -178,10 +178,11 @@ proc handle*(m: MultistreamSelect, conn: Connection, active: bool = false) {.asy
                                   conn.peerId, initCountTable[LPProtocol]())
             let
               protocol = h.protocol
-              maxStreams = protocol.maxStreams.get(DefaultMaxStreams)
-            if countTable.getOrDefault(protocol) > maxStreams:
+              maxIncomingStreams =
+                protocol.maxIncomingStreams.get(DefaultMaxIncomingStreams)
+            if countTable.getOrDefault(protocol) >= maxIncomingStreams:
               debug "Max streams for protocol reached, blocking new stream",
-                conn, protocol = ms, maxStreams
+                conn, protocol = ms, maxIncomingStreams
               return
             m.openedStreams[conn.peerId].inc(protocol)
             try:
