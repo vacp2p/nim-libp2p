@@ -14,9 +14,9 @@ import ../libp2p/[stream/connection,
                   multiaddress,
                   builders]
 
-import ./helpers, ./stubs, ./commontransport
+import ./helpers, ./stubs/torstub, ./commontransport
 
-const torServer = initTAddress("127.0.0.1", 9050.Port) 
+const torServer = initTAddress("127.0.0.1", 9050.Port)
 var stub: TorServerStub
 var startFut: Future[void]
 suite "Tor transport":

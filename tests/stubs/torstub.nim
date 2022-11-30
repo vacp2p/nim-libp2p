@@ -7,7 +7,7 @@ else:
 
 import tables
 import chronos, stew/[byteutils, endians2, shims/net]
-import ../libp2p/[stream/connection,
+import ../../libp2p/[stream/connection,
                   protocols/connectivity/relay/utils,
                   transports/tcptransport,
                   transports/tortransport,

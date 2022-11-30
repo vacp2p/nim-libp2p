@@ -17,8 +17,9 @@ import ../libp2p/[builders,
                   services/autonatservice,
                   protocols/rendezvous]
 import ../libp2p/protocols/connectivity/relay/[relay, client]
-import ../libp2p/protocols/connectivity/autonat
 import ../libp2p/discovery/[rendezvousinterface, discoverymngr]
+
+import stubs/autonatstub
 
 proc createSwitch(rdv: RendezVous = nil, relay: Relay = nil): Switch =
   var builder = SwitchBuilder.new()
@@ -37,20 +38,6 @@ proc createSwitch(rdv: RendezVous = nil, relay: Relay = nil): Switch =
 
   return builder.build()
 
-type
-  AutonatStub = ref object of Autonat
-    returnSuccess*: bool
-
-method dialMe*(
-  self: AutonatStub,
-  pid: PeerId,
-  addrs: seq[MultiAddress] = newSeq[MultiAddress]()):
-    Future[MultiAddress] {.async.} =
-    if self.returnSuccess:
-      return MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
-    else:
-      raise newException(AutonatError, "")
-
 suite "Hope Punching":
   teardown:
     checkTrackers()
@@ -64,7 +51,9 @@ suite "Hope Punching":
     let switch3 = createSwitch()
     let switch4 = createSwitch()
 
-    let autonatService = AutonatService.new(Autonat.new(switch1))
+    let autonatStub = AutonatStub.new(expectedDials = 3)
+
+    let autonatService = AutonatService.new(autonatStub)
     let hpservice = HPService.new(rdv, relayClient, autonatService)
 
     switch1.addService(hpservice)
@@ -84,7 +73,7 @@ suite "Hope Punching":
     await switch1.connect(switch3.peerInfo.peerId, switch3.peerInfo.addrs)
     await switch1.connect(switch4.peerInfo.peerId, switch4.peerInfo.addrs)
 
-    await sleepAsync(1.seconds)
+    await autonatStub.finished
 
     await allFuturesThrowing(
       switch1.stop(), switch2.stop(), switch3.stop(), switch4.stop())
@@ -115,7 +104,7 @@ suite "Hope Punching":
     dm.add(RendezVousInterface.new(relayRdv))
     dm.advertise(RdvNamespace("relay"))
 
-    let autonatStub = AutonatStub.new()
+    let autonatStub = AutonatStub.new(expectedDials = 8)
     autonatStub.returnSuccess = false
 
     let autonatService = AutonatService.new(autonatStub)
@@ -124,12 +113,15 @@ suite "Hope Punching":
     switch1.addService(hpservice)
     await switch1.start()
 
+    let awaiter = Awaiter.new()
+
     proc f(ma: MultiAddress) {.gcsafe, async.} =
       autonatStub.returnSuccess = true
       let expected = MultiAddress.init($relaySwitch.peerInfo.addrs[0] & "/p2p/" &
                             $relaySwitch.peerInfo.peerId & "/p2p-circuit/p2p/" &
                             $switch1.peerInfo.peerId).get()
       check ma == expected
+      awaiter.finished.complete()
 
     hpservice.onNewRelayAddr(f)
 
@@ -143,14 +135,11 @@ suite "Hope Punching":
     await switch1.connect(switch3.peerInfo.peerId, switch3.peerInfo.addrs)
     await switch1.connect(switch4.peerInfo.peerId, switch4.peerInfo.addrs)
 
-    await sleepAsync(1.seconds)
+    await awaiter.finished
 
     await hpservice.run(switch1)
 
-    await sleepAsync(1.seconds)
-
-    echo switch1.peerInfo.addrs[0]
-    await sleepAsync(1.seconds)
+    await autonatStub.finished
 
     await allFuturesThrowing(
       bootNode.stop(), relaySwitch.stop(), switch1.stop(), switch2.stop(), switch3.stop(), switch4.stop())

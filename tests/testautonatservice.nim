@@ -14,7 +14,7 @@ import ./helpers
 import ../libp2p/[builders,
                   switch,
                   services/autonatservice]
-import ../libp2p/protocols/connectivity/autonat
+import stubs/autonatstub
 
 proc createSwitch(): Switch =
   var builder = SwitchBuilder.new()
@@ -27,20 +27,6 @@ proc createSwitch(): Switch =
 
   return builder.build()
 
-type
-  AutonatStub = ref object of Autonat
-    returnSuccess*: bool
-
-method dialMe*(
-  self: AutonatStub,
-  pid: PeerId,
-  addrs: seq[MultiAddress] = newSeq[MultiAddress]()):
-    Future[MultiAddress] {.async.} =
-    if self.returnSuccess:
-      return MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
-    else:
-      raise newException(AutonatError, "")
-
 suite "Autonat Service":
   teardown:
     checkTrackers()
@@ -52,7 +38,7 @@ suite "Autonat Service":
     let switch3 = createSwitch()
     let switch4 = createSwitch()
 
-    let autonatStub = AutonatStub.new()
+    let autonatStub = AutonatStub.new(expectedDials = 3)
     autonatStub.returnSuccess = false
 
     let autonatService = AutonatService.new(autonatStub)
@@ -68,6 +54,8 @@ suite "Autonat Service":
     await switch1.connect(switch2.peerInfo.peerId, switch2.peerInfo.addrs)
     await switch1.connect(switch3.peerInfo.peerId, switch3.peerInfo.addrs)
     await switch1.connect(switch4.peerInfo.peerId, switch4.peerInfo.addrs)
+
+    await autonatStub.finished
 
     check autonatService.networkReachability() == NetworkReachability.Private
 
@@ -81,7 +69,10 @@ suite "Autonat Service":
     let switch3 = createSwitch()
     let switch4 = createSwitch()
 
-    let autonatService = AutonatService.new(Autonat.new(switch1))
+    let autonatStub = AutonatStub.new(expectedDials = 3)
+    autonatStub.returnSuccess = true
+
+    let autonatService = AutonatService.new(autonatStub)
     check autonatService.networkReachability() == NetworkReachability.Unknown
     switch1.addService(autonatService)
 
@@ -93,6 +84,8 @@ suite "Autonat Service":
     await switch1.connect(switch2.peerInfo.peerId, switch2.peerInfo.addrs)
     await switch1.connect(switch3.peerInfo.peerId, switch3.peerInfo.addrs)
     await switch1.connect(switch4.peerInfo.peerId, switch4.peerInfo.addrs)
+
+    await autonatStub.finished
 
     check autonatService.networkReachability() == NetworkReachability.Public
 
@@ -106,16 +99,19 @@ suite "Autonat Service":
     let switch3 = createSwitch()
     let switch4 = createSwitch()
 
-    let autonatStub = AutonatStub.new()
+    let autonatStub = AutonatStub.new(expectedDials = 6)
     autonatStub.returnSuccess = false
 
     let autonatService = AutonatService.new(autonatStub)
 
     switch1.addService(autonatService)
 
+    let awaiter = Awaiter.new()
+
     proc f(networkReachability: NetworkReachability) {.gcsafe, async.} =
        if networkReachability == NetworkReachability.Private:
          autonatStub.returnSuccess = true
+         awaiter.finished.complete()
 
     check autonatService.networkReachability() == NetworkReachability.Unknown
 
@@ -130,13 +126,13 @@ suite "Autonat Service":
     await switch1.connect(switch3.peerInfo.peerId, switch3.peerInfo.addrs)
     await switch1.connect(switch4.peerInfo.peerId, switch4.peerInfo.addrs)
 
-    await sleepAsync(1.seconds)
-
     check autonatService.networkReachability() == NetworkReachability.Private
+
+    await awaiter.finished
 
     await autonatService.run(switch1)
 
-    await sleepAsync(1.seconds)
+    await autonatStub.finished
 
     check autonatService.networkReachability() == NetworkReachability.Public
 
