@@ -12,7 +12,6 @@ when (NimMajor, NimMinor) < (1, 4):
 else:
   {.push raises: [].}
 
-import std/hashes
 import chronos
 import ../stream/connection
 
@@ -35,11 +34,6 @@ type
 method init*(p: LPProtocol) {.base, gcsafe.} = discard
 method start*(p: LPProtocol) {.async, base.} = p.started = true
 method stop*(p: LPProtocol) {.async, base.} = p.started = false
-
-proc hash*(protocol: LPProtocol): Hash =
-  result = protocol.codecs.hash !& protocol.handler.hash
-  result = !$ result
-
 
 func codec*(p: LPProtocol): string =
   assert(p.codecs.len > 0, "Codecs sequence was empty!")

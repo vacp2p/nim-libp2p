@@ -327,7 +327,10 @@ suite "Multistream select":
 
     # This one will fail during negotiation
     expect(CatchableError):
-      waitFor(connector())
+      try: waitFor(connector().wait(1.seconds))
+      except AsyncTimeoutError as exc:
+        check false
+        raise exc
     # check that the dialers aren't finished
     check: (await dialers[0].withTimeout(10.milliseconds)) == false
 
