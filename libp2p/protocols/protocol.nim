@@ -12,12 +12,9 @@ when (NimMajor, NimMinor) < (1, 4):
 else:
   {.push raises: [].}
 
-import std/tables
-import chronos, chronicles
+import std/hashes
+import chronos
 import ../stream/connection
-
-logScope:
-  topics = "libp2p protocol"
 
 const
   DefaultMaxIncomingStreams* = 10
@@ -34,21 +31,15 @@ type
     handler*: LPProtoHandler ## this handler gets invoked by the protocol negotiator
     started*: bool
     maxIncomingStreams*: Opt[int]
-    openedStreams*: CountTable[PeerId]
 
 method init*(p: LPProtocol) {.base, gcsafe.} = discard
 method start*(p: LPProtocol) {.async, base.} = p.started = true
 method stop*(p: LPProtocol) {.async, base.} = p.started = false
 
-proc handleIncoming*(protocol: LPProtocol, conn: Connection, proto: string) {.async.} =
-  let maxIncomingStreams = protocol.maxIncomingStreams.get(DefaultMaxIncomingStreams)
-  if protocol.openedStreams.getOrDefault(conn.peerId) >= maxIncomingStreams:
-    debug "Max streams for protocol reached, blocking new stream",
-      conn, proto, maxIncomingStreams
-    await conn.close()
-  protocol.openedStreams.inc(conn.peerId)
-  defer: protocol.openedStreams.inc(conn.peerId, -1)
-  await protocol.handler(conn, proto)
+proc hash*(protocol: LPProtocol): Hash =
+  result = protocol.codecs.hash !& protocol.handler.hash
+  result = !$ result
+
 
 func codec*(p: LPProtocol): string =
   assert(p.codecs.len > 0, "Codecs sequence was empty!")
