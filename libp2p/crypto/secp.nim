@@ -35,9 +35,6 @@ type
   SkSignature* = distinct secp256k1.SkSignature
   SkKeyPair* = distinct secp256k1.SkKeyPair
 
-template pubkey*(v: SkKeyPair): SkPublicKey = SkPublicKey(secp256k1.SkKeyPair(v).pubkey)
-template seckey*(v: SkKeyPair): SkPrivateKey = SkPrivateKey(secp256k1.SkKeyPair(v).seckey)
-
 proc random*(t: typedesc[SkPrivateKey], rng: var HmacDrbgContext): SkPrivateKey =
   #TODO is there a better way?
   var rngPtr = addr rng

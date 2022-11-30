@@ -448,20 +448,20 @@ proc getLength(ab: var Asn1Buffer): Asn1Result[uint64] =
   if not ab.isEmpty():
     let b = ab.buffer[ab.offset]
     if (b and 0x80'u8) == 0x00'u8:
-      let length = cast[uint64](b)
+      let length = uint64(b)
       ab.offset += 1
       return ok(length)
     if b == 0x80'u8:
       return err(Asn1Error.Indefinite)
     if b == 0xFF'u8:
       return err(Asn1Error.Incorrect)
-    let octets = cast[uint64](b and 0x7F'u8)
+    let octets = uint64(b and 0x7F'u8)
     if octets > 8'u64:
       return err(Asn1Error.Overflow)
     if ab.isEnough(int(octets)):
       var length: uint64 = 0
       for i in 0..<int(octets):
-        length = (length shl 8) or cast[uint64](ab.buffer[ab.offset + i + 1])
+        length = (length shl 8) or uint64(ab.buffer[ab.offset + i + 1])
       ab.offset = ab.offset + int(octets) + 1
       return ok(length)
     else:
