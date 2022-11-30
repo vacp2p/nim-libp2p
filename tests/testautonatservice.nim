@@ -9,6 +9,7 @@
 
 import chronos
 
+import std/options
 import unittest2
 import ./helpers
 import ../libp2p/[builders,
@@ -102,7 +103,7 @@ suite "Autonat Service":
     let autonatStub = AutonatStub.new(expectedDials = 6)
     autonatStub.returnSuccess = false
 
-    let autonatService = AutonatService.new(autonatStub)
+    let autonatService = AutonatService.new(autonatStub, some(1.seconds))
 
     switch1.addService(autonatService)
 
@@ -129,8 +130,6 @@ suite "Autonat Service":
     check autonatService.networkReachability() == NetworkReachability.Private
 
     await awaiter.finished
-
-    await autonatService.run(switch1)
 
     await autonatStub.finished
 

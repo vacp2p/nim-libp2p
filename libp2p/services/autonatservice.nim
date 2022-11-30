@@ -12,6 +12,7 @@ when (NimMajor, NimMinor) < (1, 4):
 else:
   {.push raises: [].}
 
+import std/options
 import ../switch
 import chronos
 import std/tables
@@ -29,18 +30,19 @@ type
     newStatusHandler: NewStatusHandler
     maxConfidence: int
 
+
   NetworkReachability* {.pure.} = enum
     Private, Public, Unknown
 
   NewStatusHandler* = proc (networkReachability: NetworkReachability): Future[void]  {.gcsafe, raises: [Defect].}
 
-proc new*(T: typedesc[AutonatService], autonat: Autonat, maxConfidence: int = 3): T =
-
+proc new*(T: typedesc[AutonatService], autonat: Autonat, scheduleInterval: Option[Duration] = none(Duration), maxConfidence: int = 3): T =
   return T(
     newPeerHandler: nil,
     networkReachability: NetworkReachability.Unknown,
     maxConfidence: maxConfidence,
     autonat: autonat,
+    scheduleInterval: scheduleInterval,
     t: initCountTable[NetworkReachability]())
 
 proc networkReachability*(self: AutonatService): NetworkReachability {.inline.} =
