@@ -107,7 +107,7 @@ type
     metricGetter: MetricCallback
 
 proc new(_: typedesc[MetricProto], cb: MetricCallback): MetricProto =
-  let res = MetricProto(metricGetter: cb)
+  var res: MetricProto
   proc handle(conn: Connection, proto: string) {.async, gcsafe.} =
     let
       metrics = await res.metricGetter()
@@ -115,8 +115,8 @@ proc new(_: typedesc[MetricProto], cb: MetricCallback): MetricProto =
     await conn.writeLp(asProtobuf.buffer)
     await conn.close()
 
-  res.codecs = @["/metric-getter/1.0.0"]
-  res.handler = handle
+  res = MetricProto.new(@["/metric-getter/1.0.0"], handle)
+  res.metricGetter = cb
   return res
 
 proc fetch(p: MetricProto, conn: Connection): Future[MetricList] {.async.} =

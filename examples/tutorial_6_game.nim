@@ -157,7 +157,7 @@ proc new(T: typedesc[GameProto], g: Game): T =
     # The handler of a protocol must wait for the stream to
     # be finished before returning
     await conn.join()
-  return T(codecs: @["/tron/1.0.0"], handler: handle)
+  return T.new(codecs = @["/tron/1.0.0"], handler = handle)
 
 proc networking(g: Game) {.async.} =
   # Create our switch, similar to the GossipSub example and

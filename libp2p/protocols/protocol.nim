@@ -49,3 +49,16 @@ func `codec=`*(p: LPProtocol, codec: string) =
   # always insert as first codec
   # if we use this abstraction
   p.codecs.insert(codec, 0)
+
+proc new*(
+  T: type LPProtocol,
+  codecs: seq[string],
+  handler: LPProtoHandler,
+  maxIncomingStreams: Opt[int] | int = default(Opt[int])): T =
+  T(
+    codecs: codecs,
+    handler: handler,
+    maxIncomingStreams:
+      when maxIncomingStreams is int: Opt.some(maxIncomingStreams)
+      else: maxIncomingStreams
+  )
