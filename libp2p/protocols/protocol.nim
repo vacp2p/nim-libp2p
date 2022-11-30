@@ -29,11 +29,17 @@ type
     codecs*: seq[string]
     handler*: LPProtoHandler ## this handler gets invoked by the protocol negotiator
     started*: bool
-    maxIncomingStreams*: Opt[int]
+    maxIncomingStreams: Opt[int]
 
 method init*(p: LPProtocol) {.base, gcsafe.} = discard
 method start*(p: LPProtocol) {.async, base.} = p.started = true
 method stop*(p: LPProtocol) {.async, base.} = p.started = false
+
+proc maxIncomingStreams*(p: LPProtocol): int =
+  p.maxIncomingStreams.get(DefaultMaxIncomingStreams)
+
+proc `maxIncomingStreams=`*(p: LPProtocol, val: int) =
+  p.maxIncomingStreams = Opt.some(val)
 
 func codec*(p: LPProtocol): string =
   assert(p.codecs.len > 0, "Codecs sequence was empty!")

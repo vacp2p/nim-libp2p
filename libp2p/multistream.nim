@@ -174,8 +174,7 @@ proc handle*(m: MultistreamSelect, conn: Connection, active: bool = false) {.asy
             trace "found handler", conn, protocol = ms
 
             var protocolHolder = h
-            let maxIncomingStreams =
-                  protocolHolder.protocol.maxIncomingStreams.get(DefaultMaxIncomingStreams)
+            let maxIncomingStreams = protocolHolder.protocol.maxIncomingStreams
             if protocolHolder.openedStreams.getOrDefault(conn.peerId) >= maxIncomingStreams:
               debug "Max streams for protocol reached, blocking new stream",
                 conn, protocol = ms, maxIncomingStreams

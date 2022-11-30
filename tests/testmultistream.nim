@@ -285,7 +285,8 @@ suite "Multistream select":
     # Start 5 streams which are blocked by `blocker`
     # Try to start a new one, which should fail
     # Unblock the 5 streams, check that we can open a new one
-    var protocol: LPProtocol = LPProtocol(maxIncomingStreams: Opt.some(5))
+    var protocol: LPProtocol = LPProtocol()
+    protocol.maxIncomingStreams = 5
     proc testHandler(conn: Connection,
                       proto: string):
                       Future[void] {.async, gcsafe.} =
