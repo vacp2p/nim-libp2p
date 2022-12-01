@@ -12,8 +12,10 @@ when (NimMajor, NimMinor) < (1, 4):
 else:
   {.push raises: [].}
 
-import chronos
+import chronos, stew/results
 import ../stream/connection
+
+export results
 
 const
   DefaultMaxIncomingStreams* = 10
@@ -53,8 +55,8 @@ func `codec=`*(p: LPProtocol, codec: string) =
 proc new*(
   T: type LPProtocol,
   codecs: seq[string],
-  handler: LPProtoHandler,
-  maxIncomingStreams: Opt[int] | int = default(Opt[int])): T =
+  handler: LPProtoHandler,  # default(Opt[int]) or Opt.none(int) don't work on 1.2
+  maxIncomingStreams: Opt[int] | int = Opt[int]()): T =
   T(
     codecs: codecs,
     handler: handler,
