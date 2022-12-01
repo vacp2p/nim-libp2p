@@ -53,7 +53,7 @@ suite "Hope Punching":
 
     let autonatStub = AutonatStub.new(expectedDials = 3)
 
-    let autonatService = AutonatService.new(autonatStub)
+    let autonatService = AutonatService.new(autonatStub, some(1.seconds))
     let hpservice = HPService.new(rdv, relayClient, autonatService)
 
     switch1.addService(hpservice)
@@ -107,7 +107,7 @@ suite "Hope Punching":
     let autonatStub = AutonatStub.new(expectedDials = 8)
     autonatStub.returnSuccess = false
 
-    let autonatService = AutonatService.new(autonatStub)
+    let autonatService = AutonatService.new(autonatStub, some(1.seconds))
     let hpservice = HPService.new(rdv1, relayClient, autonatService)
 
     switch1.addService(hpservice)
