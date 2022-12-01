@@ -42,7 +42,7 @@ suite "Autonat Service":
     let autonatStub = AutonatStub.new(expectedDials = 3)
     autonatStub.returnSuccess = false
 
-    let autonatService = AutonatService.new(autonatStub)
+    let autonatService = AutonatService.new(autonatStub, some(1.seconds))
     switch1.addService(autonatService)
 
     check autonatService.networkReachability() == NetworkReachability.Unknown
@@ -73,7 +73,7 @@ suite "Autonat Service":
     let autonatStub = AutonatStub.new(expectedDials = 3)
     autonatStub.returnSuccess = true
 
-    let autonatService = AutonatService.new(autonatStub)
+    let autonatService = AutonatService.new(autonatStub, some(1.seconds))
     check autonatService.networkReachability() == NetworkReachability.Unknown
     switch1.addService(autonatService)
 
@@ -127,9 +127,9 @@ suite "Autonat Service":
     await switch1.connect(switch3.peerInfo.peerId, switch3.peerInfo.addrs)
     await switch1.connect(switch4.peerInfo.peerId, switch4.peerInfo.addrs)
 
-    check autonatService.networkReachability() == NetworkReachability.Private
-
     await awaiter.finished
+
+    check autonatService.networkReachability() == NetworkReachability.Private
 
     await autonatStub.finished
 

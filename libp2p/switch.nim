@@ -47,8 +47,6 @@ import stream/connection,
        utility,
        dialer
 
-import utils/heartbeat
-
 export connmanager, upgrade, dialer, peerstore
 
 logScope:
@@ -79,8 +77,6 @@ type
       services*: seq[Service]
 
     Service* = ref object of RootObj
-      registerLoop*: Future[void]
-      scheduleInterval*: Option[Duration]
 
 # proc new*(T: typedesc[Service], scheduleInterval: Option[Duration] = none(Duration)) =
 #   T (scheduleInterval: scheduleInterval)
@@ -315,9 +311,6 @@ proc stop*(s: Switch) {.async, public.} =
 
   for service in s.services:
     await service.stop(s)
-    if service.scheduleInterval.isSome:
-      service.registerLoop.cancel()
-      service.registerLoop = nil
 
   await s.ms.stop()
 
@@ -360,14 +353,8 @@ proc start*(s: Switch) {.async, gcsafe, public.} =
 
   await s.ms.start()
 
-  proc register(service: Service, switch: Switch, interval: Duration) {.async.} =
-    heartbeat "Register run", interval:
-      await service.run(switch)
-
   for service in s.services:
     await service.setup(s)
-    if service.scheduleInterval.isSome:
-      service.registerLoop = register(service, s, service.scheduleInterval.get())
 
   s.started = true
 

@@ -20,10 +20,12 @@ import ../protocols/[connectivity/autonat,
                     rendezvous]
 import ../discovery/[rendezvousinterface, discoverymngr]
 import ../protocols/connectivity/relay/[relay, client]
+import ../utils/heartbeat
 
 type
   AutonatService* = ref object of Service
-    newPeerHandler: PeerEventHandler
+    registerLoop: Future[void]
+    scheduleInterval: Option[Duration]
     networkReachability: NetworkReachability
     t: CountTable[NetworkReachability]
     autonat: Autonat
@@ -38,7 +40,6 @@ type
 
 proc new*(T: typedesc[AutonatService], autonat: Autonat, scheduleInterval: Option[Duration] = none(Duration), maxConfidence: int = 3): T =
   return T(
-    newPeerHandler: nil,
     networkReachability: NetworkReachability.Unknown,
     maxConfidence: maxConfidence,
     autonat: autonat,
@@ -80,22 +81,25 @@ proc askPeer(self: AutonatService, s: Switch, peerId: PeerId): Future[void] {.as
       NetworkReachability.Private
   await self.handleAnswer(ans)
 
-proc h(self: AutonatService, switch: Switch) {.async.} =
+proc askPeersInAddressBook(self: AutonatService, switch: Switch) {.async.} =
   for p in switch.peerStore[AddressBook].book.keys:
     await askPeer(self, switch, p)
 
-method setup*(self: AutonatService, switch: Switch) {.async.} =
-  self.newPeerHandler = proc (peerId: PeerId, event: PeerEvent): Future[void] =
-    return askPeer(self, switch, peerId)
+proc register(service: AutonatService, switch: Switch, interval: Duration) {.async.} =
+  heartbeat "Register AutonatService run", interval:
+    await service.run(switch)
 
-  switch.connManager.addPeerEventHandler(self.newPeerHandler, PeerEventKind.Joined)
+method setup*(self: AutonatService, switch: Switch) {.async.} =
+  if self.scheduleInterval.isSome:
+      self.registerLoop = register(self, switch, self.scheduleInterval.get())
 
 method run*(self: AutonatService, switch: Switch) {.async, public.} =
-  await h(self, switch)
+  await askPeersInAddressBook(self, switch)
 
 method stop*(self: AutonatService, switch: Switch) {.async, public.} =
-  if not isNil(self.newPeerHandler):
-    switch.connManager.removePeerEventHandler(self.newPeerHandler, PeerEventKind.Joined)
+  if self.scheduleInterval.isSome and self.registerLoop != nil:
+    self.registerLoop.cancel()
+    self.registerLoop = nil
 
 proc onNewStatuswithMaxConfidence*(self: AutonatService, f: NewStatusHandler) =
   self.newStatusHandler = f
