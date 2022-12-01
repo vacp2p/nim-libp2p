@@ -12,7 +12,7 @@ when (NimMajor, NimMinor) < (1, 4):
 else:
   {.push raises: [].}
 
-import std/[strutils, sequtils]
+import std/[strutils, sequtils, tables]
 import chronos, chronicles, stew/byteutils
 import stream/connection,
        protocols/protocol
@@ -21,7 +21,7 @@ logScope:
   topics = "libp2p multistream"
 
 const
-  MsgSize* = 64*1024
+  MsgSize* = 1024
   Codec* = "/multistream/1.0.0"
 
   MSCodec* = "\x13" & Codec & "\n"
@@ -33,17 +33,20 @@ type
 
   MultiStreamError* = object of LPError
 
-  HandlerHolder* = object
+  HandlerHolder* = ref object
     protos*: seq[string]
     protocol*: LPProtocol
     match*: Matcher
+    openedStreams: CountTable[PeerId]
 
   MultistreamSelect* = ref object of RootObj
     handlers*: seq[HandlerHolder]
     codec*: string
 
 proc new*(T: typedesc[MultistreamSelect]): T =
-  T(codec: MSCodec)
+  T(
+    codec: MSCodec,
+  )
 
 template validateSuffix(str: string): untyped =
     if str.endsWith("\n"):
@@ -169,9 +172,22 @@ proc handle*(m: MultistreamSelect, conn: Connection, active: bool = false) {.asy
         for h in m.handlers:
           if (not isNil(h.match) and h.match(ms)) or h.protos.contains(ms):
             trace "found handler", conn, protocol = ms
-            await conn.writeLp(ms & "\n")
-            conn.protocol = ms
-            await h.protocol.handler(conn, ms)
+
+            var protocolHolder = h
+            let maxIncomingStreams = protocolHolder.protocol.maxIncomingStreams
+            if protocolHolder.openedStreams.getOrDefault(conn.peerId) >= maxIncomingStreams:
+              debug "Max streams for protocol reached, blocking new stream",
+                conn, protocol = ms, maxIncomingStreams
+              return
+            protocolHolder.openedStreams.inc(conn.peerId)
+            try:
+              await conn.writeLp(ms & "\n")
+              conn.protocol = ms
+              await protocolHolder.protocol.handler(conn, ms)
+            finally:
+              protocolHolder.openedStreams.inc(conn.peerId, -1)
+              if protocolHolder.openedStreams[conn.peerId] == 0:
+                protocolHolder.openedStreams.del(conn.peerId)
             return
         debug "no handlers", conn, protocol = ms
         await conn.write(Na)

@@ -32,7 +32,7 @@ proc new(T: typedesc[TestProto]): T =
     # We must close the connections ourselves when we're done with it
     await conn.close()
 
-  return T(codecs: @[TestCodec], handler: handle)
+  return T.new(codecs = @[TestCodec], handler = handle)
 
 ## This is a constructor for our `TestProto`, that will specify our `codecs` and a `handler`, which will be called for each incoming peer asking for this protocol.
 ## In our handle, we simply read a message from the connection and `echo` it.
