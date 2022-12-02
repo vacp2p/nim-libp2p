@@ -131,6 +131,9 @@ method addTransport*(s: Switch, t: Transport) =
 proc connectedPeers*(s: Switch, dir: Direction): seq[PeerId] =
   s.connManager.connectedPeers(dir)
 
+proc connectedPeers*(s: Switch): seq[PeerId] =
+  s.connManager.connectedPeers
+
 proc isConnected*(s: Switch, peerId: PeerId): bool {.public.} =
   ## returns true if the peer has one or more
   ## associated connections
