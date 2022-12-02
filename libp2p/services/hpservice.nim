@@ -60,7 +60,7 @@ method setup*(self: HPService, switch: Switch) {.async.} =
   await self.autonatService.setup(switch)
 
   self.onNewStatusHandler = proc (networkReachability: NetworkReachability) {.gcsafe, async.} =
-    if networkReachability == NetworkReachability.Private:
+    if networkReachability == NetworkReachability.NotReachable:
       await self.relay()
 
   self.autonatService.onNewStatuswithMaxConfidence(self.onNewStatusHandler)
