@@ -58,7 +58,7 @@ suite "Autonat Service":
 
     await autonatStub.finished
 
-    check autonatService.networkReachability() == NetworkReachability.Private
+    check autonatService.networkReachability() == NetworkReachability.NotReachable
 
     await allFuturesThrowing(
       switch1.stop(), switch2.stop(), switch3.stop(), switch4.stop())
@@ -88,7 +88,7 @@ suite "Autonat Service":
 
     await autonatStub.finished
 
-    check autonatService.networkReachability() == NetworkReachability.Public
+    check autonatService.networkReachability() == NetworkReachability.Reachable
 
     await allFuturesThrowing(
       switch1.stop(), switch2.stop(), switch3.stop(), switch4.stop())
@@ -110,7 +110,7 @@ suite "Autonat Service":
     let awaiter = Awaiter.new()
 
     proc f(networkReachability: NetworkReachability) {.gcsafe, async.} =
-       if networkReachability == NetworkReachability.Private:
+       if networkReachability == NetworkReachability.NotReachable:
          autonatStub.returnSuccess = true
          awaiter.finished.complete()
 
@@ -129,11 +129,11 @@ suite "Autonat Service":
 
     await awaiter.finished
 
-    check autonatService.networkReachability() == NetworkReachability.Private
+    check autonatService.networkReachability() == NetworkReachability.NotReachable
 
     await autonatStub.finished
 
-    check autonatService.networkReachability() == NetworkReachability.Public
+    check autonatService.networkReachability() == NetworkReachability.Reachable
 
     await allFuturesThrowing(switch1.stop(), switch2.stop(), switch3.stop(), switch4.stop())
 

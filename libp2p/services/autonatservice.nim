@@ -34,7 +34,7 @@ type
 
 
   NetworkReachability* {.pure.} = enum
-    Private, Public, Unknown
+    NotReachable, Reachable, Unknown
 
   NewStatusHandler* = proc (networkReachability: NetworkReachability): Future[void]  {.gcsafe, raises: [Defect].}
 
@@ -76,9 +76,9 @@ proc askPeer(self: AutonatService, s: Switch, peerId: PeerId): Future[void] {.as
   let ans =
     try:
       let ma = await self.autonat.dialMe(peerId)
-      NetworkReachability.Public
+      NetworkReachability.Reachable
     except AutonatError:
-      NetworkReachability.Private
+      NetworkReachability.NotReachable
   await self.handleAnswer(ans)
 
 proc askPeersInAddressBook(self: AutonatService, switch: Switch) {.async.} =
