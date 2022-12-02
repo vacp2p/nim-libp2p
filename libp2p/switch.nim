@@ -123,8 +123,8 @@ method addTransport*(s: Switch, t: Transport) =
 method addService*(switch: Switch, service: Service) =
   switch.services.add(service)
 
-proc connectedPeers*(s: Switch): seq[PeerId] =
-  s.connManager.connectedPeers
+proc connectedPeers*(s: Switch, dir: Direction): seq[PeerId] =
+  s.connManager.connectedPeers(dir)
 
 proc isConnected*(s: Switch, peerId: PeerId): bool {.public.} =
   ## returns true if the peer has one or more

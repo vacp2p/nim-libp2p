@@ -93,7 +93,7 @@ proc askPeer(self: AutonatService, s: Switch, peerId: PeerId): Future[void] {.as
   await self.handleAnswer(ans)
 
 proc askPeersInAddressBook(self: AutonatService, switch: Switch) {.async.} =
-  var peers = switch.connectedPeers()
+  var peers = switch.connectedPeers(Direction.Out)
   self.rng.shuffle(peers)
   for idx in 0..<min(self.numPeersToAsk, peers.len):
     await askPeer(self, switch, peers[idx])

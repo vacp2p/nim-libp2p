@@ -110,8 +110,12 @@ proc new*(C: type ConnManager,
 proc connCount*(c: ConnManager, peerId: PeerId): int =
   c.conns.getOrDefault(peerId).len
 
-proc connectedPeers*(c: ConnManager): seq[PeerId] =
-  toSeq(c.conns.keys)
+proc connectedPeers*(c: ConnManager, dir: Direction): seq[PeerId] =
+  var peers = newSeq[PeerId]();
+  for peerId, conns in c.conns:
+    if conns.anyIt(it.dir == dir):
+      peers.add(peerId)
+  return peers
 
 proc addConnEventHandler*(c: ConnManager,
                           handler: ConnEventHandler,
