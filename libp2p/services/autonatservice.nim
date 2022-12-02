@@ -21,6 +21,7 @@ import ../protocols/[connectivity/autonat,
 import ../discovery/[rendezvousinterface, discoverymngr]
 import ../protocols/connectivity/relay/[relay, client]
 import ../utils/heartbeat
+import ../crypto/crypto
 
 type
   AutonatService* = ref object of Service
@@ -30,6 +31,8 @@ type
     t: CountTable[NetworkReachability]
     autonat: Autonat
     newStatusHandler: NewStatusHandler
+    rng: ref HmacDrbgContext
+    numPeersToAsk: int
     maxConfidence: int
 
 
@@ -38,13 +41,21 @@ type
 
   NewStatusHandler* = proc (networkReachability: NetworkReachability): Future[void]  {.gcsafe, raises: [Defect].}
 
-proc new*(T: typedesc[AutonatService], autonat: Autonat, scheduleInterval: Option[Duration] = none(Duration), maxConfidence: int = 3): T =
+proc new*(
+  T: typedesc[AutonatService],
+  autonat: Autonat,
+  rng: ref HmacDrbgContext,
+  scheduleInterval: Option[Duration] = none(Duration),
+  numPeersToAsk: int = 5,
+  maxConfidence: int = 3): T =
   return T(
-    networkReachability: NetworkReachability.Unknown,
-    maxConfidence: maxConfidence,
-    autonat: autonat,
     scheduleInterval: scheduleInterval,
-    t: initCountTable[NetworkReachability]())
+    networkReachability: NetworkReachability.Unknown,
+    t: initCountTable[NetworkReachability](),
+    autonat: autonat,
+    rng: rng,
+    numPeersToAsk: numPeersToAsk,
+    maxConfidence: maxConfidence)
 
 proc networkReachability*(self: AutonatService): NetworkReachability {.inline.} =
   return self.networkReachability
@@ -82,8 +93,10 @@ proc askPeer(self: AutonatService, s: Switch, peerId: PeerId): Future[void] {.as
   await self.handleAnswer(ans)
 
 proc askPeersInAddressBook(self: AutonatService, switch: Switch) {.async.} =
-  for p in switch.peerStore[AddressBook].book.keys:
-    await askPeer(self, switch, p)
+  var peers = switch.connectedPeers()
+  self.rng.shuffle(peers)
+  for idx in 0..<min(self.numPeersToAsk, peers.len):
+    await askPeer(self, switch, peers[idx])
 
 proc register(service: AutonatService, switch: Switch, interval: Duration) {.async.} =
   heartbeat "Register AutonatService run", interval:

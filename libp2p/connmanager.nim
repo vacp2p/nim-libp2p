@@ -12,7 +12,7 @@ when (NimMajor, NimMinor) < (1, 4):
 else:
   {.push raises: [].}
 
-import std/[options, tables, sequtils, sets]
+import std/[options, tables, sequtils, sets, sugar]
 import pkg/[chronos, chronicles, metrics]
 import peerinfo,
        peerstore,
@@ -109,6 +109,9 @@ proc new*(C: type ConnManager,
 
 proc connCount*(c: ConnManager, peerId: PeerId): int =
   c.conns.getOrDefault(peerId).len
+
+proc connectedPeers*(c: ConnManager): seq[PeerId] =
+  toSeq(c.conns.keys)
 
 proc addConnEventHandler*(c: ConnManager,
                           handler: ConnEventHandler,
@@ -537,3 +540,4 @@ proc close*(c: ConnManager) {.async.} =
       await conn.close()
 
   trace "Closed ConnManager"
+
