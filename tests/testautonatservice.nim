@@ -137,29 +137,15 @@ suite "Autonat Service":
 
     await allFuturesThrowing(switch1.stop(), switch2.stop(), switch3.stop(), switch4.stop())
 
-  # asyncTest "IPFS Hope Punching test":
-  #   let switch1 = createAutonatSwitch()
+asyncTest "Autonat Service setup and stop twice":
 
-  #   switch1.addService(HPService.new())
+  let switch = createSwitch()
+  let autonatService = AutonatService.new(AutonatStub.new(expectedDials = 0), newRng(), some(1.seconds))
 
-  #   await switch1.start()
+  check (await autonatService.setup(switch)) == true
+  check (await autonatService.setup(switch)) == false
 
-  #   asyncSpawn switch1.connect(
-  #     PeerId.init("QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN").get(),
-  #     @[MultiAddress.init("/ip4/139.178.91.71/tcp/4001").get()]
-  #   )
+  check (await autonatService.stop(switch)) == true
+  check (await autonatService.stop(switch)) == false
 
-  #   asyncSpawn switch1.connect(
-  #     PeerId.init("QmcZf59bWwK5XFi76CZX8cbJ4BhTzzA3gU1ZjYZcYW3dwt").get(),
-  #     @[MultiAddress.init("/ip4/145.40.118.135/tcp/4001").get()]
-  #   )
-
-  #   asyncSpawn switch1.connect(
-  #     PeerId.init("QmaCpDMGvV2BGHeYERUEnRQAwe3N8SzbUtfsmvsqQLuvuJ").get(),
-  #     @[MultiAddress.init("/ip4/104.131.131.82/tcp/4001").get()]
-  #   )
-
-  #   await sleepAsync(20.seconds)
-
-  #   await allFuturesThrowing(
-  #     switch1.stop())
+  await allFuturesThrowing(switch.stop())

@@ -77,15 +77,25 @@ type
       services*: seq[Service]
 
     Service* = ref object of RootObj
+      inUse: bool
 
-# proc new*(T: typedesc[Service], scheduleInterval: Option[Duration] = none(Duration)) =
-#   T (scheduleInterval: scheduleInterval)
 
-method setup*(self: Service, switch: Switch) {.base, async, gcsafe, public.} = discard
+method setup*(self: Service, switch: Switch): Future[bool] {.base, async, gcsafe, public.} =
+  if self.inUse:
+    warn "service setup has already been called"
+    return false
+  self.inUse = true
+  return true
 
-method run*(self: Service, switch: Switch) {.base, async, gcsafe, public.} = discard
+method run*(self: Service, switch: Switch) {.base, async, gcsafe, public.} =
+  doAssert(false, "Not implemented!")
 
-method stop*(self: Service, switch: Switch) {.base, async, gcsafe, public.} = discard
+method stop*(self: Service, switch: Switch): Future[bool] {.base, async, gcsafe, public.} =
+  if not self.inUse:
+    warn "service is already stopped"
+    return false
+  self.inUse = false
+  return true
 
 proc addConnEventHandler*(s: Switch,
                           handler: ConnEventHandler,
@@ -313,7 +323,7 @@ proc stop*(s: Switch) {.async, public.} =
       a.cancel()
 
   for service in s.services:
-    await service.stop(s)
+    discard await service.stop(s)
 
   await s.ms.stop()
 
@@ -357,7 +367,7 @@ proc start*(s: Switch) {.async, gcsafe, public.} =
   await s.ms.start()
 
   for service in s.services:
-    await service.setup(s)
+    discard await service.setup(s)
 
   s.started = true
 

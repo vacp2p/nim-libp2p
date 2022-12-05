@@ -102,17 +102,21 @@ proc register(service: AutonatService, switch: Switch, interval: Duration) {.asy
   heartbeat "Register AutonatService run", interval:
     await service.run(switch)
 
-method setup*(self: AutonatService, switch: Switch) {.async.} =
-  if self.scheduleInterval.isSome:
-      self.registerLoop = register(self, switch, self.scheduleInterval.get())
+method setup*(self: AutonatService, switch: Switch): Future[bool] {.async.} =
+  let hasBeenSettedUp = await procCall Service(self).setup(switch)
+  if hasBeenSettedUp and self.scheduleInterval.isSome:
+    self.registerLoop = register(self, switch, self.scheduleInterval.get())
+  return hasBeenSettedUp
 
 method run*(self: AutonatService, switch: Switch) {.async, public.} =
   await askPeersInAddressBook(self, switch)
 
-method stop*(self: AutonatService, switch: Switch) {.async, public.} =
-  if self.scheduleInterval.isSome and self.registerLoop != nil:
+method stop*(self: AutonatService, switch: Switch): Future[bool] {.async, public.} =
+  let hasBeenStopped = await procCall Service(self).stop(switch)
+  if hasBeenStopped and self.scheduleInterval.isSome and self.registerLoop != nil:
     self.registerLoop.cancel()
     self.registerLoop = nil
+  return hasBeenStopped
 
 proc onNewStatuswithMaxConfidence*(self: AutonatService, f: NewStatusHandler) =
   self.newStatusHandler = f
