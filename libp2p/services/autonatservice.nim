@@ -82,23 +82,28 @@ proc handleAnswer(self: AutonatService, ans: NetworkReachability) {.async.} =
   trace "Current status confidence", confidence = $self.t
   trace "Current status", currentStats = $self.networkReachability
 
-proc askPeer(self: AutonatService, s: Switch, peerId: PeerId): Future[void] {.async.} =
+proc askPeer(self: AutonatService, s: Switch, peerId: PeerId): Future[bool] {.async.} =
   trace "Asking for reachability", peerId = $peerId
-  let ans =
+  let (ans, known) =
     try:
       let ma = await self.autonat.dialMe(peerId)
-      NetworkReachability.Reachable
+      (NetworkReachability.Reachable, true)
     except AutonatUnreachableError:
-      NetworkReachability.NotReachable
+      (NetworkReachability.NotReachable, true)
     except AutonatError:
-      NetworkReachability.Unknown
+      (NetworkReachability.Unknown, false)
   await self.handleAnswer(ans)
+  return known
 
-proc askPeersInAddressBook(self: AutonatService, switch: Switch) {.async.} =
+proc askConnectedPeers(self: AutonatService, switch: Switch) {.async.} =
   var peers = switch.connectedPeers(Direction.Out)
   self.rng.shuffle(peers)
-  for idx in 0..<min(self.numPeersToAsk, peers.len):
-    await askPeer(self, switch, peers[idx])
+  var peersToAsk = min(self.numPeersToAsk, peers.len)
+  for peer in peers:
+    if peersToAsk == 0:
+      break
+    if await askPeer(self, switch, peer):
+      peersToAsk -= 1
 
 proc register(service: AutonatService, switch: Switch, interval: Duration) {.async.} =
   heartbeat "Register AutonatService run", interval:
@@ -111,7 +116,7 @@ method setup*(self: AutonatService, switch: Switch): Future[bool] {.async.} =
   return hasBeenSettedUp
 
 method run*(self: AutonatService, switch: Switch) {.async, public.} =
-  await askPeersInAddressBook(self, switch)
+  await askConnectedPeers(self, switch)
 
 method stop*(self: AutonatService, switch: Switch): Future[bool] {.async, public.} =
   let hasBeenStopped = await procCall Service(self).stop(switch)
