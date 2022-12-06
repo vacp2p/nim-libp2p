@@ -88,8 +88,10 @@ proc askPeer(self: AutonatService, s: Switch, peerId: PeerId): Future[void] {.as
     try:
       let ma = await self.autonat.dialMe(peerId)
       NetworkReachability.Reachable
-    except AutonatError:
+    except AutonatUnreachableError:
       NetworkReachability.NotReachable
+    except AutonatError:
+      NetworkReachability.Unknown
   await self.handleAnswer(ans)
 
 proc askPeersInAddressBook(self: AutonatService, switch: Switch) {.async.} =

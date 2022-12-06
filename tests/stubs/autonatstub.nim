@@ -37,4 +37,4 @@ method dialMe*(
       return MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
     else:
       tryFinish()
-      raise newException(AutonatError, "")
+      raise newException(AutonatUnreachableError, "")
