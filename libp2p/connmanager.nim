@@ -12,7 +12,7 @@ when (NimMajor, NimMinor) < (1, 4):
 else:
   {.push raises: [].}
 
-import std/[options, tables, sequtils, sets, sugar]
+import std/[options, tables, sequtils, sets]
 import pkg/[chronos, chronicles, metrics]
 import peerinfo,
        peerstore,

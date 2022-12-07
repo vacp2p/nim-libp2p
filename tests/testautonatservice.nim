@@ -7,14 +7,13 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-import chronos
-
 import std/options
+import chronos
 import unittest2
-import ./helpers
 import ../libp2p/[builders,
                   switch,
                   services/autonatservice]
+import ./helpers
 import stubs/autonatstub
 
 proc createSwitch(): Switch =
