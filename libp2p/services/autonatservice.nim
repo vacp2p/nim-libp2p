@@ -34,7 +34,6 @@ type
     numPeersToAsk: int
     maxConfidence: int
 
-
   NetworkReachability* {.pure.} = enum
     NotReachable, Reachable, Unknown
 
@@ -81,18 +80,18 @@ proc handleAnswer(self: AutonatService, ans: NetworkReachability) {.async.} =
   trace "Current status confidence", confidence = $self.t
   trace "Current status", currentStats = $self.networkReachability
 
-proc askPeer(self: AutonatService, s: Switch, peerId: PeerId): Future[bool] {.async.} =
+proc askPeer(self: AutonatService, s: Switch, peerId: PeerId): Future[NetworkReachability] {.async.} =
   trace "Asking for reachability", peerId = $peerId
-  let (ans, known) =
+  let ans =
     try:
       let ma = await self.autonat.dialMe(peerId)
-      (NetworkReachability.Reachable, true)
+      NetworkReachability.Reachable
     except AutonatUnreachableError:
-      (NetworkReachability.NotReachable, true)
+      NetworkReachability.NotReachable
     except AutonatError:
-      (NetworkReachability.Unknown, false)
+      NetworkReachability.Unknown
   await self.handleAnswer(ans)
-  return known
+  return ans
 
 proc askConnectedPeers(self: AutonatService, switch: Switch) {.async.} =
   var peers = switch.connectedPeers(Direction.Out)
@@ -101,7 +100,7 @@ proc askConnectedPeers(self: AutonatService, switch: Switch) {.async.} =
   for peer in peers:
     if peersToAsk == 0:
       break
-    if await askPeer(self, switch, peer):
+    if (await askPeer(self, switch, peer)) != NetworkReachability.Unknown:
       peersToAsk -= 1
 
 proc register(service: AutonatService, switch: Switch, interval: Duration) {.async.} =
