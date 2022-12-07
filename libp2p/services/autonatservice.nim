@@ -12,7 +12,7 @@ when (NimMajor, NimMinor) < (1, 4):
 else:
   {.push raises: [].}
 
-import std/[options, tables]
+import std/[tables]
 import chronos
 import ../switch
 import ../protocols/[connectivity/autonat,
@@ -25,7 +25,7 @@ import ../crypto/crypto
 type
   AutonatService* = ref object of Service
     registerLoop: Future[void]
-    scheduleInterval: Option[Duration]
+    scheduleInterval: Duration
     networkReachability: NetworkReachability
     t: CountTable[NetworkReachability]
     autonat: Autonat
@@ -43,7 +43,7 @@ proc new*(
   T: typedesc[AutonatService],
   autonat: Autonat,
   rng: ref HmacDrbgContext,
-  scheduleInterval: Option[Duration] = none(Duration),
+  scheduleInterval: Duration,
   numPeersToAsk: int = 5,
   maxConfidence: int = 3): T =
   return T(
@@ -109,8 +109,8 @@ proc register(service: AutonatService, switch: Switch, interval: Duration) {.asy
 
 method setup*(self: AutonatService, switch: Switch): Future[bool] {.async.} =
   let hasBeenSettedUp = await procCall Service(self).setup(switch)
-  if hasBeenSettedUp and self.scheduleInterval.isSome:
-    self.registerLoop = register(self, switch, self.scheduleInterval.get())
+  if hasBeenSettedUp:
+    self.registerLoop = register(self, switch, self.scheduleInterval)
   return hasBeenSettedUp
 
 method run*(self: AutonatService, switch: Switch) {.async, public.} =
@@ -118,7 +118,7 @@ method run*(self: AutonatService, switch: Switch) {.async, public.} =
 
 method stop*(self: AutonatService, switch: Switch): Future[bool] {.async, public.} =
   let hasBeenStopped = await procCall Service(self).stop(switch)
-  if hasBeenStopped and self.scheduleInterval.isSome and self.registerLoop != nil:
+  if hasBeenStopped and self.registerLoop != nil:
     self.registerLoop.cancel()
     self.registerLoop = nil
   return hasBeenStopped
