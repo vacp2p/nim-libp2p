@@ -36,7 +36,8 @@ method connect*(
 
 method connect*(
   self: Dial,
-  addrs: seq[MultiAddress]): Future[PeerId] {.async, base.} =
+  addrs: seq[MultiAddress],
+  allowUnknownPeerId = false): Future[PeerId] {.async, base.} =
   ## Connects to a peer and retrieve its PeerId
 
   doAssert(false, "Not implemented!")
