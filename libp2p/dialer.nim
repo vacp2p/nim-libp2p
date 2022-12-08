@@ -219,24 +219,23 @@ method connect*(
 
 method connect*(
   self: Dialer,
-  addrs: seq[MultiAddress],
+  address: MultiAddress,
   allowUnknownPeerId = false): Future[PeerId] {.async.} =
   ## Connects to a peer and retrieve its PeerId
 
-  for address in addrs:
-    let fullAddress = parseFullAddress(address)
-    if fullAddress.isOk:
-      return (await self.internalConnect(
-        Opt.some(fullAddress.get()[0]),
-        @[fullAddress.get()[1]],
-        false)).peerId
-    else:
-      if allowUnknownPeerId == false:
-        raise newException(DialFailedError, "Address without PeerID and unknown peer id disabled!")
-      return (await self.internalConnect(
-        Opt.none(PeerId),
-        @[address],
-        false)).peerId
+  let fullAddress = parseFullAddress(address)
+  if fullAddress.isOk:
+    return (await self.internalConnect(
+      Opt.some(fullAddress.get()[0]),
+      @[fullAddress.get()[1]],
+      false)).peerId
+  else:
+    if allowUnknownPeerId == false:
+      raise newException(DialFailedError, "Address without PeerID and unknown peer id disabled!")
+    return (await self.internalConnect(
+      Opt.none(PeerId),
+      @[address],
+      false)).peerId
 
 proc negotiateStream(
   self: Dialer,

@@ -214,12 +214,12 @@ suite "Switch":
       "dnsaddr=" & $switch1.peerInfo.addrs[0] & "/p2p/" & $switch1.peerInfo.peerId,
     ]
 
-    check: (await switch2.connect(@[MultiAddress.init("/dnsaddr/test.io/").tryGet()], true)) == switch1.peerInfo.peerId
+    check: (await switch2.connect(MultiAddress.init("/dnsaddr/test.io/").tryGet(), true)) == switch1.peerInfo.peerId
     await switch2.disconnect(switch1.peerInfo.peerId)
 
     # via direct ip
     check not switch2.isConnected(switch1.peerInfo.peerId)
-    check: (await switch2.connect(switch1.peerInfo.addrs, true)) == switch1.peerInfo.peerId
+    check: (await switch2.connect(switch1.peerInfo.addrs[0], true)) == switch1.peerInfo.peerId
 
     await switch2.disconnect(switch1.peerInfo.peerId)
 
@@ -239,15 +239,15 @@ suite "Switch":
 
     # without specifying allow unknown, will fail
     expect(DialFailedError):
-      discard await switch2.connect(switch1.peerInfo.addrs)
+      discard await switch2.connect(switch1.peerInfo.addrs[0])
 
     # with invalid PeerId, will fail
     let fakeMa = concat(switch1.peerInfo.addrs[0], MultiAddress.init(multiCodec("p2p"), PeerId.random.tryGet().data).tryGet()).tryGet()
     expect(CatchableError):
-      discard (await switch2.connect(@[fakeMa]))
+      discard (await switch2.connect(fakeMa))
 
     # real thing works
-    check (await switch2.connect(switch1.peerInfo.fullAddrs.tryGet())) == switch1.peerInfo.peerId
+    check (await switch2.connect(switch1.peerInfo.fullAddrs.tryGet()[0])) == switch1.peerInfo.peerId
 
     await switch2.disconnect(switch1.peerInfo.peerId)
 

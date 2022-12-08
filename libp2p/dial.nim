@@ -36,7 +36,7 @@ method connect*(
 
 method connect*(
   self: Dial,
-  addrs: seq[MultiAddress],
+  address: MultiAddress,
   allowUnknownPeerId = false): Future[PeerId] {.async, base.} =
   ## Connects to a peer and retrieve its PeerId
 

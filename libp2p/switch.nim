@@ -130,7 +130,7 @@ method connect*(
 
 method connect*(
   s: Switch,
-  addrs: seq[MultiAddress],
+  address: MultiAddress,
   allowUnknownPeerId = false): Future[PeerId] =
   ## Connects to a peer and retrieve its PeerId
   ##
@@ -138,7 +138,7 @@ method connect*(
   ## to true, this will discover the PeerId while connecting. This exposes
   ## you to MiTM attacks, so it shouldn't be used without care!
 
-  s.dialer.connect(addrs, allowUnknownPeerId)
+  s.dialer.connect(address, allowUnknownPeerId)
 
 method dial*(
   s: Switch,
