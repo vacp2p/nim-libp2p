@@ -130,9 +130,6 @@ method addTransport*(s: Switch, t: Transport) =
   s.transports &= t
   s.dialer.addTransport(t)
 
-method addService*(switch: Switch, service: Service) =
-  switch.services.add(service)
-
 proc connectedPeers*(s: Switch, dir: Direction): seq[PeerId] =
   s.connManager.connectedPeers(dir)
 
