@@ -12,7 +12,7 @@ when (NimMajor, NimMinor) < (1, 4):
 else:
   {.push raises: [].}
 
-import std/[tables]
+import std/[tables, options]
 import chronos
 import ../switch
 import ../protocols/[connectivity/autonat,
@@ -24,8 +24,9 @@ import ../crypto/crypto
 
 type
   AutonatService* = ref object of Service
+    newConnectedPeerHandler: PeerEventHandler
     registerLoop: Future[void]
-    scheduleInterval: Duration
+    scheduleInterval: Option[Duration]
     networkReachability: NetworkReachability
     t: CountTable[NetworkReachability]
     autonat: Autonat
@@ -43,7 +44,7 @@ proc new*(
   T: typedesc[AutonatService],
   autonat: Autonat,
   rng: ref HmacDrbgContext,
-  scheduleInterval: Duration,
+  scheduleInterval: Option[Duration] = none(Duration),
   numPeersToAsk: int = 5,
   maxConfidence: int = 3): T =
   return T(
@@ -110,7 +111,11 @@ proc register(service: AutonatService, switch: Switch, interval: Duration) {.asy
 method setup*(self: AutonatService, switch: Switch): Future[bool] {.async.} =
   let hasBeenSettedUp = await procCall Service(self).setup(switch)
   if hasBeenSettedUp:
-    self.registerLoop = register(self, switch, self.scheduleInterval)
+    self.newConnectedPeerHandler = proc (peerId: PeerId, event: PeerEvent): Future[void] {.async.} =
+      discard askPeer(self, switch, peerId)
+    switch.connManager.addPeerEventHandler(self.newConnectedPeerHandler, PeerEventKind.Joined)
+    if self.scheduleInterval.isSome():
+      self.registerLoop = register(self, switch, self.scheduleInterval.get())
   return hasBeenSettedUp
 
 method run*(self: AutonatService, switch: Switch) {.async, public.} =
@@ -118,9 +123,12 @@ method run*(self: AutonatService, switch: Switch) {.async, public.} =
 
 method stop*(self: AutonatService, switch: Switch): Future[bool] {.async, public.} =
   let hasBeenStopped = await procCall Service(self).stop(switch)
-  if hasBeenStopped and self.registerLoop != nil:
-    self.registerLoop.cancel()
-    self.registerLoop = nil
+  if hasBeenStopped:
+    if not isNil(self.registerLoop):
+      self.registerLoop.cancel()
+      self.registerLoop = nil
+    if not isNil(self.newConnectedPeerHandler):
+      switch.connManager.removePeerEventHandler(self.newConnectedPeerHandler, PeerEventKind.Joined)
   return hasBeenStopped
 
 proc onNewStatuswithMaxConfidence*(self: AutonatService, f: NewStatusHandler) =

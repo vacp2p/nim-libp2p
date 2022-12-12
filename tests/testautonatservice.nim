@@ -16,7 +16,7 @@ import ../libp2p/[builders,
 import ./helpers
 import stubs/autonatstub
 
-proc createSwitch(): Switch =
+proc createSwitch(autonatSvc: Service = nil): Switch =
   var builder = SwitchBuilder.new()
     .withRng(newRng())
     .withAddresses(@[ MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet() ])
@@ -24,6 +24,9 @@ proc createSwitch(): Switch =
     .withMplex()
     .withAutonat()
     .withNoise()
+
+  if autonatSvc != nil:
+    builder = builder.withServices(@[autonatSvc])
 
   return builder.build()
 
@@ -33,16 +36,15 @@ suite "Autonat Service":
 
   asyncTest "Autonat Service Private Reachability test":
 
-    let switch1 = createSwitch()
-    let switch2 = createSwitch()
-    let switch3 = createSwitch()
-    let switch4 = createSwitch()
-
     let autonatStub = AutonatStub.new(expectedDials = 3)
     autonatStub.returnSuccess = false
 
-    let autonatService = AutonatService.new(autonatStub, newRng(), 1.seconds)
-    switch1.addService(autonatService)
+    let autonatService = AutonatService.new(autonatStub, newRng())
+
+    let switch1 = createSwitch(autonatService)
+    let switch2 = createSwitch()
+    let switch3 = createSwitch()
+    let switch4 = createSwitch()
 
     check autonatService.networkReachability() == NetworkReachability.Unknown
 
@@ -64,17 +66,17 @@ suite "Autonat Service":
 
   asyncTest "Autonat Service Public Reachability test":
 
-    let switch1 = createSwitch()
+    let autonatStub = AutonatStub.new(expectedDials = 3)
+    autonatStub.returnSuccess = true
+
+    let autonatService = AutonatService.new(autonatStub, newRng(), some(1.seconds))
+
+    let switch1 = createSwitch(autonatService)
     let switch2 = createSwitch()
     let switch3 = createSwitch()
     let switch4 = createSwitch()
 
-    let autonatStub = AutonatStub.new(expectedDials = 3)
-    autonatStub.returnSuccess = true
-
-    let autonatService = AutonatService.new(autonatStub, newRng(), 1.seconds)
     check autonatService.networkReachability() == NetworkReachability.Unknown
-    switch1.addService(autonatService)
 
     await switch1.start()
     await switch2.start()
@@ -94,17 +96,15 @@ suite "Autonat Service":
 
   asyncTest "Autonat Service Full Reachability test":
 
-    let switch1 = createSwitch()
-    let switch2 = createSwitch()
-    let switch3 = createSwitch()
-    let switch4 = createSwitch()
-
     let autonatStub = AutonatStub.new(expectedDials = 6)
     autonatStub.returnSuccess = false
 
-    let autonatService = AutonatService.new(autonatStub, newRng(), 1.seconds)
+    let autonatService = AutonatService.new(autonatStub, newRng(), some(1.seconds))
 
-    switch1.addService(autonatService)
+    let switch1 = createSwitch(autonatService)
+    let switch2 = createSwitch()
+    let switch3 = createSwitch()
+    let switch4 = createSwitch()
 
     let awaiter = Awaiter.new()
 
@@ -139,7 +139,7 @@ suite "Autonat Service":
 asyncTest "Autonat Service setup and stop twice":
 
   let switch = createSwitch()
-  let autonatService = AutonatService.new(AutonatStub.new(expectedDials = 0), newRng(), 1.seconds)
+  let autonatService = AutonatService.new(AutonatStub.new(expectedDials = 0), newRng(), some(1.seconds))
 
   check (await autonatService.setup(switch)) == true
   check (await autonatService.setup(switch)) == false
