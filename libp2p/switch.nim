@@ -74,6 +74,25 @@ type
       peerStore*: PeerStore
       nameResolver*: NameResolver
       started: bool
+      services*: seq[Service]
+
+    Service* = ref object of RootObj
+      inUse*: bool
+
+method setup*(self: Service, switch: Switch) {.base, async, gcsafe, public.} =
+  if self.inUse:
+    warn "service setup has already been called"
+    return
+  self.inUse = true
+
+method run*(self: Service, switch: Switch) {.base, async, gcsafe, public.} =
+  doAssert(false, "Not implemented!")
+
+method stop*(self: Service, switch: Switch) {.base, async, gcsafe, public.} =
+  if not self.inUse:
+    warn "service is already stopped"
+    return
+  self.inUse = false
 
 proc addConnEventHandler*(s: Switch,
                           handler: ConnEventHandler,
@@ -107,6 +126,12 @@ proc removePeerEventHandler*(s: Switch,
 method addTransport*(s: Switch, t: Transport) =
   s.transports &= t
   s.dialer.addTransport(t)
+
+method addService*(switch: Switch, service: Service) =
+  switch.services.add(service)
+
+proc connectedPeers*(s: Switch, dir: Direction): seq[PeerId] =
+  s.connManager.connectedPeers(dir)
 
 proc isConnected*(s: Switch, peerId: PeerId): bool {.public.} =
   ## returns true if the peer has one or more
