@@ -108,14 +108,15 @@ suite "Autonat Service":
 
     let awaiter = Awaiter.new()
 
-    proc f(networkReachability: NetworkReachability) {.gcsafe, async.} =
-       if networkReachability == NetworkReachability.NotReachable:
-         autonatStub.returnSuccess = true
-         awaiter.finished.complete()
+    proc statusAndConfidenceHandler(networkReachability: NetworkReachability, confidence: Option[float]) {.gcsafe, async.} =
+      if networkReachability == NetworkReachability.NotReachable and confidence.isSome() and confidence.get() >= 0.3:
+        if not awaiter.finished.finished:
+          autonatStub.returnSuccess = true
+          awaiter.finished.complete()
 
     check autonatService.networkReachability() == NetworkReachability.Unknown
 
-    autonatService.onNewStatuswithMaxConfidence(f)
+    autonatService.statusAndConfidenceHandler(statusAndConfidenceHandler)
 
     await switch1.start()
     await switch2.start()

@@ -12,13 +12,10 @@ when (NimMajor, NimMinor) < (1, 4):
 else:
   {.push raises: [].}
 
-import std/[tables, options]
+import std/[options, deques, sequtils]
 import chronos
 import ../switch
-import ../protocols/[connectivity/autonat,
-                    rendezvous]
-import ../protocols/connectivity/relay/[relay, client]
-import ../discovery/[rendezvousinterface, discoverymngr]
+import ../protocols/[connectivity/autonat]
 import ../utils/heartbeat
 import ../crypto/crypto
 
@@ -26,19 +23,21 @@ type
   AutonatService* = ref object of Service
     newConnectedPeerHandler: PeerEventHandler
     registerLoop: Future[void]
-    scheduleInterval: Option[Duration]
     networkReachability: NetworkReachability
-    t: CountTable[NetworkReachability]
+    confidence: Option[float]
+    answerDeque: Deque[NetworkReachability]
     autonat: Autonat
-    newStatusHandler: NewStatusHandler
+    statusAndConfidenceHandler: StatusAndConfidenceHandler
     rng: ref HmacDrbgContext
+    scheduleInterval: Option[Duration]
     numPeersToAsk: int
-    maxConfidence: int
+    maxQueueSize: int
+    minConfidence: float
 
   NetworkReachability* {.pure.} = enum
     NotReachable, Reachable, Unknown
 
-  NewStatusHandler* = proc (networkReachability: NetworkReachability): Future[void]  {.gcsafe, raises: [Defect].}
+  StatusAndConfidenceHandler* = proc (networkReachability: NetworkReachability, confidence: Option[float]): Future[void]  {.gcsafe, raises: [Defect].}
 
 proc new*(
   T: typedesc[AutonatService],
@@ -46,40 +45,49 @@ proc new*(
   rng: ref HmacDrbgContext,
   scheduleInterval: Option[Duration] = none(Duration),
   numPeersToAsk: int = 5,
-  maxConfidence: int = 3): T =
+  maxQueueSize: int = 10,
+  minConfidence: float = 0.3): T =
   return T(
     scheduleInterval: scheduleInterval,
     networkReachability: NetworkReachability.Unknown,
-    t: initCountTable[NetworkReachability](),
+    confidence: none(float),
+    answerDeque: initDeque[NetworkReachability](),
     autonat: autonat,
     rng: rng,
     numPeersToAsk: numPeersToAsk,
-    maxConfidence: maxConfidence)
+    maxQueueSize: maxQueueSize,
+    minConfidence: minConfidence)
 
 proc networkReachability*(self: AutonatService): NetworkReachability {.inline.} =
   return self.networkReachability
 
 proc handleAnswer(self: AutonatService, ans: NetworkReachability) {.async.} =
-  if ans == NetworkReachability.Unknown:
-    return
-  if ans == self.networkReachability:
-    if self.t[ans] == self.maxConfidence:
-      return
-    self.t.inc(ans)
+
+  if self.answerDeque.len == self.maxQueueSize:
+    self.answerDeque.popFirst()
+
+  self.answerDeque.addLast(ans)
+
+  let reachableCount = toSeq(self.answerDeque.items).countIt(it == NetworkReachability.Reachable)
+  let confidence = reachableCount / self.maxQueueSize
+  if confidence >= self.minConfidence:
+    self.networkReachability = NetworkReachability.Reachable
+    self.confidence = some(confidence)
   else:
-    if self.t[self.networkReachability] > 0:
-      self.t.inc(self.networkReachability, -1)
-    if self.t[ans] < self.maxConfidence:
-      self.t.inc(ans)
-    if self.t[ans] == self.maxConfidence or self.t[self.networkReachability] == 0:
-      self.networkReachability = ans
+    let notReachableCount = toSeq(self.answerDeque.items).countIt(it == NetworkReachability.NotReachable)
+    let confidence = notReachableCount / self.maxQueueSize
+    if confidence >= self.minConfidence:
+      self.networkReachability = NetworkReachability.NotReachable
+      self.confidence = some(confidence)
+    else:
+      self.networkReachability = NetworkReachability.Unknown
+      self.confidence = none(float)
 
-  if self.t[self.networkReachability] == self.maxConfidence:
-    if not isNil(self.newStatusHandler):
-      await self.newStatusHandler(self.networkReachability)
+  if not isNil(self.statusAndConfidenceHandler):
+    await self.statusAndConfidenceHandler(self.networkReachability, self.confidence)
 
-  trace "Current status confidence", confidence = $self.t
   trace "Current status", currentStats = $self.networkReachability
+  trace "Current status confidence", confidence = $self.confidence
 
 proc askPeer(self: AutonatService, s: Switch, peerId: PeerId): Future[NetworkReachability] {.async.} =
   trace "Asking for reachability", peerId = $peerId
@@ -131,5 +139,5 @@ method stop*(self: AutonatService, switch: Switch): Future[bool] {.async, public
       switch.connManager.removePeerEventHandler(self.newConnectedPeerHandler, PeerEventKind.Joined)
   return hasBeenStopped
 
-proc onNewStatuswithMaxConfidence*(self: AutonatService, f: NewStatusHandler) =
-  self.newStatusHandler = f
+proc statusAndConfidenceHandler*(self: AutonatService, statusAndConfidenceHandler: StatusAndConfidenceHandler) =
+  self.statusAndConfidenceHandler = statusAndConfidenceHandler
