@@ -414,7 +414,8 @@ method close*(m: Yamux) {.async.} =
   let channels = toSeq(m.channels.values())
   for channel in channels:
     await channel.reset(true)
-  await m.connection.write(YamuxHeader.goAway(NormalTermination))
+  try: await m.connection.write(YamuxHeader.goAway(NormalTermination))
+  except CatchableError as exc: trace "failed to send goAway", msg=exc.msg
   await m.connection.close()
   trace "Closed yamux"
 
