@@ -8,7 +8,7 @@
 # those terms.
 
 import std/options
-import chronos
+import chronos, metrics
 import unittest2
 import ../libp2p/[builders,
                   switch,
@@ -60,6 +60,7 @@ suite "Autonat Service":
     await autonatStub.finished
 
     check autonatService.networkReachability() == NetworkReachability.NotReachable
+    check libp2p_autonat_reachability_confidence.value(["NotReachable"]) == 0.3
 
     await allFuturesThrowing(
       switch1.stop(), switch2.stop(), switch3.stop(), switch4.stop())
@@ -90,6 +91,7 @@ suite "Autonat Service":
     await autonatStub.finished
 
     check autonatService.networkReachability() == NetworkReachability.Reachable
+    check libp2p_autonat_reachability_confidence.value(["Reachable"]) == 0.3
 
     await allFuturesThrowing(
       switch1.stop(), switch2.stop(), switch3.stop(), switch4.stop())
@@ -130,10 +132,12 @@ suite "Autonat Service":
     await awaiter.finished
 
     check autonatService.networkReachability() == NetworkReachability.NotReachable
+    check libp2p_autonat_reachability_confidence.value(["NotReachable"]) == 0.3
 
     await autonatStub.finished
 
     check autonatService.networkReachability() == NetworkReachability.Reachable
+    check libp2p_autonat_reachability_confidence.value(["Reachable"]) == 0.3
 
     await allFuturesThrowing(switch1.stop(), switch2.stop(), switch3.stop(), switch4.stop())
 

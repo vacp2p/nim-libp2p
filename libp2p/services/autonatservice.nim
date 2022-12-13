@@ -13,11 +13,13 @@ else:
   {.push raises: [].}
 
 import std/[options, deques, sequtils]
-import chronos
+import chronos, metrics
 import ../switch
 import ../protocols/[connectivity/autonat]
 import ../utils/heartbeat
 import ../crypto/crypto
+
+declarePublicGauge(libp2p_autonat_reachability_confidence, "autonat reachability confidence", labels = ["reachability"])
 
 type
   AutonatService* = ref object of Service
@@ -73,12 +75,14 @@ proc handleAnswer(self: AutonatService, ans: NetworkReachability) {.async.} =
   if confidence >= self.minConfidence:
     self.networkReachability = NetworkReachability.Reachable
     self.confidence = some(confidence)
+    libp2p_autonat_reachability_confidence.set(value = confidence, labelValues = ["Reachable"])
   else:
     let notReachableCount = toSeq(self.answerDeque.items).countIt(it == NetworkReachability.NotReachable)
     let confidence = notReachableCount / self.maxQueueSize
     if confidence >= self.minConfidence:
       self.networkReachability = NetworkReachability.NotReachable
       self.confidence = some(confidence)
+      libp2p_autonat_reachability_confidence.set(confidence, ["NotReachable"])
     else:
       self.networkReachability = NetworkReachability.Unknown
       self.confidence = none(float)
