@@ -59,7 +59,7 @@ method innerRun(self: AutoRelay, switch: Switch) {.async, gcsafe.} =
     # Remove peers that failed
     var peersToRemove: seq[PeerId]
     for k, v in self.peers:
-      if v.failed() or v.cancelled():
+      if v.finished():
         peersToRemove.add(k)
     for k in peersToRemove:
       self.peers.del(k)
@@ -69,10 +69,11 @@ method innerRun(self: AutoRelay, switch: Switch) {.async, gcsafe.} =
     # Get all connected peers
     let rng = newRng()
     var connectedPeers = switch.connectedPeers(Direction.Out)
-    connectedPeers.keepItIf(RelayV2HopCodec in switch.peerStore[ProtoBook][it])
+    connectedPeers.keepItIf(RelayV2HopCodec in switch.peerStore[ProtoBook][it] or
+                            it notin self.peers.keys())
     rng.shuffle(connectedPeers)
 
-    for relayPid in switch.connectedPeers(Direction.Out):
+    for relayPid in connectedPeers:
       if self.peers.len() >= self.npeers:
         break
       if RelayV2HopCodec in switch.peerStore[ProtoBook][relayPid]:
