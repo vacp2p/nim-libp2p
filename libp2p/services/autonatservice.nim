@@ -24,7 +24,7 @@ declarePublicGauge(libp2p_autonat_reachability_confidence, "autonat reachability
 type
   AutonatService* = ref object of Service
     newConnectedPeerHandler: PeerEventHandler
-    registerLoop: Future[void]
+    scheduleHandle: Future[void]
     networkReachability: NetworkReachability
     confidence: Option[float]
     answerDeque: Deque[NetworkReachability]
@@ -123,19 +123,19 @@ proc askConnectedPeers(self: AutonatService, switch: Switch) {.async.} =
     elif (await askPeer(self, switch, peer)) != NetworkReachability.Unknown:
       answersFromPeers.inc()
 
-proc register(service: AutonatService, switch: Switch, interval: Duration) {.async.} =
-  heartbeat "Register AutonatService run", interval:
+proc schedule(service: AutonatService, switch: Switch, interval: Duration) {.async.} =
+  heartbeat "Schedule AutonatService run", interval:
     await service.run(switch)
 
 method setup*(self: AutonatService, switch: Switch): Future[bool] {.async.} =
-  let hasBeenSettedUp = await procCall Service(self).setup(switch)
-  if hasBeenSettedUp:
+  let hasBeenSetup = await procCall Service(self).setup(switch)
+  if hasBeenSetup:
     self.newConnectedPeerHandler = proc (peerId: PeerId, event: PeerEvent): Future[void] {.async.} =
       discard askPeer(self, switch, peerId)
     switch.connManager.addPeerEventHandler(self.newConnectedPeerHandler, PeerEventKind.Joined)
     if self.scheduleInterval.isSome():
-      self.registerLoop = register(self, switch, self.scheduleInterval.get())
-  return hasBeenSettedUp
+      self.scheduleHandle = schedule(self, switch, self.scheduleInterval.get())
+  return hasBeenSetup
 
 method run*(self: AutonatService, switch: Switch) {.async, public.} =
   await askConnectedPeers(self, switch)
@@ -143,9 +143,9 @@ method run*(self: AutonatService, switch: Switch) {.async, public.} =
 method stop*(self: AutonatService, switch: Switch): Future[bool] {.async, public.} =
   let hasBeenStopped = await procCall Service(self).stop(switch)
   if hasBeenStopped:
-    if not isNil(self.registerLoop):
-      self.registerLoop.cancel()
-      self.registerLoop = nil
+    if not isNil(self.scheduleHandle):
+      self.scheduleHandle.cancel()
+      self.scheduleHandle = nil
     if not isNil(self.newConnectedPeerHandler):
       switch.connManager.removePeerEventHandler(self.newConnectedPeerHandler, PeerEventKind.Joined)
   return hasBeenStopped
