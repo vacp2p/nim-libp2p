@@ -140,7 +140,7 @@ task install_pinned, "Reads the lockfile":
   # Remove the automatically installed deps
   # (inefficient you say?)
   let nimblePkgs =
-    if dirExists("nimbledeps/pkgs"): "nimbledeps/pkgs"
+    if system.dirExists("nimbledeps/pkgs"): "nimbledeps/pkgs"
     else: "nimbledeps/pkgs2"
   for dependency in listDirs(nimblePkgs):
     let filename = dependency.extractFilename
