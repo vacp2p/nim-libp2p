@@ -35,6 +35,7 @@ type
     numPeersToAsk: int
     maxQueueSize: int
     minConfidence: float
+    dialTimeout: Duration
 
   NetworkReachability* {.pure.} = enum
     NotReachable, Reachable, Unknown
@@ -48,7 +49,8 @@ proc new*(
   scheduleInterval: Option[Duration] = none(Duration),
   numPeersToAsk: int = 5,
   maxQueueSize: int = 10,
-  minConfidence: float = 0.3): T =
+  minConfidence: float = 0.3,
+  dialTimeout = 5.seconds): T =
   return T(
     scheduleInterval: scheduleInterval,
     networkReachability: NetworkReachability.Unknown,
@@ -58,7 +60,8 @@ proc new*(
     rng: rng,
     numPeersToAsk: numPeersToAsk,
     maxQueueSize: maxQueueSize,
-    minConfidence: minConfidence)
+    minConfidence: minConfidence,
+    dialTimeout: dialTimeout)
 
 proc networkReachability*(self: AutonatService): NetworkReachability {.inline.} =
   return self.networkReachability
@@ -90,18 +93,22 @@ proc handleAnswer(self: AutonatService, ans: NetworkReachability) {.async.} =
   if not isNil(self.statusAndConfidenceHandler):
     await self.statusAndConfidenceHandler(self.networkReachability, self.confidence)
 
-  trace "Current status", currentStats = $self.networkReachability
-  trace "Current status confidence", confidence = $self.confidence
+  trace "Current status", currentStats = $self.networkReachability, confidence = $self.confidence
 
 proc askPeer(self: AutonatService, s: Switch, peerId: PeerId): Future[NetworkReachability] {.async.} =
   trace "Asking for reachability", peerId = $peerId
   let ans =
     try:
-      let ma = await self.autonat.dialMe(peerId)
+      discard await self.autonat.dialMe(peerId).wait(self.dialTimeout)
       NetworkReachability.Reachable
     except AutonatUnreachableError:
+      trace "dialMe answer is not reachable", peerId = $peerId
       NetworkReachability.NotReachable
-    except AutonatError:
+    except AutonatError as err:
+      trace "dialMe unexpected error", errMsg = $err.msg
+      NetworkReachability.Unknown
+    except AsyncTimeoutError:
+      trace "dialMe timed out", peerId = $peerId
       NetworkReachability.Unknown
   await self.handleAnswer(ans)
   return ans
