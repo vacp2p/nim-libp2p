@@ -79,20 +79,22 @@ type
     Service* = ref object of RootObj
       inUse*: bool
 
-method setup*(self: Service, switch: Switch) {.base, async, gcsafe, public.} =
+method setup*(self: Service, switch: Switch): Future[bool] {.base, async, gcsafe, public.} =
   if self.inUse:
     warn "service setup has already been called"
-    return
+    return false
   self.inUse = true
+  return true
 
 method run*(self: Service, switch: Switch) {.base, async, gcsafe, public.} =
   doAssert(false, "Not implemented!")
 
-method stop*(self: Service, switch: Switch) {.base, async, gcsafe, public.} =
+method stop*(self: Service, switch: Switch): Future[bool] {.base, async, gcsafe, public.} =
   if not self.inUse:
     warn "service is already stopped"
-    return
+    return false
   self.inUse = false
+  return true
 
 proc addConnEventHandler*(s: Switch,
                           handler: ConnEventHandler,

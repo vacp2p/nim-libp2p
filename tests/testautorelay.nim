@@ -35,7 +35,7 @@ suite "Autorelay":
                                           $relay.peerInfo.peerId & "/p2p-circuit/p2p/" &
                                           $switch.peerInfo.peerId).get()
       fut.complete()
-    let autorelay = AutoRelay.new(3, client, checkMA)
+    let autorelay = AutoRelayService.new(3, client, checkMA)
     switch.addService(autorelay)
     await switch.start()
     await relay.start()
@@ -46,4 +46,3 @@ suite "Autorelay":
     await fut
     await switch.stop()
     await relay.stop()
-
