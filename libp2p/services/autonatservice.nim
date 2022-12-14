@@ -32,6 +32,7 @@ type
     statusAndConfidenceHandler: StatusAndConfidenceHandler
     rng: ref HmacDrbgContext
     scheduleInterval: Option[Duration]
+    disableAskNewConnectedPeers: bool
     numPeersToAsk: int
     maxQueueSize: int
     minConfidence: float
@@ -47,6 +48,7 @@ proc new*(
   autonat: Autonat,
   rng: ref HmacDrbgContext,
   scheduleInterval: Option[Duration] = none(Duration),
+  disableAskNewConnectedPeers = false,
   numPeersToAsk: int = 5,
   maxQueueSize: int = 10,
   minConfidence: float = 0.3,
@@ -58,6 +60,7 @@ proc new*(
     answerDeque: initDeque[NetworkReachability](),
     autonat: autonat,
     rng: rng,
+    disableAskNewConnectedPeers: disableAskNewConnectedPeers,
     numPeersToAsk: numPeersToAsk,
     maxQueueSize: maxQueueSize,
     minConfidence: minConfidence,
@@ -130,9 +133,10 @@ proc schedule(service: AutonatService, switch: Switch, interval: Duration) {.asy
 method setup*(self: AutonatService, switch: Switch): Future[bool] {.async.} =
   let hasBeenSetup = await procCall Service(self).setup(switch)
   if hasBeenSetup:
-    self.newConnectedPeerHandler = proc (peerId: PeerId, event: PeerEvent): Future[void] {.async.} =
-      discard askPeer(self, switch, peerId)
-    switch.connManager.addPeerEventHandler(self.newConnectedPeerHandler, PeerEventKind.Joined)
+    if not self.disableAskNewConnectedPeers:
+      self.newConnectedPeerHandler = proc (peerId: PeerId, event: PeerEvent): Future[void] {.async.} =
+        discard askPeer(self, switch, peerId)
+      switch.connManager.addPeerEventHandler(self.newConnectedPeerHandler, PeerEventKind.Joined)
     if self.scheduleInterval.isSome():
       self.scheduleHandle = schedule(self, switch, self.scheduleInterval.get())
   return hasBeenSetup
