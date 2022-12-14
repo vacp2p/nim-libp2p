@@ -116,12 +116,12 @@ proc askPeer(self: AutonatService, s: Switch, peerId: PeerId): Future[NetworkRea
 proc askConnectedPeers(self: AutonatService, switch: Switch) {.async.} =
   var peers = switch.connectedPeers(Direction.Out)
   self.rng.shuffle(peers)
-  var peersToAsk = min(self.numPeersToAsk, peers.len)
+  var answersFromPeers = 0
   for peer in peers:
-    if peersToAsk == 0:
+    if answersFromPeers >= self.numPeersToAsk:
       break
-    if (await askPeer(self, switch, peer)) != NetworkReachability.Unknown:
-      peersToAsk -= 1
+    elif (await askPeer(self, switch, peer)) != NetworkReachability.Unknown:
+      answersFromPeers.inc()
 
 proc register(service: AutonatService, switch: Switch, interval: Duration) {.async.} =
   heartbeat "Register AutonatService run", interval:
