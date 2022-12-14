@@ -104,11 +104,11 @@ proc askPeer(self: AutonatService, s: Switch, peerId: PeerId): Future[NetworkRea
     except AutonatUnreachableError:
       trace "dialMe answer is not reachable", peerId = $peerId
       NetworkReachability.NotReachable
-    except AutonatError as err:
-      trace "dialMe unexpected error", errMsg = $err.msg
-      NetworkReachability.Unknown
     except AsyncTimeoutError:
       trace "dialMe timed out", peerId = $peerId
+      NetworkReachability.Unknown
+    except CatchableError as err:
+      trace "dialMe unexpected error", peerId = $peerId, errMsg = $err.msg
       NetworkReachability.Unknown
   await self.handleAnswer(ans)
   return ans
