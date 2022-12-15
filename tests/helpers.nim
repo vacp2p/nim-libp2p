@@ -117,10 +117,3 @@ proc checkExpiringInternal(cond: proc(): bool {.raises: [Defect], gcsafe.} ): Fu
 
 template checkExpiring*(code: untyped): untyped =
   check await checkExpiringInternal(proc(): bool = code)
-
-type
-  Awaiter* = ref object of RootObj
-    finished*: Future[void]
-
-proc new*(T: typedesc[Awaiter]): T =
-  return T(finished: newFuture[void]())

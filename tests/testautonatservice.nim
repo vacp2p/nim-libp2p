@@ -108,13 +108,13 @@ suite "Autonat Service":
     let switch3 = createSwitch()
     let switch4 = createSwitch()
 
-    let awaiter = Awaiter.new()
+    let awaiter = newFuture[void]()
 
     proc statusAndConfidenceHandler(networkReachability: NetworkReachability, confidence: Option[float]) {.gcsafe, async.} =
       if networkReachability == NetworkReachability.NotReachable and confidence.isSome() and confidence.get() >= 0.3:
-        if not awaiter.finished.finished:
+        if not awaiter.finished:
           autonatStub.returnSuccess = true
-          awaiter.finished.complete()
+          awaiter.complete()
 
     check autonatService.networkReachability() == NetworkReachability.Unknown
 
@@ -129,7 +129,7 @@ suite "Autonat Service":
     await switch1.connect(switch3.peerInfo.peerId, switch3.peerInfo.addrs)
     await switch1.connect(switch4.peerInfo.peerId, switch4.peerInfo.addrs)
 
-    await awaiter.finished
+    await awaiter
 
     check autonatService.networkReachability() == NetworkReachability.NotReachable
     check libp2p_autonat_reachability_confidence.value(["NotReachable"]) == 0.3
