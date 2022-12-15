@@ -30,12 +30,12 @@ suite "Autorelay":
     let client = RelayClient.new()
     let switch = createSwitch(client)
     let fut = newFuture[void]()
-    proc checkMA(address: MultiAddress) {.async.} =
-      check: address == MultiAddress.init($relay.peerInfo.addrs[0] & "/p2p/" &
-                                          $relay.peerInfo.peerId & "/p2p-circuit/p2p/" &
-                                          $switch.peerInfo.peerId).get()
+    proc checkMA(address: seq[MultiAddress]) {.async.} =
+      check: address[0] == MultiAddress.init($relay.peerInfo.addrs[0] & "/p2p/" &
+                                             $relay.peerInfo.peerId & "/p2p-circuit/p2p/" &
+                                             $switch.peerInfo.peerId).get()
       fut.complete()
-    let autorelay = AutoRelayService.new(3, client, checkMA)
+    let autorelay = AutoRelayService.new(3, client, checkMA, newRng())
     switch.addService(autorelay)
     await switch.start()
     await relay.start()
