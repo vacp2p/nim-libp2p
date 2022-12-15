@@ -80,17 +80,17 @@ type
       inUse: bool
 
 
-method setup*(self: Service, switch: Switch): Future[bool] {.base, async, gcsafe, public.} =
+method setup*(self: Service, switch: Switch): Future[bool] {.base, async, gcsafe.} =
   if self.inUse:
     warn "service setup has already been called"
     return false
   self.inUse = true
   return true
 
-method run*(self: Service, switch: Switch) {.base, async, gcsafe, public.} =
+method run*(self: Service, switch: Switch) {.base, async, gcsafe.} =
   doAssert(false, "Not implemented!")
 
-method stop*(self: Service, switch: Switch): Future[bool] {.base, async, gcsafe, public.} =
+method stop*(self: Service, switch: Switch): Future[bool] {.base, async, gcsafe.} =
   if not self.inUse:
     warn "service is already stopped"
     return false
