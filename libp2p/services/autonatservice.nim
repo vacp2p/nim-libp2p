@@ -32,7 +32,7 @@ type
     statusAndConfidenceHandler: StatusAndConfidenceHandler
     rng: ref HmacDrbgContext
     scheduleInterval: Option[Duration]
-    disableAskNewConnectedPeers: bool
+    askNewConnectedPeers: bool
     numPeersToAsk: int
     maxQueueSize: int
     minConfidence: float
@@ -48,7 +48,7 @@ proc new*(
   autonat: Autonat,
   rng: ref HmacDrbgContext,
   scheduleInterval: Option[Duration] = none(Duration),
-  disableAskNewConnectedPeers = false,
+  askNewConnectedPeers = true,
   numPeersToAsk: int = 5,
   maxQueueSize: int = 10,
   minConfidence: float = 0.3,
@@ -60,7 +60,7 @@ proc new*(
     answers: initDeque[NetworkReachability](),
     autonat: autonat,
     rng: rng,
-    disableAskNewConnectedPeers: disableAskNewConnectedPeers,
+    askNewConnectedPeers: askNewConnectedPeers,
     numPeersToAsk: numPeersToAsk,
     maxQueueSize: maxQueueSize,
     minConfidence: minConfidence,
@@ -68,6 +68,10 @@ proc new*(
 
 proc networkReachability*(self: AutonatService): NetworkReachability {.inline.} =
   return self.networkReachability
+
+proc callHandler(self: AutonatService) {.async.} =
+  if not isNil(self.statusAndConfidenceHandler):
+    await self.statusAndConfidenceHandler(self.networkReachability, self.confidence)
 
 proc handleAnswer(self: AutonatService, ans: NetworkReachability) {.async.} =
 
@@ -85,9 +89,6 @@ proc handleAnswer(self: AutonatService, ans: NetworkReachability) {.async.} =
     if self.confidence.isNone and confidence >= self.minConfidence:
       self.networkReachability = reachability
       self.confidence = some(confidence)
-
-  if not isNil(self.statusAndConfidenceHandler):
-    await self.statusAndConfidenceHandler(self.networkReachability, self.confidence)
 
   trace "Current status", currentStats = $self.networkReachability, confidence = $self.confidence
 
@@ -107,6 +108,8 @@ proc askPeer(self: AutonatService, s: Switch, peerId: PeerId): Future[NetworkRea
       trace "dialMe unexpected error", peerId = $peerId, errMsg = $err.msg
       Unknown
   await self.handleAnswer(ans)
+  if not isNil(self.statusAndConfidenceHandler):
+    await self.statusAndConfidenceHandler(self.networkReachability, self.confidence)
   return ans
 
 proc askConnectedPeers(self: AutonatService, switch: Switch) {.async.} =
@@ -126,9 +129,10 @@ proc schedule(service: AutonatService, switch: Switch, interval: Duration) {.asy
 method setup*(self: AutonatService, switch: Switch): Future[bool] {.async.} =
   let hasBeenSetup = await procCall Service(self).setup(switch)
   if hasBeenSetup:
-    if not self.disableAskNewConnectedPeers:
+    if self.askNewConnectedPeers:
       self.newConnectedPeerHandler = proc (peerId: PeerId, event: PeerEvent): Future[void] {.async.} =
         discard askPeer(self, switch, peerId)
+        await self.callHandler()
       switch.connManager.addPeerEventHandler(self.newConnectedPeerHandler, PeerEventKind.Joined)
     if self.scheduleInterval.isSome():
       self.scheduleHandle = schedule(self, switch, self.scheduleInterval.get())
@@ -136,6 +140,8 @@ method setup*(self: AutonatService, switch: Switch): Future[bool] {.async.} =
 
 method run*(self: AutonatService, switch: Switch) {.async, public.} =
   await askConnectedPeers(self, switch)
+  await self.callHandler()
+
 
 method stop*(self: AutonatService, switch: Switch): Future[bool] {.async, public.} =
   let hasBeenStopped = await procCall Service(self).stop(switch)

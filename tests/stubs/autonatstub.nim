@@ -28,13 +28,9 @@ method dialMe*(
 
     self.dials += 1
 
-    proc tryFinish() =
-      if self.dials == self.expectedDials:
-        self.finished.complete()
-
+    if self.dials == self.expectedDials:
+      self.finished.complete()
     if self.returnSuccess:
-      tryFinish()
       return MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
     else:
-      tryFinish()
       raise newException(AutonatUnreachableError, "")
