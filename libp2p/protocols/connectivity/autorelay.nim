@@ -42,11 +42,15 @@ proc reserveAndUpdate(self: AutoRelayService, relayPid: PeerId, selfPid: PeerId)
       relayedAddr = MultiAddress.init($(rsvp.addrs[0]) &
                                   "/p2p-circuit/p2p/" &
                                   $selfPid).tryGet()
+      ttl = rsvp.expire.int64 - times.now().utc.toTime.toUnix
+    if ttl <= 60:
+      # A reservation under a minute is basically useless
+      break
     if relayPid notin self.relayAddresses or self.relayAddresses[relayPid] != relayedAddr:
       self.relayAddresses[relayPid] = relayedAddr
       if not self.onReservation.isNil():
         await self.onReservation(toSeq(self.relayAddresses.values))
-    await sleepAsync chronos.seconds(rsvp.expire.int64 - times.now().utc.toTime.toUnix - 5)
+    await sleepAsync chronos.seconds(ttl - 30)
 
 method setup*(self: AutoRelayService, switch: Switch): Future[bool] {.async, gcsafe.} =
   let hasBeenSetUp = await procCall Service(self).setup(switch)
