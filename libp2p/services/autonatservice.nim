@@ -27,7 +27,7 @@ type
     scheduleHandle: Future[void]
     networkReachability: NetworkReachability
     confidence: Option[float]
-    answerDeque: Deque[NetworkReachability]
+    answers: Deque[NetworkReachability]
     autonat: Autonat
     statusAndConfidenceHandler: StatusAndConfidenceHandler
     rng: ref HmacDrbgContext
@@ -55,9 +55,9 @@ proc new*(
   dialTimeout = 5.seconds): T =
   return T(
     scheduleInterval: scheduleInterval,
-    networkReachability: NetworkReachability.Unknown,
+    networkReachability: Unknown,
     confidence: none(float),
-    answerDeque: initDeque[NetworkReachability](),
+    answers: initDeque[NetworkReachability](),
     autonat: autonat,
     rng: rng,
     disableAskNewConnectedPeers: disableAskNewConnectedPeers,
@@ -71,27 +71,20 @@ proc networkReachability*(self: AutonatService): NetworkReachability {.inline.} 
 
 proc handleAnswer(self: AutonatService, ans: NetworkReachability) {.async.} =
 
-  if self.answerDeque.len == self.maxQueueSize:
-    self.answerDeque.popFirst()
+  if self.answers.len == self.maxQueueSize:
+    self.answers.popFirst()
 
-  self.answerDeque.addLast(ans)
+  self.answers.addLast(ans)
 
-  let reachableCount = toSeq(self.answerDeque.items).countIt(it == NetworkReachability.Reachable)
-  let confidence = reachableCount / self.maxQueueSize
-  if confidence >= self.minConfidence:
-    self.networkReachability = NetworkReachability.Reachable
-    self.confidence = some(confidence)
-    libp2p_autonat_reachability_confidence.set(value = confidence, labelValues = ["Reachable"])
-  else:
-    let notReachableCount = toSeq(self.answerDeque.items).countIt(it == NetworkReachability.NotReachable)
-    let confidence = notReachableCount / self.maxQueueSize
-    if confidence >= self.minConfidence:
-      self.networkReachability = NetworkReachability.NotReachable
+  self.networkReachability = Unknown
+  self.confidence = none(float)
+  const reachabilityPriority = [Reachable, NotReachable]
+  for reachability in reachabilityPriority:
+    let confidence = self.answers.countIt(it == reachability) / self.maxQueueSize
+    libp2p_autonat_reachability_confidence.set(value = confidence, labelValues = [$reachability])
+    if self.confidence.isNone and confidence >= self.minConfidence:
+      self.networkReachability = reachability
       self.confidence = some(confidence)
-      libp2p_autonat_reachability_confidence.set(confidence, ["NotReachable"])
-    else:
-      self.networkReachability = NetworkReachability.Unknown
-      self.confidence = none(float)
 
   if not isNil(self.statusAndConfidenceHandler):
     await self.statusAndConfidenceHandler(self.networkReachability, self.confidence)
@@ -103,16 +96,16 @@ proc askPeer(self: AutonatService, s: Switch, peerId: PeerId): Future[NetworkRea
   let ans =
     try:
       discard await self.autonat.dialMe(peerId).wait(self.dialTimeout)
-      NetworkReachability.Reachable
+      Reachable
     except AutonatUnreachableError:
       trace "dialMe answer is not reachable", peerId = $peerId
-      NetworkReachability.NotReachable
+      NotReachable
     except AsyncTimeoutError:
       trace "dialMe timed out", peerId = $peerId
-      NetworkReachability.Unknown
+      Unknown
     except CatchableError as err:
       trace "dialMe unexpected error", peerId = $peerId, errMsg = $err.msg
-      NetworkReachability.Unknown
+      Unknown
   await self.handleAnswer(ans)
   return ans
 
@@ -123,7 +116,7 @@ proc askConnectedPeers(self: AutonatService, switch: Switch) {.async.} =
   for peer in peers:
     if answersFromPeers >= self.numPeersToAsk:
       break
-    elif (await askPeer(self, switch, peer)) != NetworkReachability.Unknown:
+    elif (await askPeer(self, switch, peer)) != Unknown:
       answersFromPeers.inc()
 
 proc schedule(service: AutonatService, switch: Switch, interval: Duration) {.async.} =
