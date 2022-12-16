@@ -54,6 +54,10 @@ method handshake*(p: PlainText, conn: Connection, initiator: bool, peerId: Opt[P
   var res = PlainTextConnection.new(conn, conn.peerId, conn.observedAddr)
   return res
 
+method init*(p: PlainText) {.gcsafe.} =
+  procCall Secure(p).init()
+  p.codec = PlainTextCodec
+
 proc new*(
     T: typedesc[PlainText],
     privateKey: PrivateKey
