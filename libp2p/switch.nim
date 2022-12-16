@@ -74,6 +74,28 @@ type
       peerStore*: PeerStore
       nameResolver*: NameResolver
       started: bool
+      services*: seq[Service]
+
+    Service* = ref object of RootObj
+      inUse: bool
+
+
+method setup*(self: Service, switch: Switch): Future[bool] {.base, async, gcsafe.} =
+  if self.inUse:
+    warn "service setup has already been called"
+    return false
+  self.inUse = true
+  return true
+
+method run*(self: Service, switch: Switch) {.base, async, gcsafe.} =
+  doAssert(false, "Not implemented!")
+
+method stop*(self: Service, switch: Switch): Future[bool] {.base, async, gcsafe.} =
+  if not self.inUse:
+    warn "service is already stopped"
+    return false
+  self.inUse = false
+  return true
 
 proc addConnEventHandler*(s: Switch,
                           handler: ConnEventHandler,
@@ -107,6 +129,9 @@ proc removePeerEventHandler*(s: Switch,
 method addTransport*(s: Switch, t: Transport) =
   s.transports &= t
   s.dialer.addTransport(t)
+
+proc connectedPeers*(s: Switch, dir: Direction): seq[PeerId] =
+  s.connManager.connectedPeers(dir)
 
 proc isConnected*(s: Switch, peerId: PeerId): bool {.public.} =
   ## returns true if the peer has one or more
@@ -294,6 +319,9 @@ proc stop*(s: Switch) {.async, public.} =
     if not a.finished:
       a.cancel()
 
+  for service in s.services:
+    discard await service.stop(s)
+
   await s.ms.stop()
 
   trace "Switch stopped"
@@ -335,6 +363,9 @@ proc start*(s: Switch) {.async, gcsafe, public.} =
 
   await s.ms.start()
 
+  for service in s.services:
+    discard await service.setup(s)
+
   s.started = true
 
   debug "Started libp2p node", peer = s.peerInfo
@@ -346,7 +377,8 @@ proc newSwitch*(peerInfo: PeerInfo,
                 connManager: ConnManager,
                 ms: MultistreamSelect,
                 nameResolver: NameResolver = nil,
-                peerStore = PeerStore.new()): Switch
+                peerStore = PeerStore.new(),
+                services = newSeq[Service]()): Switch
                 {.raises: [Defect, LPError], public.} =
   if secureManagers.len == 0:
     raise newException(LPError, "Provide at least one secure manager")
@@ -358,8 +390,10 @@ proc newSwitch*(peerInfo: PeerInfo,
     connManager: connManager,
     peerStore: peerStore,
     dialer: Dialer.new(peerInfo.peerId, connManager, transports, ms, nameResolver),
-    nameResolver: nameResolver)
+    nameResolver: nameResolver,
+    services: services)
 
   switch.connManager.peerStore = peerStore
   switch.mount(identity)
+
   return switch
