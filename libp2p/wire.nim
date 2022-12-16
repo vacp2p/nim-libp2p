@@ -76,7 +76,8 @@ proc initTAddress*(ma: MultiAddress): MaResult[TransportAddress] =
 proc connect*(
   ma: MultiAddress,
   bufferSize = DefaultStreamBufferSize,
-  child: StreamTransport = nil): Future[StreamTransport]
+  child: StreamTransport = nil,
+  flags = default(set[TransportFlags])): Future[StreamTransport]
   {.raises: [Defect, LPError, MaInvalidAddress].} =
   ## Open new connection to remote peer with address ``ma`` and create
   ## new transport object ``StreamTransport`` for established connection.
@@ -86,7 +87,7 @@ proc connect*(
   if not(RTRANSPMA.match(ma)):
     raise newException(MaInvalidAddress, "Incorrect or unsupported address!")
 
-  return connect(initTAddress(ma).tryGet(), bufferSize, child)
+  return connect(initTAddress(ma).tryGet(), bufferSize, child, flags)
 
 proc createStreamServer*[T](ma: MultiAddress,
                             cbproc: StreamCallback,
