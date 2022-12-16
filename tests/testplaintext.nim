@@ -50,7 +50,8 @@ suite "Plain text":
       let conn = await transport1.accept()
       let sconn = await serverPlainText.secure(conn, false, Opt.none(PeerId))
       try:
-        await sconn.write("Hello!")
+        await sconn.writeLp("Hello 1!")
+        await sconn.writeLp("Hello 2!")
       finally:
         await sconn.close()
         await conn.close()
@@ -65,8 +66,8 @@ suite "Plain text":
 
     let sconn = await clientPlainText.secure(conn, true, Opt.some(serverInfo.peerId))
 
-    var msg = newSeq[byte](6)
-    await sconn.readExactly(addr msg[0], 6)
+    discard await sconn.readLp(100)
+    var msg = await sconn.readLp(100)
 
     await sconn.close()
     await conn.close()
@@ -74,7 +75,7 @@ suite "Plain text":
     await transport1.stop()
     await transport2.stop()
 
-    check string.fromBytes(msg) == "Hello!"
+    check string.fromBytes(msg) == "Hello 2!"
 
   asyncTest "e2e: wrong peerid":
     let

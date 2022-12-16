@@ -28,7 +28,7 @@ type
 method readMessage*(sconn: PlainTextConnection): Future[seq[byte]] {.async.} =
   var buffer: array[32768, byte]
   let length = await sconn.stream.readOnce(addr buffer[0], buffer.len)
-  return @(buffer[0..length])
+  return @(buffer[0 ..< length])
 
 method write*(sconn: PlainTextConnection, message: seq[byte]): Future[void] =
   sconn.stream.write(message)
