@@ -20,8 +20,7 @@ logScope:
   topics = "libp2p autorelay"
 
 type
-  OnReservationHandler = proc (addresses: seq[MultiAddress]):
-    Future[void] {.gcsafe, raises: [Defect].}
+  OnReservationHandler = proc (addresses: seq[MultiAddress]) {.gcsafe, raises: [Defect].}
 
   AutoRelayService* = ref object of Service
     running: bool
@@ -30,12 +29,14 @@ type
     numRelays: int
     relayPeers: Table[PeerId, Future[void]]
     relayAddresses: Table[PeerId, MultiAddress]
-    backedOff: seq[PeerId]
+    backingOff: seq[PeerId]
+    reservationFailed: AsyncEvent
     peerAvailable: AsyncEvent
     onReservation: OnReservationHandler
     rng: ref HmacDrbgContext
 
 proc reserveAndUpdate(self: AutoRelayService, relayPid: PeerId, selfPid: PeerId) {.async.} =
+  defer: self.reservationFailed.fire()
   while self.running:
     let
       rsvp = await self.client.reserve(relayPid).wait(chronos.seconds(5))
@@ -49,16 +50,18 @@ proc reserveAndUpdate(self: AutoRelayService, relayPid: PeerId, selfPid: PeerId)
     if relayPid notin self.relayAddresses or self.relayAddresses[relayPid] != relayedAddr:
       self.relayAddresses[relayPid] = relayedAddr
       if not self.onReservation.isNil():
-        await self.onReservation(toSeq(self.relayAddresses.values))
-    await sleepAsync chronos.seconds(ttl - 30)
+        self.onReservation(toSeq(self.relayAddresses.values))
+    await sleepAsync chronos.seconds(max(0, ttl - 30))
 
 method setup*(self: AutoRelayService, switch: Switch): Future[bool] {.async, gcsafe.} =
   let hasBeenSetUp = await procCall Service(self).setup(switch)
   if hasBeenSetUp:
     proc handlePeerJoined(peerId: PeerId, event: PeerEvent) {.async.} =
+      trace "Peer Joined", peerId
       if self.relayPeers.len < self.numRelays:
         self.peerAvailable.fire()
     proc handlePeerLeft(peerId: PeerId, event: PeerEvent) {.async.} =
+      trace "Peer Left", peerId
       self.relayPeers.withValue(peerId, future):
         future[].cancel()
     switch.addPeerEventHandler(handlePeerJoined, Joined)
@@ -67,7 +70,7 @@ method setup*(self: AutoRelayService, switch: Switch): Future[bool] {.async, gcs
 
 proc manageBackedOff(self: AutoRelayService, pid: PeerId) {.async.} =
   await sleepAsync(chronos.seconds(5))
-  self.backedOff.keepItIf(it != pid)
+  self.backingOff.keepItIf(it != pid)
   self.peerAvailable.fire()
 
 proc innerRun(self: AutoRelayService, switch: Switch) {.async, gcsafe.} =
@@ -79,15 +82,16 @@ proc innerRun(self: AutoRelayService, switch: Switch) {.async, gcsafe.} =
         self.relayPeers.del(k)
         self.relayAddresses.del(k)
         if not self.onReservation.isNil():
-          await self.onReservation(toSeq(self.relayAddresses.values))
+          self.onReservation(toSeq(self.relayAddresses.values))
         # To avoid ddosing our peers in certain conditions
-        self.backedOff.add(k)
+        self.backingOff.add(k)
         asyncSpawn self.manageBackedOff(k)
 
     # Get all connected relayPeers
     var connectedPeers = switch.connectedPeers(Direction.Out)
     connectedPeers.keepItIf(RelayV2HopCodec in switch.peerStore[ProtoBook][it] or
-                            it notin self.relayPeers)
+                            it notin self.relayPeers or
+                            it notin self.backingOff)
     self.rng.shuffle(connectedPeers)
 
     for relayPid in connectedPeers:
@@ -96,11 +100,12 @@ proc innerRun(self: AutoRelayService, switch: Switch) {.async, gcsafe.} =
       self.relayPeers[relayPid] = self.reserveAndUpdate(relayPid, switch.peerInfo.peerId)
     let peersFutures = toSeq(self.relayPeers.values())
 
+    self.reservationFailed.clear()
+    self.peerAvailable.clear()
     if self.relayPeers.len() < self.numRelays:
-      self.peerAvailable.clear()
-      await one(peersFutures) or self.peerAvailable.wait()
+      await self.reservationFailed.wait() or self.peerAvailable.wait()
     else:
-      discard await one(peersFutures)
+      await self.reservationFailed.wait()
 
 method run*(self: AutoRelayService, switch: Switch) {.async, gcsafe.} =
   if self.running:
@@ -127,5 +132,6 @@ proc new*(T: typedesc[AutoRelayService],
   T(numRelays: numRelays,
     client: client,
     onReservation: onReservation,
+    reservationFailed: newAsyncEvent(),
     peerAvailable: newAsyncEvent(),
     rng: rng)
