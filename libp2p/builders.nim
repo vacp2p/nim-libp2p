@@ -26,7 +26,7 @@ import
   switch, peerid, peerinfo, stream/connection, multiaddress,
   crypto/crypto, transports/[transport, tcptransport],
   muxers/[muxer, mplex/mplex, yamux/yamux],
-  protocols/[identify, secure/secure, secure/noise, rendezvous],
+  protocols/[identify, secure/secure, secure/noise, secure/plaintext, rendezvous],
   protocols/connectivity/[autonat, relay/relay, relay/client, relay/rtransport],
   connmanager, upgrademngrs/muxedupgrade,
   nameresolving/nameresolver,
@@ -40,6 +40,7 @@ type
 
   SecureProtocol* {.pure.} = enum
     Noise,
+    PlainText,
     Secio {.deprecated.}
 
   SwitchBuilder* = ref object
@@ -135,6 +136,11 @@ proc withNoise*(b: SwitchBuilder): SwitchBuilder {.public.} =
   b.secureManagers.add(SecureProtocol.Noise)
   b
 
+proc withPlainText*(b: SwitchBuilder): SwitchBuilder {.public.} =
+  warn "Using plain text encryption!"
+  b.secureManagers.add(SecureProtocol.PlainText)
+  b
+
 proc withTransport*(b: SwitchBuilder, prov: TransportProvider): SwitchBuilder {.public.} =
   ## Use a custom transport
   runnableExamples:
@@ -214,8 +220,13 @@ proc build*(b: SwitchBuilder): Switch
   let
     seckey = b.privKey.get(otherwise = pkRes.expect("Expected default Private Key"))
 
+  if b.secureManagers.len == 0:
+    b.secureManagers &= SecureProtocol.Noise
+
   var
     secureManagerInstances: seq[Secure]
+  if SecureProtocol.PlainText in b.secureManagers:
+    secureManagerInstances.add(PlainText.new(seckey))
   if SecureProtocol.Noise in b.secureManagers:
     secureManagerInstances.add(Noise.new(b.rng, seckey).Secure)
 
@@ -238,9 +249,6 @@ proc build*(b: SwitchBuilder): Switch
       for tProvider in b.transports:
         transports.add(tProvider(muxedUpgrade))
       transports
-
-  if b.secureManagers.len == 0:
-    b.secureManagers &= SecureProtocol.Noise
 
   if isNil(b.rng):
     b.rng = newRng()
