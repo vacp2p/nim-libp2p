@@ -130,6 +130,10 @@ proc handleGraft*(g: GossipSub,
 
       continue
 
+    if g.mesh.hasPeer(topic, peer):
+      trace "peer already in mesh", peer, topic
+      continue
+
     # Check backingOff
     # Ignore BackoffSlackTime here, since this only for outbound activity
     # and subtract a second time to avoid race conditions
