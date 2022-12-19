@@ -295,11 +295,11 @@ proc rewardDelivered*(
 
     g.withPeerStats(peer.peerId) do (stats: var PeerStats):
       stats.topicInfos.withValue(tt, tstats):
-        if tstats[].inMesh:
-          if first:
-            tstats[].firstMessageDeliveries.addCapped(
-              1, topicParams.firstMessageDeliveriesCap)
+        if first:
+          tstats[].firstMessageDeliveries.addCapped(
+            1, topicParams.firstMessageDeliveriesCap)
 
+        if tstats[].inMesh:
           tstats[].meshMessageDeliveries.addCapped(
             1, topicParams.meshMessageDeliveriesCap)
       do: # make sure we don't loose this information
