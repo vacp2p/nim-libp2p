@@ -180,6 +180,10 @@ proc handleGraft*(g: GossipSub,
           topicID: topic,
           peers: g.peerExchangeList(topic),
           backoff: g.parameters.pruneBackoff.seconds.uint64))
+
+        let backoff = Moment.fromNow(g.parameters.pruneBackoff)
+        g.backingOff
+          .mgetOrPut(topic, initTable[PeerId, Moment]())[peer.peerId] = backoff
     else:
       trace "peer grafting topic we're not interested in", peer, topic
       # gossip 1.1, we do not send a control message prune anymore
