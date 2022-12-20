@@ -2,7 +2,8 @@
 
 import chronos, options
 import ../libp2p
-import ../libp2p/[protocols/connectivity/relay/relay,
+import ../libp2p/[crypto/crypto,
+                  protocols/connectivity/relay/relay,
                   protocols/connectivity/relay/messages,
                   protocols/connectivity/relay/utils,
                   protocols/connectivity/relay/client,
@@ -28,7 +29,6 @@ proc buildRelayMA(switchRelay: Switch, switchClient: Switch): MultiAddress =
                     $switchRelay.peerInfo.peerId & "/p2p-circuit/p2p/" &
                     $switchClient.peerInfo.peerId).get()
 
-let rng = newRng()
 suite "Autorelay":
   asyncTeardown:
     checkTrackers()
