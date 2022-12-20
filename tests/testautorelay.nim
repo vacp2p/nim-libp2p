@@ -6,7 +6,7 @@ import ../libp2p/[protocols/connectivity/relay/relay,
                   protocols/connectivity/relay/messages,
                   protocols/connectivity/relay/utils,
                   protocols/connectivity/relay/client,
-                  protocols/connectivity/autorelay]
+                  services/autorelayservice]
 import ./helpers
 import stew/byteutils
 
@@ -55,7 +55,6 @@ suite "Autorelay":
     switchClient = createSwitch(relayClient, autorelay)
     await allFutures(switchClient.start(), switchRelay.start())
     await switchClient.connect(switchRelay.peerInfo.peerId, switchRelay.peerInfo.addrs)
-    discard autorelay.run(switchClient)
     await fut.wait(1.seconds)
     let addresses = autorelay.getAddresses()
     check:
@@ -73,7 +72,6 @@ suite "Autorelay":
     let autorelay = AutoRelayService.new(3, relayClient, checkMA, newRng())
     switchClient = createSwitch(relayClient, autorelay)
     await allFutures(switchClient.start(), switchRelay.start())
-    discard autorelay.run(switchClient)
     await sleepAsync(500.millis)
     await switchClient.connect(switchRelay.peerInfo.peerId, switchRelay.peerInfo.addrs)
     await fut.wait(1.seconds)
@@ -114,7 +112,6 @@ suite "Autorelay":
     switchClient = createSwitch(relayClient, autorelay)
     await allFutures(switchClient.start(), rel1.start(), rel2.start(), rel3.start())
     await switchClient.connect(rel1.peerInfo.peerId, rel1.peerInfo.addrs)
-    discard autorelay.run(switchClient)
     await sleepAsync(500.millis)
     await switchClient.connect(rel2.peerInfo.peerId, rel2.peerInfo.addrs)
     await switchClient.connect(rel3.peerInfo.peerId, rel3.peerInfo.addrs)

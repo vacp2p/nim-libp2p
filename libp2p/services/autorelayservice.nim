@@ -13,8 +13,8 @@ else:
   {.push raises: [].}
 
 import chronos, chronicles, times, tables, sequtils, options
-import ../../switch,
-       relay/[client, utils]
+import ../switch,
+       ../protocols/connectivity/relay/[client, utils]
 
 logScope:
   topics = "libp2p autorelay"
@@ -66,6 +66,7 @@ method setup*(self: AutoRelayService, switch: Switch): Future[bool] {.async, gcs
         future[].cancel()
     switch.addPeerEventHandler(handlePeerJoined, Joined)
     switch.addPeerEventHandler(handlePeerLeft, Left)
+    await self.run(switch)
   return hasBeenSetUp
 
 proc manageBackedOff(self: AutoRelayService, pid: PeerId) {.async.} =
