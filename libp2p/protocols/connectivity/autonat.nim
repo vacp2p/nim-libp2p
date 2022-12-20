@@ -32,6 +32,7 @@ const
 
 type
   AutonatError* = object of LPError
+  AutonatUnreachableError* = object of LPError
 
   MsgType* = enum
     Dial = 0
@@ -203,25 +204,37 @@ type
     sem: AsyncSemaphore
     switch*: Switch
 
-proc dialMe*(a: Autonat, pid: PeerId, ma: MultiAddress|seq[MultiAddress]):
-    Future[MultiAddress] {.async.} =
-  let addrs = when ma is MultiAddress: @[ma] else: ma
-  let conn = await a.switch.dial(pid, addrs, AutonatCodec)
+method dialMe*(a: Autonat, pid: PeerId, addrs: seq[MultiAddress] = newSeq[MultiAddress]()):
+    Future[MultiAddress] {.base, async.} =
+
+  proc getResponseOrRaise(autonatMsg: Option[AutonatMsg]): AutonatDialResponse {.raises: [UnpackError, AutonatError].} =
+    if autonatMsg.isNone() or
+       autonatMsg.get().msgType != DialResponse or
+       autonatMsg.get().response.isNone() or
+       autonatMsg.get().response.get().ma.isNone():
+      raise newException(AutonatError, "Unexpected response")
+    else:
+      autonatMsg.get().response.get()
+
+  let conn =
+    try:
+      if addrs.len == 0:
+        await a.switch.dial(pid, @[AutonatCodec])
+      else:
+        await a.switch.dial(pid, addrs, AutonatCodec)
+    except CatchableError as err:
+      raise newException(AutonatError, "Unexpected error when dialling", err)
+
   defer: await conn.close()
   await conn.sendDial(a.switch.peerInfo.peerId, a.switch.peerInfo.addrs)
-  let msgOpt = AutonatMsg.decode(await conn.readLp(1024))
-  if msgOpt.isNone() or
-     msgOpt.get().msgType != DialResponse or
-     msgOpt.get().response.isNone():
-    raise newException(AutonatError, "Unexpected response")
-  let response = msgOpt.get().response.get()
-  if response.status != ResponseStatus.Ok:
-    raise newException(AutonatError, "Bad status " &
-                                      $response.status & " " &
-                                      response.text.get(""))
-  if response.ma.isNone():
-    raise newException(AutonatError, "Missing address")
-  return response.ma.get()
+  let response = getResponseOrRaise(AutonatMsg.decode(await conn.readLp(1024)))
+  return case response.status:
+    of ResponseStatus.Ok:
+      response.ma.get()
+    of ResponseStatus.DialError:
+      raise newException(AutonatUnreachableError, "Peer could not dial us back")
+    else:
+      raise newException(AutonatError, "Bad status " & $response.status & " " & response.text.get(""))
 
 proc tryDial(a: Autonat, conn: Connection, addrs: seq[MultiAddress]) {.async.} =
   try:

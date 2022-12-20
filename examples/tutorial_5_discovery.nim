@@ -36,7 +36,7 @@ proc new(T: typedesc[DumbProto], nodeNumber: int): T =
   proc handle(conn: Connection, proto: string) {.async, gcsafe.} =
     echo "Node", nodeNumber, " received: ", string.fromBytes(await conn.readLp(1024))
     await conn.close()
-  return T(codecs: @[DumbCodec], handler: handle)
+  return T.new(codecs = @[DumbCodec], handler = handle)
 
 ## ## Bootnodes
 ## The first time a p2p program is ran, he needs to know how to join

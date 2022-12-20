@@ -19,8 +19,7 @@ export results, utility
 
 {.push public.}
 
-const
-  MaxMessageSize* = 1'u shl 22
+const MaxMessageSize = 1'u shl 22
 
 type
   ProtoFieldKind* = enum
@@ -37,6 +36,7 @@ type
     buffer*: seq[byte]
     offset*: int
     length*: int
+    maxSize*: uint
 
   ProtoHeader* = object
     wire*: ProtoFieldKind
@@ -122,23 +122,28 @@ proc vsizeof*(field: ProtoField): int {.inline.} =
     0
 
 proc initProtoBuffer*(data: seq[byte], offset = 0,
-                      options: set[ProtoFlags] = {}): ProtoBuffer =
+                      options: set[ProtoFlags] = {},
+                      maxSize = MaxMessageSize): ProtoBuffer =
   ## Initialize ProtoBuffer with shallow copy of ``data``.
   result.buffer = data
   result.offset = offset
   result.options = options
+  result.maxSize = maxSize
 
 proc initProtoBuffer*(data: openArray[byte], offset = 0,
-                      options: set[ProtoFlags] = {}): ProtoBuffer =
+                      options: set[ProtoFlags] = {},
+                      maxSize = MaxMessageSize): ProtoBuffer =
   ## Initialize ProtoBuffer with copy of ``data``.
   result.buffer = @data
   result.offset = offset
   result.options = options
+  result.maxSize = maxSize
 
-proc initProtoBuffer*(options: set[ProtoFlags] = {}): ProtoBuffer =
+proc initProtoBuffer*(options: set[ProtoFlags] = {}, maxSize = MaxMessageSize): ProtoBuffer =
   ## Initialize ProtoBuffer with new sequence of capacity ``cap``.
   result.buffer = newSeq[byte]()
   result.options = options
+  result.maxSize = maxSize
   if WithVarintLength in options:
     # Our buffer will start from position 10, so we can store length of buffer
     # in [0, 9].
@@ -335,7 +340,7 @@ proc skipValue(data: var ProtoBuffer, header: ProtoHeader): ProtoResult[void] =
     var bsize = 0'u64
     if PB.getUVarint(data.toOpenArray(), length, bsize).isOk():
       data.offset += length
-      if bsize <= uint64(MaxMessageSize):
+      if bsize <= uint64(data.maxSize):
         if data.isEnough(int(bsize)):
           data.offset += int(bsize)
           ok()
@@ -399,7 +404,7 @@ proc getValue[T:byte|char](data: var ProtoBuffer, header: ProtoHeader,
   outLength = 0
   if PB.getUVarint(data.toOpenArray(), length, bsize).isOk():
     data.offset += length
-    if bsize <= uint64(MaxMessageSize):
+    if bsize <= uint64(data.maxSize):
       if data.isEnough(int(bsize)):
         outLength = int(bsize)
         if len(outBytes) >= int(bsize):
@@ -427,7 +432,7 @@ proc getValue[T:seq[byte]|string](data: var ProtoBuffer, header: ProtoHeader,
 
   if PB.getUVarint(data.toOpenArray(), length, bsize).isOk():
     data.offset += length
-    if bsize <= uint64(MaxMessageSize):
+    if bsize <= uint64(data.maxSize):
       if data.isEnough(int(bsize)):
         outBytes.setLen(bsize)
         if bsize > 0'u64:

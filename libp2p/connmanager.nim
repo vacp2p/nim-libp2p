@@ -111,7 +111,7 @@ proc connCount*(c: ConnManager, peerId: PeerId): int =
   c.conns.getOrDefault(peerId).len
 
 proc connectedPeers*(c: ConnManager, dir: Direction): seq[PeerId] =
-  var peers = newSeq[PeerId]();
+  var peers = newSeq[PeerId]()
   for peerId, conns in c.conns:
     if conns.anyIt(it.dir == dir):
       peers.add(peerId)
@@ -544,3 +544,4 @@ proc close*(c: ConnManager) {.async.} =
       await conn.close()
 
   trace "Closed ConnManager"
+

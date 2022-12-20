@@ -5,136 +5,61 @@ on:
   push:
     branches:
       - master
+      - unstable
   pull_request:
   workflow_dispatch:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  GossipSub:
+  Coverage:
     runs-on: ubuntu-20.04
-    strategy:
-      matrix:
-        nim-options: [
-          "",
-          "-d:libp2p_pubsub_anonymize=true -d:libp2p_pubsub_sign=false -d:libp2p_pubsub_verify=false",
-          "-d:libp2p_pubsub_sign=true -d:libp2p_pubsub_verify=true"
-        ]
-        test-program: [
-          "tests/pubsub/testpubsub",
-          "tests/pubsub/testfloodsub",
-          "tests/pubsub/testgossipinternal"
-        ]
+    env:
+      CICOV: YES
     steps:
       - uses: actions/checkout@v2
         with:
           fetch-depth: 0
+
+      - name: Setup Nim
+        uses: "./.github/actions/install_nim"
+        with:
+          os: linux
+          cpu: amd64
+          shell: bash
+
+      - name: Restore deps from cache
+        id: deps-cache
+        uses: actions/cache@v3
+        with:
+          path: nimbledeps
+          key: nimbledeps-${{ hashFiles('.pinned') }}
+
+      - name: Install deps
+        if: ${{ steps.deps-cache.outputs.cache-hit != 'true' }}
+        run: |
+          nimble install_pinned
+
       - name: Run
         run: |
           sudo apt-get update
           sudo apt-get install -y lcov build-essential git curl
           mkdir coverage
-          curl -O -L -s -S https://raw.githubusercontent.com/status-im/nimbus-build-system/master/scripts/build_nim.sh
-          env MAKE="make -j${NPROC}" bash build_nim.sh Nim csources dist/nimble NimBinaries
-          export PATH="$PATH:$PWD/Nim/bin"
-          nimble install_pinned
-          export NIM_OPTIONS="--opt:speed -d:debug --verbosity:0 --hints:off --lineDir:on -d:chronicles_log_level=INFO --warning[CaseTransition]:off --warning[ObservableStores]:off --warning[LockLevel]:off --nimcache:nimcache --passC:-fprofile-arcs --passC:-ftest-coverage --passL:-fprofile-arcs --passL:-ftest-coverage ${{ matrix.nim-options }}"
-          nim c $NIM_OPTIONS -r ${{ matrix.test-program }}
-          cd nimcache; rm *.c; cd ..
+          export NIMFLAGS="--lineDir:on --passC:-fprofile-arcs --passC:-ftest-coverage --passL:-fprofile-arcs --passL:-ftest-coverage"
+          nimble testnative
+          nimble testpubsub
+          nimble testfilter
+          find nimcache -name *.c -delete
           lcov --capture --directory nimcache --output-file coverage/coverage.info
           shopt -s globstar
           ls `pwd`/libp2p/{*,**/*}.nim
           lcov --extract coverage/coverage.info  `pwd`/libp2p/{*,**/*}.nim --output-file coverage/coverage.f.info
-          export COV_UUID=`cksum <<< "${{ matrix.test-program }} $NIM_OPTIONS" | cut -f 1 -d ' '`
-          genhtml coverage/coverage.f.info --output-directory coverage/$COV_UUID-output
-          echo ${{ matrix.test-program }} > coverage/$COV_UUID-nim_options.txt
-          echo $NIM_OPTIONS >> coverage/$COV_UUID-nim_options.txt
+          genhtml coverage/coverage.f.info --output-directory coverage/output
           bash <(curl -s https://codecov.io/bash) -f coverage/coverage.f.info || echo "Codecov did not collect coverage reports"
-      - uses: actions/upload-artifact@master
-        with:
-          name: coverage
-          path: coverage
 
-  Tests:
-    runs-on: ubuntu-20.04
-    strategy:
-      matrix:
-        nim-options: [
-          ""
-        ]
-        test-program: [
-          "tests/testnative",
-        ]
-    steps:
-      - uses: actions/checkout@v2
-        with:
-          fetch-depth: 0
-      - name: Run
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y lcov build-essential git curl
-          mkdir coverage
-          curl -O -L -s -S https://raw.githubusercontent.com/status-im/nimbus-build-system/master/scripts/build_nim.sh
-          env MAKE="make -j${NPROC}" bash build_nim.sh Nim csources dist/nimble NimBinaries
-          export PATH="$PATH:$PWD/Nim/bin"
-          nimble install_pinned
-          export NIM_OPTIONS="--opt:speed -d:debug --verbosity:0 --hints:off --lineDir:on -d:chronicles_log_level=INFO --warning[CaseTransition]:off --warning[ObservableStores]:off --warning[LockLevel]:off --nimcache:nimcache --passC:-fprofile-arcs --passC:-ftest-coverage --passL:-fprofile-arcs --passL:-ftest-coverage ${{ matrix.nim-options }} --clearNimblePath --NimblePath:nimbledeps/pkgs"
-          nim c $NIM_OPTIONS -r ${{ matrix.test-program }}
-          cd nimcache; rm *.c; cd ..
-          lcov --capture --directory nimcache --output-file coverage/coverage.info
-          shopt -s globstar
-          ls `pwd`/libp2p/{*,**/*}.nim
-          lcov --extract coverage/coverage.info  `pwd`/libp2p/{*,**/*}.nim --output-file coverage/coverage.f.info
-          export COV_UUID=`cksum <<< "${{ matrix.test-program }} $NIM_OPTIONS" | cut -f 1 -d ' '`
-          genhtml coverage/coverage.f.info --output-directory coverage/$COV_UUID-output
-          echo ${{ matrix.test-program }} > coverage/$COV_UUID-nim_options.txt
-          echo $NIM_OPTIONS >> coverage/$COV_UUID-nim_options.txt
-          bash <(curl -s https://codecov.io/bash) -f coverage/coverage.f.info || echo "Codecov did not collect coverage reports"
-      - uses: actions/upload-artifact@master
-        with:
-          name: coverage
-          path: coverage
-
-  Filter:
-    runs-on: ubuntu-20.04
-    strategy:
-      matrix:
-        nim-options: [
-          "",
-          "-d:libp2p_pki_schemes=secp256k1",
-          "-d:libp2p_pki_schemes=secp256k1;ed25519",
-          "-d:libp2p_pki_schemes=secp256k1;ed25519;ecnist",
-        ]
-        test-program: [
-          "tests/testpkifilter",
-        ]
-    steps:
-      - uses: actions/checkout@v2
-        with:
-          fetch-depth: 0
-      - name: Run
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y lcov build-essential git curl
-          mkdir coverage
-          curl -O -L -s -S https://raw.githubusercontent.com/status-im/nimbus-build-system/master/scripts/build_nim.sh
-          env MAKE="make -j${NPROC}" bash build_nim.sh Nim csources dist/nimble NimBinaries
-          export PATH="$PATH:$PWD/Nim/bin"
-          nimble install_pinned
-          export NIM_OPTIONS="--opt:speed -d:debug --verbosity:0 --hints:off --lineDir:on -d:chronicles_log_level=INFO --warning[CaseTransition]:off --warning[ObservableStores]:off --warning[LockLevel]:off --nimcache:nimcache --passC:-fprofile-arcs --passC:-ftest-coverage --passL:-fprofile-arcs --passL:-ftest-coverage ${{ matrix.nim-options }}"
-          nim c $NIM_OPTIONS -r ${{ matrix.test-program }}
-          cd nimcache; rm *.c; cd ..
-          lcov --capture --directory nimcache --output-file coverage/coverage.info
-          shopt -s globstar
-          ls `pwd`/libp2p/{*,**/*}.nim
-          lcov --extract coverage/coverage.info  `pwd`/libp2p/{*,**/*}.nim --output-file coverage/coverage.f.info
-          export COV_UUID=`cksum <<< "${{ matrix.test-program }} $NIM_OPTIONS" | cut -f 1 -d ' '`
-          genhtml coverage/coverage.f.info --output-directory coverage/$COV_UUID-output
-          echo ${{ matrix.test-program }} > coverage/$COV_UUID-nim_options.txt
-          echo $NIM_OPTIONS >> coverage/$COV_UUID-nim_options.txt
-          bash <(curl -s https://codecov.io/bash) -f coverage/coverage.f.info || echo "Codecov did not collect coverage reports"
-      - uses: actions/upload-artifact@master
-        with:
-          name: coverage
-          path: coverage
-
-
-
+          #- uses: actions/upload-artifact@master
+          #  with:
+          #    name: coverage
+          #    path: coverage

@@ -278,6 +278,79 @@ suite "Multistream select":
 
     await handlerWait.wait(30.seconds)
 
+  asyncTest "e2e - streams limit":
+    let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
+    let blocker = newFuture[void]()
+
+    # Start 5 streams which are blocked by `blocker`
+    # Try to start a new one, which should fail
+    # Unblock the 5 streams, check that we can open a new one
+    proc testHandler(conn: Connection,
+                      proto: string):
+                      Future[void] {.async, gcsafe.} =
+      await blocker
+      await conn.writeLp("Hello!")
+      await conn.close()
+
+    var protocol: LPProtocol = LPProtocol.new(
+      @["/test/proto/1.0.0"],
+      testHandler,
+      maxIncomingStreams = 5
+    )
+
+    protocol.handler = testHandler
+    let msListen = MultistreamSelect.new()
+    msListen.addHandler("/test/proto/1.0.0", protocol)
+
+    let transport1 = TcpTransport.new(upgrade = Upgrade())
+    await transport1.start(ma)
+
+    proc acceptedOne(c: Connection) {.async.} =
+      await msListen.handle(c)
+      await c.close()
+
+    proc acceptHandler() {.async, gcsafe.} =
+      while true:
+        let conn = await transport1.accept()
+        asyncSpawn acceptedOne(conn)
+
+    var handlerWait = acceptHandler()
+
+    let msDial = MultistreamSelect.new()
+    let transport2 = TcpTransport.new(upgrade = Upgrade())
+
+    proc connector {.async.} =
+      let conn = await transport2.dial(transport1.addrs[0])
+      check: (await msDial.select(conn, "/test/proto/1.0.0")) == true
+      check: string.fromBytes(await conn.readLp(1024)) == "Hello!"
+      await conn.close()
+
+    # Fill up the 5 allowed streams
+    var dialers: seq[Future[void]]
+    for _ in 0..<5:
+      dialers.add(connector())
+
+    # This one will fail during negotiation
+    expect(CatchableError):
+      try: waitFor(connector().wait(1.seconds))
+      except AsyncTimeoutError as exc:
+        check false
+        raise exc
+    # check that the dialers aren't finished
+    check: (await dialers[0].withTimeout(10.milliseconds)) == false
+
+    # unblock the dialers
+    blocker.complete()
+    await allFutures(dialers)
+
+    # now must work
+    waitFor(connector())
+
+    await transport2.stop()
+    await transport1.stop()
+
+    await handlerWait.cancelAndWait()
+
   asyncTest "e2e - ls":
     let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
 

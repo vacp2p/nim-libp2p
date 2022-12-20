@@ -20,8 +20,8 @@ markdown_extensions:
   - pymdownx.superfences
 
 theme:
-  logo: https://docs.libp2p.io/images/logo_small.png
-  favicon: https://docs.libp2p.io/images/logo_small.png
+  logo: https://libp2p.io/img/logo_small.png
+  favicon: https://libp2p.io/img/logo_small.png
   name: material
   features:
     - navigation.instant
@@ -41,7 +41,7 @@ theme:
 
 nav:
   - Tutorials:
-    - 'Introduction': README.md
+    - 'Introduction': index.md
     - 'Simple connection': tutorial_1_connect.md
     - 'Create a custom protocol': tutorial_2_customproto.md
     - 'Protobuf': tutorial_3_protobuf.md

@@ -152,8 +152,8 @@ suite "Identify":
       identifyPush2 {.threadvar.}: IdentifyPush
       conn {.threadvar.}: Connection
     asyncSetup:
-      switch1 = newStandardSwitch()
-      switch2 = newStandardSwitch()
+      switch1 = newStandardSwitch(sendSignedPeerRecord=true)
+      switch2 = newStandardSwitch(sendSignedPeerRecord=true)
 
       proc updateStore1(peerId: PeerId, info: IdentifyInfo) {.async.} =
         switch1.peerStore.updatePeerInfo(info)
@@ -177,13 +177,21 @@ suite "Identify":
       check:
         switch1.peerStore[AddressBook][switch2.peerInfo.peerId] == switch2.peerInfo.addrs
         switch2.peerStore[AddressBook][switch1.peerInfo.peerId] == switch1.peerInfo.addrs
+        
+        switch1.peerStore[KeyBook][switch2.peerInfo.peerId] == switch2.peerInfo.publicKey
+        switch2.peerStore[KeyBook][switch1.peerInfo.peerId] == switch1.peerInfo.publicKey
 
-        switch1.peerStore[AddressBook][switch2.peerInfo.peerId] == switch2.peerInfo.addrs
-        switch2.peerStore[AddressBook][switch1.peerInfo.peerId] == switch1.peerInfo.addrs
+        switch1.peerStore[AgentBook][switch2.peerInfo.peerId] == switch2.peerInfo.agentVersion
+        switch2.peerStore[AgentBook][switch1.peerInfo.peerId] == switch1.peerInfo.agentVersion
 
-        #switch1.peerStore.signedPeerRecordBook.get(switch2.peerInfo.peerId) == switch2.peerInfo.signedPeerRecord.get()
-        #switch2.peerStore.signedPeerRecordBook.get(switch1.peerInfo.peerId) == switch1.peerInfo.signedPeerRecord.get()
-        # no longer sent by default
+        switch1.peerStore[ProtoVersionBook][switch2.peerInfo.peerId] == switch2.peerInfo.protoVersion
+        switch2.peerStore[ProtoVersionBook][switch1.peerInfo.peerId] == switch1.peerInfo.protoVersion
+
+        switch1.peerStore[ProtoBook][switch2.peerInfo.peerId] == switch2.peerInfo.protocols
+        switch2.peerStore[ProtoBook][switch1.peerInfo.peerId] == switch1.peerInfo.protocols
+
+        switch1.peerStore[SPRBook][switch2.peerInfo.peerId] == switch2.peerInfo.signedPeerRecord.envelope
+        switch2.peerStore[SPRBook][switch1.peerInfo.peerId] == switch1.peerInfo.signedPeerRecord.envelope
 
     proc closeAll() {.async.} =
       await conn.close()

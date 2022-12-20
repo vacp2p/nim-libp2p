@@ -16,8 +16,10 @@ requires "nim >= 1.2.0",
          "metrics",
          "secp256k1",
          "stew#head",
-         "websock"
+         "websock",
+         "unittest2 >= 0.0.5 & < 0.1.0"
 
+import hashes
 proc runTest(filename: string, verify: bool = true, sign: bool = true,
              moreoptions: string = "") =
   var excstr = "nim c --skipParentCfg --opt:speed -d:debug -d:libp2p_agents_metrics -d:libp2p_protobuf_metrics -d:libp2p_network_protocols_metrics -d:libp2p_mplex_metrics "
@@ -28,6 +30,8 @@ proc runTest(filename: string, verify: bool = true, sign: bool = true,
   excstr.add(" -d:libp2p_pubsub_sign=" & $sign)
   excstr.add(" -d:libp2p_pubsub_verify=" & $verify)
   excstr.add(" " & moreoptions & " ")
+  if getEnv("CICOV").len > 0:
+    excstr &= " --nimcache:nimcache/" & filename & "-" & $excstr.hash
   exec excstr & " -r " & " tests/" & filename
   rmFile "tests/" & filename.toExe
 
@@ -108,6 +112,7 @@ task examples_build, "Build the samples":
     buildSample("tutorial_4_gossipsub", true)
     buildSample("tutorial_5_discovery", true)
     # Nico doesn't work in 1.2
+    exec "nimble install -y nimpng@#HEAD" # this is to fix broken build on 1.7.3, remove it when nimpng version 0.3.2 or later is released
     exec "nimble install -y nico"
     buildSample("tutorial_6_game", false, "--styleCheck:off")
 
@@ -134,9 +139,13 @@ task install_pinned, "Reads the lockfile":
 
   # Remove the automatically installed deps
   # (inefficient you say?)
-  let allowedDirectories = toInstall.mapIt(it[0] & "-" & it[1].split('@')[1])
-  for dependency in listDirs("nimbledeps/pkgs"):
-    if dependency.extractFilename notin allowedDirectories:
+  let nimblePkgs =
+    if system.dirExists("nimbledeps/pkgs"): "nimbledeps/pkgs"
+    else: "nimbledeps/pkgs2"
+  for dependency in listDirs(nimblePkgs):
+    let filename = dependency.extractFilename
+    if toInstall.anyIt(filename.startsWith(it[0]) and
+       filename.endsWith(it[1].split('#')[^1])) == false:
       rmDir(dependency)
 
 task unpin, "Restore global package use":

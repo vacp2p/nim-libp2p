@@ -16,8 +16,7 @@ runnableExamples:
   # Create a custom book type
   type MoodBook = ref object of PeerBook[string]
 
-  var somePeerId: PeerId
-  discard somePeerId.init("")
+  var somePeerId = PeerId.random().get()
 
   peerStore[MoodBook][somePeerId] = "Happy"
   doAssert peerStore[MoodBook][somePeerId] == "Happy"
@@ -152,6 +151,9 @@ proc updatePeerInfo*(
 
   if info.addrs.len > 0:
     peerStore[AddressBook][info.peerId] = info.addrs
+
+  if info.pubkey.isSome:
+    peerStore[KeyBook][info.peerId] = info.pubkey.get()
 
   if info.agentVersion.isSome:
     peerStore[AgentBook][info.peerId] = info.agentVersion.get().string

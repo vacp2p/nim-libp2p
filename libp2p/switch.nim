@@ -77,19 +77,20 @@ type
       services*: seq[Service]
 
     Service* = ref object of RootObj
-      inUse*: bool
+      inUse: bool
 
-method setup*(self: Service, switch: Switch): Future[bool] {.base, async, gcsafe, public.} =
+
+method setup*(self: Service, switch: Switch): Future[bool] {.base, async, gcsafe.} =
   if self.inUse:
     warn "service setup has already been called"
     return false
   self.inUse = true
   return true
 
-method run*(self: Service, switch: Switch) {.base, async, gcsafe, public.} =
+method run*(self: Service, switch: Switch) {.base, async, gcsafe.} =
   doAssert(false, "Not implemented!")
 
-method stop*(self: Service, switch: Switch): Future[bool] {.base, async, gcsafe, public.} =
+method stop*(self: Service, switch: Switch): Future[bool] {.base, async, gcsafe.} =
   if not self.inUse:
     warn "service is already stopped"
     return false
@@ -154,10 +155,15 @@ method connect*(
 
 method connect*(
   s: Switch,
-  addrs: seq[MultiAddress]): Future[PeerId] =
+  address: MultiAddress,
+  allowUnknownPeerId = false): Future[PeerId] =
   ## Connects to a peer and retrieve its PeerId
+  ##
+  ## If the P2P part is missing from the MA and `allowUnknownPeerId` is set
+  ## to true, this will discover the PeerId while connecting. This exposes
+  ## you to MiTM attacks, so it shouldn't be used without care!
 
-  s.dialer.connect(addrs)
+  s.dialer.connect(address, allowUnknownPeerId)
 
 method dial*(
   s: Switch,
@@ -317,12 +323,19 @@ proc stop*(s: Switch) {.async, public.} =
     if not a.finished:
       a.cancel()
 
+  for service in s.services:
+    discard await service.stop(s)
+
   await s.ms.stop()
 
   trace "Switch stopped"
 
 proc start*(s: Switch) {.async, gcsafe, public.} =
   ## Start listening on every transport
+
+  if s.started:
+    warn "Switch has already been started"
+    return
 
   trace "starting switch for peer", peerInfo = s.peerInfo
   var startFuts: seq[Future[void]]
@@ -356,7 +369,6 @@ proc start*(s: Switch) {.async, gcsafe, public.} =
 
   for service in s.services:
     discard await service.setup(s)
-    # discard await service.run(s)
 
   s.started = true
 
