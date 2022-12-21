@@ -34,14 +34,10 @@ suite "Autorelay":
     checkTrackers()
 
   var
-    rng {.threadvar.}: ref HmacDrbgContext
     switchRelay {.threadvar.}: Switch
     switchClient {.threadvar.}: Switch
     relayClient {.threadvar.}: RelayClient
     autorelay {.threadvar.}: AutoRelayService
-
-  asyncSetup:
-    rng = newRng()
 
   asyncTest "Simple test":
     switchRelay = createSwitch(Relay.new())
@@ -51,7 +47,7 @@ suite "Autorelay":
       check: addresses[0] == buildRelayMA(switchRelay, switchClient)
       check: addresses.len() == 1
       fut.complete()
-    autorelay = AutoRelayService.new(3, relayClient, checkMA, rng)
+    autorelay = AutoRelayService.new(3, relayClient, checkMA, newRng())
     switchClient = createSwitch(relayClient, autorelay)
     await allFutures(switchClient.start(), switchRelay.start())
     await switchClient.connect(switchRelay.peerInfo.peerId, switchRelay.peerInfo.addrs)
