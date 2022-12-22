@@ -34,7 +34,7 @@ suite "Autonat":
   teardown:
     checkTrackers()
 
-  asyncTest "Simple test":
+  asyncTest "dialMe returns public address":
     let
       src = newStandardSwitch()
       dst = createAutonatSwitch()
@@ -43,9 +43,10 @@ suite "Autonat":
 
     await src.connect(dst.peerInfo.peerId, dst.peerInfo.addrs)
     let ma = await Autonat.new(src).dialMe(dst.peerInfo.peerId, dst.peerInfo.addrs)
+    check ma == src.peerInfo.addrs[0]
     await allFutures(src.stop(), dst.stop())
 
-  asyncTest "Simple failed test":
+  asyncTest "dialMe handles dial error msg":
     let
       src = newStandardSwitch()
       dst = makeAutonatServicePrivate()
@@ -54,6 +55,6 @@ suite "Autonat":
     await dst.start()
 
     await src.connect(dst.peerInfo.peerId, dst.peerInfo.addrs)
-    expect AutonatError:
+    expect AutonatUnreachableError:
       discard await Autonat.new(src).dialMe(dst.peerInfo.peerId, dst.peerInfo.addrs)
     await allFutures(src.stop(), dst.stop())
