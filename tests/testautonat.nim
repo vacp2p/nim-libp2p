@@ -60,7 +60,7 @@ suite "Autonat":
       discard await Autonat.new(src).dialMe(dst.peerInfo.peerId, dst.peerInfo.addrs)
     await allFutures(src.stop(), dst.stop())
 
-  asyncTest "Testing imeout":
+  asyncTest "Timeout is triggered in autonat handle":
     let
       src = newStandardSwitch()
       dst = newStandardSwitch()
