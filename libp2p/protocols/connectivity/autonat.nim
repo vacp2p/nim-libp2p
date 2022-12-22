@@ -203,6 +203,7 @@ type
   Autonat* = ref object of LPProtocol
     sem: AsyncSemaphore
     switch*: Switch
+    dialTimeout: Duration
 
 method dialMe*(a: Autonat, pid: PeerId, addrs: seq[MultiAddress] = newSeq[MultiAddress]()):
     Future[MultiAddress] {.base, async.} =
@@ -239,7 +240,7 @@ method dialMe*(a: Autonat, pid: PeerId, addrs: seq[MultiAddress] = newSeq[MultiA
 proc tryDial(a: Autonat, conn: Connection, addrs: seq[MultiAddress]) {.async.} =
   try:
     await a.sem.acquire()
-    let ma = await a.switch.dialer.tryDial(conn.peerId, addrs)
+    let ma = await a.switch.dialer.tryDial(conn.peerId, addrs).wait(a.dialTimeout)
     if ma.isSome:
       await conn.sendResponseOk(ma.get())
     else:
@@ -297,8 +298,8 @@ proc handleDial(a: Autonat, conn: Connection, msg: AutonatMsg): Future[void] =
     return conn.sendResponseError(DialRefused, "No dialable address")
   return a.tryDial(conn, toSeq(addrs))
 
-proc new*(T: typedesc[Autonat], switch: Switch, semSize: int = 1): T =
-  let autonat = T(switch: switch, sem: newAsyncSemaphore(semSize))
+proc new*(T: typedesc[Autonat], switch: Switch, semSize: int = 1, dialTimeout = 15.seconds): T =
+  let autonat = T(switch: switch, sem: newAsyncSemaphore(semSize), dialTimeout: dialTimeout)
   autonat.init()
   autonat
 

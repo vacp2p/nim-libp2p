@@ -52,7 +52,7 @@ proc new*(
   numPeersToAsk: int = 5,
   maxQueueSize: int = 10,
   minConfidence: float = 0.3,
-  dialTimeout = 5.seconds): T =
+  dialTimeout = 30.seconds): T =
   return T(
     scheduleInterval: scheduleInterval,
     networkReachability: Unknown,
