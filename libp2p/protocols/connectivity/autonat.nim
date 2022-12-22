@@ -46,21 +46,21 @@ type
     InternalError = 300
 
   AutonatPeerInfo* = object
-    id: Option[PeerId]
-    addrs: seq[MultiAddress]
+    id*: Option[PeerId]
+    addrs*: seq[MultiAddress]
 
   AutonatDial* = object
-    peerInfo: Option[AutonatPeerInfo]
+    peerInfo*: Option[AutonatPeerInfo]
 
   AutonatDialResponse* = object
     status*: ResponseStatus
     text*: Option[string]
     ma*: Option[MultiAddress]
 
-  AutonatMsg = object
-    msgType: MsgType
-    dial: Option[AutonatDial]
-    response: Option[AutonatDialResponse]
+  AutonatMsg* = object
+    msgType*: MsgType
+    dial*: Option[AutonatDial]
+    response*: Option[AutonatDialResponse]
 
 proc encode*(msg: AutonatMsg): ProtoBuffer =
   result = initProtoBuffer()
@@ -120,7 +120,7 @@ proc encode*(r: AutonatDialResponse): ProtoBuffer =
   result.write(3, bufferResponse.buffer)
   result.finish()
 
-proc decode(_: typedesc[AutonatMsg], buf: seq[byte]): Option[AutonatMsg] =
+proc decode*(_: typedesc[AutonatMsg], buf: seq[byte]): Option[AutonatMsg] =
   var
     msgTypeOrd: uint32
     pbDial: ProtoBuffer
