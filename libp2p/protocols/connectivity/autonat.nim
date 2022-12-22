@@ -211,7 +211,8 @@ method dialMe*(a: Autonat, pid: PeerId, addrs: seq[MultiAddress] = newSeq[MultiA
     if autonatMsg.isNone() or
        autonatMsg.get().msgType != DialResponse or
        autonatMsg.get().response.isNone() or
-       autonatMsg.get().response.get().ma.isNone():
+       (autonatMsg.get().response.get().status == Ok and
+        autonatMsg.get().response.get().ma.isNone()):
       raise newException(AutonatError, "Unexpected response")
     else:
       autonatMsg.get().response.get()
