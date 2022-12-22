@@ -46,21 +46,21 @@ type
     InternalError = 300
 
   AutonatPeerInfo* = object
-    id: Option[PeerId]
-    addrs: seq[MultiAddress]
+    id*: Option[PeerId]
+    addrs*: seq[MultiAddress]
 
   AutonatDial* = object
-    peerInfo: Option[AutonatPeerInfo]
+    peerInfo*: Option[AutonatPeerInfo]
 
   AutonatDialResponse* = object
     status*: ResponseStatus
     text*: Option[string]
     ma*: Option[MultiAddress]
 
-  AutonatMsg = object
-    msgType: MsgType
-    dial: Option[AutonatDial]
-    response: Option[AutonatDialResponse]
+  AutonatMsg* = object
+    msgType*: MsgType
+    dial*: Option[AutonatDial]
+    response*: Option[AutonatDialResponse]
 
 proc encode*(msg: AutonatMsg): ProtoBuffer =
   result = initProtoBuffer()
@@ -120,7 +120,7 @@ proc encode*(r: AutonatDialResponse): ProtoBuffer =
   result.write(3, bufferResponse.buffer)
   result.finish()
 
-proc decode(_: typedesc[AutonatMsg], buf: seq[byte]): Option[AutonatMsg] =
+proc decode*(_: typedesc[AutonatMsg], buf: seq[byte]): Option[AutonatMsg] =
   var
     msgTypeOrd: uint32
     pbDial: ProtoBuffer
@@ -203,6 +203,7 @@ type
   Autonat* = ref object of LPProtocol
     sem: AsyncSemaphore
     switch*: Switch
+    dialTimeout: Duration
 
 method dialMe*(a: Autonat, pid: PeerId, addrs: seq[MultiAddress] = newSeq[MultiAddress]()):
     Future[MultiAddress] {.base, async.} =
@@ -240,7 +241,7 @@ method dialMe*(a: Autonat, pid: PeerId, addrs: seq[MultiAddress] = newSeq[MultiA
 proc tryDial(a: Autonat, conn: Connection, addrs: seq[MultiAddress]) {.async.} =
   try:
     await a.sem.acquire()
-    let ma = await a.switch.dialer.tryDial(conn.peerId, addrs)
+    let ma = await a.switch.dialer.tryDial(conn.peerId, addrs).wait(a.dialTimeout)
     if ma.isSome:
       await conn.sendResponseOk(ma.get())
     else:
@@ -298,8 +299,8 @@ proc handleDial(a: Autonat, conn: Connection, msg: AutonatMsg): Future[void] =
     return conn.sendResponseError(DialRefused, "No dialable address")
   return a.tryDial(conn, toSeq(addrs))
 
-proc new*(T: typedesc[Autonat], switch: Switch, semSize: int = 1): T =
-  let autonat = T(switch: switch, sem: newAsyncSemaphore(semSize))
+proc new*(T: typedesc[Autonat], switch: Switch, semSize: int = 1, dialTimeout = 15.seconds): T =
+  let autonat = T(switch: switch, sem: newAsyncSemaphore(semSize), dialTimeout: dialTimeout)
   autonat.init()
   autonat
 
