@@ -43,7 +43,7 @@ suite "Autonat":
 
     await src.connect(dst.peerInfo.peerId, dst.peerInfo.addrs)
     let ma = await Autonat.new(src).dialMe(dst.peerInfo.peerId, dst.peerInfo.addrs)
-    check ma == src.peerInfo.addrs[0]
+    check ma in src.peerInfo.addrs
     await allFutures(src.stop(), dst.stop())
 
   asyncTest "dialMe handles dial error msg":
