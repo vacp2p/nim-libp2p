@@ -90,8 +90,8 @@ proc innerRun(self: AutoRelayService, switch: Switch) {.async, gcsafe.} =
 
     # Get all connected relayPeers
     var connectedPeers = switch.connectedPeers(Direction.Out)
-    connectedPeers.keepItIf(RelayV2HopCodec in switch.peerStore[ProtoBook][it] or
-                            it notin self.relayPeers or
+    connectedPeers.keepItIf(RelayV2HopCodec in switch.peerStore[ProtoBook][it] and
+                            it notin self.relayPeers and
                             it notin self.backingOff)
     self.rng.shuffle(connectedPeers)
 
@@ -99,7 +99,6 @@ proc innerRun(self: AutoRelayService, switch: Switch) {.async, gcsafe.} =
       if self.relayPeers.len() >= self.numRelays:
         break
       self.relayPeers[relayPid] = self.reserveAndUpdate(relayPid, switch.peerInfo.peerId)
-    let peersFutures = toSeq(self.relayPeers.values())
 
     self.reservationFailed.clear()
     self.peerAvailable.clear()
