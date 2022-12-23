@@ -71,7 +71,7 @@ proc mux*(
   # install stream handler
   muxer.streamHandler = self.streamHandler
 
-  self.connManager.storeConn(conn)
+  let handler = muxer.handle()
 
   try:
     await self.identify(muxer)
@@ -81,8 +81,10 @@ proc mux*(
     # loop
     debug "Could not identify connection", conn, msg = exc.msg
 
+  self.connManager.storeConn(conn)
+
   # store it in muxed connections if we have a peer for it
-  self.connManager.storeMuxer(muxer, muxer.handle()) # store muxer and start read loop
+  self.connManager.storeMuxer(muxer, handler) # store muxer and start read loop
 
   return muxer
 
@@ -174,12 +176,6 @@ proc muxerHandler(
   let
     conn = muxer.connection
 
-  # store incoming connection
-  self.connManager.storeConn(conn)
-
-  # store muxer and muxed connection
-  self.connManager.storeMuxer(muxer)
-
   try:
     await self.identify(muxer)
     when defined(libp2p_agents_metrics):
@@ -202,6 +198,12 @@ proc muxerHandler(
   except CatchableError as exc:
     await muxer.close()
     trace "Exception in muxer handler", conn, msg = exc.msg
+
+  # store incoming connection
+  self.connManager.storeConn(conn)
+
+  # store muxer and muxed connection
+  self.connManager.storeMuxer(muxer)
 
 proc new*(
   T: type MuxedUpgrade,
