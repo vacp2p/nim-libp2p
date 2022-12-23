@@ -73,9 +73,6 @@ proc mux*(
 
   self.connManager.storeConn(conn)
 
-  # store it in muxed connections if we have a peer for it
-  self.connManager.storeMuxer(muxer, muxer.handle()) # store muxer and start read loop
-
   try:
     await self.identify(muxer)
   except CatchableError as exc:
@@ -83,6 +80,9 @@ proc mux*(
     # the connection was closed already - this will be picked up by the read
     # loop
     debug "Could not identify connection", conn, msg = exc.msg
+
+  # store it in muxed connections if we have a peer for it
+  self.connManager.storeMuxer(muxer, muxer.handle()) # store muxer and start read loop
 
   return muxer
 
