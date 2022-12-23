@@ -7,7 +7,7 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-import std/[options, math]
+import std/options
 import chronos, metrics
 import unittest2
 import ../libp2p/[builders,
@@ -177,12 +177,12 @@ suite "Autonat Service":
     await awaiter
 
     check autonatService.networkReachability() == NetworkReachability.NotReachable
-    check almostEqual(libp2p_autonat_reachability_confidence.value(["NotReachable"]), 1/3)
+    check libp2p_autonat_reachability_confidence.value(["NotReachable"]) == 1/3
 
     await autonatStub.finished
 
     check autonatService.networkReachability() == NetworkReachability.NotReachable
-    check almostEqual(libp2p_autonat_reachability_confidence.value(["NotReachable"]), 1/3)
+    check libp2p_autonat_reachability_confidence.value(["NotReachable"]) == 1/3
 
     await allFuturesThrowing(switch1.stop(), switch2.stop(), switch3.stop(), switch4.stop())
 
