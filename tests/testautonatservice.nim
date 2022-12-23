@@ -34,10 +34,10 @@ suite "Autonat Service":
   teardown:
     checkTrackers()
 
-  asyncTest "Autonat Service Private Reachability test":
+  asyncTest "Peer must be not reachable":
 
     let autonatStub = AutonatStub.new(expectedDials = 3)
-    autonatStub.returnSuccess = false
+    autonatStub.answer = NotReachable
 
     let autonatService = AutonatService.new(autonatStub, newRng())
 
@@ -65,10 +65,10 @@ suite "Autonat Service":
     await allFuturesThrowing(
       switch1.stop(), switch2.stop(), switch3.stop(), switch4.stop())
 
-  asyncTest "Autonat Service Public Reachability test":
+  asyncTest "Peer must be reachable":
 
     let autonatStub = AutonatStub.new(expectedDials = 3)
-    autonatStub.returnSuccess = true
+    autonatStub.answer = Reachable
 
     let autonatService = AutonatService.new(autonatStub, newRng(), some(1.seconds))
 
@@ -96,10 +96,10 @@ suite "Autonat Service":
     await allFuturesThrowing(
       switch1.stop(), switch2.stop(), switch3.stop(), switch4.stop())
 
-  asyncTest "Autonat Service Full Reachability test":
+  asyncTest "Peer must be not reachable and then reachable":
 
     let autonatStub = AutonatStub.new(expectedDials = 6)
-    autonatStub.returnSuccess = false
+    autonatStub.answer = NotReachable
 
     let autonatService = AutonatService.new(autonatStub, newRng(), some(1.seconds))
 
@@ -113,7 +113,7 @@ suite "Autonat Service":
     proc statusAndConfidenceHandler(networkReachability: NetworkReachability, confidence: Option[float]) {.gcsafe, async.} =
       if networkReachability == NetworkReachability.NotReachable and confidence.isSome() and confidence.get() >= 0.3:
         if not awaiter.finished:
-          autonatStub.returnSuccess = true
+          autonatStub.answer = Reachable
           awaiter.complete()
 
     check autonatService.networkReachability() == NetworkReachability.Unknown
@@ -141,15 +141,60 @@ suite "Autonat Service":
 
     await allFuturesThrowing(switch1.stop(), switch2.stop(), switch3.stop(), switch4.stop())
 
-asyncTest "Autonat Service setup and stop twice":
+  asyncTest "Unknown answers must be ignored":
 
-  let switch = createSwitch()
-  let autonatService = AutonatService.new(AutonatStub.new(expectedDials = 0), newRng(), some(1.seconds))
+    let autonatStub = AutonatStub.new(expectedDials = 6)
+    autonatStub.answer = NotReachable
 
-  check (await autonatService.setup(switch)) == true
-  check (await autonatService.setup(switch)) == false
+    let autonatService = AutonatService.new(autonatStub, newRng(), some(1.seconds), maxQueueSize = 3)
 
-  check (await autonatService.stop(switch)) == true
-  check (await autonatService.stop(switch)) == false
+    let switch1 = createSwitch(autonatService)
+    let switch2 = createSwitch()
+    let switch3 = createSwitch()
+    let switch4 = createSwitch()
 
-  await allFuturesThrowing(switch.stop())
+    let awaiter = newFuture[void]()
+
+    proc statusAndConfidenceHandler(networkReachability: NetworkReachability, confidence: Option[float]) {.gcsafe, async.} =
+      if networkReachability == NetworkReachability.NotReachable and confidence.isSome() and confidence.get() >= 0.3:
+        if not awaiter.finished:
+          autonatStub.answer = Unknown
+          awaiter.complete()
+
+    check autonatService.networkReachability() == NetworkReachability.Unknown
+
+    autonatService.statusAndConfidenceHandler(statusAndConfidenceHandler)
+
+    await switch1.start()
+    await switch2.start()
+    await switch3.start()
+    await switch4.start()
+
+    await switch1.connect(switch2.peerInfo.peerId, switch2.peerInfo.addrs)
+    await switch1.connect(switch3.peerInfo.peerId, switch3.peerInfo.addrs)
+    await switch1.connect(switch4.peerInfo.peerId, switch4.peerInfo.addrs)
+
+    await awaiter
+
+    check autonatService.networkReachability() == NetworkReachability.NotReachable
+    check libp2p_autonat_reachability_confidence.value(["NotReachable"]) == 1/3
+
+    await autonatStub.finished
+
+    check autonatService.networkReachability() == NetworkReachability.NotReachable
+    check libp2p_autonat_reachability_confidence.value(["NotReachable"]) == 1/3
+
+    await allFuturesThrowing(switch1.stop(), switch2.stop(), switch3.stop(), switch4.stop())
+
+  asyncTest "Calling setup and stop twice must work":
+
+    let switch = createSwitch()
+    let autonatService = AutonatService.new(AutonatStub.new(expectedDials = 0), newRng(), some(1.seconds))
+
+    check (await autonatService.setup(switch)) == true
+    check (await autonatService.setup(switch)) == false
+
+    check (await autonatService.stop(switch)) == true
+    check (await autonatService.stop(switch)) == false
+
+    await allFuturesThrowing(switch.stop())

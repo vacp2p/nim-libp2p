@@ -75,9 +75,11 @@ proc callHandler(self: AutonatService) {.async.} =
 
 proc handleAnswer(self: AutonatService, ans: NetworkReachability) {.async.} =
 
+  if ans == Unknown:
+    return
+
   if self.answers.len == self.maxQueueSize:
     self.answers.popFirst()
-
   self.answers.addLast(ans)
 
   self.networkReachability = Unknown

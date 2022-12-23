@@ -12,10 +12,15 @@ import ../../libp2p/multiaddress
 
 type
   AutonatStub* = ref object of Autonat
-    returnSuccess*: bool
+    answer*: Answer
     dials: int
     expectedDials: int
     finished*: Future[void]
+
+  Answer* = enum
+    Reachable,
+    NotReachable,
+    Unknown
 
 proc new*(T: typedesc[AutonatStub], expectedDials: int): T =
   return T(dials: 0, expectedDials: expectedDials, finished: newFuture[void]())
@@ -30,7 +35,10 @@ method dialMe*(
 
     if self.dials == self.expectedDials:
       self.finished.complete()
-    if self.returnSuccess:
-      return MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
-    else:
-      raise newException(AutonatUnreachableError, "")
+    case self.answer:
+      of Reachable:
+        return MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
+      of NotReachable:
+        raise newException(AutonatUnreachableError, "")
+      of Unknown:
+        raise newException(AutonatError, "")
