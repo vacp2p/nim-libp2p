@@ -7,7 +7,7 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-import std/options
+import std/[options, math]
 import chronos, metrics
 import unittest2
 import ../libp2p/[builders,
