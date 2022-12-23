@@ -12,18 +12,21 @@ import chronos, metrics
 import unittest2
 import ../libp2p/[builders,
                   switch,
-                  services/autonatservice]
+                  services/autonatservice,
+                  protocols/connectivity/autonat]
 import ./helpers
 import stubs/autonatstub
 
-proc createSwitch(autonatSvc: Service = nil): Switch =
+proc createSwitch(autonatSvc: Service = nil, withAutonat = true): Switch =
   var builder = SwitchBuilder.new()
     .withRng(newRng())
     .withAddresses(@[ MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet() ])
     .withTcpTransport()
     .withMplex()
-    .withAutonat()
     .withNoise()
+
+  if withAutonat:
+    builder = builder.withAutonat()
 
   if autonatSvc != nil:
     builder = builder.withServices(@[autonatSvc])
@@ -67,17 +70,26 @@ suite "Autonat Service":
 
   asyncTest "Peer must be reachable":
 
-    let autonatStub = AutonatStub.new(expectedDials = 3)
-    autonatStub.answer = Reachable
+    let autonat = Autonat.new(switch = nil)
 
-    let autonatService = AutonatService.new(autonatStub, newRng(), some(1.seconds))
+    let autonatService = AutonatService.new(autonat, newRng(), some(1.seconds))
 
     let switch1 = createSwitch(autonatService)
     let switch2 = createSwitch()
     let switch3 = createSwitch()
     let switch4 = createSwitch()
 
+    let awaiter = newFuture[void]()
+
+    proc statusAndConfidenceHandler(networkReachability: NetworkReachability, confidence: Option[float]) {.gcsafe, async.} =
+      if networkReachability == NetworkReachability.Reachable and confidence.isSome() and confidence.get() >= 0.3:
+        if not awaiter.finished:
+          awaiter.complete()
+
+    autonat.switch = switch1
     check autonatService.networkReachability() == NetworkReachability.Unknown
+
+    autonatService.statusAndConfidenceHandler(statusAndConfidenceHandler)
 
     await switch1.start()
     await switch2.start()
@@ -88,7 +100,7 @@ suite "Autonat Service":
     await switch1.connect(switch3.peerInfo.peerId, switch3.peerInfo.addrs)
     await switch1.connect(switch4.peerInfo.peerId, switch4.peerInfo.addrs)
 
-    await autonatStub.finished
+    await awaiter
 
     check autonatService.networkReachability() == NetworkReachability.Reachable
     check libp2p_autonat_reachability_confidence.value(["Reachable"]) == 0.3
@@ -140,6 +152,45 @@ suite "Autonat Service":
     check libp2p_autonat_reachability_confidence.value(["Reachable"]) == 0.3
 
     await allFuturesThrowing(switch1.stop(), switch2.stop(), switch3.stop(), switch4.stop())
+
+  asyncTest "Peer must be reachable when one connected peer has autonat disabled":
+    let autonat = Autonat.new(switch = nil)
+
+    let autonatService = AutonatService.new(autonat, newRng(), some(1.seconds), maxQueueSize = 2)
+
+    let switch1 = createSwitch(autonatService)
+    let switch2 = createSwitch(withAutonat = false)
+    let switch3 = createSwitch()
+    let switch4 = createSwitch()
+
+    let awaiter = newFuture[void]()
+
+    proc statusAndConfidenceHandler(networkReachability: NetworkReachability, confidence: Option[float]) {.gcsafe, async.} =
+      if networkReachability == NetworkReachability.Reachable and confidence.isSome() and confidence.get() == 1:
+        if not awaiter.finished:
+          awaiter.complete()
+
+    autonat.switch = switch1
+    check autonatService.networkReachability() == NetworkReachability.Unknown
+
+    autonatService.statusAndConfidenceHandler(statusAndConfidenceHandler)
+
+    await switch1.start()
+    await switch2.start()
+    await switch3.start()
+    await switch4.start()
+
+    await switch1.connect(switch2.peerInfo.peerId, switch2.peerInfo.addrs)
+    await switch1.connect(switch3.peerInfo.peerId, switch3.peerInfo.addrs)
+    await switch1.connect(switch4.peerInfo.peerId, switch4.peerInfo.addrs)
+
+    await awaiter
+
+    check autonatService.networkReachability() == NetworkReachability.Reachable
+    check libp2p_autonat_reachability_confidence.value(["Reachable"]) == 1
+
+    await allFuturesThrowing(
+      switch1.stop(), switch2.stop(), switch3.stop(), switch4.stop())
 
   asyncTest "Unknown answers must be ignored":
 
