@@ -7,14 +7,21 @@ on:
   workflow_dispatch:
 
 jobs:
-  bumpNimbus:
+  bumpProjects:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        target: [
+          { repo: status-im/nimbus-eth2, branch: unstable },
+          { repo: status-im/nwaku, branch: master },
+          { repo: status-im/nim-codex, branch: main }
+        ]
     steps:
-      - name: Clone NBC
+      - name: Clone repo
         uses: actions/checkout@v2
         with:
-          repository: status-im/nimbus-eth2
-          ref: unstable
+          repository: ${{ matrix.target.repo }}
+          ref: ${{ matrix.target.branch }}
           path: nbc
           submodules: true
           fetch-depth: 0

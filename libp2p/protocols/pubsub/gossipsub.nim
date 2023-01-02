@@ -360,7 +360,7 @@ method rpcHandler*(g: GossipSub,
     template sub: untyped = rpcMsg.subscriptions[i]
     g.handleSubscribe(peer, sub.topic, sub.subscribe)
 
-  # the above call applied limtis to subs number
+  # the above call applied limits to subs number
   # in gossipsub we want to apply scoring as well
   if rpcMsg.subscriptions.len > g.topicsHigh:
     debug "received an rpc message with an oversized amount of subscriptions",  peer,
@@ -434,6 +434,13 @@ method rpcHandler*(g: GossipSub,
 
   if rpcMsg.control.isSome():
     g.handleControl(peer, rpcMsg.control.unsafeGet())
+
+  # Now, check subscription to update the meshes if required
+  for i in 0..<min(g.topicsHigh, rpcMsg.subscriptions.len):
+    let topic = rpcMsg.subscriptions[i].topic
+    if topic in g.topics and g.mesh.peers(topic) < g.parameters.dLow:
+      # rebalance but don't update metrics here, we do that only in the heartbeat
+      g.rebalanceMesh(topic, metrics = nil)
 
   g.updateMetrics(rpcMsg)
 

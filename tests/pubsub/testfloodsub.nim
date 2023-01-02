@@ -351,7 +351,7 @@ suite "FloodSub":
     check (await smallNode[0].publish("foo", smallMessage1)) > 0
     check (await bigNode[0].publish("foo", smallMessage2)) > 0
 
-    check (await checkExpiring(messageReceived == 2)) == true
+    checkExpiring: messageReceived == 2
 
     check (await smallNode[0].publish("foo", bigMessage)) > 0
     check (await bigNode[0].publish("foo", bigMessage)) > 0
@@ -359,6 +359,38 @@ suite "FloodSub":
     await allFuturesThrowing(
       smallNode[0].switch.stop(),
       bigNode[0].switch.stop()
+    )
+
+    await allFuturesThrowing(nodesFut)
+
+  asyncTest "FloodSub message size validation 2":
+    var messageReceived = 0
+    proc handler(topic: string, data: seq[byte]) {.async, gcsafe.} =
+      inc(messageReceived)
+
+    let
+      bigNode1 = generateNodes(1, maxMessageSize = 20000000)
+      bigNode2 = generateNodes(1, maxMessageSize = 20000000)
+
+      # start switches
+      nodesFut = await allFinished(
+        bigNode1[0].switch.start(),
+        bigNode2[0].switch.start(),
+      )
+
+    await subscribeNodes(bigNode1 & bigNode2)
+    bigNode2[0].subscribe("foo", handler)
+    await waitSub(bigNode1[0], bigNode2[0], "foo")
+
+    let bigMessage = newSeq[byte](19000000)
+
+    check (await bigNode1[0].publish("foo", bigMessage)) > 0
+
+    checkExpiring: messageReceived == 1
+
+    await allFuturesThrowing(
+      bigNode1[0].switch.stop(),
+      bigNode2[0].switch.stop()
     )
 
     await allFuturesThrowing(nodesFut)

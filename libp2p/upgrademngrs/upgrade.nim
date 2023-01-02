@@ -7,6 +7,7 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
+{.push gcsafe.}
 when (NimMajor, NimMinor) < (1, 4):
   {.push raises: [Defect].}
 else:
@@ -47,12 +48,14 @@ method upgradeIncoming*(
 
 method upgradeOutgoing*(
   self: Upgrade,
-  conn: Connection): Future[Connection] {.base.} =
+  conn: Connection,
+  peerId: Opt[PeerId]): Future[Connection] {.base.} =
   doAssert(false, "Not implemented!")
 
 proc secure*(
   self: Upgrade,
-  conn: Connection): Future[Connection] {.async, gcsafe.} =
+  conn: Connection,
+  peerId: Opt[PeerId]): Future[Connection] {.async, gcsafe.} =
   if self.secureManagers.len <= 0:
     raise newException(UpgradeFailedError, "No secure managers registered!")
 
@@ -67,7 +70,7 @@ proc secure*(
   # let's avoid duplicating checks but detect if it fails to do it properly
   doAssert(secureProtocol.len > 0)
 
-  return await secureProtocol[0].secure(conn, true)
+  return await secureProtocol[0].secure(conn, true, peerId)
 
 proc identify*(
   self: Upgrade,

@@ -119,7 +119,7 @@ suite "Mplex":
       # should still allow reading until buffer EOF
       await chann.readExactly(addr data[3], 3)
 
-      expect LPStreamEOFError:
+      expect LPStreamRemoteClosedError:
         # this should fail now
         await chann.readExactly(addr data[0], 3)
 
@@ -143,7 +143,7 @@ suite "Mplex":
       let readFut = chann.readExactly(addr data[3], 3)
       await allFutures(closeFut, readFut)
 
-      expect LPStreamEOFError:
+      expect LPStreamRemoteClosedError:
         await chann.readExactly(addr data[0], 6) # this should fail now
 
       await chann.close()
@@ -174,7 +174,7 @@ suite "Mplex":
       var buf: array[1, byte]
       check: (await chann.readOnce(addr buf[0], 1)) == 0 # EOF marker read
 
-      expect LPStreamEOFError:
+      expect LPStreamClosedError:
         await chann.pushData(@[byte(1)])
 
       await chann.close()
@@ -190,7 +190,7 @@ suite "Mplex":
 
       await chann.reset()
       var data = newSeq[byte](1)
-      expect LPStreamEOFError:
+      expect LPStreamClosedError:
         await chann.readExactly(addr data[0], 1)
 
       await conn.close()
@@ -205,7 +205,7 @@ suite "Mplex":
       let fut = chann.readExactly(addr data[0], 1)
 
       await chann.reset()
-      expect LPStreamEOFError:
+      expect LPStreamClosedError:
         await fut
 
       await conn.close()
@@ -816,7 +816,7 @@ suite "Mplex":
       for i in 0..9:
         dialStreams.add((await mplexDial.newStream()))
 
-      check await checkExpiring(listenStreams.len == 10 and dialStreams.len == 10)
+      checkExpiring: listenStreams.len == 10 and dialStreams.len == 10
 
       await mplexListen.close()
       await allFuturesThrowing(
@@ -862,7 +862,7 @@ suite "Mplex":
       for i in 0..9:
         dialStreams.add((await mplexDial.newStream()))
 
-      check await checkExpiring(listenStreams.len == 10 and dialStreams.len == 10)
+      checkExpiring: listenStreams.len == 10 and dialStreams.len == 10
 
       mplexHandle.cancel()
       await allFuturesThrowing(
@@ -905,7 +905,7 @@ suite "Mplex":
       for i in 0..9:
         dialStreams.add((await mplexDial.newStream()))
 
-      check await checkExpiring(listenStreams.len == 10 and dialStreams.len == 10)
+      checkExpiring: listenStreams.len == 10 and dialStreams.len == 10
 
       await conn.close()
       await allFuturesThrowing(
@@ -951,7 +951,7 @@ suite "Mplex":
       for i in 0..9:
         dialStreams.add((await mplexDial.newStream()))
 
-      check await checkExpiring(listenStreams.len == 10 and dialStreams.len == 10)
+      checkExpiring: listenStreams.len == 10 and dialStreams.len == 10
 
       await listenConn.closeWithEOF()
       await allFuturesThrowing(

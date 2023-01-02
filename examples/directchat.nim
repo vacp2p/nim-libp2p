@@ -5,7 +5,7 @@ import
   strformat, strutils,
   stew/byteutils,
   chronos,
-  ../libp2p
+  libp2p
 
 const DefaultAddr = "/ip4/127.0.0.1/tcp/0"
 

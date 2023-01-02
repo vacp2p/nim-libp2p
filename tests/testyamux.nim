@@ -152,3 +152,36 @@ suite "Yamux":
         expect(LPStreamEOFError): await wrFut[i]
       writerBlocker.complete()
       await streamA.close()
+
+  suite "Exception testing":
+    asyncTest "Local & Remote close":
+      mSetup()
+
+      yamuxb.streamHandler = proc(conn: Connection) {.async.} =
+        check (await conn.readLp(100)) == fromHex("1234")
+        await conn.close()
+        expect LPStreamClosedError: await conn.writeLp(fromHex("102030"))
+        check (await conn.readLp(100)) == fromHex("5678")
+
+      let streamA = await yamuxa.newStream()
+      await streamA.writeLp(fromHex("1234"))
+      expect LPStreamRemoteClosedError: discard await streamA.readLp(100)
+      await streamA.writeLp(fromHex("5678"))
+      await streamA.close()
+
+    asyncTest "Local & Remote reset":
+      mSetup()
+      let blocker = newFuture[void]()
+
+      yamuxb.streamHandler = proc(conn: Connection) {.async.} =
+        await blocker
+        expect LPStreamResetError: discard await conn.readLp(100)
+        expect LPStreamResetError: await conn.writeLp(fromHex("1234"))
+        await conn.close()
+
+      let streamA = await yamuxa.newStream()
+      await yamuxa.close()
+      expect LPStreamClosedError: await streamA.writeLp(fromHex("1234"))
+      expect LPStreamClosedError: discard await streamA.readLp(100)
+      blocker.complete()
+      await streamA.close()

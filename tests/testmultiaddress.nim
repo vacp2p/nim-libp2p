@@ -22,6 +22,8 @@ const
     "/ip6zone/x/ip6/fe80::1/udp/1234/quic",
     "/onion/timaq4ygg2iegci7:1234",
     "/onion/timaq4ygg2iegci7:80/http",
+    "/onion3/vww6ybal4bd7szmgncyruucpgfkqahzddi37ktceo3ah7ngmcopnpyyd:1234",
+    "/onion3/vww6ybal4bd7szmgncyruucpgfkqahzddi37ktceo3ah7ngmcopnpyyd:80/http",
     "/udp/0",
     "/tcp/0",
     "/sctp/0",
@@ -79,6 +81,12 @@ const
     "/onion/timaq4ygg2iegci7:-1",
     "/onion/timaq4ygg2iegci7",
     "/onion/timaq4ygg2iegci@:666",
+    "/onion3/9ww6ybal4bd7szmgncyruucpgfkqahzddi37ktceo3ah7ngmcopnpyyd:80",
+    "/onion3/vww6ybal4bd7szmgncyruucpgfkqahzddi37ktceo3ah7ngmcopnpyyd7:80",
+    "/onion3/vww6ybal4bd7szmgncyruucpgfkqahzddi37ktceo3ah7ngmcopnpyyd:0",
+    "/onion3/vww6ybal4bd7szmgncyruucpgfkqahzddi37ktceo3ah7ngmcopnpyyd:-1",
+    "/onion3/vww6ybal4bd7szmgncyruucpgfkqahzddi37ktceo3ah7ngmcopnpyyd",
+    "/onion3/vww6ybal4bd7szmgncyruucpgfkqahzddi37ktceo3ah7ngmcopnpyy@:666",
     "/udp/1234/sctp",
     "/udp/1234/udt/1234",
     "/udp/1234/utp/1234",
@@ -170,6 +178,12 @@ const
     "/onion/timaq4ygg2iegci7:-1",
     "/onion/timaq4ygg2iegci7",
     "/onion/timaq4ygg2iegci@:666",
+    "/onion3/9ww6ybal4bd7szmgncyruucpgfkqahzddi37ktceo3ah7ngmcopnpyyd:80",
+    "/onion3/vww6ybal4bd7szmgncyruucpgfkqahzddi37ktceo3ah7ngmcopnpyyd7:80",
+    "/onion3/vww6ybal4bd7szmgncyruucpgfkqahzddi37ktceo3ah7ngmcopnpyyd:0",
+    "/onion3/vww6ybal4bd7szmgncyruucpgfkqahzddi37ktceo3ah7ngmcopnpyyd:-1",
+    "/onion3/vww6ybal4bd7szmgncyruucpgfkqahzddi37ktceo3ah7ngmcopnpyyd",
+    "/onion3/vww6ybal4bd7szmgncyruucpgfkqahzddi37ktceo3ah7ngmcopnpyy@:666",
     "/udp/1234/sctp",
     "/udp/1234/udt/1234",
     "/udp/1234/utp/1234",
@@ -367,3 +381,29 @@ suite "MultiAddress test suite":
     check:
       MultiAddress.init("/ip4/0.0.0.0").get().protoAddress().get() == address_v4
       MultiAddress.init("/ip6/::0").get().protoAddress().get() == address_v6
+
+  test "MultiAddress getParts":
+    let ma = MultiAddress.init("/ip4/0.0.0.0/tcp/0/p2p/QmcgpsyWgH8Y8ajJz1Cu72KnS5uo2Aa2LpzU7kinSupNKC/p2p-circuit/p2p/QmcgpsyWgH8Y8ajJz1Cu72KnS5uo2Aa2LpzU7kinSuNEXT/unix/stdio/").get()
+    check:
+      $ma[0..0].get() == "/ip4/0.0.0.0"
+      $ma[^1].get() == "/unix/stdio"
+      ma[-100].isErr()
+      ma[100].isErr()
+      ma[^100].isErr()
+      ma[^0].isErr()
+      $ma[0..1].get() == "/ip4/0.0.0.0/tcp/0"
+      $ma[1..2].get() == "/tcp/0/p2p/QmcgpsyWgH8Y8ajJz1Cu72KnS5uo2Aa2LpzU7kinSupNKC"
+      $ma[^3..^1].get() == "/p2p-circuit/p2p/QmcgpsyWgH8Y8ajJz1Cu72KnS5uo2Aa2LpzU7kinSuNEXT/unix/stdio"
+      ma[5..7].isErr()
+
+  test "[](MultiCodec) test":
+    let onionMAStr = "/onion3/torchdeedp3i2jigzjdmfpn5ttjhthh5wbmda2rr3jvqjg5p77c54dqd:80"
+    let ma = MultiAddress.init(onionMAStr).get()
+    check $(ma[multiCodec("onion3")].tryGet()) == onionMAStr
+
+    let onionMAWithTcpStr = "/onion3/torchdeedp3i2jigzjdmfpn5ttjhthh5wbmda2rr3jvqjg5p77c54dqd:80/tcp/80"
+    let maWithTcp = MultiAddress.init(onionMAWithTcpStr).get()
+    check $(maWithTcp[multiCodec("onion3")].tryGet()) == onionMAStr
+
+
+

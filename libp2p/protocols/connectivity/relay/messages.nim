@@ -14,8 +14,8 @@ else:
 
 import options, macros, sequtils
 import stew/objects
-import ../../peerinfo,
-       ../../signed_envelope
+import ../../../peerinfo,
+       ../../../signed_envelope
 
 # Circuit Relay V1 Message
 

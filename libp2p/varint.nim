@@ -58,10 +58,7 @@ type
   SomeVarint* = PBSomeVarint | LPSomeVarint
   SomeUVarint* = PBSomeUVarint | LPSomeUVarint
 
-template toUleb(x: uint64): uint64 = x
-template toUleb(x: uint32): uint32 = x
-template toUleb(x: uint16): uint16 = x
-template toUleb(x: uint8): uint8 = x
+template toUleb[T: uint64|uint32|uint16|uint8|uint](x: T): T = x
 
 func toUleb(x: zint64): uint64 =
   let v = cast[uint64](x)

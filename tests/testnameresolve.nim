@@ -139,7 +139,18 @@ suite "Name resolving":
     asyncTest "dnsaddr infinite recursion":
       resolver.txtResponses["_dnsaddr.bootstrap.libp2p.io"] = @["dnsaddr=/dnsaddr/bootstrap.libp2p.io"]
 
-      check testOne("/dnsaddr/bootstrap.libp2p.io/", "/dnsaddr/bootstrap.libp2p.io/")
+      check testOne("/dnsaddr/bootstrap.libp2p.io/", newSeq[string]())
+
+    test "getHostname":
+      check:
+        MultiAddress.init("/dnsaddr/bootstrap.libp2p.io/").tryGet().getHostname == "bootstrap.libp2p.io"
+        MultiAddress.init("").tryGet().getHostname == ""
+        MultiAddress.init("/ip4/147.75.69.143/tcp/4001/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN").tryGet().getHostname == "147.75.69.143"
+        MultiAddress.init("/ip6/2604:1380:1000:6000::1/tcp/4001/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN").tryGet().getHostname == "2604:1380:1000:6000::1"
+        MultiAddress.init("/dns/localhost/udp/0").tryGet().getHostname == "localhost"
+        MultiAddress.init("/dns4/hello.com/udp/0").tryGet().getHostname == "hello.com"
+        MultiAddress.init("/dns6/hello.com/udp/0").tryGet().getHostname == "hello.com"
+        MultiAddress.init("/wss/").tryGet().getHostname == ""
 
   suite "DNS Resolving":
     teardown:
@@ -171,7 +182,7 @@ suite "Name resolving":
 
       # The test
       var dnsresolver = DnsResolver.new(@[server.localAddress])
-        
+
       check await(dnsresolver.resolveIp("status.im", 0.Port, Domain.AF_UNSPEC)) ==
         mapIt(
           @["104.22.24.181:0", "172.67.10.161:0", "104.22.25.181:0",
@@ -209,7 +220,7 @@ suite "Name resolving":
 
       # The test
       var dnsresolver = DnsResolver.new(@[unresponsiveServer.localAddress, server.localAddress])
-        
+
       check await(dnsresolver.resolveIp("status.im", 0.Port, Domain.AF_INET)) ==
         mapIt(@["104.22.24.181:0", "172.67.10.161:0", "104.22.25.181:0"], initTAddress(it))
 

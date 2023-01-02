@@ -60,8 +60,7 @@ method init(p: TestProto) {.gcsafe.} =
 proc createSwitch(ma: MultiAddress; outgoing: bool, secio: bool = false): (Switch, PeerInfo) =
   var
     privateKey = PrivateKey.random(ECDSA, rng[]).get()
-    peerInfo = PeerInfo.new(privateKey)
-  peerInfo.addrs.add(ma)
+    peerInfo = PeerInfo.new(privateKey, @[ma])
 
   proc createMplex(conn: Connection): Muxer =
     result = Mplex.new(conn)
@@ -104,7 +103,7 @@ suite "Noise":
 
     proc acceptHandler() {.async.} =
       let conn = await transport1.accept()
-      let sconn = await serverNoise.secure(conn, false)
+      let sconn = await serverNoise.secure(conn, false, Opt.none(PeerId))
       try:
         await sconn.write("Hello!")
       finally:
@@ -119,8 +118,7 @@ suite "Noise":
       clientNoise = Noise.new(rng, clientPrivKey, outgoing = true)
       conn = await transport2.dial(transport1.addrs[0])
 
-    conn.peerId = serverInfo.peerId
-    let sconn = await clientNoise.secure(conn, true)
+    let sconn = await clientNoise.secure(conn, true, Opt.some(serverInfo.peerId))
 
     var msg = newSeq[byte](6)
     await sconn.readExactly(addr msg[0], 6)
@@ -149,7 +147,7 @@ suite "Noise":
       var conn: Connection
       try:
         conn = await transport1.accept()
-        discard await serverNoise.secure(conn, false)
+        discard await serverNoise.secure(conn, false, Opt.none(PeerId))
       except CatchableError:
         discard
       finally:
@@ -162,11 +160,10 @@ suite "Noise":
       clientInfo = PeerInfo.new(clientPrivKey, transport1.addrs)
       clientNoise = Noise.new(rng, clientPrivKey, outgoing = true, commonPrologue = @[1'u8, 2'u8, 3'u8])
       conn = await transport2.dial(transport1.addrs[0])
-    conn.peerId = serverInfo.peerId
 
     var sconn: Connection = nil
     expect(NoiseDecryptTagError):
-      sconn = await clientNoise.secure(conn, true)
+      sconn = await clientNoise.secure(conn, true, Opt.some(conn.peerId))
 
     await conn.close()
     await handlerWait
@@ -186,7 +183,7 @@ suite "Noise":
 
     proc acceptHandler() {.async, gcsafe.} =
       let conn = await transport1.accept()
-      let sconn = await serverNoise.secure(conn, false)
+      let sconn = await serverNoise.secure(conn, false, Opt.none(PeerId))
       defer:
         await sconn.close()
         await conn.close()
@@ -202,8 +199,7 @@ suite "Noise":
       clientInfo = PeerInfo.new(clientPrivKey, transport1.addrs)
       clientNoise = Noise.new(rng, clientPrivKey, outgoing = true)
       conn = await transport2.dial(transport1.addrs[0])
-    conn.peerId = serverInfo.peerId
-    let sconn = await clientNoise.secure(conn, true)
+    let sconn = await clientNoise.secure(conn, true, Opt.some(serverInfo.peerId))
 
     await sconn.write("Hello!")
     await acceptFut
@@ -230,7 +226,7 @@ suite "Noise":
 
     proc acceptHandler() {.async, gcsafe.} =
       let conn = await transport1.accept()
-      let sconn = await serverNoise.secure(conn, false)
+      let sconn = await serverNoise.secure(conn, false, Opt.none(PeerId))
       defer:
         await sconn.close()
       let msg = await sconn.readLp(1024*1024)
@@ -244,8 +240,7 @@ suite "Noise":
       clientInfo = PeerInfo.new(clientPrivKey, transport1.addrs)
       clientNoise = Noise.new(rng, clientPrivKey, outgoing = true)
       conn = await transport2.dial(transport1.addrs[0])
-    conn.peerId = serverInfo.peerId
-    let sconn = await clientNoise.secure(conn, true)
+    let sconn = await clientNoise.secure(conn, true, Opt.some(serverInfo.peerId))
 
     await sconn.writeLp(hugePayload)
     await readTask
@@ -299,7 +294,7 @@ suite "Noise":
     (switch2, peerInfo2) = createSwitch(ma2, true, true) # secio, we want to fail
     await switch1.start()
     await switch2.start()
-    expect(UpgradeFailedError):
+    expect(DialFailedError):
       let conn = await switch2.dial(switch1.peerInfo.peerId, switch1.peerInfo.addrs, TestCodec)
 
     await allFuturesThrowing(

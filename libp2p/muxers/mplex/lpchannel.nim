@@ -58,6 +58,8 @@ type
     initiator*: bool              # initiated remotely or locally flag
     isOpen*: bool                 # has channel been opened
     closedLocal*: bool            # has channel been closed locally
+    remoteReset*: bool            # has channel been remotely reset
+    localReset*: bool             # has channel been reset locally
     msgCode*: MessageType         # cached in/out message code
     closeCode*: MessageType       # cached in/out close code
     resetCode*: MessageType       # cached in/out reset code
@@ -103,6 +105,7 @@ proc reset*(s: LPChannel) {.async, gcsafe.} =
 
   s.isClosed = true
   s.closedLocal = true
+  s.localReset = not s.remoteReset
 
   trace "Resetting channel", s, len = s.len
 
@@ -168,6 +171,14 @@ method readOnce*(s: LPChannel,
   ## channels are blocked - in particular, this means that reading from one
   ## channel must not be done from within a callback / read handler of another
   ## or the reads will lock each other.
+  if s.remoteReset:
+    raise newLPStreamResetError()
+  if s.localReset:
+    raise newLPStreamClosedError()
+  if s.atEof():
+    raise newLPStreamRemoteClosedError()
+  if s.conn.closed:
+    raise newLPStreamConnDownError()
   try:
     let bytes = await procCall BufferStream(s).readOnce(pbytes, nbytes)
     when defined(libp2p_network_protocols_metrics):
@@ -184,13 +195,17 @@ method readOnce*(s: LPChannel,
     # data has been lost in s.readBuf and there's no way to gracefully recover /
     # use the channel any more
     await s.reset()
-    raise exc
+    raise newLPStreamConnDownError(exc)
 
 proc prepareWrite(s: LPChannel, msg: seq[byte]): Future[void] {.async.} =
   # prepareWrite is the slow path of writing a message - see conditions in
   # write
-  if s.closedLocal or s.conn.closed:
+  if s.remoteReset:
+    raise newLPStreamResetError()
+  if s.closedLocal:
     raise newLPStreamClosedError()
+  if s.conn.closed:
+    raise newLPStreamConnDownError()
 
   if msg.len == 0:
     return
@@ -235,7 +250,7 @@ proc completeWrite(
     trace "exception in lpchannel write handler", s, msg = exc.msg
     await s.reset()
     await s.conn.close()
-    raise exc
+    raise newLPStreamConnDownError(exc)
   finally:
     s.writes -= 1
 

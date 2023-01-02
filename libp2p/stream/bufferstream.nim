@@ -79,7 +79,7 @@ method pushData*(s: BufferStream, data: seq[byte]) {.base, async.} =
     &"Only one concurrent push allowed for stream {s.shortLog()}")
 
   if s.isClosed or s.pushedEof:
-    raise newLPStreamEOFError()
+    raise newLPStreamClosedError()
 
   if data.len == 0:
     return # Don't push 0-length buffers, these signal EOF

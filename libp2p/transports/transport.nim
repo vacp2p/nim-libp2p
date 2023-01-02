@@ -87,12 +87,13 @@ method upgradeIncoming*(
 
 method upgradeOutgoing*(
   self: Transport,
-  conn: Connection): Future[Connection] {.base, gcsafe.} =
+  conn: Connection,
+  peerId: Opt[PeerId]): Future[Connection] {.base, gcsafe.} =
   ## base upgrade method that the transport uses to perform
   ## transport specific upgrades
   ##
 
-  self.upgrader.upgradeOutgoing(conn)
+  self.upgrader.upgradeOutgoing(conn, peerId)
 
 method handles*(
   self: Transport,

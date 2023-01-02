@@ -43,7 +43,7 @@ func shortLog*(pid: PeerId): string =
   var spid = $pid
   if len(spid) > 10:
     spid[3] = '*'
-    
+
     when (NimMajor, NimMinor) > (1, 4):
       spid.delete(4 .. spid.high - 6)
     else:
@@ -148,7 +148,7 @@ func init*(pid: var PeerId, data: string): bool =
   if Base58.decode(data, p, length) == Base58Status.Success:
     p.setLen(length)
     var opid: PeerId
-    shallowCopy(opid.data, p)
+    opid.data = p
     if opid.validate():
       pid = opid
       result = true
@@ -183,6 +183,11 @@ func init*(t: typedesc[PeerId], pubkey: PublicKey): Result[PeerId, cstring] =
 func init*(t: typedesc[PeerId], seckey: PrivateKey): Result[PeerId, cstring] =
   ## Create new peer id from private key ``seckey``.
   PeerId.init(? seckey.getPublicKey().orError(cstring("invalid private key")))
+
+proc random*(t: typedesc[PeerId], rng = newRng()): Result[PeerId, cstring] =
+  ## Create new peer id with random public key.
+  let randomKey = PrivateKey.random(Secp256k1, rng[])[]
+  PeerId.init(randomKey).orError(cstring("failed to generate random key"))
 
 func match*(pid: PeerId, pubkey: PublicKey): bool =
   ## Returns ``true`` if ``pid`` matches public key ``pubkey``.

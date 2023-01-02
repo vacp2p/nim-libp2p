@@ -18,6 +18,9 @@ import "."/[types]
 import ".."/[pubsubpeer]
 import "../../.."/[peerid, multiaddress, utility, switch, utils/heartbeat]
 
+logScope:
+  topics = "libp2p gossipsub"
+
 declareGauge(libp2p_gossipsub_peers_scores, "the scores of the peers in gossipsub", labels = ["agent"])
 declareCounter(libp2p_gossipsub_bad_score_disconnection, "the number of peers disconnected by gossipsub", labels = ["agent"])
 declareGauge(libp2p_gossipsub_peers_score_firstMessageDeliveries, "Detailed gossipsub scoring metric", labels = ["agent"])

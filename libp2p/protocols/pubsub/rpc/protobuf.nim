@@ -22,7 +22,7 @@ import messages,
 
 
 logScope:
-  topics = "pubsubprotobuf"
+  topics = "libp2p pubsubprotobuf"
 
 when defined(libp2p_protobuf_metrics):
   import metrics
@@ -304,14 +304,15 @@ proc decodeMessages*(pb: ProtoBuffer): ProtoResult[seq[Message]] {.inline.} =
   if ? pb.getRepeatedField(2, msgpbs):
     trace "decodeMessages: read messages", count = len(msgpbs)
     for item in msgpbs:
-      msgs.add(? decodeMessage(initProtoBuffer(item)))
+      # size is constrained at the network level
+      msgs.add(? decodeMessage(initProtoBuffer(item, maxSize = uint.high)))
   else:
     trace "decodeMessages: no messages found"
   ok(msgs)
 
 proc encodeRpcMsg*(msg: RPCMsg, anonymize: bool): seq[byte] =
   trace "encodeRpcMsg: encoding message", msg = msg.shortLog()
-  var pb = initProtoBuffer()
+  var pb = initProtoBuffer(maxSize = uint.high)
   for item in msg.subscriptions:
     pb.write(1, item)
   for item in msg.messages:
@@ -324,7 +325,7 @@ proc encodeRpcMsg*(msg: RPCMsg, anonymize: bool): seq[byte] =
 
 proc decodeRpcMsg*(msg: seq[byte]): ProtoResult[RPCMsg] {.inline.} =
   trace "decodeRpcMsg: decoding message", msg = msg.shortLog()
-  var pb = initProtoBuffer(msg)
+  var pb = initProtoBuffer(msg, maxSize = uint.high)
   var rpcMsg = ok(RPCMsg())
   assign(rpcMsg.get().messages, ? pb.decodeMessages())
   assign(rpcMsg.get().subscriptions, ? pb.decodeSubscriptions())

@@ -15,18 +15,24 @@ else:
 
 import std/[options, sequtils]
 import pkg/[chronos, chronicles, stew/results]
-import peerid, multiaddress, crypto/crypto, routing_record, errors, utility
+import peerid, multiaddress, multicodec, crypto/crypto, routing_record, errors, utility
 
 export peerid, multiaddress, crypto, routing_record, errors, results
 
 ## Our local peer info
 
 type
-  PeerInfoError* = LPError
+  PeerInfoError* = object of LPError
+
+  AddressMapper* =
+    proc(listenAddrs: seq[MultiAddress]): Future[seq[MultiAddress]]
+      {.gcsafe, raises: [Defect].}
 
   PeerInfo* {.public.} = ref object
     peerId*: PeerId
-    addrs*: seq[MultiAddress]
+    listenAddrs*: seq[MultiAddress]
+    addrs: seq[MultiAddress]
+    addressMappers*: seq[AddressMapper]
     protocols*: seq[string]
     protoVersion*: string
     agentVersion*: string
@@ -37,6 +43,7 @@ type
 func shortLog*(p: PeerInfo): auto =
   (
     peerId: $p.peerId,
+    listenAddrs: mapIt(p.listenAddrs, $it),
     addrs: mapIt(p.addrs, $it),
     protocols: mapIt(p.protocols, $it),
     protoVersion: p.protoVersion,
@@ -44,7 +51,11 @@ func shortLog*(p: PeerInfo): auto =
   )
 chronicles.formatIt(PeerInfo): shortLog(it)
 
-proc update*(p: PeerInfo) =
+proc update*(p: PeerInfo) {.async.} =
+  p.addrs = p.listenAddrs
+  for mapper in p.addressMappers:
+    p.addrs = await mapper(p.addrs)
+
   let sprRes = SignedPeerRecord.init(
     p.privateKey,
     PeerRecord.init(p.peerId, p.addrs)
@@ -55,20 +66,46 @@ proc update*(p: PeerInfo) =
     discard
     #info "Can't update the signed peer record"
 
+proc addrs*(p: PeerInfo): seq[MultiAddress] =
+  p.addrs
+
+proc fullAddrs*(p: PeerInfo): MaResult[seq[MultiAddress]] =
+  let peerIdPart = ? MultiAddress.init(multiCodec("p2p"), p.peerId.data)
+  var res: seq[MultiAddress]
+  for address in p.addrs:
+    res.add(? concat(address, peerIdPart))
+  ok(res)
+
+proc parseFullAddress*(ma: MultiAddress): MaResult[(PeerId, MultiAddress)] =
+  let p2pPart = ? ma[^1]
+  if ? p2pPart.protoCode != multiCodec("p2p"):
+    return err("Missing p2p part from multiaddress!")
+
+  let res = (
+    ? PeerId.init(? p2pPart.protoArgument()).orErr("invalid peerid"),
+    ? ma[0 .. ^2]
+  )
+  ok(res)
+
+proc parseFullAddress*(ma: string | seq[byte]): MaResult[(PeerId, MultiAddress)] =
+  parseFullAddress(? MultiAddress.init(ma))
+
 proc new*(
   p: typedesc[PeerInfo],
   key: PrivateKey,
-  addrs: openArray[MultiAddress] = [],
+  listenAddrs: openArray[MultiAddress] = [],
   protocols: openArray[string] = [],
   protoVersion: string = "",
-  agentVersion: string = ""): PeerInfo
-  {.raises: [Defect, PeerInfoError].} =
+  agentVersion: string = "",
+  addressMappers = newSeq[AddressMapper](),
+  ): PeerInfo
+  {.raises: [Defect, LPError].} =
 
   let pubkey = try:
       key.getPublicKey().tryGet()
     except CatchableError:
       raise newException(PeerInfoError, "invalid private key")
-  
+
   let peerId = PeerId.init(key).tryGet()
 
   let peerInfo = PeerInfo(
@@ -77,10 +114,9 @@ proc new*(
     privateKey: key,
     protoVersion: protoVersion,
     agentVersion: agentVersion,
-    addrs: @addrs,
+    listenAddrs: @listenAddrs,
     protocols: @protocols,
+    addressMappers: addressMappers
   )
-
-  peerInfo.update()
 
   return peerInfo

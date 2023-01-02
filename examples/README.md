@@ -1,6 +1,5 @@
-# nim-libp2p documentation
+# nim-libp2p examples
 
-Welcome to the nim-libp2p documentation!
+In this folder, you'll find the sources of the [nim-libp2p website](https://status-im.github.io/nim-libp2p/docs/)
 
-Here, you'll find [tutorials](tutorial_1_connect.md) to help you get started, as well as [examples](directchat.nim) and
-the [full reference](https://status-im.github.io/nim-libp2p/master/libp2p.html).
+We recommand to follow the tutorials on the website, but feel free to grok the sources here!

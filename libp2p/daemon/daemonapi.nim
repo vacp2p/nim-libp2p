@@ -492,7 +492,7 @@ proc recvMessage(conn: StreamTransport): Future[seq[byte]] {.async.} =
       res = PB.getUVarint(buffer.toOpenArray(0, i), length, size)
       if res.isOk():
         break
-    if res.isErr() or size > MaxMessageSize:
+    if res.isErr() or size > 1'u shl 22:
       buffer.setLen(0)
       result = buffer
       return

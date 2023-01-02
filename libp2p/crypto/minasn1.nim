@@ -528,8 +528,7 @@ proc read*(ab: var Asn1Buffer): Asn1Result[Asn1Field] =
 
         field = Asn1Field(kind: Asn1Tag.Boolean, klass: aclass,
                           index: ttag, offset: int(ab.offset),
-                          length: 1)
-        shallowCopy(field.buffer, ab.buffer)
+                          length: 1, buffer: ab.buffer)
         field.vbool = (b == 0xFF'u8)
         ab.offset += 1
         return ok(field)
@@ -554,8 +553,7 @@ proc read*(ab: var Asn1Buffer): Asn1Result[Asn1Field] =
           # Negative or Positive integer
           field = Asn1Field(kind: Asn1Tag.Integer, klass: aclass,
                             index: ttag, offset: int(ab.offset),
-                            length: int(length))
-          shallowCopy(field.buffer, ab.buffer)
+                            length: int(length), buffer: ab.buffer)
           if (ab.buffer[ab.offset] and 0x80'u8) == 0x80'u8:
             # Negative integer
             if length <= 8:
@@ -579,16 +577,15 @@ proc read*(ab: var Asn1Buffer): Asn1Result[Asn1Field] =
             # Zero value integer
             field = Asn1Field(kind: Asn1Tag.Integer, klass: aclass,
                               index: ttag, offset: int(ab.offset),
-                              length: int(length), vint: 0'u64)
-            shallowCopy(field.buffer, ab.buffer)
+                              length: int(length), vint: 0'u64,
+                              buffer: ab.buffer)
             ab.offset += int(length)
             return ok(field)
           else:
             # Positive integer with leading zero
             field = Asn1Field(kind: Asn1Tag.Integer, klass: aclass,
                               index: ttag, offset: int(ab.offset) + 1,
-                              length: int(length) - 1)
-            shallowCopy(field.buffer, ab.buffer)
+                              length: int(length) - 1, buffer: ab.buffer)
             if length <= 9:
               for i in 1 ..< int(length):
                 field.vint = (field.vint shl 8) or
@@ -610,8 +607,7 @@ proc read*(ab: var Asn1Buffer): Asn1Result[Asn1Field] =
             # Zero-length BIT STRING.
             field = Asn1Field(kind: Asn1Tag.BitString, klass: aclass,
                               index: ttag, offset: int(ab.offset + 1),
-                              length: 0, ubits: 0)
-            shallowCopy(field.buffer, ab.buffer)
+                              length: 0, ubits: 0, buffer: ab.buffer)
             ab.offset += int(length)
             return ok(field)
 
@@ -631,8 +627,8 @@ proc read*(ab: var Asn1Buffer): Asn1Result[Asn1Field] =
 
           field = Asn1Field(kind: Asn1Tag.BitString, klass: aclass,
                             index: ttag, offset: int(ab.offset + 1),
-                            length: int(length - 1), ubits: int(unused))
-          shallowCopy(field.buffer, ab.buffer)
+                            length: int(length - 1), ubits: int(unused),
+                            buffer: ab.buffer)
           ab.offset += int(length)
           return ok(field)
 
@@ -643,8 +639,7 @@ proc read*(ab: var Asn1Buffer): Asn1Result[Asn1Field] =
 
         field = Asn1Field(kind: Asn1Tag.OctetString, klass: aclass,
                           index: ttag, offset: int(ab.offset),
-                          length: int(length))
-        shallowCopy(field.buffer, ab.buffer)
+                          length: int(length), buffer: ab.buffer)
         ab.offset += int(length)
         return ok(field)
 
@@ -654,8 +649,7 @@ proc read*(ab: var Asn1Buffer): Asn1Result[Asn1Field] =
           return err(Asn1Error.Incorrect)
 
         field = Asn1Field(kind: Asn1Tag.Null, klass: aclass, index: ttag,
-                          offset: int(ab.offset), length: 0)
-        shallowCopy(field.buffer, ab.buffer)
+                          offset: int(ab.offset), length: 0, buffer: ab.buffer)
         ab.offset += int(length)
         return ok(field)
 
@@ -666,8 +660,7 @@ proc read*(ab: var Asn1Buffer): Asn1Result[Asn1Field] =
 
         field = Asn1Field(kind: Asn1Tag.Oid, klass: aclass,
                           index: ttag, offset: int(ab.offset),
-                          length: int(length))
-        shallowCopy(field.buffer, ab.buffer)
+                          length: int(length), buffer: ab.buffer)
         ab.offset += int(length)
         return ok(field)
 
@@ -678,8 +671,7 @@ proc read*(ab: var Asn1Buffer): Asn1Result[Asn1Field] =
 
         field = Asn1Field(kind: Asn1Tag.Sequence, klass: aclass,
                           index: ttag, offset: int(ab.offset),
-                          length: int(length))
-        shallowCopy(field.buffer, ab.buffer)
+                          length: int(length), buffer: ab.buffer)
         ab.offset += int(length)
         return ok(field)
 

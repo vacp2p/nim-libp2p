@@ -15,6 +15,7 @@ else:
   {.push raises: [].}
 
 import std/[sequtils]
+import stew/results
 import chronos, chronicles
 import transport,
        ../errors,
@@ -31,22 +32,26 @@ import transport,
 logScope:
   topics = "libp2p wstransport"
 
-export transport, websock
+export transport, websock, results
 
 const
-  WsTransportTrackerName* = "libp2p.wstransport"
-
   DefaultHeadersTimeout = 3.seconds
 
 type
   WsStream = ref object of Connection
     session: WSSession
 
+method initStream*(s: WsStream) =
+  if s.objName.len == 0:
+    s.objName = "WsStream"
+
+  procCall Connection(s).initStream()
+
 proc new*(T: type WsStream,
            session: WSSession,
            dir: Direction,
-           timeout = 10.minutes,
-           observedAddr: MultiAddress = MultiAddress()): T =
+           observedAddr: Opt[MultiAddress],
+           timeout = 10.minutes): T =
 
   let stream = T(
     session: session,
@@ -128,7 +133,7 @@ method start*(
     factories = self.factories,
     rng = self.rng)
 
-  
+
   for i, ma in addrs:
     let isWss =
       if WSS.match(ma):
@@ -221,8 +226,7 @@ proc connHandler(self: WsTransport,
         await stream.close()
       raise exc
 
-  let conn = WsStream.new(stream, dir)
-  conn.observedAddr = observedAddr
+  let conn = WsStream.new(stream, dir, Opt.some(observedAddr))
 
   self.connections[dir].add(conn)
   proc onClose() {.async.} =
@@ -256,7 +260,7 @@ method accept*(self: WsTransport): Future[Connection] {.async, gcsafe.} =
 
     try:
       let
-        wstransp = await self.wsserver.handleRequest(req)
+        wstransp = await self.wsserver.handleRequest(req).wait(self.handshakeTimeout)
         isSecure = self.httpservers[index].secure
 
       return await self.connHandler(wstransp, isSecure, Direction.In)
@@ -273,6 +277,8 @@ method accept*(self: WsTransport): Future[Connection] {.async, gcsafe.} =
     debug "AsyncStream Error", exc = exc.msg
   except TransportTooManyError as exc:
     debug "Too many files opened", exc = exc.msg
+  except AsyncTimeoutError as exc:
+    debug "Timed out", exc = exc.msg
   except TransportUseClosedError as exc:
     debug "Server was closed", exc = exc.msg
     raise newTransportClosedError(exc)

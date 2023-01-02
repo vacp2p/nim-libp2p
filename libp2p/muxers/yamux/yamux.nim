@@ -153,6 +153,7 @@ type
     sendQueue: seq[ToSend]
     recvQueue: seq[byte]
     isReset: bool
+    remoteReset: bool
     closedRemotely: Future[void]
     closedLocally: bool
     receivedData: AsyncEvent
@@ -194,23 +195,25 @@ method closeImpl*(channel: YamuxChannel) {.async, gcsafe.} =
     await channel.actuallyClose()
 
 proc reset(channel: YamuxChannel, isLocal: bool = false) {.async.} =
-  if not channel.isReset:
-    trace "Reset channel"
-    channel.isReset = true
-    for (d, s, fut) in channel.sendQueue:
-      fut.fail(newLPStreamEOFError())
-    channel.sendQueue = @[]
-    channel.recvQueue = @[]
-    channel.sendWindow = 0
-    if not channel.closedLocally:
-      if isLocal:
-        try: await channel.conn.write(YamuxHeader.data(channel.id, 0, {Rst}))
-        except LPStreamEOFError as exc: discard
-        except LPStreamClosedError as exc: discard
-      await channel.close()
-    if not channel.closedRemotely.done():
-      await channel.remoteClosed()
-    channel.receivedData.fire()
+  if channel.isReset:
+    return
+  trace "Reset channel"
+  channel.isReset = true
+  channel.remoteReset = not isLocal
+  for (d, s, fut) in channel.sendQueue:
+    fut.fail(newLPStreamEOFError())
+  channel.sendQueue = @[]
+  channel.recvQueue = @[]
+  channel.sendWindow = 0
+  if not channel.closedLocally:
+    if isLocal:
+      try: await channel.conn.write(YamuxHeader.data(channel.id, 0, {Rst}))
+      except LPStreamEOFError as exc: discard
+      except LPStreamClosedError as exc: discard
+    await channel.close()
+  if not channel.closedRemotely.done():
+    await channel.remoteClosed()
+  channel.receivedData.fire()
   if not isLocal:
     # If we reset locally, we want to flush up to a maximum of recvWindow
     # bytes. We use the recvWindow in the proc cleanupChann.
@@ -235,7 +238,15 @@ method readOnce*(
   nbytes: int):
   Future[int] {.async.} =
 
-  if channel.returnedEof: raise newLPStreamEOFError()
+  if channel.isReset:
+    raise if channel.remoteReset:
+        newLPStreamResetError()
+      elif channel.closedLocally:
+        newLPStreamClosedError()
+      else:
+        newLPStreamConnDownError()
+  if channel.returnedEof:
+    raise newLPStreamRemoteClosedError()
   if channel.recvQueue.len == 0:
     channel.receivedData.clear()
     await channel.closedRemotely or channel.receivedData.wait()
@@ -313,8 +324,9 @@ proc trySend(channel: YamuxChannel) {.async.} =
     channel.sendWindow.dec(toSend)
     try: await channel.conn.write(sendBuffer)
     except CatchableError as exc:
+      let connDown = newLPStreamConnDownError(exc)
       for fut in futures.items():
-        fut.fail(exc)
+        fut.fail(connDown)
       await channel.reset()
       break
     for fut in futures.items():
@@ -323,8 +335,11 @@ proc trySend(channel: YamuxChannel) {.async.} =
 
 method write*(channel: YamuxChannel, msg: seq[byte]): Future[void] =
   result = newFuture[void]("Yamux Send")
+  if channel.remoteReset:
+    result.fail(newLPStreamResetError())
+    return result
   if channel.closedLocally or channel.isReset:
-    result.fail(newLPStreamEOFError())
+    result.fail(newLPStreamClosedError())
     return result
   if msg.len == 0:
     result.complete()
@@ -396,9 +411,11 @@ method close*(m: Yamux) {.async.} =
   m.isClosed = true
 
   trace "Closing yamux"
-  for channel in m.channels.values:
-    await channel.reset()
-  await m.connection.write(YamuxHeader.goAway(NormalTermination))
+  let channels = toSeq(m.channels.values())
+  for channel in channels:
+    await channel.reset(true)
+  try: await m.connection.write(YamuxHeader.goAway(NormalTermination))
+  except CatchableError as exc: trace "failed to send goAway", msg=exc.msg
   await m.connection.close()
   trace "Closed yamux"
 
@@ -453,8 +470,9 @@ method handle*(m: Yamux) {.async, gcsafe.} =
             m.flushed[header.streamId].dec(int(header.length))
             if m.flushed[header.streamId] < 0:
               raise newException(YamuxError, "Peer exhausted the recvWindow after reset")
-            var buffer = newSeqUninitialized[byte](header.length)
-            await m.connection.readExactly(addr buffer[0], int(header.length))
+            if header.length > 0:
+              var buffer = newSeqUninitialized[byte](header.length)
+              await m.connection.readExactly(addr buffer[0], int(header.length))
           continue
 
         let channel = m.channels[header.streamId]

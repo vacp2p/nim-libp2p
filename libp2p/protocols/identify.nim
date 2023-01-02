@@ -16,6 +16,7 @@ else:
   {.push raises: [].}
 
 import std/[sequtils, options, strutils, sugar]
+import stew/results
 import chronos, chronicles
 import ../protobuf/minprotobuf,
        ../peerinfo,
@@ -80,7 +81,7 @@ chronicles.expandIt(IdentifyInfo):
     if iinfo.signedPeerRecord.isSome(): "Some"
     else: "None"
 
-proc encodeMsg(peerInfo: PeerInfo, observedAddr: MultiAddress, sendSpr: bool): ProtoBuffer
+proc encodeMsg(peerInfo: PeerInfo, observedAddr: Opt[MultiAddress], sendSpr: bool): ProtoBuffer
   {.raises: [Defect].} =
   result = initProtoBuffer()
 
@@ -91,7 +92,8 @@ proc encodeMsg(peerInfo: PeerInfo, observedAddr: MultiAddress, sendSpr: bool): P
     result.write(2, ma.data.buffer)
   for proto in peerInfo.protocols:
     result.write(3, proto)
-  result.write(4, observedAddr.data.buffer)
+  if observedAddr.isSome:
+    result.write(4, observedAddr.get().data.buffer)
   let protoVersion = ProtoVersion
   result.write(5, protoVersion)
   let agentVersion = if peerInfo.agentVersion.len <= 0:

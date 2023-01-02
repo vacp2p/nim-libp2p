@@ -9,6 +9,7 @@
 
 ## Length Prefixed stream implementation
 
+{.push gcsafe.}
 when (NimMajor, NimMinor) < (1, 4):
   {.push raises: [Defect].}
 else:
@@ -59,7 +60,18 @@ type
   LPStreamWriteError* = object of LPStreamError
     par*: ref CatchableError
   LPStreamEOFError* = object of LPStreamError
-  LPStreamClosedError* = object of LPStreamError
+
+#        X        |           Read            |         Write
+#   Local close   |           Works           |  LPStreamClosedError
+#   Remote close  | LPStreamRemoteClosedError |         Works
+#   Local reset   |    LPStreamClosedError    |  LPStreamClosedError
+#   Remote reset  |    LPStreamResetError     |  LPStreamResetError
+# Connection down |     LPStreamConnDown      | LPStreamConnDownError
+
+  LPStreamResetError* = object of LPStreamEOFError
+  LPStreamClosedError* = object of LPStreamEOFError
+  LPStreamRemoteClosedError* = object of LPStreamEOFError
+  LPStreamConnDownError* = object of LPStreamEOFError
 
   InvalidVarintError* = object of LPStreamError
   MaxSizeError* = object of LPStreamError
@@ -68,7 +80,7 @@ type
     opened*: uint64
     closed*: uint64
 
-proc setupStreamTracker(name: string): StreamTracker =
+proc setupStreamTracker*(name: string): StreamTracker =
   let tracker = new StreamTracker
 
   proc dumpTracking(): string {.gcsafe.} =
@@ -119,8 +131,21 @@ proc newLPStreamIncorrectDefect*(m: string): ref LPStreamIncorrectDefect =
 proc newLPStreamEOFError*(): ref LPStreamEOFError =
   result = newException(LPStreamEOFError, "Stream EOF!")
 
+proc newLPStreamResetError*(): ref LPStreamResetError =
+  result = newException(LPStreamResetError, "Stream Reset!")
+
 proc newLPStreamClosedError*(): ref LPStreamClosedError =
   result = newException(LPStreamClosedError, "Stream Closed!")
+
+proc newLPStreamRemoteClosedError*(): ref LPStreamRemoteClosedError =
+  result = newException(LPStreamRemoteClosedError, "Stream Remotely Closed!")
+
+proc newLPStreamConnDownError*(
+    parentException: ref Exception = nil): ref LPStreamConnDownError =
+  result = newException(
+    LPStreamConnDownError,
+    "Stream Underlying Connection Closed!",
+    parentException)
 
 func shortLog*(s: LPStream): auto =
   if s.isNil: "LPStream(nil)"
@@ -165,6 +190,8 @@ proc readExactly*(s: LPStream,
   ## Waits for `nbytes` to be available, then read
   ## them and return them
   if s.atEof:
+    var ch: char
+    discard await s.readOnce(addr ch, 1)
     raise newLPStreamEOFError()
 
   if nbytes == 0:
@@ -183,6 +210,10 @@ proc readExactly*(s: LPStream,
   if read == 0:
     doAssert s.atEof()
     trace "couldn't read all bytes, stream EOF", s, nbytes, read
+    # Re-readOnce to raise a more specific error than EOF
+    # Raise EOF if it doesn't raise anything(shouldn't happen)
+    discard await s.readOnce(addr pbuffer[read], nbytes - read)
+    warn "Read twice while at EOF"
     raise newLPStreamEOFError()
 
   if read < nbytes:
@@ -200,8 +231,7 @@ proc readLine*(s: LPStream,
 
   while true:
     var ch: char
-    if (await readOnce(s, addr ch, 1)) == 0:
-      raise newLPStreamEOFError()
+    await readExactly(s, addr ch, 1)
 
     if sep[state] == ch:
       inc(state)
@@ -224,8 +254,7 @@ proc readVarint*(conn: LPStream): Future[uint64] {.async, gcsafe, public.} =
     buffer: array[10, byte]
 
   for i in 0..<len(buffer):
-    if (await conn.readOnce(addr buffer[i], 1)) == 0:
-      raise newLPStreamEOFError()
+    await conn.readExactly(addr buffer[i], 1)
 
     var
       varint: uint64

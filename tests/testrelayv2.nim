@@ -2,10 +2,10 @@
 
 import bearssl, chronos, options
 import ../libp2p
-import ../libp2p/[protocols/relay/relay,
-                  protocols/relay/messages,
-                  protocols/relay/utils,
-                  protocols/relay/client]
+import ../libp2p/[protocols/connectivity/relay/relay,
+                  protocols/connectivity/relay/messages,
+                  protocols/connectivity/relay/utils,
+                  protocols/connectivity/relay/client]
 import ./helpers
 import std/times
 import stew/byteutils
@@ -118,7 +118,6 @@ suite "Circuit Relay V2":
     asyncTeardown:
       checkTrackers()
     var
-      addrs {.threadvar.}: MultiAddress
       customProtoCodec {.threadvar.}: string
       proto {.threadvar.}: LPProtocol
       ttl {.threadvar.}: int
@@ -145,9 +144,6 @@ suite "Circuit Relay V2":
       src = createSwitch(srcCl)
       dst = createSwitch(dstCl)
       rel = newStandardSwitch()
-      addrs = MultiAddress.init($rel.peerInfo.addrs[0] & "/p2p/" &
-                                $rel.peerInfo.peerId & "/p2p-circuit/p2p/" &
-                                $dst.peerInfo.peerId).get()
 
     asyncTest "Connection succeed":
       proto.handler = proc(conn: Connection, proto: string) {.async.} =
@@ -166,6 +162,10 @@ suite "Circuit Relay V2":
       await rel.start()
       await src.start()
       await dst.start()
+
+      let addrs = MultiAddress.init($rel.peerInfo.addrs[0] & "/p2p/" &
+                                $rel.peerInfo.peerId & "/p2p-circuit/p2p/" &
+                                $dst.peerInfo.peerId).get()
 
       await src.connect(rel.peerInfo.peerId, rel.peerInfo.addrs)
       await dst.connect(rel.peerInfo.peerId, rel.peerInfo.addrs)
@@ -199,6 +199,10 @@ suite "Circuit Relay V2":
       await rel.start()
       await src.start()
       await dst.start()
+
+      let addrs = MultiAddress.init($rel.peerInfo.addrs[0] & "/p2p/" &
+                                $rel.peerInfo.peerId & "/p2p-circuit/p2p/" &
+                                $dst.peerInfo.peerId).get()
 
       await src.connect(rel.peerInfo.peerId, rel.peerInfo.addrs)
       await dst.connect(rel.peerInfo.peerId, rel.peerInfo.addrs)
@@ -245,6 +249,10 @@ take to the ship.""")
       await src.start()
       await dst.start()
 
+      let addrs = MultiAddress.init($rel.peerInfo.addrs[0] & "/p2p/" &
+                                $rel.peerInfo.peerId & "/p2p-circuit/p2p/" &
+                                $dst.peerInfo.peerId).get()
+
       await src.connect(rel.peerInfo.peerId, rel.peerInfo.addrs)
       await dst.connect(rel.peerInfo.peerId, rel.peerInfo.addrs)
 
@@ -277,6 +285,10 @@ take to the ship.""")
       await src.start()
       await dst.start()
 
+      let addrs = MultiAddress.init($rel.peerInfo.addrs[0] & "/p2p/" &
+                                $rel.peerInfo.peerId & "/p2p-circuit/p2p/" &
+                                $dst.peerInfo.peerId).get()
+
       await src.connect(rel.peerInfo.peerId, rel.peerInfo.addrs)
       await dst.connect(rel.peerInfo.peerId, rel.peerInfo.addrs)
 
@@ -308,11 +320,6 @@ take to the ship.""")
         rel2Cl = RelayClient.new(canHop = true)
         rel2 = createSwitch(rel2Cl)
         rv2 = Relay.new()
-        addrs = @[ MultiAddress.init($rel.peerInfo.addrs[0] & "/p2p/" &
-                                     $rel.peerInfo.peerId & "/p2p-circuit/p2p/" &
-                                     $rel2.peerInfo.peerId & "/p2p/" &
-                                     $rel2.peerInfo.peerId & "/p2p-circuit/p2p/" &
-                                     $dst.peerInfo.peerId).get() ]
       rv2.setup(rel)
       rel.mount(rv2)
       dst.mount(proto)
@@ -320,6 +327,13 @@ take to the ship.""")
       await rel2.start()
       await src.start()
       await dst.start()
+
+      let
+        addrs = @[ MultiAddress.init($rel.peerInfo.addrs[0] & "/p2p/" &
+                                     $rel.peerInfo.peerId & "/p2p-circuit/p2p/" &
+                                     $rel2.peerInfo.peerId & "/p2p/" &
+                                     $rel2.peerInfo.peerId & "/p2p-circuit/p2p/" &
+                                     $dst.peerInfo.peerId).get() ]
 
       await src.connect(rel.peerInfo.peerId, rel.peerInfo.addrs)
       await rel2.connect(rel.peerInfo.peerId, rel.peerInfo.addrs)
@@ -367,6 +381,16 @@ take to the ship.""")
         switchA = createSwitch(clientA)
         switchB = createSwitch(clientB)
         switchC = createSwitch(clientC)
+
+      switchA.mount(protoBCA)
+      switchB.mount(protoCAB)
+      switchC.mount(protoABC)
+
+      await switchA.start()
+      await switchB.start()
+      await switchC.start()
+
+      let
         addrsABC = MultiAddress.init($switchB.peerInfo.addrs[0] & "/p2p/" &
                                      $switchB.peerInfo.peerId & "/p2p-circuit/p2p/" &
                                      $switchC.peerInfo.peerId).get()
@@ -376,13 +400,6 @@ take to the ship.""")
         addrsCAB = MultiAddress.init($switchA.peerInfo.addrs[0] & "/p2p/" &
                                      $switchA.peerInfo.peerId & "/p2p-circuit/p2p/" &
                                      $switchB.peerInfo.peerId).get()
-      switchA.mount(protoBCA)
-      switchB.mount(protoCAB)
-      switchC.mount(protoABC)
-
-      await switchA.start()
-      await switchB.start()
-      await switchC.start()
 
       await switchA.connect(switchB.peerInfo.peerId, switchB.peerInfo.addrs)
       await switchB.connect(switchC.peerInfo.peerId, switchC.peerInfo.addrs)

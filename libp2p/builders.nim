@@ -26,8 +26,8 @@ import
   switch, peerid, peerinfo, stream/connection, multiaddress,
   crypto/crypto, transports/[transport, tcptransport],
   muxers/[muxer, mplex/mplex, yamux/yamux],
-  protocols/[identify, secure/secure, secure/noise],
-  protocols/relay/[relay, client, rtransport],
+  protocols/[identify, secure/secure, secure/noise, rendezvous],
+  protocols/connectivity/[autonat, relay/relay, relay/client, relay/rtransport],
   connmanager, upgrademngrs/muxedupgrade,
   nameresolving/nameresolver,
   errors, utility
@@ -58,7 +58,10 @@ type
     agentVersion: string
     nameResolver: NameResolver
     peerStoreCapacity: Option[int]
+    autonat: bool
     circuitRelay: Relay
+    rdv: RendezVous
+    services: seq[Service]
 
 proc new*(T: type[SwitchBuilder]): T {.public.} =
   ## Creates a SwitchBuilder
@@ -185,8 +188,20 @@ proc withNameResolver*(b: SwitchBuilder, nameResolver: NameResolver): SwitchBuil
   b.nameResolver = nameResolver
   b
 
+proc withAutonat*(b: SwitchBuilder): SwitchBuilder =
+  b.autonat = true
+  b
+
 proc withCircuitRelay*(b: SwitchBuilder, r: Relay = Relay.new()): SwitchBuilder =
   b.circuitRelay = r
+  b
+
+proc withRendezVous*(b: SwitchBuilder, rdv: RendezVous = RendezVous.new()): SwitchBuilder =
+  b.rdv = rdv
+  b
+
+proc withServices*(b: SwitchBuilder, services: seq[Service]): SwitchBuilder =
+  b.services = services
   b
 
 proc build*(b: SwitchBuilder): Switch
@@ -244,13 +259,22 @@ proc build*(b: SwitchBuilder): Switch
     connManager = connManager,
     ms = ms,
     nameResolver = b.nameResolver,
-    peerStore = peerStore)
+    peerStore = peerStore,
+    services = b.services)
+
+  if b.autonat:
+    let autonat = Autonat.new(switch)
+    switch.mount(autonat)
 
   if not isNil(b.circuitRelay):
     if b.circuitRelay of RelayClient:
       switch.addTransport(RelayTransport.new(RelayClient(b.circuitRelay), muxedUpgrade))
     b.circuitRelay.setup(switch)
     switch.mount(b.circuitRelay)
+
+  if not isNil(b.rdv):
+    b.rdv.setup(switch)
+    switch.mount(b.rdv)
 
   return switch
 

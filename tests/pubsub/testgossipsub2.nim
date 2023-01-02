@@ -10,8 +10,7 @@
 {.used.}
 
 import sequtils, options, tables, sets
-import chronos, stew/byteutils
-import chronicles
+import chronos, stew/byteutils, chronicles
 import utils, ../../libp2p/[errors,
                             peerid,
                             peerinfo,
@@ -25,46 +24,15 @@ import utils, ../../libp2p/[errors,
                             protocols/pubsub/rpc/messages]
 import ../helpers
 
-proc waitSub(sender, receiver: auto; key: string) {.async, gcsafe.} =
-  if sender == receiver:
-    return
-  # turn things deterministic
-  # this is for testing purposes only
-  # peers can be inside `mesh` and `fanout`, not just `gossipsub`
-  var ceil = 15
-  let fsub = GossipSub(sender)
-  let ev = newAsyncEvent()
-  fsub.heartbeatEvents.add(ev)
-
-  # await first heartbeat
-  await ev.wait()
-  ev.clear()
-
-  while (not fsub.gossipsub.hasKey(key) or
-         not fsub.gossipsub.hasPeerId(key, receiver.peerInfo.peerId)) and
-        (not fsub.mesh.hasKey(key) or
-         not fsub.mesh.hasPeerId(key, receiver.peerInfo.peerId)) and
-        (not fsub.fanout.hasKey(key) or
-         not fsub.fanout.hasPeerId(key , receiver.peerInfo.peerId)):
-    trace "waitSub sleeping..."
-
-    # await more heartbeats
-    await ev.wait()
-    ev.clear()
-
-    dec ceil
-    doAssert(ceil > 0, "waitSub timeout!")
-
-template tryPublish(call: untyped, require: int, wait: Duration = 1.seconds, times: int = 10): untyped =
+template tryPublish(call: untyped, require: int, wait = 10.milliseconds, timeout = 10.seconds): untyped =
   var
-    limit = times
+    expiration = Moment.now() + timeout
     pubs = 0
-  while pubs < require and limit > 0:
+  while pubs < require and Moment.now() < expiration:
     pubs = pubs + call
     await sleepAsync(wait)
-    limit.dec()
-  if limit == 0:
-    doAssert(false, "Failed to publish!")
+
+  doAssert pubs >= require, "Failed to publish!"
 
 suite "GossipSub":
   teardown:
@@ -280,7 +248,7 @@ suite "GossipSub":
 
     await allFuturesThrowing(nodesFut.concat())
 
-  asyncTest "GossipsSub peers disconnections mechanics":
+  asyncTest "GossipSub peers disconnections mechanics":
     var runs = 10
 
     let
@@ -305,7 +273,8 @@ suite "GossipSub":
             seenFut.complete()
 
       dialer.subscribe("foobar", handler)
-      await waitSub(nodes[0], dialer, "foobar")
+
+    await waitSubGraph(nodes, "foobar")
 
     # ensure peer stats are stored properly and kept properly
     check:
@@ -314,7 +283,7 @@ suite "GossipSub":
     tryPublish await wait(nodes[0].publish("foobar",
                                   toBytes("from node " &
                                   $nodes[0].peerInfo.peerId)),
-                                  1.minutes), 1, 5.seconds
+                                  1.minutes), 1, 5.seconds, 3.minutes
 
     await wait(seenFut, 5.minutes)
     check: seen.len >= runs
@@ -337,11 +306,9 @@ suite "GossipSub":
     # Waiting 2 heartbeats
 
     for _ in 0..1:
-      for i in 0..<runs:
-        if i mod 3 == 0:
-          let evnt = newAsyncEvent()
-          GossipSub(nodes[i]).heartbeatEvents &= evnt
-          await evnt.wait()
+      let evnt = newAsyncEvent()
+      GossipSub(nodes[0]).heartbeatEvents &= evnt
+      await evnt.wait()
 
     # ensure peer stats are stored properly and kept properly
     check:
@@ -359,11 +326,9 @@ suite "GossipSub":
     # Waiting 2 heartbeats
 
     for _ in 0..1:
-      for i in 0..<runs:
-        if i mod 3 == 0:
-          let evnt = newAsyncEvent()
-          GossipSub(nodes[i]).heartbeatEvents &= evnt
-          await evnt.wait()
+      let evnt = newAsyncEvent()
+      GossipSub(nodes[0]).heartbeatEvents &= evnt
+      await evnt.wait()
 
     # ensure peer stats are stored properly and kept properly
     check:

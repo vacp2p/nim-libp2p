@@ -3,7 +3,9 @@ site_name: nim-libp2p
 repo_url: https://github.com/status-im/nim-libp2p
 repo_name: status-im/nim-libp2p
 site_url: https://status-im.github.io/nim-libp2p/docs
-edit_uri: edit/unstable/examples/
+# Can't find a way to point the edit to the .nim instead
+# of the .md
+edit_uri: ''
 
 docs_dir: examples
 
@@ -18,8 +20,8 @@ markdown_extensions:
   - pymdownx.superfences
 
 theme:
-  logo: https://docs.libp2p.io/images/logo_small.png
-  favicon: https://docs.libp2p.io/images/logo_small.png
+  logo: https://libp2p.io/img/logo_small.png
+  favicon: https://libp2p.io/img/logo_small.png
   name: material
   features:
     - navigation.instant
@@ -38,8 +40,13 @@ theme:
         name: Switch to light mode
 
 nav:
-  - Introduction: README.md
   - Tutorials:
-    - 'Part I: Simple connection': tutorial_1_connect.md
-    - 'Part II: Custom protocol': tutorial_2_customproto.md
+    - 'Introduction': index.md
+    - 'Simple connection': tutorial_1_connect.md
+    - 'Create a custom protocol': tutorial_2_customproto.md
+    - 'Protobuf': tutorial_3_protobuf.md
+    - 'GossipSub': tutorial_4_gossipsub.md
+    - 'Discovery Manager': tutorial_5_discovery.md
+    - 'Game': tutorial_6_game.md
+    - 'Circuit Relay': circuitrelay.md
   - Reference: '/nim-libp2p/master/libp2p.html'

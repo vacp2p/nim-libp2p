@@ -4,7 +4,7 @@ const
   libp2p_pubsub_verify {.booldefine.} = true
   libp2p_pubsub_anonymize {.booldefine.} = false
 
-import hashes, random, tables
+import hashes, random, tables, sets, sequtils
 import chronos, stew/[byteutils, results]
 import ../../libp2p/[builders,
                      protocols/pubsub/errors,
@@ -13,6 +13,7 @@ import ../../libp2p/[builders,
                      protocols/pubsub/floodsub,
                      protocols/pubsub/rpc/messages,
                      protocols/secure/secure]
+import chronicles
 
 export builders
 
@@ -102,3 +103,43 @@ proc subscribeRandom*(nodes: seq[PubSub]) {.async.} =
         if dialer.peerInfo.peerId != node.peerInfo.peerId:
           await dialer.switch.connect(node.peerInfo.peerId, node.peerInfo.addrs)
           dialed.add(node.peerInfo.peerId)
+
+proc waitSub*(sender, receiver: auto; key: string) {.async, gcsafe.} =
+  if sender == receiver:
+    return
+  let timeout = Moment.now() + 5.seconds
+  let fsub = GossipSub(sender)
+
+  # this is for testing purposes only
+  # peers can be inside `mesh` and `fanout`, not just `gossipsub`
+  while (not fsub.gossipsub.hasKey(key) or
+         not fsub.gossipsub.hasPeerId(key, receiver.peerInfo.peerId)) and
+        (not fsub.mesh.hasKey(key) or
+         not fsub.mesh.hasPeerId(key, receiver.peerInfo.peerId)) and
+        (not fsub.fanout.hasKey(key) or
+         not fsub.fanout.hasPeerId(key , receiver.peerInfo.peerId)):
+    trace "waitSub sleeping..."
+
+    # await
+    await sleepAsync(5.milliseconds)
+    doAssert Moment.now() < timeout, "waitSub timeout!"
+
+proc waitSubGraph*(nodes: seq[PubSub], key: string) {.async, gcsafe.} =
+  let timeout = Moment.now() + 5.seconds
+  while true:
+    var
+      nodesMesh: Table[PeerId, seq[PeerId]]
+      seen: HashSet[PeerId]
+    for n in nodes:
+      nodesMesh[n.peerInfo.peerId] = toSeq(GossipSub(n).mesh.getOrDefault(key).items()).mapIt(it.peerId)
+    proc explore(p: PeerId) =
+      if p in seen: return
+      seen.incl(p)
+      for peer in nodesMesh.getOrDefault(p):
+        explore(peer)
+    explore(nodes[0].peerInfo.peerId)
+    if seen.len == nodes.len: return
+    trace "waitSubGraph sleeping..."
+
+    await sleepAsync(5.milliseconds)
+    doAssert Moment.now() < timeout, "waitSubGraph timeout!"

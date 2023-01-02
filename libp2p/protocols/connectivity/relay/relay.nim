@@ -19,16 +19,16 @@ import chronos, chronicles
 import ./messages,
        ./rconn,
        ./utils,
-       ../../peerinfo,
-       ../../switch,
-       ../../multiaddress,
-       ../../multicodec,
-       ../../stream/connection,
-       ../../protocols/protocol,
-       ../../transports/transport,
-       ../../errors,
-       ../../utils/heartbeat,
-       ../../signed_envelope
+       ../../../peerinfo,
+       ../../../switch,
+       ../../../multiaddress,
+       ../../../multicodec,
+       ../../../stream/connection,
+       ../../../protocols/protocol,
+       ../../../transports/transport,
+       ../../../errors,
+       ../../../utils/heartbeat,
+       ../../../signed_envelope
 
 # TODO:
 # * Eventually replace std/times by chronos/timer. Currently chronos/timer

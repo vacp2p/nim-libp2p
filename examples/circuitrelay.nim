@@ -1,6 +1,14 @@
+## # Circuit Relay example
+##
+## Circuit Relay can be used when a node cannot reach another node
+## directly, but can reach it through a another node (the Relay).
+##
+## That may happen because of NAT, Firewalls, or incompatible transports.
+##
+## More informations [here](https://docs.libp2p.io/concepts/circuit-relay/).
 import chronos, stew/byteutils
-import ../libp2p,
-       ../libp2p/protocols/relay/[relay, client]
+import libp2p,
+       libp2p/protocols/connectivity/relay/[relay, client]
 
 # Helper to create a circuit relay node
 proc createCircuitRelaySwitch(r: Relay): Switch =
@@ -40,19 +48,19 @@ proc main() {.async.} =
     swSrc = createCircuitRelaySwitch(clSrc)
     swDst = createCircuitRelaySwitch(clDst)
 
-    # Create a relay address to swDst using swRel as the relay
-    addrs = MultiAddress.init($swRel.peerInfo.addrs[0] & "/p2p/" &
-                              $swRel.peerInfo.peerId & "/p2p-circuit/p2p/" &
-                              $swDst.peerInfo.peerId).get()
-
   swDst.mount(proto)
 
   await swRel.start()
   await swSrc.start()
   await swDst.start()
 
-  # Connect both Src and Dst to the relay, but not to each other.
-  await swSrc.connect(swRel.peerInfo.peerId, swRel.peerInfo.addrs)
+  let
+    # Create a relay address to swDst using swRel as the relay
+    addrs = MultiAddress.init($swRel.peerInfo.addrs[0] & "/p2p/" &
+                              $swRel.peerInfo.peerId & "/p2p-circuit/p2p/" &
+                              $swDst.peerInfo.peerId).get()
+
+  # Connect Dst to the relay
   await swDst.connect(swRel.peerInfo.peerId, swRel.peerInfo.addrs)
 
   # Dst reserve a slot on the relay.

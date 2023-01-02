@@ -19,6 +19,9 @@ import ".."/[pubsubpeer, peertable, timedcache, mcache, floodsub, pubsub]
 import "../rpc"/[messages]
 import "../../.."/[peerid, multiaddress, utility, switch, routing_record, signed_envelope, utils/heartbeat]
 
+logScope:
+  topics = "libp2p gossipsub"
+
 declareGauge(libp2p_gossipsub_cache_window_size, "the number of messages in the cache")
 declareGauge(libp2p_gossipsub_peers_per_topic_mesh, "gossipsub peers per topic in mesh", labels = ["topic"])
 declareGauge(libp2p_gossipsub_peers_per_topic_fanout, "gossipsub peers per topic in fanout", labels = ["topic"])

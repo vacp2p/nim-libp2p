@@ -13,9 +13,12 @@ else:
   {.push raises: [].}
 
 import std/[oids, strformat]
+import stew/results
 import chronos, chronicles, metrics
 import connection
 import ../utility
+
+export results
 
 logScope:
   topics = "libp2p chronosstream"
@@ -60,7 +63,7 @@ proc init*(C: type ChronosStream,
            client: StreamTransport,
            dir: Direction,
            timeout = DefaultChronosStreamTimeout,
-           observedAddr: MultiAddress = MultiAddress()): ChronosStream =
+           observedAddr: Opt[MultiAddress]): ChronosStream =
   result = C(client: client,
              timeout: timeout,
              dir: dir,
@@ -127,6 +130,9 @@ proc completeWrite(
 method write*(s: ChronosStream, msg: seq[byte]): Future[void] =
   # Avoid a copy of msg being kept in the closure created by `{.async.}` as this
   # drives up memory usage
+  if msg.len == 0:
+    trace "Empty byte seq, nothing to write"
+    return
   if s.closed:
     let fut = newFuture[void]("chronosstream.write.closed")
     fut.fail(newLPStreamClosedError())

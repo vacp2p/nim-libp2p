@@ -63,7 +63,7 @@ jobs:
           git push origin gh-pages
 
   update_site:
-    if: github.ref == 'refs/heads/master'
+    if: github.ref == 'refs/heads/master' || github.ref == 'refs/heads/docs'
     name: 'Rebuild website'
     runs-on: ubuntu-latest
     steps:
@@ -74,8 +74,12 @@ jobs:
         with:
           python-version: 3.x
 
+      - uses: jiro4989/setup-nim-action@v1
+        with:
+          nim-version: 'stable'
+
       - name: Generate website
-        run: pip install mkdocs-material && mkdocs build
+        run: pip install mkdocs-material && nimble website
 
       - name: Clone the gh-pages branch
         uses: actions/checkout@v2

@@ -2,7 +2,7 @@
   <a href="https://libp2p.io"><img width="250" src="./.assets/full-logo.svg?raw=true" alt="nim-libp2p logo" /></a>
 </h1>
 
-<h3 align="center">The Nim implementation of the libp2p Networking Stack.</h3>
+<h3 align="center">The <a href="https://nim-lang.org/">Nim</a> implementation of the <a href="https://libp2p.io/">libp2p</a> Networking Stack.</h3>
 
 <p align="center">
 <a href="https://github.com/status-im/nim-libp2p/actions"><img src="https://github.com/status-im/nim-libp2p/actions/workflows/ci.yml/badge.svg" /></a>
@@ -16,30 +16,26 @@
 <img src="https://img.shields.io/badge/nim-%3E%3D1.2.0-orange.svg?style=flat-square" />
 </p>
 
-## Introduction
-
-An implementation of [libp2p](https://libp2p.io/) in [Nim](https://nim-lang.org/).
-
 # Table of Contents
 - [Background](#background)
 - [Install](#install)
 - [Getting Started](#getting-started)
 - [Modules](#modules)
 - [Users](#users)
+- [Stability](#stability)
 - [Development](#development)
   - [Contribute](#contribute)
-  - [Core Developers](#core-developers)
+  - [Contributors](#contributors)
+  - [Core Maintainers](#core-maintainers)
 - [License](#license)
 
 ## Background
-libp2p is a networking stack and library modularized out of [The IPFS Project](https://github.com/ipfs/ipfs), and bundled separately for other tools to use.
+libp2p is a [Peer-to-Peer](https://en.wikipedia.org/wiki/Peer-to-peer) networking stack, with [implementations](https://github.com/libp2p/libp2p#implementations) in multiple languages derived from the same [specifications.](https://github.com/libp2p/specs)
 
-libp2p is the product of a long and arduous quest of understanding; a deep dive into the internet's network stack and the peer-to-peer protocols from the past. Building large scale peer-to-peer systems has been complex and difficult in the last 15 years and libp2p is a way to fix that. It is a "network stack", a suite of networking protocols that cleanly separates concerns and enables sophisticated applications to only use the protocols they absolutely need, without giving up interoperability and upgradeability.
+Building large scale peer-to-peer systems has been complex and difficult in the last 15 years and libp2p is a way to fix that. It's striving to be a modular stack, with sane and secure defaults, useful protocols, while remain open and extensible.
+This implementation in native Nim, relying on [chronos](https://github.com/status-im/nim-chronos) for async. It's used in production by a few [projects](#users)
 
-libp2p grew out of IPFS, but it is built so that lots of people can use it, for lots of different projects.
-
-- Learn more about libp2p at [**libp2p.io**](https://libp2p.io) and follow our evolving documentation efforts at [**docs.libp2p.io**](https://docs.libp2p.io).
-- [Here](https://github.com/libp2p/libp2p#description) is an overview of libp2p and its implementations in other programming languages.
+Learn more about libp2p at [**libp2p.io**](https://libp2p.io) and follow libp2p's documentation [**docs.libp2p.io**](https://docs.libp2p.io).
 
 ## Install
 **Prerequisite**
@@ -49,7 +45,7 @@ nimble install libp2p
 ```
 
 ## Getting Started
-You'll find the documentation [here].(https://status-im.github.io/nim-libp2p/docs/)
+You'll find the nim-libp2p documentation [here](https://status-im.github.io/nim-libp2p/docs/).
 
 **Go Daemon:**
 Please find the installation and usage intructions in [daemonapi.md](examples/go-daemon/daemonapi.md).
@@ -63,25 +59,28 @@ List of packages modules implemented in nim-libp2p:
 | **Libp2p**                                                 |                                                                                                                  |
 | [libp2p](libp2p/switch.nim)                                | The core of the project                                                                                          |
 | [connmanager](libp2p/connmanager.nim)                      | Connection manager                                                                                               |
-| [identify / push identify](libp2p/protocols/identify.nim)  | [Identify](https://docs.libp2p.io/concepts/protocols/#identify) protocol                                         |
-| [ping](libp2p/protocols/ping.nim)                          | [Ping](https://docs.libp2p.io/concepts/protocols/#ping) protocol                                                 |
+| [identify / push identify](libp2p/protocols/identify.nim)  | [Identify](https://docs.libp2p.io/concepts/fundamentals/protocols/#identify) protocol                            |
+| [ping](libp2p/protocols/ping.nim)                          | [Ping](https://docs.libp2p.io/concepts/fundamentals/protocols/#ping) protocol                                    |
 | [libp2p-daemon-client](libp2p/daemon/daemonapi.nim)        | [go-daemon](https://github.com/libp2p/go-libp2p-daemon) nim wrapper                                              |
 | [interop-libp2p](tests/testinterop.nim)                    | Interop tests                                                                                                    |
 | **Transports**                                             |                                                                                                                  |
 | [libp2p-tcp](libp2p/transports/tcptransport.nim)           | TCP transport                                                                                                    |
 | [libp2p-ws](libp2p/transports/wstransport.nim)             | WebSocket & WebSocket Secure transport                                                                           |
+| [libp2p-tor](libp2p/transports/tortransport.nim)           | Tor Transport                                                                                                    |
 | **Secure Channels**                                        |                                                                                                                  |
-| [libp2p-secio](libp2p/protocols/secure/secio.nim)          | [Secio](https://docs.libp2p.io/concepts/protocols/#secio) secure channel                                         |
-| [libp2p-noise](libp2p/protocols/secure/noise.nim)          | [Noise](https://github.com/libp2p/specs/tree/master/noise) secure channel                                        |
-| [libp2p-plaintext](libp2p/protocols/secure/plaintext.nim)  | [Plain Text](https://github.com/libp2p/specs/tree/master/plaintext) for development purposes                     |
+| [libp2p-secio](libp2p/protocols/secure/secio.nim)          | Secio secure channel                                                                                             |
+| [libp2p-noise](libp2p/protocols/secure/noise.nim)          | [Noise](https://docs.libp2p.io/concepts/secure-comm/noise/) secure channel                                       |
+| [libp2p-plaintext](libp2p/protocols/secure/plaintext.nim)  | Plain Text for development purposes                                                                              |
 | **Stream Multiplexers**                                    |                                                                                                                  |
 | [libp2p-mplex](libp2p/muxers/mplex/mplex.nim)              | [MPlex](https://github.com/libp2p/specs/tree/master/mplex) multiplexer                                           |
+| [libp2p-yamux](libp2p/muxers/yamux/yamux.nim)              | [Yamux](https://docs.libp2p.io/concepts/multiplex/yamux/) multiplexer                                            |
 | **Data Types**                                             |                                                                                                                  |
-| [peer-id](libp2p/peerid.nim)                               | [Cryptographic identifiers](https://docs.libp2p.io/concepts/peer-id/)                                            |
-| [peer-store](libp2p/peerstore.nim)                         | ["Phone book" of known peers](https://docs.libp2p.io/concepts/peer-id/#peerinfo)                                 |
+| [peer-id](libp2p/peerid.nim)                               | [Cryptographic identifiers](https://docs.libp2p.io/concepts/fundamentals/peers/#peer-id)                         |
+| [peer-store](libp2p/peerstore.nim)                         | ["Address book" of known peers](https://docs.libp2p.io/concepts/fundamentals/peers/#peer-store)                  |
 | [multiaddress](libp2p/multiaddress.nim)                    | [Composable network addresses](https://github.com/multiformats/multiaddr)                                        |
 | [signed envelope](libp2p/signed_envelope.nim)              | [Signed generic data container](https://github.com/libp2p/specs/blob/master/RFC/0002-signed-envelopes.md)        |
 | [routing record](libp2p/routing_record.nim)                | [Signed peer dialing informations](https://github.com/libp2p/specs/blob/master/RFC/0003-routing-records.md)      |
+| [discovery manager](libp2p/discovery/discoverymngr.nim)    | Discovery Manager                                                                                                |
 | **Utilities**                                              |                                                                                                                  |
 | [libp2p-crypto](libp2p/crypto)                             | Cryptographic backend                                                                                            |
 | [libp2p-crypto-secp256k1](libp2p/crypto/secp.nim)          |                                                                                                                  |
@@ -98,20 +97,34 @@ nim-libp2p is used by:
 - [nim-codex](https://github.com/status-im/nim-codex), a decentralized storage application
 - (open a pull request if you want to be included here)
 
-## Development
-**Clone and Install dependencies:**
+## Stability
+nim-libp2p has been used in production for over a year in high-stake scenarios, so its core is considered stable.
+Some modules are more recent and less stable.
 
+The versioning follows [semver](https://semver.org/), with some additions:
+- Some of libp2p procedures are marked as `.public.`, they will remain compatible during each `MAJOR` version
+- The rest of the procedures are considered internal, and can change at any `MINOR` version (but remain compatible for each new `PATCH`)
+
+We aim to be compatible at all time with at least 2 Nim `MINOR` versions, currently `1.2 & 1.6`
+
+## Development
+Clone and Install dependencies:
 ```sh
 git clone https://github.com/status-im/nim-libp2p
 cd nim-libp2p
-nimble install
+# to use dependencies computed by nimble
+nimble install -dy
+# OR to install the dependencies versions used in CI
+nimble install_pinned
 ```
 
-**Run unit tests**
+Run unit tests:
 ```sh
 # run all the unit tests
 nimble test
 ```
+This requires the go daemon to be available. To only run native tests, use `nimble testnative`.
+Or use `nimble tasks` to show all available tasks.
 
 ### Contribute
 
@@ -122,25 +135,33 @@ The libp2p implementation in Nim is a work in progress. We welcome contributors 
 
 The code follows the [Status Nim Style Guide](https://status-im.github.io/nim-style-guide/).
 
-### Core Developers
-[@cheatfate](https://github.com/cheatfate), [Dmitriy Ryajov](https://github.com/dryajov), [Tanguy](https://github.com/Menduist), [Zahary Karadjov](https://github.com/zah)
+### Contributors
+<a href="https://github.com/status-im/nim-libp2p/graphs/contributors"><img src="https://contrib.rocks/image?repo=status-im/nim-libp2p" alt="nim-libp2p contributors"></a>
 
-### Tips and tricks
+### Core Maintainers
+<table>
+  <tbody>
+    <tr>
+      <td align="center"><a href="https://github.com/Menduist"><img src="https://avatars.githubusercontent.com/u/13471753?v=4?s=100" width="100px;" alt="Tanguy"/><br /><sub><b>Tanguy (Menduist)</b></sub></a></td>
+      <td align="center"><a href="https://github.com/lchenut"><img src="https://avatars.githubusercontent.com/u/11214565?v=4?s=100" width="100px;" alt="Ludovic"/><br /><sub><b>Ludovic</b></sub></a></td>
+      <td align="center"><a href="https://github.com/diegomrsantos"><img src="https://avatars.githubusercontent.com/u/7316595?v=4?s=100" width="100px;" alt="Diego"/><br /><sub><b>Diego</b></sub></a></td>
+    </tr>
+  </tbody>
+</table>
 
-**enable expensive metrics:**
+### Compile time flags
 
+Enable expensive metrics (ie, metrics with per-peer cardinality):
 ```bash
 nim c -d:libp2p_expensive_metrics some_file.nim
 ```
 
-**use identify metrics**
-
+Set list of known libp2p agents for metrics:
 ```bash
-nim c -d:libp2p_agents_metrics -d:KnownLibP2PAgents=nimbus,lighthouse,prysm,teku some_file.nim
+nim c -d:libp2p_agents_metrics -d:KnownLibP2PAgents=nimbus,lighthouse,lodestar,prysm,teku some_file.nim
 ```
 
-**specify gossipsub specific topics to measure**
-
+Specify gossipsub specific topics to measure in the metrics:
 ```bash
 nim c -d:KnownLibP2PTopics=topic1,topic2,topic3 some_file.nim
 ```

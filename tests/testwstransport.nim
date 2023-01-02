@@ -55,14 +55,13 @@ suite "WebSocket transport":
   teardown:
     checkTrackers()
 
-  commonTransportTest(
-    "WebSocket",
-    proc (): Transport = WsTransport.new(Upgrade()),
-    "/ip4/0.0.0.0/tcp/0/ws")
+  proc wsTraspProvider(): Transport = WsTransport.new(Upgrade())
 
   commonTransportTest(
-    "WebSocket Secure",
-    (proc (): Transport {.gcsafe.} =
+    wsTraspProvider,
+    "/ip4/0.0.0.0/tcp/0/ws")
+
+  proc wsSecureTranspProvider(): Transport {.gcsafe.} =
       try:
         return WsTransport.new(
           Upgrade(),
@@ -70,7 +69,9 @@ suite "WebSocket transport":
           TLSCertificate.init(SecureCert),
           {TLSFlags.NoVerifyHost, TLSFlags.NoVerifyServerName})
       except Exception: check(false)
-    ),
+
+  commonTransportTest(
+    wsSecureTranspProvider,
     "/ip4/0.0.0.0/tcp/0/wss")
 
   asyncTest "Hostname verification":

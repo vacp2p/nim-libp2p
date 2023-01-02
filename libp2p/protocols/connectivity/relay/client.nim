@@ -20,11 +20,12 @@ import ./relay,
        ./messages,
        ./rconn,
        ./utils,
-       ../../peerinfo,
-       ../../switch,
-       ../../multiaddress,
-       ../../stream/connection
+       ../../../peerinfo,
+       ../../../switch,
+       ../../../multiaddress,
+       ../../../stream/connection
 
+export options
 
 logScope:
   topics = "libp2p relay relay-client"

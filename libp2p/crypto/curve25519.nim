@@ -31,7 +31,6 @@ const
 type
   Curve25519* = object
   Curve25519Key* = array[Curve25519KeySize, byte]
-  pcuchar = ptr char
   Curve25519Error* = enum
     Curver25519GenError
 
@@ -77,7 +76,7 @@ proc mulgen(_: type[Curve25519], dst: var Curve25519Key, point: Curve25519Key) =
       addr rpoint[0],
       Curve25519KeySize,
       EC_curve25519)
-  
+
   assert size == Curve25519KeySize
 
 proc public*(private: Curve25519Key): Curve25519Key =
