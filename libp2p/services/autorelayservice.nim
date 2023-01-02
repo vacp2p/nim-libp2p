@@ -30,13 +30,11 @@ type
     relayPeers: Table[PeerId, Future[void]]
     relayAddresses: Table[PeerId, MultiAddress]
     backingOff: seq[PeerId]
-    reservationFailed: AsyncEvent
     peerAvailable: AsyncEvent
     onReservation: OnReservationHandler
     rng: ref HmacDrbgContext
 
 proc reserveAndUpdate(self: AutoRelayService, relayPid: PeerId, selfPid: PeerId) {.async.} =
-  defer: self.reservationFailed.fire()
   while self.running:
     let
       rsvp = await self.client.reserve(relayPid).wait(chronos.seconds(5))
@@ -51,7 +49,7 @@ proc reserveAndUpdate(self: AutoRelayService, relayPid: PeerId, selfPid: PeerId)
       self.relayAddresses[relayPid] = relayedAddr
       if not self.onReservation.isNil():
         self.onReservation(toSeq(self.relayAddresses.values))
-    await sleepAsync chronos.seconds(max(0, ttl - 30))
+    await sleepAsync chronos.seconds(ttl - 30)
 
 method setup*(self: AutoRelayService, switch: Switch): Future[bool] {.async, gcsafe.} =
   let hasBeenSetUp = await procCall Service(self).setup(switch)
@@ -89,6 +87,7 @@ proc innerRun(self: AutoRelayService, switch: Switch) {.async, gcsafe.} =
         asyncSpawn self.manageBackedOff(k)
 
     # Get all connected relayPeers
+    self.peerAvailable.clear()
     var connectedPeers = switch.connectedPeers(Direction.Out)
     connectedPeers.keepItIf(RelayV2HopCodec in switch.peerStore[ProtoBook][it] and
                             it notin self.relayPeers and
@@ -100,12 +99,10 @@ proc innerRun(self: AutoRelayService, switch: Switch) {.async, gcsafe.} =
         break
       self.relayPeers[relayPid] = self.reserveAndUpdate(relayPid, switch.peerInfo.peerId)
 
-    self.reservationFailed.clear()
-    self.peerAvailable.clear()
-    if self.relayPeers.len() < self.numRelays:
-      await self.reservationFailed.wait() or self.peerAvailable.wait()
+    if self.relayPeers.len() > 0:
+      await one(toSeq(self.relayPeers.values())) or self.peerAvailable.wait()
     else:
-      await self.reservationFailed.wait()
+      await self.peerAvailable.wait()
 
 method run*(self: AutoRelayService, switch: Switch) {.async, gcsafe.} =
   if self.running:
@@ -132,6 +129,5 @@ proc new*(T: typedesc[AutoRelayService],
   T(numRelays: numRelays,
     client: client,
     onReservation: onReservation,
-    reservationFailed: newAsyncEvent(),
     peerAvailable: newAsyncEvent(),
     rng: rng)
