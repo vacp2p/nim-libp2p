@@ -202,7 +202,7 @@ proc broadcast*(
     # Fast path that only encodes message once
     let encoded = encodeRpcMsg(msg, p.anonymize)
     for peer in sendPeers:
-      peer.sendEncoded(encoded)
+      asyncSpawn peer.sendEncoded(encoded)
 
 proc sendSubs*(p: PubSub,
                peer: PubSubPeer,
@@ -307,8 +307,6 @@ proc getOrCreatePeer*(
   # metrics
   libp2p_pubsub_peers.set(p.peers.len.int64)
 
-  pubSubPeer.connect()
-
   return pubSubPeer
 
 proc handleData*(p: PubSub, topic: string, data: seq[byte]): Future[void] =
@@ -382,7 +380,8 @@ method subscribePeer*(p: PubSub, peer: PeerId) {.base, gcsafe.} =
   ## messages
   ##
 
-  discard p.getOrCreatePeer(peer, p.codecs)
+  let pubSubPeer = p.getOrCreatePeer(peer, p.codecs)
+  pubSubPeer.connect()
 
 proc updateTopicMetrics(p: PubSub, topic: string) =
   # metrics
