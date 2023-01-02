@@ -48,6 +48,7 @@ else:
             stream/connection,
             transports/transport,
             transports/tcptransport,
+            transports/quictransport,
             transports/wstransport,
             protocols/secure/noise,
             protocols/ping,

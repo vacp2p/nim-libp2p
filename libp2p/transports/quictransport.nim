@@ -33,7 +33,7 @@ type
     stream: Stream
     cached: seq[byte]
 
-proc new(_: type QuicStream, stream: Stream, oaddr: MultiAddress, peerId: PeerId): QuicStream =
+proc new(_: type QuicStream, stream: Stream, oaddr: Opt[MultiAddress], peerId: PeerId): QuicStream =
   let quicstream = QuicStream(stream: stream, observedAddr: oaddr, peerId: peerId)
   procCall P2PConnection(quicstream).initStream()
   quicstream
@@ -201,9 +201,13 @@ method handles*(transport: QuicTransport, address: MultiAddress): bool =
 method start*(transport: QuicTransport, addrs: seq[MultiAddress]) {.async.} =
   doAssert transport.listener.isNil, "start() already called"
   #TODO handle multiple addr
-  #TODO resolve used address
   transport.listener = listen(initTAddress(addrs[0]).tryGet)
   await procCall Transport(transport).start(addrs)
+  transport.addrs[0] =
+    MultiAddress.init(
+      transport.listener.localAddress(),
+      IPPROTO_UDP
+    ).tryGet() & MultiAddress.init("/quic").get()
   transport.running = true
 
 method stop*(transport: QuicTransport) {.async.} =
@@ -215,11 +219,14 @@ method stop*(transport: QuicTransport) {.async.} =
     transport.running = false
     transport.listener = nil
 
-proc wrapConnection(transport: QuicTransport, connection: QuicConnection): P2PConnection =
-  #TODO currently not exposed from nim-quic
+proc wrapConnection(
+    transport: QuicTransport,
+    connection: QuicConnection): P2PConnection {.raises: [Defect, TransportOsError, LPError].} =
   let
-    observedAddr = MultiAddress.init("/ip4/0.0.0.0/udp/0/quic").get()
-    conres = QuicSession(connection: connection, observedAddr: observedAddr)
+    remoteAddr = connection.remoteAddress()
+    observedAddr =
+      MultiAddress.init(remoteAddr, IPPROTO_UDP).get() & MultiAddress.init("/quic").get()
+    conres = QuicSession(connection: connection, observedAddr: Opt.some(observedAddr))
   conres.initStream()
 
   transport.connections.add(conres)
